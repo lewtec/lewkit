@@ -1,12 +1,14 @@
 package report
 
+import "golang.org/x/sync/errgroup"
+
 var reporters map[string]Reporter
 
 func RegisterReporter(reporter Reporter)
 
 // Reporter something that reports an error (ex: Sentry)
 type Reporter interface {
-	Report(err error)
+	Report(err error) error
 	Name() string
 }
 
@@ -14,9 +16,13 @@ type Reporter interface {
 func Report(err error) {
 	g := new(errgroup.Group)
 	for _, reporter := range reporters {
-		g.Go(reporter.Report)
+		reporter := reporter
+		err := err
+		g.Go(func() error {
+			return reporter.Report(err)
+		})
 	}
-	err := g.Wait()
+	err = g.Wait()
 	if err != nil {
 		panic(err)
 	}
