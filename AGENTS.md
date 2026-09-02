@@ -1,0 +1,2 @@
+- You are not allowed to change files, only research for duplications.
+- Only humans are allowed to manually write things in this repo
