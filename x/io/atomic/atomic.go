@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"uuid"
+
+	"github.com/lewtec/lewkit/report"
 )
 
 type Operation struct {
@@ -56,7 +58,7 @@ func Create(path string, mode os.FileMode) error {
 	op := NewOperation(path, true)
 	defer op.Rollback()
 	f, err := os.Create(op.StagingPath())
-	defer f.Close()
+	defer report.Report(f.Close())
 	if err != nil {
 		return err
 	}

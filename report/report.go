@@ -15,6 +15,9 @@ type Reporter interface {
 
 // Report reports an error to all reporters
 func Report(err error) {
+	if err == nil {
+		return
+	}
 	g := new(errgroup.Group)
 	for _, reporter := range reporters {
 		reporter := reporter
