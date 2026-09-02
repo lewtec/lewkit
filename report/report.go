@@ -2,14 +2,15 @@ package report
 
 import "golang.org/x/sync/errgroup"
 
-var reporters map[string]Reporter
+var reporters []Reporter
 
-func RegisterReporter(reporter Reporter)
+func RegisterReporter(reporter Reporter) {
+	reporters = append(reporters, reporter)
+}
 
 // Reporter something that reports an error (ex: Sentry)
 type Reporter interface {
 	Report(err error) error
-	Name() string
 }
 
 // Report reports an error to all reporters
