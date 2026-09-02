@@ -27,6 +27,11 @@ func (f *completionFuture[T]) State() futureState {
 	return futureState(f.state.Load())
 }
 
+func (f *completionFuture[T]) Tick() bool {
+	f.resolve()
+	return true
+}
+
 func (f *completionFuture[T]) Peek() (v T, err error) {
 	if !f.State().IsResolved() {
 		err = ErrNotResolved
