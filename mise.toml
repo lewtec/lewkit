@@ -15,6 +15,9 @@ run = "workspaced codebase lint"
 [tasks.test]
 run = "go test ./..."
 
+[tasks.codegen]
+depends = ["format"]
+
 [tasks.ci]
 depends = ["test", "lint"]
 
