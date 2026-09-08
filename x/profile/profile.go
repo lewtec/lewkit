@@ -7,6 +7,8 @@ import (
 	"os"
 	"path"
 	"runtime/pprof"
+
+	"github.com/lewtec/lewkit/x/io"
 )
 
 var (
@@ -22,14 +24,14 @@ type Profile struct {
 }
 
 func (p *Profile) file(name string) string {
-	return path.Join(p.outputDirectory, name)
+	return path.Join(p.outputDirectory, fmt.Sprintf("%s.prof", name))
 }
 
 func (p *Profile) Run(ctx context.Context) error {
-	if err := os.Mkdir(p.outputDirectory, 0o755); err != nil {
+	if err := io.Mkdirp(p.outputDirectory); err != nil {
 		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 	}
-	fcpu, err := os.Create(p.file("cpu.prof"))
+	fcpu, err := os.Create(p.file("cpu"))
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 	}
@@ -38,7 +40,7 @@ func (p *Profile) Run(ctx context.Context) error {
 	defer fcpu.Close()
 
 	for _, prof := range pprof.Profiles() {
-		fprof, err := os.Create(p.file(fmt.Sprintf("%s.prof", prof.Name())))
+		fprof, err := os.Create(p.file(prof.Name()))
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 		}
