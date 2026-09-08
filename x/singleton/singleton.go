@@ -16,7 +16,7 @@ func NewSingleton[T any](f func(context.Context) (T, error)) Singleton[T] {
 func NewSingletonFunc[T any](f func(context.Context) (T, error)) func() T {
 	singleton := NewSingleton(f)
 	return func() T {
-		MustGet(singleton, context.Background())
+		return MustGet(singleton, context.Background())
 	}
 }
 
