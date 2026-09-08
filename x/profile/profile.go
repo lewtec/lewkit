@@ -36,16 +36,17 @@ func (p *Profile) Run(ctx context.Context) error {
 		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 	}
 	pprof.StartCPUProfile(fcpu)
-	defer pprof.StopCPUProfile()
 	defer fcpu.Close()
+	defer pprof.StopCPUProfile()
 
 	for _, prof := range pprof.Profiles() {
 		fprof, err := os.Create(p.file(prof.Name()))
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 		}
-		defer prof.WriteTo(fprof, 0)
 		defer fprof.Close()
+		defer prof.WriteTo(fprof, 0)
+
 	}
 	<-ctx.Done()
 	return nil
