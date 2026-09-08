@@ -30,7 +30,7 @@ func NewLineIndex(text string) *LineIndex {
 func NewLineIndexBytes(src []byte) *LineIndex {
 	starts := make([]int, 1, len(src)/40+2)
 	starts[0] = 0
-	for i := 0; i < len(src); i++ {
+	for i := range src {
 		if src[i] == '\n' && i+1 < len(src) {
 			starts = append(starts, i+1)
 		}
