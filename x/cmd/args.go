@@ -12,6 +12,10 @@ var (
 	ErrInvalidArgument = errors.New("invalid argument")
 )
 
+type Valuer[T any] interface {
+	Value() T
+}
+
 type Container[T any] struct {
 	value T
 }

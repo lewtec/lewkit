@@ -22,12 +22,14 @@ func (a *BasicArgs) Run(ctx context.Context) error {
 	}
 	return nil
 }
+
 func TestArgsBasic(t *testing.T) {
 
 	var cmd Command[BasicArgs]
 
-	assert.NoError(t, cmd.Parse("--name", "Lucas", "--idade", "26", "-vvv"))
+	assert.NoError(t, cmd.Parse("--name", "Lucas", "--idade", "26", "-vvv", "leftover", "foo", "bar"))
 	assert.Equal(t, cmd.args.name.Value(), "Lucas")
 	assert.Equal(t, cmd.args.idade.Value(), 26)
 	assert.Equal(t, cmd.args.verbose.Value(), 3)
+	assert.Equal(t, cmd.args.rest, []string{"leftover", "foo", "bar"})
 }
