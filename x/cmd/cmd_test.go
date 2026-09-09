@@ -1,17 +1,28 @@
 package cmd
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestArgsBasic(t *testing.T) {
-	type BasicArgs struct {
-		name    StringArg
-		idade   IntArg[uint]
-		verbose Count `short:"v"`
+type BasicArgs struct {
+	name    StringArg    `long:"name" short:"n"`
+	idade   IntArg[uint] `long:"idade" short:"i"`
+	verbose Count        `short:"v" long:"verbose"` // -vvv or --verbose 3
+	rest    []StringArg  // that means a positional argument
+}
+
+func (a *BasicArgs) Run(ctx context.Context) error {
+	fmt.Printf("name is %s, age is %d", a.name.Value(), a.idade.Value())
+	for _, arg := range a.rest {
+		fmt.Printf("- %s", arg.Value())
 	}
+	return nil
+}
+func TestArgsBasic(t *testing.T) {
 
 	var cmd Command[BasicArgs]
 
