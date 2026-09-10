@@ -276,3 +276,71 @@ func TestFlattenTag(t *testing.T) {
 	assert.True(t, args.force.Value())
 	assert.Equal(t, "x", args.inner.name.Value())
 }
+
+type defaultFlagArgs struct {
+	name  StringArg   `long:"name" default:"Lucas"`
+	port  IntArg[int] `long:"port" default:"8080"`
+	force Flag        `long:"force" default:"true"`
+	level Count       `long:"verbose" short:"v" default:"2"`
+	path  StringArg   `default:"."`
+}
+
+func TestDefaultApplied(t *testing.T) {
+	args, err := Parse[defaultFlagArgs]()
+	require.NoError(t, err)
+	assert.Equal(t, "Lucas", args.name.Value())
+	assert.Equal(t, 8080, args.port.Value())
+	assert.True(t, args.force.Value())
+	assert.Equal(t, 2, args.level.Value())
+	assert.Equal(t, ".", args.path.Value())
+}
+
+func TestDefaultOverridden(t *testing.T) {
+	args, err := Parse[defaultFlagArgs]("--name", "Ada", "--port", "9", "--verbose", "0", "src")
+	require.NoError(t, err)
+	assert.Equal(t, "Ada", args.name.Value())
+	assert.Equal(t, 9, args.port.Value())
+	assert.True(t, args.force.Value())
+	assert.Equal(t, 0, args.level.Value())
+	assert.Equal(t, "src", args.path.Value())
+}
+
+type badDefaultArgs struct {
+	port IntArg[int] `long:"port" default:"nope"`
+}
+
+func TestDefaultInvalid(t *testing.T) {
+	_, err := Parse[badDefaultArgs]()
+	assert.ErrorIs(t, err, ErrInvalidArgument)
+}
+
+type defaultOnRest struct {
+	rest []StringArg `default:"x"`
+}
+
+func TestDefaultOnRest(t *testing.T) {
+	_, err := Parse[defaultOnRest]()
+	assert.ErrorIs(t, err, ErrInvalidSpec)
+}
+
+type defaultOnCmd struct {
+	add *addCmd `default:"1"`
+}
+
+func TestDefaultOnCommand(t *testing.T) {
+	_, err := Parse[defaultOnCmd]()
+	assert.ErrorIs(t, err, ErrInvalidSpec)
+}
+
+type parentDefault struct {
+	name StringArg `long:"name" default:"root"`
+	add  *addCmd
+}
+
+func TestDefaultBeforeSubcommand(t *testing.T) {
+	args, err := Parse[parentDefault]("add", "file")
+	require.NoError(t, err)
+	assert.Equal(t, "root", args.name.Value())
+	require.NotNil(t, args.add)
+	assert.Equal(t, []string{"file"}, Values(args.add.rest))
+}

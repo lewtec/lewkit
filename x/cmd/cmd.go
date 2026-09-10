@@ -9,6 +9,11 @@ type Action[T any] interface {
 	Run(ctx context.Context, args Command[T]) error
 }
 
+// Describer is a command spec that supplies a paragraph for Usage.
+type Describer interface {
+	Description() string
+}
+
 type Command[T any] struct {
 	args T
 }

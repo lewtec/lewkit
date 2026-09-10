@@ -13,10 +13,21 @@ func Usage[T any](name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.usage(name), nil
+	return s.usage(name, descriptionOf[T]()), nil
 }
 
-func (s *spec) usage(name string) string {
+func descriptionOf[T any]() string {
+	var zero T
+	if d, ok := any(&zero).(Describer); ok {
+		return d.Description()
+	}
+	if d, ok := any(zero).(Describer); ok {
+		return d.Description()
+	}
+	return ""
+}
+
+func (s *spec) usage(name, desc string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Usage:\n  %s [flags]", name)
 	if len(s.cmds) > 0 {
@@ -34,6 +45,13 @@ func (s *spec) usage(name string) string {
 		}
 	}
 	b.WriteByte('\n')
+	if desc != "" {
+		b.WriteByte('\n')
+		b.WriteString(desc)
+		if !strings.HasSuffix(desc, "\n") {
+			b.WriteByte('\n')
+		}
+	}
 
 	var flags, cmds, pos []field
 	for _, f := range s.fields {
@@ -46,13 +64,13 @@ func (s *spec) usage(name string) string {
 			flags = append(flags, f)
 		}
 	}
-	writeGroup(&b, "Flags", flags)
-	writeGroup(&b, "Commands", cmds)
-	writeGroup(&b, "Arguments", pos)
+	s.writeGroup(&b, "Flags", flags)
+	s.writeGroup(&b, "Commands", cmds)
+	s.writeGroup(&b, "Arguments", pos)
 	return b.String()
 }
 
-func writeGroup(b *strings.Builder, title string, fields []field) {
+func (s *spec) writeGroup(b *strings.Builder, title string, fields []field) {
 	if len(fields) == 0 {
 		return
 	}
@@ -66,8 +84,46 @@ func writeGroup(b *strings.Builder, title string, fields []field) {
 	}
 	fmt.Fprintf(b, "\n%s:\n", title)
 	for i, f := range fields {
-		fmt.Fprintf(b, "  %-*s  %s\n", width, labels[i], f.help)
+		fmt.Fprintf(b, "  %-*s  %s\n", width, labels[i], s.lineHelp(f))
 	}
+}
+
+func (s *spec) lineHelp(f field) string {
+	help := f.help
+	if help == "" && f.kind == kindCommand {
+		help = firstLine(s.commandDescription(f))
+	}
+	if !f.hasDef {
+		return help
+	}
+	def := "(default: " + f.def + ")"
+	if help == "" {
+		return def
+	}
+	return help + " " + def
+}
+
+func (s *spec) commandDescription(f field) string {
+	t := s.root.FieldByIndex(f.index).Type()
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	ptr := reflect.New(t)
+	if d, ok := ptr.Interface().(Describer); ok {
+		return d.Description()
+	}
+	if d, ok := ptr.Elem().Interface().(Describer); ok {
+		return d.Description()
+	}
+	return ""
+}
+
+func firstLine(s string) string {
+	line, _, found := strings.Cut(s, "\n")
+	if !found {
+		return strings.TrimSpace(s)
+	}
+	return strings.TrimSpace(line)
 }
 
 func usageLabel(f field) string {

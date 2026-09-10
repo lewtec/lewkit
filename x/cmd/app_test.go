@@ -213,3 +213,15 @@ func TestAppRootCommand(t *testing.T) {
 	assert.True(t, app.Args.ran)
 	assert.Equal(t, "x", app.Args.name.Value())
 }
+
+type describedRoot struct{}
+
+func (describedRoot) Description() string {
+	return "inner tool"
+}
+
+func TestAppForwardsDescription(t *testing.T) {
+	text, err := Usage[App[describedRoot]]("lewkit")
+	require.NoError(t, err)
+	assert.Contains(t, text, "inner tool")
+}
