@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
@@ -11,6 +12,6 @@ import (
 func TestRootUsage(t *testing.T) {
 	text, err := cmd.Usage[cmd.App[root]]("lewkit")
 	require.NoError(t, err)
-	assert.Contains(t, text, "Well planned primitives to be used in other projects.")
+	assert.True(t, strings.HasPrefix(text, "Well planned primitives to be used in other projects.\n\nUsage:"))
 	assert.Contains(t, text, "log verbosity (default: 0)")
 }
