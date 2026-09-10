@@ -7,11 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type KV[T any] struct {
-	K StringArg
-	V T
-}
-
 func TestProductPositional(t *testing.T) {
 	type args struct {
 		pair KV[StringArg]
@@ -40,11 +35,7 @@ func TestSeqKV(t *testing.T) {
 	}
 	got, err := Parse[args]("name", "lucas", "age", "26")
 	require.NoError(t, err)
-	require.Len(t, got.pairs, 2)
-	assert.Equal(t, got.pairs[0].K.Value(), "name")
-	assert.Equal(t, got.pairs[0].V.Value(), "lucas")
-	assert.Equal(t, got.pairs[1].K.Value(), "age")
-	assert.Equal(t, got.pairs[1].V.Value(), "26")
+	assert.Equal(t, Map(got.pairs), map[string]string{"name": "lucas", "age": "26"})
 }
 
 func TestSliceKVSameAsSeq(t *testing.T) {
@@ -53,9 +44,11 @@ func TestSliceKVSameAsSeq(t *testing.T) {
 	}
 	got, err := Parse[args]("name", "lucas", "age", "26")
 	require.NoError(t, err)
-	require.Len(t, got.pairs, 2)
-	assert.Equal(t, got.pairs[0].K.Value(), "name")
-	assert.Equal(t, got.pairs[1].V.Value(), "26")
+	assert.Equal(t, Map(got.pairs), map[string]string{"name": "lucas", "age": "26"})
+}
+
+func TestMapEmpty(t *testing.T) {
+	assert.Equal(t, Map([]KV[StringArg](nil)), map[string]string{})
 }
 
 func TestSeqIntProduct(t *testing.T) {
@@ -64,11 +57,7 @@ func TestSeqIntProduct(t *testing.T) {
 	}
 	got, err := Parse[args]("lucas", "26", "ada", "36")
 	require.NoError(t, err)
-	require.Len(t, got.pairs, 2)
-	assert.Equal(t, got.pairs[0].K.Value(), "lucas")
-	assert.Equal(t, got.pairs[0].V.Value(), 26)
-	assert.Equal(t, got.pairs[1].K.Value(), "ada")
-	assert.Equal(t, got.pairs[1].V.Value(), 36)
+	assert.Equal(t, Map(got.pairs), map[string]int{"lucas": 26, "ada": 36})
 }
 
 func TestExactArray(t *testing.T) {
