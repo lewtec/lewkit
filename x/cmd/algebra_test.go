@@ -141,8 +141,8 @@ func TestDashSplitsSeqs(t *testing.T) {
 		paths []string
 	}{
 		{name: "both sides", args: []string{"a", "b", "--", "c", "d"}, packs: []string{"a", "b"}, paths: []string{"c", "d"}},
-		{name: "empty first", args: []string{"--", "."}, paths: []string{"."}},
-		{name: "empty second", args: []string{"a", "--"}, packs: []string{"a"}},
+		{name: "empty first", args: []string{"--", "."}, packs: []string{}, paths: []string{"."}},
+		{name: "empty second", args: []string{"a", "--"}, packs: []string{"a"}, paths: []string{}},
 		{name: "dash looking after", args: []string{"pack", "--", "-still", "pos"}, packs: []string{"pack"}, paths: []string{"-still", "pos"}},
 	}
 	for _, tc := range cases {

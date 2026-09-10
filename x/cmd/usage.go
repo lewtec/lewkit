@@ -44,9 +44,12 @@ func (s *spec) usage(name, desc string) string {
 		fmt.Fprintf(&b, "\n  %s [flags]", name)
 		for _, i := range s.pos {
 			f := s.fields[i]
-			if f.kind == kindRest {
+			switch f.kind {
+			case kindRest:
 				fmt.Fprintf(&b, " [%s...]", positionalName(f))
-			} else {
+			case kindDash:
+				b.WriteString(" --")
+			default:
 				fmt.Fprintf(&b, " <%s>", positionalName(f))
 			}
 		}
@@ -58,7 +61,7 @@ func (s *spec) usage(name, desc string) string {
 		switch f.kind {
 		case kindCommand:
 			cmds = append(cmds, f)
-		case kindPositional, kindRest:
+		case kindPositional, kindRest, kindProduct, kindArray, kindDash:
 			pos = append(pos, f)
 		default:
 			flags = append(flags, f)
@@ -130,8 +133,10 @@ func usageLabel(f field) string {
 	switch f.kind {
 	case kindCommand:
 		return f.cmd
-	case kindPositional, kindRest:
+	case kindPositional, kindRest, kindProduct, kindArray:
 		return positionalName(f)
+	case kindDash:
+		return "--"
 	default:
 		return flagLabel(f)
 	}
