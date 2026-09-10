@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/profile"
-	"github.com/lewtec/lewkit/x/release"
 )
 
 // App holds process-wide flags shared by lewkit commands.
@@ -27,25 +24,32 @@ func (a App) LogLevel() slog.Level {
 	return slog.LevelInfo - slog.Level(4*a.verbose.Value())
 }
 
-// Run handles --help/--version, sets the default slog level, and starts pprof
-// when --profile-dir is set (until ctx is done).
-func (a *App) Run(ctx context.Context) error {
-	switch {
-	case a.help.Value():
-		text, err := Usage[App](filepath.Base(os.Args[0]))
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprint(os.Stdout, text)
-		return err
-	case a.version.Value() || a.versionCmd != nil:
-		_, err := fmt.Fprintln(os.Stdout, release.Version())
-		return err
-	}
+func (a App) Help() bool {
+	return a.help.Value()
+}
+
+func (a App) WantVersion() bool {
+	return a.version.Value() || a.versionCmd != nil
+}
+
+// Setup sets the default slog level and starts the profiler in a goroutine
+// when --profile-dir is set. The profiler stops when ctx is done.
+func (a *App) Setup(ctx context.Context) error {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: a.LogLevel()})))
-	if dir := a.profileDir.Value(); dir != "" {
-		p := profile.NewProfile(dir)
-		return p.Run(ctx)
+	if dir := a.profileDir.Value(); dir == "" {
+		return nil
 	}
+	p := profile.NewProfile(a.profileDir.Value())
+	go func() {
+		if err := p.Run(ctx); err != nil {
+			slog.Error(err.Error())
+		}
+	}()
 	return nil
+}
+
+// Run is Run[App]. Types that embed App should call Run[T] with the outer
+// value so help and command dispatch see the full spec.
+func (a *App) Run(ctx context.Context) error {
+	return Run(ctx, *a)
 }

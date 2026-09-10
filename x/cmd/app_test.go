@@ -9,6 +9,7 @@ import (
 	"runtime/pprof"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/stretchr/testify/assert"
@@ -135,15 +136,60 @@ func TestAppRunProfile(t *testing.T) {
 
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
+	t.Cleanup(cancel)
 
 	app, err := Parse[App]("--profile-dir", dir)
 	require.NoError(t, err)
-	require.NoError(t, app.Run(ctx))
+	require.NoError(t, Run(ctx, app))
 
+	cpu := filepath.Join(dir, "cpu.prof")
+	assert.Eventually(t, func() bool {
+		_, err := os.Stat(cpu)
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
+	cancel()
 	for _, prof := range pprof.Profiles() {
-		stat, err := os.Stat(filepath.Join(dir, prof.Name()+".prof"))
-		require.NoError(t, err)
-		assert.NotZero(t, stat.Size())
+		path := filepath.Join(dir, prof.Name()+".prof")
+		assert.Eventually(t, func() bool {
+			stat, err := os.Stat(path)
+			return err == nil && stat.Size() > 0
+		}, time.Second, 10*time.Millisecond)
 	}
+}
+
+type extendArgs struct {
+	App
+	ping *pingCmd
+}
+
+type pingCmd struct {
+	name StringArg `long:"name"`
+	ran  bool
+}
+
+func (p *pingCmd) Run(context.Context) error {
+	p.ran = true
+	return nil
+}
+
+func TestRunExtended(t *testing.T) {
+	prev := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	args, err := Parse[extendArgs]("ping", "--name", "x")
+	require.NoError(t, err)
+	require.NoError(t, Run(t.Context(), args))
+	require.NotNil(t, args.ping)
+	assert.True(t, args.ping.ran)
+	assert.Equal(t, "x", args.ping.name.Value())
+}
+
+func TestRunExtendedHelp(t *testing.T) {
+	args, err := Parse[extendArgs]("--help")
+	require.NoError(t, err)
+	got := captureStdout(t, func() {
+		require.NoError(t, Run(t.Context(), args))
+	})
+	assert.Contains(t, got, "ping")
+	assert.Contains(t, got, "--verbose")
 }
