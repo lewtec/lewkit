@@ -17,7 +17,7 @@ import (
 )
 
 func TestAppParse(t *testing.T) {
-	args, err := Parse[App]("-vv", "--profile-dir", "/tmp/p")
+	args, err := Parse[App[None]]("-vv", "--profile-dir", "/tmp/p")
 	require.NoError(t, err)
 	assert.Equal(t, 2, args.verbose.Value())
 	assert.Equal(t, "/tmp/p", args.profileDir.Value())
@@ -36,7 +36,7 @@ func TestAppLogLevel(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			args, err := Parse[App](tc.args...)
+			args, err := Parse[App[None]](tc.args...)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, args.LogLevel())
 		})
@@ -45,28 +45,28 @@ func TestAppLogLevel(t *testing.T) {
 
 func TestAppHelpFlag(t *testing.T) {
 	for _, args := range [][]string{{"-h"}, {"--help"}} {
-		app, err := Parse[App](args...)
+		app, err := Parse[App[None]](args...)
 		require.NoError(t, err)
 		assert.True(t, app.help.Value())
 	}
 }
 
 func TestAppVersionFlag(t *testing.T) {
-	app, err := Parse[App]("--version")
+	app, err := Parse[App[None]]("--version")
 	require.NoError(t, err)
 	assert.True(t, app.version.Value())
 	assert.Nil(t, app.versionCmd)
 }
 
 func TestAppVersionCommand(t *testing.T) {
-	app, err := Parse[App]("version")
+	app, err := Parse[App[None]]("version")
 	require.NoError(t, err)
 	assert.False(t, app.version.Value())
 	require.NotNil(t, app.versionCmd)
 }
 
 func TestAppUsage(t *testing.T) {
-	text, err := Usage[App]("lewkit")
+	text, err := Usage[App[None]]("lewkit")
 	require.NoError(t, err)
 	for _, want := range []string{
 		"Usage:",
@@ -83,7 +83,7 @@ func TestAppUsage(t *testing.T) {
 }
 
 func TestAppRunHelp(t *testing.T) {
-	app, err := Parse[App]("--help")
+	app, err := Parse[App[None]]("--help")
 	require.NoError(t, err)
 	got := captureStdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
@@ -97,7 +97,7 @@ func TestAppRunVersion(t *testing.T) {
 	want := release.Version() + "\n"
 	for _, args := range cases {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			app, err := Parse[App](args...)
+			app, err := Parse[App[None]](args...)
 			require.NoError(t, err)
 			got := captureStdout(t, func() {
 				require.NoError(t, app.Run(t.Context()))
@@ -125,7 +125,7 @@ func TestAppRunNoProfile(t *testing.T) {
 	prev := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
-	app, err := Parse[App]("-v")
+	app, err := Parse[App[None]]("-v")
 	require.NoError(t, err)
 	require.NoError(t, app.Run(t.Context()))
 }
@@ -138,9 +138,9 @@ func TestAppRunProfile(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	app, err := Parse[App]("--profile-dir", dir)
+	app, err := Parse[App[None]]("--profile-dir", dir)
 	require.NoError(t, err)
-	require.NoError(t, Run(ctx, app))
+	require.NoError(t, app.Run(ctx))
 
 	cpu := filepath.Join(dir, "cpu.prof")
 	assert.Eventually(t, func() bool {
@@ -157,8 +157,7 @@ func TestAppRunProfile(t *testing.T) {
 	}
 }
 
-type extendArgs struct {
-	App
+type extraCmds struct {
 	ping *pingCmd
 }
 
@@ -172,24 +171,45 @@ func (p *pingCmd) Run(context.Context) error {
 	return nil
 }
 
-func TestRunExtended(t *testing.T) {
+func TestAppInnerCommand(t *testing.T) {
 	prev := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
-	args, err := Parse[extendArgs]("ping", "--name", "x")
+	app, err := Parse[App[extraCmds]]("ping", "--name", "x")
 	require.NoError(t, err)
-	require.NoError(t, Run(t.Context(), args))
-	require.NotNil(t, args.ping)
-	assert.True(t, args.ping.ran)
-	assert.Equal(t, "x", args.ping.name.Value())
+	require.NoError(t, app.Run(t.Context()))
+	require.NotNil(t, app.Args.ping)
+	assert.True(t, app.Args.ping.ran)
+	assert.Equal(t, "x", app.Args.ping.name.Value())
 }
 
-func TestRunExtendedHelp(t *testing.T) {
-	args, err := Parse[extendArgs]("--help")
+func TestAppInnerHelp(t *testing.T) {
+	app, err := Parse[App[extraCmds]]("--help")
 	require.NoError(t, err)
 	got := captureStdout(t, func() {
-		require.NoError(t, Run(t.Context(), args))
+		require.NoError(t, app.Run(t.Context()))
 	})
 	assert.Contains(t, got, "ping")
 	assert.Contains(t, got, "--verbose")
+}
+
+type rootCmd struct {
+	name StringArg `long:"name"`
+	ran  bool
+}
+
+func (r *rootCmd) Run(context.Context) error {
+	r.ran = true
+	return nil
+}
+
+func TestAppRootCommand(t *testing.T) {
+	prev := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	app, err := Parse[App[rootCmd]]("--name", "x")
+	require.NoError(t, err)
+	require.NoError(t, app.Run(t.Context()))
+	assert.True(t, app.Args.ran)
+	assert.Equal(t, "x", app.Args.name.Value())
 }

@@ -260,3 +260,19 @@ func TestCommandMixPositional(t *testing.T) {
 	_, err := Parse[mixedArgs]("add")
 	assert.ErrorIs(t, err, ErrInvalidSpec)
 }
+
+type flattenInner struct {
+	name StringArg `long:"name"`
+}
+
+type flattenOuter struct {
+	force Flag         `long:"force"`
+	inner flattenInner `flatten:""`
+}
+
+func TestFlattenTag(t *testing.T) {
+	args, err := Parse[flattenOuter]("--force", "--name", "x")
+	require.NoError(t, err)
+	assert.True(t, args.force.Value())
+	assert.Equal(t, "x", args.inner.name.Value())
+}
