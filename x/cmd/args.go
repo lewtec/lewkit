@@ -121,3 +121,10 @@ var (
 	_ Counter      = (*Count)(nil)
 	_ Valuer[bool] = (*Flag)(nil)
 )
+
+// Seq is a greedy positional list of T (zero or more). An untagged []T field
+// is the same combinator.
+type Seq[T any] []T
+
+// Dash consumes a "--" token and splits the consumers around it.
+type Dash struct{}
