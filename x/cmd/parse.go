@@ -26,6 +26,7 @@ type field struct {
 	long  string
 	short rune
 	cmd   string
+	help  string
 }
 
 type spec struct {
@@ -147,7 +148,7 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		return field{}, false, err
 	}
 	tagged := long != "" || short != 0
-	f := field{index: sf.Index, long: long, short: short}
+	f := field{index: sf.Index, long: long, short: short, help: sf.Tag.Get("help")}
 
 	if fv.Kind() == reflect.Slice {
 		if !(rvalue{reflect.New(fv.Type().Elem())}).hasParse() {
