@@ -64,8 +64,8 @@ func (s *spec) usage(name, desc string) string {
 			flags = append(flags, f)
 		}
 	}
-	s.writeGroup(&b, "Flags", flags)
 	s.writeGroup(&b, "Commands", cmds)
+	s.writeGroup(&b, "Flags", flags)
 	s.writeGroup(&b, "Arguments", pos)
 	return b.String()
 }
