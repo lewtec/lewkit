@@ -158,3 +158,105 @@ func TestRepeatable(t *testing.T) {
 	require.NoError(t, cmd.Parse("--tag", "a", "-t", "b", "--tag=c"))
 	assert.Equal(t, Values(cmd.args.tag), []string{"a", "b", "c"})
 }
+
+type globals struct {
+	verbose Count `short:"v" long:"verbose"`
+}
+
+type addCmd struct {
+	globals
+	name StringArg `long:"name"`
+	rest []StringArg
+}
+
+type rmCmd struct {
+	path StringArg
+}
+
+type appArgs struct {
+	globals
+	add *addCmd
+	rm  *rmCmd
+}
+
+func TestSubcommandParentFlag(t *testing.T) {
+	args, err := Parse[appArgs]("-v", "add", "--name", "x", "file")
+	require.NoError(t, err)
+	assert.Equal(t, args.verbose.Value(), 1)
+	require.NotNil(t, args.add)
+	assert.Nil(t, args.rm)
+	assert.Equal(t, args.add.name.Value(), "x")
+	assert.Equal(t, Values(args.add.rest), []string{"file"})
+	assert.Equal(t, args.add.verbose.Value(), 0)
+}
+
+func TestSubcommandChildFlag(t *testing.T) {
+	args, err := Parse[appArgs]("add", "-v", "--name", "x")
+	require.NoError(t, err)
+	assert.Equal(t, args.verbose.Value(), 0)
+	require.NotNil(t, args.add)
+	assert.Equal(t, args.add.verbose.Value(), 1)
+	assert.Equal(t, args.add.name.Value(), "x")
+}
+
+func TestSubcommandRm(t *testing.T) {
+	args, err := Parse[appArgs]("rm", "gone")
+	require.NoError(t, err)
+	require.NotNil(t, args.rm)
+	assert.Nil(t, args.add)
+	assert.Equal(t, args.rm.path.Value(), "gone")
+}
+
+func TestSubcommandOnlyParent(t *testing.T) {
+	args, err := Parse[appArgs]("-vv")
+	require.NoError(t, err)
+	assert.Equal(t, args.verbose.Value(), 2)
+	assert.Nil(t, args.add)
+	assert.Nil(t, args.rm)
+}
+
+func TestSubcommandUnknown(t *testing.T) {
+	_, err := Parse[appArgs]("nope")
+	assert.ErrorIs(t, err, ErrUnknownCommand)
+}
+
+type plusApp struct {
+	plus *addCmd `cmd:"plus"`
+}
+
+func TestSubcommandTag(t *testing.T) {
+	args, err := Parse[plusApp]("plus", "--name", "n")
+	require.NoError(t, err)
+	require.NotNil(t, args.plus)
+	assert.Equal(t, args.plus.name.Value(), "n")
+}
+
+type nestedInner struct {
+	name StringArg `long:"name"`
+}
+
+type nestedMid struct {
+	inner *nestedInner
+}
+
+type nestedApp struct {
+	mid *nestedMid
+}
+
+func TestNestedSubcommand(t *testing.T) {
+	args, err := Parse[nestedApp]("mid", "inner", "--name", "z")
+	require.NoError(t, err)
+	require.NotNil(t, args.mid)
+	require.NotNil(t, args.mid.inner)
+	assert.Equal(t, args.mid.inner.name.Value(), "z")
+}
+
+type mixedArgs struct {
+	add  *addCmd
+	rest []StringArg
+}
+
+func TestCommandMixPositional(t *testing.T) {
+	_, err := Parse[mixedArgs]("add")
+	assert.ErrorIs(t, err, ErrInvalidSpec)
+}

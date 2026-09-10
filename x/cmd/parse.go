@@ -17,6 +17,7 @@ const (
 	kindPositional
 	kindRest
 	kindRepeat
+	kindCommand
 )
 
 type field struct {
@@ -24,6 +25,7 @@ type field struct {
 	kind  fieldKind
 	long  string
 	short rune
+	cmd   string
 }
 
 type spec struct {
@@ -31,6 +33,7 @@ type spec struct {
 	fields []field
 	longs  map[string]int
 	shorts map[rune]int
+	cmds   map[string]int
 	pos    []int
 }
 
@@ -59,31 +62,82 @@ func newSpec(root reflect.Value) (*spec, error) {
 		root:   root,
 		longs:  make(map[string]int),
 		shorts: make(map[rune]int),
+		cmds:   make(map[string]int),
 	}
-	t := root.Type()
-	for i := range t.NumField() {
-		sf := t.Field(i)
-		fv := root.Field(i)
-		if !fv.CanAddr() {
-			continue
-		}
-		f, ok, err := newField(sf, fv)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		if err := s.add(f); err != nil {
-			return nil, err
-		}
+	if err := s.addStruct(root, nil); err != nil {
+		return nil, err
 	}
 	for i, idx := range s.pos {
 		if s.fields[idx].kind == kindRest && i != len(s.pos)-1 {
 			return nil, fmt.Errorf("%w: rest positional must be last", ErrInvalidSpec)
 		}
 	}
+	if len(s.cmds) > 0 && len(s.pos) > 0 {
+		return nil, fmt.Errorf("%w: command cannot mix with positionals", ErrInvalidSpec)
+	}
 	return s, nil
+}
+
+func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
+	t := rv.Type()
+	for i := range t.NumField() {
+		sf := t.Field(i)
+		fv := rv.Field(i)
+		if !fv.CanAddr() {
+			continue
+		}
+		index := append(append([]int(nil), prefix...), i)
+		if sf.Anonymous && shouldFlatten(fv) {
+			ev, err := derefStruct(fv)
+			if err != nil {
+				return err
+			}
+			if err := s.addStruct(ev, index); err != nil {
+				return err
+			}
+			continue
+		}
+		f, ok, err := newField(sf, fv)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		f.index = index
+		if err := s.add(f); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func shouldFlatten(fv reflect.Value) bool {
+	v := fv
+	if v.Kind() == reflect.Pointer {
+		if v.Type().Elem().Kind() != reflect.Struct {
+			return false
+		}
+		if v.IsNil() {
+			v = reflect.New(v.Type().Elem())
+		}
+	} else if v.Kind() != reflect.Struct {
+		return false
+	}
+	rv := rvalue{v}
+	return !rv.hasParse() && !rv.hasCount()
+}
+
+func derefStruct(fv reflect.Value) (reflect.Value, error) {
+	if fv.Kind() != reflect.Pointer {
+		return fv, nil
+	}
+	if fv.IsNil() {
+		slot := rvalue{fv}.settable()
+		slot.Set(reflect.New(fv.Type().Elem()))
+		fv = slot
+	}
+	return fv.Elem(), nil
 }
 
 func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
@@ -104,6 +158,12 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		} else {
 			f.kind = kindRest
 		}
+		return f, true, nil
+	}
+
+	if cmd, ok := commandName(sf, fv); ok {
+		f.kind = kindCommand
+		f.cmd = cmd
 		return f, true, nil
 	}
 
@@ -156,6 +216,12 @@ func (s *spec) add(f field) error {
 		}
 		s.shorts[f.short] = idx
 	}
+	if f.kind == kindCommand {
+		if _, ok := s.cmds[f.cmd]; ok {
+			return fmt.Errorf("%w: duplicate command %s", ErrInvalidSpec, f.cmd)
+		}
+		s.cmds[f.cmd] = idx
+	}
 	if f.kind == kindPositional || f.kind == kindRest {
 		if len(s.pos) > 0 && s.fields[s.pos[len(s.pos)-1]].kind == kindRest {
 			return fmt.Errorf("%w: rest positional must be last", ErrInvalidSpec)
@@ -172,6 +238,9 @@ func (s *spec) parse(args []string) error {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if a == "--" {
+			if len(s.cmds) > 0 {
+				return s.feedCommand(args[i+1:], counts)
+			}
 			return s.feedPositionals(args[i+1:], &posi, counts)
 		}
 		if isOption(a) {
@@ -190,11 +259,54 @@ func (s *spec) parse(args []string) error {
 			i = next
 			continue
 		}
+		if len(s.cmds) > 0 {
+			return s.takeCommand(a, args[i+1:], counts)
+		}
 		if err := s.feedOne(a, &posi); err != nil {
 			return err
 		}
 	}
 	return s.applyCounts(counts)
+}
+
+func (s *spec) feedCommand(args []string, counts []int) error {
+	if len(args) == 0 {
+		return s.applyCounts(counts)
+	}
+	return s.takeCommand(args[0], args[1:], counts)
+}
+
+func (s *spec) takeCommand(name string, rest []string, counts []int) error {
+	fi, ok := s.cmds[name]
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownCommand, name)
+	}
+	if err := s.applyCounts(counts); err != nil {
+		return err
+	}
+	fv := s.root.FieldByIndex(s.fields[fi].index)
+	slot := rvalue{fv}.settable()
+	if slot.Kind() != reflect.Pointer || slot.Type().Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("%w: command must be a pointer to struct", ErrInvalidSpec)
+	}
+	if slot.IsNil() {
+		slot.Set(reflect.New(slot.Type().Elem()))
+	}
+	return parseArgs(slot.Elem(), rest)
+}
+
+func commandName(sf reflect.StructField, fv reflect.Value) (string, bool) {
+	if fv.Kind() != reflect.Pointer || fv.Type().Elem().Kind() != reflect.Struct {
+		return "", false
+	}
+	elem := reflect.New(fv.Type().Elem())
+	if (rvalue{elem}).hasParse() || (rvalue{elem}).hasCount() {
+		return "", false
+	}
+	if name := sf.Tag.Get("cmd"); name != "" {
+		return name, true
+	}
+	return strings.ToLower(sf.Name), true
 }
 
 func (s *spec) parseLong(a string, args []string, i int, counts []int) (int, error) {
@@ -382,6 +494,10 @@ func (v rvalue) ptr() rvalue {
 		return v
 	}
 	return rvalue{reflect.NewAt(v.Type(), v.Addr().UnsafePointer())}
+}
+
+func (v rvalue) settable() reflect.Value {
+	return reflect.NewAt(v.Type(), v.Addr().UnsafePointer()).Elem()
 }
 
 func (v rvalue) hasParse() bool {

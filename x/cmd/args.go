@@ -13,6 +13,7 @@ var (
 	ErrUnknownFlag     = errors.New("unknown flag")
 	ErrMissingValue    = errors.New("missing value")
 	ErrInvalidSpec     = errors.New("invalid command spec")
+	ErrUnknownCommand  = errors.New("unknown command")
 )
 
 type Parser interface {
