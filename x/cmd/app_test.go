@@ -81,6 +81,7 @@ func TestAppUsage(t *testing.T) {
 	} {
 		assert.Contains(t, text, want)
 	}
+	assert.Less(t, strings.Index(text, "Commands:"), strings.Index(text, "Flags:"))
 }
 
 func TestAppRunHelp(t *testing.T) {
