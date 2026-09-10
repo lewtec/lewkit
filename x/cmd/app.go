@@ -22,7 +22,8 @@ type App[T any] struct {
 	help       Flag        `short:"h" long:"help" help:"show help"`
 	version    Flag        `long:"version" help:"print version"`
 	versionCmd *versionCmd `cmd:"version" help:"print version"`
-	Args       T           `flatten:""`
+	// Cannot embed T: embedded field type cannot be a type parameter.
+	Args T `flatten:""`
 }
 
 type versionCmd struct{}
