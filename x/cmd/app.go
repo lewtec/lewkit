@@ -36,6 +36,10 @@ func (a App[T]) Help() bool {
 	return a.help.Value()
 }
 
+func (a App[T]) Description() string {
+	return descriptionOf[T]()
+}
+
 func (a App[T]) WantVersion() bool {
 	return a.version.Value() || a.versionCmd != nil
 }

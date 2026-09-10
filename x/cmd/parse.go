@@ -21,12 +21,14 @@ const (
 )
 
 type field struct {
-	index []int
-	kind  fieldKind
-	long  string
-	short rune
-	cmd   string
-	help  string
+	index  []int
+	kind   fieldKind
+	long   string
+	short  rune
+	cmd    string
+	help   string
+	def    string
+	hasDef bool
 }
 
 type spec struct {
@@ -36,6 +38,7 @@ type spec struct {
 	shorts map[rune]int
 	cmds   map[string]int
 	pos    []int
+	set    []bool
 }
 
 func parseArgs(root reflect.Value, args []string) error {
@@ -150,10 +153,17 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 	}
 	tagged := long != "" || short != 0
 	f := field{index: sf.Index, long: long, short: short, help: sf.Tag.Get("help")}
+	if d, ok := sf.Tag.Lookup("default"); ok {
+		f.def = d
+		f.hasDef = true
+	}
 
 	if fv.Kind() == reflect.Slice {
 		if !(rvalue{reflect.New(fv.Type().Elem())}).hasParse() {
 			return field{}, false, nil
+		}
+		if f.hasDef {
+			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
 		}
 		if tagged {
 			f.kind = kindRepeat
@@ -164,6 +174,9 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 	}
 
 	if cmd, ok := commandName(sf, fv); ok {
+		if f.hasDef {
+			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		}
 		f.kind = kindCommand
 		f.cmd = cmd
 		return f, true, nil
@@ -235,6 +248,7 @@ func (s *spec) add(f field) error {
 }
 
 func (s *spec) parse(args []string) error {
+	s.set = make([]bool, len(s.fields))
 	counts := make([]int, len(s.fields))
 	posi := 0
 	for i := 0; i < len(args); i++ {
@@ -268,12 +282,12 @@ func (s *spec) parse(args []string) error {
 			return err
 		}
 	}
-	return s.applyCounts(counts)
+	return s.finish(counts)
 }
 
 func (s *spec) feedCommand(args []string, counts []int) error {
 	if len(args) == 0 {
-		return s.applyCounts(counts)
+		return s.finish(counts)
 	}
 	return s.takeCommand(args[0], args[1:], counts)
 }
@@ -283,7 +297,7 @@ func (s *spec) takeCommand(name string, rest []string, counts []int) error {
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownCommand, name)
 	}
-	if err := s.applyCounts(counts); err != nil {
+	if err := s.finish(counts); err != nil {
 		return err
 	}
 	fv := s.root.FieldByIndex(s.fields[fi].index)
@@ -339,7 +353,7 @@ func (s *spec) parseShorts(a string, args []string, i int, counts []int) (int, e
 			j += size
 		case kindEither:
 			if rest != "" && rest[0] == '=' {
-				if err := s.setValue(f, rest[1:]); err != nil {
+				if err := s.setValueAt(fi, rest[1:]); err != nil {
 					return i, err
 				}
 				return i, nil
@@ -351,12 +365,12 @@ func (s *spec) parseShorts(a string, args []string, i int, counts []int) (int, e
 				if rest[0] == '=' {
 					rest = rest[1:]
 				}
-				return i, s.setValue(f, rest)
+				return i, s.setValueAt(fi, rest)
 			}
 			if i+1 >= len(args) {
 				return i, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
 			}
-			return i + 1, s.setValue(f, args[i+1])
+			return i + 1, s.setValueAt(fi, args[i+1])
 		default:
 			return i, fmt.Errorf("%w: %s is not a flag", ErrInvalidArgument, f.display())
 		}
@@ -375,10 +389,10 @@ func (s *spec) applyOption(fi int, val string, hasVal bool, args []string, i int
 		return i, nil
 	case kindEither:
 		if hasVal {
-			return i, s.setValue(f, val)
+			return i, s.setValueAt(fi, val)
 		}
 		if v, ok := optionalCountValue(args, i); ok {
-			return i + 1, s.setValue(f, v)
+			return i + 1, s.setValueAt(fi, v)
 		}
 		counts[fi]++
 		return i, nil
@@ -387,9 +401,9 @@ func (s *spec) applyOption(fi int, val string, hasVal bool, args []string, i int
 			if i+1 >= len(args) {
 				return i, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
 			}
-			return i + 1, s.setValue(f, args[i+1])
+			return i + 1, s.setValueAt(fi, args[i+1])
 		}
-		return i, s.setValue(f, val)
+		return i, s.setValueAt(fi, val)
 	default:
 		return i, fmt.Errorf("%w: %s is not a flag", ErrInvalidArgument, f.display())
 	}
@@ -411,21 +425,28 @@ func (s *spec) feedPositionals(args []string, posi *int, counts []int) error {
 			return err
 		}
 	}
-	return s.applyCounts(counts)
+	return s.finish(counts)
 }
 
 func (s *spec) feedOne(a string, posi *int) error {
 	if *posi >= len(s.pos) {
 		return fmt.Errorf("%w: unexpected argument %q", ErrInvalidArgument, a)
 	}
-	f := s.fields[s.pos[*posi]]
-	if err := s.setValue(f, a); err != nil {
+	fi := s.pos[*posi]
+	if err := s.setValueAt(fi, a); err != nil {
 		return err
 	}
-	if f.kind != kindRest {
+	if s.fields[fi].kind != kindRest {
 		*posi++
 	}
 	return nil
+}
+
+func (s *spec) finish(counts []int) error {
+	if err := s.applyCounts(counts); err != nil {
+		return err
+	}
+	return s.applyDefaults()
 }
 
 func (s *spec) applyCounts(counts []int) error {
@@ -436,7 +457,54 @@ func (s *spec) applyCounts(counts []int) error {
 		if err := s.callCount(s.fields[i], n); err != nil {
 			return err
 		}
+		s.mark(i)
 	}
+	return nil
+}
+
+func (s *spec) applyDefaults() error {
+	for i, f := range s.fields {
+		if !f.hasDef || s.set[i] {
+			continue
+		}
+		if err := s.applyDefault(f); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *spec) applyDefault(f field) error {
+	if f.kind == kindSwitch {
+		on, err := strconv.ParseBool(f.def)
+		if err != nil {
+			return fmt.Errorf("default %s: %w", f.display(), ErrInvalidArgument)
+		}
+		if !on {
+			return nil
+		}
+		if err := s.callCount(f, 1); err != nil {
+			return fmt.Errorf("default %s: %w", f.display(), err)
+		}
+		return nil
+	}
+	if err := s.setValue(f, f.def); err != nil {
+		return fmt.Errorf("default %w", err)
+	}
+	return nil
+}
+
+func (s *spec) mark(fi int) {
+	if s.set != nil {
+		s.set[fi] = true
+	}
+}
+
+func (s *spec) setValueAt(fi int, val string) error {
+	if err := s.setValue(s.fields[fi], val); err != nil {
+		return err
+	}
+	s.mark(fi)
 	return nil
 }
 
