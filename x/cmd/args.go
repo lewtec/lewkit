@@ -36,14 +36,20 @@ func Values[T any, A Valuer[T]](in []A) []T {
 	return out
 }
 
-// KV is a key/value product: one string key, then a value of type T.
-type KV[T any] struct {
+// Arg is a parseable value (Parse + Value). Only arg types implement it.
+type Arg[T any] interface {
+	Parse(string) error
+	Value() T
+}
+
+// KV is a key/value product. V is an arg, e.g. *StringArg or *IntArg[int].
+type KV[T any, V Arg[T]] struct {
 	K StringArg
-	V T
+	V V
 }
 
 // Map extracts keys and Value()s from a slice (or Seq) of KV.
-func Map[T any, A Valuer[T], S ~[]KV[A]](in S) map[string]T {
+func Map[T any, V Arg[T], S ~[]KV[T, V]](in S) map[string]T {
 	out := make(map[string]T, len(in))
 	for _, kv := range in {
 		out[kv.K.Value()] = kv.V.Value()
@@ -135,6 +141,9 @@ var (
 	_ Counter      = (*Flag)(nil)
 	_ Counter      = (*Count)(nil)
 	_ Valuer[bool] = (*Flag)(nil)
+	_ Arg[string]  = (*StringArg)(nil)
+	_ Arg[int]     = (*IntArg[int])(nil)
+	_ Arg[int]     = (*Count)(nil)
 )
 
 // Seq is a greedy positional list of T (zero or more). An untagged []T field
