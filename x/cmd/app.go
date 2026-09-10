@@ -21,11 +21,8 @@ type App[T any] struct {
 	profileDir StringArg   `long:"profile-dir" help:"write pprof profiles here"`
 	help       Flag        `short:"h" long:"help" help:"show help"`
 	version    Flag        `long:"version" help:"print version"`
-	versionCmd *versionCmd `cmd:"version" help:"print version"`
 	Args       T           `flatten:""`
 }
-
-type versionCmd struct{}
 
 // LogLevel is slog.LevelInfo minus 4 for each -v/--verbose count.
 func (a App[T]) LogLevel() slog.Level {
@@ -41,7 +38,7 @@ func (a App[T]) Description() string {
 }
 
 func (a App[T]) WantVersion() bool {
-	return a.version.Value() || a.versionCmd != nil
+	return a.version.Value()
 }
 
 // Setup sets the default slog level and starts the profiler in a goroutine

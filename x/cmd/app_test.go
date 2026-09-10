@@ -55,14 +55,12 @@ func TestAppVersionFlag(t *testing.T) {
 	app, err := Parse[App[None]]("--version")
 	require.NoError(t, err)
 	assert.True(t, app.version.Value())
-	assert.Nil(t, app.versionCmd)
 }
 
 func TestAppVersionCommand(t *testing.T) {
 	app, err := Parse[App[None]]("version")
 	require.NoError(t, err)
 	assert.False(t, app.version.Value())
-	require.NotNil(t, app.versionCmd)
 }
 
 func TestAppUsage(t *testing.T) {
