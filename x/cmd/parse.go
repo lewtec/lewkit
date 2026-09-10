@@ -123,9 +123,6 @@ func (s *spec) checkPos() error {
 	for _, idx := range s.pos {
 		switch s.fields[idx].kind {
 		case kindRest:
-			if greedy {
-				return fmt.Errorf("%w: rest positional must be last", ErrInvalidSpec)
-			}
 			greedy = true
 		case kindDash:
 			greedy = false
@@ -423,7 +420,15 @@ func (s *spec) parse(args []string) error {
 }
 
 func (s *spec) nextIsDash(posi int) bool {
-	return posi+1 < len(s.pos) && s.fields[s.pos[posi+1]].kind == kindDash
+	if posi+1 >= len(s.pos) {
+		return false
+	}
+	switch s.fields[s.pos[posi+1]].kind {
+	case kindDash, kindRest:
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *spec) takePos(posi int, args []string, mode consumeMode) (int, error) {
