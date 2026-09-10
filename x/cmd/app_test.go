@@ -73,6 +73,7 @@ func TestAppUsage(t *testing.T) {
 		"lewkit <command> [args]",
 		"-h, --help",
 		"-v, --verbose",
+		"log verbosity (default: 0)",
 		"--profile-dir",
 		"--version",
 		"Commands:",
