@@ -36,6 +36,21 @@ func Values[T any, A Valuer[T]](in []A) []T {
 	return out
 }
 
+// KV is a key/value product: one string key, then a value of type T.
+type KV[T any] struct {
+	K StringArg
+	V T
+}
+
+// Map extracts keys and Value()s from a slice (or Seq) of KV.
+func Map[T any, A Valuer[T], S ~[]KV[A]](in S) map[string]T {
+	out := make(map[string]T, len(in))
+	for _, kv := range in {
+		out[kv.K.Value()] = kv.V.Value()
+	}
+	return out
+}
+
 type Container[T any] struct {
 	value T
 }
