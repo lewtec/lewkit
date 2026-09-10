@@ -29,6 +29,13 @@ func descriptionOf[T any]() string {
 
 func (s *spec) usage(name, desc string) string {
 	var b strings.Builder
+	if desc != "" {
+		b.WriteString(desc)
+		if !strings.HasSuffix(desc, "\n") {
+			b.WriteByte('\n')
+		}
+		b.WriteByte('\n')
+	}
 	fmt.Fprintf(&b, "Usage:\n  %s [flags]", name)
 	if len(s.cmds) > 0 {
 		fmt.Fprintf(&b, "\n  %s <command> [args]", name)
@@ -45,13 +52,6 @@ func (s *spec) usage(name, desc string) string {
 		}
 	}
 	b.WriteByte('\n')
-	if desc != "" {
-		b.WriteByte('\n')
-		b.WriteString(desc)
-		if !strings.HasSuffix(desc, "\n") {
-			b.WriteByte('\n')
-		}
-	}
 
 	var flags, cmds, pos []field
 	for _, f := range s.fields {

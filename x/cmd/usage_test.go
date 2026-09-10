@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func (greetCmd) Description() string {
 func TestUsageDescription(t *testing.T) {
 	text, err := Usage[greetCmd]("greet")
 	require.NoError(t, err)
-	assert.Contains(t, text, "say hello")
+	assert.True(t, strings.HasPrefix(text, "say hello\n\nUsage:"))
 }
 
 type listedCmd struct{}
