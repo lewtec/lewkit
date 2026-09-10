@@ -19,9 +19,9 @@ func main() {
 func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-	app, err := cmd.Parse[cmd.App](os.Args[1:]...)
+	app, err := cmd.Parse[cmd.App[cmd.None]](os.Args[1:]...)
 	if err != nil {
 		return err
 	}
-	return cmd.Run(ctx, app)
+	return app.Run(ctx)
 }

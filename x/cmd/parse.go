@@ -88,7 +88,8 @@ func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
 			continue
 		}
 		index := append(append([]int(nil), prefix...), i)
-		if sf.Anonymous && shouldFlatten(fv) {
+		_, flatten := sf.Tag.Lookup("flatten")
+		if (sf.Anonymous || flatten) && shouldFlatten(fv) {
 			ev, err := derefStruct(fv)
 			if err != nil {
 				return err
