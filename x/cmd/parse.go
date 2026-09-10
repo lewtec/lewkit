@@ -18,17 +18,22 @@ const (
 	kindRest
 	kindRepeat
 	kindCommand
+	kindProduct
+	kindArray
+	kindDash
 )
 
 type field struct {
-	index  []int
-	kind   fieldKind
-	long   string
-	short  rune
-	cmd    string
-	help   string
-	def    string
-	hasDef bool
+	index    []int
+	kind     fieldKind
+	long     string
+	short    rune
+	cmd      string
+	help     string
+	def      string
+	hasDef   bool
+	optional bool
+	maybePos bool
 }
 
 type spec struct {
@@ -71,15 +76,66 @@ func newSpec(root reflect.Value) (*spec, error) {
 	if err := s.addStruct(root, nil); err != nil {
 		return nil, err
 	}
-	for i, idx := range s.pos {
-		if s.fields[idx].kind == kindRest && i != len(s.pos)-1 {
-			return nil, fmt.Errorf("%w: rest positional must be last", ErrInvalidSpec)
-		}
-	}
-	if len(s.cmds) > 0 && len(s.pos) > 0 {
-		return nil, fmt.Errorf("%w: command cannot mix with positionals", ErrInvalidSpec)
+	if err := s.finalize(); err != nil {
+		return nil, err
 	}
 	return s, nil
+}
+
+func (s *spec) finalize() error {
+	hasPos := false
+	for _, f := range s.fields {
+		if isPosKind(f.kind) {
+			hasPos = true
+			break
+		}
+	}
+	if hasPos {
+		for i := range s.fields {
+			f := &s.fields[i]
+			if !f.maybePos {
+				continue
+			}
+			delete(s.cmds, f.cmd)
+			f.kind = kindProduct
+			f.optional = true
+			f.cmd = ""
+			f.maybePos = false
+		}
+	}
+	s.pos = s.pos[:0]
+	for i, f := range s.fields {
+		if isPosKind(f.kind) {
+			s.pos = append(s.pos, i)
+		}
+	}
+	if err := s.checkPos(); err != nil {
+		return err
+	}
+	if len(s.cmds) > 0 && len(s.pos) > 0 {
+		return fmt.Errorf("%w: command cannot mix with positionals", ErrInvalidSpec)
+	}
+	return nil
+}
+
+func (s *spec) checkPos() error {
+	greedy := false
+	for _, idx := range s.pos {
+		switch s.fields[idx].kind {
+		case kindRest:
+			if greedy {
+				return fmt.Errorf("%w: rest positional must be last", ErrInvalidSpec)
+			}
+			greedy = true
+		case kindDash:
+			greedy = false
+		default:
+			if greedy {
+				return fmt.Errorf("%w: rest positional must be last", ErrInvalidSpec)
+			}
+		}
+	}
+	return nil
 }
 
 func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
@@ -158,8 +214,24 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		f.hasDef = true
 	}
 
+	if isDashType(fv.Type()) {
+		if f.hasDef {
+			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		}
+		f.kind = kindDash
+		return f, true, nil
+	}
+	if fv.Kind() == reflect.Pointer && isDashType(fv.Type().Elem()) {
+		if f.hasDef {
+			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		}
+		f.kind = kindDash
+		f.optional = true
+		return f, true, nil
+	}
+
 	if fv.Kind() == reflect.Slice {
-		if !(rvalue{reflect.New(fv.Type().Elem())}).hasParse() {
+		if !isConsumable(fv.Type().Elem()) {
 			return field{}, false, nil
 		}
 		if f.hasDef {
@@ -173,12 +245,50 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		return f, true, nil
 	}
 
+	if fv.Kind() == reflect.Array {
+		if !isConsumable(fv.Type().Elem()) {
+			return field{}, false, nil
+		}
+		if f.hasDef {
+			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		}
+		f.kind = kindArray
+		return f, true, nil
+	}
+
 	if cmd, ok := commandName(sf, fv); ok {
 		if f.hasDef {
 			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
 		}
 		f.kind = kindCommand
 		f.cmd = cmd
+		if sf.Tag.Get("cmd") == "" && !structHasCommandBits(fv.Type().Elem()) && isProduct(fv.Type().Elem()) {
+			f.maybePos = true
+		}
+		return f, true, nil
+	}
+
+	if fv.Kind() == reflect.Struct && isProduct(fv.Type()) {
+		if f.hasDef {
+			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		}
+		f.kind = kindProduct
+		return f, true, nil
+	}
+
+	if fv.Kind() == reflect.Pointer && !tagged && isConsumable(fv.Type().Elem()) {
+		if f.hasDef {
+			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		}
+		switch {
+		case isProduct(fv.Type().Elem()):
+			f.kind = kindProduct
+		case fv.Type().Elem().Kind() == reflect.Array:
+			f.kind = kindArray
+		default:
+			f.kind = kindPositional
+		}
+		f.optional = true
 		return f, true, nil
 	}
 
@@ -237,10 +347,7 @@ func (s *spec) add(f field) error {
 		}
 		s.cmds[f.cmd] = idx
 	}
-	if f.kind == kindPositional || f.kind == kindRest {
-		if len(s.pos) > 0 && s.fields[s.pos[len(s.pos)-1]].kind == kindRest {
-			return fmt.Errorf("%w: rest positional must be last", ErrInvalidSpec)
-		}
+	if isPosKind(f.kind) {
 		s.pos = append(s.pos, idx)
 	}
 	s.fields = append(s.fields, f)
@@ -251,15 +358,33 @@ func (s *spec) parse(args []string) error {
 	s.set = make([]bool, len(s.fields))
 	counts := make([]int, len(s.fields))
 	posi := 0
+	allPos := false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
-		if a == "--" {
+		if !allPos && a == "--" {
 			if len(s.cmds) > 0 {
 				return s.feedCommand(args[i+1:], counts)
 			}
-			return s.feedPositionals(args[i+1:], &posi, counts)
+			for posi < len(s.pos) && s.fields[s.pos[posi]].kind == kindRest && s.nextIsDash(posi) {
+				posi++
+			}
+			if posi < len(s.pos) && s.fields[s.pos[posi]].kind == kindDash {
+				n, err := s.takePos(posi, args[i:], consumeMode{allPos: true})
+				if err != nil {
+					return err
+				}
+				if n == 0 {
+					return fmt.Errorf("%w: expected --", ErrMissingValue)
+				}
+				i += n - 1
+				posi++
+				allPos = true
+				continue
+			}
+			allPos = true
+			continue
 		}
-		if isOption(a) {
+		if !allPos && isOption(a) {
 			if strings.HasPrefix(a, "--") {
 				next, err := s.parseLong(a, args, i, counts)
 				if err != nil {
@@ -278,11 +403,48 @@ func (s *spec) parse(args []string) error {
 		if len(s.cmds) > 0 {
 			return s.takeCommand(a, args[i+1:], counts)
 		}
-		if err := s.feedOne(a, &posi); err != nil {
+		if posi >= len(s.pos) {
+			return fmt.Errorf("%w: unexpected argument %q", ErrInvalidArgument, a)
+		}
+		mode := consumeMode{allPos: allPos, stopDash: s.nextIsDash(posi)}
+		n, err := s.takePos(posi, args[i:], mode)
+		if err != nil {
 			return err
 		}
+		if n == 0 {
+			posi++
+			i--
+			continue
+		}
+		i += n - 1
+		posi++
 	}
 	return s.finish(counts)
+}
+
+func (s *spec) nextIsDash(posi int) bool {
+	return posi+1 < len(s.pos) && s.fields[s.pos[posi+1]].kind == kindDash
+}
+
+func (s *spec) takePos(posi int, args []string, mode consumeMode) (int, error) {
+	fi := s.pos[posi]
+	f := s.fields[fi]
+	fv := rvalue{s.root.FieldByIndex(f.index)}.settable()
+	n, err := consumeValue(fv, args, mode)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", f.display(), err)
+	}
+	if n > 0 {
+		s.mark(fi)
+		return n, nil
+	}
+	if f.kind == kindRest || f.optional {
+		return 0, nil
+	}
+	if f.kind == kindPositional {
+		return 0, nil
+	}
+	return 0, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
 }
 
 func (s *spec) feedCommand(args []string, counts []int) error {
@@ -365,12 +527,9 @@ func (s *spec) parseShorts(a string, args []string, i int, counts []int) (int, e
 				if rest[0] == '=' {
 					rest = rest[1:]
 				}
-				return i, s.setValueAt(fi, rest)
+				return s.takeFlagTokens(fi, []string{rest}, args, i, 0)
 			}
-			if i+1 >= len(args) {
-				return i, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
-			}
-			return i + 1, s.setValueAt(fi, args[i+1])
+			return s.takeFlagTokens(fi, nil, args, i, 1)
 		default:
 			return i, fmt.Errorf("%w: %s is not a flag", ErrInvalidArgument, f.display())
 		}
@@ -397,13 +556,10 @@ func (s *spec) applyOption(fi int, val string, hasVal bool, args []string, i int
 		counts[fi]++
 		return i, nil
 	case kindValue, kindRepeat:
-		if !hasVal {
-			if i+1 >= len(args) {
-				return i, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
-			}
-			return i + 1, s.setValueAt(fi, args[i+1])
+		if hasVal {
+			return s.takeFlagTokens(fi, []string{val}, args, i, 0)
 		}
-		return i, s.setValueAt(fi, val)
+		return s.takeFlagTokens(fi, nil, args, i, 1)
 	default:
 		return i, fmt.Errorf("%w: %s is not a flag", ErrInvalidArgument, f.display())
 	}
@@ -419,34 +575,73 @@ func optionalCountValue(args []string, i int) (string, bool) {
 	return args[i+1], true
 }
 
-func (s *spec) feedPositionals(args []string, posi *int, counts []int) error {
-	for _, a := range args {
-		if err := s.feedOne(a, posi); err != nil {
-			return err
+func (s *spec) takeFlagTokens(fi int, prefix []string, args []string, i int, fromNext int) (int, error) {
+	f := s.fields[fi]
+	var tokens []string
+	tokens = append(tokens, prefix...)
+	if fromNext > 0 {
+		if i+fromNext > len(args) {
+			return i, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
 		}
+		tokens = append(tokens, args[i+fromNext:]...)
 	}
-	return s.finish(counts)
+	if len(tokens) == 0 {
+		return i, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
+	}
+	n, err := s.consumeFlagValue(fi, tokens)
+	if err != nil {
+		return i, err
+	}
+	if n == 0 {
+		return i, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
+	}
+	used := n - len(prefix)
+	if used < 0 {
+		used = 0
+	}
+	return i + used, nil
 }
 
-func (s *spec) feedOne(a string, posi *int) error {
-	if *posi >= len(s.pos) {
-		return fmt.Errorf("%w: unexpected argument %q", ErrInvalidArgument, a)
+func (s *spec) consumeFlagValue(fi int, tokens []string) (int, error) {
+	f := s.fields[fi]
+	fv := rvalue{s.root.FieldByIndex(f.index)}.settable()
+	if f.kind == kindRepeat {
+		elem := reflect.New(fv.Type().Elem()).Elem()
+		n, err := consumeValue(elem, tokens, consumeMode{allPos: true})
+		if err != nil {
+			return 0, fmt.Errorf("%s: %w", f.display(), err)
+		}
+		if n == 0 {
+			return 0, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
+		}
+		fv.Set(reflect.Append(fv, elem))
+		s.mark(fi)
+		return n, nil
 	}
-	fi := s.pos[*posi]
-	if err := s.setValueAt(fi, a); err != nil {
-		return err
+	n, err := consumeValue(fv, tokens, consumeMode{allPos: true})
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", f.display(), err)
 	}
-	if s.fields[fi].kind != kindRest {
-		*posi++
+	if n > 0 {
+		s.mark(fi)
 	}
-	return nil
+	return n, nil
 }
 
 func (s *spec) finish(counts []int) error {
 	if err := s.applyCounts(counts); err != nil {
 		return err
 	}
-	return s.applyDefaults()
+	if err := s.applyDefaults(); err != nil {
+		return err
+	}
+	for i, f := range s.fields {
+		if s.set[i] || !isPosKind(f.kind) || f.optional || f.kind == kindRest || f.kind == kindPositional {
+			continue
+		}
+		return fmt.Errorf("%w: %s", ErrMissingValue, f.display())
+	}
+	return nil
 }
 
 func (s *spec) applyCounts(counts []int) error {
