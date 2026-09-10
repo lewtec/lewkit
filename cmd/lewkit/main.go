@@ -23,5 +23,5 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	return app.Run(ctx)
+	return cmd.Run(ctx, app)
 }
