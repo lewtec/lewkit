@@ -8,6 +8,7 @@ import (
 type consumeMode struct {
 	allPos   bool
 	stopDash bool
+	optional bool
 }
 
 func isDashType(t reflect.Type) bool {
@@ -136,13 +137,18 @@ func canStart(t reflect.Type, args []string, mode consumeMode) bool {
 func consumeValue(rv reflect.Value, args []string, mode consumeMode) (int, error) {
 	if rv.Kind() == reflect.Pointer {
 		if !canStart(rv.Type().Elem(), args, mode) {
-			return 0, nil
+			if mode.optional {
+				return 0, nil
+			}
+			return 0, fmt.Errorf("%w", ErrMissingValue)
 		}
 		slot := rvalue{rv}.settable()
 		if slot.IsNil() {
 			slot.Set(reflect.New(slot.Type().Elem()))
 		}
-		return consumeValue(slot.Elem(), args, mode)
+		inner := mode
+		inner.optional = false
+		return consumeValue(slot.Elem(), args, inner)
 	}
 	if isDashType(rv.Type()) {
 		if len(args) == 0 || args[0] != "--" {

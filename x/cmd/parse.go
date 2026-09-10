@@ -366,7 +366,7 @@ func (s *spec) parse(args []string) error {
 				posi++
 			}
 			if posi < len(s.pos) && s.fields[s.pos[posi]].kind == kindDash {
-				n, err := s.takePos(posi, args[i:], consumeMode{allPos: true})
+				n, err := s.takePos(posi, args[i:], consumeMode{allPos: true, optional: s.fields[s.pos[posi]].optional})
 				if err != nil {
 					return err
 				}
@@ -403,7 +403,7 @@ func (s *spec) parse(args []string) error {
 		if posi >= len(s.pos) {
 			return fmt.Errorf("%w: unexpected argument %q", ErrInvalidArgument, a)
 		}
-		mode := consumeMode{allPos: allPos, stopDash: s.nextIsDash(posi)}
+		mode := consumeMode{allPos: allPos, stopDash: s.nextIsDash(posi), optional: s.fields[s.pos[posi]].optional}
 		n, err := s.takePos(posi, args[i:], mode)
 		if err != nil {
 			return err

@@ -9,7 +9,7 @@ import (
 
 func TestProductPositional(t *testing.T) {
 	type args struct {
-		pair KV[StringArg]
+		pair KV[string, *StringArg]
 	}
 	got, err := Parse[args]("name", "lucas")
 	require.NoError(t, err)
@@ -19,7 +19,7 @@ func TestProductPositional(t *testing.T) {
 
 func TestProductThenRest(t *testing.T) {
 	type args struct {
-		pair KV[StringArg]
+		pair KV[string, *StringArg]
 		rest []StringArg
 	}
 	got, err := Parse[args]("name", "lucas", "x")
@@ -31,7 +31,7 @@ func TestProductThenRest(t *testing.T) {
 
 func TestSeqKV(t *testing.T) {
 	type args struct {
-		pairs Seq[KV[StringArg]]
+		pairs Seq[KV[string, *StringArg]]
 	}
 	got, err := Parse[args]("name", "lucas", "age", "26")
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestSeqKV(t *testing.T) {
 
 func TestSliceKVSameAsSeq(t *testing.T) {
 	type args struct {
-		pairs []KV[StringArg]
+		pairs []KV[string, *StringArg]
 	}
 	got, err := Parse[args]("name", "lucas", "age", "26")
 	require.NoError(t, err)
@@ -48,12 +48,12 @@ func TestSliceKVSameAsSeq(t *testing.T) {
 }
 
 func TestMapEmpty(t *testing.T) {
-	assert.Equal(t, Map([]KV[StringArg](nil)), map[string]string{})
+	assert.Equal(t, Map([]KV[string, *StringArg](nil)), map[string]string{})
 }
 
 func TestSeqIntProduct(t *testing.T) {
 	type args struct {
-		pairs Seq[KV[IntArg[int]]]
+		pairs Seq[KV[int, *IntArg[int]]]
 	}
 	got, err := Parse[args]("lucas", "26", "ada", "36")
 	require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestExactArrayThenRest(t *testing.T) {
 
 func TestExactTwoKV(t *testing.T) {
 	type args struct {
-		pairs [2]KV[StringArg]
+		pairs [2]KV[string, *StringArg]
 	}
 	got, err := Parse[args]("name", "lucas", "age", "26")
 	require.NoError(t, err)
@@ -105,7 +105,7 @@ func TestSeqEmpty(t *testing.T) {
 
 func TestSeqKVEmpty(t *testing.T) {
 	type args struct {
-		pairs Seq[KV[StringArg]]
+		pairs Seq[KV[string, *StringArg]]
 	}
 	got, err := Parse[args]()
 	require.NoError(t, err)
@@ -171,7 +171,7 @@ func TestAlgebraErrors(t *testing.T) {
 		{
 			name: "seq kv odd",
 			run: func() error {
-				_, err := Parse[struct{ pairs Seq[KV[StringArg]] }]("name", "lucas", "age")
+				_, err := Parse[struct{ pairs Seq[KV[string, *StringArg]] }]("name", "lucas", "age")
 				return err
 			},
 			want: ErrMissingValue,
@@ -179,7 +179,7 @@ func TestAlgebraErrors(t *testing.T) {
 		{
 			name: "product missing",
 			run: func() error {
-				_, err := Parse[struct{ pair KV[StringArg] }]()
+				_, err := Parse[struct{ pair KV[string, *StringArg] }]()
 				return err
 			},
 			want: ErrMissingValue,
@@ -187,7 +187,7 @@ func TestAlgebraErrors(t *testing.T) {
 		{
 			name: "product incomplete",
 			run: func() error {
-				_, err := Parse[struct{ pair KV[StringArg] }]("name")
+				_, err := Parse[struct{ pair KV[string, *StringArg] }]("name")
 				return err
 			},
 			want: ErrMissingValue,
@@ -237,7 +237,7 @@ func TestOptionalStringAbsent(t *testing.T) {
 
 func TestOptionalProduct(t *testing.T) {
 	type args struct {
-		pair *KV[StringArg]
+		pair *KV[string, *StringArg]
 		rest []StringArg
 	}
 	t.Run("absent", func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestOptionalProduct(t *testing.T) {
 
 func TestTaggedProductRepeat(t *testing.T) {
 	type args struct {
-		pairs []KV[StringArg] `long:"pair"`
+		pairs []KV[string, *StringArg] `long:"pair"`
 	}
 	got, err := Parse[args]("--pair", "name", "lucas", "--pair", "age", "26")
 	require.NoError(t, err)
@@ -294,7 +294,7 @@ func TestOptionalDash(t *testing.T) {
 func TestFlagWithSeqKV(t *testing.T) {
 	type args struct {
 		force Flag `long:"force" short:"f"`
-		pairs Seq[KV[StringArg]]
+		pairs Seq[KV[string, *StringArg]]
 	}
 	got, err := Parse[args]("--force", "name", "lucas")
 	require.NoError(t, err)
