@@ -640,13 +640,36 @@ func (s *spec) finish(counts []int) error {
 	if err := s.applyDefaults(); err != nil {
 		return err
 	}
+	if s.skipRequired() {
+		return nil
+	}
 	for i, f := range s.fields {
-		if s.set[i] || !isPosKind(f.kind) || f.optional || f.kind == kindRest || f.kind == kindPositional {
+		if s.set[i] || f.hasDef || f.optional || !requiresPresence(f) {
 			continue
 		}
 		return fmt.Errorf("%w: %s", ErrMissingValue, f.display())
 	}
 	return nil
+}
+
+func (s *spec) skipRequired() bool {
+	for i, f := range s.fields {
+		if s.set[i] && (f.long == "help" || f.long == "version") {
+			return true
+		}
+	}
+	return false
+}
+
+func requiresPresence(f field) bool {
+	switch f.kind {
+	case kindSwitch, kindValue, kindEither:
+		return true
+	case kindRest, kindPositional, kindRepeat, kindCommand:
+		return false
+	default:
+		return isPosKind(f.kind)
+	}
 }
 
 func (s *spec) applyCounts(counts []int) error {

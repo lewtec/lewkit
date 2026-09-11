@@ -96,7 +96,7 @@ func (s *spec) lineHelp(f field) string {
 	if help == "" && f.kind == kindCommand {
 		help = firstLine(s.commandDescription(f))
 	}
-	if !f.hasDef {
+	if !f.hasDef || f.def == "" {
 		return help
 	}
 	def := "(default: " + f.def + ")"
