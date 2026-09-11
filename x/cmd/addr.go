@@ -14,41 +14,24 @@ var (
 
 // AddrArg is a host:port listen address. A bare port (as in $PORT) is :port.
 type AddrArg struct {
-	host string
-	port string
+	Container[string]
 }
 
 func (a *AddrArg) Parse(arg string) error {
-	host, port, err := parseAddr(arg)
+	if arg == "" {
+		return fmt.Errorf("%w: %w", ErrInvalidArgument, errEmptyAddress)
+	}
+	host, port, err := net.SplitHostPort(arg)
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
-	}
-	a.host = host
-	a.port = port
-	return nil
-}
-
-func (a AddrArg) Value() string { return net.JoinHostPort(a.host, a.port) }
-
-func (a AddrArg) Host() string { return a.host }
-
-func (a AddrArg) Port() string { return a.port }
-
-func parseAddr(s string) (string, string, error) {
-	if s == "" {
-		return "", "", errEmptyAddress
-	}
-	host, port, err := net.SplitHostPort(s)
-	if err == nil {
-		if port == "" {
-			return "", "", errMissingPort
+		if _, perr := strconv.ParseUint(arg, 10, 16); perr != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 		}
-		return host, port, nil
+		host, port = "", arg
+	} else if port == "" {
+		return fmt.Errorf("%w: %w", ErrInvalidArgument, errMissingPort)
 	}
-	if _, perr := strconv.ParseUint(s, 10, 16); perr == nil {
-		return "", s, nil
-	}
-	return "", "", err
+	a.value = net.JoinHostPort(host, port)
+	return nil
 }
 
 var (

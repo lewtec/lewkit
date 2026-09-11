@@ -561,7 +561,16 @@ func TestAddrEnvPort(t *testing.T) {
 	got, err := Parse[args]()
 	require.NoError(t, err)
 	assert.Equal(t, ":9090", got.addr.Value())
-	assert.Equal(t, "9090", got.addr.Port())
+}
+
+func TestAddrEnvWrongName(t *testing.T) {
+	t.Setenv("POR", "8080")
+	type args struct {
+		addr AddrArg `long:"addr" env:"PORT" default:":8080"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, ":8080", got.addr.Value())
 }
 
 func TestAddrFlagOverridesPort(t *testing.T) {
