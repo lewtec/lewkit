@@ -1,7 +1,7 @@
 // Package db is a --database URL flag. Value() migrates and runs sqlc queries.
 //
 //	type serve struct {
-//		DB store.Flag `long:"database"`
+//		DB store.DBArg `long:"database"`
 //	}
 //
 //	func (s *serve) Run(ctx context.Context) error {
@@ -34,7 +34,7 @@
 // A postgres URL never sees sqlite/migrations. Missing <scheme>/migrations
 // is an error.
 //
-// lewkit generate db <dir> writes Queries and Flag. Flag is the cmd
+// lewkit generate db <dir> writes Queries and DBArg. DBArg is the cmd
 // field: Parse the URL, Open(ctx) migrates, Value() is the conn.
 package db
 

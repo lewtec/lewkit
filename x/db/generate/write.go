@@ -66,17 +66,17 @@ func writeQueries(dir, pkg, imp string, engines []engine, methods []method, stru
 		)),
 	)
 
-	f.Type().Id("Flag").Struct(
+	f.Type().Id("DBArg").Struct(
 		jen.Qual("github.com/lewtec/lewkit/x/db", "Arg").Types(jen.Id("Queries")),
 	)
-	f.Func().Params(jen.Id("f").Op("*").Id("Flag")).Id("Open").Params(
+	f.Func().Params(jen.Id("a").Op("*").Id("DBArg")).Id("Open").Params(
 		jen.Id("ctx").Qual("context", "Context"),
 	).Error().Block(
-		jen.Id("c").Op(":=").Id("f").Dot("Value").Call(),
+		jen.Id("c").Op(":=").Id("a").Dot("Value").Call(),
 		jen.If(jen.Id("c").Op("==").Nil()).Block(
 			jen.Return(jen.Qual("fmt", "Errorf").Call(jen.Lit("database url not set"))),
 		),
-		jen.Return(jen.Id("f").Dot("Arg").Dot("Open").Call(
+		jen.Return(jen.Id("a").Dot("Arg").Dot("Open").Call(
 			jen.Id("ctx"),
 			jen.Id("FS"),
 			jen.Id("New").Call(jen.Id("c").Dot("URL").Call()),
