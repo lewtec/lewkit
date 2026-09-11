@@ -31,6 +31,9 @@
 //
 // A postgres URL never sees sqlite/migrations. Missing <scheme>/migrations
 // is an error.
+//
+// lewkit db <dir> runs sqlc for each engine, checks query names and
+// generated signatures match, and writes Queries plus Open wiring.
 package db
 
 import (
