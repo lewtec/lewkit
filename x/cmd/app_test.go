@@ -57,25 +57,16 @@ func TestAppVersionFlag(t *testing.T) {
 	assert.True(t, app.version.Value())
 }
 
-func TestAppVersionCommand(t *testing.T) {
-	app, err := Parse[App[None]]("version")
-	require.NoError(t, err)
-	assert.False(t, app.version.Value())
-}
-
 func TestAppUsage(t *testing.T) {
 	text, err := Usage[App[None]]("lewkit")
 	require.NoError(t, err)
 	for _, want := range []string{
 		"Usage:",
-		"lewkit <command> [args]",
 		"-h, --help",
 		"-v, --verbose",
 		"log verbosity (default: 0)",
 		"--profile-dir",
 		"--version",
-		"Commands:",
-		"version",
 	} {
 		assert.Contains(t, text, want)
 	}
@@ -93,7 +84,7 @@ func TestAppRunHelp(t *testing.T) {
 }
 
 func TestAppRunVersion(t *testing.T) {
-	cases := [][]string{{"--version"}, {"version"}}
+	cases := [][]string{{"--version"}}
 	want := release.Version() + "\n"
 	for _, args := range cases {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
