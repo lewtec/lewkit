@@ -40,6 +40,26 @@ func TestScheme(t *testing.T) {
 	assert.Equal(t, "postgres", db.Scheme("postgresql://localhost/app"))
 }
 
+func TestOneRootPerArg(t *testing.T) {
+	type args struct {
+		Primary db.Arg[struct{}] `long:"primary"`
+		Cache   db.Arg[struct{}] `long:"cache"`
+	}
+	nop := db.Connector{Driver: "unused", Up: func(*sql.DB, fs.FS) error { return nil }}
+	db.Register("sqlite", nop)
+	db.Register("postgres", nop)
+	got, err := cmd.Parse[args]("--primary", "sqlite://a.db", "--cache", "postgres://localhost/b")
+	require.NoError(t, err)
+	primary := fstest.MapFS{"sqlite/migrations/1.up.sql": {Data: []byte("--")}}
+	cache := fstest.MapFS{"postgres/migrations/1.up.sql": {Data: []byte("--")}}
+	err = got.Primary.Migrate(t.Context(), cache)
+	require.ErrorIs(t, err, db.ErrNoMigrations)
+	assert.Contains(t, err.Error(), "sqlite/migrations")
+	err = got.Cache.Migrate(t.Context(), primary)
+	require.ErrorIs(t, err, db.ErrNoMigrations)
+	assert.Contains(t, err.Error(), "postgres/migrations")
+}
+
 func TestNoMigrationsForEngine(t *testing.T) {
 	db.Register("postgres", db.Connector{
 		Driver: "unused",

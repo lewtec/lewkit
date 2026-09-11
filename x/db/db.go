@@ -5,12 +5,11 @@
 //	}
 //
 //	func (s *serve) Run(ctx context.Context) error {
-//		d := s.DB.Value()
-//		if err := d.Open(ctx, migrations, sqlc.New); err != nil {
+//		if err := s.DB.Open(ctx, dbFS, sqlc.New); err != nil {
 //			return err
 //		}
-//		defer d.Close()
-//		return d.Tx(ctx, func(q Querier) error {
+//		defer s.DB.Value().Close()
+//		return s.DB.Value().Tx(ctx, func(q Querier) error {
 //			return q.Insert(ctx, ...)
 //		})
 //	}
@@ -22,7 +21,8 @@
 //
 // URLs: postgres://…, sqlite://path, file:path, :memory:, or a bare path.
 //
-// fsys must be laid out per engine. Open uses <scheme>/migrations:
+// Each Arg has its own root FS (one embed per flag). Open uses
+// <scheme>/migrations under that root:
 //
 //	sqlite/migrations/*.sql
 //	sqlite/*.sql            // sqlc queries (not read at runtime)
@@ -77,6 +77,24 @@ func (a Arg[Q]) Value() *Conn[Q] {
 	return a.c.Load()
 }
 
+// Open migrates this arg's root FS and binds sqlc New.
+func (a *Arg[Q]) Open(ctx context.Context, root fs.FS, new func(DBTX) Q) error {
+	c := a.Value()
+	if c == nil {
+		return errNotOpen
+	}
+	return c.Open(ctx, root, new)
+}
+
+// Migrate applies <scheme>/migrations under this arg's root FS.
+func (a *Arg[Q]) Migrate(ctx context.Context, root fs.FS) error {
+	c := a.Value()
+	if c == nil {
+		return errNotOpen
+	}
+	return c.Migrate(ctx, root)
+}
+
 var (
 	_ cmd.Parser                  = (*Arg[struct{}])(nil)
 	_ cmd.Valuer[*Conn[struct{}]] = Arg[struct{}]{}
@@ -97,23 +115,23 @@ func (c *Conn[Q]) URL() string {
 	return c.url
 }
 
-// Open connects, runs migrations on fsys, and binds sqlc New.
-func (c *Conn[Q]) Open(ctx context.Context, fsys fs.FS, new func(DBTX) Q) error {
+// Open connects, runs <scheme>/migrations under root, and binds sqlc New.
+func (c *Conn[Q]) Open(ctx context.Context, root fs.FS, new func(DBTX) Q) error {
 	if c == nil {
 		return errNotOpen
 	}
 	if new == nil {
 		return errNilNew
 	}
-	if err := c.Migrate(ctx, fsys); err != nil {
+	if err := c.Migrate(ctx, root); err != nil {
 		return err
 	}
 	c.new = new
 	return nil
 }
 
-// Migrate connects (if needed) and applies migrations in fsys.
-func (c *Conn[Q]) Migrate(ctx context.Context, fsys fs.FS) error {
+// Migrate connects (if needed) and applies <scheme>/migrations under root.
+func (c *Conn[Q]) Migrate(ctx context.Context, root fs.FS) error {
 	if c == nil {
 		return errNotOpen
 	}
@@ -122,8 +140,8 @@ func (c *Conn[Q]) Migrate(ctx context.Context, fsys fs.FS) error {
 		return err
 	}
 	var mig fs.FS
-	if fsys != nil && eng.Up != nil {
-		mig, err = engineDir(fsys, scheme, "migrations")
+	if root != nil && eng.Up != nil {
+		mig, err = engineDir(root, scheme, "migrations")
 		if err != nil {
 			return err
 		}
