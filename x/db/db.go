@@ -66,13 +66,11 @@ type DBTX interface {
 
 // Arg is a database URL flag. Parse the URL; Value is the connection.
 type Arg[Q any] struct {
-	raw string
-	c   atomic.Pointer[Conn[Q]]
+	c atomic.Pointer[Conn[Q]]
 }
 
 // Parse stores the URL. Same string as FromURL.
 func (a *Arg[Q]) Parse(s string) error {
-	a.raw = s
 	a.c.Store(&Conn[Q]{url: s})
 	return nil
 }
@@ -221,11 +219,4 @@ func Dir(fsys fs.FS, name string) fs.FS {
 		panic(err)
 	}
 	return sub
-}
-
-// As adapts sqlc New (func(DBTX) *Queries) to an interface Q.
-func As[Q, C any](new func(DBTX) C) func(DBTX) Q {
-	return func(x DBTX) Q {
-		return any(new(x)).(Q)
-	}
 }

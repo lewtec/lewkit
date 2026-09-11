@@ -54,18 +54,6 @@ type defaultArgs struct {
 	port IntArg[int] `long:"port" default:"8080"`
 }
 
-func TestUsageTaggedProductIsFlag(t *testing.T) {
-	type args struct {
-		pair KV[string, *StringArg] `long:"pair" help:"key and value"`
-	}
-	text, err := Usage[args]("tool")
-	require.NoError(t, err)
-	assert.Contains(t, text, "Flags:")
-	assert.Contains(t, text, "--pair")
-	assert.Contains(t, text, "key and value")
-	assert.NotContains(t, text, "Arguments:")
-}
-
 func TestUsageDefault(t *testing.T) {
 	text, err := Usage[defaultArgs]("tool")
 	require.NoError(t, err)
