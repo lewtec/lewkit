@@ -163,11 +163,44 @@ func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
 			continue
 		}
 		f.index = index
+		attachTypeDefault(&f, fv.Type())
 		if err := s.add(f); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func attachTypeDefault(f *field, t reflect.Type) {
+	if f.hasDef || !allowsDefault(f.kind) {
+		return
+	}
+	d, ok := defaultOf(t)
+	if !ok {
+		return
+	}
+	f.def = d
+	f.hasDef = true
+}
+
+func allowsDefault(k fieldKind) bool {
+	switch k {
+	case kindSwitch, kindValue, kindEither, kindPositional:
+		return true
+	default:
+		return false
+	}
+}
+
+func defaultOf(t reflect.Type) (string, bool) {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	v := rvalue{reflect.New(t)}
+	if !v.hasDefault() {
+		return "", false
+	}
+	return v.defaultString(), true
 }
 
 func shouldFlatten(fv reflect.Value) bool {
@@ -799,6 +832,19 @@ func (v rvalue) hasParse() bool {
 
 func (v rvalue) hasCount() bool {
 	return v.has("Count", reflect.TypeFor[int]())
+}
+
+func (v rvalue) hasDefault() bool {
+	m := v.ptr().MethodByName("Default")
+	if !m.IsValid() {
+		return false
+	}
+	t := m.Type()
+	return t.NumIn() == 0 && t.NumOut() == 1 && t.Out(0) == reflect.TypeFor[string]()
+}
+
+func (v rvalue) defaultString() string {
+	return v.ptr().MethodByName("Default").Call(nil)[0].String()
 }
 
 func (v rvalue) has(name string, in reflect.Type) bool {
