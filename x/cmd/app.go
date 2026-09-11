@@ -17,10 +17,10 @@ type None struct{}
 
 // App wraps process-wide flags around T, the rest of the command spec.
 type App[T any] struct {
-	verbose    Count     `short:"v" long:"verbose" help:"log verbosity" default:"0"`
+	verbose    Count     `short:"v" long:"verbose" help:"log verbosity"`
 	profileDir StringArg `long:"profile-dir" help:"write pprof profiles here" default:""`
-	help       Flag      `short:"h" long:"help" help:"show help" default:"false"`
-	version    Flag      `long:"version" help:"print version" default:"false"`
+	help       Flag      `short:"h" long:"help" help:"show help"`
+	version    Flag      `long:"version" help:"print version"`
 	Args       T         `flatten:""`
 }
 

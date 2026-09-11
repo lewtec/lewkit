@@ -72,3 +72,12 @@ func TestUsageEmptyDefault(t *testing.T) {
 	assert.Contains(t, text, "where")
 	assert.NotContains(t, text, "(default:")
 }
+
+func TestUsageMethodDefault(t *testing.T) {
+	type args struct {
+		force Flag `long:"force" help:"do it"`
+	}
+	text, err := Usage[args]("tool")
+	require.NoError(t, err)
+	assert.Contains(t, text, "do it (default: false)")
+}

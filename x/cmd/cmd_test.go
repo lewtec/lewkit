@@ -12,7 +12,7 @@ import (
 type BasicArgs struct {
 	name    StringArg    `long:"name" short:"n" default:""`
 	idade   IntArg[uint] `long:"idade" short:"i" default:"0"`
-	verbose Count        `short:"v" long:"verbose" default:"0"` // -vvv or --verbose 3
+	verbose Count        `short:"v" long:"verbose"` // -vvv or --verbose 3
 	rest    []StringArg  // that means a positional argument
 }
 
@@ -160,7 +160,7 @@ func TestRepeatable(t *testing.T) {
 }
 
 type globals struct {
-	verbose Count `short:"v" long:"verbose" default:"0"`
+	verbose Count `short:"v" long:"verbose"`
 }
 
 type addCmd struct {
@@ -396,33 +396,6 @@ func TestRequiredFlagsMissing(t *testing.T) {
 				return err
 			},
 		},
-		{
-			name: "switch",
-			run: func() error {
-				_, err := Parse[struct {
-					force Flag `long:"force"`
-				}]()
-				return err
-			},
-		},
-		{
-			name: "count",
-			run: func() error {
-				_, err := Parse[struct {
-					verbose Count `short:"v" long:"verbose"`
-				}]()
-				return err
-			},
-		},
-		{
-			name: "either count",
-			run: func() error {
-				_, err := Parse[struct {
-					level Count `long:"level"`
-				}]()
-				return err
-			},
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -472,4 +445,34 @@ func TestVersionWithoutRequiredFlag(t *testing.T) {
 	got, err := Parse[args]("--version")
 	require.NoError(t, err)
 	assert.True(t, got.version.Value())
+}
+
+type dirArg struct {
+	StringArg
+}
+
+func (dirArg) Default() string { return "/tmp" }
+
+func TestDefaultMethod(t *testing.T) {
+	type args struct {
+		force Flag   `long:"force"`
+		n     Count  `long:"n"`
+		dir   dirArg `long:"dir"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.False(t, got.force.Value())
+	assert.Equal(t, 0, got.n.Value())
+	assert.Equal(t, "/tmp", got.dir.Value())
+}
+
+func TestDefaultTagOverridesMethod(t *testing.T) {
+	type args struct {
+		force Flag  `long:"force" default:"true"`
+		n     Count `long:"n" default:"3"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.True(t, got.force.Value())
+	assert.Equal(t, 3, got.n.Value())
 }
