@@ -81,3 +81,14 @@ func TestUsageMethodDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "do it (default: false)")
 }
+
+func TestUsageEnv(t *testing.T) {
+	type args struct {
+		name StringArg `long:"name" help:"who" env:"NAME"`
+		addr AddrArg   `long:"addr" env:"PORT" default:":8080"`
+	}
+	text, err := Usage[args]("tool")
+	require.NoError(t, err)
+	assert.Contains(t, text, "who (env: NAME)")
+	assert.Contains(t, text, "(env: PORT, default: :8080)")
+}

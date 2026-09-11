@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -32,6 +33,7 @@ type field struct {
 	help     string
 	def      string
 	hasDef   bool
+	env      string
 	optional bool
 	maybePos bool
 }
@@ -194,6 +196,16 @@ func allowsDefault(k fieldKind) bool {
 	}
 }
 
+func rejectDefaultOrEnv(sf reflect.StructField, f field) error {
+	if f.hasDef {
+		return fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+	}
+	if f.env != "" {
+		return fmt.Errorf("%w: env not allowed on %s", ErrInvalidSpec, sf.Name)
+	}
+	return nil
+}
+
 func defaultOf(t reflect.Type) (string, bool) {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -240,22 +252,22 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		return field{}, false, err
 	}
 	tagged := long != "" || short != 0
-	f := field{index: sf.Index, long: long, short: short, help: sf.Tag.Get("help")}
+	f := field{index: sf.Index, long: long, short: short, help: sf.Tag.Get("help"), env: sf.Tag.Get("env")}
 	if d, ok := sf.Tag.Lookup("default"); ok {
 		f.def = d
 		f.hasDef = true
 	}
 
 	if isDashType(fv.Type()) {
-		if f.hasDef {
-			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		if err := rejectDefaultOrEnv(sf, f); err != nil {
+			return field{}, false, err
 		}
 		f.kind = kindDash
 		return f, true, nil
 	}
 	if fv.Kind() == reflect.Pointer && isDashType(fv.Type().Elem()) {
-		if f.hasDef {
-			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		if err := rejectDefaultOrEnv(sf, f); err != nil {
+			return field{}, false, err
 		}
 		f.kind = kindDash
 		f.optional = true
@@ -266,8 +278,8 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		if !isConsumable(fv.Type().Elem()) {
 			return field{}, false, nil
 		}
-		if f.hasDef {
-			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		if err := rejectDefaultOrEnv(sf, f); err != nil {
+			return field{}, false, err
 		}
 		if tagged {
 			f.kind = kindRepeat
@@ -281,16 +293,16 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		if !isConsumable(fv.Type().Elem()) {
 			return field{}, false, nil
 		}
-		if f.hasDef {
-			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		if err := rejectDefaultOrEnv(sf, f); err != nil {
+			return field{}, false, err
 		}
 		f.kind = kindArray
 		return f, true, nil
 	}
 
 	if cmd, ok := commandName(sf, fv); ok {
-		if f.hasDef {
-			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		if err := rejectDefaultOrEnv(sf, f); err != nil {
+			return field{}, false, err
 		}
 		f.kind = kindCommand
 		f.cmd = cmd
@@ -301,16 +313,16 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 	}
 
 	if fv.Kind() == reflect.Struct && isProduct(fv.Type()) {
-		if f.hasDef {
-			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		if err := rejectDefaultOrEnv(sf, f); err != nil {
+			return field{}, false, err
 		}
 		f.kind = kindProduct
 		return f, true, nil
 	}
 
 	if fv.Kind() == reflect.Pointer && !tagged && isConsumable(fv.Type().Elem()) {
-		if f.hasDef {
-			return field{}, false, fmt.Errorf("%w: default not allowed on %s", ErrInvalidSpec, sf.Name)
+		if err := rejectDefaultOrEnv(sf, f); err != nil {
+			return field{}, false, err
 		}
 		switch {
 		case isProduct(fv.Type().Elem()):
@@ -680,6 +692,9 @@ func (s *spec) finish() error {
 	if err := s.applyCounts(s.counts); err != nil {
 		return err
 	}
+	if err := s.applyEnv(); err != nil {
+		return err
+	}
 	if err := s.applyDefaults(); err != nil {
 		return err
 	}
@@ -730,6 +745,23 @@ func (s *spec) applyCounts(counts []int) error {
 	return nil
 }
 
+func (s *spec) applyEnv() error {
+	for i, f := range s.fields {
+		if f.env == "" || s.set[i] {
+			continue
+		}
+		val, ok := os.LookupEnv(f.env)
+		if !ok {
+			continue
+		}
+		if err := s.applyLiteral(f, val); err != nil {
+			return fmt.Errorf("env %s: %w", f.env, err)
+		}
+		s.mark(i)
+	}
+	return nil
+}
+
 func (s *spec) applyDefaults() error {
 	for i, f := range s.fields {
 		if !f.hasDef || s.set[i] {
@@ -743,23 +775,27 @@ func (s *spec) applyDefaults() error {
 }
 
 func (s *spec) applyDefault(f field) error {
+	if err := s.applyLiteral(f, f.def); err != nil {
+		return fmt.Errorf("default %w", err)
+	}
+	return nil
+}
+
+func (s *spec) applyLiteral(f field, val string) error {
 	if f.kind == kindSwitch {
-		on, err := strconv.ParseBool(f.def)
+		on, err := strconv.ParseBool(val)
 		if err != nil {
-			return fmt.Errorf("default %s: %w", f.display(), ErrInvalidArgument)
+			return fmt.Errorf("%s: %w", f.display(), ErrInvalidArgument)
 		}
 		if !on {
 			return nil
 		}
 		if err := s.callCount(f, 1); err != nil {
-			return fmt.Errorf("default %s: %w", f.display(), err)
+			return fmt.Errorf("%s: %w", f.display(), err)
 		}
 		return nil
 	}
-	if err := s.setValue(f, f.def); err != nil {
-		return fmt.Errorf("default %w", err)
-	}
-	return nil
+	return s.setValue(f, val)
 }
 
 func (s *spec) mark(fi int) {

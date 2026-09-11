@@ -578,3 +578,107 @@ func TestDefaultTagOverridesMethod(t *testing.T) {
 	assert.True(t, got.force.Value())
 	assert.Equal(t, 3, got.n.Value())
 }
+
+func TestEnvFillsFlag(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "Ada")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "Ada", got.name.Value())
+}
+
+func TestEnvOverriddenByFlag(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "Ada")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME"`
+	}
+	got, err := Parse[args]("--name", "Grace")
+	require.NoError(t, err)
+	assert.Equal(t, "Grace", got.name.Value())
+}
+
+func TestEnvBeforeDefault(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "Ada")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME" default:"anon"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "Ada", got.name.Value())
+}
+
+func TestEnvUnsetUsesDefault(t *testing.T) {
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_UNSET_NAME" default:"anon"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "anon", got.name.Value())
+}
+
+func TestEnvUnsetRequired(t *testing.T) {
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_UNSET_NAME"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrMissingValue)
+}
+
+func TestEnvInvalid(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_PORT", "nope")
+	type args struct {
+		port IntArg[int] `long:"port" env:"LEWKIT_TEST_PORT"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrInvalidArgument)
+}
+
+func TestEnvFlag(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_FORCE", "true")
+	type args struct {
+		force Flag `long:"force" env:"LEWKIT_TEST_FORCE"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.True(t, got.force.Value())
+}
+
+func TestEnvEmptyString(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME" default:"anon"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "", got.name.Value())
+}
+
+func TestAddrEnvPort(t *testing.T) {
+	t.Setenv("PORT", "9090")
+	type args struct {
+		addr AddrArg `long:"addr" env:"PORT" default:":8080"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, ":9090", got.addr.Value())
+}
+
+func TestAddrFlagOverridesPort(t *testing.T) {
+	t.Setenv("PORT", "9090")
+	type args struct {
+		addr AddrArg `long:"addr" env:"PORT" default:":8080"`
+	}
+	got, err := Parse[args]("--addr", "127.0.0.1:80")
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:80", got.addr.Value())
+}
+
+func TestEnvOnRest(t *testing.T) {
+	type args struct {
+		rest []StringArg `env:"LEWKIT_TEST_REST"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrInvalidSpec)
+}
