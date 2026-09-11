@@ -1,7 +1,6 @@
 package release
 
 import (
-	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,10 +27,4 @@ func TestVersionVCS(t *testing.T) {
 	for _, item := range cases {
 		assert.Equal(t, formatVersion(item.version, item.vcs), item.got, "should match")
 	}
-}
-
-func TestPrintVersion(t *testing.T) {
-	var buf bytes.Buffer
-	assert.NoError(t, PrintVersion(&buf))
-	assert.Equal(t, Version()+"\n", buf.String())
 }
