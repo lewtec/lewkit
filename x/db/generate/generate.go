@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,10 +34,10 @@ func pkgName(dir string) string {
 }
 
 // Run scans dir for sqlite/ and postgres/, checks query names match,
-// runs sqlc, and writes a shared Queries interface plus Open wiring.
+// runs sqlc, and writes a shared Queries interface plus DBArg.
 func Run(ctx context.Context, dir string) error {
 	if dir == "" {
-		return fmt.Errorf("directory required")
+		return errDirRequired
 	}
 	dir, err := filepath.Abs(dir)
 	if err != nil {
@@ -123,5 +124,10 @@ func moduleLine(b []byte) (string, error) {
 			return strings.TrimSpace(path), nil
 		}
 	}
-	return "", fmt.Errorf("go.mod: no module line")
+	return "", errNoModule
 }
+
+var (
+	errDirRequired = errors.New("directory required")
+	errNoModule    = errors.New("go.mod: no module line")
+)
