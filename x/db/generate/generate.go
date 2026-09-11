@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,7 +70,14 @@ func Run(ctx context.Context, dir string) error {
 	if err != nil {
 		return err
 	}
-	return write(dir, pkg, imp, engines, firstMethods(methods), firstStructs(types))
+	return write(out{
+		dir:     dir,
+		pkg:     pkg,
+		imp:     imp,
+		engines: engines,
+		methods: firstMethods(methods),
+		structs: firstStructs(types),
+	})
 }
 
 func firstMethods(m map[string][]method) []method {
@@ -111,7 +117,7 @@ func importPath(dir string) (string, error) {
 		}
 		parent := filepath.Dir(d)
 		if parent == d {
-			return "", fmt.Errorf("no go.mod above %s", dir)
+			return "", fmt.Errorf("%w: %s", errNoGoMod, dir)
 		}
 		d = parent
 	}
@@ -126,8 +132,3 @@ func moduleLine(b []byte) (string, error) {
 	}
 	return "", errNoModule
 }
-
-var (
-	errDirRequired = errors.New("directory required")
-	errNoModule    = errors.New("go.mod: no module line")
-)

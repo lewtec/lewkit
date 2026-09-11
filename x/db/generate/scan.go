@@ -43,7 +43,7 @@ func scan(root string) ([]engine, error) {
 		out = append(out, eng)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("no sqlite/ or postgres/ under %s", root)
+		return nil, fmt.Errorf("%w: %s", errNoEngines, root)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].dir < out[j].dir })
 	return out, nil
@@ -54,7 +54,7 @@ func loadEngine(root, name, sqlc string) (engine, error) {
 	mig := filepath.Join(root, name, "migrations")
 	st, err := os.Stat(mig)
 	if err != nil || !st.IsDir() {
-		return eng, fmt.Errorf("%s: missing migrations/", name)
+		return eng, fmt.Errorf("%w: %s", errNoMigrationsDir, name)
 	}
 	matches, err := filepath.Glob(filepath.Join(root, name, "*.sql"))
 	if err != nil {
@@ -68,7 +68,7 @@ func loadEngine(root, name, sqlc string) (engine, error) {
 		}
 		for _, m := range nameRe.FindAllStringSubmatch(string(b), -1) {
 			if prev, ok := eng.named[m[1]]; ok && prev != m[2] {
-				return eng, fmt.Errorf("%s: %s redeclared as :%s and :%s", name, m[1], prev, m[2])
+				return eng, fmt.Errorf("%w: %s %s :%s :%s", errQueryRedeclared, name, m[1], prev, m[2])
 			}
 			eng.named[m[1]] = m[2]
 		}
@@ -79,7 +79,7 @@ func loadEngine(root, name, sqlc string) (engine, error) {
 		eng.files = append(eng.files, filepath.ToSlash(rel))
 	}
 	if len(eng.named) == 0 {
-		return eng, fmt.Errorf("%s: no -- name: queries", name)
+		return eng, fmt.Errorf("%w: %s", errNoNamedQueries, name)
 	}
 	return eng, nil
 }
@@ -90,26 +90,26 @@ func compareQueries(engines []engine) error {
 	}
 	base := engines[0]
 	for _, e := range engines[1:] {
-		if err := sameNames(base.dir, e.dir, base.named, e.named); err != nil {
+		if err := sameNames(base, e); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func sameNames(a, b string, am, bm map[string]string) error {
-	for n, cmd := range am {
-		got, ok := bm[n]
+func sameNames(a, b engine) error {
+	for n, cmd := range a.named {
+		got, ok := b.named[n]
 		if !ok {
-			return fmt.Errorf("query %s is in %s but not %s", n, a, b)
+			return fmt.Errorf("%w: %s in %s not %s", errQueryMismatch, n, a.dir, b.dir)
 		}
 		if got != cmd {
-			return fmt.Errorf("query %s is :%s in %s and :%s in %s", n, cmd, a, got, b)
+			return fmt.Errorf("%w: %s :%s in %s :%s in %s", errQueryMismatch, n, cmd, a.dir, got, b.dir)
 		}
 	}
-	for n := range bm {
-		if _, ok := am[n]; !ok {
-			return fmt.Errorf("query %s is in %s but not %s", n, b, a)
+	for n := range b.named {
+		if _, ok := a.named[n]; !ok {
+			return fmt.Errorf("%w: %s in %s not %s", errQueryMismatch, n, b.dir, a.dir)
 		}
 	}
 	return nil

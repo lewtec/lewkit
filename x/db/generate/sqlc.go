@@ -57,7 +57,7 @@ func writeSQLC(root string, engines []engine) error {
 func runSQLC(root string) error {
 	cfg := filepath.Join(root, "sqlc.yaml")
 	if code := sqlc.Run([]string{"generate", "-f", cfg}); code != 0 {
-		return fmt.Errorf("sqlc generate: exit %d", code)
+		return fmt.Errorf("%w: exit %d", errSQLC, code)
 	}
 	return nil
 }

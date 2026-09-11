@@ -236,15 +236,15 @@ func compareMethods(all map[string][]method) error {
 			seen[m.name] = true
 			b, ok := idx[m.name]
 			if !ok {
-				return fmt.Errorf("method %s is in %s but not %s", m.name, eng, names[0])
+				return fmt.Errorf("%w: %s in %s not %s", errMethodMismatch, m.name, eng, names[0])
 			}
 			if !methodEqual(b, m) {
-				return fmt.Errorf("method %s has different signatures in %s and %s", m.name, names[0], eng)
+				return fmt.Errorf("%w: %s in %s and %s", errMethodMismatch, m.name, names[0], eng)
 			}
 		}
 		for n := range idx {
 			if !seen[n] {
-				return fmt.Errorf("method %s is in %s but not %s", n, names[0], eng)
+				return fmt.Errorf("%w: %s in %s not %s", errMethodMismatch, n, names[0], eng)
 			}
 		}
 	}
@@ -294,10 +294,10 @@ func compareStructs(all map[string][]structType, methods map[string][]method) er
 		for _, eng := range names[1:] {
 			b, ok := by[eng][name]
 			if !ok {
-				return fmt.Errorf("type %s is in %s but not %s", name, names[0], eng)
+				return fmt.Errorf("%w: %s in %s not %s", errTypeMismatch, name, names[0], eng)
 			}
 			if !fieldsEqual(a.fields, b.fields) {
-				return fmt.Errorf("type %s differs in %s and %s", name, names[0], eng)
+				return fmt.Errorf("%w: %s in %s and %s", errTypeMismatch, name, names[0], eng)
 			}
 		}
 	}
