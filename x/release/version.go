@@ -2,6 +2,8 @@ package release
 
 import (
 	"cmp"
+	"fmt"
+	"io"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -30,6 +32,12 @@ func Version() string {
 		}
 	}
 	return formatVersion(version, vcs)
+}
+
+// PrintVersion writes Version() and a newline to w.
+func PrintVersion(w io.Writer) error {
+	_, err := fmt.Fprintln(w, Version())
+	return err
 }
 
 // Platform gives GOOS-GOARCH-MICROARCH

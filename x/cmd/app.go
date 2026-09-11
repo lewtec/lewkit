@@ -69,8 +69,7 @@ func (a *App[T]) Run(ctx context.Context) error {
 		_, err = fmt.Fprint(os.Stdout, text)
 		return err
 	case a.WantVersion():
-		_, err := fmt.Fprintln(os.Stdout, release.Version())
-		return err
+		return release.PrintVersion(os.Stdout)
 	}
 	if err := a.Setup(ctx); err != nil {
 		return err
