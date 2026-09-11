@@ -256,6 +256,16 @@ func TestOptionalProduct(t *testing.T) {
 	})
 }
 
+func TestTaggedProductOnce(t *testing.T) {
+	type args struct {
+		pair KV[string, *StringArg] `long:"pair"`
+	}
+	got, err := Parse[args]("--pair", "name", "lucas")
+	require.NoError(t, err)
+	assert.Equal(t, got.pair.K.Value(), "name")
+	assert.Equal(t, got.pair.V.Value(), "lucas")
+}
+
 func TestTaggedProductRepeat(t *testing.T) {
 	type args struct {
 		pairs []KV[string, *StringArg] `long:"pair"`

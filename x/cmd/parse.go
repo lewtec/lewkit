@@ -580,7 +580,7 @@ func (s *spec) parseShorts(a string, args []string, i int) (int, error) {
 			owner.counts[fi]++
 			owner.mark(fi)
 			j += size
-		case kindValue, kindRepeat:
+		case kindValue, kindRepeat, kindProduct, kindArray:
 			if rest != "" {
 				if rest[0] == '=' {
 					rest = rest[1:]
@@ -615,7 +615,7 @@ func (s *spec) applyOption(fi int, val string, hasVal bool, args []string, i int
 		s.counts[fi]++
 		s.mark(fi)
 		return i, nil
-	case kindValue, kindRepeat:
+	case kindValue, kindRepeat, kindProduct, kindArray:
 		if hasVal {
 			return s.takeFlagTokens(fi, []string{val}, args, i, 0)
 		}

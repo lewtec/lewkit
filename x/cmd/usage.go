@@ -62,6 +62,10 @@ func (s *spec) usage(name, desc string) string {
 		case kindCommand:
 			cmds = append(cmds, f)
 		case kindPositional, kindRest, kindProduct, kindArray, kindDash:
+			if f.long != "" || f.short != 0 {
+				flags = append(flags, f)
+				continue
+			}
 			pos = append(pos, f)
 		default:
 			flags = append(flags, f)
@@ -141,6 +145,9 @@ func usageLabel(f field) string {
 	case kindCommand:
 		return f.cmd
 	case kindPositional, kindRest, kindProduct, kindArray:
+		if f.long != "" || f.short != 0 {
+			return flagLabel(f)
+		}
 		return positionalName(f)
 	case kindDash:
 		return "--"
