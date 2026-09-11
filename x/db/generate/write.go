@@ -66,7 +66,7 @@ func writeQueries(dir, pkg, imp string, engines []engine, methods []method, stru
 		)),
 	)
 
-	f.Func().Id("Open").Params(
+	f.Func().Id("Bind").Params(
 		jen.Id("ctx").Qual("context", "Context"),
 		jen.Id("a").Op("*").Qual("github.com/lewtec/lewkit/x/db", "Arg").Types(jen.Id("Queries")),
 	).Error().Block(

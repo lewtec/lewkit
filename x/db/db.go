@@ -33,7 +33,7 @@
 // is an error.
 //
 // lewkit generate db <dir> runs sqlc for each engine, checks query
-// names and generated signatures match, and writes Queries plus Open wiring.
+// names and generated signatures match, and writes Queries plus Bind.
 package db
 
 import (
