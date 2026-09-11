@@ -61,3 +61,14 @@ func TestUsageDefault(t *testing.T) {
 	assert.Contains(t, text, "who (default: Lucas)")
 	assert.Contains(t, text, "(default: 8080)")
 }
+
+type emptyDefaultArgs struct {
+	dir StringArg `long:"dir" help:"where" default:""`
+}
+
+func TestUsageEmptyDefault(t *testing.T) {
+	text, err := Usage[emptyDefaultArgs]("tool")
+	require.NoError(t, err)
+	assert.Contains(t, text, "where")
+	assert.NotContains(t, text, "(default:")
+}

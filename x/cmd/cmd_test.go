@@ -10,9 +10,9 @@ import (
 )
 
 type BasicArgs struct {
-	name    StringArg    `long:"name" short:"n"`
-	idade   IntArg[uint] `long:"idade" short:"i"`
-	verbose Count        `short:"v" long:"verbose"` // -vvv or --verbose 3
+	name    StringArg    `long:"name" short:"n" default:""`
+	idade   IntArg[uint] `long:"idade" short:"i" default:"0"`
+	verbose Count        `short:"v" long:"verbose" default:"0"` // -vvv or --verbose 3
 	rest    []StringArg  // that means a positional argument
 }
 
@@ -160,7 +160,7 @@ func TestRepeatable(t *testing.T) {
 }
 
 type globals struct {
-	verbose Count `short:"v" long:"verbose"`
+	verbose Count `short:"v" long:"verbose" default:"0"`
 }
 
 type addCmd struct {
@@ -338,9 +338,138 @@ type parentDefault struct {
 }
 
 func TestDefaultBeforeSubcommand(t *testing.T) {
-	args, err := Parse[parentDefault]("add", "file")
+	args, err := Parse[parentDefault]("add", "--name", "x", "file")
 	require.NoError(t, err)
 	assert.Equal(t, "root", args.name.Value())
 	require.NotNil(t, args.add)
+	assert.Equal(t, "x", args.add.name.Value())
 	assert.Equal(t, []string{"file"}, Values(args.add.rest))
+}
+
+type requiredNameArgs struct {
+	name StringArg `long:"name"`
+	rest []StringArg
+}
+
+func TestRequiredFlagMissing(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{name: "empty", args: nil},
+		{name: "only positionals", args: []string{"leftover"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Parse[requiredNameArgs](tc.args...)
+			assert.ErrorIs(t, err, ErrMissingValue)
+		})
+	}
+}
+
+func TestRequiredFlagPresent(t *testing.T) {
+	args, err := Parse[requiredNameArgs]("--name", "Ada")
+	require.NoError(t, err)
+	assert.Equal(t, "Ada", args.name.Value())
+}
+
+func TestRequiredFlagsMissing(t *testing.T) {
+	cases := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "short value",
+			run: func() error {
+				_, err := Parse[struct {
+					name StringArg `short:"n"`
+				}]()
+				return err
+			},
+		},
+		{
+			name: "int",
+			run: func() error {
+				_, err := Parse[struct {
+					port IntArg[int] `long:"port"`
+				}]()
+				return err
+			},
+		},
+		{
+			name: "switch",
+			run: func() error {
+				_, err := Parse[struct {
+					force Flag `long:"force"`
+				}]()
+				return err
+			},
+		},
+		{
+			name: "count",
+			run: func() error {
+				_, err := Parse[struct {
+					verbose Count `short:"v" long:"verbose"`
+				}]()
+				return err
+			},
+		},
+		{
+			name: "either count",
+			run: func() error {
+				_, err := Parse[struct {
+					level Count `long:"level"`
+				}]()
+				return err
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.ErrorIs(t, tc.run(), ErrMissingValue)
+		})
+	}
+}
+
+func TestRequiredChildFlagMissing(t *testing.T) {
+	type child struct {
+		name StringArg `long:"name"`
+	}
+	type parent struct {
+		add *child
+	}
+	_, err := Parse[parent]("add")
+	assert.ErrorIs(t, err, ErrMissingValue)
+}
+
+func TestRequiredParentFlagMissing(t *testing.T) {
+	type child struct {
+		rest []StringArg
+	}
+	type parent struct {
+		name StringArg `long:"name"`
+		add  *child
+	}
+	_, err := Parse[parent]("add", "file")
+	assert.ErrorIs(t, err, ErrMissingValue)
+}
+
+func TestHelpWithoutRequiredFlag(t *testing.T) {
+	type args struct {
+		help Flag      `long:"help"`
+		name StringArg `long:"name"`
+	}
+	got, err := Parse[args]("--help")
+	require.NoError(t, err)
+	assert.True(t, got.help.Value())
+}
+
+func TestVersionWithoutRequiredFlag(t *testing.T) {
+	type args struct {
+		version Flag      `long:"version"`
+		name    StringArg `long:"name"`
+	}
+	got, err := Parse[args]("--version")
+	require.NoError(t, err)
+	assert.True(t, got.version.Value())
 }
