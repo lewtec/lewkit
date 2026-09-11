@@ -220,6 +220,108 @@ func TestSubcommandUnknown(t *testing.T) {
 	assert.ErrorIs(t, err, ErrUnknownCommand)
 }
 
+type inheritChild struct {
+	name StringArg `long:"name" default:""`
+	rest []StringArg
+}
+
+type inheritApp struct {
+	verbose Count     `short:"v" long:"verbose"`
+	force   Flag      `long:"force" short:"f"`
+	name    StringArg `long:"label" default:""`
+	add     *inheritChild
+	mid     *inheritMid
+}
+
+type inheritMid struct {
+	inner *inheritChild
+}
+
+func TestInheritParentFlagAfterCommand(t *testing.T) {
+	args, err := Parse[inheritApp]("add", "-v", "--name", "x", "file")
+	require.NoError(t, err)
+	assert.Equal(t, 1, args.verbose.Value())
+	require.NotNil(t, args.add)
+	assert.Equal(t, "x", args.add.name.Value())
+	assert.Equal(t, []string{"file"}, Values(args.add.rest))
+}
+
+func TestInheritParentFlagBeforeAndAfter(t *testing.T) {
+	args, err := Parse[inheritApp]("-v", "add", "-v", "--name", "x")
+	require.NoError(t, err)
+	assert.Equal(t, 2, args.verbose.Value())
+	require.NotNil(t, args.add)
+	assert.Equal(t, "x", args.add.name.Value())
+}
+
+func TestInheritParentValueAfterCommand(t *testing.T) {
+	args, err := Parse[inheritApp]("add", "--label", "root", "--name", "x")
+	require.NoError(t, err)
+	assert.Equal(t, "root", args.name.Value())
+	require.NotNil(t, args.add)
+	assert.Equal(t, "x", args.add.name.Value())
+}
+
+func TestInheritStopsAfterDashDash(t *testing.T) {
+	args, err := Parse[inheritApp]("add", "--name", "x", "--", "-v", "--force")
+	require.NoError(t, err)
+	assert.Equal(t, 0, args.verbose.Value())
+	assert.False(t, args.force.Value())
+	require.NotNil(t, args.add)
+	assert.Equal(t, []string{"-v", "--force"}, Values(args.add.rest))
+}
+
+func TestInheritStopsAfterParentDashDash(t *testing.T) {
+	args, err := Parse[inheritApp]("--", "add", "-v")
+	require.NoError(t, err)
+	assert.Equal(t, 0, args.verbose.Value())
+	require.NotNil(t, args.add)
+	assert.Equal(t, []string{"-v"}, Values(args.add.rest))
+}
+
+func TestInheritNestedCommand(t *testing.T) {
+	args, err := Parse[inheritApp]("mid", "inner", "-vv", "--name", "z")
+	require.NoError(t, err)
+	assert.Equal(t, 2, args.verbose.Value())
+	require.NotNil(t, args.mid)
+	require.NotNil(t, args.mid.inner)
+	assert.Equal(t, "z", args.mid.inner.name.Value())
+}
+
+func TestInheritUnknownStillErrors(t *testing.T) {
+	_, err := Parse[inheritApp]("add", "--nope")
+	assert.ErrorIs(t, err, ErrUnknownFlag)
+}
+
+func TestRequiredParentFlagAfterCommand(t *testing.T) {
+	type child struct {
+		rest []StringArg
+	}
+	type parent struct {
+		name StringArg `long:"name"`
+		add  *child
+	}
+	args, err := Parse[parent]("add", "--name", "x", "file")
+	require.NoError(t, err)
+	assert.Equal(t, "x", args.name.Value())
+	require.NotNil(t, args.add)
+	assert.Equal(t, []string{"file"}, Values(args.add.rest))
+}
+
+func TestInheritedHelpSkipsChildRequired(t *testing.T) {
+	type child struct {
+		path StringArg `long:"path"`
+	}
+	type parent struct {
+		help Flag `long:"help"`
+		add  *child
+	}
+	got, err := Parse[parent]("add", "--help")
+	require.NoError(t, err)
+	assert.True(t, got.help.Value())
+	require.NotNil(t, got.add)
+}
+
 type plusApp struct {
 	plus *addCmd `cmd:"plus"`
 }

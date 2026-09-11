@@ -174,6 +174,22 @@ func TestAppInnerCommand(t *testing.T) {
 	assert.Equal(t, "x", app.Args.ping.name.Value())
 }
 
+func TestAppVerboseAfterCommand(t *testing.T) {
+	app, err := Parse[App[extraCmds]]("ping", "-vv", "--name", "x")
+	require.NoError(t, err)
+	assert.Equal(t, 2, app.verbose.Value())
+	assert.Equal(t, slog.LevelDebug-4, app.LogLevel())
+	require.NotNil(t, app.Args.ping)
+	assert.Equal(t, "x", app.Args.ping.name.Value())
+}
+
+func TestAppHelpAfterCommand(t *testing.T) {
+	app, err := Parse[App[extraCmds]]("ping", "--help")
+	require.NoError(t, err)
+	assert.True(t, app.help.Value())
+	require.NotNil(t, app.Args.ping)
+}
+
 func TestAppInnerHelp(t *testing.T) {
 	app, err := Parse[App[extraCmds]]("--help")
 	require.NoError(t, err)

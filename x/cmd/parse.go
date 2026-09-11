@@ -44,6 +44,8 @@ type spec struct {
 	cmds   map[string]int
 	pos    []int
 	set    []bool
+	counts []int
+	parent *spec
 }
 
 func parseArgs(root reflect.Value, args []string) error {
@@ -51,7 +53,7 @@ func parseArgs(root reflect.Value, args []string) error {
 	if err != nil {
 		return err
 	}
-	return s.parse(args)
+	return s.parse(args, false)
 }
 
 func newSpec(root reflect.Value) (*spec, error) {
@@ -384,16 +386,15 @@ func (s *spec) add(f field) error {
 	return nil
 }
 
-func (s *spec) parse(args []string) error {
+func (s *spec) parse(args []string, allPos bool) error {
 	s.set = make([]bool, len(s.fields))
-	counts := make([]int, len(s.fields))
+	s.counts = make([]int, len(s.fields))
 	posi := 0
-	allPos := false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if !allPos && a == "--" {
 			if len(s.cmds) > 0 {
-				return s.feedCommand(args[i+1:], counts)
+				return s.feedCommand(args[i+1:], true)
 			}
 			for posi < len(s.pos) && s.fields[s.pos[posi]].kind == kindRest && s.nextIsDash(posi) {
 				posi++
@@ -416,14 +417,14 @@ func (s *spec) parse(args []string) error {
 		}
 		if !allPos && isOption(a) {
 			if strings.HasPrefix(a, "--") {
-				next, err := s.parseLong(a, args, i, counts)
+				next, err := s.parseLong(a, args, i)
 				if err != nil {
 					return err
 				}
 				i = next
 				continue
 			}
-			next, err := s.parseShorts(a, args, i, counts)
+			next, err := s.parseShorts(a, args, i)
 			if err != nil {
 				return err
 			}
@@ -431,7 +432,7 @@ func (s *spec) parse(args []string) error {
 			continue
 		}
 		if len(s.cmds) > 0 {
-			return s.takeCommand(a, args[i+1:], counts)
+			return s.takeCommand(a, args[i+1:], allPos)
 		}
 		if posi >= len(s.pos) {
 			return fmt.Errorf("%w: unexpected argument %q", ErrInvalidArgument, a)
@@ -449,7 +450,7 @@ func (s *spec) parse(args []string) error {
 		i += n - 1
 		posi++
 	}
-	return s.finish(counts)
+	return s.finish()
 }
 
 func (s *spec) nextIsDash(posi int) bool {
@@ -485,20 +486,17 @@ func (s *spec) takePos(posi int, args []string, mode consumeMode) (int, error) {
 	return 0, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
 }
 
-func (s *spec) feedCommand(args []string, counts []int) error {
+func (s *spec) feedCommand(args []string, allPos bool) error {
 	if len(args) == 0 {
-		return s.finish(counts)
+		return s.finish()
 	}
-	return s.takeCommand(args[0], args[1:], counts)
+	return s.takeCommand(args[0], args[1:], allPos)
 }
 
-func (s *spec) takeCommand(name string, rest []string, counts []int) error {
+func (s *spec) takeCommand(name string, rest []string, allPos bool) error {
 	fi, ok := s.cmds[name]
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownCommand, name)
-	}
-	if err := s.finish(counts); err != nil {
-		return err
 	}
 	fv := s.root.FieldByIndex(s.fields[fi].index)
 	slot := rvalue{fv}.settable()
@@ -508,7 +506,15 @@ func (s *spec) takeCommand(name string, rest []string, counts []int) error {
 	if slot.IsNil() {
 		slot.Set(reflect.New(slot.Type().Elem()))
 	}
-	return parseArgs(slot.Elem(), rest)
+	child, err := newSpec(slot.Elem())
+	if err != nil {
+		return err
+	}
+	child.parent = s
+	if err := child.parse(rest, allPos); err != nil {
+		return err
+	}
+	return s.finish()
 }
 
 func commandName(sf reflect.StructField, fv reflect.Value) (string, bool) {
@@ -525,49 +531,51 @@ func commandName(sf reflect.StructField, fv reflect.Value) (string, bool) {
 	return strings.ToLower(sf.Name), true
 }
 
-func (s *spec) parseLong(a string, args []string, i int, counts []int) (int, error) {
+func (s *spec) parseLong(a string, args []string, i int) (int, error) {
 	name, val, hasVal := strings.Cut(a[2:], "=")
 	if name == "" {
 		return i, fmt.Errorf("%w: %s", ErrUnknownFlag, a)
 	}
-	fi, err := s.lookupLong(name)
+	owner, fi, err := s.resolveLong(name)
 	if err != nil {
 		return i, err
 	}
-	return s.applyOption(fi, val, hasVal, args, i, counts)
+	return owner.applyOption(fi, val, hasVal, args, i)
 }
 
-func (s *spec) parseShorts(a string, args []string, i int, counts []int) (int, error) {
+func (s *spec) parseShorts(a string, args []string, i int) (int, error) {
 	cluster := a[1:]
 	for j := 0; j < len(cluster); {
 		r, size := utf8.DecodeRuneInString(cluster[j:])
-		fi, err := s.lookupShort(r)
+		owner, fi, err := s.resolveShort(r)
 		if err != nil {
 			return i, err
 		}
-		f := s.fields[fi]
+		f := owner.fields[fi]
 		rest := cluster[j+size:]
 		switch f.kind {
 		case kindSwitch:
-			counts[fi]++
+			owner.counts[fi]++
+			owner.mark(fi)
 			j += size
 		case kindEither:
 			if rest != "" && rest[0] == '=' {
-				if err := s.setValueAt(fi, rest[1:]); err != nil {
+				if err := owner.setValueAt(fi, rest[1:]); err != nil {
 					return i, err
 				}
 				return i, nil
 			}
-			counts[fi]++
+			owner.counts[fi]++
+			owner.mark(fi)
 			j += size
 		case kindValue, kindRepeat:
 			if rest != "" {
 				if rest[0] == '=' {
 					rest = rest[1:]
 				}
-				return s.takeFlagTokens(fi, []string{rest}, args, i, 0)
+				return owner.takeFlagTokens(fi, []string{rest}, args, i, 0)
 			}
-			return s.takeFlagTokens(fi, nil, args, i, 1)
+			return owner.takeFlagTokens(fi, nil, args, i, 1)
 		default:
 			return i, fmt.Errorf("%w: %s is not a flag", ErrInvalidArgument, f.display())
 		}
@@ -575,14 +583,15 @@ func (s *spec) parseShorts(a string, args []string, i int, counts []int) (int, e
 	return i, nil
 }
 
-func (s *spec) applyOption(fi int, val string, hasVal bool, args []string, i int, counts []int) (int, error) {
+func (s *spec) applyOption(fi int, val string, hasVal bool, args []string, i int) (int, error) {
 	f := s.fields[fi]
 	switch f.kind {
 	case kindSwitch:
 		if hasVal {
 			return i, fmt.Errorf("%w: %s does not take a value", ErrInvalidArgument, f.display())
 		}
-		counts[fi]++
+		s.counts[fi]++
+		s.mark(fi)
 		return i, nil
 	case kindEither:
 		if hasVal {
@@ -591,7 +600,8 @@ func (s *spec) applyOption(fi int, val string, hasVal bool, args []string, i int
 		if v, ok := optionalCountValue(args, i); ok {
 			return i + 1, s.setValueAt(fi, v)
 		}
-		counts[fi]++
+		s.counts[fi]++
+		s.mark(fi)
 		return i, nil
 	case kindValue, kindRepeat:
 		if hasVal {
@@ -666,8 +676,8 @@ func (s *spec) consumeFlagValue(fi int, tokens []string) (int, error) {
 	return n, nil
 }
 
-func (s *spec) finish(counts []int) error {
-	if err := s.applyCounts(counts); err != nil {
+func (s *spec) finish() error {
+	if err := s.applyCounts(s.counts); err != nil {
 		return err
 	}
 	if err := s.applyDefaults(); err != nil {
@@ -686,9 +696,11 @@ func (s *spec) finish(counts []int) error {
 }
 
 func (s *spec) skipRequired() bool {
-	for i, f := range s.fields {
-		if s.set[i] && (f.long == "help" || f.long == "version") {
-			return true
+	for cur := s; cur != nil; cur = cur.parent {
+		for i, f := range cur.fields {
+			if cur.set[i] && (f.long == "help" || f.long == "version") {
+				return true
+			}
 		}
 	}
 	return false
@@ -782,20 +794,24 @@ func (s *spec) callCount(f field, n int) error {
 	return rvalue{s.root.FieldByIndex(f.index)}.count(n)
 }
 
-func (s *spec) lookupLong(name string) (int, error) {
-	i, ok := s.longs[name]
-	if !ok {
-		return 0, fmt.Errorf("%w: --%s", ErrUnknownFlag, name)
+func (s *spec) resolveLong(name string) (*spec, int, error) {
+	if i, ok := s.longs[name]; ok {
+		return s, i, nil
 	}
-	return i, nil
+	if s.parent != nil {
+		return s.parent.resolveLong(name)
+	}
+	return nil, 0, fmt.Errorf("%w: --%s", ErrUnknownFlag, name)
 }
 
-func (s *spec) lookupShort(r rune) (int, error) {
-	i, ok := s.shorts[r]
-	if !ok {
-		return 0, fmt.Errorf("%w: -%c", ErrUnknownFlag, r)
+func (s *spec) resolveShort(r rune) (*spec, int, error) {
+	if i, ok := s.shorts[r]; ok {
+		return s, i, nil
 	}
-	return i, nil
+	if s.parent != nil {
+		return s.parent.resolveShort(r)
+	}
+	return nil, 0, fmt.Errorf("%w: -%c", ErrUnknownFlag, r)
 }
 
 func (f field) display() string {
