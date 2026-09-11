@@ -36,10 +36,9 @@ func Values[T any, A Valuer[T]](in []A) []T {
 	return out
 }
 
-// Arg is a parseable value (Parse + Value). Only arg types implement it.
 type Arg[T any] interface {
-	Parse(string) error
-	Value() T
+	Parser
+	Valuer[T]
 }
 
 // KV is a key/value product. V is an arg, e.g. *StringArg or *IntArg[int].
