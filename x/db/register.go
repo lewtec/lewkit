@@ -29,20 +29,28 @@ func Scheme(raw string) string {
 	return scheme
 }
 
-func lookup(raw string) (Connector, string, error) {
-	scheme, dsn := splitURL(raw)
+func lookup(raw string) (scheme string, c Connector, dsn string, err error) {
+	scheme, dsn = splitURL(raw)
 	if scheme == "" {
-		return Connector{}, "", fmt.Errorf("%w: empty url", ErrUnknownScheme)
+		return "", Connector{}, "", fmt.Errorf("%w: empty url", ErrUnknownScheme)
 	}
 	v, ok := engines.Load(scheme)
 	if !ok {
-		return Connector{}, "", fmt.Errorf("%w: %s", ErrUnknownScheme, scheme)
+		return "", Connector{}, "", fmt.Errorf("%w: %s", ErrUnknownScheme, scheme)
 	}
-	c := v.(Connector)
+	c = v.(Connector)
 	if c.DSN != nil {
 		dsn = c.DSN(raw)
 	}
-	return c, dsn, nil
+	return scheme, c, dsn, nil
+}
+
+func engineDir(root fs.FS, engine, name string) (fs.FS, error) {
+	p := engine + "/" + name
+	if _, err := fs.Stat(root, p); err != nil {
+		return nil, fmt.Errorf("%w: %s", ErrNoMigrations, p)
+	}
+	return fs.Sub(root, p)
 }
 
 func splitURL(raw string) (scheme, dsn string) {

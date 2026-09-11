@@ -1,7 +1,10 @@
 package db_test
 
 import (
+	"database/sql"
+	"io/fs"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +38,22 @@ func TestScheme(t *testing.T) {
 	assert.Equal(t, "sqlite", db.Scheme("file:foo.db"))
 	assert.Equal(t, "postgres", db.Scheme("postgres://localhost/app"))
 	assert.Equal(t, "postgres", db.Scheme("postgresql://localhost/app"))
+}
+
+func TestNoMigrationsForEngine(t *testing.T) {
+	db.Register("postgres", db.Connector{
+		Driver: "unused",
+		Up:     func(*sql.DB, fs.FS) error { return nil },
+	})
+	root := fstest.MapFS{
+		"sqlite/migrations/000001_items.up.sql": {Data: []byte("select 1;")},
+	}
+	var a db.Arg[struct{}]
+	require.NoError(t, a.Parse("postgres://localhost/app"))
+	err := a.Value().Migrate(t.Context(), root)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, db.ErrNoMigrations)
+	assert.Contains(t, err.Error(), "postgres/migrations")
 }
 
 func TestUnknownScheme(t *testing.T) {

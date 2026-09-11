@@ -21,6 +21,16 @@
 //	import _ "github.com/lewtec/lewkit/x/db/postgres"
 //
 // URLs: postgres://…, sqlite://path, file:path, :memory:, or a bare path.
+//
+// fsys must be laid out per engine. Open uses <scheme>/migrations:
+//
+//	sqlite/migrations/*.sql
+//	sqlite/*.sql            // sqlc queries (not read at runtime)
+//	postgres/migrations/*.sql
+//	postgres/*.sql
+//
+// A postgres URL never sees sqlite/migrations. Missing <scheme>/migrations
+// is an error.
 package db
 
 import (
@@ -38,6 +48,7 @@ var (
 	errNilNew        = errors.New("nil constructor")
 	errNotOpen       = errors.New("database not open")
 	ErrUnknownScheme = errors.New("unknown database scheme")
+	ErrNoMigrations  = errors.New("no migrations for engine")
 )
 
 // DBTX is sqlc's database/sql handle (*sql.DB and *sql.Tx).
@@ -106,9 +117,16 @@ func (c *Conn[Q]) Migrate(ctx context.Context, fsys fs.FS) error {
 	if c == nil {
 		return errNotOpen
 	}
-	eng, dsn, err := lookup(c.url)
+	scheme, eng, dsn, err := lookup(c.url)
 	if err != nil {
 		return err
+	}
+	var mig fs.FS
+	if fsys != nil && eng.Up != nil {
+		mig, err = engineDir(fsys, scheme, "migrations")
+		if err != nil {
+			return err
+		}
 	}
 	if c.conn == nil {
 		conn, err := sql.Open(eng.Driver, dsn)
@@ -120,10 +138,10 @@ func (c *Conn[Q]) Migrate(ctx context.Context, fsys fs.FS) error {
 		}
 		c.conn = conn
 	}
-	if fsys == nil || eng.Up == nil {
+	if mig == nil {
 		return nil
 	}
-	if err := eng.Up(c.conn, fsys); err != nil {
+	if err := eng.Up(c.conn, mig); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil

@@ -16,12 +16,12 @@ import (
 	_ "github.com/lewtec/lewkit/x/db/sqlite"
 )
 
-//go:embed testdata/migrations/*.sql
-var migrationsFS embed.FS
+//go:embed testdata
+var testdataFS embed.FS
 
 func migrations(t *testing.T) fs.FS {
 	t.Helper()
-	return db.Dir(migrationsFS, "testdata/migrations")
+	return db.Dir(testdataFS, "testdata")
 }
 
 type querier interface {
