@@ -476,3 +476,153 @@ func TestDefaultTagOverridesMethod(t *testing.T) {
 	assert.True(t, got.force.Value())
 	assert.Equal(t, 3, got.n.Value())
 }
+
+func TestAddrArg(t *testing.T) {
+	type args struct {
+		addr AddrArg `long:"addr"`
+	}
+	cases := []struct {
+		name string
+		in   string
+		want string
+		host string
+		port string
+		err  error
+	}{
+		{name: "host port", in: "127.0.0.1:8080", want: "127.0.0.1:8080", host: "127.0.0.1", port: "8080"},
+		{name: "all interfaces", in: ":8080", want: ":8080", host: "", port: "8080"},
+		{name: "bare port", in: "8080", want: ":8080", host: "", port: "8080"},
+		{name: "ipv6", in: "[::1]:443", want: "[::1]:443", host: "::1", port: "443"},
+		{name: "hostname", in: "localhost:80", want: "localhost:80", host: "localhost", port: "80"},
+		{name: "missing port", in: "localhost", err: ErrInvalidArgument},
+		{name: "empty", in: "", err: ErrInvalidArgument},
+		{name: "empty port", in: "localhost:", err: ErrInvalidArgument},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := Parse[args]("--addr", tc.in)
+			if tc.err != nil {
+				assert.ErrorIs(t, err, tc.err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.addr.Value())
+			assert.Equal(t, tc.host, got.addr.Host())
+			assert.Equal(t, tc.port, got.addr.Port())
+		})
+	}
+}
+
+func TestAddrDefault(t *testing.T) {
+	type args struct {
+		addr AddrArg `long:"addr" default:":8080"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, ":8080", got.addr.Value())
+}
+
+func TestEnvFillsFlag(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "Ada")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "Ada", got.name.Value())
+}
+
+func TestEnvOverriddenByFlag(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "Ada")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME"`
+	}
+	got, err := Parse[args]("--name", "Grace")
+	require.NoError(t, err)
+	assert.Equal(t, "Grace", got.name.Value())
+}
+
+func TestEnvBeforeDefault(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "Ada")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME" default:"anon"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "Ada", got.name.Value())
+}
+
+func TestEnvUnsetUsesDefault(t *testing.T) {
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_UNSET_NAME" default:"anon"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "anon", got.name.Value())
+}
+
+func TestEnvUnsetRequired(t *testing.T) {
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_UNSET_NAME"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrMissingValue)
+}
+
+func TestEnvInvalid(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_PORT", "nope")
+	type args struct {
+		port IntArg[int] `long:"port" env:"LEWKIT_TEST_PORT"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrInvalidArgument)
+}
+
+func TestEnvFlag(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_FORCE", "true")
+	type args struct {
+		force Flag `long:"force" env:"LEWKIT_TEST_FORCE"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.True(t, got.force.Value())
+}
+
+func TestEnvEmptyString(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME", "")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME" default:"anon"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "", got.name.Value())
+}
+
+func TestAddrEnvPort(t *testing.T) {
+	t.Setenv("PORT", "9090")
+	type args struct {
+		addr AddrArg `long:"addr" env:"PORT" default:":8080"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, ":9090", got.addr.Value())
+	assert.Equal(t, "9090", got.addr.Port())
+}
+
+func TestAddrFlagOverridesPort(t *testing.T) {
+	t.Setenv("PORT", "9090")
+	type args struct {
+		addr AddrArg `long:"addr" env:"PORT" default:":8080"`
+	}
+	got, err := Parse[args]("--addr", "127.0.0.1:80")
+	require.NoError(t, err)
+	assert.Equal(t, "127.0.0.1:80", got.addr.Value())
+}
+
+func TestEnvOnRest(t *testing.T) {
+	type args struct {
+		rest []StringArg `env:"LEWKIT_TEST_REST"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrInvalidSpec)
+}

@@ -96,14 +96,21 @@ func (s *spec) lineHelp(f field) string {
 	if help == "" && f.kind == kindCommand {
 		help = firstLine(s.commandDescription(f))
 	}
-	if !f.hasDef || f.def == "" {
+	var extra []string
+	if f.env != "" {
+		extra = append(extra, "env: "+f.env)
+	}
+	if f.hasDef && f.def != "" {
+		extra = append(extra, "default: "+f.def)
+	}
+	if len(extra) == 0 {
 		return help
 	}
-	def := "(default: " + f.def + ")"
+	suffix := "(" + strings.Join(extra, ", ") + ")"
 	if help == "" {
-		return def
+		return suffix
 	}
-	return help + " " + def
+	return help + " " + suffix
 }
 
 func (s *spec) commandDescription(f field) string {
