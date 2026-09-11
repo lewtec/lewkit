@@ -13,6 +13,20 @@
       "depName": "rhysd/actionlint",
       "currentValue": "v1.7.12",
       "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
+      "ref": "mise:go:golang.org/x/vuln/cmd/govulncheck",
+      "depName": "",
+      "currentValue": "1.8.0",
+      "datasource": ""
+    },
+    {
+      "kind": "tool",
+      "ref": "registry:mise",
+      "depName": "jdx/mise",
+      "currentValue": "2026.9.5",
+      "datasource": "github-releases"
     }
   ]
 }
