@@ -1,5 +1,8 @@
-// Package sqlite registers the sqlite3 migrator and the default
-// modernc.org/sqlite driver name.
+// Package sqlite registers the sqlite URL schemes.
+//
+//	import _ "github.com/lewtec/lewkit/x/db/sqlite"
+//
+// Schemes: sqlite, sqlite3, file. Bare paths and :memory: also map here.
 package sqlite
 
 import (
@@ -13,23 +16,19 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
 	"github.com/lewtec/lewkit/x/db"
+
+	_ "modernc.org/sqlite"
 )
 
-// Engine is the Source methods for modernc sqlite + golang-migrate sqlite3.
-type Engine struct{}
-
-// Driver is the database/sql name registered by modernc.org/sqlite.
-func (Engine) Driver() string { return "sqlite" }
-
-// Dialect is golang-migrate's sqlite3 database name.
-func (Engine) Dialect() string { return "sqlite3" }
-
 func init() {
-	db.Register("sqlite3", up)
+	c := db.Connector{Driver: "sqlite", Up: up}
+	db.Register("sqlite", c)
+	db.Register("sqlite3", c)
+	db.Register("file", c)
 }
 
-func up(conn *sql.DB, fsys fs.FS, dir string) error {
-	src, err := iofs.New(fsys, dir)
+func up(conn *sql.DB, fsys fs.FS) error {
+	src, err := iofs.New(fsys, ".")
 	if err != nil {
 		return fmt.Errorf("iofs: %w", err)
 	}

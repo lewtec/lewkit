@@ -1,5 +1,8 @@
-// Package postgres registers the postgres migrator and the default
-// pgx database/sql driver name.
+// Package postgres registers the postgres URL schemes (pgx stdlib).
+//
+//	import _ "github.com/lewtec/lewkit/x/db/postgres"
+//
+// Schemes: postgres, postgresql.
 package postgres
 
 import (
@@ -13,23 +16,18 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 
 	"github.com/lewtec/lewkit/x/db"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// Engine is the Source methods for pgx stdlib + golang-migrate postgres.
-type Engine struct{}
-
-// Driver is the database/sql name registered by pgx/stdlib.
-func (Engine) Driver() string { return "pgx" }
-
-// Dialect is golang-migrate's postgres database name.
-func (Engine) Dialect() string { return "postgres" }
-
 func init() {
-	db.Register("postgres", up)
+	c := db.Connector{Driver: "pgx", Up: up}
+	db.Register("postgres", c)
+	db.Register("postgresql", c)
 }
 
-func up(conn *sql.DB, fsys fs.FS, dir string) error {
-	src, err := iofs.New(fsys, dir)
+func up(conn *sql.DB, fsys fs.FS) error {
+	src, err := iofs.New(fsys, ".")
 	if err != nil {
 		return fmt.Errorf("iofs: %w", err)
 	}

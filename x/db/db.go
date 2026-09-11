@@ -1,34 +1,26 @@
-// Package db is a cmd product that opens a database, runs embedded
-// migrations, and constructs sqlc queries.
-//
-// SQL is one URL token. The command field supplies the flag name, so
-// one spec can hold a postgres field and a sqlite field without a
-// colliding --database tag.
+// Package db is a --database URL flag. Value() migrates and runs sqlc queries.
 //
 //	type serve struct {
-//		PG   db.SQL[pg.Queries, pgMig]   `long:"postgres" help:"postgres URL"`
-//		Lite db.SQL[lite.Queries, liteMig] `long:"sqlite" help:"sqlite path"`
+//		DB db.Arg[Querier] `long:"database"`
 //	}
 //
-// Source is a zero-value type: embed.FS is a value, so it cannot be a
-// type parameter. The app binds the folder with methods, the same way
-// goose SetBaseFS and golang-migrate iofs.New take an embed.FS.
+//	func (s *serve) Run(ctx context.Context) error {
+//		d := s.DB.Value()
+//		if err := d.Open(ctx, migrations, sqlc.New); err != nil {
+//			return err
+//		}
+//		defer d.Close()
+//		return d.Tx(ctx, func(q Querier) error {
+//			return q.Insert(ctx, ...)
+//		})
+//	}
 //
-//	type liteMig struct{ sqlite.Engine }
-//	func (liteMig) FS() fs.FS   { return liteFS }
-//	func (liteMig) Dir() string { return "migrations" }
-//
-// Import the dialect package so its migrator is registered:
+// Blank-import engines so their schemes register:
 //
 //	import _ "github.com/lewtec/lewkit/x/db/sqlite"
+//	import _ "github.com/lewtec/lewkit/x/db/postgres"
 //
-// sqlc emits New(db DBTX) *Queries per engine. OpenStdlib passes *sql.DB
-// to that constructor. Open is for pgx pools: migrate on database/sql,
-// then connect with the native driver, as ciborg does for postgres.
-//
-// Two engines in one process is two SQL fields, or one URL plus a driver
-// switch that calls FromURL. sqlc itself is one generated package per
-// engine (ciborg's sqlc.yaml).
+// URLs: postgres://…, sqlite://path, file:path, :memory:, or a bare path.
 package db
 
 import (
@@ -37,113 +29,155 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"strings"
+	"sync/atomic"
 
 	"github.com/lewtec/lewkit/x/cmd"
 )
 
-// Source is the zero-value migration folder and engine for SQL.
-type Source interface {
-	FS() fs.FS
-	Dir() string
-	Driver() string
-	Dialect() string
+var (
+	errNilNew        = errors.New("nil constructor")
+	errNotOpen       = errors.New("database not open")
+	ErrUnknownScheme = errors.New("unknown database scheme")
+)
+
+// DBTX is sqlc's database/sql handle (*sql.DB and *sql.Tx).
+type DBTX interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+	PrepareContext(context.Context, string) (*sql.Stmt, error)
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-// SQL is a cmd product: one URL token. Tag the field at the embed site.
-type SQL[Q any, S Source] struct {
-	URL cmd.StringArg
+// Arg is a database URL flag. Parse the URL; Value is the connection.
+type Arg[Q any] struct {
+	raw string
+	c   atomic.Pointer[Conn[Q]]
 }
 
-// Handle is an open database and its sqlc query type.
-// DB is set by OpenStdlib and is nil after Open.
-type Handle[Q any] struct {
-	DB    *sql.DB
-	Q     Q
-	close func() error
+// Parse stores the URL.
+func (a *Arg[Q]) Parse(s string) error {
+	a.raw = s
+	a.c.Store(&Conn[Q]{url: s})
+	return nil
 }
 
-// ErrEphemeral is returned when Migrate or Open is used with an
-// in-memory URL. Those need one *sql.DB; use OpenStdlib.
-var ErrEphemeral = errors.New("in-memory database requires OpenStdlib")
-
-// FromURL fills SQL from a DSN already in hand (env, driver switch).
-func FromURL[Q any, S Source](url string) SQL[Q, S] {
-	var s SQL[Q, S]
-	_ = s.URL.Parse(url)
-	return s
+// Value is the connection for this URL. Nil before Parse.
+func (a Arg[Q]) Value() *Conn[Q] {
+	return a.c.Load()
 }
 
-// OpenStdlib opens database/sql, migrates, and builds Q from *sql.DB.
-func (s SQL[Q, S]) OpenStdlib(ctx context.Context, newQ func(*sql.DB) Q) (*Handle[Q], error) {
-	conn, err := s.openDB(ctx)
-	if err != nil {
-		return nil, err
+var (
+	_ cmd.Parser                  = (*Arg[struct{}])(nil)
+	_ cmd.Valuer[*Conn[struct{}]] = Arg[struct{}]{}
+)
+
+// Conn migrates and runs queries for one URL.
+type Conn[Q any] struct {
+	url  string
+	conn *sql.DB
+	new  func(DBTX) Q
+}
+
+// URL is the raw database URL.
+func (c *Conn[Q]) URL() string {
+	if c == nil {
+		return ""
 	}
-	var src S
-	if err := apply(src.Dialect(), conn, src.FS(), src.Dir()); err != nil {
-		return nil, errors.Join(err, conn.Close())
-	}
-	return &Handle[Q]{DB: conn, Q: newQ(conn)}, nil
+	return c.url
 }
 
-// Open migrates on a short-lived database/sql connection, then calls
-// connect with the URL. Use this when Q is built from a pgx pool.
-func (s SQL[Q, S]) Open(ctx context.Context, connect func(context.Context, string) (Q, func() error, error)) (*Handle[Q], error) {
-	if err := s.Migrate(ctx); err != nil {
-		return nil, err
+// Open connects, runs migrations on fsys, and binds sqlc New.
+func (c *Conn[Q]) Open(ctx context.Context, fsys fs.FS, new func(DBTX) Q) error {
+	if c == nil {
+		return errNotOpen
 	}
-	q, closer, err := connect(ctx, s.URL.Value())
-	if err != nil {
-		return nil, err
+	if new == nil {
+		return errNilNew
 	}
-	return &Handle[Q]{Q: q, close: closer}, nil
+	if err := c.Migrate(ctx, fsys); err != nil {
+		return err
+	}
+	c.new = new
+	return nil
 }
 
-// Migrate opens database/sql, runs pending migrations, and closes.
-func (s SQL[Q, S]) Migrate(ctx context.Context) error {
-	if ephemeral(s.URL.Value()) {
-		return ErrEphemeral
+// Migrate connects (if needed) and applies migrations in fsys.
+func (c *Conn[Q]) Migrate(ctx context.Context, fsys fs.FS) error {
+	if c == nil {
+		return errNotOpen
 	}
-	conn, err := s.openDB(ctx)
+	eng, dsn, err := lookup(c.url)
 	if err != nil {
 		return err
 	}
-	var src S
-	return errors.Join(apply(src.Dialect(), conn, src.FS(), src.Dir()), conn.Close())
-}
-
-// Close closes the handle.
-func (h *Handle[Q]) Close() error {
-	if h == nil {
+	if c.conn == nil {
+		conn, err := sql.Open(eng.Driver, dsn)
+		if err != nil {
+			return fmt.Errorf("open %s: %w", eng.Driver, err)
+		}
+		if err := conn.PingContext(ctx); err != nil {
+			return errors.Join(fmt.Errorf("ping %s: %w", eng.Driver, err), conn.Close())
+		}
+		c.conn = conn
+	}
+	if fsys == nil || eng.Up == nil {
 		return nil
 	}
-	if h.close != nil {
-		return h.close()
-	}
-	if h.DB != nil {
-		return h.DB.Close()
+	if err := eng.Up(c.conn, fsys); err != nil {
+		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
 }
 
-func (s SQL[Q, S]) openDB(ctx context.Context) (*sql.DB, error) {
-	var src S
-	driver := src.Driver()
-	conn, err := sql.Open(driver, s.URL.Value())
-	if err != nil {
-		return nil, fmt.Errorf("open %s: %w", driver, err)
+// Queries is Q on the connection. Open must have been called.
+func (c *Conn[Q]) Queries() Q {
+	var z Q
+	if c == nil || c.conn == nil || c.new == nil {
+		return z
 	}
-	if err := conn.PingContext(ctx); err != nil {
-		return nil, errors.Join(fmt.Errorf("ping %s: %w", driver, err), conn.Close())
-	}
-	return conn, nil
+	return c.new(c.conn)
 }
 
-func ephemeral(url string) bool {
-	if url == ":memory:" || strings.HasPrefix(url, "file::memory:") {
-		return true
+// Tx runs fn with Q bound to a transaction.
+func (c *Conn[Q]) Tx(ctx context.Context, fn func(Q) error) error {
+	if c == nil || c.conn == nil || c.new == nil {
+		return errNotOpen
 	}
-	_, after, ok := strings.Cut(url, "?")
-	return ok && strings.Contains(after, "mode=memory")
+	tx, err := c.conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	if err := fn(c.new(tx)); err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
+// Close closes the connection.
+func (c *Conn[Q]) Close() error {
+	if c == nil || c.conn == nil {
+		return nil
+	}
+	err := c.conn.Close()
+	c.conn = nil
+	return err
+}
+
+// Dir is fs.Sub that panics. Use next to //go:embed at package scope.
+func Dir(fsys fs.FS, name string) fs.FS {
+	sub, err := fs.Sub(fsys, name)
+	if err != nil {
+		panic(err)
+	}
+	return sub
+}
+
+// As adapts sqlc New (func(DBTX) *Queries) to an interface Q.
+func As[Q, C any](new func(DBTX) C) func(DBTX) Q {
+	return func(x DBTX) Q {
+		return any(new(x)).(Q)
+	}
 }
