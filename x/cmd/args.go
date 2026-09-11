@@ -28,9 +28,9 @@ type Valuer[T any] interface {
 	Value() T
 }
 
-// Defaulter supplies a default when the field has no default tag.
-type Defaulter interface {
-	Default() string
+// ArgDefaulter supplies a default when the field has no default tag.
+type ArgDefaulter interface {
+	ArgDefault() string
 }
 
 func Values[T any, A Valuer[T]](in []A) []T {
@@ -108,7 +108,7 @@ type Flag struct {
 	Container[bool]
 }
 
-func (Flag) Default() string { return "false" }
+func (Flag) ArgDefault() string { return "false" }
 
 func (f *Flag) Count(times int) error {
 	f.value = times != 0
@@ -122,7 +122,7 @@ type Count struct {
 	Container[int]
 }
 
-func (Count) Default() string { return "0" }
+func (Count) ArgDefault() string { return "0" }
 
 func (f *Count) Count(times int) error {
 	f.value = times
@@ -149,8 +149,8 @@ var (
 	_ Counter      = (*Flag)(nil)
 	_ Counter      = (*Count)(nil)
 	_ Valuer[bool] = (*Flag)(nil)
-	_ Defaulter    = Flag{}
-	_ Defaulter    = Count{}
+	_ ArgDefaulter = Flag{}
+	_ ArgDefaulter = Count{}
 	_ Arg[string]  = (*StringArg)(nil)
 	_ Arg[int]     = (*IntArg[int])(nil)
 	_ Arg[int]     = (*Count)(nil)

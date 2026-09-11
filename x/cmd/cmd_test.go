@@ -451,7 +451,7 @@ type dirArg struct {
 	StringArg
 }
 
-func (dirArg) Default() string { return "/tmp" }
+func (dirArg) ArgDefault() string { return "/tmp" }
 
 func TestDefaultMethod(t *testing.T) {
 	type args struct {
