@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
 	sqlc "github.com/sqlc-dev/sqlc/pkg/cli"
 	"go.yaml.in/yaml/v3"
 )
-
-var sqlcMu sync.Mutex
 
 type sqlcFile struct {
 	Version string    `yaml:"version"`
@@ -58,17 +55,8 @@ func writeSQLC(root string, engines []engine) error {
 }
 
 func runSQLC(root string) error {
-	sqlcMu.Lock()
-	defer sqlcMu.Unlock()
-	wd, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-	if err := os.Chdir(root); err != nil {
-		return err
-	}
-	defer os.Chdir(wd)
-	if code := sqlc.Run([]string{"generate"}); code != 0 {
+	cfg := filepath.Join(root, "sqlc.yaml")
+	if code := sqlc.Run([]string{"generate", "-f", cfg}); code != 0 {
 		return fmt.Errorf("sqlc generate: exit %d", code)
 	}
 	return nil
