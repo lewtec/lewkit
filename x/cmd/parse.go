@@ -197,7 +197,7 @@ func defaultOf(t reflect.Type) (string, bool) {
 		t = t.Elem()
 	}
 	v := rvalue{reflect.New(t)}
-	if !v.hasDefault() {
+	if !v.hasArgDefault() {
 		return "", false
 	}
 	return v.defaultString(), true
@@ -834,8 +834,8 @@ func (v rvalue) hasCount() bool {
 	return v.has("Count", reflect.TypeFor[int]())
 }
 
-func (v rvalue) hasDefault() bool {
-	m := v.ptr().MethodByName("Default")
+func (v rvalue) hasArgDefault() bool {
+	m := v.ptr().MethodByName("ArgDefault")
 	if !m.IsValid() {
 		return false
 	}
@@ -844,7 +844,7 @@ func (v rvalue) hasDefault() bool {
 }
 
 func (v rvalue) defaultString() string {
-	return v.ptr().MethodByName("Default").Call(nil)[0].String()
+	return v.ptr().MethodByName("ArgDefault").Call(nil)[0].String()
 }
 
 func (v rvalue) has(name string, in reflect.Type) bool {
