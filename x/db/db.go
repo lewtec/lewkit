@@ -1,18 +1,20 @@
 // Package db is a --database URL flag. Value() migrates and runs sqlc queries.
 //
 //	type serve struct {
-//		DB db.Arg[Querier] `long:"database"`
+//		DB store.Flag `long:"database"`
 //	}
 //
 //	func (s *serve) Run(ctx context.Context) error {
-//		if err := s.DB.Open(ctx, dbFS, sqlc.New); err != nil {
+//		if err := s.DB.Open(ctx); err != nil {
 //			return err
 //		}
 //		defer s.DB.Value().Close()
-//		return s.DB.Value().Tx(ctx, func(q Querier) error {
+//		return s.DB.Value().Tx(ctx, func(q store.Queries) error {
 //			return q.Insert(ctx, ...)
 //		})
 //	}
+//
+// Off the CLI, same type: Parse the URL (or FromURL), Open, Value.
 //
 // Blank-import engines so their schemes register:
 //
@@ -32,8 +34,8 @@
 // A postgres URL never sees sqlite/migrations. Missing <scheme>/migrations
 // is an error.
 //
-// lewkit generate db <dir> runs sqlc for each engine, checks query
-// names and generated signatures match, and writes Queries plus Bind.
+// lewkit generate db <dir> writes Queries and Flag. Flag is the cmd
+// field: Parse the URL, Open(ctx) migrates, Value() is the conn.
 package db
 
 import (
@@ -68,11 +70,18 @@ type Arg[Q any] struct {
 	c   atomic.Pointer[Conn[Q]]
 }
 
-// Parse stores the URL.
+// Parse stores the URL. Same string as FromURL.
 func (a *Arg[Q]) Parse(s string) error {
 	a.raw = s
 	a.c.Store(&Conn[Q]{url: s})
 	return nil
+}
+
+// FromURL is Parse as a constructor. Value() is the conn (Open still needed).
+func FromURL[Q any](url string) (Arg[Q], error) {
+	var a Arg[Q]
+	err := a.Parse(url)
+	return a, err
 }
 
 // Value is the connection for this URL. Nil before Parse.

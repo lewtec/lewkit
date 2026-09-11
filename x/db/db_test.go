@@ -23,6 +23,13 @@ func TestParseDatabaseFlag(t *testing.T) {
 	assert.Equal(t, "sqlite://file.db", got.DB.Value().URL())
 }
 
+func TestFromURL(t *testing.T) {
+	a, err := db.FromURL[struct{}]("sqlite://file.db")
+	require.NoError(t, err)
+	require.NotNil(t, a.Value())
+	assert.Equal(t, "sqlite://file.db", a.Value().URL())
+}
+
 func TestParseRequired(t *testing.T) {
 	type args struct {
 		DB db.Arg[struct{}] `long:"database"`
