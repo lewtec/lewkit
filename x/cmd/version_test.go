@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/lewtec/lewkit/xtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,7 @@ type withVersion struct {
 }
 
 func TestVersionCmdRun(t *testing.T) {
-	got := captureStdout(t, func() {
+	got := xtest.Stdout(t, func() {
 		require.NoError(t, (VersionCmd{}).Run(t.Context()))
 	})
 	assert.Equal(t, release.Version()+"\n", got)
@@ -23,7 +24,7 @@ func TestVersionCmdOptIn(t *testing.T) {
 	app, err := Parse[App[withVersion]]("version")
 	require.NoError(t, err)
 	require.NotNil(t, app.Args.version)
-	got := captureStdout(t, func() {
+	got := xtest.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
 	assert.Equal(t, release.Version()+"\n", got)
