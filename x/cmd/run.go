@@ -29,21 +29,46 @@ func runSelected(ctx context.Context, v reflect.Value) error {
 			return runSelected(ctx, rvalue{fv}.settable())
 		}
 	}
-	return callRun(ctx, v)
+	if run := runMethod(v); run.IsValid() {
+		return callRun(ctx, run)
+	}
+	if hasCommands(v) {
+		return ErrMissingCommand
+	}
+	return nil
 }
 
-func callRun(ctx context.Context, v reflect.Value) error {
+func hasCommands(v reflect.Value) bool {
+	t := v.Type()
+	for i := range t.NumField() {
+		sf := t.Field(i)
+		fv := v.Field(i)
+		if sf.Anonymous {
+			continue
+		}
+		if _, ok := commandName(sf, fv); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func runMethod(v reflect.Value) reflect.Value {
 	m := rvalue{v}.settable().Addr().MethodByName("Run")
 	if !m.IsValid() {
-		return nil
+		return reflect.Value{}
 	}
 	mt := m.Type()
 	if mt.NumIn() != 1 || mt.In(0) != reflect.TypeFor[context.Context]() {
-		return nil
+		return reflect.Value{}
 	}
 	if mt.NumOut() != 1 || mt.Out(0) != reflect.TypeFor[error]() {
-		return nil
+		return reflect.Value{}
 	}
+	return m
+}
+
+func callRun(ctx context.Context, m reflect.Value) error {
 	out := m.Call([]reflect.Value{reflect.ValueOf(ctx)})[0].Interface()
 	if err, ok := out.(error); ok {
 		return err
