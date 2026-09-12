@@ -754,19 +754,36 @@ func (s *spec) applyCounts(counts []int) error {
 	return nil
 }
 
+func envNames(tag string) []string {
+	if tag == "" {
+		return nil
+	}
+	parts := strings.Split(tag, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if n := strings.TrimSpace(p); n != "" {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 func (s *spec) applyEnv() error {
 	for i, f := range s.fields {
-		if f.env == "" || s.set[i] {
+		if s.set[i] {
 			continue
 		}
-		val, ok := os.LookupEnv(f.env)
-		if !ok {
-			continue
+		for _, name := range envNames(f.env) {
+			val, ok := os.LookupEnv(name)
+			if !ok {
+				continue
+			}
+			if err := s.applyLiteral(f, val); err != nil {
+				return fmt.Errorf("env %s: %w", name, err)
+			}
+			s.mark(i)
+			break
 		}
-		if err := s.applyLiteral(f, val); err != nil {
-			return fmt.Errorf("env %s: %w", f.env, err)
-		}
-		s.mark(i)
 	}
 	return nil
 }

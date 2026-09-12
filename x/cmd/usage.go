@@ -97,8 +97,8 @@ func (s *spec) lineHelp(f field) string {
 		help = firstLine(s.commandDescription(f))
 	}
 	var extra []string
-	if f.env != "" {
-		extra = append(extra, "env: "+f.env)
+	if names := envNames(f.env); len(names) > 0 {
+		extra = append(extra, "env: "+strings.Join(names, ", "))
 	}
 	if f.hasDef && f.def != "" {
 		extra = append(extra, "default: "+f.def)

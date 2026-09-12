@@ -682,3 +682,45 @@ func TestEnvOnRest(t *testing.T) {
 	_, err := Parse[args]()
 	assert.ErrorIs(t, err, ErrInvalidSpec)
 }
+
+func TestEnvFirstOfMany(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME_A", "Ada")
+	t.Setenv("LEWKIT_TEST_NAME_B", "Grace")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME_A,LEWKIT_TEST_NAME_B"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "Ada", got.name.Value())
+}
+
+func TestEnvFallback(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME_B", "Grace")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_UNSET_NAME, LEWKIT_TEST_NAME_B"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "Grace", got.name.Value())
+}
+
+func TestEnvFallbackEmptyFirstWins(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_NAME_A", "")
+	t.Setenv("LEWKIT_TEST_NAME_B", "Grace")
+	type args struct {
+		name StringArg `long:"name" env:"LEWKIT_TEST_NAME_A,LEWKIT_TEST_NAME_B" default:"anon"`
+	}
+	got, err := Parse[args]()
+	require.NoError(t, err)
+	assert.Equal(t, "", got.name.Value())
+}
+
+func TestEnvFallbackInvalid(t *testing.T) {
+	t.Setenv("LEWKIT_TEST_PORT", "nope")
+	t.Setenv("LEWKIT_TEST_PORT_OK", "8080")
+	type args struct {
+		port IntArg[int] `long:"port" env:"LEWKIT_TEST_PORT,LEWKIT_TEST_PORT_OK"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrInvalidArgument)
+}
