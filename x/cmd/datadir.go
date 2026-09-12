@@ -17,6 +17,14 @@ type DataDirArg struct {
 }
 
 func (d *DataDirArg) Parse(arg string) error {
+	if err := existingDir(arg); err != nil {
+		return err
+	}
+	d.value = arg
+	return nil
+}
+
+func existingDir(arg string) error {
 	if arg == "" {
 		return fmt.Errorf("%w: %w", ErrInvalidArgument, ErrEmptyPath)
 	}
@@ -27,7 +35,6 @@ func (d *DataDirArg) Parse(arg string) error {
 	if !st.IsDir() {
 		return fmt.Errorf("%w: %w: %s", ErrInvalidArgument, ErrNotDir, arg)
 	}
-	d.value = arg
 	return nil
 }
 
