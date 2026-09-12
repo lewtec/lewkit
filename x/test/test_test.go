@@ -1,4 +1,4 @@
-package xtest
+package test
 
 import (
 	"bytes"

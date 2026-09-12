@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/lewtec/lewkit/xtest"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ type ctxRoot struct {
 }
 
 func TestGetParentFlagAfterCommand(t *testing.T) {
-	xtest.RestoreSlog(t)
+	test.RestoreSlog(t)
 
 	app, err := Parse[App[ctxRoot]]("leaf", "-vv", "--profile-dir", "/tmp/x")
 	require.NoError(t, err)

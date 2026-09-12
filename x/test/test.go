@@ -1,10 +1,10 @@
-// Package xtest is process-wide test seams: stdout, stderr, slog, and PATH.
+// Package test is process-wide test seams: stdout, stderr, slog, and PATH.
 //
 // Stdout, Stderr, Slog, DiscardSlog, and RestoreSlog mutate process globals.
 // Do not call t.Parallel in those tests.
 //
 // Database open and migrate stay on x/db. CLI is x/cmd, not Cobra.
-package xtest
+package test
 
 import (
 	"io"

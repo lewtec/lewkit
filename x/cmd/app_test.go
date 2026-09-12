@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/release"
-	"github.com/lewtec/lewkit/xtest"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,7 +76,7 @@ func TestAppUsage(t *testing.T) {
 func TestAppRunHelp(t *testing.T) {
 	app, err := Parse[App[None]]("--help")
 	require.NoError(t, err)
-	got := xtest.Stdout(t, func() {
+	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
 	assert.True(t, strings.HasPrefix(got, "Usage:"))
@@ -90,7 +90,7 @@ func TestAppRunVersion(t *testing.T) {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			app, err := Parse[App[None]](args...)
 			require.NoError(t, err)
-			got := xtest.Stdout(t, func() {
+			got := test.Stdout(t, func() {
 				require.NoError(t, app.Run(t.Context()))
 			})
 			assert.Equal(t, want, got)
@@ -99,7 +99,7 @@ func TestAppRunVersion(t *testing.T) {
 }
 
 func TestAppRunNoProfile(t *testing.T) {
-	xtest.RestoreSlog(t)
+	test.RestoreSlog(t)
 
 	app, err := Parse[App[None]]("-v")
 	require.NoError(t, err)
@@ -107,7 +107,7 @@ func TestAppRunNoProfile(t *testing.T) {
 }
 
 func TestAppRunProfile(t *testing.T) {
-	xtest.RestoreSlog(t)
+	test.RestoreSlog(t)
 
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(t.Context())
@@ -147,7 +147,7 @@ func (p *pingCmd) Run(context.Context) error {
 }
 
 func TestAppInnerCommand(t *testing.T) {
-	xtest.RestoreSlog(t)
+	test.RestoreSlog(t)
 
 	app, err := Parse[App[extraCmds]]("ping", "--name", "x")
 	require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestAppHelpAfterCommand(t *testing.T) {
 func TestAppInnerHelp(t *testing.T) {
 	app, err := Parse[App[extraCmds]]("--help")
 	require.NoError(t, err)
-	got := xtest.Stdout(t, func() {
+	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
 	assert.Contains(t, got, "ping")
@@ -194,7 +194,7 @@ func (r *rootCmd) Run(context.Context) error {
 }
 
 func TestAppRootCommand(t *testing.T) {
-	xtest.RestoreSlog(t)
+	test.RestoreSlog(t)
 
 	app, err := Parse[App[rootCmd]]("--name", "x")
 	require.NoError(t, err)
