@@ -34,6 +34,7 @@ type field struct {
 	def      string
 	hasDef   bool
 	env      string
+	ctx      string
 	optional bool
 	maybePos bool
 }
@@ -44,6 +45,7 @@ type spec struct {
 	longs  map[string]int
 	shorts map[rune]int
 	cmds   map[string]int
+	ctxs   map[string]int
 	pos    []int
 	set    []bool
 	counts []int
@@ -76,6 +78,7 @@ func newSpec(root reflect.Value) (*spec, error) {
 		longs:  make(map[string]int),
 		shorts: make(map[rune]int),
 		cmds:   make(map[string]int),
+		ctxs:   make(map[string]int),
 	}
 	if err := s.addStruct(root, nil); err != nil {
 		return nil, err
@@ -252,7 +255,7 @@ func newField(sf reflect.StructField, fv reflect.Value) (field, bool, error) {
 		return field{}, false, err
 	}
 	tagged := long != "" || short != 0
-	f := field{index: sf.Index, long: long, short: short, help: sf.Tag.Get("help"), env: sf.Tag.Get("env")}
+	f := field{index: sf.Index, long: long, short: short, help: sf.Tag.Get("help"), env: sf.Tag.Get("env"), ctx: ctxName(sf)}
 	if d, ok := sf.Tag.Lookup("default"); ok {
 		f.def = d
 		f.hasDef = true
@@ -390,6 +393,12 @@ func (s *spec) add(f field) error {
 			return fmt.Errorf("%w: duplicate command %s", ErrInvalidSpec, f.cmd)
 		}
 		s.cmds[f.cmd] = idx
+	}
+	if f.ctx != "" {
+		if _, ok := s.ctxs[f.ctx]; ok {
+			return fmt.Errorf("%w: duplicate ctx %s", ErrInvalidSpec, f.ctx)
+		}
+		s.ctxs[f.ctx] = idx
 	}
 	if isPosKind(f.kind) {
 		s.pos = append(s.pos, idx)

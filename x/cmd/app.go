@@ -17,10 +17,10 @@ type None struct{}
 
 // App wraps process-wide flags around T, the rest of the command spec.
 type App[T any] struct {
-	verbose    Count     `short:"v" long:"verbose" help:"log verbosity"`
-	profileDir StringArg `long:"profile-dir" help:"write pprof profiles here" default:""`
-	help       Flag      `short:"h" long:"help" help:"show help"`
-	version    Flag      `long:"version" help:"print version"`
+	verbose    Count     `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
+	profileDir StringArg `long:"profile-dir" help:"write pprof profiles here" default:"" ctx:"profile-dir"`
+	help       Flag      `short:"h" long:"help" help:"show help" ctx:"help"`
+	version    Flag      `long:"version" help:"print version" ctx:"version"`
 	Args       T         `flatten:""`
 }
 
@@ -60,15 +60,17 @@ func (a *App[T]) Setup(ctx context.Context) error {
 // Run prints help or version when asked, then Setup, then T's selected
 // command (or T itself) if it has Run(ctx) error.
 func (a *App[T]) Run(ctx context.Context) error {
+	ctx = withValues(ctx)
+	bind(ctx, reflect.ValueOf(a).Elem())
 	switch {
-	case a.Help():
+	case Get[bool](ctx, "help"):
 		text, err := Usage[App[T]](filepath.Base(os.Args[0]))
 		if err != nil {
 			return err
 		}
 		_, err = fmt.Fprint(os.Stdout, text)
 		return err
-	case a.WantVersion():
+	case Get[bool](ctx, "version"):
 		return release.PrintVersion(os.Stdout)
 	}
 	if err := a.Setup(ctx); err != nil {
