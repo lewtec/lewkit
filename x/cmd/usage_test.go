@@ -95,7 +95,7 @@ func TestUsageEnv(t *testing.T) {
 
 func TestUsageEnvList(t *testing.T) {
 	type args struct {
-		name StringArg `long:"name" help:"who" env:"NAME, USER"`
+		name StringArg `long:"name" help:"who" env:"NAME,USER"`
 	}
 	text, err := Usage[args]("tool")
 	require.NoError(t, err)
