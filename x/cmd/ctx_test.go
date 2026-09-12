@@ -95,7 +95,7 @@ func TestUntaggedNotInBag(t *testing.T) {
 	require.NoError(t, err)
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&got).Elem())
-	assert.PanicsWithValue(t, `cmd: context key "name" not set`, func() {
+	assertPanicIs(t, ErrNotSet, func() {
 		Get[string](ctx, "name")
 	})
 }
@@ -111,7 +111,7 @@ func TestDuplicateCtx(t *testing.T) {
 
 func TestGetMissing(t *testing.T) {
 	ctx := withValues(t.Context())
-	assert.PanicsWithValue(t, `cmd: context key "nope" not set`, func() {
+	assertPanicIs(t, ErrNotSet, func() {
 		Get[int](ctx, "nope")
 	})
 }
@@ -119,13 +119,13 @@ func TestGetMissing(t *testing.T) {
 func TestGetWrongType(t *testing.T) {
 	ctx := withValues(t.Context())
 	put(ctx, "verbose", 2)
-	assert.PanicsWithValue(t, `cmd: context key "verbose" is int, not string`, func() {
+	assertPanicIs(t, ErrWrongType, func() {
 		Get[string](ctx, "verbose")
 	})
 }
 
 func TestGetNoBag(t *testing.T) {
-	assert.PanicsWithValue(t, "cmd: context has no values", func() {
+	assertPanicIs(t, ErrNoValues, func() {
 		Get[int](t.Context(), "verbose")
 	})
 }
@@ -138,7 +138,20 @@ func TestNilPointerSkipped(t *testing.T) {
 	require.NoError(t, err)
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&got).Elem())
-	assert.PanicsWithValue(t, `cmd: context key "name" not set`, func() {
+	assertPanicIs(t, ErrNotSet, func() {
 		Get[string](ctx, "name")
 	})
+}
+
+func assertPanicIs(t *testing.T, want error, fn func()) {
+	t.Helper()
+	var got any
+	func() {
+		defer func() { got = recover() }()
+		fn()
+	}()
+	require.NotNil(t, got)
+	err, ok := got.(error)
+	require.True(t, ok)
+	assert.ErrorIs(t, err, want)
 }

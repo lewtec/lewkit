@@ -11,20 +11,20 @@ type bagKey struct{}
 
 type valueBag map[string]any
 
-// Get returns the value stored under key. It panics if the context has no
-// value bag, the key is missing, or v is not a T.
+// Get returns the value stored under key. It panics with ErrNoValues,
+// ErrNotSet, or ErrWrongType.
 func Get[T any](ctx context.Context, key string) T {
 	b, ok := ctx.Value(bagKey{}).(valueBag)
 	if !ok {
-		panic("cmd: context has no values")
+		panic(ErrNoValues)
 	}
 	v, ok := b[key]
 	if !ok {
-		panic(`cmd: context key "` + key + `" not set`)
+		panic(fmt.Errorf("%w: %s", ErrNotSet, key))
 	}
 	t, ok := v.(T)
 	if !ok {
-		panic(fmt.Sprintf("cmd: context key %q is %T, not %T", key, v, *new(T)))
+		panic(fmt.Errorf("%w: %q is %T, not %T", ErrWrongType, key, v, *new(T)))
 	}
 	return t
 }
@@ -39,7 +39,7 @@ func withValues(ctx context.Context) context.Context {
 func put(ctx context.Context, key string, v any) {
 	b, ok := ctx.Value(bagKey{}).(valueBag)
 	if !ok {
-		panic("cmd: context has no values")
+		panic(ErrNoValues)
 	}
 	b[key] = v
 }
