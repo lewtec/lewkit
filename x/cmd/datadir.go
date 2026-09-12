@@ -7,8 +7,8 @@ import (
 )
 
 var (
-	errEmptyPath = errors.New("empty path")
-	errNotDir    = errors.New("not a directory")
+	ErrEmptyPath = errors.New("empty path")
+	ErrNotDir    = errors.New("not a directory")
 )
 
 // DataDirArg is a path that must exist and be a directory.
@@ -18,14 +18,14 @@ type DataDirArg struct {
 
 func (d *DataDirArg) Parse(arg string) error {
 	if arg == "" {
-		return fmt.Errorf("%w: %w", ErrInvalidArgument, errEmptyPath)
+		return fmt.Errorf("%w: %w", ErrInvalidArgument, ErrEmptyPath)
 	}
 	st, err := os.Stat(arg)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 	}
 	if !st.IsDir() {
-		return fmt.Errorf("%w: %w: %s", ErrInvalidArgument, errNotDir, arg)
+		return fmt.Errorf("%w: %w: %s", ErrInvalidArgument, ErrNotDir, arg)
 	}
 	d.value = arg
 	return nil

@@ -25,9 +25,9 @@ func TestDataDirArg(t *testing.T) {
 		err  error
 	}{
 		{name: "existing dir", in: dir, want: dir},
-		{name: "missing", in: missing, err: ErrInvalidArgument},
-		{name: "file", in: file, err: ErrInvalidArgument},
-		{name: "empty", in: "", err: ErrInvalidArgument},
+		{name: "missing", in: missing, err: os.ErrNotExist},
+		{name: "file", in: file, err: ErrNotDir},
+		{name: "empty", in: "", err: ErrEmptyPath},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
