@@ -92,3 +92,12 @@ func TestUsageEnv(t *testing.T) {
 	assert.Contains(t, text, "who (env: NAME)")
 	assert.Contains(t, text, "(env: PORT, default: :8080)")
 }
+
+func TestUsageEnvList(t *testing.T) {
+	type args struct {
+		name StringArg `long:"name" help:"who" env:"NAME,USER"`
+	}
+	text, err := Usage[args]("tool")
+	require.NoError(t, err)
+	assert.Contains(t, text, "who (env: NAME, USER)")
+}
