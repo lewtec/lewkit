@@ -146,6 +146,15 @@ func (p *pingCmd) Run(context.Context) error {
 	return nil
 }
 
+func TestMissingCommand(t *testing.T) {
+	test.RestoreSlog(t)
+
+	app, err := Parse[App[extraCmds]]()
+	require.NoError(t, err)
+	err = app.Run(t.Context())
+	assert.ErrorIs(t, err, ErrMissingCommand)
+}
+
 func TestAppInnerCommand(t *testing.T) {
 	test.RestoreSlog(t)
 
