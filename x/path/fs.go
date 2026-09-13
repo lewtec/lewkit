@@ -27,74 +27,94 @@ func Open(dir string) (*Root, error) {
 	return &Root{r: r}, nil
 }
 
+// Close closes the root.
 func (rt *Root) Close() error { return rt.r.Close() }
 
+// Name is the OS path passed to [Open].
 func (rt *Root) Name() string { return rt.r.Name() }
 
+// Open opens name in the root. It implements [io/fs.FS].
 func (rt *Root) Open(name string) (fs.File, error) {
 	return rt.r.Open(name)
 }
 
+// OpenFile opens name in the root with flag and perm.
 func (rt *Root) OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error) {
 	return rt.r.OpenFile(name, flag, perm)
 }
 
+// Create creates or truncates name in the root.
 func (rt *Root) Create(name string) (fs.File, error) {
 	return rt.r.Create(name)
 }
 
+// ReadFile reads name in the root.
 func (rt *Root) ReadFile(name string) ([]byte, error) {
 	return rt.r.ReadFile(name)
 }
 
+// WriteFile writes data to name in the root.
 func (rt *Root) WriteFile(name string, data []byte, perm fs.FileMode) error {
 	return rt.r.WriteFile(name, data, perm)
 }
 
+// Stat stats name in the root.
 func (rt *Root) Stat(name string) (fs.FileInfo, error) {
 	return rt.r.Stat(name)
 }
 
+// Lstat stats name in the root without following a symlink.
 func (rt *Root) Lstat(name string) (fs.FileInfo, error) {
 	return rt.r.Lstat(name)
 }
 
+// ReadDir lists name in the root.
 func (rt *Root) ReadDir(name string) ([]fs.DirEntry, error) {
 	return fs.ReadDir(rt.r.FS(), name)
 }
 
+// ReadLink returns the symlink target of name in the root.
 func (rt *Root) ReadLink(name string) (string, error) {
 	return rt.r.Readlink(name)
 }
 
+// Mkdir creates name in the root.
 func (rt *Root) Mkdir(name string, perm fs.FileMode) error {
 	return rt.r.Mkdir(name, perm)
 }
 
+// MkdirAll creates name and any missing parents in the root.
 func (rt *Root) MkdirAll(name string, perm fs.FileMode) error {
 	return rt.r.MkdirAll(name, perm)
 }
 
+// Remove removes name in the root.
 func (rt *Root) Remove(name string) error { return rt.r.Remove(name) }
 
+// RemoveAll removes name and its children in the root.
 func (rt *Root) RemoveAll(name string) error { return rt.r.RemoveAll(name) }
 
+// Rename moves oldname to newname in the root.
 func (rt *Root) Rename(oldname, newname string) error {
 	return rt.r.Rename(oldname, newname)
 }
 
+// Symlink creates newname as a symlink to oldname in the root.
 func (rt *Root) Symlink(oldname, newname string) error {
 	return rt.r.Symlink(oldname, newname)
 }
 
+// Link creates newname as a hard link to oldname in the root.
 func (rt *Root) Link(oldname, newname string) error {
 	return rt.r.Link(oldname, newname)
 }
 
+// Chmod changes the mode of name in the root.
 func (rt *Root) Chmod(name string, mode fs.FileMode) error {
 	return rt.r.Chmod(name, mode)
 }
 
+// OpenRoot opens name as a nested root.
 func (rt *Root) OpenRoot(name string) (*Root, error) {
 	r, err := rt.r.OpenRoot(name)
 	if err != nil {
@@ -103,6 +123,7 @@ func (rt *Root) OpenRoot(name string) (*Root, error) {
 	return &Root{r: r}, nil
 }
 
+// Sub opens dir as an [io/fs.FS]. It implements [io/fs.SubFS].
 func (rt *Root) Sub(dir string) (fs.FS, error) {
 	return rt.OpenRoot(dir)
 }

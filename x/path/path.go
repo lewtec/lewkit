@@ -207,12 +207,16 @@ var (
 
 // RelError is a [Path.Rel] that cannot be computed.
 type RelError struct {
+	// Target is the name being made relative.
 	Target string
-	Base   string
+	// Base is the name Target is relative to.
+	Base string
 }
 
+// Error describes the failed [Path.Rel].
 func (e *RelError) Error() string {
 	return "rel " + strconv.Quote(e.Target) + ": cannot be relative to " + strconv.Quote(e.Base)
 }
 
+// Unwrap returns [ErrRel].
 func (e *RelError) Unwrap() error { return ErrRel }
