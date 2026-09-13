@@ -51,9 +51,12 @@
 //	data, err := p.ReadFile(fsys)
 //
 // Read methods use the [io/fs] helpers: [io/fs.ReadFile], [io/fs.Stat],
-// [io/fs.ReadDir], [io/fs.Glob], [io/fs.WalkDir], [io/fs.ReadLink],
-// [io/fs.Lstat]. Optional interfaces on the filesystem apply as in
-// the standard library.
+// [io/fs.ReadDir], [io/fs.WalkDir], [io/fs.ReadLink], [io/fs.Lstat].
+// Optional interfaces on the filesystem apply as in the standard library.
+//
+// [Path.Glob] and [Path.Rglob] yield matches. "**" as a whole segment
+// matches zero or more directories and does not follow symlinks.
+// Other segments use [path.Match].
 //
 // # Writes
 //
@@ -84,7 +87,7 @@
 // cwd, home, expanduser, and absolute are how you obtain a root,
 // not Path methods. Pass the OS directory to [Open].
 //
-// This package does not implement ** globs, copy/move, owner/group,
+// This package does not implement copy/move, owner/group,
 // or reserved Windows names.
 //
 // # Out of scope

@@ -42,9 +42,7 @@ func TestReadMapFS(t *testing.T) {
 	require.Len(t, ents, 1)
 	assert.Equal(t, "b.txt", ents[0].Name())
 
-	matches, err := New("dir").Glob(fsys, "*.txt")
-	require.NoError(t, err)
-	assert.Equal(t, []Path{New("dir/b.txt")}, matches)
+	assert.Equal(t, []string{"dir/b.txt"}, collect(t, New("dir").Glob(fsys, "*.txt")))
 
 	var walked []string
 	err = New(".").WalkDir(fsys, func(name string, d fs.DirEntry, err error) error {

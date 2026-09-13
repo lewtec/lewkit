@@ -194,19 +194,6 @@ func (p Path) ReadLink(fsys fs.FS) (Path, error) {
 	return Path{s: s}, nil
 }
 
-// Glob lists names under p that match pattern.
-func (p Path) Glob(fsys fs.FS, pattern string) ([]Path, error) {
-	matches, err := fs.Glob(fsys, p.Join(pattern).s)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Path, len(matches))
-	for i, m := range matches {
-		out[i] = Path{s: m}
-	}
-	return out, nil
-}
-
 // WalkDir walks p.
 func (p Path) WalkDir(fsys fs.FS, fn fs.WalkDirFunc) error {
 	return fs.WalkDir(fsys, p.s, fn)
