@@ -1,4 +1,4 @@
-// Package test is process-wide test seams: stdout, stderr, slog, and PATH.
+// Package test is helpers for tests: process globals, closers, and iterators.
 //
 // Stdout, Stderr, Slog, DiscardSlog, and RestoreSlog mutate process globals.
 // Do not call t.Parallel in those tests.
@@ -8,12 +8,36 @@ package test
 
 import (
 	"io"
+	"iter"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 )
+
+// CloseOnCleanup registers c.Close when the test ends.
+func CloseOnCleanup(tb testing.TB, c io.Closer) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			tb.Errorf("close: %v", err)
+		}
+	})
+}
+
+// Collect drains seq and fatals on the first error.
+func Collect[T any](tb testing.TB, seq iter.Seq2[T, error]) []T {
+	tb.Helper()
+	var out []T
+	for v, err := range seq {
+		if err != nil {
+			tb.Fatal(err)
+		}
+		out = append(out, v)
+	}
+	return out
+}
 
 // Stdout runs fn with os.Stdout swapped to a pipe and returns what was written.
 func Stdout(tb testing.TB, fn func()) string {

@@ -9,11 +9,7 @@ type WorkDirArg struct {
 func (WorkDirArg) ArgDefault() string { return "." }
 
 func (w *WorkDirArg) Parse(arg string) error {
-	if err := existingDir(arg); err != nil {
-		return err
-	}
-	w.value = arg
-	return nil
+	return parseExisting(&w.Container, arg)
 }
 
 var (

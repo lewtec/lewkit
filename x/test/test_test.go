@@ -11,6 +11,38 @@ import (
 	"testing"
 )
 
+type closeCount struct{ n int }
+
+func (c *closeCount) Close() error {
+	c.n++
+	return nil
+}
+
+func TestCloseOnCleanup(t *testing.T) {
+	var c closeCount
+	t.Run("inner", func(t *testing.T) {
+		CloseOnCleanup(t, &c)
+	})
+	if c.n != 1 {
+		t.Fatalf("closed %d times, want 1", c.n)
+	}
+}
+
+func TestCollect(t *testing.T) {
+	seq := func(yield func(int, error) bool) {
+		if !yield(1, nil) {
+			return
+		}
+		if !yield(2, nil) {
+			return
+		}
+	}
+	got := Collect(t, seq)
+	if len(got) != 2 || got[0] != 1 || got[1] != 2 {
+		t.Fatalf("Collect() = %v, want [1 2]", got)
+	}
+}
+
 func TestStdout(t *testing.T) {
 	got := Stdout(t, func() {
 		_, err := io.WriteString(os.Stdout, "hello")

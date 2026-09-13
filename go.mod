@@ -3,6 +3,7 @@ module github.com/lewtec/lewkit
 go 1.27.0
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/dave/jennifer v1.7.1
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/jackc/pgx/v5 v5.11.0

@@ -1,0 +1,412 @@
+package path
+
+import (
+	"errors"
+	"io/fs"
+	"iter"
+	"os"
+)
+
+// Root is an [os.Root] that is also an [io/fs.FS] with write methods.
+type Root struct {
+	r *os.Root
+}
+
+// Open opens dir with [os.OpenRoot]. dir is an OS path, not a [Path].
+func Open(dir string) (*Root, error) {
+	if dir == "" {
+		return nil, &fs.PathError{Op: "open", Path: dir, Err: ErrEmptyPath}
+	}
+	r, err := os.OpenRoot(dir)
+	if err != nil {
+		if st, stErr := os.Lstat(dir); stErr == nil && !st.IsDir() {
+			return nil, &fs.PathError{Op: "open", Path: dir, Err: ErrNotDir}
+		}
+		return nil, err
+	}
+	return &Root{r: r}, nil
+}
+
+// Close closes the root.
+func (rt *Root) Close() error { return rt.r.Close() }
+
+// Name is the OS path passed to [Open].
+func (rt *Root) Name() string { return rt.r.Name() }
+
+// Open opens name in the root. It implements [io/fs.FS].
+func (rt *Root) Open(name string) (fs.File, error) {
+	return rt.r.Open(name)
+}
+
+// OpenFile opens name in the root with flag and perm.
+func (rt *Root) OpenFile(name string, flag int, perm fs.FileMode) (fs.File, error) {
+	return rt.r.OpenFile(name, flag, perm)
+}
+
+// Create creates or truncates name in the root.
+func (rt *Root) Create(name string) (fs.File, error) {
+	return rt.r.Create(name)
+}
+
+// ReadFile reads name in the root.
+func (rt *Root) ReadFile(name string) ([]byte, error) {
+	return rt.r.ReadFile(name)
+}
+
+// WriteFile writes data to name in the root.
+func (rt *Root) WriteFile(name string, data []byte, perm fs.FileMode) error {
+	return rt.r.WriteFile(name, data, perm)
+}
+
+// Stat stats name in the root.
+func (rt *Root) Stat(name string) (fs.FileInfo, error) {
+	return rt.r.Stat(name)
+}
+
+// Lstat stats name in the root without following a symlink.
+func (rt *Root) Lstat(name string) (fs.FileInfo, error) {
+	return rt.r.Lstat(name)
+}
+
+// ReadDir lists name in the root.
+func (rt *Root) ReadDir(name string) ([]fs.DirEntry, error) {
+	return fs.ReadDir(rt.r.FS(), name)
+}
+
+// ReadLink returns the symlink target of name in the root.
+func (rt *Root) ReadLink(name string) (string, error) {
+	return rt.r.Readlink(name)
+}
+
+// Mkdir creates name in the root.
+func (rt *Root) Mkdir(name string, perm fs.FileMode) error {
+	return rt.r.Mkdir(name, perm)
+}
+
+// MkdirAll creates name and any missing parents in the root.
+func (rt *Root) MkdirAll(name string, perm fs.FileMode) error {
+	return rt.r.MkdirAll(name, perm)
+}
+
+// Remove removes name in the root.
+func (rt *Root) Remove(name string) error { return rt.r.Remove(name) }
+
+// RemoveAll removes name and its children in the root.
+func (rt *Root) RemoveAll(name string) error { return rt.r.RemoveAll(name) }
+
+// Rename moves oldname to newname in the root.
+func (rt *Root) Rename(oldname, newname string) error {
+	return rt.r.Rename(oldname, newname)
+}
+
+// Symlink creates newname as a symlink to oldname in the root.
+func (rt *Root) Symlink(oldname, newname string) error {
+	return rt.r.Symlink(oldname, newname)
+}
+
+// Link creates newname as a hard link to oldname in the root.
+func (rt *Root) Link(oldname, newname string) error {
+	return rt.r.Link(oldname, newname)
+}
+
+// Chmod changes the mode of name in the root.
+func (rt *Root) Chmod(name string, mode fs.FileMode) error {
+	return rt.r.Chmod(name, mode)
+}
+
+// OpenRoot opens name as a nested root.
+func (rt *Root) OpenRoot(name string) (*Root, error) {
+	r, err := rt.r.OpenRoot(name)
+	if err != nil {
+		return nil, err
+	}
+	return &Root{r: r}, nil
+}
+
+// Sub opens dir as an [io/fs.FS]. It implements [io/fs.SubFS].
+func (rt *Root) Sub(dir string) (fs.FS, error) {
+	return rt.OpenRoot(dir)
+}
+
+var (
+	_ fs.FS         = (*Root)(nil)
+	_ fs.ReadFileFS = (*Root)(nil)
+	_ fs.StatFS     = (*Root)(nil)
+	_ fs.ReadDirFS  = (*Root)(nil)
+	_ fs.ReadLinkFS = (*Root)(nil)
+	_ fs.SubFS      = (*Root)(nil)
+)
+
+func readOnly(op, name string) error {
+	return &fs.PathError{Op: op, Path: name, Err: ErrReadOnly}
+}
+
+func missing(err error) bool {
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+func callFS[T any](fsys fs.FS, op, name string, fn func(T) error) error {
+	w, ok := fsys.(T)
+	if !ok {
+		return readOnly(op, name)
+	}
+	return fn(w)
+}
+
+func callFS2[T, R any](fsys fs.FS, op, name string, fn func(T) (R, error)) (R, error) {
+	w, ok := fsys.(T)
+	if !ok {
+		var zero R
+		return zero, readOnly(op, name)
+	}
+	return fn(w)
+}
+
+func (p Path) statOK(fsys fs.FS, lstat bool, ok func(fs.FileInfo) bool) (bool, error) {
+	var (
+		st  fs.FileInfo
+		err error
+	)
+	if lstat {
+		st, err = fs.Lstat(fsys, p.s)
+	} else {
+		st, err = fs.Stat(fsys, p.s)
+	}
+	if err == nil {
+		return ok(st), nil
+	}
+	if missing(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+// Open opens p on fsys.
+func (p Path) Open(fsys fs.FS) (fs.File, error) {
+	return fsys.Open(p.s)
+}
+
+type openFileFS interface {
+	OpenFile(string, int, fs.FileMode) (fs.File, error)
+}
+
+// OpenFile opens p with flag and perm when fsys implements OpenFile.
+func (p Path) OpenFile(fsys fs.FS, flag int, perm fs.FileMode) (fs.File, error) {
+	return callFS2(fsys, "open", p.s, func(o openFileFS) (fs.File, error) {
+		return o.OpenFile(p.s, flag, perm)
+	})
+}
+
+type createFS interface {
+	Create(string) (fs.File, error)
+}
+
+// Create creates or truncates p.
+func (p Path) Create(fsys fs.FS) (fs.File, error) {
+	return callFS2(fsys, "create", p.s, func(c createFS) (fs.File, error) {
+		return c.Create(p.s)
+	})
+}
+
+// ReadFile reads p.
+func (p Path) ReadFile(fsys fs.FS) ([]byte, error) {
+	return fs.ReadFile(fsys, p.s)
+}
+
+type writeFileFS interface {
+	WriteFile(string, []byte, fs.FileMode) error
+}
+
+// WriteFile writes data to p.
+func (p Path) WriteFile(fsys fs.FS, data []byte, perm fs.FileMode) error {
+	return callFS(fsys, "write", p.s, func(w writeFileFS) error {
+		return w.WriteFile(p.s, data, perm)
+	})
+}
+
+// Stat stats p.
+func (p Path) Stat(fsys fs.FS) (fs.FileInfo, error) {
+	return fs.Stat(fsys, p.s)
+}
+
+// Lstat stats p without following a symlink.
+func (p Path) Lstat(fsys fs.FS) (fs.FileInfo, error) {
+	return fs.Lstat(fsys, p.s)
+}
+
+// ReadDir lists p.
+func (p Path) ReadDir(fsys fs.FS) ([]fs.DirEntry, error) {
+	return fs.ReadDir(fsys, p.s)
+}
+
+// ReadLink returns the symlink target of p as a Path.
+func (p Path) ReadLink(fsys fs.FS) (Path, error) {
+	s, err := fs.ReadLink(fsys, p.s)
+	if err != nil {
+		return Path{}, err
+	}
+	return Path{s: s}, nil
+}
+
+// WalkDir walks p.
+func (p Path) WalkDir(fsys fs.FS, fn fs.WalkDirFunc) error {
+	return fs.WalkDir(fsys, p.s, fn)
+}
+
+// Walk yields p and every name under it.
+func (p Path) Walk(fsys fs.FS) iter.Seq2[Path, error] {
+	return func(yield func(Path, error) bool) {
+		err := fs.WalkDir(fsys, p.s, func(name string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				if !yield(Path{s: name}, err) {
+					return fs.SkipAll
+				}
+				return err
+			}
+			if !yield(Path{s: name}, nil) {
+				return fs.SkipAll
+			}
+			return nil
+		})
+		if err != nil {
+			return
+		}
+	}
+}
+
+// IterDir yields the children of p.
+func (p Path) IterDir(fsys fs.FS) iter.Seq2[Path, error] {
+	return func(yield func(Path, error) bool) {
+		ents, err := fs.ReadDir(fsys, p.s)
+		if err != nil {
+			yield(Path{}, err)
+			return
+		}
+		for _, e := range ents {
+			if !yield(p.Join(e.Name()), nil) {
+				return
+			}
+		}
+	}
+}
+
+type mkdirFS interface {
+	Mkdir(string, fs.FileMode) error
+}
+
+// Mkdir creates p.
+func (p Path) Mkdir(fsys fs.FS, perm fs.FileMode) error {
+	return callFS(fsys, "mkdir", p.s, func(m mkdirFS) error {
+		return m.Mkdir(p.s, perm)
+	})
+}
+
+type mkdirAllFS interface {
+	MkdirAll(string, fs.FileMode) error
+}
+
+// MkdirAll creates p and any missing parents.
+func (p Path) MkdirAll(fsys fs.FS, perm fs.FileMode) error {
+	return callFS(fsys, "mkdirall", p.s, func(m mkdirAllFS) error {
+		return m.MkdirAll(p.s, perm)
+	})
+}
+
+type removeFS interface {
+	Remove(string) error
+}
+
+// Remove removes p.
+func (p Path) Remove(fsys fs.FS) error {
+	return callFS(fsys, "remove", p.s, func(r removeFS) error {
+		return r.Remove(p.s)
+	})
+}
+
+type removeAllFS interface {
+	RemoveAll(string) error
+}
+
+// RemoveAll removes p and its children.
+func (p Path) RemoveAll(fsys fs.FS) error {
+	return callFS(fsys, "removeall", p.s, func(r removeAllFS) error {
+		return r.RemoveAll(p.s)
+	})
+}
+
+type renameFS interface {
+	Rename(oldname, newname string) error
+}
+
+// Rename moves p to dest on the same filesystem.
+func (p Path) Rename(fsys fs.FS, dest Path) error {
+	return callFS(fsys, "rename", p.s, func(r renameFS) error {
+		return r.Rename(p.s, dest.s)
+	})
+}
+
+type symlinkFS interface {
+	Symlink(oldname, newname string) error
+}
+
+// Symlink creates p as a symlink to target.
+func (p Path) Symlink(fsys fs.FS, target Path) error {
+	return callFS(fsys, "symlink", p.s, func(s symlinkFS) error {
+		return s.Symlink(target.s, p.s)
+	})
+}
+
+type linkFS interface {
+	Link(oldname, newname string) error
+}
+
+// Hardlink creates p as a hard link to target.
+func (p Path) Hardlink(fsys fs.FS, target Path) error {
+	return callFS(fsys, "link", p.s, func(l linkFS) error {
+		return l.Link(target.s, p.s)
+	})
+}
+
+type chmodFS interface {
+	Chmod(string, fs.FileMode) error
+}
+
+// Chmod changes the mode of p.
+func (p Path) Chmod(fsys fs.FS, mode fs.FileMode) error {
+	return callFS(fsys, "chmod", p.s, func(c chmodFS) error {
+		return c.Chmod(p.s, mode)
+	})
+}
+
+type openRootFS interface {
+	OpenRoot(string) (*Root, error)
+}
+
+// OpenRoot opens p as a nested root when fsys is a [*Root].
+func (p Path) OpenRoot(fsys fs.FS) (*Root, error) {
+	return callFS2(fsys, "openroot", p.s, func(o openRootFS) (*Root, error) {
+		return o.OpenRoot(p.s)
+	})
+}
+
+// Exists reports whether p is present. A missing name is false, nil.
+func (p Path) Exists(fsys fs.FS) (bool, error) {
+	return p.statOK(fsys, false, func(fs.FileInfo) bool { return true })
+}
+
+// IsDir reports whether p is a directory. A missing name is false, nil.
+func (p Path) IsDir(fsys fs.FS) (bool, error) {
+	return p.statOK(fsys, false, fs.FileInfo.IsDir)
+}
+
+// IsFile reports whether p is a regular file. A missing name is false, nil.
+func (p Path) IsFile(fsys fs.FS) (bool, error) {
+	return p.statOK(fsys, false, func(st fs.FileInfo) bool { return st.Mode().IsRegular() })
+}
+
+// IsSymlink reports whether p is a symlink. A missing name is false, nil.
+func (p Path) IsSymlink(fsys fs.FS) (bool, error) {
+	return p.statOK(fsys, true, func(st fs.FileInfo) bool {
+		return st.Mode()&fs.ModeSymlink != 0
+	})
+}
