@@ -1,14 +1,14 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"os"
+
+	"github.com/lewtec/lewkit/x/path"
 )
 
 var (
-	ErrEmptyPath = errors.New("empty path")
-	ErrNotDir    = errors.New("not a directory")
+	ErrEmptyPath = path.ErrEmptyPath
+	ErrNotDir    = path.ErrNotDir
 )
 
 // DataDirArg is a path that must exist and be a directory.
@@ -25,17 +25,11 @@ func (d *DataDirArg) Parse(arg string) error {
 }
 
 func existingDir(arg string) error {
-	if arg == "" {
-		return fmt.Errorf("%w: %w", ErrInvalidArgument, ErrEmptyPath)
-	}
-	st, err := os.Stat(arg)
+	root, err := path.Open(arg)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 	}
-	if !st.IsDir() {
-		return fmt.Errorf("%w: %w: %s", ErrInvalidArgument, ErrNotDir, arg)
-	}
-	return nil
+	return root.Close()
 }
 
 var (
