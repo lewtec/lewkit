@@ -39,7 +39,7 @@ func (c *generateCmd) Run(ctx context.Context) error {
 }
 
 type dbCmd struct {
-	dir cmd.StringArg `help:"directory with sqlite/ and postgres/"`
+	dir cmd.WorkDirArg `help:"directory with sqlite/ and postgres/"`
 }
 
 func (dbCmd) Description() string {
