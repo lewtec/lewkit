@@ -16,8 +16,8 @@ import (
 	"testing"
 )
 
-// Close registers c.Close when the test ends.
-func Close(tb testing.TB, c io.Closer) {
+// CloseOnCleanup registers c.Close when the test ends.
+func CloseOnCleanup(tb testing.TB, c io.Closer) {
 	tb.Helper()
 	tb.Cleanup(func() {
 		if err := c.Close(); err != nil {

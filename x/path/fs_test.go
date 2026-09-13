@@ -114,7 +114,7 @@ func TestOpenRoot(t *testing.T) {
 
 	root, err := Open(dir)
 	require.NoError(t, err)
-	test.Close(t, root)
+	test.CloseOnCleanup(t, root)
 	assert.Equal(t, dir, root.Name())
 }
 
@@ -122,7 +122,7 @@ func TestRootIO(t *testing.T) {
 	t.Parallel()
 	root, err := Open(t.TempDir())
 	require.NoError(t, err)
-	test.Close(t, root)
+	test.CloseOnCleanup(t, root)
 
 	p := New("a.txt")
 	require.NoError(t, p.WriteFile(root, []byte("hi"), 0o644))
@@ -177,7 +177,7 @@ func TestRootIO(t *testing.T) {
 
 	nested, err := New("sub").OpenRoot(root)
 	require.NoError(t, err)
-	test.Close(t, nested)
+	test.CloseOnCleanup(t, nested)
 	b, err = New("d.txt").ReadFile(nested)
 	require.NoError(t, err)
 	assert.Empty(t, b)
@@ -208,7 +208,7 @@ func TestPathOpen(t *testing.T) {
 	fsys := fstest.MapFS{"a.txt": {Data: []byte("hi")}}
 	f, err := New("a.txt").Open(fsys)
 	require.NoError(t, err)
-	test.Close(t, f)
+	test.CloseOnCleanup(t, f)
 	b, err := io.ReadAll(f)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), b)

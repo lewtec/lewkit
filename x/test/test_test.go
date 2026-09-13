@@ -18,10 +18,10 @@ func (c *closeCount) Close() error {
 	return nil
 }
 
-func TestClose(t *testing.T) {
+func TestCloseOnCleanup(t *testing.T) {
 	var c closeCount
 	t.Run("inner", func(t *testing.T) {
-		Close(t, &c)
+		CloseOnCleanup(t, &c)
 	})
 	if c.n != 1 {
 		t.Fatalf("closed %d times, want 1", c.n)

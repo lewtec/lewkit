@@ -105,7 +105,7 @@ func TestGlobNoFollowStarStar(t *testing.T) {
 	t.Parallel()
 	root, err := Open(t.TempDir())
 	require.NoError(t, err)
-	test.Close(t, root)
+	test.CloseOnCleanup(t, root)
 	require.NoError(t, New("real").Mkdir(root, 0o755))
 	require.NoError(t, New("real", "hit.py").WriteFile(root, nil, 0o644))
 	require.NoError(t, New("link").Symlink(root, New("real")))
