@@ -12,10 +12,14 @@ type DataDirArg struct {
 }
 
 func (d *DataDirArg) Parse(arg string) error {
+	return parseExisting(&d.Container, arg)
+}
+
+func parseExisting(c *Container[string], arg string) error {
 	if err := existingDir(arg); err != nil {
 		return err
 	}
-	d.value = arg
+	c.value = arg
 	return nil
 }
 

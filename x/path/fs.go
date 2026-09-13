@@ -145,6 +145,42 @@ func missing(err error) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
 
+func callFS[T any](fsys fs.FS, op, name string, fn func(T) error) error {
+	w, ok := fsys.(T)
+	if !ok {
+		return readOnly(op, name)
+	}
+	return fn(w)
+}
+
+func callFS2[T, R any](fsys fs.FS, op, name string, fn func(T) (R, error)) (R, error) {
+	w, ok := fsys.(T)
+	if !ok {
+		var zero R
+		return zero, readOnly(op, name)
+	}
+	return fn(w)
+}
+
+func (p Path) statOK(fsys fs.FS, lstat bool, ok func(fs.FileInfo) bool) (bool, error) {
+	var (
+		st  fs.FileInfo
+		err error
+	)
+	if lstat {
+		st, err = fs.Lstat(fsys, p.s)
+	} else {
+		st, err = fs.Stat(fsys, p.s)
+	}
+	if err == nil {
+		return ok(st), nil
+	}
+	if missing(err) {
+		return false, nil
+	}
+	return false, err
+}
+
 // Open opens p on fsys.
 func (p Path) Open(fsys fs.FS) (fs.File, error) {
 	return fsys.Open(p.s)
@@ -156,10 +192,9 @@ type openFileFS interface {
 
 // OpenFile opens p with flag and perm when fsys implements OpenFile.
 func (p Path) OpenFile(fsys fs.FS, flag int, perm fs.FileMode) (fs.File, error) {
-	if o, ok := fsys.(openFileFS); ok {
+	return callFS2(fsys, "open", p.s, func(o openFileFS) (fs.File, error) {
 		return o.OpenFile(p.s, flag, perm)
-	}
-	return nil, readOnly("open", p.s)
+	})
 }
 
 type createFS interface {
@@ -168,10 +203,9 @@ type createFS interface {
 
 // Create creates or truncates p.
 func (p Path) Create(fsys fs.FS) (fs.File, error) {
-	if c, ok := fsys.(createFS); ok {
+	return callFS2(fsys, "create", p.s, func(c createFS) (fs.File, error) {
 		return c.Create(p.s)
-	}
-	return nil, readOnly("create", p.s)
+	})
 }
 
 // ReadFile reads p.
@@ -185,10 +219,9 @@ type writeFileFS interface {
 
 // WriteFile writes data to p.
 func (p Path) WriteFile(fsys fs.FS, data []byte, perm fs.FileMode) error {
-	if w, ok := fsys.(writeFileFS); ok {
+	return callFS(fsys, "write", p.s, func(w writeFileFS) error {
 		return w.WriteFile(p.s, data, perm)
-	}
-	return readOnly("write", p.s)
+	})
 }
 
 // Stat stats p.
@@ -263,10 +296,9 @@ type mkdirFS interface {
 
 // Mkdir creates p.
 func (p Path) Mkdir(fsys fs.FS, perm fs.FileMode) error {
-	if m, ok := fsys.(mkdirFS); ok {
+	return callFS(fsys, "mkdir", p.s, func(m mkdirFS) error {
 		return m.Mkdir(p.s, perm)
-	}
-	return readOnly("mkdir", p.s)
+	})
 }
 
 type mkdirAllFS interface {
@@ -275,10 +307,9 @@ type mkdirAllFS interface {
 
 // MkdirAll creates p and any missing parents.
 func (p Path) MkdirAll(fsys fs.FS, perm fs.FileMode) error {
-	if m, ok := fsys.(mkdirAllFS); ok {
+	return callFS(fsys, "mkdirall", p.s, func(m mkdirAllFS) error {
 		return m.MkdirAll(p.s, perm)
-	}
-	return readOnly("mkdirall", p.s)
+	})
 }
 
 type removeFS interface {
@@ -287,10 +318,9 @@ type removeFS interface {
 
 // Remove removes p.
 func (p Path) Remove(fsys fs.FS) error {
-	if r, ok := fsys.(removeFS); ok {
+	return callFS(fsys, "remove", p.s, func(r removeFS) error {
 		return r.Remove(p.s)
-	}
-	return readOnly("remove", p.s)
+	})
 }
 
 type removeAllFS interface {
@@ -299,10 +329,9 @@ type removeAllFS interface {
 
 // RemoveAll removes p and its children.
 func (p Path) RemoveAll(fsys fs.FS) error {
-	if r, ok := fsys.(removeAllFS); ok {
+	return callFS(fsys, "removeall", p.s, func(r removeAllFS) error {
 		return r.RemoveAll(p.s)
-	}
-	return readOnly("removeall", p.s)
+	})
 }
 
 type renameFS interface {
@@ -311,10 +340,9 @@ type renameFS interface {
 
 // Rename moves p to dest on the same filesystem.
 func (p Path) Rename(fsys fs.FS, dest Path) error {
-	if r, ok := fsys.(renameFS); ok {
+	return callFS(fsys, "rename", p.s, func(r renameFS) error {
 		return r.Rename(p.s, dest.s)
-	}
-	return readOnly("rename", p.s)
+	})
 }
 
 type symlinkFS interface {
@@ -323,10 +351,9 @@ type symlinkFS interface {
 
 // Symlink creates p as a symlink to target.
 func (p Path) Symlink(fsys fs.FS, target Path) error {
-	if s, ok := fsys.(symlinkFS); ok {
+	return callFS(fsys, "symlink", p.s, func(s symlinkFS) error {
 		return s.Symlink(target.s, p.s)
-	}
-	return readOnly("symlink", p.s)
+	})
 }
 
 type linkFS interface {
@@ -335,10 +362,9 @@ type linkFS interface {
 
 // Hardlink creates p as a hard link to target.
 func (p Path) Hardlink(fsys fs.FS, target Path) error {
-	if l, ok := fsys.(linkFS); ok {
+	return callFS(fsys, "link", p.s, func(l linkFS) error {
 		return l.Link(target.s, p.s)
-	}
-	return readOnly("link", p.s)
+	})
 }
 
 type chmodFS interface {
@@ -347,10 +373,9 @@ type chmodFS interface {
 
 // Chmod changes the mode of p.
 func (p Path) Chmod(fsys fs.FS, mode fs.FileMode) error {
-	if c, ok := fsys.(chmodFS); ok {
+	return callFS(fsys, "chmod", p.s, func(c chmodFS) error {
 		return c.Chmod(p.s, mode)
-	}
-	return readOnly("chmod", p.s)
+	})
 }
 
 type openRootFS interface {
@@ -359,56 +384,29 @@ type openRootFS interface {
 
 // OpenRoot opens p as a nested root when fsys is a [*Root].
 func (p Path) OpenRoot(fsys fs.FS) (*Root, error) {
-	if o, ok := fsys.(openRootFS); ok {
+	return callFS2(fsys, "openroot", p.s, func(o openRootFS) (*Root, error) {
 		return o.OpenRoot(p.s)
-	}
-	return nil, readOnly("openroot", p.s)
+	})
 }
 
 // Exists reports whether p is present. A missing name is false, nil.
 func (p Path) Exists(fsys fs.FS) (bool, error) {
-	_, err := fs.Stat(fsys, p.s)
-	if err == nil {
-		return true, nil
-	}
-	if missing(err) {
-		return false, nil
-	}
-	return false, err
+	return p.statOK(fsys, false, func(fs.FileInfo) bool { return true })
 }
 
 // IsDir reports whether p is a directory. A missing name is false, nil.
 func (p Path) IsDir(fsys fs.FS) (bool, error) {
-	st, err := fs.Stat(fsys, p.s)
-	if err == nil {
-		return st.IsDir(), nil
-	}
-	if missing(err) {
-		return false, nil
-	}
-	return false, err
+	return p.statOK(fsys, false, fs.FileInfo.IsDir)
 }
 
 // IsFile reports whether p is a regular file. A missing name is false, nil.
 func (p Path) IsFile(fsys fs.FS) (bool, error) {
-	st, err := fs.Stat(fsys, p.s)
-	if err == nil {
-		return st.Mode().IsRegular(), nil
-	}
-	if missing(err) {
-		return false, nil
-	}
-	return false, err
+	return p.statOK(fsys, false, func(st fs.FileInfo) bool { return st.Mode().IsRegular() })
 }
 
 // IsSymlink reports whether p is a symlink. A missing name is false, nil.
 func (p Path) IsSymlink(fsys fs.FS) (bool, error) {
-	st, err := fs.Lstat(fsys, p.s)
-	if err == nil {
-		return st.Mode()&fs.ModeSymlink != 0, nil
-	}
-	if missing(err) {
-		return false, nil
-	}
-	return false, err
+	return p.statOK(fsys, true, func(st fs.FileInfo) bool {
+		return st.Mode()&fs.ModeSymlink != 0
+	})
 }
