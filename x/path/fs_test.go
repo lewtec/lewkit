@@ -36,15 +36,7 @@ func TestReadMapFS(t *testing.T) {
 
 	assert.Equal(t, []string{"dir/b.txt"}, names(test.Collect(t, New("dir").Glob(fsys, "*.txt"))))
 
-	var walked []string
-	err = New(".").WalkDir(fsys, func(name string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		walked = append(walked, name)
-		return nil
-	})
-	require.NoError(t, err)
+	walked := names(test.Collect(t, New(".").Walk(fsys)))
 	assert.Contains(t, walked, "a.txt")
 	assert.Contains(t, walked, "dir/b.txt")
 

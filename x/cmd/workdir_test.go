@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/path"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,8 +27,8 @@ func TestWorkDirArg(t *testing.T) {
 	}{
 		{name: "existing dir", in: dir, want: dir},
 		{name: "missing", in: missing, err: os.ErrNotExist},
-		{name: "file", in: file, err: ErrNotDir},
-		{name: "empty", in: "", err: ErrEmptyPath},
+		{name: "file", in: file, err: path.ErrNotDir},
+		{name: "empty", in: "", err: path.ErrEmptyPath},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

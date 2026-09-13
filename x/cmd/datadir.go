@@ -6,11 +6,6 @@ import (
 	"github.com/lewtec/lewkit/x/path"
 )
 
-var (
-	ErrEmptyPath = path.ErrEmptyPath
-	ErrNotDir    = path.ErrNotDir
-)
-
 // DataDirArg is a path that must exist and be a directory.
 type DataDirArg struct {
 	Container[string]

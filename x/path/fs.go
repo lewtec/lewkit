@@ -199,6 +199,27 @@ func (p Path) WalkDir(fsys fs.FS, fn fs.WalkDirFunc) error {
 	return fs.WalkDir(fsys, p.s, fn)
 }
 
+// Walk yields p and every name under it.
+func (p Path) Walk(fsys fs.FS) iter.Seq2[Path, error] {
+	return func(yield func(Path, error) bool) {
+		err := fs.WalkDir(fsys, p.s, func(name string, _ fs.DirEntry, err error) error {
+			if err != nil {
+				if !yield(Path{s: name}, err) {
+					return fs.SkipAll
+				}
+				return err
+			}
+			if !yield(Path{s: name}, nil) {
+				return fs.SkipAll
+			}
+			return nil
+		})
+		if err != nil {
+			return
+		}
+	}
+}
+
 // IterDir yields the children of p.
 func (p Path) IterDir(fsys fs.FS) iter.Seq2[Path, error] {
 	return func(yield func(Path, error) bool) {

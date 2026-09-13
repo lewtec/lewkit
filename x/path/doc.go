@@ -54,9 +54,8 @@
 // [io/fs.ReadDir], [io/fs.WalkDir], [io/fs.ReadLink], [io/fs.Lstat].
 // Optional interfaces on the filesystem apply as in the standard library.
 //
-// [Path.Glob] and [Path.Rglob] yield matches. "**" as a whole segment
-// matches zero or more directories and does not follow symlinks.
-// Other segments use [path.Match].
+// [Path.Glob] and [Path.Rglob] yield matches via doublestar. "**" does
+// not follow symlinks. [Path.Walk] yields names under p.
 //
 // # Writes
 //
