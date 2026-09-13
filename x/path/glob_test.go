@@ -1,12 +1,11 @@
 package path
 
 import (
-	"iter"
 	stdpath "path"
-	"slices"
 	"testing"
 	"testing/fstest"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +36,7 @@ func TestGlob(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, collect(t, New(tc.root).Glob(fsys, tc.pattern)))
+			assert.Equal(t, tc.want, names(test.Collect(t, New(tc.root).Glob(fsys, tc.pattern))))
 		})
 	}
 }
@@ -49,7 +48,7 @@ func TestRglob(t *testing.T) {
 		"dir/c.py":     {Data: []byte("c")},
 		"dir/sub/d.py": {Data: []byte("d")},
 	}
-	assert.Equal(t, []string{"dir/c.py", "dir/sub/d.py"}, collect(t, New("dir").Rglob(fsys, "*.py")))
+	assert.Equal(t, []string{"dir/c.py", "dir/sub/d.py"}, names(test.Collect(t, New("dir").Rglob(fsys, "*.py"))))
 }
 
 func TestGlobStarAll(t *testing.T) {
@@ -58,13 +57,13 @@ func TestGlobStarAll(t *testing.T) {
 		"a.txt":    {Data: []byte("a")},
 		"dir/b.py": {Data: []byte("b")},
 	}
-	assert.Equal(t, []string{".", "a.txt", "dir", "dir/b.py"}, collect(t, New(".").Glob(fsys, "**")))
+	assert.Equal(t, []string{".", "a.txt", "dir", "dir/b.py"}, names(test.Collect(t, New(".").Glob(fsys, "**"))))
 }
 
 func TestGlobDedup(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{"dir/a.txt": {Data: []byte("a")}}
-	assert.Equal(t, []string{"dir/a.txt"}, collect(t, New(".").Glob(fsys, "**/**/*.txt")))
+	assert.Equal(t, []string{"dir/a.txt"}, names(test.Collect(t, New(".").Glob(fsys, "**/**/*.txt"))))
 }
 
 func TestGlobStop(t *testing.T) {
@@ -105,22 +104,11 @@ func TestGlobNoFollowStarStar(t *testing.T) {
 	t.Parallel()
 	root, err := Open(t.TempDir())
 	require.NoError(t, err)
-	closeRoot(t, root)
+	test.Close(t, root)
 	require.NoError(t, New("real").Mkdir(root, 0o755))
 	require.NoError(t, New("real", "hit.py").WriteFile(root, nil, 0o644))
 	require.NoError(t, New("link").Symlink(root, New("real")))
 
-	assert.Equal(t, []string{"real/hit.py"}, collect(t, New(".").Glob(root, "**/*.py")))
-	assert.Equal(t, []string{"link/hit.py", "real/hit.py"}, collect(t, New(".").Glob(root, "*/*.py")))
-}
-
-func collect(t *testing.T, seq iter.Seq2[Path, error]) []string {
-	t.Helper()
-	var out []string
-	for p, err := range seq {
-		require.NoError(t, err)
-		out = append(out, p.String())
-	}
-	slices.Sort(out)
-	return out
+	assert.Equal(t, []string{"real/hit.py"}, names(test.Collect(t, New(".").Glob(root, "**/*.py"))))
+	assert.Equal(t, []string{"link/hit.py", "real/hit.py"}, names(test.Collect(t, New(".").Glob(root, "*/*.py"))))
 }

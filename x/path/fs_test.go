@@ -9,18 +9,10 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func closeRoot(t *testing.T, root *Root) {
-	t.Helper()
-	t.Cleanup(func() {
-		if err := root.Close(); err != nil {
-			t.Errorf("close: %v", err)
-		}
-	})
-}
 
 func TestReadMapFS(t *testing.T) {
 	t.Parallel()
@@ -42,7 +34,7 @@ func TestReadMapFS(t *testing.T) {
 	require.Len(t, ents, 1)
 	assert.Equal(t, "b.txt", ents[0].Name())
 
-	assert.Equal(t, []string{"dir/b.txt"}, collect(t, New("dir").Glob(fsys, "*.txt")))
+	assert.Equal(t, []string{"dir/b.txt"}, names(test.Collect(t, New("dir").Glob(fsys, "*.txt"))))
 
 	var walked []string
 	err = New(".").WalkDir(fsys, func(name string, d fs.DirEntry, err error) error {
@@ -56,12 +48,7 @@ func TestReadMapFS(t *testing.T) {
 	assert.Contains(t, walked, "a.txt")
 	assert.Contains(t, walked, "dir/b.txt")
 
-	var kids []string
-	for child, err := range New("dir").IterDir(fsys) {
-		require.NoError(t, err)
-		kids = append(kids, child.String())
-	}
-	assert.Equal(t, []string{"dir/b.txt"}, kids)
+	assert.Equal(t, []Path{New("dir/b.txt")}, test.Collect(t, New("dir").IterDir(fsys)))
 }
 
 func TestPredicates(t *testing.T) {
@@ -135,7 +122,7 @@ func TestOpenRoot(t *testing.T) {
 
 	root, err := Open(dir)
 	require.NoError(t, err)
-	closeRoot(t, root)
+	test.Close(t, root)
 	assert.Equal(t, dir, root.Name())
 }
 
@@ -143,7 +130,7 @@ func TestRootIO(t *testing.T) {
 	t.Parallel()
 	root, err := Open(t.TempDir())
 	require.NoError(t, err)
-	closeRoot(t, root)
+	test.Close(t, root)
 
 	p := New("a.txt")
 	require.NoError(t, p.WriteFile(root, []byte("hi"), 0o644))
@@ -198,7 +185,7 @@ func TestRootIO(t *testing.T) {
 
 	nested, err := New("sub").OpenRoot(root)
 	require.NoError(t, err)
-	closeRoot(t, nested)
+	test.Close(t, nested)
 	b, err = New("d.txt").ReadFile(nested)
 	require.NoError(t, err)
 	assert.Empty(t, b)
@@ -229,7 +216,7 @@ func TestPathOpen(t *testing.T) {
 	fsys := fstest.MapFS{"a.txt": {Data: []byte("hi")}}
 	f, err := New("a.txt").Open(fsys)
 	require.NoError(t, err)
-	defer f.Close()
+	test.Close(t, f)
 	b, err := io.ReadAll(f)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), b)
