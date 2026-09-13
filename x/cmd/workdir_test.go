@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCwdArg(t *testing.T) {
+func TestWorkDirArg(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "file")
 	require.NoError(t, os.WriteFile(file, []byte("x"), 0o644))
 	missing := filepath.Join(dir, "nope")
 
 	type args struct {
-		dir CwdArg `short:"C" long:"directory"`
+		dir WorkDirArg `short:"C" long:"directory"`
 	}
 	cases := []struct {
 		name string
@@ -42,9 +42,9 @@ func TestCwdArg(t *testing.T) {
 	}
 }
 
-func TestCwdArgDefault(t *testing.T) {
+func TestWorkDirDefault(t *testing.T) {
 	type args struct {
-		dir CwdArg `short:"C" long:"directory"`
+		dir WorkDirArg `short:"C" long:"directory"`
 	}
 	got, err := Parse[args]()
 	require.NoError(t, err)
