@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	xfs "github.com/lewtec/lewkit/x/fs"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,7 @@ func TestOpenFSNeedReadAt(t *testing.T) {
 	t.Parallel()
 	fsys := &readerOnlyFS{name: "vol.iso", r: strings.NewReader("x")}
 	_, err := path.OpenFS(path.New("vol.iso"), fsys, Open)
-	require.ErrorIs(t, err, xfs.ErrNeedReadAt)
+	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 
 type readerOnlyFS struct {
@@ -45,8 +46,7 @@ func (readerOnlyFile) Close() error               { return nil }
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	_, err := Open(onlyReader{strings.NewReader("x")})
-	require.ErrorIs(t, err, ErrNeedReadAt)
-	require.ErrorIs(t, err, xfs.ErrNeedReadAt)
+	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
 	assert.Equal(t, "open", pe.Op)
@@ -56,7 +56,7 @@ func TestInvalidVolume(t *testing.T) {
 	t.Parallel()
 	_, err := Open(bytes.NewReader(make([]byte, 4096)))
 	require.Error(t, err)
-	assert.False(t, errors.Is(err, ErrNeedReadAt))
+	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }
 
 func TestTree(t *testing.T) {

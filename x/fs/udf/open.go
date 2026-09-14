@@ -8,11 +8,8 @@ import (
 
 	"github.com/Xmister/udf"
 
-	xfs "github.com/lewtec/lewkit/x/fs"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
-
-// ErrNeedReadAt is [xfs.ErrNeedReadAt].
-var ErrNeedReadAt = xfs.ErrNeedReadAt
 
 // FS is a read-only UDF volume.
 type FS struct {
@@ -29,7 +26,7 @@ var (
 // Open reads a UDF volume from r. r must be an [io.ReaderAt].
 func Open(r io.Reader) (out *FS, err error) {
 	defer recovered(&err)
-	ra, err := xfs.ReaderAt("open", r)
+	ra, err := lewfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
 	}

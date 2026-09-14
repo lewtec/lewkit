@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
+	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,20 +23,20 @@ func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	r := onlyReader{strings.NewReader("x")}
 	_, err := Open(r, 1)
-	require.ErrorIs(t, err, ErrNeedReadAt)
+	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
 	assert.Equal(t, "open", pe.Op)
 
 	_, err = Images(r)
-	require.ErrorIs(t, err, ErrNeedReadAt)
+	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 
 func TestInvalidWim(t *testing.T) {
 	t.Parallel()
 	_, err := Open(bytes.NewReader(make([]byte, 256)), 1)
 	require.Error(t, err)
-	assert.False(t, errors.Is(err, ErrNeedReadAt))
+	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 	assert.False(t, errors.Is(err, ErrInvalidImage))
 }
 

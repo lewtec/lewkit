@@ -9,15 +9,11 @@ import (
 
 	winwim "github.com/Microsoft/go-winio/wim"
 
-	xfs "github.com/lewtec/lewkit/x/fs"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
-var (
-	// ErrNeedReadAt is [xfs.ErrNeedReadAt].
-	ErrNeedReadAt = xfs.ErrNeedReadAt
-	// ErrInvalidImage is [Open] with an image index that is not in the WIM.
-	ErrInvalidImage = errors.New("invalid image")
-)
+// ErrInvalidImage is [Open] with an image index that is not in the WIM.
+var ErrInvalidImage = errors.New("invalid image")
 
 // Info is one image in a WIM.
 type Info struct {
@@ -43,7 +39,7 @@ var (
 
 // Images lists the images in r. r must be an [io.ReaderAt].
 func Images(r io.Reader) ([]Info, error) {
-	ra, err := xfs.ReaderAt("images", r)
+	ra, err := lewfs.ReaderAt("images", r)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +57,7 @@ func Images(r io.Reader) ([]Info, error) {
 
 // Open reads image from r. image is 1-based. r must be an [io.ReaderAt].
 func Open(r io.Reader, image int) (*FS, error) {
-	ra, err := xfs.ReaderAt("open", r)
+	ra, err := lewfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
 	}
