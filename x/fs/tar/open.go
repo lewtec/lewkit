@@ -8,10 +8,12 @@ import (
 	stdpath "path"
 	"strings"
 
-	"github.com/andybalholm/brotli"
-
+	"github.com/lewtec/lewkit/x/compression"
+	"github.com/lewtec/lewkit/x/compression/all"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
+
+func init() { all.Load() }
 
 // FS is a read-only tar archive.
 type FS struct {
@@ -26,18 +28,45 @@ var (
 	_ fs.StatFS     = (*FS)(nil)
 )
 
-// OpenBrotli reads a brotli-compressed tar from r.
-// It decompresses the stream into memory, then calls [Open].
-func OpenBrotli(r io.Reader) (*FS, error) {
-	raw, err := io.ReadAll(brotli.NewReader(r))
+// Open reads a tar archive from r.
+//
+// A compressed wrapper is chosen by file name (if r has Stat) or by
+// magic prefix. Compressed streams are decompressed into memory, then
+// opened as an uncompressed tar. An uncompressed tar still needs
+// [io.ReaderAt].
+func Open(r io.Reader) (*FS, error) {
+	name := nameOf(r)
+	if ra, ok := r.(io.ReaderAt); ok {
+		hdr := peekAt(ra, 16)
+		if c, ok := compression.Detect(name, hdr); ok {
+			return openCompressed(c, io.NewSectionReader(ra, 0, 1<<63-1))
+		}
+		return openTar(r)
+	}
+	hdr, br, err := peekCopy(r, 16)
 	if err != nil {
 		return nil, err
 	}
-	return Open(bytes.NewReader(raw))
+	if c, ok := compression.Detect(name, hdr); ok {
+		return openCompressed(c, br)
+	}
+	return nil, &fs.PathError{Op: "open", Path: name, Err: lewfs.ErrNeedReadAt}
 }
 
-// Open reads a tar archive from r. r must be an [io.ReaderAt].
-func Open(r io.Reader) (*FS, error) {
+func openCompressed(c compression.Codec, r io.Reader) (*FS, error) {
+	cr, err := c.Reader(r)
+	if err != nil {
+		return nil, err
+	}
+	defer cr.Close()
+	raw, err := io.ReadAll(cr)
+	if err != nil {
+		return nil, err
+	}
+	return openTar(bytes.NewReader(raw))
+}
+
+func openTar(r io.Reader) (*FS, error) {
 	ra, err := lewfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
@@ -79,6 +108,42 @@ func Open(r io.Reader) (*FS, error) {
 			}
 		}
 	}
+}
+
+func nameOf(r io.Reader) string {
+	st, ok := r.(interface {
+		Stat() (fs.FileInfo, error)
+	})
+	if !ok {
+		return ""
+	}
+	fi, err := st.Stat()
+	if err != nil {
+		return ""
+	}
+	return fi.Name()
+}
+
+func peekAt(ra io.ReaderAt, n int) []byte {
+	b := make([]byte, n)
+	got, err := ra.ReadAt(b, 0)
+	if got == 0 && err != nil {
+		return nil
+	}
+	return b[:got]
+}
+
+func peekCopy(r io.Reader, n int) ([]byte, io.Reader, error) {
+	b := make([]byte, n)
+	got, err := io.ReadFull(r, b)
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	hdr := b[:got]
+	return hdr, io.MultiReader(bytes.NewReader(hdr), r), nil
 }
 
 func cleanName(name string) (string, error) {

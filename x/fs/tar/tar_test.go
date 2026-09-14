@@ -13,7 +13,9 @@ import (
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
 
+	stdgzip "compress/gzip"
 	"github.com/andybalholm/brotli"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,11 +36,11 @@ func packTar(t *testing.T, files map[string][]byte) *bytes.Reader {
 	return bytes.NewReader(buf.Bytes())
 }
 
-func packTarBrotli(t *testing.T, files map[string][]byte) *bytes.Reader {
+func packTarWrapped(t *testing.T, files map[string][]byte, wrap func(io.Writer) io.WriteCloser) *bytes.Reader {
 	t.Helper()
 	raw := packTar(t, files)
 	var buf bytes.Buffer
-	w := brotli.NewWriter(&buf)
+	w := wrap(&buf)
 	_, err := io.Copy(w, raw)
 	require.NoError(t, err)
 	require.NoError(t, w.Close())
@@ -131,38 +133,55 @@ func TestSkipPayload(t *testing.T) {
 	assert.Equal(t, "yes", string(b))
 }
 
-func TestOpenBrotli(t *testing.T) {
+func TestOpenGzipMagic(t *testing.T) {
 	t.Parallel()
-	r := packTarBrotli(t, map[string][]byte{
-		"a/b.txt": []byte("hello"),
-		"z.txt":   []byte("zee"),
+	r := packTarWrapped(t, map[string][]byte{"a/b.txt": []byte("hello")}, func(w io.Writer) io.WriteCloser {
+		return stdgzip.NewWriter(w)
 	})
-	fsys, err := OpenBrotli(r)
+	fsys, err := Open(r)
 	require.NoError(t, err)
 	b, err := fsys.ReadFile("a/b.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "hello", string(b))
-	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
 }
 
-func TestOpenBrotliNotReaderAt(t *testing.T) {
+func TestOpenBrotliByName(t *testing.T) {
 	t.Parallel()
-	r := packTarBrotli(t, map[string][]byte{"a.txt": []byte("x")})
-	raw, err := io.ReadAll(r)
+	raw := packTarWrapped(t, map[string][]byte{"a.txt": []byte("x")}, func(w io.Writer) io.WriteCloser {
+		return brotli.NewWriter(w)
+	})
+	data, err := io.ReadAll(raw)
 	require.NoError(t, err)
-	fsys, err := OpenBrotli(onlyReader{bytes.NewReader(raw)})
+	host := fstest.MapFS{"src.tar.br": {Data: data}}
+	fsys, err := path.OpenFS(path.New("src.tar.br"), host, Open)
+	require.NoError(t, err)
+	b, err := path.New("a.txt").ReadFile(fsys)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("x"), b)
+}
+
+func TestOpenBrotliNeedsName(t *testing.T) {
+	t.Parallel()
+	r := packTarWrapped(t, map[string][]byte{"a.txt": []byte("x")}, func(w io.Writer) io.WriteCloser {
+		return brotli.NewWriter(w)
+	})
+	_, err := Open(r)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
+}
+
+func TestOpenGzipWithoutReadAt(t *testing.T) {
+	t.Parallel()
+	r := packTarWrapped(t, map[string][]byte{"a.txt": []byte("x")}, func(w io.Writer) io.WriteCloser {
+		return stdgzip.NewWriter(w)
+	})
+	data, err := io.ReadAll(r)
+	require.NoError(t, err)
+	fsys, err := Open(onlyReader{bytes.NewReader(data)})
 	require.NoError(t, err)
 	b, err := fsys.ReadFile("a.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "x", string(b))
-}
-
-func TestOpenRejectsBrotli(t *testing.T) {
-	t.Parallel()
-	r := packTarBrotli(t, map[string][]byte{"a.txt": []byte("x")})
-	_, err := Open(r)
-	require.Error(t, err)
-	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }
 
 func TestOpenFS(t *testing.T) {
