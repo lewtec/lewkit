@@ -1,10 +1,10 @@
 // Package compression is a process-wide registry of stream codecs
 // keyed by file extension or magic prefix.
 //
-// Call [github.com/lewtec/lewkit/x/compression/all.Load] (or import that
-// package) to fill the process-wide registry.
+// Import a codec package to register it, or import
+// [github.com/lewtec/lewkit/x/compression/prelude] for the standard set.
 //
-//	all.Load()
+//	import _ "github.com/lewtec/lewkit/x/compression/prelude"
 //	c, ok := compression.Detect("src.tar.gz", header)
 //	r, err := c.Reader(src)
 //

@@ -9,11 +9,9 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/compression"
-	"github.com/lewtec/lewkit/x/compression/all"
+	_ "github.com/lewtec/lewkit/x/compression/prelude"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
-
-func init() { all.Load() }
 
 // FS is a read-only tar archive.
 type FS struct {

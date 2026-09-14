@@ -1,10 +1,10 @@
-package all_test
+package prelude_test
 
 import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/compression"
-	"github.com/lewtec/lewkit/x/compression/all"
+	_ "github.com/lewtec/lewkit/x/compression/prelude"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,7 +12,6 @@ import (
 
 func TestRegistry(t *testing.T) {
 	t.Parallel()
-	all.Load()
 	c, ok := compression.Detect("src.tar.gz", nil)
 	require.True(t, ok)
 	assert.Equal(t, "gzip", c.Name())

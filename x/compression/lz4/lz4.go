@@ -12,6 +12,8 @@ import (
 // Codec is LZ4 (frame format).
 var Codec compression.Codec = codec{}
 
+func init() { compression.Register(Codec) }
+
 type codec struct{}
 
 func (codec) Name() string { return "lz4" }

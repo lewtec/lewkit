@@ -11,6 +11,8 @@ import (
 // Codec is gzip.
 var Codec compression.Codec = codec{}
 
+func init() { compression.Register(Codec) }
+
 type codec struct{}
 
 func (codec) Name() string { return "gzip" }
