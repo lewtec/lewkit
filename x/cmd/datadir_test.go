@@ -47,7 +47,6 @@ func TestDataDirDefault(t *testing.T) {
 	type args struct {
 		dir DataDirArg `long:"dir" default:"."`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := ParseOK[args](t)
 	assert.Equal(t, ".", got.dir.Value())
 }

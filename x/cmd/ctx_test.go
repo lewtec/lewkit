@@ -11,8 +11,7 @@ import (
 )
 
 func TestGetAppFlags(t *testing.T) {
-	app, err := Parse[App[None]]("-vv", "--profile-dir", "/tmp/p")
-	require.NoError(t, err)
+	app := ParseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&app).Elem())
 	assert.Equal(t, 2, Get[int](ctx, "verbose"))
@@ -39,8 +38,7 @@ type ctxRoot struct {
 func TestGetParentFlagAfterCommand(t *testing.T) {
 	test.RestoreSlog(t)
 
-	app, err := Parse[App[ctxRoot]]("leaf", "-vv", "--profile-dir", "/tmp/x")
-	require.NoError(t, err)
+	app := ParseOK[App[ctxRoot]](t, "leaf", "-vv", "--profile-dir", "/tmp/x")
 	require.NoError(t, app.Run(t.Context()))
 	require.NotNil(t, app.Args.leaf)
 	assert.Equal(t, 2, app.Args.leaf.got)
@@ -54,8 +52,7 @@ func TestGetUnwrapsArgAndSlice(t *testing.T) {
 		n    Count       `long:"n" ctx:"n"`
 		ok   Flag        `long:"ok" ctx:"ok"`
 	}
-	got, err := Parse[args]("--name", "Ada", "--tag", "a", "--tag", "b", "--n", "3", "--ok")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "--name", "Ada", "--tag", "a", "--tag", "b", "--n", "3", "--ok")
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&got).Elem())
 	assert.Equal(t, "Ada", Get[string](ctx, "name"))
@@ -68,8 +65,7 @@ func TestEmptyCtxUsesLong(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" default:"" ctx:""`
 	}
-	got, err := Parse[args]("--name", "Ada")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "--name", "Ada")
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&got).Elem())
 	assert.Equal(t, "Ada", Get[string](ctx, "name"))
@@ -79,8 +75,7 @@ func TestEmptyCtxUsesFieldName(t *testing.T) {
 	type args struct {
 		path StringArg `ctx:"" default:"."`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := ParseOK[args](t)
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&got).Elem())
 	assert.Equal(t, ".", Get[string](ctx, "path"))
@@ -90,8 +85,7 @@ func TestUntaggedNotInBag(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" default:""`
 	}
-	got, err := Parse[args]("--name", "Ada")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "--name", "Ada")
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&got).Elem())
 	assert.PanicsWithError(t, "context key not set: name", func() {
@@ -133,8 +127,7 @@ func TestNilPointerSkipped(t *testing.T) {
 	type args struct {
 		name *StringArg `ctx:"name"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := ParseOK[args](t)
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&got).Elem())
 	assert.PanicsWithError(t, "context key not set: name", func() {

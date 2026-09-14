@@ -11,8 +11,7 @@ func TestProductPositional(t *testing.T) {
 	type args struct {
 		pair KV[string, *StringArg]
 	}
-	got, err := Parse[args]("name", "lucas")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "name", "lucas")
 	assert.Equal(t, got.pair.K.Value(), "name")
 	assert.Equal(t, got.pair.V.Value(), "lucas")
 }
@@ -22,8 +21,7 @@ func TestProductThenRest(t *testing.T) {
 		pair KV[string, *StringArg]
 		rest []StringArg
 	}
-	got, err := Parse[args]("name", "lucas", "x")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "name", "lucas", "x")
 	assert.Equal(t, got.pair.K.Value(), "name")
 	assert.Equal(t, got.pair.V.Value(), "lucas")
 	assert.Equal(t, Values(got.rest), []string{"x"})
@@ -33,8 +31,7 @@ func TestSeqKV(t *testing.T) {
 	type args struct {
 		pairs Seq[KV[string, *StringArg]]
 	}
-	got, err := Parse[args]("name", "lucas", "age", "26")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "name", "lucas", "age", "26")
 	assert.Equal(t, Map(got.pairs), map[string]string{"name": "lucas", "age": "26"})
 }
 
@@ -42,8 +39,7 @@ func TestSliceKVSameAsSeq(t *testing.T) {
 	type args struct {
 		pairs []KV[string, *StringArg]
 	}
-	got, err := Parse[args]("name", "lucas", "age", "26")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "name", "lucas", "age", "26")
 	assert.Equal(t, Map(got.pairs), map[string]string{"name": "lucas", "age": "26"})
 }
 
@@ -55,8 +51,7 @@ func TestSeqIntProduct(t *testing.T) {
 	type args struct {
 		pairs Seq[KV[int, *IntArg[int]]]
 	}
-	got, err := Parse[args]("lucas", "26", "ada", "36")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "lucas", "26", "ada", "36")
 	assert.Equal(t, Map(got.pairs), map[string]int{"lucas": 26, "ada": 36})
 }
 
@@ -64,8 +59,7 @@ func TestExactArray(t *testing.T) {
 	type args struct {
 		pair [2]StringArg
 	}
-	got, err := Parse[args]("a", "b")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "a", "b")
 	assert.Equal(t, got.pair[0].Value(), "a")
 	assert.Equal(t, got.pair[1].Value(), "b")
 }
@@ -75,8 +69,7 @@ func TestExactArrayThenRest(t *testing.T) {
 		pair [2]StringArg
 		rest []StringArg
 	}
-	got, err := Parse[args]("a", "b", "c")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "a", "b", "c")
 	assert.Equal(t, got.pair[0].Value(), "a")
 	assert.Equal(t, got.pair[1].Value(), "b")
 	assert.Equal(t, Values(got.rest), []string{"c"})
@@ -86,8 +79,7 @@ func TestExactTwoKV(t *testing.T) {
 	type args struct {
 		pairs [2]KV[string, *StringArg]
 	}
-	got, err := Parse[args]("name", "lucas", "age", "26")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "name", "lucas", "age", "26")
 	assert.Equal(t, got.pairs[0].K.Value(), "name")
 	assert.Equal(t, got.pairs[0].V.Value(), "lucas")
 	assert.Equal(t, got.pairs[1].K.Value(), "age")
@@ -98,8 +90,7 @@ func TestSeqEmpty(t *testing.T) {
 	type args struct {
 		items Seq[StringArg]
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := ParseOK[args](t)
 	assert.Empty(t, got.items)
 }
 
@@ -107,8 +98,7 @@ func TestSeqKVEmpty(t *testing.T) {
 	type args struct {
 		pairs Seq[KV[string, *StringArg]]
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := ParseOK[args](t)
 	assert.Empty(t, got.pairs)
 }
 
@@ -132,8 +122,7 @@ func TestDashSplitsSeqs(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := Parse[dashArgs](tc.args...)
-			require.NoError(t, err)
+			got := ParseOK[dashArgs](t, tc.args...)
 			assert.Equal(t, Values(got.packs), tc.packs)
 			assert.Equal(t, Values(got.paths), tc.paths)
 		})
@@ -145,8 +134,7 @@ func TestTwoRestsSplitByDash(t *testing.T) {
 		a []StringArg
 		b []StringArg
 	}
-	got, err := Parse[args]("x", "--", "y", "z")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "x", "--", "y", "z")
 	assert.Equal(t, Values(got.a), []string{"x"})
 	assert.Equal(t, Values(got.b), []string{"y", "z"})
 }
@@ -156,8 +144,7 @@ func TestTwoSeqsSplitByDash(t *testing.T) {
 		a Seq[StringArg]
 		b Seq[StringArg]
 	}
-	got, err := Parse[args]("x", "--", "y")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "x", "--", "y")
 	assert.Equal(t, Values(got.a), []string{"x"})
 	assert.Equal(t, Values(got.b), []string{"y"})
 }
@@ -229,8 +216,7 @@ func TestOptionalStringAbsent(t *testing.T) {
 		name *StringArg
 		rest []StringArg
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := ParseOK[args](t)
 	assert.Nil(t, got.name)
 	assert.Empty(t, got.rest)
 }
@@ -241,14 +227,12 @@ func TestOptionalProduct(t *testing.T) {
 		rest []StringArg
 	}
 	t.Run("absent", func(t *testing.T) {
-		got, err := Parse[args]()
-		require.NoError(t, err)
+		got := ParseOK[args](t)
 		assert.Nil(t, got.pair)
 		assert.Empty(t, got.rest)
 	})
 	t.Run("present", func(t *testing.T) {
-		got, err := Parse[args]("name", "lucas", "x")
-		require.NoError(t, err)
+		got := ParseOK[args](t, "name", "lucas", "x")
 		require.NotNil(t, got.pair)
 		assert.Equal(t, got.pair.K.Value(), "name")
 		assert.Equal(t, got.pair.V.Value(), "lucas")
@@ -260,8 +244,7 @@ func TestTaggedProductRepeat(t *testing.T) {
 	type args struct {
 		pairs []KV[string, *StringArg] `long:"pair"`
 	}
-	got, err := Parse[args]("--pair", "name", "lucas", "--pair", "age", "26")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "--pair", "name", "lucas", "--pair", "age", "26")
 	require.Len(t, got.pairs, 2)
 	assert.Equal(t, got.pairs[0].K.Value(), "name")
 	assert.Equal(t, got.pairs[0].V.Value(), "lucas")
@@ -276,15 +259,13 @@ func TestOptionalDash(t *testing.T) {
 		paths Seq[StringArg]
 	}
 	t.Run("present", func(t *testing.T) {
-		got, err := Parse[args]("a", "--", "b")
-		require.NoError(t, err)
+		got := ParseOK[args](t, "a", "--", "b")
 		assert.Equal(t, Values(got.packs), []string{"a"})
 		require.NotNil(t, got.sep)
 		assert.Equal(t, Values(got.paths), []string{"b"})
 	})
 	t.Run("absent", func(t *testing.T) {
-		got, err := Parse[args]("a", "b")
-		require.NoError(t, err)
+		got := ParseOK[args](t, "a", "b")
 		assert.Equal(t, Values(got.packs), []string{"a", "b"})
 		assert.Nil(t, got.sep)
 		assert.Empty(t, got.paths)
@@ -296,8 +277,7 @@ func TestFlagWithSeqKV(t *testing.T) {
 		force Flag `long:"force" short:"f"`
 		pairs Seq[KV[string, *StringArg]]
 	}
-	got, err := Parse[args]("--force", "name", "lucas")
-	require.NoError(t, err)
+	got := ParseOK[args](t, "--force", "name", "lucas")
 	assert.True(t, got.force.Value())
 	require.Len(t, got.pairs, 1)
 	assert.Equal(t, got.pairs[0].K.Value(), "name")

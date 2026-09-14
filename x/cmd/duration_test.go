@@ -44,7 +44,6 @@ func TestDurationDefault(t *testing.T) {
 	type args struct {
 		timeout DurationArg `long:"timeout" default:"30s"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := ParseOK[args](t)
 	assert.Equal(t, 30*time.Second, got.timeout.Value())
 }
