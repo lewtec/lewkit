@@ -8,6 +8,7 @@
 // [File.Open] reads that body. Sequential formats (tar) walk member
 // headers. Formats with a table of contents walk that table.
 // [New] indexes a listing into a read-only [io/fs.FS].
+// [Copy] writes one [io/fs.FS] into another, like rsync from/ to.
 package fs
 
 import (
