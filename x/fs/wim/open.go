@@ -8,11 +8,13 @@ import (
 	"io/fs"
 
 	winwim "github.com/Microsoft/go-winio/wim"
+
+	xfs "github.com/lewtec/lewkit/x/fs"
 )
 
 var (
-	// ErrNeedReadAt is [Open] or [Images] on a reader that is not an [io.ReaderAt].
-	ErrNeedReadAt = errors.New("need io.ReaderAt")
+	// ErrNeedReadAt is [xfs.ErrNeedReadAt].
+	ErrNeedReadAt = xfs.ErrNeedReadAt
 	// ErrInvalidImage is [Open] with an image index that is not in the WIM.
 	ErrInvalidImage = errors.New("invalid image")
 )
@@ -41,7 +43,7 @@ var (
 
 // Images lists the images in r. r must be an [io.ReaderAt].
 func Images(r io.Reader) ([]Info, error) {
-	ra, err := readerAt("images", r)
+	ra, err := xfs.ReaderAt("images", r)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +61,7 @@ func Images(r io.Reader) ([]Info, error) {
 
 // Open reads image from r. image is 1-based. r must be an [io.ReaderAt].
 func Open(r io.Reader, image int) (*FS, error) {
-	ra, err := readerAt("open", r)
+	ra, err := xfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +131,4 @@ func walkWIM(root *dnode, dir *winwim.File, prefix string) error {
 		}
 	}
 	return nil
-}
-
-func readerAt(op string, r io.Reader) (io.ReaderAt, error) {
-	ra, ok := r.(io.ReaderAt)
-	if !ok {
-		return nil, &fs.PathError{Op: op, Path: "", Err: ErrNeedReadAt}
-	}
-	return ra, nil
 }

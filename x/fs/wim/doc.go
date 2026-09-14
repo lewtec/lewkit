@@ -3,8 +3,9 @@
 // Package wim presents one WIM image as an [io/fs.FS].
 //
 // [Open] and [Images] take an [io.Reader]. The reader must also be an
-// [io.ReaderAt]. A missing [io.ReaderAt] returns [ErrNeedReadAt].
-// Neither call copies or spools the file.
+// [io.ReaderAt]. A missing [io.ReaderAt] returns
+// [github.com/lewtec/lewkit/x/fs.ErrNeedReadAt]. Neither call copies
+// or spools the file.
 //
 // Image is 1-based, same as DISM and the WIM XML index.
 //

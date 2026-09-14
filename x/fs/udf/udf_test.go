@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	xfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,10 +16,37 @@ import (
 
 type onlyReader struct{ io.Reader }
 
+func TestOpenFSNeedReadAt(t *testing.T) {
+	t.Parallel()
+	fsys := &readerOnlyFS{name: "vol.iso", r: strings.NewReader("x")}
+	_, err := path.OpenFS(path.New("vol.iso"), fsys, Open)
+	require.ErrorIs(t, err, xfs.ErrNeedReadAt)
+}
+
+type readerOnlyFS struct {
+	name string
+	r    io.Reader
+}
+
+func (s *readerOnlyFS) Open(name string) (fs.File, error) {
+	if name != s.name {
+		return nil, fs.ErrNotExist
+	}
+	return &readerOnlyFile{Reader: s.r}, nil
+}
+
+type readerOnlyFile struct {
+	io.Reader
+}
+
+func (readerOnlyFile) Stat() (fs.FileInfo, error) { return nil, fs.ErrInvalid }
+func (readerOnlyFile) Close() error               { return nil }
+
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	_, err := Open(onlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, ErrNeedReadAt)
+	require.ErrorIs(t, err, xfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
 	assert.Equal(t, "open", pe.Op)

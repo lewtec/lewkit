@@ -1,17 +1,18 @@
 package udf
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	stdpath "path"
 
 	"github.com/Xmister/udf"
+
+	xfs "github.com/lewtec/lewkit/x/fs"
 )
 
-// ErrNeedReadAt is [Open] on a reader that is not an [io.ReaderAt].
-var ErrNeedReadAt = errors.New("need io.ReaderAt")
+// ErrNeedReadAt is [xfs.ErrNeedReadAt].
+var ErrNeedReadAt = xfs.ErrNeedReadAt
 
 // FS is a read-only UDF volume.
 type FS struct {
@@ -28,7 +29,7 @@ var (
 // Open reads a UDF volume from r. r must be an [io.ReaderAt].
 func Open(r io.Reader) (out *FS, err error) {
 	defer recovered(&err)
-	ra, err := readerAt("open", r)
+	ra, err := xfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
 	}
@@ -72,14 +73,6 @@ func walkUDF(root *dnode, items []udf.File, prefix string) error {
 		}
 	}
 	return nil
-}
-
-func readerAt(op string, r io.Reader) (io.ReaderAt, error) {
-	ra, ok := r.(io.ReaderAt)
-	if !ok {
-		return nil, &fs.PathError{Op: op, Path: "", Err: ErrNeedReadAt}
-	}
-	return ra, nil
 }
 
 func recovered(errp *error) {
