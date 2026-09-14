@@ -3,55 +3,28 @@ package compression
 import (
 	"bytes"
 	"strings"
-	"sync"
 )
 
-var (
-	stdmu sync.Mutex
-	std   = New()
-)
+var std = New()
 
 // Register adds codecs to the process-wide registry.
-// A codec whose Name is already present is skipped.
 func Register(codecs ...Codec) {
-	stdmu.Lock()
-	defer stdmu.Unlock()
-	for _, c := range codecs {
-		if c == nil || hasName(std.codecs, c.Name()) {
-			continue
-		}
-		std.codecs = append(std.codecs, c)
-	}
-}
-
-func hasName(codecs []Codec, name string) bool {
-	for _, c := range codecs {
-		if c.Name() == name {
-			return true
-		}
-	}
-	return false
+	std.codecs = append(std.codecs, codecs...)
 }
 
 // Detect looks up a codec in the process-wide registry.
 // A matching extension wins over magic.
 func Detect(name string, magic []byte) (Codec, bool) {
-	stdmu.Lock()
-	defer stdmu.Unlock()
 	return std.Detect(name, magic)
 }
 
 // ByExtension looks up a codec in the process-wide registry.
 func ByExtension(name string) (Codec, bool) {
-	stdmu.Lock()
-	defer stdmu.Unlock()
 	return std.ByExtension(name)
 }
 
 // ByMagic looks up a codec in the process-wide registry.
 func ByMagic(p []byte) (Codec, bool) {
-	stdmu.Lock()
-	defer stdmu.Unlock()
 	return std.ByMagic(p)
 }
 

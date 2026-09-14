@@ -52,7 +52,11 @@ func Open(r io.Reader) (*FS, error) {
 }
 
 func openCompressed(c compression.Codec, r io.Reader) (*FS, error) {
-	cr, err := c.Reader(r)
+	d, ok := c.(compression.Decompressor)
+	if !ok {
+		return nil, &fs.PathError{Op: "open", Path: "", Err: fs.ErrInvalid}
+	}
+	cr, err := d.Reader(r)
 	if err != nil {
 		return nil, err
 	}

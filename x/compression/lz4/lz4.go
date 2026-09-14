@@ -10,7 +10,7 @@ import (
 )
 
 // Codec is LZ4 (frame format).
-var Codec compression.Codec = codec{}
+var Codec = codec{}
 
 func init() { compression.Register(Codec) }
 
@@ -18,9 +18,7 @@ type codec struct{}
 
 func (codec) Name() string { return "lz4" }
 
-func (codec) Extensions() []string {
-	return []string{".lz4", ".tar.lz4"}
-}
+func (codec) Extensions() []string { return []string{".lz4"} }
 
 func (codec) Magic() [][]byte {
 	return [][]byte{{0x04, 0x22, 0x4d, 0x18}}
@@ -28,4 +26,8 @@ func (codec) Magic() [][]byte {
 
 func (codec) Reader(r io.Reader) (io.ReadCloser, error) {
 	return io.NopCloser(stdlz4.NewReader(r)), nil
+}
+
+func (codec) Writer(w io.Writer) (io.WriteCloser, error) {
+	return stdlz4.NewWriter(w), nil
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // Codec is bzip2.
-var Codec compression.Codec = codec{}
+var Codec = codec{}
 
 func init() { compression.Register(Codec) }
 
@@ -17,9 +17,7 @@ type codec struct{}
 
 func (codec) Name() string { return "bzip2" }
 
-func (codec) Extensions() []string {
-	return []string{".bz2", ".tbz", ".tbz2", ".tar.bz2"}
-}
+func (codec) Extensions() []string { return []string{".bz2"} }
 
 func (codec) Magic() [][]byte {
 	return [][]byte{{'B', 'Z', 'h'}}

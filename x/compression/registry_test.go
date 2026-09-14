@@ -1,7 +1,6 @@
 package compression
 
 import (
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,21 +16,14 @@ type fake struct {
 func (f fake) Name() string         { return f.name }
 func (f fake) Extensions() []string { return f.exts }
 func (f fake) Magic() [][]byte      { return f.mag }
-func (f fake) Reader(io.Reader) (io.ReadCloser, error) {
-	return io.NopCloser(nil), nil
-}
 
 func TestByExtensionLongest(t *testing.T) {
 	t.Parallel()
-	gz := fake{name: "gzip", exts: []string{".gz", ".tgz", ".tar.gz"}}
-	br := fake{name: "brotli", exts: []string{".br", ".tar.br"}}
+	gz := fake{name: "gzip", exts: []string{".gz"}}
+	br := fake{name: "brotli", exts: []string{".br"}}
 	reg := New(gz, br)
 
 	c, ok := reg.ByExtension("src.tar.gz")
-	require.True(t, ok)
-	assert.Equal(t, "gzip", c.Name())
-
-	c, ok = reg.ByExtension("SRC.TGZ")
 	require.True(t, ok)
 	assert.Equal(t, "gzip", c.Name())
 

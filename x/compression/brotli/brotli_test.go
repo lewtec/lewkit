@@ -5,7 +5,7 @@ import (
 	"io"
 	"testing"
 
-	stdbr "github.com/andybalholm/brotli"
+	"github.com/lewtec/lewkit/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,13 +14,14 @@ import (
 func TestReader(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	w := stdbr.NewWriter(&buf)
-	_, err := w.Write([]byte("hello"))
+	w, err := Codec.Writer(&buf)
+	require.NoError(t, err)
+	_, err = w.Write([]byte("hello"))
 	require.NoError(t, err)
 	require.NoError(t, w.Close())
 	r, err := Codec.Reader(bytes.NewReader(buf.Bytes()))
 	require.NoError(t, err)
-	t.Cleanup(func() { r.Close() })
+	test.CloseOnCleanup(t, r)
 	got, err := io.ReadAll(r)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hello"), got)

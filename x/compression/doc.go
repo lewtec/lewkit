@@ -6,10 +6,11 @@
 //
 //	import _ "github.com/lewtec/lewkit/x/compression/prelude"
 //	c, ok := compression.Detect("src.tar.gz", header)
-//	r, err := c.Reader(src)
+//	d := c.(compression.Decompressor)
+//	r, err := d.Reader(src)
 //
 // [Detect] prefers a matching extension, then a magic prefix.
-// Brotli has no reliable magic; it matches by extension only.
+// A codec may also be a [Decompressor] and/or a [Compressor].
 //
 // [New] builds a private registry when the process-wide one is not wanted.
 package compression

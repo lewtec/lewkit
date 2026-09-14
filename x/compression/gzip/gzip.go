@@ -9,7 +9,13 @@ import (
 )
 
 // Codec is gzip.
-var Codec compression.Codec = codec{}
+var Codec = codec{}
+
+var (
+	_ compression.Codec        = codec{}
+	_ compression.Decompressor = codec{}
+	_ compression.Compressor   = codec{}
+)
 
 func init() { compression.Register(Codec) }
 
@@ -17,9 +23,7 @@ type codec struct{}
 
 func (codec) Name() string { return "gzip" }
 
-func (codec) Extensions() []string {
-	return []string{".gz", ".tgz", ".tar.gz"}
-}
+func (codec) Extensions() []string { return []string{".gz"} }
 
 func (codec) Magic() [][]byte {
 	return [][]byte{{0x1f, 0x8b}}
@@ -27,4 +31,8 @@ func (codec) Magic() [][]byte {
 
 func (codec) Reader(r io.Reader) (io.ReadCloser, error) {
 	return stdgzip.NewReader(r)
+}
+
+func (codec) Writer(w io.Writer) (io.WriteCloser, error) {
+	return stdgzip.NewWriter(w), nil
 }

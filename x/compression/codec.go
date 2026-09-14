@@ -2,16 +2,24 @@ package compression
 
 import "io"
 
-// Codec is one stream compression format.
+// Codec identifies a stream format.
 type Codec interface {
 	// Name is the short format name, such as "gzip".
 	Name() string
-	// Extensions are file suffixes, including the dot. Longer suffixes
-	// win when several match (".tar.gz" before ".gz").
+	// Extensions are file suffixes, including the dot.
+	// Longer suffixes win when several match.
 	Extensions() []string
 	// Magic is leading byte prefixes of the compressed stream.
 	// An empty list means the codec cannot be sniffed.
 	Magic() [][]byte
-	// Reader decompresses r. The caller closes the result.
+}
+
+// Decompressor is an optional reader side of a [Codec].
+type Decompressor interface {
 	Reader(r io.Reader) (io.ReadCloser, error)
+}
+
+// Compressor is an optional writer side of a [Codec].
+type Compressor interface {
+	Writer(w io.Writer) (io.WriteCloser, error)
 }
