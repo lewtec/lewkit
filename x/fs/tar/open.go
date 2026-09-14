@@ -2,10 +2,13 @@ package tar
 
 import (
 	stdtar "archive/tar"
+	"bytes"
 	"io"
 	"io/fs"
 	stdpath "path"
 	"strings"
+
+	"github.com/andybalholm/brotli"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
@@ -22,6 +25,16 @@ var (
 	_ fs.ReadFileFS = (*FS)(nil)
 	_ fs.StatFS     = (*FS)(nil)
 )
+
+// OpenBrotli reads a brotli-compressed tar from r.
+// It decompresses the stream into memory, then calls [Open].
+func OpenBrotli(r io.Reader) (*FS, error) {
+	raw, err := io.ReadAll(brotli.NewReader(r))
+	if err != nil {
+		return nil, err
+	}
+	return Open(bytes.NewReader(raw))
+}
 
 // Open reads a tar archive from r. r must be an [io.ReaderAt].
 func Open(r io.Reader) (*FS, error) {

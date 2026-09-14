@@ -13,6 +13,7 @@ import (
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
 
+	"github.com/andybalholm/brotli"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,6 +30,17 @@ func packTar(t *testing.T, files map[string][]byte) *bytes.Reader {
 		_, err := w.Write(data)
 		require.NoError(t, err)
 	}
+	require.NoError(t, w.Close())
+	return bytes.NewReader(buf.Bytes())
+}
+
+func packTarBrotli(t *testing.T, files map[string][]byte) *bytes.Reader {
+	t.Helper()
+	raw := packTar(t, files)
+	var buf bytes.Buffer
+	w := brotli.NewWriter(&buf)
+	_, err := io.Copy(w, raw)
+	require.NoError(t, err)
 	require.NoError(t, w.Close())
 	return bytes.NewReader(buf.Bytes())
 }
@@ -117,6 +129,40 @@ func TestSkipPayload(t *testing.T) {
 	b, err := fsys.ReadFile("ok.txt")
 	require.NoError(t, err)
 	assert.Equal(t, "yes", string(b))
+}
+
+func TestOpenBrotli(t *testing.T) {
+	t.Parallel()
+	r := packTarBrotli(t, map[string][]byte{
+		"a/b.txt": []byte("hello"),
+		"z.txt":   []byte("zee"),
+	})
+	fsys, err := OpenBrotli(r)
+	require.NoError(t, err)
+	b, err := fsys.ReadFile("a/b.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "hello", string(b))
+	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
+}
+
+func TestOpenBrotliNotReaderAt(t *testing.T) {
+	t.Parallel()
+	r := packTarBrotli(t, map[string][]byte{"a.txt": []byte("x")})
+	raw, err := io.ReadAll(r)
+	require.NoError(t, err)
+	fsys, err := OpenBrotli(onlyReader{bytes.NewReader(raw)})
+	require.NoError(t, err)
+	b, err := fsys.ReadFile("a.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "x", string(b))
+}
+
+func TestOpenRejectsBrotli(t *testing.T) {
+	t.Parallel()
+	r := packTarBrotli(t, map[string][]byte{"a.txt": []byte("x")})
+	_, err := Open(r)
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }
 
 func TestOpenFS(t *testing.T) {

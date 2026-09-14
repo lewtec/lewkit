@@ -11,5 +11,8 @@
 //	b, err := fs.ReadFile(t, "README")
 //
 // Opened files implement [io.ReaderAt] from the member offset.
-// Compressed tar (.tar.gz) is not supported. Writes are not implemented.
+//
+// [OpenBrotli] reads a brotli-compressed tar (.tar.br). It decompresses
+// the stream into memory, then [Open]s the result. gzip, xz, and zstd
+// wrappers are not implemented. Writes are not implemented.
 package tar
