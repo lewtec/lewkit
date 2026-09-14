@@ -8,8 +8,23 @@ import (
 var std = New()
 
 // Register adds codecs to the process-wide registry.
+// A nil codec or a name already present is skipped.
 func Register(codecs ...Codec) {
-	std.codecs = append(std.codecs, codecs...)
+	for _, c := range codecs {
+		if c == nil || hasName(std.codecs, c.Name()) {
+			continue
+		}
+		std.codecs = append(std.codecs, c)
+	}
+}
+
+func hasName(codecs []Codec, name string) bool {
+	for _, c := range codecs {
+		if c.Name() == name {
+			return true
+		}
+	}
+	return false
 }
 
 // Detect looks up a codec in the process-wide registry.
