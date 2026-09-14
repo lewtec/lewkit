@@ -55,6 +55,18 @@ func TestDetectPrefersExtension(t *testing.T) {
 	assert.Equal(t, "brotli", c.Name())
 }
 
+func TestRegister(t *testing.T) {
+	err := Register(nil)
+	require.ErrorIs(t, err, ErrNil)
+
+	c := fake{name: "reg-test-only", exts: []string{".reg-test-only"}}
+	require.NoError(t, Register(c))
+	err = Register(c)
+	require.ErrorIs(t, err, ErrExist)
+
+	require.Panics(t, func() { MustRegister(nil) })
+}
+
 func TestDetectMagicWhenNoName(t *testing.T) {
 	t.Parallel()
 	gz := fake{name: "gzip", exts: []string{".gz"}, mag: [][]byte{{0x1f, 0x8b}}}

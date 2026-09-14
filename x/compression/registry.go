@@ -2,19 +2,35 @@ package compression
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"strings"
 )
 
+// ErrNil is [Register] with a nil codec.
+var ErrNil = errors.New("nil codec")
+
+// ErrExist is [Register] when the name is already in the registry.
+var ErrExist = errors.New("already registered")
+
 var std = New()
 
-// Register adds codecs to the process-wide registry.
-// A nil codec or a name already present is skipped.
-func Register(codecs ...Codec) {
-	for _, c := range codecs {
-		if c == nil || hasName(std.codecs, c.Name()) {
-			continue
-		}
-		std.codecs = append(std.codecs, c)
+// Register adds one codec to the process-wide registry.
+func Register(c Codec) error {
+	if c == nil {
+		return ErrNil
+	}
+	if hasName(std.codecs, c.Name()) {
+		return fmt.Errorf("%s: %w", c.Name(), ErrExist)
+	}
+	std.codecs = append(std.codecs, c)
+	return nil
+}
+
+// MustRegister is [Register] that panics on error.
+func MustRegister(c Codec) {
+	if err := Register(c); err != nil {
+		panic(err)
 	}
 }
 

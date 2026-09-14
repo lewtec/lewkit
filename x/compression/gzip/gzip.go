@@ -17,7 +17,7 @@ var (
 	_ compression.Compressor   = codec{}
 )
 
-func init() { compression.Register(Codec) }
+func init() { compression.MustRegister(Codec) }
 
 type codec struct{}
 

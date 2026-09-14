@@ -9,6 +9,9 @@
 //	d := c.(compression.Decompressor)
 //	r, err := d.Reader(src)
 //
+// [Register] adds one codec and returns [ErrNil] or [ErrExist] on
+// conflict. [MustRegister] panics on those errors (for init).
+//
 // [Detect] prefers a matching extension, then a magic prefix.
 // A codec may also be a [Decompressor] and/or a [Compressor].
 //

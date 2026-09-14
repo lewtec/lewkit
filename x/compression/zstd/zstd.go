@@ -12,7 +12,7 @@ import (
 // Codec is zstd.
 var Codec = codec{}
 
-func init() { compression.Register(Codec) }
+func init() { compression.MustRegister(Codec) }
 
 type codec struct{}
 

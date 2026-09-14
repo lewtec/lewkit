@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/test"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // RoundTrip compresses p with c and decompresses the result.
@@ -13,34 +16,19 @@ import (
 func RoundTrip(tb testing.TB, c Codec, p []byte) {
 	tb.Helper()
 	wri, ok := c.(Compressor)
-	if !ok {
-		tb.Fatalf("%s: not a Compressor", c.Name())
-	}
+	require.True(tb, ok, "%s: not a Compressor", c.Name())
 	rdr, ok := c.(Decompressor)
-	if !ok {
-		tb.Fatalf("%s: not a Decompressor", c.Name())
-	}
+	require.True(tb, ok, "%s: not a Decompressor", c.Name())
 	var buf bytes.Buffer
 	w, err := wri.Writer(&buf)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	if _, err := w.Write(p); err != nil {
-		tb.Fatal(err)
-	}
-	if err := w.Close(); err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, err)
+	_, err = w.Write(p)
+	require.NoError(tb, err)
+	require.NoError(tb, w.Close())
 	r, err := rdr.Reader(bytes.NewReader(buf.Bytes()))
-	if err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, err)
 	test.CloseOnCleanup(tb, r)
 	got, err := io.ReadAll(r)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	if !bytes.Equal(got, p) {
-		tb.Fatalf("round trip %s: got %q want %q", c.Name(), got, p)
-	}
+	require.NoError(tb, err)
+	assert.Equal(tb, p, got)
 }

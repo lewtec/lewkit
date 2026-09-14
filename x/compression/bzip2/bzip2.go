@@ -11,7 +11,7 @@ import (
 // Codec is bzip2.
 var Codec = codec{}
 
-func init() { compression.Register(Codec) }
+func init() { compression.MustRegister(Codec) }
 
 type codec struct{}
 
