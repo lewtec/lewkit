@@ -21,7 +21,7 @@ func TestVersionCmdRun(t *testing.T) {
 }
 
 func TestVersionCmdOptIn(t *testing.T) {
-	app := parseOK[App[withVersion]](t, "version")
+	app := ParseOK[App[withVersion]](t, "version")
 	require.NotNil(t, app.Args.version)
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))

@@ -17,7 +17,7 @@ import (
 )
 
 func TestAppParse(t *testing.T) {
-	args := parseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
+	args := ParseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
 	assert.Equal(t, 2, args.verbose.Value())
 	assert.Equal(t, "/tmp/p", args.profileDir.Value())
 	assert.Equal(t, slog.LevelDebug-4, args.LogLevel())
@@ -35,7 +35,7 @@ func TestAppLogLevel(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			args := parseOK[App[None]](t, tc.args...)
+			args := ParseOK[App[None]](t, tc.args...)
 			assert.Equal(t, tc.want, args.LogLevel())
 		})
 	}
@@ -43,13 +43,13 @@ func TestAppLogLevel(t *testing.T) {
 
 func TestAppHelpFlag(t *testing.T) {
 	for _, args := range [][]string{{"-h"}, {"--help"}} {
-		app := parseOK[App[None]](t, args...)
+		app := ParseOK[App[None]](t, args...)
 		assert.True(t, app.help.Value())
 	}
 }
 
 func TestAppVersionFlag(t *testing.T) {
-	app := parseOK[App[None]](t, "--version")
+	app := ParseOK[App[None]](t, "--version")
 	assert.True(t, app.version.Value())
 }
 
@@ -70,7 +70,7 @@ func TestAppUsage(t *testing.T) {
 }
 
 func TestAppRunHelp(t *testing.T) {
-	app := parseOK[App[None]](t, "--help")
+	app := ParseOK[App[None]](t, "--help")
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
@@ -83,7 +83,7 @@ func TestAppRunVersion(t *testing.T) {
 	want := release.Version() + "\n"
 	for _, args := range cases {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			app := parseOK[App[None]](t, args...)
+			app := ParseOK[App[None]](t, args...)
 			got := test.Stdout(t, func() {
 				require.NoError(t, app.Run(t.Context()))
 			})
@@ -95,7 +95,7 @@ func TestAppRunVersion(t *testing.T) {
 func TestAppRunNoProfile(t *testing.T) {
 	test.RestoreSlog(t)
 
-	app := parseOK[App[None]](t, "-v")
+	app := ParseOK[App[None]](t, "-v")
 	require.NoError(t, app.Run(t.Context()))
 }
 
@@ -106,7 +106,7 @@ func TestAppRunProfile(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	app := parseOK[App[None]](t, "--profile-dir", dir)
+	app := ParseOK[App[None]](t, "--profile-dir", dir)
 	require.NoError(t, app.Run(ctx))
 
 	cpu := filepath.Join(dir, "cpu.prof")
@@ -141,7 +141,7 @@ func (p *pingCmd) Run(context.Context) error {
 func TestAppInnerCommand(t *testing.T) {
 	test.RestoreSlog(t)
 
-	app := parseOK[App[extraCmds]](t, "ping", "--name", "x")
+	app := ParseOK[App[extraCmds]](t, "ping", "--name", "x")
 	require.NoError(t, app.Run(t.Context()))
 	require.NotNil(t, app.Args.ping)
 	assert.True(t, app.Args.ping.ran)
@@ -149,7 +149,7 @@ func TestAppInnerCommand(t *testing.T) {
 }
 
 func TestAppVerboseAfterCommand(t *testing.T) {
-	app := parseOK[App[extraCmds]](t, "ping", "-vv", "--name", "x")
+	app := ParseOK[App[extraCmds]](t, "ping", "-vv", "--name", "x")
 	assert.Equal(t, 2, app.verbose.Value())
 	assert.Equal(t, slog.LevelDebug-4, app.LogLevel())
 	require.NotNil(t, app.Args.ping)
@@ -157,13 +157,13 @@ func TestAppVerboseAfterCommand(t *testing.T) {
 }
 
 func TestAppHelpAfterCommand(t *testing.T) {
-	app := parseOK[App[extraCmds]](t, "ping", "--help")
+	app := ParseOK[App[extraCmds]](t, "ping", "--help")
 	assert.True(t, app.help.Value())
 	require.NotNil(t, app.Args.ping)
 }
 
 func TestAppInnerHelp(t *testing.T) {
-	app := parseOK[App[extraCmds]](t, "--help")
+	app := ParseOK[App[extraCmds]](t, "--help")
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
@@ -184,7 +184,7 @@ func (r *rootCmd) Run(context.Context) error {
 func TestAppRootCommand(t *testing.T) {
 	test.RestoreSlog(t)
 
-	app := parseOK[App[rootCmd]](t, "--name", "x")
+	app := ParseOK[App[rootCmd]](t, "--name", "x")
 	require.NoError(t, app.Run(t.Context()))
 	assert.True(t, app.Args.ran)
 	assert.Equal(t, "x", app.Args.name.Value())

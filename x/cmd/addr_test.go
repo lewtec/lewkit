@@ -43,6 +43,6 @@ func TestAddrDefault(t *testing.T) {
 	type args struct {
 		addr AddrArg `long:"addr" default:":8080"`
 	}
-	got := parseOK[args](t)
+	got := ParseOK[args](t)
 	assert.Equal(t, ":8080", got.addr.Value())
 }
