@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"bytes"
 	"io"
 	iofs "io/fs"
 	"testing"
@@ -15,14 +16,11 @@ import (
 )
 
 func memFile(name string, data []byte) File {
-	host := fstest.MapFS{name: {Data: data, Mode: 0o644}}
 	return File{
-		Name: path.New(name),
-		Mode: 0o644,
-		Size: int64(len(data)),
-		Open: func() (iofs.File, error) {
-			return host.Open(name)
-		},
+		Name:   path.New(name),
+		Mode:   0o644,
+		Size:   int64(len(data)),
+		Reader: bytes.NewReader(data),
 	}
 }
 
@@ -122,6 +120,23 @@ func TestNewTestFS(t *testing.T) {
 	))
 	require.NoError(t, err)
 	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
+}
+
+func TestFileOpenReopen(t *testing.T) {
+	t.Parallel()
+	f := memFile("a.txt", []byte("hello"))
+	a, err := f.Open()
+	require.NoError(t, err)
+	b1, err := io.ReadAll(a)
+	require.NoError(t, err)
+	require.NoError(t, a.Close())
+	c, err := f.Open()
+	require.NoError(t, err)
+	b2, err := io.ReadAll(c)
+	require.NoError(t, err)
+	require.NoError(t, c.Close())
+	assert.Equal(t, "hello", string(b1))
+	assert.Equal(t, "hello", string(b2))
 }
 
 func TestNewWriteReadOnly(t *testing.T) {

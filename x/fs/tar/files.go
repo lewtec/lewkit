@@ -3,7 +3,6 @@ package tar
 import (
 	stdtar "archive/tar"
 	"io"
-	"io/fs"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
@@ -13,10 +12,11 @@ import (
 //
 // Compressed wrappers are not unwrapped. Use [Open] for that.
 //
-// When r is an [io.ReaderAt], each regular file's Open stays valid
-// after the iterator moves on (a [io.SectionReader] at the member
-// offset). On a stream, Open reads the live [archive/tar.Reader]
-// and is valid only until the next yield.
+// When r is an [io.ReaderAt], each regular file's Reader is an
+// [io.SectionReader] at the member offset, so [lewfs.File.Open]
+// stays valid after the iterator moves on. On a stream, Reader is
+// the live [archive/tar.Reader] and is valid only until the next
+// yield.
 func Files(r io.Reader) lewfs.Files {
 	return func(yield func(lewfs.File, error) bool) {
 		var cr *cursor
@@ -57,28 +57,11 @@ func Files(r io.Reader) lewfs.Files {
 			switch {
 			case info.IsDir():
 				f.Size = 0
-				f.Open = nil
 			case info.Mode().IsRegular():
-				base := f.Name.Name()
-				mode := info.Mode()
-				mod := hdr.ModTime
-				size := hdr.Size
 				if cr != nil {
-					off := cr.off
-					ra := cr.ra
-					f.Open = func() (fs.File, error) {
-						return &file{
-							info: fileInfo{name: base, size: size, mode: mode, mod: mod},
-							r:    io.NewSectionReader(ra, off, size),
-						}, nil
-					}
+					f.Reader = io.NewSectionReader(cr.ra, cr.off, hdr.Size)
 				} else {
-					f.Open = func() (fs.File, error) {
-						return &streamFile{
-							info: fileInfo{name: base, size: size, mode: mode, mod: mod},
-							r:    tr,
-						}, nil
-					}
+					f.Reader = tr
 				}
 			default:
 				continue
@@ -89,14 +72,3 @@ func Files(r io.Reader) lewfs.Files {
 		}
 	}
 }
-
-type streamFile struct {
-	info fileInfo
-	r    io.Reader
-}
-
-func (f *streamFile) Stat() (fs.FileInfo, error) { return f.info, nil }
-
-func (f *streamFile) Read(p []byte) (int, error) { return f.r.Read(p) }
-
-func (f *streamFile) Close() error { return nil }

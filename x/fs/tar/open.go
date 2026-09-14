@@ -12,35 +12,42 @@ import (
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
-// FS is a read-only tar archive.
-type FS = lewfs.FS
-
-// Open reads a tar archive from r.
+// Open reads a tar archive from r and indexes [Files] with [lewfs.New].
 //
 // A compressed wrapper is chosen by file name (if r has Stat) or by
-// magic prefix. Compressed streams are decompressed into memory, then
-// opened as an uncompressed tar. An uncompressed tar still needs
-// [io.ReaderAt].
-func Open(r io.Reader) (*FS, error) {
+// magic prefix, then decompressed into memory. An uncompressed tar
+// still needs [io.ReaderAt].
+func Open(r io.Reader) (*lewfs.FS, error) {
+	name := nameOf(r)
+	r, err := uncompressed(r)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := lewfs.ReaderAt("open", r); err != nil {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: lewfs.ErrNeedReadAt}
+	}
+	return lewfs.New(Files(r))
+}
+
+func uncompressed(r io.Reader) (io.Reader, error) {
 	name := nameOf(r)
 	if ra, ok := r.(io.ReaderAt); ok {
-		hdr := peekAt(ra, 16)
-		if c, ok := compression.Detect(name, hdr); ok {
-			return openCompressed(c, io.NewSectionReader(ra, 0, 1<<63-1))
+		if c, ok := compression.Detect(name, peekAt(ra, 16)); ok {
+			return decompress(c, io.NewSectionReader(ra, 0, 1<<63-1))
 		}
-		return openTar(r)
+		return r, nil
 	}
-	hdr, br, err := peekCopy(r, 16)
+	hdr, src, err := peekCopy(r, 16)
 	if err != nil {
 		return nil, err
 	}
 	if c, ok := compression.Detect(name, hdr); ok {
-		return openCompressed(c, br)
+		return decompress(c, src)
 	}
-	return nil, &fs.PathError{Op: "open", Path: name, Err: lewfs.ErrNeedReadAt}
+	return src, nil
 }
 
-func openCompressed(c compression.Codec, r io.Reader) (*FS, error) {
+func decompress(c compression.Codec, r io.Reader) (io.Reader, error) {
 	d, ok := c.(compression.Decompressor)
 	if !ok {
 		return nil, &fs.PathError{Op: "open", Path: "", Err: fs.ErrInvalid}
@@ -54,14 +61,7 @@ func openCompressed(c compression.Codec, r io.Reader) (*FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	return openTar(bytes.NewReader(raw))
-}
-
-func openTar(r io.Reader) (*FS, error) {
-	if _, err := lewfs.ReaderAt("open", r); err != nil {
-		return nil, err
-	}
-	return lewfs.New(Files(r))
+	return bytes.NewReader(raw), nil
 }
 
 func nameOf(r io.Reader) string {

@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"io"
 	iofs "io/fs"
 	"iter"
 	"time"
@@ -18,12 +19,11 @@ type File struct {
 	Size int64
 	// ModTime is the member modification time.
 	ModTime time.Time
-	// Open returns the member. After the iterator moves on, Open
-	// stays valid only when the adapter recorded a stable handle
-	// (a ReaderAt offset, a zip.File, ...). A stream adapter binds
-	// Open to the live sequential reader; that is valid only until
-	// the next yield. Open is nil for a directory.
-	Open func() (iofs.File, error)
+	// Reader is the member body. It is nil for a directory.
+	// If Reader is an [io.ReaderAt], [File.Open] can be called
+	// more than once. A stream body is valid only until the
+	// listing moves on.
+	Reader io.Reader
 }
 
 // Files is a container listing.
@@ -43,3 +43,54 @@ func Names(files Files) iter.Seq2[path.Path, error] {
 		}
 	}
 }
+
+// Open returns a reader for the member body.
+func (f File) Open() (iofs.File, error) {
+	if f.Mode.IsDir() || f.Reader == nil {
+		return nil, &iofs.PathError{Op: "open", Path: f.Name.String(), Err: iofs.ErrInvalid}
+	}
+	info := f.info()
+	if ra, ok := f.Reader.(io.ReaderAt); ok {
+		return &fileAt{fileInfo: info, SectionReader: io.NewSectionReader(ra, 0, f.Size)}, nil
+	}
+	return &file{fileInfo: info, r: f.Reader}, nil
+}
+
+func (f File) info() fileInfo {
+	name := f.Name.Name()
+	mode := f.Mode
+	if mode == 0 {
+		mode = 0o444
+	}
+	if f.Mode.IsDir() && mode&iofs.ModeDir == 0 {
+		mode |= iofs.ModeDir | 0o555
+	}
+	return fileInfo{name: name, size: f.Size, mode: mode, mod: f.ModTime}
+}
+
+var (
+	_ iofs.File   = (*file)(nil)
+	_ iofs.File   = (*fileAt)(nil)
+	_ io.ReaderAt = (*fileAt)(nil)
+	_ io.Seeker   = (*fileAt)(nil)
+)
+
+type file struct {
+	fileInfo
+	r io.Reader
+}
+
+func (f *file) Stat() (iofs.FileInfo, error) { return f.fileInfo, nil }
+
+func (f *file) Read(p []byte) (int, error) { return f.r.Read(p) }
+
+func (*file) Close() error { return nil }
+
+type fileAt struct {
+	fileInfo
+	*io.SectionReader
+}
+
+func (f *fileAt) Stat() (iofs.FileInfo, error) { return f.fileInfo, nil }
+
+func (*fileAt) Close() error { return nil }

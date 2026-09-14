@@ -11,7 +11,7 @@ import (
 func (n *dnode) readDir() []iofs.DirEntry {
 	out := make([]iofs.DirEntry, 0, len(n.kids))
 	for _, k := range n.kids {
-		out = append(out, iofs.FileInfoToDirEntry(k.info()))
+		out = append(out, iofs.FileInfoToDirEntry(k.file.info()))
 	}
 	slices.SortFunc(out, func(a, b iofs.DirEntry) int {
 		return cmp.Compare(a.Name(), b.Name())
@@ -25,10 +25,10 @@ type dirFile struct {
 	off   int
 }
 
-func (d *dirFile) Stat() (iofs.FileInfo, error) { return d.n.info(), nil }
+func (d *dirFile) Stat() (iofs.FileInfo, error) { return d.n.file.info(), nil }
 
 func (d *dirFile) Read([]byte) (int, error) {
-	return 0, &iofs.PathError{Op: "read", Path: d.n.name, Err: iofs.ErrInvalid}
+	return 0, &iofs.PathError{Op: "read", Path: d.n.file.Name.String(), Err: iofs.ErrInvalid}
 }
 
 func (d *dirFile) Close() error { return nil }

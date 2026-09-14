@@ -62,10 +62,10 @@
 // [Path.Glob] and [Path.Rglob] yield matches via doublestar. "**" does
 // not follow symlinks. [Path.Walk] yields names under p.
 //
-// [Path.Select] and [Path.Under] filter a name iterator. Use them on
-// a container listing ([github.com/lewtec/lewkit/x/fs.Names]) when
-// the archive has no table of contents and building an [io/fs.FS]
-// is not needed. [Path.MatchGlob] is doublestar against one name.
+// [Path.Select] and [Path.Under] filter a name iterator.
+// [Path.MatchGlob] is doublestar against one name. A container
+// listing matches with f.Name.MatchGlob; use Select/Under when
+// you already have names.
 //
 // # Writes
 //

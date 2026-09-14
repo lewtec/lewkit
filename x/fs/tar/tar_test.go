@@ -79,7 +79,7 @@ func TestFilesStream(t *testing.T) {
 		if f.Name.String() != "z.txt" {
 			continue
 		}
-		require.NotNil(t, f.Open)
+		require.NotNil(t, f.Reader)
 		rf, err := f.Open()
 		require.NoError(t, err)
 		b, err := io.ReadAll(rf)

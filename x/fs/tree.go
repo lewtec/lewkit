@@ -4,10 +4,11 @@ import (
 	"io"
 	iofs "io/fs"
 	"strings"
-	"time"
+
+	"github.com/lewtec/lewkit/x/path"
 )
 
-// FS is a read-only tree built from a [Files] listing.
+// FS is a read-only tree of [File] members.
 type FS struct {
 	root *dnode
 }
@@ -28,14 +29,13 @@ func New(files Files) (*FS, error) {
 		if err != nil {
 			return nil, err
 		}
-		name := f.Name.String()
-		if name == "." || name == "" {
+		if f.Name.String() == "." || f.Name.String() == "" {
 			continue
 		}
 		if !f.Name.Valid() {
-			return nil, &iofs.PathError{Op: "open", Path: name, Err: iofs.ErrInvalid}
+			return nil, &iofs.PathError{Op: "open", Path: f.Name.String(), Err: iofs.ErrInvalid}
 		}
-		if err := root.add(name, f); err != nil {
+		if err := root.add(f); err != nil {
 			return nil, err
 		}
 	}
@@ -57,7 +57,7 @@ func (d *FS) ReadDir(name string) ([]iofs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !n.dir {
+	if !n.file.Mode.IsDir() {
 		return nil, &iofs.PathError{Op: "readdir", Path: name, Err: iofs.ErrInvalid}
 	}
 	return n.readDir(), nil
@@ -69,14 +69,11 @@ func (d *FS) ReadFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if n.dir {
-		return nil, &iofs.PathError{Op: "read", Path: name, Err: iofs.ErrInvalid}
-	}
-	if n.openFn == nil {
-		return nil, &iofs.PathError{Op: "read", Path: name, Err: iofs.ErrInvalid}
-	}
-	f, err := n.openFn()
+	f, err := n.file.Open()
 	if err != nil {
+		if n.file.Mode.IsDir() {
+			return nil, &iofs.PathError{Op: "read", Path: name, Err: iofs.ErrInvalid}
+		}
 		return nil, err
 	}
 	defer f.Close()
@@ -89,7 +86,7 @@ func (d *FS) Stat(name string) (iofs.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return n.info(), nil
+	return n.file.info(), nil
 }
 
 func (d *FS) lookup(name string) (*dnode, error) {
@@ -107,51 +104,41 @@ func (d *FS) lookup(name string) (*dnode, error) {
 }
 
 type dnode struct {
-	name   string
-	dir    bool
-	size   int64
-	mode   iofs.FileMode
-	mod    time.Time
-	openFn func() (iofs.File, error)
-	kids   map[string]*dnode
+	file File
+	kids map[string]*dnode
 }
 
 func newDir(name string) *dnode {
-	return &dnode{name: name, dir: true, mode: iofs.ModeDir | 0o555, kids: map[string]*dnode{}}
+	return &dnode{
+		file: File{Name: path.New(name), Mode: iofs.ModeDir | 0o555},
+		kids: map[string]*dnode{},
+	}
 }
 
-func (n *dnode) add(rel string, f File) error {
-	rel = strings.TrimPrefix(rel, "/")
-	parts := strings.Split(rel, "/")
-	dir := f.Mode.IsDir()
+func (n *dnode) add(f File) error {
+	parts := f.Name.Parts()
 	cur := n
 	for i, p := range parts {
-		if p == "" || p == "." || p == ".." {
-			return &iofs.PathError{Op: "open", Path: rel, Err: iofs.ErrInvalid}
+		if p == "" || p == "." || p == ".." || p == "/" {
+			return &iofs.PathError{Op: "open", Path: f.Name.String(), Err: iofs.ErrInvalid}
 		}
 		next := cur.kids[p]
 		if i == len(parts)-1 {
 			if next != nil {
-				if dir && next.dir {
-					if f.ModTime.After(next.mod) {
-						next.mod = f.ModTime
+				if f.Mode.IsDir() && next.file.Mode.IsDir() {
+					if f.ModTime.After(next.file.ModTime) {
+						next.file.ModTime = f.ModTime
 					}
 					return nil
 				}
-				if !dir && !next.dir {
-					next.size = f.Size
-					next.mode = f.Mode
-					next.mod = f.ModTime
-					next.openFn = f.Open
+				if !f.Mode.IsDir() && !next.file.Mode.IsDir() {
+					next.file = f
 					return nil
 				}
-				return &iofs.PathError{Op: "open", Path: rel, Err: iofs.ErrExist}
+				return &iofs.PathError{Op: "open", Path: f.Name.String(), Err: iofs.ErrExist}
 			}
-			node := &dnode{name: p, dir: dir, size: f.Size, mode: f.Mode, mod: f.ModTime, openFn: f.Open}
-			if dir {
-				if node.mode == 0 {
-					node.mode = iofs.ModeDir | 0o555
-				}
+			node := &dnode{file: f}
+			if f.Mode.IsDir() {
 				node.kids = map[string]*dnode{}
 			}
 			cur.kids[p] = node
@@ -161,7 +148,7 @@ func (n *dnode) add(rel string, f File) error {
 			next = newDir(p)
 			cur.kids[p] = next
 		}
-		if !next.dir {
+		if !next.file.Mode.IsDir() {
 			return &iofs.PathError{Op: "open", Path: strings.Join(parts[:i+1], "/"), Err: iofs.ErrInvalid}
 		}
 		cur = next
@@ -172,7 +159,7 @@ func (n *dnode) add(rel string, f File) error {
 func (n *dnode) lookup(rel string) *dnode {
 	cur := n
 	for p := range strings.SplitSeq(rel, "/") {
-		if cur == nil || !cur.dir {
+		if cur == nil || !cur.file.Mode.IsDir() {
 			return nil
 		}
 		cur = cur.kids[p]
@@ -180,25 +167,9 @@ func (n *dnode) lookup(rel string) *dnode {
 	return cur
 }
 
-func (n *dnode) info() fileInfo {
-	mode := n.mode
-	if mode == 0 {
-		mode = 0o444
-	}
-	if n.dir {
-		if mode&iofs.ModeDir == 0 {
-			mode |= iofs.ModeDir | 0o555
-		}
-	}
-	return fileInfo{name: n.name, size: n.size, mode: mode, mod: n.mod}
-}
-
 func (n *dnode) open() (iofs.File, error) {
-	if n.dir {
+	if n.file.Mode.IsDir() {
 		return &dirFile{n: n, infos: n.readDir()}, nil
 	}
-	if n.openFn == nil {
-		return nil, &iofs.PathError{Op: "open", Path: n.name, Err: iofs.ErrInvalid}
-	}
-	return n.openFn()
+	return n.file.Open()
 }
