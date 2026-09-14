@@ -47,7 +47,6 @@ func TestWorkDirDefault(t *testing.T) {
 	type args struct {
 		dir WorkDirArg `short:"C" long:"directory"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, ".", got.dir.Value())
 }

@@ -25,8 +25,7 @@ func (a *BasicArgs) Run(ctx context.Context) error {
 }
 
 func TestParseUtil(t *testing.T) {
-	args, err := Parse[BasicArgs]("--name", "Lucas", "--idade", "26", "-vvv", "leftover")
-	require.NoError(t, err)
+	args := parseOK[BasicArgs](t, "--name", "Lucas", "--idade", "26", "-vvv", "leftover")
 	assert.Equal(t, args.name.Value(), "Lucas")
 	assert.Equal(t, args.idade.Value(), uint(26))
 	assert.Equal(t, args.verbose.Value(), 3)
@@ -34,13 +33,11 @@ func TestParseUtil(t *testing.T) {
 }
 
 func TestArgsBasic(t *testing.T) {
-	var cmd Command[BasicArgs]
-
-	assert.NoError(t, cmd.Parse("--name", "Lucas", "--idade", "26", "-vvv", "leftover", "foo", "bar"))
-	assert.Equal(t, cmd.args.name.Value(), "Lucas")
-	assert.Equal(t, cmd.args.idade.Value(), uint(26))
-	assert.Equal(t, cmd.args.verbose.Value(), 3)
-	assert.Equal(t, Values(cmd.args.rest), []string{"leftover", "foo", "bar"})
+	args := parseOK[BasicArgs](t, "--name", "Lucas", "--idade", "26", "-vvv", "leftover", "foo", "bar")
+	assert.Equal(t, args.name.Value(), "Lucas")
+	assert.Equal(t, args.idade.Value(), uint(26))
+	assert.Equal(t, args.verbose.Value(), 3)
+	assert.Equal(t, Values(args.rest), []string{"leftover", "foo", "bar"})
 }
 
 func TestArgsForms(t *testing.T) {
@@ -92,9 +89,7 @@ func TestArgsForms(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var cmd Command[BasicArgs]
-			require.NoError(t, cmd.Parse(tc.args...))
-			tc.want(t, cmd.Args())
+			tc.want(t, parseOK[BasicArgs](t, tc.args...))
 		})
 	}
 }
@@ -125,10 +120,9 @@ type flagArgs struct {
 }
 
 func TestFlagOnce(t *testing.T) {
-	var cmd Command[flagArgs]
-	require.NoError(t, cmd.Parse("--force", "keep"))
-	assert.True(t, cmd.args.force.Value())
-	assert.Equal(t, Values(cmd.args.rest), []string{"keep"})
+	args := parseOK[flagArgs](t, "--force", "keep")
+	assert.True(t, args.force.Value())
+	assert.Equal(t, Values(args.rest), []string{"keep"})
 }
 
 func TestFlagTwice(t *testing.T) {
@@ -143,10 +137,9 @@ type posArgs struct {
 }
 
 func TestPositionals(t *testing.T) {
-	var cmd Command[posArgs]
-	require.NoError(t, cmd.Parse("a", "b", "c"))
-	assert.Equal(t, cmd.args.first.Value(), "a")
-	assert.Equal(t, Values(cmd.args.rest), []string{"b", "c"})
+	args := parseOK[posArgs](t, "a", "b", "c")
+	assert.Equal(t, args.first.Value(), "a")
+	assert.Equal(t, Values(args.rest), []string{"b", "c"})
 }
 
 type tagsArgs struct {
@@ -154,9 +147,8 @@ type tagsArgs struct {
 }
 
 func TestRepeatable(t *testing.T) {
-	var cmd Command[tagsArgs]
-	require.NoError(t, cmd.Parse("--tag", "a", "-t", "b", "--tag=c"))
-	assert.Equal(t, Values(cmd.args.tag), []string{"a", "b", "c"})
+	args := parseOK[tagsArgs](t, "--tag", "a", "-t", "b", "--tag=c")
+	assert.Equal(t, Values(args.tag), []string{"a", "b", "c"})
 }
 
 type globals struct {
@@ -180,8 +172,7 @@ type appArgs struct {
 }
 
 func TestSubcommandParentFlag(t *testing.T) {
-	args, err := Parse[appArgs]("-v", "add", "--name", "x", "file")
-	require.NoError(t, err)
+	args := parseOK[appArgs](t, "-v", "add", "--name", "x", "file")
 	assert.Equal(t, args.verbose.Value(), 1)
 	require.NotNil(t, args.add)
 	assert.Nil(t, args.rm)
@@ -191,8 +182,7 @@ func TestSubcommandParentFlag(t *testing.T) {
 }
 
 func TestSubcommandChildFlag(t *testing.T) {
-	args, err := Parse[appArgs]("add", "-v", "--name", "x")
-	require.NoError(t, err)
+	args := parseOK[appArgs](t, "add", "-v", "--name", "x")
 	assert.Equal(t, args.verbose.Value(), 0)
 	require.NotNil(t, args.add)
 	assert.Equal(t, args.add.verbose.Value(), 1)
@@ -200,16 +190,14 @@ func TestSubcommandChildFlag(t *testing.T) {
 }
 
 func TestSubcommandRm(t *testing.T) {
-	args, err := Parse[appArgs]("rm", "gone")
-	require.NoError(t, err)
+	args := parseOK[appArgs](t, "rm", "gone")
 	require.NotNil(t, args.rm)
 	assert.Nil(t, args.add)
 	assert.Equal(t, args.rm.path.Value(), "gone")
 }
 
 func TestSubcommandOnlyParent(t *testing.T) {
-	args, err := Parse[appArgs]("-vv")
-	require.NoError(t, err)
+	args := parseOK[appArgs](t, "-vv")
 	assert.Equal(t, args.verbose.Value(), 2)
 	assert.Nil(t, args.add)
 	assert.Nil(t, args.rm)
@@ -238,8 +226,7 @@ type inheritMid struct {
 }
 
 func TestInheritParentFlagAfterCommand(t *testing.T) {
-	args, err := Parse[inheritApp]("add", "-v", "--name", "x", "file")
-	require.NoError(t, err)
+	args := parseOK[inheritApp](t, "add", "-v", "--name", "x", "file")
 	assert.Equal(t, 1, args.verbose.Value())
 	require.NotNil(t, args.add)
 	assert.Equal(t, "x", args.add.name.Value())
@@ -247,24 +234,21 @@ func TestInheritParentFlagAfterCommand(t *testing.T) {
 }
 
 func TestInheritParentFlagBeforeAndAfter(t *testing.T) {
-	args, err := Parse[inheritApp]("-v", "add", "-v", "--name", "x")
-	require.NoError(t, err)
+	args := parseOK[inheritApp](t, "-v", "add", "-v", "--name", "x")
 	assert.Equal(t, 2, args.verbose.Value())
 	require.NotNil(t, args.add)
 	assert.Equal(t, "x", args.add.name.Value())
 }
 
 func TestInheritParentValueAfterCommand(t *testing.T) {
-	args, err := Parse[inheritApp]("add", "--label", "root", "--name", "x")
-	require.NoError(t, err)
+	args := parseOK[inheritApp](t, "add", "--label", "root", "--name", "x")
 	assert.Equal(t, "root", args.name.Value())
 	require.NotNil(t, args.add)
 	assert.Equal(t, "x", args.add.name.Value())
 }
 
 func TestInheritStopsAfterDashDash(t *testing.T) {
-	args, err := Parse[inheritApp]("add", "--name", "x", "--", "-v", "--force")
-	require.NoError(t, err)
+	args := parseOK[inheritApp](t, "add", "--name", "x", "--", "-v", "--force")
 	assert.Equal(t, 0, args.verbose.Value())
 	assert.False(t, args.force.Value())
 	require.NotNil(t, args.add)
@@ -272,16 +256,14 @@ func TestInheritStopsAfterDashDash(t *testing.T) {
 }
 
 func TestInheritStopsAfterParentDashDash(t *testing.T) {
-	args, err := Parse[inheritApp]("--", "add", "-v")
-	require.NoError(t, err)
+	args := parseOK[inheritApp](t, "--", "add", "-v")
 	assert.Equal(t, 0, args.verbose.Value())
 	require.NotNil(t, args.add)
 	assert.Equal(t, []string{"-v"}, Values(args.add.rest))
 }
 
 func TestInheritNestedCommand(t *testing.T) {
-	args, err := Parse[inheritApp]("mid", "inner", "-vv", "--name", "z")
-	require.NoError(t, err)
+	args := parseOK[inheritApp](t, "mid", "inner", "-vv", "--name", "z")
 	assert.Equal(t, 2, args.verbose.Value())
 	require.NotNil(t, args.mid)
 	require.NotNil(t, args.mid.inner)
@@ -301,8 +283,7 @@ func TestRequiredParentFlagAfterCommand(t *testing.T) {
 		name StringArg `long:"name"`
 		add  *child
 	}
-	args, err := Parse[parent]("add", "--name", "x", "file")
-	require.NoError(t, err)
+	args := parseOK[parent](t, "add", "--name", "x", "file")
 	assert.Equal(t, "x", args.name.Value())
 	require.NotNil(t, args.add)
 	assert.Equal(t, []string{"file"}, Values(args.add.rest))
@@ -316,8 +297,7 @@ func TestInheritedHelpSkipsChildRequired(t *testing.T) {
 		help Flag `long:"help"`
 		add  *child
 	}
-	got, err := Parse[parent]("add", "--help")
-	require.NoError(t, err)
+	got := parseOK[parent](t, "add", "--help")
 	assert.True(t, got.help.Value())
 	require.NotNil(t, got.add)
 }
@@ -327,8 +307,7 @@ type plusApp struct {
 }
 
 func TestSubcommandTag(t *testing.T) {
-	args, err := Parse[plusApp]("plus", "--name", "n")
-	require.NoError(t, err)
+	args := parseOK[plusApp](t, "plus", "--name", "n")
 	require.NotNil(t, args.plus)
 	assert.Equal(t, args.plus.name.Value(), "n")
 }
@@ -346,8 +325,7 @@ type nestedApp struct {
 }
 
 func TestNestedSubcommand(t *testing.T) {
-	args, err := Parse[nestedApp]("mid", "inner", "--name", "z")
-	require.NoError(t, err)
+	args := parseOK[nestedApp](t, "mid", "inner", "--name", "z")
 	require.NotNil(t, args.mid)
 	require.NotNil(t, args.mid.inner)
 	assert.Equal(t, args.mid.inner.name.Value(), "z")
@@ -373,8 +351,7 @@ type flattenOuter struct {
 }
 
 func TestFlattenTag(t *testing.T) {
-	args, err := Parse[flattenOuter]("--force", "--name", "x")
-	require.NoError(t, err)
+	args := parseOK[flattenOuter](t, "--force", "--name", "x")
 	assert.True(t, args.force.Value())
 	assert.Equal(t, "x", args.inner.name.Value())
 }
@@ -388,8 +365,7 @@ type defaultFlagArgs struct {
 }
 
 func TestDefaultApplied(t *testing.T) {
-	args, err := Parse[defaultFlagArgs]()
-	require.NoError(t, err)
+	args := parseOK[defaultFlagArgs](t)
 	assert.Equal(t, "Lucas", args.name.Value())
 	assert.Equal(t, 8080, args.port.Value())
 	assert.True(t, args.force.Value())
@@ -398,8 +374,7 @@ func TestDefaultApplied(t *testing.T) {
 }
 
 func TestDefaultOverridden(t *testing.T) {
-	args, err := Parse[defaultFlagArgs]("--name", "Ada", "--port", "9", "--verbose", "0", "src")
-	require.NoError(t, err)
+	args := parseOK[defaultFlagArgs](t, "--name", "Ada", "--port", "9", "--verbose", "0", "src")
 	assert.Equal(t, "Ada", args.name.Value())
 	assert.Equal(t, 9, args.port.Value())
 	assert.True(t, args.force.Value())
@@ -440,8 +415,7 @@ type parentDefault struct {
 }
 
 func TestDefaultBeforeSubcommand(t *testing.T) {
-	args, err := Parse[parentDefault]("add", "--name", "x", "file")
-	require.NoError(t, err)
+	args := parseOK[parentDefault](t, "add", "--name", "x", "file")
 	assert.Equal(t, "root", args.name.Value())
 	require.NotNil(t, args.add)
 	assert.Equal(t, "x", args.add.name.Value())
@@ -470,8 +444,7 @@ func TestRequiredFlagMissing(t *testing.T) {
 }
 
 func TestRequiredFlagPresent(t *testing.T) {
-	args, err := Parse[requiredNameArgs]("--name", "Ada")
-	require.NoError(t, err)
+	args := parseOK[requiredNameArgs](t, "--name", "Ada")
 	assert.Equal(t, "Ada", args.name.Value())
 }
 
@@ -534,8 +507,7 @@ func TestHelpWithoutRequiredFlag(t *testing.T) {
 		help Flag      `long:"help"`
 		name StringArg `long:"name"`
 	}
-	got, err := Parse[args]("--help")
-	require.NoError(t, err)
+	got := parseOK[args](t, "--help")
 	assert.True(t, got.help.Value())
 }
 
@@ -544,8 +516,7 @@ func TestVersionWithoutRequiredFlag(t *testing.T) {
 		version Flag      `long:"version"`
 		name    StringArg `long:"name"`
 	}
-	got, err := Parse[args]("--version")
-	require.NoError(t, err)
+	got := parseOK[args](t, "--version")
 	assert.True(t, got.version.Value())
 }
 
@@ -561,8 +532,7 @@ func TestDefaultMethod(t *testing.T) {
 		n     Count  `long:"n"`
 		dir   dirArg `long:"dir"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.False(t, got.force.Value())
 	assert.Equal(t, 0, got.n.Value())
 	assert.Equal(t, "/tmp", got.dir.Value())
@@ -573,8 +543,7 @@ func TestDefaultTagOverridesMethod(t *testing.T) {
 		force Flag  `long:"force" default:"true"`
 		n     Count `long:"n" default:"3"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.True(t, got.force.Value())
 	assert.Equal(t, 3, got.n.Value())
 }
@@ -584,8 +553,7 @@ func TestEnvFillsFlag(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_NAME"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, "Ada", got.name.Value())
 }
 
@@ -594,8 +562,7 @@ func TestEnvOverriddenByFlag(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_NAME"`
 	}
-	got, err := Parse[args]("--name", "Grace")
-	require.NoError(t, err)
+	got := parseOK[args](t, "--name", "Grace")
 	assert.Equal(t, "Grace", got.name.Value())
 }
 
@@ -604,8 +571,7 @@ func TestEnvBeforeDefault(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_NAME" default:"anon"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, "Ada", got.name.Value())
 }
 
@@ -613,8 +579,7 @@ func TestEnvUnsetUsesDefault(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_UNSET_NAME" default:"anon"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, "anon", got.name.Value())
 }
 
@@ -640,8 +605,7 @@ func TestEnvFlag(t *testing.T) {
 	type args struct {
 		force Flag `long:"force" env:"LEWKIT_TEST_FORCE"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.True(t, got.force.Value())
 }
 
@@ -650,8 +614,7 @@ func TestEnvEmptyString(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_NAME" default:"anon"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, "", got.name.Value())
 }
 
@@ -660,8 +623,7 @@ func TestAddrEnvPort(t *testing.T) {
 	type args struct {
 		addr AddrArg `long:"addr" env:"PORT" default:":8080"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, ":9090", got.addr.Value())
 }
 
@@ -670,8 +632,7 @@ func TestAddrFlagOverridesPort(t *testing.T) {
 	type args struct {
 		addr AddrArg `long:"addr" env:"PORT" default:":8080"`
 	}
-	got, err := Parse[args]("--addr", "127.0.0.1:80")
-	require.NoError(t, err)
+	got := parseOK[args](t, "--addr", "127.0.0.1:80")
 	assert.Equal(t, "127.0.0.1:80", got.addr.Value())
 }
 
@@ -689,8 +650,7 @@ func TestEnvFirstOfMany(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_NAME_A,LEWKIT_TEST_NAME_B"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, "Ada", got.name.Value())
 }
 
@@ -699,8 +659,7 @@ func TestEnvFallback(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_UNSET_NAME, LEWKIT_TEST_NAME_B"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, "Grace", got.name.Value())
 }
 
@@ -710,8 +669,7 @@ func TestEnvFallbackEmptyFirstWins(t *testing.T) {
 	type args struct {
 		name StringArg `long:"name" env:"LEWKIT_TEST_NAME_A,LEWKIT_TEST_NAME_B" default:"anon"`
 	}
-	got, err := Parse[args]()
-	require.NoError(t, err)
+	got := parseOK[args](t)
 	assert.Equal(t, "", got.name.Value())
 }
 
