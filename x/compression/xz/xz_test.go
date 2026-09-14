@@ -1,28 +1,12 @@
 package xz
 
 import (
-	"bytes"
-	"io"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/test"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/lewtec/lewkit/x/compression"
 )
 
-func TestReader(t *testing.T) {
+func TestRoundTrip(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	w, err := Codec.Writer(&buf)
-	require.NoError(t, err)
-	_, err = w.Write([]byte("hello"))
-	require.NoError(t, err)
-	require.NoError(t, w.Close())
-	r, err := Codec.Reader(bytes.NewReader(buf.Bytes()))
-	require.NoError(t, err)
-	test.CloseOnCleanup(t, r)
-	got, err := io.ReadAll(r)
-	require.NoError(t, err)
-	assert.Equal(t, []byte("hello"), got)
+	compression.RoundTrip(t, Codec, []byte("hello"))
 }
