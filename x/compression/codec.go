@@ -15,8 +15,10 @@ type Codec interface {
 }
 
 // Decompressor is an optional reader side of a [Codec].
+// Reader always returns a closer. Use [io.NopCloser] when the
+// underlying stream has no Close.
 type Decompressor interface {
-	Reader(r io.Reader) (io.Reader, error)
+	Reader(r io.Reader) (io.ReadCloser, error)
 }
 
 // Compressor is an optional writer side of a [Codec].

@@ -23,6 +23,6 @@ func (codec) Magic() [][]byte {
 	return [][]byte{{'B', 'Z', 'h'}}
 }
 
-func (codec) Reader(r io.Reader) (io.Reader, error) {
-	return stdbzip2.NewReader(r), nil
+func (codec) Reader(r io.Reader) (io.ReadCloser, error) {
+	return io.NopCloser(stdbzip2.NewReader(r)), nil
 }

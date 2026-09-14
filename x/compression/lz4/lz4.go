@@ -24,8 +24,8 @@ func (codec) Magic() [][]byte {
 	return [][]byte{{0x04, 0x22, 0x4d, 0x18}}
 }
 
-func (codec) Reader(r io.Reader) (io.Reader, error) {
-	return stdlz4.NewReader(r), nil
+func (codec) Reader(r io.Reader) (io.ReadCloser, error) {
+	return io.NopCloser(stdlz4.NewReader(r)), nil
 }
 
 func (codec) Writer(w io.Writer) (io.WriteCloser, error) {

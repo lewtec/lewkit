@@ -21,9 +21,7 @@ func TestReader(t *testing.T) {
 	require.NoError(t, w.Close())
 	r, err := Codec.Reader(bytes.NewReader(buf.Bytes()))
 	require.NoError(t, err)
-	if c, ok := r.(io.Closer); ok {
-		test.CloseOnCleanup(t, c)
-	}
+	test.CloseOnCleanup(t, r)
 	got, err := io.ReadAll(r)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hello"), got)

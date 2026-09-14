@@ -25,13 +25,13 @@ func (codec) Magic() [][]byte {
 	return [][]byte{{0xce, 0xb2, 0xcf, 0x81}}
 }
 
-func (codec) Reader(r io.Reader) (io.Reader, error) {
+func (codec) Reader(r io.Reader) (io.ReadCloser, error) {
 	var hdr [4]byte
 	n, err := io.ReadFull(r, hdr[:])
 	if err == nil && bytes.Equal(hdr[:], []byte{0xce, 0xb2, 0xcf, 0x81}) {
-		return brotli.NewReader(r), nil
+		return io.NopCloser(brotli.NewReader(r)), nil
 	}
-	return brotli.NewReader(io.MultiReader(bytes.NewReader(hdr[:n]), r)), nil
+	return io.NopCloser(brotli.NewReader(io.MultiReader(bytes.NewReader(hdr[:n]), r))), nil
 }
 
 func (codec) Writer(w io.Writer) (io.WriteCloser, error) {
