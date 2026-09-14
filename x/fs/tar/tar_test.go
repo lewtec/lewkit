@@ -12,6 +12,7 @@ import (
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/test"
 
 	stdgzip "compress/gzip"
 	"github.com/andybalholm/brotli"
@@ -45,6 +46,56 @@ func packTarWrapped(t *testing.T, files map[string][]byte, wrap func(io.Writer) 
 	require.NoError(t, err)
 	require.NoError(t, w.Close())
 	return bytes.NewReader(buf.Bytes())
+}
+
+func TestFiles(t *testing.T) {
+	t.Parallel()
+	r := packTar(t, map[string][]byte{
+		"a/b.txt": []byte("hello"),
+		"z.txt":   []byte("zee"),
+	})
+	var names []string
+	for f, err := range Files(r) {
+		require.NoError(t, err)
+		names = append(names, f.Name.String())
+	}
+	assert.ElementsMatch(t, []string{"a/b.txt", "z.txt"}, names)
+
+	got := test.Collect(t, path.New(".").Select(lewfs.Names(Files(r)), "**/*.txt"))
+	assert.ElementsMatch(t, []string{"a/b.txt", "z.txt"}, namesOf(got))
+}
+
+func TestFilesStream(t *testing.T) {
+	t.Parallel()
+	raw := packTar(t, map[string][]byte{
+		"a/b.txt": []byte("hello"),
+		"z.txt":   []byte("zee"),
+	})
+	data, err := io.ReadAll(raw)
+	require.NoError(t, err)
+	var saw string
+	for f, err := range Files(onlyReader{bytes.NewReader(data)}) {
+		require.NoError(t, err)
+		if f.Name.String() != "z.txt" {
+			continue
+		}
+		require.NotNil(t, f.Reader)
+		rf, err := f.Open()
+		require.NoError(t, err)
+		b, err := io.ReadAll(rf)
+		require.NoError(t, err)
+		require.NoError(t, rf.Close())
+		saw = string(b)
+	}
+	assert.Equal(t, "zee", saw)
+}
+
+func namesOf(ps []path.Path) []string {
+	out := make([]string, len(ps))
+	for i, p := range ps {
+		out[i] = p.String()
+	}
+	return out
 }
 
 func TestNeedReadAt(t *testing.T) {
