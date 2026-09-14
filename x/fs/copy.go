@@ -37,8 +37,11 @@ type DestFS interface {
 //
 // Files are created with mode 0o666 plus source execute bits.
 // Directories are created with mode 0o777.
+//
+// Copy walks an [io/fs.FS]. For a sequential listing such as
+// [github.com/lewtec/lewkit/x/fs/tar.Files], use [CopyFiles].
 func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep func(path.Path) bool) error {
-	c := copier{ctx: ctx, src: src, dest: dest}
+	w := destWriter{ctx: ctx, dest: dest}
 	return iofs.WalkDir(src, ".", func(name string, d iofs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -57,50 +60,105 @@ func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep func(path.Path) bo
 		}
 		p := path.New(name)
 		if d.IsDir() {
-			if keep != nil && !keep(p) {
-				return nil
-			}
-			return dest.MkdirAll(name, 0o777)
+			return w.dir(p, keep)
 		}
 		if keep != nil && !keep(p) {
 			return nil
 		}
-		if parent := p.Parent().String(); parent != "." {
-			if err := dest.MkdirAll(parent, 0o777); err != nil {
-				return err
-			}
+		if err := w.parents(p); err != nil {
+			return err
 		}
-		return c.file(name, d)
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		r, err := src.Open(name)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+		return w.file(name, info.Mode().Perm(), r)
 	})
 }
 
-type copier struct {
+// CopyFiles writes a [Files] listing into dest, in listing order.
+// Dest root must already exist; "." is not created.
+//
+// Each member body is consumed before the listing moves on, so a
+// stream [File.Reader] stays valid. keep matches [Copy].
+func CopyFiles(ctx context.Context, files Files, dest DestFS, keep func(path.Path) bool) error {
+	w := destWriter{ctx: ctx, dest: dest}
+	for f, err := range files {
+		if err != nil {
+			return err
+		}
+		if err := ctx.Err(); err != nil {
+			return context.Cause(ctx)
+		}
+		name := f.Name.String()
+		if name == "." || name == "" {
+			continue
+		}
+		if !f.Name.Valid() {
+			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
+		}
+		if f.Mode&iofs.ModeSymlink != 0 {
+			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
+		}
+		if f.Mode.IsDir() {
+			if err := w.dir(f.Name, keep); err != nil {
+				return err
+			}
+			continue
+		}
+		if keep != nil && !keep(f.Name) {
+			continue
+		}
+		if err := w.parents(f.Name); err != nil {
+			return err
+		}
+		if f.Reader == nil {
+			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
+		}
+		if err := w.file(name, f.Mode.Perm(), f.Reader); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type destWriter struct {
 	ctx  context.Context
-	src  iofs.FS
 	dest DestFS
 }
 
-func (c copier) file(name string, d iofs.DirEntry) error {
-	info, err := d.Info()
-	if err != nil {
-		return err
+func (w destWriter) dir(p path.Path, keep func(path.Path) bool) error {
+	if keep != nil && !keep(p) {
+		return nil
 	}
-	mode := iofs.FileMode(0o666) | info.Mode().Perm()&0o111
-	r, err := c.src.Open(name)
-	if err != nil {
-		return err
+	return w.dest.MkdirAll(p.String(), 0o777)
+}
+
+func (w destWriter) parents(p path.Path) error {
+	parent := p.Parent().String()
+	if parent == "." {
+		return nil
 	}
-	defer r.Close()
-	f, err := c.dest.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	return w.dest.MkdirAll(parent, 0o777)
+}
+
+func (w destWriter) file(name string, perm iofs.FileMode, r io.Reader) error {
+	mode := iofs.FileMode(0o666) | perm&0o111
+	f, err := w.dest.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	w, ok := f.(io.Writer)
+	out, ok := f.(io.Writer)
 	if !ok {
 		return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 	}
-	_, err = io.Copy(w, ctxReader{ctx: c.ctx, r: r})
+	_, err = io.Copy(out, ctxReader{ctx: w.ctx, r: r})
 	return err
 }
 

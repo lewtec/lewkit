@@ -108,3 +108,47 @@ func TestCopyKeep(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok)
 }
+
+func TestCopyFiles(t *testing.T) {
+	t.Parallel()
+	dest, err := path.Open(t.TempDir())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, dest)
+	require.NoError(t, CopyFiles(t.Context(), listing(
+		memDir("d"),
+		memFile("d/b.txt", []byte("b")),
+		memFile("a.txt", []byte("hi")),
+	), dest, nil))
+	b, err := path.New("a.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hi"), b)
+	b, err = path.New("d", "b.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("b"), b)
+}
+
+func TestCopyFilesKeep(t *testing.T) {
+	t.Parallel()
+	dest, err := path.Open(t.TempDir())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, dest)
+	keep := func(p path.Path) bool {
+		ok, err := p.MatchGlob("**/*.txt")
+		return err == nil && ok
+	}
+	require.NoError(t, CopyFiles(t.Context(), listing(
+		memDir("d"),
+		memFile("d/b.go", []byte("pkg")),
+		memFile("d/c.txt", []byte("c")),
+		memDir("empty"),
+	), dest, keep))
+	b, err := path.New("d", "c.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("c"), b)
+	ok, err := path.New("d", "b.go").Exists(dest)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	ok, err = path.New("empty").Exists(dest)
+	require.NoError(t, err)
+	assert.False(t, ok)
+}

@@ -261,16 +261,16 @@ func TestFS(t *testing.T) {
 
 func TestCopyExtract(t *testing.T) {
 	t.Parallel()
-	r := packTar(t, map[string][]byte{
+	raw := packTar(t, map[string][]byte{
 		"a/b.txt": []byte("hello"),
 		"z.txt":   []byte("zee"),
 	})
-	src, err := Open(r)
+	data, err := io.ReadAll(raw)
 	require.NoError(t, err)
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, lewfs.Copy(t.Context(), src, dest, nil))
+	require.NoError(t, lewfs.CopyFiles(t.Context(), Files(onlyReader{bytes.NewReader(data)}), dest, nil))
 	b, err := path.New("z.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("zee"), b)
