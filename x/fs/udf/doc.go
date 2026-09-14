@@ -8,5 +8,5 @@
 //	b, err := fs.ReadFile(vol, "sources/install.wim")
 //
 // Opened files implement [io.ReaderAt] so a nested reader (WIM, zip,
-// squashfs) can type-assert it. Writes are not implemented.
+// tar, squashfs) can type-assert it. Writes are not implemented.
 package udf
