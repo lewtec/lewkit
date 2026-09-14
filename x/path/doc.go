@@ -50,6 +50,11 @@
 //	p := path.New("a.txt")
 //	data, err := p.ReadFile(fsys)
 //
+// [OpenFS] opens a name and hands the file to an adapter such as
+// [github.com/lewtec/lewkit/x/fs/udf.Open]:
+//
+//	vol, err := path.OpenFS(path.New("en-us.iso"), root, udf.Open)
+//
 // Read methods use the [io/fs] helpers: [io/fs.ReadFile], [io/fs.Stat],
 // [io/fs.ReadDir], [io/fs.WalkDir], [io/fs.ReadLink], [io/fs.Lstat].
 // Optional interfaces on the filesystem apply as in the standard library.
