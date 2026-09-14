@@ -29,7 +29,7 @@ func (codec) Magic() [][]byte {
 	return [][]byte{{0x1f, 0x8b}}
 }
 
-func (codec) Reader(r io.Reader) (io.ReadCloser, error) {
+func (codec) Reader(r io.Reader) (io.Reader, error) {
 	return stdgzip.NewReader(r)
 }
 

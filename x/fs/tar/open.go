@@ -60,7 +60,9 @@ func openCompressed(c compression.Codec, r io.Reader) (*FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer cr.Close()
+	if c, ok := cr.(io.Closer); ok {
+		defer c.Close()
+	}
 	raw, err := io.ReadAll(cr)
 	if err != nil {
 		return nil, err

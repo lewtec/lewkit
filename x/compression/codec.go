@@ -16,7 +16,7 @@ type Codec interface {
 
 // Decompressor is an optional reader side of a [Codec].
 type Decompressor interface {
-	Reader(r io.Reader) (io.ReadCloser, error)
+	Reader(r io.Reader) (io.Reader, error)
 }
 
 // Compressor is an optional writer side of a [Codec].
