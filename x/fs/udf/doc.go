@@ -7,6 +7,6 @@
 //	vol, err := path.OpenFS(path.New("en-us.iso"), root, udf.Open)
 //	b, err := fs.ReadFile(vol, "sources/install.wim")
 //
-// Opened files implement [io.ReaderAt] so a nested reader (WIM, zip)
-// can type-assert it. Writes are not implemented.
+// Opened files implement [io.ReaderAt] so a nested reader (WIM, zip,
+// tar, squashfs) can type-assert it. Writes are not implemented.
 package udf
