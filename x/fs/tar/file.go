@@ -1,33 +1,10 @@
 package tar
 
 import (
-	"cmp"
 	"io"
 	"io/fs"
-	"slices"
 	"time"
 )
-
-func (n *dnode) open(ra io.ReaderAt) (fs.File, error) {
-	if n.dir {
-		return &dirFile{n: n, infos: n.readDir()}, nil
-	}
-	return &file{
-		info: n.info(),
-		r:    io.NewSectionReader(ra, n.off, n.size),
-	}, nil
-}
-
-func (n *dnode) readDir() []fs.DirEntry {
-	out := make([]fs.DirEntry, 0, len(n.kids))
-	for _, k := range n.kids {
-		out = append(out, fs.FileInfoToDirEntry(k.info()))
-	}
-	slices.SortFunc(out, func(a, b fs.DirEntry) int {
-		return cmp.Compare(a.Name(), b.Name())
-	})
-	return out
-}
 
 type file struct {
 	info fileInfo
@@ -49,41 +26,6 @@ func (f *file) ReadAt(p []byte, off int64) (int, error) { return f.r.ReadAt(p, o
 func (f *file) Seek(offset int64, whence int) (int64, error) { return f.r.Seek(offset, whence) }
 
 func (f *file) Close() error { return nil }
-
-type dirFile struct {
-	n     *dnode
-	infos []fs.DirEntry
-	off   int
-}
-
-func (d *dirFile) Stat() (fs.FileInfo, error) { return d.n.info(), nil }
-
-func (d *dirFile) Read([]byte) (int, error) {
-	return 0, &fs.PathError{Op: "read", Path: d.n.name, Err: fs.ErrInvalid}
-}
-
-func (d *dirFile) Close() error { return nil }
-
-func (d *dirFile) ReadDir(n int) ([]fs.DirEntry, error) {
-	if d.off >= len(d.infos) {
-		if n <= 0 {
-			return nil, nil
-		}
-		return nil, io.EOF
-	}
-	if n <= 0 {
-		out := d.infos[d.off:]
-		d.off = len(d.infos)
-		return out, nil
-	}
-	end := d.off + n
-	if end > len(d.infos) {
-		end = len(d.infos)
-	}
-	out := d.infos[d.off:end]
-	d.off = end
-	return out, nil
-}
 
 type fileInfo struct {
 	name string

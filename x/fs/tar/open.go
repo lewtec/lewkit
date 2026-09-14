@@ -1,7 +1,6 @@
 package tar
 
 import (
-	stdtar "archive/tar"
 	"bytes"
 	"io"
 	"io/fs"
@@ -14,17 +13,7 @@ import (
 )
 
 // FS is a read-only tar archive.
-type FS struct {
-	ra   io.ReaderAt
-	root *dnode
-}
-
-var (
-	_ fs.FS         = (*FS)(nil)
-	_ fs.ReadDirFS  = (*FS)(nil)
-	_ fs.ReadFileFS = (*FS)(nil)
-	_ fs.StatFS     = (*FS)(nil)
-)
+type FS = lewfs.FS
 
 // Open reads a tar archive from r.
 //
@@ -69,47 +58,10 @@ func openCompressed(c compression.Codec, r io.Reader) (*FS, error) {
 }
 
 func openTar(r io.Reader) (*FS, error) {
-	ra, err := lewfs.ReaderAt("open", r)
-	if err != nil {
+	if _, err := lewfs.ReaderAt("open", r); err != nil {
 		return nil, err
 	}
-	cr := &cursor{ra: ra}
-	tr := stdtar.NewReader(cr)
-	root := newDir(".")
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			return &FS{ra: ra, root: root}, nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		if hdr.Typeflag == stdtar.TypeXGlobalHeader {
-			continue
-		}
-		name, err := cleanName(hdr.Name)
-		if err != nil {
-			return nil, err
-		}
-		if name == "." {
-			continue
-		}
-		switch hdr.Typeflag {
-		case stdtar.TypeDir:
-			if err := root.add(name, meta{dir: true, mode: hdr.FileInfo().Mode(), mod: hdr.ModTime}); err != nil {
-				return nil, err
-			}
-		case stdtar.TypeReg:
-			if err := root.add(name, meta{
-				off:  cr.off,
-				size: hdr.Size,
-				mode: hdr.FileInfo().Mode(),
-				mod:  hdr.ModTime,
-			}); err != nil {
-				return nil, err
-			}
-		}
-	}
+	return lewfs.New(Files(r))
 }
 
 func nameOf(r io.Reader) string {

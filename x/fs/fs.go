@@ -3,6 +3,10 @@
 // Adapters take an [io.Reader] and call [ReaderAt]. A missing
 // [io.ReaderAt] is [ErrNeedReadAt]. Zip also needs [Size].
 // They do not spool.
+//
+// [File] and [Files] are a container listing. Sequential formats
+// (tar) walk member headers. Formats with a table of contents walk
+// that table. [New] indexes a listing into a read-only [io/fs.FS].
 package fs
 
 import (
