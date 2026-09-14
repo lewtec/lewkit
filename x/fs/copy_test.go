@@ -29,7 +29,7 @@ func TestCopyTree(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
 
-	require.NoError(t, Copy(t.Context(), src, dest))
+	require.NoError(t, Copy(t.Context(), src, dest, nil))
 
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestCopyExist(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
 	require.NoError(t, path.New("a.txt").WriteFile(dest, []byte("old"), 0o644))
-	err = Copy(t.Context(), fstest.MapFS{"a.txt": {Data: []byte("new")}}, dest)
+	err = Copy(t.Context(), fstest.MapFS{"a.txt": {Data: []byte("new")}}, dest, nil)
 	require.ErrorIs(t, err, iofs.ErrExist)
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestCopyCancel(t *testing.T) {
 	test.CloseOnCleanup(t, dest)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	err = Copy(ctx, fstest.MapFS{"a.txt": {Data: []byte("x")}}, dest)
+	err = Copy(ctx, fstest.MapFS{"a.txt": {Data: []byte("x")}}, dest, nil)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -75,6 +75,36 @@ func TestCopySymlink(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
 	src := fstest.MapFS{"link": {Mode: iofs.ModeSymlink, Data: []byte("a.txt")}}
-	err = Copy(t.Context(), src, dest)
+	err = Copy(t.Context(), src, dest, nil)
 	require.ErrorIs(t, err, iofs.ErrInvalid)
+}
+
+func TestCopyKeep(t *testing.T) {
+	t.Parallel()
+	src := fstest.MapFS{
+		"a.txt":   {Data: []byte("hi")},
+		"d/b.go":  {Data: []byte("pkg")},
+		"d/c.txt": {Data: []byte("c")},
+		"empty":   {Mode: iofs.ModeDir},
+	}
+	dest, err := path.Open(t.TempDir())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, dest)
+	keep := func(p path.Path) bool {
+		ok, err := p.MatchGlob("**/*.txt")
+		return err == nil && ok
+	}
+	require.NoError(t, Copy(t.Context(), src, dest, keep))
+	b, err := path.New("a.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hi"), b)
+	b, err = path.New("d", "c.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("c"), b)
+	ok, err := path.New("d", "b.go").Exists(dest)
+	require.NoError(t, err)
+	assert.False(t, ok)
+	ok, err = path.New("empty").Exists(dest)
+	require.NoError(t, err)
+	assert.False(t, ok)
 }

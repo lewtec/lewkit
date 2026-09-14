@@ -9,6 +9,7 @@
 // headers. Formats with a table of contents walk that table.
 // [New] indexes a listing into a read-only [io/fs.FS].
 // [Copy] writes one [io/fs.FS] into another, like rsync from/ to.
+// A keep func selects names; nil keeps everything.
 package fs
 
 import (

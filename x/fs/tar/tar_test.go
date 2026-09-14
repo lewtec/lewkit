@@ -259,6 +259,26 @@ func TestFS(t *testing.T) {
 	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
 }
 
+func TestCopyExtract(t *testing.T) {
+	t.Parallel()
+	r := packTar(t, map[string][]byte{
+		"a/b.txt": []byte("hello"),
+		"z.txt":   []byte("zee"),
+	})
+	src, err := Open(r)
+	require.NoError(t, err)
+	dest, err := path.Open(t.TempDir())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, dest)
+	require.NoError(t, lewfs.Copy(t.Context(), src, dest, nil))
+	b, err := path.New("z.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("zee"), b)
+	b, err = path.New("a", "b.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hello"), b)
+}
+
 func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
 	r := packTar(t, map[string][]byte{"a.txt": []byte("x")})

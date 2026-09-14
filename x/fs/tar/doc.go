@@ -14,6 +14,11 @@
 //	}
 //	t, err := path.OpenFS(path.New("src.tar"), root, tar.Open)
 //	t, err := path.OpenFS(path.New("src.tar.gz"), root, tar.Open)
+//	err = fs.Copy(ctx, t, dest, nil)
+//	err = fs.Copy(ctx, t, dest, func(p path.Path) bool {
+//		ok, _ := p.MatchGlob("**/*.go")
+//		return ok
+//	})
 //
 // Compressed wrappers are chosen by file name or magic through the
 // process-wide [github.com/lewtec/lewkit/x/compression] registry.

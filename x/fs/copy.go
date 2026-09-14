@@ -5,6 +5,8 @@ import (
 	"io"
 	iofs "io/fs"
 	"os"
+
+	"github.com/lewtec/lewkit/x/path"
 )
 
 // OpenFileFS creates or truncates a file.
@@ -26,11 +28,16 @@ type DestFS interface {
 // Copy writes the contents of src into dest, like rsync from/ to.
 // Dest root must already exist; "." is not created.
 //
+// keep is called for each name except ".". A nil keep keeps everything.
+// A false file is skipped. A false directory is still walked, so a
+// glob like **/*.go can match children; the directory is created only
+// if a kept file needs it or keep is true.
+//
 // An existing dest file is [iofs.ErrExist]. A symlink is [iofs.ErrInvalid].
 //
 // Files are created with mode 0o666 plus source execute bits.
 // Directories are created with mode 0o777.
-func Copy(ctx context.Context, src iofs.FS, dest DestFS) error {
+func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep func(path.Path) bool) error {
 	c := copier{ctx: ctx, src: src, dest: dest}
 	return iofs.WalkDir(src, ".", func(name string, d iofs.DirEntry, err error) error {
 		if err != nil {
@@ -48,8 +55,20 @@ func Copy(ctx context.Context, src iofs.FS, dest DestFS) error {
 		if d.Type()&iofs.ModeSymlink != 0 {
 			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 		}
+		p := path.New(name)
 		if d.IsDir() {
+			if keep != nil && !keep(p) {
+				return nil
+			}
 			return dest.MkdirAll(name, 0o777)
+		}
+		if keep != nil && !keep(p) {
+			return nil
+		}
+		if parent := p.Parent().String(); parent != "." {
+			if err := dest.MkdirAll(parent, 0o777); err != nil {
+				return err
+			}
 		}
 		return c.file(name, d)
 	})
