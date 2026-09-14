@@ -20,6 +20,7 @@ func (codec) Name() string { return "lz4" }
 
 func (codec) Extensions() []string { return []string{".lz4"} }
 
+// LZ4 frame 0x184D2204 little-endian.
 func (codec) Magic() [][]byte {
 	return [][]byte{{0x04, 0x22, 0x4d, 0x18}}
 }

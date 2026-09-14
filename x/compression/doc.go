@@ -13,6 +13,7 @@
 // conflict. [MustRegister] panics on those errors (for init).
 //
 // [Detect] prefers a matching extension, then a magic prefix.
+// Brotli (RFC 7932) has no official magic; match it by extension.
 // A codec may also be a [Decompressor] and/or a [Compressor].
 //
 // [RoundTrip] is the codec test helper: compress, then decompress.

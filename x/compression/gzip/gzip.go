@@ -25,6 +25,7 @@ func (codec) Name() string { return "gzip" }
 
 func (codec) Extensions() []string { return []string{".gz"} }
 
+// RFC 1952 ID1 ID2.
 func (codec) Magic() [][]byte {
 	return [][]byte{{0x1f, 0x8b}}
 }

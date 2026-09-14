@@ -19,6 +19,7 @@ func (codec) Name() string { return "bzip2" }
 
 func (codec) Extensions() []string { return []string{".bz2"} }
 
+// libbzip2 "BZh". The next byte is the block-size digit, not magic.
 func (codec) Magic() [][]byte {
 	return [][]byte{{'B', 'Z', 'h'}}
 }

@@ -20,6 +20,7 @@ func (codec) Name() string { return "xz" }
 
 func (codec) Extensions() []string { return []string{".xz"} }
 
+// xz Header Magic Bytes: FD 37 7A 58 5A 00.
 func (codec) Magic() [][]byte {
 	return [][]byte{{0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00}}
 }

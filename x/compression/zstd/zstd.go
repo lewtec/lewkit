@@ -20,6 +20,7 @@ func (codec) Name() string { return "zstd" }
 
 func (codec) Extensions() []string { return []string{".zst", ".zstd"} }
 
+// RFC 8878 0xFD2FB528 little-endian.
 func (codec) Magic() [][]byte {
 	return [][]byte{{0x28, 0xb5, 0x2f, 0xfd}}
 }
