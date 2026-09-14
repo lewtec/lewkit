@@ -1,2 +1,1 @@
-- You are not allowed to change files, only research for duplications.
-- Only humans are allowed to manually write things in this repo
+- All writes to this repo must be done as lewtec style PRs using the lewgh trick (lewbot)
