@@ -2,7 +2,6 @@ package fs
 
 import (
 	"context"
-	"errors"
 	iofs "io/fs"
 	"testing"
 	"testing/fstest"
@@ -44,15 +43,6 @@ func TestCopyTree(t *testing.T) {
 	ok, err = path.New("a.txt").Exists(root)
 	require.NoError(t, err)
 	assert.False(t, ok)
-}
-
-func TestCopyReadOnly(t *testing.T) {
-	t.Parallel()
-	err := Copy(t.Context(), fstest.MapFS{"a.txt": {Data: []byte("x")}}, fstest.MapFS{})
-	require.ErrorIs(t, err, path.ErrReadOnly)
-	pe, ok := errors.AsType[*iofs.PathError](err)
-	require.True(t, ok)
-	assert.Equal(t, "copy", pe.Op)
 }
 
 func TestCopyExist(t *testing.T) {

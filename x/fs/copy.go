@@ -5,37 +5,33 @@ import (
 	"io"
 	iofs "io/fs"
 	"os"
-
-	"github.com/lewtec/lewkit/x/path"
 )
 
-type openFileFS interface {
+// OpenFileFS creates or truncates a file.
+type OpenFileFS interface {
 	OpenFile(string, int, iofs.FileMode) (iofs.File, error)
 }
 
-type mkdirAllFS interface {
+// MkdirAllFS creates a directory and any missing parents.
+type MkdirAllFS interface {
 	MkdirAll(string, iofs.FileMode) error
+}
+
+// DestFS is a writable destination for [Copy].
+type DestFS interface {
+	OpenFileFS
+	MkdirAllFS
 }
 
 // Copy writes the contents of src into dest, like rsync from/ to.
 // Dest root must already exist; "." is not created.
 //
-// Dest must implement OpenFile and MkdirAll. A missing method is
-// [path.ErrReadOnly]. An existing dest file is [iofs.ErrExist].
-// A symlink is [iofs.ErrInvalid].
+// An existing dest file is [iofs.ErrExist]. A symlink is [iofs.ErrInvalid].
 //
 // Files are created with mode 0o666 plus source execute bits.
 // Directories are created with mode 0o777.
-func Copy(ctx context.Context, src, dest iofs.FS) error {
-	out, ok := dest.(openFileFS)
-	if !ok {
-		return &iofs.PathError{Op: "copy", Path: ".", Err: path.ErrReadOnly}
-	}
-	dirs, ok := dest.(mkdirAllFS)
-	if !ok {
-		return &iofs.PathError{Op: "copy", Path: ".", Err: path.ErrReadOnly}
-	}
-	c := copier{ctx: ctx, src: src, out: out}
+func Copy(ctx context.Context, src iofs.FS, dest DestFS) error {
+	c := copier{ctx: ctx, src: src, dest: dest}
 	return iofs.WalkDir(src, ".", func(name string, d iofs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -53,16 +49,16 @@ func Copy(ctx context.Context, src, dest iofs.FS) error {
 			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 		}
 		if d.IsDir() {
-			return dirs.MkdirAll(name, 0o777)
+			return dest.MkdirAll(name, 0o777)
 		}
 		return c.file(name, d)
 	})
 }
 
 type copier struct {
-	ctx context.Context
-	src iofs.FS
-	out openFileFS
+	ctx  context.Context
+	src  iofs.FS
+	dest DestFS
 }
 
 func (c copier) file(name string, d iofs.DirEntry) error {
@@ -76,7 +72,7 @@ func (c copier) file(name string, d iofs.DirEntry) error {
 		return err
 	}
 	defer r.Close()
-	f, err := c.out.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	f, err := c.dest.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return err
 	}

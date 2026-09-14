@@ -12,6 +12,7 @@ import (
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -169,7 +170,7 @@ func TestCopyExtract(t *testing.T) {
 	require.NoError(t, err)
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, dest.Close()) })
+	test.CloseOnCleanup(t, dest)
 	require.NoError(t, lewfs.Copy(t.Context(), src, dest))
 	b, err := path.New("z.txt").ReadFile(dest)
 	require.NoError(t, err)
