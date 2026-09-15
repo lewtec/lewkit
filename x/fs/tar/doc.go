@@ -12,6 +12,7 @@
 //			rf, err := f.Open()
 //		}
 //	}
+//	err = fs.Copy(ctx, dest, tar.Files(r))
 //	t, err := path.OpenFS(path.New("src.tar"), root, tar.Open)
 //	t, err := path.OpenFS(path.New("src.tar.gz"), root, tar.Open)
 //

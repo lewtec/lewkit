@@ -8,6 +8,9 @@
 // [File.Open] reads that body. Sequential formats (tar) walk member
 // headers. Formats with a table of contents walk that table.
 // [New] indexes a listing into a read-only [io/fs.FS].
+// [Copy] writes a [Files] listing into a dest, like rsync from/ to.
+// [Walk] turns an [io/fs.FS] into a listing. [Filter] applies a
+// [github.com/lewtec/lewkit/x/path/pick.Predicate].
 package fs
 
 import (
