@@ -37,6 +37,11 @@ type ArgDefaulter interface {
 	ArgDefault() string
 }
 
+// ArgChooser lists legal values for usage text.
+type ArgChooser interface {
+	ArgChoices() []string
+}
+
 func Values[T any, A Valuer[T]](in []A) []T {
 	out := make([]T, len(in))
 	for i, a := range in {

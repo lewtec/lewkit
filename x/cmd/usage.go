@@ -100,6 +100,9 @@ func (s *spec) lineHelp(f field) string {
 	if names := envNames(f.env); len(names) > 0 {
 		extra = append(extra, "env: "+strings.Join(names, ", "))
 	}
+	if names := choicesOf(s.root.FieldByIndex(f.index).Type()); len(names) > 0 {
+		extra = append(extra, "choices: "+strings.Join(names, ", "))
+	}
 	if f.hasDef && f.def != "" {
 		extra = append(extra, "default: "+f.def)
 	}
@@ -126,6 +129,20 @@ func (s *spec) commandDescription(f field) string {
 		return d.Description()
 	}
 	return ""
+}
+
+func choicesOf(t reflect.Type) []string {
+	for t.Kind() == reflect.Pointer || t.Kind() == reflect.Slice || t.Kind() == reflect.Array {
+		t = t.Elem()
+	}
+	v := reflect.New(t)
+	if c, ok := v.Interface().(ArgChooser); ok {
+		return c.ArgChoices()
+	}
+	if c, ok := v.Elem().Interface().(ArgChooser); ok {
+		return c.ArgChoices()
+	}
+	return nil
 }
 
 func firstLine(s string) string {
