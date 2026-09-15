@@ -38,6 +38,10 @@ func TestAlgebra(t *testing.T) {
 
 	assert.True(t, And()(txt, false))
 	assert.False(t, Or()(txt, false))
+
+	var none Predicate
+	assert.True(t, none.Accept(txt, false))
+	assert.True(t, none.Accept(vendor, true))
 }
 
 func TestDerived(t *testing.T) {

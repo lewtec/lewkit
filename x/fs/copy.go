@@ -32,7 +32,7 @@ var errStop = errors.New("stop")
 // Walk yields [Files] from fsys. pred is applied during the walk so a
 // pruned directory is never opened. A nil pred yields every name,
 // including empty directories.
-func Walk(fsys iofs.FS, pred pick.Pred) Files {
+func Walk(fsys iofs.FS, pred pick.Predicate) Files {
 	return func(yield func(File, error) bool) {
 		err := iofs.WalkDir(fsys, ".", func(name string, d iofs.DirEntry, err error) error {
 			if err != nil {
@@ -56,7 +56,7 @@ func Walk(fsys iofs.FS, pred pick.Pred) Files {
 				return nil
 			}
 			if d.IsDir() {
-				if pred != nil && !pred(p, true) {
+				if !pred.Accept(p, true) {
 					return iofs.SkipDir
 				}
 				if pred != nil {
@@ -71,7 +71,7 @@ func Walk(fsys iofs.FS, pred pick.Pred) Files {
 				}
 				return nil
 			}
-			if pred != nil && !pred(p, false) {
+			if !pred.Accept(p, false) {
 				return nil
 			}
 			info, err := d.Info()
@@ -104,7 +104,7 @@ func Walk(fsys iofs.FS, pred pick.Pred) Files {
 // Filter applies pred to a listing. A nil pred is the listing unchanged.
 // Names under a pruned directory are dropped even if that directory
 // never appeared as its own member.
-func Filter(files Files, pred pick.Pred) Files {
+func Filter(files Files, pred pick.Predicate) Files {
 	if pred == nil {
 		return files
 	}
@@ -114,7 +114,7 @@ func Filter(files Files, pred pick.Pred) Files {
 				yield(File{}, err)
 				return
 			}
-			if f.Mode.IsDir() || pruned(f.Name, pred) || !pred(f.Name, false) {
+			if f.Mode.IsDir() || pruned(f.Name, pred) || !pred.Accept(f.Name, false) {
 				continue
 			}
 			if !yield(f, nil) {
@@ -124,12 +124,9 @@ func Filter(files Files, pred pick.Pred) Files {
 	}
 }
 
-func pruned(p path.Path, pred pick.Pred) bool {
-	if pred == nil {
-		return false
-	}
+func pruned(p path.Path, pred pick.Predicate) bool {
 	for cur := p.Parent(); cur.String() != "." && cur.String() != ""; cur = cur.Parent() {
-		if !pred(cur, true) {
+		if !pred.Accept(cur, true) {
 			return true
 		}
 	}
