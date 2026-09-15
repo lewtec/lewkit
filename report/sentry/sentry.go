@@ -12,43 +12,24 @@ import (
 
 var _ report.Reporter = (*Reporter)(nil)
 
-// Reporter sends errors to Sentry. It is also an x/cmd arg for a DSN.
+// Reporter sends errors to Sentry.
 type Reporter struct {
-	dsn string
 	hub *sdk.Hub
 }
 
-func (r *Reporter) Parse(arg string) error {
-	if arg == "" {
-		r.dsn = ""
-		r.hub = nil
-		return nil
-	}
-	client, err := sdk.NewClient(sdk.ClientOptions{Dsn: arg})
+// New builds a reporter for dsn.
+// An empty dsn uses SENTRY_DSN; if that is also empty the client is disabled.
+func New(dsn string) (*Reporter, error) {
+	client, err := sdk.NewClient(sdk.ClientOptions{Dsn: dsn})
 	if err != nil {
-		return fmt.Errorf("sentry client: %w", err)
+		return nil, fmt.Errorf("sentry client: %w", err)
 	}
-	r.dsn = arg
-	r.hub = sdk.NewHub(client, sdk.NewScope())
-	return nil
-}
-
-func (r Reporter) Value() string {
-	return r.dsn
-}
-
-// Setup registers the reporter when a DSN was parsed.
-func (r *Reporter) Setup() error {
-	if r.hub == nil {
-		return nil
-	}
-	report.RegisterReporter(r)
-	return nil
+	return &Reporter{hub: sdk.NewHub(client, sdk.NewScope())}, nil
 }
 
 // Report captures err and waits for delivery.
 func (r *Reporter) Report(err error) error {
-	if err == nil || r.hub == nil {
+	if err == nil {
 		return nil
 	}
 	r.hub.CaptureException(err)
