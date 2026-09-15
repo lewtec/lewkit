@@ -2,9 +2,30 @@
   "dependencies": [
     {
       "kind": "tool",
+      "ref": "github:astral-sh/ruff",
+      "depName": "astral-sh/ruff",
+      "currentValue": "0.16.7",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
+      "ref": "github:cli/cli",
+      "depName": "cli/cli",
+      "currentValue": "v2.101.0",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
       "ref": "github:golangci/golangci-lint",
       "depName": "golangci/golangci-lint",
       "currentValue": "v2.13.2",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
+      "ref": "github:lucasew/ci-status",
+      "depName": "lucasew/ci-status",
+      "currentValue": "0.3.0",
       "datasource": "github-releases"
     },
     {
@@ -15,6 +36,15 @@
       "datasource": "github-releases"
     },
     {
+      "kind": "source",
+      "ref": "github:wasilibs/go-capstone",
+      "depName": "wasilibs/go-capstone",
+      "packageName": "https://github.com/wasilibs/go-capstone",
+      "currentValue": "main",
+      "currentDigest": "c90245dc26ed88a5e8b8da02c4a3a64a5dbc764b",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "mise:go:golang.org/x/vuln/cmd/govulncheck",
       "depName": "",
@@ -23,9 +53,38 @@
     },
     {
       "kind": "tool",
+      "ref": "registry:biome",
+      "depName": "biomejs/biome",
+      "currentValue": "2.5.13",
+      "datasource": "github-releases",
+      "versioning": "semver"
+    },
+    {
+      "kind": "tool",
       "ref": "registry:mise",
       "depName": "jdx/mise",
       "currentValue": "2026.9.5",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
+      "ref": "registry:nodejs",
+      "depName": "",
+      "currentValue": "v26.8.2",
+      "datasource": ""
+    },
+    {
+      "kind": "tool",
+      "ref": "registry:resvg",
+      "depName": "linebender/resvg",
+      "currentValue": "0.48.1",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
+      "ref": "registry:shellcheck",
+      "depName": "koalaman/shellcheck",
+      "currentValue": "0.11.0",
       "datasource": "github-releases"
     }
   ]
