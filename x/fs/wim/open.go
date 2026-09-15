@@ -114,7 +114,7 @@ func walkWIM(root *dnode, dir *winwim.File, prefix string) error {
 			return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
 		}
 		if e.IsDir() {
-			if err := root.add(p, e, true); err != nil {
+			if err := root.Add(p, e, true); err != nil {
 				return err
 			}
 			if err := walkWIM(root, e, p); err != nil {
@@ -122,7 +122,7 @@ func walkWIM(root *dnode, dir *winwim.File, prefix string) error {
 			}
 			continue
 		}
-		if err := root.add(p, e, false); err != nil {
+		if err := root.Add(p, e, false); err != nil {
 			return err
 		}
 	}

@@ -5,6 +5,8 @@ package wim
 import (
 	"io"
 	"io/fs"
+
+	"github.com/lewtec/lewkit/x/fs/internal/dtree"
 )
 
 // Open implements [fs.FS].
@@ -16,7 +18,7 @@ func (d *FS) Open(name string) (fs.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	return n.open()
+	return openNode(n)
 }
 
 // ReadDir implements [fs.ReadDirFS].
@@ -28,10 +30,10 @@ func (d *FS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !n.dir {
+	if !n.Dir {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
-	return n.readDir(), nil
+	return n.Entries(nodeInfo), nil
 }
 
 // ReadFile implements [fs.ReadFileFS].
@@ -43,10 +45,10 @@ func (d *FS) ReadFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if n.dir {
+	if n.Dir {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrInvalid}
 	}
-	f, err := n.open()
+	f, err := openNode(n)
 	if err != nil {
 		return nil, err
 	}
@@ -63,19 +65,9 @@ func (d *FS) Stat(name string) (fs.FileInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return n.info(), nil
+	return nodeInfo(n), nil
 }
 
 func (d *FS) lookup(name string) (*dnode, error) {
-	if name == "." || name == "" {
-		return d.root, nil
-	}
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
-	}
-	n := d.root.lookup(name)
-	if n == nil {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
-	}
-	return n, nil
+	return dtree.LookupPath(d.root, name)
 }

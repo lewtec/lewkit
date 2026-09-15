@@ -3,6 +3,8 @@ package udf
 import (
 	"io"
 	"io/fs"
+
+	"github.com/lewtec/lewkit/x/fs/internal/dtree"
 )
 
 // Open implements [fs.FS].
@@ -12,7 +14,7 @@ func (d *FS) Open(name string) (f fs.File, err error) {
 	if err != nil {
 		return nil, err
 	}
-	return n.open()
+	return openNode(n)
 }
 
 // ReadDir implements [fs.ReadDirFS].
@@ -22,10 +24,10 @@ func (d *FS) ReadDir(name string) (ents []fs.DirEntry, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if !n.dir {
+	if !n.Dir {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
-	return n.readDir(), nil
+	return n.Entries(nodeInfo), nil
 }
 
 // ReadFile implements [fs.ReadFileFS].
@@ -35,14 +37,14 @@ func (d *FS) ReadFile(name string) (b []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	if n.dir {
+	if n.Dir {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrInvalid}
 	}
-	if n.uf == nil {
+	if n.Val == nil {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrInvalid}
 	}
-	r := n.uf.NewReader()
-	buf := make([]byte, n.uf.Size())
+	r := n.Val.NewReader()
+	buf := make([]byte, n.Val.Size())
 	_, err = io.ReadFull(r, buf)
 	return buf, err
 }
@@ -54,19 +56,9 @@ func (d *FS) Stat(name string) (fi fs.FileInfo, err error) {
 	if err != nil {
 		return nil, err
 	}
-	return n.info(), nil
+	return nodeInfo(n), nil
 }
 
 func (d *FS) lookup(name string) (*dnode, error) {
-	if name == "." || name == "" {
-		return d.root, nil
-	}
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
-	}
-	n := d.root.lookup(name)
-	if n == nil {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
-	}
-	return n, nil
+	return dtree.LookupPath(d.root, name)
 }

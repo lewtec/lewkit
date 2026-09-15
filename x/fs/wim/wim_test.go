@@ -43,8 +43,8 @@ func TestInvalidWim(t *testing.T) {
 func TestTree(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("Windows/Fonts/arial.ttf", nil, false))
-	require.NoError(t, root.add("Windows/System32", nil, true))
+	require.NoError(t, root.Add("Windows/Fonts/arial.ttf", nil, false))
+	require.NoError(t, root.Add("Windows/System32", nil, true))
 	fsys := &FS{root: root}
 
 	ents, err := fsys.ReadDir("Windows")
@@ -72,7 +72,7 @@ func TestTree(t *testing.T) {
 func TestPathReadDir(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("Windows/Fonts/arial.ttf", nil, false))
+	require.NoError(t, root.Add("Windows/Fonts/arial.ttf", nil, false))
 	fsys := &FS{root: root}
 	ents, err := path.New("Windows", "Fonts").ReadDir(fsys)
 	require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestPathReadDir(t *testing.T) {
 func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("a.txt", nil, false))
+	require.NoError(t, root.Add("a.txt", nil, false))
 	fsys := &FS{root: root}
 	err := path.New("a.txt").WriteFile(fsys, []byte("x"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
