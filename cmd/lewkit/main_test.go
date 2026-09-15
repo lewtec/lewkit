@@ -30,3 +30,10 @@ func TestGenerateDbUsage(t *testing.T) {
 	assert.Contains(t, text, "db")
 	assert.Contains(t, text, "shared Queries")
 }
+
+func TestGeneratePreludeUsage(t *testing.T) {
+	text, err := cmd.Usage[generateCmd]("lewkit generate")
+	require.NoError(t, err)
+	assert.Contains(t, text, "prelude")
+	assert.Contains(t, text, "child root.go")
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/lewtec/lewkit/report/sentry"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db/generate"
+	"github.com/lewtec/lewkit/x/generate/prelude"
 )
 
 func main() {
@@ -28,7 +29,8 @@ func (r *root) Setup() error {
 }
 
 type generateCmd struct {
-	db *dbCmd
+	db      *dbCmd
+	prelude *preludeCmd
 }
 
 func (generateCmd) Description() string {
@@ -54,6 +56,18 @@ func (dbCmd) Description() string {
 
 func (c *dbCmd) Run(ctx context.Context) error {
 	return generate.Run(ctx, c.dir.Value())
+}
+
+type preludeCmd struct {
+	dir cmd.WorkDirArg `help:"directory whose child folders have root.go"`
+}
+
+func (preludeCmd) Description() string {
+	return "generate prelude.go from child root.go files"
+}
+
+func (c *preludeCmd) Run(ctx context.Context) error {
+	return prelude.Run(ctx, c.dir.Value())
 }
 
 func (root) Description() string {
