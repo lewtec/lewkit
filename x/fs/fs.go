@@ -10,7 +10,7 @@
 // [New] indexes a listing into a read-only [io/fs.FS].
 // [Copy] writes one [io/fs.FS] into another, like rsync from/ to.
 // [CopyFiles] writes a [Files] listing in order, for streams.
-// A keep func selects names; nil keeps everything.
+// [Keep] selects names; a false directory is pruned.
 package fs
 
 import (

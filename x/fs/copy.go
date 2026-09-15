@@ -25,22 +25,27 @@ type DestFS interface {
 	MkdirAllFS
 }
 
+// Keep reports whether to copy p. dir is true when p is a directory.
+// A nil Keep keeps everything.
+//
+// A false file is skipped. A false directory is pruned: [Copy] does
+// not walk it ([io/fs.SkipDir]); [CopyFiles] skips later names under
+// it and does not read their bodies. Return true for a directory to
+// enter it, for example so **/*.go can match children.
+type Keep func(p path.Path, dir bool) bool
+
 // Copy writes the contents of src into dest, like rsync from/ to.
 // Dest root must already exist; "." is not created.
-//
-// keep is called for each name except ".". A nil keep keeps everything.
-// A false file is skipped. A false directory is still walked, so a
-// glob like **/*.go can match children; the directory is created only
-// if a kept file needs it or keep is true.
 //
 // An existing dest file is [iofs.ErrExist]. A symlink is [iofs.ErrInvalid].
 //
 // Files are created with mode 0o666 plus source execute bits.
-// Directories are created with mode 0o777.
+// Directories are created with mode 0o777 when keep is nil, or as
+// parents of a kept file.
 //
 // Copy walks an [io/fs.FS]. For a sequential listing such as
 // [github.com/lewtec/lewkit/x/fs/tar.Files], use [CopyFiles].
-func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep func(path.Path) bool) error {
+func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep Keep) error {
 	w := destWriter{ctx: ctx, dest: dest}
 	return iofs.WalkDir(src, ".", func(name string, d iofs.DirEntry, err error) error {
 		if err != nil {
@@ -60,9 +65,15 @@ func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep func(path.Path) bo
 		}
 		p := path.New(name)
 		if d.IsDir() {
-			return w.dir(p, keep)
+			if keep != nil && !keep(p, true) {
+				return iofs.SkipDir
+			}
+			if keep == nil {
+				return dest.MkdirAll(name, 0o777)
+			}
+			return nil
 		}
-		if keep != nil && !keep(p) {
+		if keep != nil && !keep(p, false) {
 			return nil
 		}
 		if err := w.parents(p); err != nil {
@@ -85,8 +96,10 @@ func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep func(path.Path) bo
 // Dest root must already exist; "." is not created.
 //
 // Each member body is consumed before the listing moves on, so a
-// stream [File.Reader] stays valid. keep matches [Copy].
-func CopyFiles(ctx context.Context, files Files, dest DestFS, keep func(path.Path) bool) error {
+// stream [File.Reader] stays valid. keep matches [Copy]. Names under
+// a pruned directory are skipped even if the directory itself never
+// appeared in the listing.
+func CopyFiles(ctx context.Context, files Files, dest DestFS, keep Keep) error {
 	w := destWriter{ctx: ctx, dest: dest}
 	for f, err := range files {
 		if err != nil {
@@ -102,16 +115,24 @@ func CopyFiles(ctx context.Context, files Files, dest DestFS, keep func(path.Pat
 		if !f.Name.Valid() {
 			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 		}
+		if pruned(f.Name, keep) {
+			continue
+		}
 		if f.Mode&iofs.ModeSymlink != 0 {
 			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 		}
 		if f.Mode.IsDir() {
-			if err := w.dir(f.Name, keep); err != nil {
-				return err
+			if keep != nil && !keep(f.Name, true) {
+				continue
+			}
+			if keep == nil {
+				if err := dest.MkdirAll(name, 0o777); err != nil {
+					return err
+				}
 			}
 			continue
 		}
-		if keep != nil && !keep(f.Name) {
+		if keep != nil && !keep(f.Name, false) {
 			continue
 		}
 		if err := w.parents(f.Name); err != nil {
@@ -127,16 +148,21 @@ func CopyFiles(ctx context.Context, files Files, dest DestFS, keep func(path.Pat
 	return nil
 }
 
+func pruned(p path.Path, keep Keep) bool {
+	if keep == nil {
+		return false
+	}
+	for cur := p.Parent(); cur.String() != "." && cur.String() != ""; cur = cur.Parent() {
+		if !keep(cur, true) {
+			return true
+		}
+	}
+	return false
+}
+
 type destWriter struct {
 	ctx  context.Context
 	dest DestFS
-}
-
-func (w destWriter) dir(p path.Path, keep func(path.Path) bool) error {
-	if keep != nil && !keep(p) {
-		return nil
-	}
-	return w.dest.MkdirAll(p.String(), 0o777)
 }
 
 func (w destWriter) parents(p path.Path) error {

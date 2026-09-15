@@ -79,6 +79,16 @@ func TestCopySymlink(t *testing.T) {
 	require.ErrorIs(t, err, iofs.ErrInvalid)
 }
 
+func keepGlob(pattern string) Keep {
+	return func(p path.Path, dir bool) bool {
+		if dir {
+			return true
+		}
+		ok, err := p.MatchGlob(pattern)
+		return err == nil && ok
+	}
+}
+
 func TestCopyKeep(t *testing.T) {
 	t.Parallel()
 	src := fstest.MapFS{
@@ -90,11 +100,7 @@ func TestCopyKeep(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	keep := func(p path.Path) bool {
-		ok, err := p.MatchGlob("**/*.txt")
-		return err == nil && ok
-	}
-	require.NoError(t, Copy(t.Context(), src, dest, keep))
+	require.NoError(t, Copy(t.Context(), src, dest, keepGlob("**/*.txt")))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), b)
@@ -132,16 +138,12 @@ func TestCopyFilesKeep(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	keep := func(p path.Path) bool {
-		ok, err := p.MatchGlob("**/*.txt")
-		return err == nil && ok
-	}
 	require.NoError(t, CopyFiles(t.Context(), listing(
 		memDir("d"),
 		memFile("d/b.go", []byte("pkg")),
 		memFile("d/c.txt", []byte("c")),
 		memDir("empty"),
-	), dest, keep))
+	), dest, keepGlob("**/*.txt")))
 	b, err := path.New("d", "c.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("c"), b)
@@ -149,6 +151,45 @@ func TestCopyFilesKeep(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok)
 	ok, err = path.New("empty").Exists(dest)
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func pruneSkip(p path.Path, dir bool) bool {
+	return !(dir && p.String() == "skip")
+}
+
+func TestCopyPrune(t *testing.T) {
+	t.Parallel()
+	src := fstest.MapFS{
+		"a.txt":      {Data: []byte("a")},
+		"skip/x.txt": {Data: []byte("x")},
+	}
+	dest, err := path.Open(t.TempDir())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, dest)
+	require.NoError(t, Copy(t.Context(), src, dest, pruneSkip))
+	b, err := path.New("a.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("a"), b)
+	ok, err := path.New("skip", "x.txt").Exists(dest)
+	require.NoError(t, err)
+	assert.False(t, ok)
+}
+
+func TestCopyFilesPrune(t *testing.T) {
+	t.Parallel()
+	dest, err := path.Open(t.TempDir())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, dest)
+	require.NoError(t, CopyFiles(t.Context(), listing(
+		memFile("a.txt", []byte("a")),
+		memFile("skip/x.txt", []byte("x")),
+	), dest, pruneSkip))
+	b, err := path.New("a.txt").ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("a"), b)
+	ok, err := path.New("skip", "x.txt").Exists(dest)
 	require.NoError(t, err)
 	assert.False(t, ok)
 }
