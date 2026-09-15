@@ -62,6 +62,8 @@ func TestAppUsage(t *testing.T) {
 		"-v, --verbose",
 		"log verbosity (default: 0)",
 		"--profile-dir",
+		"--sentry-dsn",
+		"SENTRY_DSN",
 		"--version",
 	} {
 		assert.Contains(t, text, want)

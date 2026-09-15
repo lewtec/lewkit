@@ -19,6 +19,7 @@ type None struct{}
 type App[T any] struct {
 	verbose    Count     `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
 	profileDir StringArg `long:"profile-dir" help:"write pprof profiles here" default:"" ctx:"profile-dir"`
+	sentry     SentryArg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"" ctx:"sentry-dsn"`
 	help       Flag      `short:"h" long:"help" help:"show help" ctx:"help"`
 	version    Flag      `long:"version" help:"print version" ctx:"version"`
 	Args       T         `flatten:""`
@@ -41,10 +42,14 @@ func (a App[T]) WantVersion() bool {
 	return a.version.Value()
 }
 
-// Setup sets the default slog level and starts the profiler in a goroutine
-// when --profile-dir is set. The profiler stops when ctx is done.
+// Setup sets the default slog level, registers Sentry when --sentry-dsn or
+// SENTRY_DSN is set, and starts the profiler in a goroutine when
+// --profile-dir is set. The profiler stops when ctx is done.
 func (a *App[T]) Setup(ctx context.Context) error {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: a.LogLevel()})))
+	if err := a.sentry.Setup(); err != nil {
+		return err
+	}
 	if dir := a.profileDir.Value(); dir == "" {
 		return nil
 	}
