@@ -114,7 +114,7 @@ func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Archi
 	if err != nil {
 		return err
 	}
-	defer engine.Close(ctx)
+	defer engine.Close()
 
 	limit := cmd.Get[uint](ctx, "count")
 	var n uint

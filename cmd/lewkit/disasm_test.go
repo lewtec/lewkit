@@ -25,6 +25,7 @@ func TestDisasmUsage(t *testing.T) {
 }
 
 func TestDisasmHex(t *testing.T) {
+	test.RestoreSlog(t)
 	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "disasm", "hex", "90c3")
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
@@ -34,6 +35,7 @@ func TestDisasmHex(t *testing.T) {
 }
 
 func TestDisasmHexCount(t *testing.T) {
+	test.RestoreSlog(t)
 	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "disasm", "--count", "1", "hex", "90c3")
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
@@ -43,6 +45,7 @@ func TestDisasmHexCount(t *testing.T) {
 }
 
 func TestDisasmRaw(t *testing.T) {
+	test.RestoreSlog(t)
 	path := filepath.Join(t.TempDir(), "code.bin")
 	require.NoError(t, os.WriteFile(path, []byte{0x90, 0xc3}, 0o644))
 	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "disasm", "raw", path)
@@ -55,6 +58,7 @@ func TestDisasmRaw(t *testing.T) {
 }
 
 func TestDisasmFile(t *testing.T) {
+	test.RestoreSlog(t)
 	raw := buildELF64([]byte{0x90, 0xc3})
 	_, err := disasm.ReadText(bytesReader(raw), int64(len(raw)), "")
 	require.NoError(t, err)
