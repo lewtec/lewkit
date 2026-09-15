@@ -11,12 +11,12 @@ import (
 )
 
 type disasmCmd struct {
-	architecture cmd.StringArg      `long:"architecture" default:"x86" help:"architecture" ctx:""`
-	mode         cmd.StringArg      `long:"mode" default:"64" help:"comma-separated mode bits" ctx:""`
-	syntax       cmd.StringArg      `long:"syntax" default:"intel" help:"assembly syntax" ctx:""`
-	address      cmd.IntArg[uint64] `long:"address" default:"0" help:"start address" ctx:""`
-	count        cmd.IntArg[uint]   `long:"count" default:"0" help:"instruction limit, 0 is all" ctx:""`
-	skipData     cmd.Flag           `long:"skip-data" help:"skip undecodable bytes" ctx:""`
+	architecture disasm.Architecture `long:"architecture" default:"x86" help:"architecture" ctx:""`
+	mode         disasm.Mode         `long:"mode" default:"64" help:"comma-separated mode bits" ctx:""`
+	syntax       disasm.Syntax       `long:"syntax" default:"intel" help:"assembly syntax" ctx:""`
+	address      cmd.IntArg[uint64]  `long:"address" default:"0" help:"start address" ctx:""`
+	count        cmd.IntArg[uint]    `long:"count" default:"0" help:"instruction limit, 0 is all" ctx:""`
+	skipData     cmd.Flag            `long:"skip-data" help:"skip undecodable bytes" ctx:""`
 	hex          *disasmHexCmd
 	raw          *disasmRawCmd
 	file         *disasmFileCmd
@@ -93,23 +93,14 @@ func (command *disasmFileCmd) Run(ctx context.Context) error {
 }
 
 func writeDisassembly(ctx context.Context, code []byte, address uint64) error {
-	architecture, err := disasm.ParseArchitecture(cmd.Get[string](ctx, "architecture"))
-	if err != nil {
-		return err
-	}
-	mode, err := disasm.ParseMode(cmd.Get[string](ctx, "mode"))
-	if err != nil {
-		return err
-	}
-	return writeDisassemblyArchitecture(ctx, architecture, mode, code, address, nil)
+	return writeDisassemblyArchitecture(ctx,
+		cmd.Get[disasm.Architecture](ctx, "architecture"),
+		cmd.Get[disasm.Mode](ctx, "mode"),
+		code, address, nil)
 }
 
 func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Architecture, mode disasm.Mode, code []byte, address uint64, symbols disasm.Symbols) error {
-	syntax, err := disasm.ParseSyntax(cmd.Get[string](ctx, "syntax"))
-	if err != nil {
-		return err
-	}
-	engine, err := disasm.Open(ctx, architecture, mode, disasm.WithSyntax(syntax), disasm.WithSkipData(cmd.Get[bool](ctx, "skip-data")))
+	engine, err := disasm.Open(ctx, architecture, mode, disasm.WithSyntax(cmd.Get[disasm.Syntax](ctx, "syntax")), disasm.WithSkipData(cmd.Get[bool](ctx, "skip-data")))
 	if err != nil {
 		return err
 	}
