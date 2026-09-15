@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/path"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,6 +46,20 @@ func TestRun(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
+func TestRunRelativeDir(t *testing.T) {
+	dir := t.TempDir()
+	app := filepath.Join(dir, "cmd", "app")
+	writeTree(t, dir, map[string]string{
+		"go.mod":              "module example.com/app\n\ngo 1.27\n",
+		"cmd/app/root.go":     "package main\n",
+		"cmd/app/foo/root.go": "package foo\n",
+	})
+	t.Chdir(app)
+	require.NoError(t, Run(t.Context(), "."))
+	got := readFile(t, filepath.Join(app, "prelude.go"))
+	assert.Contains(t, got, `pkg_foo "example.com/app/cmd/app/foo"`)
+}
+
 func TestRunNoChildren(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{
@@ -70,11 +85,13 @@ func TestRunEmptyDir(t *testing.T) {
 
 func TestPackageOfFileSkipsComments(t *testing.T) {
 	dir := t.TempDir()
-	file := filepath.Join(dir, "root.go")
-	require.NoError(t, os.WriteFile(file, []byte("// header\n\npackage demo\n"), 0o644))
-	pkg, err := packageOfFile(file)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "root.go"), []byte("// header\n\npackage demo\n"), 0o644))
+	filesystem, err := path.Open(dir)
 	require.NoError(t, err)
-	assert.Equal(t, "demo", pkg)
+	t.Cleanup(func() { filesystem.Close() })
+	packageName, err := packageOfFile(filesystem, path.New("root.go"))
+	require.NoError(t, err)
+	assert.Equal(t, "demo", packageName)
 }
 
 func writeTree(t *testing.T, root string, files map[string]string) {

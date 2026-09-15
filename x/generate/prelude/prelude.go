@@ -6,169 +6,210 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"go/parser"
 	"go/token"
-	"os"
-	"path"
+	"io/fs"
+	stdpath "path"
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/path"
 )
 
-type root struct {
-	dir, pkg, imp string
+type commandRoot struct {
+	directory   path.Path
+	packageName string
+	importPath  string
 }
 
-// Run writes prelude.go under dir for each folder that has child root.go
-// files. Each generated init calls Registry.FromGetter on the child's GetCommand.
-func Run(ctx context.Context, dir string) error {
-	if dir == "" {
+// Run writes prelude.go under directory for each folder that has child
+// root.go files. Each generated init calls Registry.FromGetter on the
+// child's GetCommand.
+func Run(ctx context.Context, directory string) error {
+	if directory == "" {
 		return errDirRequired
 	}
-	dir, err := filepath.Abs(dir)
+	filesystem, err := path.Open(directory)
 	if err != nil {
 		return err
 	}
-	imp, err := importPath(dir)
+	defer filesystem.Close()
+	importPath, err := findImportPath(filesystem)
 	if err != nil {
 		return err
 	}
-	pkg, err := packageOfDir(dir)
+	packageName, err := packageOfDirectory(filesystem, path.New())
 	if err != nil {
 		return err
 	}
-	return walk(ctx, root{dir: dir, pkg: pkg, imp: imp})
+	return walk(ctx, filesystem, commandRoot{
+		directory:   path.New(),
+		packageName: packageName,
+		importPath:  importPath,
+	})
 }
 
-func walk(ctx context.Context, r root) error {
+func walk(ctx context.Context, filesystem *path.Root, current commandRoot) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	kids, err := children(r.dir, r.imp)
+	children, err := childrenOf(filesystem, current)
 	if err != nil {
 		return err
 	}
-	if len(kids) > 0 {
-		if err := write(r.dir, r.pkg, kids); err != nil {
+	if len(children) > 0 {
+		if err := write(filesystem, current, children); err != nil {
 			return err
 		}
 	}
-	for _, kid := range kids {
-		if err := walk(ctx, kid); err != nil {
+	for _, child := range children {
+		if err := walk(ctx, filesystem, child); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func children(dir, imp string) ([]root, error) {
-	ents, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-	var out []root
-	for _, e := range ents {
-		if !e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		file := filepath.Join(dir, name, "root.go")
-		st, err := os.Stat(file)
+func childrenOf(filesystem *path.Root, current commandRoot) ([]commandRoot, error) {
+	var out []commandRoot
+	for child, err := range current.directory.IterDir(filesystem) {
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
 			return nil, err
 		}
-		if st.IsDir() {
+		isDir, err := child.IsDir(filesystem)
+		if err != nil {
+			return nil, err
+		}
+		if !isDir {
 			continue
 		}
-		pkg, err := packageOfFile(file)
+		rootGo := child.Join("root.go")
+		isFile, err := rootGo.IsFile(filesystem)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", file, err)
+			return nil, err
 		}
-		out = append(out, root{
-			dir: filepath.Join(dir, name),
-			pkg: pkg,
-			imp: path.Join(imp, name),
+		if !isFile {
+			continue
+		}
+		packageName, err := packageOfFile(filesystem, rootGo)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", rootGo, err)
+		}
+		out = append(out, commandRoot{
+			directory:   child,
+			packageName: packageName,
+			importPath:  stdpath.Join(current.importPath, child.Name()),
 		})
 	}
-	slices.SortFunc(out, func(a, b root) int {
-		return cmp.Compare(a.imp, b.imp)
+	slices.SortFunc(out, func(a, b commandRoot) int {
+		return cmp.Compare(a.importPath, b.importPath)
 	})
 	return out, nil
 }
 
-func packageOfDir(dir string) (string, error) {
-	rootFile := filepath.Join(dir, "root.go")
-	if st, err := os.Stat(rootFile); err == nil && !st.IsDir() {
-		return packageOfFile(rootFile)
-	}
-	ents, err := os.ReadDir(dir)
+func packageOfDirectory(filesystem fs.FS, directory path.Path) (string, error) {
+	rootGo := directory.Join("root.go")
+	ok, err := rootGo.IsFile(filesystem)
 	if err != nil {
 		return "", err
 	}
-	for _, e := range ents {
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || name == "prelude.go" {
+	if ok {
+		return packageOfFile(filesystem, rootGo)
+	}
+	entries, err := directory.ReadDir(filesystem)
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || name == "prelude.go" {
 			continue
 		}
-		pkg, err := packageOfFile(filepath.Join(dir, name))
+		packageName, err := packageOfFile(filesystem, directory.Join(name))
 		if err == nil {
-			return pkg, nil
+			return packageName, nil
 		}
 	}
-	return "", fmt.Errorf("%w: %s", errNoPackage, dir)
+	return "", fmt.Errorf("%w: %s", errNoPackage, directory)
 }
 
-func packageOfFile(file string) (string, error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, file, nil, parser.PackageClauseOnly)
+func packageOfFile(filesystem fs.FS, file path.Path) (string, error) {
+	body, err := file.ReadFile(filesystem)
 	if err != nil {
 		return "", err
 	}
-	if f.Name == nil || f.Name.Name == "" {
+	parsed, err := parser.ParseFile(token.NewFileSet(), file.String(), body, parser.PackageClauseOnly)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Name == nil || parsed.Name.Name == "" {
 		return "", errNoPackage
 	}
-	return f.Name.Name, nil
+	return parsed.Name.Name, nil
 }
 
-func importPath(dir string) (string, error) {
-	d := dir
+func findImportPath(start *path.Root) (string, error) {
+	current := start.Name()
+	var suffix []string
 	for {
-		b, err := os.ReadFile(filepath.Join(d, "go.mod"))
-		if err == nil {
-			mod, err := moduleLine(b)
+		ancestor, err := path.Open(current)
+		if err != nil {
+			return "", err
+		}
+		goMod := path.New("go.mod")
+		ok, err := goMod.Exists(ancestor)
+		if err != nil {
+			ancestor.Close()
+			return "", err
+		}
+		if ok {
+			body, err := goMod.ReadFile(ancestor)
+			ancestor.Close()
 			if err != nil {
 				return "", err
 			}
-			rel, err := filepath.Rel(d, dir)
+			module, err := moduleLine(body)
 			if err != nil {
 				return "", err
 			}
-			if rel == "." {
-				return mod, nil
+			if len(suffix) == 0 {
+				return module, nil
 			}
-			return path.Join(mod, filepath.ToSlash(rel)), nil
+			return stdpath.Join(append([]string{module}, suffix...)...), nil
 		}
-		parent := filepath.Dir(d)
-		if parent == d {
-			return "", fmt.Errorf("%w: %s", errNoGoMod, dir)
+		ancestor.Close()
+		parent, name, err := parentDirectory(current)
+		if err != nil {
+			return "", err
 		}
-		d = parent
+		if parent == current {
+			return "", fmt.Errorf("%w: %s", errNoGoMod, start.Name())
+		}
+		suffix = append([]string{name}, suffix...)
+		current = parent
 	}
 }
 
-func moduleLine(b []byte) (string, error) {
-	sc := bufio.NewScanner(bytes.NewReader(b))
-	for sc.Scan() {
-		if line, ok := strings.CutPrefix(sc.Text(), "module "); ok {
+func parentDirectory(directory string) (parent, name string, err error) {
+	if directory == "." || !filepath.IsAbs(directory) {
+		directory, err = filepath.Abs(directory)
+		if err != nil {
+			return "", "", err
+		}
+	}
+	return filepath.Dir(directory), filepath.Base(directory), nil
+}
+
+func moduleLine(body []byte) (string, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+	for scanner.Scan() {
+		if line, ok := strings.CutPrefix(scanner.Text(), "module "); ok {
 			return strings.TrimSpace(line), nil
 		}
 	}
-	if err := sc.Err(); err != nil {
+	if err := scanner.Err(); err != nil {
 		return "", err
 	}
 	return "", errNoModule
