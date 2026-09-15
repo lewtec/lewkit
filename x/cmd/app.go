@@ -41,10 +41,16 @@ func (a App[T]) WantVersion() bool {
 	return a.version.Value()
 }
 
-// Setup sets the default slog level and starts the profiler in a goroutine
-// when --profile-dir is set. The profiler stops when ctx is done.
+// Setup sets the default slog level, calls Args.Setup when T has that
+// method, and starts the profiler in a goroutine when --profile-dir is
+// set. The profiler stops when ctx is done.
 func (a *App[T]) Setup(ctx context.Context) error {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: a.LogLevel()})))
+	if s, ok := any(&a.Args).(interface{ Setup() error }); ok {
+		if err := s.Setup(); err != nil {
+			return err
+		}
+	}
 	if dir := a.profileDir.Value(); dir == "" {
 		return nil
 	}

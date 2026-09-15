@@ -210,3 +210,31 @@ func TestAppForwardsDescription(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "inner tool")
 }
+
+type setupArgs struct {
+	called bool
+}
+
+func (s *setupArgs) Setup() error {
+	s.called = true
+	return nil
+}
+
+func TestAppCallsArgsSetup(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[setupArgs]](t)
+	require.NoError(t, app.Run(t.Context()))
+	assert.True(t, app.Args.called)
+}
+
+type setupFail struct{}
+
+func (setupFail) Setup() error {
+	return ErrInvalidArgument
+}
+
+func TestAppArgsSetupError(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[setupFail]](t)
+	assert.ErrorIs(t, app.Run(t.Context()), ErrInvalidArgument)
+}
