@@ -21,7 +21,7 @@ func TestRootUsage(t *testing.T) {
 
 func TestRootSentryDSN(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "https://public@example.com/1")
-	assert.Equal(t, "https://public@example.com/1", app.Args.sentry.Value())
+	require.NotNil(t, app.Args.sentry.Reporter)
 }
 
 func TestGenerateDbUsage(t *testing.T) {

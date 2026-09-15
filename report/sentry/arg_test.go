@@ -8,10 +8,7 @@ func TestArgParse(t *testing.T) {
 	if err := a.Parse("https://public@example.com/1"); err != nil {
 		t.Fatal(err)
 	}
-	if got := a.Value(); got != "https://public@example.com/1" {
-		t.Fatalf("Value() = %q", got)
-	}
-	if a.rep == nil {
+	if a.Reporter == nil {
 		t.Fatal("Parse did not hold a reporter")
 	}
 }
