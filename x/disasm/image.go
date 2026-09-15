@@ -85,7 +85,7 @@ func readELF(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      elfSection.Name,
 		Format:       "elf",
-		Symbols:      (*elfFile)(file).symbols(),
+		Symbols:      (&ELFFile{File: file}).Symbols(),
 	}, nil
 }
 
@@ -177,7 +177,7 @@ func readPE(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      peSection.Name,
 		Format:       "pe",
-		Symbols:      (*peFile)(file).symbols(),
+		Symbols:      (&PEFile{File: file}).Symbols(),
 	}, nil
 }
 
@@ -240,7 +240,7 @@ func readMacho(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      machoSection.Name,
 		Format:       "macho",
-		Symbols:      (*machoFile)(file).symbols(),
+		Symbols:      (&MachOFile{File: file}).Symbols(),
 	}, nil
 }
 
@@ -273,10 +273,11 @@ func pickMacho(file *macho.File, name string) (*macho.Section, error) {
 	return nil, fmt.Errorf("%w: %s", ErrNoText, name)
 }
 
-type elfFile elf.File
+// ELFFile wraps [elf.File].
+type ELFFile struct{ File *elf.File }
 
-func (file *elfFile) symbols() Symbols {
-	raw := (*elf.File)(file)
+// Symbols returns function symbols first, then other named addresses.
+func (file *ELFFile) Symbols() Symbols {
 	var functions, others Symbols
 	add := func(list []elf.Symbol, err error) {
 		if err != nil {
@@ -296,30 +297,32 @@ func (file *elfFile) symbols() Symbols {
 			}
 		}
 	}
-	list, err := raw.Symbols()
+	list, err := file.File.Symbols()
 	add(list, err)
-	list, err = raw.DynamicSymbols()
+	list, err = file.File.DynamicSymbols()
 	add(list, err)
 	return append(functions, others...)
 }
 
-type peFile pe.File
+// PEFile wraps [pe.File].
+type PEFile struct{ File *pe.File }
 
-func (file *peFile) symbols() Symbols {
-	if len(file.COFFSymbols) == 0 {
+// Symbols returns COFF symbols with section-relative addresses resolved.
+func (file *PEFile) Symbols() Symbols {
+	if len(file.File.COFFSymbols) == 0 {
 		return nil
 	}
 	var out Symbols
-	for i := 0; i < len(file.COFFSymbols); i++ {
-		symbol := file.COFFSymbols[i]
-		name, err := symbol.FullName(file.StringTable)
+	for i := 0; i < len(file.File.COFFSymbols); i++ {
+		symbol := file.File.COFFSymbols[i]
+		name, err := symbol.FullName(file.File.StringTable)
 		if err != nil || name == "" {
 			continue
 		}
-		if symbol.SectionNumber <= 0 || int(symbol.SectionNumber) > len(file.Sections) {
+		if symbol.SectionNumber <= 0 || int(symbol.SectionNumber) > len(file.File.Sections) {
 			continue
 		}
-		section := file.Sections[symbol.SectionNumber-1]
+		section := file.File.Sections[symbol.SectionNumber-1]
 		out = append(out, Symbol{
 			Name:    name,
 			Address: uint64(section.VirtualAddress) + uint64(symbol.Value),
@@ -329,14 +332,16 @@ func (file *peFile) symbols() Symbols {
 	return out
 }
 
-type machoFile macho.File
+// MachOFile wraps [macho.File].
+type MachOFile struct{ File *macho.File }
 
-func (file *machoFile) symbols() Symbols {
-	if file.Symtab == nil {
+// Symbols returns named addresses from the symbol table.
+func (file *MachOFile) Symbols() Symbols {
+	if file.File.Symtab == nil {
 		return nil
 	}
 	var out Symbols
-	for _, symbol := range file.Symtab.Syms {
+	for _, symbol := range file.File.Symtab.Syms {
 		if symbol.Name == "" || symbol.Value == 0 {
 			continue
 		}
