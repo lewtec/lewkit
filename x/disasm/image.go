@@ -85,7 +85,7 @@ func readELF(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      elfSection.Name,
 		Format:       "elf",
-		Symbols:      elfSymbols(file),
+		Symbols:      (*elfFile)(file).symbols(),
 	}, nil
 }
 
@@ -177,7 +177,7 @@ func readPE(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      peSection.Name,
 		Format:       "pe",
-		Symbols:      peSymbols(file),
+		Symbols:      (*peFile)(file).symbols(),
 	}, nil
 }
 
@@ -240,7 +240,7 @@ func readMacho(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      machoSection.Name,
 		Format:       "macho",
-		Symbols:      machoSymbols(file),
+		Symbols:      (*machoFile)(file).symbols(),
 	}, nil
 }
 
@@ -273,7 +273,10 @@ func pickMacho(file *macho.File, name string) (*macho.Section, error) {
 	return nil, fmt.Errorf("%w: %s", ErrNoText, name)
 }
 
-func elfSymbols(file *elf.File) Symbols {
+type elfFile elf.File
+
+func (file *elfFile) symbols() Symbols {
+	raw := (*elf.File)(file)
 	var functions, others Symbols
 	add := func(list []elf.Symbol, err error) {
 		if err != nil {
@@ -293,14 +296,16 @@ func elfSymbols(file *elf.File) Symbols {
 			}
 		}
 	}
-	list, err := file.Symbols()
+	list, err := raw.Symbols()
 	add(list, err)
-	list, err = file.DynamicSymbols()
+	list, err = raw.DynamicSymbols()
 	add(list, err)
 	return append(functions, others...)
 }
 
-func peSymbols(file *pe.File) Symbols {
+type peFile pe.File
+
+func (file *peFile) symbols() Symbols {
 	if len(file.COFFSymbols) == 0 {
 		return nil
 	}
@@ -324,7 +329,9 @@ func peSymbols(file *pe.File) Symbols {
 	return out
 }
 
-func machoSymbols(file *macho.File) Symbols {
+type machoFile macho.File
+
+func (file *machoFile) symbols() Symbols {
 	if file.Symtab == nil {
 		return nil
 	}
