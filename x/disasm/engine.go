@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"sync"
 )
+
+var _ io.Closer = (*Engine)(nil)
 
 // Instruction is one decoded instruction.
 type Instruction struct {
@@ -55,25 +58,25 @@ func Open(ctx context.Context, architecture Architecture, mode Mode, opts ...Opt
 	engine := &Engine{session: session}
 	if options.syntax != 0 {
 		if err := session.setOption(ctx, optionSyntax, uint32(options.syntax)); err != nil {
-			return nil, errors.Join(err, engine.Close(ctx))
+			return nil, errors.Join(err, engine.Close())
 		}
 	}
 	if options.skipData {
 		if err := session.setOption(ctx, optionSkipData, optionOn); err != nil {
-			return nil, errors.Join(err, engine.Close(ctx))
+			return nil, errors.Join(err, engine.Close())
 		}
 	}
 	return engine, nil
 }
 
 // Close releases the engine.
-func (engine *Engine) Close(ctx context.Context) error {
+func (engine *Engine) Close() error {
 	if engine == nil {
 		return nil
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	err := engine.session.close(ctx)
+	err := engine.session.close(context.Background())
 	engine.session = nil
 	return err
 }
