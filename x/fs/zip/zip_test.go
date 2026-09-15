@@ -171,7 +171,7 @@ func TestCopyExtract(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, lewfs.Copy(t.Context(), src, dest, nil))
+	require.NoError(t, lewfs.Copy(t.Context(), dest, lewfs.Walk(src, nil)))
 	b, err := path.New("z.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("zee"), b)

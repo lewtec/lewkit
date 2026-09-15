@@ -29,7 +29,7 @@ func TestCopyTree(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
 
-	require.NoError(t, Copy(t.Context(), src, dest, nil))
+	require.NoError(t, Copy(t.Context(), dest, Walk(src, nil)))
 
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
@@ -51,7 +51,7 @@ func TestCopyExist(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
 	require.NoError(t, path.New("a.txt").WriteFile(dest, []byte("old"), 0o644))
-	err = Copy(t.Context(), fstest.MapFS{"a.txt": {Data: []byte("new")}}, dest, nil)
+	err = Copy(t.Context(), dest, Walk(fstest.MapFS{"a.txt": {Data: []byte("new")}}, nil))
 	require.ErrorIs(t, err, iofs.ErrExist)
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestCopyCancel(t *testing.T) {
 	test.CloseOnCleanup(t, dest)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	err = Copy(ctx, fstest.MapFS{"a.txt": {Data: []byte("x")}}, dest, nil)
+	err = Copy(ctx, dest, Walk(fstest.MapFS{"a.txt": {Data: []byte("x")}}, nil))
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -75,7 +75,7 @@ func TestCopySymlink(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
 	src := fstest.MapFS{"link": {Mode: iofs.ModeSymlink, Data: []byte("a.txt")}}
-	err = Copy(t.Context(), src, dest, nil)
+	err = Copy(t.Context(), dest, Walk(src, nil))
 	require.ErrorIs(t, err, iofs.ErrInvalid)
 }
 
@@ -100,7 +100,7 @@ func TestCopyKeep(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, Copy(t.Context(), src, dest, keepGlob("**/*.txt")))
+	require.NoError(t, Copy(t.Context(), dest, Walk(src, keepGlob("**/*.txt"))))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), b)
@@ -120,11 +120,11 @@ func TestCopyFiles(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, CopyFiles(t.Context(), listing(
+	require.NoError(t, Copy(t.Context(), dest, listing(
 		memDir("d"),
 		memFile("d/b.txt", []byte("b")),
 		memFile("a.txt", []byte("hi")),
-	), dest, nil))
+	)))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), b)
@@ -138,12 +138,12 @@ func TestCopyFilesKeep(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, CopyFiles(t.Context(), listing(
+	require.NoError(t, Copy(t.Context(), dest, Filter(listing(
 		memDir("d"),
 		memFile("d/b.go", []byte("pkg")),
 		memFile("d/c.txt", []byte("c")),
 		memDir("empty"),
-	), dest, keepGlob("**/*.txt")))
+	), keepGlob("**/*.txt"))))
 	b, err := path.New("d", "c.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("c"), b)
@@ -168,7 +168,7 @@ func TestCopyPrune(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, Copy(t.Context(), src, dest, pruneSkip))
+	require.NoError(t, Copy(t.Context(), dest, Walk(src, pruneSkip)))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("a"), b)
@@ -182,10 +182,10 @@ func TestCopyFilesPrune(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, CopyFiles(t.Context(), listing(
+	require.NoError(t, Copy(t.Context(), dest, Filter(listing(
 		memFile("a.txt", []byte("a")),
 		memFile("skip/x.txt", []byte("x")),
-	), dest, pruneSkip))
+	), pruneSkip)))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("a"), b)

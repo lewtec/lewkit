@@ -2,6 +2,7 @@ package fs
 
 import (
 	"context"
+	"errors"
 	"io"
 	iofs "io/fs"
 	"os"
@@ -28,78 +29,135 @@ type DestFS interface {
 // Keep reports whether to copy p. dir is true when p is a directory.
 // A nil Keep keeps everything.
 //
-// A false file is skipped. A false directory is pruned: [Copy] does
-// not walk it ([io/fs.SkipDir]); [CopyFiles] skips later names under
-// it and does not read their bodies. Return true for a directory to
-// enter it, for example so **/*.go can match children.
+// A false file is skipped. A false directory is pruned: [Walk] does
+// not descend ([io/fs.SkipDir]); [Filter] skips names under that
+// prefix and does not pass their bodies on. Return true for a
+// directory to enter it, for example so **/*.go can match children.
 type Keep func(p path.Path, dir bool) bool
 
-// Copy writes the contents of src into dest, like rsync from/ to.
+var errStop = errors.New("stop")
+
+// Walk yields [Files] from fsys. keep is applied during the walk so a
+// pruned directory is never opened. A nil keep yields every name,
+// including empty directories.
+func Walk(fsys iofs.FS, keep Keep) Files {
+	return func(yield func(File, error) bool) {
+		err := iofs.WalkDir(fsys, ".", func(name string, d iofs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if name == "." {
+				if !d.IsDir() {
+					return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
+				}
+				return nil
+			}
+			p := path.New(name)
+			if d.Type()&iofs.ModeSymlink != 0 {
+				info, err := d.Info()
+				if err != nil {
+					return err
+				}
+				if !yield(File{Name: p, Mode: info.Mode()}, nil) {
+					return errStop
+				}
+				return nil
+			}
+			if d.IsDir() {
+				if keep != nil && !keep(p, true) {
+					return iofs.SkipDir
+				}
+				if keep != nil {
+					return nil
+				}
+				info, err := d.Info()
+				if err != nil {
+					return err
+				}
+				if !yield(File{Name: p, Mode: info.Mode()}, nil) {
+					return errStop
+				}
+				return nil
+			}
+			if keep != nil && !keep(p, false) {
+				return nil
+			}
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			r, err := fsys.Open(name)
+			if err != nil {
+				return err
+			}
+			ok := yield(File{
+				Name:    p,
+				Mode:    info.Mode(),
+				Size:    info.Size(),
+				ModTime: info.ModTime(),
+				Reader:  r,
+			}, nil)
+			r.Close()
+			if !ok {
+				return errStop
+			}
+			return nil
+		})
+		if err != nil && !errors.Is(err, errStop) {
+			yield(File{}, err)
+		}
+	}
+}
+
+// Filter applies keep to a listing. A nil keep is the listing unchanged.
+// Names under a pruned directory are dropped even if that directory
+// never appeared as its own member.
+func Filter(files Files, keep Keep) Files {
+	if keep == nil {
+		return files
+	}
+	return func(yield func(File, error) bool) {
+		for f, err := range files {
+			if err != nil {
+				yield(File{}, err)
+				return
+			}
+			if f.Mode.IsDir() || pruned(f.Name, keep) || !keep(f.Name, false) {
+				continue
+			}
+			if !yield(f, nil) {
+				return
+			}
+		}
+	}
+}
+
+func pruned(p path.Path, keep Keep) bool {
+	if keep == nil {
+		return false
+	}
+	for cur := p.Parent(); cur.String() != "." && cur.String() != ""; cur = cur.Parent() {
+		if !keep(cur, true) {
+			return true
+		}
+	}
+	return false
+}
+
+// Copy writes files into dest, like rsync from/ to.
 // Dest root must already exist; "." is not created.
+//
+// Each member body is consumed before the listing moves on, so a
+// stream [File.Reader] stays valid. Directory members are created;
+// file parents are created as needed.
 //
 // An existing dest file is [iofs.ErrExist]. A symlink is [iofs.ErrInvalid].
 //
 // Files are created with mode 0o666 plus source execute bits.
-// Directories are created with mode 0o777 when keep is nil, or as
-// parents of a kept file.
+// Directories are created with mode 0o777.
 //
-// Copy walks an [io/fs.FS]. For a sequential listing such as
-// [github.com/lewtec/lewkit/x/fs/tar.Files], use [CopyFiles].
-func Copy(ctx context.Context, src iofs.FS, dest DestFS, keep Keep) error {
-	w := destWriter{ctx: ctx, dest: dest}
-	return iofs.WalkDir(src, ".", func(name string, d iofs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if err := ctx.Err(); err != nil {
-			return context.Cause(ctx)
-		}
-		if name == "." {
-			if !d.IsDir() {
-				return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
-			}
-			return nil
-		}
-		if d.Type()&iofs.ModeSymlink != 0 {
-			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
-		}
-		p := path.New(name)
-		if d.IsDir() {
-			if keep != nil && !keep(p, true) {
-				return iofs.SkipDir
-			}
-			if keep == nil {
-				return dest.MkdirAll(name, 0o777)
-			}
-			return nil
-		}
-		if keep != nil && !keep(p, false) {
-			return nil
-		}
-		if err := w.parents(p); err != nil {
-			return err
-		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		r, err := src.Open(name)
-		if err != nil {
-			return err
-		}
-		defer r.Close()
-		return w.file(name, info.Mode().Perm(), r)
-	})
-}
-
-// CopyFiles writes a [Files] listing into dest, in listing order.
-// Dest root must already exist; "." is not created.
-//
-// Each member body is consumed before the listing moves on, so a
-// stream [File.Reader] stays valid. keep matches [Copy]. Names under
-// a pruned directory are skipped even if the directory itself never
-// appeared in the listing.
-func CopyFiles(ctx context.Context, files Files, dest DestFS, keep Keep) error {
+// A tree is [Walk]. A tar stream is [github.com/lewtec/lewkit/x/fs/tar.Files].
+func Copy(ctx context.Context, dest DestFS, files Files) error {
 	w := destWriter{ctx: ctx, dest: dest}
 	for f, err := range files {
 		if err != nil {
@@ -115,24 +173,13 @@ func CopyFiles(ctx context.Context, files Files, dest DestFS, keep Keep) error {
 		if !f.Name.Valid() {
 			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 		}
-		if pruned(f.Name, keep) {
-			continue
-		}
 		if f.Mode&iofs.ModeSymlink != 0 {
 			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 		}
 		if f.Mode.IsDir() {
-			if keep != nil && !keep(f.Name, true) {
-				continue
+			if err := dest.MkdirAll(name, 0o777); err != nil {
+				return err
 			}
-			if keep == nil {
-				if err := dest.MkdirAll(name, 0o777); err != nil {
-					return err
-				}
-			}
-			continue
-		}
-		if keep != nil && !keep(f.Name, false) {
 			continue
 		}
 		if err := w.parents(f.Name); err != nil {
@@ -146,18 +193,6 @@ func CopyFiles(ctx context.Context, files Files, dest DestFS, keep Keep) error {
 		}
 	}
 	return nil
-}
-
-func pruned(p path.Path, keep Keep) bool {
-	if keep == nil {
-		return false
-	}
-	for cur := p.Parent(); cur.String() != "." && cur.String() != ""; cur = cur.Parent() {
-		if !keep(cur, true) {
-			return true
-		}
-	}
-	return false
 }
 
 type destWriter struct {
