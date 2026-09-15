@@ -7,13 +7,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type color string
+type color int
 
 const (
-	colorRed   color = "red"
-	colorGreen color = "green"
-	colorBlue  color = "blue"
+	colorRed color = iota + 1
+	colorGreen
+	colorBlue
 )
+
+func (c color) String() string {
+	switch c {
+	case colorRed:
+		return "red"
+	case colorGreen:
+		return "green"
+	case colorBlue:
+		return "blue"
+	default:
+		return ""
+	}
+}
 
 func (color) Values() []color {
 	return []color{colorRed, colorGreen, colorBlue}
@@ -35,6 +48,7 @@ func TestEnumArg(t *testing.T) {
 		{name: "empty", in: "", err: ErrInvalidArgument},
 		{name: "unknown", in: "purple", err: ErrInvalidArgument},
 		{name: "wrong case", in: "Red", err: ErrInvalidArgument},
+		{name: "number", in: "1", err: ErrInvalidArgument},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

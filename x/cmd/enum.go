@@ -3,15 +3,18 @@ package cmd
 import (
 	"fmt"
 	"strings"
+
+	"golang.org/x/exp/constraints"
 )
 
-// Enum is a string-backed closed set. Values lists the members.
-type Enum[T ~string] interface {
-	~string
+// Enum is an iota-style closed set. String is the CLI token; Values lists members.
+type Enum[T any] interface {
+	constraints.Integer
+	fmt.Stringer
 	Values() []T
 }
 
-// EnumArg parses a CLI token into T. Unknown values are ErrInvalidArgument.
+// EnumArg parses a CLI token into T by matching String(). Unknown values are ErrInvalidArgument.
 type EnumArg[T Enum[T]] struct {
 	Container[T]
 }
@@ -20,7 +23,7 @@ func (e *EnumArg[T]) Parse(arg string) error {
 	var zero T
 	want := zero.Values()
 	for _, v := range want {
-		if string(v) == arg {
+		if v.String() == arg {
 			e.value = v
 			return nil
 		}
@@ -33,10 +36,10 @@ func (EnumArg[T]) ArgChoices() []string {
 	return enumNames(zero.Values())
 }
 
-func enumNames[T ~string](vs []T) []string {
+func enumNames[T Enum[T]](vs []T) []string {
 	out := make([]string, len(vs))
 	for i, v := range vs {
-		out[i] = string(v)
+		out[i] = v.String()
 	}
 	return out
 }
