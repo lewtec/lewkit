@@ -10,6 +10,8 @@
 // [New] indexes a listing into a read-only [io/fs.FS].
 // [Copy] writes a [Files] listing into a dest, like rsync from/ to.
 // [Walk] turns an [io/fs.FS] into a listing. [Filter] applies [Keep].
+// [Glob] and [Prune] build a [Keep]; [Keep.And], [Keep.Or], [Keep.Not]
+// combine them.
 package fs
 
 import (

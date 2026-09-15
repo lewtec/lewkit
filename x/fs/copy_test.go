@@ -79,16 +79,6 @@ func TestCopySymlink(t *testing.T) {
 	require.ErrorIs(t, err, iofs.ErrInvalid)
 }
 
-func keepGlob(pattern string) Keep {
-	return func(p path.Path, dir bool) bool {
-		if dir {
-			return true
-		}
-		ok, err := p.MatchGlob(pattern)
-		return err == nil && ok
-	}
-}
-
 func TestCopyKeep(t *testing.T) {
 	t.Parallel()
 	src := fstest.MapFS{
@@ -100,7 +90,7 @@ func TestCopyKeep(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, Copy(t.Context(), dest, Walk(src, keepGlob("**/*.txt"))))
+	require.NoError(t, Copy(t.Context(), dest, Walk(src, Glob("**/*.txt"))))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), b)
@@ -143,7 +133,7 @@ func TestCopyFilesKeep(t *testing.T) {
 		memFile("d/b.go", []byte("pkg")),
 		memFile("d/c.txt", []byte("c")),
 		memDir("empty"),
-	), keepGlob("**/*.txt"))))
+	), Glob("**/*.txt"))))
 	b, err := path.New("d", "c.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("c"), b)
@@ -155,10 +145,6 @@ func TestCopyFilesKeep(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func pruneSkip(p path.Path, dir bool) bool {
-	return !(dir && p.String() == "skip")
-}
-
 func TestCopyPrune(t *testing.T) {
 	t.Parallel()
 	src := fstest.MapFS{
@@ -168,7 +154,7 @@ func TestCopyPrune(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, Copy(t.Context(), dest, Walk(src, pruneSkip)))
+	require.NoError(t, Copy(t.Context(), dest, Walk(src, Prune("skip"))))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("a"), b)
@@ -185,7 +171,7 @@ func TestCopyFilesPrune(t *testing.T) {
 	require.NoError(t, Copy(t.Context(), dest, Filter(listing(
 		memFile("a.txt", []byte("a")),
 		memFile("skip/x.txt", []byte("x")),
-	), pruneSkip)))
+	), Prune("skip"))))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("a"), b)

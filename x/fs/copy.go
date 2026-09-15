@@ -26,15 +26,6 @@ type DestFS interface {
 	MkdirAllFS
 }
 
-// Keep reports whether to copy p. dir is true when p is a directory.
-// A nil Keep keeps everything.
-//
-// A false file is skipped. A false directory is pruned: [Walk] does
-// not descend ([io/fs.SkipDir]); [Filter] skips names under that
-// prefix and does not pass their bodies on. Return true for a
-// directory to enter it, for example so **/*.go can match children.
-type Keep func(p path.Path, dir bool) bool
-
 var errStop = errors.New("stop")
 
 // Walk yields [Files] from fsys. keep is applied during the walk so a
