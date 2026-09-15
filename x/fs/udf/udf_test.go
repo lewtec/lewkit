@@ -62,9 +62,9 @@ func TestInvalidVolume(t *testing.T) {
 func TestTree(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("a/b.txt", nil, false))
-	require.NoError(t, root.add("a/c", nil, true))
-	require.NoError(t, root.add("z.txt", nil, false))
+	require.NoError(t, root.Add("a/b.txt", nil, false))
+	require.NoError(t, root.Add("a/c", nil, true))
+	require.NoError(t, root.Add("z.txt", nil, false))
 	fsys := &FS{root: root}
 
 	ents, err := fsys.ReadDir(".")
@@ -106,7 +106,7 @@ func TestTree(t *testing.T) {
 func TestPathReadDir(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("sources/install.wim", nil, false))
+	require.NoError(t, root.Add("sources/install.wim", nil, false))
 	fsys := &FS{root: root}
 	ents, err := path.New("sources").ReadDir(fsys)
 	require.NoError(t, err)
@@ -117,15 +117,15 @@ func TestPathReadDir(t *testing.T) {
 func TestDuplicateFile(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("a.txt", nil, false))
-	err := root.add("a.txt", nil, false)
+	require.NoError(t, root.Add("a.txt", nil, false))
+	err := root.Add("a.txt", nil, false)
 	require.ErrorIs(t, err, fs.ErrExist)
 }
 
 func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("a.txt", nil, false))
+	require.NoError(t, root.Add("a.txt", nil, false))
 	fsys := &FS{root: root}
 	err := path.New("a.txt").WriteFile(fsys, []byte("x"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
@@ -134,7 +134,7 @@ func TestWriteReadOnly(t *testing.T) {
 func TestAddDirTwice(t *testing.T) {
 	t.Parallel()
 	root := newDir(".")
-	require.NoError(t, root.add("a", nil, true))
-	require.NoError(t, root.add("a", nil, true))
-	require.NoError(t, root.add("a/b.txt", nil, false))
+	require.NoError(t, root.Add("a", nil, true))
+	require.NoError(t, root.Add("a", nil, true))
+	require.NoError(t, root.Add("a/b.txt", nil, false))
 }

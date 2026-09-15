@@ -3,38 +3,26 @@
 package wim
 
 import (
-	"cmp"
 	"io"
 	"io/fs"
-	"slices"
-	"time"
 
 	winwim "github.com/Microsoft/go-winio/wim"
+
+	"github.com/lewtec/lewkit/x/fs/internal/dtree"
 )
 
-func (n *dnode) open() (fs.File, error) {
-	if n.dir {
-		return &dirFile{n: n, infos: n.readDir()}, nil
+func openNode(n *dnode) (fs.File, error) {
+	if n.Dir {
+		return &dtree.DirFile{Info: nodeInfo(n), Ents: n.Entries(nodeInfo)}, nil
 	}
-	if n.wf == nil {
-		return nil, &fs.PathError{Op: "open", Path: n.name, Err: fs.ErrInvalid}
+	if n.Val == nil {
+		return nil, &fs.PathError{Op: "open", Path: n.Name, Err: fs.ErrInvalid}
 	}
-	return &file{info: n.info(), wf: n.wf}, nil
-}
-
-func (n *dnode) readDir() []fs.DirEntry {
-	out := make([]fs.DirEntry, 0, len(n.kids))
-	for _, k := range n.kids {
-		out = append(out, fs.FileInfoToDirEntry(k.info()))
-	}
-	slices.SortFunc(out, func(a, b fs.DirEntry) int {
-		return cmp.Compare(a.Name(), b.Name())
-	})
-	return out
+	return &file{info: nodeInfo(n), wf: n.Val}, nil
 }
 
 type file struct {
-	info fileInfo
+	info fs.FileInfo
 	wf   *winwim.File
 	r    io.ReadCloser
 }
@@ -62,52 +50,3 @@ func (f *file) Close() error {
 	f.r = nil
 	return err
 }
-
-type dirFile struct {
-	n     *dnode
-	infos []fs.DirEntry
-	off   int
-}
-
-func (d *dirFile) Stat() (fs.FileInfo, error) { return d.n.info(), nil }
-
-func (d *dirFile) Read([]byte) (int, error) {
-	return 0, &fs.PathError{Op: "read", Path: d.n.name, Err: fs.ErrInvalid}
-}
-
-func (d *dirFile) Close() error { return nil }
-
-func (d *dirFile) ReadDir(n int) ([]fs.DirEntry, error) {
-	if d.off >= len(d.infos) {
-		if n <= 0 {
-			return nil, nil
-		}
-		return nil, io.EOF
-	}
-	if n <= 0 {
-		out := d.infos[d.off:]
-		d.off = len(d.infos)
-		return out, nil
-	}
-	end := d.off + n
-	if end > len(d.infos) {
-		end = len(d.infos)
-	}
-	out := d.infos[d.off:end]
-	d.off = end
-	return out, nil
-}
-
-type fileInfo struct {
-	name string
-	size int64
-	mode fs.FileMode
-	mod  time.Time
-}
-
-func (i fileInfo) Name() string       { return i.name }
-func (i fileInfo) Size() int64        { return i.size }
-func (i fileInfo) Mode() fs.FileMode  { return i.mode }
-func (i fileInfo) ModTime() time.Time { return i.mod }
-func (i fileInfo) IsDir() bool        { return i.mode.IsDir() }
-func (i fileInfo) Sys() any           { return nil }

@@ -57,7 +57,7 @@ func walkUDF(root *dnode, items []udf.File, prefix string) error {
 			return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
 		}
 		if item.IsDir() {
-			if err := root.add(p, item, true); err != nil {
+			if err := root.Add(p, item, true); err != nil {
 				return err
 			}
 			if err := walkUDF(root, item.ReadDir(), p); err != nil {
@@ -65,7 +65,7 @@ func walkUDF(root *dnode, items []udf.File, prefix string) error {
 			}
 			continue
 		}
-		if err := root.add(p, item, false); err != nil {
+		if err := root.Add(p, item, false); err != nil {
 			return err
 		}
 	}
