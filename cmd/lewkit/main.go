@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/lewtec/lewkit/report/sentry"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db/generate"
 )
@@ -18,7 +19,12 @@ func main() {
 }
 
 type root struct {
+	sentry   sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:""`
 	generate *generateCmd
+}
+
+func (r *root) Setup() error {
+	return r.sentry.Setup()
 }
 
 type generateCmd struct {

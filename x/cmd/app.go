@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/lewtec/lewkit/report/sentry"
 	"github.com/lewtec/lewkit/x/profile"
 	"github.com/lewtec/lewkit/x/release"
 )
@@ -18,12 +17,11 @@ type None struct{}
 
 // App wraps process-wide flags around T, the rest of the command spec.
 type App[T any] struct {
-	verbose    Count      `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
-	profileDir StringArg  `long:"profile-dir" help:"write pprof profiles here" default:"" ctx:"profile-dir"`
-	sentry     sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"" ctx:"sentry-dsn"`
-	help       Flag       `short:"h" long:"help" help:"show help" ctx:"help"`
-	version    Flag       `long:"version" help:"print version" ctx:"version"`
-	Args       T          `flatten:""`
+	verbose    Count     `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
+	profileDir StringArg `long:"profile-dir" help:"write pprof profiles here" default:"" ctx:"profile-dir"`
+	help       Flag      `short:"h" long:"help" help:"show help" ctx:"help"`
+	version    Flag      `long:"version" help:"print version" ctx:"version"`
+	Args       T         `flatten:""`
 }
 
 // LogLevel is slog.LevelInfo minus 4 for each -v/--verbose count.
@@ -43,13 +41,15 @@ func (a App[T]) WantVersion() bool {
 	return a.version.Value()
 }
 
-// Setup sets the default slog level, registers Sentry when --sentry-dsn or
-// SENTRY_DSN is set, and starts the profiler in a goroutine when
-// --profile-dir is set. The profiler stops when ctx is done.
+// Setup sets the default slog level, calls Args.Setup when T has that
+// method, and starts the profiler in a goroutine when --profile-dir is
+// set. The profiler stops when ctx is done.
 func (a *App[T]) Setup(ctx context.Context) error {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: a.LogLevel()})))
-	if err := a.sentry.Setup(); err != nil {
-		return err
+	if s, ok := any(&a.Args).(interface{ Setup() error }); ok {
+		if err := s.Setup(); err != nil {
+			return err
+		}
 	}
 	if dir := a.profileDir.Value(); dir == "" {
 		return nil
@@ -84,8 +84,3 @@ func (a *App[T]) Run(ctx context.Context) error {
 	}
 	return runSelected(ctx, reflect.ValueOf(&a.Args).Elem())
 }
-
-var (
-	_ Parser      = (*sentry.Arg)(nil)
-	_ Arg[string] = (*sentry.Arg)(nil)
-)

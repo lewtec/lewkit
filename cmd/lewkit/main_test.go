@@ -15,6 +15,13 @@ func TestRootUsage(t *testing.T) {
 	assert.True(t, strings.HasPrefix(text, "Well planned primitives to be used in other projects.\n\nUsage:"))
 	assert.Contains(t, text, "log verbosity (default: 0)")
 	assert.Contains(t, text, "generate")
+	assert.Contains(t, text, "--sentry-dsn")
+	assert.Contains(t, text, "SENTRY_DSN")
+}
+
+func TestRootSentryDSN(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "https://public@example.com/1")
+	assert.Equal(t, "https://public@example.com/1", app.Args.sentry.Value())
 }
 
 func TestGenerateDbUsage(t *testing.T) {
