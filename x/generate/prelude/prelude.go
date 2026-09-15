@@ -9,14 +9,14 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
-	"io/fs"
 	"os"
 	stdpath "path"
-	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/path/pick"
 )
 
 // Run scans directory for root.go files and writes a prelude of blank
@@ -45,39 +45,43 @@ func Run(ctx context.Context, directory, dest string) error {
 	if dest == "" {
 		return write(os.Stdout, packageName, imports)
 	}
-	parent := filepath.Dir(dest)
-	outFS, err := path.Open(parent)
+	outFS, file, err := openDest(dest)
 	if err != nil {
 		return err
 	}
 	defer outFS.Close()
-	if name, err := packageOfDirectory(outFS, path.New()); err == nil {
+	if name, err := packageOfDirectory(outFS, file.Parent()); err == nil {
 		packageName = name
 	}
 	var body bytes.Buffer
 	if err := write(&body, packageName, imports); err != nil {
 		return err
 	}
-	return path.New(filepath.Base(dest)).WriteFile(outFS, body.Bytes(), 0o644)
+	if parent := file.Parent(); parent.String() != "." {
+		if err := parent.MkdirAll(outFS, 0o755); err != nil {
+			return err
+		}
+	}
+	return file.WriteFile(outFS, body.Bytes(), 0o644)
+}
+
+func openDest(dest string) (*path.Root, path.Path, error) {
+	name := path.New(dest)
+	if name.IsAbs() {
+		root, err := path.Open(name.Parent().String())
+		return root, path.New(name.Name()), err
+	}
+	root, err := path.Open(".")
+	return root, name, err
 }
 
 func rootImports(filesystem *path.Root, base string) ([]string, error) {
 	var out []string
-	for name, err := range path.New().Walk(filesystem) {
+	for file, err := range fs.Walk(filesystem, pick.Glob("**/root.go")) {
 		if err != nil {
 			return nil, err
 		}
-		if name.Name() != "root.go" {
-			continue
-		}
-		ok, err := name.IsFile(filesystem)
-		if err != nil {
-			return nil, err
-		}
-		if !ok {
-			continue
-		}
-		directory := name.Parent()
+		directory := file.Name.Parent()
 		if directory.String() == "." {
 			continue
 		}
@@ -87,17 +91,22 @@ func rootImports(filesystem *path.Root, base string) ([]string, error) {
 	return slices.Compact(out), nil
 }
 
-func packageOfDirectory(filesystem fs.FS, directory path.Path) (string, error) {
-	entries, err := directory.ReadDir(filesystem)
-	if err != nil {
-		return "", err
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || name == "prelude.go" {
+func packageOfDirectory(filesystem *path.Root, directory path.Path) (string, error) {
+	for child, err := range directory.IterDir(filesystem) {
+		if err != nil {
+			return "", err
+		}
+		if child.Suffix() != ".go" || child.Name() == "prelude.go" || strings.HasSuffix(child.Stem(), "_test") {
 			continue
 		}
-		packageName, err := packageOfFile(filesystem, directory.Join(name))
+		ok, err := child.IsFile(filesystem)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			continue
+		}
+		packageName, err := packageOfFile(filesystem, child)
 		if err == nil {
 			return packageName, nil
 		}
@@ -105,7 +114,7 @@ func packageOfDirectory(filesystem fs.FS, directory path.Path) (string, error) {
 	return "", fmt.Errorf("%w: %s", errNoPackage, directory)
 }
 
-func packageOfFile(filesystem fs.FS, file path.Path) (string, error) {
+func packageOfFile(filesystem *path.Root, file path.Path) (string, error) {
 	body, err := file.ReadFile(filesystem)
 	if err != nil {
 		return "", err
@@ -121,10 +130,13 @@ func packageOfFile(filesystem fs.FS, file path.Path) (string, error) {
 }
 
 func findImportPath(start *path.Root) (string, error) {
-	current := start.Name()
+	current, err := climbStart(start)
+	if err != nil {
+		return "", err
+	}
 	var suffix []string
 	for {
-		ancestor, err := path.Open(current)
+		ancestor, err := path.Open(current.String())
 		if err != nil {
 			return "", err
 		}
@@ -150,26 +162,25 @@ func findImportPath(start *path.Root) (string, error) {
 			return stdpath.Join(append([]string{module}, suffix...)...), nil
 		}
 		ancestor.Close()
-		parent, name, err := parentDirectory(current)
-		if err != nil {
-			return "", err
-		}
+		parent := current.Parent()
 		if parent == current {
 			return "", fmt.Errorf("%w: %s", errNoGoMod, start.Name())
 		}
-		suffix = append([]string{name}, suffix...)
+		suffix = append([]string{current.Name()}, suffix...)
 		current = parent
 	}
 }
 
-func parentDirectory(directory string) (parent, name string, err error) {
-	if directory == "." || !filepath.IsAbs(directory) {
-		directory, err = filepath.Abs(directory)
-		if err != nil {
-			return "", "", err
-		}
+func climbStart(start *path.Root) (path.Path, error) {
+	current := path.New(start.Name())
+	if current.String() != "." {
+		return current, nil
 	}
-	return filepath.Dir(directory), filepath.Base(directory), nil
+	wd, err := os.Getwd()
+	if err != nil {
+		return path.Path{}, err
+	}
+	return path.New(wd), nil
 }
 
 func moduleLine(body []byte) (string, error) {
@@ -186,6 +197,5 @@ func moduleLine(body []byte) (string, error) {
 }
 
 func write(w io.Writer, packageName string, imports []string) error {
-	file := jenFile(packageName, imports)
-	return file.Render(w)
+	return jenFile(packageName, imports).Render(w)
 }
