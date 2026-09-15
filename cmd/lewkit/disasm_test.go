@@ -15,6 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDisasmBadArchitecture(t *testing.T) {
+	_, err := cmd.Parse[cmd.App[root]]("--sentry-dsn", "", "disasm", "--architecture", "itanium", "hex", "90")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown architecture")
+}
+
 func TestDisasmUsage(t *testing.T) {
 	text, err := cmd.Usage[disasmCmd]("lewkit disasm")
 	require.NoError(t, err)

@@ -172,3 +172,33 @@ func ParseSyntax(name string) (Syntax, error) {
 	}
 	return syntax, nil
 }
+
+// Parse makes Architecture a command-line enum argument.
+func (architecture *Architecture) Parse(name string) error {
+	parsed, err := ParseArchitecture(name)
+	if err != nil {
+		return err
+	}
+	*architecture = parsed
+	return nil
+}
+
+// Parse makes Mode a command-line argument (comma-separated bits).
+func (mode *Mode) Parse(name string) error {
+	parsed, err := ParseMode(name)
+	if err != nil {
+		return err
+	}
+	*mode = parsed
+	return nil
+}
+
+// Parse makes Syntax a command-line enum argument.
+func (syntax *Syntax) Parse(name string) error {
+	parsed, err := ParseSyntax(name)
+	if err != nil {
+		return err
+	}
+	*syntax = parsed
+	return nil
+}

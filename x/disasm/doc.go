@@ -2,9 +2,8 @@
 //
 // [Open] creates an [Engine] for one [Architecture] and [Mode].
 // [Engine.Iter] yields instructions from a byte slice.
-// File formats are [ReadText]: ELF, PE, and Mach-O text sections
-// plus their symbol tables. [ELFFile], [PEFile], and [MachOFile]
-// expose [ELFFile.Symbols] and friends. [FormatInstruction] prints
+// File formats are [ReadText] / [OpenObject]: [Object] is implemented
+// by [ELFFile], [PEFile], and [MachOFile]. [FormatInstruction] prints
 // labels and operand symbol refs.
 // Hex input is [DecodeHex].
 package disasm
