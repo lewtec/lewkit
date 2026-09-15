@@ -33,11 +33,33 @@ func reporterWithTransport(t *testing.T, tr sdk.Transport) *Reporter {
 	return &Reporter{hub: sdk.NewHub(client, sdk.NewScope())}
 }
 
-func TestNewRejectsBadDSN(t *testing.T) {
+func TestParseRejectsBadDSN(t *testing.T) {
 	t.Parallel()
-	_, err := New("not-a-dsn")
-	if err == nil {
-		t.Fatal("New(not-a-dsn) = nil error")
+	var r Reporter
+	if err := r.Parse("not-a-dsn"); err == nil {
+		t.Fatal("Parse(not-a-dsn) = nil error")
+	}
+}
+
+func TestParseEmpty(t *testing.T) {
+	t.Parallel()
+	var r Reporter
+	if err := r.Parse(""); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Setup(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestParse(t *testing.T) {
+	t.Parallel()
+	var r Reporter
+	if err := r.Parse("https://public@example.com/1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.Value(); got != "https://public@example.com/1" {
+		t.Fatalf("Value() = %q", got)
 	}
 }
 
