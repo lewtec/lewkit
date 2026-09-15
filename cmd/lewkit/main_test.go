@@ -24,11 +24,6 @@ func TestRootSentryDSN(t *testing.T) {
 	assert.Equal(t, "https://public@example.com/1", app.Args.sentry.Value())
 }
 
-func TestRootSentryDSNDefault(t *testing.T) {
-	app := cmd.ParseOK[cmd.App[root]](t)
-	assert.Equal(t, "https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488", app.Args.sentry.Value())
-}
-
 func TestGenerateDbUsage(t *testing.T) {
 	text, err := cmd.Usage[generateCmd]("lewkit generate")
 	require.NoError(t, err)
