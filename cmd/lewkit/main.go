@@ -19,7 +19,7 @@ func main() {
 }
 
 type root struct {
-	sentry   sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:""`
+	sentry   sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
 	generate *generateCmd
 }
 
