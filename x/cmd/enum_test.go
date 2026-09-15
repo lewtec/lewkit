@@ -75,7 +75,7 @@ func TestUsageChoices(t *testing.T) {
 }
 
 var (
-	_ Parser         = (*EnumArg[color])(nil)
-	_ Arg[color]     = (*EnumArg[color])(nil)
-	_ ArgChooser     = EnumArg[color]{}
+	_ Parser     = (*EnumArg[color])(nil)
+	_ Arg[color] = (*EnumArg[color])(nil)
+	_ ArgChooser = EnumArg[color]{}
 )
