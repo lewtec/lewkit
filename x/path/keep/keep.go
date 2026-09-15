@@ -1,41 +1,56 @@
-package fs
+// Package keep is a predicate on a [path.Path].
+//
+// [Keep] is used to filter listings. A nil Keep keeps everything.
+// [Glob], [Prune], [And], [Or], and [Not] build one.
+package keep
 
 import "github.com/lewtec/lewkit/x/path"
 
-// Keep reports whether to copy p. dir is true when p is a directory.
+// Keep reports whether to keep p. dir is true when p is a directory.
 // A nil Keep keeps everything.
 //
-// A false file is skipped. A false directory is pruned: [Walk] does
-// not descend ([io/fs.SkipDir]); [Filter] skips names under that
-// prefix and does not pass their bodies on. Return true for a
-// directory to enter it, for example so **/*.go can match children.
+// A false file is skipped. A false directory is pruned: descendants
+// are not visited.
 type Keep func(p path.Path, dir bool) bool
 
-func (k Keep) call(p path.Path, dir bool) bool {
+func call(k Keep, p path.Path, dir bool) bool {
 	if k == nil {
 		return true
 	}
 	return k(p, dir)
 }
 
-// And keeps names that both k and other keep.
-func (k Keep) And(other Keep) Keep {
+// And keeps names that every k keeps. An empty And keeps everything.
+func And(ks ...Keep) Keep {
 	return func(p path.Path, dir bool) bool {
-		return k.call(p, dir) && other.call(p, dir)
+		for _, k := range ks {
+			if !call(k, p, dir) {
+				return false
+			}
+		}
+		return true
 	}
 }
 
-// Or keeps names that k or other keep.
-func (k Keep) Or(other Keep) Keep {
+// Or keeps names that any k keeps. An empty Or keeps nothing.
+func Or(ks ...Keep) Keep {
 	return func(p path.Path, dir bool) bool {
-		return k.call(p, dir) || other.call(p, dir)
+		if len(ks) == 0 {
+			return false
+		}
+		for _, k := range ks {
+			if call(k, p, dir) {
+				return true
+			}
+		}
+		return false
 	}
 }
 
 // Not inverts k. A nil Keep inverts to reject everything.
-func (k Keep) Not() Keep {
+func Not(k Keep) Keep {
 	return func(p path.Path, dir bool) bool {
-		return !k.call(p, dir)
+		return !call(k, p, dir)
 	}
 }
 

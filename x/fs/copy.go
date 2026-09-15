@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/path/keep"
 )
 
 // OpenFileFS creates or truncates a file.
@@ -31,7 +32,7 @@ var errStop = errors.New("stop")
 // Walk yields [Files] from fsys. keep is applied during the walk so a
 // pruned directory is never opened. A nil keep yields every name,
 // including empty directories.
-func Walk(fsys iofs.FS, keep Keep) Files {
+func Walk(fsys iofs.FS, keep keep.Keep) Files {
 	return func(yield func(File, error) bool) {
 		err := iofs.WalkDir(fsys, ".", func(name string, d iofs.DirEntry, err error) error {
 			if err != nil {
@@ -103,7 +104,7 @@ func Walk(fsys iofs.FS, keep Keep) Files {
 // Filter applies keep to a listing. A nil keep is the listing unchanged.
 // Names under a pruned directory are dropped even if that directory
 // never appeared as its own member.
-func Filter(files Files, keep Keep) Files {
+func Filter(files Files, keep keep.Keep) Files {
 	if keep == nil {
 		return files
 	}
@@ -123,7 +124,7 @@ func Filter(files Files, keep Keep) Files {
 	}
 }
 
-func pruned(p path.Path, keep Keep) bool {
+func pruned(p path.Path, keep keep.Keep) bool {
 	if keep == nil {
 		return false
 	}
