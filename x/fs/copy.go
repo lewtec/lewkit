@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/lewtec/lewkit/x/path"
-	"github.com/lewtec/lewkit/x/path/keep"
+	"github.com/lewtec/lewkit/x/path/pick"
 )
 
 // OpenFileFS creates or truncates a file.
@@ -29,10 +29,10 @@ type DestFS interface {
 
 var errStop = errors.New("stop")
 
-// Walk yields [Files] from fsys. keep is applied during the walk so a
-// pruned directory is never opened. A nil keep yields every name,
+// Walk yields [Files] from fsys. pred is applied during the walk so a
+// pruned directory is never opened. A nil pred yields every name,
 // including empty directories.
-func Walk(fsys iofs.FS, keep keep.Keep) Files {
+func Walk(fsys iofs.FS, pred pick.Pred) Files {
 	return func(yield func(File, error) bool) {
 		err := iofs.WalkDir(fsys, ".", func(name string, d iofs.DirEntry, err error) error {
 			if err != nil {
@@ -56,10 +56,10 @@ func Walk(fsys iofs.FS, keep keep.Keep) Files {
 				return nil
 			}
 			if d.IsDir() {
-				if keep != nil && !keep(p, true) {
+				if pred != nil && !pred(p, true) {
 					return iofs.SkipDir
 				}
-				if keep != nil {
+				if pred != nil {
 					return nil
 				}
 				info, err := d.Info()
@@ -71,7 +71,7 @@ func Walk(fsys iofs.FS, keep keep.Keep) Files {
 				}
 				return nil
 			}
-			if keep != nil && !keep(p, false) {
+			if pred != nil && !pred(p, false) {
 				return nil
 			}
 			info, err := d.Info()
@@ -101,11 +101,11 @@ func Walk(fsys iofs.FS, keep keep.Keep) Files {
 	}
 }
 
-// Filter applies keep to a listing. A nil keep is the listing unchanged.
+// Filter applies pred to a listing. A nil pred is the listing unchanged.
 // Names under a pruned directory are dropped even if that directory
 // never appeared as its own member.
-func Filter(files Files, keep keep.Keep) Files {
-	if keep == nil {
+func Filter(files Files, pred pick.Pred) Files {
+	if pred == nil {
 		return files
 	}
 	return func(yield func(File, error) bool) {
@@ -114,7 +114,7 @@ func Filter(files Files, keep keep.Keep) Files {
 				yield(File{}, err)
 				return
 			}
-			if f.Mode.IsDir() || pruned(f.Name, keep) || !keep(f.Name, false) {
+			if f.Mode.IsDir() || pruned(f.Name, pred) || !pred(f.Name, false) {
 				continue
 			}
 			if !yield(f, nil) {
@@ -124,12 +124,12 @@ func Filter(files Files, keep keep.Keep) Files {
 	}
 }
 
-func pruned(p path.Path, keep keep.Keep) bool {
-	if keep == nil {
+func pruned(p path.Path, pred pick.Pred) bool {
+	if pred == nil {
 		return false
 	}
 	for cur := p.Parent(); cur.String() != "." && cur.String() != ""; cur = cur.Parent() {
-		if !keep(cur, true) {
+		if !pred(cur, true) {
 			return true
 		}
 	}

@@ -7,7 +7,7 @@ import (
 	"testing/fstest"
 
 	"github.com/lewtec/lewkit/x/path"
-	"github.com/lewtec/lewkit/x/path/keep"
+	"github.com/lewtec/lewkit/x/path/pick"
 	"github.com/lewtec/lewkit/x/test"
 
 	"github.com/stretchr/testify/assert"
@@ -91,7 +91,7 @@ func TestCopyKeep(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, Copy(t.Context(), dest, Walk(src, keep.Glob("**/*.txt"))))
+	require.NoError(t, Copy(t.Context(), dest, Walk(src, pick.Glob("**/*.txt"))))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), b)
@@ -134,7 +134,7 @@ func TestCopyFilesKeep(t *testing.T) {
 		memFile("d/b.go", []byte("pkg")),
 		memFile("d/c.txt", []byte("c")),
 		memDir("empty"),
-	), keep.Glob("**/*.txt"))))
+	), pick.Glob("**/*.txt"))))
 	b, err := path.New("d", "c.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("c"), b)
@@ -155,7 +155,7 @@ func TestCopyPrune(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, Copy(t.Context(), dest, Walk(src, keep.Prune("skip"))))
+	require.NoError(t, Copy(t.Context(), dest, Walk(src, pick.Prune("skip"))))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("a"), b)
@@ -172,7 +172,7 @@ func TestCopyFilesPrune(t *testing.T) {
 	require.NoError(t, Copy(t.Context(), dest, Filter(listing(
 		memFile("a.txt", []byte("a")),
 		memFile("skip/x.txt", []byte("x")),
-	), keep.Prune("skip"))))
+	), pick.Prune("skip"))))
 	b, err := path.New("a.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("a"), b)

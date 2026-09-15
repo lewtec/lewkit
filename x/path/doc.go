@@ -98,7 +98,7 @@
 //
 // This package does not implement copy/move, owner/group,
 // or reserved Windows names. Name predicates live in
-// [github.com/lewtec/lewkit/x/path/keep].
+// [github.com/lewtec/lewkit/x/path/pick].
 //
 // # Out of scope
 //
