@@ -1,0 +1,2 @@
+- If not explicitly noted or on some contract, assume GPL.
+- Payment is required for commercial usage, contact lucas@lew.tec.br for details.
