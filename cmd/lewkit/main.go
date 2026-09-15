@@ -59,15 +59,20 @@ func (c *dbCmd) Run(ctx context.Context) error {
 }
 
 type preludeCmd struct {
-	dir cmd.WorkDirArg `help:"directory whose child folders have root.go"`
+	dir cmd.WorkDirArg `help:"directory to scan for root.go"`
+	out *cmd.StringArg `help:"prelude.go to write; stdout if omitted"`
 }
 
 func (preludeCmd) Description() string {
-	return "generate prelude.go from child root.go files"
+	return "blank-import prelude from root.go files"
 }
 
 func (c *preludeCmd) Run(ctx context.Context) error {
-	return prelude.Run(ctx, c.dir.Value())
+	dest := ""
+	if c.out != nil {
+		dest = c.out.Value()
+	}
+	return prelude.Run(ctx, c.dir.Value(), dest)
 }
 
 func (root) Description() string {

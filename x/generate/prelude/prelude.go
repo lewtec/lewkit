@@ -1,15 +1,16 @@
-// Package prelude writes prelude.go files that register child root.go packages.
+// Package prelude writes a blank-import prelude from root.go files.
 package prelude
 
 import (
 	"bufio"
 	"bytes"
-	"cmp"
 	"context"
 	"fmt"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
+	"os"
 	stdpath "path"
 	"path/filepath"
 	"slices"
@@ -18,16 +19,12 @@ import (
 	"github.com/lewtec/lewkit/x/path"
 )
 
-type commandRoot struct {
-	directory   path.Path
-	packageName string
-	importPath  string
-}
-
-// Run writes prelude.go under directory for each folder that has child
-// root.go files. Each generated init calls Registry.FromGetter on the
-// child's GetCommand.
-func Run(ctx context.Context, directory string) error {
+// Run scans directory for root.go files and writes a prelude of blank
+// imports. dest is the file to write. An empty dest prints to stdout.
+func Run(ctx context.Context, directory, dest string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if directory == "" {
 		return errDirRequired
 	}
@@ -36,88 +33,61 @@ func Run(ctx context.Context, directory string) error {
 		return err
 	}
 	defer filesystem.Close()
-	importPath, err := findImportPath(filesystem)
+	base, err := findImportPath(filesystem)
 	if err != nil {
 		return err
 	}
-	packageName, err := packageOfDirectory(filesystem, path.New())
+	imports, err := rootImports(filesystem, base)
 	if err != nil {
 		return err
 	}
-	return walk(ctx, filesystem, commandRoot{
-		directory:   path.New(),
-		packageName: packageName,
-		importPath:  importPath,
-	})
+	packageName := "prelude"
+	if dest == "" {
+		return write(os.Stdout, packageName, imports)
+	}
+	parent := filepath.Dir(dest)
+	outFS, err := path.Open(parent)
+	if err != nil {
+		return err
+	}
+	defer outFS.Close()
+	if name, err := packageOfDirectory(outFS, path.New()); err == nil {
+		packageName = name
+	}
+	var body bytes.Buffer
+	if err := write(&body, packageName, imports); err != nil {
+		return err
+	}
+	return path.New(filepath.Base(dest)).WriteFile(outFS, body.Bytes(), 0o644)
 }
 
-func walk(ctx context.Context, filesystem *path.Root, current commandRoot) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	children, err := childrenOf(filesystem, current)
-	if err != nil {
-		return err
-	}
-	if len(children) > 0 {
-		if err := write(filesystem, current, children); err != nil {
-			return err
-		}
-	}
-	for _, child := range children {
-		if err := walk(ctx, filesystem, child); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func childrenOf(filesystem *path.Root, current commandRoot) ([]commandRoot, error) {
-	var out []commandRoot
-	for child, err := range current.directory.IterDir(filesystem) {
+func rootImports(filesystem *path.Root, base string) ([]string, error) {
+	var out []string
+	for name, err := range path.New().Walk(filesystem) {
 		if err != nil {
 			return nil, err
 		}
-		isDir, err := child.IsDir(filesystem)
-		if err != nil {
-			return nil, err
-		}
-		if !isDir {
+		if name.Name() != "root.go" {
 			continue
 		}
-		rootGo := child.Join("root.go")
-		isFile, err := rootGo.IsFile(filesystem)
+		ok, err := name.IsFile(filesystem)
 		if err != nil {
 			return nil, err
 		}
-		if !isFile {
+		if !ok {
 			continue
 		}
-		packageName, err := packageOfFile(filesystem, rootGo)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", rootGo, err)
+		directory := name.Parent()
+		if directory.String() == "." {
+			continue
 		}
-		out = append(out, commandRoot{
-			directory:   child,
-			packageName: packageName,
-			importPath:  stdpath.Join(current.importPath, child.Name()),
-		})
+		out = append(out, stdpath.Join(base, directory.String()))
 	}
-	slices.SortFunc(out, func(a, b commandRoot) int {
-		return cmp.Compare(a.importPath, b.importPath)
-	})
-	return out, nil
+	slices.Sort(out)
+	return slices.Compact(out), nil
 }
 
 func packageOfDirectory(filesystem fs.FS, directory path.Path) (string, error) {
-	rootGo := directory.Join("root.go")
-	ok, err := rootGo.IsFile(filesystem)
-	if err != nil {
-		return "", err
-	}
-	if ok {
-		return packageOfFile(filesystem, rootGo)
-	}
 	entries, err := directory.ReadDir(filesystem)
 	if err != nil {
 		return "", err
@@ -213,4 +183,9 @@ func moduleLine(body []byte) (string, error) {
 		return "", err
 	}
 	return "", errNoModule
+}
+
+func write(w io.Writer, packageName string, imports []string) error {
+	file := jenFile(packageName, imports)
+	return file.Render(w)
 }
