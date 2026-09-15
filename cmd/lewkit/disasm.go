@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -90,7 +89,7 @@ func (command *disasmFileCmd) Run(ctx context.Context) error {
 	if address == 0 {
 		address = text.Address
 	}
-	return writeDisassemblyArchitecture(ctx, text.Architecture, text.Mode, text.Bytes, address)
+	return writeDisassemblyArchitecture(ctx, text.Architecture, text.Mode, text.Bytes, address, text.Symbols)
 }
 
 func writeDisassembly(ctx context.Context, code []byte, address uint64) error {
@@ -102,10 +101,10 @@ func writeDisassembly(ctx context.Context, code []byte, address uint64) error {
 	if err != nil {
 		return err
 	}
-	return writeDisassemblyArchitecture(ctx, architecture, mode, code, address)
+	return writeDisassemblyArchitecture(ctx, architecture, mode, code, address, nil)
 }
 
-func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Architecture, mode disasm.Mode, code []byte, address uint64) error {
+func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Architecture, mode disasm.Mode, code []byte, address uint64, symbols disasm.Symbols) error {
 	syntax, err := disasm.ParseSyntax(cmd.Get[string](ctx, "syntax"))
 	if err != nil {
 		return err
@@ -116,13 +115,14 @@ func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Archi
 	}
 	defer engine.Close()
 
+	names := symbols.Lookup()
 	limit := cmd.Get[uint](ctx, "count")
 	var n uint
 	for instruction, err := range engine.Iter(ctx, code, address) {
 		if err != nil {
 			return err
 		}
-		if _, err := os.Stdout.WriteString(formatInstruction(instruction)); err != nil {
+		if _, err := os.Stdout.WriteString(disasm.FormatInstruction(instruction, names)); err != nil {
 			return err
 		}
 		n++
@@ -131,14 +131,6 @@ func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Archi
 		}
 	}
 	return nil
-}
-
-func formatInstruction(instruction disasm.Instruction) string {
-	line := fmt.Sprintf("0x%08x  %-16s %s", instruction.Address, hex.EncodeToString(instruction.Bytes), instruction.Mnemonic)
-	if instruction.Operands != "" {
-		line += " " + instruction.Operands
-	}
-	return line + "\n"
 }
 
 func readInput(path string) ([]byte, error) {

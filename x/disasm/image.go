@@ -24,6 +24,7 @@ type Text struct {
 	Bytes        []byte
 	Section      string
 	Format       string
+	Symbols      Symbols
 }
 
 // ReadText reads the text section of an ELF, PE, or Mach-O image.
@@ -84,6 +85,7 @@ func readELF(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      elfSection.Name,
 		Format:       "elf",
+		Symbols:      elfSymbols(file),
 	}, nil
 }
 
@@ -175,6 +177,7 @@ func readPE(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      peSection.Name,
 		Format:       "pe",
+		Symbols:      peSymbols(file),
 	}, nil
 }
 
@@ -237,6 +240,7 @@ func readMacho(reader io.ReaderAt, section string) (Text, error) {
 		Bytes:        data,
 		Section:      machoSection.Name,
 		Format:       "macho",
+		Symbols:      machoSymbols(file),
 	}, nil
 }
 
@@ -267,4 +271,69 @@ func pickMacho(file *macho.File, name string) (*macho.Section, error) {
 		return section, nil
 	}
 	return nil, fmt.Errorf("%w: %s", ErrNoText, name)
+}
+
+func elfSymbols(file *elf.File) Symbols {
+	var functions, others Symbols
+	add := func(list []elf.Symbol, err error) {
+		if err != nil {
+			return
+		}
+		for _, symbol := range list {
+			if symbol.Name == "" || symbol.Value == 0 {
+				continue
+			}
+			switch elf.ST_TYPE(symbol.Info) {
+			case elf.STT_FILE, elf.STT_SECTION:
+				continue
+			case elf.STT_FUNC:
+				functions = append(functions, Symbol{Name: symbol.Name, Address: symbol.Value})
+			default:
+				others = append(others, Symbol{Name: symbol.Name, Address: symbol.Value})
+			}
+		}
+	}
+	list, err := file.Symbols()
+	add(list, err)
+	list, err = file.DynamicSymbols()
+	add(list, err)
+	return append(functions, others...)
+}
+
+func peSymbols(file *pe.File) Symbols {
+	if len(file.COFFSymbols) == 0 {
+		return nil
+	}
+	var out Symbols
+	for i := 0; i < len(file.COFFSymbols); i++ {
+		symbol := file.COFFSymbols[i]
+		name, err := symbol.FullName(file.StringTable)
+		if err != nil || name == "" {
+			continue
+		}
+		if symbol.SectionNumber <= 0 || int(symbol.SectionNumber) > len(file.Sections) {
+			continue
+		}
+		section := file.Sections[symbol.SectionNumber-1]
+		out = append(out, Symbol{
+			Name:    name,
+			Address: uint64(section.VirtualAddress) + uint64(symbol.Value),
+		})
+		i += int(symbol.NumberOfAuxSymbols)
+	}
+	return out
+}
+
+func machoSymbols(file *macho.File) Symbols {
+	if file.Symtab == nil {
+		return nil
+	}
+	var out Symbols
+	for _, symbol := range file.Symtab.Syms {
+		if symbol.Name == "" || symbol.Value == 0 {
+			continue
+		}
+		out = append(out, Symbol{Name: symbol.Name, Address: symbol.Value})
+	}
+	return out
 }
