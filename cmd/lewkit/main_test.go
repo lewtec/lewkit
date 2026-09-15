@@ -16,6 +16,7 @@ func TestRootUsage(t *testing.T) {
 	assert.True(t, strings.HasPrefix(text, "Well planned primitives to be used in other projects.\n\nUsage:"))
 	assert.Contains(t, text, "log verbosity (default: 0)")
 	assert.Contains(t, text, "generate")
+	assert.Contains(t, text, "disasm")
 	assert.Contains(t, text, "--sentry-dsn")
 	assert.Contains(t, text, "SENTRY_DSN")
 }
