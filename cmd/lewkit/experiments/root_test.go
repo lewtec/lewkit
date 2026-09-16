@@ -33,6 +33,7 @@ func TestDemoUsage(t *testing.T) {
 	assert.Contains(t, text, "many")
 	assert.Contains(t, text, "tree")
 	assert.Contains(t, text, "lines")
+	assert.Contains(t, text, "rsync")
 	assert.True(t, strings.Contains(text, "taskgroup") || strings.Contains(text, "showcase"))
 }
 

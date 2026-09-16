@@ -22,6 +22,7 @@ type Demo struct {
 	Many   *manyCmd
 	Tree   *treeCmd
 	Lines  *linesCmd
+	Rsync  *rsyncCmd
 }
 
 func (Demo) Description() string {
