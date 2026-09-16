@@ -50,6 +50,48 @@ func (a atOnly) ReadAt(p []byte, off int64) (int, error) {
 	return n, nil
 }
 
+type nameEnt string
+
+func (e nameEnt) Name() string               { return string(e) }
+func (nameEnt) IsDir() bool                  { return false }
+func (nameEnt) Type() iofs.FileMode          { return 0 }
+func (nameEnt) Info() (iofs.FileInfo, error) { return nil, iofs.ErrInvalid }
+
+func TestDirEntries(t *testing.T) {
+	t.Parallel()
+	ents := []iofs.DirEntry{nameEnt("a"), nameEnt("b"), nameEnt("c")}
+
+	off := 0
+	got, err := DirEntries(ents, &off, 1)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "a", got[0].Name())
+	assert.Equal(t, 1, off)
+
+	got, err = DirEntries(ents, &off, 2)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, "b", got[0].Name())
+	assert.Equal(t, "c", got[1].Name())
+	assert.Equal(t, 3, off)
+
+	got, err = DirEntries(ents, &off, 1)
+	require.ErrorIs(t, err, io.EOF)
+	assert.Nil(t, got)
+
+	got, err = DirEntries(ents, &off, 0)
+	require.NoError(t, err)
+	assert.Nil(t, got)
+
+	off = 1
+	got, err = DirEntries(ents, &off, 0)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, "b", got[0].Name())
+	assert.Equal(t, "c", got[1].Name())
+	assert.Equal(t, 3, off)
+}
+
 func TestSize(t *testing.T) {
 	t.Parallel()
 	n, err := Size("open", strings.NewReader("hello"))
