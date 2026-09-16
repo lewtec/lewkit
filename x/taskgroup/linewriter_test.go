@@ -2,6 +2,7 @@ package taskgroup
 
 import (
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -76,6 +77,20 @@ func TestLiveHubAbandonAll(t *testing.T) {
 	assert.Empty(t, printed)
 	_, err = w.Write([]byte("x"))
 	require.ErrorIs(t, err, io.ErrClosedPipe)
+}
+
+func TestLogWriterPassesCSI(t *testing.T) {
+	s, _ := New(t.Context(), DefaultLimits())
+	var got []string
+	s.SetLinePrint(func(line string) { got = append(got, line) })
+	_, err := s.LogWriter().Write([]byte("\x1b[41;1mE\x1b[0m fail key=v\n"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"\x1b[41;1mE\x1b[0m fail key=v"}, got)
+}
+
+func TestLogWriterNoTUIIsStderr(t *testing.T) {
+	s, _ := New(t.Context(), DefaultLimits())
+	assert.Equal(t, os.Stderr, s.LogWriter())
 }
 
 func TestLineWriterFromNoSession(t *testing.T) {
