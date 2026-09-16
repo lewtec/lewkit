@@ -10,9 +10,9 @@ import (
 // land on the parent. Zero flags keep the Limits passed to Enter (config
 // or DefaultLimits).
 type Arg struct {
-	IO       cmd.IntArg[int] `long:"io" help:"max concurrent IO tasks (0 keeps config/default)" default:"0"`
-	CPU      cmd.IntArg[int] `long:"cpu" help:"max concurrent CPU tasks (0 keeps config/default)" default:"0"`
-	Internet cmd.IntArg[int] `long:"internet" help:"max concurrent network tasks (0 keeps config/default)" default:"0"`
+	IO       cmd.IntArg[int] `long:"io" ctx:"" help:"max concurrent IO tasks (0 keeps config/default)" default:"0"`
+	CPU      cmd.IntArg[int] `long:"cpu" ctx:"" help:"max concurrent CPU tasks (0 keeps config/default)" default:"0"`
+	Internet cmd.IntArg[int] `long:"internet" ctx:"" help:"max concurrent network tasks (0 keeps config/default)" default:"0"`
 }
 
 func (a Arg) Apply(base Limits) Limits {

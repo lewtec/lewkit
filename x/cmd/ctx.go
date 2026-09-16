@@ -29,6 +29,22 @@ func Get[T any](ctx context.Context, key string) T {
 	return t
 }
 
+// Lookup returns the value stored under key, or false when the bag,
+// key, or type does not match.
+func Lookup[T any](ctx context.Context, key string) (T, bool) {
+	var z T
+	b, ok := ctx.Value(bagKey{}).(valueBag)
+	if !ok {
+		return z, false
+	}
+	v, ok := b[key]
+	if !ok {
+		return z, false
+	}
+	t, ok := v.(T)
+	return t, ok
+}
+
 func withValues(ctx context.Context) context.Context {
 	if _, ok := ctx.Value(bagKey{}).(valueBag); ok {
 		return ctx

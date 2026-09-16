@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLookupMissing(t *testing.T) {
+	_, ok := Lookup[int](t.Context(), "verbose")
+	assert.False(t, ok)
+}
+
 func TestGetAppFlags(t *testing.T) {
 	app := ParseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
 	ctx := withValues(t.Context())
