@@ -24,6 +24,7 @@ type model struct {
 	nodes   []taskgroup.Node
 	width   int
 	max     int
+	done    bool
 }
 
 type treeRow struct {
@@ -42,6 +43,10 @@ func newModel(s *taskgroup.Session) model {
 
 func (m *model) sync(nodes []taskgroup.Node) {
 	m.nodes = nodes
+}
+
+func (m model) shouldQuit() bool {
+	return m.done && len(m.nodes) == 0
 }
 
 func (m model) View() (view tea.View) {

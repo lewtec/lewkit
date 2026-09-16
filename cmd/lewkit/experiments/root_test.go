@@ -31,5 +31,6 @@ func TestDemoUsage(t *testing.T) {
 	assert.Contains(t, text, "loop")
 	assert.Contains(t, text, "map")
 	assert.Contains(t, text, "many")
+	assert.Contains(t, text, "tree")
 	assert.True(t, strings.Contains(text, "taskgroup") || strings.Contains(text, "showcase"))
 }

@@ -20,6 +20,7 @@ type Demo struct {
 	Loop   *loopCmd
 	Map    *mapCmd `cmd:"map"`
 	Many   *manyCmd
+	Tree   *treeCmd
 }
 
 func (Demo) Description() string {

@@ -1,8 +1,9 @@
 // Package progress is a bubbletea view of a taskgroup Session.
 //
 // Run polls Session.List until work finishes and draws a nom-style
-// tree (├ └ │, status glyphs). Non-tty, TERM=dumb, CI, and NO_COLOR
-// skip the TUI and Wait. LEWKIT_FORCE_TUI=1 forces the TUI.
+// tree (├ └ │, status glyphs). The last frame is empty: the view
+// quits only after Wait and List is empty. Non-tty, TERM=dumb, CI,
+// and NO_COLOR skip the TUI and Wait. LEWKIT_FORCE_TUI=1 forces the TUI.
 package progress
 
 import (
@@ -75,7 +76,7 @@ func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context
 			err = werr
 		}
 		errc <- err
-		p.Quit()
+		p.Send(doneMsg{})
 	}()
 
 	_, uiErr := p.Run()
@@ -91,6 +92,8 @@ func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context
 
 type tickMsg time.Time
 
+type doneMsg struct{}
+
 func (m model) Init() tea.Cmd {
 	return m.tick()
 }
@@ -99,6 +102,12 @@ func (m model) tick() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
+}
+
+func (m model) refresh() {
+	if m.session != nil {
+		m.sync(m.session.List(m.max))
+	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -115,9 +124,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width = msg.Width
 		}
 		return m, nil
+	case doneMsg:
+		m.done = true
+		m.refresh()
+		if m.shouldQuit() {
+			return m, tea.Quit
+		}
+		return m, m.tick()
 	case tickMsg:
-		if m.session != nil {
-			m.sync(m.session.List(m.max))
+		m.refresh()
+		if m.shouldQuit() {
+			return m, tea.Quit
 		}
 		return m, m.tick()
 	}

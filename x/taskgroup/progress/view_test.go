@@ -83,6 +83,33 @@ func TestFormatRowPendingNoBar(t *testing.T) {
 	}
 }
 
+func TestQuitAfterDoneWhenListEmpty(t *testing.T) {
+	m := newModel(nil)
+	m.done = true
+	next, cmd := m.Update(tickMsg{})
+	got := next.(model)
+	if !got.shouldQuit() {
+		t.Fatal("want quit when done and list empty")
+	}
+	if cmd == nil {
+		t.Fatal("want Quit cmd")
+	}
+}
+
+func TestKeepTickingWhenDoneButLive(t *testing.T) {
+	m := newModel(nil)
+	m.done = true
+	m.nodes = []taskgroup.Node{{ID: 1, Name: "left", State: taskgroup.Pending}}
+	next, cmd := m.Update(tickMsg{})
+	got := next.(model)
+	if got.shouldQuit() {
+		t.Fatal("must not quit while live rows remain")
+	}
+	if cmd == nil {
+		t.Fatal("want another tick while live rows remain")
+	}
+}
+
 func TestViewResizeSwitchesLayout(t *testing.T) {
 	m := newModel(nil)
 	m.sync([]taskgroup.Node{
