@@ -163,7 +163,8 @@ func (a *NDFA) epsilonClosure(set CursorSet) CursorSet {
 	return uniqueCursors(out)
 }
 
-func isOption(token string) bool {
+// IsOption is a CLI token that starts with '-' and is not a lone dash.
+func IsOption(token string) bool {
 	return len(token) > 1 && token[0] == '-' && token != "-"
 }
 
@@ -171,7 +172,7 @@ func matchValue(e Edge, token string) bool {
 	if token == "--" {
 		return false
 	}
-	if isOption(token) && !e.AcceptAny {
+	if IsOption(token) && !e.AcceptAny {
 		return false
 	}
 	if len(e.Choices) > 0 && !slices.Contains(e.Choices, token) {

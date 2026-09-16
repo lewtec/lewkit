@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/lewtec/lewkit/x/cmd/internal/ndfa"
 )
 
 type fieldKind int
@@ -895,7 +897,7 @@ func (f field) display() string {
 }
 
 func isOption(a string) bool {
-	return len(a) > 1 && a[0] == '-' && a != "-"
+	return ndfa.IsOption(a)
 }
 
 type rvalue struct{ reflect.Value }
