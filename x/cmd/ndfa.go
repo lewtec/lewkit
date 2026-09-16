@@ -90,33 +90,49 @@ func flagsOf(s *spec) []flagInfo {
 }
 
 func mergeFlags(own, inherited []flagInfo) []flagInfo {
+	return mergeNamedFlags(own, inherited,
+		func(info flagInfo) (string, rune) { return info.field.long, info.field.short },
+		func(info flagInfo, long string, short rune) flagInfo {
+			info.field.long = long
+			info.field.short = short
+			return info
+		},
+	)
+}
+
+func mergeNamedFlags[T any](own, inherited []T, names func(T) (string, rune), apply func(T, string, rune) T) []T {
 	out := slices.Clone(own)
 	longs := make(map[string]struct{})
 	shorts := make(map[rune]struct{})
-	for _, info := range own {
-		if info.field.long != "" {
-			longs[info.field.long] = struct{}{}
+	for _, item := range own {
+		long, short := names(item)
+		if long != "" {
+			longs[long] = struct{}{}
 		}
-		if info.field.short != 0 {
-			shorts[info.field.short] = struct{}{}
+		if short != 0 {
+			shorts[short] = struct{}{}
 		}
 	}
-	for _, info := range inherited {
-		next := info
-		if next.field.long != "" {
-			if _, ok := longs[next.field.long]; ok {
-				next.field.long = ""
+	for _, item := range inherited {
+		long, short := names(item)
+		if long != "" {
+			if _, ok := longs[long]; ok {
+				long = ""
+			} else {
+				longs[long] = struct{}{}
 			}
 		}
-		if next.field.short != 0 {
-			if _, ok := shorts[next.field.short]; ok {
-				next.field.short = 0
+		if short != 0 {
+			if _, ok := shorts[short]; ok {
+				short = 0
+			} else {
+				shorts[short] = struct{}{}
 			}
 		}
-		if next.field.long == "" && next.field.short == 0 {
+		if long == "" && short == 0 {
 			continue
 		}
-		out = append(out, next)
+		out = append(out, apply(item, long, short))
 	}
 	return out
 }
