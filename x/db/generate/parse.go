@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"context"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -77,10 +78,13 @@ type structType struct {
 	fields []field
 }
 
-func loadGenerated(root string, engines []engine) (map[string][]method, map[string][]structType, error) {
+func loadGenerated(ctx context.Context, root string, engines []engine) (map[string][]method, map[string][]structType, error) {
 	methods := map[string][]method{}
 	types := map[string][]structType{}
 	for _, e := range engines {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		dir := filepath.Join(root, e.dir)
 		ms, ts, err := parsePkg(dir)
 		if err != nil {

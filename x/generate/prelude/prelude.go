@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/fs"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/path/pick"
 )
@@ -43,7 +43,7 @@ func Run(ctx context.Context, directory, dest string) error {
 	}
 	packageName := "prelude"
 	if dest == "" {
-		return write(os.Stdout, packageName, imports)
+		return write(lewfs.ContextWriter(ctx, os.Stdout), packageName, imports)
 	}
 	outFS, file, err := openDest(dest)
 	if err != nil {
@@ -77,7 +77,7 @@ func openDest(dest string) (*path.Root, path.Path, error) {
 
 func rootImports(ctx context.Context, filesystem *path.Root, base string) ([]string, error) {
 	var out []string
-	for file, err := range fs.Walk(ctx, filesystem, pick.Glob("**/root.go")) {
+	for file, err := range lewfs.Walk(ctx, filesystem, pick.Glob("**/root.go")) {
 		if err != nil {
 			return nil, err
 		}

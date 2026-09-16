@@ -1,6 +1,7 @@
 package path
 
 import (
+	"context"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -37,9 +38,20 @@ func TestGlob(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, names(test.Collect(t, New(tc.root).Glob(fsys, tc.pattern))))
+			assert.Equal(t, tc.want, names(test.Collect(t, New(tc.root).Glob(t.Context(), fsys, tc.pattern))))
 		})
 	}
+}
+
+func TestGlobCancel(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var got error
+	for _, err := range New(".").Glob(ctx, fstest.MapFS{"a.txt": {Data: []byte("x")}}, "**") {
+		got = err
+	}
+	require.ErrorIs(t, got, context.Canceled)
 }
 
 func TestRglob(t *testing.T) {
@@ -49,7 +61,7 @@ func TestRglob(t *testing.T) {
 		"dir/c.py":     {Data: []byte("c")},
 		"dir/sub/d.py": {Data: []byte("d")},
 	}
-	assert.Equal(t, []string{"dir/c.py", "dir/sub/d.py"}, names(test.Collect(t, New("dir").Rglob(fsys, "*.py"))))
+	assert.Equal(t, []string{"dir/c.py", "dir/sub/d.py"}, names(test.Collect(t, New("dir").Rglob(t.Context(), fsys, "*.py"))))
 }
 
 func TestGlobStarAll(t *testing.T) {
@@ -58,13 +70,13 @@ func TestGlobStarAll(t *testing.T) {
 		"a.txt":    {Data: []byte("a")},
 		"dir/b.py": {Data: []byte("b")},
 	}
-	assert.Equal(t, []string{".", "a.txt", "dir", "dir/b.py"}, names(test.Collect(t, New(".").Glob(fsys, "**"))))
+	assert.Equal(t, []string{".", "a.txt", "dir", "dir/b.py"}, names(test.Collect(t, New(".").Glob(t.Context(), fsys, "**"))))
 }
 
 func TestGlobDedup(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{"dir/a.txt": {Data: []byte("a")}}
-	assert.Equal(t, []string{"dir/a.txt"}, names(test.Collect(t, New(".").Glob(fsys, "**/**/*.txt"))))
+	assert.Equal(t, []string{"dir/a.txt"}, names(test.Collect(t, New(".").Glob(t.Context(), fsys, "**/**/*.txt"))))
 }
 
 func TestGlobStop(t *testing.T) {
@@ -75,7 +87,7 @@ func TestGlobStop(t *testing.T) {
 		"c.py": {Data: []byte("c")},
 	}
 	n := 0
-	for _, err := range New(".").Glob(fsys, "*.py") {
+	for _, err := range New(".").Glob(t.Context(), fsys, "*.py") {
 		require.NoError(t, err)
 		n++
 		if n == 1 {
@@ -92,7 +104,7 @@ func TestGlobBadPattern(t *testing.T) {
 		t.Run(pat, func(t *testing.T) {
 			t.Parallel()
 			var err error
-			for _, e := range New(".").Glob(fsys, pat) {
+			for _, e := range New(".").Glob(t.Context(), fsys, pat) {
 				err = e
 				break
 			}
@@ -110,8 +122,8 @@ func TestGlobNoFollowStarStar(t *testing.T) {
 	require.NoError(t, New("real", "hit.py").WriteFile(root, nil, 0o644))
 	require.NoError(t, New("link").Symlink(root, New("real")))
 
-	assert.Equal(t, []string{"real/hit.py"}, names(test.Collect(t, New(".").Glob(root, "**/*.py"))))
-	assert.Equal(t, []string{"real/hit.py"}, names(test.Collect(t, New(".").Glob(root, "*/*.py"))))
+	assert.Equal(t, []string{"real/hit.py"}, names(test.Collect(t, New(".").Glob(t.Context(), root, "**/*.py"))))
+	assert.Equal(t, []string{"real/hit.py"}, names(test.Collect(t, New(".").Glob(t.Context(), root, "*/*.py"))))
 }
 
 func names(ps []Path) []string {

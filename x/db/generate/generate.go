@@ -45,7 +45,7 @@ func Run(ctx context.Context, dir string) error {
 	if err != nil {
 		return err
 	}
-	engines, err := scan(dir)
+	engines, err := scan(ctx, dir)
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func Run(ctx context.Context, dir string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	methods, types, err := loadGenerated(dir, engines)
+	methods, types, err := loadGenerated(ctx, dir, engines)
 	if err != nil {
 		return err
 	}

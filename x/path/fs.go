@@ -1,6 +1,7 @@
 package path
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"iter"
@@ -254,9 +255,17 @@ func (p Path) WalkDir(fsys fs.FS, fn fs.WalkDirFunc) error {
 }
 
 // Walk yields p and every name under it.
-func (p Path) Walk(fsys fs.FS) iter.Seq2[Path, error] {
+func (p Path) Walk(ctx context.Context, fsys fs.FS) iter.Seq2[Path, error] {
 	return func(yield func(Path, error) bool) {
+		if err := ctx.Err(); err != nil {
+			yield(Path{}, context.Cause(ctx))
+			return
+		}
 		err := fs.WalkDir(fsys, p.s, func(name string, _ fs.DirEntry, err error) error {
+			if err := ctx.Err(); err != nil {
+				yield(Path{}, context.Cause(ctx))
+				return fs.SkipAll
+			}
 			if err != nil {
 				if !yield(Path{s: name}, err) {
 					return fs.SkipAll

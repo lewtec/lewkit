@@ -1,6 +1,7 @@
 package path
 
 import (
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -34,13 +35,24 @@ func TestReadMapFS(t *testing.T) {
 	require.Len(t, ents, 1)
 	assert.Equal(t, "b.txt", ents[0].Name())
 
-	assert.Equal(t, []string{"dir/b.txt"}, names(test.Collect(t, New("dir").Glob(fsys, "*.txt"))))
+	assert.Equal(t, []string{"dir/b.txt"}, names(test.Collect(t, New("dir").Glob(t.Context(), fsys, "*.txt"))))
 
-	walked := names(test.Collect(t, New(".").Walk(fsys)))
+	walked := names(test.Collect(t, New(".").Walk(t.Context(), fsys)))
 	assert.Contains(t, walked, "a.txt")
 	assert.Contains(t, walked, "dir/b.txt")
 
 	assert.Equal(t, []Path{New("dir/b.txt")}, test.Collect(t, New("dir").IterDir(fsys)))
+}
+
+func TestWalkCancel(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var got error
+	for _, err := range New(".").Walk(ctx, fstest.MapFS{"a.txt": {Data: []byte("x")}}) {
+		got = err
+	}
+	require.ErrorIs(t, got, context.Canceled)
 }
 
 func TestPredicates(t *testing.T) {

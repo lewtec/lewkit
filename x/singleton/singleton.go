@@ -10,7 +10,7 @@ type Singleton[T any] interface {
 }
 
 func NewSingleton[T any](f func(context.Context) (T, error)) Singleton[T] {
-	return &naiveSingleton[T]{}
+	return &naiveSingleton[T]{handler: f}
 }
 
 func NewSingletonFunc[T any](f func(context.Context) (T, error)) func() T {
@@ -28,10 +28,24 @@ type naiveSingleton[T any] struct {
 }
 
 func (s *naiveSingleton[T]) GetContext(ctx context.Context) (T, error) {
-	s.once.Do(func() {
-		s.item, s.err = s.handler(ctx)
-	})
-	return s.item, s.err
+	if err := ctx.Err(); err != nil {
+		var z T
+		return z, context.Cause(ctx)
+	}
+	done := make(chan struct{})
+	go func() {
+		s.once.Do(func() {
+			s.item, s.err = s.handler(ctx)
+		})
+		close(done)
+	}()
+	select {
+	case <-ctx.Done():
+		var z T
+		return z, context.Cause(ctx)
+	case <-done:
+		return s.item, s.err
+	}
 }
 
 func Get[T any](s Singleton[T]) (T, error) {

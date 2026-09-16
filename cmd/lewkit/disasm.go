@@ -8,6 +8,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/disasm"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 type disasmCmd struct {
@@ -108,15 +109,13 @@ func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Archi
 
 	names := symbols.Lookup()
 	limit := cmd.Get[uint](ctx, "count")
+	out := lewfs.ContextWriter(ctx, os.Stdout)
 	var n uint
 	for instruction, err := range engine.Iter(ctx, code, address) {
 		if err != nil {
 			return err
 		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if _, err := os.Stdout.WriteString(disasm.FormatInstruction(instruction, names)); err != nil {
+		if _, err := io.WriteString(out, disasm.FormatInstruction(instruction, names)); err != nil {
 			return err
 		}
 		n++
@@ -131,15 +130,20 @@ func readInput(ctx context.Context, path string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, context.Cause(ctx)
 	}
-	if path != "" && path != "-" {
-		return os.ReadFile(path)
-	}
 	done := make(chan struct {
 		b   []byte
 		err error
 	}, 1)
 	go func() {
-		b, err := io.ReadAll(os.Stdin)
+		var (
+			b   []byte
+			err error
+		)
+		if path != "" && path != "-" {
+			b, err = os.ReadFile(path)
+		} else {
+			b, err = io.ReadAll(os.Stdin)
+		}
 		done <- struct {
 			b   []byte
 			err error

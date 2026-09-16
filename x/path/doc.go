@@ -60,7 +60,8 @@
 // Optional interfaces on the filesystem apply as in the standard library.
 //
 // [Path.Glob] and [Path.Rglob] yield matches via doublestar. "**" does
-// not follow symlinks. [Path.Walk] yields names under p.
+// not follow symlinks. [Path.Walk] yields names under p. All three
+// take a context and stop when it is done.
 //
 // [Path.Select] and [Path.Under] filter a name iterator.
 // [Path.MatchGlob] is doublestar against one name. A container
