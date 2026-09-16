@@ -8,35 +8,38 @@ import (
 	"unicode/utf8"
 )
 
-type edgeKind byte
+// EdgeKind is the label class on an NDFA transition.
+type EdgeKind byte
 
 const (
-	edgeEpsilon edgeKind = iota
-	edgeLiteral
-	edgeFlag
-	edgeValue
+	EdgeEpsilon EdgeKind = iota
+	EdgeLiteral
+	EdgeFlag
+	EdgeValue
 )
 
-type edge struct {
-	kind        edgeKind
-	to          int
-	literal     string
-	long        string
-	short       rune
-	help        string
-	choices     []string
-	acceptAny   bool
-	hasValue    bool
-	suggestKind SuggestKind
+// Edge is one NDFA transition.
+type Edge struct {
+	Kind        EdgeKind
+	To          int
+	Literal     string
+	Long        string
+	Short       rune
+	Help        string
+	Choices     []string
+	AcceptAny   bool
+	HasValue    bool
+	SuggestKind SuggestKind
 }
 
-type ndfa struct {
-	start  int
-	states [][]edge
+// NDFA is the token automaton compiled from a command spec.
+type NDFA struct {
+	Start  int
+	States [][]Edge
 }
 
 type compiler struct {
-	automaton *ndfa
+	automaton *NDFA
 }
 
 type flagInfo struct {
@@ -44,50 +47,56 @@ type flagInfo struct {
 	typ   reflect.Type
 }
 
-func compileNDFA(root reflect.Value) (*ndfa, error) {
+// CompileNDFA builds the token NDFA for T.
+func CompileNDFA[T any]() (*NDFA, error) {
+	var zero T
+	return compileNDFA(reflect.ValueOf(&zero).Elem())
+}
+
+func compileNDFA(root reflect.Value) (*NDFA, error) {
 	s, err := newSpec(root)
 	if err != nil {
 		return nil, err
 	}
-	c := &compiler{automaton: &ndfa{}}
+	c := &compiler{automaton: &NDFA{}}
 	optionStart, _, err := c.spec(s, nil)
 	if err != nil {
 		return nil, err
 	}
-	c.automaton.start = optionStart
+	c.automaton.Start = optionStart
 	return c.automaton, nil
 }
 
 func (c *compiler) state() int {
-	c.automaton.states = append(c.automaton.states, nil)
-	return len(c.automaton.states) - 1
+	c.automaton.States = append(c.automaton.States, nil)
+	return len(c.automaton.States) - 1
 }
 
-func (c *compiler) add(from int, e edge) {
-	c.automaton.states[from] = append(c.automaton.states[from], e)
+func (c *compiler) add(from int, e Edge) {
+	c.automaton.States[from] = append(c.automaton.States[from], e)
 }
 
 func (c *compiler) epsilon(from, to int) {
-	c.add(from, edge{kind: edgeEpsilon, to: to})
+	c.add(from, Edge{Kind: EdgeEpsilon, To: to})
 }
 
 func (c *compiler) literal(from int, token string, to int, help string, suggestKind SuggestKind) {
-	c.add(from, edge{kind: edgeLiteral, to: to, literal: token, help: help, suggestKind: suggestKind})
+	c.add(from, Edge{Kind: EdgeLiteral, To: to, Literal: token, Help: help, SuggestKind: suggestKind})
 }
 
 func (c *compiler) value(from, to int, acceptAny bool, choices []string, help string) {
-	c.add(from, edge{kind: edgeValue, to: to, acceptAny: acceptAny, choices: choices, help: help, suggestKind: SuggestValue})
+	c.add(from, Edge{Kind: EdgeValue, To: to, AcceptAny: acceptAny, Choices: choices, Help: help, SuggestKind: SuggestValue})
 }
 
 func (c *compiler) flag(from int, f field, to int, hasValue bool) {
-	c.add(from, edge{
-		kind:        edgeFlag,
-		to:          to,
-		long:        f.long,
-		short:       f.short,
-		help:        f.help,
-		hasValue:    hasValue,
-		suggestKind: SuggestFlag,
+	c.add(from, Edge{
+		Kind:        EdgeFlag,
+		To:          to,
+		Long:        f.long,
+		Short:       f.short,
+		Help:        f.help,
+		HasValue:    hasValue,
+		SuggestKind: SuggestFlag,
 	})
 }
 
@@ -335,8 +344,8 @@ func (c *compiler) array(from int, t reflect.Type, dest int, acceptAny bool) {
 	}
 }
 
-func (a *ndfa) epsilonClosure(set []int) []int {
-	seen := make([]bool, len(a.states))
+func (a *NDFA) epsilonClosure(set []int) []int {
+	seen := make([]bool, len(a.States))
 	var out []int
 	var walk func(int)
 	walk = func(state int) {
@@ -345,9 +354,9 @@ func (a *ndfa) epsilonClosure(set []int) []int {
 		}
 		seen[state] = true
 		out = append(out, state)
-		for _, e := range a.states[state] {
-			if e.kind == edgeEpsilon {
-				walk(e.to)
+		for _, e := range a.States[state] {
+			if e.Kind == EdgeEpsilon {
+				walk(e.To)
 			}
 		}
 	}
@@ -365,14 +374,14 @@ func uniqueStates(in []int) []int {
 	return slices.Compact(in)
 }
 
-func matchValue(e edge, token string) bool {
+func matchValue(e Edge, token string) bool {
 	if token == "--" {
 		return false
 	}
-	if isOption(token) && !e.acceptAny {
+	if isOption(token) && !e.AcceptAny {
 		return false
 	}
-	if len(e.choices) > 0 && !slices.Contains(e.choices, token) {
+	if len(e.Choices) > 0 && !slices.Contains(e.Choices, token) {
 		return false
 	}
 	return true
@@ -382,7 +391,7 @@ func isShortCluster(token string) bool {
 	return len(token) > 2 && token[0] == '-' && token[1] != '-'
 }
 
-func (a *ndfa) stepShort(set []int, cluster string) []int {
+func (a *NDFA) stepShort(set []int, cluster string) []int {
 	if cluster == "" {
 		return nil
 	}
@@ -390,37 +399,37 @@ func (a *ndfa) stepShort(set []int, cluster string) []int {
 	rest := cluster[size:]
 	var next []int
 	for _, state := range set {
-		for _, e := range a.states[state] {
-			if e.kind != edgeFlag || e.short != r {
+		for _, e := range a.States[state] {
+			if e.Kind != EdgeFlag || e.Short != r {
 				continue
 			}
 			if rest == "" {
-				next = append(next, e.to)
+				next = append(next, e.To)
 				continue
 			}
-			if e.hasValue {
+			if e.HasValue {
 				if rest[0] == '=' {
 					rest = rest[1:]
 				}
-				next = append(next, a.step(a.epsilonClosure([]int{e.to}), rest)...)
+				next = append(next, a.step(a.epsilonClosure([]int{e.To}), rest)...)
 				continue
 			}
-			next = append(next, a.stepShort(a.epsilonClosure([]int{e.to}), rest)...)
+			next = append(next, a.stepShort(a.epsilonClosure([]int{e.To}), rest)...)
 		}
 	}
 	return next
 }
 
-func (a *ndfa) step(set []int, token string) []int {
+func (a *NDFA) step(set []int, token string) []int {
 	set = a.epsilonClosure(set)
 	var next []int
 	if name, value, ok := strings.Cut(token, "="); ok && strings.HasPrefix(token, "--") && name != "--" && name != "" {
 		long := strings.TrimPrefix(name, "--")
 		if long != "" {
 			for _, state := range set {
-				for _, e := range a.states[state] {
-					if e.kind == edgeFlag && e.long == long && e.hasValue {
-						next = append(next, a.step(a.epsilonClosure([]int{e.to}), value)...)
+				for _, e := range a.States[state] {
+					if e.Kind == EdgeFlag && e.Long == long && e.HasValue {
+						next = append(next, a.step(a.epsilonClosure([]int{e.To}), value)...)
 					}
 				}
 			}
@@ -428,22 +437,22 @@ func (a *ndfa) step(set []int, token string) []int {
 		}
 	}
 	for _, state := range set {
-		for _, e := range a.states[state] {
-			switch e.kind {
-			case edgeLiteral:
-				if token == e.literal {
-					next = append(next, e.to)
+		for _, e := range a.States[state] {
+			switch e.Kind {
+			case EdgeLiteral:
+				if token == e.Literal {
+					next = append(next, e.To)
 				}
-			case edgeFlag:
-				if e.long != "" && token == "--"+e.long {
-					next = append(next, e.to)
+			case EdgeFlag:
+				if e.Long != "" && token == "--"+e.Long {
+					next = append(next, e.To)
 				}
-				if e.short != 0 && token == "-"+string(e.short) {
-					next = append(next, e.to)
+				if e.Short != 0 && token == "-"+string(e.Short) {
+					next = append(next, e.To)
 				}
-			case edgeValue:
+			case EdgeValue:
 				if matchValue(e, token) {
-					next = append(next, e.to)
+					next = append(next, e.To)
 				}
 			}
 		}
@@ -454,7 +463,7 @@ func (a *ndfa) step(set []int, token string) []int {
 	return uniqueStates(a.epsilonClosure(next))
 }
 
-func (a *ndfa) suggest(set []int, prefix string) []Suggestion {
+func (a *NDFA) suggest(set []int, prefix string) []Suggestion {
 	set = a.epsilonClosure(set)
 	if long, value, ok := strings.Cut(strings.TrimPrefix(prefix, "--"), "="); ok && strings.HasPrefix(prefix, "--") && long != "" {
 		return a.suggestFlagEquals(set, long, value)
@@ -472,20 +481,20 @@ func (a *ndfa) suggest(set []int, prefix string) []Suggestion {
 		out = append(out, s)
 	}
 	for _, state := range set {
-		for _, e := range a.states[state] {
-			switch e.kind {
-			case edgeLiteral:
-				add(Suggestion{Text: e.literal, Help: e.help, Kind: e.suggestKind})
-			case edgeFlag:
-				if e.long != "" {
-					add(Suggestion{Text: "--" + e.long, Help: e.help, Kind: SuggestFlag})
+		for _, e := range a.States[state] {
+			switch e.Kind {
+			case EdgeLiteral:
+				add(Suggestion{Text: e.Literal, Help: e.Help, Kind: e.SuggestKind})
+			case EdgeFlag:
+				if e.Long != "" {
+					add(Suggestion{Text: "--" + e.Long, Help: e.Help, Kind: SuggestFlag})
 				}
-				if e.short != 0 {
-					add(Suggestion{Text: "-" + string(e.short), Help: e.help, Kind: SuggestFlag})
+				if e.Short != 0 {
+					add(Suggestion{Text: "-" + string(e.Short), Help: e.Help, Kind: SuggestFlag})
 				}
-			case edgeValue:
-				for _, choice := range e.choices {
-					add(Suggestion{Text: choice, Help: e.help, Kind: SuggestValue})
+			case EdgeValue:
+				for _, choice := range e.Choices {
+					add(Suggestion{Text: choice, Help: e.Help, Kind: SuggestValue})
 				}
 			}
 		}
@@ -494,15 +503,15 @@ func (a *ndfa) suggest(set []int, prefix string) []Suggestion {
 	return out
 }
 
-func (a *ndfa) suggestFlagEquals(set []int, long, value string) []Suggestion {
+func (a *NDFA) suggestFlagEquals(set []int, long, value string) []Suggestion {
 	seen := make(map[string]struct{})
 	var out []Suggestion
 	for _, state := range set {
-		for _, e := range a.states[state] {
-			if e.kind != edgeFlag || e.long != long || !e.hasValue {
+		for _, e := range a.States[state] {
+			if e.Kind != EdgeFlag || e.Long != long || !e.HasValue {
 				continue
 			}
-			for _, suggestion := range a.suggest(a.epsilonClosure([]int{e.to}), value) {
+			for _, suggestion := range a.suggest(a.epsilonClosure([]int{e.To}), value) {
 				text := "--" + long + "=" + suggestion.Text
 				if _, ok := seen[text]; ok {
 					continue

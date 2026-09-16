@@ -1,7 +1,5 @@
 package cmd
 
-import "reflect"
-
 // SuggestKind is what a Suggestion completes.
 type SuggestKind int
 
@@ -22,8 +20,7 @@ type Suggestion struct {
 // Complete suggests the next token for T. args is the words after the
 // program name; the last word is the prefix being completed and may be empty.
 func Complete[T any](args ...string) ([]Suggestion, error) {
-	var zero T
-	automaton, err := compileNDFA(reflect.ValueOf(&zero).Elem())
+	automaton, err := CompileNDFA[T]()
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +30,7 @@ func Complete[T any](args ...string) ([]Suggestion, error) {
 		prefix = args[len(args)-1]
 		words = args[:len(args)-1]
 	}
-	set := []int{automaton.start}
+	set := []int{automaton.Start}
 	for _, word := range words {
 		set = automaton.step(set, word)
 		if len(set) == 0 {
