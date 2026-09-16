@@ -23,19 +23,7 @@ type Demo struct {
 }
 
 func (Demo) Description() string {
-	return `showcase the taskgroup executor and progress view
-
-  lewkit experiments demo          default tasks (bars + deps)
-  lewkit experiments demo tasks    same as default
-  lewkit experiments demo plain    schedule only; no TUI
-  lewkit experiments demo nested   Isolate error boundary
-  lewkit experiments demo loop     5-step bar
-  lewkit experiments demo map      Map over a file list
-  lewkit experiments demo many     256-item Map so List(n) stays short`
-}
-
-func (*Demo) Run(ctx context.Context) error {
-	return runDemo(ctx, scheduleTasks)
+	return "showcase the taskgroup executor and progress view"
 }
 
 type tasksCmd struct{}

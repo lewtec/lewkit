@@ -5,9 +5,22 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDemoBarePrintsUsage(t *testing.T) {
+	test.RestoreSlog(t)
+	app := cmd.ParseOK[cmd.App[Command]](t, "demo")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "showcase the taskgroup executor")
+	assert.Contains(t, got, "tasks")
+	assert.Contains(t, got, "plain")
+	assert.NotContains(t, got, "simulated 503")
+}
 
 func TestDemoUsage(t *testing.T) {
 	text, err := cmd.Usage[Demo]("lewkit experiments demo")
