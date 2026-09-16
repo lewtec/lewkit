@@ -97,7 +97,7 @@ func bind(ctx context.Context, v reflect.Value) {
 			}
 			bind(ctx, ev)
 			if key := ctxName(sf); key != "" {
-				put(ctx, key, storedValue(rvalue{fv}.settable()))
+				put(ctx, key, flattenValue(rvalue{fv}.settable()))
 			}
 			continue
 		}
@@ -110,6 +110,21 @@ func bind(ctx context.Context, v reflect.Value) {
 			}
 		}
 	}
+}
+
+// flattenValue is the ctx payload for a flatten+ctx field.
+// A nil pointer from Value() means the object is not ready yet
+// (e.g. a session before Enter); store the field itself instead.
+func flattenValue(fv reflect.Value) any {
+	if !(rvalue{fv}).hasValue() {
+		return fv.Interface()
+	}
+	v := (rvalue{fv}).callValue()
+	rv := reflect.ValueOf(v)
+	if v == nil || rv.Kind() == reflect.Pointer && rv.IsNil() {
+		return fv.Interface()
+	}
+	return v
 }
 
 func storedValue(fv reflect.Value) any {

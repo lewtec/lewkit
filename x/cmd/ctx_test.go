@@ -30,6 +30,25 @@ func TestFlattenCtxStoresValue(t *testing.T) {
 	assert.Panics(t, func() { Get[int](ctx, "io") })
 }
 
+type nilPtrValuer struct {
+	n IntArg[int] `long:"n" default:"0"`
+	p *string
+}
+
+func (v nilPtrValuer) Value() *string { return v.p }
+
+func TestFlattenCtxStoresFieldWhenValueNil(t *testing.T) {
+	type args struct {
+		nilPtrValuer `flatten:"" ctx:"obj"`
+	}
+	got := ParseOK[args](t, "--n", "1")
+	ctx := withValues(t.Context())
+	bind(ctx, reflect.ValueOf(&got).Elem())
+	obj := Get[nilPtrValuer](ctx, "obj")
+	assert.Equal(t, 1, obj.n.Value())
+	assert.Nil(t, obj.Value())
+}
+
 func TestFlattenCtxDuplicate(t *testing.T) {
 	type args struct {
 		a flattenPool `flatten:"" ctx:"pool"`

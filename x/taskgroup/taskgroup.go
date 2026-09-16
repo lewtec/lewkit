@@ -2,8 +2,7 @@
 // and a live task tree.
 //
 // New starts a Session. Flatten-embed Arg on a cmd spec for --io/--cpu/
-// --internet; Arg.Value is the pool (Limits). Arg.Enter returns the Session.
-// Go, Map, and Each attach
+// --internet; Arg.Value is the Session after Enter. Go, Map, and Each attach
 // nodes under the current task (from ctx). List(n) walks live children
 // until it has n rows; it does not flatten the forest first.
 //
