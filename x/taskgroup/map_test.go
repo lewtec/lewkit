@@ -8,6 +8,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMap_BasicAndOrder(t *testing.T) {
@@ -22,16 +25,10 @@ func TestMap_BasicAndOrder(t *testing.T) {
 			return v * 10, nil
 		},
 	}.Run(ctx)
-	if err != nil {
-		t.Fatalf("Map.Run: %v", err)
-	}
-	if len(results) != len(input) {
-		t.Fatalf("got %d results, want %d", len(results), len(input))
-	}
+	require.NoError(t, err)
+	require.Len(t, results, len(input))
 	for i, r := range results {
-		if r != input[i]*10 {
-			t.Errorf("results[%d] = %d, want %d", i, r, input[i]*10)
-		}
+		assert.Equal(t, input[i]*10, r)
 	}
 }
 
@@ -63,20 +60,10 @@ func TestMap_SerialRunsOneAtATime(t *testing.T) {
 			return v, nil
 		},
 	}.Run(ctx)
-	if err != nil {
-		t.Fatalf("Map.Run: %v", err)
-	}
-	if maxInFlight != 1 {
-		t.Fatalf("max concurrent %d, want 1", maxInFlight)
-	}
-	if len(results) != len(input) {
-		t.Fatalf("results len %d, want %d", len(results), len(input))
-	}
-	for i, v := range started {
-		if v != input[i] {
-			t.Fatalf("started order %v, want %v", started, input)
-		}
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 1, maxInFlight)
+	require.Len(t, results, len(input))
+	assert.Equal(t, input, started)
 }
 
 func TestMap_Empty(t *testing.T) {
@@ -86,20 +73,16 @@ func TestMap_Empty(t *testing.T) {
 		PoolKind: IO,
 		Fn:       func(context.Context, *Status, string) (string, error) { return "x", nil },
 	}.Run(ctx)
-	if err != nil {
-		t.Fatalf("empty Map.Run: %v", err)
-	}
-	if results == nil || len(results) != 0 {
-		t.Fatalf("expected empty non-nil slice, got %#v", results)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, results)
+	assert.Empty(t, results)
 }
 
 func TestMap_NilFn(t *testing.T) {
 	_, ctx := newTest(t, DefaultLimits())
 	results, err := Map[int, int]{Items: []int{1}}.Run(ctx)
-	if len(results) != 0 || !errors.Is(err, ErrNilFn) {
-		t.Fatalf("got results=%v err=%v, want ErrNilFn", results, err)
-	}
+	assert.Empty(t, results)
+	require.ErrorIs(t, err, ErrNilFn)
 }
 
 func TestEach_RunsWithoutResults(t *testing.T) {
@@ -114,12 +97,8 @@ func TestEach_RunsWithoutResults(t *testing.T) {
 			return nil
 		},
 	}.Run(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if saw.Load() != 3 {
-		t.Fatalf("saw %d, want 3", saw.Load())
-	}
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), saw.Load())
 }
 
 func TestMap_ErrorPropagates(t *testing.T) {
@@ -135,9 +114,7 @@ func TestMap_ErrorPropagates(t *testing.T) {
 			return v, nil
 		},
 	}.Run(ctx)
-	if err == nil {
-		t.Fatal("expected error from Map.Run")
-	}
+	require.Error(t, err)
 }
 
 func TestMap_ChildrenSitUnderParent(t *testing.T) {
@@ -161,24 +138,14 @@ func TestMap_ChildrenSitUnderParent(t *testing.T) {
 	<-started
 
 	got := List(ctx, 16)
-	if len(got) < 2 {
-		t.Fatalf("List = %#v, want parent + children", got)
-	}
-	if got[0].Name != "plan" {
-		t.Fatalf("parent = %q, want plan", got[0].Name)
-	}
-	if got[0].LiveChildren < 1 {
-		t.Fatalf("parent LiveChildren = %d, want >= 1", got[0].LiveChildren)
-	}
+	require.GreaterOrEqual(t, len(got), 2)
+	assert.Equal(t, "plan", got[0].Name)
+	assert.GreaterOrEqual(t, got[0].LiveChildren, 1)
 	parent := got[0].ID
 	for _, n := range got[1:] {
-		if n.Parent != parent {
-			t.Fatalf("child %q parent = %d, want %d", n.Name, n.Parent, parent)
-		}
+		assert.Equal(t, parent, n.Parent, n.Name)
 	}
 
 	close(block)
-	if err := MustFromContext(ctx).Wait(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, MustFromContext(ctx).Wait())
 }

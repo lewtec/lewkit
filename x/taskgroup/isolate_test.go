@@ -5,6 +5,9 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsolateDoesNotCancelParentSiblings(t *testing.T) {
@@ -25,33 +28,21 @@ func TestIsolateDoesNotCancelParentSiblings(t *testing.T) {
 		})
 		return MustFromContext(ctx).waitLive(ctx, taskFromContext(ctx))
 	})
-	if err == nil {
-		t.Fatal("expected isolated failure")
-	}
+	require.Error(t, err)
 	close(release)
-	if werr := MustFromContext(ctx).Wait(); werr != nil {
-		t.Fatalf("parent session should succeed: %v", werr)
-	}
-	if !siblingRan.Load() {
-		t.Fatal("parent sibling should have run")
-	}
+	require.NoError(t, MustFromContext(ctx).Wait())
+	assert.True(t, siblingRan.Load())
 }
 
 func TestGoIsolatedWithoutSessionRunsSync(t *testing.T) {
 	var ran bool
 	err := GoIsolated(t.Context(), "x", CPU, func(ctx context.Context, s *Status) error {
 		ran = true
-		if s == nil {
-			t.Fatal("status is nil")
-		}
+		require.NotNil(t, s)
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ran {
-		t.Fatal("fn did not run")
-	}
+	require.NoError(t, err)
+	assert.True(t, ran)
 }
 
 func TestGoIsolatedNamedChild(t *testing.T) {
@@ -60,10 +51,6 @@ func TestGoIsolatedNamedChild(t *testing.T) {
 		s.Update("done")
 		return nil
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if werr := MustFromContext(ctx).Wait(); werr != nil {
-		t.Fatal(werr)
-	}
+	require.NoError(t, err)
+	require.NoError(t, MustFromContext(ctx).Wait())
 }

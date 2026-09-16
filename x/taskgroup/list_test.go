@@ -5,16 +5,15 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestListEmpty(t *testing.T) {
 	_, ctx := newTest(t, DefaultLimits())
-	if got := List(ctx, 8); got != nil {
-		t.Fatalf("List empty session = %#v, want nil", got)
-	}
-	if got := List(ctx, 0); got != nil {
-		t.Fatalf("List(0) = %#v, want nil", got)
-	}
+	assert.Nil(t, List(ctx, 8))
+	assert.Nil(t, List(ctx, 0))
 }
 
 func TestListWalksTreeUntilFull(t *testing.T) {
@@ -25,12 +24,11 @@ func TestListWalksTreeUntilFull(t *testing.T) {
 
 	Go(ctx, "apply", Control, func(ctx context.Context, s *Status) error {
 		s.Progress(0, n)
-		for i := range n {
+		for range n {
 			Go(ctx, "file", IO, func(context.Context, *Status) error {
 				<-block
 				return nil
 			})
-			_ = i
 		}
 		close(started)
 		<-block
@@ -39,35 +37,19 @@ func TestListWalksTreeUntilFull(t *testing.T) {
 	<-started
 
 	got := List(ctx, 8)
-	if len(got) != 8 {
-		t.Fatalf("List(8) len = %d, want 8", len(got))
-	}
-	if got[0].Name != "apply" {
-		t.Fatalf("first row = %q, want apply", got[0].Name)
-	}
-	if got[0].LiveChildren != n {
-		t.Fatalf("apply LiveChildren = %d, want %d", got[0].LiveChildren, n)
-	}
-	if got[0].Parent != 0 {
-		t.Fatalf("top-level Parent = %d, want 0", got[0].Parent)
-	}
+	require.Len(t, got, 8)
+	assert.Equal(t, "apply", got[0].Name)
+	assert.Equal(t, n, got[0].LiveChildren)
+	assert.Equal(t, ID(0), got[0].Parent)
 	parent := got[0].ID
-	for i, n := range got[1:] {
-		if n.Name != "file" {
-			t.Fatalf("row %d name = %q, want file", i+1, n.Name)
-		}
-		if n.Parent != parent {
-			t.Fatalf("row %d parent = %d, want %d", i+1, n.Parent, parent)
-		}
+	for i, row := range got[1:] {
+		assert.Equal(t, "file", row.Name, "row %d", i+1)
+		assert.Equal(t, parent, row.Parent, "row %d", i+1)
 	}
 
 	close(block)
-	if err := MustFromContext(ctx).Wait(); err != nil {
-		t.Fatal(err)
-	}
-	if got := List(ctx, 8); len(got) != 0 {
-		t.Fatalf("List after Wait len = %d, want 0", len(got))
-	}
+	require.NoError(t, MustFromContext(ctx).Wait())
+	assert.Empty(t, List(ctx, 8))
 }
 
 func TestListKeepsFinishedParentWhileChildrenRun(t *testing.T) {
@@ -86,28 +68,15 @@ func TestListKeepsFinishedParentWhileChildrenRun(t *testing.T) {
 	<-started
 
 	var got []Node
-	deadline := time.Now().Add(time.Second)
-	for {
+	require.Eventually(t, func() bool {
 		got = List(ctx, 8)
-		if len(got) >= 2 && got[0].Name == "apply" && got[0].State == Done {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("List = %#v, want done apply above file", got)
-		}
-		time.Sleep(time.Millisecond)
-	}
-	if got[0].LiveChildren != 1 {
-		t.Fatalf("apply LiveChildren = %d, want 1", got[0].LiveChildren)
-	}
+		return len(got) >= 2 && got[0].Name == "apply" && got[0].State == Done
+	}, time.Second, time.Millisecond)
+	assert.Equal(t, 1, got[0].LiveChildren)
 
 	close(block)
-	if err := MustFromContext(ctx).Wait(); err != nil {
-		t.Fatal(err)
-	}
-	if got := List(ctx, 8); len(got) != 0 {
-		t.Fatalf("List after Wait len = %d, want 0", len(got))
-	}
+	require.NoError(t, MustFromContext(ctx).Wait())
+	assert.Empty(t, List(ctx, 8))
 }
 
 func TestListSkipsIsolateBoundary(t *testing.T) {
@@ -130,33 +99,19 @@ func TestListSkipsIsolateBoundary(t *testing.T) {
 	<-started
 
 	got := List(ctx, 16)
-	names := make([]string, len(got))
-	for i, n := range got {
-		names[i] = n.Name
-	}
 	for _, n := range got {
-		if n.Name == "" {
-			t.Fatalf("List included empty-name node: %#v", got)
-		}
+		assert.NotEmpty(t, n.Name)
 	}
-	if len(got) < 2 || names[0] != "bundle" || names[1] != "bundle:icons" {
-		t.Fatalf("List names = %v, want [bundle bundle:icons …]", names)
-	}
-	if got[1].Parent != got[0].ID {
-		t.Fatalf("icons parent = %d, want bundle %d", got[1].Parent, got[0].ID)
-	}
+	require.GreaterOrEqual(t, len(got), 2)
+	assert.Equal(t, "bundle", got[0].Name)
+	assert.Equal(t, "bundle:icons", got[1].Name)
+	assert.Equal(t, got[0].ID, got[1].Parent)
 
 	close(block)
-	if err := MustFromContext(ctx).Wait(); err != nil {
-		t.Fatal(err)
-	}
-	if !saw.Load() {
-		t.Fatal("isolated child did not run")
-	}
+	require.NoError(t, MustFromContext(ctx).Wait())
+	assert.True(t, saw.Load())
 }
 
 func TestListNilContext(t *testing.T) {
-	if got := List(t.Context(), 4); got != nil {
-		t.Fatalf("List without session = %#v", got)
-	}
+	assert.Nil(t, List(t.Context(), 4))
 }
