@@ -13,3 +13,11 @@ func ParseOK[T any](t testing.TB, args ...string) T {
 	require.NoError(t, err)
 	return got
 }
+
+// ParseErr parses args as T and fatals if Parse succeeds.
+func ParseErr[T any](t testing.TB, args ...string) error {
+	t.Helper()
+	_, err := Parse[T](args...)
+	require.Error(t, err)
+	return err
+}
