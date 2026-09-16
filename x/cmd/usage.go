@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -13,6 +14,30 @@ func Usage[T any](name string) (string, error) {
 }
 
 func usageOf(v reflect.Value, name string) (string, error) {
+	return usageOfFlags(v, name, nil)
+}
+
+func usageSelected(root reflect.Value, name string) (string, error) {
+	leaf, fullName, types := commandPath(root, name)
+	var inherited []usageFlag
+	for i := len(types) - 2; i >= 0; i-- {
+		ancestor, err := specOfType(types[i])
+		if err != nil {
+			return "", err
+		}
+		inherited = mergeUsageFlags(inherited, usageFlagsOf(ancestor))
+	}
+	return usageOfFlags(leaf, fullName, inherited)
+}
+
+func specOfType(t reflect.Type) (*spec, error) {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	return newSpec(reflect.New(t).Elem())
+}
+
+func usageOfFlags(v reflect.Value, name string, inherited []usageFlag) (string, error) {
 	t := v.Type()
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -22,7 +47,70 @@ func usageOf(v reflect.Value, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return s.usage(name, descriptionFrom(zero)), nil
+	return s.usage(name, descriptionFrom(zero), inherited), nil
+}
+
+type usageFlag struct {
+	field field
+	help  string
+}
+
+func isUsageFlag(f field) bool {
+	switch f.kind {
+	case kindSwitch, kindValue, kindEither, kindRepeat:
+		return true
+	default:
+		return false
+	}
+}
+
+func usageFlagsOf(s *spec) []usageFlag {
+	var out []usageFlag
+	for _, f := range s.fields {
+		if !isUsageFlag(f) {
+			continue
+		}
+		out = append(out, usageFlag{field: f, help: s.lineHelp(f)})
+	}
+	return out
+}
+
+func mergeUsageFlags(own, inherited []usageFlag) []usageFlag {
+	out := slices.Clone(own)
+	longs := make(map[string]struct{})
+	shorts := make(map[rune]struct{})
+	for _, item := range own {
+		if item.field.long != "" {
+			longs[item.field.long] = struct{}{}
+		}
+		if item.field.short != 0 {
+			shorts[item.field.short] = struct{}{}
+		}
+	}
+	for _, item := range inherited {
+		next := item
+		if next.field.long != "" {
+			if _, ok := longs[next.field.long]; ok {
+				next.field.long = ""
+			}
+		}
+		if next.field.short != 0 {
+			if _, ok := shorts[next.field.short]; ok {
+				next.field.short = 0
+			}
+		}
+		if next.field.long == "" && next.field.short == 0 {
+			continue
+		}
+		if next.field.long != "" {
+			longs[next.field.long] = struct{}{}
+		}
+		if next.field.short != 0 {
+			shorts[next.field.short] = struct{}{}
+		}
+		out = append(out, next)
+	}
+	return out
 }
 
 func descriptionOf[T any]() string {
@@ -54,7 +142,7 @@ func descriptionFrom(v reflect.Value) string {
 	return ""
 }
 
-func (s *spec) usage(name, desc string) string {
+func (s *spec) usage(name, desc string, inherited []usageFlag) string {
 	var b strings.Builder
 	if desc != "" {
 		b.WriteString(desc)
@@ -83,21 +171,37 @@ func (s *spec) usage(name, desc string) string {
 	}
 	b.WriteByte('\n')
 
-	var flags, cmds, pos []field
+	var cmds, pos []field
 	for _, f := range s.fields {
 		switch f.kind {
 		case kindCommand:
 			cmds = append(cmds, f)
 		case kindPositional, kindRest, kindProduct, kindArray, kindDash:
 			pos = append(pos, f)
-		default:
-			flags = append(flags, f)
 		}
 	}
 	s.writeGroup(&b, "Commands", cmds)
-	s.writeGroup(&b, "Flags", flags)
+	writeUsageFlags(&b, mergeUsageFlags(usageFlagsOf(s), inherited))
 	s.writeGroup(&b, "Arguments", pos)
 	return b.String()
+}
+
+func writeUsageFlags(b *strings.Builder, flags []usageFlag) {
+	if len(flags) == 0 {
+		return
+	}
+	width := 0
+	labels := make([]string, len(flags))
+	for i, item := range flags {
+		labels[i] = usageLabel(item.field)
+		if n := len(labels[i]); n > width {
+			width = n
+		}
+	}
+	fmt.Fprintf(b, "\nFlags:\n")
+	for i, item := range flags {
+		fmt.Fprintf(b, "  %-*s  %s\n", width, labels[i], item.help)
+	}
 }
 
 func (s *spec) writeGroup(b *strings.Builder, title string, fields []field) {

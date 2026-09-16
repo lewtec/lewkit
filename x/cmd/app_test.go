@@ -183,14 +183,14 @@ func TestAppRunHelpAfterCommand(t *testing.T) {
 		{
 			name:     "long",
 			args:     []string{"ping", "--help"},
-			contains: []string{"--name", "ping [flags]"},
-			omits:    []string{"Commands:", "--verbose"},
+			contains: []string{"--name", "ping [flags]", "--verbose", "--help"},
+			omits:    []string{"Commands:"},
 		},
 		{
 			name:     "short",
 			args:     []string{"ping", "-h"},
-			contains: []string{"--name", "ping [flags]"},
-			omits:    []string{"Commands:", "--verbose"},
+			contains: []string{"--name", "ping [flags]", "--verbose", "--help"},
+			omits:    []string{"Commands:"},
 		},
 	}
 	for _, tc := range cases {
@@ -249,8 +249,8 @@ func TestAppRunNestedHelp(t *testing.T) {
 	assert.Contains(t, got, "foo command")
 	assert.Contains(t, got, "--nick")
 	assert.Contains(t, got, "bar")
+	assert.Contains(t, got, "--verbose")
 	assert.NotContains(t, got, "--id")
-	assert.NotContains(t, got, "--verbose")
 
 	app = ParseOK[App[treeRoot]](t, "foo", "bar", "--help")
 	got = test.Stdout(t, func() {
@@ -258,7 +258,8 @@ func TestAppRunNestedHelp(t *testing.T) {
 	})
 	assert.Contains(t, got, "bar command")
 	assert.Contains(t, got, "--id")
-	assert.NotContains(t, got, "--nick")
+	assert.Contains(t, got, "--nick")
+	assert.Contains(t, got, "--verbose")
 }
 
 func TestAppRunNoRunPrintsUsage(t *testing.T) {
@@ -270,6 +271,7 @@ func TestAppRunNoRunPrintsUsage(t *testing.T) {
 	assert.Contains(t, got, "foo command")
 	assert.Contains(t, got, "--nick")
 	assert.Contains(t, got, "bar")
+	assert.Contains(t, got, "--verbose")
 	assert.NotContains(t, got, "--id")
 }
 
@@ -295,7 +297,7 @@ func TestAppRunErrUsage(t *testing.T) {
 	})
 	assert.Contains(t, got, "leaf usage")
 	assert.Contains(t, got, "Usage:")
-	assert.NotContains(t, got, "--verbose")
+	assert.Contains(t, got, "--verbose")
 }
 
 type muteRoot struct {

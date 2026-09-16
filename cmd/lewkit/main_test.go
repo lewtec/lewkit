@@ -17,6 +17,7 @@ func TestRootUsage(t *testing.T) {
 	assert.Contains(t, text, "log verbosity (default: 0)")
 	assert.Contains(t, text, "generate")
 	assert.Contains(t, text, "disasm")
+	assert.Contains(t, text, "completion")
 	assert.Contains(t, text, "--sentry-dsn")
 	assert.Contains(t, text, "SENTRY_DSN")
 }
@@ -24,6 +25,15 @@ func TestRootUsage(t *testing.T) {
 func TestRootSentryDSN(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "https://public@example.com/1")
 	require.NotNil(t, app.Args.sentry.Reporter)
+}
+
+func TestCompletionLine(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "completion")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "complete -C")
+	assert.Contains(t, got, "lewkit")
 }
 
 func TestGenerateDbUsage(t *testing.T) {
@@ -49,7 +59,7 @@ func TestGenerateHelp(t *testing.T) {
 	assert.Contains(t, got, "db")
 	assert.Contains(t, got, "prelude")
 	assert.Contains(t, got, "shared Queries")
-	assert.NotContains(t, got, "--sentry-dsn")
+	assert.Contains(t, got, "--sentry-dsn")
 }
 
 func TestGenerateErrUsage(t *testing.T) {
@@ -61,5 +71,5 @@ func TestGenerateErrUsage(t *testing.T) {
 	assert.Contains(t, got, "generate code")
 	assert.Contains(t, got, "db")
 	assert.Contains(t, got, "prelude")
-	assert.NotContains(t, got, "--sentry-dsn")
+	assert.Contains(t, got, "--sentry-dsn")
 }

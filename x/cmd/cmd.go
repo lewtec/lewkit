@@ -28,7 +28,10 @@ func (c *Command[T]) Args() T {
 	return c.args
 }
 
+// Parse fills args. If COMP_LINE is set (bash complete -C), it writes
+// completions to stdout and exits 0 instead.
 func (c *Command[T]) Parse(args ...string) error {
+	exitIfCompleting[T]()
 	var zero T
 	c.args = zero
 	return parseArgs(reflect.ValueOf(&c.args).Elem(), args)

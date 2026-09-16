@@ -80,17 +80,26 @@ func callRun(ctx context.Context, m reflect.Value) error {
 	return nil
 }
 
-func selectedCommand(v reflect.Value, name string) (reflect.Value, string) {
-	if v.Kind() == reflect.Pointer {
-		if v.IsNil() {
-			return v, name
+func commandPath(v reflect.Value, name string) (reflect.Value, string, []reflect.Type) {
+	var types []reflect.Type
+	for {
+		if v.Kind() == reflect.Pointer {
+			if v.IsNil() {
+				return v, name, types
+			}
+			v = v.Elem()
 		}
-		v = v.Elem()
+		if v.Kind() != reflect.Struct {
+			return v, name, types
+		}
+		types = append(types, v.Type())
+		next, selectedName, ok := findSelectedCommand(v)
+		if !ok {
+			return v, name, types
+		}
+		name = name + " " + selectedName
+		v = next
 	}
-	if cmd, cmdName, ok := findSelectedCommand(v); ok {
-		return selectedCommand(cmd, name+" "+cmdName)
-	}
-	return v, name
 }
 
 func findSelectedCommand(v reflect.Value) (reflect.Value, string, bool) {

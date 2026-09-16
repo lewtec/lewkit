@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -91,6 +92,40 @@ func TestUsageEnv(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "who (env: NAME)")
 	assert.Contains(t, text, "(env: PORT, default: :8080)")
+}
+
+func TestUsageSelectedMergesParentFlags(t *testing.T) {
+	type child struct {
+		path StringArg `long:"path" help:"file"`
+	}
+	type root struct {
+		force Flag `long:"force" help:"do it"`
+		run   *child
+	}
+	app := root{run: &child{}}
+	text, err := usageSelected(reflect.ValueOf(&app).Elem(), "tool")
+	require.NoError(t, err)
+	assert.Contains(t, text, "tool run")
+	assert.Contains(t, text, "--path")
+	assert.Contains(t, text, "file")
+	assert.Contains(t, text, "--force")
+	assert.Contains(t, text, "do it")
+}
+
+func TestUsageSelectedChildFlagWins(t *testing.T) {
+	type child struct {
+		name StringArg `long:"name" help:"child name"`
+	}
+	type root struct {
+		name StringArg `long:"name" help:"root name"`
+		go_  *child    `cmd:"go"`
+	}
+	app := root{go_: &child{}}
+	text, err := usageSelected(reflect.ValueOf(&app).Elem(), "tool")
+	require.NoError(t, err)
+	assert.Contains(t, text, "child name")
+	assert.NotContains(t, text, "root name")
+	assert.Equal(t, 1, strings.Count(text, "--name"))
 }
 
 func TestUsageEnvList(t *testing.T) {
