@@ -23,7 +23,7 @@ type Suggestion struct {
 // program name; the last word is the prefix being completed and may be empty.
 func Complete[T any](args ...string) ([]Suggestion, error) {
 	var zero T
-	n, err := compileNFA(reflect.ValueOf(&zero).Elem())
+	automaton, err := compileNDFA(reflect.ValueOf(&zero).Elem())
 	if err != nil {
 		return nil, err
 	}
@@ -33,12 +33,12 @@ func Complete[T any](args ...string) ([]Suggestion, error) {
 		prefix = args[len(args)-1]
 		words = args[:len(args)-1]
 	}
-	set := []int{n.start}
-	for _, w := range words {
-		set = n.step(set, w)
+	set := []int{automaton.start}
+	for _, word := range words {
+		set = automaton.step(set, word)
 		if len(set) == 0 {
 			return nil, nil
 		}
 	}
-	return n.suggest(set, prefix), nil
+	return automaton.suggest(set, prefix), nil
 }

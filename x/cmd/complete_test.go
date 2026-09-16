@@ -9,11 +9,11 @@ import (
 
 func completeOK[T any](t *testing.T, args ...string) []string {
 	t.Helper()
-	sugs, err := Complete[T](args...)
+	suggestions, err := Complete[T](args...)
 	require.NoError(t, err)
-	out := make([]string, len(sugs))
-	for i, s := range sugs {
-		out[i] = s.Text
+	out := make([]string, len(suggestions))
+	for i, suggestion := range suggestions {
+		out[i] = suggestion.Text
 	}
 	return out
 }
@@ -125,28 +125,28 @@ func TestCompleteRepeatableFlag(t *testing.T) {
 }
 
 func TestCompleteCommandHelp(t *testing.T) {
-	sugs, err := Complete[listedApp]()
+	suggestions, err := Complete[listedApp]()
 	require.NoError(t, err)
 	var help string
-	for _, s := range sugs {
-		if s.Text == "copy" {
-			help = s.Help
+	for _, suggestion := range suggestions {
+		if suggestion.Text == "copy" {
+			help = suggestion.Help
 		}
 	}
 	assert.Equal(t, "copy files", help)
 }
 
 func TestCompleteSuggestionNotUnknown(t *testing.T) {
-	sugs, err := Complete[appArgs]()
+	suggestions, err := Complete[appArgs]()
 	require.NoError(t, err)
-	for _, s := range sugs {
-		if s.Kind == SuggestDash {
+	for _, suggestion := range suggestions {
+		if suggestion.Kind == SuggestDash {
 			continue
 		}
-		_, err := Parse[appArgs](s.Text)
+		_, err := Parse[appArgs](suggestion.Text)
 		if err != nil {
-			assert.NotErrorIs(t, err, ErrUnknownFlag, s.Text)
-			assert.NotErrorIs(t, err, ErrUnknownCommand, s.Text)
+			assert.NotErrorIs(t, err, ErrUnknownFlag, suggestion.Text)
+			assert.NotErrorIs(t, err, ErrUnknownCommand, suggestion.Text)
 		}
 	}
 }
