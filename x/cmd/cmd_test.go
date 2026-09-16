@@ -30,6 +30,9 @@ func TestParseUtil(t *testing.T) {
 	assert.Equal(t, args.idade.Value(), uint(26))
 	assert.Equal(t, args.verbose.Value(), 3)
 	assert.Equal(t, Values(args.rest), []string{"leftover"})
+
+	err := ParseErr[BasicArgs](t, "--idade", "nope")
+	assert.ErrorIs(t, err, ErrInvalidArgument)
 }
 
 func TestArgsBasic(t *testing.T) {
