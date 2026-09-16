@@ -3,6 +3,7 @@ package progress
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -163,4 +164,25 @@ func TestViewResizeSwitchesLayout(t *testing.T) {
 	wide := strings.TrimSuffix(m.View().Content, "\n")
 	assert.Contains(t, wide, barFill)
 	assert.NotContains(t, wide, "%")
+}
+
+func TestRunWithoutGoSkipsProgram(t *testing.T) {
+	t.Setenv("LEWKIT_FORCE_TUI", "1")
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	require.NoError(t, Run(s, ctx, func(context.Context) error { return nil }))
+}
+
+func TestRunNonInteractiveWaits(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	t.Setenv("LEWKIT_FORCE_TUI", "")
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	var ran atomic.Bool
+	require.NoError(t, Run(s, ctx, func(ctx context.Context) error {
+		taskgroup.Go(ctx, "t", taskgroup.CPU, func(context.Context, *taskgroup.Status) error {
+			ran.Store(true)
+			return nil
+		})
+		return nil
+	}))
+	assert.True(t, ran.Load())
 }

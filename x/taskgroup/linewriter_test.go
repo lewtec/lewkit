@@ -3,6 +3,7 @@ package taskgroup
 import (
 	"io"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,11 +79,39 @@ func TestLiveHubAbandonAll(t *testing.T) {
 	require.ErrorIs(t, err, io.ErrClosedPipe)
 }
 
+func TestLogWriterPassesCSI(t *testing.T) {
+	s, _ := New(t.Context(), DefaultLimits())
+	var got []string
+	s.SetLinePrint(func(line string) { got = append(got, line) })
+	_, err := s.LogWriter().Write([]byte("\x1b[41;1mE\x1b[0m fail key=v\n"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"\x1b[41;1mE\x1b[0m fail key=v"}, got)
+}
+
+func TestLogWriterPicksUpPrintLater(t *testing.T) {
+	s, _ := New(t.Context(), DefaultLimits())
+	w := s.LogWriter()
+	var got []string
+	s.SetLinePrint(func(line string) { got = append(got, line) })
+	_, err := w.Write([]byte("after\n"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"after"}, got)
+}
+
 func TestLineWriterFromNoSession(t *testing.T) {
 	w := LineWriterFrom(t.Context())
 	lw, ok := w.(*lineWriter)
 	require.True(t, ok)
 	assert.False(t, lw.commitOnClose)
+	require.NoError(t, w.Close())
+}
+
+func TestLineWriterFiresOnSchedule(t *testing.T) {
+	s, ctx := newTest(t, DefaultLimits())
+	var n atomic.Int32
+	s.SetOnSchedule(func() { n.Add(1) })
+	w := LineWriterFrom(ctx)
+	require.Equal(t, int32(1), n.Load())
 	require.NoError(t, w.Close())
 }
 

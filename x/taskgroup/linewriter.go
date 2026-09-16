@@ -1,6 +1,7 @@
 package taskgroup
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -229,12 +230,51 @@ func LineWriterFrom(ctx context.Context) io.WriteCloser {
 	return newFinishedLineWriter(os.Stderr)
 }
 
+// LogWriter writes committed log lines to the progress transcript.
+// Newlines split records. CSI is passed through — this is not a live row.
+// print is resolved on each Write so a lazy TUI can attach after this
+// writer already exists. Without a print sink, lines go to os.Stderr.
+func (s *Session) LogWriter() io.Writer {
+	if s == nil {
+		return os.Stderr
+	}
+	return &logWriter{s: s}
+}
+
+type logWriter struct {
+	s *Session
+
+	mu  sync.Mutex
+	buf []byte
+}
+
+func (w *logWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	print := w.s.linePrintFn()
+	if print == nil {
+		return os.Stderr.Write(p)
+	}
+	w.buf = append(w.buf, p...)
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		line := bytes.TrimSuffix(w.buf[:i], []byte{'\r'})
+		w.buf = w.buf[i+1:]
+		print(string(line))
+	}
+	return len(p), nil
+}
+
 // LineWriter returns a new live-row writer for this session.
 // Safe to assign to cmd.Stdout and cmd.Stderr (same writer for both).
 func (s *Session) LineWriter() io.WriteCloser {
 	if s == nil || s.live == nil {
 		return newFinishedLineWriter(os.Stderr)
 	}
+	s.fireSchedule()
 	fn := s.linePrintFn()
 	if fn == nil {
 		return newFinishedLineWriter(os.Stderr)

@@ -37,6 +37,8 @@ func (a Arg) Value() *Session {
 }
 
 // Enter starts a Session with flags applied on top of base.
+// It does not start the progress TUI; that happens later, lazily,
+// when progress.Run sees the first Go or LineWriter.
 func (a *Arg) Enter(ctx context.Context, base Limits) (*Session, context.Context) {
 	if a.session != nil {
 		return a.session, context.WithValue(ctx, sessionKey{}, a.session)

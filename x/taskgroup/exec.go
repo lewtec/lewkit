@@ -23,7 +23,10 @@ func (s *Session) goTask(ctx context.Context, name string, pool PoolKind, fn fun
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	defer func() {
+		s.mu.Unlock()
+		s.fireSchedule()
+	}()
 	id := s.alloc(parent, name, pool, fn, isolate)
 	if fn == nil {
 		s.finishLocked(id, ErrNilFn)
