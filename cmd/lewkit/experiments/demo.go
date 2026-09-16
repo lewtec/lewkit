@@ -21,6 +21,7 @@ type Demo struct {
 	Map    *mapCmd `cmd:"map"`
 	Many   *manyCmd
 	Tree   *treeCmd
+	Lines  *linesCmd
 }
 
 func (Demo) Description() string {

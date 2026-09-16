@@ -63,8 +63,15 @@ func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context
 		}
 		return msg
 	}))
+	s.SetLinePrint(func(msg string) { p.Printf("%s", msg) })
 	restoreLogs := hijackSlog(p)
-	defer restoreLogs()
+	defer func() {
+		restoreLogs()
+		s.SetLinePrint(nil)
+		for _, line := range s.TakeLiveLines() {
+			_, _ = os.Stderr.WriteString(line + "\n")
+		}
+	}()
 
 	errc := make(chan error, 1)
 	go func() {
@@ -106,6 +113,7 @@ func (m model) tick() tea.Cmd {
 func (m *model) refresh() {
 	if m.session != nil {
 		m.sync(m.session.List(m.max))
+		m.live = m.session.LiveLines()
 	}
 }
 

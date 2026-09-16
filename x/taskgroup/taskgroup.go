@@ -176,6 +176,10 @@ type Session struct {
 
 	err  error
 	hard atomic.Bool
+
+	live    *liveHub
+	printMu sync.Mutex
+	print   func(string)
 }
 
 type task struct {
@@ -216,6 +220,7 @@ func New(ctx context.Context, limits Limits) (*Session, context.Context) {
 		slots:        []*task{nil, root},
 		root:         1,
 		latestByDesc: make(map[string]ID),
+		live:         newLiveHub(),
 	}
 	s.cond = sync.NewCond(&s.mu)
 	s.ready[IO] = newReadyQ()

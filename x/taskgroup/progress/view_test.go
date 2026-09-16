@@ -8,6 +8,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/lewtec/lewkit/x/taskgroup"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTickRefreshKeepsNodesOnModel(t *testing.T) {
@@ -21,22 +23,14 @@ func TestTickRefreshKeepsNodesOnModel(t *testing.T) {
 	t.Cleanup(func() { close(block) })
 
 	m := newModel(s)
-	deadline := time.Now().Add(time.Second)
 	var got model
-	for {
+	require.Eventually(t, func() bool {
 		next, _ := m.Update(tickMsg{})
 		got = next.(model)
-		if len(got.nodes) > 0 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("tick did not copy List onto the model")
-		}
 		m = got
-	}
-	if got.nodes[0].Name != "hold" {
-		t.Fatalf("nodes = %#v, want hold", got.nodes)
-	}
+		return len(got.nodes) > 0
+	}, time.Second, time.Millisecond)
+	assert.Equal(t, "hold", got.nodes[0].Name)
 }
 
 func TestLayoutTreePrefixes(t *testing.T) {
@@ -47,24 +41,12 @@ func TestLayoutTreePrefixes(t *testing.T) {
 		{ID: 4, Parent: 1, Name: "manifest", State: taskgroup.Pending},
 		{ID: 5, Name: "lint", State: taskgroup.Done},
 	})
-	if len(rows) != 5 {
-		t.Fatalf("rows = %d, want 5", len(rows))
-	}
-	if rows[0].tree != "" {
-		t.Errorf("root tree = %q, want empty", rows[0].tree)
-	}
-	if rows[1].tree != "├ " {
-		t.Errorf("icons tree = %q, want ├ ", rows[1].tree)
-	}
-	if rows[2].tree != "│ └ " {
-		t.Errorf("png tree = %q, want │ └ ", rows[2].tree)
-	}
-	if rows[3].tree != "└ " {
-		t.Errorf("manifest tree = %q, want └ ", rows[3].tree)
-	}
-	if rows[4].tree != "" {
-		t.Errorf("lint tree = %q, want empty", rows[4].tree)
-	}
+	require.Len(t, rows, 5)
+	assert.Empty(t, rows[0].tree)
+	assert.Equal(t, "├ ", rows[1].tree)
+	assert.Equal(t, "│ └ ", rows[2].tree)
+	assert.Equal(t, "└ ", rows[3].tree)
+	assert.Empty(t, rows[4].tree)
 }
 
 func TestLayoutHiddenChildren(t *testing.T) {
@@ -73,9 +55,7 @@ func TestLayoutHiddenChildren(t *testing.T) {
 		{ID: 2, Parent: 1, Name: "cpu:0"},
 		{ID: 3, Parent: 1, Name: "cpu:1"},
 	})
-	if rows[0].hidden != 8 {
-		t.Fatalf("hidden = %d, want 8", rows[0].hidden)
-	}
+	assert.Equal(t, 8, rows[0].hidden)
 }
 
 func TestFormatRowTreeAndBar(t *testing.T) {
@@ -90,15 +70,9 @@ func TestFormatRowTreeAndBar(t *testing.T) {
 		},
 		tree: "├ ",
 	}, 80)
-	if !strings.HasPrefix(line, "├ ▶ 🧠 build: part 1/4 [") {
-		t.Fatalf("line = %q", line)
-	}
-	if !strings.HasSuffix(line, "]") {
-		t.Fatalf("line = %q, want trailing ]", line)
-	}
-	if cellWidth(line) != 80 {
-		t.Fatalf("width = %d, want 80 (%q)", cellWidth(line), line)
-	}
+	assert.True(t, strings.HasPrefix(line, "├ ▶ 🧠 build: part 1/4 ["), line)
+	assert.True(t, strings.HasSuffix(line, "]"), line)
+	assert.Equal(t, 80, cellWidth(line), line)
 }
 
 func TestFormatRowPendingNoBar(t *testing.T) {
@@ -106,12 +80,8 @@ func TestFormatRowPendingNoBar(t *testing.T) {
 		node: taskgroup.Node{Name: "install", Pool: taskgroup.IO, State: taskgroup.Pending},
 		tree: "└ ",
 	}, 80)
-	if !strings.HasPrefix(line, "└ ⏸ 💾 install") {
-		t.Fatalf("line = %q", line)
-	}
-	if strings.Contains(line, "[") {
-		t.Fatalf("pending kept a bar: %q", line)
-	}
+	assert.True(t, strings.HasPrefix(line, "└ ⏸ 💾 install"), line)
+	assert.NotContains(t, line, "[")
 }
 
 func TestCancelDoesNotQuitUntilEmpty(t *testing.T) {
@@ -131,12 +101,8 @@ func TestCancelDoesNotQuitUntilEmpty(t *testing.T) {
 	m := newModel(s)
 	next, cmd := m.Update(cancelMsg{})
 	got := next.(model)
-	if got.shouldQuit() {
-		t.Fatal("ctrl+c must not quit before List is empty")
-	}
-	if cmd != nil {
-		t.Fatal("ctrl+c must not return a cmd")
-	}
+	assert.False(t, got.shouldQuit())
+	assert.Nil(t, cmd)
 }
 
 func TestQuitAfterDoneWhenListEmpty(t *testing.T) {
@@ -144,12 +110,8 @@ func TestQuitAfterDoneWhenListEmpty(t *testing.T) {
 	m.done = true
 	next, cmd := m.Update(tickMsg{})
 	got := next.(model)
-	if !got.shouldQuit() {
-		t.Fatal("want quit when done and list empty")
-	}
-	if cmd == nil {
-		t.Fatal("want Quit cmd")
-	}
+	assert.True(t, got.shouldQuit())
+	assert.NotNil(t, cmd)
 }
 
 func TestKeepTickingWhenDoneButLive(t *testing.T) {
@@ -158,12 +120,8 @@ func TestKeepTickingWhenDoneButLive(t *testing.T) {
 	m.nodes = []taskgroup.Node{{ID: 1, Name: "left", State: taskgroup.Pending}}
 	next, cmd := m.Update(tickMsg{})
 	got := next.(model)
-	if got.shouldQuit() {
-		t.Fatal("must not quit while live rows remain")
-	}
-	if cmd == nil {
-		t.Fatal("want another tick while live rows remain")
-	}
+	assert.False(t, got.shouldQuit())
+	assert.NotNil(t, cmd)
 }
 
 func TestViewResizeSwitchesLayout(t *testing.T) {
@@ -174,13 +132,11 @@ func TestViewResizeSwitchesLayout(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 24})
 	m = next.(model)
 	narrow := strings.TrimSuffix(m.View().Content, "\n")
-	if !strings.Contains(narrow, "%") || strings.Contains(narrow, "[") {
-		t.Fatalf("width 40 = %q, want percent layout", narrow)
-	}
+	assert.Contains(t, narrow, "%")
+	assert.NotContains(t, narrow, "[")
 	next, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = next.(model)
 	wide := strings.TrimSuffix(m.View().Content, "\n")
-	if !strings.Contains(wide, "[") || strings.Contains(wide, "%") {
-		t.Fatalf("width 80 = %q, want expanding bar", wide)
-	}
+	assert.Contains(t, wide, "[")
+	assert.NotContains(t, wide, "%")
 }

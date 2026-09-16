@@ -21,6 +21,7 @@ const (
 type model struct {
 	session *taskgroup.Session
 	nodes   []taskgroup.Node
+	live    []string
 	width   int
 	max     int
 	done    bool
@@ -51,14 +52,14 @@ func (m *model) sync(nodes []taskgroup.Node) {
 }
 
 func (m model) shouldQuit() bool {
-	return m.done && len(m.nodes) == 0
+	return m.done && len(m.nodes) == 0 && len(m.live) == 0
 }
 
 func (m model) View() (view tea.View) {
 	view.KeyboardEnhancements = tea.KeyboardEnhancements{}
 	view.AltScreen = false
 	view.MouseMode = tea.MouseModeNone
-	if len(m.nodes) == 0 {
+	if len(m.nodes) == 0 && len(m.live) == 0 {
 		view.SetContent("")
 		return
 	}
@@ -67,6 +68,10 @@ func (m model) View() (view tea.View) {
 		width = defaultTermWidth
 	}
 	var buf bytes.Buffer
+	for _, row := range m.live {
+		buf.WriteString(clipCells(row, width))
+		buf.WriteByte('\n')
+	}
 	for _, r := range layout(m.nodes) {
 		buf.WriteString(formatRow(r, width))
 		buf.WriteByte('\n')
