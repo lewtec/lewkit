@@ -142,6 +142,9 @@ func TestListSkipsIsolateBoundary(t *testing.T) {
 	if len(got) < 2 || names[0] != "bundle" || names[1] != "bundle:icons" {
 		t.Fatalf("List names = %v, want [bundle bundle:icons …]", names)
 	}
+	if got[1].Parent != got[0].ID {
+		t.Fatalf("icons parent = %d, want bundle %d", got[1].Parent, got[0].ID)
+	}
 
 	close(block)
 	if err := MustFromContext(ctx).Wait(); err != nil {

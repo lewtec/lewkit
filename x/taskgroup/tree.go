@@ -47,7 +47,7 @@ func (s *Session) snapshot(id ID) Node {
 	t := s.slots[id]
 	n := Node{
 		ID:           id,
-		Parent:       t.parent,
+		Parent:       s.visibleParent(id),
 		Name:         t.name,
 		Pool:         t.pool,
 		State:        State(t.state.Load()),
@@ -55,13 +55,21 @@ func (s *Session) snapshot(id ID) Node {
 		Total:        t.total.Load(),
 		LiveChildren: int(t.liveN.Load()),
 	}
-	if n.Parent == s.root {
-		n.Parent = 0
-	}
 	if p := t.message.Load(); p != nil {
 		n.Message = *p
 	}
 	return n
+}
+
+func (s *Session) visibleParent(id ID) ID {
+	p := s.slots[id].parent
+	for p != 0 && p != s.root && s.slots[p].name == "" {
+		p = s.slots[p].parent
+	}
+	if p == s.root {
+		return 0
+	}
+	return p
 }
 
 func (s *Session) alloc(parent ID, name string, pool PoolKind, fn func(context.Context, *Status) error, isolate bool) ID {

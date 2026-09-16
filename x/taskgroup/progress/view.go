@@ -18,83 +18,37 @@ const (
 	minBarInner      = 8
 )
 
-type barEntry struct {
-	title    string
-	subtitle string
-	pool     taskgroup.PoolKind
-	percent  float64
-}
-
 type model struct {
 	session *taskgroup.Session
 	cancel  context.CancelFunc
-	bars    map[string]barEntry
-	order   []string
+	nodes   []taskgroup.Node
 	width   int
 	max     int
+}
+
+type treeRow struct {
+	node   taskgroup.Node
+	tree   string
+	hidden int
 }
 
 func newModel(s *taskgroup.Session) model {
 	return model{
 		session: s,
-		bars:    make(map[string]barEntry),
 		width:   defaultTermWidth,
 		max:     defaultMaxRows,
 	}
 }
 
 func (m *model) sync(nodes []taskgroup.Node) {
-	seen := make(map[string]struct{}, len(nodes))
-	for _, n := range nodes {
-		if n.State != taskgroup.Running || n.Total <= 0 {
-			continue
-		}
-		id := strconv.FormatUint(uint64(n.ID), 10)
-		seen[id] = struct{}{}
-		pct := float64(n.Current) / float64(n.Total)
-		subtitle := n.Message
-		if subtitle == "" {
-			subtitle = "running"
-		}
-		title := n.Name
-		if title == "" {
-			title = id
-		}
-		if prev, ok := m.bars[id]; ok {
-			prev.subtitle = subtitle
-			prev.percent = pct
-			m.bars[id] = prev
-			continue
-		}
-		m.bars[id] = barEntry{
-			title:    title,
-			subtitle: subtitle,
-			pool:     n.Pool,
-			percent:  pct,
-		}
-		m.order = append(m.order, id)
-	}
-	for id := range m.bars {
-		if _, ok := seen[id]; !ok {
-			delete(m.bars, id)
-		}
-	}
-	if len(m.order) > len(m.bars)+8 {
-		out := m.order[:0]
-		for _, id := range m.order {
-			if _, ok := m.bars[id]; ok {
-				out = append(out, id)
-			}
-		}
-		m.order = out
-	}
+	m.nodes = nodes
 }
 
 func (m model) View() (view tea.View) {
 	view.KeyboardEnhancements = tea.KeyboardEnhancements{}
 	view.AltScreen = false
 	view.MouseMode = tea.MouseModeNone
-	if len(m.bars) == 0 {
+	if len(m.nodes) == 0 {
 		view.SetContent("")
 		return
 	}
@@ -103,61 +57,152 @@ func (m model) View() (view tea.View) {
 		width = defaultTermWidth
 	}
 	var buf bytes.Buffer
-	for _, id := range m.order {
-		b, ok := m.bars[id]
-		if !ok {
-			continue
-		}
-		buf.WriteString(formatBarLine(b, width))
+	for _, r := range layout(m.nodes) {
+		buf.WriteString(formatRow(r, width))
 		buf.WriteByte('\n')
 	}
 	view.SetContent(buf.String())
 	return
 }
 
-func formatBarLine(b barEntry, width int) string {
+func layout(nodes []taskgroup.Node) []treeRow {
+	if len(nodes) == 0 {
+		return nil
+	}
+	idx := make(map[taskgroup.ID]int, len(nodes))
+	for i, n := range nodes {
+		idx[n.ID] = i
+	}
+	depth := make([]int, len(nodes))
+	shownKids := make([]int, len(nodes))
+	lastAt := make(map[taskgroup.ID]int, len(nodes))
+	for i, n := range nodes {
+		if p, ok := idx[n.Parent]; ok {
+			depth[i] = depth[p] + 1
+			shownKids[p]++
+		}
+		lastAt[n.Parent] = i
+	}
+	out := make([]treeRow, len(nodes))
+	last := make([]bool, 0, 8)
+	for i, n := range nodes {
+		d := depth[i]
+		isLast := lastAt[n.Parent] == i
+		var b strings.Builder
+		for k := 0; k < d; k++ {
+			if k == d-1 {
+				if isLast {
+					b.WriteString("└ ")
+				} else {
+					b.WriteString("├ ")
+				}
+				continue
+			}
+			if last[k] {
+				b.WriteString("  ")
+			} else {
+				b.WriteString("│ ")
+			}
+		}
+		if d+1 > len(last) {
+			last = append(last, make([]bool, d+1-len(last))...)
+		}
+		last = last[:d+1]
+		last[d] = isLast
+		hidden := n.LiveChildren - shownKids[i]
+		if hidden < 0 {
+			hidden = 0
+		}
+		out[i] = treeRow{node: n, tree: b.String(), hidden: hidden}
+	}
+	return out
+}
+
+func formatRow(r treeRow, width int) string {
 	if width <= 0 {
 		width = defaultTermWidth
 	}
-	emoji := poolEmoji(b.pool)
-	msg := barMessage(b)
-	if width < narrowTermWidth {
-		return formatNarrowBar(emoji, msg, b.percent, width)
+	n := r.node
+	prefix := r.tree + stateGlyph(n.State) + " " + poolEmoji(n.Pool) + " "
+	msg := rowMessage(n)
+	if r.hidden > 0 {
+		msg += " +" + strconv.Itoa(r.hidden)
 	}
-	return formatWideBar(emoji, msg, b.percent, width)
-}
-
-func barMessage(b barEntry) string {
-	switch {
-	case b.title != "" && b.subtitle != "":
-		return b.title + ": " + b.subtitle
-	case b.title != "":
-		return b.title
-	default:
-		return b.subtitle
-	}
-}
-
-func formatNarrowBar(emoji, msg string, pct float64, width int) string {
-	prefix := emoji + " " + formatPercent(pct) + " "
 	rest := width - cellWidth(prefix)
-	if rest < 0 {
+	if rest < 1 {
 		return clipCells(prefix, width)
 	}
-	return prefix + clipCells(msg, rest)
+	pct := percent(n)
+	if n.Total <= 0 || pct < 0 {
+		return prefix + clipCells(msg, rest)
+	}
+	if width < narrowTermWidth {
+		return prefix + formatNarrowBody(msg, pct, rest)
+	}
+	return prefix + formatWideBody(msg, pct, rest)
 }
 
-func formatWideBar(emoji, msg string, pct float64, width int) string {
-	fixed := cellWidth(emoji) + 1 + 1 + 2
-	inner := width - fixed - cellWidth(msg)
+func rowMessage(n taskgroup.Node) string {
+	title := n.Name
+	if title == "" {
+		title = strconv.FormatUint(uint64(n.ID), 10)
+	}
+	sub := n.Message
+	if sub == "" && n.State == taskgroup.Running {
+		sub = "running"
+	}
+	switch {
+	case title != "" && sub != "":
+		return title + ": " + sub
+	case title != "":
+		return title
+	default:
+		return sub
+	}
+}
+
+func percent(n taskgroup.Node) float64 {
+	if n.Total <= 0 {
+		return -1
+	}
+	return float64(n.Current) / float64(n.Total)
+}
+
+func stateGlyph(st taskgroup.State) string {
+	switch st {
+	case taskgroup.Pending:
+		return "⏸"
+	case taskgroup.Running:
+		return "▶"
+	case taskgroup.Done:
+		return "✔"
+	case taskgroup.Failed:
+		return "⚠"
+	default:
+		return "•"
+	}
+}
+
+func formatNarrowBody(msg string, pct float64, width int) string {
+	head := formatPercent(pct) + " "
+	rest := width - cellWidth(head)
+	if rest < 0 {
+		return clipCells(head, width)
+	}
+	return head + clipCells(msg, rest)
+}
+
+func formatWideBody(msg string, pct float64, width int) string {
+	const extra = 1 + 2 // space before bar plus []
+	inner := width - cellWidth(msg) - extra
 	if inner < minBarInner {
-		msg = clipCells(msg, width-fixed-minBarInner)
-		inner = width - fixed - cellWidth(msg)
+		msg = clipCells(msg, width-extra-minBarInner)
+		inner = width - cellWidth(msg) - extra
 	}
 	if inner < 1 {
-		return formatNarrowBar(emoji, msg, pct, width)
+		return formatNarrowBody(msg, pct, width)
 	}
-	return emoji + " " + msg + " " + plainBar(pct, inner)
+	return msg + " " + plainBar(pct, inner)
 }
 
 func formatPercent(pct float64) string {

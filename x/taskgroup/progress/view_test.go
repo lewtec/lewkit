@@ -8,95 +8,78 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
-func TestFormatBarLineWide(t *testing.T) {
-	line := formatBarLine(barEntry{
-		title:    "bundle.tar.gz",
-		subtitle: "5.0 MiB / 10.0 MiB",
-		pool:     taskgroup.Internet,
-		percent:  0.5,
+func TestLayoutTreePrefixes(t *testing.T) {
+	rows := layout([]taskgroup.Node{
+		{ID: 1, Name: "bundle", State: taskgroup.Running, LiveChildren: 2},
+		{ID: 2, Parent: 1, Name: "icons", State: taskgroup.Running, LiveChildren: 1},
+		{ID: 3, Parent: 2, Name: "png", State: taskgroup.Pending},
+		{ID: 4, Parent: 1, Name: "manifest", State: taskgroup.Pending},
+		{ID: 5, Name: "lint", State: taskgroup.Done},
+	})
+	if len(rows) != 5 {
+		t.Fatalf("rows = %d, want 5", len(rows))
+	}
+	if rows[0].tree != "" {
+		t.Errorf("root tree = %q, want empty", rows[0].tree)
+	}
+	if rows[1].tree != "├ " {
+		t.Errorf("icons tree = %q, want ├ ", rows[1].tree)
+	}
+	if rows[2].tree != "│ └ " {
+		t.Errorf("png tree = %q, want │ └ ", rows[2].tree)
+	}
+	if rows[3].tree != "└ " {
+		t.Errorf("manifest tree = %q, want └ ", rows[3].tree)
+	}
+	if rows[4].tree != "" {
+		t.Errorf("lint tree = %q, want empty", rows[4].tree)
+	}
+}
+
+func TestLayoutHiddenChildren(t *testing.T) {
+	rows := layout([]taskgroup.Node{
+		{ID: 1, Name: "many", LiveChildren: 10},
+		{ID: 2, Parent: 1, Name: "cpu:0"},
+		{ID: 3, Parent: 1, Name: "cpu:1"},
+	})
+	if rows[0].hidden != 8 {
+		t.Fatalf("hidden = %d, want 8", rows[0].hidden)
+	}
+}
+
+func TestFormatRowTreeAndBar(t *testing.T) {
+	line := formatRow(treeRow{
+		node: taskgroup.Node{
+			Name:    "build",
+			Pool:    taskgroup.CPU,
+			State:   taskgroup.Running,
+			Message: "part 1/4",
+			Current: 1,
+			Total:   4,
+		},
+		tree: "├ ",
 	}, 80)
-	if !strings.HasPrefix(line, "🌐 bundle.tar.gz: 5.0 MiB / 10.0 MiB [") {
-		t.Fatalf("wide = %q, want emoji message [bar]", line)
+	if !strings.HasPrefix(line, "├ ▶ 🧠 build: part 1/4 [") {
+		t.Fatalf("line = %q", line)
 	}
 	if !strings.HasSuffix(line, "]") {
-		t.Fatalf("wide = %q, want trailing ]", line)
+		t.Fatalf("line = %q, want trailing ]", line)
 	}
 	if cellWidth(line) != 80 {
-		t.Fatalf("wide width = %d, want 80 (%q)", cellWidth(line), line)
+		t.Fatalf("width = %d, want 80 (%q)", cellWidth(line), line)
 	}
 }
 
-func TestFormatBarLineNarrow(t *testing.T) {
-	line := formatBarLine(barEntry{
-		title:    "bundle.tar.gz",
-		subtitle: "5.0 MiB / 10.0 MiB",
-		pool:     taskgroup.Internet,
-		percent:  0.5,
-	}, 40)
-	if !strings.HasPrefix(line, "🌐  50.0% ") {
-		t.Fatalf("narrow = %q, want emoji percent message", line)
+func TestFormatRowPendingNoBar(t *testing.T) {
+	line := formatRow(treeRow{
+		node: taskgroup.Node{Name: "install", Pool: taskgroup.IO, State: taskgroup.Pending},
+		tree: "└ ",
+	}, 80)
+	if !strings.HasPrefix(line, "└ ⏸ 💾 install") {
+		t.Fatalf("line = %q", line)
 	}
 	if strings.Contains(line, "[") {
-		t.Fatalf("narrow kept a bar: %q", line)
-	}
-	if cellWidth(line) > 40 {
-		t.Fatalf("narrow width = %d > 40 (%q)", cellWidth(line), line)
-	}
-}
-
-func TestFormatBarLinePools(t *testing.T) {
-	tests := []struct {
-		pool  taskgroup.PoolKind
-		emoji string
-	}{
-		{taskgroup.Control, "🔧"},
-		{taskgroup.IO, "💾"},
-		{taskgroup.CPU, "🧠"},
-		{taskgroup.Internet, "🌐"},
-	}
-	for _, tt := range tests {
-		line := formatBarLine(barEntry{title: "t", subtitle: "s", pool: tt.pool, percent: 0}, 80)
-		if !strings.HasPrefix(line, tt.emoji+" ") {
-			t.Errorf("pool %v: line = %q, want emoji %s", tt.pool, line, tt.emoji)
-		}
-	}
-}
-
-func TestSyncKeysByID(t *testing.T) {
-	m := newModel(nil)
-	m.sync([]taskgroup.Node{
-		{ID: 1, Name: "fetch", Pool: taskgroup.Internet, State: taskgroup.Running, Message: "a", Current: 1, Total: 2},
-		{ID: 2, Name: "fetch", Pool: taskgroup.Internet, State: taskgroup.Running, Message: "b", Current: 2, Total: 2},
-	})
-	if len(m.bars) != 2 {
-		t.Fatalf("bars = %d, want 2", len(m.bars))
-	}
-	if m.bars["1"].subtitle != "a" || m.bars["2"].subtitle != "b" {
-		t.Fatalf("bars = %+v", m.bars)
-	}
-	m.sync([]taskgroup.Node{
-		{ID: 1, Name: "fetch", Pool: taskgroup.Internet, State: taskgroup.Running, Message: "done-ish", Current: 2, Total: 2},
-		{ID: 2, Name: "fetch", Pool: taskgroup.Internet, State: taskgroup.Done, Message: "b", Current: 2, Total: 2},
-	})
-	if _, ok := m.bars["2"]; ok {
-		t.Fatal("finished id 2 should drop")
-	}
-	if m.bars["1"].percent != 1 {
-		t.Errorf("id 1 percent = %v, want 1", m.bars["1"].percent)
-	}
-}
-
-func TestSyncSkipsIndeterminate(t *testing.T) {
-	m := newModel(nil)
-	m.sync([]taskgroup.Node{
-		{ID: 1, Name: "wait", Pool: taskgroup.Control, State: taskgroup.Running, Total: -1},
-		{ID: 2, Name: "work", Pool: taskgroup.CPU, State: taskgroup.Running, Message: "go", Current: 0, Total: 1},
-	})
-	if len(m.bars) != 1 {
-		t.Fatalf("bars = %d, want 1", len(m.bars))
-	}
-	if m.bars["2"].subtitle != "go" {
-		t.Errorf("subtitle = %q, want go", m.bars["2"].subtitle)
+		t.Fatalf("pending kept a bar: %q", line)
 	}
 }
 

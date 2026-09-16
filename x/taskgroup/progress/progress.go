@@ -1,7 +1,8 @@
 // Package progress is a bubbletea view of a taskgroup Session.
 //
-// Run polls Session.List until work finishes. Non-tty, TERM=dumb, CI,
-// and NO_COLOR skip the TUI and Wait. LEWKIT_FORCE_TUI=1 forces the TUI.
+// Run polls Session.List until work finishes and draws a nom-style
+// tree (├ └ │, status glyphs). Non-tty, TERM=dumb, CI, and NO_COLOR
+// skip the TUI and Wait. LEWKIT_FORCE_TUI=1 forces the TUI.
 package progress
 
 import (
