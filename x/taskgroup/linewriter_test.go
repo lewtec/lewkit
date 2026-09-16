@@ -2,7 +2,6 @@ package taskgroup
 
 import (
 	"io"
-	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -89,9 +88,14 @@ func TestLogWriterPassesCSI(t *testing.T) {
 	require.Equal(t, []string{"\x1b[41;1mE\x1b[0m fail key=v"}, got)
 }
 
-func TestLogWriterNoTUIIsStderr(t *testing.T) {
+func TestLogWriterPicksUpPrintLater(t *testing.T) {
 	s, _ := New(t.Context(), DefaultLimits())
-	assert.Equal(t, os.Stderr, s.LogWriter())
+	w := s.LogWriter()
+	var got []string
+	s.SetLinePrint(func(line string) { got = append(got, line) })
+	_, err := w.Write([]byte("after\n"))
+	require.NoError(t, err)
+	require.Equal(t, []string{"after"}, got)
 }
 
 func TestLineWriterFromNoSession(t *testing.T) {

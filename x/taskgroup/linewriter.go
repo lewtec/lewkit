@@ -232,17 +232,17 @@ func LineWriterFrom(ctx context.Context) io.WriteCloser {
 
 // LogWriter writes committed log lines to the progress transcript.
 // Newlines split records. CSI is passed through — this is not a live row.
-// Without a TUI print sink it writes to os.Stderr.
+// print is resolved on each Write so a lazy TUI can attach after this
+// writer already exists. Without a print sink, lines go to os.Stderr.
 func (s *Session) LogWriter() io.Writer {
-	fn := s.linePrintFn()
-	if fn == nil {
+	if s == nil {
 		return os.Stderr
 	}
-	return &logWriter{print: fn}
+	return &logWriter{s: s}
 }
 
 type logWriter struct {
-	print func(string)
+	s *Session
 
 	mu  sync.Mutex
 	buf []byte
@@ -251,8 +251,9 @@ type logWriter struct {
 func (w *logWriter) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.print == nil {
-		return len(p), nil
+	print := w.s.linePrintFn()
+	if print == nil {
+		return os.Stderr.Write(p)
 	}
 	w.buf = append(w.buf, p...)
 	for {
@@ -262,7 +263,7 @@ func (w *logWriter) Write(p []byte) (int, error) {
 		}
 		line := bytes.TrimSuffix(w.buf[:i], []byte{'\r'})
 		w.buf = w.buf[i+1:]
-		w.print(string(line))
+		print(string(line))
 	}
 	return len(p), nil
 }
