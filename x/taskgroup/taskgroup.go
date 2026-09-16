@@ -22,6 +22,7 @@ var (
 	ErrUnknownDependency = errors.New("unknown dependency")
 	ErrDependencyFailed  = errors.New("dependency failed")
 	ErrNilFn             = errors.New("fn is nil")
+	ErrCycle             = errors.New("dependency cycle")
 )
 
 // PoolKind identifies which resource pool a task consumes a slot from.

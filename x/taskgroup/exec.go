@@ -52,9 +52,37 @@ func (s *Session) pinDeps(id ID, deps []ID) {
 		if st == Done {
 			continue
 		}
+		if d == id || s.reaches(id, d) {
+			s.finishLocked(id, fmt.Errorf("taskgroup: %w", ErrCycle))
+			return
+		}
 		t.remainingDeps++
 		dep.waiters = append(dep.waiters, id)
 	}
+}
+
+// reaches reports whether to is reachable from from by following waiters
+// (tasks that depend on from). Caller holds s.mu.
+func (s *Session) reaches(from, to ID) bool {
+	seen := make(map[ID]struct{})
+	var walk func(ID) bool
+	walk = func(id ID) bool {
+		if _, ok := seen[id]; ok {
+			return false
+		}
+		seen[id] = struct{}{}
+		t := s.slots[id]
+		if t == nil {
+			return false
+		}
+		for _, w := range t.waiters {
+			if w == to || walk(w) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(from)
 }
 
 func (s *Session) enqueueLocked(id ID) {
