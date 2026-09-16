@@ -9,19 +9,46 @@ import (
 // Usage is the help text for T's flags, commands, and positionals.
 func Usage[T any](name string) (string, error) {
 	var zero T
-	s, err := newSpec(reflect.ValueOf(&zero).Elem())
+	return usageOf(reflect.ValueOf(zero), name)
+}
+
+func usageOf(v reflect.Value, name string) (string, error) {
+	t := v.Type()
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	zero := reflect.New(t).Elem()
+	s, err := newSpec(zero)
 	if err != nil {
 		return "", err
 	}
-	return s.usage(name, descriptionOf[T]()), nil
+	return s.usage(name, descriptionFrom(zero)), nil
 }
 
 func descriptionOf[T any]() string {
 	var zero T
-	if d, ok := any(&zero).(Describer); ok {
+	return descriptionFrom(reflect.ValueOf(zero))
+}
+
+func descriptionFrom(v reflect.Value) string {
+	if !v.IsValid() {
+		return ""
+	}
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			v = reflect.New(v.Type().Elem())
+			continue
+		}
+		v = v.Elem()
+	}
+	ptr := reflect.New(v.Type())
+	if v.CanInterface() {
+		ptr.Elem().Set(v)
+	}
+	if d, ok := ptr.Interface().(Describer); ok {
 		return d.Description()
 	}
-	if d, ok := any(zero).(Describer); ok {
+	if d, ok := ptr.Elem().Interface().(Describer); ok {
 		return d.Description()
 	}
 	return ""

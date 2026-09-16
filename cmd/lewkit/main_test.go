@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,4 +37,28 @@ func TestGeneratePreludeUsage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "prelude")
 	assert.Contains(t, text, "blank-import")
+}
+
+func TestGenerateHelp(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "generate", "--help")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "generate code")
+	assert.Contains(t, got, "db")
+	assert.Contains(t, got, "prelude")
+	assert.Contains(t, got, "shared Queries")
+	assert.NotContains(t, got, "--sentry-dsn")
+}
+
+func TestGenerateErrUsage(t *testing.T) {
+	test.RestoreSlog(t)
+	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "generate")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "generate code")
+	assert.Contains(t, got, "db")
+	assert.Contains(t, got, "prelude")
+	assert.NotContains(t, got, "--sentry-dsn")
 }

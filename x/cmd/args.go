@@ -15,6 +15,8 @@ var (
 	ErrInvalidSpec     = errors.New("invalid command spec")
 	ErrUnknownCommand  = errors.New("unknown command")
 	ErrMissingCommand  = errors.New("missing command")
+	// ErrUsage asks App.Run to print the selected command's usage and succeed.
+	ErrUsage           = errors.New("usage")
 	ErrNoValues        = errors.New("context has no values")
 	ErrNotSet          = errors.New("context key not set")
 	ErrWrongType       = errors.New("wrong type")
