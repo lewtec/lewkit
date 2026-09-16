@@ -1,12 +1,43 @@
 package progress
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
+
+func TestTickRefreshKeepsNodesOnModel(t *testing.T) {
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	t.Cleanup(func() { _ = s.Wait() })
+	block := make(chan struct{})
+	taskgroup.Go(ctx, "hold", taskgroup.CPU, func(context.Context, *taskgroup.Status) error {
+		<-block
+		return nil
+	})
+	t.Cleanup(func() { close(block) })
+
+	m := newModel(s)
+	deadline := time.Now().Add(time.Second)
+	var got model
+	for {
+		next, _ := m.Update(tickMsg{})
+		got = next.(model)
+		if len(got.nodes) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("tick did not copy List onto the model")
+		}
+		m = got
+	}
+	if got.nodes[0].Name != "hold" {
+		t.Fatalf("nodes = %#v, want hold", got.nodes)
+	}
+}
 
 func TestLayoutTreePrefixes(t *testing.T) {
 	rows := layout([]taskgroup.Node{

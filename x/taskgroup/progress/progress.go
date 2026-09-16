@@ -104,7 +104,7 @@ func (m model) tick() tea.Cmd {
 	})
 }
 
-func (m model) refresh() {
+func (m *model) refresh() {
 	if m.session != nil {
 		m.sync(m.session.List(m.max))
 	}
