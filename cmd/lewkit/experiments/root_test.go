@@ -34,3 +34,10 @@ func TestDemoUsage(t *testing.T) {
 	assert.Contains(t, text, "tree")
 	assert.True(t, strings.Contains(text, "taskgroup") || strings.Contains(text, "showcase"))
 }
+
+func TestTreeDelayFlag(t *testing.T) {
+	text, err := cmd.Usage[treeCmd]("lewkit experiments demo tree")
+	require.NoError(t, err)
+	assert.Contains(t, text, "--delay")
+	assert.Contains(t, text, "350ms")
+}

@@ -5,22 +5,26 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
-type treeCmd struct{}
+type treeCmd struct {
+	delay cmd.DurationArg `long:"delay" default:"350ms" help:"sleep per leaf step"`
+}
 
 func (treeCmd) Description() string {
 	return "deep nested tree: release → fetch/compile/package"
 }
 
-func (*treeCmd) Run(ctx context.Context) error {
-	return runDemo(ctx, scheduleTree)
+func (c *treeCmd) Run(ctx context.Context) error {
+	step := c.delay.Value()
+	return runDemo(ctx, func(ctx context.Context) error {
+		return scheduleTree(ctx, step)
+	})
 }
 
-const treeStep = 350 * time.Millisecond
-
-func scheduleTree(ctx context.Context) error {
+func scheduleTree(ctx context.Context, step time.Duration) error {
 	taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, s *taskgroup.Status) error {
 		s.Update("orchestrating")
 		s.Progress(0, 3)
@@ -34,17 +38,17 @@ func scheduleTree(ctx context.Context) error {
 				for i := 1; i <= 4; i++ {
 					s.Progress(int64(i), 4)
 					s.Update(fmt.Sprintf("page %d/4", i))
-					time.Sleep(treeStep)
+					time.Sleep(step)
 				}
 				return nil
 			})
 			taskgroup.Go(ctx, "checksum", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("sha256")
 				s.Progress(0, 2)
-				time.Sleep(treeStep)
+				time.Sleep(step)
 				s.Progress(1, 2)
 				s.Update("verify")
-				time.Sleep(treeStep)
+				time.Sleep(step)
 				s.Progress(2, 2)
 				return nil
 			}, reg)
@@ -61,14 +65,14 @@ func scheduleTree(ctx context.Context) error {
 				s.Progress(0, 3)
 				for i := 1; i <= 3; i++ {
 					s.Progress(int64(i), 3)
-					time.Sleep(treeStep)
+					time.Sleep(step)
 				}
 				return nil
 			})
 			types := taskgroup.Go(ctx, "typecheck", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("infer")
 				s.Progress(0, 1)
-				time.Sleep(treeStep)
+				time.Sleep(step)
 				s.Progress(1, 1)
 				return nil
 			}, parse)
@@ -85,7 +89,7 @@ func scheduleTree(ctx context.Context) error {
 						st.Progress(0, 3)
 						for i := 1; i <= 3; i++ {
 							st.Progress(int64(i), 3)
-							time.Sleep(treeStep)
+							time.Sleep(step)
 						}
 						return struct{}{}, nil
 					},
@@ -108,14 +112,14 @@ func scheduleTree(ctx context.Context) error {
 				s.Progress(0, 5)
 				for i := 1; i <= 5; i++ {
 					s.Progress(int64(i), 5)
-					time.Sleep(treeStep)
+					time.Sleep(step)
 				}
 				return nil
 			})
 			taskgroup.Go(ctx, "sign", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("minisign")
 				done := s.Unit()
-				time.Sleep(treeStep)
+				time.Sleep(step)
 				done()
 				return nil
 			}, tar)
