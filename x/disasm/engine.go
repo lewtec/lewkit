@@ -56,7 +56,7 @@ func Open(ctx context.Context, architecture Architecture, mode Mode, opts ...Opt
 		return nil, err
 	}
 	engine := &Engine{session: session}
-	if options.syntax != 0 {
+	if options.syntax != 0 && options.syntax != SyntaxDefault {
 		if err := session.setOption(ctx, optionSyntax, uint32(options.syntax)); err != nil {
 			return nil, errors.Join(err, engine.Close())
 		}

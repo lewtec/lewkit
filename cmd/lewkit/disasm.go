@@ -13,7 +13,7 @@ import (
 type disasmCmd struct {
 	architecture disasm.Architecture `long:"architecture" default:"x86" help:"architecture" ctx:""`
 	mode         disasm.Mode         `long:"mode" default:"64" help:"comma-separated mode bits" ctx:""`
-	syntax       disasm.Syntax       `long:"syntax" default:"intel" help:"assembly syntax" ctx:""`
+	syntax       disasm.Syntax       `long:"syntax" default:"default" help:"assembly syntax" ctx:""`
 	address      cmd.IntArg[uint64]  `long:"address" default:"0" help:"start address" ctx:""`
 	count        cmd.IntArg[uint]    `long:"count" default:"0" help:"instruction limit, 0 is all" ctx:""`
 	skipData     cmd.Flag            `long:"skip-data" help:"skip undecodable bytes" ctx:""`
