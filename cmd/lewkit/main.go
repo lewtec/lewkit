@@ -37,15 +37,6 @@ func (generateCmd) Description() string {
 	return "generate code"
 }
 
-func (c *generateCmd) Run(ctx context.Context) error {
-	text, err := cmd.Usage[generateCmd]("lewkit generate")
-	if err != nil {
-		return err
-	}
-	_, err = os.Stdout.WriteString(text)
-	return err
-}
-
 type dbCmd struct {
 	dir cmd.WorkDirArg `help:"directory with sqlite/ and postgres/"`
 }

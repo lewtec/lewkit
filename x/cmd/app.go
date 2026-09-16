@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -64,23 +65,33 @@ func (a *App[T]) Setup(ctx context.Context) error {
 }
 
 // Run prints help or version when asked, then Setup, then T's selected
-// command (or T itself) if it has Run(ctx) error.
+// command (or T itself) if it has Run(ctx) error. Missing Run, or a
+// Run that returns ErrUsage, prints that command's usage and succeeds.
 func (a *App[T]) Run(ctx context.Context) error {
 	ctx = withValues(ctx)
 	bind(ctx, reflect.ValueOf(a).Elem())
 	switch {
 	case Get[bool](ctx, "help"):
-		text, err := Usage[App[T]](filepath.Base(os.Args[0]))
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprint(os.Stdout, text)
-		return err
+		return a.printUsage()
 	case Get[bool](ctx, "version"):
 		return release.PrintVersion(os.Stdout)
 	}
 	if err := a.Setup(ctx); err != nil {
 		return err
 	}
-	return runSelected(ctx, reflect.ValueOf(&a.Args).Elem())
+	err := runSelected(ctx, reflect.ValueOf(&a.Args).Elem())
+	if errors.Is(err, ErrUsage) {
+		return a.printUsage()
+	}
+	return err
+}
+
+func (a *App[T]) printUsage() error {
+	leaf, name := selectedCommand(reflect.ValueOf(a).Elem(), filepath.Base(os.Args[0]))
+	text, err := usageOf(leaf, name)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprint(os.Stdout, text)
+	return err
 }

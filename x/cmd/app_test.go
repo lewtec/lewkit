@@ -141,10 +141,12 @@ func (p *pingCmd) Run(context.Context) error {
 func TestMissingCommand(t *testing.T) {
 	test.RestoreSlog(t)
 
-	app, err := Parse[App[extraCmds]]()
-	require.NoError(t, err)
-	err = app.Run(t.Context())
-	assert.ErrorIs(t, err, ErrMissingCommand)
+	app := ParseOK[App[extraCmds]](t)
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "Usage:")
+	assert.Contains(t, got, "ping")
 }
 
 func TestAppInnerCommand(t *testing.T) {
@@ -171,6 +173,42 @@ func TestAppHelpAfterCommand(t *testing.T) {
 	require.NotNil(t, app.Args.ping)
 }
 
+func TestAppRunHelpAfterCommand(t *testing.T) {
+	cases := []struct {
+		name     string
+		args     []string
+		contains []string
+		omits    []string
+	}{
+		{
+			name:     "long",
+			args:     []string{"ping", "--help"},
+			contains: []string{"--name", "ping [flags]"},
+			omits:    []string{"Commands:", "--verbose"},
+		},
+		{
+			name:     "short",
+			args:     []string{"ping", "-h"},
+			contains: []string{"--name", "ping [flags]"},
+			omits:    []string{"Commands:", "--verbose"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := ParseOK[App[extraCmds]](t, tc.args...)
+			got := test.Stdout(t, func() {
+				require.NoError(t, app.Run(t.Context()))
+			})
+			for _, want := range tc.contains {
+				assert.Contains(t, got, want)
+			}
+			for _, omit := range tc.omits {
+				assert.NotContains(t, got, omit)
+			}
+		})
+	}
+}
+
 func TestAppInnerHelp(t *testing.T) {
 	app := ParseOK[App[extraCmds]](t, "--help")
 	got := test.Stdout(t, func() {
@@ -178,6 +216,104 @@ func TestAppInnerHelp(t *testing.T) {
 	})
 	assert.Contains(t, got, "ping")
 	assert.Contains(t, got, "--verbose")
+}
+
+type treeRoot struct {
+	foo *fooCmd
+}
+
+type fooCmd struct {
+	bar  *barCmd
+	nick StringArg `long:"nick" help:"foo nick" default:""`
+}
+
+func (fooCmd) Description() string {
+	return "foo command"
+}
+
+type barCmd struct {
+	id StringArg `long:"id" help:"bar id"`
+}
+
+func (barCmd) Description() string {
+	return "bar command"
+}
+
+func (*barCmd) Run(context.Context) error { return nil }
+
+func TestAppRunNestedHelp(t *testing.T) {
+	app := ParseOK[App[treeRoot]](t, "foo", "--help")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "foo command")
+	assert.Contains(t, got, "--nick")
+	assert.Contains(t, got, "bar")
+	assert.NotContains(t, got, "--id")
+	assert.NotContains(t, got, "--verbose")
+
+	app = ParseOK[App[treeRoot]](t, "foo", "bar", "--help")
+	got = test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "bar command")
+	assert.Contains(t, got, "--id")
+	assert.NotContains(t, got, "--nick")
+}
+
+func TestAppRunNoRunPrintsUsage(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[treeRoot]](t, "foo")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "foo command")
+	assert.Contains(t, got, "--nick")
+	assert.Contains(t, got, "bar")
+	assert.NotContains(t, got, "--id")
+}
+
+type usageLeaf struct{}
+
+func (usageLeaf) Description() string {
+	return "leaf usage"
+}
+
+func (*usageLeaf) Run(context.Context) error {
+	return ErrUsage
+}
+
+type usageRoot struct {
+	show *usageLeaf
+}
+
+func TestAppRunErrUsage(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[usageRoot]](t, "show")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "leaf usage")
+	assert.Contains(t, got, "Usage:")
+	assert.NotContains(t, got, "--verbose")
+}
+
+type muteRoot struct {
+	mute *muteLeaf
+}
+
+type muteLeaf struct {
+	name StringArg `long:"name" default:""`
+}
+
+func TestAppRunLeafNoRun(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[muteRoot]](t, "mute")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "--name")
+	assert.Contains(t, got, "mute [flags]")
 }
 
 type rootCmd struct {

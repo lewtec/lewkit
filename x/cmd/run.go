@@ -6,6 +6,10 @@ import (
 )
 
 func runSelected(ctx context.Context, v reflect.Value) error {
+	return runSelectedAt(ctx, v, false)
+}
+
+func runSelectedAt(ctx context.Context, v reflect.Value, cmd bool) error {
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
@@ -26,14 +30,14 @@ func runSelected(ctx context.Context, v reflect.Value) error {
 			continue
 		}
 		if _, ok := commandName(sf, fv); ok {
-			return runSelected(ctx, rvalue{fv}.settable())
+			return runSelectedAt(ctx, rvalue{fv}.settable(), true)
 		}
 	}
 	if run := runMethod(v); run.IsValid() {
 		return callRun(ctx, run)
 	}
-	if hasCommands(v) {
-		return ErrMissingCommand
+	if cmd || hasCommands(v) {
+		return ErrUsage
 	}
 	return nil
 }
@@ -74,4 +78,48 @@ func callRun(ctx context.Context, m reflect.Value) error {
 		return err
 	}
 	return nil
+}
+
+func selectedCommand(v reflect.Value, name string) (reflect.Value, string) {
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return v, name
+		}
+		v = v.Elem()
+	}
+	if cmd, cmdName, ok := findSelectedCommand(v); ok {
+		return selectedCommand(cmd, name+" "+cmdName)
+	}
+	return v, name
+}
+
+func findSelectedCommand(v reflect.Value) (reflect.Value, string, bool) {
+	if v.Kind() != reflect.Struct {
+		return reflect.Value{}, "", false
+	}
+	t := v.Type()
+	for i := range t.NumField() {
+		sf := t.Field(i)
+		fv := v.Field(i)
+		if !fv.CanAddr() {
+			continue
+		}
+		_, flatten := sf.Tag.Lookup("flatten")
+		if (sf.Anonymous || flatten) && shouldFlatten(fv) {
+			ev, err := derefStruct(fv)
+			if err != nil {
+				continue
+			}
+			if cmd, name, ok := findSelectedCommand(ev); ok {
+				return cmd, name, true
+			}
+			continue
+		}
+		if fv.Kind() == reflect.Pointer && !fv.IsNil() {
+			if name, ok := commandName(sf, fv); ok {
+				return fv, name, true
+			}
+		}
+	}
+	return reflect.Value{}, "", false
 }
