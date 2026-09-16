@@ -7,14 +7,14 @@
 // [Open] makes an uncompressed [io.ReaderAt], then
 // [github.com/lewtec/lewkit/x/fs.New] indexes [Files].
 //
-//	for f, err := range tar.Files(r) {
+//	for f, err := range tar.Files(ctx, r) {
 //		if ok, _ := f.Name.MatchGlob("**/*.go"); ok {
 //			rf, err := f.Open()
 //		}
 //	}
-//	err = fs.Copy(ctx, dest, tar.Files(r))
-//	t, err := path.OpenFS(path.New("src.tar"), root, tar.Open)
-//	t, err := path.OpenFS(path.New("src.tar.gz"), root, tar.Open)
+//	err = fs.Copy(ctx, dest, tar.Files(ctx, r))
+//	t, err := path.OpenFS(ctx, path.New("src.tar"), root, tar.Open)
+//	t, err := path.OpenFS(ctx, path.New("src.tar.gz"), root, tar.Open)
 //
 // Compressed wrappers are chosen by file name or magic through the
 // process-wide [github.com/lewtec/lewkit/x/compression] registry.

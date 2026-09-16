@@ -3,6 +3,7 @@ package zip
 import (
 	stdzip "archive/zip"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -56,9 +57,17 @@ func packZip(t *testing.T, files map[string][]byte, method uint16) *bytes.Reader
 	return bytes.NewReader(buf.Bytes())
 }
 
+func TestOpenCancel(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := Open(ctx, packZip(t, map[string][]byte{"a.txt": []byte("x")}, stdzip.Store))
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
-	_, err := Open(onlyReader{strings.NewReader("x")})
+	_, err := Open(t.Context(), onlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
@@ -67,13 +76,13 @@ func TestNeedReadAt(t *testing.T) {
 
 func TestNeedSize(t *testing.T) {
 	t.Parallel()
-	_, err := Open(atOnly{b: []byte("PK")})
+	_, err := Open(t.Context(), atOnly{b: []byte("PK")})
 	require.ErrorIs(t, err, lewfs.ErrNeedSize)
 }
 
 func TestInvalidZip(t *testing.T) {
 	t.Parallel()
-	_, err := Open(bytes.NewReader(make([]byte, 256)))
+	_, err := Open(t.Context(), bytes.NewReader(make([]byte, 256)))
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 	assert.False(t, errors.Is(err, lewfs.ErrNeedSize))
@@ -85,7 +94,7 @@ func TestTree(t *testing.T) {
 		"a/b.txt": []byte("hello"),
 		"z.txt":   []byte("zee"),
 	}, stdzip.Deflate)
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 
 	ents, err := fsys.ReadDir(".")
@@ -122,7 +131,7 @@ func TestTree(t *testing.T) {
 func TestStoredReadAt(t *testing.T) {
 	t.Parallel()
 	r := packZip(t, map[string][]byte{"a.bin": []byte("hello world")}, stdzip.Store)
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	f, err := fsys.Open("a.bin")
 	require.NoError(t, err)
@@ -142,7 +151,7 @@ func TestOpenFS(t *testing.T) {
 	data, err := io.ReadAll(raw)
 	require.NoError(t, err)
 	host := fstest.MapFS{"src.zip": {Data: data}}
-	z, err := path.OpenFS(path.New("src.zip"), host, Open)
+	z, err := path.OpenFS(t.Context(), path.New("src.zip"), host, Open)
 	require.NoError(t, err)
 	b, err := path.New("README").ReadFile(z)
 	require.NoError(t, err)
@@ -155,7 +164,7 @@ func TestFS(t *testing.T) {
 		"a/b.txt": []byte("hello"),
 		"z.txt":   []byte("zee"),
 	}, stdzip.Deflate)
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
 }
@@ -166,12 +175,12 @@ func TestCopyExtract(t *testing.T) {
 		"a/b.txt": []byte("hello"),
 		"z.txt":   []byte("zee"),
 	}, stdzip.Deflate)
-	src, err := Open(r)
+	src, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, lewfs.Copy(t.Context(), dest, lewfs.Walk(src, nil)))
+	require.NoError(t, lewfs.Copy(t.Context(), dest, lewfs.Walk(t.Context(), src, nil)))
 	b, err := path.New("z.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("zee"), b)
@@ -183,7 +192,7 @@ func TestCopyExtract(t *testing.T) {
 func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
 	r := packZip(t, map[string][]byte{"a.txt": []byte("x")}, stdzip.Store)
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	err = path.New("a.txt").WriteFile(fsys, []byte("y"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
@@ -192,7 +201,7 @@ func TestWriteReadOnly(t *testing.T) {
 func TestOpenFSNeedReadAt(t *testing.T) {
 	t.Parallel()
 	fsys := &readerOnlyFS{name: "a.zip", r: strings.NewReader("x")}
-	_, err := path.OpenFS(path.New("a.zip"), fsys, Open)
+	_, err := path.OpenFS(t.Context(), path.New("a.zip"), fsys, Open)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 

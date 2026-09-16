@@ -53,14 +53,15 @@
 // [OpenFS] opens a name and hands the file to an adapter such as
 // [github.com/lewtec/lewkit/x/fs/udf.Open]:
 //
-//	vol, err := path.OpenFS(path.New("en-us.iso"), root, udf.Open)
+//	vol, err := path.OpenFS(ctx, path.New("en-us.iso"), root, udf.Open)
 //
 // Read methods use the [io/fs] helpers: [io/fs.ReadFile], [io/fs.Stat],
 // [io/fs.ReadDir], [io/fs.WalkDir], [io/fs.ReadLink], [io/fs.Lstat].
 // Optional interfaces on the filesystem apply as in the standard library.
 //
 // [Path.Glob] and [Path.Rglob] yield matches via doublestar. "**" does
-// not follow symlinks. [Path.Walk] yields names under p.
+// not follow symlinks. [Path.Walk] yields names under p. All three
+// take a context and stop when it is done.
 //
 // [Path.Select] and [Path.Under] filter a name iterator.
 // [Path.MatchGlob] is doublestar against one name. A container

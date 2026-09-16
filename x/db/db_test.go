@@ -1,6 +1,7 @@
 package db_test
 
 import (
+	"context"
 	"database/sql"
 	"io/fs"
 	"testing"
@@ -52,7 +53,7 @@ func TestOneRootPerArg(t *testing.T) {
 		Primary db.Arg[struct{}] `long:"primary"`
 		Cache   db.Arg[struct{}] `long:"cache"`
 	}
-	nop := db.Connector{Driver: "unused", Up: func(*sql.DB, fs.FS) error { return nil }}
+	nop := db.Connector{Driver: "unused", Up: func(context.Context, *sql.DB, fs.FS) error { return nil }}
 	db.Register("sqlite", nop)
 	db.Register("postgres", nop)
 	got, err := cmd.Parse[args]("--primary", "sqlite://a.db", "--cache", "postgres://localhost/b")
@@ -70,7 +71,7 @@ func TestOneRootPerArg(t *testing.T) {
 func TestNoMigrationsForEngine(t *testing.T) {
 	db.Register("postgres", db.Connector{
 		Driver: "unused",
-		Up:     func(*sql.DB, fs.FS) error { return nil },
+		Up:     func(context.Context, *sql.DB, fs.FS) error { return nil },
 	})
 	root := fstest.MapFS{
 		"sqlite/migrations/000001_items.up.sql": {Data: []byte("select 1;")},
@@ -81,6 +82,15 @@ func TestNoMigrationsForEngine(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, db.ErrNoMigrations)
 	assert.Contains(t, err.Error(), "postgres/migrations")
+}
+
+func TestMigrateCancel(t *testing.T) {
+	var a db.Arg[struct{}]
+	require.NoError(t, a.Parse("sqlite://file.db"))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := a.Migrate(ctx, nil)
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestUnknownScheme(t *testing.T) {

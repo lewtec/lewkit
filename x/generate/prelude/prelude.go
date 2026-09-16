@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/fs"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/path/pick"
 )
@@ -33,24 +33,24 @@ func Run(ctx context.Context, directory, dest string) error {
 		return err
 	}
 	defer filesystem.Close()
-	base, err := findImportPath(filesystem)
+	base, err := findImportPath(ctx, filesystem)
 	if err != nil {
 		return err
 	}
-	imports, err := rootImports(filesystem, base)
+	imports, err := rootImports(ctx, filesystem, base)
 	if err != nil {
 		return err
 	}
 	packageName := "prelude"
 	if dest == "" {
-		return write(os.Stdout, packageName, imports)
+		return write(lewfs.ContextWriter(ctx, os.Stdout), packageName, imports)
 	}
 	outFS, file, err := openDest(dest)
 	if err != nil {
 		return err
 	}
 	defer outFS.Close()
-	if name, err := packageOfDirectory(outFS, file.Parent()); err == nil {
+	if name, err := packageOfDirectory(ctx, outFS, file.Parent()); err == nil {
 		packageName = name
 	}
 	var body bytes.Buffer
@@ -75,9 +75,9 @@ func openDest(dest string) (*path.Root, path.Path, error) {
 	return root, name, err
 }
 
-func rootImports(filesystem *path.Root, base string) ([]string, error) {
+func rootImports(ctx context.Context, filesystem *path.Root, base string) ([]string, error) {
 	var out []string
-	for file, err := range fs.Walk(filesystem, pick.Glob("**/root.go")) {
+	for file, err := range lewfs.Walk(ctx, filesystem, pick.Glob("**/root.go")) {
 		if err != nil {
 			return nil, err
 		}
@@ -91,9 +91,12 @@ func rootImports(filesystem *path.Root, base string) ([]string, error) {
 	return slices.Compact(out), nil
 }
 
-func packageOfDirectory(filesystem *path.Root, directory path.Path) (string, error) {
+func packageOfDirectory(ctx context.Context, filesystem *path.Root, directory path.Path) (string, error) {
 	for child, err := range directory.IterDir(filesystem) {
 		if err != nil {
+			return "", err
+		}
+		if err := ctx.Err(); err != nil {
 			return "", err
 		}
 		if child.Suffix() != ".go" || child.Name() == "prelude.go" || strings.HasSuffix(child.Stem(), "_test") {
@@ -129,13 +132,16 @@ func packageOfFile(filesystem *path.Root, file path.Path) (string, error) {
 	return parsed.Name.Name, nil
 }
 
-func findImportPath(start *path.Root) (string, error) {
+func findImportPath(ctx context.Context, start *path.Root) (string, error) {
 	current, err := climbStart(start)
 	if err != nil {
 		return "", err
 	}
 	var suffix []string
 	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		ancestor, err := path.Open(current.String())
 		if err != nil {
 			return "", err

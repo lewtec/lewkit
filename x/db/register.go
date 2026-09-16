@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/fs"
@@ -13,7 +14,7 @@ import (
 type Connector struct {
 	Driver string
 	DSN    func(raw string) string
-	Up     func(*sql.DB, fs.FS) error
+	Up     func(context.Context, *sql.DB, fs.FS) error
 }
 
 var engines sync.Map // string → Connector

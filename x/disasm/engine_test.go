@@ -1,12 +1,20 @@
 package disasm
 
 import (
+	"context"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestOpenCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := Open(ctx, ArchitectureX86, Mode64)
+	require.ErrorIs(t, err, context.Canceled)
+}
 
 func TestDisassembleX86(t *testing.T) {
 	engine, err := Open(t.Context(), ArchitectureX86, Mode64, WithSyntax(SyntaxIntel))

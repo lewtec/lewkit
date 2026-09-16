@@ -6,6 +6,7 @@
 package postgres
 
 import (
+	"context"
 	"database/sql"
 	"io/fs"
 
@@ -23,8 +24,8 @@ func init() {
 	db.Register("postgresql", c)
 }
 
-func up(conn *sql.DB, fsys fs.FS) error {
-	return db.Up(conn, fsys, "postgres", func(c *sql.DB) (database.Driver, error) {
+func up(ctx context.Context, conn *sql.DB, fsys fs.FS) error {
+	return db.Up(ctx, conn, fsys, "postgres", func(c *sql.DB) (database.Driver, error) {
 		return migpostgres.WithInstance(c, &migpostgres.Config{})
 	})
 }

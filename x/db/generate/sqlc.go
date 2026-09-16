@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,10 +55,22 @@ func writeSQLC(root string, engines []engine) error {
 	return os.WriteFile(filepath.Join(root, "sqlc.yaml"), b, 0o644)
 }
 
-func runSQLC(root string) error {
-	cfg := filepath.Join(root, "sqlc.yaml")
-	if code := sqlc.Run([]string{"generate", "-f", cfg}); code != 0 {
-		return fmt.Errorf("%w: exit %d", errSQLC, code)
+func runSQLC(ctx context.Context, root string) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	return nil
+	cfg := filepath.Join(root, "sqlc.yaml")
+	done := make(chan int, 1)
+	go func() {
+		done <- sqlc.Run([]string{"generate", "-f", cfg})
+	}()
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case code := <-done:
+		if code != 0 {
+			return fmt.Errorf("%w: exit %d", errSQLC, code)
+		}
+		return nil
+	}
 }

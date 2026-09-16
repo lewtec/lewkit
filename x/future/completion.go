@@ -56,6 +56,11 @@ func (f *completionFuture[T]) resolve() {
 	if !f.state.CompareAndSwap(FuturePending.asNative(), FutureRunning.asNative()) {
 		return
 	}
+	if err := f.ctx.Err(); err != nil {
+		f.err = context.Cause(f.ctx)
+		f.state.Swap(FutureCancelled.asNative())
+		return
+	}
 	f.value, f.err = f.handler(f.ctx)
 	if errors.Is(f.err, context.Canceled) {
 		f.state.Swap(FutureCancelled.asNative())

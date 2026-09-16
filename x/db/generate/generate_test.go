@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +12,7 @@ import (
 
 func TestScanCompare(t *testing.T) {
 	dir := filepath.Join("testdata", "ok")
-	engines, err := scan(dir)
+	engines, err := scan(t.Context(), dir)
 	require.NoError(t, err)
 	require.Len(t, engines, 2)
 	require.NoError(t, compareQueries(engines))
@@ -24,7 +25,7 @@ func TestScanMismatch(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "postgres", "migrations"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "sqlite", "q.sql"), []byte("-- name: A :one\nSELECT 1;\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "postgres", "q.sql"), []byte("-- name: B :one\nSELECT 1;\n"), 0o644))
-	engines, err := scan(dir)
+	engines, err := scan(t.Context(), dir)
 	require.NoError(t, err)
 	err = compareQueries(engines)
 	require.Error(t, err)
@@ -42,6 +43,13 @@ func TestWriteSQLC(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(b), "engine: sqlite")
 	assert.Contains(t, string(b), "emit_interface: true")
+}
+
+func TestRunCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := Run(ctx, t.TempDir())
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestRun(t *testing.T) {

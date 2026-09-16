@@ -1,6 +1,7 @@
 package squashfs
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -34,11 +35,15 @@ var (
 )
 
 // Open reads a SquashFS image from r. r must be an [io.ReaderAt].
-func Open(r io.Reader) (*FS, error) {
+func Open(ctx context.Context, r io.Reader) (*FS, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
 	ra, err := lewfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
 	}
+	ra = lewfs.ContextReaderAt(ctx, ra)
 	var hdr [superblockN]byte
 	if _, err := ra.ReadAt(hdr[:], 0); err != nil {
 		return nil, err

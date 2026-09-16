@@ -21,7 +21,7 @@ type onlyReader struct{ io.Reader }
 
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
-	_, err := Open(onlyReader{strings.NewReader("x")})
+	_, err := Open(t.Context(), onlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
@@ -30,7 +30,7 @@ func TestNeedReadAt(t *testing.T) {
 
 func TestInvalidImage(t *testing.T) {
 	t.Parallel()
-	_, err := Open(bytes.NewReader(make([]byte, 4096)))
+	_, err := Open(t.Context(), bytes.NewReader(make([]byte, 4096)))
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }
@@ -39,7 +39,7 @@ func TestTree(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile("testdata/tiny.sfs")
 	require.NoError(t, err)
-	fsys, err := Open(bytes.NewReader(raw))
+	fsys, err := Open(t.Context(), bytes.NewReader(raw))
 	require.NoError(t, err)
 
 	ents, err := fsys.ReadDir(".")
@@ -74,7 +74,7 @@ func TestPathReadDir(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile("testdata/tiny.sfs")
 	require.NoError(t, err)
-	fsys, err := Open(bytes.NewReader(raw))
+	fsys, err := Open(t.Context(), bytes.NewReader(raw))
 	require.NoError(t, err)
 	ents, err := path.New("a").ReadDir(fsys)
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestFS(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile("testdata/tiny.sfs")
 	require.NoError(t, err)
-	fsys, err := Open(bytes.NewReader(raw))
+	fsys, err := Open(t.Context(), bytes.NewReader(raw))
 	require.NoError(t, err)
 	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
 }
@@ -95,7 +95,7 @@ func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile("testdata/tiny.sfs")
 	require.NoError(t, err)
-	fsys, err := Open(bytes.NewReader(raw))
+	fsys, err := Open(t.Context(), bytes.NewReader(raw))
 	require.NoError(t, err)
 	err = path.New("z.txt").WriteFile(fsys, []byte("x"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
@@ -104,7 +104,7 @@ func TestWriteReadOnly(t *testing.T) {
 func TestOpenFSNeedReadAt(t *testing.T) {
 	t.Parallel()
 	fsys := &readerOnlyFS{name: "root.sfs", r: strings.NewReader("x")}
-	_, err := path.OpenFS(path.New("root.sfs"), fsys, Open)
+	_, err := path.OpenFS(t.Context(), path.New("root.sfs"), fsys, Open)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 

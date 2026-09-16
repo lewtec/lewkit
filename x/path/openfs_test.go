@@ -1,6 +1,7 @@
 package path
 
 import (
+	"context"
 	"io"
 	"io/fs"
 	"testing"
@@ -13,7 +14,7 @@ import (
 func TestOpenFS(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{"dir/a.txt": {Data: []byte("hi")}}
-	got, err := OpenFS(New("dir", "a.txt"), fsys, func(r io.Reader) (string, error) {
+	got, err := OpenFS(t.Context(), New("dir", "a.txt"), fsys, func(_ context.Context, r io.Reader) (string, error) {
 		b, err := io.ReadAll(r)
 		return string(b), err
 	})
@@ -24,17 +25,29 @@ func TestOpenFS(t *testing.T) {
 func TestOpenFSMissing(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{}
-	_, err := OpenFS(New("nope"), fsys, func(io.Reader) (string, error) {
+	_, err := OpenFS(t.Context(), New("nope"), fsys, func(context.Context, io.Reader) (string, error) {
 		t.Fatal("open must not run")
 		return "", nil
 	})
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
+func TestOpenFSCancel(t *testing.T) {
+	t.Parallel()
+	fsys := fstest.MapFS{"a.txt": {Data: []byte("hi")}}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := OpenFS(ctx, New("a.txt"), fsys, func(context.Context, io.Reader) (string, error) {
+		t.Fatal("open must not run")
+		return "", nil
+	})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestOpenFSClosesOnError(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{"a.txt": {Data: []byte("hi")}}
-	_, err := OpenFS(New("a.txt"), fsys, func(io.Reader) (string, error) {
+	_, err := OpenFS(t.Context(), New("a.txt"), fsys, func(context.Context, io.Reader) (string, error) {
 		return "", fs.ErrInvalid
 	})
 	require.ErrorIs(t, err, fs.ErrInvalid)

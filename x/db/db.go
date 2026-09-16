@@ -145,6 +145,9 @@ func (c *Conn[Q]) Migrate(ctx context.Context, root fs.FS) error {
 	if c == nil {
 		return errNotOpen
 	}
+	if err := ctx.Err(); err != nil {
+		return context.Cause(ctx)
+	}
 	scheme, eng, dsn, err := lookup(c.url)
 	if err != nil {
 		return err
@@ -155,6 +158,9 @@ func (c *Conn[Q]) Migrate(ctx context.Context, root fs.FS) error {
 		if err != nil {
 			return err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return context.Cause(ctx)
 	}
 	if c.conn == nil {
 		conn, err := sql.Open(eng.Driver, dsn)
@@ -169,7 +175,7 @@ func (c *Conn[Q]) Migrate(ctx context.Context, root fs.FS) error {
 	if mig == nil {
 		return nil
 	}
-	if err := eng.Up(c.conn, mig); err != nil {
+	if err := eng.Up(ctx, c.conn, mig); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
 	return nil
@@ -188,6 +194,9 @@ func (c *Conn[Q]) Queries() Q {
 func (c *Conn[Q]) Tx(ctx context.Context, fn func(Q) error) error {
 	if c == nil || c.conn == nil || c.new == nil {
 		return errNotOpen
+	}
+	if err := ctx.Err(); err != nil {
+		return context.Cause(ctx)
 	}
 	tx, err := c.conn.BeginTx(ctx, nil)
 	if err != nil {

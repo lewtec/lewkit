@@ -4,7 +4,7 @@
 // A missing [io.ReaderAt] returns [github.com/lewtec/lewkit/x/fs.ErrNeedReadAt].
 // Open does not copy or spool the volume.
 //
-//	vol, err := path.OpenFS(path.New("en-us.iso"), root, udf.Open)
+//	vol, err := path.OpenFS(ctx, path.New("en-us.iso"), root, udf.Open)
 //	b, err := fs.ReadFile(vol, "sources/install.wim")
 //
 // Opened files implement [io.ReaderAt] so a nested reader (WIM, zip,

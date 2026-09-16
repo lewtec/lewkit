@@ -1,6 +1,7 @@
 package prelude
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -85,6 +86,13 @@ func TestRunNoGoMod(t *testing.T) {
 func TestRunEmptyDir(t *testing.T) {
 	err := Run(t.Context(), "", "")
 	assert.ErrorIs(t, err, errDirRequired)
+}
+
+func TestRunCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := Run(ctx, t.TempDir(), "")
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func writeTree(t *testing.T, root string, files map[string]string) {

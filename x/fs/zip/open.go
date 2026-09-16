@@ -2,6 +2,7 @@ package zip
 
 import (
 	stdzip "archive/zip"
+	"context"
 	"io"
 	"io/fs"
 	"strings"
@@ -23,7 +24,10 @@ var (
 )
 
 // Open reads a ZIP archive from r. r must be an [io.ReaderAt] with a known size.
-func Open(r io.Reader) (*FS, error) {
+func Open(ctx context.Context, r io.Reader) (*FS, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
 	ra, err := lewfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
@@ -32,7 +36,7 @@ func Open(r io.Reader) (*FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	zr, err := stdzip.NewReader(ra, size)
+	zr, err := stdzip.NewReader(lewfs.ContextReaderAt(ctx, ra), size)
 	if err != nil {
 		return nil, err
 	}

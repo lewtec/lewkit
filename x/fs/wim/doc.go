@@ -10,7 +10,7 @@
 // Image is 1-based, same as DISM and the WIM XML index.
 //
 //	f, err := os.Open("install.wim")
-//	img, err := wim.Open(f, 1)
+//	img, err := wim.Open(ctx, f, 1)
 //	b, err := fs.ReadFile(img, "Windows/Fonts/arial.ttf")
 //
 // Opened files are streams. They do not implement [io.ReaderAt].

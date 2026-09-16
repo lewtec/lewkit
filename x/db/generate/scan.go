@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -22,13 +23,19 @@ type engine struct {
 	named map[string]string // name → :one/:many/…
 }
 
-func scan(root string) ([]engine, error) {
+func scan(ctx context.Context, root string) ([]engine, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	ents, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
 	var out []engine
 	for _, e := range ents {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if !e.IsDir() {
 			continue
 		}
@@ -36,7 +43,7 @@ func scan(root string) ([]engine, error) {
 		if !ok {
 			continue
 		}
-		eng, err := loadEngine(root, e.Name(), sqlc)
+		eng, err := loadEngine(ctx, root, e.Name(), sqlc)
 		if err != nil {
 			return nil, err
 		}
@@ -49,7 +56,7 @@ func scan(root string) ([]engine, error) {
 	return out, nil
 }
 
-func loadEngine(root, name, sqlc string) (engine, error) {
+func loadEngine(ctx context.Context, root, name, sqlc string) (engine, error) {
 	eng := engine{dir: name, sqlc: sqlc, named: map[string]string{}}
 	mig := filepath.Join(root, name, "migrations")
 	st, err := os.Stat(mig)
@@ -62,6 +69,9 @@ func loadEngine(root, name, sqlc string) (engine, error) {
 	}
 	sort.Strings(matches)
 	for _, f := range matches {
+		if err := ctx.Err(); err != nil {
+			return eng, err
+		}
 		b, err := os.ReadFile(f)
 		if err != nil {
 			return eng, err
