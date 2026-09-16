@@ -159,38 +159,39 @@ func (s *spec) usage(name, desc string, inherited []usageFlag) string {
 }
 
 func writeUsageFlags(b *strings.Builder, flags []usageFlag) {
-	if len(flags) == 0 {
-		return
-	}
-	width := 0
-	labels := make([]string, len(flags))
+	rows := make([]usageRow, len(flags))
 	for i, item := range flags {
-		labels[i] = usageLabel(item.field)
-		if n := len(labels[i]); n > width {
-			width = n
-		}
+		rows[i] = usageRow{label: usageLabel(item.field), help: item.help}
 	}
-	fmt.Fprintf(b, "\nFlags:\n")
-	for i, item := range flags {
-		fmt.Fprintf(b, "  %-*s  %s\n", width, labels[i], item.help)
-	}
+	writeColumns(b, "Flags", rows)
 }
 
 func (s *spec) writeGroup(b *strings.Builder, title string, fields []field) {
-	if len(fields) == 0 {
+	rows := make([]usageRow, len(fields))
+	for i, f := range fields {
+		rows[i] = usageRow{label: usageLabel(f), help: s.lineHelp(f)}
+	}
+	writeColumns(b, title, rows)
+}
+
+type usageRow struct {
+	label string
+	help  string
+}
+
+func writeColumns(b *strings.Builder, title string, rows []usageRow) {
+	if len(rows) == 0 {
 		return
 	}
 	width := 0
-	labels := make([]string, len(fields))
-	for i, f := range fields {
-		labels[i] = usageLabel(f)
-		if n := len(labels[i]); n > width {
+	for _, row := range rows {
+		if n := len(row.label); n > width {
 			width = n
 		}
 	}
 	fmt.Fprintf(b, "\n%s:\n", title)
-	for i, f := range fields {
-		fmt.Fprintf(b, "  %-*s  %s\n", width, labels[i], s.lineHelp(f))
+	for _, row := range rows {
+		fmt.Fprintf(b, "  %-*s  %s\n", width, row.label, row.help)
 	}
 }
 
