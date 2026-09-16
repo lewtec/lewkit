@@ -173,14 +173,98 @@ func ParseSyntax(name string) (Syntax, error) {
 	return syntax, nil
 }
 
-// Parse makes Architecture a command-line enum argument.
-func (architecture *Architecture) Parse(name string) error {
-	parsed, err := ParseArchitecture(name)
-	if err != nil {
-		return err
+// String is the CLI token for cmd.EnumArg.
+func (architecture Architecture) String() string {
+	switch architecture {
+	case ArchitectureARM:
+		return "arm"
+	case ArchitectureAArch64:
+		return "aarch64"
+	case ArchitectureMIPS:
+		return "mips"
+	case ArchitectureX86:
+		return "x86"
+	case ArchitecturePowerPC:
+		return "powerpc"
+	case ArchitectureSPARC:
+		return "sparc"
+	case ArchitectureSystemZ:
+		return "systemz"
+	case ArchitectureXCore:
+		return "xcore"
+	case ArchitectureM68K:
+		return "m68k"
+	case ArchitectureTMS320C64X:
+		return "tms320c64x"
+	case ArchitectureM680X:
+		return "m680x"
+	case ArchitectureEVM:
+		return "evm"
+	case ArchitectureMOS65XX:
+		return "mos65xx"
+	case ArchitectureWASM:
+		return "wasm"
+	case ArchitectureBPF:
+		return "bpf"
+	case ArchitectureRISCV:
+		return "riscv"
+	case ArchitectureSH:
+		return "sh"
+	case ArchitectureTriCore:
+		return "tricore"
+	case ArchitectureAlpha:
+		return "alpha"
+	default:
+		return ""
 	}
-	*architecture = parsed
-	return nil
+}
+
+// Values lists architectures for cmd.EnumArg.
+func (Architecture) Values() []Architecture {
+	return []Architecture{
+		ArchitectureARM,
+		ArchitectureAArch64,
+		ArchitectureMIPS,
+		ArchitectureX86,
+		ArchitecturePowerPC,
+		ArchitectureSPARC,
+		ArchitectureSystemZ,
+		ArchitectureXCore,
+		ArchitectureM68K,
+		ArchitectureTMS320C64X,
+		ArchitectureM680X,
+		ArchitectureEVM,
+		ArchitectureMOS65XX,
+		ArchitectureWASM,
+		ArchitectureBPF,
+		ArchitectureRISCV,
+		ArchitectureSH,
+		ArchitectureTriCore,
+		ArchitectureAlpha,
+	}
+}
+
+// String is the CLI token for cmd.EnumArg.
+func (syntax Syntax) String() string {
+	switch syntax {
+	case SyntaxDefault:
+		return "default"
+	case SyntaxIntel:
+		return "intel"
+	case SyntaxATT:
+		return "att"
+	case SyntaxNoReg:
+		return "noreg"
+	case SyntaxMASM:
+		return "masm"
+	default:
+		return ""
+	}
+}
+
+// Values lists syntaxes for cmd.EnumArg.
+func (Syntax) Values() []Syntax {
+	return []Syntax{SyntaxDefault, SyntaxIntel, SyntaxATT, SyntaxNoReg, SyntaxMASM}
 }
 
 // Parse makes Mode a command-line argument (comma-separated bits).
@@ -190,15 +274,5 @@ func (mode *Mode) Parse(name string) error {
 		return err
 	}
 	*mode = parsed
-	return nil
-}
-
-// Parse makes Syntax a command-line enum argument.
-func (syntax *Syntax) Parse(name string) error {
-	parsed, err := ParseSyntax(name)
-	if err != nil {
-		return err
-	}
-	*syntax = parsed
 	return nil
 }

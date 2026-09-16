@@ -17,7 +17,8 @@ import (
 
 func TestDisasmBadArchitecture(t *testing.T) {
 	err := cmd.ParseErr[cmd.App[root]](t, "--sentry-dsn", "", "disasm", "--architecture", "itanium", "hex", "90")
-	assert.Contains(t, err.Error(), "unknown architecture")
+	assert.ErrorIs(t, err, cmd.ErrInvalidArgument)
+	assert.Contains(t, err.Error(), "want one of")
 }
 
 func TestDisasmUsage(t *testing.T) {

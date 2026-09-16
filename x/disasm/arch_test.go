@@ -61,3 +61,14 @@ func TestParseSyntax(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, SyntaxATT, got)
 }
+
+func TestArchitectureEnum(t *testing.T) {
+	assert.Equal(t, "x86", ArchitectureX86.String())
+	assert.Equal(t, "aarch64", ArchitectureAArch64.String())
+	assert.Contains(t, Architecture(0).Values(), ArchitectureX86)
+}
+
+func TestSyntaxEnum(t *testing.T) {
+	assert.Equal(t, "intel", SyntaxIntel.String())
+	assert.Contains(t, Syntax(0).Values(), SyntaxATT)
+}
