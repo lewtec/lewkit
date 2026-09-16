@@ -18,6 +18,8 @@ func (*treeCmd) Run(ctx context.Context) error {
 	return runDemo(ctx, scheduleTree)
 }
 
+const treeStep = 350 * time.Millisecond
+
 func scheduleTree(ctx context.Context) error {
 	taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, s *taskgroup.Status) error {
 		s.Update("orchestrating")
@@ -32,17 +34,17 @@ func scheduleTree(ctx context.Context) error {
 				for i := 1; i <= 4; i++ {
 					s.Progress(int64(i), 4)
 					s.Update(fmt.Sprintf("page %d/4", i))
-					time.Sleep(70 * time.Millisecond)
+					time.Sleep(treeStep)
 				}
 				return nil
 			})
 			taskgroup.Go(ctx, "checksum", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("sha256")
 				s.Progress(0, 2)
-				time.Sleep(80 * time.Millisecond)
+				time.Sleep(treeStep)
 				s.Progress(1, 2)
 				s.Update("verify")
-				time.Sleep(80 * time.Millisecond)
+				time.Sleep(treeStep)
 				s.Progress(2, 2)
 				return nil
 			}, reg)
@@ -59,14 +61,14 @@ func scheduleTree(ctx context.Context) error {
 				s.Progress(0, 3)
 				for i := 1; i <= 3; i++ {
 					s.Progress(int64(i), 3)
-					time.Sleep(50 * time.Millisecond)
+					time.Sleep(treeStep)
 				}
 				return nil
 			})
 			types := taskgroup.Go(ctx, "typecheck", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("infer")
 				s.Progress(0, 1)
-				time.Sleep(120 * time.Millisecond)
+				time.Sleep(treeStep)
 				s.Progress(1, 1)
 				return nil
 			}, parse)
@@ -83,7 +85,7 @@ func scheduleTree(ctx context.Context) error {
 						st.Progress(0, 3)
 						for i := 1; i <= 3; i++ {
 							st.Progress(int64(i), 3)
-							time.Sleep(60 * time.Millisecond)
+							time.Sleep(treeStep)
 						}
 						return struct{}{}, nil
 					},
@@ -106,14 +108,14 @@ func scheduleTree(ctx context.Context) error {
 				s.Progress(0, 5)
 				for i := 1; i <= 5; i++ {
 					s.Progress(int64(i), 5)
-					time.Sleep(40 * time.Millisecond)
+					time.Sleep(treeStep)
 				}
 				return nil
 			})
 			taskgroup.Go(ctx, "sign", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("minisign")
 				done := s.Unit()
-				time.Sleep(90 * time.Millisecond)
+				time.Sleep(treeStep)
 				done()
 				return nil
 			}, tar)
