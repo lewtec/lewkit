@@ -134,13 +134,18 @@ var syntaxNames = map[string]Syntax{
 	"masm":    SyntaxMASM,
 }
 
+func lookupNamed[T ~uint32](m map[string]T, name, kind string) (T, error) {
+	v, ok := m[strings.ToLower(strings.TrimSpace(name))]
+	if !ok {
+		var zero T
+		return zero, fmt.Errorf("unknown %s %q", kind, name)
+	}
+	return v, nil
+}
+
 // ParseArchitecture maps a name such as x86 or aarch64.
 func ParseArchitecture(name string) (Architecture, error) {
-	architecture, ok := architectureNames[strings.ToLower(strings.TrimSpace(name))]
-	if !ok {
-		return 0, fmt.Errorf("unknown architecture %q", name)
-	}
-	return architecture, nil
+	return lookupNamed(architectureNames, name, "architecture")
 }
 
 // ParseMode maps a comma-separated list of mode bits such as 64 or thumb,v8.
@@ -166,11 +171,7 @@ func ParseMode(name string) (Mode, error) {
 
 // ParseSyntax maps a name such as intel or att.
 func ParseSyntax(name string) (Syntax, error) {
-	syntax, ok := syntaxNames[strings.ToLower(strings.TrimSpace(name))]
-	if !ok {
-		return 0, fmt.Errorf("unknown syntax %q", name)
-	}
-	return syntax, nil
+	return lookupNamed(syntaxNames, name, "syntax")
 }
 
 // String is the CLI token for cmd.EnumArg.
