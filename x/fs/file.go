@@ -51,7 +51,7 @@ func (f File) Open() (iofs.File, error) {
 	}
 	info := f.info()
 	if ra, ok := f.Reader.(io.ReaderAt); ok {
-		return &fileAt{fileInfo: info, SectionReader: io.NewSectionReader(ra, 0, f.Size)}, nil
+		return Section(info, ra, 0, f.Size), nil
 	}
 	return &file{fileInfo: info, r: f.Reader}, nil
 }
@@ -70,9 +70,9 @@ func (f File) info() fileInfo {
 
 var (
 	_ iofs.File   = (*file)(nil)
-	_ iofs.File   = (*fileAt)(nil)
-	_ io.ReaderAt = (*fileAt)(nil)
-	_ io.Seeker   = (*fileAt)(nil)
+	_ iofs.File   = (*sectionFile)(nil)
+	_ io.ReaderAt = (*sectionFile)(nil)
+	_ io.Seeker   = (*sectionFile)(nil)
 )
 
 type file struct {
@@ -86,11 +86,16 @@ func (f *file) Read(p []byte) (int, error) { return f.r.Read(p) }
 
 func (*file) Close() error { return nil }
 
-type fileAt struct {
-	fileInfo
+// Section is a read-only [io/fs.File] over [io.NewSectionReader].
+func Section(info iofs.FileInfo, ra io.ReaderAt, off, n int64) iofs.File {
+	return &sectionFile{info: info, SectionReader: io.NewSectionReader(ra, off, n)}
+}
+
+type sectionFile struct {
+	info iofs.FileInfo
 	*io.SectionReader
 }
 
-func (f *fileAt) Stat() (iofs.FileInfo, error) { return f.fileInfo, nil }
+func (f *sectionFile) Stat() (iofs.FileInfo, error) { return f.info, nil }
 
-func (*fileAt) Close() error { return nil }
+func (*sectionFile) Close() error { return nil }
