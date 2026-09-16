@@ -42,6 +42,29 @@ type stater interface {
 	Stat() (iofs.FileInfo, error)
 }
 
+// DirEntries pages ents starting at *off. n follows [io/fs.ReadDirFile]:
+// n <= 0 returns the rest; n > 0 at the end is [io.EOF].
+func DirEntries(ents []iofs.DirEntry, off *int, n int) ([]iofs.DirEntry, error) {
+	if *off >= len(ents) {
+		if n <= 0 {
+			return nil, nil
+		}
+		return nil, io.EOF
+	}
+	if n <= 0 {
+		out := ents[*off:]
+		*off = len(ents)
+		return out, nil
+	}
+	end := *off + n
+	if end > len(ents) {
+		end = len(ents)
+	}
+	out := ents[*off:end]
+	*off = end
+	return out, nil
+}
+
 // Size returns the length of r.
 // It tries Size, then Stat, then Seek to the end.
 func Size(op string, r io.Reader) (int64, error) {

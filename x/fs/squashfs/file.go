@@ -1,8 +1,9 @@
 package squashfs
 
 import (
-	"io"
 	"io/fs"
+
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 type file struct {
@@ -31,22 +32,5 @@ func (d *dirFile) Read([]byte) (int, error) {
 func (d *dirFile) Close() error { return nil }
 
 func (d *dirFile) ReadDir(n int) ([]fs.DirEntry, error) {
-	if d.off >= len(d.ents) {
-		if n <= 0 {
-			return nil, nil
-		}
-		return nil, io.EOF
-	}
-	if n <= 0 {
-		out := d.ents[d.off:]
-		d.off = len(d.ents)
-		return out, nil
-	}
-	end := d.off + n
-	if end > len(d.ents) {
-		end = len(d.ents)
-	}
-	out := d.ents[d.off:end]
-	d.off = end
-	return out, nil
+	return lewfs.DirEntries(d.ents, &d.off, n)
 }

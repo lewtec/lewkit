@@ -2,7 +2,6 @@ package fs
 
 import (
 	"cmp"
-	"io"
 	iofs "io/fs"
 	"slices"
 	"time"
@@ -34,24 +33,7 @@ func (d *dirFile) Read([]byte) (int, error) {
 func (d *dirFile) Close() error { return nil }
 
 func (d *dirFile) ReadDir(n int) ([]iofs.DirEntry, error) {
-	if d.off >= len(d.infos) {
-		if n <= 0 {
-			return nil, nil
-		}
-		return nil, io.EOF
-	}
-	if n <= 0 {
-		out := d.infos[d.off:]
-		d.off = len(d.infos)
-		return out, nil
-	}
-	end := d.off + n
-	if end > len(d.infos) {
-		end = len(d.infos)
-	}
-	out := d.infos[d.off:end]
-	d.off = end
-	return out, nil
+	return DirEntries(d.infos, &d.off, n)
 }
 
 type fileInfo struct {
