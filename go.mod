@@ -3,6 +3,7 @@ module github.com/lewtec/lewkit
 go 1.27.0
 
 require (
+	charm.land/bubbletea/v2 v2.0.7
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Xmister/udf v0.0.0-20210116171753-6c18325874a7
 	github.com/andybalholm/brotli v1.2.4
@@ -13,6 +14,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/klauspost/compress v1.18.5
+	github.com/mattn/go-runewidth v0.0.30
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/sqlc-dev/sqlc v1.31.1
 	github.com/stretchr/testify v1.12.1
@@ -27,7 +29,6 @@ require (
 
 require (
 	cel.dev/expr v0.25.2 // indirect
-	charm.land/bubbletea/v2 v2.0.7 // indirect
 	cuelang.org/go v0.17.1 // indirect
 	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
@@ -74,7 +75,6 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/lucasew/workspaced v0.0.0-20260916163621-96ab77cd3132 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mmcloughlin/md4 v0.1.2 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect

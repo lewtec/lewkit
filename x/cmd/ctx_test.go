@@ -10,6 +10,59 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type flattenPool struct {
+	io  IntArg[int] `long:"io" default:"0"`
+	cpu IntArg[int] `long:"cpu" default:"0"`
+}
+
+func (p flattenPool) Value() int {
+	return p.io.Value() + p.cpu.Value()
+}
+
+func TestFlattenCtxStoresValue(t *testing.T) {
+	type args struct {
+		flattenPool `flatten:"" ctx:"pool"`
+	}
+	got := ParseOK[args](t, "--io", "3", "--cpu", "4")
+	ctx := withValues(t.Context())
+	bind(ctx, reflect.ValueOf(&got).Elem())
+	assert.Equal(t, 7, Get[int](ctx, "pool"))
+	assert.Panics(t, func() { Get[int](ctx, "io") })
+}
+
+type nilPtrValuer struct {
+	n IntArg[int] `long:"n" default:"0"`
+	p *string
+}
+
+func (v nilPtrValuer) Value() *string { return v.p }
+
+func TestFlattenCtxStoresFieldWhenValueNil(t *testing.T) {
+	type args struct {
+		nilPtrValuer `flatten:"" ctx:"obj"`
+	}
+	got := ParseOK[args](t, "--n", "1")
+	ctx := withValues(t.Context())
+	bind(ctx, reflect.ValueOf(&got).Elem())
+	obj := Get[nilPtrValuer](ctx, "obj")
+	assert.Equal(t, 1, obj.n.Value())
+	assert.Nil(t, obj.Value())
+}
+
+func TestFlattenCtxDuplicate(t *testing.T) {
+	type args struct {
+		a flattenPool `flatten:"" ctx:"pool"`
+		b StringArg   `long:"name" default:"" ctx:"pool"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrInvalidSpec)
+}
+
+func TestLookupMissing(t *testing.T) {
+	_, ok := Lookup[int](t.Context(), "verbose")
+	assert.False(t, ok)
+}
+
 func TestGetAppFlags(t *testing.T) {
 	app := ParseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
 	ctx := withValues(t.Context())

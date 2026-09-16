@@ -29,6 +29,22 @@ func Get[T any](ctx context.Context, key string) T {
 	return t
 }
 
+// Lookup returns the value stored under key, or false when the bag,
+// key, or type does not match.
+func Lookup[T any](ctx context.Context, key string) (T, bool) {
+	var z T
+	b, ok := ctx.Value(bagKey{}).(valueBag)
+	if !ok {
+		return z, false
+	}
+	v, ok := b[key]
+	if !ok {
+		return z, false
+	}
+	t, ok := v.(T)
+	return t, ok
+}
+
 func withValues(ctx context.Context) context.Context {
 	if _, ok := ctx.Value(bagKey{}).(valueBag); ok {
 		return ctx
@@ -80,6 +96,9 @@ func bind(ctx context.Context, v reflect.Value) {
 				continue
 			}
 			bind(ctx, ev)
+			if key := ctxName(sf); key != "" {
+				put(ctx, key, flattenValue(rvalue{fv}.settable()))
+			}
 			continue
 		}
 		if key := ctxName(sf); key != "" && (fv.Kind() != reflect.Pointer || !fv.IsNil()) {
@@ -91,6 +110,21 @@ func bind(ctx context.Context, v reflect.Value) {
 			}
 		}
 	}
+}
+
+// flattenValue is the ctx payload for a flatten+ctx field.
+// A nil pointer from Value() means the object is not ready yet
+// (e.g. a session before Enter); store the field itself instead.
+func flattenValue(fv reflect.Value) any {
+	if !(rvalue{fv}).hasValue() {
+		return fv.Interface()
+	}
+	v := (rvalue{fv}).callValue()
+	rv := reflect.ValueOf(v)
+	if v == nil || rv.Kind() == reflect.Pointer && rv.IsNil() {
+		return fv.Interface()
+	}
+	return v
 }
 
 func storedValue(fv reflect.Value) any {

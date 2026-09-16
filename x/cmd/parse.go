@@ -155,6 +155,12 @@ func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
 			if err != nil {
 				return err
 			}
+			if key := ctxName(sf); key != "" {
+				if _, exists := s.ctxs[key]; exists {
+					return fmt.Errorf("%w: duplicate ctx %s", ErrInvalidSpec, key)
+				}
+				s.ctxs[key] = len(s.fields)
+			}
 			if err := s.addStruct(ev, index); err != nil {
 				return err
 			}
