@@ -96,11 +96,7 @@ type IntArg[T constraints.Integer] struct {
 
 func (i *IntArg[T]) Parse(arg string) error {
 	value, err := strconv.ParseInt(arg, 0, 64)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
-	}
-	i.value = T(value)
-	return err
+	return setParsed(&i.Container, T(value), err)
 }
 
 type FloatArg[T constraints.Float] struct {
@@ -109,11 +105,15 @@ type FloatArg[T constraints.Float] struct {
 
 func (i *FloatArg[T]) Parse(arg string) error {
 	value, err := strconv.ParseFloat(arg, 64)
+	return setParsed(&i.Container, T(value), err)
+}
+
+func setParsed[T any](c *Container[T], value T, err error) error {
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 	}
-	i.value = T(value)
-	return err
+	c.value = value
+	return nil
 }
 
 type Flag struct {
