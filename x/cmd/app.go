@@ -87,8 +87,7 @@ func (a *App[T]) Run(ctx context.Context) error {
 }
 
 func (a *App[T]) printUsage() error {
-	leaf, name := selectedCommand(reflect.ValueOf(a).Elem(), filepath.Base(os.Args[0]))
-	text, err := usageOf(leaf, name)
+	text, err := usageSelected(reflect.ValueOf(a).Elem(), filepath.Base(os.Args[0]))
 	if err != nil {
 		return err
 	}
