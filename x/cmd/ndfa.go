@@ -57,7 +57,7 @@ func (c *compiler) value(from, to int, acceptAny bool, choices []string, help st
 	c.add(from, ndfa.Edge{Kind: ndfa.EdgeValue, To: to, AcceptAny: acceptAny, Choices: choices, Help: help, SuggestKind: ndfa.SuggestValue})
 }
 
-func (c *compiler) flag(from int, f field, to int, hasValue bool) {
+func (c *compiler) flag(from int, f field, to int, hasValue, once bool) {
 	c.add(from, ndfa.Edge{
 		Kind:        ndfa.EdgeFlag,
 		To:          to,
@@ -65,6 +65,7 @@ func (c *compiler) flag(from int, f field, to int, hasValue bool) {
 		Short:       f.short,
 		Help:        f.help,
 		HasValue:    hasValue,
+		Once:        once,
 		SuggestKind: ndfa.SuggestFlag,
 	})
 }
@@ -162,15 +163,19 @@ func (c *compiler) addFlags(hub int, flags []flagInfo) {
 	for _, info := range flags {
 		switch info.field.kind {
 		case kindSwitch:
-			c.flag(hub, info.field, hub, false)
-		case kindValue, kindRepeat:
+			c.flag(hub, info.field, hub, false, true)
+		case kindValue:
 			valueStart := c.state()
-			c.flag(hub, info.field, valueStart, true)
+			c.flag(hub, info.field, valueStart, true, true)
+			c.consumeRequired(valueStart, info.typ, hub, true)
+		case kindRepeat:
+			valueStart := c.state()
+			c.flag(hub, info.field, valueStart, true, false)
 			c.consumeRequired(valueStart, info.typ, hub, true)
 		case kindEither:
-			c.flag(hub, info.field, hub, false)
+			c.flag(hub, info.field, hub, false, false)
 			valueStart := c.state()
-			c.flag(hub, info.field, valueStart, true)
+			c.flag(hub, info.field, valueStart, true, false)
 			c.consumeRequired(valueStart, info.typ, hub, true)
 		}
 	}

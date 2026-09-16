@@ -30,7 +30,7 @@ func Complete[T any](args ...string) ([]Suggestion, error) {
 		prefix = args[len(args)-1]
 		words = args[:len(args)-1]
 	}
-	set := []int{automaton.Start}
+	set := automaton.StartSet()
 	for _, word := range words {
 		set = automaton.Step(set, word)
 		if len(set) == 0 {

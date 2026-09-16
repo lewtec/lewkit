@@ -110,6 +110,38 @@ func TestCompleteAfterValueFlag(t *testing.T) {
 	assert.Empty(t, completeOK[args](t, "--name", ""))
 }
 
+func TestCompleteOnceValueFlag(t *testing.T) {
+	type args struct {
+		name  StringArg `long:"name" short:"n"`
+		force Flag      `long:"force"`
+	}
+	got := completeOK[args](t, "--name", "x", "")
+	assert.ElementsMatch(t, []string{"--force", "--"}, got)
+}
+
+func TestCompleteOnceFlag(t *testing.T) {
+	type args struct {
+		force Flag      `long:"force" short:"f"`
+		name  StringArg `long:"name"`
+	}
+	got := completeOK[args](t, "--force", "")
+	assert.ElementsMatch(t, []string{"--name", "--"}, got)
+}
+
+func TestCompleteOnceShortHidesLong(t *testing.T) {
+	type args struct {
+		name  StringArg `long:"name" short:"n"`
+		force Flag      `long:"force"`
+	}
+	got := completeOK[args](t, "-n", "x", "")
+	assert.ElementsMatch(t, []string{"--force", "--"}, got)
+}
+
+func TestCompleteOnceParentFlag(t *testing.T) {
+	got := completeOK[inheritApp](t, "add", "--force", "")
+	assert.ElementsMatch(t, []string{"--name", "--verbose", "-v", "--label", "--"}, got)
+}
+
 func TestCompleteOptionalProductAllowsFlags(t *testing.T) {
 	type args struct {
 		force Flag `long:"force"`

@@ -45,6 +45,7 @@ type Edge struct {
 	Choices     []string
 	AcceptAny   bool
 	HasValue    bool
+	Once        bool
 	SuggestKind SuggestKind
 }
 
@@ -54,37 +55,112 @@ type NDFA struct {
 	States [][]Edge
 }
 
-func (a *NDFA) epsilonClosure(set []int) []int {
-	if a == nil {
-		return nil
-	}
-	seen := make([]bool, len(a.States))
-	var out []int
-	var walk func(int)
-	walk = func(state int) {
-		if seen[state] {
-			return
-		}
-		seen[state] = true
-		out = append(out, state)
-		for _, e := range a.States[state] {
-			if e.Kind == EdgeEpsilon {
-				walk(e.To)
-			}
-		}
-	}
-	for _, state := range set {
-		walk(state)
-	}
-	return out
+// CursorSet is the live NDFA configurations during a walk.
+type CursorSet []cursor
+
+type cursor struct {
+	state int
+	used  usedKeys
 }
 
-func uniqueStates(in []int) []int {
+type usedKeys []string
+
+func (u usedKeys) has(key string) bool {
+	_, ok := slices.BinarySearch(u, key)
+	return ok
+}
+
+func (u usedKeys) with(keys ...string) usedKeys {
+	next := slices.Clone(u)
+	for _, key := range keys {
+		if key == "" || slices.Contains(next, key) {
+			continue
+		}
+		next = append(next, key)
+	}
+	slices.Sort(next)
+	return next
+}
+
+func (e Edge) onceKeys() []string {
+	if !e.Once {
+		return nil
+	}
+	var keys []string
+	if e.Long != "" {
+		keys = append(keys, "--"+e.Long)
+	}
+	if e.Short != 0 {
+		keys = append(keys, "-"+string(e.Short))
+	}
+	return keys
+}
+
+func (u usedKeys) blocks(e Edge) bool {
+	for _, key := range e.onceKeys() {
+		if u.has(key) {
+			return true
+		}
+	}
+	return false
+}
+
+func (c cursor) after(e Edge) cursor {
+	return cursor{state: e.To, used: c.used.with(e.onceKeys()...)}
+}
+
+func compareCursor(a, b cursor) int {
+	if a.state != b.state {
+		return a.state - b.state
+	}
+	return slices.Compare(a.used, b.used)
+}
+
+func sameCursor(a, b cursor) bool {
+	return a.state == b.state && slices.Equal(a.used, b.used)
+}
+
+func uniqueCursors(in CursorSet) CursorSet {
 	if len(in) < 2 {
 		return in
 	}
-	slices.Sort(in)
-	return slices.Compact(in)
+	slices.SortFunc(in, compareCursor)
+	return slices.CompactFunc(in, sameCursor)
+}
+
+// StartSet is the epsilon-closure of the start state.
+func (a *NDFA) StartSet() CursorSet {
+	if a == nil {
+		return nil
+	}
+	return a.epsilonClosure(CursorSet{{state: a.Start}})
+}
+
+func (a *NDFA) epsilonClosure(set CursorSet) CursorSet {
+	if a == nil {
+		return nil
+	}
+	var out CursorSet
+	seen := make(map[int][]usedKeys)
+	var walk func(cursor)
+	walk = func(c cursor) {
+		for _, used := range seen[c.state] {
+			if slices.Equal(used, c.used) {
+				return
+			}
+		}
+		seen[c.state] = append(seen[c.state], c.used)
+		out = append(out, c)
+		for _, e := range a.States[c.state] {
+			if e.Kind == EdgeEpsilon {
+				walk(cursor{state: e.To, used: c.used})
+			}
+		}
+	}
+	for _, c := range set {
+		walk(c)
+	}
+	return uniqueCursors(out)
 }
 
 func isOption(token string) bool {
@@ -108,69 +184,75 @@ func isShortCluster(token string) bool {
 	return len(token) > 2 && token[0] == '-' && token[1] != '-'
 }
 
-func (a *NDFA) stepShort(set []int, cluster string) []int {
+func (a *NDFA) stepShort(set CursorSet, cluster string) CursorSet {
 	if cluster == "" {
 		return nil
 	}
 	r, size := utf8.DecodeRuneInString(cluster)
 	rest := cluster[size:]
-	var next []int
-	for _, state := range set {
-		for _, e := range a.States[state] {
-			if e.Kind != EdgeFlag || e.Short != r {
+	var next CursorSet
+	for _, c := range set {
+		for _, e := range a.States[c.state] {
+			if e.Kind != EdgeFlag || e.Short != r || c.used.blocks(e) {
 				continue
 			}
+			taken := c.after(e)
 			if rest == "" {
-				next = append(next, e.To)
+				next = append(next, taken)
 				continue
 			}
 			if e.HasValue {
-				if rest[0] == '=' {
-					rest = rest[1:]
+				value := rest
+				if value[0] == '=' {
+					value = value[1:]
 				}
-				next = append(next, a.Step(a.epsilonClosure([]int{e.To}), rest)...)
+				next = append(next, a.Step(a.epsilonClosure(CursorSet{taken}), value)...)
 				continue
 			}
-			next = append(next, a.stepShort(a.epsilonClosure([]int{e.To}), rest)...)
+			next = append(next, a.stepShort(a.epsilonClosure(CursorSet{taken}), rest)...)
 		}
 	}
 	return next
 }
 
 // Step consumes one committed token.
-func (a *NDFA) Step(set []int, token string) []int {
+func (a *NDFA) Step(set CursorSet, token string) CursorSet {
 	set = a.epsilonClosure(set)
-	var next []int
+	var next CursorSet
 	if name, value, ok := strings.Cut(token, "="); ok && strings.HasPrefix(token, "--") && name != "--" && name != "" {
 		long := strings.TrimPrefix(name, "--")
 		if long != "" {
-			for _, state := range set {
-				for _, e := range a.States[state] {
-					if e.Kind == EdgeFlag && e.Long == long && e.HasValue {
-						next = append(next, a.Step(a.epsilonClosure([]int{e.To}), value)...)
+			for _, c := range set {
+				for _, e := range a.States[c.state] {
+					if e.Kind == EdgeFlag && e.Long == long && e.HasValue && !c.used.blocks(e) {
+						taken := c.after(e)
+						next = append(next, a.Step(a.epsilonClosure(CursorSet{taken}), value)...)
 					}
 				}
 			}
-			return uniqueStates(a.epsilonClosure(next))
+			return uniqueCursors(a.epsilonClosure(next))
 		}
 	}
-	for _, state := range set {
-		for _, e := range a.States[state] {
+	for _, c := range set {
+		for _, e := range a.States[c.state] {
+			if c.used.blocks(e) {
+				continue
+			}
 			switch e.Kind {
 			case EdgeLiteral:
 				if token == e.Literal {
-					next = append(next, e.To)
+					next = append(next, c.after(e))
 				}
 			case EdgeFlag:
 				if e.Long != "" && token == "--"+e.Long {
-					next = append(next, e.To)
+					next = append(next, c.after(e))
 				}
 				if e.Short != 0 && token == "-"+string(e.Short) {
-					next = append(next, e.To)
+					next = append(next, c.after(e))
 				}
 			case EdgeValue:
 				if matchValue(e, token) {
-					next = append(next, e.To)
+					next = append(next, c.after(e))
 				}
 			}
 		}
@@ -178,11 +260,11 @@ func (a *NDFA) Step(set []int, token string) []int {
 	if len(next) == 0 && isShortCluster(token) {
 		next = append(next, a.stepShort(set, token[1:])...)
 	}
-	return uniqueStates(a.epsilonClosure(next))
+	return uniqueCursors(a.epsilonClosure(next))
 }
 
 // Suggest lists outgoing labels from set that match prefix.
-func (a *NDFA) Suggest(set []int, prefix string) []Suggestion {
+func (a *NDFA) Suggest(set CursorSet, prefix string) []Suggestion {
 	set = a.epsilonClosure(set)
 	if long, value, ok := strings.Cut(strings.TrimPrefix(prefix, "--"), "="); ok && strings.HasPrefix(prefix, "--") && long != "" {
 		return a.suggestFlagEquals(set, long, value)
@@ -199,8 +281,11 @@ func (a *NDFA) Suggest(set []int, prefix string) []Suggestion {
 		seen[s.Text] = struct{}{}
 		out = append(out, s)
 	}
-	for _, state := range set {
-		for _, e := range a.States[state] {
+	for _, c := range set {
+		for _, e := range a.States[c.state] {
+			if c.used.blocks(e) {
+				continue
+			}
 			switch e.Kind {
 			case EdgeLiteral:
 				add(Suggestion{Text: e.Literal, Help: e.Help, Kind: e.SuggestKind})
@@ -222,15 +307,16 @@ func (a *NDFA) Suggest(set []int, prefix string) []Suggestion {
 	return out
 }
 
-func (a *NDFA) suggestFlagEquals(set []int, long, value string) []Suggestion {
+func (a *NDFA) suggestFlagEquals(set CursorSet, long, value string) []Suggestion {
 	seen := make(map[string]struct{})
 	var out []Suggestion
-	for _, state := range set {
-		for _, e := range a.States[state] {
-			if e.Kind != EdgeFlag || e.Long != long || !e.HasValue {
+	for _, c := range set {
+		for _, e := range a.States[c.state] {
+			if e.Kind != EdgeFlag || e.Long != long || !e.HasValue || c.used.blocks(e) {
 				continue
 			}
-			for _, suggestion := range a.Suggest(a.epsilonClosure([]int{e.To}), value) {
+			taken := c.after(e)
+			for _, suggestion := range a.Suggest(a.epsilonClosure(CursorSet{taken}), value) {
 				text := "--" + long + "=" + suggestion.Text
 				if _, ok := seen[text]; ok {
 					continue
