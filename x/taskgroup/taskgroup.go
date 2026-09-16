@@ -174,7 +174,8 @@ type Session struct {
 	workers sync.WaitGroup
 	tasks   sync.WaitGroup
 
-	err error
+	err  error
+	hard atomic.Bool
 }
 
 type task struct {
@@ -224,7 +225,11 @@ func New(ctx context.Context, limits Limits) (*Session, context.Context) {
 	context.AfterFunc(ctx, func() {
 		go func() {
 			s.mu.Lock()
-			s.failOutsideIsolates(s.root)
+			if s.hard.Load() || errors.Is(context.Cause(s.ctx), context.Canceled) {
+				s.failSubtree(s.root)
+			} else {
+				s.failOutsideIsolates(s.root)
+			}
 			s.mu.Unlock()
 		}()
 		for _, q := range s.ready {
@@ -235,6 +240,15 @@ func New(ctx context.Context, limits Limits) (*Session, context.Context) {
 		s.cond.Broadcast()
 	})
 	return s, context.WithValue(ctx, sessionKey{}, s)
+}
+
+// Cancel stops the session. Pending work fails; running tasks see ctx cancel.
+func (s *Session) Cancel(err error) {
+	if err == nil {
+		err = context.Canceled
+	}
+	s.hard.Store(true)
+	s.cancel(err)
 }
 
 func (s *Session) startWorkers(limits Limits) {

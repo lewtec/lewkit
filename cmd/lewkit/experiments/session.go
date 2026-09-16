@@ -2,6 +2,7 @@ package experiments
 
 import (
 	"context"
+	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -19,10 +20,19 @@ func enter(ctx context.Context) (*taskgroup.Session, context.Context) {
 }
 
 func runDemo(ctx context.Context, work func(context.Context) error) error {
-	ctx, stop := context.WithCancel(ctx)
-	defer stop()
 	s, ctx := enter(ctx)
-	return progress.Run(s, progress.WithStop(ctx, stop), work)
+	return progress.Run(s, ctx, work)
+}
+
+func sleep(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return context.Cause(ctx)
+	case <-t.C:
+		return nil
+	}
 }
 
 func runPlain(ctx context.Context, work func(context.Context) error) error {

@@ -55,19 +55,14 @@ func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) e
 	return runTea(s, ctx, work)
 }
 
-type stopKey struct{}
-
-// WithStop records cancel so the TUI can abort the session on ctrl+c.
-func WithStop(ctx context.Context, stop context.CancelFunc) context.Context {
-	return context.WithValue(ctx, stopKey{}, stop)
-}
-
 func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) error {
 	m := newModel(s)
-	if stop, ok := ctx.Value(stopKey{}).(context.CancelFunc); ok {
-		m.cancel = stop
-	}
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
+	p := tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
+		if _, ok := msg.(tea.InterruptMsg); ok {
+			return cancelMsg{}
+		}
+		return msg
+	}))
 	restoreLogs := hijackSlog(p)
 	defer restoreLogs()
 
@@ -82,8 +77,8 @@ func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context
 	}()
 
 	_, uiErr := p.Run()
-	if m.cancel != nil {
-		m.cancel()
+	if uiErr != nil {
+		s.Cancel(uiErr)
 	}
 	err := <-errc
 	if uiErr != nil && err == nil {
@@ -95,6 +90,8 @@ func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context
 type tickMsg time.Time
 
 type doneMsg struct{}
+
+type cancelMsg struct{}
 
 func (m model) Init() tea.Cmd {
 	return m.tick()
@@ -116,11 +113,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		if msg.String() == "ctrl+c" {
-			if m.cancel != nil {
-				m.cancel()
-			}
-			return m, tea.Quit
+			m.requestStop()
+			return m, nil
 		}
+	case cancelMsg:
+		m.requestStop()
+		return m, nil
 	case tea.WindowSizeMsg:
 		if msg.Width > 0 {
 			m.width = msg.Width

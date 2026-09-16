@@ -31,7 +31,9 @@ func (*mapCmd) Run(ctx context.Context) error {
 			TaskName: func(_ int, path string) string { return "item:" + path },
 			Fn: func(ctx context.Context, st *taskgroup.Status, path string) (string, error) {
 				st.Update("starting " + path)
-				time.Sleep(80*time.Millisecond + time.Duration(len(path)%4)*30*time.Millisecond)
+				if err := sleep(ctx, 80*time.Millisecond+time.Duration(len(path)%4)*30*time.Millisecond); err != nil {
+					return "", err
+				}
 				st.Update("done " + path)
 				return "processed:" + path, nil
 			},
@@ -63,7 +65,9 @@ func (*manyCmd) Run(ctx context.Context) error {
 			TaskName: func(_ int, n int) string { return fmt.Sprintf("cpu:%d", n) },
 			Fn: func(ctx context.Context, st *taskgroup.Status, n int) (int, error) {
 				st.Update(fmt.Sprintf("item %d", n))
-				time.Sleep(20 * time.Millisecond)
+				if err := sleep(ctx, 20*time.Millisecond); err != nil {
+					return 0, err
+				}
 				return n, nil
 			},
 		}.Run(ctx)

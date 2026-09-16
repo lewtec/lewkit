@@ -114,6 +114,31 @@ func TestFormatRowPendingNoBar(t *testing.T) {
 	}
 }
 
+func TestCancelDoesNotQuitUntilEmpty(t *testing.T) {
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	t.Cleanup(func() { _ = s.Wait() })
+	block := make(chan struct{})
+	taskgroup.Go(ctx, "hold", taskgroup.CPU, func(ctx context.Context, _ *taskgroup.Status) error {
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case <-block:
+			return nil
+		}
+	})
+	t.Cleanup(func() { close(block) })
+
+	m := newModel(s)
+	next, cmd := m.Update(cancelMsg{})
+	got := next.(model)
+	if got.shouldQuit() {
+		t.Fatal("ctrl+c must not quit before List is empty")
+	}
+	if cmd != nil {
+		t.Fatal("ctrl+c must not return a cmd")
+	}
+}
+
 func TestQuitAfterDoneWhenListEmpty(t *testing.T) {
 	m := newModel(nil)
 	m.done = true

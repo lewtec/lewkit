@@ -135,6 +135,19 @@ func TestFromContext(t *testing.T) {
 	}
 }
 
+func TestSessionCancelUnblocksWait(t *testing.T) {
+	s, ctx := New(t.Context(), DefaultLimits())
+	Go(ctx, "hold", CPU, func(ctx context.Context, _ *Status) error {
+		<-ctx.Done()
+		return context.Cause(ctx)
+	})
+	s.Cancel(nil)
+	err := s.Wait()
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Wait = %v, want Canceled", err)
+	}
+}
+
 func TestLatestByName(t *testing.T) {
 	sess, ctx := newTest(t, DefaultLimits())
 	started := make(chan struct{})

@@ -207,7 +207,7 @@ func (s *Session) failSubtree(id ID) {
 		s.failSubtree(c)
 		c = next
 	}
-	if State(t.state.Load()) == Pending {
+	if id != s.root && State(t.state.Load()) == Pending {
 		err := t.err
 		if err == nil {
 			if p := t.parent; p != 0 && s.slots[p].err != nil {

@@ -20,11 +20,16 @@ const (
 
 type model struct {
 	session *taskgroup.Session
-	cancel  context.CancelFunc
 	nodes   []taskgroup.Node
 	width   int
 	max     int
 	done    bool
+}
+
+func (m *model) requestStop() {
+	if m.session != nil {
+		m.session.Cancel(context.Canceled)
+	}
 }
 
 type treeRow struct {

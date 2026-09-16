@@ -38,17 +38,23 @@ func scheduleTree(ctx context.Context, step time.Duration) error {
 				for i := 1; i <= 4; i++ {
 					s.Progress(int64(i), 4)
 					s.Update(fmt.Sprintf("page %d/4", i))
-					time.Sleep(step)
+					if err := sleep(ctx, step); err != nil {
+						return err
+					}
 				}
 				return nil
 			})
 			taskgroup.Go(ctx, "checksum", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("sha256")
 				s.Progress(0, 2)
-				time.Sleep(step)
+				if err := sleep(ctx, step); err != nil {
+					return err
+				}
 				s.Progress(1, 2)
 				s.Update("verify")
-				time.Sleep(step)
+				if err := sleep(ctx, step); err != nil {
+					return err
+				}
 				s.Progress(2, 2)
 				return nil
 			}, reg)
@@ -65,14 +71,18 @@ func scheduleTree(ctx context.Context, step time.Duration) error {
 				s.Progress(0, 3)
 				for i := 1; i <= 3; i++ {
 					s.Progress(int64(i), 3)
-					time.Sleep(step)
+					if err := sleep(ctx, step); err != nil {
+						return err
+					}
 				}
 				return nil
 			})
 			types := taskgroup.Go(ctx, "typecheck", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("infer")
 				s.Progress(0, 1)
-				time.Sleep(step)
+				if err := sleep(ctx, step); err != nil {
+					return err
+				}
 				s.Progress(1, 1)
 				return nil
 			}, parse)
@@ -89,7 +99,9 @@ func scheduleTree(ctx context.Context, step time.Duration) error {
 						st.Progress(0, 3)
 						for i := 1; i <= 3; i++ {
 							st.Progress(int64(i), 3)
-							time.Sleep(step)
+							if err := sleep(ctx, step); err != nil {
+								return struct{}{}, err
+							}
 						}
 						return struct{}{}, nil
 					},
@@ -112,14 +124,18 @@ func scheduleTree(ctx context.Context, step time.Duration) error {
 				s.Progress(0, 5)
 				for i := 1; i <= 5; i++ {
 					s.Progress(int64(i), 5)
-					time.Sleep(step)
+					if err := sleep(ctx, step); err != nil {
+						return err
+					}
 				}
 				return nil
 			})
 			taskgroup.Go(ctx, "sign", taskgroup.CPU, func(ctx context.Context, s *taskgroup.Status) error {
 				s.Update("minisign")
 				done := s.Unit()
-				time.Sleep(step)
+				if err := sleep(ctx, step); err != nil {
+					return err
+				}
 				done()
 				return nil
 			}, tar)
