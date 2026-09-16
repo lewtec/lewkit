@@ -37,10 +37,6 @@ func (generateCmd) Description() string {
 	return "generate code"
 }
 
-func (*generateCmd) Run(context.Context) error {
-	return cmd.ErrUsage
-}
-
 type dbCmd struct {
 	dir cmd.WorkDirArg `help:"directory with sqlite/ and postgres/"`
 }

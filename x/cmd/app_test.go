@@ -141,10 +141,12 @@ func (p *pingCmd) Run(context.Context) error {
 func TestMissingCommand(t *testing.T) {
 	test.RestoreSlog(t)
 
-	app, err := Parse[App[extraCmds]]()
-	require.NoError(t, err)
-	err = app.Run(t.Context())
-	assert.ErrorIs(t, err, ErrMissingCommand)
+	app := ParseOK[App[extraCmds]](t)
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "Usage:")
+	assert.Contains(t, got, "ping")
 }
 
 func TestAppInnerCommand(t *testing.T) {
@@ -222,7 +224,7 @@ type treeRoot struct {
 
 type fooCmd struct {
 	bar  *barCmd
-	nick StringArg `long:"nick" help:"foo nick"`
+	nick StringArg `long:"nick" help:"foo nick" default:""`
 }
 
 func (fooCmd) Description() string {
@@ -259,6 +261,18 @@ func TestAppRunNestedHelp(t *testing.T) {
 	assert.NotContains(t, got, "--nick")
 }
 
+func TestAppRunNoRunPrintsUsage(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[treeRoot]](t, "foo")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "foo command")
+	assert.Contains(t, got, "--nick")
+	assert.Contains(t, got, "bar")
+	assert.NotContains(t, got, "--id")
+}
+
 type usageLeaf struct{}
 
 func (usageLeaf) Description() string {
@@ -282,6 +296,24 @@ func TestAppRunErrUsage(t *testing.T) {
 	assert.Contains(t, got, "leaf usage")
 	assert.Contains(t, got, "Usage:")
 	assert.NotContains(t, got, "--verbose")
+}
+
+type muteRoot struct {
+	mute *muteLeaf
+}
+
+type muteLeaf struct {
+	name StringArg `long:"name" default:""`
+}
+
+func TestAppRunLeafNoRun(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[muteRoot]](t, "mute")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "--name")
+	assert.Contains(t, got, "mute [flags]")
 }
 
 type rootCmd struct {

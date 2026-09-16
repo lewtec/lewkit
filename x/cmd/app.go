@@ -65,8 +65,8 @@ func (a *App[T]) Setup(ctx context.Context) error {
 }
 
 // Run prints help or version when asked, then Setup, then T's selected
-// command (or T itself) if it has Run(ctx) error. A selected command
-// that returns ErrUsage prints that command's usage and succeeds.
+// command (or T itself) if it has Run(ctx) error. Missing Run, or a
+// Run that returns ErrUsage, prints that command's usage and succeeds.
 func (a *App[T]) Run(ctx context.Context) error {
 	ctx = withValues(ctx)
 	bind(ctx, reflect.ValueOf(a).Elem())

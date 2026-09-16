@@ -6,6 +6,10 @@ import (
 )
 
 func runSelected(ctx context.Context, v reflect.Value) error {
+	return runSelectedAt(ctx, v, false)
+}
+
+func runSelectedAt(ctx context.Context, v reflect.Value, cmd bool) error {
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
 			return nil
@@ -26,14 +30,14 @@ func runSelected(ctx context.Context, v reflect.Value) error {
 			continue
 		}
 		if _, ok := commandName(sf, fv); ok {
-			return runSelected(ctx, rvalue{fv}.settable())
+			return runSelectedAt(ctx, rvalue{fv}.settable(), true)
 		}
 	}
 	if run := runMethod(v); run.IsValid() {
 		return callRun(ctx, run)
 	}
-	if hasCommands(v) {
-		return ErrMissingCommand
+	if cmd || hasCommands(v) {
+		return ErrUsage
 	}
 	return nil
 }
