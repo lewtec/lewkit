@@ -273,6 +273,7 @@ func (s *Session) LineWriter() io.WriteCloser {
 	if s == nil || s.live == nil {
 		return newFinishedLineWriter(os.Stderr)
 	}
+	s.fireSchedule()
 	fn := s.linePrintFn()
 	if fn == nil {
 		return newFinishedLineWriter(os.Stderr)

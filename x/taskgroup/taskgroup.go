@@ -181,6 +181,32 @@ type Session struct {
 	live    *liveHub
 	printMu sync.Mutex
 	print   func(string)
+
+	hookMu     sync.Mutex
+	onSchedule func()
+}
+
+// SetOnSchedule sets a hook invoked after each Go (and from LineWriter).
+// The hook runs without the session lock. Pass nil to clear.
+func (s *Session) SetOnSchedule(fn func()) {
+	if s == nil {
+		return
+	}
+	s.hookMu.Lock()
+	s.onSchedule = fn
+	s.hookMu.Unlock()
+}
+
+func (s *Session) fireSchedule() {
+	if s == nil {
+		return
+	}
+	s.hookMu.Lock()
+	fn := s.onSchedule
+	s.hookMu.Unlock()
+	if fn != nil {
+		fn()
+	}
 }
 
 type task struct {

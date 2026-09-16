@@ -1,14 +1,16 @@
 // Package progress is a bubbletea view of a taskgroup Session.
 //
 // Run polls Session.List until work finishes and draws a nom-style
-// tree (├ └ │, status glyphs). The last frame is empty: the view
-// quits only after Wait and List is empty. Non-tty, TERM=dumb, CI,
+// tree (├ └ │, status glyphs). The TUI starts on the first Go or
+// LineWriter, not when Run is entered. The last frame is empty: the
+// view quits only after Wait and List is empty. Non-tty, TERM=dumb, CI,
 // and NO_COLOR skip the TUI and Wait. LEWKIT_FORCE_TUI=1 forces the TUI.
 package progress
 
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -40,7 +42,8 @@ func isCharDevice(f *os.File) bool {
 }
 
 // Run runs work, then waits for the session. On a tty it shows live bars
-// from Session.List while that happens.
+// from Session.List while that happens. tea.NewProgram runs at most once,
+// on the first scheduled task or LineWriter.
 func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) error {
 	if s == nil {
 		return work(ctx)
@@ -55,43 +58,70 @@ func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) e
 	return runTea(s, ctx, work)
 }
 
-func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) error {
-	m := newModel(s)
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
-		if _, ok := msg.(tea.InterruptMsg); ok {
-			return cancelMsg{}
-		}
-		return msg
-	}))
-	s.SetLinePrint(func(msg string) { p.Printf("%s", msg) })
-	restoreLogs := hijackSlog(p)
+func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) (err error) {
+	var ui teaUI
+	s.SetOnSchedule(sync.OnceFunc(ui.start(s)))
+	defer s.SetOnSchedule(nil)
 	defer func() {
-		restoreLogs()
-		s.SetLinePrint(nil)
-		for _, line := range s.TakeLiveLines() {
-			_, _ = os.Stderr.WriteString(line + "\n")
+		if uiErr := ui.stop(s); uiErr != nil && err == nil {
+			err = uiErr
 		}
 	}()
 
-	errc := make(chan error, 1)
-	go func() {
-		err := work(ctx)
-		if werr := s.Wait(); err == nil {
-			err = werr
-		}
-		errc <- err
-		p.Send(doneMsg{})
-	}()
-
-	_, uiErr := p.Run()
-	if uiErr != nil {
-		s.Cancel(uiErr)
-	}
-	err := <-errc
-	if uiErr != nil && err == nil {
-		return uiErr
+	err = work(ctx)
+	if werr := s.Wait(); err == nil {
+		err = werr
 	}
 	return err
+}
+
+type teaUI struct {
+	p       *tea.Program
+	done    chan struct{}
+	err     error
+	restore func()
+}
+
+func (u *teaUI) start(s *taskgroup.Session) func() {
+	return func() {
+		m := newModel(s)
+		u.p = tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
+			if _, ok := msg.(tea.InterruptMsg); ok {
+				return cancelMsg{}
+			}
+			return msg
+		}))
+		s.SetLinePrint(func(msg string) { u.p.Printf("%s", msg) })
+		u.restore = hijackSlog(u.p)
+		u.done = make(chan struct{})
+		go func() {
+			defer close(u.done)
+			_, u.err = u.p.Run()
+			if u.err != nil {
+				s.Cancel(u.err)
+			}
+		}()
+	}
+}
+
+func (u *teaUI) stop(s *taskgroup.Session) error {
+	if u.p == nil {
+		return nil
+	}
+	if u.restore != nil {
+		u.restore()
+	}
+	s.SetLinePrint(nil)
+	for _, line := range s.TakeLiveLines() {
+		_, _ = os.Stderr.WriteString(line + "\n")
+	}
+	select {
+	case <-u.done:
+	default:
+		u.p.Send(doneMsg{})
+		<-u.done
+	}
+	return u.err
 }
 
 type tickMsg time.Time

@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -98,6 +99,15 @@ func TestLineWriterFromNoSession(t *testing.T) {
 	lw, ok := w.(*lineWriter)
 	require.True(t, ok)
 	assert.False(t, lw.commitOnClose)
+	require.NoError(t, w.Close())
+}
+
+func TestLineWriterFiresOnSchedule(t *testing.T) {
+	s, ctx := newTest(t, DefaultLimits())
+	var n atomic.Int32
+	s.SetOnSchedule(func() { n.Add(1) })
+	w := LineWriterFrom(ctx)
+	require.Equal(t, int32(1), n.Load())
 	require.NoError(t, w.Close())
 }
 

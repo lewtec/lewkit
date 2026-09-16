@@ -3,6 +3,7 @@ package taskgroup
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -136,4 +137,25 @@ func TestLatestByName(t *testing.T) {
 	close(block)
 	require.NoError(t, sess.Wait())
 	assert.Zero(t, sess.Latest("setup"))
+}
+
+func TestOnScheduleFiresAfterGo(t *testing.T) {
+	s, ctx := newTest(t, DefaultLimits())
+	var n atomic.Int32
+	s.SetOnSchedule(func() { n.Add(1) })
+	require.Equal(t, int32(0), n.Load())
+	Go(ctx, "a", CPU, func(context.Context, *Status) error { return nil })
+	Go(ctx, "b", CPU, func(context.Context, *Status) error { return nil })
+	require.Equal(t, int32(2), n.Load())
+	require.NoError(t, s.Wait())
+}
+
+func TestOnScheduleOnceFuncStartsOnce(t *testing.T) {
+	s, ctx := newTest(t, DefaultLimits())
+	var n atomic.Int32
+	s.SetOnSchedule(sync.OnceFunc(func() { n.Add(1) }))
+	Go(ctx, "a", CPU, func(context.Context, *Status) error { return nil })
+	Go(ctx, "b", CPU, func(context.Context, *Status) error { return nil })
+	require.Equal(t, int32(1), n.Load())
+	require.NoError(t, s.Wait())
 }
