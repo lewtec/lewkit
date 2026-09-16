@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -12,11 +11,7 @@ type DurationArg struct {
 
 func (d *DurationArg) Parse(arg string) error {
 	value, err := time.ParseDuration(arg)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
-	}
-	d.value = value
-	return nil
+	return setParsed(&d.Container, value, err)
 }
 
 var (
