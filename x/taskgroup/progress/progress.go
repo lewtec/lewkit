@@ -68,6 +68,8 @@ func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context
 		m.cancel = stop
 	}
 	p := tea.NewProgram(m, tea.WithOutput(os.Stderr))
+	restoreLogs := hijackSlog(p)
+	defer restoreLogs()
 
 	errc := make(chan error, 1)
 	go func() {
