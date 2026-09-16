@@ -1,9 +1,10 @@
 // Package taskgroup is a dependency-aware executor with resource pools
 // and a live task tree.
 //
-// New starts a Session. Go, Map, and Each attach nodes under the current
-// task (from ctx). List(n) walks live children until it has n rows; it
-// does not flatten the forest first.
+// New starts a Session. Flatten-embed Arg on a cmd spec for --io/--cpu/
+// --internet; Arg.Enter returns that Session. Go, Map, and Each attach
+// nodes under the current task (from ctx). List(n) walks live children
+// until it has n rows; it does not flatten the forest first.
 //
 // Only leaf tasks take IO, CPU, or Internet. Orchestrators are Control.
 // Isolate is an error boundary with no list row.
