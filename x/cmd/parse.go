@@ -151,9 +151,7 @@ func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
 			continue
 		}
 		index := append(append([]int(nil), prefix...), i)
-		_, flatten := sf.Tag.Lookup("flatten")
-		if (sf.Anonymous || flatten) && shouldFlatten(fv) {
-			ev, err := derefStruct(fv)
+		if ev, ok, err := flattenField(sf, fv); ok {
 			if err != nil {
 				return err
 			}
@@ -234,6 +232,15 @@ func shouldFlatten(fv reflect.Value) bool {
 	}
 	rv := rvalue{v}
 	return !rv.hasParse() && !rv.hasCount()
+}
+
+func flattenField(sf reflect.StructField, fv reflect.Value) (reflect.Value, bool, error) {
+	_, flatten := sf.Tag.Lookup("flatten")
+	if !(sf.Anonymous || flatten) || !shouldFlatten(fv) {
+		return reflect.Value{}, false, nil
+	}
+	ev, err := derefStruct(fv)
+	return ev, true, err
 }
 
 func derefStruct(fv reflect.Value) (reflect.Value, error) {
