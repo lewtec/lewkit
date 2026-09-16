@@ -3,6 +3,7 @@
 package wim
 
 import (
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -38,12 +39,15 @@ var (
 )
 
 // Images lists the images in r. r must be an [io.ReaderAt].
-func Images(r io.Reader) ([]Info, error) {
+func Images(ctx context.Context, r io.Reader) ([]Info, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
 	ra, err := lewfs.ReaderAt("images", r)
 	if err != nil {
 		return nil, err
 	}
-	rd, err := winwim.NewReader(ra)
+	rd, err := winwim.NewReader(lewfs.ContextReaderAt(ctx, ra))
 	if err != nil {
 		return nil, err
 	}
@@ -56,12 +60,15 @@ func Images(r io.Reader) ([]Info, error) {
 }
 
 // Open reads image from r. image is 1-based. r must be an [io.ReaderAt].
-func Open(r io.Reader, image int) (*FS, error) {
+func Open(ctx context.Context, r io.Reader, image int) (*FS, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
 	ra, err := lewfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
 	}
-	rd, err := winwim.NewReader(ra)
+	rd, err := winwim.NewReader(lewfs.ContextReaderAt(ctx, ra))
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +82,46 @@ func Open(r io.Reader, image int) (*FS, error) {
 		return nil, err
 	}
 	root := newDir(".")
-	if err := walkWIM(root, rootFile, ""); err != nil {
+	var walk func(*dnode, *winwim.File, string) error
+	walk = func(root *dnode, dir *winwim.File, prefix string) error {
+		if err := ctx.Err(); err != nil {
+			return context.Cause(ctx)
+		}
+		ents, err := dir.Readdir()
+		if err != nil {
+			return err
+		}
+		for _, e := range ents {
+			if err := ctx.Err(); err != nil {
+				return context.Cause(ctx)
+			}
+			name := e.Name
+			if name == "" || name == "." || name == ".." {
+				continue
+			}
+			p := name
+			if prefix != "" {
+				p = prefix + "/" + name
+			}
+			if !fs.ValidPath(p) {
+				return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
+			}
+			if e.IsDir() {
+				if err := root.add(p, e, true); err != nil {
+					return err
+				}
+				if err := walk(root, e, p); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := root.add(p, e, false); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(root, rootFile, ""); err != nil {
 		rd.Close()
 		return nil, err
 	}
@@ -94,37 +140,4 @@ func (d *FS) Close() error {
 	err := d.r.Close()
 	d.r = nil
 	return err
-}
-
-func walkWIM(root *dnode, dir *winwim.File, prefix string) error {
-	ents, err := dir.Readdir()
-	if err != nil {
-		return err
-	}
-	for _, e := range ents {
-		name := e.Name
-		if name == "" || name == "." || name == ".." {
-			continue
-		}
-		p := name
-		if prefix != "" {
-			p = prefix + "/" + name
-		}
-		if !fs.ValidPath(p) {
-			return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
-		}
-		if e.IsDir() {
-			if err := root.add(p, e, true); err != nil {
-				return err
-			}
-			if err := walkWIM(root, e, p); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := root.add(p, e, false); err != nil {
-			return err
-		}
-	}
-	return nil
 }

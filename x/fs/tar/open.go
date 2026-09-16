@@ -2,6 +2,7 @@ package tar
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/fs"
 	stdpath "path"
@@ -17,23 +18,26 @@ import (
 // A compressed wrapper is chosen by file name (if r has Stat) or by
 // magic prefix, then decompressed into memory. An uncompressed tar
 // still needs [io.ReaderAt].
-func Open(r io.Reader) (*lewfs.FS, error) {
+func Open(ctx context.Context, r io.Reader) (*lewfs.FS, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
 	name := nameOf(r)
-	r, err := uncompressed(r)
+	r, err := uncompressed(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := lewfs.ReaderAt("open", r); err != nil {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: lewfs.ErrNeedReadAt}
 	}
-	return lewfs.New(Files(r))
+	return lewfs.New(ctx, Files(ctx, r))
 }
 
-func uncompressed(r io.Reader) (io.Reader, error) {
+func uncompressed(ctx context.Context, r io.Reader) (io.Reader, error) {
 	name := nameOf(r)
 	if ra, ok := r.(io.ReaderAt); ok {
 		if c, ok := compression.Detect(name, peekAt(ra, 16)); ok {
-			return decompress(c, io.NewSectionReader(ra, 0, 1<<63-1))
+			return decompress(ctx, c, io.NewSectionReader(ra, 0, 1<<63-1))
 		}
 		return r, nil
 	}
@@ -42,12 +46,12 @@ func uncompressed(r io.Reader) (io.Reader, error) {
 		return nil, err
 	}
 	if c, ok := compression.Detect(name, hdr); ok {
-		return decompress(c, src)
+		return decompress(ctx, c, src)
 	}
 	return src, nil
 }
 
-func decompress(c compression.Codec, r io.Reader) (io.Reader, error) {
+func decompress(ctx context.Context, c compression.Codec, r io.Reader) (io.Reader, error) {
 	d, ok := c.(compression.Decompressor)
 	if !ok {
 		return nil, &fs.PathError{Op: "open", Path: "", Err: fs.ErrInvalid}
@@ -57,7 +61,7 @@ func decompress(c compression.Codec, r io.Reader) (io.Reader, error) {
 		return nil, err
 	}
 	defer cr.Close()
-	raw, err := io.ReadAll(cr)
+	raw, err := io.ReadAll(lewfs.ContextReader(ctx, cr))
 	if err != nil {
 		return nil, err
 	}

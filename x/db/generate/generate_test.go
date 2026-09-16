@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,6 +43,13 @@ func TestWriteSQLC(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(b), "engine: sqlite")
 	assert.Contains(t, string(b), "emit_interface: true")
+}
+
+func TestRunCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := Run(ctx, t.TempDir())
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestRun(t *testing.T) {

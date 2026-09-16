@@ -2,6 +2,7 @@ package tar
 
 import (
 	stdtar "archive/tar"
+	"context"
 	"io"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
@@ -17,17 +18,25 @@ import (
 // stays valid after the iterator moves on. On a stream, Reader is
 // the live [archive/tar.Reader] and is valid only until the next
 // yield.
-func Files(r io.Reader) lewfs.Files {
+func Files(ctx context.Context, r io.Reader) lewfs.Files {
 	return func(yield func(lewfs.File, error) bool) {
+		if err := ctx.Err(); err != nil {
+			yield(lewfs.File{}, context.Cause(ctx))
+			return
+		}
 		var cr *cursor
 		var tr *stdtar.Reader
 		if ra, ok := r.(io.ReaderAt); ok {
-			cr = &cursor{ra: ra}
+			cr = &cursor{ra: lewfs.ContextReaderAt(ctx, ra)}
 			tr = stdtar.NewReader(cr)
 		} else {
-			tr = stdtar.NewReader(r)
+			tr = stdtar.NewReader(lewfs.ContextReader(ctx, r))
 		}
 		for {
+			if err := ctx.Err(); err != nil {
+				yield(lewfs.File{}, context.Cause(ctx))
+				return
+			}
 			hdr, err := tr.Next()
 			if err == io.EOF {
 				return

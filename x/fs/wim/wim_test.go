@@ -22,19 +22,19 @@ type onlyReader struct{ io.Reader }
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	r := onlyReader{strings.NewReader("x")}
-	_, err := Open(r, 1)
+	_, err := Open(t.Context(), r, 1)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
 	assert.Equal(t, "open", pe.Op)
 
-	_, err = Images(r)
+	_, err = Images(t.Context(), r)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 
 func TestInvalidWim(t *testing.T) {
 	t.Parallel()
-	_, err := Open(bytes.NewReader(make([]byte, 256)), 1)
+	_, err := Open(t.Context(), bytes.NewReader(make([]byte, 256)), 1)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 	assert.False(t, errors.Is(err, ErrInvalidImage))

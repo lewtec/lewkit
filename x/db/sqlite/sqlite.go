@@ -6,6 +6,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"io/fs"
 
@@ -24,8 +25,8 @@ func init() {
 	db.Register("file", c)
 }
 
-func up(conn *sql.DB, fsys fs.FS) error {
-	return db.Up(conn, fsys, "sqlite3", func(c *sql.DB) (database.Driver, error) {
+func up(ctx context.Context, conn *sql.DB, fsys fs.FS) error {
+	return db.Up(ctx, conn, fsys, "sqlite3", func(c *sql.DB) (database.Driver, error) {
 		return migsqlite.WithInstance(c, &migsqlite.Config{})
 	})
 }

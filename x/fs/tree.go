@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"io"
 	iofs "io/fs"
 	"strings"
@@ -23,11 +24,17 @@ var (
 // New indexes files into a read-only filesystem.
 // Implicit parent directories are created.
 // A later regular file replaces an earlier one at the same name.
-func New(files Files) (*FS, error) {
+func New(ctx context.Context, files Files) (*FS, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
 	root := newDir(".")
 	for f, err := range files {
 		if err != nil {
 			return nil, err
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, context.Cause(ctx)
 		}
 		if f.Name.String() == "." || f.Name.String() == "" {
 			continue

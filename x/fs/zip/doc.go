@@ -9,7 +9,7 @@
 // Open reads the end-of-central-directory record and the central
 // directory. It does not scan local file headers.
 //
-//	z, err := path.OpenFS(path.New("src.zip"), root, zip.Open)
+//	z, err := path.OpenFS(ctx, path.New("src.zip"), root, zip.Open)
 //	b, err := fs.ReadFile(z, "README")
 //
 // Stored files implement [io.ReaderAt] from the local header offset.

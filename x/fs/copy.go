@@ -32,9 +32,16 @@ var errStop = errors.New("stop")
 // Walk yields [Files] from fsys. pred is applied during the walk so a
 // pruned directory is never opened. A nil pred yields every name,
 // including empty directories.
-func Walk(fsys iofs.FS, pred pick.Predicate) Files {
+func Walk(ctx context.Context, fsys iofs.FS, pred pick.Predicate) Files {
 	return func(yield func(File, error) bool) {
+		if err := ctx.Err(); err != nil {
+			yield(File{}, context.Cause(ctx))
+			return
+		}
 		err := iofs.WalkDir(fsys, ".", func(name string, d iofs.DirEntry, err error) error {
+			if err := ctx.Err(); err != nil {
+				return context.Cause(ctx)
+			}
 			if err != nil {
 				return err
 			}
@@ -208,8 +215,18 @@ func (w destWriter) file(name string, perm iofs.FileMode, r io.Reader) error {
 	if !ok {
 		return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 	}
-	_, err = io.Copy(out, ctxReader{ctx: w.ctx, r: r})
+	_, err = io.Copy(out, ContextReader(w.ctx, r))
 	return err
+}
+
+// ContextReader fails Read with [context.Cause] when ctx is done.
+func ContextReader(ctx context.Context, r io.Reader) io.Reader {
+	return ctxReader{ctx: ctx, r: r}
+}
+
+// ContextReaderAt fails ReadAt with [context.Cause] when ctx is done.
+func ContextReaderAt(ctx context.Context, r io.ReaderAt) io.ReaderAt {
+	return ctxReaderAt{ctx: ctx, r: r}
 }
 
 type ctxReader struct {
@@ -222,4 +239,16 @@ func (r ctxReader) Read(p []byte) (int, error) {
 		return 0, context.Cause(r.ctx)
 	}
 	return r.r.Read(p)
+}
+
+type ctxReaderAt struct {
+	ctx context.Context
+	r   io.ReaderAt
+}
+
+func (r ctxReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, context.Cause(r.ctx)
+	}
+	return r.r.ReadAt(p, off)
 }

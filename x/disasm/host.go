@@ -68,8 +68,31 @@ type session struct {
 	errorString         api.Function
 }
 
+func loadCompiled(ctx context.Context) (compiled, error) {
+	done := make(chan struct {
+		c   compiled
+		err error
+	}, 1)
+	go func() {
+		c, err := load()
+		done <- struct {
+			c   compiled
+			err error
+		}{c, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return compiled{}, context.Cause(ctx)
+	case r := <-done:
+		return r.c, r.err
+	}
+}
+
 func openSession(ctx context.Context, architecture Architecture, mode Mode) (*session, error) {
-	compiledModule, err := load()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	compiledModule, err := loadCompiled(ctx)
 	if err != nil {
 		return nil, err
 	}

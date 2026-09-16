@@ -60,7 +60,7 @@ func (disasmRawCmd) Description() string {
 }
 
 func (command *disasmRawCmd) Run(ctx context.Context) error {
-	code, err := readInput(command.path.Value())
+	code, err := readInput(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (disasmFileCmd) Description() string {
 }
 
 func (command *disasmFileCmd) Run(ctx context.Context) error {
-	raw, err := readInput(command.path.Value())
+	raw, err := readInput(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
@@ -113,6 +113,9 @@ func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Archi
 		if err != nil {
 			return err
 		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if _, err := os.Stdout.WriteString(disasm.FormatInstruction(instruction, names)); err != nil {
 			return err
 		}
@@ -124,11 +127,30 @@ func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Archi
 	return nil
 }
 
-func readInput(path string) ([]byte, error) {
-	if path == "" || path == "-" {
-		return io.ReadAll(os.Stdin)
+func readInput(ctx context.Context, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
 	}
-	return os.ReadFile(path)
+	if path != "" && path != "-" {
+		return os.ReadFile(path)
+	}
+	done := make(chan struct {
+		b   []byte
+		err error
+	}, 1)
+	go func() {
+		b, err := io.ReadAll(os.Stdin)
+		done <- struct {
+			b   []byte
+			err error
+		}{b, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, context.Cause(ctx)
+	case r := <-done:
+		return r.b, r.err
+	}
 }
 
 type bytesReader []byte

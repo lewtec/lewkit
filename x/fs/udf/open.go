@@ -1,6 +1,7 @@
 package udf
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
@@ -24,52 +25,61 @@ var (
 )
 
 // Open reads a UDF volume from r. r must be an [io.ReaderAt].
-func Open(r io.Reader) (out *FS, err error) {
+func Open(ctx context.Context, r io.Reader) (out *FS, err error) {
 	defer recovered(&err)
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
 	ra, err := lewfs.ReaderAt("open", r)
 	if err != nil {
 		return nil, err
 	}
-	u, err := udf.NewUdfFromReader(ra)
+	u, err := udf.NewUdfFromReader(lewfs.ContextReaderAt(ctx, ra))
 	if err != nil {
 		return nil, err
 	}
 	root := newDir(".")
-	if err := walkUDF(root, u.ReadDir(nil), ""); err != nil {
+	var walk func(*dnode, []udf.File, string) error
+	walk = func(root *dnode, items []udf.File, prefix string) error {
+		if err := ctx.Err(); err != nil {
+			return context.Cause(ctx)
+		}
+		for i := range items {
+			if err := ctx.Err(); err != nil {
+				return context.Cause(ctx)
+			}
+			item := &items[i]
+			name := item.Name()
+			if name == "" || name == "." || name == ".." {
+				continue
+			}
+			p := name
+			if prefix != "" {
+				p = stdpath.Join(prefix, name)
+			}
+			p = stdpath.Clean(p)
+			if !fs.ValidPath(p) {
+				return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
+			}
+			if item.IsDir() {
+				if err := root.add(p, item, true); err != nil {
+					return err
+				}
+				if err := walk(root, item.ReadDir(), p); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := root.add(p, item, false); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := walk(root, u.ReadDir(nil), ""); err != nil {
 		return nil, err
 	}
 	return &FS{root: root}, nil
-}
-
-func walkUDF(root *dnode, items []udf.File, prefix string) error {
-	for i := range items {
-		item := &items[i]
-		name := item.Name()
-		if name == "" || name == "." || name == ".." {
-			continue
-		}
-		p := name
-		if prefix != "" {
-			p = stdpath.Join(prefix, name)
-		}
-		p = stdpath.Clean(p)
-		if !fs.ValidPath(p) {
-			return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
-		}
-		if item.IsDir() {
-			if err := root.add(p, item, true); err != nil {
-				return err
-			}
-			if err := walkUDF(root, item.ReadDir(), p); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := root.add(p, item, false); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func recovered(errp *error) {

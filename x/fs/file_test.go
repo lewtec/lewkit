@@ -2,6 +2,7 @@ package fs
 
 import (
 	"bytes"
+	"context"
 	"io"
 	iofs "io/fs"
 	"testing"
@@ -44,9 +45,17 @@ func TestNames(t *testing.T) {
 	assert.Equal(t, []path.Path{path.New("a/b.txt"), path.New("a")}, got)
 }
 
+func TestNewCancel(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := New(ctx, listing(memFile("a.txt", []byte("x"))))
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestNewTree(t *testing.T) {
 	t.Parallel()
-	fsys, err := New(listing(
+	fsys, err := New(t.Context(), listing(
 		memFile("a/b.txt", []byte("hello")),
 		memDir("a/c"),
 		memFile("z.txt", []byte("zee")),
@@ -90,7 +99,7 @@ func TestNewTree(t *testing.T) {
 
 func TestNewLastWins(t *testing.T) {
 	t.Parallel()
-	fsys, err := New(listing(
+	fsys, err := New(t.Context(), listing(
 		memFile("a.txt", []byte("old")),
 		memFile("a.txt", []byte("new")),
 	))
@@ -102,19 +111,19 @@ func TestNewLastWins(t *testing.T) {
 
 func TestNewFileDirConflict(t *testing.T) {
 	t.Parallel()
-	_, err := New(listing(memFile("a", []byte("x")), memDir("a")))
+	_, err := New(t.Context(), listing(memFile("a", []byte("x")), memDir("a")))
 	require.ErrorIs(t, err, iofs.ErrExist)
 }
 
 func TestNewInvalidName(t *testing.T) {
 	t.Parallel()
-	_, err := New(listing(File{Name: path.New("../x"), Mode: 0o644}))
+	_, err := New(t.Context(), listing(File{Name: path.New("../x"), Mode: 0o644}))
 	require.ErrorIs(t, err, iofs.ErrInvalid)
 }
 
 func TestNewTestFS(t *testing.T) {
 	t.Parallel()
-	fsys, err := New(listing(
+	fsys, err := New(t.Context(), listing(
 		memFile("a/b.txt", []byte("hello")),
 		memFile("z.txt", []byte("zee")),
 	))
@@ -141,7 +150,7 @@ func TestFileOpenReopen(t *testing.T) {
 
 func TestNewWriteReadOnly(t *testing.T) {
 	t.Parallel()
-	fsys, err := New(listing(memFile("a.txt", []byte("x"))))
+	fsys, err := New(t.Context(), listing(memFile("a.txt", []byte("x"))))
 	require.NoError(t, err)
 	err = path.New("a.txt").WriteFile(fsys, []byte("y"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
@@ -149,7 +158,7 @@ func TestNewWriteReadOnly(t *testing.T) {
 
 func TestNewListingError(t *testing.T) {
 	t.Parallel()
-	_, err := New(func(yield func(File, error) bool) {
+	_, err := New(t.Context(), func(yield func(File, error) bool) {
 		yield(File{}, io.ErrUnexpectedEOF)
 	})
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
@@ -159,7 +168,7 @@ func TestNewDirMerge(t *testing.T) {
 	t.Parallel()
 	old := time.Unix(1, 0)
 	late := time.Unix(2, 0)
-	fsys, err := New(listing(
+	fsys, err := New(t.Context(), listing(
 		File{Name: path.New("a"), Mode: iofs.ModeDir | 0o555, ModTime: old},
 		File{Name: path.New("a"), Mode: iofs.ModeDir | 0o555, ModTime: late},
 		memFile("a/b.txt", []byte("x")),

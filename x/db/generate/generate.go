@@ -35,6 +35,9 @@ func pkgName(dir string) string {
 // Run scans dir for sqlite/ and postgres/, checks query names match,
 // runs sqlc, and writes a shared Queries interface plus DBArg.
 func Run(ctx context.Context, dir string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if dir == "" {
 		return errDirRequired
 	}
@@ -46,13 +49,22 @@ func Run(ctx context.Context, dir string) error {
 	if err != nil {
 		return err
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := compareQueries(engines); err != nil {
 		return err
 	}
 	if err := writeSQLC(dir, engines); err != nil {
 		return err
 	}
-	if err := runSQLC(dir); err != nil {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := runSQLC(ctx, dir); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	methods, types, err := loadGenerated(dir, engines)
@@ -63,6 +75,9 @@ func Run(ctx context.Context, dir string) error {
 		return err
 	}
 	if err := compareStructs(types, methods); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	pkg := pkgName(dir)

@@ -3,6 +3,7 @@ package tar
 import (
 	stdtar "archive/tar"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"io/fs"
@@ -48,6 +49,25 @@ func packTarWrapped(t *testing.T, files map[string][]byte, wrap func(io.Writer) 
 	return bytes.NewReader(buf.Bytes())
 }
 
+func TestFilesCancel(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	var got error
+	for _, err := range Files(ctx, packTar(t, map[string][]byte{"a.txt": []byte("x")})) {
+		got = err
+	}
+	require.ErrorIs(t, got, context.Canceled)
+}
+
+func TestOpenCancel(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := Open(ctx, packTar(t, map[string][]byte{"a.txt": []byte("x")}))
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestFiles(t *testing.T) {
 	t.Parallel()
 	r := packTar(t, map[string][]byte{
@@ -55,13 +75,13 @@ func TestFiles(t *testing.T) {
 		"z.txt":   []byte("zee"),
 	})
 	var names []string
-	for f, err := range Files(r) {
+	for f, err := range Files(t.Context(), r) {
 		require.NoError(t, err)
 		names = append(names, f.Name.String())
 	}
 	assert.ElementsMatch(t, []string{"a/b.txt", "z.txt"}, names)
 
-	got := test.Collect(t, path.New(".").Select(lewfs.Names(Files(r)), "**/*.txt"))
+	got := test.Collect(t, path.New(".").Select(lewfs.Names(Files(t.Context(), r)), "**/*.txt"))
 	assert.ElementsMatch(t, []string{"a/b.txt", "z.txt"}, namesOf(got))
 }
 
@@ -74,7 +94,7 @@ func TestFilesStream(t *testing.T) {
 	data, err := io.ReadAll(raw)
 	require.NoError(t, err)
 	var saw string
-	for f, err := range Files(onlyReader{bytes.NewReader(data)}) {
+	for f, err := range Files(t.Context(), onlyReader{bytes.NewReader(data)}) {
 		require.NoError(t, err)
 		if f.Name.String() != "z.txt" {
 			continue
@@ -100,7 +120,7 @@ func namesOf(ps []path.Path) []string {
 
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
-	_, err := Open(onlyReader{strings.NewReader("x")})
+	_, err := Open(t.Context(), onlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
@@ -109,7 +129,7 @@ func TestNeedReadAt(t *testing.T) {
 
 func TestInvalidTar(t *testing.T) {
 	t.Parallel()
-	_, err := Open(bytes.NewReader(bytes.Repeat([]byte("x"), 512)))
+	_, err := Open(t.Context(), bytes.NewReader(bytes.Repeat([]byte("x"), 512)))
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }
@@ -120,7 +140,7 @@ func TestTree(t *testing.T) {
 		"a/b.txt": []byte("hello"),
 		"z.txt":   []byte("zee"),
 	})
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 
 	ents, err := fsys.ReadDir(".")
@@ -157,7 +177,7 @@ func TestTree(t *testing.T) {
 func TestReadAt(t *testing.T) {
 	t.Parallel()
 	r := packTar(t, map[string][]byte{"a.bin": []byte("hello world")})
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	f, err := fsys.Open("a.bin")
 	require.NoError(t, err)
@@ -177,7 +197,7 @@ func TestSkipPayload(t *testing.T) {
 		"big.bin": bytes.Repeat([]byte("x"), 1<<20),
 		"ok.txt":  []byte("yes"),
 	})
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	b, err := fsys.ReadFile("ok.txt")
 	require.NoError(t, err)
@@ -189,7 +209,7 @@ func TestOpenGzipMagic(t *testing.T) {
 	r := packTarWrapped(t, map[string][]byte{"a/b.txt": []byte("hello")}, func(w io.Writer) io.WriteCloser {
 		return stdgzip.NewWriter(w)
 	})
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	b, err := fsys.ReadFile("a/b.txt")
 	require.NoError(t, err)
@@ -204,7 +224,7 @@ func TestOpenBrotliByName(t *testing.T) {
 	data, err := io.ReadAll(raw)
 	require.NoError(t, err)
 	host := fstest.MapFS{"src.tar.br": {Data: data}}
-	fsys, err := path.OpenFS(path.New("src.tar.br"), host, Open)
+	fsys, err := path.OpenFS(t.Context(), path.New("src.tar.br"), host, Open)
 	require.NoError(t, err)
 	b, err := path.New("a.txt").ReadFile(fsys)
 	require.NoError(t, err)
@@ -216,7 +236,7 @@ func TestOpenBrotliNeedsName(t *testing.T) {
 	r := packTarWrapped(t, map[string][]byte{"a.txt": []byte("x")}, func(w io.Writer) io.WriteCloser {
 		return brotli.NewWriter(w)
 	})
-	_, err := Open(r)
+	_, err := Open(t.Context(), r)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }
@@ -228,7 +248,7 @@ func TestOpenGzipWithoutReadAt(t *testing.T) {
 	})
 	data, err := io.ReadAll(r)
 	require.NoError(t, err)
-	fsys, err := Open(onlyReader{bytes.NewReader(data)})
+	fsys, err := Open(t.Context(), onlyReader{bytes.NewReader(data)})
 	require.NoError(t, err)
 	b, err := fsys.ReadFile("a.txt")
 	require.NoError(t, err)
@@ -241,7 +261,7 @@ func TestOpenFS(t *testing.T) {
 	data, err := io.ReadAll(raw)
 	require.NoError(t, err)
 	host := fstest.MapFS{"src.tar": {Data: data}}
-	tf, err := path.OpenFS(path.New("src.tar"), host, Open)
+	tf, err := path.OpenFS(t.Context(), path.New("src.tar"), host, Open)
 	require.NoError(t, err)
 	b, err := path.New("README").ReadFile(tf)
 	require.NoError(t, err)
@@ -254,7 +274,7 @@ func TestFS(t *testing.T) {
 		"a/b.txt": []byte("hello"),
 		"z.txt":   []byte("zee"),
 	})
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
 }
@@ -270,7 +290,7 @@ func TestCopyExtract(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, lewfs.Copy(t.Context(), dest, Files(onlyReader{bytes.NewReader(data)})))
+	require.NoError(t, lewfs.Copy(t.Context(), dest, Files(t.Context(), onlyReader{bytes.NewReader(data)})))
 	b, err := path.New("z.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("zee"), b)
@@ -282,7 +302,7 @@ func TestCopyExtract(t *testing.T) {
 func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
 	r := packTar(t, map[string][]byte{"a.txt": []byte("x")})
-	fsys, err := Open(r)
+	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	err = path.New("a.txt").WriteFile(fsys, []byte("y"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
@@ -291,7 +311,7 @@ func TestWriteReadOnly(t *testing.T) {
 func TestOpenFSNeedReadAt(t *testing.T) {
 	t.Parallel()
 	fsys := &readerOnlyFS{name: "a.tar", r: strings.NewReader("x")}
-	_, err := path.OpenFS(path.New("a.tar"), fsys, Open)
+	_, err := path.OpenFS(t.Context(), path.New("a.tar"), fsys, Open)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 

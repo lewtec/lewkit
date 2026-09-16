@@ -99,6 +99,13 @@ func TestAppRunNoProfile(t *testing.T) {
 	require.NoError(t, app.Run(t.Context()))
 }
 
+func TestAppRunCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	app := ParseOK[App[None]](t)
+	assert.ErrorIs(t, app.Run(ctx), context.Canceled)
+}
+
 func TestAppRunProfile(t *testing.T) {
 	test.RestoreSlog(t)
 

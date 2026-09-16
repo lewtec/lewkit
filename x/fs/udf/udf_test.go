@@ -20,7 +20,7 @@ type onlyReader struct{ io.Reader }
 func TestOpenFSNeedReadAt(t *testing.T) {
 	t.Parallel()
 	fsys := &readerOnlyFS{name: "vol.iso", r: strings.NewReader("x")}
-	_, err := path.OpenFS(path.New("vol.iso"), fsys, Open)
+	_, err := path.OpenFS(t.Context(), path.New("vol.iso"), fsys, Open)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 
@@ -45,7 +45,7 @@ func (readerOnlyFile) Close() error               { return nil }
 
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
-	_, err := Open(onlyReader{strings.NewReader("x")})
+	_, err := Open(t.Context(), onlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
@@ -54,7 +54,7 @@ func TestNeedReadAt(t *testing.T) {
 
 func TestInvalidVolume(t *testing.T) {
 	t.Parallel()
-	_, err := Open(bytes.NewReader(make([]byte, 4096)))
+	_, err := Open(t.Context(), bytes.NewReader(make([]byte, 4096)))
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }

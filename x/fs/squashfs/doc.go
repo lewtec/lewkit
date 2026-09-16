@@ -7,7 +7,7 @@
 // Open reads the superblock at offset 0 and seeks to the inode and
 // directory tables. It does not scan the data area.
 //
-//	img, err := path.OpenFS(path.New("root.sfs"), root, squashfs.Open)
+//	img, err := path.OpenFS(ctx, path.New("root.sfs"), root, squashfs.Open)
 //	b, err := fs.ReadFile(img, "etc/os-release")
 //
 // Opened files are streams. They do not implement [io.ReaderAt].
