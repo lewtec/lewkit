@@ -15,15 +15,7 @@ type LineIndex struct {
 
 // NewLineIndex builds a line index for text.
 func NewLineIndex(text string) *LineIndex {
-	// ~1 entry per 40 bytes (typical source line); grows if denser.
-	starts := make([]int, 1, len(text)/40+2)
-	starts[0] = 0
-	for i := 0; i < len(text); i++ {
-		if text[i] == '\n' && i+1 < len(text) {
-			starts = append(starts, i+1)
-		}
-	}
-	return &LineIndex{starts: starts}
+	return NewLineIndexBytes([]byte(text))
 }
 
 // NewLineIndexBytes builds a line index for a byte buffer (UTF-8 source).
