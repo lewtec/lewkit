@@ -186,8 +186,10 @@ func consumeProduct(rv reflect.Value, args []string, mode consumeMode) (int, err
 		if !fv.CanAddr() {
 			continue
 		}
-		_, flatten := sf.Tag.Lookup("flatten")
-		if (sf.Anonymous || flatten) && shouldFlatten(fv) {
+		if _, ok, err := flattenField(sf, fv); ok {
+			if err != nil {
+				return off, err
+			}
 			n, err := consumeProduct(rvalue{fv}.settable(), args[off:], mode)
 			if err != nil {
 				return off, err

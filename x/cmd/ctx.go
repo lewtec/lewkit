@@ -75,9 +75,7 @@ func bind(ctx context.Context, v reflect.Value) {
 		if !fv.CanAddr() {
 			continue
 		}
-		_, flatten := sf.Tag.Lookup("flatten")
-		if (sf.Anonymous || flatten) && shouldFlatten(fv) {
-			ev, err := derefStruct(fv)
+		if ev, ok, err := flattenField(sf, fv); ok {
 			if err != nil {
 				continue
 			}
