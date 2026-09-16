@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"reflect"
-	"slices"
 	"strings"
 )
 
@@ -76,41 +75,14 @@ func usageFlagsOf(s *spec) []usageFlag {
 }
 
 func mergeUsageFlags(own, inherited []usageFlag) []usageFlag {
-	out := slices.Clone(own)
-	longs := make(map[string]struct{})
-	shorts := make(map[rune]struct{})
-	for _, item := range own {
-		if item.field.long != "" {
-			longs[item.field.long] = struct{}{}
-		}
-		if item.field.short != 0 {
-			shorts[item.field.short] = struct{}{}
-		}
-	}
-	for _, item := range inherited {
-		next := item
-		if next.field.long != "" {
-			if _, ok := longs[next.field.long]; ok {
-				next.field.long = ""
-			}
-		}
-		if next.field.short != 0 {
-			if _, ok := shorts[next.field.short]; ok {
-				next.field.short = 0
-			}
-		}
-		if next.field.long == "" && next.field.short == 0 {
-			continue
-		}
-		if next.field.long != "" {
-			longs[next.field.long] = struct{}{}
-		}
-		if next.field.short != 0 {
-			shorts[next.field.short] = struct{}{}
-		}
-		out = append(out, next)
-	}
-	return out
+	return mergeNamedFlags(own, inherited,
+		func(item usageFlag) (string, rune) { return item.field.long, item.field.short },
+		func(item usageFlag, long string, short rune) usageFlag {
+			item.field.long = long
+			item.field.short = short
+			return item
+		},
+	)
 }
 
 func descriptionOf[T any]() string {
