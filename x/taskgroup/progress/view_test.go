@@ -70,9 +70,32 @@ func TestFormatRowTreeAndBar(t *testing.T) {
 		},
 		tree: "├ ",
 	}, 80)
-	assert.True(t, strings.HasPrefix(line, "├ ▶ 🧠 build: part 1/4 ["), line)
-	assert.True(t, strings.HasSuffix(line, "]"), line)
+	assert.True(t, strings.HasPrefix(line, "├ ▶ 🧠 build: part 1/4"), line)
+	assert.True(t, strings.HasSuffix(line, plainBar(0.25, barWidth)), line)
 	assert.Equal(t, 80, cellWidth(line), line)
+	assert.NotContains(t, line, "[")
+	assert.Contains(t, line, barFill)
+	assert.Contains(t, line, barEmpty)
+}
+
+func TestFormatRowBarsAlign(t *testing.T) {
+	short := formatRow(treeRow{
+		node: taskgroup.Node{Name: "a", Pool: taskgroup.CPU, State: taskgroup.Running, Current: 1, Total: 4},
+	}, 80)
+	long := formatRow(treeRow{
+		node: taskgroup.Node{Name: "compile-frontend", Pool: taskgroup.CPU, State: taskgroup.Running, Current: 1, Total: 4},
+	}, 80)
+	bar := plainBar(0.25, barWidth)
+	assert.True(t, strings.HasSuffix(short, bar), short)
+	assert.True(t, strings.HasSuffix(long, bar), long)
+	assert.Equal(t, 80, cellWidth(short))
+	assert.Equal(t, 80, cellWidth(long))
+}
+
+func TestPlainBarFill(t *testing.T) {
+	assert.Equal(t, strings.Repeat(barEmpty, 10), plainBar(0, 10))
+	assert.Equal(t, strings.Repeat(barFill, 5)+strings.Repeat(barEmpty, 5), plainBar(0.5, 10))
+	assert.Equal(t, strings.Repeat(barFill, 10), plainBar(1, 10))
 }
 
 func TestFormatRowPendingNoBar(t *testing.T) {
@@ -81,6 +104,7 @@ func TestFormatRowPendingNoBar(t *testing.T) {
 		tree: "└ ",
 	}, 80)
 	assert.True(t, strings.HasPrefix(line, "└ ⏸ 💾 install"), line)
+	assert.NotContains(t, line, barFill)
 	assert.NotContains(t, line, "[")
 }
 
@@ -133,10 +157,10 @@ func TestViewResizeSwitchesLayout(t *testing.T) {
 	m = next.(model)
 	narrow := strings.TrimSuffix(m.View().Content, "\n")
 	assert.Contains(t, narrow, "%")
-	assert.NotContains(t, narrow, "[")
+	assert.NotContains(t, narrow, barFill)
 	next, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = next.(model)
 	wide := strings.TrimSuffix(m.View().Content, "\n")
-	assert.Contains(t, wide, "[")
+	assert.Contains(t, wide, barFill)
 	assert.NotContains(t, wide, "%")
 }

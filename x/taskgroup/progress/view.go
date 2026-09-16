@@ -16,6 +16,9 @@ const (
 	defaultTermWidth = 80
 	narrowTermWidth  = 56
 	minBarInner      = 8
+	barWidth         = 20
+	barFill          = "━"
+	barEmpty         = "─"
 )
 
 type model struct {
@@ -208,16 +211,18 @@ func formatNarrowBody(msg string, pct float64, width int) string {
 }
 
 func formatWideBody(msg string, pct float64, width int) string {
-	const extra = 1 + 2 // space before bar plus []
-	inner := width - cellWidth(msg) - extra
-	if inner < minBarInner {
-		msg = clipCells(msg, width-extra-minBarInner)
-		inner = width - cellWidth(msg) - extra
-	}
-	if inner < 1 {
+	const gap = 1
+	inner := barWidth
+	if width < gap+minBarInner+1 {
 		return formatNarrowBody(msg, pct, width)
 	}
-	return msg + " " + plainBar(pct, inner)
+	if gap+inner+1 > width {
+		inner = width - gap - 1
+	}
+	if inner < minBarInner {
+		return formatNarrowBody(msg, pct, width)
+	}
+	return padCells(msg, width-gap-inner) + " " + plainBar(pct, inner)
 }
 
 func formatPercent(pct float64) string {
@@ -247,16 +252,20 @@ func poolEmoji(p taskgroup.PoolKind) string {
 
 func plainBar(pct float64, width int) string {
 	if width <= 0 {
-		width = 30
+		width = barWidth
 	}
-	if pct < 0 {
-		pct = 0
-	}
-	if pct > 1 {
-		pct = 1
-	}
+	pct = min(max(pct, 0), 1)
 	filled := min(int(pct*float64(width)+0.5), width)
-	return "[" + strings.Repeat("=", filled) + strings.Repeat("-", width-filled) + "]"
+	return strings.Repeat(barFill, filled) + strings.Repeat(barEmpty, width-filled)
+}
+
+func padCells(s string, width int) string {
+	s = clipCells(s, width)
+	pad := width - cellWidth(s)
+	if pad <= 0 {
+		return s
+	}
+	return s + strings.Repeat(" ", pad)
 }
 
 func cellWidth(s string) int {
