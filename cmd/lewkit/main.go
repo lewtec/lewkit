@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"github.com/lewtec/lewkit/report/sentry"
 	"github.com/lewtec/lewkit/x/cmd"
@@ -20,9 +22,10 @@ func main() {
 }
 
 type root struct {
-	sentry   sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
-	generate *generateCmd
-	disasm   *disasmCmd
+	sentry     sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
+	generate   *generateCmd
+	disasm     *disasmCmd
+	completion *completionCmd
 }
 
 func (r *root) Setup() error {
@@ -65,6 +68,17 @@ func (c *preludeCmd) Run(ctx context.Context) error {
 		dest = c.out.Value()
 	}
 	return prelude.Run(ctx, c.dir.Value(), dest)
+}
+
+type completionCmd struct{}
+
+func (completionCmd) Description() string {
+	return "print the bash complete -C line"
+}
+
+func (*completionCmd) Run(context.Context) error {
+	_, err := fmt.Println(cmd.BashCompleteLine(filepath.Base(os.Args[0])))
+	return err
 }
 
 func (root) Description() string {
