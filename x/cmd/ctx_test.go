@@ -10,6 +10,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type flattenPool struct {
+	io  IntArg[int] `long:"io" default:"0"`
+	cpu IntArg[int] `long:"cpu" default:"0"`
+}
+
+func (p flattenPool) Value() int {
+	return p.io.Value() + p.cpu.Value()
+}
+
+func TestFlattenCtxStoresValue(t *testing.T) {
+	type args struct {
+		flattenPool `flatten:"" ctx:"pool"`
+	}
+	got := ParseOK[args](t, "--io", "3", "--cpu", "4")
+	ctx := withValues(t.Context())
+	bind(ctx, reflect.ValueOf(&got).Elem())
+	assert.Equal(t, 7, Get[int](ctx, "pool"))
+	assert.Panics(t, func() { Get[int](ctx, "io") })
+}
+
+func TestFlattenCtxDuplicate(t *testing.T) {
+	type args struct {
+		a flattenPool `flatten:"" ctx:"pool"`
+		b StringArg   `long:"name" default:"" ctx:"pool"`
+	}
+	_, err := Parse[args]()
+	assert.ErrorIs(t, err, ErrInvalidSpec)
+}
+
 func TestLookupMissing(t *testing.T) {
 	_, ok := Lookup[int](t.Context(), "verbose")
 	assert.False(t, ok)

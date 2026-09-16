@@ -9,17 +9,10 @@ import (
 )
 
 func limitsFrom(ctx context.Context) taskgroup.Limits {
-	l := taskgroup.DefaultLimits()
-	if n, ok := cmd.Lookup[int](ctx, "io"); ok && n > 0 {
-		l.IO = n
+	if l, ok := cmd.Lookup[taskgroup.Limits](ctx, "taskgroup"); ok {
+		return l
 	}
-	if n, ok := cmd.Lookup[int](ctx, "cpu"); ok && n > 0 {
-		l.CPU = n
-	}
-	if n, ok := cmd.Lookup[int](ctx, "internet"); ok && n > 0 {
-		l.Internet = n
-	}
-	return l
+	return taskgroup.DefaultLimits()
 }
 
 func runDemo(ctx context.Context, work func(context.Context) error) error {

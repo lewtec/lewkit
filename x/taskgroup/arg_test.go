@@ -25,6 +25,14 @@ func TestArgApplyKeepsBaseWhenFlagsOmitted(t *testing.T) {
 	require.Equal(t, base, got.Apply(base))
 }
 
+func TestArgValueIsPool(t *testing.T) {
+	got := cmd.ParseOK[Arg](t, "--io", "8", "--cpu", "2")
+	lim := got.Value()
+	assert.Equal(t, 8, lim.IO)
+	assert.Equal(t, 2, lim.CPU)
+	assert.Equal(t, DefaultLimits().Internet, lim.Internet)
+}
+
 func TestArgEnterReturnsSession(t *testing.T) {
 	arg := cmd.ParseOK[Arg](t, "--io", "2")
 	s, ctx := arg.Enter(t.Context(), DefaultLimits())

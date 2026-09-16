@@ -4,7 +4,7 @@ import "github.com/lewtec/lewkit/x/taskgroup"
 
 // Command is `lewkit experiments`.
 type Command struct {
-	taskgroup.Arg `flatten:""`
+	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
 	Demo          *Demo
 }
 

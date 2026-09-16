@@ -96,6 +96,9 @@ func bind(ctx context.Context, v reflect.Value) {
 				continue
 			}
 			bind(ctx, ev)
+			if key := ctxName(sf); key != "" {
+				put(ctx, key, storedValue(rvalue{fv}.settable()))
+			}
 			continue
 		}
 		if key := ctxName(sf); key != "" && (fv.Kind() != reflect.Pointer || !fv.IsNil()) {
