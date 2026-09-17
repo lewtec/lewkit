@@ -159,3 +159,70 @@ func TestOnScheduleOnceFuncStartsOnce(t *testing.T) {
 	require.Equal(t, int32(1), n.Load())
 	require.NoError(t, s.Wait())
 }
+
+func TestWithSession_CreatesAndWaits(t *testing.T) {
+	var ran atomic.Bool
+	err := WithSession(t.Context(), func(ctx context.Context) error {
+		Go(ctx, "t", CPU, func(context.Context, *Status) error {
+			ran.Store(true)
+			return nil
+		})
+		return nil
+	})
+	require.NoError(t, err)
+	assert.True(t, ran.Load())
+}
+
+func TestWithSession_JoinsExisting(t *testing.T) {
+	s, ctx := New(t.Context(), DefaultLimits())
+	started := make(chan struct{})
+	block := make(chan struct{})
+	err := WithSession(ctx, func(ctx context.Context) error {
+		Go(ctx, "hold", CPU, func(context.Context, *Status) error {
+			close(started)
+			<-block
+			return nil
+		})
+		return nil
+	})
+	require.NoError(t, err)
+	<-started
+	close(block)
+	require.NoError(t, s.Wait())
+}
+
+func TestWithSession_FnErrorWins(t *testing.T) {
+	boom := errors.New("boom")
+	err := WithSession(t.Context(), func(ctx context.Context) error {
+		Go(ctx, "t", CPU, func(context.Context, *Status) error {
+			return errors.New("task")
+		})
+		return boom
+	})
+	require.ErrorIs(t, err, boom)
+}
+
+func TestWithSession_WaitError(t *testing.T) {
+	boom := errors.New("boom")
+	err := WithSession(t.Context(), func(ctx context.Context) error {
+		Go(ctx, "t", CPU, func(context.Context, *Status) error {
+			return boom
+		})
+		return nil
+	})
+	require.ErrorIs(t, err, boom)
+}
+
+func TestWithSession_Canceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := WithSession(ctx, func(context.Context) error {
+		t.Fatal("fn ran")
+		return nil
+	})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestWithSession_NilFn(t *testing.T) {
+	require.ErrorIs(t, WithSession(t.Context(), nil), ErrNilFn)
+}
