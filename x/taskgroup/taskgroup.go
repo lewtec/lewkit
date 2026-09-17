@@ -2,9 +2,10 @@
 // and a live task tree.
 //
 // New starts a Session. Flatten-embed Arg on a cmd spec for --io/--cpu/
-// --internet; Arg.Value is the Session after Enter. Go, Map, and Each attach
-// nodes under the current task (from ctx). List(n) walks live children
-// until it has n rows; it does not flatten the forest first.
+// --internet; Arg.Value is the Session after Enter. WithSession joins that
+// Session or starts DefaultLimits and Wait. Go, Map, and Each attach nodes
+// under the current task (from ctx). List(n) walks live children until it
+// has n rows; it does not flatten the forest first.
 //
 // Only leaf tasks take IO, CPU, or Internet. Orchestrators are Control.
 // Isolate is an error boundary with no list row.
@@ -319,6 +320,28 @@ func MustFromContext(ctx context.Context) *Session {
 	}
 	panic("taskgroup: no Session present in context; " +
 		"only the top-level caller may call New, everything else must receive it via context")
+}
+
+// WithSession runs fn with a Session in ctx.
+// If ctx already has one, fn uses it and WithSession does not Wait.
+// Otherwise it starts DefaultLimits, runs fn, then Wait.
+// fn's error wins over Wait.
+func WithSession(ctx context.Context, fn func(context.Context) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if fn == nil {
+		return ErrNilFn
+	}
+	if FromContext(ctx) != nil {
+		return fn(ctx)
+	}
+	sess, ctx := New(ctx, DefaultLimits())
+	err := fn(ctx)
+	if werr := sess.Wait(); err == nil {
+		err = werr
+	}
+	return err
 }
 
 func taskFromContext(ctx context.Context) ID {

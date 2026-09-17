@@ -101,6 +101,80 @@ func TestEach_RunsWithoutResults(t *testing.T) {
 	assert.Equal(t, int64(3), saw.Load())
 }
 
+func TestEach_Empty(t *testing.T) {
+	require.NoError(t, WithSession(t.Context(), func(ctx context.Context) error {
+		return Each[int]{Name: "test", Items: nil, Fn: func(context.Context, *Status, int) error {
+			t.Fatal("ran")
+			return nil
+		}}.Run(ctx)
+	}))
+}
+
+func TestEach_One(t *testing.T) {
+	var n atomic.Int32
+	err := WithSession(t.Context(), func(ctx context.Context) error {
+		return Each[int]{
+			Name:  "test",
+			Items: []int{7},
+			Fn: func(_ context.Context, _ *Status, v int) error {
+				n.Add(int32(v))
+				return nil
+			},
+		}.Run(ctx)
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(7), n.Load())
+}
+
+func TestEach_Many(t *testing.T) {
+	var n atomic.Int32
+	items := make([]int, 16)
+	err := WithSession(t.Context(), func(ctx context.Context) error {
+		return Each[int]{
+			Name:  "test",
+			Items: items,
+			Fn: func(context.Context, *Status, int) error {
+				n.Add(1)
+				return nil
+			},
+		}.Run(ctx)
+	})
+	require.NoError(t, err)
+	require.Equal(t, int32(16), n.Load())
+}
+
+func TestEach_FirstError(t *testing.T) {
+	boom := errors.New("boom")
+	err := WithSession(t.Context(), func(ctx context.Context) error {
+		return Each[int]{
+			Name:  "test",
+			Items: []int{1, 2, 3, 4},
+			Fn: func(_ context.Context, _ *Status, v int) error {
+				if v == 1 {
+					return boom
+				}
+				return nil
+			},
+		}.Run(ctx)
+	})
+	require.ErrorIs(t, err, boom)
+}
+
+func TestEach_Canceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	err := WithSession(ctx, func(ctx context.Context) error {
+		return Each[int]{
+			Name:  "test",
+			Items: []int{1},
+			Fn: func(context.Context, *Status, int) error {
+				return errors.New("should not run")
+			},
+		}.Run(ctx)
+	})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func TestMap_ErrorPropagates(t *testing.T) {
 	_, ctx := newTest(t, DefaultLimits())
 	boom := errors.New("boom on 20")
