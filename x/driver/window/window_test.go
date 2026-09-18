@@ -26,16 +26,13 @@ func TestOpenFrameDrawResize(t *testing.T) {
 	draw.Draw(frame, frame.Bounds(), red, image.Point{}, draw.Src)
 	require.NoError(t, w.Draw())
 	assert.Equal(t, color.RGBA{R: 255, A: 255}, frame.RGBAAt(0, 0))
-	if front, ok := w.(interface{ Front() *image.RGBA }); ok {
-		assert.Equal(t, color.RGBA{R: 255, A: 255}, front.Front().RGBAAt(0, 0))
-	}
+	assert.Equal(t, color.RGBA{R: 255, A: 255}, w.Front().RGBAAt(0, 0))
 
 	require.NoError(t, w.Resize(image.Pt(12, 4)))
 	frame = w.Frame()
 	assert.Equal(t, 12, frame.Bounds().Dx())
 	assert.Equal(t, 4, frame.Bounds().Dy())
-	front := w.(interface{ Front() *image.RGBA }).Front()
-	assert.Equal(t, color.RGBA{R: 255, A: 255}, front.RGBAAt(0, 0))
+	assert.Equal(t, color.RGBA{R: 255, A: 255}, w.Front().RGBAAt(0, 0))
 }
 
 func TestDrawSwapsPages(t *testing.T) {
@@ -47,7 +44,7 @@ func TestDrawSwapsPages(t *testing.T) {
 	require.NoError(t, w.Draw())
 	b := w.Frame()
 	assert.False(t, a == b)
-	front := w.(interface{ Front() *image.RGBA }).Front()
+	front := w.Front()
 	assert.True(t, a == front)
 	assert.Equal(t, color.RGBA{R: 255, A: 255}, front.RGBAAt(0, 0))
 }

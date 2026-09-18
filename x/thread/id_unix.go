@@ -5,22 +5,28 @@ package thread
 import (
 	"sync"
 
-	"github.com/ebitengine/purego"
+	"github.com/lewtec/lewkit/x/ffi"
 )
 
 var (
-	idOnce sync.Once
-	self   func() uintptr
+	libcOnce sync.Once
+	libc     uintptr
+	self     func() uintptr
 )
 
-func osThread() uint64 {
-	idOnce.Do(func() {
-		lib, err := purego.Dlopen(libcPath, purego.RTLD_LAZY)
+func loadLibc() {
+	libcOnce.Do(func() {
+		lib, err := ffi.Open(libcPath, ffi.Lazy)
 		if err != nil {
 			return
 		}
-		purego.RegisterLibFunc(&self, lib, "pthread_self")
+		libc = lib
+		ffi.Func(lib, "pthread_self", &self)
 	})
+}
+
+func osThread() uint64 {
+	loadLibc()
 	if self == nil {
 		return 0
 	}

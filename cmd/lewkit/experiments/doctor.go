@@ -33,53 +33,53 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 	}
 	for _, iface := range report {
 		parent := next()
-		selected := ""
-		selW := 0
-		ok := 0
-		for _, d := range iface.Drivers {
-			if d.Selected {
-				selected = d.ID
-				selW = d.Weight
+		selectedID := ""
+		selectedWeight := 0
+		available := 0
+		for _, impl := range iface.Drivers {
+			if impl.Selected {
+				selectedID = impl.ID
+				selectedWeight = impl.Weight
 			}
-			if d.Available {
-				ok++
+			if impl.Available {
+				available++
 			}
 		}
-		msg := "=> none"
-		st := taskgroup.Failed
-		if selected != "" {
-			msg = fmt.Sprintf("=> %s w=%d", selected, selW)
-			st = taskgroup.Done
+		message := "=> none"
+		state := taskgroup.Failed
+		if selectedID != "" {
+			message = fmt.Sprintf("=> %s w=%d", selectedID, selectedWeight)
+			state = taskgroup.Done
 		}
 		nodes = append(nodes, taskgroup.Node{
 			ID:           parent,
 			Name:         shortIface(iface.Name),
-			Message:      msg,
-			State:        st,
+			Message:      message,
+			State:        state,
 			Pool:         taskgroup.Control,
-			Current:      int64(ok),
+			Current:      int64(available),
 			Total:        int64(len(iface.Drivers)),
 			LiveChildren: len(iface.Drivers),
 		})
-		for _, d := range iface.Drivers {
+		for _, impl := range iface.Drivers {
 			child := taskgroup.Node{
 				ID:     next(),
 				Parent: parent,
-				Name:   d.ID,
+				Name:   impl.ID,
 				Pool:   taskgroup.CPU,
 			}
-			w := fmt.Sprintf("w=%d", d.Weight)
+			weight := fmt.Sprintf("w=%d", impl.Weight)
 			switch {
-			case d.Selected:
-				child.Message = w + " selected"
+			case impl.Selected:
+				child.Message = weight + " selected"
 				child.State = taskgroup.Done
-			case d.Available:
-				child.Message = w + " available"
+			case impl.Available:
+				child.Message = weight + " available"
 				child.State = taskgroup.Done
 			default:
-				child.Message = w
-				if d.Error != nil {
-					child.Message = w + " " + d.Error.Error()
+				child.Message = weight
+				if impl.Error != nil {
+					child.Message = weight + " " + impl.Error.Error()
 				}
 				child.State = taskgroup.Failed
 			}

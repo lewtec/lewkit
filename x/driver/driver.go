@@ -131,14 +131,7 @@ func factoryWeight(f any) int {
 	if !ok {
 		return 0
 	}
-	n := w.Weight()
-	if n < 0 {
-		return 0
-	}
-	if n > 100 {
-		return 100
-	}
-	return n
+	return min(max(w.Weight(), 0), 100)
 }
 
 func effectiveWeight(weights map[string]int, driverID, ifaceName string, fallback int) int {

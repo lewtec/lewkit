@@ -9,9 +9,9 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/ffi"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -76,15 +76,14 @@ func startApp() error {
 				appErr = fmt.Errorf("cocoa: NSApplication is not on the process main thread")
 				return
 			}
-			if _, err := purego.Dlopen("/System/Library/Frameworks/Cocoa.framework/Cocoa", purego.RTLD_GLOBAL|purego.RTLD_LAZY); err != nil {
+			if _, err := ffi.Open("/System/Library/Frameworks/Cocoa.framework/Cocoa", ffi.Global|ffi.Lazy); err != nil {
 				appErr = err
 				return
 			}
-			if _, err := purego.Dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", purego.RTLD_GLOBAL|purego.RTLD_LAZY); err != nil {
+			if err := loadCG(); err != nil {
 				appErr = err
 				return
 			}
-			loadCG()
 			app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 			app.Send(objc.RegisterName("setActivationPolicy:"), nsApplicationActivateRegular)
 			thread.OnIdle(func() {
@@ -132,8 +131,8 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	onApp(func() {
 		openErr = out.create(cfg.Title, w, h)
 		if openErr == nil {
-			if ww, hh := out.clientSize(); ww > 0 && hh > 0 {
-				_ = out.Buffer.Resize(image.Pt(ww, hh))
+			if width, height := out.clientSize(); width > 0 && height > 0 {
+				_ = out.Buffer.Resize(image.Pt(width, height))
 			}
 		}
 	})
@@ -189,8 +188,8 @@ func (w *win) flush() {
 	if w.Closed() {
 		return
 	}
-	if ww, hh := w.clientSize(); ww > 0 && hh > 0 {
-		_ = w.Buffer.Resize(image.Pt(ww, hh))
+	if width, height := w.clientSize(); width > 0 && height > 0 {
+		_ = w.Buffer.Resize(image.Pt(width, height))
 	}
 	_ = w.blit()
 }
@@ -206,11 +205,11 @@ func (w *win) Resize(size image.Point) error {
 		if wnd == 0 {
 			return
 		}
-		s := w.scale()
-		if s < 1 {
-			s = 1
+		scale := w.scale()
+		if scale < 1 {
+			scale = 1
 		}
-		wnd.Send(selSetContentSize, nsSize{Width: float64(size.X) / s, Height: float64(size.Y) / s})
+		wnd.Send(selSetContentSize, nsSize{Width: float64(size.X) / scale, Height: float64(size.Y) / scale})
 	})
 	return nil
 }
@@ -261,12 +260,12 @@ func (w *win) clientSize() (int, int) {
 	if view == 0 {
 		return 0, 0
 	}
-	r := boundsOf(view)
-	s := w.scale()
-	if s < 1 {
-		s = 1
+	rect := boundsOf(view)
+	scale := w.scale()
+	if scale < 1 {
+		scale = 1
 	}
-	return int(r.Size.Width*s + 0.5), int(r.Size.Height*s + 0.5)
+	return int(rect.Size.Width*scale + 0.5), int(rect.Size.Height*scale + 0.5)
 }
 
 func (w *win) scale() float64 {
@@ -276,11 +275,11 @@ func (w *win) scale() float64 {
 	if wnd == 0 {
 		return 1
 	}
-	s := backingScale(wnd)
-	if s < 1 {
+	scale := backingScale(wnd)
+	if scale < 1 {
 		return 1
 	}
-	return s
+	return scale
 }
 
 func (w *win) blit() error {
@@ -295,26 +294,26 @@ func (w *win) blit() error {
 		if src.Rect.Dx() < 1 || src.Rect.Dy() < 1 {
 			return
 		}
-		var cg uintptr
-		cg, err = cgImageFromRGBA(src)
+		var cgImage uintptr
+		cgImage, err = cgImageFromRGBA(src)
 		if err != nil {
 			return
 		}
-		defer cgImageRelease(cg)
+		defer cgImageRelease(cgImage)
 		view := wnd.Send(selContentView)
 		layer := view.Send(selLayer)
 		prepareLayer(layer, w.scale())
 		beginNoAnim()
-		layer.Send(selSetContents, objc.ID(cg))
+		layer.Send(selSetContents, objc.ID(cgImage))
 		endNoAnim()
 	})
 	return err
 }
 
 func beginNoAnim() {
-	tx := objc.ID(objc.GetClass("CATransaction"))
-	tx.Send(objc.RegisterName("begin"))
-	setBool(tx, objc.RegisterName("setDisableActions:"), true)
+	transaction := objc.ID(objc.GetClass("CATransaction"))
+	transaction.Send(objc.RegisterName("begin"))
+	setBool(transaction, objc.RegisterName("setDisableActions:"), true)
 }
 
 func endNoAnim() {
@@ -346,23 +345,24 @@ var (
 	cgImageRelease                 func(uintptr)
 )
 
-func loadCG() {
-	cg, err := purego.Dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", purego.RTLD_LAZY)
+func loadCG() error {
+	lib, err := ffi.Open("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", ffi.Lazy)
 	if err != nil {
-		return
+		return err
 	}
-	purego.RegisterLibFunc(&cgColorSpaceCreateDeviceRGB, cg, "CGColorSpaceCreateDeviceRGB")
-	purego.RegisterLibFunc(&cgDataProviderCreateWithCFData, cg, "CGDataProviderCreateWithCFData")
-	purego.RegisterLibFunc(&cgImageCreate, cg, "CGImageCreate")
-	purego.RegisterLibFunc(&cgColorSpaceRelease, cg, "CGColorSpaceRelease")
-	purego.RegisterLibFunc(&cgDataProviderRelease, cg, "CGDataProviderRelease")
-	purego.RegisterLibFunc(&cgImageRelease, cg, "CGImageRelease")
+	ffi.Func(lib, "CGColorSpaceCreateDeviceRGB", &cgColorSpaceCreateDeviceRGB)
+	ffi.Func(lib, "CGDataProviderCreateWithCFData", &cgDataProviderCreateWithCFData)
+	ffi.Func(lib, "CGImageCreate", &cgImageCreate)
+	ffi.Func(lib, "CGColorSpaceRelease", &cgColorSpaceRelease)
+	ffi.Func(lib, "CGDataProviderRelease", &cgDataProviderRelease)
+	ffi.Func(lib, "CGImageRelease", &cgImageRelease)
+	return nil
 }
 
 func cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
-	w, h := src.Rect.Dx(), src.Rect.Dy()
-	if w < 1 || h < 1 || cgImageCreate == nil {
-		return 0, fmt.Errorf("cgimage")
+	width, height := src.Rect.Dx(), src.Rect.Dy()
+	if width < 1 || height < 1 || cgImageCreate == nil {
+		return 0, fmt.Errorf("empty frame")
 	}
 	data := objc.ID(objc.GetClass("NSData")).Send(
 		objc.RegisterName("dataWithBytes:length:"),
@@ -383,7 +383,7 @@ func cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	}
 	defer cgDataProviderRelease(provider)
 	img := cgImageCreate(
-		uintptr(w), uintptr(h), 8, 32, uintptr(src.Stride),
+		uintptr(width), uintptr(height), 8, 32, uintptr(src.Stride),
 		space,
 		cgImageAlphaLast|cgBitmapByteOrder32Big,
 		provider, 0,
@@ -411,54 +411,54 @@ var (
 
 func setID(obj objc.ID, sel objc.SEL, v objc.ID) {
 	if setIDFn == nil {
-		purego.RegisterFunc(&setIDFn, objcMsgSend)
+		ffi.Register(&setIDFn, objcMsgSend)
 	}
 	setIDFn(obj, sel, v)
 }
 
 func setBool(obj objc.ID, sel objc.SEL, v bool) {
 	if setBoolFn == nil {
-		purego.RegisterFunc(&setBoolFn, objcMsgSend)
+		ffi.Register(&setBoolFn, objcMsgSend)
 	}
 	setBoolFn(obj, sel, v)
 }
 
 func setMask(obj objc.ID, sel objc.SEL, v uint32) {
 	if setMaskFn == nil {
-		purego.RegisterFunc(&setMaskFn, objcMsgSend)
+		ffi.Register(&setMaskFn, objcMsgSend)
 	}
 	setMaskFn(obj, sel, v)
 }
 
 func boundsOf(view objc.ID) nsRect {
 	if boundsFn == nil {
-		purego.RegisterFunc(&boundsFn, objcMsgSend)
+		ffi.Register(&boundsFn, objcMsgSend)
 	}
 	return boundsFn(view, selBounds)
 }
 
 func backingScale(wnd objc.ID) float64 {
 	if scaleFn == nil {
-		purego.RegisterFunc(&scaleFn, objcMsgSend)
+		ffi.Register(&scaleFn, objcMsgSend)
 	}
 	return scaleFn(wnd, selBackingScaleFactor)
 }
 
 func setLayerScale(layer objc.ID, scale float64) {
 	if setScale == nil {
-		purego.RegisterFunc(&setScale, objcMsgSend)
+		ffi.Register(&setScale, objcMsgSend)
 	}
 	setScale(layer, selSetContentsScale, scale)
 }
 
-var objcMsgSend = mustSym("/usr/lib/libobjc.A.dylib", "objc_msgSend")
+var objcMsgSend = mustSymbol("/usr/lib/libobjc.A.dylib", "objc_msgSend")
 
-func mustSym(lib, name string) uintptr {
-	h, err := purego.Dlopen(lib, purego.RTLD_LAZY)
+func mustSymbol(lib, name string) uintptr {
+	handle, err := ffi.Open(lib, ffi.Lazy)
 	if err != nil {
 		panic(err)
 	}
-	sym, err := purego.Dlsym(h, name)
+	sym, err := ffi.Symbol(handle, name)
 	if err != nil {
 		panic(err)
 	}

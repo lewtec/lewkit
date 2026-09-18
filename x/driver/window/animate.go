@@ -15,24 +15,24 @@ type Paint func(dst *image.RGBA, elapsed time.Duration) error
 func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	evs := w.Subscribe(ctx)
-	t0 := time.Now()
+	events := w.Subscribe(ctx)
+	started := time.Now()
 	if period <= 0 {
 		period = time.Second / 60
 	}
 	tick := time.NewTicker(period)
 	defer tick.Stop()
-	if err := frame(w, paint, 0); err != nil {
+	if err := paintFrame(w, paint, 0); err != nil {
 		return closed(err)
 	}
 	for {
-		if err := drain(evs); err != nil {
+		if err := drain(events); err != nil {
 			return closed(err)
 		}
 		select {
 		case <-ctx.Done():
 			return closed(context.Cause(ctx))
-		case ev, ok := <-evs:
+		case ev, ok := <-events:
 			if !ok {
 				return nil
 			}
@@ -40,14 +40,14 @@ func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) e
 				return closed(err)
 			}
 		case <-tick.C:
-			if err := frame(w, paint, time.Since(t0)); err != nil {
+			if err := paintFrame(w, paint, time.Since(started)); err != nil {
 				return closed(err)
 			}
 		}
 	}
 }
 
-func frame(w Window, paint Paint, elapsed time.Duration) error {
+func paintFrame(w Window, paint Paint, elapsed time.Duration) error {
 	dst := w.Frame()
 	if dst == nil {
 		return ErrClosed
@@ -58,10 +58,10 @@ func frame(w Window, paint Paint, elapsed time.Duration) error {
 	return w.Draw()
 }
 
-func drain(evs <-chan Event) error {
+func drain(events <-chan Event) error {
 	for {
 		select {
-		case ev, ok := <-evs:
+		case ev, ok := <-events:
 			if !ok {
 				return ErrClosed
 			}

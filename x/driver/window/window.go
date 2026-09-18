@@ -64,6 +64,7 @@ type Driver interface {
 // After Resize the next Frame has the new size.
 type Window interface {
 	Frame() *image.RGBA
+	Front() *image.RGBA
 	Draw() error
 	Resize(size image.Point) error
 	Subscribe(ctx context.Context) <-chan Event
