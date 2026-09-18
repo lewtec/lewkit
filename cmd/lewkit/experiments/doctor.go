@@ -2,78 +2,87 @@ package experiments
 
 import (
 	"context"
+	"os"
 	"strings"
-	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/taskgroup"
+	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
 
 // Doctor is `lewkit experiments doctor`.
 type Doctor struct{}
 
 func (Doctor) Description() string {
-	return "probe registered drivers (interface => implementation)"
+	return "list drivers (interface => implementation)"
 }
 
 func (*Doctor) Run(ctx context.Context) error {
-	return runDemo(ctx, scheduleDoctor)
+	_, err := os.Stdout.WriteString(progress.Format(doctorNodes(driver.Doctor(ctx)), 0))
+	return err
 }
 
-func scheduleDoctor(ctx context.Context) error {
-	report := driver.Doctor(ctx)
-	for _, iface := range report {
-		iface := iface
-		taskgroup.Go(ctx, shortIface(iface.Name), taskgroup.Control, func(ctx context.Context, s *taskgroup.Status) error {
-			return checkIface(ctx, s, iface)
-		})
+func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
+	var nodes []taskgroup.Node
+	var id taskgroup.ID
+	next := func() taskgroup.ID {
+		id++
+		return id
 	}
-	return nil
-}
-
-func checkIface(ctx context.Context, s *taskgroup.Status, iface driver.InterfaceStatus) error {
-	n := int64(len(iface.Drivers))
-	s.Progress(0, n)
-	s.Update("probing")
-	selected := ""
-	_ = taskgroup.Isolate(ctx, func(ctx context.Context) error {
+	for _, iface := range report {
+		parent := next()
+		selected := ""
+		ok := 0
 		for _, d := range iface.Drivers {
-			d := d
-			taskgroup.Go(ctx, d.ID, taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
-				st.Update(d.Name)
-				if err := sleep(ctx, 80*time.Millisecond); err != nil {
-					return err
-				}
-				if d.Selected {
-					st.Update("selected")
-					st.Progress(1, 1)
-					return nil
-				}
-				if d.Available {
-					st.Update("available")
-					st.Progress(1, 1)
-					return nil
-				}
-				st.Update("skip")
-				if d.Error != nil {
-					return d.Error
-				}
-				return driver.ErrIncompatible
-			})
 			if d.Selected {
 				selected = d.ID
 			}
+			if d.Available {
+				ok++
+			}
 		}
-		return nil
-	})
-	s.Progress(n, n)
-	if selected != "" {
-		s.Update("=> " + selected)
-		return nil
+		msg := "=> none"
+		st := taskgroup.Failed
+		if selected != "" {
+			msg = "=> " + selected
+			st = taskgroup.Done
+		}
+		nodes = append(nodes, taskgroup.Node{
+			ID:           parent,
+			Name:         shortIface(iface.Name),
+			Message:      msg,
+			State:        st,
+			Pool:         taskgroup.Control,
+			Current:      int64(ok),
+			Total:        int64(len(iface.Drivers)),
+			LiveChildren: len(iface.Drivers),
+		})
+		for _, d := range iface.Drivers {
+			child := taskgroup.Node{
+				ID:     next(),
+				Parent: parent,
+				Name:   d.ID,
+				Pool:   taskgroup.CPU,
+			}
+			switch {
+			case d.Selected:
+				child.Message = "selected"
+				child.State = taskgroup.Done
+			case d.Available:
+				child.Message = "available"
+				child.State = taskgroup.Done
+			default:
+				child.Message = "skip"
+				if d.Error != nil {
+					child.Message = d.Error.Error()
+				}
+				child.State = taskgroup.Failed
+			}
+			nodes = append(nodes, child)
+		}
 	}
-	s.Update("=> none")
-	return nil
+	return nodes
 }
 
 func shortIface(name string) string {

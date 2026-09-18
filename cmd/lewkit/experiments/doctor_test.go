@@ -1,6 +1,7 @@
 package experiments
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
@@ -15,8 +16,14 @@ func TestDoctorUsage(t *testing.T) {
 	assert.Contains(t, text, "interface => implementation")
 }
 
-func TestDoctorRuns(t *testing.T) {
+func TestDoctorPrintsTree(t *testing.T) {
 	test.RestoreSlog(t)
 	app := cmd.ParseOK[cmd.App[Command]](t, "doctor")
-	require.NoError(t, app.Run(t.Context()))
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "window.Driver")
+	assert.Contains(t, got, "=>")
+	assert.Contains(t, got, "window_mem")
+	assert.True(t, strings.Contains(got, "├ ") || strings.Contains(got, "└ "))
 }
