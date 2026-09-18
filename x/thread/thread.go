@@ -14,6 +14,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Thread is one locked OS thread plus a job queue.
@@ -83,21 +84,31 @@ func (t *Thread) Loop(ctx context.Context) {
 	t.bound.Store(true)
 	t.running.Store(true)
 	defer t.running.Store(false)
+	wait := time.NewTicker(2 * time.Millisecond)
+	defer wait.Stop()
 	for {
+		t.drain()
+		if ctx.Err() != nil {
+			return
+		}
+		t.runIdle()
 		select {
 		case <-ctx.Done():
 			return
 		case fn := <-t.jobs:
 			fn()
+		case <-wait.C:
+		}
+	}
+}
+
+func (t *Thread) drain() {
+	for {
+		select {
+		case fn := <-t.jobs:
+			fn()
 		default:
-			if !t.runIdle() {
-				select {
-				case <-ctx.Done():
-					return
-				case fn := <-t.jobs:
-					fn()
-				}
-			}
+			return
 		}
 	}
 }

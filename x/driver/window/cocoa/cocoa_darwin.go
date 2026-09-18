@@ -56,6 +56,8 @@ var (
 	selNextEvent     = objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:")
 	selSendEvent     = objc.RegisterName("sendEvent:")
 	selUpdateWindows = objc.RegisterName("updateWindows")
+	selBitmapData    = objc.RegisterName("bitmapData")
+	selDistantPast   = objc.RegisterName("distantPast")
 )
 
 func startApp() error {
@@ -87,10 +89,13 @@ func onApp(fn func()) {
 }
 
 func pump(app objc.ID) {
-	date := objc.ID(objc.GetClass("NSDate")).Send(objc.RegisterName("dateWithTimeIntervalSinceNow:"), 0.05)
+	date := objc.ID(objc.GetClass("NSDate")).Send(selDistantPast)
 	mode := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "kCFRunLoopDefaultMode")
-	ev := app.Send(selNextEvent, ^uintptr(0), date, mode, true)
-	if ev != 0 {
+	for {
+		ev := app.Send(selNextEvent, ^uintptr(0), date, mode, true)
+		if ev == 0 {
+			break
+		}
 		app.Send(selSendEvent, ev)
 	}
 	app.Send(selUpdateWindows)
@@ -121,8 +126,10 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 
 type win struct {
 	*window.Buffer
-	mu  sync.Mutex
-	wnd objc.ID
+	mu       sync.Mutex
+	wnd      objc.ID
+	rep, img objc.ID
+	bw, bh   int
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -153,9 +160,13 @@ func (w *win) Draw() error {
 	if w.Closed() {
 		return window.ErrClosed
 	}
-	w.syncSize()
 	var err error
-	onApp(func() { err = w.blit() })
+	onApp(func() {
+		if ww, hh := w.clientSize(); ww > 0 && hh > 0 {
+			_ = w.Buffer.Resize(image.Pt(ww, hh))
+		}
+		err = w.blit()
+	})
 	return err
 }
 
@@ -188,16 +199,6 @@ func (w *win) closeNS() {
 	w.mu.Unlock()
 	if wnd != 0 {
 		wnd.Send(selClose)
-	}
-}
-
-func (w *win) syncSize() {
-	var width, height int
-	onApp(func() {
-		width, height = w.clientSize()
-	})
-	if width > 0 && height > 0 {
-		_ = w.Buffer.Resize(image.Pt(width, height))
 	}
 }
 
@@ -242,38 +243,41 @@ func (w *win) blit() error {
 		return window.ErrClosed
 	}
 	src := w.Frame()
-	img, err := nsimageFromRGBA(src)
-	if err != nil {
-		return err
+	sw, sh := src.Rect.Dx(), src.Rect.Dy()
+	if sw < 1 || sh < 1 {
+		return nil
 	}
+	if w.rep == 0 || w.bw != sw || w.bh != sh {
+		if err := w.makeRep(sw, sh, src.Stride); err != nil {
+			return err
+		}
+	}
+	dst := w.rep.Send(selBitmapData)
+	if dst == 0 {
+		return fmt.Errorf("NSBitmapImageRep bitmapData")
+	}
+	copy(unsafe.Slice((*byte)(unsafe.Pointer(dst)), len(src.Pix)), src.Pix)
 	view := wnd.Send(selContentView)
 	layer := view.Send(selLayer)
-	layer.Send(selSetContents, img)
+	layer.Send(selSetContents, w.img)
 	return nil
 }
 
-func nsimageFromRGBA(src *image.RGBA) (objc.ID, error) {
-	w, h := src.Rect.Dx(), src.Rect.Dy()
-	if w == 0 || h == 0 {
-		return 0, fmt.Errorf("empty frame")
-	}
+func (w *win) makeRep(width, height, stride int) error {
 	rep := objc.ID(objc.GetClass("NSBitmapImageRep")).Send(objc.RegisterName("alloc"))
 	cs := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "NSCalibratedRGBColorSpace")
 	rep = rep.Send(objc.RegisterName("initWithBitmapDataPlanes:pixelsWide:pixelsHigh:bitsPerSample:samplesPerPixel:hasAlpha:isPlanar:colorSpaceName:bytesPerRow:bitsPerPixel:"),
-		uintptr(0), w, h, 8, 4, true, false, cs, src.Stride, 32,
+		uintptr(0), width, height, 8, 4, true, false, cs, stride, 32,
 	)
 	if rep == 0 {
-		return 0, fmt.Errorf("NSBitmapImageRep init")
+		return fmt.Errorf("NSBitmapImageRep init")
 	}
-	dst := rep.Send(objc.RegisterName("bitmapData"))
-	if dst == 0 {
-		return 0, fmt.Errorf("NSBitmapImageRep bitmapData")
-	}
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(dst)), len(src.Pix)), src.Pix)
 	img := objc.ID(objc.GetClass("NSImage")).Send(objc.RegisterName("alloc"))
-	img = img.Send(objc.RegisterName("initWithSize:"), nsSize{Width: float64(w), Height: float64(h)})
+	img = img.Send(objc.RegisterName("initWithSize:"), nsSize{Width: float64(width), Height: float64(height)})
 	img.Send(objc.RegisterName("addRepresentation:"), rep)
-	return img, nil
+	w.rep, w.img = rep, img
+	w.bw, w.bh = width, height
+	return nil
 }
 
 var boundsFn func(objc.ID, objc.SEL) nsRect

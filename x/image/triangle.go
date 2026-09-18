@@ -2,9 +2,14 @@ package image
 
 import (
 	"image"
-	"image/color"
-	"image/draw"
 	"math"
+)
+
+// Uncentered vulkan-tutorial verts, then shifted so the centroid is the origin.
+const (
+	triAX, triAY = 0, -2.0 / 3.0
+	triBX, triBY = 0.5, 1.0 / 3.0
+	triCX, triCY = -0.5, 1.0 / 3.0
 )
 
 // Triangle paints the vulkan-tutorial RGB triangle into dst.
@@ -13,52 +18,59 @@ func Triangle(dst *image.RGBA) {
 	TriangleTurn(dst, 0)
 }
 
-// TriangleTurn is Triangle rotated by turn revolutions around the origin.
+// TriangleTurn is Triangle rotated by turn revolutions around the window center.
 func TriangleTurn(dst *image.RGBA, turn float64) {
 	b := dst.Bounds()
-	draw.Draw(dst, b, image.NewUniform(color.RGBA{A: 255}), image.Point{}, draw.Src)
-	if b.Dx() < 1 || b.Dy() < 1 {
+	w, h := b.Dx(), b.Dy()
+	if w < 1 || h < 1 {
 		return
 	}
+	clearBlack(dst)
 	s, c := math.Sincos(turn * 2 * math.Pi)
-	rx, ry := rot(0, -0.5, s, c)
-	ax, ay := ndc(rx, ry, b)
-	rx, ry = rot(0.5, 0.5, s, c)
-	bx, by := ndc(rx, ry, b)
-	rx, ry = rot(-0.5, 0.5, s, c)
-	cx, cy := ndc(rx, ry, b)
-	minX := max(b.Min.X, int(min(ax, bx, cx)))
-	maxX := min(b.Max.X, int(max(ax, bx, cx))+1)
-	minY := max(b.Min.Y, int(min(ay, by, cy)))
-	maxY := min(b.Max.Y, int(max(ay, by, cy))+1)
-	den := (by-cy)*(ax-cx) + (cx-bx)*(ay-cy)
+	scale := float64(min(w, h)) / 2
+	cx := float64(b.Min.X) + float64(w)/2
+	cy := float64(b.Min.Y) + float64(h)/2
+	ax, ay := px(triAX, triAY, s, c, scale, cx, cy)
+	bx, by := px(triBX, triBY, s, c, scale, cx, cy)
+	cxp, cyp := px(triCX, triCY, s, c, scale, cx, cy)
+	minX := max(b.Min.X, int(min(ax, bx, cxp)))
+	maxX := min(b.Max.X, int(max(ax, bx, cxp))+1)
+	minY := max(b.Min.Y, int(min(ay, by, cyp)))
+	maxY := min(b.Max.Y, int(max(ay, by, cyp))+1)
+	den := (by-cyp)*(ax-cxp) + (cxp-bx)*(ay-cyp)
 	if den == 0 {
 		return
 	}
+	pix := dst.Pix
 	for y := minY; y < maxY; y++ {
+		off := dst.PixOffset(minX, y)
 		for x := minX; x < maxX; x++ {
 			px := float64(x) + 0.5
 			py := float64(y) + 0.5
-			u := ((by-cy)*(px-cx) + (cx-bx)*(py-cy)) / den
-			v := ((cy-ay)*(px-cx) + (ax-cx)*(py-cy)) / den
+			u := ((by-cyp)*(px-cxp) + (cxp-bx)*(py-cyp)) / den
+			v := ((cyp-ay)*(px-cxp) + (ax-cxp)*(py-cyp)) / den
 			wt := 1 - u - v
-			if u < 0 || v < 0 || wt < 0 {
-				continue
+			if u >= 0 && v >= 0 && wt >= 0 {
+				pix[off] = uint8(u * 255)
+				pix[off+1] = uint8(v * 255)
+				pix[off+2] = uint8(wt * 255)
+				pix[off+3] = 255
 			}
-			dst.SetRGBA(x, y, color.RGBA{
-				R: uint8(u * 255),
-				G: uint8(v * 255),
-				B: uint8(wt * 255),
-				A: 255,
-			})
+			off += 4
 		}
 	}
 }
 
-func rot(x, y, s, c float64) (float64, float64) {
-	return x*c - y*s, x*s + y*c
+func clearBlack(dst *image.RGBA) {
+	pix := dst.Pix
+	for i := 0; i < len(pix); i += 4 {
+		pix[i] = 0
+		pix[i+1] = 0
+		pix[i+2] = 0
+		pix[i+3] = 255
+	}
 }
 
-func ndc(nx, ny float64, b image.Rectangle) (x, y float64) {
-	return float64(b.Min.X) + (nx+1)*0.5*float64(b.Dx()), float64(b.Min.Y) + (ny+1)*0.5*float64(b.Dy())
+func px(x, y, s, c, scale, ox, oy float64) (float64, float64) {
+	return ox + (x*c-y*s)*scale, oy + (x*s+y*c)*scale
 }
