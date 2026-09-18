@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"io/fs"
 	"slices"
+
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 // Open implements [fs.FS].
@@ -11,8 +13,8 @@ func (d *FS) Open(name string) (fs.File, error) {
 	if name == "." || name == "" {
 		return d.openDir(".")
 	}
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	if err := lewfs.CheckName("open", name); err != nil {
+		return nil, err
 	}
 	st, err := d.r.Stat(name)
 	if err != nil {
@@ -30,8 +32,8 @@ func (d *FS) Open(name string) (fs.File, error) {
 
 // ReadDir implements [fs.ReadDirFS].
 func (d *FS) ReadDir(name string) ([]fs.DirEntry, error) {
-	if name != "." && name != "" && !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
+	if err := lewfs.CheckName("readdir", name); err != nil {
+		return nil, err
 	}
 	if name == "" {
 		name = "."
@@ -55,8 +57,8 @@ func (d *FS) ReadDir(name string) ([]fs.DirEntry, error) {
 
 // ReadFile implements [fs.ReadFileFS].
 func (d *FS) ReadFile(name string) ([]byte, error) {
-	if name != "." && name != "" && !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrInvalid}
+	if err := lewfs.CheckName("read", name); err != nil {
+		return nil, err
 	}
 	st, err := d.r.Stat(name)
 	if err != nil {
@@ -73,8 +75,8 @@ func (d *FS) Stat(name string) (fs.FileInfo, error) {
 	if name == "." || name == "" {
 		return d.r.Stat(".")
 	}
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "stat", Path: name, Err: fs.ErrInvalid}
+	if err := lewfs.CheckName("stat", name); err != nil {
+		return nil, err
 	}
 	st, err := d.r.Stat(name)
 	if err != nil {

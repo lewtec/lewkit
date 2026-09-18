@@ -26,6 +26,20 @@ func TestReaderAt(t *testing.T) {
 	assert.NotNil(t, ra)
 }
 
+func TestCheckName(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, CheckName("open", "."))
+	require.NoError(t, CheckName("open", ""))
+	require.NoError(t, CheckName("open", "a/b"))
+
+	err := CheckName("open", "../x")
+	require.ErrorIs(t, err, iofs.ErrInvalid)
+	pe, ok := errors.AsType[*iofs.PathError](err)
+	require.True(t, ok)
+	assert.Equal(t, "open", pe.Op)
+	assert.Equal(t, "../x", pe.Path)
+}
+
 type atOnly struct{ b []byte }
 
 func (a atOnly) Read(p []byte) (int, error) {
