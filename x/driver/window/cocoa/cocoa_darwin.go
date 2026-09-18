@@ -68,20 +68,20 @@ var (
 
 func startApp() error {
 	if !thread.Bound() {
-		return fmt.Errorf("cocoa: thread.Bind was not called from main")
+		return fmt.Errorf("%w", window.ErrNotBound)
 	}
 	appOnce.Do(func() {
 		thread.Do(func() {
 			if !thread.ProcessMain() {
-				appErr = fmt.Errorf("cocoa: NSApplication is not on the process main thread")
+				appErr = fmt.Errorf("%w", window.ErrNotMain)
 				return
 			}
 			if _, err := ffi.Open("/System/Library/Frameworks/Cocoa.framework/Cocoa", ffi.Global|ffi.Lazy); err != nil {
-				appErr = err
+				appErr = fmt.Errorf("%w: cocoa: %w", window.ErrInit, err)
 				return
 			}
 			if err := loadCG(); err != nil {
-				appErr = err
+				appErr = fmt.Errorf("%w: coregraphics: %w", window.ErrInit, err)
 				return
 			}
 			app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
@@ -162,7 +162,7 @@ func (w *win) create(title string, width, height int) error {
 		false,
 	)
 	if wnd == 0 {
-		return fmt.Errorf("NSWindow init")
+		return fmt.Errorf("%w", window.ErrInit)
 	}
 	if title != "" {
 		ns := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), title)
@@ -362,7 +362,7 @@ func loadCG() error {
 func cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	width, height := src.Rect.Dx(), src.Rect.Dy()
 	if width < 1 || height < 1 || cgImageCreate == nil {
-		return 0, fmt.Errorf("empty frame")
+		return 0, fmt.Errorf("%w: empty", window.ErrPresent)
 	}
 	data := objc.ID(objc.GetClass("NSData")).Send(
 		objc.RegisterName("dataWithBytes:length:"),
@@ -370,16 +370,16 @@ func cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 		len(src.Pix),
 	)
 	if data == 0 {
-		return 0, fmt.Errorf("NSData")
+		return 0, fmt.Errorf("%w: NSData", window.ErrPresent)
 	}
 	space := cgColorSpaceCreateDeviceRGB()
 	if space == 0 {
-		return 0, fmt.Errorf("CGColorSpaceCreateDeviceRGB")
+		return 0, fmt.Errorf("%w: color space", window.ErrPresent)
 	}
 	defer cgColorSpaceRelease(space)
 	provider := cgDataProviderCreateWithCFData(uintptr(data))
 	if provider == 0 {
-		return 0, fmt.Errorf("CGDataProviderCreateWithCFData")
+		return 0, fmt.Errorf("%w: data provider", window.ErrPresent)
 	}
 	defer cgDataProviderRelease(provider)
 	img := cgImageCreate(
@@ -391,7 +391,7 @@ func cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 		cgRenderingIntentDefault,
 	)
 	if img == 0 {
-		return 0, fmt.Errorf("CGImageCreate")
+		return 0, fmt.Errorf("%w: CGImage", window.ErrPresent)
 	}
 	return img, nil
 }

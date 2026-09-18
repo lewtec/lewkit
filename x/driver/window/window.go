@@ -18,8 +18,12 @@ import (
 )
 
 var (
-	ErrClosed = errors.New("window closed")
-	ErrSize   = errors.New("invalid size")
+	ErrClosed   = errors.New("window closed")
+	ErrSize     = errors.New("invalid size")
+	ErrNotBound = errors.New("thread not bound")
+	ErrNotMain  = errors.New("not main thread")
+	ErrInit     = errors.New("window init")
+	ErrPresent  = errors.New("present")
 )
 
 const (

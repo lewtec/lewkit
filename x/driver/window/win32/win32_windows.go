@@ -143,7 +143,7 @@ func (w *win) create() error {
 		}
 		classAtom, _, classErr = procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
 		if classAtom == 0 {
-			classErr = fmt.Errorf("register class: %v", classErr)
+			classErr = fmt.Errorf("%w: %v", window.ErrInit, classErr)
 		} else {
 			classErr = nil
 		}
@@ -163,7 +163,7 @@ func (w *win) create() error {
 		0, 0, inst, 0,
 	)
 	if hwnd == 0 {
-		return fmt.Errorf("create window: %v", e)
+		return fmt.Errorf("%w: %v", window.ErrInit, e)
 	}
 	w.hwnd = hwnd
 	windows.Store(hwnd, w)
@@ -235,7 +235,7 @@ func (w *win) blit() error {
 	window.ToBGRA(bgra, src)
 	hdc, _, _ := procGetDC.Call(hwnd)
 	if hdc == 0 {
-		return fmt.Errorf("get dc")
+		return fmt.Errorf("%w: dc", window.ErrPresent)
 	}
 	defer procReleaseDC.Call(hwnd, hdc)
 	bi := bitmapInfo{
@@ -256,7 +256,7 @@ func (w *win) blit() error {
 		srcCopy,
 	)
 	if r == 0 {
-		return fmt.Errorf("stretch dibits: %v", err)
+		return fmt.Errorf("%w: %v", window.ErrPresent, err)
 	}
 	return nil
 }

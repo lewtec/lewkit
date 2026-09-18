@@ -12,8 +12,7 @@ import (
 
 func TestOpenNeedsBind(t *testing.T) {
 	_, err := cdriver{}.Open(t.Context(), window.Config{Width: 8, Height: 8})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Bind")
+	require.ErrorIs(t, err, window.ErrNotBound)
 }
 
 func TestCheckCompatibility(t *testing.T) {
