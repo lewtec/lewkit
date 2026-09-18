@@ -1,7 +1,6 @@
 package progress
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"log"
@@ -9,6 +8,7 @@ import (
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // linePrinter buffers writes and sends each '\n'-terminated line through
@@ -27,16 +27,7 @@ func (w *linePrinter) Write(p []byte) (int, error) {
 	if w.print == nil {
 		return len(p), nil
 	}
-	w.buf = append(w.buf, p...)
-	for {
-		i := bytes.IndexByte(w.buf, '\n')
-		if i < 0 {
-			break
-		}
-		line := bytes.TrimSuffix(w.buf[:i], []byte{'\r'})
-		w.buf = w.buf[i+1:]
-		w.print(string(line))
-	}
+	taskgroup.TakeLines(&w.buf, p, w.print)
 	return len(p), nil
 }
 
