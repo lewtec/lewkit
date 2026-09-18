@@ -1,4 +1,4 @@
-package experiments
+package main
 
 import (
 	"context"
@@ -12,14 +12,13 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
 
-// Doctor is `lewkit experiments doctor`.
-type Doctor struct{}
+type doctorCmd struct{}
 
-func (Doctor) Description() string {
+func (doctorCmd) Description() string {
 	return "list drivers (interface => implementation)"
 }
 
-func (*Doctor) Run(ctx context.Context) error {
+func (*doctorCmd) Run(ctx context.Context) error {
 	_, err := os.Stdout.WriteString(progress.Format(doctorNodes(driver.Doctor(ctx)), 0))
 	return err
 }

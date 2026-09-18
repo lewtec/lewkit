@@ -1,4 +1,4 @@
-package experiments
+package main
 
 import (
 	"strings"
@@ -11,14 +11,14 @@ import (
 )
 
 func TestDoctorUsage(t *testing.T) {
-	text, err := cmd.Usage[Doctor]("lewkit experiments doctor")
+	text, err := cmd.Usage[doctorCmd]("lewkit doctor")
 	require.NoError(t, err)
 	assert.Contains(t, text, "interface => implementation")
 }
 
 func TestDoctorPrintsTree(t *testing.T) {
 	test.RestoreSlog(t)
-	app := cmd.ParseOK[cmd.App[Command]](t, "doctor")
+	app := cmd.ParseOK[cmd.App[root]](t, "doctor")
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
