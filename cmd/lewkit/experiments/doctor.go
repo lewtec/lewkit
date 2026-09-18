@@ -2,6 +2,7 @@ package experiments
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -33,10 +34,12 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 	for _, iface := range report {
 		parent := next()
 		selected := ""
+		selW := 0
 		ok := 0
 		for _, d := range iface.Drivers {
 			if d.Selected {
 				selected = d.ID
+				selW = d.Weight
 			}
 			if d.Available {
 				ok++
@@ -45,7 +48,7 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 		msg := "=> none"
 		st := taskgroup.Failed
 		if selected != "" {
-			msg = "=> " + selected
+			msg = fmt.Sprintf("=> %s w=%d", selected, selW)
 			st = taskgroup.Done
 		}
 		nodes = append(nodes, taskgroup.Node{
@@ -65,17 +68,18 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 				Name:   d.ID,
 				Pool:   taskgroup.CPU,
 			}
+			w := fmt.Sprintf("w=%d", d.Weight)
 			switch {
 			case d.Selected:
-				child.Message = "selected"
+				child.Message = w + " selected"
 				child.State = taskgroup.Done
 			case d.Available:
-				child.Message = "available"
+				child.Message = w + " available"
 				child.State = taskgroup.Done
 			default:
-				child.Message = "skip"
+				child.Message = w
 				if d.Error != nil {
-					child.Message = d.Error.Error()
+					child.Message = w + " " + d.Error.Error()
 				}
 				child.State = taskgroup.Failed
 			}
