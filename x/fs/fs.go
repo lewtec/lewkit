@@ -42,6 +42,18 @@ type stater interface {
 	Stat() (iofs.FileInfo, error)
 }
 
+// CheckName is [io/fs.ValidPath] as a [io/fs.PathError].
+// "." and "" are accepted.
+func CheckName(op, name string) error {
+	if name == "." || name == "" {
+		return nil
+	}
+	if !iofs.ValidPath(name) {
+		return &iofs.PathError{Op: op, Path: name, Err: iofs.ErrInvalid}
+	}
+	return nil
+}
+
 // DirEntries pages ents starting at *off. n follows [io/fs.ReadDirFile]:
 // n <= 0 returns the rest; n > 0 at the end is [io.EOF].
 func DirEntries(ents []iofs.DirEntry, off *int, n int) ([]iofs.DirEntry, error) {

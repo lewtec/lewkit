@@ -100,8 +100,8 @@ func (d *FS) lookup(name string) (*dnode, error) {
 	if name == "." || name == "" {
 		return d.root, nil
 	}
-	if !iofs.ValidPath(name) {
-		return nil, &iofs.PathError{Op: "open", Path: name, Err: iofs.ErrInvalid}
+	if err := CheckName("open", name); err != nil {
+		return nil, err
 	}
 	n := d.root.lookup(name)
 	if n == nil {
