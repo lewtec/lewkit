@@ -15,6 +15,7 @@ type factory struct{}
 
 func (factory) ID() string   { return "window_x11" }
 func (factory) Name() string { return "X11" }
+func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
 	return driver.RequireEnv(ctx, "DISPLAY")

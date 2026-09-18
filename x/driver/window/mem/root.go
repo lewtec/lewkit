@@ -6,6 +6,7 @@ import (
 )
 
 var _ driver.DriverFactory[window.Driver] = factory{}
+var _ driver.Weighter = factory{}
 
 func init() {
 	driver.Register[window.Driver](&factory{})

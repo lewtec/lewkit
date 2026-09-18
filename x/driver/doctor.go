@@ -14,6 +14,7 @@ type doctorEntry struct {
 	FactoryType   reflect.Type
 	DriverID      string
 	DriverName    string
+	Weight        int
 	Check         func(context.Context) error
 }
 
@@ -62,7 +63,7 @@ func Doctor(ctx context.Context) []InterfaceStatus {
 				ID:          d.DriverID,
 				Name:        d.DriverName,
 				FactoryType: d.FactoryType,
-				Weight:      effectiveWeight(weights, d.DriverID, ifaceName),
+				Weight:      effectiveWeight(weights, d.DriverID, ifaceName, d.Weight),
 				Available:   err == nil,
 				Error:       err,
 			})

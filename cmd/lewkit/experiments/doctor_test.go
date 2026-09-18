@@ -25,6 +25,7 @@ func TestDoctorPrintsTree(t *testing.T) {
 	assert.Contains(t, got, "window.Driver")
 	assert.Contains(t, got, "=>")
 	assert.Contains(t, got, "window_mem")
-	assert.Contains(t, got, "w=")
+	assert.Contains(t, got, "w=50")
+	assert.Contains(t, got, "window_mem: w=0")
 	assert.True(t, strings.Contains(got, "├ ") || strings.Contains(got, "└ "))
 }

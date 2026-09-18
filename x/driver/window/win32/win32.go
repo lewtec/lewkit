@@ -13,6 +13,7 @@ type factory struct{}
 
 func (factory) ID() string   { return "window_win32" }
 func (factory) Name() string { return "Win32" }
+func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
 	if runtime.GOOS != "windows" {

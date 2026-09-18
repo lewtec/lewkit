@@ -13,6 +13,7 @@ type factory struct{}
 
 func (factory) ID() string   { return "window_cocoa" }
 func (factory) Name() string { return "Cocoa" }
+func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
 	if runtime.GOOS != "darwin" {

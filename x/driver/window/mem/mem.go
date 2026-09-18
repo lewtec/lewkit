@@ -10,6 +10,7 @@ type factory struct{}
 
 func (factory) ID() string   { return "window_mem" }
 func (factory) Name() string { return "Memory" }
+func (factory) Weight() int  { return 0 }
 
 func (factory) CheckCompatibility(context.Context) error { return nil }
 
