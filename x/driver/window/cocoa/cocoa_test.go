@@ -12,6 +12,10 @@ import (
 
 func TestOpenNeedsBind(t *testing.T) {
 	_, err := cdriver{}.Open(t.Context(), window.Config{Width: 8, Height: 8})
+	if runtime.GOOS != "darwin" {
+		require.ErrorIs(t, err, driver.ErrIncompatible)
+		return
+	}
 	require.ErrorIs(t, err, window.ErrNotBound)
 }
 
