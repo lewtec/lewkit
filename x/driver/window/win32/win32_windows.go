@@ -118,9 +118,7 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	if err := <-ready; err != nil {
 		return nil, err
 	}
-	if ctx != nil {
-		context.AfterFunc(ctx, func() { _ = out.Close() })
-	}
+	window.CloseWhenDone(ctx, out)
 	return out, nil
 }
 
