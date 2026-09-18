@@ -43,6 +43,12 @@ type DriverFactory[T any] interface {
 	New(ctx context.Context) (T, error)
 }
 
+// Weighter is optional on a factory. Get and Doctor use it when
+// SetWeights has no entry for that id.
+type Weighter interface {
+	Weight() int
+}
+
 type validationResult struct {
 	once sync.Once
 	err  error
@@ -120,11 +126,22 @@ func forceDriverFromEnv(ifaceName string) string {
 	return ""
 }
 
-func effectiveWeight(weights map[string]int, driverID, ifaceName string) int {
+func factoryWeight(f any) int {
+	w, ok := f.(Weighter)
+	if !ok {
+		return 0
+	}
+	return min(max(w.Weight(), 0), 100)
+}
+
+func effectiveWeight(weights map[string]int, driverID, ifaceName string, fallback int) int {
 	if forced := forceDriverFromEnv(ifaceName); forced != "" && forced == driverID {
 		return 101
 	}
-	return weights[driverID]
+	if w, ok := weights[driverID]; ok {
+		return w
+	}
+	return fallback
 }
 
 // Register adds a factory for capability T. T must be an interface.
@@ -156,6 +173,7 @@ func Register[T any](factory DriverFactory[T]) {
 		FactoryType:   reflect.TypeOf(factory),
 		DriverID:      id,
 		DriverName:    factory.Name(),
+		Weight:        factoryWeight(factory),
 		Check:         factory.CheckCompatibility,
 	})
 }
@@ -212,7 +230,7 @@ func Get[T any](ctx context.Context) (T, error) {
 	}
 
 	slices.SortFunc(factories, func(a, b DriverFactory[T]) int {
-		if c := cmp.Compare(effectiveWeight(weights, b.ID(), ifaceName), effectiveWeight(weights, a.ID(), ifaceName)); c != 0 {
+		if c := cmp.Compare(effectiveWeight(weights, b.ID(), ifaceName, factoryWeight(b)), effectiveWeight(weights, a.ID(), ifaceName, factoryWeight(a))); c != 0 {
 			return c
 		}
 		return cmp.Compare(a.ID(), b.ID())
@@ -220,7 +238,7 @@ func Get[T any](ctx context.Context) (T, error) {
 
 	var report []string
 	for _, factory := range factories {
-		weight := effectiveWeight(weights, factory.ID(), ifaceName)
+		weight := effectiveWeight(weights, factory.ID(), ifaceName, factoryWeight(factory))
 		if err := cachedCheck(factory.ID(), factory.CheckCompatibility, ctx); err != nil {
 			report = append(report, fmt.Sprintf("[skip] %s (%s) weight=%d: %v", factory.ID(), factory.Name(), weight, err))
 			continue

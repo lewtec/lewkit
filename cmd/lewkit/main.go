@@ -13,10 +13,14 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db/generate"
 	"github.com/lewtec/lewkit/x/generate/prelude"
+	"github.com/lewtec/lewkit/x/thread"
 )
 
 func main() {
-	if err := run(); err != nil {
+	// x/thread init already locked this goroutine to the process main thread.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	if err := thread.Run(ctx, run); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
@@ -26,6 +30,7 @@ type root struct {
 	sentry      sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
 	generate    *generateCmd
 	disasm      *disasmCmd
+	doctor      *doctorCmd
 	experiments *experiments.Command
 	completion  *completionCmd
 }
@@ -87,9 +92,7 @@ func (root) Description() string {
 	return "Well planned primitives to be used in other projects."
 }
 
-func run() error {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
+func run(ctx context.Context) error {
 	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
 	if err != nil {
 		return err

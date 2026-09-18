@@ -213,6 +213,81 @@ func TestDoctorMarksSelected(t *testing.T) {
 	require.Equal(t, []string{"pick_high"}, selected)
 }
 
+type ranked interface{ ID() string }
+
+type rankedFactory struct {
+	id     string
+	weight int
+	check  error
+}
+
+func (f rankedFactory) ID() string   { return f.id }
+func (f rankedFactory) Name() string { return f.id }
+func (f rankedFactory) Weight() int  { return f.weight }
+func (f rankedFactory) CheckCompatibility(context.Context) error {
+	return f.check
+}
+func (f rankedFactory) New(context.Context) (ranked, error) {
+	return pickerImpl{id: f.id}, nil
+}
+
+var registerRanked = sync.OnceFunc(func() {
+	driver.Register[ranked](rankedFactory{id: "rank_light", weight: 10})
+	driver.Register[ranked](rankedFactory{id: "rank_heavy", weight: 80})
+	driver.Register[ranked](rankedFactory{id: "rank_blocked", weight: 90, check: driver.ErrIncompatible})
+})
+
+func TestGetUsesFactoryWeight(t *testing.T) {
+	registerRanked()
+	driver.ResetWeights()
+	got, err := driver.Get[ranked](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "rank_heavy", got.ID())
+}
+
+func TestDoctorReportsFactoryWeight(t *testing.T) {
+	registerRanked()
+	driver.ResetWeights()
+	var found *driver.InterfaceStatus
+	for _, st := range driver.Doctor(t.Context()) {
+		if len(st.Drivers) >= 3 && st.Drivers[0].ID == "rank_blocked" {
+			found = &st
+			break
+		}
+	}
+	require.NotNil(t, found)
+	byID := map[string]driver.DriverStatus{}
+	for _, d := range found.Drivers {
+		byID[d.ID] = d
+	}
+	require.Equal(t, 90, byID["rank_blocked"].Weight)
+	require.Equal(t, 80, byID["rank_heavy"].Weight)
+	require.Equal(t, 10, byID["rank_light"].Weight)
+	require.True(t, byID["rank_heavy"].Selected)
+	require.False(t, byID["rank_blocked"].Selected)
+}
+
+func TestSetWeightsOverridesFactoryWeight(t *testing.T) {
+	registerRanked()
+	iface := ""
+	for name, ids := range driver.RegisteredWeightShape() {
+		for _, id := range ids {
+			if id == "rank_heavy" {
+				iface = name
+			}
+		}
+	}
+	require.NotEmpty(t, iface)
+	setAllWeights(t, iface, map[string]int{
+		"rank_light":   100,
+		"rank_heavy":   1,
+		"rank_blocked": 0,
+	})
+	got, err := driver.Get[ranked](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "rank_light", got.ID())
+}
+
 func TestRegisteredWeightShape(t *testing.T) {
 	registerPickers()
 	shape := driver.RegisteredWeightShape()
