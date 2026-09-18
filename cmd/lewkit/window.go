@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"image"
+	"image/color"
 	"os"
 	"time"
 
@@ -10,6 +13,9 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	lewimage "github.com/lewtec/lewkit/x/image"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/math/fixed"
 )
 
 type windowCmd struct {
@@ -56,9 +62,10 @@ func paintWindow(ctx context.Context, w window.Window) error {
 	defer cancel()
 	evs := w.Subscribe(ctx)
 	t0 := time.Now()
+	meter := fpsMeter{t0: t0}
 	tick := time.NewTicker(time.Second / 60)
 	defer tick.Stop()
-	if err := paint(w, 0); err != nil {
+	if err := paint(w, 0, 0); err != nil {
 		return ignoreClosed(err)
 	}
 	for {
@@ -76,7 +83,7 @@ func paintWindow(ctx context.Context, w window.Window) error {
 				return ignoreClosed(err)
 			}
 		case <-tick.C:
-			if err := paint(w, time.Since(t0).Seconds()); err != nil {
+			if err := paint(w, time.Since(t0).Seconds(), meter.hit()); err != nil {
 				return ignoreClosed(err)
 			}
 		}
@@ -106,13 +113,40 @@ func handle(ev window.Event) error {
 	return nil
 }
 
-func paint(w window.Window, turn float64) error {
+func paint(w window.Window, turn float64, fps int) error {
 	frame := w.Frame()
 	if frame == nil {
 		return window.ErrClosed
 	}
 	lewimage.TriangleTurn(frame, turn)
+	drawFPS(frame, fps)
 	return w.Draw()
+}
+
+type fpsMeter struct {
+	t0   time.Time
+	n    int
+	last int
+}
+
+func (m *fpsMeter) hit() int {
+	m.n++
+	if time.Since(m.t0) >= time.Second {
+		m.last = m.n
+		m.n = 0
+		m.t0 = time.Now()
+	}
+	return m.last
+}
+
+func drawFPS(dst *image.RGBA, fps int) {
+	d := &font.Drawer{
+		Dst:  dst,
+		Src:  image.NewUniform(color.RGBA{R: 255, G: 255, B: 255, A: 255}),
+		Face: basicfont.Face7x13,
+		Dot:  fixed.P(8, 16),
+	}
+	d.DrawString(fmt.Sprintf("%d fps", fps))
 }
 
 func ignoreClosed(err error) error {
