@@ -6,13 +6,13 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"runtime"
 	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/thread"
 )
 
 const (
@@ -40,7 +40,6 @@ type nsRect struct {
 var (
 	appOnce sync.Once
 	appErr  error
-	jobs    chan func()
 
 	selContentView          = objc.RegisterName("contentView")
 	selSetWantsLayer        = objc.RegisterName("setWantsLayer:")
@@ -60,43 +59,31 @@ var (
 )
 
 func startApp() error {
+	if !thread.Bound() {
+		return fmt.Errorf("cocoa: thread.Bind was not called from main")
+	}
 	appOnce.Do(func() {
-		jobs = make(chan func(), 16)
-		ready := make(chan error, 1)
-		go func() {
-			runtime.LockOSThread()
+		thread.Do(func() {
 			if _, err := purego.Dlopen("/System/Library/Frameworks/Cocoa.framework/Cocoa", purego.RTLD_GLOBAL|purego.RTLD_LAZY); err != nil {
-				ready <- err
+				appErr = err
 				return
 			}
 			app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 			app.Send(objc.RegisterName("setActivationPolicy:"), nsApplicationActivateRegular)
-			ready <- nil
-			for {
-				select {
-				case fn := <-jobs:
-					fn()
-				default:
-					pump(app)
-					live.Range(func(k, _ any) bool {
-						k.(*win).note()
-						return true
-					})
-				}
-			}
-		}()
-		appErr = <-ready
+			thread.OnIdle(func() {
+				pump(app)
+				live.Range(func(k, _ any) bool {
+					k.(*win).note()
+					return true
+				})
+			})
+		})
 	})
 	return appErr
 }
 
 func onApp(fn func()) {
-	done := make(chan struct{})
-	jobs <- func() {
-		fn()
-		close(done)
-	}
-	<-done
+	thread.Do(fn)
 }
 
 func pump(app objc.ID) {
@@ -190,7 +177,7 @@ func (w *win) Resize(size image.Point) error {
 
 func (w *win) Close() error {
 	live.Delete(w)
-	go onApp(func() { w.closeNS() })
+	thread.Go(func() { w.closeNS() })
 	return w.Buffer.Close()
 }
 

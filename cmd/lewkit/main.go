@@ -13,9 +13,11 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db/generate"
 	"github.com/lewtec/lewkit/x/generate/prelude"
+	"github.com/lewtec/lewkit/x/thread"
 )
 
 func main() {
+	thread.Bind()
 	if err := run(); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
@@ -91,9 +93,17 @@ func (root) Description() string {
 func run() error {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
-	if err != nil {
-		return err
-	}
-	return app.Run(ctx)
+	errc := make(chan error, 1)
+	go func() {
+		app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
+		if err != nil {
+			errc <- err
+			cancel()
+			return
+		}
+		errc <- app.Run(ctx)
+		cancel()
+	}()
+	thread.Loop(ctx)
+	return <-errc
 }
