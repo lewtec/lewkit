@@ -1,7 +1,8 @@
 // Package thread pins one goroutine to an OS thread and runs work there.
 //
-// Bind from init or main so the process main thread is kept (AppKit needs
-// that). Loop must run on the same goroutine. Other goroutines call Do or Go.
+// init locks the main goroutine to the process main OS thread (AppKit
+// nextEvent requires that). Run from main; Loop stays on that thread.
+// Other goroutines call Do or Go.
 //
 // The scheduler will not move a goroutine onto a chosen OS thread. Yielding
 // until you "land" on main does not work. LockOSThread only holds the
@@ -67,7 +68,11 @@ func (t *Thread) Bound() bool { return t.bound.Load() }
 
 // On reports whether this goroutine is on t's OS thread.
 func (t *Thread) On() bool {
-	return t.bound.Load() && osThread() == t.tid.Load()
+	id := osThread()
+	if id == 0 || !t.bound.Load() {
+		return false
+	}
+	return id == t.tid.Load()
 }
 
 // OnIdle registers fn to run when Loop has no job. fn may block briefly.

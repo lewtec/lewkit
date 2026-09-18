@@ -72,6 +72,10 @@ func startApp() error {
 	}
 	appOnce.Do(func() {
 		thread.Do(func() {
+			if !thread.ProcessMain() {
+				appErr = fmt.Errorf("cocoa: NSApplication is not on the process main thread")
+				return
+			}
 			if _, err := purego.Dlopen("/System/Library/Frameworks/Cocoa.framework/Cocoa", purego.RTLD_GLOBAL|purego.RTLD_LAZY); err != nil {
 				appErr = err
 				return
@@ -100,6 +104,9 @@ func onApp(fn func()) {
 }
 
 func pump(app objc.ID) {
+	if !thread.ProcessMain() {
+		return
+	}
 	date := objc.ID(objc.GetClass("NSDate")).Send(selDistantPast)
 	mode := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "kCFRunLoopDefaultMode")
 	for {

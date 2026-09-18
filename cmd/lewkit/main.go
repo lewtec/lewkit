@@ -17,6 +17,7 @@ import (
 )
 
 func main() {
+	// x/thread init already locked this goroutine to the process main thread.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	if err := thread.Run(ctx, run); err != nil {
