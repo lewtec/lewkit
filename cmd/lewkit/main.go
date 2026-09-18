@@ -17,8 +17,9 @@ import (
 )
 
 func main() {
-	thread.Bind()
-	if err := run(); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer cancel()
+	if err := thread.Run(ctx, run); err != nil {
 		slog.Error(err.Error())
 		os.Exit(1)
 	}
@@ -89,20 +90,10 @@ func (root) Description() string {
 	return "Well planned primitives to be used in other projects."
 }
 
-func run() error {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-	errc := make(chan error, 1)
-	go func() {
-		app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
-		if err != nil {
-			errc <- err
-			cancel()
-			return
-		}
-		errc <- app.Run(ctx)
-		cancel()
-	}()
-	thread.Loop(ctx)
-	return <-errc
+func run(ctx context.Context) error {
+	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
+	if err != nil {
+		return err
+	}
+	return app.Run(ctx)
 }
