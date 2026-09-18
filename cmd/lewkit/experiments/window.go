@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"os"
 	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
@@ -25,15 +24,6 @@ type Window struct {
 
 func (Window) Description() string {
 	return "host window demos"
-}
-
-func (Window) Run(ctx context.Context) error {
-	text, err := cmd.Usage[Window]("lewkit experiments window")
-	if err != nil {
-		return err
-	}
-	_, err = os.Stdout.WriteString(text)
-	return err
 }
 
 type triangleCmd struct {

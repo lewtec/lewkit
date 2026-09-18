@@ -27,15 +27,6 @@ func (disasmCmd) Description() string {
 	return "disassemble machine code"
 }
 
-func (command *disasmCmd) Run(ctx context.Context) error {
-	text, err := cmd.Usage[disasmCmd]("lewkit disasm")
-	if err != nil {
-		return err
-	}
-	_, err = os.Stdout.WriteString(text)
-	return err
-}
-
 type disasmHexCmd struct {
 	data cmd.StringArg `help:"hex bytes"`
 }
