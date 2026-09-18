@@ -57,6 +57,7 @@ var (
 	selSendEvent     = objc.RegisterName("sendEvent:")
 	selUpdateWindows = objc.RegisterName("updateWindows")
 	selBitmapData    = objc.RegisterName("bitmapData")
+	selCGImage       = objc.RegisterName("CGImage")
 	selDistantPast   = objc.RegisterName("distantPast")
 )
 
@@ -257,9 +258,14 @@ func (w *win) blit() error {
 		return fmt.Errorf("NSBitmapImageRep bitmapData")
 	}
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(dst)), len(src.Pix)), src.Pix)
+	// A new CGImage each frame; CALayer ignores setContents if the object is unchanged.
+	cg := w.rep.Send(selCGImage)
+	if cg == 0 {
+		return fmt.Errorf("NSBitmapImageRep CGImage")
+	}
 	view := wnd.Send(selContentView)
 	layer := view.Send(selLayer)
-	layer.Send(selSetContents, w.img)
+	layer.Send(selSetContents, cg)
 	return nil
 }
 

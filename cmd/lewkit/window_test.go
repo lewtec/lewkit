@@ -33,10 +33,22 @@ func TestPaintAndResizeEvent(t *testing.T) {
 	ev := <-evs
 	_, ok := ev.(window.Resize)
 	require.True(t, ok, "got %T", ev)
-	require.NoError(t, handle(w, ev, 0))
+	require.NoError(t, paint(w, 0))
 	assert.Equal(t, 120, w.Frame().Bounds().Dx())
 	top = w.Frame().RGBAAt(60, 22)
 	assert.Greater(t, int(top.R), 180, "resized top=%v", top)
+}
+
+func TestPaintRotates(t *testing.T) {
+	t.Setenv("LEWKIT_FORCE_WINDOW_DRIVER", "window_mem")
+	w, err := window.Open(t.Context(), window.Config{Width: 80, Height: 60})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+	require.NoError(t, paint(w, 0))
+	a := w.Frame().RGBAAt(40, 16)
+	require.NoError(t, paint(w, 0.5))
+	b := w.Frame().RGBAAt(40, 16)
+	assert.NotEqual(t, a, b)
 }
 
 func TestSubscribeClose(t *testing.T) {

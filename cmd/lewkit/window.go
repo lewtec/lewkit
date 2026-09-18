@@ -62,6 +62,9 @@ func paintWindow(ctx context.Context, w window.Window) error {
 		return ignoreClosed(err)
 	}
 	for {
+		if err := drainEvents(evs); err != nil {
+			return ignoreClosed(err)
+		}
 		select {
 		case <-ctx.Done():
 			return context.Cause(ctx)
@@ -69,28 +72,38 @@ func paintWindow(ctx context.Context, w window.Window) error {
 			if !ok {
 				return nil
 			}
-			if err := handle(w, ev, time.Since(t0).Seconds()); err != nil {
+			if err := handle(ev); err != nil {
 				return ignoreClosed(err)
 			}
-		case now := <-tick.C:
-			if err := paint(w, now.Sub(t0).Seconds()); err != nil {
+		case <-tick.C:
+			if err := paint(w, time.Since(t0).Seconds()); err != nil {
 				return ignoreClosed(err)
 			}
 		}
 	}
 }
 
-func handle(w window.Window, ev window.Event, turn float64) error {
-	switch ev.(type) {
-	case window.Resize:
-		return paint(w, turn)
-	case window.Expose:
-		return w.Draw()
-	case window.Close:
-		return window.ErrClosed
-	default:
-		return nil
+func drainEvents(evs <-chan window.Event) error {
+	for {
+		select {
+		case ev, ok := <-evs:
+			if !ok {
+				return window.ErrClosed
+			}
+			if err := handle(ev); err != nil {
+				return err
+			}
+		default:
+			return nil
+		}
 	}
+}
+
+func handle(ev window.Event) error {
+	if _, ok := ev.(window.Close); ok {
+		return window.ErrClosed
+	}
+	return nil
 }
 
 func paint(w window.Window, turn float64) error {
