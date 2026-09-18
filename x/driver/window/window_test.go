@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/draw"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
 	_ "github.com/lewtec/lewkit/x/driver/window/mem"
@@ -62,6 +63,25 @@ func TestOpenDefaultSize(t *testing.T) {
 func TestOpenRejectsNegativeSize(t *testing.T) {
 	_, err := window.Open(t.Context(), window.Config{Width: -1, Height: 10})
 	assert.ErrorIs(t, err, window.ErrSize)
+}
+
+func TestCloseWhenDone(t *testing.T) {
+	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(t.Context())
+	window.CloseWhenDone(ctx, w)
+	cancel()
+	require.Eventually(t, func() bool {
+		return w.Draw() == window.ErrClosed
+	}, time.Second, 5*time.Millisecond)
+}
+
+func TestCloseWhenDoneNilCtx(t *testing.T) {
+	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+	window.CloseWhenDone(nil, w)
+	require.NoError(t, w.Draw())
 }
 
 func TestDrawAfterClose(t *testing.T) {

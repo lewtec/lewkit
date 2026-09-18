@@ -89,9 +89,7 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		wantHeight: h,
 	}
 	go win.loop()
-	if ctx != nil {
-		context.AfterFunc(ctx, func() { _ = win.Close() })
-	}
+	window.CloseWhenDone(ctx, win)
 	return win, nil
 }
 

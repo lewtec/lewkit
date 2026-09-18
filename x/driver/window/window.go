@@ -83,3 +83,11 @@ func Open(ctx context.Context, cfg Config) (Window, error) {
 		return d.Open(ctx, cfg)
 	})
 }
+
+// CloseWhenDone closes w when ctx is done. A nil ctx is ignored.
+func CloseWhenDone(ctx context.Context, w Window) {
+	if ctx == nil {
+		return
+	}
+	context.AfterFunc(ctx, func() { _ = w.Close() })
+}

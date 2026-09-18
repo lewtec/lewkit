@@ -175,9 +175,7 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		return nil, openErr
 	}
 	live.Store(out, struct{}{})
-	if ctx != nil {
-		context.AfterFunc(ctx, func() { _ = out.Close() })
-	}
+	window.CloseWhenDone(ctx, out)
 	return out, nil
 }
 
