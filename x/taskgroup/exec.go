@@ -251,38 +251,41 @@ func (s *Session) failSubtree(id ID) {
 	}
 }
 
-func (s *Session) waitLive(ctx context.Context, id ID) error {
-	stop := context.AfterFunc(ctx, func() { s.cond.Broadcast() })
-	defer stop()
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for s.slots[id].liveN.Load() > 0 {
-		if err := ctx.Err(); err != nil {
-			return context.Cause(ctx)
-		}
-		s.cond.Wait()
-	}
-	if s.slots[id].err != nil {
-		return s.slots[id].err
-	}
-	return s.err
-}
-
-func (s *Session) waitTask(ctx context.Context, id ID) error {
+func (s *Session) waitUntil(ctx context.Context, done func() (error, bool)) error {
 	stop := context.AfterFunc(ctx, func() { s.cond.Broadcast() })
 	defer stop()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for {
-		st := State(s.slots[id].state.Load())
-		if st == Done || st == Failed {
-			return s.slots[id].err
+		if err, ok := done(); ok {
+			return err
 		}
 		if err := ctx.Err(); err != nil {
 			return context.Cause(ctx)
 		}
 		s.cond.Wait()
 	}
+}
+
+func (s *Session) waitLive(ctx context.Context, id ID) error {
+	return s.waitUntil(ctx, func() (error, bool) {
+		if s.slots[id].liveN.Load() > 0 {
+			return nil, false
+		}
+		if s.slots[id].err != nil {
+			return s.slots[id].err, true
+		}
+		return s.err, true
+	})
+}
+
+func (s *Session) waitTask(ctx context.Context, id ID) error {
+	return s.waitUntil(ctx, func() (error, bool) {
+		st := State(s.slots[id].state.Load())
+		if st == Done || st == Failed {
+			return s.slots[id].err, true
+		}
+		return nil, false
+	})
 }
