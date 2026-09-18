@@ -1,6 +1,7 @@
 package window_test
 
 import (
+	"context"
 	"image"
 	"image/color"
 	"image/draw"
@@ -61,6 +62,17 @@ func TestResizeRejectsNonPositive(t *testing.T) {
 	t.Cleanup(func() { _ = w.Close() })
 	assert.ErrorIs(t, w.Resize(image.Pt(0, 2)), window.ErrSize)
 	assert.ErrorIs(t, w.Resize(image.Pt(2, -1)), window.ErrSize)
+}
+
+func TestSubscribeCancelCloses(t *testing.T) {
+	w, err := window.Open(t.Context(), window.Config{Width: 4, Height: 4})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+	ctx, cancel := context.WithCancel(t.Context())
+	ch := w.Subscribe(ctx)
+	cancel()
+	_, ok := <-ch
+	assert.False(t, ok)
 }
 
 func TestToBGRA(t *testing.T) {

@@ -50,10 +50,13 @@ var (
 	selMakeKeyAndOrderFront = objc.RegisterName("makeKeyAndOrderFront:")
 	selSetContentSize       = objc.RegisterName("setContentSize:")
 	selClose                = objc.RegisterName("close")
+	selIsVisible            = objc.RegisterName("isVisible")
 	selBounds               = objc.RegisterName("bounds")
-	selNextEvent            = objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:")
-	selSendEvent            = objc.RegisterName("sendEvent:")
-	selUpdateWindows        = objc.RegisterName("updateWindows")
+
+	live             sync.Map // *win → struct{}
+	selNextEvent     = objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:")
+	selSendEvent     = objc.RegisterName("sendEvent:")
+	selUpdateWindows = objc.RegisterName("updateWindows")
 )
 
 func startApp() error {
@@ -75,6 +78,10 @@ func startApp() error {
 					fn()
 				default:
 					pump(app)
+					live.Range(func(k, _ any) bool {
+						k.(*win).note()
+						return true
+					})
 				}
 			}
 		}()
@@ -118,6 +125,7 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	if openErr != nil {
 		return nil, openErr
 	}
+	live.Store(out, struct{}{})
 	if ctx != nil {
 		context.AfterFunc(ctx, func() { _ = out.Close() })
 	}
@@ -181,34 +189,62 @@ func (w *win) Resize(size image.Point) error {
 }
 
 func (w *win) Close() error {
-	onApp(func() {
-		w.mu.Lock()
-		wnd := w.wnd
-		w.wnd = 0
-		w.mu.Unlock()
-		if wnd != 0 {
-			wnd.Send(selClose)
-		}
-	})
+	live.Delete(w)
+	go onApp(func() { w.closeNS() })
 	return w.Buffer.Close()
+}
+
+func (w *win) closeNS() {
+	w.mu.Lock()
+	wnd := w.wnd
+	w.wnd = 0
+	w.mu.Unlock()
+	if wnd != 0 {
+		wnd.Send(selClose)
+	}
 }
 
 func (w *win) syncSize() {
 	var width, height int
 	onApp(func() {
-		w.mu.Lock()
-		wnd := w.wnd
-		w.mu.Unlock()
-		if wnd == 0 {
-			return
-		}
-		view := wnd.Send(selContentView)
-		r := boundsOf(view)
-		width, height = int(r.Size.Width+0.5), int(r.Size.Height+0.5)
+		width, height = w.clientSize()
 	})
 	if width > 0 && height > 0 {
 		_ = w.Buffer.Resize(image.Pt(width, height))
 	}
+}
+
+// note runs on the AppKit thread.
+func (w *win) note() {
+	w.mu.Lock()
+	wnd := w.wnd
+	w.mu.Unlock()
+	if wnd == 0 {
+		return
+	}
+	if wnd.Send(selIsVisible) == 0 {
+		_ = w.Close()
+		return
+	}
+	width, height := w.clientSize()
+	if width > 0 && height > 0 {
+		_ = w.Buffer.Resize(image.Pt(width, height))
+	}
+}
+
+func (w *win) clientSize() (int, int) {
+	w.mu.Lock()
+	wnd := w.wnd
+	w.mu.Unlock()
+	if wnd == 0 {
+		return 0, 0
+	}
+	view := wnd.Send(selContentView)
+	if view == 0 {
+		return 0, 0
+	}
+	r := boundsOf(view)
+	return int(r.Size.Width + 0.5), int(r.Size.Height + 0.5)
 }
 
 func (w *win) blit() error {

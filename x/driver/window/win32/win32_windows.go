@@ -43,7 +43,6 @@ var (
 	procShowWindow       = user32.NewProc("ShowWindow")
 	procGetDC            = user32.NewProc("GetDC")
 	procReleaseDC        = user32.NewProc("ReleaseDC")
-	procInvalidateRect   = user32.NewProc("InvalidateRect")
 	procDestroyWindow    = user32.NewProc("DestroyWindow")
 	procSetWindowPos     = user32.NewProc("SetWindowPos")
 	procGetClientRect    = user32.NewProc("GetClientRect")
@@ -194,7 +193,6 @@ func (w *win) Draw() error {
 	if hwnd == 0 {
 		return window.ErrClosed
 	}
-	procInvalidateRect.Call(hwnd, 0, 0)
 	return w.blit()
 }
 
@@ -286,6 +284,7 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 			}
 		}
 	case wmPaint:
+		w.Emit(window.Expose{})
 		_ = w.blit()
 	case wmClose:
 		_ = w.Close()

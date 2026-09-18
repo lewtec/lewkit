@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"image"
 	"os"
-	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
@@ -53,37 +51,52 @@ func (c *triangleCmd) Run(ctx context.Context) error {
 }
 
 func paintWindow(ctx context.Context, w window.Window) error {
-	var last image.Point
-	tick := time.NewTicker(16 * time.Millisecond)
-	defer tick.Stop()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	evs := w.Subscribe(ctx)
+	if err := paint(w); err != nil {
+		return ignoreClosed(err)
+	}
 	for {
-		if err := paintIfResized(w, &last); err != nil {
-			if errors.Is(err, window.ErrClosed) {
-				return nil
-			}
-			return err
-		}
 		select {
 		case <-ctx.Done():
 			return context.Cause(ctx)
-		case <-tick.C:
+		case ev, ok := <-evs:
+			if !ok {
+				return nil
+			}
+			if err := handle(w, ev); err != nil {
+				return ignoreClosed(err)
+			}
 		}
 	}
 }
 
-func paintIfResized(w window.Window, last *image.Point) error {
+func handle(w window.Window, ev window.Event) error {
+	switch ev.(type) {
+	case window.Resize:
+		return paint(w)
+	case window.Expose:
+		return w.Draw()
+	case window.Close:
+		return window.ErrClosed
+	default:
+		return nil
+	}
+}
+
+func paint(w window.Window) error {
 	frame := w.Frame()
 	if frame == nil {
 		return window.ErrClosed
 	}
-	size := frame.Rect.Size()
-	if size == *last {
+	lewimage.Triangle(frame)
+	return w.Draw()
+}
+
+func ignoreClosed(err error) error {
+	if errors.Is(err, window.ErrClosed) {
 		return nil
 	}
-	lewimage.Triangle(frame)
-	if err := w.Draw(); err != nil {
-		return err
-	}
-	*last = size
-	return nil
+	return err
 }

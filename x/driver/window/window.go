@@ -1,6 +1,7 @@
 // Package window opens a resizable host window backed by an *image.RGBA.
 //
 //	w, err := window.Open(ctx, window.Config{Title: "hi"})
+//	evs := w.Subscribe(ctx)
 //	draw.Draw(w.Frame(), w.Frame().Bounds(), src, src.Bounds().Min, draw.Src)
 //	err = w.Draw()
 //
@@ -58,12 +59,13 @@ type Driver interface {
 //
 // Frame is the current buffer; draw into it with [image/draw.Draw].
 // Draw copies that buffer onto the host surface.
-// After Resize, or after the user resizes the window, the next Frame
-// has the new size.
+// Subscribe is an event source: Resize, Expose, and Close.
+// After Resize the next Frame has the new size.
 type Window interface {
 	Frame() *image.RGBA
 	Draw() error
 	Resize(size image.Point) error
+	Subscribe(ctx context.Context) <-chan Event
 	Close() error
 }
 

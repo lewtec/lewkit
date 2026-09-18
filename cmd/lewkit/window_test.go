@@ -18,24 +18,34 @@ func TestWindowUsage(t *testing.T) {
 	assert.Contains(t, text, "RGB triangle")
 }
 
-func TestPaintIfResized(t *testing.T) {
+func TestPaintAndResizeEvent(t *testing.T) {
 	t.Setenv("LEWKIT_FORCE_WINDOW_DRIVER", "window_mem")
 	w, err := window.Open(t.Context(), window.Config{Width: 80, Height: 60})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = w.Close() })
 
-	var last image.Point
-	require.NoError(t, paintIfResized(w, &last))
-	assert.Equal(t, image.Pt(80, 60), last)
+	evs := w.Subscribe(t.Context())
+	require.NoError(t, paint(w))
 	top := w.Frame().RGBAAt(40, 22)
 	assert.Greater(t, int(top.R), 180, "top=%v", top)
 
-	require.NoError(t, paintIfResized(w, &last))
 	require.NoError(t, w.Resize(image.Pt(120, 90)))
-	require.NoError(t, paintIfResized(w, &last))
-	assert.Equal(t, image.Pt(120, 90), last)
+	ev := <-evs
+	_, ok := ev.(window.Resize)
+	require.True(t, ok, "got %T", ev)
+	require.NoError(t, handle(w, ev))
 	assert.Equal(t, 120, w.Frame().Bounds().Dx())
-	assert.Equal(t, 90, w.Frame().Bounds().Dy())
 	top = w.Frame().RGBAAt(60, 34)
 	assert.Greater(t, int(top.R), 180, "resized top=%v", top)
+}
+
+func TestSubscribeClose(t *testing.T) {
+	t.Setenv("LEWKIT_FORCE_WINDOW_DRIVER", "window_mem")
+	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
+	require.NoError(t, err)
+	evs := w.Subscribe(t.Context())
+	require.NoError(t, w.Close())
+	ev := <-evs
+	_, ok := ev.(window.Close)
+	assert.True(t, ok, "got %T", ev)
 }

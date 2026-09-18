@@ -215,6 +215,7 @@ func (w *xwin) loop() {
 		switch e := ev.(type) {
 		case xproto.ExposeEvent:
 			if e.Count == 0 {
+				w.Emit(window.Expose{})
 				_ = w.put()
 			}
 		case xproto.ConfigureNotifyEvent:
