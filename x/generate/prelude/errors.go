@@ -1,10 +1,13 @@
 package prelude
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/lewtec/lewkit/x/generate"
+)
 
 var (
-	errDirRequired = errors.New("directory required")
-	errNoModule    = errors.New("go.mod: no module line")
-	errNoGoMod     = errors.New("no go.mod")
+	errDirRequired = generate.ErrDirRequired
+	errNoGoMod     = generate.ErrNoGoMod
 	errNoPackage   = errors.New("no package clause")
 )
