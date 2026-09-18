@@ -75,10 +75,7 @@ func (m model) View() (view tea.View) {
 		buf.WriteString(clipCells(row, width))
 		buf.WriteByte('\n')
 	}
-	for _, r := range layout(m.nodes) {
-		buf.WriteString(formatRow(r, width))
-		buf.WriteByte('\n')
-	}
+	writeRows(&buf, m.nodes, width)
 	view.SetContent(buf.String())
 	return
 }
