@@ -11,7 +11,7 @@ import (
 type Paint func(dst *image.RGBA, elapsed time.Duration) error
 
 // Animate runs paint at period until ctx is done or the window closes.
-// Events other than Close are ignored; the next tick sees the new Frame size.
+// Resize paints immediately so the new Frame is filled.
 func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -26,8 +26,14 @@ func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) e
 		return closed(err)
 	}
 	for {
-		if err := drain(events); err != nil {
+		resized, err := drain(events)
+		if err != nil {
 			return closed(err)
+		}
+		if resized {
+			if err := paintFrame(w, paint, time.Since(started)); err != nil {
+				return closed(err)
+			}
 		}
 		select {
 		case <-ctx.Done():
@@ -38,6 +44,11 @@ func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) e
 			}
 			if err := closedEvent(ev); err != nil {
 				return closed(err)
+			}
+			if _, ok := ev.(Resize); ok {
+				if err := paintFrame(w, paint, time.Since(started)); err != nil {
+					return closed(err)
+				}
 			}
 		case <-tick.C:
 			if err := paintFrame(w, paint, time.Since(started)); err != nil {
@@ -58,18 +69,22 @@ func paintFrame(w Window, paint Paint, elapsed time.Duration) error {
 	return w.Draw()
 }
 
-func drain(events <-chan Event) error {
+func drain(events <-chan Event) (bool, error) {
+	resized := false
 	for {
 		select {
 		case ev, ok := <-events:
 			if !ok {
-				return ErrClosed
+				return resized, ErrClosed
 			}
 			if err := closedEvent(ev); err != nil {
-				return err
+				return resized, err
+			}
+			if _, ok := ev.(Resize); ok {
+				resized = true
 			}
 		default:
-			return nil
+			return resized, nil
 		}
 	}
 }
