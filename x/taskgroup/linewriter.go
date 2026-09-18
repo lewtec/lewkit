@@ -1,7 +1,6 @@
 package taskgroup
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"os"
@@ -255,16 +254,7 @@ func (w *logWriter) Write(p []byte) (int, error) {
 	if print == nil {
 		return os.Stderr.Write(p)
 	}
-	w.buf = append(w.buf, p...)
-	for {
-		i := bytes.IndexByte(w.buf, '\n')
-		if i < 0 {
-			break
-		}
-		line := bytes.TrimSuffix(w.buf[:i], []byte{'\r'})
-		w.buf = w.buf[i+1:]
-		print(string(line))
-	}
+	TakeLines(&w.buf, p, print)
 	return len(p), nil
 }
 

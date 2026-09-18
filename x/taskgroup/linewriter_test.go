@@ -10,6 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTakeLinesSplitsAndHoldsPartial(t *testing.T) {
+	var pending []byte
+	var got []string
+	TakeLines(&pending, []byte("hello\nwor"), func(s string) { got = append(got, s) })
+	assert.Equal(t, []string{"hello"}, got)
+	assert.Equal(t, []byte("wor"), pending)
+	TakeLines(&pending, []byte("ld\r\n"), func(s string) { got = append(got, s) })
+	assert.Equal(t, []string{"hello", "world"}, got)
+	assert.Empty(t, pending)
+}
+
 func TestLineWriterLazyUntilVisible(t *testing.T) {
 	hub := newLiveHub()
 	w := newLineWriter(hub, func(string) {})
