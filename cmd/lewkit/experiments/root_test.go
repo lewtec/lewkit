@@ -15,6 +15,7 @@ func TestExperimentsUsage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "demo")
 	assert.Contains(t, text, "window")
+	assert.Contains(t, text, "compute")
 }
 
 func TestDemoBarePrintsUsage(t *testing.T) {
