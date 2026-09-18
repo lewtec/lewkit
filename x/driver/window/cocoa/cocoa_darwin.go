@@ -41,27 +41,28 @@ var (
 	appOnce sync.Once
 	appErr  error
 
-	selContentView          = objc.RegisterName("contentView")
-	selSetWantsLayer        = objc.RegisterName("setWantsLayer:")
-	selLayer                = objc.RegisterName("layer")
-	selSetContents          = objc.RegisterName("setContents:")
-	selSetContentsScale     = objc.RegisterName("setContentsScale:")
-	selSetMagFilter         = objc.RegisterName("setMagnificationFilter:")
-	selSetMinFilter         = objc.RegisterName("setMinificationFilter:")
-	selSetTitle             = objc.RegisterName("setTitle:")
-	selMakeKeyAndOrderFront = objc.RegisterName("makeKeyAndOrderFront:")
-	selSetContentSize       = objc.RegisterName("setContentSize:")
-	selClose                = objc.RegisterName("close")
-	selIsVisible            = objc.RegisterName("isVisible")
-	selBounds               = objc.RegisterName("bounds")
-	selBackingScaleFactor   = objc.RegisterName("backingScaleFactor")
+	selContentView               = objc.RegisterName("contentView")
+	selSetWantsLayer             = objc.RegisterName("setWantsLayer:")
+	selLayer                     = objc.RegisterName("layer")
+	selSetContents               = objc.RegisterName("setContents:")
+	selSetContentsScale          = objc.RegisterName("setContentsScale:")
+	selSetMagFilter              = objc.RegisterName("setMagnificationFilter:")
+	selSetMinFilter              = objc.RegisterName("setMinificationFilter:")
+	selSetContentsGravity        = objc.RegisterName("setContentsGravity:")
+	selSetAllowsEdgeAntialiasing = objc.RegisterName("setAllowsEdgeAntialiasing:")
+	selSetEdgeAntialiasingMask   = objc.RegisterName("setEdgeAntialiasingMask:")
+	selSetTitle                  = objc.RegisterName("setTitle:")
+	selMakeKeyAndOrderFront      = objc.RegisterName("makeKeyAndOrderFront:")
+	selSetContentSize            = objc.RegisterName("setContentSize:")
+	selClose                     = objc.RegisterName("close")
+	selIsVisible                 = objc.RegisterName("isVisible")
+	selBounds                    = objc.RegisterName("bounds")
+	selBackingScaleFactor        = objc.RegisterName("backingScaleFactor")
 
 	live             sync.Map // *win → struct{}
 	selNextEvent     = objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:")
 	selSendEvent     = objc.RegisterName("sendEvent:")
 	selUpdateWindows = objc.RegisterName("updateWindows")
-	selBitmapData    = objc.RegisterName("bitmapData")
-	selCGImage       = objc.RegisterName("CGImage")
 	selDistantPast   = objc.RegisterName("distantPast")
 )
 
@@ -75,6 +76,11 @@ func startApp() error {
 				appErr = err
 				return
 			}
+			if _, err := purego.Dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", purego.RTLD_GLOBAL|purego.RTLD_LAZY); err != nil {
+				appErr = err
+				return
+			}
+			loadCG()
 			app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 			app.Send(objc.RegisterName("setActivationPolicy:"), nsApplicationActivateRegular)
 			thread.OnIdle(func() {
@@ -136,10 +142,8 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 
 type win struct {
 	*window.Buffer
-	mu       sync.Mutex
-	wnd      objc.ID
-	rep, img objc.ID
-	bw, bh   int
+	mu  sync.Mutex
+	wnd objc.ID
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -279,54 +283,126 @@ func (w *win) blit() error {
 	if sw < 1 || sh < 1 {
 		return nil
 	}
-	if w.rep == 0 || w.bw != sw || w.bh != sh {
-		if err := w.makeRep(sw, sh, src.Stride); err != nil {
-			return err
-		}
+	cg, err := cgImageFromRGBA(src)
+	if err != nil {
+		return err
 	}
-	dst := w.rep.Send(selBitmapData)
-	if dst == 0 {
-		return fmt.Errorf("NSBitmapImageRep bitmapData")
-	}
-	copy(unsafe.Slice((*byte)(unsafe.Pointer(dst)), len(src.Pix)), src.Pix)
-	// A new CGImage each frame; CALayer ignores setContents if the object is unchanged.
-	cg := w.rep.Send(selCGImage)
-	if cg == 0 {
-		return fmt.Errorf("NSBitmapImageRep CGImage")
-	}
+	defer cgImageRelease(cg)
 	view := wnd.Send(selContentView)
 	layer := view.Send(selLayer)
-	s := w.scale()
-	setLayerScale(layer, s)
-	nearest := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "nearest")
-	layer.Send(selSetMagFilter, nearest)
-	layer.Send(selSetMinFilter, nearest)
-	layer.Send(selSetContents, cg)
+	prepareLayer(layer, w.scale())
+	layer.Send(selSetContents, objc.ID(cg))
 	return nil
 }
 
-func (w *win) makeRep(width, height, stride int) error {
-	rep := objc.ID(objc.GetClass("NSBitmapImageRep")).Send(objc.RegisterName("alloc"))
-	cs := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "NSCalibratedRGBColorSpace")
-	rep = rep.Send(objc.RegisterName("initWithBitmapDataPlanes:pixelsWide:pixelsHigh:bitsPerSample:samplesPerPixel:hasAlpha:isPlanar:colorSpaceName:bytesPerRow:bitsPerPixel:"),
-		uintptr(0), width, height, 8, 4, true, false, cs, stride, 32,
-	)
-	if rep == 0 {
-		return fmt.Errorf("NSBitmapImageRep init")
+func prepareLayer(layer objc.ID, scale float64) {
+	setLayerScale(layer, scale)
+	nearest := nsstr("nearest")
+	setID(layer, selSetMagFilter, nearest)
+	setID(layer, selSetMinFilter, nearest)
+	setID(layer, selSetContentsGravity, nsstr("resize"))
+	setBool(layer, selSetAllowsEdgeAntialiasing, false)
+	setMask(layer, selSetEdgeAntialiasingMask, 0)
+}
+
+const (
+	cgImageAlphaLast         = 3
+	cgBitmapByteOrder32Big   = 4 << 12
+	cgRenderingIntentDefault = 0
+)
+
+var (
+	cgColorSpaceCreateDeviceRGB    func() uintptr
+	cgDataProviderCreateWithCFData func(uintptr) uintptr
+	cgImageCreate                  func(width, height, bpc, bpp, bpr uintptr, space uintptr, bitmapInfo uint32, provider, decode uintptr, interpolate bool, intent int32) uintptr
+	cgColorSpaceRelease            func(uintptr)
+	cgDataProviderRelease          func(uintptr)
+	cgImageRelease                 func(uintptr)
+)
+
+func loadCG() {
+	cg, err := purego.Dlopen("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", purego.RTLD_LAZY)
+	if err != nil {
+		return
 	}
-	img := objc.ID(objc.GetClass("NSImage")).Send(objc.RegisterName("alloc"))
-	img = img.Send(objc.RegisterName("initWithSize:"), nsSize{Width: float64(width), Height: float64(height)})
-	img.Send(objc.RegisterName("addRepresentation:"), rep)
-	w.rep, w.img = rep, img
-	w.bw, w.bh = width, height
-	return nil
+	purego.RegisterLibFunc(&cgColorSpaceCreateDeviceRGB, cg, "CGColorSpaceCreateDeviceRGB")
+	purego.RegisterLibFunc(&cgDataProviderCreateWithCFData, cg, "CGDataProviderCreateWithCFData")
+	purego.RegisterLibFunc(&cgImageCreate, cg, "CGImageCreate")
+	purego.RegisterLibFunc(&cgColorSpaceRelease, cg, "CGColorSpaceRelease")
+	purego.RegisterLibFunc(&cgDataProviderRelease, cg, "CGDataProviderRelease")
+	purego.RegisterLibFunc(&cgImageRelease, cg, "CGImageRelease")
+}
+
+func cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
+	w, h := src.Rect.Dx(), src.Rect.Dy()
+	if w < 1 || h < 1 || cgImageCreate == nil {
+		return 0, fmt.Errorf("cgimage")
+	}
+	data := objc.ID(objc.GetClass("NSData")).Send(
+		objc.RegisterName("dataWithBytes:length:"),
+		uintptr(unsafe.Pointer(&src.Pix[0])),
+		len(src.Pix),
+	)
+	if data == 0 {
+		return 0, fmt.Errorf("NSData")
+	}
+	space := cgColorSpaceCreateDeviceRGB()
+	if space == 0 {
+		return 0, fmt.Errorf("CGColorSpaceCreateDeviceRGB")
+	}
+	defer cgColorSpaceRelease(space)
+	provider := cgDataProviderCreateWithCFData(uintptr(data))
+	if provider == 0 {
+		return 0, fmt.Errorf("CGDataProviderCreateWithCFData")
+	}
+	defer cgDataProviderRelease(provider)
+	img := cgImageCreate(
+		uintptr(w), uintptr(h), 8, 32, uintptr(src.Stride),
+		space,
+		cgImageAlphaLast|cgBitmapByteOrder32Big,
+		provider, 0,
+		false,
+		cgRenderingIntentDefault,
+	)
+	if img == 0 {
+		return 0, fmt.Errorf("CGImageCreate")
+	}
+	return img, nil
+}
+
+func nsstr(s string) objc.ID {
+	return objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), s)
 }
 
 var (
-	boundsFn func(objc.ID, objc.SEL) nsRect
-	scaleFn  func(objc.ID, objc.SEL) float64
-	setScale func(objc.ID, objc.SEL, float64)
+	boundsFn  func(objc.ID, objc.SEL) nsRect
+	scaleFn   func(objc.ID, objc.SEL) float64
+	setScale  func(objc.ID, objc.SEL, float64)
+	setIDFn   func(objc.ID, objc.SEL, objc.ID)
+	setBoolFn func(objc.ID, objc.SEL, bool)
+	setMaskFn func(objc.ID, objc.SEL, uint32)
 )
+
+func setID(obj objc.ID, sel objc.SEL, v objc.ID) {
+	if setIDFn == nil {
+		purego.RegisterFunc(&setIDFn, objcMsgSend)
+	}
+	setIDFn(obj, sel, v)
+}
+
+func setBool(obj objc.ID, sel objc.SEL, v bool) {
+	if setBoolFn == nil {
+		purego.RegisterFunc(&setBoolFn, objcMsgSend)
+	}
+	setBoolFn(obj, sel, v)
+}
+
+func setMask(obj objc.ID, sel objc.SEL, v uint32) {
+	if setMaskFn == nil {
+		purego.RegisterFunc(&setMaskFn, objcMsgSend)
+	}
+	setMaskFn(obj, sel, v)
+}
 
 func boundsOf(view objc.ID) nsRect {
 	if boundsFn == nil {
