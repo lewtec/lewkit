@@ -45,12 +45,16 @@ var (
 	selSetWantsLayer        = objc.RegisterName("setWantsLayer:")
 	selLayer                = objc.RegisterName("layer")
 	selSetContents          = objc.RegisterName("setContents:")
+	selSetContentsScale     = objc.RegisterName("setContentsScale:")
+	selSetMagFilter         = objc.RegisterName("setMagnificationFilter:")
+	selSetMinFilter         = objc.RegisterName("setMinificationFilter:")
 	selSetTitle             = objc.RegisterName("setTitle:")
 	selMakeKeyAndOrderFront = objc.RegisterName("makeKeyAndOrderFront:")
 	selSetContentSize       = objc.RegisterName("setContentSize:")
 	selClose                = objc.RegisterName("close")
 	selIsVisible            = objc.RegisterName("isVisible")
 	selBounds               = objc.RegisterName("bounds")
+	selBackingScaleFactor   = objc.RegisterName("backingScaleFactor")
 
 	live             sync.Map // *win → struct{}
 	selNextEvent     = objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:")
@@ -114,6 +118,11 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	var openErr error
 	onApp(func() {
 		openErr = out.create(cfg.Title, w, h)
+		if openErr == nil {
+			if ww, hh := out.clientSize(); ww > 0 && hh > 0 {
+				_ = out.Buffer.Resize(image.Pt(ww, hh))
+			}
+		}
 	})
 	if openErr != nil {
 		return nil, openErr
@@ -182,7 +191,11 @@ func (w *win) Resize(size image.Point) error {
 		if wnd == 0 {
 			return
 		}
-		wnd.Send(selSetContentSize, nsSize{Width: float64(size.X), Height: float64(size.Y)})
+		s := w.scale()
+		if s < 1 {
+			s = 1
+		}
+		wnd.Send(selSetContentSize, nsSize{Width: float64(size.X) / s, Height: float64(size.Y) / s})
 	})
 	return nil
 }
@@ -233,7 +246,25 @@ func (w *win) clientSize() (int, int) {
 		return 0, 0
 	}
 	r := boundsOf(view)
-	return int(r.Size.Width + 0.5), int(r.Size.Height + 0.5)
+	s := w.scale()
+	if s < 1 {
+		s = 1
+	}
+	return int(r.Size.Width*s + 0.5), int(r.Size.Height*s + 0.5)
+}
+
+func (w *win) scale() float64 {
+	w.mu.Lock()
+	wnd := w.wnd
+	w.mu.Unlock()
+	if wnd == 0 {
+		return 1
+	}
+	s := backingScale(wnd)
+	if s < 1 {
+		return 1
+	}
+	return s
 }
 
 func (w *win) blit() error {
@@ -265,6 +296,11 @@ func (w *win) blit() error {
 	}
 	view := wnd.Send(selContentView)
 	layer := view.Send(selLayer)
+	s := w.scale()
+	setLayerScale(layer, s)
+	nearest := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "nearest")
+	layer.Send(selSetMagFilter, nearest)
+	layer.Send(selSetMinFilter, nearest)
 	layer.Send(selSetContents, cg)
 	return nil
 }
@@ -286,13 +322,31 @@ func (w *win) makeRep(width, height, stride int) error {
 	return nil
 }
 
-var boundsFn func(objc.ID, objc.SEL) nsRect
+var (
+	boundsFn func(objc.ID, objc.SEL) nsRect
+	scaleFn  func(objc.ID, objc.SEL) float64
+	setScale func(objc.ID, objc.SEL, float64)
+)
 
 func boundsOf(view objc.ID) nsRect {
 	if boundsFn == nil {
 		purego.RegisterFunc(&boundsFn, objcMsgSend)
 	}
 	return boundsFn(view, selBounds)
+}
+
+func backingScale(wnd objc.ID) float64 {
+	if scaleFn == nil {
+		purego.RegisterFunc(&scaleFn, objcMsgSend)
+	}
+	return scaleFn(wnd, selBackingScaleFactor)
+}
+
+func setLayerScale(layer objc.ID, scale float64) {
+	if setScale == nil {
+		purego.RegisterFunc(&setScale, objcMsgSend)
+	}
+	setScale(layer, selSetContentsScale, scale)
 }
 
 var objcMsgSend = mustSym("/usr/lib/libobjc.A.dylib", "objc_msgSend")
