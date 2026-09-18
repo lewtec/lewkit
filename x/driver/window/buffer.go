@@ -9,19 +9,21 @@ import (
 	"github.com/lewtec/lewkit/x/event"
 )
 
-// Buffer is an *image.RGBA that Resize reallocates.
+// Buffer is a pair of *image.RGBA pages. Frame is the back buffer.
+// Draw swaps back and front; only the last swap is shown (UDP).
 type Buffer struct {
-	mu     sync.Mutex
-	img    *image.RGBA
-	closed bool
-	bus    *event.Bus[Event]
+	mu          sync.Mutex
+	back, front *image.RGBA
+	closed      bool
+	bus         *event.Bus[Event]
 }
 
-// NewBuffer returns a w×h buffer.
+// NewBuffer returns a w×h double buffer.
 func NewBuffer(w, h int) *Buffer {
 	return &Buffer{
-		img: image.NewRGBA(image.Rect(0, 0, w, h)),
-		bus: event.New[Event](),
+		back:  image.NewRGBA(image.Rect(0, 0, w, h)),
+		front: image.NewRGBA(image.Rect(0, 0, w, h)),
+		bus:   event.New[Event](),
 	}
 }
 
@@ -35,14 +37,39 @@ func (b *Buffer) Emit(ev Event) {
 	b.bus.Publish(ev)
 }
 
-// Frame is the current backing store.
+// Frame is the back buffer. After Draw, the next Frame is the other page.
 func (b *Buffer) Frame() *image.RGBA {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return b.img
+	return b.back
 }
 
-// Resize replaces the buffer. Overlapping pixels are copied.
+// Swap publishes the back buffer as front. The previous front becomes back.
+func (b *Buffer) Swap() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed {
+		return ErrClosed
+	}
+	b.back, b.front = b.front, b.back
+	return nil
+}
+
+// Front is the last swapped page. Hosts blit this on their next turn.
+func (b *Buffer) Front() *image.RGBA {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.front
+}
+
+// WithFront runs fn with the front page. Swap waits until fn returns.
+func (b *Buffer) WithFront(fn func(*image.RGBA)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	fn(b.front)
+}
+
+// Resize replaces both pages. Overlapping pixels are copied.
 func (b *Buffer) Resize(size image.Point) error {
 	if size.X <= 0 || size.Y <= 0 {
 		return ErrSize
@@ -52,12 +79,13 @@ func (b *Buffer) Resize(size image.Point) error {
 		b.mu.Unlock()
 		return ErrClosed
 	}
-	old := b.img.Rect.Size()
+	old := b.back.Rect.Size()
 	if old == size {
 		b.mu.Unlock()
 		return nil
 	}
-	b.img = resizeRGBA(b.img, size.X, size.Y)
+	b.back = resizeRGBA(b.back, size.X, size.Y)
+	b.front = resizeRGBA(b.front, size.X, size.Y)
 	b.mu.Unlock()
 	b.bus.Publish(Resize{Size: size})
 	return nil

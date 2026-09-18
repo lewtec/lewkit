@@ -127,8 +127,8 @@ type xwin struct {
 }
 
 func (w *xwin) Draw() error {
-	if w.Closed() {
-		return window.ErrClosed
+	if err := w.Swap(); err != nil {
+		return err
 	}
 	return w.put()
 }
@@ -171,7 +171,7 @@ func (w *xwin) put() error {
 	if conn == nil {
 		return window.ErrClosed
 	}
-	src := w.Frame()
+	src := w.Front()
 	bgra := make([]byte, len(src.Pix))
 	window.ToBGRA(bgra, src)
 	width, height := src.Rect.Dx(), src.Rect.Dy()

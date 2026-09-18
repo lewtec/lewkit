@@ -57,8 +57,9 @@ type Driver interface {
 
 // Window is a resizable host window backed by an *image.RGBA.
 //
-// Frame is the current buffer; draw into it with [image/draw.Draw].
-// Draw copies that buffer onto the host surface.
+// Frame is the back buffer; draw into it with [image/draw.Draw].
+// Draw swaps it to the front (last swap wins) and the host blits on
+// its next turn.
 // Subscribe is an event source: Resize, Expose, and Close.
 // After Resize the next Frame has the new size.
 type Window interface {

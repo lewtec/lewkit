@@ -32,8 +32,5 @@ type win struct {
 }
 
 func (w *win) Draw() error {
-	if w.Closed() {
-		return window.ErrClosed
-	}
-	return nil
+	return w.Swap()
 }

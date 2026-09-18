@@ -26,7 +26,7 @@ func TestPaintAndResizeEvent(t *testing.T) {
 
 	evs := w.Subscribe(t.Context())
 	require.NoError(t, paint(w, 0, 0))
-	top := w.Frame().RGBAAt(40, 16)
+	top := lastFrame(w).RGBAAt(40, 16)
 	assert.Greater(t, int(top.R), 180, "top=%v", top)
 
 	require.NoError(t, w.Resize(image.Pt(120, 90)))
@@ -35,7 +35,7 @@ func TestPaintAndResizeEvent(t *testing.T) {
 	require.True(t, ok, "got %T", ev)
 	require.NoError(t, paint(w, 0, 0))
 	assert.Equal(t, 120, w.Frame().Bounds().Dx())
-	top = w.Frame().RGBAAt(60, 22)
+	top = lastFrame(w).RGBAAt(60, 22)
 	assert.Greater(t, int(top.R), 180, "resized top=%v", top)
 }
 
@@ -45,9 +45,9 @@ func TestPaintRotates(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = w.Close() })
 	require.NoError(t, paint(w, 0, 0))
-	a := w.Frame().RGBAAt(40, 16)
+	a := lastFrame(w).RGBAAt(40, 16)
 	require.NoError(t, paint(w, 0.5, 0))
-	b := w.Frame().RGBAAt(40, 16)
+	b := lastFrame(w).RGBAAt(40, 16)
 	assert.NotEqual(t, a, b)
 }
 

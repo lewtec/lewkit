@@ -171,17 +171,21 @@ func (w *win) create(title string, width, height int) error {
 }
 
 func (w *win) Draw() error {
-	if w.Closed() {
-		return window.ErrClosed
+	if err := w.Swap(); err != nil {
+		return err
 	}
-	var err error
-	onApp(func() {
-		if ww, hh := w.clientSize(); ww > 0 && hh > 0 {
-			_ = w.Buffer.Resize(image.Pt(ww, hh))
-		}
-		err = w.blit()
-	})
-	return err
+	thread.Go(w.flush)
+	return nil
+}
+
+func (w *win) flush() {
+	if w.Closed() {
+		return
+	}
+	if ww, hh := w.clientSize(); ww > 0 && hh > 0 {
+		_ = w.Buffer.Resize(image.Pt(ww, hh))
+	}
+	_ = w.blit()
 }
 
 func (w *win) Resize(size image.Point) error {
@@ -236,6 +240,7 @@ func (w *win) note() {
 	if width > 0 && height > 0 {
 		_ = w.Buffer.Resize(image.Pt(width, height))
 	}
+	_ = w.blit()
 }
 
 func (w *win) clientSize() (int, int) {
@@ -278,21 +283,35 @@ func (w *win) blit() error {
 	if wnd == 0 {
 		return window.ErrClosed
 	}
-	src := w.Frame()
-	sw, sh := src.Rect.Dx(), src.Rect.Dy()
-	if sw < 1 || sh < 1 {
-		return nil
-	}
-	cg, err := cgImageFromRGBA(src)
-	if err != nil {
-		return err
-	}
-	defer cgImageRelease(cg)
-	view := wnd.Send(selContentView)
-	layer := view.Send(selLayer)
-	prepareLayer(layer, w.scale())
-	layer.Send(selSetContents, objc.ID(cg))
-	return nil
+	var err error
+	w.WithFront(func(src *image.RGBA) {
+		if src.Rect.Dx() < 1 || src.Rect.Dy() < 1 {
+			return
+		}
+		var cg uintptr
+		cg, err = cgImageFromRGBA(src)
+		if err != nil {
+			return
+		}
+		defer cgImageRelease(cg)
+		view := wnd.Send(selContentView)
+		layer := view.Send(selLayer)
+		prepareLayer(layer, w.scale())
+		beginNoAnim()
+		layer.Send(selSetContents, objc.ID(cg))
+		endNoAnim()
+	})
+	return err
+}
+
+func beginNoAnim() {
+	tx := objc.ID(objc.GetClass("CATransaction"))
+	tx.Send(objc.RegisterName("begin"))
+	setBool(tx, objc.RegisterName("setDisableActions:"), true)
+}
+
+func endNoAnim() {
+	objc.ID(objc.GetClass("CATransaction")).Send(objc.RegisterName("commit"))
 }
 
 func prepareLayer(layer objc.ID, scale float64) {

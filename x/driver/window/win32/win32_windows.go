@@ -184,14 +184,8 @@ func (w *win) pump() {
 }
 
 func (w *win) Draw() error {
-	if w.Closed() {
-		return window.ErrClosed
-	}
-	w.mu.Lock()
-	hwnd := w.hwnd
-	w.mu.Unlock()
-	if hwnd == 0 {
-		return window.ErrClosed
+	if err := w.Swap(); err != nil {
+		return err
 	}
 	return w.blit()
 }
@@ -232,7 +226,7 @@ func (w *win) blit() error {
 	if hwnd == 0 {
 		return window.ErrClosed
 	}
-	src := w.Frame()
+	src := w.Front()
 	width, height := src.Rect.Dx(), src.Rect.Dy()
 	if width == 0 || height == 0 {
 		return nil

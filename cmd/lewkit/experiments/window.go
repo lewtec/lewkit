@@ -114,6 +114,13 @@ func paint(w window.Window, turn float64, fps int) error {
 	return w.Draw()
 }
 
+func lastFrame(w window.Window) *image.RGBA {
+	if b, ok := w.(interface{ Front() *image.RGBA }); ok {
+		return b.Front()
+	}
+	return w.Frame()
+}
+
 type fpsMeter struct {
 	t0   time.Time
 	n    int
