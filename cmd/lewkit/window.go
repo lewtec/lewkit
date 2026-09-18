@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
@@ -34,7 +35,7 @@ type triangleCmd struct {
 }
 
 func (triangleCmd) Description() string {
-	return "draw the RGB triangle and redraw on resize"
+	return "draw the RGB triangle, one turn per second"
 }
 
 func (c *triangleCmd) Run(ctx context.Context) error {
@@ -54,7 +55,10 @@ func paintWindow(ctx context.Context, w window.Window) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	evs := w.Subscribe(ctx)
-	if err := paint(w); err != nil {
+	t0 := time.Now()
+	tick := time.NewTicker(time.Second / 60)
+	defer tick.Stop()
+	if err := paint(w, 0); err != nil {
 		return ignoreClosed(err)
 	}
 	for {
@@ -65,17 +69,21 @@ func paintWindow(ctx context.Context, w window.Window) error {
 			if !ok {
 				return nil
 			}
-			if err := handle(w, ev); err != nil {
+			if err := handle(w, ev, time.Since(t0).Seconds()); err != nil {
+				return ignoreClosed(err)
+			}
+		case now := <-tick.C:
+			if err := paint(w, now.Sub(t0).Seconds()); err != nil {
 				return ignoreClosed(err)
 			}
 		}
 	}
 }
 
-func handle(w window.Window, ev window.Event) error {
+func handle(w window.Window, ev window.Event, turn float64) error {
 	switch ev.(type) {
 	case window.Resize:
-		return paint(w)
+		return paint(w, turn)
 	case window.Expose:
 		return w.Draw()
 	case window.Close:
@@ -85,12 +93,12 @@ func handle(w window.Window, ev window.Event) error {
 	}
 }
 
-func paint(w window.Window) error {
+func paint(w window.Window, turn float64) error {
 	frame := w.Frame()
 	if frame == nil {
 		return window.ErrClosed
 	}
-	lewimage.Triangle(frame)
+	lewimage.TriangleTurn(frame, turn)
 	return w.Draw()
 }
 

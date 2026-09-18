@@ -41,3 +41,11 @@ func TestTriangleEmpty(t *testing.T) {
 	dst := image.NewRGBA(image.Rect(0, 0, 0, 0))
 	Triangle(dst)
 }
+
+func TestTriangleTurnHalf(t *testing.T) {
+	dst := image.NewRGBA(image.Rect(0, 0, 200, 200))
+	TriangleTurn(dst, 0.5)
+	bot := dst.RGBAAt(100, 130)
+	assert.Greater(t, int(bot.R), 180, "half turn bottom=%v", bot)
+	assert.Equal(t, color.RGBA{A: 255}, dst.RGBAAt(100, 20))
+}

@@ -15,7 +15,7 @@ func TestWindowUsage(t *testing.T) {
 	text, err := cmd.Usage[windowCmd]("lewkit window")
 	require.NoError(t, err)
 	assert.Contains(t, text, "triangle")
-	assert.Contains(t, text, "RGB triangle")
+	assert.Contains(t, text, "one turn")
 }
 
 func TestPaintAndResizeEvent(t *testing.T) {
@@ -25,7 +25,7 @@ func TestPaintAndResizeEvent(t *testing.T) {
 	t.Cleanup(func() { _ = w.Close() })
 
 	evs := w.Subscribe(t.Context())
-	require.NoError(t, paint(w))
+	require.NoError(t, paint(w, 0))
 	top := w.Frame().RGBAAt(40, 22)
 	assert.Greater(t, int(top.R), 180, "top=%v", top)
 
@@ -33,7 +33,7 @@ func TestPaintAndResizeEvent(t *testing.T) {
 	ev := <-evs
 	_, ok := ev.(window.Resize)
 	require.True(t, ok, "got %T", ev)
-	require.NoError(t, handle(w, ev))
+	require.NoError(t, handle(w, ev, 0))
 	assert.Equal(t, 120, w.Frame().Bounds().Dx())
 	top = w.Frame().RGBAAt(60, 34)
 	assert.Greater(t, int(top.R), 180, "resized top=%v", top)

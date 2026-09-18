@@ -4,19 +4,29 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"math"
 )
 
 // Triangle paints the vulkan-tutorial RGB triangle into dst.
 // Top is red, bottom-right green, bottom-left blue. The rest is black.
 func Triangle(dst *image.RGBA) {
+	TriangleTurn(dst, 0)
+}
+
+// TriangleTurn is Triangle rotated by turn revolutions around the origin.
+func TriangleTurn(dst *image.RGBA, turn float64) {
 	b := dst.Bounds()
 	draw.Draw(dst, b, image.NewUniform(color.RGBA{A: 255}), image.Point{}, draw.Src)
 	if b.Dx() < 1 || b.Dy() < 1 {
 		return
 	}
-	ax, ay := ndc(0, -0.5, b)
-	bx, by := ndc(0.5, 0.5, b)
-	cx, cy := ndc(-0.5, 0.5, b)
+	s, c := math.Sincos(turn * 2 * math.Pi)
+	rx, ry := rot(0, -0.5, s, c)
+	ax, ay := ndc(rx, ry, b)
+	rx, ry = rot(0.5, 0.5, s, c)
+	bx, by := ndc(rx, ry, b)
+	rx, ry = rot(-0.5, 0.5, s, c)
+	cx, cy := ndc(rx, ry, b)
 	minX := max(b.Min.X, int(min(ax, bx, cx)))
 	maxX := min(b.Max.X, int(max(ax, bx, cx))+1)
 	minY := max(b.Min.Y, int(min(ay, by, cy)))
@@ -43,6 +53,10 @@ func Triangle(dst *image.RGBA) {
 			})
 		}
 	}
+}
+
+func rot(x, y, s, c float64) (float64, float64) {
+	return x*c - y*s, x*s + y*c
 }
 
 func ndc(nx, ny float64, b image.Rectangle) (x, y float64) {
