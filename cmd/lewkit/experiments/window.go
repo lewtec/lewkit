@@ -1,4 +1,4 @@
-package main
+package experiments
 
 import (
 	"context"
@@ -18,16 +18,17 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-type windowCmd struct {
-	triangle *triangleCmd
+// Window is `lewkit experiments window`.
+type Window struct {
+	Triangle *triangleCmd
 }
 
-func (windowCmd) Description() string {
+func (Window) Description() string {
 	return "host window demos"
 }
 
-func (windowCmd) Run(ctx context.Context) error {
-	text, err := cmd.Usage[windowCmd]("lewkit window")
+func (Window) Run(ctx context.Context) error {
+	text, err := cmd.Usage[Window]("lewkit experiments window")
 	if err != nil {
 		return err
 	}

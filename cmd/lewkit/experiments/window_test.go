@@ -1,4 +1,4 @@
-package main
+package experiments
 
 import (
 	"image"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestWindowUsage(t *testing.T) {
-	text, err := cmd.Usage[windowCmd]("lewkit window")
+	text, err := cmd.Usage[Window]("lewkit experiments window")
 	require.NoError(t, err)
 	assert.Contains(t, text, "triangle")
 	assert.Contains(t, text, "one turn")

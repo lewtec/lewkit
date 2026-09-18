@@ -10,6 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestExperimentsUsage(t *testing.T) {
+	text, err := cmd.Usage[Command]("lewkit experiments")
+	require.NoError(t, err)
+	assert.Contains(t, text, "demo")
+	assert.Contains(t, text, "window")
+}
+
 func TestDemoBarePrintsUsage(t *testing.T) {
 	test.RestoreSlog(t)
 	app := cmd.ParseOK[cmd.App[Command]](t, "demo")

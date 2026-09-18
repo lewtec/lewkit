@@ -6,6 +6,7 @@ import "github.com/lewtec/lewkit/x/taskgroup"
 type Command struct {
 	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
 	Demo          *Demo
+	Window        *Window
 }
 
 func (Command) Description() string {
