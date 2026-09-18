@@ -2,8 +2,6 @@ package cocoa
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -16,10 +14,7 @@ func (factory) Name() string { return "Cocoa" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
-	}
-	return nil
+	return driver.RequireGOOS("darwin")
 }
 
 func (factory) New(context.Context) (window.Driver, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -40,6 +41,14 @@ func RequireTermux() error {
 		return nil
 	}
 	return fmt.Errorf("%w: not running in Termux", ErrIncompatible)
+}
+
+// RequireGOOS returns ErrIncompatible when runtime.GOOS is not name.
+func RequireGOOS(name string) error {
+	if runtime.GOOS == name {
+		return nil
+	}
+	return fmt.Errorf("%w: not %s", ErrIncompatible, name)
 }
 
 // RequireEnv returns ErrIncompatible when key is unset or empty.

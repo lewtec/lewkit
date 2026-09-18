@@ -1,9 +1,11 @@
 package driver_test
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,6 +36,13 @@ func TestRequireTermux(t *testing.T) {
 	t.Setenv("TERMUX_VERSION", "0.118")
 	require.NoError(t, driver.RequireTermux())
 	require.True(t, driver.IsTermux())
+}
+
+func TestRequireGOOS(t *testing.T) {
+	require.NoError(t, driver.RequireGOOS(runtime.GOOS))
+	err := driver.RequireGOOS("not-a-real-os")
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	assert.Contains(t, err.Error(), "not-a-real-os")
 }
 
 func TestGetEnvContextOverridesProcess(t *testing.T) {
