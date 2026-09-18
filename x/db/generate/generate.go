@@ -2,16 +2,15 @@
 package generate
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	xgenerate "github.com/lewtec/lewkit/x/generate"
 )
 
 func pkgName(dir string) string {
@@ -117,7 +116,7 @@ func importPath(dir string) (string, error) {
 	for {
 		b, err := os.ReadFile(filepath.Join(d, "go.mod"))
 		if err == nil {
-			mod, err := moduleLine(b)
+			mod, err := xgenerate.ModuleLine(b)
 			if err != nil {
 				return "", err
 			}
@@ -136,14 +135,4 @@ func importPath(dir string) (string, error) {
 		}
 		d = parent
 	}
-}
-
-func moduleLine(b []byte) (string, error) {
-	sc := bufio.NewScanner(bytes.NewReader(b))
-	for sc.Scan() {
-		if path, ok := strings.CutPrefix(sc.Text(), "module "); ok {
-			return strings.TrimSpace(path), nil
-		}
-	}
-	return "", errNoModule
 }

@@ -2,7 +2,6 @@
 package prelude
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"fmt"
@@ -15,6 +14,7 @@ import (
 	"strings"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
+	"github.com/lewtec/lewkit/x/generate"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/path/pick"
 )
@@ -158,7 +158,7 @@ func findImportPath(ctx context.Context, start *path.Root) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			module, err := moduleLine(body)
+			module, err := generate.ModuleLine(body)
 			if err != nil {
 				return "", err
 			}
@@ -187,19 +187,6 @@ func climbStart(start *path.Root) (path.Path, error) {
 		return path.Path{}, err
 	}
 	return path.New(wd), nil
-}
-
-func moduleLine(body []byte) (string, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(body))
-	for scanner.Scan() {
-		if line, ok := strings.CutPrefix(scanner.Text(), "module "); ok {
-			return strings.TrimSpace(line), nil
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return "", err
-	}
-	return "", errNoModule
 }
 
 func write(w io.Writer, packageName string, imports []string) error {

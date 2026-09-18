@@ -1,11 +1,14 @@
 package generate
 
-import "errors"
+import (
+	"errors"
+
+	xgenerate "github.com/lewtec/lewkit/x/generate"
+)
 
 var (
-	errDirRequired     = errors.New("directory required")
-	errNoModule        = errors.New("go.mod: no module line")
-	errNoGoMod         = errors.New("no go.mod")
+	errDirRequired     = xgenerate.ErrDirRequired
+	errNoGoMod         = xgenerate.ErrNoGoMod
 	errNoEngines       = errors.New("no sqlite/ or postgres")
 	errNoMigrationsDir = errors.New("missing migrations")
 	errNoNamedQueries  = errors.New("no named queries")
