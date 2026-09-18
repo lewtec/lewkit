@@ -4,12 +4,14 @@ import (
 	stdzip "archive/zip"
 	"io"
 	"io/fs"
+
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 // Open implements [fs.FS].
 func (d *FS) Open(name string) (fs.File, error) {
-	if name != "." && name != "" && !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	if err := lewfs.CheckName("open", name); err != nil {
+		return nil, err
 	}
 	if zf := d.lookup(name); zf != nil && !zf.FileInfo().IsDir() && zf.Method == stdzip.Store {
 		return openStored(d.ra, zf)

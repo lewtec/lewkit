@@ -110,8 +110,8 @@ func cleanName(name string) (string, error) {
 	if name == "" {
 		name = "."
 	}
-	if name != "." && !fs.ValidPath(name) {
-		return "", &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	if err := lewfs.CheckName("open", name); err != nil {
+		return "", err
 	}
 	return name, nil
 }
