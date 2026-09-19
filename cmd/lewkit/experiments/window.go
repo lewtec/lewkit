@@ -10,7 +10,6 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
-	ndimage "github.com/lewtec/lewkit/x/ndarray/image"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -46,7 +45,7 @@ func (c *triangleCmd) run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	p, err := ndimage.New(ctx)
+	p, err := newTrianglePainter(ctx)
 	if err != nil {
 		return errors.Join(err, w.Close())
 	}

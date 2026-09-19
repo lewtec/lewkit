@@ -13,6 +13,6 @@
 // [Shape] is the dimensions ([]int so Reshape can use -1).
 //
 // [Of] and [Tracker] are the address map under a tensor. Layers live in
-// [github.com/lewtec/lewkit/x/ndarray/nn]. Drawing is
+// [github.com/lewtec/lewkit/x/ndarray/nn]. Pictures pack through
 // [github.com/lewtec/lewkit/x/ndarray/image].
 package ndarray
