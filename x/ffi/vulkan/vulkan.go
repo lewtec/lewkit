@@ -3,6 +3,7 @@ package vulkan
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"unsafe"
 )
 
@@ -29,6 +30,7 @@ func Open(ctx context.Context) (*Device, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	ensurePlatform()
 	lib, err := openLib()
 	if err != nil {
 		return nil, err
@@ -78,6 +80,7 @@ func (d *Device) pick() error {
 		return fmt.Errorf("enumerate devices: %w", err)
 	}
 	if n == 0 {
+		slog.Debug("vulkan enumerate physical", "count", 0)
 		return ErrNoDevice
 	}
 	phys := make([]uintptr, n)
