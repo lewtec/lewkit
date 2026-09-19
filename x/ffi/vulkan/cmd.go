@@ -27,7 +27,6 @@ func (d *Device) Begin() (*Cmd, error) {
 	}
 	begin := commandBufferBeginInfo{
 		sType: structureCommandBufferBeginInfo,
-		flags: commandOneTimeSubmit,
 	}
 	if err := check(d.api.beginCommandBuffer(d.cmd, &begin)); err != nil {
 		return nil, fmt.Errorf("begin command buffer: %w", err)
@@ -77,26 +76,43 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 		return err
 	}
 	n := len(bufs)
-	if cap(s.infos) < n {
-		s.infos = make([]descriptorBufferInfo, n)
-		s.writes = make([]writeDescriptorSet, n)
-	} else {
-		s.infos = s.infos[:n]
-		s.writes = s.writes[:n]
-	}
-	for i, b := range bufs {
-		s.infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
-		s.writes[i] = writeDescriptorSet{
-			sType:           structureWriteDescriptorSet,
-			dstSet:          s.descriptorSet,
-			dstBinding:      uint32(i),
-			descriptorCount: 1,
-			descriptorType:  descriptorStorageBuffer,
-			pBufferInfo:     &s.infos[i],
+	same := len(s.boundBuf) == n
+	if same {
+		for i, b := range bufs {
+			if s.boundBuf[i] != b.buf || s.boundLen[i] != uint64(b.size) {
+				same = false
+				break
+			}
 		}
 	}
-	if n > 0 {
-		d.api.updateDescriptorSets(d.dev, uint32(n), &s.writes[0], 0, 0)
+	if !same {
+		if cap(s.infos) < n {
+			s.infos = make([]descriptorBufferInfo, n)
+			s.writes = make([]writeDescriptorSet, n)
+			s.boundBuf = make([]uint64, n)
+			s.boundLen = make([]uint64, n)
+		} else {
+			s.infos = s.infos[:n]
+			s.writes = s.writes[:n]
+			s.boundBuf = s.boundBuf[:n]
+			s.boundLen = s.boundLen[:n]
+		}
+		for i, b := range bufs {
+			s.infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
+			s.writes[i] = writeDescriptorSet{
+				sType:           structureWriteDescriptorSet,
+				dstSet:          s.descriptorSet,
+				dstBinding:      uint32(i),
+				descriptorCount: 1,
+				descriptorType:  descriptorStorageBuffer,
+				pBufferInfo:     &s.infos[i],
+			}
+			s.boundBuf[i] = b.buf
+			s.boundLen[i] = uint64(b.size)
+		}
+		if n > 0 {
+			d.api.updateDescriptorSets(d.dev, uint32(n), &s.writes[0], 0, 0)
+		}
 	}
 	for _, b := range bufs {
 		if err := d.flush(b); err != nil {

@@ -65,6 +65,9 @@ var (
 	selSendEvent     = objc.RegisterName("sendEvent:")
 	selUpdateWindows = objc.RegisterName("updateWindows")
 	selDistantPast   = objc.RegisterName("distantPast")
+
+	runLoopMode objc.ID
+	colorSpace  uintptr
 )
 
 func startApp() error {
@@ -85,6 +88,8 @@ func startApp() error {
 				appErr = fmt.Errorf("%w: coregraphics: %w", window.ErrInit, err)
 				return
 			}
+			runLoopMode = nsstr("kCFRunLoopDefaultMode").Send(objc.RegisterName("retain"))
+			colorSpace = cgColorSpaceCreateDeviceRGB()
 			app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 			app.Send(objc.RegisterName("setActivationPolicy:"), nsApplicationActivateRegular)
 			thread.OnIdle(func() {
@@ -120,9 +125,8 @@ func pump(app objc.ID) {
 
 func pumpInner(app objc.ID) {
 	date := objc.ID(objc.GetClass("NSDate")).Send(selDistantPast)
-	mode := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "kCFRunLoopDefaultMode")
 	for {
-		ev := app.Send(selNextEvent, ^uintptr(0), date, mode, true)
+		ev := app.Send(selNextEvent, ^uintptr(0), date, runLoopMode, true)
 		if ev == 0 {
 			break
 		}
@@ -262,7 +266,6 @@ func (w *win) note() {
 	if width > 0 && height > 0 {
 		_ = w.Buffer.Resize(image.Pt(width, height))
 	}
-	_ = w.blit()
 }
 
 func (w *win) clientSize() (int, int) {
@@ -415,11 +418,9 @@ func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	if data == 0 {
 		return 0, fmt.Errorf("%w: NSData", window.ErrPresent)
 	}
-	space := cgColorSpaceCreateDeviceRGB()
-	if space == 0 {
+	if colorSpace == 0 {
 		return 0, fmt.Errorf("%w: color space", window.ErrPresent)
 	}
-	defer cgColorSpaceRelease(space)
 	provider := cgDataProviderCreateWithCFData(uintptr(data))
 	if provider == 0 {
 		return 0, fmt.Errorf("%w: data provider", window.ErrPresent)
@@ -427,7 +428,7 @@ func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	defer cgDataProviderRelease(provider)
 	img := cgImageCreate(
 		uintptr(width), uintptr(height), 8, 32, uintptr(src.Stride),
-		space,
+		colorSpace,
 		cgImageAlphaLast|cgBitmapByteOrder32Big,
 		provider, 0,
 		false,

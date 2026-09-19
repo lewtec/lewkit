@@ -389,6 +389,8 @@ type Shader struct {
 	descriptorSet  uint64
 	infos          []descriptorBufferInfo
 	writes         []writeDescriptorSet
+	boundBuf       []uint64
+	boundLen       []uint64
 	bindings       int
 	pushBytes      int
 }
@@ -541,6 +543,7 @@ func (s *Shader) Close() error {
 	pool := s.descriptorPool
 	s.pipeline, s.pipelineLayout, s.setLayout, s.module = 0, 0, 0, 0
 	s.descriptorPool, s.descriptorSet = 0, 0
+	s.boundBuf, s.boundLen = nil, nil
 	if d == nil || d.closed || d.dev == 0 {
 		return nil
 	}

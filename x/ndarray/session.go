@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"log/slog"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
@@ -119,6 +120,7 @@ func (s *Session) grow(slot **vulkan.Buffer, bytes int) error {
 	if err != nil {
 		return err
 	}
+	slog.Debug("ndarray buffer grow", "bytes", bytes)
 	if cur != nil {
 		if err := cur.Close(); err != nil {
 			return errors.Join(err, b.Close())
