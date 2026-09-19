@@ -64,6 +64,10 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		conn.Close()
 		return nil, err
 	}
+	if err := setMinSize(conn, wid); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	wmDelete, err := setDeleteProtocol(conn, wid)
 	if err != nil {
 		conn.Close()
@@ -96,6 +100,31 @@ func setTitle(conn *xgb.Conn, wid xproto.Window, title string) error {
 	b := []byte(title)
 	return xproto.ChangePropertyChecked(conn, xproto.PropModeReplace, wid,
 		xproto.AtomWmName, xproto.AtomString, 8, uint32(len(b)), b).Check()
+}
+
+func setMinSize(conn *xgb.Conn, wid xproto.Window) error {
+	name, err := xproto.InternAtom(conn, false, uint16(len("WM_NORMAL_HINTS")), "WM_NORMAL_HINTS").Reply()
+	if err != nil {
+		return err
+	}
+	typ, err := xproto.InternAtom(conn, false, uint16(len("WM_SIZE_HINTS")), "WM_SIZE_HINTS").Reply()
+	if err != nil {
+		return err
+	}
+	// ICCCM WM_SIZE_HINTS: 18 CARD32s. flags=PMinSize (1<<4), min 1×1.
+	var hints [18]uint32
+	hints[0] = 1 << 4
+	hints[5] = 1
+	hints[6] = 1
+	raw := make([]byte, 18*4)
+	for i, v := range hints {
+		raw[i*4] = byte(v)
+		raw[i*4+1] = byte(v >> 8)
+		raw[i*4+2] = byte(v >> 16)
+		raw[i*4+3] = byte(v >> 24)
+	}
+	return xproto.ChangePropertyChecked(conn, xproto.PropModeReplace, wid,
+		name.Atom, typ.Atom, 32, 18, raw).Check()
 }
 
 func setDeleteProtocol(conn *xgb.Conn, wid xproto.Window) (xproto.Atom, error) {
