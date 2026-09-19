@@ -5,20 +5,16 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"slices"
-
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
 )
 
 // Tensor is the array brick: a lazy node tree plus, for leaves, a host buffer.
 // View ops (Reshape, Permute, …) share the buffer. ALU ops build the tree.
-// Slots are assigned at Eval/Exec. The graph stays after realize so a loop
+// Slots are assigned at Eval. The graph stays after realize so a loop
 // can Resize and run again.
 type Tensor struct {
-	node    *node
-	out     []float32
-	kernel  *Kernel
-	session *Session
-	device  *vulkan.Device
+	node   *node
+	out    []float32
+	kernel *Kernel
 }
 
 func wrap(n *node) *Tensor {
@@ -130,7 +126,7 @@ func (t *Tensor) Buffer() []float32 {
 	return t.node.buf.data
 }
 
-// Data evaluates on CPU if needed and returns the dense host result.
+// Data is the last Eval result, or the leaf buffer for a contiguous input.
 func (t *Tensor) Data() ([]float32, error) {
 	if t == nil {
 		return nil, ErrOp
@@ -138,26 +134,18 @@ func (t *Tensor) Data() ([]float32, error) {
 	if t.out != nil {
 		return t.out, nil
 	}
-	if err := t.Eval(); err != nil {
-		return nil, err
+	if t.node != nil && t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() {
+		return t.node.buf.data, nil
 	}
-	if t.out != nil {
-		return t.out, nil
-	}
-	return t.Buffer(), nil
+	return nil, ErrOp
 }
 
-// Eval realizes the tensor on the CPU tape. The graph is kept.
-func (t *Tensor) Eval() error {
-	return t.realize(nil, nil)
-}
-
-// Exec realizes the tensor on device. device must be non-nil.
-func (t *Tensor) Exec(ctx context.Context, device *vulkan.Device) error {
-	if device == nil {
-		return ErrOp
+// Eval realizes the tensor with ev. nil ev uses CPU. The graph is kept.
+func (t *Tensor) Eval(ctx context.Context, ev Evaluator) error {
+	if ev == nil {
+		ev = CPU
 	}
-	return t.realize(ctx, device)
+	return t.realize(ctx, ev)
 }
 
 // Resize sets the runtime output shape. Rank must match the compiled graph.
@@ -175,27 +163,20 @@ func (t *Tensor) Resize(shape Shape) error {
 	return t.kernel.Resize(shape)
 }
 
-// Close drops a cached kernel and session. Leaf buffers stay.
+// Close drops a cached kernel. Leaf buffers stay.
 func (t *Tensor) Close() error {
 	if t == nil {
 		return nil
 	}
-	var err error
-	if t.session != nil {
-		err = t.session.Close()
-		t.session = nil
+	if t.kernel == nil {
+		return nil
 	}
-	if t.kernel != nil {
-		if e := t.kernel.Close(); err == nil {
-			err = e
-		}
-		t.kernel = nil
-	}
-	t.device = nil
+	err := t.kernel.Close()
+	t.kernel = nil
 	return err
 }
 
-func (t *Tensor) realize(ctx context.Context, device *vulkan.Device) error {
+func (t *Tensor) realize(ctx context.Context, ev Evaluator) error {
 	if err := t.err(); err != nil {
 		return err
 	}
@@ -203,7 +184,7 @@ func (t *Tensor) realize(ctx context.Context, device *vulkan.Device) error {
 		t.out = t.node.buf.data
 		return nil
 	}
-	if err := t.ensure(ctx, device); err != nil {
+	if err := t.ensure(); err != nil {
 		return err
 	}
 	inputs := make([][]float32, len(t.kernel.bufs))
@@ -213,55 +194,23 @@ func (t *Tensor) realize(ctx context.Context, device *vulkan.Device) error {
 		}
 		inputs[i] = b.data
 	}
-	if device == nil {
-		out, err := t.kernel.Eval(inputs...)
-		if err != nil {
-			return err
-		}
-		t.out = out
-		return nil
-	}
 	if cap(t.out) < t.kernel.size {
 		t.out = make([]float32, t.kernel.size)
 	} else {
 		t.out = t.out[:t.kernel.size]
 	}
-	return t.session.Run(ctx, t.out, inputs)
+	return ev.Run(ctx, t.kernel, t.out, inputs)
 }
 
-func (t *Tensor) ensure(ctx context.Context, device *vulkan.Device) error {
-	if t.kernel != nil && t.device == device {
-		if device != nil && t.session != nil {
-			return nil
-		}
-		if device == nil {
-			return nil
-		}
-	}
-	if t.kernel != nil && t.device != device {
-		if err := t.Close(); err != nil {
-			return err
-		}
-	}
-	if t.kernel == nil {
-		k, err := compile(t.node)
-		if err != nil {
-			return err
-		}
-		t.kernel = k
-	}
-	t.device = device
-	if device == nil {
+func (t *Tensor) ensure() error {
+	if t.kernel != nil {
 		return nil
 	}
-	if t.session != nil {
-		return nil
-	}
-	sess, err := t.kernel.Attach(ctx, device)
+	k, err := compile(t.node)
 	if err != nil {
 		return err
 	}
-	t.session = sess
+	t.kernel = k
 	return nil
 }
 

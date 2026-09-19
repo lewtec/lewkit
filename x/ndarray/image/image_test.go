@@ -18,6 +18,7 @@ import (
 
 func raster(t *testing.T, expr *ndarray.Tensor) *stdimage.RGBA {
 	t.Helper()
+	require.NoError(t, expr.Eval(t.Context(), ndarray.CPU))
 	pixels, err := expr.Data()
 	require.NoError(t, err)
 	shape := expr.Shape()
@@ -141,10 +142,11 @@ func TestTriangleExec(t *testing.T) {
 	test.CloseOnCleanup(t, d)
 	expr, err := Triangle(32, 32, nil)
 	require.NoError(t, err)
+	require.NoError(t, expr.Eval(t.Context(), ndarray.CPU))
 	cpu, err := expr.Data()
 	require.NoError(t, err)
 	cpu = append([]float32(nil), cpu...)
-	require.NoError(t, expr.Exec(t.Context(), d))
+	require.NoError(t, expr.Eval(t.Context(), &ndarray.Vulkan{Device: d}))
 	gpu, err := expr.Data()
 	require.NoError(t, err)
 	require.Equal(t, cpu, gpu)

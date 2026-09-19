@@ -17,6 +17,7 @@ func mustTracker(t *testing.T, shape Shape) Tracker {
 
 func mustEval(t *testing.T, x *Tensor) []float32 {
 	t.Helper()
+	require.NoError(t, x.Eval(t.Context(), CPU))
 	got, err := x.Data()
 	require.NoError(t, err)
 	return got
@@ -80,7 +81,7 @@ func TestCompileShapeMismatch(t *testing.T) {
 	require.NoError(t, err)
 	b, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
-	require.ErrorIs(t, a.Add(b).Eval(), ErrShape)
+	require.ErrorIs(t, a.Add(b).Eval(t.Context(), CPU), ErrShape)
 }
 
 func TestCompileGLSL(t *testing.T) {

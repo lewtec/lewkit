@@ -5,20 +5,19 @@ import (
 	"errors"
 	stdimage "image"
 
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
 // Painter draws Triangle by resizing a Tensor. The kernel is compiled once.
 type Painter struct {
-	device   *vulkan.Device
+	eval     ndarray.Evaluator
 	triangle *ndarray.Tensor
 	turn     *ndarray.Tensor
 	width    *ndarray.Tensor
 	height   *ndarray.Tensor
 }
 
-// New compiles TriangleDynamic once and attaches a reusable session.
+// New compiles TriangleDynamic once. Open picks Vulkan if it can, else CPU.
 func New(ctx context.Context) (*Painter, error) {
 	turn, err := ndarray.New([]float32{0}, nil)
 	if err != nil {
@@ -36,8 +35,11 @@ func New(ctx context.Context) (*Painter, error) {
 	if err != nil {
 		return nil, err
 	}
-	device, _ := vulkan.Open(ctx)
-	return &Painter{device: device, triangle: triangle, turn: turn, width: width, height: height}, nil
+	eval, err := ndarray.Open(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Painter{eval: eval, triangle: triangle, turn: turn, width: width, height: height}, nil
 }
 
 // Draw renders one frame into dst.
@@ -61,13 +63,7 @@ func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) er
 	if err := p.triangle.Resize(ndarray.Shape{h, w, 4}); err != nil {
 		return err
 	}
-	var err error
-	if p.device != nil {
-		err = p.triangle.Exec(ctx, p.device)
-	} else {
-		err = p.triangle.Eval()
-	}
-	if err != nil {
+	if err := p.triangle.Eval(ctx, p.eval); err != nil {
 		return err
 	}
 	pixels, err := p.triangle.Data()
@@ -88,9 +84,9 @@ func (p *Painter) Close() error {
 		err = p.triangle.Close()
 		p.triangle = nil
 	}
-	if p.device != nil {
-		err = errors.Join(err, p.device.Close())
-		p.device = nil
+	if p.eval != nil {
+		err = errors.Join(err, p.eval.Close())
+		p.eval = nil
 	}
 	return err
 }
