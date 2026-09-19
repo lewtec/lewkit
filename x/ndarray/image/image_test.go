@@ -19,7 +19,7 @@ func TestFill(t *testing.T) {
 }
 
 func TestWrite(t *testing.T) {
-	pixels := []float32{255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 0, 0, 0, 255}
+	pixels := []uint8{255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 0, 0, 0, 255}
 	dst := RGBA(2, 2, pixels)
 	assert.Equal(t, color.RGBA{255, 0, 0, 255}, dst.RGBAAt(0, 0))
 	assert.Equal(t, color.RGBA{0, 255, 0, 255}, dst.RGBAAt(1, 0))

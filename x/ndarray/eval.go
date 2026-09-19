@@ -9,9 +9,9 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
-// Evaluator binds a tensor to backend code (CPU tape, GPU session).
+// Evaluator binds a kernel to backend code (CPU tape, GPU session).
 type Evaluator interface {
-	Program(ctx context.Context, tensor *Tensor) (Program, error)
+	Program(ctx context.Context, kernel *Kernel) (Program, error)
 	Close() error
 }
 
@@ -24,12 +24,11 @@ type Program interface {
 
 type cpuEvaluator struct {
 	mu    sync.Mutex
-	bound map[*Tensor]*cpuExec
+	bound map[*Kernel]*cpuExec
 }
 
 type cpuExec struct {
 	parent *cpuEvaluator
-	tensor *Tensor
 	kernel *Kernel
 	tape   cpuProgram
 }
@@ -38,35 +37,32 @@ type cpuExec struct {
 var CPU Evaluator = newCPUEvaluator()
 
 func newCPUEvaluator() *cpuEvaluator {
-	return &cpuEvaluator{bound: make(map[*Tensor]*cpuExec)}
+	return &cpuEvaluator{bound: make(map[*Kernel]*cpuExec)}
 }
 
-func (c *cpuEvaluator) Program(_ context.Context, tensor *Tensor) (Program, error) {
-	if c == nil || tensor == nil || tensor.kernel == nil {
+func (c *cpuEvaluator) Program(_ context.Context, kernel *Kernel) (Program, error) {
+	if c == nil || kernel == nil {
 		return nil, ErrOp
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if e, ok := c.bound[tensor]; ok && e.kernel == tensor.kernel {
+	if e, ok := c.bound[kernel]; ok {
 		return e, nil
 	}
-	if old := c.bound[tensor]; old != nil {
-		delete(c.bound, tensor)
-	}
-	tape, err := lowerCPU(tensor.kernel.order, tensor.kernel.bufs, tensor.kernel.built)
+	tape, err := lowerCPU(kernel.order, kernel.bufs, kernel.built)
 	if err != nil {
 		return nil, err
 	}
-	e := &cpuExec{parent: c, tensor: tensor, kernel: tensor.kernel, tape: tape}
-	c.bound[tensor] = e
+	e := &cpuExec{parent: c, kernel: kernel, tape: tape}
+	c.bound[kernel] = e
 	return e, nil
 }
 
 func (e *cpuExec) Eval(_ context.Context, output []float32) error {
-	if e == nil || e.tensor == nil || e.tensor.kernel == nil {
+	if e == nil || e.kernel == nil {
 		return ErrOp
 	}
-	k := e.tensor.kernel
+	k := e.kernel
 	if len(output) < k.size {
 		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.size)
 	}
@@ -82,8 +78,8 @@ func (e *cpuExec) Close() error {
 		return nil
 	}
 	e.parent.mu.Lock()
-	if e.parent.bound[e.tensor] == e {
-		delete(e.parent.bound, e.tensor)
+	if e.parent.bound[e.kernel] == e {
+		delete(e.parent.bound, e.kernel)
 	}
 	e.parent.mu.Unlock()
 	return nil
@@ -94,7 +90,7 @@ func (c *cpuEvaluator) Close() error {
 		return nil
 	}
 	c.mu.Lock()
-	c.bound = make(map[*Tensor]*cpuExec)
+	c.bound = make(map[*Kernel]*cpuExec)
 	c.mu.Unlock()
 	return nil
 }

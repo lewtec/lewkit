@@ -1,11 +1,12 @@
 // Package ndarray maps n-d views onto a flat buffer and fuses a graph of
 // 21 ALU ops into one kernel.
 //
-// [Tensor] is the brick. It holds a lazy op tree. Leaves own a host buffer;
-// [Tensor.Reshape], [Tensor.Permute], and the other view ops share that
-// buffer. ALU ops return a new Tensor. [Tensor.Eval] flattens the tree to
-// a [Kernel] (graph descriptor) and [Evaluator.Program] returns backend
-// code to [Program.Eval]. CPU holds a tape; Vulkan holds a session.
+// [Tensor] is the brick, parameterized by element type. It holds a lazy
+// op tree. Leaves own a host buffer; [Tensor.Reshape], [Tensor.Permute],
+// and the other view ops share that buffer. ALU ops return a new Tensor.
+// [Cast] and [Where] are package functions. [Tensor.Eval] flattens the
+// tree to a [Kernel] (graph descriptor) and [Evaluator.Program] returns
+// backend code to [Program.Eval]. CPU holds a tape; Vulkan holds a session.
 // Pipelines live in
 // [github.com/lewtec/lewkit/x/driver/ndeval].
 //

@@ -39,7 +39,7 @@ type gpuEvaluator struct {
 	device   vulkan.Device
 	own      bool
 	mu       sync.Mutex
-	sessions map[*ndarray.Tensor]*session
+	sessions map[*ndarray.Kernel]*session
 }
 
 func (g *gpuEvaluator) Name() string {
@@ -56,24 +56,23 @@ func (g *gpuEvaluator) native() *ffivulkan.Device {
 	return g.device.Native()
 }
 
-func (g *gpuEvaluator) Program(ctx context.Context, tensor *ndarray.Tensor) (ndarray.Program, error) {
-	if tensor == nil {
+func (g *gpuEvaluator) Program(ctx context.Context, kernel *ndarray.Kernel) (ndarray.Program, error) {
+	if kernel == nil {
 		return nil, ndarray.ErrOp
 	}
-	return g.session(ctx, tensor)
+	return g.session(ctx, kernel)
 }
 
-func (g *gpuEvaluator) session(ctx context.Context, tensor *ndarray.Tensor) (*session, error) {
+func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*session, error) {
 	native := g.native()
-	kernel := tensor.Kernel()
 	if native == nil || kernel == nil {
 		return nil, ndarray.ErrOp
 	}
 	g.mu.Lock()
 	if g.sessions == nil {
-		g.sessions = make(map[*ndarray.Tensor]*session)
+		g.sessions = make(map[*ndarray.Kernel]*session)
 	}
-	s := g.sessions[tensor]
+	s := g.sessions[kernel]
 	if s != nil && s.kernel == kernel {
 		g.mu.Unlock()
 		return s, nil
@@ -84,17 +83,20 @@ func (g *gpuEvaluator) session(ctx context.Context, tensor *ndarray.Tensor) (*se
 		return nil, err
 	}
 	g.mu.Lock()
-	if existing := g.sessions[tensor]; existing != nil && existing.kernel == kernel {
+	if existing := g.sessions[kernel]; existing != nil && existing.kernel == kernel {
 		g.mu.Unlock()
 		if err := s.Close(); err != nil {
 			return nil, err
 		}
 		return existing, nil
 	}
-	if old := g.sessions[tensor]; old != nil {
-		_ = old.Close()
+	if old := g.sessions[kernel]; old != nil {
+		if err := old.Close(); err != nil {
+			g.mu.Unlock()
+			return nil, errors.Join(err, s.Close())
+		}
 	}
-	g.sessions[tensor] = s
+	g.sessions[kernel] = s
 	g.mu.Unlock()
 	slog.Debug("ndeval vulkan session", "device", native.Name())
 	return s, nil

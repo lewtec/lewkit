@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func raster(t *testing.T, expr *ndarray.Tensor) *stdimage.RGBA {
+func raster(t *testing.T, expr *ndarray.Tensor[float32]) *stdimage.RGBA {
 	t.Helper()
 	dst, err := ndimage.Raster(t.Context(), expr, ndarray.CPU)
 	require.NoError(t, err)

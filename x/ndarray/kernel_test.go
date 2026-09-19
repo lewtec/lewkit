@@ -15,9 +15,9 @@ func mustTracker(t *testing.T, shape Shape) Tracker {
 	return tracker
 }
 
-func mustEval(t *testing.T, x *Tensor) []float32 {
+func mustEval[T Number](t *testing.T, x *Tensor[T]) []T {
 	t.Helper()
-	dst := make([]float32, x.Size())
+	dst := make([]T, x.Size())
 	require.NoError(t, x.Eval(t.Context(), CPU, dst))
 	return dst
 }
@@ -49,7 +49,7 @@ func TestCPUEvalAlone(t *testing.T) {
 func TestCastU8(t *testing.T) {
 	a, err := New([]float32{-1, 0, 10.4, 255, 300}, Shape{5})
 	require.NoError(t, err)
-	require.Equal(t, []float32{0, 0, 10, 255, 255}, mustEval(t, a.Cast(U8)))
+	require.Equal(t, []uint8{0, 0, 10, 255, 255}, mustEval(t, Cast[uint8](a)))
 }
 
 func TestEvalAdd(t *testing.T) {
@@ -87,7 +87,7 @@ func TestEvalRelu(t *testing.T) {
 func TestEvalWhere(t *testing.T) {
 	a, err := New([]float32{-1, 2, -3}, Shape{3})
 	require.NoError(t, err)
-	got := mustEval(t, a.CmpLt(Const(0)).Where(Const(0), a))
+	got := mustEval(t, Where(a.CmpLt(Const(0)), Const(0), a))
 	require.Equal(t, []float32{0, 2, 0}, got)
 }
 

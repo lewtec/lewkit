@@ -148,7 +148,7 @@ func castNode(a *node, dtype DType) *node {
 	return n
 }
 
-// Where is a if p != 0 else b. Call as Where(p, a, b) or p.Where(a, b).
+// Where is a if p != 0 else b. Call as Where(cond, a, b).
 func whereNode(p, a, b *node) *node {
 	if p == nil || a == nil || b == nil {
 		return failed(ErrOp)

@@ -7,7 +7,7 @@ import (
 )
 
 // Linear is y = W x + b. W is (out, in), x is (in,), b is (out,).
-func Linear(w, x, b *ndarray.Tensor) (*ndarray.Tensor, error) {
+func Linear(w, x, b *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
 	if w == nil || x == nil || b == nil {
 		return nil, ndarray.ErrOp
 	}
@@ -22,7 +22,7 @@ func Linear(w, x, b *ndarray.Tensor) (*ndarray.Tensor, error) {
 	if in == 0 {
 		return b, nil
 	}
-	var acc *ndarray.Tensor
+	var acc *ndarray.Tensor[float32]
 	for j := range in {
 		col, err := w.Shrink([][2]int{{0, out}, {j, j + 1}})
 		if err != nil {

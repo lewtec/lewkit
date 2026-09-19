@@ -17,7 +17,7 @@ const (
 	triCX, triCY = -0.5, 1.0 / 3.0
 )
 
-func triangleAt(h, w int, turn *ndarray.Tensor) (*ndarray.Tensor, error) {
+func triangleAt(h, w int, turn *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
 	if h < 1 || w < 1 {
 		return nil, ndarray.ErrShape
 	}
@@ -27,12 +27,12 @@ func triangleAt(h, w int, turn *ndarray.Tensor) (*ndarray.Tensor, error) {
 	return triangle(turn, ndarray.Const(float32(w)), ndarray.Const(float32(h)), ndarray.Shape{h, w, 4})
 }
 
-func triangleDynamic(turn, width, height *ndarray.Tensor) (*ndarray.Tensor, error) {
+func triangleDynamic(turn, width, height *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
 	return triangle(turn, width, height, ndarray.Shape{1, 1, 4})
 }
 
-func requireFloatSplat(n *ndarray.Tensor, name string) error {
-	if n == nil || n.DType() != ndarray.F32 {
+func requireFloatSplat(n *ndarray.Tensor[float32], name string) error {
+	if n == nil {
 		return ndarray.ErrType
 	}
 	if shape := n.Shape(); len(shape) != 0 {
@@ -41,11 +41,11 @@ func requireFloatSplat(n *ndarray.Tensor, name string) error {
 	return nil
 }
 
-func minFloat(a, b *ndarray.Tensor) *ndarray.Tensor {
-	return a.CmpLt(b).Where(a, b)
+func minFloat(a, b *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
+	return ndarray.Where(a.CmpLt(b), a, b)
 }
 
-func triangle(turn, width, height *ndarray.Tensor, shape ndarray.Shape) (*ndarray.Tensor, error) {
+func triangle(turn, width, height *ndarray.Tensor[float32], shape ndarray.Shape) (*ndarray.Tensor[float32], error) {
 	if err := requireFloatSplat(turn, "turn"); err != nil {
 		return nil, err
 	}
@@ -55,8 +55,8 @@ func triangle(turn, width, height *ndarray.Tensor, shape ndarray.Shape) (*ndarra
 	if err := requireFloatSplat(height, "height"); err != nil {
 		return nil, err
 	}
-	px := ndarray.Coord(1, shape).Cast(ndarray.F32).Add(ndarray.Const(0.5))
-	py := ndarray.Coord(0, shape).Cast(ndarray.F32).Add(ndarray.Const(0.5))
+	px := ndarray.Cast[float32](ndarray.Coord(1, shape)).Add(ndarray.Const(0.5))
+	py := ndarray.Cast[float32](ndarray.Coord(0, shape)).Add(ndarray.Const(0.5))
 	tau := turn.Mul(ndarray.Const(2 * math.Pi))
 	sine := tau.Sin()
 	cosine := tau.Add(ndarray.Const(math.Pi / 2)).Sin()
@@ -73,10 +73,10 @@ func triangle(turn, width, height *ndarray.Tensor, shape ndarray.Shape) (*ndarra
 	weight := ndarray.Const(1).Add(u.Neg()).Add(v.Neg())
 	inside := u.GreaterEqual(ndarray.Const(0)).And(v.GreaterEqual(ndarray.Const(0))).And(weight.GreaterEqual(ndarray.Const(0)))
 	channel := ndarray.Coord(2, shape)
-	rgb := channel.Equal(ndarray.ConstInt(0)).Where(u.Mul(ndarray.Const(255)),
-		channel.Equal(ndarray.ConstInt(1)).Where(v.Mul(ndarray.Const(255)),
-			channel.Equal(ndarray.ConstInt(2)).Where(weight.Mul(ndarray.Const(255)), ndarray.Const(255))))
-	out := inside.Where(rgb, channel.Equal(ndarray.ConstInt(3)).Where(ndarray.Const(255), ndarray.Const(0)))
+	rgb := ndarray.Where(channel.Equal(ndarray.ConstInt(0)), u.Mul(ndarray.Const(255)),
+		ndarray.Where(channel.Equal(ndarray.ConstInt(1)), v.Mul(ndarray.Const(255)),
+			ndarray.Where(channel.Equal(ndarray.ConstInt(2)), weight.Mul(ndarray.Const(255)), ndarray.Const(255))))
+	out := ndarray.Where(inside, rgb, ndarray.Where(channel.Equal(ndarray.ConstInt(3)), ndarray.Const(255), ndarray.Const(0)))
 	if out.Shape() == nil {
 		return nil, ndarray.ErrOp
 	}
@@ -84,10 +84,10 @@ func triangle(turn, width, height *ndarray.Tensor, shape ndarray.Shape) (*ndarra
 }
 
 type triangleFrame struct {
-	sine, cosine, scale, originX, originY *ndarray.Tensor
+	sine, cosine, scale, originX, originY *ndarray.Tensor[float32]
 }
 
-func (f triangleFrame) rotate(x, y float32) (px, py *ndarray.Tensor) {
+func (f triangleFrame) rotate(x, y float32) (px, py *ndarray.Tensor[float32]) {
 	px = ndarray.Const(x).Mul(f.cosine).Add(ndarray.Const(y).Mul(f.sine).Neg()).Mul(f.scale).Add(f.originX)
 	py = ndarray.Const(x).Mul(f.sine).Add(ndarray.Const(y).Mul(f.cosine)).Mul(f.scale).Add(f.originY)
 	return px, py
@@ -95,11 +95,11 @@ func (f triangleFrame) rotate(x, y float32) (px, py *ndarray.Tensor) {
 
 type trianglePainter struct {
 	evaluator   ndarray.Evaluator
-	triangle    *ndarray.Tensor
-	turn        *ndarray.Tensor
-	width       *ndarray.Tensor
-	height      *ndarray.Tensor
-	buffer      []float32
+	triangle    *ndarray.Tensor[uint8]
+	turn        *ndarray.Tensor[float32]
+	width       *ndarray.Tensor[float32]
+	height      *ndarray.Tensor[float32]
+	buffer      []uint8
 	frameHeight int
 	frameWidth  int
 }
@@ -121,14 +121,14 @@ func newTrianglePainter(ctx context.Context) (*trianglePainter, error) {
 	if err != nil {
 		return nil, err
 	}
-	tri = tri.Cast(ndarray.U8)
+	pixels := ndarray.Cast[uint8](tri)
 	evaluator, err := ndarray.Open(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &trianglePainter{
 		evaluator: evaluator,
-		triangle:  tri,
+		triangle:  pixels,
 		turn:      turn,
 		width:     width,
 		height:    height,
@@ -160,7 +160,7 @@ func (p *trianglePainter) Draw(ctx context.Context, destination *stdimage.RGBA, 
 	}
 	size := frameHeight * frameWidth * 4
 	if cap(p.buffer) < size {
-		p.buffer = make([]float32, size)
+		p.buffer = make([]uint8, size)
 	} else {
 		p.buffer = p.buffer[:size]
 	}

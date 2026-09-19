@@ -50,7 +50,7 @@ func TestRandInt(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, I32, x.DType())
 	got := mustEval(t, x)
-	require.Equal(t, []float32{1, 2}, got)
+	require.Equal(t, []int32{1, 2}, got)
 }
 
 func TestNew(t *testing.T) {

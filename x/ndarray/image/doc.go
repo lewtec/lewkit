@@ -1,6 +1,6 @@
 // Package image packs ndarray pictures into image.RGBA.
 //
-// Pixels are shape (h, w, 4) float32 RGBA in 0..255. [Fill] builds a
-// constant tensor. [Eval] runs a tensor into an image.RGBA; [Write]
-// packs a float buffer.
+// Pixels are shape (h, w, 4) RGBA in 0..255. [Fill] builds a float32
+// tensor. [Eval] casts to uint8 and runs into an image.RGBA; [Write]
+// copies a uint8 buffer.
 package image
