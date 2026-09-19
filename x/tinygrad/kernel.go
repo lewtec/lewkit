@@ -1,0 +1,338 @@
+package tinygrad
+
+import (
+	"fmt"
+	"math"
+	"slices"
+	"strconv"
+	"strings"
+)
+
+const localSize = 256
+
+// Kernel is one fused compute shader for a whole expression.
+type Kernel struct {
+	root  *Node
+	glsl  string
+	shape []int
+	slots []int
+	outDT DType
+	n     int
+	spirv []byte
+}
+
+// Compile lowers expr to one GLSL compute kernel. One dispatch covers every cell.
+func Compile(expr *Node) (*Kernel, error) {
+	if expr == nil {
+		return nil, ErrOp
+	}
+	if expr.err != nil {
+		return nil, expr.err
+	}
+	shape := expr.Shape()
+	if shape == nil {
+		return nil, fmt.Errorf("%w: constant kernel", ErrShape)
+	}
+	n := prod(shape)
+	if n < 0 {
+		return nil, ErrShape
+	}
+	order, slots, err := flatten(expr)
+	if err != nil {
+		return nil, err
+	}
+	w := &glslW{
+		root:     expr,
+		order:    order,
+		slots:    slots,
+		outShape: shape,
+		slotBind: make(map[int]int, len(slots)),
+		ssa:      make(map[*Node]string, len(order)),
+	}
+	src, err := w.program()
+	if err != nil {
+		return nil, err
+	}
+	return &Kernel{root: expr, glsl: src, shape: slices.Clone(shape), slots: slots, outDT: expr.dt, n: n}, nil
+}
+
+// GLSL is the compute shader source.
+func (k *Kernel) GLSL() string {
+	if k == nil {
+		return ""
+	}
+	return k.glsl
+}
+
+// Shape is the logical output shape.
+func (k *Kernel) Shape() []int {
+	if k == nil {
+		return nil
+	}
+	return slices.Clone(k.shape)
+}
+
+// Bindings is 1 (output) plus the input buffer count.
+func (k *Kernel) Bindings() int {
+	if k == nil {
+		return 0
+	}
+	return 1 + len(k.slots)
+}
+
+// Slots is the input slot for each source buffer after the output binding.
+func (k *Kernel) Slots() []int {
+	if k == nil {
+		return nil
+	}
+	return slices.Clone(k.slots)
+}
+
+func flatten(root *Node) ([]*Node, []int, error) {
+	seen := map[*Node]bool{}
+	var order []*Node
+	slotSet := map[int]bool{}
+	var walk func(*Node) error
+	walk = func(n *Node) error {
+		if n == nil {
+			return ErrOp
+		}
+		if n.err != nil {
+			return n.err
+		}
+		if seen[n] {
+			return nil
+		}
+		seen[n] = true
+		switch n.kind {
+		case kindConst:
+		case kindIn:
+			if n.slot < 0 {
+				return ErrOp
+			}
+			slotSet[n.slot] = true
+		case kindOp:
+			if n.op.arity() != len(n.srcs) {
+				return fmt.Errorf("%w: %s", ErrOp, n.op)
+			}
+			for _, s := range n.srcs {
+				if err := walk(s); err != nil {
+					return err
+				}
+			}
+		default:
+			return ErrOp
+		}
+		order = append(order, n)
+		return nil
+	}
+	if err := walk(root); err != nil {
+		return nil, nil, err
+	}
+	slots := make([]int, 0, len(slotSet))
+	for s := range slotSet {
+		slots = append(slots, s)
+	}
+	slices.Sort(slots)
+	return order, slots, nil
+}
+
+type glslW struct {
+	b        strings.Builder
+	tmp      int
+	coords   []string
+	outShape []int
+	slotBind map[int]int
+	ssa      map[*Node]string
+	root     *Node
+	order    []*Node
+	slots    []int
+}
+
+func (w *glslW) program() (string, error) {
+	for i, s := range w.slots {
+		w.slotBind[s] = i + 1
+	}
+	w.b.WriteString("#version 450\n")
+	w.b.WriteString("layout(local_size_x = ")
+	w.b.WriteString(strconv.Itoa(localSize))
+	w.b.WriteString(") in;\n")
+	w.b.WriteString("layout(push_constant) uniform Push { uint n; };\n")
+	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dt.glsl())
+	for i, s := range w.slots {
+		dt := F32
+		for _, n := range w.order {
+			if n.kind == kindIn && n.slot == s {
+				dt = n.dt
+				break
+			}
+		}
+		fmt.Fprintf(&w.b, "layout(set = 0, binding = %d) buffer In%d { %s x%d[]; };\n", i+1, i+1, dt.glsl(), i+1)
+	}
+	w.b.WriteString("void main() {\n")
+	w.b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
+	w.b.WriteString("    if (gi >= n) return;\n")
+	w.b.WriteString("    int i = int(gi);\n")
+	w.coords = w.unravel(w.outShape, "i")
+	for _, n := range w.order {
+		name, err := w.node(n)
+		if err != nil {
+			return "", err
+		}
+		w.ssa[n] = name
+	}
+	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", w.ssa[w.root])
+	return w.b.String(), nil
+}
+
+func (w *glslW) name(prefix string) string {
+	w.tmp++
+	return prefix + strconv.Itoa(w.tmp)
+}
+
+func (w *glslW) node(n *Node) (string, error) {
+	id := w.name("t")
+	switch n.kind {
+	case kindConst:
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dt.glsl(), id, glslConst(n))
+		return id, nil
+	case kindIn:
+		off, valid := w.index(n.st)
+		zero := "0.0"
+		if n.dt == I32 {
+			zero = "0"
+		}
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dt.glsl(), id, zero)
+		fmt.Fprintf(&w.b, "    if (%s) %s = x%d[%s];\n", valid, id, w.slotBind[n.slot], off)
+		return id, nil
+	case kindOp:
+		args := make([]string, len(n.srcs))
+		for i, s := range n.srcs {
+			args[i] = w.ssa[s]
+		}
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dt.glsl(), id, n.glslALU(args))
+		return id, nil
+	default:
+		return "", ErrOp
+	}
+}
+
+func (w *glslW) index(st Tracker) (off, valid string) {
+	if st.Contiguous() && slices.Equal(st.Shape(), w.outShape) {
+		return "i", "true"
+	}
+	off, valid = w.view(st.views[len(st.views)-1], w.coords)
+	for i := len(st.views) - 2; i >= 0; i-- {
+		v := st.views[i]
+		coords := w.unravel(v.shape, off)
+		off2, val2 := w.view(v, coords)
+		both := w.name("ok")
+		fmt.Fprintf(&w.b, "    bool %s = (%s) && (%s);\n", both, valid, val2)
+		off, valid = off2, both
+	}
+	return off, valid
+}
+
+func (w *glslW) view(v view, coords []string) (off, valid string) {
+	off = w.name("p")
+	fmt.Fprintf(&w.b, "    int %s = %d;\n", off, v.offset)
+	for i, c := range coords {
+		if v.strides[i] == 0 {
+			continue
+		}
+		fmt.Fprintf(&w.b, "    %s += %s * (%d);\n", off, c, v.strides[i])
+	}
+	valid = "true"
+	if v.mask != nil {
+		valid = w.name("m")
+		fmt.Fprintf(&w.b, "    bool %s = true;\n", valid)
+		for i, c := range coords {
+			fmt.Fprintf(&w.b, "    %s = %s && %s >= %d && %s < %d;\n", valid, valid, c, v.mask[i][0], c, v.mask[i][1])
+		}
+	}
+	return off, valid
+}
+
+func (w *glslW) unravel(shape []int, idx string) []string {
+	if len(shape) == 0 {
+		return nil
+	}
+	coords := make([]string, len(shape))
+	rem := idx
+	for d := len(shape) - 1; d >= 0; d-- {
+		s := shape[d]
+		if s <= 1 {
+			coords[d] = "0"
+			continue
+		}
+		c := w.name("c")
+		fmt.Fprintf(&w.b, "    int %s = (%s) %% %d;\n", c, rem, s)
+		coords[d] = c
+		if d > 0 {
+			nxt := w.name("u")
+			fmt.Fprintf(&w.b, "    int %s = (%s) / %d;\n", nxt, rem, s)
+			rem = nxt
+		}
+	}
+	return coords
+}
+
+func glslConst(n *Node) string {
+	if n.dt == I32 {
+		return strconv.FormatInt(int64(int32(n.bits)), 10)
+	}
+	s := strconv.FormatFloat(float64(math.Float32frombits(n.bits)), 'g', -1, 32)
+	if !strings.ContainsAny(s, ".eE") {
+		s += ".0"
+	}
+	return s
+}
+
+func (n *Node) glslALU(args []string) string {
+	switch n.op {
+	case EXP2:
+		return "exp2(" + args[0] + ")"
+	case LOG2:
+		return "log2(" + args[0] + ")"
+	case SIN:
+		return "sin(" + args[0] + ")"
+	case SQRT:
+		return "sqrt(" + args[0] + ")"
+	case RECIP:
+		return "(1.0/" + args[0] + ")"
+	case NEG:
+		return "(-" + args[0] + ")"
+	case CAST:
+		return n.dt.glsl() + "(" + args[0] + ")"
+	case ADD:
+		return "(" + args[0] + "+" + args[1] + ")"
+	case MUL:
+		return "(" + args[0] + "*" + args[1] + ")"
+	case IDIV:
+		return "(" + args[0] + "/" + args[1] + ")"
+	case MAX:
+		return "max(" + args[0] + "," + args[1] + ")"
+	case MOD:
+		return "(" + args[0] + "%" + args[1] + ")"
+	case CMPLT:
+		return "int(" + args[0] + "<" + args[1] + ")"
+	case CMPNE:
+		return "int(" + args[0] + "!=" + args[1] + ")"
+	case XOR:
+		return "(" + args[0] + "^" + args[1] + ")"
+	case SHL:
+		return "(" + args[0] + "<<" + args[1] + ")"
+	case SHR:
+		return "(" + args[0] + ">>" + args[1] + ")"
+	case OR:
+		return "(" + args[0] + "|" + args[1] + ")"
+	case AND:
+		return "(" + args[0] + "&" + args[1] + ")"
+	case WHERE:
+		return "((" + args[0] + "!=0)?" + args[1] + ":" + args[2] + ")"
+	case MULACC:
+		return "(" + args[0] + "*" + args[1] + "+" + args[2] + ")"
+	default:
+		return "0"
+	}
+}

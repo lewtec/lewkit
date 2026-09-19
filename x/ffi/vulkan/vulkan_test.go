@@ -167,7 +167,7 @@ func TestBeginBusy(t *testing.T) {
 	require.NoError(t, err)
 	_, err = d.Begin()
 	require.ErrorIs(t, err, ErrBusy)
-	require.NoError(t, c.abort())
+	require.NoError(t, c.Abort())
 }
 
 func TestCompilePushReject(t *testing.T) {

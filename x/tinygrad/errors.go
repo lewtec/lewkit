@@ -10,4 +10,6 @@ var (
 	ErrPad    = errors.New("invalid pad")
 	ErrShrink = errors.New("invalid shrink")
 	ErrIndex  = errors.New("index out of range")
+	ErrOp     = errors.New("invalid op")
+	ErrType   = errors.New("invalid dtype")
 )

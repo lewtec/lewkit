@@ -59,6 +59,31 @@ func (t Tracker) Contiguous() bool {
 	return len(t.views) == 1 && t.views[0].contiguous()
 }
 
+// RealSize is the host buffer length that covers every valid offset.
+func (t Tracker) RealSize() int {
+	if len(t.views) == 0 || hasZero(t.views[0].shape) {
+		return 0
+	}
+	v := t.views[0]
+	maxOff := v.offset
+	for i, s := range v.shape {
+		lo, hi := 0, s
+		if v.mask != nil {
+			lo, hi = v.mask[i][0], v.mask[i][1]
+		}
+		if hi <= lo {
+			return 0
+		}
+		st := v.strides[i]
+		a, b := lo*st, (hi-1)*st
+		if a > b {
+			a, b = b, a
+		}
+		maxOff += b
+	}
+	return max(0, maxOff+1)
+}
+
 // Index maps logical coords to a buffer offset. valid is false in padding.
 func (t Tracker) Index(coords ...int) (offset int, valid bool, err error) {
 	if err := t.check(); err != nil {

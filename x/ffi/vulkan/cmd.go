@@ -1,6 +1,7 @@
 package vulkan
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -284,8 +285,7 @@ func (d *Device) Copy(dst, src *Buffer) error {
 		return err
 	}
 	if err := c.Copy(dst, src); err != nil {
-		_ = c.abort()
-		return err
+		return errors.Join(err, c.Abort())
 	}
 	if err := c.Submit(); err != nil {
 		return err
@@ -293,14 +293,15 @@ func (d *Device) Copy(dst, src *Buffer) error {
 	return c.Wait()
 }
 
-func (c *Cmd) abort() error {
+// Abort drops a recording command buffer without submitting it.
+func (c *Cmd) Abort() error {
 	if c == nil || c.d == nil || !c.d.recording {
 		return nil
 	}
-	_ = check(c.d.api.endCommandBuffer(c.d.cmd))
+	err := check(c.d.api.endCommandBuffer(c.d.cmd))
 	c.d.recording = false
 	c.release()
-	return nil
+	return err
 }
 
 // Run binds buffers to set 0 and dispatches the shader.
@@ -310,12 +311,10 @@ func (d *Device) Run(s *Shader, groupsX, groupsY, groupsZ uint32, bufs ...*Buffe
 		return err
 	}
 	if err := c.Bind(s, bufs...); err != nil {
-		_ = c.abort()
-		return err
+		return errors.Join(err, c.Abort())
 	}
 	if err := c.Dispatch(groupsX, groupsY, groupsZ); err != nil {
-		_ = c.abort()
-		return err
+		return errors.Join(err, c.Abort())
 	}
 	if err := c.Submit(); err != nil {
 		return err
