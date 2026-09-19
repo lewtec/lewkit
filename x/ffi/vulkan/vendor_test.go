@@ -18,24 +18,10 @@ func TestVendorFrom(t *testing.T) {
 		{VendorIntel.Uint32(), "Intel(R) UHD Graphics", VendorIntel},
 	}
 	for _, tt := range tests {
-		got := vendorFrom(tt.vendorID, tt.name)
+		got := VendorFrom(tt.vendorID, tt.name)
 		if got != tt.want {
-			t.Errorf("vendorFrom(%#x, %q) = %s, want %s", tt.vendorID, tt.name, got, tt.want)
+			t.Errorf("VendorFrom(%#x, %q) = %s, want %s", tt.vendorID, tt.name, got, tt.want)
 		}
-	}
-}
-
-func TestParseVendor(t *testing.T) {
-	got, err := ParseVendor("nvidia")
-	if err != nil || got != VendorNVIDIA {
-		t.Fatalf("ParseVendor(nvidia) = %v, %v", got, err)
-	}
-	if got.Uint32() != 0x10de {
-		t.Fatalf("VendorNVIDIA.Uint32() = %#x", got.Uint32())
-	}
-	_, err = ParseVendor("nouveau")
-	if err == nil {
-		t.Fatal("ParseVendor(nouveau) succeeded")
 	}
 }
 

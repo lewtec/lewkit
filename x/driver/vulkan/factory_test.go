@@ -57,10 +57,7 @@ func TestVendorArg(t *testing.T) {
 	got, err := cmd.Parse[args]("amd")
 	require.NoError(t, err)
 	require.Equal(t, VendorAMD, got.Vendor.Value())
-	parsed, err := ParseVendor("nvidia")
-	require.NoError(t, err)
-	require.Equal(t, VendorNVIDIA, parsed)
-	require.Equal(t, uint32(0x10de), parsed.Uint32())
-	_, err = ParseVendor("nouveau")
-	require.ErrorIs(t, err, ffivulkan.ErrVendor)
+	require.Equal(t, VendorNVIDIA, VendorFrom(0x10de, ""))
+	require.Equal(t, VendorApple, VendorFrom(0, "Apple M5"))
+	require.Equal(t, uint32(0x10de), VendorNVIDIA.Uint32())
 }

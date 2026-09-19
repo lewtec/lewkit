@@ -176,7 +176,7 @@ func (d *Device) computeDevices() ([]Info, error) {
 		info := Info{
 			Index:  len(out),
 			Name:   properties.name,
-			Vendor: vendorFrom(properties.vendorID, properties.name),
+			Vendor: VendorFrom(properties.vendorID, properties.name),
 			Type:   deviceTypeFrom(properties.deviceType, properties.name),
 		}
 		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name, "vendor", info.Vendor, "type", info.Type)
@@ -277,7 +277,7 @@ func (d *Device) try(phys uintptr) bool {
 	d.api.getMemoryProps(phys, &d.mem)
 	properties := d.physicalProperties(phys)
 	d.name = properties.name
-	d.vendor = vendorFrom(properties.vendorID, properties.name)
+	d.vendor = VendorFrom(properties.vendorID, properties.name)
 	d.deviceType = deviceTypeFrom(properties.deviceType, properties.name)
 	return true
 }

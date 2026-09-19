@@ -1,7 +1,6 @@
 package vulkan
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -21,17 +20,6 @@ const (
 
 // Uint32 is the PCI / Khronos vendor ID.
 func (v Vendor) Uint32() uint32 { return uint32(v) }
-
-// ParseVendor maps a String() token such as amd or nvidia.
-func ParseVendor(name string) (Vendor, error) {
-	var zero Vendor
-	for _, known := range zero.Values() {
-		if known.String() == name {
-			return known, nil
-		}
-	}
-	return VendorUnknown, fmt.Errorf("%w: %q", ErrVendor, name)
-}
 
 func (v Vendor) String() string {
 	switch v {
@@ -59,7 +47,8 @@ func (Vendor) Values() []Vendor {
 	return []Vendor{VendorUnknown, VendorAMD, VendorNVIDIA, VendorIntel, VendorARM, VendorQualcomm, VendorApple, VendorMesa}
 }
 
-func vendorFrom(vendorID uint32, name string) Vendor {
+// VendorFrom maps a PCI / Khronos vendor ID, falling back to the device name.
+func VendorFrom(vendorID uint32, name string) Vendor {
 	switch Vendor(vendorID) {
 	case VendorAMD, VendorNVIDIA, VendorIntel, VendorARM, VendorQualcomm, VendorApple, VendorMesa:
 		return Vendor(vendorID)

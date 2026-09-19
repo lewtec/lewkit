@@ -45,9 +45,9 @@ const (
 	VendorMesa     = ffivulkan.VendorMesa
 )
 
-// ParseVendor maps a String() token such as amd or nvidia.
-func ParseVendor(name string) (Vendor, error) {
-	return ffivulkan.ParseVendor(name)
+// VendorFrom maps a PCI / Khronos vendor ID, falling back to the device name.
+func VendorFrom(vendorID uint32, name string) Vendor {
+	return ffivulkan.VendorFrom(vendorID, name)
 }
 
 // Device is one compute-capable Vulkan GPU.
