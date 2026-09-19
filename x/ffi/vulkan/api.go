@@ -2,6 +2,7 @@ package vulkan
 
 import (
 	"fmt"
+	"os"
 	"runtime"
 	"unsafe"
 
@@ -353,10 +354,40 @@ func libNames() []string {
 	case "windows":
 		return []string{"vulkan-1.dll"}
 	case "darwin":
-		return []string{"libvulkan.1.dylib", "libvulkan.dylib"}
+		names := []string{"libvulkan.1.dylib", "libvulkan.dylib"}
+		// Homebrew and the LunarG SDK are not on dyld's default path.
+		for _, dir := range darwinLibDirs() {
+			names = append(names,
+				dir+"/libvulkan.1.dylib",
+				dir+"/libvulkan.dylib",
+				dir+"/libMoltenVK.dylib",
+			)
+		}
+		return names
 	default:
 		return []string{"libvulkan.so.1", "libvulkan.so"}
 	}
+}
+
+func darwinLibDirs() []string {
+	var dirs []string
+	seen := map[string]bool{}
+	add := func(d string) {
+		if d == "" || seen[d] {
+			return
+		}
+		seen[d] = true
+		dirs = append(dirs, d)
+	}
+	if p := os.Getenv("HOMEBREW_PREFIX"); p != "" {
+		add(p + "/lib")
+	}
+	if sdk := os.Getenv("VULKAN_SDK"); sdk != "" {
+		add(sdk + "/lib")
+	}
+	add("/opt/homebrew/lib")
+	add("/usr/local/lib")
+	return dirs
 }
 
 func openLib() (uintptr, error) {
