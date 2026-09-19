@@ -165,6 +165,7 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		openErr = out.create(cfg.Title, w, h)
 		if openErr == nil {
 			if width, height := out.clientSize(); width > 0 && height > 0 {
+				out.wantWidth, out.wantHeight = width, height
 				_ = out.Buffer.Resize(image.Pt(width, height))
 			}
 		}
@@ -192,6 +193,8 @@ type win struct {
 	surfaceHeight  int
 	surfaceStride  int
 	stale          []objc.ID
+	wantWidth      int
+	wantHeight     int
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -218,6 +221,16 @@ func (w *win) create(title string, width, height int) error {
 	return nil
 }
 
+func (w *win) Frame() *image.RGBA {
+	w.mu.Lock()
+	want := image.Pt(w.wantWidth, w.wantHeight)
+	w.mu.Unlock()
+	if want.X > 0 && want.Y > 0 {
+		_, _ = w.Buffer.EnsureSize(want)
+	}
+	return w.Buffer.Frame()
+}
+
 func (w *win) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
@@ -240,6 +253,9 @@ func (w *win) Draw() error {
 	}
 	copied := false
 	w.WithFront(func(src *image.RGBA) {
+		if src.Rect.Dx() != width || src.Rect.Dy() != height || src.Stride != stride {
+			return
+		}
 		copied = copyIOSurface(surface, src)
 	})
 	if !copied {
@@ -251,6 +267,9 @@ func (w *win) Draw() error {
 }
 
 func (w *win) Resize(size image.Point) error {
+	w.mu.Lock()
+	w.wantWidth, w.wantHeight = size.X, size.Y
+	w.mu.Unlock()
 	if err := w.Buffer.Resize(size); err != nil {
 		return err
 	}
@@ -313,8 +332,15 @@ func (w *win) note() {
 		return
 	}
 	width, height := w.clientSize()
-	if width > 0 && height > 0 {
-		_ = w.Buffer.Resize(image.Pt(width, height))
+	if width < 1 || height < 1 {
+		return
+	}
+	w.mu.Lock()
+	changed := w.wantWidth != width || w.wantHeight != height
+	w.wantWidth, w.wantHeight = width, height
+	w.mu.Unlock()
+	if changed {
+		w.Emit(window.Resize{Size: image.Pt(width, height)})
 	}
 }
 

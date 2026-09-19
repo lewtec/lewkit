@@ -69,26 +69,34 @@ func (b *Buffer) WithFront(fn func(*image.RGBA)) {
 	fn(b.front)
 }
 
-// Resize replaces both pages. Overlapping pixels are copied.
+// Resize replaces both pages and emits Resize. Overlapping pixels are copied.
 func (b *Buffer) Resize(size image.Point) error {
+	changed, err := b.EnsureSize(size)
+	if err != nil {
+		return err
+	}
+	if changed {
+		b.bus.Publish(Resize{Size: size})
+	}
+	return nil
+}
+
+// EnsureSize replaces both pages if needed. It does not emit Resize.
+func (b *Buffer) EnsureSize(size image.Point) (bool, error) {
 	if size.X <= 0 || size.Y <= 0 {
-		return ErrSize
+		return false, ErrSize
 	}
 	b.mu.Lock()
+	defer b.mu.Unlock()
 	if b.closed {
-		b.mu.Unlock()
-		return ErrClosed
+		return false, ErrClosed
 	}
-	old := b.back.Rect.Size()
-	if old == size {
-		b.mu.Unlock()
-		return nil
+	if b.back.Rect.Size() == size {
+		return false, nil
 	}
 	b.back = resizeRGBA(b.back, size.X, size.Y)
 	b.front = resizeRGBA(b.front, size.X, size.Y)
-	b.mu.Unlock()
-	b.bus.Publish(Resize{Size: size})
-	return nil
+	return true, nil
 }
 
 // Close marks the buffer closed. Further Resize returns [ErrClosed].
