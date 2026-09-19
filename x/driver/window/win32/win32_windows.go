@@ -107,7 +107,7 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		return nil, err
 	}
 	ready := make(chan error, 1)
-	out := &win{Buffer: window.NewBuffer(w, h), title: cfg.Title, cw: w, ch: h}
+	out := &win{Buffer: window.NewBuffer(w, h), title: cfg.Title, cw: w, ch: h, wantWidth: w, wantHeight: h}
 	go func() {
 		runtime.LockOSThread()
 		ready <- out.create()
@@ -126,10 +126,22 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 
 type win struct {
 	*window.Buffer
-	mu     sync.Mutex
-	hwnd   uintptr
-	title  string
-	cw, ch int
+	mu         sync.Mutex
+	hwnd       uintptr
+	title      string
+	cw, ch     int
+	wantWidth  int
+	wantHeight int
+}
+
+func (w *win) Frame() *image.RGBA {
+	w.mu.Lock()
+	want := image.Pt(w.wantWidth, w.wantHeight)
+	w.mu.Unlock()
+	if want.X > 0 && want.Y > 0 {
+		_, _ = w.Buffer.EnsureSize(want)
+	}
+	return w.Buffer.Frame()
 }
 
 func (w *win) create() error {
@@ -191,6 +203,9 @@ func (w *win) Draw() error {
 }
 
 func (w *win) Resize(size image.Point) error {
+	w.mu.Lock()
+	w.wantWidth, w.wantHeight = size.X, size.Y
+	w.mu.Unlock()
 	if err := w.Buffer.Resize(size); err != nil {
 		return err
 	}
@@ -226,13 +241,19 @@ func (w *win) blit() error {
 	if hwnd == 0 {
 		return window.ErrClosed
 	}
-	src := w.Front()
-	width, height := src.Rect.Dx(), src.Rect.Dy()
+	var width, height int
+	var bgra []byte
+	w.WithFront(func(src *image.RGBA) {
+		width, height = src.Rect.Dx(), src.Rect.Dy()
+		if width == 0 || height == 0 {
+			return
+		}
+		bgra = make([]byte, len(src.Pix))
+		window.ToBGRA(bgra, src)
+	})
 	if width == 0 || height == 0 {
 		return nil
 	}
-	bgra := make([]byte, len(src.Pix))
-	window.ToBGRA(bgra, src)
 	hdc, _, _ := procGetDC.Call(hwnd)
 	if hdc == 0 {
 		return fmt.Errorf("%w: dc", window.ErrPresent)
@@ -274,7 +295,7 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 			width := int(lparam & 0xFFFF)
 			height := int((lparam >> 16) & 0xFFFF)
 			if width > 0 && height > 0 {
-				_ = w.Buffer.Resize(image.Pt(width, height))
+				w.setWant(width, height)
 			}
 		}
 	case wmPaint:
@@ -289,4 +310,17 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 	}
 	r, _, _ := procDefWindowProcW.Call(hwnd, msg, wparam, lparam)
 	return r
+}
+
+func (w *win) setWant(width, height int) {
+	if width < 1 || height < 1 {
+		return
+	}
+	w.mu.Lock()
+	changed := w.wantWidth != width || w.wantHeight != height
+	w.wantWidth, w.wantHeight = width, height
+	w.mu.Unlock()
+	if changed {
+		w.Emit(window.Resize{Size: image.Pt(width, height)})
+	}
 }

@@ -79,12 +79,14 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	}
 
 	win := &xwin{
-		Buffer:   window.NewBuffer(w, h),
-		conn:     conn,
-		wid:      wid,
-		gc:       gc,
-		depth:    screen.RootDepth,
-		wmDelete: wmDelete,
+		Buffer:     window.NewBuffer(w, h),
+		conn:       conn,
+		wid:        wid,
+		gc:         gc,
+		depth:      screen.RootDepth,
+		wmDelete:   wmDelete,
+		wantWidth:  w,
+		wantHeight: h,
 	}
 	go win.loop()
 	if ctx != nil {
@@ -148,14 +150,26 @@ func setDeleteProtocol(conn *xgb.Conn, wid xproto.Window) (xproto.Atom, error) {
 
 type xwin struct {
 	*window.Buffer
-	mu       sync.Mutex
-	blit     sync.Mutex
-	conn     *xgb.Conn
-	wid      xproto.Window
-	gc       xproto.Gcontext
-	depth    byte
-	wmDelete xproto.Atom
-	bgra     []byte
+	mu         sync.Mutex
+	blit       sync.Mutex
+	conn       *xgb.Conn
+	wid        xproto.Window
+	gc         xproto.Gcontext
+	depth      byte
+	wmDelete   xproto.Atom
+	bgra       []byte
+	wantWidth  int
+	wantHeight int
+}
+
+func (w *xwin) Frame() *image.RGBA {
+	w.mu.Lock()
+	want := image.Pt(w.wantWidth, w.wantHeight)
+	w.mu.Unlock()
+	if want.X > 0 && want.Y > 0 {
+		_, _ = w.Buffer.EnsureSize(want)
+	}
+	return w.Buffer.Frame()
 }
 
 func (w *xwin) Draw() error {
@@ -166,6 +180,9 @@ func (w *xwin) Draw() error {
 }
 
 func (w *xwin) Resize(size image.Point) error {
+	w.mu.Lock()
+	w.wantWidth, w.wantHeight = size.X, size.Y
+	w.mu.Unlock()
 	if err := w.Buffer.Resize(size); err != nil {
 		return err
 	}
@@ -205,14 +222,16 @@ func (w *xwin) put() error {
 	}
 	w.blit.Lock()
 	defer w.blit.Unlock()
-	src := w.Front()
-	if cap(w.bgra) < len(src.Pix) {
-		w.bgra = make([]byte, len(src.Pix))
-	} else {
-		w.bgra = w.bgra[:len(src.Pix)]
-	}
-	window.ToBGRA(w.bgra, src)
-	width, height := src.Rect.Dx(), src.Rect.Dy()
+	var width, height int
+	w.WithFront(func(src *image.RGBA) {
+		width, height = src.Rect.Dx(), src.Rect.Dy()
+		if cap(w.bgra) < len(src.Pix) {
+			w.bgra = make([]byte, len(src.Pix))
+		} else {
+			w.bgra = w.bgra[:len(src.Pix)]
+		}
+		window.ToBGRA(w.bgra, src)
+	})
 	stride := width * 4
 	if stride == 0 || height == 0 {
 		return nil
@@ -257,12 +276,25 @@ func (w *xwin) loop() {
 				_ = w.put()
 			}
 		case xproto.ConfigureNotifyEvent:
-			_ = w.Buffer.Resize(image.Pt(int(e.Width), int(e.Height)))
+			w.setWant(int(e.Width), int(e.Height))
 		case xproto.ClientMessageEvent:
 			if e.Type != 0 && w.wmDelete != 0 && e.Data.Data32[0] == uint32(w.wmDelete) {
 				_ = w.Close()
 				return
 			}
 		}
+	}
+}
+
+func (w *xwin) setWant(width, height int) {
+	if width < 1 || height < 1 {
+		return
+	}
+	w.mu.Lock()
+	changed := w.wantWidth != width || w.wantHeight != height
+	w.wantWidth, w.wantHeight = width, height
+	w.mu.Unlock()
+	if changed {
+		w.Emit(window.Resize{Size: image.Pt(width, height)})
 	}
 }
