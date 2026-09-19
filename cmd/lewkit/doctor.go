@@ -33,12 +33,12 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 	}
 	for _, iface := range report {
 		parent := next()
-		selectedID := ""
+		selectedName := ""
 		selectedWeight := 0
 		available := 0
 		for _, impl := range iface.Drivers {
 			if impl.Selected {
-				selectedID = impl.ID
+				selectedName = driverLabel(impl)
 				selectedWeight = impl.Weight
 			}
 			if impl.Available {
@@ -47,8 +47,8 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 		}
 		message := "=> none"
 		state := taskgroup.Failed
-		if selectedID != "" {
-			message = fmt.Sprintf("=> %s w=%d", selectedID, selectedWeight)
+		if selectedName != "" {
+			message = fmt.Sprintf("=> %s w=%d", selectedName, selectedWeight)
 			state = taskgroup.Done
 		}
 		nodes = append(nodes, taskgroup.Node{
@@ -65,10 +65,13 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 			child := taskgroup.Node{
 				ID:     next(),
 				Parent: parent,
-				Name:   impl.ID,
+				Name:   driverLabel(impl),
 				Pool:   taskgroup.CPU,
 			}
 			weight := fmt.Sprintf("w=%d", impl.Weight)
+			if impl.ID != "" && impl.ID != child.Name {
+				weight = impl.ID + " " + weight
+			}
 			switch {
 			case impl.Selected:
 				child.Message = weight + " selected"
@@ -87,6 +90,13 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 		}
 	}
 	return nodes
+}
+
+func driverLabel(impl driver.DriverStatus) string {
+	if impl.Name != "" {
+		return impl.Name
+	}
+	return impl.ID
 }
 
 func shortIface(name string) string {

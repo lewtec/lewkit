@@ -13,7 +13,7 @@ type doctorEntry struct {
 	InterfaceName string
 	FactoryType   reflect.Type
 	DriverID      string
-	DriverName    string
+	Name          func() string
 	Weight        int
 	Check         func(context.Context) error
 }
@@ -59,9 +59,13 @@ func Doctor(ctx context.Context) []InterfaceStatus {
 		ifaceStatus := InterfaceStatus{Name: ifaceName}
 		for _, d := range byType[t] {
 			err := cachedCheck(d.DriverID, d.Check, ctx)
+			name := d.DriverID
+			if d.Name != nil {
+				name = d.Name()
+			}
 			ifaceStatus.Drivers = append(ifaceStatus.Drivers, DriverStatus{
 				ID:          d.DriverID,
-				Name:        d.DriverName,
+				Name:        name,
 				FactoryType: d.FactoryType,
 				Weight:      effectiveWeight(weights, d.DriverID, ifaceName, d.Weight),
 				Available:   err == nil,

@@ -1,6 +1,7 @@
 package ndarray
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"image"
@@ -28,15 +29,22 @@ func init() {
 
 type vulkanFactory struct{}
 
-func (vulkanFactory) ID() string   { return "ndarray_vulkan" }
-func (vulkanFactory) Name() string { return "Vulkan" }
-func (vulkanFactory) Weight() int  { return 50 }
+func (vulkanFactory) ID() string { return "ndarray_vulkan" }
+
+func (vulkanFactory) Name() string {
+	vulkanProbeMu.Lock()
+	defer vulkanProbeMu.Unlock()
+	return cmp.Or(vulkanProbeName, "Vulkan")
+}
+
+func (vulkanFactory) Weight() int { return 50 }
 
 var (
-	vulkanProbeMu  sync.Mutex
-	vulkanProbe    *vulkan.Device
-	vulkanProbeErr error
-	vulkanProbed   bool
+	vulkanProbeMu   sync.Mutex
+	vulkanProbe     *vulkan.Device
+	vulkanProbeErr  error
+	vulkanProbed    bool
+	vulkanProbeName string
 )
 
 func (vulkanFactory) CheckCompatibility(ctx context.Context) error {
@@ -52,7 +60,8 @@ func (vulkanFactory) CheckCompatibility(ctx context.Context) error {
 	if vulkanProbeErr != nil {
 		slog.Debug("vulkan probe failed", "err", vulkanProbeErr)
 	} else {
-		slog.Debug("vulkan probe ok", "device", vulkanProbe.Name())
+		vulkanProbeName = vulkanProbe.Name()
+		slog.Debug("vulkan probe ok", "device", vulkanProbeName)
 	}
 	return vulkanProbeErr
 }

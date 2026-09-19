@@ -94,6 +94,32 @@ func TestGetPicksHighestCompatible(t *testing.T) {
 	require.Equal(t, "pick_high", got.ID())
 }
 
+func TestListCompatible(t *testing.T) {
+	registerPickers()
+	iface := pickerIfaceName()
+	setAllWeights(t, iface, map[string]int{
+		"pick_high":   80,
+		"pick_mid":    90,
+		"pick_low":    10,
+		"pick_broken": 70,
+	})
+
+	handles, err := driver.List[picker](t.Context())
+	require.NoError(t, err)
+	var ids []string
+	var names []string
+	for _, handle := range handles {
+		ids = append(ids, handle.ID)
+		names = append(names, handle.Name)
+	}
+	require.Equal(t, []string{"pick_high", "pick_broken", "pick_low"}, ids)
+	require.Equal(t, []string{"High", "Broken", "Low"}, names)
+
+	got, err := handles[0].Open(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "pick_high", got.ID())
+}
+
 func TestGetSkipsInitFailure(t *testing.T) {
 	registerPickers()
 	iface := pickerIfaceName()
@@ -182,6 +208,57 @@ func TestSetWeightsRequiresRegistered(t *testing.T) {
 	registerPickers()
 	err := driver.SetWeights(map[string]map[string]int{})
 	require.ErrorIs(t, err, driver.ErrMissingWeight)
+}
+
+type namedProbe interface{ ID() string }
+
+type namedProbeFactory struct {
+	ready bool
+}
+
+func (f *namedProbeFactory) ID() string { return "named_probe" }
+func (f *namedProbeFactory) Name() string {
+	if f.ready {
+		return "Apple M5"
+	}
+	return "Probe"
+}
+func (f *namedProbeFactory) CheckCompatibility(context.Context) error {
+	f.ready = true
+	return nil
+}
+func (f *namedProbeFactory) New(context.Context) (namedProbe, error) {
+	return pickerImpl{id: f.ID()}, nil
+}
+
+var namedProbeFac = &namedProbeFactory{}
+
+var registerNamedProbe = sync.OnceFunc(func() {
+	driver.Register[namedProbe](namedProbeFac)
+})
+
+func TestDoctorUsesNameAfterCheck(t *testing.T) {
+	registerNamedProbe()
+	var found *driver.DriverStatus
+	for _, st := range driver.Doctor(t.Context()) {
+		for i := range st.Drivers {
+			if st.Drivers[i].ID == "named_probe" {
+				found = &st.Drivers[i]
+			}
+		}
+	}
+	require.NotNil(t, found)
+	require.Equal(t, "Apple M5", found.Name)
+	require.True(t, found.Available)
+}
+
+func TestListUsesNameAfterCheck(t *testing.T) {
+	registerNamedProbe()
+	handles, err := driver.List[namedProbe](t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, handles)
+	require.Equal(t, "named_probe", handles[0].ID)
+	require.Equal(t, "Apple M5", handles[0].Name)
 }
 
 func TestDoctorMarksSelected(t *testing.T) {
