@@ -1,9 +1,10 @@
 package ndarray
 
 import (
+	"os"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/test"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,12 +14,16 @@ func TestEvalIntoVirtStable(t *testing.T) {
 	out := a.Add(Const(1))
 	dst := make([]float32, 256)
 	require.NoError(t, out.Eval(t.Context(), CPU, dst))
-	v0 := test.VirtSize(t)
+	proc, err := process.NewProcess(int32(os.Getpid()))
+	require.NoError(t, err)
+	before, err := proc.MemoryInfo()
+	require.NoError(t, err)
 	for range 80 {
 		require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	}
-	v1 := test.VirtSize(t)
-	grew := v1 - v0
-	t.Logf("virt %d -> %d (%+d) over 80 CPU evals", v0, v1, grew)
+	after, err := proc.MemoryInfo()
+	require.NoError(t, err)
+	grew := int64(after.VMS) - int64(before.VMS)
+	t.Logf("VMS %d -> %d (%+d) RSS %d -> %d over 80 CPU evals", before.VMS, after.VMS, grew, before.RSS, after.RSS)
 	require.Less(t, grew, int64(64<<20), "virtual size grew %d bytes", grew)
 }

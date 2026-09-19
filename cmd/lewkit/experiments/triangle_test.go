@@ -3,6 +3,7 @@ package experiments
 import (
 	stdimage "image"
 	"image/color"
+	"os"
 	"runtime"
 	"runtime/debug"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 	ndimage "github.com/lewtec/lewkit/x/ndarray/image"
 	"github.com/lewtec/lewkit/x/test"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -70,13 +72,18 @@ func TestPainterVirt(t *testing.T) {
 	test.CloseOnCleanup(t, p)
 	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, 256, 256))
 	require.NoError(t, p.Draw(t.Context(), dst, 0))
-	v0 := test.VirtSize(t)
+	proc, err := process.NewProcess(int32(os.Getpid()))
+	require.NoError(t, err)
+	before, err := proc.MemoryInfo()
+	require.NoError(t, err)
 	for i := range 40 {
 		require.NoError(t, p.Draw(t.Context(), dst, float64(i)/40))
 	}
-	v1 := test.VirtSize(t)
-	t.Logf("virt %d -> %d (%+d) over 40 painter frames", v0, v1, v1-v0)
-	require.Less(t, v1-v0, int64(64<<20), "virtual size grew %d bytes", v1-v0)
+	after, err := proc.MemoryInfo()
+	require.NoError(t, err)
+	grew := int64(after.VMS) - int64(before.VMS)
+	t.Logf("VMS %d -> %d (%+d) RSS %d -> %d over 40 painter frames", before.VMS, after.VMS, grew, before.RSS, after.RSS)
+	require.Less(t, grew, int64(64<<20), "virtual size grew %d bytes", grew)
 }
 
 func TestPainterHeap(t *testing.T) {

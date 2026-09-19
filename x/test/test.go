@@ -1,5 +1,4 @@
-// Package test is helpers for tests: process globals, closers, iterators,
-// and VirtSize (gopsutil).
+// Package test is helpers for tests: process globals, closers, and iterators.
 //
 // Stdout, Stderr, Slog, DiscardSlog, and RestoreSlog mutate process globals.
 // Do not call t.Parallel in those tests.
