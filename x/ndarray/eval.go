@@ -12,45 +12,45 @@ import (
 // Evaluator runs a compiled kernel. CPU is the fallback driver; device
 // backends (Vulkan, …) register at higher weight.
 type Evaluator interface {
-	Run(ctx context.Context, k *Kernel, output []float32) error
+	Run(ctx context.Context, kernel *Kernel, output []float32) error
 	Close() error
 }
 
-type cpuEval struct {
+type cpuEvaluator struct {
 	scratch []float32
 }
 
 // CPU is the register-tape evaluator. Always available.
-var CPU Evaluator = &cpuEval{}
+var CPU Evaluator = &cpuEvaluator{}
 
-func (c *cpuEval) Run(_ context.Context, k *Kernel, output []float32) error {
-	if k == nil {
+func (c *cpuEvaluator) Run(_ context.Context, kernel *Kernel, output []float32) error {
+	if kernel == nil {
 		return ErrOp
 	}
-	return k.EvalInto(output)
+	return kernel.EvalInto(output)
 }
 
-func (c *cpuEval) RunRGBA(_ context.Context, k *Kernel, dst *image.RGBA) error {
-	if k == nil || dst == nil {
+func (c *cpuEvaluator) RunRGBA(_ context.Context, kernel *Kernel, destination *image.RGBA) error {
+	if kernel == nil || destination == nil {
 		return ErrOp
 	}
-	n := k.size
-	if dst.Rect.Dx()*dst.Rect.Dy()*4 != n {
-		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, dst.Rect.Dx(), dst.Rect.Dy(), n)
+	size := kernel.size
+	if destination.Rect.Dx()*destination.Rect.Dy()*4 != size {
+		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), size)
 	}
-	if cap(c.scratch) < n {
-		c.scratch = make([]float32, n)
+	if cap(c.scratch) < size {
+		c.scratch = make([]float32, size)
 	} else {
-		c.scratch = c.scratch[:n]
+		c.scratch = c.scratch[:size]
 	}
-	if err := k.EvalInto(c.scratch); err != nil {
+	if err := kernel.EvalInto(c.scratch); err != nil {
 		return err
 	}
-	packRGBA(dst, c.scratch)
+	packRGBA(destination, c.scratch)
 	return nil
 }
 
-func (c *cpuEval) Close() error { return nil }
+func (c *cpuEvaluator) Close() error { return nil }
 
 type cpuFactory struct{}
 
@@ -66,36 +66,36 @@ func init() {
 
 // Open is the highest-weight compatible evaluator (Vulkan if it can open, else CPU).
 func Open(ctx context.Context) (Evaluator, error) {
-	ev, err := driver.Get[Evaluator](ctx)
+	evaluator, err := driver.Get[Evaluator](ctx)
 	if err != nil {
 		return nil, err
 	}
-	slog.Debug("ndarray open", "evaluator", evaluatorName(ev))
-	return ev, nil
+	slog.Debug("ndarray open", "evaluator", evaluatorName(evaluator))
+	return evaluator, nil
 }
 
-type rgbaEvaluator interface {
-	RunRGBA(ctx context.Context, k *Kernel, dst *image.RGBA) error
+type imageEvaluator interface {
+	RunRGBA(ctx context.Context, kernel *Kernel, destination *image.RGBA) error
 }
 
-func packRGBA(dst *image.RGBA, src []float32) {
-	if dst == nil {
+func packRGBA(destination *image.RGBA, source []float32) {
+	if destination == nil {
 		return
 	}
-	w, h := dst.Rect.Dx(), dst.Rect.Dy()
-	if w < 1 || h < 1 || len(src) < h*w*4 {
+	width, height := destination.Rect.Dx(), destination.Rect.Dy()
+	if width < 1 || height < 1 || len(source) < height*width*4 {
 		return
 	}
-	for y := range h {
-		di := dst.PixOffset(dst.Rect.Min.X, dst.Rect.Min.Y+y)
-		si := y * w * 4
-		for range w {
-			dst.Pix[di] = toUint8(src[si])
-			dst.Pix[di+1] = toUint8(src[si+1])
-			dst.Pix[di+2] = toUint8(src[si+2])
-			dst.Pix[di+3] = toUint8(src[si+3])
-			di += 4
-			si += 4
+	for y := range height {
+		destIndex := destination.PixOffset(destination.Rect.Min.X, destination.Rect.Min.Y+y)
+		sourceIndex := y * width * 4
+		for range width {
+			destination.Pix[destIndex] = toUint8(source[sourceIndex])
+			destination.Pix[destIndex+1] = toUint8(source[sourceIndex+1])
+			destination.Pix[destIndex+2] = toUint8(source[sourceIndex+2])
+			destination.Pix[destIndex+3] = toUint8(source[sourceIndex+3])
+			destIndex += 4
+			sourceIndex += 4
 		}
 	}
 }
@@ -110,9 +110,9 @@ func toUint8(v float32) uint8 {
 	return uint8(v)
 }
 
-func evaluatorName(ev Evaluator) string {
-	switch e := ev.(type) {
-	case *cpuEval:
+func evaluatorName(evaluator Evaluator) string {
+	switch e := evaluator.(type) {
+	case *cpuEvaluator:
 		return "cpu"
 	case *Vulkan:
 		if e != nil && e.Device != nil {
@@ -120,7 +120,7 @@ func evaluatorName(ev Evaluator) string {
 		}
 		return "vulkan"
 	default:
-		return fmt.Sprintf("%T", ev)
+		return fmt.Sprintf("%T", evaluator)
 	}
 }
 

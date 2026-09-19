@@ -138,33 +138,33 @@ func (t *Tensor) Data() ([]float32, error) {
 	return nil, ErrOp
 }
 
-// Eval writes the tensor into dst. len(dst) must be at least Size.
-func (t *Tensor) Eval(ctx context.Context, ev Evaluator, dst []float32) error {
-	if ev == nil {
-		ev = CPU
+// Eval writes the tensor into destination. len(destination) must be at least Size.
+func (t *Tensor) Eval(ctx context.Context, evaluator Evaluator, destination []float32) error {
+	if evaluator == nil {
+		evaluator = CPU
 	}
-	return t.realize(ctx, ev, dst)
+	return t.realize(ctx, evaluator, destination)
 }
 
-// EvalRGBA writes packed 0..255 RGBA into dst. dst's bounds must match Size.
-func (t *Tensor) EvalRGBA(ctx context.Context, ev Evaluator, dst *image.RGBA) error {
-	if ev == nil {
-		ev = CPU
+// EvalRGBA writes packed 0..255 RGBA into destination. Bounds must match Size.
+func (t *Tensor) EvalRGBA(ctx context.Context, evaluator Evaluator, destination *image.RGBA) error {
+	if evaluator == nil {
+		evaluator = CPU
 	}
 	if err := t.err(); err != nil {
 		return err
 	}
-	if dst == nil {
+	if destination == nil {
 		return ErrOp
 	}
 	if err := t.ensure(); err != nil {
 		return err
 	}
-	if dst.Rect.Dx()*dst.Rect.Dy()*4 != t.kernel.size {
-		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, dst.Rect.Dx(), dst.Rect.Dy(), t.kernel.size)
+	if destination.Rect.Dx()*destination.Rect.Dy()*4 != t.kernel.size {
+		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), t.kernel.size)
 	}
-	if p, ok := ev.(rgbaEvaluator); ok {
-		return p.RunRGBA(ctx, t.kernel, dst)
+	if p, ok := evaluator.(imageEvaluator); ok {
+		return p.RunRGBA(ctx, t.kernel, destination)
 	}
 	return ErrOp
 }
@@ -175,11 +175,11 @@ func (t *Tensor) Resize(shape Shape) error {
 		return err
 	}
 	if t.kernel == nil {
-		k, err := compile(t.node)
+		kernel, err := compile(t.node)
 		if err != nil {
 			return err
 		}
-		t.kernel = k
+		t.kernel = kernel
 	}
 	return t.kernel.Resize(shape)
 }
@@ -197,37 +197,37 @@ func (t *Tensor) Close() error {
 	return err
 }
 
-func (t *Tensor) realize(ctx context.Context, ev Evaluator, dst []float32) error {
+func (t *Tensor) realize(ctx context.Context, evaluator Evaluator, destination []float32) error {
 	if err := t.err(); err != nil {
 		return err
 	}
 	if t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() {
 		data := t.node.buf.data
-		if len(dst) < len(data) {
-			return fmt.Errorf("%w: dst %d < %d", ErrSize, len(dst), len(data))
+		if len(destination) < len(data) {
+			return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), len(data))
 		}
-		copy(dst, data)
+		copy(destination, data)
 		return nil
 	}
 	if err := t.ensure(); err != nil {
 		return err
 	}
-	if len(dst) < t.kernel.size {
-		return fmt.Errorf("%w: dst %d < %d", ErrSize, len(dst), t.kernel.size)
+	if len(destination) < t.kernel.size {
+		return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), t.kernel.size)
 	}
-	return ev.Run(ctx, t.kernel, dst[:t.kernel.size])
+	return evaluator.Run(ctx, t.kernel, destination[:t.kernel.size])
 }
 
 func (t *Tensor) ensure() error {
 	if t.kernel != nil {
 		return nil
 	}
-	k, err := compile(t.node)
+	kernel, err := compile(t.node)
 	if err != nil {
 		return err
 	}
-	t.kernel = k
-	slog.Debug("ndarray compile", "shape", k.shape, "size", k.size)
+	t.kernel = kernel
+	slog.Debug("ndarray compile", "shape", kernel.shape, "size", kernel.size)
 	return nil
 }
 

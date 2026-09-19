@@ -77,71 +77,51 @@ func (vulkanFactory) New(ctx context.Context) (Evaluator, error) {
 	return &Vulkan{Device: d, own: true}, nil
 }
 
-func (v *Vulkan) Run(ctx context.Context, k *Kernel, output []float32) error {
-	if v == nil || v.Device == nil {
-		return ErrOp
+func (v *Vulkan) Run(ctx context.Context, kernel *Kernel, output []float32) error {
+	session, err := v.session(ctx, kernel)
+	if err != nil {
+		return err
 	}
-	if k == nil {
-		return ErrOp
-	}
-	v.mu.Lock()
-	if v.sessions == nil {
-		v.sessions = make(map[*Kernel]*Session)
-	}
-	s := v.sessions[k]
-	v.mu.Unlock()
-	if s == nil {
-		var err error
-		s, err = k.Attach(ctx, v.Device)
-		if err != nil {
-			return err
-		}
-		v.mu.Lock()
-		if existing := v.sessions[k]; existing != nil {
-			v.mu.Unlock()
-			if err := s.Close(); err != nil {
-				return err
-			}
-			s = existing
-		} else {
-			v.sessions[k] = s
-			v.mu.Unlock()
-			slog.Debug("vulkan session", "device", v.Device.Name())
-		}
-	}
-	return s.Run(ctx, output)
+	return session.Run(ctx, output)
 }
 
-func (v *Vulkan) RunRGBA(ctx context.Context, k *Kernel, dst *image.RGBA) error {
-	if v == nil || v.Device == nil || k == nil {
-		return ErrOp
+func (v *Vulkan) RunRGBA(ctx context.Context, kernel *Kernel, destination *image.RGBA) error {
+	session, err := v.session(ctx, kernel)
+	if err != nil {
+		return err
+	}
+	return session.RunRGBA(ctx, destination)
+}
+
+func (v *Vulkan) session(ctx context.Context, kernel *Kernel) (*Session, error) {
+	if v == nil || v.Device == nil || kernel == nil {
+		return nil, ErrOp
 	}
 	v.mu.Lock()
 	if v.sessions == nil {
 		v.sessions = make(map[*Kernel]*Session)
 	}
-	s := v.sessions[k]
+	s := v.sessions[kernel]
 	v.mu.Unlock()
-	if s == nil {
-		var err error
-		s, err = k.Attach(ctx, v.Device)
-		if err != nil {
-			return err
-		}
-		v.mu.Lock()
-		if existing := v.sessions[k]; existing != nil {
-			v.mu.Unlock()
-			if err := s.Close(); err != nil {
-				return err
-			}
-			s = existing
-		} else {
-			v.sessions[k] = s
-			v.mu.Unlock()
-			slog.Debug("vulkan session", "device", v.Device.Name())
-		}
+	if s != nil {
+		return s, nil
 	}
-	return s.RunRGBA(ctx, dst)
+	s, err := kernel.Attach(ctx, v.Device)
+	if err != nil {
+		return nil, err
+	}
+	v.mu.Lock()
+	if existing := v.sessions[kernel]; existing != nil {
+		v.mu.Unlock()
+		if err := s.Close(); err != nil {
+			return nil, err
+		}
+		return existing, nil
+	}
+	v.sessions[kernel] = s
+	v.mu.Unlock()
+	slog.Debug("vulkan session", "device", v.Device.Name())
+	return s, nil
 }
 
 func (v *Vulkan) Close() error {

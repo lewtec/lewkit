@@ -75,43 +75,43 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 	if err := s.ensureDescriptors(); err != nil {
 		return err
 	}
-	n := len(bufs)
-	same := len(s.boundBuf) == n
-	if same {
+	count := len(bufs)
+	unchanged := len(s.boundBuffers) == count
+	if unchanged {
 		for i, b := range bufs {
-			if s.boundBuf[i] != b.buf || s.boundLen[i] != uint64(b.size) {
-				same = false
+			if s.boundBuffers[i] != b.buf || s.boundLengths[i] != uint64(b.size) {
+				unchanged = false
 				break
 			}
 		}
 	}
-	if !same {
-		if cap(s.infos) < n {
-			s.infos = make([]descriptorBufferInfo, n)
-			s.writes = make([]writeDescriptorSet, n)
-			s.boundBuf = make([]uint64, n)
-			s.boundLen = make([]uint64, n)
+	if !unchanged {
+		if cap(s.bufferInfos) < count {
+			s.bufferInfos = make([]descriptorBufferInfo, count)
+			s.writes = make([]writeDescriptorSet, count)
+			s.boundBuffers = make([]uint64, count)
+			s.boundLengths = make([]uint64, count)
 		} else {
-			s.infos = s.infos[:n]
-			s.writes = s.writes[:n]
-			s.boundBuf = s.boundBuf[:n]
-			s.boundLen = s.boundLen[:n]
+			s.bufferInfos = s.bufferInfos[:count]
+			s.writes = s.writes[:count]
+			s.boundBuffers = s.boundBuffers[:count]
+			s.boundLengths = s.boundLengths[:count]
 		}
 		for i, b := range bufs {
-			s.infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
+			s.bufferInfos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
 			s.writes[i] = writeDescriptorSet{
 				sType:           structureWriteDescriptorSet,
 				dstSet:          s.descriptorSet,
 				dstBinding:      uint32(i),
 				descriptorCount: 1,
 				descriptorType:  descriptorStorageBuffer,
-				pBufferInfo:     &s.infos[i],
+				pBufferInfo:     &s.bufferInfos[i],
 			}
-			s.boundBuf[i] = b.buf
-			s.boundLen[i] = uint64(b.size)
+			s.boundBuffers[i] = b.buf
+			s.boundLengths[i] = uint64(b.size)
 		}
-		if n > 0 {
-			d.api.updateDescriptorSets(d.dev, uint32(n), &s.writes[0], 0, 0)
+		if count > 0 {
+			d.api.updateDescriptorSets(d.dev, uint32(count), &s.writes[0], 0, 0)
 		}
 	}
 	for _, b := range bufs {

@@ -10,12 +10,13 @@ import (
 
 // Painter draws Triangle by resizing a Tensor. The kernel is compiled once.
 type Painter struct {
-	eval     ndarray.Evaluator
-	triangle *ndarray.Tensor
-	turn     *ndarray.Tensor
-	width    *ndarray.Tensor
-	height   *ndarray.Tensor
-	h, w     int
+	evaluator   ndarray.Evaluator
+	triangle    *ndarray.Tensor
+	turn        *ndarray.Tensor
+	width       *ndarray.Tensor
+	height      *ndarray.Tensor
+	frameHeight int
+	frameWidth  int
 }
 
 // New compiles TriangleDynamic once. Open picks Vulkan if it can, else CPU.
@@ -36,38 +37,44 @@ func New(ctx context.Context) (*Painter, error) {
 	if err != nil {
 		return nil, err
 	}
-	eval, err := ndarray.Open(ctx)
+	evaluator, err := ndarray.Open(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &Painter{eval: eval, triangle: triangle, turn: turn, width: width, height: height}, nil
+	return &Painter{
+		evaluator: evaluator,
+		triangle:  triangle,
+		turn:      turn,
+		width:     width,
+		height:    height,
+	}, nil
 }
 
-// Draw renders one frame into dst.
-func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) error {
+// Draw renders one frame into destination.
+func (p *Painter) Draw(ctx context.Context, destination *stdimage.RGBA, turn float64) error {
 	if p == nil || p.triangle == nil {
 		return ndarray.ErrOp
 	}
-	h, w := dst.Rect.Dy(), dst.Rect.Dx()
-	if h < 1 || w < 1 {
+	frameHeight, frameWidth := destination.Rect.Dy(), destination.Rect.Dx()
+	if frameHeight < 1 || frameWidth < 1 {
 		return nil
 	}
 	if buf := p.turn.Buffer(); len(buf) > 0 {
 		buf[0] = float32(turn)
 	}
 	if buf := p.width.Buffer(); len(buf) > 0 {
-		buf[0] = float32(w)
+		buf[0] = float32(frameWidth)
 	}
 	if buf := p.height.Buffer(); len(buf) > 0 {
-		buf[0] = float32(h)
+		buf[0] = float32(frameHeight)
 	}
-	if h != p.h || w != p.w {
-		if err := p.triangle.Resize(ndarray.Shape{h, w, 4}); err != nil {
+	if frameHeight != p.frameHeight || frameWidth != p.frameWidth {
+		if err := p.triangle.Resize(ndarray.Shape{frameHeight, frameWidth, 4}); err != nil {
 			return err
 		}
-		p.h, p.w = h, w
+		p.frameHeight, p.frameWidth = frameHeight, frameWidth
 	}
-	return p.triangle.EvalRGBA(ctx, p.eval, dst)
+	return p.triangle.EvalRGBA(ctx, p.evaluator, destination)
 }
 
 // Close releases the triangle kernel/session and device.
@@ -80,9 +87,9 @@ func (p *Painter) Close() error {
 		err = p.triangle.Close()
 		p.triangle = nil
 	}
-	if p.eval != nil {
-		err = errors.Join(err, p.eval.Close())
-		p.eval = nil
+	if p.evaluator != nil {
+		err = errors.Join(err, p.evaluator.Close())
+		p.evaluator = nil
 	}
 	return err
 }

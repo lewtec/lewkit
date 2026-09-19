@@ -126,15 +126,15 @@ func Write(dst *stdimage.RGBA, pixels []float32) {
 		return
 	}
 	for y := range h {
-		di := dst.PixOffset(dst.Rect.Min.X, dst.Rect.Min.Y+y)
-		si := y * w * 4
+		destIndex := dst.PixOffset(dst.Rect.Min.X, dst.Rect.Min.Y+y)
+		sourceIndex := y * w * 4
 		for range w {
-			dst.Pix[di] = toUint8(pixels[si])
-			dst.Pix[di+1] = toUint8(pixels[si+1])
-			dst.Pix[di+2] = toUint8(pixels[si+2])
-			dst.Pix[di+3] = toUint8(pixels[si+3])
-			di += 4
-			si += 4
+			dst.Pix[destIndex] = toUint8(pixels[sourceIndex])
+			dst.Pix[destIndex+1] = toUint8(pixels[sourceIndex+1])
+			dst.Pix[destIndex+2] = toUint8(pixels[sourceIndex+2])
+			dst.Pix[destIndex+3] = toUint8(pixels[sourceIndex+3])
+			destIndex += 4
+			sourceIndex += 4
 		}
 	}
 }

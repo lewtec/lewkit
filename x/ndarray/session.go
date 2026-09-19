@@ -50,11 +50,11 @@ func (s *Session) Run(ctx context.Context, output []float32) error {
 		return err
 	}
 	for i, b := range s.kernel.bufs {
-		src := []float32(nil)
+		source := []float32(nil)
 		if b != nil {
-			src = b.data
+			source = b.data
 		}
-		if err := s.inputs[i].Write(floatView(src)); err != nil {
+		if err := s.inputs[i].Write(floatView(source)); err != nil {
 			return err
 		}
 	}
@@ -64,34 +64,34 @@ func (s *Session) Run(ctx context.Context, output []float32) error {
 	return s.output.Read(floatView(output[:s.kernel.size]))
 }
 
-func (s *Session) RunRGBA(ctx context.Context, dst *image.RGBA) error {
+func (s *Session) RunRGBA(ctx context.Context, destination *image.RGBA) error {
 	if s == nil || s.kernel == nil || s.device == nil {
 		return ErrOp
 	}
-	n := s.kernel.size
-	if dst == nil || dst.Rect.Dx()*dst.Rect.Dy()*4 != n {
-		return fmt.Errorf("%w: image != %d", ErrSize, n)
+	size := s.kernel.size
+	if destination == nil || destination.Rect.Dx()*destination.Rect.Dy()*4 != size {
+		return fmt.Errorf("%w: image != %d", ErrSize, size)
 	}
 	if err := s.fit(); err != nil {
 		return err
 	}
 	for i, b := range s.kernel.bufs {
-		src := []float32(nil)
+		source := []float32(nil)
 		if b != nil {
-			src = b.data
+			source = b.data
 		}
-		if err := s.inputs[i].Write(floatView(src)); err != nil {
+		if err := s.inputs[i].Write(floatView(source)); err != nil {
 			return err
 		}
 	}
 	if err := s.kernel.Run(ctx, s.device, s.output, s.inputs...); err != nil {
 		return err
 	}
-	src := s.output.Floats()
-	if len(src) < n {
+	source := s.output.Floats()
+	if len(source) < size {
 		return ErrOp
 	}
-	packRGBA(dst, src[:n])
+	packRGBA(destination, source[:size])
 	return nil
 }
 
