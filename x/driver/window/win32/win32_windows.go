@@ -134,10 +134,17 @@ type win struct {
 	wantHeight int
 }
 
-func (w *win) Frame() *image.RGBA {
+func (w *win) Size() image.Point {
 	w.mu.Lock()
-	want := image.Pt(w.wantWidth, w.wantHeight)
-	w.mu.Unlock()
+	defer w.mu.Unlock()
+	if w.wantWidth > 0 && w.wantHeight > 0 {
+		return image.Pt(w.wantWidth, w.wantHeight)
+	}
+	return w.Buffer.Size()
+}
+
+func (w *win) Frame() *image.RGBA {
+	want := w.Size()
 	if want.X > 0 && want.Y > 0 {
 		_, _ = w.Buffer.EnsureSize(want)
 	}
@@ -198,6 +205,10 @@ func (w *win) pump() {
 func (w *win) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
+	}
+	front := w.Front()
+	if front == nil || front.Rect.Size() != w.Size() {
+		return nil
 	}
 	return w.blit()
 }

@@ -226,10 +226,17 @@ func (w *win) create(title string, width, height int) error {
 	return nil
 }
 
-func (w *win) Frame() *image.RGBA {
+func (w *win) Size() image.Point {
 	w.mu.Lock()
-	want := image.Pt(w.wantWidth, w.wantHeight)
-	w.mu.Unlock()
+	defer w.mu.Unlock()
+	if w.wantWidth > 0 && w.wantHeight > 0 {
+		return image.Pt(w.wantWidth, w.wantHeight)
+	}
+	return w.Buffer.Size()
+}
+
+func (w *win) Frame() *image.RGBA {
+	want := w.Size()
 	if want.X > 0 && want.Y > 0 {
 		_, _ = w.Buffer.EnsureSize(want)
 	}
@@ -240,8 +247,9 @@ func (w *win) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
 	}
+	want := w.Size()
 	front := w.Front()
-	if front == nil || front.Rect.Dx() < 1 || front.Rect.Dy() < 1 {
+	if front == nil || front.Rect.Size() != want {
 		return nil
 	}
 	width, height, stride := front.Rect.Dx(), front.Rect.Dy(), front.Stride
@@ -253,18 +261,16 @@ func (w *win) Draw() error {
 	}
 	w.mu.Unlock()
 	if !ok || surface == 0 {
-		w.queuePresent(0, true)
 		return nil
 	}
 	copied := false
 	w.WithFront(func(src *image.RGBA) {
-		if src.Rect.Dx() != width || src.Rect.Dy() != height || src.Stride != stride {
+		if src.Rect.Size() != want || src.Stride != stride {
 			return
 		}
 		copied = copyIOSurface(surface, src)
 	})
 	if !copied {
-		w.queuePresent(0, true)
 		return nil
 	}
 	w.queuePresent(surface, false)
@@ -622,13 +628,23 @@ func (w *win) ensureSurfaces(width, height, stride int) bool {
 	return true
 }
 
+const ioSurfaceAlign = 64
+
+func alignedBytes(n int) int {
+	if n < 1 {
+		return ioSurfaceAlign
+	}
+	return (n + ioSurfaceAlign - 1) &^ (ioSurfaceAlign - 1)
+}
+
 func newIOSurface(class objc.Class, width, height, stride int) objc.ID {
+	row := alignedBytes(stride)
 	properties := objc.ID(objc.GetClass("NSMutableDictionary")).Send(selDictionary)
 	properties.Send(selSetObjectKey, nsNumber(width), nsstr("IOSurfaceWidth"))
 	properties.Send(selSetObjectKey, nsNumber(height), nsstr("IOSurfaceHeight"))
 	properties.Send(selSetObjectKey, nsNumber(4), nsstr("IOSurfaceBytesPerElement"))
-	properties.Send(selSetObjectKey, nsNumber(stride), nsstr("IOSurfaceBytesPerRow"))
-	properties.Send(selSetObjectKey, nsNumber(stride*height), nsstr("IOSurfaceAllocSize"))
+	properties.Send(selSetObjectKey, nsNumber(row), nsstr("IOSurfaceBytesPerRow"))
+	properties.Send(selSetObjectKey, nsNumber(row*height), nsstr("IOSurfaceAllocSize"))
 	properties.Send(selSetObjectKey, nsNumber(pixelFormatRGBA), nsstr("IOSurfacePixelFormat"))
 	return objc.ID(class).Send(selAlloc).Send(selInitProps, properties)
 }
@@ -639,7 +655,8 @@ func copyIOSurface(surface objc.ID, source *image.RGBA) bool {
 	}
 	width, height := source.Rect.Dx(), source.Rect.Dy()
 	stride := source.Stride
-	if width < 1 || height < 1 {
+	row := width * 4
+	if width < 1 || height < 1 || stride < row || len(source.Pix) < (height-1)*stride+row {
 		return false
 	}
 	if surface.Send(selLockSurface, 0, 0) != 0 {
@@ -651,7 +668,7 @@ func copyIOSurface(surface objc.ID, source *image.RGBA) bool {
 		return false
 	}
 	rowBytes := int(surface.Send(selBytesPerRow))
-	if rowBytes < stride {
+	if rowBytes < row {
 		surface.Send(selUnlockSurface, 0, 0)
 		return false
 	}
@@ -660,7 +677,7 @@ func copyIOSurface(surface objc.ID, source *image.RGBA) bool {
 		copy(destination[:height*stride], source.Pix[:height*stride])
 	} else {
 		for y := 0; y < height; y++ {
-			copy(destination[y*rowBytes:y*rowBytes+width*4], source.Pix[y*stride:y*stride+width*4])
+			copy(destination[y*rowBytes:y*rowBytes+row], source.Pix[y*stride:y*stride+row])
 		}
 	}
 	surface.Send(selUnlockSurface, 0, 0)

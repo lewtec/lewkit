@@ -44,6 +44,16 @@ func (b *Buffer) Frame() *image.RGBA {
 	return b.back
 }
 
+// Size is the back buffer size. Hosts that track a window size override this.
+func (b *Buffer) Size() image.Point {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.back == nil {
+		return image.Point{}
+	}
+	return b.back.Rect.Size()
+}
+
 // Swap publishes the back buffer as front. The previous front becomes back.
 func (b *Buffer) Swap() error {
 	b.mu.Lock()

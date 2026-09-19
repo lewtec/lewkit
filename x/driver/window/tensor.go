@@ -9,29 +9,25 @@ import (
 
 // PixelShape is the (height, width, 4) layout Frame stores.
 func PixelShape(dst *image.RGBA) (ndarray.Shape, error) {
-	height, width, err := pixelSize(dst)
-	if err != nil {
-		return nil, err
-	}
-	return ndarray.Shape{height, width, 4}, nil
-}
-
-func pixelSize(dst *image.RGBA) (height, width int, err error) {
 	if dst == nil {
-		return 0, 0, ErrClosed
+		return nil, ErrClosed
 	}
-	height, width = dst.Rect.Dy(), dst.Rect.Dx()
-	if height < 1 || width < 1 {
-		return 0, 0, ErrSize
-	}
-	return height, width, nil
+	return Shape(dst.Rect.Size())
 }
 
-func fit(t *ndarray.Tensor[uint8], dst *image.RGBA) (*ndarray.Tensor[uint8], error) {
+// Shape is the (height, width, 4) tensor layout for a window Size.
+func Shape(size image.Point) (ndarray.Shape, error) {
+	if size.X < 1 || size.Y < 1 {
+		return nil, ErrSize
+	}
+	return ndarray.Shape{size.Y, size.X, 4}, nil
+}
+
+func fit(t *ndarray.Tensor[uint8], size image.Point) (*ndarray.Tensor[uint8], error) {
 	if t == nil {
 		return nil, ndarray.ErrOp
 	}
-	shape, err := PixelShape(dst)
+	shape, err := Shape(size)
 	if err != nil {
 		return nil, err
 	}
@@ -49,22 +45,28 @@ func Fit[T ndarray.Number](t *ndarray.Tensor[T], dst *image.RGBA) (*ndarray.Tens
 		return nil, ndarray.ErrOp
 	}
 	if pixels, ok := any(t).(*ndarray.Tensor[uint8]); ok {
-		return fit(pixels, dst)
+		return fit(pixels, dst.Rect.Size())
 	}
-	return fit(t.Cast[uint8](), dst)
+	return fit(t.Cast[uint8](), dst.Rect.Size())
 }
 
-// Fit resizes t to this buffer's Frame and casts to uint8.
+// Fit resizes t to this window's Size and casts to uint8.
 func (b *Buffer) Fit[T ndarray.Number](t *ndarray.Tensor[T]) (*ndarray.Tensor[uint8], error) {
 	if b == nil {
 		return nil, ErrClosed
 	}
-	return Fit(t, b.Frame())
+	if pixels, ok := any(t).(*ndarray.Tensor[uint8]); ok {
+		return fit(pixels, b.Size())
+	}
+	return fit(t.Cast[uint8](), b.Size())
 }
 
 // Present fits t to dst and evals into dst's pixels.
 func Present(ctx context.Context, t *ndarray.Tensor[uint8], evaluator ndarray.Evaluator, dst *image.RGBA) error {
-	pixels, err := fit(t, dst)
+	if dst == nil {
+		return ErrClosed
+	}
+	pixels, err := fit(t, dst.Rect.Size())
 	if err != nil {
 		return err
 	}
