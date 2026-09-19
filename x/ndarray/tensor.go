@@ -3,7 +3,6 @@ package ndarray
 import (
 	"context"
 	"fmt"
-	"image"
 	"log/slog"
 	"math/rand/v2"
 	"slices"
@@ -14,9 +13,8 @@ import (
 // Slots are assigned at Eval. The graph stays after realize so a loop
 // can Resize and run again.
 type Tensor struct {
-	node        *node
-	kernel      *Kernel
-	rgbaScratch []float32
+	node   *node
+	kernel *Kernel
 }
 
 func wrap(n *node) *Tensor {
@@ -145,33 +143,6 @@ func (t *Tensor) Eval(ctx context.Context, evaluator Evaluator, destination []fl
 		evaluator = CPU
 	}
 	return t.realize(ctx, evaluator, destination)
-}
-
-// EvalRGBA writes packed 0..255 RGBA into destination. Bounds must match Size.
-func (t *Tensor) EvalRGBA(ctx context.Context, evaluator Evaluator, destination *image.RGBA) error {
-	if destination == nil {
-		return ErrOp
-	}
-	if err := t.err(); err != nil {
-		return err
-	}
-	if err := t.ensure(); err != nil {
-		return err
-	}
-	size := t.kernel.size
-	if destination.Rect.Dx()*destination.Rect.Dy()*4 != size {
-		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), size)
-	}
-	if cap(t.rgbaScratch) < size {
-		t.rgbaScratch = make([]float32, size)
-	} else {
-		t.rgbaScratch = t.rgbaScratch[:size]
-	}
-	if err := t.Eval(ctx, evaluator, t.rgbaScratch); err != nil {
-		return err
-	}
-	packRGBA(destination, t.rgbaScratch)
-	return nil
 }
 
 // Resize sets the runtime output shape. Rank must match the compiled graph.

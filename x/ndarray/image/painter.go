@@ -15,6 +15,7 @@ type Painter struct {
 	turn        *ndarray.Tensor
 	width       *ndarray.Tensor
 	height      *ndarray.Tensor
+	buffer      []float32
 	frameHeight int
 	frameWidth  int
 }
@@ -74,7 +75,17 @@ func (p *Painter) Draw(ctx context.Context, destination *stdimage.RGBA, turn flo
 		}
 		p.frameHeight, p.frameWidth = frameHeight, frameWidth
 	}
-	return p.triangle.EvalRGBA(ctx, p.evaluator, destination)
+	size := frameHeight * frameWidth * 4
+	if cap(p.buffer) < size {
+		p.buffer = make([]float32, size)
+	} else {
+		p.buffer = p.buffer[:size]
+	}
+	if err := p.triangle.Eval(ctx, p.evaluator, p.buffer); err != nil {
+		return err
+	}
+	Write(destination, p.buffer)
+	return nil
 }
 
 // Close releases the triangle kernel/session and device.

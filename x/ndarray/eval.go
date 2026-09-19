@@ -3,7 +3,6 @@ package ndarray
 import (
 	"context"
 	"fmt"
-	"image"
 	"log/slog"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -43,38 +42,6 @@ func Open(ctx context.Context) (Evaluator, error) {
 	}
 	slog.Debug("ndarray open", "evaluator", evaluatorName(evaluator))
 	return evaluator, nil
-}
-
-func packRGBA(destination *image.RGBA, source []float32) {
-	if destination == nil {
-		return
-	}
-	width, height := destination.Rect.Dx(), destination.Rect.Dy()
-	if width < 1 || height < 1 || len(source) < height*width*4 {
-		return
-	}
-	for y := range height {
-		destIndex := destination.PixOffset(destination.Rect.Min.X, destination.Rect.Min.Y+y)
-		sourceIndex := y * width * 4
-		for range width {
-			destination.Pix[destIndex] = toUint8(source[sourceIndex])
-			destination.Pix[destIndex+1] = toUint8(source[sourceIndex+1])
-			destination.Pix[destIndex+2] = toUint8(source[sourceIndex+2])
-			destination.Pix[destIndex+3] = toUint8(source[sourceIndex+3])
-			destIndex += 4
-			sourceIndex += 4
-		}
-	}
-}
-
-func toUint8(v float32) uint8 {
-	if v < 0 {
-		return 0
-	}
-	if v > 255 {
-		return 255
-	}
-	return uint8(v)
 }
 
 func evaluatorName(evaluator Evaluator) string {

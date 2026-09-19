@@ -22,7 +22,7 @@ func raster(t *testing.T, expr *ndarray.Tensor) *stdimage.RGBA {
 	t.Helper()
 	sh := expr.Shape()
 	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, sh[1], sh[0]))
-	require.NoError(t, expr.EvalRGBA(t.Context(), ndarray.CPU, dst))
+	require.NoError(t, Eval(t.Context(), expr, ndarray.CPU, dst))
 	return dst
 }
 

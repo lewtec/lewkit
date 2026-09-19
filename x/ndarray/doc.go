@@ -4,8 +4,7 @@
 // [Tensor] is the brick. It holds a lazy op tree. Leaves own a host buffer;
 // [Tensor.Reshape], [Tensor.Permute], and the other view ops share that
 // buffer. ALU ops return a new Tensor. Slots are assigned at [Tensor.Eval],
-// which writes a caller-owned []float32. [Tensor.EvalRGBA] packs into an
-// image.RGBA (the window frame). [Open] picks a registered evaluator
+// which writes a caller-owned []float32. [Open] picks a registered evaluator
 // (Vulkan via [github.com/lewtec/lewkit/x/driver/ndeval] if a GPU exists,
 // else CPU).
 //
