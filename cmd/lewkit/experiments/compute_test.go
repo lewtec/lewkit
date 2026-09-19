@@ -13,7 +13,7 @@ import (
 )
 
 func TestComputeUsage(t *testing.T) {
-	text, err := cmd.Usage[Compute]("lewkit experiments compute")
+	text, err := cmd.Usage[Compute]("lewkit experiments window compute")
 	require.NoError(t, err)
 	assert.Contains(t, text, "GLSL")
 	assert.Contains(t, text, "--width")

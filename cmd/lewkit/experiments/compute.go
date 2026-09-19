@@ -17,7 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
-// Compute is `lewkit experiments compute`.
+// Compute is `lewkit experiments window compute`.
 type Compute struct {
 	shader   *cmd.StringArg  `help:"SPIR-V or GLSL path; example.comp if omitted"`
 	smoke    cmd.Flag        `long:"smoke" help:"print the 4-byte smoke shader instead of a window"`

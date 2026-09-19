@@ -17,6 +17,7 @@ import (
 // Window is `lewkit experiments window`.
 type Window struct {
 	Triangle *triangleCmd
+	Compute  *Compute
 }
 
 func (Window) Description() string {
