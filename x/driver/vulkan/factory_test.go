@@ -10,17 +10,17 @@ import (
 
 func TestOfferID(t *testing.T) {
 	infos := []ffivulkan.Info{
-		{Index: 0, Vendor: "amd", Type: ffivulkan.DeviceTypeIntegrated},
-		{Index: 1, Vendor: "nvidia", Type: ffivulkan.DeviceTypeDedicated},
-		{Index: 2, Vendor: "llvmpipe", Type: ffivulkan.DeviceTypeSoftware},
+		{Index: 0, Vendor: ffivulkan.VendorAMD, Type: ffivulkan.DeviceTypeIntegrated},
+		{Index: 1, Vendor: ffivulkan.VendorNVIDIA, Type: ffivulkan.DeviceTypeDedicated},
+		{Index: 2, Vendor: ffivulkan.VendorMesa, Type: ffivulkan.DeviceTypeSoftware},
 	}
 	require.Equal(t, "vulkan:amd:integrated", offerID(infos, 0))
 	require.Equal(t, "vulkan:nvidia:dedicated", offerID(infos, 1))
-	require.Equal(t, "vulkan:llvmpipe:software", offerID(infos, 2))
+	require.Equal(t, "vulkan:mesa:software", offerID(infos, 2))
 
 	two := []ffivulkan.Info{
-		{Vendor: "amd", Type: ffivulkan.DeviceTypeDedicated},
-		{Vendor: "amd", Type: ffivulkan.DeviceTypeDedicated},
+		{Vendor: ffivulkan.VendorAMD, Type: ffivulkan.DeviceTypeDedicated},
+		{Vendor: ffivulkan.VendorAMD, Type: ffivulkan.DeviceTypeDedicated},
 	}
 	require.Equal(t, "vulkan:amd:dedicated:0", offerID(two, 0))
 	require.Equal(t, "vulkan:amd:dedicated:1", offerID(two, 1))
@@ -48,4 +48,19 @@ func TestDeviceTypeArg(t *testing.T) {
 	require.ErrorIs(t, err, cmd.ErrInvalidArgument)
 	_, err = ParseDeviceType("discrete")
 	require.ErrorIs(t, err, ffivulkan.ErrDeviceType)
+}
+
+func TestVendorArg(t *testing.T) {
+	type args struct {
+		Vendor cmd.EnumArg[Vendor]
+	}
+	got, err := cmd.Parse[args]("amd")
+	require.NoError(t, err)
+	require.Equal(t, VendorAMD, got.Vendor.Value())
+	parsed, err := ParseVendor("nvidia")
+	require.NoError(t, err)
+	require.Equal(t, VendorNVIDIA, parsed)
+	require.Equal(t, uint32(0x10de), parsed.Uint32())
+	_, err = ParseVendor("nouveau")
+	require.ErrorIs(t, err, ffivulkan.ErrVendor)
 }

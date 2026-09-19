@@ -20,7 +20,7 @@ type Device struct {
 	cmd         uintptr
 	mem         physicalDeviceMemoryProperties
 	name        string
-	vendor      string
+	vendor      Vendor
 	deviceType  DeviceType
 	closed      bool
 	recording   bool
@@ -29,12 +29,12 @@ type Device struct {
 }
 
 // Info is a compute-capable physical device. Index is 0-based among
-// devices that advertise a compute queue. Vendor is a slug (amd, nvidia,
-// llvmpipe, …). Type is VkPhysicalDeviceType (software, integrated, dedicated, virtual).
+// devices that advertise a compute queue. Vendor is a PCI / Khronos ID.
+// Type is VkPhysicalDeviceType.
 type Info struct {
 	Index  int
 	Name   string
-	Vendor string
+	Vendor Vendor
 	Type   DeviceType
 }
 
@@ -176,7 +176,7 @@ func (d *Device) computeDevices() ([]Info, error) {
 		info := Info{
 			Index:  len(out),
 			Name:   properties.name,
-			Vendor: vendorSlug(properties.vendorID, properties.deviceType, properties.name),
+			Vendor: vendorFrom(properties.vendorID, properties.name),
 			Type:   deviceTypeFrom(properties.deviceType, properties.name),
 		}
 		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name, "vendor", info.Vendor, "type", info.Type)
@@ -277,7 +277,7 @@ func (d *Device) try(phys uintptr) bool {
 	d.api.getMemoryProps(phys, &d.mem)
 	properties := d.physicalProperties(phys)
 	d.name = properties.name
-	d.vendor = vendorSlug(properties.vendorID, properties.deviceType, properties.name)
+	d.vendor = vendorFrom(properties.vendorID, properties.name)
 	d.deviceType = deviceTypeFrom(properties.deviceType, properties.name)
 	return true
 }
@@ -290,10 +290,10 @@ func (d *Device) Name() string {
 	return d.name
 }
 
-// Vendor is the driver vendor slug (amd, nvidia, llvmpipe, …).
-func (d *Device) Vendor() string {
+// Vendor is the PCI / Khronos vendor ID.
+func (d *Device) Vendor() Vendor {
 	if d == nil {
-		return ""
+		return VendorUnknown
 	}
 	return d.vendor
 }

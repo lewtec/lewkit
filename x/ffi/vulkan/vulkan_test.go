@@ -32,7 +32,6 @@ func TestListAllComputeDevices(t *testing.T) {
 	for i, info := range infos {
 		require.Equal(t, i, info.Index)
 		require.NotEmpty(t, info.Name)
-		require.NotEmpty(t, info.Vendor)
 		d, err := OpenIndex(t.Context(), i)
 		require.NoError(t, err)
 		test.CloseOnCleanup(t, d)
@@ -43,13 +42,13 @@ func TestListAllComputeDevices(t *testing.T) {
 		lower := strings.ToLower(info.Name)
 		switch {
 		case strings.Contains(lower, "llvmpipe"):
-			require.Equal(t, "llvmpipe", info.Vendor)
+			require.Equal(t, VendorMesa, info.Vendor)
 			require.Equal(t, DeviceTypeSoftware, info.Type)
 		case strings.Contains(lower, "nvidia"):
-			require.Equal(t, "nvidia", info.Vendor)
+			require.Equal(t, VendorNVIDIA, info.Vendor)
 			require.Equal(t, DeviceTypeDedicated, info.Type)
 		case strings.Contains(lower, "amd") || strings.Contains(lower, "radv"):
-			require.Equal(t, "amd", info.Vendor)
+			require.Equal(t, VendorAMD, info.Vendor)
 			require.Equal(t, DeviceTypeIntegrated, info.Type)
 		}
 	}

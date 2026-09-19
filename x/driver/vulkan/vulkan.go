@@ -31,10 +31,29 @@ func ParseDeviceType(name string) (DeviceType, error) {
 	return ffivulkan.ParseDeviceType(name)
 }
 
+// Vendor is [ffivulkan.Vendor]: amd, nvidia, intel, …
+type Vendor = ffivulkan.Vendor
+
+const (
+	VendorUnknown  = ffivulkan.VendorUnknown
+	VendorAMD      = ffivulkan.VendorAMD
+	VendorNVIDIA   = ffivulkan.VendorNVIDIA
+	VendorIntel    = ffivulkan.VendorIntel
+	VendorARM      = ffivulkan.VendorARM
+	VendorQualcomm = ffivulkan.VendorQualcomm
+	VendorApple    = ffivulkan.VendorApple
+	VendorMesa     = ffivulkan.VendorMesa
+)
+
+// ParseVendor maps a String() token such as amd or nvidia.
+func ParseVendor(name string) (Vendor, error) {
+	return ffivulkan.ParseVendor(name)
+}
+
 // Device is one compute-capable Vulkan GPU.
 type Device interface {
 	Name() string
-	Vendor() string
+	Vendor() Vendor
 	Type() DeviceType
 	Native() *ffivulkan.Device
 	Close() error
@@ -51,9 +70,9 @@ func (d *device) Name() string {
 	return d.native.Name()
 }
 
-func (d *device) Vendor() string {
+func (d *device) Vendor() Vendor {
 	if d == nil || d.native == nil {
-		return ""
+		return VendorUnknown
 	}
 	return d.native.Vendor()
 }

@@ -93,9 +93,6 @@ func openIndex(ctx context.Context, index int) (Device, error) {
 
 func offerID(infos []ffivulkan.Info, index int) string {
 	vendor := infos[index].Vendor
-	if vendor == "" {
-		vendor = "unknown"
-	}
 	deviceType := infos[index].Type
 	n := 0
 	typeIndex := 0
@@ -108,7 +105,7 @@ func offerID(infos []ffivulkan.Info, index int) string {
 		}
 		n++
 	}
-	id := "vulkan:" + vendor + ":" + deviceType.String()
+	id := "vulkan:" + vendor.String() + ":" + deviceType.String()
 	if n > 1 {
 		return fmt.Sprintf("%s:%d", id, typeIndex)
 	}

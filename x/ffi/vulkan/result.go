@@ -22,6 +22,8 @@ var (
 	ErrPush = errors.New("invalid push constants")
 	// ErrDeviceType means the device-type token is not a known String().
 	ErrDeviceType = errors.New("unknown device type")
+	// ErrVendor means the vendor token is not a known String().
+	ErrVendor = errors.New("unknown vendor")
 )
 
 // Result is a VkResult.
