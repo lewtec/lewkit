@@ -8,6 +8,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
+	_ "github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
@@ -32,12 +33,12 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 	}
 	for _, iface := range report {
 		parent := next()
-		selectedID := ""
+		selectedLabel := ""
 		selectedWeight := 0
 		available := 0
 		for _, impl := range iface.Drivers {
 			if impl.Selected {
-				selectedID = impl.ID
+				selectedLabel = driverLabel(impl)
 				selectedWeight = impl.Weight
 			}
 			if impl.Available {
@@ -46,8 +47,8 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 		}
 		message := "=> none"
 		state := taskgroup.Failed
-		if selectedID != "" {
-			message = fmt.Sprintf("=> %s w=%d", selectedID, selectedWeight)
+		if selectedLabel != "" {
+			message = fmt.Sprintf("=> %s w=%d", selectedLabel, selectedWeight)
 			state = taskgroup.Done
 		}
 		nodes = append(nodes, taskgroup.Node{
@@ -67,18 +68,18 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 				Name:   impl.ID,
 				Pool:   taskgroup.CPU,
 			}
-			weight := fmt.Sprintf("w=%d", impl.Weight)
+			detail := driverDetail(impl)
 			switch {
 			case impl.Selected:
-				child.Message = weight + " selected"
+				child.Message = detail + " selected"
 				child.State = taskgroup.Done
 			case impl.Available:
-				child.Message = weight + " available"
+				child.Message = detail + " available"
 				child.State = taskgroup.Done
 			default:
-				child.Message = weight
+				child.Message = detail
 				if impl.Error != nil {
-					child.Message = weight + " " + impl.Error.Error()
+					child.Message = detail + " " + impl.Error.Error()
 				}
 				child.State = taskgroup.Failed
 			}
@@ -86,6 +87,24 @@ func doctorNodes(report []driver.InterfaceStatus) []taskgroup.Node {
 		}
 	}
 	return nodes
+}
+
+func driverLabel(impl driver.DriverStatus) string {
+	if impl.ID == "" {
+		return impl.Name
+	}
+	if impl.Name != "" && impl.Name != impl.ID {
+		return impl.ID + ": " + impl.Name
+	}
+	return impl.ID
+}
+
+func driverDetail(impl driver.DriverStatus) string {
+	weight := fmt.Sprintf("w=%d", impl.Weight)
+	if impl.Name != "" && impl.Name != impl.ID {
+		return impl.Name + " " + weight
+	}
+	return weight
 }
 
 func shortIface(name string) string {

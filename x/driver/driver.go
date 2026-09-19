@@ -1,9 +1,10 @@
 // Package driver is a pluggable capability registry.
 //
-// Register a DriverFactory for an interface. Get selects by weight and
-// CheckCompatibility. With and WithResult load the winner and call fn.
-// LEWKIT_FORCE_DRIVER and LEWKIT_FORCE_<IFACE>_DRIVER pin an implementation
-// for tests (weight 101); incompatible pins fall through.
+// Register a DriverFactory for an interface. The factory is both the
+// enumerator (List) and the constructor (Handle.Open / New). List returns
+// every compatible driver; Get opens the first. With and WithResult load
+// the winner and call fn. LEWKIT_FORCE_DRIVER and LEWKIT_FORCE_<IFACE>_DRIVER
+// pin an implementation for tests (weight 101); incompatible pins fall through.
 package driver
 
 import (
@@ -35,12 +36,45 @@ var (
 	errCorrupt     = errors.New("driver registry corrupt")
 )
 
-// DriverFactory constructs one implementation of capability T.
+// DriverFactory is one source of drivers for capability T. Name may
+// change after CheckCompatibility (device name, display, …).
 type DriverFactory[T any] interface {
 	ID() string
 	Name() string
 	CheckCompatibility(ctx context.Context) error
 	New(ctx context.Context) (T, error)
+}
+
+// Offer is one driver a factory can construct. A factory that enumerates
+// several live instances (one GPU, one display) implements Offerer.
+type Offer[T any] struct {
+	ID     string
+	Name   string
+	Weight int
+	New    func(context.Context) (T, error)
+}
+
+// Offerer is optional on a factory. List and Doctor expand Offers after
+// CheckCompatibility. Factories without it offer one driver: ID, Name, New.
+type Offerer[T any] interface {
+	Offers(ctx context.Context) ([]Offer[T], error)
+}
+
+// Handle is one compatible driver. Open constructs it.
+type Handle[T any] struct {
+	ID     string
+	Name   string
+	Weight int
+	open   func(context.Context) (T, error)
+}
+
+// Open constructs this driver.
+func (h Handle[T]) Open(ctx context.Context) (T, error) {
+	var zero T
+	if h.open == nil {
+		return zero, ErrUnavailable
+	}
+	return h.open(ctx)
 }
 
 // Weighter is optional on a factory. Get and Doctor use it when
@@ -134,12 +168,33 @@ func factoryWeight(f any) int {
 	return min(max(w.Weight(), 0), 100)
 }
 
+func driverForced(forced, driverID string) bool {
+	if forced == "" {
+		return false
+	}
+	if forced == driverID {
+		return true
+	}
+	return strings.HasPrefix(driverID, forced+":")
+}
+
+func idPrefixes(id string) []string {
+	parts := strings.Split(id, ":")
+	out := make([]string, 0, len(parts))
+	for i := len(parts); i >= 1; i-- {
+		out = append(out, strings.Join(parts[:i], ":"))
+	}
+	return out
+}
+
 func effectiveWeight(weights map[string]int, driverID, ifaceName string, fallback int) int {
-	if forced := forceDriverFromEnv(ifaceName); forced != "" && forced == driverID {
+	if forced := forceDriverFromEnv(ifaceName); driverForced(forced, driverID) {
 		return 101
 	}
-	if w, ok := weights[driverID]; ok {
-		return w
+	for _, key := range idPrefixes(driverID) {
+		if w, ok := weights[key]; ok {
+			return w
+		}
 	}
 	return fallback
 }
@@ -167,15 +222,29 @@ func Register[T any](factory DriverFactory[T]) {
 	}
 	Drivers[t][id] = factory
 
-	doctorList = append(doctorList, doctorEntry{
+	entry := doctorEntry{
 		InterfaceType: t,
 		InterfaceName: interfaceName(t),
 		FactoryType:   reflect.TypeOf(factory),
 		DriverID:      id,
-		DriverName:    factory.Name(),
+		Name:          factory.Name,
 		Weight:        factoryWeight(factory),
 		Check:         factory.CheckCompatibility,
-	})
+	}
+	if offerer, ok := any(factory).(Offerer[T]); ok {
+		entry.Offers = func(ctx context.Context) ([]offerMeta, error) {
+			offers, err := offerer.Offers(ctx)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]offerMeta, 0, len(offers))
+			for _, o := range offers {
+				out = append(out, offerMeta{ID: o.ID, Name: o.Name, Weight: o.Weight})
+			}
+			return out, nil
+		}
+	}
+	doctorList = append(doctorList, entry)
 }
 
 func interfaceName(t reflect.Type) string {
@@ -197,59 +266,144 @@ func RegisteredWeightShape() map[string][]string {
 	return shape
 }
 
-// Get returns the highest-weight compatible implementation of T.
-func Get[T any](ctx context.Context) (T, error) {
+type factorySet[T any] struct {
+	typ       reflect.Type
+	ifaceName string
+	weights   map[string]int
+	factories []DriverFactory[T]
+}
+
+func snapshot[T any]() (factorySet[T], error) {
 	mu.RLock()
-	t := reflect.TypeFor[T]()
-	if t.Kind() != reflect.Interface {
-		mu.RUnlock()
-		var zero T
-		return zero, ErrNotInterface
+	defer mu.RUnlock()
+
+	set := factorySet[T]{typ: reflect.TypeFor[T]()}
+	if set.typ.Kind() != reflect.Interface {
+		return set, ErrNotInterface
 	}
-
-	ifaceName := interfaceName(t)
-	weights := driverWeights[ifaceName]
-
-	var factories []DriverFactory[T]
-	if byID, ok := Drivers[t]; ok {
+	set.ifaceName = interfaceName(set.typ)
+	set.weights = driverWeights[set.ifaceName]
+	if byID, ok := Drivers[set.typ]; ok {
 		for _, entry := range byID {
 			f, ok := entry.(DriverFactory[T])
 			if !ok {
-				mu.RUnlock()
-				var zero T
-				return zero, fmt.Errorf("%w: %s", errCorrupt, ifaceName)
+				return set, fmt.Errorf("%w: %s", errCorrupt, set.ifaceName)
 			}
-			factories = append(factories, f)
+			set.factories = append(set.factories, f)
 		}
 	}
-	mu.RUnlock()
+	return set, nil
+}
 
-	var zero T
-	if len(factories) == 0 {
-		return zero, ErrNotFound
-	}
-
-	slices.SortFunc(factories, func(a, b DriverFactory[T]) int {
-		if c := cmp.Compare(effectiveWeight(weights, b.ID(), ifaceName, factoryWeight(b)), effectiveWeight(weights, a.ID(), ifaceName, factoryWeight(a))); c != 0 {
+func (s factorySet[T]) sort() {
+	slices.SortFunc(s.factories, func(a, b DriverFactory[T]) int {
+		if c := cmp.Compare(effectiveWeight(s.weights, b.ID(), s.ifaceName, factoryWeight(b)), effectiveWeight(s.weights, a.ID(), s.ifaceName, factoryWeight(a))); c != 0 {
 			return c
 		}
 		return cmp.Compare(a.ID(), b.ID())
 	})
+}
 
+func (s factorySet[T]) weightOf(factory DriverFactory[T]) int {
+	return effectiveWeight(s.weights, factory.ID(), s.ifaceName, factoryWeight(factory))
+}
+
+// List returns every compatible driver for T, highest weight first, without
+// constructing them. Get opens the first Handle that New succeeds for.
+func List[T any](ctx context.Context) ([]Handle[T], error) {
+	set, err := snapshot[T]()
+	if err != nil {
+		return nil, err
+	}
+	if len(set.factories) == 0 {
+		return nil, ErrNotFound
+	}
+	set.sort()
+
+	var out []Handle[T]
 	var report []string
-	for _, factory := range factories {
-		weight := effectiveWeight(weights, factory.ID(), ifaceName, factoryWeight(factory))
+	for _, factory := range set.factories {
+		weight := set.weightOf(factory)
 		if err := cachedCheck(factory.ID(), factory.CheckCompatibility, ctx); err != nil {
 			report = append(report, fmt.Sprintf("[skip] %s (%s) weight=%d: %v", factory.ID(), factory.Name(), weight, err))
 			continue
 		}
-		instance, err := factory.New(ctx)
+		f := factory
+		handles, err := set.handles(ctx, f, weight)
 		if err != nil {
-			report = append(report, fmt.Sprintf("[fail] %s (%s) weight=%d: %v", factory.ID(), factory.Name(), weight, err))
+			report = append(report, fmt.Sprintf("[fail] %s (%s) weight=%d: %v", f.ID(), f.Name(), weight, err))
+			continue
+		}
+		out = append(out, handles...)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%w for %s:\n%s", ErrUnavailable, set.typ.String(), strings.Join(report, "\n"))
+	}
+	slices.SortFunc(out, func(a, b Handle[T]) int {
+		if c := cmp.Compare(b.Weight, a.Weight); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.ID, b.ID)
+	})
+	return out, nil
+}
+
+func (s factorySet[T]) handles(ctx context.Context, factory DriverFactory[T], fallback int) ([]Handle[T], error) {
+	if offerer, ok := any(factory).(Offerer[T]); ok {
+		offers, err := offerer.Offers(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if len(offers) == 0 {
+			return nil, ErrUnavailable
+		}
+		out := make([]Handle[T], 0, len(offers))
+		for _, offer := range offers {
+			o := offer
+			id := o.ID
+			if id == "" {
+				id = factory.ID()
+			}
+			name := o.Name
+			if name == "" {
+				name = factory.Name()
+			}
+			open := o.New
+			if open == nil {
+				open = factory.New
+			}
+			out = append(out, Handle[T]{
+				ID:     id,
+				Name:   name,
+				Weight: effectiveWeight(s.weights, id, s.ifaceName, o.Weight),
+				open:   open,
+			})
+		}
+		return out, nil
+	}
+	return []Handle[T]{{
+		ID:     factory.ID(),
+		Name:   factory.Name(),
+		Weight: fallback,
+		open:   factory.New,
+	}}, nil
+}
+
+// Get returns the highest-weight compatible implementation of T.
+func Get[T any](ctx context.Context) (T, error) {
+	var zero T
+	handles, err := List[T](ctx)
+	if err != nil {
+		return zero, err
+	}
+	var report []string
+	for _, handle := range handles {
+		instance, err := handle.Open(ctx)
+		if err != nil {
+			report = append(report, fmt.Sprintf("[fail] %s (%s) weight=%d: %v", handle.ID, handle.Name, handle.Weight, err))
 			continue
 		}
 		return instance, nil
 	}
-
-	return zero, fmt.Errorf("%w for %s:\n%s", ErrUnavailable, t.String(), strings.Join(report, "\n"))
+	return zero, fmt.Errorf("%w for %s:\n%s", ErrUnavailable, reflect.TypeFor[T]().String(), strings.Join(report, "\n"))
 }

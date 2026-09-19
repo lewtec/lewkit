@@ -13,4 +13,5 @@ func TestWindowUsage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "triangle")
 	assert.Contains(t, text, "one turn")
+	assert.Contains(t, text, "compute")
 }

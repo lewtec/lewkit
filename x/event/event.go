@@ -4,7 +4,8 @@
 //	bus.Publish(v)
 //
 // The channel is closed when ctx is done. Publish never blocks; a full
-// or closed subscriber is skipped.
+// or closed subscriber is skipped. [CreateTimer] is a ctx-scoped tick
+// channel (one buffered, extras dropped).
 package event
 
 import (

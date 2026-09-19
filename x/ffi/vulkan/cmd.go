@@ -1,6 +1,7 @@
 package vulkan
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 )
@@ -21,21 +22,25 @@ func (d *Device) Begin() (*Cmd, error) {
 	if d.recording || d.pending {
 		return nil, ErrBusy
 	}
-	if err := check(d.api.resetCommandPool(d.dev, d.cmdPool, 0)); err != nil {
-		return nil, fmt.Errorf("reset command pool: %w", err)
+	if err := check(d.api.resetCommandBuffer(d.cmd, 0)); err != nil {
+		return nil, fmt.Errorf("reset command buffer: %w", err)
 	}
 	begin := commandBufferBeginInfo{
 		sType: structureCommandBufferBeginInfo,
-		flags: commandOneTimeSubmit,
 	}
 	if err := check(d.api.beginCommandBuffer(d.cmd, &begin)); err != nil {
 		return nil, fmt.Errorf("begin command buffer: %w", err)
 	}
 	d.recording = true
-	return &Cmd{d: d}, nil
+	c := &d.recorded
+	c.d = d
+	c.bound = nil
+	c.used = c.used[:0]
+	c.pools = c.pools[:0]
+	return c, nil
 }
 
-func (c *Cmd) rec() error {
+func (c *Cmd) mustRecord() error {
 	if c == nil || c.d == nil || !c.d.recording || c.d.pending {
 		return ErrBusy
 	}
@@ -52,11 +57,11 @@ func (c *Cmd) track(bufs ...*Buffer) {
 
 // Bind sets the compute pipeline and storage buffers at set 0.
 func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	d := c.d
-	if s == nil || s.pipe == 0 || s.d != d {
+	if s == nil || s.pipeline == 0 || s.d != d {
 		return ErrShader
 	}
 	if len(bufs) != s.bindings {
@@ -67,9 +72,86 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 			return ErrClosed
 		}
 	}
+	if err := s.ensureDescriptors(); err != nil {
+		return err
+	}
+	count := len(bufs)
+	unchanged := len(s.boundBuffers) == count
+	if unchanged {
+		for i, b := range bufs {
+			if s.boundBuffers[i] != b.buf || s.boundLengths[i] != uint64(b.size) {
+				unchanged = false
+				break
+			}
+		}
+	}
+	if !unchanged {
+		if cap(s.bufferInfos) < count {
+			s.bufferInfos = make([]descriptorBufferInfo, count)
+			s.writes = make([]writeDescriptorSet, count)
+			s.boundBuffers = make([]uint64, count)
+			s.boundLengths = make([]uint64, count)
+		} else {
+			s.bufferInfos = s.bufferInfos[:count]
+			s.writes = s.writes[:count]
+			s.boundBuffers = s.boundBuffers[:count]
+			s.boundLengths = s.boundLengths[:count]
+		}
+		for i, b := range bufs {
+			s.bufferInfos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
+			s.writes[i] = writeDescriptorSet{
+				sType:           structureWriteDescriptorSet,
+				dstSet:          s.descriptorSet,
+				dstBinding:      uint32(i),
+				descriptorCount: 1,
+				descriptorType:  descriptorStorageBuffer,
+				pBufferInfo:     &s.bufferInfos[i],
+			}
+			s.boundBuffers[i] = b.buf
+			s.boundLengths[i] = uint64(b.size)
+		}
+		if count > 0 {
+			d.api.updateDescriptorSets(d.dev, uint32(count), &s.writes[0], 0, 0)
+		}
+	}
+	for _, b := range bufs {
+		if err := d.flush(b); err != nil {
+			return err
+		}
+	}
+	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipeline)
+	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipelineLayout, 0, 1, &s.descriptorSet, 0, nil)
+	host := false
+	for _, b := range bufs {
+		if b.ptr != nil {
+			host = true
+			break
+		}
+	}
+	if host {
+		bar := memoryBarrier{
+			sType:         structureMemoryBarrier,
+			srcAccessMask: accessHostWrite,
+			dstAccessMask: accessShaderRead,
+		}
+		d.api.cmdBarrier(d.cmd, stageHost, stageCompute, 0, 1, &bar, 0, 0, 0, 0)
+	}
+	c.bound = s
+	c.track(bufs...)
+	return nil
+}
+
+func (s *Shader) ensureDescriptors() error {
+	if s == nil || s.d == nil || s.pipeline == 0 {
+		return ErrShader
+	}
+	if s.descriptorPool != 0 {
+		return nil
+	}
+	d := s.d
 	poolSize := descriptorPoolSize{
 		typ:             descriptorStorageBuffer,
-		descriptorCount: uint32(max(len(bufs), 1)),
+		descriptorCount: uint32(max(s.bindings, 1)),
 	}
 	poolInfo := descriptorPoolCreateInfo{
 		sType:         structureDescriptorPoolCreateInfo,
@@ -92,54 +174,13 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 		d.api.destroyDescriptorPool(d.dev, pool, 0)
 		return fmt.Errorf("descriptor set: %w", err)
 	}
-	infos := make([]descriptorBufferInfo, len(bufs))
-	writes := make([]writeDescriptorSet, len(bufs))
-	for i, b := range bufs {
-		infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
-		writes[i] = writeDescriptorSet{
-			sType:           structureWriteDescriptorSet,
-			dstSet:          set,
-			dstBinding:      uint32(i),
-			descriptorCount: 1,
-			descriptorType:  descriptorStorageBuffer,
-			pBufferInfo:     &infos[i],
-		}
-	}
-	if len(writes) > 0 {
-		d.api.updateDescriptorSets(d.dev, uint32(len(writes)), &writes[0], 0, 0)
-	}
-	for _, b := range bufs {
-		if err := d.flush(b); err != nil {
-			d.api.destroyDescriptorPool(d.dev, pool, 0)
-			return err
-		}
-	}
-	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipe)
-	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLayout, 0, 1, &set, 0, nil)
-	host := false
-	for _, b := range bufs {
-		if b.ptr != nil {
-			host = true
-			break
-		}
-	}
-	if host {
-		bar := memoryBarrier{
-			sType:         structureMemoryBarrier,
-			srcAccessMask: accessHostWrite,
-			dstAccessMask: accessShaderRead,
-		}
-		d.api.cmdBarrier(d.cmd, stageHost, stageCompute, 0, 1, &bar, 0, 0, 0, 0)
-	}
-	c.bound = s
-	c.pools = append(c.pools, pool)
-	c.track(bufs...)
+	s.descriptorPool, s.descriptorSet = pool, set
 	return nil
 }
 
 // Push writes push constants for the bound shader, offset 0.
 func (c *Cmd) Push(data []byte) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	if c.bound == nil || c.bound.pushBytes == 0 {
@@ -148,13 +189,13 @@ func (c *Cmd) Push(data []byte) error {
 	if len(data) == 0 || len(data) > c.bound.pushBytes || len(data)%4 != 0 {
 		return ErrPush
 	}
-	c.d.api.cmdPushConstants(c.d.cmd, c.bound.pipeLayout, shaderStageCompute, 0, uint32(len(data)), uintptr(unsafe.Pointer(unsafe.SliceData(data))))
+	c.d.api.cmdPushConstants(c.d.cmd, c.bound.pipelineLayout, shaderStageCompute, 0, uint32(len(data)), uintptr(unsafe.Pointer(unsafe.SliceData(data))))
 	return nil
 }
 
 // Dispatch records a compute dispatch. The shader must already be bound.
 func (c *Cmd) Dispatch(x, y, z uint32) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	if c.bound == nil {
@@ -166,7 +207,7 @@ func (c *Cmd) Dispatch(x, y, z uint32) error {
 
 // Barrier makes prior copies and dispatches visible to later ones.
 func (c *Cmd) Barrier() error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	bar := memoryBarrier{
@@ -180,7 +221,7 @@ func (c *Cmd) Barrier() error {
 
 // Copy records a buffer copy of src.Len() bytes. dst must be at least that large.
 func (c *Cmd) Copy(dst, src *Buffer) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	d := c.d
@@ -201,7 +242,7 @@ func (c *Cmd) Copy(dst, src *Buffer) error {
 
 // Submit ends recording and queues the work. Call Wait before Begin again.
 func (c *Cmd) Submit() error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	d := c.d
@@ -284,8 +325,7 @@ func (d *Device) Copy(dst, src *Buffer) error {
 		return err
 	}
 	if err := c.Copy(dst, src); err != nil {
-		_ = c.abort()
-		return err
+		return errors.Join(err, c.Abort())
 	}
 	if err := c.Submit(); err != nil {
 		return err
@@ -293,14 +333,15 @@ func (d *Device) Copy(dst, src *Buffer) error {
 	return c.Wait()
 }
 
-func (c *Cmd) abort() error {
+// Abort drops a recording command buffer without submitting it.
+func (c *Cmd) Abort() error {
 	if c == nil || c.d == nil || !c.d.recording {
 		return nil
 	}
-	_ = check(c.d.api.endCommandBuffer(c.d.cmd))
+	err := check(c.d.api.endCommandBuffer(c.d.cmd))
 	c.d.recording = false
 	c.release()
-	return nil
+	return err
 }
 
 // Run binds buffers to set 0 and dispatches the shader.
@@ -310,12 +351,10 @@ func (d *Device) Run(s *Shader, groupsX, groupsY, groupsZ uint32, bufs ...*Buffe
 		return err
 	}
 	if err := c.Bind(s, bufs...); err != nil {
-		_ = c.abort()
-		return err
+		return errors.Join(err, c.Abort())
 	}
 	if err := c.Dispatch(groupsX, groupsY, groupsZ); err != nil {
-		_ = c.abort()
-		return err
+		return errors.Join(err, c.Abort())
 	}
 	if err := c.Submit(); err != nil {
 		return err

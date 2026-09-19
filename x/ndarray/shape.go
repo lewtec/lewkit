@@ -1,0 +1,105 @@
+package ndarray
+
+import (
+	"fmt"
+	"slices"
+	"strconv"
+	"strings"
+)
+
+// Shape is a tensor's dimensions. Rank is len(Shape). A single -1 is allowed
+// as a reshape wildcard and is replaced by Infer.
+type Shape []int
+
+// Rank is the number of axes.
+func (s Shape) Rank() int {
+	return len(s)
+}
+
+// Size is the number of cells. Live shapes have dims >= 0.
+func (s Shape) Size() int {
+	n := 1
+	for _, dim := range s {
+		n *= dim
+	}
+	return n
+}
+
+// Clone is a copy of the dimensions.
+func (s Shape) Clone() Shape {
+	if s == nil {
+		return nil
+	}
+	return slices.Clone(s)
+}
+
+// Equal reports the same rank and dimensions.
+func (s Shape) Equal(other Shape) bool {
+	return slices.Equal(s, other)
+}
+
+// HasZero reports a zero-length axis.
+func (s Shape) HasZero() bool {
+	return slices.Contains(s, 0)
+}
+
+// String is [d0 d1 …].
+func (s Shape) String() string {
+	var b strings.Builder
+	b.WriteByte('[')
+	for i, dim := range s {
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(strconv.Itoa(dim))
+	}
+	b.WriteByte(']')
+	return b.String()
+}
+
+// Infer replaces one -1 with size / product(rest). Other dims must be >= 0.
+func (s Shape) Infer(size int) (Shape, error) {
+	hole := -1
+	n := 1
+	for i, dim := range s {
+		if dim == -1 {
+			if hole >= 0 {
+				return nil, fmt.Errorf("%w: more than one -1 in %v", ErrShape, s)
+			}
+			hole = i
+			continue
+		}
+		if dim < 0 {
+			return nil, fmt.Errorf("%w: %v", ErrShape, s)
+		}
+		n *= dim
+	}
+	out := s.Clone()
+	if hole >= 0 {
+		if n == 0 {
+			if size != 0 {
+				return nil, fmt.Errorf("%w: %v of %d", ErrSize, s, size)
+			}
+			out[hole] = 0
+			return out, nil
+		}
+		if size%n != 0 {
+			return nil, fmt.Errorf("%w: %v of %d", ErrSize, s, size)
+		}
+		out[hole] = size / n
+		return out, nil
+	}
+	if n != size {
+		return nil, fmt.Errorf("%w: %v of %d", ErrSize, s, size)
+	}
+	return out, nil
+}
+
+func (s Shape) check() error {
+	for _, dim := range s {
+		if dim < 0 {
+			return fmt.Errorf("%w: negative dim %v", ErrShape, s)
+		}
+	}
+	return nil
+}

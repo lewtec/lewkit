@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +16,53 @@ func TestSubscribePublish(t *testing.T) {
 	got, ok := <-ch
 	require.True(t, ok)
 	assert.Equal(t, 7, got)
+}
+
+func TestCreateTimer(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ch := CreateTimer(ctx, time.Millisecond)
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("first tick")
+	}
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("second tick")
+	}
+	cancel()
+	time.Sleep(5 * time.Millisecond)
+	n := 0
+	for {
+		select {
+		case <-ch:
+			n++
+			if n > 8 {
+				t.Fatal("timer kept sending after cancel")
+			}
+		default:
+			return
+		}
+	}
+}
+
+func TestCreateTimerDropsIfSlow(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ch := CreateTimer(ctx, time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	got := 0
+	for {
+		select {
+		case <-ch:
+			got++
+		default:
+			assert.Equal(t, 1, got)
+			return
+		}
+	}
 }
 
 func TestSubscribeCancelCloses(t *testing.T) {

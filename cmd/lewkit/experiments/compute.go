@@ -17,7 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
-// Compute is `lewkit experiments compute`.
+// Compute is `lewkit experiments window compute`.
 type Compute struct {
 	shader   *cmd.StringArg  `help:"SPIR-V or GLSL path; example.comp if omitted"`
 	smoke    cmd.Flag        `long:"smoke" help:"print the 4-byte smoke shader instead of a window"`
@@ -39,29 +39,29 @@ func (c *Compute) Run(ctx context.Context) error {
 }
 
 func runSmoke(ctx context.Context) error {
-	d, err := vulkan.Open(ctx)
+	device, err := vulkan.Open(ctx)
 	if err != nil {
 		return err
 	}
-	defer d.Close()
-	buf, err := d.Buffer(4)
+	defer device.Close()
+	buf, err := device.Buffer(4)
 	if err != nil {
 		return err
 	}
 	defer buf.Close()
-	sh, err := d.Shader(ctx, vulkan.SmokeSPIRV(), 1)
+	shader, err := device.Shader(ctx, vulkan.SmokeSPIRV(), 1)
 	if err != nil {
 		return err
 	}
-	defer sh.Close()
-	if err := d.Run(sh, 1, 1, 1, buf); err != nil {
+	defer shader.Close()
+	if err := device.Run(shader, 1, 1, 1, buf); err != nil {
 		return err
 	}
 	out := make([]byte, 4)
 	if err := buf.Read(out); err != nil {
 		return err
 	}
-	fmt.Printf("%s: smoke -> %d\n", d.Name(), binary.LittleEndian.Uint32(out))
+	fmt.Printf("%s: smoke -> %d\n", device.Name(), binary.LittleEndian.Uint32(out))
 	return nil
 }
 
@@ -85,13 +85,13 @@ func (c *Compute) runWindow(ctx context.Context) error {
 	if local < 1 {
 		return errLocal
 	}
-	d, err := vulkan.Open(ctx)
+	device, err := vulkan.Open(ctx)
 	if err != nil {
 		return err
 	}
-	sh, err := d.Shader(ctx, spirv, binds)
+	shader, err := device.Shader(ctx, spirv, binds)
 	if err != nil {
-		d.Close()
+		device.Close()
 		return err
 	}
 	title := "lewkit compute"
@@ -104,26 +104,26 @@ func (c *Compute) runWindow(ctx context.Context) error {
 		Height: c.height.Value(),
 	})
 	if err != nil {
-		sh.Close()
-		d.Close()
+		shader.Close()
+		device.Close()
 		return err
 	}
 
 	taskgroup.Go(ctx, "compute", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
-		defer d.Close()
-		defer sh.Close()
+		defer device.Close()
+		defer shader.Close()
 		defer win.Close()
 		var (
-			pix, params *vulkan.Buffer
-			bw, bh      int
-			raw         []byte
-			frame       uint32
-			last        time.Time
-			fps         float64
+			pixels, params *vulkan.Buffer
+			bw, bh         int
+			raw            []byte
+			frame          uint32
+			last           time.Time
+			fps            float64
 		)
 		defer func() {
-			if pix != nil {
-				pix.Close()
+			if pixels != nil {
+				pixels.Close()
 			}
 			if params != nil {
 				params.Close()
@@ -134,17 +134,17 @@ func (c *Compute) runWindow(ctx context.Context) error {
 			if w < 1 || h < 1 {
 				return nil
 			}
-			if pix == nil || w != bw || h != bh {
-				if pix != nil {
-					pix.Close()
-					pix = nil
+			if pixels == nil || w != bw || h != bh {
+				if pixels != nil {
+					pixels.Close()
+					pixels = nil
 				}
-				pix, err = d.Buffer(w * h * 4)
+				pixels, err = device.Buffer(w * h * 4)
 				if err != nil {
 					return err
 				}
 				if binds >= 2 && params == nil {
-					params, err = d.Buffer(16)
+					params, err = device.Buffer(16)
 					if err != nil {
 						return err
 					}
@@ -162,16 +162,16 @@ func (c *Compute) runWindow(ctx context.Context) error {
 					return err
 				}
 			}
-			bufs := []*vulkan.Buffer{pix}
+			bufs := []*vulkan.Buffer{pixels}
 			if params != nil {
 				bufs = append(bufs, params)
 			}
 			gx := uint32((w + local - 1) / local)
 			gy := uint32((h + local - 1) / local)
-			if err := d.Run(sh, gx, gy, 1, bufs...); err != nil {
+			if err := device.Run(shader, gx, gy, 1, bufs...); err != nil {
 				return err
 			}
-			if err := pix.Read(raw); err != nil {
+			if err := pixels.Read(raw); err != nil {
 				return err
 			}
 			lewimage.CopyRGBA(dst, raw)
