@@ -3,7 +3,9 @@ package image
 import (
 	stdimage "image"
 	"image/color"
+	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -75,6 +77,38 @@ func TestFill(t *testing.T) {
 	dst := raster(t, expr)
 	assert.Equal(t, color.RGBA{10, 20, 30, 255}, dst.RGBAAt(0, 0))
 	assert.Equal(t, color.RGBA{10, 20, 30, 255}, dst.RGBAAt(1, 1))
+}
+
+func vmKB(t *testing.T) int64 {
+	t.Helper()
+	b, err := os.ReadFile("/proc/self/status")
+	require.NoError(t, err)
+	for _, line := range strings.Split(string(b), "\n") {
+		if !strings.HasPrefix(line, "VmSize:") {
+			continue
+		}
+		f := strings.Fields(line)
+		n, err := strconv.ParseInt(f[1], 10, 64)
+		require.NoError(t, err)
+		return n
+	}
+	t.Fatal("no VmSize")
+	return 0
+}
+
+func TestPainterVirt(t *testing.T) {
+	p, err := New(t.Context())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, p)
+	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, 256, 256))
+	require.NoError(t, p.Draw(t.Context(), dst, 0))
+	v0 := vmKB(t)
+	for i := range 40 {
+		require.NoError(t, p.Draw(t.Context(), dst, float64(i)/40))
+	}
+	v1 := vmKB(t)
+	t.Logf("VmSize %d -> %d kB (%+d) over 40 painter frames", v0, v1, v1-v0)
+	require.Less(t, v1-v0, int64(64*1024), "virtual size grew %d kB", v1-v0)
 }
 
 func TestPainterHeap(t *testing.T) {

@@ -92,7 +92,6 @@ type cpuJob struct {
 	srcs   [][]float32
 	out    []float32
 	lo, hi int
-	done   func()
 }
 
 type cpuScratch struct {
@@ -132,8 +131,9 @@ func (k *Kernel) evalSerial(dst []float32, srcs [][]float32) {
 }
 
 var (
-	cpuOnce sync.Once
-	cpuCh   chan cpuJob
+	cpuOnce  sync.Once
+	cpuReady []chan cpuJob
+	cpuDone  []chan struct{}
 )
 
 func startCPUWorkers() {
@@ -142,16 +142,19 @@ func startCPUWorkers() {
 		if n < 1 {
 			n = 1
 		}
-		cpuCh = make(chan cpuJob, n)
-		for range n {
-			go cpuWorker()
+		cpuReady = make([]chan cpuJob, n)
+		cpuDone = make([]chan struct{}, n)
+		for i := range n {
+			cpuReady[i] = make(chan cpuJob)
+			cpuDone[i] = make(chan struct{})
+			go cpuWorker(i)
 		}
 	})
 }
 
-func cpuWorker() {
+func cpuWorker(id int) {
 	var s cpuScratch
-	for j := range cpuCh {
+	for j := range cpuReady[id] {
 		if cap(s.regs) < j.p.nreg {
 			s.regs = make([]uint32, j.p.nreg)
 		} else {
@@ -167,27 +170,32 @@ func cpuWorker() {
 			s.scratch = make([]int, 8)
 		}
 		j.loop(&s)
-		j.done()
+		cpuDone[id] <- struct{}{}
 	}
 }
 
 func (k *Kernel) evalParallel(dst []float32, srcs [][]float32, workers int) {
 	startCPUWorkers()
-	var wg sync.WaitGroup
+	if workers > len(cpuReady) {
+		workers = len(cpuReady)
+	}
 	chunk := (k.n + workers - 1) / workers
 	base := cpuJob{p: k.cpu, shape: k.shape, outDT: k.outDT, srcs: srcs, out: dst}
+	n := 0
 	for w := range workers {
 		lo := w * chunk
 		hi := min(lo+chunk, k.n)
 		if lo >= hi {
 			break
 		}
-		wg.Add(1)
 		j := base
-		j.lo, j.hi, j.done = lo, hi, wg.Done
-		cpuCh <- j
+		j.lo, j.hi = lo, hi
+		cpuReady[w] <- j
+		n++
 	}
-	wg.Wait()
+	for w := range n {
+		<-cpuDone[w]
+	}
 }
 
 func (j cpuJob) run() {
