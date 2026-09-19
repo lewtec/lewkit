@@ -72,10 +72,13 @@ func (k *Kernel) Resize(shape Shape) error {
 	if k == nil || shape.Rank() != k.shape.Rank() {
 		return ErrShape
 	}
+	if k.shape.Equal(shape) {
+		return nil
+	}
 	if err := shape.check(); err != nil {
 		return err
 	}
-	k.shape = shape.Clone()
+	copy(k.shape, shape)
 	k.size = shape.Size()
 	return nil
 }

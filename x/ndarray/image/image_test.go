@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
@@ -132,6 +133,25 @@ func TestPainterDraw(t *testing.T) {
 	require.NoError(t, p.Draw(t.Context(), dst, 0.5))
 	bot := dst.RGBAAt(16, 24)
 	assert.Greater(t, int(bot.R), 180, "painter half turn=%v", bot)
+}
+
+func TestPainterDrawAllocs(t *testing.T) {
+	p, err := New(t.Context())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, p)
+	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, 32, 32))
+	require.NoError(t, p.Draw(t.Context(), dst, 0))
+	gpu := p.eval
+	p.eval = ndarray.CPU
+	require.NoError(t, p.Draw(t.Context(), dst, 0))
+	defer func() { p.eval = gpu }()
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	n := testing.AllocsPerRun(30, func() {
+		if err := p.Draw(t.Context(), dst, 0.25); err != nil {
+			panic(err)
+		}
+	})
+	require.Equal(t, 0.0, n)
 }
 
 func TestTriangleExec(t *testing.T) {

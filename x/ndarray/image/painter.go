@@ -15,6 +15,7 @@ type Painter struct {
 	turn     *ndarray.Tensor
 	width    *ndarray.Tensor
 	height   *ndarray.Tensor
+	h, w     int
 }
 
 // New compiles TriangleDynamic once. Open picks Vulkan if it can, else CPU.
@@ -60,8 +61,11 @@ func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) er
 	if buf := p.height.Buffer(); len(buf) > 0 {
 		buf[0] = float32(h)
 	}
-	if err := p.triangle.Resize(ndarray.Shape{h, w, 4}); err != nil {
-		return err
+	if h != p.h || w != p.w {
+		if err := p.triangle.Resize(ndarray.Shape{h, w, 4}); err != nil {
+			return err
+		}
+		p.h, p.w = h, w
 	}
 	if err := p.triangle.Eval(ctx, p.eval); err != nil {
 		return err

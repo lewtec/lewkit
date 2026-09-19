@@ -1,6 +1,7 @@
 package ndarray
 
 import (
+	"runtime/debug"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
@@ -140,4 +141,20 @@ func TestTensorExecNilDevice(t *testing.T) {
 	x, err := Ones(Shape{2})
 	require.NoError(t, err)
 	require.ErrorIs(t, x.Eval(t.Context(), &Vulkan{}), ErrOp)
+}
+
+func TestTensorEvalAllocs(t *testing.T) {
+	a, err := New([]float32{1, 2, 3, 4}, Shape{4})
+	require.NoError(t, err)
+	b, err := Ones(Shape{4})
+	require.NoError(t, err)
+	out := a.Add(b)
+	require.NoError(t, out.Eval(t.Context(), CPU))
+	defer debug.SetGCPercent(debug.SetGCPercent(-1))
+	n := testing.AllocsPerRun(50, func() {
+		if err := out.Eval(t.Context(), CPU); err != nil {
+			panic(err)
+		}
+	})
+	require.Equal(t, 0.0, n)
 }
