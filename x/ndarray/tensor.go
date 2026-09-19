@@ -82,9 +82,16 @@ func Rand(shape Shape) (*Tensor, error) {
 	return wrap(input(buf, tracker, F32)), nil
 }
 
-// Shape is the logical shape, or nil for a splat.
+// Shape is the logical shape, or nil for a splat. After compile, this is
+// the kernel's runtime shape (Resize).
 func (t *Tensor) Shape() Shape {
-	if t == nil || t.node == nil {
+	if t == nil {
+		return nil
+	}
+	if t.kernel != nil {
+		return t.kernel.Shape()
+	}
+	if t.node == nil {
 		return nil
 	}
 	return t.node.Shape()
@@ -187,7 +194,7 @@ func (t *Tensor) realize(ctx context.Context, evaluator Evaluator, destination [
 	if len(destination) < t.kernel.size {
 		return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), t.kernel.size)
 	}
-	return evaluator.Run(ctx, t.kernel, destination[:t.kernel.size])
+	return evaluator.Run(ctx, t, destination[:t.kernel.size])
 }
 
 func (t *Tensor) ensure() error {
@@ -201,6 +208,14 @@ func (t *Tensor) ensure() error {
 	t.kernel = kernel
 	slog.Debug("ndarray compile", "shape", kernel.shape, "size", kernel.size)
 	return nil
+}
+
+// Kernel is the compiled program for this tensor, or nil before Eval/Resize.
+func (t *Tensor) Kernel() *Kernel {
+	if t == nil {
+		return nil
+	}
+	return t.kernel
 }
 
 func (t *Tensor) withTracker(tr Tracker) *Tensor {

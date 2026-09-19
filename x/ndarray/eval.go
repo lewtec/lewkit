@@ -8,10 +8,10 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
-// Evaluator runs a compiled kernel. CPU is the fallback; device backends
+// Evaluator runs a tensor. CPU is the fallback; device backends
 // register at higher weight via [github.com/lewtec/lewkit/x/driver/ndeval].
 type Evaluator interface {
-	Run(ctx context.Context, kernel *Kernel, output []float32) error
+	Run(ctx context.Context, tensor *Tensor, output []float32) error
 	Close() error
 }
 
@@ -20,11 +20,11 @@ type cpuEvaluator struct{}
 // CPU is the register-tape evaluator. Always available.
 var CPU Evaluator = cpuEvaluator{}
 
-func (cpuEvaluator) Run(_ context.Context, kernel *Kernel, output []float32) error {
-	if kernel == nil {
+func (cpuEvaluator) Run(_ context.Context, tensor *Tensor, output []float32) error {
+	if tensor == nil || tensor.kernel == nil {
 		return ErrOp
 	}
-	return kernel.EvalInto(output)
+	return tensor.kernel.EvalInto(output)
 }
 
 func (cpuEvaluator) Close() error { return nil }

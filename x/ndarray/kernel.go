@@ -13,8 +13,8 @@ const (
 	pushBytes = 20 // n, d0, d1, d2, d3
 )
 
-// Kernel is the fused program for a node tree: GLSL, CPU tape, and the
-// leaf buffers. Device pipelines live on the evaluator.
+// Kernel is the fused program for a node tree: GLSL, SPIR-V, CPU tape,
+// and leaf buffers. Device pipelines live on the evaluator.
 type Kernel struct {
 	root    *node
 	glsl    string

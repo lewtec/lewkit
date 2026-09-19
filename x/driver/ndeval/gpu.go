@@ -56,8 +56,11 @@ func (g *gpuEvaluator) native() *ffivulkan.Device {
 	return g.device.Native()
 }
 
-func (g *gpuEvaluator) Run(ctx context.Context, kernel *ndarray.Kernel, output []float32) error {
-	session, err := g.session(ctx, kernel)
+func (g *gpuEvaluator) Run(ctx context.Context, tensor *ndarray.Tensor, output []float32) error {
+	if tensor == nil {
+		return ndarray.ErrOp
+	}
+	session, err := g.session(ctx, tensor.Kernel())
 	if err != nil {
 		return err
 	}
