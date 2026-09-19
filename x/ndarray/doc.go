@@ -1,5 +1,5 @@
-// Package tinygrad maps tensor movement onto a flat buffer and fuses a graph
-// of tinygrad's 21 ALU ops into one Vulkan compute kernel.
+// Package ndarray maps n-d views onto a flat buffer and fuses a graph of
+// 21 ALU ops into one Vulkan compute kernel.
 //
 // [Of] starts a contiguous row-major view. [Tracker.Reshape], [Tracker.Permute],
 // [Tracker.Expand], [Tracker.Pad], [Tracker.Shrink], and [Tracker.Flip] change
@@ -8,4 +8,6 @@
 //
 // [In] plus [Add], [Mul], and the other 21 ops build an expression. [Compile]
 // emits one GLSL compute shader. [Kernel.Run] / [Kernel.Exec] dispatch it once.
-package tinygrad
+//
+// Layers live in [github.com/lewtec/lewkit/x/ndarray/nn].
+package ndarray

@@ -1,4 +1,4 @@
-package tinygrad
+package ndarray
 
 // DType is a kernel element type.
 type DType uint8
@@ -27,7 +27,7 @@ func (d DType) glsl() string {
 	return "float"
 }
 
-// Op is one of tinygrad's 21 ALU ops.
+// Op is one of the 21 ALU ops.
 type Op uint8
 
 const (

@@ -1,4 +1,4 @@
-package tinygrad
+package ndarray
 
 import (
 	"strings"
