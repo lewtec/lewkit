@@ -13,6 +13,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
+	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -173,7 +174,7 @@ func (c *Compute) runWindow(ctx context.Context) error {
 			if err := pix.Read(raw); err != nil {
 				return err
 			}
-			copyRGBA(dst, raw)
+			lewimage.CopyRGBA(dst, raw)
 			now := time.Now()
 			if !last.IsZero() {
 				dt := now.Sub(last).Seconds()
@@ -199,11 +200,3 @@ var (
 	errBindings = errors.New("bindings must be >= 1")
 	errLocal    = errors.New("local must be >= 1")
 )
-
-func copyRGBA(dst *image.RGBA, src []byte) {
-	w, h := dst.Rect.Dx(), dst.Rect.Dy()
-	for y := range h {
-		row := src[y*w*4 : (y+1)*w*4]
-		copy(dst.Pix[y*dst.Stride:], row)
-	}
-}
