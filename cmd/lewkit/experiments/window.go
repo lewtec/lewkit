@@ -42,28 +42,13 @@ func (c *triangleCmd) Run(ctx context.Context) (err error) {
 		return err
 	}
 	defer w.Close()
+	p, err := ndimage.New(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, p.Close()) }()
 	fps := fpsMeter{t0: time.Now()}
-	var p *ndimage.Painter
-	defer func() {
-		if p != nil {
-			err = errors.Join(err, p.Close())
-		}
-	}()
 	return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
-		h, wd := dst.Rect.Dy(), dst.Rect.Dx()
-		if !p.Matches(h, wd) {
-			if p != nil {
-				if err := p.Close(); err != nil {
-					return err
-				}
-				p = nil
-			}
-			np, err := ndimage.Open(ctx, h, wd)
-			if err != nil {
-				return err
-			}
-			p = np
-		}
 		if err := p.Draw(ctx, dst, elapsed.Seconds()); err != nil {
 			return err
 		}

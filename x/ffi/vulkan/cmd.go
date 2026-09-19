@@ -68,9 +68,63 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 			return ErrClosed
 		}
 	}
+	if err := s.ensureDesc(); err != nil {
+		return err
+	}
+	infos := make([]descriptorBufferInfo, len(bufs))
+	writes := make([]writeDescriptorSet, len(bufs))
+	for i, b := range bufs {
+		infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
+		writes[i] = writeDescriptorSet{
+			sType:           structureWriteDescriptorSet,
+			dstSet:          s.descSet,
+			dstBinding:      uint32(i),
+			descriptorCount: 1,
+			descriptorType:  descriptorStorageBuffer,
+			pBufferInfo:     &infos[i],
+		}
+	}
+	if len(writes) > 0 {
+		d.api.updateDescriptorSets(d.dev, uint32(len(writes)), &writes[0], 0, 0)
+	}
+	for _, b := range bufs {
+		if err := d.flush(b); err != nil {
+			return err
+		}
+	}
+	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipe)
+	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLayout, 0, 1, &s.descSet, 0, nil)
+	host := false
+	for _, b := range bufs {
+		if b.ptr != nil {
+			host = true
+			break
+		}
+	}
+	if host {
+		bar := memoryBarrier{
+			sType:         structureMemoryBarrier,
+			srcAccessMask: accessHostWrite,
+			dstAccessMask: accessShaderRead,
+		}
+		d.api.cmdBarrier(d.cmd, stageHost, stageCompute, 0, 1, &bar, 0, 0, 0, 0)
+	}
+	c.bound = s
+	c.track(bufs...)
+	return nil
+}
+
+func (s *Shader) ensureDesc() error {
+	if s == nil || s.d == nil || s.pipe == 0 {
+		return ErrShader
+	}
+	if s.descPool != 0 {
+		return nil
+	}
+	d := s.d
 	poolSize := descriptorPoolSize{
 		typ:             descriptorStorageBuffer,
-		descriptorCount: uint32(max(len(bufs), 1)),
+		descriptorCount: uint32(max(s.bindings, 1)),
 	}
 	poolInfo := descriptorPoolCreateInfo{
 		sType:         structureDescriptorPoolCreateInfo,
@@ -93,48 +147,7 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 		d.api.destroyDescriptorPool(d.dev, pool, 0)
 		return fmt.Errorf("descriptor set: %w", err)
 	}
-	infos := make([]descriptorBufferInfo, len(bufs))
-	writes := make([]writeDescriptorSet, len(bufs))
-	for i, b := range bufs {
-		infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
-		writes[i] = writeDescriptorSet{
-			sType:           structureWriteDescriptorSet,
-			dstSet:          set,
-			dstBinding:      uint32(i),
-			descriptorCount: 1,
-			descriptorType:  descriptorStorageBuffer,
-			pBufferInfo:     &infos[i],
-		}
-	}
-	if len(writes) > 0 {
-		d.api.updateDescriptorSets(d.dev, uint32(len(writes)), &writes[0], 0, 0)
-	}
-	for _, b := range bufs {
-		if err := d.flush(b); err != nil {
-			d.api.destroyDescriptorPool(d.dev, pool, 0)
-			return err
-		}
-	}
-	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipe)
-	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLayout, 0, 1, &set, 0, nil)
-	host := false
-	for _, b := range bufs {
-		if b.ptr != nil {
-			host = true
-			break
-		}
-	}
-	if host {
-		bar := memoryBarrier{
-			sType:         structureMemoryBarrier,
-			srcAccessMask: accessHostWrite,
-			dstAccessMask: accessShaderRead,
-		}
-		d.api.cmdBarrier(d.cmd, stageHost, stageCompute, 0, 1, &bar, 0, 0, 0, 0)
-	}
-	c.bound = s
-	c.pools = append(c.pools, pool)
-	c.track(bufs...)
+	s.descPool, s.descSet = pool, set
 	return nil
 }
 

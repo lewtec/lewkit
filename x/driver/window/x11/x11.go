@@ -149,11 +149,13 @@ func setDeleteProtocol(conn *xgb.Conn, wid xproto.Window) (xproto.Atom, error) {
 type xwin struct {
 	*window.Buffer
 	mu       sync.Mutex
+	blit     sync.Mutex
 	conn     *xgb.Conn
 	wid      xproto.Window
 	gc       xproto.Gcontext
 	depth    byte
 	wmDelete xproto.Atom
+	bgra     []byte
 }
 
 func (w *xwin) Draw() error {
@@ -201,9 +203,15 @@ func (w *xwin) put() error {
 	if conn == nil {
 		return window.ErrClosed
 	}
+	w.blit.Lock()
+	defer w.blit.Unlock()
 	src := w.Front()
-	bgra := make([]byte, len(src.Pix))
-	window.ToBGRA(bgra, src)
+	if cap(w.bgra) < len(src.Pix) {
+		w.bgra = make([]byte, len(src.Pix))
+	} else {
+		w.bgra = w.bgra[:len(src.Pix)]
+	}
+	window.ToBGRA(w.bgra, src)
 	width, height := src.Rect.Dx(), src.Rect.Dy()
 	stride := width * 4
 	if stride == 0 || height == 0 {
@@ -217,7 +225,7 @@ func (w *xwin) put() error {
 	for y := 0; y < height; y += maxRows {
 		n := min(maxRows, height-y)
 		err := xproto.PutImageChecked(conn, xproto.ImageFormatZPixmap, xproto.Drawable(wid), gc,
-			uint16(width), uint16(n), 0, int16(y), 0, depth, bgra[y*stride:(y+n)*stride]).Check()
+			uint16(width), uint16(n), 0, int16(y), 0, depth, w.bgra[y*stride:(y+n)*stride]).Check()
 		if err != nil {
 			return err
 		}

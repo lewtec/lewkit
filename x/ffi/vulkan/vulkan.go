@@ -375,6 +375,8 @@ type Shader struct {
 	setLayout  uint64
 	pipeLayout uint64
 	pipe       uint64
+	descPool   uint64
+	descSet    uint64
 	bindings   int
 	pushBytes  int
 }
@@ -524,9 +526,14 @@ func (s *Shader) Close() error {
 	}
 	d := s.d
 	pipe, layout, set, mod := s.pipe, s.pipeLayout, s.setLayout, s.module
+	pool := s.descPool
 	s.pipe, s.pipeLayout, s.setLayout, s.module = 0, 0, 0, 0
+	s.descPool, s.descSet = 0, 0
 	if d == nil || d.closed || d.dev == 0 {
 		return nil
+	}
+	if pool != 0 {
+		d.api.destroyDescriptorPool(d.dev, pool, 0)
 	}
 	d.api.destroyPipeline(d.dev, pipe, 0)
 	d.api.destroyPipelineLayout(d.dev, layout, 0)

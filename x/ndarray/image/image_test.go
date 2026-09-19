@@ -76,6 +76,17 @@ func TestFill(t *testing.T) {
 	assert.Equal(t, color.RGBA{10, 20, 30, 255}, dst.RGBAAt(1, 1))
 }
 
+func TestPainterDraw(t *testing.T) {
+	p, err := New(t.Context())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, p)
+	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, 32, 32))
+	require.NoError(t, p.Draw(t.Context(), dst, 0))
+	require.NoError(t, p.Draw(t.Context(), dst, 0.5))
+	bot := dst.RGBAAt(16, 24)
+	assert.Greater(t, int(bot.R), 180, "painter half turn=%v", bot)
+}
+
 func TestTriangleExec(t *testing.T) {
 	d, err := vulkan.Open(t.Context())
 	if err != nil {

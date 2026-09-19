@@ -3,6 +3,7 @@ package image
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	stdimage "image"
 	"math"
 	"unsafe"
@@ -11,20 +12,91 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-// Painter draws Triangle frames without reallocating the kernel or pixel buffer.
+// Painter draws Triangle frames. One Vulkan device is opened for the
+// lifetime; kernels are rebuilt only when the pixel size changes.
 type Painter struct {
+	d    *vulkan.Device
+	cur  *slot
+	prev *slot
+	turn []float32
+	ins  [][]float32
+}
+
+type slot struct {
 	h, w int
 	k    *ndarray.Kernel
 	pix  []float32
-	turn []float32
-	ins  [][]float32
-	d    *vulkan.Device
 	dst  *vulkan.Buffer
 	src  *vulkan.Buffer
 }
 
-// Open compiles Triangle once. Vulkan is used when Open succeeds.
-func Open(ctx context.Context, h, w int) (*Painter, error) {
+// New opens an optional Vulkan device. Draw compiles the first size on demand.
+func New(ctx context.Context) (*Painter, error) {
+	p := &Painter{turn: []float32{0}}
+	p.ins = [][]float32{p.turn}
+	d, err := vulkan.Open(ctx)
+	if err == nil {
+		p.d = d
+	}
+	return p, nil
+}
+
+// Draw renders one frame into dst.
+func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) error {
+	if p == nil {
+		return ndarray.ErrOp
+	}
+	h, w := dst.Rect.Dy(), dst.Rect.Dx()
+	if h < 1 || w < 1 {
+		return nil
+	}
+	if err := p.ensure(ctx, h, w); err != nil {
+		return err
+	}
+	s := p.cur
+	p.turn[0] = float32(turn)
+	if p.d != nil && s.dst != nil {
+		var b [4]byte
+		binary.LittleEndian.PutUint32(b[:], math.Float32bits(p.turn[0]))
+		if err := s.src.Write(b[:]); err != nil {
+			return err
+		}
+		if err := s.k.Run(ctx, p.d, s.dst, s.src); err != nil {
+			return err
+		}
+		if err := s.dst.Read(asBytes(s.pix)); err != nil {
+			return err
+		}
+	} else if err := s.k.EvalInto(s.pix, p.ins); err != nil {
+		return err
+	}
+	Write(dst, s.pix)
+	return nil
+}
+
+func (p *Painter) ensure(ctx context.Context, h, w int) error {
+	if p.cur != nil && p.cur.h == h && p.cur.w == w {
+		return nil
+	}
+	if p.prev != nil && p.prev.h == h && p.prev.w == w {
+		p.cur, p.prev = p.prev, p.cur
+		return nil
+	}
+	s, err := p.build(ctx, h, w)
+	if err != nil {
+		return err
+	}
+	if p.prev != nil {
+		if err := p.prev.close(); err != nil {
+			return errors.Join(err, s.close())
+		}
+	}
+	p.prev = p.cur
+	p.cur = s
+	return nil
+}
+
+func (p *Painter) build(ctx context.Context, h, w int) (*slot, error) {
 	st, err := ndarray.Of()
 	if err != nil {
 		return nil, err
@@ -37,91 +109,74 @@ func Open(ctx context.Context, h, w int) (*Painter, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Painter{h: h, w: w, k: k, pix: make([]float32, h*w*4), turn: []float32{0}}
-	p.ins = [][]float32{p.turn}
-	d, err := vulkan.Open(ctx)
-	if err != nil {
-		return p, nil
+	s := &slot{h: h, w: w, k: k, pix: make([]float32, h*w*4)}
+	if p.d == nil {
+		return s, nil
 	}
-	dst, err := d.Buffer(max(len(p.pix), 1) * 4)
+	dst, err := p.d.Buffer(max(len(s.pix), 1) * 4)
 	if err != nil {
-		d.Close()
-		return p, nil
+		return nil, errors.Join(err, k.Close())
 	}
-	src, err := d.Buffer(4)
+	src, err := p.d.Buffer(4)
 	if err != nil {
-		dst.Close()
-		d.Close()
-		return p, nil
+		return nil, errors.Join(err, dst.Close(), k.Close())
 	}
-	p.d, p.dst, p.src = d, dst, src
-	return p, nil
+	s.dst, s.src = dst, src
+	return s, nil
 }
 
-// Matches reports that p was compiled for h×w.
-func (p *Painter) Matches(h, w int) bool {
-	return p != nil && p.h == h && p.w == w
+func (s *slot) close() error {
+	if s == nil {
+		return nil
+	}
+	var err error
+	if s.src != nil {
+		err = s.src.Close()
+		s.src = nil
+	}
+	if s.dst != nil {
+		if e := s.dst.Close(); err == nil {
+			err = e
+		}
+		s.dst = nil
+	}
+	if s.k != nil {
+		if e := s.k.Close(); err == nil {
+			err = e
+		}
+		s.k = nil
+	}
+	return err
 }
 
-// Draw renders one frame into dst. dst must be h×w.
-func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) error {
-	if p == nil || p.k == nil {
-		return ndarray.ErrOp
-	}
-	p.turn[0] = float32(turn)
-	if p.d != nil {
-		var b [4]byte
-		binary.LittleEndian.PutUint32(b[:], math.Float32bits(p.turn[0]))
-		if err := p.src.Write(b[:]); err != nil {
-			return err
-		}
-		if err := p.k.Run(ctx, p.d, p.dst, p.src); err != nil {
-			return err
-		}
-		if err := p.dst.Read(f32bytes(p.pix)); err != nil {
-			return err
-		}
-	} else if err := p.k.EvalInto(p.pix, p.ins); err != nil {
-		return err
-	}
-	Write(dst, p.pix)
-	return nil
-}
-
-func f32bytes(v []float32) []byte {
+func asBytes(v []float32) []byte {
 	if len(v) == 0 {
 		return nil
 	}
 	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*4)
 }
 
-// Close releases the kernel and any Vulkan buffers.
+// Close releases kernels, buffers, and the device.
 func (p *Painter) Close() error {
 	if p == nil {
 		return nil
 	}
-	var first error
-	if p.src != nil {
-		first = p.src.Close()
-		p.src = nil
+	var err error
+	if p.prev != nil {
+		err = p.prev.close()
+		p.prev = nil
 	}
-	if p.dst != nil {
-		if err := p.dst.Close(); first == nil {
-			first = err
+	if p.cur != nil {
+		if e := p.cur.close(); err == nil {
+			err = e
 		}
-		p.dst = nil
-	}
-	if p.k != nil {
-		if err := p.k.Close(); first == nil {
-			first = err
-		}
-		p.k = nil
+		p.cur = nil
 	}
 	if p.d != nil {
-		if err := p.d.Close(); first == nil {
-			first = err
+		if e := p.d.Close(); err == nil {
+			err = e
 		}
 		p.d = nil
 	}
-	return first
+	return err
 }
