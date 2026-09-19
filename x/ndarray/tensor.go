@@ -165,12 +165,8 @@ func (t *Tensor) Close() error {
 	if t == nil {
 		return nil
 	}
-	if t.kernel == nil {
-		return nil
-	}
-	err := t.kernel.Close()
 	t.kernel = nil
-	return err
+	return nil
 }
 
 func (t *Tensor) realize(ctx context.Context, evaluator Evaluator, destination []float32) error {

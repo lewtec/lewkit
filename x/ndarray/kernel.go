@@ -1,12 +1,11 @@
 package ndarray
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strconv"
 	"strings"
-
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
 )
 
 const (
@@ -14,19 +13,17 @@ const (
 	pushBytes = 20 // n, d0, d1, d2, d3
 )
 
-// Kernel is one fused compute shader for a whole expression.
+// Kernel is the fused program for a node tree: GLSL, CPU tape, and the
+// leaf buffers. Device pipelines live on the evaluator.
 type Kernel struct {
-	root           *node
-	glsl           string
-	shape          Shape
-	bufs           []*buffer
-	outType        DType
-	size           int
-	spirv          []byte
-	cpu            cpuProgram
-	pipeline       *vulkan.Shader
-	pipelineDevice *vulkan.Device
-	runBuffers     []*vulkan.Buffer
+	root    *node
+	glsl    string
+	shape   Shape
+	bufs    []*buffer
+	outType DType
+	size    int
+	spirv   []byte
+	cpu     cpuProgram
 }
 
 func compile(expr *node) (*Kernel, error) {
@@ -105,6 +102,54 @@ func (k *Kernel) Bindings() int {
 		return 0
 	}
 	return 1 + len(k.bufs)
+}
+
+// Size is the dense output length.
+func (k *Kernel) Size() int {
+	if k == nil {
+		return 0
+	}
+	return k.size
+}
+
+// InputCount is the number of leaf buffers.
+func (k *Kernel) InputCount() int {
+	if k == nil {
+		return 0
+	}
+	return len(k.bufs)
+}
+
+// Input is leaf i's host storage, or nil.
+func (k *Kernel) Input(i int) []float32 {
+	if k == nil || i < 0 || i >= len(k.bufs) || k.bufs[i] == nil {
+		return nil
+	}
+	return k.bufs[i].data
+}
+
+// Groups is the compute workgroup count for Size.
+func (k *Kernel) Groups() uint32 {
+	if k == nil || k.size == 0 {
+		return 0
+	}
+	return uint32((k.size + localSize - 1) / localSize)
+}
+
+// Push is n and the first four shape dims, little-endian.
+func (k *Kernel) Push() []byte {
+	push := make([]byte, pushBytes)
+	if k == nil {
+		return push
+	}
+	binary.LittleEndian.PutUint32(push[0:], uint32(k.size))
+	for i, s := range k.shape {
+		if i >= 4 {
+			break
+		}
+		binary.LittleEndian.PutUint32(push[4+4*i:], uint32(s))
+	}
+	return push
 }
 
 func flatten(root *node) ([]*node, []*buffer, error) {

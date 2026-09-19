@@ -39,7 +39,7 @@ type gpuEvaluator struct {
 	device   vulkan.Device
 	own      bool
 	mu       sync.Mutex
-	sessions map[*ndarray.Kernel]*ndarray.Session
+	sessions map[*ndarray.Kernel]*session
 }
 
 func (g *gpuEvaluator) Name() string {
@@ -64,21 +64,21 @@ func (g *gpuEvaluator) Run(ctx context.Context, kernel *ndarray.Kernel, output [
 	return session.Run(ctx, output)
 }
 
-func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*ndarray.Session, error) {
+func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*session, error) {
 	native := g.native()
 	if native == nil || kernel == nil {
 		return nil, ndarray.ErrOp
 	}
 	g.mu.Lock()
 	if g.sessions == nil {
-		g.sessions = make(map[*ndarray.Kernel]*ndarray.Session)
+		g.sessions = make(map[*ndarray.Kernel]*session)
 	}
 	s := g.sessions[kernel]
 	g.mu.Unlock()
 	if s != nil {
 		return s, nil
 	}
-	s, err := kernel.Attach(ctx, native)
+	s, err := newSession(ctx, kernel, native)
 	if err != nil {
 		return nil, err
 	}

@@ -29,3 +29,15 @@ func TestTensorExecOnes(t *testing.T) {
 	require.NoError(t, x.Eval(t.Context(), evaluator, dst))
 	require.Equal(t, []float32{1, 1, 1, 1, 1, 1, 1, 1}, dst)
 }
+
+func TestTensorExecLoop(t *testing.T) {
+	evaluator := mustGPU(t)
+	a, err := ndarray.New([]float32{1, 2, 3, 4, 5, 6, 7, 8}, ndarray.Shape{8})
+	require.NoError(t, err)
+	out := a.Add(ndarray.Const(1))
+	dst := make([]float32, 8)
+	for range 20 {
+		require.NoError(t, out.Eval(t.Context(), evaluator, dst))
+	}
+	require.Equal(t, []float32{2, 3, 4, 5, 6, 7, 8, 9}, dst)
+}
