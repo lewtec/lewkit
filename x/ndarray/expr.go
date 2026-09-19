@@ -47,6 +47,13 @@ func Const(v float32) *Node {
 	return &Node{kind: kindConst, dtype: F32, bits: math.Float32bits(v)}
 }
 
+func filled(v float32, tracker Tracker) *Node {
+	if err := tracker.check(); err != nil {
+		return failed(err)
+	}
+	return &Node{kind: kindConst, dtype: F32, bits: math.Float32bits(v), tracker: tracker}
+}
+
 // ConstInt is an int32 splat.
 func ConstInt(v int32) *Node {
 	return &Node{kind: kindConst, dtype: I32, bits: uint32(v)}
@@ -77,6 +84,12 @@ func GreaterEqual(a, b *Node) *Node { return CmpNe(CmpLt(a, b), ConstInt(1)) }
 func (n *Node) Shape() []int {
 	if n == nil || n.err != nil {
 		return nil
+	}
+	if n.kind == kindConst {
+		if len(n.tracker.views) == 0 {
+			return nil
+		}
+		return n.tracker.Shape()
 	}
 	if n.kind == kindInput {
 		shape := n.tracker.Shape()

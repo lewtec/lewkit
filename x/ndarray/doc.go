@@ -1,6 +1,10 @@
 // Package ndarray maps n-d views onto a flat buffer and fuses a graph of
 // 21 ALU ops into one Vulkan compute kernel.
 //
+// [Tensor] is the array: a row-major buffer plus a [Tracker]. [Zeros], [Ones],
+// [Full], and [Rand] build one. Ops on Tensor lower to the same fused kernel.
+// [Tensor.Eval] runs the CPU tape; [Tensor.Exec] dispatches on Vulkan.
+//
 // [Of] starts a contiguous row-major view. [Tracker.Reshape], [Tracker.Permute],
 // [Tracker.Expand], [Tracker.Pad], [Tracker.Shrink], and [Tracker.Flip] change
 // how cells are addressed. [Tracker.Index] turns a logical coordinate into a
