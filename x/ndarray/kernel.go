@@ -106,6 +106,10 @@ func flatten(root *Node) ([]*Node, []int, error) {
 		seen[n] = true
 		switch n.kind {
 		case kindConst:
+		case kindCoord:
+			if n.slot < 0 || n.st.check() != nil {
+				return ErrOp
+			}
 		case kindIn:
 			if n.slot < 0 {
 				return ErrOp
@@ -195,6 +199,12 @@ func (w *glslW) node(n *Node) (string, error) {
 	switch n.kind {
 	case kindConst:
 		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dt.glsl(), id, glslConst(n))
+		return id, nil
+	case kindCoord:
+		if n.slot < 0 || n.slot >= len(w.coords) || !slices.Equal(n.st.Shape(), w.outShape) {
+			return "", ErrAxis
+		}
+		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, w.coords[n.slot])
 		return id, nil
 	case kindIn:
 		off, valid := w.index(n.st)

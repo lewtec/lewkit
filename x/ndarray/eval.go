@@ -52,6 +52,11 @@ func (c cpu) node(n *Node) (uint32, error) {
 	switch n.kind {
 	case kindConst:
 		return n.bits, nil
+	case kindCoord:
+		if n.slot < 0 || n.slot >= len(c.coords) {
+			return 0, ErrAxis
+		}
+		return uint32(int32(c.coords[n.slot])), nil
 	case kindIn:
 		off, ok, err := n.st.Index(c.coords...)
 		if err != nil {

@@ -11,6 +11,7 @@ type kind uint8
 const (
 	kindConst kind = iota
 	kindIn
+	kindCoord
 	kindOp
 )
 
@@ -51,12 +52,33 @@ func ConstI(v int32) *Node {
 	return &Node{kind: kindConst, dt: I32, bits: uint32(v)}
 }
 
+// Coord is the logical index on axis, as int32. shape is the tensor it indexes.
+func Coord(axis int, shape ...int) *Node {
+	st, err := Of(shape...)
+	if err != nil {
+		return bad(err)
+	}
+	if axis < 0 || axis >= len(shape) {
+		return bad(ErrAxis)
+	}
+	return &Node{kind: kindCoord, dt: I32, st: st, slot: axis}
+}
+
+// Div is a * (1/b).
+func Div(a, b *Node) *Node { return Mul(a, Recip(b)) }
+
+// Eq is 1 if a == b, else 0.
+func Eq(a, b *Node) *Node { return CmpNe(CmpNe(a, b), ConstI(1)) }
+
+// Ge is 1 if a >= b, else 0.
+func Ge(a, b *Node) *Node { return CmpNe(CmpLt(a, b), ConstI(1)) }
+
 // Shape is the logical shape, or nil for a splat.
 func (n *Node) Shape() []int {
 	if n == nil || n.err != nil {
 		return nil
 	}
-	if n.kind == kindIn {
+	if n.kind == kindIn || n.kind == kindCoord {
 		return n.st.Shape()
 	}
 	if n.kind == kindOp {

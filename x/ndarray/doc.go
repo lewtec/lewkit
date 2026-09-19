@@ -6,7 +6,8 @@
 // how cells are addressed. [Tracker.Index] turns a logical coordinate into a
 // buffer offset and a valid bit (false in padding).
 //
-// [In] plus [Add], [Mul], and the other 21 ops build an expression. [Compile]
+// [In] plus [Add], [Mul], and the other 21 ops build an expression. [Coord]
+// is a logical index. [Compile]
 // emits one GLSL compute shader. [Kernel.Run] / [Kernel.Exec] dispatch it once.
 //
 // Layers live in [github.com/lewtec/lewkit/x/ndarray/nn].
