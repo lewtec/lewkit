@@ -4,8 +4,8 @@
 // [Tensor] is the brick. It holds a lazy op tree. Leaves own a host buffer;
 // [Tensor.Reshape], [Tensor.Permute], and the other view ops share that
 // buffer. ALU ops return a new Tensor. [Tensor.Eval] flattens the tree to
-// a [Kernel] (graph descriptor) and calls [Evaluator.Run]. Each backend
-// holds its own code: CPU a register tape, Vulkan GLSL/SPIR-V. Pipelines
+// a [Kernel] (graph descriptor) and [Evaluator.Exec] returns backend code
+// ([Exec]) to run it. CPU holds a tape; Vulkan holds a session. Pipelines
 // live in
 // [github.com/lewtec/lewkit/x/driver/ndeval].
 //

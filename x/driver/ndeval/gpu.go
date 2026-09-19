@@ -39,7 +39,7 @@ type gpuEvaluator struct {
 	device   vulkan.Device
 	own      bool
 	mu       sync.Mutex
-	sessions map[*ndarray.Kernel]*session
+	sessions map[*ndarray.Tensor]*session
 }
 
 func (g *gpuEvaluator) Name() string {
@@ -56,44 +56,45 @@ func (g *gpuEvaluator) native() *ffivulkan.Device {
 	return g.device.Native()
 }
 
-func (g *gpuEvaluator) Run(ctx context.Context, tensor *ndarray.Tensor, output []float32) error {
+func (g *gpuEvaluator) Exec(ctx context.Context, tensor *ndarray.Tensor) (ndarray.Exec, error) {
 	if tensor == nil {
-		return ndarray.ErrOp
+		return nil, ndarray.ErrOp
 	}
-	session, err := g.session(ctx, tensor.Kernel())
-	if err != nil {
-		return err
-	}
-	return session.Run(ctx, output)
+	return g.session(ctx, tensor)
 }
 
-func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*session, error) {
+func (g *gpuEvaluator) session(ctx context.Context, tensor *ndarray.Tensor) (*session, error) {
 	native := g.native()
+	kernel := tensor.Kernel()
 	if native == nil || kernel == nil {
 		return nil, ndarray.ErrOp
 	}
 	g.mu.Lock()
 	if g.sessions == nil {
-		g.sessions = make(map[*ndarray.Kernel]*session)
+		g.sessions = make(map[*ndarray.Tensor]*session)
 	}
-	s := g.sessions[kernel]
-	g.mu.Unlock()
-	if s != nil {
+	s := g.sessions[tensor]
+	if s != nil && s.kernel == kernel {
+		g.mu.Unlock()
 		return s, nil
 	}
+	g.mu.Unlock()
 	s, err := newSession(ctx, kernel, native)
 	if err != nil {
 		return nil, err
 	}
 	g.mu.Lock()
-	if existing := g.sessions[kernel]; existing != nil {
+	if existing := g.sessions[tensor]; existing != nil && existing.kernel == kernel {
 		g.mu.Unlock()
 		if err := s.Close(); err != nil {
 			return nil, err
 		}
 		return existing, nil
 	}
-	g.sessions[kernel] = s
+	if old := g.sessions[tensor]; old != nil {
+		_ = old.Close()
+	}
+	g.sessions[tensor] = s
 	g.mu.Unlock()
 	slog.Debug("ndeval vulkan session", "device", native.Name())
 	return s, nil

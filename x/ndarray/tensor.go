@@ -194,7 +194,11 @@ func (t *Tensor) realize(ctx context.Context, evaluator Evaluator, destination [
 	if len(destination) < t.kernel.size {
 		return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), t.kernel.size)
 	}
-	return evaluator.Run(ctx, t, destination[:t.kernel.size])
+	ex, err := evaluator.Exec(ctx, t)
+	if err != nil {
+		return err
+	}
+	return ex.Run(ctx, destination[:t.kernel.size])
 }
 
 func (t *Tensor) ensure() error {

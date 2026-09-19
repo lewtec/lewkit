@@ -7,3 +7,5 @@ import (
 
 var _ driver.DriverFactory[ndarray.Evaluator] = cpuFactory{}
 var _ driver.DriverFactory[ndarray.Evaluator] = gpuFactory{}
+var _ ndarray.Evaluator = (*gpuEvaluator)(nil)
+var _ ndarray.Exec = (*session)(nil)

@@ -9,55 +9,84 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
-// Evaluator runs a tensor. CPU is the fallback; device backends
-// register at higher weight via [github.com/lewtec/lewkit/x/driver/ndeval].
+// Evaluator binds a tensor to backend code (CPU tape, GPU session).
 type Evaluator interface {
-	Run(ctx context.Context, tensor *Tensor, output []float32) error
+	Exec(ctx context.Context, tensor *Tensor) (Exec, error)
+	Close() error
+}
+
+// Exec runs a tensor on one backend. Resize on the tensor is visible
+// to the next Run. Close drops this binding; the evaluator may cache it.
+type Exec interface {
+	Run(ctx context.Context, output []float32) error
 	Close() error
 }
 
 type cpuEvaluator struct {
 	mu    sync.Mutex
-	tapes map[*Kernel]cpuProgram
+	bound map[*Tensor]*cpuExec
+}
+
+type cpuExec struct {
+	parent *cpuEvaluator
+	tensor *Tensor
+	kernel *Kernel
+	tape   cpuProgram
 }
 
 // CPU is the register-tape evaluator. Always available.
 var CPU Evaluator = newCPUEvaluator()
 
 func newCPUEvaluator() *cpuEvaluator {
-	return &cpuEvaluator{tapes: make(map[*Kernel]cpuProgram)}
+	return &cpuEvaluator{bound: make(map[*Tensor]*cpuExec)}
 }
 
-func (c *cpuEvaluator) Run(_ context.Context, tensor *Tensor, output []float32) error {
+func (c *cpuEvaluator) Exec(_ context.Context, tensor *Tensor) (Exec, error) {
 	if c == nil || tensor == nil || tensor.kernel == nil {
+		return nil, ErrOp
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if e, ok := c.bound[tensor]; ok && e.kernel == tensor.kernel {
+		return e, nil
+	}
+	if old := c.bound[tensor]; old != nil {
+		delete(c.bound, tensor)
+	}
+	tape, err := lowerCPU(tensor.kernel.order, tensor.kernel.bufs, tensor.kernel.built)
+	if err != nil {
+		return nil, err
+	}
+	e := &cpuExec{parent: c, tensor: tensor, kernel: tensor.kernel, tape: tape}
+	c.bound[tensor] = e
+	return e, nil
+}
+
+func (e *cpuExec) Run(_ context.Context, output []float32) error {
+	if e == nil || e.tensor == nil || e.tensor.kernel == nil {
 		return ErrOp
 	}
-	program, err := c.program(tensor.kernel)
-	if err != nil {
-		return err
+	k := e.tensor.kernel
+	if len(output) < k.size {
+		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.size)
 	}
-	if len(output) < tensor.kernel.size {
-		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), tensor.kernel.size)
-	}
-	if tensor.kernel.size == 0 {
+	if k.size == 0 {
 		return nil
 	}
-	runCPU(program, tensor.kernel, output)
+	runCPU(e.tape, k, output)
 	return nil
 }
 
-func (c *cpuEvaluator) program(k *Kernel) (cpuProgram, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if p, ok := c.tapes[k]; ok {
-		return p, nil
+func (e *cpuExec) Close() error {
+	if e == nil || e.parent == nil {
+		return nil
 	}
-	p, err := lowerCPU(k.order, k.bufs, k.built)
-	if err != nil {
-		return cpuProgram{}, err
+	e.parent.mu.Lock()
+	if e.parent.bound[e.tensor] == e {
+		delete(e.parent.bound, e.tensor)
 	}
-	c.tapes[k] = p
-	return p, nil
+	e.parent.mu.Unlock()
+	return nil
 }
 
 func (c *cpuEvaluator) Close() error {
@@ -65,7 +94,7 @@ func (c *cpuEvaluator) Close() error {
 		return nil
 	}
 	c.mu.Lock()
-	c.tapes = make(map[*Kernel]cpuProgram)
+	c.bound = make(map[*Tensor]*cpuExec)
 	c.mu.Unlock()
 	return nil
 }

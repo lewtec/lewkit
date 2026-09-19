@@ -106,7 +106,9 @@ func TestCompileGLSL(t *testing.T) {
 	require.NoError(t, err)
 	k, err := compile(a.Add(b).Mul(Const(0.5)).node)
 	require.NoError(t, err)
-	spirv, err := k.SPIRV(t.Context())
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	spirv, err := glsl.Load(t.Context(), []byte(src))
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(spirv))
 }

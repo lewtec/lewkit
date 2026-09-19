@@ -9,6 +9,7 @@ import (
 
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/wasm/glsl"
 )
 
 // session is one kernel bound to a device: SPIR-V pipeline and GPU buffers.
@@ -24,10 +25,15 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.D
 	if kernel == nil || device == nil {
 		return nil, ndarray.ErrOp
 	}
-	spirv, err := kernel.SPIRV(ctx)
+	src, err := kernel.GLSL()
 	if err != nil {
 		return nil, err
 	}
+	spirv, err := glsl.Load(ctx, []byte(src))
+	if err != nil {
+		return nil, err
+	}
+	slog.Debug("ndeval spirv", "bytes", len(spirv))
 	push := kernel.Push()
 	shader, err := device.Compile(ctx, ffivulkan.ShaderConfig{
 		SPIRV:     spirv,
