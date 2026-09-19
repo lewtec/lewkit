@@ -191,6 +191,7 @@ type win struct {
 	surfaceWidth   int
 	surfaceHeight  int
 	surfaceStride  int
+	stale          []objc.ID
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -279,10 +280,17 @@ func (w *win) closeNS() {
 	w.mu.Lock()
 	wnd := w.wnd
 	surfaces := w.surfaces
+	stale := w.stale
 	w.wnd = 0
 	w.surfaces = [2]objc.ID{}
+	w.stale = nil
 	w.mu.Unlock()
 	for _, surface := range surfaces {
+		if surface != 0 {
+			surface.Send(selRelease)
+		}
+	}
+	for _, surface := range stale {
 		if surface != 0 {
 			surface.Send(selRelease)
 		}
@@ -349,9 +357,8 @@ func (w *win) setContents(surface objc.ID) {
 	}
 	w.mu.Lock()
 	wnd := w.wnd
-	live := surface == w.surfaces[0] || surface == w.surfaces[1]
 	w.mu.Unlock()
-	if wnd == 0 || !live {
+	if wnd == 0 {
 		return
 	}
 	withPool(func() {
@@ -366,6 +373,38 @@ func (w *win) setContents(surface objc.ID) {
 		layer.Send(selSetContents, surface)
 		endNoAnim()
 	})
+	w.releaseStale(surface)
+}
+
+func (w *win) retire(surface objc.ID) {
+	if surface != 0 {
+		w.stale = append(w.stale, surface)
+	}
+}
+
+func (w *win) releaseStale(keep objc.ID) {
+	w.mu.Lock()
+	stale := w.stale
+	w.stale = nil
+	live0, live1 := w.surfaces[0], w.surfaces[1]
+	w.mu.Unlock()
+	var hold []objc.ID
+	for _, surface := range stale {
+		if surface == 0 || surface == live0 || surface == live1 {
+			continue
+		}
+		if surface == keep {
+			hold = append(hold, surface)
+			continue
+		}
+		surface.Send(selRelease)
+	}
+	if len(hold) == 0 {
+		return
+	}
+	w.mu.Lock()
+	w.stale = append(w.stale, hold...)
+	w.mu.Unlock()
 }
 
 func (w *win) blit() error {
@@ -470,36 +509,32 @@ func (w *win) ensureSurfaces(width, height, stride int) bool {
 	if w.surfaces[0] != 0 && w.surfaces[1] != 0 && w.surfaceWidth == width && w.surfaceHeight == height && w.surfaceStride == stride {
 		return true
 	}
-	for i, surface := range w.surfaces {
-		if surface != 0 {
-			surface.Send(selRelease)
-			w.surfaces[i] = 0
-		}
-	}
 	class := objc.GetClass("IOSurface")
 	if class == 0 {
 		return false
 	}
+	var created [2]objc.ID
 	ok := true
 	withPool(func() {
-		for i := range w.surfaces {
-			surface := newIOSurface(class, width, height, stride)
-			if surface == 0 {
+		for i := range created {
+			created[i] = newIOSurface(class, width, height, stride)
+			if created[i] == 0 {
 				ok = false
 				return
 			}
-			w.surfaces[i] = surface
 		}
 	})
 	if !ok {
-		for j, created := range w.surfaces {
-			if created != 0 {
-				created.Send(selRelease)
-				w.surfaces[j] = 0
+		for _, surface := range created {
+			if surface != 0 {
+				surface.Send(selRelease)
 			}
 		}
 		return false
 	}
+	w.retire(w.surfaces[0])
+	w.retire(w.surfaces[1])
+	w.surfaces = created
 	w.surfaceWidth = width
 	w.surfaceHeight = height
 	w.surfaceStride = stride
