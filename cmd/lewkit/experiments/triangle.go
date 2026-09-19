@@ -159,6 +159,9 @@ func (p *trianglePainter) Draw(ctx context.Context, destination *stdimage.RGBA, 
 		p.frameHeight, p.frameWidth = frameHeight, frameWidth
 	}
 	size := frameHeight * frameWidth * 4
+	if destination.Stride == frameWidth*4 && len(destination.Pix) >= size {
+		return p.triangle.Eval(ctx, p.evaluator, destination.Pix[:size])
+	}
 	if cap(p.buffer) < size {
 		p.buffer = make([]uint8, size)
 	} else {

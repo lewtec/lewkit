@@ -186,7 +186,8 @@ type win struct {
 	pixelCopy      [2][]byte
 	pixelCopyIndex int
 	layerScale     float64
-	surface        objc.ID
+	surfaces       [2]objc.ID
+	surfaceIndex   int
 	surfaceWidth   int
 	surfaceHeight  int
 	surfaceStride  int
@@ -220,18 +221,32 @@ func (w *win) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
 	}
-	thread.Do(w.flush)
+	front := w.Front()
+	if front == nil || front.Rect.Dx() < 1 || front.Rect.Dy() < 1 {
+		return nil
+	}
+	width, height, stride := front.Rect.Dx(), front.Rect.Dy(), front.Stride
+	w.mu.Lock()
+	ok := w.ensureSurfaces(width, height, stride)
+	surface := w.surfaces[w.surfaceIndex]
+	if ok {
+		w.surfaceIndex ^= 1
+	}
+	w.mu.Unlock()
+	if !ok || surface == 0 {
+		thread.Go(func() { _ = w.blit() })
+		return nil
+	}
+	copied := false
+	w.WithFront(func(src *image.RGBA) {
+		copied = copyIOSurface(surface, src)
+	})
+	if !copied {
+		thread.Go(func() { _ = w.blit() })
+		return nil
+	}
+	thread.Go(func() { w.setContents(surface) })
 	return nil
-}
-
-func (w *win) flush() {
-	if w.Closed() {
-		return
-	}
-	if width, height := w.clientSize(); width > 0 && height > 0 {
-		_ = w.Buffer.Resize(image.Pt(width, height))
-	}
-	_ = w.blit()
 }
 
 func (w *win) Resize(size image.Point) error {
@@ -263,12 +278,14 @@ func (w *win) Close() error {
 func (w *win) closeNS() {
 	w.mu.Lock()
 	wnd := w.wnd
-	surface := w.surface
+	surfaces := w.surfaces
 	w.wnd = 0
-	w.surface = 0
+	w.surfaces = [2]objc.ID{}
 	w.mu.Unlock()
-	if surface != 0 {
-		surface.Send(selRelease)
+	for _, surface := range surfaces {
+		if surface != 0 {
+			surface.Send(selRelease)
+		}
 	}
 	if wnd != 0 {
 		wnd.Send(selClose)
@@ -326,6 +343,31 @@ func (w *win) scale() float64 {
 	return scale
 }
 
+func (w *win) setContents(surface objc.ID) {
+	if surface == 0 {
+		return
+	}
+	w.mu.Lock()
+	wnd := w.wnd
+	live := surface == w.surfaces[0] || surface == w.surfaces[1]
+	w.mu.Unlock()
+	if wnd == 0 || !live {
+		return
+	}
+	withPool(func() {
+		view := wnd.Send(selContentView)
+		layer := view.Send(selLayer)
+		scale := w.scale()
+		if w.layerScale != scale {
+			prepareLayer(layer, scale)
+			w.layerScale = scale
+		}
+		beginNoAnim()
+		layer.Send(selSetContents, surface)
+		endNoAnim()
+	})
+}
+
 func (w *win) blit() error {
 	w.mu.Lock()
 	wnd := w.wnd
@@ -347,10 +389,6 @@ func (w *win) blit() error {
 				w.layerScale = scale
 			}
 			beginNoAnim()
-			if w.presentIOSurface(src, layer) {
-				endNoAnim()
-				return
-			}
 			var cgImage uintptr
 			cgImage, err = w.cgImageFromRGBA(src)
 			if err != nil {
@@ -428,18 +466,49 @@ func nsNumber(value int) objc.ID {
 	return objc.ID(objc.GetClass("NSNumber")).Send(selNumberInteger, value)
 }
 
-func (w *win) ensureIOSurface(width, height, stride int) bool {
-	if w.surface != 0 && w.surfaceWidth == width && w.surfaceHeight == height && w.surfaceStride == stride {
+func (w *win) ensureSurfaces(width, height, stride int) bool {
+	if w.surfaces[0] != 0 && w.surfaces[1] != 0 && w.surfaceWidth == width && w.surfaceHeight == height && w.surfaceStride == stride {
 		return true
 	}
-	if w.surface != 0 {
-		w.surface.Send(selRelease)
-		w.surface = 0
+	for i, surface := range w.surfaces {
+		if surface != 0 {
+			surface.Send(selRelease)
+			w.surfaces[i] = 0
+		}
 	}
 	class := objc.GetClass("IOSurface")
 	if class == 0 {
 		return false
 	}
+	ok := true
+	withPool(func() {
+		for i := range w.surfaces {
+			surface := newIOSurface(class, width, height, stride)
+			if surface == 0 {
+				ok = false
+				return
+			}
+			w.surfaces[i] = surface
+		}
+	})
+	if !ok {
+		for j, created := range w.surfaces {
+			if created != 0 {
+				created.Send(selRelease)
+				w.surfaces[j] = 0
+			}
+		}
+		return false
+	}
+	w.surfaceWidth = width
+	w.surfaceHeight = height
+	w.surfaceStride = stride
+	w.surfaceIndex = 0
+	slog.Debug("cocoa IOSurface", "width", width, "height", height, "stride", stride)
+	return true
+}
+
+func newIOSurface(class objc.Class, width, height, stride int) objc.ID {
 	properties := objc.ID(objc.GetClass("NSMutableDictionary")).Send(selDictionary)
 	properties.Send(selSetObjectKey, nsNumber(width), nsstr("IOSurfaceWidth"))
 	properties.Send(selSetObjectKey, nsNumber(height), nsstr("IOSurfaceHeight"))
@@ -447,35 +516,29 @@ func (w *win) ensureIOSurface(width, height, stride int) bool {
 	properties.Send(selSetObjectKey, nsNumber(stride), nsstr("IOSurfaceBytesPerRow"))
 	properties.Send(selSetObjectKey, nsNumber(stride*height), nsstr("IOSurfaceAllocSize"))
 	properties.Send(selSetObjectKey, nsNumber(pixelFormatRGBA), nsstr("IOSurfacePixelFormat"))
-	surface := objc.ID(class).Send(selAlloc).Send(selInitProps, properties)
-	if surface == 0 {
-		return false
-	}
-	w.surface = surface
-	w.surfaceWidth = width
-	w.surfaceHeight = height
-	w.surfaceStride = stride
-	slog.Debug("cocoa IOSurface", "width", width, "height", height, "stride", stride)
-	return true
+	return objc.ID(class).Send(selAlloc).Send(selInitProps, properties)
 }
 
-func (w *win) presentIOSurface(source *image.RGBA, layer objc.ID) bool {
+func copyIOSurface(surface objc.ID, source *image.RGBA) bool {
+	if surface == 0 || source == nil {
+		return false
+	}
 	width, height := source.Rect.Dx(), source.Rect.Dy()
 	stride := source.Stride
-	if !w.ensureIOSurface(width, height, stride) {
+	if width < 1 || height < 1 {
 		return false
 	}
-	if w.surface.Send(selLockSurface, 0, 0) != 0 {
+	if surface.Send(selLockSurface, 0, 0) != 0 {
 		return false
 	}
-	base := w.surface.Send(selBaseAddress)
+	base := surface.Send(selBaseAddress)
 	if base == 0 {
-		w.surface.Send(selUnlockSurface, 0, 0)
+		surface.Send(selUnlockSurface, 0, 0)
 		return false
 	}
-	rowBytes := int(w.surface.Send(selBytesPerRow))
+	rowBytes := int(surface.Send(selBytesPerRow))
 	if rowBytes < stride {
-		w.surface.Send(selUnlockSurface, 0, 0)
+		surface.Send(selUnlockSurface, 0, 0)
 		return false
 	}
 	destination := unsafe.Slice((*byte)(unsafe.Pointer(base)), rowBytes*height)
@@ -486,8 +549,7 @@ func (w *win) presentIOSurface(source *image.RGBA, layer objc.ID) bool {
 			copy(destination[y*rowBytes:y*rowBytes+width*4], source.Pix[y*stride:y*stride+width*4])
 		}
 	}
-	w.surface.Send(selUnlockSurface, 0, 0)
-	layer.Send(selSetContents, w.surface)
+	surface.Send(selUnlockSurface, 0, 0)
 	return true
 }
 
