@@ -3,8 +3,8 @@ package ndarray
 import "fmt"
 
 // Eval runs the kernel on the CPU. srcs[i] is the buffer for Slots()[i].
-// It interprets a register tape built at Compile; it does not emit or load
-// native code.
+// It interprets a register tape built at Compile (no native codegen) and
+// shards cells across GOMAXPROCS when the output is large enough.
 func (k *Kernel) Eval(srcs ...[]float32) ([]float32, error) {
 	if k == nil || k.cpu.nreg == 0 {
 		return nil, ErrOp
@@ -15,5 +15,5 @@ func (k *Kernel) Eval(srcs ...[]float32) ([]float32, error) {
 	if k.n == 0 {
 		return nil, nil
 	}
-	return k.cpu.eval(k.n, k.shape, k.outDT, srcs), nil
+	return k.evalCPU(srcs), nil
 }

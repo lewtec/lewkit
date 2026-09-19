@@ -2,8 +2,12 @@ package ndarray
 
 import (
 	"math"
+	"runtime"
 	"slices"
+	"sync"
 )
+
+const cpuMinPar = 1024
 
 const (
 	ckConst uint8 = iota
@@ -79,32 +83,66 @@ func lowerCPU(order []*Node, slots, shape []int) (cpuProg, error) {
 	return cpuProg{code: code, nreg: len(code), root: reg[order[len(order)-1]]}, nil
 }
 
-func (p cpuProg) eval(n int, shape []int, outDT DType, srcs [][]float32) []float32 {
-	out := make([]float32, n)
-	regs := make([]uint32, p.nreg)
-	coords := make([]int, len(shape))
+type cpuJob struct {
+	p      cpuProg
+	shape  []int
+	outDT  DType
+	srcs   [][]float32
+	out    []float32
+	lo, hi int
+}
+
+func (k *Kernel) evalCPU(srcs [][]float32) []float32 {
+	out := make([]float32, k.n)
+	job := cpuJob{p: k.cpu, shape: k.shape, outDT: k.outDT, srcs: srcs, out: out}
+	workers := min(runtime.GOMAXPROCS(0), k.n)
+	if workers < 2 || k.n < cpuMinPar {
+		job.hi = k.n
+		job.run()
+		return out
+	}
+	var wg sync.WaitGroup
+	chunk := (k.n + workers - 1) / workers
+	for w := range workers {
+		lo := w * chunk
+		hi := min(lo+chunk, k.n)
+		if lo >= hi {
+			break
+		}
+		wg.Go(func() {
+			part := job
+			part.lo, part.hi = lo, hi
+			part.run()
+		})
+	}
+	wg.Wait()
+	return out
+}
+
+func (j cpuJob) run() {
+	regs := make([]uint32, j.p.nreg)
+	coords := make([]int, len(j.shape))
 	scratch := make([]int, 8)
-	for i := range n {
-		unravelInto(shape, i, coords)
-		for _, in := range p.code {
+	for i := j.lo; i < j.hi; i++ {
+		unravelInto(j.shape, i, coords)
+		for _, in := range j.p.code {
 			switch in.kind {
 			case ckConst:
 				regs[in.dst] = in.bits
 			case ckCoord:
 				regs[in.dst] = uint32(int32(coords[in.axis]))
 			case ckLoad:
-				regs[in.dst] = in.load(i, coords, srcs, &scratch)
+				regs[in.dst] = in.load(i, coords, j.srcs, &scratch)
 			case ckALU:
 				regs[in.dst] = in.evalALU(regs)
 			}
 		}
-		if outDT == I32 {
-			out[i] = float32(int32(regs[p.root]))
+		if j.outDT == I32 {
+			j.out[i] = float32(int32(regs[j.p.root]))
 		} else {
-			out[i] = math.Float32frombits(regs[p.root])
+			j.out[i] = math.Float32frombits(regs[j.p.root])
 		}
 	}
-	return out
 }
 
 func (in inst) load(i int, coords []int, srcs [][]float32, scratch *[]int) uint32 {
