@@ -155,6 +155,9 @@ func (t *Tensor[T]) Size() int {
 	if t == nil {
 		return 0
 	}
+	if t.kernel != nil {
+		return t.kernel.size
+	}
 	s := t.Shape()
 	if s == nil {
 		return 0

@@ -7,8 +7,8 @@ import (
 	stdimage "image"
 	"math"
 
+	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ndarray"
-	ndimage "github.com/lewtec/lewkit/x/ndarray/image"
 )
 
 const (
@@ -94,14 +94,11 @@ func (f triangleFrame) rotate(x, y float32) (px, py *ndarray.Tensor[float32]) {
 }
 
 type trianglePainter struct {
-	evaluator   ndarray.Evaluator
-	triangle    *ndarray.Tensor[uint8]
-	turn        *ndarray.Tensor[float32]
-	width       *ndarray.Tensor[float32]
-	height      *ndarray.Tensor[float32]
-	buffer      []uint8
-	frameHeight int
-	frameWidth  int
+	evaluator ndarray.Evaluator
+	triangle  *ndarray.Tensor[uint8]
+	turn      *ndarray.Tensor[float32]
+	width     *ndarray.Tensor[float32]
+	height    *ndarray.Tensor[float32]
 }
 
 func newTrianglePainter(ctx context.Context) (*trianglePainter, error) {
@@ -152,26 +149,7 @@ func (p *trianglePainter) Draw(ctx context.Context, destination *stdimage.RGBA, 
 	if buf := p.height.Buffer(); len(buf) > 0 {
 		buf[0] = float32(frameHeight)
 	}
-	if frameHeight != p.frameHeight || frameWidth != p.frameWidth {
-		if err := p.triangle.Resize(ndarray.Shape{frameHeight, frameWidth, 4}); err != nil {
-			return err
-		}
-		p.frameHeight, p.frameWidth = frameHeight, frameWidth
-	}
-	size := frameHeight * frameWidth * 4
-	if destination.Stride == frameWidth*4 && len(destination.Pix) >= size {
-		return p.triangle.Eval(ctx, p.evaluator, destination.Pix[:size])
-	}
-	if cap(p.buffer) < size {
-		p.buffer = make([]uint8, size)
-	} else {
-		p.buffer = p.buffer[:size]
-	}
-	if err := p.triangle.Eval(ctx, p.evaluator, p.buffer); err != nil {
-		return err
-	}
-	ndimage.Write(destination, p.buffer)
-	return nil
+	return window.Present(ctx, p.triangle, p.evaluator, destination)
 }
 
 func (p *trianglePainter) Close() error {

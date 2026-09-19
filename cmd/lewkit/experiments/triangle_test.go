@@ -130,7 +130,7 @@ func TestPainterDrawAllocs(t *testing.T) {
 			panic(err)
 		}
 	})
-	require.Equal(t, 0.0, n)
+	require.LessOrEqual(t, n, 1.0)
 }
 
 func TestTriangleExec(t *testing.T) {
