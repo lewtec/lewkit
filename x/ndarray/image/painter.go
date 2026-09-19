@@ -23,7 +23,7 @@ type Painter struct {
 
 // New compiles TriangleDynamic once and attaches a reusable session.
 func New(ctx context.Context) (*Painter, error) {
-	tracker, err := ndarray.Of()
+	tracker, err := ndarray.Of(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) er
 	if h < 1 || w < 1 {
 		return nil
 	}
-	if err := p.kernel.Resize([]int{h, w, 4}); err != nil {
+	if err := p.kernel.Resize(ndarray.Shape{h, w, 4}); err != nil {
 		return err
 	}
 	n := h * w * 4

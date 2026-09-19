@@ -3,7 +3,6 @@ package ndarray
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -13,7 +12,7 @@ type Tracker struct {
 }
 
 // Of is a contiguous row-major tensor of shape.
-func Of(shape ...int) (Tracker, error) {
+func Of(shape Shape) (Tracker, error) {
 	v, err := create(view{shape: shape})
 	if err != nil {
 		return Tracker{}, err
@@ -39,11 +38,11 @@ func (t Tracker) replace(v view) Tracker {
 }
 
 // Shape is the logical shape.
-func (t Tracker) Shape() []int {
+func (t Tracker) Shape() Shape {
 	if len(t.views) == 0 {
 		return nil
 	}
-	return slices.Clone(t.last().shape)
+	return t.last().shape.Clone()
 }
 
 // Size is the number of logical cells.
@@ -61,7 +60,7 @@ func (t Tracker) Contiguous() bool {
 
 // RealSize is the host buffer length that covers every valid offset.
 func (t Tracker) RealSize() int {
-	if len(t.views) == 0 || hasZero(t.views[0].shape) {
+	if len(t.views) == 0 || t.views[0].shape.HasZero() {
 		return 0
 	}
 	v := t.views[0]
@@ -125,11 +124,11 @@ func (t Tracker) At(i int) (offset int, valid bool, err error) {
 }
 
 // Reshape changes the logical shape. Product must match. One -1 is inferred.
-func (t Tracker) Reshape(shape ...int) (Tracker, error) {
+func (t Tracker) Reshape(shape Shape) (Tracker, error) {
 	if err := t.check(); err != nil {
 		return Tracker{}, err
 	}
-	shape, err := infer(shape, t.Size())
+	shape, err := shape.Infer(t.Size())
 	if err != nil {
 		return Tracker{}, err
 	}
@@ -141,43 +140,6 @@ func (t Tracker) Reshape(shape ...int) (Tracker, error) {
 		return Tracker{}, err
 	}
 	return Tracker{views: append(slices.Clone(t.views), newView)}, nil
-}
-
-func infer(shape []int, size int) ([]int, error) {
-	hole := -1
-	n := 1
-	for i, s := range shape {
-		if s == -1 {
-			if hole >= 0 {
-				return nil, fmt.Errorf("%w: more than one -1 in %v", ErrShape, shape)
-			}
-			hole = i
-			continue
-		}
-		if s < 0 {
-			return nil, fmt.Errorf("%w: %v", ErrShape, shape)
-		}
-		n *= s
-	}
-	out := slices.Clone(shape)
-	if hole >= 0 {
-		if n == 0 {
-			if size != 0 {
-				return nil, fmt.Errorf("%w: %v of %d", ErrSize, shape, size)
-			}
-			out[hole] = 0
-			return out, nil
-		}
-		if size%n != 0 {
-			return nil, fmt.Errorf("%w: %v of %d", ErrSize, shape, size)
-		}
-		out[hole] = size / n
-		return out, nil
-	}
-	if n != size {
-		return nil, fmt.Errorf("%w: %v of %d", ErrSize, shape, size)
-	}
-	return out, nil
 }
 
 // Permute reorders axes. Axes may be negative.
@@ -197,7 +159,7 @@ func (t Tracker) Permute(axes ...int) (Tracker, error) {
 }
 
 // Expand broadcasts size-1 axes. Rank stays the same.
-func (t Tracker) Expand(shape ...int) (Tracker, error) {
+func (t Tracker) Expand(shape Shape) (Tracker, error) {
 	if err := t.check(); err != nil {
 		return Tracker{}, err
 	}
@@ -282,14 +244,7 @@ func (t Tracker) String() string {
 	}
 	var b strings.Builder
 	b.WriteString("Tracker(")
-	b.WriteByte('[')
-	for i, s := range t.last().shape {
-		if i > 0 {
-			b.WriteByte(' ')
-		}
-		b.WriteString(strconv.Itoa(s))
-	}
-	b.WriteByte(']')
+	b.WriteString(t.last().shape.String())
 	if t.Contiguous() {
 		b.WriteString(" contiguous")
 	}

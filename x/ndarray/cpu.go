@@ -3,7 +3,6 @@ package ndarray
 import (
 	"math"
 	"runtime"
-	"slices"
 	"sync"
 )
 
@@ -19,7 +18,7 @@ const (
 type instruction struct {
 	kind          uint8
 	alu           Op
-	dst, a, b, c  int
+	dest, a, b, c int
 	dtype, inType DType
 	bits          uint32
 	source        int
@@ -36,7 +35,7 @@ type cpuProgram struct {
 	root      int
 }
 
-func lowerCPU(order []*Node, slots, shape []int) (cpuProgram, error) {
+func lowerCPU(order []*Node, slots []int, shape Shape) (cpuProgram, error) {
 	slotIndex := make(map[int]int, len(slots))
 	for i, s := range slots {
 		slotIndex[s] = i
@@ -44,50 +43,50 @@ func lowerCPU(order []*Node, slots, shape []int) (cpuProgram, error) {
 	reg := make(map[*Node]int, len(order))
 	code := make([]instruction, 0, len(order))
 	for _, n := range order {
-		dst := len(code)
-		reg[n] = dst
-		in := instruction{dst: dst, dtype: n.dtype}
+		dest := len(code)
+		reg[n] = dest
+		instr := instruction{dest: dest, dtype: n.dtype}
 		switch n.kind {
 		case kindConst:
-			in.kind = cpuConst
-			in.bits = n.bits
+			instr.kind = cpuConst
+			instr.bits = n.bits
 		case kindCoord:
 			if n.slot < 0 || n.slot >= len(shape) {
 				return cpuProgram{}, ErrAxis
 			}
-			in.kind = cpuCoord
-			in.axis = n.slot
+			instr.kind = cpuCoord
+			instr.axis = n.slot
 		case kindInput:
-			in.kind = cpuLoad
-			in.source = slotIndex[n.slot]
-			in.i32 = n.dtype == I32
-			in.scalar = len(n.tracker.Shape()) == 0
-			in.dense = !in.scalar && n.tracker.Contiguous() && slices.Equal(n.tracker.Shape(), shape)
-			if !in.dense && !in.scalar {
-				in.views = n.tracker.views
+			instr.kind = cpuLoad
+			instr.source = slotIndex[n.slot]
+			instr.i32 = n.dtype == I32
+			instr.scalar = len(n.tracker.Shape()) == 0
+			instr.dense = !instr.scalar && n.tracker.Contiguous() && n.tracker.Shape().Equal(shape)
+			if !instr.dense && !instr.scalar {
+				instr.views = n.tracker.views
 			}
 		case kindOp:
-			in.kind = cpuALU
-			in.alu = n.op
-			in.inType = n.sources[0].dtype
-			in.a = reg[n.sources[0]]
+			instr.kind = cpuALU
+			instr.alu = n.op
+			instr.inType = n.sources[0].dtype
+			instr.a = reg[n.sources[0]]
 			if len(n.sources) > 1 {
-				in.b = reg[n.sources[1]]
+				instr.b = reg[n.sources[1]]
 			}
 			if len(n.sources) > 2 {
-				in.c = reg[n.sources[2]]
+				instr.c = reg[n.sources[2]]
 			}
 		default:
 			return cpuProgram{}, ErrOp
 		}
-		code = append(code, in)
+		code = append(code, instr)
 	}
 	return cpuProgram{code: code, registers: len(code), root: reg[order[len(order)-1]]}, nil
 }
 
 type cpuJob struct {
 	program cpuProgram
-	shape   []int
+	shape   Shape
 	outType DType
 	inputs  [][]float32
 	output  []float32
@@ -118,8 +117,8 @@ func takeScratch(registers, rank int) *cpuScratch {
 }
 
 func (k *Kernel) evalCPU(output []float32, inputs [][]float32) {
-	workers := min(runtime.GOMAXPROCS(0), k.n)
-	if workers < 2 || k.n < cpuMinParallel {
+	workers := min(runtime.GOMAXPROCS(0), k.size)
+	if workers < 2 || k.size < cpuMinParallel {
 		k.evalSerial(output, inputs)
 		return
 	}
@@ -127,7 +126,7 @@ func (k *Kernel) evalCPU(output []float32, inputs [][]float32) {
 }
 
 func (k *Kernel) evalSerial(output []float32, inputs [][]float32) {
-	cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, inputs: inputs, output: output, hi: k.n}.run()
+	cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, inputs: inputs, output: output, hi: k.size}.run()
 }
 
 var (
@@ -179,12 +178,12 @@ func (k *Kernel) evalParallel(output []float32, inputs [][]float32, workers int)
 	if workers > len(cpuReady) {
 		workers = len(cpuReady)
 	}
-	chunk := (k.n + workers - 1) / workers
+	chunk := (k.size + workers - 1) / workers
 	base := cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, inputs: inputs, output: output}
 	n := 0
 	for w := range workers {
 		lo := w * chunk
-		hi := min(lo+chunk, k.n)
+		hi := min(lo+chunk, k.size)
 		if lo >= hi {
 			break
 		}
@@ -210,13 +209,13 @@ func (j cpuJob) loop(s *cpuScratch) {
 		for _, instr := range j.program.code {
 			switch instr.kind {
 			case cpuConst:
-				s.registers[instr.dst] = instr.bits
+				s.registers[instr.dest] = instr.bits
 			case cpuCoord:
-				s.registers[instr.dst] = uint32(int32(s.coords[instr.axis]))
+				s.registers[instr.dest] = uint32(int32(s.coords[instr.axis]))
 			case cpuLoad:
-				s.registers[instr.dst] = instr.load(i, s.coords, j.inputs, &s.scratch)
+				s.registers[instr.dest] = instr.load(i, s.coords, j.inputs, &s.scratch)
 			case cpuALU:
-				s.registers[instr.dst] = instr.evalALU(s.registers)
+				s.registers[instr.dest] = instr.evalALU(s.registers)
 			}
 		}
 		if j.outType == I32 {
@@ -268,7 +267,7 @@ func indexViews(views []view, coords []int, scratch *[]int) (int, bool) {
 	return off, ok
 }
 
-func unravelInto(shape []int, i int, coords []int) {
+func unravelInto(shape Shape, i int, coords []int) {
 	acc := 1
 	for d := len(shape) - 1; d >= 0; d-- {
 		s := shape[d]

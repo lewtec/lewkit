@@ -7,13 +7,13 @@ import (
 
 // view is one address map: offset + sum(coord[i]*strides[i]), clipped by mask.
 type view struct {
-	shape   []int
+	shape   Shape
 	strides []int
 	offset  int
 	mask    [][2]int
 }
 
-func stridesFor(shape []int) []int {
+func stridesFor(shape Shape) []int {
 	if len(shape) == 0 {
 		return nil
 	}
@@ -30,34 +30,20 @@ func stridesFor(shape []int) []int {
 	return strides
 }
 
-func canonicalStrides(shape, strides []int) []int {
+func canonicalStrides(shape Shape, strides []int) []int {
 	out := slices.Clone(strides)
-	for i, s := range shape {
-		if s == 1 {
+	for i, dim := range shape {
+		if dim == 1 {
 			out[i] = 0
 		}
 	}
 	return out
 }
 
-func hasZero(shape []int) bool {
-	return slices.Contains(shape, 0)
-}
-
-func prod(shape []int) int {
-	n := 1
-	for _, s := range shape {
-		n *= s
-	}
-	return n
-}
-
 func create(in view) (view, error) {
 	shape, strides, offset, mask := in.shape, in.strides, in.offset, in.mask
-	for _, s := range shape {
-		if s < 0 {
-			return view{}, fmt.Errorf("%w: negative dim %v", ErrShape, shape)
-		}
+	if err := shape.check(); err != nil {
+		return view{}, err
 	}
 	if strides == nil {
 		strides = stridesFor(shape)
@@ -67,7 +53,7 @@ func create(in view) (view, error) {
 		}
 		strides = canonicalStrides(shape, strides)
 	}
-	if hasZero(shape) {
+	if shape.HasZero() {
 		return view{
 			shape:   slices.Clone(shape),
 			strides: zeros(len(shape)),
@@ -144,14 +130,14 @@ func zerosMask(n int) [][2]int {
 }
 
 func (v view) size() int {
-	return prod(v.shape)
+	return v.shape.Size()
 }
 
 func (v view) contiguous() bool {
 	if v.offset != 0 || v.mask != nil {
 		return false
 	}
-	if hasZero(v.shape) {
+	if v.shape.HasZero() {
 		return true
 	}
 	return slices.Equal(v.strides, stridesFor(v.shape))
@@ -169,7 +155,7 @@ func (v view) index(coords []int) (int, bool) {
 	return off, ok
 }
 
-func unravel(shape []int, i int) []int {
+func unravel(shape Shape, i int) []int {
 	coords := make([]int, len(shape))
 	acc := 1
 	for d := len(shape) - 1; d >= 0; d-- {
@@ -218,7 +204,7 @@ func isPermutation(axes []int, n int) bool {
 	return true
 }
 
-func (v view) expand(shape []int) (view, error) {
+func (v view) expand(shape Shape) (view, error) {
 	if len(shape) != len(v.shape) {
 		return view{}, fmt.Errorf("%w: %v into %v", ErrExpand, v.shape, shape)
 	}
@@ -227,7 +213,7 @@ func (v view) expand(shape []int) (view, error) {
 			return view{}, fmt.Errorf("%w: %v into %v", ErrExpand, v.shape, shape)
 		}
 	}
-	if hasZero(v.shape) {
+	if v.shape.HasZero() {
 		return create(view{shape: shape})
 	}
 	var mask [][2]int
@@ -346,7 +332,7 @@ type merged struct {
 	size, stride, real int
 }
 
-func mergeDims(shape, strides []int, mask [][2]int) []merged {
+func mergeDims(shape Shape, strides []int, mask [][2]int) []merged {
 	if len(shape) == 0 {
 		return nil
 	}
@@ -383,7 +369,7 @@ func mergeDims(shape, strides []int, mask [][2]int) []merged {
 	return ret
 }
 
-func reshapeMask(mask [][2]int, oldShape, newShape []int) ([][2]int, bool) {
+func reshapeMask(mask [][2]int, oldShape, newShape Shape) ([][2]int, bool) {
 	if mask == nil {
 		out := make([][2]int, len(newShape))
 		for i, s := range newShape {
@@ -400,7 +386,7 @@ func reshapeMask(mask [][2]int, oldShape, newShape []int) ([][2]int, bool) {
 	slices.Reverse(rShape)
 	rNew := slices.Clone(newShape)
 	slices.Reverse(rNew)
-	pop := func(s *[]int, def int) int {
+	pop := func(s *Shape, def int) int {
 		if len(*s) == 0 {
 			return def
 		}
@@ -454,11 +440,11 @@ func reshapeMask(mask [][2]int, oldShape, newShape []int) ([][2]int, bool) {
 	return out, true
 }
 
-func (v view) reshape(newShape []int) (view, bool) {
+func (v view) reshape(newShape Shape) (view, bool) {
 	if slices.Equal(v.shape, newShape) {
 		return v, true
 	}
-	if hasZero(v.shape) {
+	if v.shape.HasZero() {
 		newView, err := create(view{shape: newShape})
 		return newView, err == nil
 	}

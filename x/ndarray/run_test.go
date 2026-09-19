@@ -14,7 +14,7 @@ func TestExecAdd(t *testing.T) {
 		t.Skip(err)
 	}
 	test.CloseOnCleanup(t, d)
-	k, err := Compile(In(0, mustTracker(t, 4)).Add(In(1, mustTracker(t, 4))).Max(Const(0)))
+	k, err := Compile(In(0, mustTracker(t, Shape{4})).Add(In(1, mustTracker(t, Shape{4}))).Max(Const(0)))
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, k)
 	a := []float32{-1, 2, -3, 4}
@@ -32,9 +32,9 @@ func TestExecPermute(t *testing.T) {
 		t.Skip(err)
 	}
 	test.CloseOnCleanup(t, d)
-	perm, err := mustTracker(t, 2, 3).Permute(1, 0)
+	perm, err := mustTracker(t, Shape{2, 3}).Permute(1, 0)
 	require.NoError(t, err)
-	k, err := Compile(In(0, mustTracker(t, 3, 2)).Add(In(1, perm)))
+	k, err := Compile(In(0, mustTracker(t, Shape{3, 2})).Add(In(1, perm)))
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, k)
 	a := []float32{1, 2, 3, 4, 5, 6}

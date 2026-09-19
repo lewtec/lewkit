@@ -58,7 +58,7 @@ func TestTriangleTurnHalf(t *testing.T) {
 }
 
 func TestTriangleTurnInput(t *testing.T) {
-	tracker, err := ndarray.Of()
+	tracker, err := ndarray.Of(nil)
 	require.NoError(t, err)
 	expr, err := Triangle(32, 32, ndarray.In(0, tracker))
 	require.NoError(t, err)

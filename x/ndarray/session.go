@@ -33,7 +33,7 @@ func (k *Kernel) Attach(ctx context.Context, device *vulkan.Device) (*Session, e
 	return s, nil
 }
 
-// Run writes inputs, dispatches, and reads output. output must already have length k.n.
+// Run writes inputs, dispatches, and reads output. output must already have length k.size.
 func (s *Session) Run(ctx context.Context, output []float32, inputs [][]float32) error {
 	if s == nil || s.kernel == nil {
 		return ErrOp
@@ -41,8 +41,8 @@ func (s *Session) Run(ctx context.Context, output []float32, inputs [][]float32)
 	if s.device == nil {
 		return s.kernel.EvalInto(output, inputs)
 	}
-	if len(output) < s.kernel.n {
-		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), s.kernel.n)
+	if len(output) < s.kernel.size {
+		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), s.kernel.size)
 	}
 	if len(inputs) != len(s.kernel.slots) {
 		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(s.kernel.slots), len(inputs))
@@ -58,7 +58,7 @@ func (s *Session) Run(ctx context.Context, output []float32, inputs [][]float32)
 	if err := s.kernel.Run(ctx, s.device, s.output, s.inputs...); err != nil {
 		return err
 	}
-	return s.output.Read(floatView(output[:s.kernel.n]))
+	return s.output.Read(floatView(output[:s.kernel.size]))
 }
 
 func (s *Session) fit(output []float32, inputs [][]float32) error {

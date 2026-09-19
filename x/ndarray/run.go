@@ -38,7 +38,7 @@ func (k *Kernel) Run(ctx context.Context, device *vulkan.Device, output *vulkan.
 	if len(inputs) != len(k.slots) {
 		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
 	}
-	if k.n == 0 {
+	if k.size == 0 {
 		return nil
 	}
 	shader, err := k.ensurePipeline(ctx, device)
@@ -55,14 +55,14 @@ func (k *Kernel) Run(ctx context.Context, device *vulkan.Device, output *vulkan.
 	copy(k.runBuffers[1:], inputs)
 	bufs := k.runBuffers
 	var push [pushBytes]byte
-	binary.LittleEndian.PutUint32(push[0:], uint32(k.n))
+	binary.LittleEndian.PutUint32(push[0:], uint32(k.size))
 	for i, s := range k.shape {
 		if i >= 4 {
 			break
 		}
 		binary.LittleEndian.PutUint32(push[4+4*i:], uint32(s))
 	}
-	groups := uint32((k.n + localSize - 1) / localSize)
+	groups := uint32((k.size + localSize - 1) / localSize)
 	cmd, err := device.Begin()
 	if err != nil {
 		return err
@@ -131,10 +131,10 @@ func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device, inputs ...[]fl
 	if len(inputs) != len(k.slots) {
 		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
 	}
-	if k.n == 0 {
+	if k.size == 0 {
 		return nil, nil
 	}
-	output, err := device.Buffer(max(k.n, 1) * 4)
+	output, err := device.Buffer(max(k.size, 1) * 4)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +170,12 @@ func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device, inputs ...[]fl
 	if err := k.Run(ctx, device, output, bufs...); err != nil {
 		return nil, err
 	}
-	raw := make([]byte, k.n*4)
+	raw := make([]byte, k.size*4)
 	if err := output.Read(raw); err != nil {
 		return nil, err
 	}
 	if k.outType == I32 {
-		out := make([]float32, k.n)
+		out := make([]float32, k.size)
 		for i := range out {
 			out[i] = float32(int32(binary.LittleEndian.Uint32(raw[i*4:])))
 		}

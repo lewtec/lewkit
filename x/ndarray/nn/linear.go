@@ -26,7 +26,7 @@ func Linear(w, x, b ndarray.Tracker) (*ndarray.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		col, err = col.Reshape(out)
+		col, err = col.Reshape(ndarray.Shape{out})
 		if err != nil {
 			return nil, err
 		}
@@ -34,7 +34,7 @@ func Linear(w, x, b ndarray.Tracker) (*ndarray.Node, error) {
 		if err != nil {
 			return nil, err
 		}
-		xj, err = xj.Expand(out)
+		xj, err = xj.Expand(ndarray.Shape{out})
 		if err != nil {
 			return nil, err
 		}

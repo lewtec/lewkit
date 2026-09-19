@@ -19,10 +19,10 @@ const (
 type Kernel struct {
 	root           *Node
 	glsl           string
-	shape          []int
+	shape          Shape
 	slots          []int
 	outType        DType
-	n              int
+	size           int
 	spirv          []byte
 	cpu            cpuProgram
 	pipeline       *vulkan.Shader
@@ -42,8 +42,8 @@ func Compile(expr *Node) (*Kernel, error) {
 	if shape == nil {
 		return nil, fmt.Errorf("%w: constant kernel", ErrShape)
 	}
-	n := prod(shape)
-	if n < 0 {
+	size := shape.Size()
+	if size < 0 {
 		return nil, ErrShape
 	}
 	order, slots, err := flatten(expr)
@@ -56,7 +56,7 @@ func Compile(expr *Node) (*Kernel, error) {
 		slots:    slots,
 		outShape: shape,
 		slotBind: make(map[int]int, len(slots)),
-		ssa:      make(map[*Node]string, len(order)),
+		names:    make(map[*Node]string, len(order)),
 	}
 	src, err := w.program()
 	if err != nil {
@@ -66,23 +66,19 @@ func Compile(expr *Node) (*Kernel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Kernel{root: expr, glsl: src, shape: slices.Clone(shape), slots: slots, outType: expr.dtype, n: n, cpu: cpu}, nil
+	return &Kernel{root: expr, glsl: src, shape: shape.Clone(), slots: slots, outType: expr.dtype, size: size, cpu: cpu}, nil
 }
 
 // Resize sets the runtime output shape. Rank must match Compile.
-func (k *Kernel) Resize(shape []int) error {
-	if k == nil || len(shape) != len(k.shape) {
+func (k *Kernel) Resize(shape Shape) error {
+	if k == nil || shape.Rank() != k.shape.Rank() {
 		return ErrShape
 	}
-	n := 1
-	for _, s := range shape {
-		if s < 0 {
-			return ErrShape
-		}
-		n *= s
+	if err := shape.check(); err != nil {
+		return err
 	}
-	k.shape = slices.Clone(shape)
-	k.n = n
+	k.shape = shape.Clone()
+	k.size = shape.Size()
 	return nil
 }
 
@@ -95,11 +91,11 @@ func (k *Kernel) GLSL() string {
 }
 
 // Shape is the logical output shape.
-func (k *Kernel) Shape() []int {
+func (k *Kernel) Shape() Shape {
 	if k == nil {
 		return nil
 	}
-	return slices.Clone(k.shape)
+	return k.shape.Clone()
 }
 
 // Bindings is 1 (output) plus the input buffer count.
@@ -175,9 +171,9 @@ type glslWriter struct {
 	b        strings.Builder
 	next     int
 	coords   []string
-	outShape []int
+	outShape Shape
 	slotBind map[int]int
-	ssa      map[*Node]string
+	names    map[*Node]string
 	root     *Node
 	order    []*Node
 	slots    []int
@@ -213,9 +209,9 @@ func (w *glslWriter) program() (string, error) {
 		if err != nil {
 			return "", err
 		}
-		w.ssa[n] = name
+		w.names[n] = name
 	}
-	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", w.ssa[w.root])
+	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", w.names[w.root])
 	return w.b.String(), nil
 }
 
@@ -231,7 +227,7 @@ func (w *glslWriter) node(n *Node) (string, error) {
 		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, glslConst(n))
 		return id, nil
 	case kindCoord:
-		if n.slot < 0 || n.slot >= len(w.coords) || !slices.Equal(n.tracker.Shape(), w.outShape) {
+		if n.slot < 0 || n.slot >= len(w.coords) || !n.tracker.Shape().Equal(w.outShape) {
 			return "", ErrAxis
 		}
 		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, w.coords[n.slot])
@@ -251,7 +247,7 @@ func (w *glslWriter) node(n *Node) (string, error) {
 	case kindOp:
 		args := make([]string, len(n.sources))
 		for i, s := range n.sources {
-			args[i] = w.ssa[s]
+			args[i] = w.names[s]
 		}
 		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, n.glslALU(args))
 		return id, nil
@@ -261,7 +257,7 @@ func (w *glslWriter) node(n *Node) (string, error) {
 }
 
 func (w *glslWriter) index(tracker Tracker) (off, valid string) {
-	if tracker.Contiguous() && slices.Equal(tracker.Shape(), w.outShape) {
+	if tracker.Contiguous() && tracker.Shape().Equal(w.outShape) {
 		return "i", "true"
 	}
 	off, valid = w.view(tracker.views[len(tracker.views)-1], w.coords)
@@ -316,7 +312,7 @@ func (w *glslWriter) unravelPush(rank int) []string {
 	return coords
 }
 
-func (w *glslWriter) unravel(shape []int, idx string) []string {
+func (w *glslWriter) unravel(shape Shape, idx string) []string {
 	if len(shape) == 0 {
 		return nil
 	}

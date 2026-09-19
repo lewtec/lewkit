@@ -30,7 +30,7 @@ func vmSizeKB(t *testing.T) int64 {
 }
 
 func TestSessionRunLoop(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, 8)).Add(Const(1)))
+	k, err := Compile(In(0, mustTracker(t, Shape{8})).Add(Const(1)))
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, k)
 	d, err := vulkan.Open(t.Context())
@@ -51,7 +51,7 @@ func TestSessionRunLoop(t *testing.T) {
 }
 
 func TestSessionVirtStable(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, 4096)).Add(Const(1)))
+	k, err := Compile(In(0, mustTracker(t, Shape{4096})).Add(Const(1)))
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, k)
 	src := make([]float32, 4096)
@@ -78,7 +78,7 @@ func TestSessionVirtStable(t *testing.T) {
 }
 
 func TestEvalIntoVirtStable(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, 4096)).Add(Const(1)))
+	k, err := Compile(In(0, mustTracker(t, Shape{4096})).Add(Const(1)))
 	require.NoError(t, err)
 	src := make([]float32, 4096)
 	dst := make([]float32, 4096)
@@ -95,7 +95,7 @@ func TestEvalIntoVirtStable(t *testing.T) {
 }
 
 func TestSessionCPU(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, 4)).Mul(Const(2)))
+	k, err := Compile(In(0, mustTracker(t, Shape{4})).Mul(Const(2)))
 	require.NoError(t, err)
 	s, err := k.Attach(t.Context(), nil)
 	require.NoError(t, err)

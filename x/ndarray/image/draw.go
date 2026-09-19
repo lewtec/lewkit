@@ -19,7 +19,7 @@ func Fill(h, w int, r, g, b, a float32) (*ndarray.Node, error) {
 	if h < 1 || w < 1 {
 		return nil, ndarray.ErrShape
 	}
-	channel := ndarray.Coord(2, h, w, 4)
+	channel := ndarray.Coord(2, ndarray.Shape{h, w, 4})
 	v := ndarray.Equal(channel, ndarray.ConstInt(0)).Where(ndarray.Const(r),
 		ndarray.Equal(channel, ndarray.ConstInt(1)).Where(ndarray.Const(g),
 			ndarray.Equal(channel, ndarray.ConstInt(2)).Where(ndarray.Const(b), ndarray.Const(a))))
@@ -33,7 +33,7 @@ func requireFloatSplat(n *ndarray.Node, name string) error {
 	if n == nil || n.DType() != ndarray.F32 {
 		return ndarray.ErrType
 	}
-	if sh := n.Shape(); len(sh) != 0 {
+	if shape := n.Shape(); len(shape) != 0 {
 		return fmt.Errorf("%w: %s must be a splat", ndarray.ErrShape, name)
 	}
 	return nil
@@ -52,16 +52,16 @@ func Triangle(h, w int, turn *ndarray.Node) (*ndarray.Node, error) {
 	if turn == nil {
 		turn = ndarray.Const(0)
 	}
-	return triangle(turn, ndarray.Const(float32(w)), ndarray.Const(float32(h)), []int{h, w, 4})
+	return triangle(turn, ndarray.Const(float32(w)), ndarray.Const(float32(h)), ndarray.Shape{h, w, 4})
 }
 
 // TriangleDynamic is Triangle with runtime width/height splats. Coord rank is (1,1,4);
 // the caller sets the real (h,w,4) with Kernel.Resize before Eval/Run.
 func TriangleDynamic(turn, width, height *ndarray.Node) (*ndarray.Node, error) {
-	return triangle(turn, width, height, []int{1, 1, 4})
+	return triangle(turn, width, height, ndarray.Shape{1, 1, 4})
 }
 
-func triangle(turn, width, height *ndarray.Node, shape []int) (*ndarray.Node, error) {
+func triangle(turn, width, height *ndarray.Node, shape ndarray.Shape) (*ndarray.Node, error) {
 	if err := requireFloatSplat(turn, "turn"); err != nil {
 		return nil, err
 	}
@@ -71,8 +71,8 @@ func triangle(turn, width, height *ndarray.Node, shape []int) (*ndarray.Node, er
 	if err := requireFloatSplat(height, "height"); err != nil {
 		return nil, err
 	}
-	px := ndarray.Coord(1, shape...).Cast(ndarray.F32).Add(ndarray.Const(0.5))
-	py := ndarray.Coord(0, shape...).Cast(ndarray.F32).Add(ndarray.Const(0.5))
+	px := ndarray.Coord(1, shape).Cast(ndarray.F32).Add(ndarray.Const(0.5))
+	py := ndarray.Coord(0, shape).Cast(ndarray.F32).Add(ndarray.Const(0.5))
 	tau := turn.Mul(ndarray.Const(2 * math.Pi))
 	sine := tau.Sin()
 	cosine := tau.Add(ndarray.Const(math.Pi / 2)).Sin()
@@ -94,7 +94,7 @@ func triangle(turn, width, height *ndarray.Node, shape []int) (*ndarray.Node, er
 	)
 	weight := ndarray.Const(1).Add(u.Neg()).Add(v.Neg())
 	inside := ndarray.GreaterEqual(u, ndarray.Const(0)).And(ndarray.GreaterEqual(v, ndarray.Const(0))).And(ndarray.GreaterEqual(weight, ndarray.Const(0)))
-	channel := ndarray.Coord(2, shape...)
+	channel := ndarray.Coord(2, shape)
 	rgb := ndarray.Equal(channel, ndarray.ConstInt(0)).Where(u.Mul(ndarray.Const(255)),
 		ndarray.Equal(channel, ndarray.ConstInt(1)).Where(v.Mul(ndarray.Const(255)),
 			ndarray.Equal(channel, ndarray.ConstInt(2)).Where(weight.Mul(ndarray.Const(255)), ndarray.Const(255))))

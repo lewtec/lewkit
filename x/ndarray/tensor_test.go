@@ -9,14 +9,14 @@ import (
 )
 
 func TestZerosOnes(t *testing.T) {
-	z, err := Zeros(2, 3)
+	z, err := Zeros(Shape{2, 3})
 	require.NoError(t, err)
-	require.Equal(t, []int{2, 3}, z.Shape())
+	require.Equal(t, Shape{2, 3}, z.Shape())
 	got, err := z.Data()
 	require.NoError(t, err)
 	require.Equal(t, []float32{0, 0, 0, 0, 0, 0}, got)
 
-	o, err := Ones(4)
+	o, err := Ones(Shape{4})
 	require.NoError(t, err)
 	got, err = o.Data()
 	require.NoError(t, err)
@@ -24,7 +24,7 @@ func TestZerosOnes(t *testing.T) {
 }
 
 func TestFull(t *testing.T) {
-	x, err := Full(3, 2, 2)
+	x, err := Full(3, Shape{2, 2})
 	require.NoError(t, err)
 	got, err := x.Data()
 	require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestFull(t *testing.T) {
 }
 
 func TestRand(t *testing.T) {
-	x, err := Rand(16)
+	x, err := Rand(Shape{16})
 	require.NoError(t, err)
 	got, err := x.Data()
 	require.NoError(t, err)
@@ -49,19 +49,19 @@ func TestRand(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	x, err := New([]float32{1, 2, 3, 4}, 2, 2)
+	x, err := New([]float32{1, 2, 3, 4}, Shape{2, 2})
 	require.NoError(t, err)
 	got, err := x.Data()
 	require.NoError(t, err)
 	require.Equal(t, []float32{1, 2, 3, 4}, got)
-	_, err = New([]float32{1}, 2)
+	_, err = New([]float32{1}, Shape{2})
 	require.ErrorIs(t, err, ErrSize)
 }
 
 func TestTensorAdd(t *testing.T) {
-	a, err := New([]float32{1, 2, 3}, 3)
+	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
-	b, err := Ones(3)
+	b, err := Ones(Shape{3})
 	require.NoError(t, err)
 	got, err := a.Add(b).Data()
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestTensorAdd(t *testing.T) {
 }
 
 func TestTensorAddSame(t *testing.T) {
-	a, err := New([]float32{1, 2, 3}, 3)
+	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
 	got, err := a.Add(a).Data()
 	require.NoError(t, err)
@@ -77,9 +77,9 @@ func TestTensorAddSame(t *testing.T) {
 }
 
 func TestTensorAddConst(t *testing.T) {
-	a, err := Ones(3)
+	a, err := Ones(Shape{3})
 	require.NoError(t, err)
-	b, err := Full(2, 3)
+	b, err := Full(2, Shape{3})
 	require.NoError(t, err)
 	got, err := a.Add(b).Data()
 	require.NoError(t, err)
@@ -87,9 +87,9 @@ func TestTensorAddConst(t *testing.T) {
 }
 
 func TestTensorShapeMismatch(t *testing.T) {
-	a, err := Ones(2)
+	a, err := Ones(Shape{2})
 	require.NoError(t, err)
-	b, err := Ones(3)
+	b, err := Ones(Shape{3})
 	require.NoError(t, err)
 	require.ErrorIs(t, a.Add(b).Eval(), ErrShape)
 }
@@ -100,11 +100,11 @@ func TestTensorExec(t *testing.T) {
 		t.Skip(err)
 	}
 	test.CloseOnCleanup(t, d)
-	a, err := New([]float32{-1, 2, -3, 4}, 4)
+	a, err := New([]float32{-1, 2, -3, 4}, Shape{4})
 	require.NoError(t, err)
-	b, err := Ones(4)
+	b, err := Ones(Shape{4})
 	require.NoError(t, err)
-	zero, err := Full(0, 4)
+	zero, err := Full(0, Shape{4})
 	require.NoError(t, err)
 	out := a.Add(b).Max(zero)
 	require.NoError(t, out.Exec(t.Context(), d))
@@ -119,7 +119,7 @@ func TestTensorExecOnes(t *testing.T) {
 		t.Skip(err)
 	}
 	test.CloseOnCleanup(t, d)
-	x, err := Ones(8)
+	x, err := Ones(Shape{8})
 	require.NoError(t, err)
 	require.NoError(t, x.Exec(t.Context(), d))
 	got, err := x.Data()
@@ -128,7 +128,7 @@ func TestTensorExecOnes(t *testing.T) {
 }
 
 func TestTensorExecNilDevice(t *testing.T) {
-	x, err := Ones(2)
+	x, err := Ones(Shape{2})
 	require.NoError(t, err)
 	require.ErrorIs(t, x.Exec(t.Context(), nil), ErrOp)
 }

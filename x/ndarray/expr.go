@@ -3,7 +3,6 @@ package ndarray
 import (
 	"fmt"
 	"math"
-	"slices"
 )
 
 type kind uint8
@@ -60,12 +59,12 @@ func ConstInt(v int32) *Node {
 }
 
 // Coord is the logical index on axis, as int32. shape is the tensor it indexes.
-func Coord(axis int, shape ...int) *Node {
-	tracker, err := Of(shape...)
+func Coord(axis int, shape Shape) *Node {
+	tracker, err := Of(shape)
 	if err != nil {
 		return failed(err)
 	}
-	if axis < 0 || axis >= len(shape) {
+	if axis < 0 || axis >= shape.Rank() {
 		return failed(ErrAxis)
 	}
 	return &Node{kind: kindCoord, dtype: I32, tracker: tracker, slot: axis}
@@ -81,7 +80,7 @@ func Equal(a, b *Node) *Node { return CmpNe(CmpNe(a, b), ConstInt(1)) }
 func GreaterEqual(a, b *Node) *Node { return CmpNe(CmpLt(a, b), ConstInt(1)) }
 
 // Shape is the logical shape, or nil for a splat.
-func (n *Node) Shape() []int {
+func (n *Node) Shape() Shape {
 	if n == nil || n.err != nil {
 		return nil
 	}
@@ -331,7 +330,7 @@ func binaryType(op Op, a, b DType) (DType, error) {
 }
 
 func sameShape(ns ...*Node) error {
-	var shape []int
+	var shape Shape
 	for _, n := range ns {
 		s := n.Shape()
 		if s == nil {
@@ -341,7 +340,7 @@ func sameShape(ns ...*Node) error {
 			shape = s
 			continue
 		}
-		if !slices.Equal(shape, s) {
+		if !shape.Equal(s) {
 			return fmt.Errorf("%w: %v vs %v", ErrShape, shape, s)
 		}
 	}

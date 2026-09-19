@@ -12,17 +12,17 @@ func (k *Kernel) Eval(inputs ...[]float32) ([]float32, error) {
 	if len(inputs) != len(k.slots) {
 		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
 	}
-	if k.n == 0 {
+	if k.size == 0 {
 		return nil, nil
 	}
-	output := make([]float32, k.n)
+	output := make([]float32, k.size)
 	if err := k.EvalInto(output, inputs); err != nil {
 		return nil, err
 	}
 	return output, nil
 }
 
-// EvalInto writes the kernel into output, which must have length at least n.
+// EvalInto writes the kernel into output, which must have length at least size.
 func (k *Kernel) EvalInto(output []float32, inputs [][]float32) error {
 	if k == nil || k.cpu.registers == 0 {
 		return ErrOp
@@ -30,10 +30,10 @@ func (k *Kernel) EvalInto(output []float32, inputs [][]float32) error {
 	if len(inputs) != len(k.slots) {
 		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
 	}
-	if len(output) < k.n {
-		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.n)
+	if len(output) < k.size {
+		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.size)
 	}
-	if k.n == 0 {
+	if k.size == 0 {
 		return nil
 	}
 	k.evalCPU(output, inputs)
