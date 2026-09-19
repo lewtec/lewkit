@@ -50,7 +50,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 		return listed.err
 	}
 	for _, info := range listed.infos {
-		slog.Debug("vulkan list device", "index", info.Index, "name", info.Name, "vendor", info.Vendor, "kind", info.Kind)
+		slog.Debug("vulkan list device", "index", info.Index, "name", info.Name, "vendor", info.Vendor, "type", info.Type)
 	}
 	return nil
 }
@@ -87,7 +87,7 @@ func openIndex(ctx context.Context, index int) (Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	slog.Debug("vulkan open ok", "index", index, "device", native.Name(), "vendor", native.Vendor(), "kind", native.Kind())
+	slog.Debug("vulkan open ok", "index", index, "device", native.Name(), "vendor", native.Vendor(), "type", native.Type())
 	return wrap(native), nil
 }
 
@@ -96,25 +96,25 @@ func offerID(infos []ffivulkan.Info, index int) string {
 	if vendor == "" {
 		vendor = "unknown"
 	}
-	kind := infos[index].Kind
+	deviceType := infos[index].Type
 	n := 0
-	kindIndex := 0
+	typeIndex := 0
 	for i, info := range infos {
-		if info.Vendor != vendor || info.Kind != kind {
+		if info.Vendor != vendor || info.Type != deviceType {
 			continue
 		}
 		if i == index {
-			kindIndex = n
+			typeIndex = n
 		}
 		n++
 	}
-	id := "vulkan:" + vendor + ":" + kind.String()
+	id := "vulkan:" + vendor + ":" + deviceType.String()
 	if n > 1 {
-		return fmt.Sprintf("%s:%d", id, kindIndex)
+		return fmt.Sprintf("%s:%d", id, typeIndex)
 	}
 	return id
 }
 
 func offerWeight(info ffivulkan.Info) int {
-	return info.Kind.Weight()
+	return info.Type.Weight()
 }

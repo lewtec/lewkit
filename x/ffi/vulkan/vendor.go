@@ -14,7 +14,7 @@ const (
 
 func vendorSlug(vendorID, deviceType uint32, name string) string {
 	lower := strings.ToLower(name)
-	if Kind(deviceType) == KindSoftware || strings.Contains(lower, "llvmpipe") {
+	if DeviceType(deviceType) == DeviceTypeSoftware || strings.Contains(lower, "llvmpipe") {
 		if strings.Contains(lower, "llvmpipe") {
 			return "llvmpipe"
 		}
