@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"slices"
-	"sync"
 	"unsafe"
 )
 
@@ -63,7 +63,7 @@ func ConstInt(v int32) *Tensor[int32] { return wrap[int32](splatInt(v)) }
 func Coord(axis int, shape Shape) *Tensor[int32] { return wrap[int32](coord(axis, shape)) }
 
 // New is a tensor that owns a copy of data. len(data) must equal the shape size.
-func New(data []float32, shape Shape) (*Tensor[float32], error) {
+func New[T Number](data []T, shape Shape) (*Tensor[T], error) {
 	tracker, err := Of(shape)
 	if err != nil {
 		return nil, err
@@ -71,8 +71,8 @@ func New(data []float32, shape Shape) (*Tensor[float32], error) {
 	if len(data) != tracker.Size() {
 		return nil, fmt.Errorf("%w: got %d want %d", ErrSize, len(data), tracker.Size())
 	}
-	buf := &buffer{data: slices.Clone(data), dtype: F32}
-	return wrap[float32](input(buf, tracker, F32)), nil
+	buf := &buffer{raw: slices.Clone(asBytes(data)), dtype: dtypeOf[T]()}
+	return wrap[T](input(buf, tracker, dtypeOf[T]())), nil
 }
 
 // Zeros is a float32 tensor filled with 0.
@@ -100,15 +100,16 @@ func Rand(r io.Reader, shape Shape) (*Tensor[float32], error) {
 	if r == nil {
 		return nil, ErrOp
 	}
-	data := make([]float32, tracker.Size())
-	var raw [4]byte
-	for i := range data {
-		if _, err := io.ReadFull(r, raw[:]); err != nil {
+	raw := make([]byte, tracker.Size()*4)
+	var tmp [4]byte
+	for i := 0; i < tracker.Size(); i++ {
+		if _, err := io.ReadFull(r, tmp[:]); err != nil {
 			return nil, err
 		}
-		data[i] = float32(float64(binary.LittleEndian.Uint32(raw[:])) / (1 << 32))
+		u := binary.LittleEndian.Uint32(tmp[:])
+		binary.LittleEndian.PutUint32(raw[i*4:], math.Float32bits(float32(float64(u)/(1<<32))))
 	}
-	buf := &buffer{data: data, dtype: F32}
+	buf := &buffer{raw: raw, dtype: F32}
 	return wrap[float32](input(buf, tracker, F32)), nil
 }
 
@@ -122,16 +123,15 @@ func RandInt(r io.Reader, shape Shape) (*Tensor[int32], error) {
 	if r == nil {
 		return nil, ErrOp
 	}
-	data := make([]float32, tracker.Size())
-	var raw [4]byte
-	for i := range data {
-		if _, err := io.ReadFull(r, raw[:]); err != nil {
+	raw := make([]byte, tracker.Size()*4)
+	for i := 0; i < tracker.Size(); i++ {
+		if _, err := io.ReadFull(r, raw[i*4:i*4+4]); err != nil {
 			return nil, err
 		}
-		v := int32(binary.LittleEndian.Uint32(raw[:]) >> 1)
-		data[i] = float32(v)
+		v := binary.LittleEndian.Uint32(raw[i*4:]) >> 1
+		binary.LittleEndian.PutUint32(raw[i*4:], v)
 	}
-	buf := &buffer{data: data, dtype: I32}
+	buf := &buffer{raw: raw, dtype: I32}
 	return wrap[int32](input(buf, tracker, I32)), nil
 }
 
@@ -178,15 +178,15 @@ func (t *Tensor[T]) Tracker() Tracker {
 	return t.node.tracker
 }
 
-// Buffer is the host storage for a float32 leaf. Views of the same leaf share it.
+// Buffer is the host storage for a leaf. Views of the same leaf share it.
 func (t *Tensor[T]) Buffer() []T {
 	if t == nil || t.node == nil || t.node.buf == nil {
 		return nil
 	}
-	if t.node.dtype != F32 || dtypeOf[T]() != F32 {
+	if t.node.dtype != dtypeOf[T]() {
 		return nil
 	}
-	return bitsAs[T](t.node.buf.data)
+	return fromBytes[T](t.node.buf.raw)
 }
 
 // Data is the contiguous leaf buffer.
@@ -200,13 +200,7 @@ func (t *Tensor[T]) Data() ([]T, error) {
 	if t.node.dtype != dtypeOf[T]() {
 		return nil, ErrType
 	}
-	data := t.node.buf.data
-	if dtypeOf[T]() == F32 {
-		return bitsAs[T](data), nil
-	}
-	out := make([]T, len(data))
-	writeHost(out, data)
-	return out, nil
+	return fromBytes[T](t.node.buf.raw), nil
 }
 
 // Eval writes into destination. len(destination) must be at least Size.
@@ -246,33 +240,27 @@ func (t *Tensor[T]) realize(ctx context.Context, evaluator Evaluator, destinatio
 		return err
 	}
 	if t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() && t.node.dtype == dtypeOf[T]() {
-		data := t.node.buf.data
-		if len(destination) < len(data) {
-			return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), len(data))
+		raw := t.node.buf.raw
+		dest := asBytes(destination)
+		if len(dest) < len(raw) {
+			return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), t.node.buf.cells())
 		}
-		writeHost(destination, data)
+		copy(dest, raw)
 		return nil
 	}
 	if err := t.ensure(); err != nil {
 		return err
 	}
-	if len(destination) < t.kernel.size {
+	need := t.kernel.size * t.kernel.outType.size()
+	dest := asBytes(destination)
+	if len(dest) < need {
 		return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), t.kernel.size)
 	}
 	program, err := evaluator.Program(ctx, t.kernel)
 	if err != nil {
 		return err
 	}
-	if host, ok := floatHost(destination[:t.kernel.size]); ok {
-		return program.Eval(ctx, host)
-	}
-	scratch := borrowHostFloat(t.kernel.size)
-	err = program.Eval(ctx, scratch.data)
-	if err == nil {
-		writeHost(destination, scratch.data)
-	}
-	returnHostFloat(scratch)
-	return err
+	return program.Eval(ctx, dest[:need])
 }
 
 func (t *Tensor[T]) ensure() error {
@@ -428,19 +416,19 @@ func (t *Tensor[T]) Reciprocal() *Tensor[T] { return t.unary((*node).Recip) }
 func (t *Tensor[T]) Neg() *Tensor[T] { return t.unary((*node).Neg) }
 
 // Cast converts elements to To. uint8 saturates 0..255.
-func Cast[To Number, From Number](t *Tensor[From]) *Tensor[To] {
+func (t *Tensor[T]) Cast[To Number]() *Tensor[To] {
 	if t == nil {
 		return wrap[To](failed(ErrOp))
 	}
 	return wrap[To](t.node.Cast(dtypeOf[To]()))
 }
 
-// Where is a if cond != 0 else b.
-func Where[T Number](cond *Tensor[int32], a, b *Tensor[T]) *Tensor[T] {
-	if cond == nil || a == nil || b == nil {
-		return wrap[T](failed(ErrOp))
+// Where is a if t != 0 else b.
+func (t *Tensor[T]) Where[U Number](a, b *Tensor[U]) *Tensor[U] {
+	if t == nil || a == nil || b == nil {
+		return wrap[U](failed(ErrOp))
 	}
-	return wrap[T](cond.node.Where(a.node, b.node))
+	return wrap[U](t.node.Where(a.node, b.node))
 }
 
 func (t *Tensor[T]) MulAcc(b, c *Tensor[T]) *Tensor[T] {
@@ -471,64 +459,22 @@ func (t *Tensor[T]) cmp(op func(a, b *node) *node, o *Tensor[T]) *Tensor[int32] 
 	return wrap[int32](op(t.node, o.node))
 }
 
-func bitsAs[T Number](data []float32) []T {
+func asBytes[T Number](data []T) []byte {
 	if len(data) == 0 {
 		return nil
 	}
-	return unsafe.Slice((*T)(unsafe.Pointer(unsafe.SliceData(data))), len(data))
+	var z T
+	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(data))), len(data)*int(unsafe.Sizeof(z)))
 }
 
-func floatHost[T Number](destination []T) ([]float32, bool) {
-	if dtypeOf[T]() != F32 {
-		return nil, false
+func fromBytes[T Number](raw []byte) []T {
+	if len(raw) == 0 {
+		return nil
 	}
-	if len(destination) == 0 {
-		return nil, true
+	var z T
+	n := int(unsafe.Sizeof(z))
+	if n == 0 {
+		return nil
 	}
-	return unsafe.Slice((*float32)(unsafe.Pointer(unsafe.SliceData(destination))), len(destination)), true
-}
-
-func writeHost[T Number](destination []T, source []float32) {
-	if len(destination) == 0 || len(source) == 0 {
-		return
-	}
-	n := min(len(destination), len(source))
-	switch dtypeOf[T]() {
-	case F32:
-		copy(unsafe.Slice((*float32)(unsafe.Pointer(unsafe.SliceData(destination))), n), source[:n])
-	case I32:
-		out := unsafe.Slice((*int32)(unsafe.Pointer(unsafe.SliceData(destination))), n)
-		for i := 0; i < n; i++ {
-			out[i] = int32(source[i])
-		}
-	case U8:
-		out := unsafe.Slice((*uint8)(unsafe.Pointer(unsafe.SliceData(destination))), n)
-		for i := 0; i < n; i++ {
-			out[i] = uint8(source[i])
-		}
-	}
-}
-
-type hostFloatBuffer struct {
-	data []float32
-}
-
-var hostFloatPool = sync.Pool{New: func() any { return &hostFloatBuffer{} }}
-
-func borrowHostFloat(n int) *hostFloatBuffer {
-	b := hostFloatPool.Get().(*hostFloatBuffer)
-	if cap(b.data) < n {
-		b.data = make([]float32, n)
-	} else {
-		b.data = b.data[:n]
-	}
-	return b
-}
-
-func returnHostFloat(b *hostFloatBuffer) {
-	if b == nil {
-		return
-	}
-	b.data = b.data[:0]
-	hostFloatPool.Put(b)
+	return unsafe.Slice((*T)(unsafe.Pointer(unsafe.SliceData(raw))), len(raw)/n)
 }

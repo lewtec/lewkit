@@ -29,14 +29,44 @@ type node struct {
 }
 
 type buffer struct {
-	data  []float32
+	raw   []byte
 	dtype DType
+}
+
+func (b *buffer) cells() int {
+	if b == nil {
+		return 0
+	}
+	n := b.dtype.size()
+	if n == 0 {
+		return 0
+	}
+	return len(b.raw) / n
+}
+
+func (b *buffer) word(i int) uint32 {
+	if b == nil || i < 0 {
+		return 0
+	}
+	switch b.dtype {
+	case U8:
+		if i >= len(b.raw) {
+			return 0
+		}
+		return uint32(b.raw[i])
+	default:
+		off := i * 4
+		if off+4 > len(b.raw) {
+			return 0
+		}
+		return uint32(b.raw[off]) | uint32(b.raw[off+1])<<8 | uint32(b.raw[off+2])<<16 | uint32(b.raw[off+3])<<24
+	}
 }
 
 func failed(err error) *node { return &node{err: err} }
 
 func input(buf *buffer, tracker Tracker, dtype DType) *node {
-	if buf == nil || tracker.check() != nil || (dtype != F32 && dtype != I32) {
+	if buf == nil || tracker.check() != nil || (dtype != F32 && dtype != I32 && dtype != U8) {
 		return failed(ErrOp)
 	}
 	return &node{kind: kindInput, dtype: dtype, tracker: tracker, buf: buf}
@@ -148,7 +178,7 @@ func castNode(a *node, dtype DType) *node {
 	return n
 }
 
-// Where is a if p != 0 else b. Call as Where(cond, a, b).
+// Where is a if p != 0 else b. Call as p.Where(a, b).
 func whereNode(p, a, b *node) *node {
 	if p == nil || a == nil || b == nil {
 		return failed(ErrOp)

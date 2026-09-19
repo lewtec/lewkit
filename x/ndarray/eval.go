@@ -18,7 +18,7 @@ type Evaluator interface {
 // Program is backend code for one tensor. Resize is visible on the next
 // Eval. Close drops this binding; the evaluator may cache it.
 type Program interface {
-	Eval(ctx context.Context, output []float32) error
+	Eval(ctx context.Context, output []byte) error
 	Close() error
 }
 
@@ -58,13 +58,14 @@ func (c *cpuEvaluator) Program(_ context.Context, kernel *Kernel) (Program, erro
 	return e, nil
 }
 
-func (e *cpuExec) Eval(_ context.Context, output []float32) error {
+func (e *cpuExec) Eval(_ context.Context, output []byte) error {
 	if e == nil || e.kernel == nil {
 		return ErrOp
 	}
 	k := e.kernel
-	if len(output) < k.size {
-		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.size)
+	need := k.size * k.outType.size()
+	if len(output) < need {
+		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), need)
 	}
 	if k.size == 0 {
 		return nil

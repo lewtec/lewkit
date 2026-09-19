@@ -34,6 +34,17 @@ func (d DType) glsl() string {
 	}
 }
 
+func (d DType) size() int {
+	switch d {
+	case U8:
+		return 1
+	case F32, I32:
+		return 4
+	default:
+		return 0
+	}
+}
+
 // Op is one of the 21 ALU ops.
 type Op uint8
 

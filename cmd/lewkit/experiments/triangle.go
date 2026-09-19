@@ -42,7 +42,7 @@ func requireFloatSplat(n *ndarray.Tensor[float32], name string) error {
 }
 
 func minFloat(a, b *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
-	return ndarray.Where(a.CmpLt(b), a, b)
+	return a.CmpLt(b).Where(a, b)
 }
 
 func triangle(turn, width, height *ndarray.Tensor[float32], shape ndarray.Shape) (*ndarray.Tensor[float32], error) {
@@ -55,8 +55,8 @@ func triangle(turn, width, height *ndarray.Tensor[float32], shape ndarray.Shape)
 	if err := requireFloatSplat(height, "height"); err != nil {
 		return nil, err
 	}
-	px := ndarray.Cast[float32](ndarray.Coord(1, shape)).Add(ndarray.Const(0.5))
-	py := ndarray.Cast[float32](ndarray.Coord(0, shape)).Add(ndarray.Const(0.5))
+	px := ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(0.5))
+	py := ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(0.5))
 	tau := turn.Mul(ndarray.Const(2 * math.Pi))
 	sine := tau.Sin()
 	cosine := tau.Add(ndarray.Const(math.Pi / 2)).Sin()
@@ -73,10 +73,10 @@ func triangle(turn, width, height *ndarray.Tensor[float32], shape ndarray.Shape)
 	weight := ndarray.Const(1).Add(u.Neg()).Add(v.Neg())
 	inside := u.GreaterEqual(ndarray.Const(0)).And(v.GreaterEqual(ndarray.Const(0))).And(weight.GreaterEqual(ndarray.Const(0)))
 	channel := ndarray.Coord(2, shape)
-	rgb := ndarray.Where(channel.Equal(ndarray.ConstInt(0)), u.Mul(ndarray.Const(255)),
-		ndarray.Where(channel.Equal(ndarray.ConstInt(1)), v.Mul(ndarray.Const(255)),
-			ndarray.Where(channel.Equal(ndarray.ConstInt(2)), weight.Mul(ndarray.Const(255)), ndarray.Const(255))))
-	out := ndarray.Where(inside, rgb, ndarray.Where(channel.Equal(ndarray.ConstInt(3)), ndarray.Const(255), ndarray.Const(0)))
+	rgb := channel.Equal(ndarray.ConstInt(0)).Where(u.Mul(ndarray.Const(255)),
+		channel.Equal(ndarray.ConstInt(1)).Where(v.Mul(ndarray.Const(255)),
+			channel.Equal(ndarray.ConstInt(2)).Where(weight.Mul(ndarray.Const(255)), ndarray.Const(255))))
+	out := inside.Where(rgb, channel.Equal(ndarray.ConstInt(3)).Where(ndarray.Const(255), ndarray.Const(0)))
 	if out.Shape() == nil {
 		return nil, ndarray.ErrOp
 	}
@@ -121,7 +121,7 @@ func newTrianglePainter(ctx context.Context) (*trianglePainter, error) {
 	if err != nil {
 		return nil, err
 	}
-	pixels := ndarray.Cast[uint8](tri)
+	pixels := tri.Cast[uint8]()
 	evaluator, err := ndarray.Open(ctx)
 	if err != nil {
 		return nil, err

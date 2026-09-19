@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"unsafe"
 
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -14,11 +13,12 @@ import (
 
 // session is one kernel bound to a device: SPIR-V pipeline and GPU buffers.
 type session struct {
-	kernel *ndarray.Kernel
-	device *ffivulkan.Device
-	shader *ffivulkan.Shader
-	output *ffivulkan.Buffer
-	inputs []*ffivulkan.Buffer
+	kernel  *ndarray.Kernel
+	device  *ffivulkan.Device
+	shader  *ffivulkan.Shader
+	output  *ffivulkan.Buffer
+	inputs  []*ffivulkan.Buffer
+	staging []byte
 }
 
 func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.Device) (*session, error) {
@@ -51,13 +51,14 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.D
 	}, nil
 }
 
-func (s *session) Eval(ctx context.Context, output []float32) error {
+func (s *session) Eval(ctx context.Context, output []byte) error {
 	if s == nil || s.kernel == nil || s.device == nil {
 		return ndarray.ErrOp
 	}
 	size := s.kernel.Size()
-	if len(output) < size {
-		return fmt.Errorf("%w: output %d < %d", ndarray.ErrSize, len(output), size)
+	hostBytes := s.kernel.OutputBytes()
+	if len(output) < hostBytes {
+		return fmt.Errorf("%w: output %d < %d", ndarray.ErrSize, len(output), hostBytes)
 	}
 	if size == 0 {
 		return nil
@@ -66,7 +67,7 @@ func (s *session) Eval(ctx context.Context, output []float32) error {
 		return err
 	}
 	for i := 0; i < s.kernel.InputCount(); i++ {
-		if err := s.inputs[i].Write(floatView(s.kernel.Input(i))); err != nil {
+		if err := s.inputs[i].Write(s.inputBytes(i)); err != nil {
 			return err
 		}
 	}
@@ -93,7 +94,22 @@ func (s *session) Eval(ctx context.Context, output []float32) error {
 	if err := cmd.Wait(); err != nil {
 		return err
 	}
-	return s.output.Read(floatView(output[:size]))
+	if s.kernel.DType() == ndarray.U8 {
+		gpuBytes := size * 4
+		if cap(s.staging) < gpuBytes {
+			s.staging = make([]byte, gpuBytes)
+		} else {
+			s.staging = s.staging[:gpuBytes]
+		}
+		if err := s.output.Read(s.staging); err != nil {
+			return err
+		}
+		for i := 0; i < size; i++ {
+			output[i] = s.staging[i*4]
+		}
+		return nil
+	}
+	return s.output.Read(output[:hostBytes])
 }
 
 func (s *session) fit() error {
@@ -101,8 +117,8 @@ func (s *session) fit() error {
 		return err
 	}
 	for i := 0; i < s.kernel.InputCount(); i++ {
-		n := max(len(s.kernel.Input(i)), 1)
-		if err := s.grow(&s.inputs[i], n*4); err != nil {
+		n := max(s.gpuInputBytes(i), 1)
+		if err := s.grow(&s.inputs[i], n); err != nil {
 			return err
 		}
 	}
@@ -151,9 +167,28 @@ func (s *session) Close() error {
 	return err
 }
 
-func floatView(v []float32) []byte {
-	if len(v) == 0 {
-		return nil
+func (s *session) gpuInputBytes(i int) int {
+	n := len(s.kernel.Input(i))
+	if s.kernel.InputDType(i) == ndarray.U8 {
+		return n * 4
 	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*4)
+	return n
+}
+
+func (s *session) inputBytes(i int) []byte {
+	raw := s.kernel.Input(i)
+	if s.kernel.InputDType(i) != ndarray.U8 {
+		return raw
+	}
+	need := len(raw) * 4
+	if cap(s.staging) < need {
+		s.staging = make([]byte, need)
+	} else {
+		s.staging = s.staging[:need]
+		clear(s.staging)
+	}
+	for j, v := range raw {
+		s.staging[j*4] = v
+	}
+	return s.staging
 }

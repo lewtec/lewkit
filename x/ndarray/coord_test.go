@@ -8,7 +8,7 @@ import (
 )
 
 func TestCoordEval(t *testing.T) {
-	require.Equal(t, []float32{0, 1, 2, 0, 1, 2}, mustEval(t, Cast[float32](Coord(1, Shape{2, 3}))))
+	require.Equal(t, []float32{0, 1, 2, 0, 1, 2}, mustEval(t, Coord(1, Shape{2, 3}).Cast[float32]()))
 }
 
 func TestEvalInto(t *testing.T) {
@@ -30,5 +30,5 @@ func TestEvalInto(t *testing.T) {
 func TestGreaterEqual(t *testing.T) {
 	a, err := New([]float32{-1, 0, 2}, Shape{3})
 	require.NoError(t, err)
-	require.Equal(t, []float32{0, 1, 1}, mustEval(t, Cast[float32](a.GreaterEqual(Const(0)))))
+	require.Equal(t, []float32{0, 1, 1}, mustEval(t, a.GreaterEqual(Const(0)).Cast[float32]()))
 }

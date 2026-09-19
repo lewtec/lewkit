@@ -1,6 +1,7 @@
 package ndarray
 
 import (
+	"encoding/binary"
 	"math"
 	"runtime"
 	"sync"
@@ -25,7 +26,6 @@ type instruction struct {
 	axis          int
 	dense         bool
 	scalar        bool
-	i32           bool
 	views         []view
 }
 
@@ -59,7 +59,6 @@ func lowerCPU(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
 		case kindInput:
 			instr.kind = cpuLoad
 			instr.source = bufIndex[n.buf]
-			instr.i32 = n.dtype == I32
 			instr.scalar = len(n.tracker.Shape()) == 0
 			instr.dense = !instr.scalar && n.tracker.Contiguous() && n.tracker.Shape().Equal(shape)
 			if !instr.dense && !instr.scalar {
@@ -89,7 +88,7 @@ type cpuJob struct {
 	shape   Shape
 	outType DType
 	bufs    []*buffer
-	output  []float32
+	output  []byte
 	lo, hi  int
 }
 
@@ -116,7 +115,7 @@ func takeScratch(registers, rank int) *cpuScratch {
 	return s
 }
 
-func runCPU(program cpuProgram, k *Kernel, output []float32) {
+func runCPU(program cpuProgram, k *Kernel, output []byte) {
 	workers := min(runtime.GOMAXPROCS(0), k.size)
 	if workers < 2 || k.size < cpuMinParallel {
 		cpuJob{program: program, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output, hi: k.size}.run()
@@ -169,7 +168,7 @@ func cpuWorker(id int) {
 	}
 }
 
-func evalParallel(program cpuProgram, k *Kernel, output []float32, workers int) {
+func evalParallel(program cpuProgram, k *Kernel, output []byte, workers int) {
 	startCPUWorkers()
 	if workers > len(cpuReady) {
 		workers = len(cpuReady)
@@ -214,13 +213,12 @@ func (j cpuJob) loop(s *cpuScratch) {
 				s.registers[instr.dest] = instr.evalALU(s.registers)
 			}
 		}
+		root := s.registers[j.program.root]
 		switch j.outType {
-		case I32:
-			j.output[i] = float32(int32(s.registers[j.program.root]))
 		case U8:
-			j.output[i] = float32(uint8(s.registers[j.program.root]))
+			j.output[i] = uint8(root)
 		default:
-			j.output[i] = math.Float32frombits(s.registers[j.program.root])
+			binary.LittleEndian.PutUint32(j.output[i*4:], root)
 		}
 	}
 }
@@ -239,15 +237,7 @@ func (instr instruction) load(i int, coords []int, bufs []*buffer, scratch *[]in
 	if !ok || instr.source < 0 || instr.source >= len(bufs) || bufs[instr.source] == nil {
 		return 0
 	}
-	data := bufs[instr.source].data
-	if off < 0 || off >= len(data) {
-		return 0
-	}
-	x := data[off]
-	if instr.i32 {
-		return uint32(int32(x))
-	}
-	return math.Float32bits(x)
+	return bufs[instr.source].word(off)
 }
 
 func indexViews(views []view, coords []int, scratch *[]int) (int, bool) {

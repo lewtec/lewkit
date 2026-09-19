@@ -63,6 +63,16 @@ func TestNew(t *testing.T) {
 	require.ErrorIs(t, err, ErrSize)
 }
 
+func TestNewInt(t *testing.T) {
+	x, err := New([]int32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	require.Equal(t, []int32{1, 2, 3}, mustEval(t, x))
+	buf := x.Buffer()
+	require.Equal(t, []int32{1, 2, 3}, buf)
+	buf[0] = 9
+	require.Equal(t, []int32{9, 2, 3}, mustEval(t, x))
+}
+
 func TestTensorAdd(t *testing.T) {
 	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)

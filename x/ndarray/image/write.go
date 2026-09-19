@@ -19,7 +19,7 @@ func Eval[T ndarray.Number](ctx context.Context, tensor *ndarray.Tensor[T], eval
 		return fmt.Errorf("%w: image %d×%d×4 != %d", ndarray.ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), size)
 	}
 	buffer := make([]uint8, size)
-	if err := ndarray.Cast[uint8](tensor).Eval(ctx, evaluator, buffer); err != nil {
+	if err := tensor.Cast[uint8]().Eval(ctx, evaluator, buffer); err != nil {
 		return err
 	}
 	Write(destination, buffer)

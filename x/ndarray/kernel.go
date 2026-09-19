@@ -114,11 +114,35 @@ func (k *Kernel) InputCount() int {
 }
 
 // Input is leaf i's host storage, or nil.
-func (k *Kernel) Input(i int) []float32 {
+func (k *Kernel) Input(i int) []byte {
 	if k == nil || i < 0 || i >= len(k.bufs) || k.bufs[i] == nil {
 		return nil
 	}
-	return k.bufs[i].data
+	return k.bufs[i].raw
+}
+
+// InputDType is leaf i's element type, or 0.
+func (k *Kernel) InputDType(i int) DType {
+	if k == nil || i < 0 || i >= len(k.bufs) || k.bufs[i] == nil {
+		return 0
+	}
+	return k.bufs[i].dtype
+}
+
+// DType is the output element type.
+func (k *Kernel) DType() DType {
+	if k == nil {
+		return 0
+	}
+	return k.outType
+}
+
+// OutputBytes is Size times the output element width.
+func (k *Kernel) OutputBytes() int {
+	if k == nil {
+		return 0
+	}
+	return k.size * k.outType.size()
 }
 
 // Groups is the compute workgroup count for Size.
@@ -218,7 +242,7 @@ func (w *glslWriter) program() (string, error) {
 	w.b.WriteString(strconv.Itoa(localSize))
 	w.b.WriteString(") in;\n")
 	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
-	w.b.WriteString("layout(set = 0, binding = 0) buffer Out { float o[]; };\n")
+	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dtype.glsl())
 	for i, b := range w.bufs {
 		dtype := F32
 		if b != nil {
@@ -239,9 +263,6 @@ func (w *glslWriter) program() (string, error) {
 		w.names[n] = name
 	}
 	out := w.names[w.root]
-	if w.root.dtype != F32 {
-		out = "float(" + out + ")"
-	}
 	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", out)
 	return w.b.String(), nil
 }
