@@ -8,7 +8,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
-	_ "github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )

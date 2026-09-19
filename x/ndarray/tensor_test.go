@@ -4,8 +4,6 @@ import (
 	"runtime/debug"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
-	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -81,43 +79,6 @@ func TestTensorShapeMismatch(t *testing.T) {
 	b, err := Ones(Shape{3})
 	require.NoError(t, err)
 	require.ErrorIs(t, a.Add(b).Eval(t.Context(), CPU, nil), ErrShape)
-}
-
-func TestTensorExec(t *testing.T) {
-	d, err := vulkan.Open(t.Context())
-	if err != nil {
-		t.Skip(err)
-	}
-	test.CloseOnCleanup(t, d)
-	a, err := New([]float32{-1, 2, -3, 4}, Shape{4})
-	require.NoError(t, err)
-	b, err := Ones(Shape{4})
-	require.NoError(t, err)
-	zero, err := Full(0, Shape{4})
-	require.NoError(t, err)
-	out := a.Add(b).Max(zero)
-	dst := make([]float32, out.Size())
-	require.NoError(t, out.Eval(t.Context(), &Vulkan{Device: d}, dst))
-	require.Equal(t, []float32{0, 3, 0, 5}, dst)
-}
-
-func TestTensorExecOnes(t *testing.T) {
-	d, err := vulkan.Open(t.Context())
-	if err != nil {
-		t.Skip(err)
-	}
-	test.CloseOnCleanup(t, d)
-	x, err := Ones(Shape{8})
-	require.NoError(t, err)
-	dst := make([]float32, x.Size())
-	require.NoError(t, x.Eval(t.Context(), &Vulkan{Device: d}, dst))
-	require.Equal(t, []float32{1, 1, 1, 1, 1, 1, 1, 1}, dst)
-}
-
-func TestTensorExecNilDevice(t *testing.T) {
-	x, err := Ones(Shape{2})
-	require.NoError(t, err)
-	require.ErrorIs(t, x.Eval(t.Context(), &Vulkan{}, make([]float32, 2)), ErrOp)
 }
 
 func TestTensorEvalAllocs(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/driver/ndeval"
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/test"
@@ -164,6 +165,6 @@ func TestTriangleExec(t *testing.T) {
 	cpu := make([]float32, expr.Size())
 	require.NoError(t, expr.Eval(t.Context(), ndarray.CPU, cpu))
 	gpu := make([]float32, expr.Size())
-	require.NoError(t, expr.Eval(t.Context(), &ndarray.Vulkan{Device: d}, gpu))
+	require.NoError(t, expr.Eval(t.Context(), ndeval.New(d), gpu))
 	require.Equal(t, cpu, gpu)
 }

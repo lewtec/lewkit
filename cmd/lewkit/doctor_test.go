@@ -12,17 +12,17 @@ import (
 )
 
 func TestDriverLabelTypeThenName(t *testing.T) {
-	assert.Equal(t, "ndarray_vulkan: Apple M5", driverLabel(driver.DriverStatus{
-		ID:   "ndarray_vulkan",
-		Name: "Apple M5",
+	assert.Equal(t, "vulkan:amd: AMD Radeon Graphics (RADV RENOIR)", driverLabel(driver.DriverStatus{
+		ID:   "vulkan:amd",
+		Name: "AMD Radeon Graphics (RADV RENOIR)",
 	}))
-	assert.Equal(t, "ndarray_cpu", driverLabel(driver.DriverStatus{
-		ID:   "ndarray_cpu",
-		Name: "ndarray_cpu",
+	assert.Equal(t, "ndeval_cpu", driverLabel(driver.DriverStatus{
+		ID:   "ndeval_cpu",
+		Name: "ndeval_cpu",
 	}))
-	assert.Equal(t, "Apple M5 w=50", driverDetail(driver.DriverStatus{
-		ID:     "ndarray_vulkan",
-		Name:   "Apple M5",
+	assert.Equal(t, "AMD Radeon Graphics (RADV RENOIR) w=50", driverDetail(driver.DriverStatus{
+		ID:     "vulkan:amd",
+		Name:   "AMD Radeon Graphics (RADV RENOIR)",
 		Weight: 50,
 	}))
 }

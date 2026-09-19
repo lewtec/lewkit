@@ -3,6 +3,7 @@ package nn
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/driver/ndeval"
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/test"
@@ -31,7 +32,7 @@ func TestLinear(t *testing.T) {
 	test.CloseOnCleanup(t, d)
 	test.CloseOnCleanup(t, y)
 	gpu := make([]float32, y.Size())
-	require.NoError(t, y.Eval(t.Context(), &ndarray.Vulkan{Device: d}, gpu))
+	require.NoError(t, y.Eval(t.Context(), ndeval.New(d), gpu))
 	require.Equal(t, want, gpu)
 }
 

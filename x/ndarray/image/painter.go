@@ -19,7 +19,7 @@ type Painter struct {
 	frameWidth  int
 }
 
-// New compiles TriangleDynamic once. Open picks Vulkan if it can, else CPU.
+// New compiles TriangleDynamic once. Open picks a registered evaluator.
 func New(ctx context.Context) (*Painter, error) {
 	turn, err := ndarray.New([]float32{0}, nil)
 	if err != nil {

@@ -9,8 +9,8 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
-// Evaluator runs a compiled kernel. CPU is the fallback driver; device
-// backends (Vulkan, …) register at higher weight.
+// Evaluator runs a compiled kernel. CPU is the fallback; device backends
+// register at higher weight via [github.com/lewtec/lewkit/x/driver/ndeval].
 type Evaluator interface {
 	Run(ctx context.Context, kernel *Kernel, output []float32) error
 	Close() error
@@ -52,19 +52,12 @@ func (c *cpuEvaluator) RunRGBA(_ context.Context, kernel *Kernel, destination *i
 
 func (c *cpuEvaluator) Close() error { return nil }
 
-type cpuFactory struct{}
+func (c *cpuEvaluator) Name() string { return "cpu" }
 
-func (cpuFactory) ID() string                               { return "ndarray_cpu" }
-func (cpuFactory) Name() string                             { return "CPU" }
-func (cpuFactory) Weight() int                              { return 0 }
-func (cpuFactory) CheckCompatibility(context.Context) error { return nil }
-func (cpuFactory) New(context.Context) (Evaluator, error)   { return CPU, nil }
-
-func init() {
-	driver.Register[Evaluator](cpuFactory{})
-}
-
-// Open is the highest-weight compatible evaluator (Vulkan if it can open, else CPU).
+// Open is the highest-weight compatible evaluator (Vulkan if a GPU
+// driver registered, else CPU). Import
+// [github.com/lewtec/lewkit/x/driver/prelude] or
+// [github.com/lewtec/lewkit/x/driver/ndeval].
 func Open(ctx context.Context) (Evaluator, error) {
 	evaluator, err := driver.Get[Evaluator](ctx)
 	if err != nil {
@@ -111,17 +104,12 @@ func toUint8(v float32) uint8 {
 }
 
 func evaluatorName(evaluator Evaluator) string {
-	switch e := evaluator.(type) {
-	case *cpuEvaluator:
-		return "cpu"
-	case *Vulkan:
-		if e != nil && e.Device != nil {
-			return "vulkan:" + e.Device.Name()
+	if n, ok := evaluator.(interface{ Name() string }); ok {
+		if name := n.Name(); name != "" {
+			return name
 		}
-		return "vulkan"
-	default:
-		return fmt.Sprintf("%T", evaluator)
 	}
+	return fmt.Sprintf("%T", evaluator)
 }
 
 // Eval runs the kernel on the CPU. inputs[i] is the buffer for each source.
