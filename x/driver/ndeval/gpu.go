@@ -56,7 +56,7 @@ func (g *gpuEvaluator) native() *ffivulkan.Device {
 	return g.device.Native()
 }
 
-func (g *gpuEvaluator) Exec(ctx context.Context, tensor *ndarray.Tensor) (ndarray.Exec, error) {
+func (g *gpuEvaluator) Program(ctx context.Context, tensor *ndarray.Tensor) (ndarray.Program, error) {
 	if tensor == nil {
 		return nil, ndarray.ErrOp
 	}

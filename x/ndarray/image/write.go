@@ -26,6 +26,22 @@ func Eval(ctx context.Context, tensor *ndarray.Tensor, evaluator ndarray.Evaluat
 	return nil
 }
 
+// Raster evals tensor into a new image sized from Shape (h, w, 4).
+func Raster(ctx context.Context, tensor *ndarray.Tensor, evaluator ndarray.Evaluator) (*stdimage.RGBA, error) {
+	if tensor == nil {
+		return nil, ndarray.ErrOp
+	}
+	shape := tensor.Shape()
+	if len(shape) < 2 {
+		return nil, ndarray.ErrShape
+	}
+	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, shape[1], shape[0]))
+	if err := Eval(ctx, tensor, evaluator, dst); err != nil {
+		return nil, err
+	}
+	return dst, nil
+}
+
 // RGBA packs a dense (h, w, 4) float32 buffer into a new image.
 func RGBA(h, w int, pixels []float32) *stdimage.RGBA {
 	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, w, h))

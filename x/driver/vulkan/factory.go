@@ -3,6 +3,7 @@ package vulkan
 import (
 	"context"
 	"fmt"
+	"iter"
 	"log/slog"
 	"slices"
 	"sync"
@@ -55,30 +56,47 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	return nil
 }
 
-func (f factory) Offers(ctx context.Context) ([]driver.Offer[Device], error) {
-	if err := f.CheckCompatibility(ctx); err != nil {
-		return nil, err
+func (f factory) Offers(ctx context.Context) iter.Seq2[driver.Offer[Device], error] {
+	return func(yield func(driver.Offer[Device], error) bool) {
+		if err := f.CheckCompatibility(ctx); err != nil {
+			yield(driver.Offer[Device]{}, err)
+			return
+		}
+		listed.Lock()
+		infos := slices.Clone(listed.infos)
+		listed.Unlock()
+		for _, info := range infos {
+			info := info
+			if !yield(driver.Offer[Device]{
+				ID:     offerID(infos, info.Index),
+				Name:   info.Name,
+				Weight: offerWeight(info),
+				New: func(ctx context.Context) (Device, error) {
+					return openIndex(ctx, info.Index)
+				},
+			}, nil) {
+				return
+			}
+		}
 	}
-	listed.Lock()
-	infos := slices.Clone(listed.infos)
-	listed.Unlock()
-	offers := make([]driver.Offer[Device], 0, len(infos))
-	for _, info := range infos {
-		info := info
-		offers = append(offers, driver.Offer[Device]{
-			ID:     offerID(infos, info.Index),
-			Name:   info.Name,
-			Weight: offerWeight(info),
-			New: func(ctx context.Context) (Device, error) {
-				return openIndex(ctx, info.Index)
-			},
-		})
-	}
-	return offers, nil
 }
 
-func (factory) New(ctx context.Context) (Device, error) {
-	return openIndex(ctx, 0)
+func (f factory) New(ctx context.Context) (Device, error) {
+	var best driver.Offer[Device]
+	bestWeight := -1
+	for offer, err := range f.Offers(ctx) {
+		if err != nil {
+			return nil, err
+		}
+		if offer.Weight > bestWeight {
+			bestWeight = offer.Weight
+			best = offer
+		}
+	}
+	if best.New == nil {
+		return nil, driver.ErrUnavailable
+	}
+	return best.New(ctx)
 }
 
 func openIndex(ctx context.Context, index int) (Device, error) {

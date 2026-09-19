@@ -51,7 +51,7 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.D
 	}, nil
 }
 
-func (s *session) Run(ctx context.Context, output []float32) error {
+func (s *session) Eval(ctx context.Context, output []float32) error {
 	if s == nil || s.kernel == nil || s.device == nil {
 		return ndarray.ErrOp
 	}

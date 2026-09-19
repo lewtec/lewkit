@@ -11,14 +11,14 @@ import (
 
 // Evaluator binds a tensor to backend code (CPU tape, GPU session).
 type Evaluator interface {
-	Exec(ctx context.Context, tensor *Tensor) (Exec, error)
+	Program(ctx context.Context, tensor *Tensor) (Program, error)
 	Close() error
 }
 
-// Exec runs a tensor on one backend. Resize on the tensor is visible
-// to the next Run. Close drops this binding; the evaluator may cache it.
-type Exec interface {
-	Run(ctx context.Context, output []float32) error
+// Program is backend code for one tensor. Resize is visible on the next
+// Eval. Close drops this binding; the evaluator may cache it.
+type Program interface {
+	Eval(ctx context.Context, output []float32) error
 	Close() error
 }
 
@@ -41,7 +41,7 @@ func newCPUEvaluator() *cpuEvaluator {
 	return &cpuEvaluator{bound: make(map[*Tensor]*cpuExec)}
 }
 
-func (c *cpuEvaluator) Exec(_ context.Context, tensor *Tensor) (Exec, error) {
+func (c *cpuEvaluator) Program(_ context.Context, tensor *Tensor) (Program, error) {
 	if c == nil || tensor == nil || tensor.kernel == nil {
 		return nil, ErrOp
 	}
@@ -62,7 +62,7 @@ func (c *cpuEvaluator) Exec(_ context.Context, tensor *Tensor) (Exec, error) {
 	return e, nil
 }
 
-func (e *cpuExec) Run(_ context.Context, output []float32) error {
+func (e *cpuExec) Eval(_ context.Context, output []float32) error {
 	if e == nil || e.tensor == nil || e.tensor.kernel == nil {
 		return ErrOp
 	}

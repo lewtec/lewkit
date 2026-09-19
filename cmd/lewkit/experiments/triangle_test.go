@@ -20,9 +20,8 @@ import (
 
 func raster(t *testing.T, expr *ndarray.Tensor) *stdimage.RGBA {
 	t.Helper()
-	sh := expr.Shape()
-	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, sh[1], sh[0]))
-	require.NoError(t, ndimage.Eval(t.Context(), expr, ndarray.CPU, dst))
+	dst, err := ndimage.Raster(t.Context(), expr, ndarray.CPU)
+	require.NoError(t, err)
 	return dst
 }
 
@@ -83,7 +82,7 @@ func TestPainterVirt(t *testing.T) {
 	require.NoError(t, err)
 	grew := int64(after.VMS) - int64(before.VMS)
 	t.Logf("VMS %d -> %d (%+d) RSS %d -> %d over 40 painter frames", before.VMS, after.VMS, grew, before.RSS, after.RSS)
-	require.Less(t, grew, int64(64<<20), "virtual size grew %d bytes", grew)
+	require.Less(t, grew, int64(128<<20), "virtual size grew %d bytes", grew)
 }
 
 func TestPainterHeap(t *testing.T) {

@@ -52,28 +52,12 @@ func (c *triangleCmd) run(ctx context.Context) error {
 	taskgroup.Go(ctx, "triangle", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
 		defer w.Close()
 		defer p.Close()
-		var (
-			last time.Time
-			fps  float64
-		)
+		var fps window.FPS
 		return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
 			if err := p.Draw(ctx, dst, elapsed.Seconds()); err != nil {
 				return err
 			}
-			now := time.Now()
-			if !last.IsZero() {
-				dt := now.Sub(last).Seconds()
-				if dt > 0 {
-					inst := 1 / dt
-					if fps == 0 {
-						fps = inst
-					} else {
-						fps = fps*0.85 + inst*0.15
-					}
-					st.Update(fmt.Sprintf("%.0f fps", fps))
-				}
-			}
-			last = now
+			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
 			return nil
 		})
 	})

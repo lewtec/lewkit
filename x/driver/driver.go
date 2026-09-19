@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"maps"
 	"os"
 	"reflect"
@@ -57,7 +58,7 @@ type Offer[T any] struct {
 // Offerer is optional on a factory. List and Doctor expand Offers after
 // CheckCompatibility. Factories without it offer one driver: ID, Name, New.
 type Offerer[T any] interface {
-	Offers(ctx context.Context) ([]Offer[T], error)
+	Offers(ctx context.Context) iter.Seq2[Offer[T], error]
 }
 
 // Handle is one compatible driver. Open constructs it.
@@ -244,12 +245,11 @@ func Register[T any](factory DriverFactory[T]) {
 	}
 	if offerer, ok := any(factory).(Offerer[T]); ok {
 		entry.Offers = func(ctx context.Context) ([]offerMeta, error) {
-			offers, err := offerer.Offers(ctx)
-			if err != nil {
-				return nil, err
-			}
-			out := make([]offerMeta, 0, len(offers))
-			for _, o := range offers {
+			var out []offerMeta
+			for o, err := range offerer.Offers(ctx) {
+				if err != nil {
+					return nil, err
+				}
 				out = append(out, offerMeta{ID: o.ID, Name: o.Name, Weight: o.Weight})
 			}
 			return out, nil
@@ -361,16 +361,11 @@ func List[T any](ctx context.Context) ([]Handle[T], error) {
 
 func (s factorySet[T]) handles(ctx context.Context, factory DriverFactory[T], fallback int) ([]Handle[T], error) {
 	if offerer, ok := any(factory).(Offerer[T]); ok {
-		offers, err := offerer.Offers(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if len(offers) == 0 {
-			return nil, ErrUnavailable
-		}
-		out := make([]Handle[T], 0, len(offers))
-		for _, offer := range offers {
-			o := offer
+		var out []Handle[T]
+		for o, err := range offerer.Offers(ctx) {
+			if err != nil {
+				return nil, err
+			}
 			id := o.ID
 			if id == "" {
 				id = factory.ID()
@@ -389,6 +384,9 @@ func (s factorySet[T]) handles(ctx context.Context, factory DriverFactory[T], fa
 				Weight: effectiveWeight(s.weights, id, s.ifaceName, o.Weight),
 				open:   open,
 			})
+		}
+		if len(out) == 0 {
+			return nil, ErrUnavailable
 		}
 		return out, nil
 	}

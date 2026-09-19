@@ -3,6 +3,7 @@ package driver_test
 import (
 	"context"
 	"errors"
+	"iter"
 	"sync"
 	"testing"
 
@@ -383,18 +384,24 @@ func (gpuFactory) CheckCompatibility(context.Context) error { return nil }
 func (gpuFactory) New(context.Context) (gpus, error) {
 	return pickerImpl{id: "gpu_all:amd"}, nil
 }
-func (gpuFactory) Offers(context.Context) ([]driver.Offer[gpus], error) {
-	return []driver.Offer[gpus]{
-		{ID: "gpu_all:amd", Name: "Renoir", Weight: 40, New: func(context.Context) (gpus, error) {
-			return pickerImpl{id: "gpu_all:amd"}, nil
-		}},
-		{ID: "gpu_all:nvidia", Name: "RTX 3060", Weight: 40, New: func(context.Context) (gpus, error) {
-			return pickerImpl{id: "gpu_all:nvidia"}, nil
-		}},
-		{ID: "gpu_all:llvmpipe", Name: "llvmpipe", Weight: 0, New: func(context.Context) (gpus, error) {
-			return pickerImpl{id: "gpu_all:llvmpipe"}, nil
-		}},
-	}, nil
+func (gpuFactory) Offers(context.Context) iter.Seq2[driver.Offer[gpus], error] {
+	return func(yield func(driver.Offer[gpus], error) bool) {
+		for _, o := range []driver.Offer[gpus]{
+			{ID: "gpu_all:amd", Name: "Renoir", Weight: 40, New: func(context.Context) (gpus, error) {
+				return pickerImpl{id: "gpu_all:amd"}, nil
+			}},
+			{ID: "gpu_all:nvidia", Name: "RTX 3060", Weight: 40, New: func(context.Context) (gpus, error) {
+				return pickerImpl{id: "gpu_all:nvidia"}, nil
+			}},
+			{ID: "gpu_all:llvmpipe", Name: "llvmpipe", Weight: 0, New: func(context.Context) (gpus, error) {
+				return pickerImpl{id: "gpu_all:llvmpipe"}, nil
+			}},
+		} {
+			if !yield(o, nil) {
+				return
+			}
+		}
+	}
 }
 
 var registerGPUs = sync.OnceFunc(func() {

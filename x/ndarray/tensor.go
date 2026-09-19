@@ -194,11 +194,11 @@ func (t *Tensor) realize(ctx context.Context, evaluator Evaluator, destination [
 	if len(destination) < t.kernel.size {
 		return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), t.kernel.size)
 	}
-	ex, err := evaluator.Exec(ctx, t)
+	program, err := evaluator.Program(ctx, t)
 	if err != nil {
 		return err
 	}
-	return ex.Run(ctx, destination[:t.kernel.size])
+	return program.Eval(ctx, destination[:t.kernel.size])
 }
 
 func (t *Tensor) ensure() error {
@@ -314,12 +314,26 @@ func (t *Tensor) Equal(o *Tensor) *Tensor {
 func (t *Tensor) GreaterEqual(o *Tensor) *Tensor {
 	return t.bin(func(a, b *node) *node { return a.GreaterEqual(b) }, o)
 }
-func (t *Tensor) Exp2() *Tensor  { return wrap(t.node.Exp2()) }
-func (t *Tensor) Log2() *Tensor  { return wrap(t.node.Log2()) }
-func (t *Tensor) Sin() *Tensor   { return wrap(t.node.Sin()) }
-func (t *Tensor) Sqrt() *Tensor  { return wrap(t.node.Sqrt()) }
-func (t *Tensor) Recip() *Tensor { return wrap(t.node.Recip()) }
-func (t *Tensor) Neg() *Tensor   { return wrap(t.node.Neg()) }
+
+// Exp2 is 2^x.
+func (t *Tensor) Exp2() *Tensor { return wrap(t.node.Exp2()) }
+
+// Log2 is log2(x).
+func (t *Tensor) Log2() *Tensor { return wrap(t.node.Log2()) }
+
+// Sin is sin(x) in radians.
+func (t *Tensor) Sin() *Tensor { return wrap(t.node.Sin()) }
+
+// Sqrt is √x.
+func (t *Tensor) Sqrt() *Tensor { return wrap(t.node.Sqrt()) }
+
+// Reciprocal is 1/x.
+func (t *Tensor) Reciprocal() *Tensor { return wrap(t.node.Recip()) }
+
+// Neg is -x.
+func (t *Tensor) Neg() *Tensor { return wrap(t.node.Neg()) }
+
+// Cast converts elements to dtype (U8 saturates 0..255).
 func (t *Tensor) Cast(dtype DType) *Tensor {
 	if t == nil {
 		return wrap(failed(ErrOp))

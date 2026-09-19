@@ -118,8 +118,7 @@ func (c *Compute) runWindow(ctx context.Context) error {
 			bw, bh         int
 			raw            []byte
 			frame          uint32
-			last           time.Time
-			fps            float64
+			fps            window.FPS
 		)
 		defer func() {
 			if pixels != nil {
@@ -175,20 +174,7 @@ func (c *Compute) runWindow(ctx context.Context) error {
 				return err
 			}
 			lewimage.CopyRGBA(dst, raw)
-			now := time.Now()
-			if !last.IsZero() {
-				dt := now.Sub(last).Seconds()
-				if dt > 0 {
-					inst := 1 / dt
-					if fps == 0 {
-						fps = inst
-					} else {
-						fps = fps*0.85 + inst*0.15
-					}
-					st.Update(fmt.Sprintf("%.0f fps", fps))
-				}
-			}
-			last = now
+			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
 			frame++
 			return nil
 		})
