@@ -235,12 +235,13 @@ const (
 
 // Buffer is a storage buffer.
 type Buffer struct {
-	d    *Device
-	buf  uint64
-	mem  uint64
-	size int
-	kind Memory
-	ptr  unsafe.Pointer
+	d        *Device
+	buf      uint64
+	mem      uint64
+	size     int
+	kind     Memory
+	ptr      unsafe.Pointer
+	coherent bool
 }
 
 // Buffer allocates a host-visible storage buffer of size bytes.
@@ -302,7 +303,7 @@ func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 			return nil, fmt.Errorf("map memory: %w", err)
 		}
 	}
-	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr}, nil
+	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}, nil
 }
 
 // Len is the requested size in bytes.
@@ -377,6 +378,8 @@ type Shader struct {
 	pipe       uint64
 	descPool   uint64
 	descSet    uint64
+	infos      []descriptorBufferInfo
+	writes     []writeDescriptorSet
 	bindings   int
 	pushBytes  int
 }
@@ -543,7 +546,7 @@ func (s *Shader) Close() error {
 }
 
 func (d *Device) flush(b *Buffer) error {
-	if b == nil || b.ptr == nil {
+	if b == nil || b.ptr == nil || b.coherent {
 		return nil
 	}
 	rng := mappedMemoryRange{
@@ -558,7 +561,7 @@ func (d *Device) flush(b *Buffer) error {
 }
 
 func (d *Device) invalidate(b *Buffer) error {
-	if b == nil || b.ptr == nil {
+	if b == nil || b.ptr == nil || b.coherent {
 		return nil
 	}
 	rng := mappedMemoryRange{

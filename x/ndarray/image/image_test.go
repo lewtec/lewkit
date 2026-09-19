@@ -3,6 +3,7 @@ package image
 import (
 	stdimage "image"
 	"image/color"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -74,6 +75,24 @@ func TestFill(t *testing.T) {
 	dst := raster(t, expr)
 	assert.Equal(t, color.RGBA{10, 20, 30, 255}, dst.RGBAAt(0, 0))
 	assert.Equal(t, color.RGBA{10, 20, 30, 255}, dst.RGBAAt(1, 1))
+}
+
+func TestPainterHeap(t *testing.T) {
+	p, err := New(t.Context())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, p)
+	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, 64, 64))
+	require.NoError(t, p.Draw(t.Context(), dst, 0))
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	for i := range 30 {
+		require.NoError(t, p.Draw(t.Context(), dst, float64(i)/30))
+	}
+	runtime.GC()
+	runtime.ReadMemStats(&after)
+	grew := int64(after.HeapInuse) - int64(before.HeapInuse)
+	require.Less(t, grew, int64(8<<20), "heap grew %d bytes over 30 frames", grew)
 }
 
 func TestPainterDraw(t *testing.T) {

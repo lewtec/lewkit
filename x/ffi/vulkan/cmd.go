@@ -22,7 +22,7 @@ func (d *Device) Begin() (*Cmd, error) {
 	if d.recording || d.pending {
 		return nil, ErrBusy
 	}
-	if err := check(d.api.resetCommandPool(d.dev, d.cmdPool, 0)); err != nil {
+	if err := check(d.api.resetCommandPool(d.dev, d.cmdPool, commandPoolResetRelease)); err != nil {
 		return nil, fmt.Errorf("reset command pool: %w", err)
 	}
 	begin := commandBufferBeginInfo{
@@ -71,21 +71,27 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 	if err := s.ensureDesc(); err != nil {
 		return err
 	}
-	infos := make([]descriptorBufferInfo, len(bufs))
-	writes := make([]writeDescriptorSet, len(bufs))
+	n := len(bufs)
+	if cap(s.infos) < n {
+		s.infos = make([]descriptorBufferInfo, n)
+		s.writes = make([]writeDescriptorSet, n)
+	} else {
+		s.infos = s.infos[:n]
+		s.writes = s.writes[:n]
+	}
 	for i, b := range bufs {
-		infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
-		writes[i] = writeDescriptorSet{
+		s.infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
+		s.writes[i] = writeDescriptorSet{
 			sType:           structureWriteDescriptorSet,
 			dstSet:          s.descSet,
 			dstBinding:      uint32(i),
 			descriptorCount: 1,
 			descriptorType:  descriptorStorageBuffer,
-			pBufferInfo:     &infos[i],
+			pBufferInfo:     &s.infos[i],
 		}
 	}
-	if len(writes) > 0 {
-		d.api.updateDescriptorSets(d.dev, uint32(len(writes)), &writes[0], 0, 0)
+	if n > 0 {
+		d.api.updateDescriptorSets(d.dev, uint32(n), &s.writes[0], 0, 0)
 	}
 	for _, b := range bufs {
 		if err := d.flush(b); err != nil {
