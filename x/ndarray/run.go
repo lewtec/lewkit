@@ -41,7 +41,7 @@ func (k *Kernel) Run(ctx context.Context, d *vulkan.Device, dst *vulkan.Buffer, 
 	if k.n == 0 {
 		return nil
 	}
-	sh, err := k.shader(ctx, d)
+	sh, err := k.ensurePipeline(ctx, d)
 	if err != nil {
 		return err
 	}
@@ -82,18 +82,18 @@ func (k *Kernel) Run(ctx context.Context, d *vulkan.Device, dst *vulkan.Buffer, 
 	return cmd.Wait()
 }
 
-func (k *Kernel) shader(ctx context.Context, d *vulkan.Device) (*vulkan.Shader, error) {
-	if k.sh != nil && k.shDev == d {
-		return k.sh, nil
+func (k *Kernel) ensurePipeline(ctx context.Context, d *vulkan.Device) (*vulkan.Shader, error) {
+	if k.pipeline != nil && k.pipelineDevice == d {
+		return k.pipeline, nil
 	}
-	if k.sh != nil {
-		if err := k.sh.Close(); err != nil {
-			k.sh = nil
-			k.shDev = nil
+	if k.pipeline != nil {
+		if err := k.pipeline.Close(); err != nil {
+			k.pipeline = nil
+			k.pipelineDevice = nil
 			return nil, err
 		}
-		k.sh = nil
-		k.shDev = nil
+		k.pipeline = nil
+		k.pipelineDevice = nil
 	}
 	spv, err := k.SPIRV(ctx)
 	if err != nil {
@@ -107,19 +107,19 @@ func (k *Kernel) shader(ctx context.Context, d *vulkan.Device) (*vulkan.Shader, 
 	if err != nil {
 		return nil, err
 	}
-	k.sh = sh
-	k.shDev = d
+	k.pipeline = sh
+	k.pipelineDevice = d
 	return sh, nil
 }
 
 // Close releases a cached Vulkan shader.
 func (k *Kernel) Close() error {
-	if k == nil || k.sh == nil {
+	if k == nil || k.pipeline == nil {
 		return nil
 	}
-	err := k.sh.Close()
-	k.sh = nil
-	k.shDev = nil
+	err := k.pipeline.Close()
+	k.pipeline = nil
+	k.pipelineDevice = nil
 	return err
 }
 
@@ -151,7 +151,7 @@ func (k *Kernel) Exec(ctx context.Context, d *vulkan.Device, srcs ...[]float32) 
 			}
 			return nil, err
 		}
-		if err := b.Write(f32bytes(src)); err != nil {
+		if err := b.Write(floatBytes(src)); err != nil {
 			b.Close()
 			for _, x := range ins {
 				if x != nil {
@@ -174,7 +174,7 @@ func (k *Kernel) Exec(ctx context.Context, d *vulkan.Device, srcs ...[]float32) 
 	if err := dst.Read(raw); err != nil {
 		return nil, err
 	}
-	if k.outDT == I32 {
+	if k.outType == I32 {
 		out := make([]float32, k.n)
 		for i := range out {
 			out[i] = float32(int32(binary.LittleEndian.Uint32(raw[i*4:])))
@@ -184,7 +184,7 @@ func (k *Kernel) Exec(ctx context.Context, d *vulkan.Device, srcs ...[]float32) 
 	return bytesF32(raw), nil
 }
 
-func f32bytes(v []float32) []byte {
+func floatBytes(v []float32) []byte {
 	b := make([]byte, len(v)*4)
 	for i, x := range v {
 		binary.LittleEndian.PutUint32(b[i*4:], math.Float32bits(x))

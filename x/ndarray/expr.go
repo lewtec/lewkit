@@ -17,61 +17,61 @@ const (
 
 // Node is one vertex of a fused kernel: a const, an input view, or an ALU op.
 type Node struct {
-	kind kind
-	op   Op
-	dt   DType
-	srcs []*Node
-	st   Tracker
-	slot int
-	bits uint32
-	err  error
+	kind    kind
+	op      Op
+	dtype   DType
+	sources []*Node
+	tracker Tracker
+	slot    int
+	bits    uint32
+	err     error
 }
 
-func bad(err error) *Node { return &Node{err: err} }
+func failed(err error) *Node { return &Node{err: err} }
 
-// In is a float32 input buffer at slot, addressed by st.
-func In(slot int, st Tracker) *Node {
-	return InT(slot, st, F32)
+// In is a float32 input buffer at slot, addressed by tracker.
+func In(slot int, tracker Tracker) *Node {
+	return InTyped(slot, tracker, F32)
 }
 
-// InT is an input buffer at slot with dtype dt.
-func InT(slot int, st Tracker, dt DType) *Node {
-	if slot < 0 || st.check() != nil || (dt != F32 && dt != I32) {
-		return bad(ErrOp)
+// InTyped is an input buffer at slot with the given element type.
+func InTyped(slot int, tracker Tracker, dtype DType) *Node {
+	if slot < 0 || tracker.check() != nil || (dtype != F32 && dtype != I32) {
+		return failed(ErrOp)
 	}
-	return &Node{kind: kindIn, dt: dt, st: st, slot: slot}
+	return &Node{kind: kindIn, dtype: dtype, tracker: tracker, slot: slot}
 }
 
 // Const is a float32 splat.
 func Const(v float32) *Node {
-	return &Node{kind: kindConst, dt: F32, bits: math.Float32bits(v)}
+	return &Node{kind: kindConst, dtype: F32, bits: math.Float32bits(v)}
 }
 
-// ConstI is an int32 splat.
-func ConstI(v int32) *Node {
-	return &Node{kind: kindConst, dt: I32, bits: uint32(v)}
+// ConstInt is an int32 splat.
+func ConstInt(v int32) *Node {
+	return &Node{kind: kindConst, dtype: I32, bits: uint32(v)}
 }
 
 // Coord is the logical index on axis, as int32. shape is the tensor it indexes.
 func Coord(axis int, shape ...int) *Node {
-	st, err := Of(shape...)
+	tracker, err := Of(shape...)
 	if err != nil {
-		return bad(err)
+		return failed(err)
 	}
 	if axis < 0 || axis >= len(shape) {
-		return bad(ErrAxis)
+		return failed(ErrAxis)
 	}
-	return &Node{kind: kindCoord, dt: I32, st: st, slot: axis}
+	return &Node{kind: kindCoord, dtype: I32, tracker: tracker, slot: axis}
 }
 
 // Div is a * (1/b).
 func Div(a, b *Node) *Node { return Mul(a, Recip(b)) }
 
-// Eq is 1 if a == b, else 0.
-func Eq(a, b *Node) *Node { return CmpNe(CmpNe(a, b), ConstI(1)) }
+// Equal is 1 if a == b, else 0.
+func Equal(a, b *Node) *Node { return CmpNe(CmpNe(a, b), ConstInt(1)) }
 
-// Ge is 1 if a >= b, else 0.
-func Ge(a, b *Node) *Node { return CmpNe(CmpLt(a, b), ConstI(1)) }
+// GreaterEqual is 1 if a >= b, else 0.
+func GreaterEqual(a, b *Node) *Node { return CmpNe(CmpLt(a, b), ConstInt(1)) }
 
 // Shape is the logical shape, or nil for a splat.
 func (n *Node) Shape() []int {
@@ -79,17 +79,17 @@ func (n *Node) Shape() []int {
 		return nil
 	}
 	if n.kind == kindIn {
-		sh := n.st.Shape()
+		sh := n.tracker.Shape()
 		if len(sh) == 0 {
 			return nil
 		}
 		return sh
 	}
 	if n.kind == kindCoord {
-		return n.st.Shape()
+		return n.tracker.Shape()
 	}
 	if n.kind == kindOp {
-		for _, s := range n.srcs {
+		for _, s := range n.sources {
 			if sh := s.Shape(); sh != nil {
 				return sh
 			}
@@ -103,7 +103,7 @@ func (n *Node) DType() DType {
 	if n == nil {
 		return 0
 	}
-	return n.dt
+	return n.dtype
 }
 
 func (n *Node) Add(b *Node) *Node       { return Add(n, b) }
@@ -124,7 +124,7 @@ func (n *Node) Sin() *Node              { return Sin(n) }
 func (n *Node) Sqrt() *Node             { return Sqrt(n) }
 func (n *Node) Recip() *Node            { return Recip(n) }
 func (n *Node) Neg() *Node              { return Neg(n) }
-func (n *Node) Cast(dt DType) *Node     { return Cast(n, dt) }
+func (n *Node) Cast(dtype DType) *Node  { return Cast(n, dtype) }
 func (n *Node) Where(a, b *Node) *Node  { return Where(n, a, b) }
 func (n *Node) MulAcc(b, c *Node) *Node { return MulAcc(n, b, c) }
 
@@ -182,23 +182,23 @@ func Recip(a *Node) *Node { return unary(RECIP, a) }
 // Neg is -a.
 func Neg(a *Node) *Node { return unary(NEG, a) }
 
-// Cast converts a to dt.
-func Cast(a *Node, dt DType) *Node {
+// Cast converts a to dtype.
+func Cast(a *Node, dtype DType) *Node {
 	n := unary(CAST, a)
 	if n.err != nil {
 		return n
 	}
-	if dt != F32 && dt != I32 {
-		return bad(ErrType)
+	if dtype != F32 && dtype != I32 {
+		return failed(ErrType)
 	}
-	n.dt = dt
+	n.dtype = dtype
 	return n
 }
 
 // Where is a if p != 0 else b. Call as Where(p, a, b) or p.Where(a, b).
 func Where(p, a, b *Node) *Node {
 	if p == nil || a == nil || b == nil {
-		return bad(ErrOp)
+		return failed(ErrOp)
 	}
 	if p.err != nil {
 		return p
@@ -209,19 +209,19 @@ func Where(p, a, b *Node) *Node {
 	if b.err != nil {
 		return b
 	}
-	if p.dt != I32 || a.dt != b.dt {
-		return bad(ErrType)
+	if p.dtype != I32 || a.dtype != b.dtype {
+		return failed(ErrType)
 	}
 	if err := sameShape(p, a, b); err != nil {
-		return bad(err)
+		return failed(err)
 	}
-	return &Node{kind: kindOp, op: WHERE, dt: a.dt, srcs: []*Node{p, a, b}}
+	return &Node{kind: kindOp, op: WHERE, dtype: a.dtype, sources: []*Node{p, a, b}}
 }
 
 // MulAcc is a*b + c.
 func MulAcc(a, b, c *Node) *Node {
 	if a == nil || b == nil || c == nil {
-		return bad(ErrOp)
+		return failed(ErrOp)
 	}
 	if a.err != nil {
 		return a
@@ -232,32 +232,32 @@ func MulAcc(a, b, c *Node) *Node {
 	if c.err != nil {
 		return c
 	}
-	if a.dt != b.dt || a.dt != c.dt {
-		return bad(ErrType)
+	if a.dtype != b.dtype || a.dtype != c.dtype {
+		return failed(ErrType)
 	}
 	if err := sameShape(a, b, c); err != nil {
-		return bad(err)
+		return failed(err)
 	}
-	return &Node{kind: kindOp, op: MULACC, dt: a.dt, srcs: []*Node{a, b, c}}
+	return &Node{kind: kindOp, op: MULACC, dtype: a.dtype, sources: []*Node{a, b, c}}
 }
 
 func unary(op Op, a *Node) *Node {
 	if a == nil {
-		return bad(ErrOp)
+		return failed(ErrOp)
 	}
 	if a.err != nil {
 		return a
 	}
-	dt, err := unaryDT(op, a.dt)
+	dtype, err := unaryType(op, a.dtype)
 	if err != nil {
-		return bad(err)
+		return failed(err)
 	}
-	return &Node{kind: kindOp, op: op, dt: dt, srcs: []*Node{a}}
+	return &Node{kind: kindOp, op: op, dtype: dtype, sources: []*Node{a}}
 }
 
 func bin(op Op, a, b *Node) *Node {
 	if a == nil || b == nil {
-		return bad(ErrOp)
+		return failed(ErrOp)
 	}
 	if a.err != nil {
 		return a
@@ -265,17 +265,17 @@ func bin(op Op, a, b *Node) *Node {
 	if b.err != nil {
 		return b
 	}
-	dt, err := binaryDT(op, a.dt, b.dt)
+	dtype, err := binaryType(op, a.dtype, b.dtype)
 	if err != nil {
-		return bad(err)
+		return failed(err)
 	}
 	if err := sameShape(a, b); err != nil {
-		return bad(err)
+		return failed(err)
 	}
-	return &Node{kind: kindOp, op: op, dt: dt, srcs: []*Node{a, b}}
+	return &Node{kind: kindOp, op: op, dtype: dtype, sources: []*Node{a, b}}
 }
 
-func unaryDT(op Op, a DType) (DType, error) {
+func unaryType(op Op, a DType) (DType, error) {
 	switch op {
 	case EXP2, LOG2, SIN, SQRT, RECIP:
 		if a != F32 {
@@ -292,7 +292,7 @@ func unaryDT(op Op, a DType) (DType, error) {
 	}
 }
 
-func binaryDT(op Op, a, b DType) (DType, error) {
+func binaryType(op Op, a, b DType) (DType, error) {
 	if a != b {
 		return 0, ErrType
 	}

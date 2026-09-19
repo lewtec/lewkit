@@ -11,23 +11,23 @@ import (
 
 // Painter draws Triangle by resizing a Session. The kernel is compiled once.
 type Painter struct {
-	d      *vulkan.Device
-	k      *ndarray.Kernel
-	sess   *ndarray.Session
-	pix    []float32
-	turn   []float32
-	width  []float32
-	height []float32
-	ins    [][]float32
+	device  *vulkan.Device
+	kernel  *ndarray.Kernel
+	session *ndarray.Session
+	pixels  []float32
+	turn    []float32
+	width   []float32
+	height  []float32
+	inputs  [][]float32
 }
 
-// New compiles TriangleDyn once and attaches a reusable session.
+// New compiles TriangleDynamic once and attaches a reusable session.
 func New(ctx context.Context) (*Painter, error) {
-	st, err := ndarray.Of()
+	tracker, err := ndarray.Of()
 	if err != nil {
 		return nil, err
 	}
-	expr, err := TriangleDyn(ndarray.In(0, st), ndarray.In(1, st), ndarray.In(2, st))
+	expr, err := TriangleDynamic(ndarray.In(0, tracker), ndarray.In(1, tracker), ndarray.In(2, tracker))
 	if err != nil {
 		return nil, err
 	}
@@ -45,38 +45,38 @@ func New(ctx context.Context) (*Painter, error) {
 		return nil, errors.Join(err, e)
 	}
 	p := &Painter{
-		d: d, k: k, sess: sess,
+		device: d, kernel: k, session: sess,
 		turn: []float32{0}, width: []float32{1}, height: []float32{1},
 	}
-	p.ins = [][]float32{p.turn, p.width, p.height}
+	p.inputs = [][]float32{p.turn, p.width, p.height}
 	return p, nil
 }
 
 // Draw renders one frame into dst.
 func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) error {
-	if p == nil || p.sess == nil || p.k == nil {
+	if p == nil || p.session == nil || p.kernel == nil {
 		return ndarray.ErrOp
 	}
 	h, w := dst.Rect.Dy(), dst.Rect.Dx()
 	if h < 1 || w < 1 {
 		return nil
 	}
-	if err := p.k.Resize([]int{h, w, 4}); err != nil {
+	if err := p.kernel.Resize([]int{h, w, 4}); err != nil {
 		return err
 	}
 	n := h * w * 4
-	if cap(p.pix) < n {
-		p.pix = make([]float32, n)
+	if cap(p.pixels) < n {
+		p.pixels = make([]float32, n)
 	} else {
-		p.pix = p.pix[:n]
+		p.pixels = p.pixels[:n]
 	}
 	p.turn[0] = float32(turn)
 	p.width[0] = float32(w)
 	p.height[0] = float32(h)
-	if err := p.sess.Run(ctx, p.pix, p.ins); err != nil {
+	if err := p.session.Run(ctx, p.pixels, p.inputs); err != nil {
 		return err
 	}
-	Write(dst, p.pix)
+	Write(dst, p.pixels)
 	return nil
 }
 
@@ -86,21 +86,21 @@ func (p *Painter) Close() error {
 		return nil
 	}
 	var err error
-	if p.sess != nil {
-		err = p.sess.Close()
-		p.sess = nil
+	if p.session != nil {
+		err = p.session.Close()
+		p.session = nil
 	}
-	if p.k != nil {
-		if e := p.k.Close(); err == nil {
+	if p.kernel != nil {
+		if e := p.kernel.Close(); err == nil {
 			err = e
 		}
-		p.k = nil
+		p.kernel = nil
 	}
-	if p.d != nil {
-		if e := p.d.Close(); err == nil {
+	if p.device != nil {
+		if e := p.device.Close(); err == nil {
 			err = e
 		}
-		p.d = nil
+		p.device = nil
 	}
 	return err
 }

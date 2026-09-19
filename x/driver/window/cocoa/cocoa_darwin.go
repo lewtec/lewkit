@@ -161,11 +161,11 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 
 type win struct {
 	*window.Buffer
-	mu     sync.Mutex
-	wnd    objc.ID
-	pixBuf [2][]byte
-	pixI   int
-	laid   float64
+	mu             sync.Mutex
+	wnd            objc.ID
+	pixelCopy      [2][]byte
+	pixelCopyIndex int
+	layerScale     float64
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -320,9 +320,9 @@ func (w *win) blit() error {
 			view := wnd.Send(selContentView)
 			layer := view.Send(selLayer)
 			scale := w.scale()
-			if w.laid != scale {
+			if w.layerScale != scale {
 				prepareLayer(layer, scale)
-				w.laid = scale
+				w.layerScale = scale
 			}
 			beginNoAnim()
 			layer.Send(selSetContents, objc.ID(cgImage))
@@ -397,9 +397,9 @@ func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 		return 0, fmt.Errorf("%w: empty", window.ErrPresent)
 	}
 	n := len(src.Pix)
-	i := w.pixI
-	w.pixI ^= 1
-	buf := &w.pixBuf[i]
+	i := w.pixelCopyIndex
+	w.pixelCopyIndex ^= 1
+	buf := &w.pixelCopy[i]
 	if cap(*buf) < n {
 		*buf = make([]byte, n)
 	} else {

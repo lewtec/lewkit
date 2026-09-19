@@ -21,7 +21,7 @@ type Device struct {
 	closed    bool
 	recording bool
 	pending   bool
-	rec       Cmd
+	recorded  Cmd
 }
 
 // Open loads libvulkan, creates an instance, and picks a compute queue.
@@ -372,17 +372,17 @@ func (b *Buffer) Close() error {
 
 // Shader is a compute pipeline. bindings is the storage-buffer count at set 0.
 type Shader struct {
-	d          *Device
-	module     uint64
-	setLayout  uint64
-	pipeLayout uint64
-	pipe       uint64
-	descPool   uint64
-	descSet    uint64
-	infos      []descriptorBufferInfo
-	writes     []writeDescriptorSet
-	bindings   int
-	pushBytes  int
+	d              *Device
+	module         uint64
+	setLayout      uint64
+	pipeLayout     uint64
+	pipe           uint64
+	descriptorPool uint64
+	descriptorSet  uint64
+	infos          []descriptorBufferInfo
+	writes         []writeDescriptorSet
+	bindings       int
+	pushBytes      int
 }
 
 // ShaderConfig is SPIR-V plus optional push constants and spec constants.
@@ -530,9 +530,9 @@ func (s *Shader) Close() error {
 	}
 	d := s.d
 	pipe, layout, set, mod := s.pipe, s.pipeLayout, s.setLayout, s.module
-	pool := s.descPool
+	pool := s.descriptorPool
 	s.pipe, s.pipeLayout, s.setLayout, s.module = 0, 0, 0, 0
-	s.descPool, s.descSet = 0, 0
+	s.descriptorPool, s.descriptorSet = 0, 0
 	if d == nil || d.closed || d.dev == 0 {
 		return nil
 	}

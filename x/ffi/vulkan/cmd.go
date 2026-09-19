@@ -33,7 +33,7 @@ func (d *Device) Begin() (*Cmd, error) {
 		return nil, fmt.Errorf("begin command buffer: %w", err)
 	}
 	d.recording = true
-	c := &d.rec
+	c := &d.recorded
 	c.d = d
 	c.bound = nil
 	c.used = c.used[:0]
@@ -41,7 +41,7 @@ func (d *Device) Begin() (*Cmd, error) {
 	return c, nil
 }
 
-func (c *Cmd) rec() error {
+func (c *Cmd) mustRecord() error {
 	if c == nil || c.d == nil || !c.d.recording || c.d.pending {
 		return ErrBusy
 	}
@@ -58,7 +58,7 @@ func (c *Cmd) track(bufs ...*Buffer) {
 
 // Bind sets the compute pipeline and storage buffers at set 0.
 func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	d := c.d
@@ -88,7 +88,7 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 		s.infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
 		s.writes[i] = writeDescriptorSet{
 			sType:           structureWriteDescriptorSet,
-			dstSet:          s.descSet,
+			dstSet:          s.descriptorSet,
 			dstBinding:      uint32(i),
 			descriptorCount: 1,
 			descriptorType:  descriptorStorageBuffer,
@@ -104,7 +104,7 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 		}
 	}
 	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipe)
-	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLayout, 0, 1, &s.descSet, 0, nil)
+	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLayout, 0, 1, &s.descriptorSet, 0, nil)
 	host := false
 	for _, b := range bufs {
 		if b.ptr != nil {
@@ -129,7 +129,7 @@ func (s *Shader) ensureDesc() error {
 	if s == nil || s.d == nil || s.pipe == 0 {
 		return ErrShader
 	}
-	if s.descPool != 0 {
+	if s.descriptorPool != 0 {
 		return nil
 	}
 	d := s.d
@@ -158,13 +158,13 @@ func (s *Shader) ensureDesc() error {
 		d.api.destroyDescriptorPool(d.dev, pool, 0)
 		return fmt.Errorf("descriptor set: %w", err)
 	}
-	s.descPool, s.descSet = pool, set
+	s.descriptorPool, s.descriptorSet = pool, set
 	return nil
 }
 
 // Push writes push constants for the bound shader, offset 0.
 func (c *Cmd) Push(data []byte) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	if c.bound == nil || c.bound.pushBytes == 0 {
@@ -179,7 +179,7 @@ func (c *Cmd) Push(data []byte) error {
 
 // Dispatch records a compute dispatch. The shader must already be bound.
 func (c *Cmd) Dispatch(x, y, z uint32) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	if c.bound == nil {
@@ -191,7 +191,7 @@ func (c *Cmd) Dispatch(x, y, z uint32) error {
 
 // Barrier makes prior copies and dispatches visible to later ones.
 func (c *Cmd) Barrier() error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	bar := memoryBarrier{
@@ -205,7 +205,7 @@ func (c *Cmd) Barrier() error {
 
 // Copy records a buffer copy of src.Len() bytes. dst must be at least that large.
 func (c *Cmd) Copy(dst, src *Buffer) error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	d := c.d
@@ -226,7 +226,7 @@ func (c *Cmd) Copy(dst, src *Buffer) error {
 
 // Submit ends recording and queues the work. Call Wait before Begin again.
 func (c *Cmd) Submit() error {
-	if err := c.rec(); err != nil {
+	if err := c.mustRecord(); err != nil {
 		return err
 	}
 	d := c.d

@@ -17,17 +17,17 @@ const (
 
 // Kernel is one fused compute shader for a whole expression.
 type Kernel struct {
-	root    *Node
-	glsl    string
-	shape   []int
-	slots   []int
-	outDT   DType
-	n       int
-	spirv   []byte
-	cpu     cpuProg
-	sh      *vulkan.Shader
-	shDev   *vulkan.Device
-	runBufs []*vulkan.Buffer
+	root           *Node
+	glsl           string
+	shape          []int
+	slots          []int
+	outType        DType
+	n              int
+	spirv          []byte
+	cpu            cpuProgram
+	pipeline       *vulkan.Shader
+	pipelineDevice *vulkan.Device
+	runBufs        []*vulkan.Buffer
 }
 
 // Compile lowers expr to one GLSL compute kernel. One dispatch covers every cell.
@@ -50,7 +50,7 @@ func Compile(expr *Node) (*Kernel, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &glslW{
+	w := &glslWriter{
 		root:     expr,
 		order:    order,
 		slots:    slots,
@@ -66,7 +66,7 @@ func Compile(expr *Node) (*Kernel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Kernel{root: expr, glsl: src, shape: slices.Clone(shape), slots: slots, outDT: expr.dt, n: n, cpu: cpu}, nil
+	return &Kernel{root: expr, glsl: src, shape: slices.Clone(shape), slots: slots, outType: expr.dtype, n: n, cpu: cpu}, nil
 }
 
 // Resize sets the runtime output shape. Rank must match Compile.
@@ -137,7 +137,7 @@ func flatten(root *Node) ([]*Node, []int, error) {
 		switch n.kind {
 		case kindConst:
 		case kindCoord:
-			if n.slot < 0 || n.st.check() != nil {
+			if n.slot < 0 || n.tracker.check() != nil {
 				return ErrOp
 			}
 		case kindIn:
@@ -146,10 +146,10 @@ func flatten(root *Node) ([]*Node, []int, error) {
 			}
 			slotSet[n.slot] = true
 		case kindOp:
-			if n.op.arity() != len(n.srcs) {
+			if n.op.arity() != len(n.sources) {
 				return fmt.Errorf("%w: %s", ErrOp, n.op)
 			}
-			for _, s := range n.srcs {
+			for _, s := range n.sources {
 				if err := walk(s); err != nil {
 					return err
 				}
@@ -171,7 +171,7 @@ func flatten(root *Node) ([]*Node, []int, error) {
 	return order, slots, nil
 }
 
-type glslW struct {
+type glslWriter struct {
 	b        strings.Builder
 	tmp      int
 	coords   []string
@@ -183,7 +183,7 @@ type glslW struct {
 	slots    []int
 }
 
-func (w *glslW) program() (string, error) {
+func (w *glslWriter) program() (string, error) {
 	for i, s := range w.slots {
 		w.slotBind[s] = i + 1
 	}
@@ -192,12 +192,12 @@ func (w *glslW) program() (string, error) {
 	w.b.WriteString(strconv.Itoa(localSize))
 	w.b.WriteString(") in;\n")
 	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
-	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dt.glsl())
+	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dtype.glsl())
 	for i, s := range w.slots {
 		dt := F32
 		for _, n := range w.order {
 			if n.kind == kindIn && n.slot == s {
-				dt = n.dt
+				dt = n.dtype
 				break
 			}
 		}
@@ -219,54 +219,54 @@ func (w *glslW) program() (string, error) {
 	return w.b.String(), nil
 }
 
-func (w *glslW) name(prefix string) string {
+func (w *glslWriter) name(prefix string) string {
 	w.tmp++
 	return prefix + strconv.Itoa(w.tmp)
 }
 
-func (w *glslW) node(n *Node) (string, error) {
+func (w *glslWriter) node(n *Node) (string, error) {
 	id := w.name("t")
 	switch n.kind {
 	case kindConst:
-		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dt.glsl(), id, glslConst(n))
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, glslConst(n))
 		return id, nil
 	case kindCoord:
-		if n.slot < 0 || n.slot >= len(w.coords) || !slices.Equal(n.st.Shape(), w.outShape) {
+		if n.slot < 0 || n.slot >= len(w.coords) || !slices.Equal(n.tracker.Shape(), w.outShape) {
 			return "", ErrAxis
 		}
 		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, w.coords[n.slot])
 		return id, nil
 	case kindIn:
 		off, valid := "0", "true"
-		if len(n.st.Shape()) != 0 {
-			off, valid = w.index(n.st)
+		if len(n.tracker.Shape()) != 0 {
+			off, valid = w.index(n.tracker)
 		}
 		zero := "0.0"
-		if n.dt == I32 {
+		if n.dtype == I32 {
 			zero = "0"
 		}
-		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dt.glsl(), id, zero)
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, zero)
 		fmt.Fprintf(&w.b, "    if (%s) %s = x%d[%s];\n", valid, id, w.slotBind[n.slot], off)
 		return id, nil
 	case kindOp:
-		args := make([]string, len(n.srcs))
-		for i, s := range n.srcs {
+		args := make([]string, len(n.sources))
+		for i, s := range n.sources {
 			args[i] = w.ssa[s]
 		}
-		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dt.glsl(), id, n.glslALU(args))
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, n.glslALU(args))
 		return id, nil
 	default:
 		return "", ErrOp
 	}
 }
 
-func (w *glslW) index(st Tracker) (off, valid string) {
-	if st.Contiguous() && slices.Equal(st.Shape(), w.outShape) {
+func (w *glslWriter) index(tracker Tracker) (off, valid string) {
+	if tracker.Contiguous() && slices.Equal(tracker.Shape(), w.outShape) {
 		return "i", "true"
 	}
-	off, valid = w.view(st.views[len(st.views)-1], w.coords)
-	for i := len(st.views) - 2; i >= 0; i-- {
-		v := st.views[i]
+	off, valid = w.view(tracker.views[len(tracker.views)-1], w.coords)
+	for i := len(tracker.views) - 2; i >= 0; i-- {
+		v := tracker.views[i]
 		coords := w.unravel(v.shape, off)
 		off2, val2 := w.view(v, coords)
 		both := w.name("ok")
@@ -276,7 +276,7 @@ func (w *glslW) index(st Tracker) (off, valid string) {
 	return off, valid
 }
 
-func (w *glslW) view(v view, coords []string) (off, valid string) {
+func (w *glslWriter) view(v view, coords []string) (off, valid string) {
 	off = w.name("p")
 	fmt.Fprintf(&w.b, "    int %s = %d;\n", off, v.offset)
 	for i, c := range coords {
@@ -296,7 +296,7 @@ func (w *glslW) view(v view, coords []string) (off, valid string) {
 	return off, valid
 }
 
-func (w *glslW) unravelPush(rank int) []string {
+func (w *glslWriter) unravelPush(rank int) []string {
 	if rank == 0 {
 		return nil
 	}
@@ -316,7 +316,7 @@ func (w *glslW) unravelPush(rank int) []string {
 	return coords
 }
 
-func (w *glslW) unravel(shape []int, idx string) []string {
+func (w *glslWriter) unravel(shape []int, idx string) []string {
 	if len(shape) == 0 {
 		return nil
 	}
@@ -341,7 +341,7 @@ func (w *glslW) unravel(shape []int, idx string) []string {
 }
 
 func glslConst(n *Node) string {
-	if n.dt == I32 {
+	if n.dtype == I32 {
 		return strconv.FormatInt(int64(int32(n.bits)), 10)
 	}
 	s := strconv.FormatFloat(float64(math.Float32frombits(n.bits)), 'g', -1, 32)
@@ -366,7 +366,7 @@ func (n *Node) glslALU(args []string) string {
 	case NEG:
 		return "(-" + args[0] + ")"
 	case CAST:
-		return n.dt.glsl() + "(" + args[0] + ")"
+		return n.dtype.glsl() + "(" + args[0] + ")"
 	case ADD:
 		return "(" + args[0] + "+" + args[1] + ")"
 	case MUL:

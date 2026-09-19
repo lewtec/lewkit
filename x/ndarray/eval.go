@@ -6,7 +6,7 @@ import "fmt"
 // It interprets a register tape built at Compile (no native codegen) and
 // shards cells across GOMAXPROCS when the output is large enough.
 func (k *Kernel) Eval(srcs ...[]float32) ([]float32, error) {
-	if k == nil || k.cpu.nreg == 0 {
+	if k == nil || k.cpu.registers == 0 {
 		return nil, ErrOp
 	}
 	if len(srcs) != len(k.slots) {
@@ -24,7 +24,7 @@ func (k *Kernel) Eval(srcs ...[]float32) ([]float32, error) {
 
 // EvalInto writes the kernel into dst, which must have length at least Size.
 func (k *Kernel) EvalInto(dst []float32, srcs [][]float32) error {
-	if k == nil || k.cpu.nreg == 0 {
+	if k == nil || k.cpu.registers == 0 {
 		return ErrOp
 	}
 	if len(srcs) != len(k.slots) {

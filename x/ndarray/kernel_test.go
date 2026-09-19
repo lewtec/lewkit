@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func st(t *testing.T, shape ...int) Tracker {
+func mustTracker(t *testing.T, shape ...int) Tracker {
 	t.Helper()
 	tr, err := Of(shape...)
 	require.NoError(t, err)
@@ -16,8 +16,8 @@ func st(t *testing.T, shape ...int) Tracker {
 }
 
 func TestCompileOneMain(t *testing.T) {
-	a := In(0, st(t, 2, 3))
-	b := In(1, st(t, 2, 3))
+	a := In(0, mustTracker(t, 2, 3))
+	b := In(1, mustTracker(t, 2, 3))
 	k, err := Compile(a.Add(b).Mul(Const(2)).Max(Const(0)))
 	require.NoError(t, err)
 	src := k.GLSL()
@@ -29,7 +29,7 @@ func TestCompileOneMain(t *testing.T) {
 }
 
 func TestEvalAdd(t *testing.T) {
-	k, err := Compile(In(0, st(t, 3)).Add(In(1, st(t, 3))))
+	k, err := Compile(In(0, mustTracker(t, 3)).Add(In(1, mustTracker(t, 3))))
 	require.NoError(t, err)
 	got, err := k.Eval([]float32{1, 2, 3}, []float32{4, 5, 6})
 	require.NoError(t, err)
@@ -37,10 +37,10 @@ func TestEvalAdd(t *testing.T) {
 }
 
 func TestEvalPermuteAdd(t *testing.T) {
-	perm, err := st(t, 2, 3).Permute(1, 0)
+	perm, err := mustTracker(t, 2, 3).Permute(1, 0)
 	require.NoError(t, err)
 	// A is (3,2) row-major. B is stored as (2,3) and viewed as (3,2) via permute.
-	k, err := Compile(In(0, st(t, 3, 2)).Add(In(1, perm)))
+	k, err := Compile(In(0, mustTracker(t, 3, 2)).Add(In(1, perm)))
 	require.NoError(t, err)
 	a := []float32{1, 2, 3, 4, 5, 6}       // (3,2)
 	b := []float32{10, 20, 30, 40, 50, 60} // (2,3) [10 20 30 / 40 50 60]
@@ -51,7 +51,7 @@ func TestEvalPermuteAdd(t *testing.T) {
 }
 
 func TestEvalPad(t *testing.T) {
-	padded, err := st(t, 2).Pad([][2]int{{1, 1}})
+	padded, err := mustTracker(t, 2).Pad([][2]int{{1, 1}})
 	require.NoError(t, err)
 	k, err := Compile(In(0, padded).Add(Const(1)))
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestEvalPad(t *testing.T) {
 }
 
 func TestEvalRelu(t *testing.T) {
-	k, err := Compile(In(0, st(t, 4)).Max(Const(0)))
+	k, err := Compile(In(0, mustTracker(t, 4)).Max(Const(0)))
 	require.NoError(t, err)
 	got, err := k.Eval([]float32{-2, 0, 3, -0.5})
 	require.NoError(t, err)
@@ -69,8 +69,8 @@ func TestEvalRelu(t *testing.T) {
 }
 
 func TestEvalWhere(t *testing.T) {
-	p := In(0, st(t, 3)).CmpLt(Const(0))
-	k, err := Compile(p.Where(Const(0), In(0, st(t, 3))))
+	p := In(0, mustTracker(t, 3)).CmpLt(Const(0))
+	k, err := Compile(p.Where(Const(0), In(0, mustTracker(t, 3))))
 	require.NoError(t, err)
 	got, err := k.Eval([]float32{-1, 2, -3})
 	require.NoError(t, err)
@@ -78,13 +78,13 @@ func TestEvalWhere(t *testing.T) {
 }
 
 func TestCompileShapeMismatch(t *testing.T) {
-	n := In(0, st(t, 2)).Add(In(1, st(t, 3)))
+	n := In(0, mustTracker(t, 2)).Add(In(1, mustTracker(t, 3)))
 	_, err := Compile(n)
 	require.ErrorIs(t, err, ErrShape)
 }
 
 func TestCompileGLSL(t *testing.T) {
-	k, err := Compile(In(0, st(t, 2, 2)).Add(In(1, st(t, 2, 2))).Mul(Const(0.5)))
+	k, err := Compile(In(0, mustTracker(t, 2, 2)).Add(In(1, mustTracker(t, 2, 2))).Mul(Const(0.5)))
 	require.NoError(t, err)
 	spv, err := k.SPIRV(t.Context())
 	require.NoError(t, err)
@@ -92,12 +92,12 @@ func TestCompileGLSL(t *testing.T) {
 }
 
 func TestRealSize(t *testing.T) {
-	require.Equal(t, 6, st(t, 2, 3).RealSize())
-	require.Equal(t, 1, st(t).RealSize())
-	ex, err := st(t, 1, 3).Expand(4, 3)
+	require.Equal(t, 6, mustTracker(t, 2, 3).RealSize())
+	require.Equal(t, 1, mustTracker(t).RealSize())
+	ex, err := mustTracker(t, 1, 3).Expand(4, 3)
 	require.NoError(t, err)
 	require.Equal(t, 3, ex.RealSize())
-	p, err := st(t, 2).Pad([][2]int{{1, 1}})
+	p, err := mustTracker(t, 2).Pad([][2]int{{1, 1}})
 	require.NoError(t, err)
 	require.Equal(t, 2, p.RealSize())
 }
