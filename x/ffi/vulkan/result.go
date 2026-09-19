@@ -16,6 +16,10 @@ var (
 	ErrSize = errors.New("invalid size")
 	// ErrShader means SPIR-V or binding count is invalid.
 	ErrShader = errors.New("invalid shader")
+	// ErrBusy means a command buffer is recording or still on the queue.
+	ErrBusy = errors.New("command buffer busy")
+	// ErrPush means push-constant data does not match the shader.
+	ErrPush = errors.New("invalid push constants")
 )
 
 // Result is a VkResult.

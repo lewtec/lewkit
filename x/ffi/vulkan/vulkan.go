@@ -8,17 +8,19 @@ import (
 
 // Device is a compute-capable Vulkan device with host-visible buffers.
 type Device struct {
-	api     api
-	inst    uintptr
-	phys    uintptr
-	dev     uintptr
-	queue   uintptr
-	family  uint32
-	cmdPool uint64
-	cmd     uintptr
-	mem     physicalDeviceMemoryProperties
-	name    string
-	closed  bool
+	api       api
+	inst      uintptr
+	phys      uintptr
+	dev       uintptr
+	queue     uintptr
+	family    uint32
+	cmdPool   uint64
+	cmd       uintptr
+	mem       physicalDeviceMemoryProperties
+	name      string
+	closed    bool
+	recording bool
+	pending   bool
 }
 
 // Open loads libvulkan, creates an instance, and picks a compute queue.
@@ -221,17 +223,33 @@ func (d *Device) memoryType(bits, flags uint32) (uint32, bool) {
 	return 0, false
 }
 
-// Buffer is a host-visible storage buffer.
+// Memory is where a buffer lives.
+type Memory uint8
+
+const (
+	// Host is host-visible, coherent, and persistently mapped.
+	Host Memory = iota
+	// Local is device-local. Use Copy to move data.
+	Local
+)
+
+// Buffer is a storage buffer.
 type Buffer struct {
 	d    *Device
 	buf  uint64
 	mem  uint64
 	size int
+	kind Memory
 	ptr  unsafe.Pointer
 }
 
 // Buffer allocates a host-visible storage buffer of size bytes.
 func (d *Device) Buffer(size int) (*Buffer, error) {
+	return d.Alloc(size, Host)
+}
+
+// Alloc creates a storage buffer of size bytes in mem.
+func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 	if err := d.live(); err != nil {
 		return nil, err
 	}
@@ -249,9 +267,16 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 	}
 	var req memoryRequirements
 	d.api.getBufferReqs(d.dev, buf, &req)
-	idx, ok := d.memoryType(req.memoryTypeBits, memoryHostVisible|memoryHostCoherent)
+	want := uint32(memoryHostVisible | memoryHostCoherent)
+	if mem == Local {
+		want = memoryDeviceLocal
+	}
+	idx, ok := d.memoryType(req.memoryTypeBits, want)
 	if !ok {
 		d.api.destroyBuffer(d.dev, buf, 0)
+		if mem == Local {
+			return nil, fmt.Errorf("%w: no device-local memory", ErrUnavailable)
+		}
 		return nil, fmt.Errorf("%w: no host-visible memory", ErrUnavailable)
 	}
 	alloc := memoryAllocateInfo{
@@ -259,23 +284,25 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 		allocationSize:  req.size,
 		memoryTypeIndex: idx,
 	}
-	var mem uint64
-	if err := check(d.api.allocateMemory(d.dev, &alloc, 0, &mem)); err != nil {
+	var block uint64
+	if err := check(d.api.allocateMemory(d.dev, &alloc, 0, &block)); err != nil {
 		d.api.destroyBuffer(d.dev, buf, 0)
 		return nil, fmt.Errorf("allocate memory: %w", err)
 	}
-	if err := check(d.api.bindBufferMemory(d.dev, buf, mem, 0)); err != nil {
-		d.api.freeMemory(d.dev, mem, 0)
+	if err := check(d.api.bindBufferMemory(d.dev, buf, block, 0)); err != nil {
+		d.api.freeMemory(d.dev, block, 0)
 		d.api.destroyBuffer(d.dev, buf, 0)
 		return nil, fmt.Errorf("bind buffer: %w", err)
 	}
 	var ptr unsafe.Pointer
-	if err := check(d.api.mapMemory(d.dev, mem, 0, req.size, 0, &ptr)); err != nil {
-		d.api.freeMemory(d.dev, mem, 0)
-		d.api.destroyBuffer(d.dev, buf, 0)
-		return nil, fmt.Errorf("map memory: %w", err)
+	if mem == Host {
+		if err := check(d.api.mapMemory(d.dev, block, 0, req.size, 0, &ptr)); err != nil {
+			d.api.freeMemory(d.dev, block, 0)
+			d.api.destroyBuffer(d.dev, buf, 0)
+			return nil, fmt.Errorf("map memory: %w", err)
+		}
 	}
-	return &Buffer{d: d, buf: buf, mem: mem, size: size, ptr: ptr}, nil
+	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr}, nil
 }
 
 // Len is the requested size in bytes.
@@ -284,6 +311,14 @@ func (b *Buffer) Len() int {
 		return 0
 	}
 	return b.size
+}
+
+// Memory is Host or Local.
+func (b *Buffer) Memory() Memory {
+	if b == nil {
+		return Host
+	}
+	return b.kind
 }
 
 func (b *Buffer) bytes() []byte {
@@ -341,19 +376,38 @@ type Shader struct {
 	pipeLayout uint64
 	pipe       uint64
 	bindings   int
+	pushBytes  int
+}
+
+// ShaderConfig is SPIR-V plus optional push constants and spec constants.
+type ShaderConfig struct {
+	SPIRV     []byte
+	Bindings  int
+	PushBytes int
+	Spec      []uint32
 }
 
 // Shader builds a compute pipeline from SPIR-V.
 // n is the storage-buffer count at set 0.
 func (d *Device) Shader(ctx context.Context, spirv []byte, bindings int) (*Shader, error) {
+	return d.Compile(ctx, ShaderConfig{SPIRV: spirv, Bindings: bindings})
+}
+
+// Compile builds a compute pipeline.
+func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error) {
 	if err := d.live(); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	spirv := cfg.SPIRV
+	bindings := cfg.Bindings
 	if bindings < 1 || len(spirv) < 20 || len(spirv)%4 != 0 {
 		return nil, ErrShader
+	}
+	if cfg.PushBytes < 0 || cfg.PushBytes > 256 || cfg.PushBytes%4 != 0 {
+		return nil, ErrPush
 	}
 	code := make([]uint32, len(spirv)/4)
 	for i := range code {
@@ -392,6 +446,15 @@ func (d *Device) Shader(ctx context.Context, spirv []byte, bindings int) (*Shade
 		setLayoutCount: 1,
 		pSetLayouts:    &setLayout,
 	}
+	var push pushConstantRange
+	if cfg.PushBytes > 0 {
+		push = pushConstantRange{
+			stageFlags: shaderStageCompute,
+			size:       uint32(cfg.PushBytes),
+		}
+		pipeInfo.pushConstantRangeCount = 1
+		pipeInfo.pPushConstantRanges = &push
+	}
 	var pipeLayout uint64
 	if err := check(d.api.createPipelineLayout(d.dev, &pipeInfo, 0, &pipeLayout)); err != nil {
 		d.api.destroySetLayout(d.dev, setLayout, 0)
@@ -399,14 +462,40 @@ func (d *Device) Shader(ctx context.Context, spirv []byte, bindings int) (*Shade
 		return nil, fmt.Errorf("pipeline layout: %w", err)
 	}
 	entry := cstr("main")
+	stage := pipelineShaderStageCreateInfo{
+		sType:  structurePipelineShaderStageCreateInfo,
+		stage:  shaderStageCompute,
+		module: module,
+		pName:  entry,
+	}
+	var spec specializationInfo
+	var specEntries []specializationMapEntry
+	var specData []byte
+	if n := len(cfg.Spec); n > 0 {
+		specData = make([]byte, n*4)
+		specEntries = make([]specializationMapEntry, n)
+		for i, v := range cfg.Spec {
+			specData[i*4] = byte(v)
+			specData[i*4+1] = byte(v >> 8)
+			specData[i*4+2] = byte(v >> 16)
+			specData[i*4+3] = byte(v >> 24)
+			specEntries[i] = specializationMapEntry{
+				constantID: uint32(i),
+				offset:     uint32(i * 4),
+				size:       4,
+			}
+		}
+		spec = specializationInfo{
+			mapEntryCount: uint32(n),
+			pMapEntries:   &specEntries[0],
+			dataSize:      uintptr(len(specData)),
+			pData:         &specData[0],
+		}
+		stage.pSpecializationInfo = uintptr(unsafe.Pointer(&spec))
+	}
 	comp := computePipelineCreateInfo{
-		sType: structureComputePipelineCreateInfo,
-		stage: pipelineShaderStageCreateInfo{
-			sType:  structurePipelineShaderStageCreateInfo,
-			stage:  shaderStageCompute,
-			module: module,
-			pName:  entry,
-		},
+		sType:             structureComputePipelineCreateInfo,
+		stage:             stage,
 		layout:            pipeLayout,
 		basePipelineIndex: -1,
 	}
@@ -424,6 +513,7 @@ func (d *Device) Shader(ctx context.Context, spirv []byte, bindings int) (*Shade
 		pipeLayout: pipeLayout,
 		pipe:       pipe,
 		bindings:   bindings,
+		pushBytes:  cfg.PushBytes,
 	}, nil
 }
 
@@ -445,123 +535,10 @@ func (s *Shader) Close() error {
 	return nil
 }
 
-// Run binds buffers to set 0 and dispatches the shader.
-func (d *Device) Run(s *Shader, groupsX, groupsY, groupsZ uint32, bufs ...*Buffer) error {
-	if err := d.live(); err != nil {
-		return err
-	}
-	if s == nil || s.pipe == 0 || s.d != d {
-		return ErrShader
-	}
-	if len(bufs) != s.bindings {
-		return fmt.Errorf("%w: want %d buffers, got %d", ErrShader, s.bindings, len(bufs))
-	}
-	for _, b := range bufs {
-		if b == nil || b.buf == 0 || b.d != d {
-			return ErrClosed
-		}
-	}
-	poolSize := descriptorPoolSize{
-		typ:             descriptorStorageBuffer,
-		descriptorCount: uint32(len(bufs)),
-	}
-	poolInfo := descriptorPoolCreateInfo{
-		sType:         structureDescriptorPoolCreateInfo,
-		maxSets:       1,
-		poolSizeCount: 1,
-		pPoolSizes:    &poolSize,
-	}
-	var pool uint64
-	if err := check(d.api.createDescriptorPool(d.dev, &poolInfo, 0, &pool)); err != nil {
-		return fmt.Errorf("descriptor pool: %w", err)
-	}
-	defer d.api.destroyDescriptorPool(d.dev, pool, 0)
-	alloc := descriptorSetAllocateInfo{
-		sType:              structureDescriptorSetAllocateInfo,
-		descriptorPool:     pool,
-		descriptorSetCount: 1,
-		pSetLayouts:        &s.setLayout,
-	}
-	var set uint64
-	if err := check(d.api.allocateDescriptorSets(d.dev, &alloc, &set)); err != nil {
-		return fmt.Errorf("descriptor set: %w", err)
-	}
-	infos := make([]descriptorBufferInfo, len(bufs))
-	writes := make([]writeDescriptorSet, len(bufs))
-	for i, b := range bufs {
-		infos[i] = descriptorBufferInfo{buffer: b.buf, rang: uint64(b.size)}
-		writes[i] = writeDescriptorSet{
-			sType:           structureWriteDescriptorSet,
-			dstSet:          set,
-			dstBinding:      uint32(i),
-			descriptorCount: 1,
-			descriptorType:  descriptorStorageBuffer,
-			pBufferInfo:     &infos[i],
-		}
-	}
-	d.api.updateDescriptorSets(d.dev, uint32(len(writes)), &writes[0], 0, 0)
-	for _, b := range bufs {
-		if err := d.flush(b); err != nil {
-			return err
-		}
-	}
-	if err := check(d.api.resetCommandPool(d.dev, d.cmdPool, 0)); err != nil {
-		return fmt.Errorf("reset command pool: %w", err)
-	}
-	begin := commandBufferBeginInfo{
-		sType: structureCommandBufferBeginInfo,
-		flags: commandOneTimeSubmit,
-	}
-	if err := check(d.api.beginCommandBuffer(d.cmd, &begin)); err != nil {
-		return fmt.Errorf("begin command buffer: %w", err)
-	}
-	for _, b := range bufs {
-		d.api.cmdUpdateBuffer(d.cmd, b.buf, 0, uint64(b.size), uintptr(b.ptr))
-	}
-	xferToShader := memoryBarrier{
-		sType:         structureMemoryBarrier,
-		srcAccessMask: accessTransferWrite,
-		dstAccessMask: accessShaderRead,
-	}
-	d.api.cmdBarrier(d.cmd, stageTransfer, stageCompute, 0, 1, &xferToShader, 0, 0, 0, 0)
-	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipe)
-	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLayout, 0, 1, &set, 0, nil)
-	hostToShader := memoryBarrier{
-		sType:         structureMemoryBarrier,
-		srcAccessMask: accessHostWrite,
-		dstAccessMask: accessShaderRead,
-	}
-	d.api.cmdBarrier(d.cmd, stageHost, stageCompute, 0, 1, &hostToShader, 0, 0, 0, 0)
-	d.api.cmdDispatch(d.cmd, groupsX, groupsY, groupsZ)
-	shaderToHost := memoryBarrier{
-		sType:         structureMemoryBarrier,
-		srcAccessMask: accessShaderWrite,
-		dstAccessMask: accessHostRead,
-	}
-	d.api.cmdBarrier(d.cmd, stageCompute, stageHost, 0, 1, &shaderToHost, 0, 0, 0, 0)
-	if err := check(d.api.endCommandBuffer(d.cmd)); err != nil {
-		return fmt.Errorf("end command buffer: %w", err)
-	}
-	submit := submitInfo{
-		sType:              structureSubmitInfo,
-		commandBufferCount: 1,
-		pCommandBuffers:    &d.cmd,
-	}
-	if err := check(d.api.queueSubmit(d.queue, 1, &submit, 0)); err != nil {
-		return fmt.Errorf("queue submit: %w", err)
-	}
-	if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
-		return fmt.Errorf("queue wait: %w", err)
-	}
-	for _, b := range bufs {
-		if err := d.invalidate(b); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (d *Device) flush(b *Buffer) error {
+	if b == nil || b.ptr == nil {
+		return nil
+	}
 	rng := mappedMemoryRange{
 		sType:  structureMappedMemoryRange,
 		memory: b.mem,
@@ -574,6 +551,9 @@ func (d *Device) flush(b *Buffer) error {
 }
 
 func (d *Device) invalidate(b *Buffer) error {
+	if b == nil || b.ptr == nil {
+		return nil
+	}
 	rng := mappedMemoryRange{
 		sType:  structureMappedMemoryRange,
 		memory: b.mem,

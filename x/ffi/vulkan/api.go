@@ -33,6 +33,7 @@ const (
 
 	queueComputeBit = 2
 
+	memoryDeviceLocal  = 1
 	memoryHostVisible  = 2
 	memoryHostCoherent = 4
 
@@ -41,6 +42,7 @@ const (
 	bufferUsageTransferSrc = 1
 	stageTransfer          = 0x00001000
 	accessTransferWrite    = 0x00001000
+	accessTransferRead     = 0x00000800
 
 	descriptorStorageBuffer = 7
 	shaderStageCompute      = 32
@@ -189,7 +191,32 @@ type pipelineLayoutCreateInfo struct {
 	setLayoutCount         uint32
 	pSetLayouts            *uint64
 	pushConstantRangeCount uint32
-	pPushConstantRanges    uintptr
+	pPushConstantRanges    *pushConstantRange
+}
+
+type pushConstantRange struct {
+	stageFlags uint32
+	offset     uint32
+	size       uint32
+}
+
+type specializationMapEntry struct {
+	constantID uint32
+	offset     uint32
+	size       uintptr
+}
+
+type specializationInfo struct {
+	mapEntryCount uint32
+	pMapEntries   *specializationMapEntry
+	dataSize      uintptr
+	pData         *byte
+}
+
+type bufferCopy struct {
+	srcOffset uint64
+	dstOffset uint64
+	size      uint64
 }
 
 type pipelineShaderStageCreateInfo struct {
@@ -353,6 +380,8 @@ type api struct {
 	cmdBindPipeline        func(cmd uintptr, bindPoint uint32, pipeline uint64)
 	cmdBindSets            func(cmd uintptr, bindPoint uint32, layout uint64, firstSet, setCount uint32, sets *uint64, dynCount uint32, dyn *uint32)
 	cmdDispatch            func(cmd uintptr, x, y, z uint32)
+	cmdCopyBuffer          func(cmd uintptr, src, dst uint64, count uint32, regions *bufferCopy)
+	cmdPushConstants       func(cmd uintptr, layout uint64, stages, offset, size uint32, values uintptr)
 	cmdUpdateBuffer        func(cmd uintptr, buffer, offset, size uint64, data uintptr)
 	cmdBarrier             func(cmd uintptr, srcStage, dstStage, flags uint32, memCount uint32, mem *memoryBarrier, bufCount uint32, bufs uintptr, imgCount uint32, imgs uintptr)
 	flushMapped            func(device uintptr, count uint32, ranges *mappedMemoryRange) int32
@@ -481,6 +510,8 @@ func (a *api) loadInstance(inst uintptr) error {
 		{"vkCmdBindPipeline", &a.cmdBindPipeline},
 		{"vkCmdBindDescriptorSets", &a.cmdBindSets},
 		{"vkCmdDispatch", &a.cmdDispatch},
+		{"vkCmdCopyBuffer", &a.cmdCopyBuffer},
+		{"vkCmdPushConstants", &a.cmdPushConstants},
 		{"vkCmdUpdateBuffer", &a.cmdUpdateBuffer},
 		{"vkCmdPipelineBarrier", &a.cmdBarrier},
 		{"vkFlushMappedMemoryRanges", &a.flushMapped},
@@ -508,6 +539,8 @@ func (a *api) loadDevice(dev uintptr) error {
 		{"vkCmdBindDescriptorSets", &a.cmdBindSets},
 		{"vkCmdBindPipeline", &a.cmdBindPipeline},
 		{"vkCmdDispatch", &a.cmdDispatch},
+		{"vkCmdCopyBuffer", &a.cmdCopyBuffer},
+		{"vkCmdPushConstants", &a.cmdPushConstants},
 		{"vkCmdUpdateBuffer", &a.cmdUpdateBuffer},
 		{"vkCmdPipelineBarrier", &a.cmdBarrier},
 		{"vkFlushMappedMemoryRanges", &a.flushMapped},

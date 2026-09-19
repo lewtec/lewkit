@@ -43,6 +43,41 @@ func TestLoadShaderFile(t *testing.T) {
 	require.True(t, glsl.IsSPIRV(got))
 }
 
+func TestPushConstant(t *testing.T) {
+	src := []byte(`#version 450
+layout(local_size_x = 1) in;
+layout(push_constant) uniform P { uint v; } p;
+layout(set = 0, binding = 0) buffer Data { uint o; } data;
+void main() { data.o = p.v; }
+`)
+	spirv, err := glsl.Load(t.Context(), src)
+	require.NoError(t, err)
+	d, err := vulkan.Open(t.Context())
+	if err != nil {
+		t.Skip(err)
+	}
+	test.CloseOnCleanup(t, d)
+	buf, err := d.Buffer(4)
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, buf)
+	require.NoError(t, buf.Write(make([]byte, 4)))
+	sh, err := d.Compile(t.Context(), vulkan.ShaderConfig{SPIRV: spirv, Bindings: 1, PushBytes: 4})
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, sh)
+	c, err := d.Begin()
+	require.NoError(t, err)
+	require.NoError(t, c.Bind(sh, buf))
+	push := make([]byte, 4)
+	binary.LittleEndian.PutUint32(push, 7)
+	require.NoError(t, c.Push(push))
+	require.NoError(t, c.Dispatch(1, 1, 1))
+	require.NoError(t, c.Submit())
+	require.NoError(t, c.Wait())
+	got := make([]byte, 4)
+	require.NoError(t, buf.Read(got))
+	require.Equal(t, uint32(7), binary.LittleEndian.Uint32(got))
+}
+
 func TestLoadThenDispatch(t *testing.T) {
 	src := []byte(`#version 450
 layout(local_size_x = 1) in;
