@@ -130,6 +130,7 @@ func (c *Compute) runWindow(ctx context.Context) error {
 			}
 		}()
 		return window.Animate(ctx, win, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
+			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
 			w, h := dst.Rect.Dx(), dst.Rect.Dy()
 			if w < 1 || h < 1 {
 				return nil
@@ -175,7 +176,6 @@ func (c *Compute) runWindow(ctx context.Context) error {
 				return err
 			}
 			lewimage.CopyRGBA(dst, raw)
-			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
 			frame++
 			return nil
 		})

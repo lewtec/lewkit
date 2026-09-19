@@ -55,11 +55,8 @@ func (c *triangleCmd) run(ctx context.Context) error {
 		defer p.Close()
 		var fps event.FPS
 		return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
-			if err := p.Draw(ctx, dst, elapsed.Seconds()); err != nil {
-				return err
-			}
 			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
-			return nil
+			return p.Draw(ctx, dst, elapsed.Seconds())
 		})
 	})
 	return nil

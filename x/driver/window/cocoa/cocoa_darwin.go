@@ -220,7 +220,7 @@ func (w *win) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
 	}
-	thread.Go(w.flush)
+	thread.Do(w.flush)
 	return nil
 }
 

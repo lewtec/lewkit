@@ -242,7 +242,7 @@ func (w *glslWriter) program() (string, error) {
 	w.b.WriteString(strconv.Itoa(localSize))
 	w.b.WriteString(") in;\n")
 	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
-	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dtype.glsl())
+	w.b.WriteString("layout(set = 0, binding = 0) buffer Out { float o[]; };\n")
 	for i, b := range w.bufs {
 		dtype := F32
 		if b != nil {
@@ -263,6 +263,9 @@ func (w *glslWriter) program() (string, error) {
 		w.names[n] = name
 	}
 	out := w.names[w.root]
+	if w.root.dtype != F32 {
+		out = "float(" + out + ")"
+	}
 	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", out)
 	return w.b.String(), nil
 }
