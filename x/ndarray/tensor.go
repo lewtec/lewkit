@@ -2,13 +2,16 @@ package ndarray
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"log/slog"
-	"math/rand/v2"
 	"slices"
 )
 
 // Tensor is the array brick: a lazy node tree plus, for leaves, a host buffer.
+// Element type is [DType] on the node (not a type parameter) so Cast can
+// change dtype and [Evaluator] stays one driver interface.
 // View ops (Reshape, Permute, …) share the buffer. ALU ops build the tree.
 // Slots are assigned at Eval. The graph stays after realize so a loop
 // can Resize and run again.
@@ -68,18 +71,49 @@ func Full(v float32, shape Shape) (*Tensor, error) {
 	return wrap(filled(v, tracker)), nil
 }
 
-// Rand is a float32 tensor of uniform values in [0, 1).
-func Rand(shape Shape) (*Tensor, error) {
+// Rand is a float32 tensor of uniform values in [0, 1) from r
+// (4 bytes per cell as uint32 / 2^32).
+func Rand(r io.Reader, shape Shape) (*Tensor, error) {
 	tracker, err := Of(shape)
 	if err != nil {
 		return nil, err
 	}
+	if r == nil {
+		return nil, ErrOp
+	}
 	data := make([]float32, tracker.Size())
+	var raw [4]byte
 	for i := range data {
-		data[i] = rand.Float32()
+		if _, err := io.ReadFull(r, raw[:]); err != nil {
+			return nil, err
+		}
+		data[i] = float32(float64(binary.LittleEndian.Uint32(raw[:])) / (1 << 32))
 	}
 	buf := &buffer{data: data, dtype: F32}
 	return wrap(input(buf, tracker, F32)), nil
+}
+
+// RandInt is an int32 tensor of uniform values in [0, 2^31) from r
+// (4 bytes per cell).
+func RandInt(r io.Reader, shape Shape) (*Tensor, error) {
+	tracker, err := Of(shape)
+	if err != nil {
+		return nil, err
+	}
+	if r == nil {
+		return nil, ErrOp
+	}
+	data := make([]float32, tracker.Size())
+	var raw [4]byte
+	for i := range data {
+		if _, err := io.ReadFull(r, raw[:]); err != nil {
+			return nil, err
+		}
+		v := int32(binary.LittleEndian.Uint32(raw[:]) >> 1)
+		data[i] = float32(v)
+	}
+	buf := &buffer{data: data, dtype: I32}
+	return wrap(input(buf, tracker, I32)), nil
 }
 
 // Shape is the logical shape, or nil for a splat. After compile, this is
@@ -125,7 +159,7 @@ func (t *Tensor) Tracker() Tracker {
 	return t.node.tracker
 }
 
-// Buffer is the host storage for a leaf. Views of the same leaf share it.
+// Buffer is the host storage for a float32 leaf. Views of the same leaf share it.
 func (t *Tensor) Buffer() []float32 {
 	if t == nil || t.node == nil || t.node.buf == nil {
 		return nil
@@ -133,7 +167,7 @@ func (t *Tensor) Buffer() []float32 {
 	return t.node.buf.data
 }
 
-// Data is the leaf buffer for a contiguous input.
+// Data is the contiguous float32 leaf buffer.
 func (t *Tensor) Data() ([]float32, error) {
 	if t == nil {
 		return nil, ErrOp
@@ -144,7 +178,8 @@ func (t *Tensor) Data() ([]float32, error) {
 	return nil, ErrOp
 }
 
-// Eval writes the tensor into destination. len(destination) must be at least Size.
+// Eval writes numeric values as float32 (I32 5 → 5.0, U8 255 → 255.0).
+// len(destination) must be at least Size.
 func (t *Tensor) Eval(ctx context.Context, evaluator Evaluator, destination []float32) error {
 	if evaluator == nil {
 		evaluator = CPU
@@ -180,7 +215,7 @@ func (t *Tensor) realize(ctx context.Context, evaluator Evaluator, destination [
 	if err := t.err(); err != nil {
 		return err
 	}
-	if t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() {
+	if t.node.kind == kindInput && t.node.dtype == F32 && t.node.buf != nil && t.node.tracker.Contiguous() {
 		data := t.node.buf.data
 		if len(destination) < len(data) {
 			return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), len(data))

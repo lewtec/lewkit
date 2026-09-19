@@ -12,6 +12,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -118,7 +119,7 @@ func (c *Compute) runWindow(ctx context.Context) error {
 			bw, bh         int
 			raw            []byte
 			frame          uint32
-			fps            window.FPS
+			fps            event.FPS
 		)
 		defer func() {
 			if pixels != nil {

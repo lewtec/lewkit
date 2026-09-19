@@ -10,6 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -52,7 +53,7 @@ func (c *triangleCmd) run(ctx context.Context) error {
 	taskgroup.Go(ctx, "triangle", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
 		defer w.Close()
 		defer p.Close()
-		var fps window.FPS
+		var fps event.FPS
 		return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
 			if err := p.Draw(ctx, dst, elapsed.Seconds()); err != nil {
 				return err

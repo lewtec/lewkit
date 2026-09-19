@@ -5,7 +5,7 @@
 //
 // The channel is closed when ctx is done. Publish never blocks; a full
 // or closed subscriber is skipped. [CreateTimer] is a ctx-scoped tick
-// channel (one buffered, extras dropped).
+// channel (one buffered, extras dropped). [FPS] is a smoothed frame rate.
 package event
 
 import (

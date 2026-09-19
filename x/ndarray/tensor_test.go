@@ -1,6 +1,7 @@
 package ndarray
 
 import (
+	"bytes"
 	"runtime/debug"
 	"testing"
 
@@ -25,20 +26,31 @@ func TestFull(t *testing.T) {
 }
 
 func TestRand(t *testing.T) {
-	x, err := Rand(Shape{16})
+	var src [64]byte
+	for i := range src {
+		src[i] = byte(i + 1)
+	}
+	x, err := Rand(bytes.NewReader(src[:]), Shape{16})
 	require.NoError(t, err)
 	got, err := x.Data()
 	require.NoError(t, err)
 	require.Len(t, got, 16)
-	any := false
-	for _, v := range got {
-		require.GreaterOrEqual(t, v, float32(0))
-		require.Less(t, v, float32(1))
-		if v > 0 {
-			any = true
-		}
-	}
-	require.True(t, any)
+	require.GreaterOrEqual(t, got[0], float32(0))
+	require.Less(t, got[0], float32(1))
+	y, err := Rand(bytes.NewReader(src[:]), Shape{16})
+	require.NoError(t, err)
+	gotY, err := y.Data()
+	require.NoError(t, err)
+	require.Equal(t, got, gotY)
+}
+
+func TestRandInt(t *testing.T) {
+	src := []byte{2, 0, 0, 0, 4, 0, 0, 0}
+	x, err := RandInt(bytes.NewReader(src), Shape{2})
+	require.NoError(t, err)
+	require.Equal(t, I32, x.DType())
+	got := mustEval(t, x)
+	require.Equal(t, []float32{1, 2}, got)
 }
 
 func TestNew(t *testing.T) {
