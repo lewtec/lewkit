@@ -5,6 +5,8 @@ import (
 	"errors"
 	"image"
 	"time"
+
+	"github.com/lewtec/lewkit/x/event"
 )
 
 // Paint fills the back buffer. Animate calls Draw after each Paint.
@@ -20,8 +22,7 @@ func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) e
 	if period <= 0 {
 		period = time.Second / 60
 	}
-	tick := time.NewTicker(period)
-	defer tick.Stop()
+	ticks := event.CreateTimer(ctx, period)
 	if err := paintFrame(w, paint, 0); err != nil {
 		return closed(err)
 	}
@@ -50,7 +51,7 @@ func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) e
 					return closed(err)
 				}
 			}
-		case <-tick.C:
+		case <-ticks:
 			if err := paintFrame(w, paint, time.Since(started)); err != nil {
 				return closed(err)
 			}
