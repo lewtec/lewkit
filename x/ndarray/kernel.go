@@ -10,7 +10,10 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
 )
 
-const localSize = 256
+const (
+	localSize = 256
+	pushBytes = 20 // n, d0, d1, d2, d3
+)
 
 // Kernel is one fused compute shader for a whole expression.
 type Kernel struct {
@@ -63,6 +66,23 @@ func Compile(expr *Node) (*Kernel, error) {
 		return nil, err
 	}
 	return &Kernel{root: expr, glsl: src, shape: slices.Clone(shape), slots: slots, outDT: expr.dt, n: n, cpu: cpu}, nil
+}
+
+// Resize sets the runtime output shape. Rank must match Compile.
+func (k *Kernel) Resize(shape []int) error {
+	if k == nil || len(shape) != len(k.shape) {
+		return ErrShape
+	}
+	n := 1
+	for _, s := range shape {
+		if s < 0 {
+			return ErrShape
+		}
+		n *= s
+	}
+	k.shape = slices.Clone(shape)
+	k.n = n
+	return nil
 }
 
 // GLSL is the compute shader source.
@@ -170,7 +190,7 @@ func (w *glslW) program() (string, error) {
 	w.b.WriteString("layout(local_size_x = ")
 	w.b.WriteString(strconv.Itoa(localSize))
 	w.b.WriteString(") in;\n")
-	w.b.WriteString("layout(push_constant) uniform Push { uint n; };\n")
+	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
 	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dt.glsl())
 	for i, s := range w.slots {
 		dt := F32
@@ -186,7 +206,7 @@ func (w *glslW) program() (string, error) {
 	w.b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
 	w.b.WriteString("    if (gi >= n) return;\n")
 	w.b.WriteString("    int i = int(gi);\n")
-	w.coords = w.unravel(w.outShape, "i")
+	w.coords = w.unravelPush(len(w.outShape))
 	for _, n := range w.order {
 		name, err := w.node(n)
 		if err != nil {
@@ -273,6 +293,26 @@ func (w *glslW) view(v view, coords []string) (off, valid string) {
 		}
 	}
 	return off, valid
+}
+
+func (w *glslW) unravelPush(rank int) []string {
+	if rank == 0 {
+		return nil
+	}
+	coords := make([]string, rank)
+	rem := "i"
+	for d := rank - 1; d >= 0; d-- {
+		dim := "d" + strconv.Itoa(d)
+		c := w.name("c")
+		fmt.Fprintf(&w.b, "    int %s = (%s <= 1u) ? 0 : (%s) %% int(%s);\n", c, dim, rem, dim)
+		coords[d] = c
+		if d > 0 {
+			nxt := w.name("u")
+			fmt.Fprintf(&w.b, "    int %s = (%s <= 1u) ? (%s) : (%s) / int(%s);\n", nxt, dim, rem, rem, dim)
+			rem = nxt
+		}
+	}
+	return coords
 }
 
 func (w *glslW) unravel(shape []int, idx string) []string {

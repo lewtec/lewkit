@@ -48,8 +48,14 @@ func (k *Kernel) Run(ctx context.Context, d *vulkan.Device, dst *vulkan.Buffer, 
 	bufs := make([]*vulkan.Buffer, 1+len(srcs))
 	bufs[0] = dst
 	copy(bufs[1:], srcs)
-	var push [4]byte
-	binary.LittleEndian.PutUint32(push[:], uint32(k.n))
+	var push [pushBytes]byte
+	binary.LittleEndian.PutUint32(push[0:], uint32(k.n))
+	for i, s := range k.shape {
+		if i >= 4 {
+			break
+		}
+		binary.LittleEndian.PutUint32(push[4+4*i:], uint32(s))
+	}
 	groups := uint32((k.n + localSize - 1) / localSize)
 	cmd, err := d.Begin()
 	if err != nil {
@@ -90,7 +96,7 @@ func (k *Kernel) shader(ctx context.Context, d *vulkan.Device) (*vulkan.Shader, 
 	sh, err := d.Compile(ctx, vulkan.ShaderConfig{
 		SPIRV:     spv,
 		Bindings:  k.Bindings(),
-		PushBytes: 4,
+		PushBytes: pushBytes,
 	})
 	if err != nil {
 		return nil, err

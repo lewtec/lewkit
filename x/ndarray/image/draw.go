@@ -29,8 +29,22 @@ func Fill(h, w int, r, g, b, a float32) (*ndarray.Node, error) {
 	return v, nil
 }
 
-// Triangle is the RGB vulkan-tutorial triangle, optionally rotated by turn
-// revolutions. turn is a splat (nil is 0). Output shape is (h, w, 4).
+func splatF32(n *ndarray.Node, name string) error {
+	if n == nil || n.DType() != ndarray.F32 {
+		return ndarray.ErrType
+	}
+	if sh := n.Shape(); len(sh) != 0 {
+		return fmt.Errorf("%w: %s must be a splat", ndarray.ErrShape, name)
+	}
+	return nil
+}
+
+func minF32(a, b *ndarray.Node) *ndarray.Node {
+	return ndarray.CmpLt(a, b).Where(a, b)
+}
+
+// Triangle is the RGB vulkan-tutorial triangle. turn is revolutions (nil is 0).
+// Output shape is (h, w, 4).
 func Triangle(h, w int, turn *ndarray.Node) (*ndarray.Node, error) {
 	if h < 1 || w < 1 {
 		return nil, ndarray.ErrShape
@@ -38,21 +52,33 @@ func Triangle(h, w int, turn *ndarray.Node) (*ndarray.Node, error) {
 	if turn == nil {
 		turn = ndarray.Const(0)
 	}
-	if turn.DType() != ndarray.F32 {
-		return nil, ndarray.ErrType
+	return triangle(turn, ndarray.Const(float32(w)), ndarray.Const(float32(h)), []int{h, w, 4})
+}
+
+// TriangleDyn is Triangle with runtime width/height splats. Coord rank is (1,1,4);
+// the caller sets the real (h,w,4) with Kernel.Resize before Eval/Run.
+func TriangleDyn(turn, width, height *ndarray.Node) (*ndarray.Node, error) {
+	return triangle(turn, width, height, []int{1, 1, 4})
+}
+
+func triangle(turn, width, height *ndarray.Node, shape []int) (*ndarray.Node, error) {
+	if err := splatF32(turn, "turn"); err != nil {
+		return nil, err
 	}
-	if sh := turn.Shape(); len(sh) != 0 {
-		return nil, fmt.Errorf("%w: turn must be a splat", ndarray.ErrShape)
+	if err := splatF32(width, "width"); err != nil {
+		return nil, err
 	}
-	shape := []int{h, w, 4}
+	if err := splatF32(height, "height"); err != nil {
+		return nil, err
+	}
 	px := ndarray.Coord(1, shape...).Cast(ndarray.F32).Add(ndarray.Const(0.5))
 	py := ndarray.Coord(0, shape...).Cast(ndarray.F32).Add(ndarray.Const(0.5))
 	tau := turn.Mul(ndarray.Const(2 * math.Pi))
 	sn := tau.Sin()
 	cs := tau.Add(ndarray.Const(math.Pi / 2)).Sin()
-	scale := ndarray.Const(float32(min(h, w)) / 2)
-	ox := ndarray.Const(float32(w) / 2)
-	oy := ndarray.Const(float32(h) / 2)
+	scale := minF32(width, height).Mul(ndarray.Const(0.5))
+	ox := width.Mul(ndarray.Const(0.5))
+	oy := height.Mul(ndarray.Const(0.5))
 	fr := frame{sn, cs, scale, ox, oy}
 	ax, ay := fr.rot(triAX, triAY)
 	bx, by := fr.rot(triBX, triBY)
