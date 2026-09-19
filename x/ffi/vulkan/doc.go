@@ -3,7 +3,7 @@
 //
 //	d, err := vulkan.Open(ctx)
 //	buf, err := d.Buffer(256)
-//	sh, err := d.Shader(ctx, src, 1) // SPIR-V or Vulkan GLSL
+//	sh, err := d.Shader(ctx, spirv, 1)
 //	err = d.Run(sh, 4, 1, 1, buf)
 //
 // [Open] dlopens the loader and resolves commands with

@@ -51,30 +51,6 @@ func TestHostRoundTrip(t *testing.T) {
 	require.Equal(t, in, got)
 }
 
-func TestGLSLShader(t *testing.T) {
-	d, err := Open(t.Context())
-	if err != nil {
-		t.Skip(err)
-	}
-	test.CloseOnCleanup(t, d)
-	src := []byte(`#version 450
-layout(local_size_x = 1) in;
-layout(set = 0, binding = 0) buffer Data { uint v; } data;
-void main() { data.v = 2u; }
-`)
-	buf, err := d.Buffer(4)
-	require.NoError(t, err)
-	test.CloseOnCleanup(t, buf)
-	require.NoError(t, buf.Write(make([]byte, 4)))
-	sh, err := d.Shader(t.Context(), src, 1)
-	require.NoError(t, err)
-	test.CloseOnCleanup(t, sh)
-	require.NoError(t, d.Run(sh, 1, 1, 1, buf))
-	got := make([]byte, 4)
-	require.NoError(t, buf.Read(got))
-	require.Equal(t, uint32(2), binary.LittleEndian.Uint32(got))
-}
-
 func TestDispatch(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
