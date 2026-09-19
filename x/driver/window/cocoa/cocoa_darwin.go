@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"log/slog"
 	"sync"
 	"unsafe"
 
@@ -65,10 +66,22 @@ var (
 	selSendEvent     = objc.RegisterName("sendEvent:")
 	selUpdateWindows = objc.RegisterName("updateWindows")
 	selDistantPast   = objc.RegisterName("distantPast")
+	selLockSurface   = objc.RegisterName("lockWithOptions:seed:")
+	selUnlockSurface = objc.RegisterName("unlockWithOptions:seed:")
+	selBaseAddress   = objc.RegisterName("baseAddress")
+	selBytesPerRow   = objc.RegisterName("bytesPerRow")
+	selRelease       = objc.RegisterName("release")
+	selSetObjectKey  = objc.RegisterName("setObject:forKey:")
+	selNumberInteger = objc.RegisterName("numberWithInteger:")
+	selDictionary    = objc.RegisterName("dictionary")
+	selAlloc         = objc.RegisterName("alloc")
+	selInitProps     = objc.RegisterName("initWithProperties:")
 
 	runLoopMode objc.ID
 	colorSpace  uintptr
 )
+
+const pixelFormatRGBA = 0x52474241 // 'RGBA'
 
 func startApp() error {
 	if !thread.Bound() {
@@ -87,6 +100,9 @@ func startApp() error {
 			if err := loadCG(); err != nil {
 				appErr = fmt.Errorf("%w: coregraphics: %w", window.ErrInit, err)
 				return
+			}
+			if _, err := ffi.Open("/System/Library/Frameworks/IOSurface.framework/IOSurface", ffi.Global|ffi.Lazy); err != nil {
+				slog.Debug("cocoa IOSurface missing", "err", err)
 			}
 			runLoopMode = nsstr("kCFRunLoopDefaultMode").Send(objc.RegisterName("retain"))
 			colorSpace = cgColorSpaceCreateDeviceRGB()
@@ -170,6 +186,10 @@ type win struct {
 	pixelCopy      [2][]byte
 	pixelCopyIndex int
 	layerScale     float64
+	surface        objc.ID
+	surfaceWidth   int
+	surfaceHeight  int
+	surfaceStride  int
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -243,8 +263,13 @@ func (w *win) Close() error {
 func (w *win) closeNS() {
 	w.mu.Lock()
 	wnd := w.wnd
+	surface := w.surface
 	w.wnd = 0
+	w.surface = 0
 	w.mu.Unlock()
+	if surface != 0 {
+		surface.Send(selRelease)
+	}
 	if wnd != 0 {
 		wnd.Send(selClose)
 	}
@@ -314,12 +339,6 @@ func (w *win) blit() error {
 			if src.Rect.Dx() < 1 || src.Rect.Dy() < 1 {
 				return
 			}
-			var cgImage uintptr
-			cgImage, err = w.cgImageFromRGBA(src)
-			if err != nil {
-				return
-			}
-			defer cgImageRelease(cgImage)
 			view := wnd.Send(selContentView)
 			layer := view.Send(selLayer)
 			scale := w.scale()
@@ -328,7 +347,18 @@ func (w *win) blit() error {
 				w.layerScale = scale
 			}
 			beginNoAnim()
+			if w.presentIOSurface(src, layer) {
+				endNoAnim()
+				return
+			}
+			var cgImage uintptr
+			cgImage, err = w.cgImageFromRGBA(src)
+			if err != nil {
+				endNoAnim()
+				return
+			}
 			layer.Send(selSetContents, objc.ID(cgImage))
+			cgImageRelease(cgImage)
 			endNoAnim()
 		})
 	})
@@ -392,6 +422,73 @@ func loadCG() error {
 	ffi.Func(lib, "CGDataProviderRelease", &cgDataProviderRelease)
 	ffi.Func(lib, "CGImageRelease", &cgImageRelease)
 	return nil
+}
+
+func nsNumber(value int) objc.ID {
+	return objc.ID(objc.GetClass("NSNumber")).Send(selNumberInteger, value)
+}
+
+func (w *win) ensureIOSurface(width, height, stride int) bool {
+	if w.surface != 0 && w.surfaceWidth == width && w.surfaceHeight == height && w.surfaceStride == stride {
+		return true
+	}
+	if w.surface != 0 {
+		w.surface.Send(selRelease)
+		w.surface = 0
+	}
+	class := objc.GetClass("IOSurface")
+	if class == 0 {
+		return false
+	}
+	properties := objc.ID(objc.GetClass("NSMutableDictionary")).Send(selDictionary)
+	properties.Send(selSetObjectKey, nsNumber(width), nsstr("IOSurfaceWidth"))
+	properties.Send(selSetObjectKey, nsNumber(height), nsstr("IOSurfaceHeight"))
+	properties.Send(selSetObjectKey, nsNumber(4), nsstr("IOSurfaceBytesPerElement"))
+	properties.Send(selSetObjectKey, nsNumber(stride), nsstr("IOSurfaceBytesPerRow"))
+	properties.Send(selSetObjectKey, nsNumber(stride*height), nsstr("IOSurfaceAllocSize"))
+	properties.Send(selSetObjectKey, nsNumber(pixelFormatRGBA), nsstr("IOSurfacePixelFormat"))
+	surface := objc.ID(class).Send(selAlloc).Send(selInitProps, properties)
+	if surface == 0 {
+		return false
+	}
+	w.surface = surface
+	w.surfaceWidth = width
+	w.surfaceHeight = height
+	w.surfaceStride = stride
+	slog.Debug("cocoa IOSurface", "width", width, "height", height, "stride", stride)
+	return true
+}
+
+func (w *win) presentIOSurface(source *image.RGBA, layer objc.ID) bool {
+	width, height := source.Rect.Dx(), source.Rect.Dy()
+	stride := source.Stride
+	if !w.ensureIOSurface(width, height, stride) {
+		return false
+	}
+	if w.surface.Send(selLockSurface, 0, 0) != 0 {
+		return false
+	}
+	base := w.surface.Send(selBaseAddress)
+	if base == 0 {
+		w.surface.Send(selUnlockSurface, 0, 0)
+		return false
+	}
+	rowBytes := int(w.surface.Send(selBytesPerRow))
+	if rowBytes < stride {
+		w.surface.Send(selUnlockSurface, 0, 0)
+		return false
+	}
+	destination := unsafe.Slice((*byte)(unsafe.Pointer(base)), rowBytes*height)
+	if rowBytes == stride {
+		copy(destination[:height*stride], source.Pix[:height*stride])
+	} else {
+		for y := 0; y < height; y++ {
+			copy(destination[y*rowBytes:y*rowBytes+width*4], source.Pix[y*stride:y*stride+width*4])
+		}
+	}
+	w.surface.Send(selUnlockSurface, 0, 0)
+	layer.Send(selSetContents, w.surface)
+	return true
 }
 
 func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {

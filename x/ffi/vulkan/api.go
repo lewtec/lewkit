@@ -354,6 +354,7 @@ type api struct {
 	createCommandPool      func(device uintptr, info *commandPoolCreateInfo, alloc uintptr, pool *uint64) int32
 	destroyCommandPool     func(device uintptr, pool uint64, alloc uintptr)
 	resetCommandPool       func(device uintptr, pool uint64, flags uint32) int32
+	resetCommandBuffer     func(cmd uintptr, flags uint32) int32
 	allocateCmdBuffers     func(device uintptr, info *commandBufferAllocateInfo, bufs *uintptr) int32
 	beginCommandBuffer     func(cmd uintptr, info *commandBufferBeginInfo) int32
 	endCommandBuffer       func(cmd uintptr) int32
@@ -484,6 +485,7 @@ func (a *api) loadInstance(inst uintptr) error {
 		{"vkCreateCommandPool", &a.createCommandPool},
 		{"vkDestroyCommandPool", &a.destroyCommandPool},
 		{"vkResetCommandPool", &a.resetCommandPool},
+		{"vkResetCommandBuffer", &a.resetCommandBuffer},
 		{"vkAllocateCommandBuffers", &a.allocateCmdBuffers},
 		{"vkBeginCommandBuffer", &a.beginCommandBuffer},
 		{"vkEndCommandBuffer", &a.endCommandBuffer},
