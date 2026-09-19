@@ -45,6 +45,20 @@ type DriverFactory[T any] interface {
 	New(ctx context.Context) (T, error)
 }
 
+// Offer is one driver a factory can construct. A factory that enumerates
+// several live instances (one GPU, one display) implements Offerer.
+type Offer[T any] struct {
+	ID   string
+	Name string
+	New  func(context.Context) (T, error)
+}
+
+// Offerer is optional on a factory. List and Doctor expand Offers after
+// CheckCompatibility. Factories without it offer one driver: ID, Name, New.
+type Offerer[T any] interface {
+	Offers(ctx context.Context) ([]Offer[T], error)
+}
+
 // Handle is one compatible driver. Open constructs it.
 type Handle[T any] struct {
 	ID     string
@@ -153,12 +167,27 @@ func factoryWeight(f any) int {
 	return min(max(w.Weight(), 0), 100)
 }
 
+func driverForced(forced, driverID string) bool {
+	if forced == "" {
+		return false
+	}
+	if forced == driverID {
+		return true
+	}
+	return strings.HasPrefix(driverID, forced+":")
+}
+
 func effectiveWeight(weights map[string]int, driverID, ifaceName string, fallback int) int {
-	if forced := forceDriverFromEnv(ifaceName); forced != "" && forced == driverID {
+	if forced := forceDriverFromEnv(ifaceName); driverForced(forced, driverID) {
 		return 101
 	}
 	if w, ok := weights[driverID]; ok {
 		return w
+	}
+	if factory, _, ok := strings.Cut(driverID, ":"); ok {
+		if w, ok := weights[factory]; ok {
+			return w
+		}
 	}
 	return fallback
 }
@@ -186,7 +215,7 @@ func Register[T any](factory DriverFactory[T]) {
 	}
 	Drivers[t][id] = factory
 
-	doctorList = append(doctorList, doctorEntry{
+	entry := doctorEntry{
 		InterfaceType: t,
 		InterfaceName: interfaceName(t),
 		FactoryType:   reflect.TypeOf(factory),
@@ -194,7 +223,21 @@ func Register[T any](factory DriverFactory[T]) {
 		Name:          factory.Name,
 		Weight:        factoryWeight(factory),
 		Check:         factory.CheckCompatibility,
-	})
+	}
+	if offerer, ok := any(factory).(Offerer[T]); ok {
+		entry.Offers = func(ctx context.Context) ([]offerMeta, error) {
+			offers, err := offerer.Offers(ctx)
+			if err != nil {
+				return nil, err
+			}
+			out := make([]offerMeta, 0, len(offers))
+			for _, o := range offers {
+				out = append(out, offerMeta{ID: o.ID, Name: o.Name})
+			}
+			return out, nil
+		}
+	}
+	doctorList = append(doctorList, entry)
 }
 
 func interfaceName(t reflect.Type) string {
@@ -279,17 +322,64 @@ func List[T any](ctx context.Context) ([]Handle[T], error) {
 			continue
 		}
 		f := factory
-		out = append(out, Handle[T]{
-			ID:     f.ID(),
-			Name:   f.Name(),
-			Weight: weight,
-			open:   f.New,
-		})
+		handles, err := set.handles(ctx, f, weight)
+		if err != nil {
+			report = append(report, fmt.Sprintf("[fail] %s (%s) weight=%d: %v", f.ID(), f.Name(), weight, err))
+			continue
+		}
+		out = append(out, handles...)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("%w for %s:\n%s", ErrUnavailable, set.typ.String(), strings.Join(report, "\n"))
 	}
+	slices.SortFunc(out, func(a, b Handle[T]) int {
+		if c := cmp.Compare(b.Weight, a.Weight); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.ID, b.ID)
+	})
 	return out, nil
+}
+
+func (s factorySet[T]) handles(ctx context.Context, factory DriverFactory[T], fallback int) ([]Handle[T], error) {
+	if offerer, ok := any(factory).(Offerer[T]); ok {
+		offers, err := offerer.Offers(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if len(offers) == 0 {
+			return nil, ErrUnavailable
+		}
+		out := make([]Handle[T], 0, len(offers))
+		for _, offer := range offers {
+			o := offer
+			id := o.ID
+			if id == "" {
+				id = factory.ID()
+			}
+			name := o.Name
+			if name == "" {
+				name = factory.Name()
+			}
+			open := o.New
+			if open == nil {
+				open = factory.New
+			}
+			out = append(out, Handle[T]{
+				ID:     id,
+				Name:   name,
+				Weight: effectiveWeight(s.weights, id, s.ifaceName, fallback),
+				open:   open,
+			})
+		}
+		return out, nil
+	}
+	return []Handle[T]{{
+		ID:     factory.ID(),
+		Name:   factory.Name(),
+		Weight: fallback,
+		open:   factory.New,
+	}}, nil
 }
 
 // Get returns the highest-weight compatible implementation of T.

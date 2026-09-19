@@ -8,6 +8,11 @@ import (
 	"slices"
 )
 
+type offerMeta struct {
+	ID   string
+	Name string
+}
+
 type doctorEntry struct {
 	InterfaceType reflect.Type
 	InterfaceName string
@@ -16,6 +21,7 @@ type doctorEntry struct {
 	Name          func() string
 	Weight        int
 	Check         func(context.Context) error
+	Offers        func(context.Context) ([]offerMeta, error)
 }
 
 // DriverStatus is one factory in a Doctor report.
@@ -58,19 +64,7 @@ func Doctor(ctx context.Context) []InterfaceStatus {
 		weights := weightsSnapshot[ifaceName]
 		ifaceStatus := InterfaceStatus{Name: ifaceName}
 		for _, d := range byType[t] {
-			err := cachedCheck(d.DriverID, d.Check, ctx)
-			name := d.DriverID
-			if d.Name != nil {
-				name = d.Name()
-			}
-			ifaceStatus.Drivers = append(ifaceStatus.Drivers, DriverStatus{
-				ID:          d.DriverID,
-				Name:        name,
-				FactoryType: d.FactoryType,
-				Weight:      effectiveWeight(weights, d.DriverID, ifaceName, d.Weight),
-				Available:   err == nil,
-				Error:       err,
-			})
+			ifaceStatus.Drivers = append(ifaceStatus.Drivers, d.statuses(ctx, weights)...)
 		}
 		slices.SortFunc(ifaceStatus.Drivers, func(a, b DriverStatus) int {
 			if c := cmp.Compare(b.Weight, a.Weight); c != 0 {
@@ -87,4 +81,40 @@ func Doctor(ctx context.Context) []InterfaceStatus {
 		result = append(result, ifaceStatus)
 	}
 	return result
+}
+
+func (d doctorEntry) statuses(ctx context.Context, weights map[string]int) []DriverStatus {
+	checkErr := cachedCheck(d.DriverID, d.Check, ctx)
+	factoryName := d.DriverID
+	if d.Name != nil {
+		factoryName = d.Name()
+	}
+	row := func(id, name string, available bool, err error) DriverStatus {
+		if id == "" {
+			id = d.DriverID
+		}
+		if name == "" {
+			name = factoryName
+		}
+		return DriverStatus{
+			ID:          id,
+			Name:        name,
+			FactoryType: d.FactoryType,
+			Weight:      effectiveWeight(weights, id, d.InterfaceName, d.Weight),
+			Available:   available,
+			Error:       err,
+		}
+	}
+	if checkErr != nil || d.Offers == nil {
+		return []DriverStatus{row(d.DriverID, factoryName, checkErr == nil, checkErr)}
+	}
+	offers, err := d.Offers(ctx)
+	if err != nil || len(offers) == 0 {
+		return []DriverStatus{row(d.DriverID, factoryName, false, err)}
+	}
+	out := make([]DriverStatus, 0, len(offers))
+	for _, offer := range offers {
+		out = append(out, row(offer.ID, offer.Name, true, nil))
+	}
+	return out
 }

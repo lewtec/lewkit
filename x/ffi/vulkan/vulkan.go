@@ -25,8 +25,44 @@ type Device struct {
 	recorded    Cmd
 }
 
-// Open loads libvulkan, creates an instance, and picks a compute queue.
+// Info is a compute-capable physical device. Index is 0-based among
+// devices that advertise a compute queue.
+type Info struct {
+	Index int
+	Name  string
+}
+
+// Open loads libvulkan, creates an instance, and opens the first
+// compute-capable physical device. Use List and OpenIndex for the rest.
 func Open(ctx context.Context) (*Device, error) {
+	return OpenIndex(ctx, 0)
+}
+
+// List returns every compute-capable physical device. It does not create
+// a logical device.
+func List(ctx context.Context) ([]Info, error) {
+	d, err := openInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer d.Close()
+	return d.computeDevices()
+}
+
+// OpenIndex opens the index-th compute-capable physical device from List.
+func OpenIndex(ctx context.Context, index int) (*Device, error) {
+	d, err := openInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := d.pickIndex(index); err != nil {
+		d.Close()
+		return nil, err
+	}
+	return d, nil
+}
+
+func openInstance(ctx context.Context) (*Device, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -67,52 +103,96 @@ func Open(ctx context.Context) (*Device, error) {
 		d.api.destroyInstance(d.inst, 0)
 		return nil, err
 	}
-	if err := d.pick(); err != nil {
-		d.Close()
-		return nil, err
-	}
 	return d, nil
 }
 
-func (d *Device) pick() error {
+func (d *Device) physicalDevices() ([]uintptr, error) {
 	var n uint32
 	if err := check(d.api.enumeratePhysical(d.inst, &n, nil)); err != nil {
-		return fmt.Errorf("enumerate devices: %w", err)
+		return nil, fmt.Errorf("enumerate devices: %w", err)
 	}
 	if n == 0 {
 		slog.Debug("vulkan enumerate physical", "count", 0)
-		return ErrNoDevice
+		return nil, ErrNoDevice
 	}
 	phys := make([]uintptr, n)
 	if err := check(d.api.enumeratePhysical(d.inst, &n, &phys[0])); err != nil {
-		return fmt.Errorf("enumerate devices: %w", err)
+		return nil, fmt.Errorf("enumerate devices: %w", err)
 	}
-	for _, p := range phys[:n] {
-		if d.try(p) {
-			return nil
+	slog.Debug("vulkan enumerate physical", "count", n)
+	return phys[:n], nil
+}
+
+func (d *Device) computeFamily(phys uintptr) (uint32, bool) {
+	var nq uint32
+	d.api.getQueueFamilies(phys, &nq, nil)
+	if nq == 0 {
+		return 0, false
+	}
+	fams := make([]queueFamilyProperties, nq)
+	d.api.getQueueFamilies(phys, &nq, &fams[0])
+	for i, f := range fams[:nq] {
+		if f.queueFlags&queueComputeBit != 0 && f.queueCount > 0 {
+			return uint32(i), true
 		}
+	}
+	return 0, false
+}
+
+func (d *Device) physicalName(phys uintptr) string {
+	var raw [4096]byte
+	d.api.getPhysProps(phys, &raw[0])
+	return cstring(raw[20:276])
+}
+
+func (d *Device) computeDevices() ([]Info, error) {
+	phys, err := d.physicalDevices()
+	if err != nil {
+		return nil, err
+	}
+	var out []Info
+	for _, p := range phys {
+		if _, ok := d.computeFamily(p); !ok {
+			slog.Debug("vulkan skip physical", "name", d.physicalName(p), "reason", "no compute")
+			continue
+		}
+		info := Info{Index: len(out), Name: d.physicalName(p)}
+		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name)
+		out = append(out, info)
+	}
+	if len(out) == 0 {
+		return nil, ErrNoDevice
+	}
+	return out, nil
+}
+
+func (d *Device) pickIndex(index int) error {
+	if index < 0 {
+		return ErrNoDevice
+	}
+	phys, err := d.physicalDevices()
+	if err != nil {
+		return err
+	}
+	n := 0
+	for _, p := range phys {
+		if _, ok := d.computeFamily(p); !ok {
+			continue
+		}
+		if n == index {
+			if d.try(p) {
+				return nil
+			}
+			return ErrNoDevice
+		}
+		n++
 	}
 	return ErrNoDevice
 }
 
 func (d *Device) try(phys uintptr) bool {
-	var nq uint32
-	d.api.getQueueFamilies(phys, &nq, nil)
-	if nq == 0 {
-		return false
-	}
-	fams := make([]queueFamilyProperties, nq)
-	d.api.getQueueFamilies(phys, &nq, &fams[0])
-	var family uint32
-	found := false
-	for i, f := range fams[:nq] {
-		if f.queueFlags&queueComputeBit != 0 && f.queueCount > 0 {
-			family = uint32(i)
-			found = true
-			break
-		}
-	}
-	if !found {
+	family, ok := d.computeFamily(phys)
+	if !ok {
 		return false
 	}
 	prio := float32(1)
@@ -173,9 +253,7 @@ func (d *Device) try(phys uintptr) bool {
 	d.commandPool = pool
 	d.cmd = cmd
 	d.api.getMemoryProps(phys, &d.mem)
-	var raw [4096]byte
-	d.api.getPhysProps(phys, &raw[0])
-	d.name = cstring(raw[20:276])
+	d.name = d.physicalName(phys)
 	return true
 }
 

@@ -371,3 +371,86 @@ func TestRegisteredWeightShape(t *testing.T) {
 	iface := pickerIfaceName()
 	require.Equal(t, []string{"pick_broken", "pick_high", "pick_low", "pick_mid"}, shape[iface])
 }
+
+type gpus interface{ ID() string }
+
+type gpuFactory struct{}
+
+func (gpuFactory) ID() string                               { return "gpu_all" }
+func (gpuFactory) Name() string                             { return "GPU" }
+func (gpuFactory) Weight() int                              { return 40 }
+func (gpuFactory) CheckCompatibility(context.Context) error { return nil }
+func (gpuFactory) New(context.Context) (gpus, error) {
+	return pickerImpl{id: "gpu_all:0"}, nil
+}
+func (gpuFactory) Offers(context.Context) ([]driver.Offer[gpus], error) {
+	return []driver.Offer[gpus]{
+		{ID: "gpu_all:0", Name: "Renoir", New: func(context.Context) (gpus, error) {
+			return pickerImpl{id: "gpu_all:0"}, nil
+		}},
+		{ID: "gpu_all:1", Name: "RTX 3060", New: func(context.Context) (gpus, error) {
+			return pickerImpl{id: "gpu_all:1"}, nil
+		}},
+	}, nil
+}
+
+var registerGPUs = sync.OnceFunc(func() {
+	driver.Register[gpus](gpuFactory{})
+})
+
+func gpuHandles(t *testing.T) []driver.Handle[gpus] {
+	t.Helper()
+	registerGPUs()
+	driver.ResetWeights()
+	handles, err := driver.List[gpus](t.Context())
+	require.NoError(t, err)
+	return handles
+}
+
+func TestListOffersEveryDevice(t *testing.T) {
+	handles := gpuHandles(t)
+	var ids, names []string
+	for _, handle := range handles {
+		ids = append(ids, handle.ID)
+		names = append(names, handle.Name)
+	}
+	require.Equal(t, []string{"gpu_all:0", "gpu_all:1"}, ids)
+	require.Equal(t, []string{"Renoir", "RTX 3060"}, names)
+	got, err := driver.Get[gpus](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "gpu_all:0", got.ID())
+}
+
+func TestGetForceOffer(t *testing.T) {
+	registerGPUs()
+	driver.ResetWeights()
+	t.Setenv("LEWKIT_FORCE_DRIVER", "gpu_all:1")
+	got, err := driver.Get[gpus](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "gpu_all:1", got.ID())
+}
+
+func TestDoctorListsOffers(t *testing.T) {
+	registerGPUs()
+	driver.ResetWeights()
+	var found *driver.InterfaceStatus
+	for _, st := range driver.Doctor(t.Context()) {
+		for _, d := range st.Drivers {
+			if d.ID == "gpu_all:0" || d.ID == "gpu_all:1" {
+				found = &st
+				break
+			}
+		}
+	}
+	require.NotNil(t, found)
+	byID := map[string]driver.DriverStatus{}
+	for _, d := range found.Drivers {
+		byID[d.ID] = d
+	}
+	require.Equal(t, "Renoir", byID["gpu_all:0"].Name)
+	require.Equal(t, "RTX 3060", byID["gpu_all:1"].Name)
+	require.True(t, byID["gpu_all:0"].Selected)
+	require.False(t, byID["gpu_all:1"].Selected)
+	require.True(t, byID["gpu_all:0"].Available)
+	require.True(t, byID["gpu_all:1"].Available)
+}

@@ -4,8 +4,10 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"log/slog"
+	"slices"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -22,6 +24,7 @@ type Vulkan struct {
 
 var _ Evaluator = (*Vulkan)(nil)
 var _ driver.DriverFactory[Evaluator] = vulkanFactory{}
+var _ driver.Offerer[Evaluator] = vulkanFactory{}
 
 func init() {
 	driver.Register[Evaluator](vulkanFactory{})
@@ -32,57 +35,82 @@ type vulkanFactory struct{}
 func (vulkanFactory) ID() string { return "ndarray_vulkan" }
 
 func (vulkanFactory) Name() string {
-	vulkanProbeMu.Lock()
-	defer vulkanProbeMu.Unlock()
-	return cmp.Or(vulkanProbeName, "Vulkan")
+	vulkanListMu.Lock()
+	defer vulkanListMu.Unlock()
+	if len(vulkanInfos) == 1 {
+		return cmp.Or(vulkanInfos[0].Name, "Vulkan")
+	}
+	return "Vulkan"
 }
 
 func (vulkanFactory) Weight() int { return 50 }
 
 var (
-	vulkanProbeMu   sync.Mutex
-	vulkanProbe     *vulkan.Device
-	vulkanProbeErr  error
-	vulkanProbed    bool
-	vulkanProbeName string
+	vulkanListMu  sync.Mutex
+	vulkanInfos   []vulkan.Info
+	vulkanListErr error
+	vulkanListed  bool
 )
 
 func (vulkanFactory) CheckCompatibility(ctx context.Context) error {
-	vulkanProbeMu.Lock()
-	defer vulkanProbeMu.Unlock()
-	if vulkanProbed {
-		slog.Debug("vulkan probe reuse", "err", vulkanProbeErr)
-		return vulkanProbeErr
+	vulkanListMu.Lock()
+	defer vulkanListMu.Unlock()
+	if vulkanListed {
+		slog.Debug("vulkan list reuse", "count", len(vulkanInfos), "err", vulkanListErr)
+		return vulkanListErr
 	}
-	vulkanProbed = true
-	slog.Debug("vulkan probe open")
-	vulkanProbe, vulkanProbeErr = vulkan.Open(ctx)
-	if vulkanProbeErr != nil {
-		slog.Debug("vulkan probe failed", "err", vulkanProbeErr)
-	} else {
-		vulkanProbeName = vulkanProbe.Name()
-		slog.Debug("vulkan probe ok", "device", vulkanProbeName)
+	vulkanListed = true
+	slog.Debug("vulkan list")
+	vulkanInfos, vulkanListErr = vulkan.List(ctx)
+	if vulkanListErr != nil {
+		slog.Debug("vulkan list failed", "err", vulkanListErr)
+		return vulkanListErr
 	}
-	return vulkanProbeErr
+	for _, info := range vulkanInfos {
+		slog.Debug("vulkan list device", "index", info.Index, "name", info.Name)
+	}
+	return nil
+}
+
+func (f vulkanFactory) Offers(ctx context.Context) ([]driver.Offer[Evaluator], error) {
+	if err := f.CheckCompatibility(ctx); err != nil {
+		return nil, err
+	}
+	vulkanListMu.Lock()
+	infos := slices.Clone(vulkanInfos)
+	vulkanListMu.Unlock()
+	offers := make([]driver.Offer[Evaluator], 0, len(infos))
+	for _, info := range infos {
+		info := info
+		offers = append(offers, driver.Offer[Evaluator]{
+			ID:   vulkanOfferID(info.Index, len(infos)),
+			Name: info.Name,
+			New: func(ctx context.Context) (Evaluator, error) {
+				return openVulkanIndex(ctx, info.Index)
+			},
+		})
+	}
+	return offers, nil
+}
+
+func vulkanOfferID(index, count int) string {
+	if count <= 1 {
+		return "ndarray_vulkan"
+	}
+	return fmt.Sprintf("ndarray_vulkan:%d", index)
 }
 
 func (vulkanFactory) New(ctx context.Context) (Evaluator, error) {
-	vulkanProbeMu.Lock()
-	d, err := vulkanProbe, vulkanProbeErr
-	vulkanProbe = nil
-	vulkanProbeMu.Unlock()
+	return openVulkanIndex(ctx, 0)
+}
+
+func openVulkanIndex(ctx context.Context, index int) (Evaluator, error) {
+	slog.Debug("vulkan open", "index", index)
+	d, err := vulkan.OpenIndex(ctx, index)
 	if err != nil {
 		return nil, err
 	}
-	if d == nil {
-		slog.Debug("vulkan open")
-		d, err = vulkan.Open(ctx)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		slog.Debug("vulkan take probe", "device", d.Name())
-	}
+	slog.Debug("vulkan open ok", "index", index, "device", d.Name())
 	return &Vulkan{Device: d, own: true}, nil
 }
 

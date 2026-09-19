@@ -21,6 +21,30 @@ func TestSmokeSPIRVMagic(t *testing.T) {
 	require.Equal(t, 0, len(b)%4)
 }
 
+func TestListAllComputeDevices(t *testing.T) {
+	infos, err := List(t.Context())
+	if err != nil {
+		t.Skip(err)
+	}
+	require.NotEmpty(t, infos)
+	names := map[string]int{}
+	for i, info := range infos {
+		require.Equal(t, i, info.Index)
+		require.NotEmpty(t, info.Name)
+		d, err := OpenIndex(t.Context(), i)
+		require.NoError(t, err)
+		test.CloseOnCleanup(t, d)
+		require.Equal(t, info.Name, d.Name())
+		names[info.Name]++
+	}
+	_, err = OpenIndex(t.Context(), len(infos))
+	require.ErrorIs(t, err, ErrNoDevice)
+	_, err = OpenIndex(t.Context(), -1)
+	require.ErrorIs(t, err, ErrNoDevice)
+	t.Logf("vulkan devices: %v", infos)
+	require.GreaterOrEqual(t, len(names), 1)
+}
+
 func TestOpenInvalid(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
