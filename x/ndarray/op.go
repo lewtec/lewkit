@@ -70,7 +70,7 @@ const (
 	OR
 	AND
 	WHERE
-	MULACC
+	MultiplyAccumulate
 )
 
 func (op Op) String() string {
@@ -86,7 +86,7 @@ func (op Op) arity() int {
 		return 1
 	case ADD, MUL, IDIV, MAX, MOD, CMPLT, CMPNE, XOR, SHL, SHR, OR, AND:
 		return 2
-	case WHERE, MULACC:
+	case WHERE, MultiplyAccumulate:
 		return 3
 	default:
 		return -1
@@ -97,5 +97,5 @@ var opName = [...]string{
 	EXP2: "EXP2", LOG2: "LOG2", CAST: "CAST", SIN: "SIN", SQRT: "SQRT", RECIP: "RECIP", NEG: "NEG",
 	ADD: "ADD", MUL: "MUL", IDIV: "IDIV", MAX: "MAX", MOD: "MOD",
 	CMPLT: "CMPLT", CMPNE: "CMPNE", XOR: "XOR", SHL: "SHL", SHR: "SHR", OR: "OR", AND: "AND",
-	WHERE: "WHERE", MULACC: "MULACC",
+	WHERE: "WHERE", MultiplyAccumulate: "MultiplyAccumulate",
 }

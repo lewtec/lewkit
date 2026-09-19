@@ -400,7 +400,7 @@ func (instr instruction) evalALU(regs []uint32) uint32 {
 			return b
 		}
 		return c
-	case MULACC:
+	case MultiplyAccumulate:
 		if asFloat {
 			return packFloat(fa*fb + fc)
 		}

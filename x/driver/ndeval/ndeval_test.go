@@ -12,7 +12,7 @@ func TestOpen(t *testing.T) {
 	evaluator, err := ndarray.Open(t.Context())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, evaluator)
-	x, err := ndarray.Ones(ndarray.Shape{4})
+	x, err := ndarray.Ones[float32](ndarray.Shape{4})
 	require.NoError(t, err)
 	dst := make([]float32, 4)
 	require.NoError(t, x.Eval(t.Context(), evaluator, dst))

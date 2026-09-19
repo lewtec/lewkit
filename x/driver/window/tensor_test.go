@@ -35,7 +35,7 @@ func TestPresentWritesFrame(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = w.Close() })
 
-	src, err := ndarray.Full(200, ndarray.Shape{1, 1, 4})
+	src, err := ndarray.Full(float32(200), ndarray.Shape{1, 1, 4})
 	require.NoError(t, err)
 	pixels, err := window.Fit(src, w.Frame())
 	require.NoError(t, err)

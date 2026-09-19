@@ -47,7 +47,7 @@ func TestTriangleColors(t *testing.T) {
 }
 
 func TestTriangleTurnHalf(t *testing.T) {
-	expr, err := triangleAt(200, 200, ndarray.Const(0.5))
+	expr, err := triangleAt(200, 200, ndarray.Const(float32(0.5)))
 	require.NoError(t, err)
 	dst := raster(t, expr)
 	bot := dst.RGBAAt(100, 150)

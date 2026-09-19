@@ -463,7 +463,7 @@ func (n *node) glslALU(args []string) string {
 		return "(" + args[0] + "&" + args[1] + ")"
 	case WHERE:
 		return "((" + args[0] + "!=0)?" + args[1] + ":" + args[2] + ")"
-	case MULACC:
+	case MultiplyAccumulate:
 		return "(" + args[0] + "*" + args[1] + "+" + args[2] + ")"
 	default:
 		return "0"

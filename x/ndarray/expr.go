@@ -72,19 +72,28 @@ func input(buf *buffer, tracker Tracker, dtype DType) *node {
 	return &node{kind: kindInput, dtype: dtype, tracker: tracker, buf: buf}
 }
 
-func splat(v float32) *node {
-	return &node{kind: kindConst, dtype: F32, bits: math.Float32bits(v)}
+func splat[T Number](v T) *node {
+	return &node{kind: kindConst, dtype: dtypeOf[T](), bits: bitsOf(v)}
 }
 
-func splatInt(v int32) *node {
-	return &node{kind: kindConst, dtype: I32, bits: uint32(v)}
-}
-
-func filled(v float32, tracker Tracker) *node {
+func filled[T Number](v T, tracker Tracker) *node {
 	if err := tracker.check(); err != nil {
 		return failed(err)
 	}
-	return &node{kind: kindConst, dtype: F32, bits: math.Float32bits(v), tracker: tracker}
+	return &node{kind: kindConst, dtype: dtypeOf[T](), bits: bitsOf(v), tracker: tracker}
+}
+
+func bitsOf[T Number](v T) uint32 {
+	switch x := any(v).(type) {
+	case float32:
+		return math.Float32bits(x)
+	case int32:
+		return uint32(x)
+	case uint8:
+		return uint32(x)
+	default:
+		return 0
+	}
 }
 
 func coord(axis int, shape Shape) *node {
@@ -157,14 +166,14 @@ func (n *node) Recip() *node        { return unary(RECIP, n) }
 func (n *node) Neg() *node          { return unary(NEG, n) }
 func (n *node) Div(b *node) *node   { return n.Mul(b.Recip()) }
 func (n *node) Equal(b *node) *node {
-	return n.CmpNe(b).CmpNe(splatInt(1))
+	return n.CmpNe(b).CmpNe(splat(int32(1)))
 }
 func (n *node) GreaterEqual(b *node) *node {
-	return n.CmpLt(b).CmpNe(splatInt(1))
+	return n.CmpLt(b).CmpNe(splat(int32(1)))
 }
-func (n *node) Cast(dtype DType) *node  { return castNode(n, dtype) }
-func (n *node) Where(a, b *node) *node  { return whereNode(n, a, b) }
-func (n *node) MulAcc(b, c *node) *node { return mulAccNode(n, b, c) }
+func (n *node) Cast(dtype DType) *node              { return castNode(n, dtype) }
+func (n *node) Where(a, b *node) *node              { return whereNode(n, a, b) }
+func (n *node) MultiplyAccumulate(b, c *node) *node { return multiplyAccumulateNode(n, b, c) }
 
 func castNode(a *node, dtype DType) *node {
 	n := unary(CAST, a)
@@ -201,8 +210,8 @@ func whereNode(p, a, b *node) *node {
 	return &node{kind: kindOp, op: WHERE, dtype: a.dtype, sources: []*node{p, a, b}}
 }
 
-// MulAcc is a*b + c.
-func mulAccNode(a, b, c *node) *node {
+// MultiplyAccumulate is a*b + c.
+func multiplyAccumulateNode(a, b, c *node) *node {
 	if a == nil || b == nil || c == nil {
 		return failed(ErrOp)
 	}
@@ -221,7 +230,7 @@ func mulAccNode(a, b, c *node) *node {
 	if err := sameShape(a, b, c); err != nil {
 		return failed(err)
 	}
-	return &node{kind: kindOp, op: MULACC, dtype: a.dtype, sources: []*node{a, b, c}}
+	return &node{kind: kindOp, op: MultiplyAccumulate, dtype: a.dtype, sources: []*node{a, b, c}}
 }
 
 func unary(op Op, a *node) *node {

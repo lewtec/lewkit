@@ -11,7 +11,7 @@ import (
 func TestEvalIntoVirtStable(t *testing.T) {
 	a, err := New(make([]float32, 256), Shape{256})
 	require.NoError(t, err)
-	out := a.Add(Const(1))
+	out := a.Add(Const(float32(1)))
 	dst := make([]float32, 256)
 	require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	proc, err := process.NewProcess(int32(os.Getpid()))

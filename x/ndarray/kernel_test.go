@@ -27,7 +27,7 @@ func TestCompileOneMain(t *testing.T) {
 	require.NoError(t, err)
 	b, err := New([]float32{1, 1, 1, 1, 1, 1}, Shape{2, 3})
 	require.NoError(t, err)
-	k, err := compile(a.Add(b).Mul(Const(2)).Max(Const(0)).node)
+	k, err := compile(a.Add(b).Mul(Const(float32(2))).Max(Const(float32(0))).node)
 	require.NoError(t, err)
 	src, err := k.GLSL()
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestCompileOneMain(t *testing.T) {
 func TestCPUEvalAlone(t *testing.T) {
 	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
-	out := a.Add(Const(4))
+	out := a.Add(Const(float32(4)))
 	dst := make([]float32, 3)
 	require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	require.Equal(t, []float32{5, 6, 7}, dst)
@@ -75,19 +75,19 @@ func TestEvalPad(t *testing.T) {
 	require.NoError(t, err)
 	padded, err := a.Pad([][2]int{{1, 1}})
 	require.NoError(t, err)
-	require.Equal(t, []float32{1, 5, 6, 1}, mustEval(t, padded.Add(Const(1))))
+	require.Equal(t, []float32{1, 5, 6, 1}, mustEval(t, padded.Add(Const(float32(1)))))
 }
 
 func TestEvalRelu(t *testing.T) {
 	a, err := New([]float32{-2, 0, 3, -0.5}, Shape{4})
 	require.NoError(t, err)
-	require.Equal(t, []float32{0, 0, 3, 0}, mustEval(t, a.Max(Const(0))))
+	require.Equal(t, []float32{0, 0, 3, 0}, mustEval(t, a.Max(Const(float32(0)))))
 }
 
 func TestEvalWhere(t *testing.T) {
 	a, err := New([]float32{-1, 2, -3}, Shape{3})
 	require.NoError(t, err)
-	got := mustEval(t, a.CmpLt(Const(0)).Where(Const(0), a))
+	got := mustEval(t, a.CmpLt(Const(float32(0))).Where(Const(float32(0)), a))
 	require.Equal(t, []float32{0, 2, 0}, got)
 }
 
@@ -104,7 +104,7 @@ func TestCompileGLSL(t *testing.T) {
 	require.NoError(t, err)
 	b, err := New([]float32{1, 1, 1, 1}, Shape{2, 2})
 	require.NoError(t, err)
-	k, err := compile(a.Add(b).Mul(Const(0.5)).node)
+	k, err := compile(a.Add(b).Mul(Const(float32(0.5))).node)
 	require.NoError(t, err)
 	src, err := k.GLSL()
 	require.NoError(t, err)

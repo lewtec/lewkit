@@ -10,7 +10,7 @@
 // Pipelines live in
 // [github.com/lewtec/lewkit/x/driver/ndeval].
 //
-// [Zeros], [Ones], [Full], [Rand], [RandInt], [New], [Const], and [Coord] build tensors.
+// [Zeros], [Ones], [Full], [Rand], [New], [Const], and [Coord] build tensors.
 // [Shape] is the dimensions ([]int so Reshape can use -1).
 //
 // [Of] and [Tracker] are the address map under a tensor. Layers live in

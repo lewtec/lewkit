@@ -34,7 +34,7 @@ func TestExecAdd(t *testing.T) {
 	require.NoError(t, err)
 	b, err := ndarray.New([]float32{2, -1, 5, -1}, ndarray.Shape{4})
 	require.NoError(t, err)
-	expr := a.Add(b).Max(ndarray.Const(0))
+	expr := a.Add(b).Max(ndarray.Const(float32(0)))
 	want := mustEvalCPU(t, expr)
 	got := make([]float32, expr.Size())
 	require.NoError(t, expr.Eval(t.Context(), evaluator, got))

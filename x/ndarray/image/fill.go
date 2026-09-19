@@ -8,9 +8,9 @@ func Fill(h, w int, r, g, b, a float32) (*ndarray.Tensor[float32], error) {
 		return nil, ndarray.ErrShape
 	}
 	channel := ndarray.Coord(2, ndarray.Shape{h, w, 4})
-	v := channel.Equal(ndarray.ConstInt(0)).Where(ndarray.Const(r),
-		channel.Equal(ndarray.ConstInt(1)).Where(ndarray.Const(g),
-			channel.Equal(ndarray.ConstInt(2)).Where(ndarray.Const(b), ndarray.Const(a))))
+	v := channel.Equal(ndarray.Const[int32](0)).Where(ndarray.Const(r),
+		channel.Equal(ndarray.Const[int32](1)).Where(ndarray.Const(g),
+			channel.Equal(ndarray.Const[int32](2)).Where(ndarray.Const(b), ndarray.Const(a))))
 	if v.Shape() == nil {
 		return nil, ndarray.ErrOp
 	}

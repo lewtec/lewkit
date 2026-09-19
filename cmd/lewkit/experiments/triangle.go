@@ -22,7 +22,7 @@ func triangleAt(h, w int, turn *ndarray.Tensor[float32]) (*ndarray.Tensor[float3
 		return nil, ndarray.ErrShape
 	}
 	if turn == nil {
-		turn = ndarray.Const(0)
+		turn = ndarray.Const(float32(0))
 	}
 	return triangle(turn, ndarray.Const(float32(w)), ndarray.Const(float32(h)), ndarray.Shape{h, w, 4})
 }
@@ -55,14 +55,14 @@ func triangle(turn, width, height *ndarray.Tensor[float32], shape ndarray.Shape)
 	if err := requireFloatSplat(height, "height"); err != nil {
 		return nil, err
 	}
-	px := ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(0.5))
-	py := ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(0.5))
-	tau := turn.Mul(ndarray.Const(2 * math.Pi))
+	px := ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
+	py := ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
+	tau := turn.Mul(ndarray.Const(float32(2 * math.Pi)))
 	sine := tau.Sin()
-	cosine := tau.Add(ndarray.Const(math.Pi / 2)).Sin()
-	scale := minFloat(width, height).Mul(ndarray.Const(0.5))
-	originX := width.Mul(ndarray.Const(0.5))
-	originY := height.Mul(ndarray.Const(0.5))
+	cosine := tau.Add(ndarray.Const(float32(math.Pi / 2))).Sin()
+	scale := minFloat(width, height).Mul(ndarray.Const(float32(0.5)))
+	originX := width.Mul(ndarray.Const(float32(0.5)))
+	originY := height.Mul(ndarray.Const(float32(0.5)))
 	fr := triangleFrame{sine, cosine, scale, originX, originY}
 	ax, ay := fr.rotate(triAX, triAY)
 	bx, by := fr.rotate(triBX, triBY)
@@ -70,13 +70,13 @@ func triangle(turn, width, height *ndarray.Tensor[float32], shape ndarray.Shape)
 	den := by.Add(cy.Neg()).Mul(ax.Add(cx.Neg())).Add(cx.Add(bx.Neg()).Mul(ay.Add(cy.Neg())))
 	u := by.Add(cy.Neg()).Mul(px.Add(cx.Neg())).Add(cx.Add(bx.Neg()).Mul(py.Add(cy.Neg()))).Div(den)
 	v := cy.Add(ay.Neg()).Mul(px.Add(cx.Neg())).Add(ax.Add(cx.Neg()).Mul(py.Add(cy.Neg()))).Div(den)
-	weight := ndarray.Const(1).Add(u.Neg()).Add(v.Neg())
-	inside := u.GreaterEqual(ndarray.Const(0)).And(v.GreaterEqual(ndarray.Const(0))).And(weight.GreaterEqual(ndarray.Const(0)))
+	weight := ndarray.Const(float32(1)).Add(u.Neg()).Add(v.Neg())
+	inside := u.GreaterEqual(ndarray.Const(float32(0))).And(v.GreaterEqual(ndarray.Const(float32(0)))).And(weight.GreaterEqual(ndarray.Const(float32(0))))
 	channel := ndarray.Coord(2, shape)
-	rgb := channel.Equal(ndarray.ConstInt(0)).Where(u.Mul(ndarray.Const(255)),
-		channel.Equal(ndarray.ConstInt(1)).Where(v.Mul(ndarray.Const(255)),
-			channel.Equal(ndarray.ConstInt(2)).Where(weight.Mul(ndarray.Const(255)), ndarray.Const(255))))
-	out := inside.Where(rgb, channel.Equal(ndarray.ConstInt(3)).Where(ndarray.Const(255), ndarray.Const(0)))
+	rgb := channel.Equal(ndarray.Const(int32(0))).Where(u.Mul(ndarray.Const(float32(255))),
+		channel.Equal(ndarray.Const(int32(1))).Where(v.Mul(ndarray.Const(float32(255))),
+			channel.Equal(ndarray.Const(int32(2))).Where(weight.Mul(ndarray.Const(float32(255))), ndarray.Const(float32(255)))))
+	out := inside.Where(rgb, channel.Equal(ndarray.Const(int32(3))).Where(ndarray.Const(float32(255)), ndarray.Const(float32(0))))
 	if out.Shape() == nil {
 		return nil, ndarray.ErrOp
 	}

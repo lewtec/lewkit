@@ -14,7 +14,7 @@ func TestCoordEval(t *testing.T) {
 func TestEvalInto(t *testing.T) {
 	a, err := New([]float32{1, 2, 3, 4, 5, 6, 7, 8}, Shape{8})
 	require.NoError(t, err)
-	out := a.Add(Const(1))
+	out := a.Add(Const(float32(1)))
 	dst := make([]float32, 8)
 	require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	require.Equal(t, []float32{2, 3, 4, 5, 6, 7, 8, 9}, dst)
@@ -30,5 +30,5 @@ func TestEvalInto(t *testing.T) {
 func TestGreaterEqual(t *testing.T) {
 	a, err := New([]float32{-1, 0, 2}, Shape{3})
 	require.NoError(t, err)
-	require.Equal(t, []float32{0, 1, 1}, mustEval(t, a.GreaterEqual(Const(0)).Cast[float32]()))
+	require.Equal(t, []float32{0, 1, 1}, mustEval(t, a.GreaterEqual(Const(float32(0))).Cast[float32]()))
 }

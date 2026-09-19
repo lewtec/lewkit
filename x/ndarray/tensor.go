@@ -53,11 +53,8 @@ func (t *Tensor[T]) err() error {
 	return t.node.err
 }
 
-// Const is a float32 splat. It broadcasts against a shaped tensor.
-func Const(v float32) *Tensor[float32] { return wrap[float32](splat(v)) }
-
-// ConstInt is an int32 splat.
-func ConstInt(v int32) *Tensor[int32] { return wrap[int32](splatInt(v)) }
+// Const is a splat. It broadcasts against a shaped tensor.
+func Const[T Number](v T) *Tensor[T] { return wrap[T](splat(v)) }
 
 // Coord is the logical index on axis, as int32.
 func Coord(axis int, shape Shape) *Tensor[int32] { return wrap[int32](coord(axis, shape)) }
@@ -75,24 +72,28 @@ func New[T Number](data []T, shape Shape) (*Tensor[T], error) {
 	return wrap[T](input(buf, tracker, dtypeOf[T]())), nil
 }
 
-// Zeros is a float32 tensor filled with 0.
-func Zeros(shape Shape) (*Tensor[float32], error) { return Full(0, shape) }
+// Zeros is a tensor filled with 0.
+func Zeros[T Number](shape Shape) (*Tensor[T], error) {
+	var z T
+	return Full(z, shape)
+}
 
-// Ones is a float32 tensor filled with 1.
-func Ones(shape Shape) (*Tensor[float32], error) { return Full(1, shape) }
+// Ones is a tensor filled with 1.
+func Ones[T Number](shape Shape) (*Tensor[T], error) {
+	return Full(T(1), shape)
+}
 
-// Full is a shaped float32 const (no buffer).
-func Full(v float32, shape Shape) (*Tensor[float32], error) {
+// Full is a shaped const (no buffer).
+func Full[T Number](v T, shape Shape) (*Tensor[T], error) {
 	tracker, err := Of(shape)
 	if err != nil {
 		return nil, err
 	}
-	return wrap[float32](filled(v, tracker)), nil
+	return wrap[T](filled(v, tracker)), nil
 }
 
-// Rand is a float32 tensor of uniform values in [0, 1) from r
-// (4 bytes per cell as uint32 / 2^32).
-func Rand(r io.Reader, shape Shape) (*Tensor[float32], error) {
+// Rand fills shape from r. float32 is [0, 1); int32 is [0, 2^31); uint8 is 0..255.
+func Rand[T Number](r io.Reader, shape Shape) (*Tensor[T], error) {
 	tracker, err := Of(shape)
 	if err != nil {
 		return nil, err
@@ -100,39 +101,26 @@ func Rand(r io.Reader, shape Shape) (*Tensor[float32], error) {
 	if r == nil {
 		return nil, ErrOp
 	}
-	raw := make([]byte, tracker.Size()*4)
-	var tmp [4]byte
-	for i := 0; i < tracker.Size(); i++ {
-		if _, err := io.ReadFull(r, tmp[:]); err != nil {
-			return nil, err
-		}
-		u := binary.LittleEndian.Uint32(tmp[:])
-		binary.LittleEndian.PutUint32(raw[i*4:], math.Float32bits(float32(float64(u)/(1<<32))))
-	}
-	buf := &buffer{raw: raw, dtype: F32}
-	return wrap[float32](input(buf, tracker, F32)), nil
-}
-
-// RandInt is an int32 tensor of uniform values in [0, 2^31) from r
-// (4 bytes per cell).
-func RandInt(r io.Reader, shape Shape) (*Tensor[int32], error) {
-	tracker, err := Of(shape)
-	if err != nil {
+	dtype := dtypeOf[T]()
+	n := tracker.Size()
+	raw := make([]byte, n*dtype.size())
+	if _, err := io.ReadFull(r, raw); err != nil {
 		return nil, err
 	}
-	if r == nil {
-		return nil, ErrOp
-	}
-	raw := make([]byte, tracker.Size()*4)
-	for i := 0; i < tracker.Size(); i++ {
-		if _, err := io.ReadFull(r, raw[i*4:i*4+4]); err != nil {
-			return nil, err
+	switch dtype {
+	case F32:
+		for i := 0; i < n; i++ {
+			u := binary.LittleEndian.Uint32(raw[i*4:])
+			binary.LittleEndian.PutUint32(raw[i*4:], math.Float32bits(float32(float64(u)/(1<<32))))
 		}
-		v := binary.LittleEndian.Uint32(raw[i*4:]) >> 1
-		binary.LittleEndian.PutUint32(raw[i*4:], v)
+	case I32:
+		for i := 0; i < n; i++ {
+			v := binary.LittleEndian.Uint32(raw[i*4:]) >> 1
+			binary.LittleEndian.PutUint32(raw[i*4:], v)
+		}
 	}
-	buf := &buffer{raw: raw, dtype: I32}
-	return wrap[int32](input(buf, tracker, I32)), nil
+	buf := &buffer{raw: raw, dtype: dtype}
+	return wrap[T](input(buf, tracker, dtype)), nil
 }
 
 // Shape is the logical shape, or nil for a splat. After compile, this is
@@ -434,11 +422,11 @@ func (t *Tensor[T]) Where[U Number](a, b *Tensor[U]) *Tensor[U] {
 	return wrap[U](t.node.Where(a.node, b.node))
 }
 
-func (t *Tensor[T]) MulAcc(b, c *Tensor[T]) *Tensor[T] {
+func (t *Tensor[T]) MultiplyAccumulate(b, c *Tensor[T]) *Tensor[T] {
 	if t == nil || b == nil || c == nil {
 		return wrap[T](failed(ErrOp))
 	}
-	return wrap[T](t.node.MulAcc(b.node, c.node))
+	return wrap[T](t.node.MultiplyAccumulate(b.node, c.node))
 }
 
 func (t *Tensor[T]) unary(op func(*node) *node) *Tensor[T] {
