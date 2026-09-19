@@ -1,8 +1,8 @@
 // Package wasm embeds the glslang reactor.
 //
-// glslang.wasm is built from Khronos glslang plus compile.c via
-// generate.sh (mise: emscripten + cmake). workspaced places the
-// artifact into this directory.
+// glslang.wasm is built from Khronos glslang plus
+// ../build/compile.c via ../build/generate.sh (mise emscripten/cmake,
+// uv python). workspaced requires the artifact here.
 package wasm
 
 import _ "embed"

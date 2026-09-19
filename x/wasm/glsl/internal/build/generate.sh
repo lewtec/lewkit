@@ -3,9 +3,9 @@
 # Tools: mise conda:emscripten + conda:cmake; Python via uv.
 # workspaced places the resulting wasm into this directory.
 set -euo pipefail
-root=$(cd "$(dirname "$0")" && pwd)
-out="$root/glslang.wasm"
-src="$root/compile.c"
+here=$(cd "$(dirname "$0")" && pwd)
+out="$(cd "$here/../wasm" && pwd)/glslang.wasm"
+src="$here/compile.c"
 ver=15.1.0
 work=${TMPDIR:-/tmp}/lewkit-glslang-wasm
 mkdir -p "$work"
