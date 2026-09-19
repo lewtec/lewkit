@@ -3,6 +3,7 @@ package ndarray
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -30,18 +31,47 @@ func (vulkanFactory) ID() string   { return "ndarray_vulkan" }
 func (vulkanFactory) Name() string { return "Vulkan" }
 func (vulkanFactory) Weight() int  { return 50 }
 
+var (
+	vulkanProbeMu  sync.Mutex
+	vulkanProbe    *vulkan.Device
+	vulkanProbeErr error
+	vulkanProbed   bool
+)
+
 func (vulkanFactory) CheckCompatibility(ctx context.Context) error {
-	d, err := vulkan.Open(ctx)
-	if err != nil {
-		return err
+	vulkanProbeMu.Lock()
+	defer vulkanProbeMu.Unlock()
+	if vulkanProbed {
+		slog.Debug("vulkan probe reuse", "err", vulkanProbeErr)
+		return vulkanProbeErr
 	}
-	return d.Close()
+	vulkanProbed = true
+	slog.Debug("vulkan probe open")
+	vulkanProbe, vulkanProbeErr = vulkan.Open(ctx)
+	if vulkanProbeErr != nil {
+		slog.Debug("vulkan probe failed", "err", vulkanProbeErr)
+	} else {
+		slog.Debug("vulkan probe ok", "device", vulkanProbe.Name())
+	}
+	return vulkanProbeErr
 }
 
 func (vulkanFactory) New(ctx context.Context) (Evaluator, error) {
-	d, err := vulkan.Open(ctx)
+	vulkanProbeMu.Lock()
+	d, err := vulkanProbe, vulkanProbeErr
+	vulkanProbe = nil
+	vulkanProbeMu.Unlock()
 	if err != nil {
 		return nil, err
+	}
+	if d == nil {
+		slog.Debug("vulkan open")
+		d, err = vulkan.Open(ctx)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		slog.Debug("vulkan take probe", "device", d.Name())
 	}
 	return &Vulkan{Device: d, own: true}, nil
 }
@@ -75,6 +105,7 @@ func (v *Vulkan) Run(ctx context.Context, k *Kernel, output []float32, inputs []
 		} else {
 			v.sessions[k] = s
 			v.mu.Unlock()
+			slog.Debug("vulkan session", "device", v.Device.Name())
 		}
 	}
 	return s.Run(ctx, output, inputs)
@@ -96,6 +127,7 @@ func (v *Vulkan) Close() error {
 		err = errors.Join(err, s.Close())
 	}
 	if own && d != nil {
+		slog.Debug("vulkan close", "device", d.Name(), "sessions", len(sessions))
 		err = errors.Join(err, d.Close())
 	}
 	return err

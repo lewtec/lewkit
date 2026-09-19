@@ -3,6 +3,7 @@ package ndarray
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"math/rand/v2"
 	"slices"
 )
@@ -211,6 +212,7 @@ func (t *Tensor) ensure() error {
 		return err
 	}
 	t.kernel = k
+	slog.Debug("ndarray compile", "shape", k.shape, "size", k.size)
 	return nil
 }
 

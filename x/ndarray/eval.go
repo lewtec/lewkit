@@ -3,6 +3,7 @@ package ndarray
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/lewtec/lewkit/x/driver"
 )
@@ -42,7 +43,26 @@ func init() {
 
 // Open is the highest-weight compatible evaluator (Vulkan if it can open, else CPU).
 func Open(ctx context.Context) (Evaluator, error) {
-	return driver.Get[Evaluator](ctx)
+	ev, err := driver.Get[Evaluator](ctx)
+	if err != nil {
+		return nil, err
+	}
+	slog.Debug("ndarray open", "evaluator", evaluatorName(ev))
+	return ev, nil
+}
+
+func evaluatorName(ev Evaluator) string {
+	switch e := ev.(type) {
+	case cpu:
+		return "cpu"
+	case *Vulkan:
+		if e != nil && e.Device != nil {
+			return "vulkan:" + e.Device.Name()
+		}
+		return "vulkan"
+	default:
+		return fmt.Sprintf("%T", ev)
+	}
 }
 
 // Eval runs the kernel on the CPU. inputs[i] is the buffer for each source.

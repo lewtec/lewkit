@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
@@ -27,6 +28,7 @@ func (k *Kernel) SPIRV(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %w", ErrOp, err)
 	}
 	k.spirv = spirv
+	slog.Debug("ndarray spirv", "bytes", len(spirv))
 	return spirv, nil
 }
 
