@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
 )
@@ -15,21 +16,61 @@ type Evaluator interface {
 	Close() error
 }
 
-type cpuEvaluator struct{}
-
-// CPU is the register-tape evaluator. Always available.
-var CPU Evaluator = cpuEvaluator{}
-
-func (cpuEvaluator) Run(_ context.Context, tensor *Tensor, output []float32) error {
-	if tensor == nil || tensor.kernel == nil {
-		return ErrOp
-	}
-	return tensor.kernel.EvalInto(output)
+type cpuEvaluator struct {
+	mu    sync.Mutex
+	tapes map[*Kernel]cpuProgram
 }
 
-func (cpuEvaluator) Close() error { return nil }
+// CPU is the register-tape evaluator. Always available.
+var CPU Evaluator = newCPUEvaluator()
 
-func (cpuEvaluator) Name() string { return "cpu" }
+func newCPUEvaluator() *cpuEvaluator {
+	return &cpuEvaluator{tapes: make(map[*Kernel]cpuProgram)}
+}
+
+func (c *cpuEvaluator) Run(_ context.Context, tensor *Tensor, output []float32) error {
+	if c == nil || tensor == nil || tensor.kernel == nil {
+		return ErrOp
+	}
+	program, err := c.program(tensor.kernel)
+	if err != nil {
+		return err
+	}
+	if len(output) < tensor.kernel.size {
+		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), tensor.kernel.size)
+	}
+	if tensor.kernel.size == 0 {
+		return nil
+	}
+	runCPU(program, tensor.kernel, output)
+	return nil
+}
+
+func (c *cpuEvaluator) program(k *Kernel) (cpuProgram, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if p, ok := c.tapes[k]; ok {
+		return p, nil
+	}
+	p, err := lowerCPU(k.order, k.bufs, k.built)
+	if err != nil {
+		return cpuProgram{}, err
+	}
+	c.tapes[k] = p
+	return p, nil
+}
+
+func (c *cpuEvaluator) Close() error {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	c.tapes = make(map[*Kernel]cpuProgram)
+	c.mu.Unlock()
+	return nil
+}
+
+func (*cpuEvaluator) Name() string { return "cpu" }
 
 // Open is the highest-weight compatible evaluator (Vulkan if a GPU
 // driver registered, else CPU). Import
@@ -51,37 +92,4 @@ func evaluatorName(evaluator Evaluator) string {
 		}
 	}
 	return fmt.Sprintf("%T", evaluator)
-}
-
-// Eval runs the kernel on the CPU. inputs[i] is the buffer for each source.
-// It interprets a register tape built at compile (no native codegen) and
-// shards cells across GOMAXPROCS when the output is large enough.
-func (k *Kernel) Eval() ([]float32, error) {
-	if k == nil || k.cpu.registers == 0 {
-		return nil, ErrOp
-	}
-	if k.size == 0 {
-		return nil, nil
-	}
-	output := make([]float32, k.size)
-	if err := k.EvalInto(output); err != nil {
-		return nil, err
-	}
-	return output, nil
-}
-
-// EvalInto writes the kernel into output, which must have length at least size.
-// Inputs are k.bufs, each a contiguous []float32.
-func (k *Kernel) EvalInto(output []float32) error {
-	if k == nil || k.cpu.registers == 0 {
-		return ErrOp
-	}
-	if len(output) < k.size {
-		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.size)
-	}
-	if k.size == 0 {
-		return nil
-	}
-	k.evalCPU(output)
-	return nil
 }

@@ -30,13 +30,12 @@ func vmSizeKB(t *testing.T) int64 {
 func TestEvalIntoVirtStable(t *testing.T) {
 	a, err := New(make([]float32, 256), Shape{256})
 	require.NoError(t, err)
-	k, err := compile(a.Add(Const(1)).node)
-	require.NoError(t, err)
+	out := a.Add(Const(1))
 	dst := make([]float32, 256)
-	require.NoError(t, k.EvalInto(dst))
+	require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	v0 := vmSizeKB(t)
 	for range 80 {
-		require.NoError(t, k.EvalInto(dst))
+		require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	}
 	v1 := vmSizeKB(t)
 	grew := v1 - v0

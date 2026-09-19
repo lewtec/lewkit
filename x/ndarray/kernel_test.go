@@ -29,11 +29,21 @@ func TestCompileOneMain(t *testing.T) {
 	require.NoError(t, err)
 	k, err := compile(a.Add(b).Mul(Const(2)).Max(Const(0)).node)
 	require.NoError(t, err)
-	src := k.GLSL()
+	src, err := k.GLSL()
+	require.NoError(t, err)
 	require.Equal(t, 1, strings.Count(src, "void main()"))
 	require.Equal(t, 1, strings.Count(src, "gl_GlobalInvocationID"))
 	require.Equal(t, Shape{2, 3}, k.Shape())
 	require.Equal(t, 3, k.Bindings())
+}
+
+func TestCPUEvalAlone(t *testing.T) {
+	a, err := New([]float32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	out := a.Add(Const(4))
+	dst := make([]float32, 3)
+	require.NoError(t, out.Eval(t.Context(), CPU, dst))
+	require.Equal(t, []float32{5, 6, 7}, dst)
 }
 
 func TestEvalAdd(t *testing.T) {

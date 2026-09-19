@@ -13,17 +13,17 @@ const (
 	pushBytes = 20 // n, d0, d1, d2, d3
 )
 
-// Kernel is the fused program for a node tree: GLSL, SPIR-V, CPU tape,
-// and leaf buffers. Device pipelines live on the evaluator.
+// Kernel is the flattened graph: nodes, leaf buffers, compile-time shape.
+// Backends lower their own code from this (CPU tape, GLSL). Resize updates
+// the runtime shape only.
 type Kernel struct {
 	root    *node
-	glsl    string
-	shape   Shape
+	order   []*node
 	bufs    []*buffer
+	built   Shape
+	shape   Shape
 	outType DType
 	size    int
-	spirv   []byte
-	cpu     cpuProgram
 }
 
 func compile(expr *node) (*Kernel, error) {
@@ -45,23 +45,8 @@ func compile(expr *node) (*Kernel, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &glslWriter{
-		root:     expr,
-		order:    order,
-		bufs:     bufs,
-		outShape: shape,
-		bufBind:  make(map[*buffer]int, len(bufs)),
-		names:    make(map[*node]string, len(order)),
-	}
-	src, err := w.program()
-	if err != nil {
-		return nil, err
-	}
-	cpu, err := lowerCPU(order, bufs, shape)
-	if err != nil {
-		return nil, err
-	}
-	return &Kernel{root: expr, glsl: src, shape: shape.Clone(), bufs: bufs, outType: expr.dtype, size: size, cpu: cpu}, nil
+	built := shape.Clone()
+	return &Kernel{root: expr, order: order, bufs: bufs, built: built, shape: built.Clone(), outType: expr.dtype, size: size}, nil
 }
 
 // Resize sets the runtime output shape. Rank must match Compile.
@@ -80,12 +65,20 @@ func (k *Kernel) Resize(shape Shape) error {
 	return nil
 }
 
-// GLSL is the compute shader source.
-func (k *Kernel) GLSL() string {
+// GLSL lowers the compute shader. The kernel does not keep the source.
+func (k *Kernel) GLSL() (string, error) {
 	if k == nil {
-		return ""
+		return "", ErrOp
 	}
-	return k.glsl
+	w := &glslWriter{
+		root:     k.root,
+		order:    k.order,
+		bufs:     k.bufs,
+		outShape: k.built,
+		bufBind:  make(map[*buffer]int, len(k.bufs)),
+		names:    make(map[*node]string, len(k.order)),
+	}
+	return w.program()
 }
 
 // Shape is the logical output shape.

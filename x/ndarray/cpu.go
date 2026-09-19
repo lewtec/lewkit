@@ -116,17 +116,13 @@ func takeScratch(registers, rank int) *cpuScratch {
 	return s
 }
 
-func (k *Kernel) evalCPU(output []float32) {
+func runCPU(program cpuProgram, k *Kernel, output []float32) {
 	workers := min(runtime.GOMAXPROCS(0), k.size)
 	if workers < 2 || k.size < cpuMinParallel {
-		k.evalSerial(output)
+		cpuJob{program: program, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output, hi: k.size}.run()
 		return
 	}
-	k.evalParallel(output, workers)
-}
-
-func (k *Kernel) evalSerial(output []float32) {
-	cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output, hi: k.size}.run()
+	evalParallel(program, k, output, workers)
 }
 
 var (
@@ -173,13 +169,13 @@ func cpuWorker(id int) {
 	}
 }
 
-func (k *Kernel) evalParallel(output []float32, workers int) {
+func evalParallel(program cpuProgram, k *Kernel, output []float32, workers int) {
 	startCPUWorkers()
 	if workers > len(cpuReady) {
 		workers = len(cpuReady)
 	}
 	chunk := (k.size + workers - 1) / workers
-	base := cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output}
+	base := cpuJob{program: program, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output}
 	n := 0
 	for w := range workers {
 		lo := w * chunk

@@ -17,14 +17,14 @@ func (k *Kernel) SPIRV(ctx context.Context) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	if k.spirv != nil {
-		return k.spirv, nil
+	src, err := k.GLSL()
+	if err != nil {
+		return nil, err
 	}
-	spirv, err := glsl.Load(ctx, []byte(k.glsl))
+	spirv, err := glsl.Load(ctx, []byte(src))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrOp, err)
 	}
-	k.spirv = spirv
 	slog.Debug("ndarray spirv", "bytes", len(spirv))
 	return spirv, nil
 }

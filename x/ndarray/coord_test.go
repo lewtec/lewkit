@@ -14,14 +14,13 @@ func TestCoordEval(t *testing.T) {
 func TestEvalInto(t *testing.T) {
 	a, err := New([]float32{1, 2, 3, 4, 5, 6, 7, 8}, Shape{8})
 	require.NoError(t, err)
-	k, err := compile(a.Add(Const(1)).node)
-	require.NoError(t, err)
+	out := a.Add(Const(1))
 	dst := make([]float32, 8)
-	require.NoError(t, k.EvalInto(dst))
+	require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	require.Equal(t, []float32{2, 3, 4, 5, 6, 7, 8, 9}, dst)
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	n := testing.AllocsPerRun(50, func() {
-		if err := k.EvalInto(dst); err != nil {
+		if err := out.Eval(t.Context(), CPU, dst); err != nil {
 			panic(err)
 		}
 	})
