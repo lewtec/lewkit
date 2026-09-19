@@ -2,6 +2,7 @@ package experiments
 
 import (
 	stdimage "image"
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -31,4 +32,18 @@ func TestPerlinEval(t *testing.T) {
 	}
 	require.Greater(t, maxV-minV, 8)
 	require.NotEqual(t, 0, sum)
+}
+
+func TestPerlinOneKernel(t *testing.T) {
+	expr, err := perlinAt(8, 8, ndarray.Const(float32(0)))
+	require.NoError(t, err)
+	pixels := expr.Cast[uint8]()
+	dst := make([]uint8, 8*8*4)
+	require.NoError(t, pixels.Eval(t.Context(), ndarray.CPU, dst))
+	k := pixels.Kernel()
+	require.NotNil(t, k)
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(src, "void main()"))
+	require.Equal(t, 1, strings.Count(src, "gl_GlobalInvocationID"))
 }
