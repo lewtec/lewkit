@@ -50,21 +50,17 @@ func TestSessionRunLoop(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, s)
 	copy(a.Buffer(), []float32{1, 2, 3, 4, 5, 6, 7, 8})
-	src := a.Buffer()
 	dst := make([]float32, 8)
-	in := [][]float32{src}
 	for range 20 {
-		require.NoError(t, s.Run(t.Context(), dst, in))
+		require.NoError(t, s.Run(t.Context(), dst))
 	}
 	require.Equal(t, []float32{2, 3, 4, 5, 6, 7, 8, 9}, dst)
 }
 
 func TestSessionVirtStable(t *testing.T) {
-	k, a := compileAdd1(t, 4096)
+	k, _ := compileAdd1(t, 4096)
 	test.CloseOnCleanup(t, k)
-	src := a.Buffer()
 	dst := make([]float32, 4096)
-	in := [][]float32{src}
 
 	d, err := vulkan.Open(t.Context())
 	if err != nil {
@@ -74,10 +70,10 @@ func TestSessionVirtStable(t *testing.T) {
 	s, err := k.Attach(t.Context(), d)
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, s)
-	require.NoError(t, s.Run(t.Context(), dst, in))
+	require.NoError(t, s.Run(t.Context(), dst))
 	v0 := vmSizeKB(t)
 	for range 80 {
-		require.NoError(t, s.Run(t.Context(), dst, in))
+		require.NoError(t, s.Run(t.Context(), dst))
 	}
 	v1 := vmSizeKB(t)
 	grew := v1 - v0
@@ -86,14 +82,12 @@ func TestSessionVirtStable(t *testing.T) {
 }
 
 func TestEvalIntoVirtStable(t *testing.T) {
-	k, a := compileAdd1(t, 4096)
-	src := a.Buffer()
+	k, _ := compileAdd1(t, 4096)
 	dst := make([]float32, 4096)
-	in := [][]float32{src}
-	require.NoError(t, k.EvalInto(dst, in))
+	require.NoError(t, k.EvalInto(dst))
 	v0 := vmSizeKB(t)
 	for range 80 {
-		require.NoError(t, k.EvalInto(dst, in))
+		require.NoError(t, k.EvalInto(dst))
 	}
 	v1 := vmSizeKB(t)
 	grew := v1 - v0
@@ -109,6 +103,6 @@ func TestSessionCPU(t *testing.T) {
 	s, err := k.Attach(t.Context(), nil)
 	require.NoError(t, err)
 	dst := make([]float32, 4)
-	require.NoError(t, s.Run(t.Context(), dst, [][]float32{a.Buffer()}))
+	require.NoError(t, s.Run(t.Context(), dst))
 	require.Equal(t, []float32{2, 4, 6, 8}, dst)
 }

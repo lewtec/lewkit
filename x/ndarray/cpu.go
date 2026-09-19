@@ -88,7 +88,7 @@ type cpuJob struct {
 	program cpuProgram
 	shape   Shape
 	outType DType
-	inputs  [][]float32
+	bufs    []*buffer
 	output  []float32
 	lo, hi  int
 }
@@ -116,17 +116,17 @@ func takeScratch(registers, rank int) *cpuScratch {
 	return s
 }
 
-func (k *Kernel) evalCPU(output []float32, inputs [][]float32) {
+func (k *Kernel) evalCPU(output []float32) {
 	workers := min(runtime.GOMAXPROCS(0), k.size)
 	if workers < 2 || k.size < cpuMinParallel {
-		k.evalSerial(output, inputs)
+		k.evalSerial(output)
 		return
 	}
-	k.evalParallel(output, inputs, workers)
+	k.evalParallel(output, workers)
 }
 
-func (k *Kernel) evalSerial(output []float32, inputs [][]float32) {
-	cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, inputs: inputs, output: output, hi: k.size}.run()
+func (k *Kernel) evalSerial(output []float32) {
+	cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output, hi: k.size}.run()
 }
 
 var (
@@ -173,13 +173,13 @@ func cpuWorker(id int) {
 	}
 }
 
-func (k *Kernel) evalParallel(output []float32, inputs [][]float32, workers int) {
+func (k *Kernel) evalParallel(output []float32, workers int) {
 	startCPUWorkers()
 	if workers > len(cpuReady) {
 		workers = len(cpuReady)
 	}
 	chunk := (k.size + workers - 1) / workers
-	base := cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, inputs: inputs, output: output}
+	base := cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output}
 	n := 0
 	for w := range workers {
 		lo := w * chunk
@@ -213,7 +213,7 @@ func (j cpuJob) loop(s *cpuScratch) {
 			case cpuCoord:
 				s.registers[instr.dest] = uint32(int32(s.coords[instr.axis]))
 			case cpuLoad:
-				s.registers[instr.dest] = instr.load(i, s.coords, j.inputs, &s.scratch)
+				s.registers[instr.dest] = instr.load(i, s.coords, j.bufs, &s.scratch)
 			case cpuALU:
 				s.registers[instr.dest] = instr.evalALU(s.registers)
 			}
@@ -226,7 +226,7 @@ func (j cpuJob) loop(s *cpuScratch) {
 	}
 }
 
-func (instr instruction) load(i int, coords []int, inputs [][]float32, scratch *[]int) uint32 {
+func (instr instruction) load(i int, coords []int, bufs []*buffer, scratch *[]int) uint32 {
 	var off int
 	ok := true
 	switch {
@@ -237,10 +237,14 @@ func (instr instruction) load(i int, coords []int, inputs [][]float32, scratch *
 	default:
 		off, ok = indexViews(instr.views, coords, scratch)
 	}
-	if !ok || instr.source < 0 || instr.source >= len(inputs) || off < 0 || off >= len(inputs[instr.source]) {
+	if !ok || instr.source < 0 || instr.source >= len(bufs) || bufs[instr.source] == nil {
 		return 0
 	}
-	x := inputs[instr.source][off]
+	data := bufs[instr.source].data
+	if off < 0 || off >= len(data) {
+		return 0
+	}
+	x := data[off]
 	if instr.i32 {
 		return uint32(int32(x))
 	}

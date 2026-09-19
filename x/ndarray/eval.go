@@ -11,7 +11,7 @@ import (
 // Evaluator runs a compiled kernel. CPU is the fallback driver; device
 // backends (Vulkan, …) register at higher weight.
 type Evaluator interface {
-	Run(ctx context.Context, k *Kernel, output []float32, inputs [][]float32) error
+	Run(ctx context.Context, k *Kernel, output []float32) error
 	Close() error
 }
 
@@ -20,11 +20,11 @@ type cpu struct{}
 // CPU is the register-tape evaluator. Always available.
 var CPU Evaluator = cpu{}
 
-func (cpu) Run(_ context.Context, k *Kernel, output []float32, inputs [][]float32) error {
+func (cpu) Run(_ context.Context, k *Kernel, output []float32) error {
 	if k == nil {
 		return ErrOp
 	}
-	return k.EvalInto(output, inputs)
+	return k.EvalInto(output)
 }
 
 func (cpu) Close() error { return nil }
@@ -68,30 +68,25 @@ func evaluatorName(ev Evaluator) string {
 // Eval runs the kernel on the CPU. inputs[i] is the buffer for each source.
 // It interprets a register tape built at compile (no native codegen) and
 // shards cells across GOMAXPROCS when the output is large enough.
-func (k *Kernel) Eval(inputs ...[]float32) ([]float32, error) {
+func (k *Kernel) Eval() ([]float32, error) {
 	if k == nil || k.cpu.registers == 0 {
 		return nil, ErrOp
-	}
-	if len(inputs) != len(k.bufs) {
-		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.bufs), len(inputs))
 	}
 	if k.size == 0 {
 		return nil, nil
 	}
 	output := make([]float32, k.size)
-	if err := k.EvalInto(output, inputs); err != nil {
+	if err := k.EvalInto(output); err != nil {
 		return nil, err
 	}
 	return output, nil
 }
 
 // EvalInto writes the kernel into output, which must have length at least size.
-func (k *Kernel) EvalInto(output []float32, inputs [][]float32) error {
+// Inputs are k.bufs, each a contiguous []float32.
+func (k *Kernel) EvalInto(output []float32) error {
 	if k == nil || k.cpu.registers == 0 {
 		return ErrOp
-	}
-	if len(inputs) != len(k.bufs) {
-		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.bufs), len(inputs))
 	}
 	if len(output) < k.size {
 		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.size)
@@ -99,6 +94,6 @@ func (k *Kernel) EvalInto(output []float32, inputs [][]float32) error {
 	if k.size == 0 {
 		return nil
 	}
-	k.evalCPU(output, inputs)
+	k.evalCPU(output)
 	return nil
 }

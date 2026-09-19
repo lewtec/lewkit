@@ -13,10 +13,9 @@ import (
 // Slots are assigned at Eval. The graph stays after realize so a loop
 // can Resize and run again.
 type Tensor struct {
-	node      *node
-	out       []float32
-	kernel    *Kernel
-	runInputs [][]float32
+	node   *node
+	out    []float32
+	kernel *Kernel
 }
 
 func wrap(n *node) *Tensor {
@@ -189,24 +188,12 @@ func (t *Tensor) realize(ctx context.Context, ev Evaluator) error {
 	if err := t.ensure(); err != nil {
 		return err
 	}
-	n := len(t.kernel.bufs)
-	if cap(t.runInputs) < n {
-		t.runInputs = make([][]float32, n)
-	} else {
-		t.runInputs = t.runInputs[:n]
-	}
-	for i, b := range t.kernel.bufs {
-		if b == nil {
-			return ErrOp
-		}
-		t.runInputs[i] = b.data
-	}
 	if cap(t.out) < t.kernel.size {
 		t.out = make([]float32, t.kernel.size)
 	} else {
 		t.out = t.out[:t.kernel.size]
 	}
-	return ev.Run(ctx, t.kernel, t.out, t.runInputs)
+	return ev.Run(ctx, t.kernel, t.out)
 }
 
 func (t *Tensor) ensure() error {

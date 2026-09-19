@@ -126,12 +126,9 @@ func (k *Kernel) Close() error {
 }
 
 // Exec allocates host buffers, runs once, and returns the dense output.
-func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device, inputs ...[]float32) ([]float32, error) {
+func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device) ([]float32, error) {
 	if k == nil {
 		return nil, ErrOp
-	}
-	if len(inputs) != len(k.bufs) {
-		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.bufs), len(inputs))
 	}
 	if k.size == 0 {
 		return nil, nil
@@ -141,9 +138,14 @@ func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device, inputs ...[]fl
 		return nil, err
 	}
 	defer output.Close()
-	bufs := make([]*vulkan.Buffer, len(inputs))
-	for i, src := range inputs {
-		n := max(len(src), 1)
+	bufs := make([]*vulkan.Buffer, len(k.bufs))
+	for i, src := range k.bufs {
+		n := 1
+		var data []float32
+		if src != nil {
+			data = src.data
+			n = max(len(data), 1)
+		}
 		b, err := device.Buffer(n * 4)
 		if err != nil {
 			for _, x := range bufs {
@@ -153,7 +155,7 @@ func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device, inputs ...[]fl
 			}
 			return nil, err
 		}
-		if err := b.Write(floatBytes(src)); err != nil {
+		if err := b.Write(floatView(data)); err != nil {
 			b.Close()
 			for _, x := range bufs {
 				if x != nil {
@@ -184,14 +186,6 @@ func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device, inputs ...[]fl
 		return out, nil
 	}
 	return bytesToFloat32(raw), nil
-}
-
-func floatBytes(v []float32) []byte {
-	b := make([]byte, len(v)*4)
-	for i, x := range v {
-		binary.LittleEndian.PutUint32(b[i*4:], math.Float32bits(x))
-	}
-	return b
 }
 
 func bytesToFloat32(b []byte) []float32 {

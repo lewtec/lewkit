@@ -16,14 +16,12 @@ func TestEvalInto(t *testing.T) {
 	require.NoError(t, err)
 	k, err := compile(a.Add(Const(1)).node)
 	require.NoError(t, err)
-	src := a.Buffer()
 	dst := make([]float32, 8)
-	in := [][]float32{src}
-	require.NoError(t, k.EvalInto(dst, in))
+	require.NoError(t, k.EvalInto(dst))
 	require.Equal(t, []float32{2, 3, 4, 5, 6, 7, 8, 9}, dst)
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	n := testing.AllocsPerRun(50, func() {
-		if err := k.EvalInto(dst, in); err != nil {
+		if err := k.EvalInto(dst); err != nil {
 			panic(err)
 		}
 	})

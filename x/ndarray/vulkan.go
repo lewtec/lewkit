@@ -76,7 +76,7 @@ func (vulkanFactory) New(ctx context.Context) (Evaluator, error) {
 	return &Vulkan{Device: d, own: true}, nil
 }
 
-func (v *Vulkan) Run(ctx context.Context, k *Kernel, output []float32, inputs [][]float32) error {
+func (v *Vulkan) Run(ctx context.Context, k *Kernel, output []float32) error {
 	if v == nil || v.Device == nil {
 		return ErrOp
 	}
@@ -108,7 +108,7 @@ func (v *Vulkan) Run(ctx context.Context, k *Kernel, output []float32, inputs []
 			slog.Debug("vulkan session", "device", v.Device.Name())
 		}
 	}
-	return s.Run(ctx, output, inputs)
+	return s.Run(ctx, output)
 }
 
 func (v *Vulkan) Close() error {
