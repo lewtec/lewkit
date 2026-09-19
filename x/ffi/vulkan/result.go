@@ -20,6 +20,8 @@ var (
 	ErrBusy = errors.New("command buffer busy")
 	// ErrPush means push-constant data does not match the shader.
 	ErrPush = errors.New("invalid push constants")
+	// ErrDeviceType means the device-type token is not a known String().
+	ErrDeviceType = errors.New("unknown device type")
 )
 
 // Result is a VkResult.

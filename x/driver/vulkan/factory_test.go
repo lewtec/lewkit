@@ -40,6 +40,12 @@ func TestDeviceTypeArg(t *testing.T) {
 	got, err := cmd.Parse[args]("dedicated")
 	require.NoError(t, err)
 	require.Equal(t, DeviceTypeDedicated, got.Type.Value())
+	parsed, err := ParseDeviceType("software")
+	require.NoError(t, err)
+	require.Equal(t, DeviceTypeSoftware, parsed)
+	require.Equal(t, uint32(4), parsed.Uint32())
 	_, err = cmd.Parse[args]("discrete")
 	require.ErrorIs(t, err, cmd.ErrInvalidArgument)
+	_, err = ParseDeviceType("discrete")
+	require.ErrorIs(t, err, ffivulkan.ErrDeviceType)
 }

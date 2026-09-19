@@ -1,6 +1,9 @@
 package vulkan
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // DeviceType is VkPhysicalDeviceType. Values match the spec so a raw
 // properties.deviceType casts. String is the CLI / driver-id token.
@@ -13,6 +16,20 @@ const (
 	DeviceTypeVirtual    DeviceType = 3
 	DeviceTypeSoftware   DeviceType = 4
 )
+
+// Uint32 is the VkPhysicalDeviceType value.
+func (t DeviceType) Uint32() uint32 { return uint32(t) }
+
+// ParseDeviceType maps a String() token such as dedicated or software.
+func ParseDeviceType(name string) (DeviceType, error) {
+	var zero DeviceType
+	for _, v := range zero.Values() {
+		if v.String() == name {
+			return v, nil
+		}
+	}
+	return DeviceTypeOther, fmt.Errorf("%w: %q", ErrDeviceType, name)
+}
 
 func (t DeviceType) String() string {
 	switch t {

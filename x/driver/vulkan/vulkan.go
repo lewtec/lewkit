@@ -26,6 +26,11 @@ const (
 	DeviceTypeSoftware   = ffivulkan.DeviceTypeSoftware
 )
 
+// ParseDeviceType maps a String() token such as dedicated or software.
+func ParseDeviceType(name string) (DeviceType, error) {
+	return ffivulkan.ParseDeviceType(name)
+}
+
 // Device is one compute-capable Vulkan GPU.
 type Device interface {
 	Name() string

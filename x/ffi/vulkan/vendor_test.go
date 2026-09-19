@@ -55,4 +55,18 @@ func TestDeviceTypeString(t *testing.T) {
 	if DeviceTypeSoftware.Weight() != 0 || DeviceTypeDedicated.Weight() != 70 {
 		t.Fatalf("weights software=%d dedicated=%d", DeviceTypeSoftware.Weight(), DeviceTypeDedicated.Weight())
 	}
+	if DeviceTypeDedicated.Uint32() != 2 {
+		t.Fatalf("DeviceTypeDedicated.Uint32() = %d", DeviceTypeDedicated.Uint32())
+	}
+}
+
+func TestParseDeviceType(t *testing.T) {
+	got, err := ParseDeviceType("dedicated")
+	if err != nil || got != DeviceTypeDedicated {
+		t.Fatalf("ParseDeviceType(dedicated) = %v, %v", got, err)
+	}
+	_, err = ParseDeviceType("discrete")
+	if err == nil {
+		t.Fatal("ParseDeviceType(discrete) succeeded")
+	}
 }
