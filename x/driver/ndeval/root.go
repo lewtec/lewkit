@@ -7,8 +7,3 @@ import (
 
 var _ driver.DriverFactory[ndarray.Evaluator] = cpuFactory{}
 var _ driver.DriverFactory[ndarray.Evaluator] = gpuFactory{}
-
-func init() {
-	driver.Register[ndarray.Evaluator](cpuFactory{})
-	driver.Register[ndarray.Evaluator](gpuFactory{})
-}

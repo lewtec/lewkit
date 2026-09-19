@@ -88,7 +88,7 @@ func openIndex(ctx context.Context, index int) (Device, error) {
 		return nil, err
 	}
 	slog.Debug("vulkan open ok", "index", index, "device", native.Name(), "vendor", native.Vendor())
-	return Wrap(native), nil
+	return wrap(native), nil
 }
 
 func offerID(infos []ffivulkan.Info, index int) string {

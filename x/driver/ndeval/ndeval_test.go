@@ -9,7 +9,7 @@ import (
 )
 
 func TestOpen(t *testing.T) {
-	evaluator, err := Open(t.Context())
+	evaluator, err := ndarray.Open(t.Context())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, evaluator)
 	x, err := ndarray.Ones(ndarray.Shape{4})

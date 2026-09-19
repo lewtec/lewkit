@@ -57,8 +57,7 @@ func (d *device) Close() error {
 	return err
 }
 
-// Wrap puts an already-open FFI device behind Device. Close closes it.
-func Wrap(native *ffivulkan.Device) Device {
+func wrap(native *ffivulkan.Device) Device {
 	if native == nil {
 		return nil
 	}

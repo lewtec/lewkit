@@ -3,8 +3,8 @@ package nn
 import (
 	"testing"
 
-	"github.com/lewtec/lewkit/x/driver/ndeval"
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
+	_ "github.com/lewtec/lewkit/x/driver/ndeval"
+	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
@@ -25,14 +25,15 @@ func TestLinear(t *testing.T) {
 	require.Equal(t, want, got)
 	require.Equal(t, ndarray.Shape{2}, y.Shape())
 
-	d, err := vulkan.Open(t.Context())
-	if err != nil {
+	if _, err := vulkan.List(t.Context()); err != nil {
 		t.Skip(err)
 	}
-	test.CloseOnCleanup(t, d)
+	evaluator, err := ndarray.Open(t.Context())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, evaluator)
 	test.CloseOnCleanup(t, y)
 	gpu := make([]float32, y.Size())
-	require.NoError(t, y.Eval(t.Context(), ndeval.New(d), gpu))
+	require.NoError(t, y.Eval(t.Context(), evaluator, gpu))
 	require.Equal(t, want, gpu)
 }
 

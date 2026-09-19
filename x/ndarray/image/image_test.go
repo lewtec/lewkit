@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/driver/ndeval"
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
+	_ "github.com/lewtec/lewkit/x/driver/ndeval"
+	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
@@ -155,16 +155,17 @@ func TestPainterDrawAllocs(t *testing.T) {
 }
 
 func TestTriangleExec(t *testing.T) {
-	d, err := vulkan.Open(t.Context())
-	if err != nil {
+	if _, err := vulkan.List(t.Context()); err != nil {
 		t.Skip(err)
 	}
-	test.CloseOnCleanup(t, d)
+	evaluator, err := ndarray.Open(t.Context())
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, evaluator)
 	expr, err := Triangle(32, 32, nil)
 	require.NoError(t, err)
 	cpu := make([]float32, expr.Size())
 	require.NoError(t, expr.Eval(t.Context(), ndarray.CPU, cpu))
 	gpu := make([]float32, expr.Size())
-	require.NoError(t, expr.Eval(t.Context(), ndeval.New(d), gpu))
+	require.NoError(t, expr.Eval(t.Context(), evaluator, gpu))
 	require.Equal(t, cpu, gpu)
 }

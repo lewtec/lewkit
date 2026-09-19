@@ -14,8 +14,9 @@ import (
 // Slots are assigned at Eval. The graph stays after realize so a loop
 // can Resize and run again.
 type Tensor struct {
-	node   *node
-	kernel *Kernel
+	node        *node
+	kernel      *Kernel
+	rgbaScratch []float32
 }
 
 func wrap(n *node) *Tensor {
@@ -148,25 +149,29 @@ func (t *Tensor) Eval(ctx context.Context, evaluator Evaluator, destination []fl
 
 // EvalRGBA writes packed 0..255 RGBA into destination. Bounds must match Size.
 func (t *Tensor) EvalRGBA(ctx context.Context, evaluator Evaluator, destination *image.RGBA) error {
-	if evaluator == nil {
-		evaluator = CPU
+	if destination == nil {
+		return ErrOp
 	}
 	if err := t.err(); err != nil {
 		return err
 	}
-	if destination == nil {
-		return ErrOp
-	}
 	if err := t.ensure(); err != nil {
 		return err
 	}
-	if destination.Rect.Dx()*destination.Rect.Dy()*4 != t.kernel.size {
-		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), t.kernel.size)
+	size := t.kernel.size
+	if destination.Rect.Dx()*destination.Rect.Dy()*4 != size {
+		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), size)
 	}
-	if p, ok := evaluator.(imageEvaluator); ok {
-		return p.RunRGBA(ctx, t.kernel, destination)
+	if cap(t.rgbaScratch) < size {
+		t.rgbaScratch = make([]float32, size)
+	} else {
+		t.rgbaScratch = t.rgbaScratch[:size]
 	}
-	return ErrOp
+	if err := t.Eval(ctx, evaluator, t.rgbaScratch); err != nil {
+		return err
+	}
+	packRGBA(destination, t.rgbaScratch)
+	return nil
 }
 
 // Resize sets the runtime output shape. Rank must match the compiled graph.

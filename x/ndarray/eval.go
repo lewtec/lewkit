@@ -16,43 +16,21 @@ type Evaluator interface {
 	Close() error
 }
 
-type cpuEvaluator struct {
-	scratch []float32
-}
+type cpuEvaluator struct{}
 
 // CPU is the register-tape evaluator. Always available.
-var CPU Evaluator = &cpuEvaluator{}
+var CPU Evaluator = cpuEvaluator{}
 
-func (c *cpuEvaluator) Run(_ context.Context, kernel *Kernel, output []float32) error {
+func (cpuEvaluator) Run(_ context.Context, kernel *Kernel, output []float32) error {
 	if kernel == nil {
 		return ErrOp
 	}
 	return kernel.EvalInto(output)
 }
 
-func (c *cpuEvaluator) RunRGBA(_ context.Context, kernel *Kernel, destination *image.RGBA) error {
-	if kernel == nil || destination == nil {
-		return ErrOp
-	}
-	size := kernel.size
-	if destination.Rect.Dx()*destination.Rect.Dy()*4 != size {
-		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), size)
-	}
-	if cap(c.scratch) < size {
-		c.scratch = make([]float32, size)
-	} else {
-		c.scratch = c.scratch[:size]
-	}
-	if err := kernel.EvalInto(c.scratch); err != nil {
-		return err
-	}
-	packRGBA(destination, c.scratch)
-	return nil
-}
+func (cpuEvaluator) Close() error { return nil }
 
-func (c *cpuEvaluator) Close() error { return nil }
-
-func (c *cpuEvaluator) Name() string { return "cpu" }
+func (cpuEvaluator) Name() string { return "cpu" }
 
 // Open is the highest-weight compatible evaluator (Vulkan if a GPU
 // driver registered, else CPU). Import
@@ -65,10 +43,6 @@ func Open(ctx context.Context) (Evaluator, error) {
 	}
 	slog.Debug("ndarray open", "evaluator", evaluatorName(evaluator))
 	return evaluator, nil
-}
-
-type imageEvaluator interface {
-	RunRGBA(ctx context.Context, kernel *Kernel, destination *image.RGBA) error
 }
 
 func packRGBA(destination *image.RGBA, source []float32) {

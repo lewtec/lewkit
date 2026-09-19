@@ -3,14 +3,18 @@ package ndeval
 import (
 	"context"
 	"errors"
-	"image"
 	"log/slog"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
+
+func init() {
+	driver.Register[ndarray.Evaluator](gpuFactory{})
+}
 
 type gpuFactory struct{}
 
@@ -38,13 +42,6 @@ type gpuEvaluator struct {
 	sessions map[*ndarray.Kernel]*ndarray.Session
 }
 
-func newGPU(native *ffivulkan.Device, own bool) *gpuEvaluator {
-	if native == nil {
-		return &gpuEvaluator{}
-	}
-	return &gpuEvaluator{device: vulkan.Wrap(native), own: own}
-}
-
 func (g *gpuEvaluator) Name() string {
 	if g == nil || g.device == nil {
 		return "vulkan"
@@ -65,14 +62,6 @@ func (g *gpuEvaluator) Run(ctx context.Context, kernel *ndarray.Kernel, output [
 		return err
 	}
 	return session.Run(ctx, output)
-}
-
-func (g *gpuEvaluator) RunRGBA(ctx context.Context, kernel *ndarray.Kernel, destination *image.RGBA) error {
-	session, err := g.session(ctx, kernel)
-	if err != nil {
-		return err
-	}
-	return session.RunRGBA(ctx, destination)
 }
 
 func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*ndarray.Session, error) {

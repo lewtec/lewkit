@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
 	"log/slog"
 	"unsafe"
 
@@ -62,37 +61,6 @@ func (s *Session) Run(ctx context.Context, output []float32) error {
 		return err
 	}
 	return s.output.Read(floatView(output[:s.kernel.size]))
-}
-
-func (s *Session) RunRGBA(ctx context.Context, destination *image.RGBA) error {
-	if s == nil || s.kernel == nil || s.device == nil {
-		return ErrOp
-	}
-	size := s.kernel.size
-	if destination == nil || destination.Rect.Dx()*destination.Rect.Dy()*4 != size {
-		return fmt.Errorf("%w: image != %d", ErrSize, size)
-	}
-	if err := s.fit(); err != nil {
-		return err
-	}
-	for i, b := range s.kernel.bufs {
-		source := []float32(nil)
-		if b != nil {
-			source = b.data
-		}
-		if err := s.inputs[i].Write(floatView(source)); err != nil {
-			return err
-		}
-	}
-	if err := s.kernel.Run(ctx, s.device, s.output, s.inputs...); err != nil {
-		return err
-	}
-	source := s.output.Floats()
-	if len(source) < size {
-		return ErrOp
-	}
-	packRGBA(destination, source[:size])
-	return nil
 }
 
 func (s *Session) fit() error {
