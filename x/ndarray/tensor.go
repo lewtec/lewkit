@@ -9,16 +9,40 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
 )
 
-// Tensor is a dense row-major array. Zeros and Ones stay lazy until Eval or
-// Exec; Rand and New already hold host data. Exec uses a Vulkan Session.
+// Tensor is the array brick: a lazy node tree plus, for leaves, a host buffer.
+// View ops (Reshape, Permute, …) share the buffer. ALU ops build the tree.
+// Slots are assigned at Eval/Exec. The graph stays after realize so a loop
+// can Resize and run again.
 type Tensor struct {
-	tracker Tracker
-	dtype   DType
-	data    []float32
-	expr    *Node
-	leaves  []*Tensor
-	err     error
+	node    *node
+	out     []float32
+	kernel  *Kernel
+	session *Session
+	device  *vulkan.Device
 }
+
+func wrap(n *node) *Tensor {
+	if n == nil {
+		return &Tensor{node: failed(ErrOp)}
+	}
+	return &Tensor{node: n}
+}
+
+func (t *Tensor) err() error {
+	if t == nil || t.node == nil {
+		return ErrOp
+	}
+	return t.node.err
+}
+
+// Const is a float32 splat. It broadcasts against a shaped tensor.
+func Const(v float32) *Tensor { return wrap(splat(v)) }
+
+// ConstInt is an int32 splat.
+func ConstInt(v int32) *Tensor { return wrap(splatInt(v)) }
+
+// Coord is the logical index on axis, as int32.
+func Coord(axis int, shape Shape) *Tensor { return wrap(coord(axis, shape)) }
 
 // New is a tensor that owns a copy of data. len(data) must equal the shape size.
 func New(data []float32, shape Shape) (*Tensor, error) {
@@ -26,30 +50,26 @@ func New(data []float32, shape Shape) (*Tensor, error) {
 	if err != nil {
 		return nil, err
 	}
-	n := tracker.Size()
-	if len(data) != n {
-		return nil, fmt.Errorf("%w: got %d want %d", ErrSize, len(data), n)
+	if len(data) != tracker.Size() {
+		return nil, fmt.Errorf("%w: got %d want %d", ErrSize, len(data), tracker.Size())
 	}
-	return &Tensor{tracker: tracker, dtype: F32, data: slices.Clone(data)}, nil
+	buf := &buffer{data: slices.Clone(data), dtype: F32}
+	return wrap(input(buf, tracker, F32)), nil
 }
 
 // Zeros is a float32 tensor filled with 0.
-func Zeros(shape Shape) (*Tensor, error) {
-	return Full(0, shape)
-}
+func Zeros(shape Shape) (*Tensor, error) { return Full(0, shape) }
 
 // Ones is a float32 tensor filled with 1.
-func Ones(shape Shape) (*Tensor, error) {
-	return Full(1, shape)
-}
+func Ones(shape Shape) (*Tensor, error) { return Full(1, shape) }
 
-// Full is a float32 tensor filled with v.
+// Full is a shaped float32 const (no buffer).
 func Full(v float32, shape Shape) (*Tensor, error) {
 	tracker, err := Of(shape)
 	if err != nil {
 		return nil, err
 	}
-	return &Tensor{tracker: tracker, dtype: F32, expr: filled(v, tracker)}, nil
+	return wrap(filled(v, tracker)), nil
 }
 
 // Rand is a float32 tensor of uniform values in [0, 1).
@@ -62,50 +82,72 @@ func Rand(shape Shape) (*Tensor, error) {
 	for i := range data {
 		data[i] = rand.Float32()
 	}
-	return &Tensor{tracker: tracker, dtype: F32, data: data}, nil
+	buf := &buffer{data: data, dtype: F32}
+	return wrap(input(buf, tracker, F32)), nil
 }
 
-// Shape is the logical shape.
+// Shape is the logical shape, or nil for a splat.
 func (t *Tensor) Shape() Shape {
-	if t == nil {
+	if t == nil || t.node == nil {
 		return nil
 	}
-	return t.tracker.Shape()
+	return t.node.Shape()
 }
 
-// Size is the number of cells.
+// Size is the number of logical cells.
 func (t *Tensor) Size() int {
 	if t == nil {
 		return 0
 	}
-	return t.tracker.Size()
+	s := t.Shape()
+	if s == nil {
+		return 0
+	}
+	return s.Size()
 }
 
 // DType is the element type.
 func (t *Tensor) DType() DType {
-	if t == nil {
+	if t == nil || t.node == nil {
 		return 0
 	}
-	return t.dtype
+	return t.node.dtype
 }
 
-// Tracker is the address map for this tensor's buffer.
+// Tracker is the address map.
 func (t *Tensor) Tracker() Tracker {
-	if t == nil {
+	if t == nil || t.node == nil {
 		return Tracker{}
 	}
-	return t.tracker
+	return t.node.tracker
 }
 
-// Data evaluates on CPU if needed and returns the host buffer.
+// Buffer is the host storage for a leaf. Views of the same leaf share it.
+func (t *Tensor) Buffer() []float32 {
+	if t == nil || t.node == nil || t.node.buf == nil {
+		return nil
+	}
+	return t.node.buf.data
+}
+
+// Data evaluates on CPU if needed and returns the dense host result.
 func (t *Tensor) Data() ([]float32, error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	if t.out != nil {
+		return t.out, nil
+	}
 	if err := t.Eval(); err != nil {
 		return nil, err
 	}
-	return t.data, nil
+	if t.out != nil {
+		return t.out, nil
+	}
+	return t.Buffer(), nil
 }
 
-// Eval realizes the tensor on the CPU tape.
+// Eval realizes the tensor on the CPU tape. The graph is kept.
 func (t *Tensor) Eval() error {
 	return t.realize(nil, nil)
 }
@@ -118,213 +160,231 @@ func (t *Tensor) Exec(ctx context.Context, device *vulkan.Device) error {
 	return t.realize(ctx, device)
 }
 
-func (t *Tensor) realize(ctx context.Context, device *vulkan.Device) error {
-	if t == nil {
-		return ErrOp
-	}
-	if t.err != nil {
-		return t.err
-	}
-	if t.expr == nil {
-		if t.data == nil {
-			return ErrOp
-		}
-		return nil
-	}
-	inputs := make([][]float32, len(t.leaves))
-	for i, leaf := range t.leaves {
-		if err := leaf.realize(ctx, device); err != nil {
-			return err
-		}
-		inputs[i] = leaf.data
-	}
-	kernel, err := Compile(t.expr)
-	if err != nil {
+// Resize sets the runtime output shape. Rank must match the compiled graph.
+func (t *Tensor) Resize(shape Shape) error {
+	if err := t.err(); err != nil {
 		return err
 	}
-	defer kernel.Close()
-	if device == nil {
-		t.data, err = kernel.Eval(inputs...)
-	} else {
-		var session *Session
-		session, err = kernel.Attach(ctx, device)
+	if t.kernel == nil {
+		k, err := compile(t.node)
 		if err != nil {
 			return err
 		}
-		defer session.Close()
-		out := make([]float32, kernel.size)
-		err = session.Run(ctx, out, inputs)
-		if err == nil {
-			t.data = out
-		}
+		t.kernel = k
 	}
-	if err != nil {
-		return err
-	}
-	t.expr = nil
-	t.leaves = nil
-	return nil
+	return t.kernel.Resize(shape)
 }
 
-func (t *Tensor) Add(o *Tensor) *Tensor   { return t.binaryOp(Add, o) }
-func (t *Tensor) Mul(o *Tensor) *Tensor   { return t.binaryOp(Mul, o) }
-func (t *Tensor) IDiv(o *Tensor) *Tensor  { return t.binaryOp(IDiv, o) }
-func (t *Tensor) Max(o *Tensor) *Tensor   { return t.binaryOp(Max, o) }
-func (t *Tensor) Mod(o *Tensor) *Tensor   { return t.binaryOp(Mod, o) }
-func (t *Tensor) CmpLt(o *Tensor) *Tensor { return t.binaryOp(CmpLt, o) }
-func (t *Tensor) CmpNe(o *Tensor) *Tensor { return t.binaryOp(CmpNe, o) }
-func (t *Tensor) Xor(o *Tensor) *Tensor   { return t.binaryOp(Xor, o) }
-func (t *Tensor) Shl(o *Tensor) *Tensor   { return t.binaryOp(Shl, o) }
-func (t *Tensor) Shr(o *Tensor) *Tensor   { return t.binaryOp(Shr, o) }
-func (t *Tensor) Or(o *Tensor) *Tensor    { return t.binaryOp(Or, o) }
-func (t *Tensor) And(o *Tensor) *Tensor   { return t.binaryOp(And, o) }
-func (t *Tensor) Exp2() *Tensor           { return t.unary(Exp2) }
-func (t *Tensor) Log2() *Tensor           { return t.unary(Log2) }
-func (t *Tensor) Sin() *Tensor            { return t.unary(Sin) }
-func (t *Tensor) Sqrt() *Tensor           { return t.unary(Sqrt) }
-func (t *Tensor) Recip() *Tensor          { return t.unary(Recip) }
-func (t *Tensor) Neg() *Tensor            { return t.unary(Neg) }
-func (t *Tensor) Cast(dtype DType) *Tensor {
-	return t.unary(func(n *Node) *Node { return Cast(n, dtype) })
-}
-func (t *Tensor) Where(a, b *Tensor) *Tensor  { return t.ternaryOp(Where, a, b) }
-func (t *Tensor) MulAcc(b, c *Tensor) *Tensor { return t.ternaryOp(MulAcc, b, c) }
-
-func (t *Tensor) binaryOp(op func(a, b *Node) *Node, o *Tensor) *Tensor {
-	if t == nil || o == nil {
-		return &Tensor{err: ErrOp}
-	}
-	if t.err != nil {
-		return t
-	}
-	if o.err != nil {
-		return o
-	}
-	leaves := mergeInputs(t.inputs(), o.inputs())
-	slots := slotMap(leaves)
-	return fromNode(op(t.asNode(slots), o.asNode(slots)), leaves)
-}
-
-func (t *Tensor) unary(op func(*Node) *Node) *Tensor {
-	if t == nil {
-		return &Tensor{err: ErrOp}
-	}
-	if t.err != nil {
-		return t
-	}
-	leaves := t.inputs()
-	return fromNode(op(t.asNode(slotMap(leaves))), leaves)
-}
-
-func (t *Tensor) ternaryOp(op func(a, b, c *Node) *Node, b, c *Tensor) *Tensor {
-	if t == nil || b == nil || c == nil {
-		return &Tensor{err: ErrOp}
-	}
-	if t.err != nil {
-		return t
-	}
-	if b.err != nil {
-		return b
-	}
-	if c.err != nil {
-		return c
-	}
-	leaves := mergeInputs(t.inputs(), mergeInputs(b.inputs(), c.inputs()))
-	slots := slotMap(leaves)
-	return fromNode(op(t.asNode(slots), b.asNode(slots), c.asNode(slots)), leaves)
-}
-
-func (t *Tensor) inputs() []*Tensor {
+// Close drops a cached kernel and session. Leaf buffers stay.
+func (t *Tensor) Close() error {
 	if t == nil {
 		return nil
 	}
-	if t.expr != nil {
-		return t.leaves
+	var err error
+	if t.session != nil {
+		err = t.session.Close()
+		t.session = nil
 	}
-	return []*Tensor{t}
-}
-
-func (t *Tensor) asNode(slots map[*Tensor]int) *Node {
-	if t.expr == nil {
-		return InTyped(slots[t], t.tracker, t.dtype)
-	}
-	if len(t.leaves) == 0 {
-		return t.expr
-	}
-	return rebind(t.expr, t.leaves, slots)
-}
-
-func fromNode(n *Node, leaves []*Tensor) *Tensor {
-	if n == nil {
-		return &Tensor{err: ErrOp}
-	}
-	if n.err != nil {
-		return &Tensor{err: n.err}
-	}
-	tracker, err := Of(n.Shape())
-	if err != nil {
-		return &Tensor{err: err}
-	}
-	return &Tensor{tracker: tracker, dtype: n.dtype, expr: n, leaves: leaves}
-}
-
-func mergeInputs(a, b []*Tensor) []*Tensor {
-	if len(b) == 0 {
-		return a
-	}
-	if len(a) == 0 {
-		return b
-	}
-	out := slices.Clone(a)
-	seen := make(map[*Tensor]bool, len(a)+len(b))
-	for _, t := range a {
-		seen[t] = true
-	}
-	for _, t := range b {
-		if seen[t] {
-			continue
+	if t.kernel != nil {
+		if e := t.kernel.Close(); err == nil {
+			err = e
 		}
-		seen[t] = true
-		out = append(out, t)
+		t.kernel = nil
 	}
-	return out
+	t.device = nil
+	return err
 }
 
-func slotMap(leaves []*Tensor) map[*Tensor]int {
-	m := make(map[*Tensor]int, len(leaves))
-	for i, t := range leaves {
-		m[t] = i
+func (t *Tensor) realize(ctx context.Context, device *vulkan.Device) error {
+	if err := t.err(); err != nil {
+		return err
 	}
-	return m
+	if t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() {
+		t.out = t.node.buf.data
+		return nil
+	}
+	if err := t.ensure(ctx, device); err != nil {
+		return err
+	}
+	inputs := make([][]float32, len(t.kernel.bufs))
+	for i, b := range t.kernel.bufs {
+		if b == nil {
+			return ErrOp
+		}
+		inputs[i] = b.data
+	}
+	if device == nil {
+		out, err := t.kernel.Eval(inputs...)
+		if err != nil {
+			return err
+		}
+		t.out = out
+		return nil
+	}
+	if cap(t.out) < t.kernel.size {
+		t.out = make([]float32, t.kernel.size)
+	} else {
+		t.out = t.out[:t.kernel.size]
+	}
+	return t.session.Run(ctx, t.out, inputs)
 }
 
-func rebind(n *Node, leaves []*Tensor, slots map[*Tensor]int) *Node {
-	memo := make(map[*Node]*Node)
-	var walk func(*Node) *Node
-	walk = func(n *Node) *Node {
-		if n == nil {
+func (t *Tensor) ensure(ctx context.Context, device *vulkan.Device) error {
+	if t.kernel != nil && t.device == device {
+		if device != nil && t.session != nil {
 			return nil
 		}
-		if c, ok := memo[n]; ok {
-			return c
+		if device == nil {
+			return nil
 		}
-		cp := *n
-		memo[n] = &cp
-		if n.kind == kindInput {
-			if n.slot < 0 || n.slot >= len(leaves) {
-				fail := failed(ErrOp)
-				memo[n] = fail
-				return fail
-			}
-			cp.slot = slots[leaves[n.slot]]
-		}
-		if len(n.sources) > 0 {
-			cp.sources = make([]*Node, len(n.sources))
-			for i, s := range n.sources {
-				cp.sources[i] = walk(s)
-			}
-		}
-		return &cp
 	}
-	return walk(n)
+	if t.kernel != nil && t.device != device {
+		if err := t.Close(); err != nil {
+			return err
+		}
+	}
+	if t.kernel == nil {
+		k, err := compile(t.node)
+		if err != nil {
+			return err
+		}
+		t.kernel = k
+	}
+	t.device = device
+	if device == nil {
+		return nil
+	}
+	if t.session != nil {
+		return nil
+	}
+	sess, err := t.kernel.Attach(ctx, device)
+	if err != nil {
+		return err
+	}
+	t.session = sess
+	return nil
+}
+
+func (t *Tensor) withTracker(tr Tracker) *Tensor {
+	n := *t.node
+	n.tracker = tr
+	return &Tensor{node: &n}
+}
+
+func (t *Tensor) view(tr Tracker, err error) (*Tensor, error) {
+	if e := t.err(); e != nil {
+		return nil, e
+	}
+	if err != nil {
+		return nil, err
+	}
+	if t.node.kind != kindInput && t.node.kind != kindConst {
+		return nil, ErrOp
+	}
+	return t.withTracker(tr), nil
+}
+
+// Reshape changes the logical shape. Product must match. One -1 is inferred.
+func (t *Tensor) Reshape(shape Shape) (*Tensor, error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	return t.view(t.node.tracker.Reshape(shape))
+}
+
+// Permute reorders axes.
+func (t *Tensor) Permute(axes ...int) (*Tensor, error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	return t.view(t.node.tracker.Permute(axes...))
+}
+
+// Expand broadcasts size-1 axes.
+func (t *Tensor) Expand(shape Shape) (*Tensor, error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	return t.view(t.node.tracker.Expand(shape))
+}
+
+// Pad adds zeros around the logical tensor.
+func (t *Tensor) Pad(arg [][2]int) (*Tensor, error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	return t.view(t.node.tracker.Pad(arg))
+}
+
+// Shrink crops to the given half-open ranges.
+func (t *Tensor) Shrink(arg [][2]int) (*Tensor, error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	return t.view(t.node.tracker.Shrink(arg))
+}
+
+// Flip reverses the given axes.
+func (t *Tensor) Flip(axes ...int) (*Tensor, error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	return t.view(t.node.tracker.Flip(axes...))
+}
+
+func (t *Tensor) Add(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Add(b) }, o) }
+func (t *Tensor) Mul(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Mul(b) }, o) }
+func (t *Tensor) IDiv(o *Tensor) *Tensor {
+	return t.bin(func(a, b *node) *node { return a.IDiv(b) }, o)
+}
+func (t *Tensor) Max(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Max(b) }, o) }
+func (t *Tensor) Mod(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Mod(b) }, o) }
+func (t *Tensor) CmpLt(o *Tensor) *Tensor {
+	return t.bin(func(a, b *node) *node { return a.CmpLt(b) }, o)
+}
+func (t *Tensor) CmpNe(o *Tensor) *Tensor {
+	return t.bin(func(a, b *node) *node { return a.CmpNe(b) }, o)
+}
+func (t *Tensor) Xor(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Xor(b) }, o) }
+func (t *Tensor) Shl(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Shl(b) }, o) }
+func (t *Tensor) Shr(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Shr(b) }, o) }
+func (t *Tensor) Or(o *Tensor) *Tensor  { return t.bin(func(a, b *node) *node { return a.Or(b) }, o) }
+func (t *Tensor) And(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.And(b) }, o) }
+func (t *Tensor) Div(o *Tensor) *Tensor { return t.bin(func(a, b *node) *node { return a.Div(b) }, o) }
+func (t *Tensor) Equal(o *Tensor) *Tensor {
+	return t.bin(func(a, b *node) *node { return a.Equal(b) }, o)
+}
+func (t *Tensor) GreaterEqual(o *Tensor) *Tensor {
+	return t.bin(func(a, b *node) *node { return a.GreaterEqual(b) }, o)
+}
+func (t *Tensor) Exp2() *Tensor  { return wrap(t.node.Exp2()) }
+func (t *Tensor) Log2() *Tensor  { return wrap(t.node.Log2()) }
+func (t *Tensor) Sin() *Tensor   { return wrap(t.node.Sin()) }
+func (t *Tensor) Sqrt() *Tensor  { return wrap(t.node.Sqrt()) }
+func (t *Tensor) Recip() *Tensor { return wrap(t.node.Recip()) }
+func (t *Tensor) Neg() *Tensor   { return wrap(t.node.Neg()) }
+func (t *Tensor) Cast(dtype DType) *Tensor {
+	if t == nil {
+		return wrap(failed(ErrOp))
+	}
+	return wrap(t.node.Cast(dtype))
+}
+func (t *Tensor) Where(a, b *Tensor) *Tensor {
+	if t == nil || a == nil || b == nil {
+		return wrap(failed(ErrOp))
+	}
+	return wrap(t.node.Where(a.node, b.node))
+}
+func (t *Tensor) MulAcc(b, c *Tensor) *Tensor {
+	if t == nil || b == nil || c == nil {
+		return wrap(failed(ErrOp))
+	}
+	return wrap(t.node.MulAcc(b.node, c.node))
+}
+
+func (t *Tensor) bin(op func(a, b *node) *node, o *Tensor) *Tensor {
+	if t == nil || o == nil {
+		return wrap(failed(ErrOp))
+	}
+	return wrap(op(t.node, o.node))
 }

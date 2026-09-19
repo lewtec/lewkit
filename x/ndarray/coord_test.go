@@ -8,17 +8,15 @@ import (
 )
 
 func TestCoordEval(t *testing.T) {
-	k, err := Compile(Coord(1, Shape{2, 3}).Cast(F32))
-	require.NoError(t, err)
-	got, err := k.Eval()
-	require.NoError(t, err)
-	require.Equal(t, []float32{0, 1, 2, 0, 1, 2}, got)
+	require.Equal(t, []float32{0, 1, 2, 0, 1, 2}, mustEval(t, Coord(1, Shape{2, 3}).Cast(F32)))
 }
 
 func TestEvalInto(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{8})).Add(Const(1)))
+	a, err := New([]float32{1, 2, 3, 4, 5, 6, 7, 8}, Shape{8})
 	require.NoError(t, err)
-	src := []float32{1, 2, 3, 4, 5, 6, 7, 8}
+	k, err := compile(a.Add(Const(1)).node)
+	require.NoError(t, err)
+	src := a.Buffer()
 	dst := make([]float32, 8)
 	in := [][]float32{src}
 	require.NoError(t, k.EvalInto(dst, in))
@@ -33,9 +31,7 @@ func TestEvalInto(t *testing.T) {
 }
 
 func TestGreaterEqual(t *testing.T) {
-	k, err := Compile(GreaterEqual(In(0, mustTracker(t, Shape{3})), Const(0)).Cast(F32))
+	a, err := New([]float32{-1, 0, 2}, Shape{3})
 	require.NoError(t, err)
-	got, err := k.Eval([]float32{-1, 0, 2})
-	require.NoError(t, err)
-	require.Equal(t, []float32{0, 1, 1}, got)
+	require.Equal(t, []float32{0, 1, 1}, mustEval(t, a.GreaterEqual(Const(0)).Cast(F32)))
 }

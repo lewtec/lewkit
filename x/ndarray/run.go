@@ -35,8 +35,8 @@ func (k *Kernel) Run(ctx context.Context, device *vulkan.Device, output *vulkan.
 	if k == nil || device == nil {
 		return ErrOp
 	}
-	if len(inputs) != len(k.slots) {
-		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
+	if len(inputs) != len(k.bufs) {
+		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.bufs), len(inputs))
 	}
 	if k.size == 0 {
 		return nil
@@ -128,8 +128,8 @@ func (k *Kernel) Exec(ctx context.Context, device *vulkan.Device, inputs ...[]fl
 	if k == nil {
 		return nil, ErrOp
 	}
-	if len(inputs) != len(k.slots) {
-		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
+	if len(inputs) != len(k.bufs) {
+		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.bufs), len(inputs))
 	}
 	if k.size == 0 {
 		return nil, nil

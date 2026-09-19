@@ -29,9 +29,17 @@ func vmSizeKB(t *testing.T) int64 {
 	return 0
 }
 
-func TestSessionRunLoop(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{8})).Add(Const(1)))
+func compileAdd1(t *testing.T, n int) (*Kernel, *Tensor) {
+	t.Helper()
+	a, err := New(make([]float32, n), Shape{n})
 	require.NoError(t, err)
+	k, err := compile(a.Add(Const(1)).node)
+	require.NoError(t, err)
+	return k, a
+}
+
+func TestSessionRunLoop(t *testing.T) {
+	k, a := compileAdd1(t, 8)
 	test.CloseOnCleanup(t, k)
 	d, err := vulkan.Open(t.Context())
 	if err != nil {
@@ -41,7 +49,8 @@ func TestSessionRunLoop(t *testing.T) {
 	s, err := k.Attach(t.Context(), d)
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, s)
-	src := []float32{1, 2, 3, 4, 5, 6, 7, 8}
+	copy(a.Buffer(), []float32{1, 2, 3, 4, 5, 6, 7, 8})
+	src := a.Buffer()
 	dst := make([]float32, 8)
 	in := [][]float32{src}
 	for range 20 {
@@ -51,10 +60,9 @@ func TestSessionRunLoop(t *testing.T) {
 }
 
 func TestSessionVirtStable(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{4096})).Add(Const(1)))
-	require.NoError(t, err)
+	k, a := compileAdd1(t, 4096)
 	test.CloseOnCleanup(t, k)
-	src := make([]float32, 4096)
+	src := a.Buffer()
 	dst := make([]float32, 4096)
 	in := [][]float32{src}
 
@@ -78,9 +86,8 @@ func TestSessionVirtStable(t *testing.T) {
 }
 
 func TestEvalIntoVirtStable(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{4096})).Add(Const(1)))
-	require.NoError(t, err)
-	src := make([]float32, 4096)
+	k, a := compileAdd1(t, 4096)
+	src := a.Buffer()
 	dst := make([]float32, 4096)
 	in := [][]float32{src}
 	require.NoError(t, k.EvalInto(dst, in))
@@ -95,11 +102,13 @@ func TestEvalIntoVirtStable(t *testing.T) {
 }
 
 func TestSessionCPU(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{4})).Mul(Const(2)))
+	a, err := New([]float32{1, 2, 3, 4}, Shape{4})
+	require.NoError(t, err)
+	k, err := compile(a.Mul(Const(2)).node)
 	require.NoError(t, err)
 	s, err := k.Attach(t.Context(), nil)
 	require.NoError(t, err)
 	dst := make([]float32, 4)
-	require.NoError(t, s.Run(t.Context(), dst, [][]float32{{1, 2, 3, 4}}))
+	require.NoError(t, s.Run(t.Context(), dst, [][]float32{a.Buffer()}))
 	require.Equal(t, []float32{2, 4, 6, 8}, dst)
 }

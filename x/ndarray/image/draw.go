@@ -15,21 +15,21 @@ const (
 )
 
 // Fill is a constant RGBA picture of size h×w.
-func Fill(h, w int, r, g, b, a float32) (*ndarray.Node, error) {
+func Fill(h, w int, r, g, b, a float32) (*ndarray.Tensor, error) {
 	if h < 1 || w < 1 {
 		return nil, ndarray.ErrShape
 	}
 	channel := ndarray.Coord(2, ndarray.Shape{h, w, 4})
-	v := ndarray.Equal(channel, ndarray.ConstInt(0)).Where(ndarray.Const(r),
-		ndarray.Equal(channel, ndarray.ConstInt(1)).Where(ndarray.Const(g),
-			ndarray.Equal(channel, ndarray.ConstInt(2)).Where(ndarray.Const(b), ndarray.Const(a))))
+	v := channel.Equal(ndarray.ConstInt(0)).Where(ndarray.Const(r),
+		channel.Equal(ndarray.ConstInt(1)).Where(ndarray.Const(g),
+			channel.Equal(ndarray.ConstInt(2)).Where(ndarray.Const(b), ndarray.Const(a))))
 	if v.Shape() == nil {
 		return nil, ndarray.ErrOp
 	}
 	return v, nil
 }
 
-func requireFloatSplat(n *ndarray.Node, name string) error {
+func requireFloatSplat(n *ndarray.Tensor, name string) error {
 	if n == nil || n.DType() != ndarray.F32 {
 		return ndarray.ErrType
 	}
@@ -39,13 +39,13 @@ func requireFloatSplat(n *ndarray.Node, name string) error {
 	return nil
 }
 
-func minFloat(a, b *ndarray.Node) *ndarray.Node {
-	return ndarray.CmpLt(a, b).Where(a, b)
+func minFloat(a, b *ndarray.Tensor) *ndarray.Tensor {
+	return a.CmpLt(b).Where(a, b)
 }
 
 // Triangle is the RGB vulkan-tutorial triangle. turn is revolutions (nil is 0).
 // Output shape is (h, w, 4).
-func Triangle(h, w int, turn *ndarray.Node) (*ndarray.Node, error) {
+func Triangle(h, w int, turn *ndarray.Tensor) (*ndarray.Tensor, error) {
 	if h < 1 || w < 1 {
 		return nil, ndarray.ErrShape
 	}
@@ -56,12 +56,12 @@ func Triangle(h, w int, turn *ndarray.Node) (*ndarray.Node, error) {
 }
 
 // TriangleDynamic is Triangle with runtime width/height splats. Coord rank is (1,1,4);
-// the caller sets the real (h,w,4) with Kernel.Resize before Eval/Run.
-func TriangleDynamic(turn, width, height *ndarray.Node) (*ndarray.Node, error) {
+// the caller sets the real (h,w,4) with Tensor.Resize before Eval/Exec.
+func TriangleDynamic(turn, width, height *ndarray.Tensor) (*ndarray.Tensor, error) {
 	return triangle(turn, width, height, ndarray.Shape{1, 1, 4})
 }
 
-func triangle(turn, width, height *ndarray.Node, shape ndarray.Shape) (*ndarray.Node, error) {
+func triangle(turn, width, height *ndarray.Tensor, shape ndarray.Shape) (*ndarray.Tensor, error) {
 	if err := requireFloatSplat(turn, "turn"); err != nil {
 		return nil, err
 	}
@@ -84,21 +84,15 @@ func triangle(turn, width, height *ndarray.Node, shape ndarray.Shape) (*ndarray.
 	bx, by := fr.rotate(triBX, triBY)
 	cx, cy := fr.rotate(triCX, triCY)
 	den := by.Add(cy.Neg()).Mul(ax.Add(cx.Neg())).Add(cx.Add(bx.Neg()).Mul(ay.Add(cy.Neg())))
-	u := ndarray.Div(
-		by.Add(cy.Neg()).Mul(px.Add(cx.Neg())).Add(cx.Add(bx.Neg()).Mul(py.Add(cy.Neg()))),
-		den,
-	)
-	v := ndarray.Div(
-		cy.Add(ay.Neg()).Mul(px.Add(cx.Neg())).Add(ax.Add(cx.Neg()).Mul(py.Add(cy.Neg()))),
-		den,
-	)
+	u := by.Add(cy.Neg()).Mul(px.Add(cx.Neg())).Add(cx.Add(bx.Neg()).Mul(py.Add(cy.Neg()))).Div(den)
+	v := cy.Add(ay.Neg()).Mul(px.Add(cx.Neg())).Add(ax.Add(cx.Neg()).Mul(py.Add(cy.Neg()))).Div(den)
 	weight := ndarray.Const(1).Add(u.Neg()).Add(v.Neg())
-	inside := ndarray.GreaterEqual(u, ndarray.Const(0)).And(ndarray.GreaterEqual(v, ndarray.Const(0))).And(ndarray.GreaterEqual(weight, ndarray.Const(0)))
+	inside := u.GreaterEqual(ndarray.Const(0)).And(v.GreaterEqual(ndarray.Const(0))).And(weight.GreaterEqual(ndarray.Const(0)))
 	channel := ndarray.Coord(2, shape)
-	rgb := ndarray.Equal(channel, ndarray.ConstInt(0)).Where(u.Mul(ndarray.Const(255)),
-		ndarray.Equal(channel, ndarray.ConstInt(1)).Where(v.Mul(ndarray.Const(255)),
-			ndarray.Equal(channel, ndarray.ConstInt(2)).Where(weight.Mul(ndarray.Const(255)), ndarray.Const(255))))
-	out := inside.Where(rgb, ndarray.Equal(channel, ndarray.ConstInt(3)).Where(ndarray.Const(255), ndarray.Const(0)))
+	rgb := channel.Equal(ndarray.ConstInt(0)).Where(u.Mul(ndarray.Const(255)),
+		channel.Equal(ndarray.ConstInt(1)).Where(v.Mul(ndarray.Const(255)),
+			channel.Equal(ndarray.ConstInt(2)).Where(weight.Mul(ndarray.Const(255)), ndarray.Const(255))))
+	out := inside.Where(rgb, channel.Equal(ndarray.ConstInt(3)).Where(ndarray.Const(255), ndarray.Const(0)))
 	if out.Shape() == nil {
 		return nil, ndarray.ErrOp
 	}
@@ -106,10 +100,10 @@ func triangle(turn, width, height *ndarray.Node, shape ndarray.Shape) (*ndarray.
 }
 
 type frame struct {
-	sine, cosine, scale, originX, originY *ndarray.Node
+	sine, cosine, scale, originX, originY *ndarray.Tensor
 }
 
-func (f frame) rotate(x, y float32) (px, py *ndarray.Node) {
+func (f frame) rotate(x, y float32) (px, py *ndarray.Tensor) {
 	px = ndarray.Const(x).Mul(f.cosine).Add(ndarray.Const(y).Mul(f.sine).Neg()).Mul(f.scale).Add(f.originX)
 	py = ndarray.Const(x).Mul(f.sine).Add(ndarray.Const(y).Mul(f.cosine)).Mul(f.scale).Add(f.originY)
 	return px, py

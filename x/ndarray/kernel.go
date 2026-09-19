@@ -3,7 +3,6 @@ package ndarray
 import (
 	"fmt"
 	"math"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -17,10 +16,10 @@ const (
 
 // Kernel is one fused compute shader for a whole expression.
 type Kernel struct {
-	root           *Node
+	root           *node
 	glsl           string
 	shape          Shape
-	slots          []int
+	bufs           []*buffer
 	outType        DType
 	size           int
 	spirv          []byte
@@ -30,8 +29,7 @@ type Kernel struct {
 	runBuffers     []*vulkan.Buffer
 }
 
-// Compile lowers expr to one GLSL compute kernel. One dispatch covers every cell.
-func Compile(expr *Node) (*Kernel, error) {
+func compile(expr *node) (*Kernel, error) {
 	if expr == nil {
 		return nil, ErrOp
 	}
@@ -46,27 +44,27 @@ func Compile(expr *Node) (*Kernel, error) {
 	if size < 0 {
 		return nil, ErrShape
 	}
-	order, slots, err := flatten(expr)
+	order, bufs, err := flatten(expr)
 	if err != nil {
 		return nil, err
 	}
 	w := &glslWriter{
 		root:     expr,
 		order:    order,
-		slots:    slots,
+		bufs:     bufs,
 		outShape: shape,
-		slotBind: make(map[int]int, len(slots)),
-		names:    make(map[*Node]string, len(order)),
+		bufBind:  make(map[*buffer]int, len(bufs)),
+		names:    make(map[*node]string, len(order)),
 	}
 	src, err := w.program()
 	if err != nil {
 		return nil, err
 	}
-	cpu, err := lowerCPU(order, slots, shape)
+	cpu, err := lowerCPU(order, bufs, shape)
 	if err != nil {
 		return nil, err
 	}
-	return &Kernel{root: expr, glsl: src, shape: shape.Clone(), slots: slots, outType: expr.dtype, size: size, cpu: cpu}, nil
+	return &Kernel{root: expr, glsl: src, shape: shape.Clone(), bufs: bufs, outType: expr.dtype, size: size, cpu: cpu}, nil
 }
 
 // Resize sets the runtime output shape. Rank must match Compile.
@@ -103,23 +101,16 @@ func (k *Kernel) Bindings() int {
 	if k == nil {
 		return 0
 	}
-	return 1 + len(k.slots)
+	return 1 + len(k.bufs)
 }
 
-// Slots is the input slot for each source buffer after the output binding.
-func (k *Kernel) Slots() []int {
-	if k == nil {
-		return nil
-	}
-	return slices.Clone(k.slots)
-}
-
-func flatten(root *Node) ([]*Node, []int, error) {
-	seen := map[*Node]bool{}
-	var order []*Node
-	slotSet := map[int]bool{}
-	var walk func(*Node) error
-	walk = func(n *Node) error {
+func flatten(root *node) ([]*node, []*buffer, error) {
+	seen := map[*node]bool{}
+	var order []*node
+	var bufs []*buffer
+	idx := map[*buffer]int{}
+	var walk func(*node) error
+	walk = func(n *node) error {
 		if n == nil {
 			return ErrOp
 		}
@@ -137,10 +128,13 @@ func flatten(root *Node) ([]*Node, []int, error) {
 				return ErrOp
 			}
 		case kindInput:
-			if n.slot < 0 {
+			if n.buf == nil {
 				return ErrOp
 			}
-			slotSet[n.slot] = true
+			if _, ok := idx[n.buf]; !ok {
+				idx[n.buf] = len(bufs)
+				bufs = append(bufs, n.buf)
+			}
 		case kindOp:
 			if n.op.arity() != len(n.sources) {
 				return fmt.Errorf("%w: %s", ErrOp, n.op)
@@ -159,12 +153,7 @@ func flatten(root *Node) ([]*Node, []int, error) {
 	if err := walk(root); err != nil {
 		return nil, nil, err
 	}
-	slots := make([]int, 0, len(slotSet))
-	for s := range slotSet {
-		slots = append(slots, s)
-	}
-	slices.Sort(slots)
-	return order, slots, nil
+	return order, bufs, nil
 }
 
 type glslWriter struct {
@@ -172,16 +161,16 @@ type glslWriter struct {
 	next     int
 	coords   []string
 	outShape Shape
-	slotBind map[int]int
-	names    map[*Node]string
-	root     *Node
-	order    []*Node
-	slots    []int
+	bufBind  map[*buffer]int
+	names    map[*node]string
+	root     *node
+	order    []*node
+	bufs     []*buffer
 }
 
 func (w *glslWriter) program() (string, error) {
-	for i, s := range w.slots {
-		w.slotBind[s] = i + 1
+	for i, b := range w.bufs {
+		w.bufBind[b] = i + 1
 	}
 	w.b.WriteString("#version 450\n")
 	w.b.WriteString("layout(local_size_x = ")
@@ -189,13 +178,10 @@ func (w *glslWriter) program() (string, error) {
 	w.b.WriteString(") in;\n")
 	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
 	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dtype.glsl())
-	for i, s := range w.slots {
+	for i, b := range w.bufs {
 		dtype := F32
-		for _, n := range w.order {
-			if n.kind == kindInput && n.slot == s {
-				dtype = n.dtype
-				break
-			}
+		if b != nil {
+			dtype = b.dtype
 		}
 		fmt.Fprintf(&w.b, "layout(set = 0, binding = %d) buffer In%d { %s x%d[]; };\n", i+1, i+1, dtype.glsl(), i+1)
 	}
@@ -220,7 +206,7 @@ func (w *glslWriter) name(prefix string) string {
 	return prefix + strconv.Itoa(w.next)
 }
 
-func (w *glslWriter) node(n *Node) (string, error) {
+func (w *glslWriter) node(n *node) (string, error) {
 	id := w.name("t")
 	switch n.kind {
 	case kindConst:
@@ -242,7 +228,7 @@ func (w *glslWriter) node(n *Node) (string, error) {
 			zero = "0"
 		}
 		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, zero)
-		fmt.Fprintf(&w.b, "    if (%s) %s = x%d[%s];\n", valid, id, w.slotBind[n.slot], off)
+		fmt.Fprintf(&w.b, "    if (%s) %s = x%d[%s];\n", valid, id, w.bufBind[n.buf], off)
 		return id, nil
 	case kindOp:
 		args := make([]string, len(n.sources))
@@ -336,7 +322,7 @@ func (w *glslWriter) unravel(shape Shape, idx string) []string {
 	return coords
 }
 
-func glslConst(n *Node) string {
+func glslConst(n *node) string {
 	if n.dtype == I32 {
 		return strconv.FormatInt(int64(int32(n.bits)), 10)
 	}
@@ -347,7 +333,7 @@ func glslConst(n *Node) string {
 	return s
 }
 
-func (n *Node) glslALU(args []string) string {
+func (n *node) glslALU(args []string) string {
 	switch n.op {
 	case EXP2:
 		return "exp2(" + args[0] + ")"

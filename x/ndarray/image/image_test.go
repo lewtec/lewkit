@@ -16,14 +16,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func raster(t *testing.T, expr *ndarray.Node) *stdimage.RGBA {
+func raster(t *testing.T, expr *ndarray.Tensor) *stdimage.RGBA {
 	t.Helper()
-	k, err := ndarray.Compile(expr)
+	pixels, err := expr.Data()
 	require.NoError(t, err)
-	require.Equal(t, 1, strings.Count(k.GLSL(), "void main()"))
-	pixels, err := k.Eval()
-	require.NoError(t, err)
-	shape := k.Shape()
+	shape := expr.Shape()
 	return RGBA(shape[0], shape[1], pixels)
 }
 
@@ -58,15 +55,11 @@ func TestTriangleTurnHalf(t *testing.T) {
 }
 
 func TestTriangleTurnInput(t *testing.T) {
-	tracker, err := ndarray.Of(nil)
+	turn, err := ndarray.New([]float32{0.5}, nil)
 	require.NoError(t, err)
-	expr, err := Triangle(32, 32, ndarray.In(0, tracker))
+	expr, err := Triangle(32, 32, turn)
 	require.NoError(t, err)
-	k, err := ndarray.Compile(expr)
-	require.NoError(t, err)
-	pix := make([]float32, 32*32*4)
-	require.NoError(t, k.EvalInto(pix, [][]float32{{0.5}}))
-	dst := RGBA(32, 32, pix)
+	dst := raster(t, expr)
 	bot := dst.RGBAAt(16, 24)
 	assert.Greater(t, int(bot.R), 180, "half turn bottom=%v", bot)
 }
@@ -148,12 +141,11 @@ func TestTriangleExec(t *testing.T) {
 	test.CloseOnCleanup(t, d)
 	expr, err := Triangle(32, 32, nil)
 	require.NoError(t, err)
-	k, err := ndarray.Compile(expr)
+	cpu, err := expr.Data()
 	require.NoError(t, err)
-	test.CloseOnCleanup(t, k)
-	cpu, err := k.Eval()
-	require.NoError(t, err)
-	gpu, err := k.Exec(t.Context(), d)
+	cpu = append([]float32(nil), cpu...)
+	require.NoError(t, expr.Exec(t.Context(), d))
+	gpu, err := expr.Data()
 	require.NoError(t, err)
 	require.Equal(t, cpu, gpu)
 }

@@ -15,76 +15,80 @@ func mustTracker(t *testing.T, shape Shape) Tracker {
 	return tracker
 }
 
+func mustEval(t *testing.T, x *Tensor) []float32 {
+	t.Helper()
+	got, err := x.Data()
+	require.NoError(t, err)
+	return got
+}
+
 func TestCompileOneMain(t *testing.T) {
-	a := In(0, mustTracker(t, Shape{2, 3}))
-	b := In(1, mustTracker(t, Shape{2, 3}))
-	k, err := Compile(a.Add(b).Mul(Const(2)).Max(Const(0)))
+	a, err := New([]float32{1, 2, 3, 4, 5, 6}, Shape{2, 3})
+	require.NoError(t, err)
+	b, err := New([]float32{1, 1, 1, 1, 1, 1}, Shape{2, 3})
+	require.NoError(t, err)
+	k, err := compile(a.Add(b).Mul(Const(2)).Max(Const(0)).node)
 	require.NoError(t, err)
 	src := k.GLSL()
 	require.Equal(t, 1, strings.Count(src, "void main()"))
 	require.Equal(t, 1, strings.Count(src, "gl_GlobalInvocationID"))
 	require.Equal(t, Shape{2, 3}, k.Shape())
 	require.Equal(t, 3, k.Bindings())
-	require.Equal(t, []int{0, 1}, k.Slots())
 }
 
 func TestEvalAdd(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{3})).Add(In(1, mustTracker(t, Shape{3}))))
+	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
-	got, err := k.Eval([]float32{1, 2, 3}, []float32{4, 5, 6})
+	b, err := New([]float32{4, 5, 6}, Shape{3})
 	require.NoError(t, err)
-	require.Equal(t, []float32{5, 7, 9}, got)
+	require.Equal(t, []float32{5, 7, 9}, mustEval(t, a.Add(b)))
 }
 
 func TestEvalPermuteAdd(t *testing.T) {
-	perm, err := mustTracker(t, Shape{2, 3}).Permute(1, 0)
+	a, err := New([]float32{1, 2, 3, 4, 5, 6}, Shape{3, 2})
 	require.NoError(t, err)
-	// A is (3,2) row-major. B is stored as (2,3) and viewed as (3,2) via permute.
-	k, err := Compile(In(0, mustTracker(t, Shape{3, 2})).Add(In(1, perm)))
+	raw, err := New([]float32{10, 20, 30, 40, 50, 60}, Shape{2, 3})
 	require.NoError(t, err)
-	a := []float32{1, 2, 3, 4, 5, 6}       // (3,2)
-	b := []float32{10, 20, 30, 40, 50, 60} // (2,3) [10 20 30 / 40 50 60]
-	// perm (1,0) of (2,3) reads as (3,2): 10 40 / 20 50 / 30 60
-	got, err := k.Eval(a, b)
+	b, err := raw.Permute(1, 0)
 	require.NoError(t, err)
-	require.Equal(t, []float32{11, 42, 23, 54, 35, 66}, got)
+	require.Equal(t, []float32{11, 42, 23, 54, 35, 66}, mustEval(t, a.Add(b)))
 }
 
 func TestEvalPad(t *testing.T) {
-	padded, err := mustTracker(t, Shape{2}).Pad([][2]int{{1, 1}})
+	a, err := New([]float32{4, 5}, Shape{2})
 	require.NoError(t, err)
-	k, err := Compile(In(0, padded).Add(Const(1)))
+	padded, err := a.Pad([][2]int{{1, 1}})
 	require.NoError(t, err)
-	got, err := k.Eval([]float32{4, 5})
-	require.NoError(t, err)
-	require.Equal(t, []float32{1, 5, 6, 1}, got)
+	require.Equal(t, []float32{1, 5, 6, 1}, mustEval(t, padded.Add(Const(1))))
 }
 
 func TestEvalRelu(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{4})).Max(Const(0)))
+	a, err := New([]float32{-2, 0, 3, -0.5}, Shape{4})
 	require.NoError(t, err)
-	got, err := k.Eval([]float32{-2, 0, 3, -0.5})
-	require.NoError(t, err)
-	require.Equal(t, []float32{0, 0, 3, 0}, got)
+	require.Equal(t, []float32{0, 0, 3, 0}, mustEval(t, a.Max(Const(0))))
 }
 
 func TestEvalWhere(t *testing.T) {
-	p := In(0, mustTracker(t, Shape{3})).CmpLt(Const(0))
-	k, err := Compile(p.Where(Const(0), In(0, mustTracker(t, Shape{3}))))
+	a, err := New([]float32{-1, 2, -3}, Shape{3})
 	require.NoError(t, err)
-	got, err := k.Eval([]float32{-1, 2, -3})
-	require.NoError(t, err)
+	got := mustEval(t, a.CmpLt(Const(0)).Where(Const(0), a))
 	require.Equal(t, []float32{0, 2, 0}, got)
 }
 
 func TestCompileShapeMismatch(t *testing.T) {
-	n := In(0, mustTracker(t, Shape{2})).Add(In(1, mustTracker(t, Shape{3})))
-	_, err := Compile(n)
-	require.ErrorIs(t, err, ErrShape)
+	a, err := New([]float32{1, 2}, Shape{2})
+	require.NoError(t, err)
+	b, err := New([]float32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	require.ErrorIs(t, a.Add(b).Eval(), ErrShape)
 }
 
 func TestCompileGLSL(t *testing.T) {
-	k, err := Compile(In(0, mustTracker(t, Shape{2, 2})).Add(In(1, mustTracker(t, Shape{2, 2}))).Mul(Const(0.5)))
+	a, err := New([]float32{1, 2, 3, 4}, Shape{2, 2})
+	require.NoError(t, err)
+	b, err := New([]float32{1, 1, 1, 1}, Shape{2, 2})
+	require.NoError(t, err)
+	k, err := compile(a.Add(b).Mul(Const(0.5)).node)
 	require.NoError(t, err)
 	spirv, err := k.SPIRV(t.Context())
 	require.NoError(t, err)

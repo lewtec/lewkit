@@ -9,8 +9,8 @@ func (k *Kernel) Eval(inputs ...[]float32) ([]float32, error) {
 	if k == nil || k.cpu.registers == 0 {
 		return nil, ErrOp
 	}
-	if len(inputs) != len(k.slots) {
-		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
+	if len(inputs) != len(k.bufs) {
+		return nil, fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.bufs), len(inputs))
 	}
 	if k.size == 0 {
 		return nil, nil
@@ -27,8 +27,8 @@ func (k *Kernel) EvalInto(output []float32, inputs [][]float32) error {
 	if k == nil || k.cpu.registers == 0 {
 		return ErrOp
 	}
-	if len(inputs) != len(k.slots) {
-		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.slots), len(inputs))
+	if len(inputs) != len(k.bufs) {
+		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(k.bufs), len(inputs))
 	}
 	if len(output) < k.size {
 		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), k.size)

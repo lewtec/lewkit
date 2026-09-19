@@ -35,12 +35,12 @@ type cpuProgram struct {
 	root      int
 }
 
-func lowerCPU(order []*Node, slots []int, shape Shape) (cpuProgram, error) {
-	slotIndex := make(map[int]int, len(slots))
-	for i, s := range slots {
-		slotIndex[s] = i
+func lowerCPU(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
+	bufIndex := make(map[*buffer]int, len(bufs))
+	for i, b := range bufs {
+		bufIndex[b] = i
 	}
-	reg := make(map[*Node]int, len(order))
+	reg := make(map[*node]int, len(order))
 	code := make([]instruction, 0, len(order))
 	for _, n := range order {
 		dest := len(code)
@@ -58,7 +58,7 @@ func lowerCPU(order []*Node, slots []int, shape Shape) (cpuProgram, error) {
 			instr.axis = n.slot
 		case kindInput:
 			instr.kind = cpuLoad
-			instr.source = slotIndex[n.slot]
+			instr.source = bufIndex[n.buf]
 			instr.i32 = n.dtype == I32
 			instr.scalar = len(n.tracker.Shape()) == 0
 			instr.dense = !instr.scalar && n.tracker.Contiguous() && n.tracker.Shape().Equal(shape)

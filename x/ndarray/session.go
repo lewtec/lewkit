@@ -23,7 +23,7 @@ func (k *Kernel) Attach(ctx context.Context, device *vulkan.Device) (*Session, e
 	if k == nil {
 		return nil, ErrOp
 	}
-	s := &Session{kernel: k, device: device, inputs: make([]*vulkan.Buffer, len(k.slots))}
+	s := &Session{kernel: k, device: device, inputs: make([]*vulkan.Buffer, len(k.bufs))}
 	if device == nil {
 		return s, nil
 	}
@@ -44,8 +44,8 @@ func (s *Session) Run(ctx context.Context, output []float32, inputs [][]float32)
 	if len(output) < s.kernel.size {
 		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), s.kernel.size)
 	}
-	if len(inputs) != len(s.kernel.slots) {
-		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(s.kernel.slots), len(inputs))
+	if len(inputs) != len(s.kernel.bufs) {
+		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(s.kernel.bufs), len(inputs))
 	}
 	if err := s.fit(output, inputs); err != nil {
 		return err

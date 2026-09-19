@@ -14,52 +14,50 @@ const (
 	kindOp
 )
 
-// Node is one vertex of a fused kernel: a const, an input view, or an ALU op.
-type Node struct {
+// node is one vertex of a fused kernel: a const, a buffer view, or an ALU op.
+// kindInput nodes share a *buffer; slots are assigned at compile.
+type node struct {
 	kind    kind
 	op      Op
 	dtype   DType
-	sources []*Node
+	sources []*node
 	tracker Tracker
-	slot    int
+	buf     *buffer
+	slot    int // Coord axis
 	bits    uint32
 	err     error
 }
 
-func failed(err error) *Node { return &Node{err: err} }
-
-// In is a float32 input buffer at slot, addressed by tracker.
-func In(slot int, tracker Tracker) *Node {
-	return InTyped(slot, tracker, F32)
+type buffer struct {
+	data  []float32
+	dtype DType
 }
 
-// InTyped is an input buffer at slot with the given element type.
-func InTyped(slot int, tracker Tracker, dtype DType) *Node {
-	if slot < 0 || tracker.check() != nil || (dtype != F32 && dtype != I32) {
+func failed(err error) *node { return &node{err: err} }
+
+func input(buf *buffer, tracker Tracker, dtype DType) *node {
+	if buf == nil || tracker.check() != nil || (dtype != F32 && dtype != I32) {
 		return failed(ErrOp)
 	}
-	return &Node{kind: kindInput, dtype: dtype, tracker: tracker, slot: slot}
+	return &node{kind: kindInput, dtype: dtype, tracker: tracker, buf: buf}
 }
 
-// Const is a float32 splat.
-func Const(v float32) *Node {
-	return &Node{kind: kindConst, dtype: F32, bits: math.Float32bits(v)}
+func splat(v float32) *node {
+	return &node{kind: kindConst, dtype: F32, bits: math.Float32bits(v)}
 }
 
-func filled(v float32, tracker Tracker) *Node {
+func splatInt(v int32) *node {
+	return &node{kind: kindConst, dtype: I32, bits: uint32(v)}
+}
+
+func filled(v float32, tracker Tracker) *node {
 	if err := tracker.check(); err != nil {
 		return failed(err)
 	}
-	return &Node{kind: kindConst, dtype: F32, bits: math.Float32bits(v), tracker: tracker}
+	return &node{kind: kindConst, dtype: F32, bits: math.Float32bits(v), tracker: tracker}
 }
 
-// ConstInt is an int32 splat.
-func ConstInt(v int32) *Node {
-	return &Node{kind: kindConst, dtype: I32, bits: uint32(v)}
-}
-
-// Coord is the logical index on axis, as int32. shape is the tensor it indexes.
-func Coord(axis int, shape Shape) *Node {
+func coord(axis int, shape Shape) *node {
 	tracker, err := Of(shape)
 	if err != nil {
 		return failed(err)
@@ -67,20 +65,11 @@ func Coord(axis int, shape Shape) *Node {
 	if axis < 0 || axis >= shape.Rank() {
 		return failed(ErrAxis)
 	}
-	return &Node{kind: kindCoord, dtype: I32, tracker: tracker, slot: axis}
+	return &node{kind: kindCoord, dtype: I32, tracker: tracker, slot: axis}
 }
 
-// Div is a * (1/b).
-func Div(a, b *Node) *Node { return Mul(a, Recip(b)) }
-
-// Equal is 1 if a == b, else 0.
-func Equal(a, b *Node) *Node { return CmpNe(CmpNe(a, b), ConstInt(1)) }
-
-// GreaterEqual is 1 if a >= b, else 0.
-func GreaterEqual(a, b *Node) *Node { return CmpNe(CmpLt(a, b), ConstInt(1)) }
-
 // Shape is the logical shape, or nil for a splat.
-func (n *Node) Shape() Shape {
+func (n *node) Shape() Shape {
 	if n == nil || n.err != nil {
 		return nil
 	}
@@ -111,91 +100,43 @@ func (n *Node) Shape() Shape {
 }
 
 // DType is the result type.
-func (n *Node) DType() DType {
+func (n *node) DType() DType {
 	if n == nil {
 		return 0
 	}
 	return n.dtype
 }
 
-func (n *Node) Add(b *Node) *Node       { return Add(n, b) }
-func (n *Node) Mul(b *Node) *Node       { return Mul(n, b) }
-func (n *Node) IDiv(b *Node) *Node      { return IDiv(n, b) }
-func (n *Node) Max(b *Node) *Node       { return Max(n, b) }
-func (n *Node) Mod(b *Node) *Node       { return Mod(n, b) }
-func (n *Node) CmpLt(b *Node) *Node     { return CmpLt(n, b) }
-func (n *Node) CmpNe(b *Node) *Node     { return CmpNe(n, b) }
-func (n *Node) Xor(b *Node) *Node       { return Xor(n, b) }
-func (n *Node) Shl(b *Node) *Node       { return Shl(n, b) }
-func (n *Node) Shr(b *Node) *Node       { return Shr(n, b) }
-func (n *Node) Or(b *Node) *Node        { return Or(n, b) }
-func (n *Node) And(b *Node) *Node       { return And(n, b) }
-func (n *Node) Exp2() *Node             { return Exp2(n) }
-func (n *Node) Log2() *Node             { return Log2(n) }
-func (n *Node) Sin() *Node              { return Sin(n) }
-func (n *Node) Sqrt() *Node             { return Sqrt(n) }
-func (n *Node) Recip() *Node            { return Recip(n) }
-func (n *Node) Neg() *Node              { return Neg(n) }
-func (n *Node) Cast(dtype DType) *Node  { return Cast(n, dtype) }
-func (n *Node) Where(a, b *Node) *Node  { return Where(n, a, b) }
-func (n *Node) MulAcc(b, c *Node) *Node { return MulAcc(n, b, c) }
+func (n *node) Add(b *node) *node   { return binaryOp(ADD, n, b) }
+func (n *node) Mul(b *node) *node   { return binaryOp(MUL, n, b) }
+func (n *node) IDiv(b *node) *node  { return binaryOp(IDIV, n, b) }
+func (n *node) Max(b *node) *node   { return binaryOp(MAX, n, b) }
+func (n *node) Mod(b *node) *node   { return binaryOp(MOD, n, b) }
+func (n *node) CmpLt(b *node) *node { return binaryOp(CMPLT, n, b) }
+func (n *node) CmpNe(b *node) *node { return binaryOp(CMPNE, n, b) }
+func (n *node) Xor(b *node) *node   { return binaryOp(XOR, n, b) }
+func (n *node) Shl(b *node) *node   { return binaryOp(SHL, n, b) }
+func (n *node) Shr(b *node) *node   { return binaryOp(SHR, n, b) }
+func (n *node) Or(b *node) *node    { return binaryOp(OR, n, b) }
+func (n *node) And(b *node) *node   { return binaryOp(AND, n, b) }
+func (n *node) Exp2() *node         { return unary(EXP2, n) }
+func (n *node) Log2() *node         { return unary(LOG2, n) }
+func (n *node) Sin() *node          { return unary(SIN, n) }
+func (n *node) Sqrt() *node         { return unary(SQRT, n) }
+func (n *node) Recip() *node        { return unary(RECIP, n) }
+func (n *node) Neg() *node          { return unary(NEG, n) }
+func (n *node) Div(b *node) *node   { return n.Mul(b.Recip()) }
+func (n *node) Equal(b *node) *node {
+	return n.CmpNe(b).CmpNe(splatInt(1))
+}
+func (n *node) GreaterEqual(b *node) *node {
+	return n.CmpLt(b).CmpNe(splatInt(1))
+}
+func (n *node) Cast(dtype DType) *node  { return castNode(n, dtype) }
+func (n *node) Where(a, b *node) *node  { return whereNode(n, a, b) }
+func (n *node) MulAcc(b, c *node) *node { return mulAccNode(n, b, c) }
 
-// Add is a + b.
-func Add(a, b *Node) *Node { return binaryOp(ADD, a, b) }
-
-// Mul is a * b.
-func Mul(a, b *Node) *Node { return binaryOp(MUL, a, b) }
-
-// IDiv is integer a / b.
-func IDiv(a, b *Node) *Node { return binaryOp(IDIV, a, b) }
-
-// Max is max(a, b).
-func Max(a, b *Node) *Node { return binaryOp(MAX, a, b) }
-
-// Mod is integer a % b.
-func Mod(a, b *Node) *Node { return binaryOp(MOD, a, b) }
-
-// CmpLt is 1 if a < b, else 0.
-func CmpLt(a, b *Node) *Node { return binaryOp(CMPLT, a, b) }
-
-// CmpNe is 1 if a != b, else 0.
-func CmpNe(a, b *Node) *Node { return binaryOp(CMPNE, a, b) }
-
-// Xor is a ^ b.
-func Xor(a, b *Node) *Node { return binaryOp(XOR, a, b) }
-
-// Shl is a << b.
-func Shl(a, b *Node) *Node { return binaryOp(SHL, a, b) }
-
-// Shr is a >> b.
-func Shr(a, b *Node) *Node { return binaryOp(SHR, a, b) }
-
-// Or is a | b.
-func Or(a, b *Node) *Node { return binaryOp(OR, a, b) }
-
-// And is a & b.
-func And(a, b *Node) *Node { return binaryOp(AND, a, b) }
-
-// Exp2 is 2^a.
-func Exp2(a *Node) *Node { return unary(EXP2, a) }
-
-// Log2 is log2(a).
-func Log2(a *Node) *Node { return unary(LOG2, a) }
-
-// Sin is sin(a).
-func Sin(a *Node) *Node { return unary(SIN, a) }
-
-// Sqrt is sqrt(a).
-func Sqrt(a *Node) *Node { return unary(SQRT, a) }
-
-// Recip is 1/a.
-func Recip(a *Node) *Node { return unary(RECIP, a) }
-
-// Neg is -a.
-func Neg(a *Node) *Node { return unary(NEG, a) }
-
-// Cast converts a to dtype.
-func Cast(a *Node, dtype DType) *Node {
+func castNode(a *node, dtype DType) *node {
 	n := unary(CAST, a)
 	if n.err != nil {
 		return n
@@ -208,7 +149,7 @@ func Cast(a *Node, dtype DType) *Node {
 }
 
 // Where is a if p != 0 else b. Call as Where(p, a, b) or p.Where(a, b).
-func Where(p, a, b *Node) *Node {
+func whereNode(p, a, b *node) *node {
 	if p == nil || a == nil || b == nil {
 		return failed(ErrOp)
 	}
@@ -227,11 +168,11 @@ func Where(p, a, b *Node) *Node {
 	if err := sameShape(p, a, b); err != nil {
 		return failed(err)
 	}
-	return &Node{kind: kindOp, op: WHERE, dtype: a.dtype, sources: []*Node{p, a, b}}
+	return &node{kind: kindOp, op: WHERE, dtype: a.dtype, sources: []*node{p, a, b}}
 }
 
 // MulAcc is a*b + c.
-func MulAcc(a, b, c *Node) *Node {
+func mulAccNode(a, b, c *node) *node {
 	if a == nil || b == nil || c == nil {
 		return failed(ErrOp)
 	}
@@ -250,10 +191,10 @@ func MulAcc(a, b, c *Node) *Node {
 	if err := sameShape(a, b, c); err != nil {
 		return failed(err)
 	}
-	return &Node{kind: kindOp, op: MULACC, dtype: a.dtype, sources: []*Node{a, b, c}}
+	return &node{kind: kindOp, op: MULACC, dtype: a.dtype, sources: []*node{a, b, c}}
 }
 
-func unary(op Op, a *Node) *Node {
+func unary(op Op, a *node) *node {
 	if a == nil {
 		return failed(ErrOp)
 	}
@@ -264,10 +205,10 @@ func unary(op Op, a *Node) *Node {
 	if err != nil {
 		return failed(err)
 	}
-	return &Node{kind: kindOp, op: op, dtype: dtype, sources: []*Node{a}}
+	return &node{kind: kindOp, op: op, dtype: dtype, sources: []*node{a}}
 }
 
-func binaryOp(op Op, a, b *Node) *Node {
+func binaryOp(op Op, a, b *node) *node {
 	if a == nil || b == nil {
 		return failed(ErrOp)
 	}
@@ -284,7 +225,7 @@ func binaryOp(op Op, a, b *Node) *Node {
 	if err := sameShape(a, b); err != nil {
 		return failed(err)
 	}
-	return &Node{kind: kindOp, op: op, dtype: dtype, sources: []*Node{a, b}}
+	return &node{kind: kindOp, op: op, dtype: dtype, sources: []*node{a, b}}
 }
 
 func unaryType(op Op, a DType) (DType, error) {
@@ -329,7 +270,7 @@ func binaryType(op Op, a, b DType) (DType, error) {
 	}
 }
 
-func sameShape(ns ...*Node) error {
+func sameShape(ns ...*node) error {
 	var shape Shape
 	for _, n := range ns {
 		s := n.Shape()
