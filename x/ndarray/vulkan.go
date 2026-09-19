@@ -3,6 +3,7 @@ package ndarray
 import (
 	"context"
 	"errors"
+	"image"
 	"log/slog"
 	"sync"
 
@@ -109,6 +110,38 @@ func (v *Vulkan) Run(ctx context.Context, k *Kernel, output []float32) error {
 		}
 	}
 	return s.Run(ctx, output)
+}
+
+func (v *Vulkan) RunRGBA(ctx context.Context, k *Kernel, dst *image.RGBA) error {
+	if v == nil || v.Device == nil || k == nil {
+		return ErrOp
+	}
+	v.mu.Lock()
+	if v.sessions == nil {
+		v.sessions = make(map[*Kernel]*Session)
+	}
+	s := v.sessions[k]
+	v.mu.Unlock()
+	if s == nil {
+		var err error
+		s, err = k.Attach(ctx, v.Device)
+		if err != nil {
+			return err
+		}
+		v.mu.Lock()
+		if existing := v.sessions[k]; existing != nil {
+			v.mu.Unlock()
+			if err := s.Close(); err != nil {
+				return err
+			}
+			s = existing
+		} else {
+			v.sessions[k] = s
+			v.mu.Unlock()
+			slog.Debug("vulkan session", "device", v.Device.Name())
+		}
+	}
+	return s.RunRGBA(ctx, dst)
 }
 
 func (v *Vulkan) Close() error {

@@ -19,11 +19,10 @@ import (
 
 func raster(t *testing.T, expr *ndarray.Tensor) *stdimage.RGBA {
 	t.Helper()
-	require.NoError(t, expr.Eval(t.Context(), ndarray.CPU))
-	pixels, err := expr.Data()
-	require.NoError(t, err)
-	shape := expr.Shape()
-	return RGBA(shape[0], shape[1], pixels)
+	sh := expr.Shape()
+	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, sh[1], sh[0]))
+	require.NoError(t, expr.EvalRGBA(t.Context(), ndarray.CPU, dst))
+	return dst
 }
 
 func TestTriangleColors(t *testing.T) {
@@ -162,12 +161,9 @@ func TestTriangleExec(t *testing.T) {
 	test.CloseOnCleanup(t, d)
 	expr, err := Triangle(32, 32, nil)
 	require.NoError(t, err)
-	require.NoError(t, expr.Eval(t.Context(), ndarray.CPU))
-	cpu, err := expr.Data()
-	require.NoError(t, err)
-	cpu = append([]float32(nil), cpu...)
-	require.NoError(t, expr.Eval(t.Context(), &ndarray.Vulkan{Device: d}))
-	gpu, err := expr.Data()
-	require.NoError(t, err)
+	cpu := make([]float32, expr.Size())
+	require.NoError(t, expr.Eval(t.Context(), ndarray.CPU, cpu))
+	gpu := make([]float32, expr.Size())
+	require.NoError(t, expr.Eval(t.Context(), &ndarray.Vulkan{Device: d}, gpu))
 	require.Equal(t, cpu, gpu)
 }

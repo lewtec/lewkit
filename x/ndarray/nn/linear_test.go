@@ -19,9 +19,8 @@ func TestLinear(t *testing.T) {
 	y, err := Linear(w, x, b)
 	require.NoError(t, err)
 	want := []float32{240, 520}
-	require.NoError(t, y.Eval(t.Context(), ndarray.CPU))
-	got, err := y.Data()
-	require.NoError(t, err)
+	got := make([]float32, y.Size())
+	require.NoError(t, y.Eval(t.Context(), ndarray.CPU, got))
 	require.Equal(t, want, got)
 	require.Equal(t, ndarray.Shape{2}, y.Shape())
 
@@ -31,9 +30,8 @@ func TestLinear(t *testing.T) {
 	}
 	test.CloseOnCleanup(t, d)
 	test.CloseOnCleanup(t, y)
-	require.NoError(t, y.Eval(t.Context(), &ndarray.Vulkan{Device: d}))
-	gpu, err := y.Data()
-	require.NoError(t, err)
+	gpu := make([]float32, y.Size())
+	require.NoError(t, y.Eval(t.Context(), &ndarray.Vulkan{Device: d}, gpu))
 	require.Equal(t, want, gpu)
 }
 

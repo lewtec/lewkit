@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
@@ -44,7 +45,7 @@ func (s *Session) Run(ctx context.Context, output []float32) error {
 	if len(output) < s.kernel.size {
 		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), s.kernel.size)
 	}
-	if err := s.fit(output); err != nil {
+	if err := s.fit(); err != nil {
 		return err
 	}
 	for i, b := range s.kernel.bufs {
@@ -62,8 +63,39 @@ func (s *Session) Run(ctx context.Context, output []float32) error {
 	return s.output.Read(floatView(output[:s.kernel.size]))
 }
 
-func (s *Session) fit(output []float32) error {
-	if err := s.grow(&s.output, max(len(output), 1)*4); err != nil {
+func (s *Session) RunRGBA(ctx context.Context, dst *image.RGBA) error {
+	if s == nil || s.kernel == nil || s.device == nil {
+		return ErrOp
+	}
+	n := s.kernel.size
+	if dst == nil || dst.Rect.Dx()*dst.Rect.Dy()*4 != n {
+		return fmt.Errorf("%w: image != %d", ErrSize, n)
+	}
+	if err := s.fit(); err != nil {
+		return err
+	}
+	for i, b := range s.kernel.bufs {
+		src := []float32(nil)
+		if b != nil {
+			src = b.data
+		}
+		if err := s.inputs[i].Write(floatView(src)); err != nil {
+			return err
+		}
+	}
+	if err := s.kernel.Run(ctx, s.device, s.output, s.inputs...); err != nil {
+		return err
+	}
+	src := s.output.Floats()
+	if len(src) < n {
+		return ErrOp
+	}
+	packRGBA(dst, src[:n])
+	return nil
+}
+
+func (s *Session) fit() error {
+	if err := s.grow(&s.output, max(s.kernel.size, 1)*4); err != nil {
 		return err
 	}
 	for i, b := range s.kernel.bufs {

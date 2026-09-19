@@ -13,26 +13,17 @@ func TestZerosOnes(t *testing.T) {
 	z, err := Zeros(Shape{2, 3})
 	require.NoError(t, err)
 	require.Equal(t, Shape{2, 3}, z.Shape())
-	require.NoError(t, z.Eval(t.Context(), CPU))
-	got, err := z.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{0, 0, 0, 0, 0, 0}, got)
+	require.Equal(t, []float32{0, 0, 0, 0, 0, 0}, mustEval(t, z))
 
 	o, err := Ones(Shape{4})
 	require.NoError(t, err)
-	require.NoError(t, o.Eval(t.Context(), CPU))
-	got, err = o.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{1, 1, 1, 1}, got)
+	require.Equal(t, []float32{1, 1, 1, 1}, mustEval(t, o))
 }
 
 func TestFull(t *testing.T) {
 	x, err := Full(3, Shape{2, 2})
 	require.NoError(t, err)
-	require.NoError(t, x.Eval(t.Context(), CPU))
-	got, err := x.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{3, 3, 3, 3}, got)
+	require.Equal(t, []float32{3, 3, 3, 3}, mustEval(t, x))
 }
 
 func TestRand(t *testing.T) {
@@ -67,21 +58,13 @@ func TestTensorAdd(t *testing.T) {
 	require.NoError(t, err)
 	b, err := Ones(Shape{3})
 	require.NoError(t, err)
-	sum := a.Add(b)
-	require.NoError(t, sum.Eval(t.Context(), CPU))
-	got, err := sum.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{2, 3, 4}, got)
+	require.Equal(t, []float32{2, 3, 4}, mustEval(t, a.Add(b)))
 }
 
 func TestTensorAddSame(t *testing.T) {
 	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
-	sum := a.Add(a)
-	require.NoError(t, sum.Eval(t.Context(), CPU))
-	got, err := sum.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{2, 4, 6}, got)
+	require.Equal(t, []float32{2, 4, 6}, mustEval(t, a.Add(a)))
 }
 
 func TestTensorAddConst(t *testing.T) {
@@ -89,11 +72,7 @@ func TestTensorAddConst(t *testing.T) {
 	require.NoError(t, err)
 	b, err := Full(2, Shape{3})
 	require.NoError(t, err)
-	sum := a.Add(b)
-	require.NoError(t, sum.Eval(t.Context(), CPU))
-	got, err := sum.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{3, 3, 3}, got)
+	require.Equal(t, []float32{3, 3, 3}, mustEval(t, a.Add(b)))
 }
 
 func TestTensorShapeMismatch(t *testing.T) {
@@ -101,7 +80,7 @@ func TestTensorShapeMismatch(t *testing.T) {
 	require.NoError(t, err)
 	b, err := Ones(Shape{3})
 	require.NoError(t, err)
-	require.ErrorIs(t, a.Add(b).Eval(t.Context(), CPU), ErrShape)
+	require.ErrorIs(t, a.Add(b).Eval(t.Context(), CPU, nil), ErrShape)
 }
 
 func TestTensorExec(t *testing.T) {
@@ -117,10 +96,9 @@ func TestTensorExec(t *testing.T) {
 	zero, err := Full(0, Shape{4})
 	require.NoError(t, err)
 	out := a.Add(b).Max(zero)
-	require.NoError(t, out.Eval(t.Context(), &Vulkan{Device: d}))
-	got, err := out.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{0, 3, 0, 5}, got)
+	dst := make([]float32, out.Size())
+	require.NoError(t, out.Eval(t.Context(), &Vulkan{Device: d}, dst))
+	require.Equal(t, []float32{0, 3, 0, 5}, dst)
 }
 
 func TestTensorExecOnes(t *testing.T) {
@@ -131,16 +109,15 @@ func TestTensorExecOnes(t *testing.T) {
 	test.CloseOnCleanup(t, d)
 	x, err := Ones(Shape{8})
 	require.NoError(t, err)
-	require.NoError(t, x.Eval(t.Context(), &Vulkan{Device: d}))
-	got, err := x.Data()
-	require.NoError(t, err)
-	require.Equal(t, []float32{1, 1, 1, 1, 1, 1, 1, 1}, got)
+	dst := make([]float32, x.Size())
+	require.NoError(t, x.Eval(t.Context(), &Vulkan{Device: d}, dst))
+	require.Equal(t, []float32{1, 1, 1, 1, 1, 1, 1, 1}, dst)
 }
 
 func TestTensorExecNilDevice(t *testing.T) {
 	x, err := Ones(Shape{2})
 	require.NoError(t, err)
-	require.ErrorIs(t, x.Eval(t.Context(), &Vulkan{}), ErrOp)
+	require.ErrorIs(t, x.Eval(t.Context(), &Vulkan{}, make([]float32, 2)), ErrOp)
 }
 
 func TestTensorEvalAllocs(t *testing.T) {
@@ -149,10 +126,11 @@ func TestTensorEvalAllocs(t *testing.T) {
 	b, err := Ones(Shape{4})
 	require.NoError(t, err)
 	out := a.Add(b)
-	require.NoError(t, out.Eval(t.Context(), CPU))
+	dst := make([]float32, out.Size())
+	require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	defer debug.SetGCPercent(debug.SetGCPercent(-1))
 	n := testing.AllocsPerRun(50, func() {
-		if err := out.Eval(t.Context(), CPU); err != nil {
+		if err := out.Eval(t.Context(), CPU, dst); err != nil {
 			panic(err)
 		}
 	})

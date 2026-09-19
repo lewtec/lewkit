@@ -3,6 +3,7 @@ package ndarray
 import (
 	"context"
 	"fmt"
+	"image"
 	"log/slog"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -15,19 +16,41 @@ type Evaluator interface {
 	Close() error
 }
 
-type cpu struct{}
+type cpuEval struct {
+	scratch []float32
+}
 
 // CPU is the register-tape evaluator. Always available.
-var CPU Evaluator = cpu{}
+var CPU Evaluator = &cpuEval{}
 
-func (cpu) Run(_ context.Context, k *Kernel, output []float32) error {
+func (c *cpuEval) Run(_ context.Context, k *Kernel, output []float32) error {
 	if k == nil {
 		return ErrOp
 	}
 	return k.EvalInto(output)
 }
 
-func (cpu) Close() error { return nil }
+func (c *cpuEval) RunRGBA(_ context.Context, k *Kernel, dst *image.RGBA) error {
+	if k == nil || dst == nil {
+		return ErrOp
+	}
+	n := k.size
+	if dst.Rect.Dx()*dst.Rect.Dy()*4 != n {
+		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, dst.Rect.Dx(), dst.Rect.Dy(), n)
+	}
+	if cap(c.scratch) < n {
+		c.scratch = make([]float32, n)
+	} else {
+		c.scratch = c.scratch[:n]
+	}
+	if err := k.EvalInto(c.scratch); err != nil {
+		return err
+	}
+	packRGBA(dst, c.scratch)
+	return nil
+}
+
+func (c *cpuEval) Close() error { return nil }
 
 type cpuFactory struct{}
 
@@ -51,9 +74,45 @@ func Open(ctx context.Context) (Evaluator, error) {
 	return ev, nil
 }
 
+type rgbaEvaluator interface {
+	RunRGBA(ctx context.Context, k *Kernel, dst *image.RGBA) error
+}
+
+func packRGBA(dst *image.RGBA, src []float32) {
+	if dst == nil {
+		return
+	}
+	w, h := dst.Rect.Dx(), dst.Rect.Dy()
+	if w < 1 || h < 1 || len(src) < h*w*4 {
+		return
+	}
+	for y := range h {
+		di := dst.PixOffset(dst.Rect.Min.X, dst.Rect.Min.Y+y)
+		si := y * w * 4
+		for range w {
+			dst.Pix[di] = toUint8(src[si])
+			dst.Pix[di+1] = toUint8(src[si+1])
+			dst.Pix[di+2] = toUint8(src[si+2])
+			dst.Pix[di+3] = toUint8(src[si+3])
+			di += 4
+			si += 4
+		}
+	}
+}
+
+func toUint8(v float32) uint8 {
+	if v < 0 {
+		return 0
+	}
+	if v > 255 {
+		return 255
+	}
+	return uint8(v)
+}
+
 func evaluatorName(ev Evaluator) string {
 	switch e := ev.(type) {
-	case cpu:
+	case *cpuEval:
 		return "cpu"
 	case *Vulkan:
 		if e != nil && e.Device != nil {

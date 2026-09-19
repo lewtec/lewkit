@@ -67,15 +67,7 @@ func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) er
 		}
 		p.h, p.w = h, w
 	}
-	if err := p.triangle.Eval(ctx, p.eval); err != nil {
-		return err
-	}
-	pixels, err := p.triangle.Data()
-	if err != nil {
-		return err
-	}
-	Write(dst, pixels)
-	return nil
+	return p.triangle.EvalRGBA(ctx, p.eval, dst)
 }
 
 // Close releases the triangle kernel/session and device.

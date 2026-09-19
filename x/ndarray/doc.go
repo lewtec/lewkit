@@ -3,9 +3,9 @@
 //
 // [Tensor] is the brick. It holds a lazy op tree. Leaves own a host buffer;
 // [Tensor.Reshape], [Tensor.Permute], and the other view ops share that
-// buffer. ALU ops return a new Tensor. Slots are assigned at [Tensor.Eval]
-// with an [Evaluator] (nil is CPU). The tree stays after realize so a loop
-// can [Tensor.Resize] and run again. [Open] picks Vulkan if it can, else CPU.
+// buffer. ALU ops return a new Tensor. Slots are assigned at [Tensor.Eval],
+// which writes a caller-owned []float32. [Tensor.EvalRGBA] packs into an
+// image.RGBA (the window frame). [Open] picks Vulkan if it can, else CPU.
 //
 // [Zeros], [Ones], [Full], [Rand], [New], [Const], and [Coord] build tensors.
 // [Shape] is the dimensions ([]int so Reshape can use -1).

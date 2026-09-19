@@ -327,6 +327,14 @@ func (b *Buffer) bytes() []byte {
 	return unsafe.Slice((*byte)(b.ptr), b.size)
 }
 
+// Floats is the host mapping as float32. Nil if not host-visible.
+func (b *Buffer) Floats() []float32 {
+	if b == nil || b.ptr == nil || b.size < 4 {
+		return nil
+	}
+	return unsafe.Slice((*float32)(b.ptr), b.size/4)
+}
+
 // Write copies p to the start of the buffer.
 func (b *Buffer) Write(p []byte) error {
 	if b == nil || b.ptr == nil {

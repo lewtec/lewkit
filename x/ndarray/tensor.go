@@ -3,6 +3,7 @@ package ndarray
 import (
 	"context"
 	"fmt"
+	"image"
 	"log/slog"
 	"math/rand/v2"
 	"slices"
@@ -14,7 +15,6 @@ import (
 // can Resize and run again.
 type Tensor struct {
 	node   *node
-	out    []float32
 	kernel *Kernel
 }
 
@@ -127,13 +127,10 @@ func (t *Tensor) Buffer() []float32 {
 	return t.node.buf.data
 }
 
-// Data is the last Eval result, or the leaf buffer for a contiguous input.
+// Data is the leaf buffer for a contiguous input.
 func (t *Tensor) Data() ([]float32, error) {
 	if t == nil {
 		return nil, ErrOp
-	}
-	if t.out != nil {
-		return t.out, nil
 	}
 	if t.node != nil && t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() {
 		return t.node.buf.data, nil
@@ -141,12 +138,35 @@ func (t *Tensor) Data() ([]float32, error) {
 	return nil, ErrOp
 }
 
-// Eval realizes the tensor with ev. nil ev uses CPU. The graph is kept.
-func (t *Tensor) Eval(ctx context.Context, ev Evaluator) error {
+// Eval writes the tensor into dst. len(dst) must be at least Size.
+func (t *Tensor) Eval(ctx context.Context, ev Evaluator, dst []float32) error {
 	if ev == nil {
 		ev = CPU
 	}
-	return t.realize(ctx, ev)
+	return t.realize(ctx, ev, dst)
+}
+
+// EvalRGBA writes packed 0..255 RGBA into dst. dst's bounds must match Size.
+func (t *Tensor) EvalRGBA(ctx context.Context, ev Evaluator, dst *image.RGBA) error {
+	if ev == nil {
+		ev = CPU
+	}
+	if err := t.err(); err != nil {
+		return err
+	}
+	if dst == nil {
+		return ErrOp
+	}
+	if err := t.ensure(); err != nil {
+		return err
+	}
+	if dst.Rect.Dx()*dst.Rect.Dy()*4 != t.kernel.size {
+		return fmt.Errorf("%w: image %d×%d×4 != %d", ErrSize, dst.Rect.Dx(), dst.Rect.Dy(), t.kernel.size)
+	}
+	if p, ok := ev.(rgbaEvaluator); ok {
+		return p.RunRGBA(ctx, t.kernel, dst)
+	}
+	return ErrOp
 }
 
 // Resize sets the runtime output shape. Rank must match the compiled graph.
@@ -177,23 +197,25 @@ func (t *Tensor) Close() error {
 	return err
 }
 
-func (t *Tensor) realize(ctx context.Context, ev Evaluator) error {
+func (t *Tensor) realize(ctx context.Context, ev Evaluator, dst []float32) error {
 	if err := t.err(); err != nil {
 		return err
 	}
 	if t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() {
-		t.out = t.node.buf.data
+		data := t.node.buf.data
+		if len(dst) < len(data) {
+			return fmt.Errorf("%w: dst %d < %d", ErrSize, len(dst), len(data))
+		}
+		copy(dst, data)
 		return nil
 	}
 	if err := t.ensure(); err != nil {
 		return err
 	}
-	if cap(t.out) < t.kernel.size {
-		t.out = make([]float32, t.kernel.size)
-	} else {
-		t.out = t.out[:t.kernel.size]
+	if len(dst) < t.kernel.size {
+		return fmt.Errorf("%w: dst %d < %d", ErrSize, len(dst), t.kernel.size)
 	}
-	return ev.Run(ctx, t.kernel, t.out)
+	return ev.Run(ctx, t.kernel, dst[:t.kernel.size])
 }
 
 func (t *Tensor) ensure() error {

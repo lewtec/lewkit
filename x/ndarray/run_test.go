@@ -19,10 +19,9 @@ func TestExecAdd(t *testing.T) {
 	b, err := New([]float32{2, -1, 5, -1}, Shape{4})
 	require.NoError(t, err)
 	expr := a.Add(b).Max(Const(0))
-	want := append([]float32(nil), mustEval(t, expr)...)
-	require.NoError(t, expr.Eval(t.Context(), &Vulkan{Device: d}))
-	got, err := expr.Data()
-	require.NoError(t, err)
+	want := mustEval(t, expr)
+	got := make([]float32, expr.Size())
+	require.NoError(t, expr.Eval(t.Context(), &Vulkan{Device: d}, got))
 	require.Equal(t, want, got)
 }
 
@@ -39,9 +38,8 @@ func TestExecPermute(t *testing.T) {
 	b, err := raw.Permute(1, 0)
 	require.NoError(t, err)
 	expr := a.Add(b)
-	want := append([]float32(nil), mustEval(t, expr)...)
-	require.NoError(t, expr.Eval(t.Context(), &Vulkan{Device: d}))
-	got, err := expr.Data()
-	require.NoError(t, err)
+	want := mustEval(t, expr)
+	got := make([]float32, expr.Size())
+	require.NoError(t, expr.Eval(t.Context(), &Vulkan{Device: d}, got))
 	require.Equal(t, want, got)
 }
