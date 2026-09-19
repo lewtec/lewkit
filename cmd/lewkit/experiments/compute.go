@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"os"
 	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
@@ -18,7 +17,8 @@ import (
 
 // Compute is `lewkit experiments compute`.
 type Compute struct {
-	shader   *cmd.StringArg  `help:"SPIR-V path; open a window when set"`
+	shader   *cmd.StringArg  `help:"SPIR-V or GLSL path; example.comp if omitted"`
+	smoke    cmd.Flag        `long:"smoke" help:"print the 4-byte smoke shader instead of a window"`
 	width    cmd.IntArg[int] `long:"width" default:"640" help:"output width"`
 	height   cmd.IntArg[int] `long:"height" default:"480" help:"output height"`
 	local    cmd.IntArg[int] `long:"local" default:"8" help:"local size for workgroup count"`
@@ -26,11 +26,11 @@ type Compute struct {
 }
 
 func (Compute) Description() string {
-	return "dispatch a compute shader; window if a SPIR-V path is given"
+	return "run a compute shader in a window (embedded GLSL example by default)"
 }
 
 func (c *Compute) Run(ctx context.Context) error {
-	if c.shader == nil {
+	if c.smoke.Value() {
 		return runSmoke(ctx)
 	}
 	return c.runWindow(ctx)
@@ -47,7 +47,7 @@ func runSmoke(ctx context.Context) error {
 		return err
 	}
 	defer buf.Close()
-	sh, err := d.Shader(vulkan.SmokeSPIRV(), 1)
+	sh, err := d.Shader(ctx, vulkan.SmokeSPIRV(), 1)
 	if err != nil {
 		return err
 	}
@@ -64,11 +64,18 @@ func runSmoke(ctx context.Context) error {
 }
 
 func (c *Compute) runWindow(ctx context.Context) error {
-	spirv, err := os.ReadFile(c.shader.Value())
+	path := ""
+	if c.shader != nil {
+		path = c.shader.Value()
+	}
+	spirv, err := loadShader(ctx, path)
 	if err != nil {
 		return err
 	}
 	binds := c.bindings.Value()
+	if path == "" {
+		binds = 2
+	}
 	if binds < 1 {
 		return errBindings
 	}
@@ -81,13 +88,17 @@ func (c *Compute) runWindow(ctx context.Context) error {
 		return err
 	}
 	defer d.Close()
-	sh, err := d.Shader(spirv, binds)
+	sh, err := d.Shader(ctx, spirv, binds)
 	if err != nil {
 		return err
 	}
 	defer sh.Close()
+	title := "lewkit compute"
+	if path != "" {
+		title = path
+	}
 	win, err := window.Open(ctx, window.Config{
-		Title:  c.shader.Value(),
+		Title:  title,
 		Width:  c.width.Value(),
 		Height: c.height.Value(),
 	})

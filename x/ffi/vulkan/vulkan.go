@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/wasm/glsl"
 )
 
 // Device is a compute-capable Vulkan device with host-visible buffers.
@@ -324,10 +326,15 @@ type Shader struct {
 	bindings   int
 }
 
-// Shader compiles SPIR-V into a compute pipeline with n storage-buffer bindings.
-func (d *Device) Shader(spirv []byte, bindings int) (*Shader, error) {
+// Shader builds a compute pipeline from SPIR-V or Vulkan GLSL.
+// n is the storage-buffer count at set 0.
+func (d *Device) Shader(ctx context.Context, src []byte, bindings int) (*Shader, error) {
 	if err := d.live(); err != nil {
 		return nil, err
+	}
+	spirv, err := glsl.Load(ctx, src)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrShader, err)
 	}
 	if bindings < 1 || len(spirv) < 20 || len(spirv)%4 != 0 {
 		return nil, ErrShader

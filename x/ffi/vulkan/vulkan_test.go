@@ -24,9 +24,9 @@ func TestOpenInvalid(t *testing.T) {
 	test.CloseOnCleanup(t, d)
 	_, err = d.Buffer(0)
 	require.ErrorIs(t, err, ErrSize)
-	_, err = d.Shader(nil, 1)
+	_, err = d.Shader(t.Context(), nil, 1)
 	require.ErrorIs(t, err, ErrShader)
-	_, err = d.Shader(SmokeSPIRV(), 0)
+	_, err = d.Shader(t.Context(), SmokeSPIRV(), 0)
 	require.ErrorIs(t, err, ErrShader)
 }
 
@@ -46,6 +46,30 @@ func TestHostRoundTrip(t *testing.T) {
 	require.Equal(t, in, got)
 }
 
+func TestGLSLShader(t *testing.T) {
+	d, err := Open(t.Context())
+	if err != nil {
+		t.Skip(err)
+	}
+	test.CloseOnCleanup(t, d)
+	src := []byte(`#version 450
+layout(local_size_x = 1) in;
+layout(set = 0, binding = 0) buffer Data { uint v; } data;
+void main() { data.v = 2u; }
+`)
+	buf, err := d.Buffer(4)
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, buf)
+	require.NoError(t, buf.Write(make([]byte, 4)))
+	sh, err := d.Shader(t.Context(), src, 1)
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, sh)
+	require.NoError(t, d.Run(sh, 1, 1, 1, buf))
+	got := make([]byte, 4)
+	require.NoError(t, buf.Read(got))
+	require.Equal(t, uint32(2), binary.LittleEndian.Uint32(got))
+}
+
 func TestDispatch(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
@@ -59,7 +83,7 @@ func TestDispatch(t *testing.T) {
 	test.CloseOnCleanup(t, buf)
 	require.NoError(t, buf.Write(make([]byte, 4)))
 
-	sh, err := d.Shader(SmokeSPIRV(), 1)
+	sh, err := d.Shader(t.Context(), SmokeSPIRV(), 1)
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, sh)
 	require.NoError(t, d.Run(sh, 1, 1, 1, buf))
@@ -81,7 +105,7 @@ func TestRunBufferCount(t *testing.T) {
 	buf, err := d.Buffer(256)
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, buf)
-	sh, err := d.Shader(SmokeSPIRV(), 1)
+	sh, err := d.Shader(t.Context(), SmokeSPIRV(), 1)
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, sh)
 	err = d.Run(sh, 1, 1, 1)
