@@ -9,8 +9,9 @@ import (
 )
 
 type offerMeta struct {
-	ID   string
-	Name string
+	ID     string
+	Name   string
+	Weight int
 }
 
 type doctorEntry struct {
@@ -89,7 +90,7 @@ func (d doctorEntry) statuses(ctx context.Context, weights map[string]int) []Dri
 	if d.Name != nil {
 		factoryName = d.Name()
 	}
-	row := func(id, name string, available bool, err error) DriverStatus {
+	row := func(id, name string, fallback int, available bool, err error) DriverStatus {
 		if id == "" {
 			id = d.DriverID
 		}
@@ -100,21 +101,21 @@ func (d doctorEntry) statuses(ctx context.Context, weights map[string]int) []Dri
 			ID:          id,
 			Name:        name,
 			FactoryType: d.FactoryType,
-			Weight:      effectiveWeight(weights, id, d.InterfaceName, d.Weight),
+			Weight:      effectiveWeight(weights, id, d.InterfaceName, fallback),
 			Available:   available,
 			Error:       err,
 		}
 	}
 	if checkErr != nil || d.Offers == nil {
-		return []DriverStatus{row(d.DriverID, factoryName, checkErr == nil, checkErr)}
+		return []DriverStatus{row(d.DriverID, factoryName, d.Weight, checkErr == nil, checkErr)}
 	}
 	offers, err := d.Offers(ctx)
 	if err != nil || len(offers) == 0 {
-		return []DriverStatus{row(d.DriverID, factoryName, false, err)}
+		return []DriverStatus{row(d.DriverID, factoryName, d.Weight, false, err)}
 	}
 	out := make([]DriverStatus, 0, len(offers))
 	for _, offer := range offers {
-		out = append(out, row(offer.ID, offer.Name, true, nil))
+		out = append(out, row(offer.ID, offer.Name, offer.Weight, true, nil))
 	}
 	return out
 }

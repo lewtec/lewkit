@@ -67,7 +67,7 @@ func (vulkanFactory) CheckCompatibility(ctx context.Context) error {
 		return vulkanListErr
 	}
 	for _, info := range vulkanInfos {
-		slog.Debug("vulkan list device", "index", info.Index, "name", info.Name)
+		slog.Debug("vulkan list device", "index", info.Index, "name", info.Name, "vendor", info.Vendor)
 	}
 	return nil
 }
@@ -83,8 +83,9 @@ func (f vulkanFactory) Offers(ctx context.Context) ([]driver.Offer[Evaluator], e
 	for _, info := range infos {
 		info := info
 		offers = append(offers, driver.Offer[Evaluator]{
-			ID:   vulkanOfferID(info.Index, len(infos)),
-			Name: info.Name,
+			ID:     vulkanOfferID(infos, info.Index),
+			Name:   info.Name,
+			Weight: vulkanOfferWeight(info),
 			New: func(ctx context.Context) (Evaluator, error) {
 				return openVulkanIndex(ctx, info.Index)
 			},
@@ -93,11 +94,35 @@ func (f vulkanFactory) Offers(ctx context.Context) ([]driver.Offer[Evaluator], e
 	return offers, nil
 }
 
-func vulkanOfferID(index, count int) string {
-	if count <= 1 {
-		return "ndarray_vulkan"
+func vulkanOfferID(infos []vulkan.Info, index int) string {
+	vendor := infos[index].Vendor
+	if vendor == "" {
+		vendor = "unknown"
 	}
-	return fmt.Sprintf("ndarray_vulkan:%d", index)
+	n := 0
+	vendorIndex := 0
+	for i, info := range infos {
+		if info.Vendor != vendor {
+			continue
+		}
+		if i == index {
+			vendorIndex = n
+		}
+		n++
+	}
+	id := "ndarray_vulkan:" + vendor
+	if n > 1 {
+		return fmt.Sprintf("%s:%d", id, vendorIndex)
+	}
+	return id
+}
+
+func vulkanOfferWeight(info vulkan.Info) int {
+	switch info.Vendor {
+	case "llvmpipe", "cpu":
+		return 0
+	}
+	return 50
 }
 
 func (vulkanFactory) New(ctx context.Context) (Evaluator, error) {

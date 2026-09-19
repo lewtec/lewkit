@@ -48,9 +48,10 @@ type DriverFactory[T any] interface {
 // Offer is one driver a factory can construct. A factory that enumerates
 // several live instances (one GPU, one display) implements Offerer.
 type Offer[T any] struct {
-	ID   string
-	Name string
-	New  func(context.Context) (T, error)
+	ID     string
+	Name   string
+	Weight int
+	New    func(context.Context) (T, error)
 }
 
 // Offerer is optional on a factory. List and Doctor expand Offers after
@@ -177,15 +178,21 @@ func driverForced(forced, driverID string) bool {
 	return strings.HasPrefix(driverID, forced+":")
 }
 
+func idPrefixes(id string) []string {
+	parts := strings.Split(id, ":")
+	out := make([]string, 0, len(parts))
+	for i := len(parts); i >= 1; i-- {
+		out = append(out, strings.Join(parts[:i], ":"))
+	}
+	return out
+}
+
 func effectiveWeight(weights map[string]int, driverID, ifaceName string, fallback int) int {
 	if forced := forceDriverFromEnv(ifaceName); driverForced(forced, driverID) {
 		return 101
 	}
-	if w, ok := weights[driverID]; ok {
-		return w
-	}
-	if factory, _, ok := strings.Cut(driverID, ":"); ok {
-		if w, ok := weights[factory]; ok {
+	for _, key := range idPrefixes(driverID) {
+		if w, ok := weights[key]; ok {
 			return w
 		}
 	}
@@ -232,7 +239,7 @@ func Register[T any](factory DriverFactory[T]) {
 			}
 			out := make([]offerMeta, 0, len(offers))
 			for _, o := range offers {
-				out = append(out, offerMeta{ID: o.ID, Name: o.Name})
+				out = append(out, offerMeta{ID: o.ID, Name: o.Name, Weight: o.Weight})
 			}
 			return out, nil
 		}
@@ -368,7 +375,7 @@ func (s factorySet[T]) handles(ctx context.Context, factory DriverFactory[T], fa
 			out = append(out, Handle[T]{
 				ID:     id,
 				Name:   name,
-				Weight: effectiveWeight(s.weights, id, s.ifaceName, fallback),
+				Weight: effectiveWeight(s.weights, id, s.ifaceName, o.Weight),
 				open:   open,
 			})
 		}

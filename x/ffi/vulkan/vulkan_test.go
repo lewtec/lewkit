@@ -2,6 +2,7 @@ package vulkan
 
 import (
 	"encoding/binary"
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/test"
@@ -31,11 +32,22 @@ func TestListAllComputeDevices(t *testing.T) {
 	for i, info := range infos {
 		require.Equal(t, i, info.Index)
 		require.NotEmpty(t, info.Name)
+		require.NotEmpty(t, info.Vendor)
 		d, err := OpenIndex(t.Context(), i)
 		require.NoError(t, err)
 		test.CloseOnCleanup(t, d)
 		require.Equal(t, info.Name, d.Name())
+		require.Equal(t, info.Vendor, d.Vendor())
 		names[info.Name]++
+		lower := strings.ToLower(info.Name)
+		switch {
+		case strings.Contains(lower, "llvmpipe"):
+			require.Equal(t, "llvmpipe", info.Vendor)
+		case strings.Contains(lower, "nvidia"):
+			require.Equal(t, "nvidia", info.Vendor)
+		case strings.Contains(lower, "amd") || strings.Contains(lower, "radv"):
+			require.Equal(t, "amd", info.Vendor)
+		}
 	}
 	_, err = OpenIndex(t.Context(), len(infos))
 	require.ErrorIs(t, err, ErrNoDevice)

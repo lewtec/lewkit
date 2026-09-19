@@ -381,15 +381,18 @@ func (gpuFactory) Name() string                             { return "GPU" }
 func (gpuFactory) Weight() int                              { return 40 }
 func (gpuFactory) CheckCompatibility(context.Context) error { return nil }
 func (gpuFactory) New(context.Context) (gpus, error) {
-	return pickerImpl{id: "gpu_all:0"}, nil
+	return pickerImpl{id: "gpu_all:amd"}, nil
 }
 func (gpuFactory) Offers(context.Context) ([]driver.Offer[gpus], error) {
 	return []driver.Offer[gpus]{
-		{ID: "gpu_all:0", Name: "Renoir", New: func(context.Context) (gpus, error) {
-			return pickerImpl{id: "gpu_all:0"}, nil
+		{ID: "gpu_all:amd", Name: "Renoir", Weight: 40, New: func(context.Context) (gpus, error) {
+			return pickerImpl{id: "gpu_all:amd"}, nil
 		}},
-		{ID: "gpu_all:1", Name: "RTX 3060", New: func(context.Context) (gpus, error) {
-			return pickerImpl{id: "gpu_all:1"}, nil
+		{ID: "gpu_all:nvidia", Name: "RTX 3060", Weight: 40, New: func(context.Context) (gpus, error) {
+			return pickerImpl{id: "gpu_all:nvidia"}, nil
+		}},
+		{ID: "gpu_all:llvmpipe", Name: "llvmpipe", Weight: 0, New: func(context.Context) (gpus, error) {
+			return pickerImpl{id: "gpu_all:llvmpipe"}, nil
 		}},
 	}, nil
 }
@@ -414,20 +417,44 @@ func TestListOffersEveryDevice(t *testing.T) {
 		ids = append(ids, handle.ID)
 		names = append(names, handle.Name)
 	}
-	require.Equal(t, []string{"gpu_all:0", "gpu_all:1"}, ids)
-	require.Equal(t, []string{"Renoir", "RTX 3060"}, names)
+	require.Equal(t, []string{"gpu_all:amd", "gpu_all:nvidia", "gpu_all:llvmpipe"}, ids)
+	require.Equal(t, []string{"Renoir", "RTX 3060", "llvmpipe"}, names)
+	require.Equal(t, 40, handles[0].Weight)
+	require.Equal(t, 40, handles[1].Weight)
+	require.Equal(t, 0, handles[2].Weight)
 	got, err := driver.Get[gpus](t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "gpu_all:0", got.ID())
+	require.Equal(t, "gpu_all:amd", got.ID())
 }
 
 func TestGetForceOffer(t *testing.T) {
 	registerGPUs()
 	driver.ResetWeights()
-	t.Setenv("LEWKIT_FORCE_DRIVER", "gpu_all:1")
+	t.Setenv("LEWKIT_FORCE_DRIVER", "gpu_all:nvidia")
 	got, err := driver.Get[gpus](t.Context())
 	require.NoError(t, err)
-	require.Equal(t, "gpu_all:1", got.ID())
+	require.Equal(t, "gpu_all:nvidia", got.ID())
+}
+
+func TestGetVendorWeight(t *testing.T) {
+	registerGPUs()
+	iface := ""
+	for name, ids := range driver.RegisteredWeightShape() {
+		for _, id := range ids {
+			if id == "gpu_all" {
+				iface = name
+			}
+		}
+	}
+	require.NotEmpty(t, iface)
+	setAllWeights(t, iface, map[string]int{
+		"gpu_all":          40,
+		"gpu_all:nvidia":   90,
+		"gpu_all:llvmpipe": 0,
+	})
+	got, err := driver.Get[gpus](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "gpu_all:nvidia", got.ID())
 }
 
 func TestDoctorListsOffers(t *testing.T) {
@@ -436,7 +463,7 @@ func TestDoctorListsOffers(t *testing.T) {
 	var found *driver.InterfaceStatus
 	for _, st := range driver.Doctor(t.Context()) {
 		for _, d := range st.Drivers {
-			if d.ID == "gpu_all:0" || d.ID == "gpu_all:1" {
+			if d.ID == "gpu_all:amd" || d.ID == "gpu_all:nvidia" {
 				found = &st
 				break
 			}
@@ -447,10 +474,15 @@ func TestDoctorListsOffers(t *testing.T) {
 	for _, d := range found.Drivers {
 		byID[d.ID] = d
 	}
-	require.Equal(t, "Renoir", byID["gpu_all:0"].Name)
-	require.Equal(t, "RTX 3060", byID["gpu_all:1"].Name)
-	require.True(t, byID["gpu_all:0"].Selected)
-	require.False(t, byID["gpu_all:1"].Selected)
-	require.True(t, byID["gpu_all:0"].Available)
-	require.True(t, byID["gpu_all:1"].Available)
+	require.Equal(t, "Renoir", byID["gpu_all:amd"].Name)
+	require.Equal(t, "RTX 3060", byID["gpu_all:nvidia"].Name)
+	require.Equal(t, "llvmpipe", byID["gpu_all:llvmpipe"].Name)
+	require.Equal(t, 40, byID["gpu_all:amd"].Weight)
+	require.Equal(t, 0, byID["gpu_all:llvmpipe"].Weight)
+	require.True(t, byID["gpu_all:amd"].Selected)
+	require.False(t, byID["gpu_all:nvidia"].Selected)
+	require.False(t, byID["gpu_all:llvmpipe"].Selected)
+	require.True(t, byID["gpu_all:amd"].Available)
+	require.True(t, byID["gpu_all:nvidia"].Available)
+	require.True(t, byID["gpu_all:llvmpipe"].Available)
 }

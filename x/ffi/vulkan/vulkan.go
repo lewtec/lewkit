@@ -2,6 +2,7 @@ package vulkan
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"unsafe"
@@ -19,6 +20,7 @@ type Device struct {
 	cmd         uintptr
 	mem         physicalDeviceMemoryProperties
 	name        string
+	vendor      string
 	closed      bool
 	recording   bool
 	pending     bool
@@ -26,10 +28,12 @@ type Device struct {
 }
 
 // Info is a compute-capable physical device. Index is 0-based among
-// devices that advertise a compute queue.
+// devices that advertise a compute queue. Vendor is a slug (amd, nvidia,
+// llvmpipe, …) for driver weights.
 type Info struct {
-	Index int
-	Name  string
+	Index  int
+	Name   string
+	Vendor string
 }
 
 // Open loads libvulkan, creates an instance, and opens the first
@@ -139,10 +143,20 @@ func (d *Device) computeFamily(phys uintptr) (uint32, bool) {
 	return 0, false
 }
 
-func (d *Device) physicalName(phys uintptr) string {
+type physicalProperties struct {
+	name       string
+	vendorID   uint32
+	deviceType uint32
+}
+
+func (d *Device) physicalProperties(phys uintptr) physicalProperties {
 	var raw [4096]byte
 	d.api.getPhysProps(phys, &raw[0])
-	return cstring(raw[20:276])
+	return physicalProperties{
+		name:       cstring(raw[20:276]),
+		vendorID:   binary.LittleEndian.Uint32(raw[8:12]),
+		deviceType: binary.LittleEndian.Uint32(raw[16:20]),
+	}
 }
 
 func (d *Device) computeDevices() ([]Info, error) {
@@ -152,12 +166,17 @@ func (d *Device) computeDevices() ([]Info, error) {
 	}
 	var out []Info
 	for _, p := range phys {
+		properties := d.physicalProperties(p)
 		if _, ok := d.computeFamily(p); !ok {
-			slog.Debug("vulkan skip physical", "name", d.physicalName(p), "reason", "no compute")
+			slog.Debug("vulkan skip physical", "name", properties.name, "reason", "no compute")
 			continue
 		}
-		info := Info{Index: len(out), Name: d.physicalName(p)}
-		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name)
+		info := Info{
+			Index:  len(out),
+			Name:   properties.name,
+			Vendor: vendorSlug(properties.vendorID, properties.deviceType, properties.name),
+		}
+		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name, "vendor", info.Vendor)
 		out = append(out, info)
 	}
 	if len(out) == 0 {
@@ -253,7 +272,9 @@ func (d *Device) try(phys uintptr) bool {
 	d.commandPool = pool
 	d.cmd = cmd
 	d.api.getMemoryProps(phys, &d.mem)
-	d.name = d.physicalName(phys)
+	properties := d.physicalProperties(phys)
+	d.name = properties.name
+	d.vendor = vendorSlug(properties.vendorID, properties.deviceType, properties.name)
 	return true
 }
 
@@ -263,6 +284,14 @@ func (d *Device) Name() string {
 		return ""
 	}
 	return d.name
+}
+
+// Vendor is the driver vendor slug (amd, nvidia, llvmpipe, …).
+func (d *Device) Vendor() string {
+	if d == nil {
+		return ""
+	}
+	return d.vendor
 }
 
 // Close destroys the device and instance.
