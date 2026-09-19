@@ -9,15 +9,24 @@ import (
 	embed "github.com/lewtec/lewkit/x/wasm/glsl/internal/wasm"
 )
 
-var load = sync.OnceValues(func() (*wasm.Compiled, error) {
-	return wasm.Compile(embed.Lib, wasm.Config{Name: "glslang", Emscripten: true})
-})
+var (
+	compiled *wasm.Compiled
+	loadErr  error
+	loadOnce sync.Once
+)
+
+func load(ctx context.Context) (*wasm.Compiled, error) {
+	loadOnce.Do(func() {
+		compiled, loadErr = wasm.Compile(ctx, embed.Lib, wasm.Config{Name: "glslang", Emscripten: true})
+	})
+	return compiled, loadErr
+}
 
 func compile(ctx context.Context, src []byte) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	mod, err := load()
+	mod, err := load(ctx)
 	if err != nil {
 		return nil, err
 	}

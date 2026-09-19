@@ -29,14 +29,16 @@ type Compiled struct {
 }
 
 // Compile compiles bin. The runtime is process-wide per Name.
-func Compile(bin []byte, cfg Config) (*Compiled, error) {
+func Compile(ctx context.Context, bin []byte, cfg Config) (*Compiled, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(bin) == 0 {
-		return nil, errors.New("empty wasm")
+		return nil, ErrEmpty
 	}
 	if cfg.Name == "" {
 		cfg.Name = "module"
 	}
-	ctx := context.Background()
 	config := wazero.NewRuntimeConfig()
 	if dir, err := os.UserCacheDir(); err == nil {
 		cache, err := wazero.NewCompilationCacheWithDir(filepath.Join(dir, "lewtec-lewkit-wasm", cfg.Name))
@@ -46,11 +48,11 @@ func Compile(bin []byte, cfg Config) (*Compiled, error) {
 	}
 	runtime := wazero.NewRuntimeWithConfig(ctx, config)
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
-		return nil, errors.Join(fmt.Errorf("wasi: %w", err), runtime.Close(ctx))
+		return nil, errors.Join(fmt.Errorf("%w: %w", ErrWASI, err), runtime.Close(ctx))
 	}
 	mod, err := runtime.CompileModule(ctx, bin)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("compile %s: %w", cfg.Name, err), runtime.Close(ctx))
+		return nil, errors.Join(fmt.Errorf("%w: %s: %w", ErrCompile, cfg.Name, err), runtime.Close(ctx))
 	}
 	if cfg.Emscripten {
 		if err := instantiateEmscripten(ctx, runtime, mod); err != nil {
@@ -63,7 +65,7 @@ func Compile(bin []byte, cfg Config) (*Compiled, error) {
 func instantiateEmscripten(ctx context.Context, runtime wazero.Runtime, mod wazero.CompiledModule) error {
 	exporter, err := emscripten.NewFunctionExporterForModule(mod)
 	if err != nil {
-		return fmt.Errorf("emscripten: %w", err)
+		return fmt.Errorf("%w: %w", ErrEnv, err)
 	}
 	env := runtime.NewHostModuleBuilder("env")
 	exporter.ExportFunctions(env)
@@ -79,7 +81,7 @@ func instantiateEmscripten(ctx context.Context, runtime wazero.Runtime, mod waze
 		}).
 		Export("__syscall_getcwd")
 	if _, err := env.Instantiate(ctx); err != nil {
-		return fmt.Errorf("env: %w", err)
+		return fmt.Errorf("%w: %w", ErrEnv, err)
 	}
 	return nil
 }
@@ -95,19 +97,18 @@ type Instance struct {
 // Instantiate creates a guest instance. Call Close when done.
 func (c *Compiled) Instantiate(ctx context.Context) (*Instance, error) {
 	if c == nil {
-		return nil, errors.New("nil compiled module")
+		return nil, ErrNil
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	mod, err := c.runtime.InstantiateModule(ctx, c.module, wazero.NewModuleConfig().WithStartFunctions())
 	if err != nil {
-		return nil, fmt.Errorf("instantiate: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrInst, err)
 	}
 	if init := mod.ExportedFunction("_initialize"); init != nil {
 		if _, err := init.Call(ctx); err != nil {
-			_ = mod.Close(ctx)
-			return nil, fmt.Errorf("initialize: %w", err)
+			return nil, errors.Join(fmt.Errorf("%w: %w", ErrInit, err), mod.Close(ctx))
 		}
 	}
 	return &Instance{
@@ -140,7 +141,7 @@ func (in *Instance) Export(name string) api.Function {
 func (in *Instance) Call(ctx context.Context, name string, args ...uint64) (uint64, error) {
 	fn := in.Export(name)
 	if fn == nil {
-		return 0, fmt.Errorf("missing export %s", name)
+		return 0, fmt.Errorf("%w: %s", ErrExport, name)
 	}
 	return call(ctx, fn, args...)
 }
@@ -151,14 +152,14 @@ func (in *Instance) Alloc(ctx context.Context, n uint32) (uint32, error) {
 		n = 1
 	}
 	if in.malloc == nil {
-		return 0, errors.New("malloc missing")
+		return 0, ErrMalloc
 	}
 	p, err := call(ctx, in.malloc, uint64(n))
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%w: %w", ErrMalloc, err)
 	}
 	if p == 0 {
-		return 0, errors.New("malloc: oom")
+		return 0, fmt.Errorf("%w: oom", ErrMalloc)
 	}
 	return uint32(p), nil
 }
@@ -168,13 +169,15 @@ func (in *Instance) Free(ctx context.Context, p uint32) {
 	if in == nil || in.free == nil || p == 0 {
 		return
 	}
-	_, _ = call(ctx, in.free, uint64(p))
+	if _, err := call(ctx, in.free, uint64(p)); err != nil {
+		return
+	}
 }
 
 // Write copies b into guest memory at p.
 func (in *Instance) Write(p uint32, b []byte) error {
 	if in == nil || in.mem == nil || !in.mem.Write(p, b) {
-		return errors.New("wasm write")
+		return ErrMemory
 	}
 	return nil
 }
@@ -182,11 +185,11 @@ func (in *Instance) Write(p uint32, b []byte) error {
 // Read copies n bytes from guest memory at p.
 func (in *Instance) Read(p, n uint32) ([]byte, error) {
 	if in == nil || in.mem == nil {
-		return nil, errors.New("wasm read")
+		return nil, ErrMemory
 	}
 	b, ok := in.mem.Read(p, n)
 	if !ok {
-		return nil, errors.New("wasm read")
+		return nil, ErrMemory
 	}
 	return b, nil
 }
@@ -194,11 +197,11 @@ func (in *Instance) Read(p, n uint32) ([]byte, error) {
 // Uint32LE reads a little-endian uint32.
 func (in *Instance) Uint32LE(p uint32) (uint32, error) {
 	if in == nil || in.mem == nil {
-		return 0, errors.New("wasm read")
+		return 0, ErrMemory
 	}
 	v, ok := in.mem.ReadUint32Le(p)
 	if !ok {
-		return 0, errors.New("wasm read")
+		return 0, ErrMemory
 	}
 	return v, nil
 }
@@ -206,11 +209,11 @@ func (in *Instance) Uint32LE(p uint32) (uint32, error) {
 // CString reads a NUL-terminated string.
 func (in *Instance) CString(p uint32) (string, error) {
 	if in == nil || in.mem == nil {
-		return "", errors.New("wasm read")
+		return "", ErrMemory
 	}
 	s, ok := readCString(in.mem, p)
 	if !ok {
-		return "", errors.New("wasm read")
+		return "", ErrMemory
 	}
 	return s, nil
 }
