@@ -58,6 +58,7 @@ var (
 	selSetContentSize            = objc.RegisterName("setContentSize:")
 	selClose                     = objc.RegisterName("close")
 	selIsVisible                 = objc.RegisterName("isVisible")
+	selInLiveResize              = objc.RegisterName("inLiveResize")
 	selBounds                    = objc.RegisterName("bounds")
 	selBackingScaleFactor        = objc.RegisterName("backingScaleFactor")
 
@@ -195,6 +196,10 @@ type win struct {
 	stale          []objc.ID
 	wantWidth      int
 	wantHeight     int
+	pending        objc.ID
+	displayed      objc.ID
+	pendingBlit    bool
+	presentQueued  bool
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -248,7 +253,7 @@ func (w *win) Draw() error {
 	}
 	w.mu.Unlock()
 	if !ok || surface == 0 {
-		thread.Go(func() { _ = w.blit() })
+		w.queuePresent(0, true)
 		return nil
 	}
 	copied := false
@@ -259,11 +264,49 @@ func (w *win) Draw() error {
 		copied = copyIOSurface(surface, src)
 	})
 	if !copied {
-		thread.Go(func() { _ = w.blit() })
+		w.queuePresent(0, true)
 		return nil
 	}
-	thread.Go(func() { w.setContents(surface) })
+	w.queuePresent(surface, false)
 	return nil
+}
+
+func (w *win) queuePresent(surface objc.ID, blit bool) {
+	w.mu.Lock()
+	if blit {
+		w.pendingBlit = true
+		w.pending = 0
+	} else {
+		w.pending = surface
+		w.pendingBlit = false
+	}
+	queued := w.presentQueued
+	w.presentQueued = true
+	w.mu.Unlock()
+	if !queued {
+		thread.Go(w.flushPending)
+	}
+}
+
+func (w *win) flushPending() {
+	for {
+		w.mu.Lock()
+		surface := w.pending
+		blit := w.pendingBlit
+		w.pending = 0
+		w.pendingBlit = false
+		if surface == 0 && !blit {
+			w.presentQueued = false
+			w.mu.Unlock()
+			return
+		}
+		w.mu.Unlock()
+		if blit {
+			_ = w.blit()
+			continue
+		}
+		w.setContents(surface)
+	}
 }
 
 func (w *win) Resize(size image.Point) error {
@@ -303,6 +346,8 @@ func (w *win) closeNS() {
 	w.wnd = 0
 	w.surfaces = [2]objc.ID{}
 	w.stale = nil
+	w.pending = 0
+	w.displayed = 0
 	w.mu.Unlock()
 	for _, surface := range surfaces {
 		if surface != 0 {
@@ -328,6 +373,10 @@ func (w *win) note() {
 		return
 	}
 	if wnd.Send(selIsVisible) == 0 {
+		view := wnd.Send(selContentView)
+		if view != 0 && view.Send(selInLiveResize) != 0 {
+			return
+		}
 		_ = w.Close()
 		return
 	}
@@ -399,6 +448,9 @@ func (w *win) setContents(surface objc.ID) {
 		layer.Send(selSetContents, surface)
 		endNoAnim()
 	})
+	w.mu.Lock()
+	w.displayed = surface
+	w.mu.Unlock()
 	w.releaseStale(surface)
 }
 
@@ -413,13 +465,14 @@ func (w *win) releaseStale(keep objc.ID) {
 	stale := w.stale
 	w.stale = nil
 	live0, live1 := w.surfaces[0], w.surfaces[1]
+	pending, displayed := w.pending, w.displayed
 	w.mu.Unlock()
 	var hold []objc.ID
 	for _, surface := range stale {
 		if surface == 0 || surface == live0 || surface == live1 {
 			continue
 		}
-		if surface == keep {
+		if surface == pending || surface == displayed || surface == keep {
 			hold = append(hold, surface)
 			continue
 		}
