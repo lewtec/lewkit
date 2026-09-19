@@ -38,15 +38,20 @@ func TestListAllComputeDevices(t *testing.T) {
 		test.CloseOnCleanup(t, d)
 		require.Equal(t, info.Name, d.Name())
 		require.Equal(t, info.Vendor, d.Vendor())
+		require.Equal(t, info.Kind, d.Kind())
+		require.NotEqual(t, Kind(255), info.Kind)
 		names[info.Name]++
 		lower := strings.ToLower(info.Name)
 		switch {
 		case strings.Contains(lower, "llvmpipe"):
 			require.Equal(t, "llvmpipe", info.Vendor)
+			require.Equal(t, KindSoftware, info.Kind)
 		case strings.Contains(lower, "nvidia"):
 			require.Equal(t, "nvidia", info.Vendor)
+			require.Equal(t, KindDedicated, info.Kind)
 		case strings.Contains(lower, "amd") || strings.Contains(lower, "radv"):
 			require.Equal(t, "amd", info.Vendor)
+			require.Equal(t, KindIntegrated, info.Kind)
 		}
 	}
 	_, err = OpenIndex(t.Context(), len(infos))

@@ -180,9 +180,20 @@ func driverForced(forced, driverID string) bool {
 
 func idPrefixes(id string) []string {
 	parts := strings.Split(id, ":")
-	out := make([]string, 0, len(parts))
+	out := make([]string, 0, len(parts)+1)
+	seen := map[string]bool{}
+	add := func(key string) {
+		if key == "" || seen[key] {
+			return
+		}
+		seen[key] = true
+		out = append(out, key)
+	}
 	for i := len(parts); i >= 1; i-- {
-		out = append(out, strings.Join(parts[:i], ":"))
+		add(strings.Join(parts[:i], ":"))
+	}
+	if len(parts) >= 3 {
+		add(parts[0] + ":" + parts[2])
 	}
 	return out
 }

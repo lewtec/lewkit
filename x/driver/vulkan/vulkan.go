@@ -15,10 +15,22 @@ import (
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
 )
 
+// Kind is [ffivulkan.Kind]: software, integrated, dedicated, virtual.
+type Kind = ffivulkan.Kind
+
+const (
+	KindOther      = ffivulkan.KindOther
+	KindIntegrated = ffivulkan.KindIntegrated
+	KindDedicated  = ffivulkan.KindDedicated
+	KindVirtual    = ffivulkan.KindVirtual
+	KindSoftware   = ffivulkan.KindSoftware
+)
+
 // Device is one compute-capable Vulkan GPU.
 type Device interface {
 	Name() string
 	Vendor() string
+	Kind() Kind
 	Native() *ffivulkan.Device
 	Close() error
 }
@@ -39,6 +51,13 @@ func (d *device) Vendor() string {
 		return ""
 	}
 	return d.native.Vendor()
+}
+
+func (d *device) Kind() Kind {
+	if d == nil || d.native == nil {
+		return KindOther
+	}
+	return d.native.Kind()
 }
 
 func (d *device) Native() *ffivulkan.Device {

@@ -18,5 +18,6 @@ func TestListAndOpen(t *testing.T) {
 	test.CloseOnCleanup(t, gpu)
 	require.NotEmpty(t, gpu.Name())
 	require.NotEmpty(t, gpu.Vendor())
+	require.NotEqual(t, Kind(255), gpu.Kind())
 	require.NotNil(t, gpu.Native())
 }

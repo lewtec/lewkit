@@ -21,6 +21,7 @@ type Device struct {
 	mem         physicalDeviceMemoryProperties
 	name        string
 	vendor      string
+	kind        Kind
 	closed      bool
 	recording   bool
 	pending     bool
@@ -29,11 +30,12 @@ type Device struct {
 
 // Info is a compute-capable physical device. Index is 0-based among
 // devices that advertise a compute queue. Vendor is a slug (amd, nvidia,
-// llvmpipe, …) for driver weights.
+// llvmpipe, …). Kind is software, integrated, dedicated, or virtual.
 type Info struct {
 	Index  int
 	Name   string
 	Vendor string
+	Kind   Kind
 }
 
 // Open loads libvulkan, creates an instance, and opens the first
@@ -175,8 +177,9 @@ func (d *Device) computeDevices() ([]Info, error) {
 			Index:  len(out),
 			Name:   properties.name,
 			Vendor: vendorSlug(properties.vendorID, properties.deviceType, properties.name),
+			Kind:   kindFrom(properties.deviceType, properties.name),
 		}
-		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name, "vendor", info.Vendor)
+		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name, "vendor", info.Vendor, "kind", info.Kind)
 		out = append(out, info)
 	}
 	if len(out) == 0 {
@@ -275,6 +278,7 @@ func (d *Device) try(phys uintptr) bool {
 	properties := d.physicalProperties(phys)
 	d.name = properties.name
 	d.vendor = vendorSlug(properties.vendorID, properties.deviceType, properties.name)
+	d.kind = kindFrom(properties.deviceType, properties.name)
 	return true
 }
 
@@ -292,6 +296,14 @@ func (d *Device) Vendor() string {
 		return ""
 	}
 	return d.vendor
+}
+
+// Kind is software, integrated, dedicated, or virtual.
+func (d *Device) Kind() Kind {
+	if d == nil {
+		return KindOther
+	}
+	return d.kind
 }
 
 // Close destroys the device and instance.
