@@ -45,6 +45,7 @@ var (
 	selSetWantsLayer             = objc.RegisterName("setWantsLayer:")
 	selLayer                     = objc.RegisterName("layer")
 	selSetContents               = objc.RegisterName("setContents:")
+	selDataNoCopy                = objc.RegisterName("dataWithBytesNoCopy:length:freeWhenDone:")
 	selSetContentsScale          = objc.RegisterName("setContentsScale:")
 	selSetMagFilter              = objc.RegisterName("setMagnificationFilter:")
 	selSetMinFilter              = objc.RegisterName("setMinificationFilter:")
@@ -102,10 +103,22 @@ func onApp(fn func()) {
 	thread.Do(fn)
 }
 
+func withPool(fn func()) {
+	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(objc.RegisterName("new"))
+	defer pool.Send(objc.RegisterName("drain"))
+	fn()
+}
+
 func pump(app objc.ID) {
 	if !thread.ProcessMain() {
 		return
 	}
+	withPool(func() {
+		pumpInner(app)
+	})
+}
+
+func pumpInner(app objc.ID) {
 	date := objc.ID(objc.GetClass("NSDate")).Send(selDistantPast)
 	mode := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "kCFRunLoopDefaultMode")
 	for {
@@ -148,8 +161,11 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 
 type win struct {
 	*window.Buffer
-	mu  sync.Mutex
-	wnd objc.ID
+	mu     sync.Mutex
+	wnd    objc.ID
+	pixBuf [2][]byte
+	pixI   int
+	laid   float64
 }
 
 func (w *win) create(title string, width, height int) error {
@@ -290,22 +306,28 @@ func (w *win) blit() error {
 		return window.ErrClosed
 	}
 	var err error
-	w.WithFront(func(src *image.RGBA) {
-		if src.Rect.Dx() < 1 || src.Rect.Dy() < 1 {
-			return
-		}
-		var cgImage uintptr
-		cgImage, err = cgImageFromRGBA(src)
-		if err != nil {
-			return
-		}
-		defer cgImageRelease(cgImage)
-		view := wnd.Send(selContentView)
-		layer := view.Send(selLayer)
-		prepareLayer(layer, w.scale())
-		beginNoAnim()
-		layer.Send(selSetContents, objc.ID(cgImage))
-		endNoAnim()
+	withPool(func() {
+		w.WithFront(func(src *image.RGBA) {
+			if src.Rect.Dx() < 1 || src.Rect.Dy() < 1 {
+				return
+			}
+			var cgImage uintptr
+			cgImage, err = w.cgImageFromRGBA(src)
+			if err != nil {
+				return
+			}
+			defer cgImageRelease(cgImage)
+			view := wnd.Send(selContentView)
+			layer := view.Send(selLayer)
+			scale := w.scale()
+			if w.laid != scale {
+				prepareLayer(layer, scale)
+				w.laid = scale
+			}
+			beginNoAnim()
+			layer.Send(selSetContents, objc.ID(cgImage))
+			endNoAnim()
+		})
 	})
 	return err
 }
@@ -320,12 +342,22 @@ func endNoAnim() {
 	objc.ID(objc.GetClass("CATransaction")).Send(objc.RegisterName("commit"))
 }
 
+var (
+	filterNearest objc.ID
+	gravityResize objc.ID
+	filterOnce    sync.Once
+)
+
 func prepareLayer(layer objc.ID, scale float64) {
+	filterOnce.Do(func() {
+		retain := objc.RegisterName("retain")
+		filterNearest = nsstr("nearest").Send(retain)
+		gravityResize = nsstr("resize").Send(retain)
+	})
 	setLayerScale(layer, scale)
-	nearest := nsstr("nearest")
-	setID(layer, selSetMagFilter, nearest)
-	setID(layer, selSetMinFilter, nearest)
-	setID(layer, selSetContentsGravity, nsstr("resize"))
+	setID(layer, selSetMagFilter, filterNearest)
+	setID(layer, selSetMinFilter, filterNearest)
+	setID(layer, selSetContentsGravity, gravityResize)
 	setBool(layer, selSetAllowsEdgeAntialiasing, false)
 	setMask(layer, selSetEdgeAntialiasingMask, 0)
 }
@@ -359,15 +391,26 @@ func loadCG() error {
 	return nil
 }
 
-func cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
+func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	width, height := src.Rect.Dx(), src.Rect.Dy()
-	if width < 1 || height < 1 || cgImageCreate == nil {
+	if width < 1 || height < 1 || cgImageCreate == nil || len(src.Pix) == 0 {
 		return 0, fmt.Errorf("%w: empty", window.ErrPresent)
 	}
+	n := len(src.Pix)
+	i := w.pixI
+	w.pixI ^= 1
+	buf := &w.pixBuf[i]
+	if cap(*buf) < n {
+		*buf = make([]byte, n)
+	} else {
+		*buf = (*buf)[:n]
+	}
+	copy(*buf, src.Pix)
 	data := objc.ID(objc.GetClass("NSData")).Send(
-		objc.RegisterName("dataWithBytes:length:"),
-		uintptr(unsafe.Pointer(&src.Pix[0])),
-		len(src.Pix),
+		selDataNoCopy,
+		uintptr(unsafe.Pointer(&(*buf)[0])),
+		uintptr(n),
+		false,
 	)
 	if data == 0 {
 		return 0, fmt.Errorf("%w: NSData", window.ErrPresent)
