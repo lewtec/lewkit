@@ -21,6 +21,7 @@ type Device struct {
 	closed    bool
 	recording bool
 	pending   bool
+	rec       Cmd
 }
 
 // Open loads libvulkan, creates an instance, and picks a compute queue.
@@ -143,7 +144,7 @@ func (d *Device) try(phys uintptr) bool {
 	d.api.getDeviceQueue(dev, family, 0, &queue)
 	poolInfo := commandPoolCreateInfo{
 		sType:            structureCommandPoolCreateInfo,
-		flags:            commandPoolTransient | commandPoolReset,
+		flags:            commandPoolReset,
 		queueFamilyIndex: family,
 	}
 	var pool uint64

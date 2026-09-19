@@ -17,16 +17,17 @@ const (
 
 // Kernel is one fused compute shader for a whole expression.
 type Kernel struct {
-	root  *Node
-	glsl  string
-	shape []int
-	slots []int
-	outDT DType
-	n     int
-	spirv []byte
-	cpu   cpuProg
-	sh    *vulkan.Shader
-	shDev *vulkan.Device
+	root    *Node
+	glsl    string
+	shape   []int
+	slots   []int
+	outDT   DType
+	n       int
+	spirv   []byte
+	cpu     cpuProg
+	sh      *vulkan.Shader
+	shDev   *vulkan.Device
+	runBufs []*vulkan.Buffer
 }
 
 // Compile lowers expr to one GLSL compute kernel. One dispatch covers every cell.

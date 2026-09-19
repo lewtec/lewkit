@@ -2,33 +2,26 @@ package image
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	stdimage "image"
-	"math"
-	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-// Painter draws Triangle frames from one compiled kernel. Size is a runtime
-// push constant; glslang is instantiated once.
+// Painter draws Triangle by resizing a Session. The kernel is compiled once.
 type Painter struct {
 	d      *vulkan.Device
 	k      *ndarray.Kernel
+	sess   *ndarray.Session
 	pix    []float32
 	turn   []float32
 	width  []float32
 	height []float32
 	ins    [][]float32
-	out    *vulkan.Buffer
-	srcT   *vulkan.Buffer
-	srcW   *vulkan.Buffer
-	srcH   *vulkan.Buffer
 }
 
-// New compiles Triangle once and opens Vulkan when available.
+// New compiles TriangleDyn once and attaches a reusable session.
 func New(ctx context.Context) (*Painter, error) {
 	st, err := ndarray.Of()
 	if err != nil {
@@ -42,42 +35,26 @@ func New(ctx context.Context) (*Painter, error) {
 	if err != nil {
 		return nil, err
 	}
+	d, _ := vulkan.Open(ctx)
+	sess, err := k.Attach(ctx, d)
+	if err != nil {
+		e := k.Close()
+		if d != nil {
+			e = errors.Join(e, d.Close())
+		}
+		return nil, errors.Join(err, e)
+	}
 	p := &Painter{
-		k:      k,
-		turn:   []float32{0},
-		width:  []float32{1},
-		height: []float32{1},
+		d: d, k: k, sess: sess,
+		turn: []float32{0}, width: []float32{1}, height: []float32{1},
 	}
 	p.ins = [][]float32{p.turn, p.width, p.height}
-	d, err := vulkan.Open(ctx)
-	if err != nil {
-		return p, nil
-	}
-	t, err := d.Buffer(4)
-	if err != nil {
-		d.Close()
-		return p, nil
-	}
-	bw, err := d.Buffer(4)
-	if err != nil {
-		t.Close()
-		d.Close()
-		return p, nil
-	}
-	bh, err := d.Buffer(4)
-	if err != nil {
-		bw.Close()
-		t.Close()
-		d.Close()
-		return p, nil
-	}
-	p.d, p.srcT, p.srcW, p.srcH = d, t, bw, bh
 	return p, nil
 }
 
 // Draw renders one frame into dst.
 func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) error {
-	if p == nil || p.k == nil {
+	if p == nil || p.sess == nil || p.k == nil {
 		return ndarray.ErrOp
 	}
 	h, w := dst.Rect.Dy(), dst.Rect.Dx()
@@ -96,77 +73,23 @@ func (p *Painter) Draw(ctx context.Context, dst *stdimage.RGBA, turn float64) er
 	p.turn[0] = float32(turn)
 	p.width[0] = float32(w)
 	p.height[0] = float32(h)
-	if p.d != nil && p.srcT != nil {
-		if err := p.ensureOut(n * 4); err != nil {
-			return err
-		}
-		if err := writeF32(p.srcT, p.turn[0]); err != nil {
-			return err
-		}
-		if err := writeF32(p.srcW, p.width[0]); err != nil {
-			return err
-		}
-		if err := writeF32(p.srcH, p.height[0]); err != nil {
-			return err
-		}
-		if err := p.k.Run(ctx, p.d, p.out, p.srcT, p.srcW, p.srcH); err != nil {
-			return err
-		}
-		if err := p.out.Read(asBytes(p.pix)); err != nil {
-			return err
-		}
-	} else if err := p.k.EvalInto(p.pix, p.ins); err != nil {
+	if err := p.sess.Run(ctx, p.pix, p.ins); err != nil {
 		return err
 	}
 	Write(dst, p.pix)
 	return nil
 }
 
-func (p *Painter) ensureOut(bytes int) error {
-	if p.out != nil && p.out.Len() >= bytes {
-		return nil
-	}
-	b, err := p.d.Buffer(bytes)
-	if err != nil {
-		return err
-	}
-	if p.out != nil {
-		if err := p.out.Close(); err != nil {
-			return errors.Join(err, b.Close())
-		}
-	}
-	p.out = b
-	return nil
-}
-
-func writeF32(b *vulkan.Buffer, v float32) error {
-	var raw [4]byte
-	binary.LittleEndian.PutUint32(raw[:], math.Float32bits(v))
-	return b.Write(raw[:])
-}
-
-func asBytes(v []float32) []byte {
-	if len(v) == 0 {
-		return nil
-	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(unsafe.SliceData(v))), len(v)*4)
-}
-
-// Close releases the kernel, buffers, and device.
+// Close releases the session, kernel, and device.
 func (p *Painter) Close() error {
 	if p == nil {
 		return nil
 	}
 	var err error
-	for _, b := range []*vulkan.Buffer{p.srcT, p.srcW, p.srcH, p.out} {
-		if b == nil {
-			continue
-		}
-		if e := b.Close(); err == nil {
-			err = e
-		}
+	if p.sess != nil {
+		err = p.sess.Close()
+		p.sess = nil
 	}
-	p.srcT, p.srcW, p.srcH, p.out = nil, nil, nil, nil
 	if p.k != nil {
 		if e := p.k.Close(); err == nil {
 			err = e

@@ -48,10 +48,9 @@ const (
 	shaderStageCompute      = 32
 	bindPointCompute        = 1
 
-	commandPoolTransient    = 1
-	commandPoolReset        = 2
-	commandOneTimeSubmit    = 1
-	commandPoolResetRelease = 1
+	commandPoolTransient = 1
+	commandPoolReset     = 2
+	commandOneTimeSubmit = 1
 
 	apiVersion11 = 1<<22 | 1<<12
 

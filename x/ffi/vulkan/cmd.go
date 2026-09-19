@@ -22,7 +22,7 @@ func (d *Device) Begin() (*Cmd, error) {
 	if d.recording || d.pending {
 		return nil, ErrBusy
 	}
-	if err := check(d.api.resetCommandPool(d.dev, d.cmdPool, commandPoolResetRelease)); err != nil {
+	if err := check(d.api.resetCommandPool(d.dev, d.cmdPool, 0)); err != nil {
 		return nil, fmt.Errorf("reset command pool: %w", err)
 	}
 	begin := commandBufferBeginInfo{
@@ -33,7 +33,12 @@ func (d *Device) Begin() (*Cmd, error) {
 		return nil, fmt.Errorf("begin command buffer: %w", err)
 	}
 	d.recording = true
-	return &Cmd{d: d}, nil
+	c := &d.rec
+	c.d = d
+	c.bound = nil
+	c.used = c.used[:0]
+	c.pools = c.pools[:0]
+	return c, nil
 }
 
 func (c *Cmd) rec() error {

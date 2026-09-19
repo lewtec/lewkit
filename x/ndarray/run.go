@@ -45,9 +45,15 @@ func (k *Kernel) Run(ctx context.Context, d *vulkan.Device, dst *vulkan.Buffer, 
 	if err != nil {
 		return err
 	}
-	bufs := make([]*vulkan.Buffer, 1+len(srcs))
-	bufs[0] = dst
-	copy(bufs[1:], srcs)
+	need := 1 + len(srcs)
+	if cap(k.runBufs) < need {
+		k.runBufs = make([]*vulkan.Buffer, need)
+	} else {
+		k.runBufs = k.runBufs[:need]
+	}
+	k.runBufs[0] = dst
+	copy(k.runBufs[1:], srcs)
+	bufs := k.runBufs
 	var push [pushBytes]byte
 	binary.LittleEndian.PutUint32(push[0:], uint32(k.n))
 	for i, s := range k.shape {
