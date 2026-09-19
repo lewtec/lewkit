@@ -13,6 +13,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/vulkan"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // Compute is `lewkit experiments compute`.
@@ -33,7 +34,7 @@ func (c *Compute) Run(ctx context.Context) error {
 	if c.smoke.Value() {
 		return runSmoke(ctx)
 	}
-	return c.runWindow(ctx)
+	return runDemo(ctx, c.runWindow)
 }
 
 func runSmoke(ctx context.Context) error {
@@ -87,12 +88,11 @@ func (c *Compute) runWindow(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer d.Close()
 	sh, err := d.Shader(ctx, spirv, binds)
 	if err != nil {
+		d.Close()
 		return err
 	}
-	defer sh.Close()
 	title := "lewkit compute"
 	if path != "" {
 		title = path
@@ -103,74 +103,96 @@ func (c *Compute) runWindow(ctx context.Context) error {
 		Height: c.height.Value(),
 	})
 	if err != nil {
+		sh.Close()
+		d.Close()
 		return err
 	}
-	defer win.Close()
 
-	var (
-		pix, params *vulkan.Buffer
-		bw, bh      int
-		raw         []byte
-		frame       uint32
-	)
-	defer func() {
-		if pix != nil {
-			pix.Close()
-		}
-		if params != nil {
-			params.Close()
-		}
-	}()
-
-	return window.Animate(ctx, win, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
-		w, h := dst.Rect.Dx(), dst.Rect.Dy()
-		if w < 1 || h < 1 {
-			return nil
-		}
-		if pix == nil || w != bw || h != bh {
+	taskgroup.Go(ctx, "compute", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
+		defer d.Close()
+		defer sh.Close()
+		defer win.Close()
+		var (
+			pix, params *vulkan.Buffer
+			bw, bh      int
+			raw         []byte
+			frame       uint32
+			last        time.Time
+			fps         float64
+		)
+		defer func() {
 			if pix != nil {
 				pix.Close()
-				pix = nil
 			}
-			pix, err = d.Buffer(w * h * 4)
-			if err != nil {
-				return err
+			if params != nil {
+				params.Close()
 			}
-			if binds >= 2 && params == nil {
-				params, err = d.Buffer(16)
+		}()
+		return window.Animate(ctx, win, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
+			w, h := dst.Rect.Dx(), dst.Rect.Dy()
+			if w < 1 || h < 1 {
+				return nil
+			}
+			if pix == nil || w != bw || h != bh {
+				if pix != nil {
+					pix.Close()
+					pix = nil
+				}
+				pix, err = d.Buffer(w * h * 4)
 				if err != nil {
 					return err
 				}
+				if binds >= 2 && params == nil {
+					params, err = d.Buffer(16)
+					if err != nil {
+						return err
+					}
+				}
+				bw, bh = w, h
+				raw = make([]byte, w*h*4)
 			}
-			bw, bh = w, h
-			raw = make([]byte, w*h*4)
-		}
-		if params != nil {
-			var p [16]byte
-			binary.LittleEndian.PutUint32(p[0:], uint32(w))
-			binary.LittleEndian.PutUint32(p[4:], uint32(h))
-			binary.LittleEndian.PutUint32(p[8:], math.Float32bits(float32(elapsed.Seconds())))
-			binary.LittleEndian.PutUint32(p[12:], frame)
-			if err := params.Write(p[:]); err != nil {
+			if params != nil {
+				var p [16]byte
+				binary.LittleEndian.PutUint32(p[0:], uint32(w))
+				binary.LittleEndian.PutUint32(p[4:], uint32(h))
+				binary.LittleEndian.PutUint32(p[8:], math.Float32bits(float32(elapsed.Seconds())))
+				binary.LittleEndian.PutUint32(p[12:], frame)
+				if err := params.Write(p[:]); err != nil {
+					return err
+				}
+			}
+			bufs := []*vulkan.Buffer{pix}
+			if params != nil {
+				bufs = append(bufs, params)
+			}
+			gx := uint32((w + local - 1) / local)
+			gy := uint32((h + local - 1) / local)
+			if err := d.Run(sh, gx, gy, 1, bufs...); err != nil {
 				return err
 			}
-		}
-		bufs := []*vulkan.Buffer{pix}
-		if params != nil {
-			bufs = append(bufs, params)
-		}
-		gx := uint32((w + local - 1) / local)
-		gy := uint32((h + local - 1) / local)
-		if err := d.Run(sh, gx, gy, 1, bufs...); err != nil {
-			return err
-		}
-		if err := pix.Read(raw); err != nil {
-			return err
-		}
-		copyRGBA(dst, raw)
-		frame++
-		return nil
+			if err := pix.Read(raw); err != nil {
+				return err
+			}
+			copyRGBA(dst, raw)
+			now := time.Now()
+			if !last.IsZero() {
+				dt := now.Sub(last).Seconds()
+				if dt > 0 {
+					inst := 1 / dt
+					if fps == 0 {
+						fps = inst
+					} else {
+						fps = fps*0.85 + inst*0.15
+					}
+					st.Update(fmt.Sprintf("%.0f fps", fps))
+				}
+			}
+			last = now
+			frame++
+			return nil
+		})
 	})
+	return nil
 }
 
 var (
