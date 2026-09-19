@@ -79,12 +79,14 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	}
 
 	win := &xwin{
-		Buffer:   window.NewBuffer(w, h),
-		conn:     conn,
-		wid:      wid,
-		gc:       gc,
-		depth:    screen.RootDepth,
-		wmDelete: wmDelete,
+		Buffer:     window.NewBuffer(w, h),
+		conn:       conn,
+		wid:        wid,
+		gc:         gc,
+		depth:      screen.RootDepth,
+		wmDelete:   wmDelete,
+		wantWidth:  w,
+		wantHeight: h,
 	}
 	go win.loop()
 	if ctx != nil {
@@ -148,22 +150,50 @@ func setDeleteProtocol(conn *xgb.Conn, wid xproto.Window) (xproto.Atom, error) {
 
 type xwin struct {
 	*window.Buffer
-	mu       sync.Mutex
-	conn     *xgb.Conn
-	wid      xproto.Window
-	gc       xproto.Gcontext
-	depth    byte
-	wmDelete xproto.Atom
+	mu         sync.Mutex
+	blit       sync.Mutex
+	conn       *xgb.Conn
+	wid        xproto.Window
+	gc         xproto.Gcontext
+	depth      byte
+	wmDelete   xproto.Atom
+	bgra       []byte
+	wantWidth  int
+	wantHeight int
+}
+
+func (w *xwin) Size() image.Point {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.wantWidth > 0 && w.wantHeight > 0 {
+		return image.Pt(w.wantWidth, w.wantHeight)
+	}
+	return w.Buffer.Size()
+}
+
+func (w *xwin) Frame() *image.RGBA {
+	want := w.Size()
+	if want.X > 0 && want.Y > 0 {
+		_, _ = w.Buffer.EnsureSize(want)
+	}
+	return w.Buffer.Frame()
 }
 
 func (w *xwin) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
 	}
+	front := w.Front()
+	if front == nil || front.Rect.Size() != w.Size() {
+		return nil
+	}
 	return w.put()
 }
 
 func (w *xwin) Resize(size image.Point) error {
+	w.mu.Lock()
+	w.wantWidth, w.wantHeight = size.X, size.Y
+	w.mu.Unlock()
 	if err := w.Buffer.Resize(size); err != nil {
 		return err
 	}
@@ -201,10 +231,18 @@ func (w *xwin) put() error {
 	if conn == nil {
 		return window.ErrClosed
 	}
-	src := w.Front()
-	bgra := make([]byte, len(src.Pix))
-	window.ToBGRA(bgra, src)
-	width, height := src.Rect.Dx(), src.Rect.Dy()
+	w.blit.Lock()
+	defer w.blit.Unlock()
+	var width, height int
+	w.WithFront(func(src *image.RGBA) {
+		width, height = src.Rect.Dx(), src.Rect.Dy()
+		if cap(w.bgra) < len(src.Pix) {
+			w.bgra = make([]byte, len(src.Pix))
+		} else {
+			w.bgra = w.bgra[:len(src.Pix)]
+		}
+		window.ToBGRA(w.bgra, src)
+	})
 	stride := width * 4
 	if stride == 0 || height == 0 {
 		return nil
@@ -217,7 +255,7 @@ func (w *xwin) put() error {
 	for y := 0; y < height; y += maxRows {
 		n := min(maxRows, height-y)
 		err := xproto.PutImageChecked(conn, xproto.ImageFormatZPixmap, xproto.Drawable(wid), gc,
-			uint16(width), uint16(n), 0, int16(y), 0, depth, bgra[y*stride:(y+n)*stride]).Check()
+			uint16(width), uint16(n), 0, int16(y), 0, depth, w.bgra[y*stride:(y+n)*stride]).Check()
 		if err != nil {
 			return err
 		}
@@ -249,12 +287,25 @@ func (w *xwin) loop() {
 				_ = w.put()
 			}
 		case xproto.ConfigureNotifyEvent:
-			_ = w.Buffer.Resize(image.Pt(int(e.Width), int(e.Height)))
+			w.setWant(int(e.Width), int(e.Height))
 		case xproto.ClientMessageEvent:
 			if e.Type != 0 && w.wmDelete != 0 && e.Data.Data32[0] == uint32(w.wmDelete) {
 				_ = w.Close()
 				return
 			}
 		}
+	}
+}
+
+func (w *xwin) setWant(width, height int) {
+	if width < 1 || height < 1 {
+		return
+	}
+	w.mu.Lock()
+	changed := w.wantWidth != width || w.wantHeight != height
+	w.wantWidth, w.wantHeight = width, height
+	w.mu.Unlock()
+	if changed {
+		w.Emit(window.Resize{Size: image.Pt(width, height)})
 	}
 }

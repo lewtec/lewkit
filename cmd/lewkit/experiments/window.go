@@ -2,6 +2,7 @@ package experiments
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"time"
@@ -9,12 +10,15 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
-	lewimage "github.com/lewtec/lewkit/x/image"
+	"github.com/lewtec/lewkit/x/event"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // Window is `lewkit experiments window`.
 type Window struct {
 	Triangle *triangleCmd
+	Perlin   *perlinCmd
+	Compute  *Compute
 }
 
 func (Window) Description() string {
@@ -31,6 +35,10 @@ func (triangleCmd) Description() string {
 }
 
 func (c *triangleCmd) Run(ctx context.Context) error {
+	return runDemo(ctx, c.run)
+}
+
+func (c *triangleCmd) run(ctx context.Context) error {
 	w, err := window.Open(ctx, window.Config{
 		Title:  "lewkit triangle",
 		Width:  c.width.Value(),
@@ -39,27 +47,56 @@ func (c *triangleCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer w.Close()
-	fps := fpsMeter{t0: time.Now()}
-	return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
-		lewimage.TriangleTurn(dst, elapsed.Seconds())
-		lewimage.Label(dst, 8, 16, fmt.Sprintf("%d fps", fps.hit()))
-		return nil
-	})
-}
-
-type fpsMeter struct {
-	t0   time.Time
-	n    int
-	last int
-}
-
-func (m *fpsMeter) hit() int {
-	m.n++
-	if time.Since(m.t0) >= time.Second {
-		m.last = m.n
-		m.n = 0
-		m.t0 = time.Now()
+	p, err := newTrianglePainter(ctx)
+	if err != nil {
+		return errors.Join(err, w.Close())
 	}
-	return m.last
+	taskgroup.Go(ctx, "triangle", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
+		defer w.Close()
+		defer p.Close()
+		var fps event.FPS
+		return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
+			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
+			return p.Draw(ctx, dst, elapsed.Seconds())
+		})
+	})
+	return nil
+}
+
+type perlinCmd struct {
+	width  cmd.IntArg[int] `long:"width" default:"800" help:"window width"`
+	height cmd.IntArg[int] `long:"height" default:"600" help:"window height"`
+}
+
+func (perlinCmd) Description() string {
+	return "animate Perlin noise"
+}
+
+func (c *perlinCmd) Run(ctx context.Context) error {
+	return runDemo(ctx, c.run)
+}
+
+func (c *perlinCmd) run(ctx context.Context) error {
+	w, err := window.Open(ctx, window.Config{
+		Title:  "lewkit perlin",
+		Width:  c.width.Value(),
+		Height: c.height.Value(),
+	})
+	if err != nil {
+		return err
+	}
+	p, err := newPerlinPainter(ctx)
+	if err != nil {
+		return errors.Join(err, w.Close())
+	}
+	taskgroup.Go(ctx, "perlin", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
+		defer w.Close()
+		defer p.Close()
+		var fps event.FPS
+		return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
+			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
+			return p.Draw(ctx, dst, elapsed.Seconds())
+		})
+	})
+	return nil
 }

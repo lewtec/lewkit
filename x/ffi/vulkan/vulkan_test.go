@@ -2,6 +2,7 @@ package vulkan
 
 import (
 	"encoding/binary"
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/test"
@@ -19,6 +20,44 @@ func TestSmokeSPIRVMagic(t *testing.T) {
 	require.GreaterOrEqual(t, len(b), 20)
 	require.Equal(t, uint32(0x07230203), binary.LittleEndian.Uint32(b[:4]))
 	require.Equal(t, 0, len(b)%4)
+}
+
+func TestListAllComputeDevices(t *testing.T) {
+	infos, err := List(t.Context())
+	if err != nil {
+		t.Skip(err)
+	}
+	require.NotEmpty(t, infos)
+	names := map[string]int{}
+	for i, info := range infos {
+		require.Equal(t, i, info.Index)
+		require.NotEmpty(t, info.Name)
+		d, err := OpenIndex(t.Context(), i)
+		require.NoError(t, err)
+		test.CloseOnCleanup(t, d)
+		require.Equal(t, info.Name, d.Name())
+		require.Equal(t, info.Vendor, d.Vendor())
+		require.Equal(t, info.Type, d.Type())
+		names[info.Name]++
+		lower := strings.ToLower(info.Name)
+		switch {
+		case strings.Contains(lower, "llvmpipe"):
+			require.Equal(t, VendorMesa, info.Vendor)
+			require.Equal(t, DeviceTypeSoftware, info.Type)
+		case strings.Contains(lower, "nvidia"):
+			require.Equal(t, VendorNVIDIA, info.Vendor)
+			require.Equal(t, DeviceTypeDedicated, info.Type)
+		case strings.Contains(lower, "amd") || strings.Contains(lower, "radv"):
+			require.Equal(t, VendorAMD, info.Vendor)
+			require.Equal(t, DeviceTypeIntegrated, info.Type)
+		}
+	}
+	_, err = OpenIndex(t.Context(), len(infos))
+	require.ErrorIs(t, err, ErrNoDevice)
+	_, err = OpenIndex(t.Context(), -1)
+	require.ErrorIs(t, err, ErrNoDevice)
+	t.Logf("vulkan devices: %v", infos)
+	require.GreaterOrEqual(t, len(names), 1)
 }
 
 func TestOpenInvalid(t *testing.T) {
@@ -167,7 +206,7 @@ func TestBeginBusy(t *testing.T) {
 	require.NoError(t, err)
 	_, err = d.Begin()
 	require.ErrorIs(t, err, ErrBusy)
-	require.NoError(t, c.abort())
+	require.NoError(t, c.Abort())
 }
 
 func TestCompilePushReject(t *testing.T) {

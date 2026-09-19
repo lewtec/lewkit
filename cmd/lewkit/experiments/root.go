@@ -7,7 +7,6 @@ type Command struct {
 	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
 	Demo          *Demo
 	Window        *Window
-	Compute       *Compute
 }
 
 func (Command) Description() string {

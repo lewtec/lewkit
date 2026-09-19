@@ -18,6 +18,7 @@ func TestOpenFrameDrawResize(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = w.Close() })
 
+	require.Equal(t, image.Pt(8, 6), w.Size())
 	frame := w.Frame()
 	require.Equal(t, 8, frame.Bounds().Dx())
 	require.Equal(t, 6, frame.Bounds().Dy())

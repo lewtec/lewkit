@@ -1,8 +1,8 @@
 // Package window opens a resizable host window backed by an *image.RGBA.
 //
 //	w, err := window.Open(ctx, window.Config{Title: "hi"})
-//	evs := w.Subscribe(ctx)
-//	draw.Draw(w.Frame(), w.Frame().Bounds(), src, src.Bounds().Min, draw.Src)
+//	pixels, err := window.Fit(tensor, w.Frame())
+//	err = window.Present(ctx, tensor, evaluator, w.Frame())
 //	err = w.Draw()
 //
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one implementation
@@ -61,14 +61,16 @@ type Driver interface {
 
 // Window is a resizable host window backed by an *image.RGBA.
 //
-// Frame is the back buffer; draw into it with [image/draw.Draw].
-// Draw swaps it to the front (last swap wins) and the host blits on
-// its next turn.
+// Size is the client size in pixels, without painting. Frame is the back
+// buffer (Go RGBA, uint8, shape h×w×4). [Fit] resizes a tensor to that
+// layout. Draw swaps it to the front (last swap wins) and the host blits
+// on its next turn. A Draw whose front page does not match Size is skipped.
 // Subscribe is an event source: Resize, Expose, and Close.
 // After Resize the next Frame has the new size.
 type Window interface {
 	Frame() *image.RGBA
 	Front() *image.RGBA
+	Size() image.Point
 	Draw() error
 	Resize(size image.Point) error
 	Subscribe(ctx context.Context) <-chan Event

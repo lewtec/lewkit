@@ -2,32 +2,77 @@ package vulkan
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"unsafe"
 )
 
 // Device is a compute-capable Vulkan device with host-visible buffers.
 type Device struct {
-	api       api
-	inst      uintptr
-	phys      uintptr
-	dev       uintptr
-	queue     uintptr
-	family    uint32
-	cmdPool   uint64
-	cmd       uintptr
-	mem       physicalDeviceMemoryProperties
-	name      string
-	closed    bool
-	recording bool
-	pending   bool
+	api         api
+	inst        uintptr
+	phys        uintptr
+	dev         uintptr
+	queue       uintptr
+	family      uint32
+	commandPool uint64
+	cmd         uintptr
+	mem         physicalDeviceMemoryProperties
+	name        string
+	vendor      Vendor
+	deviceType  DeviceType
+	closed      bool
+	recording   bool
+	pending     bool
+	recorded    Cmd
 }
 
-// Open loads libvulkan, creates an instance, and picks a compute queue.
+// Info is a compute-capable physical device. Index is 0-based among
+// devices that advertise a compute queue. Vendor is a PCI / Khronos ID.
+// Type is VkPhysicalDeviceType.
+type Info struct {
+	Index  int
+	Name   string
+	Vendor Vendor
+	Type   DeviceType
+}
+
+// Open loads libvulkan, creates an instance, and opens the first
+// compute-capable physical device. Use List and OpenIndex for the rest.
 func Open(ctx context.Context) (*Device, error) {
+	return OpenIndex(ctx, 0)
+}
+
+// List returns every compute-capable physical device. It does not create
+// a logical device.
+func List(ctx context.Context) ([]Info, error) {
+	d, err := openInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer d.Close()
+	return d.computeDevices()
+}
+
+// OpenIndex opens the index-th compute-capable physical device from List.
+func OpenIndex(ctx context.Context, index int) (*Device, error) {
+	d, err := openInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := d.pickIndex(index); err != nil {
+		d.Close()
+		return nil, err
+	}
+	return d, nil
+}
+
+func openInstance(ctx context.Context) (*Device, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	ensurePlatform()
 	lib, err := openLib()
 	if err != nil {
 		return nil, err
@@ -64,51 +109,112 @@ func Open(ctx context.Context) (*Device, error) {
 		d.api.destroyInstance(d.inst, 0)
 		return nil, err
 	}
-	if err := d.pick(); err != nil {
-		d.Close()
-		return nil, err
-	}
 	return d, nil
 }
 
-func (d *Device) pick() error {
+func (d *Device) physicalDevices() ([]uintptr, error) {
 	var n uint32
 	if err := check(d.api.enumeratePhysical(d.inst, &n, nil)); err != nil {
-		return fmt.Errorf("enumerate devices: %w", err)
+		return nil, fmt.Errorf("enumerate devices: %w", err)
 	}
 	if n == 0 {
-		return ErrNoDevice
+		slog.Debug("vulkan enumerate physical", "count", 0)
+		return nil, ErrNoDevice
 	}
 	phys := make([]uintptr, n)
 	if err := check(d.api.enumeratePhysical(d.inst, &n, &phys[0])); err != nil {
-		return fmt.Errorf("enumerate devices: %w", err)
+		return nil, fmt.Errorf("enumerate devices: %w", err)
 	}
-	for _, p := range phys[:n] {
-		if d.try(p) {
-			return nil
+	slog.Debug("vulkan enumerate physical", "count", n)
+	return phys[:n], nil
+}
+
+func (d *Device) computeFamily(phys uintptr) (uint32, bool) {
+	var nq uint32
+	d.api.getQueueFamilies(phys, &nq, nil)
+	if nq == 0 {
+		return 0, false
+	}
+	fams := make([]queueFamilyProperties, nq)
+	d.api.getQueueFamilies(phys, &nq, &fams[0])
+	for i, f := range fams[:nq] {
+		if f.queueFlags&queueComputeBit != 0 && f.queueCount > 0 {
+			return uint32(i), true
 		}
+	}
+	return 0, false
+}
+
+type physicalProperties struct {
+	name       string
+	vendorID   uint32
+	deviceType uint32
+}
+
+func (d *Device) physicalProperties(phys uintptr) physicalProperties {
+	var raw [4096]byte
+	d.api.getPhysProps(phys, &raw[0])
+	return physicalProperties{
+		name:       cstring(raw[20:276]),
+		vendorID:   binary.LittleEndian.Uint32(raw[8:12]),
+		deviceType: binary.LittleEndian.Uint32(raw[16:20]),
+	}
+}
+
+func (d *Device) computeDevices() ([]Info, error) {
+	phys, err := d.physicalDevices()
+	if err != nil {
+		return nil, err
+	}
+	var out []Info
+	for _, p := range phys {
+		properties := d.physicalProperties(p)
+		if _, ok := d.computeFamily(p); !ok {
+			slog.Debug("vulkan skip physical", "name", properties.name, "reason", "no compute")
+			continue
+		}
+		info := Info{
+			Index:  len(out),
+			Name:   properties.name,
+			Vendor: VendorFrom(properties.vendorID, properties.name),
+			Type:   deviceTypeFrom(properties.deviceType, properties.name),
+		}
+		slog.Debug("vulkan physical", "index", info.Index, "name", info.Name, "vendor", info.Vendor, "type", info.Type)
+		out = append(out, info)
+	}
+	if len(out) == 0 {
+		return nil, ErrNoDevice
+	}
+	return out, nil
+}
+
+func (d *Device) pickIndex(index int) error {
+	if index < 0 {
+		return ErrNoDevice
+	}
+	phys, err := d.physicalDevices()
+	if err != nil {
+		return err
+	}
+	n := 0
+	for _, p := range phys {
+		if _, ok := d.computeFamily(p); !ok {
+			continue
+		}
+		if n == index {
+			if d.try(p) {
+				return nil
+			}
+			return ErrNoDevice
+		}
+		n++
 	}
 	return ErrNoDevice
 }
 
 func (d *Device) try(phys uintptr) bool {
-	var nq uint32
-	d.api.getQueueFamilies(phys, &nq, nil)
-	if nq == 0 {
-		return false
-	}
-	fams := make([]queueFamilyProperties, nq)
-	d.api.getQueueFamilies(phys, &nq, &fams[0])
-	var family uint32
-	found := false
-	for i, f := range fams[:nq] {
-		if f.queueFlags&queueComputeBit != 0 && f.queueCount > 0 {
-			family = uint32(i)
-			found = true
-			break
-		}
-	}
-	if !found {
+	family, ok := d.computeFamily(phys)
+	if !ok {
 		return false
 	}
 	prio := float32(1)
@@ -143,7 +249,7 @@ func (d *Device) try(phys uintptr) bool {
 	d.api.getDeviceQueue(dev, family, 0, &queue)
 	poolInfo := commandPoolCreateInfo{
 		sType:            structureCommandPoolCreateInfo,
-		flags:            commandPoolTransient | commandPoolReset,
+		flags:            commandPoolReset,
 		queueFamilyIndex: family,
 	}
 	var pool uint64
@@ -166,12 +272,13 @@ func (d *Device) try(phys uintptr) bool {
 	d.dev = dev
 	d.queue = queue
 	d.family = family
-	d.cmdPool = pool
+	d.commandPool = pool
 	d.cmd = cmd
 	d.api.getMemoryProps(phys, &d.mem)
-	var raw [4096]byte
-	d.api.getPhysProps(phys, &raw[0])
-	d.name = cstring(raw[20:276])
+	properties := d.physicalProperties(phys)
+	d.name = properties.name
+	d.vendor = VendorFrom(properties.vendorID, properties.name)
+	d.deviceType = deviceTypeFrom(properties.deviceType, properties.name)
 	return true
 }
 
@@ -183,6 +290,22 @@ func (d *Device) Name() string {
 	return d.name
 }
 
+// Vendor is the PCI / Khronos vendor ID.
+func (d *Device) Vendor() Vendor {
+	if d == nil {
+		return VendorUnknown
+	}
+	return d.vendor
+}
+
+// Type is VkPhysicalDeviceType (software, integrated, dedicated, virtual).
+func (d *Device) Type() DeviceType {
+	if d == nil {
+		return DeviceTypeOther
+	}
+	return d.deviceType
+}
+
 // Close destroys the device and instance.
 func (d *Device) Close() error {
 	if d == nil || d.closed {
@@ -190,9 +313,9 @@ func (d *Device) Close() error {
 	}
 	d.closed = true
 	if d.dev != 0 {
-		if d.cmdPool != 0 {
-			d.api.destroyCommandPool(d.dev, d.cmdPool, 0)
-			d.cmdPool = 0
+		if d.commandPool != 0 {
+			d.api.destroyCommandPool(d.dev, d.commandPool, 0)
+			d.commandPool = 0
 		}
 		d.api.destroyDevice(d.dev, 0)
 		d.dev = 0
@@ -235,12 +358,13 @@ const (
 
 // Buffer is a storage buffer.
 type Buffer struct {
-	d    *Device
-	buf  uint64
-	mem  uint64
-	size int
-	kind Memory
-	ptr  unsafe.Pointer
+	d        *Device
+	buf      uint64
+	mem      uint64
+	size     int
+	kind     Memory
+	ptr      unsafe.Pointer
+	coherent bool
 }
 
 // Buffer allocates a host-visible storage buffer of size bytes.
@@ -302,7 +426,7 @@ func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 			return nil, fmt.Errorf("map memory: %w", err)
 		}
 	}
-	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr}, nil
+	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}, nil
 }
 
 // Len is the requested size in bytes.
@@ -323,6 +447,14 @@ func (b *Buffer) Memory() Memory {
 
 func (b *Buffer) bytes() []byte {
 	return unsafe.Slice((*byte)(b.ptr), b.size)
+}
+
+// Floats is the host mapping as float32. Nil if not host-visible.
+func (b *Buffer) Floats() []float32 {
+	if b == nil || b.ptr == nil || b.size < 4 {
+		return nil
+	}
+	return unsafe.Slice((*float32)(b.ptr), b.size/4)
 }
 
 // Write copies p to the start of the buffer.
@@ -370,13 +502,19 @@ func (b *Buffer) Close() error {
 
 // Shader is a compute pipeline. bindings is the storage-buffer count at set 0.
 type Shader struct {
-	d          *Device
-	module     uint64
-	setLayout  uint64
-	pipeLayout uint64
-	pipe       uint64
-	bindings   int
-	pushBytes  int
+	d              *Device
+	module         uint64
+	setLayout      uint64
+	pipelineLayout uint64
+	pipeline       uint64
+	descriptorPool uint64
+	descriptorSet  uint64
+	bufferInfos    []descriptorBufferInfo
+	writes         []writeDescriptorSet
+	boundBuffers   []uint64
+	boundLengths   []uint64
+	bindings       int
+	pushBytes      int
 }
 
 // ShaderConfig is SPIR-V plus optional push constants and spec constants.
@@ -441,7 +579,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		d.api.destroyShaderModule(d.dev, module, 0)
 		return nil, fmt.Errorf("descriptor layout: %w", err)
 	}
-	pipeInfo := pipelineLayoutCreateInfo{
+	layoutInfo := pipelineLayoutCreateInfo{
 		sType:          structurePipelineLayoutCreateInfo,
 		setLayoutCount: 1,
 		pSetLayouts:    &setLayout,
@@ -452,11 +590,11 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 			stageFlags: shaderStageCompute,
 			size:       uint32(cfg.PushBytes),
 		}
-		pipeInfo.pushConstantRangeCount = 1
-		pipeInfo.pPushConstantRanges = &push
+		layoutInfo.pushConstantRangeCount = 1
+		layoutInfo.pPushConstantRanges = &push
 	}
-	var pipeLayout uint64
-	if err := check(d.api.createPipelineLayout(d.dev, &pipeInfo, 0, &pipeLayout)); err != nil {
+	var pipelineLayout uint64
+	if err := check(d.api.createPipelineLayout(d.dev, &layoutInfo, 0, &pipelineLayout)); err != nil {
 		d.api.destroySetLayout(d.dev, setLayout, 0)
 		d.api.destroyShaderModule(d.dev, module, 0)
 		return nil, fmt.Errorf("pipeline layout: %w", err)
@@ -496,39 +634,45 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 	comp := computePipelineCreateInfo{
 		sType:             structureComputePipelineCreateInfo,
 		stage:             stage,
-		layout:            pipeLayout,
+		layout:            pipelineLayout,
 		basePipelineIndex: -1,
 	}
-	var pipe uint64
-	if err := check(d.api.createComputePipes(d.dev, 0, 1, &comp, 0, &pipe)); err != nil {
-		d.api.destroyPipelineLayout(d.dev, pipeLayout, 0)
+	var pipeline uint64
+	if err := check(d.api.createComputePipes(d.dev, 0, 1, &comp, 0, &pipeline)); err != nil {
+		d.api.destroyPipelineLayout(d.dev, pipelineLayout, 0)
 		d.api.destroySetLayout(d.dev, setLayout, 0)
 		d.api.destroyShaderModule(d.dev, module, 0)
 		return nil, fmt.Errorf("compute pipeline: %w", err)
 	}
 	return &Shader{
-		d:          d,
-		module:     module,
-		setLayout:  setLayout,
-		pipeLayout: pipeLayout,
-		pipe:       pipe,
-		bindings:   bindings,
-		pushBytes:  cfg.PushBytes,
+		d:              d,
+		module:         module,
+		setLayout:      setLayout,
+		pipelineLayout: pipelineLayout,
+		pipeline:       pipeline,
+		bindings:       bindings,
+		pushBytes:      cfg.PushBytes,
 	}, nil
 }
 
 // Close destroys the pipeline.
 func (s *Shader) Close() error {
-	if s == nil || s.pipe == 0 {
+	if s == nil || s.pipeline == 0 {
 		return nil
 	}
 	d := s.d
-	pipe, layout, set, mod := s.pipe, s.pipeLayout, s.setLayout, s.module
-	s.pipe, s.pipeLayout, s.setLayout, s.module = 0, 0, 0, 0
+	pipeline, layout, set, mod := s.pipeline, s.pipelineLayout, s.setLayout, s.module
+	pool := s.descriptorPool
+	s.pipeline, s.pipelineLayout, s.setLayout, s.module = 0, 0, 0, 0
+	s.descriptorPool, s.descriptorSet = 0, 0
+	s.boundBuffers, s.boundLengths = nil, nil
 	if d == nil || d.closed || d.dev == 0 {
 		return nil
 	}
-	d.api.destroyPipeline(d.dev, pipe, 0)
+	if pool != 0 {
+		d.api.destroyDescriptorPool(d.dev, pool, 0)
+	}
+	d.api.destroyPipeline(d.dev, pipeline, 0)
 	d.api.destroyPipelineLayout(d.dev, layout, 0)
 	d.api.destroySetLayout(d.dev, set, 0)
 	d.api.destroyShaderModule(d.dev, mod, 0)
@@ -536,7 +680,7 @@ func (s *Shader) Close() error {
 }
 
 func (d *Device) flush(b *Buffer) error {
-	if b == nil || b.ptr == nil {
+	if b == nil || b.ptr == nil || b.coherent {
 		return nil
 	}
 	rng := mappedMemoryRange{
@@ -551,7 +695,7 @@ func (d *Device) flush(b *Buffer) error {
 }
 
 func (d *Device) invalidate(b *Buffer) error {
-	if b == nil || b.ptr == nil {
+	if b == nil || b.ptr == nil || b.coherent {
 		return nil
 	}
 	rng := mappedMemoryRange{
