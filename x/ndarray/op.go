@@ -7,6 +7,7 @@ const (
 	_ DType = iota
 	F32
 	I32
+	U8
 )
 
 func (d DType) String() string {
@@ -15,16 +16,22 @@ func (d DType) String() string {
 		return "f32"
 	case I32:
 		return "i32"
+	case U8:
+		return "u8"
 	default:
 		return "dtype"
 	}
 }
 
 func (d DType) glsl() string {
-	if d == I32 {
+	switch d {
+	case I32:
 		return "int"
+	case U8:
+		return "uint"
+	default:
+		return "float"
 	}
-	return "float"
 }
 
 // Op is one of the 21 ALU ops.

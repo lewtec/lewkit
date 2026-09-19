@@ -214,9 +214,12 @@ func (j cpuJob) loop(s *cpuScratch) {
 				s.registers[instr.dest] = instr.evalALU(s.registers)
 			}
 		}
-		if j.outType == I32 {
+		switch j.outType {
+		case I32:
 			j.output[i] = float32(int32(s.registers[j.program.root]))
-		} else {
+		case U8:
+			j.output[i] = float32(uint8(s.registers[j.program.root]))
+		default:
 			j.output[i] = math.Float32frombits(s.registers[j.program.root])
 		}
 	}
@@ -295,6 +298,15 @@ func (instr instruction) evalALU(regs []uint32) uint32 {
 	asFloat := instr.inType == F32
 	packFloat := math.Float32bits
 	packInt := func(v int32) uint32 { return uint32(v) }
+	packU8 := func(v int32) uint32 {
+		if v < 0 {
+			return 0
+		}
+		if v > 255 {
+			return 255
+		}
+		return uint32(v)
+	}
 	switch instr.alu {
 	case EXP2:
 		return packFloat(float32(math.Exp2(float64(fa))))
@@ -312,16 +324,32 @@ func (instr instruction) evalALU(regs []uint32) uint32 {
 		}
 		return packInt(-ia)
 	case CAST:
-		if instr.dtype == I32 {
+		switch instr.dtype {
+		case U8:
+			if asFloat {
+				return packU8(int32(fa))
+			}
+			if instr.inType == U8 {
+				return a
+			}
+			return packU8(ia)
+		case I32:
 			if asFloat {
 				return packInt(int32(fa))
 			}
+			if instr.inType == U8 {
+				return packInt(int32(uint8(a)))
+			}
 			return a
+		default:
+			if asFloat {
+				return a
+			}
+			if instr.inType == U8 {
+				return packFloat(float32(uint8(a)))
+			}
+			return packFloat(float32(ia))
 		}
-		if asFloat {
-			return a
-		}
-		return packFloat(float32(ia))
 	case ADD:
 		if asFloat {
 			return packFloat(fa + fb)

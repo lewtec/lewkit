@@ -218,7 +218,7 @@ func (w *glslWriter) program() (string, error) {
 	w.b.WriteString(strconv.Itoa(localSize))
 	w.b.WriteString(") in;\n")
 	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
-	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dtype.glsl())
+	w.b.WriteString("layout(set = 0, binding = 0) buffer Out { float o[]; };\n")
 	for i, b := range w.bufs {
 		dtype := F32
 		if b != nil {
@@ -238,7 +238,11 @@ func (w *glslWriter) program() (string, error) {
 		}
 		w.names[n] = name
 	}
-	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", w.names[w.root])
+	out := w.names[w.root]
+	if w.root.dtype != F32 {
+		out = "float(" + out + ")"
+	}
+	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", out)
 	return w.b.String(), nil
 }
 
@@ -265,8 +269,11 @@ func (w *glslWriter) node(n *node) (string, error) {
 			off, valid = w.index(n.tracker)
 		}
 		zero := "0.0"
-		if n.dtype == I32 {
+		switch n.dtype {
+		case I32:
 			zero = "0"
+		case U8:
+			zero = "0u"
 		}
 		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, zero)
 		fmt.Fprintf(&w.b, "    if (%s) %s = x%d[%s];\n", valid, id, w.bufBind[n.buf], off)
@@ -367,6 +374,9 @@ func glslConst(n *node) string {
 	if n.dtype == I32 {
 		return strconv.FormatInt(int64(int32(n.bits)), 10)
 	}
+	if n.dtype == U8 {
+		return strconv.FormatUint(uint64(uint8(n.bits)), 10) + "u"
+	}
 	s := strconv.FormatFloat(float64(math.Float32frombits(n.bits)), 'g', -1, 32)
 	if !strings.ContainsAny(s, ".eE") {
 		s += ".0"
@@ -389,7 +399,20 @@ func (n *node) glslALU(args []string) string {
 	case NEG:
 		return "(-" + args[0] + ")"
 	case CAST:
-		return n.dtype.glsl() + "(" + args[0] + ")"
+		arg := args[0]
+		from := F32
+		if len(n.sources) > 0 {
+			from = n.sources[0].dtype
+		}
+		switch n.dtype {
+		case U8:
+			if from == F32 {
+				return "uint(clamp(" + arg + ", 0.0, 255.0))"
+			}
+			return "uint(clamp(" + arg + ", 0, 255))"
+		default:
+			return n.dtype.glsl() + "(" + arg + ")"
+		}
 	case ADD:
 		return "(" + args[0] + "+" + args[1] + ")"
 	case MUL:

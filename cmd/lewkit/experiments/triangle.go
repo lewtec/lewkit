@@ -121,6 +121,7 @@ func newTrianglePainter(ctx context.Context) (*trianglePainter, error) {
 	if err != nil {
 		return nil, err
 	}
+	tri = tri.Cast(ndarray.U8)
 	evaluator, err := ndarray.Open(ctx)
 	if err != nil {
 		return nil, err

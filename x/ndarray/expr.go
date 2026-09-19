@@ -141,7 +141,7 @@ func castNode(a *node, dtype DType) *node {
 	if n.err != nil {
 		return n
 	}
-	if dtype != F32 && dtype != I32 {
+	if dtype != F32 && dtype != I32 && dtype != U8 {
 		return failed(ErrType)
 	}
 	n.dtype = dtype
@@ -236,7 +236,7 @@ func unaryType(op Op, a DType) (DType, error) {
 		}
 		return F32, nil
 	case NEG, CAST:
-		if a != F32 && a != I32 {
+		if a != F32 && a != I32 && a != U8 {
 			return 0, ErrType
 		}
 		return a, nil

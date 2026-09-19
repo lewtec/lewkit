@@ -19,7 +19,7 @@ func Eval(ctx context.Context, tensor *ndarray.Tensor, evaluator ndarray.Evaluat
 		return fmt.Errorf("%w: image %d×%d×4 != %d", ndarray.ErrSize, destination.Rect.Dx(), destination.Rect.Dy(), size)
 	}
 	buffer := make([]float32, size)
-	if err := tensor.Eval(ctx, evaluator, buffer); err != nil {
+	if err := tensor.Cast(ndarray.U8).Eval(ctx, evaluator, buffer); err != nil {
 		return err
 	}
 	Write(destination, buffer)
@@ -46,22 +46,12 @@ func Write(dst *stdimage.RGBA, pixels []float32) {
 		destIndex := dst.PixOffset(dst.Rect.Min.X, dst.Rect.Min.Y+y)
 		sourceIndex := y * w * 4
 		for range w {
-			dst.Pix[destIndex] = toUint8(pixels[sourceIndex])
-			dst.Pix[destIndex+1] = toUint8(pixels[sourceIndex+1])
-			dst.Pix[destIndex+2] = toUint8(pixels[sourceIndex+2])
-			dst.Pix[destIndex+3] = toUint8(pixels[sourceIndex+3])
+			dst.Pix[destIndex] = uint8(pixels[sourceIndex])
+			dst.Pix[destIndex+1] = uint8(pixels[sourceIndex+1])
+			dst.Pix[destIndex+2] = uint8(pixels[sourceIndex+2])
+			dst.Pix[destIndex+3] = uint8(pixels[sourceIndex+3])
 			destIndex += 4
 			sourceIndex += 4
 		}
 	}
-}
-
-func toUint8(v float32) uint8 {
-	if v < 0 {
-		return 0
-	}
-	if v > 255 {
-		return 255
-	}
-	return uint8(v)
 }

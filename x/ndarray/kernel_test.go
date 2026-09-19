@@ -46,6 +46,12 @@ func TestCPUEvalAlone(t *testing.T) {
 	require.Equal(t, []float32{5, 6, 7}, dst)
 }
 
+func TestCastU8(t *testing.T) {
+	a, err := New([]float32{-1, 0, 10.4, 255, 300}, Shape{5})
+	require.NoError(t, err)
+	require.Equal(t, []float32{0, 0, 10, 255, 255}, mustEval(t, a.Cast(U8)))
+}
+
 func TestEvalAdd(t *testing.T) {
 	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
