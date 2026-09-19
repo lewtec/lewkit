@@ -32,16 +32,13 @@ func TestRand(t *testing.T) {
 	}
 	x, err := Rand[float32](bytes.NewReader(src[:]), Shape{16})
 	require.NoError(t, err)
-	got, err := x.Data()
-	require.NoError(t, err)
+	got := mustEval(t, x)
 	require.Len(t, got, 16)
 	require.GreaterOrEqual(t, got[0], float32(0))
 	require.Less(t, got[0], float32(1))
 	y, err := Rand[float32](bytes.NewReader(src[:]), Shape{16})
 	require.NoError(t, err)
-	gotY, err := y.Data()
-	require.NoError(t, err)
-	require.Equal(t, got, gotY)
+	require.Equal(t, got, mustEval(t, y))
 }
 
 func TestRandInt(t *testing.T) {

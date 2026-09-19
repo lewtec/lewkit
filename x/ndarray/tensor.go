@@ -2,11 +2,9 @@ package ndarray
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"slices"
 	"unsafe"
 )
@@ -92,7 +90,8 @@ func Full[T Number](v T, shape Shape) (*Tensor[T], error) {
 	return wrap[T](filled(v, tracker)), nil
 }
 
-// Rand fills shape from r. float32 is [0, 1); int32 is [0, 2^31); uint8 is 0..255.
+// Rand fills shape from r. uint8 is raw bytes. int32 and float32 read
+// 4-byte cells; a fused Shr maps ints to [0, 2^31) and floats to [0, 1).
 func Rand[T Number](r io.Reader, shape Shape) (*Tensor[T], error) {
 	tracker, err := Of(shape)
 	if err != nil {
@@ -101,26 +100,39 @@ func Rand[T Number](r io.Reader, shape Shape) (*Tensor[T], error) {
 	if r == nil {
 		return nil, ErrOp
 	}
-	dtype := dtypeOf[T]()
 	n := tracker.Size()
-	raw := make([]byte, n*dtype.size())
-	if _, err := io.ReadFull(r, raw); err != nil {
-		return nil, err
-	}
-	switch dtype {
-	case F32:
-		for i := 0; i < n; i++ {
-			u := binary.LittleEndian.Uint32(raw[i*4:])
-			binary.LittleEndian.PutUint32(raw[i*4:], math.Float32bits(float32(float64(u)/(1<<32))))
+	switch any(*new(T)).(type) {
+	case uint8:
+		data := make([]uint8, n)
+		if _, err := io.ReadFull(r, data); err != nil {
+			return nil, err
 		}
-	case I32:
-		for i := 0; i < n; i++ {
-			v := binary.LittleEndian.Uint32(raw[i*4:]) >> 1
-			binary.LittleEndian.PutUint32(raw[i*4:], v)
+		t, err := New(data, shape)
+		if err != nil {
+			return nil, err
+		}
+		return any(t).(*Tensor[T]), nil
+	default:
+		raw := make([]byte, n*4)
+		if _, err := io.ReadFull(r, raw); err != nil {
+			return nil, err
+		}
+		bits := unsafe.Slice((*int32)(unsafe.Pointer(unsafe.SliceData(raw))), n)
+		src, err := New(bits, shape)
+		if err != nil {
+			return nil, err
+		}
+		shifted := src.Shr(Const(int32(1)))
+		switch any(*new(T)).(type) {
+		case int32:
+			return any(shifted).(*Tensor[T]), nil
+		case float32:
+			out := shifted.Cast[float32]().Mul(Const(float32(1.0 / (1 << 31))))
+			return any(out).(*Tensor[T]), nil
+		default:
+			return nil, ErrType
 		}
 	}
-	buf := &buffer{raw: raw, dtype: dtype}
-	return wrap[T](input(buf, tracker, dtype)), nil
 }
 
 // Shape is the logical shape, or nil for a splat. After compile, this is
