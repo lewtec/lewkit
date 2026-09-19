@@ -52,6 +52,10 @@ const (
 
 	apiVersion11 = 1<<22 | 1<<12
 
+	instanceEnumeratePortability = 1
+	extPortabilityEnum           = "VK_KHR_portability_enumeration"
+	extPortabilitySubset         = "VK_KHR_portability_subset"
+
 	accessHostWrite   = 0x00004000
 	accessHostRead    = 0x00002000
 	accessShaderRead  = 0x00000020
@@ -298,9 +302,17 @@ type submitInfo struct {
 	pSignalSemaphores    uintptr
 }
 
+type extensionProperties struct {
+	name        [256]byte
+	specVersion uint32
+}
+
 type api struct {
 	getInstanceProcAddr func(instance uintptr, name string) uintptr
 	getDeviceProcAddr   func(device uintptr, name string) uintptr
+
+	enumerateInstanceExt func(layer *byte, count *uint32, props *extensionProperties) int32
+	enumerateDeviceExt   func(phys uintptr, layer *byte, count *uint32, props *extensionProperties) int32
 
 	createInstance    func(info *instanceCreateInfo, alloc uintptr, instance *uintptr) int32
 	destroyInstance   func(instance uintptr, alloc uintptr)
@@ -419,7 +431,10 @@ func (a *api) loadLoader(lib uintptr) error {
 	if a.getInstanceProcAddr == nil {
 		return fmt.Errorf("%w: vkGetInstanceProcAddr", ErrUnavailable)
 	}
-	return a.bind(a.getInstanceProcAddr, 0, "vkCreateInstance", &a.createInstance)
+	if err := a.bind(a.getInstanceProcAddr, 0, "vkCreateInstance", &a.createInstance); err != nil {
+		return err
+	}
+	return a.bind(a.getInstanceProcAddr, 0, "vkEnumerateInstanceExtensionProperties", &a.enumerateInstanceExt)
 }
 
 func (a *api) loadInstance(inst uintptr) error {
@@ -430,6 +445,7 @@ func (a *api) loadInstance(inst uintptr) error {
 	for _, p := range []pair{
 		{"vkDestroyInstance", &a.destroyInstance},
 		{"vkEnumeratePhysicalDevices", &a.enumeratePhysical},
+		{"vkEnumerateDeviceExtensionProperties", &a.enumerateDeviceExt},
 		{"vkGetPhysicalDeviceQueueFamilyProperties", &a.getQueueFamilies},
 		{"vkGetPhysicalDeviceMemoryProperties", &a.getMemoryProps},
 		{"vkGetPhysicalDeviceProperties", &a.getPhysProps},
@@ -526,4 +542,62 @@ func check(r int32) error {
 		return nil
 	}
 	return Result(r)
+}
+
+func hasExt(exts []string, name string) bool {
+	for _, e := range exts {
+		if e == name {
+			return true
+		}
+	}
+	return false
+}
+
+func cStrings(names []string) (**byte, []*byte) {
+	if len(names) == 0 {
+		return nil, nil
+	}
+	ptrs := make([]*byte, len(names))
+	for i, n := range names {
+		ptrs[i] = cstr(n)
+	}
+	return &ptrs[0], ptrs
+}
+
+func (a *api) instanceExts() []string {
+	if a.enumerateInstanceExt == nil {
+		return nil
+	}
+	var n uint32
+	if check(a.enumerateInstanceExt(nil, &n, nil)) != nil || n == 0 {
+		return nil
+	}
+	props := make([]extensionProperties, n)
+	if check(a.enumerateInstanceExt(nil, &n, &props[0])) != nil {
+		return nil
+	}
+	out := make([]string, 0, n)
+	for _, p := range props[:n] {
+		out = append(out, cstring(p.name[:]))
+	}
+	return out
+}
+
+func (a *api) deviceExts(phys uintptr) []string {
+	if a.enumerateDeviceExt == nil {
+		return nil
+	}
+	var n uint32
+	if check(a.enumerateDeviceExt(phys, nil, &n, nil)) != nil || n == 0 {
+		return nil
+	}
+	props := make([]extensionProperties, n)
+	if check(a.enumerateDeviceExt(phys, nil, &n, &props[0])) != nil {
+		return nil
+	}
+	out := make([]string, 0, n)
+	for _, p := range props[:n] {
+		out = append(out, cstring(p.name[:]))
+	}
+	return out
 }

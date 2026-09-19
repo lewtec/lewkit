@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestHasExt(t *testing.T) {
+	require.True(t, hasExt([]string{"VK_KHR_foo", extPortabilityEnum}, extPortabilityEnum))
+	require.False(t, hasExt(nil, extPortabilityEnum))
+}
+
 func TestSmokeSPIRVMagic(t *testing.T) {
 	b := SmokeSPIRV()
 	require.GreaterOrEqual(t, len(b), 20)

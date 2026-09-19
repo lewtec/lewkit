@@ -42,9 +42,20 @@ func Open(ctx context.Context) (*Device, error) {
 		pApplicationName: appName,
 		apiVersion:       apiVersion11,
 	}
+	var instExt []string
+	var instFlags uint32
+	if hasExt(d.api.instanceExts(), extPortabilityEnum) {
+		instExt = []string{extPortabilityEnum}
+		instFlags = instanceEnumeratePortability
+	}
+	extPtrs, keepExt := cStrings(instExt)
+	_ = keepExt
 	info := instanceCreateInfo{
-		sType:            structureInstanceCreateInfo,
-		pApplicationInfo: &app,
+		sType:                   structureInstanceCreateInfo,
+		flags:                   instFlags,
+		pApplicationInfo:        &app,
+		enabledExtensionCount:   uint32(len(instExt)),
+		ppEnabledExtensionNames: extPtrs,
 	}
 	if err := check(d.api.createInstance(&info, 0, &d.inst)); err != nil {
 		return nil, fmt.Errorf("create instance: %w", err)
@@ -107,10 +118,18 @@ func (d *Device) try(phys uintptr) bool {
 		queueCount:       1,
 		pQueuePriorities: &prio,
 	}
+	var devExt []string
+	if hasExt(d.api.deviceExts(phys), extPortabilitySubset) {
+		devExt = []string{extPortabilitySubset}
+	}
+	devExtPtrs, keepDevExt := cStrings(devExt)
+	_ = keepDevExt
 	dinfo := deviceCreateInfo{
-		sType:                structureDeviceCreateInfo,
-		queueCreateInfoCount: 1,
-		pQueueCreateInfos:    &qinfo,
+		sType:                   structureDeviceCreateInfo,
+		queueCreateInfoCount:    1,
+		pQueueCreateInfos:       &qinfo,
+		enabledExtensionCount:   uint32(len(devExt)),
+		ppEnabledExtensionNames: devExtPtrs,
 	}
 	var dev uintptr
 	if check(d.api.createDevice(phys, &dinfo, 0, &dev)) != nil {
