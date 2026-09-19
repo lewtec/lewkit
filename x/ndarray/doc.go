@@ -8,7 +8,8 @@
 //
 // [In] plus [Add], [Mul], and the other 21 ops build an expression. [Coord]
 // is a logical index. [Compile]
-// emits one GLSL compute shader. [Kernel.Run] / [Kernel.Exec] dispatch it once.
+// emits one GLSL compute shader. [Kernel.Eval] interprets a register tape
+// (no native codegen). [Kernel.Run] / [Kernel.Exec] dispatch on Vulkan.
 //
 // Layers live in [github.com/lewtec/lewkit/x/ndarray/nn].
 package ndarray

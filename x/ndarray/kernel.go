@@ -19,6 +19,7 @@ type Kernel struct {
 	outDT DType
 	n     int
 	spirv []byte
+	cpu   cpuProg
 }
 
 // Compile lowers expr to one GLSL compute kernel. One dispatch covers every cell.
@@ -53,7 +54,11 @@ func Compile(expr *Node) (*Kernel, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Kernel{root: expr, glsl: src, shape: slices.Clone(shape), slots: slots, outDT: expr.dt, n: n}, nil
+	cpu, err := lowerCPU(order, slots, shape)
+	if err != nil {
+		return nil, err
+	}
+	return &Kernel{root: expr, glsl: src, shape: slices.Clone(shape), slots: slots, outDT: expr.dt, n: n, cpu: cpu}, nil
 }
 
 // GLSL is the compute shader source.
