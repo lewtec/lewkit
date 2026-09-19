@@ -27,7 +27,7 @@ type Kernel struct {
 	cpu            cpuProgram
 	pipeline       *vulkan.Shader
 	pipelineDevice *vulkan.Device
-	runBufs        []*vulkan.Buffer
+	runBuffers     []*vulkan.Buffer
 }
 
 // Compile lowers expr to one GLSL compute kernel. One dispatch covers every cell.
@@ -140,7 +140,7 @@ func flatten(root *Node) ([]*Node, []int, error) {
 			if n.slot < 0 || n.tracker.check() != nil {
 				return ErrOp
 			}
-		case kindIn:
+		case kindInput:
 			if n.slot < 0 {
 				return ErrOp
 			}
@@ -173,7 +173,7 @@ func flatten(root *Node) ([]*Node, []int, error) {
 
 type glslWriter struct {
 	b        strings.Builder
-	tmp      int
+	next     int
 	coords   []string
 	outShape []int
 	slotBind map[int]int
@@ -194,14 +194,14 @@ func (w *glslWriter) program() (string, error) {
 	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
 	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dtype.glsl())
 	for i, s := range w.slots {
-		dt := F32
+		dtype := F32
 		for _, n := range w.order {
-			if n.kind == kindIn && n.slot == s {
-				dt = n.dtype
+			if n.kind == kindInput && n.slot == s {
+				dtype = n.dtype
 				break
 			}
 		}
-		fmt.Fprintf(&w.b, "layout(set = 0, binding = %d) buffer In%d { %s x%d[]; };\n", i+1, i+1, dt.glsl(), i+1)
+		fmt.Fprintf(&w.b, "layout(set = 0, binding = %d) buffer In%d { %s x%d[]; };\n", i+1, i+1, dtype.glsl(), i+1)
 	}
 	w.b.WriteString("void main() {\n")
 	w.b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
@@ -220,8 +220,8 @@ func (w *glslWriter) program() (string, error) {
 }
 
 func (w *glslWriter) name(prefix string) string {
-	w.tmp++
-	return prefix + strconv.Itoa(w.tmp)
+	w.next++
+	return prefix + strconv.Itoa(w.next)
 }
 
 func (w *glslWriter) node(n *Node) (string, error) {
@@ -236,7 +236,7 @@ func (w *glslWriter) node(n *Node) (string, error) {
 		}
 		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, w.coords[n.slot])
 		return id, nil
-	case kindIn:
+	case kindInput:
 		off, valid := "0", "true"
 		if len(n.tracker.Shape()) != 0 {
 			off, valid = w.index(n.tracker)

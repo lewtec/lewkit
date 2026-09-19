@@ -22,7 +22,7 @@ func (d *Device) Begin() (*Cmd, error) {
 	if d.recording || d.pending {
 		return nil, ErrBusy
 	}
-	if err := check(d.api.resetCommandPool(d.dev, d.cmdPool, 0)); err != nil {
+	if err := check(d.api.resetCommandPool(d.dev, d.commandPool, 0)); err != nil {
 		return nil, fmt.Errorf("reset command pool: %w", err)
 	}
 	begin := commandBufferBeginInfo{
@@ -62,7 +62,7 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 		return err
 	}
 	d := c.d
-	if s == nil || s.pipe == 0 || s.d != d {
+	if s == nil || s.pipeline == 0 || s.d != d {
 		return ErrShader
 	}
 	if len(bufs) != s.bindings {
@@ -73,7 +73,7 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 			return ErrClosed
 		}
 	}
-	if err := s.ensureDesc(); err != nil {
+	if err := s.ensureDescriptors(); err != nil {
 		return err
 	}
 	n := len(bufs)
@@ -103,8 +103,8 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 			return err
 		}
 	}
-	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipe)
-	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLayout, 0, 1, &s.descriptorSet, 0, nil)
+	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipeline)
+	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipelineLayout, 0, 1, &s.descriptorSet, 0, nil)
 	host := false
 	for _, b := range bufs {
 		if b.ptr != nil {
@@ -125,8 +125,8 @@ func (c *Cmd) Bind(s *Shader, bufs ...*Buffer) error {
 	return nil
 }
 
-func (s *Shader) ensureDesc() error {
-	if s == nil || s.d == nil || s.pipe == 0 {
+func (s *Shader) ensureDescriptors() error {
+	if s == nil || s.d == nil || s.pipeline == 0 {
 		return ErrShader
 	}
 	if s.descriptorPool != 0 {
@@ -173,7 +173,7 @@ func (c *Cmd) Push(data []byte) error {
 	if len(data) == 0 || len(data) > c.bound.pushBytes || len(data)%4 != 0 {
 		return ErrPush
 	}
-	c.d.api.cmdPushConstants(c.d.cmd, c.bound.pipeLayout, shaderStageCompute, 0, uint32(len(data)), uintptr(unsafe.Pointer(unsafe.SliceData(data))))
+	c.d.api.cmdPushConstants(c.d.cmd, c.bound.pipelineLayout, shaderStageCompute, 0, uint32(len(data)), uintptr(unsafe.Pointer(unsafe.SliceData(data))))
 	return nil
 }
 

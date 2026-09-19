@@ -21,10 +21,10 @@ func raster(t *testing.T, expr *ndarray.Node) *stdimage.RGBA {
 	k, err := ndarray.Compile(expr)
 	require.NoError(t, err)
 	require.Equal(t, 1, strings.Count(k.GLSL(), "void main()"))
-	pix, err := k.Eval()
+	pixels, err := k.Eval()
 	require.NoError(t, err)
-	sh := k.Shape()
-	return RGBA(sh[0], sh[1], pix)
+	shape := k.Shape()
+	return RGBA(shape[0], shape[1], pixels)
 }
 
 func TestTriangleColors(t *testing.T) {
@@ -58,9 +58,9 @@ func TestTriangleTurnHalf(t *testing.T) {
 }
 
 func TestTriangleTurnInput(t *testing.T) {
-	st, err := ndarray.Of()
+	tracker, err := ndarray.Of()
 	require.NoError(t, err)
-	expr, err := Triangle(32, 32, ndarray.In(0, st))
+	expr, err := Triangle(32, 32, ndarray.In(0, tracker))
 	require.NoError(t, err)
 	k, err := ndarray.Compile(expr)
 	require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestFill(t *testing.T) {
 	assert.Equal(t, color.RGBA{10, 20, 30, 255}, dst.RGBAAt(1, 1))
 }
 
-func vmKB(t *testing.T) int64 {
+func vmSizeKB(t *testing.T) int64 {
 	t.Helper()
 	b, err := os.ReadFile("/proc/self/status")
 	require.NoError(t, err)
@@ -102,11 +102,11 @@ func TestPainterVirt(t *testing.T) {
 	test.CloseOnCleanup(t, p)
 	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, 256, 256))
 	require.NoError(t, p.Draw(t.Context(), dst, 0))
-	v0 := vmKB(t)
+	v0 := vmSizeKB(t)
 	for i := range 40 {
 		require.NoError(t, p.Draw(t.Context(), dst, float64(i)/40))
 	}
-	v1 := vmKB(t)
+	v1 := vmSizeKB(t)
 	t.Logf("VmSize %d -> %d kB (%+d) over 40 painter frames", v0, v1, v1-v0)
 	require.Less(t, v1-v0, int64(64*1024), "virtual size grew %d kB", v1-v0)
 }

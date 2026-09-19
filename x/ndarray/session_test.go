@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func vmKB(t *testing.T) int64 {
+func vmSizeKB(t *testing.T) int64 {
 	t.Helper()
 	b, err := os.ReadFile("/proc/self/status")
 	require.NoError(t, err)
@@ -67,11 +67,11 @@ func TestSessionVirtStable(t *testing.T) {
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, s)
 	require.NoError(t, s.Run(t.Context(), dst, in))
-	v0 := vmKB(t)
+	v0 := vmSizeKB(t)
 	for range 80 {
 		require.NoError(t, s.Run(t.Context(), dst, in))
 	}
-	v1 := vmKB(t)
+	v1 := vmSizeKB(t)
 	grew := v1 - v0
 	t.Logf("VmSize %d -> %d kB (%+d) over 80 GPU runs", v0, v1, grew)
 	require.Less(t, grew, int64(64*1024), "virtual size grew %d kB", grew)
@@ -84,11 +84,11 @@ func TestEvalIntoVirtStable(t *testing.T) {
 	dst := make([]float32, 4096)
 	in := [][]float32{src}
 	require.NoError(t, k.EvalInto(dst, in))
-	v0 := vmKB(t)
+	v0 := vmSizeKB(t)
 	for range 80 {
 		require.NoError(t, k.EvalInto(dst, in))
 	}
-	v1 := vmKB(t)
+	v1 := vmSizeKB(t)
 	grew := v1 - v0
 	t.Logf("VmSize %d -> %d kB (%+d) over 80 CPU evals", v0, v1, grew)
 	require.Less(t, grew, int64(64*1024), "virtual size grew %d kB", grew)

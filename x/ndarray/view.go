@@ -17,20 +17,20 @@ func stridesFor(shape []int) []int {
 	if len(shape) == 0 {
 		return nil
 	}
-	st := make([]int, len(shape))
+	strides := make([]int, len(shape))
 	acc := 1
 	for i := len(shape) - 1; i >= 0; i-- {
 		if shape[i] == 1 {
-			st[i] = 0
+			strides[i] = 0
 		} else {
-			st[i] = acc
+			strides[i] = acc
 		}
 		acc *= shape[i]
 	}
-	return st
+	return strides
 }
 
-func canonStrides(shape, strides []int) []int {
+func canonicalStrides(shape, strides []int) []int {
 	out := slices.Clone(strides)
 	for i, s := range shape {
 		if s == 1 {
@@ -65,7 +65,7 @@ func create(in view) (view, error) {
 		if len(strides) != len(shape) {
 			return view{}, fmt.Errorf("%w: strides %v for %v", ErrShape, strides, shape)
 		}
-		strides = canonStrides(shape, strides)
+		strides = canonicalStrides(shape, strides)
 	}
 	if hasZero(shape) {
 		return view{
@@ -185,7 +185,7 @@ func unravel(shape []int, i int) []int {
 }
 
 func (v view) permute(axes []int) (view, error) {
-	if !isPerm(axes, len(v.shape)) {
+	if !isPermutation(axes, len(v.shape)) {
 		return view{}, fmt.Errorf("%w: permute %v of rank %d", ErrAxis, axes, len(v.shape))
 	}
 	shape := make([]int, len(axes))
@@ -204,7 +204,7 @@ func (v view) permute(axes []int) (view, error) {
 	return create(view{shape: shape, strides: strides, offset: v.offset, mask: mask})
 }
 
-func isPerm(axes []int, n int) bool {
+func isPermutation(axes []int, n int) bool {
 	if len(axes) != n {
 		return false
 	}
@@ -280,23 +280,23 @@ func (v view) resize(arg [][2]int, mask [][2]int) (view, error) {
 		offset += v.strides[i] * a[0]
 	}
 	if v.mask != nil {
-		nmask := make([][2]int, len(arg))
+		newMask := make([][2]int, len(arg))
 		for i, a := range arg {
 			mx, my := v.mask[i][0], v.mask[i][1]
-			nmask[i] = [2]int{
+			newMask[i] = [2]int{
 				max(0, min(mx-a[0], a[1]-a[0])),
 				max(0, min(my-a[0], a[1]-a[0])),
 			}
 		}
 		if mask != nil {
-			for i := range nmask {
-				nmask[i] = [2]int{
-					max(nmask[i][0], mask[i][0]),
-					min(nmask[i][1], mask[i][1]),
+			for i := range newMask {
+				newMask[i] = [2]int{
+					max(newMask[i][0], mask[i][0]),
+					min(newMask[i][1], mask[i][1]),
 				}
 			}
 		}
-		mask = nmask
+		mask = newMask
 	}
 	shape := make([]int, len(arg))
 	for i, a := range arg {
@@ -360,24 +360,24 @@ func mergeDims(shape, strides []int, mask [][2]int) []merged {
 		merging = mask[0][1]-mask[0][0] == 1
 	}
 	for i := 1; i < len(shape); i++ {
-		s, st := shape[i], strides[i]
-		if s == 1 {
+		size, stride := shape[i], strides[i]
+		if size == 1 {
 			continue
 		}
 		last := ret[len(ret)-1]
-		if merging || last.stride == s*st {
-			pre := last.real * s
+		if merging || last.stride == size*stride {
+			pre := last.real * size
 			if merging {
-				pre = s
+				pre = size
 			}
-			ret[len(ret)-1] = merged{last.size * s, st, pre}
+			ret[len(ret)-1] = merged{last.size * size, stride, pre}
 		} else {
-			ret = append(ret, merged{s, st, s})
+			ret = append(ret, merged{size, stride, size})
 		}
 		if mask != nil {
 			merging = mask[i][1]-mask[i][0] == 1
 		} else {
-			merging = s == 1
+			merging = size == 1
 		}
 	}
 	return ret
@@ -408,7 +408,7 @@ func reshapeMask(mask [][2]int, oldShape, newShape []int) ([][2]int, bool) {
 		*s = (*s)[1:]
 		return v
 	}
-	popM := func(s *[][2]int) [2]int {
+	popMask := func(s *[][2]int) [2]int {
 		if len(*s) == 0 {
 			return [2]int{0, 1}
 		}
@@ -420,7 +420,7 @@ func reshapeMask(mask [][2]int, oldShape, newShape []int) ([][2]int, bool) {
 	curr := 1
 	oldDim := pop(&rShape, 1)
 	newDim := pop(&rNew, 1)
-	m := popM(&rMasks)
+	m := popMask(&rMasks)
 	for len(out) < len(newShape) {
 		l, r := m[0], m[1]
 		next := newDim * curr
@@ -430,7 +430,7 @@ func reshapeMask(mask [][2]int, oldShape, newShape []int) ([][2]int, bool) {
 			curr = 1
 			oldDim = pop(&rShape, 1)
 			newDim = pop(&rNew, 1)
-			m = popM(&rMasks)
+			m = popMask(&rMasks)
 		case oldDim > next:
 			if next == 0 || oldDim%next != 0 {
 				return nil, false
@@ -442,7 +442,7 @@ func reshapeMask(mask [][2]int, oldShape, newShape []int) ([][2]int, bool) {
 			curr = next
 			newDim = pop(&rNew, 1)
 		default:
-			nextM := popM(&rMasks)
+			nextM := popMask(&rMasks)
 			if m != [2]int{0, oldDim} && l != r && nextM[1]-nextM[0] != 1 {
 				return nil, false
 			}
@@ -459,8 +459,8 @@ func (v view) reshape(newShape []int) (view, bool) {
 		return v, true
 	}
 	if hasZero(v.shape) {
-		nv, err := create(view{shape: newShape})
-		return nv, err == nil
+		newView, err := create(view{shape: newShape})
+		return newView, err == nil
 	}
 	if len(newShape) == 0 && v.mask != nil {
 		for _, m := range v.mask {
@@ -470,8 +470,8 @@ func (v view) reshape(newShape []int) (view, bool) {
 		}
 	}
 	if v.contiguous() {
-		nv, err := create(view{shape: newShape})
-		return nv, err == nil
+		newView, err := create(view{shape: newShape})
+		return newView, err == nil
 	}
 	rStrides := make([]int, 0, len(newShape))
 	rNew := slices.Clone(newShape)
@@ -510,8 +510,8 @@ func (v view) reshape(newShape []int) (view, bool) {
 	for i, m := range newMask {
 		extra -= m[0] * newStrides[i]
 	}
-	nv, err := create(view{shape: newShape, strides: newStrides, offset: v.offset + extra, mask: newMask})
-	return nv, err == nil
+	newView, err := create(view{shape: newShape, strides: newStrides, offset: v.offset + extra, mask: newMask})
+	return newView, err == nil
 }
 
 func reversed(s []int) []int {

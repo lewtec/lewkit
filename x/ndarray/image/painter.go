@@ -31,21 +31,21 @@ func New(ctx context.Context) (*Painter, error) {
 	if err != nil {
 		return nil, err
 	}
-	k, err := ndarray.Compile(expr)
+	kernel, err := ndarray.Compile(expr)
 	if err != nil {
 		return nil, err
 	}
-	d, _ := vulkan.Open(ctx)
-	sess, err := k.Attach(ctx, d)
+	device, _ := vulkan.Open(ctx)
+	session, err := kernel.Attach(ctx, device)
 	if err != nil {
-		e := k.Close()
-		if d != nil {
-			e = errors.Join(e, d.Close())
+		e := kernel.Close()
+		if device != nil {
+			e = errors.Join(e, device.Close())
 		}
 		return nil, errors.Join(err, e)
 	}
 	p := &Painter{
-		device: d, kernel: k, session: sess,
+		device: device, kernel: kernel, session: session,
 		turn: []float32{0}, width: []float32{1}, height: []float32{1},
 	}
 	p.inputs = [][]float32{p.turn, p.width, p.height}

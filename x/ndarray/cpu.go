@@ -37,9 +37,9 @@ type cpuProgram struct {
 }
 
 func lowerCPU(order []*Node, slots, shape []int) (cpuProgram, error) {
-	slotIdx := make(map[int]int, len(slots))
+	slotIndex := make(map[int]int, len(slots))
 	for i, s := range slots {
-		slotIdx[s] = i
+		slotIndex[s] = i
 	}
 	reg := make(map[*Node]int, len(order))
 	code := make([]instruction, 0, len(order))
@@ -57,9 +57,9 @@ func lowerCPU(order []*Node, slots, shape []int) (cpuProgram, error) {
 			}
 			in.kind = cpuCoord
 			in.axis = n.slot
-		case kindIn:
+		case kindInput:
 			in.kind = cpuLoad
-			in.source = slotIdx[n.slot]
+			in.source = slotIndex[n.slot]
 			in.i32 = n.dtype == I32
 			in.scalar = len(n.tracker.Shape()) == 0
 			in.dense = !in.scalar && n.tracker.Contiguous() && slices.Equal(n.tracker.Shape(), shape)
@@ -86,28 +86,28 @@ func lowerCPU(order []*Node, slots, shape []int) (cpuProgram, error) {
 }
 
 type cpuJob struct {
-	p       cpuProgram
+	program cpuProgram
 	shape   []int
 	outType DType
-	srcs    [][]float32
-	out     []float32
+	inputs  [][]float32
+	output  []float32
 	lo, hi  int
 }
 
 type cpuScratch struct {
-	regs    []uint32
-	coords  []int
-	scratch []int
+	registers []uint32
+	coords    []int
+	scratch   []int
 }
 
 var scratchPool = sync.Pool{New: func() any { return &cpuScratch{scratch: make([]int, 8)} }}
 
 func takeScratch(registers, rank int) *cpuScratch {
 	s := scratchPool.Get().(*cpuScratch)
-	if cap(s.regs) < registers {
-		s.regs = make([]uint32, registers)
+	if cap(s.registers) < registers {
+		s.registers = make([]uint32, registers)
 	} else {
-		s.regs = s.regs[:registers]
+		s.registers = s.registers[:registers]
 	}
 	if cap(s.coords) < rank {
 		s.coords = make([]int, rank)
@@ -117,17 +117,17 @@ func takeScratch(registers, rank int) *cpuScratch {
 	return s
 }
 
-func (k *Kernel) evalCPU(dst []float32, srcs [][]float32) {
+func (k *Kernel) evalCPU(output []float32, inputs [][]float32) {
 	workers := min(runtime.GOMAXPROCS(0), k.n)
 	if workers < 2 || k.n < cpuMinParallel {
-		k.evalSerial(dst, srcs)
+		k.evalSerial(output, inputs)
 		return
 	}
-	k.evalParallel(dst, srcs, workers)
+	k.evalParallel(output, inputs, workers)
 }
 
-func (k *Kernel) evalSerial(dst []float32, srcs [][]float32) {
-	cpuJob{p: k.cpu, shape: k.shape, outType: k.outType, srcs: srcs, out: dst, hi: k.n}.run()
+func (k *Kernel) evalSerial(output []float32, inputs [][]float32) {
+	cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, inputs: inputs, output: output, hi: k.n}.run()
 }
 
 var (
@@ -155,10 +155,10 @@ func startCPUWorkers() {
 func cpuWorker(id int) {
 	var s cpuScratch
 	for j := range cpuReady[id] {
-		if cap(s.regs) < j.p.registers {
-			s.regs = make([]uint32, j.p.registers)
+		if cap(s.registers) < j.program.registers {
+			s.registers = make([]uint32, j.program.registers)
 		} else {
-			s.regs = s.regs[:j.p.registers]
+			s.registers = s.registers[:j.program.registers]
 		}
 		rank := len(j.shape)
 		if cap(s.coords) < rank {
@@ -174,13 +174,13 @@ func cpuWorker(id int) {
 	}
 }
 
-func (k *Kernel) evalParallel(dst []float32, srcs [][]float32, workers int) {
+func (k *Kernel) evalParallel(output []float32, inputs [][]float32, workers int) {
 	startCPUWorkers()
 	if workers > len(cpuReady) {
 		workers = len(cpuReady)
 	}
 	chunk := (k.n + workers - 1) / workers
-	base := cpuJob{p: k.cpu, shape: k.shape, outType: k.outType, srcs: srcs, out: dst}
+	base := cpuJob{program: k.cpu, shape: k.shape, outType: k.outType, inputs: inputs, output: output}
 	n := 0
 	for w := range workers {
 		lo := w * chunk
@@ -199,7 +199,7 @@ func (k *Kernel) evalParallel(dst []float32, srcs [][]float32, workers int) {
 }
 
 func (j cpuJob) run() {
-	s := takeScratch(j.p.registers, len(j.shape))
+	s := takeScratch(j.program.registers, len(j.shape))
 	j.loop(s)
 	scratchPool.Put(s)
 }
@@ -207,42 +207,42 @@ func (j cpuJob) run() {
 func (j cpuJob) loop(s *cpuScratch) {
 	for i := j.lo; i < j.hi; i++ {
 		unravelInto(j.shape, i, s.coords)
-		for _, in := range j.p.code {
-			switch in.kind {
+		for _, instr := range j.program.code {
+			switch instr.kind {
 			case cpuConst:
-				s.regs[in.dst] = in.bits
+				s.registers[instr.dst] = instr.bits
 			case cpuCoord:
-				s.regs[in.dst] = uint32(int32(s.coords[in.axis]))
+				s.registers[instr.dst] = uint32(int32(s.coords[instr.axis]))
 			case cpuLoad:
-				s.regs[in.dst] = in.load(i, s.coords, j.srcs, &s.scratch)
+				s.registers[instr.dst] = instr.load(i, s.coords, j.inputs, &s.scratch)
 			case cpuALU:
-				s.regs[in.dst] = in.evalALU(s.regs)
+				s.registers[instr.dst] = instr.evalALU(s.registers)
 			}
 		}
 		if j.outType == I32 {
-			j.out[i] = float32(int32(s.regs[j.p.root]))
+			j.output[i] = float32(int32(s.registers[j.program.root]))
 		} else {
-			j.out[i] = math.Float32frombits(s.regs[j.p.root])
+			j.output[i] = math.Float32frombits(s.registers[j.program.root])
 		}
 	}
 }
 
-func (in instruction) load(i int, coords []int, srcs [][]float32, scratch *[]int) uint32 {
+func (instr instruction) load(i int, coords []int, inputs [][]float32, scratch *[]int) uint32 {
 	var off int
 	ok := true
 	switch {
-	case in.scalar:
+	case instr.scalar:
 		off = 0
-	case in.dense:
+	case instr.dense:
 		off = i
 	default:
-		off, ok = indexViews(in.views, coords, scratch)
+		off, ok = indexViews(instr.views, coords, scratch)
 	}
-	if !ok || in.source < 0 || in.source >= len(srcs) || off < 0 || off >= len(srcs[in.source]) {
+	if !ok || instr.source < 0 || instr.source >= len(inputs) || off < 0 || off >= len(inputs[instr.source]) {
 		return 0
 	}
-	x := srcs[in.source][off]
-	if in.i32 {
+	x := inputs[instr.source][off]
+	if instr.i32 {
 		return uint32(int32(x))
 	}
 	return math.Float32bits(x)
@@ -261,9 +261,9 @@ func indexViews(views []view, coords []int, scratch *[]int) (int, bool) {
 		}
 		mid := (*scratch)[:need]
 		unravelInto(v.shape, off, mid)
-		var vok bool
-		off, vok = v.index(mid)
-		ok = ok && vok
+		var viewOK bool
+		off, viewOK = v.index(mid)
+		ok = ok && viewOK
 	}
 	return off, ok
 }
@@ -281,113 +281,113 @@ func unravelInto(shape []int, i int, coords []int) {
 	}
 }
 
-func (in instruction) evalALU(regs []uint32) uint32 {
-	a, b, c := regs[in.a], uint32(0), uint32(0)
-	if in.alu.arity() > 1 {
-		b = regs[in.b]
+func (instr instruction) evalALU(regs []uint32) uint32 {
+	a, b, c := regs[instr.a], uint32(0), uint32(0)
+	if instr.alu.arity() > 1 {
+		b = regs[instr.b]
 	}
-	if in.alu.arity() > 2 {
-		c = regs[in.c]
+	if instr.alu.arity() > 2 {
+		c = regs[instr.c]
 	}
 	fa := math.Float32frombits(a)
 	fb := math.Float32frombits(b)
 	fc := math.Float32frombits(c)
 	ia, ib, ic := int32(a), int32(b), int32(c)
-	asF := in.inType == F32
-	packF := math.Float32bits
-	packI := func(v int32) uint32 { return uint32(v) }
-	switch in.alu {
+	asFloat := instr.inType == F32
+	packFloat := math.Float32bits
+	packInt := func(v int32) uint32 { return uint32(v) }
+	switch instr.alu {
 	case EXP2:
-		return packF(float32(math.Exp2(float64(fa))))
+		return packFloat(float32(math.Exp2(float64(fa))))
 	case LOG2:
-		return packF(float32(math.Log2(float64(fa))))
+		return packFloat(float32(math.Log2(float64(fa))))
 	case SIN:
-		return packF(float32(math.Sin(float64(fa))))
+		return packFloat(float32(math.Sin(float64(fa))))
 	case SQRT:
-		return packF(float32(math.Sqrt(float64(fa))))
+		return packFloat(float32(math.Sqrt(float64(fa))))
 	case RECIP:
-		return packF(1 / fa)
+		return packFloat(1 / fa)
 	case NEG:
-		if asF {
-			return packF(-fa)
+		if asFloat {
+			return packFloat(-fa)
 		}
-		return packI(-ia)
+		return packInt(-ia)
 	case CAST:
-		if in.dtype == I32 {
-			if asF {
-				return packI(int32(fa))
+		if instr.dtype == I32 {
+			if asFloat {
+				return packInt(int32(fa))
 			}
 			return a
 		}
-		if asF {
+		if asFloat {
 			return a
 		}
-		return packF(float32(ia))
+		return packFloat(float32(ia))
 	case ADD:
-		if asF {
-			return packF(fa + fb)
+		if asFloat {
+			return packFloat(fa + fb)
 		}
-		return packI(ia + ib)
+		return packInt(ia + ib)
 	case MUL:
-		if asF {
-			return packF(fa * fb)
+		if asFloat {
+			return packFloat(fa * fb)
 		}
-		return packI(ia * ib)
+		return packInt(ia * ib)
 	case IDIV:
 		if ib == 0 {
 			return 0
 		}
-		return packI(ia / ib)
+		return packInt(ia / ib)
 	case MAX:
-		if asF {
-			return packF(max(fa, fb))
+		if asFloat {
+			return packFloat(max(fa, fb))
 		}
-		return packI(max(ia, ib))
+		return packInt(max(ia, ib))
 	case MOD:
 		if ib == 0 {
 			return 0
 		}
-		return packI(ia % ib)
+		return packInt(ia % ib)
 	case CMPLT:
 		var t int32
-		if asF {
+		if asFloat {
 			if fa < fb {
 				t = 1
 			}
 		} else if ia < ib {
 			t = 1
 		}
-		return packI(t)
+		return packInt(t)
 	case CMPNE:
 		var t int32
-		if asF {
+		if asFloat {
 			if fa != fb {
 				t = 1
 			}
 		} else if ia != ib {
 			t = 1
 		}
-		return packI(t)
+		return packInt(t)
 	case XOR:
-		return packI(ia ^ ib)
+		return packInt(ia ^ ib)
 	case SHL:
-		return packI(ia << uint32(ib))
+		return packInt(ia << uint32(ib))
 	case SHR:
-		return packI(ia >> uint32(ib))
+		return packInt(ia >> uint32(ib))
 	case OR:
-		return packI(ia | ib)
+		return packInt(ia | ib)
 	case AND:
-		return packI(ia & ib)
+		return packInt(ia & ib)
 	case WHERE:
 		if ia != 0 {
 			return b
 		}
 		return c
 	case MULACC:
-		if asF {
-			return packF(fa*fb + fc)
+		if asFloat {
+			return packFloat(fa*fb + fc)
 		}
-		return packI(ia*ib + ic)
+		return packInt(ia*ib + ic)
 	default:
 		return 0
 	}

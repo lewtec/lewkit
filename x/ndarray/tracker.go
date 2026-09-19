@@ -74,8 +74,8 @@ func (t Tracker) RealSize() int {
 		if hi <= lo {
 			return 0
 		}
-		st := v.strides[i]
-		a, b := lo*st, (hi-1)*st
+		stride := v.strides[i]
+		a, b := lo*stride, (hi-1)*stride
 		if a > b {
 			a, b = b, a
 		}
@@ -89,13 +89,13 @@ func (t Tracker) Index(coords ...int) (offset int, valid bool, err error) {
 	if err := t.check(); err != nil {
 		return 0, false, err
 	}
-	sh := t.last().shape
-	if len(coords) != len(sh) {
-		return 0, false, fmt.Errorf("%w: got %d coords for %v", ErrIndex, len(coords), sh)
+	shape := t.last().shape
+	if len(coords) != len(shape) {
+		return 0, false, fmt.Errorf("%w: got %d coords for %v", ErrIndex, len(coords), shape)
 	}
 	for i, c := range coords {
-		if c < 0 || c >= sh[i] {
-			return 0, false, fmt.Errorf("%w: %v in %v", ErrIndex, coords, sh)
+		if c < 0 || c >= shape[i] {
+			return 0, false, fmt.Errorf("%w: %v in %v", ErrIndex, coords, shape)
 		}
 	}
 	off, ok := t.last().index(coords)
@@ -105,9 +105,9 @@ func (t Tracker) Index(coords ...int) (offset int, valid bool, err error) {
 			return 0, false, nil
 		}
 		coords = unravel(v.shape, off)
-		var vok bool
-		off, vok = v.index(coords)
-		ok = ok && vok
+		var viewOK bool
+		off, viewOK = v.index(coords)
+		ok = ok && viewOK
 	}
 	return off, ok, nil
 }
@@ -133,14 +133,14 @@ func (t Tracker) Reshape(shape ...int) (Tracker, error) {
 	if err != nil {
 		return Tracker{}, err
 	}
-	if nv, ok := t.last().reshape(shape); ok {
-		return t.replace(nv), nil
+	if newView, ok := t.last().reshape(shape); ok {
+		return t.replace(newView), nil
 	}
-	nv, err := create(view{shape: shape})
+	newView, err := create(view{shape: shape})
 	if err != nil {
 		return Tracker{}, err
 	}
-	return Tracker{views: append(slices.Clone(t.views), nv)}, nil
+	return Tracker{views: append(slices.Clone(t.views), newView)}, nil
 }
 
 func infer(shape []int, size int) ([]int, error) {
@@ -268,7 +268,7 @@ func normalizeAxes(axes []int, rank int, perm bool) ([]int, error) {
 		out[i] = a
 	}
 	if perm {
-		if !isPerm(out, rank) {
+		if !isPermutation(out, rank) {
 			return nil, fmt.Errorf("%w: permute %v of rank %d", ErrAxis, axes, rank)
 		}
 	}

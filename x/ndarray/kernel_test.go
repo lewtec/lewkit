@@ -86,9 +86,9 @@ func TestCompileShapeMismatch(t *testing.T) {
 func TestCompileGLSL(t *testing.T) {
 	k, err := Compile(In(0, mustTracker(t, 2, 2)).Add(In(1, mustTracker(t, 2, 2))).Mul(Const(0.5)))
 	require.NoError(t, err)
-	spv, err := k.SPIRV(t.Context())
+	spirv, err := k.SPIRV(t.Context())
 	require.NoError(t, err)
-	require.True(t, glsl.IsSPIRV(spv))
+	require.True(t, glsl.IsSPIRV(spirv))
 }
 
 func TestRealSize(t *testing.T) {

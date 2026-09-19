@@ -32,7 +32,7 @@ func TestEvalInto(t *testing.T) {
 	require.Equal(t, 0.0, n)
 }
 
-func TestGeEq(t *testing.T) {
+func TestGreaterEqual(t *testing.T) {
 	k, err := Compile(GreaterEqual(In(0, mustTracker(t, 3)), Const(0)).Cast(F32))
 	require.NoError(t, err)
 	got, err := k.Eval([]float32{-1, 0, 2})

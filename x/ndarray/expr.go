@@ -10,7 +10,7 @@ type kind uint8
 
 const (
 	kindConst kind = iota
-	kindIn
+	kindInput
 	kindCoord
 	kindOp
 )
@@ -39,7 +39,7 @@ func InTyped(slot int, tracker Tracker, dtype DType) *Node {
 	if slot < 0 || tracker.check() != nil || (dtype != F32 && dtype != I32) {
 		return failed(ErrOp)
 	}
-	return &Node{kind: kindIn, dtype: dtype, tracker: tracker, slot: slot}
+	return &Node{kind: kindInput, dtype: dtype, tracker: tracker, slot: slot}
 }
 
 // Const is a float32 splat.
@@ -78,20 +78,20 @@ func (n *Node) Shape() []int {
 	if n == nil || n.err != nil {
 		return nil
 	}
-	if n.kind == kindIn {
-		sh := n.tracker.Shape()
-		if len(sh) == 0 {
+	if n.kind == kindInput {
+		shape := n.tracker.Shape()
+		if len(shape) == 0 {
 			return nil
 		}
-		return sh
+		return shape
 	}
 	if n.kind == kindCoord {
 		return n.tracker.Shape()
 	}
 	if n.kind == kindOp {
 		for _, s := range n.sources {
-			if sh := s.Shape(); sh != nil {
-				return sh
+			if shape := s.Shape(); shape != nil {
+				return shape
 			}
 		}
 	}
@@ -129,40 +129,40 @@ func (n *Node) Where(a, b *Node) *Node  { return Where(n, a, b) }
 func (n *Node) MulAcc(b, c *Node) *Node { return MulAcc(n, b, c) }
 
 // Add is a + b.
-func Add(a, b *Node) *Node { return bin(ADD, a, b) }
+func Add(a, b *Node) *Node { return binaryOp(ADD, a, b) }
 
 // Mul is a * b.
-func Mul(a, b *Node) *Node { return bin(MUL, a, b) }
+func Mul(a, b *Node) *Node { return binaryOp(MUL, a, b) }
 
 // IDiv is integer a / b.
-func IDiv(a, b *Node) *Node { return bin(IDIV, a, b) }
+func IDiv(a, b *Node) *Node { return binaryOp(IDIV, a, b) }
 
 // Max is max(a, b).
-func Max(a, b *Node) *Node { return bin(MAX, a, b) }
+func Max(a, b *Node) *Node { return binaryOp(MAX, a, b) }
 
 // Mod is integer a % b.
-func Mod(a, b *Node) *Node { return bin(MOD, a, b) }
+func Mod(a, b *Node) *Node { return binaryOp(MOD, a, b) }
 
 // CmpLt is 1 if a < b, else 0.
-func CmpLt(a, b *Node) *Node { return bin(CMPLT, a, b) }
+func CmpLt(a, b *Node) *Node { return binaryOp(CMPLT, a, b) }
 
 // CmpNe is 1 if a != b, else 0.
-func CmpNe(a, b *Node) *Node { return bin(CMPNE, a, b) }
+func CmpNe(a, b *Node) *Node { return binaryOp(CMPNE, a, b) }
 
 // Xor is a ^ b.
-func Xor(a, b *Node) *Node { return bin(XOR, a, b) }
+func Xor(a, b *Node) *Node { return binaryOp(XOR, a, b) }
 
 // Shl is a << b.
-func Shl(a, b *Node) *Node { return bin(SHL, a, b) }
+func Shl(a, b *Node) *Node { return binaryOp(SHL, a, b) }
 
 // Shr is a >> b.
-func Shr(a, b *Node) *Node { return bin(SHR, a, b) }
+func Shr(a, b *Node) *Node { return binaryOp(SHR, a, b) }
 
 // Or is a | b.
-func Or(a, b *Node) *Node { return bin(OR, a, b) }
+func Or(a, b *Node) *Node { return binaryOp(OR, a, b) }
 
 // And is a & b.
-func And(a, b *Node) *Node { return bin(AND, a, b) }
+func And(a, b *Node) *Node { return binaryOp(AND, a, b) }
 
 // Exp2 is 2^a.
 func Exp2(a *Node) *Node { return unary(EXP2, a) }
@@ -255,7 +255,7 @@ func unary(op Op, a *Node) *Node {
 	return &Node{kind: kindOp, op: op, dtype: dtype, sources: []*Node{a}}
 }
 
-func bin(op Op, a, b *Node) *Node {
+func binaryOp(op Op, a, b *Node) *Node {
 	if a == nil || b == nil {
 		return failed(ErrOp)
 	}
@@ -318,18 +318,18 @@ func binaryType(op Op, a, b DType) (DType, error) {
 }
 
 func sameShape(ns ...*Node) error {
-	var sh []int
+	var shape []int
 	for _, n := range ns {
 		s := n.Shape()
 		if s == nil {
 			continue
 		}
-		if sh == nil {
-			sh = s
+		if shape == nil {
+			shape = s
 			continue
 		}
-		if !slices.Equal(sh, s) {
-			return fmt.Errorf("%w: %v vs %v", ErrShape, sh, s)
+		if !slices.Equal(shape, s) {
+			return fmt.Errorf("%w: %v vs %v", ErrShape, shape, s)
 		}
 	}
 	return nil

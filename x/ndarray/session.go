@@ -18,39 +18,39 @@ type Session struct {
 	inputs []*vulkan.Buffer
 }
 
-// Attach binds k to d. d may be nil for CPU-only EvalInto.
-func (k *Kernel) Attach(ctx context.Context, d *vulkan.Device) (*Session, error) {
+// Attach binds kernel to device. device may be nil for CPU-only EvalInto.
+func (k *Kernel) Attach(ctx context.Context, device *vulkan.Device) (*Session, error) {
 	if k == nil {
 		return nil, ErrOp
 	}
-	s := &Session{kernel: k, device: d, inputs: make([]*vulkan.Buffer, len(k.slots))}
-	if d == nil {
+	s := &Session{kernel: k, device: device, inputs: make([]*vulkan.Buffer, len(k.slots))}
+	if device == nil {
 		return s, nil
 	}
-	if _, err := k.ensurePipeline(ctx, d); err != nil {
+	if _, err := k.ensurePipeline(ctx, device); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
 
-// Run writes srcs, dispatches, and reads dst. dst must already have length k.n.
-func (s *Session) Run(ctx context.Context, dst []float32, srcs [][]float32) error {
+// Run writes inputs, dispatches, and reads output. output must already have length k.n.
+func (s *Session) Run(ctx context.Context, output []float32, inputs [][]float32) error {
 	if s == nil || s.kernel == nil {
 		return ErrOp
 	}
 	if s.device == nil {
-		return s.kernel.EvalInto(dst, srcs)
+		return s.kernel.EvalInto(output, inputs)
 	}
-	if len(dst) < s.kernel.n {
-		return fmt.Errorf("%w: dst %d < %d", ErrSize, len(dst), s.kernel.n)
+	if len(output) < s.kernel.n {
+		return fmt.Errorf("%w: output %d < %d", ErrSize, len(output), s.kernel.n)
 	}
-	if len(srcs) != len(s.kernel.slots) {
-		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(s.kernel.slots), len(srcs))
+	if len(inputs) != len(s.kernel.slots) {
+		return fmt.Errorf("%w: want %d inputs, got %d", ErrOp, len(s.kernel.slots), len(inputs))
 	}
-	if err := s.fit(dst, srcs); err != nil {
+	if err := s.fit(output, inputs); err != nil {
 		return err
 	}
-	for i, src := range srcs {
+	for i, src := range inputs {
 		if err := s.inputs[i].Write(floatView(src)); err != nil {
 			return err
 		}
@@ -58,14 +58,14 @@ func (s *Session) Run(ctx context.Context, dst []float32, srcs [][]float32) erro
 	if err := s.kernel.Run(ctx, s.device, s.output, s.inputs...); err != nil {
 		return err
 	}
-	return s.output.Read(floatView(dst[:s.kernel.n]))
+	return s.output.Read(floatView(output[:s.kernel.n]))
 }
 
-func (s *Session) fit(dst []float32, srcs [][]float32) error {
-	if err := s.grow(&s.output, max(len(dst), 1)*4); err != nil {
+func (s *Session) fit(output []float32, inputs [][]float32) error {
+	if err := s.grow(&s.output, max(len(output), 1)*4); err != nil {
 		return err
 	}
-	for i, src := range srcs {
+	for i, src := range inputs {
 		if err := s.grow(&s.inputs[i], max(len(src), 1)*4); err != nil {
 			return err
 		}
