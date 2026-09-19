@@ -25,6 +25,7 @@ type inst struct {
 	buf          int
 	axis         int
 	dense        bool
+	scalar       bool
 	i32          bool
 	views        []view
 }
@@ -60,8 +61,9 @@ func lowerCPU(order []*Node, slots, shape []int) (cpuProg, error) {
 			in.kind = ckLoad
 			in.buf = slotIdx[n.slot]
 			in.i32 = n.dt == I32
-			in.dense = n.st.Contiguous() && slices.Equal(n.st.Shape(), shape)
-			if !in.dense {
+			in.scalar = len(n.st.Shape()) == 0
+			in.dense = !in.scalar && n.st.Contiguous() && slices.Equal(n.st.Shape(), shape)
+			if !in.dense && !in.scalar {
 				in.views = n.st.views
 			}
 		case kindOp:
@@ -92,15 +94,44 @@ type cpuJob struct {
 	lo, hi int
 }
 
-func (k *Kernel) evalCPU(srcs [][]float32) []float32 {
-	out := make([]float32, k.n)
-	job := cpuJob{p: k.cpu, shape: k.shape, outDT: k.outDT, srcs: srcs, out: out}
+type cpuScratch struct {
+	regs    []uint32
+	coords  []int
+	scratch []int
+}
+
+var scratchPool = sync.Pool{New: func() any { return &cpuScratch{scratch: make([]int, 8)} }}
+
+func takeScratch(nreg, rank int) *cpuScratch {
+	s := scratchPool.Get().(*cpuScratch)
+	if cap(s.regs) < nreg {
+		s.regs = make([]uint32, nreg)
+	} else {
+		s.regs = s.regs[:nreg]
+	}
+	if cap(s.coords) < rank {
+		s.coords = make([]int, rank)
+	} else {
+		s.coords = s.coords[:rank]
+	}
+	return s
+}
+
+func (k *Kernel) evalCPU(dst []float32, srcs [][]float32) {
 	workers := min(runtime.GOMAXPROCS(0), k.n)
 	if workers < 2 || k.n < cpuMinPar {
-		job.hi = k.n
-		job.run()
-		return out
+		k.evalSerial(dst, srcs)
+		return
 	}
+	k.evalParallel(dst, srcs, workers)
+}
+
+func (k *Kernel) evalSerial(dst []float32, srcs [][]float32) {
+	cpuJob{p: k.cpu, shape: k.shape, outDT: k.outDT, srcs: srcs, out: dst, hi: k.n}.run()
+}
+
+func (k *Kernel) evalParallel(dst []float32, srcs [][]float32, workers int) {
+	job := cpuJob{p: k.cpu, shape: k.shape, outDT: k.outDT, srcs: srcs, out: dst}
 	var wg sync.WaitGroup
 	chunk := (k.n + workers - 1) / workers
 	for w := range workers {
@@ -116,31 +147,33 @@ func (k *Kernel) evalCPU(srcs [][]float32) []float32 {
 		})
 	}
 	wg.Wait()
-	return out
 }
 
 func (j cpuJob) run() {
-	regs := make([]uint32, j.p.nreg)
-	coords := make([]int, len(j.shape))
-	scratch := make([]int, 8)
+	s := takeScratch(j.p.nreg, len(j.shape))
+	j.loop(s)
+	scratchPool.Put(s)
+}
+
+func (j cpuJob) loop(s *cpuScratch) {
 	for i := j.lo; i < j.hi; i++ {
-		unravelInto(j.shape, i, coords)
+		unravelInto(j.shape, i, s.coords)
 		for _, in := range j.p.code {
 			switch in.kind {
 			case ckConst:
-				regs[in.dst] = in.bits
+				s.regs[in.dst] = in.bits
 			case ckCoord:
-				regs[in.dst] = uint32(int32(coords[in.axis]))
+				s.regs[in.dst] = uint32(int32(s.coords[in.axis]))
 			case ckLoad:
-				regs[in.dst] = in.load(i, coords, j.srcs, &scratch)
+				s.regs[in.dst] = in.load(i, s.coords, j.srcs, &s.scratch)
 			case ckALU:
-				regs[in.dst] = in.evalALU(regs)
+				s.regs[in.dst] = in.evalALU(s.regs)
 			}
 		}
 		if j.outDT == I32 {
-			j.out[i] = float32(int32(regs[j.p.root]))
+			j.out[i] = float32(int32(s.regs[j.p.root]))
 		} else {
-			j.out[i] = math.Float32frombits(regs[j.p.root])
+			j.out[i] = math.Float32frombits(s.regs[j.p.root])
 		}
 	}
 }
@@ -148,9 +181,12 @@ func (j cpuJob) run() {
 func (in inst) load(i int, coords []int, srcs [][]float32, scratch *[]int) uint32 {
 	var off int
 	ok := true
-	if in.dense {
+	switch {
+	case in.scalar:
+		off = 0
+	case in.dense:
 		off = i
-	} else {
+	default:
 		off, ok = indexViews(in.views, coords, scratch)
 	}
 	if !ok || in.buf < 0 || in.buf >= len(srcs) || off < 0 || off >= len(srcs[in.buf]) {

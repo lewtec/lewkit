@@ -41,7 +41,7 @@ func Triangle(h, w int, turn *ndarray.Node) (*ndarray.Node, error) {
 	if turn.DType() != ndarray.F32 {
 		return nil, ndarray.ErrType
 	}
-	if sh := turn.Shape(); sh != nil {
+	if sh := turn.Shape(); len(sh) != 0 {
 		return nil, fmt.Errorf("%w: turn must be a splat", ndarray.ErrShape)
 	}
 	shape := []int{h, w, 4}
@@ -89,20 +89,34 @@ func (f frame) rot(x, y float32) (px, py *ndarray.Node) {
 	return px, py
 }
 
-// RGBA packs a dense (h, w, 4) float32 buffer into an image.
+// RGBA packs a dense (h, w, 4) float32 buffer into a new image.
 func RGBA(h, w int, pix []float32) *stdimage.RGBA {
 	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, w, h))
-	if h < 1 || w < 1 || len(pix) < h*w*4 {
-		return dst
-	}
-	for i := range h * w {
-		o := i * 4
-		dst.Pix[o] = u8(pix[o])
-		dst.Pix[o+1] = u8(pix[o+1])
-		dst.Pix[o+2] = u8(pix[o+2])
-		dst.Pix[o+3] = u8(pix[o+3])
-	}
+	Write(dst, pix)
 	return dst
+}
+
+// Write packs pix (h, w, 4) float32 into dst. dst's bounds set h and w.
+func Write(dst *stdimage.RGBA, pix []float32) {
+	if dst == nil {
+		return
+	}
+	w, h := dst.Rect.Dx(), dst.Rect.Dy()
+	if w < 1 || h < 1 || len(pix) < h*w*4 {
+		return
+	}
+	for y := range h {
+		di := dst.PixOffset(dst.Rect.Min.X, dst.Rect.Min.Y+y)
+		si := y * w * 4
+		for range w {
+			dst.Pix[di] = u8(pix[si])
+			dst.Pix[di+1] = u8(pix[si+1])
+			dst.Pix[di+2] = u8(pix[si+2])
+			dst.Pix[di+3] = u8(pix[si+3])
+			di += 4
+			si += 4
+		}
+	}
 }
 
 func u8(v float32) uint8 {

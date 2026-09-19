@@ -41,19 +41,10 @@ func (k *Kernel) Run(ctx context.Context, d *vulkan.Device, dst *vulkan.Buffer, 
 	if k.n == 0 {
 		return nil
 	}
-	spv, err := k.SPIRV(ctx)
+	sh, err := k.shader(ctx, d)
 	if err != nil {
 		return err
 	}
-	sh, err := d.Compile(ctx, vulkan.ShaderConfig{
-		SPIRV:     spv,
-		Bindings:  k.Bindings(),
-		PushBytes: 4,
-	})
-	if err != nil {
-		return err
-	}
-	defer sh.Close()
 	bufs := make([]*vulkan.Buffer, 1+len(srcs))
 	bufs[0] = dst
 	copy(bufs[1:], srcs)
@@ -77,6 +68,47 @@ func (k *Kernel) Run(ctx context.Context, d *vulkan.Device, dst *vulkan.Buffer, 
 		return err
 	}
 	return cmd.Wait()
+}
+
+func (k *Kernel) shader(ctx context.Context, d *vulkan.Device) (*vulkan.Shader, error) {
+	if k.sh != nil && k.shDev == d {
+		return k.sh, nil
+	}
+	if k.sh != nil {
+		if err := k.sh.Close(); err != nil {
+			k.sh = nil
+			k.shDev = nil
+			return nil, err
+		}
+		k.sh = nil
+		k.shDev = nil
+	}
+	spv, err := k.SPIRV(ctx)
+	if err != nil {
+		return nil, err
+	}
+	sh, err := d.Compile(ctx, vulkan.ShaderConfig{
+		SPIRV:     spv,
+		Bindings:  k.Bindings(),
+		PushBytes: 4,
+	})
+	if err != nil {
+		return nil, err
+	}
+	k.sh = sh
+	k.shDev = d
+	return sh, nil
+}
+
+// Close releases a cached Vulkan shader.
+func (k *Kernel) Close() error {
+	if k == nil || k.sh == nil {
+		return nil
+	}
+	err := k.sh.Close()
+	k.sh = nil
+	k.shDev = nil
+	return err
 }
 
 // Exec allocates host buffers, runs once, and returns the dense output.

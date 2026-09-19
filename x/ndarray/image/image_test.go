@@ -54,6 +54,20 @@ func TestTriangleTurnHalf(t *testing.T) {
 	assert.Equal(t, color.RGBA{A: 255}, dst.RGBAAt(100, 20))
 }
 
+func TestTriangleTurnInput(t *testing.T) {
+	st, err := ndarray.Of()
+	require.NoError(t, err)
+	expr, err := Triangle(32, 32, ndarray.In(0, st))
+	require.NoError(t, err)
+	k, err := ndarray.Compile(expr)
+	require.NoError(t, err)
+	pix := make([]float32, 32*32*4)
+	require.NoError(t, k.EvalInto(pix, [][]float32{{0.5}}))
+	dst := RGBA(32, 32, pix)
+	bot := dst.RGBAAt(16, 24)
+	assert.Greater(t, int(bot.R), 180, "half turn bottom=%v", bot)
+}
+
 func TestFill(t *testing.T) {
 	expr, err := Fill(2, 2, 10, 20, 30, 255)
 	require.NoError(t, err)
@@ -72,6 +86,7 @@ func TestTriangleExec(t *testing.T) {
 	require.NoError(t, err)
 	k, err := ndarray.Compile(expr)
 	require.NoError(t, err)
+	test.CloseOnCleanup(t, k)
 	cpu, err := k.Eval()
 	require.NoError(t, err)
 	gpu, err := k.Exec(t.Context(), d)

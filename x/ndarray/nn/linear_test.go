@@ -41,6 +41,7 @@ func TestLinear(t *testing.T) {
 		return
 	}
 	test.CloseOnCleanup(t, d)
+	test.CloseOnCleanup(t, k)
 	gpu, err := k.Exec(t.Context(), d, W, X, B)
 	require.NoError(t, err)
 	require.Equal(t, want, gpu)

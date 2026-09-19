@@ -2,6 +2,7 @@ package experiments
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"time"
@@ -10,6 +11,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	lewimage "github.com/lewtec/lewkit/x/image"
+	ndimage "github.com/lewtec/lewkit/x/ndarray/image"
 )
 
 // Window is `lewkit experiments window`.
@@ -30,7 +32,7 @@ func (triangleCmd) Description() string {
 	return "draw the RGB triangle, one turn per second"
 }
 
-func (c *triangleCmd) Run(ctx context.Context) error {
+func (c *triangleCmd) Run(ctx context.Context) (err error) {
 	w, err := window.Open(ctx, window.Config{
 		Title:  "lewkit triangle",
 		Width:  c.width.Value(),
@@ -41,8 +43,30 @@ func (c *triangleCmd) Run(ctx context.Context) error {
 	}
 	defer w.Close()
 	fps := fpsMeter{t0: time.Now()}
+	var p *ndimage.Painter
+	defer func() {
+		if p != nil {
+			err = errors.Join(err, p.Close())
+		}
+	}()
 	return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
-		lewimage.TriangleTurn(dst, elapsed.Seconds())
+		h, wd := dst.Rect.Dy(), dst.Rect.Dx()
+		if !p.Matches(h, wd) {
+			if p != nil {
+				if err := p.Close(); err != nil {
+					return err
+				}
+				p = nil
+			}
+			np, err := ndimage.Open(ctx, h, wd)
+			if err != nil {
+				return err
+			}
+			p = np
+		}
+		if err := p.Draw(ctx, dst, elapsed.Seconds()); err != nil {
+			return err
+		}
 		lewimage.Label(dst, 8, 16, fmt.Sprintf("%d fps", fps.hit()))
 		return nil
 	})

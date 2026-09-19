@@ -78,7 +78,14 @@ func (n *Node) Shape() []int {
 	if n == nil || n.err != nil {
 		return nil
 	}
-	if n.kind == kindIn || n.kind == kindCoord {
+	if n.kind == kindIn {
+		sh := n.st.Shape()
+		if len(sh) == 0 {
+			return nil
+		}
+		return sh
+	}
+	if n.kind == kindCoord {
 		return n.st.Shape()
 	}
 	if n.kind == kindOp {

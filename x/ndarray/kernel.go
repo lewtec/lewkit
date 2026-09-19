@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/ffi/vulkan"
 )
 
 const localSize = 256
@@ -20,6 +22,8 @@ type Kernel struct {
 	n     int
 	spirv []byte
 	cpu   cpuProg
+	sh    *vulkan.Shader
+	shDev *vulkan.Device
 }
 
 // Compile lowers expr to one GLSL compute kernel. One dispatch covers every cell.
@@ -212,7 +216,10 @@ func (w *glslW) node(n *Node) (string, error) {
 		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, w.coords[n.slot])
 		return id, nil
 	case kindIn:
-		off, valid := w.index(n.st)
+		off, valid := "0", "true"
+		if len(n.st.Shape()) != 0 {
+			off, valid = w.index(n.st)
+		}
 		zero := "0.0"
 		if n.dt == I32 {
 			zero = "0"
