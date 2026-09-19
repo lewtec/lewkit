@@ -21,6 +21,7 @@ type session struct {
 	inputs  []*ffivulkan.Buffer
 	bound   []*ffivulkan.Buffer
 	staging []byte
+	push    []byte
 }
 
 func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.Device) (*session, error) {
@@ -88,7 +89,14 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 	if err := cmd.Bind(s.shader, s.bound...); err != nil {
 		return errors.Join(err, cmd.Abort())
 	}
-	if err := cmd.Push(s.kernel.Push()); err != nil {
+	if cap(s.push) < ndarray.PushBytes {
+		s.push = make([]byte, ndarray.PushBytes)
+	} else {
+		s.push = s.push[:ndarray.PushBytes]
+	}
+	s.kernel.FillPush(s.push)
+	s.kernel.FillPush(s.push)
+	if err := cmd.Push(s.push); err != nil {
 		return errors.Join(err, cmd.Abort())
 	}
 	if err := cmd.Dispatch(s.kernel.Groups(), 1, 1); err != nil {

@@ -3,6 +3,7 @@ package ndarray
 import (
 	"fmt"
 	"math"
+	"sync"
 )
 
 type kind uint8
@@ -72,8 +73,26 @@ func input(buf *buffer, tracker Tracker, dtype DType) *node {
 	return &node{kind: kindInput, dtype: dtype, tracker: tracker, buf: buf}
 }
 
+type splatKey struct {
+	bits  uint32
+	dtype DType
+}
+
+var splats = struct {
+	mu   sync.Mutex
+	node map[splatKey]*node
+}{node: map[splatKey]*node{}}
+
 func splat[T Number](v T) *node {
-	return &node{kind: kindConst, dtype: dtypeOf[T](), bits: bitsOf(v)}
+	key := splatKey{bits: bitsOf(v), dtype: dtypeOf[T]()}
+	splats.mu.Lock()
+	defer splats.mu.Unlock()
+	if n := splats.node[key]; n != nil {
+		return n
+	}
+	n := &node{kind: kindConst, dtype: key.dtype, bits: key.bits}
+	splats.node[key] = n
+	return n
 }
 
 func filled[T Number](v T, tracker Tracker) *node {

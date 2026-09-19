@@ -8,6 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestConstIntern(t *testing.T) {
+	a := Const(float32(1))
+	b := Const(float32(1))
+	require.True(t, a.node == b.node)
+	c := Const(float32(2))
+	require.False(t, a.node == c.node)
+}
+
 func TestZerosOnes(t *testing.T) {
 	z, err := Zeros[float32](Shape{2, 3})
 	require.NoError(t, err)

@@ -10,7 +10,7 @@ import (
 
 const (
 	localSize = 256
-	pushBytes = 20 // n, d0, d1, d2, d3
+	PushBytes = 20 // n, d0, d1, d2, d3
 )
 
 // Kernel is the flattened graph: nodes, leaf buffers, compile-time shape.
@@ -155,9 +155,18 @@ func (k *Kernel) Groups() uint32 {
 
 // Push is n and the first four shape dims, little-endian.
 func (k *Kernel) Push() []byte {
-	push := make([]byte, pushBytes)
+	push := make([]byte, PushBytes)
+	k.FillPush(push)
+	return push
+}
+
+func (k *Kernel) FillPush(push []byte) {
+	if len(push) < PushBytes {
+		return
+	}
+	clear(push[:PushBytes])
 	if k == nil {
-		return push
+		return
 	}
 	binary.LittleEndian.PutUint32(push[0:], uint32(k.size))
 	for i, s := range k.shape {
@@ -166,7 +175,6 @@ func (k *Kernel) Push() []byte {
 		}
 		binary.LittleEndian.PutUint32(push[4+4*i:], uint32(s))
 	}
-	return push
 }
 
 func flatten(root *node) ([]*node, []*buffer, error) {
