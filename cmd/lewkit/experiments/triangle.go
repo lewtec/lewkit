@@ -2,12 +2,9 @@ package experiments
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	stdimage "image"
 	"math"
 
-	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -93,77 +90,6 @@ func (f triangleFrame) rotate(x, y float32) (px, py *ndarray.Tensor[float32]) {
 	return px, py
 }
 
-type trianglePainter struct {
-	evaluator ndarray.Evaluator
-	triangle  *ndarray.Tensor[uint8]
-	turn      *ndarray.Tensor[float32]
-	width     *ndarray.Tensor[float32]
-	height    *ndarray.Tensor[float32]
-}
-
-func newTrianglePainter(ctx context.Context) (*trianglePainter, error) {
-	turn, err := ndarray.New([]float32{0}, nil)
-	if err != nil {
-		return nil, err
-	}
-	width, err := ndarray.New([]float32{1}, nil)
-	if err != nil {
-		return nil, err
-	}
-	height, err := ndarray.New([]float32{1}, nil)
-	if err != nil {
-		return nil, err
-	}
-	tri, err := triangleDynamic(turn, width, height)
-	if err != nil {
-		return nil, err
-	}
-	pixels := tri.Cast[uint8]()
-	evaluator, err := ndarray.Open(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &trianglePainter{
-		evaluator: evaluator,
-		triangle:  pixels,
-		turn:      turn,
-		width:     width,
-		height:    height,
-	}, nil
-}
-
-func (p *trianglePainter) Draw(ctx context.Context, destination *stdimage.RGBA, turn float64) error {
-	if p == nil || p.triangle == nil {
-		return ndarray.ErrOp
-	}
-	frameHeight, frameWidth := destination.Rect.Dy(), destination.Rect.Dx()
-	if frameHeight < 1 || frameWidth < 1 {
-		return nil
-	}
-	if buf := p.turn.Buffer(); len(buf) > 0 {
-		buf[0] = float32(turn)
-	}
-	if buf := p.width.Buffer(); len(buf) > 0 {
-		buf[0] = float32(frameWidth)
-	}
-	if buf := p.height.Buffer(); len(buf) > 0 {
-		buf[0] = float32(frameHeight)
-	}
-	return window.Present(ctx, p.triangle, p.evaluator, destination)
-}
-
-func (p *trianglePainter) Close() error {
-	if p == nil {
-		return nil
-	}
-	var err error
-	if p.triangle != nil {
-		err = p.triangle.Close()
-		p.triangle = nil
-	}
-	if p.evaluator != nil {
-		err = errors.Join(err, p.evaluator.Close())
-		p.evaluator = nil
-	}
-	return err
+func newTrianglePainter(ctx context.Context) (*framePainter, error) {
+	return newFramePainter(ctx, 1, triangleDynamic)
 }

@@ -2,10 +2,7 @@ package experiments
 
 import (
 	"context"
-	"errors"
-	stdimage "image"
 
-	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -87,76 +84,6 @@ func perlinInterpolate(a, b, t *ndarray.Tensor[float32]) *ndarray.Tensor[float32
 	return a.Add(t.Mul(b.Add(a.Neg())))
 }
 
-type perlinPainter struct {
-	evaluator ndarray.Evaluator
-	pixels    *ndarray.Tensor[uint8]
-	time      *ndarray.Tensor[float32]
-	width     *ndarray.Tensor[float32]
-	height    *ndarray.Tensor[float32]
-}
-
-func newPerlinPainter(ctx context.Context) (*perlinPainter, error) {
-	time, err := ndarray.New([]float32{0}, nil)
-	if err != nil {
-		return nil, err
-	}
-	width, err := ndarray.New([]float32{1}, nil)
-	if err != nil {
-		return nil, err
-	}
-	height, err := ndarray.New([]float32{1}, nil)
-	if err != nil {
-		return nil, err
-	}
-	noise, err := perlinDynamic(time, width, height)
-	if err != nil {
-		return nil, err
-	}
-	evaluator, err := ndarray.Open(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &perlinPainter{
-		evaluator: evaluator,
-		pixels:    noise.Cast[uint8](),
-		time:      time,
-		width:     width,
-		height:    height,
-	}, nil
-}
-
-func (p *perlinPainter) Draw(ctx context.Context, destination *stdimage.RGBA, elapsed float64) error {
-	if p == nil || p.pixels == nil {
-		return ndarray.ErrOp
-	}
-	frameHeight, frameWidth := destination.Rect.Dy(), destination.Rect.Dx()
-	if frameHeight < 1 || frameWidth < 1 {
-		return nil
-	}
-	if buf := p.time.Buffer(); len(buf) > 0 {
-		buf[0] = float32(elapsed * 0.4)
-	}
-	if buf := p.width.Buffer(); len(buf) > 0 {
-		buf[0] = float32(frameWidth)
-	}
-	if buf := p.height.Buffer(); len(buf) > 0 {
-		buf[0] = float32(frameHeight)
-	}
-	return window.Present(ctx, p.pixels, p.evaluator, destination)
-}
-
-func (p *perlinPainter) Close() error {
-	if p == nil {
-		return nil
-	}
-	var err error
-	if p.pixels != nil {
-		err = p.pixels.Close()
-		p.pixels = nil
-	}
-	if p.evaluator != nil {
-		err = errors.Join(err, p.evaluator.Close())
-		p.evaluator = nil
-	}
-	return err
+func newPerlinPainter(ctx context.Context) (*framePainter, error) {
+	return newFramePainter(ctx, 0.4, perlinDynamic)
 }
