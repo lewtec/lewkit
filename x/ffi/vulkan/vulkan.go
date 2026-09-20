@@ -701,21 +701,14 @@ func (s *Shader) Close() error {
 }
 
 func (d *Device) flush(b *Buffer) error {
-	if b == nil || b.ptr == nil || b.coherent {
-		return nil
-	}
-	rng := mappedMemoryRange{
-		sType:  structureMappedMemoryRange,
-		memory: b.mem,
-		size:   wholeSize,
-	}
-	if err := check(d.api.flushMapped(d.dev, 1, &rng)); err != nil {
-		return fmt.Errorf("flush: %w", err)
-	}
-	return nil
+	return d.syncMapped(b, "flush", d.api.flushMapped)
 }
 
 func (d *Device) invalidate(b *Buffer) error {
+	return d.syncMapped(b, "invalidate", d.api.invalidateMapped)
+}
+
+func (d *Device) syncMapped(b *Buffer, op string, fn func(device uintptr, count uint32, ranges *mappedMemoryRange) int32) error {
 	if b == nil || b.ptr == nil || b.coherent {
 		return nil
 	}
@@ -724,8 +717,8 @@ func (d *Device) invalidate(b *Buffer) error {
 		memory: b.mem,
 		size:   wholeSize,
 	}
-	if err := check(d.api.invalidateMapped(d.dev, 1, &rng)); err != nil {
-		return fmt.Errorf("invalidate: %w", err)
+	if err := check(fn(d.dev, 1, &rng)); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
 }
