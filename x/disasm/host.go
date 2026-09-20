@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"sync"
 
 	embed "github.com/lewtec/lewkit/x/disasm/internal/wasm"
+	"github.com/lewtec/lewkit/x/singleton"
 	"github.com/lewtec/lewkit/x/wasm"
 )
 
@@ -24,8 +24,8 @@ const (
 	instructionMaxBytes    = 24
 )
 
-var load = sync.OnceValues(func() (*wasm.Compiled, error) {
-	return wasm.Compile(context.Background(), embed.Lib, wasm.Config{Name: "capstone"})
+var compiled = singleton.NewSingleton(func(ctx context.Context) (*wasm.Compiled, error) {
+	return wasm.Compile(context.WithoutCancel(ctx), embed.Lib, wasm.Config{Name: "capstone"})
 })
 
 type session struct {
@@ -34,23 +34,7 @@ type session struct {
 }
 
 func loadCompiled(ctx context.Context) (*wasm.Compiled, error) {
-	done := make(chan struct {
-		c   *wasm.Compiled
-		err error
-	}, 1)
-	go func() {
-		c, err := load()
-		done <- struct {
-			c   *wasm.Compiled
-			err error
-		}{c, err}
-	}()
-	select {
-	case <-ctx.Done():
-		return nil, context.Cause(ctx)
-	case r := <-done:
-		return r.c, r.err
-	}
+	return compiled.GetContext(ctx)
 }
 
 var requiredExports = []string{
