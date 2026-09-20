@@ -19,6 +19,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/lewtec/lewkit/x/singleton"
 )
 
 var (
@@ -84,31 +86,37 @@ type Weighter interface {
 	Weight() int
 }
 
-type validationResult struct {
-	once sync.Once
-	err  error
-}
-
 var (
 	mu sync.RWMutex
 	// Drivers is the process-wide factory table, keyed by capability type then ID.
 	Drivers         = map[reflect.Type]map[string]any{}
 	driverWeights   = map[string]map[string]int{}
 	doctorList      = []doctorEntry{}
-	validationCache sync.Map // driver ID -> *validationResult
+	validationCache sync.Map // driver ID -> singleton.Singleton[struct{}]
 )
 
 func cachedCheck(id string, check func(context.Context) error, ctx context.Context) error {
-	val, alreadyPresent := validationCache.LoadOrStore(id, &validationResult{})
-	vr, ok := val.(*validationResult)
+	if val, ok := validationCache.Load(id); ok {
+		return runCached(id, val, ctx)
+	}
+	created := singleton.NewSingleton(func(c context.Context) (struct{}, error) {
+		return struct{}{}, check(c)
+	})
+	val, loaded := validationCache.LoadOrStore(id, created)
+	if loaded {
+		return runCached(id, val, ctx)
+	}
+	_, err := created.GetContext(ctx)
+	return err
+}
+
+func runCached(id string, val any, ctx context.Context) error {
+	s, ok := val.(singleton.Singleton[struct{}])
 	if !ok {
 		return fmt.Errorf("%w: driver %q", errCorrupt, id)
 	}
-	vr.once.Do(func() { vr.err = check(ctx) })
-	if alreadyPresent {
-		return vr.err
-	}
-	return vr.err
+	_, err := s.GetContext(ctx)
+	return err
 }
 
 // SetWeights configures driver priorities. Weights must be between 0 and 100.

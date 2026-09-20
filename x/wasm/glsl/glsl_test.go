@@ -1,6 +1,7 @@
 package glsl
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,16 @@ void main() { data.v = 2u; }
 	require.True(t, IsSPIRV(spv))
 	require.GreaterOrEqual(t, len(spv), 20)
 	require.Equal(t, 0, len(spv)%4)
+}
+
+func TestCompileCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := Compile(ctx, []byte(`#version 450
+layout(local_size_x = 1) in;
+void main() {}
+`))
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestLoadSPIRVPassthrough(t *testing.T) {

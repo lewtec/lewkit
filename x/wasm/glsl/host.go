@@ -3,23 +3,18 @@ package glsl
 import (
 	"context"
 	"fmt"
-	"sync"
 
+	"github.com/lewtec/lewkit/x/singleton"
 	"github.com/lewtec/lewkit/x/wasm"
 	embed "github.com/lewtec/lewkit/x/wasm/glsl/internal/wasm"
 )
 
-var (
-	compiled *wasm.Compiled
-	loadErr  error
-	loadOnce sync.Once
-)
+var compiled = singleton.NewSingleton(func(ctx context.Context) (*wasm.Compiled, error) {
+	return wasm.Compile(context.WithoutCancel(ctx), embed.Lib, wasm.Config{Name: "glslang", Emscripten: true})
+})
 
 func load(ctx context.Context) (*wasm.Compiled, error) {
-	loadOnce.Do(func() {
-		compiled, loadErr = wasm.Compile(ctx, embed.Lib, wasm.Config{Name: "glslang", Emscripten: true})
-	})
-	return compiled, loadErr
+	return compiled.GetContext(ctx)
 }
 
 func compile(ctx context.Context, src []byte) ([]byte, error) {
