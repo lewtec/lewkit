@@ -110,14 +110,14 @@ func (engine *Engine) Iter(ctx context.Context, code []byte, address uint64) ite
 
 func (engine *Engine) walk(ctx context.Context, code []byte, address uint64, yield func(Instruction, error) bool) error {
 	session := engine.session
-	instructionPointer, err := call(ctx, session.allocateInstruction, uint64(session.handle))
+	instructionPointer, err := session.in.Call(ctx, "cs_malloc", uint64(session.handle))
 	if err != nil {
 		return fmt.Errorf("cs_malloc: %w", err)
 	}
 	if instructionPointer == 0 {
 		return fmt.Errorf("cs_malloc: empty instruction")
 	}
-	defer func() { _, _ = call(ctx, session.freeInstruction, instructionPointer, 1) }()
+	defer func() { _, _ = session.in.Call(ctx, "cs_free", instructionPointer, 1) }()
 
 	metaPointer, err := session.alloc(ctx, 16)
 	if err != nil {
@@ -135,25 +135,25 @@ func (engine *Engine) walk(ctx context.Context, code []byte, address uint64, yie
 			return err
 		}
 		defer session.dealloc(ctx, codePointer)
-		if !session.memory.Write(codePointer, code) {
-			return fmt.Errorf("write code")
+		if err := session.in.Write(codePointer, code); err != nil {
+			return fmt.Errorf("write code: %w", err)
 		}
 	}
-	if !session.memory.WriteUint32Le(codePointerPointer, codePointer) {
-		return fmt.Errorf("write code pointer")
+	if err := session.writeUint32LE(codePointerPointer, codePointer); err != nil {
+		return fmt.Errorf("write code pointer: %w", err)
 	}
-	if !session.memory.WriteUint32Le(sizePointer, uint32(len(code))) {
-		return fmt.Errorf("write code size")
+	if err := session.writeUint32LE(sizePointer, uint32(len(code))); err != nil {
+		return fmt.Errorf("write code size: %w", err)
 	}
-	if !session.memory.WriteUint64Le(addressPointer, address) {
-		return fmt.Errorf("write address")
+	if err := session.writeUint64LE(addressPointer, address); err != nil {
+		return fmt.Errorf("write address: %w", err)
 	}
 
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		ok, err := call(ctx, session.disassembleIter, uint64(session.handle), uint64(codePointerPointer), uint64(sizePointer), uint64(addressPointer), instructionPointer)
+		ok, err := session.in.Call(ctx, "cs_disasm_iter", uint64(session.handle), uint64(codePointerPointer), uint64(sizePointer), uint64(addressPointer), instructionPointer)
 		if err != nil {
 			return fmt.Errorf("cs_disasm_iter: %w", err)
 		}
