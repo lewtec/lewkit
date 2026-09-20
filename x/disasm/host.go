@@ -2,16 +2,13 @@ package disasm
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 
-	"github.com/lewtec/lewkit/x/disasm/internal/wasm"
-	"github.com/tetratelabs/wazero"
-	"github.com/tetratelabs/wazero/api"
-	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	embed "github.com/lewtec/lewkit/x/disasm/internal/wasm"
+	"github.com/lewtec/lewkit/x/wasm"
 )
 
 const (
@@ -27,127 +24,94 @@ const (
 	instructionMaxBytes    = 24
 )
 
-type compiled struct {
-	runtime wazero.Runtime
-	module  wazero.CompiledModule
-}
-
-var load = sync.OnceValues(func() (compiled, error) {
-	ctx := context.Background()
-	config := wazero.NewRuntimeConfig()
-	if dir, err := os.UserCacheDir(); err == nil {
-		cache, err := wazero.NewCompilationCacheWithDir(filepath.Join(dir, "lewtec-lewkit-disasm"))
-		if err == nil {
-			config = config.WithCompilationCache(cache)
-		}
-	}
-	runtime := wazero.NewRuntimeWithConfig(ctx, config)
-	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
-		return compiled{}, errors.Join(fmt.Errorf("wasi: %w", err), runtime.Close(ctx))
-	}
-	module, err := runtime.CompileModule(ctx, wasm.Lib)
-	if err != nil {
-		return compiled{}, errors.Join(fmt.Errorf("compile capstone: %w", err), runtime.Close(ctx))
-	}
-	return compiled{runtime: runtime, module: module}, nil
+var load = sync.OnceValues(func() (*wasm.Compiled, error) {
+	return wasm.Compile(context.Background(), embed.Lib, wasm.Config{Name: "capstone"})
 })
 
 type session struct {
-	module              api.Module
-	memory              api.Memory
-	handle              uint32
-	malloc              api.Function
-	free                api.Function
-	closeHandle         api.Function
-	option              api.Function
-	disassembleIter     api.Function
-	allocateInstruction api.Function
-	freeInstruction     api.Function
-	mnemonic            api.Function
-	operands            api.Function
-	errorString         api.Function
+	in     *wasm.Instance
+	handle uint32
 }
 
-func loadCompiled(ctx context.Context) (compiled, error) {
+func loadCompiled(ctx context.Context) (*wasm.Compiled, error) {
 	done := make(chan struct {
-		c   compiled
+		c   *wasm.Compiled
 		err error
 	}, 1)
 	go func() {
 		c, err := load()
 		done <- struct {
-			c   compiled
+			c   *wasm.Compiled
 			err error
 		}{c, err}
 	}()
 	select {
 	case <-ctx.Done():
-		return compiled{}, context.Cause(ctx)
+		return nil, context.Cause(ctx)
 	case r := <-done:
 		return r.c, r.err
 	}
+}
+
+var requiredExports = []string{
+	"malloc",
+	"free",
+	"cs_open",
+	"cs_close",
+	"cs_option",
+	"cs_disasm_iter",
+	"cs_malloc",
+	"cs_free",
+	"cs_get_mnemonic",
+	"cs_get_op_str",
 }
 
 func openSession(ctx context.Context, architecture Architecture, mode Mode) (*session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	compiledModule, err := loadCompiled(ctx)
+	compiled, err := loadCompiled(ctx)
 	if err != nil {
 		return nil, err
 	}
-	module, err := compiledModule.runtime.InstantiateModule(ctx, compiledModule.module, wazero.NewModuleConfig().WithStartFunctions())
+	in, err := compiled.Instantiate(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("instantiate capstone: %w", err)
+		return nil, err
 	}
-	opened := &session{
-		module:              module,
-		memory:              module.Memory(),
-		malloc:              module.ExportedFunction("malloc"),
-		free:                module.ExportedFunction("free"),
-		closeHandle:         module.ExportedFunction("cs_close"),
-		option:              module.ExportedFunction("cs_option"),
-		disassembleIter:     module.ExportedFunction("cs_disasm_iter"),
-		allocateInstruction: module.ExportedFunction("cs_malloc"),
-		freeInstruction:     module.ExportedFunction("cs_free"),
-		mnemonic:            module.ExportedFunction("cs_get_mnemonic"),
-		operands:            module.ExportedFunction("cs_get_op_str"),
-		errorString:         module.ExportedFunction("cs_strerror"),
+	for _, name := range requiredExports {
+		if in.Export(name) == nil {
+			return nil, closeInstance(ctx, in, fmt.Errorf("%w: %s", wasm.ErrExport, name))
+		}
 	}
-	if opened.malloc == nil || opened.free == nil || opened.closeHandle == nil || opened.option == nil ||
-		opened.disassembleIter == nil || opened.allocateInstruction == nil || opened.freeInstruction == nil ||
-		opened.mnemonic == nil || opened.operands == nil {
-		return nil, closeModule(ctx, module, fmt.Errorf("capstone exports are incomplete"))
-	}
-	open := module.ExportedFunction("cs_open")
-	if open == nil {
-		return nil, closeModule(ctx, module, fmt.Errorf("capstone exports are incomplete"))
-	}
+	opened := &session{in: in}
 	handlePointer, err := opened.alloc(ctx, 4)
 	if err != nil {
-		return nil, closeModule(ctx, module, err)
+		return nil, closeInstance(ctx, in, err)
 	}
-	code, err := call(ctx, open, uint64(architecture), uint64(mode), uint64(handlePointer))
+	code, err := in.Call(ctx, "cs_open", uint64(architecture), uint64(mode), uint64(handlePointer))
 	if err != nil {
 		opened.dealloc(ctx, handlePointer)
-		return nil, closeModule(ctx, module, fmt.Errorf("cs_open: %w", err))
+		return nil, closeInstance(ctx, in, fmt.Errorf("cs_open: %w", err))
 	}
 	if code != 0 {
 		message := opened.strerror(ctx, uint32(code))
 		opened.dealloc(ctx, handlePointer)
-		return nil, closeModule(ctx, module, fmt.Errorf("cs_open: %s", message))
+		return nil, closeInstance(ctx, in, fmt.Errorf("cs_open: %s", message))
 	}
-	handle, ok := opened.memory.ReadUint32Le(handlePointer)
+	handle, err := in.Uint32LE(handlePointer)
 	opened.dealloc(ctx, handlePointer)
-	if !ok || handle == 0 {
-		return nil, closeModule(ctx, module, fmt.Errorf("cs_open: empty handle"))
+	if err != nil {
+		return nil, closeInstance(ctx, in, fmt.Errorf("cs_open: %w", err))
+	}
+	if handle == 0 {
+		return nil, closeInstance(ctx, in, fmt.Errorf("cs_open: empty handle"))
 	}
 	opened.handle = handle
 	return opened, nil
 }
 
 func (session *session) setOption(ctx context.Context, typ, value uint32) error {
-	code, err := call(ctx, session.option, uint64(session.handle), uint64(typ), uint64(value))
+	code, err := session.in.Call(ctx, "cs_option", uint64(session.handle), uint64(typ), uint64(value))
 	if err != nil {
 		return fmt.Errorf("cs_option: %w", err)
 	}
@@ -158,93 +122,106 @@ func (session *session) setOption(ctx context.Context, typ, value uint32) error 
 }
 
 func (session *session) close(ctx context.Context) error {
-	if session == nil || session.module == nil {
+	if session == nil || session.in == nil {
 		return nil
 	}
-	if session.handle != 0 && session.closeHandle != nil {
+	if session.handle != 0 {
 		if pointer, err := session.alloc(ctx, 4); err == nil {
-			_ = session.memory.WriteUint32Le(pointer, session.handle)
-			_, _ = call(ctx, session.closeHandle, uint64(pointer))
+			if err := session.writeUint32LE(pointer, session.handle); err == nil {
+				_, _ = session.in.Call(ctx, "cs_close", uint64(pointer))
+			}
 			session.dealloc(ctx, pointer)
 		}
 		session.handle = 0
 	}
-	err := session.module.Close(ctx)
-	session.module = nil
+	err := session.in.Close(ctx)
+	session.in = nil
 	return err
 }
 
 func (session *session) alloc(ctx context.Context, size uint32) (uint32, error) {
-	if size == 0 {
-		size = 1
-	}
-	pointer, err := call(ctx, session.malloc, uint64(size))
-	if err != nil {
-		return 0, fmt.Errorf("malloc: %w", err)
-	}
-	if pointer == 0 {
-		return 0, fmt.Errorf("malloc: out of memory")
-	}
-	return uint32(pointer), nil
+	return session.in.Alloc(ctx, size)
 }
 
 func (session *session) dealloc(ctx context.Context, pointer uint32) {
-	if pointer == 0 {
-		return
+	session.in.Free(ctx, pointer)
+}
+
+func (session *session) writeUint32LE(pointer, value uint32) error {
+	var buf [4]byte
+	binary.LittleEndian.PutUint32(buf[:], value)
+	return session.in.Write(pointer, buf[:])
+}
+
+func (session *session) writeUint64LE(pointer uint32, value uint64) error {
+	var buf [8]byte
+	binary.LittleEndian.PutUint64(buf[:], value)
+	return session.in.Write(pointer, buf[:])
+}
+
+func (session *session) uint16LE(pointer uint32) (uint16, error) {
+	buf, err := session.in.Read(pointer, 2)
+	if err != nil {
+		return 0, err
 	}
-	_, _ = call(ctx, session.free, uint64(pointer))
+	return binary.LittleEndian.Uint16(buf), nil
+}
+
+func (session *session) uint64LE(pointer uint32) (uint64, error) {
+	buf, err := session.in.Read(pointer, 8)
+	if err != nil {
+		return 0, err
+	}
+	return binary.LittleEndian.Uint64(buf), nil
 }
 
 func (session *session) strerror(ctx context.Context, code uint32) string {
-	if session.errorString == nil {
-		return fmt.Sprintf("capstone error %d", code)
-	}
-	pointer, err := call(ctx, session.errorString, uint64(code))
+	pointer, err := session.in.Call(ctx, "cs_strerror", uint64(code))
 	if err != nil || pointer == 0 {
 		return fmt.Sprintf("capstone error %d", code)
 	}
-	message, ok := readCString(session.memory, uint32(pointer))
-	if !ok || message == "" {
+	message, err := session.in.CString(uint32(pointer))
+	if err != nil || message == "" {
 		return fmt.Sprintf("capstone error %d", code)
 	}
 	return message
 }
 
 func (session *session) readInstruction(ctx context.Context, instructionPointer uint32) (Instruction, error) {
-	id, ok := session.memory.ReadUint32Le(instructionPointer + instructionOffsetID)
-	if !ok {
-		return Instruction{}, fmt.Errorf("read instruction id")
+	id, err := session.in.Uint32LE(instructionPointer + instructionOffsetID)
+	if err != nil {
+		return Instruction{}, fmt.Errorf("read instruction id: %w", err)
 	}
-	address, ok := session.memory.ReadUint64Le(instructionPointer + instructionOffsetAddr)
-	if !ok {
-		return Instruction{}, fmt.Errorf("read instruction address")
+	address, err := session.uint64LE(instructionPointer + instructionOffsetAddr)
+	if err != nil {
+		return Instruction{}, fmt.Errorf("read instruction address: %w", err)
 	}
-	size, ok := session.memory.ReadUint16Le(instructionPointer + instructionOffsetSize)
-	if !ok {
-		return Instruction{}, fmt.Errorf("read instruction size")
+	size, err := session.uint16LE(instructionPointer + instructionOffsetSize)
+	if err != nil {
+		return Instruction{}, fmt.Errorf("read instruction size: %w", err)
 	}
-	raw, ok := session.memory.Read(instructionPointer+instructionOffsetBytes, instructionMaxBytes)
-	if !ok {
-		return Instruction{}, fmt.Errorf("read instruction bytes")
+	raw, err := session.in.Read(instructionPointer+instructionOffsetBytes, instructionMaxBytes)
+	if err != nil {
+		return Instruction{}, fmt.Errorf("read instruction bytes: %w", err)
 	}
 	if int(size) > len(raw) {
 		size = uint16(len(raw))
 	}
-	mnemonicPointer, err := call(ctx, session.mnemonic, uint64(instructionPointer))
+	mnemonicPointer, err := session.in.Call(ctx, "cs_get_mnemonic", uint64(instructionPointer))
 	if err != nil {
 		return Instruction{}, fmt.Errorf("mnemonic: %w", err)
 	}
-	operandsPointer, err := call(ctx, session.operands, uint64(instructionPointer))
+	operandsPointer, err := session.in.Call(ctx, "cs_get_op_str", uint64(instructionPointer))
 	if err != nil {
 		return Instruction{}, fmt.Errorf("operands: %w", err)
 	}
-	mnemonic, ok := readCString(session.memory, uint32(mnemonicPointer))
-	if !ok {
-		return Instruction{}, fmt.Errorf("read mnemonic")
+	mnemonic, err := session.in.CString(uint32(mnemonicPointer))
+	if err != nil {
+		return Instruction{}, fmt.Errorf("read mnemonic: %w", err)
 	}
-	operands, ok := readCString(session.memory, uint32(operandsPointer))
-	if !ok {
-		return Instruction{}, fmt.Errorf("read operands")
+	operands, err := session.in.CString(uint32(operandsPointer))
+	if err != nil {
+		return Instruction{}, fmt.Errorf("read operands: %w", err)
 	}
 	return Instruction{
 		ID:       id,
@@ -256,42 +233,6 @@ func (session *session) readInstruction(ctx context.Context, instructionPointer 
 	}, nil
 }
 
-func closeModule(ctx context.Context, module api.Module, err error) error {
-	return errors.Join(err, module.Close(ctx))
-}
-
-func call(ctx context.Context, function api.Function, args ...uint64) (uint64, error) {
-	results, err := function.Call(ctx, args...)
-	if err != nil {
-		return 0, err
-	}
-	if len(results) == 0 {
-		return 0, nil
-	}
-	return results[0], nil
-}
-
-func readCString(memory api.Memory, pointer uint32) (string, bool) {
-	if pointer == 0 {
-		return "", true
-	}
-	end := pointer
-	for {
-		b, ok := memory.ReadByte(end)
-		if !ok {
-			return "", false
-		}
-		if b == 0 {
-			break
-		}
-		end++
-	}
-	if end == pointer {
-		return "", true
-	}
-	buf, ok := memory.Read(pointer, end-pointer)
-	if !ok {
-		return "", false
-	}
-	return string(buf), true
+func closeInstance(ctx context.Context, in *wasm.Instance, err error) error {
+	return errors.Join(err, in.Close(ctx))
 }
