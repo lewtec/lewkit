@@ -1,0 +1,7 @@
+{
+  "files": {
+    "x/disasm/internal/wasm/libcapstone.wasm": {
+      "source_info": "filespine:x/disasm/internal/wasm/libcapstone.wasm"
+    }
+  }
+}
