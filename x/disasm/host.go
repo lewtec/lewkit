@@ -33,10 +33,6 @@ type session struct {
 	handle uint32
 }
 
-func loadCompiled(ctx context.Context) (*wasm.Compiled, error) {
-	return compiled.GetContext(ctx)
-}
-
 var requiredExports = []string{
 	"malloc",
 	"free",
@@ -54,11 +50,11 @@ func openSession(ctx context.Context, architecture Architecture, mode Mode) (*se
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	compiled, err := loadCompiled(ctx)
+	mod, err := compiled.GetContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	in, err := compiled.Instantiate(ctx)
+	in, err := mod.Instantiate(ctx)
 	if err != nil {
 		return nil, err
 	}
