@@ -143,7 +143,7 @@ func (in *Instance) Call(ctx context.Context, name string, args ...uint64) (uint
 	if fn == nil {
 		return 0, fmt.Errorf("%w: %s", ErrExport, name)
 	}
-	return call(ctx, fn, args...)
+	return Call(ctx, fn, args...)
 }
 
 // Alloc is guest malloc.
@@ -154,7 +154,7 @@ func (in *Instance) Alloc(ctx context.Context, n uint32) (uint32, error) {
 	if in.malloc == nil {
 		return 0, ErrMalloc
 	}
-	p, err := call(ctx, in.malloc, uint64(n))
+	p, err := Call(ctx, in.malloc, uint64(n))
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", ErrMalloc, err)
 	}
@@ -169,7 +169,7 @@ func (in *Instance) Free(ctx context.Context, p uint32) {
 	if in == nil || in.free == nil || p == 0 {
 		return
 	}
-	if _, err := call(ctx, in.free, uint64(p)); err != nil {
+	if _, err := Call(ctx, in.free, uint64(p)); err != nil {
 		return
 	}
 }
@@ -211,14 +211,15 @@ func (in *Instance) CString(p uint32) (string, error) {
 	if in == nil || in.mem == nil {
 		return "", ErrMemory
 	}
-	s, ok := readCString(in.mem, p)
+	s, ok := ReadCString(in.mem, p)
 	if !ok {
 		return "", ErrMemory
 	}
 	return s, nil
 }
 
-func call(ctx context.Context, fn api.Function, args ...uint64) (uint64, error) {
+// Call invokes fn and returns the first result, or 0.
+func Call(ctx context.Context, fn api.Function, args ...uint64) (uint64, error) {
 	results, err := fn.Call(ctx, args...)
 	if err != nil {
 		return 0, err
@@ -229,7 +230,8 @@ func call(ctx context.Context, fn api.Function, args ...uint64) (uint64, error) 
 	return results[0], nil
 }
 
-func readCString(memory api.Memory, pointer uint32) (string, bool) {
+// ReadCString reads a NUL-terminated string from guest memory.
+func ReadCString(memory api.Memory, pointer uint32) (string, bool) {
 	if pointer == 0 {
 		return "", true
 	}

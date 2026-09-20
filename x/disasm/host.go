@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/lewtec/lewkit/x/disasm/internal/wasm"
+	embed "github.com/lewtec/lewkit/x/disasm/internal/wasm"
+	"github.com/lewtec/lewkit/x/wasm"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -45,7 +46,7 @@ var load = sync.OnceValues(func() (compiled, error) {
 	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
 		return compiled{}, errors.Join(fmt.Errorf("wasi: %w", err), runtime.Close(ctx))
 	}
-	module, err := runtime.CompileModule(ctx, wasm.Lib)
+	module, err := runtime.CompileModule(ctx, embed.Lib)
 	if err != nil {
 		return compiled{}, errors.Join(fmt.Errorf("compile capstone: %w", err), runtime.Close(ctx))
 	}
@@ -261,37 +262,9 @@ func closeModule(ctx context.Context, module api.Module, err error) error {
 }
 
 func call(ctx context.Context, function api.Function, args ...uint64) (uint64, error) {
-	results, err := function.Call(ctx, args...)
-	if err != nil {
-		return 0, err
-	}
-	if len(results) == 0 {
-		return 0, nil
-	}
-	return results[0], nil
+	return wasm.Call(ctx, function, args...)
 }
 
 func readCString(memory api.Memory, pointer uint32) (string, bool) {
-	if pointer == 0 {
-		return "", true
-	}
-	end := pointer
-	for {
-		b, ok := memory.ReadByte(end)
-		if !ok {
-			return "", false
-		}
-		if b == 0 {
-			break
-		}
-		end++
-	}
-	if end == pointer {
-		return "", true
-	}
-	buf, ok := memory.Read(pointer, end-pointer)
-	if !ok {
-		return "", false
-	}
-	return string(buf), true
+	return wasm.ReadCString(memory, pointer)
 }
