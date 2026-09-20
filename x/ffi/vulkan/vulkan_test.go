@@ -15,6 +15,14 @@ func TestHasExt(t *testing.T) {
 	require.False(t, hasExt(nil, extPortabilityEnum))
 }
 
+func TestSyncMappedSkip(t *testing.T) {
+	d := &Device{}
+	require.NoError(t, d.flush(nil))
+	require.NoError(t, d.invalidate(nil))
+	require.NoError(t, d.flush(&Buffer{coherent: true}))
+	require.NoError(t, d.invalidate(&Buffer{coherent: true}))
+}
+
 func TestSmokeSPIRVMagic(t *testing.T) {
 	b := SmokeSPIRV()
 	require.GreaterOrEqual(t, len(b), 20)
