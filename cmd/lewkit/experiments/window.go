@@ -39,28 +39,14 @@ func (c *triangleCmd) Run(ctx context.Context) error {
 }
 
 func (c *triangleCmd) run(ctx context.Context) error {
-	w, err := window.Open(ctx, window.Config{
-		Title:  "lewkit triangle",
-		Width:  c.width.Value(),
-		Height: c.height.Value(),
+	return animateWindow(ctx, windowDemo{
+		title:  "lewkit triangle",
+		name:   "triangle",
+		width:  c.width.Value(),
+		height: c.height.Value(),
+	}, func(ctx context.Context) (demoPainter, error) {
+		return newTrianglePainter(ctx)
 	})
-	if err != nil {
-		return err
-	}
-	p, err := newTrianglePainter(ctx)
-	if err != nil {
-		return errors.Join(err, w.Close())
-	}
-	taskgroup.Go(ctx, "triangle", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
-		defer w.Close()
-		defer p.Close()
-		var fps event.FPS
-		return window.Animate(ctx, w, time.Second/60, func(dst *image.RGBA, elapsed time.Duration) error {
-			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
-			return p.Draw(ctx, dst, elapsed.Seconds())
-		})
-	})
-	return nil
 }
 
 type perlinCmd struct {
@@ -77,19 +63,40 @@ func (c *perlinCmd) Run(ctx context.Context) error {
 }
 
 func (c *perlinCmd) run(ctx context.Context) error {
+	return animateWindow(ctx, windowDemo{
+		title:  "lewkit perlin",
+		name:   "perlin",
+		width:  c.width.Value(),
+		height: c.height.Value(),
+	}, func(ctx context.Context) (demoPainter, error) {
+		return newPerlinPainter(ctx)
+	})
+}
+
+type demoPainter interface {
+	Draw(context.Context, *image.RGBA, float64) error
+	Close() error
+}
+
+type windowDemo struct {
+	title, name   string
+	width, height int
+}
+
+func animateWindow(ctx context.Context, demo windowDemo, newPainter func(context.Context) (demoPainter, error)) error {
 	w, err := window.Open(ctx, window.Config{
-		Title:  "lewkit perlin",
-		Width:  c.width.Value(),
-		Height: c.height.Value(),
+		Title:  demo.title,
+		Width:  demo.width,
+		Height: demo.height,
 	})
 	if err != nil {
 		return err
 	}
-	p, err := newPerlinPainter(ctx)
+	p, err := newPainter(ctx)
 	if err != nil {
 		return errors.Join(err, w.Close())
 	}
-	taskgroup.Go(ctx, "perlin", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
+	taskgroup.Go(ctx, demo.name, taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
 		defer w.Close()
 		defer p.Close()
 		var fps event.FPS
