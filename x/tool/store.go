@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/io/atomic"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -112,10 +113,13 @@ func (store *Store) Ensure(ctx context.Context, specification, binaryName string
 }
 
 func (store *Store) ensureBinaryTool(ctx context.Context, spec Spec, installed Tool, binaryTool BinaryTool, actualVersion, normalized, versionDirectory, binaryName string) (string, error) {
-	workPath := versionDirectory + ".tmp"
-	if removeErr := os.RemoveAll(workPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-		slog.WarnContext(ctx, "remove install work directory", "error", removeErr, "path", workPath)
-	}
+	operation := atomic.NewOperation(versionDirectory, true)
+	workPath := operation.StagingPath()
+	defer func() {
+		if removeErr := operation.Rollback(); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			slog.WarnContext(ctx, "remove install work directory", "error", removeErr, "path", workPath)
+		}
+	}()
 	if err := os.MkdirAll(workPath, 0o755); err != nil {
 		return "", err
 	}
@@ -127,21 +131,12 @@ func (store *Store) ensureBinaryTool(ctx context.Context, spec Spec, installed T
 		return err
 	})
 	if installErr != nil {
-		if removeErr := os.RemoveAll(workPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			slog.WarnContext(ctx, "remove install work directory", "error", removeErr, "path", workPath)
-		}
 		return "", fmt.Errorf("install tool: %w", installErr)
 	}
 	if err := fixAndCheck(ctx, installed, workPath); err != nil {
-		if removeErr := os.RemoveAll(workPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			slog.WarnContext(ctx, "remove install work directory", "error", removeErr, "path", workPath)
-		}
 		return "", err
 	}
-	if err := replaceDirectory(versionDirectory, workPath); err != nil {
-		if removeErr := os.RemoveAll(workPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			slog.WarnContext(ctx, "remove install work directory", "error", removeErr, "path", workPath)
-		}
+	if err := operation.Commit(); err != nil {
 		return "", fmt.Errorf("install swap %s: %w", versionDirectory, err)
 	}
 	binaryPath = FindBinary(versionDirectory, binaryName)
@@ -179,21 +174,16 @@ func (store *Store) install(ctx context.Context, specification, binaryHint strin
 	}
 	normalized := normalizeVersion(version)
 	finalPath := filepath.Join(store.root, spec.Directory(), normalized)
-	workPath := finalPath + ".tmp"
-	if err := os.RemoveAll(workPath); err != nil {
-		return err
-	}
+	operation := atomic.NewOperation(finalPath, true)
+	workPath := operation.StagingPath()
+	defer func() {
+		if removeErr := operation.Rollback(); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			slog.WarnContext(ctx, "remove install work directory", "error", removeErr, "path", workPath)
+		}
+	}()
 	if err := os.MkdirAll(workPath, 0o755); err != nil {
 		return err
 	}
-	cleanupWork := true
-	defer func() {
-		if cleanupWork {
-			if removeErr := os.RemoveAll(workPath); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-				slog.WarnContext(ctx, "remove install work directory", "error", removeErr, "path", workPath)
-			}
-		}
-	}()
 
 	doInstall := func(ctx context.Context) error {
 		if binaryHint != "" {
@@ -220,10 +210,9 @@ func (store *Store) install(ctx context.Context, specification, binaryHint strin
 	if err := fixAndCheck(ctx, installed, workPath); err != nil {
 		return err
 	}
-	if err := replaceDirectory(finalPath, workPath); err != nil {
+	if err := operation.Commit(); err != nil {
 		return fmt.Errorf("install swap %s: %w", finalPath, err)
 	}
-	cleanupWork = false
 	slog.InfoContext(ctx, "tool installed", "spec", spec.String(), "version", normalized, "path", finalPath)
 	return nil
 }
@@ -417,27 +406,4 @@ func fixAndCheck(ctx context.Context, installed Tool, destination string) error 
 		return fmt.Errorf("install checks: %w", err)
 	}
 	return nil
-}
-
-func replaceDirectory(destination, temporary string) error {
-	backup := destination + ".old"
-	if err := os.RemoveAll(backup); err != nil {
-		return err
-	}
-	if _, err := os.Stat(destination); err == nil {
-		if err := os.Rename(destination, backup); err != nil {
-			return err
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := os.Rename(temporary, destination); err != nil {
-		if _, statErr := os.Stat(backup); statErr == nil {
-			if restoreErr := os.Rename(backup, destination); restoreErr != nil {
-				return errors.Join(err, restoreErr)
-			}
-		}
-		return err
-	}
-	return os.RemoveAll(backup)
 }

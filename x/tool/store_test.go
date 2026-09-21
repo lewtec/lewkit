@@ -62,6 +62,13 @@ func TestEnsureInstallsAndReuses(t *testing.T) {
 	if first != second {
 		t.Fatalf("second Ensure = %s, want %s", second, first)
 	}
+	replaced, err := store.Ensure(WithNoCache(t.Context()), "memory:demo@1.2.3", "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replaced != first {
+		t.Fatalf("replaced Ensure = %s, want %s", replaced, first)
+	}
 	installed, err := store.ListInstalled()
 	if err != nil {
 		t.Fatal(err)
