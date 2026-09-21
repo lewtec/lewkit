@@ -22,8 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type onlyReader struct{ io.Reader }
-
 func packTar(t *testing.T, files map[string][]byte) *bytes.Reader {
 	t.Helper()
 	var buf bytes.Buffer
@@ -94,7 +92,7 @@ func TestFilesStream(t *testing.T) {
 	data, err := io.ReadAll(raw)
 	require.NoError(t, err)
 	var saw string
-	for f, err := range Files(t.Context(), onlyReader{bytes.NewReader(data)}) {
+	for f, err := range Files(t.Context(), test.OnlyReader{bytes.NewReader(data)}) {
 		require.NoError(t, err)
 		if f.Name.String() != "z.txt" {
 			continue
@@ -120,7 +118,7 @@ func namesOf(ps []path.Path) []string {
 
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
-	_, err := Open(t.Context(), onlyReader{strings.NewReader("x")})
+	_, err := Open(t.Context(), test.OnlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
@@ -212,7 +210,7 @@ func TestOpenGzipWithoutReadAt(t *testing.T) {
 	})
 	data, err := io.ReadAll(r)
 	require.NoError(t, err)
-	fsys, err := Open(t.Context(), onlyReader{bytes.NewReader(data)})
+	fsys, err := Open(t.Context(), test.OnlyReader{bytes.NewReader(data)})
 	require.NoError(t, err)
 	b, err := fsys.ReadFile("a.txt")
 	require.NoError(t, err)
@@ -254,7 +252,7 @@ func TestCopyExtract(t *testing.T) {
 	dest, err := path.Open(t.TempDir())
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
-	require.NoError(t, lewfs.Copy(t.Context(), dest, Files(t.Context(), onlyReader{bytes.NewReader(data)})))
+	require.NoError(t, lewfs.Copy(t.Context(), dest, Files(t.Context(), test.OnlyReader{bytes.NewReader(data)})))
 	b, err := path.New("z.txt").ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("zee"), b)
@@ -274,24 +272,7 @@ func TestWriteReadOnly(t *testing.T) {
 
 func TestOpenFSNeedReadAt(t *testing.T) {
 	t.Parallel()
-	fsys := &readerOnlyFS{name: "a.tar", r: strings.NewReader("x")}
+	fsys := test.ReaderOnlyFS("a.tar", strings.NewReader("x"))
 	_, err := path.OpenFS(t.Context(), path.New("a.tar"), fsys, Open)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
-
-type readerOnlyFS struct {
-	name string
-	r    io.Reader
-}
-
-func (s *readerOnlyFS) Open(name string) (fs.File, error) {
-	if name != s.name {
-		return nil, fs.ErrNotExist
-	}
-	return readerOnlyFile{Reader: s.r}, nil
-}
-
-type readerOnlyFile struct{ io.Reader }
-
-func (readerOnlyFile) Stat() (fs.FileInfo, error) { return nil, fs.ErrInvalid }
-func (readerOnlyFile) Close() error               { return nil }
