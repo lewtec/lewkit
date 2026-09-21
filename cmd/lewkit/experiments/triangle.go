@@ -15,17 +15,16 @@ const (
 )
 
 func triangleAt(h, w int, turn *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
-	if h < 1 || w < 1 {
-		return nil, ndarray.ErrShape
+	args, err := rasterAt(h, w, turn)
+	if err != nil {
+		return nil, err
 	}
-	if turn == nil {
-		turn = ndarray.Const(float32(0))
-	}
-	return triangle(turn, ndarray.Const(float32(w)), ndarray.Const(float32(h)), ndarray.Shape{h, w, 4})
+	return triangle(args.seed, args.width, args.height, args.shape)
 }
 
 func triangleDynamic(turn, width, height *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
-	return triangle(turn, width, height, ndarray.Shape{1, 1, 4})
+	args := rasterDynamic(turn, width, height)
+	return triangle(args.seed, args.width, args.height, args.shape)
 }
 
 func requireFloatSplat(n *ndarray.Tensor[float32], name string) error {
