@@ -80,6 +80,21 @@ func TestOpenRejectsNegativeSize(t *testing.T) {
 	assert.ErrorIs(t, err, window.ErrSize)
 }
 
+func TestSwapBlit(t *testing.T) {
+	buf := window.NewBuffer(2, 2)
+	called := 0
+	require.NoError(t, window.SwapBlit(buf, func() error {
+		called++
+		return nil
+	}))
+	assert.Equal(t, 1, called)
+	require.NoError(t, buf.Close())
+	assert.ErrorIs(t, window.SwapBlit(buf, func() error {
+		t.Fatal("blit on closed buffer")
+		return nil
+	}), window.ErrClosed)
+}
+
 func TestWantSizeSet(t *testing.T) {
 	var want window.WantSize
 	assert.False(t, want.Set(0, 10))
