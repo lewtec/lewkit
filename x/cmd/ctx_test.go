@@ -64,11 +64,11 @@ func TestLookupMissing(t *testing.T) {
 }
 
 func TestGetAppFlags(t *testing.T) {
-	app := ParseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
+	app := ParseOK[App[None]](t, "-vv", "--pprof", "/tmp/p")
 	ctx := withValues(t.Context())
 	bind(ctx, reflect.ValueOf(&app).Elem())
 	assert.Equal(t, 2, Get[int](ctx, "verbose"))
-	assert.Equal(t, "/tmp/p", Get[string](ctx, "profile-dir"))
+	assert.Equal(t, "/tmp/p", Get[string](ctx, "pprof"))
 	assert.False(t, Get[bool](ctx, "help"))
 	assert.False(t, Get[bool](ctx, "version"))
 }
@@ -80,7 +80,7 @@ type ctxLeaf struct {
 
 func (l *ctxLeaf) Run(ctx context.Context) error {
 	l.got = Get[int](ctx, "verbose")
-	l.dir = Get[string](ctx, "profile-dir")
+	l.dir = Get[string](ctx, "pprof")
 	return nil
 }
 
@@ -91,7 +91,7 @@ type ctxRoot struct {
 func TestGetParentFlagAfterCommand(t *testing.T) {
 	test.RestoreSlog(t)
 
-	app := ParseOK[App[ctxRoot]](t, "leaf", "-vv", "--profile-dir", "/tmp/x")
+	app := ParseOK[App[ctxRoot]](t, "leaf", "-vv", "--pprof", "/tmp/x")
 	require.NoError(t, app.Run(t.Context()))
 	require.NotNil(t, app.Args.leaf)
 	assert.Equal(t, 2, app.Args.leaf.got)

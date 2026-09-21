@@ -202,5 +202,5 @@ func TestCompleteAfterEqualsValue(t *testing.T) {
 
 func TestCompleteAppFlags(t *testing.T) {
 	got := completeOK[App[None]](t)
-	assert.Subset(t, got, []string{"--verbose", "-v", "--help", "-h", "--version", "--profile-dir"})
+	assert.Subset(t, got, []string{"--verbose", "-v", "--help", "-h", "--version", "--pprof"})
 }

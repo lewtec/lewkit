@@ -17,10 +17,35 @@ import (
 )
 
 func TestAppParse(t *testing.T) {
-	args := ParseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
+	args := ParseOK[App[None]](t, "-vv", "--pprof", "/tmp/p")
 	assert.Equal(t, 2, args.verbose.Value())
-	assert.Equal(t, "/tmp/p", args.profileDir.Value())
+	assert.Equal(t, "/tmp/p", args.pprof.Value())
 	assert.Equal(t, slog.LevelDebug-4, args.LogLevel())
+}
+
+func TestPprofClassifies(t *testing.T) {
+	cases := []struct {
+		name      string
+		in        string
+		directory string
+		address   string
+	}{
+		{name: "absolute dir", in: "/tmp/p", directory: "/tmp/p"},
+		{name: "relative dir", in: "./out", directory: "./out"},
+		{name: "name", in: "profiles", directory: "profiles"},
+		{name: "all interfaces", in: ":6060", address: ":6060"},
+		{name: "localhost", in: "localhost:6060", address: "localhost:6060"},
+		{name: "ipv4", in: "127.0.0.1:6060", address: "127.0.0.1:6060"},
+		{name: "bare port", in: "8080", address: ":8080"},
+		{name: "ipv6", in: "[::1]:443", address: "[::1]:443"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newProfile(tc.in)
+			assert.Equal(t, tc.directory, p.Directory())
+			assert.Equal(t, tc.address, p.Address())
+		})
+	}
 }
 
 func TestAppLogLevel(t *testing.T) {
@@ -61,7 +86,7 @@ func TestAppUsage(t *testing.T) {
 		"-h, --help",
 		"-v, --verbose",
 		"log verbosity (default: 0)",
-		"--profile-dir",
+		"--pprof",
 		"--version",
 	} {
 		assert.Contains(t, text, want)
@@ -92,7 +117,7 @@ func TestAppRunVersion(t *testing.T) {
 	}
 }
 
-func TestAppRunNoProfile(t *testing.T) {
+func TestAppRunNoPprof(t *testing.T) {
 	test.RestoreSlog(t)
 
 	app := ParseOK[App[None]](t, "-v")
@@ -106,14 +131,14 @@ func TestAppRunCancel(t *testing.T) {
 	assert.ErrorIs(t, app.Run(ctx), context.Canceled)
 }
 
-func TestAppRunProfile(t *testing.T) {
+func TestAppRunPprof(t *testing.T) {
 	test.RestoreSlog(t)
 
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	app := ParseOK[App[None]](t, "--profile-dir", dir)
+	app := ParseOK[App[None]](t, "--pprof", dir)
 	require.NoError(t, app.Run(ctx))
 
 	cpu := filepath.Join(dir, "cpu.prof")
