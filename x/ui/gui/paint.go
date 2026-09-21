@@ -15,8 +15,8 @@ type slot struct {
 	clipWidth, clipHeight   *ndarray.Tensor[float32]
 }
 
-// Picture compiles a fixed number of draw slots once. Upload writes uniforms.
-// Ink is an output-aligned overlay composited in the same kernel.
+// Picture is one over-composite tensor: each fill layers onto acc, then ink.
+// The graph grows with the tree; uniforms update each frame.
 type Picture struct {
 	slots   []slot
 	params  *ndarray.Tensor[float32]
@@ -86,29 +86,55 @@ func (s slot) clear() {
 	s.write(Draw{})
 }
 
-// NewPicture builds a fused kernel with maxDraws rounded-rect slots.
-func NewPicture(maxDraws int) (*Picture, error) {
-	if maxDraws < 1 {
-		return nil, ndarray.ErrShape
+// NewPicture starts a one-layer over-composite. Render grows it if the tree needs more fills.
+func NewPicture() (*Picture, error) {
+	p := &Picture{}
+	return p, p.compile(1)
+}
+
+func (p *Picture) ensure(n int) error {
+	if p == nil {
+		return ErrView
 	}
-	params, err := ndarray.New(make([]float32, maxDraws*slotFloats), ndarray.Shape{maxDraws * slotFloats})
-	if err != nil {
-		return nil, err
+	if p.pixels != nil && n <= len(p.slots) {
+		return nil
 	}
-	ink, err := ndarray.New(make([]uint8, 4), ndarray.Shape{1, 1, 4})
+	cap := len(p.slots)
+	if cap < 1 {
+		cap = 1
+	}
+	for cap < n {
+		cap *= 2
+	}
+	return p.compile(cap)
+}
+
+func (p *Picture) compile(n int) error {
+	if p == nil || n < 1 {
+		return ndarray.ErrShape
+	}
+	params, err := ndarray.New(make([]float32, n*slotFloats), ndarray.Shape{n * slotFloats})
 	if err != nil {
-		return nil, err
+		return err
+	}
+	ink := p.ink
+	if ink == nil {
+		ink, err = ndarray.New(make([]uint8, 4), ndarray.Shape{1, 1, 4})
+		if err != nil {
+			return err
+		}
 	}
 	shape := ndarray.Shape{1, 1, 4}
 	px := ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
 	py := ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
 	ch := ndarray.Coord(2, shape)
 	acc := channelColor(ch, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
-	p := &Picture{slots: make([]slot, maxDraws), params: params}
-	for i := 0; i < maxDraws; i++ {
+	p.params = params
+	p.slots = make([]slot, n)
+	for i := 0; i < n; i++ {
 		sl, err := p.newSlot(i * slotFloats)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		p.slots[i] = sl
 		cov := sl.coverage(px, py)
@@ -119,11 +145,15 @@ func NewPicture(maxDraws int) (*Picture, error) {
 	lit := ink.Cast[int32]().CmpNe(ndarray.Const(int32(0)))
 	acc = lit.Where(ink.Cast[float32](), acc)
 	if acc.Shape() == nil {
-		return nil, ndarray.ErrOp
+		return ndarray.ErrOp
+	}
+	if p.pixels != nil {
+		_ = p.pixels.Close()
 	}
 	p.ink = ink
 	p.pixels = acc.Cast[uint8]()
-	return p, nil
+	p.used = 0
+	return nil
 }
 
 func channelColor(ch *ndarray.Tensor[int32], r, g, b, a *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
@@ -156,7 +186,7 @@ func (s slot) coverage(px, py *ndarray.Tensor[float32]) *ndarray.Tensor[float32]
 	return clipMask.Where(cover, zero)
 }
 
-// Render layouts root, uploads draws, resizes the compiled kernel.
+// Render layouts root, layers fills onto the over-composite, resizes the kernel.
 func (p *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], error) {
 	if p == nil || p.pixels == nil {
 		return nil, ErrView
@@ -168,7 +198,10 @@ func (p *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], error) {
 	p.paint.draws = p.paint.draws[:0]
 	p.paint.texts = p.paint.texts[:0]
 	root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, &p.paint)
-	n := min(len(p.paint.draws), len(p.slots))
+	if err := p.ensure(len(p.paint.draws)); err != nil {
+		return nil, err
+	}
+	n := len(p.paint.draws)
 	for i := 0; i < n; i++ {
 		p.slots[i].write(p.paint.draws[i])
 	}

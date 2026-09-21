@@ -26,15 +26,13 @@ type runner struct {
 	dirty     bool
 }
 
-const defaultSlots = 64
-
 // Run is the Elm loop. Update runs on each message. View returns a
 // [Node]; Run paints it through [Picture] on the display ticker.
 func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model) error {
-	return run(ctx, host, evaluator, model, 0)
+	return run(ctx, host, evaluator, model)
 }
 
-func run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model, slots int) error {
+func run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model) error {
 	if model == nil {
 		return ErrModel
 	}
@@ -44,10 +42,7 @@ func run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, m
 	if evaluator == nil {
 		evaluator = ndarray.CPU
 	}
-	if slots <= 0 {
-		slots = defaultSlots
-	}
-	picture, err := NewPicture(slots)
+	picture, err := NewPicture()
 	if err != nil {
 		return err
 	}

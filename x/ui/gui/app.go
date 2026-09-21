@@ -12,7 +12,6 @@ import (
 type Options struct {
 	window.Config
 	Evaluator ndarray.Evaluator
-	Slots     int
 }
 
 // Open creates a host window and evaluator, then [Run]s model until close.
@@ -31,5 +30,5 @@ func Open(ctx context.Context, model Model, options Options) error {
 		}
 		defer evaluator.Close()
 	}
-	return run(ctx, host, evaluator, model, options.Slots)
+	return run(ctx, host, evaluator, model)
 }

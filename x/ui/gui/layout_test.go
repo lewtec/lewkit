@@ -94,7 +94,7 @@ func TestStackPositions(t *testing.T) {
 
 func raster(t *testing.T, root Node, w, h int) []uint8 {
 	t.Helper()
-	p, err := NewPicture(8)
+	p, err := NewPicture()
 	require.NoError(t, err)
 	pixels, err := p.Render(root, Size{float32(w), float32(h)})
 	require.NoError(t, err)
@@ -274,7 +274,7 @@ func marqueeBars(t *testing.T, m *Marquee, w, h int) []Draw {
 }
 
 func TestPictureReuseKernel(t *testing.T) {
-	p, err := NewPicture(4)
+	p, err := NewPicture()
 	require.NoError(t, err)
 	root := &Box{Fill: &Color{10, 20, 30, 255}}
 	first, err := p.Render(root, Size{6, 6})
@@ -286,8 +286,32 @@ func TestPictureReuseKernel(t *testing.T) {
 	require.Equal(t, 3, k.Bindings())
 }
 
+func TestPictureGrowsLayers(t *testing.T) {
+	p, err := NewPicture()
+	require.NoError(t, err)
+	one := &Box{Fill: &Color{255, 0, 0, 255}}
+	first, err := p.Render(one, Size{8, 8})
+	require.NoError(t, err)
+	k := first.Kernel()
+	children := make([]Node, 10)
+	for i := range children {
+		children[i] = &Box{Fill: &Color{0, 0, 255, 40}}
+	}
+	stack := &Stack{Children: children}
+	grown, err := p.Render(stack, Size{8, 8})
+	require.NoError(t, err)
+	require.NotSame(t, k, grown.Kernel())
+	again, err := p.Render(stack, Size{8, 8})
+	require.NoError(t, err)
+	assert.Same(t, grown.Kernel(), again.Kernel())
+	pix := make([]uint8, 8*8*4)
+	require.NoError(t, grown.Eval(t.Context(), ndarray.CPU, pix))
+	c := at(pix, 8, 4, 4)
+	assert.Greater(t, c.B, uint8(80))
+}
+
 func TestInkLetter(t *testing.T) {
-	p, err := NewPicture(2)
+	p, err := NewPicture()
 	require.NoError(t, err)
 	root := &Box{Fill: &Color{0, 0, 0, 255}, Child: &Text{Value: "Hi"}}
 	pixels, err := p.Render(root, Size{80, 40})

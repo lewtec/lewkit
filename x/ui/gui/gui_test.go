@@ -30,7 +30,7 @@ func TestRunNilWindow(t *testing.T) {
 }
 
 func TestPictureFrameSig(t *testing.T) {
-	p, err := NewPicture(1)
+	p, err := NewPicture()
 	require.NoError(t, err)
 	root := &Box{Fill: &Color{10, 20, 30, 255}}
 	_, err = p.Render(root, Size{4, 4})

@@ -6,7 +6,7 @@
 // is unchanged. Animation is [Tick] / [Every]. A root [Row]/[Column] fills the window; wrap it in a
 // [Box] with Align to center a packed inner cluster. Solid, Marquee, and
 // Notepad all paint through one fused kernel
-// (rounded-rect slots + ink overlay). Picture keeps a painter scratch;
+// (one over-composite tensor of rounded rects + ink overlay). Picture keeps a painter scratch;
 // Marquee rewrites bar Y on a reused node tree. Layout is CPU ([Box], [Flex], [Stack]).
 // Glyphs are [Text] nodes; Picture rasters them into ink in the same kernel.
 // [Marquee] View maps offset and size onto [Bar] values; Update is the

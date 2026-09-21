@@ -109,14 +109,6 @@ func (*Marquee) repeats(innerH float32) int {
 	return max(1, int(math.Ceil(float64(innerH/period))))
 }
 
-func (m *Marquee) slots(windowH int) int {
-	inner := float32(windowH) - 2*marqueePad
-	if inner < 1 {
-		inner = 600
-	}
-	return 1 + 2*m.repeats(inner)*len(marqueeColors)
-}
-
 func (m *Marquee) Init() Cmd { return Tick() }
 
 func (m *Marquee) Update(msg Msg) (Model, Cmd) {
@@ -164,12 +156,7 @@ func (m *Marquee) barCount() int {
 	if innerH < 1 {
 		innerH = 1
 	}
-	n := m.repeats(innerH) * len(marqueeColors)
-	maxBars := (m.slots(1200) - 1) / 2
-	if maxBars < 1 {
-		maxBars = 1
-	}
-	return max(1, min(n, maxBars))
+	return max(1, m.repeats(innerH)*len(marqueeColors))
 }
 
 func (m *Marquee) period() float32 {
