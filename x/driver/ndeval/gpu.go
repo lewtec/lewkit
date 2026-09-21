@@ -8,7 +8,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
-	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -50,13 +49,6 @@ func (g *gpuEvaluator) Name() string {
 	return "vulkan:" + g.device.Name()
 }
 
-func (g *gpuEvaluator) native() *ffivulkan.Device {
-	if g == nil || g.device == nil {
-		return nil
-	}
-	return g.device.Native()
-}
-
 func (g *gpuEvaluator) Program(ctx context.Context, kernel *ndarray.Kernel) (ndarray.Program, error) {
 	if kernel == nil {
 		return nil, ndarray.ErrOp
@@ -65,8 +57,7 @@ func (g *gpuEvaluator) Program(ctx context.Context, kernel *ndarray.Kernel) (nda
 }
 
 func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*session, error) {
-	native := g.native()
-	if native == nil || kernel == nil {
+	if g.device == nil || kernel == nil {
 		return nil, ndarray.ErrOp
 	}
 	g.mu.Lock()
@@ -79,7 +70,7 @@ func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*se
 		return s, nil
 	}
 	g.mu.Unlock()
-	s, err := newSession(ctx, kernel, native)
+	s, err := newSession(ctx, kernel, g.device)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +98,7 @@ func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*se
 			return nil, err
 		}
 	}
-	slog.Debug("ndeval vulkan session", "device", native.Name())
+	slog.Debug("ndeval vulkan session", "device", g.device.Name())
 	return s, nil
 }
 

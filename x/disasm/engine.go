@@ -3,23 +3,19 @@ package disasm
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"iter"
 	"sync"
+
+	"github.com/lewtec/lewkit/x/ffi/wasm/capstone"
 )
 
 var _ io.Closer = (*Engine)(nil)
 
+var errEngineClosed = errors.New("engine closed")
+
 // Instruction is one decoded instruction.
-type Instruction struct {
-	ID       uint32
-	Address  uint64
-	Size     uint16
-	Bytes    []byte
-	Mnemonic string
-	Operands string
-}
+type Instruction = capstone.Instruction
 
 type engineOptions struct {
 	syntax   Syntax
@@ -41,8 +37,9 @@ func WithSkipData(enabled bool) Option {
 
 // Engine is an open Capstone handle.
 type Engine struct {
-	mu      sync.Mutex
-	session *session
+	mu     sync.Mutex
+	handle *capstone.Handle
+	ctx    context.Context
 }
 
 // Open creates an engine for architecture and mode.
@@ -51,18 +48,18 @@ func Open(ctx context.Context, architecture Architecture, mode Mode, opts ...Opt
 	for _, opt := range opts {
 		opt(&options)
 	}
-	session, err := openSession(ctx, architecture, mode)
+	handle, err := capstone.Open(ctx, uint32(architecture), uint32(mode))
 	if err != nil {
 		return nil, err
 	}
-	engine := &Engine{session: session}
+	engine := &Engine{handle: handle, ctx: context.WithoutCancel(ctx)}
 	if options.syntax != 0 && options.syntax != SyntaxDefault {
-		if err := session.setOption(ctx, optionSyntax, uint32(options.syntax)); err != nil {
+		if err := handle.Syntax(ctx, uint32(options.syntax)); err != nil {
 			return nil, errors.Join(err, engine.Close())
 		}
 	}
 	if options.skipData {
-		if err := session.setOption(ctx, optionSkipData, optionOn); err != nil {
+		if err := handle.SkipData(ctx, true); err != nil {
 			return nil, errors.Join(err, engine.Close())
 		}
 	}
@@ -76,8 +73,8 @@ func (engine *Engine) Close() error {
 	}
 	engine.mu.Lock()
 	defer engine.mu.Unlock()
-	err := engine.session.close(context.Background())
-	engine.session = nil
+	err := engine.handle.Close(engine.ctx)
+	engine.handle = nil
 	return err
 }
 
@@ -98,74 +95,14 @@ func (engine *Engine) Iter(ctx context.Context, code []byte, address uint64) ite
 	return func(yield func(Instruction, error) bool) {
 		engine.mu.Lock()
 		defer engine.mu.Unlock()
-		if engine.session == nil {
-			yield(Instruction{}, fmt.Errorf("engine closed"))
+		if engine.handle == nil {
+			yield(Instruction{}, errEngineClosed)
 			return
 		}
-		if err := engine.walk(ctx, code, address, yield); err != nil {
-			yield(Instruction{}, err)
-		}
-	}
-}
-
-func (engine *Engine) walk(ctx context.Context, code []byte, address uint64, yield func(Instruction, error) bool) error {
-	session := engine.session
-	instructionPointer, err := session.in.Call(ctx, "cs_malloc", uint64(session.handle))
-	if err != nil {
-		return fmt.Errorf("cs_malloc: %w", err)
-	}
-	if instructionPointer == 0 {
-		return fmt.Errorf("cs_malloc: empty instruction")
-	}
-	defer func() { _, _ = session.in.Call(ctx, "cs_free", instructionPointer, 1) }()
-
-	metaPointer, err := session.alloc(ctx, 16)
-	if err != nil {
-		return err
-	}
-	defer session.dealloc(ctx, metaPointer)
-	codePointerPointer := metaPointer
-	sizePointer := metaPointer + 4
-	addressPointer := metaPointer + 8
-
-	var codePointer uint32
-	if len(code) > 0 {
-		codePointer, err = session.alloc(ctx, uint32(len(code)))
-		if err != nil {
-			return err
-		}
-		defer session.dealloc(ctx, codePointer)
-		if err := session.in.Write(codePointer, code); err != nil {
-			return fmt.Errorf("write code: %w", err)
-		}
-	}
-	if err := session.writeUint32LE(codePointerPointer, codePointer); err != nil {
-		return fmt.Errorf("write code pointer: %w", err)
-	}
-	if err := session.writeUint32LE(sizePointer, uint32(len(code))); err != nil {
-		return fmt.Errorf("write code size: %w", err)
-	}
-	if err := session.writeUint64LE(addressPointer, address); err != nil {
-		return fmt.Errorf("write address: %w", err)
-	}
-
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		ok, err := session.in.Call(ctx, "cs_disasm_iter", uint64(session.handle), uint64(codePointerPointer), uint64(sizePointer), uint64(addressPointer), instructionPointer)
-		if err != nil {
-			return fmt.Errorf("cs_disasm_iter: %w", err)
-		}
-		if ok == 0 {
-			return nil
-		}
-		instruction, err := session.readInstruction(ctx, uint32(instructionPointer))
-		if err != nil {
-			return err
-		}
-		if !yield(instruction, nil) {
-			return nil
+		for instruction, err := range engine.handle.Iter(ctx, code, address) {
+			if !yield(instruction, err) {
+				return
+			}
 		}
 	}
 }

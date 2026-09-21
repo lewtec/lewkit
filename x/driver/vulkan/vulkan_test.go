@@ -19,5 +19,7 @@ func TestListAndOpen(t *testing.T) {
 	require.NotEmpty(t, gpu.Name())
 	require.NotEqual(t, VendorUnknown, gpu.Vendor())
 	require.True(t, gpu.Type() <= DeviceTypeSoftware)
-	require.NotNil(t, gpu.Native())
+	buf, err := gpu.Buffer(16)
+	require.NoError(t, err)
+	require.NoError(t, buf.Close())
 }

@@ -13,7 +13,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/event"
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
+	"github.com/lewtec/lewkit/x/ffi/native/vulkan"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )

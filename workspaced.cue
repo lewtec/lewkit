@@ -10,7 +10,7 @@ workspaced: {
 		from: "core:place"
 		config: {
 			items: {
-				"x/disasm/internal/wasm": "capstone_wasm:internal/wasm/libcapstone.wasm"
+				"x/ffi/wasm/capstone/internal/wasm": "capstone_wasm:internal/wasm/libcapstone.wasm"
 			}
 			steps: {
 				"10_require": {
@@ -22,7 +22,7 @@ workspaced: {
 			}
 		}
 	}
-	file: codebase: "x/disasm/internal/wasm/libcapstone.wasm": {
+	file: codebase: "x/ffi/wasm/capstone/internal/wasm/libcapstone.wasm": {
 		type: "ref"
 		values: {
 			src: {
@@ -40,7 +40,7 @@ workspaced: {
 		from: "core:place"
 		config: {
 			items: {
-				"x/wasm/glsl/internal/wasm": "glslang_wasm:glslang.wasm"
+				"x/ffi/wasm/glsl/internal/wasm": "glslang_wasm:glslang.wasm"
 			}
 			steps: {
 				"10_require": {

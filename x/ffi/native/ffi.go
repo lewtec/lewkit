@@ -1,5 +1,5 @@
-// Package ffi loads shared libraries and binds functions without cgo.
-package ffi
+// Package native loads shared libraries and binds functions without cgo.
+package native
 
 import "github.com/ebitengine/purego"
 
