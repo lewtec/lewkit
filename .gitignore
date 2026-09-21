@@ -1,1 +1,4 @@
 /dist
+.workspaced/state.json
+/x/ndarray/onnx/testdata/node/**
+!/x/ndarray/onnx/testdata/node/.gitkeep

@@ -264,13 +264,20 @@ func (t *Tensor[T]) realize(ctx context.Context, evaluator Evaluator, destinatio
 		return err
 	}
 	if t.node.kind == kindInput && t.node.buf != nil && t.node.tracker.Contiguous() && t.node.dtype == dtypeOf[T]() {
+		n := t.Size()
+		elem := t.node.dtype.size()
+		need := n * elem
 		raw := t.node.buf.raw
 		dest := asBytes(destination)
-		if len(dest) < len(raw) {
-			return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), t.node.buf.cells())
+		if len(dest) < need {
+			return fmt.Errorf("%w: destination %d < %d", ErrSize, len(destination), n)
 		}
-		copy(dest, raw)
-		return nil
+		if t.node.tracker.last().offset != 0 || need > len(raw) {
+			// fall through to compile
+		} else {
+			copy(dest[:need], raw[:need])
+			return nil
+		}
 	}
 	if err := t.ensure(); err != nil {
 		return err
@@ -314,15 +321,36 @@ func (t *Tensor[T]) withTracker(tr Tracker) *Tensor[T] {
 	return &Tensor[T]{node: &n}
 }
 
+func (t *Tensor[T]) ensureTracker() (*Tensor[T], error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	if e := t.err(); e != nil {
+		return nil, e
+	}
+	if t.node.kind != kindOp || t.node.tracker.check() == nil {
+		return t, nil
+	}
+	shape := t.Shape()
+	base, err := Of(shape)
+	if err != nil {
+		return nil, err
+	}
+	n := *t.node
+	n.tracker = base
+	n.origin = shape.Clone()
+	return &Tensor[T]{node: &n}, nil
+}
+
 func (t *Tensor[T]) view(tr Tracker, err error) (*Tensor[T], error) {
 	if e := t.err(); e != nil {
 		return nil, e
 	}
+	if t.node.kind != kindInput && t.node.kind != kindConst && t.node.kind != kindOp && t.node.kind != kindCoord {
+		return nil, ErrOp
+	}
 	if err != nil {
 		return nil, err
-	}
-	if t.node.kind != kindInput && t.node.kind != kindConst {
-		return nil, ErrOp
 	}
 	return t.withTracker(tr), nil
 }
@@ -332,6 +360,13 @@ func (t *Tensor[T]) Reshape(shape Shape) (*Tensor[T], error) {
 	if t == nil {
 		return nil, ErrOp
 	}
+	if t.Shape().Equal(shape) {
+		return t, nil
+	}
+	t, err := t.ensureTracker()
+	if err != nil {
+		return nil, err
+	}
 	return t.view(t.node.tracker.Reshape(shape))
 }
 
@@ -339,6 +374,10 @@ func (t *Tensor[T]) Reshape(shape Shape) (*Tensor[T], error) {
 func (t *Tensor[T]) Permute(axes ...int) (*Tensor[T], error) {
 	if t == nil {
 		return nil, ErrOp
+	}
+	t, err := t.ensureTracker()
+	if err != nil {
+		return nil, err
 	}
 	return t.view(t.node.tracker.Permute(axes...))
 }
@@ -348,6 +387,10 @@ func (t *Tensor[T]) Expand(shape Shape) (*Tensor[T], error) {
 	if t == nil {
 		return nil, ErrOp
 	}
+	t, err := t.ensureTracker()
+	if err != nil {
+		return nil, err
+	}
 	return t.view(t.node.tracker.Expand(shape))
 }
 
@@ -355,6 +398,10 @@ func (t *Tensor[T]) Expand(shape Shape) (*Tensor[T], error) {
 func (t *Tensor[T]) Pad(arg [][2]int) (*Tensor[T], error) {
 	if t == nil {
 		return nil, ErrOp
+	}
+	t, err := t.ensureTracker()
+	if err != nil {
+		return nil, err
 	}
 	return t.view(t.node.tracker.Pad(arg))
 }
@@ -372,6 +419,10 @@ func (t *Tensor[T]) Shrink(arg [][2]int) (*Tensor[T], error) {
 	if t == nil {
 		return nil, ErrOp
 	}
+	t, err := t.ensureTracker()
+	if err != nil {
+		return nil, err
+	}
 	return t.view(t.node.tracker.Shrink(arg))
 }
 
@@ -379,6 +430,10 @@ func (t *Tensor[T]) Shrink(arg [][2]int) (*Tensor[T], error) {
 func (t *Tensor[T]) Flip(axes ...int) (*Tensor[T], error) {
 	if t == nil {
 		return nil, ErrOp
+	}
+	t, err := t.ensureTracker()
+	if err != nil {
+		return nil, err
 	}
 	return t.view(t.node.tracker.Flip(axes...))
 }

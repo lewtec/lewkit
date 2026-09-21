@@ -1,4 +1,4 @@
-// Package test is helpers for tests: process globals, closers, and iterators.
+// Package test is helpers for tests: process globals, closers, iterators, and readers.
 //
 // Stdout, Stderr, Slog, DiscardSlog, and RestoreSlog mutate process globals.
 // Do not call t.Parallel in those tests.
@@ -15,6 +15,11 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+// ErrorReader is an io.Reader whose Read always returns Err.
+type ErrorReader struct{ Err error }
+
+func (r ErrorReader) Read([]byte) (int, error) { return 0, r.Err }
 
 // CloseOnCleanup registers c.Close when the test ends.
 func CloseOnCleanup(tb testing.TB, c io.Closer) {

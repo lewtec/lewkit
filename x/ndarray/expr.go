@@ -3,6 +3,7 @@ package ndarray
 import (
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 )
 
@@ -23,10 +24,18 @@ type node struct {
 	dtype   DType
 	sources []*node
 	tracker Tracker
+	origin  Shape
+	chain   []stStep
 	buf     *buffer
 	slot    int // Coord axis
 	bits    uint32
 	err     error
+}
+
+// stStep is one shapetracker on the path from the kernel output to a load.
+type stStep struct {
+	tr     Tracker
+	origin Shape
 }
 
 type buffer struct {
@@ -84,7 +93,11 @@ var splats = struct {
 }{node: map[splatKey]*node{}}
 
 func splat[T Number](v T) *node {
-	key := splatKey{bits: bitsOf(v), dtype: dtypeOf[T]()}
+	return internConst(dtypeOf[T](), bitsOf(v))
+}
+
+func internConst(dtype DType, bits uint32) *node {
+	key := splatKey{bits: bits, dtype: dtype}
 	splats.mu.Lock()
 	defer splats.mu.Unlock()
 	if n := splats.node[key]; n != nil {
@@ -123,7 +136,7 @@ func coord(axis int, shape Shape) *node {
 	if axis < 0 || axis >= shape.Rank() {
 		return failed(ErrAxis)
 	}
-	return &node{kind: kindCoord, dtype: I32, tracker: tracker, slot: axis}
+	return &node{kind: kindCoord, dtype: I32, tracker: tracker, origin: shape.Clone(), slot: axis}
 }
 
 // Shape is the logical shape, or nil for a splat.
@@ -148,6 +161,9 @@ func (n *node) Shape() Shape {
 		return n.tracker.Shape()
 	}
 	if n.kind == kindOp {
+		if n.tracker.check() == nil {
+			return n.tracker.Shape()
+		}
 		for _, s := range n.sources {
 			if shape := s.Shape(); shape != nil {
 				return shape
@@ -226,7 +242,7 @@ func whereNode(p, a, b *node) *node {
 	if err := sameShape(p, a, b); err != nil {
 		return failed(err)
 	}
-	return &node{kind: kindOp, op: WHERE, dtype: a.dtype, sources: []*node{p, a, b}}
+	return opNode(WHERE, a.dtype, p, a, b)
 }
 
 // MultiplyAccumulate is a*b + c.
@@ -249,7 +265,7 @@ func multiplyAccumulateNode(a, b, c *node) *node {
 	if err := sameShape(a, b, c); err != nil {
 		return failed(err)
 	}
-	return &node{kind: kindOp, op: MultiplyAccumulate, dtype: a.dtype, sources: []*node{a, b, c}}
+	return opNode(MultiplyAccumulate, a.dtype, a, b, c)
 }
 
 func unary(op Op, a *node) *node {
@@ -263,7 +279,7 @@ func unary(op Op, a *node) *node {
 	if err != nil {
 		return failed(err)
 	}
-	return &node{kind: kindOp, op: op, dtype: dtype, sources: []*node{a}}
+	return opNode(op, dtype, a)
 }
 
 func binaryOp(op Op, a, b *node) *node {
@@ -283,7 +299,7 @@ func binaryOp(op Op, a, b *node) *node {
 	if err := sameShape(a, b); err != nil {
 		return failed(err)
 	}
-	return &node{kind: kindOp, op: op, dtype: dtype, sources: []*node{a, b}}
+	return opNode(op, dtype, a, b)
 }
 
 func unaryType(op Op, a DType) (DType, error) {
@@ -326,6 +342,20 @@ func binaryType(op Op, a, b DType) (DType, error) {
 	default:
 		return 0, ErrOp
 	}
+}
+
+func opNode(op Op, dtype DType, srcs ...*node) *node {
+	return &node{kind: kindOp, op: op, dtype: dtype, sources: srcs}
+}
+
+func (n *node) viewed() bool {
+	if n == nil || n.tracker.check() != nil {
+		return false
+	}
+	if n.origin == nil {
+		return !n.tracker.Contiguous()
+	}
+	return !n.tracker.Contiguous() || !slices.Equal(n.tracker.last().shape, n.origin)
 }
 
 func sameShape(ns ...*node) error {

@@ -29,6 +29,15 @@
       "datasource": "github-releases"
     },
     {
+      "kind": "source",
+      "ref": "github:onnx/onnx",
+      "depName": "onnx/onnx",
+      "packageName": "https://github.com/onnx/onnx",
+      "currentValue": "v1.22.0",
+      "currentDigest": "2bb50465112feca9003e1ed654d77f01ff1415ca",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "github:protocolbuffers/protobuf",
       "depName": "protocolbuffers/protobuf",

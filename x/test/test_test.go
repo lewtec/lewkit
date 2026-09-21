@@ -18,6 +18,14 @@ func (c *closeCount) Close() error {
 	return nil
 }
 
+func TestErrorReader(t *testing.T) {
+	r := ErrorReader{Err: io.ErrUnexpectedEOF}
+	n, err := r.Read(make([]byte, 8))
+	if n != 0 || err != io.ErrUnexpectedEOF {
+		t.Fatalf("Read() = %d, %v", n, err)
+	}
+}
+
 func TestCloseOnCleanup(t *testing.T) {
 	var c closeCount
 	t.Run("inner", func(t *testing.T) {
