@@ -52,6 +52,22 @@ func TestGeneratePreludeUsage(t *testing.T) {
 	assert.Contains(t, text, "blank-import")
 }
 
+func TestGenerateProtobufUsage(t *testing.T) {
+	text, err := cmd.Usage[generateCmd]("lewkit generate")
+	require.NoError(t, err)
+	assert.Contains(t, text, "protobuf")
+	assert.Contains(t, text, ".proto file")
+}
+
+func TestGenerateProtobufHelp(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "generate", "protobuf", "--help")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, ".proto file")
+	assert.Contains(t, got, "--package")
+}
+
 func TestGenerateHelp(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "generate", "--help")
 	got := test.Stdout(t, func() {
@@ -60,6 +76,7 @@ func TestGenerateHelp(t *testing.T) {
 	assert.Contains(t, got, "generate code")
 	assert.Contains(t, got, "db")
 	assert.Contains(t, got, "prelude")
+	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "shared Queries")
 	assert.Contains(t, got, "--sentry-dsn")
 }
@@ -73,5 +90,6 @@ func TestGenerateErrUsage(t *testing.T) {
 	assert.Contains(t, got, "generate code")
 	assert.Contains(t, got, "db")
 	assert.Contains(t, got, "prelude")
+	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "--sentry-dsn")
 }

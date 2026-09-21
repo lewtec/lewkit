@@ -132,4 +132,7 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-tool github.com/lucasew/workspaced/cmd/workspaced
+tool (
+	github.com/lucasew/workspaced/cmd/workspaced
+	google.golang.org/protobuf/cmd/protoc-gen-go
+)
