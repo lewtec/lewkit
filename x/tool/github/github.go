@@ -34,10 +34,6 @@ var (
 	ErrNoArtifact = errors.New("no suitable artifact")
 )
 
-func init() {
-	tool.Register("github", &Backend{})
-}
-
 // Backend is the github releases backend.
 type Backend struct{}
 

@@ -25,10 +25,6 @@ var (
 	ErrMiseNotFound = errors.New("mise binary not found on PATH")
 )
 
-func init() {
-	tool.Register("mise", &Backend{})
-}
-
 // Backend is the mise backend.
 type Backend struct{}
 

@@ -24,10 +24,6 @@ var (
 	ErrNoArtifactTool = errors.New("inner tool does not implement ArtifactTool")
 )
 
-func init() {
-	tool.Register("registry", &catalog{})
-}
-
 var namedTools = map[string]func() (tool.Tool, error){}
 
 // RegisterTool registers a curated short name such as "uv".
