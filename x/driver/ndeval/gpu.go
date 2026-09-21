@@ -39,6 +39,7 @@ type gpuEvaluator struct {
 	device   vulkan.Device
 	own      bool
 	mu       sync.Mutex
+	evalMu   sync.Mutex
 	sessions map[*ndarray.Kernel]*session
 }
 
@@ -82,6 +83,14 @@ func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*se
 	if err != nil {
 		return nil, err
 	}
+	s.eval = &g.evalMu
+	s.forget = func() {
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		if g.sessions != nil && g.sessions[kernel] == s {
+			delete(g.sessions, kernel)
+		}
+	}
 	g.mu.Lock()
 	if existing := g.sessions[kernel]; existing != nil && existing.kernel == kernel {
 		g.mu.Unlock()
@@ -90,14 +99,14 @@ func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*se
 		}
 		return existing, nil
 	}
-	if old := g.sessions[kernel]; old != nil {
-		if err := old.Close(); err != nil {
-			g.mu.Unlock()
-			return nil, errors.Join(err, s.Close())
-		}
-	}
+	old := g.sessions[kernel]
 	g.sessions[kernel] = s
 	g.mu.Unlock()
+	if old != nil {
+		if err := old.Close(); err != nil {
+			return nil, err
+		}
+	}
 	slog.Debug("ndeval vulkan session", "device", native.Name())
 	return s, nil
 }

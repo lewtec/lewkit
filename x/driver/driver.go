@@ -198,11 +198,14 @@ func idPrefixes(id string) []string {
 		seen[key] = true
 		out = append(out, key)
 	}
-	for i := len(parts); i >= 1; i-- {
+	for i := len(parts); i >= 2; i-- {
 		add(strings.Join(parts[:i], ":"))
 	}
 	if len(parts) >= 3 {
 		add(parts[0] + ":" + parts[2])
+	}
+	if len(parts) >= 1 {
+		add(parts[0])
 	}
 	return out
 }

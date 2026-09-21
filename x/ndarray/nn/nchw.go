@@ -4,6 +4,17 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
+// scalarType reports ErrType for uint8. ADD, MUL, and MAX accept f32 and i32.
+func scalarType[T ndarray.Number]() error {
+	var zero T
+	switch any(zero).(type) {
+	case float32, int32:
+		return nil
+	default:
+		return ndarray.ErrType
+	}
+}
+
 func padNCHW[T ndarray.Number](t *ndarray.Tensor[T], pads []int) (*ndarray.Tensor[T], error) {
 	if pads[0] == 0 && pads[1] == 0 && pads[2] == 0 && pads[3] == 0 {
 		return t, nil

@@ -24,8 +24,8 @@ type Compute struct {
 	smoke    cmd.Flag        `long:"smoke" help:"print the 4-byte smoke shader instead of a window"`
 	width    cmd.IntArg[int] `long:"width" default:"640" help:"output width"`
 	height   cmd.IntArg[int] `long:"height" default:"480" help:"output height"`
-	local    cmd.IntArg[int] `long:"local" default:"8" help:"local size for workgroup count"`
-	bindings cmd.IntArg[int] `long:"bindings" default:"1" help:"storage-buffer count (2 adds time params)"`
+	local    cmd.IntArg[int] `long:"local" default:"8" help:"workgroup edge; must match the shader local_size"`
+	bindings cmd.IntArg[int] `long:"bindings" default:"2" help:"storage-buffer count (example.comp uses pixels and params)"`
 }
 
 func (Compute) Description() string {
@@ -76,13 +76,14 @@ func (c *Compute) runWindow(ctx context.Context) error {
 		return err
 	}
 	binds := c.bindings.Value()
+	local := c.local.Value()
 	if path == "" {
 		binds = 2
+		local = 8
 	}
 	if binds < 1 {
 		return errBindings
 	}
-	local := c.local.Value()
 	if local < 1 {
 		return errLocal
 	}

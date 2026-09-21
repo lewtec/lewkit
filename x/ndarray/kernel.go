@@ -10,8 +10,11 @@ import (
 )
 
 const (
-	localSize = 256
-	PushBytes = 20 // n, d0, d1, d2, d3
+	// localSize is the compute workgroup. Vulkan 1.1 guarantees 128 invocations.
+	localSize = 128
+	// PushBytes is n plus d0..d3. Rank above 4 cannot be lowered.
+	PushBytes   = 20
+	maxPushRank = 4
 )
 
 // Kernel is the flattened graph: nodes, leaf buffers, compile-time shape.
@@ -435,11 +438,14 @@ func foldConstOp(n *node) *node {
 }
 
 func identityOp(n *node) *node {
-	if n == nil || n.kind != kindOp {
+	if n == nil || n.kind != kindOp || n.viewed() {
 		return n
 	}
 	switch n.op {
 	case ADD:
+		if n.dtype == F32 {
+			return n
+		}
 		if isZeroConst(n.sources[1]) {
 			return n.sources[0]
 		}
@@ -497,6 +503,12 @@ type glslWriter struct {
 }
 
 func (w *glslWriter) program() (string, error) {
+	if w.root == nil {
+		return "", ErrOp
+	}
+	if len(w.outShape) > maxPushRank {
+		return "", fmt.Errorf("%w: rank %d", ErrShape, len(w.outShape))
+	}
 	for i, b := range w.bufs {
 		w.bufBind[b] = i + 1
 	}
@@ -505,7 +517,7 @@ func (w *glslWriter) program() (string, error) {
 	w.b.WriteString(strconv.Itoa(localSize))
 	w.b.WriteString(") in;\n")
 	w.b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
-	w.b.WriteString("layout(set = 0, binding = 0) buffer Out { float o[]; };\n")
+	fmt.Fprintf(&w.b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", w.root.dtype.glsl())
 	for i, b := range w.bufs {
 		dtype := F32
 		if b != nil {
@@ -526,12 +538,9 @@ func (w *glslWriter) program() (string, error) {
 		w.names[n] = name
 	}
 	out := w.names[w.root]
-	if w.root.dtype != F32 {
-		out = "float(" + out + ")"
-	}
 	if w.root.viewed() {
 		_, valid := w.indexAt(w.root.tracker, w.coords)
-		fmt.Fprintf(&w.b, "    o[i] = (%s) ? %s : 0.0;\n}\n", valid, out)
+		fmt.Fprintf(&w.b, "    o[i] = (%s) ? %s : %s;\n}\n", valid, out, glslZero(w.root.dtype))
 	} else {
 		fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", out)
 	}
@@ -569,9 +578,10 @@ func (w *glslWriter) node(n *node) (string, error) {
 		return id, nil
 	case kindCoord:
 		coords := w.coords
+		valid := "true"
 		if len(n.chain) > 0 {
 			var err error
-			coords, err = w.chainCoords(n.chain)
+			coords, valid, err = w.chainCoords(n.chain)
 			if err != nil {
 				return "", err
 			}
@@ -579,7 +589,12 @@ func (w *glslWriter) node(n *node) (string, error) {
 		if n.slot < 0 || n.slot >= len(coords) {
 			return "", ErrAxis
 		}
-		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, coords[n.slot])
+		if valid == "true" {
+			fmt.Fprintf(&w.b, "    int %s = %s;\n", id, coords[n.slot])
+			return id, nil
+		}
+		fmt.Fprintf(&w.b, "    int %s = 0;\n", id)
+		fmt.Fprintf(&w.b, "    if (%s) %s = %s;\n", valid, id, coords[n.slot])
 		return id, nil
 	case kindInput:
 		off, valid := "0", "true"
@@ -594,15 +609,12 @@ func (w *glslWriter) node(n *node) (string, error) {
 		} else {
 			off, valid = w.index(n.tracker)
 		}
-		zero := "0.0"
-		switch n.dtype {
-		case I32:
-			zero = "0"
-		case U8:
-			zero = "0u"
+		cells := 0
+		if n.buf != nil {
+			cells = n.buf.cells()
 		}
-		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, zero)
-		fmt.Fprintf(&w.b, "    if (%s) %s = x%d[%s];\n", valid, id, w.bufBind[n.buf], off)
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, glslZero(n.dtype))
+		fmt.Fprintf(&w.b, "    if ((%s) && (%s >= 0) && (%s < %d)) %s = x%d[%s];\n", valid, off, off, cells, id, w.bufBind[n.buf], off)
 		return id, nil
 	case kindOp:
 		args := make([]string, len(n.sources))
@@ -658,7 +670,7 @@ func (w *glslWriter) indexChain(chain []stStep) (off, valid string) {
 	return "0", valid
 }
 
-func (w *glslWriter) chainCoords(chain []stStep) ([]string, error) {
+func (w *glslWriter) chainCoords(chain []stStep) ([]string, string, error) {
 	coords := w.coords
 	valid := "true"
 	for _, s := range chain {
@@ -667,11 +679,11 @@ func (w *glslWriter) chainCoords(chain []stStep) ([]string, error) {
 		fmt.Fprintf(&w.b, "    bool %s = (%s) && (%s);\n", both, valid, v)
 		valid = both
 		if len(s.origin) == 0 {
-			return coords, nil
+			return coords, valid, nil
 		}
 		coords = w.unravel(s.origin, o)
 	}
-	return coords, nil
+	return coords, valid, nil
 }
 
 func sameCoordVars(a, b []string) bool {
@@ -689,8 +701,11 @@ func sameCoordVars(a, b []string) bool {
 func (w *glslWriter) view(v view, coords []string) (off, valid string) {
 	off = w.name("p")
 	fmt.Fprintf(&w.b, "    int %s = %d;\n", off, v.offset)
+	if len(v.shape) == 0 {
+		return off, "true"
+	}
 	for i, c := range coords {
-		if v.strides[i] == 0 {
+		if i >= len(v.strides) || v.strides[i] == 0 {
 			continue
 		}
 		fmt.Fprintf(&w.b, "    %s += %s * (%d);\n", off, c, v.strides[i])
@@ -700,6 +715,9 @@ func (w *glslWriter) view(v view, coords []string) (off, valid string) {
 		valid = w.name("m")
 		fmt.Fprintf(&w.b, "    bool %s = true;\n", valid)
 		for i, c := range coords {
+			if i >= len(v.mask) {
+				break
+			}
 			fmt.Fprintf(&w.b, "    %s = %s && %s >= %d && %s < %d;\n", valid, valid, c, v.mask[i][0], c, v.mask[i][1])
 		}
 	}
@@ -750,18 +768,37 @@ func (w *glslWriter) unravel(shape Shape, idx string) []string {
 	return coords
 }
 
+func glslZero(d DType) string {
+	switch d {
+	case I32:
+		return "0"
+	case U8:
+		return "0u"
+	default:
+		return "0.0"
+	}
+}
+
 func glslConst(n *node) string {
-	if n.dtype == I32 {
+	switch n.dtype {
+	case I32:
+		if int32(n.bits) == math.MinInt32 {
+			return "int(0x80000000u)"
+		}
 		return strconv.FormatInt(int64(int32(n.bits)), 10)
-	}
-	if n.dtype == U8 {
+	case U8:
 		return strconv.FormatUint(uint64(uint8(n.bits)), 10) + "u"
+	default:
+		f := math.Float32frombits(n.bits)
+		if math.IsNaN(float64(f)) || math.IsInf(float64(f), 0) {
+			return fmt.Sprintf("uintBitsToFloat(%du)", n.bits)
+		}
+		s := strconv.FormatFloat(float64(f), 'g', -1, 32)
+		if !strings.ContainsAny(s, ".eE") {
+			s += ".0"
+		}
+		return s
 	}
-	s := strconv.FormatFloat(float64(math.Float32frombits(n.bits)), 'g', -1, 32)
-	if !strings.ContainsAny(s, ".eE") {
-		s += ".0"
-	}
-	return s
 }
 
 func (n *node) glslALU(args []string) string {
@@ -798,11 +835,11 @@ func (n *node) glslALU(args []string) string {
 	case MUL:
 		return "(" + args[0] + "*" + args[1] + ")"
 	case IDIV:
-		return "(" + args[0] + "/" + args[1] + ")"
+		return "((" + args[1] + "==0)?0:(" + args[0] + "/((" + args[1] + "==0)?1:" + args[1] + ")))"
 	case MAX:
 		return "max(" + args[0] + "," + args[1] + ")"
 	case MOD:
-		return "(" + args[0] + "%" + args[1] + ")"
+		return "((" + args[1] + "==0)?0:(" + args[0] + "%((" + args[1] + "==0)?1:" + args[1] + ")))"
 	case CMPLT:
 		return "int(" + args[0] + "<" + args[1] + ")"
 	case CMPNE:
@@ -810,9 +847,9 @@ func (n *node) glslALU(args []string) string {
 	case XOR:
 		return "(" + args[0] + "^" + args[1] + ")"
 	case SHL:
-		return "(" + args[0] + "<<" + args[1] + ")"
+		return "((uint(" + args[1] + ")>=32u)?0:(" + args[0] + "<<int(uint(" + args[1] + ")&31u)))"
 	case SHR:
-		return "(" + args[0] + ">>" + args[1] + ")"
+		return "((uint(" + args[1] + ")>=32u)?((" + args[0] + "<0)?-1:0):(" + args[0] + ">>int(uint(" + args[1] + ")&31u)))"
 	case OR:
 		return "(" + args[0] + "|" + args[1] + ")"
 	case AND:

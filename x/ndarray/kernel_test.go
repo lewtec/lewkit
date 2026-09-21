@@ -1,6 +1,7 @@
 package ndarray
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -240,4 +241,74 @@ func TestRealSize(t *testing.T) {
 	p, err := mustTracker(t, Shape{2}).Pad([][2]int{{1, 1}})
 	require.NoError(t, err)
 	require.Equal(t, 2, p.RealSize())
+}
+
+func TestPadOfAddKeepsMask(t *testing.T) {
+	x, err := New([]int32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	y, err := x.Add(Const(int32(1))).Add(Const(int32(0))).Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, []int32{0, 2, 3, 4, 0}, mustEval(t, y))
+}
+
+func TestCoordPadAdd(t *testing.T) {
+	y, err := Coord(0, Shape{3}).Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, []int32{1, 1, 2, 3, 1}, mustEval(t, y.Add(Const(int32(1)))))
+}
+
+func TestSplatUnderPad(t *testing.T) {
+	buf, err := New([]float32{7}, Shape{1})
+	require.NoError(t, err)
+	splat, err := buf.Splat()
+	require.NoError(t, err)
+	ones, err := Ones[float32](Shape{2})
+	require.NoError(t, err)
+	y, err := ones.Mul(splat).Pad([][2]int{{1, 0}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{0, 7, 7}, mustEval(t, y))
+}
+
+func TestFloatAddZeroClearsSign(t *testing.T) {
+	negZero := math.Float32frombits(0x80000000)
+	x, err := New([]float32{negZero}, Shape{1})
+	require.NoError(t, err)
+	got := mustEval(t, x.Add(Const(float32(0))))
+	require.Equal(t, uint32(0), math.Float32bits(got[0]))
+}
+
+func TestGLSLLiteralsAndRank(t *testing.T) {
+	low, err := Full(float32(math.Inf(-1)), Shape{1})
+	require.NoError(t, err)
+	k, err := compile(low.node)
+	require.NoError(t, err)
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	require.Contains(t, src, "uintBitsToFloat(")
+	require.NotContains(t, src, "Inf")
+	require.Contains(t, src, "local_size_x = 128")
+	spirv, err := glsl.Load(t.Context(), []byte(src))
+	require.NoError(t, err)
+	require.True(t, glsl.IsSPIRV(spirv))
+	minInt, err := Full(int32(math.MinInt32), Shape{1})
+	require.NoError(t, err)
+	k, err = compile(minInt.node)
+	require.NoError(t, err)
+	src, err = k.GLSL()
+	require.NoError(t, err)
+	require.Contains(t, src, "0x80000000u")
+	require.Contains(t, src, "buffer Out { int o[]; }")
+	wide, err := Ones[float32](Shape{1, 1, 1, 1, 1})
+	require.NoError(t, err)
+	k, err = compile(wide.node)
+	require.NoError(t, err)
+	_, err = k.GLSL()
+	require.ErrorIs(t, err, ErrShape)
+}
+
+func TestResizePastLeafIsZero(t *testing.T) {
+	x, err := New([]float32{1, 2, 3, 4}, Shape{4})
+	require.NoError(t, err)
+	require.NoError(t, x.Resize(Shape{8}))
+	require.Equal(t, []float32{1, 2, 3, 4, 0, 0, 0, 0}, mustEval(t, x))
 }

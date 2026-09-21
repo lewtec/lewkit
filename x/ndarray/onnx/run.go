@@ -646,13 +646,44 @@ func (function *Function[T]) convolution(node Node, values map[string]*ndarray.T
 	}
 	kernelHeight, kernelWidth := weightShape[2], weightShape[3]
 	if kernel := node.attributeIntegers("kernel_shape"); len(kernel) == 2 {
-		kernelHeight, kernelWidth = int(kernel[0]), int(kernel[1])
+		if int(kernel[0]) != kernelHeight || int(kernel[1]) != kernelWidth {
+			return nil, fmt.Errorf("%w: kernel_shape", ErrOp)
+		}
 	}
 	pads, err := spatialPads(node.attributeString("auto_pad"), node.attributeIntegers("pads"), inputShape[2], inputShape[3], kernelHeight, kernelWidth, strideHeight, strideWidth)
 	if err != nil {
 		return nil, err
 	}
-	return nn.Convolution2D(input, weight, pads, strideHeight, strideWidth)
+	y, err := nn.Convolution2D(input, weight, pads, strideHeight, strideWidth)
+	if err != nil {
+		return nil, err
+	}
+	if len(node.Inputs) < 3 || node.Inputs[2] == "" {
+		return y, nil
+	}
+	bias, ok := values[node.Inputs[2]]
+	if !ok || bias == nil {
+		return nil, fmt.Errorf("%w: %s", ErrGraph, node.Inputs[2])
+	}
+	return addConvBias(y, bias)
+}
+
+func addConvBias[T ndarray.Number](y, bias *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	out := y.Shape()
+	shape := bias.Shape()
+	if len(out) != 4 || len(shape) != 1 || shape[0] != out[1] {
+		return nil, ndarray.ErrShape
+	}
+	var err error
+	bias, err = bias.Reshape(ndarray.Shape{1, shape[0], 1, 1})
+	if err != nil {
+		return nil, err
+	}
+	bias, err = bias.Expand(out)
+	if err != nil {
+		return nil, err
+	}
+	return y.Add(bias), nil
 }
 
 func (function *Function[T]) maximumPool(node Node, values map[string]*ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
@@ -712,6 +743,8 @@ func spatialStrides(strides []int64) (int, int, error) {
 
 func spatialPads(autoPad string, pads []int64, height, width, kernelHeight, kernelWidth, strideHeight, strideWidth int) ([]int, error) {
 	switch autoPad {
+	case "VALID":
+		return []int{0, 0, 0, 0}, nil
 	case "", "NOTSET":
 		out := []int{0, 0, 0, 0}
 		if len(pads) == 4 {

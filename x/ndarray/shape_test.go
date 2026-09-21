@@ -6,6 +6,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWindowLengthFloor(t *testing.T) {
+	require.Equal(t, 2, WindowLength(5, 0, 0, 3, 2))
+	require.Equal(t, 0, WindowLength(2, 0, 0, 3, 2))
+	require.Equal(t, 1, WindowLength(3, 0, 0, 3, 1))
+}
+
 func TestShapeRankSize(t *testing.T) {
 	s := Shape{2, 3, 4}
 	require.Equal(t, 3, s.Rank())

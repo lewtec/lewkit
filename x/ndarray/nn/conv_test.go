@@ -14,6 +14,22 @@ func evalCPU[T ndarray.Number](t *testing.T, y *ndarray.Tensor[T]) []T {
 	return got
 }
 
+func TestConvolution2DUint8Rejected(t *testing.T) {
+	x, err := ndarray.New([]uint8{1, 2, 3, 4}, ndarray.Shape{1, 1, 2, 2})
+	require.NoError(t, err)
+	w, err := ndarray.New([]uint8{1}, ndarray.Shape{1, 1, 1, 1})
+	require.NoError(t, err)
+	_, err = Convolution2D(x, w, []int{0, 0, 0, 0}, 1, 1)
+	require.ErrorIs(t, err, ndarray.ErrType)
+}
+
+func TestMaximumPool2DUndersized(t *testing.T) {
+	x, err := ndarray.New([]float32{1, 2, 3, 4}, ndarray.Shape{1, 1, 2, 2})
+	require.NoError(t, err)
+	_, err = MaximumPool2D(x, 3, 3, 2, 2, []int{0, 0, 0, 0})
+	require.Error(t, err)
+}
+
 func TestConvolution2D(t *testing.T) {
 	x, err := ndarray.New([]float32{
 		1, 2, 3,

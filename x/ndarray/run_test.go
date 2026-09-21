@@ -55,3 +55,32 @@ func TestExecPermute(t *testing.T) {
 	require.NoError(t, expr.Eval(t.Context(), evaluator, got))
 	require.Equal(t, want, got)
 }
+
+func TestExecMatchesCPUEdges(t *testing.T) {
+	evaluator := mustGPU(t)
+	coord, err := ndarray.Coord(0, ndarray.Shape{3}).Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	padded := coord.Add(ndarray.Const(int32(1)))
+	want := mustEvalCPU(t, padded)
+	got := make([]int32, padded.Size())
+	require.NoError(t, padded.Eval(t.Context(), evaluator, got))
+	require.Equal(t, want, got)
+
+	numerator, err := ndarray.New([]int32{5, 16777217, -2147483647}, ndarray.Shape{3})
+	require.NoError(t, err)
+	divisor, err := ndarray.New([]int32{0, 1, 1}, ndarray.Shape{3})
+	require.NoError(t, err)
+	quotient := numerator.IDiv(divisor)
+	wantQuotient := mustEvalCPU(t, quotient)
+	gotQuotient := make([]int32, quotient.Size())
+	require.NoError(t, quotient.Eval(t.Context(), evaluator, gotQuotient))
+	require.Equal(t, wantQuotient, gotQuotient)
+
+	leaf, err := ndarray.New([]float32{1, 2, 3, 4}, ndarray.Shape{4})
+	require.NoError(t, err)
+	require.NoError(t, leaf.Resize(ndarray.Shape{8}))
+	wantLeaf := mustEvalCPU(t, leaf)
+	gotLeaf := make([]float32, leaf.Size())
+	require.NoError(t, leaf.Eval(t.Context(), evaluator, gotLeaf))
+	require.Equal(t, wantLeaf, gotLeaf)
+}

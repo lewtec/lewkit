@@ -144,11 +144,16 @@ func (v view) contiguous() bool {
 }
 
 func (v view) index(coords []int) (int, bool) {
+	if len(v.shape) == 0 {
+		return v.offset, true
+	}
 	off := v.offset
 	ok := true
 	for i, c := range coords {
-		off += c * v.strides[i]
-		if v.mask != nil && (c < v.mask[i][0] || c >= v.mask[i][1]) {
+		if i < len(v.strides) {
+			off += c * v.strides[i]
+		}
+		if v.mask != nil && i < len(v.mask) && (c < v.mask[i][0] || c >= v.mask[i][1]) {
 			ok = false
 		}
 	}

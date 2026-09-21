@@ -10,6 +10,9 @@ import (
 // x[n,ic,oh*sh+kh,ow*sw+kw] * w[oc,ic,kh,kw]. x is NCHW, w is (out, in, kh, kw).
 // pads is [heightBefore, widthBefore, heightAfter, widthAfter].
 func Convolution2D[T ndarray.Number](input, weight *ndarray.Tensor[T], pads []int, strideHeight, strideWidth int) (*ndarray.Tensor[T], error) {
+	if err := scalarType[T](); err != nil {
+		return nil, err
+	}
 	if input == nil || weight == nil {
 		return nil, ndarray.ErrOp
 	}
@@ -31,8 +34,8 @@ func Convolution2D[T ndarray.Number](input, weight *ndarray.Tensor[T], pads []in
 	if channelsIn != weightIn {
 		return nil, fmt.Errorf("%w: input %v weight %v", ndarray.ErrShape, inputShape, weightShape)
 	}
-	heightOut := (height+pads[0]+pads[2]-kernelHeight)/strideHeight + 1
-	widthOut := (width+pads[1]+pads[3]-kernelWidth)/strideWidth + 1
+	heightOut := ndarray.WindowLength(height, pads[0], pads[2], kernelHeight, strideHeight)
+	widthOut := ndarray.WindowLength(width, pads[1], pads[3], kernelWidth, strideWidth)
 	if heightOut <= 0 || widthOut <= 0 {
 		return nil, fmt.Errorf("%w: input %v pads %v strides %d %d", ndarray.ErrShape, inputShape, pads, strideHeight, strideWidth)
 	}
