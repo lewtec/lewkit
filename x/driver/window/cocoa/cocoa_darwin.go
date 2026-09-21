@@ -171,7 +171,7 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		openErr = out.create(cfg.Title, w, h)
 		if openErr == nil {
 			if width, height := out.clientSize(); width > 0 && height > 0 {
-				out.wantWidth, out.wantHeight = width, height
+				out.want = window.WantSize{Width: width, Height: height}
 				_ = out.Buffer.Resize(image.Pt(width, height))
 			}
 			period := cfg.Period
@@ -204,8 +204,7 @@ type win struct {
 	surfaceHeight  int
 	surfaceStride  int
 	stale          []objc.ID
-	wantWidth      int
-	wantHeight     int
+	want           window.WantSize
 	liveResize     bool
 	pending        objc.ID
 	displayed      objc.ID
@@ -241,10 +240,7 @@ func (w *win) create(title string, width, height int) error {
 func (w *win) Size() image.Point {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.wantWidth > 0 && w.wantHeight > 0 {
-		return image.Pt(w.wantWidth, w.wantHeight)
-	}
-	return w.Buffer.Size()
+	return w.want.Point(w.Buffer.Size())
 }
 
 func (w *win) Frame() *image.RGBA {
@@ -378,7 +374,7 @@ func (w *win) flushPending() {
 
 func (w *win) Resize(size image.Point) error {
 	w.mu.Lock()
-	w.wantWidth, w.wantHeight = size.X, size.Y
+	w.want.Width, w.want.Height = size.X, size.Y
 	w.mu.Unlock()
 	if err := w.Buffer.Resize(size); err != nil {
 		return err
@@ -463,8 +459,7 @@ func (w *win) note() {
 	w.mu.Lock()
 	wasLive := w.liveResize
 	w.liveResize = live
-	changed := w.wantWidth != width || w.wantHeight != height
-	w.wantWidth, w.wantHeight = width, height
+	changed := w.want.Set(width, height)
 	w.mu.Unlock()
 	if wasLive && !live {
 		w.Emit(window.Pointer{Button: 1, Pressed: false})
