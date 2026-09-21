@@ -307,7 +307,7 @@ func (c *Cmd) Wait() error {
 	} else if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
 		return fmt.Errorf("queue wait: %w", err)
 	}
-	if wait := time.Since(started); wait >= 16*time.Millisecond {
+	if wait := time.Since(started); wait >= 8*time.Millisecond {
 		slog.Debug("vulkan fence wait", "elapsed", wait)
 	}
 	d.pending = false
