@@ -1,5 +1,7 @@
 package gui
 
+import "github.com/lewtec/lewkit/x/ndarray"
+
 // Axis is the main axis of a [Flex].
 type Axis int
 
@@ -143,10 +145,11 @@ func (axis Axis) box(minMain, maxMain, minCross, maxCross float32) BoxConstraint
 	return BoxConstraints{minCross, minMain, maxCross, maxMain}
 }
 
-func (flex *Flex) Paint(origin Offset, clip Rect, paint *painter) {
+func (flex *Flex) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
 	if flex == nil {
-		return
+		return accOf(pic)
 	}
+	acc := accOf(pic)
 	for i := range flex.Children {
 		child := &flex.Children[i]
 		if child.Child == nil {
@@ -156,6 +159,7 @@ func (flex *Flex) Paint(origin Offset, clip Rect, paint *painter) {
 		if crossPadding < 0 {
 			crossPadding = 0
 		}
-		child.Child.Paint(origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, paint)
+		acc = child.Child.Paint(origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, pic)
 	}
+	return acc
 }

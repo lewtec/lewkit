@@ -18,15 +18,29 @@ type slot struct {
 // Picture is one over-composite tensor: each fill layers onto acc, then ink.
 // The graph grows with the tree; uniforms update each frame.
 type Picture struct {
-	slots   []slot
-	params  *ndarray.Tensor[float32]
-	ink     *ndarray.Tensor[uint8]
-	pixels  *ndarray.Tensor[uint8]
-	inkRGBA *image.RGBA
-	sig     uint64
-	hadInk  bool
-	used    int
-	paint   painter
+	slots     []slot
+	outs      []*ndarray.Tensor[float32]
+	base      *ndarray.Tensor[float32]
+	acc       *ndarray.Tensor[float32]
+	px, py    *ndarray.Tensor[float32]
+	ch        *ndarray.Tensor[int32]
+	params    *ndarray.Tensor[float32]
+	ink       *ndarray.Tensor[uint8]
+	pixels    *ndarray.Tensor[uint8]
+	inkedFrom *ndarray.Tensor[float32]
+	inkRGBA   *image.RGBA
+	fills     []Draw
+	texts     []textRun
+	sig       uint64
+	hadInk    bool
+	used      int
+}
+
+func accOf(pic *Picture) *ndarray.Tensor[float32] {
+	if pic == nil {
+		return nil
+	}
+	return pic.acc
 }
 
 const slotFloats = 13
@@ -82,31 +96,66 @@ func put(t *ndarray.Tensor[float32], v float32) {
 	buf[off] = v
 }
 
-func (s slot) clear() {
-	s.write(Draw{})
-}
-
-// NewPicture starts a one-layer over-composite. Render grows it if the tree needs more fills.
+// NewPicture starts from opaque black. Fills grow the over-composite as Paint returns.
 func NewPicture() (*Picture, error) {
 	p := &Picture{}
-	return p, p.compile(1)
+	if err := p.init(); err != nil {
+		return nil, err
+	}
+	p.pixels = p.withInk(p.base)
+	p.inkedFrom = p.base
+	return p, nil
 }
 
-func (p *Picture) ensure(n int) error {
-	if p == nil {
-		return ErrView
+func (p *Picture) init() error {
+	ink, err := ndarray.New(make([]uint8, 4), ndarray.Shape{1, 1, 4})
+	if err != nil {
+		return err
 	}
-	if p.pixels != nil && n <= len(p.slots) {
+	shape := ndarray.Shape{1, 1, 4}
+	p.px = ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
+	p.py = ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
+	p.ch = ndarray.Coord(2, shape)
+	p.base = channelColor(p.ch, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
+	p.ink = ink
+	p.acc = p.base
+	return nil
+}
+
+func (p *Picture) withInk(acc *ndarray.Tensor[float32]) *ndarray.Tensor[uint8] {
+	lit := p.ink.Cast[int32]().CmpNe(ndarray.Const(int32(0)))
+	return lit.Where(p.ink.Cast[float32](), acc).Cast[uint8]()
+}
+
+func (p *Picture) glyph(run textRun) {
+	p.texts = append(p.texts, run)
+}
+
+func (p *Picture) over(d Draw) *ndarray.Tensor[float32] {
+	if p == nil {
 		return nil
 	}
-	cap := len(p.slots)
-	if cap < 1 {
-		cap = 1
+	p.fills = append(p.fills, d)
+	i := len(p.fills) - 1
+	if i >= len(p.slots) {
+		cap := len(p.slots)
+		if cap < 1 {
+			cap = 1
+		}
+		for cap <= i {
+			cap *= 2
+		}
+		if err := p.compile(cap); err != nil {
+			return p.acc
+		}
+		for j := 0; j < i; j++ {
+			p.slots[j].write(p.fills[j])
+		}
 	}
-	for cap < n {
-		cap *= 2
-	}
-	return p.compile(cap)
+	p.slots[i].write(d)
+	p.used = i + 1
+	p.acc = p.outs[i]
+	return p.acc
 }
 
 func (p *Picture) compile(n int) error {
@@ -117,42 +166,23 @@ func (p *Picture) compile(n int) error {
 	if err != nil {
 		return err
 	}
-	ink := p.ink
-	if ink == nil {
-		ink, err = ndarray.New(make([]uint8, 4), ndarray.Shape{1, 1, 4})
-		if err != nil {
-			return err
-		}
-	}
-	shape := ndarray.Shape{1, 1, 4}
-	px := ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
-	py := ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
-	ch := ndarray.Coord(2, shape)
-	acc := channelColor(ch, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
 	p.params = params
 	p.slots = make([]slot, n)
+	p.outs = make([]*ndarray.Tensor[float32], n)
+	acc := p.base
 	for i := 0; i < n; i++ {
 		sl, err := p.newSlot(i * slotFloats)
 		if err != nil {
 			return err
 		}
 		p.slots[i] = sl
-		cov := sl.coverage(px, py)
+		cov := sl.coverage(p.px, p.py)
 		alpha := cov.Mul(sl.alpha.Mul(ndarray.Const(float32(1.0 / 255))))
-		color := channelColor(ch, sl.red, sl.green, sl.blue, ndarray.Const(float32(255)))
+		color := channelColor(p.ch, sl.red, sl.green, sl.blue, ndarray.Const(float32(255)))
 		acc = acc.Add(alpha.Mul(color.Add(acc.Neg())))
+		p.outs[i] = acc
 	}
-	lit := ink.Cast[int32]().CmpNe(ndarray.Const(int32(0)))
-	acc = lit.Where(ink.Cast[float32](), acc)
-	if acc.Shape() == nil {
-		return ndarray.ErrOp
-	}
-	if p.pixels != nil {
-		_ = p.pixels.Close()
-	}
-	p.ink = ink
-	p.pixels = acc.Cast[uint8]()
-	p.used = 0
+	p.inkedFrom = nil
 	return nil
 }
 
@@ -186,40 +216,41 @@ func (s slot) coverage(px, py *ndarray.Tensor[float32]) *ndarray.Tensor[float32]
 	return clipMask.Where(cover, zero)
 }
 
-// Render layouts root, layers fills onto the over-composite, resizes the kernel.
+// Render layouts root, then Paint returns the over-composite tensor.
 func (p *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], error) {
-	if p == nil || p.pixels == nil {
+	if p == nil || p.base == nil {
 		return nil, ErrView
 	}
 	if root == nil || size.Width < 1 || size.Height < 1 {
 		return nil, ndarray.ErrShape
 	}
 	root.Layout(Tight(size.Width, size.Height))
-	p.paint.draws = p.paint.draws[:0]
-	p.paint.texts = p.paint.texts[:0]
-	root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, &p.paint)
-	if err := p.ensure(len(p.paint.draws)); err != nil {
-		return nil, err
+	p.used = 0
+	p.fills = p.fills[:0]
+	p.texts = p.texts[:0]
+	p.acc = p.base
+	acc := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, p)
+	if acc == nil {
+		acc = p.base
 	}
-	n := len(p.paint.draws)
-	for i := 0; i < n; i++ {
-		p.slots[i].write(p.paint.draws[i])
+	if p.pixels == nil || p.inkedFrom != acc {
+		if p.pixels != nil {
+			_ = p.pixels.Close()
+		}
+		p.pixels = p.withInk(acc)
+		p.inkedFrom = acc
 	}
-	for i := n; i < p.used; i++ {
-		p.slots[i].clear()
-	}
-	p.used = n
 	h, w := int(size.Height), int(size.Width)
 	if err := p.pixels.Resize(ndarray.Shape{h, w, 4}); err != nil {
 		return nil, err
 	}
-	if err := p.ensureInk(h, w, len(p.paint.texts)); err != nil {
+	if err := p.ensureInk(h, w, len(p.texts)); err != nil {
 		return nil, err
 	}
-	for _, run := range p.paint.texts {
+	for _, run := range p.texts {
 		run.stamp(p.inkRGBA)
 	}
-	p.stamp(len(p.paint.texts) > 0)
+	p.stamp(len(p.texts) > 0)
 	return p.pixels, nil
 }
 

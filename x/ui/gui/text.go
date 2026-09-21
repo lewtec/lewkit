@@ -6,6 +6,7 @@ import (
 	"image/draw"
 
 	lewimage "github.com/lewtec/lewkit/x/image"
+	"github.com/lewtec/lewkit/x/ndarray"
 	"golang.org/x/image/font"
 )
 
@@ -38,19 +39,22 @@ func (t *Text) Layout(c BoxConstraints) Size {
 	return t.size
 }
 
-func (t *Text) Paint(origin Offset, clip Rect, paint *painter) {
-	if t == nil || paint == nil {
-		return
+func (t *Text) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
+	if t == nil {
+		return accOf(pic)
 	}
 	t.origin = origin
-	box := Rect{origin.X, origin.Y, t.size.Width, t.size.Height}.Intersect(clip)
-	paint.texts = append(paint.texts, textRun{
-		box:    box,
-		body:   []rune(t.Value),
-		face:   t.face(),
-		cursor: t.Cursor,
-		caret:  t.Caret,
-	})
+	if pic != nil {
+		box := Rect{origin.X, origin.Y, t.size.Width, t.size.Height}.Intersect(clip)
+		pic.glyph(textRun{
+			box:    box,
+			body:   []rune(t.Value),
+			face:   t.face(),
+			cursor: t.Cursor,
+			caret:  t.Caret,
+		})
+	}
+	return accOf(pic)
 }
 
 func (t *Text) measure(maxW float32) (float32, float32) {

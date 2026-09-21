@@ -1,17 +1,15 @@
 package gui
 
-import "golang.org/x/image/font"
+import (
+	"github.com/lewtec/lewkit/x/ndarray"
+	"golang.org/x/image/font"
+)
 
-// Node is one layout box. Layout is CPU. Paint records draws and text.
+// Node is one layout box. Layout is CPU: constraints down, [Size] up.
+// Paint is the same shape: clip down, over-composite tensor up.
 type Node interface {
 	Layout(BoxConstraints) Size
-	Paint(origin Offset, clip Rect, paint *painter)
-}
-
-// painter is the display list for one Picture.Render.
-type painter struct {
-	draws []Draw
-	texts []textRun
+	Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32]
 }
 
 type textRun struct {

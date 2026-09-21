@@ -22,11 +22,12 @@ func TestBoxAlignsChild(t *testing.T) {
 	label := &Text{Value: "-"}
 	b := &Box{Width: 56, Height: 56, Align: Alignment{0.5, 0.5}, Child: label}
 	_ = b.Layout(Tight(56, 56))
-	out := &painter{}
-	b.Paint(Offset{}, Rect{0, 0, 56, 56}, out)
-	require.NotEmpty(t, out.texts)
-	assert.Greater(t, out.texts[0].box.X, float32(4))
-	assert.Greater(t, out.texts[0].box.Y, float32(4))
+	pic, err := NewPicture()
+	require.NoError(t, err)
+	b.Paint(Offset{}, Rect{0, 0, 56, 56}, pic)
+	require.NotEmpty(t, pic.texts)
+	assert.Greater(t, pic.texts[0].box.X, float32(4))
+	assert.Greater(t, pic.texts[0].box.Y, float32(4))
 }
 
 func TestBoxSpacerDoesNotFillCross(t *testing.T) {
@@ -44,11 +45,12 @@ func TestRowPacksAndCenters(t *testing.T) {
 	sz := outer.Layout(Tight(100, 40))
 	assert.Equal(t, Size{100, 40}, sz)
 	assert.Equal(t, Size{24, 8}, row.size)
-	out := &painter{}
-	outer.Paint(Offset{}, Rect{0, 0, 100, 40}, out)
-	require.GreaterOrEqual(t, len(out.draws), 2)
-	assert.InDelta(t, 38, out.draws[0].X, 1)
-	assert.InDelta(t, 16, out.draws[0].Y, 1)
+	pic, err := NewPicture()
+	require.NoError(t, err)
+	outer.Paint(Offset{}, Rect{0, 0, 100, 40}, pic)
+	require.GreaterOrEqual(t, len(pic.fills), 2)
+	assert.InDelta(t, 38, pic.fills[0].X, 1)
+	assert.InDelta(t, 16, pic.fills[0].Y, 1)
 }
 
 func TestRowRootFillsTight(t *testing.T) {
@@ -85,11 +87,12 @@ func TestStackPositions(t *testing.T) {
 	st := &Stack{Children: []Node{&Positioned{X: 3, Y: 5, Child: child}}}
 	sz := st.Layout(Tight(20, 20))
 	assert.Equal(t, Size{20, 20}, sz)
-	out := &painter{}
-	st.Paint(Offset{}, Rect{0, 0, 20, 20}, out)
-	require.Len(t, out.draws, 1)
-	assert.Equal(t, float32(3), out.draws[0].X)
-	assert.Equal(t, float32(5), out.draws[0].Y)
+	pic, err := NewPicture()
+	require.NoError(t, err)
+	st.Paint(Offset{}, Rect{0, 0, 20, 20}, pic)
+	require.Len(t, pic.fills, 1)
+	assert.Equal(t, float32(3), pic.fills[0].X)
+	assert.Equal(t, float32(5), pic.fills[0].Y)
 }
 
 func raster(t *testing.T, root Node, w, h int) []uint8 {
@@ -262,10 +265,11 @@ func marqueeBars(t *testing.T, m *Marquee, w, h int) []Draw {
 	t.Helper()
 	root := m.View()
 	root.Layout(Tight(float32(w), float32(h)))
-	out := &painter{}
-	root.Paint(Offset{}, Rect{0, 0, float32(w), float32(h)}, out)
+	pic, err := NewPicture()
+	require.NoError(t, err)
+	root.Paint(Offset{}, Rect{0, 0, float32(w), float32(h)}, pic)
 	var bars []Draw
-	for _, d := range out.draws {
+	for _, d := range pic.fills {
 		if d.Alpha > 0 && d.Height <= marqueeItemH+1 && d.Width < float32(w) {
 			bars = append(bars, d)
 		}
@@ -334,7 +338,9 @@ func TestCounterButtons(t *testing.T) {
 	root := c.View()
 	require.NotNil(t, root)
 	root.Layout(Tight(400, 200))
-	root.Paint(Offset{}, Rect{0, 0, 400, 200}, &painter{})
+	pic, err := NewPicture()
+	require.NoError(t, err)
+	root.Paint(Offset{}, Rect{0, 0, 400, 200}, pic)
 	require.NotNil(t, c.plus)
 	pos := image.Pt(int(c.plus.origin.X+c.plus.size.Width/2), int(c.plus.origin.Y+c.plus.size.Height/2))
 	next, cmd := c.Update(window.Pointer{Pos: pos, Button: 1, Pressed: true, Buttons: window.ButtonLeft})

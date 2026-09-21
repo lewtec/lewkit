@@ -1,5 +1,7 @@
 package gui
 
+import "github.com/lewtec/lewkit/x/ndarray"
+
 // Stack paints children on top of each other. Size is the incoming max.
 type Stack struct {
 	Children []Node
@@ -30,18 +32,20 @@ func (s *Stack) Layout(c BoxConstraints) Size {
 	return s.size
 }
 
-func (s *Stack) Paint(origin Offset, clip Rect, paint *painter) {
+func (s *Stack) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
 	if s == nil {
-		return
+		return accOf(pic)
 	}
 	if s.Clip {
 		clip = clip.Intersect(Rect{origin.X, origin.Y, s.size.Width, s.size.Height})
 	}
+	acc := accOf(pic)
 	for _, node := range s.Children {
 		if node != nil {
-			node.Paint(origin, clip, paint)
+			acc = node.Paint(origin, clip, pic)
 		}
 	}
+	return acc
 }
 
 func (p *Positioned) Layout(c BoxConstraints) Size {
@@ -54,11 +58,9 @@ func (p *Positioned) Layout(c BoxConstraints) Size {
 	return p.size
 }
 
-func (p *Positioned) Paint(origin Offset, clip Rect, out *painter) {
-	if p == nil {
-		return
+func (p *Positioned) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
+	if p == nil || p.Child == nil {
+		return accOf(pic)
 	}
-	if p.Child != nil {
-		p.Child.Paint(origin.Add(Offset{p.X, p.Y}), clip, out)
-	}
+	return p.Child.Paint(origin.Add(Offset{p.X, p.Y}), clip, pic)
 }
