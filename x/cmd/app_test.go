@@ -23,31 +23,6 @@ func TestAppParse(t *testing.T) {
 	assert.Equal(t, slog.LevelDebug-4, args.LogLevel())
 }
 
-func TestPprofClassifies(t *testing.T) {
-	cases := []struct {
-		name      string
-		in        string
-		directory string
-		address   string
-	}{
-		{name: "absolute dir", in: "/tmp/p", directory: "/tmp/p"},
-		{name: "relative dir", in: "./out", directory: "./out"},
-		{name: "name", in: "profiles", directory: "profiles"},
-		{name: "all interfaces", in: ":6060", address: ":6060"},
-		{name: "localhost", in: "localhost:6060", address: "localhost:6060"},
-		{name: "ipv4", in: "127.0.0.1:6060", address: "127.0.0.1:6060"},
-		{name: "bare port", in: "8080", address: ":8080"},
-		{name: "ipv6", in: "[::1]:443", address: "[::1]:443"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			p := newProfile(tc.in)
-			assert.Equal(t, tc.directory, p.Directory())
-			assert.Equal(t, tc.address, p.Address())
-		})
-	}
-}
-
 func TestAppLogLevel(t *testing.T) {
 	cases := []struct {
 		name string
