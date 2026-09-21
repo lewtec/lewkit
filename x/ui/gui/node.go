@@ -48,10 +48,3 @@ type Draw struct {
 	ClipX, ClipY            float32
 	ClipWidth, ClipHeight   float32
 }
-
-func paintChild(node Node, origin Offset, clip Rect, paint *painter) {
-	if node == nil || paint == nil {
-		return
-	}
-	node.Paint(origin, clip, paint)
-}

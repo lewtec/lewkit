@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	marqueeItemH = 64
-	marqueeGap   = 12
-	marqueePad   = 20
-	marqueeSpeed = 80
+	marqueeItemH  = 64
+	marqueeGap    = 12
+	marqueePad    = 20
+	marqueeSpeed  = 80
+	marqueeStride = float32(marqueeItemH + marqueeGap)
 )
 
 var marqueeColors = []Color{
@@ -51,6 +52,14 @@ func (b Bar) rect(y float32) Node {
 			Radius: 18,
 		},
 	}
+}
+
+func (m *Marquee) wrap(y float32) float32 {
+	return wrapShift(y, m.period())
+}
+
+func (m *Marquee) shift(delta float32) {
+	m.offset = m.wrap(m.offset + delta)
 }
 
 func wrapShift(y, period float32) float32 {
@@ -92,24 +101,20 @@ func NewMarquee() (*Marquee, error) {
 	return &Marquee{size: image.Pt(800, 600)}, nil
 }
 
-func marqueeStride() float32 {
-	return float32(marqueeItemH + marqueeGap)
-}
-
-func marqueeRepeats(innerH float32) int {
-	period := float32(len(marqueeColors)) * marqueeStride()
+func (*Marquee) repeats(innerH float32) int {
+	period := float32(len(marqueeColors)) * marqueeStride
 	if period <= 0 {
 		return 1
 	}
 	return max(1, int(math.Ceil(float64(innerH/period))))
 }
 
-func marqueeSlots(windowH int) int {
+func (m *Marquee) slots(windowH int) int {
 	inner := float32(windowH) - 2*marqueePad
 	if inner < 1 {
 		inner = 600
 	}
-	return 1 + 2*marqueeRepeats(inner)*len(marqueeColors)
+	return 1 + 2*m.repeats(inner)*len(marqueeColors)
 }
 
 func (m *Marquee) Init() Cmd { return Tick() }
@@ -121,7 +126,7 @@ func (m *Marquee) Update(msg Msg) (Model, Cmd) {
 	var cmd Cmd
 	if t, ok := msg.(TickMsg); ok {
 		if !m.dragging && !m.paused && t.Elapsed > m.lastTick {
-			m.offset = wrapShift(m.offset+float32((t.Elapsed-m.lastTick).Seconds())*marqueeSpeed, m.period())
+			m.shift(float32((t.Elapsed - m.lastTick).Seconds()) * marqueeSpeed)
 		}
 		m.lastTick = t.Elapsed
 		cmd = Every(t.Period)
@@ -136,11 +141,11 @@ func (m *Marquee) Update(msg Msg) (Model, Cmd) {
 			m.dragging = false
 		}
 		if m.dragging && p.Buttons&window.ButtonLeft != 0 {
-			m.offset = wrapShift(m.offset+float32(p.Pos.Y-m.lastY), m.period())
+			m.shift(float32(p.Pos.Y - m.lastY))
 			m.lastY = p.Pos.Y
 		}
 	case window.Scroll:
-		m.offset = wrapShift(m.offset+float32(p.Delta.Y), m.period())
+		m.shift(float32(p.Delta.Y))
 	case window.Key:
 		if p.Pressed && !p.Repeat && (p.Rune == ' ' || p.Code == 49) {
 			m.paused = !m.paused
@@ -159,8 +164,8 @@ func (m *Marquee) barCount() int {
 	if innerH < 1 {
 		innerH = 1
 	}
-	n := marqueeRepeats(innerH) * len(marqueeColors)
-	maxBars := (marqueeSlots(1200) - 1) / 2
+	n := m.repeats(innerH) * len(marqueeColors)
+	maxBars := (m.slots(1200) - 1) / 2
 	if maxBars < 1 {
 		maxBars = 1
 	}
@@ -168,7 +173,7 @@ func (m *Marquee) barCount() int {
 }
 
 func (m *Marquee) period() float32 {
-	return float32(m.barCount()) * marqueeStride()
+	return float32(m.barCount()) * marqueeStride
 }
 
 func (m *Marquee) barWidth() float32 {
@@ -216,9 +221,9 @@ func (m *Marquee) View() Node {
 	if m.root == nil || m.treeN != n || m.treeW != width || m.treeSize != m.size {
 		m.rebuild(n, width)
 	}
-	period := float32(n) * marqueeStride()
+	period := m.period()
 	for i := range m.items {
-		y := wrapShift(m.offset+float32(i)*marqueeStride(), period)
+		y := m.wrap(m.offset + float32(i)*marqueeStride)
 		m.items[i].at.Y = y
 		m.items[i].wrap.Y = y - period
 	}

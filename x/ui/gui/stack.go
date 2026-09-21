@@ -38,7 +38,9 @@ func (s *Stack) Paint(origin Offset, clip Rect, paint *painter) {
 		clip = clip.Intersect(Rect{origin.X, origin.Y, s.size.Width, s.size.Height})
 	}
 	for _, node := range s.Children {
-		paintChild(node, origin, clip, paint)
+		if node != nil {
+			node.Paint(origin, clip, paint)
+		}
 	}
 }
 
@@ -56,5 +58,7 @@ func (p *Positioned) Paint(origin Offset, clip Rect, out *painter) {
 	if p == nil {
 		return
 	}
-	paintChild(p.Child, origin.Add(Offset{p.X, p.Y}), clip, out)
+	if p.Child != nil {
+		p.Child.Paint(origin.Add(Offset{p.X, p.Y}), clip, out)
+	}
 }

@@ -86,7 +86,7 @@ func (box *Box) Paint(origin Offset, clip Rect, paint *painter) {
 	inner := Size{Width: box.size.Width - box.Padding.Horizontal(), Height: box.size.Height - box.Padding.Vertical()}
 	childX := box.Padding.Left + (inner.Width-box.childSize.Width)*box.Align.X
 	childY := box.Padding.Top + (inner.Height-box.childSize.Height)*box.Align.Y
-	paintChild(box.Child, origin.Add(Offset{childX, childY}), clip, paint)
+	box.Child.Paint(origin.Add(Offset{childX, childY}), clip, paint)
 }
 
 // Contains is true when position is inside the last painted box.

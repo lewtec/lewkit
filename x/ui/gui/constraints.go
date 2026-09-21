@@ -41,8 +41,8 @@ func Tight(width, height float32) BoxConstraints {
 
 func (constraints BoxConstraints) Constrain(size Size) Size {
 	return Size{
-		clampFloat(size.Width, constraints.MinWidth, constraints.MaxWidth),
-		clampFloat(size.Height, constraints.MinHeight, constraints.MaxHeight),
+		min(max(size.Width, constraints.MinWidth), constraints.MaxWidth),
+		min(max(size.Height, constraints.MinHeight), constraints.MaxHeight),
 	}
 }
 
@@ -60,13 +60,13 @@ func (constraints BoxConstraints) Loosen() BoxConstraints {
 }
 
 func (constraints BoxConstraints) TightenWidth(width float32) BoxConstraints {
-	width = clampFloat(width, constraints.MinWidth, constraints.MaxWidth)
+	width = min(max(width, constraints.MinWidth), constraints.MaxWidth)
 	constraints.MinWidth, constraints.MaxWidth = width, width
 	return constraints
 }
 
 func (constraints BoxConstraints) TightenHeight(height float32) BoxConstraints {
-	height = clampFloat(height, constraints.MinHeight, constraints.MaxHeight)
+	height = min(max(height, constraints.MinHeight), constraints.MaxHeight)
 	constraints.MinHeight, constraints.MaxHeight = height, height
 	return constraints
 }
@@ -106,8 +106,4 @@ func (constraints BoxConstraints) tightCross(axis Axis) bool {
 		return constraints.MinHeight == constraints.MaxHeight
 	}
 	return constraints.MinWidth == constraints.MaxWidth
-}
-
-func clampFloat(value, low, high float32) float32 {
-	return min(max(value, low), high)
 }

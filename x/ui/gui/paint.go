@@ -31,21 +31,21 @@ type Picture struct {
 
 const slotFloats = 13
 
-func cell(params *ndarray.Tensor[float32], i int) (*ndarray.Tensor[float32], error) {
-	t, err := params.Shrink([][2]int{{i, i + 1}})
+func (p *Picture) cell(i int) (*ndarray.Tensor[float32], error) {
+	t, err := p.params.Shrink([][2]int{{i, i + 1}})
 	if err != nil {
 		return nil, err
 	}
 	return t.Splat()
 }
 
-func newSlot(params *ndarray.Tensor[float32], base int) (slot, error) {
+func (p *Picture) newSlot(base int) (slot, error) {
 	var s slot
 	fs := [slotFloats]**ndarray.Tensor[float32]{
 		&s.x, &s.y, &s.width, &s.height, &s.red, &s.green, &s.blue, &s.alpha, &s.radius, &s.clipX, &s.clipY, &s.clipWidth, &s.clipHeight,
 	}
 	for j, dst := range fs {
-		t, err := cell(params, base+j)
+		t, err := p.cell(base + j)
 		if err != nil {
 			return s, err
 		}
@@ -106,12 +106,12 @@ func NewPicture(maxDraws int) (*Picture, error) {
 	acc := channelColor(ch, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
 	p := &Picture{slots: make([]slot, maxDraws), params: params}
 	for i := 0; i < maxDraws; i++ {
-		sl, err := newSlot(params, i*slotFloats)
+		sl, err := p.newSlot(i * slotFloats)
 		if err != nil {
 			return nil, err
 		}
 		p.slots[i] = sl
-		cov := slotCoverage(px, py, sl)
+		cov := sl.coverage(px, py)
 		alpha := cov.Mul(sl.alpha.Mul(ndarray.Const(float32(1.0 / 255))))
 		color := channelColor(ch, sl.red, sl.green, sl.blue, ndarray.Const(float32(255)))
 		acc = acc.Add(alpha.Mul(color.Add(acc.Neg())))
@@ -132,38 +132,28 @@ func channelColor(ch *ndarray.Tensor[int32], r, g, b, a *ndarray.Tensor[float32]
 			ch.Equal(ndarray.Const(int32(2))).Where(b, a)))
 }
 
-func slotCoverage(px, py *ndarray.Tensor[float32], s slot) *ndarray.Tensor[float32] {
+func (s slot) coverage(px, py *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
 	half := ndarray.Const(float32(0.5))
 	zero := ndarray.Const(float32(0))
 	lx := px.Add(s.x.Neg()).Add(half).Add(s.width.Mul(half).Neg())
 	ly := py.Add(s.y.Neg()).Add(half).Add(s.height.Mul(half).Neg())
 	bx := s.width.Mul(half)
 	by := s.height.Mul(half)
-	rad := minTensor(s.radius, minTensor(bx, by))
-	qx := absTensor(lx).Add(bx.Neg()).Add(rad)
-	qy := absTensor(ly).Add(by.Neg()).Add(rad)
+	rad := s.radius.CmpLt(bx).Where(s.radius, bx)
+	rad = rad.CmpLt(by).Where(rad, by)
+	qx := lx.Max(lx.Neg()).Add(bx.Neg()).Add(rad)
+	qy := ly.Max(ly.Neg()).Add(by.Neg()).Add(rad)
 	outsideX := qx.Max(zero)
 	outsideY := qy.Max(zero)
-	inside := minTensor(qx.Max(qy), zero)
-	dist := inside.Add(length2(outsideX, outsideY)).Add(rad.Neg())
+	qmax := qx.Max(qy)
+	inside := qmax.CmpLt(zero).Where(qmax, zero)
+	dist := inside.Add(outsideX.Mul(outsideX).Add(outsideY.Mul(outsideY)).Sqrt()).Add(rad.Neg())
 	cover := dist.CmpLt(half).Where(ndarray.Const(float32(1)), zero)
 	inX := px.GreaterEqual(s.clipX).And(px.CmpLt(s.clipX.Add(s.clipWidth)))
 	inY := py.GreaterEqual(s.clipY).And(py.CmpLt(s.clipY.Add(s.clipHeight)))
 	clipOn := s.clipWidth.GreaterEqual(half)
 	clipMask := clipOn.Where(inX.And(inY), ndarray.Const(int32(1)))
 	return clipMask.Where(cover, zero)
-}
-
-func absTensor(t *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
-	return t.Max(t.Neg())
-}
-
-func minTensor(a, b *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
-	return a.CmpLt(b).Where(a, b)
-}
-
-func length2(x, y *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
-	return x.Mul(x).Add(y.Mul(y)).Sqrt()
 }
 
 // Render layouts root, uploads draws, resizes the compiled kernel.

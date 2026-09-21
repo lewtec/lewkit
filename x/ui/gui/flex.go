@@ -156,6 +156,6 @@ func (flex *Flex) Paint(origin Offset, clip Rect, paint *painter) {
 		if crossPadding < 0 {
 			crossPadding = 0
 		}
-		paintChild(child.Child, origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, paint)
+		child.Child.Paint(origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, paint)
 	}
 }

@@ -44,8 +44,8 @@ func (c *Counter) View() Node {
 	if c == nil {
 		return nil
 	}
-	c.minus = roundButton("-", Color{180, 70, 80, 255})
-	c.plus = roundButton("+", Color{70, 160, 100, 255})
+	c.minus = c.button("-", Color{180, 70, 80, 255})
+	c.plus = c.button("+", Color{70, 160, 100, 255})
 	// Root Box fills the window; Align centers the packed Row.
 	return &Box{
 		Fill:  &Color{28, 28, 34, 255},
@@ -65,7 +65,7 @@ func (c *Counter) View() Node {
 	}
 }
 
-func roundButton(label string, fill Color) *Box {
+func (*Counter) button(label string, fill Color) *Box {
 	return &Box{
 		Width:  56,
 		Height: 56,

@@ -204,15 +204,14 @@ func TestMarqueeScrollThenTick(t *testing.T) {
 	require.NoError(t, err)
 	m.size = image.Pt(80, 200)
 	m.lastTick = 100 * time.Millisecond
-	period := m.period()
 	next, cmd := m.Update(window.Scroll{Delta: image.Pt(0, -20)})
 	require.Same(t, m, next)
 	require.Nil(t, cmd)
-	assert.InDelta(t, wrapShift(-20, period), m.offset, 0.01)
+	assert.InDelta(t, m.wrap(-20), m.offset, 0.01)
 	next, cmd = m.Update(TickMsg{Elapsed: 150 * time.Millisecond, Size: m.size})
 	require.Same(t, m, next)
 	require.NotNil(t, cmd)
-	assert.InDelta(t, wrapShift(-20+4, period), m.offset, 0.01)
+	assert.InDelta(t, m.wrap(-20+4), m.offset, 0.01)
 }
 
 func TestMarqueeResizeClearsDrag(t *testing.T) {
