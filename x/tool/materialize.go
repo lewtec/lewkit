@@ -1,0 +1,389 @@
+package tool
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"log/slog"
+	"net/http"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"strings"
+
+	"github.com/lewtec/lewkit/report"
+	lewfs "github.com/lewtec/lewkit/x/fs"
+	"github.com/lewtec/lewkit/x/fs/squashfs"
+	tarfs "github.com/lewtec/lewkit/x/fs/tar"
+	zipfs "github.com/lewtec/lewkit/x/fs/zip"
+	lewpath "github.com/lewtec/lewkit/x/path"
+)
+
+var (
+	// ErrEmptyDownloadURL is returned when a download URL is blank.
+	ErrEmptyDownloadURL = errors.New("download URL cannot be empty")
+	// ErrNoDownloadURLs is returned when every candidate URL is blank.
+	ErrNoDownloadURLs = errors.New("no download URLs provided")
+)
+
+// DownloadOptions controls one file download.
+// Mode 0 leaves the process umask in place. Hash empty skips verification.
+type DownloadOptions struct {
+	Hash             string
+	Size             int64
+	Mode             os.FileMode
+	ConfigureRequest func(*http.Request)
+}
+
+// InstallArtifact downloads artifact, extracts it into destination, strips a
+// single top-level directory, and renames platform-qualified binaries.
+func InstallArtifact(ctx context.Context, artifact Artifact, destination string, options DownloadOptions) error {
+	if options.Hash == "" {
+		options.Hash = artifact.Hash
+	}
+	if options.Size <= 0 {
+		options.Size = artifact.Size
+	}
+
+	temporary := destination + ".download"
+	if err := os.MkdirAll(temporary, 0o755); err != nil {
+		return err
+	}
+	defer os.RemoveAll(temporary)
+
+	downloadPath := filepath.Join(temporary, filepath.Base(artifact.URL))
+	if err := DownloadFile(ctx, artifact.URL, downloadPath, options); err != nil {
+		return err
+	}
+
+	extractDirectory := filepath.Join(temporary, "extract")
+	if err := os.MkdirAll(extractDirectory, 0o755); err != nil {
+		return err
+	}
+	if err := Extract(ctx, downloadPath, extractDirectory); err != nil {
+		return fmt.Errorf("extract %s: %w", filepath.Base(artifact.URL), err)
+	}
+	if err := stripTopLevelDirectory(extractDirectory); err != nil {
+		return err
+	}
+	if err := moveContents(extractDirectory, destination); err != nil {
+		return err
+	}
+	return NormalizeInstalledBinaries(destination)
+}
+
+// DownloadFile writes url to destination and checks options.Hash when set.
+func DownloadFile(ctx context.Context, url, destination string, options DownloadOptions) error {
+	if strings.TrimSpace(url) == "" {
+		return ErrEmptyDownloadURL
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+	if err := downloadDirect(ctx, url, destination, options); err != nil {
+		return err
+	}
+	if err := verifyHash(destination, options.Hash); err != nil {
+		if removeErr := os.Remove(destination); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+			slog.WarnContext(ctx, "remove mismatched download", "error", removeErr, "path", destination)
+		}
+		return err
+	}
+	return nil
+}
+
+// DownloadFirst tries urls in order and returns the first success.
+func DownloadFirst(ctx context.Context, urls []string, destination string, options DownloadOptions) error {
+	var failures []string
+	for _, url := range urls {
+		if strings.TrimSpace(url) == "" {
+			continue
+		}
+		if err := DownloadFile(ctx, url, destination, options); err == nil {
+			return nil
+		} else {
+			failures = append(failures, fmt.Sprintf("%s: %v", url, err))
+		}
+	}
+	if len(failures) == 0 {
+		return ErrNoDownloadURLs
+	}
+	return fmt.Errorf("all downloads failed: %s", strings.Join(failures, "; "))
+}
+
+func downloadDirect(ctx context.Context, url, destination string, options DownloadOptions) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	if options.ConfigureRequest != nil {
+		options.ConfigureRequest(request)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { report.Report(response.Body.Close()) }()
+	if response.StatusCode != http.StatusOK {
+		err := fmt.Errorf("GET %s: %s", url, response.Status)
+		if response.StatusCode == http.StatusForbidden {
+			err = fmt.Errorf("%w (if this is a GitHub release asset, set GITHUB_TOKEN or run 'gh auth login' to increase rate limits)", err)
+		}
+		return err
+	}
+
+	temporary, err := os.CreateTemp(filepath.Dir(destination), ".download-*")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	success := false
+	defer func() {
+		if !success {
+			os.Remove(temporaryPath)
+		}
+	}()
+	if _, err := io.Copy(temporary, response.Body); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	if options.Mode != 0 {
+		if err := os.Chmod(temporaryPath, options.Mode); err != nil {
+			return err
+		}
+	}
+	if err := os.Rename(temporaryPath, destination); err != nil {
+		return err
+	}
+	success = true
+	return nil
+}
+
+func verifyHash(path, raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	algorithm, sum := "sha256", raw
+	if left, right, ok := strings.Cut(raw, ":"); ok {
+		algorithm, sum = strings.ToLower(left), right
+	}
+	if algorithm != "sha256" {
+		return fmt.Errorf("unsupported hash algorithm %q", algorithm)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	digest := sha256.New()
+	if _, err := io.Copy(digest, file); err != nil {
+		return err
+	}
+	got := hex.EncodeToString(digest.Sum(nil))
+	if !strings.EqualFold(got, sum) {
+		return fmt.Errorf("hash mismatch for %s", path)
+	}
+	return nil
+}
+
+// Extract unpacks a zip, squashfs, or tar archive into destination.
+// A file that is none of those is installed as a single binary.
+func Extract(ctx context.Context, source, destination string) error {
+	file, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	var files lewfs.Files
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	if archive, err := zipfs.Open(ctx, file); err == nil {
+		files = lewfs.Walk(ctx, archive, nil)
+	} else if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return err
+	} else if archive, err := squashfs.Open(ctx, file); err == nil {
+		files = lewfs.Walk(ctx, archive, nil)
+	} else if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return err
+	} else if archive, err := tarfs.Open(ctx, file); err == nil {
+		files = lewfs.Walk(ctx, archive, nil)
+	} else if errors.Is(err, fs.ErrInvalid) {
+		return err
+	} else {
+		return installBinary(source, destination)
+	}
+
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return err
+	}
+	root, err := lewpath.Open(destination)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return lewfs.Copy(ctx, root, files)
+}
+
+func installBinary(source, destination string) error {
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return err
+	}
+	input, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer input.Close()
+	outputPath := filepath.Join(destination, NormalizeBinaryName(filepath.Base(source)))
+	output, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(output, input); err != nil {
+		output.Close()
+		return err
+	}
+	return output.Close()
+}
+
+func stripTopLevelDirectory(destination string) error {
+	root, err := lewpath.Open(destination)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	entries, err := lewpath.New(".").ReadDir(root)
+	if err != nil {
+		return err
+	}
+	if len(entries) != 1 || !entries[0].IsDir() {
+		return nil
+	}
+	child := lewpath.New(entries[0].Name())
+	children, err := child.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	for _, entry := range children {
+		from := child.Join(entry.Name())
+		if err := from.Rename(root, lewpath.New(entry.Name())); err != nil {
+			return err
+		}
+	}
+	return child.RemoveAll(root)
+}
+
+func moveContents(source, destination string) error {
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(source)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		from := filepath.Join(source, entry.Name())
+		to := filepath.Join(destination, entry.Name())
+		if err := os.Rename(from, to); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+var binaryNameSuffixes = []string{
+	"-x86_64-unknown-linux-musl", "-aarch64-unknown-linux-musl",
+	"-x86_64-unknown-linux-gnu", "-aarch64-unknown-linux-gnu",
+	"-x86_64-apple-darwin", "-aarch64-apple-darwin",
+	"-x86_64-pc-windows-msvc", "-aarch64-pc-windows-msvc",
+	"-linux-amd64", "-linux-x86_64", "-linux-x64",
+	"-linux-arm64", "-linux-aarch64",
+	"-linux-386", "-linux-x86",
+	"_linux_amd64", "_linux_arm64", "_linux_x86_64", "_linux_x64",
+	"_linux_386", "_linux_arm", "_linux_mips", "_linux_mips64", "_linux_mips64le",
+	"_linux_mipsle", "_linux_s390x",
+	".linux.amd64", ".linux.arm64", ".linux.x86_64", ".linux.x64",
+	"-darwin-amd64", "-darwin-x86_64", "-darwin-x64",
+	"-darwin-arm64", "-darwin-aarch64",
+	"_darwin_amd64", "_darwin_arm64", "_darwin_386",
+	".darwin.amd64", ".darwin.arm64", ".darwin.x86_64",
+	"-windows-amd64", "-windows-x86_64", "-windows-x64",
+	"-windows-arm64",
+	"-windows-386", "-windows-x86",
+	"_windows_amd64", "_windows_386",
+	".windows.amd64", ".windows.arm64",
+	"_freebsd_amd64", "_freebsd_386", "_freebsd_arm",
+	"_netbsd_amd64", "_netbsd_386", "_netbsd_arm",
+	"_openbsd_amd64", "_openbsd_386",
+	"-linux", "-darwin", "-macos", "-windows",
+	"_linux", "_darwin", "_macos", "_windows",
+	".linux", ".darwin", ".macos", ".windows",
+	"-amd64", "-x86_64", "-x64",
+	"-arm64", "-aarch64",
+	"-386", "-x86",
+	"_amd64", "_arm64", "_x86_64", "_x64", "_386",
+	".amd64", ".arm64", ".x86_64", ".x64",
+}
+
+var binaryVersionPattern = regexp.MustCompile(`[-_](v?\d+\.[\d.]+\w*)$`)
+
+// NormalizeBinaryName strips one platform suffix and a trailing version token.
+func NormalizeBinaryName(name string) string {
+	result := name
+	for _, suffix := range binaryNameSuffixes {
+		if before, ok := strings.CutSuffix(result, suffix); ok {
+			result = before
+			break
+		}
+	}
+	return binaryVersionPattern.ReplaceAllString(result, "")
+}
+
+// NormalizeInstalledBinaries renames executables in destination and destination/bin
+// whose names still carry a platform triple or version suffix.
+func NormalizeInstalledBinaries(destination string) error {
+	for _, directory := range []string{destination, filepath.Join(destination, "bin")} {
+		entries, err := os.ReadDir(directory)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			oldName := entry.Name()
+			newName := NormalizeBinaryName(oldName)
+			if newName == "" || newName == oldName {
+				continue
+			}
+			oldPath := filepath.Join(directory, oldName)
+			info, err := os.Stat(oldPath)
+			if err != nil {
+				return err
+			}
+			if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
+				continue
+			}
+			newPath := filepath.Join(directory, newName)
+			if _, err := os.Stat(newPath); err == nil {
+				continue
+			}
+			if err := os.Rename(oldPath, newPath); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
