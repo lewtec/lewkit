@@ -504,15 +504,6 @@ func applySoftmax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node N
 	return e.Mul(s.Reciprocal()), nil
 }
 
-func axisShrinkRange(shape ndarray.Shape, axis, start, end int) [][2]int {
-	out := make([][2]int, len(shape))
-	for i, dim := range shape {
-		out[i] = [2]int{0, dim}
-	}
-	out[axis] = [2]int{start, end}
-	return out
-}
-
 func absT[T ndarray.Number](x *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 	return x.Max(x.Neg())
 }
