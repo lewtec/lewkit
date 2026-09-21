@@ -146,12 +146,12 @@ func TestMarqueeTreeReused(t *testing.T) {
 	m, err := NewMarquee()
 	require.NoError(t, err)
 	m.size = image.Pt(80, 200)
-	a := m.tree()
+	a := m.View()
 	m.offset = 40
-	b := m.tree()
+	b := m.View()
 	require.Same(t, a, b)
 	m.size = image.Pt(80, 400)
-	c := m.tree()
+	c := m.View()
 	require.NotSame(t, a, c)
 }
 
@@ -261,7 +261,7 @@ func barYs(t *testing.T, m *Marquee) []float32 {
 
 func marqueeBars(t *testing.T, m *Marquee, w, h int) []Draw {
 	t.Helper()
-	root := m.tree()
+	root := m.View()
 	root.Layout(Tight(float32(w), float32(h)))
 	out := &painter{}
 	root.Paint(Offset{}, Rect{0, 0, float32(w), float32(h)}, out)
@@ -308,7 +308,10 @@ func TestCounterButtons(t *testing.T) {
 	c, err := NewCounter()
 	require.NoError(t, err)
 	c.size = image.Pt(400, 200)
-	require.NotNil(t, c.View())
+	root := c.View()
+	require.NotNil(t, root)
+	root.Layout(Tight(400, 200))
+	root.Paint(Offset{}, Rect{0, 0, 400, 200}, &painter{})
 	require.NotNil(t, c.plus)
 	pos := image.Pt(int(c.plus.origin.X+c.plus.size.Width/2), int(c.plus.origin.Y+c.plus.size.Height/2))
 	next, cmd := c.Update(window.Pointer{Pos: pos, Button: 1, Pressed: true, Buttons: window.ButtonLeft})

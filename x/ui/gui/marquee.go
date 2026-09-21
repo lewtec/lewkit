@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/ndarray"
 )
 
 const (
@@ -74,7 +73,6 @@ type marqueeItem struct {
 // Marquee is a clipped stack of [Bar] children that scroll down and wrap.
 // Offset is the only motion state; View derives each bar from it.
 type Marquee struct {
-	picture  *Picture
 	size     image.Point
 	offset   float32
 	lastTick time.Duration
@@ -89,13 +87,9 @@ type Marquee struct {
 	treeSize image.Point
 }
 
-// NewMarquee compiles the draw kernel once.
+// NewMarquee returns a looping color column. The error is always nil.
 func NewMarquee() (*Marquee, error) {
-	p, err := NewPicture(marqueeSlots(1200))
-	if err != nil {
-		return nil, err
-	}
-	return &Marquee{picture: p, size: image.Pt(800, 600)}, nil
+	return &Marquee{size: image.Pt(800, 600)}, nil
 }
 
 func marqueeStride() float32 {
@@ -166,14 +160,11 @@ func (m *Marquee) barCount() int {
 		innerH = 1
 	}
 	n := marqueeRepeats(innerH) * len(marqueeColors)
-	if m.picture != nil {
-		maxBars := (len(m.picture.slots) - 1) / 2
-		if maxBars < 1 {
-			maxBars = 1
-		}
-		n = min(n, maxBars)
+	maxBars := (marqueeSlots(1200) - 1) / 2
+	if maxBars < 1 {
+		maxBars = 1
 	}
-	return max(1, n)
+	return max(1, min(n, maxBars))
 }
 
 func (m *Marquee) period() float32 {
@@ -216,25 +207,10 @@ func (m *Marquee) rebuild(n int, width float32) {
 	m.treeSize = m.size
 }
 
-func (m *Marquee) frameSig() uint64 {
+func (m *Marquee) View() Node {
 	if m == nil {
-		return 0
-	}
-	return m.picture.frameSig()
-}
-
-func (m *Marquee) View() *ndarray.Tensor[uint8] {
-	if m == nil || m.picture == nil {
 		return nil
 	}
-	t, err := m.picture.Render(m.tree(), Size{float32(m.size.X), float32(m.size.Y)})
-	if err != nil {
-		return m.picture.pixels
-	}
-	return t
-}
-
-func (m *Marquee) tree() Node {
 	n := m.barCount()
 	width := m.barWidth()
 	if m.root == nil || m.treeN != n || m.treeW != width || m.treeSize != m.size {

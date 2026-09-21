@@ -7,7 +7,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/window"
 	lewimage "github.com/lewtec/lewkit/x/image"
-	"github.com/lewtec/lewkit/x/ndarray"
 	"golang.org/x/image/font"
 )
 
@@ -21,7 +20,6 @@ const (
 type Notepad struct {
 	Face font.Face
 
-	picture  *Picture
 	size     image.Point
 	body     []rune
 	cursor   int
@@ -30,17 +28,12 @@ type Notepad struct {
 	bodyText *Text
 }
 
-// NewNotepad compiles the Picture kernel used by View.
+// NewNotepad returns an unsaved editor. The error is always nil.
 func NewNotepad() (*Notepad, error) {
-	p, err := NewPicture(4)
-	if err != nil {
-		return nil, err
-	}
 	return &Notepad{
-		picture: p,
-		size:    image.Pt(640, 480),
-		body:    []rune("type here"),
-		cursor:  9,
+		size:   image.Pt(640, 480),
+		body:   []rune("type here"),
+		cursor: 9,
 	}, nil
 }
 
@@ -74,26 +67,10 @@ func (n *Notepad) Update(msg Msg) (Model, Cmd) {
 	return n, cmd
 }
 
-func (n *Notepad) frameSig() uint64 {
+func (n *Notepad) View() Node {
 	if n == nil {
-		return 0
-	}
-	return n.picture.frameSig()
-}
-
-func (n *Notepad) View() *ndarray.Tensor[uint8] {
-	if n == nil || n.picture == nil {
 		return nil
 	}
-	sz := Size{float32(n.size.X), float32(n.size.Y)}
-	t, err := n.picture.Render(n.tree(), sz)
-	if err != nil {
-		return n.picture.pixels
-	}
-	return t
-}
-
-func (n *Notepad) tree() Node {
 	titleH := float32(lewimage.LineHeight(n.Face) + 10)
 	n.bodyText = &Text{Value: string(n.body), Face: n.Face, Cursor: n.cursor, Caret: n.caret}
 	return &Box{

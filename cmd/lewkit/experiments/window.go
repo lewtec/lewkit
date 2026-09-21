@@ -11,7 +11,6 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/event"
-	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
@@ -102,7 +101,7 @@ func (model *statusModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	return model, cmd
 }
 
-func (model *statusModel) View() *ndarray.Tensor[uint8] {
+func (model *statusModel) View() gui.Node {
 	return model.inner.View()
 }
 

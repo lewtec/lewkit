@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/ndarray"
 )
 
 // Msg is an incoming event. Host messages are [window.Resize],
@@ -34,11 +33,11 @@ func Every(d time.Duration) Cmd {
 	}
 }
 
-// Model is the bubbletea trio. View is a tensor, not a string.
+// Model is the bubbletea trio. View is a layout [Node], not a tensor.
 type Model interface {
 	Init() Cmd
 	Update(Msg) (Model, Cmd)
-	View() *ndarray.Tensor[uint8]
+	View() Node
 }
 
 // TickMsg is the clock. Models request it with [Tick] and [Every]; Run

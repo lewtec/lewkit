@@ -19,16 +19,22 @@ type runner struct {
 	hz        float64
 	started   time.Time
 	cmds      chan Msg
+	picture   *Picture
 	view      *ndarray.Tensor[uint8]
 	sig       uint64
 	last      uint64
 	dirty     bool
 }
 
-// Run is the Elm loop. Update runs on each message. View and Present
-// run on the display ticker (and on Resize/Expose), skipped when the
-// view signature is unchanged.
+const defaultSlots = 64
+
+// Run is the Elm loop. Update runs on each message. View returns a
+// [Node]; Run paints it through [Picture] on the display ticker.
 func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model) error {
+	return run(ctx, host, evaluator, model, 0)
+}
+
+func run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model, slots int) error {
 	if model == nil {
 		return ErrModel
 	}
@@ -38,7 +44,14 @@ func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, m
 	if evaluator == nil {
 		evaluator = ndarray.CPU
 	}
-	r := &runner{ctx: ctx, window: host, evaluator: evaluator, model: model, started: time.Now()}
+	if slots <= 0 {
+		slots = defaultSlots
+	}
+	picture, err := NewPicture(slots)
+	if err != nil {
+		return err
+	}
+	r := &runner{ctx: ctx, window: host, evaluator: evaluator, model: model, started: time.Now(), picture: picture}
 	return r.loop()
 }
 
@@ -150,15 +163,20 @@ func (r *runner) spawn(cmd Cmd) {
 }
 
 func (r *runner) render() error {
-	view := r.model.View()
-	if view == nil {
+	root := r.model.View()
+	if root == nil {
 		return ErrView
 	}
-	r.view = view
-	r.sig = 0
-	if s, ok := r.model.(interface{ frameSig() uint64 }); ok {
-		r.sig = s.frameSig()
+	size := r.window.Size()
+	t, err := r.picture.Render(root, Size{float32(size.X), float32(size.Y)})
+	if err != nil {
+		return err
 	}
+	if t == nil {
+		return ErrView
+	}
+	r.view = t
+	r.sig = r.picture.frameSig()
 	return nil
 }
 
