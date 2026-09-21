@@ -1,7 +1,6 @@
 package onnx
 
 import (
-	"context"
 	"fmt"
 	"math"
 
@@ -36,19 +35,19 @@ func unary[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, fn
 	return fn(value), nil
 }
 
-func binaryBroadcast[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, fn func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func binaryBroadcast[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, fn func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	left, right, err := twoInputs(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	left, right, err = broadcast(ctx, evaluator, left, right)
+	left, right, err = broadcast(left, right)
 	if err != nil {
 		return nil, err
 	}
 	return fn(left, right), nil
 }
 
-func nary[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, fn func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func nary[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, fn func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	if len(node.Inputs) == 0 {
 		return nil, ErrOp
 	}
@@ -61,7 +60,7 @@ func nary[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, va
 		if !ok {
 			return nil, fmt.Errorf("%w: %s", ErrGraph, node.Inputs[i])
 		}
-		acc, next, err = broadcast(ctx, evaluator, acc, next)
+		acc, next, err = broadcast(acc, next)
 		if err != nil {
 			return nil, err
 		}
@@ -78,20 +77,20 @@ func optionalInput[T ndarray.Number](values map[string]*ndarray.Tensor[T], names
 	return t, ok
 }
 
-func applyClip[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyClip[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	value, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
 	if min, ok := optionalInput(values, node.Inputs, 1); ok {
-		value, min, err = broadcast(ctx, evaluator, value, min)
+		value, min, err = broadcast(value, min)
 		if err != nil {
 			return nil, err
 		}
 		value = value.Max(min)
 	}
 	if max, ok := optionalInput(values, node.Inputs, 2); ok {
-		value, max, err = broadcast(ctx, evaluator, value, max)
+		value, max, err = broadcast(value, max)
 		if err != nil {
 			return nil, err
 		}
@@ -100,12 +99,12 @@ func applyClip[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 	return value, nil
 }
 
-func applyTranspose[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyTranspose[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	value, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	value, err = leaf(ctx, evaluator, value)
+	value, err = leaf(value)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +125,7 @@ func applyTranspose[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	return value.Permute(axes...)
 }
 
-func applyFlatten[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyFlatten[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	value, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -147,12 +146,12 @@ func applyFlatten[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 			inner *= dim
 		}
 	}
-	return withView(ctx, evaluator, value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(ndarray.Shape{outer, inner})
 	})
 }
 
-func applySqueeze[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applySqueeze[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	value, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -171,12 +170,12 @@ func applySqueeze[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 	if err != nil {
 		return nil, err
 	}
-	return withView(ctx, evaluator, value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(out)
 	})
 }
 
-func applyUnsqueeze[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyUnsqueeze[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	value, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -192,12 +191,12 @@ func applyUnsqueeze[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	if err != nil {
 		return nil, err
 	}
-	return withView(ctx, evaluator, value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(out)
 	})
 }
 
-func applyExpand[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyExpand[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	value, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -213,25 +212,25 @@ func applyExpand[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if err != nil {
 		return nil, err
 	}
-	value, err = padToRank(ctx, evaluator, value, len(out))
+	value, err = padToRank(value, len(out))
 	if err != nil {
 		return nil, err
 	}
-	return withView(ctx, evaluator, value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(out)
 	})
 }
 
-func applyGemm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyGemm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	a, b, err := twoInputs(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	a, err = leaf(ctx, evaluator, a)
+	a, err = leaf(a)
 	if err != nil {
 		return nil, err
 	}
-	b, err = leaf(ctx, evaluator, b)
+	b, err = leaf(b)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +255,7 @@ func applyGemm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 		y = y.Mul(ndarray.Const(T(alpha)))
 	}
 	if c, ok := optionalInput(values, node.Inputs, 2); ok {
-		c, err = leaf(ctx, evaluator, c)
+		c, err = leaf(c)
 		if err != nil {
 			return nil, err
 		}
@@ -264,7 +263,7 @@ func applyGemm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 		if beta != 1 {
 			c = c.Mul(ndarray.Const(T(beta)))
 		}
-		y, c, err = broadcast(ctx, evaluator, y, c)
+		y, c, err = broadcast(y, c)
 		if err != nil {
 			return nil, err
 		}
@@ -482,12 +481,12 @@ func applySize[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node
 	return ndarray.New([]T{T(x.Size())}, ndarray.Shape{1})
 }
 
-func applyMod[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyMod[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	a, b, err := twoInputs(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	a, b, err = broadcast(ctx, evaluator, a, b)
+	a, b, err = broadcast(a, b)
 	if err != nil {
 		return nil, err
 	}

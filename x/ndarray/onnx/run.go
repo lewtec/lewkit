@@ -2,7 +2,6 @@ package onnx
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 
@@ -94,14 +93,14 @@ func (function *Function[T]) supported() error {
 }
 
 // Apply runs a one-input one-output graph.
-func (function *Function[T]) Apply(ctx context.Context, evaluator ndarray.Evaluator, input *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func (function *Function[T]) Apply(ctx context.Context, input *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	if function == nil || input == nil {
 		return nil, ErrOp
 	}
 	if len(function.inputs) != 1 || len(function.outputs) != 1 {
 		return nil, ErrArity
 	}
-	outputs, err := function.ApplyInputs(ctx, evaluator, map[string]*ndarray.Tensor[T]{
+	outputs, err := function.ApplyInputs(ctx, map[string]*ndarray.Tensor[T]{
 		function.inputs[0]: input,
 	})
 	if err != nil {
@@ -111,7 +110,7 @@ func (function *Function[T]) Apply(ctx context.Context, evaluator ndarray.Evalua
 }
 
 // ApplyInputs runs the graph with named tensors.
-func (function *Function[T]) ApplyInputs(ctx context.Context, evaluator ndarray.Evaluator, inputs map[string]*ndarray.Tensor[T]) (map[string]*ndarray.Tensor[T], error) {
+func (function *Function[T]) ApplyInputs(ctx context.Context, inputs map[string]*ndarray.Tensor[T]) (map[string]*ndarray.Tensor[T], error) {
 	if function == nil {
 		return nil, ErrOp
 	}
@@ -142,7 +141,7 @@ func (function *Function[T]) ApplyInputs(ctx context.Context, evaluator ndarray.
 		return nil, fmt.Errorf("%w: missing %s", ErrGraph, name)
 	}
 	for _, node := range function.nodes {
-		result, err := function.applyNode(ctx, evaluator, node, values, integerShapes)
+		result, err := function.applyNode(node, values, integerShapes)
 		if err != nil {
 			return nil, fmt.Errorf("%w: %s %s: %w", ErrOp, node.OperatorType, node.Name, err)
 		}
@@ -159,7 +158,7 @@ func (function *Function[T]) ApplyInputs(ctx context.Context, evaluator ndarray.
 	return outputs, nil
 }
 
-func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Evaluator, node Node, values map[string]*ndarray.Tensor[T], integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func (function *Function[T]) applyNode(node Node, values map[string]*ndarray.Tensor[T], integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	switch node.OperatorType {
 	case "Abs":
 		return unary(values, node, absT[T])
@@ -170,13 +169,13 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return log(x.Add(x.Mul(x).Add(ndarray.Const(float32(-1)).Cast[T]()).Sqrt()))
 		})
 	case "Add":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Add)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).Add)
 	case "And":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).And)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).And)
 	case "ArgMax":
-		return applyArgMinMax(ctx, evaluator, values, node, false)
+		return applyArgMinMax(values, node, false)
 	case "ArgMin":
-		return applyArgMinMax(ctx, evaluator, values, node, true)
+		return applyArgMinMax(values, node, true)
 	case "Asin":
 		return unary(values, node, asin[T])
 	case "Asinh":
@@ -191,23 +190,23 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return log(one.Add(x).Mul(one.Add(x.Neg()).Reciprocal())).Mul(ndarray.Const(float32(0.5)).Cast[T]())
 		})
 	case "AveragePool":
-		return applyAveragePool(ctx, evaluator, values, node)
+		return applyAveragePool(values, node)
 	case "BatchNormalization":
-		return applyBatchNorm(ctx, evaluator, values, node)
+		return applyBatchNorm(values, node)
 	case "BitShift":
-		return applyBitShift(ctx, evaluator, values, node)
+		return applyBitShift(values, node)
 	case "BlackmanWindow":
 		return applyWindow(values, node, integerShapes, "blackman")
 	case "BitwiseAnd":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).And)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).And)
 	case "BitwiseNot":
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return x.Xor(ndarray.Const(allBits[T]()))
 		})
 	case "BitwiseOr":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Or)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).Or)
 	case "BitwiseXor":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Xor)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).Xor)
 	case "Cast":
 		return applyCast(values, node)
 	case "CastLike":
@@ -222,19 +221,19 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return pos.Add(minimum(ndarray.Const(T(0)), curved))
 		})
 	case "Compress":
-		return applyCompress(ctx, evaluator, values, node)
+		return applyCompress(values, node)
 	case "CenterCropPad":
-		return applyCenterCropPad(ctx, evaluator, values, node, integerShapes)
+		return applyCenterCropPad(values, node, integerShapes)
 	case "Clip":
-		return applyClip(ctx, evaluator, values, node)
+		return applyClip(values, node)
 	case "Concat":
-		return applyConcat(ctx, evaluator, values, node)
+		return applyConcat(values, node)
 	case "Constant":
 		return applyConstant[T](node)
 	case "ConstantOfShape":
 		return applyConstantOfShape[T](node, integerShapes)
 	case "Conv":
-		return function.convolution(ctx, evaluator, node, values)
+		return function.convolution(node, values)
 	case "Cos":
 		return unary(values, node, cos[T])
 	case "Cosh":
@@ -242,20 +241,20 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return exp(x).Add(exp(x.Neg())).Mul(ndarray.Const(float32(0.5)).Cast[T]())
 		})
 	case "CumProd":
-		return applyCumProd(ctx, evaluator, values, node, integerShapes)
+		return applyCumProd(values, node, integerShapes)
 	case "CumSum":
-		return applyCumSum(ctx, evaluator, values, node, integerShapes)
+		return applyCumSum(values, node, integerShapes)
 	case "DepthToSpace":
-		return applyDepthToSpace(ctx, evaluator, values, node)
+		return applyDepthToSpace(values, node)
 	case "Div":
-		return binaryBroadcast(ctx, evaluator, values, node, divide[T])
+		return binaryBroadcast(values, node, divide[T])
 	case "Dropout":
 		if len(node.Inputs) != 1 {
 			return nil, fmt.Errorf("%w: dropout", ErrOp)
 		}
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] { return x })
 	case "Equal":
-		return binaryBroadcast(ctx, evaluator, values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
+		return binaryBroadcast(values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return bool01[T](a.Equal(b))
 		})
 	case "Erf":
@@ -268,19 +267,19 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 	case "Exp":
 		return unary(values, node, exp[T])
 	case "Expand":
-		return applyExpand(ctx, evaluator, values, node, integerShapes)
+		return applyExpand(values, node, integerShapes)
 	case "EyeLike":
 		return applyEyeLike(values, node)
 	case "Floor":
 		return unary(values, node, floor[T])
 	case "Flatten":
-		return applyFlatten(ctx, evaluator, values, node)
+		return applyFlatten(values, node)
 	case "GatherND":
-		return applyGatherND(ctx, evaluator, values, node, integerShapes)
+		return applyGatherND(values, node, integerShapes)
 	case "Gather":
-		return applyGather(ctx, evaluator, values, node, integerShapes)
+		return applyGather(values, node, integerShapes)
 	case "GatherElements":
-		return applyGatherElements(ctx, evaluator, values, node)
+		return applyGatherElements(values, node)
 	case "Gelu":
 		approx := node.attributeString("approximate")
 		if approx == "tanh" {
@@ -288,13 +287,13 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 		}
 		return unary(values, node, geluErf[T])
 	case "Gemm":
-		return applyGemm(ctx, evaluator, values, node)
+		return applyGemm(values, node)
 	case "GlobalLpPool":
-		return applyGlobalLpPool(ctx, evaluator, values, node)
+		return applyGlobalLpPool(values, node)
 	case "GlobalAveragePool":
-		return applyGlobalPool(ctx, evaluator, values, node, true)
+		return applyGlobalPool(values, node, true)
 	case "GlobalMaxPool":
-		return applyGlobalPool(ctx, evaluator, values, node, false)
+		return applyGlobalPool(values, node, false)
 	case "HammingWindow":
 		return applyWindow(values, node, integerShapes, "hamming")
 	case "HannWindow":
@@ -306,13 +305,13 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return hardSigmoid(x, alpha, beta)
 		})
 	case "GroupNormalization":
-		return applyGroupNorm(ctx, evaluator, values, node)
+		return applyGroupNorm(values, node)
 	case "Greater":
-		return binaryBroadcast(ctx, evaluator, values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
+		return binaryBroadcast(values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return bool01[T](b.CmpLt(a))
 		})
 	case "GreaterOrEqual":
-		return binaryBroadcast(ctx, evaluator, values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
+		return binaryBroadcast(values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return bool01[T](a.GreaterEqual(b))
 		})
 	case "HardSwish":
@@ -320,77 +319,77 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return x.Mul(hardSigmoid(x, 1.0/6.0, 0.5))
 		})
 	case "Hardmax":
-		return applyHardmax(ctx, evaluator, values, node)
+		return applyHardmax(values, node)
 	case "Identity":
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] { return x })
 	case "InstanceNormalization":
-		return applyInstanceNorm(ctx, evaluator, values, node)
+		return applyInstanceNorm(values, node)
 	case "IsInf":
 		return applyIsInf(values, node)
 	case "IsNaN":
 		return applyIsNaN(values, node)
 	case "LayerNormalization":
-		return applyLayerNorm(ctx, evaluator, values, node)
+		return applyLayerNorm(values, node)
 	case "LeakyRelu":
 		alpha := node.attributeFloat("alpha", 0.01)
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return leaky(x, alpha)
 		})
 	case "Less":
-		return binaryBroadcast(ctx, evaluator, values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
+		return binaryBroadcast(values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return bool01[T](a.CmpLt(b))
 		})
 	case "LessOrEqual":
-		return binaryBroadcast(ctx, evaluator, values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
+		return binaryBroadcast(values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return bool01[T](b.GreaterEqual(a))
 		})
 	case "Log":
 		return unary(values, node, log[T])
 	case "LogSoftmax":
-		return applyLogSoftmax(ctx, evaluator, values, node)
+		return applyLogSoftmax(values, node)
 	case "LpNormalization":
-		return applyLpNorm(ctx, evaluator, values, node)
+		return applyLpNorm(values, node)
 	case "LpPool":
-		return applyLpPool(ctx, evaluator, values, node)
+		return applyLpPool(values, node)
 	case "MatMul":
 		left, right, err := twoInputs(values, node.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		left, err = leaf(ctx, evaluator, left)
+		left, err = leaf(left)
 		if err != nil {
 			return nil, err
 		}
-		right, err = leaf(ctx, evaluator, right)
+		right, err = leaf(right)
 		if err != nil {
 			return nil, err
 		}
 		return nn.MatrixMultiply(left, right)
 	case "MeanVarianceNormalization":
-		return applyMVN(ctx, evaluator, values, node)
+		return applyMVN(values, node)
 	case "Max":
-		return nary(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Max)
+		return nary(values, node, (*ndarray.Tensor[T]).Max)
 	case "MaxPool":
-		return function.maximumPool(ctx, evaluator, node, values)
+		return function.maximumPool(node, values)
 	case "Mean":
 		n := len(node.Inputs)
-		sum, err := nary(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Add)
+		sum, err := nary(values, node, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
 		return divide(sum, ndarray.Const(T(n))), nil
 	case "Min":
-		return nary(ctx, evaluator, values, node, minimum[T])
+		return nary(values, node, minimum[T])
 	case "Mish":
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return x.Mul(tanh(log(ndarray.Const(T(1)).Add(exp(x)))))
 		})
 	case "Mod":
-		return applyMod(ctx, evaluator, values, node)
+		return applyMod(values, node)
 	case "Mul":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Mul)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).Mul)
 	case "NonZero":
-		return applyNonZero(ctx, evaluator, values, node)
+		return applyNonZero(values, node)
 	case "Neg":
 		return unary(values, node, (*ndarray.Tensor[T]).Neg)
 	case "Not":
@@ -398,27 +397,27 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return x.Xor(ndarray.Const(T(1)))
 		})
 	case "Or":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Or)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).Or)
 	case "OneHot":
-		return applyOneHot(ctx, evaluator, values, node, integerShapes)
+		return applyOneHot(values, node, integerShapes)
 	case "Pad":
-		return applyPad(ctx, evaluator, values, node, integerShapes)
+		return applyPad(values, node, integerShapes)
 	case "Pow":
 		x, y, err := twoInputs(values, node.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		x, y, err = broadcast(ctx, evaluator, x, y)
+		x, y, err = broadcast(x, y)
 		if err != nil {
 			return nil, err
 		}
 		return x.Log2().Mul(y).Exp2(), nil
 	case "PRelu":
-		return binaryBroadcast(ctx, evaluator, values, node, func(x, slope *ndarray.Tensor[T]) *ndarray.Tensor[T] {
+		return binaryBroadcast(values, node, func(x, slope *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return x.GreaterEqual(ndarray.Const(T(0))).Where(x, x.Mul(slope))
 		})
 	case "Range":
-		return applyRange(ctx, evaluator, values, node, integerShapes)
+		return applyRange(values, node, integerShapes)
 	case "Reciprocal":
 		return unary(values, node, (*ndarray.Tensor[T]).Reciprocal)
 	case "ReduceL1":
@@ -426,19 +425,19 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 		if err != nil {
 			return nil, err
 		}
-		return applyReduceOn(ctx, evaluator, absT(x), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
+		return applyReduceOn(absT(x), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
 	case "ReduceL2":
 		x, err := oneInput(values, node.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		r, err := applyReduceOn(ctx, evaluator, x.Mul(x), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
+		r, err := applyReduceOn(x.Mul(x), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
 		if err != nil {
 			return nil, err
 		}
 		return r.Sqrt(), nil
 	case "ReduceLogSum":
-		r, err := applyReduce(ctx, evaluator, values, node, integerShapes, (*ndarray.Tensor[T]).Add, false)
+		r, err := applyReduce(values, node, integerShapes, (*ndarray.Tensor[T]).Add, false)
 		if err != nil {
 			return nil, err
 		}
@@ -448,41 +447,41 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 		if err != nil {
 			return nil, err
 		}
-		m, err := applyReduceOn(ctx, evaluator, x, node, integerShapes, (*ndarray.Tensor[T]).Max, false)
+		m, err := applyReduceOn(x, node, integerShapes, (*ndarray.Tensor[T]).Max, false)
 		if err != nil {
 			return nil, err
 		}
-		m, err = expandLike(ctx, evaluator, m, x)
+		m, err = expandLike(m, x)
 		if err != nil {
 			return nil, err
 		}
-		s, err := applyReduceOn(ctx, evaluator, exp(x.Add(m.Neg())), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
+		s, err := applyReduceOn(exp(x.Add(m.Neg())), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
 		if err != nil {
 			return nil, err
 		}
 		return log(s).Add(m), nil
 	case "ReduceMax":
-		return applyReduce(ctx, evaluator, values, node, integerShapes, (*ndarray.Tensor[T]).Max, false)
+		return applyReduce(values, node, integerShapes, (*ndarray.Tensor[T]).Max, false)
 	case "ReduceMin":
-		return applyReduce(ctx, evaluator, values, node, integerShapes, minimum[T], false)
+		return applyReduce(values, node, integerShapes, minimum[T], false)
 	case "ReduceMean":
-		return applyReduce(ctx, evaluator, values, node, integerShapes, (*ndarray.Tensor[T]).Add, true)
+		return applyReduce(values, node, integerShapes, (*ndarray.Tensor[T]).Add, true)
 	case "ReduceProd":
-		return applyReduce(ctx, evaluator, values, node, integerShapes, (*ndarray.Tensor[T]).Mul, false)
+		return applyReduce(values, node, integerShapes, (*ndarray.Tensor[T]).Mul, false)
 	case "ReduceSum":
-		return applyReduce(ctx, evaluator, values, node, integerShapes, (*ndarray.Tensor[T]).Add, false)
+		return applyReduce(values, node, integerShapes, (*ndarray.Tensor[T]).Add, false)
 	case "ReduceSumSquare":
 		x, err := oneInput(values, node.Inputs)
 		if err != nil {
 			return nil, err
 		}
-		return applyReduceOn(ctx, evaluator, x.Mul(x), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
+		return applyReduceOn(x.Mul(x), node, integerShapes, (*ndarray.Tensor[T]).Add, false)
 	case "RMSNormalization":
-		return applyRMSNorm(ctx, evaluator, values, node)
+		return applyRMSNorm(values, node)
 	case "Resize":
-		return applyResize(ctx, evaluator, values, node, integerShapes)
+		return applyResize(values, node, integerShapes)
 	case "ReverseSequence":
-		return applyReverseSequence(ctx, evaluator, values, node, integerShapes)
+		return applyReverseSequence(values, node, integerShapes)
 	case "Relu":
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return x.Max(ndarray.Const(T(0)))
@@ -490,11 +489,11 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 	case "Round":
 		return unary(values, node, roundEven[T])
 	case "Scatter":
-		return applyScatterElements(ctx, evaluator, values, node)
+		return applyScatterElements(values, node)
 	case "ScatterElements":
-		return applyScatterElements(ctx, evaluator, values, node)
+		return applyScatterElements(values, node)
 	case "ScatterND":
-		return applyScatterND(ctx, evaluator, values, node, integerShapes)
+		return applyScatterND(values, node, integerShapes)
 	case "Selu":
 		alpha := node.attributeFloat("alpha", 1.6732632423543772848170429916717)
 		scale := node.attributeFloat("gamma", 1.0507009873554804934193349852946)
@@ -532,7 +531,7 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 		if err != nil {
 			return nil, err
 		}
-		return withView(ctx, evaluator, value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+		return withView(value, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 			return t.Reshape(dims)
 		})
 	case "Shape":
@@ -547,11 +546,11 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return pos.Add(neg.Neg())
 		})
 	case "Split":
-		return applySplit(ctx, evaluator, values, node, integerShapes)
+		return applySplit(values, node, integerShapes)
 	case "Slice":
-		return applySlice(ctx, evaluator, values, node, integerShapes)
+		return applySlice(values, node, integerShapes)
 	case "Softmax":
-		return applySoftmax(ctx, evaluator, values, node)
+		return applySoftmax(values, node)
 	case "Size":
 		return applySize(values, node)
 	case "Sin":
@@ -569,17 +568,17 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return x.Mul(ndarray.Const(T(1)).Add(absT(x)).Reciprocal())
 		})
 	case "SpaceToDepth":
-		return applySpaceToDepth(ctx, evaluator, values, node)
+		return applySpaceToDepth(values, node)
 	case "Sqrt":
 		return unary(values, node, (*ndarray.Tensor[T]).Sqrt)
 	case "Squeeze":
-		return applySqueeze(ctx, evaluator, values, node, integerShapes)
+		return applySqueeze(values, node, integerShapes)
 	case "Sub":
-		return binaryBroadcast(ctx, evaluator, values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
+		return binaryBroadcast(values, node, func(a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
 			return a.Add(b.Neg())
 		})
 	case "Sum":
-		return nary(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Add)
+		return nary(values, node, (*ndarray.Tensor[T]).Add)
 	case "Swish":
 		alpha := node.attributeFloat("alpha", 1)
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] {
@@ -592,9 +591,9 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 	case "Tanh":
 		return unary(values, node, tanh[T])
 	case "Tile":
-		return applyTile(ctx, evaluator, values, node, integerShapes)
+		return applyTile(values, node, integerShapes)
 	case "Trilu":
-		return applyTrilu(ctx, evaluator, values, node, integerShapes)
+		return applyTrilu(values, node, integerShapes)
 	case "ThresholdedRelu":
 		alpha := node.attributeFloat("alpha", 1)
 		return unary(values, node, func(x *ndarray.Tensor[T]) *ndarray.Tensor[T] {
@@ -602,21 +601,21 @@ func (function *Function[T]) applyNode(ctx context.Context, evaluator ndarray.Ev
 			return ndarray.Const(T(alpha)).CmpLt(x).Where(x, zero)
 		})
 	case "Transpose":
-		return applyTranspose(ctx, evaluator, values, node)
+		return applyTranspose(values, node)
 	case "Upsample":
-		return applyResize(ctx, evaluator, values, node, integerShapes)
+		return applyResize(values, node, integerShapes)
 	case "Unsqueeze":
-		return applyUnsqueeze(ctx, evaluator, values, node, integerShapes)
+		return applyUnsqueeze(values, node, integerShapes)
 	case "Where":
-		return applyWhere(ctx, evaluator, values, node)
+		return applyWhere(values, node)
 	case "Xor":
-		return binaryBroadcast(ctx, evaluator, values, node, (*ndarray.Tensor[T]).Xor)
+		return binaryBroadcast(values, node, (*ndarray.Tensor[T]).Xor)
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrOp, node.OperatorType)
 	}
 }
 
-func (function *Function[T]) convolution(ctx context.Context, evaluator ndarray.Evaluator, node Node, values map[string]*ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func (function *Function[T]) convolution(node Node, values map[string]*ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	if node.attributeInteger("group", 1) != 1 {
 		return nil, fmt.Errorf("%w: group", ErrOp)
 	}
@@ -633,11 +632,11 @@ func (function *Function[T]) convolution(ctx context.Context, evaluator ndarray.
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
-	weight, err = leaf(ctx, evaluator, weight)
+	weight, err = leaf(weight)
 	if err != nil {
 		return nil, err
 	}
@@ -656,7 +655,7 @@ func (function *Function[T]) convolution(ctx context.Context, evaluator ndarray.
 	return nn.Convolution2D(input, weight, pads, strideHeight, strideWidth)
 }
 
-func (function *Function[T]) maximumPool(ctx context.Context, evaluator ndarray.Evaluator, node Node, values map[string]*ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func (function *Function[T]) maximumPool(node Node, values map[string]*ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	if node.attributeInteger("ceil_mode", 0) != 0 {
 		return nil, fmt.Errorf("%w: ceil_mode", ErrOp)
 	}
@@ -677,7 +676,7 @@ func (function *Function[T]) maximumPool(ctx context.Context, evaluator ndarray.
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
@@ -736,39 +735,14 @@ func samePadding(in, kernel, stride int, upper bool) (before, after int) {
 	return pad - pad/2, pad / 2
 }
 
-func realize[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func leaf[T ndarray.Number](tensor *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	if tensor == nil {
 		return nil, ndarray.ErrOp
 	}
-	out := make([]T, tensor.Size())
-	if err := tensor.Eval(ctx, evaluator, out); err != nil {
-		return nil, err
-	}
-	return ndarray.New(out, tensor.Shape())
+	return tensor, nil
 }
 
-func leaf[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
-	if tensor == nil {
-		return nil, ndarray.ErrOp
-	}
-	if _, err := tensor.Data(); err == nil {
-		return tensor, nil
-	}
-	return realize(ctx, evaluator, tensor)
-}
-
-func withView[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Tensor[T], view func(*ndarray.Tensor[T]) (*ndarray.Tensor[T], error)) (*ndarray.Tensor[T], error) {
-	out, err := view(tensor)
-	if err == nil {
-		return out, nil
-	}
-	if !errors.Is(err, ndarray.ErrOp) {
-		return nil, err
-	}
-	tensor, err = realize(ctx, evaluator, tensor)
-	if err != nil {
-		return nil, err
-	}
+func withView[T ndarray.Number](tensor *ndarray.Tensor[T], view func(*ndarray.Tensor[T]) (*ndarray.Tensor[T], error)) (*ndarray.Tensor[T], error) {
 	return view(tensor)
 }
 
@@ -814,15 +788,15 @@ func twoInputs[T ndarray.Number](values map[string]*ndarray.Tensor[T], names []s
 	return left, right, nil
 }
 
-func broadcast[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, left, right *ndarray.Tensor[T]) (*ndarray.Tensor[T], *ndarray.Tensor[T], error) {
+func broadcast[T ndarray.Number](left, right *ndarray.Tensor[T]) (*ndarray.Tensor[T], *ndarray.Tensor[T], error) {
 	leftShape, rightShape := left.Shape(), right.Shape()
 	rank := max(len(leftShape), len(rightShape))
 	var err error
-	left, err = padToRank(ctx, evaluator, left, rank)
+	left, err = padToRank(left, rank)
 	if err != nil {
 		return nil, nil, err
 	}
-	right, err = padToRank(ctx, evaluator, right, rank)
+	right, err = padToRank(right, rank)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -841,13 +815,13 @@ func broadcast[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 			return nil, nil, fmt.Errorf("%w: %v vs %v", ndarray.ErrShape, leftShape, rightShape)
 		}
 	}
-	left, err = withView(ctx, evaluator, left, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	left, err = withView(left, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(out)
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	right, err = withView(ctx, evaluator, right, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	right, err = withView(right, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(out)
 	})
 	if err != nil {
@@ -856,7 +830,7 @@ func broadcast[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 	return left, right, nil
 }
 
-func padToRank[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Tensor[T], rank int) (*ndarray.Tensor[T], error) {
+func padToRank[T ndarray.Number](tensor *ndarray.Tensor[T], rank int) (*ndarray.Tensor[T], error) {
 	shape := tensor.Shape()
 	if len(shape) == rank {
 		return tensor, nil
@@ -869,7 +843,7 @@ func padToRank[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 	for i := 0; i < rank-len(shape); i++ {
 		padded[i] = 1
 	}
-	return withView(ctx, evaluator, tensor, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(tensor, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(padded)
 	})
 }

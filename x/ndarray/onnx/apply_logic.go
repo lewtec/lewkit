@@ -1,7 +1,6 @@
 package onnx
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -11,7 +10,7 @@ func bool01[T ndarray.Number](c *ndarray.Tensor[int32]) *ndarray.Tensor[T] {
 	return c.Cast[T]()
 }
 
-func applyWhere[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyWhere[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	if len(node.Inputs) < 3 {
 		return nil, ErrOp
 	}
@@ -23,27 +22,27 @@ func applyWhere[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluat
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", ErrGraph, node.Inputs[2])
 	}
-	x, y, err = broadcast(ctx, evaluator, x, y)
+	x, y, err = broadcast(x, y)
 	if err != nil {
 		return nil, err
 	}
-	cond, x, err = broadcast(ctx, evaluator, cond, x)
+	cond, x, err = broadcast(cond, x)
 	if err != nil {
 		return nil, err
 	}
-	cond, y, err = broadcast(ctx, evaluator, cond, y)
+	cond, y, err = broadcast(cond, y)
 	if err != nil {
 		return nil, err
 	}
 	return cond.CmpNe(ndarray.Const(T(0))).Where(x, y), nil
 }
 
-func applyBitShift[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyBitShift[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	left, right, err := twoInputs(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	left, right, err = broadcast(ctx, evaluator, left, right)
+	left, right, err = broadcast(left, right)
 	if err != nil {
 		return nil, err
 	}

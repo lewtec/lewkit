@@ -1,8 +1,6 @@
 package nn
 
 import (
-	"math"
-
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -13,18 +11,6 @@ func padNCHW[T ndarray.Number](t *ndarray.Tensor[T], pads []int) (*ndarray.Tenso
 	return t.Pad([][2]int{{0, 0}, {0, 0}, {pads[0], pads[2]}, {pads[1], pads[3]}})
 }
 
-func lowest[T ndarray.Number]() T {
-	var z T
-	switch any(z).(type) {
-	case float32:
-		return any(float32(math.Inf(-1))).(T)
-	case int32:
-		return any(int32(-1 << 31)).(T)
-	default:
-		return z
-	}
-}
-
 func padNCHWMax[T ndarray.Number](t *ndarray.Tensor[T], pads []int) (*ndarray.Tensor[T], error) {
 	if pads[0] == 0 && pads[1] == 0 && pads[2] == 0 && pads[3] == 0 {
 		return t, nil
@@ -33,7 +19,7 @@ func padNCHWMax[T ndarray.Number](t *ndarray.Tensor[T], pads []int) (*ndarray.Te
 	if err != nil {
 		return nil, err
 	}
-	fill := lowest[T]()
+	fill := ndarray.Lowest[T]()
 	if fill == 0 {
 		return padded, nil
 	}
@@ -46,21 +32,6 @@ func padNCHWMax[T ndarray.Number](t *ndarray.Tensor[T], pads []int) (*ndarray.Te
 		return nil, err
 	}
 	return mask.CmpNe(ndarray.Const(T(0))).Where(padded, ndarray.Const(fill)), nil
-}
-
-func coverStrided(height, width, kernelHeight, kernelWidth, strideHeight, strideWidth, heightOut, widthOut int, pads []int) []int {
-	out := []int{pads[0], pads[1], pads[2], pads[3]}
-	needHeight := (kernelHeight - 1) + heightOut*strideHeight
-	needWidth := (kernelWidth - 1) + widthOut*strideWidth
-	haveHeight := height + out[0] + out[2]
-	haveWidth := width + out[1] + out[3]
-	if needHeight > haveHeight {
-		out[2] += needHeight - haveHeight
-	}
-	if needWidth > haveWidth {
-		out[3] += needWidth - haveWidth
-	}
-	return out
 }
 
 func stridedNCHW[T ndarray.Number](t *ndarray.Tensor[T], startHeight, startWidth, heightOut, widthOut, strideHeight, strideWidth int) (*ndarray.Tensor[T], error) {

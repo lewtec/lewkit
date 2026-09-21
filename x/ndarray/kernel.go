@@ -43,7 +43,7 @@ func compile(expr *node) (*Kernel, error) {
 		return nil, ErrShape
 	}
 	if needsRewrite(expr, map[*node]bool{}) {
-		expr = rewrite(expr, nil, map[string]*node{})
+		expr = rewrite(expr, nil, map[rewriteMemo]*node{})
 	}
 	expr = simplify(expr)
 	order, bufs, err := flatten(expr)
@@ -198,11 +198,16 @@ func needsRewrite(n *node, seen map[*node]bool) bool {
 	return false
 }
 
-func rewrite(n *node, steps []stStep, memo map[string]*node) *node {
+type rewriteMemo struct {
+	n *node
+	h uint64
+}
+
+func rewrite(n *node, steps []stStep, memo map[rewriteMemo]*node) *node {
 	if n == nil || n.err != nil {
 		return n
 	}
-	key := rewriteKey(n, steps)
+	key := rewriteMemo{n: n, h: stepsHash(steps)}
 	if m := memo[key]; m != nil {
 		return m
 	}
@@ -261,21 +266,36 @@ func rewrite(n *node, steps []stStep, memo map[string]*node) *node {
 	}
 }
 
-func rewriteKey(n *node, steps []stStep) string {
-	var key strings.Builder
-	fmt.Fprintf(&key, "%p", n)
+func stepsHash(steps []stStep) uint64 {
+	h := uint64(14695981039346656037)
 	for _, s := range steps {
-		key.WriteByte('/')
-		writeTrackerKey(&key, s.tr)
-		fmt.Fprintf(&key, "/%v", s.origin)
+		h = hashTracker(h, s.tr)
+		h = hashInts(h, s.origin)
 	}
-	return key.String()
+	return h
 }
 
-func writeTrackerKey(key *strings.Builder, tracker Tracker) {
+func hashTracker(h uint64, tracker Tracker) uint64 {
 	for _, v := range tracker.views {
-		fmt.Fprintf(key, ":%v:%v:%d:%v", v.shape, v.strides, v.offset, v.mask)
+		h = hashInts(h, v.shape)
+		h = hashInts(h, v.strides)
+		h ^= uint64(v.offset) + 0x9e3779b97f4a7c15
+		h *= 1099511628211
+		for _, m := range v.mask {
+			h = hashInts(h, m[:])
+		}
 	}
+	return h
+}
+
+func hashInts(h uint64, xs []int) uint64 {
+	for _, x := range xs {
+		h ^= uint64(x) + 0x9e3779b97f4a7c15
+		h *= 1099511628211
+	}
+	h ^= uint64(len(xs))
+	h *= 1099511628211
+	return h
 }
 
 func flatten(root *node) ([]*node, []*buffer, error) {

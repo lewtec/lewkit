@@ -38,7 +38,9 @@ func MaximumPool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, ker
 	if heightOut <= 0 || widthOut <= 0 {
 		return nil, fmt.Errorf("%w: %v kernel %d %d", ndarray.ErrShape, inputShape, kernelHeight, kernelWidth)
 	}
-	padded, err := padNCHWMax(input, coverStrided(height, width, kernelHeight, kernelWidth, strideHeight, strideWidth, heightOut, widthOut, pads))
+	heightBefore, heightAfter := ndarray.CoverPad(height, kernelHeight, strideHeight, heightOut, pads[0], pads[2])
+	widthBefore, widthAfter := ndarray.CoverPad(width, kernelWidth, strideWidth, widthOut, pads[1], pads[3])
+	padded, err := padNCHWMax(input, []int{heightBefore, widthBefore, heightAfter, widthAfter})
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +92,9 @@ func AveragePool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, ker
 	if heightOut <= 0 || widthOut <= 0 {
 		return nil, fmt.Errorf("%w: %v kernel %d %d", ndarray.ErrShape, inputShape, kernelHeight, kernelWidth)
 	}
-	cover := coverStrided(height, width, kernelHeight, kernelWidth, strideHeight, strideWidth, heightOut, widthOut, pads)
-	padded, err := padNCHW(input, cover)
+	heightBefore, heightAfter := ndarray.CoverPad(height, kernelHeight, strideHeight, heightOut, pads[0], pads[2])
+	widthBefore, widthAfter := ndarray.CoverPad(width, kernelWidth, strideWidth, widthOut, pads[1], pads[3])
+	padded, err := padNCHW(input, []int{heightBefore, widthBefore, heightAfter, widthAfter})
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +112,7 @@ func AveragePool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, ker
 			}
 		}
 	}
+	cover := []int{heightBefore, widthBefore, heightAfter, widthAfter}
 	if countIncludePad || (cover[0] == 0 && cover[1] == 0 && cover[2] == 0 && cover[3] == 0) {
 		return elementDiv(sum, ndarray.Const(T(kernelHeight*kernelWidth))), nil
 	}

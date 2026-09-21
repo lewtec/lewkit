@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"slices"
 	"unsafe"
 )
@@ -79,6 +80,19 @@ func Zeros[T Number](shape Shape) (*Tensor[T], error) {
 // Ones is a tensor filled with 1.
 func Ones[T Number](shape Shape) (*Tensor[T], error) {
 	return Full(T(1), shape)
+}
+
+// Lowest is the smallest value of T: -inf, min int32, or 0.
+func Lowest[T Number]() T {
+	var z T
+	switch any(z).(type) {
+	case float32:
+		return any(float32(math.Inf(-1))).(T)
+	case int32:
+		return any(int32(-1 << 31)).(T)
+	default:
+		return z
+	}
 }
 
 // Full is a shaped const (no buffer).

@@ -164,7 +164,7 @@ func runNodeCaseT[T ndarray.Number](t *testing.T, c nodeCase, result CaseResult)
 		}
 		inputs[name] = value
 	}
-	outputs, err := function.ApplyInputs(t.Context(), ndarray.CPU, inputs)
+	outputs, err := function.ApplyInputs(t.Context(), inputs)
 	if err != nil {
 		if errors.Is(err, ErrOp) || errors.Is(err, ndarray.ErrType) {
 			result.Status = StatusSkipped

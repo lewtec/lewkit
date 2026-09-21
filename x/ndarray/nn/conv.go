@@ -36,7 +36,9 @@ func Convolution2D[T ndarray.Number](input, weight *ndarray.Tensor[T], pads []in
 	if heightOut <= 0 || widthOut <= 0 {
 		return nil, fmt.Errorf("%w: input %v pads %v strides %d %d", ndarray.ErrShape, inputShape, pads, strideHeight, strideWidth)
 	}
-	padded, err := padNCHW(input, coverStrided(height, width, kernelHeight, kernelWidth, strideHeight, strideWidth, heightOut, widthOut, pads))
+	heightBefore, heightAfter := ndarray.CoverPad(height, kernelHeight, strideHeight, heightOut, pads[0], pads[2])
+	widthBefore, widthAfter := ndarray.CoverPad(width, kernelWidth, strideWidth, widthOut, pads[1], pads[3])
+	padded, err := padNCHW(input, []int{heightBefore, widthBefore, heightAfter, widthAfter})
 	if err != nil {
 		return nil, err
 	}

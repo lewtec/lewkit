@@ -33,6 +33,27 @@ func (s Shape) Clone() Shape {
 	return slices.Clone(s)
 }
 
+// With appends dims and returns a new shape.
+func (s Shape) With(dims ...int) Shape {
+	out := make(Shape, len(s)+len(dims))
+	copy(out, s)
+	copy(out[len(s):], dims)
+	return out
+}
+
+// CoverPad grows after so out strided windows of kernel fit in in+before+after.
+func CoverPad(in, kernel, stride, out, before, after int) (int, int) {
+	if stride <= 0 {
+		stride = 1
+	}
+	need := kernel - 1 + out*stride
+	have := in + before + after
+	if need > have {
+		after += need - have
+	}
+	return before, after
+}
+
 // Equal reports the same rank and dimensions.
 func (s Shape) Equal(other Shape) bool {
 	return slices.Equal(s, other)

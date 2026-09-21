@@ -1,18 +1,17 @@
 package onnx
 
 import (
-	"context"
 	"math"
 
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-func concatTensors[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, parts []*ndarray.Tensor[T], axis int) (*ndarray.Tensor[T], error) {
+func concatTensors[T ndarray.Number](parts []*ndarray.Tensor[T], axis int) (*ndarray.Tensor[T], error) {
 	if len(parts) == 0 {
 		return nil, ErrOp
 	}
 	for i, p := range parts {
-		q, err := leaf(ctx, evaluator, p)
+		q, err := leaf(p)
 		if err != nil {
 			return nil, err
 		}
@@ -59,8 +58,8 @@ func concatTensors[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 	return acc, nil
 }
 
-func gatherTensors[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, data *ndarray.Tensor[T], idxs []int64, axis int) (*ndarray.Tensor[T], error) {
-	data, err := leaf(ctx, evaluator, data)
+func gatherTensors[T ndarray.Number](data *ndarray.Tensor[T], idxs []int64, axis int) (*ndarray.Tensor[T], error) {
+	data, err := leaf(data)
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +85,11 @@ func gatherTensors[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 			return nil, err
 		}
 	}
-	return concatTensors(ctx, evaluator, parts, axis)
+	return concatTensors(parts, axis)
 }
 
-func scanTensor[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, x *ndarray.Tensor[T], axis int, reverse, exclusive bool, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], identity T) (*ndarray.Tensor[T], error) {
-	x, err := leaf(ctx, evaluator, x)
+func scanTensor[T ndarray.Number](x *ndarray.Tensor[T], axis int, reverse, exclusive bool, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], identity T) (*ndarray.Tensor[T], error) {
+	x, err := leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +135,7 @@ func scanTensor[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluat
 			parts[i] = acc
 		}
 	}
-	return concatTensors(ctx, evaluator, parts, axis)
+	return concatTensors(parts, axis)
 }
 
 func rangeTensor[T ndarray.Number](start, limit, delta T) (*ndarray.Tensor[T], error) {
@@ -170,8 +169,8 @@ func numberAsFloat64[T ndarray.Number](v T) float64 {
 	}
 }
 
-func reduceTensors[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, x *ndarray.Tensor[T], axes []int64, keepdims bool, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
-	x, err := leaf(ctx, evaluator, x)
+func reduceTensors[T ndarray.Number](x *ndarray.Tensor[T], axes []int64, keepdims bool, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	x, err := leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +194,7 @@ func reduceTensors[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 			continue
 		}
 		seen[axis] = struct{}{}
-		x, err = reduceAxis(ctx, evaluator, x, axis, op)
+		x, err = reduceAxis(x, axis, op)
 		if err != nil {
 			return nil, err
 		}
@@ -211,13 +210,13 @@ func reduceTensors[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 		}
 		out = append(out, dim)
 	}
-	return withView(ctx, evaluator, x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(out)
 	})
 }
 
-func reduceAxis[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, x *ndarray.Tensor[T], axis int, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
-	x, err := leaf(ctx, evaluator, x)
+func reduceAxis[T ndarray.Number](x *ndarray.Tensor[T], axis int, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	x, err := leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -241,7 +240,7 @@ func reduceAxis[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluat
 	return acc, nil
 }
 
-func expandLike[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, t, like *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func expandLike[T ndarray.Number](t, like *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	want, have := like.Shape(), t.Shape()
 	if len(have) > len(want) {
 		return nil, ndarray.ErrShape
@@ -251,18 +250,18 @@ func expandLike[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluat
 	for i := 0; i < len(want)-len(have); i++ {
 		shaped[i] = 1
 	}
-	t, err := withView(ctx, evaluator, t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	t, err := withView(t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return x.Reshape(shaped)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return withView(ctx, evaluator, t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return x.Expand(want)
 	})
 }
 
-func channelLike[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, t, like *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+func channelLike[T ndarray.Number](t, like *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 	rank := len(like.Shape())
 	c := t.Shape()
 	if len(c) != 1 || rank < 2 {
@@ -273,13 +272,13 @@ func channelLike[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 		shaped[i] = 1
 	}
 	shaped[1] = c[0]
-	t, err := withView(ctx, evaluator, t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	t, err := withView(t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return x.Reshape(shaped)
 	})
 	if err != nil {
 		return nil, err
 	}
-	return withView(ctx, evaluator, t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(t, func(x *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return x.Expand(like.Shape())
 	})
 }

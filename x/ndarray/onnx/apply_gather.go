@@ -1,13 +1,12 @@
 package onnx
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-func applyGather[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyGather[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	data, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -19,18 +18,18 @@ func applyGather[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if !ok {
 		return nil, fmt.Errorf("%w: indices", ErrOp)
 	}
-	return gatherTensors(ctx, evaluator, data, idxs, int(node.attributeInteger("axis", 0)))
+	return gatherTensors(data, idxs, int(node.attributeInteger("axis", 0)))
 }
 
-func applyCumSum[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
-	return applyScan(ctx, evaluator, values, node, integerShapes, (*ndarray.Tensor[T]).Add, 0)
+func applyCumSum[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+	return applyScan(values, node, integerShapes, (*ndarray.Tensor[T]).Add, 0)
 }
 
-func applyCumProd[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
-	return applyScan(ctx, evaluator, values, node, integerShapes, (*ndarray.Tensor[T]).Mul, 1)
+func applyCumProd[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+	return applyScan(values, node, integerShapes, (*ndarray.Tensor[T]).Mul, 1)
 }
 
-func applyScan[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], identity T) (*ndarray.Tensor[T], error) {
+func applyScan[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], identity T) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -40,7 +39,7 @@ func applyScan[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 		if ints, ok := integerShapes[node.Inputs[1]]; ok && len(ints) > 0 {
 			axis = int(ints[0])
 		} else if t, ok := values[node.Inputs[1]]; ok {
-			t, err = leaf(ctx, evaluator, t)
+			t, err = leaf(t)
 			if err != nil {
 				return nil, err
 			}
@@ -51,15 +50,15 @@ func applyScan[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 			axis = int(d[0])
 		}
 	}
-	return scanTensor(ctx, evaluator, x, axis, node.attributeInteger("reverse", 0) != 0, node.attributeInteger("exclusive", 0) != 0, op, identity)
+	return scanTensor(x, axis, node.attributeInteger("reverse", 0) != 0, node.attributeInteger("exclusive", 0) != 0, op, identity)
 }
 
-func applyHardmax[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyHardmax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -68,18 +67,18 @@ func applyHardmax[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 	if axis < 0 {
 		axis += len(shape)
 	}
-	m, err := reduceAxis(ctx, evaluator, x, axis, (*ndarray.Tensor[T]).Max)
+	m, err := reduceAxis(x, axis, (*ndarray.Tensor[T]).Max)
 	if err != nil {
 		return nil, err
 	}
-	m, err = withView(ctx, evaluator, m, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	m, err = withView(m, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(shape)
 	})
 	if err != nil {
 		return nil, err
 	}
 	eq := bool01[T](x.Equal(m))
-	cs, err := scanTensor(ctx, evaluator, eq, axis, false, false, (*ndarray.Tensor[T]).Add, 0)
+	cs, err := scanTensor(eq, axis, false, false, (*ndarray.Tensor[T]).Add, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -87,26 +86,26 @@ func applyHardmax[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 	return eq.Mul(first), nil
 }
 
-func applyRange[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyRange[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	if len(node.Inputs) < 3 {
 		return nil, ErrOp
 	}
-	start, err := rangeScalar(ctx, evaluator, values, integerShapes, node.Inputs[0])
+	start, err := rangeScalar(values, integerShapes, node.Inputs[0])
 	if err != nil {
 		return nil, err
 	}
-	limit, err := rangeScalar(ctx, evaluator, values, integerShapes, node.Inputs[1])
+	limit, err := rangeScalar(values, integerShapes, node.Inputs[1])
 	if err != nil {
 		return nil, err
 	}
-	delta, err := rangeScalar(ctx, evaluator, values, integerShapes, node.Inputs[2])
+	delta, err := rangeScalar(values, integerShapes, node.Inputs[2])
 	if err != nil {
 		return nil, err
 	}
 	return rangeTensor(start, limit, delta)
 }
 
-func rangeScalar[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], integerShapes map[string][]int64, name string) (T, error) {
+func rangeScalar[T ndarray.Number](values map[string]*ndarray.Tensor[T], integerShapes map[string][]int64, name string) (T, error) {
 	var zero T
 	if ints, ok := integerShapes[name]; ok && len(ints) > 0 {
 		return T(ints[0]), nil
@@ -115,7 +114,7 @@ func rangeScalar[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if !ok {
 		return zero, fmt.Errorf("%w: %s", ErrGraph, name)
 	}
-	t, err := leaf(ctx, evaluator, t)
+	t, err := leaf(t)
 	if err != nil {
 		return zero, err
 	}
@@ -126,7 +125,7 @@ func rangeScalar[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	return d[0], nil
 }
 
-func applyGatherElements[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyGatherElements[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	data, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -138,11 +137,11 @@ func applyGatherElements[T ndarray.Number](ctx context.Context, evaluator ndarra
 	if !ok {
 		return nil, fmt.Errorf("%w: indices", ErrGraph)
 	}
-	data, err = leaf(ctx, evaluator, data)
+	data, err = leaf(data)
 	if err != nil {
 		return nil, err
 	}
-	idx, err = leaf(ctx, evaluator, idx)
+	idx, err = leaf(idx)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +162,7 @@ func applyGatherElements[T ndarray.Number](ctx context.Context, evaluator ndarra
 		if err != nil {
 			return nil, err
 		}
-		cell, err = withView(ctx, evaluator, cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+		cell, err = withView(cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 			return t.Expand(idx.Shape())
 		})
 		if err != nil {
@@ -175,7 +174,7 @@ func applyGatherElements[T ndarray.Number](ctx context.Context, evaluator ndarra
 	return acc, nil
 }
 
-func applyCompress[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyCompress[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -187,11 +186,11 @@ func applyCompress[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 	if !ok {
 		return nil, fmt.Errorf("%w: condition", ErrGraph)
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
-	cond, err = leaf(ctx, evaluator, cond)
+	cond, err = leaf(cond)
 	if err != nil {
 		return nil, err
 	}
@@ -206,15 +205,15 @@ func applyCompress[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 		}
 	}
 	axis := int(node.attributeInteger("axis", 0))
-	return gatherTensors(ctx, evaluator, x, idxs, axis)
+	return gatherTensors(x, idxs, axis)
 }
 
-func applySplit[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applySplit[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -263,12 +262,12 @@ func applySplit[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluat
 	return first, nil
 }
 
-func applyArgMinMax[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, min bool) (*ndarray.Tensor[T], error) {
+func applyArgMinMax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, min bool) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -318,12 +317,12 @@ func applyArgMinMax[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 		}
 		out = append(out, d)
 	}
-	return withView(ctx, evaluator, idx, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(idx, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(out)
 	})
 }
 
-func applyOneHot[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyOneHot[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	if len(node.Inputs) < 3 {
 		return nil, ErrOp
 	}
@@ -339,11 +338,11 @@ func applyOneHot[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if !ok {
 		return nil, fmt.Errorf("%w: values", ErrGraph)
 	}
-	depthT, err = leaf(ctx, evaluator, depthT)
+	depthT, err = leaf(depthT)
 	if err != nil {
 		return nil, err
 	}
-	vals, err = leaf(ctx, evaluator, vals)
+	vals, err = leaf(vals)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +359,7 @@ func applyOneHot[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 		return nil, fmt.Errorf("%w: values", ErrOp)
 	}
 	off, on := vd[0], vd[1]
-	indices, err = leaf(ctx, evaluator, indices)
+	indices, err = leaf(indices)
 	if err != nil {
 		return nil, err
 	}
@@ -381,13 +380,13 @@ func applyOneHot[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if err != nil {
 		return nil, err
 	}
-	indices, err = withView(ctx, evaluator, indices, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	indices, err = withView(indices, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(idx)
 	})
 	if err != nil {
 		return nil, err
 	}
-	indices, err = withView(ctx, evaluator, indices, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	indices, err = withView(indices, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(outShape)
 	})
 	if err != nil {
@@ -400,7 +399,7 @@ func applyOneHot[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	return mask.Where(ndarray.Const(on), ndarray.Const(off)), nil
 }
 
-func applyScatterElements[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyScatterElements[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	data, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -416,15 +415,15 @@ func applyScatterElements[T ndarray.Number](ctx context.Context, evaluator ndarr
 	if !ok {
 		return nil, fmt.Errorf("%w: updates", ErrGraph)
 	}
-	data, err = leaf(ctx, evaluator, data)
+	data, err = leaf(data)
 	if err != nil {
 		return nil, err
 	}
-	idx, err = leaf(ctx, evaluator, idx)
+	idx, err = leaf(idx)
 	if err != nil {
 		return nil, err
 	}
-	updates, err = leaf(ctx, evaluator, updates)
+	updates, err = leaf(updates)
 	if err != nil {
 		return nil, err
 	}
@@ -449,51 +448,51 @@ func applyScatterElements[T ndarray.Number](ctx context.Context, evaluator ndarr
 			return nil, err
 		}
 		mk := idx.Equal(ndarray.Const(T(k)))
-		hit, err := reduceAxis(ctx, evaluator, bool01[T](mk), axis, (*ndarray.Tensor[T]).Max)
+		hit, err := reduceAxis(bool01[T](mk), axis, (*ndarray.Tensor[T]).Max)
 		if err != nil {
 			return nil, err
 		}
-		expanded, err := expandLike(ctx, evaluator, slice, updates)
+		expanded, err := expandLike(slice, updates)
 		if err != nil {
 			return nil, err
 		}
 		switch reduction {
 		case "add":
-			summed, err := reduceAxis(ctx, evaluator, mk.Where(updates, zero), axis, (*ndarray.Tensor[T]).Add)
+			summed, err := reduceAxis(mk.Where(updates, zero), axis, (*ndarray.Tensor[T]).Add)
 			if err != nil {
 				return nil, err
 			}
 			parts[k] = slice.Add(summed)
 		case "mul":
-			prod, err := reduceAxis(ctx, evaluator, mk.Where(updates, one), axis, (*ndarray.Tensor[T]).Mul)
+			prod, err := reduceAxis(mk.Where(updates, one), axis, (*ndarray.Tensor[T]).Mul)
 			if err != nil {
 				return nil, err
 			}
 			parts[k] = slice.Mul(prod)
 		case "max":
-			mx, err := reduceAxis(ctx, evaluator, mk.Where(updates, expanded), axis, (*ndarray.Tensor[T]).Max)
+			mx, err := reduceAxis(mk.Where(updates, expanded), axis, (*ndarray.Tensor[T]).Max)
 			if err != nil {
 				return nil, err
 			}
 			parts[k] = mx
 		case "min":
-			mn, err := reduceAxis(ctx, evaluator, mk.Where(updates, expanded), axis, minimum[T])
+			mn, err := reduceAxis(mk.Where(updates, expanded), axis, minimum[T])
 			if err != nil {
 				return nil, err
 			}
 			parts[k] = mn
 		default:
-			summed, err := reduceAxis(ctx, evaluator, mk.Where(updates, zero), axis, (*ndarray.Tensor[T]).Add)
+			summed, err := reduceAxis(mk.Where(updates, zero), axis, (*ndarray.Tensor[T]).Add)
 			if err != nil {
 				return nil, err
 			}
 			parts[k] = hit.CmpNe(zero).Where(summed, slice)
 		}
 	}
-	return concatTensors(ctx, evaluator, parts, axis)
+	return concatTensors(parts, axis)
 }
 
-func applyGatherND[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyGatherND[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	if node.attributeInteger("batch_dims", 0) != 0 {
 		return nil, fmt.Errorf("%w: batch_dims", ErrOp)
 	}
@@ -512,7 +511,7 @@ func applyGatherND[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 	if !ok {
 		return nil, fmt.Errorf("%w: indices", ErrGraph)
 	}
-	data, err = leaf(ctx, evaluator, data)
+	data, err = leaf(data)
 	if err != nil {
 		return nil, err
 	}
@@ -556,7 +555,7 @@ func applyGatherND[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 		}
 		flat := ndarray.Shape{1}
 		flat = append(flat, rest...)
-		cell, err = withView(ctx, evaluator, cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+		cell, err = withView(cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 			return t.Reshape(flat)
 		})
 		if err != nil {
@@ -564,7 +563,7 @@ func applyGatherND[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 		}
 		parts[i] = cell
 	}
-	out, err := concatTensors(ctx, evaluator, parts, 0)
+	out, err := concatTensors(parts, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -574,12 +573,12 @@ func applyGatherND[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 	if len(outShape) == 0 {
 		outShape = ndarray.Shape{1}
 	}
-	return withView(ctx, evaluator, out, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(out, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(outShape)
 	})
 }
 
-func applyReverseSequence[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyReverseSequence[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -591,7 +590,7 @@ func applyReverseSequence[T ndarray.Number](ctx context.Context, evaluator ndarr
 	if !ok {
 		return nil, fmt.Errorf("%w: sequence_lens", ErrOp)
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -637,16 +636,16 @@ func applyReverseSequence[T ndarray.Number](ctx context.Context, evaluator ndarr
 			}
 			timeParts[t] = cell
 		}
-		cat, err := concatTensors(ctx, evaluator, timeParts, timeAxis)
+		cat, err := concatTensors(timeParts, timeAxis)
 		if err != nil {
 			return nil, err
 		}
 		batchParts[b] = cat
 	}
-	return concatTensors(ctx, evaluator, batchParts, batchAxis)
+	return concatTensors(batchParts, batchAxis)
 }
 
-func applyScatterND[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyScatterND[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	data, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -666,11 +665,11 @@ func applyScatterND[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	if !ok {
 		return nil, fmt.Errorf("%w: indices", ErrGraph)
 	}
-	data, err = leaf(ctx, evaluator, data)
+	data, err = leaf(data)
 	if err != nil {
 		return nil, err
 	}
-	updates, err = leaf(ctx, evaluator, updates)
+	updates, err = leaf(updates)
 	if err != nil {
 		return nil, err
 	}
@@ -705,13 +704,13 @@ func applyScatterND[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 		if err != nil {
 			return nil, err
 		}
-		cell, err = withView(ctx, evaluator, cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+		cell, err = withView(cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 			return t.Reshape(append(ndarray.Shape{}, dataShape[k:]...))
 		})
 		if err != nil {
 			return nil, err
 		}
-		acc, err = scatterWrite(ctx, evaluator, acc, coords, cell, reduction)
+		acc, err = scatterWrite(acc, coords, cell, reduction)
 		if err != nil {
 			return nil, err
 		}
@@ -733,7 +732,7 @@ func scatterUpdateRange(shape ndarray.Shape, prefix ndarray.Shape, i int) [][2]i
 	return out
 }
 
-func scatterWrite[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, data *ndarray.Tensor[T], coords []int, update *ndarray.Tensor[T], reduction string) (*ndarray.Tensor[T], error) {
+func scatterWrite[T ndarray.Number](data *ndarray.Tensor[T], coords []int, update *ndarray.Tensor[T], reduction string) (*ndarray.Tensor[T], error) {
 	if len(coords) == 0 {
 		switch reduction {
 		case "add":
@@ -748,7 +747,7 @@ func scatterWrite[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 			return update, nil
 		}
 	}
-	data, err := leaf(ctx, evaluator, data)
+	data, err := leaf(data)
 	if err != nil {
 		return nil, err
 	}
@@ -764,17 +763,17 @@ func scatterWrite[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 			return nil, err
 		}
 		if i == a {
-			squeezed, err := withView(ctx, evaluator, cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+			squeezed, err := withView(cell, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 				return t.Reshape(shape[1:])
 			})
 			if err != nil {
 				return nil, err
 			}
-			written, err := scatterWrite(ctx, evaluator, squeezed, coords[1:], update, reduction)
+			written, err := scatterWrite(squeezed, coords[1:], update, reduction)
 			if err != nil {
 				return nil, err
 			}
-			cell, err = withView(ctx, evaluator, written, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+			cell, err = withView(written, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 				return t.Reshape(append(ndarray.Shape{1}, written.Shape()...))
 			})
 			if err != nil {
@@ -783,15 +782,15 @@ func scatterWrite[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 		}
 		parts[i] = cell
 	}
-	return concatTensors(ctx, evaluator, parts, 0)
+	return concatTensors(parts, 0)
 }
 
-func applyNonZero[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyNonZero[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -824,7 +823,7 @@ func applyNonZero[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 	return ndarray.New(out, ndarray.Shape{rank, nnz})
 }
 
-func applyResize[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyResize[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	mode := node.attributeString("mode")
 	if mode != "" && mode != "nearest" {
 		return nil, fmt.Errorf("%w: resize %s", ErrOp, mode)
@@ -833,7 +832,7 @@ func applyResize[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -861,7 +860,7 @@ func applyResize[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 		if !ok {
 			return nil, fmt.Errorf("%w: scales", ErrGraph)
 		}
-		t, err = leaf(ctx, evaluator, t)
+		t, err = leaf(t)
 		if err != nil {
 			return nil, err
 		}
@@ -891,10 +890,10 @@ func applyResize[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	} else {
 		return nil, ErrOp
 	}
-	return upsampleInteger(ctx, evaluator, x, scales)
+	return upsampleInteger(x, scales)
 }
 
-func upsampleInteger[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, x *ndarray.Tensor[T], scales []int) (*ndarray.Tensor[T], error) {
+func upsampleInteger[T ndarray.Number](x *ndarray.Tensor[T], scales []int) (*ndarray.Tensor[T], error) {
 	for i, s := range scales {
 		if s == 1 {
 			continue
@@ -904,7 +903,7 @@ func upsampleInteger[T ndarray.Number](ctx context.Context, evaluator ndarray.Ev
 		inserted = append(inserted, shape[:i+1]...)
 		inserted = append(inserted, 1)
 		inserted = append(inserted, shape[i+1:]...)
-		reshaped, err := withView(ctx, evaluator, x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+		reshaped, err := withView(x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 			return t.Reshape(inserted)
 		})
 		if err != nil {
@@ -912,7 +911,7 @@ func upsampleInteger[T ndarray.Number](ctx context.Context, evaluator ndarray.Ev
 		}
 		expanded := inserted.Clone()
 		expanded[i+1] = s
-		x, err = withView(ctx, evaluator, reshaped, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+		x, err = withView(reshaped, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 			return t.Expand(expanded)
 		})
 		if err != nil {
@@ -920,7 +919,7 @@ func upsampleInteger[T ndarray.Number](ctx context.Context, evaluator ndarray.Ev
 		}
 		merged := shape.Clone()
 		merged[i] *= s
-		x, err = withView(ctx, evaluator, x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+		x, err = withView(x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 			return t.Reshape(merged)
 		})
 		if err != nil {

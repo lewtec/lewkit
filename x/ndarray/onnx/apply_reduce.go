@@ -1,22 +1,21 @@
 package onnx
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-func applyReduce[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], mean bool) (*ndarray.Tensor[T], error) {
+func applyReduce[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], mean bool) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	return applyReduceOn(ctx, evaluator, x, node, integerShapes, op, mean)
+	return applyReduceOn(x, node, integerShapes, op, mean)
 }
 
-func applyReduceOn[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, x *ndarray.Tensor[T], node Node, integerShapes map[string][]int64, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], mean bool) (*ndarray.Tensor[T], error) {
-	x, err := leaf(ctx, evaluator, x)
+func applyReduceOn[T ndarray.Number](x *ndarray.Tensor[T], node Node, integerShapes map[string][]int64, op func(*ndarray.Tensor[T], *ndarray.Tensor[T]) *ndarray.Tensor[T], mean bool) (*ndarray.Tensor[T], error) {
+	x, err := leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +54,7 @@ func applyReduceOn[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 		seen[axis] = struct{}{}
 		reduced *= shape[axis]
 	}
-	x, err = reduceTensors(ctx, evaluator, x, axes, keepdims, op)
+	x, err = reduceTensors(x, axes, keepdims, op)
 	if err != nil {
 		return nil, err
 	}
@@ -65,15 +64,15 @@ func applyReduceOn[T ndarray.Number](ctx context.Context, evaluator ndarray.Eval
 	return x, nil
 }
 
-func applyLogSoftmax[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
-	s, err := applySoftmax(ctx, evaluator, values, node)
+func applyLogSoftmax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+	s, err := applySoftmax(values, node)
 	if err != nil {
 		return nil, err
 	}
 	return log(s), nil
 }
 
-func applyTile[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyTile[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -85,7 +84,7 @@ func applyTile[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 	if !ok {
 		return nil, fmt.Errorf("%w: repeats", ErrOp)
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +104,7 @@ func applyTile[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 		for i := range n {
 			parts[i] = x
 		}
-		x, err = concatTensors(ctx, evaluator, parts, axis)
+		x, err = concatTensors(parts, axis)
 		if err != nil {
 			return nil, err
 		}
@@ -113,12 +112,12 @@ func applyTile[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluato
 	return x, nil
 }
 
-func applyTrilu[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyTrilu[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +130,7 @@ func applyTrilu[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluat
 		if ints, ok := integerShapes[node.Inputs[1]]; ok && len(ints) > 0 {
 			k = int32(ints[0])
 		} else if t, ok := values[node.Inputs[1]]; ok {
-			t, err = leaf(ctx, evaluator, t)
+			t, err = leaf(t)
 			if err != nil {
 				return nil, err
 			}

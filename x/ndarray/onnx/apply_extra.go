@@ -1,7 +1,6 @@
 package onnx
 
 import (
-	"context"
 	"fmt"
 	"math"
 
@@ -9,7 +8,7 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray/nn"
 )
 
-func applyAveragePool[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyAveragePool[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	if node.attributeInteger("ceil_mode", 0) != 0 {
 		return nil, fmt.Errorf("%w: ceil_mode", ErrOp)
 	}
@@ -30,7 +29,7 @@ func applyAveragePool[T ndarray.Number](ctx context.Context, evaluator ndarray.E
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +45,7 @@ func applyAveragePool[T ndarray.Number](ctx context.Context, evaluator ndarray.E
 	return nn.AveragePool2D(input, kernelHeight, kernelWidth, strideHeight, strideWidth, pads, node.attributeInteger("count_include_pad", 0) != 0)
 }
 
-func applyLpPool[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyLpPool[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	if node.attributeInteger("ceil_mode", 0) != 0 {
 		return nil, fmt.Errorf("%w: ceil_mode", ErrOp)
 	}
@@ -67,7 +66,7 @@ func applyLpPool[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
@@ -99,12 +98,12 @@ func applyLpPool[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	return sum.Sqrt(), nil
 }
 
-func applyGlobalLpPool[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyGlobalLpPool[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +120,7 @@ func applyGlobalLpPool[T ndarray.Number](ctx context.Context, evaluator ndarray.
 		acc = acc.Mul(acc)
 	}
 	for axis := 2; axis < len(shape); axis++ {
-		acc, err = reduceAxis(ctx, evaluator, acc, axis, (*ndarray.Tensor[T]).Add)
+		acc, err = reduceAxis(acc, axis, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +169,7 @@ func applyWindow[T ndarray.Number](values map[string]*ndarray.Tensor[T], node No
 	}
 }
 
-func applyCenterCropPad[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyCenterCropPad[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -182,7 +181,7 @@ func applyCenterCropPad[T ndarray.Number](ctx context.Context, evaluator ndarray
 	if !ok {
 		return nil, fmt.Errorf("%w: shape", ErrOp)
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +225,7 @@ func applyCenterCropPad[T ndarray.Number](ctx context.Context, evaluator ndarray
 		pad[axis] = [2]int{before, want - have - before}
 		needPad = true
 	}
-	x, err = withView(ctx, evaluator, x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	x, err = withView(x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Shrink(shrink)
 	})
 	if err != nil {
@@ -235,17 +234,17 @@ func applyCenterCropPad[T ndarray.Number](ctx context.Context, evaluator ndarray
 	if !needPad {
 		return x, nil
 	}
-	return withView(ctx, evaluator, x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(x, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Pad(pad)
 	})
 }
 
-func applyGlobalPool[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, average bool) (*ndarray.Tensor[T], error) {
+func applyGlobalPool[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, average bool) (*ndarray.Tensor[T], error) {
 	input, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +258,7 @@ func applyGlobalPool[T ndarray.Number](ctx context.Context, evaluator ndarray.Ev
 	return nn.MaximumPool2D(input, shape[2], shape[3], shape[2], shape[3], nil)
 }
 
-func applyConcat[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyConcat[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	if len(node.Inputs) == 0 {
 		return nil, ErrOp
 	}
@@ -269,16 +268,16 @@ func applyConcat[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 		if !ok {
 			return nil, fmt.Errorf("%w: %s", ErrGraph, name)
 		}
-		t, err := leaf(ctx, evaluator, t)
+		t, err := leaf(t)
 		if err != nil {
 			return nil, err
 		}
 		parts[i] = t
 	}
-	return concatTensors(ctx, evaluator, parts, int(node.attributeInteger("axis", 0)))
+	return concatTensors(parts, int(node.attributeInteger("axis", 0)))
 }
 
-func applyPad[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applyPad[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	mode := node.attributeString("mode")
 	if mode != "" && mode != "constant" {
 		return nil, fmt.Errorf("%w: pad mode %s", ErrOp, mode)
@@ -287,7 +286,7 @@ func applyPad[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +326,7 @@ func applyPad[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator
 	if err != nil {
 		return nil, err
 	}
-	value, err = padToRank(ctx, evaluator, value, len(padded.Shape()))
+	value, err = padToRank(value, len(padded.Shape()))
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +337,7 @@ func applyPad[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator
 	return mask.CmpNe(ndarray.Const(T(0))).Where(padded, fill), nil
 }
 
-func applySlice[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
+func applySlice[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
 	input, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
@@ -409,7 +408,7 @@ func applySlice[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluat
 		}
 		ranges[a] = [2]int{start, end}
 	}
-	return withView(ctx, evaluator, input, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	return withView(input, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Shrink(ranges)
 	})
 }
@@ -443,7 +442,7 @@ func applyConstantOfShape[T ndarray.Number](node Node, integerShapes map[string]
 	return ndarray.Full(z, shapeFromDimensions(shape))
 }
 
-func applySpaceToDepth[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applySpaceToDepth[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	block := int(node.attributeInteger("blocksize", 0))
 	if block <= 0 {
 		return nil, ErrOp
@@ -452,7 +451,7 @@ func applySpaceToDepth[T ndarray.Number](ctx context.Context, evaluator ndarray.
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
@@ -473,7 +472,7 @@ func applySpaceToDepth[T ndarray.Number](ctx context.Context, evaluator ndarray.
 	return perm.Reshape(ndarray.Shape{n, c * block * block, hs, ws})
 }
 
-func applyDepthToSpace[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyDepthToSpace[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	block := int(node.attributeInteger("blocksize", 0))
 	if block <= 0 {
 		return nil, ErrOp
@@ -486,7 +485,7 @@ func applyDepthToSpace[T ndarray.Number](ctx context.Context, evaluator ndarray.
 	if err != nil {
 		return nil, err
 	}
-	input, err = leaf(ctx, evaluator, input)
+	input, err = leaf(input)
 	if err != nil {
 		return nil, err
 	}
@@ -516,12 +515,12 @@ func applyDepthToSpace[T ndarray.Number](ctx context.Context, evaluator ndarray.
 	return shaped.Reshape(ndarray.Shape{n, cout, h * block, w * block})
 }
 
-func applySoftmax[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applySoftmax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -533,20 +532,20 @@ func applySoftmax[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 	if axis < 0 || axis >= len(shape) {
 		return nil, ndarray.ErrShape
 	}
-	m, err := reduceAxis(ctx, evaluator, x, axis, (*ndarray.Tensor[T]).Max)
+	m, err := reduceAxis(x, axis, (*ndarray.Tensor[T]).Max)
 	if err != nil {
 		return nil, err
 	}
-	m, err = expandLike(ctx, evaluator, m, x)
+	m, err = expandLike(m, x)
 	if err != nil {
 		return nil, err
 	}
 	e := exp(x.Add(m.Neg()))
-	s, err := reduceAxis(ctx, evaluator, e, axis, (*ndarray.Tensor[T]).Add)
+	s, err := reduceAxis(e, axis, (*ndarray.Tensor[T]).Add)
 	if err != nil {
 		return nil, err
 	}
-	s, err = expandLike(ctx, evaluator, s, e)
+	s, err = expandLike(s, e)
 	if err != nil {
 		return nil, err
 	}

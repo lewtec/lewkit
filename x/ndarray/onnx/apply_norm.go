@@ -1,14 +1,13 @@
 package onnx
 
 import (
-	"context"
 	"fmt"
 	"math"
 
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-func applyBatchNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyBatchNorm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	if node.attributeInteger("training_mode", 0) != 0 {
 		return nil, fmt.Errorf("%w: training_mode", ErrOp)
 	}
@@ -36,19 +35,19 @@ func applyBatchNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 		return nil, fmt.Errorf("%w: var", ErrGraph)
 	}
 	eps := node.attributeFloat("epsilon", 1e-5)
-	scale, err = channelLike(ctx, evaluator, scale, x)
+	scale, err = channelLike(scale, x)
 	if err != nil {
 		return nil, err
 	}
-	bias, err = channelLike(ctx, evaluator, bias, x)
+	bias, err = channelLike(bias, x)
 	if err != nil {
 		return nil, err
 	}
-	mean, err = channelLike(ctx, evaluator, mean, x)
+	mean, err = channelLike(mean, x)
 	if err != nil {
 		return nil, err
 	}
-	v, err = channelLike(ctx, evaluator, v, x)
+	v, err = channelLike(v, x)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +55,7 @@ func applyBatchNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	return x.Add(mean.Neg()).Mul(inv).Mul(scale).Add(bias), nil
 }
 
-func applyInstanceNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyInstanceNorm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	if len(node.Inputs) < 3 {
 		return nil, ErrOp
 	}
@@ -73,7 +72,7 @@ func applyInstanceNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.
 		return nil, fmt.Errorf("%w: bias", ErrGraph)
 	}
 	eps := node.attributeFloat("epsilon", 1e-5)
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +82,7 @@ func applyInstanceNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.
 	}
 	mean := x
 	for axis := 2; axis < len(shape); axis++ {
-		mean, err = reduceAxis(ctx, evaluator, mean, axis, (*ndarray.Tensor[T]).Add)
+		mean, err = reduceAxis(mean, axis, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +92,7 @@ func applyInstanceNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.
 		spatial *= d
 	}
 	mean = divide(mean, ndarray.Const(T(spatial)))
-	mean, err = withView(ctx, evaluator, mean, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	mean, err = withView(mean, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(shape)
 	})
 	if err != nil {
@@ -102,23 +101,23 @@ func applyInstanceNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.
 	delta := x.Add(mean.Neg())
 	vr := delta.Mul(delta)
 	for axis := 2; axis < len(shape); axis++ {
-		vr, err = reduceAxis(ctx, evaluator, vr, axis, (*ndarray.Tensor[T]).Add)
+		vr, err = reduceAxis(vr, axis, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
 	}
 	vr = divide(vr, ndarray.Const(T(spatial)))
-	vr, err = withView(ctx, evaluator, vr, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	vr, err = withView(vr, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(shape)
 	})
 	if err != nil {
 		return nil, err
 	}
-	scale, err = channelLike(ctx, evaluator, scale, x)
+	scale, err = channelLike(scale, x)
 	if err != nil {
 		return nil, err
 	}
-	bias, err = channelLike(ctx, evaluator, bias, x)
+	bias, err = channelLike(bias, x)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +125,7 @@ func applyInstanceNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.
 	return delta.Mul(inv).Mul(scale).Add(bias), nil
 }
 
-func applyLpNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyLpNorm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	p := node.attributeInteger("p", 2)
 	if p != 1 && p != 2 {
 		return nil, fmt.Errorf("%w: p", ErrOp)
@@ -135,7 +134,7 @@ func applyLpNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -146,14 +145,14 @@ func applyLpNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalua
 	}
 	var mag *ndarray.Tensor[T]
 	if p == 2 {
-		mag, err = reduceAxis(ctx, evaluator, x.Mul(x), axis, (*ndarray.Tensor[T]).Add)
+		mag, err = reduceAxis(x.Mul(x), axis, (*ndarray.Tensor[T]).Add)
 	} else {
-		mag, err = reduceAxis(ctx, evaluator, absT(x), axis, (*ndarray.Tensor[T]).Add)
+		mag, err = reduceAxis(absT(x), axis, (*ndarray.Tensor[T]).Add)
 	}
 	if err != nil {
 		return nil, err
 	}
-	mag, err = withView(ctx, evaluator, mag, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	mag, err = withView(mag, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(shape)
 	})
 	if err != nil {
@@ -190,12 +189,12 @@ func applyIsInf[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Nod
 	})
 }
 
-func applyLayerNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyLayerNorm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +206,7 @@ func applyLayerNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	eps := node.attributeFloat("epsilon", 1e-5)
 	mean := x
 	for a := axis; a < len(shape); a++ {
-		mean, err = reduceAxis(ctx, evaluator, mean, a, (*ndarray.Tensor[T]).Add)
+		mean, err = reduceAxis(mean, a, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
@@ -218,7 +217,7 @@ func applyLayerNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	}
 	mean = divide(mean, ndarray.Const(T(n)))
 	meanKeep := mean
-	mean, err = withView(ctx, evaluator, mean, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	mean, err = withView(mean, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(shape)
 	})
 	if err != nil {
@@ -227,19 +226,19 @@ func applyLayerNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	delta := x.Add(mean.Neg())
 	vr := delta.Mul(delta)
 	for a := axis; a < len(shape); a++ {
-		vr, err = reduceAxis(ctx, evaluator, vr, a, (*ndarray.Tensor[T]).Add)
+		vr, err = reduceAxis(vr, a, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
 	}
 	vr = divide(vr, ndarray.Const(T(n)))
 	inv := vr.Add(ndarray.Const(T(eps))).Sqrt().Reciprocal()
-	inv, err = leaf(ctx, evaluator, inv)
+	inv, err = leaf(inv)
 	if err != nil {
 		return nil, err
 	}
 	invKeep := inv
-	invE, err := withView(ctx, evaluator, invKeep, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	invE, err := withView(invKeep, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(shape)
 	})
 	if err != nil {
@@ -249,7 +248,7 @@ func applyLayerNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	if len(node.Inputs) > 1 {
 		w, ok := values[node.Inputs[1]]
 		if ok {
-			wt, err := expandLike(ctx, evaluator, w, x)
+			wt, err := expandLike(w, x)
 			if err != nil {
 				return nil, err
 			}
@@ -259,7 +258,7 @@ func applyLayerNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	if len(node.Inputs) > 2 {
 		b, ok := values[node.Inputs[2]]
 		if ok {
-			bt, err := expandLike(ctx, evaluator, b, x)
+			bt, err := expandLike(b, x)
 			if err != nil {
 				return nil, err
 			}
@@ -275,7 +274,7 @@ func applyLayerNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	return y, nil
 }
 
-func applyGroupNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyGroupNorm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	groups := int(node.attributeInteger("num_groups", 0))
 	if groups <= 0 {
 		return nil, ErrOp
@@ -284,7 +283,7 @@ func applyGroupNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -305,14 +304,14 @@ func applyGroupNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	}
 	mean := grouped
 	for a := 2; a < len(grouped.Shape()); a++ {
-		mean, err = reduceAxis(ctx, evaluator, mean, a, (*ndarray.Tensor[T]).Add)
+		mean, err = reduceAxis(mean, a, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
 	}
 	count := cg * spatial
 	mean = divide(mean, ndarray.Const(T(count)))
-	mean, err = withView(ctx, evaluator, mean, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	mean, err = withView(mean, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(grouped.Shape())
 	})
 	if err != nil {
@@ -321,13 +320,13 @@ func applyGroupNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	delta := grouped.Add(mean.Neg())
 	vr := delta.Mul(delta)
 	for a := 2; a < len(grouped.Shape()); a++ {
-		vr, err = reduceAxis(ctx, evaluator, vr, a, (*ndarray.Tensor[T]).Add)
+		vr, err = reduceAxis(vr, a, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
 	}
 	vr = divide(vr, ndarray.Const(T(count)))
-	vr, err = withView(ctx, evaluator, vr, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	vr, err = withView(vr, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Expand(grouped.Shape())
 	})
 	if err != nil {
@@ -335,21 +334,21 @@ func applyGroupNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	}
 	eps := node.attributeFloat("epsilon", 1e-5)
 	y := delta.Mul(vr.Add(ndarray.Const(T(eps))).Sqrt().Reciprocal())
-	yt, err := withView(ctx, evaluator, y, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	yt, err := withView(y, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
 		return t.Reshape(shape)
 	})
 	if err != nil {
 		return nil, err
 	}
 	if len(node.Inputs) > 1 {
-		scale, err := channelLike(ctx, evaluator, values[node.Inputs[1]], x)
+		scale, err := channelLike(values[node.Inputs[1]], x)
 		if err != nil {
 			return nil, err
 		}
 		yt = yt.Mul(scale)
 	}
 	if len(node.Inputs) > 2 {
-		bias, err := channelLike(ctx, evaluator, values[node.Inputs[2]], x)
+		bias, err := channelLike(values[node.Inputs[2]], x)
 		if err != nil {
 			return nil, err
 		}
@@ -358,12 +357,12 @@ func applyGroupNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Eva
 	return yt, nil
 }
 
-func applyMVN[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyMVN[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -387,22 +386,22 @@ func applyMVN[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator
 		}
 		n *= shape[axis]
 	}
-	mean, err := reduceTensors(ctx, evaluator, x, axes, true, (*ndarray.Tensor[T]).Add)
+	mean, err := reduceTensors(x, axes, true, (*ndarray.Tensor[T]).Add)
 	if err != nil {
 		return nil, err
 	}
 	mean = divide(mean, ndarray.Const(T(n)))
-	mean, err = expandLike(ctx, evaluator, mean, x)
+	mean, err = expandLike(mean, x)
 	if err != nil {
 		return nil, err
 	}
 	delta := x.Add(mean.Neg())
-	vr, err := reduceTensors(ctx, evaluator, delta.Mul(delta), axes, true, (*ndarray.Tensor[T]).Add)
+	vr, err := reduceTensors(delta.Mul(delta), axes, true, (*ndarray.Tensor[T]).Add)
 	if err != nil {
 		return nil, err
 	}
 	vr = divide(vr, ndarray.Const(T(n)))
-	vr, err = expandLike(ctx, evaluator, vr, x)
+	vr, err = expandLike(vr, x)
 	if err != nil {
 		return nil, err
 	}
@@ -415,12 +414,12 @@ func applyIsNaN[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Nod
 	})
 }
 
-func applyRMSNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evaluator, values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
+func applyRMSNorm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
 	x, err := oneInput(values, node.Inputs)
 	if err != nil {
 		return nil, err
 	}
-	x, err = leaf(ctx, evaluator, x)
+	x, err = leaf(x)
 	if err != nil {
 		return nil, err
 	}
@@ -437,21 +436,21 @@ func applyRMSNorm[T ndarray.Number](ctx context.Context, evaluator ndarray.Evalu
 	n := 1
 	for a := axis; a < len(shape); a++ {
 		n *= shape[a]
-		ms, err = reduceAxis(ctx, evaluator, ms, a, (*ndarray.Tensor[T]).Add)
+		ms, err = reduceAxis(ms, a, (*ndarray.Tensor[T]).Add)
 		if err != nil {
 			return nil, err
 		}
 	}
 	ms = divide(ms, ndarray.Const(T(n)))
 	inv := ms.Add(ndarray.Const(T(eps))).Sqrt().Reciprocal()
-	inv, err = expandLike(ctx, evaluator, inv, x)
+	inv, err = expandLike(inv, x)
 	if err != nil {
 		return nil, err
 	}
 	y := x.Mul(inv)
 	if len(node.Inputs) > 1 {
 		if w, ok := values[node.Inputs[1]]; ok {
-			wt, err := expandLike(ctx, evaluator, w, x)
+			wt, err := expandLike(w, x)
 			if err != nil {
 				return nil, err
 			}

@@ -53,8 +53,8 @@ func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[
 	if err != nil {
 		return nil, err
 	}
-	aMat := append(batch.Clone(), rows, inner)
-	bMat := append(batch.Clone(), inner, columns)
+	aMat := batch.With(rows, inner)
+	bMat := batch.With(inner, columns)
 	a, err = a.Expand(aMat)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[
 	if err != nil {
 		return nil, err
 	}
-	outShape := append(batch.Clone(), rows, columns)
+	outShape := batch.With(rows, columns)
 	if inner == 0 {
 		return ndarray.Zeros[T](outShape)
 	}
@@ -97,9 +97,9 @@ func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[
 	case squeezeRows && squeezeColumns:
 		want = ndarray.Shape{}
 	case squeezeRows:
-		want = append(batch.Clone(), columns)
+		want = batch.With(columns)
 	case squeezeColumns:
-		want = append(batch.Clone(), rows)
+		want = batch.With(rows)
 	}
 	if accumulated.Shape().Equal(want) {
 		return accumulated, nil

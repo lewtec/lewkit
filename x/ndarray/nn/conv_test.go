@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func evalCPU(t *testing.T, y *ndarray.Tensor[float32]) []float32 {
+func evalCPU[T ndarray.Number](t *testing.T, y *ndarray.Tensor[T]) []T {
 	t.Helper()
-	got := make([]float32, y.Size())
+	got := make([]T, y.Size())
 	require.NoError(t, y.Eval(t.Context(), ndarray.CPU, got))
 	return got
 }
