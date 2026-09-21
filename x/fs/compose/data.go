@@ -3,18 +3,14 @@ package compose
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math"
 	"reflect"
+	"slices"
 )
 
 func (file File) normalized() (File, error) {
-	out := File{Type: file.Type, Mode: file.Mode}
-	if len(file.Values) > 0 {
-		out.Values = make(map[string]Slot, len(file.Values))
-		for key, slot := range file.Values {
-			out.Values[key] = slot
-		}
-	}
+	out := File{Type: file.Type, Mode: file.Mode, Values: maps.Clone(file.Values)}
 	if file.Data == nil {
 		return out, nil
 	}
@@ -96,8 +92,8 @@ func normalizeFloat(value float64) (any, error) {
 }
 
 func cloneMap(data map[string]any) map[string]any {
-	out := make(map[string]any, len(data))
-	for key, child := range data {
+	out := maps.Clone(data)
+	for key, child := range out {
 		out[key] = cloneValue(child)
 	}
 	return out
@@ -108,9 +104,9 @@ func cloneValue(value any) any {
 	case map[string]any:
 		return cloneMap(typed)
 	case []any:
-		out := make([]any, len(typed))
-		for index, child := range typed {
-			out[index] = cloneValue(child)
+		out := slices.Clone(typed)
+		for index := range out {
+			out[index] = cloneValue(out[index])
 		}
 		return out
 	default:
@@ -120,6 +116,9 @@ func cloneValue(value any) any {
 
 func mergeData(left, right map[string]any) (map[string]any, error) {
 	out := cloneMap(left)
+	if out == nil {
+		out = map[string]any{}
+	}
 	for key, rightValue := range right {
 		leftValue, exists := out[key]
 		if !exists {

@@ -55,12 +55,7 @@ func Register(name Type, format Format) error {
 func Formats() []Type {
 	formatMu.RLock()
 	defer formatMu.RUnlock()
-	names := make([]Type, 0, len(formats))
-	for name := range formats {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	return names
+	return slices.Sorted(maps.Keys(formats))
 }
 
 func lookupFormat(name Type) (Format, bool) {
@@ -103,29 +98,22 @@ func structuredTypesCUE() string {
 	if len(names) == 0 {
 		return "#StructuredType: string\n"
 	}
-	var builder strings.Builder
-	builder.WriteString("#StructuredType: ")
+	quoted := make([]string, len(names))
 	for index, name := range names {
-		if index > 0 {
-			builder.WriteString(" | ")
-		}
-		builder.WriteString(strconv.Quote(string(name)))
+		quoted[index] = strconv.Quote(string(name))
 	}
-	builder.WriteByte('\n')
-	return builder.String()
+	return "#StructuredType: " + strings.Join(quoted, " | ") + "\n"
 }
 
 func ensureNewline(body []byte) []byte {
-	if len(body) == 0 || body[len(body)-1] == '\n' {
+	if len(body) == 0 || bytes.HasSuffix(body, []byte("\n")) {
 		return body
 	}
 	return append(body, '\n')
 }
 
 func sortedKeys(data map[string]any) []string {
-	keys := slices.Collect(maps.Keys(data))
-	slices.Sort(keys)
-	return keys
+	return slices.Sorted(maps.Keys(data))
 }
 
 func encodeINI(data map[string]any) ([]byte, error) {

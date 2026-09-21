@@ -111,9 +111,9 @@ func mergeMode(current, extra iofs.FileMode) (iofs.FileMode, error) {
 }
 
 func mergeSlots(current, extra map[string]Slot) (map[string]Slot, error) {
-	out := make(map[string]Slot, len(current)+len(extra))
-	for key, slot := range current {
-		out[key] = slot
+	out := maps.Clone(current)
+	if out == nil {
+		out = make(map[string]Slot, len(extra))
 	}
 	for key, slot := range extra {
 		existing, exists := out[key]

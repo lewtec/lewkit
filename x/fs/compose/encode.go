@@ -26,8 +26,7 @@ func Encode(file File, base iofs.FS) ([]byte, error) {
 }
 
 func encodeSlots(file File, base iofs.FS) ([]byte, error) {
-	keys := slices.Collect(maps.Keys(file.Values))
-	slices.Sort(keys)
+	keys := slices.Sorted(maps.Keys(file.Values))
 	var buffer bytes.Buffer
 	for index, key := range keys {
 		if index > 0 {
