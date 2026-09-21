@@ -163,17 +163,11 @@ type xwin struct {
 }
 
 func (w *xwin) Size() image.Point {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.want.Point(w.Buffer.Size())
+	return window.HostSize(w.Buffer, &w.mu, &w.want)
 }
 
 func (w *xwin) Frame() *image.RGBA {
-	want := w.Size()
-	if want.X > 0 && want.Y > 0 {
-		_, _ = w.Buffer.EnsureSize(want)
-	}
-	return w.Buffer.Frame()
+	return window.HostFrame(w.Buffer, w.Size())
 }
 
 func (w *xwin) Draw() error {

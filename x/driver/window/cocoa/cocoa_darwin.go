@@ -238,9 +238,7 @@ func (w *win) create(title string, width, height int) error {
 }
 
 func (w *win) Size() image.Point {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.want.Point(w.Buffer.Size())
+	return window.HostSize(w.Buffer, &w.mu, &w.want)
 }
 
 func (w *win) Frame() *image.RGBA {
