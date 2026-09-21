@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/ndarray/nn"
 )
 
 func applyGather[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node, integerShapes map[string][]int64) (*ndarray.Tensor[T], error) {
@@ -158,7 +159,7 @@ func applyGatherElements[T ndarray.Number](values map[string]*ndarray.Tensor[T],
 		return nil, err
 	}
 	for k := range dim {
-		cell, err := data.Shrink(axisShrinkRange(shape, axis, k, k+1))
+		cell, err := data.Shrink(nn.AxisShrink(shape, axis, k, k+1))
 		if err != nil {
 			return nil, err
 		}
@@ -248,7 +249,7 @@ func applySplit[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Nod
 	var first *ndarray.Tensor[T]
 	for i, s := range splits {
 		end := off + int(s)
-		part, err := x.Shrink(axisShrinkRange(shape, axis, off, end))
+		part, err := x.Shrink(nn.AxisShrink(shape, axis, off, end))
 		if err != nil {
 			return nil, err
 		}
@@ -279,7 +280,7 @@ func applyArgMinMax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node
 	keepdims := node.attributeInteger("keepdims", 1) != 0
 	selectLast := node.attributeInteger("select_last_index", 0) != 0
 	dim := shape[axis]
-	best, err := x.Shrink(axisShrinkRange(shape, axis, 0, 1))
+	best, err := x.Shrink(nn.AxisShrink(shape, axis, 0, 1))
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +289,7 @@ func applyArgMinMax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node
 		return nil, err
 	}
 	for i := 1; i < dim; i++ {
-		cell, err := x.Shrink(axisShrinkRange(shape, axis, i, i+1))
+		cell, err := x.Shrink(nn.AxisShrink(shape, axis, i, i+1))
 		if err != nil {
 			return nil, err
 		}
@@ -443,7 +444,7 @@ func applyScatterElements[T ndarray.Number](values map[string]*ndarray.Tensor[T]
 	zero := ndarray.Const(T(0))
 	one := ndarray.Const(T(1))
 	for k := range dim {
-		slice, err := data.Shrink(axisShrinkRange(shape, axis, k, k+1))
+		slice, err := data.Shrink(nn.AxisShrink(shape, axis, k, k+1))
 		if err != nil {
 			return nil, err
 		}
@@ -620,7 +621,7 @@ func applyReverseSequence[T ndarray.Number](values map[string]*ndarray.Tensor[T]
 		if n > times {
 			n = times
 		}
-		batch, err := x.Shrink(axisShrinkRange(shape, batchAxis, b, b+1))
+		batch, err := x.Shrink(nn.AxisShrink(shape, batchAxis, b, b+1))
 		if err != nil {
 			return nil, err
 		}
@@ -630,7 +631,7 @@ func applyReverseSequence[T ndarray.Number](values map[string]*ndarray.Tensor[T]
 			if t < n {
 				src = n - 1 - t
 			}
-			cell, err := batch.Shrink(axisShrinkRange(batch.Shape(), timeAxis, src, src+1))
+			cell, err := batch.Shrink(nn.AxisShrink(batch.Shape(), timeAxis, src, src+1))
 			if err != nil {
 				return nil, err
 			}
@@ -758,7 +759,7 @@ func scatterWrite[T ndarray.Number](data *ndarray.Tensor[T], coords []int, updat
 	}
 	parts := make([]*ndarray.Tensor[T], shape[0])
 	for i := range shape[0] {
-		cell, err := data.Shrink(axisShrinkRange(shape, 0, i, i+1))
+		cell, err := data.Shrink(nn.AxisShrink(shape, 0, i, i+1))
 		if err != nil {
 			return nil, err
 		}

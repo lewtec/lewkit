@@ -69,7 +69,7 @@ func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[
 	}
 	var accumulated *ndarray.Tensor[T]
 	for i := range inner {
-		row, err := a.Shrink(axisShrink(aMat, len(aMat)-1, i, i+1))
+		row, err := a.Shrink(AxisShrink(aMat, len(aMat)-1, i, i+1))
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[
 		if err != nil {
 			return nil, err
 		}
-		column, err := b.Shrink(axisShrink(bMat, len(bMat)-2, i, i+1))
+		column, err := b.Shrink(AxisShrink(bMat, len(bMat)-2, i, i+1))
 		if err != nil {
 			return nil, err
 		}

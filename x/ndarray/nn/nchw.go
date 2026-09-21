@@ -72,7 +72,8 @@ func stridedNCHW[T ndarray.Number](t *ndarray.Tensor[T], startHeight, startWidth
 	return cell.Reshape(ndarray.Shape{batch, channels, heightOut, widthOut})
 }
 
-func axisShrink(shape ndarray.Shape, axis, start, end int) [][2]int {
+// AxisShrink returns Shrink ranges: full span on every axis, with axis set to [start, end).
+func AxisShrink(shape ndarray.Shape, axis, start, end int) [][2]int {
 	out := make([][2]int, len(shape))
 	for i, dim := range shape {
 		out[i] = [2]int{0, dim}

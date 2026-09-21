@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/ndarray/nn"
 )
 
 func concatTensors[T ndarray.Number](parts []*ndarray.Tensor[T], axis int) (*ndarray.Tensor[T], error) {
@@ -80,7 +81,7 @@ func gatherTensors[T ndarray.Number](data *ndarray.Tensor[T], idxs []int64, axis
 		if a < 0 || a >= dim {
 			return nil, ndarray.ErrShape
 		}
-		parts[i], err = data.Shrink(axisShrinkRange(shape, axis, a, a+1))
+		parts[i], err = data.Shrink(nn.AxisShrink(shape, axis, a, a+1))
 		if err != nil {
 			return nil, err
 		}
@@ -111,7 +112,7 @@ func scanTensor[T ndarray.Number](x *ndarray.Tensor[T], axis int, reverse, exclu
 		start, step, end = dim-1, -1, -1
 	}
 	for i := start; i != end; i += step {
-		cell, err := x.Shrink(axisShrinkRange(shape, axis, i, i+1))
+		cell, err := x.Shrink(nn.AxisShrink(shape, axis, i, i+1))
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +228,7 @@ func reduceAxis[T ndarray.Number](x *ndarray.Tensor[T], axis int, op func(*ndarr
 	}
 	var acc *ndarray.Tensor[T]
 	for i := range dim {
-		cell, err := x.Shrink(axisShrinkRange(shape, axis, i, i+1))
+		cell, err := x.Shrink(nn.AxisShrink(shape, axis, i, i+1))
 		if err != nil {
 			return nil, err
 		}
