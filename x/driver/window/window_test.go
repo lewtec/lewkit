@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"sync"
 	"testing"
 	"time"
 
@@ -77,6 +78,33 @@ func TestOpenDefaultSize(t *testing.T) {
 func TestOpenRejectsNegativeSize(t *testing.T) {
 	_, err := window.Open(t.Context(), window.Config{Width: -1, Height: 10})
 	assert.ErrorIs(t, err, window.ErrSize)
+}
+
+func TestWantSizeSet(t *testing.T) {
+	var want window.WantSize
+	assert.False(t, want.Set(0, 10))
+	assert.Equal(t, image.Pt(1, 1), want.Point(image.Pt(1, 1)))
+	assert.True(t, want.Set(8, 6))
+	assert.Equal(t, image.Pt(8, 6), want.Point(image.Pt(1, 1)))
+	assert.False(t, want.Set(8, 6))
+	assert.True(t, want.Set(10, 6))
+	assert.Equal(t, image.Pt(10, 6), want.Point(image.Pt(1, 1)))
+}
+
+func TestSetWantEmitsResize(t *testing.T) {
+	buf := window.NewBuffer(8, 6)
+	var mu sync.Mutex
+	var want window.WantSize
+	ch := buf.Subscribe(t.Context())
+	window.SetWant(buf, &mu, &want, 10, 12)
+	ev := <-ch
+	assert.Equal(t, window.Resize{Size: image.Pt(10, 12)}, ev)
+	window.SetWant(buf, &mu, &want, 10, 12)
+	select {
+	case ev := <-ch:
+		t.Fatalf("unexpected event %v", ev)
+	default:
+	}
 }
 
 func TestCloseWhenDone(t *testing.T) {

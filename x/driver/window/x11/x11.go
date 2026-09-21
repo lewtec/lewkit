@@ -83,14 +83,13 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	buf := window.NewBuffer(w, h)
 	buf.SetFramePeriod(cfg.Period)
 	win := &xwin{
-		Buffer:     buf,
-		conn:       conn,
-		wid:        wid,
-		gc:         gc,
-		depth:      screen.RootDepth,
-		wmDelete:   wmDelete,
-		wantWidth:  w,
-		wantHeight: h,
+		Buffer:   buf,
+		conn:     conn,
+		wid:      wid,
+		gc:       gc,
+		depth:    screen.RootDepth,
+		wmDelete: wmDelete,
+		want:     window.WantSize{Width: w, Height: h},
 	}
 	go win.loop()
 	window.CloseWhenDone(ctx, win)
@@ -152,25 +151,21 @@ func setDeleteProtocol(conn *xgb.Conn, wid xproto.Window) (xproto.Atom, error) {
 
 type xwin struct {
 	*window.Buffer
-	mu         sync.Mutex
-	blit       sync.Mutex
-	conn       *xgb.Conn
-	wid        xproto.Window
-	gc         xproto.Gcontext
-	depth      byte
-	wmDelete   xproto.Atom
-	bgra       []byte
-	wantWidth  int
-	wantHeight int
+	mu       sync.Mutex
+	blit     sync.Mutex
+	conn     *xgb.Conn
+	wid      xproto.Window
+	gc       xproto.Gcontext
+	depth    byte
+	wmDelete xproto.Atom
+	bgra     []byte
+	want     window.WantSize
 }
 
 func (w *xwin) Size() image.Point {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.wantWidth > 0 && w.wantHeight > 0 {
-		return image.Pt(w.wantWidth, w.wantHeight)
-	}
-	return w.Buffer.Size()
+	return w.want.Point(w.Buffer.Size())
 }
 
 func (w *xwin) Frame() *image.RGBA {
@@ -193,7 +188,7 @@ func (w *xwin) Draw() error {
 
 func (w *xwin) Resize(size image.Point) error {
 	w.mu.Lock()
-	w.wantWidth, w.wantHeight = size.X, size.Y
+	w.want.Width, w.want.Height = size.X, size.Y
 	w.mu.Unlock()
 	if err := w.Buffer.Resize(size); err != nil {
 		return err
@@ -288,7 +283,7 @@ func (w *xwin) loop() {
 				_ = w.put()
 			}
 		case xproto.ConfigureNotifyEvent:
-			w.setWant(int(e.Width), int(e.Height))
+			window.SetWant(w.Buffer, &w.mu, &w.want, int(e.Width), int(e.Height))
 		case xproto.MotionNotifyEvent:
 			w.Emit(window.Pointer{Pos: image.Pt(int(e.EventX), int(e.EventY)), Buttons: x11Buttons(e.State)})
 		case xproto.ButtonPressEvent:
@@ -305,19 +300,6 @@ func (w *xwin) loop() {
 				return
 			}
 		}
-	}
-}
-
-func (w *xwin) setWant(width, height int) {
-	if width < 1 || height < 1 {
-		return
-	}
-	w.mu.Lock()
-	changed := w.wantWidth != width || w.wantHeight != height
-	w.wantWidth, w.wantHeight = width, height
-	w.mu.Unlock()
-	if changed {
-		w.Emit(window.Resize{Size: image.Pt(width, height)})
 	}
 }
 

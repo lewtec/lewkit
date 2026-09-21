@@ -143,7 +143,7 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		period = desktopFramePeriod()
 	}
 	buf.SetFramePeriod(period)
-	out := &win{Buffer: buf, title: cfg.Title, cw: w, ch: h, wantWidth: w, wantHeight: h}
+	out := &win{Buffer: buf, title: cfg.Title, cw: w, ch: h, want: window.WantSize{Width: w, Height: h}}
 	go func() {
 		runtime.LockOSThread()
 		ready <- out.create()
@@ -160,21 +160,17 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 
 type win struct {
 	*window.Buffer
-	mu         sync.Mutex
-	hwnd       uintptr
-	title      string
-	cw, ch     int
-	wantWidth  int
-	wantHeight int
+	mu     sync.Mutex
+	hwnd   uintptr
+	title  string
+	cw, ch int
+	want   window.WantSize
 }
 
 func (w *win) Size() image.Point {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if w.wantWidth > 0 && w.wantHeight > 0 {
-		return image.Pt(w.wantWidth, w.wantHeight)
-	}
-	return w.Buffer.Size()
+	return w.want.Point(w.Buffer.Size())
 }
 
 func (w *win) Frame() *image.RGBA {
@@ -248,7 +244,7 @@ func (w *win) Draw() error {
 
 func (w *win) Resize(size image.Point) error {
 	w.mu.Lock()
-	w.wantWidth, w.wantHeight = size.X, size.Y
+	w.want.Width, w.want.Height = size.X, size.Y
 	w.mu.Unlock()
 	if err := w.Buffer.Resize(size); err != nil {
 		return err
@@ -339,7 +335,7 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 			width := int(lparam & 0xFFFF)
 			height := int((lparam >> 16) & 0xFFFF)
 			if width > 0 && height > 0 {
-				w.setWant(width, height)
+				window.SetWant(w.Buffer, &w.mu, &w.want, width, height)
 			}
 		}
 	case wmPaint:
@@ -375,19 +371,6 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 	}
 	r, _, _ := procDefWindowProcW.Call(hwnd, msg, wparam, lparam)
 	return r
-}
-
-func (w *win) setWant(width, height int) {
-	if width < 1 || height < 1 {
-		return
-	}
-	w.mu.Lock()
-	changed := w.wantWidth != width || w.wantHeight != height
-	w.wantWidth, w.wantHeight = width, height
-	w.mu.Unlock()
-	if changed {
-		w.Emit(window.Resize{Size: image.Pt(width, height)})
-	}
 }
 
 func win32Pos(lparam uintptr) image.Point {
