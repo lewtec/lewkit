@@ -12,7 +12,7 @@
 //	cmd.Dispatch(gx, gy, 1)
 //	cmd.Barrier()
 //	cmd.Submit() // signals a fence
-//	cmd.Wait()   // vkWaitForFences (syscall while the GPU runs)
+//	cmd.Wait()   // vkWaitForFences; FFI syscall, GC-safe while GPU runs
 //
 // [Open] dlopens the loader and resolves commands with
 // vkGetInstanceProcAddr. Most vk* names are not loader exports.

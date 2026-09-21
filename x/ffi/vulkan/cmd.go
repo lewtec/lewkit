@@ -3,6 +3,8 @@ package vulkan
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 	"unsafe"
 )
 
@@ -280,6 +282,8 @@ func (c *Cmd) Submit() error {
 }
 
 // Wait waits for the submit fence and invalidates mapped buffers.
+// The wait is a blocking FFI syscall (purego cgocall), so this goroutine
+// is a GC safe point while the GPU still runs the dispatch.
 func (c *Cmd) Wait() error {
 	if c == nil || c.d == nil {
 		return ErrClosed
@@ -292,6 +296,7 @@ func (c *Cmd) Wait() error {
 		c.release()
 		return nil
 	}
+	started := time.Now()
 	if d.fence != 0 && d.api.waitForFences != nil {
 		if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
 			return fmt.Errorf("fence wait: %w", err)
@@ -301,6 +306,9 @@ func (c *Cmd) Wait() error {
 		}
 	} else if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
 		return fmt.Errorf("queue wait: %w", err)
+	}
+	if wait := time.Since(started); wait >= 16*time.Millisecond {
+		slog.Debug("vulkan fence wait", "elapsed", wait)
 	}
 	d.pending = false
 	var first error
