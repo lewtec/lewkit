@@ -194,7 +194,7 @@ func (p *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], error) {
 		return nil, err
 	}
 	for _, run := range p.paint.texts {
-		stampRun(p.inkRGBA, run)
+		run.stamp(p.inkRGBA)
 	}
 	p.stamp(len(p.paint.texts) > 0)
 	return p.pixels, nil

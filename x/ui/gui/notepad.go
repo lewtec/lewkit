@@ -56,8 +56,7 @@ func (n *Notepad) Update(msg Msg) (Model, Cmd) {
 		}
 	case window.Pointer:
 		if e.Button == 1 && e.Pressed && n.bodyText != nil {
-			box := Rect{n.bodyText.origin.X, n.bodyText.origin.Y, n.bodyText.size.Width, n.bodyText.size.Height}
-			n.cursor = textIndex(box, e.Pos, n.body, n.Face)
+			n.cursor = n.bodyText.indexAt(e.Pos)
 			n.caret = true
 		}
 	}
@@ -101,18 +100,15 @@ func (n *Notepad) key(k window.Key) {
 		return
 	}
 	switch {
-	case keyBackspace(k):
-		if n.cursor > 0 {
-			n.body = append(n.body[:n.cursor-1], n.body[n.cursor:]...)
-			n.cursor--
-		}
-	case keyReturn(k):
+	case n.backspace(k):
+		n.deleteBehind()
+	case n.enter(k):
 		n.insert('\n')
-	case keyLeft(k):
+	case n.left(k):
 		if n.cursor > 0 {
 			n.cursor--
 		}
-	case keyRight(k):
+	case n.right(k):
 		if n.cursor < len(n.body) {
 			n.cursor++
 		}
@@ -126,18 +122,25 @@ func (n *Notepad) insert(r rune) {
 	n.cursor++
 }
 
-func keyBackspace(k window.Key) bool {
+func (n *Notepad) deleteBehind() {
+	if n.cursor > 0 {
+		n.body = append(n.body[:n.cursor-1], n.body[n.cursor:]...)
+		n.cursor--
+	}
+}
+
+func (*Notepad) backspace(k window.Key) bool {
 	return k.Rune == 8 || k.Rune == 127 || k.Code == 51 || k.Code == 8 || k.Code == 22
 }
 
-func keyReturn(k window.Key) bool {
+func (*Notepad) enter(k window.Key) bool {
 	return k.Rune == '\r' || k.Rune == '\n' || k.Code == 36 || k.Code == 13 || k.Code == 24
 }
 
-func keyLeft(k window.Key) bool {
+func (*Notepad) left(k window.Key) bool {
 	return k.Code == 123 || k.Code == 0x25 || k.Code == 113
 }
 
-func keyRight(k window.Key) bool {
+func (*Notepad) right(k window.Key) bool {
 	return k.Code == 124 || k.Code == 0x27 || k.Code == 114
 }

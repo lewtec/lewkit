@@ -33,7 +33,7 @@ func (t *Text) Layout(c BoxConstraints) Size {
 	if t == nil {
 		return Size{}
 	}
-	w, h := measureText([]rune(t.Value), t.face(), c.MaxWidth)
+	w, h := t.measure(c.MaxWidth)
 	t.size = c.Constrain(Size{Width: w, Height: h})
 	return t.size
 }
@@ -53,7 +53,8 @@ func (t *Text) Paint(origin Offset, clip Rect, paint *painter) {
 	})
 }
 
-func measureText(body []rune, face font.Face, maxW float32) (float32, float32) {
+func (t *Text) measure(maxW float32) (float32, float32) {
+	face := t.face()
 	lineH := lewimage.LineHeight(face)
 	if maxW < 1 {
 		maxW = unbounded
@@ -61,7 +62,7 @@ func measureText(body []rune, face font.Face, maxW float32) (float32, float32) {
 	col := 0
 	lines := 1
 	maxCol := 0
-	for _, r := range body {
+	for _, r := range t.Value {
 		if r == '\n' {
 			if col > maxCol {
 				maxCol = col
@@ -87,7 +88,7 @@ func measureText(body []rune, face font.Face, maxW float32) (float32, float32) {
 	return float32(maxCol), float32(lines * lineH)
 }
 
-func stampRun(dst *image.RGBA, run textRun) {
+func (run textRun) stamp(dst *image.RGBA) {
 	if dst == nil || run.box.Width < 1 || run.box.Height < 1 {
 		return
 	}
@@ -103,7 +104,7 @@ func stampRun(dst *image.RGBA, run textRun) {
 		adv := lewimage.Advance(r, face)
 		if r == '\n' {
 			if run.caret && i == run.cursor {
-				drawCaret(dst, col, baseline, maxY, face)
+				run.drawCaret(dst, col, baseline, maxY)
 			}
 			col = x0
 			baseline += lineH
@@ -115,7 +116,7 @@ func stampRun(dst *image.RGBA, run textRun) {
 			baseline += lineH
 		}
 		if run.caret && i == run.cursor {
-			drawCaret(dst, col, baseline, maxY, face)
+			run.drawCaret(dst, col, baseline, maxY)
 		}
 		if baseline <= maxY && r >= 32 {
 			lewimage.Stamp{Dst: dst, X: col, Y: baseline, Text: string(r), Face: face}.Draw()
@@ -124,11 +125,12 @@ func stampRun(dst *image.RGBA, run textRun) {
 		i++
 	}
 	if run.caret && i == run.cursor {
-		drawCaret(dst, col, baseline, maxY, face)
+		run.drawCaret(dst, col, baseline, maxY)
 	}
 }
 
-func drawCaret(dst *image.RGBA, x, baseline, maxY int, face font.Face) {
+func (run textRun) drawCaret(dst *image.RGBA, x, baseline, maxY int) {
+	face := lewimage.Use(run.face)
 	top := baseline - lewimage.Ascent(face)
 	if dst == nil || top < 0 || x < 0 || x >= dst.Bounds().Dx() {
 		return
@@ -140,12 +142,16 @@ func drawCaret(dst *image.RGBA, x, baseline, maxY int, face font.Face) {
 	draw.Draw(dst, image.Rect(x, top, x+2, bottom), caretFill, image.Point{}, draw.Src)
 }
 
-func textIndex(box Rect, pos image.Point, body []rune, face font.Face) int {
-	face = lewimage.Use(face)
+func (t *Text) indexAt(pos image.Point) int {
+	if t == nil {
+		return 0
+	}
+	face := t.face()
+	body := []rune(t.Value)
 	lineH := lewimage.LineHeight(face)
-	row := max(0, (pos.Y-int(box.Y))/max(1, lineH))
-	targetX := pos.X - int(box.X)
-	maxW := int(box.Width)
+	row := max(0, (pos.Y-int(t.origin.Y))/max(1, lineH))
+	targetX := pos.X - int(t.origin.X)
+	maxW := int(t.size.Width)
 	r, x := 0, 0
 	for i, ch := range body {
 		if r > row {
