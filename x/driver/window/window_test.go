@@ -106,6 +106,26 @@ func TestWantSizeSet(t *testing.T) {
 	assert.Equal(t, image.Pt(10, 6), want.Point(image.Pt(1, 1)))
 }
 
+func TestHostSizeAndFrame(t *testing.T) {
+	buf := window.NewBuffer(4, 3)
+	var mu sync.Mutex
+	var want window.WantSize
+	assert.Equal(t, image.Pt(4, 3), window.HostSize(buf, &mu, &want))
+	assert.True(t, want.Set(8, 6))
+	assert.Equal(t, image.Pt(8, 6), window.HostSize(buf, &mu, &want))
+
+	frame := window.HostFrame(buf, image.Point{})
+	require.Equal(t, image.Pt(4, 3), frame.Bounds().Size())
+	frame = window.HostFrame(buf, image.Pt(8, 6))
+	require.Equal(t, image.Pt(8, 6), frame.Bounds().Size())
+	assert.Equal(t, image.Pt(8, 6), buf.Size())
+
+	require.NoError(t, buf.Close())
+	frame = window.HostFrame(buf, image.Pt(10, 10))
+	require.NotNil(t, frame)
+	assert.Equal(t, image.Pt(8, 6), frame.Bounds().Size())
+}
+
 func TestSetWantEmitsResize(t *testing.T) {
 	buf := window.NewBuffer(8, 6)
 	var mu sync.Mutex

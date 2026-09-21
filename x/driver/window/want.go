@@ -37,3 +37,21 @@ func SetWant(b *Buffer, mu *sync.Mutex, want *WantSize, width, height int) {
 		b.Emit(Resize{Size: image.Pt(width, height)})
 	}
 }
+
+// HostSize locks mu and returns the recorded client size, or the buffer size.
+func HostSize(b *Buffer, mu *sync.Mutex, want *WantSize) image.Point {
+	mu.Lock()
+	defer mu.Unlock()
+	return want.Point(b.Size())
+}
+
+// HostFrame returns the back buffer, grown to size when both axes are positive.
+func HostFrame(b *Buffer, size image.Point) *image.RGBA {
+	if size.X > 0 && size.Y > 0 {
+		_, err := b.EnsureSize(size)
+		if err != nil {
+			return b.Frame()
+		}
+	}
+	return b.Frame()
+}
