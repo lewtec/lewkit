@@ -28,7 +28,7 @@ func (d *FS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !n.dir {
+	if !n.IsDir() {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
 	return n.readDir(), nil
@@ -43,7 +43,7 @@ func (d *FS) ReadFile(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if n.dir {
+	if n.IsDir() {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrInvalid}
 	}
 	f, err := n.open()
@@ -67,15 +67,9 @@ func (d *FS) Stat(name string) (fs.FileInfo, error) {
 }
 
 func (d *FS) lookup(name string) (*dnode, error) {
-	if name == "." || name == "" {
-		return d.root, nil
+	n, err := d.root.Lookup(name)
+	if err != nil {
+		return nil, err
 	}
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
-	}
-	n := d.root.lookup(name)
-	if n == nil {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
-	}
-	return n, nil
+	return &dnode{PathNode: n}, nil
 }

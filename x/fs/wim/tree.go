@@ -4,82 +4,39 @@ package wim
 
 import (
 	"io/fs"
-	"strings"
 	"time"
 
 	winwim "github.com/Microsoft/go-winio/wim"
+
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 type dnode struct {
-	name string
-	dir  bool
-	wf   *winwim.File
-	kids map[string]*dnode
+	*lewfs.PathNode[winwim.File]
 }
 
 func newDir(name string) *dnode {
-	return &dnode{name: name, dir: true, kids: map[string]*dnode{}}
+	return &dnode{PathNode: lewfs.NewPathDir[winwim.File](name)}
 }
 
 func (n *dnode) add(rel string, wf *winwim.File, dir bool) error {
-	rel = strings.TrimPrefix(rel, "/")
-	parts := strings.Split(rel, "/")
-	cur := n
-	for i, p := range parts {
-		if p == "" || p == "." || p == ".." {
-			return &fs.PathError{Op: "open", Path: rel, Err: fs.ErrInvalid}
-		}
-		next := cur.kids[p]
-		if i == len(parts)-1 {
-			if next != nil {
-				if dir && next.dir {
-					if wf != nil {
-						next.wf = wf
-					}
-					return nil
-				}
-				return &fs.PathError{Op: "open", Path: rel, Err: fs.ErrExist}
-			}
-			node := &dnode{name: p, dir: dir, wf: wf}
-			if dir {
-				node.kids = map[string]*dnode{}
-			}
-			cur.kids[p] = node
-			return nil
-		}
-		if next == nil {
-			next = newDir(p)
-			cur.kids[p] = next
-		}
-		if !next.dir {
-			return &fs.PathError{Op: "open", Path: strings.Join(parts[:i+1], "/"), Err: fs.ErrInvalid}
-		}
-		cur = next
-	}
-	return nil
+	return n.Add(rel, wf, dir)
 }
 
-func (n *dnode) lookup(rel string) *dnode {
-	cur := n
-	for p := range strings.SplitSeq(rel, "/") {
-		if cur == nil || !cur.dir {
-			return nil
-		}
-		cur = cur.kids[p]
-	}
-	return cur
+func (n *dnode) info() fs.FileInfo {
+	return infoOf(n.PathNode)
 }
 
-func (n *dnode) info() fileInfo {
+func infoOf(n *lewfs.PathNode[winwim.File]) fs.FileInfo {
 	mode := fs.FileMode(0o444)
 	var size int64
 	var mod time.Time
-	if n.dir {
+	if n.IsDir() {
 		mode = fs.ModeDir | 0o555
 	}
-	if n.wf != nil {
-		size = n.wf.Size
-		mod = n.wf.LastWriteTime.Time()
+	if wf := n.Payload(); wf != nil {
+		size = wf.Size
+		mod = wf.LastWriteTime.Time()
 	}
-	return fileInfo{name: n.name, size: size, mode: mode, mod: mod}
+	return n.Info(size, mode, mod)
 }
