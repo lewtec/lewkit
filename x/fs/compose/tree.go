@@ -35,7 +35,7 @@ func (tree *Tree) Add(name path.Path, file File) error {
 	}
 	key := name.String()
 	for existing := range tree.files {
-		if pathClash(existing, key) {
+		if pathClash(path.New(existing), name) {
 			return pathError("merge", key, fmt.Errorf("%w: %s", ErrPath, existing))
 		}
 	}

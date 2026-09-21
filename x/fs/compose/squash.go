@@ -2,42 +2,38 @@ package compose
 
 import (
 	"io/fs"
-	"strings"
 
 	"github.com/lewtec/lewkit/x/path"
 )
 
-const (
-	dotDirectorySuffix = ".d.tmpl"
-	templateSuffix     = ".tmpl"
-	refSlotKey         = "src"
-)
+const refSlotKey = "src"
 
 // Squash lowers a source filesystem into a tree.
-// A directory whose name ends in .d.tmpl becomes one [TypeLines] file.
-// The destination path is that directory with the suffix removed.
+// A directory whose last two extensions are .d and .tmpl becomes one [TypeLines] file.
+// The destination path is that directory with those extensions removed.
 // Each direct child file is a text slot keyed by the child name.
 // A child directory is [ErrPath]. An empty directory adds no file.
 // Any other file becomes a [TypeRef] slot with key src.
-// A file whose name ends in .tmpl is skipped. A non-directory whose name
-// ends in .d.tmpl is [ErrPath].
+// A file whose [path.Path.Suffix] is .tmpl is skipped. A non-directory
+// with the .d.tmpl extensions is [ErrPath].
 func Squash(fsys fs.FS) (*Tree, error) {
 	if fsys == nil {
 		return nil, errNilFilesystem
 	}
 	tree := New()
-	err := fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, walkErr error) error {
+	err := path.New(".").WalkDir(fsys, func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if name == "." {
+		current := path.New(name)
+		if current.String() == "." {
 			return nil
 		}
-		if strings.HasSuffix(entry.Name(), dotDirectorySuffix) {
+		if isDotDirectory(current) {
 			if !entry.IsDir() {
-				return pathError("squash", name, ErrPath)
+				return pathError("squash", current.String(), ErrPath)
 			}
-			if err := addDotDirectory(tree, fsys, path.New(name)); err != nil {
+			if err := addDotDirectory(tree, fsys, current); err != nil {
 				return err
 			}
 			return fs.SkipDir
@@ -45,10 +41,10 @@ func Squash(fsys fs.FS) (*Tree, error) {
 		if entry.IsDir() {
 			return nil
 		}
-		if strings.HasSuffix(entry.Name(), templateSuffix) {
+		if current.Suffix() == ".tmpl" {
 			return nil
 		}
-		return addRef(tree, name, entry)
+		return addRef(tree, current, entry)
 	})
 	if err != nil {
 		return nil, err
@@ -61,25 +57,25 @@ func addDotDirectory(tree *Tree, fsys fs.FS, directory path.Path) error {
 	if err != nil {
 		return pathError("squash", directory.String(), err)
 	}
-	entries, err := fs.ReadDir(fsys, directory.String())
+	entries, err := directory.ReadDir(fsys)
 	if err != nil {
 		return err
 	}
 	for _, entry := range entries {
-		childName := directory.Join(entry.Name()).String()
+		child := directory.Join(entry.Name())
 		if entry.IsDir() {
-			return pathError("squash", childName, ErrPath)
+			return pathError("squash", child.String(), ErrPath)
 		}
-		if strings.HasSuffix(entry.Name(), templateSuffix) {
+		if child.Suffix() == ".tmpl" {
 			continue
 		}
-		body, err := fs.ReadFile(fsys, childName)
+		body, err := child.ReadFile(fsys)
 		if err != nil {
 			return err
 		}
 		err = tree.Add(destination, File{
 			Type:   TypeLines,
-			Values: map[string]Slot{entry.Name(): Text(string(body))},
+			Values: map[string]Slot{child.Name(): Text(string(body))},
 		})
 		if err != nil {
 			return err
@@ -88,23 +84,25 @@ func addDotDirectory(tree *Tree, fsys fs.FS, directory path.Path) error {
 	return nil
 }
 
-func linesPath(directory path.Path) (path.Path, error) {
-	base := directory.Name()
-	if !strings.HasSuffix(base, dotDirectorySuffix) {
-		return path.Path{}, ErrPath
-	}
-	trimmed := strings.TrimSuffix(base, dotDirectorySuffix)
-	if trimmed == "" || trimmed == "." || trimmed == ".." {
-		return path.Path{}, ErrPath
-	}
-	parent := directory.Parent()
-	if parent.String() == "." {
-		return path.New(trimmed), nil
-	}
-	return parent.Join(trimmed), nil
+func isDotDirectory(name path.Path) bool {
+	suffixes := name.Suffixes()
+	count := len(suffixes)
+	return count >= 2 && suffixes[count-2] == ".d" && suffixes[count-1] == ".tmpl"
 }
 
-func addRef(tree *Tree, name string, entry fs.DirEntry) error {
+func linesPath(directory path.Path) (path.Path, error) {
+	if !isDotDirectory(directory) {
+		return path.Path{}, ErrPath
+	}
+	trimmed := directory.WithSuffix("").WithSuffix("")
+	base := trimmed.Name()
+	if base == "" || base == "." || base == ".." {
+		return path.Path{}, ErrPath
+	}
+	return trimmed, nil
+}
+
+func addRef(tree *Tree, name path.Path, entry fs.DirEntry) error {
 	info, err := entry.Info()
 	if err != nil {
 		return err
@@ -113,9 +111,9 @@ func addRef(tree *Tree, name string, entry fs.DirEntry) error {
 	if mode == 0 {
 		mode = 0o644
 	}
-	return tree.Add(path.New(name), File{
+	return tree.Add(name, File{
 		Type:   TypeRef,
 		Mode:   mode,
-		Values: map[string]Slot{refSlotKey: Ref(name)},
+		Values: map[string]Slot{refSlotKey: Ref(name.String())},
 	})
 }
