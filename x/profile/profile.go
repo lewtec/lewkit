@@ -1,53 +1,40 @@
+// Package profile records runtime pprof data to a directory or an HTTP endpoint.
 package profile
 
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
-	"path"
-	"runtime/pprof"
-
-	"github.com/lewtec/lewkit/x/io"
 )
 
 var (
 	ErrProfileWrite = errors.New("can't write profile")
 )
 
-func NewProfile(outputDirectory string) Profile {
-	return Profile{outputDirectory: outputDirectory}
+// Directory writes cpu.prof and a snapshot of each named profile when ctx ends.
+func Directory(path string) Profile {
+	return Profile{directory: path}
+}
+
+// Address serves /debug/pprof/ on addr until ctx ends.
+func Address(addr string) Profile {
+	return Profile{address: addr}
 }
 
 type Profile struct {
-	outputDirectory string
+	directory string
+	address   string
 }
 
-func (p *Profile) file(name string) string {
-	return path.Join(p.outputDirectory, fmt.Sprintf("%s.prof", name))
-}
+func (p Profile) Directory() string { return p.directory }
+
+func (p Profile) Address() string { return p.address }
 
 func (p *Profile) Run(ctx context.Context) error {
-	if err := io.Mkdirp(p.outputDirectory); err != nil {
-		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
+	if p.address != "" {
+		return p.serve(ctx)
 	}
-	fcpu, err := os.Create(p.file("cpu"))
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
+	if p.directory == "" {
+		return nil
 	}
-	pprof.StartCPUProfile(fcpu)
-	defer fcpu.Close()
-	defer pprof.StopCPUProfile()
-
-	for _, prof := range pprof.Profiles() {
-		fprof, err := os.Create(p.file(prof.Name()))
-		if err != nil {
-			return fmt.Errorf("%w: %w", ErrProfileWrite, err)
-		}
-		defer fprof.Close()
-		defer prof.WriteTo(fprof, 0)
-
-	}
-	<-ctx.Done()
-	return nil
+	return p.write(ctx)
 }

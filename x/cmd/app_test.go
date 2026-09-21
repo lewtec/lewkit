@@ -17,9 +17,9 @@ import (
 )
 
 func TestAppParse(t *testing.T) {
-	args := ParseOK[App[None]](t, "-vv", "--profile-dir", "/tmp/p")
+	args := ParseOK[App[None]](t, "-vv", "--pprof", "/tmp/p")
 	assert.Equal(t, 2, args.verbose.Value())
-	assert.Equal(t, "/tmp/p", args.profileDir.Value())
+	assert.Equal(t, "/tmp/p", args.pprof.Value())
 	assert.Equal(t, slog.LevelDebug-4, args.LogLevel())
 }
 
@@ -61,7 +61,7 @@ func TestAppUsage(t *testing.T) {
 		"-h, --help",
 		"-v, --verbose",
 		"log verbosity (default: 0)",
-		"--profile-dir",
+		"--pprof",
 		"--version",
 	} {
 		assert.Contains(t, text, want)
@@ -92,7 +92,7 @@ func TestAppRunVersion(t *testing.T) {
 	}
 }
 
-func TestAppRunNoProfile(t *testing.T) {
+func TestAppRunNoPprof(t *testing.T) {
 	test.RestoreSlog(t)
 
 	app := ParseOK[App[None]](t, "-v")
@@ -106,14 +106,14 @@ func TestAppRunCancel(t *testing.T) {
 	assert.ErrorIs(t, app.Run(ctx), context.Canceled)
 }
 
-func TestAppRunProfile(t *testing.T) {
+func TestAppRunPprof(t *testing.T) {
 	test.RestoreSlog(t)
 
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
-	app := ParseOK[App[None]](t, "--profile-dir", dir)
+	app := ParseOK[App[None]](t, "--pprof", dir)
 	require.NoError(t, app.Run(ctx))
 
 	cpu := filepath.Join(dir, "cpu.prof")

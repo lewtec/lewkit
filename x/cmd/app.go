@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/lewtec/lewkit/x/profile"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -18,11 +17,11 @@ type None struct{}
 
 // App wraps process-wide flags around T, the rest of the command spec.
 type App[T any] struct {
-	verbose    Count     `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
-	profileDir StringArg `long:"profile-dir" help:"write pprof profiles here" default:"" ctx:"profile-dir"`
-	help       Flag      `short:"h" long:"help" help:"show help" ctx:"help"`
-	version    Flag      `long:"version" help:"print version" ctx:"version"`
-	Args       T         `flatten:""`
+	verbose Count    `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
+	pprof   PprofArg `long:"pprof" help:"pprof directory or listen address" default:"" ctx:"pprof"`
+	help    Flag     `short:"h" long:"help" help:"show help" ctx:"help"`
+	version Flag     `long:"version" help:"print version" ctx:"version"`
+	Args    T        `flatten:""`
 }
 
 // LogLevel is slog.LevelInfo minus 4 for each -v/--verbose count.
@@ -43,8 +42,7 @@ func (a App[T]) WantVersion() bool {
 }
 
 // Setup sets the default slog level, calls Args.Setup when T has that
-// method, and starts the profiler in a goroutine when --profile-dir is
-// set. The profiler stops when ctx is done.
+// method, and starts --pprof until ctx is done.
 func (a *App[T]) Setup(ctx context.Context) error {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: a.LogLevel()})))
 	if s, ok := any(&a.Args).(interface{ Setup() error }); ok {
@@ -52,15 +50,7 @@ func (a *App[T]) Setup(ctx context.Context) error {
 			return err
 		}
 	}
-	if dir := a.profileDir.Value(); dir == "" {
-		return nil
-	}
-	p := profile.NewProfile(a.profileDir.Value())
-	go func() {
-		if err := p.Run(ctx); err != nil {
-			slog.Error(err.Error())
-		}
-	}()
+	a.pprof.Start(ctx)
 	return nil
 }
 
