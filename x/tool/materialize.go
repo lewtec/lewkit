@@ -189,7 +189,7 @@ func verifyHash(path, raw string) error {
 }
 
 // Extract unpacks a zip, squashfs, or tar archive into destination.
-// A single top directory is lifted with [lewpath.StripTopLevelDirectory].
+// A single top directory is removed by [lewfs.StripTopDirectory] before [lewfs.Copy].
 // A file that is none of those archives is copied in as one binary.
 func Extract(ctx context.Context, source, destination string) error {
 	if err := os.MkdirAll(destination, 0o755); err != nil {
@@ -207,29 +207,26 @@ func Extract(ctx context.Context, source, destination string) error {
 	}
 	defer file.Close()
 
-	var listing lewfs.Files
+	var archive fs.FS
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
-	if archive, err := zipfs.Open(ctx, file); err == nil {
-		listing = lewfs.Walk(ctx, archive, nil)
+	if opened, err := zipfs.Open(ctx, file); err == nil {
+		archive = opened
 	} else if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return err
-	} else if archive, err := squashfs.Open(ctx, file); err == nil {
-		listing = lewfs.Walk(ctx, archive, nil)
+	} else if opened, err := squashfs.Open(ctx, file); err == nil {
+		archive = opened
 	} else if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return err
-	} else if archive, err := tarfs.Open(ctx, file); err == nil {
-		listing = lewfs.Walk(ctx, archive, nil)
+	} else if opened, err := tarfs.Open(ctx, file); err == nil {
+		archive = opened
 	} else if errors.Is(err, fs.ErrInvalid) {
 		return err
 	} else {
 		return installBinary(ctx, source, dest)
 	}
-	if err := lewfs.Copy(ctx, dest, listing); err != nil {
-		return err
-	}
-	return lewpath.StripTopLevelDirectory(dest)
+	return lewfs.Copy(ctx, dest, lewfs.StripTopDirectory(ctx, archive))
 }
 
 type hostFile struct {
