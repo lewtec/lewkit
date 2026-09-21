@@ -2,6 +2,9 @@
   "files": {
     "x/disasm/internal/wasm/libcapstone.wasm": {
       "source_info": "filespine:x/disasm/internal/wasm/libcapstone.wasm"
+    },
+    "x/ndarray/onnx/internal/proto/onnx.proto": {
+      "source_info": "filespine:x/ndarray/onnx/internal/proto/onnx.proto"
     }
   }
 }
