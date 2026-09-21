@@ -94,6 +94,17 @@ func (b *Buffer) Front() *image.RGBA {
 	return b.front
 }
 
+// SwapBlit swaps, then calls blit when the front page is live.
+func SwapBlit(b *Buffer, blit func() error) error {
+	if err := b.Swap(); err != nil {
+		return err
+	}
+	if b.Front() == nil {
+		return nil
+	}
+	return blit()
+}
+
 // WithFront runs fn with the front page. Swap waits until fn returns.
 func (b *Buffer) WithFront(fn func(*image.RGBA)) {
 	b.mu.Lock()

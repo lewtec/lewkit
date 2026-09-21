@@ -177,13 +177,7 @@ func (w *xwin) Frame() *image.RGBA {
 }
 
 func (w *xwin) Draw() error {
-	if err := w.Swap(); err != nil {
-		return err
-	}
-	if w.Front() == nil {
-		return nil
-	}
-	return w.put()
+	return window.SwapBlit(w.Buffer, w.put)
 }
 
 func (w *xwin) Resize(size image.Point) error {

@@ -233,13 +233,7 @@ func (w *win) pump() {
 }
 
 func (w *win) Draw() error {
-	if err := w.Swap(); err != nil {
-		return err
-	}
-	if w.Front() == nil {
-		return nil
-	}
-	return w.blit()
+	return window.SwapBlit(w.Buffer, w.blit)
 }
 
 func (w *win) Resize(size image.Point) error {
