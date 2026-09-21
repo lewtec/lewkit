@@ -8,6 +8,9 @@ import (
 
 // Linear is y = W x + b. W is (out, in), x is (in,), b is (out,).
 func Linear[T ndarray.Number](w, x, b *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	if err := scalarType[T](); err != nil {
+		return nil, err
+	}
 	if w == nil || x == nil || b == nil {
 		return nil, ndarray.ErrOp
 	}

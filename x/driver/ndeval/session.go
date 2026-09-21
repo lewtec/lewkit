@@ -2,10 +2,11 @@ package ndeval
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log/slog"
-	"unsafe"
+	"sync"
 
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -22,6 +23,8 @@ type session struct {
 	bound   []*ffivulkan.Buffer
 	staging []byte
 	push    []byte
+	eval    *sync.Mutex
+	forget  func()
 }
 
 func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.Device) (*session, error) {
@@ -56,6 +59,13 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.D
 
 func (s *session) Eval(ctx context.Context, output []byte) error {
 	if s == nil || s.kernel == nil || s.device == nil {
+		return ndarray.ErrOp
+	}
+	if s.eval != nil {
+		s.eval.Lock()
+		defer s.eval.Unlock()
+	}
+	if s.shader == nil {
 		return ndarray.ErrOp
 	}
 	size := s.kernel.Size()
@@ -95,7 +105,6 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 		s.push = s.push[:ndarray.PushBytes]
 	}
 	s.kernel.FillPush(s.push)
-	s.kernel.FillPush(s.push)
 	if err := cmd.Push(s.push); err != nil {
 		return errors.Join(err, cmd.Abort())
 	}
@@ -108,10 +117,10 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 	if err := cmd.Wait(); err != nil {
 		return err
 	}
-	gpuBytes := size * 4
-	if s.kernel.DType() == ndarray.F32 {
+	if s.kernel.DType() != ndarray.U8 {
 		return s.output.Read(output[:hostBytes])
 	}
+	gpuBytes := size * 4
 	if cap(s.staging) < gpuBytes {
 		s.staging = make([]byte, gpuBytes)
 	} else {
@@ -120,26 +129,10 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 	if err := s.output.Read(s.staging); err != nil {
 		return err
 	}
-	s.copyHost(output[:hostBytes], size)
+	for i := 0; i < size && i < len(output); i++ {
+		output[i] = uint8(binary.LittleEndian.Uint32(s.staging[i*4:]))
+	}
 	return nil
-}
-
-func (s *session) copyHost(output []byte, size int) {
-	if size == 0 || len(s.staging) < size*4 {
-		return
-	}
-	floats := unsafe.Slice((*float32)(unsafe.Pointer(unsafe.SliceData(s.staging))), size)
-	switch s.kernel.DType() {
-	case ndarray.U8:
-		for i, v := range floats {
-			output[i] = uint8(v)
-		}
-	case ndarray.I32:
-		out := unsafe.Slice((*int32)(unsafe.Pointer(unsafe.SliceData(output))), size)
-		for i, v := range floats {
-			out[i] = int32(v)
-		}
-	}
 }
 
 func (s *session) fit() error {
@@ -182,6 +175,14 @@ func (s *session) grow(slot **ffivulkan.Buffer, bytes int, grew, total *int) err
 func (s *session) Close() error {
 	if s == nil {
 		return nil
+	}
+	if s.eval != nil {
+		s.eval.Lock()
+		defer s.eval.Unlock()
+	}
+	if s.forget != nil {
+		s.forget()
+		s.forget = nil
 	}
 	var err error
 	if s.shader != nil {

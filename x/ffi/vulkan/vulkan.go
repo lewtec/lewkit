@@ -352,6 +352,20 @@ func (d *Device) live() error {
 	return nil
 }
 
+// WaitIdle blocks until the submitted command buffer finishes.
+func (d *Device) WaitIdle() error {
+	if err := d.live(); err != nil {
+		return err
+	}
+	if d.recording {
+		return ErrBusy
+	}
+	if !d.pending {
+		return nil
+	}
+	return d.recorded.Wait()
+}
+
 func (d *Device) memoryType(bits, flags uint32) (uint32, bool) {
 	for i := range d.mem.memoryTypeCount {
 		if bits&(1<<i) == 0 {
@@ -477,8 +491,13 @@ func (b *Buffer) Floats() []float32 {
 
 // Write copies p to the start of the buffer.
 func (b *Buffer) Write(p []byte) error {
-	if b == nil || b.ptr == nil {
+	if b == nil || b.buf == 0 || b.ptr == nil {
 		return ErrClosed
+	}
+	if b.d != nil {
+		if err := b.d.WaitIdle(); err != nil {
+			return err
+		}
 	}
 	if len(p) > b.size {
 		return ErrSize
@@ -489,8 +508,13 @@ func (b *Buffer) Write(p []byte) error {
 
 // Read copies the buffer into p.
 func (b *Buffer) Read(p []byte) error {
-	if b == nil || b.ptr == nil {
+	if b == nil || b.buf == 0 || b.ptr == nil {
 		return ErrClosed
+	}
+	if b.d != nil {
+		if err := b.d.WaitIdle(); err != nil {
+			return err
+		}
 	}
 	if len(p) > b.size {
 		return ErrSize
@@ -505,6 +529,11 @@ func (b *Buffer) Close() error {
 		return nil
 	}
 	d := b.d
+	if d != nil && !d.closed && d.dev != 0 {
+		if err := d.WaitIdle(); err != nil {
+			return err
+		}
+	}
 	buf, mem, ptr := b.buf, b.mem, b.ptr
 	b.buf, b.mem, b.ptr = 0, 0, nil
 	if d == nil || d.closed || d.dev == 0 {
@@ -682,6 +711,11 @@ func (s *Shader) Close() error {
 		return nil
 	}
 	d := s.d
+	if d != nil && !d.closed && d.dev != 0 {
+		if err := d.WaitIdle(); err != nil {
+			return err
+		}
+	}
 	pipeline, layout, set, mod := s.pipeline, s.pipelineLayout, s.setLayout, s.module
 	pool := s.descriptorPool
 	s.pipeline, s.pipelineLayout, s.setLayout, s.module = 0, 0, 0, 0

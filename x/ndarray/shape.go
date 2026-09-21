@@ -41,6 +41,19 @@ func (s Shape) With(dims ...int) Shape {
 	return out
 }
 
+// WindowLength is the floor count of kernel windows along one axis.
+// A negative span is an empty axis.
+func WindowLength(in, before, after, kernel, stride int) int {
+	if stride < 1 {
+		stride = 1
+	}
+	span := in + before + after - kernel
+	if span < 0 {
+		return 0
+	}
+	return span/stride + 1
+}
+
 // CoverPad grows after so out strided windows of kernel fit in in+before+after.
 func CoverPad(in, kernel, stride, out, before, after int) (int, int) {
 	if stride <= 0 {

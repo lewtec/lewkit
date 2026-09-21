@@ -9,6 +9,9 @@ import (
 // MatrixMultiply is numpy-style a @ b. 1D operands are promoted and squeezed.
 // Leading dims broadcast.
 func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
+	if err := scalarType[T](); err != nil {
+		return nil, err
+	}
 	if a == nil || b == nil {
 		return nil, ndarray.ErrOp
 	}

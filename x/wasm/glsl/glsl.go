@@ -25,6 +25,9 @@ func Compile(ctx context.Context, src []byte) ([]byte, error) {
 		return nil, ErrEmpty
 	}
 	if IsSPIRV(src) {
+		if len(src)%4 != 0 {
+			return nil, ErrCompile
+		}
 		return append([]byte(nil), src...), nil
 	}
 	return compile(ctx, src)

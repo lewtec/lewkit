@@ -10,6 +10,9 @@ import (
 // [heightBefore, widthBefore, heightAfter, widthAfter]. Leftover spatial
 // edges are dropped (floor).
 func MaximumPool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, kernelWidth, strideHeight, strideWidth int, pads []int) (*ndarray.Tensor[T], error) {
+	if err := scalarType[T](); err != nil {
+		return nil, err
+	}
 	w, err := poolWindowOf(input, poolKernel{
 		kernelHeight: kernelHeight,
 		kernelWidth:  kernelWidth,
@@ -43,6 +46,9 @@ func MaximumPool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, ker
 // AveragePool2D is a window mean over NCHW. pads is
 // [heightBefore, widthBefore, heightAfter, widthAfter].
 func AveragePool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, kernelWidth, strideHeight, strideWidth int, pads []int, countIncludePad bool) (*ndarray.Tensor[T], error) {
+	if err := scalarType[T](); err != nil {
+		return nil, err
+	}
 	w, err := poolWindowOf(input, poolKernel{
 		kernelHeight: kernelHeight,
 		kernelWidth:  kernelWidth,
@@ -71,7 +77,8 @@ func AveragePool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, ker
 		}
 	}
 	cover := []int{w.heightBefore, w.widthBefore, w.heightAfter, w.widthAfter}
-	if countIncludePad || (cover[0] == 0 && cover[1] == 0 && cover[2] == 0 && cover[3] == 0) {
+	callerZero := len(pads) == 0 || (pads[0] == 0 && pads[1] == 0 && pads[2] == 0 && pads[3] == 0)
+	if countIncludePad || callerZero {
 		return elementDiv(sum, ndarray.Const(T(kernelHeight*kernelWidth))), nil
 	}
 	ones, err := ndarray.Ones[T](input.Shape())
@@ -145,8 +152,8 @@ func poolWindowOf[T ndarray.Number](input *ndarray.Tensor[T], kernel poolKernel,
 		return poolWindow{}, fmt.Errorf("%w: %v", ndarray.ErrShape, inputShape)
 	}
 	height, width := inputShape[2], inputShape[3]
-	heightOut := (height+pads[0]+pads[2]-kernelHeight)/strideHeight + 1
-	widthOut := (width+pads[1]+pads[3]-kernelWidth)/strideWidth + 1
+	heightOut := ndarray.WindowLength(height, pads[0], pads[2], kernelHeight, strideHeight)
+	widthOut := ndarray.WindowLength(width, pads[1], pads[3], kernelWidth, strideWidth)
 	if heightOut <= 0 || widthOut <= 0 {
 		return poolWindow{}, fmt.Errorf("%w: %v kernel %d %d", ndarray.ErrShape, inputShape, kernelHeight, kernelWidth)
 	}
