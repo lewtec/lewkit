@@ -28,6 +28,7 @@ type instruction struct {
 	scalar        bool
 	splatOff      int
 	views         []view
+	chain         []stStep
 }
 
 type cpuProgram struct {
@@ -51,26 +52,38 @@ func lowerCPU(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
 		case kindConst:
 			instr.kind = cpuConst
 			instr.bits = n.bits
+			if len(n.chain) > 0 {
+				instr.chain = n.chain
+			} else if n.viewed() {
+				instr.views = n.tracker.views
+			}
 		case kindCoord:
 			if n.slot < 0 || n.slot >= len(shape) {
 				return cpuProgram{}, ErrAxis
 			}
 			instr.kind = cpuCoord
 			instr.axis = n.slot
+			if len(n.chain) > 0 {
+				instr.chain = n.chain
+			}
 		case kindInput:
 			instr.kind = cpuLoad
 			instr.source = bufIndex[n.buf]
-			instr.scalar = len(n.tracker.Shape()) == 0
-			instr.dense = !instr.scalar && n.tracker.Contiguous() && n.tracker.Shape().Equal(shape)
-			if instr.scalar {
-				off, ok, err := n.tracker.At(0)
-				if err != nil || !ok {
-					return cpuProgram{}, ErrIndex
+			if len(n.chain) > 0 {
+				instr.chain = n.chain
+			} else {
+				instr.scalar = len(n.tracker.Shape()) == 0
+				instr.dense = !instr.scalar && n.tracker.Contiguous() && n.tracker.Shape().Equal(shape)
+				if instr.scalar {
+					off, ok, err := n.tracker.At(0)
+					if err != nil || !ok {
+						return cpuProgram{}, ErrIndex
+					}
+					instr.splatOff = off
 				}
-				instr.splatOff = off
-			}
-			if !instr.dense && !instr.scalar {
-				instr.views = n.tracker.views
+				if !instr.dense && !instr.scalar {
+					instr.views = n.tracker.views
+				}
 			}
 		case kindOp:
 			instr.kind = cpuALU
@@ -92,12 +105,14 @@ func lowerCPU(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
 }
 
 type cpuJob struct {
-	program cpuProgram
-	shape   Shape
-	outType DType
-	bufs    []*buffer
-	output  []byte
-	lo, hi  int
+	program  cpuProgram
+	kernel   *Kernel
+	shape    Shape
+	outType  DType
+	bufs     []*buffer
+	output   []byte
+	lo, hi   int
+	maskRoot bool
 }
 
 type cpuScratch struct {
@@ -126,7 +141,7 @@ func takeScratch(registers, rank int) *cpuScratch {
 func runCPU(program cpuProgram, k *Kernel, output []byte) {
 	workers := min(runtime.GOMAXPROCS(0), k.size)
 	if workers < 2 || k.size < cpuMinParallel {
-		cpuJob{program: program, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output, hi: k.size}.run()
+		cpuJob{program: program, kernel: k, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output, hi: k.size, maskRoot: k.root.viewed()}.run()
 		return
 	}
 	evalParallel(program, k, output, workers)
@@ -182,7 +197,7 @@ func evalParallel(program cpuProgram, k *Kernel, output []byte, workers int) {
 		workers = len(cpuReady)
 	}
 	chunk := (k.size + workers - 1) / workers
-	base := cpuJob{program: program, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output}
+	base := cpuJob{program: program, kernel: k, shape: k.shape, outType: k.outType, bufs: k.bufs, output: output, maskRoot: k.root.viewed()}
 	n := 0
 	for w := range workers {
 		lo := w * chunk
@@ -212,9 +227,33 @@ func (j cpuJob) loop(s *cpuScratch) {
 		for _, instr := range j.program.code {
 			switch instr.kind {
 			case cpuConst:
+				if len(instr.chain) > 0 {
+					if _, ok := applyChain(instr.chain, s.coords, &s.scratch); !ok {
+						s.registers[instr.dest] = 0
+						break
+					}
+				} else if len(instr.views) > 0 {
+					if _, ok := indexViews(instr.views, s.coords, &s.scratch); !ok {
+						s.registers[instr.dest] = 0
+						break
+					}
+				}
 				s.registers[instr.dest] = instr.bits
 			case cpuCoord:
-				s.registers[instr.dest] = uint32(int32(s.coords[instr.axis]))
+				coords := s.coords
+				if len(instr.chain) > 0 {
+					var ok bool
+					coords, ok = chainCoords(instr.chain, s.coords, &s.scratch)
+					if !ok {
+						s.registers[instr.dest] = 0
+						break
+					}
+				}
+				if instr.axis < 0 || instr.axis >= len(coords) {
+					s.registers[instr.dest] = 0
+					break
+				}
+				s.registers[instr.dest] = uint32(int32(coords[instr.axis]))
 			case cpuLoad:
 				s.registers[instr.dest] = instr.load(i, s.coords, j.bufs, &s.scratch)
 			case cpuALU:
@@ -222,6 +261,11 @@ func (j cpuJob) loop(s *cpuScratch) {
 			}
 		}
 		root := s.registers[j.program.root]
+		if j.maskRoot {
+			if _, ok := indexViews(j.kernel.root.tracker.views, s.coords, &s.scratch); !ok {
+				root = 0
+			}
+		}
 		switch j.outType {
 		case U8:
 			j.output[i] = uint8(root)
@@ -231,10 +275,53 @@ func (j cpuJob) loop(s *cpuScratch) {
 	}
 }
 
+func applyChain(chain []stStep, coords []int, scratch *[]int) (int, bool) {
+	c := coords
+	ok := true
+	var off int
+	for i, s := range chain {
+		var vok bool
+		off, vok = indexViews(s.tr.views, c, scratch)
+		ok = ok && vok
+		if i == len(chain)-1 {
+			return off, ok
+		}
+		if len(s.origin) == 0 {
+			return off, ok
+		}
+		need := len(s.origin)
+		if cap(*scratch) < need {
+			*scratch = make([]int, need)
+		}
+		mid := make([]int, need)
+		unravelInto(s.origin, off, mid)
+		c = mid
+	}
+	return 0, false
+}
+
+func chainCoords(chain []stStep, coords []int, scratch *[]int) ([]int, bool) {
+	c := coords
+	ok := true
+	for _, s := range chain {
+		off, vok := indexViews(s.tr.views, c, scratch)
+		ok = ok && vok
+		if len(s.origin) == 0 {
+			return c, ok
+		}
+		mid := make([]int, len(s.origin))
+		unravelInto(s.origin, off, mid)
+		c = mid
+	}
+	return c, ok
+}
+
 func (instr instruction) load(i int, coords []int, bufs []*buffer, scratch *[]int) uint32 {
 	var off int
 	ok := true
 	switch {
+	case len(instr.chain) > 0:
+		off, ok = applyChain(instr.chain, coords, scratch)
 	case instr.scalar:
 		off = instr.splatOff
 	case instr.dense:

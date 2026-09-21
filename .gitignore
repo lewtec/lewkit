@@ -1,1 +1,3 @@
 /dist
+/x/ndarray/onnx/testdata/node/**
+!/x/ndarray/onnx/testdata/node/.gitkeep

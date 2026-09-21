@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -41,6 +42,10 @@ func compile(expr *node) (*Kernel, error) {
 	if size < 0 {
 		return nil, ErrShape
 	}
+	if needsRewrite(expr, map[*node]bool{}) {
+		expr = rewrite(expr, nil, map[rewriteMemo]*node{})
+	}
+	expr = simplify(expr)
 	order, bufs, err := flatten(expr)
 	if err != nil {
 		return nil, err
@@ -177,6 +182,122 @@ func (k *Kernel) FillPush(push []byte) {
 	}
 }
 
+func needsRewrite(n *node, seen map[*node]bool) bool {
+	if n == nil || seen[n] {
+		return false
+	}
+	seen[n] = true
+	if n.viewed() {
+		return true
+	}
+	for _, s := range n.sources {
+		if needsRewrite(s, seen) {
+			return true
+		}
+	}
+	return false
+}
+
+type rewriteMemo struct {
+	n *node
+	h uint64
+}
+
+func rewrite(n *node, steps []stStep, memo map[rewriteMemo]*node) *node {
+	if n == nil || n.err != nil {
+		return n
+	}
+	key := rewriteMemo{n: n, h: stepsHash(steps)}
+	if m := memo[key]; m != nil {
+		return m
+	}
+	switch n.kind {
+	case kindInput:
+		if len(steps) == 0 {
+			memo[key] = n
+			return n
+		}
+		out := *n
+		out.chain = append(slices.Clone(steps), stStep{tr: n.tracker})
+		memo[key] = &out
+		return &out
+	case kindConst:
+		if len(n.tracker.views) == 0 || len(steps) == 0 {
+			memo[key] = n
+			return n
+		}
+		out := *n
+		out.chain = append(slices.Clone(steps), stStep{tr: n.tracker})
+		memo[key] = &out
+		return &out
+	case kindCoord:
+		if len(steps) == 0 && !n.viewed() {
+			memo[key] = n
+			return n
+		}
+		out := *n
+		out.chain = append(slices.Clone(steps), stStep{tr: n.tracker, origin: n.origin})
+		memo[key] = &out
+		return &out
+	case kindOp:
+		next := steps
+		if n.viewed() {
+			next = append(slices.Clone(steps), stStep{tr: n.tracker, origin: n.origin})
+		}
+		srcs := make([]*node, len(n.sources))
+		same := !n.viewed() && len(steps) == 0
+		for i, s := range n.sources {
+			srcs[i] = rewrite(s, next, memo)
+			if srcs[i] != s {
+				same = false
+			}
+		}
+		if same {
+			memo[key] = n
+			return n
+		}
+		out := *n
+		out.sources = srcs
+		out.chain = nil
+		memo[key] = &out
+		return &out
+	default:
+		return n
+	}
+}
+
+func stepsHash(steps []stStep) uint64 {
+	h := uint64(14695981039346656037)
+	for _, s := range steps {
+		h = hashTracker(h, s.tr)
+		h = hashInts(h, s.origin)
+	}
+	return h
+}
+
+func hashTracker(h uint64, tracker Tracker) uint64 {
+	for _, v := range tracker.views {
+		h = hashInts(h, v.shape)
+		h = hashInts(h, v.strides)
+		h ^= uint64(v.offset) + 0x9e3779b97f4a7c15
+		h *= 1099511628211
+		for _, m := range v.mask {
+			h = hashInts(h, m[:])
+		}
+	}
+	return h
+}
+
+func hashInts(h uint64, xs []int) uint64 {
+	for _, x := range xs {
+		h ^= uint64(x) + 0x9e3779b97f4a7c15
+		h *= 1099511628211
+	}
+	h ^= uint64(len(xs))
+	h *= 1099511628211
+	return h
+}
+
 func flatten(root *node) ([]*node, []*buffer, error) {
 	seen := map[*node]bool{}
 	var order []*node
@@ -229,6 +350,140 @@ func flatten(root *node) ([]*node, []*buffer, error) {
 	return order, bufs, nil
 }
 
+func simplify(n *node) *node {
+	return cseFold(n, map[*node]*node{}, map[string]*node{})
+}
+
+func cseFold(n *node, memo map[*node]*node, cse map[string]*node) *node {
+	if n == nil {
+		return n
+	}
+	if m := memo[n]; m != nil {
+		return m
+	}
+	if n.kind != kindOp {
+		memo[n] = n
+		return n
+	}
+	srcs := make([]*node, len(n.sources))
+	same := true
+	for i, s := range n.sources {
+		srcs[i] = cseFold(s, memo, cse)
+		if srcs[i] != s {
+			same = false
+		}
+	}
+	out := n
+	if !same {
+		clone := *n
+		clone.sources = srcs
+		out = &clone
+	}
+	if folded := foldConstOp(out); folded != nil {
+		memo[n] = folded
+		return folded
+	}
+	out = identityOp(out)
+	if out.kind != kindOp {
+		memo[n] = out
+		return out
+	}
+	key := cseKey(out)
+	if hit := cse[key]; hit != nil {
+		memo[n] = hit
+		return hit
+	}
+	cse[key] = out
+	memo[n] = out
+	return out
+}
+
+func cseKey(n *node) string {
+	switch len(n.sources) {
+	case 1:
+		return fmt.Sprintf("%d/%d/%p", n.op, n.dtype, n.sources[0])
+	case 2:
+		return fmt.Sprintf("%d/%d/%p/%p", n.op, n.dtype, n.sources[0], n.sources[1])
+	default:
+		return fmt.Sprintf("%d/%d/%p/%p/%p", n.op, n.dtype, n.sources[0], n.sources[1], n.sources[2])
+	}
+}
+
+func foldConstOp(n *node) *node {
+	if n == nil || n.kind != kindOp || n.viewed() || len(n.chain) > 0 {
+		return nil
+	}
+	for _, s := range n.sources {
+		if s == nil || s.kind != kindConst || len(s.tracker.views) != 0 || len(s.chain) > 0 {
+			return nil
+		}
+	}
+	var a, b, c uint32
+	inType := n.dtype
+	if len(n.sources) > 0 {
+		a = n.sources[0].bits
+		inType = n.sources[0].dtype
+	}
+	if len(n.sources) > 1 {
+		b = n.sources[1].bits
+	}
+	if len(n.sources) > 2 {
+		c = n.sources[2].bits
+	}
+	bits := instruction{alu: n.op, dtype: n.dtype, inType: inType, a: 0, b: 1, c: 2}.evalALU([]uint32{a, b, c})
+	return internConst(n.dtype, bits)
+}
+
+func identityOp(n *node) *node {
+	if n == nil || n.kind != kindOp {
+		return n
+	}
+	switch n.op {
+	case ADD:
+		if isZeroConst(n.sources[1]) {
+			return n.sources[0]
+		}
+		if isZeroConst(n.sources[0]) {
+			return n.sources[1]
+		}
+	case MUL:
+		if isOneConst(n.sources[1]) {
+			return n.sources[0]
+		}
+		if isOneConst(n.sources[0]) {
+			return n.sources[1]
+		}
+	case MAX:
+		if n.sources[0] == n.sources[1] {
+			return n.sources[0]
+		}
+	case WHERE:
+		if isZeroConst(n.sources[0]) {
+			return n.sources[2]
+		}
+		if isOneConst(n.sources[0]) {
+			return n.sources[1]
+		}
+	}
+	return n
+}
+
+func isZeroConst(n *node) bool {
+	return n != nil && n.kind == kindConst && len(n.tracker.views) == 0 && len(n.chain) == 0 && n.bits == 0
+}
+
+func isOneConst(n *node) bool {
+	if n == nil || n.kind != kindConst || len(n.tracker.views) != 0 || len(n.chain) > 0 {
+		return false
+	}
+	switch n.dtype {
+	case F32:
+		return n.bits == math.Float32bits(1)
+	default:
+		return n.bits == 1
+	}
+}
+
 type glslWriter struct {
 	b        strings.Builder
 	next     int
@@ -274,7 +529,12 @@ func (w *glslWriter) program() (string, error) {
 	if w.root.dtype != F32 {
 		out = "float(" + out + ")"
 	}
-	fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", out)
+	if w.root.viewed() {
+		_, valid := w.indexAt(w.root.tracker, w.coords)
+		fmt.Fprintf(&w.b, "    o[i] = (%s) ? %s : 0.0;\n}\n", valid, out)
+	} else {
+		fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", out)
+	}
 	return w.b.String(), nil
 }
 
@@ -287,17 +547,45 @@ func (w *glslWriter) node(n *node) (string, error) {
 	id := w.name("t")
 	switch n.kind {
 	case kindConst:
+		valid := "true"
+		if len(n.chain) > 0 {
+			_, valid = w.indexChain(n.chain)
+		} else if n.viewed() {
+			_, valid = w.index(n.tracker)
+		}
+		if valid != "true" {
+			zero := "0.0"
+			switch n.dtype {
+			case I32:
+				zero = "0"
+			case U8:
+				zero = "0u"
+			}
+			fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, zero)
+			fmt.Fprintf(&w.b, "    if (%s) %s = %s;\n", valid, id, glslConst(n))
+			return id, nil
+		}
 		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, glslConst(n))
 		return id, nil
 	case kindCoord:
-		if n.slot < 0 || n.slot >= len(w.coords) || !n.tracker.Shape().Equal(w.outShape) {
+		coords := w.coords
+		if len(n.chain) > 0 {
+			var err error
+			coords, err = w.chainCoords(n.chain)
+			if err != nil {
+				return "", err
+			}
+		}
+		if n.slot < 0 || n.slot >= len(coords) {
 			return "", ErrAxis
 		}
-		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, w.coords[n.slot])
+		fmt.Fprintf(&w.b, "    int %s = %s;\n", id, coords[n.slot])
 		return id, nil
 	case kindInput:
 		off, valid := "0", "true"
-		if len(n.tracker.Shape()) == 0 {
+		if len(n.chain) > 0 {
+			off, valid = w.indexChain(n.chain)
+		} else if len(n.tracker.Shape()) == 0 {
 			at, ok, err := n.tracker.At(0)
 			if err != nil || !ok {
 				return "", ErrIndex
@@ -329,19 +617,73 @@ func (w *glslWriter) node(n *node) (string, error) {
 }
 
 func (w *glslWriter) index(tracker Tracker) (off, valid string) {
-	if tracker.Contiguous() && tracker.Shape().Equal(w.outShape) {
+	return w.indexAt(tracker, w.coords)
+}
+
+func (w *glslWriter) indexAt(tracker Tracker, coords []string) (off, valid string) {
+	if len(tracker.views) == 0 {
+		return "0", "true"
+	}
+	if tracker.Contiguous() && tracker.Shape().Equal(w.outShape) && sameCoordVars(coords, w.coords) {
 		return "i", "true"
 	}
-	off, valid = w.view(tracker.views[len(tracker.views)-1], w.coords)
+	off, valid = w.view(tracker.views[len(tracker.views)-1], coords)
 	for i := len(tracker.views) - 2; i >= 0; i-- {
 		v := tracker.views[i]
-		coords := w.unravel(v.shape, off)
-		off2, val2 := w.view(v, coords)
+		mid := w.unravel(v.shape, off)
+		off2, val2 := w.view(v, mid)
 		both := w.name("ok")
 		fmt.Fprintf(&w.b, "    bool %s = (%s) && (%s);\n", both, valid, val2)
 		off, valid = off2, both
 	}
 	return off, valid
+}
+
+func (w *glslWriter) indexChain(chain []stStep) (off, valid string) {
+	coords := w.coords
+	valid = "true"
+	for i, s := range chain {
+		o, v := w.indexAt(s.tr, coords)
+		both := w.name("ok")
+		fmt.Fprintf(&w.b, "    bool %s = (%s) && (%s);\n", both, valid, v)
+		valid = both
+		if i == len(chain)-1 {
+			return o, valid
+		}
+		if len(s.origin) == 0 {
+			return o, valid
+		}
+		coords = w.unravel(s.origin, o)
+	}
+	return "0", valid
+}
+
+func (w *glslWriter) chainCoords(chain []stStep) ([]string, error) {
+	coords := w.coords
+	valid := "true"
+	for _, s := range chain {
+		o, v := w.indexAt(s.tr, coords)
+		both := w.name("ok")
+		fmt.Fprintf(&w.b, "    bool %s = (%s) && (%s);\n", both, valid, v)
+		valid = both
+		if len(s.origin) == 0 {
+			return coords, nil
+		}
+		coords = w.unravel(s.origin, o)
+	}
+	return coords, nil
+}
+
+func sameCoordVars(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (w *glslWriter) view(v view, coords []string) (off, valid string) {
