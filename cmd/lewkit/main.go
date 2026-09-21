@@ -13,6 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db/generate"
 	"github.com/lewtec/lewkit/x/generate/prelude"
+	"github.com/lewtec/lewkit/x/generate/protobuf"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -40,8 +41,9 @@ func (r *root) Setup() error {
 }
 
 type generateCmd struct {
-	db      *dbCmd
-	prelude *preludeCmd
+	db       *dbCmd
+	prelude  *preludeCmd
+	protobuf *protobufCmd
 }
 
 func (generateCmd) Description() string {
@@ -75,6 +77,19 @@ func (c *preludeCmd) Run(ctx context.Context) error {
 		dest = c.out.Value()
 	}
 	return prelude.Run(ctx, c.dir.Value(), dest)
+}
+
+type protobufCmd struct {
+	proto     cmd.StringArg `help:".proto file"`
+	goPackage cmd.StringArg `long:"package" default:"" help:"Go import path when the proto has no go_package"`
+}
+
+func (protobufCmd) Description() string {
+	return "generate Go from a .proto file"
+}
+
+func (c *protobufCmd) Run(ctx context.Context) error {
+	return protobuf.Run(ctx, c.proto.Value(), c.goPackage.Value())
 }
 
 type completionCmd struct{}

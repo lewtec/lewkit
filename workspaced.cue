@@ -60,3 +60,12 @@ workspaced: {
 		}
 	}
 }
+
+workspaced: {
+	lazy_tools: {
+		protobuf: {
+			ref:  "github:protocolbuffers/protobuf"
+			bins: ["protoc"]
+		}
+	}
+}

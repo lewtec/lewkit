@@ -30,6 +30,13 @@
     },
     {
       "kind": "tool",
+      "ref": "github:protocolbuffers/protobuf",
+      "depName": "protocolbuffers/protobuf",
+      "currentValue": "v36.2",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
       "ref": "github:rhysd/actionlint",
       "depName": "rhysd/actionlint",
       "currentValue": "v1.7.12",
