@@ -91,12 +91,13 @@ func (u *teaUI) start(s *taskgroup.Session) func() {
 			}
 			return msg
 		}))
-		s.SetLinePrint(func(msg string) { u.p.Printf("%s", msg) })
-		u.restore = hijackSlog(u.p)
+		s.SetLinePrint(u.print)
+		u.restore = hijackSlog(u.print)
 		u.done = make(chan struct{})
 		go func() {
 			defer close(u.done)
 			_, u.err = u.p.Run()
+			u.restoreLogs(s)
 			if u.err != nil {
 				s.Cancel(u.err)
 			}
@@ -104,14 +105,28 @@ func (u *teaUI) start(s *taskgroup.Session) func() {
 	}
 }
 
-func (u *teaUI) stop(s *taskgroup.Session) error {
+// print uses Program.Send so a log after Run returns is a no-op.
+// Program.Printf sends on p.msgs with no ctx.Done and blocks forever
+// once the event loop has exited.
+func (u *teaUI) print(s string) {
 	if u.p == nil {
-		return nil
+		return
 	}
+	u.p.Send(printLineMsg(s))
+}
+
+func (u *teaUI) restoreLogs(s *taskgroup.Session) {
 	if u.restore != nil {
 		u.restore()
 	}
 	s.SetLinePrint(nil)
+}
+
+func (u *teaUI) stop(s *taskgroup.Session) error {
+	if u.p == nil {
+		return nil
+	}
+	u.restoreLogs(s)
 	for _, line := range s.TakeLiveLines() {
 		_, _ = os.Stderr.WriteString(line + "\n")
 	}
@@ -129,6 +144,8 @@ type tickMsg time.Time
 type doneMsg struct{}
 
 type cancelMsg struct{}
+
+type printLineMsg string
 
 func (m model) Init() tea.Cmd {
 	return m.tick()
@@ -162,6 +179,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.width = msg.Width
 		}
 		return m, nil
+	case printLineMsg:
+		return m, tea.Printf("%s", string(msg))
 	case doneMsg:
 		m.done = true
 		m.refresh()

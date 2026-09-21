@@ -7,12 +7,11 @@ import (
 	"log/slog"
 	"sync"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // linePrinter buffers writes and sends each '\n'-terminated line through
-// print (bubbletea Program.Printf). That inserts the line above the overlay
+// print (teaUI.print / Program.Send). That inserts the line above the overlay
 // instead of a raw newline that only walks the cursor into the tree.
 type linePrinter struct {
 	print func(string)
@@ -38,10 +37,10 @@ func (w *linePrinter) close() {
 	w.mu.Unlock()
 }
 
-func hijackSlog(p *tea.Program) func() {
+func hijackSlog(print func(string)) func() {
 	oldSlog := slog.Default()
 	oldLog := log.Default().Writer()
-	w := &linePrinter{print: func(s string) { p.Printf("%s", s) }}
+	w := &linePrinter{print: print}
 	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
 		Level: handlerLevel{oldSlog.Handler()},
 	})))

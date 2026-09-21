@@ -1,8 +1,15 @@
 package progress
 
 import (
+	"io"
+	"log"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,3 +35,61 @@ func TestLinePrinterHoldsPartial(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+func TestHijackSlogRestoreDropsLaterLogs(t *testing.T) {
+	var mu sync.Mutex
+	var got []string
+	restore := hijackSlog(func(s string) {
+		mu.Lock()
+		got = append(got, s)
+		mu.Unlock()
+	})
+	t.Cleanup(restore)
+
+	slog.Info("progress-hang-one")
+	log.Println("progress-hang-std")
+	restore()
+	slog.Info("progress-hang-two")
+	log.Println("progress-hang-std-two")
+
+	mu.Lock()
+	defer mu.Unlock()
+	joined := strings.Join(got, "\n")
+	assert.Contains(t, joined, "progress-hang-one")
+	assert.Contains(t, joined, "progress-hang-std")
+	assert.NotContains(t, joined, "progress-hang-two")
+	assert.NotContains(t, joined, "progress-hang-std-two")
+}
+
+func TestPrintAfterProgramExitReturns(t *testing.T) {
+	var u teaUI
+	u.p = tea.NewProgram(quitNow{}, tea.WithOutput(io.Discard), tea.WithInput(nil))
+	_, err := u.p.Run()
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	go func() {
+		u.print("late")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("print blocked after Program.Run returned")
+	}
+}
+
+func TestUpdatePrintLineMsgReturnsCmd(t *testing.T) {
+	m := newModel(nil)
+	_, cmd := m.Update(printLineMsg("hello"))
+	require.NotNil(t, cmd)
+	require.NotNil(t, cmd())
+}
+
+type quitNow struct{}
+
+func (quitNow) Init() tea.Cmd { return tea.Quit }
+
+func (quitNow) Update(tea.Msg) (tea.Model, tea.Cmd) { return quitNow{}, nil }
+
+func (quitNow) View() (v tea.View) { return }
