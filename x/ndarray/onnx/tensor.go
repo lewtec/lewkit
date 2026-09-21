@@ -215,11 +215,9 @@ func float32Values(p *proto.TensorProto, dt proto.TensorProto_DataType, need int
 }
 
 func float32FromFloat64Raw(b []byte) []float32 {
-	out := make([]float32, len(b)/8)
-	for i := range out {
-		out[i] = float32(math.Float64frombits(binary.LittleEndian.Uint64(b[i*8:])))
-	}
-	return out
+	return littleEndianRaw(b, 8, func(b []byte) float32 {
+		return float32(math.Float64frombits(binary.LittleEndian.Uint64(b)))
+	})
 }
 
 func protoNeed(dims []int64) int {
@@ -230,26 +228,28 @@ func protoNeed(dims []int64) int {
 	return need
 }
 
-func float32FromRaw(b []byte) []float32 {
-	out := make([]float32, len(b)/4)
+func littleEndianRaw[T any](b []byte, width int, conv func([]byte) T) []T {
+	out := make([]T, len(b)/width)
 	for i := range out {
-		out[i] = math.Float32frombits(binary.LittleEndian.Uint32(b[i*4:]))
+		out[i] = conv(b[i*width:])
 	}
 	return out
+}
+
+func float32FromRaw(b []byte) []float32 {
+	return littleEndianRaw(b, 4, func(b []byte) float32 {
+		return math.Float32frombits(binary.LittleEndian.Uint32(b))
+	})
 }
 
 func int32FromRaw(b []byte) []int32 {
-	out := make([]int32, len(b)/4)
-	for i := range out {
-		out[i] = int32(binary.LittleEndian.Uint32(b[i*4:]))
-	}
-	return out
+	return littleEndianRaw(b, 4, func(b []byte) int32 {
+		return int32(binary.LittleEndian.Uint32(b))
+	})
 }
 
 func int64FromRaw(b []byte) []int64 {
-	out := make([]int64, len(b)/8)
-	for i := range out {
-		out[i] = int64(binary.LittleEndian.Uint64(b[i*8:]))
-	}
-	return out
+	return littleEndianRaw(b, 8, func(b []byte) int64 {
+		return int64(binary.LittleEndian.Uint64(b))
+	})
 }
