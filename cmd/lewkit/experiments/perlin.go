@@ -7,17 +7,16 @@ import (
 )
 
 func perlinAt(h, w int, time *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
-	if h < 1 || w < 1 {
-		return nil, ndarray.ErrShape
+	args, err := rasterAt(h, w, time)
+	if err != nil {
+		return nil, err
 	}
-	if time == nil {
-		time = ndarray.Const(float32(0))
-	}
-	return perlin(time, ndarray.Const(float32(w)), ndarray.Const(float32(h)), ndarray.Shape{h, w, 4})
+	return perlin(args.seed, args.width, args.height, args.shape)
 }
 
 func perlinDynamic(time, width, height *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
-	return perlin(time, width, height, ndarray.Shape{1, 1, 4})
+	args := rasterDynamic(time, width, height)
+	return perlin(args.seed, args.width, args.height, args.shape)
 }
 
 func perlin(time, width, height *ndarray.Tensor[float32], shape ndarray.Shape) (*ndarray.Tensor[float32], error) {
