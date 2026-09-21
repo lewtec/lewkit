@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/io/atomic"
+	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -25,9 +26,9 @@ var (
 	ErrEmptyStore = errors.New("tool store root is empty")
 )
 
-// Store maps specs onto version directories under root.
+// Store maps specs onto version directories under directory.
 type Store struct {
-	root string
+	directory string
 }
 
 // Installed is one version directory present on disk.
@@ -42,7 +43,7 @@ func Open(root string) (*Store, error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, ErrEmptyStore
 	}
-	return &Store{root: root}, nil
+	return &Store{directory: root}, nil
 }
 
 // Install fetches specification into the store when that version directory is missing or empty.
@@ -75,10 +76,15 @@ func (store *Store) Ensure(ctx context.Context, specification, binaryName string
 	}
 
 	normalized := normalizeVersion(actualVersion)
-	versionDirectory := filepath.Join(store.root, spec.Directory(), normalized)
+	versionName := versionPath(spec, actualVersion)
+	versionDirectory := store.host(versionName)
 
 	noCache := NoCache(ctx)
-	if entries, err := os.ReadDir(versionDirectory); err == nil && len(entries) > 0 && !noCache {
+	hasFiles, err := store.versionHasFiles(versionName)
+	if err != nil {
+		return "", err
+	}
+	if hasFiles && !noCache {
 		if err := fixAndCheck(ctx, installed, versionDirectory); err != nil {
 			slog.InfoContext(ctx, "existing install failed checks; reinstalling", "spec", spec.String(), "error", err)
 		} else if binaryPath := FindBinary(versionDirectory, binaryName); binaryPath != "" {
@@ -173,7 +179,7 @@ func (store *Store) install(ctx context.Context, specification, binaryHint strin
 		version = resolved
 	}
 	normalized := normalizeVersion(version)
-	finalPath := filepath.Join(store.root, spec.Directory(), normalized)
+	finalPath := store.host(versionPath(spec, version))
 	operation := atomic.NewOperation(finalPath, true)
 	workPath := operation.StagingPath()
 	defer func() {
@@ -237,8 +243,18 @@ func (store *Store) resolveLatest(ctx context.Context, spec Spec) (string, error
 }
 
 func (store *Store) lookup(spec Spec, binaryName string) (string, error) {
-	versionDirectory := filepath.Join(store.root, spec.Directory(), normalizeVersion(spec.Version))
-	if _, err := os.Stat(versionDirectory); errors.Is(err, os.ErrNotExist) {
+	name := versionPath(spec, spec.Version)
+	versionDirectory := store.host(name)
+	root, err := lewpath.Open(store.directory)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s", ErrToolDirectoryNotFound, versionDirectory)
+	}
+	defer root.Close()
+	isDirectory, err := name.IsDir(root)
+	if err != nil {
+		return "", err
+	}
+	if !isDirectory {
 		return "", fmt.Errorf("%w: %s", ErrToolDirectoryNotFound, versionDirectory)
 	}
 	if binaryPath := FindBinary(versionDirectory, binaryName); binaryPath != "" {
@@ -249,31 +265,35 @@ func (store *Store) lookup(spec Spec, binaryName string) (string, error) {
 
 // ListInstalled returns every version directory under the store. A missing root is an empty list.
 func (store *Store) ListInstalled() ([]Installed, error) {
-	entries, err := os.ReadDir(store.root)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
+	root, err := lewpath.Open(store.directory)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
+	defer root.Close()
 	var installed []Installed
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		toolPath := filepath.Join(store.root, entry.Name())
-		versions, err := os.ReadDir(toolPath)
+	for packageName, err := range lewpath.New(".").IterDir(root) {
 		if err != nil {
+			return nil, err
+		}
+		isDirectory, err := packageName.IsDir(root)
+		if err != nil || !isDirectory {
 			continue
 		}
-		for _, version := range versions {
-			if !version.IsDir() {
+		for versionName, err := range packageName.IterDir(root) {
+			if err != nil {
+				return nil, err
+			}
+			isDirectory, err := versionName.IsDir(root)
+			if err != nil || !isDirectory {
 				continue
 			}
 			installed = append(installed, Installed{
-				Name:    entry.Name(),
-				Version: version.Name(),
-				Path:    filepath.Join(toolPath, version.Name()),
+				Name:    packageName.Name(),
+				Version: versionName.Name(),
+				Path:    joinHost(root.Name(), versionName),
 			})
 		}
 	}
@@ -288,39 +308,46 @@ func (store *Store) Resolve(ctx context.Context, binaryName string) (string, err
 	if err != nil {
 		return "", err
 	}
-	entries, err := os.ReadDir(store.root)
+	root, err := lewpath.Open(store.directory)
 	if err != nil {
 		return "", err
 	}
+	defer root.Close()
 	var candidates []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
+	for packageName, err := range lewpath.New(".").IterDir(root) {
+		if err != nil {
+			return "", err
+		}
+		isDirectory, err := packageName.IsDir(root)
+		if err != nil || !isDirectory {
 			continue
 		}
-		packageDirectory := filepath.Join(store.root, entry.Name())
 		if version == "latest" {
-			versions, err := os.ReadDir(packageDirectory)
-			if err != nil {
-				continue
-			}
 			var names []string
-			for _, versionEntry := range versions {
-				if versionEntry.IsDir() {
-					names = append(names, versionEntry.Name())
+			for versionName, err := range packageName.IterDir(root) {
+				if err != nil {
+					return "", err
 				}
+				isDirectory, err := versionName.IsDir(root)
+				if err != nil || !isDirectory {
+					continue
+				}
+				names = append(names, versionName.Name())
 			}
 			sort.Slice(names, func(i, j int) bool {
 				return CompareVersions(names[i], names[j]) < 0
 			})
 			for i := len(names) - 1; i >= 0; i-- {
-				if binaryPath := FindBinary(filepath.Join(packageDirectory, names[i]), binaryName); binaryPath != "" {
+				binaryPath := FindBinary(joinHost(root.Name(), packageName.Join(names[i])), binaryName)
+				if binaryPath != "" {
 					candidates = append(candidates, binaryPath)
 					break
 				}
 			}
 			continue
 		}
-		if binaryPath := FindBinary(filepath.Join(packageDirectory, version), binaryName); binaryPath != "" {
+		binaryPath := FindBinary(joinHost(root.Name(), packageName.Join(version)), binaryName)
+		if binaryPath != "" {
 			candidates = append(candidates, binaryPath)
 		}
 	}
@@ -351,15 +378,12 @@ func versionFromToolVersions(binaryName string) (string, error) {
 		return "", nil
 	}
 	for {
-		path := filepath.Join(directory, ".tool-versions")
-		if _, err := os.Stat(path); err == nil {
-			version, err := readToolVersion(path, binaryName)
-			if err != nil {
-				return "", err
-			}
-			if version != "" {
-				return version, nil
-			}
+		version, err := readToolVersion(directory, binaryName)
+		if err != nil {
+			return "", err
+		}
+		if version != "" {
+			return version, nil
 		}
 		parent := filepath.Dir(directory)
 		if parent == directory {
@@ -370,13 +394,25 @@ func versionFromToolVersions(binaryName string) (string, error) {
 	return "", nil
 }
 
-func readToolVersion(path, binaryName string) (string, error) {
-	file, err := os.Open(path)
+func readToolVersion(directory, binaryName string) (string, error) {
+	root, err := lewpath.Open(directory)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", err
+	}
+	defer root.Close()
+	name := lewpath.New(".tool-versions")
+	isFile, err := name.IsFile(root)
+	if err != nil || !isFile {
+		return "", err
+	}
+	body, err := name.ReadFile(root)
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(strings.NewReader(string(body)))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -388,9 +424,38 @@ func readToolVersion(path, binaryName string) (string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("scan %s: %w", path, err)
+		return "", fmt.Errorf("scan %s: %w", directory, err)
 	}
 	return "", nil
+}
+
+func versionPath(spec Spec, version string) lewpath.Path {
+	return lewpath.New(spec.Directory(), normalizeVersion(version))
+}
+
+func (store *Store) host(name lewpath.Path) string {
+	return joinHost(store.directory, name)
+}
+
+func (store *Store) versionHasFiles(name lewpath.Path) (bool, error) {
+	root, err := lewpath.Open(store.directory)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer root.Close()
+	for _, err := range name.IterDir(root) {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func fixAndCheck(ctx context.Context, installed Tool, destination string) error {

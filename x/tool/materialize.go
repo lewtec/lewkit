@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	stdpath "path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -56,7 +57,7 @@ func InstallArtifact(ctx context.Context, artifact Artifact, destination string,
 	}
 	defer os.RemoveAll(temporary)
 
-	downloadPath := filepath.Join(temporary, filepath.Base(artifact.URL))
+	downloadPath := filepath.Join(temporary, stdpath.Base(artifact.URL))
 	if err := DownloadFile(ctx, artifact.URL, downloadPath, options); err != nil {
 		return err
 	}
@@ -66,7 +67,7 @@ func InstallArtifact(ctx context.Context, artifact Artifact, destination string,
 		return err
 	}
 	if err := Extract(ctx, downloadPath, extractDirectory); err != nil {
-		return fmt.Errorf("extract %s: %w", filepath.Base(artifact.URL), err)
+		return fmt.Errorf("extract %s: %w", stdpath.Base(artifact.URL), err)
 	}
 	if err := stripTopLevelDirectory(extractDirectory); err != nil {
 		return err
@@ -238,17 +239,27 @@ func installBinary(source, destination string) error {
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return err
 	}
+	root, err := lewpath.Open(destination)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	input, err := os.Open(source)
 	if err != nil {
 		return err
 	}
 	defer input.Close()
-	outputPath := filepath.Join(destination, NormalizeBinaryName(filepath.Base(source)))
-	output, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	outputName := lewpath.New(NormalizeBinaryName(stdpath.Base(source)))
+	output, err := outputName.OpenFile(root, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(output, input); err != nil {
+	writer, ok := output.(io.Writer)
+	if !ok {
+		output.Close()
+		return fmt.Errorf("install binary: %s is not writable", outputName)
+	}
+	if _, err := io.Copy(writer, input); err != nil {
 		output.Close()
 		return err
 	}
@@ -286,18 +297,56 @@ func moveContents(source, destination string) error {
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return err
 	}
-	entries, err := os.ReadDir(source)
+	parent := commonDirectory(source, destination)
+	root, err := lewpath.Open(parent)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		from := filepath.Join(source, entry.Name())
-		to := filepath.Join(destination, entry.Name())
-		if err := os.Rename(from, to); err != nil {
+	defer root.Close()
+	sourceName, err := relativeName(parent, source)
+	if err != nil {
+		return err
+	}
+	destinationName, err := relativeName(parent, destination)
+	if err != nil {
+		return err
+	}
+	for child, err := range sourceName.IterDir(root) {
+		if err != nil {
+			return err
+		}
+		if err := child.Rename(root, destinationName.Join(child.Name())); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func commonDirectory(left, right string) string {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	for {
+		if left == right || strings.HasPrefix(right, left+string(os.PathSeparator)) {
+			return left
+		}
+		parent := filepath.Dir(left)
+		if parent == left {
+			return parent
+		}
+		left = parent
+	}
+}
+
+func relativeName(parent, osPath string) (lewpath.Path, error) {
+	relative, err := filepath.Rel(parent, osPath)
+	if err != nil {
+		return lewpath.Path{}, err
+	}
+	name := lewpath.New(filepath.ToSlash(relative))
+	if !name.Valid() {
+		return lewpath.Path{}, fmt.Errorf("%w: %s", ErrPathEscapes, osPath)
+	}
+	return name, nil
 }
 
 var binaryNameSuffixes = []string{
@@ -351,36 +400,40 @@ func NormalizeBinaryName(name string) string {
 // NormalizeInstalledBinaries renames executables in destination and destination/bin
 // whose names still carry a platform triple or version suffix.
 func NormalizeInstalledBinaries(destination string) error {
-	for _, directory := range []string{destination, filepath.Join(destination, "bin")} {
-		entries, err := os.ReadDir(directory)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
+	root, err := lewpath.Open(destination)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	for _, directory := range []lewpath.Path{lewpath.New("."), lewpath.New("bin")} {
+		for name, err := range directory.IterDir(root) {
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) || errors.Is(err, fs.ErrNotExist) {
+					break
+				}
+				return err
+			}
+			isDirectory, err := name.IsDir(root)
+			if err != nil || isDirectory {
 				continue
 			}
-			return err
-		}
-		for _, entry := range entries {
-			if entry.IsDir() {
-				continue
-			}
-			oldName := entry.Name()
-			newName := NormalizeBinaryName(oldName)
-			if newName == "" || newName == oldName {
-				continue
-			}
-			oldPath := filepath.Join(directory, oldName)
-			info, err := os.Stat(oldPath)
+			info, err := name.Stat(root)
 			if err != nil {
 				return err
 			}
 			if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
 				continue
 			}
-			newPath := filepath.Join(directory, newName)
-			if _, err := os.Stat(newPath); err == nil {
+			newName := NormalizeBinaryName(name.Name())
+			if newName == "" || newName == name.Name() {
 				continue
 			}
-			if err := os.Rename(oldPath, newPath); err != nil {
+			renamed := directory.Join(newName)
+			exists, err := renamed.Exists(root)
+			if err != nil || exists {
+				continue
+			}
+			if err := name.Rename(root, renamed); err != nil {
 				return err
 			}
 		}

@@ -51,7 +51,7 @@ func TestFixRubyShebangs(t *testing.T) {
 	}
 
 	tool := &rubyTool{}
-	if err := tool.fixRubyShebangs(dir); err != nil {
+	if err := tool.fixRubyShebangs(t.Context(), dir); err != nil {
 		t.Fatalf("fixRubyShebangs: %v", err)
 	}
 

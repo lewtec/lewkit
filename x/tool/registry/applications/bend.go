@@ -5,10 +5,10 @@ import (
 	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
+	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -183,9 +183,17 @@ exec -a bun "$ws" tool with bun -- bun "$main" "$@"
 `
 
 func writeBendLauncher(destDir string) error {
-	binDir := filepath.Join(destDir, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(binDir, "bend"), []byte(bendLauncherScript), 0o755)
+	root, err := path.Open(destDir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	launcher := path.New("bin", "bend")
+	if err := launcher.Parent().MkdirAll(root, 0o755); err != nil {
+		return err
+	}
+	return launcher.WriteFile(root, []byte(bendLauncherScript), 0o755)
 }

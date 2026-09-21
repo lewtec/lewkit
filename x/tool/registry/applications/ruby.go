@@ -3,11 +3,11 @@ package applications
 import (
 	"bytes"
 	"context"
+	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/github"
 	"github.com/lewtec/lewkit/x/tool/registry"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -81,15 +81,15 @@ func (t *rubyTool) InstallArtifact(ctx context.Context, artifact tool.Artifact, 
 	if err := tool.InstallArtifact(ctx, artifact, destDir, tool.DownloadOptions{}); err != nil {
 		return err
 	}
-	return t.fixRubyShebangs(destDir)
+	return t.fixRubyShebangs(ctx, destDir)
 }
 
 func (t *rubyTool) EnsureBinary(ctx context.Context, version string, cmdName string, destDir string) (string, error) {
 	return ensureToolBinary(ctx, version, cmdName, destDir, "Ruby", t.Install)
 }
 
-func (t *rubyTool) Fix(_ context.Context, destDir string) error {
-	return t.fixRubyShebangs(destDir)
+func (t *rubyTool) Fix(ctx context.Context, destDir string) error {
+	return t.fixRubyShebangs(ctx, destDir)
 }
 
 // --- helpers (as methods to avoid littering package scope) ---
@@ -98,30 +98,37 @@ func (t *rubyTool) normalizeVersion(version string) string {
 	return normalizeVersion(version, "ruby-", "Ruby-")
 }
 
-func (t *rubyTool) fixRubyShebangs(destDir string) error {
+func (t *rubyTool) fixRubyShebangs(ctx context.Context, destDir string) error {
+	root, err := path.Open(destDir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
 	targetRuby := filepath.Join(destDir, "bin", "ruby")
-	return filepath.Walk(destDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	for name, err := range path.New(".").Walk(ctx, root) {
+		if err != nil {
 			return err
 		}
-		b, err := os.ReadFile(path)
+		isDirectory, err := name.IsDir(root)
+		if err != nil || isDirectory {
+			continue
+		}
+		body, err := name.ReadFile(root)
 		if err != nil {
-			return nil // skip unreadable
+			continue
 		}
-		if !bytes.HasPrefix(b, []byte("#!")) {
-			return nil
+		if !bytes.HasPrefix(body, []byte("#!")) {
+			continue
 		}
-		// locate end of shebang line
-		end := bytes.IndexByte(b, '\n')
+		end := bytes.IndexByte(body, '\n')
 		if end == -1 {
-			end = len(b)
+			end = len(body)
 		}
-		shebang := string(b[:end])
+		shebang := string(body[:end])
 		if !strings.Contains(strings.ToLower(shebang), "ruby") {
-			return nil
+			continue
 		}
 		after := strings.TrimPrefix(shebang, "#!")
-		// split at first whitespace to separate interpreter from args
 		cut := len(after)
 		for i := 0; i < len(after); i++ {
 			if after[i] == ' ' || after[i] == '\t' {
@@ -129,24 +136,30 @@ func (t *rubyTool) fixRubyShebangs(destDir string) error {
 				break
 			}
 		}
-		interp := strings.TrimSpace(after[:cut])
-		argPart := after[cut:]
-		if interp == targetRuby {
-			return nil
+		interpreter := strings.TrimSpace(after[:cut])
+		argumentPart := after[cut:]
+		if interpreter == targetRuby {
+			continue
 		}
-		// only rewrite if it refers to a ruby interpreter
-		base := strings.ToLower(filepath.Base(interp))
-		if !strings.HasPrefix(base, "ruby") && !strings.Contains(strings.ToLower(interp), "ruby") {
-			return nil
+		base := strings.ToLower(filepath.Base(interpreter))
+		if !strings.HasPrefix(base, "ruby") && !strings.Contains(strings.ToLower(interpreter), "ruby") {
+			continue
 		}
-		newShebang := "#!" + targetRuby + argPart
-		newContent := newShebang + string(b[end:])
+		newShebang := "#!" + targetRuby + argumentPart
+		newContent := newShebang + string(body[end:])
+		info, err := name.Stat(root)
+		if err != nil {
+			return err
+		}
 		mode := info.Mode().Perm()
 		if mode == 0 {
 			mode = 0o755
 		}
-		return os.WriteFile(path, []byte(newContent), mode)
-	})
+		if err := name.WriteFile(root, []byte(newContent), mode); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (t *rubyTool) InstallChecks() []tool.Check {

@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
+
+	lewpath "github.com/lewtec/lewkit/x/path"
 )
 
 var (
@@ -109,18 +110,23 @@ func (check pathCheck) Check(ctx context.Context, destination string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	path, err := safeJoin(destination, check.relativePath)
+	name, err := checkName(check.relativePath)
 	if err != nil {
 		return err
 	}
-	info, err := os.Stat(path)
+	root, err := lewpath.Open(destination)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("%s: %w", path, fs.ErrNotExist)
+		return err
+	}
+	defer root.Close()
+	info, err := name.Stat(root)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("%s: %w", joinHost(destination, name), fs.ErrNotExist)
 		}
 		return err
 	}
-	return check.fn(ctx, path, info)
+	return check.fn(ctx, joinHost(destination, name), info)
 }
 
 type binaryCheck struct {
@@ -133,38 +139,41 @@ func (check binaryCheck) Check(ctx context.Context, destination string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	path := FindBinary(destination, check.binaryName)
-	if path == "" {
+	root, err := lewpath.Open(destination)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	var found lewpath.Path
+	for _, candidate := range binaryCandidateNames(check.binaryName) {
+		exists, err := candidate.Exists(root)
+		if err != nil {
+			return err
+		}
+		if exists {
+			found = candidate
+			break
+		}
+	}
+	if found.String() == "" {
 		return fmt.Errorf("%w: %q in %s", ErrBinaryNotFound, check.binaryName, destination)
 	}
-	relative, err := filepath.Rel(destination, path)
-	if err != nil {
+	if err := FileExists(found.String()).Check(ctx, destination); err != nil {
 		return err
 	}
-	if err := FileExists(relative).Check(ctx, destination); err != nil {
-		return err
-	}
-	return Executable(relative).Check(ctx, destination)
+	return Executable(found.String()).Check(ctx, destination)
 }
 
-func safeJoin(destination, relativePath string) (string, error) {
-	destinationAbs, err := filepath.Abs(destination)
-	if err != nil {
-		return "", err
+func checkName(relativePath string) (lewpath.Path, error) {
+	if relativePath == "" || relativePath == "." {
+		return lewpath.Path{}, ErrEmptyRelativePath
 	}
-	cleanRelative := filepath.Clean("/" + filepath.ToSlash(relativePath))
-	cleanRelative = strings.TrimPrefix(cleanRelative, "/")
-	if cleanRelative == "" || cleanRelative == "." {
-		return "", ErrEmptyRelativePath
+	if strings.Contains(relativePath, "..") || strings.HasPrefix(relativePath, "/") || strings.HasPrefix(relativePath, `\`) {
+		return lewpath.Path{}, fmt.Errorf("%w: %q", ErrPathEscapes, relativePath)
 	}
-	joined := filepath.Join(destinationAbs, filepath.FromSlash(cleanRelative))
-	joinedAbs, err := filepath.Abs(joined)
-	if err != nil {
-		return "", err
+	name := lewpath.New(relativePath)
+	if !name.Valid() || name.IsAbs() {
+		return lewpath.Path{}, fmt.Errorf("%w: %q", ErrPathEscapes, relativePath)
 	}
-	separator := string(os.PathSeparator)
-	if joinedAbs != destinationAbs && !strings.HasPrefix(joinedAbs, destinationAbs+separator) {
-		return "", fmt.Errorf("%w: %q", ErrPathEscapes, relativePath)
-	}
-	return joinedAbs, nil
+	return name, nil
 }

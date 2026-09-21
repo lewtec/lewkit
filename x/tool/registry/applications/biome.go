@@ -3,10 +3,11 @@ package applications
 import (
 	"context"
 	"fmt"
+	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/github"
 	"github.com/lewtec/lewkit/x/tool/registry"
-	"os"
+	stdpath "path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -141,15 +142,19 @@ func (t *biomeTool) EnsureBinary(ctx context.Context, version string, cmdName st
 		return p, nil
 	}
 	// Last resort: anything starting with biome after installBinary normalization.
-	entries, readErr := os.ReadDir(destDir)
+	root, readErr := path.Open(destDir)
 	if readErr == nil {
-		for _, e := range entries {
-			if e.IsDir() {
+		defer root.Close()
+		for name, iterErr := range path.New(".").IterDir(root) {
+			if iterErr != nil {
+				break
+			}
+			isDirectory, statErr := name.IsDir(root)
+			if statErr != nil || isDirectory {
 				continue
 			}
-			n := e.Name()
-			if strings.HasPrefix(n, "biome") {
-				return filepath.Join(destDir, n), nil
+			if strings.HasPrefix(name.Name(), "biome") {
+				return filepath.Join(destDir, name.Name()), nil
 			}
 		}
 	}
@@ -196,7 +201,7 @@ func normalizeBiomeVersion(version string) string {
 // parseBiomeAssetURL recovers OS/arch from biome release asset basenames such as
 // biome-darwin-arm64, biome-linux-x64-musl, biome-win32-x64.exe.
 func parseBiomeAssetURL(rawURL string) (osName, arch string, ok bool) {
-	base := strings.ToLower(filepath.Base(rawURL))
+	base := strings.ToLower(stdpath.Base(rawURL))
 	base = strings.TrimSuffix(base, ".exe")
 
 	switch {
@@ -239,7 +244,7 @@ func selectBiomeArtifact(arts []tool.Artifact, goos, goarch string) *tool.Artifa
 			continue
 		}
 		score := 100
-		base := strings.ToLower(filepath.Base(a.URL))
+		base := strings.ToLower(stdpath.Base(a.URL))
 		if strings.Contains(base, "musl") {
 			score -= 40
 		}

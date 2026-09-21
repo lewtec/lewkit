@@ -30,6 +30,14 @@ func TestBinaryCandidates(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsParent(t *testing.T) {
+	destination := t.TempDir()
+	err := FileExists("../outside").Check(t.Context(), destination)
+	if !errors.Is(err, ErrPathEscapes) {
+		t.Fatalf("Check() = %v, want ErrPathEscapes", err)
+	}
+}
+
 func TestCheckEmptyRelativePath(t *testing.T) {
 	destination := t.TempDir()
 	err := FileExists(".").Check(t.Context(), destination)

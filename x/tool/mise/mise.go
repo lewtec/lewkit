@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 )
 
@@ -110,19 +111,32 @@ func symlinkBinary(destination, binaryPath, commandName string) (string, error) 
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return "", err
 	}
-	linkPath := filepath.Join(destination, "bin", commandName)
-	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+	root, err := lewpath.Open(destination)
+	if err != nil {
 		return "", err
 	}
-	if _, err := os.Lstat(linkPath); err == nil {
-		if err := os.Remove(linkPath); err != nil {
+	defer root.Close()
+	link := lewpath.New("bin", commandName)
+	if err := link.Parent().MkdirAll(root, 0o755); err != nil {
+		return "", err
+	}
+	if exists, err := link.IsSymlink(root); err != nil {
+		return "", err
+	} else if exists {
+		if err := link.Remove(root); err != nil {
+			return "", err
+		}
+	} else if exists, err := link.Exists(root); err != nil {
+		return "", err
+	} else if exists {
+		if err := link.Remove(root); err != nil {
 			return "", err
 		}
 	}
-	if err := os.Symlink(binaryPath, linkPath); err != nil {
+	if err := root.Symlink(binaryPath, link.String()); err != nil {
 		return "", err
 	}
-	return linkPath, nil
+	return filepath.Join(root.Name(), filepath.FromSlash(link.String())), nil
 }
 
 func miseBinary() (string, error) {

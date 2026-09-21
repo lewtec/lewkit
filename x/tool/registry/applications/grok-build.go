@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry"
 	"io"
@@ -107,10 +108,16 @@ func (t *grokBuildTool) InstallArtifact(ctx context.Context, art tool.Artifact, 
 	if runtime.GOOS == "windows" {
 		agent = "agent.exe"
 	}
-	if rmErr := os.Remove(filepath.Join(destDir, agent)); rmErr != nil && !errors.Is(rmErr, os.ErrNotExist) {
-		// agent symlink target removal is best-effort (may not exist)
+	root, err := lewpath.Open(destDir)
+	if err != nil {
+		return err
 	}
-	if err := os.Symlink(bin, filepath.Join(destDir, agent)); err != nil {
+	defer root.Close()
+	agentLink := lewpath.New(agent)
+	if err := agentLink.Remove(root); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	if err := root.Symlink(bin, agentLink.String()); err != nil {
 		return fmt.Errorf("symlink agent: %w", err)
 	}
 	return nil
