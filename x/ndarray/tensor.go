@@ -369,6 +369,17 @@ func (t *Tensor[T]) view(tr Tracker, err error) (*Tensor[T], error) {
 	return t.withTracker(tr), nil
 }
 
+func (t *Tensor[T]) viewTrack(op func(Tracker) (Tracker, error)) (*Tensor[T], error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	t, err := t.ensureTracker()
+	if err != nil {
+		return nil, err
+	}
+	return t.view(op(t.node.tracker))
+}
+
 // Reshape changes the logical shape. Product must match. One -1 is inferred.
 func (t *Tensor[T]) Reshape(shape Shape) (*Tensor[T], error) {
 	if t == nil {
@@ -377,47 +388,22 @@ func (t *Tensor[T]) Reshape(shape Shape) (*Tensor[T], error) {
 	if t.Shape().Equal(shape) {
 		return t, nil
 	}
-	t, err := t.ensureTracker()
-	if err != nil {
-		return nil, err
-	}
-	return t.view(t.node.tracker.Reshape(shape))
+	return t.viewTrack(func(tr Tracker) (Tracker, error) { return tr.Reshape(shape) })
 }
 
 // Permute reorders axes.
 func (t *Tensor[T]) Permute(axes ...int) (*Tensor[T], error) {
-	if t == nil {
-		return nil, ErrOp
-	}
-	t, err := t.ensureTracker()
-	if err != nil {
-		return nil, err
-	}
-	return t.view(t.node.tracker.Permute(axes...))
+	return t.viewTrack(func(tr Tracker) (Tracker, error) { return tr.Permute(axes...) })
 }
 
 // Expand broadcasts size-1 axes.
 func (t *Tensor[T]) Expand(shape Shape) (*Tensor[T], error) {
-	if t == nil {
-		return nil, ErrOp
-	}
-	t, err := t.ensureTracker()
-	if err != nil {
-		return nil, err
-	}
-	return t.view(t.node.tracker.Expand(shape))
+	return t.viewTrack(func(tr Tracker) (Tracker, error) { return tr.Expand(shape) })
 }
 
 // Pad adds zeros around the logical tensor.
 func (t *Tensor[T]) Pad(arg [][2]int) (*Tensor[T], error) {
-	if t == nil {
-		return nil, ErrOp
-	}
-	t, err := t.ensureTracker()
-	if err != nil {
-		return nil, err
-	}
-	return t.view(t.node.tracker.Pad(arg))
+	return t.viewTrack(func(tr Tracker) (Tracker, error) { return tr.Pad(arg) })
 }
 
 // Splat broadcasts a 1-cell tensor.
@@ -430,26 +416,12 @@ func (t *Tensor[T]) Splat() (*Tensor[T], error) {
 
 // Shrink crops to the given half-open ranges.
 func (t *Tensor[T]) Shrink(arg [][2]int) (*Tensor[T], error) {
-	if t == nil {
-		return nil, ErrOp
-	}
-	t, err := t.ensureTracker()
-	if err != nil {
-		return nil, err
-	}
-	return t.view(t.node.tracker.Shrink(arg))
+	return t.viewTrack(func(tr Tracker) (Tracker, error) { return tr.Shrink(arg) })
 }
 
 // Flip reverses the given axes.
 func (t *Tensor[T]) Flip(axes ...int) (*Tensor[T], error) {
-	if t == nil {
-		return nil, ErrOp
-	}
-	t, err := t.ensureTracker()
-	if err != nil {
-		return nil, err
-	}
-	return t.view(t.node.tracker.Flip(axes...))
+	return t.viewTrack(func(tr Tracker) (Tracker, error) { return tr.Flip(axes...) })
 }
 
 func (t *Tensor[T]) Add(o *Tensor[T]) *Tensor[T] {
