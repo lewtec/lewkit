@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/lewtec/lewkit/x/ffi"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var (
@@ -20,12 +20,12 @@ var (
 // and doctor did not.
 func ensurePlatform() {
 	platformOnce.Do(func() {
-		lib, err := ffi.Open("/System/Library/Frameworks/Metal.framework/Metal", ffi.Lazy)
+		lib, err := native.Open("/System/Library/Frameworks/Metal.framework/Metal", native.Lazy)
 		if err != nil {
 			slog.Debug("vulkan metal framework", "err", err)
 			return
 		}
-		ffi.Func(lib, "MTLCreateSystemDefaultDevice", &createMetalDevice)
+		native.Func(lib, "MTLCreateSystemDefaultDevice", &createMetalDevice)
 		if createMetalDevice == nil {
 			slog.Debug("vulkan metal create missing")
 			return

@@ -6,13 +6,14 @@
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or this package
 // so the factory registers. [List] returns every compute-capable GPU;
 // [Open] takes the highest-weight handle (llvmpipe is weight 0).
+// Libvulkan stays in [github.com/lewtec/lewkit/x/ffi/native/vulkan].
 package vulkan
 
 import (
 	"context"
 
 	"github.com/lewtec/lewkit/x/driver"
-	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
+	ffivulkan "github.com/lewtec/lewkit/x/ffi/native/vulkan"
 )
 
 // DeviceType is [ffivulkan.DeviceType]: software, integrated, dedicated, virtual.
@@ -50,61 +51,86 @@ func VendorFrom(vendorID uint32, name string) Vendor {
 	return ffivulkan.VendorFrom(vendorID, name)
 }
 
+// Buffer, Shader, Cmd, and ShaderConfig are the binding types programs use.
+type (
+	Buffer       = ffivulkan.Buffer
+	Shader       = ffivulkan.Shader
+	Cmd          = ffivulkan.Cmd
+	ShaderConfig = ffivulkan.ShaderConfig
+)
+
 // Device is one compute-capable Vulkan GPU.
+// The libvulkan handle stays inside this package.
 type Device interface {
 	Name() string
 	Vendor() Vendor
 	Type() DeviceType
-	Native() *ffivulkan.Device
 	Close() error
+	Buffer(size int) (*Buffer, error)
+	Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
+	Begin() (*Cmd, error)
 }
 
 type device struct {
-	native *ffivulkan.Device
+	binding *ffivulkan.Device
 }
 
 func (d *device) Name() string {
-	if d == nil || d.native == nil {
+	if d == nil || d.binding == nil {
 		return ""
 	}
-	return d.native.Name()
+	return d.binding.Name()
 }
 
 func (d *device) Vendor() Vendor {
-	if d == nil || d.native == nil {
+	if d == nil || d.binding == nil {
 		return VendorUnknown
 	}
-	return d.native.Vendor()
+	return d.binding.Vendor()
 }
 
 func (d *device) Type() DeviceType {
-	if d == nil || d.native == nil {
+	if d == nil || d.binding == nil {
 		return DeviceTypeOther
 	}
-	return d.native.Type()
+	return d.binding.Type()
 }
 
-func (d *device) Native() *ffivulkan.Device {
-	if d == nil {
-		return nil
+func (d *device) Buffer(size int) (*Buffer, error) {
+	if d == nil || d.binding == nil {
+		return nil, ffivulkan.ErrClosed
 	}
-	return d.native
+	return d.binding.Buffer(size)
+}
+
+func (d *device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error) {
+	if d == nil || d.binding == nil {
+		return nil, ffivulkan.ErrClosed
+	}
+	return d.binding.Compile(ctx, cfg)
+}
+
+func (d *device) Begin() (*Cmd, error) {
+	if d == nil || d.binding == nil {
+		return nil, ffivulkan.ErrClosed
+	}
+	return d.binding.Begin()
 }
 
 func (d *device) Close() error {
-	if d == nil || d.native == nil {
+	if d == nil || d.binding == nil {
 		return nil
 	}
-	err := d.native.Close()
-	d.native = nil
+	err := d.binding.Close()
+	d.binding = nil
 	return err
 }
 
-func wrap(native *ffivulkan.Device) Device {
-	if native == nil {
+func wrap(binding *ffivulkan.Device) Device {
+	if binding == nil {
 		return nil
 	}
-	return &device{native: native}
+	return &device{binding: binding}
 }
 
 // Open returns the highest-weight compatible GPU.

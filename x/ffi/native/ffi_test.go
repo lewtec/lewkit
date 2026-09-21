@@ -1,4 +1,4 @@
-package ffi
+package native
 
 import (
 	"runtime"

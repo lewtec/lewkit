@@ -5,7 +5,7 @@ import (
 	_ "embed"
 	"os"
 
-	"github.com/lewtec/lewkit/x/wasm/glsl"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 )
 
 //go:embed example.comp

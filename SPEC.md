@@ -46,6 +46,9 @@ Inherited C (cite the file):
 | TEC-02 | A type that matches two of `tui`, `web`, `gui` | Split it into two types. Each type has one native export. | No shared `Widget` in `x/ui` |
 | TEC-03 | A type under `x/ui` | The type is a component. The application opens the host. `gui.Run` drives a supplied `Window` the way `tea.Program` drives a terminal. | `window.Open` stays outside `gui` |
 | TEC-04 | An import edge | `tui`, `web`, and `gui` MAY import host and engine. Host and engine MUST NOT import them. | Acyclic ownership |
+| TEC-05 | A C library loaded with `dlopen` | Place the package under `x/ffi/native`. The package imports `x/ffi/native`. | One binding at `x/ffi/native/<name>` |
+| TEC-06 | A C library loaded with the wasm runtime | Place the package under `x/ffi/wasm`. The package imports `x/ffi/wasm`. | One binding at `x/ffi/wasm/<name>` |
+| TEC-07 | A driver over a binding | The driver imports the binding. The driver does not import `x/ffi/native`. The driver does not import `x/ffi/wasm`. | A facade |
 
 ## Tooling
 
@@ -55,6 +58,9 @@ Inherited C (cite the file):
 | TEC-02 | this SPEC | implement | unify `tui`, `web`, and `gui` behind one interface | none |
 | TEC-03 | existing host loops | wrap | start the host loop from `x/ui` packages | path:x/driver/window path:x/taskgroup/progress |
 | TEC-04 | ndarray + window | wrap | relocate Present into `gui`; relocate Tensor into `gui` | path:x/ndarray path:x/driver/window |
+| TEC-05 | purego | wrap | call `Dlopen` from a binding | go.mod path:x/ffi/native |
+| TEC-06 | wazero | wrap | call wazero from a binding | go.mod path:x/ffi/wasm |
+| TEC-07 | this SPEC | implement | return the binding device from `x/driver/vulkan` | path:x/driver/vulkan path:x/ffi/native/vulkan |
 | TEC-01 tui | bubbletea v2 | adopt | write a terminal runtime | go.mod path:x/taskgroup/progress |
 | TEC-01 gui | ndarray 21-op graph | wrap | add a rasterizer beside ndarray | path:x/ndarray |
 
@@ -81,6 +87,8 @@ templ is later work. It is not an adopted tool in this module.
 | Model | Init, Update, View (bubbletea shape; View is a layout Node) | Widget, Flutter Element |
 | host | `x/driver/window` | gui, windowing toolkit |
 | engine | `x/ndarray` | tinygrad |
+| binding | C library package nested under the loader package it imports | facade |
+| facade | package that imports a binding and does not import `x/ffi/native`. It does not import `x/ffi/wasm` | binding |
 | viewer | code that uses a toolkit to show another package's type | component package |
 | demo | `cmd/lewkit/experiments` | component package |
 
@@ -99,6 +107,15 @@ templ is later work. It is not an adopted tool in this module.
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label` | value | blit stays here | existing blit errors | hold bubbletea types; hold templ; hold transformers |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
+| `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
+| `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan` |
+| `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
+| `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd` | libvulkan binding | compute subset stays here | existing vulkan errors | import `x/ffi/wasm` |
+| `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
+| `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
+| `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
+| `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
+| `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
 | `cmd/lewkit/experiments` | commands, not a library | demo | demos MAY stay | command failure | import experiments as a component package |
 
 ## Invariants
@@ -117,6 +134,21 @@ templ is later work. It is not an adopted tool in this module.
 | INV-10 | `gui.Run` consumes a caller-supplied `Window`. It MUST NOT call `window.Open`. | `x/ui/gui` | `gui` opening a host window |
 | INV-11 | This module is not a UI library | this repository | advertising `x/ui` as the product; a Flutter widget tree as the public API |
 | INV-12 | Host window events include `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, and `Key` | `x/driver/window` | pointer `Msg` types that the host does not emit |
+| INV-13 | `x/ffi` has no Go package | `x/ffi` | a `.go` file whose package is `ffi` |
+| INV-14 | `x/ffi/native` does not import `x/ffi/native/vulkan` | `x/ffi/native` | that import |
+| INV-15 | `x/ffi/wasm` does not import `x/ffi/wasm/glsl` | `x/ffi/wasm` | that import |
+| INV-16 | `x/ffi/wasm` does not import `x/ffi/wasm/capstone` | `x/ffi/wasm` | that import |
+| INV-17 | `x/ffi/native/vulkan` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
+| INV-18 | `x/ffi/wasm/glsl` imports `x/ffi/wasm` | that package | an import of `x/ffi/native` |
+| INV-19 | `x/ffi/wasm/capstone` imports `x/ffi/wasm` | that package | an import of `x/ffi/native` |
+| INV-20 | `x/driver/vulkan.Device` does not return the binding device | `x/driver/vulkan` | a method whose result type is the binding `Device` |
+| INV-21 | `x/driver/vulkan` does not import `x/ffi/native` | `x/driver/vulkan` | that import |
+| INV-22 | `x/driver/ndeval` does not import `x/ffi/native/vulkan` | `x/driver/ndeval` | that import |
+| INV-23 | `x/driver/ndeval` does not import `x/ffi/wasm` | `x/driver/ndeval` | that import |
+| INV-24 | `x/disasm` does not import `x/ffi/wasm` | `x/disasm` | that import |
+| INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/thread/id_unix.go` | an import of `x/ffi/wasm` |
+| INV-26 | `x/driver/window/cocoa` loads frameworks through `x/ffi/native` | cocoa darwin files | an import of `x/ffi/wasm` |
+| INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/thread/main_darwin.go` | an import of `x/ffi/wasm` |
 
 ## Errors
 
@@ -127,6 +159,8 @@ templ is later work. It is not an adopted tool in this module.
 | Place a type | Uses bubbletea to view `Session` | Keep it in `x/taskgroup/progress`. |
 | Place a type | First templ template in the module | Create `x/ui/web`. MUST NOT put the file in `gui`. MUST NOT put the file in `tui`. |
 | Place a type | First reusable tensor transformer for a pixel frame | Create `x/ui/gui`. MUST NOT leave it in `x/ndarray`. MUST NOT leave it in `x/driver/window`. |
+| Place a C library | The package calls `native.Open` and its parent is not `x/ffi/native` | Move the package under `x/ffi/native`. |
+| Place a C library | The package calls `wasm.Compile` and its parent is not `x/ffi/wasm` | Move the package under `x/ffi/wasm`. |
 | Export from `x/ui` | A Go type on the namespace | Move the type into the one of `tui`, `web`, `gui` that needs it. |
 | `gui.Run` | nil `Model` | Return `ErrModel`. |
 | `gui.Run` | nil `Window` | Return `window.ErrClosed`. |
@@ -161,6 +195,11 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - [ ] `x/ui` has no exported Go type.
 - [ ] README still describes lewkit as a reuse library of primitives.
 - [ ] `gui.Model` is Init, Update, View. View is a layout Node, not a tensor.
+- [ ] `x/ffi` contains no `.go` file.
+- [ ] `x/driver/vulkan` does not declare `Native`.
+- [ ] `x/driver/ndeval` does not import `x/ffi/native/vulkan`.
+- [ ] `x/disasm` does not import `x/ffi/wasm`.
+- [ ] `x/ffi/native/vulkan` does not import `x/ffi/wasm`.
 
 ## Later work
 
@@ -183,3 +222,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-20: `gui` follows bubbletea (`Model` / `Msg` / `Cmd` / `Run`) with tensors in `View`. Host events are `Resize`, `Expose`, `Close` only. Rejected: Flutter widget tree as the public API; `gui` calling `window.Open`.
 - 2026-09-21: `gui.Model.View` returns a layout `Node`. `Run` paints it through `Picture` to a `(h,w,4)` tensor.
 - 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.
+- 2026-09-21: C libraries live under the mechanism that loads them. `x/ffi/native/vulkan`, `x/ffi/wasm/glsl`, `x/ffi/wasm/capstone`. `x/driver/vulkan`, `x/driver/ndeval`, and `x/disasm` are facades. `x/ffi` is not a Go package. `x/thread` and cocoa call `x/ffi/native`.
