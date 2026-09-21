@@ -142,34 +142,7 @@ func TestTree(t *testing.T) {
 	})
 	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
-
-	ents, err := fsys.ReadDir(".")
-	require.NoError(t, err)
-	require.Len(t, ents, 2)
-	assert.Equal(t, "a", ents[0].Name())
-	assert.True(t, ents[0].IsDir())
-	assert.Equal(t, "z.txt", ents[1].Name())
-	assert.False(t, ents[1].IsDir())
-
-	ents, err = fsys.ReadDir("a")
-	require.NoError(t, err)
-	require.Len(t, ents, 1)
-	assert.Equal(t, "b.txt", ents[0].Name())
-
-	b, err := fsys.ReadFile("a/b.txt")
-	require.NoError(t, err)
-	assert.Equal(t, "hello", string(b))
-
-	st, err := fsys.Stat("a")
-	require.NoError(t, err)
-	assert.True(t, st.IsDir())
-
-	_, err = fsys.Open("missing")
-	require.ErrorIs(t, err, fs.ErrNotExist)
-
-	_, err = fsys.Open("../x")
-	require.ErrorIs(t, err, fs.ErrInvalid)
-
+	test.ArchiveTree(t, fsys)
 	_, err = fsys.ReadFile("a")
 	require.ErrorIs(t, err, fs.ErrInvalid)
 }
@@ -179,16 +152,7 @@ func TestReadAt(t *testing.T) {
 	r := packTar(t, map[string][]byte{"a.bin": []byte("hello world")})
 	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
-	f, err := fsys.Open("a.bin")
-	require.NoError(t, err)
-	t.Cleanup(func() { f.Close() })
-	ra, ok := f.(io.ReaderAt)
-	require.True(t, ok)
-	buf := make([]byte, 5)
-	n, err := ra.ReadAt(buf, 6)
-	require.NoError(t, err)
-	assert.Equal(t, 5, n)
-	assert.Equal(t, "world", string(buf))
+	test.ArchiveReadAt(t, fsys)
 }
 
 func TestSkipPayload(t *testing.T) {
