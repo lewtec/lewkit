@@ -8,6 +8,8 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -15,36 +17,102 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+// Format encodes one structured map. [Register] stores it under a type name.
+type Format func(data map[string]any) ([]byte, error)
+
+var (
+	formatMu sync.RWMutex
+	formats  = map[Type]Format{
+		TypeJSON: encodeJSON,
+		TypeTOML: encodeTOML,
+		TypeYAML: encodeYAML,
+		TypeINI:  encodeINI,
+		TypeXML:  encodeXML,
+	}
+)
+
+// Register adds a structured format under name.
+// lines, text, and ref are slot types and cannot be registered.
+// [Mount] includes every registered name in #StructuredType.
+func Register(name Type, format Format) error {
+	switch name {
+	case "", TypeLines, TypeText, TypeRef:
+		return fmt.Errorf("%w: %q", ErrType, name)
+	}
+	if format == nil {
+		return fmt.Errorf("%w: nil format", ErrType)
+	}
+	formatMu.Lock()
+	defer formatMu.Unlock()
+	if _, exists := formats[name]; exists {
+		return fmt.Errorf("%w: %q", ErrRegistered, name)
+	}
+	formats[name] = format
+	return nil
+}
+
+// Formats returns the registered structured type names, sorted.
+func Formats() []Type {
+	formatMu.RLock()
+	defer formatMu.RUnlock()
+	names := make([]Type, 0, len(formats))
+	for name := range formats {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+func lookupFormat(name Type) (Format, bool) {
+	formatMu.RLock()
+	defer formatMu.RUnlock()
+	format, ok := formats[name]
+	return format, ok
+}
+
 func encodeStructured(fileType Type, data map[string]any) ([]byte, error) {
+	format, ok := lookupFormat(fileType)
+	if !ok {
+		return nil, fmt.Errorf("%w: %q", ErrType, fileType)
+	}
 	if data == nil {
 		data = map[string]any{}
 	}
-	var (
-		body []byte
-		err  error
-	)
-	switch fileType {
-	case TypeJSON:
-		body, err = json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			return nil, err
-		}
-		body = append(body, '\n')
-	case TypeTOML:
-		body, err = toml.Marshal(data)
-	case TypeYAML:
-		body, err = yaml.Marshal(data)
-	case TypeINI:
-		body, err = encodeINI(data)
-	case TypeXML:
-		body, err = encodeXML(data)
-	default:
-		return nil, fmt.Errorf("%w: %q", ErrType, fileType)
-	}
+	body, err := format(data)
 	if err != nil {
 		return nil, err
 	}
 	return ensureNewline(body), nil
+}
+
+func encodeJSON(data map[string]any) ([]byte, error) {
+	return json.MarshalIndent(data, "", "  ")
+}
+
+func encodeTOML(data map[string]any) ([]byte, error) {
+	return toml.Marshal(data)
+}
+
+func encodeYAML(data map[string]any) ([]byte, error) {
+	return yaml.Marshal(data)
+}
+
+// structuredTypesCUE is a #StructuredType disjunction of the registered names.
+func structuredTypesCUE() string {
+	names := Formats()
+	if len(names) == 0 {
+		return "#StructuredType: string\n"
+	}
+	var builder strings.Builder
+	builder.WriteString("#StructuredType: ")
+	for index, name := range names {
+		if index > 0 {
+			builder.WriteString(" | ")
+		}
+		builder.WriteString(strconv.Quote(string(name)))
+	}
+	builder.WriteByte('\n')
+	return builder.String()
 }
 
 func ensureNewline(body []byte) []byte {

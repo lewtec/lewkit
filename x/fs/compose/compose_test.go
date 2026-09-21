@@ -482,6 +482,55 @@ func TestRefFileRequiresRefSlot(t *testing.T) {
 	assert.Equal(t, "body", string(got))
 }
 
+func TestRegisterFormat(t *testing.T) {
+	t.Parallel()
+	err := Register(TypeJSON, encodeJSON)
+	require.ErrorIs(t, err, ErrRegistered)
+	err = Register(TypeLines, encodeJSON)
+	require.ErrorIs(t, err, ErrType)
+	err = Register("demo", nil)
+	require.ErrorIs(t, err, ErrType)
+
+	err = Register("demo", func(data map[string]any) ([]byte, error) {
+		text, _ := data["k"].(string)
+		return []byte(text), nil
+	})
+	if err != nil {
+		require.ErrorIs(t, err, ErrRegistered)
+	}
+	body, err := Encode(File{Type: "demo", Data: map[string]any{"k": "hi"}}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "hi\n", string(body))
+	assert.Contains(t, Formats(), Type("demo"))
+
+	source, err := Mount("app.dest")
+	require.NoError(t, err)
+	assert.Contains(t, source, `"json"`)
+	assert.Contains(t, source, `"demo"`)
+
+	cueContext := cuecontext.New()
+	rejected := cueContext.CompileString(`
+app: dest: "a.json": {type: "nope", values: {a: 1}}
+`, cue.Filename("nope.cue"))
+	require.NoError(t, rejected.Err())
+	_, err = Constrain(rejected, "app.dest")
+	require.Error(t, err)
+
+	accepted := cueContext.CompileString(`
+app: dest: "a.demo": {type: "demo", values: {k: "hi"}}
+`, cue.Filename("demo.cue"))
+	require.NoError(t, accepted.Err())
+	constrained, err := Constrain(accepted, "app.dest")
+	require.NoError(t, err)
+	tree, err := Parse(constrained.LookupPath(cue.ParsePath("app.dest")))
+	require.NoError(t, err)
+	filesystem, err := tree.FS(nil)
+	require.NoError(t, err)
+	got, err := iofs.ReadFile(filesystem, "a.demo")
+	require.NoError(t, err)
+	assert.Equal(t, "hi\n", string(got))
+}
+
 func TestNestedDirectoryFromStructuredPath(t *testing.T) {
 	t.Parallel()
 	source := fstest.MapFS{

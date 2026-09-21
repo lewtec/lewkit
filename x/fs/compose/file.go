@@ -78,12 +78,8 @@ func (fileType Type) known() bool {
 }
 
 func (fileType Type) structured() bool {
-	switch fileType {
-	case TypeJSON, TypeTOML, TypeYAML, TypeINI, TypeXML:
-		return true
-	default:
-		return false
-	}
+	_, ok := lookupFormat(fileType)
+	return ok
 }
 
 func (file File) check() error {

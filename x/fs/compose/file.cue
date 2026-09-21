@@ -25,8 +25,11 @@
 	mode?:  int
 	values: [string]: #Slot
 })
+// StructuredType is tightened by Mount to the names in the format registry.
+#StructuredType: string
+
 #FileStructured: close({
-	type:   "json" | "toml" | "yaml" | "ini" | "xml"
+	type:   #StructuredType
 	mode?:  int
 	values: [string]: _
 })

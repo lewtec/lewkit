@@ -22,6 +22,8 @@ var (
 	ErrRef = errors.New("ref slot")
 	// ErrMount is a CUE mount path that is not a dotted identifier chain.
 	ErrMount = errors.New("invalid cue mount path")
+	// ErrRegistered is [Register] of a name that already has a format.
+	ErrRegistered = errors.New("format already registered")
 )
 
 var (

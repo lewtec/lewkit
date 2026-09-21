@@ -30,6 +30,7 @@ func Mount(mountPath string) (string, error) {
 	if !strings.HasSuffix(schemaSource, "\n") {
 		builder.WriteByte('\n')
 	}
+	builder.WriteString(structuredTypesCUE())
 	builder.WriteString("}\n")
 	for index, part := range parts {
 		builder.WriteString(strings.Repeat("\t", index))

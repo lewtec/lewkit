@@ -12,6 +12,8 @@
 // [Tree.FS]. Names that still end in .tmpl are skipped. Render templates
 // before [Squash].
 //
-// [Mount] constrains a CUE path to #Tree. [Parse] reads that value into a
-// tree. [FS.Open] returns the combined file. Slot keys are not filesystem names.
+// [Register] adds a structured format under a type name. json, toml, yaml,
+// ini, and xml are already registered. [Mount] constrains #StructuredType to
+// the names registered at that call. [Parse] reads a #Tree value.
+// [FS.Open] returns the combined file. Slot keys are not filesystem names.
 package compose
