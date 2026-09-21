@@ -3,6 +3,7 @@ package compose
 import (
 	"fmt"
 	iofs "io/fs"
+	"maps"
 
 	"github.com/lewtec/lewkit/x/path"
 )
@@ -20,7 +21,7 @@ func New() *Tree {
 // Add merges one file into the tree.
 func (tree *Tree) Add(name path.Path, file File) error {
 	if tree == nil {
-		return ErrNilTree
+		return errNilTree
 	}
 	if err := checkName(name); err != nil {
 		return pathError("merge", name.String(), err)
@@ -61,18 +62,10 @@ func (tree *Tree) Merge(other *Tree) error {
 		return nil
 	}
 	if tree == nil {
-		return ErrNilTree
+		return errNilTree
 	}
-	type item struct {
-		name string
-		file File
-	}
-	snapshot := make([]item, 0, len(other.files))
-	for name, file := range other.files {
-		snapshot = append(snapshot, item{name: name, file: file})
-	}
-	for _, entry := range snapshot {
-		if err := tree.Add(path.New(entry.name), entry.file); err != nil {
+	for name, file := range maps.Clone(other.files) {
+		if err := tree.Add(path.New(name), file); err != nil {
 			return err
 		}
 	}

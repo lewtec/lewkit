@@ -56,7 +56,7 @@ func Constrain(value cue.Value, mountPath string) (cue.Value, error) {
 	}
 	cueContext := value.Context()
 	if cueContext == nil {
-		return cue.Value{}, fmt.Errorf("constrain %s: %w", mountPath, ErrNilCue)
+		return cue.Value{}, fmt.Errorf("constrain %s: %w", mountPath, errNilCue)
 	}
 	layer := cueContext.CompileString(source, cue.Filename("compose.cue"))
 	if err := layer.Err(); err != nil {

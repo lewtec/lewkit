@@ -34,30 +34,6 @@ func normalize(value any) (any, error) {
 	switch typed := value.(type) {
 	case nil, string, bool:
 		return typed, nil
-	case int:
-		return int64(typed), nil
-	case int8:
-		return int64(typed), nil
-	case int16:
-		return int64(typed), nil
-	case int32:
-		return int64(typed), nil
-	case int64:
-		return typed, nil
-	case uint:
-		return normalizeUint(uint64(typed))
-	case uint8:
-		return normalizeUint(uint64(typed))
-	case uint16:
-		return normalizeUint(uint64(typed))
-	case uint32:
-		return normalizeUint(uint64(typed))
-	case uint64:
-		return normalizeUint(typed)
-	case float32:
-		return normalizeFloat(float64(typed))
-	case float64:
-		return normalizeFloat(typed)
 	case json.Number:
 		if integer, err := typed.Int64(); err == nil {
 			return integer, nil
@@ -87,6 +63,15 @@ func normalize(value any) (any, error) {
 			out[index] = normalized
 		}
 		return out, nil
+	}
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return reflected.Int(), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return normalizeUint(reflected.Uint())
+	case reflect.Float32, reflect.Float64:
+		return normalizeFloat(reflected.Float())
 	default:
 		return nil, fmt.Errorf("%w: %T", ErrData, value)
 	}
@@ -110,14 +95,18 @@ func normalizeFloat(value float64) (any, error) {
 	return value, nil
 }
 
+func cloneMap(data map[string]any) map[string]any {
+	out := make(map[string]any, len(data))
+	for key, child := range data {
+		out[key] = cloneValue(child)
+	}
+	return out
+}
+
 func cloneValue(value any) any {
 	switch typed := value.(type) {
 	case map[string]any:
-		out := make(map[string]any, len(typed))
-		for key, child := range typed {
-			out[key] = cloneValue(child)
-		}
-		return out
+		return cloneMap(typed)
 	case []any:
 		out := make([]any, len(typed))
 		for index, child := range typed {
@@ -130,14 +119,7 @@ func cloneValue(value any) any {
 }
 
 func mergeData(left, right map[string]any) (map[string]any, error) {
-	out := map[string]any{}
-	if left != nil {
-		cloned, ok := cloneValue(left).(map[string]any)
-		if !ok {
-			return nil, ErrData
-		}
-		out = cloned
-	}
+	out := cloneMap(left)
 	for key, rightValue := range right {
 		leftValue, exists := out[key]
 		if !exists {

@@ -22,12 +22,12 @@ var (
 	ErrRef = errors.New("ref slot")
 	// ErrMount is a CUE mount path that is not a dotted identifier chain.
 	ErrMount = errors.New("invalid cue mount path")
-	// ErrNilTree is Add or Merge on a nil tree.
-	ErrNilTree = errors.New("nil tree")
-	// ErrNilFilesystem is Squash on a nil filesystem.
-	ErrNilFilesystem = errors.New("nil filesystem")
-	// ErrNilCue is Constrain on a cue value with no context.
-	ErrNilCue = errors.New("nil cue context")
+)
+
+var (
+	errNilTree       = errors.New("nil tree")
+	errNilFilesystem = errors.New("nil filesystem")
+	errNilCue        = errors.New("nil cue context")
 )
 
 func pathError(op, name string, err error) error {

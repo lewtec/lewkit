@@ -74,12 +74,7 @@ type File struct {
 }
 
 func (fileType Type) known() bool {
-	switch fileType {
-	case TypeLines, TypeText, TypeRef, TypeJSON, TypeTOML, TypeYAML, TypeINI, TypeXML:
-		return true
-	default:
-		return false
-	}
+	return fileType == TypeLines || fileType == TypeText || fileType == TypeRef || fileType.structured()
 }
 
 func (fileType Type) structured() bool {

@@ -23,7 +23,7 @@ const (
 // ends in .d.tmpl is [ErrPath].
 func Squash(fsys fs.FS) (*Tree, error) {
 	if fsys == nil {
-		return nil, ErrNilFilesystem
+		return nil, errNilFilesystem
 	}
 	tree := New()
 	err := fs.WalkDir(fsys, ".", func(name string, entry fs.DirEntry, walkErr error) error {
