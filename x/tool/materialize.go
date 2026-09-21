@@ -62,18 +62,11 @@ func InstallArtifact(ctx context.Context, artifact Artifact, destination string,
 		return err
 	}
 
-	extractDirectory := filepath.Join(temporary, "extract")
-	if err := os.MkdirAll(extractDirectory, 0o755); err != nil {
+	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return err
 	}
-	if err := Extract(ctx, downloadPath, extractDirectory); err != nil {
+	if err := Extract(ctx, downloadPath, destination); err != nil {
 		return fmt.Errorf("extract %s: %w", stdpath.Base(artifact.URL), err)
-	}
-	if err := stripTopLevelDirectory(extractDirectory); err != nil {
-		return err
-	}
-	if err := moveContents(extractDirectory, destination); err != nil {
-		return err
 	}
 	return NormalizeInstalledBinaries(destination)
 }
@@ -196,157 +189,97 @@ func verifyHash(path, raw string) error {
 }
 
 // Extract unpacks a zip, squashfs, or tar archive into destination.
-// A file that is none of those is installed as a single binary.
+// A single top directory is lifted with [lewpath.StripTopLevelDirectory].
+// A file that is none of those archives is copied in as one binary.
 func Extract(ctx context.Context, source, destination string) error {
-	file, err := os.Open(source)
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return err
+	}
+	dest, err := lewpath.Open(destination)
+	if err != nil {
+		return err
+	}
+	defer dest.Close()
+
+	file, err := openHostFile(source)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	var files lewfs.Files
+	var listing lewfs.Files
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
 	if archive, err := zipfs.Open(ctx, file); err == nil {
-		files = lewfs.Walk(ctx, archive, nil)
+		listing = lewfs.Walk(ctx, archive, nil)
 	} else if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return err
 	} else if archive, err := squashfs.Open(ctx, file); err == nil {
-		files = lewfs.Walk(ctx, archive, nil)
+		listing = lewfs.Walk(ctx, archive, nil)
 	} else if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return err
 	} else if archive, err := tarfs.Open(ctx, file); err == nil {
-		files = lewfs.Walk(ctx, archive, nil)
+		listing = lewfs.Walk(ctx, archive, nil)
 	} else if errors.Is(err, fs.ErrInvalid) {
 		return err
 	} else {
-		return installBinary(source, destination)
+		return installBinary(ctx, source, dest)
 	}
-
-	if err := os.MkdirAll(destination, 0o755); err != nil {
+	if err := lewfs.Copy(ctx, dest, listing); err != nil {
 		return err
 	}
-	root, err := lewpath.Open(destination)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	return lewfs.Copy(ctx, root, files)
+	return lewpath.StripTopLevelDirectory(dest)
 }
 
-func installBinary(source, destination string) error {
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		return err
-	}
-	root, err := lewpath.Open(destination)
+type hostFile struct {
+	*os.File
+	root *lewpath.Root
+}
+
+func (file *hostFile) Close() error {
+	return errors.Join(file.File.Close(), file.root.Close())
+}
+
+func openHostFile(osPath string) (*hostFile, error) {
+	parent, err := lewpath.Open(filepath.Dir(osPath))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer root.Close()
-	input, err := os.Open(source)
+	opened, err := lewpath.New(filepath.Base(osPath)).Open(parent)
+	if err != nil {
+		parent.Close()
+		return nil, err
+	}
+	file, ok := opened.(*os.File)
+	if !ok {
+		opened.Close()
+		parent.Close()
+		return nil, fmt.Errorf("open %s: not an os file", osPath)
+	}
+	return &hostFile{File: file, root: parent}, nil
+}
+
+func installBinary(ctx context.Context, source string, dest *lewpath.Root) error {
+	input, err := openHostFile(source)
 	if err != nil {
 		return err
 	}
 	defer input.Close()
-	outputName := lewpath.New(NormalizeBinaryName(stdpath.Base(source)))
-	output, err := outputName.OpenFile(root, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	info, err := input.Stat()
 	if err != nil {
 		return err
 	}
-	writer, ok := output.(io.Writer)
-	if !ok {
-		output.Close()
-		return fmt.Errorf("install binary: %s is not writable", outputName)
+	name := lewpath.New(NormalizeBinaryName(stdpath.Base(source)))
+	listing := func(yield func(lewfs.File, error) bool) {
+		yield(lewfs.File{
+			Name:   name,
+			Mode:   0o755,
+			Size:   info.Size(),
+			Reader: input,
+		}, nil)
 	}
-	if _, err := io.Copy(writer, input); err != nil {
-		output.Close()
-		return err
-	}
-	return output.Close()
-}
-
-func stripTopLevelDirectory(destination string) error {
-	root, err := lewpath.Open(destination)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	entries, err := lewpath.New(".").ReadDir(root)
-	if err != nil {
-		return err
-	}
-	if len(entries) != 1 || !entries[0].IsDir() {
-		return nil
-	}
-	child := lewpath.New(entries[0].Name())
-	children, err := child.ReadDir(root)
-	if err != nil {
-		return err
-	}
-	for _, entry := range children {
-		from := child.Join(entry.Name())
-		if err := from.Rename(root, lewpath.New(entry.Name())); err != nil {
-			return err
-		}
-	}
-	return child.RemoveAll(root)
-}
-
-func moveContents(source, destination string) error {
-	if err := os.MkdirAll(destination, 0o755); err != nil {
-		return err
-	}
-	parent := commonDirectory(source, destination)
-	root, err := lewpath.Open(parent)
-	if err != nil {
-		return err
-	}
-	defer root.Close()
-	sourceName, err := relativeName(parent, source)
-	if err != nil {
-		return err
-	}
-	destinationName, err := relativeName(parent, destination)
-	if err != nil {
-		return err
-	}
-	for child, err := range sourceName.IterDir(root) {
-		if err != nil {
-			return err
-		}
-		if err := child.Rename(root, destinationName.Join(child.Name())); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func commonDirectory(left, right string) string {
-	left = filepath.Clean(left)
-	right = filepath.Clean(right)
-	for {
-		if left == right || strings.HasPrefix(right, left+string(os.PathSeparator)) {
-			return left
-		}
-		parent := filepath.Dir(left)
-		if parent == left {
-			return parent
-		}
-		left = parent
-	}
-}
-
-func relativeName(parent, osPath string) (lewpath.Path, error) {
-	relative, err := filepath.Rel(parent, osPath)
-	if err != nil {
-		return lewpath.Path{}, err
-	}
-	name := lewpath.New(filepath.ToSlash(relative))
-	if !name.Valid() {
-		return lewpath.Path{}, fmt.Errorf("%w: %s", ErrPathEscapes, osPath)
-	}
-	return name, nil
+	return lewfs.Copy(ctx, dest, listing)
 }
 
 var binaryNameSuffixes = []string{
