@@ -9,33 +9,9 @@ import (
 )
 
 func applyAveragePool[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
-	if node.attributeInteger("ceil_mode", 0) != 0 {
-		return nil, fmt.Errorf("%w: ceil_mode", ErrOp)
-	}
-	for _, dilation := range node.attributeIntegers("dilations") {
-		if dilation != 1 {
-			return nil, fmt.Errorf("%w: dilations", ErrOp)
-		}
-	}
-	kernelShape := node.attributeIntegers("kernel_shape")
-	if len(kernelShape) != 2 {
-		return nil, fmt.Errorf("%w: kernel_shape", ErrOp)
-	}
-	strideHeight, strideWidth, err := spatialStrides(node.attributeIntegers("strides"))
+	input, inputShape, kernelShape, strideHeight, strideWidth, err := spatialPoolSetup(values, node)
 	if err != nil {
 		return nil, err
-	}
-	input, err := oneInput(values, node.Inputs)
-	if err != nil {
-		return nil, err
-	}
-	input, err = leaf(input)
-	if err != nil {
-		return nil, err
-	}
-	inputShape := input.Shape()
-	if len(inputShape) != 4 {
-		return nil, ndarray.ErrShape
 	}
 	kernelHeight, kernelWidth := int(kernelShape[0]), int(kernelShape[1])
 	pads, err := spatialPads(node.attributeString("auto_pad"), node.attributeIntegers("pads"), inputShape[2], inputShape[3], kernelHeight, kernelWidth, strideHeight, strideWidth)
@@ -46,33 +22,9 @@ func applyAveragePool[T ndarray.Number](values map[string]*ndarray.Tensor[T], no
 }
 
 func applyLpPool[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {
-	if node.attributeInteger("ceil_mode", 0) != 0 {
-		return nil, fmt.Errorf("%w: ceil_mode", ErrOp)
-	}
-	for _, dilation := range node.attributeIntegers("dilations") {
-		if dilation != 1 {
-			return nil, fmt.Errorf("%w: dilations", ErrOp)
-		}
-	}
-	kernelShape := node.attributeIntegers("kernel_shape")
-	if len(kernelShape) != 2 {
-		return nil, fmt.Errorf("%w: kernel_shape", ErrOp)
-	}
-	strideHeight, strideWidth, err := spatialStrides(node.attributeIntegers("strides"))
+	input, inputShape, kernelShape, strideHeight, strideWidth, err := spatialPoolSetup(values, node)
 	if err != nil {
 		return nil, err
-	}
-	input, err := oneInput(values, node.Inputs)
-	if err != nil {
-		return nil, err
-	}
-	input, err = leaf(input)
-	if err != nil {
-		return nil, err
-	}
-	inputShape := input.Shape()
-	if len(inputShape) != 4 {
-		return nil, ndarray.ErrShape
 	}
 	p := node.attributeInteger("p", 2)
 	if p != 1 && p != 2 {
