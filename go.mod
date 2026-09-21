@@ -4,6 +4,7 @@ go 1.27.0
 
 require (
 	charm.land/bubbletea/v2 v2.0.7
+	cuelang.org/go v0.17.1
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Xmister/udf v0.0.0-20210116171753-6c18325874a7
 	github.com/andybalholm/brotli v1.2.4
@@ -17,6 +18,7 @@ require (
 	github.com/jezek/xgb v1.3.1
 	github.com/klauspost/compress v1.18.5
 	github.com/mattn/go-runewidth v0.0.30
+	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/sqlc-dev/sqlc v1.31.1
@@ -34,7 +36,6 @@ require (
 
 require (
 	cel.dev/expr v0.25.2 // indirect
-	cuelang.org/go v0.17.1 // indirect
 	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/anchore/go-lzo v0.1.0 // indirect
@@ -91,7 +92,6 @@ require (
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/owenrumney/go-sarif/v2 v2.3.3 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
-	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/pganalyze/pg_query_go/v6 v6.2.2 // indirect
 	github.com/pingcap/errors v0.11.5-0.20250523034308-74f78ae071ee // indirect
 	github.com/pingcap/failpoint v0.0.0-20240528011301-b51a646c7c86 // indirect
