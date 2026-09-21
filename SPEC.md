@@ -116,7 +116,7 @@ templ is later work. It is not an adopted tool in this module.
 | INV-09 | This repository has one constitution: `SPEC.md` at the repo root | this file | `x/ui/SPEC.md`; a second SPEC beside this file |
 | INV-10 | `gui.Run` consumes a caller-supplied `Window`. It MUST NOT call `window.Open`. | `x/ui/gui` | `gui` opening a host window |
 | INV-11 | This module is not a UI library | this repository | advertising `x/ui` as the product; a Flutter widget tree as the public API |
-| INV-12 | Host window events are `Resize`, `Expose`, and `Close` | `x/driver/window` | inventing pointer `Msg` types with no host emit; inventing key `Msg` types with no host emit |
+| INV-12 | Host window events include `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, and `Key` | `x/driver/window` | pointer `Msg` types that the host does not emit |
 
 ## Errors
 
@@ -166,7 +166,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 1. Reusable bubbletea types in `x/ui/tui`.
 2. Adopt templ in this module and add templates in `x/ui/web`.
-3. Pointer and key events on the window bus, then `Msg` types for them.
+3. Text input (IME) and mapped key names.
 4. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
 
 ## Assumptions
@@ -175,9 +175,10 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 |----|------|----------|
 | AS-01 | bubbletea v2 remains the tui toolkit | Change the tui tooling row. Do not invent a terminal runtime. |
 | AS-02 | templ remains the intended web toolkit | Change the web later-work item before adding `x/ui/web`. |
-| AS-03 | Host backends emit `Resize`, `Expose`, and `Close` only | Do not add pointer `Msg` types until the window bus emits them. Do not add key `Msg` types until the window bus emits them. |
+| AS-03 | Pointer coordinates are client pixels with the same origin as `Frame` | Change the cocoa Y flip / scale if a host uses another origin. |
 
 ## Decision history
 
 - 2026-09-20 grill: native export placement; SPEC at repo root. Rejected: nested `x/ui/SPEC.md`; a shared `Widget`; moving progress into `tui`; moving triangle into `gui` now; calling this a UI library.
 - 2026-09-20: `gui` follows bubbletea (`Model` / `Msg` / `Cmd` / `Run`) with tensors in `View`. Host events are `Resize`, `Expose`, `Close` only. Rejected: Flutter widget tree as the public API; `gui` calling `window.Open`.
+- 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.

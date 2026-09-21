@@ -8,6 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestEnsureCells(t *testing.T) {
+	a, err := New([]uint8{1, 2, 3, 4}, Shape{1, 1, 4})
+	require.NoError(t, err)
+	require.NoError(t, a.EnsureCells(12))
+	require.GreaterOrEqual(t, len(a.Buffer()), 12)
+}
+
 func TestConstIntern(t *testing.T) {
 	a := Const(float32(1))
 	b := Const(float32(1))

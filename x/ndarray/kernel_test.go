@@ -52,6 +52,21 @@ func TestCastU8(t *testing.T) {
 	require.Equal(t, []uint8{0, 0, 10, 255, 255}, mustEval(t, a.Cast[uint8]()))
 }
 
+func TestEvalShrinkSplat(t *testing.T) {
+	buf, err := New([]float32{10, 20, 30}, Shape{3})
+	require.NoError(t, err)
+	cell, err := buf.Shrink([][2]int{{1, 2}})
+	require.NoError(t, err)
+	splat, err := cell.Splat()
+	require.NoError(t, err)
+	require.Nil(t, splat.Shape())
+	ones, err := Ones[float32](Shape{2, 2})
+	require.NoError(t, err)
+	require.Equal(t, []float32{20, 20, 20, 20}, mustEval(t, ones.Mul(splat)))
+	buf.Buffer()[1] = 7
+	require.Equal(t, []float32{7, 7, 7, 7}, mustEval(t, ones.Mul(splat)))
+}
+
 func TestEvalAdd(t *testing.T) {
 	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)

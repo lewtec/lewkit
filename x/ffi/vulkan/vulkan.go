@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"time"
 	"unsafe"
 )
 
@@ -547,6 +548,8 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 	if cfg.PushBytes < 0 || cfg.PushBytes > 256 || cfg.PushBytes%4 != 0 {
 		return nil, ErrPush
 	}
+	slog.Debug("vulkan compile", "spirv_bytes", len(spirv), "bindings", bindings, "push_bytes", cfg.PushBytes)
+	started := time.Now()
 	code := make([]uint32, len(spirv)/4)
 	for i := range code {
 		code[i] = uint32(spirv[i*4]) | uint32(spirv[i*4+1])<<8 | uint32(spirv[i*4+2])<<16 | uint32(spirv[i*4+3])<<24
@@ -644,6 +647,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		d.api.destroyShaderModule(d.dev, module, 0)
 		return nil, fmt.Errorf("compute pipeline: %w", err)
 	}
+	slog.Debug("vulkan compile ok", "elapsed", time.Since(started), "bindings", bindings)
 	return &Shader{
 		d:              d,
 		module:         module,

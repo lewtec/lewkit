@@ -143,19 +143,23 @@ func (s *session) copyHost(output []byte, size int) {
 }
 
 func (s *session) fit() error {
-	if err := s.grow(&s.output, max(s.kernel.Size(), 1)*4); err != nil {
+	var grew, total int
+	if err := s.grow(&s.output, max(s.kernel.Size(), 1)*4, &grew, &total); err != nil {
 		return err
 	}
 	for i := 0; i < s.kernel.InputCount(); i++ {
 		n := max(s.gpuInputBytes(i), 1)
-		if err := s.grow(&s.inputs[i], n); err != nil {
+		if err := s.grow(&s.inputs[i], n, &grew, &total); err != nil {
 			return err
 		}
+	}
+	if grew > 0 {
+		slog.Debug("ndeval buffer grow", "buffers", grew, "bytes", total)
 	}
 	return nil
 }
 
-func (s *session) grow(slot **ffivulkan.Buffer, bytes int) error {
+func (s *session) grow(slot **ffivulkan.Buffer, bytes int, grew, total *int) error {
 	cur := *slot
 	if cur != nil && cur.Len() >= bytes {
 		return nil
@@ -164,7 +168,8 @@ func (s *session) grow(slot **ffivulkan.Buffer, bytes int) error {
 	if err != nil {
 		return err
 	}
-	slog.Debug("ndeval buffer grow", "bytes", bytes)
+	*grew++
+	*total += bytes
 	if cur != nil {
 		if err := cur.Close(); err != nil {
 			return errors.Join(err, b.Close())

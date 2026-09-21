@@ -26,6 +26,7 @@ type instruction struct {
 	axis          int
 	dense         bool
 	scalar        bool
+	splatOff      int
 	views         []view
 }
 
@@ -61,6 +62,13 @@ func lowerCPU(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
 			instr.source = bufIndex[n.buf]
 			instr.scalar = len(n.tracker.Shape()) == 0
 			instr.dense = !instr.scalar && n.tracker.Contiguous() && n.tracker.Shape().Equal(shape)
+			if instr.scalar {
+				off, ok, err := n.tracker.At(0)
+				if err != nil || !ok {
+					return cpuProgram{}, ErrIndex
+				}
+				instr.splatOff = off
+			}
 			if !instr.dense && !instr.scalar {
 				instr.views = n.tracker.views
 			}
@@ -228,7 +236,7 @@ func (instr instruction) load(i int, coords []int, bufs []*buffer, scratch *[]in
 	ok := true
 	switch {
 	case instr.scalar:
-		off = 0
+		off = instr.splatOff
 	case instr.dense:
 		off = i
 	default:

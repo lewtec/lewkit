@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -23,6 +24,19 @@ const (
 	wmSize             = 0x0005
 	wmPaint            = 0x000F
 	wmClose            = 0x0010
+	wmKeyDown          = 0x0100
+	wmKeyUp            = 0x0101
+	wmMouseMove        = 0x0200
+	wmLButtonDown      = 0x0201
+	wmLButtonUp        = 0x0202
+	wmRButtonDown      = 0x0204
+	wmRButtonUp        = 0x0205
+	wmMButtonDown      = 0x0207
+	wmMButtonUp        = 0x0208
+	wmMouseWheel       = 0x020A
+	mkLButton          = 0x0001
+	mkRButton          = 0x0002
+	mkMButton          = 0x0010
 	biRGB              = 0
 	dibRGBColors       = 0
 	srcCopy            = 0x00CC0020
@@ -49,6 +63,7 @@ var (
 	procPostQuitMessage  = user32.NewProc("PostQuitMessage")
 	procGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
 	procStretchDIBits    = gdi32.NewProc("StretchDIBits")
+	procGetDeviceCaps    = gdi32.NewProc("GetDeviceCaps")
 	classOnce            sync.Once
 	classAtom            uintptr
 	classErr             error
@@ -101,13 +116,34 @@ type bitmapInfo struct {
 
 var windows sync.Map // hwnd -> *win
 
+const vrefresh = 116
+
+func desktopFramePeriod() time.Duration {
+	hdc, _, _ := procGetDC.Call(0)
+	if hdc == 0 {
+		return 0
+	}
+	hz, _, _ := procGetDeviceCaps.Call(hdc, vrefresh)
+	procReleaseDC.Call(0, hdc)
+	if hz <= 1 {
+		return 0
+	}
+	return time.Second / time.Duration(hz)
+}
+
 func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	w, h, err := cfg.Size()
 	if err != nil {
 		return nil, err
 	}
 	ready := make(chan error, 1)
-	out := &win{Buffer: window.NewBuffer(w, h), title: cfg.Title, cw: w, ch: h, wantWidth: w, wantHeight: h}
+	buf := window.NewBuffer(w, h)
+	period := cfg.Period
+	if period <= 0 {
+		period = desktopFramePeriod()
+	}
+	buf.SetFramePeriod(period)
+	out := &win{Buffer: buf, title: cfg.Title, cw: w, ch: h, wantWidth: w, wantHeight: h}
 	go func() {
 		runtime.LockOSThread()
 		ready <- out.create()
@@ -204,8 +240,7 @@ func (w *win) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
 	}
-	front := w.Front()
-	if front == nil || front.Rect.Size() != w.Size() {
+	if w.Front() == nil {
 		return nil
 	}
 	return w.blit()
@@ -310,6 +345,27 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 	case wmPaint:
 		w.Emit(window.Expose{})
 		_ = w.blit()
+	case wmMouseMove:
+		w.Emit(window.Pointer{Pos: win32Pos(lparam), Buttons: win32Buttons(wparam)})
+	case wmLButtonDown:
+		w.Emit(window.Pointer{Pos: win32Pos(lparam), Button: 1, Pressed: true, Buttons: win32Buttons(wparam) | window.ButtonLeft})
+	case wmLButtonUp:
+		w.Emit(window.Pointer{Pos: win32Pos(lparam), Button: 1, Pressed: false, Buttons: win32Buttons(wparam) &^ window.ButtonLeft})
+	case wmRButtonDown:
+		w.Emit(window.Pointer{Pos: win32Pos(lparam), Button: 2, Pressed: true, Buttons: win32Buttons(wparam) | window.ButtonRight})
+	case wmRButtonUp:
+		w.Emit(window.Pointer{Pos: win32Pos(lparam), Button: 2, Pressed: false, Buttons: win32Buttons(wparam) &^ window.ButtonRight})
+	case wmMButtonDown:
+		w.Emit(window.Pointer{Pos: win32Pos(lparam), Button: 3, Pressed: true, Buttons: win32Buttons(wparam) | window.ButtonMiddle})
+	case wmMButtonUp:
+		w.Emit(window.Pointer{Pos: win32Pos(lparam), Button: 3, Pressed: false, Buttons: win32Buttons(wparam) &^ window.ButtonMiddle})
+	case wmMouseWheel:
+		delta := int16(wparam >> 16)
+		w.Emit(window.Scroll{Pos: win32Pos(lparam), Delta: image.Pt(0, -int(delta)/12)})
+	case wmKeyDown:
+		w.Emit(window.Key{Code: uint32(wparam), Pressed: true, Repeat: lparam&0x40000000 != 0, Mod: win32KeyMod(wparam)})
+	case wmKeyUp:
+		w.Emit(window.Key{Code: uint32(wparam), Pressed: false, Mod: win32KeyMod(wparam)})
 	case wmClose:
 		_ = w.Close()
 		return 0
@@ -332,4 +388,39 @@ func (w *win) setWant(width, height int) {
 	if changed {
 		w.Emit(window.Resize{Size: image.Pt(width, height)})
 	}
+}
+
+func win32Pos(lparam uintptr) image.Point {
+	return image.Pt(int(int16(lparam)), int(int16(lparam>>16)))
+}
+
+func win32Buttons(wparam uintptr) int {
+	var b int
+	if wparam&mkLButton != 0 {
+		b |= window.ButtonLeft
+	}
+	if wparam&mkRButton != 0 {
+		b |= window.ButtonRight
+	}
+	if wparam&mkMButton != 0 {
+		b |= window.ButtonMiddle
+	}
+	return b
+}
+
+func win32KeyMod(wparam uintptr) window.Modifier {
+	var m window.Modifier
+	if wparam == 0x10 {
+		m |= window.ModShift
+	}
+	if wparam == 0x11 {
+		m |= window.ModCtrl
+	}
+	if wparam == 0x12 {
+		m |= window.ModAlt
+	}
+	if wparam == 0x5B || wparam == 0x5C {
+		m |= window.ModSuper
+	}
+	return m
 }

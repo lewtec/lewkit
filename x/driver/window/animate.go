@@ -5,37 +5,35 @@ import (
 	"errors"
 	"image"
 	"time"
-
-	"github.com/lewtec/lewkit/x/event"
 )
 
 // Paint fills the back buffer. Animate calls Draw after each Paint.
 type Paint func(dst *image.RGBA, elapsed time.Duration) error
 
-// Animate runs paint at period until ctx is done or the window closes.
-// Resize paints immediately so the new Frame is filled.
-func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) error {
+// Drive is the immediate-mode paint loop used by [Animate]. fn gets a
+// nil Event on the first frame and on each tick; other calls pass the
+// host Event. Close is delivered once, then Drive returns. After a host
+// event, a pending tick is taken so a flood of Resize cannot starve paint.
+func Drive(ctx context.Context, w Window, period time.Duration, fn func(ev Event, elapsed time.Duration) error) error {
+	if w == nil || fn == nil {
+		return ErrClosed
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	events := w.Subscribe(ctx)
 	started := time.Now()
 	if period <= 0 {
-		period = time.Second / 60
+		period = w.FramePeriod()
 	}
-	ticks := event.CreateTimer(ctx, period)
-	if err := paintFrame(w, paint, 0); err != nil {
+	if period <= 0 {
+		period = DefaultFramePeriod
+	}
+	ticker := time.NewTicker(period)
+	defer ticker.Stop()
+	if err := fn(nil, 0); err != nil {
 		return closed(err)
 	}
 	for {
-		resized, err := drain(events)
-		if err != nil {
-			return closed(err)
-		}
-		if resized {
-			if err := paintFrame(w, paint, time.Since(started)); err != nil {
-				return closed(err)
-			}
-		}
 		select {
 		case <-ctx.Done():
 			return closed(context.Cause(ctx))
@@ -43,20 +41,44 @@ func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) e
 			if !ok {
 				return nil
 			}
-			if err := closedEvent(ev); err != nil {
-				return closed(err)
-			}
-			if _, ok := ev.(Resize); ok {
-				if err := paintFrame(w, paint, time.Since(started)); err != nil {
+			elapsed := time.Since(started)
+			if _, stop := ev.(Close); stop {
+				err := fn(ev, elapsed)
+				if err != nil {
 					return closed(err)
 				}
+				return nil
 			}
-		case <-ticks:
-			if err := paintFrame(w, paint, time.Since(started)); err != nil {
+			if err := fn(ev, elapsed); err != nil {
+				return closed(err)
+			}
+			select {
+			case <-ticker.C:
+				if err := fn(nil, time.Since(started)); err != nil {
+					return closed(err)
+				}
+			default:
+			}
+		case <-ticker.C:
+			if err := fn(nil, time.Since(started)); err != nil {
 				return closed(err)
 			}
 		}
 	}
+}
+
+// Animate runs paint at period until ctx is done or the window closes.
+// Resize paints immediately so the new Frame is filled. Other events
+// are ignored.
+func Animate(ctx context.Context, w Window, period time.Duration, paint Paint) error {
+	return Drive(ctx, w, period, func(ev Event, elapsed time.Duration) error {
+		if ev != nil {
+			if _, ok := ev.(Resize); !ok {
+				return nil
+			}
+		}
+		return paintFrame(w, paint, elapsed)
+	})
 }
 
 func paintFrame(w Window, paint Paint, elapsed time.Duration) error {
@@ -68,33 +90,6 @@ func paintFrame(w Window, paint Paint, elapsed time.Duration) error {
 		return err
 	}
 	return w.Draw()
-}
-
-func drain(events <-chan Event) (bool, error) {
-	resized := false
-	for {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				return resized, ErrClosed
-			}
-			if err := closedEvent(ev); err != nil {
-				return resized, err
-			}
-			if _, ok := ev.(Resize); ok {
-				resized = true
-			}
-		default:
-			return resized, nil
-		}
-	}
-}
-
-func closedEvent(ev Event) error {
-	if _, ok := ev.(Close); ok {
-		return ErrClosed
-	}
-	return nil
 }
 
 func closed(err error) error {

@@ -15,4 +15,8 @@ func TestWindowUsage(t *testing.T) {
 	assert.Contains(t, text, "one turn")
 	assert.Contains(t, text, "perlin")
 	assert.Contains(t, text, "compute")
+	assert.Contains(t, text, "scroll")
+	assert.Contains(t, text, "rounded")
+	assert.Contains(t, text, "notepad")
+	assert.Contains(t, text, "counter")
 }

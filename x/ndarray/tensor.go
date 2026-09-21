@@ -181,6 +181,27 @@ func (t *Tensor[T]) Tracker() Tracker {
 	return t.node.tracker
 }
 
+// EnsureCells grows a leaf host buffer to at least n elements.
+func (t *Tensor[T]) EnsureCells(n int) error {
+	if t == nil || t.node == nil || t.node.kind != kindInput || t.node.buf == nil {
+		return ErrOp
+	}
+	if t.node.dtype != dtypeOf[T]() {
+		return ErrType
+	}
+	if n < 0 {
+		return ErrSize
+	}
+	need := n * t.node.dtype.size()
+	if len(t.node.buf.raw) >= need {
+		return nil
+	}
+	raw := make([]byte, need)
+	copy(raw, t.node.buf.raw)
+	t.node.buf.raw = raw
+	return nil
+}
+
 // Buffer is the host storage for a leaf. Views of the same leaf share it.
 func (t *Tensor[T]) Buffer() []T {
 	if t == nil || t.node == nil || t.node.buf == nil {
@@ -336,6 +357,14 @@ func (t *Tensor[T]) Pad(arg [][2]int) (*Tensor[T], error) {
 		return nil, ErrOp
 	}
 	return t.view(t.node.tracker.Pad(arg))
+}
+
+// Splat broadcasts a 1-cell tensor.
+func (t *Tensor[T]) Splat() (*Tensor[T], error) {
+	if t == nil {
+		return nil, ErrOp
+	}
+	return t.view(t.node.tracker.Splat())
 }
 
 // Shrink crops to the given half-open ranges.

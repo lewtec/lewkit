@@ -15,34 +15,50 @@ type runner struct {
 	window    window.Window
 	evaluator ndarray.Evaluator
 	model     Model
+	fps       event.FPS
+	hz        float64
+	started   time.Time
+	cmds      chan Msg
+	view      *ndarray.Tensor[uint8]
+	sig       uint64
+	last      uint64
+	dirty     bool
 }
 
-// Run is tea.Program for a pixel window. The caller opens w.
-// Nil evaluator uses [ndarray.CPU].
-func Run(ctx context.Context, w window.Window, evaluator ndarray.Evaluator, model Model) error {
+// Run is the Elm loop. Update runs on each message. View and Present
+// run on the display ticker (and on Resize/Expose), skipped when the
+// view signature is unchanged.
+func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model) error {
 	if model == nil {
 		return ErrModel
 	}
-	if w == nil {
+	if host == nil {
 		return window.ErrClosed
 	}
 	if evaluator == nil {
 		evaluator = ndarray.CPU
 	}
-	ctx, cancel := context.WithCancel(ctx)
+	r := &runner{ctx: ctx, window: host, evaluator: evaluator, model: model, started: time.Now()}
+	return r.loop()
+}
+
+func (r *runner) loop() error {
+	ctx, cancel := context.WithCancel(r.ctx)
 	defer cancel()
-	r := &runner{ctx: ctx, window: w, evaluator: evaluator, model: model}
-	var err error
-	r.model, err = finish(r.model, r.model.Init())
-	if err != nil {
+	r.ctx = ctx
+	r.cmds = make(chan Msg, 16)
+	events := r.window.Subscribe(ctx)
+	r.dirty = true
+	if err := r.flush(true); err != nil {
 		return err
 	}
-	if err := r.step(TickMsg{Size: w.Size()}); err != nil {
-		return closed(err)
+	r.spawn(r.model.Init())
+	period := r.window.FramePeriod()
+	if period <= 0 {
+		period = window.DefaultFramePeriod
 	}
-	events := w.Subscribe(ctx)
-	started := time.Now()
-	ticks := event.CreateTimer(ctx, time.Second/60)
+	ticker := time.NewTicker(period)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -51,72 +67,128 @@ func Run(ctx context.Context, w window.Window, evaluator ndarray.Evaluator, mode
 			if !ok {
 				return nil
 			}
+			if err := r.handle(ev); err != nil {
+				return err
+			}
 			if _, stop := ev.(window.Close); stop {
-				next, err := applyMsg(r.model, ev)
-				if err == nil {
-					r.model = next
-				}
 				return nil
 			}
-			if err := r.step(ev); err != nil {
-				return closed(err)
+			select {
+			case <-ticker.C:
+				if err := r.flush(false); err != nil {
+					return err
+				}
+			default:
 			}
-		case <-ticks:
-			msg := TickMsg{Elapsed: time.Since(started), Size: w.Size()}
-			if err := r.step(msg); err != nil {
-				return closed(err)
+		case msg := <-r.cmds:
+			if err := r.handle(msg); err != nil {
+				return err
+			}
+			select {
+			case <-ticker.C:
+				if err := r.flush(false); err != nil {
+					return err
+				}
+			default:
+			}
+		case <-ticker.C:
+			if err := r.flush(false); err != nil {
+				return err
 			}
 		}
 	}
 }
 
-func (r *runner) step(msg Msg) error {
-	next, err := applyMsg(r.model, msg)
-	if err != nil {
-		return err
+func (r *runner) decorate(msg Msg) Msg {
+	t, ok := msg.(TickMsg)
+	if !ok {
+		return msg
+	}
+	t.Elapsed = time.Since(r.started)
+	t.Size = r.window.Size()
+	t.FPS = r.hz
+	t.Period = r.window.FramePeriod()
+	return t
+}
+
+func (r *runner) handle(msg Msg) error {
+	msg = r.decorate(msg)
+	if r.model == nil {
+		return ErrModel
+	}
+	next, cmd := r.model.Update(msg)
+	if next == nil {
+		return ErrModel
 	}
 	r.model = next
-	view := next.View()
+	r.spawn(cmd)
+	r.dirty = true
+	if _, stop := msg.(window.Close); stop {
+		return nil
+	}
+	switch msg.(type) {
+	case window.Expose, window.Resize:
+		return r.flush(true)
+	}
+	return nil
+}
+
+func (r *runner) spawn(cmd Cmd) {
+	if cmd == nil {
+		return
+	}
+	go func() {
+		msg := cmd()
+		if msg == nil {
+			return
+		}
+		select {
+		case r.cmds <- msg:
+		case <-r.ctx.Done():
+		}
+	}()
+}
+
+func (r *runner) render() error {
+	view := r.model.View()
 	if view == nil {
 		return ErrView
 	}
-	dst := r.window.Frame()
-	if dst == nil {
-		return window.ErrClosed
+	r.view = view
+	r.sig = 0
+	if s, ok := r.model.(interface{ frameSig() uint64 }); ok {
+		r.sig = s.frameSig()
 	}
-	if err := window.Present(r.ctx, view, r.evaluator, dst); err != nil {
+	return nil
+}
+
+func (r *runner) flush(force bool) error {
+	if !force && !r.dirty {
+		return nil
+	}
+	if err := r.render(); err != nil {
 		return err
 	}
-	return r.window.Draw()
-}
-
-func applyMsg(model Model, msg Msg) (Model, error) {
-	if model == nil {
-		return nil, ErrModel
+	r.dirty = false
+	if !force && r.sig != 0 && r.sig == r.last {
+		return nil
 	}
-	next, cmd := model.Update(msg)
-	return finish(next, cmd)
-}
-
-func finish(model Model, cmd Cmd) (Model, error) {
-	if model == nil {
-		return nil, ErrModel
+	if r.view == nil {
+		return ErrView
 	}
-	if cmd == nil {
-		return model, nil
+	destination := r.window.Frame()
+	if destination == nil {
+		return window.ErrClosed
 	}
-	msg := cmd()
-	if msg == nil {
-		return model, nil
+	err := window.Present(r.ctx, r.view, r.evaluator, destination)
+	if drawErr := r.window.Draw(); err != nil {
+		return err
+	} else if drawErr != nil {
+		return drawErr
 	}
-	next, follow := model.Update(msg)
-	if next == nil {
-		return nil, ErrModel
-	}
-	if follow != nil {
-		return next, nil
-	}
-	return next, nil
+	r.hz = r.fps.Get()
+	r.last = r.sig
+	return nil
 }
 
 func closed(err error) error {
