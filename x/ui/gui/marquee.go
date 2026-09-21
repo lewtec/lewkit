@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	marqueeItemH  = 64
-	marqueeGap    = 12
-	marqueePad    = 20
-	marqueeSpeed  = 80
-	marqueeStride = float32(marqueeItemH + marqueeGap)
+	marqueeItemHeight = 64
+	marqueeGap        = 12
+	marqueePad        = 20
+	marqueeSpeed      = 80
+	marqueeStride     = float32(marqueeItemHeight + marqueeGap)
 )
 
 var marqueeColors = []Color{
@@ -34,32 +34,32 @@ type Bar struct {
 	period float32
 }
 
-func (b Bar) View() Node {
+func (bar Bar) View() Node {
 	return &Stack{Children: []Node{
-		b.rect(b.y),
-		b.rect(b.y - b.period),
+		bar.rect(bar.y),
+		bar.rect(bar.y - bar.period),
 	}}
 }
 
-func (b Bar) rect(y float32) Node {
-	col := b.color
+func (bar Bar) rect(y float32) Node {
+	color := bar.color
 	return &Positioned{
 		Y: y,
 		Child: &Box{
-			Width:  b.width,
-			Height: marqueeItemH,
-			Fill:   &col,
+			Width:  bar.width,
+			Height: marqueeItemHeight,
+			Fill:   &color,
 			Radius: 18,
 		},
 	}
 }
 
-func (m *Marquee) wrap(y float32) float32 {
-	return wrapShift(y, m.period())
+func (marquee *Marquee) wrap(y float32) float32 {
+	return wrapShift(y, marquee.period())
 }
 
-func (m *Marquee) shift(delta float32) {
-	m.offset = m.wrap(m.offset + delta)
+func (marquee *Marquee) shift(delta float32) {
+	marquee.offset = marquee.wrap(marquee.offset + delta)
 }
 
 func wrapShift(y, period float32) float32 {
@@ -82,18 +82,18 @@ type marqueeItem struct {
 // Marquee is a clipped stack of [Bar] children that scroll down and wrap.
 // Offset is the only motion state; View derives each bar from it.
 type Marquee struct {
-	size     image.Point
-	offset   float32
-	lastTick time.Duration
-	lastY    int
-	dragging bool
-	paused   bool
-	root     *Box
-	bg       Color
-	items    []marqueeItem
-	treeN    int
-	treeW    float32
-	treeSize image.Point
+	size         image.Point
+	offset       float32
+	lastTick     time.Duration
+	lastPointerY int
+	dragging     bool
+	paused       bool
+	root         *Box
+	background   Color
+	items        []marqueeItem
+	treeCount    int
+	treeWidth    float32
+	treeSize     image.Point
 }
 
 // NewMarquee returns a looping color column. The error is always nil.
@@ -101,118 +101,118 @@ func NewMarquee() (*Marquee, error) {
 	return &Marquee{size: image.Pt(800, 600)}, nil
 }
 
-func (*Marquee) repeats(innerH float32) int {
+func (*Marquee) repeats(innerHeight float32) int {
 	period := float32(len(marqueeColors)) * marqueeStride
 	if period <= 0 {
 		return 1
 	}
-	return max(1, int(math.Ceil(float64(innerH/period))))
+	return max(1, int(math.Ceil(float64(innerHeight/period))))
 }
 
-func (m *Marquee) Init() Cmd { return Tick() }
+func (marquee *Marquee) Init() Cmd { return Tick() }
 
-func (m *Marquee) Update(msg Msg) (Model, Cmd) {
-	if m == nil {
-		return m, nil
+func (marquee *Marquee) Update(msg Msg) (Model, Cmd) {
+	if marquee == nil {
+		return marquee, nil
 	}
 	var cmd Cmd
-	if t, ok := msg.(TickMsg); ok {
-		if !m.dragging && !m.paused && t.Elapsed > m.lastTick {
-			m.shift(float32((t.Elapsed - m.lastTick).Seconds()) * marqueeSpeed)
+	if tick, ok := msg.(TickMsg); ok {
+		if !marquee.dragging && !marquee.paused && tick.Elapsed > marquee.lastTick {
+			marquee.shift(float32((tick.Elapsed - marquee.lastTick).Seconds()) * marqueeSpeed)
 		}
-		m.lastTick = t.Elapsed
-		cmd = Every(t.Period)
+		marquee.lastTick = tick.Elapsed
+		cmd = Every(tick.Period)
 	}
-	switch p := msg.(type) {
+	switch event := msg.(type) {
 	case window.Pointer:
-		if p.Button == 1 && p.Pressed {
-			m.dragging = true
-			m.lastY = p.Pos.Y
+		if event.Button == 1 && event.Pressed {
+			marquee.dragging = true
+			marquee.lastPointerY = event.Pos.Y
 		}
-		if p.Button == 1 && !p.Pressed {
-			m.dragging = false
+		if event.Button == 1 && !event.Pressed {
+			marquee.dragging = false
 		}
-		if m.dragging && p.Buttons&window.ButtonLeft != 0 {
-			m.shift(float32(p.Pos.Y - m.lastY))
-			m.lastY = p.Pos.Y
+		if marquee.dragging && event.Buttons&window.ButtonLeft != 0 {
+			marquee.shift(float32(event.Pos.Y - marquee.lastPointerY))
+			marquee.lastPointerY = event.Pos.Y
 		}
 	case window.Scroll:
-		m.shift(float32(p.Delta.Y))
+		marquee.shift(float32(event.Delta.Y))
 	case window.Key:
-		if p.Pressed && !p.Repeat && (p.Rune == ' ' || p.Code == 49) {
-			m.paused = !m.paused
+		if event.Pressed && !event.Repeat && (event.Rune == ' ' || event.Code == 49) {
+			marquee.paused = !marquee.paused
 		}
 	case window.Resize:
-		m.dragging = false
+		marquee.dragging = false
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		m.size = size
+		marquee.size = size
 	}
-	return m, cmd
+	return marquee, cmd
 }
 
-func (m *Marquee) barCount() int {
-	innerH := float32(m.size.Y) - 2*marqueePad
-	if innerH < 1 {
-		innerH = 1
+func (marquee *Marquee) barCount() int {
+	innerHeight := float32(marquee.size.Y) - 2*marqueePad
+	if innerHeight < 1 {
+		innerHeight = 1
 	}
-	return max(1, m.repeats(innerH)*len(marqueeColors))
+	return max(1, marquee.repeats(innerHeight)*len(marqueeColors))
 }
 
-func (m *Marquee) period() float32 {
-	return float32(m.barCount()) * marqueeStride
+func (marquee *Marquee) period() float32 {
+	return float32(marquee.barCount()) * marqueeStride
 }
 
-func (m *Marquee) barWidth() float32 {
-	return max(float32(m.size.X)-2*marqueePad, 32)
+func (marquee *Marquee) barWidth() float32 {
+	return max(float32(marquee.size.X)-2*marqueePad, 32)
 }
 
-func (m *Marquee) rebuild(n int, width float32) {
-	items := make([]marqueeItem, n)
-	children := make([]Node, n)
+func (marquee *Marquee) rebuild(count int, width float32) {
+	items := make([]marqueeItem, count)
+	children := make([]Node, count)
 	for i := range items {
-		col := marqueeColors[i%len(marqueeColors)]
-		it := marqueeItem{
-			fill:    col,
+		color := marqueeColors[i%len(marqueeColors)]
+		item := marqueeItem{
+			fill:    color,
 			at:      &Positioned{},
 			wrap:    &Positioned{},
-			box:     &Box{Width: width, Height: marqueeItemH, Radius: 18},
-			wrapBox: &Box{Width: width, Height: marqueeItemH, Radius: 18},
+			box:     &Box{Width: width, Height: marqueeItemHeight, Radius: 18},
+			wrapBox: &Box{Width: width, Height: marqueeItemHeight, Radius: 18},
 		}
-		it.box.Fill = &it.fill
-		it.wrapBox.Fill = &it.fill
-		it.at.Child = it.box
-		it.wrap.Child = it.wrapBox
-		children[i] = &Stack{Children: []Node{it.at, it.wrap}}
-		items[i] = it
+		item.box.Fill = &item.fill
+		item.wrapBox.Fill = &item.fill
+		item.at.Child = item.box
+		item.wrap.Child = item.wrapBox
+		children[i] = &Stack{Children: []Node{item.at, item.wrap}}
+		items[i] = item
 	}
-	m.bg = Color{18, 18, 24, 255}
-	m.root = &Box{
+	marquee.background = Color{18, 18, 24, 255}
+	marquee.root = &Box{
 		Padding: EdgeInsets{marqueePad, marqueePad, marqueePad, marqueePad},
-		Fill:    &m.bg,
+		Fill:    &marquee.background,
 		Clip:    true,
 		Child:   &Stack{Clip: true, Children: children},
 	}
-	m.items = items
-	m.treeN = n
-	m.treeW = width
-	m.treeSize = m.size
+	marquee.items = items
+	marquee.treeCount = count
+	marquee.treeWidth = width
+	marquee.treeSize = marquee.size
 }
 
-func (m *Marquee) View() Node {
-	if m == nil {
+func (marquee *Marquee) View() Node {
+	if marquee == nil {
 		return nil
 	}
-	n := m.barCount()
-	width := m.barWidth()
-	if m.root == nil || m.treeN != n || m.treeW != width || m.treeSize != m.size {
-		m.rebuild(n, width)
+	count := marquee.barCount()
+	width := marquee.barWidth()
+	if marquee.root == nil || marquee.treeCount != count || marquee.treeWidth != width || marquee.treeSize != marquee.size {
+		marquee.rebuild(count, width)
 	}
-	period := m.period()
-	for i := range m.items {
-		y := m.wrap(m.offset + float32(i)*marqueeStride)
-		m.items[i].at.Y = y
-		m.items[i].wrap.Y = y - period
+	period := marquee.period()
+	for i := range marquee.items {
+		y := marquee.wrap(marquee.offset + float32(i)*marqueeStride)
+		marquee.items[i].at.Y = y
+		marquee.items[i].wrap.Y = y - period
 	}
-	return m.root
+	return marquee.root
 }

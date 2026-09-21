@@ -9,7 +9,7 @@ import (
 // Paint is the same shape: clip down, over-composite tensor up.
 type Node interface {
 	Layout(BoxConstraints) Size
-	Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32]
+	Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32]
 }
 
 type textRun struct {

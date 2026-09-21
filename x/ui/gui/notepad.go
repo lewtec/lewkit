@@ -37,41 +37,41 @@ func NewNotepad() (*Notepad, error) {
 	}, nil
 }
 
-func (n *Notepad) Init() Cmd { return Tick() }
+func (notepad *Notepad) Init() Cmd { return Tick() }
 
-func (n *Notepad) Update(msg Msg) (Model, Cmd) {
-	if n == nil {
-		return n, nil
+func (notepad *Notepad) Update(msg Msg) (Model, Cmd) {
+	if notepad == nil {
+		return notepad, nil
 	}
 	var cmd Cmd
-	if t, ok := msg.(TickMsg); ok {
-		n.last = t.Elapsed
-		n.caret = t.Elapsed.Milliseconds()/400%2 == 0
-		cmd = Every(t.Period)
+	if tick, ok := msg.(TickMsg); ok {
+		notepad.last = tick.Elapsed
+		notepad.caret = tick.Elapsed.Milliseconds()/400%2 == 0
+		cmd = Every(tick.Period)
 	}
-	switch e := msg.(type) {
+	switch event := msg.(type) {
 	case window.Key:
-		if e.Pressed {
-			n.key(e)
+		if event.Pressed {
+			notepad.key(event)
 		}
 	case window.Pointer:
-		if e.Button == 1 && e.Pressed && n.bodyText != nil {
-			n.cursor = n.bodyText.indexAt(e.Pos)
-			n.caret = true
+		if event.Button == 1 && event.Pressed && notepad.bodyText != nil {
+			notepad.cursor = notepad.bodyText.indexAt(event.Pos)
+			notepad.caret = true
 		}
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		n.size = size
+		notepad.size = size
 	}
-	return n, cmd
+	return notepad, cmd
 }
 
-func (n *Notepad) View() Node {
-	if n == nil {
+func (notepad *Notepad) View() Node {
+	if notepad == nil {
 		return nil
 	}
-	titleH := float32(lewimage.LineHeight(n.Face) + 10)
-	n.bodyText = &Text{Value: string(n.body), Face: n.Face, Cursor: n.cursor, Caret: n.caret}
+	titleHeight := float32(lewimage.LineHeight(notepad.Face) + 10)
+	notepad.bodyText = &Text{Value: string(notepad.body), Face: notepad.Face, Cursor: notepad.cursor, Caret: notepad.caret}
 	return &Box{
 		Padding: EdgeInsets{notePad, notePad, notePad, notePad},
 		Fill:    &Color{32, 32, 38, 255},
@@ -79,68 +79,68 @@ func (n *Notepad) View() Node {
 		Clip:    true,
 		Child: &Flex{Axis: Vertical, Children: []FlexChild{
 			{Child: &Box{
-				Height:  titleH,
+				Height:  titleHeight,
 				Fill:    &Color{24, 24, 28, 255},
 				Radius:  4,
 				Padding: EdgeInsets{Left: noteInset, Top: 4},
-				Child:   &Text{Value: "untitled", Face: n.Face},
+				Child:   &Text{Value: "untitled", Face: notepad.Face},
 			}},
 			Expanded(&Box{
 				Fill:    &Color{18, 18, 22, 255},
 				Radius:  4,
 				Padding: EdgeInsets{noteInset, noteInset, noteInset, noteInset},
-				Child:   n.bodyText,
+				Child:   notepad.bodyText,
 			}),
 		}},
 	}
 }
 
-func (n *Notepad) key(k window.Key) {
-	if k.Mod&window.ModCtrl != 0 || k.Mod&window.ModSuper != 0 {
+func (notepad *Notepad) key(key window.Key) {
+	if key.Mod&window.ModCtrl != 0 || key.Mod&window.ModSuper != 0 {
 		return
 	}
 	switch {
-	case n.backspace(k):
-		n.deleteBehind()
-	case n.enter(k):
-		n.insert('\n')
-	case n.left(k):
-		if n.cursor > 0 {
-			n.cursor--
+	case notepad.backspace(key):
+		notepad.deleteBehind()
+	case notepad.enter(key):
+		notepad.insert('\n')
+	case notepad.left(key):
+		if notepad.cursor > 0 {
+			notepad.cursor--
 		}
-	case n.right(k):
-		if n.cursor < len(n.body) {
-			n.cursor++
+	case notepad.right(key):
+		if notepad.cursor < len(notepad.body) {
+			notepad.cursor++
 		}
-	case k.Rune >= 32 && k.Rune != 127:
-		n.insert(k.Rune)
+	case key.Rune >= 32 && key.Rune != 127:
+		notepad.insert(key.Rune)
 	}
 }
 
-func (n *Notepad) insert(r rune) {
-	n.body = slices.Insert(n.body, n.cursor, r)
-	n.cursor++
+func (notepad *Notepad) insert(character rune) {
+	notepad.body = slices.Insert(notepad.body, notepad.cursor, character)
+	notepad.cursor++
 }
 
-func (n *Notepad) deleteBehind() {
-	if n.cursor > 0 {
-		n.body = append(n.body[:n.cursor-1], n.body[n.cursor:]...)
-		n.cursor--
+func (notepad *Notepad) deleteBehind() {
+	if notepad.cursor > 0 {
+		notepad.body = append(notepad.body[:notepad.cursor-1], notepad.body[notepad.cursor:]...)
+		notepad.cursor--
 	}
 }
 
-func (*Notepad) backspace(k window.Key) bool {
-	return k.Rune == 8 || k.Rune == 127 || k.Code == 51 || k.Code == 8 || k.Code == 22
+func (*Notepad) backspace(key window.Key) bool {
+	return key.Rune == 8 || key.Rune == 127 || key.Code == 51 || key.Code == 8 || key.Code == 22
 }
 
-func (*Notepad) enter(k window.Key) bool {
-	return k.Rune == '\r' || k.Rune == '\n' || k.Code == 36 || k.Code == 13 || k.Code == 24
+func (*Notepad) enter(key window.Key) bool {
+	return key.Rune == '\r' || key.Rune == '\n' || key.Code == 36 || key.Code == 13 || key.Code == 24
 }
 
-func (*Notepad) left(k window.Key) bool {
-	return k.Code == 123 || k.Code == 0x25 || k.Code == 113
+func (*Notepad) left(key window.Key) bool {
+	return key.Code == 123 || key.Code == 0x25 || key.Code == 113
 }
 
-func (*Notepad) right(k window.Key) bool {
-	return k.Code == 124 || k.Code == 0x27 || k.Code == 114
+func (*Notepad) right(key window.Key) bool {
+	return key.Code == 124 || key.Code == 0x27 || key.Code == 114
 }

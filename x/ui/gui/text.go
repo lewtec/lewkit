@@ -23,164 +23,164 @@ type Text struct {
 	size   Size
 }
 
-func (t *Text) face() font.Face {
-	if t == nil {
+func (text *Text) face() font.Face {
+	if text == nil {
 		return lewimage.Face()
 	}
-	return lewimage.Use(t.Face)
+	return lewimage.Use(text.Face)
 }
 
-func (t *Text) Layout(c BoxConstraints) Size {
-	if t == nil {
+func (text *Text) Layout(constraints BoxConstraints) Size {
+	if text == nil {
 		return Size{}
 	}
-	w, h := t.measure(c.MaxWidth)
-	t.size = c.Constrain(Size{Width: w, Height: h})
-	return t.size
+	width, height := text.measure(constraints.MaxWidth)
+	text.size = constraints.Constrain(Size{Width: width, Height: height})
+	return text.size
 }
 
-func (t *Text) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
-	if t == nil {
-		return accOf(pic)
+func (text *Text) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32] {
+	if text == nil {
+		return accumulatorOf(picture)
 	}
-	t.origin = origin
-	if pic != nil {
-		box := Rect{origin.X, origin.Y, t.size.Width, t.size.Height}.Intersect(clip)
-		pic.glyph(textRun{
+	text.origin = origin
+	if picture != nil {
+		box := Rect{origin.X, origin.Y, text.size.Width, text.size.Height}.Intersect(clip)
+		picture.glyph(textRun{
 			box:    box,
-			body:   []rune(t.Value),
-			face:   t.face(),
-			cursor: t.Cursor,
-			caret:  t.Caret,
+			body:   []rune(text.Value),
+			face:   text.face(),
+			cursor: text.Cursor,
+			caret:  text.Caret,
 		})
 	}
-	return accOf(pic)
+	return accumulatorOf(picture)
 }
 
-func (t *Text) measure(maxW float32) (float32, float32) {
-	face := t.face()
-	lineH := lewimage.LineHeight(face)
-	if maxW < 1 {
-		maxW = unbounded
+func (text *Text) measure(maxWidth float32) (float32, float32) {
+	face := text.face()
+	lineHeight := lewimage.LineHeight(face)
+	if maxWidth < 1 {
+		maxWidth = unbounded
 	}
-	col := 0
+	column := 0
 	lines := 1
-	maxCol := 0
-	for _, r := range t.Value {
-		if r == '\n' {
-			if col > maxCol {
-				maxCol = col
+	maxColumn := 0
+	for _, character := range text.Value {
+		if character == '\n' {
+			if column > maxColumn {
+				maxColumn = column
 			}
-			col = 0
+			column = 0
 			lines++
 			continue
 		}
-		adv := lewimage.Advance(r, face)
-		if col+adv > int(maxW) && col > 0 {
-			if col > maxCol {
-				maxCol = col
+		advance := lewimage.Advance(character, face)
+		if column+advance > int(maxWidth) && column > 0 {
+			if column > maxColumn {
+				maxColumn = column
 			}
-			col = adv
+			column = advance
 			lines++
 			continue
 		}
-		col += adv
+		column += advance
 	}
-	if col > maxCol {
-		maxCol = col
+	if column > maxColumn {
+		maxColumn = column
 	}
-	return float32(maxCol), float32(lines * lineH)
+	return float32(maxColumn), float32(lines * lineHeight)
 }
 
-func (run textRun) stamp(dst *image.RGBA) {
-	if dst == nil || run.box.Width < 1 || run.box.Height < 1 {
+func (run textRun) stamp(destination *image.RGBA) {
+	if destination == nil || run.box.Width < 1 || run.box.Height < 1 {
 		return
 	}
 	face := lewimage.Use(run.face)
-	x0 := int(run.box.X)
-	maxX := x0 + int(run.box.Width)
+	originX := int(run.box.X)
+	maxX := originX + int(run.box.Width)
 	maxY := int(run.box.Y + run.box.Height)
-	col := x0
+	column := originX
 	baseline := int(run.box.Y) + lewimage.Ascent(face)
-	lineH := lewimage.LineHeight(face)
-	i := 0
-	for _, r := range run.body {
-		adv := lewimage.Advance(r, face)
-		if r == '\n' {
-			if run.caret && i == run.cursor {
-				run.drawCaret(dst, col, baseline, maxY)
+	lineHeight := lewimage.LineHeight(face)
+	index := 0
+	for _, character := range run.body {
+		advance := lewimage.Advance(character, face)
+		if character == '\n' {
+			if run.caret && index == run.cursor {
+				run.drawCaret(destination, column, baseline, maxY)
 			}
-			col = x0
-			baseline += lineH
-			i++
+			column = originX
+			baseline += lineHeight
+			index++
 			continue
 		}
-		if col+adv > maxX && col > x0 {
-			col = x0
-			baseline += lineH
+		if column+advance > maxX && column > originX {
+			column = originX
+			baseline += lineHeight
 		}
-		if run.caret && i == run.cursor {
-			run.drawCaret(dst, col, baseline, maxY)
+		if run.caret && index == run.cursor {
+			run.drawCaret(destination, column, baseline, maxY)
 		}
-		if baseline <= maxY && r >= 32 {
-			lewimage.Stamp{Dst: dst, X: col, Y: baseline, Text: string(r), Face: face}.Draw()
+		if baseline <= maxY && character >= 32 {
+			lewimage.Stamp{Dst: destination, X: column, Y: baseline, Text: string(character), Face: face}.Draw()
 		}
-		col += adv
-		i++
+		column += advance
+		index++
 	}
-	if run.caret && i == run.cursor {
-		run.drawCaret(dst, col, baseline, maxY)
+	if run.caret && index == run.cursor {
+		run.drawCaret(destination, column, baseline, maxY)
 	}
 }
 
-func (run textRun) drawCaret(dst *image.RGBA, x, baseline, maxY int) {
+func (run textRun) drawCaret(destination *image.RGBA, x, baseline, maxY int) {
 	face := lewimage.Use(run.face)
 	top := baseline - lewimage.Ascent(face)
-	if dst == nil || top < 0 || x < 0 || x >= dst.Bounds().Dx() {
+	if destination == nil || top < 0 || x < 0 || x >= destination.Bounds().Dx() {
 		return
 	}
-	bottom := min(baseline+2, maxY, dst.Bounds().Dy())
+	bottom := min(baseline+2, maxY, destination.Bounds().Dy())
 	if bottom <= top {
 		return
 	}
-	draw.Draw(dst, image.Rect(x, top, x+2, bottom), caretFill, image.Point{}, draw.Src)
+	draw.Draw(destination, image.Rect(x, top, x+2, bottom), caretFill, image.Point{}, draw.Src)
 }
 
-func (t *Text) indexAt(pos image.Point) int {
-	if t == nil {
+func (text *Text) indexAt(position image.Point) int {
+	if text == nil {
 		return 0
 	}
-	face := t.face()
-	body := []rune(t.Value)
-	lineH := lewimage.LineHeight(face)
-	row := max(0, (pos.Y-int(t.origin.Y))/max(1, lineH))
-	targetX := pos.X - int(t.origin.X)
-	maxW := int(t.size.Width)
-	r, x := 0, 0
-	for i, ch := range body {
-		if r > row {
-			return i - 1
+	face := text.face()
+	body := []rune(text.Value)
+	lineHeight := lewimage.LineHeight(face)
+	row := max(0, (position.Y-int(text.origin.Y))/max(1, lineHeight))
+	targetX := position.X - int(text.origin.X)
+	maxWidth := int(text.size.Width)
+	rowIndex, x := 0, 0
+	for index, character := range body {
+		if rowIndex > row {
+			return index - 1
 		}
-		if ch == '\n' {
-			if r == row {
-				return i
+		if character == '\n' {
+			if rowIndex == row {
+				return index
 			}
-			r++
+			rowIndex++
 			x = 0
 			continue
 		}
-		adv := lewimage.Advance(ch, face)
-		if x+adv > maxW && x > 0 {
-			r++
+		advance := lewimage.Advance(character, face)
+		if x+advance > maxWidth && x > 0 {
+			rowIndex++
 			x = 0
-			if r > row {
-				return i
+			if rowIndex > row {
+				return index
 			}
 		}
-		if r == row && x+adv/2 >= targetX {
-			return i
+		if rowIndex == row && x+advance/2 >= targetX {
+			return index
 		}
-		x += adv
+		x += advance
 	}
 	return len(body)
 }

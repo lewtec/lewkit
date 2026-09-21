@@ -13,59 +13,59 @@ import (
 )
 
 func TestBoxExpands(t *testing.T) {
-	b := &Box{Fill: &Color{255, 0, 0, 255}}
-	sz := b.Layout(Tight(40, 20))
-	assert.Equal(t, Size{40, 20}, sz)
+	box := &Box{Fill: &Color{255, 0, 0, 255}}
+	size := box.Layout(Tight(40, 20))
+	assert.Equal(t, Size{40, 20}, size)
 }
 
 func TestBoxAlignsChild(t *testing.T) {
 	label := &Text{Value: "-"}
-	b := &Box{Width: 56, Height: 56, Align: Alignment{0.5, 0.5}, Child: label}
-	_ = b.Layout(Tight(56, 56))
-	pic, err := NewPicture()
+	box := &Box{Width: 56, Height: 56, Align: Alignment{0.5, 0.5}, Child: label}
+	_ = box.Layout(Tight(56, 56))
+	picture, err := NewPicture()
 	require.NoError(t, err)
-	b.Paint(Offset{}, Rect{0, 0, 56, 56}, pic)
-	require.NotEmpty(t, pic.texts)
-	assert.Greater(t, pic.texts[0].box.X, float32(4))
-	assert.Greater(t, pic.texts[0].box.Y, float32(4))
+	box.Paint(Offset{}, Rect{0, 0, 56, 56}, picture)
+	require.NotEmpty(t, picture.texts)
+	assert.Greater(t, picture.texts[0].box.X, float32(4))
+	assert.Greater(t, picture.texts[0].box.Y, float32(4))
 }
 
 func TestBoxSpacerDoesNotFillCross(t *testing.T) {
-	s := &Box{Width: 24}
-	sz := s.Layout(BoxConstraints{MaxWidth: 100, MaxHeight: 80})
-	assert.Equal(t, Size{24, 0}, sz)
+	spacer := &Box{Width: 24}
+	size := spacer.Layout(BoxConstraints{MaxWidth: 100, MaxHeight: 80})
+	assert.Equal(t, Size{24, 0}, size)
 }
 
 func TestRowPacksAndCenters(t *testing.T) {
 	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255}}
 	gap := &Box{Width: 4}
-	b := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255}}
-	row := Row(a, gap, b)
+	box := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255}}
+	row := Row(a, gap, box)
 	outer := &Box{Align: Alignment{0.5, 0.5}, Child: row}
-	sz := outer.Layout(Tight(100, 40))
-	assert.Equal(t, Size{100, 40}, sz)
+	size := outer.Layout(Tight(100, 40))
+	assert.Equal(t, Size{100, 40}, size)
 	assert.Equal(t, Size{24, 8}, row.size)
-	pic, err := NewPicture()
+	picture, err := NewPicture()
 	require.NoError(t, err)
-	outer.Paint(Offset{}, Rect{0, 0, 100, 40}, pic)
-	require.GreaterOrEqual(t, len(pic.fills), 2)
-	assert.InDelta(t, 38, pic.fills[0].X, 1)
-	assert.InDelta(t, 16, pic.fills[0].Y, 1)
+	outer.Paint(Offset{}, Rect{0, 0, 100, 40}, picture)
+	require.GreaterOrEqual(t, len(picture.fills), 2)
+	assert.InDelta(t, 38, picture.fills[0].X, 1)
+	assert.InDelta(t, 16, picture.fills[0].Y, 1)
 }
 
 func TestRowRootFillsTight(t *testing.T) {
 	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255}}
 	row := Row(a)
-	sz := row.Layout(Tight(100, 40))
-	assert.Equal(t, Size{100, 40}, sz)
+	size := row.Layout(Tight(100, 40))
+	assert.Equal(t, Size{100, 40}, size)
 }
 
 func TestFlexSplitsExpanded(t *testing.T) {
 	left := &Box{Fill: &Color{255, 0, 0, 255}}
 	right := &Box{Fill: &Color{0, 255, 0, 255}}
 	row := &Flex{Axis: Horizontal, Children: []FlexChild{Expanded(left), Expanded(right)}}
-	sz := row.Layout(Tight(100, 10))
-	assert.Equal(t, Size{100, 10}, sz)
+	size := row.Layout(Tight(100, 10))
+	assert.Equal(t, Size{100, 10}, size)
 	assert.Equal(t, Size{50, 10}, left.size)
 	assert.Equal(t, Size{50, 10}, right.size)
 	assert.Equal(t, float32(0), row.Children[0].position)
@@ -74,57 +74,57 @@ func TestFlexSplitsExpanded(t *testing.T) {
 
 func TestColumnStacks(t *testing.T) {
 	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255}}
-	b := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255}}
-	col := Column(a, b)
-	sz := col.Layout(Tight(10, 20))
-	assert.Equal(t, Size{10, 20}, sz)
-	assert.Equal(t, float32(0), col.Children[0].position)
-	assert.Equal(t, float32(8), col.Children[1].position)
+	box := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255}}
+	column := Column(a, box)
+	size := column.Layout(Tight(10, 20))
+	assert.Equal(t, Size{10, 20}, size)
+	assert.Equal(t, float32(0), column.Children[0].position)
+	assert.Equal(t, float32(8), column.Children[1].position)
 }
 
 func TestStackPositions(t *testing.T) {
 	child := &Box{Width: 4, Height: 4, Fill: &Color{255, 255, 255, 255}}
-	st := &Stack{Children: []Node{&Positioned{X: 3, Y: 5, Child: child}}}
-	sz := st.Layout(Tight(20, 20))
-	assert.Equal(t, Size{20, 20}, sz)
-	pic, err := NewPicture()
+	stack := &Stack{Children: []Node{&Positioned{X: 3, Y: 5, Child: child}}}
+	size := stack.Layout(Tight(20, 20))
+	assert.Equal(t, Size{20, 20}, size)
+	picture, err := NewPicture()
 	require.NoError(t, err)
-	st.Paint(Offset{}, Rect{0, 0, 20, 20}, pic)
-	require.Len(t, pic.fills, 1)
-	assert.Equal(t, float32(3), pic.fills[0].X)
-	assert.Equal(t, float32(5), pic.fills[0].Y)
+	stack.Paint(Offset{}, Rect{0, 0, 20, 20}, picture)
+	require.Len(t, picture.fills, 1)
+	assert.Equal(t, float32(3), picture.fills[0].X)
+	assert.Equal(t, float32(5), picture.fills[0].Y)
 }
 
-func raster(t *testing.T, root Node, w, h int) []uint8 {
+func raster(t *testing.T, root Node, width, height int) []uint8 {
 	t.Helper()
-	p, err := NewPicture()
+	picture, err := NewPicture()
 	require.NoError(t, err)
-	pixels, err := p.Render(root, Size{float32(w), float32(h)})
+	pixels, err := picture.Render(root, Size{float32(width), float32(height)})
 	require.NoError(t, err)
-	out := make([]uint8, w*h*4)
+	out := make([]uint8, width*height*4)
 	require.NoError(t, pixels.Eval(t.Context(), ndarray.CPU, out))
 	return out
 }
 
-func at(pix []uint8, w, x, y int) color.RGBA {
-	i := (y*w + x) * 4
-	return color.RGBA{pix[i], pix[i+1], pix[i+2], pix[i+3]}
+func at(pixels []uint8, width, x, y int) color.RGBA {
+	i := (y*width + x) * 4
+	return color.RGBA{pixels[i], pixels[i+1], pixels[i+2], pixels[i+3]}
 }
 
 func TestPaintFillAndAlpha(t *testing.T) {
 	root := &Box{Fill: &Color{255, 0, 0, 128}}
-	pix := raster(t, root, 8, 8)
-	c := at(pix, 8, 3, 3)
-	assert.InDelta(t, 128, c.R, 2)
-	assert.Equal(t, uint8(0), c.G)
-	assert.Equal(t, uint8(255), c.A)
+	pixels := raster(t, root, 8, 8)
+	sampled := at(pixels, 8, 3, 3)
+	assert.InDelta(t, 128, sampled.R, 2)
+	assert.Equal(t, uint8(0), sampled.G)
+	assert.Equal(t, uint8(255), sampled.A)
 }
 
 func TestPaintRoundCorner(t *testing.T) {
 	root := &Box{Fill: &Color{0, 255, 0, 255}, Radius: 20}
-	pix := raster(t, root, 40, 40)
-	outside := at(pix, 40, 0, 0)
-	inside := at(pix, 40, 20, 20)
+	pixels := raster(t, root, 40, 40)
+	outside := at(pixels, 40, 0, 0)
+	inside := at(pixels, 40, 20, 20)
 	assert.Equal(t, uint8(0), outside.G)
 	assert.InDelta(t, 255, inside.G, 2)
 }
@@ -134,10 +134,10 @@ func TestPaintStackTransparent(t *testing.T) {
 		&Box{Fill: &Color{255, 0, 0, 255}},
 		&Positioned{X: 0, Y: 0, Child: &Box{Width: 8, Height: 8, Fill: &Color{0, 0, 255, 128}}},
 	}}
-	pix := raster(t, root, 8, 8)
-	c := at(pix, 8, 2, 2)
-	assert.Greater(t, c.R, uint8(80))
-	assert.Greater(t, c.B, uint8(80))
+	pixels := raster(t, root, 8, 8)
+	sampled := at(pixels, 8, 2, 2)
+	assert.Greater(t, sampled.R, uint8(80))
+	assert.Greater(t, sampled.B, uint8(80))
 }
 
 func TestWrapShift(t *testing.T) {
@@ -146,45 +146,45 @@ func TestWrapShift(t *testing.T) {
 }
 
 func TestMarqueeTreeReused(t *testing.T) {
-	m, err := NewMarquee()
+	marquee, err := NewMarquee()
 	require.NoError(t, err)
-	m.size = image.Pt(80, 200)
-	a := m.View()
-	m.offset = 40
-	b := m.View()
-	require.Same(t, a, b)
-	m.size = image.Pt(80, 400)
-	c := m.View()
-	require.NotSame(t, a, c)
+	marquee.size = image.Pt(80, 200)
+	first := marquee.View()
+	marquee.offset = 40
+	second := marquee.View()
+	require.Same(t, first, second)
+	marquee.size = image.Pt(80, 400)
+	later := marquee.View()
+	require.NotSame(t, first, later)
 }
 
 func TestMarqueeLoops(t *testing.T) {
-	m, err := NewMarquee()
+	marquee, err := NewMarquee()
 	require.NoError(t, err)
-	m.size = image.Pt(80, 120)
-	ya := barYs(t, m)
-	m.offset = 160
-	yb := barYs(t, m)
-	require.NotEmpty(t, ya)
-	require.Equal(t, len(ya), len(yb))
-	assert.Greater(t, yb[0], ya[0])
+	marquee.size = image.Pt(80, 120)
+	before := barYs(t, marquee)
+	marquee.offset = 160
+	after := barYs(t, marquee)
+	require.NotEmpty(t, before)
+	require.Equal(t, len(before), len(after))
+	assert.Greater(t, after[0], before[0])
 }
 
 func TestMarqueeFillsViewport(t *testing.T) {
-	const w, h = 80, 400
-	top, bot := float32(marqueePad), float32(h-marqueePad)
+	const width, height = 80, 400
+	top, bot := float32(marqueePad), float32(height-marqueePad)
 	for _, delta := range []float32{0, 32, 96, 320} {
-		m, err := NewMarquee()
+		marquee, err := NewMarquee()
 		require.NoError(t, err)
-		m.size = image.Pt(w, h)
-		m.offset = delta
-		bars := marqueeBars(t, m, w, h)
+		marquee.size = image.Pt(width, height)
+		marquee.offset = delta
+		bars := marqueeBars(t, marquee, width, height)
 		require.NotEmpty(t, bars, "delta %v", delta)
 		empty, maxEmpty := 0, 0
 		for y := top + 1; y < bot-1; y++ {
 			covered := false
-			for _, d := range bars {
-				if y >= d.Y && y < d.Y+d.Height {
+			for _, fill := range bars {
+				if y >= fill.Y && y < fill.Y+fill.Height {
 					covered = true
 					break
 				}
@@ -203,122 +203,122 @@ func TestMarqueeFillsViewport(t *testing.T) {
 }
 
 func TestMarqueeScrollThenTick(t *testing.T) {
-	m, err := NewMarquee()
+	marquee, err := NewMarquee()
 	require.NoError(t, err)
-	m.size = image.Pt(80, 200)
-	m.lastTick = 100 * time.Millisecond
-	next, cmd := m.Update(window.Scroll{Delta: image.Pt(0, -20)})
-	require.Same(t, m, next)
+	marquee.size = image.Pt(80, 200)
+	marquee.lastTick = 100 * time.Millisecond
+	next, cmd := marquee.Update(window.Scroll{Delta: image.Pt(0, -20)})
+	require.Same(t, marquee, next)
 	require.Nil(t, cmd)
-	assert.InDelta(t, m.wrap(-20), m.offset, 0.01)
-	next, cmd = m.Update(TickMsg{Elapsed: 150 * time.Millisecond, Size: m.size})
-	require.Same(t, m, next)
+	assert.InDelta(t, marquee.wrap(-20), marquee.offset, 0.01)
+	next, cmd = marquee.Update(TickMsg{Elapsed: 150 * time.Millisecond, Size: marquee.size})
+	require.Same(t, marquee, next)
 	require.NotNil(t, cmd)
-	assert.InDelta(t, m.wrap(-20+4), m.offset, 0.01)
+	assert.InDelta(t, marquee.wrap(-20+4), marquee.offset, 0.01)
 }
 
 func TestMarqueeResizeClearsDrag(t *testing.T) {
-	m, err := NewMarquee()
+	marquee, err := NewMarquee()
 	require.NoError(t, err)
-	m.size = image.Pt(80, 200)
-	m.lastTick = 100 * time.Millisecond
-	_, _ = m.Update(window.Pointer{Pos: image.Pt(10, 50), Button: 1, Pressed: true, Buttons: window.ButtonLeft})
-	require.True(t, m.dragging)
-	offset := m.offset
-	_, cmd := m.Update(window.Resize{Size: image.Pt(80, 240)})
+	marquee.size = image.Pt(80, 200)
+	marquee.lastTick = 100 * time.Millisecond
+	_, _ = marquee.Update(window.Pointer{Pos: image.Pt(10, 50), Button: 1, Pressed: true, Buttons: window.ButtonLeft})
+	require.True(t, marquee.dragging)
+	offset := marquee.offset
+	_, cmd := marquee.Update(window.Resize{Size: image.Pt(80, 240)})
 	require.Nil(t, cmd)
-	assert.False(t, m.dragging)
-	next, cmd := m.Update(TickMsg{Elapsed: 200 * time.Millisecond, Period: time.Second / 60, Size: image.Pt(80, 240)})
-	require.Same(t, m, next)
+	assert.False(t, marquee.dragging)
+	next, cmd := marquee.Update(TickMsg{Elapsed: 200 * time.Millisecond, Period: time.Second / 60, Size: image.Pt(80, 240)})
+	require.Same(t, marquee, next)
 	require.NotNil(t, cmd)
-	assert.Greater(t, m.offset, offset)
+	assert.Greater(t, marquee.offset, offset)
 }
 
 func TestMarqueeDrag(t *testing.T) {
-	m, err := NewMarquee()
+	marquee, err := NewMarquee()
 	require.NoError(t, err)
-	m.size = image.Pt(80, 200)
-	next, cmd := m.Update(window.Pointer{Pos: image.Pt(10, 50), Button: 1, Pressed: true, Buttons: window.ButtonLeft})
-	require.Same(t, m, next)
+	marquee.size = image.Pt(80, 200)
+	next, cmd := marquee.Update(window.Pointer{Pos: image.Pt(10, 50), Button: 1, Pressed: true, Buttons: window.ButtonLeft})
+	require.Same(t, marquee, next)
 	require.Nil(t, cmd)
-	next, cmd = m.Update(window.Pointer{Pos: image.Pt(10, 90), Buttons: window.ButtonLeft})
-	require.Same(t, m, next)
+	next, cmd = marquee.Update(window.Pointer{Pos: image.Pt(10, 90), Buttons: window.ButtonLeft})
+	require.Same(t, marquee, next)
 	require.Nil(t, cmd)
-	assert.InDelta(t, 40, m.offset, 0.01)
-	assert.True(t, m.dragging)
-	next, cmd = m.Update(window.Pointer{Pos: image.Pt(10, 90), Button: 1, Pressed: false})
-	require.Same(t, m, next)
+	assert.InDelta(t, 40, marquee.offset, 0.01)
+	assert.True(t, marquee.dragging)
+	next, cmd = marquee.Update(window.Pointer{Pos: image.Pt(10, 90), Button: 1, Pressed: false})
+	require.Same(t, marquee, next)
 	require.Nil(t, cmd)
-	assert.False(t, m.dragging)
+	assert.False(t, marquee.dragging)
 }
 
-func barYs(t *testing.T, m *Marquee) []float32 {
+func barYs(t *testing.T, marquee *Marquee) []float32 {
 	t.Helper()
 	var ys []float32
-	for _, d := range marqueeBars(t, m, m.size.X, m.size.Y) {
-		ys = append(ys, d.Y)
+	for _, fill := range marqueeBars(t, marquee, marquee.size.X, marquee.size.Y) {
+		ys = append(ys, fill.Y)
 	}
 	return ys
 }
 
-func marqueeBars(t *testing.T, m *Marquee, w, h int) []Draw {
+func marqueeBars(t *testing.T, marquee *Marquee, width, height int) []Draw {
 	t.Helper()
-	root := m.View()
-	root.Layout(Tight(float32(w), float32(h)))
-	pic, err := NewPicture()
+	root := marquee.View()
+	root.Layout(Tight(float32(width), float32(height)))
+	picture, err := NewPicture()
 	require.NoError(t, err)
-	root.Paint(Offset{}, Rect{0, 0, float32(w), float32(h)}, pic)
+	root.Paint(Offset{}, Rect{0, 0, float32(width), float32(height)}, picture)
 	var bars []Draw
-	for _, d := range pic.fills {
-		if d.Alpha > 0 && d.Height <= marqueeItemH+1 && d.Width < float32(w) {
-			bars = append(bars, d)
+	for _, fill := range picture.fills {
+		if fill.Alpha > 0 && fill.Height <= marqueeItemHeight+1 && fill.Width < float32(width) {
+			bars = append(bars, fill)
 		}
 	}
 	return bars
 }
 
 func TestPictureReuseKernel(t *testing.T) {
-	p, err := NewPicture()
+	picture, err := NewPicture()
 	require.NoError(t, err)
 	root := &Box{Fill: &Color{10, 20, 30, 255}}
-	first, err := p.Render(root, Size{6, 6})
+	first, err := picture.Render(root, Size{6, 6})
 	require.NoError(t, err)
-	k := first.Kernel()
-	second, err := p.Render(root, Size{8, 8})
+	kernel := first.Kernel()
+	second, err := picture.Render(root, Size{8, 8})
 	require.NoError(t, err)
-	assert.Same(t, k, second.Kernel())
-	require.Equal(t, 3, k.Bindings())
+	assert.Same(t, kernel, second.Kernel())
+	require.Equal(t, 3, kernel.Bindings())
 }
 
 func TestPictureGrowsLayers(t *testing.T) {
-	p, err := NewPicture()
+	picture, err := NewPicture()
 	require.NoError(t, err)
 	one := &Box{Fill: &Color{255, 0, 0, 255}}
-	first, err := p.Render(one, Size{8, 8})
+	first, err := picture.Render(one, Size{8, 8})
 	require.NoError(t, err)
-	k := first.Kernel()
+	kernel := first.Kernel()
 	children := make([]Node, 10)
 	for i := range children {
 		children[i] = &Box{Fill: &Color{0, 0, 255, 40}}
 	}
 	stack := &Stack{Children: children}
-	grown, err := p.Render(stack, Size{8, 8})
+	grown, err := picture.Render(stack, Size{8, 8})
 	require.NoError(t, err)
-	require.NotSame(t, k, grown.Kernel())
-	again, err := p.Render(stack, Size{8, 8})
+	require.NotSame(t, kernel, grown.Kernel())
+	again, err := picture.Render(stack, Size{8, 8})
 	require.NoError(t, err)
 	assert.Same(t, grown.Kernel(), again.Kernel())
-	pix := make([]uint8, 8*8*4)
-	require.NoError(t, grown.Eval(t.Context(), ndarray.CPU, pix))
-	c := at(pix, 8, 4, 4)
-	assert.Greater(t, c.B, uint8(80))
+	pixels := make([]uint8, 8*8*4)
+	require.NoError(t, grown.Eval(t.Context(), ndarray.CPU, pixels))
+	sampled := at(pixels, 8, 4, 4)
+	assert.Greater(t, sampled.B, uint8(80))
 }
 
 func TestInkLetter(t *testing.T) {
-	p, err := NewPicture()
+	picture, err := NewPicture()
 	require.NoError(t, err)
 	root := &Box{Fill: &Color{0, 0, 0, 255}, Child: &Text{Value: "Hi"}}
-	pixels, err := p.Render(root, Size{80, 40})
+	pixels, err := picture.Render(root, Size{80, 40})
 	require.NoError(t, err)
 	out := make([]uint8, 80*40*4)
 	require.NoError(t, pixels.Eval(t.Context(), ndarray.CPU, out))
@@ -332,33 +332,33 @@ func TestInkLetter(t *testing.T) {
 }
 
 func TestCounterButtons(t *testing.T) {
-	c, err := NewCounter()
+	counter, err := NewCounter()
 	require.NoError(t, err)
-	c.size = image.Pt(400, 200)
-	root := c.View()
+	counter.size = image.Pt(400, 200)
+	root := counter.View()
 	require.NotNil(t, root)
 	root.Layout(Tight(400, 200))
-	pic, err := NewPicture()
+	picture, err := NewPicture()
 	require.NoError(t, err)
-	root.Paint(Offset{}, Rect{0, 0, 400, 200}, pic)
-	require.NotNil(t, c.plus)
-	pos := image.Pt(int(c.plus.origin.X+c.plus.size.Width/2), int(c.plus.origin.Y+c.plus.size.Height/2))
-	next, cmd := c.Update(window.Pointer{Pos: pos, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
-	require.Same(t, c, next)
+	root.Paint(Offset{}, Rect{0, 0, 400, 200}, picture)
+	require.NotNil(t, counter.plus)
+	position := image.Pt(int(counter.plus.origin.X+counter.plus.size.Width/2), int(counter.plus.origin.Y+counter.plus.size.Height/2))
+	next, cmd := counter.Update(window.Pointer{Pos: position, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
+	require.Same(t, counter, next)
 	require.Nil(t, cmd)
-	assert.Equal(t, 1, c.count)
-	pos = image.Pt(int(c.minus.origin.X+c.minus.size.Width/2), int(c.minus.origin.Y+c.minus.size.Height/2))
-	next, cmd = c.Update(window.Pointer{Pos: pos, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
-	require.Same(t, c, next)
+	assert.Equal(t, 1, counter.count)
+	position = image.Pt(int(counter.minus.origin.X+counter.minus.size.Width/2), int(counter.minus.origin.Y+counter.minus.size.Height/2))
+	next, cmd = counter.Update(window.Pointer{Pos: position, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
+	require.Same(t, counter, next)
 	require.Nil(t, cmd)
-	assert.Equal(t, 0, c.count)
+	assert.Equal(t, 0, counter.count)
 }
 
 func TestNotepadTypes(t *testing.T) {
-	n, err := NewNotepad()
+	notepad, err := NewNotepad()
 	require.NoError(t, err)
-	next, cmd := n.Update(window.Key{Rune: 'x', Pressed: true})
-	require.Same(t, n, next)
+	next, cmd := notepad.Update(window.Key{Rune: 'x', Pressed: true})
+	require.Same(t, notepad, next)
 	require.Nil(t, cmd)
-	assert.Contains(t, string(n.body), "x")
+	assert.Contains(t, string(notepad.body), "x")
 }

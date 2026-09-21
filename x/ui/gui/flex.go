@@ -72,11 +72,11 @@ func Column(children ...Node) *Flex {
 }
 
 func newFlex(axis Axis, children []Node) *Flex {
-	out := make([]FlexChild, len(children))
+	items := make([]FlexChild, len(children))
 	for i, node := range children {
-		out[i].Child = node
+		items[i].Child = node
 	}
-	return &Flex{Axis: axis, Children: out}
+	return &Flex{Axis: axis, Children: items}
 }
 
 func (flex *Flex) Layout(constraints BoxConstraints) Size {
@@ -145,11 +145,11 @@ func (axis Axis) box(minMain, maxMain, minCross, maxCross float32) BoxConstraint
 	return BoxConstraints{minCross, minMain, maxCross, maxMain}
 }
 
-func (flex *Flex) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
+func (flex *Flex) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32] {
 	if flex == nil {
-		return accOf(pic)
+		return accumulatorOf(picture)
 	}
-	acc := accOf(pic)
+	accumulator := accumulatorOf(picture)
 	for i := range flex.Children {
 		child := &flex.Children[i]
 		if child.Child == nil {
@@ -159,7 +159,7 @@ func (flex *Flex) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[
 		if crossPadding < 0 {
 			crossPadding = 0
 		}
-		acc = child.Child.Paint(origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, pic)
+		accumulator = child.Child.Paint(origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, picture)
 	}
-	return acc
+	return accumulator
 }

@@ -64,18 +64,18 @@ func (box *Box) Layout(constraints BoxConstraints) Size {
 	return box.size
 }
 
-func (box *Box) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
+func (box *Box) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32] {
 	if box == nil {
-		return accOf(pic)
+		return accumulatorOf(picture)
 	}
 	box.origin = origin
 	bounds := Rect{origin.X, origin.Y, box.size.Width, box.size.Height}
 	if box.Clip {
 		clip = clip.Intersect(bounds)
 	}
-	acc := accOf(pic)
-	if box.Fill != nil && pic != nil {
-		acc = pic.over(Draw{
+	accumulator := accumulatorOf(picture)
+	if box.Fill != nil && picture != nil {
+		accumulator = picture.over(Draw{
 			X: origin.X, Y: origin.Y, Width: box.size.Width, Height: box.size.Height,
 			Red: float32(box.Fill.Red), Green: float32(box.Fill.Green), Blue: float32(box.Fill.Blue), Alpha: float32(box.Fill.Alpha),
 			Radius:     box.Radius,
@@ -86,12 +86,12 @@ func (box *Box) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[fl
 		})
 	}
 	if box.Child == nil {
-		return acc
+		return accumulator
 	}
 	inner := Size{Width: box.size.Width - box.Padding.Horizontal(), Height: box.size.Height - box.Padding.Vertical()}
 	childX := box.Padding.Left + (inner.Width-box.childSize.Width)*box.Align.X
 	childY := box.Padding.Top + (inner.Height-box.childSize.Height)*box.Align.Y
-	return box.Child.Paint(origin.Add(Offset{childX, childY}), clip, pic)
+	return box.Child.Paint(origin.Add(Offset{childX, childY}), clip, picture)
 }
 
 // Contains is true when position is inside the last painted box.

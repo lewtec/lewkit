@@ -18,49 +18,49 @@ type Positioned struct {
 	size Size
 }
 
-func (s *Stack) Layout(c BoxConstraints) Size {
-	if s == nil {
+func (stack *Stack) Layout(constraints BoxConstraints) Size {
+	if stack == nil {
 		return Size{}
 	}
-	s.size = c.Constrain(Size{Width: c.MaxWidth, Height: c.MaxHeight})
-	inner := Tight(s.size.Width, s.size.Height).Loosen()
-	for _, node := range s.Children {
+	stack.size = constraints.Constrain(Size{Width: constraints.MaxWidth, Height: constraints.MaxHeight})
+	inner := Tight(stack.size.Width, stack.size.Height).Loosen()
+	for _, node := range stack.Children {
 		if node != nil {
 			node.Layout(inner)
 		}
 	}
-	return s.size
+	return stack.size
 }
 
-func (s *Stack) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
-	if s == nil {
-		return accOf(pic)
+func (stack *Stack) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32] {
+	if stack == nil {
+		return accumulatorOf(picture)
 	}
-	if s.Clip {
-		clip = clip.Intersect(Rect{origin.X, origin.Y, s.size.Width, s.size.Height})
+	if stack.Clip {
+		clip = clip.Intersect(Rect{origin.X, origin.Y, stack.size.Width, stack.size.Height})
 	}
-	acc := accOf(pic)
-	for _, node := range s.Children {
+	accumulator := accumulatorOf(picture)
+	for _, node := range stack.Children {
 		if node != nil {
-			acc = node.Paint(origin, clip, pic)
+			accumulator = node.Paint(origin, clip, picture)
 		}
 	}
-	return acc
+	return accumulator
 }
 
-func (p *Positioned) Layout(c BoxConstraints) Size {
-	if p == nil || p.Child == nil {
+func (positioned *Positioned) Layout(constraints BoxConstraints) Size {
+	if positioned == nil || positioned.Child == nil {
 		return Size{}
 	}
-	inner := c.Loosen()
+	inner := constraints.Loosen()
 	inner.MaxHeight = unbounded
-	p.size = p.Child.Layout(inner)
-	return p.size
+	positioned.size = positioned.Child.Layout(inner)
+	return positioned.size
 }
 
-func (p *Positioned) Paint(origin Offset, clip Rect, pic *Picture) *ndarray.Tensor[float32] {
-	if p == nil || p.Child == nil {
-		return accOf(pic)
+func (positioned *Positioned) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32] {
+	if positioned == nil || positioned.Child == nil {
+		return accumulatorOf(picture)
 	}
-	return p.Child.Paint(origin.Add(Offset{p.X, p.Y}), clip, pic)
+	return positioned.Child.Paint(origin.Add(Offset{positioned.X, positioned.Y}), clip, picture)
 }

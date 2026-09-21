@@ -23,12 +23,12 @@ func Tick() Cmd {
 
 // Every waits d then produces a [TickMsg]. Models that animate return
 // Every from Update after handling a tick.
-func Every(d time.Duration) Cmd {
-	if d <= 0 {
-		d = window.DefaultFramePeriod
+func Every(duration time.Duration) Cmd {
+	if duration <= 0 {
+		duration = window.DefaultFramePeriod
 	}
 	return func() Msg {
-		time.Sleep(d)
+		time.Sleep(duration)
 		return TickMsg{}
 	}
 }
@@ -53,11 +53,11 @@ type TickMsg struct {
 }
 
 func sizeOf(msg Msg) (image.Point, bool) {
-	switch m := msg.(type) {
+	switch message := msg.(type) {
 	case TickMsg:
-		return m.Size, true
+		return message.Size, true
 	case window.Resize:
-		return m.Size, true
+		return message.Size, true
 	default:
 		return image.Point{}, false
 	}

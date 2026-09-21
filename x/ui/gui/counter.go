@@ -20,47 +20,47 @@ func NewCounter() (*Counter, error) {
 	return &Counter{size: image.Pt(400, 200)}, nil
 }
 
-func (c *Counter) Init() Cmd { return Tick() }
+func (counter *Counter) Init() Cmd { return Tick() }
 
-func (c *Counter) Update(msg Msg) (Model, Cmd) {
-	if c == nil {
-		return c, nil
+func (counter *Counter) Update(msg Msg) (Model, Cmd) {
+	if counter == nil {
+		return counter, nil
 	}
-	if p, ok := msg.(window.Pointer); ok && p.Button == 1 && p.Pressed {
-		if c.minus != nil && c.minus.Contains(p.Pos) {
-			c.count--
+	if pointer, ok := msg.(window.Pointer); ok && pointer.Button == 1 && pointer.Pressed {
+		if counter.minus != nil && counter.minus.Contains(pointer.Pos) {
+			counter.count--
 		}
-		if c.plus != nil && c.plus.Contains(p.Pos) {
-			c.count++
+		if counter.plus != nil && counter.plus.Contains(pointer.Pos) {
+			counter.count++
 		}
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		c.size = size
+		counter.size = size
 	}
-	return c, nil
+	return counter, nil
 }
 
-func (c *Counter) View() Node {
-	if c == nil {
+func (counter *Counter) View() Node {
+	if counter == nil {
 		return nil
 	}
-	c.minus = c.button("-", Color{180, 70, 80, 255})
-	c.plus = c.button("+", Color{70, 160, 100, 255})
+	counter.minus = counter.button("-", Color{180, 70, 80, 255})
+	counter.plus = counter.button("+", Color{70, 160, 100, 255})
 	// Root Box fills the window; Align centers the packed Row.
 	return &Box{
 		Fill:  &Color{28, 28, 34, 255},
 		Align: Alignment{0.5, 0.5},
 		Child: Row(
-			c.minus,
+			counter.minus,
 			&Box{Width: 24},
 			&Box{
 				Width:  100,
 				Height: 56,
 				Align:  Alignment{0.5, 0.5},
-				Child:  &Text{Value: strconv.Itoa(c.count)},
+				Child:  &Text{Value: strconv.Itoa(counter.count)},
 			},
 			&Box{Width: 24},
-			c.plus,
+			counter.plus,
 		),
 	}
 }

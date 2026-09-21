@@ -15,301 +15,303 @@ type slot struct {
 	clipWidth, clipHeight   *ndarray.Tensor[float32]
 }
 
-// Picture is one over-composite tensor: each fill layers onto acc, then ink.
-// The graph grows with the tree; uniforms update each frame.
+// Picture is one over-composite tensor: each fill layers onto the
+// accumulator, then ink. The graph grows with the tree; uniforms update
+// each frame.
 type Picture struct {
-	slots     []slot
-	outs      []*ndarray.Tensor[float32]
-	base      *ndarray.Tensor[float32]
-	acc       *ndarray.Tensor[float32]
-	px, py    *ndarray.Tensor[float32]
-	ch        *ndarray.Tensor[int32]
-	params    *ndarray.Tensor[float32]
-	ink       *ndarray.Tensor[uint8]
-	pixels    *ndarray.Tensor[uint8]
-	inkedFrom *ndarray.Tensor[float32]
-	inkRGBA   *image.RGBA
-	fills     []Draw
-	texts     []textRun
-	sig       uint64
-	hadInk    bool
-	used      int
+	slots       []slot
+	composites  []*ndarray.Tensor[float32]
+	base        *ndarray.Tensor[float32]
+	accumulator *ndarray.Tensor[float32]
+	pixelX      *ndarray.Tensor[float32]
+	pixelY      *ndarray.Tensor[float32]
+	channel     *ndarray.Tensor[int32]
+	params      *ndarray.Tensor[float32]
+	ink         *ndarray.Tensor[uint8]
+	pixels      *ndarray.Tensor[uint8]
+	inkedFrom   *ndarray.Tensor[float32]
+	inkRGBA     *image.RGBA
+	fills       []Draw
+	texts       []textRun
+	signature   uint64
+	hadInk      bool
+	fillCount   int
 }
 
-func accOf(pic *Picture) *ndarray.Tensor[float32] {
-	if pic == nil {
+func accumulatorOf(picture *Picture) *ndarray.Tensor[float32] {
+	if picture == nil {
 		return nil
 	}
-	return pic.acc
+	return picture.accumulator
 }
 
 const slotFloats = 13
 
-func (p *Picture) cell(i int) (*ndarray.Tensor[float32], error) {
-	t, err := p.params.Shrink([][2]int{{i, i + 1}})
+func (picture *Picture) cell(index int) (*ndarray.Tensor[float32], error) {
+	tensor, err := picture.params.Shrink([][2]int{{index, index + 1}})
 	if err != nil {
 		return nil, err
 	}
-	return t.Splat()
+	return tensor.Splat()
 }
 
-func (p *Picture) newSlot(base int) (slot, error) {
-	var s slot
-	fs := [slotFloats]**ndarray.Tensor[float32]{
-		&s.x, &s.y, &s.width, &s.height, &s.red, &s.green, &s.blue, &s.alpha, &s.radius, &s.clipX, &s.clipY, &s.clipWidth, &s.clipHeight,
+func (picture *Picture) newSlot(base int) (slot, error) {
+	var next slot
+	fields := [slotFloats]**ndarray.Tensor[float32]{
+		&next.x, &next.y, &next.width, &next.height, &next.red, &next.green, &next.blue, &next.alpha, &next.radius, &next.clipX, &next.clipY, &next.clipWidth, &next.clipHeight,
 	}
-	for j, dst := range fs {
-		t, err := p.cell(base + j)
+	for offset, destination := range fields {
+		tensor, err := picture.cell(base + offset)
 		if err != nil {
-			return s, err
+			return next, err
 		}
-		*dst = t
+		*destination = tensor
 	}
-	return s, nil
+	return next, nil
 }
 
-func (s slot) write(d Draw) {
-	put(s.x, d.X)
-	put(s.y, d.Y)
-	put(s.width, d.Width)
-	put(s.height, d.Height)
-	put(s.red, d.Red)
-	put(s.green, d.Green)
-	put(s.blue, d.Blue)
-	put(s.alpha, d.Alpha)
-	put(s.radius, d.Radius)
-	put(s.clipX, d.ClipX)
-	put(s.clipY, d.ClipY)
-	put(s.clipWidth, d.ClipWidth)
-	put(s.clipHeight, d.ClipHeight)
+func (slot slot) write(fill Draw) {
+	writeUniform(slot.x, fill.X)
+	writeUniform(slot.y, fill.Y)
+	writeUniform(slot.width, fill.Width)
+	writeUniform(slot.height, fill.Height)
+	writeUniform(slot.red, fill.Red)
+	writeUniform(slot.green, fill.Green)
+	writeUniform(slot.blue, fill.Blue)
+	writeUniform(slot.alpha, fill.Alpha)
+	writeUniform(slot.radius, fill.Radius)
+	writeUniform(slot.clipX, fill.ClipX)
+	writeUniform(slot.clipY, fill.ClipY)
+	writeUniform(slot.clipWidth, fill.ClipWidth)
+	writeUniform(slot.clipHeight, fill.ClipHeight)
 }
 
-func put(t *ndarray.Tensor[float32], v float32) {
-	if t == nil {
+func writeUniform(tensor *ndarray.Tensor[float32], value float32) {
+	if tensor == nil {
 		return
 	}
-	buf := t.Buffer()
-	off, ok, err := t.Tracker().At(0)
-	if err != nil || !ok || off < 0 || off >= len(buf) {
+	buffer := tensor.Buffer()
+	offset, ok, err := tensor.Tracker().At(0)
+	if err != nil || !ok || offset < 0 || offset >= len(buffer) {
 		return
 	}
-	buf[off] = v
+	buffer[offset] = value
 }
 
 // NewPicture starts from opaque black. Fills grow the over-composite as Paint returns.
 func NewPicture() (*Picture, error) {
-	p := &Picture{}
-	if err := p.init(); err != nil {
+	picture := &Picture{}
+	if err := picture.init(); err != nil {
 		return nil, err
 	}
-	p.pixels = p.withInk(p.base)
-	p.inkedFrom = p.base
-	return p, nil
+	picture.pixels = picture.withInk(picture.base)
+	picture.inkedFrom = picture.base
+	return picture, nil
 }
 
-func (p *Picture) init() error {
+func (picture *Picture) init() error {
 	ink, err := ndarray.New(make([]uint8, 4), ndarray.Shape{1, 1, 4})
 	if err != nil {
 		return err
 	}
 	shape := ndarray.Shape{1, 1, 4}
-	p.px = ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
-	p.py = ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
-	p.ch = ndarray.Coord(2, shape)
-	p.base = channelColor(p.ch, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
-	p.ink = ink
-	p.acc = p.base
+	picture.pixelX = ndarray.Coord(1, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
+	picture.pixelY = ndarray.Coord(0, shape).Cast[float32]().Add(ndarray.Const(float32(0.5)))
+	picture.channel = ndarray.Coord(2, shape)
+	picture.base = channelColor(picture.channel, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
+	picture.ink = ink
+	picture.accumulator = picture.base
 	return nil
 }
 
-func (p *Picture) withInk(acc *ndarray.Tensor[float32]) *ndarray.Tensor[uint8] {
-	lit := p.ink.Cast[int32]().CmpNe(ndarray.Const(int32(0)))
-	return lit.Where(p.ink.Cast[float32](), acc).Cast[uint8]()
+func (picture *Picture) withInk(accumulator *ndarray.Tensor[float32]) *ndarray.Tensor[uint8] {
+	lit := picture.ink.Cast[int32]().CmpNe(ndarray.Const(int32(0)))
+	return lit.Where(picture.ink.Cast[float32](), accumulator).Cast[uint8]()
 }
 
-func (p *Picture) glyph(run textRun) {
-	p.texts = append(p.texts, run)
+func (picture *Picture) glyph(run textRun) {
+	picture.texts = append(picture.texts, run)
 }
 
-func (p *Picture) over(d Draw) *ndarray.Tensor[float32] {
-	if p == nil {
+func (picture *Picture) over(fill Draw) *ndarray.Tensor[float32] {
+	if picture == nil {
 		return nil
 	}
-	p.fills = append(p.fills, d)
-	i := len(p.fills) - 1
-	if i >= len(p.slots) {
-		cap := len(p.slots)
-		if cap < 1 {
-			cap = 1
+	picture.fills = append(picture.fills, fill)
+	index := len(picture.fills) - 1
+	if index >= len(picture.slots) {
+		capacity := len(picture.slots)
+		if capacity < 1 {
+			capacity = 1
 		}
-		for cap <= i {
-			cap *= 2
+		for capacity <= index {
+			capacity *= 2
 		}
-		if err := p.compile(cap); err != nil {
-			return p.acc
+		if err := picture.compile(capacity); err != nil {
+			return picture.accumulator
 		}
-		for j := 0; j < i; j++ {
-			p.slots[j].write(p.fills[j])
+		for previous := 0; previous < index; previous++ {
+			picture.slots[previous].write(picture.fills[previous])
 		}
 	}
-	p.slots[i].write(d)
-	p.used = i + 1
-	p.acc = p.outs[i]
-	return p.acc
+	picture.slots[index].write(fill)
+	picture.fillCount = index + 1
+	picture.accumulator = picture.composites[index]
+	return picture.accumulator
 }
 
-func (p *Picture) compile(n int) error {
-	if p == nil || n < 1 {
+func (picture *Picture) compile(count int) error {
+	if picture == nil || count < 1 {
 		return ndarray.ErrShape
 	}
-	params, err := ndarray.New(make([]float32, n*slotFloats), ndarray.Shape{n * slotFloats})
+	params, err := ndarray.New(make([]float32, count*slotFloats), ndarray.Shape{count * slotFloats})
 	if err != nil {
 		return err
 	}
-	p.params = params
-	p.slots = make([]slot, n)
-	p.outs = make([]*ndarray.Tensor[float32], n)
-	acc := p.base
-	for i := 0; i < n; i++ {
-		sl, err := p.newSlot(i * slotFloats)
+	picture.params = params
+	picture.slots = make([]slot, count)
+	picture.composites = make([]*ndarray.Tensor[float32], count)
+	accumulator := picture.base
+	for index := 0; index < count; index++ {
+		next, err := picture.newSlot(index * slotFloats)
 		if err != nil {
 			return err
 		}
-		p.slots[i] = sl
-		cov := sl.coverage(p.px, p.py)
-		alpha := cov.Mul(sl.alpha.Mul(ndarray.Const(float32(1.0 / 255))))
-		color := channelColor(p.ch, sl.red, sl.green, sl.blue, ndarray.Const(float32(255)))
-		acc = acc.Add(alpha.Mul(color.Add(acc.Neg())))
-		p.outs[i] = acc
+		picture.slots[index] = next
+		coverage := next.coverage(picture.pixelX, picture.pixelY)
+		alpha := coverage.Mul(next.alpha.Mul(ndarray.Const(float32(1.0 / 255))))
+		color := channelColor(picture.channel, next.red, next.green, next.blue, ndarray.Const(float32(255)))
+		accumulator = accumulator.Add(alpha.Mul(color.Add(accumulator.Neg())))
+		picture.composites[index] = accumulator
 	}
-	p.inkedFrom = nil
+	picture.inkedFrom = nil
 	return nil
 }
 
-func channelColor(ch *ndarray.Tensor[int32], r, g, b, a *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
-	return ch.Equal(ndarray.Const(int32(0))).Where(r,
-		ch.Equal(ndarray.Const(int32(1))).Where(g,
-			ch.Equal(ndarray.Const(int32(2))).Where(b, a)))
+func channelColor(channel *ndarray.Tensor[int32], red, green, blue, alpha *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
+	return channel.Equal(ndarray.Const(int32(0))).Where(red,
+		channel.Equal(ndarray.Const(int32(1))).Where(green,
+			channel.Equal(ndarray.Const(int32(2))).Where(blue, alpha)))
 }
 
-func (s slot) coverage(px, py *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
+func (slot slot) coverage(pixelX, pixelY *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
 	half := ndarray.Const(float32(0.5))
 	zero := ndarray.Const(float32(0))
-	lx := px.Add(s.x.Neg()).Add(half).Add(s.width.Mul(half).Neg())
-	ly := py.Add(s.y.Neg()).Add(half).Add(s.height.Mul(half).Neg())
-	bx := s.width.Mul(half)
-	by := s.height.Mul(half)
-	rad := s.radius.CmpLt(bx).Where(s.radius, bx)
-	rad = rad.CmpLt(by).Where(rad, by)
-	qx := lx.Max(lx.Neg()).Add(bx.Neg()).Add(rad)
-	qy := ly.Max(ly.Neg()).Add(by.Neg()).Add(rad)
-	outsideX := qx.Max(zero)
-	outsideY := qy.Max(zero)
-	qmax := qx.Max(qy)
-	inside := qmax.CmpLt(zero).Where(qmax, zero)
-	dist := inside.Add(outsideX.Mul(outsideX).Add(outsideY.Mul(outsideY)).Sqrt()).Add(rad.Neg())
-	cover := dist.CmpLt(half).Where(ndarray.Const(float32(1)), zero)
-	inX := px.GreaterEqual(s.clipX).And(px.CmpLt(s.clipX.Add(s.clipWidth)))
-	inY := py.GreaterEqual(s.clipY).And(py.CmpLt(s.clipY.Add(s.clipHeight)))
-	clipOn := s.clipWidth.GreaterEqual(half)
-	clipMask := clipOn.Where(inX.And(inY), ndarray.Const(int32(1)))
+	localX := pixelX.Add(slot.x.Neg()).Add(half).Add(slot.width.Mul(half).Neg())
+	localY := pixelY.Add(slot.y.Neg()).Add(half).Add(slot.height.Mul(half).Neg())
+	halfWidth := slot.width.Mul(half)
+	halfHeight := slot.height.Mul(half)
+	radius := slot.radius.CmpLt(halfWidth).Where(slot.radius, halfWidth)
+	radius = radius.CmpLt(halfHeight).Where(radius, halfHeight)
+	cornerX := localX.Max(localX.Neg()).Add(halfWidth.Neg()).Add(radius)
+	cornerY := localY.Max(localY.Neg()).Add(halfHeight.Neg()).Add(radius)
+	outsideX := cornerX.Max(zero)
+	outsideY := cornerY.Max(zero)
+	cornerMax := cornerX.Max(cornerY)
+	inside := cornerMax.CmpLt(zero).Where(cornerMax, zero)
+	distance := inside.Add(outsideX.Mul(outsideX).Add(outsideY.Mul(outsideY)).Sqrt()).Add(radius.Neg())
+	cover := distance.CmpLt(half).Where(ndarray.Const(float32(1)), zero)
+	insideX := pixelX.GreaterEqual(slot.clipX).And(pixelX.CmpLt(slot.clipX.Add(slot.clipWidth)))
+	insideY := pixelY.GreaterEqual(slot.clipY).And(pixelY.CmpLt(slot.clipY.Add(slot.clipHeight)))
+	clipEnabled := slot.clipWidth.GreaterEqual(half)
+	clipMask := clipEnabled.Where(insideX.And(insideY), ndarray.Const(int32(1)))
 	return clipMask.Where(cover, zero)
 }
 
 // Render layouts root, then Paint returns the over-composite tensor.
-func (p *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], error) {
-	if p == nil || p.base == nil {
+func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], error) {
+	if picture == nil || picture.base == nil {
 		return nil, ErrView
 	}
 	if root == nil || size.Width < 1 || size.Height < 1 {
 		return nil, ndarray.ErrShape
 	}
 	root.Layout(Tight(size.Width, size.Height))
-	p.used = 0
-	p.fills = p.fills[:0]
-	p.texts = p.texts[:0]
-	p.acc = p.base
-	acc := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, p)
-	if acc == nil {
-		acc = p.base
+	picture.fillCount = 0
+	picture.fills = picture.fills[:0]
+	picture.texts = picture.texts[:0]
+	picture.accumulator = picture.base
+	accumulator := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, picture)
+	if accumulator == nil {
+		accumulator = picture.base
 	}
-	if p.pixels == nil || p.inkedFrom != acc {
-		if p.pixels != nil {
-			_ = p.pixels.Close()
+	if picture.pixels == nil || picture.inkedFrom != accumulator {
+		if picture.pixels != nil {
+			_ = picture.pixels.Close()
 		}
-		p.pixels = p.withInk(acc)
-		p.inkedFrom = acc
+		picture.pixels = picture.withInk(accumulator)
+		picture.inkedFrom = accumulator
 	}
-	h, w := int(size.Height), int(size.Width)
-	if err := p.pixels.Resize(ndarray.Shape{h, w, 4}); err != nil {
+	height, width := int(size.Height), int(size.Width)
+	if err := picture.pixels.Resize(ndarray.Shape{height, width, 4}); err != nil {
 		return nil, err
 	}
-	if err := p.ensureInk(h, w, len(p.texts)); err != nil {
+	if err := picture.ensureInk(height, width, len(picture.texts)); err != nil {
 		return nil, err
 	}
-	for _, run := range p.texts {
-		run.stamp(p.inkRGBA)
+	for _, run := range picture.texts {
+		run.stamp(picture.inkRGBA)
 	}
-	p.stamp(len(p.texts) > 0)
-	return p.pixels, nil
+	picture.stamp(len(picture.texts) > 0)
+	return picture.pixels, nil
 }
 
-func (p *Picture) frameSig() uint64 {
-	if p == nil {
+func (picture *Picture) frameSig() uint64 {
+	if picture == nil {
 		return 0
 	}
-	return p.sig
+	return picture.signature
 }
 
-func (p *Picture) stamp(ink bool) {
-	if p == nil {
+func (picture *Picture) stamp(ink bool) {
+	if picture == nil {
 		return
 	}
-	h := uint64(14695981039346656037)
-	mix := func(v uint64) {
-		h ^= v
-		h *= 1099511628211
+	hash := uint64(14695981039346656037)
+	mix := func(value uint64) {
+		hash ^= value
+		hash *= 1099511628211
 	}
-	if p.params != nil {
-		for _, f := range p.params.Buffer() {
-			mix(uint64(math.Float32bits(f)))
+	if picture.params != nil {
+		for _, uniform := range picture.params.Buffer() {
+			mix(uint64(math.Float32bits(uniform)))
 		}
 	}
-	if p.pixels != nil {
-		for _, d := range p.pixels.Shape() {
-			mix(uint64(d))
+	if picture.pixels != nil {
+		for _, dimension := range picture.pixels.Shape() {
+			mix(uint64(dimension))
 		}
 	}
-	if ink && p.inkRGBA != nil {
-		for _, b := range p.inkRGBA.Pix {
-			mix(uint64(b))
+	if ink && picture.inkRGBA != nil {
+		for _, pixel := range picture.inkRGBA.Pix {
+			mix(uint64(pixel))
 		}
 	}
-	p.sig = h
+	picture.signature = hash
 }
 
-func (p *Picture) ensureInk(h, w, texts int) error {
-	if p == nil || p.ink == nil || h < 1 || w < 1 {
+func (picture *Picture) ensureInk(height, width, texts int) error {
+	if picture == nil || picture.ink == nil || height < 1 || width < 1 {
 		return ndarray.ErrShape
 	}
-	need := h * w * 4
-	if err := p.ink.EnsureCells(need); err != nil {
+	need := height * width * 4
+	if err := picture.ink.EnsureCells(need); err != nil {
 		return err
 	}
-	pix := p.ink.Buffer()[:need]
-	same := p.inkRGBA != nil && p.inkRGBA.Rect.Dx() == w && p.inkRGBA.Rect.Dy() == h
-	if texts > 0 || p.hadInk || !same {
-		clear(pix)
+	pixels := picture.ink.Buffer()[:need]
+	same := picture.inkRGBA != nil && picture.inkRGBA.Rect.Dx() == width && picture.inkRGBA.Rect.Dy() == height
+	if texts > 0 || picture.hadInk || !same {
+		clear(pixels)
 	}
-	p.hadInk = texts > 0
-	p.inkRGBA = &image.RGBA{Pix: pix, Stride: w * 4, Rect: image.Rect(0, 0, w, h)}
+	picture.hadInk = texts > 0
+	picture.inkRGBA = &image.RGBA{Pix: pixels, Stride: width * 4, Rect: image.Rect(0, 0, width, height)}
 	return nil
 }
 
 // Ink is the CPU glyph overlay for this frame. Call after Render.
-func (p *Picture) Ink() *image.RGBA {
-	if p == nil {
+func (picture *Picture) Ink() *image.RGBA {
+	if picture == nil {
 		return nil
 	}
-	return p.inkRGBA
+	return picture.inkRGBA
 }
