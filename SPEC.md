@@ -77,8 +77,8 @@ templ is later work. It is not an adopted tool in this module.
 | primitive | a reusable type in this module | UI library, widget toolkit, Flutter |
 | namespace | `x/ui` as a directory of three packages | parent `Widget`; importable `x/ui` API |
 | component | bubbletea type; templ template; tensor transformer | widget |
-| transformer | `Model.View` output: a fused `(h,w,4)` `Tensor` | shader, painter, widget, GUI framework |
-| Model | Init, Update, View (bubbletea shape; View is a tensor) | Widget, Flutter Element |
+| transformer | `Picture.Render` of a `Node` tree: a fused `(h,w,4)` `Tensor` | shader, painter, widget, GUI framework |
+| Model | Init, Update, View (bubbletea shape; View is a layout Node) | Widget, Flutter Element |
 | host | `x/driver/window` | gui, windowing toolkit |
 | engine | `x/ndarray` | tinygrad |
 | viewer | code that uses a toolkit to show another package's type | component package |
@@ -93,7 +93,7 @@ templ is later work. It is not an adopted tool in this module.
 | `x/ui` | no Go API | names `tui`, `web`, `gui` | MUST NOT grow types | the directory MAY have no Go package | import `x/ui` |
 | `x/ui/tui` | bubbletea types for callers to compose | value | catalog MAY grow | package MAY be absent until the first type | put Session viewers here |
 | `x/ui/web` | templ templates | value | catalog MAY grow | package MAY be absent until the first template | put templ outside `web` |
-| `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`; `View` is a `(h,w,4)` tensor | value | catalog MAY grow | package MAY be absent until the first transformer | own the host; own the engine; call `window.Open` |
+| `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer | own the host; own the engine; call `window.Open` |
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
@@ -109,14 +109,14 @@ templ is later work. It is not an adopted tool in this module.
 | INV-02 | `x/ui` exports no types | `x/ui` | `Widget`, shared `Color`, shared `Align` |
 | INV-03 | `tui` native export is a bubbletea type | `x/ui/tui` | templ files; tensor transformers |
 | INV-04 | `web` native export is a templ template | `x/ui/web` | bubbletea types; tensor transformers |
-| INV-05 | `gui.Model.View` returns a `(h,w,4)` tensor | `x/ui/gui` | `window.Present` declared here; a second rasterizer |
+| INV-05 | `gui.Model.View` returns a layout `Node`; `Run` paints it to a `(h,w,4)` tensor | `x/ui/gui` | `View` returning a tensor; `window.Present` declared here; a second rasterizer |
 | INV-06 | A viewer stays next to the type it shows | `x/taskgroup/progress` | move progress into `x/ui/tui` because it uses bubbletea |
 | INV-07 | `tui`, `web`, and `gui` MUST NOT import each other | those packages | `gui` emitting HTML; `tui` importing `gui` |
 | INV-08 | Host and engine MUST NOT import `tui`, `web`, and `gui` | `x/driver/window`, `x/ndarray` | `window` depending on `gui` |
 | INV-09 | This repository has one constitution: `SPEC.md` at the repo root | this file | `x/ui/SPEC.md`; a second SPEC beside this file |
 | INV-10 | `gui.Run` consumes a caller-supplied `Window`. It MUST NOT call `window.Open`. | `x/ui/gui` | `gui` opening a host window |
 | INV-11 | This module is not a UI library | this repository | advertising `x/ui` as the product; a Flutter widget tree as the public API |
-| INV-12 | Host window events are `Resize`, `Expose`, and `Close` | `x/driver/window` | inventing pointer `Msg` types with no host emit; inventing key `Msg` types with no host emit |
+| INV-12 | Host window events include `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, and `Key` | `x/driver/window` | pointer `Msg` types that the host does not emit |
 
 ## Errors
 
@@ -130,7 +130,7 @@ templ is later work. It is not an adopted tool in this module.
 | Export from `x/ui` | A Go type on the namespace | Move the type into the one of `tui`, `web`, `gui` that needs it. |
 | `gui.Run` | nil `Model` | Return `ErrModel`. |
 | `gui.Run` | nil `Window` | Return `window.ErrClosed`. |
-| `gui.Model.View` | nil tensor | Return `ErrView`. Do not `Draw`. |
+| `gui.Model.View` | nil `Node` | Return `ErrView`. Do not `Draw`. |
 
 ## Actors
 
@@ -160,13 +160,13 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - [ ] The only `SPEC.md` in this repository is this file.
 - [ ] `x/ui` has no exported Go type.
 - [ ] README still describes lewkit as a reuse library of primitives.
-- [ ] `gui.Model` is Init, Update, View. View is a tensor, not a string.
+- [ ] `gui.Model` is Init, Update, View. View is a layout Node, not a tensor.
 
 ## Later work
 
 1. Reusable bubbletea types in `x/ui/tui`.
 2. Adopt templ in this module and add templates in `x/ui/web`.
-3. Pointer and key events on the window bus, then `Msg` types for them.
+3. Text input (IME) and mapped key names.
 4. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
 
 ## Assumptions
@@ -175,9 +175,11 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 |----|------|----------|
 | AS-01 | bubbletea v2 remains the tui toolkit | Change the tui tooling row. Do not invent a terminal runtime. |
 | AS-02 | templ remains the intended web toolkit | Change the web later-work item before adding `x/ui/web`. |
-| AS-03 | Host backends emit `Resize`, `Expose`, and `Close` only | Do not add pointer `Msg` types until the window bus emits them. Do not add key `Msg` types until the window bus emits them. |
+| AS-03 | Pointer coordinates are client pixels with the same origin as `Frame` | Change the cocoa Y flip / scale if a host uses another origin. |
 
 ## Decision history
 
 - 2026-09-20 grill: native export placement; SPEC at repo root. Rejected: nested `x/ui/SPEC.md`; a shared `Widget`; moving progress into `tui`; moving triangle into `gui` now; calling this a UI library.
 - 2026-09-20: `gui` follows bubbletea (`Model` / `Msg` / `Cmd` / `Run`) with tensors in `View`. Host events are `Resize`, `Expose`, `Close` only. Rejected: Flutter widget tree as the public API; `gui` calling `window.Open`.
+- 2026-09-21: `gui.Model.View` returns a layout `Node`. `Run` paints it through `Picture` to a `(h,w,4)` tensor.
+- 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.

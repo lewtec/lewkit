@@ -3,6 +3,7 @@ package thread
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -33,6 +34,49 @@ func TestDoNestedOnThread(t *testing.T) {
 		cancel()
 	}()
 	th.Loop(ctx)
+}
+
+func TestGoReturnsWhileLoopBusy(t *testing.T) {
+	th := New()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	go th.Loop(ctx)
+	th.Do(func() {
+		done := make(chan struct{})
+		go func() {
+			th.Go(func() {})
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("Go blocked while Loop busy")
+		}
+	})
+}
+
+func TestPackageEnqueue(t *testing.T) {
+	assert.NotNil(t, Enqueue)
+}
+
+func TestEnqueueWhenJobsFull(t *testing.T) {
+	th := New()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	go th.Loop(ctx)
+	th.Do(func() {
+		th.Go(func() {})
+		done := make(chan struct{})
+		go func() {
+			th.Enqueue(func() {})
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("Enqueue blocked while Loop busy")
+		}
+	})
 }
 
 func TestOnIdle(t *testing.T) {

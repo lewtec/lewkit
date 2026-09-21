@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"image"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
 )
@@ -29,14 +30,19 @@ var (
 const (
 	defaultWidth  = 640
 	defaultHeight = 480
+	// DefaultFramePeriod is used when the host cannot read a display rate
+	// and Config.Period is unset.
+	DefaultFramePeriod = time.Second / 60
 )
 
 // Config is the initial window. Width or Height 0 means 640×480.
+// Period 0 means the host display rate (or [DefaultFramePeriod]).
 // The window is resizable after Open.
 type Config struct {
 	Title  string
 	Width  int
 	Height int
+	Period time.Duration
 }
 
 // Size is the initial client size. Width or Height 0 becomes 640 or 480.
@@ -64,13 +70,16 @@ type Driver interface {
 // Size is the client size in pixels, without painting. Frame is the back
 // buffer (Go RGBA, uint8, shape h×w×4). [Fit] resizes a tensor to that
 // layout. Draw swaps it to the front (last swap wins) and the host blits
-// on its next turn. A Draw whose front page does not match Size is skipped.
-// Subscribe is an event source: Resize, Expose, and Close.
+// on its next turn. Size may move during live resize; Draw still
+// presents the last painted page. FramePeriod is the host display interval.
+// Subscribe is an event source: Resize, Expose, Close, Pointer, Scroll, and Key.
+// [Drive] is the immediate-mode paint loop; [Animate] is Drive that paints on tick and Resize.
 // After Resize the next Frame has the new size.
 type Window interface {
 	Frame() *image.RGBA
 	Front() *image.RGBA
 	Size() image.Point
+	FramePeriod() time.Duration
 	Draw() error
 	Resize(size image.Point) error
 	Subscribe(ctx context.Context) <-chan Event

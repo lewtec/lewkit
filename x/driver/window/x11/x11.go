@@ -43,7 +43,9 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		return nil, err
 	}
 	mask := uint32(xproto.CwEventMask)
-	vals := []uint32{xproto.EventMaskExposure | xproto.EventMaskStructureNotify}
+	vals := []uint32{xproto.EventMaskExposure | xproto.EventMaskStructureNotify |
+		xproto.EventMaskPointerMotion | xproto.EventMaskButtonPress | xproto.EventMaskButtonRelease |
+		xproto.EventMaskKeyPress | xproto.EventMaskKeyRelease | xproto.EventMaskButtonMotion}
 	err = xproto.CreateWindowChecked(conn, screen.RootDepth, wid, screen.Root,
 		0, 0, uint16(w), uint16(h), 0,
 		xproto.WindowClassInputOutput, screen.RootVisual, mask, vals).Check()
@@ -78,8 +80,10 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		return nil, err
 	}
 
+	buf := window.NewBuffer(w, h)
+	buf.SetFramePeriod(cfg.Period)
 	win := &xwin{
-		Buffer:     window.NewBuffer(w, h),
+		Buffer:     buf,
 		conn:       conn,
 		wid:        wid,
 		gc:         gc,
@@ -181,8 +185,7 @@ func (w *xwin) Draw() error {
 	if err := w.Swap(); err != nil {
 		return err
 	}
-	front := w.Front()
-	if front == nil || front.Rect.Size() != w.Size() {
+	if w.Front() == nil {
 		return nil
 	}
 	return w.put()
@@ -286,6 +289,16 @@ func (w *xwin) loop() {
 			}
 		case xproto.ConfigureNotifyEvent:
 			w.setWant(int(e.Width), int(e.Height))
+		case xproto.MotionNotifyEvent:
+			w.Emit(window.Pointer{Pos: image.Pt(int(e.EventX), int(e.EventY)), Buttons: x11Buttons(e.State)})
+		case xproto.ButtonPressEvent:
+			w.x11Button(int(e.EventX), int(e.EventY), int(e.Detail), true, e.State)
+		case xproto.ButtonReleaseEvent:
+			w.x11Button(int(e.EventX), int(e.EventY), int(e.Detail), false, e.State)
+		case xproto.KeyPressEvent:
+			w.Emit(window.Key{Code: uint32(e.Detail), Pressed: true, Mod: x11Mod(e.State)})
+		case xproto.KeyReleaseEvent:
+			w.Emit(window.Key{Code: uint32(e.Detail), Pressed: false, Mod: x11Mod(e.State)})
 		case xproto.ClientMessageEvent:
 			if e.Type != 0 && w.wmDelete != 0 && e.Data.Data32[0] == uint32(w.wmDelete) {
 				_ = w.Close()
@@ -306,4 +319,51 @@ func (w *xwin) setWant(width, height int) {
 	if changed {
 		w.Emit(window.Resize{Size: image.Pt(width, height)})
 	}
+}
+
+func (w *xwin) x11Button(x, y, detail int, pressed bool, state uint16) {
+	pos := image.Pt(x, y)
+	switch detail {
+	case 4:
+		w.Emit(window.Scroll{Pos: pos, Delta: image.Pt(0, -12)})
+	case 5:
+		w.Emit(window.Scroll{Pos: pos, Delta: image.Pt(0, 12)})
+	case 6:
+		w.Emit(window.Scroll{Pos: pos, Delta: image.Pt(-12, 0)})
+	case 7:
+		w.Emit(window.Scroll{Pos: pos, Delta: image.Pt(12, 0)})
+	default:
+		w.Emit(window.Pointer{Pos: pos, Button: detail, Pressed: pressed, Buttons: x11Buttons(state)})
+	}
+}
+
+func x11Buttons(state uint16) int {
+	var b int
+	if state&(1<<8) != 0 {
+		b |= window.ButtonLeft
+	}
+	if state&(1<<9) != 0 {
+		b |= window.ButtonMiddle
+	}
+	if state&(1<<10) != 0 {
+		b |= window.ButtonRight
+	}
+	return b
+}
+
+func x11Mod(state uint16) window.Modifier {
+	var m window.Modifier
+	if state&1 != 0 {
+		m |= window.ModShift
+	}
+	if state&(1<<2) != 0 {
+		m |= window.ModCtrl
+	}
+	if state&(1<<3) != 0 {
+		m |= window.ModAlt
+	}
+	if state&(1<<6) != 0 {
+		m |= window.ModSuper
+	}
+	return m
 }

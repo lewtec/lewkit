@@ -182,6 +182,28 @@ func (t Tracker) Pad(arg [][2]int) (Tracker, error) {
 	return t.replace(v), nil
 }
 
+// Splat broadcasts a 1-cell tensor. The buffer offset is kept.
+func (t Tracker) Splat() (Tracker, error) {
+	if err := t.check(); err != nil {
+		return Tracker{}, err
+	}
+	if t.Size() != 1 {
+		return Tracker{}, fmt.Errorf("%w: splat size %d", ErrShape, t.Size())
+	}
+	off, ok, err := t.At(0)
+	if err != nil {
+		return Tracker{}, err
+	}
+	if !ok {
+		return Tracker{}, ErrIndex
+	}
+	v, err := create(view{shape: Shape{}, offset: off})
+	if err != nil {
+		return Tracker{}, err
+	}
+	return Tracker{views: []view{v}}, nil
+}
+
 // Shrink keeps [start, end) on each axis. arg[i] is {start, end}.
 func (t Tracker) Shrink(arg [][2]int) (Tracker, error) {
 	if err := t.check(); err != nil {

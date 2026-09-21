@@ -14,6 +14,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFramePeriodFromConfig(t *testing.T) {
+	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8, Period: time.Millisecond})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+	assert.Equal(t, time.Millisecond, w.FramePeriod())
+}
+
+func TestFramePeriodDefault(t *testing.T) {
+	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+	assert.Equal(t, window.DefaultFramePeriod, w.FramePeriod())
+}
+
 func TestOpenFrameDrawResize(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Title: "t", Width: 8, Height: 6})
 	require.NoError(t, err)
@@ -98,6 +112,20 @@ func TestResizeRejectsNonPositive(t *testing.T) {
 	t.Cleanup(func() { _ = w.Close() })
 	assert.ErrorIs(t, w.Resize(image.Pt(0, 2)), window.ErrSize)
 	assert.ErrorIs(t, w.Resize(image.Pt(2, -1)), window.ErrSize)
+}
+
+func TestSubscribePointer(t *testing.T) {
+	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = w.Close() })
+	ch := w.Subscribe(t.Context())
+	w.(interface{ Emit(window.Event) }).Emit(window.Pointer{Pos: image.Pt(3, 4), Button: 1, Pressed: true, Buttons: window.ButtonLeft})
+	ev := <-ch
+	p, ok := ev.(window.Pointer)
+	require.True(t, ok)
+	assert.Equal(t, image.Pt(3, 4), p.Pos)
+	assert.Equal(t, 1, p.Button)
+	assert.True(t, p.Pressed)
 }
 
 func TestSubscribeCancelCloses(t *testing.T) {

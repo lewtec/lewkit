@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"time"
 	"unsafe"
 )
 
@@ -18,6 +19,7 @@ type Device struct {
 	family      uint32
 	commandPool uint64
 	cmd         uintptr
+	fence       uint64
 	mem         physicalDeviceMemoryProperties
 	name        string
 	vendor      Vendor
@@ -268,12 +270,20 @@ func (d *Device) try(phys uintptr) bool {
 		d.api.destroyDevice(dev, 0)
 		return false
 	}
+	fenceInfo := fenceCreateInfo{sType: structureFenceCreateInfo}
+	var fence uint64
+	if check(d.api.createFence(dev, &fenceInfo, 0, &fence)) != nil {
+		d.api.destroyCommandPool(dev, pool, 0)
+		d.api.destroyDevice(dev, 0)
+		return false
+	}
 	d.phys = phys
 	d.dev = dev
 	d.queue = queue
 	d.family = family
 	d.commandPool = pool
 	d.cmd = cmd
+	d.fence = fence
 	d.api.getMemoryProps(phys, &d.mem)
 	properties := d.physicalProperties(phys)
 	d.name = properties.name
@@ -313,6 +323,14 @@ func (d *Device) Close() error {
 	}
 	d.closed = true
 	if d.dev != 0 {
+		if d.pending && d.fence != 0 && d.api.waitForFences != nil {
+			_ = d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))
+			d.pending = false
+		}
+		if d.fence != 0 {
+			d.api.destroyFence(d.dev, d.fence, 0)
+			d.fence = 0
+		}
 		if d.commandPool != 0 {
 			d.api.destroyCommandPool(d.dev, d.commandPool, 0)
 			d.commandPool = 0
@@ -547,6 +565,8 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 	if cfg.PushBytes < 0 || cfg.PushBytes > 256 || cfg.PushBytes%4 != 0 {
 		return nil, ErrPush
 	}
+	slog.Debug("vulkan compile", "spirv_bytes", len(spirv), "bindings", bindings, "push_bytes", cfg.PushBytes)
+	started := time.Now()
 	code := make([]uint32, len(spirv)/4)
 	for i := range code {
 		code[i] = uint32(spirv[i*4]) | uint32(spirv[i*4+1])<<8 | uint32(spirv[i*4+2])<<16 | uint32(spirv[i*4+3])<<24
@@ -644,6 +664,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		d.api.destroyShaderModule(d.dev, module, 0)
 		return nil, fmt.Errorf("compute pipeline: %w", err)
 	}
+	slog.Debug("vulkan compile ok", "elapsed", time.Since(started), "bindings", bindings)
 	return &Shader{
 		d:              d,
 		module:         module,

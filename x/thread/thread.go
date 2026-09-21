@@ -30,7 +30,9 @@ type Thread struct {
 
 // New returns a thread that is not bound yet.
 func New() *Thread {
-	return &Thread{jobs: make(chan func())}
+	// Cap 1: Go can return while Loop is inside an AppKit call instead of
+	// blocking the painter until the next NS event.
+	return &Thread{jobs: make(chan func(), 1)}
 }
 
 var mainThread = New()
@@ -55,6 +57,9 @@ func Do(fn func()) { mainThread.Do(fn) }
 
 // Go queues fn on the process bound thread and returns.
 func Go(fn func()) { mainThread.Go(fn) }
+
+// Enqueue queues fn on the process bound thread without blocking the caller.
+func Enqueue(fn func()) { mainThread.Enqueue(fn) }
 
 // Bind locks this goroutine to its OS thread.
 func (t *Thread) Bind() {
@@ -152,4 +157,18 @@ func (t *Thread) Go(fn func()) {
 		return
 	}
 	t.jobs <- fn
+}
+
+// Enqueue queues fn without blocking the caller. If the job buffer is
+// full, a helper goroutine waits so the painter can keep running.
+func (t *Thread) Enqueue(fn func()) {
+	if t.On() {
+		fn()
+		return
+	}
+	select {
+	case t.jobs <- fn:
+	default:
+		go func() { t.jobs <- fn }()
+	}
 }

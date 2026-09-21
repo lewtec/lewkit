@@ -1,7 +1,14 @@
-// Package gui is a bubbletea-shaped loop whose View is a pixel tensor.
+// Package gui is a bubbletea-shaped loop whose View is a layout [Node].
 //
-// [Model] is Init, Update, View. View returns a fused (h, w, 4) uint8
-// tensor. [Run] drives a caller-supplied [window.Window]; it does not
-// call [window.Open]. Host events are Resize, Expose, and Close.
-// Pointer and key events are not on the bus.
+// The spine is [Open] with [Options] → [Run] + [Picture]. [Run] is the
+// Elm loop: messages Update; View returns a Node; Run paints it on the
+// display ticker (and Resize/Expose), skipped when the picture signature
+// is unchanged. Animation is [Tick] / [Every]. A root [Row]/[Column] fills the window; wrap it in a
+// [Box] with Align to center a packed inner cluster. Solid, Marquee, and
+// Notepad all paint through one fused kernel
+// (one over-composite tensor of rounded rects + ink overlay). Layout returns Size; Paint returns the accumulator tensor.
+// Marquee rewrites bar Y on a reused node tree. Layout is CPU ([Box], [Flex], [Stack]).
+// Glyphs are [Text] nodes; Picture rasters them into ink in the same kernel.
+// [Marquee] View maps offset and size onto [Bar] values; Update is the
+// only writer. [Counter] is the Elm example (one int, two buttons).
 package gui

@@ -297,7 +297,13 @@ func (w *glslWriter) node(n *node) (string, error) {
 		return id, nil
 	case kindInput:
 		off, valid := "0", "true"
-		if len(n.tracker.Shape()) != 0 {
+		if len(n.tracker.Shape()) == 0 {
+			at, ok, err := n.tracker.At(0)
+			if err != nil || !ok {
+				return "", ErrIndex
+			}
+			off = strconv.Itoa(at)
+		} else {
 			off, valid = w.index(n.tracker)
 		}
 		zero := "0.0"

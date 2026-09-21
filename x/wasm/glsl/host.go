@@ -3,6 +3,8 @@ package glsl
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/lewtec/lewkit/x/singleton"
 	"github.com/lewtec/lewkit/x/wasm"
@@ -21,6 +23,18 @@ func compile(ctx context.Context, src []byte) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	slog.Debug("glslang compile", "glsl_bytes", len(src))
+	started := time.Now()
+	out, err := compileSPIRV(ctx, src)
+	if err != nil {
+		slog.Debug("glslang compile failed", "elapsed", time.Since(started), "err", err)
+		return nil, err
+	}
+	slog.Debug("glslang compile ok", "spirv_bytes", len(out), "elapsed", time.Since(started))
+	return out, nil
+}
+
+func compileSPIRV(ctx context.Context, src []byte) ([]byte, error) {
 	mod, err := load(ctx)
 	if err != nil {
 		return nil, err

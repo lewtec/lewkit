@@ -25,7 +25,9 @@ func (opener) Open(_ context.Context, cfg window.Config) (window.Window, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &win{Buffer: window.NewBuffer(w, h)}, nil
+	buf := window.NewBuffer(w, h)
+	buf.SetFramePeriod(cfg.Period)
+	return &win{Buffer: buf}, nil
 }
 
 type win struct {

@@ -39,6 +39,19 @@ func TestOfShapeSize(t *testing.T) {
 	require.Equal(t, "Tracker([2 3 4] contiguous)", tr.String())
 }
 
+func TestSplatKeepsOffset(t *testing.T) {
+	tr := mustTracker(t, Shape{4})
+	tr, err := tr.Shrink([][2]int{{2, 3}})
+	require.NoError(t, err)
+	tr, err = tr.Splat()
+	require.NoError(t, err)
+	require.Empty(t, tr.Shape())
+	off, ok, err := tr.At(0)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, 2, off)
+}
+
 func TestScalar(t *testing.T) {
 	tr := mustTracker(t, Shape{})
 	require.Equal(t, 1, tr.Size())

@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/draw"
 	"sync"
+	"time"
 
 	"github.com/lewtec/lewkit/x/event"
 )
@@ -16,6 +17,7 @@ type Buffer struct {
 	back, front *image.RGBA
 	closed      bool
 	bus         *event.Bus[Event]
+	period      time.Duration
 }
 
 // NewBuffer returns a w×h double buffer.
@@ -42,6 +44,26 @@ func (b *Buffer) Frame() *image.RGBA {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.back
+}
+
+// FramePeriod is the display interval. Zero on the buffer means [DefaultFramePeriod].
+func (b *Buffer) FramePeriod() time.Duration {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.period <= 0 {
+		return DefaultFramePeriod
+	}
+	return b.period
+}
+
+// SetFramePeriod records the display interval. d <= 0 means [DefaultFramePeriod].
+func (b *Buffer) SetFramePeriod(d time.Duration) {
+	if d <= 0 {
+		d = DefaultFramePeriod
+	}
+	b.mu.Lock()
+	b.period = d
+	b.mu.Unlock()
 }
 
 // Size is the back buffer size. Hosts that track a window size override this.

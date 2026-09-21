@@ -3,6 +3,8 @@ package vulkan
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 	"unsafe"
 )
 
@@ -240,7 +242,7 @@ func (c *Cmd) Copy(dst, src *Buffer) error {
 	return nil
 }
 
-// Submit ends recording and queues the work. Call Wait before Begin again.
+// Submit ends recording and queues the work on a fence. Call Wait before Begin again.
 func (c *Cmd) Submit() error {
 	if err := c.mustRecord(); err != nil {
 		return err
@@ -270,7 +272,7 @@ func (c *Cmd) Submit() error {
 		commandBufferCount: 1,
 		pCommandBuffers:    &d.cmd,
 	}
-	if err := check(d.api.queueSubmit(d.queue, 1, &submit, 0)); err != nil {
+	if err := check(d.api.queueSubmit(d.queue, 1, &submit, d.fence)); err != nil {
 		d.recording = false
 		return fmt.Errorf("queue submit: %w", err)
 	}
@@ -279,7 +281,9 @@ func (c *Cmd) Submit() error {
 	return nil
 }
 
-// Wait waits for the last Submit and invalidates mapped buffers.
+// Wait waits for the submit fence and invalidates mapped buffers.
+// The wait is a blocking FFI syscall (purego cgocall), so this goroutine
+// is a GC safe point while the GPU still runs the dispatch.
 func (c *Cmd) Wait() error {
 	if c == nil || c.d == nil {
 		return ErrClosed
@@ -292,8 +296,19 @@ func (c *Cmd) Wait() error {
 		c.release()
 		return nil
 	}
-	if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
+	started := time.Now()
+	if d.fence != 0 && d.api.waitForFences != nil {
+		if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
+			return fmt.Errorf("fence wait: %w", err)
+		}
+		if err := check(d.api.resetFences(d.dev, 1, &d.fence)); err != nil {
+			return fmt.Errorf("reset fence: %w", err)
+		}
+	} else if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
 		return fmt.Errorf("queue wait: %w", err)
+	}
+	if wait := time.Since(started); wait >= 8*time.Millisecond {
+		slog.Debug("vulkan fence wait", "elapsed", wait)
 	}
 	d.pending = false
 	var first error

@@ -15,6 +15,7 @@ const (
 	structureDeviceQueueCreateInfo         = 2
 	structureDeviceCreateInfo              = 3
 	structureSubmitInfo                    = 4
+	structureFenceCreateInfo               = 8
 	structureMemoryAllocateInfo            = 5
 	structureMappedMemoryRange             = 6
 	structureBufferCreateInfo              = 12
@@ -329,6 +330,12 @@ type submitInfo struct {
 	pSignalSemaphores    uintptr
 }
 
+type fenceCreateInfo struct {
+	sType int32
+	pNext uintptr
+	flags uint32
+}
+
 type extensionProperties struct {
 	name        [256]byte
 	specVersion uint32
@@ -389,6 +396,10 @@ type api struct {
 	invalidateMapped       func(device uintptr, count uint32, ranges *mappedMemoryRange) int32
 	queueSubmit            func(queue uintptr, count uint32, submits *submitInfo, fence uint64) int32
 	queueWaitIdle          func(queue uintptr) int32
+	createFence            func(device uintptr, info *fenceCreateInfo, alloc uintptr, fence *uint64) int32
+	destroyFence           func(device uintptr, fence uint64, alloc uintptr)
+	resetFences            func(device uintptr, count uint32, fences *uint64) int32
+	waitForFences          func(device uintptr, count uint32, fences *uint64, waitAll uint32, timeout uint64) int32
 }
 
 func libNames() []string {
@@ -520,6 +531,10 @@ func (a *api) loadInstance(inst uintptr) error {
 		{"vkInvalidateMappedMemoryRanges", &a.invalidateMapped},
 		{"vkQueueSubmit", &a.queueSubmit},
 		{"vkQueueWaitIdle", &a.queueWaitIdle},
+		{"vkCreateFence", &a.createFence},
+		{"vkDestroyFence", &a.destroyFence},
+		{"vkResetFences", &a.resetFences},
+		{"vkWaitForFences", &a.waitForFences},
 	} {
 		if err := a.bind(a.getInstanceProcAddr, inst, p.name, p.dst); err != nil {
 			return err
@@ -549,6 +564,10 @@ func (a *api) loadDevice(dev uintptr) error {
 		{"vkInvalidateMappedMemoryRanges", &a.invalidateMapped},
 		{"vkQueueSubmit", &a.queueSubmit},
 		{"vkQueueWaitIdle", &a.queueWaitIdle},
+		{"vkCreateFence", &a.createFence},
+		{"vkDestroyFence", &a.destroyFence},
+		{"vkResetFences", &a.resetFences},
+		{"vkWaitForFences", &a.waitForFences},
 		{"vkUpdateDescriptorSets", &a.updateDescriptorSets},
 	} {
 		if err := a.bind(a.getDeviceProcAddr, dev, p.name, p.dst); err != nil {
