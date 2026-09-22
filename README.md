@@ -97,8 +97,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | --- | --- |
 | `x/driver` | `Register`, `List`, `Get`, `With`, `WithResult`, `SetWeights`, `Doctor`. |
 | `x/driver/prelude` | Blank-import. Registers the window backends, `x/driver/vulkan`, `x/driver/ndeval`, `x/driver/httpclient`, and `x/driver/fetchurl`. |
-| `x/driver/httpclient` | `Client`. The native client is `x/driver/httpclient/native`. |
-| `x/driver/fetchurl` | `Fetch`. The native driver calls `github.com/fetchurl/fetchurl` with the selected HTTP client. |
+| `x/driver/httpclient` | `Client`. A request inside a taskgroup session is an Internet task. The native client is `x/driver/httpclient/native`. |
+| `x/driver/fetchurl` | `Fetch`. The native driver calls `github.com/fetchurl/fetchurl` with that client, so the download is the same Internet task. |
 | `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. |

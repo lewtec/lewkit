@@ -38,6 +38,7 @@ func (factory) New(ctx context.Context) (fetchurl.Driver, error) {
 	if base == nil {
 		base = http.DefaultTransport
 	}
+	// The HTTP client already promotes each request to an Internet task.
 	wrapped.Transport = hookTransport{base: base}
 	return downloader{fetcher: sdk.NewFetcher(&wrapped)}, nil
 }

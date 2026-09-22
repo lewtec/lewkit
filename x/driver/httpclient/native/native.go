@@ -18,7 +18,7 @@ func (factory) Weight() int  { return 50 }
 func (factory) CheckCompatibility(context.Context) error { return nil }
 
 func (factory) New(context.Context) (httpclient.Driver, error) {
-	return clientDriver{client: &http.Client{Transport: loggingTransport{base: http.DefaultTransport}}}, nil
+	return clientDriver{client: &http.Client{Transport: httpclient.WithProgress(loggingTransport{base: http.DefaultTransport})}}, nil
 }
 
 type clientDriver struct {
