@@ -8,26 +8,26 @@ import (
 	"log/slog"
 	"sync"
 
-	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
+	"github.com/lewtec/lewkit/x/driver/vulkan"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/ndarray"
-	"github.com/lewtec/lewkit/x/wasm/glsl"
 )
 
 // session is one kernel bound to a device: SPIR-V pipeline and GPU buffers.
 type session struct {
 	kernel  *ndarray.Kernel
-	device  *ffivulkan.Device
-	shader  *ffivulkan.Shader
-	output  *ffivulkan.Buffer
-	inputs  []*ffivulkan.Buffer
-	bound   []*ffivulkan.Buffer
+	device  vulkan.Device
+	shader  *vulkan.Shader
+	output  *vulkan.Buffer
+	inputs  []*vulkan.Buffer
+	bound   []*vulkan.Buffer
 	staging []byte
 	push    []byte
 	eval    *sync.Mutex
 	forget  func()
 }
 
-func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.Device) (*session, error) {
+func newSession(ctx context.Context, kernel *ndarray.Kernel, device vulkan.Device) (*session, error) {
 	if kernel == nil || device == nil {
 		return nil, ndarray.ErrOp
 	}
@@ -41,7 +41,7 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.D
 	}
 	slog.Debug("ndeval spirv", "bytes", len(spirv))
 	push := kernel.Push()
-	shader, err := device.Compile(ctx, ffivulkan.ShaderConfig{
+	shader, err := device.Compile(ctx, vulkan.ShaderConfig{
 		SPIRV:     spirv,
 		Bindings:  kernel.Bindings(),
 		PushBytes: len(push),
@@ -53,7 +53,7 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffivulkan.D
 		kernel: kernel,
 		device: device,
 		shader: shader,
-		inputs: make([]*ffivulkan.Buffer, kernel.InputCount()),
+		inputs: make([]*vulkan.Buffer, kernel.InputCount()),
 	}, nil
 }
 
@@ -86,7 +86,7 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 	}
 	need := s.kernel.Bindings()
 	if cap(s.bound) < need {
-		s.bound = make([]*ffivulkan.Buffer, need)
+		s.bound = make([]*vulkan.Buffer, need)
 	} else {
 		s.bound = s.bound[:need]
 	}
@@ -152,7 +152,7 @@ func (s *session) fit() error {
 	return nil
 }
 
-func (s *session) grow(slot **ffivulkan.Buffer, bytes int, grew, total *int) error {
+func (s *session) grow(slot **vulkan.Buffer, bytes int, grew, total *int) error {
 	cur := *slot
 	if cur != nil && cur.Len() >= bytes {
 		return nil

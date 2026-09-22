@@ -8,7 +8,7 @@ import (
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/ffi"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 const (
@@ -163,14 +163,14 @@ func cocoaMod(flags uintptr) window.Modifier {
 
 func eventLocation(ev objc.ID) nsPoint {
 	if locationFn == nil {
-		ffi.Register(&locationFn, objcMsgSend)
+		native.Register(&locationFn, objcMsgSend)
 	}
 	return locationFn(ev, selLocationInWindow)
 }
 
 func eventDelta(ev objc.ID, sel objc.SEL) float64 {
 	if deltaFn == nil {
-		ffi.Register(&deltaFn, objcMsgSend)
+		native.Register(&deltaFn, objcMsgSend)
 	}
 	return deltaFn(ev, sel)
 }

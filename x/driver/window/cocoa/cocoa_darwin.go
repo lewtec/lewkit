@@ -13,7 +13,7 @@ import (
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/ffi"
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -98,7 +98,7 @@ func startApp() error {
 				appErr = fmt.Errorf("%w", window.ErrNotMain)
 				return
 			}
-			if _, err := ffi.Open("/System/Library/Frameworks/Cocoa.framework/Cocoa", ffi.Global|ffi.Lazy); err != nil {
+			if _, err := native.Open("/System/Library/Frameworks/Cocoa.framework/Cocoa", native.Global|native.Lazy); err != nil {
 				appErr = fmt.Errorf("%w: cocoa: %w", window.ErrInit, err)
 				return
 			}
@@ -106,7 +106,7 @@ func startApp() error {
 				appErr = fmt.Errorf("%w: coregraphics: %w", window.ErrInit, err)
 				return
 			}
-			if _, err := ffi.Open("/System/Library/Frameworks/IOSurface.framework/IOSurface", ffi.Global|ffi.Lazy); err != nil {
+			if _, err := native.Open("/System/Library/Frameworks/IOSurface.framework/IOSurface", native.Global|native.Lazy); err != nil {
 				slog.Debug("cocoa IOSurface missing", "err", err)
 			}
 			runLoopMode = nsstr("kCFRunLoopDefaultMode").Send(objc.RegisterName("retain"))
@@ -630,16 +630,16 @@ var (
 )
 
 func loadCG() error {
-	lib, err := ffi.Open("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", ffi.Lazy)
+	lib, err := native.Open("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", native.Lazy)
 	if err != nil {
 		return err
 	}
-	ffi.Func(lib, "CGColorSpaceCreateDeviceRGB", &cgColorSpaceCreateDeviceRGB)
-	ffi.Func(lib, "CGDataProviderCreateWithCFData", &cgDataProviderCreateWithCFData)
-	ffi.Func(lib, "CGImageCreate", &cgImageCreate)
-	ffi.Func(lib, "CGColorSpaceRelease", &cgColorSpaceRelease)
-	ffi.Func(lib, "CGDataProviderRelease", &cgDataProviderRelease)
-	ffi.Func(lib, "CGImageRelease", &cgImageRelease)
+	native.Func(lib, "CGColorSpaceCreateDeviceRGB", &cgColorSpaceCreateDeviceRGB)
+	native.Func(lib, "CGDataProviderCreateWithCFData", &cgDataProviderCreateWithCFData)
+	native.Func(lib, "CGImageCreate", &cgImageCreate)
+	native.Func(lib, "CGColorSpaceRelease", &cgColorSpaceRelease)
+	native.Func(lib, "CGDataProviderRelease", &cgDataProviderRelease)
+	native.Func(lib, "CGImageRelease", &cgImageRelease)
 	return nil
 }
 
@@ -820,28 +820,28 @@ var (
 
 func setID(obj objc.ID, sel objc.SEL, v objc.ID) {
 	if setIDFn == nil {
-		ffi.Register(&setIDFn, objcMsgSend)
+		native.Register(&setIDFn, objcMsgSend)
 	}
 	setIDFn(obj, sel, v)
 }
 
 func setBool(obj objc.ID, sel objc.SEL, v bool) {
 	if setBoolFn == nil {
-		ffi.Register(&setBoolFn, objcMsgSend)
+		native.Register(&setBoolFn, objcMsgSend)
 	}
 	setBoolFn(obj, sel, v)
 }
 
 func setMask(obj objc.ID, sel objc.SEL, v uint32) {
 	if setMaskFn == nil {
-		ffi.Register(&setMaskFn, objcMsgSend)
+		native.Register(&setMaskFn, objcMsgSend)
 	}
 	setMaskFn(obj, sel, v)
 }
 
 func boundsOf(view objc.ID) nsRect {
 	if boundsFn == nil {
-		ffi.Register(&boundsFn, objcMsgSend)
+		native.Register(&boundsFn, objcMsgSend)
 	}
 	return boundsFn(view, selBounds)
 }
@@ -866,14 +866,14 @@ func screenFramePeriod(wnd objc.ID) time.Duration {
 
 func backingScale(wnd objc.ID) float64 {
 	if scaleFn == nil {
-		ffi.Register(&scaleFn, objcMsgSend)
+		native.Register(&scaleFn, objcMsgSend)
 	}
 	return scaleFn(wnd, selBackingScaleFactor)
 }
 
 func setLayerScale(layer objc.ID, scale float64) {
 	if setScale == nil {
-		ffi.Register(&setScale, objcMsgSend)
+		native.Register(&setScale, objcMsgSend)
 	}
 	setScale(layer, selSetContentsScale, scale)
 }
@@ -881,11 +881,11 @@ func setLayerScale(layer objc.ID, scale float64) {
 var objcMsgSend = mustSymbol("/usr/lib/libobjc.A.dylib", "objc_msgSend")
 
 func mustSymbol(lib, name string) uintptr {
-	handle, err := ffi.Open(lib, ffi.Lazy)
+	handle, err := native.Open(lib, native.Lazy)
 	if err != nil {
 		panic(err)
 	}
-	sym, err := ffi.Symbol(handle, name)
+	sym, err := native.Symbol(handle, name)
 	if err != nil {
 		panic(err)
 	}

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
+	ffivulkan "github.com/lewtec/lewkit/x/ffi/native/vulkan"
 	"github.com/stretchr/testify/require"
 )
 

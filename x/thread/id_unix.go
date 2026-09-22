@@ -5,7 +5,7 @@ package thread
 import (
 	"sync"
 
-	"github.com/lewtec/lewkit/x/ffi"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var (
@@ -16,12 +16,12 @@ var (
 
 func loadLibc() {
 	libcOnce.Do(func() {
-		lib, err := ffi.Open(libcPath, ffi.Lazy)
+		lib, err := native.Open(libcPath, native.Lazy)
 		if err != nil {
 			return
 		}
 		libc = lib
-		ffi.Func(lib, "pthread_self", &self)
+		native.Func(lib, "pthread_self", &self)
 	})
 }
 

@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	"github.com/lewtec/lewkit/x/ffi/vulkan"
+	"github.com/lewtec/lewkit/x/ffi/native/vulkan"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/test"
-	"github.com/lewtec/lewkit/x/wasm/glsl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

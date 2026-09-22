@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
-	ffivulkan "github.com/lewtec/lewkit/x/ffi/vulkan"
+	ffivulkan "github.com/lewtec/lewkit/x/ffi/native/vulkan"
 )
 
 type factory struct{}
@@ -101,12 +101,12 @@ func (f factory) New(ctx context.Context) (Device, error) {
 
 func openIndex(ctx context.Context, index int) (Device, error) {
 	slog.Debug("vulkan open", "index", index)
-	native, err := ffivulkan.OpenIndex(ctx, index)
+	binding, err := ffivulkan.OpenIndex(ctx, index)
 	if err != nil {
 		return nil, err
 	}
-	slog.Debug("vulkan open ok", "index", index, "device", native.Name(), "vendor", native.Vendor(), "type", native.Type())
-	return wrap(native), nil
+	slog.Debug("vulkan open ok", "index", index, "device", binding.Name(), "vendor", binding.Vendor(), "type", binding.Type())
+	return wrap(binding), nil
 }
 
 func offerID(infos []ffivulkan.Info, index int) string {

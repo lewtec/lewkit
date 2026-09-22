@@ -1,4 +1,4 @@
-// Package vulkan loads libvulkan through [github.com/lewtec/lewkit/x/ffi]
+// Package vulkan loads libvulkan through [github.com/lewtec/lewkit/x/ffi/native]
 // and runs compute shaders.
 //
 //	d, err := vulkan.Open(ctx)

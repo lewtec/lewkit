@@ -2,7 +2,7 @@
 
 package thread
 
-import "github.com/lewtec/lewkit/x/ffi"
+import "github.com/lewtec/lewkit/x/ffi/native"
 
 var pthreadMainNP func() int32
 
@@ -10,7 +10,7 @@ var pthreadMainNP func() int32
 func ProcessMain() bool {
 	loadLibc()
 	if pthreadMainNP == nil && libc != 0 {
-		ffi.Func(libc, "pthread_main_np", &pthreadMainNP)
+		native.Func(libc, "pthread_main_np", &pthreadMainNP)
 	}
 	if pthreadMainNP != nil {
 		return pthreadMainNP() != 0

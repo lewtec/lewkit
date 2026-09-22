@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/lewtec/lewkit/x/ffi/wasm"
+	embed "github.com/lewtec/lewkit/x/ffi/wasm/glsl/internal/wasm"
 	"github.com/lewtec/lewkit/x/singleton"
-	"github.com/lewtec/lewkit/x/wasm"
-	embed "github.com/lewtec/lewkit/x/wasm/glsl/internal/wasm"
 )
 
 var compiled = singleton.NewSingleton(func(ctx context.Context) (*wasm.Compiled, error) {
