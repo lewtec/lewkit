@@ -174,15 +174,3 @@ func checkName(name path.Path) error {
 	}
 	return nil
 }
-
-func pathClash(left, right path.Path) bool {
-	return isInside(left, right) || isInside(right, left)
-}
-
-func isInside(child, parent path.Path) bool {
-	relative, err := child.Rel(parent)
-	if err != nil || relative.String() == "." {
-		return false
-	}
-	return relative.Parts()[0] != ".."
-}

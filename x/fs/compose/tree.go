@@ -13,6 +13,8 @@ import (
 // Tree is a destination. Add and Merge unify files into it.
 type Tree struct {
 	files map[string]File
+	// descendants maps a strict ancestor to one stored path under it.
+	descendants map[string]string
 }
 
 // New returns an empty tree.
@@ -57,10 +59,8 @@ func (tree *Tree) Add(name path.Path, file File) error {
 		return pathError("merge", name.String(), err)
 	}
 	key := name.String()
-	for existing := range tree.files {
-		if pathClash(path.New(existing), name) {
-			return pathError("merge", key, fmt.Errorf("%w: %s", ErrPath, existing))
-		}
+	if other, conflicts := tree.conflictingPath(name); conflicts {
+		return pathError("merge", key, fmt.Errorf("%w: %s", ErrPath, other))
 	}
 	current, exists := tree.files[key]
 	if !exists {
@@ -68,6 +68,7 @@ func (tree *Tree) Add(name path.Path, file File) error {
 			tree.files = map[string]File{}
 		}
 		tree.files[key] = normalized
+		tree.recordAncestors(name)
 		return nil
 	}
 	merged, err := mergeFile(current, normalized)
@@ -93,6 +94,33 @@ func (tree *Tree) Merge(other *Tree) error {
 		}
 	}
 	return nil
+}
+
+func (tree *Tree) conflictingPath(name path.Path) (string, bool) {
+	for parent := name.Parent(); parent.String() != "."; parent = parent.Parent() {
+		key := parent.String()
+		if _, exists := tree.files[key]; exists {
+			return key, true
+		}
+	}
+	if other, exists := tree.descendants[name.String()]; exists {
+		return other, true
+	}
+	return "", false
+}
+
+func (tree *Tree) recordAncestors(name path.Path) {
+	stored := name.String()
+	if tree.descendants == nil {
+		tree.descendants = map[string]string{}
+	}
+	for parent := name.Parent(); parent.String() != "."; parent = parent.Parent() {
+		key := parent.String()
+		if _, exists := tree.descendants[key]; exists {
+			return
+		}
+		tree.descendants[key] = stored
+	}
 }
 
 func mergeFile(current, extra File) (File, error) {
