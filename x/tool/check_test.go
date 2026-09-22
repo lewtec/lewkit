@@ -42,3 +42,15 @@ func TestBinaryCheck(t *testing.T) {
 	require.NoError(t, Binary("demo").Check(t.Context(), destination))
 	require.ErrorIs(t, Binary("missing").Check(t.Context(), destination), ErrBinaryNotFound)
 }
+
+func TestFindBinaryAcceptsSymlinkOutsideTree(t *testing.T) {
+	destination := t.TempDir()
+	targetDirectory := t.TempDir()
+	target := filepath.Join(targetDirectory, "node")
+	require.NoError(t, os.WriteFile(target, []byte("ok"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(destination, "bin"), 0o755))
+	link := filepath.Join(destination, "bin", "node")
+	require.NoError(t, os.Symlink(target, link))
+	require.Equal(t, link, FindBinary(destination, "node"))
+	require.NoError(t, Binary("node").Check(t.Context(), destination))
+}

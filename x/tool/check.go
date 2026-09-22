@@ -146,22 +146,35 @@ func (check binaryCheck) Check(ctx context.Context, destination string) error {
 	defer root.Close()
 	var found lewpath.Path
 	for _, candidate := range binaryCandidateNames(check.binaryName) {
-		exists, err := candidate.Exists(root)
+		info, err := candidate.Lstat(root)
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
+				continue
+			}
 			return err
 		}
-		if exists {
-			found = candidate
-			break
+		if info.IsDir() {
+			continue
 		}
+		found = candidate
+		break
 	}
 	if found.String() == "" {
 		return fmt.Errorf("%w: %q in %s", ErrBinaryNotFound, check.binaryName, destination)
 	}
-	if err := FileExists(found.String()).Check(ctx, destination); err != nil {
+	// Stat the host path so a symlink to a binary outside this tree still counts.
+	host := joinHost(destination, found)
+	info, err := os.Stat(host)
+	if err != nil {
 		return err
 	}
-	return Executable(found.String()).Check(ctx, destination)
+	if info.IsDir() {
+		return fmt.Errorf("%s is a directory, want an executable file", host)
+	}
+	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
+		return fmt.Errorf("%s is not executable", host)
+	}
+	return nil
 }
 
 func checkName(relativePath string) (lewpath.Path, error) {

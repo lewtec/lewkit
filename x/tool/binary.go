@@ -9,6 +9,7 @@ import (
 
 // FindBinary returns the first existing candidate for binaryName under baseDirectory.
 // Candidates are bin/ and the directory root, each with no extension and .exe, .cmd, .bat.
+// A symlink counts even when its target sits outside baseDirectory.
 // The result is an OS path. An unreadable base directory returns an empty string.
 func FindBinary(baseDirectory, binaryName string) string {
 	root, err := lewpath.Open(baseDirectory)
@@ -17,8 +18,8 @@ func FindBinary(baseDirectory, binaryName string) string {
 	}
 	defer root.Close()
 	for _, candidate := range binaryCandidateNames(binaryName) {
-		exists, err := candidate.Exists(root)
-		if err != nil || !exists {
+		info, err := candidate.Lstat(root)
+		if err != nil || info.IsDir() {
 			continue
 		}
 		return joinHost(root.Name(), candidate)
