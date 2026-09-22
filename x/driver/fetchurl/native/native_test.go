@@ -83,3 +83,45 @@ func TestFetchRunsConfigureRequest(t *testing.T) {
 		t.Fatal("ConfigureRequest did not run")
 	}
 }
+
+func TestFetchDoesNotRewriteRedirects(t *testing.T) {
+	t.Setenv("FETCHURL_SERVER", "")
+	body := []byte("payload")
+	sum := sha256.Sum256(body)
+	var hits int
+	var server *httptest.Server
+	server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		hits++
+		if request.URL.Path == "/start" {
+			http.Redirect(writer, request, server.URL+"/file", http.StatusFound)
+			return
+		}
+		writer.Write(body)
+	}))
+	t.Cleanup(server.Close)
+
+	fetcher, err := factory{}.New(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	err = fetcher.Fetch(t.Context(), fetchurl.FetchOptions{
+		URLs: []string{server.URL + "/start"},
+		Algo: "sha256",
+		Hash: hex.EncodeToString(sum[:]),
+		Out:  &output,
+		ConfigureRequest: func(request *http.Request) {
+			request.URL.Path = "/start"
+			request.Header.Set("Authorization", "Bearer test-token")
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hits != 2 {
+		t.Fatalf("requests = %d, want 2", hits)
+	}
+	if output.String() != "payload" {
+		t.Fatalf("body = %q", output.String())
+	}
+}

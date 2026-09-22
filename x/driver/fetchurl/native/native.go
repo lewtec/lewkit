@@ -80,8 +80,12 @@ type hookTransport struct {
 }
 
 func (transport hookTransport) RoundTrip(request *http.Request) (*http.Response, error) {
-	if configure, ok := request.Context().Value(configureKey{}).(func(*http.Request)); ok && configure != nil {
-		configure(request)
+	// Configure runs once, on the first request. A redirect keeps its own URL.
+	// Reapplying the hook sends GitHub asset downloads back to the API and loops.
+	if request.Response == nil {
+		if configure, ok := request.Context().Value(configureKey{}).(func(*http.Request)); ok && configure != nil {
+			configure(request)
+		}
 	}
 	base := transport.base
 	if base == nil {
