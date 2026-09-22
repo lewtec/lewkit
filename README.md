@@ -1,5 +1,11 @@
 # lewkit
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/lewtec/lewkit.svg)](https://pkg.go.dev/github.com/lewtec/lewkit)
+[![Go version](https://img.shields.io/github/go-mod/go-version/lewtec/lewkit)](go.mod)
+[![Build](https://img.shields.io/github/actions/workflow/status/lewtec/lewkit/autorelease.yaml?branch=main&label=build)](https://github.com/lewtec/lewkit/actions/workflows/autorelease.yaml)
+[![Release](https://img.shields.io/github/v/release/lewtec/lewkit)](https://github.com/lewtec/lewkit/releases)
+[![License](https://img.shields.io/badge/license-GPL-blue.svg)](LICENSE.md)
+
 lewkit is a reuse library of Go primitives. The module path is `github.com/lewtec/lewkit`. The module requires Go 1.27. Packages build with `CGO_ENABLED=0`.
 
 Rushed code is not sustainable long term and this is our tool of reuse.
