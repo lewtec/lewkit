@@ -2,24 +2,24 @@ package native
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/sha512"
-	"encoding/hex"
+	"errors"
 	"fmt"
-	"hash"
-	"io"
 	"net/http"
-	"strings"
+	"strconv"
+
+	sdk "github.com/fetchurl/fetchurl"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
 )
 
+type configureKey struct{}
+
 type factory struct{}
 
 func (factory) ID() string   { return "fetchurl_native" }
-func (factory) Name() string { return "Native fetch" }
+func (factory) Name() string { return "fetchurl" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error { return nil }
@@ -29,11 +29,21 @@ func (factory) New(ctx context.Context) (fetchurl.Driver, error) {
 	if err != nil {
 		return nil, fmt.Errorf("httpclient driver: %w", err)
 	}
-	return downloader{client: httpDriver.Client()}, nil
+	client := httpDriver.Client()
+	if client == nil {
+		client = http.DefaultClient
+	}
+	wrapped := *client
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	wrapped.Transport = hookTransport{base: base}
+	return downloader{fetcher: sdk.NewFetcher(&wrapped)}, nil
 }
 
 type downloader struct {
-	client *http.Client
+	fetcher *sdk.Fetcher
 }
 
 func (downloader downloader) Fetch(ctx context.Context, options fetchurl.FetchOptions) error {
@@ -43,76 +53,41 @@ func (downloader downloader) Fetch(ctx context.Context, options fetchurl.FetchOp
 	if options.Out == nil {
 		return fetchurl.ErrNoOutputWriter
 	}
-	client := downloader.client
-	if client == nil {
-		client = http.DefaultClient
-	}
-	var lastErr error
-	for _, rawURL := range options.URLs {
-		if strings.TrimSpace(rawURL) == "" {
-			continue
-		}
-		err := fetchOne(ctx, client, rawURL, options)
-		if err == nil {
-			return nil
-		}
-		lastErr = err
-	}
-	if lastErr == nil {
-		return fetchurl.ErrNoURLs
-	}
-	return lastErr
-}
-
-func fetchOne(ctx context.Context, client *http.Client, rawURL string, options fetchurl.FetchOptions) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return err
-	}
 	if options.ConfigureRequest != nil {
-		options.ConfigureRequest(request)
+		ctx = context.WithValue(ctx, configureKey{}, options.ConfigureRequest)
 	}
-	response, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return &fetchurl.StatusError{URL: rawURL, Status: response.Status, Code: response.StatusCode}
-	}
-	hasher, err := hasherFor(options.Algo, options.Hash)
-	if err != nil {
-		return err
-	}
-	writer := io.Writer(options.Out)
-	if hasher != nil {
-		writer = io.MultiWriter(options.Out, hasher)
-	}
-	if _, err := io.Copy(writer, response.Body); err != nil {
-		return err
-	}
-	if hasher == nil {
+	err := downloader.fetcher.Fetch(ctx, sdk.FetchOptions{
+		Algo: options.Algo,
+		Hash: options.Hash,
+		URLs: options.URLs,
+		Out:  options.Out,
+	})
+	if err == nil {
 		return nil
 	}
-	sum := hex.EncodeToString(hasher.Sum(nil))
-	if !strings.EqualFold(sum, options.Hash) {
-		return fmt.Errorf("hash mismatch for %s", rawURL)
+	var status *sdk.HTTPStatusError
+	if errors.As(err, &status) {
+		return fmt.Errorf("%w: %w", &fetchurl.StatusError{
+			Code:   status.StatusCode,
+			Status: strconv.Itoa(status.StatusCode),
+		}, err)
 	}
-	return nil
+	return err
 }
 
-func hasherFor(algo, sum string) (hash.Hash, error) {
-	if strings.TrimSpace(sum) == "" {
-		return nil, nil
+type hookTransport struct {
+	base http.RoundTripper
+}
+
+func (transport hookTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if configure, ok := request.Context().Value(configureKey{}).(func(*http.Request)); ok && configure != nil {
+		configure(request)
 	}
-	switch strings.ToLower(algo) {
-	case "", "sha256":
-		return sha256.New(), nil
-	case "sha512":
-		return sha512.New(), nil
-	default:
-		return nil, fmt.Errorf("unsupported hash algorithm %q", algo)
+	base := transport.base
+	if base == nil {
+		base = http.DefaultTransport
 	}
+	return base.RoundTrip(request)
 }
 
 var _ driver.DriverFactory[fetchurl.Driver] = factory{}

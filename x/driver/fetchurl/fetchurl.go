@@ -1,7 +1,8 @@
-// Package fetchurl is the hash-checked download capability.
+// Package fetchurl is the fetchurl protocol client.
 //
-// [Driver.Fetch] tries URLs in order through the selected [httpclient.Driver].
-// A hash is checked when Algo and Hash are set. An empty hash stores the body as-is.
+// The native driver uses [github.com/fetchurl/fetchurl]. Fetch requires a hash
+// and at least one source URL. FETCHURL_SERVER is tried first, then the source
+// URLs. [FetchOptions.ConfigureRequest] runs on each request that client sends.
 package fetchurl
 
 import (
@@ -29,8 +30,9 @@ func (err *StatusError) Error() string {
 	return "GET " + err.URL + ": " + err.Status
 }
 
-// FetchOptions is one download.
-// URLs are tried in order. ConfigureRequest runs on each request before it is sent.
+// FetchOptions is one fetchurl download.
+// Algo and Hash are required by the protocol. ConfigureRequest runs on each
+// request before it is sent, so a caller can attach a GitHub token.
 type FetchOptions struct {
 	URLs             []string
 	Algo             string

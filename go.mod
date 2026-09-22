@@ -11,6 +11,7 @@ require (
 	github.com/dave/jennifer v1.7.1
 	github.com/diskfs/go-diskfs v1.9.4
 	github.com/ebitengine/purego v0.11.0
+	github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/jackc/pgx/v5 v5.11.0
@@ -56,7 +57,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/proto v1.14.3 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
-	github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/gdamore/tcell/v2 v2.6.0 // indirect
 	github.com/git-pkgs/gitignore v1.2.0 // indirect

@@ -16,6 +16,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
+	"github.com/lewtec/lewkit/x/driver/httpclient"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/fs/squashfs"
 	tarfs "github.com/lewtec/lewkit/x/fs/tar"
@@ -103,10 +104,6 @@ func DownloadFirst(ctx context.Context, urls []string, destination string, optio
 }
 
 func downloadDirect(ctx context.Context, url, destination string, options DownloadOptions) error {
-	fetcher, err := driver.Get[fetchurl.Driver](ctx)
-	if err != nil {
-		return err
-	}
 	temporary, err := os.CreateTemp(filepath.Dir(destination), ".download-*")
 	if err != nil {
 		return err
@@ -119,13 +116,22 @@ func downloadDirect(ctx context.Context, url, destination string, options Downlo
 		}
 	}()
 	algorithm, sum := splitHash(options.Hash)
-	err = fetcher.Fetch(ctx, fetchurl.FetchOptions{
-		URLs:             []string{url},
-		Algo:             algorithm,
-		Hash:             sum,
-		Out:              temporary,
-		ConfigureRequest: options.ConfigureRequest,
-	})
+	if algorithm == "" || sum == "" {
+		err = downloadPlain(ctx, url, temporary, options.ConfigureRequest)
+	} else {
+		fetcher, fetchErr := driver.Get[fetchurl.Driver](ctx)
+		if fetchErr != nil {
+			err = fetchErr
+		} else {
+			err = fetcher.Fetch(ctx, fetchurl.FetchOptions{
+				URLs:             []string{url},
+				Algo:             algorithm,
+				Hash:             sum,
+				Out:              temporary,
+				ConfigureRequest: options.ConfigureRequest,
+			})
+		}
+	}
 	if closeErr := temporary.Close(); err == nil {
 		err = closeErr
 	}
@@ -146,6 +152,34 @@ func downloadDirect(ctx context.Context, url, destination string, options Downlo
 	}
 	success = true
 	return nil
+}
+
+func downloadPlain(ctx context.Context, url string, out io.Writer, configure func(*http.Request)) error {
+	httpDriver, err := driver.Get[httpclient.Driver](ctx)
+	if err != nil {
+		return err
+	}
+	client := httpDriver.Client()
+	if client == nil {
+		client = http.DefaultClient
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	if configure != nil {
+		configure(request)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return &fetchurl.StatusError{URL: url, Status: response.Status, Code: response.StatusCode}
+	}
+	_, err = io.Copy(out, response.Body)
+	return err
 }
 
 func splitHash(raw string) (algorithm, sum string) {
