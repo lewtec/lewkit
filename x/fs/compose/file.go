@@ -15,6 +15,7 @@ const (
 	TypeLines Type = "lines"
 	TypeText  Type = "text"
 	TypeRef   Type = "ref"
+	TypeLink  Type = "link"
 	TypeJSON  Type = "json"
 	TypeTOML  Type = "toml"
 	TypeYAML  Type = "yaml"
@@ -25,9 +26,10 @@ const (
 const (
 	slotText = "text"
 	slotRef  = "ref"
+	slotLink = "link"
 )
 
-// Slot is one keyed fragment. Build one with [Text] or [Ref].
+// Slot is one component of a file. Build one with [Text], [Ref], or [Link].
 type Slot struct {
 	kind string
 	body string
@@ -43,6 +45,35 @@ func Ref(name string) Slot {
 	return Slot{kind: slotRef, body: name}
 }
 
+// Link is a slot whose body is the symlink target. The target may be absolute or relative.
+func Link(target string) Slot {
+	return Slot{kind: slotLink, body: target}
+}
+
+// Text reports the text body.
+func (slot Slot) Text() (string, bool) {
+	if slot.kind != slotText {
+		return "", false
+	}
+	return slot.body, true
+}
+
+// Ref reports the base-filesystem name.
+func (slot Slot) Ref() (string, bool) {
+	if slot.kind != slotRef {
+		return "", false
+	}
+	return slot.body, true
+}
+
+// Link reports the symlink target.
+func (slot Slot) Link() (string, bool) {
+	if slot.kind != slotLink {
+		return "", false
+	}
+	return slot.body, true
+}
+
 func (slot Slot) valid() error {
 	switch slot.kind {
 	case slotText:
@@ -56,13 +87,18 @@ func (slot Slot) valid() error {
 			return fmt.Errorf("%w: %q", ErrRef, slot.body)
 		}
 		return nil
+	case slotLink:
+		if slot.body == "" {
+			return fmt.Errorf("%w: empty link", ErrSlot)
+		}
+		return nil
 	default:
 		return fmt.Errorf("%w: %q", ErrSlot, slot.kind)
 	}
 }
 
 // File is one destination path.
-// Values holds slots for [TypeLines], [TypeText], and [TypeRef].
+// Values holds slots for [TypeLines], [TypeText], [TypeRef], and [TypeLink].
 // Data holds the map for a structured type.
 // Mode 0 means unset and takes the other side during merge. The encoded
 // file uses 0644 when the mode is still unset.
@@ -74,7 +110,7 @@ type File struct {
 }
 
 func (fileType Type) known() bool {
-	return fileType == TypeLines || fileType == TypeText || fileType == TypeRef || fileType.structured()
+	return fileType == TypeLines || fileType == TypeText || fileType == TypeRef || fileType == TypeLink || fileType.structured()
 }
 
 func (fileType Type) structured() bool {
@@ -115,6 +151,15 @@ func (file File) check() error {
 		}
 		for _, slot := range file.Values {
 			if slot.kind != slotRef {
+				return ErrSlot
+			}
+		}
+	case TypeLink:
+		if count != 1 {
+			return fmt.Errorf("%w: link got %d", ErrArity, count)
+		}
+		for _, slot := range file.Values {
+			if slot.kind != slotLink {
 				return ErrSlot
 			}
 		}

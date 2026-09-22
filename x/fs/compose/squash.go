@@ -6,14 +6,18 @@ import (
 	"github.com/lewtec/lewkit/x/path"
 )
 
-const refSlotKey = "src"
+const (
+	refSlotKey  = "src"
+	linkSlotKey = "target"
+)
 
 // Squash lowers a source filesystem into a tree.
 // A directory whose last two extensions are .d and .tmpl becomes one [TypeLines] file.
 // The destination path is that directory with those extensions removed.
 // Each direct child file is a text slot keyed by the child name.
 // A child directory is [ErrPath]. An empty directory adds no file.
-// Any other file becomes a [TypeRef] slot with key src.
+// A regular file becomes a [TypeRef] slot with key src.
+// A symlink becomes a [TypeLink] slot whose body is the link target.
 // A file whose [path.Path.Suffix] is .tmpl is skipped. A non-directory
 // with the .d.tmpl extensions is [ErrPath].
 func Squash(fsys fs.FS) (*Tree, error) {
@@ -43,6 +47,9 @@ func Squash(fsys fs.FS) (*Tree, error) {
 		}
 		if current.Suffix() == ".tmpl" {
 			return nil
+		}
+		if entry.Type()&fs.ModeSymlink != 0 {
+			return addLink(tree, fsys, current)
 		}
 		return addRef(tree, current, entry)
 	})
@@ -102,18 +109,46 @@ func linesPath(directory path.Path) (path.Path, error) {
 	return trimmed, nil
 }
 
-func addRef(tree *Tree, name path.Path, entry fs.DirEntry) error {
-	info, err := entry.Info()
+func addLink(tree *Tree, fsys fs.FS, name path.Path) error {
+	target, err := name.ReadLink(fsys)
 	if err != nil {
 		return err
 	}
+	return tree.Add(name, File{
+		Type:   TypeLink,
+		Mode:   lstatMode(fsys, name),
+		Values: map[string]Slot{linkSlotKey: Link(target.String())},
+	})
+}
+
+func lstatMode(fsys fs.FS, name path.Path) fs.FileMode {
+	info, err := name.Lstat(fsys)
+	if err != nil {
+		return 0o644
+	}
 	mode := info.Mode().Perm()
 	if mode == 0 {
-		mode = 0o644
+		return 0o644
 	}
+	return mode
+}
+
+func addRef(tree *Tree, name path.Path, entry fs.DirEntry) error {
 	return tree.Add(name, File{
 		Type:   TypeRef,
-		Mode:   mode,
+		Mode:   entryMode(entry),
 		Values: map[string]Slot{refSlotKey: Ref(name.String())},
 	})
+}
+
+func entryMode(entry fs.DirEntry) fs.FileMode {
+	info, err := entry.Info()
+	if err != nil {
+		return 0o644
+	}
+	mode := info.Mode().Perm()
+	if mode == 0 {
+		return 0o644
+	}
+	return mode
 }

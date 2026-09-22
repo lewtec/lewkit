@@ -8,7 +8,11 @@
 	kind: "ref"
 	ref:  string
 })
-#Slot: string | #SlotText | #SlotRef
+#SlotLink: close({
+	kind: "link"
+	link: string
+})
+#Slot: string | #SlotText | #SlotRef | #SlotLink
 
 #FileLines: close({
 	type:   "lines"
@@ -25,6 +29,11 @@
 	mode?:  int
 	values: [string]: #Slot
 })
+#FileLink: close({
+	type:   "link"
+	mode?:  int
+	values: [string]: #Slot
+})
 // StructuredType is tightened by Mount to the names in the format registry.
 #StructuredType: string
 
@@ -33,7 +42,7 @@
 	mode?:  int
 	values: [string]: _
 })
-#File: #FileLines | #FileText | #FileRef | #FileStructured
+#File: #FileLines | #FileText | #FileRef | #FileLink | #FileStructured
 
 // Tree is a destination map. Keys are fs.FS names.
 #Tree: [string]: #File

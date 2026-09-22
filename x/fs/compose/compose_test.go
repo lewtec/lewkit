@@ -547,3 +547,109 @@ func TestNestedDirectoryFromStructuredPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
 }
+
+func TestAllAndLinkVector(t *testing.T) {
+	t.Parallel()
+	tree := New()
+	require.NoError(t, tree.Add(path.New("b.txt"), File{
+		Type:   TypeText,
+		Values: map[string]Slot{"content": Text("b")},
+	}))
+	require.NoError(t, tree.Add(path.New("a.link"), File{
+		Type:   TypeLink,
+		Values: map[string]Slot{"target": Link("../bin/tool")},
+	}))
+	var paths []string
+	for name, file := range tree.All() {
+		paths = append(paths, name.String())
+		switch name.String() {
+		case "a.link":
+			assert.Equal(t, TypeLink, file.Type)
+			target, ok := file.Values["target"].Link()
+			assert.True(t, ok)
+			assert.Equal(t, "../bin/tool", target)
+			_, ok = file.Values["target"].Ref()
+			assert.False(t, ok)
+		case "b.txt":
+			body, ok := file.Values["content"].Text()
+			assert.True(t, ok)
+			assert.Equal(t, "b", body)
+		}
+	}
+	assert.Equal(t, []string{"a.link", "b.txt"}, paths)
+
+	err := tree.Add(path.New("a.link"), File{
+		Type:   TypeLink,
+		Values: map[string]Slot{"target": Link("/usr/bin/tool")},
+	})
+	require.ErrorIs(t, err, ErrSlot)
+	require.NoError(t, tree.Add(path.New("a.link"), File{
+		Type:   TypeLink,
+		Values: map[string]Slot{"target": Link("../bin/tool")},
+	}))
+	err = tree.Add(path.New("a.link"), File{
+		Type:   TypeRef,
+		Values: map[string]Slot{"src": Ref("tool")},
+	})
+	require.ErrorIs(t, err, ErrType)
+
+	filesystem, err := tree.FS(nil)
+	require.NoError(t, err)
+	got, err := iofs.ReadFile(filesystem, "a.link")
+	require.NoError(t, err)
+	assert.Equal(t, "../bin/tool", string(got))
+	info, err := filesystem.Stat("a.link")
+	require.NoError(t, err)
+	assert.True(t, info.Mode()&iofs.ModeSymlink != 0)
+	target, err := filesystem.ReadLink("a.link")
+	require.NoError(t, err)
+	assert.Equal(t, "../bin/tool", target)
+}
+
+func TestSquashSymlink(t *testing.T) {
+	t.Parallel()
+	source := linkFS{
+		MapFS: fstest.MapFS{
+			"alias": &fstest.MapFile{Mode: iofs.ModeSymlink | 0o777},
+			"plain": &fstest.MapFile{Data: []byte("body")},
+		},
+		links: map[string]string{"alias": "../bin/tool"},
+	}
+	tree, err := Squash(source)
+	require.NoError(t, err)
+	var kind Type
+	var target string
+	for name, file := range tree.All() {
+		if name.String() != "alias" {
+			continue
+		}
+		kind = file.Type
+		body, ok := file.Values["target"].Link()
+		require.True(t, ok)
+		target = body
+	}
+	assert.Equal(t, TypeLink, kind)
+	assert.Equal(t, "../bin/tool", target)
+
+	filesystem, err := tree.FS(source)
+	require.NoError(t, err)
+	got, err := iofs.ReadFile(filesystem, "alias")
+	require.NoError(t, err)
+	assert.Equal(t, "../bin/tool", string(got))
+	plain, err := iofs.ReadFile(filesystem, "plain")
+	require.NoError(t, err)
+	assert.Equal(t, "body", string(plain))
+}
+
+type linkFS struct {
+	fstest.MapFS
+	links map[string]string
+}
+
+func (fsys linkFS) ReadLink(name string) (string, error) {
+	target, ok := fsys.links[name]
+	if !ok {
+		return "", &iofs.PathError{Op: "readlink", Path: name, Err: iofs.ErrInvalid}
+	}
+	return target, nil
+}

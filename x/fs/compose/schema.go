@@ -175,6 +175,12 @@ func parseSlot(value cue.Value) (Slot, error) {
 				return Slot{}, fmt.Errorf("slot kind ref: %w", err)
 			}
 			return Ref(name), nil
+		case slotLink:
+			target, err := value.LookupPath(cue.ParsePath("link")).String()
+			if err != nil {
+				return Slot{}, fmt.Errorf("slot kind link: %w", err)
+			}
+			return Link(target), nil
 		default:
 			return Slot{}, fmt.Errorf("%w: %s", ErrSlot, kind)
 		}

@@ -46,6 +46,9 @@ func (slot Slot) writeTo(writer io.Writer, base iofs.FS) error {
 	case slotText:
 		_, err := io.WriteString(writer, slot.body)
 		return err
+	case slotLink:
+		_, err := io.WriteString(writer, slot.body)
+		return err
 	case slotRef:
 		if base == nil {
 			return fmt.Errorf("%w: nil base", ErrRef)

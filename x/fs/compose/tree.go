@@ -3,7 +3,9 @@ package compose
 import (
 	"fmt"
 	iofs "io/fs"
+	"iter"
 	"maps"
+	"slices"
 
 	"github.com/lewtec/lewkit/x/path"
 )
@@ -16,6 +18,27 @@ type Tree struct {
 // New returns an empty tree.
 func New() *Tree {
 	return &Tree{files: map[string]File{}}
+}
+
+// All yields each declaration in path order.
+// The yielded [File] is a copy.
+func (tree *Tree) All() iter.Seq2[path.Path, File] {
+	return func(yield func(path.Path, File) bool) {
+		if tree == nil {
+			return
+		}
+		for _, name := range slices.Sorted(maps.Keys(tree.files)) {
+			if !yield(path.New(name), snapshot(tree.files[name])) {
+				return
+			}
+		}
+	}
+}
+
+func snapshot(file File) File {
+	file.Values = maps.Clone(file.Values)
+	file.Data = cloneMap(file.Data)
+	return file
 }
 
 // Add merges one file into the tree.

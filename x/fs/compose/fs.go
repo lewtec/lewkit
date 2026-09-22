@@ -19,6 +19,7 @@ var (
 	_ iofs.FS         = (*FS)(nil)
 	_ iofs.ReadDirFS  = (*FS)(nil)
 	_ iofs.ReadFileFS = (*FS)(nil)
+	_ iofs.ReadLinkFS = (*FS)(nil)
 	_ iofs.StatFS     = (*FS)(nil)
 )
 
@@ -54,7 +55,7 @@ func (filesystem *FS) Open(name string) (iofs.File, error) {
 	if err != nil {
 		return nil, pathError("open", name, err)
 	}
-	info := node.Info(int64(len(body)), presentedMode(file.Mode), time.Time{})
+	info := node.Info(int64(len(body)), presentedMode(file), time.Time{})
 	return &memFile{info: info, Reader: bytes.NewReader(body)}, nil
 }
 
@@ -84,6 +85,35 @@ func (filesystem *FS) ReadFile(name string) ([]byte, error) {
 	return body, nil
 }
 
+// ReadLink implements [io/fs.ReadLinkFS].
+// The result is the link target stored in the tree.
+func (filesystem *FS) ReadLink(name string) (string, error) {
+	node, err := filesystem.lookup(name)
+	if err != nil {
+		return "", err
+	}
+	if node.IsDir() {
+		return "", pathError("readlink", name, iofs.ErrInvalid)
+	}
+	file := node.Payload()
+	if file == nil || file.Type != TypeLink {
+		return "", pathError("readlink", name, iofs.ErrInvalid)
+	}
+	for _, slot := range file.Values {
+		target, ok := slot.Link()
+		if ok {
+			return target, nil
+		}
+	}
+	return "", pathError("readlink", name, ErrSlot)
+}
+
+// Lstat implements [io/fs.ReadLinkFS].
+// A link is not followed. The info matches [FS.Stat].
+func (filesystem *FS) Lstat(name string) (iofs.FileInfo, error) {
+	return filesystem.Stat(name)
+}
+
 // Stat implements [io/fs.StatFS].
 func (filesystem *FS) Stat(name string) (iofs.FileInfo, error) {
 	opened, err := filesystem.Open(name)
@@ -105,16 +135,16 @@ func (filesystem *FS) info(node *lewfs.PathNode[File]) iofs.FileInfo {
 	if node.IsDir() {
 		return node.Info(0, iofs.ModeDir|0o755, time.Time{})
 	}
-	mode := iofs.FileMode(0o644)
-	if file := node.Payload(); file != nil && file.Mode != 0 {
-		mode = file.Mode
-	}
-	return node.Info(0, mode, time.Time{})
+	return node.Info(0, presentedMode(node.Payload()), time.Time{})
 }
 
-func presentedMode(mode iofs.FileMode) iofs.FileMode {
-	if mode == 0 {
-		return 0o644
+func presentedMode(file *File) iofs.FileMode {
+	mode := iofs.FileMode(0o644)
+	if file != nil && file.Mode != 0 {
+		mode = file.Mode
+	}
+	if file != nil && file.Type == TypeLink {
+		mode |= iofs.ModeSymlink
 	}
 	return mode
 }
