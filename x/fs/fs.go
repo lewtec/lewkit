@@ -11,7 +11,7 @@
 // [Copy] writes a [Files] listing into a dest, like rsync from/ to.
 // [Walk] turns an [io/fs.FS] into a listing. [Filter] applies a
 // [github.com/lewtec/lewkit/x/path/pick.Predicate].
-// [StripTopDirectory] drops one leading directory from that listing before [Copy].
+// [StripTopDirectory] returns an [io/fs.FS] with one leading directory removed.
 package fs
 
 import (

@@ -66,6 +66,8 @@ func copyStripped(t *testing.T, source iofs.FS) *path.Root {
 	destination, err := path.New("out").OpenRoot(root)
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, destination)
-	require.NoError(t, Copy(t.Context(), destination, StripTopDirectory(t.Context(), source)))
+	stripped, err := StripTopDirectory(t.Context(), source)
+	require.NoError(t, err)
+	require.NoError(t, Copy(t.Context(), destination, Walk(t.Context(), stripped, nil)))
 	return destination
 }

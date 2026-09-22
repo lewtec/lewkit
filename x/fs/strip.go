@@ -4,45 +4,26 @@ import (
 	"context"
 	iofs "io/fs"
 	"strings"
-
-	"github.com/lewtec/lewkit/x/path"
 )
 
-// StripTopDirectory returns the listing of fsys with one leading directory removed.
-// A tree that is not a single top-level directory is unchanged.
-// The directory member itself is dropped. Compose it in front of [Copy]:
+// StripTopDirectory returns fsys with one leading directory removed.
+// A tree that is not a single top-level directory is returned unchanged.
+// Compose it in front of [Walk] and [Copy]:
 //
-//	err = fs.Copy(ctx, dest, fs.StripTopDirectory(ctx, archive))
-func StripTopDirectory(ctx context.Context, fsys iofs.FS) Files {
-	prefix, err := topDirectory(ctx, fsys)
-	return func(yield func(File, error) bool) {
-		if err != nil {
-			yield(File{}, err)
-			return
-		}
-		for file, walkErr := range Walk(ctx, fsys, nil) {
-			if walkErr != nil {
-				yield(File{}, walkErr)
-				return
-			}
-			if prefix != "" {
-				if file.Name.String() == prefix {
-					continue
-				}
-				rest, ok := strings.CutPrefix(file.Name.String(), prefix+"/")
-				if !ok {
-					if !yield(file, nil) {
-						return
-					}
-					continue
-				}
-				file.Name = path.New(rest)
-			}
-			if !yield(file, nil) {
-				return
-			}
-		}
+//	stripped, err := fs.StripTopDirectory(ctx, archive)
+//	err = fs.Copy(ctx, dest, fs.Walk(ctx, stripped, nil))
+func StripTopDirectory(ctx context.Context, fsys iofs.FS) (iofs.FS, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
 	}
+	prefix, err := topDirectory(ctx, fsys)
+	if err != nil {
+		return nil, err
+	}
+	if prefix == "" {
+		return fsys, nil
+	}
+	return iofs.Sub(fsys, prefix)
 }
 
 func topDirectory(ctx context.Context, fsys iofs.FS) (string, error) {

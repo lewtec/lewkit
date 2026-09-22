@@ -189,7 +189,7 @@ func verifyHash(path, raw string) error {
 }
 
 // Extract unpacks a zip, squashfs, or tar archive into destination.
-// A single top directory is removed by [lewfs.StripTopDirectory] before [lewfs.Copy].
+// A single top directory is removed by [lewfs.StripTopDirectory], then [lewfs.Copy] writes that filesystem.
 // A file that is none of those archives is copied in as one binary.
 func Extract(ctx context.Context, source, destination string) error {
 	if err := os.MkdirAll(destination, 0o755); err != nil {
@@ -226,7 +226,11 @@ func Extract(ctx context.Context, source, destination string) error {
 	} else {
 		return installBinary(ctx, source, dest)
 	}
-	return lewfs.Copy(ctx, dest, lewfs.StripTopDirectory(ctx, archive))
+	stripped, err := lewfs.StripTopDirectory(ctx, archive)
+	if err != nil {
+		return err
+	}
+	return lewfs.Copy(ctx, dest, lewfs.Walk(ctx, stripped, nil))
 }
 
 type hostFile struct {
