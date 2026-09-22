@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/github"
 	"github.com/lewtec/lewkit/x/tool/registry"
@@ -39,7 +41,11 @@ func (t *llvmTool) ListVersions(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	httpDriver, err := driver.Get[httpclient.Driver](ctx)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := httpDriver.Client().Do(req)
 	if err != nil {
 		return nil, err
 	}

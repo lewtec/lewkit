@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/tool"
 	"io"
 	"net/http"
@@ -143,7 +145,11 @@ func httpGET(ctx context.Context, u string, configure ...func(*http.Request)) (*
 			fn(req)
 		}
 	}
-	resp, err := http.DefaultClient.Do(req)
+	httpDriver, err := driver.Get[httpclient.Driver](ctx)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := httpDriver.Client().Do(req)
 	if err != nil {
 		return nil, err
 	}

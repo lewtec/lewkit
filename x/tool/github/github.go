@@ -18,6 +18,8 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/report"
+	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/tool"
 )
 
@@ -242,7 +244,11 @@ func doAPI(ctx context.Context, rawURL string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return http.DefaultClient.Do(request)
+	httpDriver, err := driver.Get[httpclient.Driver](ctx)
+	if err != nil {
+		return nil, err
+	}
+	return httpDriver.Client().Do(request)
 }
 
 func apiErrorFromResponse(requestURL string, response *http.Response) error {

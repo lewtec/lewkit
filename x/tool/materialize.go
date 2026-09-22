@@ -2,13 +2,10 @@ package tool
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
-	"log/slog"
 	"net/http"
 	"os"
 	stdpath "path"
@@ -17,7 +14,8 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/lewtec/lewkit/report"
+	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/fetchurl"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/fs/squashfs"
 	tarfs "github.com/lewtec/lewkit/x/fs/tar"
@@ -82,12 +80,6 @@ func DownloadFile(ctx context.Context, url, destination string, options Download
 	if err := downloadDirect(ctx, url, destination, options); err != nil {
 		return err
 	}
-	if err := verifyHash(destination, options.Hash); err != nil {
-		if removeErr := os.Remove(destination); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			slog.WarnContext(ctx, "remove mismatched download", "error", removeErr, "path", destination)
-		}
-		return err
-	}
 	return nil
 }
 
@@ -111,26 +103,10 @@ func DownloadFirst(ctx context.Context, urls []string, destination string, optio
 }
 
 func downloadDirect(ctx context.Context, url, destination string, options DownloadOptions) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	fetcher, err := driver.Get[fetchurl.Driver](ctx)
 	if err != nil {
 		return err
 	}
-	if options.ConfigureRequest != nil {
-		options.ConfigureRequest(request)
-	}
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return err
-	}
-	defer func() { report.Report(response.Body.Close()) }()
-	if response.StatusCode != http.StatusOK {
-		err := fmt.Errorf("GET %s: %s", url, response.Status)
-		if response.StatusCode == http.StatusForbidden {
-			err = fmt.Errorf("%w (if this is a GitHub release asset, set GITHUB_TOKEN or run 'gh auth login' to increase rate limits)", err)
-		}
-		return err
-	}
-
 	temporary, err := os.CreateTemp(filepath.Dir(destination), ".download-*")
 	if err != nil {
 		return err
@@ -142,11 +118,22 @@ func downloadDirect(ctx context.Context, url, destination string, options Downlo
 			os.Remove(temporaryPath)
 		}
 	}()
-	if _, err := io.Copy(temporary, response.Body); err != nil {
-		temporary.Close()
-		return err
+	algorithm, sum := splitHash(options.Hash)
+	err = fetcher.Fetch(ctx, fetchurl.FetchOptions{
+		URLs:             []string{url},
+		Algo:             algorithm,
+		Hash:             sum,
+		Out:              temporary,
+		ConfigureRequest: options.ConfigureRequest,
+	})
+	if closeErr := temporary.Close(); err == nil {
+		err = closeErr
 	}
-	if err := temporary.Close(); err != nil {
+	if err != nil {
+		var status *fetchurl.StatusError
+		if errors.As(err, &status) && status.Code == http.StatusForbidden {
+			err = fmt.Errorf("%w (if this is a GitHub release asset, set GITHUB_TOKEN or run 'gh auth login' to increase rate limits)", err)
+		}
 		return err
 	}
 	if options.Mode != 0 {
@@ -161,31 +148,15 @@ func downloadDirect(ctx context.Context, url, destination string, options Downlo
 	return nil
 }
 
-func verifyHash(path, raw string) error {
+func splitHash(raw string) (algorithm, sum string) {
 	if strings.TrimSpace(raw) == "" {
-		return nil
+		return "", ""
 	}
-	algorithm, sum := "sha256", raw
-	if left, right, ok := strings.Cut(raw, ":"); ok {
+	algorithm, sum = "sha256", raw
+	if left, right, found := strings.Cut(raw, ":"); found {
 		algorithm, sum = strings.ToLower(left), right
 	}
-	if algorithm != "sha256" {
-		return fmt.Errorf("unsupported hash algorithm %q", algorithm)
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	digest := sha256.New()
-	if _, err := io.Copy(digest, file); err != nil {
-		return err
-	}
-	got := hex.EncodeToString(digest.Sum(nil))
-	if !strings.EqualFold(got, sum) {
-		return fmt.Errorf("hash mismatch for %s", path)
-	}
-	return nil
+	return algorithm, sum
 }
 
 // Extract unpacks a zip, squashfs, or tar archive into destination.
