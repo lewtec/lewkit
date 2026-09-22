@@ -1,6 +1,10 @@
 package applications
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestGrokPlatform(t *testing.T) {
 	t.Parallel()
@@ -14,14 +18,10 @@ func TestGrokPlatform(t *testing.T) {
 		{"darwin", "arm64", "macos-aarch64"},
 		{"windows", "amd64", "windows-x86_64"},
 		{"windows", "arm64", "windows-aarch64"},
-		// No android-* assets; fall back to the Linux binary.
 		{"android", "arm64", "linux-aarch64"},
 		{"android", "amd64", "linux-x86_64"},
 	}
 	for _, tc := range cases {
-		got := grokPlatform(tc.goos, tc.goarch)
-		if got != tc.want {
-			t.Errorf("grokPlatform(%q, %q) = %q, want %q", tc.goos, tc.goarch, got, tc.want)
-		}
+		require.Equal(t, tc.want, grokPlatform(tc.goos, tc.goarch))
 	}
 }

@@ -1,131 +1,69 @@
 package applications
 
 import (
-	"github.com/lewtec/lewkit/x/tool"
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/lewtec/lewkit/x/tool"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFixRubyShebangs(t *testing.T) {
-	dir := t.TempDir()
-	binDir := filepath.Join(dir, "bin")
-	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	directory := t.TempDir()
+	binDirectory := filepath.Join(directory, "bin")
+	require.NoError(t, os.MkdirAll(binDirectory, 0o755))
 
-	// Create a fake ruby binary (not a script)
-	rubyBin := filepath.Join(binDir, "ruby")
-	if err := os.WriteFile(rubyBin, []byte("ELF..."), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	rubyBinary := filepath.Join(binDirectory, "ruby")
+	require.NoError(t, os.WriteFile(rubyBinary, []byte("ELF..."), 0o755))
 
-	// Create a script with the bad hostedtoolcache shebang (exact case from report)
-	badScript := filepath.Join(binDir, "bundle")
-	badContent := "#!/opt/hostedtoolcache/Ruby/4.0.5/x64/bin/ruby\n" +
-		"puts 'hello'\n"
-	if err := os.WriteFile(badScript, []byte(badContent), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	badScript := filepath.Join(binDirectory, "bundle")
+	require.NoError(t, os.WriteFile(badScript, []byte("#!/opt/hostedtoolcache/Ruby/4.0.5/x64/bin/ruby\nputs 'hello'\n"), 0o755))
 
-	// Another with args
-	badWithArgs := filepath.Join(binDir, "rake")
-	badWithArgsContent := "#!/opt/hostedtoolcache/Ruby/4.0.5/x64/bin/ruby -w\n" +
-		"puts 'rake'\n"
-	if err := os.WriteFile(badWithArgs, []byte(badWithArgsContent), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	badWithArgs := filepath.Join(binDirectory, "rake")
+	require.NoError(t, os.WriteFile(badWithArgs, []byte("#!/opt/hostedtoolcache/Ruby/4.0.5/x64/bin/ruby -w\nputs 'rake'\n"), 0o755))
 
-	// A good one already (should stay)
-	good := filepath.Join(binDir, "good")
-	goodRuby := filepath.Join(binDir, "ruby")
-	goodContent := "#!" + goodRuby + "\nputs 'ok'\n"
-	if err := os.WriteFile(good, []byte(goodContent), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	good := filepath.Join(binDirectory, "good")
+	goodContent := "#!" + rubyBinary + "\nputs 'ok'\n"
+	require.NoError(t, os.WriteFile(good, []byte(goodContent), 0o755))
 
-	// A non-ruby shebang (should be untouched)
-	other := filepath.Join(binDir, "other")
-	if err := os.WriteFile(other, []byte("#!/bin/sh\necho hi\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	other := filepath.Join(binDirectory, "other")
+	require.NoError(t, os.WriteFile(other, []byte("#!/bin/sh\necho hi\n"), 0o755))
 
-	tool := &rubyTool{}
-	if err := tool.fixRubyShebangs(t.Context(), dir); err != nil {
-		t.Fatalf("fixRubyShebangs: %v", err)
-	}
+	require.NoError(t, (&rubyTool{}).fixRubyShebangs(t.Context(), directory))
 
-	// Check badScript
 	got, err := os.ReadFile(badScript)
-	if err != nil {
-		t.Fatalf("read badScript: %v", err)
-	}
-	want := "#!" + goodRuby + "\nputs 'hello'\n"
-	if string(got) != want {
-		t.Errorf("bundle shebang: got %q want %q", string(got), want)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "#!"+rubyBinary+"\nputs 'hello'\n", string(got))
 
-	// Check with args preserved
 	got, err = os.ReadFile(badWithArgs)
-	if err != nil {
-		t.Fatalf("read badWithArgs: %v", err)
-	}
-	want = "#!" + goodRuby + " -w\nputs 'rake'\n"
-	if string(got) != want {
-		t.Errorf("rake shebang: got %q want %q", string(got), want)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "#!"+rubyBinary+" -w\nputs 'rake'\n", string(got))
 
-	// good unchanged
 	got, err = os.ReadFile(good)
-	if err != nil {
-		t.Fatalf("read good: %v", err)
-	}
-	if string(got) != goodContent {
-		t.Errorf("good changed: %q", string(got))
-	}
+	require.NoError(t, err)
+	require.Equal(t, goodContent, string(got))
 
-	// other unchanged
 	got, err = os.ReadFile(other)
-	if err != nil {
-		t.Fatalf("read other: %v", err)
-	}
-	if !bytesHasPrefix(got, []byte("#!/bin/sh")) {
-		t.Errorf("other shebang changed unexpectedly")
-	}
-}
-
-func bytesHasPrefix(b, prefix []byte) bool {
-	return len(b) >= len(prefix) && string(b[:len(prefix)]) == string(prefix)
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(got, []byte("#!/bin/sh")))
 }
 
 func TestRubyToolImplementsInstallFixer(t *testing.T) {
 	var _ tool.Fixer = (*rubyTool)(nil)
 	installed := &rubyTool{}
 
-	// Also via the catalog registration path
-	// (avoiding direct import of internal/tool to prevent cycles in some builds)
-	// We just exercise the method we already have.
-	dir := t.TempDir()
-	bin := filepath.Join(dir, "bin")
-	if err := os.MkdirAll(bin, 0o755); err != nil {
-		t.Fatalf("mkdir bin: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(bin, "ruby"), []byte("fake"), 0o755); err != nil {
-		t.Fatalf("write ruby: %v", err)
-	}
-	script := filepath.Join(bin, "irb")
-	if err := os.WriteFile(script, []byte("#!/opt/hostedtoolcache/Ruby/4.0.5/x64/bin/ruby\n# gem wrapper\n"), 0o755); err != nil {
-		t.Fatalf("write script: %v", err)
-	}
+	directory := t.TempDir()
+	binDirectory := filepath.Join(directory, "bin")
+	require.NoError(t, os.MkdirAll(binDirectory, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(binDirectory, "ruby"), []byte("fake"), 0o755))
+	script := filepath.Join(binDirectory, "irb")
+	require.NoError(t, os.WriteFile(script, []byte("#!/opt/hostedtoolcache/Ruby/4.0.5/x64/bin/ruby\n# gem wrapper\n"), 0o755))
 
-	if err := installed.Fix(t.Context(), dir); err != nil {
-		t.Fatal(err)
-	}
-	b, err := os.ReadFile(script)
-	if err != nil {
-		t.Fatalf("read script: %v", err)
-	}
-	if !bytesHasPrefix(b, []byte("#!"+filepath.Join(dir, "bin", "ruby"))) {
-		t.Errorf("Fix via interface did not rewrite: %q", string(b[:60]))
-	}
+	require.NoError(t, installed.Fix(t.Context(), directory))
+	body, err := os.ReadFile(script)
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(body, []byte("#!"+filepath.Join(directory, "bin", "ruby"))))
 }

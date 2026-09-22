@@ -1,8 +1,9 @@
 package applications
 
 import (
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestEsbuildPlatform(t *testing.T) {
@@ -25,21 +26,15 @@ func TestEsbuildPlatform(t *testing.T) {
 	}
 	for _, tc := range cases {
 		got, ok := esbuildPlatform(tc.goos, tc.goarch)
-		if ok != tc.ok || got != tc.want {
-			t.Errorf("esbuildPlatform(%q, %q) = %q, %v; want %q, %v",
-				tc.goos, tc.goarch, got, ok, tc.want, tc.ok)
-		}
+		require.Equal(t, tc.ok, ok)
+		require.Equal(t, tc.want, got)
 	}
 }
 
 func TestEsbuildArtifactURL(t *testing.T) {
 	t.Parallel()
-
 	got := esbuildArtifactURL("linux-x64", "0.28.1")
-	want := "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.1.tgz"
-	if got != want {
-		t.Fatalf("esbuildArtifactURL = %q, want %q", got, want)
-	}
+	require.Equal(t, "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.1.tgz", got)
 }
 
 func TestNormalizeEsbuildVersion(t *testing.T) {
@@ -52,86 +47,51 @@ func TestNormalizeEsbuildVersion(t *testing.T) {
 		{"", ""},
 	}
 	for _, tc := range cases {
-		if got := normalizeEsbuildVersion(tc.in); got != tc.want {
-			t.Errorf("normalizeEsbuildVersion(%q) = %q, want %q", tc.in, got, tc.want)
-		}
+		require.Equal(t, tc.want, normalizeEsbuildVersion(tc.in))
 	}
 }
 
 func TestEsbuildListArtifacts(t *testing.T) {
 	t.Parallel()
 
-	tool := &esbuildTool{}
-	ctx := t.Context()
-
-	arts, err := tool.ListArtifacts(ctx, "0.28.1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(arts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(arts))
-	}
-	if !strings.Contains(arts[0].URL, "@esbuild/") {
-		t.Fatalf("URL = %q, want npm @esbuild platform package", arts[0].URL)
-	}
-	if !strings.HasSuffix(arts[0].URL, "-0.28.1.tgz") {
-		t.Fatalf("URL = %q, want versioned .tgz", arts[0].URL)
-	}
-	if arts[0].Hash != "" && !strings.HasPrefix(arts[0].Hash, "sha1:") {
-		t.Fatalf("hash = %q, want empty or sha1:", arts[0].Hash)
-	}
-	if arts[0].Hash == "" {
-		t.Log("warning: no tarball hash from npm registry (non-fatal)")
+	installed := &esbuildTool{}
+	artifacts, err := installed.ListArtifacts(t.Context(), "0.28.1")
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	require.Contains(t, artifacts[0].URL, "@esbuild/")
+	require.Contains(t, artifacts[0].URL, "-0.28.1.tgz")
+	if artifacts[0].Hash != "" {
+		require.Contains(t, artifacts[0].Hash, "sha1:")
 	}
 }
 
 func TestEsbuildListArtifactsAcceptsVPrefix(t *testing.T) {
 	t.Parallel()
 
-	tool := &esbuildTool{}
-	ctx := t.Context()
-
-	arts, err := tool.ListArtifacts(ctx, "v0.28.1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(arts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(arts))
-	}
-	if !strings.HasSuffix(arts[0].URL, "-0.28.1.tgz") {
-		t.Fatalf("URL = %q, expected v-prefix stripped", arts[0].URL)
-	}
+	installed := &esbuildTool{}
+	artifacts, err := installed.ListArtifacts(t.Context(), "v0.28.1")
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	require.Contains(t, artifacts[0].URL, "-0.28.1.tgz")
 }
 
 func TestEsbuildEnrichLockfile(t *testing.T) {
 	t.Parallel()
 
-	installed := &esbuildTool{}
-	pin := installed.Pin()
-	if pin.Name != "esbuild" || pin.Datasource != "npm" || pin.Versioning != "semver" {
-		t.Fatalf("Pin() = %+v", pin)
-	}
+	pin := (&esbuildTool{}).Pin()
+	require.Equal(t, "esbuild", pin.Name)
+	require.Equal(t, "npm", pin.Datasource)
+	require.Equal(t, "semver", pin.Versioning)
 }
 
 func TestEsbuildListVersions(t *testing.T) {
 	t.Parallel()
 
-	tool := &esbuildTool{}
-	ctx := t.Context()
-
-	vers, err := tool.ListVersions(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(vers) == 0 {
-		t.Fatal("ListVersions returned no versions")
-	}
-	if strings.Contains(vers[0], "-") {
-		t.Fatalf("first version %q should be stable (no prerelease suffix)", vers[0])
-	}
-	for _, v := range vers {
-		if strings.Contains(v, "-") {
-			t.Fatalf("prerelease leaked into ListVersions: %q", v)
-		}
+	installed := &esbuildTool{}
+	versions, err := installed.ListVersions(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, versions)
+	for _, version := range versions {
+		require.NotContains(t, version, "-")
 	}
 }

@@ -2,73 +2,43 @@ package applications
 
 import (
 	"runtime"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestGoListArtifactsAcceptsVersionWithoutGoPrefix(t *testing.T) {
 	t.Parallel()
 
-	tool := &goTool{}
+	installed := &goTool{}
 	ctx := t.Context()
 
-	versions, err := tool.ListVersions(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(versions) == 0 {
-		t.Fatal("ListVersions returned no versions for this platform")
-	}
+	versions, err := installed.ListVersions(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, versions)
 
-	// Use a concrete version returned by our own ListVersions (guaranteed to have
-	// had at least one archive entry for the current os/arch in the filter).
-	artifacts, err := tool.ListArtifacts(ctx, versions[0])
-	if err != nil {
-		t.Fatalf("ListArtifacts(%q) failed: %v", versions[0], err)
-	}
-	if len(artifacts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(artifacts))
-	}
+	artifacts, err := installed.ListArtifacts(ctx, versions[0])
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
 
-	osName := runtime.GOOS
-	archName := runtime.GOARCH
-	// The URL must contain the version we asked for (with "go" prefix in the filename) and the platform.
-	if !strings.Contains(artifacts[0].URL, "go"+versions[0]) {
-		t.Fatalf("artifact URL = %q, expected to contain go%s", artifacts[0].URL, versions[0])
-	}
-	if !strings.Contains(artifacts[0].URL, osName+"-"+archName) && !strings.Contains(artifacts[0].URL, osName+"-"+archName+".") {
-		t.Fatalf("artifact URL = %q, expected to reference %s-%s", artifacts[0].URL, osName, archName)
-	}
-	if !strings.HasPrefix(artifacts[0].Hash, "sha256:") {
-		t.Fatalf("expected sha256 hash, got %q", artifacts[0].Hash)
-	}
+	require.Contains(t, artifacts[0].URL, "go"+versions[0])
+	require.Contains(t, artifacts[0].URL, runtime.GOOS+"-"+runtime.GOARCH)
+	require.Contains(t, artifacts[0].Hash, "sha256:")
 }
 
 func TestGoListArtifactsAcceptsGoPrefixedVersion(t *testing.T) {
 	t.Parallel()
 
-	tool := &goTool{}
+	installed := &goTool{}
 	ctx := t.Context()
 
-	versions, err := tool.ListVersions(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(versions) == 0 {
-		t.Fatal("ListVersions returned no versions")
-	}
+	versions, err := installed.ListVersions(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, versions)
 
-	// Pass a "go"-prefixed version; the implementation should normalize it.
 	prefixed := "go" + versions[0]
-	artifacts, err := tool.ListArtifacts(ctx, prefixed)
-	if err != nil {
-		t.Fatalf("ListArtifacts(%q) failed: %v", prefixed, err)
-	}
-	if len(artifacts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(artifacts))
-	}
-
-	if !strings.Contains(artifacts[0].URL, "go"+versions[0]) {
-		t.Fatalf("artifact URL = %q, expected to contain go%s", artifacts[0].URL, versions[0])
-	}
+	artifacts, err := installed.ListArtifacts(ctx, prefixed)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	require.Contains(t, artifacts[0].URL, "go"+versions[0])
 }

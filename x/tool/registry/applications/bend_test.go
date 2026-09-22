@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var errUnexpectedTestURL = errors.New("unexpected test url")
@@ -35,9 +35,7 @@ func TestValidBendVersion(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.in, func(t *testing.T) {
 			t.Parallel()
-			if got := validBendVersion(tc.in); got != tc.want {
-				t.Fatalf("validBendVersion(%q) = %v, want %v", tc.in, got, tc.want)
-			}
+			require.Equal(t, tc.want, validBendVersion(tc.in))
 		})
 	}
 }
@@ -47,13 +45,8 @@ func TestBendListVersionsReadsLatestJSON(t *testing.T) {
 	tool := newTestBend(t, `{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":"abcd"}`)
 
 	got, err := tool.ListVersions(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"2.0.5"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("ListVersions() = %v, want %v", got, want)
-	}
+	require.NoError(t, err)
+	require.Equal(t, []string{"2.0.5"}, got)
 }
 
 func TestBendListArtifactsUsesLatestHash(t *testing.T) {
@@ -65,18 +58,10 @@ func TestBendListArtifactsUsesLatestHash(t *testing.T) {
 	tool := newTestBend(t, fmt.Sprintf(`{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":%q}`, sha))
 
 	arts, err := tool.ListArtifacts(t.Context(), "latest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(arts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(arts))
-	}
-	if arts[0].URL != "https://bend-lang.com/dl/2.0.5.tar.gz" {
-		t.Fatalf("artifact URL = %q", arts[0].URL)
-	}
-	if arts[0].Hash != "sha256:"+sha {
-		t.Fatalf("artifact hash = %q", arts[0].Hash)
-	}
+	require.NoError(t, err)
+	require.Len(t, arts, 1)
+	require.Equal(t, "https://bend-lang.com/dl/2.0.5.tar.gz", arts[0].URL)
+	require.Equal(t, "sha256:"+sha, arts[0].Hash)
 }
 
 func TestBendListArtifactsPinnedVersionOmitsUnknownHash(t *testing.T) {
@@ -87,18 +72,10 @@ func TestBendListArtifactsPinnedVersionOmitsUnknownHash(t *testing.T) {
 	tool := newTestBend(t, `{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":"abcd"}`)
 
 	arts, err := tool.ListArtifacts(t.Context(), "2.0.4")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(arts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(arts))
-	}
-	if arts[0].URL != "https://example.test/dl/2.0.4.tar.gz" {
-		t.Fatalf("artifact URL = %q", arts[0].URL)
-	}
-	if arts[0].Hash != "" {
-		t.Fatalf("artifact hash = %q, want empty for a pin without a published digest", arts[0].Hash)
-	}
+	require.NoError(t, err)
+	require.Len(t, arts, 1)
+	require.Equal(t, "https://example.test/dl/2.0.4.tar.gz", arts[0].URL)
+	require.Empty(t, arts[0].Hash)
 }
 
 func TestBendListArtifactsRejectsUnsafeVersion(t *testing.T) {
@@ -108,9 +85,7 @@ func TestBendListArtifactsRejectsUnsafeVersion(t *testing.T) {
 	}
 	tool := newTestBend(t, `{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":"abcd"}`)
 	_, err := tool.ListArtifacts(t.Context(), "../evil")
-	if !errors.Is(err, ErrInvalidBendVersion) {
-		t.Fatalf("ListArtifacts() error = %v, want ErrInvalidBendVersion", err)
-	}
+	require.ErrorIs(t, err, ErrInvalidBendVersion)
 }
 
 func TestBendListArtifactsWindowsUnsupported(t *testing.T) {
@@ -120,30 +95,20 @@ func TestBendListArtifactsWindowsUnsupported(t *testing.T) {
 	}
 	tool := newTestBend(t, `{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":"abcd"}`)
 	_, err := tool.ListArtifacts(t.Context(), "2.0.5")
-	if !errors.Is(err, ErrNoPlatformArtifact) {
-		t.Fatalf("ListArtifacts() error = %v, want ErrNoPlatformArtifact", err)
-	}
+	require.ErrorIs(t, err, ErrNoPlatformArtifact)
 }
 
 func TestWriteBendLauncher(t *testing.T) {
 	t.Parallel()
 	dest := t.TempDir()
-	if err := writeBendLauncher(dest); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, writeBendLauncher(dest))
 	path := filepath.Join(dest, "bin", "bend")
 	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode()&0o111 == 0 {
-		t.Fatalf("launcher mode = %v, want executable", info.Mode())
-	}
+	require.NoError(t, err)
+	require.NotZero(t, info.Mode()&0o111)
 	got, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := string(got)
+	require.NoError(t, err)
+	script := string(got)
 	for _, want := range []string{
 		"#!/bin/sh",
 		"BEND_NO_TELEMETRY=1",
@@ -151,21 +116,19 @@ func TestWriteBendLauncher(t *testing.T) {
 		`exec -a bun "$ws" tool with bun -- bun "$main" "$@"`,
 		"bend2/main.ts",
 	} {
-		if !strings.Contains(s, want) {
-			t.Fatalf("launcher missing %q\n%s", want, s)
-		}
+		require.Contains(t, script, want)
 	}
-	if strings.Contains(s, "XDG_DATA_HOME") || strings.Contains(s, ".local/share") || strings.Contains(s, "/tmp/go-build") || strings.Contains(s, "curl") || strings.Contains(s, "bend-lang.com/ping") {
-		t.Fatalf("launcher bakes a path or talks to the official installer: %s", s)
-	}
+	require.NotContains(t, script, "XDG_DATA_HOME")
+	require.NotContains(t, script, ".local/share")
+	require.NotContains(t, script, "/tmp/go-build")
+	require.NotContains(t, script, "curl")
+	require.NotContains(t, script, "bend-lang.com/ping")
 }
 
 func TestBendEnrichLockfile(t *testing.T) {
 	t.Parallel()
 	pin := (&bendTool{}).Pin()
-	if pin.Versioning != "semver" {
-		t.Fatalf("Versioning = %q, want semver", pin.Versioning)
-	}
+	require.Equal(t, "semver", pin.Versioning)
 }
 
 func newTestBend(t *testing.T, latestJSON string) *bendTool {

@@ -2,11 +2,12 @@ package applications
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveToolVersion(t *testing.T) {
@@ -15,46 +16,31 @@ func TestResolveToolVersion(t *testing.T) {
 	list := func(context.Context) ([]string, error) {
 		return []string{"ruby-3.3.0", "ruby-3.2.0"}, nil
 	}
-	normalize := func(v string) string {
-		v = strings.TrimSpace(v)
-		v = strings.TrimPrefix(v, "ruby-")
-		if v == "" || v == "latest" {
-			return v
-		}
-		return v
+	normalize := func(version string) string {
+		version = strings.TrimSpace(version)
+		version = strings.TrimPrefix(version, "ruby-")
+		return version
 	}
 
 	t.Run("explicit version", func(t *testing.T) {
 		t.Parallel()
 		got, err := resolveToolVersion(ctx, "ruby-3.2.0", normalize, list)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != "3.2.0" {
-			t.Fatalf("got %q, want %q", got, "3.2.0")
-		}
+		require.NoError(t, err)
+		require.Equal(t, "3.2.0", got)
 	})
 
 	t.Run("latest normalizes listed version", func(t *testing.T) {
 		t.Parallel()
 		got, err := resolveToolVersion(ctx, "latest", normalize, list)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != "3.3.0" {
-			t.Fatalf("got %q, want %q", got, "3.3.0")
-		}
+		require.NoError(t, err)
+		require.Equal(t, "3.3.0", got)
 	})
 
 	t.Run("empty version treated as latest", func(t *testing.T) {
 		t.Parallel()
 		got, err := resolveToolVersion(ctx, "", normalize, list)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got != "3.3.0" {
-			t.Fatalf("got %q, want %q", got, "3.3.0")
-		}
+		require.NoError(t, err)
+		require.Equal(t, "3.3.0", got)
 	})
 
 	t.Run("no versions", func(t *testing.T) {
@@ -62,9 +48,7 @@ func TestResolveToolVersion(t *testing.T) {
 		_, err := resolveToolVersion(ctx, "latest", normalize, func(context.Context) ([]string, error) {
 			return nil, nil
 		})
-		if !errors.Is(err, ErrNoVersions) {
-			t.Fatalf("got %v, want ErrNoVersions", err)
-		}
+		require.ErrorIs(t, err, ErrNoVersions)
 	})
 }
 
@@ -74,30 +58,16 @@ func TestSortVersionsDesc(t *testing.T) {
 	t.Run("empty yields ErrNoVersions", func(t *testing.T) {
 		t.Parallel()
 		_, err := sortVersionsDesc(nil)
-		if !errors.Is(err, ErrNoVersions) {
-			t.Fatalf("got %v, want ErrNoVersions", err)
-		}
+		require.ErrorIs(t, err, ErrNoVersions)
 		_, err = sortVersionsDesc([]string{})
-		if !errors.Is(err, ErrNoVersions) {
-			t.Fatalf("got %v, want ErrNoVersions", err)
-		}
+		require.ErrorIs(t, err, ErrNoVersions)
 	})
 
 	t.Run("newest first", func(t *testing.T) {
 		t.Parallel()
 		got, err := sortVersionsDesc([]string{"1.2.0", "2.0.0", "1.10.0"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		want := []string{"2.0.0", "1.10.0", "1.2.0"}
-		if len(got) != len(want) {
-			t.Fatalf("got %v, want %v", got, want)
-		}
-		for i := range want {
-			if got[i] != want[i] {
-				t.Fatalf("got %v, want %v", got, want)
-			}
-		}
+		require.NoError(t, err)
+		require.Equal(t, []string{"2.0.0", "1.10.0", "1.2.0"}, got)
 	})
 }
 
@@ -108,73 +78,54 @@ func TestHTTPGetHelpers(t *testing.T) {
 	t.Run("getBytes and configure", func(t *testing.T) {
 		t.Parallel()
 		var gotAccept string
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			gotAccept = r.Header.Get("Accept")
-			if _, err := w.Write([]byte("hello")); err != nil {
-				t.Errorf("write: %v", err)
-			}
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			gotAccept = request.Header.Get("Accept")
+			_, err := writer.Write([]byte("hello"))
+			require.NoError(t, err)
 		}))
-		t.Cleanup(srv.Close)
+		t.Cleanup(server.Close)
 
-		b, err := getBytes(ctx, srv.URL, func(req *http.Request) {
-			req.Header.Set("Accept", "text/plain")
+		body, err := getBytes(ctx, server.URL, func(request *http.Request) {
+			request.Header.Set("Accept", "text/plain")
 		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if string(b) != "hello" {
-			t.Fatalf("got %q, want hello", b)
-		}
-		if gotAccept != "text/plain" {
-			t.Fatalf("Accept = %q, want text/plain", gotAccept)
-		}
+		require.NoError(t, err)
+		require.Equal(t, "hello", string(body))
+		require.Equal(t, "text/plain", gotAccept)
 	})
 
 	t.Run("getJSON", func(t *testing.T) {
 		t.Parallel()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, err := w.Write([]byte(`{"version":"1.2.3"}`)); err != nil {
-				t.Errorf("write: %v", err)
-			}
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			_, err := writer.Write([]byte(`{"version":"1.2.3"}`))
+			require.NoError(t, err)
 		}))
-		t.Cleanup(srv.Close)
+		t.Cleanup(server.Close)
 
-		var dest struct {
+		var destination struct {
 			Version string `json:"version"`
 		}
-		if err := getJSON(ctx, srv.URL, &dest); err != nil {
-			t.Fatal(err)
-		}
-		if dest.Version != "1.2.3" {
-			t.Fatalf("got %q, want 1.2.3", dest.Version)
-		}
+		require.NoError(t, getJSON(ctx, server.URL, &destination))
+		require.Equal(t, "1.2.3", destination.Version)
 	})
 
 	t.Run("non-OK", func(t *testing.T) {
 		t.Parallel()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "nope", http.StatusNotFound)
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+			http.Error(writer, "nope", http.StatusNotFound)
 		}))
-		t.Cleanup(srv.Close)
+		t.Cleanup(server.Close)
 
-		_, err := getBytes(ctx, srv.URL)
-		var ue unexpectedHTTPStatusError
-		if !errors.As(err, &ue) {
-			t.Fatalf("got %v, want unexpectedHTTPStatusError", err)
-		}
+		_, err := getBytes(ctx, server.URL)
+		var status unexpectedHTTPStatusError
+		require.ErrorAs(t, err, &status)
 	})
 }
 
 func TestParseGNUHashFile(t *testing.T) {
 	t.Parallel()
 	got := parseGNUHashFile([]byte("abc123  foo.tar.gz\n# comment\ndef456  bar.zip\nmalformed\n"))
-	if got["foo.tar.gz"] != "abc123" {
-		t.Fatalf("foo.tar.gz = %q, want abc123", got["foo.tar.gz"])
-	}
-	if got["bar.zip"] != "def456" {
-		t.Fatalf("bar.zip = %q, want def456", got["bar.zip"])
-	}
-	if _, ok := got["malformed"]; ok {
-		t.Fatalf("unexpected entry for malformed line: %v", got)
-	}
+	require.Equal(t, "abc123", got["foo.tar.gz"])
+	require.Equal(t, "def456", got["bar.zip"])
+	_, ok := got["malformed"]
+	require.False(t, ok)
 }

@@ -1,31 +1,29 @@
 package applications
 
 import (
-	"github.com/lewtec/lewkit/x/tool"
-	"slices"
+	"strings"
 	"testing"
+
+	"github.com/lewtec/lewkit/x/tool"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBiomeListVersionsFiltersMonorepoTags(t *testing.T) {
 	t.Parallel()
 
-	tool := &biomeTool{inner: stubTool{versions: []string{
+	installed := &biomeTool{inner: stubTool{versions: []string{
 		"@biomejs/js-api@6.0.0",
 		"@biomejs/biome@2.5.0",
 		"@biomejs/js-api@5.9.0",
 		"@biomejs/biome@2.4.16",
 		"@biomejs/biome@2.4.16-beta.1",
-		"v1.9.4", // legacy, not the monorepo CLI tag
+		"v1.9.4",
 	}}}
 
-	got, err := tool.ListVersions(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []string{"2.5.0", "2.4.16"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("ListVersions() = %v, want %v", got, want)
-	}
+	got, err := installed.ListVersions(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []string{"2.5.0", "2.4.16"}, got)
 }
 
 func TestBiomeVersionFromTag(t *testing.T) {
@@ -43,22 +41,16 @@ func TestBiomeVersionFromTag(t *testing.T) {
 		{"", "", false},
 	}
 	for _, tc := range cases {
-		ver, ok := biomeVersionFromTag(tc.tag)
-		if ok != tc.ok || ver != tc.ver {
-			t.Fatalf("biomeVersionFromTag(%q) = (%q, %v), want (%q, %v)", tc.tag, ver, ok, tc.ver, tc.ok)
-		}
+		version, ok := biomeVersionFromTag(tc.tag)
+		require.Equal(t, tc.ok, ok)
+		require.Equal(t, tc.ver, version)
 	}
 }
 
 func TestBiomeTagForVersion(t *testing.T) {
 	t.Parallel()
-
-	if got := biomeTagForVersion("2.5.0"); got != "@biomejs/biome@2.5.0" {
-		t.Fatalf("biomeTagForVersion(2.5.0) = %q", got)
-	}
-	if got := biomeTagForVersion("@biomejs/biome@2.5.0"); got != "@biomejs/biome@2.5.0" {
-		t.Fatalf("biomeTagForVersion(full tag) = %q", got)
-	}
+	require.Equal(t, "@biomejs/biome@2.5.0", biomeTagForVersion("2.5.0"))
+	require.Equal(t, "@biomejs/biome@2.5.0", biomeTagForVersion("@biomejs/biome@2.5.0"))
 }
 
 func TestParseBiomeAssetURL(t *testing.T) {
@@ -79,28 +71,23 @@ func TestParseBiomeAssetURL(t *testing.T) {
 	}
 	for _, tc := range cases {
 		osName, arch, ok := parseBiomeAssetURL(tc.url)
-		if ok != tc.ok || osName != tc.os || arch != tc.arch {
-			t.Fatalf("parseBiomeAssetURL(%q) = (%q, %q, %v), want (%q, %q, %v)",
-				tc.url, osName, arch, ok, tc.os, tc.arch, tc.ok)
-		}
+		require.Equal(t, tc.ok, ok)
+		require.Equal(t, tc.os, osName)
+		require.Equal(t, tc.arch, arch)
 	}
 }
 
 func TestSelectBiomeArtifactPrefersNonMusl(t *testing.T) {
 	t.Parallel()
 
-	arts := []tool.Artifact{
+	artifacts := []tool.Artifact{
 		{OS: "linux", Arch: "amd64", URL: "https://example/biome-linux-x64-musl"},
 		{OS: "linux", Arch: "amd64", URL: "https://example/biome-linux-x64"},
 		{OS: "darwin", Arch: "arm64", URL: "https://example/biome-darwin-arm64"},
 	}
-	got := selectBiomeArtifact(arts, "linux", "amd64")
-	if got == nil {
-		t.Fatal("expected artifact")
-	}
-	if !stringsHasSuffix(got.URL, "biome-linux-x64") {
-		t.Fatalf("selected %q, want non-musl linux x64", got.URL)
-	}
+	got := selectBiomeArtifact(artifacts, "linux", "amd64")
+	require.NotNil(t, got)
+	require.True(t, strings.HasSuffix(got.URL, "biome-linux-x64"))
 }
 
 func TestBiomeEnrichLockfileExtractVersion(t *testing.T) {
@@ -108,14 +95,6 @@ func TestBiomeEnrichLockfileExtractVersion(t *testing.T) {
 
 	installed := &biomeTool{inner: stubTool{}}
 	pin := installed.Pin()
-	if pin.Versioning != "semver" {
-		t.Fatalf("Versioning = %q", pin.Versioning)
-	}
-	if pin.ExtractVersion == "" {
-		t.Fatal("expected ExtractVersion for monorepo tags")
-	}
-}
-
-func stringsHasSuffix(s, suf string) bool {
-	return len(s) >= len(suf) && s[len(s)-len(suf):] == suf
+	require.Equal(t, "semver", pin.Versioning)
+	require.NotEmpty(t, pin.ExtractVersion)
 }

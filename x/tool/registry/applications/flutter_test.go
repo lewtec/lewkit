@@ -2,101 +2,62 @@ package applications
 
 import (
 	"runtime"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFlutterListVersionsAndArtifacts(t *testing.T) {
 	t.Parallel()
 
-	tool := &flutterTool{}
+	installed := &flutterTool{}
 	ctx := t.Context()
 
-	versions, err := tool.ListVersions(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(versions) == 0 {
-		t.Fatal("ListVersions returned no versions for this platform")
-	}
+	versions, err := installed.ListVersions(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, versions)
 
-	// Pick a concrete version we know exists for the platform.
-	artifacts, err := tool.ListArtifacts(ctx, versions[0])
-	if err != nil {
-		t.Fatalf("ListArtifacts(%q) failed: %v", versions[0], err)
-	}
-	if len(artifacts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(artifacts))
-	}
+	artifacts, err := installed.ListArtifacts(ctx, versions[0])
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
 
-	a := artifacts[0]
-	if a.URL == "" {
-		t.Fatal("artifact URL is empty")
-	}
-	if !strings.HasPrefix(a.Hash, "sha256:") {
-		t.Fatalf("expected sha256 hash, got %q", a.Hash)
-	}
+	artifact := artifacts[0]
+	require.NotEmpty(t, artifact.URL)
+	require.Contains(t, artifact.Hash, "sha256:")
+	require.Contains(t, artifact.URL, "flutter_infra_release/releases")
+	require.Contains(t, artifact.URL, versions[0])
 
-	// URL should point at Google storage and contain a flutter_ platform archive for the version.
-	if !strings.Contains(a.URL, "flutter_infra_release/releases") {
-		t.Fatalf("artifact URL = %q, expected to reference flutter storage", a.URL)
-	}
-	if !strings.Contains(a.URL, versions[0]) {
-		t.Fatalf("artifact URL = %q, expected to contain version %s", a.URL, versions[0])
-	}
-
-	// Basic platform sanity in the filename for common cases.
-	osName := runtime.GOOS
-	switch osName {
+	switch runtime.GOOS {
 	case "darwin":
 		if runtime.GOARCH == "arm64" {
-			if !strings.Contains(a.URL, "macos_arm64_") {
-				t.Fatalf("artifact URL = %q, expected arm64 mac filename", a.URL)
-			}
+			require.Contains(t, artifact.URL, "macos_arm64_")
 		} else {
-			if !strings.Contains(a.URL, "flutter_macos_") || strings.Contains(a.URL, "arm64") {
-				t.Fatalf("artifact URL = %q, expected macos (non-arm) filename", a.URL)
-			}
+			require.Contains(t, artifact.URL, "flutter_macos_")
+			require.NotContains(t, artifact.URL, "arm64")
 		}
 	case "linux":
-		if !strings.Contains(a.URL, "flutter_linux_") {
-			t.Fatalf("artifact URL = %q, expected linux filename", a.URL)
-		}
+		require.Contains(t, artifact.URL, "flutter_linux_")
 	case "windows":
-		if !strings.Contains(a.URL, "flutter_windows_") {
-			t.Fatalf("artifact URL = %q, expected windows filename", a.URL)
-		}
+		require.Contains(t, artifact.URL, "flutter_windows_")
 	}
 }
 
 func TestFlutterNormalizeAndLatest(t *testing.T) {
 	t.Parallel()
 
-	tool := &flutterTool{}
+	installed := &flutterTool{}
 	ctx := t.Context()
 
-	// "latest" should resolve without error and produce an artifact.
-	artifacts, err := tool.ListArtifacts(ctx, "latest")
-	if err != nil {
-		t.Fatalf("ListArtifacts(latest) failed: %v", err)
-	}
-	if len(artifacts) != 1 {
-		t.Fatalf("latest artifact count = %d, want 1", len(artifacts))
-	}
+	artifacts, err := installed.ListArtifacts(ctx, "latest")
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
 
-	// v-prefixed should be accepted.
-	versions, err := tool.ListVersions(ctx)
-	if err != nil {
-		t.Fatalf("ListVersions: %v", err)
-	}
+	versions, err := installed.ListVersions(ctx)
+	require.NoError(t, err)
 	if len(versions) > 0 {
-		vpref := "v" + versions[0]
-		arts2, err := tool.ListArtifacts(ctx, vpref)
-		if err != nil {
-			t.Fatalf("ListArtifacts(%q) failed: %v", vpref, err)
-		}
-		if len(arts2) != 1 {
-			t.Fatalf("vprefixed artifact count = %d, want 1", len(arts2))
-		}
+		prefixed := "v" + versions[0]
+		again, err := installed.ListArtifacts(ctx, prefixed)
+		require.NoError(t, err)
+		require.Len(t, again, 1)
 	}
 }

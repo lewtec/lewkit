@@ -3,16 +3,16 @@ package applications
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestClaudeCodeListVersionsResolvesChannelsToConcreteVersions(t *testing.T) {
 	t.Parallel()
 
-	var tool *claudeCodeTool
-	tool = &claudeCodeTool{
+	installed := &claudeCodeTool{
 		baseURL: "https://downloads.claude.ai/claude-code-releases",
 		fetchURL: func(_ context.Context, url string) ([]byte, error) {
 			switch url {
@@ -26,29 +26,23 @@ func TestClaudeCodeListVersionsResolvesChannelsToConcreteVersions(t *testing.T) 
 		},
 	}
 
-	got, err := tool.ListVersions(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := []string{"2.1.162", "2.1.152"}
-	if !slices.Equal(got, want) {
-		t.Fatalf("ListVersions() = %v, want %v", got, want)
-	}
+	got, err := installed.ListVersions(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, []string{"2.1.162", "2.1.152"}, got)
 }
 
 func TestClaudeCodeListArtifactsUsesManifestPlatformBinary(t *testing.T) {
 	t.Parallel()
 
-	var tool *claudeCodeTool
-	tool = &claudeCodeTool{
+	var installed *claudeCodeTool
+	installed = &claudeCodeTool{
 		baseURL: "https://downloads.claude.ai/claude-code-releases",
 		fetchURL: func(_ context.Context, url string) ([]byte, error) {
 			if url != "https://downloads.claude.ai/claude-code-releases/2.1.89/manifest.json" {
 				return nil, fmt.Errorf("unexpected url %q", url)
 			}
 
-			platform := tool.currentPlatform()
+			platform := installed.currentPlatform()
 			binary := "claude"
 			if strings.HasPrefix(platform, "win32") {
 				binary = "claude.exe"
@@ -67,28 +61,17 @@ func TestClaudeCodeListArtifactsUsesManifestPlatformBinary(t *testing.T) {
 		},
 	}
 
-	artifacts, err := tool.ListArtifacts(t.Context(), "2.1.89")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(artifacts) != 1 {
-		t.Fatalf("artifact count = %d, want 1", len(artifacts))
-	}
+	artifacts, err := installed.ListArtifacts(t.Context(), "2.1.89")
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
 
-	platform := tool.currentPlatform()
+	platform := installed.currentPlatform()
 	binary := "claude"
 	if strings.HasPrefix(platform, "win32") {
 		binary = "claude.exe"
 	}
 	wantURL := fmt.Sprintf("https://downloads.claude.ai/claude-code-releases/2.1.89/%s/%s", platform, binary)
-
-	if artifacts[0].URL != wantURL {
-		t.Fatalf("artifact URL = %q, want %q", artifacts[0].URL, wantURL)
-	}
-	if artifacts[0].Hash != "sha256:903cb3c96b314d86856632c8702f5cdf971b804d0b19ef87446573bcd1d7df1c" {
-		t.Fatalf("artifact hash = %q", artifacts[0].Hash)
-	}
-	if artifacts[0].Size != 228473472 {
-		t.Fatalf("artifact size = %d, want %d", artifacts[0].Size, 228473472)
-	}
+	require.Equal(t, wantURL, artifacts[0].URL)
+	require.Equal(t, "sha256:903cb3c96b314d86856632c8702f5cdf971b804d0b19ef87446573bcd1d7df1c", artifacts[0].Hash)
+	require.Equal(t, int64(228473472), artifacts[0].Size)
 }
