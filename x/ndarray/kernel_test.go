@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/wasm/glsl"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/stretchr/testify/require"
 )
 

@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/lewtec/lewkit/x/ffi"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 const (
@@ -446,7 +446,7 @@ func darwinLibDirs() []string {
 func openLib() (uintptr, error) {
 	var last error
 	for _, name := range libNames() {
-		lib, err := ffi.Open(name, ffi.Lazy)
+		lib, err := native.Open(name, native.Lazy)
 		if err == nil {
 			return lib, nil
 		}
@@ -463,12 +463,12 @@ func (a *api) bind(get func(uintptr, string) uintptr, handle uintptr, name strin
 	if addr == 0 {
 		return fmt.Errorf("%w: missing %s", ErrUnavailable, name)
 	}
-	ffi.Register(dst, addr)
+	native.Register(dst, addr)
 	return nil
 }
 
 func (a *api) loadLoader(lib uintptr) error {
-	ffi.Func(lib, "vkGetInstanceProcAddr", &a.getInstanceProcAddr)
+	native.Func(lib, "vkGetInstanceProcAddr", &a.getInstanceProcAddr)
 	if a.getInstanceProcAddr == nil {
 		return fmt.Errorf("%w: vkGetInstanceProcAddr", ErrUnavailable)
 	}

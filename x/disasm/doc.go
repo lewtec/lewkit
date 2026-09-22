@@ -1,4 +1,4 @@
-// Package disasm decodes machine code with Capstone running in wazero.
+// Package disasm decodes machine code through [github.com/lewtec/lewkit/x/ffi/wasm/capstone].
 //
 // [Open] creates an [Engine] for one [Architecture] and [Mode].
 // [Engine.Iter] yields instructions from a byte slice.
