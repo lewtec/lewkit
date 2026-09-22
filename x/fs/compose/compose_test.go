@@ -2,8 +2,10 @@ package compose
 
 import (
 	iofs "io/fs"
+	"strconv"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
@@ -159,7 +161,21 @@ func TestPathClash(t *testing.T) {
 		Type:   TypeText,
 		Values: map[string]Slot{"content": Text("a")},
 	})
-	require.ErrorIs(t, err, ErrPath)
+	requirePathConflict(t, err, "a/b")
+
+	require.NoError(t, tree.Add(path.New("a/c"), textFile("c")))
+	requirePathConflict(t, tree.Add(path.New("a/b/d"), textFile("d")), "a/b")
+
+	sibling := New()
+	require.NoError(t, sibling.Add(path.New("foo"), textFile("foo")))
+	require.NoError(t, sibling.Add(path.New("foobar"), textFile("foobar")))
+	require.NoError(t, sibling.Add(path.New("foo.bar"), textFile("foo.bar")))
+	requirePathConflict(t, sibling.Add(path.New("foo/bar"), textFile("nested")), "foo")
+
+	parent := New()
+	require.NoError(t, parent.Add(path.New("dir"), textFile("dir")))
+	require.NoError(t, parent.Add(path.New("dir"), textFile("dir")))
+	requirePathConflict(t, parent.Add(path.New("dir/child"), textFile("child")), "dir")
 
 	err = tree.Add(path.New("../x"), File{
 		Type:   TypeText,
@@ -171,6 +187,35 @@ func TestPathClash(t *testing.T) {
 		Values: map[string]Slot{"content": Text("x")},
 	})
 	require.ErrorIs(t, err, ErrPath)
+}
+
+func TestAddManyFiles(t *testing.T) {
+	t.Parallel()
+	const count = 20000
+	tree := New()
+	started := time.Now()
+	for i := range count {
+		name := path.New("usr/share/icons/theme", strconv.Itoa(i)+".svg")
+		require.NoError(t, tree.Add(name, File{
+			Type:   TypeRef,
+			Values: map[string]Slot{refSlotKey: Ref(name.String())},
+		}))
+	}
+	// Each Add used to compare the new path with every stored path.
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Fatalf("Add of %d files took %s", count, elapsed)
+	}
+	requirePathConflict(t, tree.Add(path.New("usr/share/icons/theme"), textFile("theme")), "usr/share/icons/theme/0.svg")
+	requirePathConflict(t, tree.Add(path.New("usr"), textFile("usr")), "usr/share/icons/theme/0.svg")
+	requirePathConflict(t, tree.Add(path.New("usr/share/icons/theme/0.svg/extra"), textFile("extra")), "usr/share/icons/theme/0.svg")
+	require.NoError(t, tree.Add(path.New("usr/share/icons/theme2/a.svg"), File{
+		Type:   TypeRef,
+		Values: map[string]Slot{refSlotKey: Ref("usr/share/icons/theme2/a.svg")},
+	}))
+	require.NoError(t, tree.Add(path.New("usr/share/icons/theme/1.svg"), File{
+		Type:   TypeRef,
+		Values: map[string]Slot{refSlotKey: Ref("usr/share/icons/theme/1.svg")},
+	}))
 }
 
 func TestJSONMerge(t *testing.T) {
@@ -644,6 +689,21 @@ func TestSquashSymlink(t *testing.T) {
 type linkFS struct {
 	fstest.MapFS
 	links map[string]string
+}
+
+func textFile(body string) File {
+	return File{
+		Type:   TypeText,
+		Values: map[string]Slot{"content": Text(body)},
+	}
+}
+
+func requirePathConflict(t *testing.T, err error, other string) {
+	t.Helper()
+	require.ErrorIs(t, err, ErrPath)
+	var pathErr *iofs.PathError
+	require.ErrorAs(t, err, &pathErr)
+	require.EqualError(t, pathErr.Err, "invalid file path: "+other)
 }
 
 func (fsys linkFS) ReadLink(name string) (string, error) {
