@@ -1,10 +1,11 @@
 package tool
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBinaryCandidates(t *testing.T) {
@@ -20,45 +21,24 @@ func TestBinaryCandidates(t *testing.T) {
 		filepath.Join(base, "gh.cmd"),
 		filepath.Join(base, "gh.bat"),
 	}
-	if len(got) != len(want) {
-		t.Fatalf("len = %d, want %d", len(got), len(want))
-	}
-	for i := range got {
-		if got[i] != want[i] {
-			t.Errorf("[%d] = %q, want %q", i, got[i], want[i])
-		}
-	}
+	require.Equal(t, want, got)
 }
 
 func TestCheckRejectsParent(t *testing.T) {
-	destination := t.TempDir()
-	err := FileExists("../outside").Check(t.Context(), destination)
-	if !errors.Is(err, ErrPathEscapes) {
-		t.Fatalf("Check() = %v, want ErrPathEscapes", err)
-	}
+	err := FileExists("../outside").Check(t.Context(), t.TempDir())
+	require.ErrorIs(t, err, ErrPathEscapes)
 }
 
 func TestCheckEmptyRelativePath(t *testing.T) {
-	destination := t.TempDir()
-	err := FileExists(".").Check(t.Context(), destination)
-	if !errors.Is(err, ErrEmptyRelativePath) {
-		t.Fatalf("Check() = %v, want ErrEmptyRelativePath", err)
-	}
+	err := FileExists(".").Check(t.Context(), t.TempDir())
+	require.ErrorIs(t, err, ErrEmptyRelativePath)
 }
 
 func TestBinaryCheck(t *testing.T) {
 	destination := t.TempDir()
-	path := filepath.Join(destination, "bin")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(path, "demo"), []byte("ok"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := Binary("demo").Check(t.Context(), destination); err != nil {
-		t.Fatal(err)
-	}
-	if err := Binary("missing").Check(t.Context(), destination); !errors.Is(err, ErrBinaryNotFound) {
-		t.Fatalf("missing binary = %v, want ErrBinaryNotFound", err)
-	}
+	directory := filepath.Join(destination, "bin")
+	require.NoError(t, os.MkdirAll(directory, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(directory, "demo"), []byte("ok"), 0o755))
+	require.NoError(t, Binary("demo").Check(t.Context(), destination))
+	require.ErrorIs(t, Binary("missing").Check(t.Context(), destination), ErrBinaryNotFound)
 }

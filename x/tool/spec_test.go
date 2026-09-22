@@ -1,6 +1,10 @@
 package tool
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestParse(t *testing.T) {
 	tests := []struct {
@@ -22,37 +26,25 @@ func TestParse(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := Parse(test.input)
-			if (err != nil) != test.wantErr {
-				t.Fatalf("Parse(%q) error = %v, wantErr %v", test.input, err, test.wantErr)
+			if test.wantErr {
+				require.Error(t, err)
+				return
 			}
-			if !test.wantErr && got != test.want {
-				t.Fatalf("Parse(%q) = %+v, want %+v", test.input, got, test.want)
-			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
 		})
 	}
 }
 
 func TestSpecStringAndDirectory(t *testing.T) {
 	spec := Spec{Backend: "github", Package: "denoland/deno", Version: "1.40.0"}
-	if got, want := spec.String(), "github:denoland/deno@1.40.0"; got != want {
-		t.Fatalf("String() = %s, want %s", got, want)
-	}
-	if got, want := spec.Directory(), "github-denoland-deno"; got != want {
-		t.Fatalf("Directory() = %s, want %s", got, want)
-	}
-	if got, want := DirectoryName("http", "example.com:8080/path"), "http-example.com-8080-path"; got != want {
-		t.Fatalf("DirectoryName() = %s, want %s", got, want)
-	}
+	require.Equal(t, "github:denoland/deno@1.40.0", spec.String())
+	require.Equal(t, "github-denoland-deno", spec.Directory())
+	require.Equal(t, "http-example.com-8080-path", DirectoryName("http", "example.com:8080/path"))
 }
 
 func TestCompareVersions(t *testing.T) {
-	if CompareVersions("1.2.0", "1.10.0") >= 0 {
-		t.Fatal("1.2.0 should be older than 1.10.0")
-	}
-	if CompareVersions("v1.2.3", "1.2.3") != 0 {
-		t.Fatal("v prefix should not change order")
-	}
-	if CompareVersions("latest", "9.0.0") <= 0 {
-		t.Fatal("latest should sort after a concrete version")
-	}
+	require.Negative(t, CompareVersions("1.2.0", "1.10.0"))
+	require.Zero(t, CompareVersions("v1.2.3", "1.2.3"))
+	require.Positive(t, CompareVersions("latest", "9.0.0"))
 }

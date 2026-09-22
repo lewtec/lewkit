@@ -3,6 +3,8 @@ package tool
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSelectCodexCLIAsset(t *testing.T) {
@@ -18,17 +20,14 @@ func TestSelectCodexCLIAsset(t *testing.T) {
 	artifacts := make([]Artifact, 0, len(names))
 	for _, name := range names {
 		artifacts = append(artifacts, Artifact{
-			OS: "linux", Arch: "amd64",
-			URL: "https://github.com/openai/codex/releases/download/rust-v0.142.5/" + name,
+			OS:   "linux",
+			Arch: "amd64",
+			URL:  "https://github.com/openai/codex/releases/download/rust-v0.142.5/" + name,
 		})
 	}
 	got := SelectArtifact(artifacts, "linux", "amd64", "codex")
-	if got == nil {
-		t.Fatal("no artifact selected")
-	}
-	if base := filepath.Base(got.URL); base != "codex-x86_64-unknown-linux-musl.tar.gz" {
-		t.Fatalf("SelectArtifact() = %s, want codex-x86_64-unknown-linux-musl.tar.gz", base)
-	}
+	require.NotNil(t, got)
+	require.Equal(t, "codex-x86_64-unknown-linux-musl.tar.gz", filepath.Base(got.URL))
 }
 
 func TestSelectArtifactPrefersAndroidOverLinux(t *testing.T) {
@@ -38,12 +37,8 @@ func TestSelectArtifactPrefersAndroidOverLinux(t *testing.T) {
 		{OS: "darwin", Arch: "arm64", URL: "https://example.com/workspaced_Darwin_arm64.tar.gz"},
 	}
 	got := SelectArtifact(artifacts, "android", "arm64", "workspaced")
-	if got == nil {
-		t.Fatal("no artifact selected")
-	}
-	if got.OS != "android" {
-		t.Fatalf("SelectArtifact() OS = %s, want android (URL %s)", got.OS, got.URL)
-	}
+	require.NotNil(t, got)
+	require.Equal(t, "android", got.OS)
 }
 
 func TestSelectArtifactAndroidFallsBackToLinux(t *testing.T) {
@@ -52,10 +47,6 @@ func TestSelectArtifactAndroidFallsBackToLinux(t *testing.T) {
 		{OS: "darwin", Arch: "arm64", URL: "https://example.com/tool_Darwin_arm64.tar.gz"},
 	}
 	got := SelectArtifact(artifacts, "android", "arm64", "tool")
-	if got == nil {
-		t.Fatal("no artifact selected")
-	}
-	if got.OS != "linux" {
-		t.Fatalf("SelectArtifact() OS = %s, want linux fallback", got.OS)
-	}
+	require.NotNil(t, got)
+	require.Equal(t, "linux", got.OS)
 }

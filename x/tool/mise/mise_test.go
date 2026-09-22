@@ -1,9 +1,12 @@
 package mise
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestNewToolRejectsEmptyRef(t *testing.T) {
-	if _, err := NewTool("  "); err == nil {
-		t.Fatal("NewTool(empty) succeeded")
-	}
+	_, err := NewTool("  ")
+	require.ErrorIs(t, err, ErrEmptyMiseRef)
 }

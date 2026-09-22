@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/test"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestAPIErrorFromResponse(t *testing.T) {
@@ -20,9 +22,8 @@ func TestAPIErrorFromResponse(t *testing.T) {
 			Body:       io.NopCloser(strings.NewReader(`{"message":"API rate limit exceeded"}`)),
 		}
 		err := apiErrorFromResponse(requestURL, response)
-		if !errors.Is(err, ErrAPIError) || !errors.Is(err, ErrAPIRateLimit) {
-			t.Fatalf("got %v", err)
-		}
+		require.ErrorIs(t, err, ErrAPIError)
+		require.ErrorIs(t, err, ErrAPIRateLimit)
 	})
 
 	t.Run("read failure wraps the read error", func(t *testing.T) {
@@ -33,11 +34,8 @@ func TestAPIErrorFromResponse(t *testing.T) {
 			Body:       io.NopCloser(test.ErrorReader{Err: readErr}),
 		}
 		err := apiErrorFromResponse(requestURL, response)
-		if !errors.Is(err, ErrAPIError) || !errors.Is(err, readErr) {
-			t.Fatalf("got %v", err)
-		}
-		if errors.Is(err, ErrAPIRateLimit) {
-			t.Fatalf("rate limit without a body: %v", err)
-		}
+		require.ErrorIs(t, err, ErrAPIError)
+		require.ErrorIs(t, err, readErr)
+		require.NotErrorIs(t, err, ErrAPIRateLimit)
 	})
 }

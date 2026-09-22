@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type memoryBackend struct{}
@@ -48,46 +50,25 @@ func (memoryTool) InstallChecks() []Check {
 func TestEnsureInstallsAndReuses(t *testing.T) {
 	Register("memory", memoryBackend{})
 	store, err := Open(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	first, err := store.Ensure(t.Context(), "memory:demo@1.2.3", "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	second, err := store.Ensure(t.Context(), "memory:demo@latest", "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != second {
-		t.Fatalf("second Ensure = %s, want %s", second, first)
-	}
+	require.NoError(t, err)
+	require.Equal(t, first, second)
 	replaced, err := store.Ensure(WithNoCache(t.Context()), "memory:demo@1.2.3", "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if replaced != first {
-		t.Fatalf("replaced Ensure = %s, want %s", replaced, first)
-	}
+	require.NoError(t, err)
+	require.Equal(t, first, replaced)
 	installed, err := store.ListInstalled()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(installed) != 1 || installed[0].Version != "1.2.3" {
-		t.Fatalf("installed = %+v", installed)
-	}
+	require.NoError(t, err)
+	require.Len(t, installed, 1)
+	require.Equal(t, "1.2.3", installed[0].Version)
 	resolved, err := store.Resolve(t.Context(), "demo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if resolved != first {
-		t.Fatalf("Resolve = %s, want %s", resolved, first)
-	}
+	require.NoError(t, err)
+	require.Equal(t, first, resolved)
 }
 
 func TestOpenRejectsEmptyRoot(t *testing.T) {
 	_, err := Open("  ")
-	if !errors.Is(err, ErrEmptyStore) {
-		t.Fatalf("Open(empty) = %v, want ErrEmptyStore", err)
-	}
+	require.ErrorIs(t, err, ErrEmptyStore)
 }

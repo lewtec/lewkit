@@ -10,6 +10,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestFetchChecksHash(t *testing.T) {
@@ -22,9 +24,7 @@ func TestFetchChecksHash(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	fetcher, err := factory{}.New(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var output bytes.Buffer
 	err = fetcher.Fetch(t.Context(), fetchurl.FetchOptions{
 		URLs: []string{server.URL},
@@ -32,12 +32,8 @@ func TestFetchChecksHash(t *testing.T) {
 		Hash: hex.EncodeToString(sum[:]),
 		Out:  &output,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if output.String() != "hello" {
-		t.Fatalf("body = %q", output.String())
-	}
+	require.NoError(t, err)
+	require.Equal(t, "hello", output.String())
 
 	output.Reset()
 	err = fetcher.Fetch(t.Context(), fetchurl.FetchOptions{
@@ -46,9 +42,7 @@ func TestFetchChecksHash(t *testing.T) {
 		Hash: "deadbeef",
 		Out:  &output,
 	})
-	if err == nil {
-		t.Fatal("expected hash mismatch")
-	}
+	require.Error(t, err)
 }
 
 func TestFetchRunsConfigureRequest(t *testing.T) {
@@ -63,9 +57,7 @@ func TestFetchRunsConfigureRequest(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	fetcher, err := factory{}.New(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var output bytes.Buffer
 	err = fetcher.Fetch(t.Context(), fetchurl.FetchOptions{
 		URLs: []string{server.URL},
@@ -76,12 +68,8 @@ func TestFetchRunsConfigureRequest(t *testing.T) {
 			request.Header.Set("Authorization", "Bearer test-token")
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !sawToken {
-		t.Fatal("ConfigureRequest did not run")
-	}
+	require.NoError(t, err)
+	require.True(t, sawToken)
 }
 
 func TestFetchDoesNotRewriteRedirects(t *testing.T) {
@@ -101,9 +89,7 @@ func TestFetchDoesNotRewriteRedirects(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	fetcher, err := factory{}.New(t.Context())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var output bytes.Buffer
 	err = fetcher.Fetch(t.Context(), fetchurl.FetchOptions{
 		URLs: []string{server.URL + "/start"},
@@ -115,13 +101,7 @@ func TestFetchDoesNotRewriteRedirects(t *testing.T) {
 			request.Header.Set("Authorization", "Bearer test-token")
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if hits != 2 {
-		t.Fatalf("requests = %d, want 2", hits)
-	}
-	if output.String() != "payload" {
-		t.Fatalf("body = %q", output.String())
-	}
+	require.NoError(t, err)
+	require.Equal(t, 2, hits)
+	require.Equal(t, "payload", output.String())
 }
