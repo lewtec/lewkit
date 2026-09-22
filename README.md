@@ -31,6 +31,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/path` | `Path`, `New`, `Open`. A `Path` is a slash name. `Open` takes the OS directory. |
 | `x/path/pick` | `Predicate`, `Match`, `Glob`, `Prune`, `And`, `Or`, `Not`. |
 | `x/fs` | `Files`, `Walk`, `Filter`, `Copy`, `New`. `Walk` reads an `io/fs`. `Copy` writes a listing. `New` indexes a listing. |
+| `x/fs/compose` | `New`, `Add`, `Merge`, `All`, `Squash`, `FS`, `Mount`, `Parse`, `Register`. A symlink is a `link` slot. `Squash` turns `name.d.tmpl/` into `lines` slots. `FS` encodes the tree. |
 | `x/fs/tar` | `Open`, `Files`. A tar archive as `io/fs`. |
 | `x/fs/zip` | `Open`. A ZIP archive as `io/fs`. |
 | `x/fs/squashfs` | `Open`. A SquashFS image as `io/fs`. |
