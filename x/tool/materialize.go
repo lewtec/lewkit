@@ -226,7 +226,7 @@ func Extract(ctx context.Context, source, destination string) error {
 	} else {
 		return installBinary(ctx, source, dest)
 	}
-	stripped, err := lewfs.StripTopDirectory(ctx, archive)
+	stripped, err := lewfs.StripTopDirectory(archive)
 	if err != nil {
 		return err
 	}
