@@ -6,7 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
+
+	"github.com/lewtec/lewkit/x/singleton"
 )
 
 const (
@@ -18,10 +19,9 @@ const (
 	tokenStop     = "STOP"
 )
 
-var (
-	tokenOnce sync.Once
-	token     string
-)
+var githubToken = singleton.NewSingleton(func(ctx context.Context) (string, error) {
+	return resolveToken(ctx), nil
+})
 
 // Token returns a GitHub token from GITHUB_TOKEN, GH_TOKEN, or `gh auth token`.
 // An empty string means anonymous requests.
@@ -29,10 +29,11 @@ func Token(ctx context.Context) string {
 	if strings.TrimSpace(os.Getenv(tokenProbeEnv)) == tokenProbeVal {
 		return ""
 	}
-	tokenOnce.Do(func() {
-		token = resolveToken(ctx)
-	})
-	return token
+	value, err := githubToken.GetContext(ctx)
+	if err != nil {
+		return ""
+	}
+	return value
 }
 
 func resolveToken(ctx context.Context) string {

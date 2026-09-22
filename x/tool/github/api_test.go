@@ -6,11 +6,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/lewtec/lewkit/x/test"
 )
-
-type errReader struct{ err error }
-
-func (reader errReader) Read([]byte) (int, error) { return 0, reader.err }
 
 func TestAPIErrorFromResponse(t *testing.T) {
 	const requestURL = "https://api.github.com/repos/o/r/releases"
@@ -32,7 +30,7 @@ func TestAPIErrorFromResponse(t *testing.T) {
 		response := &http.Response{
 			Status:     "502 Bad Gateway",
 			StatusCode: http.StatusBadGateway,
-			Body:       io.NopCloser(errReader{err: readErr}),
+			Body:       io.NopCloser(test.ErrorReader{Err: readErr}),
 		}
 		err := apiErrorFromResponse(requestURL, response)
 		if !errors.Is(err, ErrAPIError) || !errors.Is(err, readErr) {
