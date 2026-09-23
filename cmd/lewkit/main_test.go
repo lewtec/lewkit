@@ -18,6 +18,7 @@ func TestRootUsage(t *testing.T) {
 	assert.Contains(t, text, "generate")
 	assert.Contains(t, text, "disasm")
 	assert.Contains(t, text, "doctor")
+	assert.Contains(t, text, "herdr")
 	assert.Contains(t, text, "experiments")
 	assert.Contains(t, text, "completion")
 	assert.Contains(t, text, "--sentry-dsn")
@@ -36,6 +37,25 @@ func TestCompletionLine(t *testing.T) {
 	})
 	assert.Contains(t, got, "complete -C")
 	assert.Contains(t, got, "lewkit")
+}
+
+func TestHerdrReorderArg(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "herdr", "reorder", ".dotfiles:feat/teste")
+	require.NotNil(t, app.Args.herdr)
+	require.NotNil(t, app.Args.herdr.reorder)
+	require.Len(t, app.Args.herdr.reorder.specs, 1)
+	assert.Equal(t, ".dotfiles", app.Args.herdr.reorder.specs[0].Repo)
+	assert.Equal(t, "feat/teste", app.Args.herdr.reorder.specs[0].Branch)
+}
+
+func TestHerdrUsage(t *testing.T) {
+	text, err := cmd.Usage[herdrCmd]("lewkit herdr")
+	require.NoError(t, err)
+	assert.Contains(t, text, "reorder")
+	text, err = cmd.Usage[reorderCmd]("lewkit herdr reorder")
+	require.NoError(t, err)
+	assert.Contains(t, text, "REPO:BRANCH")
+	assert.Contains(t, text, "[arg...]")
 }
 
 func TestGenerateDbUsage(t *testing.T) {

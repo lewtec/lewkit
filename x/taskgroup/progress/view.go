@@ -39,6 +39,7 @@ func (m *model) requestStop() {
 type treeRow struct {
 	node   taskgroup.Node
 	tree   string
+	emoji  string
 	hidden int
 }
 
@@ -128,7 +129,7 @@ func layout(nodes []taskgroup.Node) []treeRow {
 		if hidden < 0 {
 			hidden = 0
 		}
-		out[i] = treeRow{node: n, tree: b.String(), hidden: hidden}
+		out[i] = treeRow{node: n, tree: b.String(), emoji: n.TaskEmoji(), hidden: hidden}
 	}
 	return out
 }
@@ -138,7 +139,7 @@ func formatRow(r treeRow, width int) string {
 		width = defaultTermWidth
 	}
 	n := r.node
-	prefix := r.tree + stateGlyph(n.State) + " " + poolEmoji(n.Pool) + " "
+	prefix := r.tree + stateGlyph(n.State) + " " + r.emoji + " "
 	msg := rowMessage(n)
 	if r.hidden > 0 {
 		msg += " +" + strconv.Itoa(r.hidden)
@@ -230,21 +231,6 @@ func formatPercent(pct float64) string {
 		pct = 1
 	}
 	return fmt.Sprintf("%5.1f%%", pct*100)
-}
-
-func poolEmoji(p taskgroup.PoolKind) string {
-	switch p {
-	case taskgroup.Control:
-		return "🔧"
-	case taskgroup.IO:
-		return "💾"
-	case taskgroup.CPU:
-		return "🧠"
-	case taskgroup.Internet:
-		return "🌐"
-	default:
-		return "•"
-	}
 }
 
 func plainBar(pct float64, width int) string {

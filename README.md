@@ -63,6 +63,9 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
 | `x/future` | `Future`, `NewFuture`, `Get`, `Peek`, `State`. |
+| `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
+| `x/git` | `Git`, `Info`, `Worktree`, `Resolve`. Checkouts, branches, and linked worktrees. |
+| `x/herdr` | `Client`, `RepoBranch`, `Reorder`. Herdr workspace layout. |
 | `x/singleton` | `NewSingleton`, `Get`, `MustGet`. |
 | `x/profile` | `Directory`, `Address`, `Handler`. pprof to a directory or HTTP. |
 | `x/release` | `Version`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. |
@@ -134,6 +137,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | Command | Result |
 | --- | --- |
 | `lewkit doctor` | Each driver interface and the implementation `Get` selected. |
+| `lewkit herdr reorder [REPO:BRANCH...]` | Nest linked worktrees, park a feature branch off the main checkout, and order workspaces. |
 | `lewkit disasm hex HEX` | Instructions for a hex byte string. |
 | `lewkit disasm raw PATH` | Instructions for a raw byte file. `PATH` `-` reads stdin. |
 | `lewkit disasm file PATH` | One text section from an ELF, PE, or Mach-O file. |
@@ -145,6 +149,8 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes stdout. `generate protobuf` takes `--package` when the file has no `go_package`.
+
+`lewkit herdr reorder` reads the running Herdr session. Each `REPO:BRANCH` ensures a main workspace and a linked worktree at `~/.grok/worktrees/<slug>/<branch>`. A slash in the branch is a hyphen in the directory name. The dotfiles root from `x/dotfiles` sorts first. Steps log through slog and the progress view. The final order is a progress tree: each worktree sits under its main checkout. A workspace row is the label, then the checkout path.
 
 ### Demos
 
