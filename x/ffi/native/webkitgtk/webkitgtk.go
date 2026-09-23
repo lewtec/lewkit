@@ -77,8 +77,9 @@ type Symbols struct {
 	finishRequestError  func(request, gError uintptr)
 }
 
-// Load opens the system WebKitGTK 6 stack. WEBKITGTK_LIB, when set, is
-// a directory searched before the loader path.
+// Load opens the system WebKitGTK 6 stack. WEBKITGTK_LIB, when set, is a
+// colon-separated list of directories searched before the NixOS system
+// profile (/run/current-system/sw/lib) and the loader path.
 func Load() (*Symbols, error) {
 	glib, err := openOne("libglib-2.0.so.0")
 	if err != nil {
@@ -242,12 +243,22 @@ func Load() (*Symbols, error) {
 	return s, nil
 }
 
+// nixOSSystemLib is the NixOS system profile library directory.
+const nixOSSystemLib = "/run/current-system/sw/lib"
+
+func libraryDirectories() []string {
+	var dirs []string
+	for _, dir := range strings.Split(os.Getenv("WEBKITGTK_LIB"), ":") {
+		if dir != "" {
+			dirs = append(dirs, dir)
+		}
+	}
+	return append(dirs, nixOSSystemLib)
+}
+
 func openOne(soname string) (uintptr, error) {
 	var last error
-	for _, dir := range strings.Split(os.Getenv("WEBKITGTK_LIB"), ":") {
-		if dir == "" {
-			continue
-		}
+	for _, dir := range libraryDirectories() {
 		lib, err := native.Open(filepath.Join(dir, soname), native.Global|native.Lazy)
 		if err == nil {
 			return lib, nil
