@@ -6,7 +6,8 @@ import (
 )
 
 // Go schedules a task under the current node (or the session root).
-// deps are node IDs returned by earlier Go calls.
+// The task function receives ctx, including its values. deps are node IDs
+// returned by earlier Go calls.
 func Go(ctx context.Context, name string, pool PoolKind, fn func(context.Context, *Status) error, deps ...ID) ID {
 	return MustFromContext(ctx).Go(ctx, name, pool, fn, deps...)
 }
@@ -27,7 +28,7 @@ func (s *Session) goTask(ctx context.Context, name string, pool PoolKind, fn fun
 		s.mu.Unlock()
 		s.fireSchedule()
 	}()
-	id := s.alloc(parent, name, pool, fn, isolate)
+	id := s.alloc(parent, name, pool, fn, isolate, ctx)
 	if fn == nil {
 		s.finishLocked(id, ErrNilFn)
 		return id

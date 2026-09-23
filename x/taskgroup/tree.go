@@ -72,7 +72,7 @@ func (s *Session) visibleParent(id ID) ID {
 	return p
 }
 
-func (s *Session) alloc(parent ID, name string, pool PoolKind, fn func(context.Context, *Status) error, isolate bool) ID {
+func (s *Session) alloc(parent ID, name string, pool PoolKind, fn func(context.Context, *Status) error, isolate bool, caller context.Context) ID {
 	id := ID(len(s.slots))
 	t := &task{
 		id:      id,
@@ -84,16 +84,16 @@ func (s *Session) alloc(parent ID, name string, pool PoolKind, fn func(context.C
 	t.total.Store(-1)
 	t.state.Store(uint32(Pending))
 
-	pctx := s.ctx
-	if parent != 0 {
-		if pc := s.slots[parent].ctx; pc != nil {
-			pctx = pc
-		}
+	// The task runs with the context Go was given, so values bound on that
+	// context stay visible. Isolate gets its own cancel so a failure there
+	// does not cancel the caller.
+	if caller == nil {
+		caller = s.ctx
 	}
 	if isolate {
-		t.ctx, t.cancel = context.WithCancelCause(pctx)
+		t.ctx, t.cancel = context.WithCancelCause(caller)
 	} else {
-		t.ctx = pctx
+		t.ctx = caller
 	}
 
 	s.slots = append(s.slots, t)

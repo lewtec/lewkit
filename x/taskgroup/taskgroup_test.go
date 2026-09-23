@@ -23,6 +23,19 @@ func newTest(t *testing.T, limits Limits) (*Session, context.Context) {
 	return s, ctx
 }
 
+func TestGoKeepsCallerValues(t *testing.T) {
+	_, ctx := newTest(t, DefaultLimits())
+	type key struct{}
+	ctx = context.WithValue(ctx, key{}, "prefix")
+	var got string
+	Go(ctx, "values", Control, func(ctx context.Context, _ *Status) error {
+		got, _ = ctx.Value(key{}).(string)
+		return nil
+	})
+	require.NoError(t, MustFromContext(ctx).Wait())
+	require.Equal(t, "prefix", got)
+}
+
 func TestBasicExecution(t *testing.T) {
 	_, ctx := newTest(t, DefaultLimits())
 	var ran atomic.Bool
