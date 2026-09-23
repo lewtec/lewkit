@@ -11,23 +11,25 @@ import (
 
 // Device is a compute-capable Vulkan device with host-visible buffers.
 type Device struct {
-	api         api
-	inst        uintptr
-	phys        uintptr
-	dev         uintptr
-	queue       uintptr
-	family      uint32
-	commandPool uint64
-	cmd         uintptr
-	fence       uint64
-	mem         physicalDeviceMemoryProperties
-	name        string
-	vendor      Vendor
-	deviceType  DeviceType
-	closed      bool
-	recording   bool
-	pending     bool
-	recorded    Cmd
+	api          api
+	inst         uintptr
+	phys         uintptr
+	dev          uintptr
+	queue        uintptr
+	family       uint32
+	commandPool  uint64
+	cmd          uintptr
+	fence        uint64
+	mem          physicalDeviceMemoryProperties
+	name         string
+	vendor       Vendor
+	deviceType   DeviceType
+	closed       bool
+	recording    bool
+	pending      bool
+	recorded     Cmd
+	wantExt      []string
+	familyPinned bool
 }
 
 // Info is a compute-capable physical device. Index is 0-based among
@@ -132,6 +134,9 @@ func (d *Device) physicalDevices() ([]uintptr, error) {
 }
 
 func (d *Device) computeFamily(phys uintptr) (uint32, bool) {
+	if d.familyPinned {
+		return d.family, true
+	}
 	var nq uint32
 	d.api.getQueueFamilies(phys, &nq, nil)
 	if nq == 0 {
@@ -226,9 +231,9 @@ func (d *Device) try(phys uintptr) bool {
 		queueCount:       1,
 		pQueuePriorities: &prio,
 	}
-	var devExt []string
-	if hasExt(d.api.deviceExts(phys), extPortabilitySubset) {
-		devExt = []string{extPortabilitySubset}
+	devExt := append([]string{}, d.wantExt...)
+	if hasExt(d.api.deviceExts(phys), extPortabilitySubset) && !hasExt(devExt, extPortabilitySubset) {
+		devExt = append(devExt, extPortabilitySubset)
 	}
 	devExtPtrs, keepDevExt := cStrings(devExt)
 	_ = keepDevExt

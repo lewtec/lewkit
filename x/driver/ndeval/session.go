@@ -76,6 +76,28 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 	if size == 0 {
 		return nil
 	}
+	if err := s.dispatch(); err != nil {
+		return err
+	}
+	if s.kernel.DType() != ndarray.U8 {
+		return s.output.Read(output[:hostBytes])
+	}
+	gpuBytes := size * 4
+	if cap(s.staging) < gpuBytes {
+		s.staging = make([]byte, gpuBytes)
+	} else {
+		s.staging = s.staging[:gpuBytes]
+	}
+	if err := s.output.Read(s.staging); err != nil {
+		return err
+	}
+	for i := 0; i < size && i < len(output); i++ {
+		output[i] = uint8(binary.LittleEndian.Uint32(s.staging[i*4:]))
+	}
+	return nil
+}
+
+func (s *session) dispatch() error {
 	if err := s.fit(); err != nil {
 		return err
 	}
@@ -114,25 +136,7 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 	if err := cmd.Submit(); err != nil {
 		return err
 	}
-	if err := cmd.Wait(); err != nil {
-		return err
-	}
-	if s.kernel.DType() != ndarray.U8 {
-		return s.output.Read(output[:hostBytes])
-	}
-	gpuBytes := size * 4
-	if cap(s.staging) < gpuBytes {
-		s.staging = make([]byte, gpuBytes)
-	} else {
-		s.staging = s.staging[:gpuBytes]
-	}
-	if err := s.output.Read(s.staging); err != nil {
-		return err
-	}
-	for i := 0; i < size && i < len(output); i++ {
-		output[i] = uint8(binary.LittleEndian.Uint32(s.staging[i*4:]))
-	}
-	return nil
+	return cmd.Wait()
 }
 
 func (s *session) fit() error {

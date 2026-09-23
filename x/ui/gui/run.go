@@ -3,16 +3,44 @@ package gui
 import (
 	"context"
 	"errors"
+	"image"
 	"time"
 
+	"github.com/lewtec/lewkit/x/driver/ndeval"
+	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
+// display is what the loop asks the host for. Image windows and the swapchain
+// screen both satisfy it. The screen is not a window.Window.
+type display interface {
+	Size() image.Point
+	FramePeriod() time.Duration
+	Subscribe(ctx context.Context) <-chan window.Event
+	present(ctx context.Context, view *ndarray.Tensor[uint8], evaluator ndarray.Evaluator) error
+}
+
+type imageDisplay struct{ window.Window }
+
+func (d imageDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], evaluator ndarray.Evaluator) error {
+	return window.Show(ctx, d.Window, view, evaluator)
+}
+
+type bridgeDisplay struct {
+	window.Window
+	screen    vulkan.Screen
+	evaluator ndarray.Evaluator
+}
+
+func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
+	return ndeval.Paint(ctx, d.evaluator, view, d.screen)
+}
+
 type runner struct {
 	ctx           context.Context
-	window        window.Window
+	host          display
 	evaluator     ndarray.Evaluator
 	model         Model
 	fps           event.FPS
@@ -29,10 +57,13 @@ type runner struct {
 // Run is the Elm loop. Update runs on each message. View returns a
 // [Node]; Run paints it through [Picture] on the display ticker.
 func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model) error {
-	return run(ctx, host, evaluator, model)
+	if host == nil {
+		return window.ErrClosed
+	}
+	return run(ctx, imageDisplay{host}, evaluator, model)
 }
 
-func run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model) error {
+func run(ctx context.Context, host display, evaluator ndarray.Evaluator, model Model) error {
 	if model == nil {
 		return ErrModel
 	}
@@ -46,7 +77,7 @@ func run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, m
 	if err != nil {
 		return err
 	}
-	runner := &runner{ctx: ctx, window: host, evaluator: evaluator, model: model, started: time.Now(), picture: picture}
+	runner := &runner{ctx: ctx, host: host, evaluator: evaluator, model: model, started: time.Now(), picture: picture}
 	return runner.loop()
 }
 
@@ -55,13 +86,13 @@ func (runner *runner) loop() error {
 	defer cancel()
 	runner.ctx = ctx
 	runner.commands = make(chan Msg, 16)
-	events := runner.window.Subscribe(ctx)
+	events := runner.host.Subscribe(ctx)
 	runner.dirty = true
 	if err := runner.flush(true); err != nil {
 		return err
 	}
 	runner.spawn(runner.model.Init())
-	period := runner.window.FramePeriod()
+	period := runner.host.FramePeriod()
 	if period <= 0 {
 		period = window.DefaultFramePeriod
 	}
@@ -113,9 +144,9 @@ func (runner *runner) decorate(msg Msg) Msg {
 		return msg
 	}
 	tick.Elapsed = time.Since(runner.started)
-	tick.Size = runner.window.Size()
+	tick.Size = runner.host.Size()
 	tick.FPS = runner.hertz
-	tick.Period = runner.window.FramePeriod()
+	tick.Period = runner.host.FramePeriod()
 	return tick
 }
 
@@ -162,7 +193,7 @@ func (runner *runner) render() error {
 	if root == nil {
 		return ErrView
 	}
-	size := runner.window.Size()
+	size := runner.host.Size()
 	pixels, err := runner.picture.Render(root, Size{float32(size.X), float32(size.Y)})
 	if err != nil {
 		return err
@@ -189,15 +220,8 @@ func (runner *runner) flush(force bool) error {
 	if runner.view == nil {
 		return ErrView
 	}
-	destination := runner.window.Frame()
-	if destination == nil {
-		return window.ErrClosed
-	}
-	err := window.Present(runner.ctx, runner.view, runner.evaluator, destination)
-	if drawErr := runner.window.Draw(); err != nil {
+	if err := runner.host.present(runner.ctx, runner.view, runner.evaluator); err != nil {
 		return err
-	} else if drawErr != nil {
-		return drawErr
 	}
 	runner.hertz = runner.fps.Get()
 	runner.lastSignature = runner.signature
