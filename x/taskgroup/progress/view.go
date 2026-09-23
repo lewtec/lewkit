@@ -129,7 +129,7 @@ func layout(nodes []taskgroup.Node) []treeRow {
 		if hidden < 0 {
 			hidden = 0
 		}
-		out[i] = treeRow{node: n, tree: b.String(), emoji: taskEmoji(n), hidden: hidden}
+		out[i] = treeRow{node: n, tree: b.String(), emoji: n.TaskEmoji(), hidden: hidden}
 	}
 	return out
 }
@@ -184,13 +184,6 @@ func percent(n taskgroup.Node) float64 {
 	return float64(n.Current) / float64(n.Total)
 }
 
-func taskEmoji(n taskgroup.Node) string {
-	if n.Emoji != "" {
-		return n.Emoji
-	}
-	return poolEmoji(n.Pool)
-}
-
 func stateGlyph(st taskgroup.State) string {
 	switch st {
 	case taskgroup.Pending:
@@ -238,21 +231,6 @@ func formatPercent(pct float64) string {
 		pct = 1
 	}
 	return fmt.Sprintf("%5.1f%%", pct*100)
-}
-
-func poolEmoji(p taskgroup.PoolKind) string {
-	switch p {
-	case taskgroup.Control:
-		return "🔧"
-	case taskgroup.IO:
-		return "💾"
-	case taskgroup.CPU:
-		return "🧠"
-	case taskgroup.Internet:
-		return "🌐"
-	default:
-		return "•"
-	}
 }
 
 func plainBar(pct float64, width int) string {

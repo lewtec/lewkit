@@ -126,6 +126,29 @@ type Node struct {
 	LiveChildren int
 }
 
+// TaskEmoji is the pool icon for this node. Emoji replaces the pool icon when set.
+func (n Node) TaskEmoji() string {
+	if n.Emoji != "" {
+		return n.Emoji
+	}
+	return n.Pool.emoji()
+}
+
+func (p PoolKind) emoji() string {
+	switch p {
+	case Control:
+		return "🔧"
+	case IO:
+		return "💾"
+	case CPU:
+		return "🧠"
+	case Internet:
+		return "🌐"
+	default:
+		return "•"
+	}
+}
+
 // Status is the handle given to a task function so it can report progress.
 type Status struct {
 	t *task
