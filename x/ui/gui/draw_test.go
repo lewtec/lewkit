@@ -1,4 +1,4 @@
-package ndeval
+package gui
 
 import (
 	"testing"

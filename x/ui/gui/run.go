@@ -48,20 +48,11 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 		return ErrView
 	}
 	size := d.Size()
-	fills := make([]ndeval.Fill, len(picture.fills))
-	for i, fill := range picture.fills {
-		fills[i] = ndeval.Fill{
-			X: fill.X, Y: fill.Y, Width: fill.Width, Height: fill.Height,
-			Red: fill.Red, Green: fill.Green, Blue: fill.Blue, Alpha: fill.Alpha,
-			Radius: fill.Radius, ClipX: fill.ClipX, ClipY: fill.ClipY,
-			ClipWidth: fill.ClipWidth, ClipHeight: fill.ClipHeight,
-		}
-	}
 	var ink []byte
 	if picture.hadInk && picture.inkRGBA != nil {
 		ink = picture.inkRGBA.Pix
 	}
-	return ndeval.Draw(ctx, d.screen, fills, ink, size.X, size.Y)
+	return drawFills(ctx, d.screen, picture.fills, ink, size.X, size.Y)
 }
 
 type runner struct {

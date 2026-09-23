@@ -1,4 +1,4 @@
-package ndeval
+package gui
 
 import (
 	"context"
@@ -99,15 +99,6 @@ void main() {
 }
 `
 
-// Fill is one rounded rect in pixel space. Color channels are 0..255.
-type Fill struct {
-	X, Y, Width, Height     float32
-	Red, Green, Blue, Alpha float32
-	Radius                  float32
-	ClipX, ClipY            float32
-	ClipWidth, ClipHeight   float32
-}
-
 var drawSPIRV struct {
 	sync.Mutex
 	done                         bool
@@ -141,8 +132,8 @@ func drawCode(ctx context.Context) (vert, frag, inkVert, inkFrag []byte, err err
 	return drawSPIRV.vert, drawSPIRV.frag, drawSPIRV.inkVert, drawSPIRV.inkFrag, err
 }
 
-// Draw paints fills and optional RGBA8 ink onto the swapchain. It does not run the fused kernel.
-func Draw(ctx context.Context, screen vulkan.Screen, fills []Fill, ink []byte, width, height int) error {
+// drawFills paints recorded fills and optional RGBA8 ink. It does not run the fused kernel.
+func drawFills(ctx context.Context, screen vulkan.Screen, fills []Draw, ink []byte, width, height int) error {
 	if screen == nil || width < 1 || height < 1 {
 		return ndarray.ErrShape
 	}
@@ -157,7 +148,7 @@ func Draw(ctx context.Context, screen vulkan.Screen, fills []Fill, ink []byte, w
 	return screen.Draw(raw, ink, width, height, vert, frag, inkVert, inkFrag)
 }
 
-func putFill(dst []byte, fill Fill) {
+func putFill(dst []byte, fill Draw) {
 	vals := [16]float32{
 		fill.X, fill.Y, fill.Width, fill.Height,
 		fill.Red, fill.Green, fill.Blue, fill.Alpha,
