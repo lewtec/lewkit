@@ -47,7 +47,7 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 			underDot = append(underDot, node.Name)
 		}
 	}
-	assert.Equal(t, []string{"branch", "checkout", "source", "place", "feat"}, underDot)
+	assert.Equal(t, []string{"kind", "branch", "checkout", "source", "feat"}, underDot)
 
 	var underTopic []string
 	topic := nodes[byName["topic"]].ID

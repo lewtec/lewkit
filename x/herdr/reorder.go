@@ -741,14 +741,9 @@ func Kind(space Space) string {
 	return "dir"
 }
 
-// Explain is the one-line reason this workspace sits where it does.
-func Explain(pin string, space Space) string {
-	return (&plan{pin: pin}).criterion(space)
-}
-
 // Nodes is the order as a progress tree. A linked worktree hangs under the
-// main checkout of the same repo. Branch, checkout, repo, source, and
-// identity hang under that workspace.
+// main checkout of the same repo. Each workspace lists kind, branch, checkout,
+// repo, source, and identity as key: value rows.
 func (r Report) Nodes() []taskgroup.Node {
 	mainByRoot := map[string]string{}
 	for _, space := range r.Order {
@@ -790,12 +785,11 @@ func (r Report) Nodes() []taskgroup.Node {
 			pool = taskgroup.CPU
 		}
 		nodes = append(nodes, taskgroup.Node{
-			ID:      id,
-			Parent:  parent,
-			Name:    space.Label,
-			Message: Kind(space),
-			State:   state,
-			Pool:    pool,
+			ID:     id,
+			Parent: parent,
+			Name:   space.Label,
+			State:  state,
+			Pool:   pool,
 		})
 		detail := func(name, value string) {
 			if value == "" {
@@ -810,6 +804,7 @@ func (r Report) Nodes() []taskgroup.Node {
 				Pool:    taskgroup.Control,
 			})
 		}
+		detail("kind", Kind(space))
 		detail("branch", space.Branch)
 		detail("checkout", space.Checkout)
 		if space.RepoRoot != space.Checkout {
@@ -819,7 +814,6 @@ func (r Report) Nodes() []taskgroup.Node {
 		if space.Identity != "" && space.Identity != space.Checkout {
 			detail("identity", space.Identity)
 		}
-		detail("place", Explain(r.Pin, space))
 		for _, child := range children[space.ID] {
 			add(child, id)
 		}
