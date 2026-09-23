@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type onlyReader struct{ io.Reader }
-
 func TestReaderAt(t *testing.T) {
 	t.Parallel()
-	_, err := ReaderAt("open", onlyReader{strings.NewReader("x")})
+	_, err := ReaderAt("open", test.OnlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, ErrNeedReadAt)
 	pe, ok := errors.AsType[*iofs.PathError](err)
 	require.True(t, ok)
@@ -112,7 +112,7 @@ func TestSize(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), n)
 
-	_, err = Size("open", onlyReader{strings.NewReader("x")})
+	_, err = Size("open", test.OnlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, ErrNeedSize)
 	pe, ok := errors.AsType[*iofs.PathError](err)
 	require.True(t, ok)

@@ -5,23 +5,21 @@ package wim
 import (
 	"bytes"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type onlyReader struct{ io.Reader }
-
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
-	r := onlyReader{strings.NewReader("x")}
+	r := test.OnlyReader{strings.NewReader("x")}
 	_, err := Open(t.Context(), r, 1)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
