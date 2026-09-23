@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -41,7 +42,7 @@ func hijackSlog(print func(string)) func() {
 	oldSlog := slog.Default()
 	oldLog := log.Default().Writer()
 	w := &linePrinter{print: print}
-	slog.SetDefault(slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
+	slog.SetDefault(slog.New(logging.NewHandler(w, &slog.HandlerOptions{
 		Level: handlerLevel{oldSlog.Handler()},
 	})))
 	log.SetOutput(w)

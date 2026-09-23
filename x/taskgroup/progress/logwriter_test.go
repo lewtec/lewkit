@@ -37,6 +37,7 @@ func TestLinePrinterHoldsPartial(t *testing.T) {
 }
 
 func TestHijackSlogRestoreDropsLaterLogs(t *testing.T) {
+	t.Setenv("NO_COLOR", "1")
 	var mu sync.Mutex
 	var got []string
 	restore := hijackSlog(func(s string) {
@@ -55,7 +56,7 @@ func TestHijackSlogRestoreDropsLaterLogs(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	joined := strings.Join(got, "\n")
-	assert.Contains(t, joined, "progress-hang-one")
+	assert.Contains(t, joined, "I progress-hang-one")
 	assert.Contains(t, joined, "progress-hang-std")
 	assert.NotContains(t, joined, "progress-hang-two")
 	assert.NotContains(t, joined, "progress-hang-std-two")
