@@ -1,4 +1,4 @@
-package herdr
+package git
 
 import (
 	"os"
@@ -51,4 +51,18 @@ func TestGitCheckout(t *testing.T) {
 	require.NotEmpty(t, rows)
 	assert.Equal(t, want, rows[0].Path)
 	assert.Equal(t, "master", rows[0].Branch)
+}
+
+func TestOriginSlug(t *testing.T) {
+	assert.Equal(t, "lewtec-lewkit", originSlug("https://github.com/lewtec/lewkit.git"))
+	assert.Equal(t, "lewtec-lewkit", originSlug("git@github.com:lewtec/lewkit.git"))
+	assert.Equal(t, "", originSlug("not a url"))
+}
+
+func TestParseWorktrees(t *testing.T) {
+	rows := parseWorktrees("worktree /tmp/main\nHEAD abc\nbranch refs/heads/main\n\nworktree /tmp/feat\nHEAD def\nbranch refs/heads/feat/teste\n\nworktree /tmp/det\nHEAD ghi\ndetached\n")
+	require.Len(t, rows, 3)
+	assert.Equal(t, "main", rows[0].Branch)
+	assert.Equal(t, "feat/teste", rows[1].Branch)
+	assert.Equal(t, "", rows[2].Branch)
 }

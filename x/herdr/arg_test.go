@@ -27,20 +27,6 @@ func TestRepoBranchParse(t *testing.T) {
 	assert.ErrorIs(t, err, cmd.ErrInvalidArgument)
 }
 
-func TestOriginSlug(t *testing.T) {
-	assert.Equal(t, "lewtec-lewkit", originSlug("https://github.com/lewtec/lewkit.git"))
-	assert.Equal(t, "lewtec-lewkit", originSlug("git@github.com:lewtec/lewkit.git"))
-	assert.Equal(t, "", originSlug("not a url"))
-}
-
-func TestParseWorktrees(t *testing.T) {
-	rows := parseWorktrees("worktree /tmp/main\nHEAD abc\nbranch refs/heads/main\n\nworktree /tmp/feat\nHEAD def\nbranch refs/heads/feat/teste\n\nworktree /tmp/det\nHEAD ghi\ndetached\n")
-	require.Len(t, rows, 3)
-	assert.Equal(t, "main", rows[0].Branch)
-	assert.Equal(t, "feat/teste", rows[1].Branch)
-	assert.Equal(t, "", rows[2].Branch)
-}
-
 func TestOrderPinThenGroups(t *testing.T) {
 	p := &plan{pin: "/pin"}
 	p.spaces = []Space{

@@ -64,7 +64,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
 | `x/future` | `Future`, `NewFuture`, `Get`, `Peek`, `State`. |
 | `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
-| `x/herdr` | `Client`, `Git`, `RepoBranch`, `Reorder`. Herdr workspace layout. |
+| `x/git` | `Git`, `Info`, `Worktree`, `Resolve`. Checkouts, branches, and linked worktrees. |
+| `x/herdr` | `Client`, `RepoBranch`, `Reorder`. Herdr workspace layout. |
 | `x/singleton` | `NewSingleton`, `Get`, `MustGet`. |
 | `x/profile` | `Directory`, `Address`, `Handler`. pprof to a directory or HTTP. |
 | `x/release` | `Version`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. |

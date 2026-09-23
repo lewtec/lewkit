@@ -1,4 +1,5 @@
-package herdr
+// Package git reads checkouts, branches, and linked worktrees.
+package git
 
 import (
 	"bytes"
@@ -75,7 +76,7 @@ func (g *Git) Info(ctx context.Context, path string) (Info, bool) {
 	if path == "" {
 		return Info{}, false
 	}
-	key := resolve(path)
+	key := Resolve(path)
 	g.mu.Lock()
 	if g.info != nil {
 		if hit, ok := g.info[key]; ok {
@@ -89,8 +90,8 @@ func (g *Git) Info(ctx context.Context, path string) (Info, bool) {
 	if code == 0 {
 		lines := strings.Split(strings.TrimRight(stdout, "\n"), "\n")
 		if len(lines) >= 2 {
-			toplevel := resolve(lines[0])
-			common := resolve(lines[1])
+			toplevel := Resolve(lines[0])
+			common := Resolve(lines[1])
 			root := common
 			if filepath.Base(common) == ".git" {
 				root = filepath.Dir(common)
@@ -112,7 +113,7 @@ func (g *Git) Branch(ctx context.Context, path string) (string, bool) {
 	if path == "" {
 		return "", false
 	}
-	key := resolve(path)
+	key := Resolve(path)
 	g.mu.Lock()
 	if g.branch != nil {
 		if hit, ok := g.branch[key]; ok {
@@ -176,7 +177,7 @@ func parseWorktrees(stdout string) []Worktree {
 	has := false
 	flush := func() {
 		if has {
-			rows = append(rows, Worktree{Path: resolve(path), Branch: branch})
+			rows = append(rows, Worktree{Path: Resolve(path), Branch: branch})
 		}
 		path, branch, has = "", "", false
 	}
@@ -258,7 +259,7 @@ func originSlug(url string) string {
 // GrokSlug is the worktree directory name under grokRoot, or origin, or the repo name.
 func (g *Git) GrokSlug(ctx context.Context, repo, grokRoot string) string {
 	counts := map[string]int{}
-	root := resolve(grokRoot)
+	root := Resolve(grokRoot)
 	for _, wt := range g.Worktrees(ctx, repo) {
 		rel, err := filepath.Rel(root, wt.Path)
 		if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
@@ -286,7 +287,7 @@ func (g *Git) GrokSlug(ctx context.Context, repo, grokRoot string) string {
 
 // LinkedWorktree is an existing linked checkout of branch, other than repo itself.
 func (g *Git) LinkedWorktree(ctx context.Context, repo, branch string) (string, bool) {
-	root := resolve(repo)
+	root := Resolve(repo)
 	for _, wt := range g.Worktrees(ctx, repo) {
 		if wt.Branch == branch && wt.Path != root {
 			return wt.Path, true
@@ -295,7 +296,8 @@ func (g *Git) LinkedWorktree(ctx context.Context, repo, branch string) (string, 
 	return "", false
 }
 
-func resolve(path string) string {
+// Resolve returns an absolute path, following symlinks when the path exists.
+func Resolve(path string) string {
 	if path == "" {
 		return ""
 	}

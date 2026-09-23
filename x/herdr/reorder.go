@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/dotfiles"
+	"github.com/lewtec/lewkit/x/git"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -31,7 +32,7 @@ type Options struct {
 	Specs  []RepoBranch
 	Home   string
 	Client *Client
-	Git    *Git
+	Git    *git.Git
 	Status *taskgroup.Status
 }
 
@@ -69,9 +70,9 @@ func Reorder(ctx context.Context, opts Options) (Report, error) {
 	if client == nil {
 		client = &Client{}
 	}
-	git := opts.Git
-	if git == nil {
-		git = &Git{}
+	g := opts.Git
+	if g == nil {
+		g = &git.Git{}
 	}
 	pin := opts.Pin
 	if pin == "" {
@@ -81,15 +82,15 @@ func Reorder(ctx context.Context, opts Options) (Report, error) {
 			return Report{}, err
 		}
 	}
-	if info, ok := git.Info(ctx, pin); ok {
+	if info, ok := g.Info(ctx, pin); ok {
 		pin = info.Toplevel
 	} else {
-		pin = resolve(pin)
+		pin = git.Resolve(pin)
 	}
 	p := &plan{
 		ctx:         ctx,
 		client:      client,
-		git:         git,
+		git:         g,
 		pin:         pin,
 		home:        home,
 		grok:        filepath.Join(home, ".grok", "worktrees"),
@@ -106,7 +107,7 @@ func Reorder(ctx context.Context, opts Options) (Report, error) {
 		}
 	}
 	if len(opts.Specs) > 0 {
-		git.Clear()
+		g.Clear()
 		if err := p.see(); err != nil {
 			return Report{}, err
 		}
@@ -120,7 +121,7 @@ func Reorder(ctx context.Context, opts Options) (Report, error) {
 type plan struct {
 	ctx         context.Context
 	client      *Client
-	git         *Git
+	git         *git.Git
 	pin         string
 	home        string
 	grok        string
@@ -203,13 +204,13 @@ func (p *plan) see() error {
 				raw = cwdByWS[ws.ID]
 			}
 			if raw != "" {
-				ident = resolve(raw)
+				ident = git.Resolve(raw)
 			}
 		}
 		space := p.classify(ws, ident)
 		herdrCO := ""
 		if ws.Worktree != nil && ws.Worktree.Checkout != "" {
-			herdrCO = resolve(ws.Worktree.Checkout)
+			herdrCO = git.Resolve(ws.Worktree.Checkout)
 		}
 		if herdrCO != "" && space.Checkout != "" && herdrCO != space.Checkout {
 			p.printf("33", "  %s: identity %s (herdr bound %s)", ws.Label, space.Checkout, herdrCO)
@@ -244,7 +245,7 @@ func (p *plan) classify(ws Workspace, ident string) Space {
 	info, ok := p.git.Info(p.ctx, ident)
 	var herdrCO string
 	if ws.Worktree != nil && ws.Worktree.Checkout != "" {
-		herdrCO = resolve(ws.Worktree.Checkout)
+		herdrCO = git.Resolve(ws.Worktree.Checkout)
 	}
 	if ok {
 		agrees := herdrCO != "" && herdrCO == info.Toplevel
@@ -266,9 +267,9 @@ func (p *plan) classify(ws Workspace, ident string) Space {
 	if ws.Worktree != nil {
 		checkout := herdrCO
 		if checkout == "" {
-			checkout = resolve(ws.Worktree.Checkout)
+			checkout = git.Resolve(ws.Worktree.Checkout)
 		}
-		root := resolve(ws.Worktree.Root)
+		root := git.Resolve(ws.Worktree.Root)
 		branch, _ := p.git.Branch(p.ctx, checkout)
 		return Space{
 			ID: ws.ID, Label: ws.Label, Number: ws.Number,
@@ -299,7 +300,7 @@ func sessionIdentity(path string) map[string]string {
 	}
 	for _, ws := range doc.Workspaces {
 		if ws.ID != "" && ws.Cwd != "" {
-			out[ws.ID] = resolve(ws.Cwd)
+			out[ws.ID] = git.Resolve(ws.Cwd)
 		}
 	}
 	return out
@@ -348,9 +349,9 @@ type nameRoot struct {
 }
 
 func layoutSlug(path string, roots []string) string {
-	resolved := resolve(path)
+	resolved := git.Resolve(path)
 	for _, root := range roots {
-		rel, err := filepath.Rel(resolve(root), resolved)
+		rel, err := filepath.Rel(git.Resolve(root), resolved)
 		if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
 			continue
 		}
