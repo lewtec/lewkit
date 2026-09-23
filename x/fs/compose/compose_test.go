@@ -202,9 +202,7 @@ func TestAddManyFiles(t *testing.T) {
 		}))
 	}
 	// Each Add used to compare the new path with every stored path.
-	if elapsed := time.Since(started); elapsed > 5*time.Second {
-		t.Fatalf("Add of %d files took %s", count, elapsed)
-	}
+	require.LessOrEqual(t, time.Since(started), 5*time.Second)
 	requirePathConflict(t, tree.Add(path.New("usr/share/icons/theme"), textFile("theme")), "usr/share/icons/theme/0.svg")
 	requirePathConflict(t, tree.Add(path.New("usr"), textFile("usr")), "usr/share/icons/theme/0.svg")
 	requirePathConflict(t, tree.Add(path.New("usr/share/icons/theme/0.svg/extra"), textFile("extra")), "usr/share/icons/theme/0.svg")

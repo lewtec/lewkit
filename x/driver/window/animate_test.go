@@ -48,18 +48,18 @@ func TestAnimatePaintsOnResize(t *testing.T) {
 	case got := <-sizes:
 		require.Equal(t, image.Pt(8, 8), got)
 	case err := <-done:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for first paint")
+		require.FailNow(t, "timeout waiting for first paint")
 	}
 	require.NoError(t, w.Resize(image.Pt(16, 10)))
 	select {
 	case got := <-sizes:
 		require.Equal(t, image.Pt(16, 10), got)
 	case err := <-done:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for resize paint")
+		require.FailNow(t, "timeout waiting for resize paint")
 	}
 	cancel()
 	require.NoError(t, <-done)
@@ -91,9 +91,9 @@ func TestDriveDeliversPointer(t *testing.T) {
 	select {
 	case <-ready:
 	case err := <-done:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for drive")
+		require.FailNow(t, "timeout waiting for drive")
 	}
 	type emitter interface{ Emit(window.Event) }
 	w.(emitter).Emit(window.Pointer{Pos: image.Pt(1, 2), Button: 1, Pressed: true})
@@ -103,9 +103,9 @@ func TestDriveDeliversPointer(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, image.Pt(1, 2), p.Pos)
 	case err := <-done:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout")
+		require.FailNow(t, "timeout")
 	}
 	cancel()
 	require.NoError(t, <-done)
@@ -133,9 +133,9 @@ func TestDriveTicksWhileIdle(t *testing.T) {
 	select {
 	case <-ready:
 	case err := <-done:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for drive")
+		require.FailNow(t, "timeout waiting for drive")
 	}
 	time.Sleep(45 * time.Millisecond)
 	got := ticks.Load()
@@ -166,9 +166,9 @@ func TestDriveKeepsTickingAfterEvent(t *testing.T) {
 	select {
 	case <-ready:
 	case err := <-done:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for drive")
+		require.FailNow(t, "timeout waiting for drive")
 	}
 	type emitter interface{ Emit(window.Event) }
 	w.(emitter).Emit(window.Pointer{Pos: image.Pt(1, 1)})
@@ -202,9 +202,9 @@ func TestDriveTicksDuringEventFlood(t *testing.T) {
 	select {
 	case <-ready:
 	case err := <-done:
-		t.Fatal(err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for drive")
+		require.FailNow(t, "timeout waiting for drive")
 	}
 	type emitter interface{ Emit(window.Event) }
 	em := w.(emitter)

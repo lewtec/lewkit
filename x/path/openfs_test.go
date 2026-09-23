@@ -26,7 +26,7 @@ func TestOpenFSMissing(t *testing.T) {
 	t.Parallel()
 	fsys := fstest.MapFS{}
 	_, err := OpenFS(t.Context(), New("nope"), fsys, func(context.Context, io.Reader) (string, error) {
-		t.Fatal("open must not run")
+		require.FailNow(t, "open must not run")
 		return "", nil
 	})
 	require.ErrorIs(t, err, fs.ErrNotExist)
@@ -38,7 +38,7 @@ func TestOpenFSCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := OpenFS(ctx, New("a.txt"), fsys, func(context.Context, io.Reader) (string, error) {
-		t.Fatal("open must not run")
+		require.FailNow(t, "open must not run")
 		return "", nil
 	})
 	require.ErrorIs(t, err, context.Canceled)

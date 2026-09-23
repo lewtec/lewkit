@@ -11,7 +11,7 @@ func TestGetCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	f := NewFuture(ctx, func(context.Context) (int, error) {
-		t.Fatal("handler must not run")
+		require.FailNow(t, "handler must not run")
 		return 0, nil
 	})
 	_, err := f.Get()

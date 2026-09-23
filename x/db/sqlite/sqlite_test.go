@@ -63,9 +63,7 @@ func TestArgValueOpen(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if n != 1 {
-			t.Fatalf("tx count %d", n)
-		}
+		require.Equal(t, 1, n)
 		return nil
 	})
 	require.NoError(t, err)

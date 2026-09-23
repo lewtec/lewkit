@@ -25,12 +25,12 @@ func TestCreateTimer(t *testing.T) {
 	select {
 	case <-ch:
 	case <-time.After(time.Second):
-		t.Fatal("first tick")
+		require.FailNow(t, "first tick")
 	}
 	select {
 	case <-ch:
 	case <-time.After(time.Second):
-		t.Fatal("second tick")
+		require.FailNow(t, "second tick")
 	}
 	cancel()
 	time.Sleep(5 * time.Millisecond)
@@ -39,9 +39,7 @@ func TestCreateTimer(t *testing.T) {
 		select {
 		case <-ch:
 			n++
-			if n > 8 {
-				t.Fatal("timer kept sending after cancel")
-			}
+			require.LessOrEqual(t, n, 8, "timer kept sending after cancel")
 		default:
 			return
 		}

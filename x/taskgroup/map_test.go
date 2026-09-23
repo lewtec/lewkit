@@ -104,7 +104,7 @@ func TestEach_RunsWithoutResults(t *testing.T) {
 func TestEach_Empty(t *testing.T) {
 	require.NoError(t, WithSession(t.Context(), func(ctx context.Context) error {
 		return Each[int]{Name: "test", Items: nil, Fn: func(context.Context, *Status, int) error {
-			t.Fatal("ran")
+			require.FailNow(t, "ran")
 			return nil
 		}}.Run(ctx)
 	}))

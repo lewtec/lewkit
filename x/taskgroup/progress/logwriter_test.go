@@ -75,7 +75,7 @@ func TestPrintAfterProgramExitReturns(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(time.Second):
-		t.Fatal("print blocked after Program.Run returned")
+		require.FailNow(t, "print blocked after Program.Run returned")
 	}
 }
 

@@ -119,9 +119,7 @@ func TestDispatch(t *testing.T) {
 	got := make([]byte, 4)
 	require.NoError(t, buf.Read(got))
 	have := binary.LittleEndian.Uint32(got)
-	if have != 2 {
-		t.Fatalf("got %d, want 2 (device %s)", have, d.Name())
-	}
+	require.Equal(t, uint32(2), have, d.Name())
 }
 
 func TestRunBufferCount(t *testing.T) {
