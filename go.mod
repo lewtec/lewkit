@@ -14,6 +14,7 @@ require (
 	github.com/ebitengine/purego v0.11.0
 	github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b
 	github.com/getsentry/sentry-go v0.49.0
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jezek/xgb v1.3.1
@@ -63,7 +64,6 @@ require (
 	github.com/git-pkgs/gitignore v1.2.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
-	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/gokrazy/rsync v0.3.3 // indirect
 	github.com/google/cel-go v0.28.0 // indirect
 	github.com/google/renameio/v2 v2.0.2 // indirect

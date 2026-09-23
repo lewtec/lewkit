@@ -103,6 +103,7 @@ templ is later work. It is not an adopted tool in this module.
 | `x/ui/web` | templ templates | value | catalog MAY grow | package MAY be absent until the first template | put templ outside `web` |
 | `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer | own the host; own the engine; call `window.Open` |
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
+| `x/driver/tray` | `Open`, `Tray`, `Icon`, `Item` | host status item | protocol stays here | missing session bus or host is the tray error | import `x/ffi/wasm` |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label` | value | blit stays here | existing blit errors | hold bubbletea types; hold templ; hold transformers |
@@ -149,6 +150,7 @@ templ is later work. It is not an adopted tool in this module.
 | INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/thread/id_unix.go` | an import of `x/ffi/wasm` |
 | INV-26 | `x/driver/window/cocoa` loads frameworks through `x/ffi/native` | cocoa darwin files | an import of `x/ffi/wasm` |
 | INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/thread/main_darwin.go` | an import of `x/ffi/wasm` |
+| INV-28 | `x/driver/tray` does not import `x/ffi/wasm` | `x/driver/tray` | that import |
 
 ## Errors
 
