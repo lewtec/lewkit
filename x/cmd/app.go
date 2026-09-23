@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -44,7 +45,7 @@ func (a App[T]) WantVersion() bool {
 // Setup sets the default slog level, calls Args.Setup when T has that
 // method, and starts --pprof until ctx is done.
 func (a *App[T]) Setup(ctx context.Context) error {
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: a.LogLevel()})))
+	slog.SetDefault(slog.New(logging.NewHandler(os.Stderr, &slog.HandlerOptions{Level: a.LogLevel()})))
 	if s, ok := any(&a.Args).(interface{ Setup() error }); ok {
 		if err := s.Setup(); err != nil {
 			return err

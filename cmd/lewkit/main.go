@@ -14,11 +14,13 @@ import (
 	"github.com/lewtec/lewkit/x/db/generate"
 	"github.com/lewtec/lewkit/x/generate/prelude"
 	"github.com/lewtec/lewkit/x/generate/protobuf"
+	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
 func main() {
 	// x/thread init already locked this goroutine to the process main thread.
+	slog.SetDefault(slog.New(logging.NewHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
 	if err := thread.Run(ctx, run); err != nil {

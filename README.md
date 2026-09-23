@@ -56,6 +56,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `cmd/lewkit/experiments` | Demo commands. Only `cmd/lewkit` imports this package. |
 | `report` | `Reporter`, `RegisterReporter`, `Report`, `Must`. |
 | `report/sentry` | Sentry `Reporter`. |
+| `x/logging` | `NewHandler`. Level letter, message, then `key=value`. Color on a terminal. |
 | `x/cmd` | `Parse`, `App`. Struct fields become commands and flags. This package writes bash completion. |
 | `x/taskgroup` | `Session`, `New`, `Go`, `Map`, `Each`, `List`, `WithSession`, `GoIsolated`. Pools are IO, CPU, and internet. |
 | `x/taskgroup/progress` | Bubbletea view of a `Session`. |
