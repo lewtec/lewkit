@@ -35,6 +35,7 @@ Inherited C (cite the file):
 - `path:x/driver/window`: host window, `Fit`, `Present`, `Animate`.
 - `path:x/ndarray/image`: pack `(h,w,4)` into `image.RGBA`.
 - `path:x/image`: CPU blit and `Label`.
+- `path:x/image/convert`: PNG, JPEG, ICO, and ICNS icon bytes.
 - `path:cmd/lewkit/experiments`: triangle, perlin, compute demos.
 - templ is absent from `go.mod`.
 
@@ -107,6 +108,7 @@ templ is later work. It is not an adopted tool in this module.
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label` | value | blit stays here | existing blit errors | hold bubbletea types; hold templ; hold transformers |
+| `x/image/convert` | `Decode`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | icon bytes stay here | bad bytes are `ErrFormat` | import `x/driver` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan` |

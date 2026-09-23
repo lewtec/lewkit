@@ -15,6 +15,7 @@ import (
 	"github.com/godbus/dbus/v5/prop"
 
 	"github.com/lewtec/lewkit/x/driver/tray"
+	"github.com/lewtec/lewkit/x/image/convert"
 )
 
 const (
@@ -241,7 +242,11 @@ func mustPixmaps(cfg tray.Config) []pixmap {
 }
 
 func iconPixmaps(cfg tray.Config) ([]pixmap, error) {
-	images, err := tray.Rasters(cfg.Icon, tray.LinuxSizes)
+	src, err := tray.Source(cfg.Icon)
+	if err != nil || src == nil {
+		return []pixmap{}, err
+	}
+	images, err := convert.Squares(src, convert.LinuxSizes)
 	if err != nil || len(images) == 0 {
 		return []pixmap{}, err
 	}
@@ -250,7 +255,7 @@ func iconPixmaps(cfg tray.Config) ([]pixmap, error) {
 		out = append(out, pixmap{
 			Width:  int32(img.Bounds().Dx()),
 			Height: int32(img.Bounds().Dy()),
-			Data:   tray.ARGB(img),
+			Data:   convert.ARGB(img),
 		})
 	}
 	return out, nil

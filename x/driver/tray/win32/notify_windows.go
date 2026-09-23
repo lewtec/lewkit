@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/tray"
+	"github.com/lewtec/lewkit/x/image/convert"
 )
 
 const (
@@ -464,9 +465,16 @@ func copyTip(data *notifyIconData, tip string) {
 }
 
 func iconHandle(icon tray.Icon) (uintptr, error) {
-	img, err := tray.Raster(icon, 32)
+	src, err := tray.Source(icon)
 	if err != nil {
 		return 0, err
+	}
+	var img *image.NRGBA
+	if src != nil {
+		img, err = convert.Square(src, 32)
+		if err != nil {
+			return 0, err
+		}
 	}
 	if img == nil {
 		img = image.NewNRGBA(image.Rect(0, 0, 16, 16))

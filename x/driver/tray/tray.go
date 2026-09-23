@@ -17,8 +17,8 @@
 // while Loop is running.
 //
 // Icon accepts an image.Image or the bytes of a PNG, JPEG, ICO, or ICNS.
-// The driver pads, resizes, and converts to the host format. Name is a
-// freedesktop icon name used when Image and Bytes are empty.
+// Decoding and resizing live in [github.com/lewtec/lewkit/x/image/convert].
+// Name is a freedesktop icon name used when Image and Bytes are empty.
 package tray
 
 import (

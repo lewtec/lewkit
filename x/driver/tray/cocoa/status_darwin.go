@@ -12,6 +12,7 @@ import (
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/tray"
 	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -270,15 +271,19 @@ func (item *statusItem) click(id int) {
 }
 
 func setButtonImage(button objc.ID, icon tray.Icon) error {
-	img, err := tray.Raster(icon, 36)
+	src, err := tray.Source(icon)
 	if err != nil {
 		return err
 	}
-	if img == nil {
+	if src == nil {
 		button.Send(selSetImage, objc.ID(0))
 		return nil
 	}
-	raw, err := tray.EncodePNG(img)
+	img, err := convert.Square(src, 36)
+	if err != nil {
+		return err
+	}
+	raw, err := convert.EncodePNG(img)
 	if err != nil {
 		return err
 	}
