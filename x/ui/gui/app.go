@@ -24,7 +24,11 @@ func Open(ctx context.Context, model Model, options Options) error {
 	defer host.Close()
 	evaluator := options.Evaluator
 	if evaluator == nil {
-		evaluator, err = ndarray.Open(ctx)
+		if source, ok := host.(window.EvaluatorSource); ok {
+			evaluator, err = source.Evaluator(ctx)
+		} else {
+			evaluator, err = ndarray.Open(ctx)
+		}
 		if err != nil {
 			return errors.Join(err, host.Close())
 		}

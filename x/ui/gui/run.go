@@ -189,15 +189,8 @@ func (runner *runner) flush(force bool) error {
 	if runner.view == nil {
 		return ErrView
 	}
-	destination := runner.window.Frame()
-	if destination == nil {
-		return window.ErrClosed
-	}
-	err := window.Present(runner.ctx, runner.view, runner.evaluator, destination)
-	if drawErr := runner.window.Draw(); err != nil {
+	if err := window.Show(runner.ctx, runner.window, runner.view, runner.evaluator); err != nil {
 		return err
-	} else if drawErr != nil {
-		return drawErr
 	}
 	runner.hertz = runner.fps.Get()
 	runner.lastSignature = runner.signature
