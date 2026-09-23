@@ -49,7 +49,13 @@ func (c *cpuEvaluator) Program(_ context.Context, kernel *Kernel) (Program, erro
 	if e, ok := c.bound[kernel]; ok {
 		return e, nil
 	}
-	tape, err := lowerCPU(kernel.order, kernel.bufs, kernel.built)
+	order, bufs := kernel.order, kernel.bufs
+	if _, flat, buffers, err := cpuUnroll(kernel.root); err != nil {
+		return nil, err
+	} else if flat != nil {
+		order, bufs = flat, buffers
+	}
+	tape, err := lowerCPU(order, bufs, kernel.built)
 	if err != nil {
 		return nil, err
 	}

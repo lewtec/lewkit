@@ -14,9 +14,6 @@ const (
 	cpuCoord
 	cpuLoad
 	cpuALU
-	cpuGather
-	cpuIndex
-	cpuCarry
 )
 
 type instruction struct {
@@ -38,23 +35,9 @@ type cpuProgram struct {
 	code      []instruction
 	registers int
 	root      int
-	loopCount int
-	loopBegin int
-	loopEnd   int
-	loopInit  int
-	loopIndex int
-	loopCarry int
-	loopBody  int
-	loopOut   int
-	loopChain []stStep
 }
 
 func lowerCPU(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
-	for _, n := range order {
-		if n.kind == kindLoop {
-			return lowerLoop(order, bufs, shape)
-		}
-	}
 	bufIndex := make(map[*buffer]int, len(bufs))
 	for i, b := range bufs {
 		bufIndex[b] = i
@@ -113,146 +96,12 @@ func lowerCPU(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
 			if len(n.sources) > 2 {
 				instr.c = reg[n.sources[2]]
 			}
-		case kindGather:
-			instr.kind = cpuGather
-			instr.source = bufIndex[n.buf]
-			instr.a = reg[n.sources[0]]
 		default:
 			return cpuProgram{}, ErrOp
 		}
 		code = append(code, instr)
 	}
 	return cpuProgram{code: code, registers: len(code), root: reg[order[len(order)-1]]}, nil
-}
-
-func lowerLoop(order []*node, bufs []*buffer, shape Shape) (cpuProgram, error) {
-	loop, prefix, inside, suffix, err := splitLoop(order)
-	if err != nil || loop == nil {
-		return cpuProgram{}, err
-	}
-	bufIndex := make(map[*buffer]int, len(bufs))
-	for i, b := range bufs {
-		bufIndex[b] = i
-	}
-	reg := make(map[*node]int, len(order))
-	for i, n := range order {
-		reg[n] = i
-	}
-	encode := func(n *node) (instruction, error) {
-		instr := instruction{dest: reg[n], dtype: n.dtype}
-		switch n.kind {
-		case kindConst:
-			instr.kind = cpuConst
-			instr.bits = n.bits
-			if len(n.chain) > 0 {
-				instr.chain = n.chain
-			} else if n.viewed() {
-				instr.views = n.tracker.views
-			}
-		case kindCoord:
-			if n.slot < 0 || n.slot >= len(shape) {
-				return instruction{}, ErrAxis
-			}
-			instr.kind = cpuCoord
-			instr.axis = n.slot
-			if len(n.chain) > 0 {
-				instr.chain = n.chain
-			}
-		case kindInput:
-			instr.kind = cpuLoad
-			instr.source = bufIndex[n.buf]
-			if len(n.chain) > 0 {
-				instr.chain = n.chain
-			} else {
-				instr.scalar = len(n.tracker.Shape()) == 0
-				instr.dense = !instr.scalar && n.tracker.Contiguous() && n.tracker.Shape().Equal(shape)
-				if instr.scalar {
-					off, ok, err := n.tracker.At(0)
-					if err != nil || !ok {
-						return instruction{}, ErrIndex
-					}
-					instr.splatOff = off
-				}
-				if !instr.dense && !instr.scalar {
-					instr.views = n.tracker.views
-				}
-			}
-		case kindOp:
-			instr.kind = cpuALU
-			instr.alu = n.op
-			instr.inType = n.sources[0].dtype
-			instr.a = reg[n.sources[0]]
-			if len(n.sources) > 1 {
-				instr.b = reg[n.sources[1]]
-			}
-			if len(n.sources) > 2 {
-				instr.c = reg[n.sources[2]]
-			}
-		case kindGather:
-			instr.kind = cpuGather
-			instr.source = bufIndex[n.buf]
-			instr.a = reg[n.sources[0]]
-		case kindLoopIndex:
-			instr.kind = cpuIndex
-		case kindCarry:
-			instr.kind = cpuCarry
-		default:
-			return instruction{}, ErrOp
-		}
-		return instr, nil
-	}
-	var code []instruction
-	push := func(nodes []*node) error {
-		for _, n := range nodes {
-			instr, err := encode(n)
-			if err != nil {
-				return err
-			}
-			code = append(code, instr)
-		}
-		return nil
-	}
-	if err := push(prefix); err != nil {
-		return cpuProgram{}, err
-	}
-	begin := len(code)
-	if err := push(inside); err != nil {
-		return cpuProgram{}, err
-	}
-	end := len(code)
-	if err := push(suffix); err != nil {
-		return cpuProgram{}, err
-	}
-	indexNode, carryNode := loopEnds(inside)
-	if indexNode == nil || carryNode == nil {
-		return cpuProgram{}, ErrOp
-	}
-	return cpuProgram{
-		code:      code,
-		registers: len(order),
-		root:      reg[order[len(order)-1]],
-		loopCount: loop.slot,
-		loopBegin: begin,
-		loopEnd:   end,
-		loopInit:  reg[loop.sources[0]],
-		loopIndex: reg[indexNode],
-		loopCarry: reg[carryNode],
-		loopBody:  reg[loop.sources[1]],
-		loopOut:   reg[loop],
-		loopChain: loop.chain,
-	}, nil
-}
-
-func loopEnds(inside []*node) (index, carry *node) {
-	for _, n := range inside {
-		switch n.kind {
-		case kindLoopIndex:
-			index = n
-		case kindCarry:
-			carry = n
-		}
-	}
-	return index, carry
 }
 
 type cpuJob struct {
@@ -270,9 +119,6 @@ type cpuScratch struct {
 	registers []uint32
 	coords    []int
 	scratch   []int
-	loopStep  int
-	index     int
-	carry     uint32
 }
 
 var scratchPool = sync.Pool{New: func() any { return &cpuScratch{scratch: make([]int, 8)} }}
@@ -377,26 +223,42 @@ func (j cpuJob) run() {
 
 func (j cpuJob) loop(s *cpuScratch) {
 	for i := j.lo; i < j.hi; i++ {
-		s.index = i
 		unravelInto(j.shape, i, s.coords)
-		if j.program.loopCount > 0 {
-			j.exec(s, j.program.code[:j.program.loopBegin])
-			acc := s.registers[j.program.loopInit]
-			for step := 0; step < j.program.loopCount; step++ {
-				s.loopStep = step
-				s.carry = acc
-				j.exec(s, j.program.code[j.program.loopBegin:j.program.loopEnd])
-				acc = s.registers[j.program.loopBody]
-			}
-			s.registers[j.program.loopOut] = acc
-			if len(j.program.loopChain) > 0 {
-				if _, ok := applyChain(j.program.loopChain, s.coords, &s.scratch); !ok {
-					s.registers[j.program.loopOut] = 0
+		for _, instr := range j.program.code {
+			switch instr.kind {
+			case cpuConst:
+				if len(instr.chain) > 0 {
+					if _, ok := applyChain(instr.chain, s.coords, &s.scratch); !ok {
+						s.registers[instr.dest] = 0
+						break
+					}
+				} else if len(instr.views) > 0 {
+					if _, ok := indexViews(instr.views, s.coords, &s.scratch); !ok {
+						s.registers[instr.dest] = 0
+						break
+					}
 				}
+				s.registers[instr.dest] = instr.bits
+			case cpuCoord:
+				coords := s.coords
+				if len(instr.chain) > 0 {
+					var ok bool
+					coords, ok = chainCoords(instr.chain, s.coords, &s.scratch)
+					if !ok {
+						s.registers[instr.dest] = 0
+						break
+					}
+				}
+				if instr.axis < 0 || instr.axis >= len(coords) {
+					s.registers[instr.dest] = 0
+					break
+				}
+				s.registers[instr.dest] = uint32(int32(coords[instr.axis]))
+			case cpuLoad:
+				s.registers[instr.dest] = instr.load(i, s.coords, j.bufs, &s.scratch)
+			case cpuALU:
+				s.registers[instr.dest] = instr.evalALU(s.registers)
 			}
-			j.exec(s, j.program.code[j.program.loopEnd:])
-		} else {
-			j.exec(s, j.program.code)
 		}
 		root := s.registers[j.program.root]
 		if j.maskRoot {
@@ -409,56 +271,6 @@ func (j cpuJob) loop(s *cpuScratch) {
 			j.output[i] = uint8(root)
 		default:
 			binary.LittleEndian.PutUint32(j.output[i*4:], root)
-		}
-	}
-}
-
-func (j cpuJob) exec(s *cpuScratch, code []instruction) {
-	for _, instr := range code {
-		switch instr.kind {
-		case cpuConst:
-			if len(instr.chain) > 0 {
-				if _, ok := applyChain(instr.chain, s.coords, &s.scratch); !ok {
-					s.registers[instr.dest] = 0
-					continue
-				}
-			} else if len(instr.views) > 0 {
-				if _, ok := indexViews(instr.views, s.coords, &s.scratch); !ok {
-					s.registers[instr.dest] = 0
-					continue
-				}
-			}
-			s.registers[instr.dest] = instr.bits
-		case cpuCoord:
-			coords := s.coords
-			if len(instr.chain) > 0 {
-				var ok bool
-				coords, ok = chainCoords(instr.chain, s.coords, &s.scratch)
-				if !ok {
-					s.registers[instr.dest] = 0
-					continue
-				}
-			}
-			if instr.axis < 0 || instr.axis >= len(coords) {
-				s.registers[instr.dest] = 0
-				continue
-			}
-			s.registers[instr.dest] = uint32(int32(coords[instr.axis]))
-		case cpuLoad:
-			s.registers[instr.dest] = instr.load(s.index, s.coords, j.bufs, &s.scratch)
-		case cpuGather:
-			off := int32(s.registers[instr.a])
-			if instr.source < 0 || instr.source >= len(j.bufs) {
-				s.registers[instr.dest] = 0
-				continue
-			}
-			s.registers[instr.dest] = j.bufs[instr.source].word(int(off))
-		case cpuIndex:
-			s.registers[instr.dest] = uint32(int32(s.loopStep))
-		case cpuCarry:
-			s.registers[instr.dest] = s.carry
-		case cpuALU:
-			s.registers[instr.dest] = instr.evalALU(s.registers)
 		}
 	}
 }
