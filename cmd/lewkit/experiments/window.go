@@ -21,7 +21,6 @@ type Window struct {
 	Perlin   *perlinCmd
 	Compute  *Compute
 	Scroll   *scrollCmd
-	Bars     *barsCmd
 	Notepad  *notepadCmd
 	Counter  *counterCmd
 }

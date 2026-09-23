@@ -161,8 +161,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit experiments window triangle` | RGB triangle, one turn per second. Flags `--width` and `--height`. |
 | `lewkit experiments window perlin` | Animated Perlin noise. Flags `--width` and `--height`. |
 | `lewkit experiments window compute [SHADER]` | Default shader `example.comp`. `SHADER` is a `.spv` or `.comp` path. |
-| `lewkit experiments window scroll` | Rounded translucent boxes in a loop. Flags `--width` and `--height`. |
-| `lewkit experiments window bars` | Same boxes at 1024x1024 on the Vulkan evaluator. |
+| `lewkit experiments window scroll` | 1024x1024 Vulkan benchmark of the scrolling boxes. Flags `--width` and `--height`. |
 | `lewkit experiments window notepad` | An editor. The buffer stays in memory. Flags `--width` and `--height`. |
 | `lewkit experiments window counter` | Two buttons that add and subtract an integer. Flags `--width` and `--height`. |
 
