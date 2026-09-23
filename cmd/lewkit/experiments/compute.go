@@ -7,15 +7,13 @@ import (
 	"fmt"
 	"image"
 	"math"
-	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ffi/native/vulkan"
-	lewimage "github.com/lewtec/lewkit/x/image"
-	"github.com/lewtec/lewkit/x/taskgroup"
+	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
 // Compute is `lewkit experiments window compute`.
@@ -100,88 +98,136 @@ func (c *Compute) runWindow(ctx context.Context) error {
 	if path != "" {
 		title = path
 	}
-	win, err := window.Open(ctx, window.Config{
+	model := &computeModel{device: device, shader: shader, local: local, binds: binds}
+	defer model.Close()
+	return runGUI(ctx, "compute", gui.Options{
 		Title:  title,
 		Width:  c.width.Value(),
 		Height: c.height.Value(),
-	})
-	if err != nil {
-		shader.Close()
-		device.Close()
+	}, model)
+}
+
+type computeModel struct {
+	device         *vulkan.Device
+	shader         *vulkan.Shader
+	pixels, params *vulkan.Buffer
+	frame          *ndarray.Tensor[float32]
+	raw            []byte
+	local, binds   int
+	size           image.Point
+	elapsed        float64
+	frameN         uint32
+	err            error
+}
+
+func (model *computeModel) Init() gui.Cmd { return gui.Tick() }
+
+func (model *computeModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
+	if model == nil || model.err != nil {
+		return model, nil
+	}
+	switch message := msg.(type) {
+	case gui.TickMsg:
+		model.elapsed = message.Elapsed.Seconds()
+		if message.Size.X > 0 && message.Size.Y > 0 {
+			model.size = message.Size
+		}
+		model.err = model.dispatch()
+		return model, gui.Every(message.Period)
+	case window.Resize:
+		if message.Size.X > 0 && message.Size.Y > 0 {
+			model.size = message.Size
+			model.err = model.dispatch()
+		}
+	}
+	return model, nil
+}
+
+func (model *computeModel) View() gui.Node {
+	if model == nil || model.frame == nil {
+		return &gui.Box{}
+	}
+	return &gui.Raster{Pixels: model.frame}
+}
+
+func (model *computeModel) dispatch() error {
+	width, height := model.size.X, model.size.Y
+	if width < 1 || height < 1 || model.device == nil || model.shader == nil {
+		return nil
+	}
+	if model.pixels == nil || len(model.raw) != width*height*4 {
+		if model.pixels != nil {
+			_ = model.pixels.Close()
+			model.pixels = nil
+		}
+		buffer, err := model.device.Buffer(width * height * 4)
+		if err != nil {
+			return err
+		}
+		model.pixels = buffer
+		if model.binds >= 2 && model.params == nil {
+			params, err := model.device.Buffer(16)
+			if err != nil {
+				return err
+			}
+			model.params = params
+		}
+		model.raw = make([]byte, width*height*4)
+		values := make([]float32, width*height*4)
+		frame, err := ndarray.New(values, ndarray.Shape{height, width, 4})
+		if err != nil {
+			return err
+		}
+		model.frame = frame
+	}
+	if model.params != nil {
+		var packed [16]byte
+		binary.LittleEndian.PutUint32(packed[0:], uint32(width))
+		binary.LittleEndian.PutUint32(packed[4:], uint32(height))
+		binary.LittleEndian.PutUint32(packed[8:], math.Float32bits(float32(model.elapsed)))
+		binary.LittleEndian.PutUint32(packed[12:], model.frameN)
+		if err := model.params.Write(packed[:]); err != nil {
+			return err
+		}
+	}
+	buffers := []*vulkan.Buffer{model.pixels}
+	if model.params != nil {
+		buffers = append(buffers, model.params)
+	}
+	groupsX := uint32((width + model.local - 1) / model.local)
+	groupsY := uint32((height + model.local - 1) / model.local)
+	if err := model.device.Run(model.shader, groupsX, groupsY, 1, buffers...); err != nil {
 		return err
 	}
-
-	taskgroup.Go(ctx, "compute", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
-		defer device.Close()
-		defer shader.Close()
-		defer win.Close()
-		var (
-			pixels, params *vulkan.Buffer
-			bw, bh         int
-			raw            []byte
-			frame          uint32
-			fps            event.FPS
-		)
-		defer func() {
-			if pixels != nil {
-				pixels.Close()
-			}
-			if params != nil {
-				params.Close()
-			}
-		}()
-		return window.Animate(ctx, win, 0, func(dst *image.RGBA, elapsed time.Duration) error {
-			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
-			w, h := dst.Rect.Dx(), dst.Rect.Dy()
-			if w < 1 || h < 1 {
-				return nil
-			}
-			if pixels == nil || w != bw || h != bh {
-				if pixels != nil {
-					pixels.Close()
-					pixels = nil
-				}
-				pixels, err = device.Buffer(w * h * 4)
-				if err != nil {
-					return err
-				}
-				if binds >= 2 && params == nil {
-					params, err = device.Buffer(16)
-					if err != nil {
-						return err
-					}
-				}
-				bw, bh = w, h
-				raw = make([]byte, w*h*4)
-			}
-			if params != nil {
-				var p [16]byte
-				binary.LittleEndian.PutUint32(p[0:], uint32(w))
-				binary.LittleEndian.PutUint32(p[4:], uint32(h))
-				binary.LittleEndian.PutUint32(p[8:], math.Float32bits(float32(elapsed.Seconds())))
-				binary.LittleEndian.PutUint32(p[12:], frame)
-				if err := params.Write(p[:]); err != nil {
-					return err
-				}
-			}
-			bufs := []*vulkan.Buffer{pixels}
-			if params != nil {
-				bufs = append(bufs, params)
-			}
-			gx := uint32((w + local - 1) / local)
-			gy := uint32((h + local - 1) / local)
-			if err := device.Run(shader, gx, gy, 1, bufs...); err != nil {
-				return err
-			}
-			if err := pixels.Read(raw); err != nil {
-				return err
-			}
-			lewimage.CopyRGBA(dst, raw)
-			frame++
-			return nil
-		})
-	})
+	if err := model.pixels.Read(model.raw); err != nil {
+		return err
+	}
+	values := model.frame.Buffer()
+	for i, pixel := range model.raw {
+		values[i] = float32(pixel)
+	}
+	model.frameN++
 	return nil
+}
+
+func (model *computeModel) Close() error {
+	if model == nil {
+		return nil
+	}
+	var err error
+	if model.pixels != nil {
+		err = model.pixels.Close()
+	}
+	if model.params != nil {
+		err = errors.Join(err, model.params.Close())
+	}
+	if model.shader != nil {
+		err = errors.Join(err, model.shader.Close())
+	}
+	if model.device != nil {
+		err = errors.Join(err, model.device.Close())
+	}
+	return err
 }
 
 var (

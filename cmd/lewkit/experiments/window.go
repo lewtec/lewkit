@@ -2,15 +2,10 @@ package experiments
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"image"
-	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
-	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
@@ -41,32 +36,15 @@ func (triangleCmd) Description() string {
 }
 
 func (c *triangleCmd) Run(ctx context.Context) error {
-	return runDemo(ctx, c.run)
-}
-
-func (c *triangleCmd) run(ctx context.Context) error {
-	w, err := window.Open(ctx, window.Config{
-		Title:  "lewkit triangle",
-		Width:  c.width.Value(),
-		Height: c.height.Value(),
-	})
+	model, err := newFrameModel(1, triangleDynamic)
 	if err != nil {
 		return err
 	}
-	p, err := newTrianglePainter(ctx)
-	if err != nil {
-		return errors.Join(err, w.Close())
-	}
-	taskgroup.Go(ctx, "triangle", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
-		defer w.Close()
-		defer p.Close()
-		var fps event.FPS
-		return window.Animate(ctx, w, 0, func(dst *image.RGBA, elapsed time.Duration) error {
-			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
-			return p.Draw(ctx, dst, elapsed.Seconds())
-		})
-	})
-	return nil
+	return runGUI(ctx, "triangle", gui.Options{
+		Title:  "lewkit triangle",
+		Width:  c.width.Value(),
+		Height: c.height.Value(),
+	}, model)
 }
 
 type perlinCmd struct {
@@ -108,30 +86,13 @@ func (model *statusModel) View() gui.Node {
 }
 
 func (c *perlinCmd) Run(ctx context.Context) error {
-	return runDemo(ctx, c.run)
-}
-
-func (c *perlinCmd) run(ctx context.Context) error {
-	w, err := window.Open(ctx, window.Config{
-		Title:  "lewkit perlin",
-		Width:  c.width.Value(),
-		Height: c.height.Value(),
-	})
+	model, err := newFrameModel(0.4, perlinDynamic)
 	if err != nil {
 		return err
 	}
-	p, err := newPerlinPainter(ctx)
-	if err != nil {
-		return errors.Join(err, w.Close())
-	}
-	taskgroup.Go(ctx, "perlin", taskgroup.CPU, func(ctx context.Context, st *taskgroup.Status) error {
-		defer w.Close()
-		defer p.Close()
-		var fps event.FPS
-		return window.Animate(ctx, w, 0, func(dst *image.RGBA, elapsed time.Duration) error {
-			st.Update(fmt.Sprintf("%.0f fps", fps.Get()))
-			return p.Draw(ctx, dst, elapsed.Seconds())
-		})
-	})
-	return nil
+	return runGUI(ctx, "perlin", gui.Options{
+		Title:  "lewkit perlin",
+		Width:  c.width.Value(),
+		Height: c.height.Value(),
+	}, model)
 }
