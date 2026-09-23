@@ -119,7 +119,7 @@ type Node struct {
 	Name         string
 	Pool         PoolKind
 	State        State
-	Emoji        string // Drawn in place of the state glyph when set.
+	Emoji        string // Drawn in place of the pool icon when set.
 	Message      string
 	Current      int64
 	Total        int64 // -1 means indeterminate

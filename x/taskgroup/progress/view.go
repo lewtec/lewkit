@@ -129,7 +129,7 @@ func layout(nodes []taskgroup.Node) []treeRow {
 		if hidden < 0 {
 			hidden = 0
 		}
-		out[i] = treeRow{node: n, tree: b.String(), emoji: rowEmoji(n), hidden: hidden}
+		out[i] = treeRow{node: n, tree: b.String(), emoji: taskEmoji(n), hidden: hidden}
 	}
 	return out
 }
@@ -139,7 +139,7 @@ func formatRow(r treeRow, width int) string {
 		width = defaultTermWidth
 	}
 	n := r.node
-	prefix := r.tree + r.emoji + " " + poolEmoji(n.Pool) + " "
+	prefix := r.tree + stateGlyph(n.State) + " " + r.emoji + " "
 	msg := rowMessage(n)
 	if r.hidden > 0 {
 		msg += " +" + strconv.Itoa(r.hidden)
@@ -184,11 +184,11 @@ func percent(n taskgroup.Node) float64 {
 	return float64(n.Current) / float64(n.Total)
 }
 
-func rowEmoji(n taskgroup.Node) string {
+func taskEmoji(n taskgroup.Node) string {
 	if n.Emoji != "" {
 		return n.Emoji
 	}
-	return stateGlyph(n.State)
+	return poolEmoji(n.Pool)
 }
 
 func stateGlyph(st taskgroup.State) string {

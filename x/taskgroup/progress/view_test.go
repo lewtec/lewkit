@@ -48,9 +48,20 @@ func TestLayoutTreePrefixes(t *testing.T) {
 	assert.Equal(t, "│ └ ", rows[2].tree)
 	assert.Equal(t, "└ ", rows[3].tree)
 	assert.Empty(t, rows[4].tree)
-	assert.Equal(t, "▶", rows[0].emoji)
-	assert.Equal(t, "⏸", rows[3].emoji)
-	assert.Equal(t, "✔", rows[4].emoji)
+	assert.Equal(t, "🔧", rows[0].emoji)
+	assert.Equal(t, "🔧", rows[3].emoji)
+	assert.Equal(t, "🔧", rows[4].emoji)
+}
+
+func TestLayoutTaskEmojiOverride(t *testing.T) {
+	rows := layout([]taskgroup.Node{{
+		ID: 1, Name: "tmp", Pool: taskgroup.IO, Emoji: "📁", State: taskgroup.Done,
+	}})
+	require.Len(t, rows, 1)
+	assert.Equal(t, "📁", rows[0].emoji)
+	line := formatRow(rows[0], 80)
+	assert.True(t, strings.HasPrefix(line, "✔ 📁 tmp"), line)
+	assert.NotContains(t, line, "💾")
 }
 
 func TestLayoutHiddenChildren(t *testing.T) {
@@ -73,7 +84,7 @@ func TestFormatRowTreeAndBar(t *testing.T) {
 			Total:   4,
 		},
 		tree:  "├ ",
-		emoji: "▶",
+		emoji: "🧠",
 	}, 80)
 	assert.True(t, strings.HasPrefix(line, "├ ▶ 🧠 build: part 1/4"), line)
 	assert.True(t, strings.HasSuffix(line, plainBar(0.25, barWidth)), line)
@@ -86,11 +97,11 @@ func TestFormatRowTreeAndBar(t *testing.T) {
 func TestFormatRowBarsAlign(t *testing.T) {
 	short := formatRow(treeRow{
 		node:  taskgroup.Node{Name: "a", Pool: taskgroup.CPU, State: taskgroup.Running, Current: 1, Total: 4},
-		emoji: "▶",
+		emoji: "🧠",
 	}, 80)
 	long := formatRow(treeRow{
 		node:  taskgroup.Node{Name: "compile-frontend", Pool: taskgroup.CPU, State: taskgroup.Running, Current: 1, Total: 4},
-		emoji: "▶",
+		emoji: "🧠",
 	}, 80)
 	bar := plainBar(0.25, barWidth)
 	assert.True(t, strings.HasSuffix(short, bar), short)
@@ -109,7 +120,7 @@ func TestFormatRowPendingNoBar(t *testing.T) {
 	line := formatRow(treeRow{
 		node:  taskgroup.Node{Name: "install", Pool: taskgroup.IO, State: taskgroup.Pending},
 		tree:  "└ ",
-		emoji: "⏸",
+		emoji: "💾",
 	}, 80)
 	assert.True(t, strings.HasPrefix(line, "└ ⏸ 💾 install"), line)
 	assert.NotContains(t, line, barFill)
