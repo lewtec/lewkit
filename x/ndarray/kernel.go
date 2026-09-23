@@ -48,7 +48,7 @@ func compile(expr *node) (*Kernel, error) {
 	if needsRewrite(expr, map[*node]bool{}) {
 		expr = rewrite(expr, nil, map[rewriteMemo]*node{})
 	}
-	expr = simplify(expr)
+	expr = optimize(expr)
 	order, bufs, err := flatten(expr)
 	if err != nil {
 		return nil, err
@@ -351,54 +351,6 @@ func flatten(root *node) ([]*node, []*buffer, error) {
 		return nil, nil, err
 	}
 	return order, bufs, nil
-}
-
-func simplify(n *node) *node {
-	return cseFold(n, map[*node]*node{}, map[string]*node{})
-}
-
-func cseFold(n *node, memo map[*node]*node, cse map[string]*node) *node {
-	if n == nil {
-		return n
-	}
-	if m := memo[n]; m != nil {
-		return m
-	}
-	if n.kind != kindOp {
-		memo[n] = n
-		return n
-	}
-	srcs := make([]*node, len(n.sources))
-	same := true
-	for i, s := range n.sources {
-		srcs[i] = cseFold(s, memo, cse)
-		if srcs[i] != s {
-			same = false
-		}
-	}
-	out := n
-	if !same {
-		clone := *n
-		clone.sources = srcs
-		out = &clone
-	}
-	if folded := foldConstOp(out); folded != nil {
-		memo[n] = folded
-		return folded
-	}
-	out = identityOp(out)
-	if out.kind != kindOp {
-		memo[n] = out
-		return out
-	}
-	key := cseKey(out)
-	if hit := cse[key]; hit != nil {
-		memo[n] = hit
-		return hit
-	}
-	cse[key] = out
-	memo[n] = out
-	return out
 }
 
 func cseKey(n *node) string {
