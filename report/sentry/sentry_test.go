@@ -7,6 +7,7 @@ import (
 	"time"
 
 	sdk "github.com/getsentry/sentry-go"
+	"github.com/stretchr/testify/require"
 )
 
 type captureTransport struct {
@@ -27,18 +28,14 @@ func reporterWithTransport(t *testing.T, tr sdk.Transport) *Reporter {
 		Dsn:       "https://public@example.com/1",
 		Transport: tr,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return &Reporter{hub: sdk.NewHub(client, sdk.NewScope())}
 }
 
 func TestNewRejectsBadDSN(t *testing.T) {
 	t.Parallel()
 	_, err := New("not-a-dsn")
-	if err == nil {
-		t.Fatal("New(not-a-dsn) = nil error")
-	}
+	require.Error(t, err)
 }
 
 func TestReport(t *testing.T) {
@@ -46,23 +43,12 @@ func TestReport(t *testing.T) {
 	tr := &captureTransport{}
 	r := reporterWithTransport(t, tr)
 
-	if err := r.Report(nil); err != nil {
-		t.Fatalf("Report(nil) = %v", err)
-	}
-	if n := len(tr.events); n != 0 {
-		t.Fatalf("Report(nil) sent %d events", n)
-	}
+	require.NoError(t, r.Report(nil))
+	require.Empty(t, tr.events)
 
-	if err := r.Report(io.EOF); err != nil {
-		t.Fatalf("Report(EOF) = %v", err)
-	}
-	if n := len(tr.events); n != 1 {
-		t.Fatalf("Report(EOF) sent %d events, want 1", n)
-	}
-	got := exceptionValue(tr.events[0])
-	if got != io.EOF.Error() {
-		t.Fatalf("event exception = %q, want %q", got, io.EOF.Error())
-	}
+	require.NoError(t, r.Report(io.EOF))
+	require.Len(t, tr.events, 1)
+	require.Equal(t, io.EOF.Error(), exceptionValue(tr.events[0]))
 }
 
 func exceptionValue(e *sdk.Event) string {

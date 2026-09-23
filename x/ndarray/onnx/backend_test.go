@@ -55,7 +55,7 @@ func TestNodeHarness(t *testing.T) {
 			case StatusFailed:
 				t.Logf("FAIL: %s", result.Detail)
 				if strings.HasPrefix(c.name, "generated_") {
-					t.Fatal(result.Detail)
+					require.FailNow(t, result.Detail)
 				}
 			}
 		})

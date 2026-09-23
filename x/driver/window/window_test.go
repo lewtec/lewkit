@@ -90,7 +90,7 @@ func TestSwapBlit(t *testing.T) {
 	assert.Equal(t, 1, called)
 	require.NoError(t, buf.Close())
 	assert.ErrorIs(t, window.SwapBlit(buf, func() error {
-		t.Fatal("blit on closed buffer")
+		require.FailNow(t, "blit on closed buffer")
 		return nil
 	}), window.ErrClosed)
 }
@@ -137,7 +137,7 @@ func TestSetWantEmitsResize(t *testing.T) {
 	window.SetWant(buf, &mu, &want, 10, 12)
 	select {
 	case ev := <-ch:
-		t.Fatalf("unexpected event %v", ev)
+		require.FailNow(t, "unexpected event", ev)
 	default:
 	}
 }

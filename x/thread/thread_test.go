@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDoFromOtherGoroutine(t *testing.T) {
@@ -50,7 +51,7 @@ func TestGoReturnsWhileLoopBusy(t *testing.T) {
 		select {
 		case <-done:
 		case <-time.After(time.Second):
-			t.Fatal("Go blocked while Loop busy")
+			require.FailNow(t, "Go blocked while Loop busy")
 		}
 	})
 }
@@ -74,7 +75,7 @@ func TestEnqueueWhenJobsFull(t *testing.T) {
 		select {
 		case <-done:
 		case <-time.After(time.Second):
-			t.Fatal("Enqueue blocked while Loop busy")
+			require.FailNow(t, "Enqueue blocked while Loop busy")
 		}
 	})
 }

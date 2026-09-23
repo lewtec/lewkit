@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type closeCount struct{ n int }
@@ -21,9 +23,8 @@ func (c *closeCount) Close() error {
 func TestErrorReader(t *testing.T) {
 	r := ErrorReader{Err: io.ErrUnexpectedEOF}
 	n, err := r.Read(make([]byte, 8))
-	if n != 0 || err != io.ErrUnexpectedEOF {
-		t.Fatalf("Read() = %d, %v", n, err)
-	}
+	require.Equal(t, 0, n)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 }
 
 func TestCloseOnCleanup(t *testing.T) {
@@ -31,9 +32,7 @@ func TestCloseOnCleanup(t *testing.T) {
 	t.Run("inner", func(t *testing.T) {
 		CloseOnCleanup(t, &c)
 	})
-	if c.n != 1 {
-		t.Fatalf("closed %d times, want 1", c.n)
-	}
+	require.Equal(t, 1, c.n)
 }
 
 func TestCollect(t *testing.T) {
@@ -46,78 +45,54 @@ func TestCollect(t *testing.T) {
 		}
 	}
 	got := Collect(t, seq)
-	if len(got) != 2 || got[0] != 1 || got[1] != 2 {
-		t.Fatalf("Collect() = %v, want [1 2]", got)
-	}
+	require.Equal(t, []int{1, 2}, got)
 }
 
 func TestStdout(t *testing.T) {
 	got := Stdout(t, func() {
 		_, err := io.WriteString(os.Stdout, "hello")
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	})
-	if got != "hello" {
-		t.Fatalf("Stdout() = %q, want %q", got, "hello")
-	}
-	if os.Stdout == nil {
-		t.Fatal("os.Stdout is nil after Stdout")
-	}
+	require.Equal(t, "hello", got)
+	require.NotNil(t, os.Stdout)
 }
 
 func TestStdoutLarge(t *testing.T) {
 	want := strings.Repeat("x", 1<<20)
 	got := Stdout(t, func() {
 		_, err := io.WriteString(os.Stdout, want)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	})
-	if got != want {
-		t.Fatalf("Stdout() len = %d, want %d", len(got), len(want))
-	}
+	require.Equal(t, want, got)
 }
 
 func TestStderr(t *testing.T) {
 	got := Stderr(t, func() {
 		_, err := io.WriteString(os.Stderr, "err")
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	})
-	if got != "err" {
-		t.Fatalf("Stderr() = %q, want %q", got, "err")
-	}
+	require.Equal(t, "err", got)
 }
 
 func TestSlogRestores(t *testing.T) {
 	prev := slog.Default()
 	t.Run("inner", func(t *testing.T) {
 		DiscardSlog(t)
-		if slog.Default() == prev {
-			t.Fatal("DiscardSlog left the previous default")
-		}
+		require.NotEqual(t, prev, slog.Default())
 	})
-	if slog.Default() != prev {
-		t.Fatal("slog.Default was not restored")
-	}
+	require.Equal(t, prev, slog.Default())
 }
 
 func TestSlogCaptures(t *testing.T) {
 	var buf bytes.Buffer
 	Slog(t, slog.NewTextHandler(&buf, nil))
 	slog.Info("ping")
-	if !strings.Contains(buf.String(), "ping") {
-		t.Fatalf("log = %q, want ping", buf.String())
-	}
+	require.Contains(t, buf.String(), "ping")
 }
 
 func TestNeedFindsSh(t *testing.T) {
 	p := Need(t, "sh")
-	if !filepath.IsAbs(p) {
-		t.Fatalf("Need(sh) = %q, want absolute", p)
-	}
+	require.True(t, filepath.IsAbs(p))
 }
 
 func TestNeedSkipsMissing(t *testing.T) {
@@ -129,9 +104,8 @@ func TestNeedSkipsMissing(t *testing.T) {
 	t.Run("missing", func(t *testing.T) {
 		inner = t
 		Need(t, missing)
-		t.Fatal("Need should have skipped")
+		require.FailNow(t, "Need should have skipped")
 	})
-	if inner == nil || !inner.Skipped() {
-		t.Fatal("subtest did not skip")
-	}
+	require.NotNil(t, inner)
+	require.True(t, inner.Skipped())
 }

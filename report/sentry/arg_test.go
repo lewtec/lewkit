@@ -1,33 +1,27 @@
 package sentry
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestArgParse(t *testing.T) {
 	t.Parallel()
 	var a Arg
-	if err := a.Parse("https://public@example.com/1"); err != nil {
-		t.Fatal(err)
-	}
-	if a.Reporter == nil {
-		t.Fatal("Parse did not hold a reporter")
-	}
+	require.NoError(t, a.Parse("https://public@example.com/1"))
+	require.NotNil(t, a.Reporter)
 }
 
 func TestArgParseEmpty(t *testing.T) {
 	t.Parallel()
 	var a Arg
-	if err := a.Parse(""); err != nil {
-		t.Fatal(err)
-	}
-	if err := a.Setup(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, a.Parse(""))
+	require.NoError(t, a.Setup())
 }
 
 func TestArgParseBadDSN(t *testing.T) {
 	t.Parallel()
 	var a Arg
-	if err := a.Parse("not-a-dsn"); err == nil {
-		t.Fatal("Parse(not-a-dsn) = nil error")
-	}
+	require.Error(t, a.Parse("not-a-dsn"))
 }

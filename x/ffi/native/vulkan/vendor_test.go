@@ -1,6 +1,10 @@
 package vulkan
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestVendorFrom(t *testing.T) {
 	tests := []struct {
@@ -48,24 +52,16 @@ func TestDeviceTypeFrom(t *testing.T) {
 }
 
 func TestDeviceTypeString(t *testing.T) {
-	if DeviceTypeDedicated.String() != "dedicated" {
-		t.Fatalf("DeviceTypeDedicated.String() = %q", DeviceTypeDedicated.String())
-	}
-	if DeviceTypeSoftware.Weight() != 0 || DeviceTypeDedicated.Weight() != 70 {
-		t.Fatalf("weights software=%d dedicated=%d", DeviceTypeSoftware.Weight(), DeviceTypeDedicated.Weight())
-	}
-	if DeviceTypeDedicated.Uint32() != 2 {
-		t.Fatalf("DeviceTypeDedicated.Uint32() = %d", DeviceTypeDedicated.Uint32())
-	}
+	require.Equal(t, "dedicated", DeviceTypeDedicated.String())
+	require.Equal(t, 0, DeviceTypeSoftware.Weight())
+	require.Equal(t, 70, DeviceTypeDedicated.Weight())
+	require.Equal(t, uint32(2), DeviceTypeDedicated.Uint32())
 }
 
 func TestParseDeviceType(t *testing.T) {
 	got, err := ParseDeviceType("dedicated")
-	if err != nil || got != DeviceTypeDedicated {
-		t.Fatalf("ParseDeviceType(dedicated) = %v, %v", got, err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, DeviceTypeDedicated, got)
 	_, err = ParseDeviceType("discrete")
-	if err == nil {
-		t.Fatal("ParseDeviceType(discrete) succeeded")
-	}
+	require.Error(t, err)
 }

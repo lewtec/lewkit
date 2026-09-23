@@ -217,7 +217,7 @@ func TestWithSession_Canceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	err := WithSession(ctx, func(context.Context) error {
-		t.Fatal("fn ran")
+		require.FailNow(t, "fn ran")
 		return nil
 	})
 	require.ErrorIs(t, err, context.Canceled)

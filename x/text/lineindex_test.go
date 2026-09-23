@@ -2,6 +2,8 @@ package text
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLineAt(t *testing.T) {
@@ -128,8 +130,7 @@ func TestNewLineIndexBytesMatchesString(t *testing.T) {
 	for off := 0; off <= len(src)+1; off++ {
 		lb, cb := fromBytes.LineColumnAt(off)
 		ls, cs := fromString.LineColumnAt(off)
-		if lb != ls || cb != cs {
-			t.Fatalf("off %d: bytes=(%d,%d) string=(%d,%d)", off, lb, cb, ls, cs)
-		}
+		require.Equal(t, ls, lb, "off %d line", off)
+		require.Equal(t, cs, cb, "off %d column", off)
 	}
 }

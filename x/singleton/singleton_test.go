@@ -13,7 +13,7 @@ func TestGetContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	s := NewSingleton(func(context.Context) (int, error) {
-		t.Fatal("handler must not run")
+		require.FailNow(t, "handler must not run")
 		return 0, nil
 	})
 	_, err := s.GetContext(ctx)
