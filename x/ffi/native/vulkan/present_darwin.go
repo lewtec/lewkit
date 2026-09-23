@@ -5,6 +5,7 @@ package vulkan
 import (
 	"fmt"
 	"sync"
+	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/ffi/native"
@@ -81,9 +82,11 @@ func openMetalWindow(width, height int, title string) (hostSurface, error) {
 	view.Send(objc.RegisterName("setLayer:"), layer)
 	view.Send(objc.RegisterName("setWantsLayer:"), true)
 	wnd.Send(objc.RegisterName("center"))
+	wnd.Send(objc.RegisterName("orderFrontRegardless"))
 	wnd.Send(objc.RegisterName("makeKeyAndOrderFront:"), objc.ID(0))
+	wnd.Send(objc.RegisterName("display"))
 	app.Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
-	pumpApp(app)
+	pumpApp()
 	return &metalHost{wnd: wnd, layer: layer}, nil
 }
 
@@ -100,7 +103,7 @@ func nsApp() (objc.ID, error) {
 		app = objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 		app.Send(objc.RegisterName("setActivationPolicy:"), 0)
 		app.Send(objc.RegisterName("finishLaunching"))
-		thread.OnIdle(func() { pumpApp(app) })
+		thread.OnIdle(pumpApp)
 	})
 	if err != nil {
 		return 0, err
@@ -111,20 +114,34 @@ func nsApp() (objc.ID, error) {
 	return app, nil
 }
 
-func pumpApp(app objc.ID) {
-	if app == 0 || !thread.ProcessMain() {
+var (
+	cfOnce             sync.Once
+	cfRunLoopRunInMode func(mode uintptr, seconds float64, returnAfter bool) int32
+	cfDefaultMode      uintptr
+)
+
+func pumpApp() {
+	if !thread.ProcessMain() {
 		return
 	}
-	mode := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "NSDefaultRunLoopMode")
-	date := objc.ID(objc.GetClass("NSDate")).Send(objc.RegisterName("distantPast"))
-	for {
-		ev := app.Send(objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:"), ^uintptr(0), date, mode, true)
-		if ev == 0 {
-			break
+	cfOnce.Do(func() {
+		lib, err := native.Open("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", native.Global|native.Lazy)
+		if err != nil {
+			return
 		}
-		app.Send(objc.RegisterName("sendEvent:"), ev)
+		native.Func(lib, "CFRunLoopRunInMode", &cfRunLoopRunInMode)
+		addr, err := native.Symbol(lib, "kCFRunLoopDefaultMode")
+		if err != nil || addr == 0 {
+			return
+		}
+		cfDefaultMode = *(*uintptr)(unsafe.Pointer(addr))
+	})
+	if cfRunLoopRunInMode == nil || cfDefaultMode == 0 {
+		return
 	}
-	app.Send(objc.RegisterName("updateWindows"))
+	// Zero seconds: drain what AppKit already queued and return. A nil
+	// NSDate in nextEventMatchingMask blocks the main thread forever.
+	cfRunLoopRunInMode(cfDefaultMode, 0, false)
 }
 
 func (h *metalHost) create(d *Device, w *wsi) (uint64, error) {
