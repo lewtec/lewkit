@@ -1,4 +1,4 @@
-package sakuracss
+package htmx
 
 import (
 	"bytes"
@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStylesheet(t *testing.T) {
+func TestLoad(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	require.NoError(t, Stylesheet().Render(t.Context(), &buf))
+	require.NoError(t, Load().Render(t.Context(), &buf))
 	require.Contains(t, buf.String(), Path)
 }

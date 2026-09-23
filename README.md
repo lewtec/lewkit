@@ -70,7 +70,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/profile` | `Directory`, `Address`, `Handler`. pprof to a directory or HTTP. |
 | `x/http/middleware` | `SPA`. Serves an `fs.FS` with the goftpd SPA rules. A miss goes to the next handler. |
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
-| `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Script`. `jquery` and `tailwindcss` match this shape. `sakuracss` renders `Stylesheet`. |
+| `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Load`. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
 | `x/release` | `Version`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
