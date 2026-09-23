@@ -112,6 +112,10 @@ Inherited C (cite the file):
 | `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd` | libvulkan binding | compute subset stays here | existing vulkan errors | import `x/ffi/wasm` |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
 | `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
+| `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/ffi/native/webkit` | `Load` | WebKit.framework, dlopen | loader stays here | missing framework is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
@@ -148,6 +152,10 @@ Inherited C (cite the file):
 | INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/thread/id_unix.go` | an import of `x/ffi/wasm` |
 | INV-26 | `x/driver/window/cocoa` loads frameworks through `x/ffi/native` | cocoa darwin files | an import of `x/ffi/wasm` |
 | INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/thread/main_darwin.go` | an import of `x/ffi/wasm` |
+| INV-28 | `x/ffi/native/webkitgtk` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
+| INV-31 | `x/ffi/native/webkit` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
+| INV-29 | `x/driver/webview` does not import `x/ffi/native` | `x/driver/webview` | that import |
+| INV-30 | `Open` does not listen on a socket. The page is memory or `fs.FS`. Script messages are the Go bridge | `x/driver/webview` | `net.Listen`; a loopback URL |
 
 ## Errors
 

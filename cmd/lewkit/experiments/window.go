@@ -23,6 +23,7 @@ type Window struct {
 	Scroll   *scrollCmd
 	Notepad  *notepadCmd
 	Counter  *counterCmd
+	Webview  *webviewCmd
 }
 
 func (Window) Description() string {

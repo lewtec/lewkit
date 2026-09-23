@@ -19,4 +19,6 @@ func TestWindowUsage(t *testing.T) {
 	assert.Contains(t, text, "rounded")
 	assert.Contains(t, text, "notepad")
 	assert.Contains(t, text, "counter")
+	assert.Contains(t, text, "webview")
+	assert.Contains(t, text, "in-process handler")
 }
