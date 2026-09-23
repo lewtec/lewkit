@@ -1,4 +1,4 @@
-package gpu
+package vulkanwindow
 
 import (
 	"github.com/lewtec/lewkit/x/driver"

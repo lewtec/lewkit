@@ -8,8 +8,8 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/ndeval"
 	_ "github.com/lewtec/lewkit/x/driver/vulkan"
 	_ "github.com/lewtec/lewkit/x/driver/window/cocoa"
-	_ "github.com/lewtec/lewkit/x/driver/window/gpu"
 	_ "github.com/lewtec/lewkit/x/driver/window/mem"
+	_ "github.com/lewtec/lewkit/x/driver/window/vulkanwindow"
 	_ "github.com/lewtec/lewkit/x/driver/window/win32"
 	_ "github.com/lewtec/lewkit/x/driver/window/x11"
 )

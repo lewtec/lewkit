@@ -1,9 +1,11 @@
-package gpu
+package vulkanwindow
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
+	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/ndeval"
@@ -12,13 +14,19 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
+// ID is the driver registry id. gui.Open asks for this id. window.Open does not.
+const ID = "vulkan_window"
+
 type factory struct{}
 
-func (factory) ID() string   { return "window_gpu" }
-func (factory) Name() string { return "Vulkan" }
+func (factory) ID() string   { return ID }
+func (factory) Name() string { return "Vulkan window" }
 func (factory) Weight() int  { return 10 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
+	if runtime.GOOS != "linux" {
+		return fmt.Errorf("%w: vulkan_window needs an X11 surface", driver.ErrIncompatible)
+	}
 	return driver.RequireEnv(ctx, "DISPLAY")
 }
 
@@ -26,7 +34,7 @@ func (factory) New(context.Context) (window.Driver, error) { return opener{}, ni
 
 type opener struct{}
 
-// Open opens a Vulkan swapchain window. It is not the default host window.
+// Open opens the swapchain window. gui.Open uses it when this driver is available.
 func Open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	return opener{}.Open(ctx, cfg)
 }

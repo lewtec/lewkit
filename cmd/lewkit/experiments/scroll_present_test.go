@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/driver/window/gpu"
+	"github.com/lewtec/lewkit/x/driver/window/vulkanwindow"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ import (
 func BenchmarkScrollPresent(b *testing.B) {
 	const width, height = 1024, 1024
 	ctx := b.Context()
-	host, err := gpu.Open(ctx, window.Config{Title: "lewkit scroll", Width: width, Height: height})
+	host, err := vulkanwindow.Open(ctx, window.Config{Title: "lewkit scroll", Width: width, Height: height})
 	if err != nil {
 		b.Skip(err)
 	}
