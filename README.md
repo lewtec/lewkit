@@ -149,7 +149,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes stdout. `generate protobuf` takes `--package` when the file has no `go_package`.
 
-`lewkit herdr reorder` reads the running Herdr session. Each `REPO:BRANCH` ensures a main workspace and a linked worktree at `~/.grok/worktrees/<slug>/<branch>`. A slash in the branch is a hyphen in the directory name. The dotfiles root from `x/dotfiles` sorts first.
+`lewkit herdr reorder` reads the running Herdr session. Each `REPO:BRANCH` ensures a main workspace and a linked worktree at `~/.grok/worktrees/<slug>/<branch>`. A slash in the branch is a hyphen in the directory name. The dotfiles root from `x/dotfiles` sorts first. Steps log through slog and the progress view. The final order is a progress tree.
 
 ### Demos
 

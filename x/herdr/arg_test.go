@@ -57,9 +57,9 @@ func TestOrderPinThenGroups(t *testing.T) {
 	}
 	assert.Equal(t, []string{"pin", "pinwt", "main", "wt", "dir"}, ids)
 	assert.Equal(t, "this checkout first; on main/master", p.criterion(got[0]))
-	assert.Equal(t, "worktree", kindOf(got[1]))
-	assert.Equal(t, "repo", kindOf(got[2]))
-	assert.Equal(t, "dir", kindOf(got[4]))
+	assert.Equal(t, "worktree", Kind(got[1]))
+	assert.Equal(t, "repo", Kind(got[2]))
+	assert.Equal(t, "dir", Kind(got[4]))
 }
 
 func TestLayoutSlugAndMatch(t *testing.T) {

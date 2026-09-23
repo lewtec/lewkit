@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/dotfiles"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 var (
@@ -23,15 +24,21 @@ var (
 )
 
 // Options selects the checkout that sorts first and the REPO:BRANCH rows to ensure.
-// An empty Pin uses the dotfiles root. Out receives the progress log.
-// Home defaults to the user home directory.
+// An empty Pin uses the dotfiles root. Home defaults to the user home directory.
+// Status, when set, receives the phase name for a taskgroup progress view.
 type Options struct {
 	Pin    string
 	Specs  []RepoBranch
-	Out    io.Writer
 	Home   string
 	Client *Client
 	Git    *Git
+	Status *taskgroup.Status
+}
+
+// Report is the workspace order after a reorder pass.
+type Report struct {
+	Pin   string
+	Order []Space
 }
 
 // Space is one workspace after git and layout classification.
@@ -49,18 +56,14 @@ type Space struct {
 }
 
 // Reorder ensures each spec, then nests, parks, relabels, and sorts workspaces.
-func Reorder(ctx context.Context, opts Options) error {
+func Reorder(ctx context.Context, opts Options) (Report, error) {
 	home := opts.Home
 	if home == "" {
 		var err error
 		home, err = os.UserHomeDir()
 		if err != nil {
-			return err
+			return Report{}, err
 		}
-	}
-	out := opts.Out
-	if out == nil {
-		out = io.Discard
 	}
 	client := opts.Client
 	if client == nil {
@@ -75,7 +78,7 @@ func Reorder(ctx context.Context, opts Options) error {
 		var err error
 		pin, err = dotfiles.Root(home)
 		if err != nil {
-			return err
+			return Report{}, err
 		}
 	}
 	if info, ok := git.Info(ctx, pin); ok {
@@ -92,24 +95,26 @@ func Reorder(ctx context.Context, opts Options) error {
 		grok:        filepath.Join(home, ".grok", "worktrees"),
 		roots:       []string{filepath.Join(home, ".grok", "worktrees"), filepath.Join(home, ".herdr", "worktrees")},
 		sessionFile: filepath.Join(home, ".config", "herdr", "session.json"),
-		out:         out,
-		color:       wantColor(out),
+		status:      opts.Status,
 	}
 	if err := p.see(); err != nil {
-		return err
+		return Report{}, err
 	}
 	for _, spec := range opts.Specs {
 		if err := p.ensure(spec); err != nil {
-			return err
+			return Report{}, err
 		}
 	}
 	if len(opts.Specs) > 0 {
 		git.Clear()
 		if err := p.see(); err != nil {
-			return err
+			return Report{}, err
 		}
 	}
-	return p.towards()
+	if err := p.towards(); err != nil {
+		return Report{}, err
+	}
+	return Report{Pin: p.pin, Order: p.order()}, nil
 }
 
 type plan struct {
@@ -121,36 +126,31 @@ type plan struct {
 	grok        string
 	roots       []string
 	sessionFile string
-	out         io.Writer
-	color       bool
+	status      *taskgroup.Status
 	spaces      []Space
 	raw         []Workspace
 }
 
-func (p *plan) printf(code, format string, args ...any) {
-	text := fmt.Sprintf(format, args...)
-	if code != "" && p.color {
-		text = "\033[" + code + "m" + text + "\033[0m"
+func (p *plan) phase(name string) {
+	if p.status != nil {
+		p.status.Update(name)
 	}
-	fmt.Fprintln(p.out, text)
 }
 
-func wantColor(w io.Writer) bool {
-	if os.Getenv("NO_COLOR") != "" {
-		return false
+func (p *plan) printf(code, format string, args ...any) {
+	text := strings.TrimPrefix(fmt.Sprintf(format, args...), "+ ")
+	switch code {
+	case "33":
+		slog.WarnContext(p.ctx, text)
+	case "2":
+		slog.DebugContext(p.ctx, text)
+	default:
+		slog.InfoContext(p.ctx, text)
 	}
-	if os.Getenv("FORCE_COLOR") != "" {
-		return true
-	}
-	f, ok := w.(*os.File)
-	if !ok {
-		return false
-	}
-	st, err := f.Stat()
-	return err == nil && st.Mode()&os.ModeCharDevice != 0
 }
 
 func (p *plan) see() error {
+	p.phase("perceive")
 	p.printf("36", "+ herdr workspace list")
 	workspaces, err := p.client.Workspaces(p.ctx)
 	if err != nil {
@@ -415,7 +415,7 @@ func (p *plan) towards() error {
 		break
 	}
 	wanted := p.order()
-	p.show(wanted)
+	slog.InfoContext(p.ctx, "workspace order", "count", len(wanted))
 	return p.sort(wanted)
 }
 
@@ -467,6 +467,7 @@ func (p *plan) openMain(root string, group []Space) (string, bool) {
 }
 
 func (p *plan) nest() bool {
+	p.phase("nest")
 	groups := map[string][]Space{}
 	for _, space := range p.spaces {
 		if space.RepoRoot != "" {
@@ -543,6 +544,7 @@ func (p *plan) nest() bool {
 }
 
 func (p *plan) park() bool {
+	p.phase("park")
 	acted := false
 	seen := map[string]struct{}{}
 	for _, space := range p.spaces {
@@ -581,7 +583,7 @@ func (p *plan) parkOne(space Space) bool {
 	if dirty {
 		p.printf("36", "+ git -C %s stash push -u -m %s", root, msg)
 		if err := p.git.Run(p.ctx, root, "stash", "push", "-u", "-m", msg); err != nil {
-			fmt.Fprintln(p.out, err.Error())
+			slog.WarnContext(p.ctx, "git", "err", err)
 			p.printf("33", "  %s: stash failed, skip park", space.Label)
 			return false
 		}
@@ -597,7 +599,7 @@ func (p *plan) parkOne(space Space) bool {
 		}
 		p.printf("36", "+ git -C %s worktree add -f %s %s", root, wt, branch)
 		if err := p.git.Run(p.ctx, root, "worktree", "add", "-f", wt, branch); err != nil {
-			fmt.Fprintln(p.out, err.Error())
+			slog.WarnContext(p.ctx, "git", "err", err)
 			p.git.Clear()
 			if dirty {
 				_ = p.git.Run(p.ctx, root, "stash", "pop")
@@ -622,7 +624,7 @@ func (p *plan) parkOne(space Space) bool {
 	}
 	p.printf("36", "+ git -C %s checkout %s", root, def)
 	if err := p.git.Run(p.ctx, root, "checkout", def); err != nil {
-		fmt.Fprintln(p.out, err.Error())
+		slog.WarnContext(p.ctx, "git", "err", err)
 		p.git.Clear()
 		p.printf("33", "  %s: checkout %s failed", space.Label, def)
 		if dirty {
@@ -635,7 +637,7 @@ func (p *plan) parkOne(space Space) bool {
 	if dirty {
 		p.printf("36", "+ git -C %s stash pop", wt)
 		if err := p.git.Run(p.ctx, wt, "stash", "pop"); err != nil {
-			fmt.Fprintln(p.out, err.Error())
+			slog.WarnContext(p.ctx, "git", "err", err)
 			p.printf("33", "  stash pop in %s failed; stash kept", wt)
 		} else {
 			p.printf("32", "  restored dirty work in %s", branch)
@@ -645,6 +647,7 @@ func (p *plan) parkOne(space Space) bool {
 }
 
 func (p *plan) relabel() bool {
+	p.phase("rename")
 	acted := false
 	for i := range p.spaces {
 		space := &p.spaces[i]
@@ -727,20 +730,8 @@ func (p *plan) criterion(space Space) string {
 	}
 }
 
-func (p *plan) kind(space Space) (string, string) {
-	switch {
-	case space.Checkout != "" && space.Checkout == p.pin:
-		return kindOf(space), "1;36"
-	case space.Linked:
-		return kindOf(space), "35"
-	case space.RepoRoot != "":
-		return kindOf(space), "32"
-	default:
-		return kindOf(space), "33"
-	}
-}
-
-func kindOf(space Space) string {
+// Kind is repo, worktree, or dir.
+func Kind(space Space) string {
 	if space.Linked {
 		return "worktree"
 	}
@@ -750,81 +741,13 @@ func kindOf(space Space) string {
 	return "dir"
 }
 
-func (p *plan) show(wanted []Space) {
-	byID := map[string]Workspace{}
-	for _, ws := range p.raw {
-		byID[ws.ID] = ws
-	}
-	p.printf("1", "order:")
-	rows := make([]tableRow, 0, len(wanted))
-	for i, space := range wanted {
-		kind, color := p.kind(space)
-		was := byID[space.ID].Number
-		moved := ""
-		if was != i+1 {
-			moved = fmt.Sprintf("was %d", was)
-		}
-		labelColor := color
-		if space.Checkout != "" && space.Checkout == p.pin {
-			labelColor = "1;36"
-		}
-		movedColor := ""
-		if moved != "" {
-			movedColor = "33"
-		}
-		rows = append(rows, tableRow{
-			cells: [6]string{fmt.Sprint(i + 1), space.Label, kind, space.Source, p.criterion(space), moved},
-			codes: [6]string{color, labelColor, color, "2", "2", movedColor},
-		})
-	}
-	printTable(p, rows)
-}
-
-type tableRow struct {
-	cells [6]string
-	codes [6]string
-}
-
-func printTable(p *plan, rows []tableRow) {
-	if len(rows) == 0 {
-		return
-	}
-	var widths [6]int
-	for _, row := range rows {
-		for i, cell := range row.cells {
-			if len(cell) > widths[i] {
-				widths[i] = len(cell)
-			}
-		}
-	}
-	for _, row := range rows {
-		var b strings.Builder
-		for i, cell := range row.cells {
-			if i == 0 {
-				cell = leftPad(cell, widths[i])
-			} else {
-				cell = cell + strings.Repeat(" ", widths[i]-len(cell))
-			}
-			if row.codes[i] != "" && p.color {
-				cell = "\033[" + row.codes[i] + "m" + cell + "\033[0m"
-			}
-			if i > 0 {
-				b.WriteString("  ")
-			}
-			b.WriteString(cell)
-		}
-		fmt.Fprintln(p.out, strings.TrimRight(b.String(), " "))
-	}
-}
-
-func leftPad(s string, n int) string {
-	if len(s) >= n {
-		return s
-	}
-	return strings.Repeat(" ", n-len(s)) + s
+// Explain is the one-line reason this workspace sits where it does.
+func Explain(pin string, space Space) string {
+	return (&plan{pin: pin}).criterion(space)
 }
 
 func (p *plan) sort(wanted []Space) error {
+	p.phase("order")
 	current := make([]string, len(p.raw))
 	for i, ws := range p.raw {
 		current[i] = ws.ID
@@ -870,6 +793,7 @@ func (p *plan) parentWorkspace(root string) (string, bool) {
 }
 
 func (p *plan) ensure(spec RepoBranch) error {
+	p.phase("ensure")
 	root, err := p.resolveRepo(spec.Repo)
 	if err != nil {
 		return err
@@ -1009,7 +933,7 @@ func (p *plan) addWorktree(root, branch, path string) bool {
 	}
 	p.printf("36", "+ git -C %s %s", root, strings.Join(args, " "))
 	if err := p.git.Run(p.ctx, root, args...); err != nil {
-		fmt.Fprintln(p.out, err.Error())
+		slog.WarnContext(p.ctx, "git", "err", err)
 		p.git.Clear()
 		p.printf("33", "  worktree add failed for %s", branch)
 		return false
@@ -1027,7 +951,7 @@ func (p *plan) ensureBranch(repo, name string) bool {
 	}
 	p.printf("36", "+ git -C %s branch --track %s origin/%s", repo, name, name)
 	if err := p.git.Run(p.ctx, repo, "branch", "--track", name, "origin/"+name); err != nil {
-		fmt.Fprintln(p.out, err.Error())
+		slog.WarnContext(p.ctx, "git", "err", err)
 		return false
 	}
 	return true
