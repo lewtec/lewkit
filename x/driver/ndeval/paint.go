@@ -2,7 +2,6 @@ package ndeval
 
 import (
 	"context"
-	"sync"
 
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
@@ -24,22 +23,21 @@ void main() {
 }
 `
 
-var presentSPIRV struct {
-	sync.Mutex
-	code []byte
-	err  error
-	done bool
-}
-
-func presentCode(ctx context.Context) ([]byte, error) {
-	presentSPIRV.Lock()
-	defer presentSPIRV.Unlock()
-	if presentSPIRV.done {
-		return presentSPIRV.code, presentSPIRV.err
+func (g *gpuEvaluator) presentCode(ctx context.Context) ([]byte, error) {
+	g.mu.Lock()
+	if g.presentDone {
+		code, err := g.present, g.presentErr
+		g.mu.Unlock()
+		return code, err
 	}
-	presentSPIRV.done = true
-	presentSPIRV.code, presentSPIRV.err = glsl.Load(ctx, []byte(presentGLSL))
-	return presentSPIRV.code, presentSPIRV.err
+	g.mu.Unlock()
+	code, err := glsl.Load(ctx, []byte(presentGLSL))
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if !g.presentDone {
+		g.present, g.presentErr, g.presentDone = code, err, true
+	}
+	return g.present, g.presentErr
 }
 
 // Bind returns an evaluator for a caller-owned device. Close does not close the device.
@@ -67,7 +65,7 @@ func Paint(ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Ten
 	if err != nil {
 		return err
 	}
-	code, err := presentCode(ctx)
+	code, err := gpu.presentCode(ctx)
 	if err != nil {
 		return err
 	}

@@ -35,11 +35,14 @@ func (gpuFactory) New(ctx context.Context) (ndarray.Evaluator, error) {
 }
 
 type gpuEvaluator struct {
-	device   vulkan.Device
-	own      bool
-	mu       sync.Mutex
-	evalMu   sync.Mutex
-	sessions map[*ndarray.Kernel]*session
+	device      vulkan.Device
+	own         bool
+	mu          sync.Mutex
+	evalMu      sync.Mutex
+	sessions    map[*ndarray.Kernel]*session
+	present     []byte
+	presentErr  error
+	presentDone bool
 }
 
 func (g *gpuEvaluator) Name() string {
