@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/driver/vulkanwindow"
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/driver/window/vulkanwindow"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/stretchr/testify/require"
 )
@@ -19,10 +19,6 @@ func BenchmarkScrollPresent(b *testing.B) {
 		b.Skip(err)
 	}
 	b.Cleanup(func() { require.NoError(b, host.Close()) })
-	source, ok := host.(window.EvaluatorSource)
-	require.True(b, ok)
-	evaluator, err := source.Evaluator(ctx)
-	require.NoError(b, err)
 
 	marquee, err := gui.NewMarquee()
 	require.NoError(b, err)
@@ -35,7 +31,7 @@ func BenchmarkScrollPresent(b *testing.B) {
 		marquee.Update(gui.TickMsg{Elapsed: elapsed, Size: size, Period: window.DefaultFramePeriod})
 		view, err := picture.Render(marquee.View(), gui.Size{Width: width, Height: height})
 		require.NoError(b, err)
-		require.NoError(b, window.Show(ctx, host, view, evaluator))
+		require.NoError(b, host.Paint(ctx, view))
 	}
 	frame(0)
 	b.ReportAllocs()
