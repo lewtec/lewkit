@@ -5,15 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"unsafe"
-
-	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 const (
 	extSurface       = "VK_KHR_surface"
-	extXlibSurface   = "VK_KHR_xlib_surface"
 	extSwapchain     = "VK_KHR_swapchain"
-	structureXlib    = 1000004000
 	structureSwap    = 1000001000
 	structurePresent = 1000001001
 	structureImage   = 14
@@ -47,11 +43,16 @@ const (
 	suboptimal       = 1000001003
 )
 
-// Screen is an X11 window plus the swapchain on its device.
+// hostSurface is the native window the swapchain presents to.
+type hostSurface interface {
+	create(d *Device, w *wsi) (uint64, error)
+	destroy()
+}
+
+// Screen is a native window plus the swapchain on its device.
 type Screen struct {
 	d         *Device
-	dpy       uintptr
-	win       uint64
+	host      hostSurface
 	surface   uint64
 	swap      uint64
 	format    int32
@@ -77,7 +78,6 @@ type Screen struct {
 }
 
 type wsi struct {
-	createXlib       func(inst uintptr, info *xlibSurfaceInfo, alloc uintptr, surface *uint64) int32
 	destroySurface   func(inst uintptr, surface uint64, alloc uintptr)
 	surfaceSupport   func(phys uintptr, family uint32, surface uint64, supported *uint32) int32
 	surfaceCaps      func(phys uintptr, surface uint64, caps *surfaceCaps) int32
@@ -97,14 +97,6 @@ type wsi struct {
 	cmdCopyImage     func(cmd uintptr, src uint64, srcLay int32, dst uint64, dstLay int32, count uint32, regions *imageCopy)
 	cmdBlitImage     func(cmd uintptr, src uint64, srcLay int32, dst uint64, dstLay int32, count uint32, regions *imageBlit, filter int32)
 	formatProps      func(phys uintptr, format int32, props *formatProps)
-}
-
-type xlibSurfaceInfo struct {
-	sType  int32
-	pNext  uintptr
-	flags  uint32
-	dpy    uintptr
-	window uint64
 }
 
 type surfaceCaps struct {
@@ -344,13 +336,11 @@ func (s *Screen) Close() error {
 	if d != nil && d.inst != 0 && s.surface != 0 && s.wsi.destroySurface != nil {
 		s.wsi.destroySurface(d.inst, s.surface, 0)
 	}
-	if s.dpy != 0 {
-		if s.win != 0 {
-			xDestroy(s.dpy, s.win)
-		}
-		xClose(s.dpy)
+	if s.host != nil {
+		s.host.destroy()
+		s.host = nil
 	}
-	s.dpy, s.win, s.surface, s.swap = 0, 0, 0, 0
+	s.surface, s.swap = 0, 0
 	if d != nil {
 		err = errors.Join(err, d.Close())
 		s.d = nil
@@ -371,7 +361,7 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 	if err := d.api.loadLoader(lib); err != nil {
 		return nil, err
 	}
-	exts := []string{extSurface, extXlibSurface}
+	exts := append([]string{extSurface}, surfaceExtensions()...)
 	if hasExt(d.api.instanceExts(), extPortabilityEnum) {
 		exts = append(exts, extPortabilityEnum)
 	}
@@ -412,7 +402,6 @@ func (w *wsi) load(d *Device) error {
 		name string
 		dst  any
 	}{
-		{"vkCreateXlibSurfaceKHR", &w.createXlib},
 		{"vkDestroySurfaceKHR", &w.destroySurface},
 		{"vkGetPhysicalDeviceSurfaceSupportKHR", &w.surfaceSupport},
 		{"vkGetPhysicalDeviceSurfaceCapabilitiesKHR", &w.surfaceCaps},
@@ -425,7 +414,7 @@ func (w *wsi) load(d *Device) error {
 			return err
 		}
 	}
-	return nil
+	return loadHost(w, d)
 }
 
 func (w *wsi) loadDevice(d *Device) error {
@@ -459,27 +448,16 @@ func (w *wsi) loadDevice(d *Device) error {
 }
 
 func (s *Screen) openWindow(title string) error {
-	dpy, err := xOpen()
+	host, err := openHost(s.width, s.height, title)
 	if err != nil {
 		return err
 	}
-	s.dpy = dpy
-	screen := xDefaultScreen(dpy)
-	root := xRootWindow(dpy, screen)
-	win := xCreateSimple(dpy, root, 0, 0, uint32(s.width), uint32(s.height), 0, xBlackPixel(dpy, screen), xWhitePixel(dpy, screen))
-	if win == 0 {
-		return fmt.Errorf("%w: x window", ErrUnavailable)
+	s.host = host
+	surface, err := host.create(s.d, &s.wsi)
+	if err != nil {
+		return err
 	}
-	name := cstr(title)
-	xStoreName(dpy, win, name)
-	xSelectInput(dpy, win, 1<<15)
-	xMapWindow(dpy, win)
-	xFlush(dpy)
-	s.win = win
-	info := xlibSurfaceInfo{sType: structureXlib, dpy: dpy, window: win}
-	if err := check(s.wsi.createXlib(s.d.inst, &info, 0, &s.surface)); err != nil {
-		return fmt.Errorf("xlib surface: %w", err)
-	}
+	s.surface = surface
 	return nil
 }
 
@@ -935,52 +913,3 @@ func presentOK(r int32) error {
 }
 
 const structureImageBarrier = 45
-
-var (
-	xOpenDisplay   func(name *byte) uintptr
-	xCloseDisplay  func(dpy uintptr) int32
-	xDefaultScreen func(dpy uintptr) int32
-	xRootWindow    func(dpy uintptr, screen int32) uint64
-	xBlackPixel    func(dpy uintptr, screen int32) uint64
-	xWhitePixel    func(dpy uintptr, screen int32) uint64
-	xCreateSimple  func(dpy uintptr, parent uint64, x, y int32, w, h, border uint32, borderC, bg uint64) uint64
-	xStoreName     func(dpy uintptr, win uint64, name *byte) int32
-	xMapWindow     func(dpy uintptr, win uint64) int32
-	xFlush         func(dpy uintptr) int32
-	xDestroyWindow func(dpy uintptr, win uint64) int32
-	xSelectInput   func(dpy uintptr, win uint64, mask int64) int32
-	xlibOnce       uint32
-)
-
-func xOpen() (uintptr, error) {
-	if xlibOnce == 0 {
-		lib, err := native.Open("libX11.so.6", 0)
-		if err != nil {
-			return 0, fmt.Errorf("%w: libX11", ErrUnavailable)
-		}
-		native.Func(lib, "XOpenDisplay", &xOpenDisplay)
-		native.Func(lib, "XCloseDisplay", &xCloseDisplay)
-		native.Func(lib, "XDefaultScreen", &xDefaultScreen)
-		native.Func(lib, "XRootWindow", &xRootWindow)
-		native.Func(lib, "XBlackPixel", &xBlackPixel)
-		native.Func(lib, "XWhitePixel", &xWhitePixel)
-		native.Func(lib, "XCreateSimpleWindow", &xCreateSimple)
-		native.Func(lib, "XStoreName", &xStoreName)
-		native.Func(lib, "XMapWindow", &xMapWindow)
-		native.Func(lib, "XFlush", &xFlush)
-		native.Func(lib, "XDestroyWindow", &xDestroyWindow)
-		native.Func(lib, "XSelectInput", &xSelectInput)
-		xlibOnce = 1
-	}
-	if xOpenDisplay == nil {
-		return 0, fmt.Errorf("%w: XOpenDisplay", ErrUnavailable)
-	}
-	dpy := xOpenDisplay(nil)
-	if dpy == 0 {
-		return 0, fmt.Errorf("%w: DISPLAY", ErrUnavailable)
-	}
-	return dpy, nil
-}
-
-func xDestroy(dpy uintptr, win uint64) { xDestroyWindow(dpy, win) }
-func xClose(dpy uintptr)               { xCloseDisplay(dpy) }

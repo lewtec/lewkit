@@ -24,10 +24,14 @@ func (factory) Name() string { return "Vulkan window" }
 func (factory) Weight() int  { return 10 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if runtime.GOOS != "linux" {
-		return fmt.Errorf("%w: vulkan_window needs an X11 surface", driver.ErrIncompatible)
+	switch runtime.GOOS {
+	case "linux":
+		return driver.RequireEnv(ctx, "DISPLAY")
+	case "windows", "darwin":
+		return nil
+	default:
+		return fmt.Errorf("%w: %s", driver.ErrIncompatible, runtime.GOOS)
 	}
-	return driver.RequireEnv(ctx, "DISPLAY")
 }
 
 func (factory) New(context.Context) (window.Driver, error) { return opener{}, nil }
