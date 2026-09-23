@@ -3,6 +3,7 @@ package herdr
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +34,9 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 	assert.Equal(t, "/pin", nodes[byLabel["dotfiles"]].Message)
 	assert.Equal(t, "/pin-wt", nodes[byLabel["feat"]].Message)
 	assert.Equal(t, "/tmp", nodes[byLabel["tmp"]].Message)
+	assert.Equal(t, taskgroup.Dir, nodes[byLabel["tmp"]].Pool)
+	assert.Equal(t, taskgroup.IO, nodes[byLabel["dotfiles"]].Pool)
+	assert.Equal(t, taskgroup.CPU, nodes[byLabel["feat"]].Pool)
 
 	assert.Equal(t, nodes[byLabel["dotfiles"]].ID, nodes[byLabel["feat"]].Parent)
 	assert.Equal(t, nodes[byLabel["lewkit"]].ID, nodes[byLabel["topic"]].Parent)

@@ -242,6 +242,8 @@ func poolEmoji(p taskgroup.PoolKind) string {
 		return "🧠"
 	case taskgroup.Internet:
 		return "🌐"
+	case taskgroup.Dir:
+		return "📁"
 	default:
 		return "•"
 	}

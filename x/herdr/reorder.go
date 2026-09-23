@@ -777,12 +777,11 @@ func (r Report) Nodes() []taskgroup.Node {
 	var add func(space Space, parent taskgroup.ID)
 	add = func(space Space, parent taskgroup.ID) {
 		id := next()
-		state := taskgroup.Done
-		if space.RepoRoot == "" {
-			state = taskgroup.Failed
-		}
 		pool := taskgroup.IO
-		if space.Linked {
+		switch {
+		case space.RepoRoot == "":
+			pool = taskgroup.Dir
+		case space.Linked:
 			pool = taskgroup.CPU
 		}
 		nodes = append(nodes, taskgroup.Node{
@@ -790,7 +789,7 @@ func (r Report) Nodes() []taskgroup.Node {
 			Parent:  parent,
 			Name:    space.Label,
 			Message: space.Checkout,
-			State:   state,
+			State:   taskgroup.Done,
 			Pool:    pool,
 		})
 		detail := func(name, value string) {
