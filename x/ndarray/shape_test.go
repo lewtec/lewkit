@@ -6,6 +6,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPadRank(t *testing.T) {
+	value, err := New([]int32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+
+	same, err := PadRank(value, 1)
+	require.NoError(t, err)
+	require.Same(t, value, same)
+
+	got, err := PadRank(value, 3)
+	require.NoError(t, err)
+	require.Equal(t, Shape{1, 1, 3}, got.Shape())
+
+	_, err = PadRank(value, 0)
+	require.ErrorIs(t, err, ErrShape)
+
+	nilRank, err := PadRank((*Tensor[int32])(nil), 0)
+	require.NoError(t, err)
+	require.Nil(t, nilRank)
+}
+
 func TestWindowLengthFloor(t *testing.T) {
 	require.Equal(t, 2, WindowLength(5, 0, 0, 3, 2))
 	require.Equal(t, 0, WindowLength(2, 0, 0, 3, 2))

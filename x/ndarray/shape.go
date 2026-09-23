@@ -67,6 +67,24 @@ func CoverPad(in, kernel, stride, out, before, after int) (int, int) {
 	return before, after
 }
 
+// PadRank reshapes t to rank by prefixing axes of length 1.
+// A rank below len(t.Shape()) is [ErrShape]. Equal rank returns t.
+func PadRank[T Number](t *Tensor[T], rank int) (*Tensor[T], error) {
+	shape := t.Shape()
+	if len(shape) == rank {
+		return t, nil
+	}
+	if len(shape) > rank {
+		return nil, ErrShape
+	}
+	padded := make(Shape, rank)
+	copy(padded[rank-len(shape):], shape)
+	for i := 0; i < rank-len(shape); i++ {
+		padded[i] = 1
+	}
+	return t.Reshape(padded)
+}
+
 // Equal reports the same rank and dimensions.
 func (s Shape) Equal(other Shape) bool {
 	return slices.Equal(s, other)

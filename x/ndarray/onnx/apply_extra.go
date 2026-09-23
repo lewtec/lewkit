@@ -278,7 +278,7 @@ func applyPad[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node,
 	if err != nil {
 		return nil, err
 	}
-	value, err = padToRank(value, len(padded.Shape()))
+	value, err = ndarray.PadRank(value, len(padded.Shape()))
 	if err != nil {
 		return nil, err
 	}

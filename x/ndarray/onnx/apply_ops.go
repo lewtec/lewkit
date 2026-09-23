@@ -212,7 +212,7 @@ func applyExpand[T ndarray.Number](values map[string]*ndarray.Tensor[T], node No
 	if err != nil {
 		return nil, err
 	}
-	value, err = padToRank(value, len(out))
+	value, err = ndarray.PadRank(value, len(out))
 	if err != nil {
 		return nil, err
 	}

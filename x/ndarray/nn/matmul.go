@@ -48,11 +48,11 @@ func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[
 		return nil, fmt.Errorf("%w: a %v b %v", err, aShape, bShape)
 	}
 	outRank := len(batch) + 2
-	a, err = prependOnes(a, outRank)
+	a, err = ndarray.PadRank(a, outRank)
 	if err != nil {
 		return nil, err
 	}
-	b, err = prependOnes(b, outRank)
+	b, err = ndarray.PadRank(b, outRank)
 	if err != nil {
 		return nil, err
 	}
