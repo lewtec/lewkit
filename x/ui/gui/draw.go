@@ -132,6 +132,24 @@ func drawCode(ctx context.Context) (vert, frag, inkVert, inkFrag []byte, err err
 	return drawSPIRV.vert, drawSPIRV.frag, drawSPIRV.inkVert, drawSPIRV.inkFrag, err
 }
 
+// Show records root and draws it on the swapchain. It does not run the fused kernel.
+func (picture *Picture) Show(ctx context.Context, screen vulkan.Screen, root Node, size Size) error {
+	if picture == nil || root == nil {
+		return ErrView
+	}
+	picture.recordOnly = true
+	_, err := picture.Render(root, size)
+	picture.recordOnly = false
+	if err != nil {
+		return err
+	}
+	var ink []byte
+	if picture.hadInk && picture.inkRGBA != nil {
+		ink = picture.inkRGBA.Pix
+	}
+	return drawFills(ctx, screen, picture.fills, ink, int(size.Width), int(size.Height))
+}
+
 // drawFills paints recorded fills and optional RGBA8 ink. It does not run the fused kernel.
 func drawFills(ctx context.Context, screen vulkan.Screen, fills []Draw, ink []byte, width, height int) error {
 	if screen == nil || width < 1 || height < 1 {

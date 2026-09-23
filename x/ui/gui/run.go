@@ -77,6 +77,11 @@ func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, m
 	if host == nil {
 		return window.ErrClosed
 	}
+	if screen, gpu, err := bridge(ctx, host); err == nil {
+		defer screen.Close()
+		defer gpu.Close()
+		return run(ctx, bridgeDisplay{Window: host, screen: screen, evaluator: gpu}, nil, model)
+	}
 	return run(ctx, imageDisplay{host}, evaluator, model)
 }
 

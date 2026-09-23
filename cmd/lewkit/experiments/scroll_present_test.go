@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lewtec/lewkit/x/driver/ndeval"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/test"
@@ -31,8 +30,6 @@ func BenchmarkScrollPresent(b *testing.B) {
 		b.Skip(err)
 	}
 	test.CloseOnCleanup(b, screen)
-	evaluator := ndeval.Bind(screen.Device())
-	test.CloseOnCleanup(b, evaluator)
 
 	marquee, err := gui.NewMarquee()
 	require.NoError(b, err)
@@ -43,9 +40,7 @@ func BenchmarkScrollPresent(b *testing.B) {
 
 	frame := func(elapsed time.Duration) {
 		marquee.Update(gui.TickMsg{Elapsed: elapsed, Size: size, Period: window.DefaultFramePeriod})
-		view, err := picture.Render(marquee.View(), gui.Size{Width: width, Height: height})
-		require.NoError(b, err)
-		require.NoError(b, ndeval.Paint(ctx, evaluator, view, screen))
+		require.NoError(b, picture.Show(ctx, screen, marquee.View(), gui.Size{Width: width, Height: height}))
 	}
 	frame(0)
 	b.ReportAllocs()
