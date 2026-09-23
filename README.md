@@ -18,7 +18,7 @@ go get github.com/lewtec/lewkit@main
 
 The program is `cmd/lewkit`. [SPEC.md](SPEC.md) names the owner package for a new type. The license text is [LICENSE.md](LICENSE.md).
 
-`x/ffi` and `x/ui` have no Go package. An import of either path fails. [SPEC.md](SPEC.md) lists `x/ui/tui` and `x/ui/web`. `x/ui/tui` is absent. `x/ui/web` holds templ templates.
+`x/ffi` and `x/ui` have no Go package. An import of either path fails. [SPEC.md](SPEC.md) lists `x/ui/tui` and `x/ui/web`. Both packages are absent.
 
 ## Packages
 
@@ -70,9 +70,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/profile` | `Directory`, `Address`, `Handler`. pprof to a directory or HTTP. |
 | `x/http/middleware` | `SPA`. Serves an `fs.FS` with the goftpd SPA rules. A miss goes to the next handler. |
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
-| `x/http/asset/htmx` | Blank-import. htmx script. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
+| `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Script`. `jquery` and `tailwindcss` match this shape. `sakuracss` renders `Stylesheet`. |
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
-| `x/ui/web` | templ templates `HTMX`, `TailwindCSS`, `JQuery`, and `SakuraCSS`. Each tag loads its file from `/__lewkit__/`. |
 | `x/release` | `Version`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |

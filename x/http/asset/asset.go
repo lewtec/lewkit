@@ -1,5 +1,6 @@
 // Package asset serves vendored browser libraries under /__lewkit__/.
 //
+// Import one library package to register that file and render its tag.
 // Blank-import [github.com/lewtec/lewkit/x/http/asset/prelude] to register
 // htmx, tailwindcss, jquery, and sakuracss. [Mount] serves the files that
 // those packages registered. A request outside [Prefix] goes to the next
