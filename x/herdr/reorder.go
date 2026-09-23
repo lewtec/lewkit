@@ -742,8 +742,8 @@ func Kind(space Space) string {
 }
 
 // Nodes is the order as a progress tree. A linked worktree hangs under the
-// main checkout of the same repo. Each workspace lists kind, branch, checkout,
-// repo, source, and identity as key: value rows.
+// main checkout of the same repo. Each workspace lists checkout, repo, source,
+// and identity as key: value rows.
 func (r Report) Nodes() []taskgroup.Node {
 	mainByRoot := map[string]string{}
 	for _, space := range r.Order {
@@ -804,8 +804,6 @@ func (r Report) Nodes() []taskgroup.Node {
 				Pool:    taskgroup.Control,
 			})
 		}
-		detail("kind", Kind(space))
-		detail("branch", space.Branch)
 		detail("checkout", space.Checkout)
 		if space.RepoRoot != space.Checkout {
 			detail("repo", space.RepoRoot)

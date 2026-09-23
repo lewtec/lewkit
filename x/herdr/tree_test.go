@@ -47,7 +47,7 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 			underDot = append(underDot, node.Name)
 		}
 	}
-	assert.Equal(t, []string{"kind", "branch", "checkout", "source", "feat"}, underDot)
+	assert.Equal(t, []string{"checkout", "source", "feat"}, underDot)
 
 	var underTopic []string
 	topic := nodes[byName["topic"]].ID
@@ -58,5 +58,6 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 	}
 	assert.Contains(t, underTopic, "repo:/repo")
 	assert.Contains(t, underTopic, "identity:/old")
-	assert.Contains(t, underTopic, "branch:topic")
+	assert.NotContains(t, underTopic, "branch:topic")
+	assert.NotContains(t, underTopic, "kind:worktree")
 }
