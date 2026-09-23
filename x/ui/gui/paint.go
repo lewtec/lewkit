@@ -177,8 +177,9 @@ func (picture *Picture) compile(count int) error {
 			return err
 		}
 		picture.slots[index] = next
-		stacked, err := ndarray.Repeat(picture.base, index+1, func(step *ndarray.Tensor[int32], acc *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
-			return picture.layer(acc, picture.gatherSlot(step))
+		stacked, err := ndarray.RepeatBox(picture.base, index+1, func(step *ndarray.Tensor[int32], acc *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], *ndarray.Tensor[float32], *ndarray.Tensor[float32], *ndarray.Tensor[float32], *ndarray.Tensor[float32]) {
+			sl := picture.gatherSlot(step)
+			return picture.layer(acc, sl), sl.x, sl.y, sl.x.Add(sl.width), sl.y.Add(sl.height)
 		})
 		if err != nil {
 			return err

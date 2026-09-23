@@ -43,6 +43,51 @@ func Repeat[T Number](init *Tensor[T], count int, body func(index *Tensor[int32]
 	return wrap[T](loop), nil
 }
 
+// RepeatBox is Repeat plus the box of each step. min and max are float
+// expressions of the loop index. A workgroup skips a step whose box misses
+// the group's pixels. The CPU tape still runs every step.
+func RepeatBox[T Number](init *Tensor[T], count int, body func(index *Tensor[int32], carried *Tensor[T]) (value *Tensor[T], minX, minY, maxX, maxY *Tensor[float32])) (*Tensor[T], error) {
+	if body == nil {
+		return nil, ErrOp
+	}
+	var index *node
+	var carry *node
+	var tracker Tracker
+	if init == nil || init.node == nil || count < 1 {
+		return nil, ErrOp
+	}
+	if err := init.err(); err != nil {
+		return nil, err
+	}
+	if shape := init.node.Shape(); shape != nil {
+		built, err := Of(shape)
+		if err != nil {
+			return nil, err
+		}
+		tracker = built
+	}
+	index = &node{kind: kindLoopIndex, dtype: I32}
+	carry = &node{kind: kindCarry, dtype: init.node.dtype, tracker: tracker}
+	out, minX, minY, maxX, maxY := body(wrap[int32](index), wrap[T](carry))
+	if out == nil || out.node == nil || minX == nil || minY == nil || maxX == nil || maxY == nil {
+		return nil, ErrOp
+	}
+	if out.node.err != nil {
+		return nil, out.node.err
+	}
+	if out.node.dtype != init.node.dtype || minX.node.dtype != F32 || minY.node.dtype != F32 || maxX.node.dtype != F32 || maxY.node.dtype != F32 {
+		return nil, ErrType
+	}
+	loop := &node{
+		kind:    kindLoop,
+		dtype:   init.node.dtype,
+		sources: []*node{init.node, out.node, minX.node, minY.node, maxX.node, maxY.node},
+		tracker: tracker,
+		slot:    count,
+	}
+	return wrap[T](loop), nil
+}
+
 // Gather loads one element. index is an int32 scalar. The result is a splat.
 func (t *Tensor[T]) Gather(index *Tensor[int32]) *Tensor[T] {
 	if t == nil || index == nil || t.node == nil || index.node == nil {
@@ -78,7 +123,7 @@ func splitLoop(order []*node) (loop *node, prefix, inside, suffix []*node, err e
 	if loop == nil {
 		return nil, order, nil, nil, nil
 	}
-	if len(loop.sources) != 2 || loop.slot < 1 {
+	if (len(loop.sources) != 2 && len(loop.sources) != 6) || loop.slot < 1 {
 		return nil, nil, nil, nil, ErrOp
 	}
 	variant := map[*node]bool{}

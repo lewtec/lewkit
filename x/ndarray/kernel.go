@@ -12,6 +12,9 @@ import (
 const (
 	// localSize is the compute workgroup. Vulkan 1.1 guarantees 128 invocations.
 	localSize = 128
+	// tileW by tileH pixels, four channels each, fills one workgroup.
+	tileW = 8
+	tileH = 4
 	// PushBytes is n plus d0..d3. Rank above 4 cannot be lowered.
 	PushBytes   = 20
 	maxPushRank = 4
@@ -28,6 +31,7 @@ type Kernel struct {
 	shape   Shape
 	outType DType
 	size    int
+	tiled   bool
 }
 
 func compile(expr *node) (*Kernel, error) {
@@ -54,7 +58,28 @@ func compile(expr *node) (*Kernel, error) {
 		return nil, err
 	}
 	built := shape.Clone()
-	return &Kernel{root: expr, order: order, bufs: bufs, built: built, shape: built.Clone(), outType: expr.dtype, size: size}, nil
+	return &Kernel{root: expr, order: order, bufs: bufs, built: built, shape: built.Clone(), outType: expr.dtype, size: size, tiled: loopBoxed(expr)}, nil
+}
+
+func loopBoxed(n *node) bool {
+	seen := map[*node]bool{}
+	var walk func(*node) bool
+	walk = func(n *node) bool {
+		if n == nil || seen[n] {
+			return false
+		}
+		seen[n] = true
+		if n.kind == kindLoop && len(n.sources) == 6 {
+			return true
+		}
+		for _, s := range n.sources {
+			if walk(s) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(n)
 }
 
 // Resize sets the runtime output shape. Rank must match Compile.
@@ -85,6 +110,7 @@ func (k *Kernel) GLSL() (string, error) {
 		outShape: k.built,
 		bufBind:  make(map[*buffer]int, len(k.bufs)),
 		names:    make(map[*node]string, len(k.order)),
+		tiled:    k.tiled,
 	}
 	return w.program()
 }
@@ -157,6 +183,11 @@ func (k *Kernel) OutputBytes() int {
 func (k *Kernel) Groups() uint32 {
 	if k == nil || k.size == 0 {
 		return 0
+	}
+	if k.tiled && len(k.shape) >= 2 && k.shape[0] > 0 && k.shape[1] > 0 {
+		tx := (k.shape[1] + tileW - 1) / tileW
+		ty := (k.shape[0] + tileH - 1) / tileH
+		return uint32(tx * ty)
 	}
 	return uint32((k.size + localSize - 1) / localSize)
 }
@@ -375,7 +406,7 @@ func flatten(root *node) ([]*node, []*buffer, error) {
 				return err
 			}
 		case kindLoop:
-			if len(n.sources) != 2 || n.slot < 1 {
+			if (len(n.sources) != 2 && len(n.sources) != 6) || n.slot < 1 {
 				return ErrOp
 			}
 			for _, s := range n.sources {
@@ -561,6 +592,7 @@ type glslWriter struct {
 	root     *node
 	order    []*node
 	bufs     []*buffer
+	tiled    bool
 }
 
 func (w *glslWriter) program() (string, error) {
@@ -606,12 +638,30 @@ func (w *glslWriter) program() (string, error) {
 	for i := range gathers {
 		fmt.Fprintf(&w.b, "shared %s sh%d[%d];\n", gathers[i].dtype.glsl(), i, loop.slot)
 	}
+	if w.tiled && loop != nil {
+		fmt.Fprintf(&w.b, "shared int hitN;\nshared int hits[%d];\nshared int sprLoX[128];\nshared int sprHiX[128];\nshared int sprLoY[128];\nshared int sprHiY[128];\n", loop.slot)
+	}
 	w.b.WriteString("void main() {\n")
 	w.b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
-	if len(gathers) == 0 {
+	w.b.WriteString("    uint lid = gl_LocalInvocationID.x;\n")
+	if len(gathers) == 0 && !w.tiled {
 		w.b.WriteString("    if (gi >= n) return;\n")
 	}
-	w.b.WriteString("    int i = int(gi);\n")
+	if w.tiled {
+		fmt.Fprintf(&w.b, "    uint tilesX = (d1 + %du) / %du;\n", tileW-1, tileW)
+		w.b.WriteString("    uint tileX = gl_WorkGroupID.x % tilesX;\n")
+		w.b.WriteString("    uint tileY = gl_WorkGroupID.x / tilesX;\n")
+		w.b.WriteString("    uint ch = lid % 4u;\n")
+		w.b.WriteString("    uint lp = lid / 4u;\n")
+		fmt.Fprintf(&w.b, "    uint lx = lp %% %du;\n", tileW)
+		fmt.Fprintf(&w.b, "    uint ly = lp / %du;\n", tileW)
+		fmt.Fprintf(&w.b, "    uint x = tileX * %du + lx;\n", tileW)
+		fmt.Fprintf(&w.b, "    uint y = tileY * %du + ly;\n", tileH)
+		w.b.WriteString("    int i = int((y * d1 + x) * d2 + ch);\n")
+		w.b.WriteString("    bool live = x < d1 && y < d0 && ch < d2;\n")
+	} else {
+		w.b.WriteString("    int i = int(gi);\n")
+	}
 	w.coords = w.unravelPush(len(w.outShape))
 	emit := func(nodes []*node) error {
 		for _, n := range nodes {
@@ -623,7 +673,8 @@ func (w *glslWriter) program() (string, error) {
 		}
 		return nil
 	}
-	if err := emit(prefix); err != nil {
+	skip := cullOnly(loop)
+	if err := emit(without(prefix, skip)); err != nil {
 		return "", err
 	}
 	if loop != nil {
@@ -632,15 +683,24 @@ func (w *glslWriter) program() (string, error) {
 				return "", err
 			}
 		}
+		if w.tiled {
+			if err := w.buildHits(loop); err != nil {
+				return "", err
+			}
+		}
 		fmt.Fprintf(&w.b, "    %s acc = %s;\n", loop.dtype.glsl(), w.names[loop.sources[0]])
-		fmt.Fprintf(&w.b, "    for (int s = 0; s < %d; s++) {\n", loop.slot)
+		if w.tiled {
+			w.b.WriteString("    for (int k = 0; k < hitN; k++) {\n    int s = hits[k];\n")
+		} else {
+			fmt.Fprintf(&w.b, "    for (int s = 0; s < %d; s++) {\n", loop.slot)
+		}
 		shared := map[*node]bool{}
 		for _, g := range gathers {
 			shared[g] = true
 		}
 		var body []*node
 		for _, n := range inside {
-			if shared[n] {
+			if shared[n] || skip[n] {
 				continue
 			}
 			body = append(body, n)
@@ -668,13 +728,122 @@ func (w *glslWriter) program() (string, error) {
 		_, valid := w.indexAt(w.root.tracker, w.coords)
 		store = fmt.Sprintf("    o[i] = (%s) ? %s : %s;\n", valid, out, glslZero(w.root.dtype))
 	}
-	if len(gathers) > 0 {
+	if w.tiled {
+		fmt.Fprintf(&w.b, "    if (live) {\n    %s    }\n}\n", store)
+	} else if len(gathers) > 0 {
 		fmt.Fprintf(&w.b, "    if (gi < n) {\n    %s    }\n}\n", store)
 	} else {
 		w.b.WriteString(store)
 		w.b.WriteString("}\n")
 	}
 	return w.b.String(), nil
+}
+
+func cullOnly(loop *node) map[*node]bool {
+	if loop == nil || len(loop.sources) != 6 {
+		return nil
+	}
+	keep := map[*node]bool{}
+	var mark func(*node)
+	mark = func(n *node) {
+		if n == nil || keep[n] {
+			return
+		}
+		keep[n] = true
+		for _, source := range n.sources {
+			mark(source)
+		}
+	}
+	mark(loop.sources[0])
+	mark(loop.sources[1])
+	extra := map[*node]bool{}
+	var markExtra func(*node)
+	markExtra = func(n *node) {
+		if n == nil || keep[n] || extra[n] {
+			return
+		}
+		extra[n] = true
+		for _, source := range n.sources {
+			markExtra(source)
+		}
+	}
+	for _, source := range loop.sources[2:] {
+		markExtra(source)
+	}
+	return extra
+}
+
+func without(nodes []*node, skip map[*node]bool) []*node {
+	if len(skip) == 0 {
+		return nodes
+	}
+	out := make([]*node, 0, len(nodes))
+	for _, n := range nodes {
+		if !skip[n] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func (w *glslWriter) slotValue(n *node, seen map[*node]string) (string, error) {
+	if n == nil {
+		return "", ErrOp
+	}
+	if name, ok := seen[n]; ok {
+		return name, nil
+	}
+	if name, ok := w.names[n]; ok {
+		return name, nil
+	}
+	if n.kind != kindOp {
+		return "", ErrOp
+	}
+	args := make([]string, len(n.sources))
+	for i, source := range n.sources {
+		arg, err := w.slotValue(source, seen)
+		if err != nil {
+			return "", err
+		}
+		args[i] = arg
+	}
+	id := w.name("b")
+	fmt.Fprintf(&w.b, "            %s %s = %s;\n", n.dtype.glsl(), id, n.glslALU(args))
+	seen[n] = id
+	return id, nil
+}
+
+func (w *glslWriter) buildHits(loop *node) error {
+	w.b.WriteString("    sprLoX[lid] = live ? int(x) : 2147483647;\n")
+	w.b.WriteString("    sprHiX[lid] = live ? int(x) : -1;\n")
+	w.b.WriteString("    sprLoY[lid] = live ? int(y) : 2147483647;\n")
+	w.b.WriteString("    sprHiY[lid] = live ? int(y) : -1;\n")
+	w.b.WriteString("    barrier();\n")
+	w.b.WriteString("    if (gl_LocalInvocationID.x == 0u) {\n")
+	w.b.WriteString("        int minX = sprLoX[0]; int maxX = sprHiX[0]; int minY = sprLoY[0]; int maxY = sprHiY[0];\n")
+	w.b.WriteString("        for (int t = 1; t < 128; t++) {\n")
+	w.b.WriteString("            minX = min(minX, sprLoX[t]); maxX = max(maxX, sprHiX[t]); minY = min(minY, sprLoY[t]); maxY = max(maxY, sprHiY[t]);\n")
+	w.b.WriteString("        }\n")
+	w.b.WriteString("        int nh = 0;\n")
+	w.b.WriteString("        if (maxX >= 0) {\n")
+	fmt.Fprintf(&w.b, "            for (int s = 0; s < %d; s++) {\n", loop.slot)
+	seen := map[*node]string{}
+	box := make([]string, 4)
+	for i := range box {
+		name, err := w.slotValue(loop.sources[2+i], seen)
+		if err != nil {
+			return err
+		}
+		box[i] = name
+	}
+	fmt.Fprintf(&w.b, "                bool cover = %s > float(minX) && %s < float(maxX + 1) && %s > float(minY) && %s < float(maxY + 1);\n", box[2], box[0], box[3], box[1])
+	w.b.WriteString("                if (cover) { hits[nh] = s; nh++; }\n")
+	w.b.WriteString("            }\n")
+	w.b.WriteString("        }\n")
+	w.b.WriteString("        hitN = nh;\n")
+	w.b.WriteString("    }\n")
+	w.b.WriteString("    barrier();\n")
+	return nil
 }
 
 func (w *glslWriter) fillShared(inside []*node, gathers []*node, count int) error {
