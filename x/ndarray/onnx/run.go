@@ -833,11 +833,11 @@ func broadcast[T ndarray.Number](left, right *ndarray.Tensor[T]) (*ndarray.Tenso
 	leftShape, rightShape := left.Shape(), right.Shape()
 	rank := max(len(leftShape), len(rightShape))
 	var err error
-	left, err = padToRank(left, rank)
+	left, err = ndarray.PadRank(left, rank)
 	if err != nil {
 		return nil, nil, err
 	}
-	right, err = padToRank(right, rank)
+	right, err = ndarray.PadRank(right, rank)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -869,24 +869,6 @@ func broadcast[T ndarray.Number](left, right *ndarray.Tensor[T]) (*ndarray.Tenso
 		return nil, nil, err
 	}
 	return left, right, nil
-}
-
-func padToRank[T ndarray.Number](tensor *ndarray.Tensor[T], rank int) (*ndarray.Tensor[T], error) {
-	shape := tensor.Shape()
-	if len(shape) == rank {
-		return tensor, nil
-	}
-	if len(shape) > rank {
-		return nil, ndarray.ErrShape
-	}
-	padded := make(ndarray.Shape, rank)
-	copy(padded[rank-len(shape):], shape)
-	for i := 0; i < rank-len(shape); i++ {
-		padded[i] = 1
-	}
-	return withView(tensor, func(t *ndarray.Tensor[T]) (*ndarray.Tensor[T], error) {
-		return t.Reshape(padded)
-	})
 }
 
 func allBits[T ndarray.Number]() T {

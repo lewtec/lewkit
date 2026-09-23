@@ -93,22 +93,6 @@ func AxisShrink(shape ndarray.Shape, axis, start, end int) [][2]int {
 	return out
 }
 
-func prependOnes[T ndarray.Number](t *ndarray.Tensor[T], rank int) (*ndarray.Tensor[T], error) {
-	shape := t.Shape()
-	if len(shape) == rank {
-		return t, nil
-	}
-	if len(shape) > rank {
-		return nil, ndarray.ErrShape
-	}
-	padded := make(ndarray.Shape, rank)
-	copy(padded[rank-len(shape):], shape)
-	for i := 0; i < rank-len(shape); i++ {
-		padded[i] = 1
-	}
-	return t.Reshape(padded)
-}
-
 func broadcastPrefix(left, right ndarray.Shape) (ndarray.Shape, error) {
 	rank := max(len(left), len(right))
 	out := make(ndarray.Shape, rank)
