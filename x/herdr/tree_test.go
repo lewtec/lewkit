@@ -59,5 +59,5 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 			underTopic = append(underTopic, node.Name+":"+node.Message)
 		}
 	}
-	assert.Equal(t, []string{"repo:/repo", "identity:/old"}, underTopic)
+	assert.Equal(t, []string{"identity:/old"}, underTopic)
 }
