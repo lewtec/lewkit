@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,5 +17,10 @@ func TestSPAPage(t *testing.T) {
 		handler.ServeHTTP(response, request)
 		require.Equal(t, http.StatusOK, response.Code, path)
 		require.Contains(t, response.Body.String(), "templ page")
+		require.Contains(t, response.Body.String(), sakuracss.Path)
 	}
+	style := httptest.NewRecorder()
+	handler.ServeHTTP(style, httptest.NewRequest(http.MethodGet, sakuracss.Path, nil))
+	require.Equal(t, http.StatusOK, style.Code)
+	require.Contains(t, style.Body.String(), "Sakura.css")
 }

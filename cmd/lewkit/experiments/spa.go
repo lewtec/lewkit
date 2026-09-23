@@ -9,6 +9,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	"github.com/lewtec/lewkit/x/http/asset"
 	"github.com/lewtec/lewkit/x/http/middleware"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/ui/web"
@@ -62,5 +63,5 @@ func spaHandler(ctx context.Context) http.Handler {
 	files := fstest.MapFS{
 		"index.html": &fstest.MapFile{Data: body.Bytes()},
 	}
-	return middleware.SPA(files, nil)
+	return asset.Mount(middleware.SPA(files, nil))
 }
