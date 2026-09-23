@@ -42,24 +42,6 @@ func (c *reorderCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = os.Stdout.WriteString(progress.Format(orderNodes(report), 0))
+	_, err = os.Stdout.WriteString(progress.Format(report.Nodes(), 0))
 	return err
-}
-
-func orderNodes(report herdr.Report) []taskgroup.Node {
-	nodes := make([]taskgroup.Node, len(report.Order))
-	for i, space := range report.Order {
-		state := taskgroup.Done
-		if space.RepoRoot == "" {
-			state = taskgroup.Failed
-		}
-		nodes[i] = taskgroup.Node{
-			ID:      taskgroup.ID(i + 1),
-			Name:    space.Label,
-			Message: herdr.Kind(space) + " " + herdr.Explain(report.Pin, space),
-			State:   state,
-			Pool:    taskgroup.IO,
-		}
-	}
-	return nodes
 }

@@ -746,6 +746,93 @@ func Explain(pin string, space Space) string {
 	return (&plan{pin: pin}).criterion(space)
 }
 
+// Nodes is the order as a progress tree. A linked worktree hangs under the
+// main checkout of the same repo. Branch, checkout, repo, source, and
+// identity hang under that workspace.
+func (r Report) Nodes() []taskgroup.Node {
+	mainByRoot := map[string]string{}
+	for _, space := range r.Order {
+		if space.Linked || space.RepoRoot == "" || space.Checkout != space.RepoRoot {
+			continue
+		}
+		if _, ok := mainByRoot[space.RepoRoot]; !ok {
+			mainByRoot[space.RepoRoot] = space.ID
+		}
+	}
+	parentOf := map[string]string{}
+	children := map[string][]Space{}
+	for _, space := range r.Order {
+		if !space.Linked {
+			continue
+		}
+		parent, ok := mainByRoot[space.RepoRoot]
+		if !ok || parent == space.ID {
+			continue
+		}
+		parentOf[space.ID] = parent
+		children[parent] = append(children[parent], space)
+	}
+	var nodes []taskgroup.Node
+	var seq taskgroup.ID
+	next := func() taskgroup.ID {
+		seq++
+		return seq
+	}
+	var add func(space Space, parent taskgroup.ID)
+	add = func(space Space, parent taskgroup.ID) {
+		id := next()
+		state := taskgroup.Done
+		if space.RepoRoot == "" {
+			state = taskgroup.Failed
+		}
+		pool := taskgroup.IO
+		if space.Linked {
+			pool = taskgroup.CPU
+		}
+		nodes = append(nodes, taskgroup.Node{
+			ID:      id,
+			Parent:  parent,
+			Name:    space.Label,
+			Message: Kind(space),
+			State:   state,
+			Pool:    pool,
+		})
+		detail := func(name, value string) {
+			if value == "" {
+				return
+			}
+			nodes = append(nodes, taskgroup.Node{
+				ID:      next(),
+				Parent:  id,
+				Name:    name,
+				Message: value,
+				State:   taskgroup.Done,
+				Pool:    taskgroup.Control,
+			})
+		}
+		detail("branch", space.Branch)
+		detail("checkout", space.Checkout)
+		if space.RepoRoot != space.Checkout {
+			detail("repo", space.RepoRoot)
+		}
+		detail("source", space.Source)
+		if space.Identity != "" && space.Identity != space.Checkout {
+			detail("identity", space.Identity)
+		}
+		detail("place", Explain(r.Pin, space))
+		for _, child := range children[space.ID] {
+			add(child, id)
+		}
+	}
+	for _, space := range r.Order {
+		if _, nested := parentOf[space.ID]; nested {
+			continue
+		}
+		add(space, 0)
+	}
+	return nodes
+}
+
 func (p *plan) sort(wanted []Space) error {
 	p.phase("order")
 	current := make([]string, len(p.raw))
