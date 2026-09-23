@@ -3,49 +3,28 @@ package udf
 import (
 	"bytes"
 	"errors"
-	"io"
 	"io/fs"
 	"strings"
 	"testing"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type onlyReader struct{ io.Reader }
-
 func TestOpenFSNeedReadAt(t *testing.T) {
 	t.Parallel()
-	fsys := &readerOnlyFS{name: "vol.iso", r: strings.NewReader("x")}
+	fsys := test.ReaderOnlyFS("vol.iso", strings.NewReader("x"))
 	_, err := path.OpenFS(t.Context(), path.New("vol.iso"), fsys, Open)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 }
 
-type readerOnlyFS struct {
-	name string
-	r    io.Reader
-}
-
-func (s *readerOnlyFS) Open(name string) (fs.File, error) {
-	if name != s.name {
-		return nil, fs.ErrNotExist
-	}
-	return &readerOnlyFile{Reader: s.r}, nil
-}
-
-type readerOnlyFile struct {
-	io.Reader
-}
-
-func (readerOnlyFile) Stat() (fs.FileInfo, error) { return nil, fs.ErrInvalid }
-func (readerOnlyFile) Close() error               { return nil }
-
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
-	_, err := Open(t.Context(), onlyReader{strings.NewReader("x")})
+	_, err := Open(t.Context(), test.OnlyReader{strings.NewReader("x")})
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
 	pe, ok := errors.AsType[*fs.PathError](err)
 	require.True(t, ok)
