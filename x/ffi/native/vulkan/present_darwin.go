@@ -97,9 +97,7 @@ func openMetalWindow(screen *Screen, width, height int, title string) (hostSurfa
 	return host, nil
 }
 
-func (h *metalHost) poll() {
-	thread.Do(pollDarwin)
-}
+func (h *metalHost) poll() {}
 
 var appOnce sync.Once
 
@@ -227,14 +225,12 @@ func dispatchMetalEvents() {
 	if app == 0 || mode == 0 {
 		return
 	}
-	for i := 0; i < 64; i++ {
-		ev := app.Send(objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:"), ^uintptr(0), date, mode, true)
-		if ev == 0 {
-			return
-		}
-		deliverMetal(ev)
-		app.Send(objc.RegisterName("sendEvent:"), ev)
+	ev := app.Send(objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:"), ^uintptr(0), date, mode, true)
+	if ev == 0 {
+		return
 	}
+	deliverMetal(ev)
+	app.Send(objc.RegisterName("sendEvent:"), ev)
 }
 
 func deliverMetal(ev objc.ID) {
