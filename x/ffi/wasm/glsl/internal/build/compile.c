@@ -31,13 +31,18 @@ static void set_err(const char *a, const char *b) {
 
 const char *last_error(void) { return last_err; }
 
-// compile_compute compiles Vulkan GLSL compute to SPIR-V bytes.
+// compile_stage compiles Vulkan GLSL to SPIR-V.
+// stage is a glslang_stage_t value: vertex 0, fragment 4, compute 5.
 // On success writes a malloc'd buffer to *out_ptr and length to *out_len.
-int compile_compute(const char *src, uint32_t src_len, uint32_t *out_ptr, uint32_t *out_len) {
+int compile_stage(int stage, const char *src, uint32_t src_len, uint32_t *out_ptr, uint32_t *out_len) {
 	(void)src_len;
 	last_err[0] = 0;
 	if (!src || !out_ptr || !out_len) {
 		set_err("nil argument", NULL);
+		return 1;
+	}
+	if (stage != GLSLANG_STAGE_VERTEX && stage != GLSLANG_STAGE_FRAGMENT && stage != GLSLANG_STAGE_COMPUTE) {
+		set_err("stage", NULL);
 		return 1;
 	}
 	*out_ptr = 0;
@@ -48,7 +53,7 @@ int compile_compute(const char *src, uint32_t src_len, uint32_t *out_ptr, uint32
 	}
 	glslang_input_t input = {
 		.language = GLSLANG_SOURCE_GLSL,
-		.stage = GLSLANG_STAGE_COMPUTE,
+		.stage = (glslang_stage_t)stage,
 		.client = GLSLANG_CLIENT_VULKAN,
 		.client_version = GLSLANG_TARGET_VULKAN_1_1,
 		.target_language = GLSLANG_TARGET_SPV,
@@ -94,7 +99,7 @@ int compile_compute(const char *src, uint32_t src_len, uint32_t *out_ptr, uint32
 		glslang_finalize_process();
 		return 1;
 	}
-	glslang_program_SPIRV_generate(program, GLSLANG_STAGE_COMPUTE);
+	glslang_program_SPIRV_generate(program, (glslang_stage_t)stage);
 	size_t words = glslang_program_SPIRV_get_size(program);
 	if (words == 0) {
 		const char *msg = glslang_program_SPIRV_get_messages(program);
@@ -120,4 +125,8 @@ int compile_compute(const char *src, uint32_t src_len, uint32_t *out_ptr, uint32
 	glslang_shader_delete(shader);
 	glslang_finalize_process();
 	return 0;
+}
+
+int compile_compute(const char *src, uint32_t src_len, uint32_t *out_ptr, uint32_t *out_len) {
+	return compile_stage(GLSLANG_STAGE_COMPUTE, src, src_len, out_ptr, out_len);
 }

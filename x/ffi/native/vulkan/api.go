@@ -32,7 +32,8 @@ const (
 	structureCommandBufferBeginInfo        = 42
 	structureMemoryBarrier                 = 46
 
-	queueComputeBit = 2
+	queueGraphicsBit = 1
+	queueComputeBit  = 2
 
 	memoryDeviceLocal  = 1
 	memoryHostVisible  = 2
@@ -46,7 +47,10 @@ const (
 	accessTransferRead     = 0x00000800
 
 	descriptorStorageBuffer = 7
+	shaderStageVertex       = 1
+	shaderStageFragment     = 16
 	shaderStageCompute      = 32
+	bindPointGraphics       = 0
 	bindPointCompute        = 1
 
 	commandPoolTransient = 1
@@ -387,6 +391,16 @@ type api struct {
 	updateDescriptorSets   func(device uintptr, writeCount uint32, writes *writeDescriptorSet, copyCount uint32, copies uintptr)
 	cmdBindPipeline        func(cmd uintptr, bindPoint uint32, pipeline uint64)
 	cmdBindSets            func(cmd uintptr, bindPoint uint32, layout uint64, firstSet, setCount uint32, sets *uint64, dynCount uint32, dyn *uint32)
+	createGraphicsPipes    func(device uintptr, cache uint64, count uint32, infos uintptr, alloc uintptr, pipes *uint64) int32
+	createRenderPass       func(device uintptr, info uintptr, alloc uintptr, pass *uint64) int32
+	destroyRenderPass      func(device uintptr, pass uint64, alloc uintptr)
+	createFramebuffer      func(device uintptr, info uintptr, alloc uintptr, fb *uint64) int32
+	destroyFramebuffer     func(device uintptr, fb uint64, alloc uintptr)
+	cmdBeginRenderPass     func(cmd uintptr, info uintptr, contents uint32)
+	cmdEndRenderPass       func(cmd uintptr)
+	cmdDraw                func(cmd uintptr, vertexCount, instanceCount, firstVertex, firstInstance uint32)
+	cmdSetViewport         func(cmd uintptr, first, count uint32, viewports uintptr)
+	cmdSetScissor          func(cmd uintptr, first, count uint32, scissors uintptr)
 	cmdDispatch            func(cmd uintptr, x, y, z uint32)
 	cmdCopyBuffer          func(cmd uintptr, src, dst uint64, count uint32, regions *bufferCopy)
 	cmdPushConstants       func(cmd uintptr, layout uint64, stages, offset, size uint32, values uintptr)
@@ -507,6 +521,16 @@ func (a *api) loadInstance(inst uintptr) error {
 		{"vkCreatePipelineLayout", &a.createPipelineLayout},
 		{"vkDestroyPipelineLayout", &a.destroyPipelineLayout},
 		{"vkCreateComputePipelines", &a.createComputePipes},
+		{"vkCreateGraphicsPipelines", &a.createGraphicsPipes},
+		{"vkCreateRenderPass", &a.createRenderPass},
+		{"vkDestroyRenderPass", &a.destroyRenderPass},
+		{"vkCreateFramebuffer", &a.createFramebuffer},
+		{"vkDestroyFramebuffer", &a.destroyFramebuffer},
+		{"vkCmdBeginRenderPass", &a.cmdBeginRenderPass},
+		{"vkCmdEndRenderPass", &a.cmdEndRenderPass},
+		{"vkCmdDraw", &a.cmdDraw},
+		{"vkCmdSetViewport", &a.cmdSetViewport},
+		{"vkCmdSetScissor", &a.cmdSetScissor},
 		{"vkDestroyPipeline", &a.destroyPipeline},
 		{"vkCreateBuffer", &a.createBuffer},
 		{"vkDestroyBuffer", &a.destroyBuffer},
@@ -553,6 +577,16 @@ func (a *api) loadDevice(dev uintptr) error {
 	}
 	for _, p := range []pair{
 		{"vkCreateComputePipelines", &a.createComputePipes},
+		{"vkCreateGraphicsPipelines", &a.createGraphicsPipes},
+		{"vkCreateRenderPass", &a.createRenderPass},
+		{"vkDestroyRenderPass", &a.destroyRenderPass},
+		{"vkCreateFramebuffer", &a.createFramebuffer},
+		{"vkDestroyFramebuffer", &a.destroyFramebuffer},
+		{"vkCmdBeginRenderPass", &a.cmdBeginRenderPass},
+		{"vkCmdEndRenderPass", &a.cmdEndRenderPass},
+		{"vkCmdDraw", &a.cmdDraw},
+		{"vkCmdSetViewport", &a.cmdSetViewport},
+		{"vkCmdSetScissor", &a.cmdSetScissor},
 		{"vkCmdBindDescriptorSets", &a.cmdBindSets},
 		{"vkCmdBindPipeline", &a.cmdBindPipeline},
 		{"vkCmdDispatch", &a.cmdDispatch},

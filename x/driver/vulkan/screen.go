@@ -6,7 +6,7 @@ import (
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/native/vulkan"
 )
 
-// Screen is a window whose swapchain lives on one compute device.
+// Screen is a window whose swapchain lives on one GPU.
 type (
 	Input = ffivulkan.Input
 )
@@ -23,6 +23,10 @@ const (
 type Screen interface {
 	Device() Device
 	Present(buf *Buffer, width, height int, spirv []byte) error
+	// Draw paints rounded-rect instances and optional RGBA8 ink with graphics pipelines.
+	// instances is 16 float32 values per fill. The four SPIR-V arguments are fill vertex,
+	// fill fragment, ink vertex, and ink fragment.
+	Draw(instances, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error
 	OnInput(func(Input))
 	Close() error
 }
@@ -62,6 +66,13 @@ func (s *screen) Present(buf *Buffer, width, height int, spirv []byte) error {
 		return ffivulkan.ErrClosed
 	}
 	return s.binding.Present(buf, width, height, spirv)
+}
+
+func (s *screen) Draw(instances, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error {
+	if s == nil || s.binding == nil {
+		return ffivulkan.ErrClosed
+	}
+	return s.binding.Draw(instances, ink, width, height, fillVert, fillFrag, inkVert, inkFrag)
 }
 
 func (s *screen) OnInput(fn func(Input)) {

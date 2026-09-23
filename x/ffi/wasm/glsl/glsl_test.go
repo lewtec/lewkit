@@ -27,6 +27,21 @@ void main() { data.v = 2u; }
 	require.Equal(t, 0, len(spv)%4)
 }
 
+func TestCompileVertex(t *testing.T) {
+	src := `#version 450
+void main() { gl_Position = vec4(0.0); }
+`
+	spv, err := CompileStage(t.Context(), StageVertex, []byte(src))
+	require.NoError(t, err)
+	require.True(t, IsSPIRV(spv))
+	require.Equal(t, 0, len(spv)%4)
+}
+
+func TestCompileStageRejects(t *testing.T) {
+	_, err := CompileStage(t.Context(), 3, []byte("void main() {}\n"))
+	require.Error(t, err)
+}
+
 func TestCompileCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

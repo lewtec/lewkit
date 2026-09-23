@@ -63,7 +63,7 @@ Inherited C (cite the file):
 | TEC-06 | wazero | wrap | call wazero from a binding | go.mod path:x/ffi/wasm |
 | TEC-07 | this SPEC | implement | return the binding device from `x/driver/vulkan` | path:x/driver/vulkan path:x/ffi/native/vulkan |
 | TEC-01 tui | bubbletea v2 | adopt | write a terminal runtime | go.mod path:x/taskgroup/progress |
-| TEC-01 gui | ndarray 21-op graph | wrap | add a rasterizer beside ndarray | path:x/ndarray |
+| TEC-01 gui | ndarray 21-op graph | wrap | read the picture back to the host before present | path:x/ndarray |
 | TEC-01 web | templ | adopt | write an HTML runtime | go.mod path:x/ui/web |
 
 | Cell | Pick | C or D | Implements | Cite if C |
@@ -83,7 +83,7 @@ Inherited C (cite the file):
 | primitive | a reusable type in this module | UI library, widget toolkit, Flutter |
 | namespace | `x/ui` as a directory of three packages | parent `Widget`; importable `x/ui` API |
 | component | bubbletea type; templ template; tensor transformer | widget |
-| transformer | `Picture.Render` of a `Node` tree: a fused `(h,w,4)` `Tensor` | shader, painter, widget, GUI framework |
+| transformer | `Picture.Render` of a `Node` tree: a fused `(h,w,4)` `Tensor` headless, and the same fills drawn on a swapchain | painter, widget, GUI framework |
 | Model | Init, Update, View (bubbletea shape; View is a layout Node) | Widget, Flutter Element |
 | host | `x/driver/window` | gui, windowing toolkit |
 | engine | `x/ndarray` | tinygrad |
@@ -112,7 +112,7 @@ Inherited C (cite the file):
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
-| `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd` | libvulkan binding | compute subset stays here | existing vulkan errors | import `x/ffi/wasm` |
+| `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw` | libvulkan binding | compute plus one graphics draw for the swapchain | existing vulkan errors | import `x/ffi/wasm` |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
 | `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
 | `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
@@ -132,7 +132,7 @@ Inherited C (cite the file):
 | INV-02 | `x/ui` exports no types | `x/ui` | `Widget`, shared `Color`, shared `Align` |
 | INV-03 | `tui` native export is a bubbletea type | `x/ui/tui` | templ files; tensor transformers |
 | INV-04 | `web` native export is a page templ template. A tag for one registered asset lives in that asset package | `x/ui/web`; `x/http/asset` | bubbletea types; tensor transformers; an asset tag in `web` |
-| INV-05 | `gui.Model.View` returns a layout `Node`; `Run` paints it to a `(h,w,4)` tensor | `x/ui/gui` | `View` returning a tensor; `window.Present` declared here; a second rasterizer |
+| INV-05 | `gui.Model.View` returns a layout `Node`; headless `Run` paints a `(h,w,4)` tensor; a swapchain paints recorded fills, and a mounted tensor is that picture's kernel | `x/ui/gui` | `View` returning a tensor; `window.Present` declared here; a host readback of the picture before present |
 | INV-06 | A viewer stays next to the type it shows | `x/taskgroup/progress` | move progress into `x/ui/tui` because it uses bubbletea |
 | INV-07 | `tui`, `web`, and `gui` MUST NOT import each other | those packages | `gui` emitting HTML; `tui` importing `gui` |
 | INV-08 | Host and engine MUST NOT import `tui`, `web`, and `gui` | `x/driver/window`, `x/ndarray` | `window` depending on `gui` |

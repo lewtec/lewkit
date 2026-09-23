@@ -22,6 +22,11 @@ type display interface {
 	present(ctx context.Context, view *ndarray.Tensor[uint8], evaluator ndarray.Evaluator) error
 }
 
+// listPainter draws the recorded fills instead of evaluating the fused kernel.
+type listPainter interface {
+	presentList(ctx context.Context, picture *Picture) error
+}
+
 type imageDisplay struct{ window.Window }
 
 func (d imageDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], evaluator ndarray.Evaluator) error {
@@ -36,6 +41,27 @@ type bridgeDisplay struct {
 
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
 	return ndeval.Paint(ctx, d.evaluator, view, d.screen)
+}
+
+func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error {
+	if picture == nil {
+		return ErrView
+	}
+	size := d.Size()
+	fills := make([]ndeval.Fill, len(picture.fills))
+	for i, fill := range picture.fills {
+		fills[i] = ndeval.Fill{
+			X: fill.X, Y: fill.Y, Width: fill.Width, Height: fill.Height,
+			Red: fill.Red, Green: fill.Green, Blue: fill.Blue, Alpha: fill.Alpha,
+			Radius: fill.Radius, ClipX: fill.ClipX, ClipY: fill.ClipY,
+			ClipWidth: fill.ClipWidth, ClipHeight: fill.ClipHeight,
+		}
+	}
+	var ink []byte
+	if picture.hadInk && picture.inkRGBA != nil {
+		ink = picture.inkRGBA.Pix
+	}
+	return ndeval.Draw(ctx, d.screen, fills, ink, size.X, size.Y)
 }
 
 type runner struct {
@@ -198,6 +224,11 @@ func (runner *runner) render() error {
 	if err != nil {
 		return err
 	}
+	if runner.picture.recordOnly {
+		runner.view = nil
+		runner.signature = runner.picture.frameSig()
+		return nil
+	}
 	if pixels == nil {
 		return ErrView
 	}
@@ -210,11 +241,23 @@ func (runner *runner) flush(force bool) error {
 	if !force && !runner.dirty {
 		return nil
 	}
+	_, listed := runner.host.(listPainter)
+	runner.picture.recordOnly = listed
 	if err := runner.render(); err != nil {
+		runner.picture.recordOnly = false
 		return err
 	}
+	runner.picture.recordOnly = false
 	runner.dirty = false
 	if !force && runner.signature != 0 && runner.signature == runner.lastSignature {
+		return nil
+	}
+	if listed {
+		if err := runner.host.(listPainter).presentList(runner.ctx, runner.picture); err != nil {
+			return err
+		}
+		runner.hertz = runner.fps.Get()
+		runner.lastSignature = runner.signature
 		return nil
 	}
 	if runner.view == nil {

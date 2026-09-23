@@ -36,6 +36,7 @@ type Picture struct {
 	signature   uint64
 	hadInk      bool
 	fillCount   int
+	recordOnly  bool
 }
 
 func accumulatorOf(picture *Picture) *ndarray.Tensor[float32] {
@@ -138,6 +139,10 @@ func (picture *Picture) over(fill Draw) *ndarray.Tensor[float32] {
 		return nil
 	}
 	picture.fills = append(picture.fills, fill)
+	if picture.recordOnly {
+		picture.fillCount = len(picture.fills)
+		return picture.base
+	}
 	index := len(picture.fills) - 1
 	if index >= len(picture.slots) {
 		capacity := len(picture.slots)
@@ -232,6 +237,17 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.texts = picture.texts[:0]
 	picture.accumulator = picture.base
 	accumulator := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, picture)
+	if picture.recordOnly {
+		height, width := int(size.Height), int(size.Width)
+		if err := picture.ensureInk(height, width, len(picture.texts)); err != nil {
+			return nil, err
+		}
+		for _, run := range picture.texts {
+			run.stamp(picture.inkRGBA)
+		}
+		picture.stamp(len(picture.texts) > 0)
+		return nil, nil
+	}
 	if accumulator == nil {
 		accumulator = picture.base
 	}
@@ -271,6 +287,24 @@ func (picture *Picture) stamp(ink bool) {
 	mix := func(value uint64) {
 		hash ^= value
 		hash *= 1099511628211
+	}
+	if picture.recordOnly {
+		for _, fill := range picture.fills {
+			for _, value := range []float32{fill.X, fill.Y, fill.Width, fill.Height, fill.Red, fill.Green, fill.Blue, fill.Alpha, fill.Radius, fill.ClipX, fill.ClipY, fill.ClipWidth, fill.ClipHeight} {
+				mix(uint64(math.Float32bits(value)))
+			}
+		}
+		if picture.inkRGBA != nil {
+			mix(uint64(picture.inkRGBA.Rect.Dx()))
+			mix(uint64(picture.inkRGBA.Rect.Dy()))
+		}
+		if ink && picture.inkRGBA != nil {
+			for _, pixel := range picture.inkRGBA.Pix {
+				mix(uint64(pixel))
+			}
+		}
+		picture.signature = hash
+		return
 	}
 	if picture.params != nil {
 		for _, uniform := range picture.params.Buffer() {

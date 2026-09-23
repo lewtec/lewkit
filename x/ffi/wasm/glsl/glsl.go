@@ -18,11 +18,31 @@ func IsSPIRV(b []byte) bool {
 	return len(b) >= 4 && binary.LittleEndian.Uint32(b[:4]) == 0x07230203
 }
 
+// Stage is a shader stage the embedded compiler can emit.
+type Stage int
+
+const (
+	// StageVertex is a vertex shader.
+	StageVertex Stage = 0
+	// StageFragment is a fragment shader.
+	StageFragment Stage = 4
+	// StageCompute is a compute shader.
+	StageCompute Stage = 5
+)
+
 // Compile turns Vulkan GLSL compute source into SPIR-V.
 // src must be GLSL, not SPIR-V.
 func Compile(ctx context.Context, src []byte) ([]byte, error) {
+	return CompileStage(ctx, StageCompute, src)
+}
+
+// CompileStage turns Vulkan GLSL for stage into SPIR-V.
+func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return nil, ErrEmpty
+	}
+	if stage != StageVertex && stage != StageFragment && stage != StageCompute {
+		return nil, ErrCompile
 	}
 	if IsSPIRV(src) {
 		if len(src)%4 != 0 {
@@ -30,7 +50,7 @@ func Compile(ctx context.Context, src []byte) ([]byte, error) {
 		}
 		return append([]byte(nil), src...), nil
 	}
-	return compile(ctx, src)
+	return compileStage(ctx, stage, src)
 }
 
 // Load returns SPIR-V. SPIR-V is copied; GLSL is compiled.

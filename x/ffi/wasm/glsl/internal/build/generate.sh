@@ -15,6 +15,10 @@ PY=$(uv python find 3.13)
 mkdir -p "$work/bin"
 cat >"$work/bin/wasm-opt" <<'EOF'
 #!/bin/sh
+if [ "$1" = "--version" ]; then
+	echo "wasm-opt version 123"
+	exit 0
+fi
 out="" src=""
 while [ $# -gt 0 ]; do
 	if [ "$1" = "-o" ]; then out=$2; shift 2; continue; fi
@@ -28,6 +32,7 @@ exit 0
 EOF
 chmod +x "$work/bin/wasm-opt"
 export PATH="$work/bin:$(dirname "$PY"):$PATH"
+export EM_BINARYEN_ROOT="$work"
 
 run() {
 	mise exec conda:emscripten@4.0.9 conda:cmake@4.4.3 conda:ninja@1.13.2 -- "$@"
@@ -77,7 +82,7 @@ run emcc "$src" -O2 \
 	-sSTANDALONE_WASM=1 \
 	-sALLOW_MEMORY_GROWTH=1 \
 	-sINITIAL_MEMORY=67108864 \
-	-sEXPORTED_FUNCTIONS=_compile_compute,_last_error,_malloc,_free \
+	-sEXPORTED_FUNCTIONS=_compile_compute,_compile_stage,_last_error,_malloc,_free \
 	-o "$out"
 
 ls -l "$out"
