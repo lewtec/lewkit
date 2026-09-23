@@ -1,0 +1,42 @@
+package web
+
+templ Page() {
+	<!doctype html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<title>lewkit</title>
+		</head>
+		<body>
+			<nav>
+				<a href="/">Home</a>
+				<a href="/about">About</a>
+			</nav>
+			<main id="page"></main>
+			@script()
+		</body>
+	</html>
+}
+
+templ script() {
+	<script>
+		function show() {
+			var text = "Home is this templ page."
+			if (location.pathname === "/about") {
+				text = "About is the same document."
+			}
+			document.getElementById("page").textContent = text
+		}
+		document.addEventListener("click", function (event) {
+			var link = event.target.closest("a")
+			if (!link) {
+				return
+			}
+			event.preventDefault()
+			history.pushState({}, "", link.getAttribute("href"))
+			show()
+		})
+		addEventListener("popstate", show)
+		show()
+	</script>
+}

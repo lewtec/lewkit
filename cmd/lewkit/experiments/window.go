@@ -24,6 +24,7 @@ type Window struct {
 	Notepad  *notepadCmd
 	Counter  *counterCmd
 	Webview  *webviewCmd
+	Spa      *spaCmd
 }
 
 func (Window) Description() string {

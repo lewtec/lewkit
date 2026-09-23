@@ -21,4 +21,6 @@ func TestWindowUsage(t *testing.T) {
 	assert.Contains(t, text, "counter")
 	assert.Contains(t, text, "webview")
 	assert.Contains(t, text, "in-process handler")
+	assert.Contains(t, text, "spa")
+	assert.Contains(t, text, "single-page app")
 }
