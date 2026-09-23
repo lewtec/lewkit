@@ -274,20 +274,16 @@ func OpenScreen(ctx context.Context, width, height int, title string) (*Screen, 
 	}
 	s := &Screen{d: d, width: width, height: height}
 	if err := s.wsi.load(d); err != nil {
-		d.Close()
-		return nil, err
+		return nil, errors.Join(err, d.Close())
 	}
 	if err := s.openWindow(title); err != nil {
-		_ = s.Close()
-		return nil, err
+		return nil, errors.Join(err, s.Close())
 	}
 	if err := s.openDevice(ctx); err != nil {
-		_ = s.Close()
-		return nil, err
+		return nil, errors.Join(err, s.Close())
 	}
 	if err := s.makeSwapchain(); err != nil {
-		_ = s.Close()
-		return nil, err
+		return nil, errors.Join(err, s.Close())
 	}
 	return s, nil
 }
@@ -304,28 +300,23 @@ func OpenNative(ctx context.Context, kind int, a, b uintptr, width, height int) 
 	}
 	s := &Screen{d: d, width: width, height: height}
 	if err := s.wsi.load(d); err != nil {
-		d.Close()
-		return nil, err
+		return nil, errors.Join(err, d.Close())
 	}
 	host, err := attachHost(s, kind, a, b)
 	if err != nil {
-		_ = s.Close()
-		return nil, err
+		return nil, errors.Join(err, s.Close())
 	}
 	s.host = host
 	surface, err := host.create(d, &s.wsi)
 	if err != nil {
-		_ = s.Close()
-		return nil, err
+		return nil, errors.Join(err, s.Close())
 	}
 	s.surface = surface
 	if err := s.openDevice(ctx); err != nil {
-		_ = s.Close()
-		return nil, err
+		return nil, errors.Join(err, s.Close())
 	}
 	if err := s.makeSwapchain(); err != nil {
-		_ = s.Close()
-		return nil, err
+		return nil, errors.Join(err, s.Close())
 	}
 	return s, nil
 }
