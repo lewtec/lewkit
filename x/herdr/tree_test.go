@@ -19,45 +19,45 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 		},
 	}
 	nodes := report.Nodes()
-	byName := map[string]int{}
+	byLabel := map[string]int{}
 	for i, node := range nodes {
-		if _, ok := byName[node.Name]; !ok {
-			byName[node.Name] = i
+		if _, ok := byLabel[node.Message]; !ok {
+			byLabel[node.Message] = i
 		}
 	}
-	require.Contains(t, byName, "dotfiles")
-	require.Contains(t, byName, "feat")
-	require.Contains(t, byName, "lewkit")
-	require.Contains(t, byName, "topic")
-	require.Contains(t, byName, "tmp")
+	require.Contains(t, byLabel, "dotfiles")
+	require.Contains(t, byLabel, "feat")
+	require.Contains(t, byLabel, "lewkit")
+	require.Contains(t, byLabel, "topic")
+	require.Contains(t, byLabel, "tmp")
+	assert.Equal(t, "/pin", nodes[byLabel["dotfiles"]].Name)
+	assert.Equal(t, "/pin-wt", nodes[byLabel["feat"]].Name)
+	assert.Equal(t, "/tmp", nodes[byLabel["tmp"]].Name)
 
-	assert.Equal(t, nodes[byName["dotfiles"]].ID, nodes[byName["feat"]].Parent)
-	assert.Equal(t, nodes[byName["lewkit"]].ID, nodes[byName["topic"]].Parent)
-	assert.Zero(t, nodes[byName["dotfiles"]].Parent)
-	assert.Zero(t, nodes[byName["lewkit"]].Parent)
-	assert.Zero(t, nodes[byName["tmp"]].Parent)
-	assert.Less(t, byName["dotfiles"], byName["feat"])
-	assert.Less(t, byName["feat"], byName["lewkit"])
-	assert.Less(t, byName["topic"], byName["tmp"])
+	assert.Equal(t, nodes[byLabel["dotfiles"]].ID, nodes[byLabel["feat"]].Parent)
+	assert.Equal(t, nodes[byLabel["lewkit"]].ID, nodes[byLabel["topic"]].Parent)
+	assert.Zero(t, nodes[byLabel["dotfiles"]].Parent)
+	assert.Zero(t, nodes[byLabel["lewkit"]].Parent)
+	assert.Zero(t, nodes[byLabel["tmp"]].Parent)
+	assert.Less(t, byLabel["dotfiles"], byLabel["feat"])
+	assert.Less(t, byLabel["feat"], byLabel["lewkit"])
+	assert.Less(t, byLabel["topic"], byLabel["tmp"])
 
 	var underDot []string
-	dot := nodes[byName["dotfiles"]].ID
+	dot := nodes[byLabel["dotfiles"]].ID
 	for _, node := range nodes {
 		if node.Parent == dot {
 			underDot = append(underDot, node.Name)
 		}
 	}
-	assert.Equal(t, []string{"checkout", "source", "feat"}, underDot)
+	assert.Equal(t, []string{"/pin-wt"}, underDot)
 
 	var underTopic []string
-	topic := nodes[byName["topic"]].ID
+	topic := nodes[byLabel["topic"]].ID
 	for _, node := range nodes {
 		if node.Parent == topic {
 			underTopic = append(underTopic, node.Name+":"+node.Message)
 		}
 	}
-	assert.Contains(t, underTopic, "repo:/repo")
-	assert.Contains(t, underTopic, "identity:/old")
-	assert.NotContains(t, underTopic, "branch:topic")
-	assert.NotContains(t, underTopic, "kind:worktree")
+	assert.Equal(t, []string{"repo:/repo", "identity:/old"}, underTopic)
 }
