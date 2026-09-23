@@ -4,8 +4,10 @@ package vulkan
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -52,8 +54,10 @@ func openHost(width, height int, title string) (hostSurface, error) {
 }
 
 func openMetalWindow(width, height int, title string) (hostSurface, error) {
-	app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
-	app.Send(objc.RegisterName("setActivationPolicy:"), 0)
+	app, err := nsApp()
+	if err != nil {
+		return nil, err
+	}
 	rect := nsRect{Size: nsSize{Width: float64(width), Height: float64(height)}}
 	wnd := objc.ID(objc.GetClass("NSWindow")).Send(objc.RegisterName("alloc"))
 	wnd = wnd.Send(objc.RegisterName("initWithContentRect:styleMask:backing:defer:"),
@@ -66,18 +70,61 @@ func openMetalWindow(width, height int, title string) (hostSurface, error) {
 		wnd.Send(objc.RegisterName("setTitle:"), ns)
 	}
 	view := wnd.Send(objc.RegisterName("contentView"))
-	view.Send(objc.RegisterName("setWantsLayer:"), true)
 	layer := objc.ID(objc.GetClass("CAMetalLayer")).Send(objc.RegisterName("alloc"))
 	layer = layer.Send(objc.RegisterName("init"))
 	if layer == 0 {
 		wnd.Send(objc.RegisterName("close"))
 		return nil, fmt.Errorf("%w: CAMetalLayer", ErrUnavailable)
 	}
+	layer.Send(objc.RegisterName("setContentsScale:"), 1.0)
 	layer.Send(objc.RegisterName("setDrawableSize:"), nsSize{Width: float64(width), Height: float64(height)})
 	view.Send(objc.RegisterName("setLayer:"), layer)
+	view.Send(objc.RegisterName("setWantsLayer:"), true)
+	wnd.Send(objc.RegisterName("center"))
 	wnd.Send(objc.RegisterName("makeKeyAndOrderFront:"), objc.ID(0))
 	app.Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
+	pumpApp(app)
 	return &metalHost{wnd: wnd, layer: layer}, nil
+}
+
+var appOnce sync.Once
+
+func nsApp() (objc.ID, error) {
+	var app objc.ID
+	var err error
+	appOnce.Do(func() {
+		if _, openErr := native.Open("/System/Library/Frameworks/Cocoa.framework/Cocoa", native.Global|native.Lazy); openErr != nil {
+			err = fmt.Errorf("%w: cocoa: %w", ErrUnavailable, openErr)
+			return
+		}
+		app = objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
+		app.Send(objc.RegisterName("setActivationPolicy:"), 0)
+		app.Send(objc.RegisterName("finishLaunching"))
+		thread.OnIdle(func() { pumpApp(app) })
+	})
+	if err != nil {
+		return 0, err
+	}
+	if app == 0 {
+		app = objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
+	}
+	return app, nil
+}
+
+func pumpApp(app objc.ID) {
+	if app == 0 || !thread.ProcessMain() {
+		return
+	}
+	mode := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "NSDefaultRunLoopMode")
+	date := objc.ID(objc.GetClass("NSDate")).Send(objc.RegisterName("distantPast"))
+	for {
+		ev := app.Send(objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:"), ^uintptr(0), date, mode, true)
+		if ev == 0 {
+			break
+		}
+		app.Send(objc.RegisterName("sendEvent:"), ev)
+	}
+	app.Send(objc.RegisterName("updateWindows"))
 }
 
 func (h *metalHost) create(d *Device, w *wsi) (uint64, error) {
