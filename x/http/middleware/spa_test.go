@@ -109,7 +109,7 @@ func TestSPAMissChain(t *testing.T) {
 	}
 }
 
-func TestSPA404DoesNotUseServeContent(t *testing.T) {
+func TestSPASite404KeepsStatus(t *testing.T) {
 	t.Parallel()
 	filesystem := fstest.MapFS{
 		"404.html": {Data: []byte("<p>missing</p>")},

@@ -8,14 +8,9 @@
 package middleware
 
 import (
-	"errors"
-	"io"
 	"io/fs"
 	"log/slog"
-	"mime"
 	"net/http"
-	stdpath "path"
-	"strconv"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/path"
@@ -23,11 +18,9 @@ import (
 
 const cacheControl = "max-age=5"
 
-type spaCall struct {
+type spaHandler struct {
 	filesystem fs.FS
 	next       http.Handler
-	response   http.ResponseWriter
-	request    *http.Request
 }
 
 // SPA serves filesystem with the goftpd SPA rules.
@@ -38,163 +31,146 @@ type spaCall struct {
 // A path that names a directory and has no final slash is redirected
 // with status 308. A miss is not redirected. A file is not redirected.
 //
-// A real file is served with [http.ServeContent] and status 200.
+// A real file is served with [http.ServeFileFS] and status 200.
 // A directory that contains index.html is that file.
 // A directory that does not contain index.html is a miss.
 // SPA does not list a directory.
 //
 // A miss looks only at the filesystem root. It does not walk to a
-// parent index.html. 404.html is served with status 404 and is not
-// passed to [http.ServeContent]. index.html is served with status 200.
+// parent index.html. 404.html is served with status 404.
+// index.html is served with status 200.
 // If neither file exists, the request is passed to next.
 // A nil next writes status 404.
 //
 // Responses set Cache-Control to max-age=5.
 // The query string is not part of the file name.
+//
+// Names go through [path.Path]. That type does not record a trailing
+// slash, so the redirect check reads the request path.
 func SPA(filesystem fs.FS, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		call := spaCall{
-			filesystem: filesystem,
-			next:       next,
-			response:   response,
-			request:    request,
-		}
-		call.serve()
-	})
+	return spaHandler{filesystem: filesystem, next: next}
 }
 
-func (call spaCall) serve() {
-	if call.request.Method != http.MethodGet && call.request.Method != http.MethodHead {
-		if call.next != nil {
-			call.next.ServeHTTP(call.response, call.request)
+func (handler spaHandler) ServeHTTP(response http.ResponseWriter, request *http.Request) {
+	if request.Method != http.MethodGet && request.Method != http.MethodHead {
+		if handler.next != nil {
+			handler.next.ServeHTTP(response, request)
 			return
 		}
-		call.response.Header().Set("Allow", "GET, HEAD")
-		http.Error(call.response, "method not allowed", http.StatusMethodNotAllowed)
+		response.Header().Set("Allow", "GET, HEAD")
+		http.Error(response, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	urlPath := cleanURLPath(call.request.URL.Path)
-	name, ok := filesystemName(urlPath)
-	if !ok {
-		call.serveMiss()
+	name, slash := requestName(request.URL.Path)
+	if !name.Valid() || name.IsAbs() {
+		handler.miss(response, request)
 		return
 	}
-	info, err := name.Stat(call.filesystem)
+	file, err := name.IsFile(handler.filesystem)
 	if err != nil {
-		call.serveMiss()
+		handler.statFailed(response, request, name, err)
 		return
 	}
-	if info.IsDir() {
-		if !strings.HasSuffix(urlPath, "/") {
-			target := *call.request.URL
-			target.Path = urlPath + "/"
-			http.Redirect(call.response, call.request, target.String(), http.StatusPermanentRedirect)
-			return
-		}
+	if file {
+		handler.serve(response, request, name, http.StatusOK)
+		return
+	}
+	directory, err := name.IsDir(handler.filesystem)
+	if err != nil {
+		handler.statFailed(response, request, name, err)
+		return
+	}
+	if directory && name.String() != "." && !slash {
+		target := *request.URL
+		target.Path = "/" + name.String() + "/"
+		http.Redirect(response, request, target.String(), http.StatusPermanentRedirect)
+		return
+	}
+	if directory {
 		indexName := name.Join("index.html")
-		if fileExists(call.filesystem, indexName) {
-			call.serveFile(indexName, http.StatusOK)
+		indexFile, err := indexName.IsFile(handler.filesystem)
+		if err != nil {
+			handler.statFailed(response, request, indexName, err)
 			return
 		}
-		call.serveMiss()
-		return
+		if indexFile {
+			handler.serve(response, request, indexName, http.StatusOK)
+			return
+		}
 	}
-	call.serveFile(name, http.StatusOK)
+	handler.miss(response, request)
 }
 
-func (call spaCall) serveMiss() {
+func (handler spaHandler) miss(response http.ResponseWriter, request *http.Request) {
 	notFoundName := path.New("404.html")
-	if fileExists(call.filesystem, notFoundName) {
-		call.serveFile(notFoundName, http.StatusNotFound)
+	notFoundFile, err := notFoundName.IsFile(handler.filesystem)
+	if err != nil {
+		handler.statFailed(response, request, notFoundName, err)
+		return
+	}
+	if notFoundFile {
+		handler.serve(response, request, notFoundName, http.StatusNotFound)
 		return
 	}
 	indexName := path.New("index.html")
-	if fileExists(call.filesystem, indexName) {
-		call.serveFile(indexName, http.StatusOK)
-		return
-	}
-	if call.next != nil {
-		call.next.ServeHTTP(call.response, call.request)
-		return
-	}
-	http.NotFound(call.response, call.request)
-}
-
-func (call spaCall) serveFile(name path.Path, status int) {
-	file, err := name.Open(call.filesystem)
+	indexFile, err := indexName.IsFile(handler.filesystem)
 	if err != nil {
-		http.NotFound(call.response, call.request)
+		handler.statFailed(response, request, indexName, err)
 		return
 	}
-	defer file.Close()
-	info, err := file.Stat()
-	if err != nil {
-		http.NotFound(call.response, call.request)
+	if indexFile {
+		handler.serve(response, request, indexName, http.StatusOK)
 		return
 	}
-	reader, ok := file.(io.ReadSeeker)
-	if !ok {
-		http.NotFound(call.response, call.request)
+	if handler.next != nil {
+		handler.next.ServeHTTP(response, request)
 		return
 	}
-	call.response.Header().Set("Cache-Control", cacheControl)
-	if status == http.StatusOK {
-		http.ServeContent(call.response, call.request, info.Name(), info.ModTime(), reader)
-		return
-	}
-	contentType := mime.TypeByExtension(name.Suffix())
-	if contentType == "" {
-		buffer := make([]byte, 512)
-		count, err := io.ReadFull(file, buffer)
-		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-			http.NotFound(call.response, call.request)
-			return
-		}
-		contentType = http.DetectContentType(buffer[:count])
-		if _, err := reader.Seek(0, io.SeekStart); err != nil {
-			http.NotFound(call.response, call.request)
-			return
-		}
-	}
-	call.response.Header().Set("Content-Type", contentType)
-	call.response.Header().Set("Content-Length", strconv.FormatInt(info.Size(), 10))
-	call.response.WriteHeader(status)
-	if call.request.Method == http.MethodHead {
-		return
-	}
-	if _, err := io.Copy(call.response, reader); err != nil {
-		slog.WarnContext(call.request.Context(), "copy file", "path", name.String(), "err", err)
-	}
+	http.NotFound(response, request)
 }
 
-func fileExists(filesystem fs.FS, name path.Path) bool {
-	info, err := name.Stat(filesystem)
-	return err == nil && !info.IsDir()
+func (handler spaHandler) serve(response http.ResponseWriter, request *http.Request, name path.Path, status int) {
+	response.Header().Set("Cache-Control", cacheControl)
+	if status != http.StatusOK {
+		response = &statusResponse{ResponseWriter: response, status: status}
+	}
+	http.ServeFileFS(response, request, handler.filesystem, name.String())
 }
 
-func cleanURLPath(urlPath string) string {
+func (handler spaHandler) statFailed(response http.ResponseWriter, request *http.Request, name path.Path, err error) {
+	slog.WarnContext(request.Context(), "stat", "path", name.String(), "err", err)
+	http.Error(response, "stat file", http.StatusInternalServerError)
+}
+
+// requestName maps a URL path to an [io/fs] name.
+// The bool is true when the URL path ends in a slash.
+func requestName(urlPath string) (path.Path, bool) {
 	if urlPath == "" {
-		return "/"
+		urlPath = "/"
 	}
-	cleaned := stdpath.Clean(urlPath)
-	if !strings.HasPrefix(cleaned, "/") {
-		cleaned = "/" + cleaned
-	}
-	if cleaned != "/" && strings.HasSuffix(urlPath, "/") {
-		cleaned += "/"
-	}
-	return cleaned
+	return path.New(strings.Trim(urlPath, "/")), strings.HasSuffix(urlPath, "/")
 }
 
-func filesystemName(urlPath string) (path.Path, bool) {
-	trimmed := strings.TrimSuffix(urlPath, "/")
-	if trimmed == "" || trimmed == "/" {
-		return path.New(), true
+// statusResponse keeps a non-200 status when [http.ServeFileFS] writes 200.
+type statusResponse struct {
+	http.ResponseWriter
+	status int
+	wrote  bool
+}
+
+func (writer *statusResponse) WriteHeader(code int) {
+	if writer.wrote {
+		return
 	}
-	name := path.New(strings.TrimPrefix(trimmed, "/"))
-	if !name.Valid() || name.IsAbs() {
-		return path.Path{}, false
+	writer.wrote = true
+	if code == http.StatusOK {
+		code = writer.status
 	}
-	return name, true
+	writer.ResponseWriter.WriteHeader(code)
+}
+
+func (writer *statusResponse) Write(body []byte) (int, error) {
+	writer.WriteHeader(http.StatusOK)
+	return writer.ResponseWriter.Write(body)
 }
