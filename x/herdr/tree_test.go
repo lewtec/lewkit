@@ -34,7 +34,9 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 	assert.Equal(t, "/pin", nodes[byLabel["dotfiles"]].Message)
 	assert.Equal(t, "/pin-wt", nodes[byLabel["feat"]].Message)
 	assert.Equal(t, "/tmp", nodes[byLabel["tmp"]].Message)
-	assert.Equal(t, taskgroup.Dir, nodes[byLabel["tmp"]].Pool)
+	assert.Equal(t, "📁", nodes[byLabel["tmp"]].Emoji)
+	assert.Equal(t, taskgroup.IO, nodes[byLabel["tmp"]].Pool)
+	assert.Empty(t, nodes[byLabel["dotfiles"]].Emoji)
 	assert.Equal(t, taskgroup.IO, nodes[byLabel["dotfiles"]].Pool)
 	assert.Equal(t, taskgroup.CPU, nodes[byLabel["feat"]].Pool)
 

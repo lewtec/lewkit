@@ -39,6 +39,7 @@ func (m *model) requestStop() {
 type treeRow struct {
 	node   taskgroup.Node
 	tree   string
+	emoji  string
 	hidden int
 }
 
@@ -128,7 +129,7 @@ func layout(nodes []taskgroup.Node) []treeRow {
 		if hidden < 0 {
 			hidden = 0
 		}
-		out[i] = treeRow{node: n, tree: b.String(), hidden: hidden}
+		out[i] = treeRow{node: n, tree: b.String(), emoji: rowEmoji(n), hidden: hidden}
 	}
 	return out
 }
@@ -138,7 +139,7 @@ func formatRow(r treeRow, width int) string {
 		width = defaultTermWidth
 	}
 	n := r.node
-	prefix := r.tree + stateGlyph(n.State) + " " + poolEmoji(n.Pool) + " "
+	prefix := r.tree + r.emoji + " " + poolEmoji(n.Pool) + " "
 	msg := rowMessage(n)
 	if r.hidden > 0 {
 		msg += " +" + strconv.Itoa(r.hidden)
@@ -181,6 +182,13 @@ func percent(n taskgroup.Node) float64 {
 		return -1
 	}
 	return float64(n.Current) / float64(n.Total)
+}
+
+func rowEmoji(n taskgroup.Node) string {
+	if n.Emoji != "" {
+		return n.Emoji
+	}
+	return stateGlyph(n.State)
 }
 
 func stateGlyph(st taskgroup.State) string {
@@ -242,8 +250,6 @@ func poolEmoji(p taskgroup.PoolKind) string {
 		return "🧠"
 	case taskgroup.Internet:
 		return "🌐"
-	case taskgroup.Dir:
-		return "📁"
 	default:
 		return "•"
 	}

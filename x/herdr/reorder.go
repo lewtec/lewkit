@@ -778,10 +778,10 @@ func (r Report) Nodes() []taskgroup.Node {
 	add = func(space Space, parent taskgroup.ID) {
 		id := next()
 		pool := taskgroup.IO
-		switch {
-		case space.RepoRoot == "":
-			pool = taskgroup.Dir
-		case space.Linked:
+		emoji := ""
+		if space.RepoRoot == "" {
+			emoji = "📁"
+		} else if space.Linked {
 			pool = taskgroup.CPU
 		}
 		nodes = append(nodes, taskgroup.Node{
@@ -789,6 +789,7 @@ func (r Report) Nodes() []taskgroup.Node {
 			Parent:  parent,
 			Name:    space.Label,
 			Message: space.Checkout,
+			Emoji:   emoji,
 			State:   taskgroup.Done,
 			Pool:    pool,
 		})

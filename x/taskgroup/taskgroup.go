@@ -35,7 +35,6 @@ const (
 	IO                       // Leaf: local disk
 	CPU                      // Leaf: computation / local exec
 	Internet                 // Leaf: network
-	Dir                      // Display only: a path that is not a git checkout
 )
 
 func (p PoolKind) String() string {
@@ -48,8 +47,6 @@ func (p PoolKind) String() string {
 		return "cpu"
 	case Internet:
 		return "internet"
-	case Dir:
-		return "dir"
 	default:
 		return "unknown"
 	}
@@ -122,6 +119,7 @@ type Node struct {
 	Name         string
 	Pool         PoolKind
 	State        State
+	Emoji        string // Drawn in place of the state glyph when set.
 	Message      string
 	Current      int64
 	Total        int64 // -1 means indeterminate
