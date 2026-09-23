@@ -21,8 +21,8 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 	nodes := report.Nodes()
 	byLabel := map[string]int{}
 	for i, node := range nodes {
-		if _, ok := byLabel[node.Message]; !ok {
-			byLabel[node.Message] = i
+		if _, ok := byLabel[node.Name]; !ok {
+			byLabel[node.Name] = i
 		}
 	}
 	require.Contains(t, byLabel, "dotfiles")
@@ -30,9 +30,9 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 	require.Contains(t, byLabel, "lewkit")
 	require.Contains(t, byLabel, "topic")
 	require.Contains(t, byLabel, "tmp")
-	assert.Equal(t, "/pin", nodes[byLabel["dotfiles"]].Name)
-	assert.Equal(t, "/pin-wt", nodes[byLabel["feat"]].Name)
-	assert.Equal(t, "/tmp", nodes[byLabel["tmp"]].Name)
+	assert.Equal(t, "/pin", nodes[byLabel["dotfiles"]].Message)
+	assert.Equal(t, "/pin-wt", nodes[byLabel["feat"]].Message)
+	assert.Equal(t, "/tmp", nodes[byLabel["tmp"]].Message)
 
 	assert.Equal(t, nodes[byLabel["dotfiles"]].ID, nodes[byLabel["feat"]].Parent)
 	assert.Equal(t, nodes[byLabel["lewkit"]].ID, nodes[byLabel["topic"]].Parent)
@@ -50,7 +50,7 @@ func TestReportNodesNestWorktrees(t *testing.T) {
 			underDot = append(underDot, node.Name)
 		}
 	}
-	assert.Equal(t, []string{"/pin-wt"}, underDot)
+	assert.Equal(t, []string{"feat"}, underDot)
 
 	var underTopic []string
 	topic := nodes[byLabel["topic"]].ID
