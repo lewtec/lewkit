@@ -68,6 +68,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/herdr` | `Client`, `RepoBranch`, `Reorder`. Herdr workspace layout. |
 | `x/singleton` | `NewSingleton`, `Get`, `MustGet`. |
 | `x/profile` | `Directory`, `Address`, `Handler`. pprof to a directory or HTTP. |
+| `x/http/middleware` | `SPA`. Serves an `fs.FS` with the goftpd SPA rules. A miss goes to the next handler. |
 | `x/release` | `Version`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
