@@ -7,6 +7,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/window"
 	_ "github.com/lewtec/lewkit/x/driver/window/mem"
 	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ import (
 func TestFitCastAndResize(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 3})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 
 	src, err := ndarray.New([]float32{1, 2, 3, 4}, ndarray.Shape{1, 1, 4})
 	require.NoError(t, err)
@@ -33,7 +34,7 @@ func TestFitCastAndResize(t *testing.T) {
 func TestPresentWritesFrame(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 
 	src, err := ndarray.Full(float32(200), ndarray.Shape{1, 1, 4})
 	require.NoError(t, err)

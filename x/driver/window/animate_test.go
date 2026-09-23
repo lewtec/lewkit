@@ -9,6 +9,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/window"
 	_ "github.com/lewtec/lewkit/x/driver/window/mem"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ import (
 func TestAnimateStopsOnCancel(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	ctx, cancel := context.WithCancel(t.Context())
 	n := 0
 	err = window.Animate(ctx, w, time.Millisecond, func(*image.RGBA, time.Duration) error {
@@ -33,7 +34,7 @@ func TestAnimateStopsOnCancel(t *testing.T) {
 func TestAnimatePaintsOnResize(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	sizes := make(chan image.Point, 8)
@@ -68,7 +69,7 @@ func TestAnimatePaintsOnResize(t *testing.T) {
 func TestDriveDeliversPointer(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	got := make(chan window.Event, 1)
 	ready := make(chan struct{})
 	ctx, cancel := context.WithCancel(t.Context())
@@ -114,7 +115,7 @@ func TestDriveDeliversPointer(t *testing.T) {
 func TestDriveTicksWhileIdle(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	var ticks atomic.Int64
 	ready := make(chan struct{})
 	ctx, cancel := context.WithCancel(t.Context())
@@ -147,7 +148,7 @@ func TestDriveTicksWhileIdle(t *testing.T) {
 func TestDriveKeepsTickingAfterEvent(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	var ticks atomic.Int64
 	ready := make(chan struct{})
 	ctx, cancel := context.WithCancel(t.Context())
@@ -183,7 +184,7 @@ func TestDriveKeepsTickingAfterEvent(t *testing.T) {
 func TestDriveTicksDuringEventFlood(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	var ticks atomic.Int64
 	ready := make(chan struct{})
 	ctx, cancel := context.WithCancel(t.Context())

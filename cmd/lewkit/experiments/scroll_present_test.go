@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/vulkanwindow"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,7 @@ func BenchmarkScrollPresent(b *testing.B) {
 	if err != nil {
 		b.Skip(err)
 	}
-	b.Cleanup(func() { require.NoError(b, host.Close()) })
+	test.CloseOnCleanup(b, host)
 
 	marquee, err := gui.NewMarquee()
 	require.NoError(b, err)

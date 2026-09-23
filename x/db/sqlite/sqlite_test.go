@@ -14,6 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db"
 	_ "github.com/lewtec/lewkit/x/db/sqlite"
+	"github.com/lewtec/lewkit/x/test"
 )
 
 //go:embed testdata
@@ -52,7 +53,7 @@ func TestArgValueOpen(t *testing.T) {
 	d := got.DB.Value()
 	require.NotNil(t, d)
 	require.NoError(t, d.Open(t.Context(), migrations(t), newQuerier))
-	t.Cleanup(func() { require.NoError(t, d.Close()) })
+	test.CloseOnCleanup(t, d)
 
 	n, err := d.Queries().Count(t.Context())
 	require.NoError(t, err)
@@ -76,7 +77,7 @@ func TestMemoryAndBarePath(t *testing.T) {
 	require.NoError(t, a.Parse(":memory:"))
 	d := a.Value()
 	require.NoError(t, d.Open(t.Context(), migrations(t), newQuerier))
-	t.Cleanup(func() { require.NoError(t, d.Close()) })
+	test.CloseOnCleanup(t, d)
 	n, err := d.Queries().Count(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
@@ -85,7 +86,7 @@ func TestMemoryAndBarePath(t *testing.T) {
 	require.NoError(t, a.Parse(path))
 	d = a.Value()
 	require.NoError(t, d.Open(t.Context(), migrations(t), newQuerier))
-	t.Cleanup(func() { require.NoError(t, d.Close()) })
+	test.CloseOnCleanup(t, d)
 	n, err = d.Queries().Count(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
@@ -98,7 +99,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	require.NoError(t, a.Value().Open(t.Context(), migrations(t), newQuerier))
 	require.NoError(t, a.Value().Close())
 	require.NoError(t, a.Value().Open(t.Context(), migrations(t), newQuerier))
-	t.Cleanup(func() { require.NoError(t, a.Value().Close()) })
+	test.CloseOnCleanup(t, a.Value())
 	n, err := a.Value().Queries().Count(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)

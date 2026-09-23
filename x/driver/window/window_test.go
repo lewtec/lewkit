@@ -11,6 +11,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/window"
 	_ "github.com/lewtec/lewkit/x/driver/window/mem"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,21 +19,21 @@ import (
 func TestFramePeriodFromConfig(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8, Period: time.Millisecond})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	assert.Equal(t, time.Millisecond, w.FramePeriod())
 }
 
 func TestFramePeriodDefault(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	assert.Equal(t, window.DefaultFramePeriod, w.FramePeriod())
 }
 
 func TestOpenFrameDrawResize(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Title: "t", Width: 8, Height: 6})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 
 	require.Equal(t, image.Pt(8, 6), w.Size())
 	frame := w.Frame()
@@ -55,7 +56,7 @@ func TestOpenFrameDrawResize(t *testing.T) {
 func TestDrawSwapsPages(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	a := w.Frame()
 	a.SetRGBA(0, 0, color.RGBA{R: 255, A: 255})
 	require.NoError(t, w.Draw())
@@ -69,7 +70,7 @@ func TestDrawSwapsPages(t *testing.T) {
 func TestOpenDefaultSize(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	frame := w.Frame()
 	assert.Equal(t, 640, frame.Bounds().Dx())
 	assert.Equal(t, 480, frame.Bounds().Dy())
@@ -156,7 +157,7 @@ func TestCloseWhenDone(t *testing.T) {
 func TestCloseWhenDoneNilCtx(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	window.CloseWhenDone(nil, w)
 	require.NoError(t, w.Draw())
 }
@@ -172,7 +173,7 @@ func TestDrawAfterClose(t *testing.T) {
 func TestResizeRejectsNonPositive(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	assert.ErrorIs(t, w.Resize(image.Pt(0, 2)), window.ErrSize)
 	assert.ErrorIs(t, w.Resize(image.Pt(2, -1)), window.ErrSize)
 }
@@ -180,7 +181,7 @@ func TestResizeRejectsNonPositive(t *testing.T) {
 func TestSubscribePointer(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	ch := w.Subscribe(t.Context())
 	w.(interface{ Emit(window.Event) }).Emit(window.Pointer{Pos: image.Pt(3, 4), Button: 1, Pressed: true, Buttons: window.ButtonLeft})
 	ev := <-ch
@@ -194,7 +195,7 @@ func TestSubscribePointer(t *testing.T) {
 func TestSubscribeCancelCloses(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 4, Height: 4})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = w.Close() })
+	test.CloseOnCleanup(t, w)
 	ctx, cancel := context.WithCancel(t.Context())
 	ch := w.Subscribe(ctx)
 	cancel()
