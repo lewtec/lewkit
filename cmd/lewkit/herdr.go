@@ -24,12 +24,7 @@ func (reorderCmd) Description() string {
 }
 
 func (c *reorderCmd) Run(ctx context.Context) error {
-	pin, err := os.Getwd()
-	if err != nil {
-		return err
-	}
 	return herdr.Reorder(ctx, herdr.Options{
-		Pin:   pin,
 		Specs: c.specs,
 		Out:   os.Stdout,
 	})

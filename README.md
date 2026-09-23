@@ -63,6 +63,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
 | `x/future` | `Future`, `NewFuture`, `Get`, `Peek`, `State`. |
+| `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
 | `x/herdr` | `Client`, `Git`, `RepoBranch`, `Reorder`. Herdr workspace layout. |
 | `x/singleton` | `NewSingleton`, `Get`, `MustGet`. |
 | `x/profile` | `Directory`, `Address`, `Handler`. pprof to a directory or HTTP. |
@@ -148,7 +149,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes stdout. `generate protobuf` takes `--package` when the file has no `go_package`.
 
-`lewkit herdr reorder` reads the running Herdr session. Each `REPO:BRANCH` ensures a main workspace and a linked worktree at `~/.grok/worktrees/<slug>/<branch>`. A slash in the branch is a hyphen in the directory name. The current checkout sorts first.
+`lewkit herdr reorder` reads the running Herdr session. Each `REPO:BRANCH` ensures a main workspace and a linked worktree at `~/.grok/worktrees/<slug>/<branch>`. A slash in the branch is a hyphen in the directory name. The dotfiles root from `x/dotfiles` sorts first.
 
 ### Demos
 

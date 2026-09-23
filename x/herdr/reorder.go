@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/dotfiles"
 )
 
 var (
@@ -21,7 +23,8 @@ var (
 )
 
 // Options selects the checkout that sorts first and the REPO:BRANCH rows to ensure.
-// Out receives the progress log. Home defaults to the user home directory.
+// An empty Pin uses the dotfiles root. Out receives the progress log.
+// Home defaults to the user home directory.
 type Options struct {
 	Pin    string
 	Specs  []RepoBranch
@@ -70,7 +73,7 @@ func Reorder(ctx context.Context, opts Options) error {
 	pin := opts.Pin
 	if pin == "" {
 		var err error
-		pin, err = os.Getwd()
+		pin, err = dotfiles.Root(home)
 		if err != nil {
 			return err
 		}
