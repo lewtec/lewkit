@@ -102,6 +102,50 @@ func splitLoop(order []*node) (loop *node, prefix, inside, suffix []*node, err e
 	return loop, prefix, inside, suffix, nil
 }
 
+const maxSharedBytes = 8 << 10
+
+func pureSplat(n *node) bool {
+	return n != nil && n.kind == kindConst && len(n.chain) == 0 && !n.viewed()
+}
+
+// invocationPrivate is true when the value can differ across compute threads.
+func invocationPrivate(n *node, memo map[*node]bool) bool {
+	if n == nil {
+		return false
+	}
+	if hit, ok := memo[n]; ok {
+		return hit
+	}
+	hit := n.kind == kindCoord || n.kind == kindInput || n.kind == kindCarry
+	for _, source := range n.sources {
+		if invocationPrivate(source, memo) {
+			hit = true
+		}
+	}
+	memo[n] = hit
+	return hit
+}
+
+// shareGathers lists loop gathers whose address ignores the invocation id.
+// The shared table is one slot per iteration, so it has to fit in 8KiB.
+func shareGathers(loop *node, inside []*node) []*node {
+	if loop == nil || loop.slot < 1 {
+		return nil
+	}
+	memo := map[*node]bool{}
+	var gathers []*node
+	for _, n := range inside {
+		if n.kind != kindGather || invocationPrivate(n, memo) {
+			continue
+		}
+		gathers = append(gathers, n)
+	}
+	if len(gathers) == 0 || loop.slot*len(gathers)*4 > maxSharedBytes {
+		return nil
+	}
+	return gathers
+}
+
 func markVariant(n *node, variant map[*node]bool) bool {
 	if n == nil {
 		return false

@@ -586,15 +586,33 @@ func (w *glslWriter) program() (string, error) {
 		}
 		fmt.Fprintf(&w.b, "layout(set = 0, binding = %d) buffer In%d { %s x%d[]; };\n", i+1, i+1, dtype.glsl(), i+1)
 	}
-	w.b.WriteString("void main() {\n")
-	w.b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
-	w.b.WriteString("    if (gi >= n) return;\n")
-	w.b.WriteString("    int i = int(gi);\n")
-	w.coords = w.unravelPush(len(w.outShape))
 	loop, prefix, inside, suffix, err := splitLoop(w.order)
 	if err != nil {
 		return "", err
 	}
+	gathers := shareGathers(loop, inside)
+	for _, n := range w.order {
+		if !pureSplat(n) {
+			continue
+		}
+		lit := glslConst(n)
+		if strings.Contains(lit, "(") {
+			continue
+		}
+		id := w.name("t")
+		fmt.Fprintf(&w.b, "const %s %s = %s;\n", n.dtype.glsl(), id, lit)
+		w.names[n] = id
+	}
+	for i := range gathers {
+		fmt.Fprintf(&w.b, "shared %s sh%d[%d];\n", gathers[i].dtype.glsl(), i, loop.slot)
+	}
+	w.b.WriteString("void main() {\n")
+	w.b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
+	if len(gathers) == 0 {
+		w.b.WriteString("    if (gi >= n) return;\n")
+	}
+	w.b.WriteString("    int i = int(gi);\n")
+	w.coords = w.unravelPush(len(w.outShape))
 	emit := func(nodes []*node) error {
 		for _, n := range nodes {
 			name, err := w.node(n)
@@ -609,9 +627,25 @@ func (w *glslWriter) program() (string, error) {
 		return "", err
 	}
 	if loop != nil {
+		if len(gathers) > 0 {
+			if err := w.fillShared(inside, gathers, loop.slot); err != nil {
+				return "", err
+			}
+		}
 		fmt.Fprintf(&w.b, "    %s acc = %s;\n", loop.dtype.glsl(), w.names[loop.sources[0]])
 		fmt.Fprintf(&w.b, "    for (int s = 0; s < %d; s++) {\n", loop.slot)
-		if err := emit(inside); err != nil {
+		shared := map[*node]bool{}
+		for _, g := range gathers {
+			shared[g] = true
+		}
+		var body []*node
+		for _, n := range inside {
+			if shared[n] {
+				continue
+			}
+			body = append(body, n)
+		}
+		if err := emit(body); err != nil {
 			return "", err
 		}
 		fmt.Fprintf(&w.b, "        acc = %s;\n    }\n", w.names[loop.sources[1]])
@@ -629,13 +663,76 @@ func (w *glslWriter) program() (string, error) {
 		return "", err
 	}
 	out := w.names[w.root]
+	store := fmt.Sprintf("    o[i] = %s;\n", out)
 	if w.root.viewed() {
 		_, valid := w.indexAt(w.root.tracker, w.coords)
-		fmt.Fprintf(&w.b, "    o[i] = (%s) ? %s : %s;\n}\n", valid, out, glslZero(w.root.dtype))
+		store = fmt.Sprintf("    o[i] = (%s) ? %s : %s;\n", valid, out, glslZero(w.root.dtype))
+	}
+	if len(gathers) > 0 {
+		fmt.Fprintf(&w.b, "    if (gi < n) {\n    %s    }\n}\n", store)
 	} else {
-		fmt.Fprintf(&w.b, "    o[i] = %s;\n}\n", out)
+		w.b.WriteString(store)
+		w.b.WriteString("}\n")
 	}
 	return w.b.String(), nil
+}
+
+func (w *glslWriter) fillShared(inside []*node, gathers []*node, count int) error {
+	slot := make(map[*node]int, len(gathers))
+	for i, g := range gathers {
+		slot[g] = i
+	}
+	need := map[*node]bool{}
+	var mark func(*node)
+	mark = func(n *node) {
+		if n == nil || need[n] {
+			return
+		}
+		need[n] = true
+		for _, source := range n.sources {
+			mark(source)
+		}
+	}
+	for _, g := range gathers {
+		if len(g.sources) == 1 {
+			mark(g.sources[0])
+		}
+	}
+	fmt.Fprintf(&w.b, "    if (gl_LocalInvocationID.x == 0u) {\n")
+	fmt.Fprintf(&w.b, "        for (int s = 0; s < %d; s++) {\n", count)
+	saved := w.names
+	local := make(map[*node]string, len(saved)+len(inside))
+	for node, name := range saved {
+		local[node] = name
+	}
+	w.names = local
+	for _, n := range inside {
+		if _, shared := slot[n]; shared {
+			idx := w.names[n.sources[0]]
+			cells := 0
+			if n.buf != nil {
+				cells = n.buf.cells()
+			}
+			fmt.Fprintf(&w.b, "            sh%d[s] = %s;\n", slot[n], glslZero(n.dtype))
+			fmt.Fprintf(&w.b, "            if ((%s >= 0) && (%s < %d)) sh%d[s] = x%d[%s];\n", idx, idx, cells, slot[n], w.bufBind[n.buf], idx)
+			continue
+		}
+		if !need[n] {
+			continue
+		}
+		name, err := w.node(n)
+		if err != nil {
+			w.names = saved
+			return err
+		}
+		w.names[n] = name
+	}
+	w.names = saved
+	w.b.WriteString("        }\n    }\n    barrier();\n")
+	for i, g := range gathers {
+		w.names[g] = fmt.Sprintf("sh%d[s]", i)
+	}
+	return nil
 }
 
 func (w *glslWriter) name(prefix string) string {
@@ -644,6 +741,9 @@ func (w *glslWriter) name(prefix string) string {
 }
 
 func (w *glslWriter) node(n *node) (string, error) {
+	if name, ok := w.names[n]; ok {
+		return name, nil
+	}
 	id := w.name("t")
 	switch n.kind {
 	case kindConst:

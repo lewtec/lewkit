@@ -303,8 +303,11 @@ func TestPictureLoopShader(t *testing.T) {
 	require.NoError(t, view.Resize(view.Shape()))
 	src, err := view.Kernel().GLSL()
 	require.NoError(t, err)
-	require.Equal(t, 1, strings.Count(src, "for ("))
+	require.Equal(t, 2, strings.Count(src, "for ("))
 	require.Equal(t, 1, strings.Count(src, "sqrt("))
+	require.Contains(t, src, "shared ")
+	require.Contains(t, src, "barrier()")
+	require.Contains(t, src, "const float ")
 }
 
 func TestPictureGrowsLayers(t *testing.T) {
