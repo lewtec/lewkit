@@ -224,17 +224,8 @@ func castNode(a *node, dtype DType) *node {
 
 // Where is a if p != 0 else b. Call as p.Where(a, b).
 func whereNode(p, a, b *node) *node {
-	if p == nil || a == nil || b == nil {
-		return failed(ErrOp)
-	}
-	if p.err != nil {
-		return p
-	}
-	if a.err != nil {
-		return a
-	}
-	if b.err != nil {
-		return b
+	if bad := ready(p, a, b); bad != nil {
+		return bad
 	}
 	if p.dtype != I32 || a.dtype != b.dtype {
 		return failed(ErrType)
@@ -247,17 +238,8 @@ func whereNode(p, a, b *node) *node {
 
 // MultiplyAccumulate is a*b + c.
 func multiplyAccumulateNode(a, b, c *node) *node {
-	if a == nil || b == nil || c == nil {
-		return failed(ErrOp)
-	}
-	if a.err != nil {
-		return a
-	}
-	if b.err != nil {
-		return b
-	}
-	if c.err != nil {
-		return c
+	if bad := ready(a, b, c); bad != nil {
+		return bad
 	}
 	if a.dtype != b.dtype || a.dtype != c.dtype {
 		return failed(ErrType)
@@ -269,11 +251,8 @@ func multiplyAccumulateNode(a, b, c *node) *node {
 }
 
 func unary(op Op, a *node) *node {
-	if a == nil {
-		return failed(ErrOp)
-	}
-	if a.err != nil {
-		return a
+	if bad := ready(a); bad != nil {
+		return bad
 	}
 	dtype, err := unaryType(op, a.dtype)
 	if err != nil {
@@ -283,14 +262,8 @@ func unary(op Op, a *node) *node {
 }
 
 func binaryOp(op Op, a, b *node) *node {
-	if a == nil || b == nil {
-		return failed(ErrOp)
-	}
-	if a.err != nil {
-		return a
-	}
-	if b.err != nil {
-		return b
+	if bad := ready(a, b); bad != nil {
+		return bad
 	}
 	dtype, err := binaryType(op, a.dtype, b.dtype)
 	if err != nil {
@@ -346,6 +319,22 @@ func binaryType(op Op, a, b DType) (DType, error) {
 
 func opNode(op Op, dtype DType, srcs ...*node) *node {
 	return &node{kind: kindOp, op: op, dtype: dtype, sources: srcs}
+}
+
+// ready is the first nil or failed input, or nil when every input can be used.
+// Nil is checked before errors, in argument order.
+func ready(inputs ...*node) *node {
+	for _, input := range inputs {
+		if input == nil {
+			return failed(ErrOp)
+		}
+	}
+	for _, input := range inputs {
+		if input.err != nil {
+			return input
+		}
+	}
+	return nil
 }
 
 func (n *node) viewed() bool {
