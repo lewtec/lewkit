@@ -7,6 +7,7 @@ require (
 	cuelang.org/go v0.17.1
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Xmister/udf v0.0.0-20210116171753-6c18325874a7
+	github.com/a-h/templ v0.3.1020
 	github.com/andybalholm/brotli v1.2.4
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/dave/jennifer v1.7.1

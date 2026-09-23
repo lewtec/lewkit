@@ -36,7 +36,7 @@ Inherited C (cite the file):
 - `path:x/ndarray/image`: pack `(h,w,4)` into `image.RGBA`.
 - `path:x/image`: CPU blit and `Label`.
 - `path:cmd/lewkit/experiments`: triangle, perlin, compute demos.
-- templ is absent from `go.mod`.
+- templ templates live in `x/ui/web`.
 
 ## Technique
 
@@ -63,6 +63,7 @@ Inherited C (cite the file):
 | TEC-07 | this SPEC | implement | return the binding device from `x/driver/vulkan` | path:x/driver/vulkan path:x/ffi/native/vulkan |
 | TEC-01 tui | bubbletea v2 | adopt | write a terminal runtime | go.mod path:x/taskgroup/progress |
 | TEC-01 gui | ndarray 21-op graph | wrap | add a rasterizer beside ndarray | path:x/ndarray |
+| TEC-01 web | templ | adopt | write an HTML runtime | go.mod path:x/ui/web |
 
 | Cell | Pick | C or D | Implements | Cite if C |
 |------|------|--------|------------|-----------|
@@ -73,8 +74,6 @@ Inherited C (cite the file):
 | Packaging | this Go module | C | all | go.mod |
 | Identity | none | C | packages have no user identity | none |
 | Host OS | window backends already in tree | C | TEC-03 TEC-04 | path:x/driver/window |
-
-templ is later work. It is not an adopted tool in this module.
 
 ## Terminology
 
@@ -204,9 +203,8 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 ## Later work
 
 1. Reusable bubbletea types in `x/ui/tui`.
-2. Adopt templ in this module and add templates in `x/ui/web`.
-3. Text input (IME) and mapped key names.
-4. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
+2. Text input (IME) and mapped key names.
+3. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
 
 ## Assumptions
 
@@ -223,3 +221,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-21: `gui.Model.View` returns a layout `Node`. `Run` paints it through `Picture` to a `(h,w,4)` tensor.
 - 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.
 - 2026-09-21: C libraries live under the mechanism that loads them. `x/ffi/native/vulkan`, `x/ffi/wasm/glsl`, `x/ffi/wasm/capstone`. `x/driver/vulkan`, `x/driver/ndeval`, and `x/disasm` are facades. `x/ffi` is not a Go package. `x/thread` and cocoa call `x/ffi/native`.
+- 2026-09-23: templ is adopted. Templates live in `x/ui/web`. htmx, tailwindcss, jquery, and sakuracss are blank-import assets served from `/__lewkit__/`.
