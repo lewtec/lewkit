@@ -17,6 +17,9 @@ func TestWindowUsage(t *testing.T) {
 	assert.Contains(t, text, "compute")
 	assert.Contains(t, text, "scroll")
 	assert.Contains(t, text, "rounded")
+	assert.Contains(t, text, "bars")
+	assert.Contains(t, text, "1024x1024")
+	assert.Contains(t, text, "Vulkan")
 	assert.Contains(t, text, "notepad")
 	assert.Contains(t, text, "counter")
 }
