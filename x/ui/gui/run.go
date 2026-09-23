@@ -52,7 +52,11 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 	if picture.hadInk && picture.inkRGBA != nil {
 		ink = picture.inkRGBA.Pix
 	}
-	return drawFills(ctx, d.screen, picture.fills, ink, size.X, size.Y)
+	under, err := picture.rasterBytes(ctx, d.evaluator, size.X, size.Y)
+	if err != nil {
+		return err
+	}
+	return drawFills(ctx, d.screen, picture.fills, under, ink, size.X, size.Y)
 }
 
 type runner struct {

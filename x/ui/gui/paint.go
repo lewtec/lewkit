@@ -33,6 +33,8 @@ type Picture struct {
 	inkRGBA     *image.RGBA
 	fills       []Draw
 	texts       []textRun
+	raster      *ndarray.Tensor[float32]
+	black       *ndarray.Tensor[float32]
 	signature   uint64
 	hadInk      bool
 	fillCount   int
@@ -121,6 +123,7 @@ func (picture *Picture) init() error {
 	picture.channel = ndarray.Coord(2, shape)
 	picture.base = channelColor(picture.channel, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
 	picture.ink = ink
+	picture.black = picture.base
 	picture.accumulator = picture.base
 	return nil
 }
@@ -235,8 +238,19 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]
+	picture.raster = nil
+	if picture.black != nil && picture.base != picture.black {
+		picture.base = picture.black
+		picture.slots = nil
+		picture.composites = nil
+		picture.inkedFrom = nil
+	}
 	picture.accumulator = picture.base
 	accumulator := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, picture)
+	if !picture.recordOnly {
+		picture.fuseRaster()
+		accumulator = picture.accumulator
+	}
 	if picture.recordOnly {
 		height, width := int(size.Height), int(size.Width)
 		if err := picture.ensureInk(height, width, len(picture.texts)); err != nil {

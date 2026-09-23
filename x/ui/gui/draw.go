@@ -147,11 +147,15 @@ func (picture *Picture) Show(ctx context.Context, screen vulkan.Screen, root Nod
 	if picture.hadInk && picture.inkRGBA != nil {
 		ink = picture.inkRGBA.Pix
 	}
-	return drawFills(ctx, screen, picture.fills, ink, int(size.Width), int(size.Height))
+	under, err := picture.rasterBytes(ctx, nil, int(size.Width), int(size.Height))
+	if err != nil {
+		return err
+	}
+	return drawFills(ctx, screen, picture.fills, under, ink, int(size.Width), int(size.Height))
 }
 
-// drawFills paints recorded fills and optional RGBA8 ink. It does not run the fused kernel.
-func drawFills(ctx context.Context, screen vulkan.Screen, fills []Draw, ink []byte, width, height int) error {
+// drawFills paints an optional tensor image, then fills, then glyph ink.
+func drawFills(ctx context.Context, screen vulkan.Screen, fills []Draw, under, ink []byte, width, height int) error {
 	if screen == nil || width < 1 || height < 1 {
 		return ndarray.ErrShape
 	}
@@ -163,7 +167,7 @@ func drawFills(ctx context.Context, screen vulkan.Screen, fills []Draw, ink []by
 	for i, fill := range fills {
 		putFill(raw[i*64:(i+1)*64], fill)
 	}
-	return screen.Draw(raw, ink, width, height, vert, frag, inkVert, inkFrag)
+	return screen.Draw(raw, under, ink, width, height, vert, frag, inkVert, inkFrag)
 }
 
 func putFill(dst []byte, fill Draw) {

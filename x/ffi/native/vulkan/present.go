@@ -115,6 +115,9 @@ type Screen struct {
 	inkFrag    uint64
 	fillBuf    *Buffer
 	inkBuf     *Buffer
+	underBuf   *Buffer
+	underPool  uint64
+	underSet   uint64
 	mu         sync.Mutex
 	onInput    func(Input)
 }

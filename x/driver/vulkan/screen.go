@@ -23,10 +23,10 @@ const (
 type Screen interface {
 	Device() Device
 	Present(buf *Buffer, width, height int, spirv []byte) error
-	// Draw paints rounded-rect instances and optional RGBA8 ink with graphics pipelines.
+	// Draw paints an optional RGBA8 underlay, rounded-rect instances, then glyph ink.
 	// instances is 16 float32 values per fill. The four SPIR-V arguments are fill vertex,
 	// fill fragment, ink vertex, and ink fragment.
-	Draw(instances, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error
+	Draw(instances, under, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error
 	OnInput(func(Input))
 	Close() error
 }
@@ -68,11 +68,11 @@ func (s *screen) Present(buf *Buffer, width, height int, spirv []byte) error {
 	return s.binding.Present(buf, width, height, spirv)
 }
 
-func (s *screen) Draw(instances, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error {
+func (s *screen) Draw(instances, under, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error {
 	if s == nil || s.binding == nil {
 		return ffivulkan.ErrClosed
 	}
-	return s.binding.Draw(instances, ink, width, height, fillVert, fillFrag, inkVert, inkFrag)
+	return s.binding.Draw(instances, under, ink, width, height, fillVert, fillFrag, inkVert, inkFrag)
 }
 
 func (s *screen) OnInput(fn func(Input)) {

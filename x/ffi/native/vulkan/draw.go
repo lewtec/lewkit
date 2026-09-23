@@ -247,10 +247,10 @@ type bufferBarrier struct {
 	size      uint64
 }
 
-// Draw paints instances and an optional ink image with graphics pipelines.
+// Draw paints an optional RGBA8 underlay, then instances, then glyph ink.
 // instances is 16 floats per rounded rect (box, color, radius+clip xyz, clip height).
-// ink is tightly packed RGBA8, or nil. fillVert, fillFrag, inkVert, and inkFrag are SPIR-V.
-func (s *Screen) Draw(instances, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error {
+// under and ink are tightly packed RGBA8, or nil. fillVert, fillFrag, inkVert, and inkFrag are SPIR-V.
+func (s *Screen) Draw(instances, under, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error {
 	if s == nil || s.d == nil || s.swap == 0 {
 		return ErrClosed
 	}
@@ -284,15 +284,30 @@ func (s *Screen) Draw(instances, ink []byte, width, height int, fillVert, fillFr
 		}
 	}
 	inked := len(ink) >= width*height*4
-	if inked {
+	backed := len(under) >= width*height*4
+	if backed || inked {
 		if err := s.ensureGraphics(&s.inkPipe, &s.inkLay, &s.inkSetLay, &s.inkPool, &s.inkSet, &s.inkVert, &s.inkFrag, inkVert, inkFrag, shaderStageFragment); err != nil {
 			return err
 		}
+	}
+	if inked {
 		need := width * height * 4
 		if err := s.growBuf(&s.inkBuf, need); err != nil {
 			return err
 		}
 		if err := s.inkBuf.Write(ink[:need]); err != nil {
+			return err
+		}
+	}
+	if backed {
+		if err := s.ensureUnder(); err != nil {
+			return err
+		}
+		need := width * height * 4
+		if err := s.growBuf(&s.underBuf, need); err != nil {
+			return err
+		}
+		if err := s.underBuf.Write(under[:need]); err != nil {
 			return err
 		}
 	}
@@ -303,7 +318,7 @@ func (s *Screen) Draw(instances, ink []byte, width, height int, fillVert, fillFr
 	if err := s.acquire(&index); err != nil {
 		return err
 	}
-	if err := s.recordDraw(index, fills, inked); err != nil {
+	if err := s.recordDraw(index, fills, backed, inked); err != nil {
 		return err
 	}
 	return s.present(index)
@@ -475,7 +490,23 @@ func (s *Screen) ensureFrames() error {
 	return nil
 }
 
-func (s *Screen) recordDraw(index uint32, fills int, inked bool) error {
+func (s *Screen) ensureUnder() error {
+	if s.underSet != 0 {
+		return nil
+	}
+	if s.inkSetLay == 0 {
+		return ErrUnavailable
+	}
+	sizes := descriptorPoolSize{typ: descriptorStorageBuffer, descriptorCount: 1}
+	poolInfo := descriptorPoolCreateInfo{sType: structureDescriptorPoolCreateInfo, maxSets: 1, poolSizeCount: 1, pPoolSizes: &sizes}
+	if err := check(s.d.api.createDescriptorPool(s.d.dev, &poolInfo, 0, &s.underPool)); err != nil {
+		return err
+	}
+	alloc := descriptorSetAllocateInfo{sType: structureDescriptorSetAllocateInfo, descriptorPool: s.underPool, descriptorSetCount: 1, pSetLayouts: &s.inkSetLay}
+	return check(s.d.api.allocateDescriptorSets(s.d.dev, &alloc, &s.underSet))
+}
+
+func (s *Screen) recordDraw(index uint32, fills int, backed, inked bool) error {
 	d := s.d
 	if d.pending || d.recording {
 		return ErrBusy
@@ -496,6 +527,10 @@ func (s *Screen) recordDraw(index uint32, fills int, inked bool) error {
 		s.bindStorage(s.fillSet, s.fillBuf)
 		s.bufferBarrier(s.fillBuf)
 	}
+	if backed {
+		s.bindStorage(s.underSet, s.underBuf)
+		s.bufferBarrier(s.underBuf)
+	}
 	if inked {
 		s.bindStorage(s.inkSet, s.inkBuf)
 		s.bufferBarrier(s.inkBuf)
@@ -512,6 +547,13 @@ func (s *Screen) recordDraw(index uint32, fills int, inked bool) error {
 	d.api.cmdSetViewport(d.cmd, 0, 1, uintptr(unsafe.Pointer(&view)))
 	d.api.cmdSetScissor(d.cmd, 0, 1, uintptr(unsafe.Pointer(&scissor)))
 	push := [3]uint32{mathFloatBits(float32(s.width)), mathFloatBits(float32(s.height)), uint32(s.swapRB)}
+	inkPush := [3]uint32{uint32(s.width), uint32(s.height), uint32(s.swapRB)}
+	if backed {
+		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.inkPipe)
+		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.inkLay, 0, 1, &s.underSet, 0, nil)
+		d.api.cmdPushConstants(d.cmd, s.inkLay, shaderStageVertex|shaderStageFragment, 0, 12, uintptr(unsafe.Pointer(&inkPush[0])))
+		d.api.cmdDraw(d.cmd, 4, 1, 0, 0)
+	}
 	if fills > 0 {
 		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.fillPipe)
 		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.fillLay, 0, 1, &s.fillSet, 0, nil)
@@ -519,7 +561,6 @@ func (s *Screen) recordDraw(index uint32, fills int, inked bool) error {
 		d.api.cmdDraw(d.cmd, 4, uint32(fills), 0, 0)
 	}
 	if inked {
-		inkPush := [3]uint32{uint32(s.width), uint32(s.height), uint32(s.swapRB)}
 		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.inkPipe)
 		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.inkLay, 0, 1, &s.inkSet, 0, nil)
 		d.api.cmdPushConstants(d.cmd, s.inkLay, shaderStageVertex|shaderStageFragment, 0, 12, uintptr(unsafe.Pointer(&inkPush[0])))
@@ -619,6 +660,14 @@ func (s *Screen) destroyDraw() {
 		_ = s.inkBuf.Close()
 		s.inkBuf = nil
 	}
+	if s.underBuf != nil {
+		_ = s.underBuf.Close()
+		s.underBuf = nil
+	}
+	if s.d != nil && s.d.dev != 0 && s.underPool != 0 {
+		s.d.api.destroyDescriptorPool(s.d.dev, s.underPool, 0)
+	}
+	s.underPool, s.underSet = 0, 0
 }
 
 func mathFloatBits(v float32) uint32 {
