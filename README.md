@@ -30,7 +30,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | --- | --- |
 | `x/path` | `Path`, `New`, `Open`. A `Path` is a slash name. `Open` takes the OS directory. |
 | `x/path/pick` | `Predicate`, `Match`, `Glob`, `Prune`, `And`, `Or`, `Not`. |
-| `x/fs` | `Files`, `Walk`, `Filter`, `Copy`, `New`. `Walk` reads an `io/fs`. `Copy` writes a listing. `New` indexes a listing. |
+| `x/fs` | `Files`, `Walk`, `Filter`, `Copy`, `New`, `StripTopDirectory`. `Walk` reads an `io/fs`. `Copy` writes a listing. `New` indexes a listing. `StripTopDirectory` returns an `io/fs` with one leading directory removed. |
 | `x/fs/compose` | `New`, `Add`, `Merge`, `All`, `Squash`, `FS`, `Mount`, `Parse`, `Register`. A symlink is a `link` slot. `Squash` turns `name.d.tmpl/` into `lines` slots. `FS` encodes the tree. |
 | `x/fs/tar` | `Open`, `Files`. A tar archive as `io/fs`. |
 | `x/fs/zip` | `Open`. A ZIP archive as `io/fs`. |
@@ -69,7 +69,12 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
 | `x/generate` | Helpers shared by the generator packages. |
 | `x/generate/prelude` | Writes a blank-import file from each `root.go`. |
-| `x/generate/protobuf` | Writes Go from one `.proto` file. |
+| `x/generate/protobuf` | Writes Go from one `.proto` file. `protoc` comes from `x/tool`. A `workspaced.lock.json` pin selects the version. |
+| `x/tool` | `Open`, `Ensure`, `Install`, `Resolve`. A spec is `backend:ref@version`. The caller owns the store directory. |
+| `x/tool/github` | GitHub Releases backend. |
+| `x/tool/mise` | mise backend. |
+| `x/tool/registry` | Short-name backend. Curated names live in `x/tool/registry/applications`. |
+| `x/tool/prelude` | Blank-import. Registers GitHub, mise, the short-name registry, and the curated names. |
 
 ### Tensors
 
@@ -92,7 +97,9 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `x/driver` | `Register`, `List`, `Get`, `With`, `WithResult`, `SetWeights`, `Doctor`. |
-| `x/driver/prelude` | Blank-import. Registers the window backends, `x/driver/vulkan`, and `x/driver/ndeval`. |
+| `x/driver/prelude` | Blank-import. Registers the window backends, `x/driver/vulkan`, `x/driver/ndeval`, `x/driver/httpclient`, and `x/driver/fetchurl`. |
+| `x/driver/httpclient` | `Client`. A request inside a taskgroup session is an Internet task. The native client is `x/driver/httpclient/native`. |
+| `x/driver/fetchurl` | `Fetch`. The native driver calls `github.com/fetchurl/fetchurl` with that client, so the download is the same Internet task. |
 | `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. |

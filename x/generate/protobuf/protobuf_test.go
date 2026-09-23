@@ -25,3 +25,18 @@ func TestRunMissingFile(t *testing.T) {
 	err := Run(t.Context(), filepath.Join(t.TempDir(), "missing.proto"), "")
 	require.ErrorIs(t, err, os.ErrNotExist)
 }
+
+func TestProtocSpecUsesLockPin(t *testing.T) {
+	directory := t.TempDir()
+	body := []byte(`{"dependencies":[{"kind":"tool","ref":"github:protocolbuffers/protobuf","currentValue":"v36.2"}]}`)
+	require.NoError(t, os.WriteFile(filepath.Join(directory, "workspaced.lock.json"), body, 0o644))
+	spec, err := protocSpec(directory)
+	require.NoError(t, err)
+	require.Equal(t, "github:protocolbuffers/protobuf@v36.2", spec)
+}
+
+func TestProtocSpecLatestWithoutLock(t *testing.T) {
+	spec, err := protocSpec(t.TempDir())
+	require.NoError(t, err)
+	require.Equal(t, "github:protocolbuffers/protobuf@latest", spec)
+}

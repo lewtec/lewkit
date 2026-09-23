@@ -21,22 +21,29 @@ func (o *Operation) StagingPath() string {
 }
 
 func (o *Operation) Commit() error {
-	oldTempPath := tempOf(o.finalPath)
+	displaced := ""
 	if o.replace {
-		err := os.Rename(o.finalPath, oldTempPath)
+		displaced = tempOf(o.finalPath)
+		err := os.Rename(o.finalPath, displaced)
 		if err != nil {
-			return err
+			if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			displaced = ""
 		}
 	}
 	err := os.Rename(o.tempPath, o.finalPath)
 	if err != nil {
-		return errors.Join(
-			err,
-			os.Rename(o.finalPath, o.tempPath),
-			os.Rename(oldTempPath, o.finalPath),
-		)
+		restoreErr := error(nil)
+		if displaced != "" {
+			restoreErr = os.Rename(displaced, o.finalPath)
+		}
+		return errors.Join(err, os.Rename(o.finalPath, o.tempPath), restoreErr)
 	}
-	return nil
+	if displaced == "" {
+		return nil
+	}
+	return os.RemoveAll(displaced)
 }
 
 func (o *Operation) Rollback() error {
@@ -47,6 +54,7 @@ func NewOperation(location string, replace bool) Operation {
 	return Operation{
 		finalPath: location,
 		tempPath:  tempOf(location),
+		replace:   replace,
 	}
 }
 
