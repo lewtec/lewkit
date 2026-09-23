@@ -8,6 +8,15 @@
       "datasource": "github-releases"
     },
     {
+      "kind": "source",
+      "ref": "github:bigskysoftware/htmx",
+      "depName": "bigskysoftware/htmx",
+      "packageName": "https://github.com/bigskysoftware/htmx",
+      "currentValue": "v4.0.0",
+      "currentDigest": "4195bc0dc26b612ea5bea46f5914c6386eadeba3",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "github:cli/cli",
       "depName": "cli/cli",
@@ -20,6 +29,15 @@
       "depName": "golangci/golangci-lint",
       "currentValue": "v2.13.2",
       "datasource": "github-releases"
+    },
+    {
+      "kind": "source",
+      "ref": "github:jquery/jquery",
+      "depName": "jquery/jquery",
+      "packageName": "https://github.com/jquery/jquery",
+      "currentValue": "4.0.0",
+      "currentDigest": "4f2fae08f23b54ce09322e62e73cce6161b8d3cb",
+      "datasource": "git-refs"
     },
     {
       "kind": "tool",
@@ -38,6 +56,15 @@
       "datasource": "git-refs"
     },
     {
+      "kind": "source",
+      "ref": "github:oxalorg/sakura",
+      "depName": "oxalorg/sakura",
+      "packageName": "https://github.com/oxalorg/sakura",
+      "currentValue": "1.5.1",
+      "currentDigest": "8d3f5f0e182da2707e1d95c5922da58133bb4106",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "github:protocolbuffers/protobuf",
       "depName": "protocolbuffers/protobuf",
@@ -50,6 +77,15 @@
       "depName": "rhysd/actionlint",
       "currentValue": "v1.7.12",
       "datasource": "github-releases"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tailwindlabs/tailwindcss",
+      "depName": "tailwindlabs/tailwindcss",
+      "packageName": "https://github.com/tailwindlabs/tailwindcss",
+      "currentValue": "v4.3.3",
+      "currentDigest": "c2b24dd15fed1c59dd521bd86082f520c9f5ad0d",
+      "datasource": "git-refs"
     },
     {
       "kind": "source",

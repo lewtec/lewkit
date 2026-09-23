@@ -36,7 +36,7 @@ Inherited C (cite the file):
 - `path:x/ndarray/image`: pack `(h,w,4)` into `image.RGBA`.
 - `path:x/image`: CPU blit and `Label`.
 - `path:cmd/lewkit/experiments`: triangle, perlin, compute demos.
-- templ is absent from `go.mod`.
+- templ is the web toolkit. A tag for one registered asset lives in that asset package. Page templates live in `x/ui/web`.
 
 ## Technique
 
@@ -63,6 +63,7 @@ Inherited C (cite the file):
 | TEC-07 | this SPEC | implement | return the binding device from `x/driver/vulkan` | path:x/driver/vulkan path:x/ffi/native/vulkan |
 | TEC-01 tui | bubbletea v2 | adopt | write a terminal runtime | go.mod path:x/taskgroup/progress |
 | TEC-01 gui | ndarray 21-op graph | wrap | add a rasterizer beside ndarray | path:x/ndarray |
+| TEC-01 web | templ | adopt | write an HTML runtime | go.mod path:x/ui/web |
 
 | Cell | Pick | C or D | Implements | Cite if C |
 |------|------|--------|------------|-----------|
@@ -73,8 +74,6 @@ Inherited C (cite the file):
 | Packaging | this Go module | C | all | go.mod |
 | Identity | none | C | packages have no user identity | none |
 | Host OS | window backends already in tree | C | TEC-03 TEC-04 | path:x/driver/window |
-
-templ is later work. It is not an adopted tool in this module.
 
 ## Terminology
 
@@ -100,7 +99,7 @@ templ is later work. It is not an adopted tool in this module.
 |------|----------|-------------------|---------|-----------|------------------|
 | `x/ui` | no Go API | names `tui`, `web`, `gui` | MUST NOT grow types | the directory MAY have no Go package | import `x/ui` |
 | `x/ui/tui` | bubbletea types for callers to compose | value | catalog MAY grow | package MAY be absent until the first type | put Session viewers here |
-| `x/ui/web` | templ templates | value | catalog MAY grow | package MAY be absent until the first template | put templ outside `web` |
+| `x/ui/web` | page templ templates | value | catalog MAY grow | package MAY be absent until the first page template | put a page template outside `web`; put an asset tag outside its asset package |
 | `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer | own the host; own the engine; call `window.Open` |
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
@@ -125,7 +124,7 @@ templ is later work. It is not an adopted tool in this module.
 | INV-01 | A type has exactly one owner in the placement table | every new type | a fourth package under `x/ui`; a type copied into two owners |
 | INV-02 | `x/ui` exports no types | `x/ui` | `Widget`, shared `Color`, shared `Align` |
 | INV-03 | `tui` native export is a bubbletea type | `x/ui/tui` | templ files; tensor transformers |
-| INV-04 | `web` native export is a templ template | `x/ui/web` | bubbletea types; tensor transformers |
+| INV-04 | `web` native export is a page templ template. A tag for one registered asset lives in that asset package | `x/ui/web`; `x/http/asset` | bubbletea types; tensor transformers; an asset tag in `web` |
 | INV-05 | `gui.Model.View` returns a layout `Node`; `Run` paints it to a `(h,w,4)` tensor | `x/ui/gui` | `View` returning a tensor; `window.Present` declared here; a second rasterizer |
 | INV-06 | A viewer stays next to the type it shows | `x/taskgroup/progress` | move progress into `x/ui/tui` because it uses bubbletea |
 | INV-07 | `tui`, `web`, and `gui` MUST NOT import each other | those packages | `gui` emitting HTML; `tui` importing `gui` |
@@ -157,7 +156,8 @@ templ is later work. It is not an adopted tool in this module.
 | Place a type | Matches two of `tui`, `web`, `gui` | Split into two types. MUST NOT add a `Widget` in `x/ui`. |
 | Place a type | Matches no row in the table | Leave it in its existing owner. MUST NOT add a fourth package under `x/ui`. |
 | Place a type | Uses bubbletea to view `Session` | Keep it in `x/taskgroup/progress`. |
-| Place a type | First templ template in the module | Create `x/ui/web`. MUST NOT put the file in `gui`. MUST NOT put the file in `tui`. |
+| Place a type | First page templ template in the module | Create `x/ui/web`. MUST NOT put the file in `gui`. MUST NOT put the file in `tui`. |
+| Place a type | Tag for one registered browser asset | Put the templ file in that asset package. |
 | Place a type | First reusable tensor transformer for a pixel frame | Create `x/ui/gui`. MUST NOT leave it in `x/ndarray`. MUST NOT leave it in `x/driver/window`. |
 | Place a C library | The package calls `native.Open` and its parent is not `x/ffi/native` | Move the package under `x/ffi/native`. |
 | Place a C library | The package calls `wasm.Compile` and its parent is not `x/ffi/wasm` | Move the package under `x/ffi/wasm`. |
@@ -204,9 +204,8 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 ## Later work
 
 1. Reusable bubbletea types in `x/ui/tui`.
-2. Adopt templ in this module and add templates in `x/ui/web`.
-3. Text input (IME) and mapped key names.
-4. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
+2. Text input (IME) and mapped key names.
+3. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
 
 ## Assumptions
 
@@ -223,3 +222,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-21: `gui.Model.View` returns a layout `Node`. `Run` paints it through `Picture` to a `(h,w,4)` tensor.
 - 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.
 - 2026-09-21: C libraries live under the mechanism that loads them. `x/ffi/native/vulkan`, `x/ffi/wasm/glsl`, `x/ffi/wasm/capstone`. `x/driver/vulkan`, `x/driver/ndeval`, and `x/disasm` are facades. `x/ffi` is not a Go package. `x/thread` and cocoa call `x/ffi/native`.
+- 2026-09-23: templ is adopted. A tag for one registered asset lives in that asset package. Page templates stay in `x/ui/web`. htmx, tailwindcss, jquery, and sakuracss are blank-import assets served from `/__lewkit__/`.
