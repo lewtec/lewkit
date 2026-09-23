@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/thread"
 )
 
 const extHostSurface = "VK_EXT_metal_surface"
@@ -35,6 +36,22 @@ type nsRect struct {
 }
 
 func openHost(width, height int, title string) (hostSurface, error) {
+	if !thread.Bound() {
+		return nil, fmt.Errorf("%w: main thread", ErrUnavailable)
+	}
+	var host hostSurface
+	var err error
+	thread.Do(func() {
+		if !thread.ProcessMain() {
+			err = fmt.Errorf("%w: NSWindow requires the main thread", ErrUnavailable)
+			return
+		}
+		host, err = openMetalWindow(width, height, title)
+	})
+	return host, err
+}
+
+func openMetalWindow(width, height int, title string) (hostSurface, error) {
 	app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 	app.Send(objc.RegisterName("setActivationPolicy:"), 0)
 	rect := nsRect{Size: nsSize{Width: float64(width), Height: float64(height)}}
@@ -80,7 +97,10 @@ func (h *metalHost) destroy() {
 	if h == nil || h.wnd == 0 {
 		return
 	}
-	h.wnd.Send(objc.RegisterName("close"))
+	wnd := h.wnd
 	h.wnd = 0
 	h.layer = 0
+	thread.Do(func() {
+		wnd.Send(objc.RegisterName("close"))
+	})
 }
