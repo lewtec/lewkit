@@ -25,7 +25,15 @@ type xlibHost struct {
 	screen     *Screen
 	dpy        uintptr
 	win        uint64
+	borrowed   bool
 	createXlib func(inst uintptr, info *xlibSurfaceInfo, alloc uintptr, surface *uint64) int32
+}
+
+func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
+	if kind != 1 || a == 0 || b == 0 {
+		return nil, ErrUnavailable
+	}
+	return &xlibHost{screen: s, dpy: a, win: uint64(b), borrowed: true}, nil
 }
 
 func loadHost(w *wsi, d *Device) error {
@@ -137,7 +145,7 @@ func (h *xlibHost) create(d *Device, w *wsi) (uint64, error) {
 }
 
 func (h *xlibHost) destroy() {
-	if h == nil || h.dpy == 0 {
+	if h == nil || h.borrowed || h.dpy == 0 {
 		return
 	}
 	if h.win != 0 {

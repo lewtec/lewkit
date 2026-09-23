@@ -6,7 +6,8 @@ import (
 	"image"
 	"time"
 
-	"github.com/lewtec/lewkit/x/driver/vulkanwindow"
+	"github.com/lewtec/lewkit/x/driver/ndeval"
+	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -27,10 +28,14 @@ func (d imageDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], 
 	return window.Show(ctx, d.Window, view, evaluator)
 }
 
-type swapDisplay struct{ vulkanwindow.Screen }
+type bridgeDisplay struct {
+	window.Window
+	screen    vulkan.Screen
+	evaluator ndarray.Evaluator
+}
 
-func (d swapDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
-	return d.Paint(ctx, view)
+func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
+	return ndeval.Paint(ctx, d.evaluator, view, d.screen)
 }
 
 type runner struct {

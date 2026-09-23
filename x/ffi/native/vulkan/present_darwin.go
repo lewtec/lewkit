@@ -28,10 +28,12 @@ type metalSurfaceInfo struct {
 type metalHost struct {
 	screen     *Screen
 	wnd        objc.ID
+	view       objc.ID
 	layer      objc.ID
 	lastW      int
 	lastH      int
 	closed     bool
+	borrowed   bool
 	createSurf func(inst uintptr, info *metalSurfaceInfo, alloc uintptr, surface *uint64) int32
 }
 
@@ -40,6 +42,46 @@ type nsSize struct{ Width, Height float64 }
 type nsRect struct {
 	Origin nsPoint
 	Size   nsSize
+}
+
+func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
+	if kind != 3 || a == 0 {
+		return nil, ErrUnavailable
+	}
+	_ = b
+	var host hostSurface
+	var err error
+	thread.Do(func() {
+		host, err = attachMetalView(s, objc.ID(a))
+	})
+	return host, err
+}
+
+func attachMetalView(s *Screen, view objc.ID) (hostSurface, error) {
+	if _, err := nsApp(); err != nil {
+		return nil, err
+	}
+	layer := objc.ID(objc.GetClass("CAMetalLayer")).Send(objc.RegisterName("alloc"))
+	layer = layer.Send(objc.RegisterName("init"))
+	if layer == 0 {
+		return nil, fmt.Errorf("%w: CAMetalLayer", ErrUnavailable)
+	}
+	rect := metalBounds(view)
+	w := rect.Size.Width
+	h := rect.Size.Height
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	layer.Send(objc.RegisterName("setContentsScale:"), 1.0)
+	layer.Send(objc.RegisterName("setDrawableSize:"), nsSize{Width: w, Height: h})
+	view.Send(objc.RegisterName("setLayer:"), layer)
+	view.Send(objc.RegisterName("setWantsLayer:"), true)
+	host := &metalHost{screen: s, view: view, layer: layer, lastW: int(w + 0.5), lastH: int(h + 0.5), borrowed: true}
+	trackMetal(host)
+	return host, nil
 }
 
 func openHost(screen *Screen, width, height int, title string) (hostSurface, error) {
@@ -167,10 +209,15 @@ func (h *metalHost) create(d *Device, w *wsi) (uint64, error) {
 }
 
 func (h *metalHost) destroy() {
-	if h == nil || h.wnd == 0 {
+	if h == nil {
 		return
 	}
 	untrackMetal(h)
+	if h.borrowed || h.wnd == 0 {
+		h.wnd = 0
+		h.layer = 0
+		return
+	}
 	wnd := h.wnd
 	h.wnd = 0
 	h.layer = 0
@@ -264,8 +311,29 @@ func deliverMetal(ev objc.ID) {
 	}
 }
 
+func (h *metalHost) fitLayer() {
+	if h == nil || h.layer == 0 || h.view == 0 {
+		return
+	}
+	rect := metalBounds(h.view)
+	w := int(rect.Size.Width + 0.5)
+	hgt := int(rect.Size.Height + 0.5)
+	if w < 1 || hgt < 1 || (w == h.lastW && hgt == h.lastH) {
+		return
+	}
+	h.lastW, h.lastH = w, hgt
+	h.layer.Send(objc.RegisterName("setDrawableSize:"), nsSize{Width: float64(w), Height: float64(hgt)})
+}
+
 func (h *metalHost) note() {
-	if h == nil || h.wnd == 0 || h.screen == nil || h.closed {
+	if h == nil || h.screen == nil || h.closed {
+		return
+	}
+	if h.borrowed {
+		h.fitLayer()
+		return
+	}
+	if h.wnd == 0 {
 		return
 	}
 	if h.wnd.Send(objc.RegisterName("isVisible")) == 0 {

@@ -27,6 +27,7 @@ type win32Host struct {
 	screen     *Screen
 	hwnd       uintptr
 	instance   uintptr
+	borrowed   bool
 	createSurf func(inst uintptr, info *win32SurfaceInfo, alloc uintptr, surface *uint64) int32
 }
 
@@ -82,6 +83,13 @@ func winButton(msg uint32) int {
 	default:
 		return 1
 	}
+}
+
+func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
+	if kind != 2 || a == 0 {
+		return nil, ErrUnavailable
+	}
+	return &win32Host{screen: s, hwnd: a, instance: b, borrowed: true}, nil
 }
 
 func openHost(screen *Screen, width, height int, title string) (hostSurface, error) {
@@ -150,7 +158,7 @@ func (h *win32Host) create(d *Device, w *wsi) (uint64, error) {
 }
 
 func (h *win32Host) destroy() {
-	if h == nil || h.hwnd == 0 {
+	if h == nil || h.borrowed || h.hwnd == 0 {
 		return
 	}
 	destroyWindow(h.hwnd)

@@ -292,6 +292,44 @@ func OpenScreen(ctx context.Context, width, height int, title string) (*Screen, 
 	return s, nil
 }
 
+// OpenNative builds a swapchain for a window the caller already owns.
+// kind, a, and b match window.Surface. The native window is not destroyed.
+func OpenNative(ctx context.Context, kind int, a, b uintptr, width, height int) (*Screen, error) {
+	if width < 1 || height < 1 || a == 0 {
+		return nil, ErrSize
+	}
+	d, err := openPresentInstance(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s := &Screen{d: d, width: width, height: height}
+	if err := s.wsi.load(d); err != nil {
+		d.Close()
+		return nil, err
+	}
+	host, err := attachHost(s, kind, a, b)
+	if err != nil {
+		_ = s.Close()
+		return nil, err
+	}
+	s.host = host
+	surface, err := host.create(d, &s.wsi)
+	if err != nil {
+		_ = s.Close()
+		return nil, err
+	}
+	s.surface = surface
+	if err := s.openDevice(ctx); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
+	if err := s.makeSwapchain(); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
 // Device is the GPU that owns the swapchain.
 func (s *Screen) Device() *Device {
 	if s == nil {

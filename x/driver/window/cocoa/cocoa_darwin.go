@@ -212,6 +212,17 @@ type win struct {
 	mapped         objc.ID
 }
 
+func (w *win) Surface() window.Surface {
+	if w == nil || w.wnd == 0 {
+		return window.Surface{}
+	}
+	var view objc.ID
+	thread.Do(func() {
+		view = w.wnd.Send(objc.RegisterName("contentView"))
+	})
+	return window.Surface{Kind: window.SurfaceView, A: uintptr(view)}
+}
+
 func (w *win) create(title string, width, height int) error {
 	rect := nsRect{Size: nsSize{Width: float64(width), Height: float64(height)}}
 	wnd := objc.ID(objc.GetClass("NSWindow")).Send(objc.RegisterName("alloc"))

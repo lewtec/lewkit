@@ -31,6 +31,16 @@ type screen struct {
 	binding *ffivulkan.Screen
 }
 
+// OpenNative builds a swapchain for a window the caller already owns.
+// The native window is not closed with the screen.
+func OpenNative(ctx context.Context, kind int, a, b uintptr, width, height int) (Screen, error) {
+	binding, err := ffivulkan.OpenNative(ctx, kind, a, b, width, height)
+	if err != nil {
+		return nil, err
+	}
+	return &screen{binding: binding}, nil
+}
+
 // OpenScreen opens an X11 window and a swapchain on the best present-capable GPU.
 func OpenScreen(ctx context.Context, width, height int, title string) (Screen, error) {
 	binding, err := ffivulkan.OpenScreen(ctx, width, height, title)

@@ -167,6 +167,14 @@ type win struct {
 	want   window.WantSize
 }
 
+func (w *win) Surface() window.Surface {
+	if w == nil || w.hwnd == 0 {
+		return window.Surface{}
+	}
+	inst, _, _ := procGetModuleHandleW.Call(0)
+	return window.Surface{Kind: window.SurfaceWin32, A: w.hwnd, B: inst}
+}
+
 func (w *win) Size() image.Point {
 	return window.HostSize(w.Buffer, &w.mu, &w.want)
 }
