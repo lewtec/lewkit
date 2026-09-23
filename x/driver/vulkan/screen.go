@@ -7,9 +7,23 @@ import (
 )
 
 // Screen is a window whose swapchain lives on one compute device.
+type (
+	Input = ffivulkan.Input
+)
+
+const (
+	InputResize  = ffivulkan.InputResize
+	InputClose   = ffivulkan.InputClose
+	InputPointer = ffivulkan.InputPointer
+	InputScroll  = ffivulkan.InputScroll
+	InputKey     = ffivulkan.InputKey
+	InputExpose  = ffivulkan.InputExpose
+)
+
 type Screen interface {
 	Device() Device
 	Present(buf *Buffer, width, height int, spirv []byte) error
+	OnInput(func(Input))
 	Close() error
 }
 
@@ -38,6 +52,13 @@ func (s *screen) Present(buf *Buffer, width, height int, spirv []byte) error {
 		return ffivulkan.ErrClosed
 	}
 	return s.binding.Present(buf, width, height, spirv)
+}
+
+func (s *screen) OnInput(fn func(Input)) {
+	if s == nil || s.binding == nil {
+		return
+	}
+	s.binding.OnInput(fn)
 }
 
 func (s *screen) Close() error {

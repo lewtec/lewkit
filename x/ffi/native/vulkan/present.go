@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"unsafe"
 )
 
@@ -46,8 +47,28 @@ const (
 // hostSurface is the native window the swapchain presents to.
 type hostSurface interface {
 	create(d *Device, w *wsi) (uint64, error)
+	poll()
 	destroy()
 }
+
+// Input is one host event. Kind selects which fields matter.
+type Input struct {
+	Kind            int
+	X, Y, DX, DY    int
+	Button, Buttons int
+	Pressed, Repeat bool
+	Rune            rune
+	Code, Mod       uint32
+}
+
+const (
+	InputResize = iota + 1
+	InputClose
+	InputPointer
+	InputScroll
+	InputKey
+	InputExpose
+)
 
 // Screen is a native window plus the swapchain on its device.
 type Screen struct {
@@ -75,6 +96,8 @@ type Screen struct {
 	set       uint64
 	module    uint64
 	spirvLen  int
+	mu        sync.Mutex
+	onInput   func(Input)
 }
 
 type wsi struct {
@@ -283,8 +306,16 @@ func (s *Screen) Present(buf *Buffer, width, height int, spirv []byte) error {
 	if s == nil || s.d == nil || s.swap == 0 {
 		return ErrClosed
 	}
-	if buf == nil || buf.d != s.d || width != s.width || height != s.height {
+	if buf == nil || buf.d != s.d || width < 1 || height < 1 {
 		return ErrSize
+	}
+	if s.host != nil {
+		s.host.poll()
+	}
+	if width != s.width || height != s.height {
+		if err := s.resizeTo(width, height); err != nil {
+			return err
+		}
 	}
 	if err := s.ensurePipe(spirv); err != nil {
 		return err
@@ -448,7 +479,7 @@ func (w *wsi) loadDevice(d *Device) error {
 }
 
 func (s *Screen) openWindow(title string) error {
-	host, err := openHost(s.width, s.height, title)
+	host, err := openHost(s, s.width, s.height, title)
 	if err != nil {
 		return err
 	}
@@ -567,11 +598,71 @@ func (s *Screen) makeSwapchain() error {
 	s.images = s.images[:n]
 	s.views = make([]uint64, n)
 	s.layouts = make([]int32, n)
-	fence := fenceCreateInfo{sType: structureFenceCreateInfo}
-	if err := check(s.d.api.createFence(s.d.dev, &fence, 0, &s.acqFence)); err != nil {
-		return fmt.Errorf("acquire fence: %w", err)
+	if s.acqFence == 0 {
+		fence := fenceCreateInfo{sType: structureFenceCreateInfo}
+		if err := check(s.d.api.createFence(s.d.dev, &fence, 0, &s.acqFence)); err != nil {
+			return fmt.Errorf("acquire fence: %w", err)
+		}
 	}
 	return nil
+}
+
+// OnInput receives host resize, close, pointer, scroll, and key events.
+func (s *Screen) OnInput(fn func(Input)) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	s.onInput = fn
+	s.mu.Unlock()
+}
+
+func (s *Screen) emit(in Input) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	fn := s.onInput
+	s.mu.Unlock()
+	if fn != nil {
+		fn(in)
+	}
+}
+
+func (s *Screen) resizeTo(width, height int) error {
+	if s.d != nil {
+		_ = s.d.WaitIdle()
+	}
+	s.dropSwap()
+	s.width, s.height = width, height
+	return s.makeSwapchain()
+}
+
+func (s *Screen) dropSwap() {
+	d := s.d
+	if d == nil || d.dev == 0 {
+		return
+	}
+	for _, v := range s.views {
+		if v != 0 && s.wsi.destroyView != nil {
+			s.wsi.destroyView(d.dev, v, 0)
+		}
+	}
+	s.views, s.layouts, s.images = nil, nil, nil
+	if s.storeView != 0 && s.wsi.destroyView != nil {
+		s.wsi.destroyView(d.dev, s.storeView, 0)
+	}
+	if s.store != 0 && s.wsi.destroyImage != nil {
+		s.wsi.destroyImage(d.dev, s.store, 0)
+	}
+	if s.storeMem != 0 {
+		d.api.freeMemory(d.dev, s.storeMem, 0)
+	}
+	s.store, s.storeView, s.storeMem, s.storeLay = 0, 0, 0, 0
+	if s.swap != 0 && s.wsi.destroySwapchain != nil {
+		s.wsi.destroySwapchain(d.dev, s.swap, 0)
+		s.swap = 0
+	}
 }
 
 func (s *Screen) pickFormat() (int32, int32, error) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -72,16 +73,19 @@ func (opener) Open(ctx context.Context, cfg window.Config) (Screen, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &screen{
+	out := &screen{
 		swap:      swap,
 		evaluator: ndeval.Bind(swap.Device()),
 		size:      image.Pt(w, h),
 		period:    window.DefaultFramePeriod,
 		bus:       event.New[window.Event](),
-	}, nil
+	}
+	swap.OnInput(out.publish)
+	return out, nil
 }
 
 type screen struct {
+	mu        sync.Mutex
 	swap      vulkan.Screen
 	evaluator ndarray.Evaluator
 	size      image.Point
@@ -93,7 +97,33 @@ func (s *screen) Size() image.Point {
 	if s == nil {
 		return image.Point{}
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.size
+}
+
+func (s *screen) publish(in vulkan.Input) {
+	if s == nil || s.bus == nil {
+		return
+	}
+	switch in.Kind {
+	case vulkan.InputResize:
+		size := image.Pt(in.X, in.Y)
+		s.mu.Lock()
+		s.size = size
+		s.mu.Unlock()
+		s.bus.Publish(window.Resize{Size: size})
+	case vulkan.InputClose:
+		s.bus.Publish(window.Close{})
+	case vulkan.InputExpose:
+		s.bus.Publish(window.Expose{})
+	case vulkan.InputPointer:
+		s.bus.Publish(window.Pointer{Pos: image.Pt(in.X, in.Y), Button: in.Button, Pressed: in.Pressed, Buttons: in.Buttons})
+	case vulkan.InputScroll:
+		s.bus.Publish(window.Scroll{Pos: image.Pt(in.X, in.Y), Delta: image.Pt(in.DX, in.DY)})
+	case vulkan.InputKey:
+		s.bus.Publish(window.Key{Rune: in.Rune, Code: in.Code, Pressed: in.Pressed, Repeat: in.Repeat, Mod: window.Modifier(in.Mod)})
+	}
 }
 
 func (s *screen) FramePeriod() time.Duration {

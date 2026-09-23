@@ -4,6 +4,7 @@ package vulkan
 
 import (
 	"fmt"
+	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -21,6 +22,7 @@ type xlibSurfaceInfo struct {
 }
 
 type xlibHost struct {
+	screen     *Screen
 	dpy        uintptr
 	win        uint64
 	createXlib func(inst uintptr, info *xlibSurfaceInfo, alloc uintptr, surface *uint64) int32
@@ -30,24 +32,95 @@ func loadHost(w *wsi, d *Device) error {
 	return nil
 }
 
-func openHost(width, height int, title string) (hostSurface, error) {
+func openHost(screen *Screen, width, height int, title string) (hostSurface, error) {
 	dpy, err := xOpen()
 	if err != nil {
 		return nil, err
 	}
-	screen := xDefaultScreen(dpy)
-	root := xRootWindow(dpy, screen)
-	win := xCreateSimple(dpy, root, 0, 0, uint32(width), uint32(height), 0, xBlackPixel(dpy, screen), xWhitePixel(dpy, screen))
+	display := xDefaultScreen(dpy)
+	root := xRootWindow(dpy, display)
+	win := xCreateSimple(dpy, root, 0, 0, uint32(width), uint32(height), 0, xBlackPixel(dpy, display), xWhitePixel(dpy, display))
 	if win == 0 {
 		xCloseDisplay(dpy)
 		return nil, fmt.Errorf("%w: x window", ErrUnavailable)
 	}
 	name := cstr(title)
 	xStoreName(dpy, win, name)
-	xSelectInput(dpy, win, 1<<15)
+	xSelectInput(dpy, win, xInputMask)
+	_ = screen
 	xMapWindow(dpy, win)
 	xFlush(dpy)
-	return &xlibHost{dpy: dpy, win: win}, nil
+	return &xlibHost{screen: screen, dpy: dpy, win: win}, nil
+}
+
+func (h *xlibHost) poll() {
+	if h == nil || h.dpy == 0 || xPending == nil {
+		return
+	}
+	for xPending(h.dpy) > 0 {
+		var raw [192]byte
+		ev := (*xEvent)(unsafe.Pointer(&raw[0]))
+		xNext(h.dpy, ev)
+		h.one(ev)
+	}
+}
+
+type xEvent struct {
+	kind    int32
+	_       int32
+	serial  uint64
+	send    int32
+	_       int32
+	display uintptr
+	window  uint64
+	root    uint64
+	sub     uint64
+	time    uint64
+	x, y    int32
+	xroot   int32
+	yroot   int32
+	state   uint32
+	button  uint32
+	same    int32
+}
+
+type xConfigure struct {
+	kind    int32
+	_       int32
+	serial  uint64
+	send    int32
+	_       int32
+	display uintptr
+	event   uint64
+	window  uint64
+	x, y    int32
+	width   int32
+	height  int32
+}
+
+func (h *xlibHost) one(ev *xEvent) {
+	if h == nil || ev == nil || h.screen == nil {
+		return
+	}
+	switch ev.kind {
+	case 2, 3:
+		h.screen.emit(Input{Kind: InputKey, X: int(ev.x), Y: int(ev.y), Code: ev.button, Pressed: ev.kind == 2})
+	case 4:
+		h.screen.emit(Input{Kind: InputPointer, X: int(ev.x), Y: int(ev.y), Button: int(ev.button), Pressed: true})
+	case 5:
+		h.screen.emit(Input{Kind: InputPointer, X: int(ev.x), Y: int(ev.y), Button: int(ev.button)})
+	case 6:
+		h.screen.emit(Input{Kind: InputPointer, X: int(ev.x), Y: int(ev.y)})
+	case 22:
+		cfg := (*xConfigure)(unsafe.Pointer(&ev))
+		if cfg.width > 0 && cfg.height > 0 {
+			h.screen.emit(Input{Kind: InputResize, X: int(cfg.width), Y: int(cfg.height)})
+		}
+	case 17:
+		h.screen.emit(Input{Kind: InputClose})
+	case 12:
+		h.screen.emit(Input{Kind: InputExpose})
+	}
 }
 
 func (h *xlibHost) create(d *Device, w *wsi) (uint64, error) {
@@ -87,8 +160,12 @@ var (
 	xFlush         func(dpy uintptr) int32
 	xDestroyWindow func(dpy uintptr, win uint64) int32
 	xSelectInput   func(dpy uintptr, win uint64, mask int64) int32
+	xPending       func(dpy uintptr) int32
+	xNext          func(dpy uintptr, ev *xEvent) int32
 	xlibOnce       uint32
 )
+
+const xInputMask int64 = 1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<6 | 1<<15 | 1<<17
 
 func xOpen() (uintptr, error) {
 	if xlibOnce == 0 {
@@ -108,6 +185,8 @@ func xOpen() (uintptr, error) {
 		native.Func(lib, "XFlush", &xFlush)
 		native.Func(lib, "XDestroyWindow", &xDestroyWindow)
 		native.Func(lib, "XSelectInput", &xSelectInput)
+		native.Func(lib, "XPending", &xPending)
+		native.Func(lib, "XNextEvent", &xNext)
 		xlibOnce = 1
 	}
 	if xOpenDisplay == nil {

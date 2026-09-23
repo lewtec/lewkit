@@ -26,8 +26,12 @@ type metalSurfaceInfo struct {
 }
 
 type metalHost struct {
+	screen     *Screen
 	wnd        objc.ID
 	layer      objc.ID
+	lastW      int
+	lastH      int
+	closed     bool
 	createSurf func(inst uintptr, info *metalSurfaceInfo, alloc uintptr, surface *uint64) int32
 }
 
@@ -38,7 +42,7 @@ type nsRect struct {
 	Size   nsSize
 }
 
-func openHost(width, height int, title string) (hostSurface, error) {
+func openHost(screen *Screen, width, height int, title string) (hostSurface, error) {
 	if !thread.Bound() {
 		return nil, fmt.Errorf("%w: main thread", ErrUnavailable)
 	}
@@ -49,12 +53,12 @@ func openHost(width, height int, title string) (hostSurface, error) {
 			err = fmt.Errorf("%w: NSWindow requires the main thread", ErrUnavailable)
 			return
 		}
-		host, err = openMetalWindow(width, height, title)
+		host, err = openMetalWindow(screen, width, height, title)
 	})
 	return host, err
 }
 
-func openMetalWindow(width, height int, title string) (hostSurface, error) {
+func openMetalWindow(screen *Screen, width, height int, title string) (hostSurface, error) {
 	app, err := nsApp()
 	if err != nil {
 		return nil, err
@@ -85,9 +89,16 @@ func openMetalWindow(width, height int, title string) (hostSurface, error) {
 	wnd.Send(objc.RegisterName("orderFrontRegardless"))
 	wnd.Send(objc.RegisterName("makeKeyAndOrderFront:"), objc.ID(0))
 	wnd.Send(objc.RegisterName("display"))
+	wnd.Send(objc.RegisterName("setAcceptsMouseMovedEvents:"), true)
 	app.Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
-	pumpApp()
-	return &metalHost{wnd: wnd, layer: layer}, nil
+	host := &metalHost{screen: screen, wnd: wnd, layer: layer, lastW: width, lastH: height}
+	trackMetal(host)
+	pollDarwin()
+	return host, nil
+}
+
+func (h *metalHost) poll() {
+	thread.Do(pollDarwin)
 }
 
 var appOnce sync.Once
@@ -103,7 +114,7 @@ func nsApp() (objc.ID, error) {
 		app = objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 		app.Send(objc.RegisterName("setActivationPolicy:"), 0)
 		app.Send(objc.RegisterName("finishLaunching"))
-		thread.OnIdle(pumpApp)
+		thread.OnIdle(pollDarwin)
 	})
 	if err != nil {
 		return 0, err
@@ -161,6 +172,7 @@ func (h *metalHost) destroy() {
 	if h == nil || h.wnd == 0 {
 		return
 	}
+	untrackMetal(h)
 	wnd := h.wnd
 	h.wnd = 0
 	h.layer = 0
@@ -168,3 +180,219 @@ func (h *metalHost) destroy() {
 		wnd.Send(objc.RegisterName("close"))
 	})
 }
+
+var (
+	metalMu sync.Mutex
+	metals  []*metalHost
+)
+
+func trackMetal(h *metalHost) {
+	metalMu.Lock()
+	metals = append(metals, h)
+	metalMu.Unlock()
+}
+
+func untrackMetal(h *metalHost) {
+	metalMu.Lock()
+	for i, item := range metals {
+		if item == h {
+			metals = append(metals[:i], metals[i+1:]...)
+			break
+		}
+	}
+	metalMu.Unlock()
+}
+
+func pollDarwin() {
+	if !thread.ProcessMain() {
+		return
+	}
+	pumpApp()
+	dispatchMetalEvents()
+	metalMu.Lock()
+	hosts := append([]*metalHost(nil), metals...)
+	metalMu.Unlock()
+	for _, h := range hosts {
+		h.note()
+	}
+}
+
+func dispatchMetalEvents() {
+	date := objc.ID(objc.GetClass("NSDate")).Send(objc.RegisterName("distantPast"))
+	if date == 0 {
+		return
+	}
+	app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
+	mode := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), "NSDefaultRunLoopMode")
+	if app == 0 || mode == 0 {
+		return
+	}
+	for i := 0; i < 64; i++ {
+		ev := app.Send(objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:"), ^uintptr(0), date, mode, true)
+		if ev == 0 {
+			return
+		}
+		deliverMetal(ev)
+		app.Send(objc.RegisterName("sendEvent:"), ev)
+	}
+}
+
+func deliverMetal(ev objc.ID) {
+	nsw := ev.Send(objc.RegisterName("window"))
+	metalMu.Lock()
+	var host *metalHost
+	for _, h := range metals {
+		if h.wnd == nsw {
+			host = h
+			break
+		}
+	}
+	metalMu.Unlock()
+	if host == nil || host.screen == nil {
+		return
+	}
+	typ := int(ev.Send(objc.RegisterName("type")))
+	pos := metalPos(host, ev)
+	switch typ {
+	case 1, 3, 25:
+		host.screen.emit(Input{Kind: InputPointer, X: pos.X, Y: pos.Y, Button: metalButton(int(ev.Send(objc.RegisterName("buttonNumber")))), Pressed: true})
+	case 2, 4, 26:
+		host.screen.emit(Input{Kind: InputPointer, X: pos.X, Y: pos.Y, Button: metalButton(int(ev.Send(objc.RegisterName("buttonNumber"))))})
+	case 5, 6, 7, 27:
+		host.screen.emit(Input{Kind: InputPointer, X: pos.X, Y: pos.Y})
+	case 22:
+		dx, dy := metalDelta(ev, "deltaX"), metalDelta(ev, "deltaY")
+		host.screen.emit(Input{Kind: InputScroll, X: pos.X, Y: pos.Y, DX: int(dx), DY: int(-dy)})
+	case 10, 11:
+		host.screen.emit(Input{Kind: InputKey, X: pos.X, Y: pos.Y, Code: uint32(ev.Send(objc.RegisterName("keyCode"))), Pressed: typ == 10, Repeat: ev.Send(objc.RegisterName("isARepeat")) != 0, Rune: metalRune(ev.Send(objc.RegisterName("characters"))), Mod: metalMod(uintptr(ev.Send(objc.RegisterName("modifierFlags"))))})
+	}
+}
+
+func (h *metalHost) note() {
+	if h == nil || h.wnd == 0 || h.screen == nil || h.closed {
+		return
+	}
+	if h.wnd.Send(objc.RegisterName("isVisible")) == 0 {
+		h.closed = true
+		h.screen.emit(Input{Kind: InputClose})
+		return
+	}
+	view := h.wnd.Send(objc.RegisterName("contentView"))
+	if view == 0 {
+		return
+	}
+	rect := metalBounds(view)
+	w := int(rect.Size.Width + 0.5)
+	hgt := int(rect.Size.Height + 0.5)
+	if w < 1 || hgt < 1 || (w == h.lastW && hgt == h.lastH) {
+		return
+	}
+	h.lastW, h.lastH = w, hgt
+	h.layer.Send(objc.RegisterName("setDrawableSize:"), nsSize{Width: float64(w), Height: float64(hgt)})
+	h.screen.emit(Input{Kind: InputResize, X: w, Y: hgt})
+}
+
+func metalButton(n int) int {
+	switch n {
+	case 1:
+		return 2
+	case 2:
+		return 3
+	default:
+		return 1
+	}
+}
+
+func metalMod(flags uintptr) uint32 {
+	var m uint32
+	if flags&(1<<17) != 0 {
+		m |= 1
+	}
+	if flags&(1<<18) != 0 {
+		m |= 2
+	}
+	if flags&(1<<19) != 0 {
+		m |= 4
+	}
+	if flags&(1<<20) != 0 {
+		m |= 8
+	}
+	return m
+}
+
+var (
+	metalLoc     func(objc.ID, objc.SEL) nsPoint
+	metalDeltaF  func(objc.ID, objc.SEL) float64
+	metalBoundsF func(objc.ID, objc.SEL) nsRect
+	objcSend     uintptr
+)
+
+func metalMsgSend() {
+	if objcSend != 0 {
+		return
+	}
+	addr, err := native.Symbol(mustObjc(), "objc_msgSend")
+	if err != nil {
+		return
+	}
+	objcSend = addr
+	native.Register(&metalLoc, objcSend)
+	native.Register(&metalDeltaF, objcSend)
+	native.Register(&metalBoundsF, objcSend)
+}
+
+func mustObjc() uintptr {
+	lib, err := native.Open("/usr/lib/libobjc.A.dylib", native.Global|native.Lazy)
+	if err != nil {
+		return 0
+	}
+	return lib
+}
+
+func metalPos(h *metalHost, ev objc.ID) imagePoint {
+	metalMsgSend()
+	if metalLoc == nil || h.wnd == 0 {
+		return imagePoint{}
+	}
+	loc := metalLoc(ev, objc.RegisterName("locationInWindow"))
+	view := h.wnd.Send(objc.RegisterName("contentView"))
+	rect := metalBounds(view)
+	return imagePoint{X: int(loc.X + 0.5), Y: int(rect.Size.Height - loc.Y + 0.5)}
+}
+
+func metalBounds(view objc.ID) nsRect {
+	metalMsgSend()
+	if metalBoundsF == nil || view == 0 {
+		return nsRect{}
+	}
+	return metalBoundsF(view, objc.RegisterName("bounds"))
+}
+
+func metalDelta(ev objc.ID, name string) float64 {
+	metalMsgSend()
+	if metalDeltaF == nil {
+		return 0
+	}
+	return metalDeltaF(ev, objc.RegisterName(name))
+}
+
+func metalRune(ns objc.ID) rune {
+	if ns == 0 {
+		return 0
+	}
+	p := ns.Send(objc.RegisterName("UTF8String"))
+	if p == 0 {
+		return 0
+	}
+	n := 0
+	for *(*byte)(unsafe.Pointer(uintptr(p) + uintptr(n))) != 0 && n < 16 {
+		n++
+	}
+	s := string(unsafe.Slice((*byte)(unsafe.Pointer(uintptr(p))), n))
+	for _, r := range s {
+		return r
+	}
+	return 0
+}
+
+type imagePoint struct{ X, Y int }
