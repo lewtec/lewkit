@@ -3,6 +3,7 @@ package gui
 import (
 	"image"
 	"image/color"
+	"strings"
 	"testing"
 	"time"
 
@@ -288,6 +289,22 @@ func TestPictureReuseKernel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Same(t, kernel, second.Kernel())
 	require.Equal(t, 3, kernel.Bindings())
+}
+
+func TestPictureLoopShader(t *testing.T) {
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	children := make([]Node, 4)
+	for i := range children {
+		children[i] = &Box{Fill: &Color{0, 0, 255, 40}, Radius: 4}
+	}
+	view, err := picture.Render(&Stack{Children: children}, Size{8, 8})
+	require.NoError(t, err)
+	require.NoError(t, view.Resize(view.Shape()))
+	src, err := view.Kernel().GLSL()
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(src, "for ("))
+	require.Equal(t, 1, strings.Count(src, "sqrt("))
 }
 
 func TestPictureGrowsLayers(t *testing.T) {

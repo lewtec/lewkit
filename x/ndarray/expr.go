@@ -14,6 +14,10 @@ const (
 	kindInput
 	kindCoord
 	kindOp
+	kindGather
+	kindLoop
+	kindCarry
+	kindLoopIndex
 )
 
 // node is one vertex of a fused kernel: a const, a buffer view, or an ALU op.
@@ -168,6 +172,11 @@ func (n *node) Shape() Shape {
 			if shape := s.Shape(); shape != nil {
 				return shape
 			}
+		}
+	}
+	if n.kind == kindCarry || n.kind == kindLoop {
+		if n.tracker.check() == nil {
+			return n.tracker.Shape()
 		}
 	}
 	return nil

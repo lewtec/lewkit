@@ -264,6 +264,28 @@ func rewrite(n *node, steps []stStep, memo map[rewriteMemo]*node) *node {
 		out.chain = nil
 		memo[key] = &out
 		return &out
+	case kindGather:
+		index := rewrite(n.sources[0], nil, memo)
+		if len(steps) == 0 && index == n.sources[0] {
+			memo[key] = n
+			return n
+		}
+		out := *n
+		out.sources = []*node{index}
+		out.chain = slices.Clone(steps)
+		memo[key] = &out
+		return &out
+	case kindLoop:
+		init := rewrite(n.sources[0], nil, memo)
+		body := rewrite(n.sources[1], nil, memo)
+		out := *n
+		out.sources = []*node{init, body}
+		out.chain = slices.Clone(steps)
+		memo[key] = &out
+		return &out
+	case kindCarry, kindLoopIndex:
+		memo[key] = n
+		return n
 	default:
 		return n
 	}
@@ -341,6 +363,27 @@ func flatten(root *node) ([]*node, []*buffer, error) {
 					return err
 				}
 			}
+		case kindGather:
+			if n.buf == nil || len(n.sources) != 1 {
+				return ErrOp
+			}
+			if _, ok := idx[n.buf]; !ok {
+				idx[n.buf] = len(bufs)
+				bufs = append(bufs, n.buf)
+			}
+			if err := walk(n.sources[0]); err != nil {
+				return err
+			}
+		case kindLoop:
+			if len(n.sources) != 2 || n.slot < 1 {
+				return ErrOp
+			}
+			for _, s := range n.sources {
+				if err := walk(s); err != nil {
+					return err
+				}
+			}
+		case kindCarry, kindLoopIndex:
 		default:
 			return ErrOp
 		}
@@ -363,6 +406,24 @@ func cseFold(n *node, memo map[*node]*node, cse map[string]*node) *node {
 	}
 	if m := memo[n]; m != nil {
 		return m
+	}
+	if n.kind == kindLoop || n.kind == kindGather {
+		srcs := make([]*node, len(n.sources))
+		same := true
+		for i, s := range n.sources {
+			srcs[i] = cseFold(s, memo, cse)
+			if srcs[i] != s {
+				same = false
+			}
+		}
+		if same {
+			memo[n] = n
+			return n
+		}
+		clone := *n
+		clone.sources = srcs
+		memo[n] = &clone
+		return &clone
 	}
 	if n.kind != kindOp {
 		memo[n] = n
@@ -530,12 +591,42 @@ func (w *glslWriter) program() (string, error) {
 	w.b.WriteString("    if (gi >= n) return;\n")
 	w.b.WriteString("    int i = int(gi);\n")
 	w.coords = w.unravelPush(len(w.outShape))
-	for _, n := range w.order {
-		name, err := w.node(n)
-		if err != nil {
+	loop, prefix, inside, suffix, err := splitLoop(w.order)
+	if err != nil {
+		return "", err
+	}
+	emit := func(nodes []*node) error {
+		for _, n := range nodes {
+			name, err := w.node(n)
+			if err != nil {
+				return err
+			}
+			w.names[n] = name
+		}
+		return nil
+	}
+	if err := emit(prefix); err != nil {
+		return "", err
+	}
+	if loop != nil {
+		fmt.Fprintf(&w.b, "    %s acc = %s;\n", loop.dtype.glsl(), w.names[loop.sources[0]])
+		fmt.Fprintf(&w.b, "    for (int s = 0; s < %d; s++) {\n", loop.slot)
+		if err := emit(inside); err != nil {
 			return "", err
 		}
-		w.names[n] = name
+		fmt.Fprintf(&w.b, "        acc = %s;\n    }\n", w.names[loop.sources[1]])
+		id := w.name("t")
+		if len(loop.chain) > 0 {
+			_, valid := w.indexChain(loop.chain)
+			fmt.Fprintf(&w.b, "    %s %s = %s;\n", loop.dtype.glsl(), id, glslZero(loop.dtype))
+			fmt.Fprintf(&w.b, "    if (%s) %s = acc;\n", valid, id)
+		} else {
+			fmt.Fprintf(&w.b, "    %s %s = acc;\n", loop.dtype.glsl(), id)
+		}
+		w.names[loop] = id
+	}
+	if err := emit(suffix); err != nil {
+		return "", err
 	}
 	out := w.names[w.root]
 	if w.root.viewed() {
@@ -615,6 +706,21 @@ func (w *glslWriter) node(n *node) (string, error) {
 		}
 		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, glslZero(n.dtype))
 		fmt.Fprintf(&w.b, "    if ((%s) && (%s >= 0) && (%s < %d)) %s = x%d[%s];\n", valid, off, off, cells, id, w.bufBind[n.buf], off)
+		return id, nil
+	case kindGather:
+		idx := w.names[n.sources[0]]
+		cells := 0
+		if n.buf != nil {
+			cells = n.buf.cells()
+		}
+		fmt.Fprintf(&w.b, "    %s %s = %s;\n", n.dtype.glsl(), id, glslZero(n.dtype))
+		fmt.Fprintf(&w.b, "    if ((%s >= 0) && (%s < %d)) %s = x%d[%s];\n", idx, idx, cells, id, w.bufBind[n.buf], idx)
+		return id, nil
+	case kindLoopIndex:
+		fmt.Fprintf(&w.b, "    int %s = s;\n", id)
+		return id, nil
+	case kindCarry:
+		fmt.Fprintf(&w.b, "    %s %s = acc;\n", n.dtype.glsl(), id)
 		return id, nil
 	case kindOp:
 		args := make([]string, len(n.sources))

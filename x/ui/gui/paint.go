@@ -171,21 +171,41 @@ func (picture *Picture) compile(count int) error {
 	picture.params = params
 	picture.slots = make([]slot, count)
 	picture.composites = make([]*ndarray.Tensor[float32], count)
-	accumulator := picture.base
 	for index := 0; index < count; index++ {
 		next, err := picture.newSlot(index * slotFloats)
 		if err != nil {
 			return err
 		}
 		picture.slots[index] = next
-		coverage := next.coverage(picture.pixelX, picture.pixelY)
-		alpha := coverage.Mul(next.alpha.Mul(ndarray.Const(float32(1.0 / 255))))
-		color := channelColor(picture.channel, next.red, next.green, next.blue, ndarray.Const(float32(255)))
-		accumulator = accumulator.Add(alpha.Mul(color.Add(accumulator.Neg())))
-		picture.composites[index] = accumulator
+		stacked, err := ndarray.Repeat(picture.base, index+1, func(step *ndarray.Tensor[int32], acc *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
+			return picture.layer(acc, picture.gatherSlot(step))
+		})
+		if err != nil {
+			return err
+		}
+		picture.composites[index] = stacked
 	}
 	picture.inkedFrom = nil
 	return nil
+}
+
+func (picture *Picture) gatherSlot(index *ndarray.Tensor[int32]) slot {
+	stride := ndarray.Const(int32(slotFloats))
+	at := func(field int) *ndarray.Tensor[float32] {
+		return picture.params.Gather(index.Mul(stride).Add(ndarray.Const(int32(field))))
+	}
+	return slot{
+		x: at(0), y: at(1), width: at(2), height: at(3),
+		red: at(4), green: at(5), blue: at(6), alpha: at(7), radius: at(8),
+		clipX: at(9), clipY: at(10), clipWidth: at(11), clipHeight: at(12),
+	}
+}
+
+func (picture *Picture) layer(acc *ndarray.Tensor[float32], next slot) *ndarray.Tensor[float32] {
+	coverage := next.coverage(picture.pixelX, picture.pixelY)
+	alpha := coverage.Mul(next.alpha.Mul(ndarray.Const(float32(1.0 / 255))))
+	color := channelColor(picture.channel, next.red, next.green, next.blue, ndarray.Const(float32(255)))
+	return acc.Add(alpha.Mul(color.Add(acc.Neg())))
 }
 
 func channelColor(channel *ndarray.Tensor[int32], red, green, blue, alpha *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
