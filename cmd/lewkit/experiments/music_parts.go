@@ -69,6 +69,7 @@ func (s musicStyle) round(label string, size float32, fill, ink *gui.Color) *gui
 }
 
 type headerModel struct {
+	gui.Dirty
 	musicStyle
 	title     string
 	showBack  bool
@@ -104,12 +105,14 @@ func (h *headerModel) key(key window.Key) gui.Cmd {
 		if h.query != "" {
 			runes := []rune(h.query)
 			h.query = string(runes[:len(runes)-1])
+			h.Mark()
 			return queryCmd(h.query)
 		}
 	case key.Rune == '\n' || key.Rune == '\r':
-		h.search = false
+		gui.Set(&h.Dirty, &h.search, false)
 	case key.Rune >= 32:
 		h.query += string(key.Rune)
+		h.Mark()
 		return queryCmd(h.query)
 	}
 	return nil
@@ -124,10 +127,10 @@ func (h *headerModel) pointer(pos image.Point) gui.Cmd {
 		return func() gui.Msg { return pickedOpen{} }
 	}
 	if h.searchBox != nil && h.searchBox.Contains(pos) {
-		h.search = true
+		gui.Set(&h.Dirty, &h.search, true)
 		return nil
 	}
-	h.search = false
+	gui.Set(&h.Dirty, &h.search, false)
 	if h.back != nil && h.showBack && h.back.Contains(pos) {
 		return func() gui.Msg { return pickedBack{} }
 	}
@@ -182,6 +185,7 @@ func (h *headerModel) View() gui.Node {
 func (h *headerModel) titleText() gui.Node { return h.musicStyle.title(h.title) }
 
 type albumModel struct {
+	gui.Dirty
 	musicStyle
 	albums []Album
 	inner  float32
@@ -199,10 +203,11 @@ func (a *albumModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	switch event := msg.(type) {
 	case window.Scroll:
 		if a.frame != nil && a.frame.Contains(event.Pos) {
-			a.scroll += float32(event.Delta.Y + event.Delta.X)
-			if a.scroll < 0 {
-				a.scroll = 0
+			next := a.scroll + float32(event.Delta.Y+event.Delta.X)
+			if next < 0 {
+				next = 0
 			}
+			gui.Set(&a.Dirty, &a.scroll, next)
 		}
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed {
@@ -248,6 +253,7 @@ func (a *albumModel) View() gui.Node {
 }
 
 type trackModel struct {
+	gui.Dirty
 	musicStyle
 	tracks   []Track
 	inner    float32
@@ -269,13 +275,14 @@ func (t *trackModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		if t.frame == nil || !t.frame.Contains(event.Pos) {
 			break
 		}
-		t.scroll += float32(event.Delta.Y)
-		if t.scroll < 0 {
-			t.scroll = 0
+		next := t.scroll + float32(event.Delta.Y)
+		if next < 0 {
+			next = 0
 		}
-		if t.scroll > t.maxScroll() {
-			t.scroll = t.maxScroll()
+		if limit := t.maxScroll(); next > limit {
+			next = limit
 		}
+		gui.Set(&t.Dirty, &t.scroll, next)
 	case window.Pointer:
 		if event.Button != 1 || !event.Pressed {
 			break
@@ -351,6 +358,7 @@ func (t *trackModel) View() gui.Node {
 }
 
 type nowModel struct {
+	gui.Dirty
 	musicStyle
 	track   *Track
 	inner   float32

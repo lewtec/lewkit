@@ -58,6 +58,7 @@ type chosen struct {
 }
 
 type musicModel struct {
+	gui.Dirty
 	ctx    context.Context
 	lib    *Library
 	player *player
@@ -113,60 +114,65 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return m, nil
 	}
 	if size, ok := guiSize(msg); ok && size.X > 0 && size.Y > 0 {
-		m.size = size
+		gui.Set(&m.Dirty, &m.size, size)
 	}
 	if tick, ok := msg.(gui.TickMsg); ok {
 		if m.dir != "" && !m.booted {
 			m.booted = true
+			m.Mark()
 			return m, m.ingest([]string{m.dir})
 		}
 		if m.player != nil && m.player.Playing() {
-			m.resume = m.player.Played()
+			gui.Set(&m.Dirty, &m.resume, m.player.Played())
 			return m, gui.Every(tick.Period)
 		}
 		return m, nil
 	}
 	switch event := msg.(type) {
 	case gui.ModeMsg:
-		m.mode = event.Mode
+		gui.Set(&m.Dirty, &m.mode, event.Mode)
 	case pickedAlbum:
-		m.album = event.name
-		m.screen = musicAlbum
+		gui.Set(&m.Dirty, &m.album, event.name)
+		gui.Set(&m.Dirty, &m.screen, musicAlbum)
 		m.list.scroll = 0
 		m.reload()
 		return m, nil
 	case pickedTrack:
 		m.start(event.track)
+		m.Mark()
 		return m, gui.Tick()
 	case pickedOpen:
 		return m, m.choose()
 	case pickedBack:
-		m.screen = musicBrowse
+		gui.Set(&m.Dirty, &m.screen, musicBrowse)
 		m.list.scroll = 0
 		m.reload()
 		return m, nil
 	case pickedQuery:
-		m.query = event.text
+		gui.Set(&m.Dirty, &m.query, event.text)
 		m.reload()
 		return m, nil
 	case pickedPlay:
 		m.toggle()
+		m.Mark()
 		if m.player != nil && m.player.Playing() {
 			return m, gui.Tick()
 		}
 		return m, nil
 	case pickedStep:
 		m.step(event.delta)
+		m.Mark()
 		return m, nil
 	case pickedSeek:
 		if m.now != nil && m.player != nil {
-			m.resume = event.frame
+			gui.Set(&m.Dirty, &m.resume, event.frame)
 			m.player.Play(m.now.Path, event.frame)
 		}
 		return m, nil
 	case chosen:
 		if event.err != nil {
 			m.note = event.err.Error()
+			m.Mark()
 			return m, nil
 		}
 		if len(event.paths) == 0 {
@@ -182,6 +188,7 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		} else {
 			m.note = ""
 		}
+		m.Mark()
 		m.reload()
 		if m.player != nil && m.player.Playing() {
 			return m, gui.Tick()
@@ -209,6 +216,7 @@ func guiSize(msg gui.Msg) (image.Point, bool) {
 func (m *musicModel) ingest(paths []string) gui.Cmd {
 	m.busy = true
 	m.note = "reading library"
+	m.Mark()
 	lib := m.lib
 	return func() gui.Msg {
 		var count int
@@ -250,31 +258,35 @@ func (m *musicModel) reload() {
 	}
 	m.albums = albums
 	m.tracks = tracks
+	m.Mark()
 }
 
 func (m *musicModel) delegate(msg gui.Msg) (gui.Model, gui.Cmd) {
 	m.prepare()
-	if cmd := take(&m.head, msg); cmd != nil {
-		return m, cmd
-	}
-	switch m.screen {
-	case musicNow:
-		if cmd := take(&m.stage, msg); cmd != nil {
-			return m, cmd
-		}
-	case musicAlbum:
-		if cmd := take(&m.list, msg); cmd != nil {
-			return m, cmd
-		}
-	default:
-		if cmd := take(&m.shelf, msg); cmd != nil {
-			return m, cmd
-		}
-		if cmd := take(&m.list, msg); cmd != nil {
-			return m, cmd
+	cmd := take(&m.head, msg)
+	if cmd == nil {
+		switch m.screen {
+		case musicNow:
+			cmd = take(&m.stage, msg)
+		case musicAlbum:
+			cmd = take(&m.list, msg)
+		default:
+			cmd = take(&m.shelf, msg)
+			if cmd == nil {
+				cmd = take(&m.list, msg)
+			}
 		}
 	}
-	return m, nil
+	m.absorb(m.head, m.shelf, m.list, m.stage)
+	return m, cmd
+}
+
+func (m *musicModel) absorb(parts ...interface{ Consume() bool }) {
+	for _, part := range parts {
+		if part != nil && part.Consume() {
+			m.Mark()
+		}
+	}
 }
 
 func take[T gui.Model](model *T, msg gui.Msg) gui.Cmd {

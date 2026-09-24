@@ -2,6 +2,7 @@ package gui
 
 // Solid fills the frame with one RGBA color.
 type Solid struct {
+	Dirty
 	fill Color
 }
 

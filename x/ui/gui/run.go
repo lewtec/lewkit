@@ -248,7 +248,13 @@ func (runner *runner) handle(msg Msg) error {
 	}
 	runner.model = next
 	runner.spawn(cmd)
-	runner.dirty = true
+	if changed, ok := next.(interface{ Consume() bool }); ok {
+		if changed.Consume() {
+			runner.dirty = true
+		}
+	} else {
+		runner.dirty = true
+	}
 	if _, stop := msg.(window.Close); stop {
 		return nil
 	}

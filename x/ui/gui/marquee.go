@@ -59,7 +59,8 @@ func (marquee *Marquee) wrap(y float32) float32 {
 }
 
 func (marquee *Marquee) shift(delta float32) {
-	marquee.offset = marquee.wrap(marquee.offset + delta)
+	next := marquee.wrap(marquee.offset + delta)
+	Set(&marquee.Dirty, &marquee.offset, next)
 }
 
 func wrapShift(y, period float32) float32 {
@@ -82,6 +83,7 @@ type marqueeItem struct {
 // Marquee is a clipped stack of [Bar] children that scroll down and wrap.
 // Offset is the only motion state; View derives each bar from it.
 type Marquee struct {
+	Dirty
 	size         image.Point
 	offset       float32
 	lastTick     time.Duration
@@ -126,11 +128,11 @@ func (marquee *Marquee) Update(msg Msg) (Model, Cmd) {
 	switch event := msg.(type) {
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed {
-			marquee.dragging = true
+			Set(&marquee.Dirty, &marquee.dragging, true)
 			marquee.lastPointerY = event.Pos.Y
 		}
 		if event.Button == 1 && !event.Pressed {
-			marquee.dragging = false
+			Set(&marquee.Dirty, &marquee.dragging, false)
 		}
 		if marquee.dragging && event.Buttons&window.ButtonLeft != 0 {
 			marquee.shift(float32(event.Pos.Y - marquee.lastPointerY))
@@ -140,13 +142,13 @@ func (marquee *Marquee) Update(msg Msg) (Model, Cmd) {
 		marquee.shift(float32(event.Delta.Y))
 	case window.Key:
 		if event.Pressed && !event.Repeat && (event.Rune == ' ' || event.Code == 49) {
-			marquee.paused = !marquee.paused
+			Set(&marquee.Dirty, &marquee.paused, !marquee.paused)
 		}
 	case window.Resize:
-		marquee.dragging = false
+		Set(&marquee.Dirty, &marquee.dragging, false)
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		marquee.size = size
+		Set(&marquee.Dirty, &marquee.size, size)
 	}
 	return marquee, cmd
 }
