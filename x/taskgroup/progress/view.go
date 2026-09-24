@@ -16,7 +16,6 @@ const (
 	defaultTermWidth = 80
 	narrowTermWidth  = 56
 	minBarInner      = 8
-	barWidth         = 20
 	barFill          = "━"
 	barEmpty         = "─"
 )
@@ -210,15 +209,12 @@ func formatNarrowBody(msg string, pct float64, width int) string {
 
 func formatWideBody(msg string, pct float64, width int) string {
 	const gap = 1
-	inner := barWidth
-	if width < gap+minBarInner+1 {
+	if width < gap+minBarInner {
 		return formatNarrowBody(msg, pct, width)
 	}
-	if gap+inner+1 > width {
-		inner = width - gap - 1
-	}
+	inner := width - gap - cellWidth(msg)
 	if inner < minBarInner {
-		return formatNarrowBody(msg, pct, width)
+		inner = minBarInner
 	}
 	return padCells(msg, width-gap-inner) + " " + plainBar(pct, inner)
 }
@@ -235,7 +231,7 @@ func formatPercent(pct float64) string {
 
 func plainBar(pct float64, width int) string {
 	if width <= 0 {
-		width = barWidth
+		return ""
 	}
 	pct = min(max(pct, 0), 1)
 	filled := min(int(pct*float64(width)+0.5), width)
