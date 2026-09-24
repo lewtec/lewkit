@@ -463,6 +463,17 @@ func (t *Tensor[T]) And(o *Tensor[T]) *Tensor[T] {
 func (t *Tensor[T]) Div(o *Tensor[T]) *Tensor[T] {
 	return t.bin(func(a, b *node) *node { return a.Div(b) }, o)
 }
+
+// DivNumber divides a by b.
+// float32 uses floating division. int32 and uint8 use integer division.
+func DivNumber[T Number](a, b *Tensor[T]) *Tensor[T] {
+	switch any(T(0)).(type) {
+	case float32:
+		return a.Div(b)
+	default:
+		return a.IDiv(b)
+	}
+}
 func (t *Tensor[T]) Equal(o *Tensor[T]) *Tensor[int32] {
 	return t.cmp(func(a, b *node) *node { return a.Equal(b) }, o)
 }

@@ -79,7 +79,7 @@ func AveragePool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, ker
 	cover := []int{w.heightBefore, w.widthBefore, w.heightAfter, w.widthAfter}
 	callerZero := len(pads) == 0 || (pads[0] == 0 && pads[1] == 0 && pads[2] == 0 && pads[3] == 0)
 	if countIncludePad || callerZero {
-		return elementDiv(sum, ndarray.Const(T(kernelHeight*kernelWidth))), nil
+		return ndarray.DivNumber(sum, ndarray.Const(T(kernelHeight*kernelWidth))), nil
 	}
 	ones, err := ndarray.Ones[T](input.Shape())
 	if err != nil {
@@ -103,7 +103,7 @@ func AveragePool2D[T ndarray.Number](input *ndarray.Tensor[T], kernelHeight, ker
 			}
 		}
 	}
-	return elementDiv(sum, count), nil
+	return ndarray.DivNumber(sum, count), nil
 }
 
 type poolKernel struct {
@@ -169,13 +169,4 @@ func poolWindowOf[T ndarray.Number](input *ndarray.Tensor[T], kernel poolKernel,
 		heightAfter:  heightAfter,
 		widthAfter:   widthAfter,
 	}, nil
-}
-
-func elementDiv[T ndarray.Number](a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
-	switch any(T(0)).(type) {
-	case float32:
-		return a.Div(b)
-	default:
-		return a.IDiv(b)
-	}
 }
