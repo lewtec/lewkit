@@ -40,11 +40,18 @@ func (factory) New(ctx context.Context) (appearance.Driver, error) {
 	defer liveMu.Unlock()
 	if live == nil {
 		live = &source{
-			scheme: appearance.Parse(driver.GetEnv(ctx, "LEWKIT_APPEARANCE")),
+			scheme: parsePinned(driver.GetEnv(ctx, "LEWKIT_APPEARANCE")),
 			bus:    event.New[appearance.Scheme](),
 		}
 	}
 	return live, nil
+}
+
+func parsePinned(text string) appearance.Scheme {
+	if text == "dark" {
+		return appearance.Dark
+	}
+	return appearance.Light
 }
 
 type source struct {

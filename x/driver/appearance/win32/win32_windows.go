@@ -147,5 +147,5 @@ func readTheme(key syscall.Handle) appearance.Scheme {
 	if status != 0 || kind != regDWORD {
 		return appearance.Light
 	}
-	return appearance.FromAppsUseLightTheme(data)
+	return fromLightTheme(data)
 }

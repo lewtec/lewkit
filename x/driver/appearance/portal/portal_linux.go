@@ -135,26 +135,35 @@ func readScheme(conn *dbus.Conn) (appearance.Scheme, error) {
 	return scheme, nil
 }
 
+// fromPortal maps the portal color-scheme value.
+// 1 is prefer-dark. 0 (no preference) and 2 (prefer-light) are light.
+func fromPortal(value uint32) appearance.Scheme {
+	if value == 1 {
+		return appearance.Dark
+	}
+	return appearance.Light
+}
+
 func schemeOf(value any) (appearance.Scheme, bool) {
 	switch typed := value.(type) {
 	case dbus.Variant:
 		return schemeOf(typed.Value())
 	case uint32:
-		return appearance.FromPortal(typed), true
+		return fromPortal(typed), true
 	case uint16:
-		return appearance.FromPortal(uint32(typed)), true
+		return fromPortal(uint32(typed)), true
 	case int32:
 		if typed < 0 {
 			return appearance.Light, false
 		}
-		return appearance.FromPortal(uint32(typed)), true
+		return fromPortal(uint32(typed)), true
 	case int16:
 		if typed < 0 {
 			return appearance.Light, false
 		}
-		return appearance.FromPortal(uint32(typed)), true
+		return fromPortal(uint32(typed)), true
 	case byte:
-		return appearance.FromPortal(uint32(typed)), true
+		return fromPortal(uint32(typed)), true
 	default:
 		return appearance.Light, false
 	}

@@ -132,7 +132,7 @@ func readStyle() appearance.Scheme {
 		return appearance.Light
 	}
 	text := cocoaString(value)
-	return appearance.FromAppleInterfaceStyle(text)
+	return fromInterfaceStyle(text)
 }
 
 func nsString(text string) objc.ID {

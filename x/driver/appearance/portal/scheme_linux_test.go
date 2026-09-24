@@ -27,6 +27,9 @@ func TestSchemeOf(t *testing.T) {
 	scheme, ok = schemeOf(dbus.MakeVariant(dbus.MakeVariant(uint32(2))))
 	require.True(t, ok)
 	require.Equal(t, appearance.Light, scheme)
+	scheme, ok = schemeOf(uint32(0))
+	require.True(t, ok)
+	require.Equal(t, appearance.Light, scheme)
 	_, ok = schemeOf("dark")
 	require.False(t, ok)
 }
