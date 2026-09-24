@@ -112,14 +112,14 @@ Inherited C (cite the file):
 | `x/sound/mp3` | MP3 `Decoder` | registered decoder | decode stays here | mp3 decode error | import `x/driver` |
 | `x/sound/ogg` | Ogg Vorbis `Decoder` | registered decoder | decode stays here | vorbis decode error | import `x/driver` |
 | `x/sound/prelude` | blank import of the decoders | registry side effect | imports stay here | duplicate `Register` panics | decode by itself |
-| `x/driver/sound` | `Open`, `Sinks`, `Config` | host sink is the playback writer | protocol stays here | missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
+| `x/driver/audio_play` | `Open`, `Sinks`, `Config` | host sink is the playback writer | protocol stays here | missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/ffi/native/pulse` | `Playback`, `List`, `Stream` | libpulse binding | simple playback stays here | pulse error text | import `x/ffi/wasm`; import `x/driver` |
-| `x/driver/sound/pulse` | PulseAudio `Open` | facade of the pulse binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native`; return `pa_simple` |
-| `x/driver/sound/mem` | in-memory `Open` | test sink | capture stays here | incompatible unless `LEWKIT_SOUND_MEM` is set | play on a host device |
+| `x/driver/audio_play/pulse` | PulseAudio `Open` | facade of the pulse binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native`; return `pa_simple` |
+| `x/driver/audio_play/mem` | in-memory `Open` | test sink | capture stays here | incompatible unless `LEWKIT_AUDIO_PLAY_MEM` is set | play on a host device |
 | `x/ffi/native/winmm` | `Open`, `Devices`, `Stream` | winmm binding | waveOut playback stays here | waveOut error text | import `x/ffi/wasm`; import `x/driver` |
-| `x/driver/sound/winmm` | waveOut `Open` | facade of the winmm binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
+| `x/driver/audio_play/winmm` | waveOut `Open` | facade of the winmm binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/ffi/native/coreaudio` | `Open`, `Devices`, `Stream` | AudioQueue binding | playback stays here | CoreAudio error text | import `x/ffi/wasm`; import `x/driver` |
-| `x/driver/sound/coreaudio` | AudioQueue `Open` | facade of the coreaudio binding | selection stays here | missing framework is `driver.ErrIncompatible` | import `x/ffi/native` |
+| `x/driver/audio_play/coreaudio` | AudioQueue `Open` | facade of the coreaudio binding | selection stays here | missing framework is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio` |
@@ -173,13 +173,13 @@ Inherited C (cite the file):
 | INV-31 | `x/ffi/native/webkit` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
 | INV-32 | `x/driver/tray` does not import `x/ffi/wasm` | `x/driver/tray` | that import |
 | INV-33 | `x/sound` does not import `x/driver`, `x/sound/mp3`, or `x/sound/ogg` | `x/sound` | that import |
-| INV-34 | `x/driver/sound` does not import `x/ffi/native` | `x/driver/sound` | that import |
-| INV-35 | `x/driver/sound/pulse` imports `x/ffi/native/pulse` and does not import `x/ffi/native` | `x/driver/sound/pulse` | an import of `x/ffi/native` |
+| INV-34 | `x/driver/audio_play` does not import `x/ffi/native` | `x/driver/audio_play` | that import |
+| INV-35 | `x/driver/audio_play/pulse` imports `x/ffi/native/pulse` and does not import `x/ffi/native` | `x/driver/audio_play/pulse` | an import of `x/ffi/native` |
 | INV-36 | `x/ffi/native/pulse` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` or `x/driver` |
 | INV-37 | `x/ffi/native/winmm` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` or `x/driver` |
 | INV-38 | `x/ffi/native/coreaudio` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` or `x/driver` |
-| INV-39 | `x/driver/sound/winmm` imports `x/ffi/native/winmm` and does not import `x/ffi/native` | `x/driver/sound/winmm` | an import of `x/ffi/native` |
-| INV-40 | `x/driver/sound/coreaudio` imports `x/ffi/native/coreaudio` and does not import `x/ffi/native` | `x/driver/sound/coreaudio` | an import of `x/ffi/native` |
+| INV-39 | `x/driver/audio_play/winmm` imports `x/ffi/native/winmm` and does not import `x/ffi/native` | `x/driver/audio_play/winmm` | an import of `x/ffi/native` |
+| INV-40 | `x/driver/audio_play/coreaudio` imports `x/ffi/native/coreaudio` and does not import `x/ffi/native` | `x/driver/audio_play/coreaudio` | an import of `x/ffi/native` |
 
 ## Errors
 

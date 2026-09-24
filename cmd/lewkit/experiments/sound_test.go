@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	dsound "github.com/lewtec/lewkit/x/driver/sound"
+	dsound "github.com/lewtec/lewkit/x/driver/audio_play"
 	"github.com/lewtec/lewkit/x/sound"
 	"github.com/stretchr/testify/require"
 )

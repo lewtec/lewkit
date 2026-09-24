@@ -4,7 +4,7 @@
 // uses silence for a track that has no frame yet. [Pipeline] pulls frames
 // and seeks by frame. [Decode] selects a registered decoder by file name or
 // magic. Copy either reader into a playback writer from
-// [github.com/lewtec/lewkit/x/driver/sound]. A trailing partial frame is
+// [github.com/lewtec/lewkit/x/driver/audio_play]. A trailing partial frame is
 // dropped when its writer closes.
 package sound
 

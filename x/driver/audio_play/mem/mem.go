@@ -1,6 +1,6 @@
 // Package mem records playback in memory.
 //
-// The factory stays incompatible unless LEWKIT_SOUND_MEM is set, so a host
+// The factory stays incompatible unless LEWKIT_AUDIO_PLAY_MEM is set, so a host
 // with no audio server does not pretend to play.
 package mem
 
@@ -12,34 +12,34 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/sound"
+	"github.com/lewtec/lewkit/x/driver/audio_play"
 	pcs "github.com/lewtec/lewkit/x/sound"
 )
 
 type factory struct{}
 
-func (factory) ID() string   { return "sound_mem" }
+func (factory) ID() string   { return "audio_play_mem" }
 func (factory) Name() string { return "Memory" }
 func (factory) Weight() int  { return 0 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if driver.GetEnv(ctx, "LEWKIT_SOUND_MEM") == "" {
+	if driver.GetEnv(ctx, "LEWKIT_AUDIO_PLAY_MEM") == "" {
 		return fmt.Errorf("%w: memory sound driver", driver.ErrIncompatible)
 	}
 	return nil
 }
 
-func (factory) New(context.Context) (sound.Driver, error) {
+func (factory) New(context.Context) (audio_play.Driver, error) {
 	return opener{}, nil
 }
 
 type opener struct{}
 
-func (opener) Sinks(context.Context) ([]sound.Sink, error) {
-	return []sound.Sink{{ID: "default", Name: "Memory"}}, nil
+func (opener) Sinks(context.Context) ([]audio_play.Sink, error) {
+	return []audio_play.Sink{{ID: "default", Name: "Memory"}}, nil
 }
 
-func (opener) Open(_ context.Context, cfg sound.Config) (io.WriteCloser, error) {
+func (opener) Open(_ context.Context, cfg audio_play.Config) (io.WriteCloser, error) {
 	return Open(cfg)
 }
 
@@ -55,7 +55,7 @@ type Buffer struct {
 }
 
 // Open records writes for cfg. An empty sink is "default".
-func Open(cfg sound.Config) (*Buffer, error) {
+func Open(cfg audio_play.Config) (*Buffer, error) {
 	frame, err := cfg.Format.Frame()
 	if err != nil {
 		return nil, err

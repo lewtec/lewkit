@@ -11,14 +11,14 @@ import (
 	"strconv"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/sound"
+	"github.com/lewtec/lewkit/x/driver/audio_play"
 	lib "github.com/lewtec/lewkit/x/ffi/native/winmm"
 	pcs "github.com/lewtec/lewkit/x/sound"
 )
 
 type factory struct{}
 
-func (factory) ID() string   { return "sound_winmm" }
+func (factory) ID() string   { return "audio_play_winmm" }
 func (factory) Name() string { return "WaveOut" }
 func (factory) Weight() int  { return 60 }
 
@@ -29,13 +29,13 @@ func (factory) CheckCompatibility(context.Context) error {
 	return nil
 }
 
-func (factory) New(context.Context) (sound.Driver, error) {
+func (factory) New(context.Context) (audio_play.Driver, error) {
 	return backend{}, nil
 }
 
 type backend struct{}
 
-func (backend) Sinks(ctx context.Context) ([]sound.Sink, error) {
+func (backend) Sinks(ctx context.Context) ([]audio_play.Sink, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -43,14 +43,14 @@ func (backend) Sinks(ctx context.Context) ([]sound.Sink, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]sound.Sink, len(list))
+	out := make([]audio_play.Sink, len(list))
 	for i, item := range list {
-		out[i] = sound.Sink{ID: item.ID, Name: item.Name}
+		out[i] = audio_play.Sink{ID: item.ID, Name: item.Name}
 	}
 	return out, nil
 }
 
-func (backend) Open(ctx context.Context, cfg sound.Config) (io.WriteCloser, error) {
+func (backend) Open(ctx context.Context, cfg audio_play.Config) (io.WriteCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (backend) Open(ctx context.Context, cfg sound.Config) (io.WriteCloser, erro
 			if err != nil {
 				return nil, err
 			}
-			sink, err := sound.FindSink(id, sinks)
+			sink, err := audio_play.FindSink(id, sinks)
 			if err != nil {
 				return nil, err
 			}
@@ -80,7 +80,7 @@ func (backend) Open(ctx context.Context, cfg sound.Config) (io.WriteCloser, erro
 	if err != nil {
 		return nil, err
 	}
-	return sound.NewFrames(frame, stream.Write, stream.Close), nil
+	return audio_play.NewFrames(frame, stream.Write, stream.Close), nil
 }
 
 func waveSample(sample pcs.Sample) (lib.Sample, error) {

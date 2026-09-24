@@ -3,21 +3,21 @@ package mem_test
 import (
 	"testing"
 
-	"github.com/lewtec/lewkit/x/driver/sound"
-	"github.com/lewtec/lewkit/x/driver/sound/mem"
+	"github.com/lewtec/lewkit/x/driver/audio_play"
+	"github.com/lewtec/lewkit/x/driver/audio_play/mem"
 	pcs "github.com/lewtec/lewkit/x/sound"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenRecordsPCM(t *testing.T) {
-	t.Setenv("LEWKIT_SOUND_MEM", "1")
-	t.Setenv("LEWKIT_FORCE_SOUND_DRIVER", "sound_mem")
+	t.Setenv("LEWKIT_AUDIO_PLAY_MEM", "1")
+	t.Setenv("LEWKIT_FORCE_AUDIO_PLAY_DRIVER", "audio_play_mem")
 	format := pcs.Format{Rate: 8000, Channels: 1, Sample: pcs.SampleS16LE}
-	sinks, err := sound.Sinks(t.Context())
+	sinks, err := audio_play.Sinks(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, []sound.Sink{{ID: "default", Name: "Memory"}}, sinks)
+	require.Equal(t, []audio_play.Sink{{ID: "default", Name: "Memory"}}, sinks)
 
-	w, err := sound.Open(t.Context(), sound.Config{Sink: "speakers", Format: format})
+	w, err := audio_play.Open(t.Context(), audio_play.Config{Sink: "speakers", Format: format})
 	require.NoError(t, err)
 	buf, ok := w.(*mem.Buffer)
 	require.True(t, ok)

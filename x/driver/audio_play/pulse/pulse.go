@@ -10,14 +10,14 @@ import (
 	"io"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/sound"
+	"github.com/lewtec/lewkit/x/driver/audio_play"
 	lib "github.com/lewtec/lewkit/x/ffi/native/pulse"
 	pcs "github.com/lewtec/lewkit/x/sound"
 )
 
 type factory struct{}
 
-func (factory) ID() string   { return "sound_pulse" }
+func (factory) ID() string   { return "audio_play_pulse" }
 func (factory) Name() string { return "PulseAudio" }
 func (factory) Weight() int  { return 60 }
 
@@ -28,29 +28,29 @@ func (factory) CheckCompatibility(context.Context) error {
 	return nil
 }
 
-func (factory) New(context.Context) (sound.Driver, error) {
+func (factory) New(context.Context) (audio_play.Driver, error) {
 	return backend{}, nil
 }
 
 type backend struct{}
 
-func (backend) Sinks(ctx context.Context) ([]sound.Sink, error) {
+func (backend) Sinks(ctx context.Context) ([]audio_play.Sink, error) {
 	list, err := lib.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]sound.Sink, len(list))
+	out := make([]audio_play.Sink, len(list))
 	for i, item := range list {
 		name := item.Description
 		if name == "" {
 			name = item.Name
 		}
-		out[i] = sound.Sink{ID: item.Name, Name: name}
+		out[i] = audio_play.Sink{ID: item.Name, Name: name}
 	}
 	return out, nil
 }
 
-func (backend) Open(ctx context.Context, cfg sound.Config) (io.WriteCloser, error) {
+func (backend) Open(ctx context.Context, cfg audio_play.Config) (io.WriteCloser, error) {
 	frame, err := cfg.Format.Frame()
 	if err != nil {
 		return nil, err
@@ -63,7 +63,7 @@ func (backend) Open(ctx context.Context, cfg sound.Config) (io.WriteCloser, erro
 	if err != nil {
 		return nil, err
 	}
-	return sound.NewFrames(frame, stream.Write, stream.Close), nil
+	return audio_play.NewFrames(frame, stream.Write, stream.Close), nil
 }
 
 func pulseSample(sample pcs.Sample) (lib.Sample, error) {

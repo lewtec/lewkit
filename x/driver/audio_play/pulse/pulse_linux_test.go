@@ -5,14 +5,14 @@ package pulse
 import (
 	"testing"
 
-	"github.com/lewtec/lewkit/x/driver/sound"
+	"github.com/lewtec/lewkit/x/driver/audio_play"
 	pcs "github.com/lewtec/lewkit/x/sound"
 	"github.com/stretchr/testify/require"
 )
 
 func TestPlaySilence(t *testing.T) {
 	format := pcs.Format{Rate: 48000, Channels: 2, Sample: pcs.SampleS16LE}
-	w, err := backend{}.Open(t.Context(), sound.Config{Format: format, Name: "lewkit-test"})
+	w, err := backend{}.Open(t.Context(), audio_play.Config{Format: format, Name: "lewkit-test"})
 	if err != nil {
 		t.Skip(err)
 	}

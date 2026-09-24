@@ -1,6 +1,6 @@
-// Package sound plays interleaved PCM on one host sink.
+// Package audio_play plays interleaved PCM on one host sink.
 //
-//	w, err := sound.Open(ctx, sound.Config{Sink: "speakers", Format: format})
+//	w, err := audio_play.Open(ctx, audio_play.Config{Sink: "speakers", Format: format})
 //	_, err = w.Write(pcm)
 //	err = w.Close()
 //
@@ -8,7 +8,7 @@
 // partial frame until the next Write. Close returns [github.com/lewtec/lewkit/x/sound.ErrFrame]
 // when a partial frame is still queued. Import
 // [github.com/lewtec/lewkit/x/driver/prelude] or one backend (mem, pulse, winmm, coreaudio).
-package sound
+package audio_play
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package sound
+package audio_play
 
 import pcs "github.com/lewtec/lewkit/x/sound"
 
