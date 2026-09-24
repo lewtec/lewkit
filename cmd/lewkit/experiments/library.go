@@ -2,15 +2,16 @@ package experiments
 
 import (
 	"context"
-	"database/sql"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	_ "github.com/lewtec/lewkit/x/db/sqlite"
+	"github.com/lewtec/lewkit/cmd/lewkit/experiments/musicdb"
+	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/sound"
 )
 
@@ -35,30 +36,20 @@ type Album struct {
 
 // Library is an in-memory catalog of audio files.
 type Library struct {
-	db     *sql.DB
+	db     *db.Conn[musicdb.Queries]
 	covers string
 }
 
-// OpenLibrary returns an empty in-memory catalog.
-func OpenLibrary() (*Library, error) {
-	conn, err := sql.Open("sqlite", ":memory:")
-	if err != nil {
+// OpenLibrary migrates an in-memory catalog and returns it.
+func OpenLibrary(ctx context.Context) (*Library, error) {
+	var arg musicdb.DBArg
+	if err := arg.Parse(":memory:"); err != nil {
 		return nil, err
 	}
-	conn.SetMaxOpenConns(1)
-	_, err = conn.Exec(`CREATE TABLE tracks (
-		id INTEGER PRIMARY KEY,
-		path TEXT NOT NULL UNIQUE,
-		title TEXT NOT NULL,
-		artist TEXT NOT NULL,
-		album TEXT NOT NULL,
-		cover TEXT NOT NULL,
-		duration_ms INTEGER NOT NULL
-	)`)
-	if err != nil {
-		return nil, errors.Join(err, conn.Close())
+	if err := arg.Open(ctx); err != nil {
+		return nil, err
 	}
-	return &Library{db: conn}, nil
+	return &Library{db: arg.Value()}, nil
 }
 
 // Close releases the catalog.
@@ -80,7 +71,7 @@ func (lib *Library) Close() error {
 // One bad file is skipped. The count is files added or replaced.
 func (lib *Library) Ingest(ctx context.Context, root string) (int, error) {
 	if lib == nil || lib.db == nil {
-		return 0, sql.ErrConnDone
+		return 0, errNotOpen
 	}
 	info, err := os.Stat(root)
 	if err != nil {
@@ -137,65 +128,64 @@ func (lib *Library) ingestFile(ctx context.Context, root, path string) (bool, er
 		return false, err
 	}
 	cover := lib.trackCover(filepath.Dir(path), path)
-	_, err = lib.db.ExecContext(ctx, `INSERT INTO tracks(path, title, artist, album, cover, duration_ms)
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(path) DO UPDATE SET
-			title = excluded.title,
-			artist = excluded.artist,
-			album = excluded.album,
-			cover = excluded.cover,
-			duration_ms = excluded.duration_ms`,
-		path, title, artist, album, cover, duration.Milliseconds())
+	err = lib.db.Queries().UpsertTrack(ctx, musicdb.UpsertTrackParams{
+		Path: path, Title: title, Artist: artist, Album: album, Cover: cover,
+		DurationMs: duration.Milliseconds(),
+	})
 	return err == nil, err
 }
 
 // Albums lists folders that match query. An empty query lists every album.
 func (lib *Library) Albums(ctx context.Context, query string) ([]Album, error) {
 	like := likeQuery(query)
-	rows, err := lib.db.QueryContext(ctx, `SELECT album, MIN(artist), MAX(cover), COUNT(*)
-		FROM tracks
-		WHERE ? = '' OR title LIKE ? OR artist LIKE ? OR album LIKE ?
-		GROUP BY album
-		ORDER BY album`, query, like, like, like)
+	rows, err := lib.db.Queries().ListAlbums(ctx, musicdb.ListAlbumsParams{
+		Column1: query, Title: like, Artist: like, Album: like,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []Album
-	for rows.Next() {
-		var album Album
-		if err := rows.Scan(&album.Name, &album.Artist, &album.Cover, &album.Tracks); err != nil {
-			return nil, err
-		}
-		out = append(out, album)
+	out := make([]Album, len(rows))
+	for i, row := range rows {
+		out[i] = Album{Name: row.Album, Artist: sqlText(row.Artist), Cover: sqlText(row.Cover), Tracks: int(row.Tracks)}
 	}
-	return out, rows.Err()
+	return out, nil
 }
 
 // Tracks lists files in album. An empty album lists every track.
 func (lib *Library) Tracks(ctx context.Context, album, query string) ([]Track, error) {
 	like := likeQuery(query)
-	rows, err := lib.db.QueryContext(ctx, `SELECT id, path, title, artist, album, cover, duration_ms
-		FROM tracks
-		WHERE (? = '' OR album = ?)
-		  AND (? = '' OR title LIKE ? OR artist LIKE ?)
-		ORDER BY title`, album, album, query, like, like)
+	rows, err := lib.db.Queries().ListTracks(ctx, musicdb.ListTracksParams{
+		Column1: album, Album: album, Column3: query, Title: like, Artist: like,
+	})
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []Track
-	for rows.Next() {
-		var track Track
-		var ms int64
-		if err := rows.Scan(&track.ID, &track.Path, &track.Title, &track.Artist, &track.Album, &track.Cover, &ms); err != nil {
-			return nil, err
+	out := make([]Track, len(rows))
+	for i, row := range rows {
+		out[i] = Track{
+			ID: row.ID, Path: row.Path, Title: row.Title, Artist: row.Artist,
+			Album: row.Album, Cover: row.Cover,
+			Duration: time.Duration(row.DurationMs) * time.Millisecond,
 		}
-		track.Duration = time.Duration(ms) * time.Millisecond
-		out = append(out, track)
 	}
-	return out, rows.Err()
+	return out, nil
 }
+
+func sqlText(v any) string {
+	switch value := v.(type) {
+	case string:
+		return value
+	case []byte:
+		return string(value)
+	default:
+		if v == nil {
+			return ""
+		}
+		return fmt.Sprint(v)
+	}
+}
+
+var errNotOpen = errors.New("database not open")
 
 func likeQuery(query string) string {
 	if query == "" {

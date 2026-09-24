@@ -27,7 +27,7 @@ func TestLibraryIngestAndQuery(t *testing.T) {
 	writeTone(t, filepath.Join(dir, "song.wav"))
 	writePNG(t, filepath.Join(dir, "cover.png"))
 
-	lib, err := OpenLibrary()
+	lib, err := OpenLibrary(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, lib.Close()) })
 	count, err := lib.Ingest(t.Context(), root)
@@ -58,7 +58,7 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	writeTone(t, filepath.Join(dir, "song.wav"))
 	writePNG(t, filepath.Join(dir, "cover.png"))
-	lib, err := OpenLibrary()
+	lib, err := OpenLibrary(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, lib.Close()) })
 	_, err = lib.Ingest(t.Context(), root)
@@ -104,7 +104,7 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 }
 
 func TestMusicScaleGrowsRows(t *testing.T) {
-	lib, err := OpenLibrary()
+	lib, err := OpenLibrary(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, lib.Close()) })
 	small := newMusic(t.Context(), lib, newPlayer(nil))

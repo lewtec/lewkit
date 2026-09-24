@@ -20,7 +20,7 @@ type musicCmd struct {
 func (musicCmd) Description() string { return "browse a dropped music folder" }
 
 func (c *musicCmd) Run(ctx context.Context) error {
-	lib, err := OpenLibrary()
+	lib, err := OpenLibrary(ctx)
 	if err != nil {
 		return err
 	}

@@ -20,7 +20,7 @@ func TestID3APICBecomesCover(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, id3Tag(raw), 0o644))
 	assert.Equal(t, raw, readEmbeddedCover(path))
 
-	lib, err := OpenLibrary()
+	lib, err := OpenLibrary(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, lib.Close()) })
 	saved := lib.trackCover(dir, path)
