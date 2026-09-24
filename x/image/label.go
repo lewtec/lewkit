@@ -15,21 +15,26 @@ func Label(dst *image.RGBA, x, y int, s string) {
 	Stamp{Dst: dst, X: x, Y: y, Text: s}.Draw()
 }
 
-// Stamp draws Text at (X, Y). Nil Face uses [Face].
+// Stamp draws Text at (X, Y). Nil Face uses [Face]. Nil Src uses white.
 type Stamp struct {
 	Dst  *image.RGBA
 	X, Y int
 	Text string
 	Face font.Face
+	Src  image.Image
 }
 
 func (s Stamp) Draw() {
 	if s.Dst == nil || s.Text == "" {
 		return
 	}
+	src := s.Src
+	if src == nil {
+		src = white
+	}
 	d := &font.Drawer{
 		Dst:  s.Dst,
-		Src:  white,
+		Src:  src,
 		Face: Use(s.Face),
 		Dot:  fixed.P(s.X, s.Y),
 	}

@@ -6,6 +6,7 @@ import (
 	"image"
 	"time"
 
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/ndeval"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -114,6 +115,31 @@ func (runner *runner) loop() error {
 	runner.commands = make(chan Msg, 16)
 	events := runner.host.Subscribe(ctx)
 	runner.dirty = true
+	applied := daynight.Dark
+	if scheme, err := daynight.Current(ctx); err == nil {
+		applied = scheme
+		if err := runner.handle(ModeMsg{Mode: scheme}); err != nil {
+			return err
+		}
+	}
+	if changes, err := daynight.Watch(ctx); err == nil {
+		go func() {
+			first := true
+			for scheme := range changes {
+				if first {
+					first = false
+					if scheme == applied {
+						continue
+					}
+				}
+				select {
+				case runner.commands <- ModeMsg{Mode: scheme}:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
 	if err := runner.flush(true); err != nil {
 		return err
 	}

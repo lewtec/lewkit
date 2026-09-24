@@ -18,6 +18,7 @@ type textRun struct {
 	face   font.Face
 	cursor int
 	caret  bool
+	ink    Color
 }
 
 // Color is straight RGBA 0..255.

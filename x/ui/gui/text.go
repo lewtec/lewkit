@@ -18,6 +18,8 @@ type Text struct {
 	Face   font.Face
 	Cursor int
 	Caret  bool
+	// Ink is the glyph color. Zero keeps the white default.
+	Ink Color
 
 	origin Offset
 	size   Size
@@ -52,6 +54,7 @@ func (text *Text) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Ten
 			face:   text.face(),
 			cursor: text.Cursor,
 			caret:  text.Caret,
+			ink:    text.Ink,
 		})
 	}
 	return accumulatorOf(picture)
@@ -123,7 +126,7 @@ func (run textRun) stamp(destination *image.RGBA) {
 			run.drawCaret(destination, column, baseline, maxY)
 		}
 		if baseline <= maxY && character >= 32 {
-			lewimage.Stamp{Dst: destination, X: column, Y: baseline, Text: string(character), Face: face}.Draw()
+			lewimage.Stamp{Dst: destination, X: column, Y: baseline, Text: string(character), Face: face, Src: run.inkImage()}.Draw()
 		}
 		column += advance
 		index++
@@ -131,6 +134,13 @@ func (run textRun) stamp(destination *image.RGBA) {
 	if run.caret && index == run.cursor {
 		run.drawCaret(destination, column, baseline, maxY)
 	}
+}
+
+func (run textRun) inkImage() image.Image {
+	if run.ink.Alpha == 0 {
+		return nil
+	}
+	return &image.Uniform{C: color.RGBA{R: run.ink.Red, G: run.ink.Green, B: run.ink.Blue, A: run.ink.Alpha}}
 }
 
 func (run textRun) drawCaret(destination *image.RGBA, x, baseline, maxY int) {
