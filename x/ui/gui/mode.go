@@ -12,7 +12,7 @@ type ModeMsg struct {
 // An unset mode keeps the dark pair the built-in widgets already used.
 func Palette(mode daynight.Mode) (background, ink Color) {
 	if mode == daynight.Light {
-		return Color{246, 246, 244, 255, RGB}, Color{28, 28, 34, 255, RGB}
+		return Color{246, 246, 244, 255}, Color{28, 28, 34, 255}
 	}
-	return Color{28, 28, 34, 255, RGB}, Color{238, 238, 238, 255, RGB}
+	return Color{28, 28, 34, 255}, Color{238, 238, 238, 255}
 }

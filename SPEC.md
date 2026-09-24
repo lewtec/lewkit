@@ -107,7 +107,7 @@ Inherited C (cite the file):
 | `x/driver/daynight` | `Current`, `Watch`, `Mode` | light or dark | protocol stays here | missing portal or host is `driver.ErrUnavailable` | import `x/ui/gui`; import `x/driver/webview`; import `x/ffi/wasm` |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
-| `x/image` | CPU blit, `Label`, `Color` | value | blit and the straight color struct stay here; `Order` is RGB or BGR | existing blit errors | hold bubbletea types; hold templ; hold transformers |
+| `x/image` | CPU blit, `Label`, `Color`, `BGR`, `CMYK`, `HSV` | value | blit stays here; each color space is its own struct and converts to `Color` | existing blit errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image/convert` | `Decode`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | icon bytes stay here | bad bytes are `ErrFormat` | import `x/driver` |
 | `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV` | PCM value | mixing, seek, and the decoder registry stay here | `ErrFormat`, `ErrFrame`, `ErrClosed`, `ErrSeek` | open a host device; import `x/driver`; import `x/sound/mp3`; import `x/sound/ogg` |
 | `x/sound/mp3` | MP3 `Decoder` | registered decoder | decode stays here | mp3 decode error | import `x/driver` |

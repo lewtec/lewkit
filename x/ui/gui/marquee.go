@@ -17,12 +17,12 @@ const (
 )
 
 var marqueeColors = []Color{
-	Color{220, 70, 90, 200, RGB},
-	Color{70, 180, 140, 200, RGB},
-	Color{70, 140, 220, 200, RGB},
-	Color{230, 180, 60, 200, RGB},
-	Color{180, 90, 210, 200, RGB},
-	Color{50, 200, 200, 200, RGB},
+	Color{220, 70, 90, 200},
+	Color{70, 180, 140, 200},
+	Color{70, 140, 220, 200},
+	Color{230, 180, 60, 200},
+	Color{180, 90, 210, 200},
+	Color{50, 200, 200, 200},
 }
 
 // Bar is one scrolling rounded rect. It is a view value: Marquee.View
@@ -188,7 +188,7 @@ func (marquee *Marquee) rebuild(count int, width float32) {
 		children[i] = &Stack{Children: []Node{item.at, item.wrap}}
 		items[i] = item
 	}
-	marquee.background = Color{18, 18, 24, 255, RGB}
+	marquee.background = Color{18, 18, 24, 255}
 	marquee.root = &Box{
 		Padding: EdgeInsets{marqueePad, marqueePad, marqueePad, marqueePad},
 		Fill:    &marquee.background,

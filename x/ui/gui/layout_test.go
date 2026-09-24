@@ -13,7 +13,7 @@ import (
 )
 
 func TestBoxExpands(t *testing.T) {
-	box := &Box{Fill: &Color{255, 0, 0, 255, RGB}}
+	box := &Box{Fill: &Color{255, 0, 0, 255}}
 	size := box.Layout(Tight(40, 20))
 	assert.Equal(t, Size{40, 20}, size)
 }
@@ -37,9 +37,9 @@ func TestBoxSpacerDoesNotFillCross(t *testing.T) {
 }
 
 func TestRowPacksAndCenters(t *testing.T) {
-	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255, RGB}}
+	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255}}
 	gap := &Box{Width: 4}
-	box := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255, RGB}}
+	box := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255}}
 	row := Row(a, gap, box)
 	outer := &Box{Align: Alignment{0.5, 0.5}, Child: row}
 	size := outer.Layout(Tight(100, 40))
@@ -54,15 +54,15 @@ func TestRowPacksAndCenters(t *testing.T) {
 }
 
 func TestRowRootFillsTight(t *testing.T) {
-	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255, RGB}}
+	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255}}
 	row := Row(a)
 	size := row.Layout(Tight(100, 40))
 	assert.Equal(t, Size{100, 40}, size)
 }
 
 func TestFlexSplitsExpanded(t *testing.T) {
-	left := &Box{Fill: &Color{255, 0, 0, 255, RGB}}
-	right := &Box{Fill: &Color{0, 255, 0, 255, RGB}}
+	left := &Box{Fill: &Color{255, 0, 0, 255}}
+	right := &Box{Fill: &Color{0, 255, 0, 255}}
 	row := &Flex{Axis: Horizontal, Children: []FlexChild{Expanded(left), Expanded(right)}}
 	size := row.Layout(Tight(100, 10))
 	assert.Equal(t, Size{100, 10}, size)
@@ -97,8 +97,8 @@ func TestFlexGapSeparatesChildren(t *testing.T) {
 }
 
 func TestColumnStacks(t *testing.T) {
-	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255, RGB}}
-	box := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255, RGB}}
+	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255}}
+	box := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255}}
 	column := Column(a, box)
 	size := column.Layout(Tight(10, 20))
 	assert.Equal(t, Size{10, 20}, size)
@@ -107,7 +107,7 @@ func TestColumnStacks(t *testing.T) {
 }
 
 func TestStackPositions(t *testing.T) {
-	child := &Box{Width: 4, Height: 4, Fill: &Color{255, 255, 255, 255, RGB}}
+	child := &Box{Width: 4, Height: 4, Fill: &Color{255, 255, 255, 255}}
 	stack := &Stack{Children: []Node{&Positioned{X: 3, Y: 5, Child: child}}}
 	size := stack.Layout(Tight(20, 20))
 	assert.Equal(t, Size{20, 20}, size)
@@ -136,7 +136,7 @@ func at(pixels []uint8, width, x, y int) color.RGBA {
 }
 
 func TestPaintFillAndAlpha(t *testing.T) {
-	root := &Box{Fill: &Color{255, 0, 0, 128, RGB}}
+	root := &Box{Fill: &Color{255, 0, 0, 128}}
 	pixels := raster(t, root, 8, 8)
 	sampled := at(pixels, 8, 3, 3)
 	assert.InDelta(t, 128, sampled.R, 2)
@@ -145,7 +145,7 @@ func TestPaintFillAndAlpha(t *testing.T) {
 }
 
 func TestPaintRoundCorner(t *testing.T) {
-	root := &Box{Fill: &Color{0, 255, 0, 255, RGB}, Radius: 20}
+	root := &Box{Fill: &Color{0, 255, 0, 255}, Radius: 20}
 	pixels := raster(t, root, 40, 40)
 	outside := at(pixels, 40, 0, 0)
 	inside := at(pixels, 40, 20, 20)
@@ -155,8 +155,8 @@ func TestPaintRoundCorner(t *testing.T) {
 
 func TestPaintStackTransparent(t *testing.T) {
 	root := &Stack{Children: []Node{
-		&Box{Fill: &Color{255, 0, 0, 255, RGB}},
-		&Positioned{X: 0, Y: 0, Child: &Box{Width: 8, Height: 8, Fill: &Color{0, 0, 255, 128, RGB}}},
+		&Box{Fill: &Color{255, 0, 0, 255}},
+		&Positioned{X: 0, Y: 0, Child: &Box{Width: 8, Height: 8, Fill: &Color{0, 0, 255, 128}}},
 	}}
 	pixels := raster(t, root, 8, 8)
 	sampled := at(pixels, 8, 2, 2)
@@ -305,7 +305,7 @@ func TestPictureRecordSkipsKernel(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	picture.recordOnly = true
-	pixels, err := picture.Render(&Box{Fill: &Color{10, 20, 30, 255, RGB}}, Size{8, 8})
+	pixels, err := picture.Render(&Box{Fill: &Color{10, 20, 30, 255}}, Size{8, 8})
 	require.NoError(t, err)
 	assert.Nil(t, pixels)
 	require.Len(t, picture.fills, 1)
@@ -317,7 +317,7 @@ func TestPictureRecordSkipsKernel(t *testing.T) {
 func TestPictureReuseKernel(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
-	root := &Box{Fill: &Color{10, 20, 30, 255, RGB}}
+	root := &Box{Fill: &Color{10, 20, 30, 255}}
 	first, err := picture.Render(root, Size{6, 6})
 	require.NoError(t, err)
 	kernel := first.Kernel()
@@ -330,13 +330,13 @@ func TestPictureReuseKernel(t *testing.T) {
 func TestPictureGrowsLayers(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
-	one := &Box{Fill: &Color{255, 0, 0, 255, RGB}}
+	one := &Box{Fill: &Color{255, 0, 0, 255}}
 	first, err := picture.Render(one, Size{8, 8})
 	require.NoError(t, err)
 	kernel := first.Kernel()
 	children := make([]Node, 10)
 	for i := range children {
-		children[i] = &Box{Fill: &Color{0, 0, 255, 40, RGB}}
+		children[i] = &Box{Fill: &Color{0, 0, 255, 40}}
 	}
 	stack := &Stack{Children: children}
 	grown, err := picture.Render(stack, Size{8, 8})
@@ -354,7 +354,7 @@ func TestPictureGrowsLayers(t *testing.T) {
 func TestInkLetter(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
-	root := &Box{Fill: &Color{0, 0, 0, 255, RGB}, Child: &Text{Value: "Hi"}}
+	root := &Box{Fill: &Color{0, 0, 0, 255}, Child: &Text{Value: "Hi"}}
 	pixels, err := picture.Render(root, Size{80, 40})
 	require.NoError(t, err)
 	out := make([]uint8, 80*40*4)

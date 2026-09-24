@@ -6,43 +6,151 @@ import (
 	"strings"
 )
 
-// Order is how the channels are packed into bytes. The zero value is [RGB].
-type Order uint8
-
-const (
-	// RGB packs red, green, blue, then alpha.
-	RGB Order = iota
-	// BGR packs blue, green, red, then alpha.
-	BGR
-)
-
-// Color is one straight color, 0..255. Red, Green, and Blue are the logical
-// channels. Order says how [Color.Bytes] lays those channels out.
+// Color is straight red, green, blue, and alpha, each 0..255. Paint uses this.
 type Color struct {
 	Red, Green, Blue, Alpha uint8
-	Order                   Order
 }
 
-// Bytes packs the color in its Order.
+// BGR is [Color] packed blue, green, red, alpha.
+type BGR struct {
+	Blue, Green, Red, Alpha uint8
+}
+
+// CMYK is cyan, magenta, yellow, and black, each 0..255.
+type CMYK struct {
+	Cyan, Magenta, Yellow, Black uint8
+}
+
+// HSV is a hue in degrees, 0..360, plus saturation and value, 0..255.
+type HSV struct {
+	Hue        uint16
+	Saturation uint8
+	Value      uint8
+}
+
+// Bytes packs red, green, blue, alpha.
 func (c Color) Bytes() [4]byte {
-	if c.Order == BGR {
-		return [4]byte{c.Blue, c.Green, c.Red, c.Alpha}
-	}
 	return [4]byte{c.Red, c.Green, c.Blue, c.Alpha}
 }
 
-// WithOrder returns c marked as order. The logical channels stay put.
-func (c Color) WithOrder(order Order) Color {
-	c.Order = order
-	return c
+// BGR returns the same channels in blue, green, red order.
+func (c Color) BGR() BGR {
+	return BGR{Blue: c.Blue, Green: c.Green, Red: c.Red, Alpha: c.Alpha}
 }
 
-// Unpack reads four packed bytes. order says which byte is red.
-func Unpack(packed [4]byte, order Order) Color {
-	if order == BGR {
-		return Color{Red: packed[2], Green: packed[1], Blue: packed[0], Alpha: packed[3], Order: order}
+// Bytes packs blue, green, red, alpha.
+func (c BGR) Bytes() [4]byte {
+	return [4]byte{c.Blue, c.Green, c.Red, c.Alpha}
+}
+
+// Color returns the logical red, green, and blue.
+func (c BGR) Color() Color {
+	return Color{Red: c.Red, Green: c.Green, Blue: c.Blue, Alpha: c.Alpha}
+}
+
+// CMYK converts the color. Black is what is left after the strongest channel.
+func (c Color) CMYK() CMYK {
+	r, g, b := int(c.Red), int(c.Green), int(c.Blue)
+	max := r
+	if g > max {
+		max = g
 	}
-	return Color{Red: packed[0], Green: packed[1], Blue: packed[2], Alpha: packed[3], Order: order}
+	if b > max {
+		max = b
+	}
+	black := 255 - max
+	if black == 255 {
+		return CMYK{Black: 255}
+	}
+	scale := 255 - black
+	return CMYK{
+		Cyan:    uint8((255 - r - black) * 255 / scale),
+		Magenta: uint8((255 - g - black) * 255 / scale),
+		Yellow:  uint8((255 - b - black) * 255 / scale),
+		Black:   uint8(black),
+	}
+}
+
+// Color returns an opaque red, green, and blue.
+func (c CMYK) Color() Color {
+	black := int(c.Black)
+	if black == 255 {
+		return Color{Alpha: 255}
+	}
+	scale := 255 - black
+	channel := func(v uint8) uint8 {
+		return uint8(255 - black - int(v)*scale/255)
+	}
+	return Color{channel(c.Cyan), channel(c.Magenta), channel(c.Yellow), 255}
+}
+
+// HSV converts the color. Hue is 0 for red, 120 for green, and 240 for blue.
+func (c Color) HSV() HSV {
+	r, g, b := int(c.Red), int(c.Green), int(c.Blue)
+	max, min := r, r
+	if g > max {
+		max = g
+	}
+	if b > max {
+		max = b
+	}
+	if g < min {
+		min = g
+	}
+	if b < min {
+		min = b
+	}
+	if max == 0 {
+		return HSV{}
+	}
+	value := uint8(max)
+	if max == min {
+		return HSV{Value: value}
+	}
+	delta := max - min
+	sat := uint8(delta * 255 / max)
+	var hue int
+	switch max {
+	case r:
+		hue = 60 * (g - b) / delta
+	case g:
+		hue = 60*(b-r)/delta + 120
+	default:
+		hue = 60*(r-g)/delta + 240
+	}
+	if hue < 0 {
+		hue += 360
+	}
+	return HSV{Hue: uint16(hue), Saturation: sat, Value: value}
+}
+
+// Color returns an opaque red, green, and blue.
+func (c HSV) Color() Color {
+	if c.Saturation == 0 {
+		return Color{c.Value, c.Value, c.Value, 255}
+	}
+	hue := int(c.Hue % 360)
+	region := hue / 60
+	rest := hue % 60
+	v := int(c.Value)
+	s := int(c.Saturation)
+	p := v * (255 - s) / 255
+	q := v * (255 - s*rest/60) / 255
+	t := v * (255 - s*(60-rest)/60) / 255
+	switch region {
+	case 0:
+		return Color{uint8(v), uint8(t), uint8(p), 255}
+	case 1:
+		return Color{uint8(q), uint8(v), uint8(p), 255}
+	case 2:
+		return Color{uint8(p), uint8(v), uint8(t), 255}
+	case 3:
+		return Color{uint8(p), uint8(q), uint8(v), 255}
+	case 4:
+		return Color{uint8(t), uint8(p), uint8(v), 255}
+	default:
+		return Color{uint8(v), uint8(p), uint8(q), 255}
+	}
 }
 
 // ParseColor reads #RGB, #RRGGBB, or #RRGGBBAA. The leading # is optional.
@@ -64,13 +172,13 @@ func ParseColor(text string) (Color, error) {
 	default:
 		return Color{}, fmt.Errorf("color %q", text)
 	}
-	return Color{Red: r, Green: g, Blue: b, Alpha: a, Order: RGB}, nil
+	return Color{Red: r, Green: g, Blue: b, Alpha: a}, nil
 }
 
 // Average is the alpha-weighted mean of opaque pixels. A blank image is black.
 func Average(img stdimage.Image) Color {
 	if img == nil {
-		return Color{Alpha: 255, Order: RGB}
+		return Color{Alpha: 255}
 	}
 	bounds := img.Bounds()
 	var red, green, blue, weight uint64
@@ -87,14 +195,13 @@ func Average(img stdimage.Image) Color {
 		}
 	}
 	if weight == 0 {
-		return Color{Alpha: 255, Order: RGB}
+		return Color{Alpha: 255}
 	}
 	return Color{
 		Red:   uint8((red / weight) >> 8),
 		Green: uint8((green / weight) >> 8),
 		Blue:  uint8((blue / weight) >> 8),
 		Alpha: 255,
-		Order: RGB,
 	}
 }
 

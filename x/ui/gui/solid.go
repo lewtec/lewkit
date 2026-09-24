@@ -8,7 +8,7 @@ type Solid struct {
 
 // NewSolid returns a solid fill. The error is always nil.
 func NewSolid(red, green, blue, alpha uint8) (*Solid, error) {
-	return &Solid{fill: Color{red, green, blue, alpha, RGB}}, nil
+	return &Solid{fill: Color{red, green, blue, alpha}}, nil
 }
 
 func (solid *Solid) Init() Cmd { return Tick() }

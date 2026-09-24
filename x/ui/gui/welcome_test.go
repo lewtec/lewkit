@@ -69,7 +69,7 @@ func TestWelcomeOpenCancel(t *testing.T) {
 }
 
 func TestWelcomeLightMode(t *testing.T) {
-	accent := Color{200, 0, 0, 255, RGB}
+	accent := Color{200, 0, 0, 255}
 	welcome := NewWelcome(WelcomeArgs{
 		Title:  "lewkit",
 		Dirs:   []Directory{{Path: t.TempDir()}},
@@ -79,7 +79,7 @@ func TestWelcomeLightMode(t *testing.T) {
 	node := welcome.View()
 	require.NotNil(t, node)
 	card, selected := welcome.cards()
-	assert.Equal(t, Color{255, 255, 255, 255, RGB}, card)
+	assert.Equal(t, Color{255, 255, 255, 255}, card)
 	assert.Greater(t, int(selected.Red), int(selected.Blue))
 }
 
@@ -91,7 +91,7 @@ func TestWelcomeAccentFromLogo(t *testing.T) {
 }
 
 func TestWelcomeAccentOverride(t *testing.T) {
-	accent := Color{20, 180, 40, 255, RGB}
+	accent := Color{20, 180, 40, 255}
 	welcome := NewWelcome(WelcomeArgs{
 		Title:  "lewkit",
 		Dirs:   []Directory{{Path: t.TempDir()}},

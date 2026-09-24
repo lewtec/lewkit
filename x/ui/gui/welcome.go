@@ -221,7 +221,7 @@ func (welcome *Welcome) View() Node {
 	accent := welcome.accentColor()
 	button := accent
 	if welcome.cursor == welcome.browseAt() {
-		button = mixColor(accent, Color{255, 255, 255, 255, RGB}, 48)
+		button = mixColor(accent, Color{255, 255, 255, 255}, 48)
 	}
 	label, detail := onAccent(button)
 	welcome.browse = welcome.row("Open a folder", "Browse this computer", button, label, detail)
@@ -265,9 +265,9 @@ func (welcome *Welcome) accentColor() Color {
 func (welcome *Welcome) cards() (card, selected Color) {
 	accent := welcome.accentColor()
 	if welcome.mode == daynight.Light {
-		return Color{255, 255, 255, 255, RGB}, mixColor(Color{255, 255, 255, 255, RGB}, accent, 28)
+		return Color{255, 255, 255, 255}, mixColor(Color{255, 255, 255, 255}, accent, 28)
 	}
-	base := Color{16, 18, 24, 255, RGB}
+	base := Color{16, 18, 24, 255}
 	return mixColor(base, accent, 36), mixColor(base, accent, 88)
 }
 
@@ -314,7 +314,7 @@ func (welcome *Welcome) logo() Node {
 		Align:   Alignment{0.5, 0.5},
 		Padding: EdgeInsets{20, 16, 20, 16},
 		Radius:  16,
-		Fill:    &Color{255, 255, 255, 255, RGB},
+		Fill:    &Color{255, 255, 255, 255},
 		Child:   imageNode,
 	}
 }
@@ -323,22 +323,22 @@ func mixColor(base, accent Color, toward uint8) Color {
 	mix := func(from, to uint8) uint8 {
 		return uint8((int(from)*(255-int(toward)) + int(to)*int(toward)) / 255)
 	}
-	return Color{mix(base.Red, accent.Red), mix(base.Green, accent.Green), mix(base.Blue, accent.Blue), 255, RGB}
+	return Color{mix(base.Red, accent.Red), mix(base.Green, accent.Green), mix(base.Blue, accent.Blue), 255}
 }
 
 func onAccent(fill Color) (ink, muted Color) {
 	luma := int(fill.Red)*30 + int(fill.Green)*59 + int(fill.Blue)*11
 	if luma > 15000 {
-		return Color{24, 24, 28, 255, RGB}, Color{70, 70, 78, 255, RGB}
+		return Color{24, 24, 28, 255}, Color{70, 70, 78, 255}
 	}
-	return Color{255, 255, 255, 255, RGB}, Color{214, 222, 230, 255, RGB}
+	return Color{255, 255, 255, 255}, Color{214, 222, 230, 255}
 }
 
 func fade(ink, background Color) Color {
 	mix := func(front, back uint8) uint8 {
 		return uint8((int(front) + int(back)*2) / 3)
 	}
-	return Color{mix(ink.Red, background.Red), mix(ink.Green, background.Green), mix(ink.Blue, background.Blue), 255, RGB}
+	return Color{mix(ink.Red, background.Red), mix(ink.Green, background.Green), mix(ink.Blue, background.Blue), 255}
 }
 
 type folderPicked struct {

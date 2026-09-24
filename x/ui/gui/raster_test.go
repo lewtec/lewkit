@@ -95,7 +95,7 @@ func TestRasterUnderFill(t *testing.T) {
 	source := channel.Equal(ndarray.Const(int32(0))).Where(ndarray.Const(float32(200)), ndarray.Const(float32(0)))
 	root := &Stack{Children: []Node{
 		&Raster{Pixels: source},
-		&Box{Width: 2, Height: 2, Fill: &Color{0, 0, 255, 255, RGB}},
+		&Box{Width: 2, Height: 2, Fill: &Color{0, 0, 255, 255}},
 	}}
 	picture, err := NewPicture()
 	require.NoError(t, err)
