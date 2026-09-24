@@ -54,9 +54,10 @@ func (s musicStyle) muted(text string) gui.Node {
 	return &gui.Text{Value: text, Ink: s.paint.muted, Face: lewimageFace(s.scale, 0.85)}
 }
 
-func (s musicStyle) lead(children ...gui.Node) *gui.Flex {
+func (s musicStyle) stack(children ...gui.Node) *gui.Flex {
 	column := gui.Column(children...)
 	column.Cross = gui.CrossStart
+	column.Gap = s.px(8)
 	return column
 }
 
@@ -164,12 +165,10 @@ func (h *headerModel) View() gui.Node {
 	if h.title != "" {
 		heading = h.titleText()
 	}
-	row := &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
+	row := &gui.Flex{Axis: gui.Horizontal, Gap: h.px(8), Children: []gui.FlexChild{
 		{Child: lead},
-		{Child: &gui.Box{Width: h.px(10)}},
 		gui.Expanded(&gui.Box{Height: h.px(48), Align: gui.Alignment{Y: 0.5}, Child: heading}),
 		{Child: h.open},
-		{Child: &gui.Box{Width: h.px(8)}},
 		{Child: h.searchBox},
 	}}
 	if h.search || h.query != "" {
@@ -177,7 +176,7 @@ func (h *headerModel) View() gui.Node {
 		if h.search {
 			text += "_"
 		}
-		return h.lead(row, h.line(text, &h.paint.text))
+		return h.stack(row, h.line(text, &h.paint.text))
 	}
 	return row
 }
@@ -240,14 +239,16 @@ func (a *albumModel) View() gui.Node {
 		box := &gui.Box{
 			Width: a.px(96), Radius: a.px(12), Fill: &a.paint.card,
 			Padding: gui.EdgeInsets{Left: a.px(8), Top: a.px(8), Right: a.px(8), Bottom: a.px(8)},
-			Child:   a.lead(art, &gui.Box{Height: a.px(4)}, a.muted(trim(album.Name, 12))),
+			Child:   a.stack(art, a.muted(trim(album.Name, 12))),
 		}
 		a.hits = append(a.hits, musicHit{box: box, album: album.Name})
-		cards = append(cards, box, &gui.Box{Width: a.px(8)})
+		cards = append(cards, box)
 	}
+	row := gui.Row(cards...)
+	row.Gap = a.px(8)
 	a.frame = &gui.Box{
 		Width: a.inner, Clip: true,
-		Child: &gui.Positioned{X: -a.scroll, Child: gui.Row(cards...)},
+		Child: &gui.Positioned{X: -a.scroll, Child: row},
 	}
 	return a.frame
 }
@@ -330,10 +331,9 @@ func (t *trackModel) View() gui.Node {
 		box := &gui.Box{
 			Width: t.inner, Radius: t.px(12), Fill: &t.paint.card,
 			Padding: gui.EdgeInsets{Left: t.px(10), Top: t.px(10), Right: t.px(10), Bottom: t.px(10)},
-			Child: &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
+			Child: &gui.Flex{Axis: gui.Horizontal, Gap: t.px(12), Children: []gui.FlexChild{
 				{Child: art},
-				{Child: &gui.Box{Width: t.px(12)}},
-				gui.Expanded(&gui.Box{Height: artSide, Align: gui.Alignment{Y: 0.5}, Child: t.lead(
+				gui.Expanded(&gui.Box{Height: artSide, Align: gui.Alignment{Y: 0.5}, Child: t.stack(
 					t.line(track.Title, &t.paint.text),
 					t.muted(track.Artist),
 				)}),
@@ -350,9 +350,11 @@ func (t *trackModel) View() gui.Node {
 	if view < t.px(120) {
 		view = t.px(120)
 	}
+	column := t.stack(rows...)
+	column.Gap = t.px(8)
 	t.frame = &gui.Box{
 		Width: t.inner, Height: view, Clip: true,
-		Child: &gui.Positioned{Y: -t.scroll, Child: t.lead(rows...)},
+		Child: &gui.Positioned{Y: -t.scroll, Child: column},
 	}
 	return t.frame
 }
@@ -456,21 +458,22 @@ func (n *nowModel) View() gui.Node {
 	if n.track != nil {
 		right = clockDuration(n.track.Duration)
 	}
+	times := &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
+		{Child: n.muted(left)},
+		gui.Expanded(&gui.Box{}),
+		{Child: n.muted(right)},
+	}}
+	transport := gui.Row(n.prev, n.play, n.next)
+	transport.Gap = gap
 	column := gui.Column(
 		art,
-		&gui.Box{Height: n.px(16)},
 		n.title(title),
 		n.muted(artist),
-		&gui.Box{Height: n.px(16)},
 		n.bar,
-		&gui.Box{Width: content, Child: &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
-			{Child: n.muted(left)},
-			gui.Expanded(&gui.Box{}),
-			{Child: n.muted(right)},
-		}}},
-		&gui.Box{Height: n.px(12)},
-		gui.Row(n.prev, &gui.Box{Width: gap}, n.play, &gui.Box{Width: gap}, n.next),
+		&gui.Box{Width: content, Child: times},
+		transport,
 	)
+	column.Gap = n.px(12)
 	square := &gui.Box{
 		Width: side, Height: side,
 		Padding: gui.EdgeInsets{Left: pad, Top: pad, Right: pad, Bottom: pad},

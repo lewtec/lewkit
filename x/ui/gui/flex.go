@@ -57,10 +57,11 @@ const (
 )
 
 // Flex is Row/Column. Tight constraints fill the parent; loose constraints
-// pack to children. Leftover main goes to Flex>0.
+// pack to children. Leftover main goes to Flex>0. Gap is the space between children.
 type Flex struct {
 	Axis     Axis
 	Cross    CrossAlign
+	Gap      float32
 	Children []FlexChild
 
 	size Size
@@ -107,7 +108,7 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 		usedMain += axis.main(child.size)
 		maxChildCross = max(maxChildCross, axis.cross(child.size))
 	}
-	remaining := max(float32(0), maximumMain-usedMain)
+	remaining := max(float32(0), maximumMain-usedMain-flex.gaps())
 	for i := range flex.Children {
 		child := &flex.Children[i]
 		if child.Child == nil || child.Flex <= 0 {
@@ -121,6 +122,7 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 		usedMain += axis.main(child.size)
 		maxChildCross = max(maxChildCross, axis.cross(child.size))
 	}
+	usedMain += flex.gaps()
 	mainSize := usedMain
 	if constraints.tightMain(axis) {
 		mainSize = maximumMain
@@ -131,14 +133,36 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 	}
 	flex.size = constraints.Constrain(axis.size(max(mainSize, constraints.mainMinimum(axis)), crossSize))
 	var cursor float32
+	placed := 0
 	for i := range flex.Children {
 		child := &flex.Children[i]
-		child.position = cursor
-		if child.Child != nil {
-			cursor += axis.main(child.size)
+		if child.Child == nil {
+			continue
 		}
+		if placed > 0 {
+			cursor += flex.Gap
+		}
+		child.position = cursor
+		cursor += axis.main(child.size)
+		placed++
 	}
 	return flex.size
+}
+
+func (flex *Flex) gaps() float32 {
+	if flex == nil || flex.Gap == 0 {
+		return 0
+	}
+	count := 0
+	for i := range flex.Children {
+		if flex.Children[i].Child != nil {
+			count++
+		}
+	}
+	if count < 2 {
+		return 0
+	}
+	return flex.Gap * float32(count-1)
 }
 
 func (constraints BoxConstraints) mainMinimum(axis Axis) float32 {

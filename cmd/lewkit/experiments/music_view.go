@@ -79,9 +79,9 @@ func (m *musicModel) View() gui.Node {
 func (m *musicModel) body(inner float32) gui.Node {
 	switch m.screen {
 	case musicNow:
-		return m.stage.lead(m.head.View(), m.stage.View())
+		return m.stage.stack(m.head.View(), m.stage.View())
 	case musicAlbum:
-		return m.list.lead(m.head.View(), m.albumHead(inner), m.list.View())
+		return m.list.stack(m.head.View(), m.albumHead(inner), m.list.View())
 	default:
 		nodes := []gui.Node{m.head.View()}
 		if m.note != "" {
@@ -91,7 +91,7 @@ func (m *musicModel) body(inner float32) gui.Node {
 			nodes = append(nodes, m.shelf.View())
 		}
 		nodes = append(nodes, m.list.View())
-		return m.list.lead(nodes...)
+		return m.list.stack(nodes...)
 	}
 }
 
@@ -110,13 +110,10 @@ func (m *musicModel) albumHead(inner float32) gui.Node {
 			cover = &gui.Image{Src: img, Width: inner, Height: coverH, Radius: m.px(16)}
 		}
 	}
-	return m.list.lead(
-		&gui.Box{Height: m.px(12)},
+	return m.list.stack(
 		cover,
-		&gui.Box{Height: m.px(10)},
 		m.list.title(m.album),
 		m.list.muted(fmt.Sprintf("%s  ·  %d", subtitle, count)),
-		&gui.Box{Height: m.px(8)},
 	)
 }
 
