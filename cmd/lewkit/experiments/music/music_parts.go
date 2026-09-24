@@ -1,4 +1,4 @@
-package experiments
+package music
 
 import (
 	"image"

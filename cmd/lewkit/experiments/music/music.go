@@ -1,4 +1,4 @@
-package experiments
+package music
 
 import (
 	"context"
@@ -16,29 +16,28 @@ import (
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
-type musicCmd struct {
-	dir    cmd.StringArg   `long:"dir" default:"" help:"music folder; empty waits for a drop"`
-	width  cmd.IntArg[int] `long:"width" default:"900" help:"window width"`
-	height cmd.IntArg[int] `long:"height" default:"700" help:"window height"`
+// Cmd is `lewkit experiments window music`.
+type Cmd struct {
+	Dir    cmd.StringArg   `long:"dir" default:"" help:"music folder; empty waits for a drop"`
+	Width  cmd.IntArg[int] `long:"width" default:"900" help:"window width"`
+	Height cmd.IntArg[int] `long:"height" default:"700" help:"window height"`
 }
 
-func (musicCmd) Description() string { return "browse a dropped music folder" }
+func (Cmd) Description() string { return "browse a dropped music folder" }
 
-func (c *musicCmd) Run(ctx context.Context) error {
+// Open builds the browser. The returned func closes the catalog.
+func (c *Cmd) Open(ctx context.Context) (gui.Model, func() error, error) {
 	lib, err := OpenLibrary(ctx)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-	defer lib.Close()
 	play := newPlayer(nil)
 	go play.loop(ctx)
 	model := newMusic(ctx, lib, play)
-	model.dir = c.dir.Value()
-	return runGUI(ctx, "music", gui.Options{
-		Title:  "lewkit music",
-		Width:  c.width.Value(),
-		Height: c.height.Value(),
-	}, model)
+	if c != nil {
+		model.dir = c.Dir.Value()
+	}
+	return model, lib.Close, nil
 }
 
 type musicScreen int

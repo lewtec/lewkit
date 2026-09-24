@@ -1,4 +1,4 @@
-package experiments
+package music
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	dsound "github.com/lewtec/lewkit/x/driver/audio_play"
 	"github.com/lewtec/lewkit/x/sound"
 )
+
+type playOpener func(context.Context, dsound.Config) (io.WriteCloser, error)
 
 type playerCmd struct {
 	path  string

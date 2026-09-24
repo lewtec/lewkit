@@ -5,7 +5,7 @@ package musicdb
 import (
 	"context"
 	"fmt"
-	sqlite "github.com/lewtec/lewkit/cmd/lewkit/experiments/musicdb/sqlite"
+	sqlite "github.com/lewtec/lewkit/cmd/lewkit/experiments/music/musicdb/sqlite"
 	db "github.com/lewtec/lewkit/x/db"
 	_ "github.com/lewtec/lewkit/x/db/sqlite"
 )

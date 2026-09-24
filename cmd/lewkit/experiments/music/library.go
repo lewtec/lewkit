@@ -1,4 +1,4 @@
-package experiments
+package music
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lewtec/lewkit/cmd/lewkit/experiments/musicdb"
+	"github.com/lewtec/lewkit/cmd/lewkit/experiments/music/musicdb"
 	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/sound"
 )
