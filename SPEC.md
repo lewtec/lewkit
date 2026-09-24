@@ -37,7 +37,7 @@ Inherited C (cite the file):
 - `path:x/image`: CPU blit and `Label`.
 - `path:x/image/convert`: PNG, JPEG, ICO, and ICNS icon bytes.
 - `path:cmd/lewkit/experiments`: triangle, perlin, compute demos.
-- templ is absent from `go.mod`.
+- templ is the web toolkit. A tag for one registered asset lives in that asset package. Page templates live in `x/ui/web`.
 
 ## Technique
 
@@ -64,6 +64,7 @@ Inherited C (cite the file):
 | TEC-07 | this SPEC | implement | return the binding device from `x/driver/vulkan` | path:x/driver/vulkan path:x/ffi/native/vulkan |
 | TEC-01 tui | bubbletea v2 | adopt | write a terminal runtime | go.mod path:x/taskgroup/progress |
 | TEC-01 gui | ndarray 21-op graph | wrap | add a rasterizer beside ndarray | path:x/ndarray |
+| TEC-01 web | templ | adopt | write an HTML runtime | go.mod path:x/ui/web |
 
 | Cell | Pick | C or D | Implements | Cite if C |
 |------|------|--------|------------|-----------|
@@ -74,8 +75,6 @@ Inherited C (cite the file):
 | Packaging | this Go module | C | all | go.mod |
 | Identity | none | C | packages have no user identity | none |
 | Host OS | window backends already in tree | C | TEC-03 TEC-04 | path:x/driver/window |
-
-templ is later work. It is not an adopted tool in this module.
 
 ## Terminology
 
@@ -101,7 +100,7 @@ templ is later work. It is not an adopted tool in this module.
 |------|----------|-------------------|---------|-----------|------------------|
 | `x/ui` | no Go API | names `tui`, `web`, `gui` | MUST NOT grow types | the directory MAY have no Go package | import `x/ui` |
 | `x/ui/tui` | bubbletea types for callers to compose | value | catalog MAY grow | package MAY be absent until the first type | put Session viewers here |
-| `x/ui/web` | templ templates | value | catalog MAY grow | package MAY be absent until the first template | put templ outside `web` |
+| `x/ui/web` | page templ templates | value | catalog MAY grow | package MAY be absent until the first page template | put a page template outside `web`; put an asset tag outside its asset package |
 | `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer | own the host; own the engine; call `window.Open` |
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
 | `x/driver/tray` | `Open`, `Tray`, `Icon`, `Item` | host status item | protocol stays here | missing session bus or host is the tray error | import `x/ffi/wasm` |
@@ -116,6 +115,10 @@ templ is later work. It is not an adopted tool in this module.
 | `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd` | libvulkan binding | compute subset stays here | existing vulkan errors | import `x/ffi/wasm` |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
 | `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
+| `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/ffi/native/webkit` | `Load` | WebKit.framework, dlopen | loader stays here | missing framework is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
@@ -128,7 +131,7 @@ templ is later work. It is not an adopted tool in this module.
 | INV-01 | A type has exactly one owner in the placement table | every new type | a fourth package under `x/ui`; a type copied into two owners |
 | INV-02 | `x/ui` exports no types | `x/ui` | `Widget`, shared `Color`, shared `Align` |
 | INV-03 | `tui` native export is a bubbletea type | `x/ui/tui` | templ files; tensor transformers |
-| INV-04 | `web` native export is a templ template | `x/ui/web` | bubbletea types; tensor transformers |
+| INV-04 | `web` native export is a page templ template. A tag for one registered asset lives in that asset package | `x/ui/web`; `x/http/asset` | bubbletea types; tensor transformers; an asset tag in `web` |
 | INV-05 | `gui.Model.View` returns a layout `Node`; `Run` paints it to a `(h,w,4)` tensor | `x/ui/gui` | `View` returning a tensor; `window.Present` declared here; a second rasterizer |
 | INV-06 | A viewer stays next to the type it shows | `x/taskgroup/progress` | move progress into `x/ui/tui` because it uses bubbletea |
 | INV-07 | `tui`, `web`, and `gui` MUST NOT import each other | those packages | `gui` emitting HTML; `tui` importing `gui` |
@@ -152,7 +155,11 @@ templ is later work. It is not an adopted tool in this module.
 | INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/thread/id_unix.go` | an import of `x/ffi/wasm` |
 | INV-26 | `x/driver/window/cocoa` loads frameworks through `x/ffi/native` | cocoa darwin files | an import of `x/ffi/wasm` |
 | INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/thread/main_darwin.go` | an import of `x/ffi/wasm` |
-| INV-28 | `x/driver/tray` does not import `x/ffi/wasm` | `x/driver/tray` | that import |
+| INV-28 | `x/ffi/native/webkitgtk` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
+| INV-29 | `x/driver/webview` does not import `x/ffi/native` | `x/driver/webview` | that import |
+| INV-30 | `Open` does not listen on a socket. The page is memory or `fs.FS`. Script messages are the Go bridge | `x/driver/webview` | `net.Listen`; a loopback URL |
+| INV-31 | `x/ffi/native/webkit` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
+| INV-32 | `x/driver/tray` does not import `x/ffi/wasm` | `x/driver/tray` | that import |
 
 ## Errors
 
@@ -161,7 +168,8 @@ templ is later work. It is not an adopted tool in this module.
 | Place a type | Matches two of `tui`, `web`, `gui` | Split into two types. MUST NOT add a `Widget` in `x/ui`. |
 | Place a type | Matches no row in the table | Leave it in its existing owner. MUST NOT add a fourth package under `x/ui`. |
 | Place a type | Uses bubbletea to view `Session` | Keep it in `x/taskgroup/progress`. |
-| Place a type | First templ template in the module | Create `x/ui/web`. MUST NOT put the file in `gui`. MUST NOT put the file in `tui`. |
+| Place a type | First page templ template in the module | Create `x/ui/web`. MUST NOT put the file in `gui`. MUST NOT put the file in `tui`. |
+| Place a type | Tag for one registered browser asset | Put the templ file in that asset package. |
 | Place a type | First reusable tensor transformer for a pixel frame | Create `x/ui/gui`. MUST NOT leave it in `x/ndarray`. MUST NOT leave it in `x/driver/window`. |
 | Place a C library | The package calls `native.Open` and its parent is not `x/ffi/native` | Move the package under `x/ffi/native`. |
 | Place a C library | The package calls `wasm.Compile` and its parent is not `x/ffi/wasm` | Move the package under `x/ffi/wasm`. |
@@ -208,9 +216,8 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 ## Later work
 
 1. Reusable bubbletea types in `x/ui/tui`.
-2. Adopt templ in this module and add templates in `x/ui/web`.
-3. Text input (IME) and mapped key names.
-4. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
+2. Text input (IME) and mapped key names.
+3. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
 
 ## Assumptions
 
@@ -227,3 +234,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-21: `gui.Model.View` returns a layout `Node`. `Run` paints it through `Picture` to a `(h,w,4)` tensor.
 - 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.
 - 2026-09-21: C libraries live under the mechanism that loads them. `x/ffi/native/vulkan`, `x/ffi/wasm/glsl`, `x/ffi/wasm/capstone`. `x/driver/vulkan`, `x/driver/ndeval`, and `x/disasm` are facades. `x/ffi` is not a Go package. `x/thread` and cocoa call `x/ffi/native`.
+- 2026-09-23: templ is adopted. A tag for one registered asset lives in that asset package. Page templates stay in `x/ui/web`. htmx, tailwindcss, jquery, and sakuracss are blank-import assets served from `/__lewkit__/`. The first page template is `x/ui/web` `Page`.
