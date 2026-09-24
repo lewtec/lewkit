@@ -47,10 +47,20 @@ type FlexChild struct {
 	position float32
 }
 
+// CrossAlign places children on the cross axis. The zero value centers.
+type CrossAlign int
+
+const (
+	CrossCenter CrossAlign = iota
+	CrossStart
+	CrossEnd
+)
+
 // Flex is Row/Column. Tight constraints fill the parent; loose constraints
 // pack to children. Leftover main goes to Flex>0.
 type Flex struct {
 	Axis     Axis
+	Cross    CrossAlign
 	Children []FlexChild
 
 	size Size
@@ -155,9 +165,18 @@ func (flex *Flex) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Ten
 		if child.Child == nil {
 			continue
 		}
-		crossPadding := (flex.Axis.cross(flex.size) - flex.Axis.cross(child.size)) / 2
-		if crossPadding < 0 {
+		space := flex.Axis.cross(flex.size) - flex.Axis.cross(child.size)
+		if space < 0 {
+			space = 0
+		}
+		var crossPadding float32
+		switch flex.Cross {
+		case CrossStart:
 			crossPadding = 0
+		case CrossEnd:
+			crossPadding = space
+		default:
+			crossPadding = space / 2
 		}
 		accumulator = child.Child.Paint(origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, picture)
 	}

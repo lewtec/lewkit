@@ -92,7 +92,7 @@ func (m *musicModel) browseView(inner float32) gui.Node {
 		body = append(body, m.albumRow(inner))
 	}
 	body = append(body, m.trackList(inner))
-	return gui.Column(body...)
+	return m.lead(body...)
 }
 
 func (m *musicModel) albumView(inner float32) gui.Node {
@@ -113,7 +113,7 @@ func (m *musicModel) albumView(inner float32) gui.Node {
 			count = album.Tracks
 		}
 	}
-	return gui.Column(
+	return m.lead(
 		header,
 		&gui.Box{Height: m.px(12)},
 		cover,
@@ -237,7 +237,7 @@ func (m *musicModel) titleRow(title string, back bool) gui.Node {
 	return &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
 		{Child: lead},
 		{Child: &gui.Box{Width: m.px(10)}},
-		gui.Expanded(&gui.Box{Height: m.px(40), Align: gui.Alignment{Y: 0.5}, Child: heading}),
+		gui.Expanded(&gui.Box{Height: m.px(48), Align: gui.Alignment{Y: 0.5}, Child: heading}),
 		{Child: m.searchBox},
 	}}
 }
@@ -268,7 +268,7 @@ func (m *musicModel) albumRow(inner float32) gui.Node {
 		box := &gui.Box{
 			Width: m.px(88), Height: m.px(108), Radius: m.px(12), Fill: &musicCard,
 			Padding: gui.EdgeInsets{Left: m.px(8), Top: m.px(8), Right: m.px(8), Bottom: m.px(6)},
-			Child:   gui.Column(art, &gui.Box{Height: m.px(4)}, m.muted(trim(album.Name, 10))),
+			Child:   m.lead(art, &gui.Box{Height: m.px(4)}, m.muted(trim(album.Name, 12))),
 		}
 		m.albumsHit = append(m.albumsHit, musicHit{box: box, album: album.Name})
 		cards = append(cards, box, &gui.Box{Width: m.px(8)})
@@ -290,32 +290,32 @@ func (m *musicModel) trackList(inner float32) gui.Node {
 	var height float32
 	for i := range m.tracks {
 		track := m.tracks[i]
-		artSide := m.px(44)
-		rowH := m.px(60)
+		artSide := m.px(48)
+		rowH := m.px(72)
 		var art gui.Node = &gui.Box{Width: artSide, Height: artSide, Radius: m.px(8), Fill: &musicPanel}
 		if img := m.cover(track.Cover); img != nil {
 			art = &gui.Image{Src: img, Width: artSide, Height: artSide, Radius: m.px(8)}
 		}
 		box := &gui.Box{
 			Width: inner, Height: rowH, Radius: m.px(12), Fill: &musicCard,
-			Padding: gui.EdgeInsets{Left: m.px(8), Top: m.px(8), Right: m.px(8), Bottom: m.px(8)},
-			Child: gui.Row(
-				art,
-				&gui.Box{Width: m.px(10)},
-				&gui.Box{Height: artSide, Align: gui.Alignment{Y: 0.5}, Child: gui.Column(
+			Padding: gui.EdgeInsets{Left: m.px(10), Top: m.px(10), Right: m.px(10), Bottom: m.px(10)},
+			Child: &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
+				{Child: art},
+				{Child: &gui.Box{Width: m.px(12)}},
+				gui.Expanded(&gui.Box{Height: artSide, Align: gui.Alignment{Y: 0.5}, Child: m.lead(
 					m.line(track.Title, &musicWhite),
 					m.muted(track.Artist),
-				)},
-			),
+				)}),
+			}},
 		}
 		copy := track
 		m.rows = append(m.rows, musicHit{box: box, track: &copy})
 		rows = append(rows, box)
 		height += rowH + m.px(4)
 	}
-	view := float32(m.size.Y) - m.px(220)
-	if view < m.px(120) {
-		view = m.px(120)
+	view := m.listHeight(len(m.albums) > 0)
+	if view > float32(m.size.Y) {
+		view = float32(m.size.Y)
 	}
 	m.maxScroll = height - view
 	if m.maxScroll < 0 {
@@ -326,8 +326,29 @@ func (m *musicModel) trackList(inner float32) gui.Node {
 	}
 	return &gui.Box{
 		Width: inner, Height: view, Clip: true,
-		Child: &gui.Positioned{Y: -m.scroll, Child: gui.Column(rows...)},
+		Child: &gui.Positioned{Y: -m.scroll, Child: m.lead(rows...)},
 	}
+}
+
+func (m *musicModel) lead(children ...gui.Node) *gui.Flex {
+	column := gui.Column(children...)
+	column.Cross = gui.CrossStart
+	return column
+}
+
+func (m *musicModel) listHeight(albums bool) float32 {
+	used := m.px(36) + m.px(56)
+	if m.note != "" || m.search || m.query != "" {
+		used += m.px(32)
+	}
+	if albums {
+		used += m.px(132)
+	}
+	view := float32(m.size.Y) - used
+	if view < m.px(180) {
+		view = m.px(180)
+	}
+	return view
 }
 
 func (m *musicModel) roundButton(label string, size float32, fill, ink *gui.Color) *gui.Box {

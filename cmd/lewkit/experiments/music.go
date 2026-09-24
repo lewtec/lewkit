@@ -103,6 +103,9 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	if m == nil {
 		return m, nil
 	}
+	if size, ok := guiSize(msg); ok && size.X > 0 && size.Y > 0 {
+		m.size = size
+	}
 	if tick, ok := msg.(gui.TickMsg); ok {
 		if m.dir != "" && !m.booted {
 			m.booted = true
@@ -150,9 +153,6 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		if m.maxScroll > 0 && m.scroll > m.maxScroll {
 			m.scroll = m.maxScroll
 		}
-	}
-	if size, ok := guiSize(msg); ok && size.X > 0 && size.Y > 0 {
-		m.size = size
 	}
 	return m, nil
 }

@@ -118,7 +118,11 @@ func TestMusicScaleGrowsRows(t *testing.T) {
 	big.View()
 	require.NotEmpty(t, big.rows)
 	assert.Greater(t, big.rows[0].box.Height, small.rows[0].box.Height*1.5)
+	assert.Greater(t, big.rows[0].box.Width, float32(1500))
 	assert.Greater(t, big.scale(), small.scale())
+	_, cmd := big.Update(gui.TickMsg{Size: image.Pt(2400, 1600)})
+	require.NotNil(t, cmd)
+	assert.Equal(t, 2400, big.size.X)
 }
 
 func TestPlayerReportsFrames(t *testing.T) {
