@@ -13,6 +13,7 @@ import (
 
 	dsound "github.com/lewtec/lewkit/x/driver/audio_play"
 	"github.com/lewtec/lewkit/x/driver/audio_play/mem"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/sound"
 	"github.com/lewtec/lewkit/x/ui/gui"
@@ -123,6 +124,33 @@ func TestMusicScaleGrowsRows(t *testing.T) {
 	_, cmd := big.Update(gui.TickMsg{Size: image.Pt(2400, 1600)})
 	require.NotNil(t, cmd)
 	assert.Equal(t, 2400, big.size.X)
+}
+
+func TestMusicFollowsLight(t *testing.T) {
+	model := newMusic(t.Context(), nil, nil)
+	next, cmd := model.Update(gui.ModeMsg{Mode: daynight.Light})
+	require.Nil(t, cmd)
+	view := next.(*musicModel).View().(*gui.Box)
+	require.NotNil(t, view.Fill)
+	assert.Equal(t, uint8(246), view.Fill.Red)
+	assert.Equal(t, uint8(28), next.(*musicModel).paint.text.Red)
+}
+
+func TestChosenFolderIngests(t *testing.T) {
+	root := t.TempDir()
+	writeTone(t, filepath.Join(root, "song.wav"))
+	lib, err := OpenLibrary(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, lib.Close()) })
+	model := newMusic(t.Context(), lib, nil)
+	model.View()
+	require.NotNil(t, model.open)
+	_, cmd := model.Update(chosen{paths: []string{root}})
+	require.NotNil(t, cmd)
+	got, ok := cmd().(ingested)
+	require.True(t, ok)
+	assert.Equal(t, 1, got.count)
+	assert.NoError(t, got.err)
 }
 
 func TestPlayerReportsFrames(t *testing.T) {

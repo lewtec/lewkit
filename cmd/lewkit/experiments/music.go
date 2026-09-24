@@ -2,10 +2,13 @@ package experiments
 
 import (
 	"context"
+	"errors"
 	"image"
 	"os"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/driver/daynight"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/ui/gui"
@@ -49,6 +52,11 @@ type ingested struct {
 	err   error
 }
 
+type chosen struct {
+	paths []string
+	err   error
+}
+
 type musicModel struct {
 	ctx       context.Context
 	lib       *Library
@@ -68,10 +76,13 @@ type musicModel struct {
 	busy      bool
 	booted    bool
 	note      string
+	mode      daynight.Mode
+	paint     musicPaint
 	maxScroll float32
 	covers    map[string]image.Image
 
 	back      *gui.Box
+	open      *gui.Box
 	searchBox *gui.Box
 	play      *gui.Box
 	prev      *gui.Box
@@ -94,6 +105,7 @@ func newMusic(ctx context.Context, lib *Library, play *player) *musicModel {
 		lib:    lib,
 		player: play,
 		size:   image.Pt(900, 700),
+		mode:   daynight.Dark,
 	}
 }
 
@@ -117,6 +129,17 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return m, gui.Every(tick.Period)
 	}
 	switch event := msg.(type) {
+	case gui.ModeMsg:
+		m.mode = event.Mode
+	case chosen:
+		if event.err != nil {
+			m.note = event.err.Error()
+			return m, nil
+		}
+		if len(event.paths) == 0 {
+			return m, nil
+		}
+		return m, m.ingest(event.paths)
 	case ingested:
 		m.busy = false
 		if event.err != nil {
@@ -136,7 +159,9 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		}
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed {
-			m.pointer(event.Pos)
+			if cmd := m.pointer(event.Pos); cmd != nil {
+				return m, cmd
+			}
 		}
 	case window.Scroll:
 		if m.cards != nil && m.cards.Contains(event.Pos) {
@@ -230,29 +255,32 @@ func (m *musicModel) key(key window.Key) {
 	}
 }
 
-func (m *musicModel) pointer(pos image.Point) {
+func (m *musicModel) pointer(pos image.Point) gui.Cmd {
+	if m.open != nil && m.open.Contains(pos) {
+		return m.choose()
+	}
 	if m.searchBox != nil && m.searchBox.Contains(pos) {
 		m.search = true
-		return
+		return nil
 	}
 	m.search = false
 	if m.back != nil && m.back.Contains(pos) {
 		m.screen = musicBrowse
 		m.scroll = 0
 		m.reload()
-		return
+		return nil
 	}
 	if m.play != nil && m.play.Contains(pos) {
 		m.toggle()
-		return
+		return nil
 	}
 	if m.prev != nil && m.prev.Contains(pos) {
 		m.step(-1)
-		return
+		return nil
 	}
 	if m.next != nil && m.next.Contains(pos) {
 		m.step(1)
-		return
+		return nil
 	}
 	if m.bar != nil && m.bar.Contains(pos) && m.now != nil && m.player != nil && m.player.Total() > 0 {
 		along, _ := m.bar.Unit(pos)
@@ -265,7 +293,7 @@ func (m *musicModel) pointer(pos image.Point) {
 		frame := int64(along * float32(m.player.Total()))
 		m.resume = frame
 		m.player.Play(m.now.Path, frame)
-		return
+		return nil
 	}
 	for _, hit := range m.albumsHit {
 		if hit.box != nil && hit.box.Contains(pos) {
@@ -273,14 +301,26 @@ func (m *musicModel) pointer(pos image.Point) {
 			m.screen = musicAlbum
 			m.scroll = 0
 			m.reload()
-			return
+			return nil
 		}
 	}
 	for _, hit := range m.rows {
 		if hit.box != nil && hit.box.Contains(pos) && hit.track != nil {
 			m.start(*hit.track)
-			return
+			return nil
 		}
+	}
+	return nil
+}
+
+func (m *musicModel) choose() gui.Cmd {
+	ctx := m.ctx
+	return func() gui.Msg {
+		paths, err := filedialog.Choose(ctx, filedialog.Request{Title: "Music folder", Folder: true})
+		if errors.Is(err, filedialog.ErrCanceled) {
+			return chosen{}
+		}
+		return chosen{paths: paths, err: err}
 	}
 }
 
