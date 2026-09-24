@@ -17,6 +17,7 @@ func TestExperimentsUsage(t *testing.T) {
 	assert.Contains(t, text, "window")
 	assert.Contains(t, text, "tray")
 	assert.Contains(t, text, "sound")
+	assert.Contains(t, text, "choose")
 }
 
 func TestDemoBarePrintsUsage(t *testing.T) {
