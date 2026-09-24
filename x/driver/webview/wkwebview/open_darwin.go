@@ -3,6 +3,7 @@
 package wkwebview
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -46,6 +47,7 @@ var (
 	pumpOnce       sync.Once
 	nextIdentifier atomic.Uint64
 	handlers       sync.Map
+	stoppedTasks   sync.Map
 
 	selAlloc          = objc.RegisterName("alloc")
 	selInit           = objc.RegisterName("init")
@@ -82,6 +84,7 @@ var (
 	selDidReceive     = objc.RegisterName("didReceiveResponse:")
 	selDidReceiveData = objc.RegisterName("didReceiveData:")
 	selDidFinish      = objc.RegisterName("didFinish")
+	selDidFail        = objc.RegisterName("didFailWithError:")
 	selBody           = objc.RegisterName("body")
 	selNextEvent      = objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:")
 	selSendEvent      = objc.RegisterName("sendEvent:")
@@ -351,26 +354,23 @@ func startURLSchemeTask(self objc.ID, _ objc.SEL, _ objc.ID, task objc.ID) {
 	}
 	if view.handler != nil {
 		method := cocoaString(request.Send(objc.RegisterName("HTTPMethod")))
-		status, header, payload, err := webview.Dispatch(view.handler, method, parsed.String(), nil, httpBody(request))
+		status, header, payload, err := webview.Dispatch(view.handler, method, parsed.String(), requestHeader(request), httpBody(request))
 		if err != nil {
+			failTask(task)
 			return
 		}
-		fields := objc.ID(objc.GetClass("NSMutableDictionary")).Send(objc.RegisterName("dictionary"))
-		for name, values := range header {
-			for _, value := range values {
-				fields.Send(objc.RegisterName("setObject:forKey:"), nsString(value), nsString(name))
-			}
+		body, err := io.ReadAll(payload)
+		payload.Close()
+		if err != nil {
+			failTask(task)
+			return
 		}
-		httpResponse := objc.ID(objc.GetClass("NSHTTPURLResponse")).Send(selAlloc).Send(
-			objc.RegisterName("initWithURL:statusCode:HTTPVersion:headerFields:"),
-			target, status, nsString("HTTP/1.1"), fields,
-		)
-		task.Send(selDidReceive, httpResponse)
-		go deliverBody(task, payload)
+		completeTask(task, target, status, header, body)
 		return
 	}
 	body, contentType, err := readPage(view.html, view.files, parsed.Path)
 	if err != nil {
+		failTask(task)
 		return
 	}
 	response := objc.ID(objc.GetClass("NSURLResponse")).Send(selAlloc).Send(
@@ -384,7 +384,12 @@ func startURLSchemeTask(self objc.ID, _ objc.SEL, _ objc.ID, task objc.ID) {
 	task.Send(selDidFinish)
 }
 
-func stopURLSchemeTask(objc.ID, objc.SEL, objc.ID, objc.ID) {}
+// stopURLSchemeTask records a cancelled load. A reload, including the
+// ticker's meta refresh, stops the previous task. Touching it afterward
+// throws and takes down the process.
+func stopURLSchemeTask(_ objc.ID, _ objc.SEL, _ objc.ID, task objc.ID) {
+	stoppedTasks.Store(uintptr(task), struct{}{})
+}
 
 func windowWillClose(self objc.ID, _ objc.SEL, _ objc.ID) {
 	if loaded, ok := handlers.Load(uintptr(self)); ok {
@@ -458,64 +463,112 @@ func sendIfResponds(object objc.ID, selector string, value any) bool {
 	return true
 }
 
-func deliverBody(task objc.ID, body io.ReadCloser) {
-	defer body.Close()
-	buffer := make([]byte, 32*1024)
-	for {
-		count, err := body.Read(buffer)
-		if count > 0 {
-			chunk := append([]byte(nil), buffer[:count]...)
-			thread.Do(func() {
-				data := objc.ID(objc.GetClass("NSData")).Send(selDataWithBytes, unsafe.Pointer(&chunk[0]), len(chunk))
-				task.Send(selDidReceiveData, data)
-			})
-		}
-		if err != nil {
-			break
+func taskStopped(task objc.ID) bool {
+	_, ok := stoppedTasks.Load(uintptr(task))
+	return ok
+}
+
+func completeTask(task, page objc.ID, status int, header http.Header, payload []byte) {
+	if taskStopped(task) || page == 0 {
+		stoppedTasks.Delete(uintptr(task))
+		return
+	}
+	fields := objc.ID(objc.GetClass("NSMutableDictionary")).Send(objc.RegisterName("dictionary"))
+	for name, values := range header {
+		for _, value := range values {
+			fields.Send(objc.RegisterName("setObject:forKey:"), nsString(value), nsString(name))
 		}
 	}
-	thread.Do(func() { task.Send(selDidFinish) })
+	httpResponse := objc.ID(objc.GetClass("NSHTTPURLResponse")).Send(selAlloc).Send(
+		objc.RegisterName("initWithURL:statusCode:HTTPVersion:headerFields:"),
+		page, status, nsString("HTTP/1.1"), fields,
+	)
+	if httpResponse == 0 || taskStopped(task) {
+		failTask(task)
+		return
+	}
+	task.Send(selDidReceive, httpResponse)
+	if len(payload) > 0 && !taskStopped(task) {
+		data := objc.ID(objc.GetClass("NSData")).Send(selDataWithBytes, unsafe.Pointer(&payload[0]), len(payload))
+		task.Send(selDidReceiveData, data)
+	}
+	if !taskStopped(task) {
+		task.Send(selDidFinish)
+	}
+	stoppedTasks.Delete(uintptr(task))
+}
+
+func failTask(task objc.ID) {
+	if task == 0 || taskStopped(task) {
+		stoppedTasks.Delete(uintptr(task))
+		return
+	}
+	nsError := objc.ID(objc.GetClass("NSError")).Send(
+		objc.RegisterName("errorWithDomain:code:userInfo:"),
+		nsString("WKURLSchemeHandler"),
+		1,
+		objc.ID(0),
+	)
+	task.Send(selDidFail, nsError)
+	stoppedTasks.Delete(uintptr(task))
+}
+
+func requestHeader(request objc.ID) http.Header {
+	header := make(http.Header)
+	if contentType := headerField(request, "Content-Type"); contentType != "" {
+		header.Set("Content-Type", contentType)
+	}
+	return header
+}
+
+func headerField(request objc.ID, name string) string {
+	value := request.Send(objc.RegisterName("valueForHTTPHeaderField:"), nsString(name))
+	if value == 0 {
+		return ""
+	}
+	return cocoaString(value)
 }
 
 func httpBody(request objc.ID) io.ReadCloser {
-	data := request.Send(objc.RegisterName("HTTPBody"))
-	if data == 0 {
+	if payload := dataBytes(request.Send(objc.RegisterName("HTTPBody"))); len(payload) > 0 {
+		return io.NopCloser(bytes.NewReader(payload))
+	}
+	stream := request.Send(objc.RegisterName("HTTPBodyStream"))
+	if stream == 0 {
 		return http.NoBody
 	}
-	data.Send(objc.RegisterName("retain"))
+	if int(stream.Send(objc.RegisterName("streamStatus"))) == 0 {
+		stream.Send(objc.RegisterName("open"))
+	}
+	buffer := make([]byte, 32*1024)
+	var payload []byte
+	for {
+		count := int(stream.Send(objc.RegisterName("read:maxLength:"), unsafe.Pointer(&buffer[0]), len(buffer)))
+		if count <= 0 {
+			break
+		}
+		payload = append(payload, buffer[:count]...)
+	}
+	stream.Send(objc.RegisterName("close"))
+	if len(payload) == 0 {
+		return http.NoBody
+	}
+	return io.NopCloser(bytes.NewReader(payload))
+}
+
+func dataBytes(data objc.ID) []byte {
+	if data == 0 {
+		return nil
+	}
 	length := int(data.Send(objc.RegisterName("length")))
 	if length <= 0 {
-		data.Send(objc.RegisterName("release"))
-		return http.NoBody
+		return nil
 	}
 	pointer := uintptr(data.Send(objc.RegisterName("bytes")))
 	if pointer == 0 {
-		data.Send(objc.RegisterName("release"))
-		return http.NoBody
+		return nil
 	}
-	return &dataReader{data: data, payload: unsafe.Slice((*byte)(unsafe.Pointer(pointer)), length)}
-}
-
-type dataReader struct {
-	data    objc.ID
-	payload []byte
-}
-
-func (reader *dataReader) Read(payload []byte) (int, error) {
-	if len(reader.payload) == 0 {
-		return 0, io.EOF
-	}
-	count := copy(payload, reader.payload)
-	reader.payload = reader.payload[count:]
-	return count, nil
-}
-
-func (reader *dataReader) Close() error {
-	if reader.data != 0 {
-		reader.data.Send(objc.RegisterName("release"))
-		reader.data = 0
-	}
-	return nil
+	return append([]byte(nil), unsafe.Slice((*byte)(unsafe.Pointer(pointer)), length)...)
 }
 
 func readPage(html string, files fs.FS, urlPath string) ([]byte, string, error) {
