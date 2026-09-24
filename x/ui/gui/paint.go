@@ -370,10 +370,12 @@ func (picture *Picture) mixInk(mix func(uint64)) {
 	mix(uint64(len(picture.texts)))
 	mix(uint64(len(picture.images)))
 	for _, run := range picture.texts {
-		mix(uint64(math.Float32bits(run.box.X)))
-		mix(uint64(math.Float32bits(run.box.Y)))
-		mix(uint64(math.Float32bits(run.box.Width)))
-		mix(uint64(math.Float32bits(run.box.Height)))
+		for _, value := range []float32{
+			run.box.X, run.box.Y, run.box.Width, run.box.Height,
+			run.clip.X, run.clip.Y, run.clip.Width, run.clip.Height,
+		} {
+			mix(uint64(math.Float32bits(value)))
+		}
 		mix(uint64(run.ink.Red) | uint64(run.ink.Green)<<8 | uint64(run.ink.Blue)<<16 | uint64(run.ink.Alpha)<<24)
 		mix(uint64(run.cursor))
 		if run.caret {

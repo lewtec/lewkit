@@ -48,9 +48,14 @@ func (text *Text) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Ten
 	}
 	text.origin = origin
 	if picture != nil {
-		box := Rect{origin.X, origin.Y, text.size.Width, text.size.Height}.Intersect(clip)
+		full := Rect{origin.X, origin.Y, text.size.Width, text.size.Height}
+		visible := full.Intersect(clip)
+		if visible.Width < 1 || visible.Height < 1 {
+			return accumulatorOf(picture)
+		}
 		picture.glyph(textRun{
-			box:    box,
+			box:    full,
+			clip:   visible,
 			body:   []rune(text.Value),
 			face:   text.face(),
 			cursor: text.Cursor,
@@ -100,6 +105,9 @@ func (run textRun) stamp(destination *image.RGBA) {
 	if destination == nil || run.box.Width < 1 || run.box.Height < 1 {
 		return
 	}
+	if clipped := run.destination(destination); clipped != nil {
+		destination = clipped
+	}
 	face := lewimage.Use(run.face)
 	originX := int(run.box.X)
 	maxX := originX + int(run.box.Width)
@@ -135,6 +143,18 @@ func (run textRun) stamp(destination *image.RGBA) {
 	if run.caret && index == run.cursor {
 		run.drawCaret(destination, column, baseline, maxY)
 	}
+}
+
+func (run textRun) destination(frame *image.RGBA) *image.RGBA {
+	if run.clip.Width < 1 || run.clip.Height < 1 {
+		return frame
+	}
+	rect := image.Rect(int(run.clip.X), int(run.clip.Y), int(run.clip.X+run.clip.Width), int(run.clip.Y+run.clip.Height))
+	sub, ok := frame.SubImage(rect).(*image.RGBA)
+	if !ok {
+		return frame
+	}
+	return sub
 }
 
 func (run textRun) inkImage() image.Image {
