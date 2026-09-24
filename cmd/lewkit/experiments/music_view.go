@@ -59,7 +59,6 @@ func (m *musicModel) View() gui.Node {
 	if m == nil {
 		return nil
 	}
-	m.prepare()
 	pad := m.px(18)
 	inner := float32(m.size.X) - pad*2
 	if inner < m.px(160) {

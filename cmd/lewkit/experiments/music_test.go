@@ -19,6 +19,7 @@ import (
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"strings"
 )
 
 func TestLibraryIngestAndQuery(t *testing.T) {
@@ -66,40 +67,20 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 	require.NoError(t, err)
 	model := newMusic(t.Context(), lib, newPlayer(nil))
 	model.reload()
+	model.prepare()
 	require.NotNil(t, model.View())
-	picture, err := gui.NewPicture()
-	require.NoError(t, err)
-	_, err = picture.Render(model.View(), gui.Size{Width: 900, Height: 700})
-	require.NoError(t, err)
-	require.NotEmpty(t, model.list.hits)
-	require.NotNil(t, model.list.hits[0].box)
+	size := gui.Size{Width: 900, Height: 700}
 	var hit image.Point
 	found := false
-	for y := 699; y >= 0 && !found; y -= 2 {
-		for x := 0; x < 900; x += 2 {
-			point := image.Pt(x, y)
-			if !model.list.hits[0].box.Contains(point) {
-				continue
-			}
-			onAlbum := false
-			for _, album := range model.shelf.hits {
-				if album.box != nil && album.box.Contains(point) {
-					onAlbum = true
-					break
-				}
-			}
-			if onAlbum {
-				continue
-			}
-			hit = point
+	for y := 180; y < 680 && !found; y += 16 {
+		key, _, _ := gui.Hit(model.View(), size, image.Pt(420, y))
+		if strings.HasPrefix(key, "track:") {
+			hit = image.Pt(420, y)
 			found = true
-			break
 		}
 	}
 	require.True(t, found)
 	next, cmd := model.Update(window.Pointer{Pos: hit, Button: 1, Pressed: true})
-	require.NotNil(t, cmd)
-	next, cmd = next.Update(cmd())
 	require.NotNil(t, cmd)
 	painted := next.(*musicModel)
 	assert.Equal(t, musicNow, painted.screen)
@@ -113,14 +94,12 @@ func TestMusicScaleGrowsRows(t *testing.T) {
 	small := newMusic(t.Context(), lib, newPlayer(nil))
 	small.size = image.Pt(900, 700)
 	small.tracks = []Track{{ID: 1, Title: "song", Artist: "Ada"}}
-	small.View()
-	require.NotEmpty(t, small.list.hits)
+	small.prepare()
 	big := newMusic(t.Context(), lib, newPlayer(nil))
 	big.size = image.Pt(1800, 1400)
 	big.tracks = small.tracks
-	big.View()
-	require.NotEmpty(t, big.list.hits)
-	assert.Greater(t, big.list.hits[0].box.Width, small.list.hits[0].box.Width*1.5)
+	big.prepare()
+	assert.Greater(t, big.list.inner, small.list.inner*1.5)
 	assert.Greater(t, big.scale(), small.scale())
 	_, cmd := big.Update(gui.TickMsg{Size: image.Pt(2400, 1600)})
 	assert.Nil(t, cmd)
@@ -165,8 +144,7 @@ func TestChosenFolderIngests(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, lib.Close()) })
 	model := newMusic(t.Context(), lib, nil)
-	model.View()
-	require.NotNil(t, model.head.open)
+	require.NotNil(t, model.View())
 	_, cmd := model.Update(chosen{paths: []string{root}})
 	require.NotNil(t, cmd)
 	got, ok := cmd().(ingested)

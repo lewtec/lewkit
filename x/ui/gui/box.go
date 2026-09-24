@@ -16,6 +16,7 @@ type Box struct {
 	Fill      *Color
 	Radius    float32
 	Clip      bool
+	Key       string
 	origin    Offset
 	size      Size
 	childSize Size
@@ -72,6 +73,9 @@ func (box *Box) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tenso
 	bounds := Rect{origin.X, origin.Y, box.size.Width, box.size.Height}
 	if box.Clip {
 		clip = clip.Intersect(bounds)
+	}
+	if box.Key != "" && picture != nil {
+		picture.noteKey(box.Key, bounds, clip)
 	}
 	accumulator := accumulatorOf(picture)
 	if box.Fill != nil && picture != nil {

@@ -48,6 +48,7 @@ type Picture struct {
 	inkFresh    bool
 	hadInk      bool
 	thumbs      map[thumbKey]*image.RGBA
+	keys        []hitKey
 	fillCount   int
 	recordOnly  bool
 }
@@ -254,6 +255,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]
 	picture.images = picture.images[:0]
+	picture.keys = picture.keys[:0]
 	picture.raster = nil
 	if picture.black != nil && picture.base != picture.black && picture.mounted == nil {
 		picture.base = picture.black

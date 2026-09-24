@@ -5,6 +5,8 @@ import (
 	"errors"
 	"image"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/driver/daynight"
@@ -87,14 +89,8 @@ type musicModel struct {
 	stage *nowModel
 }
 
-type musicHit struct {
-	box   *gui.Box
-	track *Track
-	album string
-}
-
 func newMusic(ctx context.Context, lib *Library, play *player) *musicModel {
-	return &musicModel{
+	model := &musicModel{
 		ctx:    ctx,
 		lib:    lib,
 		player: play,
@@ -105,6 +101,8 @@ func newMusic(ctx context.Context, lib *Library, play *player) *musicModel {
 		list:   &trackModel{},
 		stage:  &nowModel{},
 	}
+	model.prepare()
+	return model
 }
 
 func (m *musicModel) Init() gui.Cmd { return gui.Tick() }
@@ -113,6 +111,7 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	if m == nil {
 		return m, nil
 	}
+	defer m.prepare()
 	if size, ok := guiSize(msg); ok && size.X > 0 && size.Y > 0 {
 		m.Dirty, m.size = gui.See(m.Dirty, m.size, size)
 	}
@@ -196,8 +195,12 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return m, nil
 	case window.Drop:
 		return m, m.ingest(event.Paths)
-	case window.Key, window.Pointer, window.Scroll:
+	case window.Key:
 		return m.delegate(event)
+	case window.Pointer:
+		return m.aim(event)
+	case window.Scroll:
+		return m.wheel(event)
 	}
 	return m, nil
 }
@@ -259,6 +262,105 @@ func (m *musicModel) reload() {
 	m.albums = albums
 	m.tracks = tracks
 	m.Dirty = gui.Touch(m.Dirty)
+}
+
+func (m *musicModel) aim(event window.Pointer) (gui.Model, gui.Cmd) {
+	if m == nil || event.Button != 1 || !event.Pressed {
+		return m, nil
+	}
+	key, along, _ := gui.Hit(m.View(), gui.Size{Width: float32(m.size.X), Height: float32(m.size.Y)}, event.Pos)
+	if key != "search" {
+		m.Dirty, m.head.search = gui.See(m.Dirty, m.head.search, false)
+	}
+	switch {
+	case key == "open":
+		return m, m.choose()
+	case key == "search":
+		m.Dirty, m.head.search = gui.See(m.Dirty, m.head.search, true)
+		return m, nil
+	case key == "back":
+		m.Dirty, m.screen = gui.See(m.Dirty, m.screen, musicBrowse)
+		m.list.scroll = 0
+		m.reload()
+		return m, nil
+	case strings.HasPrefix(key, "album:"):
+		m.Dirty, m.album = gui.See(m.Dirty, m.album, strings.TrimPrefix(key, "album:"))
+		m.Dirty, m.screen = gui.See(m.Dirty, m.screen, musicAlbum)
+		m.list.scroll = 0
+		m.reload()
+		return m, nil
+	case strings.HasPrefix(key, "track:"):
+		if track, ok := m.trackID(key); ok {
+			m.start(track)
+			m.Dirty = gui.Touch(m.Dirty)
+			return m, gui.Tick()
+		}
+	case key == "play":
+		m.toggle()
+		m.Dirty = gui.Touch(m.Dirty)
+		if m.player != nil && m.player.Playing() {
+			return m, gui.Tick()
+		}
+	case key == "prev":
+		m.step(-1)
+		m.Dirty = gui.Touch(m.Dirty)
+	case key == "next":
+		m.step(1)
+		m.Dirty = gui.Touch(m.Dirty)
+	case key == "bar":
+		if m.now != nil && m.player != nil && m.player.Total() > 0 {
+			if along < 0 {
+				along = 0
+			}
+			if along > 1 {
+				along = 1
+			}
+			frame := int64(along * float32(m.player.Total()))
+			m.Dirty, m.resume = gui.See(m.Dirty, m.resume, frame)
+			m.player.Play(m.now.Path, frame)
+		}
+	}
+	return m, nil
+}
+
+func (m *musicModel) wheel(event window.Scroll) (gui.Model, gui.Cmd) {
+	if m == nil {
+		return m, nil
+	}
+	key, _, _ := gui.Hit(m.View(), gui.Size{Width: float32(m.size.X), Height: float32(m.size.Y)}, event.Pos)
+	switch {
+	case strings.HasPrefix(key, "album"):
+		next := m.shelf.scroll + float32(event.Delta.Y+event.Delta.X)
+		if next < 0 {
+			next = 0
+		}
+		m.shelf.Dirty, m.shelf.scroll = gui.See(m.shelf.Dirty, m.shelf.scroll, next)
+		m.absorb(m.shelf)
+	case strings.HasPrefix(key, "track"):
+		next := m.list.scroll + float32(event.Delta.Y)
+		if next < 0 {
+			next = 0
+		}
+		if limit := m.list.maxScroll(); next > limit {
+			next = limit
+		}
+		m.list.Dirty, m.list.scroll = gui.See(m.list.Dirty, m.list.scroll, next)
+		m.absorb(m.list)
+	}
+	return m, nil
+}
+
+func (m *musicModel) trackID(key string) (Track, bool) {
+	id, err := strconv.ParseInt(strings.TrimPrefix(key, "track:"), 10, 64)
+	if err != nil {
+		return Track{}, false
+	}
+	for _, track := range m.tracks {
+		if track.ID == id {
+			return track, true
+		}
+	}
+	return Track{}, false
 }
 
 func (m *musicModel) delegate(msg gui.Msg) (gui.Model, gui.Cmd) {
