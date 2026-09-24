@@ -26,6 +26,12 @@ type textRun struct {
 // Color is [lewimage.Color]. One struct for ink, fills, and command flags.
 type Color = lewimage.Color
 
+// RGB and BGR are the packed channel orders. The zero [Order] is RGB.
+const (
+	RGB = lewimage.RGB
+	BGR = lewimage.BGR
+)
+
 // EdgeInsets is padding.
 type EdgeInsets struct {
 	Left, Top, Right, Bottom float32

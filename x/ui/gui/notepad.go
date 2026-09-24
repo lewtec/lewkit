@@ -75,19 +75,19 @@ func (notepad *Notepad) View() Node {
 	notepad.bodyText = &Text{Value: string(notepad.body), Face: notepad.Face, Cursor: notepad.cursor, Caret: notepad.caret}
 	return &Box{
 		Padding: EdgeInsets{notePad, notePad, notePad, notePad},
-		Fill:    &Color{32, 32, 38, 255},
+		Fill:    &Color{32, 32, 38, 255, RGB},
 		Radius:  8,
 		Clip:    true,
 		Child: &Flex{Axis: Vertical, Children: []FlexChild{
 			{Child: &Box{
 				Height:  titleHeight,
-				Fill:    &Color{24, 24, 28, 255},
+				Fill:    &Color{24, 24, 28, 255, RGB},
 				Radius:  4,
 				Padding: EdgeInsets{Left: noteInset, Top: 4},
 				Child:   &Text{Value: "untitled", Face: notepad.Face},
 			}},
 			Expanded(&Box{
-				Fill:    &Color{18, 18, 22, 255},
+				Fill:    &Color{18, 18, 22, 255, RGB},
 				Radius:  4,
 				Padding: EdgeInsets{noteInset, noteInset, noteInset, noteInset},
 				Child:   notepad.bodyText,

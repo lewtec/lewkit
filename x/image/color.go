@@ -6,9 +6,43 @@ import (
 	"strings"
 )
 
-// Color is straight RGBA, 0..255. Commands, pictures, and ink use this one struct.
+// Order is how the channels are packed into bytes. The zero value is [RGB].
+type Order uint8
+
+const (
+	// RGB packs red, green, blue, then alpha.
+	RGB Order = iota
+	// BGR packs blue, green, red, then alpha.
+	BGR
+)
+
+// Color is one straight color, 0..255. Red, Green, and Blue are the logical
+// channels. Order says how [Color.Bytes] lays those channels out.
 type Color struct {
 	Red, Green, Blue, Alpha uint8
+	Order                   Order
+}
+
+// Bytes packs the color in its Order.
+func (c Color) Bytes() [4]byte {
+	if c.Order == BGR {
+		return [4]byte{c.Blue, c.Green, c.Red, c.Alpha}
+	}
+	return [4]byte{c.Red, c.Green, c.Blue, c.Alpha}
+}
+
+// WithOrder returns c marked as order. The logical channels stay put.
+func (c Color) WithOrder(order Order) Color {
+	c.Order = order
+	return c
+}
+
+// Unpack reads four packed bytes. order says which byte is red.
+func Unpack(packed [4]byte, order Order) Color {
+	if order == BGR {
+		return Color{Red: packed[2], Green: packed[1], Blue: packed[0], Alpha: packed[3], Order: order}
+	}
+	return Color{Red: packed[0], Green: packed[1], Blue: packed[2], Alpha: packed[3], Order: order}
 }
 
 // ParseColor reads #RGB, #RRGGBB, or #RRGGBBAA. The leading # is optional.
@@ -30,13 +64,13 @@ func ParseColor(text string) (Color, error) {
 	default:
 		return Color{}, fmt.Errorf("color %q", text)
 	}
-	return Color{Red: r, Green: g, Blue: b, Alpha: a}, nil
+	return Color{Red: r, Green: g, Blue: b, Alpha: a, Order: RGB}, nil
 }
 
 // Average is the alpha-weighted mean of opaque pixels. A blank image is black.
 func Average(img stdimage.Image) Color {
 	if img == nil {
-		return Color{Alpha: 255}
+		return Color{Alpha: 255, Order: RGB}
 	}
 	bounds := img.Bounds()
 	var red, green, blue, weight uint64
@@ -53,13 +87,14 @@ func Average(img stdimage.Image) Color {
 		}
 	}
 	if weight == 0 {
-		return Color{Alpha: 255}
+		return Color{Alpha: 255, Order: RGB}
 	}
 	return Color{
 		Red:   uint8((red / weight) >> 8),
 		Green: uint8((green / weight) >> 8),
 		Blue:  uint8((blue / weight) >> 8),
 		Alpha: 255,
+		Order: RGB,
 	}
 }
 

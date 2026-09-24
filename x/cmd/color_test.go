@@ -17,7 +17,7 @@ func TestColorArg(t *testing.T) {
 	got, err := Parse[args]("--accent", "#0d3559")
 	require.NoError(t, err)
 	assert.True(t, got.accent.IsSet())
-	assert.Equal(t, lewimage.Color{13, 53, 89, 255}, got.accent.Value())
+	assert.Equal(t, lewimage.Color{13, 53, 89, 255, lewimage.RGB}, got.accent.Value())
 	_, err = Parse[args]("--accent", "nope")
 	assert.ErrorIs(t, err, ErrInvalidArgument)
 }

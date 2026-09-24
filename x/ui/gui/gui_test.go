@@ -32,14 +32,14 @@ func TestRunNilWindow(t *testing.T) {
 func TestPictureFrameSig(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
-	root := &Box{Fill: &Color{10, 20, 30, 255}}
+	root := &Box{Fill: &Color{10, 20, 30, 255, RGB}}
 	_, err = picture.Render(root, Size{4, 4})
 	require.NoError(t, err)
 	first := picture.frameSig()
 	_, err = picture.Render(root, Size{4, 4})
 	require.NoError(t, err)
 	assert.Equal(t, first, picture.frameSig())
-	root.Fill = &Color{1, 2, 3, 255}
+	root.Fill = &Color{1, 2, 3, 255, RGB}
 	_, err = picture.Render(root, Size{4, 4})
 	require.NoError(t, err)
 	assert.NotEqual(t, first, picture.frameSig())

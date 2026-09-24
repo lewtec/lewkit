@@ -51,8 +51,8 @@ func (counter *Counter) View() Node {
 		return nil
 	}
 	background, ink := Palette(counter.mode)
-	counter.minus = counter.button("-", Color{180, 70, 80, 255}, ink)
-	counter.plus = counter.button("+", Color{70, 160, 100, 255}, ink)
+	counter.minus = counter.button("-", Color{180, 70, 80, 255, RGB}, ink)
+	counter.plus = counter.button("+", Color{70, 160, 100, 255, RGB}, ink)
 	// Root Box fills the window; Align centers the packed Row.
 	return &Box{
 		Fill:  &background,
