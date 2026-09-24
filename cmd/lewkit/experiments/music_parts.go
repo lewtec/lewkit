@@ -55,10 +55,7 @@ func (s musicStyle) muted(text string) gui.Node {
 }
 
 func (s musicStyle) stack(children ...gui.Node) *gui.Flex {
-	column := gui.Column(children...)
-	column.Cross = gui.CrossStart
-	column.Gap = s.px(8)
-	return column
+	return gui.WithGap(s.px(8), gui.WithCross(gui.CrossStart, gui.Column(children...)))
 }
 
 func (s musicStyle) round(label string, size float32, fill, ink *gui.Color) *gui.Box {
@@ -244,8 +241,7 @@ func (a *albumModel) View() gui.Node {
 		a.hits = append(a.hits, musicHit{box: box, album: album.Name})
 		cards = append(cards, box)
 	}
-	row := gui.Row(cards...)
-	row.Gap = a.px(8)
+	row := gui.WithGap(a.px(8), gui.Row(cards...))
 	a.frame = &gui.Box{
 		Width: a.inner, Clip: true,
 		Child: &gui.Positioned{X: -a.scroll, Child: row},
@@ -351,7 +347,6 @@ func (t *trackModel) View() gui.Node {
 		view = t.px(120)
 	}
 	column := t.stack(rows...)
-	column.Gap = t.px(8)
 	t.frame = &gui.Box{
 		Width: t.inner, Height: view, Clip: true,
 		Child: &gui.Positioned{Y: -t.scroll, Child: column},
@@ -463,17 +458,15 @@ func (n *nowModel) View() gui.Node {
 		gui.Expanded(&gui.Box{}),
 		{Child: n.muted(right)},
 	}}
-	transport := gui.Row(n.prev, n.play, n.next)
-	transport.Gap = gap
-	column := gui.Column(
+	transport := gui.WithGap(gap, gui.Row(n.prev, n.play, n.next))
+	column := gui.WithGap(n.px(12), gui.Column(
 		art,
 		n.title(title),
 		n.muted(artist),
 		n.bar,
 		&gui.Box{Width: content, Child: times},
 		transport,
-	)
-	column.Gap = n.px(12)
+	))
 	square := &gui.Box{
 		Width: side, Height: side,
 		Padding: gui.EdgeInsets{Left: pad, Top: pad, Right: pad, Bottom: pad},

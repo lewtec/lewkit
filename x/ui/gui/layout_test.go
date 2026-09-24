@@ -72,6 +72,19 @@ func TestFlexSplitsExpanded(t *testing.T) {
 	assert.Equal(t, float32(50), row.Children[1].position)
 }
 
+func TestWithGapCopies(t *testing.T) {
+	a := &Box{Width: 4, Height: 4, Fill: &Color{1, 0, 0, 255}}
+	b := &Box{Width: 4, Height: 4, Fill: &Color{2, 0, 0, 255}}
+	row := Row(a, b)
+	gapped := WithGap(6, row)
+	assert.Equal(t, float32(0), row.Gap)
+	assert.Equal(t, float32(6), gapped.Gap)
+	assert.Equal(t, CrossCenter, gapped.Cross)
+	started := WithCross(CrossStart, gapped)
+	assert.Equal(t, CrossCenter, gapped.Cross)
+	assert.Equal(t, CrossStart, started.Cross)
+}
+
 func TestFlexGapSeparatesChildren(t *testing.T) {
 	a := &Box{Width: 10, Height: 8, Fill: &Color{1, 0, 0, 255}}
 	b := &Box{Width: 10, Height: 8, Fill: &Color{2, 0, 0, 255}}

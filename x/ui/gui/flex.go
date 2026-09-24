@@ -82,6 +82,26 @@ func Column(children ...Node) *Flex {
 	return newFlex(Vertical, children)
 }
 
+// WithGap returns a copy of flex with Gap set. flex is left unchanged.
+func WithGap(gap float32, flex *Flex) *Flex {
+	if flex == nil {
+		return nil
+	}
+	next := *flex
+	next.Gap = gap
+	return &next
+}
+
+// WithCross returns a copy of flex with Cross set. flex is left unchanged.
+func WithCross(cross CrossAlign, flex *Flex) *Flex {
+	if flex == nil {
+		return nil
+	}
+	next := *flex
+	next.Cross = cross
+	return &next
+}
+
 func newFlex(axis Axis, children []Node) *Flex {
 	items := make([]FlexChild, len(children))
 	for i, node := range children {
