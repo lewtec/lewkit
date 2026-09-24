@@ -50,7 +50,7 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 	}
 	size := d.Size()
 	var ink []byte
-	if picture.hadInk && picture.inkRGBA != nil {
+	if picture.inkFresh && picture.hadInk && picture.inkRGBA != nil {
 		ink = picture.inkRGBA.Pix
 	}
 	under, err := picture.rasterBytes(ctx, d.evaluator, size.X, size.Y)

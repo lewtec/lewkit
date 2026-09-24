@@ -283,21 +283,25 @@ func (s *Screen) Draw(instances, under, ink []byte, width, height int, fillVert,
 			return err
 		}
 	}
-	inked := len(ink) >= width*height*4
-	backed := len(under) >= width*height*4
+	need := width * height * 4
+	uploadInk := len(ink) >= need
+	reuseInk := !uploadInk && s.inkReady && s.inkW == width && s.inkH == height && s.inkBuf != nil
+	inked := uploadInk || reuseInk
+	backed := len(under) >= need
 	if backed || inked {
 		if err := s.ensureGraphics(&s.inkPipe, &s.inkLay, &s.inkSetLay, &s.inkPool, &s.inkSet, &s.inkVert, &s.inkFrag, inkVert, inkFrag, shaderStageFragment); err != nil {
 			return err
 		}
 	}
-	if inked {
-		need := width * height * 4
+	if uploadInk {
 		if err := s.growBuf(&s.inkBuf, need); err != nil {
 			return err
 		}
 		if err := s.inkBuf.Write(ink[:need]); err != nil {
 			return err
 		}
+		s.inkReady = true
+		s.inkW, s.inkH = width, height
 	}
 	if backed {
 		if err := s.ensureUnder(); err != nil {
@@ -660,6 +664,7 @@ func (s *Screen) destroyDraw() {
 		_ = s.inkBuf.Close()
 		s.inkBuf = nil
 	}
+	s.inkReady = false
 	if s.underBuf != nil {
 		_ = s.underBuf.Close()
 		s.underBuf = nil

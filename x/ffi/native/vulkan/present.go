@@ -115,6 +115,9 @@ type Screen struct {
 	inkFrag    uint64
 	fillBuf    *Buffer
 	inkBuf     *Buffer
+	inkReady   bool
+	inkW       int
+	inkH       int
 	underBuf   *Buffer
 	underPool  uint64
 	underSet   uint64
@@ -752,9 +755,9 @@ func (s *Screen) pickMode() int32 {
 	return choosePresentMode(modes[:n])
 }
 
-// choosePresentMode keeps the latest image. Mailbox lets the display
-// vsync and drops a frame that was not scanned out. FIFO is only used
-// when the device offers nothing else.
+// choosePresentMode waits for the display. Mailbox vsyncs and drops a
+// frame that was not scanned out. FIFO vsyncs and queues. Immediate
+// tears, so it is only used when the device offers nothing else.
 func choosePresentMode(modes []int32) int32 {
 	has := func(want int32) bool {
 		for _, m := range modes {
@@ -766,6 +769,9 @@ func choosePresentMode(modes []int32) int32 {
 	}
 	if has(presentMailbox) {
 		return presentMailbox
+	}
+	if has(presentFIFO) {
+		return presentFIFO
 	}
 	if has(presentImmediate) {
 		return presentImmediate

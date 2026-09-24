@@ -45,6 +45,20 @@ func TestPictureFrameSig(t *testing.T) {
 	assert.NotEqual(t, first, picture.frameSig())
 }
 
+func TestInkStaysWhenDrawsMatch(t *testing.T) {
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.recordOnly = true
+	root := &Text{Value: "Hi", Ink: Color{255, 255, 255, 255}}
+	_, err = picture.Render(root, Size{64, 32})
+	require.NoError(t, err)
+	assert.True(t, picture.inkFresh)
+	picture.recordOnly = true
+	_, err = picture.Render(root, Size{64, 32})
+	require.NoError(t, err)
+	assert.False(t, picture.inkFresh)
+}
+
 func TestPictureFrameSigUsesDraws(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)

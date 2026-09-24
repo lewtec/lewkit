@@ -44,6 +44,8 @@ type Picture struct {
 	paintEval   ndarray.Evaluator
 	paintDevice vulkan.Device
 	signature   uint64
+	inkSig      uint64
+	inkFresh    bool
 	hadInk      bool
 	thumbs      map[thumbKey]*image.RGBA
 	fillCount   int
@@ -278,6 +280,10 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	}
 	if picture.recordOnly {
 		height, width := int(size.Height), int(size.Width)
+		if picture.sameInk(width, height) {
+			picture.stamp(picture.inkCount() > 0)
+			return nil, nil
+		}
 		if err := picture.ensureInk(height, width, picture.inkCount()); err != nil {
 			return nil, err
 		}
@@ -299,11 +305,14 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	if err := picture.pixels.Resize(ndarray.Shape{height, width, 4}); err != nil {
 		return nil, err
 	}
-	if err := picture.ensureInk(height, width, picture.inkCount()); err != nil {
+	if picture.sameInk(width, height) {
+		picture.stamp(picture.inkCount() > 0)
+	} else if err := picture.ensureInk(height, width, picture.inkCount()); err != nil {
 		return nil, err
+	} else {
+		picture.drawInk()
+		picture.stamp(picture.inkCount() > 0)
 	}
-	picture.drawInk()
-	picture.stamp(picture.inkCount() > 0)
 	if mount {
 		picture.mounted = picture.raster
 		picture.recordOnly = true
@@ -408,6 +417,24 @@ func pointerOf(value any) uint64 {
 		return 0
 	}
 	return uint64(uintptr((*eface)(unsafe.Pointer(&value)).data))
+}
+
+func (picture *Picture) sameInk(width, height int) bool {
+	sig := uint64(14695981039346656037)
+	mix := func(value uint64) {
+		sig ^= value
+		sig *= 1099511628211
+	}
+	picture.mixInk(mix)
+	mix(uint64(width))
+	mix(uint64(height))
+	if sig == picture.inkSig && picture.inkRGBA != nil && picture.inkRGBA.Rect.Dx() == width && picture.inkRGBA.Rect.Dy() == height {
+		picture.inkFresh = false
+		return true
+	}
+	picture.inkSig = sig
+	picture.inkFresh = true
+	return false
 }
 
 func (picture *Picture) inkCount() int {
