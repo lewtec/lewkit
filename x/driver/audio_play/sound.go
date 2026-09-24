@@ -44,6 +44,21 @@ func Sinks(ctx context.Context) ([]Sink, error) {
 	})
 }
 
+// MapSample returns the host enum for sample.
+// s16 is used for [pcs.SampleS16LE] and f32 for [pcs.SampleF32LE].
+// Any other sample returns the zero T and [pcs.ErrFormat].
+func MapSample[T any](sample pcs.Sample, s16, f32 T) (T, error) {
+	switch sample {
+	case pcs.SampleS16LE:
+		return s16, nil
+	case pcs.SampleF32LE:
+		return f32, nil
+	default:
+		var zero T
+		return zero, pcs.ErrFormat
+	}
+}
+
 // Open returns a writer that plays interleaved PCM on cfg.Sink.
 func Open(ctx context.Context, cfg Config) (io.WriteCloser, error) {
 	if err := cfg.Format.Validate(); err != nil {
