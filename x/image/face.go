@@ -3,6 +3,7 @@ package image
 import (
 	"context"
 	"os"
+	"sync"
 
 	"github.com/lewtec/lewkit/x/singleton"
 	"golang.org/x/image/font"
@@ -12,18 +13,28 @@ import (
 
 const facePoints = 18
 
-var systemFace = singleton.NewSingleton(func(context.Context) (font.Face, error) {
+var systemFont = singleton.NewSingleton(func(context.Context) (*opentype.Font, error) {
+	var last error
 	for _, path := range systemFonts {
 		if path == "" {
 			continue
 		}
-		f, err := loadFace(path)
+		f, err := openFont(path)
 		if err == nil {
 			return f, nil
 		}
+		last = err
 	}
-	return basicfont.Face7x13, nil
+	if last == nil {
+		last = os.ErrNotExist
+	}
+	return nil, last
 })
+
+var sizedFaces struct {
+	sync.Mutex
+	m map[int]font.Face
+}
 
 var systemFonts = []string{
 	"/System/Library/Fonts/SFNS.ttf",
@@ -40,16 +51,46 @@ var systemFonts = []string{
 	os.Getenv("WINDIR") + `\Fonts\arial.ttf`,
 }
 
-// Face is a system sans-serif face, or 7×13 if none is readable.
+// Face is a system sans-serif face at 18px, or 7×13 if none is readable.
 func Face() font.Face {
-	f, err := singleton.Get(systemFace)
-	if err != nil || f == nil {
-		return basicfont.Face7x13
-	}
-	return f
+	return FaceSize(facePoints)
 }
 
-func loadFace(path string) (font.Face, error) {
+// FaceSize is [Face] at points pixels. The size is rounded to a whole number.
+// A missing system font returns 7×13 at every size.
+func FaceSize(points float64) font.Face {
+	size := int(points + 0.5)
+	if size < 8 {
+		size = 8
+	}
+	if size > 256 {
+		size = 256
+	}
+	parsed, err := singleton.Get(systemFont)
+	if err != nil || parsed == nil {
+		return basicfont.Face7x13
+	}
+	sizedFaces.Lock()
+	defer sizedFaces.Unlock()
+	if sizedFaces.m == nil {
+		sizedFaces.m = map[int]font.Face{}
+	}
+	if face, ok := sizedFaces.m[size]; ok {
+		return face
+	}
+	face, err := opentype.NewFace(parsed, &opentype.FaceOptions{
+		Size:    float64(size),
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		return basicfont.Face7x13
+	}
+	sizedFaces.m[size] = face
+	return face
+}
+
+func openFont(path string) (*opentype.Font, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -58,15 +99,7 @@ func loadFace(path string) (font.Face, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := col.Font(0)
-	if err != nil {
-		return nil, err
-	}
-	return opentype.NewFace(f, &opentype.FaceOptions{
-		Size:    facePoints,
-		DPI:     72,
-		Hinting: font.HintingFull,
-	})
+	return col.Font(0)
 }
 
 // Use returns face, or [Face] when face is nil.

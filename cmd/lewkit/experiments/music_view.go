@@ -4,7 +4,14 @@ import (
 	"fmt"
 	"time"
 
+	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ui/gui"
+	"golang.org/x/image/font"
+)
+
+const (
+	musicBaseW = 900
+	musicBaseH = 700
 )
 
 var (
@@ -17,6 +24,25 @@ var (
 	musicBar   = gui.Color{70, 74, 110, 255}
 )
 
+// scale is 1 at 900×700. It follows the shorter side, including a retina
+// surface whose pixel size is already a multiple of the point size.
+func (m *musicModel) scale() float32 {
+	if m == nil {
+		return 1
+	}
+	w, h := float32(m.size.X), float32(m.size.Y)
+	if w < 1 || h < 1 {
+		return 1
+	}
+	return max(min(w/musicBaseW, h/musicBaseH), 0.75)
+}
+
+func (m *musicModel) px(n float32) float32 { return n * m.scale() }
+
+func (m *musicModel) face(mul float32) font.Face {
+	return lewimage.FaceSize(float64(18 * m.scale() * mul))
+}
+
 func (m *musicModel) View() gui.Node {
 	if m == nil {
 		return nil
@@ -24,22 +50,19 @@ func (m *musicModel) View() gui.Node {
 	m.rows = nil
 	m.albumsHit = nil
 	m.back, m.searchBox, m.play, m.prev, m.next, m.bar, m.cards = nil, nil, nil, nil, nil, nil, nil
+	pad := m.px(18)
 	width := float32(m.size.X)
-	if width > 440 {
-		width = 440
-	}
-	if width < 280 {
-		width = float32(m.size.X)
+	inner := width - pad*2
+	if inner < m.px(160) {
+		inner = m.px(160)
 	}
 	return &gui.Box{
-		Fill:  &musicBg,
-		Align: gui.Alignment{X: 0.5},
+		Fill: &musicBg,
 		Child: &gui.Box{
-			Width:   width,
 			Height:  float32(m.size.Y),
-			Padding: gui.EdgeInsets{Left: 18, Top: 16, Right: 18, Bottom: 16},
+			Padding: gui.EdgeInsets{Left: pad, Top: pad, Right: pad, Bottom: pad},
 			Clip:    true,
-			Child:   m.screenView(width - 36),
+			Child:   m.screenView(inner),
 		},
 	}
 }
@@ -74,10 +97,11 @@ func (m *musicModel) browseView(inner float32) gui.Node {
 
 func (m *musicModel) albumView(inner float32) gui.Node {
 	header := m.titleRow(m.album, true)
-	var cover gui.Node = &gui.Box{Width: inner, Height: 180, Radius: 16, Fill: &musicCard}
+	coverH := m.px(180)
+	var cover gui.Node = &gui.Box{Width: inner, Height: coverH, Radius: m.px(16), Fill: &musicCard}
 	for _, album := range m.albums {
 		if album.Name == m.album && m.cover(album.Cover) != nil {
-			cover = &gui.Image{Src: m.cover(album.Cover), Width: inner, Height: 180, Radius: 16}
+			cover = &gui.Image{Src: m.cover(album.Cover), Width: inner, Height: coverH, Radius: m.px(16)}
 			break
 		}
 	}
@@ -91,24 +115,31 @@ func (m *musicModel) albumView(inner float32) gui.Node {
 	}
 	return gui.Column(
 		header,
-		&gui.Box{Height: 12},
+		&gui.Box{Height: m.px(12)},
 		cover,
-		&gui.Box{Height: 10},
-		m.line(m.album, &musicWhite),
+		&gui.Box{Height: m.px(10)},
+		m.title(m.album),
 		m.muted(fmt.Sprintf("%s  ·  %d", subtitle, count)),
-		&gui.Box{Height: 8},
+		&gui.Box{Height: m.px(8)},
 		m.trackList(inner),
 	)
 }
 
 func (m *musicModel) nowView(inner float32) gui.Node {
 	title, artist := "Nothing playing", ""
-	var art gui.Node = &gui.Box{Width: 220, Height: 220, Radius: 18, Fill: &musicCard}
+	artSide := m.px(280)
+	if limit := float32(m.size.Y) * 0.42; artSide > limit {
+		artSide = limit
+	}
+	if artSide > inner {
+		artSide = inner
+	}
+	var art gui.Node = &gui.Box{Width: artSide, Height: artSide, Radius: m.px(18), Fill: &musicCard}
 	if m.now != nil {
 		title = m.now.Title
 		artist = m.now.Artist
 		if img := m.cover(m.now.Cover); img != nil {
-			art = &gui.Image{Src: img, Width: 220, Height: 220, Radius: 18}
+			art = &gui.Image{Src: img, Width: artSide, Height: artSide, Radius: m.px(18)}
 		}
 	}
 	played, total := m.progress()
@@ -124,29 +155,31 @@ func (m *musicModel) nowView(inner float32) gui.Node {
 	if frac > 1 {
 		frac = 1
 	}
-	m.bar = &gui.Box{Width: inner, Height: 28, Align: gui.Alignment{Y: 0.5}, Child: &gui.Stack{Children: []gui.Node{
-		&gui.Box{Width: inner, Height: 4, Radius: 2, Fill: &musicBar},
-		&gui.Box{Width: max(frac*inner, 4), Height: 4, Radius: 2, Fill: &musicWhite},
+	barH := m.px(6)
+	m.bar = &gui.Box{Width: inner, Height: m.px(28), Align: gui.Alignment{Y: 0.5}, Child: &gui.Stack{Children: []gui.Node{
+		&gui.Box{Width: inner, Height: barH, Radius: barH / 2, Fill: &musicBar},
+		&gui.Box{Width: max(frac*inner, barH), Height: barH, Radius: barH / 2, Fill: &musicWhite},
 	}}}
 	label := ">"
 	if m.player != nil && m.now != nil && m.player.Playing() && m.player.Path() == m.now.Path {
 		label = "||"
 	}
-	m.play = m.roundButton(label, 64, &musicWhite, &musicInk)
-	m.prev = m.roundButton("|<", 44, &musicPanel, &musicWhite)
-	m.next = m.roundButton(">|", 44, &musicPanel, &musicWhite)
+	m.play = m.roundButton(label, m.px(64), &musicWhite, &musicInk)
+	m.prev = m.roundButton("|<", m.px(44), &musicPanel, &musicWhite)
+	m.next = m.roundButton(">|", m.px(44), &musicPanel, &musicWhite)
+	gap := m.px(18)
 	return gui.Column(
 		m.titleRow("", true),
-		&gui.Box{Height: 18},
+		&gui.Box{Height: gap},
 		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: art},
-		&gui.Box{Height: 16},
-		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: m.line(title, &musicWhite)},
+		&gui.Box{Height: m.px(16)},
+		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: m.title(title)},
 		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: m.muted(artist)},
-		&gui.Box{Height: 16},
+		&gui.Box{Height: m.px(16)},
 		m.bar,
 		m.timeRow(playedClock, totalClock),
-		&gui.Box{Height: 12},
-		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: gui.Row(m.prev, &gui.Box{Width: 18}, m.play, &gui.Box{Width: 18}, m.next)},
+		&gui.Box{Height: m.px(12)},
+		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: gui.Row(m.prev, &gui.Box{Width: gap}, m.play, &gui.Box{Width: gap}, m.next)},
 	)
 }
 
@@ -186,24 +219,25 @@ func (m *musicModel) timeRow(left, right string) gui.Node {
 func (m *musicModel) titleRow(title string, back bool) gui.Node {
 	var lead gui.Node
 	if back {
-		m.back = m.roundButton("<", 36, &musicPanel, &musicWhite)
+		m.back = m.roundButton("<", m.px(36), &musicPanel, &musicWhite)
 		lead = m.back
 	} else {
-		lead = &gui.Box{Width: 8}
+		lead = &gui.Box{Width: m.px(8)}
 	}
+	side := m.px(36)
 	m.searchBox = &gui.Box{
-		Width: 36, Height: 36, Radius: 18, Fill: &musicPanel,
+		Width: side, Height: side, Radius: side / 2, Fill: &musicPanel,
 		Align: gui.Alignment{X: 0.5, Y: 0.5},
 		Child: m.line(searchGlyph(m), &musicWhite),
 	}
 	var heading gui.Node = &gui.Box{}
 	if title != "" {
-		heading = m.line(title, &musicWhite)
+		heading = m.title(title)
 	}
 	return &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
 		{Child: lead},
-		{Child: &gui.Box{Width: 10}},
-		gui.Expanded(&gui.Box{Height: 40, Align: gui.Alignment{Y: 0.5}, Child: heading}),
+		{Child: &gui.Box{Width: m.px(10)}},
+		gui.Expanded(&gui.Box{Height: m.px(40), Align: gui.Alignment{Y: 0.5}, Child: heading}),
 		{Child: m.searchBox},
 	}}
 }
@@ -226,20 +260,21 @@ func (m *musicModel) albumRow(inner float32) gui.Node {
 	m.albumsHit = nil
 	for i := range m.albums {
 		album := m.albums[i]
-		var art gui.Node = &gui.Box{Width: 72, Height: 72, Radius: 10, Fill: &musicPanel}
+		artSide := m.px(72)
+		var art gui.Node = &gui.Box{Width: artSide, Height: artSide, Radius: m.px(10), Fill: &musicPanel}
 		if img := m.cover(album.Cover); img != nil {
-			art = &gui.Image{Src: img, Width: 72, Height: 72, Radius: 10}
+			art = &gui.Image{Src: img, Width: artSide, Height: artSide, Radius: m.px(10)}
 		}
 		box := &gui.Box{
-			Width: 88, Height: 108, Radius: 12, Fill: &musicCard,
-			Padding: gui.EdgeInsets{Left: 8, Top: 8, Right: 8, Bottom: 6},
-			Child:   gui.Column(art, &gui.Box{Height: 4}, m.muted(trim(album.Name, 10))),
+			Width: m.px(88), Height: m.px(108), Radius: m.px(12), Fill: &musicCard,
+			Padding: gui.EdgeInsets{Left: m.px(8), Top: m.px(8), Right: m.px(8), Bottom: m.px(6)},
+			Child:   gui.Column(art, &gui.Box{Height: m.px(4)}, m.muted(trim(album.Name, 10))),
 		}
 		m.albumsHit = append(m.albumsHit, musicHit{box: box, album: album.Name})
-		cards = append(cards, box, &gui.Box{Width: 8})
+		cards = append(cards, box, &gui.Box{Width: m.px(8)})
 	}
 	row := &gui.Positioned{X: -m.cardX, Child: gui.Row(cards...)}
-	m.cards = &gui.Box{Width: inner, Height: 116, Clip: true, Child: row}
+	m.cards = &gui.Box{Width: inner, Height: m.px(116), Clip: true, Child: row}
 	return m.cards
 }
 
@@ -255,17 +290,19 @@ func (m *musicModel) trackList(inner float32) gui.Node {
 	var height float32
 	for i := range m.tracks {
 		track := m.tracks[i]
-		var art gui.Node = &gui.Box{Width: 44, Height: 44, Radius: 8, Fill: &musicPanel}
+		artSide := m.px(44)
+		rowH := m.px(60)
+		var art gui.Node = &gui.Box{Width: artSide, Height: artSide, Radius: m.px(8), Fill: &musicPanel}
 		if img := m.cover(track.Cover); img != nil {
-			art = &gui.Image{Src: img, Width: 44, Height: 44, Radius: 8}
+			art = &gui.Image{Src: img, Width: artSide, Height: artSide, Radius: m.px(8)}
 		}
 		box := &gui.Box{
-			Width: inner, Height: 60, Radius: 12, Fill: &musicCard,
-			Padding: gui.EdgeInsets{Left: 8, Top: 8, Right: 8, Bottom: 8},
+			Width: inner, Height: rowH, Radius: m.px(12), Fill: &musicCard,
+			Padding: gui.EdgeInsets{Left: m.px(8), Top: m.px(8), Right: m.px(8), Bottom: m.px(8)},
 			Child: gui.Row(
 				art,
-				&gui.Box{Width: 10},
-				&gui.Box{Height: 44, Align: gui.Alignment{Y: 0.5}, Child: gui.Column(
+				&gui.Box{Width: m.px(10)},
+				&gui.Box{Height: artSide, Align: gui.Alignment{Y: 0.5}, Child: gui.Column(
 					m.line(track.Title, &musicWhite),
 					m.muted(track.Artist),
 				)},
@@ -274,11 +311,11 @@ func (m *musicModel) trackList(inner float32) gui.Node {
 		copy := track
 		m.rows = append(m.rows, musicHit{box: box, track: &copy})
 		rows = append(rows, box)
-		height += 64
+		height += rowH + m.px(4)
 	}
-	view := float32(m.size.Y) - 220
-	if view < 120 {
-		view = 120
+	view := float32(m.size.Y) - m.px(220)
+	if view < m.px(120) {
+		view = m.px(120)
 	}
 	m.maxScroll = height - view
 	if m.maxScroll < 0 {
@@ -306,11 +343,15 @@ func (m *musicModel) line(text string, color *gui.Color) gui.Node {
 	if color != nil {
 		ink = *color
 	}
-	return &gui.Text{Value: text, Ink: ink}
+	return &gui.Text{Value: text, Ink: ink, Face: m.face(1)}
+}
+
+func (m *musicModel) title(text string) gui.Node {
+	return &gui.Text{Value: text, Ink: musicWhite, Face: m.face(1.7)}
 }
 
 func (m *musicModel) muted(text string) gui.Node {
-	return &gui.Text{Value: text, Ink: musicMuted}
+	return &gui.Text{Value: text, Ink: musicMuted, Face: m.face(0.85)}
 }
 
 func trim(text string, n int) string {

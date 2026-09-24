@@ -96,10 +96,29 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 		}
 	}
 	require.True(t, found)
-	next, _ := model.Update(window.Pointer{Pos: hit, Button: 1, Pressed: true})
+	next, cmd := model.Update(window.Pointer{Pos: hit, Button: 1, Pressed: true})
+	require.Nil(t, cmd)
 	painted := next.(*musicModel)
 	assert.Equal(t, musicNow, painted.screen)
 	assert.Equal(t, "song", painted.now.Title)
+}
+
+func TestMusicScaleGrowsRows(t *testing.T) {
+	lib, err := OpenLibrary()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, lib.Close()) })
+	small := newMusic(t.Context(), lib, newPlayer(nil))
+	small.size = image.Pt(900, 700)
+	small.tracks = []Track{{ID: 1, Title: "song", Artist: "Ada"}}
+	small.View()
+	require.NotEmpty(t, small.rows)
+	big := newMusic(t.Context(), lib, newPlayer(nil))
+	big.size = image.Pt(1800, 1400)
+	big.tracks = small.tracks
+	big.View()
+	require.NotEmpty(t, big.rows)
+	assert.Greater(t, big.rows[0].box.Height, small.rows[0].box.Height*1.5)
+	assert.Greater(t, big.scale(), small.scale())
 }
 
 func TestPlayerReportsFrames(t *testing.T) {

@@ -54,3 +54,16 @@ func TestFaceLoads(t *testing.T) {
 	assert.Greater(t, Advance('M', nil), 2)
 	assert.Equal(t, 7, Advance('M', basicfont.Face7x13))
 }
+
+func TestFaceSizeGrows(t *testing.T) {
+	small := FaceSize(16)
+	large := FaceSize(40)
+	require.NotNil(t, small)
+	require.NotNil(t, large)
+	if small == basicfont.Face7x13 {
+		assert.Equal(t, large, small)
+		return
+	}
+	assert.Greater(t, LineHeight(large), LineHeight(small))
+	assert.Greater(t, Advance('M', large), Advance('M', small))
+}
