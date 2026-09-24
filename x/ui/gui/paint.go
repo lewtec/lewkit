@@ -34,6 +34,7 @@ type Picture struct {
 	inkRGBA     *image.RGBA
 	fills       []Draw
 	texts       []textRun
+	images      []imageStamp
 	raster      *ndarray.Tensor[float32]
 	rasterFrom  *ndarray.Tensor[float32]
 	rasterCast  *ndarray.Tensor[uint8]
@@ -143,6 +144,10 @@ func (picture *Picture) glyph(run textRun) {
 	picture.texts = append(picture.texts, run)
 }
 
+func (picture *Picture) blit(stamp imageStamp) {
+	picture.images = append(picture.images, stamp)
+}
+
 func (picture *Picture) over(fill Draw) *ndarray.Tensor[float32] {
 	if picture == nil {
 		return nil
@@ -244,6 +249,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]
+	picture.images = picture.images[:0]
 	picture.raster = nil
 	if picture.black != nil && picture.base != picture.black && picture.mounted == nil {
 		picture.base = picture.black
@@ -270,13 +276,11 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	}
 	if picture.recordOnly {
 		height, width := int(size.Height), int(size.Width)
-		if err := picture.ensureInk(height, width, len(picture.texts)); err != nil {
+		if err := picture.ensureInk(height, width, picture.inkCount()); err != nil {
 			return nil, err
 		}
-		for _, run := range picture.texts {
-			run.stamp(picture.inkRGBA)
-		}
-		picture.stamp(len(picture.texts) > 0)
+		picture.drawInk()
+		picture.stamp(picture.inkCount() > 0)
 		return nil, nil
 	}
 	if accumulator == nil {
@@ -293,13 +297,11 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	if err := picture.pixels.Resize(ndarray.Shape{height, width, 4}); err != nil {
 		return nil, err
 	}
-	if err := picture.ensureInk(height, width, len(picture.texts)); err != nil {
+	if err := picture.ensureInk(height, width, picture.inkCount()); err != nil {
 		return nil, err
 	}
-	for _, run := range picture.texts {
-		run.stamp(picture.inkRGBA)
-	}
-	picture.stamp(len(picture.texts) > 0)
+	picture.drawInk()
+	picture.stamp(picture.inkCount() > 0)
 	if mount {
 		picture.mounted = picture.raster
 		picture.recordOnly = true
@@ -367,7 +369,26 @@ func (picture *Picture) stamp(ink bool) {
 	picture.signature = hash
 }
 
-func (picture *Picture) ensureInk(height, width, texts int) error {
+func (picture *Picture) inkCount() int {
+	if picture == nil {
+		return 0
+	}
+	return len(picture.texts) + len(picture.images)
+}
+
+func (picture *Picture) drawInk() {
+	if picture == nil || picture.inkRGBA == nil {
+		return
+	}
+	for _, run := range picture.texts {
+		run.stamp(picture.inkRGBA)
+	}
+	for _, stamp := range picture.images {
+		stamp.draw(picture.inkRGBA)
+	}
+}
+
+func (picture *Picture) ensureInk(height, width, marks int) error {
 	if picture == nil || picture.ink == nil || height < 1 || width < 1 {
 		return ndarray.ErrShape
 	}
@@ -377,10 +398,10 @@ func (picture *Picture) ensureInk(height, width, texts int) error {
 	}
 	pixels := picture.ink.Buffer()[:need]
 	same := picture.inkRGBA != nil && picture.inkRGBA.Rect.Dx() == width && picture.inkRGBA.Rect.Dy() == height
-	if texts > 0 || picture.hadInk || !same {
+	if marks > 0 || picture.hadInk || !same {
 		clear(pixels)
 	}
-	picture.hadInk = texts > 0
+	picture.hadInk = marks > 0
 	picture.inkRGBA = &image.RGBA{Pix: pixels, Stride: width * 4, Rect: image.Rect(0, 0, width, height)}
 	return nil
 }

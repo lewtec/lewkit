@@ -102,3 +102,11 @@ func (box *Box) Contains(position image.Point) bool {
 	x, y := float32(position.X), float32(position.Y)
 	return x >= box.origin.X && x < box.origin.X+box.size.Width && y >= box.origin.Y && y < box.origin.Y+box.size.Height
 }
+
+// Unit is the pointer position inside the last painted box, 0 at the start and 1 at the end.
+func (box *Box) Unit(position image.Point) (float32, float32) {
+	if box == nil || box.size.Width < 1 || box.size.Height < 1 {
+		return 0, 0
+	}
+	return (float32(position.X) - box.origin.X) / box.size.Width, (float32(position.Y) - box.origin.Y) / box.size.Height
+}

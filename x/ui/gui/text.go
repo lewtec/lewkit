@@ -12,7 +12,8 @@ import (
 
 var caretFill = &image.Uniform{C: color.RGBA{R: 220, G: 220, B: 220, A: 255}}
 
-// Text is a layout node. Nil Face uses [lewimage.Face]. Cursor -1 hides the caret.
+// Text is a layout node. Nil Face uses [lewimage.Face].
+// Cursor -1 hides the caret. Zero Ink keeps the white default.
 type Text struct {
 	Value  string
 	Face   font.Face

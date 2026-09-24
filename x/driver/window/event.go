@@ -62,6 +62,14 @@ type Key struct {
 
 func (Key) windowEvent() {}
 
+// Drop is a file or folder the user released over the window.
+// Paths are local filesystem paths.
+type Drop struct {
+	Paths []string
+}
+
+func (Drop) windowEvent() {}
+
 // Modifier bits for [Key].
 type Modifier uint32
 

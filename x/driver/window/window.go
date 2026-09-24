@@ -72,7 +72,7 @@ type Driver interface {
 // layout. Draw swaps it to the front (last swap wins) and the host blits
 // on its next turn. Size may move during live resize; Draw still
 // presents the last painted page. FramePeriod is the host display interval.
-// Subscribe is an event source: Resize, Expose, Close, Pointer, Scroll, and Key.
+// Subscribe is an event source: Resize, Expose, Close, Pointer, Scroll, Key, and Drop.
 // [Drive] is the immediate-mode paint loop; [Animate] is Drive that paints on tick and Resize.
 // After Resize the next Frame has the new size.
 type Window interface {

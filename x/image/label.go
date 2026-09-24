@@ -18,10 +18,10 @@ func Label(dst *image.RGBA, x, y int, s string) {
 // Stamp draws Text at (X, Y). Nil Face uses [Face]. Nil Src uses white.
 type Stamp struct {
 	Dst  *image.RGBA
+	Src  image.Image
 	X, Y int
 	Text string
 	Face font.Face
-	Src  image.Image
 }
 
 func (s Stamp) Draw() {
