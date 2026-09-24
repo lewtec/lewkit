@@ -2,8 +2,6 @@ package win32
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -16,10 +14,7 @@ func (factory) Name() string { return "Win32" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "windows" {
-		return fmt.Errorf("%w: not windows", driver.ErrIncompatible)
-	}
-	return nil
+	return driver.ForGOOS("windows")
 }
 
 func (factory) New(context.Context) (window.Driver, error) {
