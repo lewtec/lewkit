@@ -87,9 +87,8 @@ func TestFormatRowTreeAndBar(t *testing.T) {
 		emoji: "🧠",
 	}, 80)
 	assert.True(t, strings.HasPrefix(line, "├ ▶ 🧠 build: part 1/4"), line)
-	bar := barCells(line)
-	assert.Greater(t, bar, minBarInner, line)
-	assert.True(t, strings.HasSuffix(line, plainBar(0.25, bar)), line)
+	assert.True(t, strings.HasSuffix(line, plainBar(0.25, barWidth)), line)
+	assert.Equal(t, barWidth, barCells(line), line)
 	assert.Equal(t, 80, cellWidth(line), line)
 	assert.NotContains(t, line, "[")
 	assert.Contains(t, line, barFill)
@@ -105,23 +104,31 @@ func TestFormatRowBarsAlign(t *testing.T) {
 		node:  taskgroup.Node{Name: "compile-frontend", Pool: taskgroup.CPU, State: taskgroup.Running, Current: 1, Total: 4},
 		emoji: "🧠",
 	}, 80)
-	assert.Greater(t, barCells(short), barCells(long), "shorter label leaves a longer bar")
-	assert.True(t, strings.HasSuffix(short, plainBar(0.25, barCells(short))), short)
-	assert.True(t, strings.HasSuffix(long, plainBar(0.25, barCells(long))), long)
+	bar := plainBar(0.25, barWidth)
+	assert.True(t, strings.HasSuffix(short, bar), short)
+	assert.True(t, strings.HasSuffix(long, bar), long)
+	assert.Equal(t, barWidth, barCells(short))
+	assert.Equal(t, barWidth, barCells(long))
 	assert.Equal(t, 80, cellWidth(short))
 	assert.Equal(t, 80, cellWidth(long))
 }
 
-func TestFormatRowBarFillsWidth(t *testing.T) {
-	row := treeRow{
+func TestFormatRowUsesFullWidth(t *testing.T) {
+	withBar := treeRow{
 		node:  taskgroup.Node{Name: "build", Pool: taskgroup.CPU, State: taskgroup.Running, Current: 1, Total: 4},
 		emoji: "🧠",
 	}
-	narrow := formatRow(row, 80)
-	wide := formatRow(row, 160)
-	assert.Equal(t, 80, cellWidth(narrow))
-	assert.Equal(t, 160, cellWidth(wide))
-	assert.Greater(t, barCells(wide), barCells(narrow))
+	noBar := treeRow{
+		node:  taskgroup.Node{Name: "install", Pool: taskgroup.IO, State: taskgroup.Pending},
+		emoji: "💾",
+	}
+	for _, width := range []int{80, 160} {
+		barLine := formatRow(withBar, width)
+		plain := formatRow(noBar, width)
+		assert.Equal(t, width, cellWidth(barLine), barLine)
+		assert.Equal(t, width, cellWidth(plain), plain)
+		assert.Equal(t, barWidth, barCells(barLine))
+	}
 }
 
 func barCells(line string) int {
@@ -143,6 +150,7 @@ func TestFormatRowPendingNoBar(t *testing.T) {
 	assert.True(t, strings.HasPrefix(line, "└ ⏸ 💾 install"), line)
 	assert.NotContains(t, line, barFill)
 	assert.NotContains(t, line, "[")
+	assert.Equal(t, 80, cellWidth(line), line)
 }
 
 func TestCancelDoesNotQuitUntilEmpty(t *testing.T) {

@@ -1,6 +1,7 @@
 package progress
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -21,4 +22,12 @@ func TestFormatTree(t *testing.T) {
 	assert.Contains(t, got, "└ ")
 	assert.Contains(t, got, "window_cocoa")
 	assert.Contains(t, got, "window_mem")
+}
+
+func TestFormatZeroWidthUsesStdout(t *testing.T) {
+	got := Format([]taskgroup.Node{{
+		ID: 1, Name: "build", Pool: taskgroup.CPU, State: taskgroup.Running, Current: 1, Total: 4,
+	}}, 0)
+	line, _, _ := strings.Cut(got, "\n")
+	assert.Equal(t, stdoutWidth(), cellWidth(line))
 }
