@@ -19,6 +19,7 @@ import (
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/appearance"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/ffi/native/webkit"
 	"github.com/lewtec/lewkit/x/thread"
@@ -57,6 +58,8 @@ var (
 	selShared         = objc.RegisterName("sharedApplication")
 	selSetPolicy      = objc.RegisterName("setActivationPolicy:")
 	selSetTitle       = objc.RegisterName("setTitle:")
+	selSetAppearance  = objc.RegisterName("setAppearance:")
+	selAppearanceName = objc.RegisterName("appearanceNamed:")
 	selSetContentView = objc.RegisterName("setContentView:")
 	selSetDelegate    = objc.RegisterName("setDelegate:")
 	selMakeKey        = objc.RegisterName("makeKeyAndOrderFront:")
@@ -121,7 +124,7 @@ func (webKitDriver) Open(ctx context.Context, cfg webview.Config) (webview.View,
 	}
 	var openErr error
 	thread.Do(func() {
-		openErr = view.create(cfg)
+		openErr = view.create(ctx, cfg)
 	})
 	if openErr != nil {
 		return nil, openErr
@@ -130,6 +133,7 @@ func (webKitDriver) Open(ctx context.Context, cfg webview.Config) (webview.View,
 		thread.OnIdle(pumpEvents)
 	})
 	context.AfterFunc(ctx, func() { _ = view.Close() })
+	webview.Follow(ctx, func(scheme appearance.Scheme) { view.useScheme(scheme, true) })
 	return view, nil
 }
 
@@ -188,7 +192,7 @@ type webKitView struct {
 	nativeHandler objc.ID
 }
 
-func (view *webKitView) create(cfg webview.Config) error {
+func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(objc.RegisterName("new"))
 	defer pool.Send(objc.RegisterName("drain"))
 	width, height, err := cfg.Size()
@@ -231,11 +235,14 @@ func (view *webKitView) create(cfg webview.Config) error {
 	window.Send(selSetContentView, webView)
 	window.Send(selSetDelegate, handler)
 	window.Send(selCenter)
+	view.window = window
+	view.webView = webView
+	if scheme, err := appearance.Current(ctx); err == nil {
+		view.useScheme(scheme, false)
+	}
 	window.Send(selMakeKey, objc.ID(0))
 	window.Send(objc.RegisterName("orderFrontRegardless"))
 	application.Send(selActivate, true)
-	view.window = window
-	view.webView = webView
 	origin := fmt.Sprintf("%s://%s%d/", schemeName, viewHostPrefix, view.identifier)
 	base := objc.ID(objc.GetClass("NSURL")).Send(selURLWithString, nsString(origin))
 	if strings.TrimSpace(cfg.HTML) != "" {
@@ -255,6 +262,40 @@ func (view *webKitView) create(cfg webview.Config) error {
 	request := objc.ID(objc.GetClass("NSURLRequest")).Send(selRequestWithURL, target)
 	webView.Send(selLoadRequest, request)
 	return nil
+}
+
+// useScheme sets the window and the web view appearance. flip passes through
+// the other appearance first so WebKit delivers effectiveAppearanceDidChange
+// on a page that is already showing, instead of waiting for the next load.
+func (view *webKitView) useScheme(scheme appearance.Scheme, flip bool) {
+	thread.Do(func() {
+		if view == nil || view.window == 0 {
+			return
+		}
+		name := "NSAppearanceNameAqua"
+		otherName := "NSAppearanceNameDarkAqua"
+		if scheme == appearance.Dark {
+			name = "NSAppearanceNameDarkAqua"
+			otherName = "NSAppearanceNameAqua"
+		}
+		desired := namedAppearance(name)
+		if desired == 0 {
+			return
+		}
+		if flip {
+			if other := namedAppearance(otherName); other != 0 && view.webView != 0 {
+				view.webView.Send(selSetAppearance, other)
+			}
+		}
+		view.window.Send(selSetAppearance, desired)
+		if view.webView != 0 {
+			view.webView.Send(selSetAppearance, desired)
+		}
+	})
+}
+
+func namedAppearance(name string) objc.ID {
+	return objc.ID(objc.GetClass("NSAppearance")).Send(selAppearanceName, nsString(name))
 }
 
 func (view *webKitView) Messages() <-chan []byte { return view.messages }

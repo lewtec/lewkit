@@ -6,6 +6,7 @@ import (
 	"image"
 	"time"
 
+	"github.com/lewtec/lewkit/x/driver/appearance"
 	"github.com/lewtec/lewkit/x/driver/ndeval"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -114,6 +115,31 @@ func (runner *runner) loop() error {
 	runner.commands = make(chan Msg, 16)
 	events := runner.host.Subscribe(ctx)
 	runner.dirty = true
+	applied := appearance.Dark
+	if scheme, err := appearance.Current(ctx); err == nil {
+		applied = scheme
+		if err := runner.handle(SchemeMsg{Scheme: scheme}); err != nil {
+			return err
+		}
+	}
+	if changes, err := appearance.Watch(ctx); err == nil {
+		go func() {
+			first := true
+			for scheme := range changes {
+				if first {
+					first = false
+					if scheme == applied {
+						continue
+					}
+				}
+				select {
+				case runner.commands <- SchemeMsg{Scheme: scheme}:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
 	if err := runner.flush(true); err != nil {
 		return err
 	}

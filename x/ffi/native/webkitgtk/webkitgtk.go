@@ -35,6 +35,11 @@ type Symbols struct {
 	newError            func(domain uint32, code int32, message *byte) uintptr
 	freeError           func(gError uintptr)
 	windowNew           func() uintptr
+	settingsDefault     func() uintptr
+	valueInit           func(value uintptr, gtype uintptr)
+	valueSetBool        func(value uintptr, v int32)
+	valueUnset          func(value uintptr)
+	setProperty         func(object uintptr, name *byte, value uintptr)
 	setTitle            func(window uintptr, title *byte)
 	setSize             func(window uintptr, width, height int32)
 	setChild            func(window, child uintptr)
@@ -130,6 +135,18 @@ func Load() (*Symbols, error) {
 	if err := bind(gobject, "g_object_unref", &s.unref); err != nil {
 		return nil, err
 	}
+	if err := bind(gobject, "g_value_init", &s.valueInit); err != nil {
+		return nil, err
+	}
+	if err := bind(gobject, "g_value_set_boolean", &s.valueSetBool); err != nil {
+		return nil, err
+	}
+	if err := bind(gobject, "g_value_unset", &s.valueUnset); err != nil {
+		return nil, err
+	}
+	if err := bind(gobject, "g_object_set_property", &s.setProperty); err != nil {
+		return nil, err
+	}
 	if err := bind(gobject, "g_object_new", &s.objectNew); err != nil {
 		return nil, err
 	}
@@ -140,6 +157,9 @@ func Load() (*Symbols, error) {
 		return nil, err
 	}
 	if err := bind(gtk, "gtk_init", &s.init); err != nil {
+		return nil, err
+	}
+	if err := bind(gtk, "gtk_settings_get_default", &s.settingsDefault); err != nil {
 		return nil, err
 	}
 	if err := bind(gtk, "gtk_window_new", &s.windowNew); err != nil {
@@ -327,6 +347,40 @@ func (symbols *Symbols) SetChild(window, child uintptr) { symbols.setChild(windo
 
 // Present shows the window.
 func (symbols *Symbols) Present(window uintptr) { symbols.present(window) }
+
+// gTypeBoolean is G_TYPE_BOOLEAN on LP64 (5 << 2).
+const gTypeBoolean = 20
+
+type gValue struct {
+	gType uintptr
+	data0 uint64
+	data1 uint64
+}
+
+// SetPreferDark sets gtk-application-prefer-dark on the default GtkSettings.
+// WebKitGTK reads that property for prefers-color-scheme, including on a page
+// that is already loaded.
+func (symbols *Symbols) SetPreferDark(dark bool) {
+	if symbols == nil || symbols.settingsDefault == nil || symbols.setProperty == nil {
+		return
+	}
+	settings := symbols.settingsDefault()
+	if settings == 0 {
+		return
+	}
+	var value gValue
+	symbols.valueInit(uintptr(unsafe.Pointer(&value)), gTypeBoolean)
+	flag := int32(0)
+	if dark {
+		flag = 1
+	}
+	symbols.valueSetBool(uintptr(unsafe.Pointer(&value)), flag)
+	name := cStringBytes("gtk-application-prefer-dark")
+	symbols.setProperty(settings, cStringPointer(name), uintptr(unsafe.Pointer(&value)))
+	symbols.valueUnset(uintptr(unsafe.Pointer(&value)))
+	runtime.KeepAlive(name)
+	runtime.KeepAlive(&value)
+}
 
 // Destroy closes the window.
 func (symbols *Symbols) Destroy(window uintptr) {

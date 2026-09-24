@@ -19,6 +19,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/appearance"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/ffi/native/webkitgtk"
 )
@@ -78,7 +79,7 @@ func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, er
 	}
 	out := make(chan result, 1)
 	state.do(func() {
-		view, err := state.open(cfg)
+		view, err := state.open(ctx, cfg)
 		out <- result{view, err}
 	})
 	select {
@@ -89,6 +90,9 @@ func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, er
 			return nil, opened.err
 		}
 		context.AfterFunc(ctx, func() { _ = opened.view.Close() })
+		webview.Follow(ctx, func(scheme appearance.Scheme) {
+			state.do(func() { state.symbols.SetPreferDark(scheme == appearance.Dark) })
+		})
 		return opened.view, nil
 	}
 }
@@ -163,7 +167,7 @@ func (state *loopState) webView(profile string) (uintptr, error) {
 	return state.symbols.WebViewWithProfile(profile, cacheDirectory)
 }
 
-func (state *loopState) open(cfg webview.Config) (webview.View, error) {
+func (state *loopState) open(ctx context.Context, cfg webview.Config) (webview.View, error) {
 	width, height, err := cfg.Size()
 	if err != nil {
 		return nil, err
@@ -209,6 +213,9 @@ func (state *loopState) open(cfg webview.Config) (webview.View, error) {
 	schemeRegistered.Do(func() {
 		state.symbols.RegisterScheme(webContext, schemeName, schemeCallback, 0)
 	})
+	if scheme, err := appearance.Current(ctx); err == nil {
+		state.symbols.SetPreferDark(scheme == appearance.Dark)
+	}
 	origin := fmt.Sprintf("%s://%s%d/", schemeName, viewHostPrefix, identifier)
 	if strings.TrimSpace(cfg.HTML) != "" {
 		state.symbols.LoadHTML(webView, cfg.HTML, origin)

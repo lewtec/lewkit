@@ -18,6 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/appearance"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	native "github.com/lewtec/lewkit/x/ffi/native/webview2"
 )
@@ -65,6 +66,7 @@ var (
 	environmentIID        = guid{0xB96D755E, 0x0319, 0x4E92, [8]byte{0xA2, 0x96, 0x23, 0x43, 0x6F, 0x46, 0xA1, 0xFC}}
 	controllerIID         = guid{0x4D00C0D1, 0x9434, 0x4EB6, [8]byte{0x80, 0x78, 0x86, 0x97, 0xA5, 0x60, 0x33, 0x4F}}
 	webViewIID            = guid{0x76ECEACB, 0x0462, 0x4D94, [8]byte{0xAC, 0x83, 0x42, 0x3A, 0x67, 0x93, 0x77, 0x5E}}
+	webView13IID          = guid{0xF75F09A8, 0x667E, 0x4983, [8]byte{0x88, 0xD6, 0xC8, 0x77, 0x3F, 0x31, 0x5E, 0x84}}
 	unknownIID            = guid{0x00000000, 0x0000, 0x0000, [8]byte{0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}}
 	environmentHandlerIID = guid{0x4E8A3389, 0xC9D8, 0x4BD2, [8]byte{0xB6, 0xB5, 0x12, 0x4F, 0xEE, 0x6C, 0xC1, 0x4D}}
 	controllerHandlerIID  = guid{0x6C4819F3, 0xC9B7, 0x4260, [8]byte{0x81, 0x27, 0xC9, 0xF5, 0xBD, 0xE7, 0xF6, 0x8C}}
@@ -162,7 +164,7 @@ func (edgeDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, e
 	view.width = int32(width)
 	view.height = int32(height)
 	out := make(chan error, 1)
-	post(func() { out <- view.create() })
+	post(func() { out <- view.create(ctx) })
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -172,6 +174,9 @@ func (edgeDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, e
 		}
 	}
 	context.AfterFunc(ctx, func() { _ = view.Close() })
+	webview.Follow(ctx, func(scheme appearance.Scheme) {
+		post(func() { view.useScheme(scheme) })
+	})
 	return view, nil
 }
 
@@ -275,7 +280,7 @@ type edgeView struct {
 	environment uintptr
 }
 
-func (view *edgeView) create() error {
+func (view *edgeView) create(ctx context.Context) error {
 	title, err := syscall.UTF16PtrFromString(view.title)
 	if err != nil {
 		return err
@@ -355,6 +360,9 @@ func (view *edgeView) create() error {
 	if hr < 0 {
 		return fmt.Errorf("AddWebResourceRequestedFilter: %x", uint32(hr))
 	}
+	if scheme, err := appearance.Current(ctx); err == nil {
+		view.useScheme(scheme)
+	}
 	target := fmt.Sprintf("https://view%d%s/index.html", view.identifier, viewHostSuffix)
 	if view.handler != nil && strings.TrimSpace(view.html) == "" {
 		target = fmt.Sprintf("https://view%d%s/", view.identifier, viewHostSuffix)
@@ -368,6 +376,30 @@ func (view *edgeView) create() error {
 		return fmt.Errorf("Navigate: %x", uint32(hr))
 	}
 	return nil
+}
+
+// useScheme sets ICoreWebView2Profile.PreferredColorScheme. That updates
+// prefers-color-scheme on the loaded page without a navigation.
+// 0 is auto, 1 is light, 2 is dark.
+func (view *edgeView) useScheme(scheme appearance.Scheme) {
+	if view == nil || view.webView == 0 {
+		return
+	}
+	newer, err := query(view.webView, webView13IID)
+	if err != nil {
+		return
+	}
+	defer release(newer)
+	var profile uintptr
+	if call(newer, 105, uintptr(unsafe.Pointer(&profile))) < 0 || profile == 0 {
+		return
+	}
+	defer release(profile)
+	value := uintptr(1)
+	if scheme == appearance.Dark {
+		value = 2
+	}
+	_ = call(profile, 9, value)
 }
 
 func (view *edgeView) resize() {

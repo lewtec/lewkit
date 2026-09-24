@@ -84,7 +84,10 @@ const webviewHTML = `<!doctype html>
 <meta charset="utf-8">
 <title>lewkit webview</title>
 <style>
-  body { font: 18px sans-serif; margin: 2rem; background: #111; color: #eee; }
+  body { font: 18px sans-serif; margin: 2rem; background: #fff; color: #111; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #111; color: #eee; }
+  }
   button { font: inherit; padding: 0.4rem 0.8rem; }
   #count { font-size: 4rem; margin: 0.2rem 0 1rem; }
 </style>
