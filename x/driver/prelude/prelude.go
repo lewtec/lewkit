@@ -4,6 +4,7 @@ package prelude
 
 import (
 	_ "github.com/lewtec/lewkit/x/driver/audio_play/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/chooser/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/fetchurl/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/ndeval"

@@ -9,6 +9,7 @@ type Command struct {
 	Window        *Window
 	Tray          *Tray
 	Sound         *Sound
+	Choose        *Choose
 }
 
 func (Command) Description() string {
