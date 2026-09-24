@@ -408,12 +408,18 @@ func (n *nowModel) View() gui.Node {
 		return nil
 	}
 	title, artist := "Nothing playing", ""
-	artSide := n.px(280)
-	if limit := n.height * 0.42; artSide > limit && limit > 0 {
-		artSide = limit
+	side := n.squareSide()
+	pad := n.px(20)
+	content := side - pad*2
+	if content < n.px(120) {
+		content = n.px(120)
 	}
-	if artSide > n.inner {
-		artSide = n.inner
+	artSide := content - n.px(188)
+	if artSide < n.px(96) {
+		artSide = n.px(96)
+	}
+	if artSide > content {
+		artSide = content
 	}
 	var art gui.Node = &gui.Box{Width: artSide, Height: artSide, Radius: n.px(18), Fill: &n.paint.card}
 	if n.track != nil {
@@ -433,9 +439,9 @@ func (n *nowModel) View() gui.Node {
 		frac = 1
 	}
 	barH := n.px(6)
-	n.bar = &gui.Box{Width: n.inner, Height: n.px(28), Align: gui.Alignment{Y: 0.5}, Child: &gui.Stack{Children: []gui.Node{
-		&gui.Box{Width: n.inner, Height: barH, Radius: barH / 2, Fill: &n.paint.bar},
-		&gui.Box{Width: max(frac*n.inner, barH), Height: barH, Radius: barH / 2, Fill: &n.paint.text},
+	n.bar = &gui.Box{Width: content, Height: n.px(28), Align: gui.Alignment{Y: 0.5}, Child: &gui.Stack{Children: []gui.Node{
+		&gui.Box{Width: content, Height: barH, Radius: barH / 2, Fill: &n.paint.bar},
+		&gui.Box{Width: max(frac*content, barH), Height: barH, Radius: barH / 2, Fill: &n.paint.text},
 	}}}
 	label := ">"
 	if n.playing {
@@ -450,20 +456,49 @@ func (n *nowModel) View() gui.Node {
 	if n.track != nil {
 		right = clockDuration(n.track.Duration)
 	}
-	return n.lead(
-		&gui.Box{Height: gap},
-		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: art},
+	column := gui.Column(
+		art,
 		&gui.Box{Height: n.px(16)},
-		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: n.title(title)},
-		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: n.muted(artist)},
+		n.title(title),
+		n.muted(artist),
 		&gui.Box{Height: n.px(16)},
 		n.bar,
-		&gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
+		&gui.Box{Width: content, Child: &gui.Flex{Axis: gui.Horizontal, Children: []gui.FlexChild{
 			{Child: n.muted(left)},
 			gui.Expanded(&gui.Box{}),
 			{Child: n.muted(right)},
-		}},
+		}}},
 		&gui.Box{Height: n.px(12)},
-		&gui.Box{Align: gui.Alignment{X: 0.5}, Child: gui.Row(n.prev, &gui.Box{Width: gap}, n.play, &gui.Box{Width: gap}, n.next)},
+		gui.Row(n.prev, &gui.Box{Width: gap}, n.play, &gui.Box{Width: gap}, n.next),
 	)
+	square := &gui.Box{
+		Width: side, Height: side,
+		Padding: gui.EdgeInsets{Left: pad, Top: pad, Right: pad, Bottom: pad},
+		Align:   gui.Alignment{X: 0.5, Y: 0.5},
+		Child:   column,
+	}
+	return &gui.Box{
+		Width: n.inner, Height: n.room(),
+		Align: gui.Alignment{X: 0.5, Y: 0.5},
+		Child: square,
+	}
+}
+
+func (n *nowModel) room() float32 {
+	room := n.height - n.px(18)*2 - n.px(56)
+	if room < n.px(220) {
+		return n.px(220)
+	}
+	return room
+}
+
+func (n *nowModel) squareSide() float32 {
+	side := n.inner
+	if room := n.room(); room < side {
+		side = room
+	}
+	if side < n.px(220) {
+		return n.px(220)
+	}
+	return side
 }

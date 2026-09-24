@@ -127,6 +127,21 @@ func TestMusicScaleGrowsRows(t *testing.T) {
 	assert.Equal(t, 2400, big.size.X)
 }
 
+func TestPlayerSquareFollowsShorterSide(t *testing.T) {
+	n := &nowModel{}
+	n.scale = 1
+	n.inner = 800
+	n.height = 1000
+	wide := n.squareSide()
+	n.inner = 400
+	tall := n.squareSide()
+	assert.Greater(t, wide, tall)
+	n.inner = 900
+	n.height = 400
+	short := n.squareSide()
+	assert.Less(t, short, wide)
+}
+
 func TestMusicTickIdles(t *testing.T) {
 	model := newMusic(t.Context(), nil, newPlayer(nil))
 	_, cmd := model.Update(gui.TickMsg{})
