@@ -757,13 +757,13 @@ func (s *Screen) pickMode() int32 {
 		}
 		return false
 	}
-	if has(presentImmediate) {
-		return presentImmediate
+	if has(presentFIFO) {
+		return presentFIFO
 	}
 	if has(presentMailbox) {
 		return presentMailbox
 	}
-	return presentFIFO
+	return presentImmediate
 }
 
 func (s *Screen) ensureStore() error {

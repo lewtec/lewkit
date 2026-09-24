@@ -149,6 +149,16 @@ func (runner *runner) loop() error {
 			if err := runner.handle(msg); err != nil {
 				return err
 			}
+			if _, stop := msg.(window.Close); stop {
+				return nil
+			}
+			if _, tick := msg.(TickMsg); tick {
+				if err := runner.flush(false); err != nil {
+					return err
+				}
+				ticker.Reset(period)
+				continue
+			}
 			select {
 			case <-ticker.C:
 				if err := runner.flush(false); err != nil {
