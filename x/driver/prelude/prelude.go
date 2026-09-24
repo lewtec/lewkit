@@ -3,6 +3,10 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/audio_play/coreaudio"
+	_ "github.com/lewtec/lewkit/x/driver/audio_play/mem"
+	_ "github.com/lewtec/lewkit/x/driver/audio_play/pulse"
+	_ "github.com/lewtec/lewkit/x/driver/audio_play/winmm"
 	_ "github.com/lewtec/lewkit/x/driver/fetchurl/native"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
 	_ "github.com/lewtec/lewkit/x/driver/ndeval"

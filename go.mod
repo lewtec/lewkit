@@ -17,8 +17,10 @@ require (
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
+	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jezek/xgb v1.3.1
+	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/klauspost/compress v1.18.5
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/pelletier/go-toml/v2 v2.3.1
@@ -80,6 +82,7 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/ktr0731/go-ansisgr v0.1.0 // indirect
 	github.com/ktr0731/go-fuzzyfinder v0.9.0 // indirect

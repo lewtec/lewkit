@@ -53,7 +53,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `cmd/lewkit` | The `lewkit` program. |
-| `cmd/lewkit/experiments` | Demo commands. Only `cmd/lewkit` imports this package. |
+| `cmd/lewkit/experiments` | Demo commands. `sound sinks`, `sound play`, and `sound mix` play registered decoders. `--at` seeks first. Only `cmd/lewkit` imports this package. |
 | `report` | `Reporter`, `RegisterReporter`, `Report`, `Must`. |
 | `report/sentry` | Sentry `Reporter`. |
 | `x/logging` | `NewHandler`. Level letter, message, then `key=value`. Color on a terminal. |
@@ -105,9 +105,18 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `x/driver` | `Register`, `List`, `Get`, `With`, `WithResult`, `SetWeights`, `Doctor`. |
-| `x/driver/prelude` | Blank-import. Registers the window backends, `x/driver/vulkan`, `x/driver/ndeval`, `x/driver/httpclient`, and `x/driver/fetchurl`. |
+| `x/driver/prelude` | Blank-import. Registers the window backends, audio_play, tray, webview, `x/driver/vulkan`, `x/driver/ndeval`, `x/driver/httpclient`, and `x/driver/fetchurl`. |
 | `x/driver/httpclient` | `Client`. A request inside a taskgroup session is an Internet task. The native client is `x/driver/httpclient/native`. |
 | `x/driver/fetchurl` | `Fetch`. The native driver calls `github.com/fetchurl/fetchurl` with that client, so the download is the same Internet task. |
+| `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV`. `Decode` picks a decoder by extension or magic. |
+| `x/sound/mp3` | MP3 decoder. Blank-imported by `x/sound/prelude`. |
+| `x/sound/ogg` | Ogg Vorbis decoder. Blank-imported by `x/sound/prelude`. |
+| `x/sound/prelude` | Blank-import. Registers MP3 and Ogg Vorbis. WAV registers with `x/sound`. |
+| `x/driver/audio_play` | `Open`, `Sinks`. `Open` is an `io.WriteCloser` for one sink. An empty sink is the server default. |
+| `x/driver/audio_play/pulse` | Linux playback through libpulse-simple. `Sink` is the PulseAudio sink name. PipeWire serves that API. |
+| `x/driver/audio_play/winmm` | Windows playback through waveOut. `Sink` is a device index or the endpoint name. An empty sink is `WAVE_MAPPER`. |
+| `x/driver/audio_play/coreaudio` | macOS playback through AudioQueue. `Sink` is a device UID or the display name. |
+| `x/driver/audio_play/mem` | Records PCM. Incompatible unless `LEWKIT_AUDIO_PLAY_MEM` is set. |
 | `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. |

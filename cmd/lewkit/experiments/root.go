@@ -8,6 +8,7 @@ type Command struct {
 	Demo          *Demo
 	Window        *Window
 	Tray          *Tray
+	Sound         *Sound
 }
 
 func (Command) Description() string {
