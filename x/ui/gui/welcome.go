@@ -15,7 +15,16 @@ import (
 
 const welcomeWidth = 460
 
-// Welcome is the start screen: the LEWTEC TECNOLOGIA lockup and recent folders.
+// WelcomeArgs is the start screen. A nil Logo keeps the LEWTEC TECNOLOGIA lockup.
+// A nil Accent uses the average color of that logo.
+type WelcomeArgs struct {
+	Title  string
+	Dirs   []Directory
+	Logo   image.Image
+	Accent *Color
+}
+
+// Welcome is the start screen: the lockup and recent folders.
 type Welcome struct {
 	title     string
 	dirs      []Directory
@@ -30,31 +39,27 @@ type Welcome struct {
 	browse    *Box
 }
 
-// NewWelcome lists dirs under title. An empty title is lewkit.
-func NewWelcome(title string, dirs []Directory) *Welcome {
+// NewWelcome copies args. An empty Title is lewkit.
+func NewWelcome(args WelcomeArgs) *Welcome {
+	title := args.Title
 	if title == "" {
 		title = "lewkit"
 	}
+	dirs := args.Dirs
 	if len(dirs) > recentLimit {
 		dirs = dirs[:recentLimit]
 	}
-	return &Welcome{title: title, dirs: append([]Directory(nil), dirs...), mode: daynight.Dark}
-}
-
-// Accent sets the color of the rows and the open button.
-// The zero value, and a call that never happens, uses the average color of the logo.
-func (welcome *Welcome) Accent(color Color) {
-	if welcome != nil {
-		welcome.accent = color
+	welcome := &Welcome{
+		title: title,
+		dirs:  append([]Directory(nil), dirs...),
+		mode:  daynight.Dark,
+		mark:  args.Logo,
+	}
+	if args.Accent != nil {
+		welcome.accent = *args.Accent
 		welcome.hasAccent = true
 	}
-}
-
-// Logo replaces the built-in lockup. Nil keeps the LEWTEC TECNOLOGIA image.
-func (welcome *Welcome) Logo(img image.Image) {
-	if welcome != nil {
-		welcome.mark = img
-	}
+	return welcome
 }
 
 // Picked is the folder the user chose. It is empty until then.

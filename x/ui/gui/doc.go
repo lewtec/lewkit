@@ -13,6 +13,6 @@
 // Glyphs are [Text] nodes; Picture rasters them into ink in the same kernel.
 // [Marquee] View maps offset and size onto [Bar] values; Update is the
 // only writer. [Counter] is the Elm example (one int, two buttons).
-// [Welcome] is the start screen: the LEWTEC TECNOLOGIA lockup and recent folders.
+// [WelcomeArgs] is the start screen: the lockup, recent folders, and an optional accent.
 // [EnsureDir] opens it when a tool still needs a directory and stdin is not a terminal.
 package gui

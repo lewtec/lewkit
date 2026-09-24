@@ -15,7 +15,7 @@ import (
 
 func TestWelcomePicksRecent(t *testing.T) {
 	dir := t.TempDir()
-	welcome := NewWelcome("lewkit", []Directory{{Path: dir}, {Path: t.TempDir()}})
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: []Directory{{Path: dir}, {Path: t.TempDir()}}})
 	paintWelcome(t, welcome)
 	require.Len(t, welcome.rows, 2)
 	_, cmd := welcome.Update(window.Pointer{Pos: mid(welcome.rows[0]), Button: 1, Pressed: true})
@@ -25,7 +25,7 @@ func TestWelcomePicksRecent(t *testing.T) {
 
 func TestWelcomeKeyboard(t *testing.T) {
 	second := t.TempDir()
-	welcome := NewWelcome("", []Directory{{Path: t.TempDir()}, {Path: second}})
+	welcome := NewWelcome(WelcomeArgs{Dirs: []Directory{{Path: t.TempDir()}, {Path: second}}})
 	welcome.Update(window.Key{Code: 116, Pressed: true})
 	welcome.Update(window.Key{Rune: '\n', Pressed: true})
 	assert.Equal(t, second, welcome.Picked())
@@ -33,14 +33,14 @@ func TestWelcomeKeyboard(t *testing.T) {
 }
 
 func TestWelcomeEscape(t *testing.T) {
-	welcome := NewWelcome("lewkit", nil)
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
 	_, cmd := welcome.Update(window.Key{Rune: 0x1b, Pressed: true})
 	assertQuit(t, cmd)
 	assert.Empty(t, welcome.Picked())
 }
 
 func TestWelcomeDialogUsesCallerContext(t *testing.T) {
-	welcome := NewWelcome("lewkit", nil)
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
 	welcome.cursor = welcome.browseAt()
 	_, cmd := welcome.Update(window.Key{Rune: '\n', Pressed: true})
 	require.NotNil(t, cmd)
@@ -53,7 +53,7 @@ func TestWelcomeDialogUsesCallerContext(t *testing.T) {
 
 func TestWelcomeOpenCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	welcome := NewWelcome("lewkit", nil)
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
 	done := make(chan error, 1)
 	go func() {
 		done <- Open(ctx, welcome, Options{Config: window.Config{Width: 80, Height: 60}})
@@ -69,32 +69,40 @@ func TestWelcomeOpenCancel(t *testing.T) {
 }
 
 func TestWelcomeLightMode(t *testing.T) {
-	welcome := NewWelcome("lewkit", []Directory{{Path: t.TempDir()}})
+	accent := Color{200, 0, 0, 255}
+	welcome := NewWelcome(WelcomeArgs{
+		Title:  "lewkit",
+		Dirs:   []Directory{{Path: t.TempDir()}},
+		Accent: &accent,
+	})
 	welcome.Update(ModeMsg{Mode: daynight.Light})
 	node := welcome.View()
 	require.NotNil(t, node)
-	welcome.Accent(Color{200, 0, 0, 255})
 	card, selected := welcome.cards()
 	assert.Equal(t, Color{255, 255, 255, 255}, card)
 	assert.Greater(t, int(selected.Red), int(selected.Blue))
 }
 
 func TestWelcomeAccentFromLogo(t *testing.T) {
-	welcome := NewWelcome("lewkit", []Directory{{Path: t.TempDir()}})
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: []Directory{{Path: t.TempDir()}}})
 	welcome.View()
 	require.NotNil(t, welcome.browse.Fill)
 	assert.Equal(t, lewimage.Average(logoImage()), *welcome.browse.Fill)
 }
 
 func TestWelcomeAccentOverride(t *testing.T) {
-	welcome := NewWelcome("lewkit", []Directory{{Path: t.TempDir()}})
-	welcome.Accent(Color{20, 180, 40, 255})
+	accent := Color{20, 180, 40, 255}
+	welcome := NewWelcome(WelcomeArgs{
+		Title:  "lewkit",
+		Dirs:   []Directory{{Path: t.TempDir()}},
+		Accent: &accent,
+	})
 	welcome.View()
-	assert.Equal(t, Color{20, 180, 40, 255}, *welcome.browse.Fill)
+	assert.Equal(t, accent, *welcome.browse.Fill)
 }
 
 func TestWelcomeLogo(t *testing.T) {
-	welcome := NewWelcome("lewkit", nil)
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	picture.recordOnly = true

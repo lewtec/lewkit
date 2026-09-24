@@ -3,13 +3,9 @@ package experiments
 import (
 	"context"
 	"fmt"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
-	"os"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
@@ -28,17 +24,19 @@ func (c *welcomeCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	model := gui.NewWelcome("lewkit", dirs)
+	args := gui.WelcomeArgs{Title: "lewkit", Dirs: dirs}
 	if path := c.logo.Value(); path != "" {
-		img, err := loadLogo(path)
+		img, err := convert.Open(path)
 		if err != nil {
 			return err
 		}
-		model.Logo(img)
+		args.Logo = img
 	}
 	if c.accent.IsSet() {
-		model.Accent(c.accent.Value())
+		color := c.accent.Value()
+		args.Accent = &color
 	}
+	model := gui.NewWelcome(args)
 	err = runGUI(ctx, "welcome", gui.Options{
 		Title:  "lewkit",
 		Width:  880,
@@ -55,14 +53,4 @@ func (c *welcomeCmd) Run(ctx context.Context) error {
 		return context.Cause(ctx)
 	}
 	return err
-}
-
-func loadLogo(path string) (image.Image, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	img, _, err := image.Decode(file)
-	return img, err
 }

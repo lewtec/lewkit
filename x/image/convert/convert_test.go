@@ -5,6 +5,9 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"image/png"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,6 +23,18 @@ func TestDecodePNG(t *testing.T) {
 	square, err := Square(got, 1)
 	require.NoError(t, err)
 	require.Equal(t, color.NRGBA{R: 10, G: 20, B: 30, A: 255}, square.NRGBAAt(0, 0))
+}
+
+func TestOpenPNG(t *testing.T) {
+	src := image.NewNRGBA(image.Rect(0, 0, 2, 2))
+	path := filepath.Join(t.TempDir(), "mark.png")
+	file, err := os.Create(path)
+	require.NoError(t, err)
+	require.NoError(t, png.Encode(file, src))
+	require.NoError(t, file.Close())
+	got, err := Open(path)
+	require.NoError(t, err)
+	require.Equal(t, 2, got.Bounds().Dx())
 }
 
 func TestDecodeJPEG(t *testing.T) {

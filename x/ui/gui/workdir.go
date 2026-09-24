@@ -54,7 +54,7 @@ func pickDir(ctx context.Context) (string, error) {
 	if err != nil {
 		dirs = nil
 	}
-	welcome := NewWelcome("lewkit", dirs)
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: dirs})
 	err = Open(ctx, welcome, Options{
 		Config: window.Config{Title: "lewkit", Width: 880, Height: 720},
 	})
