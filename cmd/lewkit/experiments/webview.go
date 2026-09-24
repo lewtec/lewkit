@@ -7,8 +7,8 @@ import (
 	"sync/atomic"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	_ "github.com/lewtec/lewkit/x/driver/webview/prelude"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 

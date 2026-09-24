@@ -67,11 +67,11 @@ func (c *dbCmd) Run(ctx context.Context) error {
 
 type preludeCmd struct {
 	dir cmd.WorkDirArg `help:"directory to scan for root.go"`
-	out *cmd.StringArg `help:"prelude.go to write; stdout if omitted"`
+	out *cmd.StringArg `help:"prelude file for DIR; stdout if omitted"`
 }
 
 func (preludeCmd) Description() string {
-	return "blank-import prelude from root.go files"
+	return "one blank-import prelude per directory with a descendant root.go"
 }
 
 func (c *preludeCmd) Run(ctx context.Context) error {

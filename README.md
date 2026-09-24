@@ -76,7 +76,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
 | `x/generate` | Helpers shared by the generator packages. |
-| `x/generate/prelude` | Writes a blank-import file from each `root.go`. |
+| `x/generate/prelude` | Writes one blank-import prelude per directory that contains a descendant `root.go`. |
 | `x/generate/protobuf` | Writes Go from one `.proto` file. `protoc` comes from `x/tool`. A `workspaced.lock.json` pin selects the version. |
 | `x/tool` | `Open`, `Ensure`, `Install`, `Resolve`. A spec is `backend:ref@version`. The caller owns the store directory. |
 | `x/tool/github` | GitHub Releases backend. |
@@ -105,7 +105,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `x/driver` | `Register`, `List`, `Get`, `With`, `WithResult`, `SetWeights`, `Doctor`. |
-| `x/driver/prelude` | Blank-import. Registers the window backends, audio_play, tray, webview, `x/driver/vulkan`, `x/driver/ndeval`, `x/driver/httpclient`, and `x/driver/fetchurl`. |
+| `x/driver/prelude` | Blank-import. Registers every driver. A group with its own descendant `root.go` files has a prelude too, for example `x/driver/webview/prelude`. |
 | `x/driver/httpclient` | `Client`. A request inside a taskgroup session is an Internet task. The native client is `x/driver/httpclient/native`. |
 | `x/driver/fetchurl` | `Fetch`. The native driver calls `github.com/fetchurl/fetchurl` with that client, so the download is the same Internet task. |
 | `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV`. `Decode` picks a decoder by extension or magic. |
@@ -155,13 +155,13 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit disasm raw PATH` | Instructions for a raw byte file. `PATH` `-` reads stdin. |
 | `lewkit disasm file PATH` | One text section from an ELF, PE, or Mach-O file. |
 | `lewkit generate db DIR` | sqlc packages, a `Queries` interface, and `DBArg`. |
-| `lewkit generate prelude DIR [OUT]` | Blank-import prelude from each `root.go` under `DIR`. |
+| `lewkit generate prelude DIR [OUT]` | One blank-import prelude per directory under `DIR` that contains a descendant `root.go`. `OUT` is the file for `DIR`. |
 | `lewkit generate protobuf FILE` | Go source for a `.proto` file. |
 | `lewkit completion` | The bash `complete -C` line for this program. |
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 
-`lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes stdout. `generate protobuf` takes `--package` when the file has no `go_package`.
+`lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes the prelude for `DIR` to stdout and does not write the nested preludes. `generate protobuf` takes `--package` when the file has no `go_package`.
 
 `lewkit herdr reorder` reads the running Herdr session. Each `REPO:BRANCH` ensures a main workspace and a linked worktree at `~/.grok/worktrees/<slug>/<branch>`. A slash in the branch is a hyphen in the directory name. The dotfiles root from `x/dotfiles` sorts first. Steps log through slog and the progress view. The final order is a progress tree: each worktree sits under its main checkout. A workspace row is the label, then the checkout path.
 

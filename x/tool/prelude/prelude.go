@@ -6,5 +6,5 @@ import (
 	_ "github.com/lewtec/lewkit/x/tool/github"
 	_ "github.com/lewtec/lewkit/x/tool/mise"
 	_ "github.com/lewtec/lewkit/x/tool/registry"
-	_ "github.com/lewtec/lewkit/x/tool/registry/applications"
+	_ "github.com/lewtec/lewkit/x/tool/registry/prelude"
 )
