@@ -23,6 +23,25 @@ func TestRasterPaintsTensor(t *testing.T) {
 	assert.Equal(t, uint8(210), out[(3*4+3)*4])
 }
 
+func TestMountedRasterReusesKernel(t *testing.T) {
+	shape := ndarray.Shape{1, 1, 4}
+	source := ndarray.Coord(1, shape).Cast[float32]()
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.recordOnly = true
+	first, err := picture.Render(&Raster{Pixels: source}, Size{4, 4})
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	second, err := picture.Render(&Raster{Pixels: source}, Size{8, 4})
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	assert.Same(t, first.Kernel(), second.Kernel())
+	out := make([]uint8, 8*4*4)
+	require.NoError(t, second.Eval(t.Context(), ndarray.CPU, out))
+	assert.Equal(t, uint8(0), out[0])
+	assert.NotEqual(t, out[0], out[3*4])
+}
+
 func TestRasterBytesVaryAcrossFrame(t *testing.T) {
 	shape := ndarray.Shape{1, 1, 4}
 	source := ndarray.Coord(1, shape).Cast[float32]()

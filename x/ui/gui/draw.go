@@ -6,6 +6,7 @@ import (
 	"math"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/driver/ndeval"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -138,10 +139,13 @@ func (picture *Picture) Show(ctx context.Context, screen vulkan.Screen, root Nod
 		return ErrView
 	}
 	picture.recordOnly = true
-	_, err := picture.Render(root, size)
+	pixels, err := picture.Render(root, size)
 	picture.recordOnly = false
 	if err != nil {
 		return err
+	}
+	if pixels != nil && picture.raster != nil {
+		return picture.paintMounted(ctx, screen, pixels)
 	}
 	var ink []byte
 	if picture.hadInk && picture.inkRGBA != nil {
@@ -168,6 +172,17 @@ func drawFills(ctx context.Context, screen vulkan.Screen, fills []Draw, under, i
 		putFill(raw[i*64:(i+1)*64], fill)
 	}
 	return screen.Draw(raw, under, ink, width, height, vert, frag, inkVert, inkFrag)
+}
+
+func (picture *Picture) paintMounted(ctx context.Context, screen vulkan.Screen, pixels *ndarray.Tensor[uint8]) error {
+	if picture.paintEval == nil || !vulkan.Same(picture.paintDevice, screen.Device()) {
+		if picture.paintEval != nil {
+			_ = picture.paintEval.Close()
+		}
+		picture.paintEval = ndeval.Bind(screen.Device())
+		picture.paintDevice = screen.Device()
+	}
+	return ndeval.Paint(ctx, picture.paintEval, pixels, screen)
 }
 
 func putFill(dst []byte, fill Draw) {

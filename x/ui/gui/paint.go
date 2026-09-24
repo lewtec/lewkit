@@ -4,6 +4,7 @@ import (
 	"image"
 	"math"
 
+	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -34,7 +35,10 @@ type Picture struct {
 	fills       []Draw
 	texts       []textRun
 	raster      *ndarray.Tensor[float32]
+	mounted     *ndarray.Tensor[float32]
 	black       *ndarray.Tensor[float32]
+	paintEval   ndarray.Evaluator
+	paintDevice vulkan.Device
 	signature   uint64
 	hadInk      bool
 	fillCount   int
@@ -239,7 +243,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]
 	picture.raster = nil
-	if picture.black != nil && picture.base != picture.black {
+	if picture.black != nil && picture.base != picture.black && picture.mounted == nil {
 		picture.base = picture.black
 		picture.slots = nil
 		picture.composites = nil
@@ -247,6 +251,17 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	}
 	picture.accumulator = picture.base
 	accumulator := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, picture)
+	mount := picture.mountable()
+	if mount && picture.mounted == picture.raster && picture.fillCount == 0 && picture.pixels != nil {
+		height, width := int(size.Height), int(size.Width)
+		if err := picture.pixels.Resize(ndarray.Shape{height, width, 4}); err != nil {
+			return nil, err
+		}
+		return picture.pixels, nil
+	}
+	if mount {
+		picture.recordOnly = false
+	}
 	if !picture.recordOnly {
 		picture.fuseRaster()
 		accumulator = picture.accumulator
@@ -283,7 +298,19 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 		run.stamp(picture.inkRGBA)
 	}
 	picture.stamp(len(picture.texts) > 0)
+	if mount {
+		picture.mounted = picture.raster
+		picture.recordOnly = true
+	}
 	return picture.pixels, nil
+}
+
+func (picture *Picture) mountable() bool {
+	if picture == nil || picture.raster == nil || !picture.recordOnly {
+		return false
+	}
+	shape := picture.raster.Shape()
+	return shape == nil || shape.Equal(ndarray.Shape{1, 1, 4})
 }
 
 func (picture *Picture) frameSig() uint64 {

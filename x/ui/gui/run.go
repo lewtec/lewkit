@@ -224,7 +224,7 @@ func (runner *runner) render() error {
 	if err != nil {
 		return err
 	}
-	if runner.picture.recordOnly {
+	if runner.picture.recordOnly && runner.picture.raster == nil {
 		runner.view = nil
 		runner.signature = runner.picture.frameSig()
 		return nil
@@ -250,6 +250,14 @@ func (runner *runner) flush(force bool) error {
 	runner.picture.recordOnly = false
 	runner.dirty = false
 	if !force && runner.picture.raster == nil && runner.signature != 0 && runner.signature == runner.lastSignature {
+		return nil
+	}
+	if listed && runner.view != nil && runner.picture.raster != nil {
+		if err := runner.host.present(runner.ctx, runner.view, runner.evaluator); err != nil {
+			return err
+		}
+		runner.hertz = runner.fps.Get()
+		runner.lastSignature = runner.signature
 		return nil
 	}
 	if listed {
