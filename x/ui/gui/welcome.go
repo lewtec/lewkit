@@ -22,6 +22,7 @@ type Welcome struct {
 	cursor int
 	note   string
 	picked string
+	mark   image.Image
 	rows   []*Box
 	browse *Box
 }
@@ -35,6 +36,13 @@ func NewWelcome(title string, dirs []Directory) *Welcome {
 		dirs = dirs[:recentLimit]
 	}
 	return &Welcome{title: title, dirs: append([]Directory(nil), dirs...), mode: daynight.Dark}
+}
+
+// Logo replaces the built-in lockup. Nil keeps the LEWTEC TECNOLOGIA image.
+func (welcome *Welcome) Logo(img image.Image) {
+	if welcome != nil {
+		welcome.mark = img
+	}
 }
 
 // Picked is the folder the user chose. It is empty until then.
@@ -267,6 +275,9 @@ func gap(height float32) *Box {
 
 func (welcome *Welcome) logo() Node {
 	lockup := logoImage()
+	if welcome.mark != nil {
+		lockup = welcome.mark
+	}
 	width := float32(welcomeWidth - 40)
 	height := width
 	if bounds := lockup.Bounds(); bounds.Dx() > 0 {
