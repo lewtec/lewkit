@@ -369,7 +369,7 @@ func startURLSchemeTask(self objc.ID, _ objc.SEL, _ objc.ID, task objc.ID) {
 		go deliverBody(task, payload)
 		return
 	}
-	body, contentType, err := readPage(view.html, view.files, parsed.Path)
+	body, contentType, err := webview.ReadPage(view.html, view.files, parsed.Path)
 	if err != nil {
 		return
 	}
@@ -516,24 +516,6 @@ func (reader *dataReader) Close() error {
 		reader.data = 0
 	}
 	return nil
-}
-
-func readPage(html string, files fs.FS, urlPath string) ([]byte, string, error) {
-	name, err := webview.AssetName(urlPath)
-	if err != nil {
-		return nil, "", err
-	}
-	if name == "index.html" && strings.TrimSpace(html) != "" {
-		return []byte(html), "text/html", nil
-	}
-	if files == nil {
-		return nil, "", webview.ErrAsset
-	}
-	body, err := fs.ReadFile(files, name)
-	if err != nil {
-		return nil, "", err
-	}
-	return body, webview.ContentType(name), nil
 }
 
 func jsonText(body objc.ID) string {

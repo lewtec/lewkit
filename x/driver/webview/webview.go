@@ -70,6 +70,26 @@ func (c Config) Validate() error {
 	return nil
 }
 
+// ReadPage loads the file for urlPath.
+// Inline HTML replaces index.html. A nil FS is [ErrAsset] for any other file.
+func ReadPage(html string, files fs.FS, urlPath string) ([]byte, string, error) {
+	name, err := AssetName(urlPath)
+	if err != nil {
+		return nil, "", err
+	}
+	if name == "index.html" && strings.TrimSpace(html) != "" {
+		return []byte(html), "text/html", nil
+	}
+	if files == nil {
+		return nil, "", ErrAsset
+	}
+	body, err := fs.ReadFile(files, name)
+	if err != nil {
+		return nil, "", err
+	}
+	return body, ContentType(name), nil
+}
+
 // AssetName maps a URL path onto an fs.FS name. "/" is index.html.
 func AssetName(urlPath string) (string, error) {
 	if urlPath == "" || urlPath == "/" {
