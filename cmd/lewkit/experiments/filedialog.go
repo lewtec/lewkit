@@ -6,11 +6,11 @@ import (
 	"log/slog"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	"github.com/lewtec/lewkit/x/driver/chooser"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 )
 
-// Choose is `lewkit experiments choose`.
-type Choose struct {
+// FileDialog is `lewkit experiments filedialog`.
+type FileDialog struct {
 	title    cmd.StringArg `long:"title" default:"" help:"dialog title"`
 	dir      cmd.StringArg `long:"dir" default:"" help:"folder the dialog opens in"`
 	name     cmd.StringArg `long:"name" default:"" help:"suggested file name when saving"`
@@ -20,12 +20,12 @@ type Choose struct {
 	multiple cmd.Flag      `long:"multiple" help:"choose more than one path"`
 }
 
-func (Choose) Description() string {
+func (FileDialog) Description() string {
 	return "ask for files or a folder and print each path"
 }
 
-func (c *Choose) Run(ctx context.Context) error {
-	req := chooser.Request{
+func (c *FileDialog) Run(ctx context.Context) error {
+	req := filedialog.Request{
 		Title:     c.title.Value(),
 		Directory: c.dir.Value(),
 		Name:      c.name.Value(),
@@ -34,15 +34,15 @@ func (c *Choose) Run(ctx context.Context) error {
 		Multiple:  c.multiple.Value(),
 	}
 	if pattern := c.filter.Value(); pattern != "" {
-		req.Filters = []chooser.Filter{{Name: pattern, Patterns: []string{pattern}}}
+		req.Filters = []filedialog.Filter{{Name: pattern, Patterns: []string{pattern}}}
 	}
-	paths, err := chooser.Choose(ctx, req)
+	paths, err := filedialog.Choose(ctx, req)
 	if err != nil {
 		return err
 	}
 	for _, path := range paths {
 		fmt.Println(path)
 	}
-	slog.Info("chooser", "paths", len(paths))
+	slog.Info("filedialog", "paths", len(paths))
 	return nil
 }

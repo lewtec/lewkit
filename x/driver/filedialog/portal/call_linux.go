@@ -11,12 +11,12 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/chooser"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 )
 
 var (
-	errPortal = errors.New("chooser portal")
-	errURI    = errors.New("chooser uri")
+	errPortal = errors.New("file dialog portal")
+	errURI    = errors.New("file dialog uri")
 )
 
 const (
@@ -61,12 +61,12 @@ func Available(ctx context.Context, service string) error {
 }
 
 // Choose shows the dialog on service and returns filesystem paths.
-func Choose(ctx context.Context, service string, req chooser.Request) ([]string, error) {
+func Choose(ctx context.Context, service string, req filedialog.Request) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", chooser.ErrRequest, err)
+		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
@@ -97,10 +97,10 @@ func Choose(ctx context.Context, service string, req chooser.Request) ([]string,
 }
 
 func nextHandle() dbus.ObjectPath {
-	return dbus.ObjectPath(fmt.Sprintf("/org/lewtec/lewkit/chooser/%d", handles.Add(1)))
+	return dbus.ObjectPath(fmt.Sprintf("/org/lewtec/lewkit/filedialog/%d", handles.Add(1)))
 }
 
-func options(req chooser.Request) map[string]dbus.Variant {
+func options(req filedialog.Request) map[string]dbus.Variant {
 	out := map[string]dbus.Variant{
 		"modal":     dbus.MakeVariant(true),
 		"multiple":  dbus.MakeVariant(req.Multiple),
@@ -118,7 +118,7 @@ func options(req chooser.Request) map[string]dbus.Variant {
 	return out
 }
 
-func filtersOf(req chooser.Request) []filter {
+func filtersOf(req filedialog.Request) []filter {
 	var out []filter
 	for _, item := range req.Filters {
 		var rules []rule
@@ -142,7 +142,7 @@ func filtersOf(req chooser.Request) []filter {
 
 func pathsFromResults(response uint32, results map[string]dbus.Variant) ([]string, error) {
 	if response == responseCancel {
-		return nil, chooser.ErrCanceled
+		return nil, filedialog.ErrCanceled
 	}
 	if response != responseSuccess {
 		return nil, fmt.Errorf("%w: response %d", errPortal, response)

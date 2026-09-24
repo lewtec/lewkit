@@ -1,8 +1,8 @@
-// Package chooser asks the user for files or folders.
+// Package filedialog asks the user for files or folders.
 //
-//	paths, err := chooser.Choose(ctx, chooser.Request{
+//	paths, err := filedialog.Choose(ctx, filedialog.Request{
 //		Title:   "Open",
-//		Filters: []chooser.Filter{{Name: "Audio", Patterns: []string{"*.mp3", "*.flac"}}},
+//		Filters: []filedialog.Filter{{Name: "Audio", Patterns: []string{"*.mp3", "*.flac"}}},
 //	})
 //
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one implementation
@@ -18,7 +18,7 @@
 // Patterns are globs such as "*.mp3". Folder chooses directories. Save chooses
 // one new path. Multiple chooses more than one path. Save with Folder or
 // Multiple is rejected.
-package chooser
+package filedialog
 
 import (
 	"context"
@@ -30,9 +30,9 @@ import (
 
 var (
 	// ErrCanceled means the user dismissed the dialog.
-	ErrCanceled = errors.New("chooser canceled")
+	ErrCanceled = errors.New("file dialog canceled")
 	// ErrRequest means the request cannot be shown.
-	ErrRequest = errors.New("chooser request")
+	ErrRequest = errors.New("file dialog request")
 
 	errSaveFolder = errors.New("save a folder")
 	errSaveMany   = errors.New("save more than one file")
@@ -104,7 +104,7 @@ type Driver interface {
 	Choose(ctx context.Context, req Request) ([]string, error)
 }
 
-// Choose asks the active chooser driver for paths.
+// Choose asks the active file dialog driver for paths.
 // A dismiss is [ErrCanceled]. A bad request is [ErrRequest].
 func Choose(ctx context.Context, req Request) ([]string, error) {
 	if err := ctx.Err(); err != nil {

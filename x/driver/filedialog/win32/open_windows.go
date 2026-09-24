@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/lewtec/lewkit/x/driver/chooser"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -29,7 +29,7 @@ const (
 	hrCanceled         = 0x800704C7
 )
 
-var errDialog = errors.New("chooser dialog")
+var errDialog = errors.New("file dialog")
 
 var (
 	clsidOpen = syscall.GUID{Data1: 0xDC1C5A9C, Data2: 0xE88A, Data3: 0x4DDE, Data4: [8]byte{0xA5, 0xA1, 0x60, 0xF8, 0x2A, 0x20, 0xAE, 0xF7}}
@@ -52,12 +52,12 @@ type filterSpec struct {
 	spec *uint16
 }
 
-func (opener) Choose(ctx context.Context, req chooser.Request) ([]string, error) {
+func (opener) Choose(ctx context.Context, req filedialog.Request) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", chooser.ErrRequest, err)
+		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
 	if !thread.Bound() {
 		return nil, fmt.Errorf("%w: thread not bound", errDialog)
@@ -72,7 +72,7 @@ func (opener) Choose(ctx context.Context, req chooser.Request) ([]string, error)
 	return paths, err
 }
 
-func show(req chooser.Request) ([]string, error) {
+func show(req filedialog.Request) ([]string, error) {
 	hr, _, callErr := procCoInitializeEx.Call(0, coinitApartment)
 	if int32(hr) < 0 {
 		return nil, statusErr("com", hr, callErr)
@@ -112,7 +112,7 @@ func show(req chooser.Request) ([]string, error) {
 	}
 	hr, err := comCall(dialog, 3, 0)
 	if uint32(hr) == hrCanceled {
-		return nil, chooser.ErrCanceled
+		return nil, filedialog.ErrCanceled
 	}
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func show(req chooser.Request) ([]string, error) {
 	return []string{path}, nil
 }
 
-func prepare(dialog uintptr, req chooser.Request) error {
+func prepare(dialog uintptr, req filedialog.Request) error {
 	var opts uint32
 	if hr, err := comCall(dialog, 10, uintptr(unsafe.Pointer(&opts))); err != nil {
 		return statusErr("options", hr, err)
@@ -197,7 +197,7 @@ func setFolder(dialog uintptr, directory string) error {
 	return nil
 }
 
-func setFilters(dialog uintptr, req chooser.Request) error {
+func setFilters(dialog uintptr, req filedialog.Request) error {
 	var specs []filterSpec
 	var kept [][]uint16
 	for _, item := range req.Filters {

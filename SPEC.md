@@ -120,12 +120,12 @@ Inherited C (cite the file):
 | `x/driver/audio_play/winmm` | waveOut `Open` | facade of the winmm binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/ffi/native/coreaudio` | `Open`, `Devices`, `Stream` | AudioQueue binding | playback stays here | CoreAudio error text | import `x/ffi/wasm`; import `x/driver` |
 | `x/driver/audio_play/coreaudio` | AudioQueue `Open` | facade of the coreaudio binding | selection stays here | missing framework is `driver.ErrIncompatible` | import `x/ffi/native` |
-| `x/driver/chooser` | `Choose`, `Request`, `Filter` | host file or folder dialog | protocol stays here | `ErrCanceled`, `ErrRequest`; missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
-| `x/driver/chooser/portal` | `Choose`, `Available` | portal file chooser call | GTK and KDE service names stay here | missing bus name is `driver.ErrIncompatible` | import `x/ffi/native`; show a dialog by itself |
-| `x/driver/chooser/gtk` | GTK `Choose` | facade of the gtk portal backend | selection stays here | missing gtk portal is `driver.ErrIncompatible` | import `x/ffi/native` |
-| `x/driver/chooser/qt` | Qt `Choose` | facade of the KDE portal backend | selection stays here | missing KDE portal is `driver.ErrIncompatible` | import `x/ffi/native` |
-| `x/driver/chooser/cocoa` | `NSOpenPanel` and `NSSavePanel` | macOS file dialog | selection stays here | missing main thread is the chooser error | import `x/ffi/wasm` |
-| `x/driver/chooser/win32` | common item dialog `Choose` | Windows file dialog | selection stays here | missing main thread is the chooser error | import `x/ffi/wasm` |
+| `x/driver/filedialog` | `Choose`, `Request`, `Filter` | host file or folder dialog | protocol stays here | `ErrCanceled`, `ErrRequest`; missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
+| `x/driver/filedialog/portal` | `Choose`, `Available` | portal file chooser call | GTK and KDE service names stay here | missing bus name is `driver.ErrIncompatible` | import `x/ffi/native`; show a dialog by itself |
+| `x/driver/filedialog/gtk` | GTK `Choose` | facade of the gtk portal backend | selection stays here | missing gtk portal is `driver.ErrIncompatible` | import `x/ffi/native` |
+| `x/driver/filedialog/qt` | Qt `Choose` | facade of the KDE portal backend | selection stays here | missing KDE portal is `driver.ErrIncompatible` | import `x/ffi/native` |
+| `x/driver/filedialog/cocoa` | `NSOpenPanel` and `NSSavePanel` | macOS file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
+| `x/driver/filedialog/win32` | common item dialog `Choose` | Windows file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio` |
@@ -186,11 +186,11 @@ Inherited C (cite the file):
 | INV-38 | `x/ffi/native/coreaudio` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` or `x/driver` |
 | INV-39 | `x/driver/audio_play/winmm` imports `x/ffi/native/winmm` and does not import `x/ffi/native` | `x/driver/audio_play/winmm` | an import of `x/ffi/native` |
 | INV-40 | `x/driver/audio_play/coreaudio` imports `x/ffi/native/coreaudio` and does not import `x/ffi/native` | `x/driver/audio_play/coreaudio` | an import of `x/ffi/native` |
-| INV-41 | `x/driver/chooser` does not import `x/ffi/native` or `x/ffi/wasm` | `x/driver/chooser` | that import |
-| INV-42 | `x/driver/chooser/gtk` does not import `x/ffi/native` | `x/driver/chooser/gtk` | that import |
-| INV-43 | `x/driver/chooser/qt` does not import `x/ffi/native` | `x/driver/chooser/qt` | that import |
-| INV-44 | `x/driver/chooser/cocoa` does not import `x/ffi/wasm` | `x/driver/chooser/cocoa` | that import |
-| INV-45 | `x/driver/chooser/win32` does not import `x/ffi/wasm` | `x/driver/chooser/win32` | that import |
+| INV-41 | `x/driver/filedialog` does not import `x/ffi/native` or `x/ffi/wasm` | `x/driver/filedialog` | that import |
+| INV-42 | `x/driver/filedialog/gtk` does not import `x/ffi/native` | `x/driver/filedialog/gtk` | that import |
+| INV-43 | `x/driver/filedialog/qt` does not import `x/ffi/native` | `x/driver/filedialog/qt` | that import |
+| INV-44 | `x/driver/filedialog/cocoa` does not import `x/ffi/wasm` | `x/driver/filedialog/cocoa` | that import |
+| INV-45 | `x/driver/filedialog/win32` does not import `x/ffi/wasm` | `x/driver/filedialog/win32` | that import |
 
 ## Errors
 
@@ -208,7 +208,7 @@ Inherited C (cite the file):
 | `gui.Run` | nil `Model` | Return `ErrModel`. |
 | `gui.Run` | nil `Window` | Return `window.ErrClosed`. |
 | `gui.Model.View` | nil `Node` | Return `ErrView`. Do not `Draw`. |
-| `chooser.Choose` | `Save` with `Folder` or `Multiple` | Return `ErrRequest`. |
+| `filedialog.Choose` | `Save` with `Folder` or `Multiple` | Return `ErrRequest`. |
 
 ## Actors
 

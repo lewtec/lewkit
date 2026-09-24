@@ -7,13 +7,13 @@ import (
 	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/chooser"
-	"github.com/lewtec/lewkit/x/driver/chooser/portal"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
+	"github.com/lewtec/lewkit/x/driver/filedialog/portal"
 )
 
 type factory struct{}
 
-func (factory) ID() string   { return "chooser_gtk" }
+func (factory) ID() string   { return "filedialog_gtk" }
 func (factory) Name() string { return "GTK" }
 
 func (factory) Weight() int {
@@ -30,15 +30,15 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	return portal.Available(ctx, portal.GTK)
 }
 
-func (factory) New(context.Context) (chooser.Driver, error) {
+func (factory) New(context.Context) (filedialog.Driver, error) {
 	return opener{}, nil
 }
 
 type opener struct{}
 
-var _ driver.DriverFactory[chooser.Driver] = factory{}
+var _ driver.DriverFactory[filedialog.Driver] = factory{}
 var _ driver.Weighter = factory{}
 
 func init() {
-	driver.Register[chooser.Driver](&factory{})
+	driver.Register[filedialog.Driver](&factory{})
 }

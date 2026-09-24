@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/godbus/dbus/v5"
-	"github.com/lewtec/lewkit/x/driver/chooser"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,11 +24,11 @@ func TestPathFromURI(t *testing.T) {
 }
 
 func TestOptions(t *testing.T) {
-	got := options(chooser.Request{
+	got := options(filedialog.Request{
 		Directory: "/tmp",
 		Name:      "note.txt",
 		Save:      true,
-		Filters: []chooser.Filter{{
+		Filters: []filedialog.Filter{{
 			Name:     "Text",
 			Patterns: []string{"*.txt", ""},
 		}},
@@ -44,7 +44,7 @@ func TestOptions(t *testing.T) {
 
 func TestPathsFromResults(t *testing.T) {
 	_, err := pathsFromResults(responseCancel, nil)
-	require.ErrorIs(t, err, chooser.ErrCanceled)
+	require.ErrorIs(t, err, filedialog.ErrCanceled)
 
 	_, err = pathsFromResults(2, nil)
 	require.Error(t, err)
