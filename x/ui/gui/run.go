@@ -153,6 +153,13 @@ func (runner *runner) loop() error {
 				return nil
 			}
 			if _, tick := msg.(TickMsg); tick {
+				stop, err := runner.drainLatest()
+				if err != nil {
+					return err
+				}
+				if stop {
+					return nil
+				}
 				if err := runner.flush(false); err != nil {
 					return err
 				}
@@ -170,6 +177,24 @@ func (runner *runner) loop() error {
 			if err := runner.flush(false); err != nil {
 				return err
 			}
+		}
+	}
+}
+
+// drainLatest applies ticks already queued. A newer frame replaces one
+// that has not been presented yet.
+func (runner *runner) drainLatest() (bool, error) {
+	for {
+		select {
+		case newer := <-runner.commands:
+			if err := runner.handle(newer); err != nil {
+				return false, err
+			}
+			if _, stop := newer.(window.Close); stop {
+				return true, nil
+			}
+		default:
+			return false, nil
 		}
 	}
 }

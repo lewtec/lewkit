@@ -749,21 +749,28 @@ func (s *Screen) pickMode() int32 {
 	if check(s.wsi.presentModes(s.d.phys, s.surface, &n, &modes[0])) != nil {
 		return presentFIFO
 	}
+	return choosePresentMode(modes[:n])
+}
+
+// choosePresentMode keeps the latest image. Mailbox lets the display
+// vsync and drops a frame that was not scanned out. FIFO is only used
+// when the device offers nothing else.
+func choosePresentMode(modes []int32) int32 {
 	has := func(want int32) bool {
-		for _, m := range modes[:n] {
+		for _, m := range modes {
 			if m == want {
 				return true
 			}
 		}
 		return false
 	}
-	if has(presentFIFO) {
-		return presentFIFO
-	}
 	if has(presentMailbox) {
 		return presentMailbox
 	}
-	return presentImmediate
+	if has(presentImmediate) {
+		return presentImmediate
+	}
+	return presentFIFO
 }
 
 func (s *Screen) ensureStore() error {
