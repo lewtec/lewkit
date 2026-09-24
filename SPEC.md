@@ -108,9 +108,21 @@ Inherited C (cite the file):
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label` | value | blit stays here | existing blit errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image/convert` | `Decode`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | icon bytes stay here | bad bytes are `ErrFormat` | import `x/driver` |
+| `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV` | PCM value | mixing, seek, and the decoder registry stay here | `ErrFormat`, `ErrFrame`, `ErrClosed`, `ErrSeek` | open a host device; import `x/driver`; import `x/sound/mp3`; import `x/sound/ogg` |
+| `x/sound/mp3` | MP3 `Decoder` | registered decoder | decode stays here | mp3 decode error | import `x/driver` |
+| `x/sound/ogg` | Ogg Vorbis `Decoder` | registered decoder | decode stays here | vorbis decode error | import `x/driver` |
+| `x/sound/prelude` | blank import of the decoders | registry side effect | imports stay here | duplicate `Register` panics | decode by itself |
+| `x/driver/sound` | `Open`, `Sinks`, `Config` | host sink is the playback writer | protocol stays here | missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
+| `x/ffi/native/pulse` | `Playback`, `List`, `Stream` | libpulse binding | simple playback stays here | pulse error text | import `x/ffi/wasm`; import `x/driver` |
+| `x/driver/sound/pulse` | PulseAudio `Open` | facade of the pulse binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native`; return `pa_simple` |
+| `x/driver/sound/mem` | in-memory `Open` | test sink | capture stays here | incompatible unless `LEWKIT_SOUND_MEM` is set | play on a host device |
+| `x/ffi/native/winmm` | `Open`, `Devices`, `Stream` | winmm binding | waveOut playback stays here | waveOut error text | import `x/ffi/wasm`; import `x/driver` |
+| `x/driver/sound/winmm` | waveOut `Open` | facade of the winmm binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
+| `x/ffi/native/coreaudio` | `Open`, `Devices`, `Stream` | AudioQueue binding | playback stays here | CoreAudio error text | import `x/ffi/wasm`; import `x/driver` |
+| `x/driver/sound/coreaudio` | AudioQueue `Open` | facade of the coreaudio binding | selection stays here | missing framework is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
-| `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan` |
+| `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
 | `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd` | libvulkan binding | compute subset stays here | existing vulkan errors | import `x/ffi/wasm` |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
@@ -141,7 +153,7 @@ Inherited C (cite the file):
 | INV-11 | This module is not a UI library | this repository | advertising `x/ui` as the product; a Flutter widget tree as the public API |
 | INV-12 | Host window events include `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, and `Key` | `x/driver/window` | pointer `Msg` types that the host does not emit |
 | INV-13 | `x/ffi` has no Go package | `x/ffi` | a `.go` file whose package is `ffi` |
-| INV-14 | `x/ffi/native` does not import `x/ffi/native/vulkan` | `x/ffi/native` | that import |
+| INV-14 | `x/ffi/native` does not import a nested binding | `x/ffi/native` | an import of `vulkan`, `pulse`, `winmm`, `coreaudio`, `webkitgtk`, `webkit`, or `webview2` |
 | INV-15 | `x/ffi/wasm` does not import `x/ffi/wasm/glsl` | `x/ffi/wasm` | that import |
 | INV-16 | `x/ffi/wasm` does not import `x/ffi/wasm/capstone` | `x/ffi/wasm` | that import |
 | INV-17 | `x/ffi/native/vulkan` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
@@ -160,6 +172,14 @@ Inherited C (cite the file):
 | INV-30 | `Open` does not listen on a socket. The page is memory or `fs.FS`. Script messages are the Go bridge | `x/driver/webview` | `net.Listen`; a loopback URL |
 | INV-31 | `x/ffi/native/webkit` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
 | INV-32 | `x/driver/tray` does not import `x/ffi/wasm` | `x/driver/tray` | that import |
+| INV-33 | `x/sound` does not import `x/driver`, `x/sound/mp3`, or `x/sound/ogg` | `x/sound` | that import |
+| INV-34 | `x/driver/sound` does not import `x/ffi/native` | `x/driver/sound` | that import |
+| INV-35 | `x/driver/sound/pulse` imports `x/ffi/native/pulse` and does not import `x/ffi/native` | `x/driver/sound/pulse` | an import of `x/ffi/native` |
+| INV-36 | `x/ffi/native/pulse` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` or `x/driver` |
+| INV-37 | `x/ffi/native/winmm` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` or `x/driver` |
+| INV-38 | `x/ffi/native/coreaudio` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` or `x/driver` |
+| INV-39 | `x/driver/sound/winmm` imports `x/ffi/native/winmm` and does not import `x/ffi/native` | `x/driver/sound/winmm` | an import of `x/ffi/native` |
+| INV-40 | `x/driver/sound/coreaudio` imports `x/ffi/native/coreaudio` and does not import `x/ffi/native` | `x/driver/sound/coreaudio` | an import of `x/ffi/native` |
 
 ## Errors
 
