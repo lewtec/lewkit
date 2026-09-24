@@ -35,7 +35,8 @@ type Album struct {
 
 // Library is an in-memory catalog of audio files.
 type Library struct {
-	db *sql.DB
+	db     *sql.DB
+	covers string
 }
 
 // OpenLibrary returns an empty in-memory catalog.
@@ -62,10 +63,17 @@ func OpenLibrary() (*Library, error) {
 
 // Close releases the catalog.
 func (lib *Library) Close() error {
-	if lib == nil || lib.db == nil {
+	if lib == nil {
 		return nil
 	}
-	return lib.db.Close()
+	var err error
+	if lib.covers != "" {
+		err = os.RemoveAll(lib.covers)
+	}
+	if lib.db != nil {
+		err = errors.Join(err, lib.db.Close())
+	}
+	return err
 }
 
 // Ingest walks root. A file adds itself. A folder adds audio under it.
@@ -128,7 +136,7 @@ func (lib *Library) ingestFile(ctx context.Context, root, path string) (bool, er
 	if err != nil {
 		return false, err
 	}
-	cover := folderCover(filepath.Dir(path))
+	cover := lib.trackCover(filepath.Dir(path), path)
 	_, err = lib.db.ExecContext(ctx, `INSERT INTO tracks(path, title, artist, album, cover, duration_ms)
 		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(path) DO UPDATE SET
@@ -241,14 +249,4 @@ func audioDuration(path string) (time.Duration, error) {
 		return 0, nil
 	}
 	return pipe.Duration(), nil
-}
-
-func folderCover(dir string) string {
-	for _, name := range []string{"cover.png", "cover.jpg", "cover.jpeg", "folder.png", "folder.jpg", "front.jpg"} {
-		path := filepath.Join(dir, name)
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return path
-		}
-	}
-	return ""
 }
