@@ -74,7 +74,7 @@ func TestWelcomeLightMode(t *testing.T) {
 	require.NotNil(t, node)
 	card, selected := welcome.cards()
 	assert.Equal(t, Color{255, 255, 255, 255}, card)
-	assert.Equal(t, Color{255, 228, 186, 255}, selected)
+	assert.Equal(t, Color{214, 226, 238, 255}, selected)
 }
 
 func TestWelcomeLogo(t *testing.T) {
@@ -93,6 +93,19 @@ func TestWelcomeLogo(t *testing.T) {
 		}
 	}
 	assert.Greater(t, navy, 50)
+}
+
+func TestImageKeepsStraightAlpha(t *testing.T) {
+	src := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	src.Pix = []uint8{13, 53, 89, 128}
+	node := &Image{Src: src, Width: 1, Height: 1}
+	node.Layout(Tight(1, 1))
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.recordOnly = true
+	node.Paint(Offset{}, Rect{0, 0, 1, 1}, picture)
+	require.NoError(t, picture.paintInk(1, 1))
+	assert.Equal(t, []uint8{13, 53, 89, 128}, picture.inkRGBA.Pix[:4])
 }
 
 func TestImageClip(t *testing.T) {

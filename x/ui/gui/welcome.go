@@ -166,7 +166,7 @@ func (welcome *Welcome) View() Node {
 	if welcome == nil {
 		return nil
 	}
-	background, ink := Palette(welcome.mode)
+	background, ink := welcome.page()
 	card, selected := welcome.cards()
 	muted := fade(ink, background)
 	welcome.rows = welcome.rows[:0]
@@ -193,10 +193,11 @@ func (welcome *Welcome) View() Node {
 		children = append(children, row, gap(8))
 	}
 	children = append(children, gap(8))
-	welcome.browse = welcome.row("Open a folder", "Browse this computer", Color{240, 162, 2, 255}, Color{28, 22, 8, 255}, Color{80, 58, 12, 255})
+	button := brandNavy
 	if welcome.cursor == welcome.browseAt() {
-		welcome.browse.Fill = &Color{255, 186, 48, 255}
+		button = brandNavyHot
 	}
+	welcome.browse = welcome.row("Open a folder", "Browse this computer", button, Color{255, 255, 255, 255}, Color{186, 206, 222, 255})
 	children = append(children, welcome.browse)
 	if welcome.note != "" {
 		children = append(children, gap(12), line(welcome.note, muted))
@@ -223,11 +224,25 @@ func (welcome *Welcome) row(name, detail string, fill, ink, muted Color) *Box {
 	}
 }
 
+// brandNavy is the lockup fill from monorepo/branding/logo_full.svg (#0d3559).
+var (
+	brandNavy    = Color{13, 53, 89, 255}
+	brandNavyHot = Color{24, 78, 122, 255}
+)
+
+func (welcome *Welcome) page() (background, ink Color) {
+	background, ink = Palette(welcome.mode)
+	if welcome.mode != daynight.Light {
+		background = Color{7, 18, 32, 255}
+	}
+	return background, ink
+}
+
 func (welcome *Welcome) cards() (card, selected Color) {
 	if welcome.mode == daynight.Light {
-		return Color{255, 255, 255, 255}, Color{255, 228, 186, 255}
+		return Color{255, 255, 255, 255}, Color{214, 226, 238, 255}
 	}
-	return Color{20, 22, 30, 255}, Color{48, 56, 78, 255}
+	return Color{12, 32, 52, 255}, Color{20, 56, 88, 255}
 }
 
 func (welcome *Welcome) center(child Node, height float32) *Box {

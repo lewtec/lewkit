@@ -2,7 +2,6 @@ package gui
 
 import (
 	"image"
-	"image/draw"
 	"math"
 
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -88,8 +87,11 @@ func (picture *Picture) thumb(stamp imageStamp, width, height int) *image.RGBA {
 			return got
 		}
 	}
-	scaled := image.NewRGBA(image.Rect(0, 0, width, height))
-	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), stamp.src, stamp.src.Bounds(), draw.Src, nil)
+	// Ink stores straight alpha. The ink shader multiplies rgb by a.
+	straight := image.NewNRGBA(image.Rect(0, 0, width, height))
+	xdraw.ApproxBiLinear.Scale(straight, straight.Bounds(), stamp.src, stamp.src.Bounds(), xdraw.Src, nil)
+	scaled := image.NewRGBA(straight.Bounds())
+	copy(scaled.Pix, straight.Pix)
 	if stamp.radius > 0 {
 		punchRadius(scaled, scaled.Bounds(), scaled.Bounds(), float64(stamp.radius))
 	}
