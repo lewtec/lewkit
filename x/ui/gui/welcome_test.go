@@ -1,8 +1,10 @@
 package gui
 
 import (
+	"context"
 	"image"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -16,7 +18,7 @@ func TestWelcomePicksRecent(t *testing.T) {
 	paintWelcome(t, welcome)
 	require.Len(t, welcome.rows, 2)
 	_, cmd := welcome.Update(window.Pointer{Pos: mid(welcome.rows[0]), Button: 1, Pressed: true})
-	assert.Nil(t, cmd)
+	assertQuit(t, cmd)
 	assert.Equal(t, dir, welcome.Picked())
 }
 
@@ -30,12 +32,39 @@ func TestWelcomeKeyboard(t *testing.T) {
 }
 
 func TestWelcomeEscape(t *testing.T) {
-	var stopped bool
 	welcome := NewWelcome("lewkit", nil)
-	welcome.OnDone(func() { stopped = true })
-	welcome.Update(window.Key{Rune: 0x1b, Pressed: true})
-	assert.True(t, stopped)
+	_, cmd := welcome.Update(window.Key{Rune: 0x1b, Pressed: true})
+	assertQuit(t, cmd)
 	assert.Empty(t, welcome.Picked())
+}
+
+func TestWelcomeDialogUsesCallerContext(t *testing.T) {
+	welcome := NewWelcome("lewkit", nil)
+	welcome.cursor = welcome.browseAt()
+	_, cmd := welcome.Update(window.Key{Rune: '\n', Pressed: true})
+	require.NotNil(t, cmd)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	picked, ok := cmd(ctx).(folderPicked)
+	require.True(t, ok)
+	assert.ErrorIs(t, picked.err, context.Canceled)
+}
+
+func TestWelcomeOpenCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	welcome := NewWelcome("lewkit", nil)
+	done := make(chan error, 1)
+	go func() {
+		done <- Open(ctx, welcome, Options{Config: window.Config{Width: 80, Height: 60}})
+	}()
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+	select {
+	case <-done:
+		assert.Empty(t, welcome.Picked())
+	case <-time.After(2 * time.Second):
+		t.Fatal("Open did not return")
+	}
 }
 
 func TestWelcomeLightMode(t *testing.T) {
@@ -48,14 +77,46 @@ func TestWelcomeLightMode(t *testing.T) {
 	assert.Equal(t, Color{255, 228, 186, 255}, selected)
 }
 
-func TestWelcomeMarkPaints(t *testing.T) {
+func TestWelcomeLogo(t *testing.T) {
 	welcome := NewWelcome("lewkit", nil)
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	picture.recordOnly = true
 	_, err = picture.Render(welcome.View(), Size{Width: 880, Height: 720})
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(picture.fills), 3)
+	require.NotEmpty(t, picture.images)
+	var navy int
+	for i := 0; i+3 < len(picture.inkRGBA.Pix); i += 4 {
+		red, green, blue, alpha := picture.inkRGBA.Pix[i], picture.inkRGBA.Pix[i+1], picture.inkRGBA.Pix[i+2], picture.inkRGBA.Pix[i+3]
+		if alpha > 200 && blue > red && blue > green && blue > 40 {
+			navy++
+		}
+	}
+	assert.Greater(t, navy, 50)
+}
+
+func TestImageClip(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for i := range src.Pix {
+		src.Pix[i] = 255
+	}
+	node := &Image{Src: src, Width: 8, Height: 8}
+	node.Layout(Tight(8, 8))
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.recordOnly = true
+	node.Paint(Offset{}, Rect{0, 0, 3, 8}, picture)
+	require.NoError(t, picture.paintInk(8, 8))
+	pix := picture.inkRGBA.Pix
+	assert.Equal(t, uint8(255), pix[0])
+	assert.Equal(t, uint8(0), pix[3*4])
+}
+
+func assertQuit(t *testing.T, cmd Cmd) {
+	t.Helper()
+	require.NotNil(t, cmd)
+	_, ok := cmd(context.Background()).(quitMsg)
+	assert.True(t, ok)
 }
 
 func paintWelcome(t *testing.T, welcome *Welcome) {

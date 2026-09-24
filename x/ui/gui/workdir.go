@@ -55,11 +55,7 @@ func pickDir(ctx context.Context) (string, error) {
 		dirs = nil
 	}
 	welcome := NewWelcome("lewkit", dirs)
-	welcome.Use(ctx)
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	welcome.OnDone(cancel)
-	err = Open(runCtx, welcome, Options{
+	err = Open(ctx, welcome, Options{
 		Config: window.Config{Title: "lewkit", Width: 880, Height: 720},
 	})
 	if welcome.Picked() != "" {

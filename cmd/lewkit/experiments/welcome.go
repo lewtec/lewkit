@@ -2,7 +2,6 @@ package experiments
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/ui/gui"
@@ -21,11 +20,7 @@ func (*welcomeCmd) Run(ctx context.Context) error {
 		return err
 	}
 	model := gui.NewWelcome("lewkit", dirs)
-	model.Use(ctx)
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	model.OnDone(cancel)
-	err = runGUI(runCtx, "welcome", gui.Options{
+	err = runGUI(ctx, "welcome", gui.Options{
 		Title:  "lewkit",
 		Width:  880,
 		Height: 720,
@@ -37,8 +32,8 @@ func (*welcomeCmd) Run(ctx context.Context) error {
 		fmt.Println(path)
 		return nil
 	}
-	if errors.Is(err, context.Canceled) && ctx.Err() == nil {
-		return nil
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
 	}
 	return err
 }

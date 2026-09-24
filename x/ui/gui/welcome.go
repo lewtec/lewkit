@@ -14,7 +14,7 @@ import (
 
 const welcomeWidth = 460
 
-// Welcome is the start screen: a mark, a title, and recent folders.
+// Welcome is the start screen: the LEWTEC TECNOLOGIA lockup and recent folders.
 type Welcome struct {
 	title  string
 	dirs   []Directory
@@ -22,8 +22,6 @@ type Welcome struct {
 	cursor int
 	note   string
 	picked string
-	ctx    context.Context
-	stop   func()
 	rows   []*Box
 	browse *Box
 }
@@ -37,20 +35,6 @@ func NewWelcome(title string, dirs []Directory) *Welcome {
 		dirs = dirs[:recentLimit]
 	}
 	return &Welcome{title: title, dirs: append([]Directory(nil), dirs...), mode: daynight.Dark}
-}
-
-// Use keeps ctx for the folder dialog.
-func (welcome *Welcome) Use(ctx context.Context) {
-	if welcome != nil {
-		welcome.ctx = ctx
-	}
-}
-
-// OnDone runs when the user picks a folder or dismisses the window.
-func (welcome *Welcome) OnDone(stop func()) {
-	if welcome != nil {
-		welcome.stop = stop
-	}
 }
 
 // Picked is the folder the user chose. It is empty until then.
@@ -104,7 +88,7 @@ func (welcome *Welcome) point(event window.Pointer) (Model, Cmd) {
 func (welcome *Welcome) key(event window.Key) (Model, Cmd) {
 	switch {
 	case welcome.escape(event):
-		welcome.finish()
+		return welcome.finish()
 	case welcome.up(event) && welcome.cursor > 0:
 		welcome.cursor--
 	case welcome.down(event) && welcome.cursor < welcome.browseAt():
@@ -117,22 +101,17 @@ func (welcome *Welcome) key(event window.Key) (Model, Cmd) {
 
 func (welcome *Welcome) activate() (Model, Cmd) {
 	if welcome.cursor == welcome.browseAt() {
-		if welcome.ctx == nil {
-			welcome.note = "No folder dialog on this system."
-			return welcome, nil
-		}
 		return welcome, welcome.openFolder()
 	}
 	if welcome.cursor >= 0 && welcome.cursor < len(welcome.dirs) {
 		welcome.picked = welcome.dirs[welcome.cursor].Path
-		welcome.finish()
+		return welcome.finish()
 	}
 	return welcome, nil
 }
 
 func (welcome *Welcome) openFolder() Cmd {
-	ctx := welcome.ctx
-	return func() Msg {
+	return func(ctx context.Context) Msg {
 		paths, err := filedialog.Choose(ctx, filedialog.Request{
 			Title:  "Open folder",
 			Folder: true,
@@ -157,14 +136,11 @@ func (welcome *Welcome) folder(msg folderPicked) (Model, Cmd) {
 		return welcome, nil
 	}
 	welcome.picked = msg.paths[0]
-	welcome.finish()
-	return welcome, nil
+	return welcome.finish()
 }
 
-func (welcome *Welcome) finish() {
-	if welcome.stop != nil {
-		welcome.stop()
-	}
+func (welcome *Welcome) finish() (Model, Cmd) {
+	return welcome, func(context.Context) Msg { return quitMsg{} }
 }
 
 func (welcome *Welcome) hit(pos image.Point) (int, bool) {
@@ -195,7 +171,7 @@ func (welcome *Welcome) View() Node {
 	muted := fade(ink, background)
 	welcome.rows = welcome.rows[:0]
 	children := []Node{
-		welcome.center(mark(), 88),
+		welcome.logo(),
 		gap(18),
 		welcome.centerText(welcome.title, ink),
 		gap(6),
@@ -274,18 +250,24 @@ func gap(height float32) *Box {
 	return &Box{Width: welcomeWidth, Height: height}
 }
 
-func mark() Node {
-	amber := Color{240, 162, 2, 255}
-	navy := Color{18, 28, 48, 255}
-	teal := Color{61, 204, 199, 255}
+func (welcome *Welcome) logo() Node {
+	lockup := logoImage()
+	width := float32(welcomeWidth - 40)
+	height := width
+	if bounds := lockup.Bounds(); bounds.Dx() > 0 {
+		height = width * float32(bounds.Dy()) / float32(bounds.Dx())
+	}
+	imageNode := &Image{Src: lockup, Width: width, Height: height}
+	if welcome.mode == daynight.Light {
+		return &Box{Width: welcomeWidth, Align: Alignment{0.5, 0.5}, Child: imageNode}
+	}
 	return &Box{
-		Width: 72, Height: 72, Radius: 18, Fill: &amber,
-		Padding: EdgeInsets{14, 14, 14, 14},
-		Child: &Box{
-			Radius: 12, Fill: &navy,
-			Padding: EdgeInsets{10, 10, 10, 10},
-			Child:   &Box{Radius: 8, Fill: &teal},
-		},
+		Width:   welcomeWidth,
+		Align:   Alignment{0.5, 0.5},
+		Padding: EdgeInsets{20, 16, 20, 16},
+		Radius:  16,
+		Fill:    &Color{255, 255, 255, 255},
+		Child:   imageNode,
 	}
 }
 
