@@ -16,6 +16,7 @@ import (
 	"maps"
 	"os"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -38,6 +39,15 @@ var (
 	ErrUnavailable = errors.New("no available driver")
 	errCorrupt     = errors.New("driver registry corrupt")
 )
+
+// ForGOOS reports [ErrIncompatible] when this process is not goos.
+// The text is "not <goos>".
+func ForGOOS(goos string) error {
+	if runtime.GOOS == goos {
+		return nil
+	}
+	return fmt.Errorf("%w: not %s", ErrIncompatible, goos)
+}
 
 // DriverFactory is one source of drivers for capability T. Name may
 // change after CheckCompatibility (device name, display, …).

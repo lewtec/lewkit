@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"runtime"
 	"sync"
 	"testing"
 
@@ -12,6 +13,17 @@ import (
 )
 
 var errInitFailed = errors.New("init failed")
+
+func TestForGOOS(t *testing.T) {
+	require.NoError(t, driver.ForGOOS(runtime.GOOS))
+	other := "plan9"
+	if runtime.GOOS == other {
+		other = "windows"
+	}
+	err := driver.ForGOOS(other)
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.Contains(t, err.Error(), "not "+other)
+}
 
 type picker interface {
 	ID() string
