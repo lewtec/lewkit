@@ -65,38 +65,22 @@ func (stamp imageStamp) draw(destination *image.RGBA) {
 	if bounds.Empty() || bounds.Intersect(destination.Bounds()).Empty() {
 		return
 	}
+	keep := bounds.Intersect(image.Rect(int(stamp.clip.X), int(stamp.clip.Y), int(stamp.clip.X+stamp.clip.Width), int(stamp.clip.Y+stamp.clip.Height)))
+	keep = keep.Intersect(destination.Bounds())
+	if keep.Empty() {
+		return
+	}
 	scaled := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
 	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), stamp.src, stamp.src.Bounds(), draw.Src, nil)
-	draw.Draw(destination, bounds, scaled, image.Point{}, draw.Over)
-	clearOutside(destination, bounds, image.Rect(int(stamp.clip.X), int(stamp.clip.Y), int(stamp.clip.X+stamp.clip.Width), int(stamp.clip.Y+stamp.clip.Height)))
+	draw.Draw(destination, keep, scaled, image.Pt(keep.Min.X-bounds.Min.X, keep.Min.Y-bounds.Min.Y), draw.Over)
 	if stamp.radius > 0 {
-		punchRadius(destination, bounds, float64(stamp.radius))
-	}
-}
-
-func clearOutside(destination *image.RGBA, bounds, keep image.Rectangle) {
-	keep = keep.Intersect(bounds)
-	pix := destination.Pix
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		if y < destination.Bounds().Min.Y || y >= destination.Bounds().Max.Y {
-			continue
-		}
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			if x < destination.Bounds().Min.X || x >= destination.Bounds().Max.X {
-				continue
-			}
-			if x >= keep.Min.X && x < keep.Max.X && y >= keep.Min.Y && y < keep.Max.Y {
-				continue
-			}
-			off := destination.PixOffset(x, y)
-			pix[off], pix[off+1], pix[off+2], pix[off+3] = 0, 0, 0, 0
-		}
+		punchRadius(destination, bounds, keep, float64(stamp.radius))
 	}
 }
 
 // punchRadius clears pixels outside the rounded rect. Ink treats a zero
 // alpha with leftover color as opaque, so the whole pixel goes to zero.
-func punchRadius(destination *image.RGBA, bounds image.Rectangle, radius float64) {
+func punchRadius(destination *image.RGBA, bounds, keep image.Rectangle, radius float64) {
 	width := float64(bounds.Dx())
 	height := float64(bounds.Dy())
 	if width < 1 || height < 1 {
@@ -109,15 +93,8 @@ func punchRadius(destination *image.RGBA, bounds image.Rectangle, radius float64
 		radius = height / 2
 	}
 	pix := destination.Pix
-	limit := destination.Bounds()
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		if y < limit.Min.Y || y >= limit.Max.Y {
-			continue
-		}
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			if x < limit.Min.X || x >= limit.Max.X {
-				continue
-			}
+	for y := keep.Min.Y; y < keep.Max.Y; y++ {
+		for x := keep.Min.X; x < keep.Max.X; x++ {
 			localX := float64(x) + 0.5 - float64(bounds.Min.X) - width/2
 			localY := float64(y) + 0.5 - float64(bounds.Min.Y) - height/2
 			halfW := width / 2
