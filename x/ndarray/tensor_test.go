@@ -85,6 +85,20 @@ func TestNewInt(t *testing.T) {
 	require.Equal(t, []int32{9, 2, 3}, mustEval(t, x))
 }
 
+func TestDivNumber(t *testing.T) {
+	a, err := New([]float32{3, 4}, Shape{2})
+	require.NoError(t, err)
+	b, err := New([]float32{2, 2}, Shape{2})
+	require.NoError(t, err)
+	require.Equal(t, []float32{1.5, 2}, mustEval(t, DivNumber(a, b)))
+
+	ai, err := New([]int32{3, 4}, Shape{2})
+	require.NoError(t, err)
+	bi, err := New([]int32{2, 2}, Shape{2})
+	require.NoError(t, err)
+	require.Equal(t, []int32{1, 2}, mustEval(t, DivNumber(ai, bi)))
+}
+
 func TestTensorAdd(t *testing.T) {
 	a, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)

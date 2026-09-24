@@ -884,12 +884,7 @@ func allBits[T ndarray.Number]() T {
 }
 
 func divide[T ndarray.Number](a, b *ndarray.Tensor[T]) *ndarray.Tensor[T] {
-	switch any(T(0)).(type) {
-	case float32:
-		return a.Div(b)
-	default:
-		return a.IDiv(b)
-	}
+	return ndarray.DivNumber(a, b)
 }
 
 func shapeFromDimensions(dims []int64) ndarray.Shape {
