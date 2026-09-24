@@ -15,7 +15,8 @@ import (
 
 // Welcome is `lewkit experiments welcome`.
 type welcomeCmd struct {
-	logo cmd.StringArg `long:"logo" default:"" help:"image to show instead of the LEWTEC lockup"`
+	logo   cmd.StringArg `long:"logo" default:"" help:"image to show instead of the LEWTEC lockup"`
+	accent cmd.ColorArg  `long:"accent" default:"" help:"accent #RRGGBB; the logo average when omitted"`
 }
 
 func (welcomeCmd) Description() string {
@@ -34,6 +35,9 @@ func (c *welcomeCmd) Run(ctx context.Context) error {
 			return err
 		}
 		model.Logo(img)
+	}
+	if c.accent.IsSet() {
+		model.Accent(c.accent.Value())
 	}
 	err = runGUI(ctx, "welcome", gui.Options{
 		Title:  "lewkit",

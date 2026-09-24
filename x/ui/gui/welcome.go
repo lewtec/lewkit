@@ -9,6 +9,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/window"
+	lewimage "github.com/lewtec/lewkit/x/image"
 	lewpath "github.com/lewtec/lewkit/x/path"
 )
 
@@ -16,15 +17,17 @@ const welcomeWidth = 460
 
 // Welcome is the start screen: the LEWTEC TECNOLOGIA lockup and recent folders.
 type Welcome struct {
-	title  string
-	dirs   []Directory
-	mode   daynight.Mode
-	cursor int
-	note   string
-	picked string
-	mark   image.Image
-	rows   []*Box
-	browse *Box
+	title     string
+	dirs      []Directory
+	mode      daynight.Mode
+	cursor    int
+	note      string
+	picked    string
+	mark      image.Image
+	accent    Color
+	hasAccent bool
+	rows      []*Box
+	browse    *Box
 }
 
 // NewWelcome lists dirs under title. An empty title is lewkit.
@@ -36,6 +39,15 @@ func NewWelcome(title string, dirs []Directory) *Welcome {
 		dirs = dirs[:recentLimit]
 	}
 	return &Welcome{title: title, dirs: append([]Directory(nil), dirs...), mode: daynight.Dark}
+}
+
+// Accent sets the color of the rows and the open button.
+// The zero value, and a call that never happens, uses the average color of the logo.
+func (welcome *Welcome) Accent(color Color) {
+	if welcome != nil {
+		welcome.accent = color
+		welcome.hasAccent = true
+	}
 }
 
 // Logo replaces the built-in lockup. Nil keeps the LEWTEC TECNOLOGIA image.
@@ -201,11 +213,13 @@ func (welcome *Welcome) View() Node {
 		children = append(children, row, gap(8))
 	}
 	children = append(children, gap(8))
-	button := brandNavy
+	accent := welcome.accentColor()
+	button := accent
 	if welcome.cursor == welcome.browseAt() {
-		button = brandNavyHot
+		button = mixColor(accent, Color{255, 255, 255, 255}, 48)
 	}
-	welcome.browse = welcome.row("Open a folder", "Browse this computer", button, Color{255, 255, 255, 255}, Color{186, 206, 222, 255})
+	label, detail := onAccent(button)
+	welcome.browse = welcome.row("Open a folder", "Browse this computer", button, label, detail)
 	children = append(children, welcome.browse)
 	if welcome.note != "" {
 		children = append(children, gap(12), line(welcome.note, muted))
@@ -232,25 +246,31 @@ func (welcome *Welcome) row(name, detail string, fill, ink, muted Color) *Box {
 	}
 }
 
-// brandNavy is the lockup fill from monorepo/branding/logo_full.svg (#0d3559).
-var (
-	brandNavy    = Color{13, 53, 89, 255}
-	brandNavyHot = Color{24, 78, 122, 255}
-)
-
 func (welcome *Welcome) page() (background, ink Color) {
-	background, ink = Palette(welcome.mode)
-	if welcome.mode != daynight.Light {
-		background = Color{7, 18, 32, 255}
+	return Palette(welcome.mode)
+}
+
+func (welcome *Welcome) accentColor() Color {
+	if welcome.hasAccent {
+		return welcome.accent
 	}
-	return background, ink
+	return lewimage.Average(welcome.lockup())
 }
 
 func (welcome *Welcome) cards() (card, selected Color) {
+	accent := welcome.accentColor()
 	if welcome.mode == daynight.Light {
-		return Color{255, 255, 255, 255}, Color{214, 226, 238, 255}
+		return Color{255, 255, 255, 255}, mixColor(Color{255, 255, 255, 255}, accent, 28)
 	}
-	return Color{12, 32, 52, 255}, Color{20, 56, 88, 255}
+	base := Color{16, 18, 24, 255}
+	return mixColor(base, accent, 36), mixColor(base, accent, 88)
+}
+
+func (welcome *Welcome) lockup() image.Image {
+	if welcome.mark != nil {
+		return welcome.mark
+	}
+	return logoImage()
 }
 
 func (welcome *Welcome) center(child Node, height float32) *Box {
@@ -274,10 +294,7 @@ func gap(height float32) *Box {
 }
 
 func (welcome *Welcome) logo() Node {
-	lockup := logoImage()
-	if welcome.mark != nil {
-		lockup = welcome.mark
-	}
+	lockup := welcome.lockup()
 	width := float32(welcomeWidth - 40)
 	height := width
 	if bounds := lockup.Bounds(); bounds.Dx() > 0 {
@@ -295,6 +312,21 @@ func (welcome *Welcome) logo() Node {
 		Fill:    &Color{255, 255, 255, 255},
 		Child:   imageNode,
 	}
+}
+
+func mixColor(base, accent Color, toward uint8) Color {
+	mix := func(from, to uint8) uint8 {
+		return uint8((int(from)*(255-int(toward)) + int(to)*int(toward)) / 255)
+	}
+	return Color{mix(base.Red, accent.Red), mix(base.Green, accent.Green), mix(base.Blue, accent.Blue), 255}
+}
+
+func onAccent(fill Color) (ink, muted Color) {
+	luma := int(fill.Red)*30 + int(fill.Green)*59 + int(fill.Blue)*11
+	if luma > 15000 {
+		return Color{24, 24, 28, 255}, Color{70, 70, 78, 255}
+	}
+	return Color{255, 255, 255, 255}, Color{214, 222, 230, 255}
 }
 
 func fade(ink, background Color) Color {

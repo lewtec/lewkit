@@ -8,6 +8,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
+	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -72,9 +73,24 @@ func TestWelcomeLightMode(t *testing.T) {
 	welcome.Update(ModeMsg{Mode: daynight.Light})
 	node := welcome.View()
 	require.NotNil(t, node)
+	welcome.Accent(Color{200, 0, 0, 255})
 	card, selected := welcome.cards()
 	assert.Equal(t, Color{255, 255, 255, 255}, card)
-	assert.Equal(t, Color{214, 226, 238, 255}, selected)
+	assert.Greater(t, int(selected.Red), int(selected.Blue))
+}
+
+func TestWelcomeAccentFromLogo(t *testing.T) {
+	welcome := NewWelcome("lewkit", []Directory{{Path: t.TempDir()}})
+	welcome.View()
+	require.NotNil(t, welcome.browse.Fill)
+	assert.Equal(t, lewimage.Average(logoImage()), *welcome.browse.Fill)
+}
+
+func TestWelcomeAccentOverride(t *testing.T) {
+	welcome := NewWelcome("lewkit", []Directory{{Path: t.TempDir()}})
+	welcome.Accent(Color{20, 180, 40, 255})
+	welcome.View()
+	assert.Equal(t, Color{20, 180, 40, 255}, *welcome.browse.Fill)
 }
 
 func TestWelcomeLogo(t *testing.T) {

@@ -17,6 +17,7 @@ func TestWelcomeUsage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "pick a folder")
 	assert.Contains(t, text, "--logo")
+	assert.Contains(t, text, "--accent")
 }
 
 func TestLoadLogo(t *testing.T) {
