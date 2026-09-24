@@ -77,6 +77,7 @@ func attachMetalView(s *Screen, view objc.ID) (hostSurface, error) {
 	}
 	layer.Send(objc.RegisterName("setContentsScale:"), 1.0)
 	layer.Send(objc.RegisterName("setDrawableSize:"), nsSize{Width: w, Height: h})
+	layer.Send(objc.RegisterName("setDisplaySyncEnabled:"), true)
 	view.Send(objc.RegisterName("setLayer:"), layer)
 	view.Send(objc.RegisterName("setWantsLayer:"), true)
 	host := &metalHost{screen: s, view: view, layer: layer, lastW: int(w + 0.5), lastH: int(h + 0.5), borrowed: true}
@@ -125,6 +126,7 @@ func openMetalWindow(screen *Screen, width, height int, title string) (hostSurfa
 	}
 	layer.Send(objc.RegisterName("setContentsScale:"), 1.0)
 	layer.Send(objc.RegisterName("setDrawableSize:"), nsSize{Width: float64(width), Height: float64(height)})
+	layer.Send(objc.RegisterName("setDisplaySyncEnabled:"), true)
 	view.Send(objc.RegisterName("setLayer:"), layer)
 	view.Send(objc.RegisterName("setWantsLayer:"), true)
 	wnd.Send(objc.RegisterName("center"))

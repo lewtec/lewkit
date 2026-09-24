@@ -21,14 +21,19 @@ func Tick() Cmd {
 	return func() Msg { return TickMsg{} }
 }
 
-// Every waits d then produces a [TickMsg]. Models that animate return
-// Every from Update after handling a tick.
+// Every produces a [TickMsg] one display period after this call.
+// The wait is the time still left in that period, so a present that
+// already took the frame does not sleep again. Models that animate
+// return Every from Update after handling a tick.
 func Every(duration time.Duration) Cmd {
 	if duration <= 0 {
 		duration = window.DefaultFramePeriod
 	}
+	deadline := time.Now().Add(duration)
 	return func() Msg {
-		time.Sleep(duration)
+		if wait := time.Until(deadline); wait > 0 {
+			time.Sleep(wait)
+		}
 		return TickMsg{}
 	}
 }

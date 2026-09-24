@@ -22,6 +22,11 @@ type display interface {
 	present(ctx context.Context, view *ndarray.Tensor[uint8], evaluator ndarray.Evaluator) error
 }
 
+// listPainter draws the recorded fills instead of evaluating the fused kernel.
+type listPainter interface {
+	presentList(ctx context.Context, picture *Picture) error
+}
+
 type imageDisplay struct{ window.Window }
 
 func (d imageDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], evaluator ndarray.Evaluator) error {
@@ -36,6 +41,22 @@ type bridgeDisplay struct {
 
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
 	return ndeval.Paint(ctx, d.evaluator, view, d.screen)
+}
+
+func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error {
+	if picture == nil {
+		return ErrView
+	}
+	size := d.Size()
+	var ink []byte
+	if picture.hadInk && picture.inkRGBA != nil {
+		ink = picture.inkRGBA.Pix
+	}
+	under, err := picture.rasterBytes(ctx, d.evaluator, size.X, size.Y)
+	if err != nil {
+		return err
+	}
+	return drawFills(ctx, d.screen, picture.fills, under, ink, size.X, size.Y)
 }
 
 type runner struct {
@@ -59,6 +80,11 @@ type runner struct {
 func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, model Model) error {
 	if host == nil {
 		return window.ErrClosed
+	}
+	if screen, gpu, err := bridge(ctx, host); err == nil {
+		defer screen.Close()
+		defer gpu.Close()
+		return run(ctx, bridgeDisplay{Window: host, screen: screen, evaluator: gpu}, nil, model)
 	}
 	return run(ctx, imageDisplay{host}, evaluator, model)
 }
@@ -123,6 +149,23 @@ func (runner *runner) loop() error {
 			if err := runner.handle(msg); err != nil {
 				return err
 			}
+			if _, stop := msg.(window.Close); stop {
+				return nil
+			}
+			if _, tick := msg.(TickMsg); tick {
+				stop, err := runner.drainLatest()
+				if err != nil {
+					return err
+				}
+				if stop {
+					return nil
+				}
+				if err := runner.flush(false); err != nil {
+					return err
+				}
+				ticker.Reset(period)
+				continue
+			}
 			select {
 			case <-ticker.C:
 				if err := runner.flush(false); err != nil {
@@ -134,6 +177,24 @@ func (runner *runner) loop() error {
 			if err := runner.flush(false); err != nil {
 				return err
 			}
+		}
+	}
+}
+
+// drainLatest applies ticks already queued. A newer frame replaces one
+// that has not been presented yet.
+func (runner *runner) drainLatest() (bool, error) {
+	for {
+		select {
+		case newer := <-runner.commands:
+			if err := runner.handle(newer); err != nil {
+				return false, err
+			}
+			if _, stop := newer.(window.Close); stop {
+				return true, nil
+			}
+		default:
+			return false, nil
 		}
 	}
 }
@@ -199,6 +260,11 @@ func (runner *runner) render() error {
 		return err
 	}
 	if pixels == nil {
+		if runner.picture.recordOnly {
+			runner.view = nil
+			runner.signature = runner.picture.frameSig()
+			return nil
+		}
 		return ErrView
 	}
 	runner.view = pixels
@@ -210,11 +276,31 @@ func (runner *runner) flush(force bool) error {
 	if !force && !runner.dirty {
 		return nil
 	}
+	_, listed := runner.host.(listPainter)
+	runner.picture.recordOnly = listed
 	if err := runner.render(); err != nil {
+		runner.picture.recordOnly = false
 		return err
 	}
+	runner.picture.recordOnly = false
 	runner.dirty = false
-	if !force && runner.signature != 0 && runner.signature == runner.lastSignature {
+	if !force && runner.picture.raster == nil && runner.signature != 0 && runner.signature == runner.lastSignature {
+		return nil
+	}
+	if listed && runner.view != nil && runner.picture.raster != nil {
+		if err := runner.host.present(runner.ctx, runner.view, runner.evaluator); err != nil {
+			return err
+		}
+		runner.hertz = runner.fps.Get()
+		runner.lastSignature = runner.signature
+		return nil
+	}
+	if listed {
+		if err := runner.host.(listPainter).presentList(runner.ctx, runner.picture); err != nil {
+			return err
+		}
+		runner.hertz = runner.fps.Get()
+		runner.lastSignature = runner.signature
 		return nil
 	}
 	if runner.view == nil {

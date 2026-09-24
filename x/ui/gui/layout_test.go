@@ -277,6 +277,19 @@ func marqueeBars(t *testing.T, marquee *Marquee, width, height int) []Draw {
 	return bars
 }
 
+func TestPictureRecordSkipsKernel(t *testing.T) {
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.recordOnly = true
+	pixels, err := picture.Render(&Box{Fill: &Color{10, 20, 30, 255}}, Size{8, 8})
+	require.NoError(t, err)
+	assert.Nil(t, pixels)
+	require.Len(t, picture.fills, 1)
+	assert.InDelta(t, float32(8), picture.fills[0].Width, 0)
+	assert.NotZero(t, picture.frameSig())
+	assert.Nil(t, picture.params)
+}
+
 func TestPictureReuseKernel(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)

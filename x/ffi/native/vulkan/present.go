@@ -72,32 +72,54 @@ const (
 
 // Screen is a native window plus the swapchain on its device.
 type Screen struct {
-	d         *Device
-	host      hostSurface
-	surface   uint64
-	swap      uint64
-	format    int32
-	swapRB    int32
-	width     int
-	height    int
-	images    []uint64
-	views     []uint64
-	layouts   []int32
-	store     uint64
-	storeView uint64
-	storeMem  uint64
-	storeLay  int32
-	acqFence  uint64
-	wsi       wsi
-	pipe      uint64
-	pipeLay   uint64
-	setLay    uint64
-	pool      uint64
-	set       uint64
-	module    uint64
-	spirvLen  int
-	mu        sync.Mutex
-	onInput   func(Input)
+	d          *Device
+	host       hostSurface
+	surface    uint64
+	swap       uint64
+	format     int32
+	swapRB     int32
+	width      int
+	height     int
+	images     []uint64
+	views      []uint64
+	layouts    []int32
+	store      uint64
+	storeView  uint64
+	storeMem   uint64
+	storeLay   int32
+	acqFence   uint64
+	wsi        wsi
+	pipe       uint64
+	pipeLay    uint64
+	setLay     uint64
+	pool       uint64
+	set        uint64
+	module     uint64
+	spirvLen   int
+	drawPass   uint64
+	drawFormat int32
+	drawFrames []uint64
+	fillPipe   uint64
+	inkPipe    uint64
+	fillLay    uint64
+	inkLay     uint64
+	fillSetLay uint64
+	inkSetLay  uint64
+	fillPool   uint64
+	inkPool    uint64
+	fillSet    uint64
+	inkSet     uint64
+	fillVert   uint64
+	fillFrag   uint64
+	inkVert    uint64
+	inkFrag    uint64
+	fillBuf    *Buffer
+	inkBuf     *Buffer
+	underBuf   *Buffer
+	underPool  uint64
+	underSet   uint64
+	mu         sync.Mutex
+	onInput    func(Input)
 }
 
 type wsi struct {
@@ -371,6 +393,7 @@ func (s *Screen) Close() error {
 	var err error
 	if d != nil && d.dev != 0 {
 		err = d.WaitIdle()
+		s.destroyDraw()
 		s.destroyPipe()
 		if s.storeView != 0 {
 			s.wsi.destroyView(d.dev, s.storeView, 0)
@@ -566,7 +589,7 @@ func presentFamily(s *Screen, phys uintptr) (uint32, bool) {
 	fams := make([]queueFamilyProperties, nq)
 	s.d.api.getQueueFamilies(phys, &nq, &fams[0])
 	for i, f := range fams[:nq] {
-		if f.queueFlags&queueComputeBit == 0 || f.queueCount == 0 {
+		if f.queueFlags&queueGraphicsBit == 0 || f.queueFlags&queueComputeBit == 0 || f.queueCount == 0 {
 			continue
 		}
 		var supported uint32
@@ -672,6 +695,7 @@ func (s *Screen) dropSwap() {
 	if d == nil || d.dev == 0 {
 		return
 	}
+	s.destroyFrames()
 	for _, v := range s.views {
 		if v != 0 && s.wsi.destroyView != nil {
 			s.wsi.destroyView(d.dev, v, 0)
@@ -725,19 +749,26 @@ func (s *Screen) pickMode() int32 {
 	if check(s.wsi.presentModes(s.d.phys, s.surface, &n, &modes[0])) != nil {
 		return presentFIFO
 	}
+	return choosePresentMode(modes[:n])
+}
+
+// choosePresentMode keeps the latest image. Mailbox lets the display
+// vsync and drops a frame that was not scanned out. FIFO is only used
+// when the device offers nothing else.
+func choosePresentMode(modes []int32) int32 {
 	has := func(want int32) bool {
-		for _, m := range modes[:n] {
+		for _, m := range modes {
 			if m == want {
 				return true
 			}
 		}
 		return false
 	}
-	if has(presentImmediate) {
-		return presentImmediate
-	}
 	if has(presentMailbox) {
 		return presentMailbox
+	}
+	if has(presentImmediate) {
+		return presentImmediate
 	}
 	return presentFIFO
 }

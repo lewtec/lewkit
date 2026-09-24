@@ -4,6 +4,7 @@ import (
 	"image"
 	"math"
 
+	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -33,9 +34,17 @@ type Picture struct {
 	inkRGBA     *image.RGBA
 	fills       []Draw
 	texts       []textRun
+	raster      *ndarray.Tensor[float32]
+	rasterFrom  *ndarray.Tensor[float32]
+	rasterCast  *ndarray.Tensor[uint8]
+	mounted     *ndarray.Tensor[float32]
+	black       *ndarray.Tensor[float32]
+	paintEval   ndarray.Evaluator
+	paintDevice vulkan.Device
 	signature   uint64
 	hadInk      bool
 	fillCount   int
+	recordOnly  bool
 }
 
 func accumulatorOf(picture *Picture) *ndarray.Tensor[float32] {
@@ -120,6 +129,7 @@ func (picture *Picture) init() error {
 	picture.channel = ndarray.Coord(2, shape)
 	picture.base = channelColor(picture.channel, ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(0)), ndarray.Const(float32(255)))
 	picture.ink = ink
+	picture.black = picture.base
 	picture.accumulator = picture.base
 	return nil
 }
@@ -138,6 +148,10 @@ func (picture *Picture) over(fill Draw) *ndarray.Tensor[float32] {
 		return nil
 	}
 	picture.fills = append(picture.fills, fill)
+	if picture.recordOnly {
+		picture.fillCount = len(picture.fills)
+		return picture.base
+	}
 	index := len(picture.fills) - 1
 	if index >= len(picture.slots) {
 		capacity := len(picture.slots)
@@ -230,8 +244,41 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]
+	picture.raster = nil
+	if picture.black != nil && picture.base != picture.black && picture.mounted == nil {
+		picture.base = picture.black
+		picture.slots = nil
+		picture.composites = nil
+		picture.inkedFrom = nil
+	}
 	picture.accumulator = picture.base
 	accumulator := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, picture)
+	mount := picture.mountable()
+	if mount && picture.mounted == picture.raster && picture.fillCount == 0 && picture.pixels != nil {
+		height, width := int(size.Height), int(size.Width)
+		if err := picture.pixels.Resize(ndarray.Shape{height, width, 4}); err != nil {
+			return nil, err
+		}
+		return picture.pixels, nil
+	}
+	if mount {
+		picture.recordOnly = false
+	}
+	if !picture.recordOnly {
+		picture.fuseRaster()
+		accumulator = picture.accumulator
+	}
+	if picture.recordOnly {
+		height, width := int(size.Height), int(size.Width)
+		if err := picture.ensureInk(height, width, len(picture.texts)); err != nil {
+			return nil, err
+		}
+		for _, run := range picture.texts {
+			run.stamp(picture.inkRGBA)
+		}
+		picture.stamp(len(picture.texts) > 0)
+		return nil, nil
+	}
 	if accumulator == nil {
 		accumulator = picture.base
 	}
@@ -253,7 +300,19 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 		run.stamp(picture.inkRGBA)
 	}
 	picture.stamp(len(picture.texts) > 0)
+	if mount {
+		picture.mounted = picture.raster
+		picture.recordOnly = true
+	}
 	return picture.pixels, nil
+}
+
+func (picture *Picture) mountable() bool {
+	if picture == nil || picture.raster == nil || !picture.recordOnly {
+		return false
+	}
+	shape := picture.raster.Shape()
+	return shape == nil || shape.Equal(ndarray.Shape{1, 1, 4})
 }
 
 func (picture *Picture) frameSig() uint64 {
@@ -271,6 +330,24 @@ func (picture *Picture) stamp(ink bool) {
 	mix := func(value uint64) {
 		hash ^= value
 		hash *= 1099511628211
+	}
+	if picture.recordOnly {
+		for _, fill := range picture.fills {
+			for _, value := range []float32{fill.X, fill.Y, fill.Width, fill.Height, fill.Red, fill.Green, fill.Blue, fill.Alpha, fill.Radius, fill.ClipX, fill.ClipY, fill.ClipWidth, fill.ClipHeight} {
+				mix(uint64(math.Float32bits(value)))
+			}
+		}
+		if picture.inkRGBA != nil {
+			mix(uint64(picture.inkRGBA.Rect.Dx()))
+			mix(uint64(picture.inkRGBA.Rect.Dy()))
+		}
+		if ink && picture.inkRGBA != nil {
+			for _, pixel := range picture.inkRGBA.Pix {
+				mix(uint64(pixel))
+			}
+		}
+		picture.signature = hash
+		return
 	}
 	if picture.params != nil {
 		for _, uniform := range picture.params.Buffer() {
