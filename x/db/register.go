@@ -77,6 +77,10 @@ func splitURL(raw string) (scheme, dsn string) {
 	}
 }
 
+func memoryDSN(dsn string) bool {
+	return dsn == ":memory:" || strings.Contains(dsn, "mode=memory") || strings.Contains(dsn, ":memory:")
+}
+
 func sqliteDSN(u *url.URL, raw string) string {
 	if u.Scheme == "file" {
 		if u.Opaque != "" {

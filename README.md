@@ -184,6 +184,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit experiments window scroll` | Rounded translucent boxes in a loop. Flags `--width` and `--height`. |
 | `lewkit experiments window notepad` | An editor. The buffer stays in memory. Flags `--width` and `--height`. |
 | `lewkit experiments window counter` | Two buttons that add and subtract an integer. Flags `--width` and `--height`. |
+| `lewkit experiments window music` | Drop a music folder, or pass `--dir`. Browse and play from an in-memory catalog. |
 
 `lewkit experiments window compute --smoke` prints a 4-byte probe. The probe needs a Vulkan compute device.
 

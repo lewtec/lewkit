@@ -283,21 +283,25 @@ func (s *Screen) Draw(instances, under, ink []byte, width, height int, fillVert,
 			return err
 		}
 	}
-	inked := len(ink) >= width*height*4
-	backed := len(under) >= width*height*4
+	need := width * height * 4
+	uploadInk := len(ink) >= need
+	reuseInk := !uploadInk && s.inkReady && s.inkW == width && s.inkH == height && s.inkBuf != nil
+	inked := uploadInk || reuseInk
+	backed := len(under) >= need
 	if backed || inked {
 		if err := s.ensureGraphics(&s.inkPipe, &s.inkLay, &s.inkSetLay, &s.inkPool, &s.inkSet, &s.inkVert, &s.inkFrag, inkVert, inkFrag, shaderStageFragment); err != nil {
 			return err
 		}
 	}
-	if inked {
-		need := width * height * 4
+	if uploadInk {
 		if err := s.growBuf(&s.inkBuf, need); err != nil {
 			return err
 		}
 		if err := s.inkBuf.Write(ink[:need]); err != nil {
 			return err
 		}
+		s.inkReady = true
+		s.inkW, s.inkH = width, height
 	}
 	if backed {
 		if err := s.ensureUnder(); err != nil {
@@ -546,8 +550,10 @@ func (s *Screen) recordDraw(index uint32, fills int, backed, inked bool) error {
 	scissor := rect2D{width: uint32(s.width), height: uint32(s.height)}
 	d.api.cmdSetViewport(d.cmd, 0, 1, uintptr(unsafe.Pointer(&view)))
 	d.api.cmdSetScissor(d.cmd, 0, 1, uintptr(unsafe.Pointer(&scissor)))
-	push := [3]uint32{mathFloatBits(float32(s.width)), mathFloatBits(float32(s.height)), uint32(s.swapRB)}
-	inkPush := [3]uint32{uint32(s.width), uint32(s.height), uint32(s.swapRB)}
+	// Color-attachment output is logical RGBA. The swapchain format
+	// places the bytes; swapping here again turns red into blue.
+	push := [3]uint32{mathFloatBits(float32(s.width)), mathFloatBits(float32(s.height)), 0}
+	inkPush := [3]uint32{uint32(s.width), uint32(s.height), 0}
 	if backed {
 		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.inkPipe)
 		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.inkLay, 0, 1, &s.underSet, 0, nil)
@@ -660,6 +666,7 @@ func (s *Screen) destroyDraw() {
 		_ = s.inkBuf.Close()
 		s.inkBuf = nil
 	}
+	s.inkReady = false
 	if s.underBuf != nil {
 		_ = s.underBuf.Close()
 		s.underBuf = nil

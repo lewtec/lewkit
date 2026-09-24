@@ -14,6 +14,7 @@ type Node interface {
 
 type textRun struct {
 	box    Rect
+	clip   Rect
 	body   []rune
 	face   font.Face
 	cursor int

@@ -91,6 +91,8 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		wmDelete: wmDelete,
 		want:     window.WantSize{Width: w, Height: h},
 	}
+	win.loadKeys()
+	win.enableDrop()
 	go win.loop()
 	window.CloseWhenDone(ctx, win)
 	return win, nil
@@ -160,6 +162,12 @@ type xwin struct {
 	wmDelete xproto.Atom
 	bgra     []byte
 	want     window.WantSize
+	minKey   byte
+	symsPer  int
+	keysyms  []xproto.Keysym
+	dnd      *dndAtoms
+	dropSrc  xproto.Window
+	dropOK   bool
 }
 
 func (w *xwin) Size() image.Point {
@@ -279,14 +287,19 @@ func (w *xwin) loop() {
 		case xproto.ButtonReleaseEvent:
 			w.x11Button(int(e.EventX), int(e.EventY), int(e.Detail), false, e.State)
 		case xproto.KeyPressEvent:
-			w.Emit(window.Key{Code: uint32(e.Detail), Pressed: true, Mod: x11Mod(e.State)})
+			w.Emit(window.Key{Code: uint32(e.Detail), Rune: w.runeOf(e.Detail, e.State), Pressed: true, Mod: x11Mod(e.State)})
 		case xproto.KeyReleaseEvent:
-			w.Emit(window.Key{Code: uint32(e.Detail), Pressed: false, Mod: x11Mod(e.State)})
+			w.Emit(window.Key{Code: uint32(e.Detail), Rune: w.runeOf(e.Detail, e.State), Pressed: false, Mod: x11Mod(e.State)})
 		case xproto.ClientMessageEvent:
+			if w.handleDnd(e) {
+				continue
+			}
 			if e.Type != 0 && w.wmDelete != 0 && e.Data.Data32[0] == uint32(w.wmDelete) {
 				_ = w.Close()
 				return
 			}
+		case xproto.SelectionNotifyEvent:
+			w.finishDrop(e)
 		}
 	}
 }

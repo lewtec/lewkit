@@ -18,6 +18,7 @@ const (
 // Notepad is an unsaved text editor. View builds a Box/Flex/Text tree.
 // Nil Face uses [lewimage.Face].
 type Notepad struct {
+	Dirty
 	Face font.Face
 
 	size     image.Point
@@ -46,7 +47,7 @@ func (notepad *Notepad) Update(msg Msg) (Model, Cmd) {
 	var cmd Cmd
 	if tick, ok := msg.(TickMsg); ok {
 		notepad.last = tick.Elapsed
-		notepad.caret = tick.Elapsed.Milliseconds()/400%2 == 0
+		notepad.Dirty, notepad.caret = See(notepad.Dirty, notepad.caret, tick.Elapsed.Milliseconds()/400%2 == 0)
 		cmd = Every(tick.Period)
 	}
 	switch event := msg.(type) {
@@ -56,12 +57,12 @@ func (notepad *Notepad) Update(msg Msg) (Model, Cmd) {
 		}
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed && notepad.bodyText != nil {
-			notepad.cursor = notepad.bodyText.indexAt(event.Pos)
-			notepad.caret = true
+			notepad.Dirty, notepad.cursor = See(notepad.Dirty, notepad.cursor, notepad.bodyText.indexAt(event.Pos))
+			notepad.Dirty, notepad.caret = See(notepad.Dirty, notepad.caret, true)
 		}
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		notepad.size = size
+		notepad.Dirty, notepad.size = See(notepad.Dirty, notepad.size, size)
 	}
 	return notepad, cmd
 }
@@ -106,11 +107,11 @@ func (notepad *Notepad) key(key window.Key) {
 		notepad.insert('\n')
 	case notepad.left(key):
 		if notepad.cursor > 0 {
-			notepad.cursor--
+			notepad.Dirty, notepad.cursor = See(notepad.Dirty, notepad.cursor, notepad.cursor-1)
 		}
 	case notepad.right(key):
 		if notepad.cursor < len(notepad.body) {
-			notepad.cursor++
+			notepad.Dirty, notepad.cursor = See(notepad.Dirty, notepad.cursor, notepad.cursor+1)
 		}
 	case key.Rune >= 32 && key.Rune != 127:
 		notepad.insert(key.Rune)
@@ -120,12 +121,14 @@ func (notepad *Notepad) key(key window.Key) {
 func (notepad *Notepad) insert(character rune) {
 	notepad.body = slices.Insert(notepad.body, notepad.cursor, character)
 	notepad.cursor++
+	notepad.Dirty = Touch(notepad.Dirty)
 }
 
 func (notepad *Notepad) deleteBehind() {
 	if notepad.cursor > 0 {
 		notepad.body = append(notepad.body[:notepad.cursor-1], notepad.body[notepad.cursor:]...)
 		notepad.cursor--
+		notepad.Dirty = Touch(notepad.Dirty)
 	}
 }
 

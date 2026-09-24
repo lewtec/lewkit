@@ -9,7 +9,7 @@ import (
 
 // Msg is an incoming event. Host messages are [window.Resize],
 // [window.Expose], [window.Close], [window.Pointer], [window.Scroll],
-// [window.Key], [TickMsg], and [ModeMsg].
+// [window.Key], [window.Drop], [TickMsg], and [ModeMsg].
 type Msg any
 
 // Cmd produces a follow-up [Msg]. Nil means no command.

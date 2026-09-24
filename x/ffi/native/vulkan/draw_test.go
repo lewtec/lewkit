@@ -9,7 +9,7 @@ import (
 
 func TestChoosePresentMode(t *testing.T) {
 	require.Equal(t, int32(presentMailbox), choosePresentMode([]int32{presentImmediate, presentMailbox, presentFIFO}))
-	require.Equal(t, int32(presentImmediate), choosePresentMode([]int32{presentFIFO, presentImmediate}))
+	require.Equal(t, int32(presentFIFO), choosePresentMode([]int32{presentFIFO, presentImmediate}))
 	require.Equal(t, int32(presentFIFO), choosePresentMode([]int32{presentFIFO}))
 	require.Equal(t, int32(presentFIFO), choosePresentMode(nil))
 }

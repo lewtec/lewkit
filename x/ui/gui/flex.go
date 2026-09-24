@@ -47,10 +47,21 @@ type FlexChild struct {
 	position float32
 }
 
+// CrossAlign places children on the cross axis. The zero value centers.
+type CrossAlign int
+
+const (
+	CrossCenter CrossAlign = iota
+	CrossStart
+	CrossEnd
+)
+
 // Flex is Row/Column. Tight constraints fill the parent; loose constraints
-// pack to children. Leftover main goes to Flex>0.
+// pack to children. Leftover main goes to Flex>0. Gap is the space between children.
 type Flex struct {
 	Axis     Axis
+	Cross    CrossAlign
+	Gap      float32
 	Children []FlexChild
 
 	size Size
@@ -69,6 +80,26 @@ func Row(children ...Node) *Flex {
 // Column is a vertical [Flex].
 func Column(children ...Node) *Flex {
 	return newFlex(Vertical, children)
+}
+
+// WithGap returns a copy of flex with Gap set. flex is left unchanged.
+func WithGap(gap float32, flex *Flex) *Flex {
+	if flex == nil {
+		return nil
+	}
+	next := *flex
+	next.Gap = gap
+	return &next
+}
+
+// WithCross returns a copy of flex with Cross set. flex is left unchanged.
+func WithCross(cross CrossAlign, flex *Flex) *Flex {
+	if flex == nil {
+		return nil
+	}
+	next := *flex
+	next.Cross = cross
+	return &next
 }
 
 func newFlex(axis Axis, children []Node) *Flex {
@@ -97,7 +128,7 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 		usedMain += axis.main(child.size)
 		maxChildCross = max(maxChildCross, axis.cross(child.size))
 	}
-	remaining := max(float32(0), maximumMain-usedMain)
+	remaining := max(float32(0), maximumMain-usedMain-flex.gaps())
 	for i := range flex.Children {
 		child := &flex.Children[i]
 		if child.Child == nil || child.Flex <= 0 {
@@ -111,6 +142,7 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 		usedMain += axis.main(child.size)
 		maxChildCross = max(maxChildCross, axis.cross(child.size))
 	}
+	usedMain += flex.gaps()
 	mainSize := usedMain
 	if constraints.tightMain(axis) {
 		mainSize = maximumMain
@@ -121,14 +153,36 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 	}
 	flex.size = constraints.Constrain(axis.size(max(mainSize, constraints.mainMinimum(axis)), crossSize))
 	var cursor float32
+	placed := 0
 	for i := range flex.Children {
 		child := &flex.Children[i]
-		child.position = cursor
-		if child.Child != nil {
-			cursor += axis.main(child.size)
+		if child.Child == nil {
+			continue
 		}
+		if placed > 0 {
+			cursor += flex.Gap
+		}
+		child.position = cursor
+		cursor += axis.main(child.size)
+		placed++
 	}
 	return flex.size
+}
+
+func (flex *Flex) gaps() float32 {
+	if flex == nil || flex.Gap == 0 {
+		return 0
+	}
+	count := 0
+	for i := range flex.Children {
+		if flex.Children[i].Child != nil {
+			count++
+		}
+	}
+	if count < 2 {
+		return 0
+	}
+	return flex.Gap * float32(count-1)
 }
 
 func (constraints BoxConstraints) mainMinimum(axis Axis) float32 {
@@ -155,9 +209,18 @@ func (flex *Flex) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Ten
 		if child.Child == nil {
 			continue
 		}
-		crossPadding := (flex.Axis.cross(flex.size) - flex.Axis.cross(child.size)) / 2
-		if crossPadding < 0 {
+		space := flex.Axis.cross(flex.size) - flex.Axis.cross(child.size)
+		if space < 0 {
+			space = 0
+		}
+		var crossPadding float32
+		switch flex.Cross {
+		case CrossStart:
 			crossPadding = 0
+		case CrossEnd:
+			crossPadding = space
+		default:
+			crossPadding = space / 2
 		}
 		accumulator = child.Child.Paint(origin.Add(flex.Axis.offset(child.position, crossPadding)), clip, picture)
 	}

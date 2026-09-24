@@ -170,6 +170,9 @@ func (c *Conn[Q]) Migrate(ctx context.Context, root fs.FS) error {
 		if err := conn.PingContext(ctx); err != nil {
 			return errors.Join(fmt.Errorf("ping %s: %w", eng.Driver, err), conn.Close())
 		}
+		if memoryDSN(dsn) {
+			conn.SetMaxOpenConns(1)
+		}
 		c.conn = conn
 	}
 	if mig == nil {

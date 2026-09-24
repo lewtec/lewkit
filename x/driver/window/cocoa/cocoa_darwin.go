@@ -239,12 +239,15 @@ func (w *win) create(title string, width, height int) error {
 		ns := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), title)
 		wnd.Send(selSetTitle, ns)
 	}
-	view := wnd.Send(selContentView)
-	view.Send(selSetWantsLayer, true)
+	w.wnd = wnd
+	if err := w.installDrop(width, height); err != nil {
+		wnd.Send(selClose)
+		w.wnd = 0
+		return err
+	}
 	acceptMouseMoved(wnd)
 	wnd.Send(selMakeKeyAndOrderFront, objc.ID(0))
 	objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication")).Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
-	w.wnd = wnd
 	return nil
 }
 
@@ -440,6 +443,8 @@ func (w *win) closeNS() {
 		}
 	}
 	if wnd != 0 {
+		view := wnd.Send(selContentView)
+		dropViews.Delete(uintptr(view))
 		wnd.Send(selClose)
 	}
 }

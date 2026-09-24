@@ -20,6 +20,7 @@ type Window struct {
 	Counter  *counterCmd
 	Webview  *webviewCmd
 	Spa      *spaCmd
+	Music    *musicCmd
 }
 
 func (Window) Description() string {

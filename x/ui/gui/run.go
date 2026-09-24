@@ -50,7 +50,7 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 	}
 	size := d.Size()
 	var ink []byte
-	if picture.hadInk && picture.inkRGBA != nil {
+	if picture.inkFresh && picture.hadInk && picture.inkRGBA != nil {
 		ink = picture.inkRGBA.Pix
 	}
 	under, err := picture.rasterBytes(ctx, d.evaluator, size.X, size.Y)
@@ -248,7 +248,13 @@ func (runner *runner) handle(msg Msg) error {
 	}
 	runner.model = next
 	runner.spawn(cmd)
-	runner.dirty = true
+	if changed, ok := next.(interface{ Consume() bool }); ok {
+		if changed.Consume() {
+			runner.dirty = true
+		}
+	} else {
+		runner.dirty = true
+	}
 	if _, stop := msg.(window.Close); stop {
 		return nil
 	}
