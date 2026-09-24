@@ -77,7 +77,12 @@ func (stamp imageStamp) draw(picture *Picture, destination *image.RGBA) {
 		return
 	}
 	scaled := picture.thumb(stamp, bounds.Dx(), bounds.Dy())
-	draw.Draw(destination, keep, scaled, image.Pt(keep.Min.X-bounds.Min.X, keep.Min.Y-bounds.Min.Y), draw.Over)
+	width := keep.Dx() * 4
+	for y := keep.Min.Y; y < keep.Max.Y; y++ {
+		src := scaled.PixOffset(keep.Min.X-bounds.Min.X, y-bounds.Min.Y)
+		dst := destination.PixOffset(keep.Min.X, y)
+		copy(destination.Pix[dst:dst+width], scaled.Pix[src:src+width])
+	}
 }
 
 func (picture *Picture) thumb(stamp imageStamp, width, height int) *image.RGBA {

@@ -1,13 +1,14 @@
 package music
 
 import (
+	"context"
 	"image"
+	"strconv"
 
 	"github.com/lewtec/lewkit/x/driver/window"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"golang.org/x/image/font"
-	"strconv"
 )
 
 type pickedAlbum struct{ name string }
@@ -108,7 +109,7 @@ func (h *headerModel) key(key window.Key) gui.Cmd {
 }
 
 func queryCmd(text string) gui.Cmd {
-	return func() gui.Msg { return pickedQuery{text: text} }
+	return func(context.Context) gui.Msg { return pickedQuery{text: text} }
 }
 
 func (h *headerModel) View() gui.Node {

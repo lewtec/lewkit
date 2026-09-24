@@ -128,7 +128,8 @@ func TestImageKeepsStraightAlpha(t *testing.T) {
 	require.NoError(t, err)
 	picture.recordOnly = true
 	node.Paint(Offset{}, Rect{0, 0, 1, 1}, picture)
-	require.NoError(t, picture.paintInk(1, 1))
+	require.NoError(t, picture.ensureInk(1, 1, picture.inkCount()))
+	picture.drawInk()
 	assert.Equal(t, []uint8{13, 53, 89, 128}, picture.inkRGBA.Pix[:4])
 }
 
@@ -143,7 +144,8 @@ func TestImageClip(t *testing.T) {
 	require.NoError(t, err)
 	picture.recordOnly = true
 	node.Paint(Offset{}, Rect{0, 0, 3, 8}, picture)
-	require.NoError(t, picture.paintInk(8, 8))
+	require.NoError(t, picture.ensureInk(8, 8, picture.inkCount()))
+	picture.drawInk()
 	pix := picture.inkRGBA.Pix
 	assert.Equal(t, uint8(255), pix[0])
 	assert.Equal(t, uint8(0), pix[3*4])
