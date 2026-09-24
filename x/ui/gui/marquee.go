@@ -60,7 +60,7 @@ func (marquee *Marquee) wrap(y float32) float32 {
 
 func (marquee *Marquee) shift(delta float32) {
 	next := marquee.wrap(marquee.offset + delta)
-	Set(&marquee.Dirty, &marquee.offset, next)
+	Set(marquee, &marquee.offset, next)
 }
 
 func wrapShift(y, period float32) float32 {
@@ -128,11 +128,11 @@ func (marquee *Marquee) Update(msg Msg) (Model, Cmd) {
 	switch event := msg.(type) {
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed {
-			Set(&marquee.Dirty, &marquee.dragging, true)
+			Set(marquee, &marquee.dragging, true)
 			marquee.lastPointerY = event.Pos.Y
 		}
 		if event.Button == 1 && !event.Pressed {
-			Set(&marquee.Dirty, &marquee.dragging, false)
+			Set(marquee, &marquee.dragging, false)
 		}
 		if marquee.dragging && event.Buttons&window.ButtonLeft != 0 {
 			marquee.shift(float32(event.Pos.Y - marquee.lastPointerY))
@@ -142,13 +142,13 @@ func (marquee *Marquee) Update(msg Msg) (Model, Cmd) {
 		marquee.shift(float32(event.Delta.Y))
 	case window.Key:
 		if event.Pressed && !event.Repeat && (event.Rune == ' ' || event.Code == 49) {
-			Set(&marquee.Dirty, &marquee.paused, !marquee.paused)
+			Set(marquee, &marquee.paused, !marquee.paused)
 		}
 	case window.Resize:
-		Set(&marquee.Dirty, &marquee.dragging, false)
+		Set(marquee, &marquee.dragging, false)
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		Set(&marquee.Dirty, &marquee.size, size)
+		Set(marquee, &marquee.size, size)
 	}
 	return marquee, cmd
 }

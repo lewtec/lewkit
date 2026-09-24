@@ -47,7 +47,7 @@ func (notepad *Notepad) Update(msg Msg) (Model, Cmd) {
 	var cmd Cmd
 	if tick, ok := msg.(TickMsg); ok {
 		notepad.last = tick.Elapsed
-		Set(&notepad.Dirty, &notepad.caret, tick.Elapsed.Milliseconds()/400%2 == 0)
+		Set(notepad, &notepad.caret, tick.Elapsed.Milliseconds()/400%2 == 0)
 		cmd = Every(tick.Period)
 	}
 	switch event := msg.(type) {
@@ -57,12 +57,12 @@ func (notepad *Notepad) Update(msg Msg) (Model, Cmd) {
 		}
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed && notepad.bodyText != nil {
-			Set(&notepad.Dirty, &notepad.cursor, notepad.bodyText.indexAt(event.Pos))
-			Set(&notepad.Dirty, &notepad.caret, true)
+			Set(notepad, &notepad.cursor, notepad.bodyText.indexAt(event.Pos))
+			Set(notepad, &notepad.caret, true)
 		}
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		Set(&notepad.Dirty, &notepad.size, size)
+		Set(notepad, &notepad.size, size)
 	}
 	return notepad, cmd
 }
@@ -107,11 +107,11 @@ func (notepad *Notepad) key(key window.Key) {
 		notepad.insert('\n')
 	case notepad.left(key):
 		if notepad.cursor > 0 {
-			Set(&notepad.Dirty, &notepad.cursor, notepad.cursor-1)
+			Set(notepad, &notepad.cursor, notepad.cursor-1)
 		}
 	case notepad.right(key):
 		if notepad.cursor < len(notepad.body) {
-			Set(&notepad.Dirty, &notepad.cursor, notepad.cursor+1)
+			Set(notepad, &notepad.cursor, notepad.cursor+1)
 		}
 	case key.Rune >= 32 && key.Rune != 127:
 		notepad.insert(key.Rune)
@@ -121,14 +121,14 @@ func (notepad *Notepad) key(key window.Key) {
 func (notepad *Notepad) insert(character rune) {
 	notepad.body = slices.Insert(notepad.body, notepad.cursor, character)
 	notepad.cursor++
-	notepad.Mark()
+	notepad.MarkDirty()
 }
 
 func (notepad *Notepad) deleteBehind() {
 	if notepad.cursor > 0 {
 		notepad.body = append(notepad.body[:notepad.cursor-1], notepad.body[notepad.cursor:]...)
 		notepad.cursor--
-		notepad.Mark()
+		notepad.MarkDirty()
 	}
 }
 
