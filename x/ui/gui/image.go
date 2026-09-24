@@ -22,6 +22,7 @@ type Image struct {
 type imageStamp struct {
 	src    image.Image
 	box    Rect
+	clip   Rect
 	radius float32
 }
 
@@ -48,10 +49,11 @@ func (node *Image) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Te
 		return accumulatorOf(picture)
 	}
 	full := Rect{origin.X, origin.Y, node.size.Width, node.size.Height}
-	if full.Intersect(clip).Width < 1 || full.Intersect(clip).Height < 1 {
+	visible := full.Intersect(clip)
+	if visible.Width < 1 || visible.Height < 1 {
 		return accumulatorOf(picture)
 	}
-	picture.blit(imageStamp{src: node.Src, box: full, radius: node.Radius})
+	picture.blit(imageStamp{src: node.Src, box: full, clip: visible, radius: node.Radius})
 	return accumulatorOf(picture)
 }
 
@@ -66,8 +68,29 @@ func (stamp imageStamp) draw(destination *image.RGBA) {
 	scaled := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
 	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), stamp.src, stamp.src.Bounds(), draw.Src, nil)
 	draw.Draw(destination, bounds, scaled, image.Point{}, draw.Over)
+	clearOutside(destination, bounds, image.Rect(int(stamp.clip.X), int(stamp.clip.Y), int(stamp.clip.X+stamp.clip.Width), int(stamp.clip.Y+stamp.clip.Height)))
 	if stamp.radius > 0 {
 		punchRadius(destination, bounds, float64(stamp.radius))
+	}
+}
+
+func clearOutside(destination *image.RGBA, bounds, keep image.Rectangle) {
+	keep = keep.Intersect(bounds)
+	pix := destination.Pix
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		if y < destination.Bounds().Min.Y || y >= destination.Bounds().Max.Y {
+			continue
+		}
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			if x < destination.Bounds().Min.X || x >= destination.Bounds().Max.X {
+				continue
+			}
+			if x >= keep.Min.X && x < keep.Max.X && y >= keep.Min.Y && y < keep.Max.Y {
+				continue
+			}
+			off := destination.PixOffset(x, y)
+			pix[off], pix[off+1], pix[off+2], pix[off+3] = 0, 0, 0, 0
+		}
 	}
 }
 

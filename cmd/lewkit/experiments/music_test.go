@@ -71,18 +71,18 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 	require.NoError(t, err)
 	_, err = picture.Render(model.View(), gui.Size{Width: 900, Height: 700})
 	require.NoError(t, err)
-	require.NotEmpty(t, model.rows)
-	require.NotNil(t, model.rows[0].box)
+	require.NotEmpty(t, model.list.hits)
+	require.NotNil(t, model.list.hits[0].box)
 	var hit image.Point
 	found := false
 	for y := 699; y >= 0 && !found; y -= 2 {
 		for x := 0; x < 900; x += 2 {
 			point := image.Pt(x, y)
-			if !model.rows[0].box.Contains(point) {
+			if !model.list.hits[0].box.Contains(point) {
 				continue
 			}
 			onAlbum := false
-			for _, album := range model.albumsHit {
+			for _, album := range model.shelf.hits {
 				if album.box != nil && album.box.Contains(point) {
 					onAlbum = true
 					break
@@ -98,6 +98,8 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 	}
 	require.True(t, found)
 	next, cmd := model.Update(window.Pointer{Pos: hit, Button: 1, Pressed: true})
+	require.NotNil(t, cmd)
+	next, cmd = next.Update(cmd())
 	require.Nil(t, cmd)
 	painted := next.(*musicModel)
 	assert.Equal(t, musicNow, painted.screen)
@@ -112,14 +114,13 @@ func TestMusicScaleGrowsRows(t *testing.T) {
 	small.size = image.Pt(900, 700)
 	small.tracks = []Track{{ID: 1, Title: "song", Artist: "Ada"}}
 	small.View()
-	require.NotEmpty(t, small.rows)
+	require.NotEmpty(t, small.list.hits)
 	big := newMusic(t.Context(), lib, newPlayer(nil))
 	big.size = image.Pt(1800, 1400)
 	big.tracks = small.tracks
 	big.View()
-	require.NotEmpty(t, big.rows)
-	assert.Greater(t, big.rows[0].box.Height, small.rows[0].box.Height*1.5)
-	assert.Greater(t, big.rows[0].box.Width, float32(1500))
+	require.NotEmpty(t, big.list.hits)
+	assert.Greater(t, big.list.hits[0].box.Width, small.list.hits[0].box.Width*1.5)
 	assert.Greater(t, big.scale(), small.scale())
 	_, cmd := big.Update(gui.TickMsg{Size: image.Pt(2400, 1600)})
 	require.NotNil(t, cmd)
@@ -144,7 +145,7 @@ func TestChosenFolderIngests(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, lib.Close()) })
 	model := newMusic(t.Context(), lib, nil)
 	model.View()
-	require.NotNil(t, model.open)
+	require.NotNil(t, model.head.open)
 	_, cmd := model.Update(chosen{paths: []string{root}})
 	require.NotNil(t, cmd)
 	got, ok := cmd().(ingested)

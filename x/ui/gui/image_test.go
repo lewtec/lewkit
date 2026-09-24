@@ -43,6 +43,27 @@ func TestImageRadiusClearsCorner(t *testing.T) {
 	assert.NotEqual(t, color.RGBA{}, ink.RGBAAt(8, 8))
 }
 
+func TestImageClipHidesOverflow(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 4, 4))
+	for i := 0; i < len(src.Pix); i += 4 {
+		src.Pix[i] = 240
+		src.Pix[i+3] = 255
+	}
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	root := &Box{Width: 32, Height: 32, Child: &Box{
+		Width: 32, Height: 16, Clip: true,
+		Child: &Positioned{Y: 8, Child: &Image{Src: src, Width: 16, Height: 16}},
+	}}
+	_, err = picture.Render(root, Size{32, 32})
+	require.NoError(t, err)
+	ink := picture.Ink()
+	require.NotNil(t, ink)
+	assert.Equal(t, color.RGBA{}, ink.RGBAAt(4, 4))
+	assert.Greater(t, int(ink.RGBAAt(4, 12).R), 200)
+	assert.Equal(t, color.RGBA{}, ink.RGBAAt(4, 20))
+}
+
 func TestTextColor(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)

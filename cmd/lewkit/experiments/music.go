@@ -58,39 +58,32 @@ type chosen struct {
 }
 
 type musicModel struct {
-	ctx       context.Context
-	lib       *Library
-	player    *player
-	size      image.Point
-	dir       string
-	query     string
-	search    bool
-	screen    musicScreen
-	album     string
-	albums    []Album
-	tracks    []Track
-	now       *Track
-	resume    int64
-	scroll    float32
-	cardX     float32
-	busy      bool
-	booted    bool
-	note      string
-	mode      daynight.Mode
-	paint     musicPaint
-	maxScroll float32
-	covers    map[string]image.Image
+	ctx    context.Context
+	lib    *Library
+	player *player
+	size   image.Point
+	dir    string
+	query  string
+	search bool
+	screen musicScreen
+	album  string
+	albums []Album
+	tracks []Track
+	now    *Track
+	resume int64
+	scroll float32
+	cardX  float32
+	busy   bool
+	booted bool
+	note   string
+	mode   daynight.Mode
+	paint  musicPaint
+	covers map[string]image.Image
 
-	back      *gui.Box
-	open      *gui.Box
-	searchBox *gui.Box
-	play      *gui.Box
-	prev      *gui.Box
-	next      *gui.Box
-	bar       *gui.Box
-	cards     *gui.Box
-	rows      []musicHit
-	albumsHit []musicHit
+	head  *headerModel
+	shelf *albumModel
+	list  *trackModel
+	stage *nowModel
 }
 
 type musicHit struct {
@@ -106,6 +99,10 @@ func newMusic(ctx context.Context, lib *Library, play *player) *musicModel {
 		player: play,
 		size:   image.Pt(900, 700),
 		mode:   daynight.Dark,
+		head:   &headerModel{},
+		shelf:  &albumModel{},
+		list:   &trackModel{},
+		stage:  &nowModel{},
 	}
 }
 
@@ -131,6 +128,38 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	switch event := msg.(type) {
 	case gui.ModeMsg:
 		m.mode = event.Mode
+	case pickedAlbum:
+		m.album = event.name
+		m.screen = musicAlbum
+		m.list.scroll = 0
+		m.reload()
+		return m, nil
+	case pickedTrack:
+		m.start(event.track)
+		return m, nil
+	case pickedOpen:
+		return m, m.choose()
+	case pickedBack:
+		m.screen = musicBrowse
+		m.list.scroll = 0
+		m.reload()
+		return m, nil
+	case pickedQuery:
+		m.query = event.text
+		m.reload()
+		return m, nil
+	case pickedPlay:
+		m.toggle()
+		return m, nil
+	case pickedStep:
+		m.step(event.delta)
+		return m, nil
+	case pickedSeek:
+		if m.now != nil && m.player != nil {
+			m.resume = event.frame
+			m.player.Play(m.now.Path, event.frame)
+		}
+		return m, nil
 	case chosen:
 		if event.err != nil {
 			m.note = event.err.Error()
@@ -153,31 +182,8 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return m, gui.Tick()
 	case window.Drop:
 		return m, m.ingest(event.Paths)
-	case window.Key:
-		if event.Pressed && m.search {
-			m.key(event)
-		}
-	case window.Pointer:
-		if event.Button == 1 && event.Pressed {
-			if cmd := m.pointer(event.Pos); cmd != nil {
-				return m, cmd
-			}
-		}
-	case window.Scroll:
-		if m.cards != nil && m.cards.Contains(event.Pos) {
-			m.cardX += float32(event.Delta.Y + event.Delta.X)
-			if m.cardX < 0 {
-				m.cardX = 0
-			}
-			break
-		}
-		m.scroll += float32(event.Delta.Y)
-		if m.scroll < 0 {
-			m.scroll = 0
-		}
-		if m.maxScroll > 0 && m.scroll > m.maxScroll {
-			m.scroll = m.maxScroll
-		}
+	case window.Key, window.Pointer, window.Scroll:
+		return m.delegate(event)
 	}
 	return m, nil
 }
@@ -239,78 +245,42 @@ func (m *musicModel) reload() {
 	m.tracks = tracks
 }
 
-func (m *musicModel) key(key window.Key) {
-	switch {
-	case key.Rune == 8 || key.Rune == 127 || key.Code == 22:
-		if m.query != "" {
-			runes := []rune(m.query)
-			m.query = string(runes[:len(runes)-1])
-			m.reload()
-		}
-	case key.Rune == '\n' || key.Rune == '\r':
-		m.search = false
-	case key.Rune >= 32:
-		m.query += string(key.Rune)
-		m.reload()
+func (m *musicModel) delegate(msg gui.Msg) (gui.Model, gui.Cmd) {
+	m.prepare()
+	if cmd := take(&m.head, msg); cmd != nil {
+		return m, cmd
 	}
+	switch m.screen {
+	case musicNow:
+		if cmd := take(&m.stage, msg); cmd != nil {
+			return m, cmd
+		}
+	case musicAlbum:
+		if cmd := take(&m.list, msg); cmd != nil {
+			return m, cmd
+		}
+	default:
+		if cmd := take(&m.shelf, msg); cmd != nil {
+			return m, cmd
+		}
+		if cmd := take(&m.list, msg); cmd != nil {
+			return m, cmd
+		}
+	}
+	return m, nil
 }
 
-func (m *musicModel) pointer(pos image.Point) gui.Cmd {
-	if m.open != nil && m.open.Contains(pos) {
-		return m.choose()
-	}
-	if m.searchBox != nil && m.searchBox.Contains(pos) {
-		m.search = true
+func take[T gui.Model](model *T, msg gui.Msg) gui.Cmd {
+	if model == nil {
 		return nil
 	}
-	m.search = false
-	if m.back != nil && m.back.Contains(pos) {
-		m.screen = musicBrowse
-		m.scroll = 0
-		m.reload()
+	current := gui.Model(*model)
+	if current == nil {
 		return nil
 	}
-	if m.play != nil && m.play.Contains(pos) {
-		m.toggle()
-		return nil
-	}
-	if m.prev != nil && m.prev.Contains(pos) {
-		m.step(-1)
-		return nil
-	}
-	if m.next != nil && m.next.Contains(pos) {
-		m.step(1)
-		return nil
-	}
-	if m.bar != nil && m.bar.Contains(pos) && m.now != nil && m.player != nil && m.player.Total() > 0 {
-		along, _ := m.bar.Unit(pos)
-		if along < 0 {
-			along = 0
-		}
-		if along > 1 {
-			along = 1
-		}
-		frame := int64(along * float32(m.player.Total()))
-		m.resume = frame
-		m.player.Play(m.now.Path, frame)
-		return nil
-	}
-	for _, hit := range m.albumsHit {
-		if hit.box != nil && hit.box.Contains(pos) {
-			m.album = hit.album
-			m.screen = musicAlbum
-			m.scroll = 0
-			m.reload()
-			return nil
-		}
-	}
-	for _, hit := range m.rows {
-		if hit.box != nil && hit.box.Contains(pos) && hit.track != nil {
-			m.start(*hit.track)
-			return nil
-		}
-	}
-	return nil
+	next, cmd := current.Update(msg)
+	*model = next.(T)
+	return cmd
 }
 
 func (m *musicModel) choose() gui.Cmd {
@@ -328,7 +298,6 @@ func (m *musicModel) start(track Track) {
 	m.now = &track
 	m.resume = 0
 	m.screen = musicNow
-	m.scroll = 0
 	if m.player != nil {
 		m.player.Play(track.Path, 0)
 	}
