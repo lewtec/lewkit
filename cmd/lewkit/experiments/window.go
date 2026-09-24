@@ -36,7 +36,7 @@ func (triangleCmd) Description() string {
 }
 
 func (c *triangleCmd) Run(ctx context.Context) error {
-	model, err := newFrameModel(1, triangleDynamic)
+	model, err := newFrameModel(1, c.width.Value(), c.height.Value(), triangleDynamic)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (model *statusModel) View() gui.Node {
 }
 
 func (c *perlinCmd) Run(ctx context.Context) error {
-	model, err := newFrameModel(0.4, perlinDynamic)
+	model, err := newFrameModel(0.4, c.width.Value(), c.height.Value(), perlinDynamic)
 	if err != nil {
 		return err
 	}

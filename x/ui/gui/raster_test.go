@@ -23,6 +23,19 @@ func TestRasterPaintsTensor(t *testing.T) {
 	assert.Equal(t, uint8(210), out[(3*4+3)*4])
 }
 
+func TestRasterBytesVaryAcrossFrame(t *testing.T) {
+	shape := ndarray.Shape{1, 1, 4}
+	source := ndarray.Coord(1, shape).Cast[float32]()
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.raster = source
+	buffer, err := picture.rasterBytes(t.Context(), ndarray.CPU, 4, 4)
+	require.NoError(t, err)
+	require.Len(t, buffer, 4*4*4)
+	assert.Equal(t, uint8(0), buffer[0])
+	assert.NotEqual(t, buffer[0], buffer[3*4])
+}
+
 func TestRasterUnderFill(t *testing.T) {
 	shape := ndarray.Shape{1, 1, 4}
 	channel := ndarray.Coord(2, shape)

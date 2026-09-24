@@ -17,24 +17,33 @@ type frameModel struct {
 	size                 image.Point
 }
 
-func newFrameModel(scale float64, build frameBuild) (*frameModel, error) {
+func newFrameModel(scale float64, width, height int, build frameBuild) (*frameModel, error) {
+	if width < 1 {
+		width = 1
+	}
+	if height < 1 {
+		height = 1
+	}
 	param, err := ndarray.New([]float32{0}, nil)
 	if err != nil {
 		return nil, err
 	}
-	width, err := ndarray.New([]float32{1}, nil)
+	widthTensor, err := ndarray.New([]float32{float32(width)}, nil)
 	if err != nil {
 		return nil, err
 	}
-	height, err := ndarray.New([]float32{1}, nil)
+	heightTensor, err := ndarray.New([]float32{float32(height)}, nil)
 	if err != nil {
 		return nil, err
 	}
-	pixels, err := build(param, width, height)
+	pixels, err := build(param, widthTensor, heightTensor)
 	if err != nil {
 		return nil, err
 	}
-	return &frameModel{scale: scale, param: param, width: width, height: height, pixels: pixels}, nil
+	return &frameModel{
+		scale: scale, param: param, width: widthTensor, height: heightTensor, pixels: pixels,
+		size: image.Pt(width, height),
+	}, nil
 }
 
 func (model *frameModel) Init() gui.Cmd { return gui.Tick() }

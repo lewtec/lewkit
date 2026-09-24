@@ -249,7 +249,7 @@ func (runner *runner) flush(force bool) error {
 	}
 	runner.picture.recordOnly = false
 	runner.dirty = false
-	if !force && runner.signature != 0 && runner.signature == runner.lastSignature {
+	if !force && runner.picture.raster == nil && runner.signature != 0 && runner.signature == runner.lastSignature {
 		return nil
 	}
 	if listed {

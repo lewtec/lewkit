@@ -98,7 +98,14 @@ func (c *Compute) runWindow(ctx context.Context) error {
 	if path != "" {
 		title = path
 	}
-	model := &computeModel{device: device, shader: shader, local: local, binds: binds}
+	model := &computeModel{
+		device: device, shader: shader, local: local, binds: binds,
+		size: image.Pt(c.width.Value(), c.height.Value()),
+	}
+	if err := model.dispatch(); err != nil {
+		_ = model.Close()
+		return err
+	}
 	defer model.Close()
 	return runGUI(ctx, "compute", gui.Options{
 		Title:  title,
