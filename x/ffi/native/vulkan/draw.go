@@ -550,8 +550,10 @@ func (s *Screen) recordDraw(index uint32, fills int, backed, inked bool) error {
 	scissor := rect2D{width: uint32(s.width), height: uint32(s.height)}
 	d.api.cmdSetViewport(d.cmd, 0, 1, uintptr(unsafe.Pointer(&view)))
 	d.api.cmdSetScissor(d.cmd, 0, 1, uintptr(unsafe.Pointer(&scissor)))
-	push := [3]uint32{mathFloatBits(float32(s.width)), mathFloatBits(float32(s.height)), uint32(s.swapRB)}
-	inkPush := [3]uint32{uint32(s.width), uint32(s.height), uint32(s.swapRB)}
+	// Color-attachment output is logical RGBA. The swapchain format
+	// places the bytes; swapping here again turns red into blue.
+	push := [3]uint32{mathFloatBits(float32(s.width)), mathFloatBits(float32(s.height)), 0}
+	inkPush := [3]uint32{uint32(s.width), uint32(s.height), 0}
 	if backed {
 		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.inkPipe)
 		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.inkLay, 0, 1, &s.underSet, 0, nil)
