@@ -1,4 +1,4 @@
-package logo
+package lewtec_logo
 
 import (
 	"bytes"

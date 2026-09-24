@@ -1,5 +1,5 @@
-// Package logo registers the LEWTEC TECNOLOGIA lockup.
-package logo
+// Package lewtec_logo registers the LEWTEC TECNOLOGIA lockup.
+package lewtec_logo
 
 import (
 	"bytes"
