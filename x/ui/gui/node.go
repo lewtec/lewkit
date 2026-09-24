@@ -20,12 +20,12 @@ type textRun struct {
 	face   font.Face
 	cursor int
 	caret  bool
-	ink    Color
+	ink    RGB
 }
 
-// Color is [lewimage.Color]. One struct for ink, fills, and command flags.
+// RGB is [lewimage.RGB]. One struct for ink, fills, and command flags.
 // [lewimage.BGR], [lewimage.CMYK], and [lewimage.HSV] convert to it.
-type Color = lewimage.Color
+type RGB = lewimage.RGB
 
 // EdgeInsets is padding.
 type EdgeInsets struct {

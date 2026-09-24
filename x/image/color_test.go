@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseColor(t *testing.T) {
-	got, err := ParseColor("#0d3559")
+func TestParseRGB(t *testing.T) {
+	got, err := ParseRGB("#0d3559")
 	require.NoError(t, err)
-	assert.Equal(t, Color{13, 53, 89, 255}, got)
-	got, err = ParseColor("abc")
+	assert.Equal(t, RGB{13, 53, 89, 255}, got)
+	got, err = ParseRGB("abc")
 	require.NoError(t, err)
-	assert.Equal(t, Color{0xaa, 0xbb, 0xcc, 255}, got)
-	_, err = ParseColor("nope")
+	assert.Equal(t, RGB{0xaa, 0xbb, 0xcc, 255}, got)
+	_, err = ParseRGB("nope")
 	assert.Error(t, err)
 }
 
@@ -24,17 +24,17 @@ func TestAverage(t *testing.T) {
 	img := stdimage.NewNRGBA(stdimage.Rect(0, 0, 2, 1))
 	img.SetNRGBA(0, 0, color.NRGBA{R: 100, G: 0, B: 0, A: 255})
 	img.SetNRGBA(1, 0, color.NRGBA{R: 0, G: 0, B: 0, A: 0})
-	assert.Equal(t, Color{100, 0, 0, 255}, Average(img))
+	assert.Equal(t, RGB{100, 0, 0, 255}, Average(img))
 }
 
 func TestColorSpaces(t *testing.T) {
-	red := Color{255, 0, 0, 255}
+	red := RGB{255, 0, 0, 255}
 	assert.Equal(t, [4]byte{0, 0, 255, 255}, red.BGR().Bytes())
-	assert.Equal(t, red, red.BGR().Color())
+	assert.Equal(t, red, red.BGR().RGB())
 	assert.Equal(t, CMYK{Magenta: 255, Yellow: 255}, red.CMYK())
-	assert.Equal(t, red, red.CMYK().Color())
+	assert.Equal(t, red, red.CMYK().RGB())
 	assert.Equal(t, HSV{Saturation: 255, Value: 255}, red.HSV())
-	assert.Equal(t, HSV{Hue: 120, Saturation: 255, Value: 255}, Color{0, 255, 0, 255}.HSV())
-	assert.Equal(t, HSV{Hue: 240, Saturation: 255, Value: 255}, Color{0, 0, 255, 255}.HSV())
-	assert.Equal(t, Color{0, 255, 0, 255}, HSV{Hue: 120, Saturation: 255, Value: 255}.Color())
+	assert.Equal(t, HSV{Hue: 120, Saturation: 255, Value: 255}, RGB{0, 255, 0, 255}.HSV())
+	assert.Equal(t, HSV{Hue: 240, Saturation: 255, Value: 255}, RGB{0, 0, 255, 255}.HSV())
+	assert.Equal(t, RGB{0, 255, 0, 255}, HSV{Hue: 120, Saturation: 255, Value: 255}.RGB())
 }

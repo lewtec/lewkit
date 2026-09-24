@@ -16,19 +16,19 @@ const (
 	marqueeStride     = float32(marqueeItemHeight + marqueeGap)
 )
 
-var marqueeColors = []Color{
-	Color{220, 70, 90, 200},
-	Color{70, 180, 140, 200},
-	Color{70, 140, 220, 200},
-	Color{230, 180, 60, 200},
-	Color{180, 90, 210, 200},
-	Color{50, 200, 200, 200},
+var marqueeColors = []RGB{
+	RGB{220, 70, 90, 200},
+	RGB{70, 180, 140, 200},
+	RGB{70, 140, 220, 200},
+	RGB{230, 180, 60, 200},
+	RGB{180, 90, 210, 200},
+	RGB{50, 200, 200, 200},
 }
 
 // Bar is one scrolling rounded rect. It is a view value: Marquee.View
 // builds bars from offset and size; nothing in View writes the model.
 type Bar struct {
-	color  Color
+	color  RGB
 	y      float32
 	width  float32
 	period float32
@@ -77,7 +77,7 @@ func wrapShift(y, period float32) float32 {
 type marqueeItem struct {
 	at, wrap     *Positioned
 	box, wrapBox *Box
-	fill         Color
+	fill         RGB
 }
 
 // Marquee is a clipped stack of [Bar] children that scroll down and wrap.
@@ -91,7 +91,7 @@ type Marquee struct {
 	dragging     bool
 	paused       bool
 	root         *Box
-	background   Color
+	background   RGB
 	items        []marqueeItem
 	treeCount    int
 	treeWidth    float32
@@ -188,7 +188,7 @@ func (marquee *Marquee) rebuild(count int, width float32) {
 		children[i] = &Stack{Children: []Node{item.at, item.wrap}}
 		items[i] = item
 	}
-	marquee.background = Color{18, 18, 24, 255}
+	marquee.background = RGB{18, 18, 24, 255}
 	marquee.root = &Box{
 		Padding: EdgeInsets{marqueePad, marqueePad, marqueePad, marqueePad},
 		Fill:    &marquee.background,

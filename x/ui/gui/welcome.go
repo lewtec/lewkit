@@ -21,7 +21,7 @@ type WelcomeArgs struct {
 	Title  string
 	Dirs   []Directory
 	Logo   image.Image
-	Accent *Color
+	Accent *RGB
 }
 
 // Welcome is the start screen: the lockup and recent folders.
@@ -33,7 +33,7 @@ type Welcome struct {
 	note      string
 	picked    string
 	mark      image.Image
-	accent    Color
+	accent    RGB
 	hasAccent bool
 	rows      []*Box
 	browse    *Box
@@ -221,7 +221,7 @@ func (welcome *Welcome) View() Node {
 	accent := welcome.accentColor()
 	button := accent
 	if welcome.cursor == welcome.browseAt() {
-		button = mixColor(accent, Color{255, 255, 255, 255}, 48)
+		button = mixColor(accent, RGB{255, 255, 255, 255}, 48)
 	}
 	label, detail := onAccent(button)
 	welcome.browse = welcome.row("Open a folder", "Browse this computer", button, label, detail)
@@ -236,7 +236,7 @@ func (welcome *Welcome) View() Node {
 	}
 }
 
-func (welcome *Welcome) row(name, detail string, fill, ink, muted Color) *Box {
+func (welcome *Welcome) row(name, detail string, fill, ink, muted RGB) *Box {
 	return &Box{
 		Width:   welcomeWidth,
 		Height:  58,
@@ -251,23 +251,23 @@ func (welcome *Welcome) row(name, detail string, fill, ink, muted Color) *Box {
 	}
 }
 
-func (welcome *Welcome) page() (background, ink Color) {
+func (welcome *Welcome) page() (background, ink RGB) {
 	return Palette(welcome.mode)
 }
 
-func (welcome *Welcome) accentColor() Color {
+func (welcome *Welcome) accentColor() RGB {
 	if welcome.hasAccent {
 		return welcome.accent
 	}
 	return lewimage.Average(welcome.lockup())
 }
 
-func (welcome *Welcome) cards() (card, selected Color) {
+func (welcome *Welcome) cards() (card, selected RGB) {
 	accent := welcome.accentColor()
 	if welcome.mode == daynight.Light {
-		return Color{255, 255, 255, 255}, mixColor(Color{255, 255, 255, 255}, accent, 28)
+		return RGB{255, 255, 255, 255}, mixColor(RGB{255, 255, 255, 255}, accent, 28)
 	}
-	base := Color{16, 18, 24, 255}
+	base := RGB{16, 18, 24, 255}
 	return mixColor(base, accent, 36), mixColor(base, accent, 88)
 }
 
@@ -282,15 +282,15 @@ func (welcome *Welcome) center(child Node, height float32) *Box {
 	return &Box{Width: welcomeWidth, Height: height, Align: Alignment{0.5, 0.5}, Child: child}
 }
 
-func (welcome *Welcome) centerText(value string, ink Color) *Box {
+func (welcome *Welcome) centerText(value string, ink RGB) *Box {
 	return &Box{Width: welcomeWidth, Align: Alignment{0.5, 0}, Child: &Text{Value: value, Ink: ink}}
 }
 
-func line(value string, ink Color) *Box {
+func line(value string, ink RGB) *Box {
 	return &Box{Width: welcomeWidth, Child: &Text{Value: value, Ink: ink}}
 }
 
-func textLine(value string, ink Color) *Box {
+func textLine(value string, ink RGB) *Box {
 	return &Box{Width: welcomeWidth - 32, Child: &Text{Value: value, Ink: ink}}
 }
 
@@ -314,31 +314,31 @@ func (welcome *Welcome) logo() Node {
 		Align:   Alignment{0.5, 0.5},
 		Padding: EdgeInsets{20, 16, 20, 16},
 		Radius:  16,
-		Fill:    &Color{255, 255, 255, 255},
+		Fill:    &RGB{255, 255, 255, 255},
 		Child:   imageNode,
 	}
 }
 
-func mixColor(base, accent Color, toward uint8) Color {
+func mixColor(base, accent RGB, toward uint8) RGB {
 	mix := func(from, to uint8) uint8 {
 		return uint8((int(from)*(255-int(toward)) + int(to)*int(toward)) / 255)
 	}
-	return Color{mix(base.Red, accent.Red), mix(base.Green, accent.Green), mix(base.Blue, accent.Blue), 255}
+	return RGB{mix(base.Red, accent.Red), mix(base.Green, accent.Green), mix(base.Blue, accent.Blue), 255}
 }
 
-func onAccent(fill Color) (ink, muted Color) {
+func onAccent(fill RGB) (ink, muted RGB) {
 	luma := int(fill.Red)*30 + int(fill.Green)*59 + int(fill.Blue)*11
 	if luma > 15000 {
-		return Color{24, 24, 28, 255}, Color{70, 70, 78, 255}
+		return RGB{24, 24, 28, 255}, RGB{70, 70, 78, 255}
 	}
-	return Color{255, 255, 255, 255}, Color{214, 222, 230, 255}
+	return RGB{255, 255, 255, 255}, RGB{214, 222, 230, 255}
 }
 
-func fade(ink, background Color) Color {
+func fade(ink, background RGB) RGB {
 	mix := func(front, back uint8) uint8 {
 		return uint8((int(front) + int(back)*2) / 3)
 	}
-	return Color{mix(ink.Red, background.Red), mix(ink.Green, background.Green), mix(ink.Blue, background.Blue), 255}
+	return RGB{mix(ink.Red, background.Red), mix(ink.Green, background.Green), mix(ink.Blue, background.Blue), 255}
 }
 
 type folderPicked struct {

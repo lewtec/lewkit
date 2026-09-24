@@ -35,7 +35,7 @@ func (q *quiet) Update(msg Msg) (Model, Cmd) {
 
 func (q *quiet) View() Node {
 	q.paints.Add(1)
-	return &Box{Fill: &Color{9, 8, 7, 255}}
+	return &Box{Fill: &RGB{9, 8, 7, 255}}
 }
 
 func TestDirtySkipsUnchangedPointer(t *testing.T) {

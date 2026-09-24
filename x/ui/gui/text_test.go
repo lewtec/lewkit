@@ -11,7 +11,7 @@ import (
 func TestTextPartialClip(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
-	text := &Text{Value: "M", Face: basicfont.Face7x13, Ink: Color{220, 10, 10, 255}}
+	text := &Text{Value: "M", Face: basicfont.Face7x13, Ink: RGB{220, 10, 10, 255}}
 	root := &Box{Width: 40, Height: 24, Child: &Box{
 		Width: 40, Height: 8, Clip: true,
 		Child: &Positioned{Y: -6, Child: text},

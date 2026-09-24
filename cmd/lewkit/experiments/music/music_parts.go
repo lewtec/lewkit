@@ -40,8 +40,8 @@ func (s musicStyle) px(n float32) float32 {
 	return n * s.scale
 }
 
-func (s musicStyle) line(text string, color *gui.Color) gui.Node {
-	ink := gui.Color{}
+func (s musicStyle) line(text string, color *gui.RGB) gui.Node {
+	ink := gui.RGB{}
 	if color != nil {
 		ink = *color
 	}
@@ -60,7 +60,7 @@ func (s musicStyle) stack(children ...gui.Node) *gui.Flex {
 	return gui.WithGap(s.px(8), gui.WithCross(gui.CrossStart, gui.Column(children...)))
 }
 
-func (s musicStyle) round(key, label string, size float32, fill, ink *gui.Color) *gui.Box {
+func (s musicStyle) round(key, label string, size float32, fill, ink *gui.RGB) *gui.Box {
 	return &gui.Box{
 		Key: key, Width: size, Height: size, Radius: size / 2, Fill: fill,
 		Align: gui.Alignment{X: 0.5, Y: 0.5},

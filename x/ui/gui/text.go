@@ -20,7 +20,7 @@ type Text struct {
 	Cursor int
 	Caret  bool
 	// Ink is the glyph color. Zero keeps the white default.
-	Ink Color
+	Ink RGB
 
 	origin Offset
 	size   Size

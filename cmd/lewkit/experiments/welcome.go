@@ -12,7 +12,7 @@ import (
 // Welcome is `lewkit experiments welcome`.
 type welcomeCmd struct {
 	logo   cmd.StringArg `long:"logo" default:"" help:"image to show instead of the LEWTEC lockup"`
-	accent cmd.ColorArg  `long:"accent" default:"" help:"accent #RRGGBB; the logo average when omitted"`
+	accent cmd.RGBArg    `long:"accent" default:"" help:"accent #RRGGBB; the logo average when omitted"`
 }
 
 func (welcomeCmd) Description() string {

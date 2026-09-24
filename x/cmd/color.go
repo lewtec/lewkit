@@ -7,18 +7,18 @@ import (
 	lewimage "github.com/lewtec/lewkit/x/image"
 )
 
-// ColorArg is a [lewimage.Color] flag. Values are #RGB, #RRGGBB, or #RRGGBBAA.
+// RGBArg is a [lewimage.RGB] flag. Values are #RGB, #RRGGBB, or #RRGGBBAA.
 // An empty value means the flag was omitted.
-type ColorArg struct {
-	Container[lewimage.Color]
+type RGBArg struct {
+	Container[lewimage.RGB]
 	set bool
 }
 
-func (c *ColorArg) Parse(arg string) error {
+func (c *RGBArg) Parse(arg string) error {
 	if strings.TrimSpace(arg) == "" {
 		return nil
 	}
-	value, err := lewimage.ParseColor(arg)
+	value, err := lewimage.ParseRGB(arg)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 	}
@@ -28,9 +28,9 @@ func (c *ColorArg) Parse(arg string) error {
 }
 
 // IsSet reports whether Parse saw a color.
-func (c ColorArg) IsSet() bool { return c.set }
+func (c RGBArg) IsSet() bool { return c.set }
 
 var (
-	_ Parser              = (*ColorArg)(nil)
-	_ Arg[lewimage.Color] = (*ColorArg)(nil)
+	_ Parser            = (*RGBArg)(nil)
+	_ Arg[lewimage.RGB] = (*RGBArg)(nil)
 )
