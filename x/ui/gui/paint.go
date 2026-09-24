@@ -3,6 +3,7 @@ package gui
 import (
 	"image"
 	"math"
+	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -343,10 +344,8 @@ func (picture *Picture) stamp(ink bool) {
 			mix(uint64(picture.inkRGBA.Rect.Dx()))
 			mix(uint64(picture.inkRGBA.Rect.Dy()))
 		}
-		if ink && picture.inkRGBA != nil {
-			for _, pixel := range picture.inkRGBA.Pix {
-				mix(uint64(pixel))
-			}
+		if ink {
+			picture.mixInk(mix)
 		}
 		picture.signature = hash
 		return
@@ -361,12 +360,51 @@ func (picture *Picture) stamp(ink bool) {
 			mix(uint64(dimension))
 		}
 	}
-	if ink && picture.inkRGBA != nil {
-		for _, pixel := range picture.inkRGBA.Pix {
-			mix(uint64(pixel))
-		}
+	if ink {
+		picture.mixInk(mix)
 	}
 	picture.signature = hash
+}
+
+func (picture *Picture) mixInk(mix func(uint64)) {
+	mix(uint64(len(picture.texts)))
+	mix(uint64(len(picture.images)))
+	for _, run := range picture.texts {
+		mix(uint64(math.Float32bits(run.box.X)))
+		mix(uint64(math.Float32bits(run.box.Y)))
+		mix(uint64(math.Float32bits(run.box.Width)))
+		mix(uint64(math.Float32bits(run.box.Height)))
+		mix(uint64(run.ink.Red) | uint64(run.ink.Green)<<8 | uint64(run.ink.Blue)<<16 | uint64(run.ink.Alpha)<<24)
+		mix(uint64(run.cursor))
+		if run.caret {
+			mix(1)
+		}
+		mix(pointerOf(run.face))
+		for _, character := range run.body {
+			mix(uint64(character))
+		}
+	}
+	for _, stamp := range picture.images {
+		mix(pointerOf(stamp.src))
+		for _, value := range []float32{
+			stamp.box.X, stamp.box.Y, stamp.box.Width, stamp.box.Height,
+			stamp.clip.X, stamp.clip.Y, stamp.clip.Width, stamp.clip.Height,
+			stamp.radius,
+		} {
+			mix(uint64(math.Float32bits(value)))
+		}
+	}
+}
+
+func pointerOf(value any) uint64 {
+	type eface struct {
+		_    uintptr
+		data unsafe.Pointer
+	}
+	if value == nil {
+		return 0
+	}
+	return uint64(uintptr((*eface)(unsafe.Pointer(&value)).data))
 }
 
 func (picture *Picture) inkCount() int {

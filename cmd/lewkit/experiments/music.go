@@ -122,8 +122,9 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		}
 		if m.player != nil && m.player.Playing() {
 			m.resume = m.player.Played()
+			return m, gui.Every(tick.Period)
 		}
-		return m, gui.Every(tick.Period)
+		return m, nil
 	}
 	switch event := msg.(type) {
 	case gui.ModeMsg:
@@ -136,7 +137,7 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return m, nil
 	case pickedTrack:
 		m.start(event.track)
-		return m, nil
+		return m, gui.Tick()
 	case pickedOpen:
 		return m, m.choose()
 	case pickedBack:
@@ -150,6 +151,9 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return m, nil
 	case pickedPlay:
 		m.toggle()
+		if m.player != nil && m.player.Playing() {
+			return m, gui.Tick()
+		}
 		return m, nil
 	case pickedStep:
 		m.step(event.delta)
@@ -179,7 +183,10 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 			m.note = ""
 		}
 		m.reload()
-		return m, gui.Tick()
+		if m.player != nil && m.player.Playing() {
+			return m, gui.Tick()
+		}
+		return m, nil
 	case window.Drop:
 		return m, m.ingest(event.Paths)
 	case window.Key, window.Pointer, window.Scroll:

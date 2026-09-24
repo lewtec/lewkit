@@ -100,7 +100,7 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 	next, cmd := model.Update(window.Pointer{Pos: hit, Button: 1, Pressed: true})
 	require.NotNil(t, cmd)
 	next, cmd = next.Update(cmd())
-	require.Nil(t, cmd)
+	require.NotNil(t, cmd)
 	painted := next.(*musicModel)
 	assert.Equal(t, musicNow, painted.screen)
 	assert.Equal(t, "song", painted.now.Title)
@@ -123,8 +123,14 @@ func TestMusicScaleGrowsRows(t *testing.T) {
 	assert.Greater(t, big.list.hits[0].box.Width, small.list.hits[0].box.Width*1.5)
 	assert.Greater(t, big.scale(), small.scale())
 	_, cmd := big.Update(gui.TickMsg{Size: image.Pt(2400, 1600)})
-	require.NotNil(t, cmd)
+	assert.Nil(t, cmd)
 	assert.Equal(t, 2400, big.size.X)
+}
+
+func TestMusicTickIdles(t *testing.T) {
+	model := newMusic(t.Context(), nil, newPlayer(nil))
+	_, cmd := model.Update(gui.TickMsg{})
+	assert.Nil(t, cmd)
 }
 
 func TestMusicFollowsLight(t *testing.T) {
