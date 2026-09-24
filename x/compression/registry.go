@@ -1,10 +1,10 @@
 package compression
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"strings"
+
+	"github.com/lewtec/lewkit/x/sniff"
 )
 
 // ErrNil is [Register] with a nil codec.
@@ -20,7 +20,7 @@ func Register(c Codec) error {
 	if c == nil {
 		return ErrNil
 	}
-	if hasName(std.codecs, c.Name()) {
+	if sniff.HasName(std.codecs, c.Name()) {
 		return fmt.Errorf("%s: %w", c.Name(), ErrExist)
 	}
 	std.codecs = append(std.codecs, c)
@@ -32,15 +32,6 @@ func MustRegister(c Codec) {
 	if err := Register(c); err != nil {
 		panic(err)
 	}
-}
-
-func hasName(codecs []Codec, name string) bool {
-	for _, c := range codecs {
-		if c.Name() == name {
-			return true
-		}
-	}
-	return false
 }
 
 // Detect looks up a codec in the process-wide registry.
@@ -80,47 +71,10 @@ func (r *Registry) Detect(name string, magic []byte) (Codec, bool) {
 
 // ByExtension returns the codec with the longest matching suffix of name.
 func (r *Registry) ByExtension(name string) (Codec, bool) {
-	name = strings.ToLower(name)
-	var best Codec
-	bestN := -1
-	for _, c := range r.codecs {
-		for _, ext := range c.Extensions() {
-			ext = strings.ToLower(ext)
-			if ext == "" {
-				continue
-			}
-			if !strings.HasPrefix(ext, ".") {
-				ext = "." + ext
-			}
-			if strings.HasSuffix(name, ext) && len(ext) > bestN {
-				best = c
-				bestN = len(ext)
-			}
-		}
-	}
-	if bestN < 0 {
-		return nil, false
-	}
-	return best, true
+	return sniff.ByExtension(r.codecs, name)
 }
 
 // ByMagic returns the codec with the longest matching magic prefix of p.
 func (r *Registry) ByMagic(p []byte) (Codec, bool) {
-	var best Codec
-	bestN := -1
-	for _, c := range r.codecs {
-		for _, mag := range c.Magic() {
-			if len(mag) == 0 || len(mag) <= bestN || len(p) < len(mag) {
-				continue
-			}
-			if bytes.HasPrefix(p, mag) {
-				best = c
-				bestN = len(mag)
-			}
-		}
-	}
-	if bestN < 0 {
-		return nil, false
-	}
-	return best, true
+	return sniff.ByMagic(r.codecs, p)
 }

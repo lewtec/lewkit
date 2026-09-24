@@ -6,7 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
+
+	"github.com/lewtec/lewkit/x/sniff"
 )
 
 var (
@@ -35,7 +36,7 @@ func Register(d Decoder) error {
 	if d == nil {
 		return ErrNil
 	}
-	if hasDecoder(std.list, d.Name()) {
+	if sniff.HasName(std.list, d.Name()) {
 		return fmt.Errorf("%s: %w", d.Name(), ErrExist)
 	}
 	std.list = append(std.list, d)
@@ -57,7 +58,7 @@ func Detect(name string, magic []byte) (Decoder, bool) {
 // Decode sniffs name and the start of r, then decodes the whole stream.
 // A seekable r stays seekable for the decoder.
 func Decode(name string, r io.Reader) (*Pipeline, error) {
-	magic, r, err := sniff(r)
+	magic, r, err := readHead(r)
 	if err != nil {
 		return nil, err
 	}
@@ -87,60 +88,14 @@ func (r *Registry) Detect(name string, magic []byte) (Decoder, bool) {
 }
 
 func (r *Registry) byExtension(name string) (Decoder, bool) {
-	name = strings.ToLower(name)
-	var best Decoder
-	bestN := -1
-	for _, d := range r.list {
-		for _, ext := range d.Extensions() {
-			ext = strings.ToLower(ext)
-			if ext == "" {
-				continue
-			}
-			if !strings.HasPrefix(ext, ".") {
-				ext = "." + ext
-			}
-			if strings.HasSuffix(name, ext) && len(ext) > bestN {
-				best = d
-				bestN = len(ext)
-			}
-		}
-	}
-	if bestN < 0 {
-		return nil, false
-	}
-	return best, true
+	return sniff.ByExtension(r.list, name)
 }
 
 func (r *Registry) byMagic(p []byte) (Decoder, bool) {
-	var best Decoder
-	bestN := -1
-	for _, d := range r.list {
-		for _, mag := range d.Magic() {
-			if len(mag) == 0 || len(mag) <= bestN || len(p) < len(mag) {
-				continue
-			}
-			if bytes.HasPrefix(p, mag) {
-				best = d
-				bestN = len(mag)
-			}
-		}
-	}
-	if bestN < 0 {
-		return nil, false
-	}
-	return best, true
+	return sniff.ByMagic(r.list, p)
 }
 
-func hasDecoder(list []Decoder, name string) bool {
-	for _, d := range list {
-		if d.Name() == name {
-			return true
-		}
-	}
-	return false
-}
-
-func sniff(r io.Reader) ([]byte, io.Reader, error) {
+func readHead(r io.Reader) ([]byte, io.Reader, error) {
 	var buf [64]byte
 	if rs, ok := r.(io.ReadSeeker); ok {
 		n, err := io.ReadFull(rs, buf[:])

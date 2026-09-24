@@ -40,6 +40,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/compression` | `Codec`, `Detect`, `Register`, `ByExtension`, `ByMagic`, `New`. |
 | `x/compression/gzip` | gzip `Codec`. `brotli`, `lz4`, `zstd`, `xz`, and `bzip2` match this shape. |
 | `x/compression/prelude` | Blank-import. Registers gzip, brotli, lz4, zstd, xz, and bzip2. |
+| `x/sniff` | `ByExtension`, `ByMagic`, `HasName`. Longest file suffix or magic prefix. |
 | `x/db` | `Arg`, `FromURL`, `Open`, `Migrate`, `Value`, `Conn.Tx`, `Conn.Queries`. |
 | `x/db/sqlite` | Blank-import. Schemes `sqlite`, `sqlite3`, `file`, a bare path, and `:memory:`. |
 | `x/db/postgres` | Blank-import. Scheme `postgres`. |
