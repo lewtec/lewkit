@@ -12,7 +12,7 @@
 //
 // Blank-import the driver so Open can find it:
 //
-//	import _ "github.com/lewtec/lewkit/x/driver/prelude"
+//	import _ "github.com/lewtec/lewkit/x/driver/webview/prelude"
 //
 //	view, err := webview.Open(ctx, webview.Config{
 //		Title: "hi",

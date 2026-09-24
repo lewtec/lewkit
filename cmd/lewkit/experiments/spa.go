@@ -7,8 +7,8 @@ import (
 	"testing/fstest"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	_ "github.com/lewtec/lewkit/x/driver/webview/prelude"
 	"github.com/lewtec/lewkit/x/http/asset"
 	"github.com/lewtec/lewkit/x/http/middleware"
 	"github.com/lewtec/lewkit/x/taskgroup"
