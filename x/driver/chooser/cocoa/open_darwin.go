@@ -6,21 +6,35 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/chooser"
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
-const modalOK = 1
-
-var (
-	errPanel    = errors.New("chooser panel")
-	errNotBound = errors.New("chooser: thread not bound")
+const (
+	modalOK           = 1
+	activationRegular = 0
+	cocoaFramework    = "/System/Library/Frameworks/Cocoa.framework/Cocoa"
 )
 
 var (
+	errPanel    = errors.New("chooser panel")
+	errPath     = errors.New("chooser path")
+	errNotBound = errors.New("chooser: thread not bound")
+	errNotMain  = errors.New("chooser: not main thread")
+
+	appOnce sync.Once
+	appErr  error
+)
+
+var (
+	selShared     = objc.RegisterName("sharedApplication")
+	selSetPolicy  = objc.RegisterName("setActivationPolicy:")
+	selActivate   = objc.RegisterName("activateIgnoringOtherApps:")
 	selOpenPanel  = objc.RegisterName("openPanel")
 	selSavePanel  = objc.RegisterName("savePanel")
 	selFiles      = objc.RegisterName("setCanChooseFiles:")
@@ -37,6 +51,7 @@ var (
 	selCount      = objc.RegisterName("count")
 	selAt         = objc.RegisterName("objectAtIndex:")
 	selPath       = objc.RegisterName("path")
+	selFileRep    = objc.RegisterName("fileSystemRepresentation")
 	selUTF8       = objc.RegisterName("UTF8String")
 	selNew        = objc.RegisterName("new")
 	selDrain      = objc.RegisterName("drain")
@@ -61,12 +76,36 @@ func (opener) Choose(ctx context.Context, req chooser.Request) ([]string, error)
 		err   error
 	)
 	thread.Do(func() {
+		if !thread.ProcessMain() {
+			err = errNotMain
+			return
+		}
 		paths, err = show(req)
 	})
 	return paths, err
 }
 
+func ensureApp() error {
+	appOnce.Do(func() {
+		if _, err := native.Open(cocoaFramework, native.Global|native.Lazy); err != nil {
+			appErr = fmt.Errorf("%w: %w", errPanel, err)
+			return
+		}
+		app := objc.ID(objc.GetClass("NSApplication")).Send(selShared)
+		if app == 0 {
+			appErr = errPanel
+			return
+		}
+		app.Send(selSetPolicy, activationRegular)
+		app.Send(selActivate, true)
+	})
+	return appErr
+}
+
 func show(req chooser.Request) ([]string, error) {
+	if err := ensureApp(); err != nil {
+		return nil, err
+	}
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selNew)
 	defer pool.Send(selDrain)
 
@@ -96,9 +135,9 @@ func show(req chooser.Request) ([]string, error) {
 		return nil, chooser.ErrCanceled
 	}
 	if req.Save {
-		path := goString(panel.Send(selURL).Send(selPath).Send(selUTF8))
+		path := urlPath(panel.Send(selURL))
 		if path == "" {
-			return nil, errPanel
+			return nil, errPath
 		}
 		return []string{path}, nil
 	}
@@ -106,14 +145,14 @@ func show(req chooser.Request) ([]string, error) {
 	count := int(urls.Send(selCount))
 	paths := make([]string, 0, count)
 	for i := range count {
-		path := goString(urls.Send(selAt, i).Send(selPath).Send(selUTF8))
+		path := urlPath(urls.Send(selAt, i))
 		if path == "" {
-			return nil, errPanel
+			return nil, errPath
 		}
 		paths = append(paths, path)
 	}
 	if len(paths) == 0 {
-		return nil, errPanel
+		return nil, errPath
 	}
 	return paths, nil
 }
@@ -135,6 +174,16 @@ func fileTypes(req chooser.Request) objc.ID {
 		list.Send(selAdd, nsString(name))
 	}
 	return list
+}
+
+func urlPath(url objc.ID) string {
+	if url == 0 {
+		return ""
+	}
+	if path := goString(url.Send(selFileRep)); path != "" {
+		return path
+	}
+	return goString(url.Send(selPath).Send(selUTF8))
 }
 
 func nsString(text string) objc.ID {
