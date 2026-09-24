@@ -12,7 +12,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/audio_play"
 	lib "github.com/lewtec/lewkit/x/ffi/native/coreaudio"
-	pcs "github.com/lewtec/lewkit/x/sound"
 )
 
 type factory struct{}
@@ -57,7 +56,7 @@ func (backend) Open(ctx context.Context, cfg audio_play.Config) (io.WriteCloser,
 	if err != nil {
 		return nil, err
 	}
-	sample, err := queueSample(cfg.Format.Sample)
+	sample, err := audio_play.MapSample(cfg.Format.Sample, lib.SampleS16LE, lib.SampleF32LE)
 	if err != nil {
 		return nil, err
 	}
@@ -78,15 +77,4 @@ func (backend) Open(ctx context.Context, cfg audio_play.Config) (io.WriteCloser,
 		return nil, err
 	}
 	return audio_play.NewFrames(frame, stream.Write, stream.Close), nil
-}
-
-func queueSample(sample pcs.Sample) (lib.Sample, error) {
-	switch sample {
-	case pcs.SampleS16LE:
-		return lib.SampleS16LE, nil
-	case pcs.SampleF32LE:
-		return lib.SampleF32LE, nil
-	default:
-		return 0, pcs.ErrFormat
-	}
 }
