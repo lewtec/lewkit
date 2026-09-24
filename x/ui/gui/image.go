@@ -57,7 +57,14 @@ func (node *Image) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Te
 	return accumulatorOf(picture)
 }
 
-func (stamp imageStamp) draw(destination *image.RGBA) {
+type thumbKey struct {
+	src    uint64
+	width  int
+	height int
+	radius uint32
+}
+
+func (stamp imageStamp) draw(picture *Picture, destination *image.RGBA) {
 	if destination == nil || stamp.src == nil || stamp.box.Width < 1 || stamp.box.Height < 1 {
 		return
 	}
@@ -70,12 +77,30 @@ func (stamp imageStamp) draw(destination *image.RGBA) {
 	if keep.Empty() {
 		return
 	}
-	scaled := image.NewRGBA(image.Rect(0, 0, bounds.Dx(), bounds.Dy()))
-	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), stamp.src, stamp.src.Bounds(), draw.Src, nil)
+	scaled := picture.thumb(stamp, bounds.Dx(), bounds.Dy())
 	draw.Draw(destination, keep, scaled, image.Pt(keep.Min.X-bounds.Min.X, keep.Min.Y-bounds.Min.Y), draw.Over)
-	if stamp.radius > 0 {
-		punchRadius(destination, bounds, keep, float64(stamp.radius))
+}
+
+func (picture *Picture) thumb(stamp imageStamp, width, height int) *image.RGBA {
+	key := thumbKey{src: pointerOf(stamp.src), width: width, height: height, radius: math.Float32bits(stamp.radius)}
+	if picture != nil {
+		if got := picture.thumbs[key]; got != nil {
+			return got
+		}
 	}
+	scaled := image.NewRGBA(image.Rect(0, 0, width, height))
+	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), stamp.src, stamp.src.Bounds(), draw.Src, nil)
+	if stamp.radius > 0 {
+		punchRadius(scaled, scaled.Bounds(), scaled.Bounds(), float64(stamp.radius))
+	}
+	if picture == nil {
+		return scaled
+	}
+	if picture.thumbs == nil || len(picture.thumbs) > 256 {
+		picture.thumbs = map[thumbKey]*image.RGBA{}
+	}
+	picture.thumbs[key] = scaled
+	return scaled
 }
 
 // punchRadius clears pixels outside the rounded rect. Ink treats a zero

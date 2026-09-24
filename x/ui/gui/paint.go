@@ -45,6 +45,7 @@ type Picture struct {
 	paintDevice vulkan.Device
 	signature   uint64
 	hadInk      bool
+	thumbs      map[thumbKey]*image.RGBA
 	fillCount   int
 	recordOnly  bool
 }
@@ -424,7 +425,7 @@ func (picture *Picture) drawInk() {
 		run.stamp(picture.inkRGBA)
 	}
 	for _, stamp := range picture.images {
-		stamp.draw(picture.inkRGBA)
+		stamp.draw(picture, picture.inkRGBA)
 	}
 }
 

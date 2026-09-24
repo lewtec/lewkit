@@ -64,6 +64,20 @@ func TestImageClipHidesOverflow(t *testing.T) {
 	assert.Equal(t, color.RGBA{}, ink.RGBAAt(4, 20))
 }
 
+func TestImageThumbIsReused(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 80, 60))
+	src.Pix[0], src.Pix[3] = 200, 255
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	node := &Image{Src: src, Width: 32, Height: 24, Radius: 6}
+	_, err = picture.Render(node, Size{64, 64})
+	require.NoError(t, err)
+	picture.recordOnly = true
+	_, err = picture.Render(node, Size{64, 64})
+	require.NoError(t, err)
+	assert.Len(t, picture.thumbs, 1)
+}
+
 func TestTextColor(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
