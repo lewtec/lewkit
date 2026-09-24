@@ -16,6 +16,7 @@ const (
 	defaultTermWidth = 80
 	narrowTermWidth  = 56
 	minBarInner      = 8
+	barWidth         = 20
 	barFill          = "━"
 	barEmpty         = "─"
 )
@@ -72,7 +73,7 @@ func (m model) View() (view tea.View) {
 	}
 	var buf bytes.Buffer
 	for _, row := range m.live {
-		buf.WriteString(clipCells(row, width))
+		buf.WriteString(padCells(row, width))
 		buf.WriteByte('\n')
 	}
 	writeRows(&buf, m.nodes, width)
@@ -144,17 +145,18 @@ func formatRow(r treeRow, width int) string {
 		msg += " +" + strconv.Itoa(r.hidden)
 	}
 	rest := width - cellWidth(prefix)
-	if rest < 1 {
-		return clipCells(prefix, width)
+	var line string
+	switch {
+	case rest < 1:
+		line = clipCells(prefix, width)
+	case n.Total <= 0 || percent(n) < 0:
+		line = prefix + clipCells(msg, rest)
+	case width < narrowTermWidth:
+		line = prefix + formatNarrowBody(msg, percent(n), rest)
+	default:
+		line = prefix + formatWideBody(msg, percent(n), rest)
 	}
-	pct := percent(n)
-	if n.Total <= 0 || pct < 0 {
-		return prefix + clipCells(msg, rest)
-	}
-	if width < narrowTermWidth {
-		return prefix + formatNarrowBody(msg, pct, rest)
-	}
-	return prefix + formatWideBody(msg, pct, rest)
+	return padCells(line, width)
 }
 
 func rowMessage(n taskgroup.Node) string {
@@ -209,12 +211,15 @@ func formatNarrowBody(msg string, pct float64, width int) string {
 
 func formatWideBody(msg string, pct float64, width int) string {
 	const gap = 1
-	if width < gap+minBarInner {
+	inner := barWidth
+	if width < gap+minBarInner+1 {
 		return formatNarrowBody(msg, pct, width)
 	}
-	inner := width - gap - cellWidth(msg)
+	if gap+inner+1 > width {
+		inner = width - gap - 1
+	}
 	if inner < minBarInner {
-		inner = minBarInner
+		return formatNarrowBody(msg, pct, width)
 	}
 	return padCells(msg, width-gap-inner) + " " + plainBar(pct, inner)
 }
@@ -231,7 +236,7 @@ func formatPercent(pct float64) string {
 
 func plainBar(pct float64, width int) string {
 	if width <= 0 {
-		return ""
+		width = barWidth
 	}
 	pct = min(max(pct, 0), 1)
 	filled := min(int(pct*float64(width)+0.5), width)

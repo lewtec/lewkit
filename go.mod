@@ -10,6 +10,7 @@ require (
 	github.com/a-h/templ v0.3.1020
 	github.com/andybalholm/brotli v1.2.4
 	github.com/bmatcuk/doublestar/v4 v4.10.0
+	github.com/charmbracelet/x/term v0.2.2
 	github.com/dave/jennifer v1.7.1
 	github.com/diskfs/go-diskfs v1.9.4
 	github.com/ebitengine/purego v0.11.0
@@ -50,7 +51,6 @@ require (
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/ultraviolet v0.0.0-20260525132238-948f4557a654 // indirect
 	github.com/charmbracelet/x/ansi v0.11.7 // indirect
-	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
 	github.com/cli/browser v1.3.0 // indirect
