@@ -4,7 +4,7 @@ import (
 	"image"
 	"strconv"
 
-	"github.com/lewtec/lewkit/x/driver/appearance"
+	"github.com/lewtec/lewkit/x/driver/colorscheme"
 	"github.com/lewtec/lewkit/x/driver/window"
 )
 
@@ -12,14 +12,14 @@ import (
 type Counter struct {
 	size   image.Point
 	count  int
-	scheme appearance.Scheme
+	scheme colorscheme.Scheme
 	minus  *Box
 	plus   *Box
 }
 
 // NewCounter returns a counter at 0. The error is always nil.
 func NewCounter() (*Counter, error) {
-	return &Counter{size: image.Pt(400, 200), scheme: appearance.Dark}, nil
+	return &Counter{size: image.Pt(400, 200), scheme: colorscheme.Dark}, nil
 }
 
 func (counter *Counter) Init() Cmd { return Tick() }

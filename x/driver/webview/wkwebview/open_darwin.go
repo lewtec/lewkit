@@ -19,7 +19,7 @@ import (
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/appearance"
+	"github.com/lewtec/lewkit/x/driver/colorscheme"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/ffi/native/webkit"
 	"github.com/lewtec/lewkit/x/thread"
@@ -133,7 +133,7 @@ func (webKitDriver) Open(ctx context.Context, cfg webview.Config) (webview.View,
 		thread.OnIdle(pumpEvents)
 	})
 	context.AfterFunc(ctx, func() { _ = view.Close() })
-	webview.Follow(ctx, func(scheme appearance.Scheme) { view.useScheme(scheme, true) })
+	webview.Follow(ctx, func(scheme colorscheme.Scheme) { view.useScheme(scheme, true) })
 	return view, nil
 }
 
@@ -237,7 +237,7 @@ func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 	window.Send(selCenter)
 	view.window = window
 	view.webView = webView
-	if scheme, err := appearance.Current(ctx); err == nil {
+	if scheme, err := colorscheme.Current(ctx); err == nil {
 		view.useScheme(scheme, false)
 	}
 	window.Send(selMakeKey, objc.ID(0))
@@ -264,17 +264,17 @@ func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 	return nil
 }
 
-// useScheme sets the window and the web view appearance. flip passes through
+// useScheme sets the window and the web view colorscheme. flip passes through
 // the other appearance first so WebKit delivers effectiveAppearanceDidChange
 // on a page that is already showing, instead of waiting for the next load.
-func (view *webKitView) useScheme(scheme appearance.Scheme, flip bool) {
+func (view *webKitView) useScheme(scheme colorscheme.Scheme, flip bool) {
 	thread.Do(func() {
 		if view == nil || view.window == 0 {
 			return
 		}
 		name := "NSAppearanceNameAqua"
 		otherName := "NSAppearanceNameDarkAqua"
-		if scheme == appearance.Dark {
+		if scheme == colorscheme.Dark {
 			name = "NSAppearanceNameDarkAqua"
 			otherName = "NSAppearanceNameAqua"
 		}

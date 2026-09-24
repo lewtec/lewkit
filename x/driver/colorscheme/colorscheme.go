@@ -1,17 +1,17 @@
-// Package appearance reports the system color scheme and each change.
+// Package colorscheme reports whether the system theme is light or dark.
 //
-//	scheme, err := appearance.Current(ctx)
-//	changes, err := appearance.Watch(ctx)
+//	scheme, err := colorscheme.Current(ctx)
+//	changes, err := colorscheme.Watch(ctx)
 //
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one implementation
-// (portal, cocoa, win32). LEWKIT_APPEARANCE=light or dark pins a scheme
+// (portal, cocoa, win32). LEWKIT_COLORSCHEME=light or dark pins a scheme
 // for tests and wins over the host.
 //
 // Linux reads org.freedesktop.appearance color-scheme from the desktop
 // portal and the SettingChanged signal. macOS reads AppleInterfaceStyle
 // and AppleInterfaceThemeChangedNotification. Windows reads
 // AppsUseLightTheme and the registry change notification.
-package appearance
+package colorscheme
 
 import (
 	"context"

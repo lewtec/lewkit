@@ -1,4 +1,4 @@
-package appearance
+package colorscheme
 
 import "context"
 

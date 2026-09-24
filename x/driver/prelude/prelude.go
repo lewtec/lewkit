@@ -3,11 +3,11 @@
 package prelude
 
 import (
-	_ "github.com/lewtec/lewkit/x/driver/appearance/cocoa"
-	_ "github.com/lewtec/lewkit/x/driver/appearance/fixed"
-	_ "github.com/lewtec/lewkit/x/driver/appearance/portal"
-	_ "github.com/lewtec/lewkit/x/driver/appearance/win32"
 	_ "github.com/lewtec/lewkit/x/driver/audio_play/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/colorscheme/cocoa"
+	_ "github.com/lewtec/lewkit/x/driver/colorscheme/fixed"
+	_ "github.com/lewtec/lewkit/x/driver/colorscheme/portal"
+	_ "github.com/lewtec/lewkit/x/driver/colorscheme/win32"
 	_ "github.com/lewtec/lewkit/x/driver/fetchurl/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
