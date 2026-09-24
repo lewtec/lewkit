@@ -58,6 +58,24 @@ func TestShapedRasterStaysOnDrawList(t *testing.T) {
 	assert.Equal(t, uint8(255), buffer[0])
 }
 
+func TestRasterCastReused(t *testing.T) {
+	values := make([]float32, 4*4*4)
+	values[0] = 255
+	source, err := ndarray.New(values, ndarray.Shape{4, 4, 4})
+	require.NoError(t, err)
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.raster = source
+	_, err = picture.rasterBytes(t.Context(), nil, 4, 4)
+	require.NoError(t, err)
+	first := picture.rasterCast
+	require.NotNil(t, first)
+	_, err = picture.rasterBytes(t.Context(), nil, 4, 4)
+	require.NoError(t, err)
+	assert.Same(t, first, picture.rasterCast)
+	assert.Same(t, first.Kernel(), picture.rasterCast.Kernel())
+}
+
 func TestRasterBytesVaryAcrossFrame(t *testing.T) {
 	shape := ndarray.Shape{1, 1, 4}
 	source := ndarray.Coord(1, shape).Cast[float32]()

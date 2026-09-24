@@ -35,6 +35,8 @@ type Picture struct {
 	fills       []Draw
 	texts       []textRun
 	raster      *ndarray.Tensor[float32]
+	rasterFrom  *ndarray.Tensor[float32]
+	rasterCast  *ndarray.Tensor[uint8]
 	mounted     *ndarray.Tensor[float32]
 	black       *ndarray.Tensor[float32]
 	paintEval   ndarray.Evaluator

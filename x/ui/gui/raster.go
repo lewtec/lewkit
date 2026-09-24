@@ -65,7 +65,11 @@ func (picture *Picture) rasterBytes(ctx context.Context, evaluator ndarray.Evalu
 	if evaluator == nil {
 		evaluator = ndarray.CPU
 	}
-	view := picture.raster.Cast[uint8]()
+	if picture.rasterCast == nil || picture.rasterFrom != picture.raster {
+		picture.rasterCast = picture.raster.Cast[uint8]()
+		picture.rasterFrom = picture.raster
+	}
+	view := picture.rasterCast
 	if err := view.Resize(ndarray.Shape{height, width, 4}); err != nil {
 		return nil, err
 	}
