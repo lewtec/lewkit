@@ -20,10 +20,7 @@ import (
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	_, err := Open(t.Context(), test.OnlyReader{strings.NewReader("x")})
-	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
-	pe, ok := errors.AsType[*fs.PathError](err)
-	require.True(t, ok)
-	assert.Equal(t, "open", pe.Op)
+	test.NeedReadAtOpen(t, err)
 }
 
 func TestInvalidImage(t *testing.T) {
