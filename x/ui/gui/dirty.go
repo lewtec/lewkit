@@ -1,14 +1,22 @@
 package gui
 
-// Dirty is embedded in a [Model]. [Set] and [Dirty.MarkDirty] record that
-// Update changed state. [Run] skips View while the flag is clear.
+// Dirty is embedded in a [Model]. [See] and [Touch] return an updated flag.
+// [Run] skips View while the flag is clear.
 type Dirty struct{ dirty bool }
 
-// MarkDirty records that Update changed the model.
-func (d *Dirty) MarkDirty() {
-	if d != nil {
-		d.dirty = true
+// Touch returns d marked changed.
+func Touch(d Dirty) Dirty {
+	d.dirty = true
+	return d
+}
+
+// See returns next and a dirty flag. The flag is set when next differs from value.
+func See[T comparable](d Dirty, value, next T) (Dirty, T) {
+	if value == next {
+		return d, value
 	}
+	d.dirty = true
+	return d, next
 }
 
 // Consume reports a change since the last consume and clears the flag.
@@ -18,17 +26,4 @@ func (d *Dirty) Consume() bool {
 	}
 	d.dirty = false
 	return true
-}
-
-// Set assigns dst and marks the model when the value changes.
-// M is the [Model] that embeds [Dirty].
-func Set[M interface {
-	Model
-	MarkDirty()
-}, T comparable](model M, dst *T, src T) {
-	if dst == nil || *dst == src {
-		return
-	}
-	*dst = src
-	model.MarkDirty()
 }

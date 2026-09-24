@@ -114,65 +114,65 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return m, nil
 	}
 	if size, ok := guiSize(msg); ok && size.X > 0 && size.Y > 0 {
-		gui.Set(m, &m.size, size)
+		m.Dirty, m.size = gui.See(m.Dirty, m.size, size)
 	}
 	if tick, ok := msg.(gui.TickMsg); ok {
 		if m.dir != "" && !m.booted {
 			m.booted = true
-			m.MarkDirty()
+			m.Dirty = gui.Touch(m.Dirty)
 			return m, m.ingest([]string{m.dir})
 		}
 		if m.player != nil && m.player.Playing() {
-			gui.Set(m, &m.resume, m.player.Played())
+			m.Dirty, m.resume = gui.See(m.Dirty, m.resume, m.player.Played())
 			return m, gui.Every(tick.Period)
 		}
 		return m, nil
 	}
 	switch event := msg.(type) {
 	case gui.ModeMsg:
-		gui.Set(m, &m.mode, event.Mode)
+		m.Dirty, m.mode = gui.See(m.Dirty, m.mode, event.Mode)
 	case pickedAlbum:
-		gui.Set(m, &m.album, event.name)
-		gui.Set(m, &m.screen, musicAlbum)
+		m.Dirty, m.album = gui.See(m.Dirty, m.album, event.name)
+		m.Dirty, m.screen = gui.See(m.Dirty, m.screen, musicAlbum)
 		m.list.scroll = 0
 		m.reload()
 		return m, nil
 	case pickedTrack:
 		m.start(event.track)
-		m.MarkDirty()
+		m.Dirty = gui.Touch(m.Dirty)
 		return m, gui.Tick()
 	case pickedOpen:
 		return m, m.choose()
 	case pickedBack:
-		gui.Set(m, &m.screen, musicBrowse)
+		m.Dirty, m.screen = gui.See(m.Dirty, m.screen, musicBrowse)
 		m.list.scroll = 0
 		m.reload()
 		return m, nil
 	case pickedQuery:
-		gui.Set(m, &m.query, event.text)
+		m.Dirty, m.query = gui.See(m.Dirty, m.query, event.text)
 		m.reload()
 		return m, nil
 	case pickedPlay:
 		m.toggle()
-		m.MarkDirty()
+		m.Dirty = gui.Touch(m.Dirty)
 		if m.player != nil && m.player.Playing() {
 			return m, gui.Tick()
 		}
 		return m, nil
 	case pickedStep:
 		m.step(event.delta)
-		m.MarkDirty()
+		m.Dirty = gui.Touch(m.Dirty)
 		return m, nil
 	case pickedSeek:
 		if m.now != nil && m.player != nil {
-			gui.Set(m, &m.resume, event.frame)
+			m.Dirty, m.resume = gui.See(m.Dirty, m.resume, event.frame)
 			m.player.Play(m.now.Path, event.frame)
 		}
 		return m, nil
 	case chosen:
 		if event.err != nil {
 			m.note = event.err.Error()
-			m.MarkDirty()
+			m.Dirty = gui.Touch(m.Dirty)
 			return m, nil
 		}
 		if len(event.paths) == 0 {
@@ -188,7 +188,7 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		} else {
 			m.note = ""
 		}
-		m.MarkDirty()
+		m.Dirty = gui.Touch(m.Dirty)
 		m.reload()
 		if m.player != nil && m.player.Playing() {
 			return m, gui.Tick()
@@ -216,7 +216,7 @@ func guiSize(msg gui.Msg) (image.Point, bool) {
 func (m *musicModel) ingest(paths []string) gui.Cmd {
 	m.busy = true
 	m.note = "reading library"
-	m.MarkDirty()
+	m.Dirty = gui.Touch(m.Dirty)
 	lib := m.lib
 	return func() gui.Msg {
 		var count int
@@ -258,7 +258,7 @@ func (m *musicModel) reload() {
 	}
 	m.albums = albums
 	m.tracks = tracks
-	m.MarkDirty()
+	m.Dirty = gui.Touch(m.Dirty)
 }
 
 func (m *musicModel) delegate(msg gui.Msg) (gui.Model, gui.Cmd) {
@@ -284,7 +284,7 @@ func (m *musicModel) delegate(msg gui.Msg) (gui.Model, gui.Cmd) {
 func (m *musicModel) absorb(parts ...interface{ Consume() bool }) {
 	for _, part := range parts {
 		if part != nil && part.Consume() {
-			m.MarkDirty()
+			m.Dirty = gui.Touch(m.Dirty)
 		}
 	}
 }

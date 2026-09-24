@@ -106,14 +106,14 @@ func (h *headerModel) key(key window.Key) gui.Cmd {
 		if h.query != "" {
 			runes := []rune(h.query)
 			h.query = string(runes[:len(runes)-1])
-			h.MarkDirty()
+			h.Dirty = gui.Touch(h.Dirty)
 			return queryCmd(h.query)
 		}
 	case key.Rune == '\n' || key.Rune == '\r':
-		gui.Set(h, &h.search, false)
+		h.Dirty, h.search = gui.See(h.Dirty, h.search, false)
 	case key.Rune >= 32:
 		h.query += string(key.Rune)
-		h.MarkDirty()
+		h.Dirty = gui.Touch(h.Dirty)
 		return queryCmd(h.query)
 	}
 	return nil
@@ -128,10 +128,10 @@ func (h *headerModel) pointer(pos image.Point) gui.Cmd {
 		return func() gui.Msg { return pickedOpen{} }
 	}
 	if h.searchBox != nil && h.searchBox.Contains(pos) {
-		gui.Set(h, &h.search, true)
+		h.Dirty, h.search = gui.See(h.Dirty, h.search, true)
 		return nil
 	}
-	gui.Set(h, &h.search, false)
+	h.Dirty, h.search = gui.See(h.Dirty, h.search, false)
 	if h.back != nil && h.showBack && h.back.Contains(pos) {
 		return func() gui.Msg { return pickedBack{} }
 	}
@@ -206,7 +206,7 @@ func (a *albumModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 			if next < 0 {
 				next = 0
 			}
-			gui.Set(a, &a.scroll, next)
+			a.Dirty, a.scroll = gui.See(a.Dirty, a.scroll, next)
 		}
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed {
@@ -283,7 +283,7 @@ func (t *trackModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		if limit := t.maxScroll(); next > limit {
 			next = limit
 		}
-		gui.Set(t, &t.scroll, next)
+		t.Dirty, t.scroll = gui.See(t.Dirty, t.scroll, next)
 	case window.Pointer:
 		if event.Button != 1 || !event.Pressed {
 			break

@@ -28,7 +28,7 @@ func (q *quiet) Update(msg Msg) (Model, Cmd) {
 		return q, nil
 	}
 	if _, ok := msg.(window.Key); ok {
-		Set(q, &q.n, q.n+1)
+		q.Dirty, q.n = See(q.Dirty, q.n, q.n+1)
 	}
 	return q, nil
 }

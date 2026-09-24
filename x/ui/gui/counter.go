@@ -30,18 +30,18 @@ func (counter *Counter) Update(msg Msg) (Model, Cmd) {
 		return counter, nil
 	}
 	if mode, ok := msg.(ModeMsg); ok {
-		Set(counter, &counter.mode, mode.Mode)
+		counter.Dirty, counter.mode = See(counter.Dirty, counter.mode, mode.Mode)
 	}
 	if pointer, ok := msg.(window.Pointer); ok && pointer.Button == 1 && pointer.Pressed {
 		if counter.minus != nil && counter.minus.Contains(pointer.Pos) {
-			Set(counter, &counter.count, counter.count-1)
+			counter.Dirty, counter.count = See(counter.Dirty, counter.count, counter.count-1)
 		}
 		if counter.plus != nil && counter.plus.Contains(pointer.Pos) {
-			Set(counter, &counter.count, counter.count+1)
+			counter.Dirty, counter.count = See(counter.Dirty, counter.count, counter.count+1)
 		}
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		Set(counter, &counter.size, size)
+		counter.Dirty, counter.size = See(counter.Dirty, counter.size, size)
 	}
 	return counter, nil
 }
