@@ -1,4 +1,4 @@
-package colorscheme
+package daynight
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestChangesSkipsDuplicates(t *testing.T) {
-	next := make(chan Scheme, 4)
+	next := make(chan Mode, 4)
 	ctx := t.Context()
 	out := Changes(ctx, Light, next)
 	require.Equal(t, Light, <-out)

@@ -1,4 +1,4 @@
-// Package fixed pins the color scheme from LEWKIT_COLORSCHEME.
+// Package fixed pins day or night from LEWKIT_DAYNIGHT.
 //
 // The factory is incompatible unless that variable is light or dark, so a
 // normal process keeps the host driver. Set publishes a later change to
@@ -11,22 +11,22 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/colorscheme"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/event"
 )
 
 type factory struct{}
 
-func (factory) ID() string   { return "colorscheme_fixed" }
+func (factory) ID() string   { return "daynight_fixed" }
 func (factory) Name() string { return "Fixed" }
 func (factory) Weight() int  { return 90 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	switch driver.GetEnv(ctx, "LEWKIT_COLORSCHEME") {
+	switch driver.GetEnv(ctx, "LEWKIT_DAYNIGHT") {
 	case "dark", "light":
 		return nil
 	default:
-		return fmt.Errorf("%w: LEWKIT_COLORSCHEME", driver.ErrIncompatible)
+		return fmt.Errorf("%w: LEWKIT_DAYNIGHT", driver.ErrIncompatible)
 	}
 }
 
@@ -35,48 +35,48 @@ var (
 	live   *source
 )
 
-func (factory) New(ctx context.Context) (colorscheme.Driver, error) {
+func (factory) New(ctx context.Context) (daynight.Driver, error) {
 	liveMu.Lock()
 	defer liveMu.Unlock()
 	if live == nil {
 		live = &source{
-			scheme: parsePinned(driver.GetEnv(ctx, "LEWKIT_COLORSCHEME")),
-			bus:    event.New[colorscheme.Scheme](),
+			scheme: parsePinned(driver.GetEnv(ctx, "LEWKIT_DAYNIGHT")),
+			bus:    event.New[daynight.Mode](),
 		}
 	}
 	return live, nil
 }
 
-func parsePinned(text string) colorscheme.Scheme {
+func parsePinned(text string) daynight.Mode {
 	if text == "dark" {
-		return colorscheme.Dark
+		return daynight.Dark
 	}
-	return colorscheme.Light
+	return daynight.Light
 }
 
 type source struct {
 	mu     sync.Mutex
-	scheme colorscheme.Scheme
-	bus    *event.Bus[colorscheme.Scheme]
+	scheme daynight.Mode
+	bus    *event.Bus[daynight.Mode]
 }
 
-func (src *source) Current(context.Context) (colorscheme.Scheme, error) {
+func (src *source) Current(context.Context) (daynight.Mode, error) {
 	src.mu.Lock()
 	defer src.mu.Unlock()
 	return src.scheme, nil
 }
 
-func (src *source) Watch(ctx context.Context) (<-chan colorscheme.Scheme, error) {
+func (src *source) Watch(ctx context.Context) (<-chan daynight.Mode, error) {
 	src.mu.Lock()
 	current := src.scheme
 	src.mu.Unlock()
-	return colorscheme.Changes(ctx, current, src.bus.Subscribe(ctx)), nil
+	return daynight.Changes(ctx, current, src.bus.Subscribe(ctx)), nil
 }
 
 // Set stores scheme and publishes it when the value changed.
 // Tests use it after Open. A process that did not select this driver
 // ignores Set.
-func Set(scheme colorscheme.Scheme) {
+func Set(scheme daynight.Mode) {
 	liveMu.Lock()
 	src := live
 	liveMu.Unlock()

@@ -18,7 +18,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/colorscheme"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	native "github.com/lewtec/lewkit/x/ffi/native/webview2"
 )
@@ -174,7 +174,7 @@ func (edgeDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, e
 		}
 	}
 	context.AfterFunc(ctx, func() { _ = view.Close() })
-	webview.Follow(ctx, func(scheme colorscheme.Scheme) {
+	webview.Follow(ctx, func(scheme daynight.Mode) {
 		post(func() { view.useScheme(scheme) })
 	})
 	return view, nil
@@ -360,7 +360,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	if hr < 0 {
 		return fmt.Errorf("AddWebResourceRequestedFilter: %x", uint32(hr))
 	}
-	if scheme, err := colorscheme.Current(ctx); err == nil {
+	if scheme, err := daynight.Current(ctx); err == nil {
 		view.useScheme(scheme)
 	}
 	target := fmt.Sprintf("https://view%d%s/index.html", view.identifier, viewHostSuffix)
@@ -381,7 +381,7 @@ func (view *edgeView) create(ctx context.Context) error {
 // useScheme sets ICoreWebView2Profile.PreferredColorScheme. That updates
 // prefers-color-scheme on the loaded page without a navigation.
 // 0 is auto, 1 is light, 2 is dark.
-func (view *edgeView) useScheme(scheme colorscheme.Scheme) {
+func (view *edgeView) useScheme(scheme daynight.Mode) {
 	if view == nil || view.webView == 0 {
 		return
 	}
@@ -396,7 +396,7 @@ func (view *edgeView) useScheme(scheme colorscheme.Scheme) {
 	}
 	defer release(profile)
 	value := uintptr(1)
-	if scheme == colorscheme.Dark {
+	if scheme == daynight.Dark {
 		value = 2
 	}
 	_ = call(profile, 9, value)

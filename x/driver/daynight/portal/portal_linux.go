@@ -9,7 +9,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/colorscheme"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/event"
 )
 
@@ -38,8 +38,8 @@ func available(ctx context.Context) error {
 
 type source struct {
 	mu     sync.Mutex
-	scheme colorscheme.Scheme
-	bus    *event.Bus[colorscheme.Scheme]
+	scheme daynight.Mode
+	bus    *event.Bus[daynight.Mode]
 }
 
 var (
@@ -48,7 +48,7 @@ var (
 	openErr  error
 )
 
-func open(ctx context.Context) (colorscheme.Driver, error) {
+func open(ctx context.Context) (daynight.Driver, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func open(ctx context.Context) (colorscheme.Driver, error) {
 		}
 		signals := make(chan *dbus.Signal, 16)
 		conn.Signal(signals)
-		openSrc = &source{scheme: scheme, bus: event.New[colorscheme.Scheme]()}
+		openSrc = &source{scheme: scheme, bus: event.New[daynight.Mode]()}
 		go openSrc.loop(conn, signals)
 	})
 	if openErr != nil {
@@ -109,42 +109,42 @@ func (src *source) loop(conn *dbus.Conn, signals chan *dbus.Signal) {
 	}
 }
 
-func (src *source) Current(context.Context) (colorscheme.Scheme, error) {
+func (src *source) Current(context.Context) (daynight.Mode, error) {
 	src.mu.Lock()
 	defer src.mu.Unlock()
 	return src.scheme, nil
 }
 
-func (src *source) Watch(ctx context.Context) (<-chan colorscheme.Scheme, error) {
+func (src *source) Watch(ctx context.Context) (<-chan daynight.Mode, error) {
 	src.mu.Lock()
 	current := src.scheme
 	src.mu.Unlock()
-	return colorscheme.Changes(ctx, current, src.bus.Subscribe(ctx)), nil
+	return daynight.Changes(ctx, current, src.bus.Subscribe(ctx)), nil
 }
 
-func readScheme(conn *dbus.Conn) (colorscheme.Scheme, error) {
+func readScheme(conn *dbus.Conn) (daynight.Mode, error) {
 	var value dbus.Variant
 	err := conn.Object(busName, path).Call(iface+".Read", 0, namespace, key).Store(&value)
 	if err != nil {
-		return colorscheme.Light, err
+		return daynight.Light, err
 	}
 	scheme, ok := schemeOf(value)
 	if !ok {
-		return colorscheme.Light, fmt.Errorf("%w: color-scheme type", driver.ErrUnavailable)
+		return daynight.Light, fmt.Errorf("%w: color-scheme type", driver.ErrUnavailable)
 	}
 	return scheme, nil
 }
 
 // fromPortal maps the portal color-scheme value.
 // 1 is prefer-dark. 0 (no preference) and 2 (prefer-light) are light.
-func fromPortal(value uint32) colorscheme.Scheme {
+func fromPortal(value uint32) daynight.Mode {
 	if value == 1 {
-		return colorscheme.Dark
+		return daynight.Dark
 	}
-	return colorscheme.Light
+	return daynight.Light
 }
 
-func schemeOf(value any) (colorscheme.Scheme, bool) {
+func schemeOf(value any) (daynight.Mode, bool) {
 	switch typed := value.(type) {
 	case dbus.Variant:
 		return schemeOf(typed.Value())
@@ -154,17 +154,17 @@ func schemeOf(value any) (colorscheme.Scheme, bool) {
 		return fromPortal(uint32(typed)), true
 	case int32:
 		if typed < 0 {
-			return colorscheme.Light, false
+			return daynight.Light, false
 		}
 		return fromPortal(uint32(typed)), true
 	case int16:
 		if typed < 0 {
-			return colorscheme.Light, false
+			return daynight.Light, false
 		}
 		return fromPortal(uint32(typed)), true
 	case byte:
 		return fromPortal(uint32(typed)), true
 	default:
-		return colorscheme.Light, false
+		return daynight.Light, false
 	}
 }

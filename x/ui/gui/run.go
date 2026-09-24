@@ -6,7 +6,7 @@ import (
 	"image"
 	"time"
 
-	"github.com/lewtec/lewkit/x/driver/colorscheme"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/ndeval"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -115,14 +115,14 @@ func (runner *runner) loop() error {
 	runner.commands = make(chan Msg, 16)
 	events := runner.host.Subscribe(ctx)
 	runner.dirty = true
-	applied := colorscheme.Dark
-	if scheme, err := colorscheme.Current(ctx); err == nil {
+	applied := daynight.Dark
+	if scheme, err := daynight.Current(ctx); err == nil {
 		applied = scheme
-		if err := runner.handle(SchemeMsg{Scheme: scheme}); err != nil {
+		if err := runner.handle(ModeMsg{Mode: scheme}); err != nil {
 			return err
 		}
 	}
-	if changes, err := colorscheme.Watch(ctx); err == nil {
+	if changes, err := daynight.Watch(ctx); err == nil {
 		go func() {
 			first := true
 			for scheme := range changes {
@@ -133,7 +133,7 @@ func (runner *runner) loop() error {
 					}
 				}
 				select {
-				case runner.commands <- SchemeMsg{Scheme: scheme}:
+				case runner.commands <- ModeMsg{Mode: scheme}:
 				case <-ctx.Done():
 					return
 				}

@@ -10,7 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/colorscheme"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/event"
 )
 
@@ -39,8 +39,8 @@ var (
 type source struct {
 	key    syscall.Handle
 	mu     sync.Mutex
-	scheme colorscheme.Scheme
-	bus    *event.Bus[colorscheme.Scheme]
+	scheme daynight.Mode
+	bus    *event.Bus[daynight.Mode]
 }
 
 func available(context.Context) error {
@@ -58,7 +58,7 @@ var (
 	openErr  error
 )
 
-func open(ctx context.Context) (colorscheme.Driver, error) {
+func open(ctx context.Context) (daynight.Driver, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func open(ctx context.Context) (colorscheme.Driver, error) {
 			openErr = err
 			return
 		}
-		openSrc = &source{key: key, scheme: readTheme(key), bus: event.New[colorscheme.Scheme]()}
+		openSrc = &source{key: key, scheme: readTheme(key), bus: event.New[daynight.Mode]()}
 		go openSrc.loop()
 	})
 	if openErr != nil {
@@ -77,19 +77,19 @@ func open(ctx context.Context) (colorscheme.Driver, error) {
 	return openSrc, nil
 }
 
-func (src *source) Current(context.Context) (colorscheme.Scheme, error) {
+func (src *source) Current(context.Context) (daynight.Mode, error) {
 	src.mu.Lock()
 	defer src.mu.Unlock()
 	src.scheme = readTheme(src.key)
 	return src.scheme, nil
 }
 
-func (src *source) Watch(ctx context.Context) (<-chan colorscheme.Scheme, error) {
+func (src *source) Watch(ctx context.Context) (<-chan daynight.Mode, error) {
 	src.mu.Lock()
 	scheme := readTheme(src.key)
 	src.scheme = scheme
 	src.mu.Unlock()
-	return colorscheme.Changes(ctx, scheme, src.bus.Subscribe(ctx)), nil
+	return daynight.Changes(ctx, scheme, src.bus.Subscribe(ctx)), nil
 }
 
 func (src *source) loop() {
@@ -128,10 +128,10 @@ func openKey() (syscall.Handle, error) {
 	return key, nil
 }
 
-func readTheme(key syscall.Handle) colorscheme.Scheme {
+func readTheme(key syscall.Handle) daynight.Mode {
 	name, err := syscall.UTF16PtrFromString("AppsUseLightTheme")
 	if err != nil {
-		return colorscheme.Light
+		return daynight.Light
 	}
 	var kind uint32
 	var data uint32
@@ -145,7 +145,7 @@ func readTheme(key syscall.Handle) colorscheme.Scheme {
 		uintptr(unsafe.Pointer(&size)),
 	)
 	if status != 0 || kind != regDWORD {
-		return colorscheme.Light
+		return daynight.Light
 	}
 	return fromLightTheme(data)
 }

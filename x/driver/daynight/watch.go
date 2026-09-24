@@ -1,11 +1,11 @@
-package colorscheme
+package daynight
 
 import "context"
 
 // Changes sends current once, then each value that differs from the last.
 // It closes out when ctx is done.
-func Changes(ctx context.Context, current Scheme, next <-chan Scheme) <-chan Scheme {
-	out := make(chan Scheme, 1)
+func Changes(ctx context.Context, current Mode, next <-chan Mode) <-chan Mode {
+	out := make(chan Mode, 1)
 	out <- current
 	go func() {
 		defer close(out)

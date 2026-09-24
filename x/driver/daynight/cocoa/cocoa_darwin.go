@@ -10,7 +10,7 @@ import (
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/colorscheme"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -19,8 +19,8 @@ var (
 	watchOnce sync.Once
 	watchErr  error
 	observer  objc.ID
-	bus       = event.New[colorscheme.Scheme]()
-	current   colorscheme.Scheme
+	bus       = event.New[daynight.Mode]()
+	current   daynight.Mode
 	mu        sync.Mutex
 
 	selStandard   = objc.RegisterName("standardUserDefaults")
@@ -41,7 +41,7 @@ func available(context.Context) error {
 	return nil
 }
 
-func open(ctx context.Context) (colorscheme.Driver, error) {
+func open(ctx context.Context) (daynight.Driver, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -53,19 +53,19 @@ func open(ctx context.Context) (colorscheme.Driver, error) {
 
 type host struct{}
 
-func (host) Current(context.Context) (colorscheme.Scheme, error) {
+func (host) Current(context.Context) (daynight.Mode, error) {
 	mu.Lock()
 	defer mu.Unlock()
 	current = readStyle()
 	return current, nil
 }
 
-func (host) Watch(ctx context.Context) (<-chan colorscheme.Scheme, error) {
+func (host) Watch(ctx context.Context) (<-chan daynight.Mode, error) {
 	mu.Lock()
 	scheme := readStyle()
 	current = scheme
 	mu.Unlock()
-	return colorscheme.Changes(ctx, scheme, bus.Subscribe(ctx)), nil
+	return daynight.Changes(ctx, scheme, bus.Subscribe(ctx)), nil
 }
 
 func frameworks() error {
@@ -112,7 +112,7 @@ func startWatch() error {
 	return watchErr
 }
 
-func publish(scheme colorscheme.Scheme) {
+func publish(scheme daynight.Mode) {
 	mu.Lock()
 	same := current == scheme
 	current = scheme
@@ -122,14 +122,14 @@ func publish(scheme colorscheme.Scheme) {
 	}
 }
 
-func readStyle() colorscheme.Scheme {
+func readStyle() daynight.Mode {
 	defaults := objc.ID(objc.GetClass("NSUserDefaults")).Send(selStandard)
 	if defaults == 0 {
-		return colorscheme.Light
+		return daynight.Light
 	}
 	value := defaults.Send(selStringFor, nsString("AppleInterfaceStyle"))
 	if value == 0 {
-		return colorscheme.Light
+		return daynight.Light
 	}
 	text := cocoaString(value)
 	return fromInterfaceStyle(text)

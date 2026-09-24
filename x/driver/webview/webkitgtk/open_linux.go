@@ -19,7 +19,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/colorscheme"
+	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/ffi/native/webkitgtk"
 )
@@ -90,8 +90,8 @@ func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, er
 			return nil, opened.err
 		}
 		context.AfterFunc(ctx, func() { _ = opened.view.Close() })
-		webview.Follow(ctx, func(scheme colorscheme.Scheme) {
-			state.do(func() { state.symbols.SetPreferDark(scheme == colorscheme.Dark) })
+		webview.Follow(ctx, func(scheme daynight.Mode) {
+			state.do(func() { state.symbols.SetPreferDark(scheme == daynight.Dark) })
 		})
 		return opened.view, nil
 	}
@@ -213,8 +213,8 @@ func (state *loopState) open(ctx context.Context, cfg webview.Config) (webview.V
 	schemeRegistered.Do(func() {
 		state.symbols.RegisterScheme(webContext, schemeName, schemeCallback, 0)
 	})
-	if scheme, err := colorscheme.Current(ctx); err == nil {
-		state.symbols.SetPreferDark(scheme == colorscheme.Dark)
+	if scheme, err := daynight.Current(ctx); err == nil {
+		state.symbols.SetPreferDark(scheme == daynight.Dark)
 	}
 	origin := fmt.Sprintf("%s://%s%d/", schemeName, viewHostPrefix, identifier)
 	if strings.TrimSpace(cfg.HTML) != "" {
