@@ -10,7 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
-	"github.com/lewtec/lewkit/x/driver/chooser"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/thread"
 )
@@ -22,10 +22,10 @@ const (
 )
 
 var (
-	errPanel    = errors.New("chooser panel")
-	errPath     = errors.New("chooser path")
-	errNotBound = errors.New("chooser: thread not bound")
-	errNotMain  = errors.New("chooser: not main thread")
+	errPanel    = errors.New("file dialog panel")
+	errPath     = errors.New("file dialog path")
+	errNotBound = errors.New("file dialog: thread not bound")
+	errNotMain  = errors.New("file dialog: not main thread")
 
 	appOnce sync.Once
 	appErr  error
@@ -61,12 +61,12 @@ var (
 	selFileURL    = objc.RegisterName("fileURLWithPath:isDirectory:")
 )
 
-func (opener) Choose(ctx context.Context, req chooser.Request) ([]string, error) {
+func (opener) Choose(ctx context.Context, req filedialog.Request) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", chooser.ErrRequest, err)
+		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
 	if !thread.Bound() {
 		return nil, errNotBound
@@ -102,7 +102,7 @@ func ensureApp() error {
 	return appErr
 }
 
-func show(req chooser.Request) ([]string, error) {
+func show(req filedialog.Request) ([]string, error) {
 	if err := ensureApp(); err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func show(req chooser.Request) ([]string, error) {
 		panel.Send(selMultiple, req.Multiple)
 	}
 	if int(panel.Send(selRun)) != modalOK {
-		return nil, chooser.ErrCanceled
+		return nil, filedialog.ErrCanceled
 	}
 	if req.Save {
 		path := urlPath(panel.Send(selURL))
@@ -157,15 +157,15 @@ func show(req chooser.Request) ([]string, error) {
 	return paths, nil
 }
 
-func openPanel(req chooser.Request) objc.ID {
+func openPanel(req filedialog.Request) objc.ID {
 	if req.Save {
 		return objc.ID(objc.GetClass("NSSavePanel")).Send(selSavePanel)
 	}
 	return objc.ID(objc.GetClass("NSOpenPanel")).Send(selOpenPanel)
 }
 
-func fileTypes(req chooser.Request) objc.ID {
-	names := chooser.Extensions(req.Filters)
+func fileTypes(req filedialog.Request) objc.ID {
+	names := filedialog.Extensions(req.Filters)
 	if len(names) == 0 {
 		return 0
 	}

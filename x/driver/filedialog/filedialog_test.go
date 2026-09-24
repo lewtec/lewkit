@@ -1,4 +1,4 @@
-package chooser
+package filedialog
 
 import (
 	"testing"

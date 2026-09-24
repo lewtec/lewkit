@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/chooser"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,6 +19,6 @@ func TestGTKAvailableOrIncompatible(t *testing.T) {
 	}
 	got, err := factory{}.New(t.Context())
 	require.NoError(t, err)
-	_, ok := got.(chooser.Driver)
+	_, ok := got.(filedialog.Driver)
 	require.True(t, ok)
 }

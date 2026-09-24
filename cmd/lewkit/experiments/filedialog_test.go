@@ -9,7 +9,7 @@ import (
 )
 
 func TestChooseUsage(t *testing.T) {
-	text, err := cmd.Usage[Choose]("lewkit experiments choose")
+	text, err := cmd.Usage[FileDialog]("lewkit experiments filedialog")
 	require.NoError(t, err)
 	assert.Contains(t, text, "--folder")
 	assert.Contains(t, text, "--save")
