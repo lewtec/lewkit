@@ -224,12 +224,12 @@ func (runner *runner) render() error {
 	if err != nil {
 		return err
 	}
-	if runner.picture.recordOnly && runner.picture.raster == nil {
-		runner.view = nil
-		runner.signature = runner.picture.frameSig()
-		return nil
-	}
 	if pixels == nil {
+		if runner.picture.recordOnly {
+			runner.view = nil
+			runner.signature = runner.picture.frameSig()
+			return nil
+		}
 		return ErrView
 	}
 	runner.view = pixels

@@ -42,6 +42,22 @@ func TestMountedRasterReusesKernel(t *testing.T) {
 	assert.NotEqual(t, out[0], out[3*4])
 }
 
+func TestShapedRasterStaysOnDrawList(t *testing.T) {
+	values := make([]float32, 4*4*4)
+	values[0] = 255
+	source, err := ndarray.New(values, ndarray.Shape{4, 4, 4})
+	require.NoError(t, err)
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.recordOnly = true
+	pixels, err := picture.Render(&Raster{Pixels: source}, Size{4, 4})
+	require.NoError(t, err)
+	assert.Nil(t, pixels)
+	buffer, err := picture.rasterBytes(t.Context(), nil, 4, 4)
+	require.NoError(t, err)
+	assert.Equal(t, uint8(255), buffer[0])
+}
+
 func TestRasterBytesVaryAcrossFrame(t *testing.T) {
 	shape := ndarray.Shape{1, 1, 4}
 	source := ndarray.Coord(1, shape).Cast[float32]()
