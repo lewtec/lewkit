@@ -34,7 +34,6 @@ type root struct {
 	generate    *generateCmd
 	disasm      *disasmCmd
 	doctor      *doctorCmd
-	herdr       *herdrCmd
 	experiments *experiments.Command
 	completion  *completionCmd
 }
