@@ -14,29 +14,29 @@ const (
 )
 
 type musicPaint struct {
-	bg, panel, card, muted, text, onPlay, bar gui.Color
+	bg, panel, card, muted, text, onPlay, bar gui.RGB
 }
 
 func paintFor(mode daynight.Mode) musicPaint {
 	if mode == daynight.Light {
 		return musicPaint{
-			bg:     gui.Color{246, 246, 244, 255},
-			panel:  gui.Color{232, 232, 228, 255},
-			card:   gui.Color{255, 255, 255, 255},
-			muted:  gui.Color{110, 110, 116, 255},
-			text:   gui.Color{28, 28, 34, 255},
-			onPlay: gui.Color{246, 246, 244, 255},
-			bar:    gui.Color{210, 210, 206, 255},
+			bg:     gui.RGB{246, 246, 244, 255},
+			panel:  gui.RGB{232, 232, 228, 255},
+			card:   gui.RGB{255, 255, 255, 255},
+			muted:  gui.RGB{110, 110, 116, 255},
+			text:   gui.RGB{28, 28, 34, 255},
+			onPlay: gui.RGB{246, 246, 244, 255},
+			bar:    gui.RGB{210, 210, 206, 255},
 		}
 	}
 	return musicPaint{
-		bg:     gui.Color{16, 18, 46, 255},
-		panel:  gui.Color{28, 32, 72, 255},
-		card:   gui.Color{36, 40, 86, 255},
-		muted:  gui.Color{168, 174, 206, 255},
-		text:   gui.Color{255, 255, 255, 255},
-		onPlay: gui.Color{20, 22, 40, 255},
-		bar:    gui.Color{70, 74, 110, 255},
+		bg:     gui.RGB{16, 18, 46, 255},
+		panel:  gui.RGB{28, 32, 72, 255},
+		card:   gui.RGB{36, 40, 86, 255},
+		muted:  gui.RGB{168, 174, 206, 255},
+		text:   gui.RGB{255, 255, 255, 255},
+		onPlay: gui.RGB{20, 22, 40, 255},
+		bar:    gui.RGB{70, 74, 110, 255},
 	}
 }
 

@@ -81,7 +81,7 @@ func TestImageThumbIsReused(t *testing.T) {
 func TestTextColor(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)
-	root := &Text{Value: "M", Face: basicfont.Face7x13, Ink: Color{220, 10, 10, 255}}
+	root := &Text{Value: "M", Face: basicfont.Face7x13, Ink: RGB{220, 10, 10, 255}}
 	_, err = picture.Render(root, Size{32, 24})
 	require.NoError(t, err)
 	ink := picture.Ink()

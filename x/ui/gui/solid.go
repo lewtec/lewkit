@@ -3,12 +3,12 @@ package gui
 // Solid fills the frame with one RGBA color.
 type Solid struct {
 	Dirty
-	fill Color
+	fill RGB
 }
 
 // NewSolid returns a solid fill. The error is always nil.
 func NewSolid(red, green, blue, alpha uint8) (*Solid, error) {
-	return &Solid{fill: Color{red, green, blue, alpha}}, nil
+	return &Solid{fill: RGB{red, green, blue, alpha}}, nil
 }
 
 func (solid *Solid) Init() Cmd { return Tick() }

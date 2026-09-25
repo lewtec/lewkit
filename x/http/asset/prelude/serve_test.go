@@ -10,6 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/http/asset"
 	"github.com/lewtec/lewkit/x/http/asset/htmx"
 	"github.com/lewtec/lewkit/x/http/asset/jquery"
+	"github.com/lewtec/lewkit/x/http/asset/lewtec_logo"
 	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
 	"github.com/lewtec/lewkit/x/http/asset/tailwindcss"
 	"github.com/stretchr/testify/require"
@@ -32,6 +33,7 @@ func TestPreludeServes(t *testing.T) {
 		{path: jquery.Path, contentType: "text/javascript", needle: "jQuery"},
 		{path: tailwindcss.Path, contentType: "text/javascript", needle: tailwindcss.Version},
 		{path: sakuracss.Path, contentType: "text/css", needle: "Sakura.css"},
+		{path: lewtec_logo.Path, contentType: "image/png", needle: "PNG"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {

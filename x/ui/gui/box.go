@@ -13,7 +13,7 @@ type Box struct {
 	Align     Alignment
 	Width     float32
 	Height    float32
-	Fill      *Color
+	Fill      *RGB
 	Radius    float32
 	Clip      bool
 	Key       string

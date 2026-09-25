@@ -147,7 +147,7 @@ func TestChosenFolderIngests(t *testing.T) {
 	require.NotNil(t, model.View())
 	_, cmd := model.Update(chosen{paths: []string{root}})
 	require.NotNil(t, cmd)
-	got, ok := cmd().(ingested)
+	got, ok := cmd(t.Context()).(ingested)
 	require.True(t, ok)
 	assert.Equal(t, 1, got.count)
 	assert.NoError(t, got.err)

@@ -2,7 +2,6 @@ package gui
 
 import (
 	"image"
-	"image/draw"
 	"math"
 
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -78,7 +77,12 @@ func (stamp imageStamp) draw(picture *Picture, destination *image.RGBA) {
 		return
 	}
 	scaled := picture.thumb(stamp, bounds.Dx(), bounds.Dy())
-	draw.Draw(destination, keep, scaled, image.Pt(keep.Min.X-bounds.Min.X, keep.Min.Y-bounds.Min.Y), draw.Over)
+	width := keep.Dx() * 4
+	for y := keep.Min.Y; y < keep.Max.Y; y++ {
+		src := scaled.PixOffset(keep.Min.X-bounds.Min.X, y-bounds.Min.Y)
+		dst := destination.PixOffset(keep.Min.X, y)
+		copy(destination.Pix[dst:dst+width], scaled.Pix[src:src+width])
+	}
 }
 
 func (picture *Picture) thumb(stamp imageStamp, width, height int) *image.RGBA {
@@ -88,8 +92,11 @@ func (picture *Picture) thumb(stamp imageStamp, width, height int) *image.RGBA {
 			return got
 		}
 	}
-	scaled := image.NewRGBA(image.Rect(0, 0, width, height))
-	xdraw.ApproxBiLinear.Scale(scaled, scaled.Bounds(), stamp.src, stamp.src.Bounds(), draw.Src, nil)
+	// Ink stores straight alpha. The ink shader multiplies rgb by a.
+	straight := image.NewNRGBA(image.Rect(0, 0, width, height))
+	xdraw.ApproxBiLinear.Scale(straight, straight.Bounds(), stamp.src, stamp.src.Bounds(), xdraw.Src, nil)
+	scaled := image.NewRGBA(straight.Bounds())
+	copy(scaled.Pix, straight.Pix)
 	if stamp.radius > 0 {
 		punchRadius(scaled, scaled.Bounds(), scaled.Bounds(), float64(stamp.radius))
 	}

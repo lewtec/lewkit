@@ -10,8 +10,8 @@ import (
 
 func TestHitFindsTopKey(t *testing.T) {
 	root := &Box{
-		Width: 40, Height: 30, Key: "outer", Fill: &Color{1, 1, 1, 255},
-		Child: &Box{Width: 10, Height: 10, Key: "inner", Fill: &Color{2, 0, 0, 255}},
+		Width: 40, Height: 30, Key: "outer", Fill: &RGB{1, 1, 1, 255},
+		Child: &Box{Width: 10, Height: 10, Key: "inner", Fill: &RGB{2, 0, 0, 255}},
 	}
 	key, along, _ := Hit(root, Size{40, 30}, image.Pt(2, 2))
 	assert.Equal(t, "inner", key)

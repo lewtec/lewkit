@@ -1,6 +1,7 @@
 package gui
 
 import (
+	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"golang.org/x/image/font"
 )
@@ -19,13 +20,12 @@ type textRun struct {
 	face   font.Face
 	cursor int
 	caret  bool
-	ink    Color
+	ink    RGB
 }
 
-// Color is straight RGBA 0..255.
-type Color struct {
-	Red, Green, Blue, Alpha uint8
-}
+// RGB is [lewimage.RGB]. One struct for ink, fills, and command flags.
+// [lewimage.BGR], [lewimage.CMYK], and [lewimage.HSV] convert to it.
+type RGB = lewimage.RGB
 
 // EdgeInsets is padding.
 type EdgeInsets struct {

@@ -161,7 +161,7 @@ func (runner *runner) loop() error {
 			if err := runner.handle(event); err != nil {
 				return err
 			}
-			if _, stop := event.(window.Close); stop {
+			if stopLoop(event) {
 				return nil
 			}
 			select {
@@ -175,7 +175,7 @@ func (runner *runner) loop() error {
 			if err := runner.handle(msg); err != nil {
 				return err
 			}
-			if _, stop := msg.(window.Close); stop {
+			if stopLoop(msg) {
 				return nil
 			}
 			if _, tick := msg.(TickMsg); tick {
@@ -216,12 +216,21 @@ func (runner *runner) drainLatest() (bool, error) {
 			if err := runner.handle(newer); err != nil {
 				return false, err
 			}
-			if _, stop := newer.(window.Close); stop {
+			if stopLoop(newer) {
 				return true, nil
 			}
 		default:
 			return false, nil
 		}
+	}
+}
+
+func stopLoop(msg Msg) bool {
+	switch msg.(type) {
+	case window.Close, quitMsg:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -255,7 +264,7 @@ func (runner *runner) handle(msg Msg) error {
 	} else {
 		runner.dirty = true
 	}
-	if _, stop := msg.(window.Close); stop {
+	if stopLoop(msg) {
 		return nil
 	}
 	switch msg.(type) {
@@ -270,7 +279,7 @@ func (runner *runner) spawn(cmd Cmd) {
 		return
 	}
 	go func() {
-		msg := cmd()
+		msg := cmd(runner.ctx)
 		if msg == nil {
 			return
 		}

@@ -10,6 +10,7 @@ type Command struct {
 	Tray          *Tray
 	Sound         *Sound
 	FileDialog    *FileDialog
+	Welcome       *welcomeCmd
 }
 
 func (Command) Description() string {

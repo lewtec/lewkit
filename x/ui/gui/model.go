@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"context"
 	"image"
 	"time"
 
@@ -13,12 +14,12 @@ import (
 type Msg any
 
 // Cmd produces a follow-up [Msg]. Nil means no command.
-// Run runs Cmd asynchronously; the result is another message.
-type Cmd func() Msg
+// Run calls it with the context that started the window.
+type Cmd func(context.Context) Msg
 
 // Tick immediately produces a [TickMsg]. Use from Init for the first frame.
 func Tick() Cmd {
-	return func() Msg { return TickMsg{} }
+	return func(context.Context) Msg { return TickMsg{} }
 }
 
 // Every produces a [TickMsg] one display period after this call.
@@ -30,13 +31,21 @@ func Every(duration time.Duration) Cmd {
 		duration = window.DefaultFramePeriod
 	}
 	deadline := time.Now().Add(duration)
-	return func() Msg {
+	return func(ctx context.Context) Msg {
 		if wait := time.Until(deadline); wait > 0 {
-			time.Sleep(wait)
+			timer := time.NewTimer(wait)
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				timer.Stop()
+			}
 		}
 		return TickMsg{}
 	}
 }
+
+// quitMsg ends the window loop without canceling the caller's context.
+type quitMsg struct{}
 
 // Model is the bubbletea trio. View is a layout [Node], not a tensor.
 type Model interface {

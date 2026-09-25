@@ -220,14 +220,14 @@ func (m *musicModel) ingest(paths []string) gui.Cmd {
 	m.note = "reading library"
 	m.Dirty = gui.Touch(m.Dirty)
 	lib := m.lib
-	return func() gui.Msg {
+	return func(ctx context.Context) gui.Msg {
 		var count int
 		var failed error
 		for _, path := range paths {
 			if path == "" {
 				continue
 			}
-			n, err := lib.Ingest(m.ctx, path)
+			n, err := lib.Ingest(ctx, path)
 			count += n
 			if err != nil && n == 0 {
 				failed = err
@@ -404,8 +404,7 @@ func take[T gui.Model](model *T, msg gui.Msg) gui.Cmd {
 }
 
 func (m *musicModel) choose() gui.Cmd {
-	ctx := m.ctx
-	return func() gui.Msg {
+	return func(ctx context.Context) gui.Msg {
 		paths, err := filedialog.Choose(ctx, filedialog.Request{Title: "Music folder", Folder: true})
 		if errors.Is(err, filedialog.ErrCanceled) {
 			return chosen{}

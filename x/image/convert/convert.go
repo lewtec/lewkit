@@ -16,6 +16,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"os"
 
 	xdraw "golang.org/x/image/draw"
 )
@@ -44,6 +45,15 @@ var ICNSSpecs = []ICNSSpec{
 	{"ic08", 256},
 	{"ic09", 512},
 	{"ic10", 1024},
+}
+
+// Open reads a file [Decode] can read.
+func Open(path string) (image.Image, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return Decode(raw)
 }
 
 // Decode reads a PNG, JPEG, ICO, or ICNS. ICO and ICNS return the largest image.
