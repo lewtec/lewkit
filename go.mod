@@ -23,6 +23,7 @@ require (
 	github.com/jezek/xgb v1.3.1
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/klauspost/compress v1.18.5
+	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
@@ -86,7 +87,6 @@ require (
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/ktr0731/go-ansisgr v0.1.0 // indirect
-	github.com/ktr0731/go-fuzzyfinder v0.9.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20250303204525-1544bccde3a3 // indirect
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
