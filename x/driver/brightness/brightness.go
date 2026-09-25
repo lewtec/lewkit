@@ -2,6 +2,7 @@
 //
 //	dev, err := brightness.Status(ctx)
 //	err = brightness.Increase(ctx)
+//	err = brightness.ShowStatus(ctx)
 //
 // Import [github.com/lewtec/lewkit/x/driver/brightness/brightnessctl].
 // Increase and Decrease step by 0.05 and stay inside 0..1.

@@ -28,6 +28,9 @@ type Notification struct {
 	HasProgress bool
 }
 
+// StatusID replaces the previous volume, brightness, or media status alert.
+const StatusID uint32 = 100
+
 // Driver posts one notification.
 type Driver interface {
 	Notify(ctx context.Context, n Notification) error
