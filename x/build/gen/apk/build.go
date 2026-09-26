@@ -1,6 +1,7 @@
 package apk
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 )
@@ -152,7 +154,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	libs, err := BuildGoLibs(workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, stdout, stderr)
+	libs, err := BuildGoLibs(workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, stdout)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -199,7 +201,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 
 // BuildGoLibs cross-compiles the app into workDir/app/src/main/jniLibs/<abi>/libeletrocromo.so.
 // stamp is injected via -ldflags -X (goreleaser-style) when apps import internal/version.
-func BuildGoLibs(workDir, goMainDir string, abis []string, stamp version.Info, appID string, stdout, stderr io.Writer) ([]string, error) {
+func BuildGoLibs(workDir, goMainDir string, abis []string, stamp version.Info, appID string, stdout io.Writer) ([]string, error) {
 	if len(abis) == 0 {
 		abis = DefaultABIs
 	}
@@ -218,19 +220,15 @@ func BuildGoLibs(workDir, goMainDir string, abis []string, stamp version.Info, a
 		if _, err := fmt.Fprintf(stdout, "  → %s (GOARCH=%s)\n", abi, goarch); err != nil {
 			return nil, err
 		}
-		cmd := exec.Command("go", "build", "-trimpath", "-ldflags", ldflags, "-o", dest, ".")
-		cmd.Dir = goMainDir
-		cmd.Env = append(os.Environ(),
+		env := append(os.Environ(),
 			"CGO_ENABLED=0",
 			"GOOS=android",
 			"GOARCH="+goarch,
 		)
 		if goarch == "arm" {
-			cmd.Env = append(cmd.Env, "GOARM=7")
+			env = append(env, "GOARM=7")
 		}
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
-		if err := cmd.Run(); err != nil {
+		if err := gocmd.Build(context.Background(), goMainDir, env, "-trimpath", "-ldflags", ldflags, "-o", dest, "."); err != nil {
 			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=0): %w\nnote: pure Go android builds typically only support arm64-v8a without an NDK; set abis in eletrocromo.json", abi, goarch, err)
 		}
 		out = append(out, dest)

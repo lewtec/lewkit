@@ -1,6 +1,7 @@
 package mac
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 )
@@ -142,7 +144,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := buildGoHelper(helperDest, goMain, arch, vi, cfg.PackageID, stdout, stderr); err != nil {
+	if err := buildGoHelper(helperDest, goMain, arch, vi, cfg.PackageID); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -209,20 +211,16 @@ func hostDarwinArch() (goarch, xcodeArch string, err error) {
 	return darwinArch(runtime.GOARCH)
 }
 
-func buildGoHelper(dest, goMainDir, goarch string, stamp version.Info, appID string, stdout, stderr io.Writer) error {
+func buildGoHelper(dest, goMainDir, goarch string, stamp version.Info, appID string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", dest, ".")
-	cmd.Dir = goMainDir
-	cmd.Env = append(os.Environ(),
+	err := gocmd.Build(context.Background(), goMainDir, append(os.Environ(),
 		"CGO_ENABLED=0",
 		"GOOS=darwin",
 		"GOARCH="+goarch,
-	)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
+	), "-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", dest, ".")
+	if err != nil {
 		return fmt.Errorf("go build darwin/%s: %w", goarch, err)
 	}
 	return os.Chmod(dest, 0o755)

@@ -1,6 +1,7 @@
 package ios
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 )
@@ -165,7 +167,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 			return nil, buildErr
 		}
 	}
-	if err := buildArchive(archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, goarch, stdout, stderr); err != nil {
+	if err := buildArchive(archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, goarch); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -266,7 +268,7 @@ func applyIOSIcons(iconRoot, assetsDir string) error {
 	return nil
 }
 
-func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appID, goarch string, stdout, stderr io.Writer) error {
+func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appID, goarch string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
@@ -292,7 +294,14 @@ func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appI
 		return err
 	}
 
-	cmd := exec.Command("go", "build",
+	err = gocmd.Build(context.Background(), goMainDir, append(os.Environ(),
+		"CGO_ENABLED=1",
+		"GOOS=ios",
+		"GOARCH="+goarch,
+		"CC="+wrap,
+		"ELETROCROMO_IOS_SDK="+sdk,
+		"CGO_LDFLAGS=-framework CoreFoundation",
+	),
 		"-buildmode=c-archive",
 		"-trimpath",
 		"-overlay", overlayFile,
@@ -300,18 +309,7 @@ func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appI
 		"-o", dest,
 		".",
 	)
-	cmd.Dir = goMainDir
-	cmd.Env = append(os.Environ(),
-		"CGO_ENABLED=1",
-		"GOOS=ios",
-		"GOARCH="+goarch,
-		"CC="+wrap,
-		"ELETROCROMO_IOS_SDK="+sdk,
-		"CGO_LDFLAGS=-framework CoreFoundation",
-	)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
+	if err != nil {
 		return fmt.Errorf("go build ios/%s (%s): %w", goarch, sdk, err)
 	}
 	hdr := strings.TrimSuffix(dest, ".a") + ".h"

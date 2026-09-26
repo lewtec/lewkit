@@ -7,11 +7,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
 )
 
@@ -81,12 +82,10 @@ func Archives(ctx context.Context, moduleDir, outDir, project, appID, versionNam
 			return written, err
 		}
 		binPath := filepath.Join(tmp, binary)
-		cmd := exec.CommandContext(ctx, "go", "build", "-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", binPath, ".")
-		cmd.Dir = moduleDir
-		cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		slog.Info("build " + target.GOOS + "/" + target.GOARCH)
+		err = gocmd.Build(ctx, moduleDir, append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
+			"-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", binPath, ".")
+		if err != nil {
 			os.RemoveAll(tmp)
 			return written, fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
 		}
