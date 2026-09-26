@@ -22,7 +22,12 @@ func TestDoctorPrintsTable(t *testing.T) {
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
-	assert.Contains(t, got, "interface")
+	header := got
+	if i := strings.IndexByte(got, '\n'); i >= 0 {
+		header = got[:i]
+	}
+	assert.Less(t, strings.Index(header, "id"), strings.Index(header, "name"))
+	assert.Less(t, strings.Index(header, "name"), strings.Index(header, "interface"))
 	assert.Contains(t, got, "window.Driver")
 	assert.Contains(t, got, "window_mem")
 	assert.Contains(t, got, "Memory")

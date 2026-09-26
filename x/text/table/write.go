@@ -12,17 +12,21 @@ import (
 	"text/tabwriter"
 )
 
-type column struct {
-	name  string
-	index []int
-}
-
-// Write prints each value from seq. Struct columns are the exported fields.
-// A json name, when present, is the column name. json:"-" skips the field.
+// Write prints each value from seq in format.
+// With no columns, exported struct fields are the columns. A json name is the
+// header, and json:"-" skips the field. table:"name,order=N" renames a column
+// and sets its sort key. The default key is the field index. A field that
+// implements fmt.Stringer or error uses that text in table and CSV. JSONL
+// keeps the field's JSON value. Passing columns uses that slice order and
+// those cell funcs for every format.
 // A non-struct value is one column named value. Table and CSV print a header
 // even when seq is empty. JSONL prints one object per line and no header.
-func Write[T any](w io.Writer, format Format, seq iter.Seq[T]) error {
+func Write[T any](w io.Writer, format Format, seq iter.Seq[T], cols ...Column[T]) error {
 	if err := format.validate(); err != nil {
+		return err
+	}
+	fields, err := useColumns(cols)
+	if err != nil {
 		return err
 	}
 	if seq == nil {
@@ -30,32 +34,57 @@ func Write[T any](w io.Writer, format Format, seq iter.Seq[T]) error {
 	}
 	switch format {
 	case JSONL:
-		return writeJSONL(w, seq)
+		return writeJSONL(w, seq, fields)
 	case CSV:
-		return writeCSV(w, seq)
+		return writeCSV(w, seq, fields)
 	default:
-		return writeTable(w, seq)
+		return writeTable(w, seq, fields)
 	}
 }
 
-func writeJSONL[T any](w io.Writer, seq iter.Seq[T]) error {
-	enc := json.NewEncoder(w)
+func writeJSONL[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
 	for value := range seq {
-		if err := enc.Encode(value); err != nil {
+		line, err := jsonLine(value, cols)
+		if err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, line); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func writeCSV[T any](w io.Writer, seq iter.Seq[T]) error {
-	cols := columnsOf[T]()
+func jsonLine[T any](value T, cols []col[T]) (string, error) {
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, c := range cols {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		name, err := json.Marshal(c.name)
+		if err != nil {
+			return "", err
+		}
+		raw, err := json.Marshal(c.json(value))
+		if err != nil {
+			return "", err
+		}
+		b.Write(name)
+		b.WriteByte(':')
+		b.Write(raw)
+	}
+	b.WriteString("}\n")
+	return b.String(), nil
+}
+
+func writeCSV[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
 	out := csv.NewWriter(w)
 	if err := out.Write(names(cols)); err != nil {
 		return err
 	}
 	for value := range seq {
-		if err := out.Write(cells(reflect.ValueOf(value), cols)); err != nil {
+		if err := out.Write(cells(value, cols)); err != nil {
 			return err
 		}
 	}
@@ -63,14 +92,13 @@ func writeCSV[T any](w io.Writer, seq iter.Seq[T]) error {
 	return out.Error()
 }
 
-func writeTable[T any](w io.Writer, seq iter.Seq[T]) error {
-	cols := columnsOf[T]()
+func writeTable[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	if err := writeLine(tw, names(cols)); err != nil {
 		return err
 	}
 	for value := range seq {
-		if err := writeLine(tw, cells(reflect.ValueOf(value), cols)); err != nil {
+		if err := writeLine(tw, cells(value, cols)); err != nil {
 			return err
 		}
 	}
@@ -82,72 +110,63 @@ func writeLine(w io.Writer, fields []string) error {
 	return err
 }
 
-func names(cols []column) []string {
+func names[T any](cols []col[T]) []string {
 	out := make([]string, len(cols))
-	for i, col := range cols {
-		out[i] = col.name
+	for i, c := range cols {
+		out[i] = c.name
 	}
 	return out
 }
 
-func columnsOf[T any]() []column {
-	t := reflect.TypeFor[T]()
-	for t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	if t.Kind() != reflect.Struct {
-		return []column{{name: "value"}}
-	}
-	var cols []column
-	for _, field := range reflect.VisibleFields(t) {
-		if field.Anonymous || !field.IsExported() {
-			continue
-		}
-		name := field.Name
-		if tag, ok := field.Tag.Lookup("json"); ok {
-			name = tag
-			if comma := strings.IndexByte(tag, ','); comma >= 0 {
-				name = tag[:comma]
-			}
-			if name == "-" {
-				continue
-			}
-			if name == "" {
-				name = field.Name
-			}
-		}
-		cols = append(cols, column{name: name, index: field.Index})
-	}
-	return cols
-}
-
-func cells(v reflect.Value, cols []column) []string {
+func cells[T any](value T, cols []col[T]) []string {
 	out := make([]string, len(cols))
-	for i, col := range cols {
-		out[i] = cellAt(v, col.index)
+	for i, c := range cols {
+		out[i] = c.text(value)
 	}
 	return out
+}
+
+func jsonAt(v reflect.Value, index []int) any {
+	v = fieldValue(v, index)
+	if !v.IsValid() {
+		return nil
+	}
+	if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && v.IsNil() {
+		return nil
+	}
+	return v.Interface()
 }
 
 func cellAt(v reflect.Value, index []int) string {
+	return formatValue(fieldValue(v, index))
+}
+
+func fieldValue(v reflect.Value, index []int) reflect.Value {
 	if len(index) == 0 {
-		return formatValue(v)
+		return v
 	}
-	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
+	for v.IsValid() && (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) {
 		if v.IsNil() {
-			return ""
+			return reflect.Value{}
 		}
 		v = v.Elem()
 	}
-	if v.Kind() != reflect.Struct || !v.IsValid() {
+	if !v.IsValid() || v.Kind() != reflect.Struct {
+		return reflect.Value{}
+	}
+	return v.FieldByIndex(index)
+}
+
+func formatAny(v any) string {
+	if v == nil {
 		return ""
 	}
-	return formatValue(v.FieldByIndex(index))
+	return formatValue(reflect.ValueOf(v))
 }
 
 func formatValue(v reflect.Value) string {
-	for v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
-		if !v.IsValid() || v.IsNil() {
+	for v.IsValid() && (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) {
+		if v.IsNil() {
 			return ""
 		}
 		if v.Kind() == reflect.Interface {
@@ -159,6 +178,14 @@ func formatValue(v reflect.Value) string {
 	}
 	if !v.IsValid() {
 		return ""
+	}
+	if v.CanInterface() {
+		if err, ok := v.Interface().(error); ok {
+			return err.Error()
+		}
+		if text, ok := v.Interface().(fmt.Stringer); ok {
+			return text.String()
+		}
 	}
 	switch v.Kind() {
 	case reflect.String:

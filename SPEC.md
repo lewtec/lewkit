@@ -165,7 +165,7 @@ Inherited C (cite the file):
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRustc`, `WriteSARIF` | diagnostic value | formats stay here | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
-| `x/text/table` | `Format`, `Write` | value | one writer for table, jsonl, and csv | unknown format is `ErrFormat` | import `x/cmd` |
+| `x/text/table` | `Format`, `Write`, `Column` | value | one writer for table, jsonl, and csv; `table` tag order and `Column` choose fields and cell text | unknown format is `ErrFormat`; a bad column is `ErrColumn` | import `x/cmd` |
 | `cmd/lewkit/experiments` | commands, not a library | demo | demos MAY stay | command failure | import experiments as a component package |
 
 ## Invariants
