@@ -87,10 +87,9 @@ func TestRotateWorkspaces(t *testing.T) {
 
 func TestNextWorkspace(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
-	d := &fakeDriver{}
-	useFake(t, d)
-	require.NoError(t, NextWorkspace(t.Context(), false))
-	require.Equal(t, []string{"11"}, d.switched)
+	next, err := AdvanceWorkspace()
+	require.NoError(t, err)
+	require.Equal(t, "11", next)
 	got, err := os.ReadFile(filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "lewkit", "last-workspace"))
 	require.NoError(t, err)
 	require.Equal(t, "11", string(got))

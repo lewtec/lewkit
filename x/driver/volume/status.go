@@ -1,33 +1,18 @@
 package volume
 
-import (
-	"context"
+import "github.com/lewtec/lewkit/x/driver/notification"
 
-	"github.com/lewtec/lewkit/x/driver/notification"
-)
-
-// ShowStatus posts the default sink level as a progress notification.
-func ShowStatus(ctx context.Context) error {
-	level, err := GetVolume(ctx)
-	if err != nil {
-		return err
-	}
-	muted, err := GetMute(ctx)
-	if err != nil {
-		return err
-	}
-	sink, err := SinkName(ctx)
-	if err != nil {
-		return err
-	}
-	return notification.Notify(ctx, notification.Notification{
+// StatusNotification is the progress alert for a sink level.
+// level is a fraction from 0 to 1. The caller posts it.
+func StatusNotification(level float64, muted bool, sink string) notification.Notification {
+	return notification.Notification{
 		ID:          notification.StatusID,
 		Title:       "Volume",
 		Message:     sink,
 		Icon:        volumeIcon(level, muted),
 		Progress:    level,
 		HasProgress: true,
-	})
+	}
 }
 
 func volumeIcon(level float64, muted bool) string {

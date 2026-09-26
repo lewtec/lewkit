@@ -1,76 +1,11 @@
 package media
 
-import (
-	"context"
-	"fmt"
-	"log/slog"
-	"time"
+import "github.com/lewtec/lewkit/x/driver/notification"
 
-	"github.com/lewtec/lewkit/x/driver/notification"
-)
-
-// RunAction runs next, previous, play-pause, stop, or show, then posts the track.
-// next, previous, and play-pause wait briefly so the player can publish metadata.
-func RunAction(ctx context.Context, action string) error {
-	var err error
-	switch action {
-	case "next":
-		err = Next(ctx)
-	case "previous":
-		err = Previous(ctx)
-	case "play-pause":
-		err = PlayPause(ctx)
-	case "stop":
-		err = Stop(ctx)
-	case "show":
-	default:
-		return fmt.Errorf("unknown action: %s", action)
-	}
-	if err != nil {
-		return err
-	}
-	if action == "next" || action == "previous" || action == "play-pause" {
-		time.Sleep(200 * time.Millisecond)
-	}
-	return ShowStatus(ctx)
-}
-
-// ShowStatus reads the current track and posts it.
-func ShowStatus(ctx context.Context) error {
-	meta, err := GetMetadata(ctx)
-	if err != nil {
-		return err
-	}
-	return Notify(ctx, meta)
-}
-
-// Notify posts meta. An empty title is skipped.
-func Notify(ctx context.Context, meta *Metadata) error {
-	note, ok := statusNote(meta)
-	if !ok {
-		return nil
-	}
-	if meta.ArtUrl != "" {
-		icon, err := GetArtCachePath(ctx, meta.ArtUrl)
-		if err != nil {
-			slog.ErrorContext(ctx, "media art", "error", err)
-		} else {
-			note.Icon = icon
-		}
-	}
-	return notification.Notify(ctx, note)
-}
-
-// WatchStatus blocks until ctx is done and posts each metadata change.
-func WatchStatus(ctx context.Context) error {
-	return Watch(ctx, func(meta *Metadata) {
-		if err := Notify(ctx, meta); err != nil {
-			slog.ErrorContext(ctx, "media status", "error", err)
-		}
-	})
-}
-
-func statusNote(meta *Metadata) (notification.Notification, bool) {
+// StatusNotification is the progress alert for meta.
+// An empty title returns false. Icon is left empty. The caller posts the alert
+// and may set Icon from GetArtCachePath.
+func StatusNotification(meta *Metadata) (notification.Notification, bool) {
 	if meta == nil || meta.Title == "" {
 		return notification.Notification{}, false
 	}

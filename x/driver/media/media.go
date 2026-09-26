@@ -1,7 +1,8 @@
 // Package media controls an MPRIS player.
 //
+//	err = media.PlayPause(ctx)
 //	meta, err := media.GetMetadata(ctx)
-//	err = media.RunAction(ctx, "play-pause")
+//	note, ok := media.StatusNotification(meta)
 //
 // Import [github.com/lewtec/lewkit/x/driver/media/dbus]. Album art from
 // http(s) is cached under os.UserCacheDir()/lewkit/media-art.

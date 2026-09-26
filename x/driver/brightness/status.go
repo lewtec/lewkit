@@ -1,23 +1,16 @@
 package brightness
 
-import (
-	"context"
+import "github.com/lewtec/lewkit/x/driver/notification"
 
-	"github.com/lewtec/lewkit/x/driver/notification"
-)
-
-// ShowStatus posts the backlight level as a progress notification.
-func ShowStatus(ctx context.Context) error {
-	status, err := Status(ctx)
-	if err != nil {
-		return err
-	}
-	return notification.Notify(ctx, notification.Notification{
+// StatusNotification is the progress alert for a backlight.
+// level is a fraction from 0 to 1. The caller posts it.
+func StatusNotification(name string, level float64) notification.Notification {
+	return notification.Notification{
 		ID:          notification.StatusID,
 		Title:       "Brightness",
-		Message:     status.Name,
+		Message:     name,
 		Icon:        "display-brightness",
-		Progress:    status.Brightness,
+		Progress:    level,
 		HasProgress: true,
-	})
+	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,7 +11,6 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/media"
 )
 
 var opMu sync.Mutex
@@ -43,30 +41,17 @@ func toggleScratchpad(ctx context.Context) error {
 	})
 }
 
-// ToggleScratchpadWithInfo toggles the scratchpad, then posts the playing track.
-// A missing player does not fail the toggle.
-func ToggleScratchpadWithInfo(ctx context.Context) error {
-	if err := ToggleScratchpad(ctx); err != nil {
-		return err
-	}
-	if err := media.ShowStatus(ctx); err != nil {
-		slog.ErrorContext(ctx, "scratchpad media status", "error", err)
-	}
-	return nil
-}
-
-// NextWorkspace switches to the next numbered workspace.
+// AdvanceWorkspace returns the next numbered workspace and stores it.
 // The counter is $XDG_RUNTIME_DIR/lewkit/last-workspace and starts at 10.
 // When XDG_RUNTIME_DIR is unset the file is under os.TempDir()/lewkit-<uid>.
-func NextWorkspace(ctx context.Context, move bool) error {
-	opMu.Lock()
-	defer opMu.Unlock()
+// The caller passes the name to SwitchToWorkspace.
+func AdvanceWorkspace() (string, error) {
 	dir, err := runtimeDir()
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+		return "", err
 	}
 	path := filepath.Join(dir, "last-workspace")
 	last := 10
@@ -77,9 +62,9 @@ func NextWorkspace(ctx context.Context, move bool) error {
 	}
 	next := strconv.Itoa(last + 1)
 	if err := os.WriteFile(path, []byte(next), 0o600); err != nil {
-		return err
+		return "", err
 	}
-	return switchToWorkspace(ctx, next, move)
+	return next, nil
 }
 
 // RotateWorkspaces moves each occupied workspace onto the next output.
