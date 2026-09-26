@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 // HostConfig is the shared eletrocromo.json identity for iOS and macOS hosts.

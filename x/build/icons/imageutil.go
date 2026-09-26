@@ -118,7 +118,7 @@ func KnockoutBackground(src image.Image) *image.NRGBA {
 	// Only the canvas connected to the border. Interior highlights stay.
 	w, h := b.Dx(), b.Dy()
 	reach := make([]bool, w*h)
-	idx := func(x, y int) int { return (x-b.Min.X) + (y-b.Min.Y)*w }
+	idx := func(x, y int) int { return (x - b.Min.X) + (y-b.Min.Y)*w }
 	q := make([]int, 0, w+h)
 	push := func(x, y int) {
 		if x < b.Min.X || y < b.Min.Y || x >= b.Max.X || y >= b.Max.Y {
