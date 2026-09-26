@@ -36,6 +36,7 @@ const (
 
 // BuildOptions drives an iOS .app build from an eletrocromo app.
 type BuildOptions struct {
+	Context     context.Context
 	Config      Config
 	BaseDir     string
 	WorkDir     string
@@ -167,7 +168,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 			return nil, buildErr
 		}
 	}
-	if err := buildArchive(archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, goarch); err != nil {
+	if err := buildArchive(opts.Context, archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, goarch); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -268,7 +269,7 @@ func applyIOSIcons(iconRoot, assetsDir string) error {
 	return nil
 }
 
-func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appID, goarch string) error {
+func buildArchive(ctx context.Context, dest, goMainDir, workDir, sdk string, stamp version.Info, appID, goarch string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
@@ -294,7 +295,7 @@ func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appI
 		return err
 	}
 
-	err = gocmd.Build(context.Background(), goMainDir, append(os.Environ(),
+	err = gocmd.Build(ctx, goMainDir, append(os.Environ(),
 		"CGO_ENABLED=1",
 		"GOOS=ios",
 		"GOARCH="+goarch,

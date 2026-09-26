@@ -34,7 +34,7 @@ func (buildCmd) Description() string {
 }
 
 func (c *buildCmd) Run(ctx context.Context) error {
-	session, ctx := taskgroup.New(ctx, taskgroup.DefaultLimits())
+	session, ctx := sessionFrom(ctx)
 	var paths []string
 	err := progress.Run(session, ctx, func(ctx context.Context) error {
 		taskgroup.Go(ctx, c.goos.Value()+"/"+c.goarch.Value(), taskgroup.CPU, func(ctx context.Context, status *taskgroup.Status) error {
@@ -65,15 +65,15 @@ func (c *buildCmd) run(ctx context.Context) ([]string, error) {
 	switch goos {
 	case "darwin":
 		return c.host(func() (string, error) {
-			return build.Mac(c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
+			return build.Mac(ctx, c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
 		})
 	case "android":
 		return c.host(func() (string, error) {
-			return build.Android(c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
+			return build.Android(ctx, c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
 		})
 	case "ios":
 		return c.host(func() (string, error) {
-			return build.IOS(c.config.Value(), c.out.Value(), c.work.Value(), c.sdk.Value(), goarch, c.goOnly.Value())
+			return build.IOS(ctx, c.config.Value(), c.out.Value(), c.work.Value(), c.sdk.Value(), goarch, c.goOnly.Value())
 		})
 	default:
 		return nil, fmt.Errorf("%s has no app package", goos)
@@ -93,6 +93,16 @@ func (c *buildCmd) archive(ctx context.Context, target build.Target) ([]string, 
 		return nil, err
 	}
 	return build.Archives(ctx, c.dir.Value(), c.out.Value(), c.name.Value(), id, c.version.Value(), []build.Target{target})
+}
+
+func sessionFrom(ctx context.Context) (*taskgroup.Session, context.Context) {
+	if session := taskgroup.FromContext(ctx); session != nil {
+		return session, ctx
+	}
+	if arg, ok := cmd.Lookup[taskgroup.Arg](ctx, "taskgroup"); ok {
+		return arg.Enter(ctx, taskgroup.DefaultLimits())
+	}
+	return taskgroup.New(ctx, taskgroup.DefaultLimits())
 }
 
 type goosArg struct{ cmd.StringArg }

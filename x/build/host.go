@@ -1,6 +1,7 @@
 package build
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 
 // Android builds an APK from an eletrocromo.json config.
 // goOnly stops after the Android Go library, before Gradle.
-func Android(configPath, out, work, goarch string, goOnly bool) (string, error) {
+func Android(ctx context.Context, configPath, out, work, goarch string, goOnly bool) (string, error) {
 	cfg, base, err := apk.LoadConfig(configPath)
 	if err != nil {
 		return "", err
@@ -24,6 +25,7 @@ func Android(configPath, out, work, goarch string, goOnly bool) (string, error) 
 	}
 	cfg.ABIs = []string{abi}
 	result, err := apk.Build(apk.BuildOptions{
+		Context:     ctx,
 		Config:      cfg,
 		BaseDir:     base,
 		WorkDir:     work,
@@ -41,12 +43,13 @@ func Android(configPath, out, work, goarch string, goOnly bool) (string, error) 
 }
 
 // Mac builds an unsigned Debug .app from an eletrocromo.json config.
-func Mac(configPath, out, work, goarch string, goOnly bool) (string, error) {
+func Mac(ctx context.Context, configPath, out, work, goarch string, goOnly bool) (string, error) {
 	cfg, base, err := loadHost(configPath)
 	if err != nil {
 		return "", err
 	}
 	result, err := mac.Build(mac.BuildOptions{
+		Context:     ctx,
 		Config:      macConfig(cfg),
 		BaseDir:     base,
 		WorkDir:     work,
@@ -65,12 +68,13 @@ func Mac(configPath, out, work, goarch string, goOnly bool) (string, error) {
 }
 
 // IOS builds a simulator or device .app from an eletrocromo.json config.
-func IOS(configPath, out, work, sdk, goarch string, goOnly bool) (string, error) {
+func IOS(ctx context.Context, configPath, out, work, sdk, goarch string, goOnly bool) (string, error) {
 	cfg, base, err := loadHost(configPath)
 	if err != nil {
 		return "", err
 	}
 	result, err := ios.Build(ios.BuildOptions{
+		Context:     ctx,
 		Config:      iosConfig(cfg),
 		BaseDir:     base,
 		WorkDir:     work,

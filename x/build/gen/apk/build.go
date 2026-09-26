@@ -32,6 +32,8 @@ func applyIconMipmaps(iconRoot, androidResDir string) error {
 
 // BuildOptions drives a full Android APK build from an eletrocromo app.
 type BuildOptions struct {
+	// Context cancels the Go build. Nil uses the background context.
+	Context context.Context
 	// Config is package identity + go_main (after LoadConfig/Merge/flags).
 	Config Config
 	// BaseDir resolves relative Config.GoMain (config file directory or cwd).
@@ -154,7 +156,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	libs, err := BuildGoLibs(workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, stdout)
+	libs, err := BuildGoLibs(opts.Context, workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, stdout)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -201,7 +203,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 
 // BuildGoLibs cross-compiles the app into workDir/app/src/main/jniLibs/<abi>/libeletrocromo.so.
 // stamp is injected via -ldflags -X (goreleaser-style) when apps import internal/version.
-func BuildGoLibs(workDir, goMainDir string, abis []string, stamp version.Info, appID string, stdout io.Writer) ([]string, error) {
+func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, stamp version.Info, appID string, stdout io.Writer) ([]string, error) {
 	if len(abis) == 0 {
 		abis = DefaultABIs
 	}
@@ -228,7 +230,7 @@ func BuildGoLibs(workDir, goMainDir string, abis []string, stamp version.Info, a
 		if goarch == "arm" {
 			env = append(env, "GOARM=7")
 		}
-		if err := gocmd.Build(context.Background(), goMainDir, env, "-trimpath", "-ldflags", ldflags, "-o", dest, "."); err != nil {
+		if err := gocmd.Build(ctx, goMainDir, env, "-trimpath", "-ldflags", ldflags, "-o", dest, "."); err != nil {
 			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=0): %w\nnote: pure Go android builds typically only support arm64-v8a without an NDK; set abis in eletrocromo.json", abi, goarch, err)
 		}
 		out = append(out, dest)

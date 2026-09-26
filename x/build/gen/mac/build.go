@@ -29,6 +29,7 @@ var (
 
 // BuildOptions drives a macos .app build from an eletrocromo app.
 type BuildOptions struct {
+	Context     context.Context
 	Config      Config
 	BaseDir     string
 	WorkDir     string
@@ -144,7 +145,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := buildGoHelper(helperDest, goMain, arch, vi, cfg.PackageID); err != nil {
+	if err := buildGoHelper(opts.Context, helperDest, goMain, arch, vi, cfg.PackageID); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -211,11 +212,11 @@ func hostDarwinArch() (goarch, xcodeArch string, err error) {
 	return darwinArch(runtime.GOARCH)
 }
 
-func buildGoHelper(dest, goMainDir, goarch string, stamp version.Info, appID string) error {
+func buildGoHelper(ctx context.Context, dest, goMainDir, goarch string, stamp version.Info, appID string) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
-	err := gocmd.Build(context.Background(), goMainDir, append(os.Environ(),
+	err := gocmd.Build(ctx, goMainDir, append(os.Environ(),
 		"CGO_ENABLED=0",
 		"GOOS=darwin",
 		"GOARCH="+goarch,

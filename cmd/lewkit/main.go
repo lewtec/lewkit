@@ -15,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/generate/prelude"
 	"github.com/lewtec/lewkit/x/generate/protobuf"
 	"github.com/lewtec/lewkit/x/logging"
+	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -30,13 +31,14 @@ func main() {
 }
 
 type root struct {
-	sentry      sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
-	generate    *generateCmd
-	build       *buildCmd
-	disasm      *disasmCmd
-	doctor      *doctorCmd
-	experiments *experiments.Command
-	completion  *completionCmd
+	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
+	sentry        sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
+	generate      *generateCmd
+	build         *buildCmd
+	disasm        *disasmCmd
+	doctor        *doctorCmd
+	experiments   *experiments.Command
+	completion    *completionCmd
 }
 
 func (r *root) Setup() error {
