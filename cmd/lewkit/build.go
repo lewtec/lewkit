@@ -22,10 +22,11 @@ type buildCmd struct {
 	work    cmd.StringArg `long:"workdir" help:"generated host directory" default:""`
 	sdk     cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
 	goOnly  cmd.Flag      `long:"go-only" help:"stop after the Go binary"`
+	app     cmd.Flag      `long:"app" help:"package a host app instead of a binary archive"`
 }
 
 func (buildCmd) Description() string {
-	return "build the package for GOOS and GOARCH"
+	return "build a binary, or a host app with --app"
 }
 
 func (c *buildCmd) Run(ctx context.Context) error {
@@ -34,13 +35,12 @@ func (c *buildCmd) Run(ctx context.Context) error {
 	if goos == "" || goarch == "" {
 		return fmt.Errorf("goos and goarch are required")
 	}
+	target := build.Target{GOOS: goos, GOARCH: goarch}
+	if !c.app.Value() {
+		return c.archive(ctx, target)
+	}
 	switch goos {
-	case "linux", "windows":
-		return c.archive(ctx, build.Target{GOOS: goos, GOARCH: goarch})
 	case "darwin":
-		if c.config.Value() == "" {
-			return c.archive(ctx, build.Target{GOOS: goos, GOARCH: goarch})
-		}
 		return c.host(func() (string, error) {
 			return build.Mac(c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
 		})
@@ -53,7 +53,7 @@ func (c *buildCmd) Run(ctx context.Context) error {
 			return build.IOS(c.config.Value(), c.out.Value(), c.work.Value(), c.sdk.Value(), goarch, c.goOnly.Value())
 		})
 	default:
-		return fmt.Errorf("unsupported GOOS %q", goos)
+		return fmt.Errorf("%s has no app package", goos)
 	}
 }
 
