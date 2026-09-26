@@ -11,7 +11,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/release"
-	"github.com/lewtec/lewkit/x/table"
+	"github.com/lewtec/lewkit/x/text/table"
 )
 
 // None is an App with no extra flags or commands.

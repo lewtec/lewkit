@@ -164,7 +164,7 @@ Inherited C (cite the file):
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
-| `x/table` | `Format`, `Write` | value | one writer for table, jsonl, and csv | unknown format is `ErrFormat` | import `x/cmd` |
+| `x/text/table` | `Format`, `Write` | value | one writer for table, jsonl, and csv | unknown format is `ErrFormat` | import `x/cmd` |
 | `cmd/lewkit/experiments` | commands, not a library | demo | demos MAY stay | command failure | import experiments as a component package |
 
 ## Invariants
@@ -226,7 +226,7 @@ Inherited C (cite the file):
 | INV-53 | `x/driver/treesitter/native` imports `x/ffi/native/treesitter` and does not import `x/ffi/native` | `x/driver/treesitter/native` | an import of `x/ffi/native` |
 | INV-54 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
 | INV-55 | `x/driver/treesitter/wazero` imports the wazero grammar module and does not import a wazero `grammar/<lang>` package | `x/driver/treesitter/wazero` | that import |
-| INV-56 | `x/table` does not import `x/cmd` | `x/table` | that import |
+| INV-56 | `x/text/table` does not import `x/cmd` | `x/text/table` | that import |
 
 ## Errors
 

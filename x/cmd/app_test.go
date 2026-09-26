@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/release"
-	"github.com/lewtec/lewkit/x/table"
 	"github.com/lewtec/lewkit/x/test"
+	"github.com/lewtec/lewkit/x/text/table"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
