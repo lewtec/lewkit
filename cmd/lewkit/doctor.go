@@ -21,13 +21,13 @@ func (*doctorCmd) Run(ctx context.Context) error {
 }
 
 type driverRow struct {
-	Interface string `json:"interface"`
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Weight    int    `json:"weight"`
-	Available bool   `json:"available"`
-	Selected  bool   `json:"selected"`
-	Error     string `json:"error,omitempty"`
+	Interface string `json:"interface" table:",order=2"`
+	ID        string `json:"id" table:",order=0"`
+	Name      string `json:"name" table:",order=1"`
+	Weight    int    `json:"weight" table:",order=3"`
+	Available bool   `json:"available" table:",order=4"`
+	Selected  bool   `json:"selected" table:",order=5"`
+	Error     string `json:"error,omitempty" table:",order=6"`
 }
 
 func driverRows(report []driver.InterfaceStatus) iter.Seq[driverRow] {
