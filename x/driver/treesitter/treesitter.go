@@ -4,6 +4,9 @@
 // language package so that name becomes visible here. When more than
 // one engine has the name, the higher weight wins.
 //
+// The native engine loads an installed libtree-sitter-<name> library.
+// It stays incompatible unless LEWKIT_ENABLE_NATIVE_TREESITTER is set.
+//
 // Language modules require grammar v0.0.0. In the main module, replace
 // that version with the grammar module version this driver uses.
 //
