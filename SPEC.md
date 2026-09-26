@@ -122,6 +122,11 @@ Inherited C (cite the file):
 | `x/driver/camera` | `List`, `Capture` | one still frame | protocol stays here | missing ffmpeg or video device is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
+| `x/driver/treesitter` | `Get`, `ForFile`, `Parse`, `Names` | one grammar from a registered engine | protocol stays here | unknown language is `ErrUnknown`; no backend is `driver.ErrNotFound` | import a grammar module |
+| `x/driver/treesitter/ccgo` | ccgo registry | facade of ccgo-tree-sitter | selection stays here | a missing name is skipped | import a ccgo `grammar/<lang>` package |
+| `x/driver/treesitter/leaven` | leaven registry | facade of leaven-tree-sitter | selection stays here | a missing name is skipped | import another tree-sitter module |
+| `x/driver/treesitter/native` | installed `libtree-sitter-<name>` | facade of the tree-sitter binding | selection stays here | unset `LEWKIT_ENABLE_NATIVE_TREESITTER` or a missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
+| `x/driver/treesitter/wazero` | wazero registry | facade of wazero-tree-sitter | selection stays here | a missing name is skipped | import a wazero `grammar/<lang>` package |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label`, `RGB`, `BGR`, `CMYK`, `HSV` | value | blit stays here; each color space is its own struct and converts to `RGB` | existing blit errors | hold bubbletea types; hold templ; hold transformers |
@@ -146,11 +151,12 @@ Inherited C (cite the file):
 | `x/driver/filedialog/win32` | common item dialog `Choose` | Windows file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
-| `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio` |
+| `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register` | direct C ABI | loader stays here | purego error | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
 | `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw` | libvulkan binding | compute plus one graphics draw for the swapchain | existing vulkan errors | import `x/ffi/wasm` |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
 | `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
+| `x/ffi/native/treesitter` | `Available`, `OpenLanguage`, `Parse` | libtree-sitter binding | loader stays here | missing library is the load error | import `x/ffi/wasm`; import `x/driver` |
 | `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webkit` | `Load` | WebKit.framework, dlopen | loader stays here | missing framework is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
@@ -213,6 +219,12 @@ Inherited C (cite the file):
 | INV-47 | `x/driver/volume` does not import `x/driver/audio_play` | `x/driver/volume` | that import |
 | INV-48 | `x/driver/launcher` does not import `x/driver/filedialog` | `x/driver/launcher` | that import |
 | INV-49 | notification, clipboard, opener, dirs, share, volume, brightness, battery, media, power, screen, screenshot, wallpaper, wm, camera, launcher, and terminal do not import `x/ffi` | those packages | that import |
+| INV-50 | `x/driver/treesitter` does not import `leaven-tree-sitter` | `x/driver/treesitter` | that import |
+| INV-51 | `x/driver/treesitter/leaven` imports the leaven grammar module | `x/driver/treesitter/leaven` | a tree-sitter engine import in `x/driver/treesitter` |
+| INV-52 | `x/driver/treesitter/ccgo` imports the ccgo grammar module and does not import a ccgo `grammar/<lang>` package | `x/driver/treesitter/ccgo` | that import |
+| INV-53 | `x/driver/treesitter/native` imports `x/ffi/native/treesitter` and does not import `x/ffi/native` | `x/driver/treesitter/native` | an import of `x/ffi/native` |
+| INV-54 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
+| INV-55 | `x/driver/treesitter/wazero` imports the wazero grammar module and does not import a wazero `grammar/<lang>` package | `x/driver/treesitter/wazero` | that import |
 
 ## Errors
 

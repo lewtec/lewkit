@@ -24,7 +24,10 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/klauspost/compress v1.18.5
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
+	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260823193308-9d0f77e93872
+	github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260926181015-a4ba39fdab89
 	github.com/mattn/go-runewidth v0.0.30
+	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar v0.0.0-20260801004327-2c4586c945d8
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/shirou/gopsutil/v4 v4.26.8
@@ -88,6 +91,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/ktr0731/go-ansisgr v0.1.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20250303204525-1544bccde3a3 // indirect
+	github.com/lewtec/leaven v0.0.0-20260814142252-666e23083398 // indirect
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/lucasew/workspaced v0.0.0-20260916163621-96ab77cd3132 // indirect

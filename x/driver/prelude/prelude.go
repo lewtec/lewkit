@@ -24,6 +24,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/share/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/terminal/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/tray/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/treesitter/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/volume/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/vulkan"
 	_ "github.com/lewtec/lewkit/x/driver/vulkanwindow"
