@@ -13,8 +13,8 @@ import (
 )
 
 type buildCmd struct {
-	goos    cmd.StringArg `long:"goos" help:"target GOOS (default: this process)"`
-	goarch  cmd.StringArg `long:"goarch" help:"target GOARCH (default: this process)"`
+	goos    goosArg       `long:"goos" help:"target GOOS"`
+	goarch  goarchArg     `long:"goarch" help:"target GOARCH"`
 	dir     cmd.StringArg `help:"module directory" default:"."`
 	id      cmd.StringArg `long:"id" help:"reverse-domain app id"`
 	version cmd.StringArg `long:"version" help:"version stamped into the binary" default:""`
@@ -33,13 +33,7 @@ func (buildCmd) Description() string {
 
 func (c *buildCmd) Run(ctx context.Context) error {
 	goos := c.goos.Value()
-	if goos == "" {
-		goos = runtime.GOOS
-	}
 	goarch := c.goarch.Value()
-	if goarch == "" {
-		goarch = runtime.GOARCH
-	}
 	target := build.Target{GOOS: goos, GOARCH: goarch}
 	if !c.app.Value() {
 		return c.archive(ctx, target)
@@ -83,6 +77,14 @@ func (c *buildCmd) archive(ctx context.Context, target build.Target) error {
 	}
 	return nil
 }
+
+type goosArg struct{ cmd.StringArg }
+
+func (goosArg) ArgDefault() string { return runtime.GOOS }
+
+type goarchArg struct{ cmd.StringArg }
+
+func (goarchArg) ArgDefault() string { return runtime.GOARCH }
 
 func (c *buildCmd) host(run func() (string, error)) error {
 	if c.config.Value() == "" {
