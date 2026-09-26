@@ -8,6 +8,17 @@ import (
 	"text/tabwriter"
 )
 
+// Format is one diagnostic rendering. The zero value is unset.
+// It is a cmd.Enum, so cmd.EnumArg[Format] parses a flag when a caller opts in.
+type Format int
+
+const (
+	FormatText Format = iota + 1
+	FormatTable
+	FormatSARIF
+	FormatRustc
+)
+
 // WriteFinding writes one diagnostic line:
 // file:line:col: level: ruleId: message
 func WriteFinding(w io.Writer, f Finding) error {
@@ -55,17 +66,6 @@ func WriteTable(w io.Writer, findings []Finding) error {
 	}
 	return tw.Flush()
 }
-
-// Format is one diagnostic rendering. The zero value is unset.
-// It is a cmd.Enum, so cmd.EnumArg[Format] parses a flag when a caller opts in.
-type Format int
-
-const (
-	FormatText Format = iota + 1
-	FormatTable
-	FormatSARIF
-	FormatRustc
-)
 
 // String is the token for cmd.EnumArg.
 func (f Format) String() string {
