@@ -1,7 +1,7 @@
 // Package power locks and stops the session.
 //
 //	err := power.Lock(ctx)
-//	err = power.Suspend(ctx)
+//	err = power.Wake(ctx, "aa:bb:cc:dd:ee:ff")
 //
 // Import [github.com/lewtec/lewkit/x/driver/power/systemd]. The backend
 // calls loginctl and systemctl.

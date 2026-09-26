@@ -2,6 +2,7 @@
 //
 //	err := volume.SetVolume(ctx, 0.4)
 //	err = volume.Increase(ctx)
+//	note := volume.StatusNotification(level, muted, sink)
 //
 // Import [github.com/lewtec/lewkit/x/driver/volume/pulse] to register the
 // pactl backend. Increase and Decrease step by 0.05 and stay inside 0..1.

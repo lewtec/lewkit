@@ -1,6 +1,7 @@
 // Package wm switches workspaces and reads focused geometry.
 //
 //	err := wm.SwitchToWorkspace(ctx, "1", false)
+//	err = wm.RotateWorkspaces(ctx)
 //	name, rect, err := wm.GetFocusedOutput(ctx)
 //
 // Import hyprland or i3ipc. Hyprland uses hyprctl. Sway uses swaymsg.
@@ -63,20 +64,6 @@ type Driver interface {
 	GetOutputs(ctx context.Context) ([]Output, error)
 	GetWorkspaces(ctx context.Context) ([]Workspace, error)
 	MoveWorkspaceToOutput(ctx context.Context, workspace string, output string) error
-}
-
-// SwitchToWorkspace shows ws. When move is set, the focused container moves with it.
-func SwitchToWorkspace(ctx context.Context, ws string, move bool) error {
-	return driver.With(ctx, func(source Driver) error {
-		return source.SwitchToWorkspace(ctx, ws, move)
-	})
-}
-
-// ToggleScratchpad shows or hides the scratchpad.
-func ToggleScratchpad(ctx context.Context) error {
-	return driver.With(ctx, func(source Driver) error {
-		return source.ToggleScratchpad(ctx)
-	})
 }
 
 // GetFocusedOutput returns the focused output name and geometry.

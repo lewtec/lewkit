@@ -110,15 +110,15 @@ Inherited C (cite the file):
 | `x/driver/opener` | `Open` | launch a file or URL | protocol stays here | missing opener is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/dirs` | `Resolve`, `Dirs` | per-app data, cache, config, inbox | protocol stays here | bad app id is `ErrInvalidAppID` | hardcode a product name in the path |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
-| `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play` |
-| `x/driver/brightness` | `SetBrightness`, `Status`, `Increase`, `Decrease` | display brightness | protocol stays here | missing brightnessctl is `driver.ErrIncompatible` | import `x/ffi` |
+| `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
+| `x/driver/brightness` | `SetBrightness`, `Status`, `Increase`, `Decrease`, `StatusNotification` | display brightness | protocol stays here | missing brightnessctl is `driver.ErrIncompatible` | import `x/ffi`; post the alert here |
 | `x/driver/battery` | `BatteryStatus` | charging state | protocol stays here | no battery is `ErrNoBattery` | import `x/ffi` |
-| `x/driver/media` | `Next`, `Previous`, `PlayPause`, `Stop`, `GetMetadata`, `Watch` | MPRIS player | protocol stays here | no player is `ErrNoPlayer` | import `x/driver/audio_play` |
-| `x/driver/power` | `Lock`, `Logout`, `Suspend`, `Hibernate`, `Reboot`, `Shutdown` | session power | protocol stays here | missing loginctl is `driver.ErrIncompatible` | import `x/ffi` |
+| `x/driver/media` | `Next`, `Previous`, `PlayPause`, `Stop`, `GetMetadata`, `Watch`, `StatusNotification` | MPRIS player | protocol stays here | no player is `ErrNoPlayer` | import `x/driver/audio_play`; post the alert here |
+| `x/driver/power` | `Lock`, `Logout`, `Suspend`, `Hibernate`, `Reboot`, `Shutdown`, `Wake` | session power | protocol stays here | missing loginctl is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/screen` | `SetDPMS`, `IsDPMSOn`, `ToggleDPMS`, `Reset` | display power | protocol stays here | missing swaymsg or xset is `driver.ErrIncompatible` | a hostname layout table |
 | `x/driver/screenshot` | `Capture`, `SelectArea` | one image and a `wm.Rect` | protocol stays here | missing grim or maim is `driver.ErrIncompatible` | save into a config directory |
 | `x/driver/wallpaper` | `SetStatic` | one still image | protocol stays here | missing feh or swaybg is `driver.ErrIncompatible` | import `x/ffi` |
-| `x/driver/wm` | workspace switch, focused rect, outputs | compositor IPC | protocol stays here | missing compositor is `driver.ErrIncompatible` | import `x/ffi` |
+| `x/driver/wm` | workspace switch, `AdvanceWorkspace`, `RotateWorkspaces`, scratchpad, focused rect, outputs | compositor IPC | protocol stays here | missing compositor is `driver.ErrIncompatible` | import `x/ffi`; post a notification here |
 | `x/driver/camera` | `List`, `Capture` | one still frame | protocol stays here | missing ffmpeg or video device is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
@@ -292,3 +292,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-23: templ is adopted. A tag for one registered asset lives in that asset package. Page templates stay in `x/ui/web`. htmx, tailwindcss, jquery, and sakuracss are blank-import assets served from `/__lewkit__/`. The first page template is `x/ui/web` `Page`.
 - 2026-09-24: light or dark is `x/driver/daynight`. Web views push it into the page without a reload. `gui.Run` delivers `ModeMsg`.
 - 2026-09-25: host capabilities that lived in modot and eletrocromo sit under `x/driver`. Volume is sink level, not PCM playback. Launcher is a menu, not a file dialog. Termux backends stay in modot. Screen reset enables outputs; it does not store a hostname layout. Share does not own the eletrocromo JSONL drop.
+- 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.
