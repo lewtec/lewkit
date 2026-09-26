@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/lewtec/lewkit/x/table"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,6 +54,13 @@ func TestAppVersionFlag(t *testing.T) {
 	assert.True(t, app.version.Value())
 }
 
+func TestAppFormatFlag(t *testing.T) {
+	assert.Equal(t, table.Table, ParseOK[App[None]](t).Format())
+	assert.Equal(t, table.JSONL, ParseOK[App[None]](t, "--format", "jsonl").Format())
+	assert.Equal(t, table.CSV, ParseOK[App[None]](t, "--format", "csv").Format())
+	assert.ErrorIs(t, ParseErr[App[None]](t, "--format", "yaml"), ErrInvalidArgument)
+}
+
 func TestAppUsage(t *testing.T) {
 	text, err := Usage[App[None]]("lewkit")
 	require.NoError(t, err)
@@ -63,6 +71,8 @@ func TestAppUsage(t *testing.T) {
 		"log verbosity (default: 0)",
 		"--pprof",
 		"--version",
+		"--format",
+		"output format (choices: table, jsonl, csv, default: table)",
 	} {
 		assert.Contains(t, text, want)
 	}

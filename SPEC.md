@@ -165,6 +165,7 @@ Inherited C (cite the file):
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRustc`, `WriteSARIF` | diagnostic value | formats stay here | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
+| `x/table` | `Format`, `Write` | value | one writer for table, jsonl, and csv | unknown format is `ErrFormat` | import `x/cmd` |
 | `cmd/lewkit/experiments` | commands, not a library | demo | demos MAY stay | command failure | import experiments as a component package |
 
 ## Invariants
@@ -227,6 +228,7 @@ Inherited C (cite the file):
 | INV-54 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
 | INV-55 | `x/driver/treesitter/wazero` imports the wazero grammar module and does not import a wazero `grammar/<lang>` package | `x/driver/treesitter/wazero` | that import |
 | INV-56 | `x/text/report` does not import the root `report` package, `x/ui`, or `x/driver` | `x/text/report` | that import |
+| INV-57 | `x/table` does not import `x/cmd` | `x/table` | that import |
 
 ## Errors
 
