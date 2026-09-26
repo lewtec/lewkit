@@ -123,6 +123,7 @@ Inherited C (cite the file):
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/treesitter` | `Get`, `ForFile`, `Parse`, `Names` | one grammar from a registered engine | protocol stays here | unknown language is `ErrUnknown`; no backend is `driver.ErrNotFound` | import a grammar module |
+| `x/driver/treesitter/ccgo` | ccgo registry | facade of ccgo-tree-sitter | selection stays here | a missing name is skipped | import a ccgo `grammar/<lang>` package |
 | `x/driver/treesitter/leaven` | leaven registry | facade of leaven-tree-sitter | selection stays here | a missing name is skipped | import another tree-sitter module |
 | `x/driver/treesitter/native` | installed `libtree-sitter-<name>` | facade of the tree-sitter binding | selection stays here | unset `LEWKIT_ENABLE_NATIVE_TREESITTER` or a missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
@@ -219,8 +220,9 @@ Inherited C (cite the file):
 | INV-49 | notification, clipboard, opener, dirs, share, volume, brightness, battery, media, power, screen, screenshot, wallpaper, wm, camera, launcher, and terminal do not import `x/ffi` | those packages | that import |
 | INV-50 | `x/driver/treesitter` does not import `leaven-tree-sitter` | `x/driver/treesitter` | that import |
 | INV-51 | `x/driver/treesitter/leaven` imports the leaven grammar module | `x/driver/treesitter/leaven` | a tree-sitter engine import in `x/driver/treesitter` |
-| INV-52 | `x/driver/treesitter/native` imports `x/ffi/native/treesitter` and does not import `x/ffi/native` | `x/driver/treesitter/native` | an import of `x/ffi/native` |
-| INV-53 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
+| INV-52 | `x/driver/treesitter/ccgo` imports the ccgo grammar module and does not import a ccgo `grammar/<lang>` package | `x/driver/treesitter/ccgo` | that import |
+| INV-53 | `x/driver/treesitter/native` imports `x/ffi/native/treesitter` and does not import `x/ffi/native` | `x/driver/treesitter/native` | an import of `x/ffi/native` |
+| INV-54 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
 
 ## Errors
 

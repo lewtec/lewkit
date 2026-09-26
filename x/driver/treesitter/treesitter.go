@@ -9,13 +9,11 @@
 //
 // Language modules require grammar v0.0.0. In the main module, replace
 // that version with the grammar module version this driver uses.
+// Blank-import the prelude for leaven and the native engine.
+// Blank-import github.com/lewtec/lewkit/x/driver/treesitter/ccgo for the
+// ccgo engine, then the language modules you need.
 //
-//	import (
-//		_ "github.com/lewtec/lewkit/x/driver/treesitter/prelude"
-//		_ "github.com/lewtec/leaven-tree-sitter/grammar/json"
-//	)
-//
-//	tree, err := treesitter.Parse(ctx, "json", []byte(`{"a":1}`))
+//	tree, err := treesitter.Parse(ctx, "json", source)
 package treesitter
 
 import (
