@@ -11,7 +11,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/release"
-	"github.com/lewtec/lewkit/x/text/table"
 )
 
 // None is an App with no extra flags or commands.
@@ -19,13 +18,11 @@ type None struct{}
 
 // App wraps process-wide flags around T, the rest of the command spec.
 type App[T any] struct {
-	verbose Count     `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
-	pprof   PprofArg  `long:"pprof" help:"pprof directory or listen address" default:"" ctx:"pprof"`
-	help    Flag      `short:"h" long:"help" help:"show help" ctx:"help"`
-	version Flag      `long:"version" help:"print version" ctx:"version"`
-	format  FormatArg `long:"format" default:"table" help:"output format" ctx:"format"`
-	columns StringArg `long:"columns" default:"" help:"columns as name or name=format" ctx:"columns"`
-	Args    T         `flatten:""`
+	verbose Count    `short:"v" long:"verbose" help:"log verbosity" ctx:"verbose"`
+	pprof   PprofArg `long:"pprof" help:"pprof directory or listen address" default:"" ctx:"pprof"`
+	help    Flag     `short:"h" long:"help" help:"show help" ctx:"help"`
+	version Flag     `long:"version" help:"print version" ctx:"version"`
+	Args    T        `flatten:""`
 }
 
 // LogLevel is slog.LevelInfo minus 4 for each -v/--verbose count.
@@ -43,14 +40,6 @@ func (a App[T]) Description() string {
 
 func (a App[T]) WantVersion() bool {
 	return a.version.Value()
-}
-
-// Format is the --format value. Zero means table.
-func (a App[T]) Format() table.Format {
-	if f := a.format.Value(); f != 0 {
-		return f
-	}
-	return table.Table
 }
 
 // Setup sets the default slog level, calls Args.Setup when T has that

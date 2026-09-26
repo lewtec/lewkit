@@ -8,10 +8,9 @@ import (
 	"github.com/lewtec/lewkit/x/text/table"
 )
 
-// Rows writes sequence using the process --format value. A missing format is table.
-// layout is the column list. Nil uses Formatter on Row, then struct fields.
+// Rows writes sequence using --format and --columns from an embedded Output.
+// A missing format is table. layout nil uses Formatter on Row, then struct fields.
 // --columns picks names and replaces formats: name or name=format.
-// Every command that prints records calls Rows, so one flag selects the format.
 func Rows[Row any](ctx context.Context, writer io.Writer, sequence iter.Seq[Row], layout table.Formatter[Row]) error {
 	format, ok := Lookup[table.Format](ctx, "format")
 	if !ok || format == 0 {

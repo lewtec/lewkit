@@ -14,6 +14,8 @@ func TestDoctorUsage(t *testing.T) {
 	text, err := cmd.Usage[doctorCmd]("lewkit doctor")
 	require.NoError(t, err)
 	assert.Contains(t, text, "list registered drivers")
+	assert.Contains(t, text, "--format")
+	assert.Contains(t, text, "--columns")
 }
 
 func TestDoctorPrintsTable(t *testing.T) {
@@ -36,7 +38,7 @@ func TestDoctorPrintsTable(t *testing.T) {
 
 func TestDoctorPrintsJSONL(t *testing.T) {
 	test.RestoreSlog(t)
-	app := cmd.ParseOK[cmd.App[root]](t, "--format", "jsonl", "doctor")
+	app := cmd.ParseOK[cmd.App[root]](t, "doctor", "--format", "jsonl")
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
@@ -47,7 +49,7 @@ func TestDoctorPrintsJSONL(t *testing.T) {
 
 func TestDoctorColumnsFlag(t *testing.T) {
 	test.RestoreSlog(t)
-	app := cmd.ParseOK[cmd.App[root]](t, "--columns", "id,name=%q", "doctor")
+	app := cmd.ParseOK[cmd.App[root]](t, "doctor", "--columns", "id,name=%q")
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})

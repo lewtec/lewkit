@@ -54,11 +54,20 @@ func TestAppVersionFlag(t *testing.T) {
 	assert.True(t, app.version.Value())
 }
 
-func TestAppFormatFlag(t *testing.T) {
-	assert.Equal(t, table.Table, ParseOK[App[None]](t).Format())
-	assert.Equal(t, table.JSONL, ParseOK[App[None]](t, "--format", "jsonl").Format())
-	assert.Equal(t, table.CSV, ParseOK[App[None]](t, "--format", "csv").Format())
-	assert.ErrorIs(t, ParseErr[App[None]](t, "--format", "yaml"), ErrInvalidArgument)
+type withOutput struct {
+	Output `flatten:""`
+}
+
+func TestOutputEmbed(t *testing.T) {
+	got := ParseOK[withOutput](t)
+	assert.Equal(t, table.Table, got.Format.Value())
+	assert.Equal(t, "", got.Columns.Value())
+	got = ParseOK[withOutput](t, "--format", "jsonl", "--columns", "id,name=%q")
+	assert.Equal(t, table.JSONL, got.Format.Value())
+	assert.Equal(t, "id,name=%q", got.Columns.Value())
+	assert.Equal(t, table.CSV, ParseOK[withOutput](t, "--format", "csv").Format.Value())
+	assert.ErrorIs(t, ParseErr[withOutput](t, "--format", "yaml"), ErrInvalidArgument)
+	assert.ErrorIs(t, ParseErr[App[None]](t, "--format", "table"), ErrUnknownFlag)
 }
 
 func TestAppUsage(t *testing.T) {
@@ -71,14 +80,12 @@ func TestAppUsage(t *testing.T) {
 		"log verbosity (default: 0)",
 		"--pprof",
 		"--version",
-		"--format",
-		"output format (choices: table, jsonl, csv, default: table)",
-		"--columns",
-		"columns as name or name=format",
 	} {
 		assert.Contains(t, text, want)
 	}
 	assert.Less(t, strings.Index(text, "Commands:"), strings.Index(text, "Flags:"))
+	assert.NotContains(t, text, "--format")
+	assert.NotContains(t, text, "--columns")
 }
 
 func TestAppRunHelp(t *testing.T) {
