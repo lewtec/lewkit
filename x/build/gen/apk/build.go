@@ -32,8 +32,6 @@ func applyIconMipmaps(iconRoot, androidResDir string) error {
 
 // BuildOptions drives a full Android APK build from an eletrocromo app.
 type BuildOptions struct {
-	// Context cancels the Go build. Nil uses the background context.
-	Context context.Context
 	// Config is package identity + go_main (after LoadConfig/Merge/flags).
 	Config Config
 	// BaseDir resolves relative Config.GoMain (config file directory or cwd).
@@ -65,7 +63,7 @@ type BuildResult struct {
 
 // Build scaffolds the Android host, cross-compiles the Go app into jniLibs,
 // and (unless GoOnly) runs Gradle assembleDebug and copies the APK to OutAPK.
-func Build(opts BuildOptions) (*BuildResult, error) {
+func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
 		stdout = os.Stdout
@@ -156,7 +154,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	libs, err := BuildGoLibs(opts.Context, workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, stdout)
+	libs, err := BuildGoLibs(ctx, workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, stdout)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -230,7 +228,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		if goarch == "arm" {
 			env = append(env, "GOARM=7")
 		}
-		if err := (gocmd.Command{Context: ctx, Dir: goMainDir, Env: env, Args: []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}}).Run(); err != nil {
+		if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}}).Run(ctx); err != nil {
 			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=0): %w\nnote: pure Go android builds typically only support arm64-v8a without an NDK; set abis in eletrocromo.json", abi, goarch, err)
 		}
 		out = append(out, dest)

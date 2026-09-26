@@ -13,15 +13,13 @@ import (
 
 // Command is one go build -v. Each output line is slog.Info.
 type Command struct {
-	Context context.Context
-	Dir     string
-	Env     []string
-	Args    []string
+	Dir  string
+	Env  []string
+	Args []string
 }
 
 // Run runs go build -v with Args after the verb.
-func (c Command) Run() error {
-	ctx := c.Context
+func (c Command) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}

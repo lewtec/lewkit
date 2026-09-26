@@ -36,7 +36,6 @@ const (
 
 // BuildOptions drives an iOS .app build from an eletrocromo app.
 type BuildOptions struct {
-	Context     context.Context
 	Config      Config
 	BaseDir     string
 	WorkDir     string
@@ -59,7 +58,7 @@ type BuildResult struct {
 
 // Build scaffolds the iOS host, builds a GOOS=ios c-archive, and (unless
 // GoOnly) runs xcodegen + xcodebuild Debug and copies the .app to OutApp.
-func Build(opts BuildOptions) (*BuildResult, error) {
+func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
 		stdout = os.Stdout
@@ -168,7 +167,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 			return nil, buildErr
 		}
 	}
-	if err := buildArchive(opts.Context, archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, goarch); err != nil {
+	if err := buildArchive(ctx, archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, goarch); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -296,8 +295,7 @@ func buildArchive(ctx context.Context, dest, goMainDir, workDir, sdk string, sta
 	}
 
 	err = gocmd.Command{
-		Context: ctx,
-		Dir:     goMainDir,
+		Dir: goMainDir,
 		Env: append(os.Environ(),
 			"CGO_ENABLED=1",
 			"GOOS=ios",
@@ -314,7 +312,7 @@ func buildArchive(ctx context.Context, dest, goMainDir, workDir, sdk string, sta
 			"-o", dest,
 			".",
 		},
-	}.Run()
+	}.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("go build ios/%s (%s): %w", goarch, sdk, err)
 	}

@@ -29,7 +29,6 @@ var (
 
 // BuildOptions drives a macos .app build from an eletrocromo app.
 type BuildOptions struct {
-	Context     context.Context
 	Config      Config
 	BaseDir     string
 	WorkDir     string
@@ -51,7 +50,7 @@ type BuildResult struct {
 
 // Build scaffolds the Mac host, cross-compiles the Go helper, and (unless
 // GoOnly) runs xcodegen + xcodebuild Debug and copies the .app to OutApp.
-func Build(opts BuildOptions) (*BuildResult, error) {
+func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
 		stdout = os.Stdout
@@ -145,7 +144,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := buildGoHelper(opts.Context, helperDest, goMain, arch, vi, cfg.PackageID); err != nil {
+	if err := buildGoHelper(ctx, helperDest, goMain, arch, vi, cfg.PackageID); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -217,15 +216,14 @@ func buildGoHelper(ctx context.Context, dest, goMainDir, goarch string, stamp ve
 		return err
 	}
 	err := gocmd.Command{
-		Context: ctx,
-		Dir:     goMainDir,
+		Dir: goMainDir,
 		Env: append(os.Environ(),
 			"CGO_ENABLED=0",
 			"GOOS=darwin",
 			"GOARCH="+goarch,
 		),
 		Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", dest, "."},
-	}.Run()
+	}.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("go build darwin/%s: %w", goarch, err)
 	}

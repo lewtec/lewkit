@@ -12,20 +12,19 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/mac"
 )
 
-// Host is one packaged app build. Context is the parent taskgroup context.
+// Host is one packaged app build.
 type Host struct {
-	Context context.Context
-	Config  string
-	Out     string
-	Work    string
-	GOARCH  string
-	SDK     string
-	GoOnly  bool
+	Config string
+	Out    string
+	Work   string
+	GOARCH string
+	SDK    string
+	GoOnly bool
 }
 
 // Android builds an APK from an eletrocromo.json config.
 // GoOnly stops after the Android Go library, before Gradle.
-func Android(host Host) (string, error) {
+func (host Host) Android(ctx context.Context) (string, error) {
 	cfg, base, err := apk.LoadConfig(host.Config)
 	if err != nil {
 		return "", err
@@ -35,8 +34,7 @@ func Android(host Host) (string, error) {
 		return "", err
 	}
 	cfg.ABIs = []string{abi}
-	result, err := apk.Build(apk.BuildOptions{
-		Context:     host.Context,
+	result, err := apk.Build(ctx, apk.BuildOptions{
 		Config:      cfg,
 		BaseDir:     base,
 		WorkDir:     host.Work,
@@ -54,13 +52,12 @@ func Android(host Host) (string, error) {
 }
 
 // Mac builds an unsigned Debug .app from an eletrocromo.json config.
-func Mac(host Host) (string, error) {
+func (host Host) Mac(ctx context.Context) (string, error) {
 	cfg, base, err := loadHost(host.Config)
 	if err != nil {
 		return "", err
 	}
-	result, err := mac.Build(mac.BuildOptions{
-		Context:     host.Context,
+	result, err := mac.Build(ctx, mac.BuildOptions{
 		Config:      macConfig(cfg),
 		BaseDir:     base,
 		WorkDir:     host.Work,
@@ -79,13 +76,12 @@ func Mac(host Host) (string, error) {
 }
 
 // IOS builds a simulator or device .app from an eletrocromo.json config.
-func IOS(host Host) (string, error) {
+func (host Host) IOS(ctx context.Context) (string, error) {
 	cfg, base, err := loadHost(host.Config)
 	if err != nil {
 		return "", err
 	}
-	result, err := ios.Build(ios.BuildOptions{
-		Context:     host.Context,
+	result, err := ios.Build(ctx, ios.BuildOptions{
 		Config:      iosConfig(cfg),
 		BaseDir:     base,
 		WorkDir:     host.Work,

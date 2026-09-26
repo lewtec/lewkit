@@ -53,10 +53,9 @@ func title(goos string) string {
 	return strings.ToUpper(goos[:1]) + goos[1:]
 }
 
-// Job is one or more CGO-free archives. Context is the parent taskgroup context.
+// Job is one or more CGO-free archives.
 // AppID is stamped into x/release.appID. Version is stamped into x/release.version.
 type Job struct {
-	Context context.Context
 	Dir     string
 	Out     string
 	Name    string
@@ -66,14 +65,13 @@ type Job struct {
 }
 
 // Desktop cross-compiles one archive for every release target.
-func Desktop(job Job) ([]string, error) {
+func Desktop(ctx context.Context, job Job) ([]string, error) {
 	job.Targets = DesktopTargets()
-	return Archives(job)
+	return job.Run(ctx)
 }
 
-// Archives writes one archive for each target.
-func Archives(job Job) ([]string, error) {
-	ctx := job.Context
+// Run writes one archive for each target.
+func (job Job) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -101,11 +99,10 @@ func Archives(job Job) ([]string, error) {
 		binPath := filepath.Join(tmp, binary)
 		slog.Info("build " + target.GOOS + "/" + target.GOARCH)
 		err = gocmd.Command{
-			Context: ctx,
-			Dir:     job.Dir,
-			Env:     append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
-			Args:    []string{"-trimpath", "-ldflags", stamp.WithAppID(job.AppID), "-o", binPath, "."},
-		}.Run()
+			Dir:  job.Dir,
+			Env:  append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
+			Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(job.AppID), "-o", binPath, "."},
+		}.Run(ctx)
 		if err != nil {
 			os.RemoveAll(tmp)
 			return written, fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
