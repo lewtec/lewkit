@@ -24,9 +24,8 @@ func TestNormalizeFormat(t *testing.T) {
 	got, err := NormalizeFormat("RUSTc")
 	require.NoError(t, err)
 	require.Equal(t, "rustc", got)
-	got, err = NormalizeFormat("")
-	require.NoError(t, err)
-	require.Equal(t, "text", got)
+	_, err = NormalizeFormat("")
+	require.ErrorIs(t, err, ErrFormat)
 	_, err = NormalizeFormat("html")
 	require.Error(t, err)
 }

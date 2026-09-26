@@ -56,10 +56,10 @@ func WriteTable(w io.Writer, findings []Finding) error {
 	return tw.Flush()
 }
 
-// NormalizeFormat accepts text, table, sarif, or rustc. Empty means text.
+// NormalizeFormat accepts text, table, sarif, or rustc. An empty string is an error.
 func NormalizeFormat(format string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(format)) {
-	case "", "text":
+	case "text":
 		return "text", nil
 	case "table":
 		return "table", nil
