@@ -6,7 +6,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
-	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
@@ -20,11 +19,7 @@ type releaseCmd struct {
 func (releaseCmd) Description() string { return "build or run an app" }
 
 type runCmd struct {
-	goos    goosArg       `long:"goos" help:"target GOOS"`
-	goarch  goarchArg     `long:"goarch" help:"target GOARCH"`
-	dir     cmd.StringArg `help:"module directory" default:"."`
-	id      cmd.StringArg `long:"id" help:"reverse-domain app id"`
-	version cmd.StringArg `long:"version" help:"version stamped into the binary" default:""`
+	appConfig `flatten:""`
 }
 
 func (runCmd) Description() string { return "go run the module for GOOS and GOARCH" }
@@ -42,7 +37,11 @@ func (c *runCmd) Run(ctx context.Context) error {
 }
 
 func (c *runCmd) execute(ctx context.Context) error {
-	id := c.id.Value()
+	cfg, _, err := c.spec().Load()
+	if err != nil {
+		return err
+	}
+	id := cfg.PackageID
 	if id == "" {
 		stamped, err := release.AppID()
 		if err != nil {
@@ -53,10 +52,10 @@ func (c *runCmd) execute(ctx context.Context) error {
 	if err := release.ValidateAppID(id); err != nil {
 		return err
 	}
-	ldflags := version.Info{Version: c.version.Value(), BuiltBy: "lewkit"}.WithAppID(id)
+	ldflags := version.Info{Version: cfg.VersionName, BuiltBy: "lewkit"}.WithAppID(id)
 	return gocmd.Command{
 		Verb: "run",
-		Dir:  c.dir.Value(),
+		Dir:  cfg.GoMain,
 		Env:  append(os.Environ(), "CGO_ENABLED=0", "GOOS="+c.goos.Value(), "GOARCH="+c.goarch.Value()),
 		Args: []string{"-trimpath", "-ldflags", ldflags, "."},
 	}.Run(ctx)

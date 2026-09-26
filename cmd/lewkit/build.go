@@ -15,18 +15,13 @@ import (
 )
 
 type buildCmd struct {
-	goos    goosArg       `long:"goos" help:"target GOOS"`
-	goarch  goarchArg     `long:"goarch" help:"target GOARCH"`
-	dir     cmd.StringArg `help:"module directory" default:"."`
-	id      cmd.StringArg `long:"id" help:"reverse-domain app id"`
-	version cmd.StringArg `long:"version" help:"version stamped into the binary" default:""`
-	out     cmd.StringArg `long:"out" help:"output path or directory" default:"dist"`
-	name    cmd.StringArg `long:"name" help:"archive name" default:""`
-	config  cmd.StringArg `long:"config" help:"eletrocromo.json for android, darwin, and ios" default:""`
-	work    cmd.StringArg `long:"workdir" help:"generated host directory" default:""`
-	sdk     cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
-	goOnly  cmd.Flag      `long:"go-only" help:"stop after the Go binary"`
-	app     cmd.Flag      `long:"app" help:"package a host app instead of a binary archive"`
+	appConfig `flatten:""`
+	out       cmd.StringArg `long:"out" help:"output path or directory" default:"dist"`
+	file      cmd.StringArg `long:"archive" help:"archive file name" default:""`
+	work      cmd.StringArg `long:"workdir" help:"generated host directory" default:""`
+	sdk       cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
+	goOnly    cmd.Flag      `long:"go-only" help:"stop after the Go binary"`
+	app       cmd.Flag      `long:"app" help:"package a host app instead of a binary archive"`
 }
 
 func (buildCmd) Description() string {
@@ -63,7 +58,7 @@ func (c *buildCmd) run(ctx context.Context) ([]string, error) {
 		return c.archive(ctx, target)
 	}
 	host := build.Host{
-		Config: c.config.Value(),
+		Spec:   c.spec(),
 		Out:    c.out.Value(),
 		Work:   c.work.Value(),
 		GOARCH: goarch,
@@ -83,7 +78,11 @@ func (c *buildCmd) run(ctx context.Context) ([]string, error) {
 }
 
 func (c *buildCmd) archive(ctx context.Context, target build.Target) ([]string, error) {
-	id := c.id.Value()
+	cfg, _, err := c.spec().Load()
+	if err != nil {
+		return nil, err
+	}
+	id := cfg.PackageID
 	if id == "" {
 		stamped, err := release.AppID()
 		if err != nil {
@@ -94,12 +93,16 @@ func (c *buildCmd) archive(ctx context.Context, target build.Target) ([]string, 
 	if err := release.ValidateAppID(id); err != nil {
 		return nil, err
 	}
+	name := c.file.Value()
+	if name == "" {
+		name = cfg.AppName
+	}
 	return build.Job{
-		Dir:     c.dir.Value(),
+		Dir:     cfg.GoMain,
 		Out:     c.out.Value(),
-		Name:    c.name.Value(),
+		Name:    name,
 		AppID:   id,
-		Version: c.version.Value(),
+		Version: cfg.VersionName,
 		Targets: []build.Target{target},
 	}.Run(ctx)
 }
