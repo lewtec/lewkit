@@ -230,7 +230,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		if goarch == "arm" {
 			env = append(env, "GOARM=7")
 		}
-		if err := gocmd.Build(ctx, goMainDir, env, "-trimpath", "-ldflags", ldflags, "-o", dest, "."); err != nil {
+		if err := (gocmd.Command{Context: ctx, Dir: goMainDir, Env: env, Args: []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}}).Run(); err != nil {
 			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=0): %w\nnote: pure Go android builds typically only support arm64-v8a without an NDK; set abis in eletrocromo.json", abi, goarch, err)
 		}
 		out = append(out, dest)

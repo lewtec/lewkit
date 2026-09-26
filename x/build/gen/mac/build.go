@@ -216,11 +216,16 @@ func buildGoHelper(ctx context.Context, dest, goMainDir, goarch string, stamp ve
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
-	err := gocmd.Build(ctx, goMainDir, append(os.Environ(),
-		"CGO_ENABLED=0",
-		"GOOS=darwin",
-		"GOARCH="+goarch,
-	), "-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", dest, ".")
+	err := gocmd.Command{
+		Context: ctx,
+		Dir:     goMainDir,
+		Env: append(os.Environ(),
+			"CGO_ENABLED=0",
+			"GOOS=darwin",
+			"GOARCH="+goarch,
+		),
+		Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", dest, "."},
+	}.Run()
 	if err != nil {
 		return fmt.Errorf("go build darwin/%s: %w", goarch, err)
 	}

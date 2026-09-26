@@ -295,21 +295,26 @@ func buildArchive(ctx context.Context, dest, goMainDir, workDir, sdk string, sta
 		return err
 	}
 
-	err = gocmd.Build(ctx, goMainDir, append(os.Environ(),
-		"CGO_ENABLED=1",
-		"GOOS=ios",
-		"GOARCH="+goarch,
-		"CC="+wrap,
-		"ELETROCROMO_IOS_SDK="+sdk,
-		"CGO_LDFLAGS=-framework CoreFoundation",
-	),
-		"-buildmode=c-archive",
-		"-trimpath",
-		"-overlay", overlayFile,
-		"-ldflags", stamp.WithAppID(appID),
-		"-o", dest,
-		".",
-	)
+	err = gocmd.Command{
+		Context: ctx,
+		Dir:     goMainDir,
+		Env: append(os.Environ(),
+			"CGO_ENABLED=1",
+			"GOOS=ios",
+			"GOARCH="+goarch,
+			"CC="+wrap,
+			"ELETROCROMO_IOS_SDK="+sdk,
+			"CGO_LDFLAGS=-framework CoreFoundation",
+		),
+		Args: []string{
+			"-buildmode=c-archive",
+			"-trimpath",
+			"-overlay", overlayFile,
+			"-ldflags", stamp.WithAppID(appID),
+			"-o", dest,
+			".",
+		},
+	}.Run()
 	if err != nil {
 		return fmt.Errorf("go build ios/%s (%s): %w", goarch, sdk, err)
 	}

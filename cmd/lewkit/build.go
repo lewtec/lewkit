@@ -62,19 +62,22 @@ func (c *buildCmd) run(ctx context.Context) ([]string, error) {
 	if !c.app.Value() {
 		return c.archive(ctx, target)
 	}
+	host := build.Host{
+		Context: ctx,
+		Config:  c.config.Value(),
+		Out:     c.out.Value(),
+		Work:    c.work.Value(),
+		GOARCH:  goarch,
+		SDK:     c.sdk.Value(),
+		GoOnly:  c.goOnly.Value(),
+	}
 	switch goos {
 	case "darwin":
-		return c.host(func() (string, error) {
-			return build.Mac(ctx, c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
-		})
+		return c.host(func() (string, error) { return build.Mac(host) })
 	case "android":
-		return c.host(func() (string, error) {
-			return build.Android(ctx, c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
-		})
+		return c.host(func() (string, error) { return build.Android(host) })
 	case "ios":
-		return c.host(func() (string, error) {
-			return build.IOS(ctx, c.config.Value(), c.out.Value(), c.work.Value(), c.sdk.Value(), goarch, c.goOnly.Value())
-		})
+		return c.host(func() (string, error) { return build.IOS(host) })
 	default:
 		return nil, fmt.Errorf("%s has no app package", goos)
 	}
@@ -92,7 +95,15 @@ func (c *buildCmd) archive(ctx context.Context, target build.Target) ([]string, 
 	if err := release.ValidateAppID(id); err != nil {
 		return nil, err
 	}
-	return build.Archives(ctx, c.dir.Value(), c.out.Value(), c.name.Value(), id, c.version.Value(), []build.Target{target})
+	return build.Archives(build.Job{
+		Context: ctx,
+		Dir:     c.dir.Value(),
+		Out:     c.out.Value(),
+		Name:    c.name.Value(),
+		AppID:   id,
+		Version: c.version.Value(),
+		Targets: []build.Target{target},
+	})
 }
 
 func sessionFrom(ctx context.Context) (*taskgroup.Session, context.Context) {

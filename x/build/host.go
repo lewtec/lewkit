@@ -12,82 +12,93 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/mac"
 )
 
+// Host is one packaged app build. Context is the parent taskgroup context.
+type Host struct {
+	Context context.Context
+	Config  string
+	Out     string
+	Work    string
+	GOARCH  string
+	SDK     string
+	GoOnly  bool
+}
+
 // Android builds an APK from an eletrocromo.json config.
-// goOnly stops after the Android Go library, before Gradle.
-func Android(ctx context.Context, configPath, out, work, goarch string, goOnly bool) (string, error) {
-	cfg, base, err := apk.LoadConfig(configPath)
+// GoOnly stops after the Android Go library, before Gradle.
+func Android(host Host) (string, error) {
+	cfg, base, err := apk.LoadConfig(host.Config)
 	if err != nil {
 		return "", err
 	}
-	abi, err := AndroidABI(goarch)
+	abi, err := AndroidABI(host.GOARCH)
 	if err != nil {
 		return "", err
 	}
 	cfg.ABIs = []string{abi}
 	result, err := apk.Build(apk.BuildOptions{
-		Context:     ctx,
+		Context:     host.Context,
 		Config:      cfg,
 		BaseDir:     base,
-		WorkDir:     work,
-		KeepWorkDir: work != "",
-		OutAPK:      out,
-		GoOnly:      goOnly,
+		WorkDir:     host.Work,
+		KeepWorkDir: host.Work != "",
+		OutAPK:      host.Out,
+		GoOnly:      host.GoOnly,
 	})
 	if err != nil {
 		return "", err
 	}
-	if goOnly {
+	if host.GoOnly {
 		return result.WorkDir, nil
 	}
 	return result.APKPath, nil
 }
 
 // Mac builds an unsigned Debug .app from an eletrocromo.json config.
-func Mac(ctx context.Context, configPath, out, work, goarch string, goOnly bool) (string, error) {
-	cfg, base, err := loadHost(configPath)
+func Mac(host Host) (string, error) {
+	cfg, base, err := loadHost(host.Config)
 	if err != nil {
 		return "", err
 	}
 	result, err := mac.Build(mac.BuildOptions{
-		Context:     ctx,
+		Context:     host.Context,
 		Config:      macConfig(cfg),
 		BaseDir:     base,
-		WorkDir:     work,
-		KeepWorkDir: work != "",
-		OutApp:      out,
-		GoOnly:      goOnly,
-		GOARCH:      goarch,
+		WorkDir:     host.Work,
+		KeepWorkDir: host.Work != "",
+		OutApp:      host.Out,
+		GoOnly:      host.GoOnly,
+		GOARCH:      host.GOARCH,
 	})
 	if err != nil {
 		return "", err
 	}
-	if goOnly {
+	if host.GoOnly {
 		return result.WorkDir, nil
 	}
 	return result.AppPath, nil
 }
 
 // IOS builds a simulator or device .app from an eletrocromo.json config.
-func IOS(ctx context.Context, configPath, out, work, sdk, goarch string, goOnly bool) (string, error) {
-	cfg, base, err := loadHost(configPath)
+func IOS(host Host) (string, error) {
+	cfg, base, err := loadHost(host.Config)
 	if err != nil {
 		return "", err
 	}
 	result, err := ios.Build(ios.BuildOptions{
-		Context:     ctx,
+		Context:     host.Context,
 		Config:      iosConfig(cfg),
 		BaseDir:     base,
-		WorkDir:     work,
-		KeepWorkDir: work != "",
-		OutApp:      out,
-		GoOnly:      goOnly,
-		SDK:         sdk,
-		GOARCH:      goarch,
+		WorkDir:     host.Work,
+		KeepWorkDir: host.Work != "",
+		OutApp:      host.Out,
+		GoOnly:      host.GoOnly,
+		SDK:         host.SDK,
+		GOARCH:      host.GOARCH,
 	})
 	if err != nil {
 		return "", err
 	}
-	if goOnly {
+	if host.GoOnly {
 		return result.WorkDir, nil
 	}
 	return result.AppPath, nil

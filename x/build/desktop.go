@@ -53,23 +53,40 @@ func title(goos string) string {
 	return strings.ToUpper(goos[:1]) + goos[1:]
 }
 
-// Desktop cross-compiles moduleDir and writes one archive per target into outDir.
-// appID is stamped into x/release.appID. versionName is stamped into x/release.version.
-func Desktop(ctx context.Context, moduleDir, outDir, project, appID, versionName string) ([]string, error) {
-	return Archives(ctx, moduleDir, outDir, project, appID, versionName, DesktopTargets())
+// Job is one or more CGO-free archives. Context is the parent taskgroup context.
+// AppID is stamped into x/release.appID. Version is stamped into x/release.version.
+type Job struct {
+	Context context.Context
+	Dir     string
+	Out     string
+	Name    string
+	AppID   string
+	Version string
+	Targets []Target
+}
+
+// Desktop cross-compiles one archive for every release target.
+func Desktop(job Job) ([]string, error) {
+	job.Targets = DesktopTargets()
+	return Archives(job)
 }
 
 // Archives writes one archive for each target.
-func Archives(ctx context.Context, moduleDir, outDir, project, appID, versionName string, targets []Target) ([]string, error) {
-	if project == "" {
-		project = filepath.Base(moduleDir)
+func Archives(job Job) ([]string, error) {
+	ctx := job.Context
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	project := job.Name
+	if project == "" {
+		project = filepath.Base(job.Dir)
+	}
+	if err := os.MkdirAll(job.Out, 0o755); err != nil {
 		return nil, err
 	}
-	stamp := version.Info{Version: versionName, BuiltBy: "lewkit"}
+	stamp := version.Info{Version: job.Version, BuiltBy: "lewkit"}
 	var written []string
-	for _, target := range targets {
+	for _, target := range job.Targets {
 		if err := ctx.Err(); err != nil {
 			return written, err
 		}
@@ -83,13 +100,17 @@ func Archives(ctx context.Context, moduleDir, outDir, project, appID, versionNam
 		}
 		binPath := filepath.Join(tmp, binary)
 		slog.Info("build " + target.GOOS + "/" + target.GOARCH)
-		err = gocmd.Build(ctx, moduleDir, append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
-			"-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", binPath, ".")
+		err = gocmd.Command{
+			Context: ctx,
+			Dir:     job.Dir,
+			Env:     append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
+			Args:    []string{"-trimpath", "-ldflags", stamp.WithAppID(job.AppID), "-o", binPath, "."},
+		}.Run()
 		if err != nil {
 			os.RemoveAll(tmp)
 			return written, fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
 		}
-		archive := filepath.Join(outDir, ArchiveName(project, target))
+		archive := filepath.Join(job.Out, ArchiveName(project, target))
 		if err := writeArchive(archive, binPath, binary); err != nil {
 			os.RemoveAll(tmp)
 			return written, err

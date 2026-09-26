@@ -11,15 +11,24 @@ import (
 	"sync"
 )
 
-// Build runs go build -v with args after the verb. Each output line is slog.Info.
-func Build(ctx context.Context, dir string, env []string, args ...string) error {
+// Command is one go build -v. Each output line is slog.Info.
+type Command struct {
+	Context context.Context
+	Dir     string
+	Env     []string
+	Args    []string
+}
+
+// Run runs go build -v with Args after the verb.
+func (c Command) Run() error {
+	ctx := c.Context
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	argv := append([]string{"build", "-v"}, args...)
+	argv := append([]string{"build", "-v"}, c.Args...)
 	cmd := exec.CommandContext(ctx, "go", argv...)
-	cmd.Dir = dir
-	cmd.Env = env
+	cmd.Dir = c.Dir
+	cmd.Env = c.Env
 	reader, writer := io.Pipe()
 	cmd.Stdout = writer
 	cmd.Stderr = writer
