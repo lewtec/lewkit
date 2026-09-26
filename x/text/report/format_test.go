@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,15 +20,40 @@ func TestParseLevel(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestNormalizeFormat(t *testing.T) {
+func TestParseFormat(t *testing.T) {
 	t.Parallel()
-	got, err := NormalizeFormat("RUSTc")
+	got, err := ParseFormat("RUSTc")
 	require.NoError(t, err)
-	require.Equal(t, "rustc", got)
-	_, err = NormalizeFormat("")
+	require.Equal(t, FormatRustc, got)
+	_, err = ParseFormat("")
 	require.ErrorIs(t, err, ErrFormat)
-	_, err = NormalizeFormat("html")
-	require.Error(t, err)
+	_, err = ParseFormat("html")
+	require.ErrorIs(t, err, ErrFormat)
+}
+
+func TestFormatEnumArgRender(t *testing.T) {
+	t.Parallel()
+	type args struct {
+		Format cmd.EnumArg[Format] `long:"format"`
+	}
+	parsed, err := cmd.Parse[args]("--format", "text")
+	require.NoError(t, err)
+	f := Finding{
+		RuleID:  "demo/hello",
+		Level:   LevelWarning,
+		Message: "don't greet",
+		File:    "main.go",
+		Line:    3,
+		Column:  6,
+		Fixable: true,
+	}
+	var text bytes.Buffer
+	require.NoError(t, parsed.Format.Value().Render(&text, "", Tool{}, []Finding{f}, nil))
+	require.Equal(t, "main.go:3:6: warning: demo/hello: don't greet [fixable]\n", text.String())
+
+	var unset Format
+	err = unset.Render(&text, "", Tool{}, []Finding{f}, nil)
+	require.ErrorIs(t, err, ErrFormat)
 }
 
 func TestWriteTextAndTable(t *testing.T) {
@@ -42,7 +68,7 @@ func TestWriteTextAndTable(t *testing.T) {
 		Fixable: true,
 	}
 	var text bytes.Buffer
-	require.NoError(t, WriteFormat(&text, "text", "", Tool{}, []Finding{f}, nil))
+	require.NoError(t, FormatText.Render(&text, "", Tool{}, []Finding{f}, nil))
 	require.Equal(t, "main.go:3:6: warning: demo/hello: don't greet [fixable]\n", text.String())
 
 	var table bytes.Buffer

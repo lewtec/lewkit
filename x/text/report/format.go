@@ -56,38 +56,69 @@ func WriteTable(w io.Writer, findings []Finding) error {
 	return tw.Flush()
 }
 
-// NormalizeFormat accepts text, table, sarif, or rustc. An empty string is an error.
-func NormalizeFormat(format string) (string, error) {
-	switch strings.ToLower(strings.TrimSpace(format)) {
-	case "text":
-		return "text", nil
-	case "table":
-		return "table", nil
-	case "sarif":
-		return "sarif", nil
-	case "rustc":
-		return "rustc", nil
+// Format is one diagnostic rendering. The zero value is unset.
+// It is a cmd.Enum, so cmd.EnumArg[Format] parses a flag when a caller opts in.
+type Format int
+
+const (
+	FormatText Format = iota + 1
+	FormatTable
+	FormatSARIF
+	FormatRustc
+)
+
+// String is the token for cmd.EnumArg.
+func (f Format) String() string {
+	switch f {
+	case FormatText:
+		return "text"
+	case FormatTable:
+		return "table"
+	case FormatSARIF:
+		return "sarif"
+	case FormatRustc:
+		return "rustc"
 	default:
-		return "", fmt.Errorf("%w %s (want text, table, sarif, or rustc)", ErrFormat, strconv.Quote(format))
+		return ""
 	}
 }
 
-// WriteFormat writes findings as text, table, sarif, or rustc.
+// Values lists formats for cmd.EnumArg. The zero value is absent.
+func (Format) Values() []Format {
+	return []Format{FormatText, FormatTable, FormatSARIF, FormatRustc}
+}
+
+// ParseFormat accepts text, table, sarif, or rustc, in any case. An empty string is an error.
+func ParseFormat(format string) (Format, error) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "text":
+		return FormatText, nil
+	case "table":
+		return FormatTable, nil
+	case "sarif":
+		return FormatSARIF, nil
+	case "rustc":
+		return FormatRustc, nil
+	default:
+		return 0, fmt.Errorf("%w %s (want text, table, sarif, or rustc)", ErrFormat, strconv.Quote(format))
+	}
+}
+
+// Render writes findings in this format.
 // root resolves relative paths for SARIF fixes and rustc file links.
 // A zero Tool uses the lewkit driver name in SARIF.
-func WriteFormat(w io.Writer, format, root string, tool Tool, findings []Finding, rules []Rule) error {
-	format, err := NormalizeFormat(format)
-	if err != nil {
-		return err
-	}
-	switch format {
-	case "table":
+// The zero Format returns ErrFormat and writes nothing.
+func (f Format) Render(w io.Writer, root string, tool Tool, findings []Finding, rules []Rule) error {
+	switch f {
+	case FormatText:
+		return WriteText(w, findings)
+	case FormatTable:
 		return WriteTable(w, findings)
-	case "sarif":
+	case FormatSARIF:
 		return WriteSARIF(w, root, tool, findings, rules)
-	case "rustc":
+	case FormatRustc:
 		return WriteRustc(w, root, findings)
 	default:
-		return WriteText(w, findings)
+		return fmt.Errorf("%w %s (want text, table, sarif, or rustc)", ErrFormat, strconv.Quote(f.String()))
 	}
 }

@@ -118,6 +118,6 @@ func TestWriteSARIFReadsFile(t *testing.T) {
 		}},
 	}
 	var buf bytes.Buffer
-	require.NoError(t, WriteFormat(&buf, "sarif", dir, Tool{Name: "kit", Version: "1"}, []Finding{f}, nil))
+	require.NoError(t, FormatSARIF.Render(&buf, dir, Tool{Name: "kit", Version: "1"}, []Finding{f}, nil))
 	require.Contains(t, buf.String(), `"text": "z"`)
 }

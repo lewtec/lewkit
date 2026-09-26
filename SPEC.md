@@ -164,7 +164,7 @@ Inherited C (cite the file):
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
-| `x/text/report` | `Finding`, `WriteFormat`, `WriteText`, `WriteTable`, `WriteRustc`, `WriteSARIF` | diagnostic value | formats stay here | unknown format or level is the parse error | import the root `report` package; import `x/ui`; import `x/driver` |
+| `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRustc`, `WriteSARIF` | diagnostic value | formats stay here | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
 | `cmd/lewkit/experiments` | commands, not a library | demo | demos MAY stay | command failure | import experiments as a component package |
 
 ## Invariants
