@@ -122,6 +122,8 @@ Inherited C (cite the file):
 | `x/driver/camera` | `List`, `Capture` | one still frame | protocol stays here | missing ffmpeg or video device is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
+| `x/driver/treesitter` | `Get`, `ForFile`, `Parse`, `Names` | one grammar from a registered engine | protocol stays here | unknown language is `ErrUnknown`; no backend is `driver.ErrNotFound` | import a grammar module |
+| `x/driver/treesitter/leaven` | leaven registry | facade of leaven-tree-sitter | selection stays here | a missing name is skipped | import another tree-sitter module |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label`, `RGB`, `BGR`, `CMYK`, `HSV` | value | blit stays here; each color space is its own struct and converts to `RGB` | existing blit errors | hold bubbletea types; hold templ; hold transformers |
@@ -213,6 +215,8 @@ Inherited C (cite the file):
 | INV-47 | `x/driver/volume` does not import `x/driver/audio_play` | `x/driver/volume` | that import |
 | INV-48 | `x/driver/launcher` does not import `x/driver/filedialog` | `x/driver/launcher` | that import |
 | INV-49 | notification, clipboard, opener, dirs, share, volume, brightness, battery, media, power, screen, screenshot, wallpaper, wm, camera, launcher, and terminal do not import `x/ffi` | those packages | that import |
+| INV-50 | `x/driver/treesitter` does not import `leaven-tree-sitter` | `x/driver/treesitter` | that import |
+| INV-51 | `x/driver/treesitter/leaven` imports the leaven grammar module | `x/driver/treesitter/leaven` | a tree-sitter engine import in `x/driver/treesitter` |
 
 ## Errors
 
