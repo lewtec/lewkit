@@ -71,7 +71,9 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
 | `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Load`. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
-| `x/release` | `Version`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. |
+| `x/release` | `Version`, `AppID`, `ValidateAppID`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. |
+| `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
+| `x/build` | `Desktop`, `Android`, `Mac`, `IOS`. `lewkit build` writes the archives and the packaged hosts. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
 | `x/generate` | Helpers shared by the generator packages. |

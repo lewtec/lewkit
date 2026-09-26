@@ -36,6 +36,37 @@ func TestDispatchStreams(t *testing.T) {
 	require.NoError(t, body.Close())
 }
 
+func TestDispatchFollowsSameViewRedirect(t *testing.T) {
+	var paths []string
+	handler := http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		paths = append(paths, request.URL.Path)
+		if request.URL.Path == "/go" {
+			http.Redirect(response, request, "/", http.StatusSeeOther)
+			return
+		}
+		if request.URL.Path == "/away" {
+			http.Redirect(response, request, "https://example.com/docs", http.StatusSeeOther)
+			return
+		}
+		_, _ = response.Write([]byte("page " + request.URL.Path))
+	})
+
+	status, header, body, err := Dispatch(handler, http.MethodPost, "app://view9/go", nil, strings.NewReader("op=inc"))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, status)
+	require.Empty(t, header.Get("Location"))
+	text, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, "page /", string(text))
+	require.Equal(t, []string{"/go", "/"}, paths)
+
+	status, header, body, err = Dispatch(handler, http.MethodGet, "app://view9/away", nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSeeOther, status)
+	require.Equal(t, "https://example.com/docs", header.Get("Location"))
+	require.NoError(t, body.Close())
+}
+
 func TestValidateHandler(t *testing.T) {
 	require.NoError(t, Config{Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})}.Validate())
 }

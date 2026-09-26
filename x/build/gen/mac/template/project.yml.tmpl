@@ -1,0 +1,32 @@
+name: {{.Product}}
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SWIFT_VERSION: "5.0"
+    GENERATE_INFOPLIST_FILE: NO
+    INFOPLIST_FILE: Info.plist
+    ENABLE_APP_SANDBOX: NO
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: NO
+    ENABLE_DEBUG_DYLIB: NO
+    DEVELOPMENT_TEAM: ""
+targets:
+  {{.Product}}:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: {{.PackageID}}
+        PRODUCT_NAME: {{.Product}}
+        MARKETING_VERSION: "{{.VersionName}}"
+        CURRENT_PROJECT_VERSION: "{{.CodeString}}"
+        INFOPLIST_KEY_LSMinimumSystemVersion: "14.0"
+        COMBINE_HIDPI_IMAGES: YES

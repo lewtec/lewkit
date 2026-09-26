@@ -1,0 +1,305 @@
+package {{.PackageID}}
+
+import android.annotation.SuppressLint
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.graphics.Bitmap
+import android.os.Build
+import android.os.Bundle
+import android.os.IBinder
+import android.view.View
+import android.webkit.CookieManager
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+
+/**
+ * Thin WebView shell. The Go binary owns HTTP + auth; this activity only
+ * shows a splash (centered logo, status under it) until READY, then loads
+ * the token URL. Pull-to-refresh reloads the page (SSR gets a new response).
+ */
+class MainActivity : AppCompatActivity() {
+    private var webView: WebView? = null
+    private var server: ServerService? = null
+    private var bound = false
+    private var appUrl: String? = null
+    private var pageHadError = false
+
+    private lateinit var splash: View
+    private lateinit var splashStatus: TextView
+    private lateinit var splashDetail: TextView
+    private lateinit var splashProgress: ProgressBar
+    private lateinit var splashRetry: Button
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var webContainer: FrameLayout
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as ServerService.LocalBinder
+            server = binder.getService()
+            bound = true
+            server?.setListener(object : ServerService.Listener {
+                override fun onStatus(message: String) {
+                    runOnUiThread { showSplash(message, detail = null, error = false) }
+                }
+
+                override fun onReady(url: String) {
+                    appUrl = url
+                    runOnUiThread {
+                        showSplash(getString(R.string.status_loading), detail = null, error = false)
+                        loadApp(url)
+                    }
+                }
+
+                override fun onFailed(message: String) {
+                    runOnUiThread {
+                        showSplash(getString(R.string.server_failed), detail = message, error = true)
+                    }
+                }
+            })
+            server?.ensureStarted()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            server = null
+            bound = false
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Loopback must never go through a system/VPN HTTP proxy.
+        System.setProperty("java.net.useSystemProxies", "false")
+        System.setProperty("http.nonProxyHosts", "localhost|127.*|[::1]")
+        setContentView(R.layout.activity_main)
+
+        splash = findViewById(R.id.splash)
+        splashStatus = findViewById(R.id.splash_status)
+        splashDetail = findViewById(R.id.splash_detail)
+        splashProgress = findViewById(R.id.splash_progress)
+        splashRetry = findViewById(R.id.splash_retry)
+        swipeRefresh = findViewById(R.id.swipe_refresh)
+        webContainer = findViewById(R.id.webview_container)
+
+        swipeRefresh.setOnRefreshListener { refreshPage() }
+        // Only start pull-to-refresh when the WebView is scrolled to the top.
+        swipeRefresh.setOnChildScrollUpCallback { _, _ ->
+            webView?.canScrollVertically(-1) == true
+        }
+
+        splashRetry.setOnClickListener {
+            showSplash(getString(R.string.loading), detail = null, error = false)
+            val url = appUrl
+            if (url != null && webView != null) {
+                webView?.loadUrl(url)
+            } else {
+                // Full restart of the Go process path.
+                server?.restart()
+            }
+        }
+
+        val svc = Intent(this, ServerService::class.java)
+        startForegroundService(svc)
+        bindService(svc, connection, Context.BIND_AUTO_CREATE)
+        OpenDrop.handle(this, intent)
+        ShareOut.start(this)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        OpenDrop.handle(this, intent)
+    }
+
+    private fun refreshPage() {
+        val url = appUrl
+        val wv = webView
+        when {
+            wv != null && url != null -> wv.loadUrl(url) // full GET — new SSR/cat fact
+            wv != null -> wv.reload()
+            else -> {
+                swipeRefresh.isRefreshing = false
+                server?.restart()
+            }
+        }
+    }
+
+    private fun showSplash(status: String, detail: String?, error: Boolean) {
+        splash.visibility = View.VISIBLE
+        swipeRefresh.visibility = View.GONE
+        swipeRefresh.isRefreshing = false
+        splashStatus.text = status
+        if (detail.isNullOrBlank()) {
+            splashDetail.visibility = View.GONE
+            splashDetail.text = ""
+        } else {
+            splashDetail.visibility = View.VISIBLE
+            splashDetail.text = detail
+        }
+        splashProgress.visibility = if (error) View.GONE else View.VISIBLE
+        splashRetry.visibility = if (error) View.VISIBLE else View.GONE
+    }
+
+    private fun showWeb() {
+        splash.visibility = View.GONE
+        swipeRefresh.visibility = View.VISIBLE
+        swipeRefresh.isRefreshing = false
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun loadApp(url: String) {
+        val existing = webView
+        if (existing != null) {
+            existing.loadUrl(url)
+            return
+        }
+
+        val wv = WebView(this)
+        webView = wv
+        webContainer.removeAllViews()
+        webContainer.addView(
+            wv,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+
+        CookieManager.getInstance().setAcceptCookie(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            CookieManager.getInstance().setAcceptThirdPartyCookies(wv, true)
+        }
+
+        val settings: WebSettings = wv.settings
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.databaseEnabled = true
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        settings.domStorageEnabled = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        }
+        // Local loopback app — no need for zoom chrome.
+        settings.builtInZoomControls = false
+        settings.displayZoomControls = false
+
+        wv.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(
+                view: WebView?,
+                request: WebResourceRequest?,
+            ): Boolean {
+                val url = request?.url ?: return false
+                val host = url.host?.lowercase() ?: ""
+                if (host == "127.0.0.1" || host == "localhost" || host == "::1") {
+                    return false
+                }
+                return try {
+                    startActivity(Intent(Intent.ACTION_VIEW, url))
+                    true
+                } catch (_: Exception) {
+                    true
+                }
+            }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                pageHadError = false
+            }
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                swipeRefresh.isRefreshing = false
+                if (!pageHadError) {
+                    showWeb()
+                }
+            }
+
+            override fun onReceivedHttpError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                errorResponse: WebResourceResponse?,
+            ) {
+                if (request?.isForMainFrame != true) return
+                pageHadError = true
+                swipeRefresh.isRefreshing = false
+                val code = errorResponse?.statusCode ?: -1
+                val reason = errorResponse?.reasonPhrase ?: ""
+                // Never put the session query string on the splash (screenshots / bug reports).
+                val reqUrl = redactUrlForDisplay(request.url?.toString().orEmpty())
+                runOnUiThread {
+                    showSplash(
+                        getString(R.string.webview_http_error, code),
+                        detail = buildString {
+                            append(reason)
+                            if (reqUrl.isNotBlank()) {
+                                if (isNotEmpty()) append('\n')
+                                append(reqUrl)
+                            }
+                            if (code == 401 || code == 403) {
+                                append("\n\nAuth token was rejected (check ELETROCROMO_READY handoff).")
+                            }
+                        },
+                        error = true,
+                    )
+                }
+            }
+
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?,
+            ) {
+                if (request?.isForMainFrame != true) return
+                pageHadError = true
+                swipeRefresh.isRefreshing = false
+                val desc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    error?.description?.toString() ?: "unknown"
+                } else {
+                    "load error"
+                }
+                val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    error?.errorCode ?: -1
+                } else {
+                    -1
+                }
+                runOnUiThread {
+                    showSplash(
+                        getString(R.string.webview_error),
+                        detail = "code=$code\n$desc\n${redactUrlForDisplay(request.url?.toString().orEmpty())}",
+                        error = true,
+                    )
+                }
+            }
+        }
+
+        wv.loadUrl(url)
+    }
+
+    /** Strip query and fragment so splash errors never leak the session secret. */
+    private fun redactUrlForDisplay(raw: String): String {
+        if (raw.isBlank()) return raw
+        val noFrag = raw.substringBefore('#')
+        return noFrag.substringBefore('?')
+    }
+
+    override fun onDestroy() {
+        if (bound) {
+            server?.setListener(null)
+            unbindService(connection)
+            bound = false
+        }
+        webContainer.removeAllViews()
+        webView?.destroy()
+        webView = null
+        super.onDestroy()
+    }
+}

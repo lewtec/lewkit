@@ -6,6 +6,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/audio_play/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/battery/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/brightness/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/bundle/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/camera/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/clipboard/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/prelude"

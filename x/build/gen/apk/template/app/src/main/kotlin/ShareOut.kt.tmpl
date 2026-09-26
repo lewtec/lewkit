@@ -1,0 +1,101 @@
+package {{.PackageID}}
+
+import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
+import org.json.JSONObject
+import java.io.File
+import java.io.RandomAccessFile
+
+/** Tails cache/share.jsonl and starts the system share sheet. */
+object ShareOut {
+    private val main = Handler(Looper.getMainLooper())
+    private var offset = 0L
+    private var started = false
+
+    fun start(ctx: Context) {
+        if (started) return
+        started = true
+        val app = ctx.applicationContext
+        Thread({
+            while (true) {
+                poll(app)
+                try {
+                    Thread.sleep(200)
+                } catch (_: InterruptedException) {
+                    return@Thread
+                }
+            }
+        }, "eletrocromo-share").apply { isDaemon = true }.start()
+    }
+
+    private fun poll(ctx: Context) {
+        val file = File(ctx.cacheDir, "share.jsonl")
+        if (!file.exists()) return
+        val raf = RandomAccessFile(file, "r")
+        try {
+            if (raf.length() < offset) offset = 0
+            raf.seek(offset)
+            var line: String?
+            while (raf.readLine().also { line = it } != null) {
+                val raw = line ?: continue
+                val item = parse(raw) ?: continue
+                main.post { launch(ctx, item) }
+            }
+            offset = raf.filePointer
+        } finally {
+            raf.close()
+        }
+    }
+
+    private data class Item(val text: String, val url: String, val paths: List<String>)
+
+    private fun parse(line: String): Item? {
+        return try {
+            val o = JSONObject(line)
+            val paths = mutableListOf<String>()
+            if (o.has("paths")) {
+                val arr = o.getJSONArray("paths")
+                for (i in 0 until arr.length()) paths.add(arr.getString(i))
+            }
+            Item(
+                text = o.optString("text"),
+                url = o.optString("url"),
+                paths = paths,
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun launch(ctx: Context, item: Item) {
+        val send = Intent(if (item.paths.size > 1) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND)
+        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        send.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (item.paths.isNotEmpty()) {
+            val uris = item.paths.map { p ->
+                FileProvider.getUriForFile(ctx, ctx.packageName + ".fileprovider", File(p))
+            }
+            val mime = mimeOf(item.paths[0])
+            send.type = mime
+            if (uris.size == 1) {
+                send.putExtra(Intent.EXTRA_STREAM, uris[0])
+            } else {
+                send.putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+            }
+        } else {
+            send.type = "text/plain"
+            val text = item.text.ifBlank { item.url }
+            send.putExtra(Intent.EXTRA_TEXT, text)
+        }
+        ctx.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }
+
+    private fun mimeOf(path: String): String {
+        val ext = File(path).extension.lowercase()
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+    }
+}
