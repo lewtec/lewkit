@@ -55,6 +55,11 @@ func title(goos string) string {
 // Desktop cross-compiles moduleDir and writes one archive per target into outDir.
 // appID is stamped into x/release.appID. versionName is stamped into x/release.version.
 func Desktop(ctx context.Context, moduleDir, outDir, project, appID, versionName string) ([]string, error) {
+	return Archives(ctx, moduleDir, outDir, project, appID, versionName, DesktopTargets())
+}
+
+// Archives writes one archive for each target.
+func Archives(ctx context.Context, moduleDir, outDir, project, appID, versionName string, targets []Target) ([]string, error) {
 	if project == "" {
 		project = filepath.Base(moduleDir)
 	}
@@ -63,7 +68,7 @@ func Desktop(ctx context.Context, moduleDir, outDir, project, appID, versionName
 	}
 	stamp := version.Info{Version: versionName, BuiltBy: "lewkit"}
 	var written []string
-	for _, target := range DesktopTargets() {
+	for _, target := range targets {
 		if err := ctx.Err(); err != nil {
 			return written, err
 		}

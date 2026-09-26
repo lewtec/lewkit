@@ -41,6 +41,7 @@ type BuildOptions struct {
 	OutApp      string
 	GoOnly      bool
 	SDK         string
+	GOARCH      string
 	IconRoot    string
 	Stdout      io.Writer
 	Stderr      io.Writer
@@ -155,7 +156,16 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := buildArchive(archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, stdout, stderr); err != nil {
+	goarch, xArch := hostIOSArch(sdk)
+	if opts.GOARCH != "" {
+		var archErr error
+		goarch, xArch, archErr = iosArch(opts.GOARCH)
+		if archErr != nil {
+			buildErr = archErr
+			return nil, buildErr
+		}
+	}
+	if err := buildArchive(archiveDest, goMain, workDir, sdk, vi, cfg.PackageID, goarch, stdout, stderr); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -181,7 +191,7 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	built, err := assembleDebug(workDir, cfg.ProductName(), sdk, stdout, stderr)
+	built, err := assembleDebug(workDir, cfg.ProductName(), sdk, xArch, stdout, stderr)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -256,7 +266,7 @@ func applyIOSIcons(iconRoot, assetsDir string) error {
 	return nil
 }
 
-func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appID string, stdout, stderr io.Writer) error {
+func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appID, goarch string, stdout, stderr io.Writer) error {
 	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
@@ -281,8 +291,6 @@ func buildArchive(dest, goMainDir, workDir, sdk string, stamp version.Info, appI
 	if err != nil {
 		return err
 	}
-
-	goarch, _ := hostIOSArch(sdk)
 
 	cmd := exec.Command("go", "build",
 		"-buildmode=c-archive",
@@ -325,7 +333,7 @@ func writeClangwrap(workDir string) (string, error) {
 	return dest, nil
 }
 
-func assembleDebug(workDir, product, sdk string, stdout, stderr io.Writer) (string, error) {
+func assembleDebug(workDir, product, sdk, xArch string, stdout, stderr io.Writer) (string, error) {
 	if _, err := exec.LookPath("xcodegen"); err != nil {
 		return "", fmt.Errorf("%w: %w", ErrXcodeGenNotFound, err)
 	}
@@ -342,7 +350,6 @@ func assembleDebug(workDir, product, sdk string, stdout, stderr io.Writer) (stri
 	}
 
 	dest, destName := xcodeDestination(sdk)
-	_, xArch := hostIOSArch(sdk)
 	derived := filepath.Join(workDir, "build", "DerivedData")
 	proj := filepath.Join(workDir, product+".xcodeproj")
 	cmd := exec.Command("xcodebuild",
@@ -377,11 +384,23 @@ func assembleDebug(workDir, product, sdk string, stdout, stderr io.Writer) (stri
 	return app, nil
 }
 
-func hostIOSArch(sdk string) (goarch, xArch string) {
-	if runtime.GOARCH == "amd64" && sdk == SDKSimulator {
-		return "amd64", "x86_64"
+func iosArch(goarch string) (string, string, error) {
+	switch goarch {
+	case "arm64":
+		return "arm64", "arm64", nil
+	case "amd64":
+		return "amd64", "x86_64", nil
+	default:
+		return "", "", fmt.Errorf("unsupported GOARCH %q", goarch)
 	}
-	return "arm64", "arm64"
+}
+
+func hostIOSArch(sdk string) (goarch, xArch string) {
+	arch, xarch, err := iosArch(runtime.GOARCH)
+	if err != nil || sdk == "" {
+		return "arm64", "arm64"
+	}
+	return arch, xarch
 }
 
 func excludedArch(xArch string) string {

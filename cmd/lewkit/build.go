@@ -11,27 +11,53 @@ import (
 )
 
 type buildCmd struct {
-	desktop *desktopBuildCmd
-	android *androidBuildCmd
-	macos   *macosBuildCmd
-	ios     *iosBuildCmd
-}
-
-func (buildCmd) Description() string { return "cross-compile a module or package a host" }
-
-type desktopBuildCmd struct {
+	goos    cmd.StringArg `long:"goos" help:"target GOOS"`
+	goarch  cmd.StringArg `long:"goarch" help:"target GOARCH"`
 	dir     cmd.StringArg `help:"module directory" default:"."`
 	id      cmd.StringArg `long:"id" help:"reverse-domain app id"`
 	version cmd.StringArg `long:"version" help:"version stamped into the binary" default:""`
-	out     cmd.StringArg `long:"out" help:"archive directory" default:"dist"`
+	out     cmd.StringArg `long:"out" help:"output path or directory" default:"dist"`
 	name    cmd.StringArg `long:"name" help:"archive name" default:""`
+	config  cmd.StringArg `long:"config" help:"eletrocromo.json for android, darwin, and ios" default:""`
+	work    cmd.StringArg `long:"workdir" help:"generated host directory" default:""`
+	sdk     cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
+	goOnly  cmd.Flag      `long:"go-only" help:"stop after the Go binary"`
 }
 
-func (desktopBuildCmd) Description() string {
-	return "CGO-free archives for Linux, macOS, and Windows"
+func (buildCmd) Description() string {
+	return "build the package for GOOS and GOARCH"
 }
 
-func (c *desktopBuildCmd) Run(ctx context.Context) error {
+func (c *buildCmd) Run(ctx context.Context) error {
+	goos := c.goos.Value()
+	goarch := c.goarch.Value()
+	if goos == "" || goarch == "" {
+		return fmt.Errorf("goos and goarch are required")
+	}
+	switch goos {
+	case "linux", "windows":
+		return c.archive(ctx, build.Target{GOOS: goos, GOARCH: goarch})
+	case "darwin":
+		if c.config.Value() == "" {
+			return c.archive(ctx, build.Target{GOOS: goos, GOARCH: goarch})
+		}
+		return c.host(func() (string, error) {
+			return build.Mac(c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
+		})
+	case "android":
+		return c.host(func() (string, error) {
+			return build.Android(c.config.Value(), c.out.Value(), c.work.Value(), goarch, c.goOnly.Value())
+		})
+	case "ios":
+		return c.host(func() (string, error) {
+			return build.IOS(c.config.Value(), c.out.Value(), c.work.Value(), c.sdk.Value(), goarch, c.goOnly.Value())
+		})
+	default:
+		return fmt.Errorf("unsupported GOOS %q", goos)
+	}
+}
+
+func (c *buildCmd) archive(ctx context.Context, target build.Target) error {
 	id := c.id.Value()
 	if id == "" {
 		stamped, err := release.AppID()
@@ -43,7 +69,7 @@ func (c *desktopBuildCmd) Run(ctx context.Context) error {
 	if err := release.ValidateAppID(id); err != nil {
 		return err
 	}
-	written, err := build.Desktop(ctx, c.dir.Value(), c.out.Value(), c.name.Value(), id, c.version.Value())
+	written, err := build.Archives(ctx, c.dir.Value(), c.out.Value(), c.name.Value(), id, c.version.Value(), []build.Target{target})
 	if err != nil {
 		return err
 	}
@@ -53,54 +79,11 @@ func (c *desktopBuildCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-type androidBuildCmd struct {
-	config cmd.StringArg `help:"eletrocromo.json file or directory"`
-	out    cmd.StringArg `long:"out" help:"apk path" default:""`
-	work   cmd.StringArg `long:"workdir" help:"gradle project directory" default:""`
-	goOnly cmd.Flag      `long:"go-only" help:"stop after the Go library"`
-}
-
-func (androidBuildCmd) Description() string { return "Android debug APK" }
-
-func (c *androidBuildCmd) Run(context.Context) error {
-	path, err := build.Android(c.config.Value(), c.out.Value(), c.work.Value(), c.goOnly.Value())
-	if err != nil {
-		return err
+func (c *buildCmd) host(run func() (string, error)) error {
+	if c.config.Value() == "" {
+		return fmt.Errorf("config is required for %s", c.goos.Value())
 	}
-	fmt.Fprintln(os.Stdout, path)
-	return nil
-}
-
-type macosBuildCmd struct {
-	config cmd.StringArg `help:"eletrocromo.json file or directory"`
-	out    cmd.StringArg `long:"out" help:".app path" default:""`
-	work   cmd.StringArg `long:"workdir" help:"xcode project directory" default:""`
-	goOnly cmd.Flag      `long:"go-only" help:"stop after the Go helper"`
-}
-
-func (macosBuildCmd) Description() string { return "unsigned macOS .app" }
-
-func (c *macosBuildCmd) Run(context.Context) error {
-	path, err := build.Mac(c.config.Value(), c.out.Value(), c.work.Value(), c.goOnly.Value())
-	if err != nil {
-		return err
-	}
-	fmt.Fprintln(os.Stdout, path)
-	return nil
-}
-
-type iosBuildCmd struct {
-	config cmd.StringArg `help:"eletrocromo.json file or directory"`
-	out    cmd.StringArg `long:"out" help:".app path" default:""`
-	work   cmd.StringArg `long:"workdir" help:"xcode project directory" default:""`
-	sdk    cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
-	goOnly cmd.Flag      `long:"go-only" help:"stop after the c-archive"`
-}
-
-func (iosBuildCmd) Description() string { return "iOS .app" }
-
-func (c *iosBuildCmd) Run(context.Context) error {
-	path, err := build.IOS(c.config.Value(), c.out.Value(), c.work.Value(), c.sdk.Value(), c.goOnly.Value())
+	path, err := run()
 	if err != nil {
 		return err
 	}

@@ -33,6 +33,7 @@ type BuildOptions struct {
 	KeepWorkDir bool
 	OutApp      string
 	GoOnly      bool
+	GOARCH      string
 	IconRoot    string
 	Stdout      io.Writer
 	Stderr      io.Writer
@@ -129,6 +130,9 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 	}
 
 	arch, xArch, err := hostDarwinArch()
+	if opts.GOARCH != "" {
+		arch, xArch, err = darwinArch(opts.GOARCH)
+	}
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -190,15 +194,19 @@ func Build(opts BuildOptions) (*BuildResult, error) {
 	return result, err
 }
 
-func hostDarwinArch() (goarch, xcodeArch string, err error) {
-	switch runtime.GOARCH {
+func darwinArch(goarch string) (string, string, error) {
+	switch goarch {
 	case "arm64":
 		return "arm64", "arm64", nil
 	case "amd64":
 		return "amd64", "x86_64", nil
 	default:
-		return "", "", fmt.Errorf("%w: %s", ErrUnsupportedGOARCH, runtime.GOARCH)
+		return "", "", fmt.Errorf("%w: %s", ErrUnsupportedGOARCH, goarch)
 	}
+}
+
+func hostDarwinArch() (goarch, xcodeArch string, err error) {
+	return darwinArch(runtime.GOARCH)
 }
 
 func buildGoHelper(dest, goMainDir, goarch string, stamp version.Info, appID string, stdout, stderr io.Writer) error {
