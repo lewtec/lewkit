@@ -4,185 +4,182 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
-	"strconv"
 	"strings"
+	"time"
 )
 
-// ErrColumn means a column has no name, no value, or a bad table tag.
+// ErrColumn means a column name, value, or format is missing or unknown.
 var ErrColumn = errors.New("bad column")
 
-// Column is one field of T. Write prints columns in slice order for every format.
-// Text is the table and CSV cell. JSON is the JSONL value.
-// A nil Text uses the JSON value. A nil JSON uses the text.
+// Column is one field of T. Format is how the cell shows in every output.
+// An empty Format uses the default text. A Format containing % is a fmt
+// verb. A time.Time value uses Format as a time layout.
 type Column[T any] struct {
-	Name string
-	Text func(T) string
-	JSON func(T) any
+	Name   string
+	Value  func(T) any
+	Format string
 }
+
+// Formatter returns the columns of T in display order. Columns must not
+// read the receiver. Each Value func receives the row.
+type Formatter[T any] interface {
+	Columns() []Column[T]
+}
+
+// Fields is a Formatter made from a slice.
+type Fields[T any] []Column[T]
+
+func (f Fields[T]) Columns() []Column[T] { return []Column[T](f) }
 
 type col[T any] struct {
-	name string
-	text func(T) string
-	json func(T) any
+	name   string
+	value  func(T) any
+	format string
 }
 
-type ranked[T any] struct {
-	col   col[T]
-	order int
-	pos   int
+func (c col[T]) text(row T) (string, error) {
+	return formatCell(c.value(row), c.format)
 }
 
-func bind[T any](c Column[T]) (col[T], error) {
-	if c.Name == "" || (c.Text == nil && c.JSON == nil) {
-		return col[T]{}, fmt.Errorf("%w: %q", ErrColumn, c.Name)
+func (c col[T]) json(row T) (any, error) {
+	value := c.value(row)
+	if c.format == "" {
+		return value, nil
 	}
-	text, jv := c.Text, c.JSON
-	if text == nil {
-		get := jv
-		text = func(row T) string { return formatAny(get(row)) }
-	}
-	if jv == nil {
-		get := text
-		jv = func(row T) any { return get(row) }
-	}
-	return col[T]{name: c.Name, text: text, json: jv}, nil
+	return formatCell(value, c.format)
 }
 
-func useColumns[T any](cols []Column[T]) ([]col[T], error) {
-	if len(cols) == 0 {
-		return columnsOf[T]()
+// Resolve returns layout's columns, or the Columns method on T, or the
+// exported struct fields. A nil layout uses the method, then the fields.
+func Resolve[T any](layout Formatter[T]) ([]Column[T], error) {
+	if layout != nil {
+		return check(layout.Columns())
 	}
-	out := make([]col[T], len(cols))
-	for i, c := range cols {
-		bound, err := bind(c)
-		if err != nil {
-			return nil, err
+	var zero T
+	if found, ok := any(zero).(Formatter[T]); ok {
+		return check(found.Columns())
+	}
+	if found, ok := any(&zero).(Formatter[T]); ok {
+		return check(found.Columns())
+	}
+	return columnsOf[T]()
+}
+
+// Select keeps spec's columns in that order. spec is empty, or a comma
+// separated list of name and name=format. An empty spec keeps cols.
+// name=format replaces that column's Format.
+func Select[T any](cols []Column[T], spec string) ([]Column[T], error) {
+	if strings.TrimSpace(spec) == "" {
+		return cols, nil
+	}
+	by := make(map[string]Column[T], len(cols))
+	for _, c := range cols {
+		if _, ok := by[c.Name]; ok {
+			return nil, fmt.Errorf("%w: duplicate %s", ErrColumn, c.Name)
 		}
-		out[i] = bound
+		by[c.Name] = c
+	}
+	var out []Column[T]
+	seen := map[string]struct{}{}
+	for part := range strings.SplitSeq(spec, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil, fmt.Errorf("%w: empty name", ErrColumn)
+		}
+		name, format, hasFormat := strings.Cut(part, "=")
+		name = strings.TrimSpace(name)
+		if _, ok := seen[name]; ok {
+			return nil, fmt.Errorf("%w: duplicate %s", ErrColumn, name)
+		}
+		seen[name] = struct{}{}
+		c, ok := by[name]
+		if !ok {
+			return nil, fmt.Errorf("%w: %s", ErrColumn, name)
+		}
+		if hasFormat {
+			c.Format = format
+		}
+		out = append(out, c)
 	}
 	return out, nil
 }
 
-func columnsOf[T any]() ([]col[T], error) {
+func check[T any](cols []Column[T]) ([]Column[T], error) {
+	for _, c := range cols {
+		if c.Name == "" || c.Value == nil {
+			return nil, fmt.Errorf("%w: %q", ErrColumn, c.Name)
+		}
+	}
+	return cols, nil
+}
+
+func bind[T any](cols []Column[T]) ([]col[T], error) {
+	out := make([]col[T], len(cols))
+	for i, c := range cols {
+		if c.Name == "" || c.Value == nil {
+			return nil, fmt.Errorf("%w: %q", ErrColumn, c.Name)
+		}
+		out[i] = col[T]{name: c.Name, value: c.Value, format: c.Format}
+	}
+	return out, nil
+}
+
+func columnsOf[T any]() ([]Column[T], error) {
 	t := reflect.TypeFor[T]()
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
-		one, err := bind(Column[T]{
-			Name: "value",
-			Text: func(row T) string { return formatAny(row) },
-			JSON: func(row T) any { return row },
-		})
-		if err != nil {
-			return nil, err
-		}
-		return []col[T]{one}, nil
+		one := Column[T]{Name: "value", Value: func(row T) any { return row }}
+		return []Column[T]{one}, nil
 	}
-	var cols []ranked[T]
-	for pos, field := range reflect.VisibleFields(t) {
+	var cols []Column[T]
+	for _, field := range reflect.VisibleFields(t) {
 		if field.Anonymous || !field.IsExported() {
 			continue
 		}
-		name, order, skip, err := columnMeta(field, pos)
-		if err != nil {
-			return nil, err
-		}
+		name, skip := jsonName(field)
 		if skip {
 			continue
 		}
 		idx := append([]int(nil), field.Index...)
-		bound, err := bind(Column[T]{
-			Name: name,
-			Text: func(row T) string { return cellAt(reflect.ValueOf(row), idx) },
-			JSON: func(row T) any { return jsonAt(reflect.ValueOf(row), idx) },
+		cols = append(cols, Column[T]{
+			Name:  name,
+			Value: func(row T) any { return jsonAt(reflect.ValueOf(row), idx) },
 		})
-		if err != nil {
-			return nil, err
-		}
-		cols = append(cols, ranked[T]{col: bound, order: order, pos: pos})
 	}
-	sort.SliceStable(cols, func(i, j int) bool {
-		if cols[i].order != cols[j].order {
-			return cols[i].order < cols[j].order
-		}
-		return cols[i].pos < cols[j].pos
-	})
-	out := make([]col[T], len(cols))
-	for i, c := range cols {
-		out[i] = c.col
-	}
-	return out, nil
+	return cols, nil
 }
 
-// columnMeta reads the table and json tags.
-// table:"-" skips the field. table:"name,order=N" sets the header and sort key.
-// The default key is the field index, so a smaller order comes first.
-// A json name is the header when table does not set one. json:"-" skips the field
-// unless a table tag names it or reorders it.
-func columnMeta(field reflect.StructField, pos int) (name string, order int, skip bool, err error) {
-	name = field.Name
-	order = pos
-	jsonSkip := false
-	if tag, ok := field.Tag.Lookup("json"); ok {
-		jname := tag
-		if comma := strings.IndexByte(tag, ','); comma >= 0 {
-			jname = tag[:comma]
-		}
-		switch jname {
-		case "-":
-			jsonSkip = true
-		case "":
-		default:
-			name = jname
-		}
-	}
-	tag, ok := field.Tag.Lookup("table")
+func jsonName(field reflect.StructField) (string, bool) {
+	name := field.Name
+	tag, ok := field.Tag.Lookup("json")
 	if !ok {
-		return name, order, jsonSkip, nil
+		return name, false
 	}
-	tname, opts := splitTag(tag)
-	if tname == "-" {
-		return "", 0, true, nil
+	jname := tag
+	if comma := strings.IndexByte(tag, ','); comma >= 0 {
+		jname = tag[:comma]
 	}
-	if tname != "" {
-		name = tname
-	} else if jsonSkip {
-		name = field.Name
+	switch jname {
+	case "-":
+		return "", true
+	case "":
+		return name, false
+	default:
+		return jname, false
 	}
-	for _, opt := range opts {
-		n, ok, perr := parseOrder(opt)
-		if perr != nil {
-			return "", 0, false, fmt.Errorf("%w: %s %s", ErrColumn, field.Name, perr.Error())
-		}
-		if !ok {
-			return "", 0, false, fmt.Errorf("%w: %s has %q", ErrColumn, field.Name, opt)
-		}
-		order = n
-	}
-	return name, order, false, nil
 }
 
-func splitTag(tag string) (name string, opts []string) {
-	parts := strings.Split(tag, ",")
-	if len(parts) == 0 {
-		return "", nil
+func formatCell(v any, format string) (string, error) {
+	if format == "" {
+		return formatAny(v), nil
 	}
-	if !strings.Contains(parts[0], "=") {
-		return parts[0], parts[1:]
+	if strings.Contains(format, "%") {
+		return fmt.Sprintf(format, v), nil
 	}
-	return "", parts
-}
-
-func parseOrder(opt string) (int, bool, error) {
-	key, val, ok := strings.Cut(opt, "=")
-	if !ok || key != "order" {
-		return 0, false, nil
+	if stamp, ok := v.(time.Time); ok {
+		return stamp.Format(format), nil
 	}
-	n, err := strconv.Atoi(val)
-	if err != nil {
-		return 0, false, err
-	}
-	return n, true, nil
+	return "", fmt.Errorf("%w: format %q", ErrColumn, format)
 }

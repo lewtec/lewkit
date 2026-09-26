@@ -13,19 +13,21 @@ import (
 )
 
 // Write prints each value from seq in format.
-// With no columns, exported struct fields are the columns. A json name is the
-// header, and json:"-" skips the field. table:"name,order=N" renames a column
-// and sets its sort key. The default key is the field index. A field that
-// implements fmt.Stringer or error uses that text in table and CSV. JSONL
-// keeps the field's JSON value. Passing columns uses that slice order and
-// those cell funcs for every format.
+// A nil layout uses Formatter on T when T has Columns, and otherwise the
+// exported struct fields. A json name is the header, and json:"-" skips the
+// field. A field that implements fmt.Stringer or error uses that text in
+// table and CSV. JSONL keeps the field's JSON value unless Column.Format is set.
 // A non-struct value is one column named value. Table and CSV print a header
 // even when seq is empty. JSONL prints one object per line and no header.
-func Write[T any](w io.Writer, format Format, seq iter.Seq[T], cols ...Column[T]) error {
+func Write[T any](w io.Writer, format Format, seq iter.Seq[T], layout Formatter[T]) error {
 	if err := format.validate(); err != nil {
 		return err
 	}
-	fields, err := useColumns(cols)
+	chosen, err := Resolve(layout)
+	if err != nil {
+		return err
+	}
+	fields, err := bind(chosen)
 	if err != nil {
 		return err
 	}
@@ -66,7 +68,11 @@ func jsonLine[T any](value T, cols []col[T]) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		raw, err := json.Marshal(c.json(value))
+		cell, err := c.json(value)
+		if err != nil {
+			return "", err
+		}
+		raw, err := json.Marshal(cell)
 		if err != nil {
 			return "", err
 		}
@@ -84,7 +90,11 @@ func writeCSV[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
 		return err
 	}
 	for value := range seq {
-		if err := out.Write(cells(value, cols)); err != nil {
+		row, err := cells(value, cols)
+		if err != nil {
+			return err
+		}
+		if err := out.Write(row); err != nil {
 			return err
 		}
 	}
@@ -98,7 +108,11 @@ func writeTable[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
 		return err
 	}
 	for value := range seq {
-		if err := writeLine(tw, cells(value, cols)); err != nil {
+		row, err := cells(value, cols)
+		if err != nil {
+			return err
+		}
+		if err := writeLine(tw, row); err != nil {
 			return err
 		}
 	}
@@ -118,12 +132,16 @@ func names[T any](cols []col[T]) []string {
 	return out
 }
 
-func cells[T any](value T, cols []col[T]) []string {
+func cells[T any](value T, cols []col[T]) ([]string, error) {
 	out := make([]string, len(cols))
 	for i, c := range cols {
-		out[i] = c.text(value)
+		text, err := c.text(value)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = text
 	}
-	return out
+	return out, nil
 }
 
 func jsonAt(v reflect.Value, index []int) any {

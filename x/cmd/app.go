@@ -24,6 +24,7 @@ type App[T any] struct {
 	help    Flag      `short:"h" long:"help" help:"show help" ctx:"help"`
 	version Flag      `long:"version" help:"print version" ctx:"version"`
 	format  FormatArg `long:"format" default:"table" help:"output format" ctx:"format"`
+	columns StringArg `long:"columns" default:"" help:"columns as name or name=format" ctx:"columns"`
 	Args    T         `flatten:""`
 }
 
