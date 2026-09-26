@@ -164,6 +164,7 @@ Inherited C (cite the file):
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
+| `x/report` | `Finding`, `WriteFormat`, `WriteText`, `WriteTable`, `WriteRustc`, `WriteSARIF` | diagnostic value | formats stay here | unknown format or level is the parse error | import the root `report` package; import `x/ui`; import `x/driver` |
 | `cmd/lewkit/experiments` | commands, not a library | demo | demos MAY stay | command failure | import experiments as a component package |
 
 ## Invariants
@@ -225,6 +226,7 @@ Inherited C (cite the file):
 | INV-53 | `x/driver/treesitter/native` imports `x/ffi/native/treesitter` and does not import `x/ffi/native` | `x/driver/treesitter/native` | an import of `x/ffi/native` |
 | INV-54 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
 | INV-55 | `x/driver/treesitter/wazero` imports the wazero grammar module and does not import a wazero `grammar/<lang>` package | `x/driver/treesitter/wazero` | that import |
+| INV-56 | `x/report` does not import the root `report` package, `x/ui`, or `x/driver` | `x/report` | that import |
 
 ## Errors
 
@@ -305,3 +307,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-24: light or dark is `x/driver/daynight`. Web views push it into the page without a reload. `gui.Run` delivers `ModeMsg`.
 - 2026-09-25: host capabilities that lived in modot and eletrocromo sit under `x/driver`. Volume is sink level, not PCM playback. Launcher is a menu, not a file dialog. Termux backends stay in modot. Screen reset enables outputs; it does not store a hostname layout. Share does not own the eletrocromo JSONL drop.
 - 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.
+- 2026-09-26: `x/report` owns diagnostic findings. Output is a text line, a table, a rustc-style snippet, or SARIF 2.1.0. The root `report` package stays the error-reporter registry.
