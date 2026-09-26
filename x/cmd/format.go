@@ -1,6 +1,6 @@
 package cmd
 
-import "github.com/lewtec/lewkit/x/table"
+import "github.com/lewtec/lewkit/x/text/table"
 
 // FormatArg is the --format flag. Value is the format the process prints with.
 type FormatArg struct {

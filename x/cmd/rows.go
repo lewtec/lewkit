@@ -5,7 +5,7 @@ import (
 	"io"
 	"iter"
 
-	"github.com/lewtec/lewkit/x/table"
+	"github.com/lewtec/lewkit/x/text/table"
 )
 
 // Rows writes seq using the process --format value. A missing format is table.
