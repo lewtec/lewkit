@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/treesitter/ccgo"
 	_ "github.com/lewtec/lewkit/x/driver/treesitter/leaven"
 	_ "github.com/lewtec/lewkit/x/driver/treesitter/native"
 )

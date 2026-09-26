@@ -1,9 +1,7 @@
 // Package ccgo registers the ccgo tree-sitter engine.
 //
-// This module imports the ccgo grammar runtime only.
-// Blank-import the language modules you need from your program.
-// Those modules require grammar v0.0.0; replace that version with
-// the grammar module version required here.
+// This package imports the ccgo grammar runtime only.
+// Blank-import the language modules you need.
 package ccgo
 
 import (

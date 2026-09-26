@@ -26,6 +26,7 @@ require (
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260823193308-9d0f77e93872
 	github.com/mattn/go-runewidth v0.0.30
+	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar v0.0.0-20260801004327-2c4586c945d8
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/shirou/gopsutil/v4 v4.26.8
