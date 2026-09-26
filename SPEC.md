@@ -111,6 +111,7 @@ Inherited C (cite the file):
 | `x/driver/dirs` | `Resolve`, `Dirs` | per-app data, cache, config, inbox | protocol stays here | bad app id is `ErrInvalidAppID` | hardcode a product name in the path |
 | `x/driver/bundle` | `Resolve`, `Root`, `SharePath` | stamped reverse-domain tree plus web profile | protocol stays here | missing id is `release.ErrAppIDRequired` | import `x/driver/webview`; replace `x/driver/dirs` |
 | `x/release` | `Version`, `AppID`, `ValidateAppID` | binary stamp | the reverse-domain id stays here | empty id is `ErrAppIDRequired` | import `x/driver` |
+| `x/app` | `App`, `Run` | web view or loopback host for one handler | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS` | import `x/ui/gui` |
 | `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here | existing build errors | import `x/driver/webview` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |

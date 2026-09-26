@@ -34,7 +34,7 @@ type root struct {
 	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
 	sentry        sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
 	generate      *generateCmd
-	build         *buildCmd
+	release       *releaseCmd
 	disasm        *disasmCmd
 	doctor        *doctorCmd
 	experiments   *experiments.Command

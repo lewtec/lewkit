@@ -35,6 +35,14 @@ func Resolve(ctx context.Context) (Root, error) {
 	if err != nil {
 		return Root{}, err
 	}
+	return ResolveID(ctx, id)
+}
+
+// ResolveID returns the tree for one reverse-domain id.
+func ResolveID(ctx context.Context, id string) (Root, error) {
+	if err := release.ValidateAppID(id); err != nil {
+		return Root{}, err
+	}
 	return driver.WithResult(ctx, func(d Driver) (Root, error) {
 		return d.Resolve(ctx, id)
 	})
