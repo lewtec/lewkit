@@ -95,7 +95,6 @@ class ServerService : Service() {
             env["ELETROCROMO_DATA_DIR"] = filesDir.absolutePath
             env["ELETROCROMO_CACHE_DIR"] = cacheDir.absolutePath
             env["ELETROCROMO_CONFIG_DIR"] = File(filesDir, "config").absolutePath
-            env["LEWKIT_HOST"] = "1"
             env["LEWKIT_APP_ID"] = "{{.PackageID}}"
             env["LEWKIT_DATA_DIR"] = filesDir.absolutePath
             env["LEWKIT_CACHE_DIR"] = cacheDir.absolutePath

@@ -1,4 +1,4 @@
-package host_test
+package host
 
 import (
 	"bufio"
@@ -8,18 +8,16 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/bundle"
 	"github.com/lewtec/lewkit/x/driver/share"
-	_ "github.com/lewtec/lewkit/x/driver/share/host"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOutWritesDrop(t *testing.T) {
-	t.Setenv("LEWKIT_HOST", "1")
 	t.Setenv("LEWKIT_APP_ID", "br.tec.lew.share")
 	t.Setenv("LEWKIT_DATA_DIR", t.TempDir())
 	t.Setenv("LEWKIT_CACHE_DIR", t.TempDir())
 	t.Setenv("LEWKIT_CONFIG_DIR", t.TempDir())
 
-	err := share.Out(t.Context(), share.Item{Text: "hello"})
+	err := backend{}.Out(t.Context(), share.Item{Text: "hello"})
 	require.NoError(t, err)
 
 	root, err := bundle.Resolve(t.Context())

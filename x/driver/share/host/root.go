@@ -1,15 +1,12 @@
 // Package host appends share.Out to the bundle share drop.
 // The packaged native host tails that file and opens the system share sheet.
-// Compatible on Android, and when LEWKIT_HOST is 1, true, or yes.
+// The factory is compatible only in the android and ios files.
 package host
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
-	"runtime"
-	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/bundle"
@@ -23,13 +20,6 @@ type factory struct{}
 func (factory) ID() string   { return "share_host" }
 func (factory) Name() string { return "Host share drop" }
 func (factory) Weight() int  { return 80 }
-
-func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS == "android" || envTruthy("LEWKIT_HOST") {
-		return nil
-	}
-	return fmt.Errorf("%w: not a packaged host", driver.ErrIncompatible)
-}
 
 func (factory) New(context.Context) (share.Driver, error) { return backend{}, nil }
 
@@ -63,11 +53,6 @@ type drop struct {
 	Text  string   `json:"text,omitempty"`
 	URL   string   `json:"url,omitempty"`
 	Paths []string `json:"paths,omitempty"`
-}
-
-func envTruthy(key string) bool {
-	value := strings.TrimSpace(os.Getenv(key))
-	return value == "1" || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 }
 
 func init() { driver.Register[share.Driver](factory{}) }

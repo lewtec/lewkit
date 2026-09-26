@@ -31,7 +31,6 @@ enum OpenDrop {
         setenv("ELETROCROMO_DATA_DIR", d.data.path, 1)
         setenv("ELETROCROMO_CACHE_DIR", d.cache.path, 1)
         setenv("ELETROCROMO_CONFIG_DIR", d.config.path, 1)
-        setenv("LEWKIT_HOST", "1", 1)
         setenv("LEWKIT_APP_ID", "{{.PackageID}}", 1)
         setenv("LEWKIT_DATA_DIR", d.data.path, 1)
         setenv("LEWKIT_CACHE_DIR", d.cache.path, 1)

@@ -23,7 +23,6 @@ enum OpenDrop {
         env["ELETROCROMO_DATA_DIR"] = data.path
         env["ELETROCROMO_CACHE_DIR"] = cache.path
         env["ELETROCROMO_CONFIG_DIR"] = config.path
-        env["LEWKIT_HOST"] = "1"
         env["LEWKIT_APP_ID"] = "{{.PackageID}}"
         env["LEWKIT_DATA_DIR"] = data.path
         env["LEWKIT_CACHE_DIR"] = cache.path

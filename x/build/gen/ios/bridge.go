@@ -33,7 +33,6 @@ func EletrocromoStart(readyFile, dataDir, cacheDir, configDir *C.char) {
 		os.Setenv("ELETROCROMO_CONFIG_DIR", C.GoString(configDir))
 		os.Setenv("LEWKIT_CONFIG_DIR", C.GoString(configDir))
 	}
-	os.Setenv("LEWKIT_HOST", "1")
 	main()
 }
 `
