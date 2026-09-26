@@ -18,30 +18,30 @@ func (doctorCmd) Description() string {
 }
 
 func (*doctorCmd) Run(ctx context.Context) error {
-	return cmd.Rows(ctx, os.Stdout, driverRows(driver.Doctor(ctx)), nil)
+	return cmd.Rows(ctx, os.Stdout, driverRows(driver.Doctor(ctx)), driverLayout)
 }
 
 type driverRow struct {
-	Interface string
-	ID        string
-	Name      string
-	Weight    int
-	Available bool
-	Selected  bool
-	Error     string
+	Interface string `json:"interface"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Weight    int    `json:"weight"`
+	Available bool   `json:"available"`
+	Selected  bool   `json:"selected"`
+	Error     string `json:"error"`
 }
 
-func (driverRow) Columns() []table.Column[driverRow] {
-	return []table.Column[driverRow]{
-		{Name: "id", Value: func(row driverRow) any { return row.ID }},
-		{Name: "name", Value: func(row driverRow) any { return row.Name }},
-		{Name: "interface", Value: func(row driverRow) any { return row.Interface }},
-		{Name: "weight", Value: func(row driverRow) any { return row.Weight }},
-		{Name: "available", Value: func(row driverRow) any { return row.Available }},
-		{Name: "selected", Value: func(row driverRow) any { return row.Selected }},
-		{Name: "error", Value: func(row driverRow) any { return row.Error }},
-	}
+type driverSpec struct {
+	ID        table.Field[string]
+	Name      table.Field[string]
+	Interface table.Field[string]
+	Weight    table.Field[int]
+	Available table.Field[bool]
+	Selected  table.Field[bool]
+	Error     table.Field[string]
 }
+
+var driverLayout = table.Must(table.Make[driverRow](driverSpec{}))
 
 func driverRows(report []driver.InterfaceStatus) iter.Seq[driverRow] {
 	return func(yield func(driverRow) bool) {
