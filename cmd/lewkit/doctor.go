@@ -11,7 +11,9 @@ import (
 	"github.com/lewtec/lewkit/x/text/table"
 )
 
-type doctorCmd struct{}
+type doctorCmd struct {
+	cmd.Output `flatten:""`
+}
 
 func (doctorCmd) Description() string {
 	return "list registered drivers"
