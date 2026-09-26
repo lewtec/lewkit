@@ -5,7 +5,6 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 )
 
 // Format is one diagnostic rendering. The zero value is unset.
@@ -41,30 +40,6 @@ func WriteText(w io.Writer, findings []Finding) error {
 		}
 	}
 	return nil
-}
-
-// WriteTable writes findings as an aligned table.
-// Columns are LOCATION, LEVEL, RULE, MESSAGE, and FIX.
-// LOCATION is file:line:col (1-based).
-func WriteTable(w io.Writer, findings []Finding) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	if _, err := fmt.Fprintln(tw, "LOCATION\tLEVEL\tRULE\tMESSAGE\tFIX"); err != nil {
-		return err
-	}
-	for _, f := range findings {
-		fix := ""
-		if f.Fixable && f.FixSkipped {
-			fix = "skipped"
-		} else if f.Fixable {
-			fix = "yes"
-		}
-		loc := fmt.Sprintf("%s:%d:%d", f.File, f.Line, f.Column)
-		if _, err := fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-			loc, f.Level, f.RuleID, f.Message, fix); err != nil {
-			return err
-		}
-	}
-	return tw.Flush()
 }
 
 // String is the token for cmd.EnumArg.
