@@ -8,6 +8,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
+	"github.com/lewtec/lewkit/x/text/table"
 )
 
 type doctorCmd struct{}
@@ -17,17 +18,29 @@ func (doctorCmd) Description() string {
 }
 
 func (*doctorCmd) Run(ctx context.Context) error {
-	return cmd.Rows(ctx, os.Stdout, driverRows(driver.Doctor(ctx)))
+	return cmd.Rows(ctx, os.Stdout, driverRows(driver.Doctor(ctx)), nil)
 }
 
 type driverRow struct {
-	Interface string `json:"interface" table:",order=2"`
-	ID        string `json:"id" table:",order=0"`
-	Name      string `json:"name" table:",order=1"`
-	Weight    int    `json:"weight" table:",order=3"`
-	Available bool   `json:"available" table:",order=4"`
-	Selected  bool   `json:"selected" table:",order=5"`
-	Error     string `json:"error,omitempty" table:",order=6"`
+	Interface string
+	ID        string
+	Name      string
+	Weight    int
+	Available bool
+	Selected  bool
+	Error     string
+}
+
+func (driverRow) Columns() []table.Column[driverRow] {
+	return []table.Column[driverRow]{
+		{Name: "id", Value: func(row driverRow) any { return row.ID }},
+		{Name: "name", Value: func(row driverRow) any { return row.Name }},
+		{Name: "interface", Value: func(row driverRow) any { return row.Interface }},
+		{Name: "weight", Value: func(row driverRow) any { return row.Weight }},
+		{Name: "available", Value: func(row driverRow) any { return row.Available }},
+		{Name: "selected", Value: func(row driverRow) any { return row.Selected }},
+		{Name: "error", Value: func(row driverRow) any { return row.Error }},
+	}
 }
 
 func driverRows(report []driver.InterfaceStatus) iter.Seq[driverRow] {

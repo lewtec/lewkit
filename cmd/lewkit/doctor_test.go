@@ -44,3 +44,19 @@ func TestDoctorPrintsJSONL(t *testing.T) {
 	assert.Contains(t, got, `"id":"window_mem"`)
 	assert.NotContains(t, got, "\t")
 }
+
+func TestDoctorColumnsFlag(t *testing.T) {
+	test.RestoreSlog(t)
+	app := cmd.ParseOK[cmd.App[root]](t, "--columns", "id,name=%q", "doctor")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	header := got
+	if i := strings.IndexByte(got, '\n'); i >= 0 {
+		header = got[:i]
+	}
+	assert.Less(t, strings.Index(header, "id"), strings.Index(header, "name"))
+	assert.NotContains(t, header, "interface")
+	assert.Contains(t, got, "\"Memory\"")
+	assert.NotContains(t, got, "window.Driver")
+}

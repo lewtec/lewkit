@@ -73,6 +73,8 @@ func TestAppUsage(t *testing.T) {
 		"--version",
 		"--format",
 		"output format (choices: table, jsonl, csv, default: table)",
+		"--columns",
+		"columns as name or name=format",
 	} {
 		assert.Contains(t, text, want)
 	}
