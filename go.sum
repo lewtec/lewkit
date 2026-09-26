@@ -203,6 +203,8 @@ github.com/lewtec/leaven v0.0.0-20260814142252-666e23083398 h1:WZkGYLNpijUbXwtha
 github.com/lewtec/leaven v0.0.0-20260814142252-666e23083398/go.mod h1:dm9Ri4N6fnxAcLFsAx9mJyy4mwuF9aLJesoB/G4SjiA=
 github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260823193308-9d0f77e93872 h1:oTQ36vRIYbZ5537ka1lo/S6CrT/spAlM8gSrEXU1Mu8=
 github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260823193308-9d0f77e93872/go.mod h1:OxqZKICIWGwyxFEx8Wri6I4DCUU7lg0tSLzX73tkHQ8=
+github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260926181015-a4ba39fdab89 h1:QItFsJIOO1KZqXqhpjsJ4aXpq6vCBcNMlvPJWqWuphM=
+github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260926181015-a4ba39fdab89/go.mod h1:xwgf7PJSOWRAqcuffR314NyyEYgsyeTP/Y1FxvykQBk=
 github.com/lib/pq v1.12.3 h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ=
 github.com/lib/pq v1.12.3/go.mod h1:/p+8NSbOcwzAEI7wiMXFlgydTwcgTr3OSKMsD2BitpA=
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=

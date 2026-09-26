@@ -25,6 +25,7 @@ require (
 	github.com/klauspost/compress v1.18.5
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260823193308-9d0f77e93872
+	github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260926181015-a4ba39fdab89
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar v0.0.0-20260801004327-2c4586c945d8
 	github.com/pelletier/go-toml/v2 v2.3.1

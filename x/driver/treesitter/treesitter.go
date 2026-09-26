@@ -7,8 +7,8 @@
 // The native engine loads an installed libtree-sitter-<name> library.
 // It stays incompatible unless LEWKIT_ENABLE_NATIVE_TREESITTER is set.
 //
-// Blank-import the prelude to register leaven, ccgo, and the native
-// engine. Blank-import the language modules you need.
+// Blank-import the prelude to register leaven, ccgo, wazero, and the
+// native engine. Blank-import the language modules you need.
 //
 //	tree, err := treesitter.Parse(ctx, "json", source)
 package treesitter

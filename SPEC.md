@@ -126,6 +126,7 @@ Inherited C (cite the file):
 | `x/driver/treesitter/ccgo` | ccgo registry | facade of ccgo-tree-sitter | selection stays here | a missing name is skipped | import a ccgo `grammar/<lang>` package |
 | `x/driver/treesitter/leaven` | leaven registry | facade of leaven-tree-sitter | selection stays here | a missing name is skipped | import another tree-sitter module |
 | `x/driver/treesitter/native` | installed `libtree-sitter-<name>` | facade of the tree-sitter binding | selection stays here | unset `LEWKIT_ENABLE_NATIVE_TREESITTER` or a missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
+| `x/driver/treesitter/wazero` | wazero registry | facade of wazero-tree-sitter | selection stays here | a missing name is skipped | import a wazero `grammar/<lang>` package |
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label`, `RGB`, `BGR`, `CMYK`, `HSV` | value | blit stays here; each color space is its own struct and converts to `RGB` | existing blit errors | hold bubbletea types; hold templ; hold transformers |
@@ -223,6 +224,7 @@ Inherited C (cite the file):
 | INV-52 | `x/driver/treesitter/ccgo` imports the ccgo grammar module and does not import a ccgo `grammar/<lang>` package | `x/driver/treesitter/ccgo` | that import |
 | INV-53 | `x/driver/treesitter/native` imports `x/ffi/native/treesitter` and does not import `x/ffi/native` | `x/driver/treesitter/native` | an import of `x/ffi/native` |
 | INV-54 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
+| INV-55 | `x/driver/treesitter/wazero` imports the wazero grammar module and does not import a wazero `grammar/<lang>` package | `x/driver/treesitter/wazero` | that import |
 
 ## Errors
 
