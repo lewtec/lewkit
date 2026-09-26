@@ -12,14 +12,14 @@ import (
 	"text/tabwriter"
 )
 
-// Write prints each value from seq in format.
-// A nil layout uses Formatter on T when T has Columns, and otherwise the
+// Write prints each value from sequence in format.
+// A nil layout uses Formatter on Row when Row has Columns, and otherwise the
 // exported struct fields. A json name is the header, and json:"-" skips the
 // field. A field that implements fmt.Stringer or error uses that text in
 // table and CSV. JSONL keeps the field's JSON value unless Column.Format is set.
 // A non-struct value is one column named value. Table and CSV print a header
-// even when seq is empty. JSONL prints one object per line and no header.
-func Write[T any](w io.Writer, format Format, seq iter.Seq[T], layout Formatter[T]) error {
+// even when sequence is empty. JSONL prints one object per line and no header.
+func Write[Row any](writer io.Writer, format Format, sequence iter.Seq[Row], layout Formatter[Row]) error {
 	if err := format.validate(); err != nil {
 		return err
 	}
@@ -31,44 +31,44 @@ func Write[T any](w io.Writer, format Format, seq iter.Seq[T], layout Formatter[
 	if err != nil {
 		return err
 	}
-	if seq == nil {
-		seq = func(func(T) bool) {}
+	if sequence == nil {
+		sequence = func(func(Row) bool) {}
 	}
 	switch format {
 	case JSONL:
-		return writeJSONL(w, seq, fields)
+		return writeJSONL(writer, sequence, fields)
 	case CSV:
-		return writeCSV(w, seq, fields)
+		return writeCSV(writer, sequence, fields)
 	default:
-		return writeTable(w, seq, fields)
+		return writeTable(writer, sequence, fields)
 	}
 }
 
-func writeJSONL[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
-	for value := range seq {
-		line, err := jsonLine(value, cols)
+func writeJSONL[Row any](writer io.Writer, sequence iter.Seq[Row], columns []boundColumn[Row]) error {
+	for value := range sequence {
+		line, err := jsonLine(value, columns)
 		if err != nil {
 			return err
 		}
-		if _, err := io.WriteString(w, line); err != nil {
+		if _, err := io.WriteString(writer, line); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func jsonLine[T any](value T, cols []col[T]) (string, error) {
-	var b strings.Builder
-	b.WriteByte('{')
-	for i, c := range cols {
-		if i > 0 {
-			b.WriteByte(',')
+func jsonLine[Row any](value Row, columns []boundColumn[Row]) (string, error) {
+	var builder strings.Builder
+	builder.WriteByte('{')
+	for index, column := range columns {
+		if index > 0 {
+			builder.WriteByte(',')
 		}
-		name, err := json.Marshal(c.name)
+		name, err := json.Marshal(column.name)
 		if err != nil {
 			return "", err
 		}
-		cell, err := c.json(value)
+		cell, err := column.json(value)
 		if err != nil {
 			return "", err
 		}
@@ -76,151 +76,147 @@ func jsonLine[T any](value T, cols []col[T]) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		b.Write(name)
-		b.WriteByte(':')
-		b.Write(raw)
+		builder.Write(name)
+		builder.WriteByte(':')
+		builder.Write(raw)
 	}
-	b.WriteString("}\n")
-	return b.String(), nil
+	builder.WriteString("}\n")
+	return builder.String(), nil
 }
 
-func writeCSV[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
-	out := csv.NewWriter(w)
-	if err := out.Write(names(cols)); err != nil {
+func writeCSV[Row any](writer io.Writer, sequence iter.Seq[Row], columns []boundColumn[Row]) error {
+	csvWriter := csv.NewWriter(writer)
+	if err := csvWriter.Write(names(columns)); err != nil {
 		return err
 	}
-	for value := range seq {
-		row, err := cells(value, cols)
+	for value := range sequence {
+		row, err := cells(value, columns)
 		if err != nil {
 			return err
 		}
-		if err := out.Write(row); err != nil {
+		if err := csvWriter.Write(row); err != nil {
 			return err
 		}
 	}
-	out.Flush()
-	return out.Error()
+	csvWriter.Flush()
+	return csvWriter.Error()
 }
 
-func writeTable[T any](w io.Writer, seq iter.Seq[T], cols []col[T]) error {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	if err := writeLine(tw, names(cols)); err != nil {
+func writeTable[Row any](writer io.Writer, sequence iter.Seq[Row], columns []boundColumn[Row]) error {
+	tabWriter := tabwriter.NewWriter(writer, 0, 0, 2, ' ', 0)
+	if err := writeLine(tabWriter, names(columns)); err != nil {
 		return err
 	}
-	for value := range seq {
-		row, err := cells(value, cols)
+	for value := range sequence {
+		row, err := cells(value, columns)
 		if err != nil {
 			return err
 		}
-		if err := writeLine(tw, row); err != nil {
+		if err := writeLine(tabWriter, row); err != nil {
 			return err
 		}
 	}
-	return tw.Flush()
+	return tabWriter.Flush()
 }
 
-func writeLine(w io.Writer, fields []string) error {
-	_, err := io.WriteString(w, strings.Join(fields, "\t")+"\n")
+func writeLine(writer io.Writer, fields []string) error {
+	_, err := io.WriteString(writer, strings.Join(fields, "\t")+"\n")
 	return err
 }
 
-func names[T any](cols []col[T]) []string {
-	out := make([]string, len(cols))
-	for i, c := range cols {
-		out[i] = c.name
+func names[Row any](columns []boundColumn[Row]) []string {
+	out := make([]string, len(columns))
+	for index, column := range columns {
+		out[index] = column.name
 	}
 	return out
 }
 
-func cells[T any](value T, cols []col[T]) ([]string, error) {
-	out := make([]string, len(cols))
-	for i, c := range cols {
-		text, err := c.text(value)
+func cells[Row any](value Row, columns []boundColumn[Row]) ([]string, error) {
+	out := make([]string, len(columns))
+	for index, column := range columns {
+		text, err := column.text(value)
 		if err != nil {
 			return nil, err
 		}
-		out[i] = text
+		out[index] = text
 	}
 	return out, nil
 }
 
-func jsonAt(v reflect.Value, index []int) any {
-	v = fieldValue(v, index)
-	if !v.IsValid() {
+func jsonAt(value reflect.Value, index []int) any {
+	value = fieldValue(value, index)
+	if !value.IsValid() {
 		return nil
 	}
-	if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && v.IsNil() {
+	if (value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface) && value.IsNil() {
 		return nil
 	}
-	return v.Interface()
+	return value.Interface()
 }
 
-func cellAt(v reflect.Value, index []int) string {
-	return formatValue(fieldValue(v, index))
-}
-
-func fieldValue(v reflect.Value, index []int) reflect.Value {
+func fieldValue(value reflect.Value, index []int) reflect.Value {
 	if len(index) == 0 {
-		return v
+		return value
 	}
-	for v.IsValid() && (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) {
-		if v.IsNil() {
+	for value.IsValid() && (value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface) {
+		if value.IsNil() {
 			return reflect.Value{}
 		}
-		v = v.Elem()
+		value = value.Elem()
 	}
-	if !v.IsValid() || v.Kind() != reflect.Struct {
+	if !value.IsValid() || value.Kind() != reflect.Struct {
 		return reflect.Value{}
 	}
-	return v.FieldByIndex(index)
+	return value.FieldByIndex(index)
 }
 
-func formatAny(v any) string {
-	if v == nil {
+func formatAny(value any) string {
+	if value == nil {
 		return ""
 	}
-	return formatValue(reflect.ValueOf(v))
+	return formatValue(reflect.ValueOf(value))
 }
 
-func formatValue(v reflect.Value) string {
-	for v.IsValid() && (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) {
-		if v.IsNil() {
+func formatValue(value reflect.Value) string {
+	for value.IsValid() && (value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface) {
+		if value.IsNil() {
 			return ""
 		}
-		if v.Kind() == reflect.Interface {
-			if err, ok := v.Interface().(error); ok {
+		if value.Kind() == reflect.Interface {
+			if err, ok := value.Interface().(error); ok {
 				return err.Error()
 			}
 		}
-		v = v.Elem()
+		value = value.Elem()
 	}
-	if !v.IsValid() {
+	if !value.IsValid() {
 		return ""
 	}
-	if v.CanInterface() {
-		if err, ok := v.Interface().(error); ok {
+	if value.CanInterface() {
+		if err, ok := value.Interface().(error); ok {
 			return err.Error()
 		}
-		if text, ok := v.Interface().(fmt.Stringer); ok {
+		if text, ok := value.Interface().(fmt.Stringer); ok {
 			return text.String()
 		}
 	}
-	switch v.Kind() {
+	switch value.Kind() {
 	case reflect.String:
-		return v.String()
+		return value.String()
 	case reflect.Bool:
-		return strconv.FormatBool(v.Bool())
+		return strconv.FormatBool(value.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return strconv.FormatInt(v.Int(), 10)
+		return strconv.FormatInt(value.Int(), 10)
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return strconv.FormatUint(v.Uint(), 10)
+		return strconv.FormatUint(value.Uint(), 10)
 	case reflect.Float32, reflect.Float64:
-		return strconv.FormatFloat(v.Float(), 'f', -1, 64)
+		return strconv.FormatFloat(value.Float(), 'f', -1, 64)
 	default:
-		b, err := json.Marshal(v.Interface())
+		encoded, err := json.Marshal(value.Interface())
 		if err != nil {
-			return fmt.Sprint(v.Interface())
+			return fmt.Sprint(value.Interface())
 		}
-		return string(b)
+		return string(encoded)
 	}
 }

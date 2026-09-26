@@ -27,11 +27,11 @@ func TestMakeBuildsViewOnce(t *testing.T) {
 		When: Field[time.Time]{Format: time.DateOnly},
 		Name: Field[string]{Format: "%q"},
 	}))
-	seq := func(yield func(row) bool) {
+	sequence := func(yield func(row) bool) {
 		yield(row{ID: "z", Name: "a", When: when})
 	}
 	var buf bytes.Buffer
-	require.NoError(t, Write(&buf, JSONL, seq, view))
+	require.NoError(t, Write(&buf, JSONL, sequence, view))
 	assert.Equal(t, "{\"When\":\"2026-09-26\",\"id\":\"z\",\"name\":\"\\\"a\\\"\"}\n", buf.String())
 	assert.Equal(t, []string{"When", "id", "name"}, namesOf(view))
 }
@@ -53,10 +53,10 @@ func TestMakeRejectsMissingField(t *testing.T) {
 }
 
 func namesOf(view View[row]) []string {
-	cols := view.Columns()
-	out := make([]string, len(cols))
-	for i, col := range cols {
-		out[i] = col.Name
+	columns := view.Columns()
+	out := make([]string, len(columns))
+	for index, column := range columns {
+		out[index] = column.Name
 	}
 	return out
 }

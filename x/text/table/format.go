@@ -18,8 +18,8 @@ const (
 	CSV
 )
 
-func (f Format) String() string {
-	switch f {
+func (format Format) String() string {
+	switch format {
 	case Table:
 		return "table"
 	case JSONL:
@@ -36,9 +36,9 @@ func (Format) Values() []Format {
 	return []Format{Table, JSONL, CSV}
 }
 
-func (f Format) validate() error {
-	if f.String() == "" {
-		return fmt.Errorf("%w: %d", ErrFormat, int(f))
+func (format Format) validate() error {
+	if format.String() == "" {
+		return fmt.Errorf("%w: %d", ErrFormat, int(format))
 	}
 	return nil
 }

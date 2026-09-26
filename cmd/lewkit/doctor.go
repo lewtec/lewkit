@@ -45,18 +45,18 @@ var driverLayout = table.Must(table.Make[driverRow](driverSpec{}))
 
 func driverRows(report []driver.InterfaceStatus) iter.Seq[driverRow] {
 	return func(yield func(driverRow) bool) {
-		for _, iface := range report {
-			for _, impl := range iface.Drivers {
+		for _, interfaceStatus := range report {
+			for _, driverStatus := range interfaceStatus.Drivers {
 				row := driverRow{
-					Interface: iface.Name,
-					ID:        impl.ID,
-					Name:      impl.Name,
-					Weight:    impl.Weight,
-					Available: impl.Available,
-					Selected:  impl.Selected,
+					Interface: interfaceStatus.Name,
+					ID:        driverStatus.ID,
+					Name:      driverStatus.Name,
+					Weight:    driverStatus.Weight,
+					Available: driverStatus.Available,
+					Selected:  driverStatus.Selected,
 				}
-				if impl.Error != nil {
-					row.Error = impl.Error.Error()
+				if driverStatus.Error != nil {
+					row.Error = driverStatus.Error.Error()
 				}
 				if !yield(row) {
 					return

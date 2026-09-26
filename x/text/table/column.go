@@ -11,130 +11,131 @@ import (
 // ErrColumn means a column name, value, or format is missing or unknown.
 var ErrColumn = errors.New("bad column")
 
-// Column is one field of T. Format is how the cell shows in every output.
+// Column is one field of Row. Format is how the cell shows in every output.
 // An empty Format uses the default text. A Format containing % is a fmt
 // verb. A time.Time value uses Format as a time layout.
-type Column[T any] struct {
+type Column[Row any] struct {
 	Name   string
-	Value  func(T) any
+	Value  func(Row) any
 	Format string
 }
 
-// Formatter returns the columns of T in display order. Columns must not
+// Formatter returns the columns of Row in display order. Columns must not
 // read the receiver. Each Value func receives the row.
-type Formatter[T any] interface {
-	Columns() []Column[T]
+type Formatter[Row any] interface {
+	Columns() []Column[Row]
 }
 
 // Fields is a Formatter made from a slice.
-type Fields[T any] []Column[T]
+type Fields[Row any] []Column[Row]
 
-func (f Fields[T]) Columns() []Column[T] { return []Column[T](f) }
+func (fields Fields[Row]) Columns() []Column[Row] { return []Column[Row](fields) }
 
-type col[T any] struct {
+type boundColumn[Row any] struct {
 	name   string
-	value  func(T) any
+	value  func(Row) any
 	format string
 }
 
-func (c col[T]) text(row T) (string, error) {
-	return formatCell(c.value(row), c.format)
+func (column boundColumn[Row]) text(row Row) (string, error) {
+	return formatCell(column.value(row), column.format)
 }
 
-func (c col[T]) json(row T) (any, error) {
-	value := c.value(row)
-	if c.format == "" {
+func (column boundColumn[Row]) json(row Row) (any, error) {
+	value := column.value(row)
+	if column.format == "" {
 		return value, nil
 	}
-	return formatCell(value, c.format)
+	return formatCell(value, column.format)
 }
 
-// Resolve returns layout's columns, or the Columns method on T, or the
+// Resolve returns layout's columns, or the Columns method on Row, or the
 // exported struct fields. A nil layout uses the method, then the fields.
-func Resolve[T any](layout Formatter[T]) ([]Column[T], error) {
+func Resolve[Row any](layout Formatter[Row]) ([]Column[Row], error) {
 	if layout != nil {
 		return check(layout.Columns())
 	}
-	var zero T
-	if found, ok := any(zero).(Formatter[T]); ok {
+	var zero Row
+	if found, ok := any(zero).(Formatter[Row]); ok {
 		return check(found.Columns())
 	}
-	if found, ok := any(&zero).(Formatter[T]); ok {
+	if found, ok := any(&zero).(Formatter[Row]); ok {
 		return check(found.Columns())
 	}
-	return columnsOf[T]()
+	return columnsOf[Row]()
 }
 
 // Select keeps spec's columns in that order. spec is empty, or a comma
-// separated list of name and name=format. An empty spec keeps cols.
+// separated list of name and name=format. An empty spec keeps columns.
 // name=format replaces that column's Format.
-func Select[T any](cols []Column[T], spec string) ([]Column[T], error) {
+func Select[Row any](columns []Column[Row], spec string) ([]Column[Row], error) {
 	if strings.TrimSpace(spec) == "" {
-		return cols, nil
+		return columns, nil
 	}
-	by := make(map[string]Column[T], len(cols))
-	for _, c := range cols {
-		if _, ok := by[c.Name]; ok {
-			return nil, fmt.Errorf("%w: duplicate %s", ErrColumn, c.Name)
+	byName := make(map[string]Column[Row], len(columns))
+	for _, column := range columns {
+		if _, ok := byName[column.Name]; ok {
+			return nil, fmt.Errorf("%w: duplicate %s", ErrColumn, column.Name)
 		}
-		by[c.Name] = c
+		byName[column.Name] = column
 	}
-	var out []Column[T]
+	var selected []Column[Row]
 	seen := map[string]struct{}{}
-	for part := range strings.SplitSeq(spec, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
+	for entry := range strings.SplitSeq(spec, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
 			return nil, fmt.Errorf("%w: empty name", ErrColumn)
 		}
-		name, format, hasFormat := strings.Cut(part, "=")
+		name, format, hasFormat := strings.Cut(entry, "=")
 		name = strings.TrimSpace(name)
 		if _, ok := seen[name]; ok {
 			return nil, fmt.Errorf("%w: duplicate %s", ErrColumn, name)
 		}
 		seen[name] = struct{}{}
-		c, ok := by[name]
+		column, ok := byName[name]
 		if !ok {
 			return nil, fmt.Errorf("%w: %s", ErrColumn, name)
 		}
 		if hasFormat {
-			c.Format = format
+			column.Format = format
 		}
-		out = append(out, c)
+		selected = append(selected, column)
+	}
+	return selected, nil
+}
+
+func check[Row any](columns []Column[Row]) ([]Column[Row], error) {
+	for _, column := range columns {
+		if column.Name == "" || column.Value == nil {
+			return nil, fmt.Errorf("%w: %q", ErrColumn, column.Name)
+		}
+	}
+	return columns, nil
+}
+
+func bind[Row any](columns []Column[Row]) ([]boundColumn[Row], error) {
+	bound, err := check(columns)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]boundColumn[Row], len(bound))
+	for index, column := range bound {
+		out[index] = boundColumn[Row]{name: column.Name, value: column.Value, format: column.Format}
 	}
 	return out, nil
 }
 
-func check[T any](cols []Column[T]) ([]Column[T], error) {
-	for _, c := range cols {
-		if c.Name == "" || c.Value == nil {
-			return nil, fmt.Errorf("%w: %q", ErrColumn, c.Name)
-		}
+func columnsOf[Row any]() ([]Column[Row], error) {
+	rowType := reflect.TypeFor[Row]()
+	for rowType.Kind() == reflect.Pointer {
+		rowType = rowType.Elem()
 	}
-	return cols, nil
-}
-
-func bind[T any](cols []Column[T]) ([]col[T], error) {
-	out := make([]col[T], len(cols))
-	for i, c := range cols {
-		if c.Name == "" || c.Value == nil {
-			return nil, fmt.Errorf("%w: %q", ErrColumn, c.Name)
-		}
-		out[i] = col[T]{name: c.Name, value: c.Value, format: c.Format}
+	if rowType.Kind() != reflect.Struct {
+		one := Column[Row]{Name: "value", Value: func(row Row) any { return row }}
+		return []Column[Row]{one}, nil
 	}
-	return out, nil
-}
-
-func columnsOf[T any]() ([]Column[T], error) {
-	t := reflect.TypeFor[T]()
-	for t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	if t.Kind() != reflect.Struct {
-		one := Column[T]{Name: "value", Value: func(row T) any { return row }}
-		return []Column[T]{one}, nil
-	}
-	var cols []Column[T]
-	for _, field := range reflect.VisibleFields(t) {
+	var columns []Column[Row]
+	for _, field := range reflect.VisibleFields(rowType) {
 		if field.Anonymous || !field.IsExported() {
 			continue
 		}
@@ -142,13 +143,13 @@ func columnsOf[T any]() ([]Column[T], error) {
 		if skip {
 			continue
 		}
-		idx := append([]int(nil), field.Index...)
-		cols = append(cols, Column[T]{
+		fieldIndex := append([]int(nil), field.Index...)
+		columns = append(columns, Column[Row]{
 			Name:  name,
-			Value: func(row T) any { return jsonAt(reflect.ValueOf(row), idx) },
+			Value: func(row Row) any { return jsonAt(reflect.ValueOf(row), fieldIndex) },
 		})
 	}
-	return cols, nil
+	return columns, nil
 }
 
 func jsonName(field reflect.StructField) (string, bool) {
@@ -157,29 +158,29 @@ func jsonName(field reflect.StructField) (string, bool) {
 	if !ok {
 		return name, false
 	}
-	jname := tag
+	decoded := tag
 	if comma := strings.IndexByte(tag, ','); comma >= 0 {
-		jname = tag[:comma]
+		decoded = tag[:comma]
 	}
-	switch jname {
+	switch decoded {
 	case "-":
 		return "", true
 	case "":
 		return name, false
 	default:
-		return jname, false
+		return decoded, false
 	}
 }
 
-func formatCell(v any, format string) (string, error) {
+func formatCell(value any, format string) (string, error) {
 	if format == "" {
-		return formatAny(v), nil
+		return formatAny(value), nil
 	}
 	if strings.Contains(format, "%") {
-		return fmt.Sprintf(format, v), nil
+		return fmt.Sprintf(format, value), nil
 	}
-	if stamp, ok := v.(time.Time); ok {
-		return stamp.Format(format), nil
+	if instant, ok := value.(time.Time); ok {
+		return instant.Format(format), nil
 	}
 	return "", fmt.Errorf("%w: format %q", ErrColumn, format)
 }
