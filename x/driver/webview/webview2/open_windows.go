@@ -621,7 +621,7 @@ func resourceInvoke(this, _, args uintptr) uintptr {
 		writeWebResource(handler.view, args, status, responseHeader, payload)
 		return 0
 	}
-	body, contentType, err := readPage(handler.view.html, handler.view.files, parsed.Path)
+	body, contentType, err := webview.ReadPage(handler.view.html, handler.view.files, parsed.Path)
 	if err != nil {
 		return 0
 	}
@@ -881,22 +881,4 @@ func streamReadBytes(this, buffer, count, readOut uintptr) uintptr {
 		return 0x80004005
 	}
 	return 0
-}
-
-func readPage(html string, files fs.FS, urlPath string) ([]byte, string, error) {
-	name, err := webview.AssetName(urlPath)
-	if err != nil {
-		return nil, "", err
-	}
-	if name == "index.html" && strings.TrimSpace(html) != "" {
-		return []byte(html), "text/html", nil
-	}
-	if files == nil {
-		return nil, "", webview.ErrAsset
-	}
-	body, err := fs.ReadFile(files, name)
-	if err != nil {
-		return nil, "", err
-	}
-	return body, webview.ContentType(name), nil
 }

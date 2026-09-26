@@ -2,6 +2,7 @@ package webview
 
 import (
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -26,6 +27,33 @@ func TestAssetName(t *testing.T) {
 	name, err = AssetName("/../secret")
 	require.NoError(t, err)
 	require.Equal(t, "secret", name)
+}
+
+func TestReadPage(t *testing.T) {
+	files := fstest.MapFS{
+		"index.html": {Data: []byte("file")},
+		"app.js":     {Data: []byte("js")},
+	}
+	body, kind, err := ReadPage("<p>hi</p>", files, "/")
+	require.NoError(t, err)
+	require.Equal(t, "text/html", kind)
+	require.Equal(t, "<p>hi</p>", string(body))
+
+	body, kind, err = ReadPage("  ", files, "/index.html")
+	require.NoError(t, err)
+	require.Equal(t, "text/html", kind)
+	require.Equal(t, "file", string(body))
+
+	body, kind, err = ReadPage("", files, "/app.js")
+	require.NoError(t, err)
+	require.Equal(t, "text/javascript", kind)
+	require.Equal(t, "js", string(body))
+
+	_, _, err = ReadPage("", nil, "/app.js")
+	require.ErrorIs(t, err, ErrAsset)
+
+	_, _, err = ReadPage("", files, "/missing")
+	require.Error(t, err)
 }
 
 func TestContentType(t *testing.T) {
