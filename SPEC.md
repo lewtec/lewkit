@@ -223,7 +223,7 @@ Inherited C (cite the file):
 | INV-49 | notification, clipboard, opener, dirs, share, volume, brightness, battery, media, power, screen, screenshot, wallpaper, wm, camera, launcher, and terminal do not import `x/ffi` | those packages | that import |
 | INV-50 | `x/driver/treesitter` does not import `leaven-tree-sitter` | `x/driver/treesitter` | that import |
 | INV-51 | `x/driver/treesitter/leaven` imports the leaven grammar module | `x/driver/treesitter/leaven` | a tree-sitter engine import in `x/driver/treesitter` |
-| INV-52 | `x/driver/treesitter/ccgo` imports the ccgo grammar module and does not import a ccgo `grammar/<lang>` package | `x/driver/treesitter/ccgo` | that import |
+| INV-52 | `x/driver/treesitter/ccgo` imports `ccgo-tree-sitter/core` and does not import a ccgo `grammar/<lang>` package | `x/driver/treesitter/ccgo` | that import |
 | INV-53 | `x/driver/treesitter/native` imports `x/ffi/native/treesitter` and does not import `x/ffi/native` | `x/driver/treesitter/native` | an import of `x/ffi/native` |
 | INV-54 | `x/ffi/native/treesitter` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/treesitter` | an import of `x/driver` |
 | INV-55 | `x/driver/treesitter/wazero` imports the wazero grammar module and does not import a wazero `grammar/<lang>` package | `x/driver/treesitter/wazero` | that import |
