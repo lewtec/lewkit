@@ -4,14 +4,26 @@ package jni
 
 /*
 #cgo LDFLAGS: -landroid
+#include <dlfcn.h>
 #include <jni.h>
 #include <android/looper.h>
-#include <unistd.h>
 
 static int lewkit_java_vms(void) {
+	void *handle = dlopen("libnativehelper.so", RTLD_NOW);
+	if (handle == NULL) {
+		handle = dlopen("libart.so", RTLD_NOW);
+	}
+	if (handle == NULL) {
+		return 0;
+	}
+	typedef jint (*vms_fn)(JavaVM **, jsize, jsize *);
+	vms_fn fn = (vms_fn)dlsym(handle, "JNI_GetCreatedJavaVMs");
+	if (fn == NULL) {
+		return 0;
+	}
 	JavaVM *vm = NULL;
 	jsize n = 0;
-	if (JNI_GetCreatedJavaVMs(&vm, 1, &n) != JNI_OK) {
+	if (fn(&vm, 1, &n) != JNI_OK) {
 		return 0;
 	}
 	return (int)n;

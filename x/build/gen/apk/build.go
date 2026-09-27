@@ -221,7 +221,6 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 			}
 			cgoFlag = "1"
 			env = append(env, "CC="+cc)
-			args = append([]string{"-buildmode=c-shared"}, args...)
 			slog.Info("android cgo", "cc", cc)
 		}
 		env = append(env, "CGO_ENABLED="+cgoFlag)
