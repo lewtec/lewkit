@@ -18,8 +18,9 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	_ "github.com/lewtec/lewkit/x/driver/webview/prelude"
+	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/release"
-	"github.com/lewtec/lewkit/x/thread"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // ReadyLinePrefix is printed once the loopback server is listening.
@@ -42,14 +43,18 @@ func (a App) Run(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	id, _ := release.RequireStamp()
-	return thread.Run(ctx, func(ctx context.Context) error {
+	run := func(ctx context.Context) error {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 		if a.NoUI || envOn("LEWKIT_NO_UI") || envOn("ELETROCROMO_NO_UI") {
 			return a.serve(ctx, id)
 		}
 		return a.desktop(ctx, id)
-	})
+	}
+	if taskgroup.FromContext(ctx) != nil {
+		return run(ctx)
+	}
+	return entry.Run(ctx, run)
 }
 
 func (a App) desktop(ctx context.Context, id string) error {

@@ -41,13 +41,20 @@ func isCharDevice(f *os.File) bool {
 	return fi.Mode()&os.ModeCharDevice != 0
 }
 
+type runKey struct{}
+
 // Run runs work, then waits for the session. On a tty it shows live bars
 // from Session.List while that happens. tea.NewProgram runs at most once,
-// on the first scheduled task or LineWriter.
+// on the first scheduled task or LineWriter. A nested Run uses the
+// session already on ctx and does not start a second view.
 func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) error {
+	if ctx != nil && ctx.Value(runKey{}) != nil {
+		return work(ctx)
+	}
 	if s == nil {
 		return work(ctx)
 	}
+	ctx = context.WithValue(ctx, runKey{}, true)
 	if !Interactive() {
 		err := work(ctx)
 		if werr := s.Wait(); err == nil {

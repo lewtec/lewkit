@@ -14,17 +14,16 @@ import (
 	"github.com/lewtec/lewkit/x/app"
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
+	"github.com/lewtec/lewkit/x/entry"
 )
 
 func main() {
-	ctx := context.Background()
-	err := app.App{
-		Title:   "Drivers",
-		Handler: newPage(ctx),
-	}.Run(ctx)
-	if err != nil {
-		slog.Error("drivers", "err", err)
-	}
+	entry.Main(func(ctx context.Context) error {
+		return app.App{
+			Title:   "Drivers",
+			Handler: newPage(ctx),
+		}.Run(ctx)
+	})
 }
 
 func newPage(ctx context.Context) http.Handler {
