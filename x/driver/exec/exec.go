@@ -2,7 +2,8 @@
 //
 // Command builds a command and does not take a context.
 // Run, Start, Output, and Wait take the context: it cancels the process
-// and, when stderr is still unset, attaches the taskgroup line writer.
+// and, when stderr is still unset, attaches the stderr hook.
+// taskgroup registers that hook with the line writer.
 // Stdout stays unset so Output can capture it.
 // Import prelude or native so the host driver is registered.
 // Termux stays in modot.
@@ -13,15 +14,49 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"os"
 	"os/exec"
+	"sync/atomic"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
-// ErrNotFound means the executable is not on PATH.
-var ErrNotFound = errors.New("executable not found")
+var (
+	// ErrNotFound means the executable is not on PATH.
+	ErrNotFound = errors.New("executable not found")
+	// ErrNilCommand means Start was given no command.
+	ErrNilCommand = errors.New("nil command")
+	// ErrStdoutSet means Output was called with Stdout already set.
+	ErrStdoutSet = errors.New("stdout already set")
+)
+
+// lookupCtx is only for driver selection. Command takes no caller context,
+// and the process context must not be stored on the command.
+var lookupCtx = context.Background()
+
+// stderrHook, when set, supplies Stderr if it is still nil at start.
+// Unset means os.Stderr. taskgroup registers the line writer.
+var stderrHook atomic.Value // func(context.Context) io.Writer
+
+// SetStderr registers the writer used when Stderr is still nil.
+// A nil fn restores os.Stderr. The last call wins.
+func SetStderr(fn func(context.Context) io.Writer) {
+	if fn == nil {
+		stderrHook.Store(func(context.Context) io.Writer { return os.Stderr })
+		return
+	}
+	stderrHook.Store(fn)
+}
+
+func stderrWriter(ctx context.Context) io.Writer {
+	fn, ok := stderrHook.Load().(func(context.Context) io.Writer)
+	if !ok || fn == nil {
+		return os.Stderr
+	}
+	return fn(ctx)
+}
 
 // Driver builds commands and resolves executables for this host.
 // Command does not take a context and does not start the process.
@@ -33,7 +68,7 @@ type Driver interface {
 // Command returns a command from the selected driver.
 // The process is not started and streams are left unset.
 func Command(name string, args ...string) (*exec.Cmd, error) {
-	d, err := driver.Get[Driver](context.Background())
+	d, err := driver.Get[Driver](lookupCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +96,13 @@ func Run(ctx context.Context, cmd *exec.Cmd) error {
 // Start starts cmd. ctx kills the process when it is cancelled.
 func Start(ctx context.Context, cmd *exec.Cmd) error {
 	if cmd == nil {
-		return errors.New("nil command")
+		return ErrNilCommand
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if cmd.Stderr == nil {
-		cmd.Stderr = taskgroup.LineWriterFrom(ctx)
+		cmd.Stderr = stderrWriter(ctx)
 	}
 	slog.DebugContext(ctx, "exec", "path", cmd.Path, "args", cmd.Args)
 	if err := cmd.Start(); err != nil {
@@ -93,7 +128,7 @@ func Wait(ctx context.Context, cmd *exec.Cmd) error {
 // Output runs cmd and returns stdout. Stdout must still be unset.
 func Output(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
 	if cmd.Stdout != nil {
-		return nil, errors.New("stdout already set")
+		return nil, ErrStdoutSet
 	}
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
