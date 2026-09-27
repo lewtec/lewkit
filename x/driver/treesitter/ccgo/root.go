@@ -10,7 +10,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/treesitter"
-	"github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar"
+	grammar "github.com/modernc-tree-sitter/ccgo-tree-sitter/core"
 )
 
 type factory struct{}
