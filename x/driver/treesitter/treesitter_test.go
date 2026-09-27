@@ -100,6 +100,23 @@ func TestOtherEngineFillsGap(t *testing.T) {
 	require.Equal(t, "cobol", lang.Name())
 }
 
+func TestOpenNamesAnEngine(t *testing.T) {
+	registerFakes()
+	lang, err := Open(t.Context(), "treesitter_test_low", "cobol")
+	require.NoError(t, err)
+	require.Equal(t, "cobol", lang.Name())
+	tree, err := lang.Parse(nil)
+	require.NoError(t, err)
+	require.NoError(t, tree.Parsed())
+
+	_, err = Open(t.Context(), "treesitter_missing", "json")
+	require.ErrorIs(t, err, driver.ErrNotFound)
+	_, err = Open(t.Context(), "treesitter_test_low", "nope")
+	require.ErrorIs(t, err, ErrUnknown)
+	require.ErrorIs(t, (*Tree)(nil).Parsed(), ErrParse)
+	require.ErrorIs(t, NewTree(markerNode{}).Parsed(), ErrParse)
+}
+
 func TestUnknownLanguage(t *testing.T) {
 	registerFakes()
 	_, err := Get(t.Context(), "nope")

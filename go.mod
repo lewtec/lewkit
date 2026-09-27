@@ -24,10 +24,13 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/klauspost/compress v1.18.5
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
-	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260823193308-9d0f77e93872
-	github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260926181015-a4ba39fdab89
+	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0
+	github.com/lewtec/leaven-tree-sitter/grammar/json v0.0.0-20260823193308-9d0f77e93872
+	github.com/lewtec/wazero-tree-sitter/grammar v0.0.0
+	github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260926205449-ac1b106768d2
 	github.com/mattn/go-runewidth v0.0.30
-	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar v0.0.0-20260801004327-2c4586c945d8
+	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar v0.0.0
+	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json v0.0.0-20260801004327-2c4586c945d8
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/shirou/gopsutil/v4 v4.26.8
@@ -100,6 +103,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mmcloughlin/md4 v0.1.2 // indirect
+	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/go v0.0.0-20260801004327-2c4586c945d8 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/natefinch/atomic v1.0.1 // indirect
 	github.com/ncruces/go-sqlite3 v0.32.0 // indirect
@@ -154,3 +158,9 @@ tool (
 	github.com/lucasew/workspaced/cmd/workspaced
 	google.golang.org/protobuf/cmd/protoc-gen-go
 )
+
+replace github.com/lewtec/wazero-tree-sitter/grammar v0.0.0 => github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260926205449-ac1b106768d2
+
+replace github.com/lewtec/leaven-tree-sitter/grammar v0.0.0 => github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260823193308-9d0f77e93872
+
+replace github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar v0.0.0 => github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar v0.0.0-20260801004327-2c4586c945d8
