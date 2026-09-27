@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -22,9 +23,9 @@ func (factory) ID() string   { return "audio_play_mem" }
 func (factory) Name() string { return "Memory" }
 func (factory) Weight() int  { return 0 }
 
-func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "LEWKIT_ENABLE_MEMORY_DRIVER"); err != nil {
-		return fmt.Errorf("%w: memory sound driver", err)
+func (factory) CheckCompatibility(context.Context) error {
+	if os.Getenv("LEWKIT_ENABLE_MEMORY_DRIVER") == "" {
+		return fmt.Errorf("%w: LEWKIT_ENABLE_MEMORY_DRIVER not set", driver.ErrIncompatible)
 	}
 	return nil
 }
