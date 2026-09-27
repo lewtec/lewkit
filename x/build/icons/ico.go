@@ -61,8 +61,8 @@ func WriteICO(path string, square image.Image, sizes []int) error {
 		}
 		buf.WriteByte(byte(w))
 		buf.WriteByte(byte(h))
-		buf.WriteByte(0) // color palette
-		buf.WriteByte(0) // reserved
+		buf.WriteByte(0)                                                           // color palette
+		buf.WriteByte(0)                                                           // reserved
 		if err := binary.Write(&buf, binary.LittleEndian, uint16(1)); err != nil { // planes
 			return err
 		}
