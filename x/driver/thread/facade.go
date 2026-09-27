@@ -5,18 +5,16 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
-	uithread "github.com/lewtec/lewkit/x/driver/thread"
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 )
 
 var (
 	once sync.Once
-	ui   uithread.Driver
+	ui   Driver
 )
 
-func current() uithread.Driver {
+func current() Driver {
 	once.Do(func() {
-		d, err := driver.Get[uithread.Driver](context.Background())
+		d, err := driver.Get[Driver](context.Background())
 		if err != nil {
 			panic(err)
 		}

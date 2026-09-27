@@ -20,9 +20,10 @@ import (
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
+	"github.com/lewtec/lewkit/x/driver/thread"
+	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/ffi/native/webkit"
-	"github.com/lewtec/lewkit/x/thread"
 )
 
 const (

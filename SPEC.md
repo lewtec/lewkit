@@ -200,9 +200,9 @@ Inherited C (cite the file):
 | INV-22 | `x/driver/ndeval` does not import `x/ffi/native/vulkan` | `x/driver/ndeval` | that import |
 | INV-23 | `x/driver/ndeval` does not import `x/ffi/wasm` | `x/driver/ndeval` | that import |
 | INV-24 | `x/disasm` does not import `x/ffi/wasm` | `x/disasm` | that import |
-| INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/thread/id_unix.go` | an import of `x/ffi/wasm` |
+| INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/driver/thread/id_unix.go` | an import of `x/ffi/wasm` |
 | INV-26 | `x/driver/window/cocoa` loads frameworks through `x/ffi/native` | cocoa darwin files | an import of `x/ffi/wasm` |
-| INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/thread/main_darwin.go` | an import of `x/ffi/wasm` |
+| INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/driver/thread/main_darwin.go` | an import of `x/ffi/wasm` |
 | INV-28 | `x/ffi/native/webkitgtk` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
 | INV-29 | `x/driver/webview` does not import `x/ffi/native` | `x/driver/webview` | that import |
 | INV-30 | `Open` does not listen on a socket. The page is memory or `fs.FS`. Script messages are the Go bridge | `x/driver/webview` | `net.Listen`; a loopback URL |

@@ -11,10 +11,11 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/lewtec/lewkit/x/driver/thread"
+	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
-	"github.com/lewtec/lewkit/x/thread"
 )
 
 // Main runs fn as the process. A non-nil error is logged and the process exits 1.

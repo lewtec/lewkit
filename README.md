@@ -60,7 +60,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/cmd` | `Parse`, `App`. Struct fields become commands and flags. This package writes bash completion. |
 | `x/taskgroup` | `Session`, `New`, `Go`, `Map`, `Each`, `List`, `WithSession`, `GoIsolated`. Pools are IO, CPU, and internet. |
 | `x/taskgroup/progress` | Bubbletea view of a `Session`. |
-| `x/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
+| `x/driver/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
 | `x/future` | `Future`, `NewFuture`, `Get`, `Peek`, `State`. |
 | `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
