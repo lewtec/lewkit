@@ -1,5 +1,6 @@
-// Package app runs an HTTP handler in a system web view, or on a loopback
-// port when the packaged host asks for no UI.
+// Package app opens one window. The window is a web handler or a GUI model.
+// A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI serves a web
+// handler on a loopback port instead.
 package app
 
 import (
@@ -16,7 +17,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver/bundle"
 	_ "github.com/lewtec/lewkit/x/driver/bundle/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
-	"github.com/lewtec/lewkit/x/driver/webview"
 	_ "github.com/lewtec/lewkit/x/driver/webview/prelude"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/release"
@@ -27,9 +27,10 @@ import (
 // Packaged hosts parse the URL that follows it.
 const ReadyLinePrefix = "ELETROCROMO_READY "
 
-// App is the handler for the id stamped in x/release.
+// App is one window for the id stamped in x/release.
+// Handler is a [Web] view or a [GUI] model.
 type App struct {
-	Handler http.Handler
+	Handler Window
 	NoUI    bool
 	Title   string
 	Width   int
@@ -73,33 +74,25 @@ func (a App) desktop(ctx context.Context, id string) error {
 	if height == 0 {
 		height = 600
 	}
-	view, err := webview.Open(ctx, webview.Config{
-		Title:   title,
-		Width:   width,
-		Height:  height,
-		Profile: root.Profile,
-		Handler: a.Handler,
-	})
-	if err != nil {
-		return err
+	win := a.Handler
+	if win == nil {
+		win = Web(nil)
 	}
-	defer view.Close()
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-view.Done():
-		return nil
-	}
+	return win.open(ctx, title, width, height, root.Profile)
 }
 
 func (a App) serve(ctx context.Context, id string) error {
 	_ = id
 	token := uuid.NewString()
-	handler := a.Handler
-	if handler == nil {
-		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.NotFound(w, r)
-		})
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	if a.Handler != nil {
+		got := a.Handler.httpHandler()
+		if got == nil {
+			return fmt.Errorf("loopback host needs a web handler")
+		}
+		handler = got
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

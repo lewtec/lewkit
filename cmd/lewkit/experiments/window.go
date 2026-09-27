@@ -48,15 +48,20 @@ func (c *triangleCmd) Run(ctx context.Context) error {
 	}, model)
 }
 
-// OpenTriangle opens the RGB triangle in its own window.
-func OpenTriangle(ctx context.Context, width, height int) error {
+// TriangleModel is the RGB triangle, one turn per second.
+func TriangleModel(width, height int) (gui.Model, error) {
 	if width <= 0 {
 		width = 800
 	}
 	if height <= 0 {
 		height = 600
 	}
-	model, err := newFrameModel(1, width, height, triangleDynamic)
+	return newFrameModel(1, width, height, triangleDynamic)
+}
+
+// OpenTriangle opens the RGB triangle in its own window.
+func OpenTriangle(ctx context.Context, width, height int) error {
+	model, err := TriangleModel(width, height)
 	if err != nil {
 		return err
 	}

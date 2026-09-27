@@ -5,12 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	stdimage "image"
-	"image/png"
 	"log/slog"
 	"net/http"
-	"runtime"
-	"strconv"
 	"sync"
 
 	"github.com/lewtec/lewkit/cmd/lewkit/experiments"
@@ -18,14 +14,13 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
-	lewimage "github.com/lewtec/lewkit/x/image"
 )
 
 func main() {
 	entry.Main(func(ctx context.Context) error {
 		return app.App{
 			Title:   "Drivers",
-			Handler: newPage(ctx),
+			Handler: app.Web(newPage(ctx)),
 		}.Run(ctx)
 	})
 }
@@ -34,8 +29,6 @@ func newPage(ctx context.Context) http.Handler {
 	page := &page{ctx: ctx}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", page.home)
-	mux.HandleFunc("GET /triangle/view", page.triangleView)
-	mux.HandleFunc("GET /triangle/frame", page.triangleFrame)
 	mux.HandleFunc("POST /triangle", page.openTriangle)
 	return mux
 }
@@ -95,10 +88,7 @@ button, #triangle { display: block; box-sizing: border-box; width: 100%%; font: 
 		}
 		fmt.Fprint(w, "</ul></section>")
 	}
-	if runtime.GOOS == "android" {
-		fmt.Fprint(w, `<div class="bar"><a id="triangle" href="/triangle/view" target="_blank">Open triangle</a></div>`)
-	} else {
-		fmt.Fprint(w, `<div class="bar"><p id="status"></p><button type="button" id="triangle">Open triangle</button></div>
+	fmt.Fprint(w, `<div class="bar"><p id="status"></p><button type="button" id="triangle">Open triangle</button></div>
 <script>
 document.getElementById("triangle").onclick = async () => {
   const status = document.getElementById("status");
@@ -107,55 +97,19 @@ document.getElementById("triangle").onclick = async () => {
   const body = await res.json();
   status.textContent = body.error || "opened";
 };
-</script>`)
-	}
-	fmt.Fprint(w, "</body></html>\n")
-}
-
-func (p *page) triangleView(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, `<!DOCTYPE html>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Triangle</title>
-<style>html,body{margin:0;height:100%;background:#000}img{width:100%;height:100%;display:block;object-fit:contain}</style>
-<img id="c" alt="triangle">
-<script>
-const img = document.getElementById("c");
-function next() {
-  const w = Math.max(1, Math.min(innerWidth, 800));
-  const h = Math.max(1, Math.min(innerHeight, 800));
-  img.src = "/triangle/frame?turn=" + (performance.now() / 1000) + "&w=" + w + "&h=" + h;
-}
-img.onload = next;
-next();
-</script>`)
-}
-
-func (p *page) triangleFrame(w http.ResponseWriter, r *http.Request) {
-	turn, _ := strconv.ParseFloat(r.URL.Query().Get("turn"), 64)
-	width, _ := strconv.Atoi(r.URL.Query().Get("w"))
-	height, _ := strconv.Atoi(r.URL.Query().Get("h"))
-	if width < 1 {
-		width = 320
-	}
-	if height < 1 {
-		height = 240
-	}
-	if width > 800 {
-		width = 800
-	}
-	if height > 800 {
-		height = 800
-	}
-	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, width, height))
-	lewimage.TriangleTurn(dst, turn)
-	w.Header().Set("Content-Type", "image/png")
-	w.Header().Set("Cache-Control", "no-store")
-	_ = png.Encode(w, dst)
+</script>
+</body></html>
+`)
 }
 
 func (p *page) openTriangle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	model, err := experiments.TriangleModel(800, 600)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.open {
@@ -164,7 +118,7 @@ func (p *page) openTriangle(w http.ResponseWriter, r *http.Request) {
 	}
 	p.open = true
 	go func() {
-		if err := experiments.OpenTriangle(p.ctx, 800, 600); err != nil {
+		if err := app.Open(p.ctx, app.GUI(model), "Triangle", 800, 600); err != nil {
 			slog.Error("triangle", "err", err)
 		}
 	}()

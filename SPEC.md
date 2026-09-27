@@ -113,7 +113,7 @@ Inherited C (cite the file):
 | `x/driver/thread` | `Driver` | UI thread for this process | protocol stays here | JNI without a Java looper is `driver.ErrIncompatible` | import `x/ui/gui` |
 | `x/release` | `Version`, `AppID`, `ValidateAppID` | binary stamp | the reverse-domain id stays here | empty id is `ErrAppIDRequired` | import `x/driver` |
 | `x/entry` | `Main`, `Run` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped | import `x/ui/gui` |
-| `x/app` | `App`, `Run` | web view or loopback host for one handler | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS` | import `x/ui/gui` |
+| `x/app` | `Web`, `GUI`, `Open`, `Run` | one window is a web handler or a GUI model | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` |
 | `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here | existing build errors | import `x/driver/webview` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
