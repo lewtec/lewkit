@@ -5,9 +5,9 @@ package app
 import (
 	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"os"
 	"strings"
@@ -93,6 +93,7 @@ func (a App) desktop(ctx context.Context, id string) error {
 }
 
 func (a App) serve(ctx context.Context, id string) error {
+	_ = id
 	token := uuid.NewString()
 	handler := a.Handler
 	if handler == nil {
@@ -100,27 +101,34 @@ func (a App) serve(ctx context.Context, id string) error {
 			http.NotFound(w, r)
 		})
 	}
-	server := httptest.NewUnstartedServer(handler)
-	server.Config.BaseContext = func(net.Listener) context.Context { return ctx }
-	started := make(chan struct{})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return err
+	}
+	server := &http.Server{Handler: handler, BaseContext: func(net.Listener) context.Context { return ctx }}
 	go func() {
-		server.Start()
-		close(started)
 		<-ctx.Done()
-		server.Close()
+		_ = server.Close()
 	}()
-	select {
-	case <-ctx.Done():
-		return nil
-	case <-started:
-	}
-	link := loopbackLink(server.URL, token)
-	fmt.Fprintln(os.Stdout, ReadyLinePrefix+link)
-	if path := strings.TrimSpace(os.Getenv("ELETROCROMO_READY_FILE")); path != "" {
-		_ = os.WriteFile(path, []byte(link+"\n"), 0o600)
-	}
+	go server.Serve(ln)
+	link := loopbackLink("http://"+ln.Addr().String(), token)
+	announceReady(link)
 	<-ctx.Done()
 	return nil
+}
+
+func announceReady(link string) {
+	line := ReadyLinePrefix + link
+	fmt.Fprintln(os.Stdout, line)
+	_ = os.Stdout.Sync()
+	log.Print(line)
+	path := strings.TrimSpace(os.Getenv("ELETROCROMO_READY_FILE"))
+	if path == "" {
+		return
+	}
+	if err := os.WriteFile(path, []byte(link+"\n"), 0o600); err != nil {
+		log.Printf("ELETROCROMO_READY_FILE: %v", err)
+	}
 }
 
 func loopbackLink(raw, token string) string {
