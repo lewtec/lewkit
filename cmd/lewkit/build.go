@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-
+	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/lewtec/lewkit/x/build"
+	"github.com/lewtec/lewkit/x/build/gen/common"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -68,6 +70,10 @@ func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 }
 
 func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, sdk string, goOnly, cgo bool) (string, error) {
+	out, err := artifactPath(goos, out, spec)
+	if err != nil {
+		return "", err
+	}
 	host := build.Host{
 		Spec:   spec,
 		Out:    out,
@@ -86,6 +92,40 @@ func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, 
 		return host.IOS(ctx)
 	default:
 		return "", fmt.Errorf("%s has no app package", goos)
+	}
+}
+
+// artifactPath turns a directory such as dist into the file eletrocromo wrote:
+// dist/<label>-debug.apk or dist/<App>.app. A path that already names a file is kept.
+func artifactPath(goos, out string, spec build.Spec) (string, error) {
+	out = strings.TrimSpace(out)
+	if out == "" {
+		out = "dist"
+	}
+	info, err := os.Stat(out)
+	asDir := err == nil && info.IsDir()
+	if err != nil && os.IsNotExist(err) && filepath.Ext(out) == "" {
+		asDir = true
+	}
+	if !asDir {
+		return out, nil
+	}
+	cfg, _, err := spec.Load()
+	if err != nil {
+		return "", err
+	}
+	switch goos {
+	case "android":
+		label := cfg.PackageID
+		if i := strings.LastIndex(label, "."); i >= 0 {
+			label = label[i+1:]
+		}
+		if label == "" {
+			label = "app"
+		}
+		return filepath.Join(out, label+"-debug.apk"), nil
+	default:
+		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".app"), nil
 	}
 }
 
