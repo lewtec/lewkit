@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 var errGit = errors.New("git")
@@ -56,11 +58,11 @@ func (g *Git) Clear() {
 }
 
 func (g *Git) run(ctx context.Context, repo string, args ...string) (string, string, int) {
-	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", repo}, args...)...)
+	cmd := execdriver.MustCommand("git", append([]string{"-C", repo}, args...)...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err := execdriver.Run(ctx, cmd)
 	code := 0
 	if err != nil {
 		code = 1

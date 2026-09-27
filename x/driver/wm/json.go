@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 // JSONViaCmd runs name with args and unmarshals stdout as JSON T.
 func JSONViaCmd[T any](ctx context.Context, name string, args ...string) (T, error) {
 	var zero T
-	out, err := exec.CommandContext(ctx, name, args...).Output()
+	out, err := execdriver.Output(ctx, execdriver.MustCommand(name, args...))
 	if err != nil {
 		return zero, fmt.Errorf("%w: %w", ErrIPC, err)
 	}

@@ -16,11 +16,11 @@ func (factory) ID() string   { return "opener_open" }
 func (factory) Name() string { return "open" }
 func (factory) Weight() int  { return 60 }
 
-func (factory) CheckCompatibility(context.Context) error {
+func (factory) CheckCompatibility(ctx context.Context) error {
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
 	}
-	return opener.RequireTool("open")
+	return opener.RequireTool(ctx, "open")
 }
 
 func (factory) New(context.Context) (opener.Driver, error) { return backend{}, nil }

@@ -3,9 +3,10 @@ package pulse
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 const sink = "@DEFAULT_SINK@"
@@ -72,16 +73,16 @@ func parseVolume(output string) (float64, error) {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
-	if err := cmd.Run(); err != nil {
+	cmd := execdriver.MustCommand(name, args...)
+	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil
 }
 
 func output(ctx context.Context, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.Output()
+	cmd := execdriver.MustCommand(name, args...)
+	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", name, err)
 	}

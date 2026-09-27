@@ -2,8 +2,9 @@ package launcher
 
 import (
 	"context"
-	"os/exec"
 	"strings"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 // ItemLabel returns Label, or Value when Label is empty.
@@ -45,9 +46,9 @@ func MatchSelected(items []Item, selected string) *Item {
 
 // ChooseViaCmd feeds FormatChoiceLines to name and matches the selected line.
 func ChooseViaCmd(ctx context.Context, opts ChooseOptions, name string, withIcons bool, args ...string) (*Item, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := execdriver.MustCommand(name, args...)
 	cmd.Stdin = strings.NewReader(FormatChoiceLines(opts.Items, withIcons))
-	out, err := cmd.Output()
+	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
 		return nil, err
 	}

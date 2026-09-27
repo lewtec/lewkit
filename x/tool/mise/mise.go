@@ -9,10 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 )
@@ -139,8 +139,8 @@ func symlinkBinary(destination, binaryPath, commandName string) (string, error) 
 	return filepath.Join(root.Name(), filepath.FromSlash(link.String())), nil
 }
 
-func miseBinary() (string, error) {
-	path, err := exec.LookPath("mise")
+func miseBinary(ctx context.Context) (string, error) {
+	path, err := execdriver.Which(ctx, "mise")
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrMiseNotFound, err)
 	}
@@ -148,12 +148,12 @@ func miseBinary() (string, error) {
 }
 
 func output(ctx context.Context, args ...string) (string, error) {
-	binary, err := miseBinary()
+	binary, err := miseBinary(ctx)
 	if err != nil {
 		return "", err
 	}
-	command := exec.CommandContext(ctx, binary, args...)
-	out, err := command.Output()
+	command := execdriver.MustCommand(binary, args...)
+	out, err := execdriver.Output(ctx, command)
 	if err != nil {
 		return "", err
 	}
@@ -168,13 +168,13 @@ func run(ctx context.Context, args ...string) error {
 	if spec == "" {
 		return ErrMissingMiseSpec
 	}
-	binary, err := miseBinary()
+	binary, err := miseBinary(ctx)
 	if err != nil {
 		return err
 	}
-	command := exec.CommandContext(ctx, binary, args...)
+	command := execdriver.MustCommand(binary, args...)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	command.Stdin = os.Stdin
-	return command.Run()
+	return execdriver.Run(ctx, command)
 }

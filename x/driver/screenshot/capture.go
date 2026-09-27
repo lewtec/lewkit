@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"image"
 	_ "image/png"
-	"os/exec"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 // CaptureViaCmd runs name with args and decodes stdout as an image.
 func CaptureViaCmd(ctx context.Context, name string, args ...string) (image.Image, error) {
-	out, err := exec.CommandContext(ctx, name, args...).Output()
+	out, err := execdriver.Output(ctx, execdriver.MustCommand(name, args...))
 	if err != nil {
 		return nil, fmt.Errorf("%s failed: %w", name, err)
 	}

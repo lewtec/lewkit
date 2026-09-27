@@ -3,10 +3,9 @@ package systemd
 
 import (
 	"context"
-	"fmt"
-	"os/exec"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/power"
 )
 
@@ -16,20 +15,17 @@ func (factory) ID() string   { return "power_systemd" }
 func (factory) Name() string { return "systemd" }
 func (factory) Weight() int  { return 50 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	if err := requireBinary("loginctl"); err != nil {
+func (factory) CheckCompatibility(ctx context.Context) error {
+	if err := requireBinary(ctx, "loginctl"); err != nil {
 		return err
 	}
-	return requireBinary("systemctl")
+	return requireBinary(ctx, "systemctl")
 }
 
 func (factory) New(context.Context) (power.Driver, error) { return backend{}, nil }
 
-func requireBinary(name string) error {
-	if _, err := exec.LookPath(name); err != nil {
-		return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
-	}
-	return nil
+func requireBinary(ctx context.Context, name string) error {
+	return execdriver.RequireBinary(ctx, name)
 }
 
 func init() {

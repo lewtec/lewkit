@@ -10,6 +10,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/clipboard/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/fetchurl/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"

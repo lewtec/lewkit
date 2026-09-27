@@ -3,9 +3,8 @@ package hyprland
 import (
 	"context"
 	"fmt"
-	"os/exec"
 
-	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/wm"
 )
 
@@ -108,15 +107,12 @@ func (backend) GetFocusedWindowRect(ctx context.Context) (*wm.Rect, error) {
 	return &wm.Rect{X: win.At[0], Y: win.At[1], Width: win.Size[0], Height: win.Size[1]}, nil
 }
 
-func requireBinary(name string) error {
-	if _, err := exec.LookPath(name); err != nil {
-		return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
-	}
-	return nil
+func requireBinary(ctx context.Context, name string) error {
+	return execdriver.RequireBinary(ctx, name)
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	return exec.CommandContext(ctx, name, args...).Run()
+	return execdriver.Run(ctx, execdriver.MustCommand(name, args...))
 }
 
 var _ wm.Driver = backend{}

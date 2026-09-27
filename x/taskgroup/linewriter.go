@@ -117,6 +117,7 @@ type lineWriter struct {
 	print         func(string)
 	commitOnClose bool
 
+	once   sync.Once
 	mu     sync.Mutex
 	filter lineFilter
 	closed bool
@@ -130,12 +131,21 @@ func newLineWriter(hub *liveHub, print func(string)) *lineWriter {
 	}
 	if hub != nil {
 		w.id = "live-" + strconv.FormatUint(hub.seq.Add(1), 10)
-		hub.register(w)
 	}
 	return w
 }
 
+// attach registers the live row on the first write. A caller that
+// replaces cmd.Stderr before the process writes does not leave a row.
+func (w *lineWriter) attach() {
+	if w == nil || w.hub == nil {
+		return
+	}
+	w.once.Do(func() { w.hub.register(w) })
+}
+
 func (w *lineWriter) Write(p []byte) (int, error) {
+	w.attach()
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()

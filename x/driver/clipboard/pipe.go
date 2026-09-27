@@ -6,9 +6,9 @@ import (
 	"image"
 	"image/png"
 	"io"
-	"os/exec"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 // PipeText writes text to name's stdin.
@@ -27,17 +27,17 @@ func PipeImage(ctx context.Context, img image.Image, name string, args ...string
 }
 
 func pipe(ctx context.Context, name string, args []string, write func(io.Writer) error) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := execdriver.MustCommand(name, args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
-	if err := cmd.Start(); err != nil {
+	if err := execdriver.Start(ctx, cmd); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	werr := write(stdin)
 	cerr := stdin.Close()
-	if err := cmd.Wait(); err != nil {
+	if err := execdriver.Wait(ctx, cmd); err != nil {
 		if werr != nil {
 			return werr
 		}
@@ -50,11 +50,8 @@ func pipe(ctx context.Context, name string, args []string, write func(io.Writer)
 }
 
 // RequireTool reports ErrIncompatible when name is not on PATH.
-func RequireTool(name string) error {
-	if _, err := exec.LookPath(name); err != nil {
-		return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
-	}
-	return nil
+func RequireTool(ctx context.Context, name string) error {
+	return execdriver.RequireBinary(ctx, name)
 }
 
 // RequireEnvTool reports ErrIncompatible when envKey is empty or name is missing.
@@ -62,5 +59,5 @@ func RequireEnvTool(ctx context.Context, envKey, name string) error {
 	if err := driver.RequireEnv(ctx, envKey); err != nil {
 		return err
 	}
-	return RequireTool(name)
+	return RequireTool(ctx, name)
 }

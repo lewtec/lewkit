@@ -16,11 +16,11 @@ func (factory) ID() string   { return "opener_start" }
 func (factory) Name() string { return "start" }
 func (factory) Weight() int  { return 60 }
 
-func (factory) CheckCompatibility(context.Context) error {
+func (factory) CheckCompatibility(ctx context.Context) error {
 	if runtime.GOOS != "windows" {
 		return fmt.Errorf("%w: not windows", driver.ErrIncompatible)
 	}
-	return opener.RequireTool("cmd")
+	return opener.RequireTool(ctx, "cmd")
 }
 
 func (factory) New(context.Context) (opener.Driver, error) { return backend{}, nil }

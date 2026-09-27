@@ -8,14 +8,13 @@ import (
 	_ "image/png"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/camera"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 type backend struct{}
@@ -64,11 +63,11 @@ func (c cameraDevice) ID() string { return c.id }
 func (c cameraDevice) Name() string { return c.name }
 
 func (c cameraDevice) Capture(ctx context.Context) (image.Image, error) {
-	if _, err := exec.LookPath("ffmpeg"); err != nil {
-		return nil, fmt.Errorf("%w: ffmpeg not found", driver.ErrIncompatible)
+	if err := execdriver.RequireBinary(ctx, "ffmpeg"); err != nil {
+		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, "ffmpeg",
+	cmd := execdriver.MustCommand("ffmpeg",
 		"-hide_banner",
 		"-loglevel", "error",
 		"-nostdin",
@@ -83,7 +82,7 @@ func (c cameraDevice) Capture(ctx context.Context) (image.Image, error) {
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := execdriver.Run(ctx, cmd); err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg != "" {
 			return nil, fmt.Errorf("ffmpeg capture from %s failed: %w: %s", c.device, err, msg)
@@ -124,11 +123,8 @@ func videoIndex(device string) int {
 	return idx
 }
 
-func requireBinary(name string) error {
-	if _, err := exec.LookPath(name); err != nil {
-		return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
-	}
-	return nil
+func requireBinary(ctx context.Context, name string) error {
+	return execdriver.RequireBinary(ctx, name)
 }
 
 var _ camera.Driver = backend{}

@@ -2,10 +2,9 @@ package notify_send
 
 import (
 	"context"
-	"fmt"
-	"os/exec"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/notification"
 )
 
@@ -15,11 +14,8 @@ func (factory) ID() string   { return "notification_notify_send" }
 func (factory) Name() string { return "notify-send" }
 func (factory) Weight() int  { return 40 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	if _, err := exec.LookPath("notify-send"); err != nil {
-		return fmt.Errorf("%w: notify-send not found", driver.ErrIncompatible)
-	}
-	return nil
+func (factory) CheckCompatibility(ctx context.Context) error {
+	return execdriver.RequireBinary(ctx, "notify-send")
 }
 
 func (factory) New(context.Context) (notification.Driver, error) { return backend{}, nil }
