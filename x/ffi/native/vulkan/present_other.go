@@ -1,4 +1,4 @@
-//go:build !linux && !windows && !darwin
+//go:build android || (!linux && !windows && !darwin)
 
 package vulkan
 
