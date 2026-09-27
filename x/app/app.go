@@ -25,9 +25,8 @@ import (
 // Packaged hosts parse the URL that follows it.
 const ReadyLinePrefix = "ELETROCROMO_READY "
 
-// App is one reverse-domain handler.
+// App is the handler for the id stamped in x/release.
 type App struct {
-	ID      string
 	Handler http.Handler
 	NoUI    bool
 	Title   string
@@ -41,15 +40,8 @@ func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	id := strings.TrimSpace(a.ID)
-	if id == "" {
-		stamped, err := release.AppID()
-		if err != nil {
-			return err
-		}
-		id = stamped
-	}
-	if err := release.ValidateAppID(id); err != nil {
+	id, err := release.AppID()
+	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithCancel(ctx)

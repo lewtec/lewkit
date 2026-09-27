@@ -19,7 +19,6 @@ import (
 func main() {
 	ctx := context.Background()
 	err := app.App{
-		ID:      "br.tec.lew.drivers",
 		Title:   "Drivers",
 		Handler: newPage(ctx),
 	}.Run(ctx)

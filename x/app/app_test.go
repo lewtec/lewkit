@@ -16,7 +16,7 @@ func TestRunNoUIStopsWithContext(t *testing.T) {
 	ctx, cancel := contextWithCancel(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- App{ID: "br.tec.lew.app", NoUI: true}.Run(ctx)
+		done <- App{NoUI: true}.Run(ctx)
 	}()
 	cancel()
 	require.NoError(t, <-done)
