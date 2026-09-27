@@ -12,6 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
+	"github.com/lewtec/lewkit/x/text/table"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,6 +54,22 @@ func TestAppVersionFlag(t *testing.T) {
 	assert.True(t, app.version.Value())
 }
 
+type withOutput struct {
+	Output `flatten:""`
+}
+
+func TestOutputEmbed(t *testing.T) {
+	got := ParseOK[withOutput](t)
+	assert.Equal(t, table.Table, got.Format.Value())
+	assert.Equal(t, "", got.Columns.Value())
+	got = ParseOK[withOutput](t, "--format", "jsonl", "--columns", "id,name=%q")
+	assert.Equal(t, table.JSONL, got.Format.Value())
+	assert.Equal(t, "id,name=%q", got.Columns.Value())
+	assert.Equal(t, table.CSV, ParseOK[withOutput](t, "--format", "csv").Format.Value())
+	assert.ErrorIs(t, ParseErr[withOutput](t, "--format", "yaml"), ErrInvalidArgument)
+	assert.ErrorIs(t, ParseErr[App[None]](t, "--format", "table"), ErrUnknownFlag)
+}
+
 func TestAppUsage(t *testing.T) {
 	text, err := Usage[App[None]]("lewkit")
 	require.NoError(t, err)
@@ -67,6 +84,8 @@ func TestAppUsage(t *testing.T) {
 		assert.Contains(t, text, want)
 	}
 	assert.Less(t, strings.Index(text, "Commands:"), strings.Index(text, "Flags:"))
+	assert.NotContains(t, text, "--format")
+	assert.NotContains(t, text, "--columns")
 }
 
 func TestAppRunHelp(t *testing.T) {

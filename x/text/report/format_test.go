@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/text/table"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,12 +72,16 @@ func TestWriteTextAndTable(t *testing.T) {
 	require.NoError(t, FormatText.Render(&text, "", Tool{}, []Finding{f}, nil))
 	require.Equal(t, "main.go:3:6: warning: demo/hello: don't greet [fixable]\n", text.String())
 
-	var table bytes.Buffer
-	require.NoError(t, WriteTable(&table, []Finding{f}))
-	got := table.String()
+	var aligned bytes.Buffer
+	require.NoError(t, WriteTable(&aligned, []Finding{f}))
+	got := aligned.String()
 	for _, part := range []string{"LOCATION", "main.go:3:6", "warning", "demo/hello", "yes"} {
 		require.Contains(t, got, part)
 	}
+
+	var records bytes.Buffer
+	require.NoError(t, WriteRecords(&records, table.JSONL, []Finding{f}))
+	require.Equal(t, "{\"LOCATION\":\"main.go:3:6\",\"LEVEL\":\"warning\",\"RULE\":\"demo/hello\",\"MESSAGE\":\"don't greet\",\"FIX\":\"yes\"}\n", records.String())
 }
 
 func TestSpanLocAndOverlap(t *testing.T) {
