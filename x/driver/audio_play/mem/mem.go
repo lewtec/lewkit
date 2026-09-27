@@ -23,6 +23,9 @@ func (factory) Name() string { return "Memory" }
 func (factory) Weight() int  { return 0 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
+	if driver.AppMode() {
+		return fmt.Errorf("%w: memory sound driver", driver.ErrIncompatible)
+	}
 	if driver.GetEnv(ctx, "LEWKIT_AUDIO_PLAY_MEM") == "" {
 		return fmt.Errorf("%w: memory sound driver", driver.ErrIncompatible)
 	}

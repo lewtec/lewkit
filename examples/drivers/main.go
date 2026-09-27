@@ -111,16 +111,21 @@ func (p *page) openTriangle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.open {
+		p.mu.Unlock()
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 		return
 	}
 	p.open = true
-	go func() {
-		if err := app.Open(p.ctx, app.GUI(model), "Triangle", 800, 600); err != nil {
-			slog.Error("triangle", "err", err)
-		}
-	}()
+	p.mu.Unlock()
+	if err := app.Open(p.ctx, app.GUI(model), "Triangle", 800, 600); err != nil {
+		p.mu.Lock()
+		p.open = false
+		p.mu.Unlock()
+		slog.Error("triangle", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+		return
+	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true})
 }
