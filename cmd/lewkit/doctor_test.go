@@ -28,12 +28,13 @@ func TestDoctorPrintsTable(t *testing.T) {
 	if i := strings.IndexByte(got, '\n'); i >= 0 {
 		header = got[:i]
 	}
-	assert.Less(t, strings.Index(header, "id"), strings.Index(header, "name"))
-	assert.Less(t, strings.Index(header, "name"), strings.Index(header, "interface"))
+	assert.Contains(t, header, "mark")
+	assert.Contains(t, header, "driver")
+	assert.Contains(t, header, "detail")
 	assert.Contains(t, got, "window.Driver")
-	assert.Contains(t, got, "window_mem")
+	assert.Contains(t, got, "  window_mem")
+	assert.Contains(t, got, "✓")
 	assert.Contains(t, got, "Memory")
-	assert.True(t, strings.Contains(got, "true"))
 }
 
 func TestDoctorPrintsJSONL(t *testing.T) {
@@ -42,8 +43,9 @@ func TestDoctorPrintsJSONL(t *testing.T) {
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
-	assert.Contains(t, got, `"interface":`)
-	assert.Contains(t, got, `"id":"window_mem"`)
+	assert.Contains(t, got, `"driver":"window.Driver"`)
+	assert.Contains(t, got, `"driver":"  window_mem"`)
+	assert.Contains(t, got, `"mark":"✓"`)
 	assert.NotContains(t, got, "\t")
 }
 
