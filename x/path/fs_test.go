@@ -130,6 +130,21 @@ func TestOpenRoot(t *testing.T) {
 	assert.Equal(t, dir, root.Name())
 }
 
+func TestOpenFilesystemRootDoesNotStat(t *testing.T) {
+	t.Parallel()
+	openRoot := func(string) (*os.Root, error) {
+		return nil, &os.PathError{Op: "open", Path: "/", Err: os.ErrPermission}
+	}
+	lstat := func(name string) (fs.FileInfo, error) {
+		t.Errorf("lstat %s", name)
+		return nil, os.ErrPermission
+	}
+	_, err := open("/", openRoot, lstat)
+	require.ErrorIs(t, err, os.ErrPermission)
+	_, err = open("/.", openRoot, lstat)
+	require.ErrorIs(t, err, os.ErrPermission)
+}
+
 func TestRootIO(t *testing.T) {
 	t.Parallel()
 	root, err := Open(t.TempDir())

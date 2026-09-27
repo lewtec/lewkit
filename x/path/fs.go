@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"iter"
 	"os"
+	"path/filepath"
 )
 
 // Root is an [os.Root] that is also an [io/fs.FS] with write methods.
@@ -15,17 +16,29 @@ type Root struct {
 
 // Open opens dir with [os.OpenRoot]. dir is an OS path, not a [Path].
 func Open(dir string) (*Root, error) {
+	return open(dir, os.OpenRoot, os.Lstat)
+}
+
+func open(dir string, openRoot func(string) (*os.Root, error), lstat func(string) (fs.FileInfo, error)) (*Root, error) {
 	if dir == "" {
 		return nil, &fs.PathError{Op: "open", Path: dir, Err: ErrEmptyPath}
 	}
-	r, err := os.OpenRoot(dir)
+	r, err := openRoot(dir)
 	if err != nil {
-		if st, stErr := os.Lstat(dir); stErr == nil && !st.IsDir() {
-			return nil, &fs.PathError{Op: "open", Path: dir, Err: ErrNotDir}
+		// A failed open of the filesystem root must not lstat "/".
+		// On Android that stat is rejected and kills the process.
+		if !filesystemRoot(dir) {
+			if st, stErr := lstat(dir); stErr == nil && !st.IsDir() {
+				return nil, &fs.PathError{Op: "open", Path: dir, Err: ErrNotDir}
+			}
 		}
 		return nil, err
 	}
 	return &Root{r: r}, nil
+}
+
+func filesystemRoot(dir string) bool {
+	return filepath.Clean(dir) == string(filepath.Separator)
 }
 
 // Close closes the root.
