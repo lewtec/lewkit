@@ -118,7 +118,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/audio_play/pulse` | Linux playback through libpulse-simple. `Sink` is the PulseAudio sink name. PipeWire serves that API. |
 | `x/driver/audio_play/winmm` | Windows playback through waveOut. `Sink` is a device index or the endpoint name. An empty sink is `WAVE_MAPPER`. |
 | `x/driver/audio_play/coreaudio` | macOS playback through AudioQueue. `Sink` is a device UID or the display name. |
-| `x/driver/audio_play/mem` | Records PCM. Incompatible unless `LEWKIT_AUDIO_PLAY_MEM` is set. |
+| `x/driver/audio_play/mem` | Records PCM. Incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
 | `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. |

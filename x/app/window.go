@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
@@ -25,7 +24,6 @@ func GUI(model gui.Model) Window { return guiWindow{model} }
 
 // Open opens one extra window beside the app's own.
 func Open(ctx context.Context, w Window, title string, width, height int) error {
-	driver.SetAppMode(true)
 	if w == nil {
 		return webview.ErrPage
 	}

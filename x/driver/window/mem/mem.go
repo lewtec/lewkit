@@ -2,7 +2,6 @@ package mem
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -14,11 +13,8 @@ func (factory) ID() string   { return "window_mem" }
 func (factory) Name() string { return "Memory" }
 func (factory) Weight() int  { return 0 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	if driver.AppMode() {
-		return fmt.Errorf("%w: memory window", driver.ErrIncompatible)
-	}
-	return nil
+func (factory) CheckCompatibility(ctx context.Context) error {
+	return driver.RequireEnv(ctx, "LEWKIT_ENABLE_MEMORY_DRIVER")
 }
 
 func (factory) New(context.Context) (window.Driver, error) {

@@ -14,7 +14,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/bundle"
 	_ "github.com/lewtec/lewkit/x/driver/bundle/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
@@ -41,7 +40,6 @@ type App struct {
 // Run opens the web view, or a loopback server when NoUI or LEWKIT_NO_UI is set.
 // The packaged hosts also set ELETROCROMO_NO_UI.
 func (a App) Run(ctx context.Context) error {
-	driver.SetAppMode(true)
 	if ctx == nil {
 		ctx = context.Background()
 	}

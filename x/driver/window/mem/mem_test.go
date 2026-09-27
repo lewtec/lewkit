@@ -7,14 +7,17 @@ import (
 	"github.com/lewtec/lewkit/x/driver/window"
 )
 
-func TestAppModeDisablesMemoryWindow(t *testing.T) {
-	driver.SetAppMode(true)
-	t.Cleanup(func() { driver.SetAppMode(false) })
-	err := factory{}.CheckCompatibility(t.Context())
-	if err == nil {
-		t.Fatal("memory window stayed compatible in an app")
+func TestMemoryWindowIsOptIn(t *testing.T) {
+	if err := (factory{}).CheckCompatibility(t.Context()); err == nil {
+		t.Fatal("memory window is compatible without LEWKIT_ENABLE_MEMORY_DRIVER")
 	}
-	if _, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8}); err == nil {
-		t.Fatal("app opened a memory window")
+	ctx := driver.WithEnv(t.Context(), []string{"LEWKIT_ENABLE_MEMORY_DRIVER=1"})
+	if err := (factory{}).CheckCompatibility(ctx); err != nil {
+		t.Fatal(err)
 	}
+	w, err := window.Open(ctx, window.Config{Width: 8, Height: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
 }

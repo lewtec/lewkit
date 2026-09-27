@@ -144,8 +144,8 @@ Inherited C (cite the file):
 | `x/driver/audio_play` | `Open`, `Sinks`, `Config` | host sink is the playback writer | protocol stays here | missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/ffi/native/pulse` | `Playback`, `List`, `Stream` | libpulse binding | simple playback stays here | pulse error text | import `x/ffi/wasm`; import `x/driver` |
 | `x/driver/audio_play/pulse` | PulseAudio `Open` | facade of the pulse binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native`; return `pa_simple` |
-| `x/driver/audio_play/mem` | in-memory `Open` | test sink | capture stays here | incompatible unless `LEWKIT_AUDIO_PLAY_MEM` is set; incompatible in an app | play on a host device |
-| `x/driver/window/mem` | in-memory `Open` | test window | pixels stay here | incompatible in an app | present on a host surface |
+| `x/driver/audio_play/mem` | in-memory `Open` | test sink | capture stays here | incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set | play on a host device |
+| `x/driver/window/mem` | in-memory `Open` | test window | pixels stay here | incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set | present on a host surface |
 | `x/ffi/native/winmm` | `Open`, `Devices`, `Stream` | winmm binding | waveOut playback stays here | waveOut error text | import `x/ffi/wasm`; import `x/driver` |
 | `x/driver/audio_play/winmm` | waveOut `Open` | facade of the winmm binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/ffi/native/coreaudio` | `Open`, `Devices`, `Stream` | AudioQueue binding | playback stays here | CoreAudio error text | import `x/ffi/wasm`; import `x/driver` |
