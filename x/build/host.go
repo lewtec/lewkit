@@ -16,6 +16,7 @@ type Host struct {
 	GOARCH string
 	SDK    string
 	GoOnly bool
+	CGO    bool
 }
 
 // Android builds an APK from an eletrocromo.json config.
@@ -37,6 +38,7 @@ func (host Host) Android(ctx context.Context) (string, error) {
 		KeepWorkDir: host.Work != "",
 		OutAPK:      host.Out,
 		GoOnly:      host.GoOnly,
+		CGO:         host.CGO,
 	})
 	if err != nil {
 		return "", err

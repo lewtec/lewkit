@@ -44,6 +44,8 @@ type BuildOptions struct {
 	OutAPK string
 	// GoOnly stops after multiarch libeletrocromo.so (no Gradle / no SDK).
 	GoOnly bool
+	// CGO builds the JNI library with cgo and the NDK clang for each ABI.
+	CGO bool
 	// IconRoot is a dist/icons tree with android/mipmap-* (optional; if empty, no mipmaps).
 	IconRoot string
 	// Stdout/Stderr for subprocess logs (default os.Stdout/Stderr).
@@ -154,7 +156,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	libs, err := BuildGoLibs(ctx, workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, stdout)
+	libs, err := BuildGoLibs(ctx, workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, opts.CGO, stdout)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -201,7 +203,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 
 // BuildGoLibs cross-compiles the app into workDir/app/src/main/jniLibs/<abi>/libeletrocromo.so.
 // stamp is injected via -ldflags -X (goreleaser-style) when apps import internal/version.
-func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, stamp version.Info, appID string, stdout io.Writer) ([]string, error) {
+func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, stamp version.Info, appID string, cgoEnabled bool, stdout io.Writer) ([]string, error) {
 	if len(abis) == 0 {
 		abis = DefaultABIs
 	}
@@ -220,16 +222,27 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		if _, err := fmt.Fprintf(stdout, "  → %s (GOARCH=%s)\n", abi, goarch); err != nil {
 			return nil, err
 		}
-		env := append(os.Environ(),
-			"CGO_ENABLED=0",
-			"GOOS=android",
-			"GOARCH="+goarch,
-		)
+		cgoFlag := "0"
+		args := []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}
+		env := append(os.Environ(), "GOOS=android", "GOARCH="+goarch)
 		if goarch == "arm" {
 			env = append(env, "GOARM=7")
 		}
-		if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}}).Run(ctx); err != nil {
-			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=0): %w\nnote: pure Go android builds typically only support arm64-v8a without an NDK; set abis in eletrocromo.json", abi, goarch, err)
+		if cgoEnabled {
+			cc, err := ndkCC(goarch)
+			if err != nil {
+				return nil, err
+			}
+			cgoFlag = "1"
+			env = append(env, "CC="+cc)
+			args = append([]string{"-buildmode=c-shared"}, args...)
+			if _, err := fmt.Fprintf(stdout, "  cgo CC=%s\n", cc); err != nil {
+				return nil, err
+			}
+		}
+		env = append(env, "CGO_ENABLED="+cgoFlag)
+		if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx); err != nil {
+			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=%s): %w", abi, goarch, cgoFlag, err)
 		}
 		out = append(out, dest)
 	}

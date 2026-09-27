@@ -22,6 +22,7 @@ type buildCmd struct {
 	sdk       cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
 	goOnly    cmd.Flag      `long:"go-only" help:"stop after the Go binary"`
 	app       cmd.Flag      `long:"app" help:"package a host app instead of a binary archive"`
+	cgo       cmd.Flag      `long:"cgo" help:"android: build with cgo and the NDK clang for GOARCH"`
 }
 
 func (buildCmd) Description() string {
@@ -64,6 +65,7 @@ func (c *buildCmd) run(ctx context.Context) ([]string, error) {
 		GOARCH: goarch,
 		SDK:    c.sdk.Value(),
 		GoOnly: c.goOnly.Value(),
+		CGO:    c.cgo.Value(),
 	}
 	switch goos {
 	case "darwin":
