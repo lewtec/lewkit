@@ -53,11 +53,11 @@ type BuildResult struct {
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
-		stdout = os.Stdout
+		stdout = gocmd.LogWriter()
 	}
 	stderr := opts.Stderr
 	if stderr == nil {
-		stderr = os.Stderr
+		stderr = gocmd.LogWriter()
 	}
 
 	cfg, err := opts.Config.withDefaults()
