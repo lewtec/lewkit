@@ -73,7 +73,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
 | `x/release` | `Version`, `AppID`, `ValidateAppID`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
-| `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` runs the module with `go run`. |
+| `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` runs the module with `go run`. `--app` builds the host and launches it. |
 | `x/app` | `Run`. Opens the handler in a system web view, or a loopback server when `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` is set. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |

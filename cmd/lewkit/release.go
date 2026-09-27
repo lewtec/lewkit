@@ -6,6 +6,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
@@ -20,9 +21,16 @@ func (releaseCmd) Description() string { return "build or run an app" }
 
 type runCmd struct {
 	appConfig `flatten:""`
+	out       cmd.StringArg `long:"out" help:"output path or directory" default:"dist"`
+	work      cmd.StringArg `long:"workdir" help:"generated host directory" default:""`
+	sdk       cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
+	app       cmd.Flag      `long:"app" help:"build the host app and launch it"`
+	cgo       cmd.Flag      `long:"cgo" help:"android: build with cgo and the NDK clang for GOARCH"`
 }
 
-func (runCmd) Description() string { return "go run the module for GOOS and GOARCH" }
+func (runCmd) Description() string {
+	return "go run the module, or launch the host app with --app"
+}
 
 func (c *runCmd) Run(ctx context.Context) error {
 	session, ctx := sessionFrom(ctx)
@@ -51,6 +59,13 @@ func (c *runCmd) execute(ctx context.Context) error {
 	}
 	if err := release.ValidateAppID(id); err != nil {
 		return err
+	}
+	if c.app.Value() {
+		path, err := packageHost(ctx, c.spec(), c.goos.Value(), c.goarch.Value(), c.out.Value(), c.work.Value(), c.sdk.Value(), false, c.cgo.Value())
+		if err != nil {
+			return err
+		}
+		return launchApp(ctx, c.goos.Value(), path, id)
 	}
 	ldflags := version.Info{Version: cfg.VersionName, BuiltBy: "lewkit"}.WithAppID(id)
 	return gocmd.Command{

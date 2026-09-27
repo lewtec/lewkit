@@ -58,24 +58,30 @@ func (c *buildCmd) run(ctx context.Context) ([]string, error) {
 	if !c.app.Value() {
 		return c.archive(ctx, target)
 	}
+	return c.host(func() (string, error) {
+		return packageHost(ctx, c.spec(), goos, goarch, c.out.Value(), c.work.Value(), c.sdk.Value(), c.goOnly.Value(), c.cgo.Value())
+	})
+}
+
+func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, sdk string, goOnly, cgo bool) (string, error) {
 	host := build.Host{
-		Spec:   c.spec(),
-		Out:    c.out.Value(),
-		Work:   c.work.Value(),
+		Spec:   spec,
+		Out:    out,
+		Work:   work,
 		GOARCH: goarch,
-		SDK:    c.sdk.Value(),
-		GoOnly: c.goOnly.Value(),
-		CGO:    c.cgo.Value(),
+		SDK:    sdk,
+		GoOnly: goOnly,
+		CGO:    cgo,
 	}
 	switch goos {
 	case "darwin":
-		return c.host(func() (string, error) { return host.Mac(ctx) })
+		return host.Mac(ctx)
 	case "android":
-		return c.host(func() (string, error) { return host.Android(ctx) })
+		return host.Android(ctx)
 	case "ios":
-		return c.host(func() (string, error) { return host.IOS(ctx) })
+		return host.IOS(ctx)
 	default:
-		return nil, fmt.Errorf("%s has no app package", goos)
+		return "", fmt.Errorf("%s has no app package", goos)
 	}
 }
 
