@@ -27,9 +27,8 @@ func TestEnabledNeedsLibrary(t *testing.T) {
 	}
 	tree, err := lang.Parse([]byte(`{"a":1}`))
 	require.NoError(t, err)
+	require.NoError(t, tree.Parsed())
 	root := tree.RootNode()
-	require.False(t, root.IsNull())
-	require.False(t, root.HasError())
 	require.NotEmpty(t, root.Type())
 	require.NotZero(t, root.ChildCount())
 }

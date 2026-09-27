@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"errors"
 	"testing"
 
 	_ "github.com/lewtec/leaven-tree-sitter/grammar/json"
@@ -22,48 +23,23 @@ func BenchmarkParse(b *testing.B) {
 		"treesitter_native",
 	} {
 		b.Run(id, func(b *testing.B) {
-			lang := language(b, id)
+			lang, err := treesitter.Open(b.Context(), id, "json")
+			if errors.Is(err, driver.ErrNotFound) {
+				b.Skip(err)
+			}
+			require.NoError(b, err)
 			tree, err := lang.Parse(source)
 			require.NoError(b, err)
-			requireParsed(b, tree)
+			require.NoError(b, tree.Parsed())
 			b.ReportAllocs()
 			b.SetBytes(int64(len(source)))
 			for b.Loop() {
 				tree, err = lang.Parse(source)
 				require.NoError(b, err)
 			}
-			requireParsed(b, tree)
+			require.NoError(b, tree.Parsed())
 		})
 	}
-}
-
-func language(b *testing.B, id string) treesitter.Language {
-	b.Helper()
-	handles, err := driver.List[treesitter.Driver](b.Context())
-	require.NoError(b, err)
-	for _, handle := range handles {
-		if handle.ID != id {
-			continue
-		}
-		engine, err := handle.Open(b.Context())
-		require.NoError(b, err)
-		lang, ok := engine.Language("json")
-		if !ok {
-			b.Skipf("%s has no json grammar", id)
-		}
-		return lang
-	}
-	b.Skipf("%s is unavailable", id)
-	return nil
-}
-
-func requireParsed(b *testing.B, tree *treesitter.Tree) {
-	b.Helper()
-	require.NotNil(b, tree)
-	root := tree.RootNode()
-	require.NotNil(b, root)
-	require.False(b, root.IsNull())
-	require.False(b, root.HasError())
 }
 
 func jsonSource() []byte {

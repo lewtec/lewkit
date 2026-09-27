@@ -16,6 +16,7 @@ package treesitter
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -77,6 +78,41 @@ func (t *Tree) RootNode() Node {
 		return nil
 	}
 	return t.root
+}
+
+// Parsed returns ErrParse when t has no root, a null root, or an error node.
+func (t *Tree) Parsed() error {
+	if t == nil || t.root == nil || t.root.IsNull() || t.root.HasError() {
+		return ErrParse
+	}
+	return nil
+}
+
+// Open returns the grammar name from the engine registered as id.
+// A missing engine is driver.ErrNotFound. A missing name is ErrUnknown.
+func Open(ctx context.Context, id, name string) (Language, error) {
+	if id == "" || name == "" {
+		return nil, ErrUnknown
+	}
+	handles, err := driver.List[Driver](ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, handle := range handles {
+		if handle.ID != id {
+			continue
+		}
+		engine, err := handle.Open(ctx)
+		if err != nil {
+			return nil, err
+		}
+		lang, ok := engine.Language(name)
+		if !ok || lang == nil {
+			return nil, fmt.Errorf("%w: %s", ErrUnknown, name)
+		}
+		return lang, nil
+	}
+	return nil, fmt.Errorf("%w: %s", driver.ErrNotFound, id)
 }
 
 // Get returns the grammar registered as name.
