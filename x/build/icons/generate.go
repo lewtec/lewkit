@@ -53,6 +53,19 @@ func defaultMaster() (image.Image, error) {
 
 // Generate writes a full icon matrix under opts.OutputDir.
 // If the tree is already Complete and !Force, it is a no-op.
+// MasterPath resolves a config icon against the config directory.
+// An empty icon means the embedded default mark.
+func MasterPath(baseDir, icon string) string {
+	icon = strings.TrimSpace(icon)
+	if icon == "" || filepath.IsAbs(icon) {
+		return icon
+	}
+	if strings.TrimSpace(baseDir) == "" {
+		return icon
+	}
+	return filepath.Join(baseDir, icon)
+}
+
 func Generate(opts Options) (*Manifest, error) {
 	out := strings.TrimSpace(opts.OutputDir)
 	if out == "" {

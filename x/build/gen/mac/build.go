@@ -112,8 +112,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	iconRoot := strings.TrimSpace(opts.IconRoot)
 	if iconRoot == "" {
 		tmpIcons := filepath.Join(workDir, ".eletrocromo-icons")
-		if _, err := icons.Generate(icons.Options{OutputDir: tmpIcons, Force: true}); err != nil {
-			buildErr = fmt.Errorf("default icons: %w", err)
+		if _, err := icons.Generate(icons.Options{OutputDir: tmpIcons, Force: true, SourcePath: icons.MasterPath(baseDir, cfg.Icon)}); err != nil {
+			buildErr = fmt.Errorf("icons: %w", err)
 			return nil, buildErr
 		}
 		iconRoot = tmpIcons
