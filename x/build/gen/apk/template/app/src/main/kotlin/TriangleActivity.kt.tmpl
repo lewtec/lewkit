@@ -1,0 +1,25 @@
+package {{.PackageID}}
+
+import android.annotation.SuppressLint
+import android.os.Bundle
+import android.webkit.WebView
+import androidx.appcompat.app.AppCompatActivity
+
+/** Second screen. The drivers page opens it for the triangle. */
+class TriangleActivity : AppCompatActivity() {
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val view = WebView(this)
+        view.settings.javaScriptEnabled = true
+        setContentView(view)
+        val url = intent.getStringExtra(EXTRA_URL)
+        if (!url.isNullOrBlank()) {
+            view.loadUrl(url)
+        }
+    }
+
+    companion object {
+        const val EXTRA_URL = "url"
+    }
+}

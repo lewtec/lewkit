@@ -48,6 +48,25 @@ func (c *triangleCmd) Run(ctx context.Context) error {
 	}, model)
 }
 
+// OpenTriangle opens the RGB triangle in its own window.
+func OpenTriangle(ctx context.Context, width, height int) error {
+	if width <= 0 {
+		width = 800
+	}
+	if height <= 0 {
+		height = 600
+	}
+	model, err := newFrameModel(1, width, height, triangleDynamic)
+	if err != nil {
+		return err
+	}
+	return gui.Open(ctx, model, gui.Options{
+		Title:  "lewkit triangle",
+		Width:  width,
+		Height: height,
+	})
+}
+
 type perlinCmd struct {
 	width  cmd.IntArg[int] `long:"width" default:"800" help:"window width"`
 	height cmd.IntArg[int] `long:"height" default:"600" help:"window height"`

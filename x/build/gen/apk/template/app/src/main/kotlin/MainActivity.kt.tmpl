@@ -200,6 +200,12 @@ class MainActivity : AppCompatActivity() {
                 request: WebResourceRequest?,
             ): Boolean {
                 val url = request?.url ?: return false
+                if (url.scheme == "lewkit" && url.host == "triangle") {
+                    val base = appUrl ?: return true
+                    val view = base.trimEnd('/') + "/triangle/view"
+                    startActivity(Intent(this, TriangleActivity::class.java).putExtra(TriangleActivity.EXTRA_URL, view))
+                    return true
+                }
                 val host = url.host?.lowercase() ?: ""
                 if (host == "127.0.0.1" || host == "localhost" || host == "::1") {
                     return false
