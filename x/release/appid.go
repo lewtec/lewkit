@@ -26,6 +26,20 @@ var (
 	ErrAppIDNotReverseDNS = errors.New("app id must be reverse-domain notation (e.g. br.tec.lew.myapp)")
 )
 
+// RequireStamp panics unless this binary was stamped with an app id and a version.
+// A standalone go run leaves both empty (version defaults to dev).
+func RequireStamp() (id, versionName string) {
+	id = strings.TrimSpace(appID)
+	versionName = strings.TrimSpace(version)
+	if id == "" || versionName == "" || versionName == "dev" {
+		panic("x/release stamp is missing: this binary is not a release build")
+	}
+	if err := ValidateAppID(id); err != nil {
+		panic(err)
+	}
+	return id, versionName
+}
+
 // AppID returns the reverse-domain id stamped into this binary.
 func AppID() (string, error) {
 	id := strings.TrimSpace(appID)

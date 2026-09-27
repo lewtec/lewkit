@@ -40,10 +40,7 @@ func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	id, err := release.AppID()
-	if err != nil {
-		return err
-	}
+	id, _ := release.RequireStamp()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if a.NoUI || envOn("LEWKIT_NO_UI") || envOn("ELETROCROMO_NO_UI") {

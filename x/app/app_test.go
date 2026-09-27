@@ -10,14 +10,11 @@ func TestLoopbackLinkUsesIPv4(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:9/?token=abc", loopbackLink("http://[::1]:9", "abc"))
 }
 
-func TestRunNoUIStopsWithContext(t *testing.T) {
-	t.Setenv("LEWKIT_NO_UI", "1")
-	t.Setenv("LEWKIT_APP_ID", "br.tec.lew.app")
-	ctx, cancel := contextWithCancel(t)
-	done := make(chan error, 1)
-	go func() {
-		done <- App{NoUI: true}.Run(ctx)
+func TestRunPanicsWithoutStamp(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected panic")
+		}
 	}()
-	cancel()
-	require.NoError(t, <-done)
+	_ = App{NoUI: true}.Run(t.Context())
 }
