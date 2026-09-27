@@ -14,7 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
 
-type buildCmd struct {
+type buildFlags struct {
 	appConfig `flatten:""`
 	out       cmd.StringArg `long:"out" help:"output path or directory" default:"dist"`
 	file      cmd.StringArg `long:"archive" help:"archive file name" default:""`
@@ -23,6 +23,10 @@ type buildCmd struct {
 	goOnly    cmd.Flag      `long:"go-only" help:"stop after the Go binary"`
 	app       cmd.Flag      `long:"app" help:"package a host app instead of a binary archive"`
 	cgo       cmd.Flag      `long:"cgo" help:"android: build with cgo and the NDK clang for GOARCH"`
+}
+
+type buildCmd struct {
+	buildFlags `flatten:""`
 }
 
 func (buildCmd) Description() string {
@@ -36,7 +40,7 @@ func (c *buildCmd) Run(ctx context.Context) error {
 		taskgroup.Go(ctx, c.goos.Value()+"/"+c.goarch.Value(), taskgroup.CPU, func(ctx context.Context, status *taskgroup.Status) error {
 			done := status.Unit()
 			defer done()
-			written, err := c.run(ctx)
+			written, err := c.produce(ctx)
 			paths = written
 			return err
 		})
@@ -51,7 +55,7 @@ func (c *buildCmd) Run(ctx context.Context) error {
 	return nil
 }
 
-func (c *buildCmd) run(ctx context.Context) ([]string, error) {
+func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 	goos := c.goos.Value()
 	goarch := c.goarch.Value()
 	target := build.Target{GOOS: goos, GOARCH: goarch}
@@ -85,7 +89,7 @@ func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, 
 	}
 }
 
-func (c *buildCmd) archive(ctx context.Context, target build.Target) ([]string, error) {
+func (c *buildFlags) archive(ctx context.Context, target build.Target) ([]string, error) {
 	cfg, _, err := c.spec().Load()
 	if err != nil {
 		return nil, err
@@ -133,7 +137,7 @@ type goarchArg struct{ cmd.StringArg }
 
 func (goarchArg) ArgDefault() string { return runtime.GOARCH }
 
-func (c *buildCmd) host(run func() (string, error)) ([]string, error) {
+func (c *buildFlags) host(run func() (string, error)) ([]string, error) {
 	if c.config.Value() == "" {
 		return nil, fmt.Errorf("config is required for %s", c.goos.Value())
 	}
