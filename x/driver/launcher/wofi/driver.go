@@ -42,7 +42,7 @@ func (backend) Choose(ctx context.Context, opts launcher.ChooseOptions) (*launch
 }
 
 func (backend) RunApp(ctx context.Context) error {
-	return execdriver.MustRun(ctx, "wofi", "--show", "drun").Run()
+	return execdriver.Run(ctx, execdriver.MustCommand(ctx, "wofi", "--show", "drun"))
 }
 
 func (backend) SwitchWindow(ctx context.Context) error {

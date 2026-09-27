@@ -36,7 +36,7 @@ func (confirmerFactory) New(context.Context) (launcher.Confirmer, error) {
 type backend struct{}
 
 func (backend) Prompt(ctx context.Context, prompt string) (string, error) {
-	out, err := execdriver.MustRun(ctx, "zenity", "--entry", "--text", prompt).Output()
+	out, err := execdriver.Output(ctx, execdriver.MustCommand(ctx, "zenity", "--entry", "--text", prompt))
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +44,7 @@ func (backend) Prompt(ctx context.Context, prompt string) (string, error) {
 }
 
 func (backend) Confirm(ctx context.Context, message string) (bool, error) {
-	err := execdriver.MustRun(ctx, "zenity", "--question", "--text", message).Run()
+	err := execdriver.Run(ctx, execdriver.MustCommand(ctx, "zenity", "--question", "--text", message))
 	if err != nil {
 		return false, nil
 	}

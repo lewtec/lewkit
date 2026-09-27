@@ -67,7 +67,7 @@ func (c cameraDevice) Capture(ctx context.Context) (image.Image, error) {
 		return nil, err
 	}
 
-	cmd := execdriver.MustRun(ctx, "ffmpeg",
+	cmd := execdriver.MustCommand(ctx, "ffmpeg",
 		"-hide_banner",
 		"-loglevel", "error",
 		"-nostdin",
@@ -82,7 +82,7 @@ func (c cameraDevice) Capture(ctx context.Context) (image.Image, error) {
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	if err := execdriver.Run(ctx, cmd); err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg != "" {
 			return nil, fmt.Errorf("ffmpeg capture from %s failed: %w: %s", c.device, err, msg)

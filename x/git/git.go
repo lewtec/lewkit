@@ -58,11 +58,11 @@ func (g *Git) Clear() {
 }
 
 func (g *Git) run(ctx context.Context, repo string, args ...string) (string, string, int) {
-	cmd := execdriver.MustRun(ctx, "git", append([]string{"-C", repo}, args...)...)
+	cmd := execdriver.MustCommand(ctx, "git", append([]string{"-C", repo}, args...)...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err := execdriver.Run(ctx, cmd)
 	code := 0
 	if err != nil {
 		code = 1

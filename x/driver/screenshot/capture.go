@@ -12,7 +12,7 @@ import (
 
 // CaptureViaCmd runs name with args and decodes stdout as an image.
 func CaptureViaCmd(ctx context.Context, name string, args ...string) (image.Image, error) {
-	out, err := execdriver.MustRun(ctx, name, args...).Output()
+	out, err := execdriver.Output(ctx, execdriver.MustCommand(ctx, name, args...))
 	if err != nil {
 		return nil, fmt.Errorf("%s failed: %w", name, err)
 	}

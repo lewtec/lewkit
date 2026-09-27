@@ -16,8 +16,8 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	cmd := execdriver.MustRun(ctx, feh, "--bg-fill", path)
-	if err := cmd.Run(); err != nil {
+	cmd := execdriver.MustCommand(ctx, feh, "--bg-fill", path)
+	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("feh: %w", err)
 	}
 	return nil

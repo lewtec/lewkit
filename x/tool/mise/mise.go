@@ -152,8 +152,8 @@ func output(ctx context.Context, args ...string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	command := execdriver.MustRun(ctx, binary, args...)
-	out, err := command.Output()
+	command := execdriver.MustCommand(ctx, binary, args...)
+	out, err := execdriver.Output(ctx, command)
 	if err != nil {
 		return "", err
 	}
@@ -172,9 +172,9 @@ func run(ctx context.Context, args ...string) error {
 	if err != nil {
 		return err
 	}
-	command := execdriver.MustRun(ctx, binary, args...)
+	command := execdriver.MustCommand(ctx, binary, args...)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	command.Stdin = os.Stdin
-	return command.Run()
+	return execdriver.Run(ctx, command)
 }

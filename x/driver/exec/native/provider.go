@@ -10,8 +10,8 @@ import (
 
 type backend struct{}
 
-func (backend) Run(ctx context.Context, name string, args ...string) *exec.Cmd {
-	return exec.CommandContext(ctx, name, args...)
+func (backend) Command(name string, args ...string) *exec.Cmd {
+	return exec.Command(name, args...)
 }
 
 func (backend) Which(_ context.Context, name string) (string, error) {

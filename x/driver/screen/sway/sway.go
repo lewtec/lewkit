@@ -35,16 +35,16 @@ func dpmsOn(out string) bool {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	cmd := execdriver.MustRun(ctx, name, args...)
-	if err := cmd.Run(); err != nil {
+	cmd := execdriver.MustCommand(ctx, name, args...)
+	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil
 }
 
 func output(ctx context.Context, name string, args ...string) (string, error) {
-	cmd := execdriver.MustRun(ctx, name, args...)
-	out, err := cmd.Output()
+	cmd := execdriver.MustCommand(ctx, name, args...)
+	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", name, err)
 	}

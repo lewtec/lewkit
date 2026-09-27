@@ -94,11 +94,11 @@ func (t *grokBuildTool) InstallArtifact(ctx context.Context, art tool.Artifact, 
 		return err
 	}
 
-	command := execdriver.MustRun(ctx, path, "--version")
+	command := execdriver.MustCommand(ctx, path, "--version")
 	command.Stdin = strings.NewReader("")
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
-	if err := command.Run(); err != nil {
+	if err := execdriver.Run(ctx, command); err != nil {
 		if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 			slog.WarnContext(ctx, "remove broken binary", "error", removeErr, "path", path)
 		}

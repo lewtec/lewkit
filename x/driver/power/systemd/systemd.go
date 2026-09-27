@@ -34,8 +34,8 @@ func (backend) Shutdown(ctx context.Context) error {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	cmd := execdriver.MustRun(ctx, name, args...)
-	if err := cmd.Run(); err != nil {
+	cmd := execdriver.MustCommand(ctx, name, args...)
+	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil

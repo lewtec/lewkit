@@ -35,7 +35,7 @@ func Run(ctx context.Context, protoFile, goPackage string) error {
 	if _, err := os.Stat(protoFile); err != nil {
 		return err
 	}
-	plugin, err := execdriver.MustRun(ctx, "go", "tool", "-n", "protoc-gen-go").Output()
+	plugin, err := execdriver.Output(ctx, execdriver.MustCommand(ctx, "go", "tool", "-n", "protoc-gen-go"))
 	if err != nil {
 		return fmt.Errorf("%w: %w", errPlugin, err)
 	}
@@ -55,10 +55,10 @@ func Run(ctx context.Context, protoFile, goPackage string) error {
 		args = append(args, "--go_opt=M"+base+"="+goPackage)
 	}
 	args = append(args, protoFile)
-	command := execdriver.MustRun(ctx, protoc, args...)
+	command := execdriver.MustCommand(ctx, protoc, args...)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
-	if err := command.Run(); err != nil {
+	if err := execdriver.Run(ctx, command); err != nil {
 		return fmt.Errorf("%w: %w", errProtoc, err)
 	}
 	return nil

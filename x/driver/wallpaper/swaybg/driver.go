@@ -17,15 +17,15 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	cmd := execdriver.MustRun(ctx, "systemd-run", "--user", "-u", "lewkit-wallpaper", "--collect", swaybg, "-i", path)
-	if err := cmd.Run(); err != nil {
+	cmd := execdriver.MustCommand(ctx, "systemd-run", "--user", "-u", "lewkit-wallpaper", "--collect", swaybg, "-i", path)
+	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("can't run swaybg in systemd unit: %w", err)
 	}
 	return nil
 }
 
 func stopWallpaper(ctx context.Context) {
-	_ = execdriver.MustRun(ctx, "systemctl", "--user", "stop", "lewkit-wallpaper.service").Run()
+	_ = execdriver.Run(ctx, execdriver.MustCommand(ctx, "systemctl", "--user", "stop", "lewkit-wallpaper.service"))
 }
 
 func look(ctx context.Context, name string) (string, error) {

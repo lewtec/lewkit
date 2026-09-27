@@ -27,17 +27,17 @@ func PipeImage(ctx context.Context, img image.Image, name string, args ...string
 }
 
 func pipe(ctx context.Context, name string, args []string, write func(io.Writer) error) error {
-	cmd := execdriver.MustRun(ctx, name, args...)
+	cmd := execdriver.MustCommand(ctx, name, args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
 	}
-	if err := cmd.Start(); err != nil {
+	if err := execdriver.Start(ctx, cmd); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	werr := write(stdin)
 	cerr := stdin.Close()
-	if err := cmd.Wait(); err != nil {
+	if err := execdriver.Wait(ctx, cmd); err != nil {
 		if werr != nil {
 			return werr
 		}
