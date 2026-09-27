@@ -35,32 +35,6 @@ func New() *Thread {
 	return &Thread{jobs: make(chan func(), 1)}
 }
 
-var mainThread = New()
-
-// Bind locks this goroutine to its OS thread. Call from init or main.
-func Bind() { mainThread.Bind() }
-
-// Bound reports whether Bind has been called on the process thread.
-func Bound() bool { return mainThread.Bound() }
-
-// On reports whether this goroutine is on the process bound thread.
-func On() bool { return mainThread.On() }
-
-// OnIdle registers fn on the process thread when Loop has no job.
-func OnIdle(fn func()) { mainThread.OnIdle(fn) }
-
-// Loop serves the process thread until ctx is done.
-func Loop(ctx context.Context) { mainThread.Loop(ctx) }
-
-// Do runs fn on the process bound thread and waits.
-func Do(fn func()) { mainThread.Do(fn) }
-
-// Go queues fn on the process bound thread and returns.
-func Go(fn func()) { mainThread.Go(fn) }
-
-// Enqueue queues fn on the process bound thread without blocking the caller.
-func Enqueue(fn func()) { mainThread.Enqueue(fn) }
-
 // Bind locks this goroutine to its OS thread.
 func (t *Thread) Bind() {
 	runtime.LockOSThread()
