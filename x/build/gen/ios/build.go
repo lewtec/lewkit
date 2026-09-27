@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -61,11 +62,11 @@ type BuildResult struct {
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
-		stdout = gocmd.LogWriter()
+		stdout = slog.NewLogLogger(slog.Default().Handler(), slog.LevelInfo).Writer()
 	}
 	stderr := opts.Stderr
 	if stderr == nil {
-		stderr = gocmd.LogWriter()
+		stderr = slog.NewLogLogger(slog.Default().Handler(), slog.LevelInfo).Writer()
 	}
 
 	cfg, err := opts.Config.withDefaults()

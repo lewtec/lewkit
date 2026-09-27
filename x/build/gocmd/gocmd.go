@@ -3,6 +3,7 @@ package gocmd
 
 import (
 	"context"
+	"log/slog"
 	"os/exec"
 )
 
@@ -28,10 +29,8 @@ func (c Command) Run(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "go", argv...)
 	cmd.Dir = c.Dir
 	cmd.Env = c.Env
-	log := &slogWriter{}
+	log := slog.NewLogLogger(slog.Default().Handler(), slog.LevelInfo).Writer()
 	cmd.Stdout = log
 	cmd.Stderr = log
-	err := cmd.Run()
-	log.flush()
-	return err
+	return cmd.Run()
 }
