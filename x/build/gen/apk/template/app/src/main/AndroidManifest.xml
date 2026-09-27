@@ -26,6 +26,11 @@
             </intent-filter>{{.IntentFiltersXML}}
         </activity>
 
+        <activity
+            android:name=".PageActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+
         <service
             android:name=".ServerService"
             android:exported="false"

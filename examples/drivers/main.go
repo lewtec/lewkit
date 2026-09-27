@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	stdimage "image"
+	"image/png"
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strconv"
 	"sync"
 
 	"github.com/lewtec/lewkit/cmd/lewkit/experiments"
@@ -15,6 +18,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
+	lewimage "github.com/lewtec/lewkit/x/image"
 )
 
 func main() {
@@ -31,6 +35,7 @@ func newPage(ctx context.Context) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", page.home)
 	mux.HandleFunc("GET /triangle/view", page.triangleView)
+	mux.HandleFunc("GET /triangle/frame", page.triangleFrame)
 	mux.HandleFunc("POST /triangle", page.openTriangle)
 	return mux
 }
@@ -59,7 +64,7 @@ li { padding: 0.35rem 0; border-bottom: 1px solid #ddd; }
 .ok { color: #0a0; }
 .no { color: #888; }
 .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px; background: #111; }
-button { width: 100%%; font: inherit; padding: 12px; }
+button, #triangle { display: block; box-sizing: border-box; width: 100%%; font: inherit; padding: 12px; text-align: center; color: inherit; background: #fff; text-decoration: none; }
 #status { color: #fff; margin: 0 0 8px; min-height: 1.2em; }
 </style>
 </head>
@@ -90,22 +95,21 @@ button { width: 100%%; font: inherit; padding: 12px; }
 		}
 		fmt.Fprint(w, "</ul></section>")
 	}
-	fmt.Fprint(w, `<div class="bar"><p id="status"></p><button type="button" id="triangle">Open triangle</button></div>
+	if runtime.GOOS == "android" {
+		fmt.Fprint(w, `<div class="bar"><a id="triangle" href="/triangle/view" target="_blank">Open triangle</a></div>`)
+	} else {
+		fmt.Fprint(w, `<div class="bar"><p id="status"></p><button type="button" id="triangle">Open triangle</button></div>
 <script>
 document.getElementById("triangle").onclick = async () => {
   const status = document.getElementById("status");
   status.textContent = "opening…";
   const res = await fetch("/triangle", { method: "POST" });
   const body = await res.json();
-  if (body.view) {
-    location.href = body.view;
-    return;
-  }
   status.textContent = body.error || "opened";
 };
-</script>
-</body></html>
-`)
+</script>`)
+	}
+	fmt.Fprint(w, "</body></html>\n")
 }
 
 func (p *page) triangleView(w http.ResponseWriter, r *http.Request) {
@@ -113,39 +117,45 @@ func (p *page) triangleView(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Triangle</title>
-<style>html,body{margin:0;height:100%;background:#111}canvas{width:100%;height:100%;display:block}</style>
-<canvas id="c"></canvas>
+<style>html,body{margin:0;height:100%;background:#000}img{width:100%;height:100%;display:block;object-fit:contain}</style>
+<img id="c" alt="triangle">
 <script>
-const c = document.getElementById("c");
-const g = c.getContext("2d");
-function frame(t) {
-  c.width = innerWidth; c.height = innerHeight;
-  const turn = t / 1000;
-  g.clearRect(0, 0, c.width, c.height);
-  g.save();
-  g.translate(c.width/2, c.height/2);
-  g.rotate(turn);
-  const s = Math.min(c.width, c.height) * 0.35;
-  g.beginPath();
-  g.moveTo(0, -s * 2/3);
-  g.lineTo(s/2, s/3);
-  g.lineTo(-s/2, s/3);
-  g.closePath();
-  g.fillStyle = "#e33";
-  g.fill();
-  g.restore();
-  requestAnimationFrame(frame);
+const img = document.getElementById("c");
+function next() {
+  const w = Math.max(1, Math.min(innerWidth, 800));
+  const h = Math.max(1, Math.min(innerHeight, 800));
+  img.src = "/triangle/frame?turn=" + (performance.now() / 1000) + "&w=" + w + "&h=" + h;
 }
-requestAnimationFrame(frame);
+img.onload = next;
+next();
 </script>`)
+}
+
+func (p *page) triangleFrame(w http.ResponseWriter, r *http.Request) {
+	turn, _ := strconv.ParseFloat(r.URL.Query().Get("turn"), 64)
+	width, _ := strconv.Atoi(r.URL.Query().Get("w"))
+	height, _ := strconv.Atoi(r.URL.Query().Get("h"))
+	if width < 1 {
+		width = 320
+	}
+	if height < 1 {
+		height = 240
+	}
+	if width > 800 {
+		width = 800
+	}
+	if height > 800 {
+		height = 800
+	}
+	dst := stdimage.NewRGBA(stdimage.Rect(0, 0, width, height))
+	lewimage.TriangleTurn(dst, turn)
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = png.Encode(w, dst)
 }
 
 func (p *page) openTriangle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	if runtime.GOOS == "android" {
-		_ = json.NewEncoder(w).Encode(map[string]any{"view": "/triangle/view"})
-		return
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.open {

@@ -31,6 +31,8 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/build.gradle.kts",
 		"app/src/main/AndroidManifest.xml",
 		"app/src/main/java/br/tec/lew/counter/MainActivity.kt",
+		"app/src/main/java/br/tec/lew/counter/PageActivity.kt",
+		"app/src/main/java/br/tec/lew/counter/Windows.kt",
 		"app/src/main/java/br/tec/lew/counter/ServerService.kt",
 		"app/src/main/res/xml/network_security_config.xml",
 		"app/src/main/res/layout/activity_main.xml",

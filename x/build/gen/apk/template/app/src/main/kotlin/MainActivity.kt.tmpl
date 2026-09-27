@@ -193,6 +193,7 @@ class MainActivity : AppCompatActivity() {
         // Local loopback app — no need for zoom chrome.
         settings.builtInZoomControls = false
         settings.displayZoomControls = false
+        installStackedWindows(this, wv)
 
         wv.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(

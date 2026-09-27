@@ -1,0 +1,50 @@
+package {{.PackageID}}
+
+import android.annotation.SuppressLint
+import android.os.Build
+import android.os.Bundle
+import android.webkit.CookieManager
+import android.webkit.WebSettings
+import android.webkit.WebView
+import androidx.appcompat.app.AppCompatActivity
+
+/** A second in-app web window. The page chooses the URL. */
+class PageActivity : AppCompatActivity() {
+    private var webView: WebView? = null
+
+    @SuppressLint("SetJavaScriptEnabled")
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val url = intent.getStringExtra(EXTRA_URL)
+        if (url.isNullOrBlank()) {
+            finish()
+            return
+        }
+        val wv = WebView(this)
+        webView = wv
+        setContentView(wv)
+        CookieManager.getInstance().setAcceptCookie(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            CookieManager.getInstance().setAcceptThirdPartyCookies(wv, true)
+        }
+        val settings = wv.settings
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        }
+        installStackedWindows(this, wv)
+        wv.loadUrl(url)
+    }
+
+    override fun onDestroy() {
+        webView?.destroy()
+        webView = null
+        super.onDestroy()
+    }
+
+    companion object {
+        const val EXTRA_URL = "url"
+    }
+}
