@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // Sentinel errors for static build/setup failures (errors.Is / wrap with %w).
@@ -69,11 +70,11 @@ type BuildResult struct {
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
-		stdout = log.Writer()
+		stdout = taskgroup.LineWriterFrom(ctx)
 	}
 	stderr := opts.Stderr
 	if stderr == nil {
-		stderr = log.Writer()
+		stderr = stdout
 	}
 
 	cfg, err := opts.Config.withDefaults()
@@ -96,9 +97,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	vi, name, code := common.StampPackagingVersion(goMain, opts.Config.VersionName, opts.Config.VersionCode)
 	cfg.VersionName = name
 	cfg.VersionCode = code
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: version %s (code %d)\n", cfg.VersionName, cfg.VersionCode); err != nil {
-		return nil, err
-	}
+	slog.Info("android version", "version", cfg.VersionName, "code", cfg.VersionCode)
 
 	workDir, ephemeral, err := common.ResolveWorkDir(opts.WorkDir, "eletrocromo-android-*")
 	if err != nil {
@@ -111,7 +110,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		if ephemeral && buildErr == nil && !opts.KeepWorkDir && !opts.GoOnly {
 			if err := os.RemoveAll(workDir); err != nil && stderr != nil {
 				// best-effort cleanup of ephemeral work dir
-				fmt.Fprintf(stderr, "eletrocromo: cleanup work dir: %v\n", err)
+				slog.Warn("android cleanup", "err", err)
 			}
 		}
 	}()
@@ -120,10 +119,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg := cfg
 	genCfg.GoMain = goMain
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: generating Android host in %s\n", workDir); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("android host", "dir", workDir)
 	if err := Create(Options{
 		OutDir: workDir,
 		Force:  true, // work dir is ours or full rebuild
@@ -144,19 +140,13 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		iconRoot = tmpIcons
 	}
 	resDir := filepath.Join(workDir, "app", "src", "main", "res")
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: applying launcher icons from %s\n", iconRoot); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("android icons", "dir", iconRoot)
 	if err := applyIconMipmaps(iconRoot, resDir); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: building Go binary for %v\n", genCfg.abis()); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("android go", "abis", genCfg.abis())
 	libs, err := BuildGoLibs(ctx, workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, opts.CGO, stdout)
 	if err != nil {
 		buildErr = err
@@ -165,8 +155,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 
 	result := &BuildResult{WorkDir: workDir, JNILibs: libs}
 	if opts.GoOnly {
-		_, err := fmt.Fprintf(stdout, "eletrocromo: --go-only: skipped Gradle (jniLibs ready under %s)\n", workDir)
-		return result, err
+		slog.Info("android go-only", "dir", workDir)
+		return result, nil
 	}
 
 	outAPK := strings.TrimSpace(opts.OutAPK)
@@ -180,10 +170,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: assembling debug APK…\n"); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("android gradle")
 	apk, err := AssembleDebug(workDir, stdout, stderr)
 	if err != nil {
 		buildErr = err
@@ -198,8 +185,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 	result.APKPath = outAPK
-	_, err = fmt.Fprintf(stdout, "eletrocromo: APK → %s\n", outAPK)
-	return result, err
+	slog.Info("android apk", "path", outAPK)
+	return result, nil
 }
 
 // BuildGoLibs cross-compiles the app into workDir/app/src/main/jniLibs/<abi>/libeletrocromo.so.
@@ -220,9 +207,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 			return nil, err
 		}
 		dest := filepath.Join(destDir, "libeletrocromo.so")
-		if _, err := fmt.Fprintf(stdout, "  → %s (GOARCH=%s)\n", abi, goarch); err != nil {
-			return nil, err
-		}
+		slog.Info("android abi", "abi", abi, "goarch", goarch)
 		cgoFlag := "0"
 		args := []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}
 		env := append(os.Environ(), "GOOS=android", "GOARCH="+goarch)
@@ -237,9 +222,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 			cgoFlag = "1"
 			env = append(env, "CC="+cc)
 			args = append([]string{"-buildmode=c-shared"}, args...)
-			if _, err := fmt.Fprintf(stdout, "  cgo CC=%s\n", cc); err != nil {
-				return nil, err
-			}
+			slog.Info("android cgo", "cc", cc)
 		}
 		env = append(env, "CGO_ENABLED="+cgoFlag)
 		if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx); err != nil {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // Build / toolchain sentinels.
@@ -54,11 +55,11 @@ type BuildResult struct {
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
-		stdout = log.Writer()
+		stdout = taskgroup.LineWriterFrom(ctx)
 	}
 	stderr := opts.Stderr
 	if stderr == nil {
-		stderr = log.Writer()
+		stderr = stdout
 	}
 
 	cfg, err := opts.Config.withDefaults()
@@ -80,9 +81,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	vi, name, code := common.StampPackagingVersion(goMain, opts.Config.VersionName, opts.Config.VersionCode)
 	cfg.VersionName = name
 	cfg.VersionCode = code
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: version %s (code %d)\n", cfg.VersionName, cfg.VersionCode); err != nil {
-		return nil, err
-	}
+	slog.Info("macos version", "version", cfg.VersionName, "code", cfg.VersionCode)
 
 	if !opts.GoOnly && runtime.GOOS != "darwin" {
 		return nil, ErrMacOSRequired
@@ -96,7 +95,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	defer func() {
 		if ephemeral && buildErr == nil && !opts.KeepWorkDir && !opts.GoOnly {
 			if err := os.RemoveAll(workDir); err != nil && stderr != nil {
-				fmt.Fprintf(stderr, "eletrocromo: cleanup work dir: %v\n", err)
+				slog.Warn("macos cleanup", "err", err)
 			}
 		}
 	}()
@@ -104,10 +103,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg := cfg
 	genCfg.GoMain = goMain
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: generating macOS host in %s\n", workDir); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("macos host", "dir", workDir)
 	if err := Create(Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
 		buildErr = fmt.Errorf("generate host: %w", err)
 		return nil, buildErr
@@ -123,10 +119,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		iconRoot = tmpIcons
 	}
 	icnsDest := filepath.Join(workDir, "Resources", "AppIcon.icns")
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: applying macos icon from %s\n", iconRoot); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("macos icon", "dir", iconRoot)
 	if err := icons.ApplyMacOSICNS(iconRoot, icnsDest); err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -141,10 +134,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 	helperDest := filepath.Join(workDir, "bin", HelperName)
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: building Go helper (GOOS=darwin GOARCH=%s)\n", arch); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("macos go", "arch", arch)
 	if err := buildGoHelper(ctx, helperDest, goMain, arch, vi, cfg.PackageID); err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -152,8 +142,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 
 	result := &BuildResult{WorkDir: workDir, HelperPath: helperDest}
 	if opts.GoOnly {
-		_, err := fmt.Fprintf(stdout, "eletrocromo: --go-only: skipped xcodebuild (helper %s)\n", helperDest)
-		return result, err
+		slog.Info("macos go-only", "helper", helperDest)
+		return result, nil
 	}
 
 	outApp := strings.TrimSpace(opts.OutApp)
@@ -167,10 +157,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: assembling Debug .app…\n"); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("macos xcode")
 	built, err := assembleDebug(workDir, cfg.ProductName(), xArch, stdout, stderr)
 	if err != nil {
 		buildErr = err
@@ -193,8 +180,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 	result.AppPath = outApp
-	_, err = fmt.Fprintf(stdout, "eletrocromo: app → %s\n", outApp)
-	return result, err
+	slog.Info("macos app", "path", outApp)
+	return result, nil
 }
 
 func darwinArch(goarch string) (string, string, error) {

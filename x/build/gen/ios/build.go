@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // Build / toolchain sentinels.
@@ -62,11 +63,11 @@ type BuildResult struct {
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
-		stdout = log.Writer()
+		stdout = taskgroup.LineWriterFrom(ctx)
 	}
 	stderr := opts.Stderr
 	if stderr == nil {
-		stderr = log.Writer()
+		stderr = stdout
 	}
 
 	cfg, err := opts.Config.withDefaults()
@@ -93,9 +94,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	vi, name, code := common.StampPackagingVersion(goMain, opts.Config.VersionName, opts.Config.VersionCode)
 	cfg.VersionName = name
 	cfg.VersionCode = code
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: version %s (code %d)\n", cfg.VersionName, cfg.VersionCode); err != nil {
-		return nil, err
-	}
+	slog.Info("ios version", "version", cfg.VersionName, "code", cfg.VersionCode)
 
 	if !opts.GoOnly && runtime.GOOS != "darwin" {
 		return nil, ErrDarwinRequired
@@ -109,7 +108,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	defer func() {
 		if ephemeral && buildErr == nil && !opts.KeepWorkDir && !opts.GoOnly {
 			if err := os.RemoveAll(workDir); err != nil && stderr != nil {
-				fmt.Fprintf(stderr, "eletrocromo: cleanup work dir: %v\n", err)
+				slog.Warn("ios cleanup", "err", err)
 			}
 		}
 	}()
@@ -117,10 +116,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg := cfg
 	genCfg.GoMain = goMain
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: generating iOS host in %s\n", workDir); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("ios host", "dir", workDir)
 	if err := Create(Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
 		buildErr = fmt.Errorf("generate host: %w", err)
 		return nil, buildErr
@@ -136,10 +132,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		iconRoot = tmpIcons
 	}
 	assetsDir := filepath.Join(workDir, "Assets.xcassets")
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: applying iOS icon from %s\n", iconRoot); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("ios icon", "dir", iconRoot)
 	if err := applyIOSIcons(iconRoot, assetsDir); err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -149,16 +142,11 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	result := &BuildResult{WorkDir: workDir}
 
 	if runtime.GOOS != "darwin" {
-		if _, err := fmt.Fprintf(stdout, "eletrocromo: --go-only: skipped ios c-archive (need macOS + Xcode)\n"); err != nil {
-			return result, err
-		}
+		slog.Info("ios go-only", "reason", "need macOS and Xcode")
 		return result, nil
 	}
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: building Go c-archive (GOOS=ios SDK=%s)\n", sdk); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("ios go", "sdk", sdk)
 	goarch, xArch := hostIOSArch(sdk)
 	if opts.GOARCH != "" {
 		var archErr error
@@ -175,8 +163,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	result.ArchivePath = archiveDest
 
 	if opts.GoOnly {
-		_, err := fmt.Fprintf(stdout, "eletrocromo: --go-only: skipped xcodebuild (archive %s)\n", archiveDest)
-		return result, err
+		slog.Info("ios go-only", "archive", archiveDest)
+		return result, nil
 	}
 
 	outApp := strings.TrimSpace(opts.OutApp)
@@ -190,10 +178,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 
-	if _, err := fmt.Fprintf(stdout, "eletrocromo: assembling Debug .app…\n"); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
+	slog.Info("ios xcode")
 	built, err := assembleDebug(workDir, cfg.ProductName(), sdk, xArch, stdout, stderr)
 	if err != nil {
 		buildErr = err
@@ -208,8 +193,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 	result.AppPath = outApp
-	_, err = fmt.Fprintf(stdout, "eletrocromo: app → %s\n", outApp)
-	return result, err
+	slog.Info("ios app", "path", outApp)
+	return result, nil
 }
 
 func normalizeSDK(sdk string) (string, error) {
