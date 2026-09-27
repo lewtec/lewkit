@@ -3,12 +3,12 @@ package bench
 import (
 	"testing"
 
+	_ "github.com/lewtec/leaven-tree-sitter/grammar/json"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/treesitter"
-	_ "github.com/lewtec/lewkit/x/driver/treesitter/internal/jsonccgo"
-	_ "github.com/lewtec/lewkit/x/driver/treesitter/internal/jsonleaven"
-	_ "github.com/lewtec/lewkit/x/driver/treesitter/internal/jsonwazero"
 	_ "github.com/lewtec/lewkit/x/driver/treesitter/prelude"
+	_ "github.com/lewtec/wazero-tree-sitter/grammar/json"
+	_ "github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json"
 )
 
 func BenchmarkParse(b *testing.B) {
