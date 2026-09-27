@@ -99,9 +99,8 @@ document.getElementById("triangle").onclick = async () => {
   status.textContent = "opening…";
   const res = await fetch("/triangle", { method: "POST" });
   const body = await res.json();
-  if (body.activity) {
-    location.href = "lewkit://triangle";
-    status.textContent = "";
+  if (body.view) {
+    location.href = body.view;
     return;
   }
   status.textContent = body.error || "opened";
@@ -146,7 +145,7 @@ requestAnimationFrame(frame);
 func (p *page) openTriangle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if runtime.GOOS == "android" {
-		_ = json.NewEncoder(w).Encode(map[string]any{"activity": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"view": "/triangle/view"})
 		return
 	}
 	p.mu.Lock()

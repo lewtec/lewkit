@@ -26,10 +26,6 @@
             </intent-filter>{{.IntentFiltersXML}}
         </activity>
 
-        <activity
-            android:name=".TriangleActivity"
-            android:exported="false" />
-
         <service
             android:name=".ServerService"
             android:exported="false"
