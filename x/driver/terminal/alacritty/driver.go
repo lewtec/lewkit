@@ -24,6 +24,6 @@ func (factory) New(context.Context) (terminal.Driver, error) {
 type backend struct{}
 
 func (backend) Open(ctx context.Context, opts terminal.Options) error {
-	cmd := execdriver.MustCommand(ctx, "alacritty", terminal.BuildOpenArgs(opts, "-T", true)...)
+	cmd := execdriver.MustCommand("alacritty", terminal.BuildOpenArgs(opts, "-T", true)...)
 	return execdriver.Start(ctx, cmd)
 }

@@ -18,9 +18,9 @@ import (
 
 func TestMustRunCapturesStdout(t *testing.T) {
 	ctx := t.Context()
-	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo hi")
+	cmd := execdriver.MustCommand("sh", "-c", "echo hi")
 	require.Nil(t, cmd.Stdout)
-	require.NotNil(t, cmd.Stderr)
+	require.Nil(t, cmd.Stderr)
 	out, err := execdriver.Output(ctx, cmd)
 	require.NoError(t, err)
 	require.Equal(t, "hi\n", string(out))
@@ -30,14 +30,14 @@ func TestMustRunStderrReachesSession(t *testing.T) {
 	session, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
 	var lines []string
 	session.SetLinePrint(func(line string) { lines = append(lines, line) })
-	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo hello >&2")
+	cmd := execdriver.MustCommand("sh", "-c", "echo hello >&2")
 	require.NoError(t, execdriver.Run(ctx, cmd))
 	require.Equal(t, []string{"hello"}, lines)
 }
 
 func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	cmd := execdriver.MustCommand(ctx, "sh", "-c", "sleep 30")
+	cmd := execdriver.MustCommand("sh", "-c", "sleep 30")
 	done := make(chan error, 1)
 	go func() { done <- execdriver.Run(ctx, cmd) }()
 	cancel()
@@ -57,7 +57,7 @@ func TestWhichAndRequireBinary(t *testing.T) {
 func TestReplacedStderrIsNotALiveRow(t *testing.T) {
 	session, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
 	session.SetLinePrint(func(string) {})
-	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo kept; echo dropped >&2")
+	cmd := execdriver.MustCommand("sh", "-c", "echo kept; echo dropped >&2")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := execdriver.Output(ctx, cmd)

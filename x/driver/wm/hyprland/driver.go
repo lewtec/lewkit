@@ -112,7 +112,7 @@ func requireBinary(ctx context.Context, name string) error {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	return execdriver.Run(ctx, execdriver.MustCommand(ctx, name, args...))
+	return execdriver.Run(ctx, execdriver.MustCommand(name, args...))
 }
 
 var _ wm.Driver = backend{}

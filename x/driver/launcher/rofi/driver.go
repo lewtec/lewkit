@@ -42,9 +42,9 @@ func (backend) Choose(ctx context.Context, opts launcher.ChooseOptions) (*launch
 }
 
 func (backend) RunApp(ctx context.Context) error {
-	return execdriver.Run(ctx, execdriver.MustCommand(ctx, "rofi", "-show", "combi", "-combi-modi", "drun", "-show-icons"))
+	return execdriver.Run(ctx, execdriver.MustCommand("rofi", "-show", "combi", "-combi-modi", "drun", "-show-icons"))
 }
 
 func (backend) SwitchWindow(ctx context.Context) error {
-	return execdriver.Run(ctx, execdriver.MustCommand(ctx, "rofi", "-show", "combi", "-combi-modi", "window", "-show-icons"))
+	return execdriver.Run(ctx, execdriver.MustCommand("rofi", "-show", "combi", "-combi-modi", "window", "-show-icons"))
 }

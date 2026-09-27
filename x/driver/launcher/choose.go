@@ -46,7 +46,7 @@ func MatchSelected(items []Item, selected string) *Item {
 
 // ChooseViaCmd feeds FormatChoiceLines to name and matches the selected line.
 func ChooseViaCmd(ctx context.Context, opts ChooseOptions, name string, withIcons bool, args ...string) (*Item, error) {
-	cmd := execdriver.MustCommand(ctx, name, args...)
+	cmd := execdriver.MustCommand(name, args...)
 	cmd.Stdin = strings.NewReader(FormatChoiceLines(opts.Items, withIcons))
 	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {

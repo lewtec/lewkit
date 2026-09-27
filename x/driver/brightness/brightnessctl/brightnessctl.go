@@ -48,7 +48,7 @@ func parseStatus(out string) (*brightness.Device, error) {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	cmd := execdriver.MustCommand(ctx, name, args...)
+	cmd := execdriver.MustCommand(name, args...)
 	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
@@ -56,7 +56,7 @@ func run(ctx context.Context, name string, args ...string) error {
 }
 
 func output(ctx context.Context, name string, args ...string) (string, error) {
-	cmd := execdriver.MustCommand(ctx, name, args...)
+	cmd := execdriver.MustCommand(name, args...)
 	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", name, err)

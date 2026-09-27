@@ -43,7 +43,7 @@ func resolveToken(ctx context.Context) string {
 			return value
 		}
 	}
-	command := execdriver.MustCommand(ctx, "gh", "auth", "token")
+	command := execdriver.MustCommand("gh", "auth", "token")
 	command.Env = append(os.Environ(), tokenProbeEnv+"="+tokenProbeVal)
 	output, err := execdriver.Output(ctx, command)
 	if err != nil {

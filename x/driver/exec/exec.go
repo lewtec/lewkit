@@ -1,8 +1,8 @@
 // Package exec runs host programs.
 //
-// Command builds a command. The context there selects the driver and the
-// stderr line writer. It does not start the process.
-// Run, Start, Output, and Wait take the context that cancels the process.
+// Command builds a command and does not take a context.
+// Run, Start, Output, and Wait take the context: it cancels the process
+// and, when stderr is still unset, attaches the taskgroup line writer.
 // Stdout stays unset so Output can capture it.
 // Import prelude or native so the host driver is registered.
 // Termux stays in modot.
@@ -31,27 +31,21 @@ type Driver interface {
 }
 
 // Command returns a command from the selected driver.
-// ctx selects the driver and the stderr line writer.
-// Stdout is left unset. The process is not started.
-func Command(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
-	slog.DebugContext(ctx, "exec", "name", name, "args", args)
-	d, err := driver.Get[Driver](ctx)
+// The process is not started and streams are left unset.
+func Command(name string, args ...string) (*exec.Cmd, error) {
+	d, err := driver.Get[Driver](context.Background())
 	if err != nil {
 		return nil, err
 	}
-	cmd := d.Command(name, args...)
-	attachDefaultWriters(ctx, cmd)
-	return cmd, nil
+	return d.Command(name, args...), nil
 }
 
 // MustCommand is Command, or a raw command when no driver is registered.
-// The fallback still attaches the line writer and does not bind cancellation.
-func MustCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	cmd, err := Command(ctx, name, args...)
+func MustCommand(name string, args ...string) *exec.Cmd {
+	cmd, err := Command(name, args...)
 	if err != nil {
-		slog.WarnContext(ctx, "exec driver unavailable", "name", name, "error", err)
-		cmd = exec.Command(name, args...)
-		attachDefaultWriters(ctx, cmd)
+		slog.Warn("exec driver unavailable", "name", name, "error", err)
+		return exec.Command(name, args...)
 	}
 	return cmd
 }
@@ -72,6 +66,10 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if cmd.Stderr == nil {
+		cmd.Stderr = taskgroup.LineWriterFrom(ctx)
+	}
+	slog.DebugContext(ctx, "exec", "path", cmd.Path, "args", cmd.Args)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
@@ -132,8 +130,4 @@ func lookPath(name string) (string, error) {
 		return "", fmt.Errorf("%w: %s", ErrNotFound, name)
 	}
 	return path, nil
-}
-
-func attachDefaultWriters(ctx context.Context, cmd *exec.Cmd) {
-	cmd.Stderr = taskgroup.LineWriterFrom(ctx)
 }

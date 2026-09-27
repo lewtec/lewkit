@@ -9,7 +9,7 @@ import (
 
 // Start runs name and does not wait for it to exit.
 func Start(ctx context.Context, name string, args ...string) error {
-	cmd := execdriver.MustCommand(ctx, name, args...)
+	cmd := execdriver.MustCommand(name, args...)
 	if err := execdriver.Start(ctx, cmd); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
