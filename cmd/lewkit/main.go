@@ -16,6 +16,8 @@ import (
 	"github.com/lewtec/lewkit/x/generate/protobuf"
 	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/thread"
+
+	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
 )
 
 func main() {

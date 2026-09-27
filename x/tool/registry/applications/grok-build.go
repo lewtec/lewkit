@@ -4,16 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	lewpath "github.com/lewtec/lewkit/x/path"
-	"github.com/lewtec/lewkit/x/tool"
-	"github.com/lewtec/lewkit/x/tool/registry"
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	lewpath "github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/tool"
+	"github.com/lewtec/lewkit/x/tool/registry"
 )
 
 var ErrGrokBuildProbeFailure = errors.New("probe grok-build latest from x.ai channels")
@@ -93,7 +94,7 @@ func (t *grokBuildTool) InstallArtifact(ctx context.Context, art tool.Artifact, 
 		return err
 	}
 
-	command := exec.CommandContext(ctx, path, "--version")
+	command := execdriver.MustRun(ctx, path, "--version")
 	command.Stdin = strings.NewReader("")
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard

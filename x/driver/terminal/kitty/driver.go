@@ -2,8 +2,8 @@ package kitty
 
 import (
 	"context"
-	"os/exec"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/terminal"
 )
 
@@ -13,8 +13,8 @@ func (factory) ID() string   { return "terminal_kitty" }
 func (factory) Name() string { return "Kitty" }
 func (factory) Weight() int  { return 50 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	return terminal.RequireBinary("kitty")
+func (factory) CheckCompatibility(ctx context.Context) error {
+	return terminal.RequireBinary(ctx, "kitty")
 }
 
 func (factory) New(context.Context) (terminal.Driver, error) {
@@ -24,6 +24,6 @@ func (factory) New(context.Context) (terminal.Driver, error) {
 type backend struct{}
 
 func (backend) Open(ctx context.Context, opts terminal.Options) error {
-	cmd := exec.CommandContext(ctx, "kitty", terminal.BuildOpenArgs(opts, "--title", false)...)
+	cmd := execdriver.MustRun(ctx, "kitty", terminal.BuildOpenArgs(opts, "--title", false)...)
 	return cmd.Start()
 }

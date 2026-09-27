@@ -3,9 +3,9 @@ package notify_send
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/notification"
 )
 
@@ -26,7 +26,7 @@ func (backend) Notify(ctx context.Context, n notification.Notification) error {
 		args = append(args, "-r", strconv.FormatUint(uint64(n.ID), 10))
 	}
 	args = append(args, n.Title, n.Message)
-	cmd := exec.CommandContext(ctx, "notify-send", args...)
+	cmd := execdriver.MustRun(ctx, "notify-send", args...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("notify-send: %w", err)
 	}

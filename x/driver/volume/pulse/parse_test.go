@@ -22,7 +22,7 @@ func TestParseVolume(t *testing.T) {
 }
 
 func TestMissingBinary(t *testing.T) {
-	err := requireBinary("lewkit-missing-pactl")
+	err := requireBinary(t.Context(), "lewkit-missing-pactl")
 	if !errors.Is(err, driver.ErrIncompatible) {
 		t.Fatalf("got %v", err)
 	}

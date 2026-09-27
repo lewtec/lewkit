@@ -3,11 +3,11 @@ package brightnessctl
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver/brightness"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 type backend struct{}
@@ -48,7 +48,7 @@ func parseStatus(out string) (*brightness.Device, error) {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := execdriver.MustRun(ctx, name, args...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
@@ -56,7 +56,7 @@ func run(ctx context.Context, name string, args ...string) error {
 }
 
 func output(ctx context.Context, name string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := execdriver.MustRun(ctx, name, args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", name, err)

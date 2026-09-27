@@ -18,10 +18,10 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
 		return err
 	}
-	if err := requireBinary("systemd-run"); err != nil {
+	if err := requireBinary(ctx, "systemd-run"); err != nil {
 		return err
 	}
-	return requireBinary("swaybg")
+	return requireBinary(ctx, "swaybg")
 }
 
 func (factory) New(context.Context) (wallpaper.Driver, error) { return backend{}, nil }

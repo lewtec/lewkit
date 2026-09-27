@@ -18,7 +18,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "DISPLAY"); err != nil {
 		return err
 	}
-	return requireBinary("maim")
+	return requireBinary(ctx, "maim")
 }
 
 func (factory) New(context.Context) (screenshot.Driver, error) { return backend{}, nil }

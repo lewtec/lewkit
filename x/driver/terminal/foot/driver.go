@@ -2,8 +2,8 @@ package foot
 
 import (
 	"context"
-	"os/exec"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/terminal"
 )
 
@@ -24,6 +24,6 @@ func (factory) New(context.Context) (terminal.Driver, error) {
 type backend struct{}
 
 func (backend) Open(ctx context.Context, opts terminal.Options) error {
-	cmd := exec.CommandContext(ctx, "foot", terminal.BuildOpenArgs(opts, "-T", false)...)
+	cmd := execdriver.MustRun(ctx, "foot", terminal.BuildOpenArgs(opts, "-T", false)...)
 	return cmd.Start()
 }

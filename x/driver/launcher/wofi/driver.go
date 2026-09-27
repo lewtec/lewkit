@@ -2,8 +2,8 @@ package wofi
 
 import (
 	"context"
-	"os/exec"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
 
@@ -42,7 +42,7 @@ func (backend) Choose(ctx context.Context, opts launcher.ChooseOptions) (*launch
 }
 
 func (backend) RunApp(ctx context.Context) error {
-	return exec.CommandContext(ctx, "wofi", "--show", "drun").Run()
+	return execdriver.MustRun(ctx, "wofi", "--show", "drun").Run()
 }
 
 func (backend) SwitchWindow(ctx context.Context) error {

@@ -2,9 +2,9 @@ package zenity
 
 import (
 	"context"
-	"os/exec"
 	"strings"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
 
@@ -36,7 +36,7 @@ func (confirmerFactory) New(context.Context) (launcher.Confirmer, error) {
 type backend struct{}
 
 func (backend) Prompt(ctx context.Context, prompt string) (string, error) {
-	out, err := exec.CommandContext(ctx, "zenity", "--entry", "--text", prompt).Output()
+	out, err := execdriver.MustRun(ctx, "zenity", "--entry", "--text", prompt).Output()
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +44,7 @@ func (backend) Prompt(ctx context.Context, prompt string) (string, error) {
 }
 
 func (backend) Confirm(ctx context.Context, message string) (bool, error) {
-	err := exec.CommandContext(ctx, "zenity", "--question", "--text", message).Run()
+	err := execdriver.MustRun(ctx, "zenity", "--question", "--text", message).Run()
 	if err != nil {
 		return false, nil
 	}

@@ -11,9 +11,10 @@ import (
 	"iter"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 // ErrorReader is an io.Reader whose Read always returns Err.
@@ -127,7 +128,7 @@ func DiscardSlog(tb testing.TB) {
 // Need returns the absolute path of name on PATH, or skips the test.
 func Need(tb testing.TB, name string) string {
 	tb.Helper()
-	p, err := exec.LookPath(name)
+	p, err := execdriver.Which(tb.Context(), name)
 	if err != nil {
 		tb.Skipf("missing %s", name)
 	}

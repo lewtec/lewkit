@@ -6,13 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
-
 	_ "github.com/lewtec/lewkit/x/tool/github"
 )
 
@@ -36,7 +35,7 @@ func Run(ctx context.Context, protoFile, goPackage string) error {
 	if _, err := os.Stat(protoFile); err != nil {
 		return err
 	}
-	plugin, err := exec.CommandContext(ctx, "go", "tool", "-n", "protoc-gen-go").Output()
+	plugin, err := execdriver.MustRun(ctx, "go", "tool", "-n", "protoc-gen-go").Output()
 	if err != nil {
 		return fmt.Errorf("%w: %w", errPlugin, err)
 	}
@@ -56,7 +55,7 @@ func Run(ctx context.Context, protoFile, goPackage string) error {
 		args = append(args, "--go_opt=M"+base+"="+goPackage)
 	}
 	args = append(args, protoFile)
-	command := exec.CommandContext(ctx, protoc, args...)
+	command := execdriver.MustRun(ctx, protoc, args...)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	if err := command.Run(); err != nil {

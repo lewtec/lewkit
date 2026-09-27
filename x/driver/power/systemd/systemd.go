@@ -3,7 +3,8 @@ package systemd
 import (
 	"context"
 	"fmt"
-	"os/exec"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 type backend struct{}
@@ -33,7 +34,7 @@ func (backend) Shutdown(ctx context.Context) error {
 }
 
 func run(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := execdriver.MustRun(ctx, name, args...)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}

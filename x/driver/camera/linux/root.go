@@ -20,7 +20,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("%w: linux is required", driver.ErrIncompatible)
 	}
-	return requireBinary("ffmpeg")
+	return requireBinary(ctx, "ffmpeg")
 }
 
 func (factory) New(context.Context) (camera.Driver, error) { return backend{}, nil }

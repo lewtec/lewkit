@@ -2,8 +2,8 @@ package rofi
 
 import (
 	"context"
-	"os/exec"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
 
@@ -42,9 +42,9 @@ func (backend) Choose(ctx context.Context, opts launcher.ChooseOptions) (*launch
 }
 
 func (backend) RunApp(ctx context.Context) error {
-	return exec.CommandContext(ctx, "rofi", "-show", "combi", "-combi-modi", "drun", "-show-icons").Run()
+	return execdriver.MustRun(ctx, "rofi", "-show", "combi", "-combi-modi", "drun", "-show-icons").Run()
 }
 
 func (backend) SwitchWindow(ctx context.Context) error {
-	return exec.CommandContext(ctx, "rofi", "-show", "combi", "-combi-modi", "window", "-show-icons").Run()
+	return execdriver.MustRun(ctx, "rofi", "-show", "combi", "-combi-modi", "window", "-show-icons").Run()
 }

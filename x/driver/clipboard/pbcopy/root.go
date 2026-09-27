@@ -17,11 +17,11 @@ func (factory) ID() string   { return "clipboard_pbcopy" }
 func (factory) Name() string { return "pbcopy" }
 func (factory) Weight() int  { return 60 }
 
-func (factory) CheckCompatibility(context.Context) error {
+func (factory) CheckCompatibility(ctx context.Context) error {
 	if runtime.GOOS != "darwin" {
 		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
 	}
-	return clipboard.RequireTool("pbcopy")
+	return clipboard.RequireTool(ctx, "pbcopy")
 }
 
 func (factory) New(context.Context) (clipboard.Driver, error) { return backend{}, nil }

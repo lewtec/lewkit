@@ -18,7 +18,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "HYPRLAND_INSTANCE_SIGNATURE"); err != nil {
 		return err
 	}
-	return requireBinary("hyprctl")
+	return requireBinary(ctx, "hyprctl")
 }
 
 func (factory) New(context.Context) (wm.Driver, error) { return backend{}, nil }

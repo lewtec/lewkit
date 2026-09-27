@@ -4,9 +4,9 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/singleton"
 )
 
@@ -43,7 +43,7 @@ func resolveToken(ctx context.Context) string {
 			return value
 		}
 	}
-	command := exec.CommandContext(ctx, "gh", "auth", "token")
+	command := execdriver.MustRun(ctx, "gh", "auth", "token")
 	command.Env = append(os.Environ(), tokenProbeEnv+"="+tokenProbeVal)
 	output, err := command.Output()
 	if err != nil {

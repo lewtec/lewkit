@@ -18,7 +18,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireAnyEnv(ctx, "DISPLAY", "WAYLAND_DISPLAY"); err != nil {
 		return err
 	}
-	return opener.RequireTool("xdg-open")
+	return opener.RequireTool(ctx, "xdg-open")
 }
 
 func (factory) New(context.Context) (opener.Driver, error) { return backend{}, nil }

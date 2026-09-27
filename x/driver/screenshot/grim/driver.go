@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"os/exec"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/screenshot"
 	"github.com/lewtec/lewkit/x/driver/wm"
 )
@@ -15,10 +14,10 @@ import (
 type backend struct{}
 
 func (backend) SelectArea(ctx context.Context) (*wm.Rect, error) {
-	if _, err := exec.LookPath("slurp"); err != nil {
+	if !execdriver.IsBinaryAvailable(ctx, "slurp") {
 		return nil, screenshot.ErrSelectionToolNotFound
 	}
-	out, err := exec.CommandContext(ctx, "slurp").Output()
+	out, err := execdriver.MustRun(ctx, "slurp").Output()
 	if err != nil {
 		return nil, err
 	}
@@ -45,11 +44,8 @@ func (backend) Capture(ctx context.Context, rect *wm.Rect) (image.Image, error) 
 	return screenshot.CaptureViaCmd(ctx, "grim", args...)
 }
 
-func requireBinary(name string) error {
-	if _, err := exec.LookPath(name); err != nil {
-		return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
-	}
-	return nil
+func requireBinary(ctx context.Context, name string) error {
+	return execdriver.RequireBinary(ctx, name)
 }
 
 var _ screenshot.Driver = backend{}

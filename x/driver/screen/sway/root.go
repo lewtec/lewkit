@@ -3,10 +3,9 @@ package sway
 
 import (
 	"context"
-	"fmt"
-	"os/exec"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/screen"
 )
 
@@ -22,16 +21,13 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
 		return err
 	}
-	return requireBinary("swaymsg")
+	return requireBinary(ctx, "swaymsg")
 }
 
 func (factory) New(context.Context) (screen.Driver, error) { return backend{}, nil }
 
-func requireBinary(name string) error {
-	if _, err := exec.LookPath(name); err != nil {
-		return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
-	}
-	return nil
+func requireBinary(ctx context.Context, name string) error {
+	return execdriver.RequireBinary(ctx, name)
 }
 
 func init() {
