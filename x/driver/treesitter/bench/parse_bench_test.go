@@ -9,6 +9,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/treesitter/prelude"
 	_ "github.com/lewtec/wazero-tree-sitter/grammar/json"
 	_ "github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json"
+	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkParse(b *testing.B) {
@@ -23,24 +24,15 @@ func BenchmarkParse(b *testing.B) {
 		b.Run(id, func(b *testing.B) {
 			lang := language(b, id)
 			tree, err := lang.Parse(source)
-			if err != nil {
-				b.Fatal(err)
-			}
-			if tree.RootNode() == nil || tree.RootNode().IsNull() || tree.RootNode().HasError() {
-				b.Fatalf("%s warmup parse failed", id)
-			}
+			require.NoError(b, err)
+			requireParsed(b, tree)
 			b.ReportAllocs()
 			b.SetBytes(int64(len(source)))
 			for b.Loop() {
 				tree, err = lang.Parse(source)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(b, err)
 			}
-			root := tree.RootNode()
-			if root == nil || root.IsNull() || root.HasError() {
-				b.Fatalf("%s parse failed", id)
-			}
+			requireParsed(b, tree)
 		})
 	}
 }
@@ -48,17 +40,13 @@ func BenchmarkParse(b *testing.B) {
 func language(b *testing.B, id string) treesitter.Language {
 	b.Helper()
 	handles, err := driver.List[treesitter.Driver](b.Context())
-	if err != nil {
-		b.Fatal(err)
-	}
+	require.NoError(b, err)
 	for _, handle := range handles {
 		if handle.ID != id {
 			continue
 		}
 		engine, err := handle.Open(b.Context())
-		if err != nil {
-			b.Fatal(err)
-		}
+		require.NoError(b, err)
 		lang, ok := engine.Language("json")
 		if !ok {
 			b.Skipf("%s has no json grammar", id)
@@ -67,6 +55,15 @@ func language(b *testing.B, id string) treesitter.Language {
 	}
 	b.Skipf("%s is unavailable", id)
 	return nil
+}
+
+func requireParsed(b *testing.B, tree *treesitter.Tree) {
+	b.Helper()
+	require.NotNil(b, tree)
+	root := tree.RootNode()
+	require.NotNil(b, root)
+	require.False(b, root.IsNull())
+	require.False(b, root.HasError())
 }
 
 func jsonSource() []byte {
