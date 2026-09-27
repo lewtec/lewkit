@@ -3,12 +3,12 @@ package gocmd
 
 import (
 	"context"
-	"log/slog"
+	"log"
 	"os/exec"
 )
 
 // Command is one go invocation. Verb is build or run. Empty Verb is build.
-// Each output line is slog.Info.
+// Output goes to log.Writer, which the progress view redirects.
 type Command struct {
 	Verb string
 	Dir  string
@@ -29,8 +29,7 @@ func (c Command) Run(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "go", argv...)
 	cmd.Dir = c.Dir
 	cmd.Env = c.Env
-	log := slog.NewLogLogger(slog.Default().Handler(), slog.LevelInfo).Writer()
-	cmd.Stdout = log
-	cmd.Stderr = log
+	cmd.Stdout = log.Writer()
+	cmd.Stderr = log.Writer()
 	return cmd.Run()
 }
