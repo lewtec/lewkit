@@ -1,0 +1,176 @@
+package {{.PackageID}}
+
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
+import android.os.Bundle
+import android.os.IBinder
+import android.view.View
+import java.io.File
+import kotlin.concurrent.thread
+import android.webkit.WebView
+import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+
+/**
+ * Splash until the Go app prints READY, then pushes that webapp as a window.
+ * Pull-to-refresh pushes the same window again.
+ */
+class MainActivity : AppCompatActivity() {
+    private var webView: WebView? = null
+    private var server: ServerService? = null
+    private var bound = false
+    private var appUrl: String? = null
+
+    private lateinit var splash: View
+    private lateinit var splashStatus: TextView
+    private lateinit var splashDetail: TextView
+    private lateinit var splashProgress: ProgressBar
+    private lateinit var splashRetry: Button
+    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var webContainer: FrameLayout
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            val binder = service as ServerService.LocalBinder
+            server = binder.getService()
+            bound = true
+            server?.setListener(object : ServerService.Listener {
+                override fun onStatus(message: String) {
+                    runOnUiThread { showSplash(message, detail = null, error = false) }
+                }
+
+                override fun onReady(url: String) {
+                    appUrl = url
+                    runOnUiThread {
+                        showSplash(getString(R.string.status_loading), detail = null, error = false)
+                        loadApp(url)
+                    }
+                }
+
+                override fun onFailed(message: String) {
+                    runOnUiThread {
+                        showSplash(getString(R.string.server_failed), detail = message, error = true)
+                    }
+                }
+            })
+            server?.ensureStarted()
+        }
+
+        override fun onServiceDisconnected(name: ComponentName?) {
+            server = null
+            bound = false
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Loopback must never go through a system/VPN HTTP proxy.
+        System.setProperty("java.net.useSystemProxies", "false")
+        System.setProperty("http.nonProxyHosts", "localhost|127.*|[::1]")
+        setContentView(R.layout.activity_main)
+
+        splash = findViewById(R.id.splash)
+        splashStatus = findViewById(R.id.splash_status)
+        splashDetail = findViewById(R.id.splash_detail)
+        splashProgress = findViewById(R.id.splash_progress)
+        splashRetry = findViewById(R.id.splash_retry)
+        swipeRefresh = findViewById(R.id.swipe_refresh)
+        webContainer = findViewById(R.id.webview_container)
+
+        swipeRefresh.setOnRefreshListener { refreshPage() }
+        // Only start pull-to-refresh when the WebView is scrolled to the top.
+        swipeRefresh.setOnChildScrollUpCallback { _, _ ->
+            webView?.canScrollVertically(-1) == true
+        }
+
+        splashRetry.setOnClickListener {
+            showSplash(getString(R.string.loading), detail = null, error = false)
+            val url = appUrl
+            if (url != null) {
+                pushWebWindow(this, url)
+            } else {
+                // Full restart of the Go process path.
+                server?.restart()
+            }
+        }
+
+        startBackend()
+        OpenDrop.handle(this, intent)
+        ShareOut.start(this)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        OpenDrop.handle(this, intent)
+    }
+
+    private fun startBackend() {
+        try {
+            lewkit.Host.app = applicationContext
+            lewkit.Host.onReady = { url ->
+                appUrl = url
+                loadApp(url)
+            }
+            lewkit.Host.onFail = { message ->
+                showSplash(getString(R.string.server_failed), message, true)
+            }
+            lewkit.Host.load()
+            val file = File(cacheDir, "eletrocromo-ready")
+            file.delete()
+            thread(name = "lewkit-go", isDaemon = true) { lewkit.Host.start(file.absolutePath) }
+        } catch (e: UnsatisfiedLinkError) {
+            val svc = Intent(this, ServerService::class.java)
+            startForegroundService(svc)
+            bindService(svc, connection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
+    private fun refreshPage() {
+        val url = appUrl
+        if (url != null) {
+            pushWebWindow(this, url)
+            return
+        }
+        swipeRefresh.isRefreshing = false
+        server?.restart()
+    }
+
+    private fun loadApp(url: String) {
+        pushWebWindow(this, url)
+    }
+
+    private fun showSplash(status: String, detail: String?, error: Boolean) {
+        splash.visibility = View.VISIBLE
+        swipeRefresh.visibility = View.GONE
+        swipeRefresh.isRefreshing = false
+        splashStatus.text = status
+        if (detail.isNullOrBlank()) {
+            splashDetail.visibility = View.GONE
+            splashDetail.text = ""
+        } else {
+            splashDetail.visibility = View.VISIBLE
+            splashDetail.text = detail
+        }
+        splashProgress.visibility = if (error) View.GONE else View.VISIBLE
+        splashRetry.visibility = if (error) View.VISIBLE else View.GONE
+    }
+
+    override fun onDestroy() {
+        if (bound) {
+            server?.setListener(null)
+            unbindService(connection)
+            bound = false
+        }
+        webContainer.removeAllViews()
+        webView?.destroy()
+        webView = null
+        super.onDestroy()
+    }
+}

@@ -23,6 +23,11 @@ const (
 type Screen interface {
 	Device() Device
 	Present(buf *Buffer, width, height int, spirv []byte) error
+	// Fit waits out the previous frame and resizes the swapchain.
+	// JoinPresent appends the present copy onto the open command buffer and submits once.
+	Fit(width, height int) error
+	JoinPresent(buf *Buffer, width, height int, spirv []byte) error
+	Adopt(window uintptr, width, height int) error
 	// Draw paints an optional RGBA8 underlay, rounded-rect instances, then glyph ink.
 	// instances is 16 float32 values per fill. The four SPIR-V arguments are fill vertex,
 	// fill fragment, ink vertex, and ink fragment.
@@ -66,6 +71,27 @@ func (s *screen) Present(buf *Buffer, width, height int, spirv []byte) error {
 		return ffivulkan.ErrClosed
 	}
 	return s.binding.Present(buf, width, height, spirv)
+}
+
+func (s *screen) Fit(width, height int) error {
+	if s == nil || s.binding == nil {
+		return ffivulkan.ErrClosed
+	}
+	return s.binding.Fit(width, height)
+}
+
+func (s *screen) JoinPresent(buf *Buffer, width, height int, spirv []byte) error {
+	if s == nil || s.binding == nil {
+		return ffivulkan.ErrClosed
+	}
+	return s.binding.JoinPresent(buf, width, height, spirv)
+}
+
+func (s *screen) Adopt(window uintptr, width, height int) error {
+	if s == nil || s.binding == nil {
+		return ffivulkan.ErrClosed
+	}
+	return s.binding.Adopt(window, width, height)
 }
 
 func (s *screen) Draw(instances, under, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error {

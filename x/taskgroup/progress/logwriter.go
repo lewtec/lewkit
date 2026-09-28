@@ -42,10 +42,14 @@ func hijackSlog(print func(string)) func() {
 	oldSlog := slog.Default()
 	oldLog := log.Default().Writer()
 	w := &linePrinter{print: print}
-	slog.SetDefault(slog.New(logging.NewHandler(w, &slog.HandlerOptions{
+	var out io.Writer = w
+	if logcat := logging.Logcat(); logcat != nil {
+		out = io.MultiWriter(w, logcat)
+	}
+	slog.SetDefault(slog.New(logging.NewHandler(out, &slog.HandlerOptions{
 		Level: handlerLevel{oldSlog.Handler()},
 	})))
-	log.SetOutput(w)
+	log.SetOutput(out)
 	var once sync.Once
 	return func() {
 		once.Do(func() {

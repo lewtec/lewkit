@@ -260,6 +260,9 @@ func (s *Screen) Draw(instances, under, ink []byte, width, height int, fillVert,
 	if len(instances)%instanceStride != 0 {
 		return ErrSize
 	}
+	if err := s.reclaim(); err != nil {
+		return err
+	}
 	if s.host != nil {
 		s.host.poll()
 	}
@@ -523,10 +526,6 @@ func (s *Screen) recordDraw(index uint32, fills int, backed, inked bool) error {
 		return err
 	}
 	d.recording = true
-	fail := func(err error) error {
-		d.recording = false
-		return err
-	}
 	if fills > 0 {
 		s.bindStorage(s.fillSet, s.fillBuf)
 		s.bufferBarrier(s.fillBuf)
@@ -574,20 +573,7 @@ func (s *Screen) recordDraw(index uint32, fills int, backed, inked bool) error {
 	}
 	d.api.cmdEndRenderPass(d.cmd)
 	s.layouts[index] = layoutPresent
-	if err := check(d.api.endCommandBuffer(d.cmd)); err != nil {
-		return fail(err)
-	}
-	d.recording = false
-	submit := submitInfo{sType: structureSubmitInfo, commandBufferCount: 1, pCommandBuffers: &d.cmd}
-	if err := check(d.api.queueSubmit(d.queue, 1, &submit, d.fence)); err != nil {
-		return err
-	}
-	d.pending = true
-	if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
-		return err
-	}
-	d.pending = false
-	return check(d.api.resetFences(d.dev, 1, &d.fence))
+	return s.submitFrame(index, pipeStageColor)
 }
 
 func (s *Screen) bindStorage(set uint64, buf *Buffer) {

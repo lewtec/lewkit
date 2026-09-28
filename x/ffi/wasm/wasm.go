@@ -5,8 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -39,27 +41,66 @@ func Compile(ctx context.Context, bin []byte, cfg Config) (*Compiled, error) {
 	if cfg.Name == "" {
 		cfg.Name = "module"
 	}
-	config := wazero.NewRuntimeConfig()
-	if dir, err := os.UserCacheDir(); err == nil {
-		cache, err := wazero.NewCompilationCacheWithDir(filepath.Join(dir, "lewtec-lewkit-wasm", cfg.Name))
+	if jitArch() {
+		compiled, err := compileRuntime(ctx, bin, cfg, wazero.NewRuntimeConfigCompiler())
 		if err == nil {
-			config = config.WithCompilationCache(cache)
+			slog.Info("wasm runtime", "name", cfg.Name, "engine", "compiler")
+			return compiled, nil
 		}
+		slog.Info("wasm runtime", "name", cfg.Name, "engine", "interpreter", "compiler_err", err)
+	} else {
+		slog.Info("wasm runtime", "name", cfg.Name, "engine", "interpreter")
 	}
-	runtime := wazero.NewRuntimeWithConfig(ctx, config)
-	if _, err := wasi_snapshot_preview1.Instantiate(ctx, runtime); err != nil {
-		return nil, errors.Join(fmt.Errorf("%w: %w", ErrWASI, err), runtime.Close(ctx))
+	return compileRuntime(ctx, bin, cfg, wazero.NewRuntimeConfigInterpreter())
+}
+
+func jitArch() bool {
+	switch runtime.GOARCH {
+	case "amd64", "arm64":
+		return true
+	default:
+		return false
 	}
-	mod, err := runtime.CompileModule(ctx, bin)
+}
+
+func compileRuntime(ctx context.Context, bin []byte, cfg Config, config wazero.RuntimeConfig) (compiled *Compiled, err error) {
+	var rt wazero.Runtime
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("wasm compiler: %v", recovered)
+			compiled = nil
+			if rt != nil {
+				err = errors.Join(err, rt.Close(context.Background()))
+			}
+		}
+	}()
+	config = withCache(config, cfg.Name)
+	rt = wazero.NewRuntimeWithConfig(ctx, config)
+	if _, err = wasi_snapshot_preview1.Instantiate(ctx, rt); err != nil {
+		return nil, errors.Join(fmt.Errorf("%w: %w", ErrWASI, err), rt.Close(ctx))
+	}
+	mod, err := rt.CompileModule(ctx, bin)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("%w: %s: %w", ErrCompile, cfg.Name, err), runtime.Close(ctx))
+		return nil, errors.Join(fmt.Errorf("%w: %s: %w", ErrCompile, cfg.Name, err), rt.Close(ctx))
 	}
 	if cfg.Emscripten {
-		if err := instantiateEmscripten(ctx, runtime, mod); err != nil {
-			return nil, errors.Join(err, runtime.Close(ctx))
+		if err = instantiateEmscripten(ctx, rt, mod); err != nil {
+			return nil, errors.Join(err, rt.Close(ctx))
 		}
 	}
-	return &Compiled{runtime: runtime, module: mod}, nil
+	return &Compiled{runtime: rt, module: mod}, nil
+}
+
+func withCache(config wazero.RuntimeConfig, name string) wazero.RuntimeConfig {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return config
+	}
+	cache, err := wazero.NewCompilationCacheWithDir(filepath.Join(dir, "lewtec-lewkit-wasm", name))
+	if err != nil {
+		return config
+	}
+	return config.WithCompilationCache(cache)
 }
 
 func instantiateEmscripten(ctx context.Context, runtime wazero.Runtime, mod wazero.CompiledModule) error {

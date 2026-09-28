@@ -2,6 +2,7 @@ package ndeval
 
 import (
 	"context"
+	"errors"
 
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
@@ -12,11 +13,25 @@ const presentGLSL = `#version 450
 layout(local_size_x = 16, local_size_y = 16) in;
 layout(set = 0, binding = 0) buffer Pix { uint o[]; };
 layout(set = 0, binding = 1, rgba8) uniform writeonly image2D dst;
-layout(push_constant) uniform Push { int width; int height; int swapRB; } p;
+layout(push_constant) uniform Push { int width; int height; int swapRB; int turn; } p;
 void main() {
     ivec2 c = ivec2(gl_GlobalInvocationID.xy);
-    if (c.x >= p.width || c.y >= p.height) return;
-    int i = (c.y * p.width + c.x) * 4;
+    int dw = p.width;
+    int dh = p.height;
+    ivec2 s = c;
+    if (p.turn == 2 || p.turn == 8) {
+        dw = p.height;
+        dh = p.width;
+    }
+    if (p.turn == 2) {
+        s = ivec2(c.y, p.height - 1 - c.x);
+    } else if (p.turn == 8) {
+        s = ivec2(p.width - 1 - c.y, c.x);
+    } else if (p.turn == 4) {
+        s = ivec2(p.width - 1 - c.x, p.height - 1 - c.y);
+    }
+    if (c.x >= dw || c.y >= dh || s.x < 0 || s.y < 0 || s.x >= p.width || s.y >= p.height) return;
+    int i = (s.y * p.width + s.x) * 4;
     vec4 v = vec4(float(o[i]), float(o[i+1]), float(o[i+2]), float(o[i+3])) * (1.0 / 255.0);
     if (p.swapRB != 0) v = v.bgra;
     imageStore(dst, c, v);
@@ -80,9 +95,25 @@ func (s *session) paint(screen vulkan.Screen, spirv []byte) error {
 		s.eval.Lock()
 		defer s.eval.Unlock()
 	}
-	if err := s.dispatch(); err != nil {
+	shape := s.kernel.Shape()
+	if err := screen.Fit(shape[1], shape[0]); err != nil {
 		return err
 	}
-	shape := s.kernel.Shape()
-	return screen.Present(s.output, shape[1], shape[0], spirv)
+	if err := s.prepare(); err != nil {
+		return err
+	}
+	cmd, err := s.device.Begin()
+	if err != nil {
+		return err
+	}
+	if err := s.record(cmd); err != nil {
+		return errors.Join(err, cmd.Abort())
+	}
+	if err := cmd.Barrier(); err != nil {
+		return errors.Join(err, cmd.Abort())
+	}
+	if err := screen.JoinPresent(s.output, shape[1], shape[0], spirv); err != nil {
+		return errors.Join(err, cmd.Abort())
+	}
+	return nil
 }

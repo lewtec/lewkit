@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "package_id": "br.tec.lew.drivers",
+  "app_name": "Drivers",
+  "version_name": "0.1.0",
+  "go_main": "."
+}

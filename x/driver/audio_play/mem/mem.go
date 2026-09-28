@@ -1,6 +1,6 @@
 // Package mem records playback in memory.
 //
-// The factory stays incompatible unless LEWKIT_AUDIO_PLAY_MEM is set, so a host
+// The factory stays incompatible unless LEWKIT_ENABLE_MEMORY_DRIVER is set, so a host
 // with no audio server does not pretend to play.
 package mem
 
@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -22,9 +23,9 @@ func (factory) ID() string   { return "audio_play_mem" }
 func (factory) Name() string { return "Memory" }
 func (factory) Weight() int  { return 0 }
 
-func (factory) CheckCompatibility(ctx context.Context) error {
-	if driver.GetEnv(ctx, "LEWKIT_AUDIO_PLAY_MEM") == "" {
-		return fmt.Errorf("%w: memory sound driver", driver.ErrIncompatible)
+func (factory) CheckCompatibility(context.Context) error {
+	if os.Getenv("LEWKIT_ENABLE_MEMORY_DRIVER") == "" {
+		return fmt.Errorf("%w: LEWKIT_ENABLE_MEMORY_DRIVER not set", driver.ErrIncompatible)
 	}
 	return nil
 }

@@ -10,7 +10,7 @@ import (
 )
 
 func TestOpenRecordsPCM(t *testing.T) {
-	t.Setenv("LEWKIT_AUDIO_PLAY_MEM", "1")
+	t.Setenv("LEWKIT_ENABLE_MEMORY_DRIVER", "1")
 	t.Setenv("LEWKIT_FORCE_AUDIO_PLAY_DRIVER", "audio_play_mem")
 	format := pcs.Format{Rate: 8000, Channels: 1, Sample: pcs.SampleS16LE}
 	sinks, err := audio_play.Sinks(t.Context())

@@ -11,6 +11,7 @@ import (
 
 type frameModel struct {
 	scale                float64
+	turn                 float64
 	param, width, height *ndarray.Tensor[float32]
 	pixels               *ndarray.Tensor[float32]
 	elapsed              time.Duration
@@ -54,6 +55,10 @@ func (model *frameModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	}
 	switch message := msg.(type) {
 	case gui.TickMsg:
+		dt := message.Elapsed - model.elapsed
+		if dt > 0 {
+			model.turn += dt.Seconds() * model.scale
+		}
 		model.elapsed = message.Elapsed
 		if message.Size.X > 0 && message.Size.Y > 0 {
 			model.size = message.Size
@@ -81,7 +86,7 @@ func (model *frameModel) write() {
 		return
 	}
 	if buf := model.param.Buffer(); len(buf) > 0 {
-		buf[0] = float32(model.elapsed.Seconds() * model.scale)
+		buf[0] = float32(model.turn)
 	}
 	if model.size.X < 1 || model.size.Y < 1 {
 		return

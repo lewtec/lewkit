@@ -496,7 +496,7 @@ func (b *Buffer) Floats() []float32 {
 	return unsafe.Slice((*float32)(b.ptr), b.size/4)
 }
 
-// Write copies p to the start of the buffer.
+// Write copies p to the start of the buffer after the device is idle.
 func (b *Buffer) Write(p []byte) error {
 	if b == nil || b.buf == 0 || b.ptr == nil {
 		return ErrClosed
@@ -505,6 +505,15 @@ func (b *Buffer) Write(p []byte) error {
 		if err := b.d.WaitIdle(); err != nil {
 			return err
 		}
+	}
+	return b.Store(p)
+}
+
+// Store copies p to the start of the buffer. The caller must already have
+// waited out any GPU read of this buffer.
+func (b *Buffer) Store(p []byte) error {
+	if b == nil || b.buf == 0 || b.ptr == nil {
+		return ErrClosed
 	}
 	if len(p) > b.size {
 		return ErrSize

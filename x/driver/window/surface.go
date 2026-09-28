@@ -14,6 +14,8 @@ const (
 	SurfaceWin32 = 2
 	// SurfaceView is an NSView* in A. Vulkan attaches a CAMetalLayer.
 	SurfaceView = 3
+	// SurfaceAndroid is an ANativeWindow* in A.
+	SurfaceAndroid = 4
 )
 
 // Surfacer is a host window that can lend its native handle.

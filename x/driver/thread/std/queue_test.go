@@ -1,4 +1,4 @@
-package thread
+package std
 
 import (
 	"context"
@@ -54,10 +54,6 @@ func TestGoReturnsWhileLoopBusy(t *testing.T) {
 			require.FailNow(t, "Go blocked while Loop busy")
 		}
 	})
-}
-
-func TestPackageEnqueue(t *testing.T) {
-	assert.NotNil(t, Enqueue)
 }
 
 func TestEnqueueWhenJobsFull(t *testing.T) {

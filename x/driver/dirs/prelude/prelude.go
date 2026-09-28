@@ -2,4 +2,7 @@
 
 package prelude
 
-import _ "github.com/lewtec/lewkit/x/driver/dirs/os"
+import (
+	_ "github.com/lewtec/lewkit/x/driver/dirs/android"
+	_ "github.com/lewtec/lewkit/x/driver/dirs/os"
+)

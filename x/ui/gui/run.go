@@ -41,7 +41,26 @@ type bridgeDisplay struct {
 }
 
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
+	if err := d.sync(); err != nil {
+		if errors.Is(err, vulkan.ErrLost) {
+			return nil
+		}
+		return err
+	}
 	return ndeval.Paint(ctx, d.evaluator, view, d.screen)
+}
+
+func (d bridgeDisplay) sync() error {
+	surfacer, ok := d.Window.(window.Surfacer)
+	if !ok || d.screen == nil {
+		return nil
+	}
+	surface := surfacer.Surface()
+	if surface.A == 0 {
+		return vulkan.ErrLost
+	}
+	size := d.Size()
+	return d.screen.Adopt(surface.A, size.X, size.Y)
 }
 
 func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error {
@@ -52,6 +71,12 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 	var ink []byte
 	if picture.inkFresh && picture.hadInk && picture.inkRGBA != nil {
 		ink = picture.inkRGBA.Pix
+	}
+	if err := d.sync(); err != nil {
+		if errors.Is(err, vulkan.ErrLost) {
+			return nil
+		}
+		return err
 	}
 	under, err := picture.rasterBytes(ctx, d.evaluator, size.X, size.Y)
 	if err != nil {

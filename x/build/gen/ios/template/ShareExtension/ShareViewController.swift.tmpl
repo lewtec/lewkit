@@ -1,0 +1,175 @@
+import UIKit
+import UniformTypeIdentifiers
+import MobileCoreServices
+
+final class ShareViewController: UIViewController {
+    private let groupID = "{{.AppGroupID}}"
+    private let wakeURL = URL(string: "{{.WakeScheme}}://share-ready")!
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        Task { await forward() }
+    }
+
+    private func forward() async {
+        var files: [URL] = []
+        var texts: [String] = []
+        if let items = extensionContext?.inputItems as? [NSExtensionItem] {
+            for item in items {
+                for provider in item.attachments ?? [] {
+                    if let url = await loadBestFile(provider) {
+                        files.append(url)
+                        continue
+                    }
+                    if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier),
+                       let url = await loadURL(provider, UTType.url.identifier),
+                       url.scheme?.lowercased() != "file"
+                    {
+                        texts.append(url.absoluteString)
+                        continue
+                    }
+                    if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier),
+                       let text = try? await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String
+                    {
+                        texts.append(text)
+                    }
+                }
+            }
+        }
+        stash(files: files, texts: texts)
+        _ = openURL(wakeURL)
+        extensionContext?.completeRequest(returningItems: nil)
+    }
+
+    // Photos claims public.file-url but loadItem's URL is often not copyable.
+    // loadFileRepresentation gives a real file that lives for the callback.
+    private func loadBestFile(_ provider: NSItemProvider) async -> URL? {
+        let types = [
+            UTType.image.identifier,
+            UTType.jpeg.identifier,
+            UTType.png.identifier,
+            UTType.heic.identifier,
+            UTType.fileURL.identifier,
+            UTType.data.identifier,
+        ]
+        for type in types {
+            guard provider.hasItemConformingToTypeIdentifier(type) else { continue }
+            if let url = await loadFileCopy(provider, type) {
+                return url
+            }
+        }
+        if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+            return await loadImageFile(provider)
+        }
+        return nil
+    }
+
+    private func loadFileCopy(_ provider: NSItemProvider, _ type: String) async -> URL? {
+        await withCheckedContinuation { cont in
+            _ = provider.loadFileRepresentation(forTypeIdentifier: type) { url, _ in
+                guard let url else {
+                    cont.resume(returning: nil)
+                    return
+                }
+                let dest = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+                do {
+                    if FileManager.default.fileExists(atPath: dest.path) {
+                        try FileManager.default.removeItem(at: dest)
+                    }
+                    try FileManager.default.copyItem(at: url, to: dest)
+                    cont.resume(returning: dest)
+                } catch {
+                    cont.resume(returning: nil)
+                }
+            }
+        }
+    }
+
+    private func loadImageFile(_ provider: NSItemProvider) async -> URL? {
+        if let img = try? await provider.loadItem(forTypeIdentifier: UTType.image.identifier) as? UIImage,
+           let data = img.jpegData(compressionQuality: 0.92)
+        {
+            let dest = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+            try? data.write(to: dest)
+            return dest
+        }
+        if let data = try? await provider.loadItem(forTypeIdentifier: UTType.image.identifier) as? Data {
+            let dest = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".jpg")
+            try? data.write(to: dest)
+            return dest
+        }
+        return nil
+    }
+
+    private func loadURL(_ provider: NSItemProvider, _ type: String) async -> URL? {
+        if let url = try? await provider.loadItem(forTypeIdentifier: type) as? URL {
+            return url
+        }
+        if let url = try? await provider.loadItem(forTypeIdentifier: type) as? NSURL {
+            return url as URL
+        }
+        return nil
+    }
+
+    private func stash(files: [URL], texts: [String]) {
+        let destRoot = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID)
+            ?? FileManager.default.temporaryDirectory
+        let inbox = destRoot.appendingPathComponent("inbox", isDirectory: true)
+        try? FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        var paths: [String] = []
+        for url in files {
+            let dest = inbox.appendingPathComponent(UUID().uuidString + "-" + url.lastPathComponent)
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            try? FileManager.default.copyItem(at: url, to: dest)
+            if FileManager.default.fileExists(atPath: dest.path) {
+                paths.append(dest.path)
+            }
+        }
+        let openFile = destRoot.appendingPathComponent("open.jsonl")
+        if !paths.isEmpty {
+            append(openFile, ["kind": "files", "paths": paths])
+        }
+        for text in texts {
+            if text.contains("://") {
+                append(openFile, ["kind": "url", "url": text])
+            } else {
+                let dest = inbox.appendingPathComponent(UUID().uuidString + ".txt")
+                try? text.write(to: dest, atomically: true, encoding: .utf8)
+                append(openFile, ["kind": "files", "paths": [dest.path]])
+            }
+        }
+        if destRoot != FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: groupID) {
+            UIPasteboard.general.string = "eletrocromo-share"
+        }
+    }
+
+    private func append(_ file: URL, _ obj: [String: Any]) {
+        guard let raw = try? JSONSerialization.data(withJSONObject: obj),
+              var line = String(data: raw, encoding: .utf8)
+        else { return }
+        line += "\n"
+        if let h = try? FileHandle(forWritingTo: file) {
+            defer { try? h.close() }
+            _ = try? h.seekToEnd()
+            try? h.write(contentsOf: Data(line.utf8))
+            return
+        }
+        try? Data(line.utf8).write(to: file)
+    }
+
+    @discardableResult
+    private func openURL(_ url: URL) -> Bool {
+        var responder: UIResponder? = self
+        while let r = responder {
+            if let app = r as? UIApplication {
+                app.open(url)
+                return true
+            }
+            responder = r.next
+        }
+        extensionContext?.open(url, completionHandler: nil)
+        return true
+    }
+}

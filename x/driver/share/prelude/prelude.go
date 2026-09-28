@@ -2,4 +2,7 @@
 
 package prelude
 
-import _ "github.com/lewtec/lewkit/x/driver/share/desktop"
+import (
+	_ "github.com/lewtec/lewkit/x/driver/share/desktop"
+	_ "github.com/lewtec/lewkit/x/driver/share/host"
+)

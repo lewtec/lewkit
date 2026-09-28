@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"unsafe"
 
@@ -41,10 +42,33 @@ const (
 	presentMailbox   = 1
 	presentFIFO      = 2
 	alphaOpaque      = 1
+	alphaPre         = 2
+	alphaPost        = 4
+	alphaInherit     = 8
 	transformIdent   = 1
+	transform90      = 2
+	transform180     = 4
+	transform270     = 8
 	stageBottom      = 0x00002000
 	suboptimal       = 1000001003
 )
+
+// ErrLost means the native window is gone until Android creates another one.
+var ErrLost = errors.New("vulkan: surface lost")
+
+var adoptNative func(*Screen, uintptr, int, int) error
+
+// Adopt points the swapchain at window when the native window was replaced.
+// A zero window reports [ErrLost] so the caller can skip the frame.
+func (s *Screen) Adopt(window uintptr, width, height int) error {
+	if adoptNative != nil {
+		return adoptNative(s, window, width, height)
+	}
+	if window == 0 {
+		return ErrLost
+	}
+	return s.Fit(width, height)
+}
 
 // hostSurface is the native window the swapchain presents to.
 type hostSurface interface {
@@ -82,6 +106,9 @@ type Screen struct {
 	swapRB     int32
 	width      int
 	height     int
+	outW       int
+	outH       int
+	turn       uint32
 	images     []uint64
 	views      []uint64
 	layouts    []int32
@@ -89,7 +116,11 @@ type Screen struct {
 	storeView  uint64
 	storeMem   uint64
 	storeLay   int32
+	storeW     int
+	storeH     int
 	acqFence   uint64
+	acquireSem uint64
+	renderSem  []uint64
 	wsi        wsi
 	pipe       uint64
 	pipeLay    uint64
@@ -365,13 +396,8 @@ func (s *Screen) Present(buf *Buffer, width, height int, spirv []byte) error {
 	if buf == nil || buf.d != s.d || width < 1 || height < 1 {
 		return ErrSize
 	}
-	if s.host != nil {
-		s.host.poll()
-	}
-	if width != s.width || height != s.height {
-		if err := s.resizeTo(width, height); err != nil {
-			return err
-		}
+	if err := s.Fit(width, height); err != nil {
+		return err
 	}
 	if err := s.ensurePipe(spirv); err != nil {
 		return err
@@ -389,6 +415,60 @@ func (s *Screen) Present(buf *Buffer, width, height int, spirv []byte) error {
 	return s.present(index)
 }
 
+// Fit waits for the previous frame and resizes the swapchain to width×height.
+// Call it before recording a command buffer that [JoinPresent] will finish.
+func (s *Screen) Fit(width, height int) error {
+	if s == nil || s.d == nil || s.swap == 0 {
+		return ErrClosed
+	}
+	if width < 1 || height < 1 {
+		return ErrSize
+	}
+	if err := s.reclaim(); err != nil {
+		return err
+	}
+	if s.host != nil {
+		s.host.poll()
+	}
+	if width != s.width || height != s.height {
+		return s.resizeTo(width, height)
+	}
+	return nil
+}
+
+// JoinPresent appends the present copy onto the command buffer already
+// being recorded and submits that buffer once. The swapchain waits on the
+// semaphore the submit signals, so the CPU does not sit between the GPU
+// work and the present.
+func (s *Screen) JoinPresent(buf *Buffer, width, height int, spirv []byte) error {
+	if s == nil || s.d == nil || s.swap == 0 || !s.d.recording {
+		return ErrBusy
+	}
+	if buf == nil || buf.d != s.d || width < 1 || height < 1 {
+		return ErrSize
+	}
+	if width != s.width || height != s.height {
+		return fmt.Errorf("%w: resize while recording", ErrSize)
+	}
+	if err := s.ensurePipe(spirv); err != nil {
+		return err
+	}
+	if err := s.ensureStore(); err != nil {
+		return err
+	}
+	var index uint32
+	if err := s.acquire(&index); err != nil {
+		return err
+	}
+	if err := s.writePresent(buf, index); err != nil {
+		return err
+	}
+	if err := s.submitFrame(index, stageTransfer); err != nil {
+		return err
+	}
+	return s.present(index)
+}
+
 // Close destroys the swapchain, device, and X11 window.
 func (s *Screen) Close() error {
 	if s == nil {
@@ -398,6 +478,7 @@ func (s *Screen) Close() error {
 	var err error
 	if d != nil && d.dev != 0 {
 		err = d.WaitIdle()
+		s.destroySems()
 		s.destroyDraw()
 		s.destroyPipe()
 		if s.storeView != 0 {
@@ -606,6 +687,26 @@ func presentFamily(s *Screen, phys uintptr) (uint32, bool) {
 	return 0, false
 }
 
+func swapUsage(supported uint32) uint32 {
+	const want = usageTransferD | usageColor
+	if supported == 0 || supported&want == want {
+		return want
+	}
+	if supported&usageColor != 0 {
+		return usageColor
+	}
+	return supported
+}
+
+func pickAlpha(supported uint32) uint32 {
+	for _, bit := range []uint32{alphaInherit, alphaOpaque, alphaPre, alphaPost} {
+		if supported&bit != 0 {
+			return bit
+		}
+	}
+	return alphaOpaque
+}
+
 func (s *Screen) makeSwapchain() error {
 	var caps surfaceCaps
 	if err := check(s.wsi.surfaceCaps(s.d.phys, s.surface, &caps)); err != nil {
@@ -624,25 +725,31 @@ func (s *Screen) makeSwapchain() error {
 	if caps.maxImageCount != 0 && count > caps.maxImageCount {
 		count = caps.maxImageCount
 	}
+	turn := uint32(caps.currentTrans)
+	if turn == 0 {
+		turn = transformIdent
+	}
+	s.turn = turn
+	s.outW, s.outH = presentExtent(s.width, s.height, turn)
+	extentW, extentH := uint32(s.outW), uint32(s.outH)
 	info := swapchainInfo{
 		sType:            structureSwap,
 		surface:          s.surface,
 		minImageCount:    count,
 		imageFormat:      format,
 		imageColorSpace:  colorSRGB,
-		imageExtent:      extent2D{uint32(s.width), uint32(s.height)},
+		imageExtent:      extent2D{extentW, extentH},
 		imageArrayLayers: 1,
-		imageUsage:       usageTransferD | usageColor,
-		preTransform:     caps.currentTrans,
-		compositeAlpha:   alphaOpaque,
+		imageUsage:       swapUsage(caps.usage),
+		preTransform:     turn,
+		compositeAlpha:   pickAlpha(caps.alpha),
 		presentMode:      mode,
 		clipped:          1,
 	}
-	if caps.currentTrans == 0 {
-		info.preTransform = transformIdent
-	}
 	if err := check(s.wsi.createSwapchain(s.d.dev, &info, 0, &s.swap)); err != nil {
-		return fmt.Errorf("swapchain: %w", err)
+		err = fmt.Errorf("swapchain: %w format=%d extent=%dx%d alpha=%d usage=%d", err, format, extentW, extentH, info.compositeAlpha, info.imageUsage)
+		log.Print(err)
+		return err
 	}
 	var n uint32
 	if err := check(s.wsi.swapchainImages(s.d.dev, s.swap, &n, nil)); err != nil || n == 0 {
@@ -701,22 +808,14 @@ func (s *Screen) dropSwap() {
 		return
 	}
 	s.destroyFrames()
+	s.destroySems()
 	for _, v := range s.views {
 		if v != 0 && s.wsi.destroyView != nil {
 			s.wsi.destroyView(d.dev, v, 0)
 		}
 	}
 	s.views, s.layouts, s.images = nil, nil, nil
-	if s.storeView != 0 && s.wsi.destroyView != nil {
-		s.wsi.destroyView(d.dev, s.storeView, 0)
-	}
-	if s.store != 0 && s.wsi.destroyImage != nil {
-		s.wsi.destroyImage(d.dev, s.store, 0)
-	}
-	if s.storeMem != 0 {
-		d.api.freeMemory(d.dev, s.storeMem, 0)
-	}
-	s.store, s.storeView, s.storeMem, s.storeLay = 0, 0, 0, 0
+	s.dropStore()
 	if s.swap != 0 && s.wsi.destroySwapchain != nil {
 		s.wsi.destroySwapchain(d.dev, s.swap, 0)
 		s.swap = 0
@@ -757,6 +856,29 @@ func (s *Screen) pickMode() int32 {
 	return choosePresentMode(modes[:n])
 }
 
+// presentExtent is the swapchain size for an upright width×height picture.
+// A 90° or 270° pre-rotation stores that picture in the identity orientation.
+func presentExtent(width, height int, turn uint32) (int, int) {
+	if turn == transform90 || turn == transform270 {
+		return height, width
+	}
+	return width, height
+}
+
+// presentSource is the upright pixel copied into swapchain pixel (x, y).
+func presentSource(turn uint32, width, height, x, y int) (int, int) {
+	switch turn {
+	case transform90:
+		return y, height - 1 - x
+	case transform270:
+		return width - 1 - y, x
+	case transform180:
+		return width - 1 - x, height - 1 - y
+	default:
+		return x, y
+	}
+}
+
 // choosePresentMode waits for the display. Mailbox vsyncs and drops a
 // frame that was not scanned out. FIFO vsyncs and queues. Immediate
 // tears, so it is only used when the device offers nothing else.
@@ -781,10 +903,35 @@ func choosePresentMode(modes []int32) int32 {
 	return presentFIFO
 }
 
+func (s *Screen) dropStore() {
+	d := s.d
+	if d == nil || d.dev == 0 {
+		s.store, s.storeView, s.storeMem, s.storeLay = 0, 0, 0, 0
+		s.storeW, s.storeH = 0, 0
+		return
+	}
+	if s.storeView != 0 && s.wsi.destroyView != nil {
+		s.wsi.destroyView(d.dev, s.storeView, 0)
+	}
+	if s.store != 0 && s.wsi.destroyImage != nil {
+		s.wsi.destroyImage(d.dev, s.store, 0)
+	}
+	if s.storeMem != 0 {
+		d.api.freeMemory(d.dev, s.storeMem, 0)
+	}
+	s.store, s.storeView, s.storeMem, s.storeLay = 0, 0, 0, 0
+	s.storeW, s.storeH = 0, 0
+}
+
 func (s *Screen) ensureStore() error {
-	if s.store != 0 {
+	outW, outH := s.outW, s.outH
+	if outW < 1 || outH < 1 {
+		outW, outH = s.width, s.height
+	}
+	if s.store != 0 && s.storeW == outW && s.storeH == outH {
 		return nil
 	}
+	s.dropStore()
 	var props formatProps
 	s.wsi.formatProps(s.d.phys, formatRGBA, &props)
 	if props.optimal&featureStorage == 0 {
@@ -794,7 +941,7 @@ func (s *Screen) ensureStore() error {
 		sType:     structureImage,
 		imageType: image2D,
 		format:    formatRGBA,
-		extent:    [3]uint32{uint32(s.width), uint32(s.height), 1},
+		extent:    [3]uint32{uint32(outW), uint32(outH), 1},
 		mipLevels: 1,
 		layers:    1,
 		samples:   samples1,
@@ -831,6 +978,7 @@ func (s *Screen) ensureStore() error {
 		return err
 	}
 	s.store, s.storeView, s.storeMem = image, view, mem
+	s.storeW, s.storeH = outW, outH
 	return nil
 }
 
@@ -875,7 +1023,7 @@ func (s *Screen) ensurePipe(spirv []byte) error {
 		s.d.api.destroyShaderModule(s.d.dev, module, 0)
 		return err
 	}
-	push := pushConstantRange{stageFlags: shaderStageCompute, size: 12}
+	push := pushConstantRange{stageFlags: shaderStageCompute, size: 16}
 	layInfo := pipelineLayoutCreateInfo{
 		sType:                  structurePipelineLayoutCreateInfo,
 		setLayoutCount:         1,
@@ -952,20 +1100,102 @@ func (s *Screen) destroyPipe() {
 	}
 }
 
+func (s *Screen) reclaim() error {
+	d := s.d
+	if d == nil || !d.pending {
+		return nil
+	}
+	if d.fence != 0 && d.api.waitForFences != nil {
+		if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
+			return fmt.Errorf("frame wait: %w", err)
+		}
+		if err := check(d.api.resetFences(d.dev, 1, &d.fence)); err != nil {
+			return fmt.Errorf("reset fence: %w", err)
+		}
+	}
+	d.pending = false
+	return nil
+}
+
+func (s *Screen) ensureSems() error {
+	n := len(s.images)
+	if n == 0 || s.d == nil || s.d.api.createSemaphore == nil {
+		return ErrClosed
+	}
+	if s.acquireSem != 0 && len(s.renderSem) == n {
+		return nil
+	}
+	s.destroySems()
+	info := semaphoreCreateInfo{sType: structureSemaphoreCreateInfo}
+	var acquired uint64
+	if err := check(s.d.api.createSemaphore(s.d.dev, &info, 0, &acquired)); err != nil {
+		return fmt.Errorf("semaphore: %w", err)
+	}
+	s.acquireSem = acquired
+	s.renderSem = make([]uint64, n)
+	for i := range s.renderSem {
+		if err := check(s.d.api.createSemaphore(s.d.dev, &info, 0, &s.renderSem[i])); err != nil {
+			return fmt.Errorf("semaphore: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *Screen) destroySems() {
+	if s.d == nil || s.d.dev == 0 || s.d.api.destroySemaphore == nil {
+		s.acquireSem = 0
+		s.renderSem = nil
+		return
+	}
+	if s.acquireSem != 0 {
+		s.d.api.destroySemaphore(s.d.dev, s.acquireSem, 0)
+		s.acquireSem = 0
+	}
+	for _, sem := range s.renderSem {
+		if sem != 0 {
+			s.d.api.destroySemaphore(s.d.dev, sem, 0)
+		}
+	}
+	s.renderSem = nil
+}
+
 func (s *Screen) acquire(index *uint32) error {
-	r := s.wsi.acquire(s.d.dev, s.swap, ^uint64(0), 0, s.acqFence, index)
+	if err := s.ensureSems(); err != nil {
+		return err
+	}
+	r := s.wsi.acquire(s.d.dev, s.swap, ^uint64(0), s.acquireSem, 0, index)
 	if err := presentOK(r); err != nil {
 		return fmt.Errorf("acquire: %w", err)
 	}
-	if err := check(s.d.api.waitForFences(s.d.dev, 1, &s.acqFence, 1, ^uint64(0))); err != nil {
-		return fmt.Errorf("acquire wait: %w", err)
+	if int(*index) >= len(s.renderSem) {
+		return fmt.Errorf("acquire: image %d", *index)
 	}
-	return check(s.d.api.resetFences(s.d.dev, 1, &s.acqFence))
+	return nil
 }
 
 func (s *Screen) record(buf *Buffer, index uint32) error {
 	d := s.d
 	if d.pending || d.recording {
+		return ErrBusy
+	}
+	if err := check(d.api.resetCommandBuffer(d.cmd, 0)); err != nil {
+		return err
+	}
+	begin := commandBufferBeginInfo{sType: structureCommandBufferBeginInfo}
+	if err := check(d.api.beginCommandBuffer(d.cmd, &begin)); err != nil {
+		return err
+	}
+	d.recording = true
+	if err := s.writePresent(buf, index); err != nil {
+		d.recording = false
+		return err
+	}
+	return s.submitFrame(index, stageTransfer)
+}
+
+func (s *Screen) writePresent(buf *Buffer, index uint32) error {
+	d := s.d
+	if d == nil || !d.recording {
 		return ErrBusy
 	}
 	view := s.views[index]
@@ -984,35 +1214,34 @@ func (s *Screen) record(buf *Buffer, index uint32) error {
 		{sType: structureWriteDescriptorSet, dstSet: s.set, dstBinding: 1, descriptorCount: 1, descriptorType: descStorageImage, pImageInfo: uintptr(unsafe.Pointer(&img))},
 	}
 	d.api.updateDescriptorSets(d.dev, 2, &writes[0], 0, 0)
-	if err := check(d.api.resetCommandBuffer(d.cmd, 0)); err != nil {
-		return err
-	}
-	begin := commandBufferBeginInfo{sType: structureCommandBufferBeginInfo}
-	if err := check(d.api.beginCommandBuffer(d.cmd, &begin)); err != nil {
-		return err
-	}
-	d.recording = true
 	if err := d.flush(buf); err != nil {
-		d.recording = false
 		return err
 	}
 	s.barrier(s.store, s.storeLay, layoutGeneral, 0, accessShaderWrite, 0, stageCompute)
 	s.storeLay = layoutGeneral
 	d.api.cmdBindPipeline(d.cmd, bindPointCompute, s.pipe)
 	d.api.cmdBindSets(d.cmd, bindPointCompute, s.pipeLay, 0, 1, &s.set, 0, nil)
-	push := [3]uint32{uint32(s.width), uint32(s.height), uint32(s.swapRB)}
-	d.api.cmdPushConstants(d.cmd, s.pipeLay, shaderStageCompute, 0, 12, uintptr(unsafe.Pointer(&push[0])))
-	gx := uint32((s.width + 15) / 16)
-	gy := uint32((s.height + 15) / 16)
+	outW, outH := s.outW, s.outH
+	if outW < 1 || outH < 1 {
+		outW, outH = s.width, s.height
+	}
+	push := [4]uint32{uint32(s.width), uint32(s.height), uint32(s.swapRB), s.turn}
+	d.api.cmdPushConstants(d.cmd, s.pipeLay, shaderStageCompute, 0, 16, uintptr(unsafe.Pointer(&push[0])))
+	gx := uint32((outW + 15) / 16)
+	gy := uint32((outH + 15) / 16)
 	d.api.cmdDispatch(d.cmd, gx, gy, 1)
 	s.barrier(s.store, layoutGeneral, layoutSrc, accessShaderWrite, accessTransferRead, stageCompute, stageTransfer)
 	s.storeLay = layoutSrc
-	s.barrier(s.images[index], s.layouts[index], layoutDst, 0, accessTransferWrite, 0, stageTransfer)
+	srcStage := uint32(0)
+	if s.layouts[index] == layoutPresent {
+		srcStage = stageTransfer
+	}
+	s.barrier(s.images[index], s.layouts[index], layoutDst, 0, accessTransferWrite, srcStage, stageTransfer)
 	if s.format == formatRGBA {
 		region := imageCopy{
 			srcSub: imageLayers{aspect: aspectColor, layers: 1},
 			dstSub: imageLayers{aspect: aspectColor, layers: 1},
-			extent: [3]uint32{uint32(s.width), uint32(s.height), 1},
+			extent: [3]uint32{uint32(outW), uint32(outH), 1},
 		}
 		s.wsi.cmdCopyImage(d.cmd, s.store, layoutSrc, s.images[index], layoutDst, 1, &region)
 	} else {
@@ -1020,27 +1249,46 @@ func (s *Screen) record(buf *Buffer, index uint32) error {
 			srcSub: imageLayers{aspect: aspectColor, layers: 1},
 			dstSub: imageLayers{aspect: aspectColor, layers: 1},
 		}
-		blit.srcOff[1] = [3]int32{int32(s.width), int32(s.height), 1}
+		blit.srcOff[1] = [3]int32{int32(outW), int32(outH), 1}
 		blit.dstOff[1] = blit.srcOff[1]
 		s.wsi.cmdBlitImage(d.cmd, s.store, layoutSrc, s.images[index], layoutDst, 1, &blit, 0)
 	}
 	s.barrier(s.images[index], layoutDst, layoutPresent, accessTransferWrite, 0, stageTransfer, stageBottom)
 	s.layouts[index] = layoutPresent
+	return nil
+}
+
+func (s *Screen) submitFrame(index uint32, waitStage uint32) error {
+	d := s.d
+	if d == nil || !d.recording {
+		return ErrBusy
+	}
+	if int(index) >= len(s.renderSem) || s.acquireSem == 0 {
+		d.recording = false
+		return ErrClosed
+	}
 	if err := check(d.api.endCommandBuffer(d.cmd)); err != nil {
 		d.recording = false
 		return err
 	}
 	d.recording = false
-	submit := submitInfo{sType: structureSubmitInfo, commandBufferCount: 1, pCommandBuffers: &d.cmd}
+	wait := s.acquireSem
+	signal := s.renderSem[index]
+	submit := submitInfo{
+		sType:                structureSubmitInfo,
+		waitSemaphoreCount:   1,
+		pWaitSemaphores:      uintptr(unsafe.Pointer(&wait)),
+		pWaitDstStageMask:    uintptr(unsafe.Pointer(&waitStage)),
+		commandBufferCount:   1,
+		pCommandBuffers:      &d.cmd,
+		signalSemaphoreCount: 1,
+		pSignalSemaphores:    uintptr(unsafe.Pointer(&signal)),
+	}
 	if err := check(d.api.queueSubmit(d.queue, 1, &submit, d.fence)); err != nil {
 		return fmt.Errorf("present submit: %w", err)
 	}
 	d.pending = true
-	if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
-		return err
-	}
-	d.pending = false
-	return check(d.api.resetFences(d.dev, 1, &d.fence))
+	return nil
 }
 
 func (s *Screen) barrier(image uint64, old, new int32, srcAcc, dstAcc, srcStage, dstStage uint32) {
@@ -1057,7 +1305,15 @@ func (s *Screen) barrier(image uint64, old, new int32, srcAcc, dstAcc, srcStage,
 
 func (s *Screen) present(index uint32) error {
 	swap := s.swap
+	var sem uint64
+	if int(index) < len(s.renderSem) {
+		sem = s.renderSem[index]
+	}
 	info := presentInfo{sType: structurePresent, swapCount: 1, pSwaps: &swap, pIndices: &index}
+	if sem != 0 {
+		info.waitCount = 1
+		info.pWait = uintptr(unsafe.Pointer(&sem))
+	}
 	if err := presentOK(s.wsi.queuePresent(s.d.queue, &info)); err != nil {
 		return fmt.Errorf("queue present: %w", err)
 	}

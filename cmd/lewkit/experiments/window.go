@@ -33,11 +33,11 @@ type triangleCmd struct {
 }
 
 func (triangleCmd) Description() string {
-	return "draw the RGB triangle, one turn per second"
+	return "draw the RGB triangle, one turn every four seconds; plus and minus step by 0.05"
 }
 
 func (c *triangleCmd) Run(ctx context.Context) error {
-	model, err := newFrameModel(1, c.width.Value(), c.height.Value(), triangleDynamic)
+	model, err := newSpinModel(triangleTurnsPerSecond, c.width.Value(), c.height.Value(), triangleDynamic)
 	if err != nil {
 		return err
 	}
@@ -46,6 +46,30 @@ func (c *triangleCmd) Run(ctx context.Context) error {
 		Width:  c.width.Value(),
 		Height: c.height.Value(),
 	}, model)
+}
+
+// TriangleModel is the RGB triangle, one turn every four seconds.
+func TriangleModel(width, height int) (gui.Model, error) {
+	if width <= 0 {
+		width = 800
+	}
+	if height <= 0 {
+		height = 600
+	}
+	return newSpinModel(triangleTurnsPerSecond, width, height, triangleDynamic)
+}
+
+// OpenTriangle opens the RGB triangle in its own window.
+func OpenTriangle(ctx context.Context, width, height int) error {
+	model, err := TriangleModel(width, height)
+	if err != nil {
+		return err
+	}
+	return gui.Open(ctx, model, gui.Options{
+		Title:  "lewkit triangle",
+		Width:  width,
+		Height: height,
+	})
 }
 
 type perlinCmd struct {

@@ -44,6 +44,7 @@ type Picture struct {
 	paintEval   ndarray.Evaluator
 	paintDevice vulkan.Device
 	signature   uint64
+	overlay     uint64
 	inkSig      uint64
 	inkFresh    bool
 	hadInk      bool
@@ -266,7 +267,8 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.accumulator = picture.base
 	accumulator := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, picture)
 	mount := picture.mountable()
-	if mount && picture.mounted == picture.raster && picture.fillCount == 0 && picture.pixels != nil {
+	overlay := picture.overlaySig()
+	if mount && picture.mounted == picture.raster && picture.pixels != nil && overlay == picture.overlay {
 		height, width := int(size.Height), int(size.Width)
 		if err := picture.pixels.Resize(ndarray.Shape{height, width, 4}); err != nil {
 			return nil, err
@@ -318,8 +320,25 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	if mount {
 		picture.mounted = picture.raster
 		picture.recordOnly = true
+		picture.overlay = overlay
 	}
 	return picture.pixels, nil
+}
+
+func (picture *Picture) overlaySig() uint64 {
+	hash := uint64(14695981039346656037)
+	mix := func(value uint64) {
+		hash ^= value
+		hash *= 1099511628211
+	}
+	mix(uint64(len(picture.fills)))
+	for _, fill := range picture.fills {
+		for _, value := range []float32{fill.X, fill.Y, fill.Width, fill.Height, fill.Red, fill.Green, fill.Blue, fill.Alpha, fill.Radius, fill.ClipX, fill.ClipY, fill.ClipWidth, fill.ClipHeight} {
+			mix(uint64(math.Float32bits(value)))
+		}
+	}
+	picture.mixInk(mix)
+	return hash
 }
 
 func (picture *Picture) mountable() bool {
