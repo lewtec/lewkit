@@ -60,7 +60,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/cmd` | `Parse`, `App`. Struct fields become commands and flags. This package writes bash completion. |
 | `x/taskgroup` | `Session`, `New`, `Go`, `Map`, `Each`, `List`, `WithSession`, `GoIsolated`. Pools are IO, CPU, and internet. |
 | `x/taskgroup/progress` | Bubbletea view of a `Session`. |
-| `x/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
+| `x/driver/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
 | `x/future` | `Future`, `NewFuture`, `Get`, `Peek`, `State`. |
 | `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
@@ -71,7 +71,10 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
 | `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Load`. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
-| `x/release` | `Version`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. |
+| `x/release` | `Version`, `AppID`, `ValidateAppID`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. |
+| `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
+| `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. |
+| `x/app` | `Web`, `GUI`, `Open`, `Run`. A window is a web handler or a GUI model on a Vulkan surface. `Run` opens that window, or a loopback server when `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` is set. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
 | `x/generate` | Helpers shared by the generator packages. |
@@ -115,7 +118,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/audio_play/pulse` | Linux playback through libpulse-simple. `Sink` is the PulseAudio sink name. PipeWire serves that API. |
 | `x/driver/audio_play/winmm` | Windows playback through waveOut. `Sink` is a device index or the endpoint name. An empty sink is `WAVE_MAPPER`. |
 | `x/driver/audio_play/coreaudio` | macOS playback through AudioQueue. `Sink` is a device UID or the display name. |
-| `x/driver/audio_play/mem` | Records PCM. Incompatible unless `LEWKIT_AUDIO_PLAY_MEM` is set. |
+| `x/driver/audio_play/mem` | Records PCM. Incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
 | `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. |
@@ -125,6 +128,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan wraps the selected GPU. |
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
+| `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
 | `x/ffi/native/vulkan` | Binding. `Open`, `List`, `Buffer`, `Alloc`, `Shader`, `Compile`, `Run`, `Begin`. |
 | `x/ffi/wasm` | `Compile`, `Compiled.Instantiate`. wazero, with WASI and optional Emscripten. |
 | `x/ffi/wasm/capstone` | Binding. `Open`, `Handle`. |
@@ -174,7 +178,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit experiments demo tree` | A deep tree: release, then fetch, compile, and package. |
 | `lewkit experiments demo lines` | Three rows that rewrite until a newline. |
 | `lewkit experiments demo rsync` | Parallel fake transfers. Each transfer rewrites one row. |
-| `lewkit experiments window triangle` | RGB triangle, one turn per second. Flags `--width` and `--height`. |
+| `lewkit experiments window triangle` | RGB triangle, one turn every four seconds. Plus and minus step the rate by 0.05. Flags `--width` and `--height`. |
 | `lewkit experiments window perlin` | Animated Perlin noise. Flags `--width` and `--height`. |
 | `lewkit experiments window compute [SHADER]` | Default shader `example.comp`. `SHADER` is a `.spv` or `.comp` path. |
 | `lewkit experiments window scroll` | Rounded translucent boxes in a loop. Flags `--width` and `--height`. |

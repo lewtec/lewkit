@@ -11,8 +11,9 @@ import (
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
+	"github.com/lewtec/lewkit/x/driver/thread"
+	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 	"github.com/lewtec/lewkit/x/ffi/native"
-	"github.com/lewtec/lewkit/x/thread"
 )
 
 const (

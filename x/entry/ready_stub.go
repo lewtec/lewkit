@@ -1,0 +1,9 @@
+//go:build !android || !cgo
+
+package entry
+
+// NotifyReady is a no-op where the process has no Android host.
+func NotifyReady(string) {}
+
+// NotifyFail is a no-op where the process has no Android host.
+func NotifyFail(string) {}

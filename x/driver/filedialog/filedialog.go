@@ -11,8 +11,8 @@
 // Linux GTK uses the gtk portal file chooser. Linux Qt uses the KDE portal
 // file chooser. Windows uses the common item dialog. macOS uses NSOpenPanel
 // and NSSavePanel. On macOS and Windows, call
-// [github.com/lewtec/lewkit/x/thread.Bind] from main and run
-// [github.com/lewtec/lewkit/x/thread.Loop]. [github.com/lewtec/lewkit/x/thread.Run]
+// [github.com/lewtec/lewkit/x/driver/thread.Bind] from main and run
+// [github.com/lewtec/lewkit/x/driver/thread.Loop]. [github.com/lewtec/lewkit/x/driver/thread.Run]
 // does both. Choose may be called from another goroutine while Loop is running.
 //
 // Patterns are globs such as "*.mp3". Folder chooses directories. Save chooses

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">{{.AppName}}</string>
+    <string name="server_notification_title">{{.AppName}}</string>
+    <string name="server_notification_text">Local server running</string>
+    <string name="loading">Starting local server…</string>
+    <string name="status_binding">Waiting for server…</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_loading">Loading app…</string>
+    <string name="server_failed">Could not start the app</string>
+    <string name="webview_http_error">Server returned HTTP %1$d</string>
+    <string name="webview_error">Could not load the page</string>
+    <string name="retry">Try again</string>
+</resources>

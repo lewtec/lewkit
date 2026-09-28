@@ -109,6 +109,13 @@ Inherited C (cite the file):
 | `x/driver/clipboard` | `WriteText`, `WriteImage` | host clipboard | protocol stays here | missing tool is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/opener` | `Open` | launch a file or URL | protocol stays here | missing opener is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/dirs` | `Resolve`, `Dirs` | per-app data, cache, config, inbox | protocol stays here | bad app id is `ErrInvalidAppID` | hardcode a product name in the path |
+| `x/driver/dirs/android` | Android `Resolve` | files, cache, and config from the activity context | paths stay here | no Java VM is `driver.ErrIncompatible` | import `x/driver/webview` |
+| `x/driver/bundle` | `Resolve`, `Root`, `SharePath` | stamped reverse-domain tree plus web profile | protocol stays here | missing id is `release.ErrAppIDRequired` | import `x/driver/webview`; replace `x/driver/dirs` |
+| `x/driver/thread` | `Driver` | UI thread for this process | protocol stays here | JNI without a Java looper is `driver.ErrIncompatible` | import `x/ui/gui` |
+| `x/release` | `Version`, `AppID`, `ValidateAppID` | binary stamp | the reverse-domain id stays here | empty id is `ErrAppIDRequired` | import `x/driver` |
+| `x/entry` | `Main`, `Run` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped | import `x/ui/gui` |
+| `x/app` | `Web`, `GUI`, `Open`, `Run` | one window is a web handler or a GUI model | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` |
+| `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here | existing build errors | import `x/driver/webview` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
 | `x/driver/brightness` | `SetBrightness`, `Status`, `Increase`, `Decrease`, `StatusNotification` | display brightness | protocol stays here | missing brightnessctl is `driver.ErrIncompatible` | import `x/ffi`; post the alert here |
@@ -138,7 +145,8 @@ Inherited C (cite the file):
 | `x/driver/audio_play` | `Open`, `Sinks`, `Config` | host sink is the playback writer | protocol stays here | missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/ffi/native/pulse` | `Playback`, `List`, `Stream` | libpulse binding | simple playback stays here | pulse error text | import `x/ffi/wasm`; import `x/driver` |
 | `x/driver/audio_play/pulse` | PulseAudio `Open` | facade of the pulse binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native`; return `pa_simple` |
-| `x/driver/audio_play/mem` | in-memory `Open` | test sink | capture stays here | incompatible unless `LEWKIT_AUDIO_PLAY_MEM` is set | play on a host device |
+| `x/driver/audio_play/mem` | in-memory `Open` | test sink | capture stays here | incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set | play on a host device |
+| `x/driver/window/mem` | in-memory `Open` | test window | pixels stay here | incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set | present on a host surface |
 | `x/ffi/native/winmm` | `Open`, `Devices`, `Stream` | winmm binding | waveOut playback stays here | waveOut error text | import `x/ffi/wasm`; import `x/driver` |
 | `x/driver/audio_play/winmm` | waveOut `Open` | facade of the winmm binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/ffi/native/coreaudio` | `Open`, `Devices`, `Stream` | AudioQueue binding | playback stays here | CoreAudio error text | import `x/ffi/wasm`; import `x/driver` |
@@ -151,7 +159,7 @@ Inherited C (cite the file):
 | `x/driver/filedialog/win32` | common item dialog `Choose` | Windows file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
-| `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter` |
+| `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter`; import `x/ffi/native/android` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
 | `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw` | libvulkan binding | compute plus one graphics draw for the swapchain | existing vulkan errors | import `x/ffi/wasm` |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
@@ -160,6 +168,8 @@ Inherited C (cite the file):
 | `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webkit` | `Load` | WebKit.framework, dlopen | loader stays here | missing framework is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/ffi/native/android` | `JavaVMs`, `OnLooper` | libnativehelper and libandroid | loader stays here | missing library is the load error | import `x/driver` |
+| `x/driver/thread/jni` | Android looper factory | facade of the android binding | selection stays here | no Java looper is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
@@ -185,7 +195,7 @@ Inherited C (cite the file):
 | INV-11 | This module is not a UI library | this repository | advertising `x/ui` as the product; a Flutter widget tree as the public API |
 | INV-12 | Host window events include `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, `Key`, and `Drop` | `x/driver/window` | pointer `Msg` types that the host does not emit |
 | INV-13 | `x/ffi` has no Go package | `x/ffi` | a `.go` file whose package is `ffi` |
-| INV-14 | `x/ffi/native` does not import a nested binding | `x/ffi/native` | an import of `vulkan`, `pulse`, `winmm`, `coreaudio`, `webkitgtk`, `webkit`, or `webview2` |
+| INV-14 | `x/ffi/native` does not import a nested binding | `x/ffi/native` | an import of `vulkan`, `pulse`, `winmm`, `coreaudio`, `webkitgtk`, `webkit`, `webview2`, or `android` |
 | INV-15 | `x/ffi/wasm` does not import `x/ffi/wasm/glsl` | `x/ffi/wasm` | that import |
 | INV-16 | `x/ffi/wasm` does not import `x/ffi/wasm/capstone` | `x/ffi/wasm` | that import |
 | INV-17 | `x/ffi/native/vulkan` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
@@ -196,9 +206,9 @@ Inherited C (cite the file):
 | INV-22 | `x/driver/ndeval` does not import `x/ffi/native/vulkan` | `x/driver/ndeval` | that import |
 | INV-23 | `x/driver/ndeval` does not import `x/ffi/wasm` | `x/driver/ndeval` | that import |
 | INV-24 | `x/disasm` does not import `x/ffi/wasm` | `x/disasm` | that import |
-| INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/thread/id_unix.go` | an import of `x/ffi/wasm` |
+| INV-25 | `id_unix.go` loads libc through `x/ffi/native` | `x/driver/thread/id_unix.go` | an import of `x/ffi/wasm` |
 | INV-26 | `x/driver/window/cocoa` loads frameworks through `x/ffi/native` | cocoa darwin files | an import of `x/ffi/wasm` |
-| INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/thread/main_darwin.go` | an import of `x/ffi/wasm` |
+| INV-27 | `main_darwin.go` loads `pthread_main_np` through `x/ffi/native` | `x/driver/thread/main_darwin.go` | an import of `x/ffi/wasm` |
 | INV-28 | `x/ffi/native/webkitgtk` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
 | INV-29 | `x/driver/webview` does not import `x/ffi/native` | `x/driver/webview` | that import |
 | INV-30 | `Open` does not listen on a socket. The page is memory or `fs.FS`. Script messages are the Go bridge | `x/driver/webview` | `net.Listen`; a loopback URL |
@@ -230,6 +240,10 @@ Inherited C (cite the file):
 | INV-56 | `x/text/report` does not import the root `report` package, `x/ui`, or `x/driver` | `x/text/report` | that import |
 | INV-57 | `x/text/table` does not import `x/cmd` | `x/text/table` | that import |
 | INV-58 | `Open` reuses a handle when the cached flags cover the request. A failed `Open` is not cached. `OpenChain` tries each bare soname through `SearchDirs` once and keeps that result. `Singleton` and `Once` run on the caller goroutine | `x/ffi/native` | a second `dlopen` of the same path when the cached flags already cover the request; a second walk of the same soname chain |
+| INV-59 | `x/release` does not import `x/driver` | `x/release` | that import |
+| INV-60 | `x/driver/bundle` does not import `x/driver/webview` | `x/driver/bundle` | that import |
+| INV-61 | `x/driver/thread/jni` imports `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/thread/jni` | an import of `x/ffi/native` |
+| INV-62 | `x/ffi/native/android` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/android` | an import of `x/driver` |
 
 ## Errors
 
@@ -311,3 +325,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-25: host capabilities that lived in modot and eletrocromo sit under `x/driver`. Volume is sink level, not PCM playback. Launcher is a menu, not a file dialog. Termux backends stay in modot. Screen reset enables outputs; it does not store a hostname layout. Share does not own the eletrocromo JSONL drop.
 - 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.
 - 2026-09-26: `x/text/report` owns diagnostic findings. Output is a text line, a table, a rustc-style snippet, or SARIF 2.1.0. The root `report` package stays the error-reporter registry. The finding table is an `x/text/table` view, so the same columns render as a table, JSONL, or CSV.
+- 2026-09-26: the reverse-domain id is `x/release.AppID`. `x/driver/bundle` is that binary's data, cache, config, and web profile. `x/driver/dirs` stays the generic tree. `lewkit build` writes desktop archives and the Android, macOS, and iOS hosts. A web view request is normalized inside `webview.Dispatch`.

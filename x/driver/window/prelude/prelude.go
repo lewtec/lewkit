@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/window/android"
 	_ "github.com/lewtec/lewkit/x/driver/window/cocoa"
 	_ "github.com/lewtec/lewkit/x/driver/window/mem"
 	_ "github.com/lewtec/lewkit/x/driver/window/win32"

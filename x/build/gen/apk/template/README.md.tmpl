@@ -1,0 +1,60 @@
+# {{.AppName}} (eletrocromo Android)
+
+Generated ad-hoc Android host for package **`{{.PackageID}}`**.
+
+Same model as desktop: Go owns loopback HTTP + auth; this project is a dumb
+WebView shell + foreground service that runs the packaged binary.
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `eletrocromo.json` | Generator config (re-run / rebuild inputs) |
+| `app/` | Kotlin WebView + ServerService |
+| `app/src/main/jniLibs/<abi>/libeletrocromo.so` | Cross-compiled Go app (`ELETROCROMO_NO_UI=1`) |
+| `scripts/build-go.sh` | Multiarch `go build` into jniLibs |
+
+## Prerequisites
+
+- JDK 17+
+- Android SDK (platform 35) + build-tools; `ANDROID_HOME` set
+- Go toolchain that can `GOOS=android` with `CGO_ENABLED=0`
+- Gradle 8.9+ (or open in Android Studio to bootstrap the wrapper)
+
+## Build Go binary (multiarch)
+
+From this directory (after pointing `go_main` in `eletrocromo.json`):
+
+```bash
+./scripts/build-go.sh
+```
+
+ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64`.
+
+Your Go `main` should call `eletrocromo.App.Run()` with
+`ID: "{{.PackageID}}"`. The service sets `ELETROCROMO_NO_UI=1` so Helium is
+skipped and a parseable `ELETROCROMO_READY <url>` line is logged.
+
+## Assemble APK
+
+```bash
+# if no gradlew yet:
+gradle wrapper
+./gradlew assembleDebug
+# APK: app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Regenerate
+
+From the eletrocromo repo:
+
+```bash
+go run ./cmd/eletrocromo android create \
+  --id {{.PackageID}} \
+  --name {{.AppName | printf "%q"}} \
+  --out <this-dir> \
+  --force
+```
+
+Do not hand-edit generated Kotlin if you expect to re-run `create --force`;
+put app logic in the Go module instead.

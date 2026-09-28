@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Multiarch pure-Go build into app/src/main/jniLibs/<abi>/libeletrocromo.so
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT"
+
+if [[ ! -f eletrocromo.json ]]; then
+  echo "missing eletrocromo.json" >&2
+  exit 1
+fi
+
+# Minimal JSON scrape without jq dependency.
+go_main="$(sed -n 's/.*"go_main"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' eletrocromo.json | head -1)"
+if [[ -z "$go_main" ]]; then
+  go_main="."
+fi
+
+# Resolve relative to this project dir (absolute go_main from `android build` is fine).
+if [[ "$go_main" != /* ]]; then
+  go_main="$ROOT/$go_main"
+fi
+if [[ ! -d "$go_main" ]]; then
+  echo "go_main is not a directory: $go_main" >&2
+  exit 1
+fi
+
+build_one() {
+  local goarch="$1"
+  local abi="$2"
+  local outdir="$ROOT/app/src/main/jniLibs/$abi"
+  mkdir -p "$outdir"
+  echo "→ $abi (GOARCH=$goarch)"
+  # Optional goreleaser-style stamps (set by `eletrocromo android build` env or export yourself):
+  #   ELETROCROMO_LDFLAGS='-s -w -X github.com/lewtec/eletrocromo/internal/version.Version=v1.0.0 …'
+  ldflags="${ELETROCROMO_LDFLAGS:--s -w}"
+  (
+    cd "$go_main"
+    CGO_ENABLED=0 GOOS=android GOARCH="$goarch" \
+      go build -trimpath -ldflags="$ldflags" \
+      -o "$outdir/libeletrocromo.so" \
+      .
+  )
+}
+
+build_one arm64 arm64-v8a
+build_one arm armeabi-v7a
+build_one amd64 x86_64
+
+echo "done: jniLibs populated"

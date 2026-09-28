@@ -30,7 +30,7 @@ func Open(ctx context.Context, model Model, options Options) error {
 		defer evaluator.Close()
 		return run(ctx, bridgeDisplay{Window: host, screen: screen, evaluator: evaluator}, nil, model)
 	} else {
-		slog.Debug("swapchain", "err", err)
+		slog.Warn("swapchain", "err", err)
 	}
 	evaluator := options.Evaluator
 	if evaluator == nil {

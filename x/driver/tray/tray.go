@@ -11,8 +11,8 @@
 //
 // Linux speaks org.kde.StatusNotifierItem and com.canonical.dbusmenu on the
 // session bus. Windows uses Shell_NotifyIcon and a Win32 popup menu.
-// macOS uses NSStatusItem. On macOS, call [github.com/lewtec/lewkit/x/thread.Bind]
-// from main and run [github.com/lewtec/lewkit/x/thread.Loop] so AppKit can
+// macOS uses NSStatusItem. On macOS, call [github.com/lewtec/lewkit/x/driver/thread.Bind]
+// from main and run [github.com/lewtec/lewkit/x/driver/thread.Loop] so AppKit can
 // deliver clicks. Open may be called on that thread or from another goroutine
 // while Loop is running.
 //

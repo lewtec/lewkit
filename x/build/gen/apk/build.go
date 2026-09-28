@@ -1,0 +1,358 @@
+package apk
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/lewtec/lewkit/x/build/gocmd"
+	"github.com/lewtec/lewkit/x/build/icons"
+	"github.com/lewtec/lewkit/x/build/version"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/taskgroup"
+)
+
+// Sentinel errors for static build/setup failures (errors.Is / wrap with %w).
+var (
+	ErrOutAPKRequired     = errors.New("out apk path is required (or use --go-only)")
+	ErrUnsupportedABI     = errors.New("unsupported abi")
+	ErrDebugAPKMissing    = errors.New("gradle succeeded but no debug APK under app/build/outputs/apk/debug")
+	ErrSDKEnvNotDir       = errors.New("android SDK env path is not a directory")
+	ErrAndroidSDKNotFound = errors.New("android SDK not found: set ANDROID_HOME (or ANDROID_SDK_ROOT) to the SDK root")
+	ErrGradleNotFound     = errors.New("neither ./gradlew nor gradle on PATH; install Gradle 8.9+ (or Android Studio) and JDK 17")
+)
+
+func applyIconMipmaps(iconRoot, androidResDir string) error {
+	return icons.ApplyAndroidRes(iconRoot, androidResDir)
+}
+
+// BuildOptions drives a full Android APK build from an eletrocromo app.
+type BuildOptions struct {
+	// Config is package identity + go_main (after LoadConfig/Merge/flags).
+	Config Config
+	// BaseDir resolves relative Config.GoMain (config file directory or cwd).
+	BaseDir string
+	// WorkDir holds the generated Gradle project. Empty → temp under os.TempDir.
+	WorkDir string
+	// KeepWorkDir leaves WorkDir in place (always true when WorkDir is set by caller).
+	KeepWorkDir bool
+	// OutAPK is the destination .apk path (directories created). Required for full build.
+	OutAPK string
+	// GoOnly stops after multiarch libeletrocromo.so (no Gradle / no SDK).
+	GoOnly bool
+	// CGO builds the JNI library with cgo and the NDK clang for each ABI.
+	CGO bool
+	// IconRoot is a dist/icons tree with android/mipmap-* (optional; if empty, no mipmaps).
+	IconRoot string
+	// Stdout/Stderr for subprocess logs (default os.Stdout/Stderr).
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+// BuildResult is the outcome of Build.
+type BuildResult struct {
+	// APKPath is the copied/final APK (empty if GoOnly).
+	APKPath string
+	// WorkDir is the generated Android project path.
+	WorkDir string
+	// JNILibs lists built native binaries.
+	JNILibs []string
+}
+
+// Build scaffolds the Android host, cross-compiles the Go app into jniLibs,
+// and (unless GoOnly) runs Gradle assembleDebug and copies the APK to OutAPK.
+func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
+	stdout := opts.Stdout
+	if stdout == nil {
+		stdout = taskgroup.LineWriterFrom(ctx)
+	}
+	stderr := opts.Stderr
+	if stderr == nil {
+		stderr = stdout
+	}
+
+	cfg, err := opts.Config.withDefaults()
+	if err != nil {
+		return nil, err
+	}
+	baseDir := strings.TrimSpace(opts.BaseDir)
+	if baseDir == "" {
+		baseDir, err = os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+	}
+	goMain, err := ResolveGoMain(cfg.GoMain, baseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Stamp version from app tree (git describe) when config omitted version_*.
+	vi, name, code := common.StampPackagingVersion(goMain, opts.Config.VersionName, opts.Config.VersionCode)
+	cfg.VersionName = name
+	cfg.VersionCode = code
+	slog.Info("android version", "version", cfg.VersionName, "code", cfg.VersionCode)
+
+	workDir, ephemeral, err := common.ResolveWorkDir(opts.WorkDir, "eletrocromo-android-*")
+	if err != nil {
+		return nil, err
+	}
+	// Ephemeral work dirs: keep on failure (inspect logs), keep for --go-only
+	// or KeepWorkDir; delete after a successful full APK copy.
+	var buildErr error
+	defer func() {
+		if ephemeral && buildErr == nil && !opts.KeepWorkDir && !opts.GoOnly {
+			if err := os.RemoveAll(workDir); err != nil && stderr != nil {
+				// best-effort cleanup of ephemeral work dir
+				slog.Warn("android cleanup", "err", err)
+			}
+		}
+	}()
+
+	// Host go_main in generated config is absolute so scripts work from workDir.
+	genCfg := cfg
+	genCfg.GoMain = goMain
+
+	slog.Info("android host", "dir", workDir)
+	if err := Create(Options{
+		OutDir: workDir,
+		Force:  true, // work dir is ours or full rebuild
+		Config: genCfg,
+	}); err != nil {
+		buildErr = fmt.Errorf("generate host: %w", err)
+		return nil, buildErr
+	}
+
+	// Manifest expects @mipmap/ic_launcher — always install mipmaps.
+	iconRoot := strings.TrimSpace(opts.IconRoot)
+	if iconRoot == "" {
+		tmpIcons := filepath.Join(workDir, ".eletrocromo-icons")
+		if _, err := icons.Generate(icons.Options{OutputDir: tmpIcons, Force: true, SourcePath: icons.MasterPath(baseDir, cfg.Icon)}); err != nil {
+			buildErr = fmt.Errorf("icons: %w", err)
+			return nil, buildErr
+		}
+		iconRoot = tmpIcons
+	}
+	resDir := filepath.Join(workDir, "app", "src", "main", "res")
+	slog.Info("android icons", "dir", iconRoot)
+	if err := applyIconMipmaps(iconRoot, resDir); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+
+	slog.Info("android go", "abis", genCfg.abis())
+	libs, err := BuildGoLibs(ctx, workDir, goMain, genCfg.abis(), vi, genCfg.PackageID, opts.CGO, stdout)
+	if err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+
+	result := &BuildResult{WorkDir: workDir, JNILibs: libs}
+	if opts.GoOnly {
+		slog.Info("android go-only", "dir", workDir)
+		return result, nil
+	}
+
+	outAPK := strings.TrimSpace(opts.OutAPK)
+	if outAPK == "" {
+		buildErr = ErrOutAPKRequired
+		return nil, buildErr
+	}
+	outAPK, err = filepath.Abs(outAPK)
+	if err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+
+	slog.Info("android gradle")
+	apk, err := AssembleDebug(ctx, workDir)
+	if err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+	if err := os.MkdirAll(filepath.Dir(outAPK), 0o755); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+	if err := copyFile(apk, outAPK); err != nil {
+		buildErr = fmt.Errorf("copy apk: %w", err)
+		return nil, buildErr
+	}
+	result.APKPath = outAPK
+	slog.Info("android apk", "path", outAPK)
+	return result, nil
+}
+
+// BuildGoLibs cross-compiles the app into workDir/app/src/main/jniLibs/<abi>/libeletrocromo.so.
+// stamp is injected via -ldflags -X (goreleaser-style) when apps import internal/version.
+func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, stamp version.Info, appID string, cgoEnabled bool, stdout io.Writer) ([]string, error) {
+	if len(abis) == 0 {
+		abis = DefaultABIs
+	}
+	ldflags := stamp.WithAppID(appID)
+	var out []string
+	for _, abi := range abis {
+		goarch, ok := abiToGOARCH[abi]
+		if !ok {
+			return nil, fmt.Errorf("%w: %q", ErrUnsupportedABI, abi)
+		}
+		destDir := filepath.Join(workDir, "app", "src", "main", "jniLibs", abi)
+		if err := os.MkdirAll(destDir, 0o755); err != nil {
+			return nil, err
+		}
+		dest := filepath.Join(destDir, "libeletrocromo.so")
+		slog.Info("android abi", "abi", abi, "goarch", goarch)
+		cgoFlag := "0"
+		args := []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}
+		if cgoEnabled {
+			args = []string{"-buildmode=c-shared", "-trimpath", "-ldflags", ldflags, "-o", dest, "."}
+		}
+		env := append(os.Environ(), "GOOS=android", "GOARCH="+goarch)
+		if goarch == "arm" {
+			env = append(env, "GOARM=7")
+		}
+		if cgoEnabled {
+			cc, err := ndkCC(goarch)
+			if err != nil {
+				return nil, err
+			}
+			cgoFlag = "1"
+			env = append(env, "CC="+cc)
+			slog.Info("android cgo", "cc", cc)
+		}
+		env = append(env, "CGO_ENABLED="+cgoFlag)
+		if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx); err != nil {
+			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=%s): %w", abi, goarch, cgoFlag, err)
+		}
+		out = append(out, dest)
+	}
+	return out, nil
+}
+
+// AssembleDebug runs Gradle assembleDebug in workDir and returns the debug APK path.
+func AssembleDebug(ctx context.Context, workDir string) (string, error) {
+	if err := requireJDK(ctx); err != nil {
+		return "", err
+	}
+	sdk, err := androidSDK()
+	if err != nil {
+		return "", err
+	}
+	if err := writeLocalProperties(workDir, sdk); err != nil {
+		return "", err
+	}
+
+	gradle, err := resolveGradle(ctx, workDir)
+	if err != nil {
+		return "", err
+	}
+	args := append(gradle[1:], "assembleDebug", "--stacktrace")
+	env := append(os.Environ(),
+		"ANDROID_HOME="+sdk,
+		"ANDROID_SDK_ROOT="+sdk,
+	)
+	if err := gocmd.Tool(ctx, gradle[0], workDir, env, args...); err != nil {
+		return "", fmt.Errorf("gradle assembleDebug: %w\n(work dir left at %s)", err, workDir)
+	}
+
+	// Standard AGP debug output.
+	candidates := []string{
+		filepath.Join(workDir, "app", "build", "outputs", "apk", "debug", "app-debug.apk"),
+	}
+	matches, err := filepath.Glob(filepath.Join(workDir, "app", "build", "outputs", "apk", "debug", "*.apk"))
+	if err != nil {
+		return "", fmt.Errorf("glob debug apk: %w", err)
+	}
+	candidates = append(candidates, matches...)
+	for _, p := range candidates {
+		if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() {
+			return p, nil
+		}
+	}
+	return "", fmt.Errorf("%w (work dir %s)", ErrDebugAPKMissing, workDir)
+}
+
+func requireJDK(ctx context.Context) error {
+	if _, err := execdriver.Which(ctx, "java"); err != nil {
+		return fmt.Errorf("java not found on PATH (need JDK 17+ for Gradle): %w", err)
+	}
+	return nil
+}
+
+func androidSDK() (string, error) {
+	for _, key := range []string{"ANDROID_HOME", "ANDROID_SDK_ROOT"} {
+		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+			if st, err := os.Stat(v); err == nil && st.IsDir() {
+				return v, nil
+			}
+			return "", fmt.Errorf("%w: %s=%q", ErrSDKEnvNotDir, key, v)
+		}
+	}
+	// Common user installs.
+	home, err := os.UserHomeDir()
+	if err == nil {
+		for _, rel := range []string{
+			"Android/Sdk",
+			"Library/Android/sdk",
+			"AppData/Local/Android/Sdk",
+		} {
+			p := filepath.Join(home, rel)
+			if st, err := os.Stat(p); err == nil && st.IsDir() {
+				return p, nil
+			}
+		}
+	}
+	return "", ErrAndroidSDKNotFound
+}
+
+func writeLocalProperties(workDir, sdk string) error {
+	// Gradle local.properties wants forward slashes / escaped backslashes.
+	sdkProp := filepath.ToSlash(sdk)
+	body := fmt.Sprintf("## Generated by eletrocromo android build\nsdk.dir=%s\n", sdkProp)
+	return os.WriteFile(filepath.Join(workDir, "local.properties"), []byte(body), 0o644)
+}
+
+func resolveGradle(ctx context.Context, workDir string) ([]string, error) {
+	wrapper := filepath.Join(workDir, "gradlew")
+	if st, err := os.Stat(wrapper); err == nil && !st.IsDir() {
+		return []string{wrapper}, nil
+	}
+	// Bootstrap wrapper if system gradle exists.
+	if g, err := execdriver.Which(ctx, "gradle"); err == nil {
+		// Prefer system gradle directly (no wrapper jar in template).
+		return []string{g}, nil
+	}
+	return nil, ErrGradleNotFound
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return errors.Join(err, in.Close())
+	}
+	_, copyErr := io.Copy(out, in)
+	// Join so a close failure is not dropped when Copy already failed.
+	return errors.Join(copyErr, out.Close(), in.Close())
+}
+
+// DefaultOutAPK suggests dist/<last-label>-debug.apk under cwd.
+func DefaultOutAPK(packageID, cwd string) string {
+	label := packageID
+	if i := strings.LastIndex(packageID, "."); i >= 0 {
+		label = packageID[i+1:]
+	}
+	if label == "" {
+		label = "app"
+	}
+	return filepath.Join(cwd, "dist", label+"-debug.apk")
+}

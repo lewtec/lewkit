@@ -62,6 +62,8 @@ func TestLineWriterReadFromCloses(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(8), n)
 	assert.Equal(t, []string{"100%"}, committed)
+	_, err = w.Write([]byte("next\n"))
+	require.ErrorIs(t, err, io.ErrClosedPipe)
 }
 
 func TestLineWriterTwoIndependentRows(t *testing.T) {

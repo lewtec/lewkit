@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux && !android
 
 package webkitgtk
 
@@ -264,7 +264,7 @@ func Load() (*Symbols, error) {
 
 func webkitDirs() []string {
 	var dirs []string
-	for _, dir := range strings.Split(os.Getenv("WEBKITGTK_LIB"), string(os.PathListSeparator)) {
+	for dir := range strings.SplitSeq(os.Getenv("WEBKITGTK_LIB"), string(os.PathListSeparator)) {
 		if dir != "" {
 			dirs = append(dirs, dir)
 		}

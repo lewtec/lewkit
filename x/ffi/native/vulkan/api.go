@@ -16,6 +16,7 @@ const (
 	structureDeviceCreateInfo              = 3
 	structureSubmitInfo                    = 4
 	structureFenceCreateInfo               = 8
+	structureSemaphoreCreateInfo           = 9
 	structureMemoryAllocateInfo            = 5
 	structureMappedMemoryRange             = 6
 	structureBufferCreateInfo              = 12
@@ -340,6 +341,12 @@ type fenceCreateInfo struct {
 	flags uint32
 }
 
+type semaphoreCreateInfo struct {
+	sType int32
+	pNext uintptr
+	flags uint32
+}
+
 type extensionProperties struct {
 	name        [256]byte
 	specVersion uint32
@@ -414,6 +421,8 @@ type api struct {
 	destroyFence           func(device uintptr, fence uint64, alloc uintptr)
 	resetFences            func(device uintptr, count uint32, fences *uint64) int32
 	waitForFences          func(device uintptr, count uint32, fences *uint64, waitAll uint32, timeout uint64) int32
+	createSemaphore        func(device uintptr, info *semaphoreCreateInfo, alloc uintptr, semaphore *uint64) int32
+	destroySemaphore       func(device uintptr, semaphore uint64, alloc uintptr)
 }
 
 func libNames() []string {
@@ -544,6 +553,8 @@ func (a *api) loadInstance(inst uintptr) error {
 		{"vkDestroyFence", &a.destroyFence},
 		{"vkResetFences", &a.resetFences},
 		{"vkWaitForFences", &a.waitForFences},
+		{"vkCreateSemaphore", &a.createSemaphore},
+		{"vkDestroySemaphore", &a.destroySemaphore},
 	} {
 		if err := a.bind(a.getInstanceProcAddr, inst, p.name, p.dst); err != nil {
 			return err
@@ -587,6 +598,8 @@ func (a *api) loadDevice(dev uintptr) error {
 		{"vkDestroyFence", &a.destroyFence},
 		{"vkResetFences", &a.resetFences},
 		{"vkWaitForFences", &a.waitForFences},
+		{"vkCreateSemaphore", &a.createSemaphore},
+		{"vkDestroySemaphore", &a.destroySemaphore},
 		{"vkUpdateDescriptorSets", &a.updateDescriptorSets},
 	} {
 		if err := a.bind(a.getDeviceProcAddr, dev, p.name, p.dst); err != nil {

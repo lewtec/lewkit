@@ -23,27 +23,25 @@ func compileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	slog.Debug("glslang compile", "stage", int(stage), "glsl_bytes", len(src))
-	started := time.Now()
-	out, err := compileSPIRV(ctx, stage, src)
-	if err != nil {
-		slog.Debug("glslang compile failed", "elapsed", time.Since(started), "err", err)
-		return nil, err
-	}
-	slog.Debug("glslang compile ok", "spirv_bytes", len(out), "elapsed", time.Since(started))
-	return out, nil
+	return compileSPIRV(ctx, stage, src)
 }
 
 func compileSPIRV(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
+	started := time.Now()
 	mod, err := load(ctx)
+	loaded := time.Since(started)
 	if err != nil {
+		slog.Info("glslang", "stage", int(stage), "load", loaded.Round(time.Millisecond), "err", err)
 		return nil, err
 	}
 	in, err := mod.Instantiate(ctx)
+	instantiated := time.Since(started) - loaded
 	if err != nil {
+		slog.Info("glslang", "stage", int(stage), "load", loaded.Round(time.Millisecond), "instantiate", instantiated.Round(time.Millisecond), "err", err)
 		return nil, err
 	}
 	defer in.Close(ctx)
+	compileStarted := time.Now()
 	srcPtr, err := in.Alloc(ctx, uint32(len(src)+1))
 	if err != nil {
 		return nil, fmt.Errorf("%w: malloc src", ErrCompile)
@@ -63,6 +61,18 @@ func compileSPIRV(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 	}
 	defer in.Free(ctx, lenPtr)
 	code, err := in.Call(ctx, "compile_stage", uint64(stage), uint64(srcPtr), uint64(len(src)), uint64(outPtr), uint64(lenPtr))
+	compiled := time.Since(compileStarted)
+	args := []any{
+		"stage", int(stage),
+		"glsl_bytes", len(src),
+		"load", loaded.Round(time.Millisecond),
+		"instantiate", instantiated.Round(time.Millisecond),
+		"compile", compiled.Round(time.Millisecond),
+	}
+	if err != nil {
+		args = append(args, "err", err)
+	}
+	slog.Info("glslang", args...)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrCompile, err)
 	}

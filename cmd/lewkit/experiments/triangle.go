@@ -14,6 +14,12 @@ const (
 	triCX, triCY = -0.5, 1.0 / 3.0
 )
 
+// triangleTurnsPerSecond is the GUI spin rate. 0.25 is one revolution every four seconds.
+const triangleTurnsPerSecond = 0.25
+
+// triangleTurnStep is how much one plus or minus tap changes the spin rate.
+const triangleTurnStep = 0.05
+
 func triangleAt(h, w int, turn *ndarray.Tensor[float32]) (*ndarray.Tensor[float32], error) {
 	args, err := rasterAt(h, w, turn)
 	if err != nil {

@@ -98,11 +98,28 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 }
 
 func (s *session) dispatch() error {
+	if err := s.prepare(); err != nil {
+		return err
+	}
+	cmd, err := s.device.Begin()
+	if err != nil {
+		return err
+	}
+	if err := s.record(cmd); err != nil {
+		return errors.Join(err, cmd.Abort())
+	}
+	if err := cmd.Submit(); err != nil {
+		return err
+	}
+	return cmd.Wait()
+}
+
+func (s *session) prepare() error {
 	if err := s.fit(); err != nil {
 		return err
 	}
 	for i := 0; i < s.kernel.InputCount(); i++ {
-		if err := s.inputs[i].Write(s.inputBytes(i)); err != nil {
+		if err := s.inputs[i].Store(s.inputBytes(i)); err != nil {
 			return err
 		}
 	}
@@ -114,12 +131,12 @@ func (s *session) dispatch() error {
 	}
 	s.bound[0] = s.output
 	copy(s.bound[1:], s.inputs)
-	cmd, err := s.device.Begin()
-	if err != nil {
-		return err
-	}
+	return nil
+}
+
+func (s *session) record(cmd *vulkan.Cmd) error {
 	if err := cmd.Bind(s.shader, s.bound...); err != nil {
-		return errors.Join(err, cmd.Abort())
+		return err
 	}
 	if cap(s.push) < ndarray.PushBytes {
 		s.push = make([]byte, ndarray.PushBytes)
@@ -128,15 +145,9 @@ func (s *session) dispatch() error {
 	}
 	s.kernel.FillPush(s.push)
 	if err := cmd.Push(s.push); err != nil {
-		return errors.Join(err, cmd.Abort())
-	}
-	if err := cmd.Dispatch(s.kernel.Groups(), 1, 1); err != nil {
-		return errors.Join(err, cmd.Abort())
-	}
-	if err := cmd.Submit(); err != nil {
 		return err
 	}
-	return cmd.Wait()
+	return cmd.Dispatch(s.kernel.Groups(), 1, 1)
 }
 
 func (s *session) fit() error {

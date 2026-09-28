@@ -16,6 +16,9 @@ import (
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/native/vulkan"
 )
 
+// ErrLost means the native window is gone until the host creates another one.
+var ErrLost = ffivulkan.ErrLost
+
 // DeviceType is [ffivulkan.DeviceType]: software, integrated, dedicated, virtual.
 type DeviceType = ffivulkan.DeviceType
 
