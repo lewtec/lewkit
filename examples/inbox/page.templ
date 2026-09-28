@@ -1,0 +1,107 @@
+package main
+
+templ page(v pageView) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="light">
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<title>Inbox</title>
+		<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+		<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+	</head>
+	<body class="min-h-screen">
+		<div class="navbar bg-base-200">
+			<div class="navbar-start">
+				<span class="text-lg font-semibold px-2">Inbox</span>
+			</div>
+		</div>
+		<main class="max-w-lg mx-auto p-4 flex flex-col gap-4">
+			<div role="alert" class="alert">
+				<span>Custom scheme <code>{ v.Scheme }</code>. Files land in Inbox. URLs accept opaque, query, unicode, and <code>name=</code>.</span>
+			</div>
+			<div class="card card-border">
+				<div class="card-body">
+					<h2 class="card-title">Try it</h2>
+					<div class="card-actions flex-wrap">
+						for i, p := range v.Probes {
+							<form method="POST" action="/open">
+								<input type="hidden" name="url" value={ p.Href }/>
+								if i == 0 {
+									<button class="btn btn-primary" type="submit">{ p.Label }</button>
+								} else {
+									<button class="btn btn-outline" type="submit">{ p.Label }</button>
+								}
+							</form>
+						}
+					</div>
+					<form method="POST" action="/note" class="fieldset">
+						<legend class="fieldset-legend">Write into Data</legend>
+						<input class="input w-full" type="text" name="text" placeholder="a note" required/>
+						<button class="btn btn-outline" type="submit">Save note</button>
+					</form>
+					<form method="POST" action="/share" class="fieldset">
+						<legend class="fieldset-legend">Share out</legend>
+						<input class="input w-full" type="text" name="text" placeholder="text to share" required/>
+						<button class="btn btn-outline" type="submit">Share</button>
+					</form>
+				</div>
+			</div>
+			<div class="card card-border">
+				<div class="card-body">
+					<h2 class="card-title">Dirs</h2>
+					<ul class="list">
+						<li class="list-row"><span>Data</span><span class="list-col-grow font-mono text-xs break-all">{ v.Dirs.Data }</span></li>
+						<li class="list-row"><span>Cache</span><span class="list-col-grow font-mono text-xs break-all">{ v.Dirs.Cache }</span></li>
+						<li class="list-row"><span>Config</span><span class="list-col-grow font-mono text-xs break-all">{ v.Dirs.Config }</span></li>
+						<li class="list-row"><span>Inbox</span><span class="list-col-grow font-mono text-xs break-all">{ v.Dirs.Inbox }</span></li>
+					</ul>
+				</div>
+			</div>
+			<div class="card card-border">
+				<div class="card-body">
+					<h2 class="card-title">Opens</h2>
+					if len(v.Events) == 0 {
+						<p class="opacity-70">None yet. On a Mac: <code>./examples/inbox/sim.sh ping</code></p>
+					} else {
+						<ul class="list">
+							for _, ev := range v.Events {
+								<li class="list-row">
+									<span class="badge">{ ev.Kind }</span>
+									<div class="list-col-grow">
+										<div class="font-mono text-sm break-all">{ ev.Text }</div>
+										<div class="text-xs opacity-70">{ ev.When.Format("15:04:05") }</div>
+										if ev.Body != "" {
+											<pre class="mt-2 text-xs whitespace-pre-wrap">{ ev.Body }</pre>
+										}
+									</div>
+								</li>
+							}
+						</ul>
+					}
+				</div>
+			</div>
+			<div class="card card-border">
+				<div class="card-body">
+					<h2 class="card-title">Inbox files</h2>
+					if len(v.Names) == 0 {
+						<p class="opacity-70">Empty</p>
+					} else {
+						<ul class="list">
+							for _, name := range v.Names {
+								<li class="list-row">
+									<span class="list-col-grow font-mono text-sm break-all">{ name }</span>
+									<form method="POST" action="/share-file">
+										<input type="hidden" name="name" value={ name }/>
+										<button class="btn btn-sm btn-outline" type="submit">Share</button>
+									</form>
+								</li>
+							}
+						</ul>
+					}
+				</div>
+			</div>
+		</main>
+	</body>
+	</html>
+}

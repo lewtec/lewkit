@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "package_id": "br.tec.lew.eletrocromo.inbox",
+  "app_name": "Inbox",
+  "version_name": "0.1.0",
+  "go_main": ".",
+  "abis": ["arm64-v8a"],
+  "capabilities": {
+    "share": {},
+    "url": { "schemes": ["eletrocromo-inbox"] },
+    "files": {
+      "types": [
+        { "ext": ".md", "mime": "text/markdown" },
+        { "ext": ".txt", "mime": "text/plain" },
+        { "ext": ".jpg", "mime": "image/jpeg" },
+        { "ext": ".png", "mime": "image/png" },
+        { "ext": ".gif", "mime": "image/gif" },
+        { "ext": ".webp", "mime": "image/webp" },
+        { "ext": ".heic", "mime": "image/heic" }
+      ]
+    }
+  }
+}
