@@ -128,6 +128,7 @@ Inherited C (cite the file):
 | `x/driver/wm` | workspace switch, `AdvanceWorkspace`, `RotateWorkspaces`, scratchpad, focused rect, outputs | compositor IPC | protocol stays here | missing compositor is `driver.ErrIncompatible` | import `x/ffi`; post a notification here |
 | `x/driver/camera` | `List`, `Capture` | one still frame | protocol stays here | missing ffmpeg or video device is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
+| `x/driver/launcher/android` | Android `Confirm` | yes or no from the activity dialog | the dialog stays here | no Java VM is `driver.ErrIncompatible`; the UI thread is `driver.ErrIncompatible`; no foreground activity is `driver.ErrUnavailable` | import `x/ffi/native` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/treesitter` | `Get`, `Open`, `ForFile`, `Parse`, `Names`, `(*Tree).Parsed` | one grammar from a registered engine | protocol stays here | unknown language is `ErrUnknown`; no backend is `driver.ErrNotFound`; a null or error tree is `ErrParse` | import a grammar module |
 | `x/driver/treesitter/ccgo` | ccgo registry | facade of ccgo-tree-sitter | selection stays here | a missing name is skipped | import a ccgo `grammar/<lang>` package |
@@ -244,6 +245,7 @@ Inherited C (cite the file):
 | INV-60 | `x/driver/bundle` does not import `x/driver/webview` | `x/driver/bundle` | that import |
 | INV-61 | `x/driver/thread/jni` imports `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/thread/jni` | an import of `x/ffi/native` |
 | INV-62 | `x/ffi/native/android` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/android` | an import of `x/driver` |
+| INV-63 | `x/driver/launcher/android` imports `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/launcher/android` | an import of `x/ffi/native` |
 
 ## Errors
 

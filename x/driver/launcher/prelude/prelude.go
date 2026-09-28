@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/launcher/android"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/rofi"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/terminal"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/wofi"

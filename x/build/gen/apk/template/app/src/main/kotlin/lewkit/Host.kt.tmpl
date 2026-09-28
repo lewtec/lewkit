@@ -5,6 +5,9 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.view.Surface
+import androidx.appcompat.app.AlertDialog
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 object Host {
     @Volatile
@@ -75,6 +78,62 @@ object Host {
         return dir.absolutePath
     }
 
+    private var confirmDialog: AlertDialog? = null
+    private val confirmSeq = AtomicInteger()
+
+    // confirmResult codes: 0 no, 1 yes, 2 no foreground activity.
+    @JvmStatic
+    fun confirm(message: String) {
+        val id = confirmSeq.incrementAndGet()
+        Handler(Looper.getMainLooper()).post { showConfirm(id, message) }
+    }
+
+    @JvmStatic
+    fun dismissConfirm() {
+        confirmSeq.incrementAndGet()
+        Handler(Looper.getMainLooper()).post {
+            val dialog = confirmDialog ?: return@post
+            confirmDialog = null
+            dialog.setOnCancelListener(null)
+            dialog.dismiss()
+        }
+    }
+
+    private fun showConfirm(id: Int, message: String) {
+        if (id != confirmSeq.get()) {
+            return
+        }
+        confirmDialog?.setOnCancelListener(null)
+        confirmDialog?.dismiss()
+        confirmDialog = null
+        val activity = foreground
+        if (activity == null || activity.isFinishing || activity.isDestroyed) {
+            confirmResult(2)
+            return
+        }
+        val once = AtomicBoolean(false)
+        fun finish(code: Int) {
+            if (id != confirmSeq.get() || !once.compareAndSet(false, true)) {
+                return
+            }
+            confirmDialog = null
+            confirmResult(code)
+        }
+        val dialog = AlertDialog.Builder(activity)
+            .setMessage(message)
+            .setPositiveButton(android.R.string.yes) { _, _ -> finish(1) }
+            .setNegativeButton(android.R.string.no) { _, _ -> finish(0) }
+            .setOnCancelListener { finish(0) }
+            .create()
+        confirmDialog = dialog
+        try {
+            dialog.show()
+        } catch (_: RuntimeException) {
+            confirmDialog = null
+            finish(2)
+        }
+    }
+
     @JvmStatic
     external fun start(readyFile: String)
 
@@ -89,4 +148,7 @@ object Host {
 
     @JvmStatic
     external fun surfaceLost()
+
+    @JvmStatic
+    external fun confirmResult(code: Int)
 }

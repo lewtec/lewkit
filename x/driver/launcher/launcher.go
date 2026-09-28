@@ -4,7 +4,7 @@
 //	text, err := launcher.Prompt(ctx, "Name")
 //	ok, err := launcher.Confirm(ctx, "Delete?")
 //
-// Import a backend (rofi, wofi, zenity, terminal). Rofi and wofi also
+// Import a backend (android, rofi, wofi, zenity, terminal). Rofi and wofi also
 // launch applications and switch windows.
 package launcher
 

@@ -187,3 +187,28 @@ func Java_lewkit_Host_resize(env *C.JNIEnv, class C.jclass, width, height C.jint
 	}
 	fn(int(width), int(height))
 }
+
+type confirmHandler func(code int)
+
+var confirmFn atomic.Pointer[confirmHandler]
+
+// HandleConfirm receives one activity dialog result.
+// code 0 is no, 1 is yes, and 2 means no foreground activity.
+// A nil fn clears the handler.
+func HandleConfirm(fn func(code int)) {
+	if fn == nil {
+		confirmFn.Store(nil)
+		return
+	}
+	h := confirmHandler(fn)
+	confirmFn.Store(&h)
+}
+
+//export Java_lewkit_Host_confirmResult
+func Java_lewkit_Host_confirmResult(env *C.JNIEnv, class C.jclass, code C.jint) {
+	fn := confirmFn.Load()
+	if fn == nil || *fn == nil {
+		return
+	}
+	(*fn)(int(code))
+}
