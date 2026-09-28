@@ -8,12 +8,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/taskgroup"
+	"github.com/lewtec/lewkit/x/build/gocmd"
 )
 
 func runBuilt(ctx context.Context, goos, goarch, archive string) error {
@@ -136,9 +135,5 @@ func adbBin() string {
 }
 
 func runTool(ctx context.Context, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
-	out := taskgroup.LineWriterFrom(ctx)
-	cmd.Stdout = out
-	cmd.Stderr = out
-	return cmd.Run()
+	return gocmd.Tool(ctx, name, "", nil, args...)
 }

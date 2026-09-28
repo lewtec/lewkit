@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -237,7 +237,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 
 // AssembleDebug runs Gradle assembleDebug in workDir and returns the debug APK path.
 func AssembleDebug(ctx context.Context, workDir string) (string, error) {
-	if err := requireJDK(); err != nil {
+	if err := requireJDK(ctx); err != nil {
 		return "", err
 	}
 	sdk, err := androidSDK()
@@ -248,7 +248,7 @@ func AssembleDebug(ctx context.Context, workDir string) (string, error) {
 		return "", err
 	}
 
-	gradle, err := resolveGradle(workDir)
+	gradle, err := resolveGradle(ctx, workDir)
 	if err != nil {
 		return "", err
 	}
@@ -278,8 +278,8 @@ func AssembleDebug(ctx context.Context, workDir string) (string, error) {
 	return "", fmt.Errorf("%w (work dir %s)", ErrDebugAPKMissing, workDir)
 }
 
-func requireJDK() error {
-	if _, err := exec.LookPath("java"); err != nil {
+func requireJDK(ctx context.Context) error {
+	if _, err := execdriver.Which(ctx, "java"); err != nil {
 		return fmt.Errorf("java not found on PATH (need JDK 17+ for Gradle): %w", err)
 	}
 	return nil
@@ -318,13 +318,13 @@ func writeLocalProperties(workDir, sdk string) error {
 	return os.WriteFile(filepath.Join(workDir, "local.properties"), []byte(body), 0o644)
 }
 
-func resolveGradle(workDir string) ([]string, error) {
+func resolveGradle(ctx context.Context, workDir string) ([]string, error) {
 	wrapper := filepath.Join(workDir, "gradlew")
 	if st, err := os.Stat(wrapper); err == nil && !st.IsDir() {
 		return []string{wrapper}, nil
 	}
 	// Bootstrap wrapper if system gradle exists.
-	if g, err := exec.LookPath("gradle"); err == nil {
+	if g, err := execdriver.Which(ctx, "gradle"); err == nil {
 		// Prefer system gradle directly (no wrapper jar in template).
 		return []string{g}, nil
 	}

@@ -13,13 +13,15 @@
 package version
 
 import (
+	"context"
 	"os"
-	"os/exec"
 	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 func getwd() (string, error) { return os.Getwd() }
@@ -156,9 +158,9 @@ func fillFromGit(info *Info, dir string) {
 }
 
 func gitOutput(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+	cmd := execdriver.MustCommand("git", args...)
 	cmd.Dir = dir
-	out, err := cmd.Output()
+	out, err := execdriver.Output(context.Background(), cmd)
 	if err != nil {
 		return "", err
 	}
