@@ -105,6 +105,7 @@ Inherited C (cite the file):
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
 | `x/driver/tray` | `Open`, `Tray`, `Icon`, `Item` | host status item | protocol stays here | missing session bus or host is the tray error | import `x/ffi/wasm` |
 | `x/driver/daynight` | `Current`, `Watch`, `Mode` | light or dark | protocol stays here | missing portal or host is `driver.ErrUnavailable` | import `x/ui/gui`; import `x/driver/webview`; import `x/ffi/wasm` |
+| `x/driver/daynight/android` | Android `Current`, `Watch` | `UI_MODE_NIGHT` from the application configuration | the host callback stays here | no Java VM is `driver.ErrIncompatible`; an empty scheme is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ui/gui`; import `x/driver/webview` |
 | `x/driver/notification` | `Notify`, `Notification` | one local alert | protocol stays here | missing backend is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/clipboard` | `WriteText`, `WriteImage` | host clipboard | protocol stays here | missing tool is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/opener` | `Open` | launch a file or URL | protocol stays here | missing opener is `driver.ErrUnavailable` | import `x/ffi` |
@@ -326,3 +327,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.
 - 2026-09-26: `x/text/report` owns diagnostic findings. Output is a text line, a table, a rustc-style snippet, or SARIF 2.1.0. The root `report` package stays the error-reporter registry. The finding table is an `x/text/table` view, so the same columns render as a table, JSONL, or CSV.
 - 2026-09-26: the reverse-domain id is `x/release.AppID`. `x/driver/bundle` is that binary's data, cache, config, and web profile. `x/driver/dirs` stays the generic tree. `lewkit build` writes desktop archives and the Android, macOS, and iOS hosts. A web view request is normalized inside `webview.Dispatch`.
+- 2026-09-28: Android light or dark is `x/driver/daynight/android`. It reads `lewkit.Host.colorScheme` and receives `night` when the configuration changes. Activities keep `uiMode` so the process is not recreated.

@@ -187,3 +187,22 @@ func Java_lewkit_Host_resize(env *C.JNIEnv, class C.jclass, width, height C.jint
 	}
 	fn(int(width), int(height))
 }
+
+var nightFn atomic.Value
+
+// HandleNight receives the Android UI night bit. 1 is dark. 0 is light.
+func HandleNight(fn func(mode int)) {
+	if fn == nil {
+		return
+	}
+	nightFn.Store(fn)
+}
+
+//export Java_lewkit_Host_night
+func Java_lewkit_Host_night(env *C.JNIEnv, class C.jclass, mode C.jint) {
+	fn, ok := nightFn.Load().(func(int))
+	if !ok || fn == nil {
+		return
+	}
+	fn(int(mode))
+}

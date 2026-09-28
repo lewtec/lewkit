@@ -1,7 +1,10 @@
 package lewkit
 
+import android.app.Application
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Handler
 import android.os.Looper
 import android.view.Surface
@@ -75,6 +78,42 @@ object Host {
         return dir.absolutePath
     }
 
+    @Volatile
+    private var watchingUi = false
+
+    private var lastNight = -1
+
+    fun watchUiMode(application: Application) {
+        if (watchingUi) {
+            return
+        }
+        watchingUi = true
+        lastNight = nightBit(application.resources.configuration)
+        application.registerComponentCallbacks(object : ComponentCallbacks {
+            override fun onConfigurationChanged(newConfig: Configuration) {
+                val bit = nightBit(newConfig)
+                if (bit == lastNight) {
+                    return
+                }
+                lastNight = bit
+                night(bit)
+            }
+
+            override fun onLowMemory() {}
+        })
+    }
+
+    @JvmStatic
+    fun colorScheme(): String {
+        val ctx = app ?: return ""
+        return if (nightBit(ctx.resources.configuration) == 1) "dark" else "light"
+    }
+
+    private fun nightBit(config: Configuration): Int {
+        val night = config.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return if (night == Configuration.UI_MODE_NIGHT_YES) 1 else 0
+    }
+
     @JvmStatic
     external fun start(readyFile: String)
 
@@ -89,4 +128,7 @@ object Host {
 
     @JvmStatic
     external fun surfaceLost()
+
+    @JvmStatic
+    external fun night(mode: Int)
 }

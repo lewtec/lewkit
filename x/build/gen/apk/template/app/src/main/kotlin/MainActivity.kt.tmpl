@@ -122,6 +122,7 @@ class MainActivity : AppCompatActivity() {
                 showSplash(getString(R.string.server_failed), message, true)
             }
             lewkit.Host.load()
+            lewkit.Host.watchUiMode(application)
             val file = File(cacheDir, "eletrocromo-ready")
             file.delete()
             thread(name = "lewkit-go", isDaemon = true) { lewkit.Host.start(file.absolutePath) }
