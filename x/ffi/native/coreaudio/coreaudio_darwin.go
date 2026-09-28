@@ -93,8 +93,6 @@ func statusErr(st int32) error {
 	return fmt.Errorf("%w: %d", errCoreAudio, st)
 }
 
-func cString(s string) []byte { return native.CString(s) }
-
 func cfString(ref uintptr) string {
 	if ref == 0 {
 		return ""
@@ -256,7 +254,7 @@ func Open(ctx context.Context, uid string, layout Layout) (*Stream, error) {
 		return nil, statusErr(st)
 	}
 	if uid != "" {
-		raw := cString(uid)
+		raw := native.CString(uid)
 		ref := cfCreate(0, uintptr(unsafe.Pointer(&raw[0])), cfUTF8)
 		if ref == 0 {
 			queueDispose(q, 1)

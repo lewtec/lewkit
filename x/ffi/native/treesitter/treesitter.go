@@ -68,11 +68,11 @@ func Available() error {
 }
 
 func bindRuntime() error {
-	lib, err := openFirst(runtimeSonames())
+	lib, err := native.OpenChain(native.Now|native.Global, runtimeSonames()...)
 	if err != nil {
 		return err
 	}
-	libc, err := openFirst([]string{libcSoname()})
+	libc, err := native.OpenChain(native.Now|native.Global, libcSoname())
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func OpenLanguage(name string) (Language, error) {
 	if lang, ok := langs[name]; ok {
 		return lang, nil
 	}
-	lib, err := openFirst(grammarSonames(name))
+	lib, err := native.OpenChain(native.Now|native.Global, grammarSonames(name)...)
 	if err != nil {
 		return 0, err
 	}
@@ -276,7 +276,7 @@ func (n Node) Type() string {
 	if !n.live() {
 		return ""
 	}
-	return goString(nodeType(n.raw))
+	return native.GoString(nodeType(n.raw))
 }
 
 // StartByte returns the start offset.
@@ -316,7 +316,7 @@ func (n Node) FieldNameForChild(index uint32) string {
 	if !n.live() {
 		return ""
 	}
-	return goString(nodeFieldName(n.raw, index))
+	return native.GoString(nodeFieldName(n.raw, index))
 }
 
 // NamedChildCount returns the number of named children.
@@ -359,7 +359,7 @@ func (n Node) String() string {
 	if p == 0 {
 		return ""
 	}
-	s := goString(p)
+	s := native.GoString(p)
 	libcFree(p)
 	return s
 }
@@ -396,13 +396,6 @@ func symbolName(name string) string {
 	return "tree_sitter_" + strings.ReplaceAll(name, "-", "_")
 }
 
-func openFirst(sonames []string) (uintptr, error) {
-	if len(sonames) == 0 {
-		return 0, errUnavailable
-	}
-	return native.OpenChain(native.Now|native.Global, sonames...)
-}
-
 // grammarName returns the language name from a libtree-sitter-<name> file.
 func grammarName(file string) (string, bool) {
 	rest, ok := strings.CutPrefix(filepath.Base(file), "libtree-sitter-")
@@ -417,5 +410,3 @@ func grammarName(file string) (string, bool) {
 	}
 	return "", false
 }
-
-func goString(p uintptr) string { return native.GoString(p) }

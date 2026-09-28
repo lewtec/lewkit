@@ -3,10 +3,7 @@ package pulse
 
 import (
 	"errors"
-	"fmt"
 	"unsafe"
-
-	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var (
@@ -34,26 +31,9 @@ type Sink struct {
 	Description string
 }
 
-func openLib(soname string) (uintptr, error) {
-	lib, err := native.OpenChain(native.Lazy, soname)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", soname, err)
-	}
-	return lib, nil
-}
-
-func cString(s string) []byte {
-	if s == "" {
-		return nil
-	}
-	return native.CString(s)
-}
-
 func ptr(b []byte) uintptr {
 	if len(b) == 0 {
 		return 0
 	}
 	return uintptr(unsafe.Pointer(&b[0]))
 }
-
-func goString(p uintptr) string { return native.GoString(p) }

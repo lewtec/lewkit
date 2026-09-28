@@ -8,7 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
-	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 type pinnedBytes struct {
@@ -35,8 +34,6 @@ func pinBytes(body []byte) uintptr {
 	pinnedBlobs.Store(pointer, blob)
 	return pointer
 }
-
-func cStringBytes(text string) []byte { return native.CString(text) }
 
 func cStringPointer(text []byte) *byte {
 	if len(text) == 0 {

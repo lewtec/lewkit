@@ -457,14 +457,6 @@ func darwinLibDirs() []string {
 	return dirs
 }
 
-func openLib() (uintptr, error) {
-	lib, err := native.OpenChain(native.Lazy, libNames()...)
-	if err != nil {
-		return 0, fmt.Errorf("%w: %v", ErrUnavailable, err)
-	}
-	return lib, nil
-}
-
 func (a *api) bind(get func(uintptr, string) uintptr, handle uintptr, name string, dst any) error {
 	addr := get(handle, name)
 	if addr == 0 {

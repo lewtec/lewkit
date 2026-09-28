@@ -71,13 +71,13 @@ var available = native.Once(bindAll)
 func Available() error { return available() }
 
 func bindAll() error {
-	simple, err := openLib("libpulse-simple.so.0")
+	simple, err := native.OpenChain(native.Lazy, "libpulse-simple.so.0")
 	if err != nil {
-		return err
+		return fmt.Errorf("libpulse-simple.so.0: %w", err)
 	}
-	full, err := openLib("libpulse.so.0")
+	full, err := native.OpenChain(native.Lazy, "libpulse.so.0")
 	if err != nil {
-		return err
+		return fmt.Errorf("libpulse.so.0: %w", err)
 	}
 	binds := []struct {
 		lib  uintptr
@@ -113,7 +113,7 @@ func bindAll() error {
 }
 
 func pulseErr(code int32) error {
-	text := goString(strerror(code))
+	text := native.GoString(strerror(code))
 	if text == "" {
 		return errUnavailable
 	}
@@ -155,9 +155,12 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 		minreq: uint32(period),
 		frag:   ^uint32(0),
 	}
-	clientB := cString(client)
-	sinkB := cString(sink)
-	streamB := cString(stream)
+	clientB := native.CString(client)
+	var sinkB []byte
+	if sink != "" {
+		sinkB = native.CString(sink)
+	}
+	streamB := native.CString(stream)
 	var errno int32
 	h := simpleNew(0, ptr(clientB), streamPlayback, ptr(sinkB), ptr(streamB), uintptr(unsafe.Pointer(&spec)), 0, uintptr(unsafe.Pointer(&attr)), &errno)
 	runtime.KeepAlive(clientB)
@@ -245,7 +248,7 @@ func List(ctx context.Context) ([]Sink, error) {
 		return nil, errMainloop
 	}
 	defer mainloopFree(loop)
-	name := cString("lewkit")
+	name := native.CString("lewkit")
 	ctxp := contextNew(mainloopAPI(loop), ptr(name))
 	runtime.KeepAlive(name)
 	if ctxp == 0 {
@@ -320,8 +323,8 @@ func onSink(_, info, eol, userdata uintptr) uintptr {
 	if info == 0 {
 		return 0
 	}
-	name := goString(*(*uintptr)(unsafe.Pointer(info)))
-	description := goString(*(*uintptr)(unsafe.Pointer(info + 16)))
+	name := native.GoString(*(*uintptr)(unsafe.Pointer(info)))
+	description := native.GoString(*(*uintptr)(unsafe.Pointer(info + 16)))
 	state.sinks = append(state.sinks, Sink{Name: name, Description: description})
 	return 0
 }
