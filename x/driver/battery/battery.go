@@ -3,8 +3,9 @@
 //	status, err := battery.BatteryStatus(ctx)
 //	if errors.Is(err, battery.ErrNoBattery) {
 //
-// Import [github.com/lewtec/lewkit/x/driver/battery/linux]. The backend
-// reads the first /sys/class/power_supply/BAT* status file.
+// Import [github.com/lewtec/lewkit/x/driver/battery/linux] or
+// [github.com/lewtec/lewkit/x/driver/battery/android]. Linux reads the first
+// /sys/class/power_supply/BAT* status file. Android calls lewkit.Host.batteryStatus.
 package battery
 
 import (
@@ -14,7 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
-// ErrNoBattery means sysfs has no BAT* supply.
+// ErrNoBattery means the host has no battery.
 var ErrNoBattery = errors.New("no battery found")
 
 // Status is the kernel power_supply status string.

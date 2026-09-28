@@ -2,9 +2,12 @@ package lewkit
 
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Handler
 import android.os.Looper
 import android.view.Surface
+import androidx.core.content.ContextCompat
 
 object Host {
     @Volatile
@@ -73,6 +76,28 @@ object Host {
         val dir = java.io.File(ctx.filesDir, "config")
         dir.mkdirs()
         return dir.absolutePath
+    }
+
+    @JvmStatic
+    fun batteryStatus(): String {
+        val ctx = app ?: return ""
+        val intent = ContextCompat.registerReceiver(
+            ctx,
+            null,
+            IntentFilter(Intent.ACTION_BATTERY_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        ) ?: return ""
+        // A missing EXTRA_PRESENT still reports status. False means no battery.
+        if (!intent.getBooleanExtra(BatteryManager.EXTRA_PRESENT, true)) {
+            return ""
+        }
+        return when (intent.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)) {
+            BatteryManager.BATTERY_STATUS_CHARGING -> "Charging"
+            BatteryManager.BATTERY_STATUS_DISCHARGING -> "Discharging"
+            BatteryManager.BATTERY_STATUS_FULL -> "Full"
+            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "Not charging"
+            else -> "Unknown"
+        }
     }
 
     @JvmStatic
