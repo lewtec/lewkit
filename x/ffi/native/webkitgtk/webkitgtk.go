@@ -186,7 +186,7 @@ func Load() (*Symbols, error) {
 	if err := bind(web, "webkit_web_view_get_type", &s.webViewType); err != nil {
 		return nil, err
 	}
-	_ = tryBind(web, "webkit_network_session_new", &s.networkSession)
+	_ = native.Bind(web, "webkit_network_session_new", &s.networkSession)
 	if err := bind(web, "webkit_web_view_load_html", &s.loadHTML); err != nil {
 		return nil, err
 	}
@@ -241,18 +241,18 @@ func Load() (*Symbols, error) {
 	if err := bind(web, "webkit_uri_scheme_request_get_uri", &s.requestURI); err != nil {
 		return nil, err
 	}
-	_ = tryBind(web, "webkit_uri_scheme_request_get_http_method", &s.requestMethod)
-	_ = tryBind(web, "webkit_uri_scheme_request_get_http_body", &s.requestBody)
-	_ = tryBind(gio, "g_input_stream_read", &s.streamRead)
-	_ = tryBind(gio, "g_unix_input_stream_new", &s.unixInputStream)
-	_ = tryBind(web, "webkit_uri_scheme_response_new", &s.responseNew)
-	_ = tryBind(web, "webkit_uri_scheme_response_set_status", &s.responseStatus)
-	_ = tryBind(web, "webkit_uri_scheme_response_set_content_type", &s.responseContentType)
-	_ = tryBind(web, "webkit_uri_scheme_response_set_http_headers", &s.responseHeaders)
-	_ = tryBind(web, "webkit_uri_scheme_request_finish_with_response", &s.finishWithResponse)
+	_ = native.Bind(web, "webkit_uri_scheme_request_get_http_method", &s.requestMethod)
+	_ = native.Bind(web, "webkit_uri_scheme_request_get_http_body", &s.requestBody)
+	_ = native.Bind(gio, "g_input_stream_read", &s.streamRead)
+	_ = native.Bind(gio, "g_unix_input_stream_new", &s.unixInputStream)
+	_ = native.Bind(web, "webkit_uri_scheme_response_new", &s.responseNew)
+	_ = native.Bind(web, "webkit_uri_scheme_response_set_status", &s.responseStatus)
+	_ = native.Bind(web, "webkit_uri_scheme_response_set_content_type", &s.responseContentType)
+	_ = native.Bind(web, "webkit_uri_scheme_response_set_http_headers", &s.responseHeaders)
+	_ = native.Bind(web, "webkit_uri_scheme_request_finish_with_response", &s.finishWithResponse)
 	if soup, err := openOne("libsoup-3.0.so.0"); err == nil {
-		_ = tryBind(soup, "soup_message_headers_new", &s.headersNew)
-		_ = tryBind(soup, "soup_message_headers_append", &s.headersAppend)
+		_ = native.Bind(soup, "soup_message_headers_new", &s.headersNew)
+		_ = native.Bind(soup, "soup_message_headers_append", &s.headersAppend)
 	}
 	if err := bind(web, "webkit_uri_scheme_request_finish", &s.finishRequest); err != nil {
 		return nil, err
@@ -277,36 +277,23 @@ func libraryDirectories() []string {
 }
 
 func openOne(soname string) (uintptr, error) {
-	var last error
-	for _, dir := range libraryDirectories() {
-		lib, err := native.Open(filepath.Join(dir, soname), native.Global|native.Lazy)
-		if err == nil {
-			return lib, nil
-		}
-		last = err
+	dirs := libraryDirectories()
+	paths := make([]string, 0, len(dirs)+1)
+	for _, dir := range dirs {
+		paths = append(paths, filepath.Join(dir, soname))
 	}
-	lib, err := native.Open(soname, native.Global|native.Lazy)
-	if err == nil {
-		return lib, nil
+	paths = append(paths, soname)
+	lib, err := native.OpenFirst(native.Global|native.Lazy, paths...)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
 	}
-	if last != nil {
-		err = last
-	}
-	return 0, fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
+	return lib, nil
 }
 
 func bind(lib uintptr, name string, fnptr any) error {
-	if err := tryBind(lib, name, fnptr); err != nil {
+	if err := native.Bind(lib, name, fnptr); err != nil {
 		return fmt.Errorf("%w: %s", ErrUnavailable, name)
 	}
-	return nil
-}
-
-func tryBind(lib uintptr, name string, fnptr any) error {
-	if _, err := native.Symbol(lib, name); err != nil {
-		return err
-	}
-	native.Func(lib, name, fnptr)
 	return nil
 }
 
@@ -713,21 +700,4 @@ func errorMessage(gError uintptr) uintptr {
 	return (*glibError)(unsafe.Pointer(gError)).Message
 }
 
-func goString(pointer uintptr) string {
-	if pointer == 0 {
-		return ""
-	}
-	var length int
-	for *(*byte)(unsafe.Add(unsafe.Pointer(pointer), length)) != 0 {
-		length++
-		if length > 1<<20 {
-			break
-		}
-	}
-	if length == 0 {
-		return ""
-	}
-	copied := make([]byte, length)
-	copy(copied, unsafe.Slice((*byte)(unsafe.Pointer(pointer)), length))
-	return string(copied)
-}
+func goString(pointer uintptr) string { return native.GoString(pointer) }

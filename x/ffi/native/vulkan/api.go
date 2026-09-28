@@ -458,18 +458,11 @@ func darwinLibDirs() []string {
 }
 
 func openLib() (uintptr, error) {
-	var last error
-	for _, name := range libNames() {
-		lib, err := native.Open(name, native.Lazy)
-		if err == nil {
-			return lib, nil
-		}
-		last = err
+	lib, err := native.OpenFirst(native.Lazy, libNames()...)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if last == nil {
-		return 0, ErrUnavailable
-	}
-	return 0, fmt.Errorf("%w: %v", ErrUnavailable, last)
+	return lib, nil
 }
 
 func (a *api) bind(get func(uintptr, string) uintptr, handle uintptr, name string, dst any) error {

@@ -18,7 +18,6 @@ var (
 	errContext     = errors.New("pulse context")
 	errSinkList    = errors.New("pulse sink list")
 	errTimeout     = errors.New("pulse timeout")
-	errNoPath      = errors.New("no library path")
 )
 
 // Sample matches pa_sample_format_t values used for playback.
@@ -38,18 +37,11 @@ type Sink struct {
 }
 
 func openLib(soname string) (uintptr, error) {
-	var last error
-	for _, path := range libPaths(soname) {
-		lib, err := native.Open(path, native.Lazy)
-		if err == nil {
-			return lib, nil
-		}
-		last = err
+	lib, err := native.OpenFirst(native.Lazy, libPaths(soname)...)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", soname, err)
 	}
-	if last == nil {
-		last = errNoPath
-	}
-	return 0, fmt.Errorf("%s: %w", soname, last)
+	return lib, nil
 }
 
 func libPaths(soname string) []string {
@@ -60,21 +52,11 @@ func libPaths(soname string) []string {
 	return append(paths, filepath.Join("/run/current-system/sw/lib", soname))
 }
 
-func bind(lib uintptr, name string, fnptr any) error {
-	if _, err := native.Symbol(lib, name); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	native.Func(lib, name, fnptr)
-	return nil
-}
-
 func cString(s string) []byte {
 	if s == "" {
 		return nil
 	}
-	out := make([]byte, len(s)+1)
-	copy(out, s)
-	return out
+	return native.CString(s)
 }
 
 func ptr(b []byte) uintptr {
@@ -84,19 +66,4 @@ func ptr(b []byte) uintptr {
 	return uintptr(unsafe.Pointer(&b[0]))
 }
 
-func goString(p uintptr) string {
-	if p == 0 {
-		return ""
-	}
-	n := 0
-	for *(*byte)(unsafe.Pointer(p + uintptr(n))) != 0 {
-		n++
-		if n > 1<<20 {
-			break
-		}
-	}
-	if n == 0 {
-		return ""
-	}
-	return string(unsafe.Slice((*byte)(unsafe.Pointer(p)), n))
-}
+func goString(p uintptr) string { return native.GoString(p) }

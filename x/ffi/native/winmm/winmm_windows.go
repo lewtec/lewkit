@@ -26,9 +26,6 @@ var (
 )
 
 var (
-	loadOnce sync.Once
-	loadErr  error
-
 	waveOutGetNumDevs    func() uint32
 	waveOutGetDevCapsW   func(id uintptr, caps uintptr, size uint32) uint32
 	waveOutOpen          func(out *uintptr, id uint32, format uintptr, callback, instance uintptr, flags uint32) uint32
@@ -39,13 +36,14 @@ var (
 	waveOutClose         func(h uintptr) uint32
 )
 
+var available = native.Once(bindAll)
+
 // Available loads winmm.dll.
 func Available() error {
 	if !layoutOK() {
 		return errUnavailable
 	}
-	loadOnce.Do(func() { loadErr = bindAll() })
-	return loadErr
+	return available()
 }
 
 func bindAll() error {
@@ -67,10 +65,9 @@ func bindAll() error {
 		{"waveOutClose", &waveOutClose},
 	}
 	for _, item := range binds {
-		if _, err := native.Symbol(lib, item.name); err != nil {
-			return fmt.Errorf("%s: %w", item.name, err)
+		if err := native.Bind(lib, item.name, item.fn); err != nil {
+			return err
 		}
-		native.Func(lib, item.name, item.fn)
 	}
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 const (
@@ -28,9 +29,6 @@ type sampleSpec struct {
 }
 
 var (
-	loadOnce sync.Once
-	loadErr  error
-
 	simpleNew   func(server, name uintptr, dir int32, dev, stream uintptr, spec, chmap, attr uintptr, errno *int32) uintptr
 	simpleFree  func(s uintptr)
 	simpleWrite func(s uintptr, data uintptr, nbytes uintptr, errno *int32) int32
@@ -67,11 +65,10 @@ var (
 	sinkOnce sync.Once
 )
 
+var available = native.Once(bindAll)
+
 // Available loads libpulse-simple and libpulse.
-func Available() error {
-	loadOnce.Do(func() { loadErr = bindAll() })
-	return loadErr
-}
+func Available() error { return available() }
 
 func bindAll() error {
 	simple, err := openLib("libpulse-simple.so.0")
@@ -108,7 +105,7 @@ func bindAll() error {
 		{full, "pa_operation_unref", &operationUnref},
 	}
 	for _, item := range binds {
-		if err := bind(item.lib, item.name, item.fn); err != nil {
+		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
 			return err
 		}
 	}

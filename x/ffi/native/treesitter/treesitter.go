@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -31,9 +30,6 @@ type Language uintptr
 
 var (
 	errUnavailable = errors.New("tree-sitter library unavailable")
-
-	loadOnce sync.Once
-	loadErr  error
 
 	parserNew    func() uintptr
 	parserDelete func(uintptr)
@@ -59,6 +55,8 @@ var (
 	libcFree       func(uintptr)
 )
 
+var available = native.Once(bindRuntime)
+
 // Available loads libtree-sitter. Later calls return the first result.
 func Available() error {
 	switch runtime.GOOS {
@@ -66,8 +64,7 @@ func Available() error {
 	default:
 		return fmt.Errorf("%w: %s", errUnavailable, runtime.GOOS)
 	}
-	loadOnce.Do(func() { loadErr = bindRuntime() })
-	return loadErr
+	return available()
 }
 
 func bindRuntime() error {
@@ -107,7 +104,7 @@ func bindRuntime() error {
 		{libc, "free", &libcFree},
 	}
 	for _, item := range binds {
-		if err := bind(item.lib, item.name, item.fn); err != nil {
+		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
 			return err
 		}
 	}
@@ -415,18 +412,11 @@ func openFirst(sonames []string) (uintptr, error) {
 }
 
 func openLib(soname string) (uintptr, error) {
-	var last error
-	for _, path := range libPaths(soname) {
-		lib, err := native.Open(path, native.Now|native.Global)
-		if err == nil {
-			return lib, nil
-		}
-		last = err
+	lib, err := native.OpenFirst(native.Now|native.Global, libPaths(soname)...)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", soname, err)
 	}
-	if last == nil {
-		last = errUnavailable
-	}
-	return 0, fmt.Errorf("%s: %w", soname, last)
+	return lib, nil
 }
 
 func libPaths(soname string) []string {
@@ -475,27 +465,4 @@ func grammarName(file string) (string, bool) {
 	return "", false
 }
 
-func bind(lib uintptr, name string, fnptr any) error {
-	if _, err := native.Symbol(lib, name); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	native.Func(lib, name, fnptr)
-	return nil
-}
-
-func goString(p uintptr) string {
-	if p == 0 {
-		return ""
-	}
-	n := 0
-	for *(*byte)(unsafe.Pointer(p + uintptr(n))) != 0 {
-		n++
-		if n > 1<<20 {
-			break
-		}
-	}
-	if n == 0 {
-		return ""
-	}
-	return string(unsafe.Slice((*byte)(unsafe.Pointer(p)), n))
-}
+func goString(p uintptr) string { return native.GoString(p) }
