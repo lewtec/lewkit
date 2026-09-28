@@ -40,6 +40,16 @@ class SurfaceActivity : AppCompatActivity(), SurfaceHolder.Callback {
         findViewById<android.view.View>(android.R.id.content)?.requestLayout()
     }
 
+    override fun onResume() {
+        super.onResume()
+        Host.noteForeground(this, true)
+    }
+
+    override fun onPause() {
+        Host.noteForeground(this, false)
+        super.onPause()
+    }
+
     override fun surfaceCreated(holder: SurfaceHolder) {}
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {

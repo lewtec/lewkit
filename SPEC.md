@@ -157,6 +157,7 @@ Inherited C (cite the file):
 | `x/driver/filedialog/qt` | Qt `Choose` | facade of the KDE portal backend | selection stays here | missing KDE portal is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/filedialog/cocoa` | `NSOpenPanel` and `NSSavePanel` | macOS file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
 | `x/driver/filedialog/win32` | common item dialog `Choose` | Windows file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
+| `x/driver/filedialog/android` | system document picker `Choose` | Android file dialog | selection and cache copies stay here | no Java VM is `driver.ErrIncompatible`; the main looper is the file dialog error | import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter`; import `x/ffi/native/android` |
@@ -244,6 +245,7 @@ Inherited C (cite the file):
 | INV-60 | `x/driver/bundle` does not import `x/driver/webview` | `x/driver/bundle` | that import |
 | INV-61 | `x/driver/thread/jni` imports `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/thread/jni` | an import of `x/ffi/native` |
 | INV-62 | `x/ffi/native/android` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/android` | an import of `x/driver` |
+| INV-63 | `x/driver/filedialog/android` imports `x/ffi/native/android` and does not import `x/ffi/native` or `x/ffi/wasm` | `x/driver/filedialog/android` | an import of `x/ffi/native` or `x/ffi/wasm` |
 
 ## Errors
 

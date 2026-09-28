@@ -1,10 +1,12 @@
 package lewkit
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.view.Surface
+import java.util.concurrent.CountDownLatch
 
 object Host {
     @Volatile
@@ -73,6 +75,104 @@ object Host {
         val dir = java.io.File(ctx.filesDir, "config")
         dir.mkdirs()
         return dir.absolutePath
+    }
+
+    private val chooseGate = Any()
+
+    @Volatile
+    private var chooseBusy = false
+
+    @Volatile
+    var chooseCancel = false
+
+    private var chooseGen = 0
+
+    private var chooseLatch: CountDownLatch? = null
+    private var choosePicked: FileDialog.Picked? = null
+
+    @Volatile
+    var dialog: Activity? = null
+
+    // chooseFile blocks the caller until the document picker finishes.
+    // The caller must not be the main looper: the picker result is delivered there.
+    @JvmStatic
+    fun chooseFile(spec: String): String {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            return FileDialog.fail("main thread")
+        }
+        val latch = CountDownLatch(1)
+        synchronized(chooseGate) {
+            if (chooseBusy) return FileDialog.fail("file dialog is already open")
+            chooseBusy = true
+            chooseGen += 1
+            chooseCancel = false
+            chooseLatch = latch
+            choosePicked = null
+        }
+        try {
+            Handler(Looper.getMainLooper()).post { startChoose(spec) }
+            latch.await()
+            val picked = synchronized(chooseGate) { choosePicked }
+            if (chooseCancel || picked == null || picked.canceled) return FileDialog.cancel()
+            if (picked.error != null) return FileDialog.fail(picked.error)
+            return FileDialog.materialize(spec, picked.uris)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            return FileDialog.cancel()
+        } catch (err: Exception) {
+            return FileDialog.fail(err.message ?: "file dialog")
+        } finally {
+            dialog?.let { activity ->
+                Handler(Looper.getMainLooper()).post {
+                    if (!activity.isFinishing) activity.finish()
+                }
+            }
+            synchronized(chooseGate) {
+                chooseBusy = false
+                chooseCancel = false
+                chooseLatch = null
+                choosePicked = null
+            }
+        }
+    }
+
+    @JvmStatic
+    fun cancelChoose() {
+        val gen = synchronized(chooseGate) { chooseGen }
+        Handler(Looper.getMainLooper()).post {
+            synchronized(chooseGate) {
+                if (gen != chooseGen || !chooseBusy) return@post
+                chooseCancel = true
+            }
+            dialog?.finish()
+            deliver(FileDialog.Picked(canceled = true, error = null, uris = emptyList()))
+        }
+    }
+
+    fun deliver(picked: FileDialog.Picked) {
+        val latch = synchronized(chooseGate) {
+            val current = chooseLatch ?: return
+            chooseLatch = null
+            choosePicked = picked
+            current
+        }
+        latch.countDown()
+    }
+
+    private fun startChoose(spec: String) {
+        try {
+            val ctx = foreground ?: app
+            if (ctx == null) {
+                deliver(FileDialog.Picked(canceled = false, error = "no activity", uris = emptyList()))
+                return
+            }
+            val pick = FileDialog.picker(spec)
+            val start = Intent(ctx, FileDialogActivity::class.java).putExtra(FileDialogActivity.EXTRA_PICK, pick)
+            if (ctx !is Activity) start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(start)
+        } catch (err: Exception) {
+            deliver(FileDialog.Picked(canceled = false, error = err.message ?: "file dialog", uris = emptyList()))
+        }
     }
 
     @JvmStatic

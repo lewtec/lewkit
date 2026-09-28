@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/filedialog/android"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/cocoa"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/gtk"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/qt"

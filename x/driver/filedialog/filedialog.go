@@ -6,14 +6,16 @@
 //	})
 //
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one implementation
-// (gtk, qt, cocoa, win32).
+// (gtk, qt, cocoa, win32, android).
 //
 // Linux GTK uses the gtk portal file chooser. Linux Qt uses the KDE portal
 // file chooser. Windows uses the common item dialog. macOS uses NSOpenPanel
-// and NSSavePanel. On macOS and Windows, call
+// and NSSavePanel. Android uses the system document picker and returns
+// filesystem paths. On macOS and Windows, call
 // [github.com/lewtec/lewkit/x/driver/thread.Bind] from main and run
 // [github.com/lewtec/lewkit/x/driver/thread.Loop]. [github.com/lewtec/lewkit/x/driver/thread.Run]
 // does both. Choose may be called from another goroutine while Loop is running.
+// On Android, call Choose off the main looper.
 //
 // Patterns are globs such as "*.mp3". Folder chooses directories. Save chooses
 // one new path. Multiple chooses more than one path. Save with Folder or

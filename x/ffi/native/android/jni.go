@@ -95,6 +95,39 @@ func StaticString(name string) (string, error) {
 	return env.goString(obj), nil
 }
 
+// CallString calls a one-string static method that returns a String.
+func CallString(name, arg string) (string, error) {
+	env, err := attach()
+	if err != nil {
+		return "", err
+	}
+	cls, err := host()
+	if err != nil {
+		return "", err
+	}
+	mid, err := env.method(cls, name, "(Ljava/lang/String;)Ljava/lang/String;")
+	if err != nil {
+		return "", err
+	}
+	var vals [1]jvalue
+	vals[0].obj = env.newString(arg)
+	if vals[0].obj == 0 {
+		return "", fmt.Errorf("android host %s string", name)
+	}
+	var fn func(env, cls, mid, args uintptr) uintptr
+	fp, err := env.fn(idxCallStaticObjectA)
+	if err != nil {
+		return "", err
+	}
+	native.Register(&fn, fp)
+	obj := fn(env.ptr(), cls, mid, uintptr(unsafe.Pointer(&vals[0])))
+	if obj == 0 {
+		env.clear()
+		return "", fmt.Errorf("android host %s", name)
+	}
+	return env.goString(obj), nil
+}
+
 // StaticVoid calls a static void method. strArgs fill Ljava/lang/String; parameters.
 func StaticVoid(name, sig string, strArgs ...string) error {
 	env, err := attach()

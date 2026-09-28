@@ -1,0 +1,352 @@
+package lewkit
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import android.provider.DocumentsContract
+import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+
+/** Trampoline that shows the system document picker and returns its URIs to [Host]. */
+class FileDialogActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Host.dialog = this
+        if (savedInstanceState != null) return
+        @Suppress("DEPRECATION")
+        val pick = intent.getParcelableExtra<Intent>(EXTRA_PICK)
+        if (pick == null) {
+            Host.deliver(FileDialog.Picked(canceled = false, error = "file dialog", uris = emptyList()))
+            finish()
+            return
+        }
+        @Suppress("DEPRECATION")
+        startActivityForResult(pick, REQUEST)
+    }
+
+    @Deprecated("AndroidX Activity Result replaces startActivityForResult")
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (requestCode != REQUEST) return
+        val picked = FileDialog.collect(resultCode, data)
+        val ctx = Host.app
+        if (ctx != null) {
+            for (uri in picked.uris) FileDialog.keep(ctx, uri, data)
+        }
+        Host.deliver(picked)
+    }
+
+    override fun onDestroy() {
+        if (Host.dialog === this) Host.dialog = null
+        if (isFinishing) {
+            Host.deliver(FileDialog.Picked(canceled = true, error = null, uris = emptyList()))
+        }
+        super.onDestroy()
+    }
+
+    companion object {
+        const val EXTRA_PICK = "pick"
+        private const val REQUEST = 1
+    }
+}
+
+object FileDialog {
+    data class Picked(val canceled: Boolean, val error: String?, val uris: List<Uri>)
+
+    private class Canceled : RuntimeException()
+
+    fun picker(specRaw: String): Intent {
+        val spec = parse(specRaw)
+        val mimes = mimeTypes(spec.extensions)
+        val intent = when {
+            spec.save -> Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(mimes.firstOrNull() ?: "*/*")
+                .putExtra(Intent.EXTRA_TITLE, spec.name.ifEmpty { "untitled" })
+            spec.folder -> Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+            else -> openIntent(spec, mimes)
+        }
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        if (spec.save) intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        initialUri(spec.directory)?.let { intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, it) }
+        return intent
+    }
+
+    fun collect(resultCode: Int, data: Intent?): Picked {
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            return Picked(canceled = true, error = null, uris = emptyList())
+        }
+        val uris = mutableListOf<Uri>()
+        val clip = data.clipData
+        if (clip != null) {
+            for (i in 0 until clip.itemCount) {
+                clip.getItemAt(i).uri?.let { uris.add(it) }
+            }
+        }
+        if (uris.isEmpty()) data.data?.let { uris.add(it) }
+        if (uris.isEmpty()) return Picked(canceled = true, error = null, uris = emptyList())
+        return Picked(canceled = false, error = null, uris = uris)
+    }
+
+    fun keep(ctx: Context, uri: Uri, data: Intent?) {
+        val take = (data?.flags ?: 0) and
+            (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        if (take == 0) return
+        try {
+            ctx.contentResolver.takePersistableUriPermission(uri, take)
+        } catch (err: SecurityException) {
+            android.util.Log.w("lewkit", "file dialog grant", err)
+        }
+    }
+
+    fun materialize(specRaw: String, uris: List<Uri>): String {
+        if (Host.chooseCancel) return cancel()
+        val ctx = Host.app ?: return fail("no activity")
+        val spec = try {
+            parse(specRaw)
+        } catch (err: Exception) {
+            return fail(err.message ?: "file dialog")
+        }
+        if (uris.isEmpty()) return fail("no path")
+        val session = File(ctx.cacheDir, "filedialog/" + System.nanoTime())
+        session.mkdirs()
+        try {
+            val paths = when {
+                spec.folder -> listOf(folderPath(ctx, uris[0], session))
+                spec.save -> listOf(savePath(ctx, uris[0]))
+                else -> uris.map { filePath(ctx, it, session) }
+            }
+            if (paths.none { ownedBySession(session, it) }) session.deleteRecursively()
+            return pathsJSON(paths)
+        } catch (_: Canceled) {
+            session.deleteRecursively()
+            return cancel()
+        } catch (err: Exception) {
+            session.deleteRecursively()
+            if (Host.chooseCancel) return cancel()
+            return fail(err.message ?: "file dialog")
+        }
+    }
+
+    fun cancel(): String = JSONObject().put("canceled", true).toString()
+
+    fun fail(message: String): String = JSONObject().put("error", message).toString()
+
+    private fun pathsJSON(paths: List<String>): String {
+        val arr = JSONArray()
+        paths.forEach { arr.put(it) }
+        return JSONObject().put("paths", arr).toString()
+    }
+
+    private data class Spec(
+        val directory: String,
+        val name: String,
+        val extensions: List<String>,
+        val multiple: Boolean,
+        val folder: Boolean,
+        val save: Boolean,
+    )
+
+    private fun parse(raw: String): Spec {
+        val obj = JSONObject(raw)
+        val exts = mutableListOf<String>()
+        val arr = obj.optJSONArray("extensions")
+        if (arr != null) {
+            for (i in 0 until arr.length()) {
+                val ext = arr.optString(i)
+                if (ext.isNotEmpty()) exts.add(ext)
+            }
+        }
+        return Spec(
+            directory = obj.optString("directory"),
+            name = obj.optString("name"),
+            extensions = exts,
+            multiple = obj.optBoolean("multiple"),
+            folder = obj.optBoolean("folder"),
+            save = obj.optBoolean("save"),
+        )
+    }
+
+    private fun openIntent(spec: Spec, mimes: List<String>): Intent {
+        val open = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+        if (mimes.size == 1) {
+            open.setType(mimes[0])
+        } else {
+            open.setType("*/*")
+            if (mimes.isNotEmpty()) open.putExtra(Intent.EXTRA_MIME_TYPES, mimes.toTypedArray())
+        }
+        if (spec.multiple) open.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        return open
+    }
+
+    private fun mimeTypes(exts: List<String>): List<String> {
+        val map = MimeTypeMap.getSingleton()
+        val out = LinkedHashSet<String>()
+        for (ext in exts) {
+            val mime = map.getMimeTypeFromExtension(ext.lowercase())
+            if (!mime.isNullOrEmpty()) out.add(mime)
+        }
+        return out.toList()
+    }
+
+    private fun folderPath(ctx: Context, uri: Uri, session: File): String {
+        checkCancel()
+        val direct = primaryFile(ctx, uri)
+        if (direct != null && direct.isDirectory && direct.canRead() && direct.list() != null) {
+            return direct.absolutePath
+        }
+        val dest = uniqueFile(session, displayName(ctx, uri))
+        dest.mkdirs()
+        copyTree(ctx, uri, DocumentsContract.getTreeDocumentId(uri), dest, HashSet())
+        return dest.absolutePath
+    }
+
+    private fun filePath(ctx: Context, uri: Uri, session: File): String {
+        checkCancel()
+        val direct = primaryFile(ctx, uri)
+        if (direct != null && direct.isFile && direct.canRead()) return direct.absolutePath
+        val dest = uniqueFile(session, displayName(ctx, uri))
+        dest.parentFile?.mkdirs()
+        copyStream(ctx, uri, dest)
+        return dest.absolutePath
+    }
+
+    private fun savePath(ctx: Context, uri: Uri): String {
+        return primaryFile(ctx, uri)?.absolutePath
+            ?: throw IllegalStateException("save location has no filesystem path")
+    }
+
+    private fun copyTree(ctx: Context, tree: Uri, docId: String, dest: File, seen: MutableSet<String>) {
+        if (!seen.add(docId)) return
+        checkCancel()
+        for (child in children(ctx, tree, docId)) {
+            checkCancel()
+            if (child.mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                val sub = uniqueFile(dest, child.name)
+                sub.mkdirs()
+                copyTree(ctx, tree, child.id, sub, seen)
+                continue
+            }
+            val file = uniqueFile(dest, child.name)
+            copyStream(ctx, DocumentsContract.buildDocumentUriUsingTree(tree, child.id), file)
+        }
+    }
+
+    private data class Child(val id: String, val name: String, val mime: String)
+
+    private fun children(ctx: Context, tree: Uri, docId: String): List<Child> {
+        val uri = DocumentsContract.buildChildDocumentsUriUsingTree(tree, docId)
+        val cursor = ctx.contentResolver.query(
+            uri,
+            arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE,
+            ),
+            null,
+            null,
+            null,
+        ) ?: throw IllegalStateException("list folder")
+        cursor.use {
+            val out = mutableListOf<Child>()
+            while (it.moveToNext()) {
+                val id = it.getString(0) ?: continue
+                out.add(Child(id, safeName(it.getString(1) ?: "file"), it.getString(2) ?: ""))
+            }
+            return out
+        }
+    }
+
+    private fun copyStream(ctx: Context, uri: Uri, dest: File) {
+        val input = ctx.contentResolver.openInputStream(uri) ?: throw IllegalStateException("open file")
+        input.use { src -> dest.outputStream().use { dst -> src.copyTo(dst) } }
+    }
+
+    private fun displayName(ctx: Context, uri: Uri): String {
+        val target = if (DocumentsContract.isTreeUri(uri)) {
+            DocumentsContract.buildDocumentUriUsingTree(uri, DocumentsContract.getTreeDocumentId(uri))
+        } else {
+            uri
+        }
+        queryName(ctx, target, DocumentsContract.Document.COLUMN_DISPLAY_NAME)?.let { return it }
+        queryName(ctx, uri, OpenableColumns.DISPLAY_NAME)?.let { return it }
+        return "file"
+    }
+
+    private fun queryName(ctx: Context, uri: Uri, column: String): String? {
+        val cursor = try {
+            ctx.contentResolver.query(uri, arrayOf(column), null, null, null)
+        } catch (_: RuntimeException) {
+            // Some providers reject COLUMN_DISPLAY_NAME and throw instead of returning null.
+            null
+        } ?: return null
+        cursor.use {
+            if (!it.moveToFirst()) return null
+            val name = it.getString(0)
+            if (name.isNullOrBlank()) return null
+            return safeName(name)
+        }
+    }
+
+    private fun primaryFile(ctx: Context, uri: Uri): File? {
+        if (uri.scheme == "file") {
+            val path = uri.path ?: return null
+            return File(path)
+        }
+        val docId = when {
+            DocumentsContract.isTreeUri(uri) -> DocumentsContract.getTreeDocumentId(uri)
+            DocumentsContract.isDocumentUri(ctx, uri) -> DocumentsContract.getDocumentId(uri)
+            else -> return null
+        }
+        val colon = docId.indexOf(':')
+        if (colon < 1 || docId.substring(0, colon) != "primary") return null
+        @Suppress("DEPRECATION")
+        val root = Environment.getExternalStorageDirectory()
+        return File(root, docId.substring(colon + 1))
+    }
+
+    private fun initialUri(directory: String): Uri? {
+        if (directory.isEmpty()) return null
+        @Suppress("DEPRECATION")
+        val root = Environment.getExternalStorageDirectory().absolutePath
+        val rel = when {
+            directory == root -> ""
+            directory.startsWith("$root/") -> directory.removePrefix("$root/")
+            else -> return null
+        }
+        return DocumentsContract.buildDocumentUri("com.android.externalstorage.documents", "primary:$rel")
+    }
+
+    private fun safeName(name: String): String {
+        val cleaned = name.replace('\\', '_').replace('/', '_').trim()
+        if (cleaned.isEmpty() || cleaned == "." || cleaned == "..") return "file"
+        return cleaned
+    }
+
+    private fun uniqueFile(dir: File, name: String): File {
+        val clean = safeName(name)
+        var candidate = File(dir, clean)
+        var n = 2
+        while (candidate.exists()) {
+            val dot = clean.lastIndexOf('.')
+            val next = if (dot > 0) clean.substring(0, dot) + "-$n" + clean.substring(dot) else "$clean-$n"
+            candidate = File(dir, next)
+            n++
+        }
+        return candidate
+    }
+
+    private fun ownedBySession(session: File, path: String): Boolean {
+        val root = session.absolutePath
+        return path == root || path.startsWith("$root/")
+    }
+
+    private fun checkCancel() {
+        if (Host.chooseCancel) throw Canceled()
+    }
+}
