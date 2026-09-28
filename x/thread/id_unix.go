@@ -5,12 +5,14 @@ package thread
 import "github.com/lewtec/lewkit/x/ffi/native"
 
 var (
+	libc     uintptr
 	self     func() uintptr
 	loadLibc = native.Once(func() error {
 		lib, err := native.OpenChain(native.Lazy, libcPath)
 		if err != nil {
 			return err
 		}
+		libc = lib
 		return native.Bind(lib, "pthread_self", &self)
 	})
 )
