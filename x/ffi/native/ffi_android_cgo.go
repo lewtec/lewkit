@@ -11,11 +11,7 @@ const (
 	Local  = purego.RTLD_LOCAL
 )
 
-// Open loads path. flags 0 means Lazy.
-func Open(path string, flags int) (uintptr, error) {
-	if flags == 0 {
-		flags = Lazy
-	}
+func openPath(path string, flags int) (uintptr, error) {
 	return purego.Dlopen(path, flags)
 }
 

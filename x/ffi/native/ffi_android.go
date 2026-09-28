@@ -11,8 +11,7 @@ const (
 	Local  = 0
 )
 
-// Open reports that this process has no pure-Go dynamic loader.
-func Open(path string, flags int) (uintptr, error) {
+func openPath(path string, flags int) (uintptr, error) {
 	_ = flags
 	return 0, fmt.Errorf("load %s: cgo is required on android", path)
 }
