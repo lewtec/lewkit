@@ -111,14 +111,6 @@ func TestLogWriterPicksUpPrintLater(t *testing.T) {
 	require.Equal(t, []string{"after"}, got)
 }
 
-func TestCommandStreamsArePerCall(t *testing.T) {
-	a, ae := CommandStreams(t.Context(), nil, nil)
-	b, be := CommandStreams(t.Context(), nil, nil)
-	assert.Same(t, a, ae)
-	assert.Same(t, b, be)
-	assert.NotSame(t, a, b)
-}
-
 func TestLineWriterFromNoSession(t *testing.T) {
 	w := LineWriterFrom(t.Context())
 	lw, ok := w.(*lineWriter)

@@ -171,7 +171,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	}
 
 	slog.Info("android gradle")
-	apk, err := AssembleDebug(workDir, stdout, stderr)
+	apk, err := AssembleDebug(ctx, workDir)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -236,7 +236,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 }
 
 // AssembleDebug runs Gradle assembleDebug in workDir and returns the debug APK path.
-func AssembleDebug(workDir string, stdout, stderr io.Writer) (string, error) {
+func AssembleDebug(ctx context.Context, workDir string) (string, error) {
 	if err := requireJDK(); err != nil {
 		return "", err
 	}
@@ -253,15 +253,11 @@ func AssembleDebug(workDir string, stdout, stderr io.Writer) (string, error) {
 		return "", err
 	}
 	args := append(gradle[1:], "assembleDebug", "--stacktrace")
-	cmd := exec.Command(gradle[0], args...)
-	cmd.Dir = workDir
-	cmd.Env = append(os.Environ(),
+	env := append(os.Environ(),
 		"ANDROID_HOME="+sdk,
 		"ANDROID_SDK_ROOT="+sdk,
 	)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	if err := cmd.Run(); err != nil {
+	if err := gocmd.Tool(ctx, gradle[0], workDir, env, args...); err != nil {
 		return "", fmt.Errorf("gradle assembleDebug: %w\n(work dir left at %s)", err, workDir)
 	}
 

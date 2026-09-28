@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -158,7 +158,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	}
 
 	slog.Info("macos xcode")
-	built, err := assembleDebug(ctx, workDir, cfg.ProductName(), xArch, opts.Stdout, opts.Stderr)
+	built, err := assembleDebug(ctx, workDir, cfg.ProductName(), xArch)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -167,7 +167,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := installICNS(built, icnsDest); err != nil {
+	if err := installICNS(ctx, built, icnsDest); err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -218,24 +218,20 @@ func buildGoHelper(ctx context.Context, dest, goMainDir, goarch string, stamp ve
 	return os.Chmod(dest, 0o755)
 }
 
-func assembleDebug(ctx context.Context, workDir, product, xArch string, stdout, stderr io.Writer) (string, error) {
-	if _, err := exec.LookPath("xcodegen"); err != nil {
+func assembleDebug(ctx context.Context, workDir, product, xArch string) (string, error) {
+	if _, err := execdriver.Which(ctx, "xcodegen"); err != nil {
 		return "", fmt.Errorf("%w: %w", ErrXcodeGenNotFound, err)
 	}
-	if _, err := exec.LookPath("xcodebuild"); err != nil {
+	if _, err := execdriver.Which(ctx, "xcodebuild"); err != nil {
 		return "", fmt.Errorf("%w: %w", ErrXcodebuildNotFound, err)
 	}
-
-	gen := exec.Command("xcodegen", "generate")
-	gen.Dir = workDir
-	gen.Stdout, gen.Stderr = taskgroup.CommandStreams(ctx, stdout, stderr)
-	if err := gen.Run(); err != nil {
+	if err := gocmd.Tool(ctx, "xcodegen", workDir, nil, "generate"); err != nil {
 		return "", fmt.Errorf("xcodegen generate: %w", err)
 	}
 
 	derived := filepath.Join(workDir, "build", "DerivedData")
 	proj := filepath.Join(workDir, product+".xcodeproj")
-	cmd := exec.Command("xcodebuild",
+	if err := gocmd.Tool(ctx, "xcodebuild", workDir, nil,
 		"-project", proj,
 		"-scheme", product,
 		"-configuration", "Debug",
@@ -249,10 +245,7 @@ func assembleDebug(ctx context.Context, workDir, product, xArch string, stdout, 
 		"ARCHS="+xArch,
 		"ONLY_ACTIVE_ARCH=YES",
 		"build",
-	)
-	cmd.Dir = workDir
-	cmd.Stdout, cmd.Stderr = taskgroup.CommandStreams(ctx, stdout, stderr)
-	if err := cmd.Run(); err != nil {
+	); err != nil {
 		return "", fmt.Errorf("xcodebuild: %w\n(work dir left at %s)", err, workDir)
 	}
 
@@ -271,22 +264,20 @@ func installHelper(appPath, helper string) error {
 	return os.Chmod(dest, 0o755)
 }
 
-func installICNS(appPath, icns string) error {
+func installICNS(ctx context.Context, appPath, icns string) error {
 	dest := filepath.Join(appPath, "Contents", "Resources", "AppIcon.icns")
 	if err := copyFile(icns, dest); err != nil {
 		return fmt.Errorf("install icns: %w", err)
 	}
-	return resignApp(appPath)
+	return resignApp(ctx, appPath)
 }
 
-func resignApp(appPath string) error {
-	// Re-sign after adding the Go child and icon (ad-hoc, like rterm).
-	if _, err := exec.LookPath("codesign"); err != nil {
+func resignApp(ctx context.Context, appPath string) error {
+	if _, err := execdriver.Which(ctx, "codesign"); err != nil {
 		return nil
 	}
-	cmd := exec.Command("codesign", "--force", "--deep", "--sign", "-", appPath)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("codesign: %w (%s)", err, strings.TrimSpace(string(out)))
+	if err := gocmd.Tool(ctx, "codesign", "", nil, "--force", "--deep", "--sign", "-", appPath); err != nil {
+		return fmt.Errorf("codesign: %w", err)
 	}
 	return nil
 }

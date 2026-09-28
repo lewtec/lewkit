@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -179,7 +179,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	}
 
 	slog.Info("ios xcode")
-	built, err := assembleDebug(ctx, workDir, cfg.ProductName(), sdk, xArch, opts.Stdout, opts.Stderr)
+	built, err := assembleDebug(ctx, workDir, cfg.ProductName(), sdk, xArch)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -321,25 +321,21 @@ func writeClangwrap(workDir string) (string, error) {
 	return dest, nil
 }
 
-func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string, stdout, stderr io.Writer) (string, error) {
-	if _, err := exec.LookPath("xcodegen"); err != nil {
+func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string) (string, error) {
+	if _, err := execdriver.Which(ctx, "xcodegen"); err != nil {
 		return "", fmt.Errorf("%w: %w", ErrXcodeGenNotFound, err)
 	}
-	if _, err := exec.LookPath("xcodebuild"); err != nil {
+	if _, err := execdriver.Which(ctx, "xcodebuild"); err != nil {
 		return "", fmt.Errorf("%w: %w", ErrXcodebuildNotFound, err)
 	}
-
-	gen := exec.Command("xcodegen", "generate")
-	gen.Dir = workDir
-	gen.Stdout, gen.Stderr = taskgroup.CommandStreams(ctx, stdout, stderr)
-	if err := gen.Run(); err != nil {
+	if err := gocmd.Tool(ctx, "xcodegen", workDir, nil, "generate"); err != nil {
 		return "", fmt.Errorf("xcodegen generate: %w", err)
 	}
 
 	dest, destName := xcodeDestination(sdk)
 	derived := filepath.Join(workDir, "build", "DerivedData")
 	proj := filepath.Join(workDir, product+".xcodeproj")
-	cmd := exec.Command("xcodebuild",
+	if err := gocmd.Tool(ctx, "xcodebuild", workDir, nil,
 		"-project", proj,
 		"-scheme", product,
 		"-configuration", "Debug",
@@ -356,10 +352,7 @@ func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string, std
 		"ONLY_ACTIVE_ARCH=YES",
 		"EXCLUDED_ARCHS="+excludedArch(xArch),
 		"build",
-	)
-	cmd.Dir = workDir
-	cmd.Stdout, cmd.Stderr = taskgroup.CommandStreams(ctx, stdout, stderr)
-	if err := cmd.Run(); err != nil {
+	); err != nil {
 		return "", fmt.Errorf("xcodebuild: %w\n(work dir left at %s)", err, workDir)
 	}
 

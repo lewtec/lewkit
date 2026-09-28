@@ -226,23 +226,6 @@ func (w *lineWriter) abandon() string {
 	return w.filter.take()
 }
 
-// CommandStreams returns stdout and stderr for one subprocess.
-// A nil stdout and stderr is a new progress row, shared by both streams of that command.
-// The next call is another row. A caller-supplied writer is returned as-is.
-func CommandStreams(ctx context.Context, stdout, stderr io.Writer) (io.Writer, io.Writer) {
-	if stdout == nil && stderr == nil {
-		w := LineWriterFrom(ctx)
-		return w, w
-	}
-	if stdout == nil {
-		stdout = LineWriterFrom(ctx)
-	}
-	if stderr == nil {
-		stderr = stdout
-	}
-	return stdout, stderr
-}
-
 // LineWriterFrom returns a writer for one subprocess stream.
 //
 // With an active progress UI the writer is a live row: CR / erase-line
