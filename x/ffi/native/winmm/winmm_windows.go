@@ -47,7 +47,7 @@ func Available() error {
 }
 
 func bindAll() error {
-	lib, err := native.Open("winmm.dll", native.Lazy)
+	lib, err := native.OpenChain(native.Lazy, "winmm.dll")
 	if err != nil {
 		return err
 	}

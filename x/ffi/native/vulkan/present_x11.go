@@ -177,7 +177,7 @@ const xInputMask int64 = 1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<6 | 1<<15 | 1<<17
 
 func xOpen() (uintptr, error) {
 	if xlibOnce == 0 {
-		lib, err := native.Open("libX11.so.6", 0)
+		lib, err := native.OpenChain(0, "libX11.so.6")
 		if err != nil {
 			return 0, fmt.Errorf("%w: libX11", ErrUnavailable)
 		}

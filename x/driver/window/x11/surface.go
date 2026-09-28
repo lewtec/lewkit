@@ -16,7 +16,7 @@ var (
 	xlibDpy uintptr
 	xOpen   func(name *byte) uintptr
 	loadX11 = native.Once(func() error {
-		lib, err := native.Open("libX11.so.6", native.Global|native.Lazy)
+		lib, err := native.OpenChain(native.Global|native.Lazy, "libX11.so.6")
 		if err != nil {
 			return err
 		}

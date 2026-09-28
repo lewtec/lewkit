@@ -278,12 +278,12 @@ func libraryDirectories() []string {
 
 func openOne(soname string) (uintptr, error) {
 	dirs := libraryDirectories()
-	paths := make([]string, 0, len(dirs)+1)
+	names := make([]string, 0, len(dirs)+1)
 	for _, dir := range dirs {
-		paths = append(paths, filepath.Join(dir, soname))
+		names = append(names, filepath.Join(dir, soname))
 	}
-	paths = append(paths, soname)
-	lib, err := native.OpenFirst(native.Global|native.Lazy, paths...)
+	names = append(names, soname)
+	lib, err := native.OpenChain(native.Global|native.Lazy, names...)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
 	}

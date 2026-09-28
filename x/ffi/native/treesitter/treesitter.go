@@ -120,7 +120,7 @@ var (
 // loader search path. The list is sorted and has no duplicates.
 func Languages() []string {
 	seen := map[string]struct{}{}
-	for _, dir := range libDirs() {
+	for _, dir := range native.SearchDirs() {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			continue
@@ -397,57 +397,10 @@ func symbolName(name string) string {
 }
 
 func openFirst(sonames []string) (uintptr, error) {
-	var last error
-	for _, soname := range sonames {
-		lib, err := openLib(soname)
-		if err == nil {
-			return lib, nil
-		}
-		last = err
+	if len(sonames) == 0 {
+		return 0, errUnavailable
 	}
-	if last == nil {
-		last = errUnavailable
-	}
-	return 0, last
-}
-
-func openLib(soname string) (uintptr, error) {
-	lib, err := native.OpenFirst(native.Now|native.Global, libPaths(soname)...)
-	if err != nil {
-		return 0, fmt.Errorf("%s: %w", soname, err)
-	}
-	return lib, nil
-}
-
-func libPaths(soname string) []string {
-	paths := []string{soname}
-	for _, dir := range libDirs() {
-		if dir == "" {
-			continue
-		}
-		paths = append(paths, filepath.Join(dir, soname))
-	}
-	return paths
-}
-
-func libDirs() []string {
-	var dirs []string
-	if dir := os.Getenv("LEWKIT_LIB"); dir != "" {
-		dirs = append(dirs, dir)
-	}
-	if list := os.Getenv("LD_LIBRARY_PATH"); list != "" {
-		dirs = append(dirs, strings.Split(list, string(os.PathListSeparator))...)
-	}
-	dirs = append(dirs,
-		"/run/current-system/sw/lib",
-		"/usr/lib",
-		"/usr/lib64",
-		"/usr/local/lib",
-	)
-	if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, ".nix-profile/lib"))
-	}
-	return dirs
+	return native.OpenChain(native.Now|native.Global, sonames...)
 }
 
 // grammarName returns the language name from a libtree-sitter-<name> file.

@@ -4,8 +4,6 @@ package pulse
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
@@ -37,19 +35,11 @@ type Sink struct {
 }
 
 func openLib(soname string) (uintptr, error) {
-	lib, err := native.OpenFirst(native.Lazy, libPaths(soname)...)
+	lib, err := native.OpenChain(native.Lazy, soname)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", soname, err)
 	}
 	return lib, nil
-}
-
-func libPaths(soname string) []string {
-	paths := []string{soname}
-	if dir := os.Getenv("LEWKIT_LIB"); dir != "" {
-		paths = append(paths, filepath.Join(dir, soname))
-	}
-	return append(paths, filepath.Join("/run/current-system/sw/lib", soname))
 }
 
 func cString(s string) []byte {

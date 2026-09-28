@@ -458,7 +458,7 @@ func darwinLibDirs() []string {
 }
 
 func openLib() (uintptr, error) {
-	lib, err := native.OpenFirst(native.Lazy, libNames()...)
+	lib, err := native.OpenChain(native.Lazy, libNames()...)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
