@@ -182,9 +182,12 @@ func (w *lineWriter) ReadFrom(r io.Reader) (int64, error) {
 			}
 		}
 		if err != nil {
+			cErr := w.Close()
 			if err == io.EOF {
-				w.commitPartial()
-				return n, nil
+				return n, cErr
+			}
+			if cErr != nil {
+				return n, cErr
 			}
 			return n, err
 		}
@@ -198,15 +201,6 @@ func (w *lineWriter) Close() error {
 		return nil
 	}
 	w.closed = true
-	w.mu.Unlock()
-	w.commitPartial()
-	return nil
-}
-
-// commitPartial prints a trailing line that never saw a newline.
-// The writer stays open so the next command can use it.
-func (w *lineWriter) commitPartial() {
-	w.mu.Lock()
 	text := w.filter.take()
 	print := w.print
 	flush := w.commitOnClose
@@ -218,6 +212,7 @@ func (w *lineWriter) commitPartial() {
 	if flush && text != "" && print != nil {
 		print(text)
 	}
+	return nil
 }
 
 func (w *lineWriter) abandon() string {
@@ -229,6 +224,23 @@ func (w *lineWriter) abandon() string {
 	w.closed = true
 	w.print = nil
 	return w.filter.take()
+}
+
+// CommandStreams returns stdout and stderr for one subprocess.
+// A nil stdout and stderr is a new progress row, shared by both streams of that command.
+// The next call is another row. A caller-supplied writer is returned as-is.
+func CommandStreams(ctx context.Context, stdout, stderr io.Writer) (io.Writer, io.Writer) {
+	if stdout == nil && stderr == nil {
+		w := LineWriterFrom(ctx)
+		return w, w
+	}
+	if stdout == nil {
+		stdout = LineWriterFrom(ctx)
+	}
+	if stderr == nil {
+		stderr = stdout
+	}
+	return stdout, stderr
 }
 
 // LineWriterFrom returns a writer for one subprocess stream.

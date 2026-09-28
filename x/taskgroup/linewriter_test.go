@@ -54,7 +54,7 @@ func TestLineWriterCloseCommitsLeftover(t *testing.T) {
 	require.NoError(t, w.Close())
 }
 
-func TestLineWriterReadFromCommitsLeftover(t *testing.T) {
+func TestLineWriterReadFromCloses(t *testing.T) {
 	hub := newLiveHub()
 	var committed []string
 	w := newLineWriter(hub, func(s string) { committed = append(committed, s) })
@@ -63,8 +63,7 @@ func TestLineWriterReadFromCommitsLeftover(t *testing.T) {
 	assert.Equal(t, int64(8), n)
 	assert.Equal(t, []string{"100%"}, committed)
 	_, err = w.Write([]byte("next\n"))
-	require.NoError(t, err)
-	assert.Equal(t, []string{"100%", "next"}, committed)
+	require.ErrorIs(t, err, io.ErrClosedPipe)
 }
 
 func TestLineWriterTwoIndependentRows(t *testing.T) {
@@ -110,6 +109,14 @@ func TestLogWriterPicksUpPrintLater(t *testing.T) {
 	_, err := w.Write([]byte("after\n"))
 	require.NoError(t, err)
 	require.Equal(t, []string{"after"}, got)
+}
+
+func TestCommandStreamsArePerCall(t *testing.T) {
+	a, ae := CommandStreams(t.Context(), nil, nil)
+	b, be := CommandStreams(t.Context(), nil, nil)
+	assert.Same(t, a, ae)
+	assert.Same(t, b, be)
+	assert.NotSame(t, a, b)
 }
 
 func TestLineWriterFromNoSession(t *testing.T) {

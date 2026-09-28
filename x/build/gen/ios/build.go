@@ -179,7 +179,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	}
 
 	slog.Info("ios xcode")
-	built, err := assembleDebug(workDir, cfg.ProductName(), sdk, xArch, stdout, stderr)
+	built, err := assembleDebug(ctx, workDir, cfg.ProductName(), sdk, xArch, opts.Stdout, opts.Stderr)
 	if err != nil {
 		buildErr = err
 		return nil, buildErr
@@ -321,7 +321,7 @@ func writeClangwrap(workDir string) (string, error) {
 	return dest, nil
 }
 
-func assembleDebug(workDir, product, sdk, xArch string, stdout, stderr io.Writer) (string, error) {
+func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string, stdout, stderr io.Writer) (string, error) {
 	if _, err := exec.LookPath("xcodegen"); err != nil {
 		return "", fmt.Errorf("%w: %w", ErrXcodeGenNotFound, err)
 	}
@@ -331,8 +331,7 @@ func assembleDebug(workDir, product, sdk, xArch string, stdout, stderr io.Writer
 
 	gen := exec.Command("xcodegen", "generate")
 	gen.Dir = workDir
-	gen.Stdout = stdout
-	gen.Stderr = stderr
+	gen.Stdout, gen.Stderr = taskgroup.CommandStreams(ctx, stdout, stderr)
 	if err := gen.Run(); err != nil {
 		return "", fmt.Errorf("xcodegen generate: %w", err)
 	}
@@ -359,8 +358,7 @@ func assembleDebug(workDir, product, sdk, xArch string, stdout, stderr io.Writer
 		"build",
 	)
 	cmd.Dir = workDir
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+	cmd.Stdout, cmd.Stderr = taskgroup.CommandStreams(ctx, stdout, stderr)
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("xcodebuild: %w\n(work dir left at %s)", err, workDir)
 	}
