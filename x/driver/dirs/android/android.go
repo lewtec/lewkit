@@ -4,12 +4,14 @@ package android
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/dirs"
+	"github.com/lewtec/lewkit/x/ffi/jni"
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
 
@@ -34,15 +36,15 @@ func (factory) New(context.Context) (dirs.Driver, error) { return backend{}, nil
 type backend struct{}
 
 func (backend) Resolve(_ context.Context, _ string) (dirs.Dirs, error) {
-	data, err := androidffi.StaticString("dataDir")
+	data, err := hostString("dataDir")
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
-	cache, err := androidffi.StaticString("cacheDir")
+	cache, err := hostString("cacheDir")
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
-	config, err := androidffi.StaticString("configDir")
+	config, err := hostString("configDir")
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
@@ -58,4 +60,18 @@ func (backend) Resolve(_ context.Context, _ string) (dirs.Dirs, error) {
 		}
 	}
 	return got, nil
+}
+
+var errHostValue = errors.New("lewkit.Host value")
+
+func hostString(name string) (string, error) {
+	v, err := jni.CallStatic("lewkit.Host", name)
+	if err != nil {
+		return "", err
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("%w: %s returned %T", errHostValue, name, v)
+	}
+	return s, nil
 }
