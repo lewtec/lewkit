@@ -16,6 +16,7 @@ char *lewkit_go_string(JNIEnv *env, jstring s);
 import "C"
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync/atomic"
@@ -49,11 +50,7 @@ func RequestSurface(ctx context.Context) (uintptr, int, int, error) {
 	}
 }
 
-var errNoSurface = errString("android surface closed")
-
-type errString string
-
-func (e errString) Error() string { return string(e) }
+var errNoSurface = errors.New("android surface closed")
 
 // NotifyReady tells the Android host that the web window can open this URL.
 func NotifyReady(url string) {
