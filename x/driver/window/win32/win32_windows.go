@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 const (
@@ -45,25 +46,22 @@ const (
 )
 
 var (
-	user32               = syscall.NewLazyDLL("user32.dll")
-	gdi32                = syscall.NewLazyDLL("gdi32.dll")
-	kernel32             = syscall.NewLazyDLL("kernel32.dll")
-	procRegisterClassExW = user32.NewProc("RegisterClassExW")
-	procCreateWindowExW  = user32.NewProc("CreateWindowExW")
-	procDefWindowProcW   = user32.NewProc("DefWindowProcW")
-	procGetMessageW      = user32.NewProc("GetMessageW")
-	procTranslateMessage = user32.NewProc("TranslateMessage")
-	procDispatchMessageW = user32.NewProc("DispatchMessageW")
-	procShowWindow       = user32.NewProc("ShowWindow")
-	procGetDC            = user32.NewProc("GetDC")
-	procReleaseDC        = user32.NewProc("ReleaseDC")
-	procDestroyWindow    = user32.NewProc("DestroyWindow")
-	procSetWindowPos     = user32.NewProc("SetWindowPos")
-	procGetClientRect    = user32.NewProc("GetClientRect")
-	procPostQuitMessage  = user32.NewProc("PostQuitMessage")
-	procGetModuleHandleW = kernel32.NewProc("GetModuleHandleW")
-	procStretchDIBits    = gdi32.NewProc("StretchDIBits")
-	procGetDeviceCaps    = gdi32.NewProc("GetDeviceCaps")
+	procRegisterClassExW = native.ProcOf("user32.dll", "RegisterClassExW")
+	procCreateWindowExW  = native.ProcOf("user32.dll", "CreateWindowExW")
+	procDefWindowProcW   = native.ProcOf("user32.dll", "DefWindowProcW")
+	procGetMessageW      = native.ProcOf("user32.dll", "GetMessageW")
+	procTranslateMessage = native.ProcOf("user32.dll", "TranslateMessage")
+	procDispatchMessageW = native.ProcOf("user32.dll", "DispatchMessageW")
+	procShowWindow       = native.ProcOf("user32.dll", "ShowWindow")
+	procGetDC            = native.ProcOf("user32.dll", "GetDC")
+	procReleaseDC        = native.ProcOf("user32.dll", "ReleaseDC")
+	procDestroyWindow    = native.ProcOf("user32.dll", "DestroyWindow")
+	procSetWindowPos     = native.ProcOf("user32.dll", "SetWindowPos")
+	procGetClientRect    = native.ProcOf("user32.dll", "GetClientRect")
+	procPostQuitMessage  = native.ProcOf("user32.dll", "PostQuitMessage")
+	procGetModuleHandleW = native.ProcOf("kernel32.dll", "GetModuleHandleW")
+	procStretchDIBits    = native.ProcOf("gdi32.dll", "StretchDIBits")
+	procGetDeviceCaps    = native.ProcOf("gdi32.dll", "GetDeviceCaps")
 	classOnce            sync.Once
 	classAtom            uintptr
 	classErr             error

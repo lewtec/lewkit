@@ -35,10 +35,6 @@ func pinBytes(body []byte) uintptr {
 	return pointer
 }
 
-func cStringBytes(text string) []byte {
-	return append([]byte(text), 0)
-}
-
 func cStringPointer(text []byte) *byte {
 	if len(text) == 0 {
 		return nil

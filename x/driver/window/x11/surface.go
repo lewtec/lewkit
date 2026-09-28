@@ -1,8 +1,6 @@
 package x11
 
 import (
-	"sync"
-
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -15,21 +13,26 @@ func (w *xwin) Surface() window.Surface {
 }
 
 var (
-	xlibOnce sync.Once
-	xlibDpy  uintptr
-	xOpen    func(name *byte) uintptr
-)
-
-func xlibDisplay() uintptr {
-	xlibOnce.Do(func() {
-		lib, err := native.Open("libX11.so.6", native.Global|native.Lazy)
+	xlibDpy uintptr
+	xOpen   func(name *byte) uintptr
+	loadX11 = native.Once(func() error {
+		lib, err := native.OpenChain(native.Global|native.Lazy, "libX11.so.6")
 		if err != nil {
-			return
+			return err
 		}
-		native.Func(lib, "XOpenDisplay", &xOpen)
+		if err := native.Bind(lib, "XOpenDisplay", &xOpen); err != nil {
+			return err
+		}
 		if xOpen != nil {
 			xlibDpy = xOpen(nil)
 		}
+		return nil
 	})
+)
+
+func xlibDisplay() uintptr {
+	if loadX11() != nil {
+		return 0
+	}
 	return xlibDpy
 }

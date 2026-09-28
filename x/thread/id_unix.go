@@ -2,31 +2,25 @@
 
 package thread
 
-import (
-	"sync"
-
-	"github.com/lewtec/lewkit/x/ffi/native"
-)
+import "github.com/lewtec/lewkit/x/ffi/native"
 
 var (
-	libcOnce sync.Once
 	libc     uintptr
 	self     func() uintptr
-)
-
-func loadLibc() {
-	libcOnce.Do(func() {
-		lib, err := native.Open(libcPath, native.Lazy)
+	loadLibc = native.Once(func() error {
+		lib, err := native.OpenChain(native.Lazy, libcPath)
 		if err != nil {
-			return
+			return err
 		}
 		libc = lib
-		native.Func(lib, "pthread_self", &self)
+		return native.Bind(lib, "pthread_self", &self)
 	})
-}
+)
 
 func osThread() uint64 {
-	loadLibc()
+	if err := loadLibc(); err != nil {
+		return 0
+	}
 	if self == nil {
 		return 0
 	}

@@ -20,7 +20,8 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/webview"
-	native "github.com/lewtec/lewkit/x/ffi/native/webview2"
+	"github.com/lewtec/lewkit/x/ffi/native"
+	webview2 "github.com/lewtec/lewkit/x/ffi/native/webview2"
 )
 
 const (
@@ -37,19 +38,17 @@ const (
 )
 
 var (
-	user32              = syscall.NewLazyDLL("user32.dll")
-	kernel32            = syscall.NewLazyDLL("kernel32.dll")
-	procRegisterClassEx = user32.NewProc("RegisterClassExW")
-	procCreateWindowEx  = user32.NewProc("CreateWindowExW")
-	procDefWindowProc   = user32.NewProc("DefWindowProcW")
-	procGetMessage      = user32.NewProc("GetMessageW")
-	procTranslate       = user32.NewProc("TranslateMessage")
-	procDispatch        = user32.NewProc("DispatchMessageW")
-	procShowWindow      = user32.NewProc("ShowWindow")
-	procDestroyWindow   = user32.NewProc("DestroyWindow")
-	procPostMessage     = user32.NewProc("PostMessageW")
-	procGetClientRect   = user32.NewProc("GetClientRect")
-	procGetModule       = kernel32.NewProc("GetModuleHandleW")
+	procRegisterClassEx = native.ProcOf("user32.dll", "RegisterClassExW")
+	procCreateWindowEx  = native.ProcOf("user32.dll", "CreateWindowExW")
+	procDefWindowProc   = native.ProcOf("user32.dll", "DefWindowProcW")
+	procGetMessage      = native.ProcOf("user32.dll", "GetMessageW")
+	procTranslate       = native.ProcOf("user32.dll", "TranslateMessage")
+	procDispatch        = native.ProcOf("user32.dll", "DispatchMessageW")
+	procShowWindow      = native.ProcOf("user32.dll", "ShowWindow")
+	procDestroyWindow   = native.ProcOf("user32.dll", "DestroyWindow")
+	procPostMessage     = native.ProcOf("user32.dll", "PostMessageW")
+	procGetClientRect   = native.ProcOf("user32.dll", "GetClientRect")
+	procGetModule       = native.ProcOf("kernel32.dll", "GetModuleHandleW")
 
 	classOnce sync.Once
 	classErr  error
@@ -135,7 +134,7 @@ type message struct {
 	ptY     int32
 }
 
-func loader() error { return native.Available() }
+func loader() error { return webview2.Available() }
 
 func (edgeDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, error) {
 	if err := ctx.Err(); err != nil {
@@ -185,7 +184,7 @@ func ensureLoop() error {
 		go func() {
 			runtime.LockOSThread()
 			defer runtime.UnlockOSThread()
-			if err := native.CoInitialize(); err != nil {
+			if err := webview2.CoInitialize(); err != nil {
 				loopErr = err
 				close(loopStarted)
 				return
@@ -307,7 +306,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	environmentHandler := newHandler(environmentHandlerIID, environmentInvokeCallback)
 	environmentHandler.done = make(chan uintptr, 1)
 	environmentHandler.failed = make(chan error, 1)
-	if err := native.CreateEnvironment(folderUTF, uintptr(unsafe.Pointer(environmentHandler))); err != nil {
+	if err := webview2.CreateEnvironment(folderUTF, uintptr(unsafe.Pointer(environmentHandler))); err != nil {
 		return err
 	}
 	select {
@@ -563,7 +562,7 @@ func messageInvoke(this, _, args uintptr) uintptr {
 		return 0
 	}
 	text := utf16Ptr(textPointer)
-	native.FreeTaskMemory(textPointer)
+	webview2.FreeTaskMemory(textPointer)
 	payload := []byte(text)
 	select {
 	case handler.view.messages <- payload:
@@ -593,7 +592,7 @@ func resourceInvoke(this, _, args uintptr) uintptr {
 		return 0
 	}
 	raw := utf16Ptr(uriPointer)
-	native.FreeTaskMemory(uriPointer)
+	webview2.FreeTaskMemory(uriPointer)
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return 0
@@ -603,7 +602,7 @@ func resourceInvoke(this, _, args uintptr) uintptr {
 		var methodPointer uintptr
 		if call(request, 4, uintptr(unsafe.Pointer(&methodPointer))) >= 0 && methodPointer != 0 {
 			method = utf16Ptr(methodPointer)
-			native.FreeTaskMemory(methodPointer)
+			webview2.FreeTaskMemory(methodPointer)
 		}
 		var body io.ReadCloser = http.NoBody
 		var content uintptr
@@ -628,7 +627,7 @@ func resourceInvoke(this, _, args uintptr) uintptr {
 	if parsed.Path == "/" || parsed.Path == "/index.html" {
 		body = append([]byte("<script>"+bridgeJavaScript+"</script>"), body...)
 	}
-	stream, err := native.MemoryStream(body)
+	stream, err := webview2.MemoryStream(body)
 	if err != nil {
 		return 0
 	}
@@ -654,7 +653,7 @@ func scriptInvoke(this, result, jsonPointer uintptr) uintptr {
 		handler.call.err = fmt.Errorf("script: %x", uint32(result))
 	} else if jsonPointer != 0 {
 		handler.call.text = utf16Ptr(jsonPointer)
-		native.FreeTaskMemory(jsonPointer)
+		webview2.FreeTaskMemory(jsonPointer)
 	}
 	close(handler.call.done)
 	return 0

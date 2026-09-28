@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 // Device is a compute-capable Vulkan device with host-visible buffers.
@@ -77,9 +79,9 @@ func openInstance(ctx context.Context) (*Device, error) {
 		return nil, err
 	}
 	ensurePlatform()
-	lib, err := openLib()
+	lib, err := native.OpenChain(native.Lazy, libNames()...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	d := &Device{}
 	if err := d.api.loadLoader(lib); err != nil {

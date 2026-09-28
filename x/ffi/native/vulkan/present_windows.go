@@ -201,11 +201,11 @@ func loadUser32() error {
 	if user32 != 0 {
 		return nil
 	}
-	lib, err := native.Open("user32.dll", 0)
+	lib, err := native.OpenChain(0, "user32.dll")
 	if err != nil {
 		return fmt.Errorf("%w: user32", ErrUnavailable)
 	}
-	k32, err := native.Open("kernel32.dll", 0)
+	k32, err := native.OpenChain(0, "kernel32.dll")
 	if err != nil {
 		return fmt.Errorf("%w: kernel32", ErrUnavailable)
 	}

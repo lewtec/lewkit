@@ -26,9 +26,6 @@ var (
 )
 
 var (
-	loadOnce sync.Once
-	loadErr  error
-
 	queueNew     func(format uintptr, cb uintptr, user uintptr, runLoop uintptr, mode uintptr, flags uint32, out *uintptr) int32
 	queueAlloc   func(q uintptr, size uint32, out *uintptr) int32
 	queueEnqueue func(q uintptr, buf uintptr, packets uint32, descs uintptr) int32
@@ -44,11 +41,10 @@ var (
 	cfRelease    func(str uintptr)
 )
 
+var available = native.Once(bindAll)
+
 // Available loads AudioToolbox, CoreAudio, and CoreFoundation.
-func Available() error {
-	loadOnce.Do(func() { loadErr = bindAll() })
-	return loadErr
-}
+func Available() error { return available() }
 
 func bindAll() error {
 	audio, err := native.Open("/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox", native.Lazy|native.Global)
@@ -83,10 +79,9 @@ func bindAll() error {
 		{cf, "CFRelease", &cfRelease},
 	}
 	for _, item := range binds {
-		if _, err := native.Symbol(item.lib, item.name); err != nil {
-			return fmt.Errorf("%s: %w", item.name, err)
+		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
+			return err
 		}
-		native.Func(item.lib, item.name, item.fn)
 	}
 	return nil
 }
@@ -96,12 +91,6 @@ func statusErr(st int32) error {
 		return nil
 	}
 	return fmt.Errorf("%w: %d", errCoreAudio, st)
-}
-
-func cString(s string) []byte {
-	out := make([]byte, len(s)+1)
-	copy(out, s)
-	return out
 }
 
 func cfString(ref uintptr) string {
@@ -265,7 +254,7 @@ func Open(ctx context.Context, uid string, layout Layout) (*Stream, error) {
 		return nil, statusErr(st)
 	}
 	if uid != "" {
-		raw := cString(uid)
+		raw := native.CString(uid)
 		ref := cfCreate(0, uintptr(unsafe.Pointer(&raw[0])), cfUTF8)
 		if ref == 0 {
 			queueDispose(q, 1)

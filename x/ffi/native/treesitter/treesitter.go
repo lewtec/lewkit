@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -31,9 +30,6 @@ type Language uintptr
 
 var (
 	errUnavailable = errors.New("tree-sitter library unavailable")
-
-	loadOnce sync.Once
-	loadErr  error
 
 	parserNew    func() uintptr
 	parserDelete func(uintptr)
@@ -59,6 +55,8 @@ var (
 	libcFree       func(uintptr)
 )
 
+var available = native.Once(bindRuntime)
+
 // Available loads libtree-sitter. Later calls return the first result.
 func Available() error {
 	switch runtime.GOOS {
@@ -66,16 +64,15 @@ func Available() error {
 	default:
 		return fmt.Errorf("%w: %s", errUnavailable, runtime.GOOS)
 	}
-	loadOnce.Do(func() { loadErr = bindRuntime() })
-	return loadErr
+	return available()
 }
 
 func bindRuntime() error {
-	lib, err := openFirst(runtimeSonames())
+	lib, err := native.OpenChain(native.Now|native.Global, runtimeSonames()...)
 	if err != nil {
 		return err
 	}
-	libc, err := openFirst([]string{libcSoname()})
+	libc, err := native.OpenChain(native.Now|native.Global, libcSoname())
 	if err != nil {
 		return err
 	}
@@ -107,7 +104,7 @@ func bindRuntime() error {
 		{libc, "free", &libcFree},
 	}
 	for _, item := range binds {
-		if err := bind(item.lib, item.name, item.fn); err != nil {
+		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
 			return err
 		}
 	}
@@ -123,7 +120,7 @@ var (
 // loader search path. The list is sorted and has no duplicates.
 func Languages() []string {
 	seen := map[string]struct{}{}
-	for _, dir := range libDirs() {
+	for _, dir := range native.SearchDirs() {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			continue
@@ -154,7 +151,7 @@ func OpenLanguage(name string) (Language, error) {
 	if lang, ok := langs[name]; ok {
 		return lang, nil
 	}
-	lib, err := openFirst(grammarSonames(name))
+	lib, err := native.OpenChain(native.Now|native.Global, grammarSonames(name)...)
 	if err != nil {
 		return 0, err
 	}
@@ -279,7 +276,7 @@ func (n Node) Type() string {
 	if !n.live() {
 		return ""
 	}
-	return goString(nodeType(n.raw))
+	return native.GoString(nodeType(n.raw))
 }
 
 // StartByte returns the start offset.
@@ -319,7 +316,7 @@ func (n Node) FieldNameForChild(index uint32) string {
 	if !n.live() {
 		return ""
 	}
-	return goString(nodeFieldName(n.raw, index))
+	return native.GoString(nodeFieldName(n.raw, index))
 }
 
 // NamedChildCount returns the number of named children.
@@ -362,7 +359,7 @@ func (n Node) String() string {
 	if p == 0 {
 		return ""
 	}
-	s := goString(p)
+	s := native.GoString(p)
 	libcFree(p)
 	return s
 }
@@ -399,67 +396,6 @@ func symbolName(name string) string {
 	return "tree_sitter_" + strings.ReplaceAll(name, "-", "_")
 }
 
-func openFirst(sonames []string) (uintptr, error) {
-	var last error
-	for _, soname := range sonames {
-		lib, err := openLib(soname)
-		if err == nil {
-			return lib, nil
-		}
-		last = err
-	}
-	if last == nil {
-		last = errUnavailable
-	}
-	return 0, last
-}
-
-func openLib(soname string) (uintptr, error) {
-	var last error
-	for _, path := range libPaths(soname) {
-		lib, err := native.Open(path, native.Now|native.Global)
-		if err == nil {
-			return lib, nil
-		}
-		last = err
-	}
-	if last == nil {
-		last = errUnavailable
-	}
-	return 0, fmt.Errorf("%s: %w", soname, last)
-}
-
-func libPaths(soname string) []string {
-	paths := []string{soname}
-	for _, dir := range libDirs() {
-		if dir == "" {
-			continue
-		}
-		paths = append(paths, filepath.Join(dir, soname))
-	}
-	return paths
-}
-
-func libDirs() []string {
-	var dirs []string
-	if dir := os.Getenv("LEWKIT_LIB"); dir != "" {
-		dirs = append(dirs, dir)
-	}
-	if list := os.Getenv("LD_LIBRARY_PATH"); list != "" {
-		dirs = append(dirs, strings.Split(list, string(os.PathListSeparator))...)
-	}
-	dirs = append(dirs,
-		"/run/current-system/sw/lib",
-		"/usr/lib",
-		"/usr/lib64",
-		"/usr/local/lib",
-	)
-	if home, err := os.UserHomeDir(); err == nil {
-		dirs = append(dirs, filepath.Join(home, ".nix-profile/lib"))
-	}
-	return dirs
-}
-
 // grammarName returns the language name from a libtree-sitter-<name> file.
 func grammarName(file string) (string, bool) {
 	rest, ok := strings.CutPrefix(filepath.Base(file), "libtree-sitter-")
@@ -473,29 +409,4 @@ func grammarName(file string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func bind(lib uintptr, name string, fnptr any) error {
-	if _, err := native.Symbol(lib, name); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	native.Func(lib, name, fnptr)
-	return nil
-}
-
-func goString(p uintptr) string {
-	if p == 0 {
-		return ""
-	}
-	n := 0
-	for *(*byte)(unsafe.Pointer(p + uintptr(n))) != 0 {
-		n++
-		if n > 1<<20 {
-			break
-		}
-	}
-	if n == 0 {
-		return ""
-	}
-	return string(unsafe.Slice((*byte)(unsafe.Pointer(p)), n))
 }

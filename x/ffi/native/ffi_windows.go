@@ -14,8 +14,7 @@ const (
 	Local  = 0
 )
 
-// Open loads path with LoadLibrary. flags are ignored.
-func Open(path string, flags int) (uintptr, error) {
+func openPath(path string, flags int) (uintptr, error) {
 	_ = flags
 	dll, err := syscall.LoadDLL(path)
 	if err != nil {
