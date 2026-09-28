@@ -54,7 +54,7 @@ func TestLineWriterCloseCommitsLeftover(t *testing.T) {
 	require.NoError(t, w.Close())
 }
 
-func TestLineWriterReadFromCloses(t *testing.T) {
+func TestLineWriterReadFromCommitsLeftover(t *testing.T) {
 	hub := newLiveHub()
 	var committed []string
 	w := newLineWriter(hub, func(s string) { committed = append(committed, s) })
@@ -62,6 +62,9 @@ func TestLineWriterReadFromCloses(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(8), n)
 	assert.Equal(t, []string{"100%"}, committed)
+	_, err = w.Write([]byte("next\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"100%", "next"}, committed)
 }
 
 func TestLineWriterTwoIndependentRows(t *testing.T) {

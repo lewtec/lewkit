@@ -182,12 +182,9 @@ func (w *lineWriter) ReadFrom(r io.Reader) (int64, error) {
 			}
 		}
 		if err != nil {
-			cErr := w.Close()
 			if err == io.EOF {
-				return n, cErr
-			}
-			if cErr != nil {
-				return n, cErr
+				w.commitPartial()
+				return n, nil
 			}
 			return n, err
 		}
@@ -201,6 +198,15 @@ func (w *lineWriter) Close() error {
 		return nil
 	}
 	w.closed = true
+	w.mu.Unlock()
+	w.commitPartial()
+	return nil
+}
+
+// commitPartial prints a trailing line that never saw a newline.
+// The writer stays open so the next command can use it.
+func (w *lineWriter) commitPartial() {
+	w.mu.Lock()
 	text := w.filter.take()
 	print := w.print
 	flush := w.commitOnClose
@@ -212,7 +218,6 @@ func (w *lineWriter) Close() error {
 	if flush && text != "" && print != nil {
 		print(text)
 	}
-	return nil
 }
 
 func (w *lineWriter) abandon() string {
