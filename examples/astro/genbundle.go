@@ -6,13 +6,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lucasew/orvalho/pkg/workers/bundle"
 )
 
@@ -26,7 +27,7 @@ func main() {
 	if _, err := os.Stat(entry); err != nil {
 		fatal(fmt.Errorf("%w: %s — run: mise run assemble", os.ErrNotExist, entry))
 	}
-	esbuild, err := exec.LookPath("esbuild")
+	esbuild, err := execdriver.Which(context.Background(), "esbuild")
 	if err != nil {
 		fatal(fmt.Errorf("esbuild not on PATH: %w", err))
 	}
