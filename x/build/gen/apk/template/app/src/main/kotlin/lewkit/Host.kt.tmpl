@@ -4,7 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import android.text.InputType
 import android.view.Surface
+import android.view.WindowManager
+import android.widget.EditText
+import androidx.appcompat.app.AlertDialog
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 object Host {
     @Volatile
@@ -75,6 +81,67 @@ object Host {
         return dir.absolutePath
     }
 
+    private var promptDialog: AlertDialog? = null
+    private val promptSeq = AtomicInteger()
+
+    // promptResult codes: 0 canceled, 1 submitted text, 2 no foreground activity.
+    @JvmStatic
+    fun prompt(message: String) {
+        val id = promptSeq.incrementAndGet()
+        Handler(Looper.getMainLooper()).post { showPrompt(id, message) }
+    }
+
+    @JvmStatic
+    fun dismissPrompt() {
+        promptSeq.incrementAndGet()
+        Handler(Looper.getMainLooper()).post {
+            val dialog = promptDialog ?: return@post
+            promptDialog = null
+            dialog.setOnCancelListener(null)
+            dialog.dismiss()
+        }
+    }
+
+    private fun showPrompt(id: Int, message: String) {
+        if (id != promptSeq.get()) {
+            return
+        }
+        promptDialog?.setOnCancelListener(null)
+        promptDialog?.dismiss()
+        promptDialog = null
+        val activity = foreground
+        if (activity == null || activity.isFinishing || activity.isDestroyed) {
+            promptResult("", 2)
+            return
+        }
+        val once = AtomicBoolean(false)
+        fun finish(text: String, code: Int) {
+            if (id != promptSeq.get() || !once.compareAndSet(false, true)) {
+                return
+            }
+            promptDialog = null
+            promptResult(text, code)
+        }
+        val input = EditText(activity)
+        input.inputType = InputType.TYPE_CLASS_TEXT
+        input.isSingleLine = true
+        val dialog = AlertDialog.Builder(activity)
+            .setMessage(message)
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                finish(input.text?.toString().orEmpty(), 1)
+            }
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                finish("", 0)
+            }
+            .setOnCancelListener { finish("", 0) }
+            .create()
+        dialog.setOnShowListener { input.requestFocus() }
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
+        promptDialog = dialog
+        dialog.show()
+    }
+
     @JvmStatic
     external fun start(readyFile: String)
 
@@ -89,4 +156,7 @@ object Host {
 
     @JvmStatic
     external fun surfaceLost()
+
+    @JvmStatic
+    external fun promptResult(text: String, code: Int)
 }

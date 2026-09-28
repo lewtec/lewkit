@@ -4,15 +4,19 @@
 //	text, err := launcher.Prompt(ctx, "Name")
 //	ok, err := launcher.Confirm(ctx, "Delete?")
 //
-// Import a backend (rofi, wofi, zenity, terminal). Rofi and wofi also
+// Import a backend (android, rofi, wofi, zenity, terminal). Rofi and wofi also
 // launch applications and switch windows.
 package launcher
 
 import (
 	"context"
+	"errors"
 
 	"github.com/lewtec/lewkit/x/driver"
 )
+
+// ErrCanceled means the user dismissed the prompt without submitting text.
+var ErrCanceled = errors.New("prompt canceled")
 
 // Item is one choice. Label is shown. An empty label shows Value.
 // Icon is a name or path some choosers can show.
@@ -59,6 +63,7 @@ func Choose(ctx context.Context, opts ChooseOptions) (*Item, error) {
 }
 
 // Prompt asks for one line of text.
+// A backend returns [ErrCanceled] when the user dismisses the prompt.
 func Prompt(ctx context.Context, prompt string) (string, error) {
 	return driver.WithResult(ctx, func(d Prompter) (string, error) {
 		return d.Prompt(ctx, prompt)

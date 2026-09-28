@@ -184,3 +184,40 @@ func Java_lewkit_Host_resize(env *C.JNIEnv, class C.jclass, width, height C.jint
 	}
 	fn(int(width), int(height))
 }
+
+type promptHandler func(text string, code int)
+
+var promptFn atomic.Pointer[promptHandler]
+
+// HandlePrompt receives one activity dialog result.
+// code 0 is cancel, 1 is the submitted text, and 2 means no foreground activity.
+// A nil fn clears the handler.
+func HandlePrompt(fn func(text string, code int)) {
+	if fn == nil {
+		promptFn.Store(nil)
+		return
+	}
+	h := promptHandler(fn)
+	promptFn.Store(&h)
+}
+
+//export Java_lewkit_Host_promptResult
+func Java_lewkit_Host_promptResult(env *C.JNIEnv, _ C.jclass, text C.jstring, code C.jint) {
+	fn := promptFn.Load()
+	if fn == nil || *fn == nil {
+		return
+	}
+	(*fn)(hostGoString(env, text), int(code))
+}
+
+func hostGoString(env *C.JNIEnv, text C.jstring) string {
+	if text == 0 {
+		return ""
+	}
+	raw := C.lewkit_go_string(env, text)
+	if raw == nil {
+		return ""
+	}
+	defer C.free(unsafe.Pointer(raw))
+	return C.GoString(raw)
+}
