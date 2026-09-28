@@ -12,6 +12,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/event"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 const (
@@ -23,15 +24,13 @@ const (
 )
 
 var (
-	advapi32  = syscall.NewLazyDLL("advapi32.dll")
-	kernel32  = syscall.NewLazyDLL("kernel32.dll")
-	regOpen   = advapi32.NewProc("RegOpenKeyExW")
-	regQuery  = advapi32.NewProc("RegQueryValueExW")
-	regNotify = advapi32.NewProc("RegNotifyChangeKeyValue")
-	regClose  = advapi32.NewProc("RegCloseKey")
-	createEv  = kernel32.NewProc("CreateEventW")
-	waitEv    = kernel32.NewProc("WaitForSingleObject")
-	closeH    = kernel32.NewProc("CloseHandle")
+	regOpen   = native.ProcOf("advapi32.dll", "RegOpenKeyExW")
+	regQuery  = native.ProcOf("advapi32.dll", "RegQueryValueExW")
+	regNotify = native.ProcOf("advapi32.dll", "RegNotifyChangeKeyValue")
+	regClose  = native.ProcOf("advapi32.dll", "RegCloseKey")
+	createEv  = native.ProcOf("kernel32.dll", "CreateEventW")
+	waitEv    = native.ProcOf("kernel32.dll", "WaitForSingleObject")
+	closeH    = native.ProcOf("kernel32.dll", "CloseHandle")
 
 	personalize = `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`
 )

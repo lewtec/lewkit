@@ -6,42 +6,35 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"syscall"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 // ErrUnavailable means WebView2Loader.dll is missing.
 var ErrUnavailable = errors.New("webview2 unavailable")
 
 var (
-	loaderDLL          *syscall.LazyDLL
-	createEnvironment  *syscall.LazyProc
-	coInitializeEx     = syscall.NewLazyDLL("ole32.dll").NewProc("CoInitializeEx")
-	coTaskMemFree      = syscall.NewLazyDLL("ole32.dll").NewProc("CoTaskMemFree")
-	createMemoryStream = syscall.NewLazyDLL("shlwapi.dll").NewProc("SHCreateMemStream")
+	createEnvironment  native.Proc
+	coInitializeEx     = native.ProcOf("ole32.dll", "CoInitializeEx")
+	coTaskMemFree      = native.ProcOf("ole32.dll", "CoTaskMemFree")
+	createMemoryStream = native.ProcOf("shlwapi.dll", "SHCreateMemStream")
 )
 
 // Available opens WebView2Loader.dll. WEBVIEW2_LOADER, when set, is a full path.
-func Available() error {
-	if loaderDLL != nil {
-		return nil
-	}
+var available = native.Once(func() error {
 	name := os.Getenv("WEBVIEW2_LOADER")
 	if name == "" {
 		name = "WebView2Loader.dll"
 	}
-	dll := syscall.NewLazyDLL(name)
-	if err := dll.Load(); err != nil {
+	createEnvironment = native.ProcOf(name, "CreateCoreWebView2EnvironmentWithOptions")
+	if err := createEnvironment.Find(); err != nil {
 		return fmt.Errorf("%w: %s: %v", ErrUnavailable, name, err)
 	}
-	proc := dll.NewProc("CreateCoreWebView2EnvironmentWithOptions")
-	if err := proc.Find(); err != nil {
-		return fmt.Errorf("%w: CreateCoreWebView2EnvironmentWithOptions: %v", ErrUnavailable, err)
-	}
-	loaderDLL = dll
-	createEnvironment = proc
 	return nil
-}
+})
+
+func Available() error { return available() }
 
 // CoInitialize enters the single-threaded apartment.
 func CoInitialize() error {

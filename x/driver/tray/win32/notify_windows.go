@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/tray"
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/image/convert"
 )
 
@@ -45,32 +46,28 @@ const (
 )
 
 var (
-	user32                  = syscall.NewLazyDLL("user32.dll")
-	gdi32                   = syscall.NewLazyDLL("gdi32.dll")
-	shell32                 = syscall.NewLazyDLL("shell32.dll")
-	kernel32                = syscall.NewLazyDLL("kernel32.dll")
-	procRegisterClassExW    = user32.NewProc("RegisterClassExW")
-	procCreateWindowExW     = user32.NewProc("CreateWindowExW")
-	procDefWindowProcW      = user32.NewProc("DefWindowProcW")
-	procGetMessageW         = user32.NewProc("GetMessageW")
-	procTranslateMessage    = user32.NewProc("TranslateMessage")
-	procDispatchMessageW    = user32.NewProc("DispatchMessageW")
-	procPostMessageW        = user32.NewProc("PostMessageW")
-	procPostQuitMessage     = user32.NewProc("PostQuitMessage")
-	procDestroyWindow       = user32.NewProc("DestroyWindow")
-	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
-	procGetCursorPos        = user32.NewProc("GetCursorPos")
-	procCreatePopupMenu     = user32.NewProc("CreatePopupMenu")
-	procDestroyMenu         = user32.NewProc("DestroyMenu")
-	procAppendMenuW         = user32.NewProc("AppendMenuW")
-	procTrackPopupMenu      = user32.NewProc("TrackPopupMenu")
-	procGetModuleHandleW    = kernel32.NewProc("GetModuleHandleW")
-	procCreateDIBSection    = gdi32.NewProc("CreateDIBSection")
-	procCreateBitmap        = gdi32.NewProc("CreateBitmap")
-	procDeleteObject        = gdi32.NewProc("DeleteObject")
-	procCreateIconIndirect  = user32.NewProc("CreateIconIndirect")
-	procDestroyIcon         = user32.NewProc("DestroyIcon")
-	procShellNotifyIconW    = shell32.NewProc("Shell_NotifyIconW")
+	procRegisterClassExW    = native.ProcOf("user32.dll", "RegisterClassExW")
+	procCreateWindowExW     = native.ProcOf("user32.dll", "CreateWindowExW")
+	procDefWindowProcW      = native.ProcOf("user32.dll", "DefWindowProcW")
+	procGetMessageW         = native.ProcOf("user32.dll", "GetMessageW")
+	procTranslateMessage    = native.ProcOf("user32.dll", "TranslateMessage")
+	procDispatchMessageW    = native.ProcOf("user32.dll", "DispatchMessageW")
+	procPostMessageW        = native.ProcOf("user32.dll", "PostMessageW")
+	procPostQuitMessage     = native.ProcOf("user32.dll", "PostQuitMessage")
+	procDestroyWindow       = native.ProcOf("user32.dll", "DestroyWindow")
+	procSetForegroundWindow = native.ProcOf("user32.dll", "SetForegroundWindow")
+	procGetCursorPos        = native.ProcOf("user32.dll", "GetCursorPos")
+	procCreatePopupMenu     = native.ProcOf("user32.dll", "CreatePopupMenu")
+	procDestroyMenu         = native.ProcOf("user32.dll", "DestroyMenu")
+	procAppendMenuW         = native.ProcOf("user32.dll", "AppendMenuW")
+	procTrackPopupMenu      = native.ProcOf("user32.dll", "TrackPopupMenu")
+	procGetModuleHandleW    = native.ProcOf("kernel32.dll", "GetModuleHandleW")
+	procCreateDIBSection    = native.ProcOf("gdi32.dll", "CreateDIBSection")
+	procCreateBitmap        = native.ProcOf("gdi32.dll", "CreateBitmap")
+	procDeleteObject        = native.ProcOf("gdi32.dll", "DeleteObject")
+	procCreateIconIndirect  = native.ProcOf("user32.dll", "CreateIconIndirect")
+	procDestroyIcon         = native.ProcOf("user32.dll", "DestroyIcon")
+	procShellNotifyIconW    = native.ProcOf("shell32.dll", "Shell_NotifyIconW")
 
 	classOnce sync.Once
 	classAtom uintptr

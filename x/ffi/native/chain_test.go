@@ -84,6 +84,35 @@ func TestOpenChainLeavesPathsAlone(t *testing.T) {
 	require.Equal(t, []string{path}, paths)
 }
 
+func TestOpenInTriesExtraDirsFirst(t *testing.T) {
+	var paths []string
+	swapLoader(t, func(path string, _ int) (uintptr, error) {
+		paths = append(paths, path)
+		if path == filepath.Join("/tmp/extra-chain", "libextra.so") {
+			return 5, nil
+		}
+		return 0, errMissing
+	})
+	handle, err := OpenIn(Lazy, []string{"/tmp/extra-chain"}, "libextra.so")
+	require.NoError(t, err)
+	require.Equal(t, uintptr(5), handle)
+	require.Equal(t, "libextra.so", paths[0])
+	require.Equal(t, filepath.Join("/tmp/extra-chain", "libextra.so"), paths[1])
+}
+
+func TestProcOfRemembersTheLookup(t *testing.T) {
+	var n int
+	swapLoader(t, func(string, int) (uintptr, error) {
+		n++
+		return 0, errMissing
+	})
+	proc := ProcOf("liblewkit-missing.so", "sym")
+	require.ErrorIs(t, proc.Find(), errMissing)
+	calls := n
+	require.ErrorIs(t, proc.Find(), errMissing)
+	require.Equal(t, calls, n)
+}
+
 func TestSingletonKeepsTheValue(t *testing.T) {
 	var n int
 	load := Singleton(func() (int, error) {

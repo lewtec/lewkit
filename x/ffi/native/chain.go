@@ -71,13 +71,14 @@ func expandName(name string, dirs []string) []string {
 
 type chainKey struct {
 	flags int
+	extra string
 	names string
 }
 
 var chains sync.Map // chainKey -> func() (uintptr, error)
 
-func tryChain(flags int, names []string) (uintptr, error) {
-	dirs := SearchDirs()
+func tryChain(flags int, extra, names []string) (uintptr, error) {
+	dirs := SearchDirs(extra...)
 	var last error
 	for _, name := range names {
 		for _, path := range expandName(name, dirs) {
@@ -100,18 +101,27 @@ func tryChain(flags int, names []string) (uintptr, error) {
 // A path is tried only as given. The chain for these flags and names runs
 // once: later calls return the first handle or the first error.
 func OpenChain(flags int, names ...string) (uintptr, error) {
+	return OpenIn(flags, nil, names...)
+}
+
+// OpenIn is OpenChain with extra directories searched before SearchDirs.
+func OpenIn(flags int, extra []string, names ...string) (uintptr, error) {
 	if len(names) == 0 {
 		return 0, errNoLibrary
 	}
 	if flags == 0 {
 		flags = Lazy
 	}
-	key := chainKey{flags: flags, names: strings.Join(names, "\x00")}
+	key := chainKey{
+		flags: flags,
+		extra: strings.Join(extra, "\x00"),
+		names: strings.Join(names, "\x00"),
+	}
 	if value, ok := chains.Load(key); ok {
 		return value.(func() (uintptr, error))()
 	}
 	run := Singleton(func() (uintptr, error) {
-		return tryChain(flags, names)
+		return tryChain(flags, extra, names)
 	})
 	actual, existed := chains.LoadOrStore(key, run)
 	if existed {

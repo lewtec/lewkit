@@ -5,11 +5,13 @@ package webkitgtk
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/stretchr/testify/require"
 )
 
-func TestLibraryDirectoriesIncludeNixOSSystem(t *testing.T) {
+func TestWebKitDirsUseTheSharedChain(t *testing.T) {
 	t.Setenv("WEBKITGTK_LIB", "/tmp/webkit-a:/tmp/webkit-b")
-	dirs := libraryDirectories()
-	require.Equal(t, []string{"/tmp/webkit-a", "/tmp/webkit-b", nixOSSystemLib}, dirs)
+	dirs := native.SearchDirs(webkitDirs()...)
+	require.Equal(t, []string{"/tmp/webkit-a", "/tmp/webkit-b"}, dirs[:2])
+	require.Contains(t, dirs, "/run/current-system/sw/lib")
 }

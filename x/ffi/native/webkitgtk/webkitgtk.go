@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -263,27 +262,18 @@ func Load() (*Symbols, error) {
 	return s, nil
 }
 
-// nixOSSystemLib is the NixOS system profile library directory.
-const nixOSSystemLib = "/run/current-system/sw/lib"
-
-func libraryDirectories() []string {
+func webkitDirs() []string {
 	var dirs []string
-	for _, dir := range strings.Split(os.Getenv("WEBKITGTK_LIB"), ":") {
+	for _, dir := range strings.Split(os.Getenv("WEBKITGTK_LIB"), string(os.PathListSeparator)) {
 		if dir != "" {
 			dirs = append(dirs, dir)
 		}
 	}
-	return append(dirs, nixOSSystemLib)
+	return dirs
 }
 
 func openOne(soname string) (uintptr, error) {
-	dirs := libraryDirectories()
-	names := make([]string, 0, len(dirs)+1)
-	for _, dir := range dirs {
-		names = append(names, filepath.Join(dir, soname))
-	}
-	names = append(names, soname)
-	lib, err := native.OpenChain(native.Global|native.Lazy, names...)
+	lib, err := native.OpenIn(native.Global|native.Lazy, webkitDirs(), soname)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
 	}

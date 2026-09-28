@@ -12,6 +12,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/filedialog"
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/thread"
 )
 
@@ -38,13 +39,11 @@ var (
 	iidSave   = syscall.GUID{Data1: 0x84BCCD23, Data2: 0x5FDE, Data3: 0x4CDB, Data4: [8]byte{0xAE, 0xA4, 0xAF, 0x64, 0xB8, 0x3D, 0x78, 0xAB}}
 	iidItem   = syscall.GUID{Data1: 0x43826D1E, Data2: 0xE718, Data3: 0x42EE, Data4: [8]byte{0xBC, 0x55, 0xA1, 0xE2, 0x61, 0xC3, 0x7B, 0xFE}}
 
-	ole32                           = syscall.NewLazyDLL("ole32.dll")
-	shell32                         = syscall.NewLazyDLL("shell32.dll")
-	procCoInitializeEx              = ole32.NewProc("CoInitializeEx")
-	procCoUninitialize              = ole32.NewProc("CoUninitialize")
-	procCoCreateInstance            = ole32.NewProc("CoCreateInstance")
-	procCoTaskMemFree               = ole32.NewProc("CoTaskMemFree")
-	procSHCreateItemFromParsingName = shell32.NewProc("SHCreateItemFromParsingName")
+	procCoInitializeEx              = native.ProcOf("ole32.dll", "CoInitializeEx")
+	procCoUninitialize              = native.ProcOf("ole32.dll", "CoUninitialize")
+	procCoCreateInstance            = native.ProcOf("ole32.dll", "CoCreateInstance")
+	procCoTaskMemFree               = native.ProcOf("ole32.dll", "CoTaskMemFree")
+	procSHCreateItemFromParsingName = native.ProcOf("shell32.dll", "SHCreateItemFromParsingName")
 )
 
 type filterSpec struct {
