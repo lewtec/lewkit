@@ -4,8 +4,9 @@
 //		Title: "lewkit", Message: "done",
 //	})
 //
-// Import the dbus or notify-send backend. DBus speaks
+// Import the dbus, notify-send, or Android backend. DBus speaks
 // org.freedesktop.Notifications. notify-send is the command fallback.
+// Android posts through the packaged host.
 package notification
 
 import (

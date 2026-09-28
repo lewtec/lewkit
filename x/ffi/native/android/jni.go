@@ -15,6 +15,7 @@ const (
 	idxFindClass             = 6
 	idxExceptionClear        = 17
 	idxNewGlobalRef          = 21
+	idxDeleteLocalRef        = 23
 	idxGetStaticMethodID     = 113
 	idxCallStaticObjectA     = 116
 	idxCallStaticVoidA       = 143
@@ -69,6 +70,12 @@ func BindHost(env uintptr) error {
 
 // StaticString calls a no-argument static method that returns a String.
 func StaticString(name string) (string, error) {
+	return StaticStrings(name, "()Ljava/lang/String;")
+}
+
+// StaticStrings calls a static method that returns a String.
+// strArgs are the Ljava/lang/String; parameters, in order.
+func StaticStrings(name, sig string, strArgs ...string) (string, error) {
 	env, err := attach()
 	if err != nil {
 		return "", err
@@ -77,9 +84,29 @@ func StaticString(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	mid, err := env.method(cls, name, "()Ljava/lang/String;")
+	mid, err := env.method(cls, name, sig)
 	if err != nil {
 		return "", err
+	}
+	vals := make([]jvalue, len(strArgs))
+	for i, s := range strArgs {
+		vals[i].obj = env.newString(s)
+		if vals[i].obj == 0 {
+			env.clear()
+			for _, v := range vals[:i] {
+				env.deleteLocal(v.obj)
+			}
+			return "", fmt.Errorf("android host %s string", name)
+		}
+	}
+	defer func() {
+		for _, v := range vals {
+			env.deleteLocal(v.obj)
+		}
+	}()
+	var args uintptr
+	if len(vals) > 0 {
+		args = uintptr(unsafe.Pointer(&vals[0]))
 	}
 	var fn func(env, cls, mid, args uintptr) uintptr
 	fp, err := env.fn(idxCallStaticObjectA)
@@ -87,12 +114,14 @@ func StaticString(name string) (string, error) {
 		return "", err
 	}
 	native.Register(&fn, fp)
-	obj := fn(env.ptr(), cls, mid, 0)
+	obj := fn(env.ptr(), cls, mid, args)
 	if obj == 0 {
 		env.clear()
 		return "", fmt.Errorf("android host %s", name)
 	}
-	return env.goString(obj), nil
+	out := env.goString(obj)
+	env.deleteLocal(obj)
+	return out, nil
 }
 
 // StaticVoid calls a static void method. strArgs fill Ljava/lang/String; parameters.
@@ -196,6 +225,19 @@ func (e Env) findClass(name string) (uintptr, error) {
 		return 0, fmt.Errorf("FindClass %s", name)
 	}
 	return cls, nil
+}
+
+func (e Env) deleteLocal(obj uintptr) {
+	if obj == 0 {
+		return
+	}
+	fp, err := e.fn(idxDeleteLocalRef)
+	if err != nil {
+		return
+	}
+	var fn func(env, obj uintptr)
+	native.Register(&fn, fp)
+	fn(e.ptr(), obj)
 }
 
 func (e Env) newGlobalRef(obj uintptr) uintptr {

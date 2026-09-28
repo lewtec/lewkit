@@ -1,2 +1,2 @@
-// Package android binds libandroid and JNI_GetCreatedJavaVMs.
+// Package android binds libandroid, JNI_GetCreatedJavaVMs, and lewkit.Host.
 package android

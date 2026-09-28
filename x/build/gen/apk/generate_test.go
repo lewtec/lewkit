@@ -84,6 +84,16 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if strings.Contains(string(manifest), `android:scheme=`) {
 		t.Fatalf("unexpected scheme filter:\n%s", manifest)
 	}
+	if !strings.Contains(string(manifest), `android.permission.POST_NOTIFICATIONS`) {
+		t.Fatalf("missing notification permission:\n%s", manifest)
+	}
+	host, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.kt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(host), "fun notify(") {
+		t.Fatal("host notify missing")
+	}
 
 	sh, err := os.ReadFile(filepath.Join(out, "scripts/build-go.sh"))
 	if err != nil {

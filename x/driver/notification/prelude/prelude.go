@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/notification/android"
 	_ "github.com/lewtec/lewkit/x/driver/notification/dbus"
 	_ "github.com/lewtec/lewkit/x/driver/notification/notify_send"
 )

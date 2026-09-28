@@ -106,6 +106,7 @@ Inherited C (cite the file):
 | `x/driver/tray` | `Open`, `Tray`, `Icon`, `Item` | host status item | protocol stays here | missing session bus or host is the tray error | import `x/ffi/wasm` |
 | `x/driver/daynight` | `Current`, `Watch`, `Mode` | light or dark | protocol stays here | missing portal or host is `driver.ErrUnavailable` | import `x/ui/gui`; import `x/driver/webview`; import `x/ffi/wasm` |
 | `x/driver/notification` | `Notify`, `Notification` | one local alert | protocol stays here | missing backend is `driver.ErrUnavailable` | import `x/ffi` |
+| `x/driver/notification/android` | Android `Notify` | `NotificationManager` through `lewkit.Host.notify` | selection stays here | no Java VM is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/clipboard` | `WriteText`, `WriteImage` | host clipboard | protocol stays here | missing tool is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/opener` | `Open` | launch a file or URL | protocol stays here | missing opener is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/dirs` | `Resolve`, `Dirs` | per-app data, cache, config, inbox | protocol stays here | bad app id is `ErrInvalidAppID` | hardcode a product name in the path |
@@ -168,7 +169,7 @@ Inherited C (cite the file):
 | `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webkit` | `Load` | WebKit.framework, dlopen | loader stays here | missing framework is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
-| `x/ffi/native/android` | `JavaVMs`, `OnLooper` | libnativehelper and libandroid | loader stays here | missing library is the load error | import `x/driver` |
+| `x/ffi/native/android` | `JavaVMs`, `OnLooper`, `StaticStrings` | libnativehelper and libandroid | loader stays here | missing library is the load error | import `x/driver` |
 | `x/driver/thread/jni` | Android looper factory | facade of the android binding | selection stays here | no Java looper is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
@@ -326,3 +327,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.
 - 2026-09-26: `x/text/report` owns diagnostic findings. Output is a text line, a table, a rustc-style snippet, or SARIF 2.1.0. The root `report` package stays the error-reporter registry. The finding table is an `x/text/table` view, so the same columns render as a table, JSONL, or CSV.
 - 2026-09-26: the reverse-domain id is `x/release.AppID`. `x/driver/bundle` is that binary's data, cache, config, and web profile. `x/driver/dirs` stays the generic tree. `lewkit build` writes desktop archives and the Android, macOS, and iOS hosts. A web view request is normalized inside `webview.Dispatch`.
+- 2026-09-28: Android notifications are `x/driver/notification/android`. The packaged host posts them from `lewkit.Host.notify`. A missing Java VM is `driver.ErrIncompatible`.
