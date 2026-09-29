@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	charm.land/bubbletea/v2 v2.0.7
 	cuelang.org/go v0.17.1
+	github.com/AndroidGoLab/binder v0.0.9
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Xmister/udf v0.0.0-20210116171753-6c18325874a7
 	github.com/a-h/templ v0.3.1020
@@ -33,6 +34,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/core v0.0.0-20260927184652-669b18df5afb
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json v0.0.0-20260927184652-669b18df5afb
+	github.com/opencontainers/selinux v1.13.1
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/shirou/gopsutil/v4 v4.26.8
@@ -45,6 +47,7 @@ require (
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
 	golang.org/x/image v0.42.0
 	golang.org/x/sync v0.23.0
+	golang.org/x/sys v0.48.0
 	golang.org/x/term v0.46.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.58.0
@@ -71,17 +74,22 @@ require (
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/cubicdaiya/gonp v1.0.4 // indirect
+	github.com/cyphar/filepath-securejoin v0.5.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
 	github.com/dop251/goja v0.0.0-20260701091749-b07b74453ea9 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/emicklei/proto v1.14.3 // indirect
+	github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/gdamore/tcell/v2 v2.6.0 // indirect
 	github.com/git-pkgs/gitignore v1.2.0 // indirect
+	github.com/go-ng/slices v0.0.0-20230703171042-6195d35636a2 // indirect
+	github.com/go-ng/sort v0.0.0-20220617173827-2cc7cd04f7c7 // indirect
+	github.com/go-ng/xsort v0.0.0-20220617174223-1d146907bccc // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
@@ -143,7 +151,6 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/tools v0.50.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect

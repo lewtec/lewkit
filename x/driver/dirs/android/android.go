@@ -1,5 +1,3 @@
-//go:build android && cgo
-
 package android
 
 import (
@@ -9,10 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/driver"
-	host "github.com/lewtec/lewkit/x/driver/android"
 	"github.com/lewtec/lewkit/x/driver/dirs"
-	"github.com/lewtec/lewkit/x/ffi/jni"
-	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
+	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
 
 func init() { driver.Register[dirs.Driver](factory{}) }
@@ -23,41 +19,25 @@ func (factory) ID() string   { return "dirs_android" }
 func (factory) Name() string { return "Android directories" }
 func (factory) Weight() int  { return 80 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	n, err := androidffi.JavaVMs()
-	if err != nil || n < 1 {
-		return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
-	}
-	return nil
+func (factory) CheckCompatibility(ctx context.Context) error {
+	_, err := open(ctx)
+	return err
 }
 
 func (factory) New(context.Context) (dirs.Driver, error) { return backend{}, nil }
 
 type backend struct{}
 
-func (backend) Resolve(ctx context.Context, _ string) (dirs.Dirs, error) {
-	if err := ctx.Err(); err != nil {
-		return dirs.Dirs{}, err
-	}
-	app, err := host.Context()
+func (backend) Resolve(ctx context.Context, appID string) (dirs.Dirs, error) {
+	client, err := open(ctx)
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
-	defer app.Release()
-	data, err := dirPath(app, "getFilesDir")
+	dataDir, err := client.DataDir(ctx, appID)
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
-	cache, err := dirPath(app, "getCacheDir")
-	if err != nil {
-		return dirs.Dirs{}, err
-	}
-	got := dirs.Dirs{
-		Data:   data,
-		Cache:  cache,
-		Config: filepath.Join(data, "config"),
-		Inbox:  filepath.Join(cache, "inbox"),
-	}
+	got := pathsFromDataDir(dataDir)
 	for _, dir := range []string{got.Data, got.Cache, got.Config, got.Inbox} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return dirs.Dirs{}, fmt.Errorf("mkdir %s: %w", dir, err)
@@ -66,21 +46,21 @@ func (backend) Resolve(ctx context.Context, _ string) (dirs.Dirs, error) {
 	return got, nil
 }
 
-func dirPath(app *jni.Ref, method string) (string, error) {
-	file, err := host.Ref(app.Call(method))
+func pathsFromDataDir(dataDir string) dirs.Dirs {
+	data := filepath.Join(dataDir, "files")
+	cache := filepath.Join(dataDir, "cache")
+	return dirs.Dirs{
+		Data:   data,
+		Cache:  cache,
+		Config: filepath.Join(data, "config"),
+		Inbox:  filepath.Join(cache, "inbox"),
+	}
+}
+
+func open(ctx context.Context) (*ffiandroid.Client, error) {
+	client, err := ffiandroid.ForAndroid(ctx)
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
 	}
-	if file == nil {
-		return "", fmt.Errorf("%w: %s", driver.ErrUnavailable, method)
-	}
-	defer file.Release()
-	text, err := host.Text(file.Call("getAbsolutePath"))
-	if err != nil {
-		return "", err
-	}
-	if text == "" {
-		return "", fmt.Errorf("%w: %s", driver.ErrUnavailable, method)
-	}
-	return text, nil
+	return client, nil
 }

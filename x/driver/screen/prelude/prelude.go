@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/screen/android"
 	_ "github.com/lewtec/lewkit/x/driver/screen/sway"
 	_ "github.com/lewtec/lewkit/x/driver/screen/x11"
 )
