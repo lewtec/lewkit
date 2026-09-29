@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
@@ -57,7 +58,8 @@ func (w webWindow) open(ctx context.Context, title string, width, height int, pr
 		Handler: w.handler,
 	})
 	if err != nil {
-		if errors.Is(err, driver.ErrUnavailable) {
+		// Same opt-in as the memory drivers. Otherwise a missing web view returns.
+		if errors.Is(err, driver.ErrUnavailable) && os.Getenv("LEWKIT_ENABLE_MEMORY_DRIVER") != "" {
 			return serveWeb(ctx, w.handler)
 		}
 		return err

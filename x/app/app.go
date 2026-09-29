@@ -1,6 +1,7 @@
 // Package app opens one window. The window is a web handler or a GUI model.
 // A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI serves a web
-// handler on a loopback port instead.
+// handler on a loopback port instead. A missing web view does that only when
+// LEWKIT_ENABLE_MEMORY_DRIVER is set.
 package app
 
 import (
@@ -38,8 +39,9 @@ type App struct {
 }
 
 // Run instantiates the app window. A web handler pushes a webapp. A GUI model
-// opens a Vulkan surface. A host without a webview driver keeps the web
-// handler on a loopback port and shows that window itself.
+// opens a Vulkan surface. LEWKIT_NO_UI and ELETROCROMO_NO_UI serve a web
+// handler on a loopback port. A missing web view does that only when
+// LEWKIT_ENABLE_MEMORY_DRIVER is set.
 func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
