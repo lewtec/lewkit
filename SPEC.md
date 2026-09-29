@@ -167,7 +167,7 @@ Inherited C (cite the file):
 | `x/ffi/native/treesitter` | `Available`, `OpenLanguage`, `Parse` | libtree-sitter binding | loader stays here | missing library is the load error | import `x/ffi/wasm`; import `x/driver` |
 | `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webkit` | `Load` | WebKit.framework, dlopen | loader stays here | missing framework is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
-| `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
+| `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | installed Edge WebView2 runtime | loader stays here | missing runtime is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper` | libnativehelper and libandroid | loader stays here | missing library is the load error | import `x/driver` |
 | `x/driver/thread/jni` | Android looper factory | facade of the android binding | selection stays here | no Java looper is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
@@ -328,3 +328,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-26: the reverse-domain id is `x/release.AppID`. `x/driver/bundle` is that binary's data, cache, config, and web profile. `x/driver/dirs` stays the generic tree. `lewkit build` writes desktop archives and the Android, macOS, and iOS hosts. A web view request is normalized inside `webview.Dispatch`.
 - 2026-09-29: linux and windows `--app` are the desktop binary. Windows embeds the icon in the exe and links it as a GUI program. Linux writes a png and a desktop entry beside the binary.
 - 2026-09-29: the ccgo tree-sitter engine is not built for windows.
+- 2026-09-29: the Windows web view uses the Edge WebView2 runtime already installed on the machine. A missing runtime is `ErrUnavailable`. The build does not ship a loader.
