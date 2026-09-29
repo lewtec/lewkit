@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gocmd"
 )
 
@@ -105,7 +106,7 @@ func extractZip(archive, dir string) (string, error) {
 func launchApp(ctx context.Context, goos, path, id string) error {
 	switch goos {
 	case "android":
-		adb := adbBin()
+		adb := adbBin(ctx)
 		if err := runTool(ctx, adb, "install", "-r", path); err != nil {
 			return err
 		}
@@ -122,8 +123,11 @@ func launchApp(ctx context.Context, goos, path, id string) error {
 	}
 }
 
-func adbBin() string {
-	home := os.Getenv("ANDROID_HOME")
+func adbBin(ctx context.Context) string {
+	home, err := build.AndroidSDK(ctx)
+	if err != nil {
+		home = os.Getenv("ANDROID_HOME")
+	}
 	if home == "" {
 		return "adb"
 	}

@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/driver"
+	host "github.com/lewtec/lewkit/x/driver/android"
 	"github.com/lewtec/lewkit/x/driver/dirs"
+	"github.com/lewtec/lewkit/x/ffi/jni"
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
 
@@ -33,23 +35,27 @@ func (factory) New(context.Context) (dirs.Driver, error) { return backend{}, nil
 
 type backend struct{}
 
-func (backend) Resolve(_ context.Context, _ string) (dirs.Dirs, error) {
-	data, err := androidffi.StaticString("dataDir")
+func (backend) Resolve(ctx context.Context, _ string) (dirs.Dirs, error) {
+	if err := ctx.Err(); err != nil {
+		return dirs.Dirs{}, err
+	}
+	app, err := host.Context()
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
-	cache, err := androidffi.StaticString("cacheDir")
+	defer app.Release()
+	data, err := dirPath(app, "getFilesDir")
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
-	config, err := androidffi.StaticString("configDir")
+	cache, err := dirPath(app, "getCacheDir")
 	if err != nil {
 		return dirs.Dirs{}, err
 	}
 	got := dirs.Dirs{
 		Data:   data,
 		Cache:  cache,
-		Config: config,
+		Config: filepath.Join(data, "config"),
 		Inbox:  filepath.Join(cache, "inbox"),
 	}
 	for _, dir := range []string{got.Data, got.Cache, got.Config, got.Inbox} {
@@ -58,4 +64,23 @@ func (backend) Resolve(_ context.Context, _ string) (dirs.Dirs, error) {
 		}
 	}
 	return got, nil
+}
+
+func dirPath(app *jni.Ref, method string) (string, error) {
+	file, err := host.Ref(app.Call(method))
+	if err != nil {
+		return "", err
+	}
+	if file == nil {
+		return "", fmt.Errorf("%w: %s", driver.ErrUnavailable, method)
+	}
+	defer file.Release()
+	text, err := host.Text(file.Call("getAbsolutePath"))
+	if err != nil {
+		return "", err
+	}
+	if text == "" {
+		return "", fmt.Errorf("%w: %s", driver.ErrUnavailable, method)
+	}
+	return text, nil
 }

@@ -2,28 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-static jclass g_host;
 static JavaVM *g_vm;
 
 void lewkit_bind_host(JNIEnv *env) {
-	jclass local;
 	if (g_vm == NULL) {
 		(*env)->GetJavaVM(env, &g_vm);
 	}
-	if (g_host != NULL) {
-		return;
-	}
-	local = (*env)->FindClass(env, "lewkit/Host");
-	if (local == NULL) {
-		(*env)->ExceptionClear(env);
-		return;
-	}
-	g_host = (*env)->NewGlobalRef(env, local);
-	(*env)->DeleteLocalRef(env, local);
-}
-
-jclass lewkit_host_class(void) {
-	return g_host;
 }
 
 JNIEnv *lewkit_attach(void) {

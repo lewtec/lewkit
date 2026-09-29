@@ -31,7 +31,7 @@ func WalkTemplate(src fs.FS, data any, out string) error {
 }
 
 // WalkTemplateDest is WalkTemplate with an optional remapper for destRel
-// (Android kotlin sources live under a package-id path).
+// (Android sources live under a package-id path).
 func WalkTemplateDest(src fs.FS, data any, out string, dest func(rel, destRel string) string) error {
 	return fs.WalkDir(src, "template", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {

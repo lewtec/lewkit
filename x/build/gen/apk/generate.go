@@ -2,7 +2,7 @@
 // embedded template (PhoneGap/Expo-style), keyed by reverse-domain package ID.
 //
 // The core eletrocromo library stays free of the Android SDK; this package only
-// writes a Gradle/Kotlin tree that runs a multiarch Go binary and opens WebView.
+// writes a Gradle tree that runs a multiarch Go binary and opens WebView.
 package apk
 
 import (
@@ -30,7 +30,7 @@ var (
 // Config is the project identity written into the generated tree and
 // eletrocromo.json (re-run / rebuild input).
 type Config struct {
-	// PackageID is the Android applicationId and Kotlin package (App.ID).
+	// PackageID is the Android applicationId and Java package (App.ID).
 	PackageID string `json:"package_id"`
 	// AppName is the launcher label.
 	AppName string `json:"app_name"`
@@ -55,7 +55,7 @@ type templateData struct {
 	Config
 	// RootProjectName is a filesystem-safe Gradle rootProject.name.
 	RootProjectName string
-	// PackagePath is PackageID with dots → slashes (Kotlin source dir).
+	// PackagePath is PackageID with dots → slashes (Java source dir).
 	PackagePath string
 	// IntentFiltersXML is extra activity intent-filters from capabilities.
 	IntentFiltersXML string
@@ -99,18 +99,16 @@ func Create(opts Options) error {
 		IntentFiltersXML: cfg.Capabilities.AndroidIntentFilters(),
 	}
 
-	if err := common.WalkTemplateDest(templateFS, data, out, data.kotlinDest); err != nil {
+	if err := common.WalkTemplateDest(templateFS, data, out, data.javaDest); err != nil {
 		return err
 	}
 	return writeConfigJSON(out, cfg)
 }
 
-func (data templateData) kotlinDest(rel, destRel string) string {
-	if strings.HasPrefix(filepath.ToSlash(rel), "app/src/main/kotlin/") && strings.HasSuffix(rel, ".tmpl") {
+func (data templateData) javaDest(rel, destRel string) string {
+	slash := filepath.ToSlash(rel)
+	if strings.HasPrefix(slash, "app/src/main/javagen/") && strings.HasSuffix(rel, ".tmpl") {
 		base := strings.TrimSuffix(filepath.Base(rel), ".tmpl")
-		if strings.Contains(filepath.ToSlash(rel), "/kotlin/lewkit/") {
-			return filepath.Join("app", "src", "main", "java", "lewkit", base)
-		}
 		return filepath.Join("app", "src", "main", "java", data.PackagePath, base)
 	}
 	return destRel

@@ -8,6 +8,11 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/mac"
 )
 
+// AndroidSDK returns the Android SDK root used by the host build and adb.
+func AndroidSDK(ctx context.Context) (string, error) {
+	return apk.AndroidSDK(ctx)
+}
+
 // Host is one packaged app build. Spec is merged with eletrocromo.json.
 type Host struct {
 	Spec

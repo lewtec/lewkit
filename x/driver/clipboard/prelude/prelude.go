@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/clipboard/android"
 	_ "github.com/lewtec/lewkit/x/driver/clipboard/pbcopy"
 	_ "github.com/lewtec/lewkit/x/driver/clipboard/winclip"
 	_ "github.com/lewtec/lewkit/x/driver/clipboard/wlcopy"

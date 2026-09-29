@@ -9,7 +9,6 @@ package entry
 #include <stdlib.h>
 
 void lewkit_bind_host(JNIEnv *env);
-jclass lewkit_host_class(void);
 JNIEnv *lewkit_attach(void);
 char *lewkit_go_string(JNIEnv *env, jstring s);
 */
@@ -18,11 +17,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"runtime"
 	"sync/atomic"
 	"unsafe"
 
-	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
+	"github.com/lewtec/lewkit/x/driver/thread"
+	"github.com/lewtec/lewkit/x/ffi/jni"
 )
 
 type surfaceBox struct {
@@ -36,7 +38,7 @@ var surfaceCh = make(chan surfaceBox, 1)
 // RequestSurface asks the Android host for a native window and waits for it.
 // The size is the surface the activity reported, which is the GUI window size.
 func RequestSurface(ctx context.Context) (uintptr, int, int, error) {
-	if err := androidffi.StaticVoid("openSurface", "()V"); err != nil {
+	if _, err := jni.CallStatic("lewkit.Host", "openSurface"); err != nil {
 		return 0, 0, 0, err
 	}
 	select {
@@ -54,29 +56,37 @@ var errNoSurface = errors.New("android surface closed")
 
 // NotifyReady tells the Android host that the web window can open this URL.
 func NotifyReady(url string) {
-	_ = androidffi.StaticVoid("ready", "(Ljava/lang/String;)V", url)
+	if _, err := jni.CallStatic("lewkit.Host", "ready", url); err != nil {
+		slog.Error("android ready", "err", err)
+	}
 }
 
 // NotifyFail tells the Android host why startup stopped.
 func NotifyFail(message string) {
-	_ = androidffi.StaticVoid("fail", "(Ljava/lang/String;)V", message)
+	if _, err := jni.CallStatic("lewkit.Host", "fail", message); err != nil {
+		slog.Error("android fail", "err", err)
+	}
 }
 
 //export Java_lewkit_Host_start
 func Java_lewkit_Host_start(env *C.JNIEnv, _ C.jclass, file C.jstring) {
-	androidffi.SetCurrentEnv(func() uintptr {
+	// The JNIEnv passed in is only valid on this thread.
+	runtime.LockOSThread()
+	C.lewkit_bind_host(env)
+	jni.SetCurrentEnv(func() uintptr {
 		env := C.lewkit_attach()
 		if env == nil {
 			return 0
 		}
 		return uintptr(unsafe.Pointer(env))
 	})
-	C.lewkit_bind_host(env)
-	cls := C.lewkit_host_class()
-	if cls == 0 {
+	// entry.Run pumps the queue on this goroutine. Java calls from request
+	// goroutines join that queue instead of attaching a new JNI thread.
+	jni.SetRunner(func(fn func()) { thread.Do(fn) })
+	if err := jni.Bind(uintptr(unsafe.Pointer(env)), "lewkit/Host"); err != nil {
+		slog.Error("jni bind", "err", err)
 		return
 	}
-	androidffi.SetHostClass(uintptr(cls))
 	raw := C.lewkit_go_string(env, file)
 	if raw == nil {
 		return
