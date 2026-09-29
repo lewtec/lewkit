@@ -73,7 +73,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
 | `x/release` | `Version`, `AppID`, `ValidateAppID`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
-| `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. |
+| `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, an iOS `.app`, or the Linux or Windows binary with its icon. The Windows binary is a GUI program and does not open a console. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. |
 | `x/app` | `Web`, `GUI`, `Open`, `Run`. A window is a web handler or a GUI model on a Vulkan surface. `Run` opens that window, or a loopback server when `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` is set. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |

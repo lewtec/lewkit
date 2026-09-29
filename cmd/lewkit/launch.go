@@ -117,6 +117,19 @@ func launchApp(ctx context.Context, goos, path, id string) error {
 			return err
 		}
 		return runTool(ctx, "xcrun", "simctl", "launch", "booted", id)
+	case "linux":
+		if runtime.GOOS != "linux" {
+			return fmt.Errorf("built linux (%s); this machine is %s", path, runtime.GOOS)
+		}
+		if err := os.Chmod(path, 0o755); err != nil {
+			return err
+		}
+		return runTool(ctx, path)
+	case "windows":
+		if runtime.GOOS != "windows" {
+			return fmt.Errorf("built windows (%s); this machine is %s", path, runtime.GOOS)
+		}
+		return runTool(ctx, path)
 	default:
 		return fmt.Errorf("%s has no app to launch", goos)
 	}
