@@ -1,0 +1,22 @@
+{
+  "files": {
+    "x/ffi/wasm/capstone/internal/wasm/libcapstone.wasm": {
+      "source_info": "mount:x/ffi/wasm/capstone/internal/wasm/libcapstone.wasm"
+    },
+    "x/http/asset/htmx/htmx.min.js": {
+      "source_info": "mount:x/http/asset/htmx/htmx.min.js"
+    },
+    "x/http/asset/jquery/jquery.min.js": {
+      "source_info": "mount:x/http/asset/jquery/jquery.min.js"
+    },
+    "x/http/asset/sakuracss/sakura.css": {
+      "source_info": "mount:x/http/asset/sakuracss/sakura.css"
+    },
+    "x/http/asset/tailwindcss/upstream.package.json": {
+      "source_info": "mount:x/http/asset/tailwindcss/upstream.package.json"
+    },
+    "x/ndarray/onnx/internal/proto/onnx.proto": {
+      "source_info": "mount:x/ndarray/onnx/internal/proto/onnx.proto"
+    }
+  }
+}

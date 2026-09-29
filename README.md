@@ -79,7 +79,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
 | `x/generate` | Helpers shared by the generator packages. |
 | `x/generate/prelude` | Writes one blank-import prelude per directory that contains a descendant `root.go`. |
-| `x/generate/protobuf` | Writes Go from one `.proto` file. `protoc` comes from `x/tool`. A `workspaced.lock.json` pin selects the version. |
+| `x/generate/protobuf` | Writes Go from one `.proto` file. `protoc` comes from `x/tool`. A `modot.lock.json` pin selects the version. |
 | `x/tool` | `Open`, `Ensure`, `Install`, `Resolve`. A spec is `backend:ref@version`. The caller owns the store directory. |
 | `x/tool/github` | GitHub Releases backend. |
 | `x/tool/mise` | mise backend. |

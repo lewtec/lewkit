@@ -1,3 +1,3 @@
 package generate
 
-//go:generate go tool workspaced codebase apply
+//go:generate go tool modot codebase apply

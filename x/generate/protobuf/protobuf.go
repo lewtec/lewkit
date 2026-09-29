@@ -19,7 +19,7 @@ const protocRef = "github:protocolbuffers/protobuf"
 
 // Run runs protoc --go_out on protoFile. goPackage is the M mapping when
 // the proto has no go_package option. protoc is installed with x/tool.
-// A workspaced.lock.json above protoFile pins the version; otherwise the
+// A modot.lock.json above protoFile pins the version; otherwise the
 // spec is latest.
 func Run(ctx context.Context, protoFile, goPackage string) error {
 	if err := ctx.Err(); err != nil {
@@ -103,7 +103,7 @@ func protocSpecIn(directory string) (string, bool, error) {
 		return "", false, nil
 	}
 	defer root.Close()
-	name := lewpath.New("workspaced.lock.json")
+	name := lewpath.New("modot.lock.json")
 	isFile, err := name.IsFile(root)
 	if err != nil || !isFile {
 		return "", false, err
@@ -120,7 +120,7 @@ func protocSpecIn(directory string) (string, bool, error) {
 		} `json:"dependencies"`
 	}
 	if err := json.Unmarshal(body, &lock); err != nil {
-		return "", false, fmt.Errorf("workspaced.lock.json: %w", err)
+		return "", false, fmt.Errorf("modot.lock.json: %w", err)
 	}
 	for _, dependency := range lock.Dependencies {
 		if dependency.Kind == "tool" && dependency.Ref == protocRef && dependency.CurrentValue != "" {
