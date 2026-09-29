@@ -129,6 +129,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
+| `x/ffi/android` | Binder session. `Open`, `Client`. |
+| `x/ffi/jni` | Java calls. `Bind`, `CallStatic`, `New`, `Class`, `StaticField`, `Field`, `Proxy`. |
 | `x/ffi/native/vulkan` | Binding. `Open`, `List`, `Buffer`, `Alloc`, `Shader`, `Compile`, `Run`, `Begin`. |
 | `x/ffi/wasm` | `Compile`, `Compiled.Instantiate`. wazero, with WASI and optional Emscripten. |
 | `x/ffi/wasm/capstone` | Binding. `Open`, `Handle`. |

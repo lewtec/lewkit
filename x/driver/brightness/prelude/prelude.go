@@ -2,4 +2,7 @@
 
 package prelude
 
-import _ "github.com/lewtec/lewkit/x/driver/brightness/brightnessctl"
+import (
+	_ "github.com/lewtec/lewkit/x/driver/brightness/android"
+	_ "github.com/lewtec/lewkit/x/driver/brightness/brightnessctl"
+)
