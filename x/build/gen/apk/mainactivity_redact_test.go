@@ -21,17 +21,17 @@ func TestCreate_MainActivityRedactsErrorURLs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mainKt, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.kt"))
+	page, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := string(mainKt)
+	s := string(page)
 
-	if !strings.Contains(s, "fun redactUrlForDisplay") {
-		t.Fatal("MainActivity missing redactUrlForDisplay helper")
+	if !strings.Contains(s, "String redactUrlForDisplay") {
+		t.Fatal("PageActivity missing redactUrlForDisplay helper")
 	}
-	if !strings.Contains(s, "redactUrlForDisplay(request.url") {
-		t.Fatal("expected redactUrlForDisplay(request.url…) on error paths")
+	if !strings.Contains(s, "redactUrlForDisplay(raw)") {
+		t.Fatal("expected redactUrlForDisplay on error paths")
 	}
 	// Raw request.url must not appear in splash detail strings.
 	if strings.Contains(s, "\n${request.url}") {

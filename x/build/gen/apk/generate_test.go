@@ -30,10 +30,10 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"settings.gradle.kts",
 		"app/build.gradle.kts",
 		"app/src/main/AndroidManifest.xml",
-		"app/src/main/java/br/tec/lew/counter/MainActivity.kt",
-		"app/src/main/java/br/tec/lew/counter/PageActivity.kt",
-		"app/src/main/java/br/tec/lew/counter/Windows.kt",
-		"app/src/main/java/br/tec/lew/counter/ServerService.kt",
+		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
+		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
+		"app/src/main/java/br/tec/lew/counter/Windows.java",
+		"app/src/main/java/br/tec/lew/counter/ServerService.java",
 		"app/src/main/res/xml/network_security_config.xml",
 		"app/src/main/res/layout/activity_main.xml",
 		"scripts/build-go.sh",
@@ -57,13 +57,16 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(s, `namespace = "br.tec.lew.counter"`) {
 		t.Fatalf("namespace not baked in:\n%s", s)
 	}
+	if !strings.Contains(s, `useVersion("1.8.22")`) {
+		t.Fatal("kotlin stdlib versions are not aligned")
+	}
 
-	mainKt, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/MainActivity.kt"))
+	mainJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/MainActivity.java"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(string(mainKt), "package br.tec.lew.counter\n") {
-		t.Fatalf("kotlin package mismatch:\n%s", mainKt[:80])
+	if !strings.HasPrefix(string(mainJava), "package br.tec.lew.counter;\n") {
+		t.Fatalf("java package mismatch:\n%s", mainJava[:80])
 	}
 
 	cfg, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
@@ -88,12 +91,23 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		t.Fatalf("manifest uiMode:\n%s", manifest)
 	}
 
-	hostKt, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.kt"))
+	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(hostKt), "fun dataDir") || strings.Contains(string(hostKt), "fun cacheDir") || strings.Contains(string(hostKt), "fun configDir") {
-		t.Fatalf("host still owns directory methods:\n%s", hostKt)
+	if strings.Contains(string(hostJava), "dataDir") || strings.Contains(string(hostJava), "cacheDir") || strings.Contains(string(hostJava), "configDir") {
+		t.Fatalf("host still owns directory methods:\n%s", hostJava)
+	}
+	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(path, ".kt") {
+			t.Errorf("kotlin source %s", path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
 	}
 
 	proxy, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/GoProxy.java"))
@@ -148,10 +162,10 @@ func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
 	if !strings.Contains(s, `android:mimeType="text/markdown"`) {
 		t.Fatalf("mime:\n%s", s)
 	}
-	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.kt")); err != nil {
+	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.java")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.kt")); err != nil {
+	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.java")); err != nil {
 		t.Fatal(err)
 	}
 	man, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))

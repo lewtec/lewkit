@@ -99,18 +99,16 @@ func Create(opts Options) error {
 		IntentFiltersXML: cfg.Capabilities.AndroidIntentFilters(),
 	}
 
-	if err := common.WalkTemplateDest(templateFS, data, out, data.kotlinDest); err != nil {
+	if err := common.WalkTemplateDest(templateFS, data, out, data.javaDest); err != nil {
 		return err
 	}
 	return writeConfigJSON(out, cfg)
 }
 
-func (data templateData) kotlinDest(rel, destRel string) string {
-	if strings.HasPrefix(filepath.ToSlash(rel), "app/src/main/kotlin/") && strings.HasSuffix(rel, ".tmpl") {
+func (data templateData) javaDest(rel, destRel string) string {
+	slash := filepath.ToSlash(rel)
+	if strings.HasPrefix(slash, "app/src/main/javagen/") && strings.HasSuffix(rel, ".tmpl") {
 		base := strings.TrimSuffix(filepath.Base(rel), ".tmpl")
-		if strings.Contains(filepath.ToSlash(rel), "/kotlin/lewkit/") {
-			return filepath.Join("app", "src", "main", "java", "lewkit", base)
-		}
 		return filepath.Join("app", "src", "main", "java", data.PackagePath, base)
 	}
 	return destRel

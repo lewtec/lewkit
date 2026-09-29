@@ -1,0 +1,83 @@
+package {{.PackageID}};
+
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.net.Uri;
+import android.os.Message;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+/** pushWebWindow opens one webapp window. The first page and later pages use it. */
+final class Windows {
+    private Windows() {}
+
+    static void pushWebWindow(Context context, String url) {
+        context.startActivity(
+                new Intent(context, PageActivity.class)
+                        .putExtra(PageActivity.EXTRA_URL, url)
+                        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP));
+    }
+
+    static void installStackedWindows(AppCompatActivity activity, WebView webView) {
+        webView.getSettings().setSupportMultipleWindows(true);
+        webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onCreateWindow(
+                    WebView view, boolean isDialog, boolean isUserGesture, Message resultMsg) {
+                if (resultMsg == null) {
+                    return false;
+                }
+                WebView child = new WebView(activity);
+                boolean[] handed = new boolean[1];
+                child.setWebViewClient(new WebViewClient() {
+                    private void hand(String url) {
+                        if (handed[0] || url == null || url.trim().isEmpty()) {
+                            return;
+                        }
+                        Uri uri = Uri.parse(url);
+                        if (!isAppUrl(uri)) {
+                            return;
+                        }
+                        handed[0] = true;
+                        pushWebWindow(activity, uri.toString());
+                        child.destroy();
+                    }
+
+                    @Override
+                    public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                        String url = null;
+                        if (request != null && request.getUrl() != null) {
+                            url = request.getUrl().toString();
+                        }
+                        hand(url);
+                        return true;
+                    }
+
+                    @Override
+                    public void onPageStarted(WebView view, String url, Bitmap favicon) {
+                        hand(url);
+                    }
+                });
+                WebView.WebViewTransport transport = (WebView.WebViewTransport) resultMsg.obj;
+                transport.setWebView(child);
+                resultMsg.sendToTarget();
+                return true;
+            }
+        });
+    }
+
+    static boolean isAppUrl(Uri uri) {
+        String host = uri.getHost();
+        if (host == null) {
+            return false;
+        }
+        host = host.toLowerCase(java.util.Locale.ROOT);
+        return host.equals("127.0.0.1") || host.equals("localhost") || host.equals("::1");
+    }
+}

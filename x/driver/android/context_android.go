@@ -12,15 +12,7 @@ import (
 // Context returns the application context stored on lewkit.Host.
 // The caller releases the reference.
 func Context() (*jni.Ref, error) {
-	host, err := Ref(jni.StaticField("lewkit.Host", "INSTANCE"))
-	if err != nil {
-		return nil, err
-	}
-	if host == nil {
-		return nil, fmt.Errorf("%w: application context", driver.ErrUnavailable)
-	}
-	defer host.Release()
-	app, err := Ref(host.Call("getApp"))
+	app, err := Ref(jni.StaticField("lewkit.Host", "app"))
 	if err != nil {
 		return nil, err
 	}

@@ -20,7 +20,7 @@ func TestStubIsUnavailable(t *testing.T) {
 	require.ErrorIs(t, err, ErrUnavailable)
 	_, err = Class("java.lang.Object")
 	require.ErrorIs(t, err, ErrUnavailable)
-	_, err = StaticField("lewkit.Host", "INSTANCE")
+	_, err = StaticField("lewkit.Host", "app")
 	require.ErrorIs(t, err, ErrUnavailable)
 	_, err = ref.Field("uiMode")
 	require.ErrorIs(t, err, ErrUnavailable)
