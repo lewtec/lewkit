@@ -1,6 +1,5 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    id "com.android.application"
 }
 
 android {
@@ -17,7 +16,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            minifyEnabled false
         }
     }
 
@@ -25,28 +24,31 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 
     // Single-APK packaging; ABIs come from jniLibs/ (default: arm64-v8a).
     splits {
         abi {
-            isEnable = false
+            enable false
         }
     }
     // Extract jniLibs to the filesystem so ProcessBuilder can exec libeletrocromo.so
     // (filesDir is often noexec; nativeLibraryDir must be a real extracted path).
     packaging {
         jniLibs {
-            useLegacyPackaging = true
+            useLegacyPackaging true
+        }
+    }
+}
+
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == "org.jetbrains.kotlin") {
+            throw new GradleException("this host does not use Kotlin")
         }
     }
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.appcompat:appcompat:1.7.0")
-    implementation("androidx.webkit:webkit:1.12.1")
-    implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    // Java widget. The 1.1.0 graph is annotation, core 1.1.0, and interpolator.
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
 }

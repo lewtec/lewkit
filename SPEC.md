@@ -50,6 +50,7 @@ Inherited C (cite the file):
 | TEC-05 | A C library loaded with `dlopen` | Place the package under `x/ffi/native`. The package imports `x/ffi/native`. | One binding at `x/ffi/native/<name>` |
 | TEC-06 | A C library loaded with the wasm runtime | Place the package under `x/ffi/wasm`. The package imports `x/ffi/wasm`. | One binding at `x/ffi/wasm/<name>` |
 | TEC-07 | A driver over a binding | The driver imports the binding. The driver does not import `x/ffi/native`. The driver does not import `x/ffi/wasm`. | A facade |
+| TEC-08 | Java called from Go | Place the call in `x/ffi/jni`. The package imports `x/ffi/native`. Callers name a class and pass Go values. Field reads stay there. An interface callback uses the one `lewkit.GoProxy` dispatcher. | One binding at `x/ffi/jni` |
 
 ## Tooling
 
@@ -62,6 +63,7 @@ Inherited C (cite the file):
 | TEC-05 | purego | wrap | call `Dlopen` from a binding | go.mod path:x/ffi/native |
 | TEC-06 | wazero | wrap | call wazero from a binding | go.mod path:x/ffi/wasm |
 | TEC-07 | this SPEC | implement | return the binding device from `x/driver/vulkan` | path:x/driver/vulkan path:x/ffi/native/vulkan |
+| TEC-08 | JNI | wrap | add a JNI export per Java call | path:x/ffi/jni |
 | TEC-01 tui | bubbletea v2 | adopt | write a terminal runtime | go.mod path:x/taskgroup/progress |
 | TEC-01 gui | ndarray 21-op graph | wrap | read the picture back to the host before present | path:x/ndarray |
 | TEC-01 web | templ | adopt | write an HTML runtime | go.mod path:x/ui/web |
@@ -105,11 +107,14 @@ Inherited C (cite the file):
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
 | `x/driver/tray` | `Open`, `Tray`, `Icon`, `Item` | host status item | protocol stays here | missing session bus or host is the tray error | import `x/ffi/wasm` |
 | `x/driver/daynight` | `Current`, `Watch`, `Mode` | light or dark | protocol stays here | missing portal or host is `driver.ErrUnavailable` | import `x/ui/gui`; import `x/driver/webview`; import `x/ffi/wasm` |
+| `x/driver/daynight/android` | Android `Current`, `Watch` | `Configuration.uiMode` | the component callback stays here | no Java VM is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/notification` | `Notify`, `Notification` | one local alert | protocol stays here | missing backend is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/clipboard` | `WriteText`, `WriteImage` | host clipboard | protocol stays here | missing tool is `driver.ErrIncompatible` | import `x/ffi` |
+| `x/driver/clipboard/android` | Android `WriteText`, `WriteImage` | clipboard text | text stays here | no Java VM is `driver.ErrIncompatible`; an image is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/opener` | `Open` | launch a file or URL | protocol stays here | missing opener is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/dirs` | `Resolve`, `Dirs` | per-app data, cache, config, inbox | protocol stays here | bad app id is `ErrInvalidAppID` | hardcode a product name in the path |
-| `x/driver/dirs/android` | Android `Resolve` | files, cache, and config from the activity context | paths stay here | no Java VM is `driver.ErrIncompatible` | import `x/driver/webview` |
+| `x/driver/android` | `Context`, `Ref`, `Int`, `Text`, `Bool` | application `Context` | lookup stays here | missing host is `driver.ErrUnavailable` | import `x/ffi/native`; a driver factory |
+| `x/driver/dirs/android` | Android `Resolve` | files and cache from the application context; config is files/config | paths stay here | no Java VM is `driver.ErrIncompatible` | import `x/ffi/native`; import `x/driver/webview` |
 | `x/driver/bundle` | `Resolve`, `Root`, `SharePath` | stamped reverse-domain tree plus web profile | protocol stays here | missing id is `release.ErrAppIDRequired` | import `x/driver/webview`; replace `x/driver/dirs` |
 | `x/driver/thread` | `Driver` | UI thread for this process | protocol stays here | JNI without a Java looper is `driver.ErrIncompatible` | import `x/ui/gui` |
 | `x/release` | `Version`, `AppID`, `ValidateAppID` | binary stamp | the reverse-domain id stays here | empty id is `ErrAppIDRequired` | import `x/driver` |
@@ -120,6 +125,7 @@ Inherited C (cite the file):
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
 | `x/driver/brightness` | `SetBrightness`, `Status`, `Increase`, `Decrease`, `StatusNotification` | display brightness | protocol stays here | missing brightnessctl is `driver.ErrIncompatible` | import `x/ffi`; post the alert here |
 | `x/driver/battery` | `BatteryStatus` | charging state | protocol stays here | no battery is `ErrNoBattery` | import `x/ffi` |
+| `x/driver/battery/android` | Android `BatteryStatus` | sticky `ACTION_BATTERY_CHANGED` | status mapping stays here | no Java VM is `driver.ErrIncompatible`; no battery is `battery.ErrNoBattery` | import `x/ffi/native` |
 | `x/driver/media` | `Next`, `Previous`, `PlayPause`, `Stop`, `GetMetadata`, `Watch`, `StatusNotification` | MPRIS player | protocol stays here | no player is `ErrNoPlayer` | import `x/driver/audio_play`; post the alert here |
 | `x/driver/power` | `Lock`, `Logout`, `Suspend`, `Hibernate`, `Reboot`, `Shutdown`, `Wake` | session power | protocol stays here | missing loginctl is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/screen` | `SetDPMS`, `IsDPMSOn`, `ToggleDPMS`, `Reset` | display power | protocol stays here | missing swaymsg or xset is `driver.ErrIncompatible` | a hostname layout table |
@@ -158,7 +164,7 @@ Inherited C (cite the file):
 | `x/driver/filedialog/cocoa` | `NSOpenPanel` and `NSSavePanel` | macOS file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
 | `x/driver/filedialog/win32` | common item dialog `Choose` | Windows file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
-| `x/ffi` | no Go API | names `native`, `wasm` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
+| `x/ffi` | no Go API | names `native`, `wasm`, `jni` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter`; import `x/ffi/native/android` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
 | `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw` | libvulkan binding | compute plus one graphics draw for the swapchain | existing vulkan errors | import `x/ffi/wasm` |
@@ -169,6 +175,7 @@ Inherited C (cite the file):
 | `x/ffi/native/webkit` | `Load` | WebKit.framework, dlopen | loader stays here | missing framework is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper` | libnativehelper and libandroid | loader stays here | missing library is the load error | import `x/driver` |
+| `x/ffi/jni` | `Bind`, `SetCurrentEnv`, `SetRunner`, `CallStatic`, `New`, `Class`, `StaticField`, `Field`, `Proxy`, `Ref` | Java method, field, and interface proxy | calls stay here; `Bind` keeps the app ClassLoader and JNIEnv from the Java thread that loaded the library; `SetRunner` runs later calls on that thread; `Proxy` uses one `lewkit.GoProxy` dispatcher | unbound loader, an ambiguous method, a missing member, or a Java exception is the error | import `x/driver`; import `x/ffi/native/android` |
 | `x/driver/thread/jni` | Android looper factory | facade of the android binding | selection stays here | no Java looper is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
 | `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
@@ -244,6 +251,9 @@ Inherited C (cite the file):
 | INV-60 | `x/driver/bundle` does not import `x/driver/webview` | `x/driver/bundle` | that import |
 | INV-61 | `x/driver/thread/jni` imports `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/thread/jni` | an import of `x/ffi/native` |
 | INV-62 | `x/ffi/native/android` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/android` | an import of `x/driver` |
+| INV-63 | `x/ffi/jni` imports `x/ffi/native` and does not import `x/driver` or `x/ffi/native/android` | `x/ffi/jni` | an import of `x/driver` or `x/ffi/native/android` |
+| INV-64 | `x/driver/android` imports `x/ffi/jni` and does not import `x/ffi/native` | `x/driver/android` | an import of `x/ffi/native` |
+| INV-65 | `x/driver/dirs/android`, `x/driver/battery/android`, `x/driver/daynight/android`, and `x/driver/clipboard/android` import `x/ffi/jni` and `x/ffi/native/android` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
 
 ## Errors
 

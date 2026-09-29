@@ -2,59 +2,172 @@ package main
 
 import "github.com/lewtec/lewkit/x/driver"
 
-templ Home(report []driver.InterfaceStatus) {
+templ document(title string) {
 	<!DOCTYPE html>
 	<html lang="en">
 		<head>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>Drivers</title>
-			<style>
-				body { font: 16px/1.4 sans-serif; margin: 0; padding: 16px 16px 88px; }
-				h1 { font-size: 1.4rem; }
-				section { margin: 1.2rem 0; }
-				h2 { font-size: 1rem; margin-bottom: 0.3rem; }
-				ul { list-style: none; padding: 0; margin: 0; }
-				li { padding: 0.35rem 0; border-bottom: 1px solid #ddd; }
-				.ok { color: #0a0; }
-				.no { color: #888; }
-				.bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px; background: #111; }
-				button { display: block; box-sizing: border-box; width: 100%; font: inherit; padding: 12px; text-align: center; color: inherit; background: #fff; }
-				#status { color: #fff; margin: 0 0 8px; min-height: 1.2em; }
-			</style>
+			<title>{ title }</title>
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+			<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 		</head>
 		<body>
-			<h1>Drivers</h1>
-			for _, iface := range report {
-				<section>
-					<h2>{ iface.Name }</h2>
-					<ul>
-						if len(iface.Drivers) == 0 {
-							<li>none</li>
-						}
-						for _, d := range iface.Drivers {
-							@driverRow(d)
-						}
-					</ul>
-				</section>
-			}
-			<div class="bar">
-				<p id="status"></p>
-				<button type="button" id="triangle">Open triangle</button>
-			</div>
-			@templ.Raw(triangleScript)
+			{ children... }
 		</body>
 	</html>
 }
 
+templ Home(report []driver.InterfaceStatus) {
+	@document("Drivers") {
+		<div class="p-4 pb-28 flex flex-col gap-4">
+			<h1 class="text-2xl">Drivers</h1>
+			for _, iface := range report {
+				{{ slug := driverSlug(iface.Name) }}
+				<section class="card card-border">
+					<div class="card-body">
+						<h2 class="card-title">
+							<a href={ templ.URL("/driver/" + slug) }>{ slug }</a>
+						</h2>
+						<p class="text-sm text-base-content/70">{ iface.Name }</p>
+						<ul class="flex flex-col gap-2">
+							if len(iface.Drivers) == 0 {
+								<li>none</li>
+							}
+							for _, d := range iface.Drivers {
+								@driverRow(d)
+							}
+						</ul>
+					</div>
+				</section>
+			}
+		</div>
+		<div class="fixed inset-x-0 bottom-0 p-4 bg-base-200">
+			<p id="status" class="min-h-6 mb-2"></p>
+			<button type="button" id="triangle" class="btn btn-block">Open triangle</button>
+		</div>
+		@templ.Raw(triangleScript)
+	}
+}
+
+templ DriverPage(view driverView) {
+	@document(view.Slug) {
+		<div class="p-4 flex flex-col gap-4">
+			<div class="flex flex-wrap items-center gap-2">
+				<a class="btn" href="/">Drivers</a>
+				<a class="btn" href={ templ.URL("/driver/" + view.Slug) }>Refresh</a>
+			</div>
+			<h1 class="text-2xl">{ view.Slug }</h1>
+			<p class="text-sm text-base-content/70">{ view.Name }</p>
+			if view.Notice != "" {
+				<div role="status" class="alert alert-success">
+					<span class="whitespace-pre-wrap">{ view.Notice }</span>
+				</div>
+			}
+			if view.Err != "" {
+				<div role="alert" class="alert alert-error">
+					<span class="whitespace-pre-wrap">{ view.Err }</span>
+				</div>
+			}
+			if view.StateErr != "" {
+				<div role="alert" class="alert alert-error">
+					<span class="whitespace-pre-wrap">{ view.StateErr }</span>
+				</div>
+			}
+			if len(view.Rows) > 0 {
+				<div class="overflow-x-auto">
+					<table class="table">
+						<tbody>
+							for _, item := range view.Rows {
+								<tr>
+									<th class="align-top whitespace-nowrap">{ item.Label }</th>
+									<td class="whitespace-pre-wrap">{ item.Value }</td>
+								</tr>
+							}
+						</tbody>
+					</table>
+				</div>
+			}
+			if len(view.plainActs()) > 0 {
+				<div class="flex flex-wrap gap-2">
+					for _, item := range view.plainActs() {
+						@plainAct(view.Slug, item)
+					}
+				</div>
+			}
+			for _, item := range view.formActs() {
+				@formAct(view.Slug, item)
+			}
+			<h2 class="text-lg">Backends</h2>
+			<ul class="flex flex-col gap-2">
+				if len(view.Drivers) == 0 {
+					<li>none</li>
+				}
+				for _, d := range view.Drivers {
+					@driverRow(d)
+				}
+			</ul>
+		</div>
+	}
+}
+
+templ plainAct(slug string, item act) {
+	<form method="post" action={ templ.URL("/driver/" + slug + "/" + item.Op) }>
+		for _, f := range item.Fields {
+			if f.Kind == "hidden" {
+				<input type="hidden" name={ f.Name } value={ f.Value }/>
+			}
+		}
+		<button class="btn" type="submit">{ item.Label }</button>
+	</form>
+}
+
+templ formAct(slug string, item act) {
+	<form method="post" action={ templ.URL("/driver/" + slug + "/" + item.Op) } class="card card-border">
+		<div class="card-body flex flex-col gap-3">
+			for _, f := range item.Fields {
+				@oneField(f)
+			}
+			<button class="btn" type="submit">{ item.Label }</button>
+		</div>
+	</form>
+}
+
+templ oneField(f field) {
+	if f.Kind == "hidden" {
+		<input type="hidden" name={ f.Name } value={ f.Value }/>
+	} else if f.Kind == "check" {
+		<label class="label cursor-pointer justify-start gap-2">
+			<input type="checkbox" class="checkbox" name={ f.Name }/>
+			<span>{ f.Label }</span>
+		</label>
+	} else if f.Kind == "area" {
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">{ f.Label }</legend>
+			<textarea class="textarea w-full" name={ f.Name } placeholder={ f.Placeholder }>{ f.Value }</textarea>
+		</fieldset>
+	} else if f.Kind == "number" {
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">{ f.Label }</legend>
+			<input class="input w-full" type="number" name={ f.Name } value={ f.Value } min={ f.Min } max={ f.Max } step={ f.Step } placeholder={ f.Placeholder }/>
+		</fieldset>
+	} else {
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">{ f.Label }</legend>
+			<input class="input w-full" type="text" name={ f.Name } value={ f.Value } placeholder={ f.Placeholder }/>
+		</fieldset>
+	}
+}
+
 templ driverRow(d driver.DriverStatus) {
 	{{ className, label := driverMark(d) }}
-	<li>
-		<span class={ className }>{ label }</span>
-		{ " " }{ d.Name }
-		<small>{ d.ID } · { d.Weight }</small>
+	<li class="flex flex-col">
+		<span>
+			<span class={ "badge", className }>{ label }</span>
+			{ " " }{ d.Name }
+		</span>
+		<span class="text-sm text-base-content/70">{ d.ID } · { d.Weight }</span>
 		if d.Error != nil {
-			<br/>
-			<small>{ d.Error.Error() }</small>
+			<span class="text-sm">{ d.Error.Error() }</span>
 		}
 	</li>
 }

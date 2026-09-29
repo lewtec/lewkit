@@ -27,13 +27,13 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 
 	mustExist := []string{
 		"eletrocromo.json",
-		"settings.gradle.kts",
-		"app/build.gradle.kts",
+		"settings.gradle",
+		"app/build.gradle",
 		"app/src/main/AndroidManifest.xml",
-		"app/src/main/java/br/tec/lew/counter/MainActivity.kt",
-		"app/src/main/java/br/tec/lew/counter/PageActivity.kt",
-		"app/src/main/java/br/tec/lew/counter/Windows.kt",
-		"app/src/main/java/br/tec/lew/counter/ServerService.kt",
+		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
+		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
+		"app/src/main/java/br/tec/lew/counter/Windows.java",
+		"app/src/main/java/br/tec/lew/counter/ServerService.java",
 		"app/src/main/res/xml/network_security_config.xml",
 		"app/src/main/res/layout/activity_main.xml",
 		"scripts/build-go.sh",
@@ -46,7 +46,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		}
 	}
 
-	gradle, err := os.ReadFile(filepath.Join(out, "app/build.gradle.kts"))
+	gradle, err := os.ReadFile(filepath.Join(out, "app/build.gradle"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,13 +57,19 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(s, `namespace = "br.tec.lew.counter"`) {
 		t.Fatalf("namespace not baked in:\n%s", s)
 	}
+	if !strings.Contains(s, "swiperefreshlayout:swiperefreshlayout:1.1.0") {
+		t.Fatal("pull-to-refresh dependency missing")
+	}
+	if strings.Contains(s, "kotlin-stdlib") || strings.Contains(s, "appcompat") || strings.Contains(s, "androidx.core") || strings.Contains(s, "androidx.webkit") {
+		t.Fatalf("kotlin or appcompat still on the classpath:\n%s", s)
+	}
 
-	mainKt, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/MainActivity.kt"))
+	mainJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/MainActivity.java"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(string(mainKt), "package br.tec.lew.counter\n") {
-		t.Fatalf("kotlin package mismatch:\n%s", mainKt[:80])
+	if !strings.HasPrefix(string(mainJava), "package br.tec.lew.counter;\n") {
+		t.Fatalf("java package mismatch:\n%s", mainJava[:80])
 	}
 
 	cfg, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
@@ -83,6 +89,49 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	}
 	if strings.Contains(string(manifest), `android:scheme=`) {
 		t.Fatalf("unexpected scheme filter:\n%s", manifest)
+	}
+	if !strings.Contains(string(manifest), `android:configChanges="orientation|screenSize|keyboardHidden|uiMode"`) {
+		t.Fatalf("manifest uiMode:\n%s", manifest)
+	}
+
+	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(hostJava), "dataDir") || strings.Contains(string(hostJava), "cacheDir") || strings.Contains(string(hostJava), "configDir") {
+		t.Fatalf("host still owns directory methods:\n%s", hostJava)
+	}
+	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(path, ".kt") || strings.HasSuffix(path, ".kts") {
+			t.Errorf("kotlin source %s", path)
+		}
+		if d.IsDir() || !(strings.HasSuffix(path, ".java") || strings.HasSuffix(path, ".xml") || strings.HasSuffix(path, ".gradle")) {
+			return nil
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(body)
+		for _, banned := range []string{"androidx.appcompat", "androidx.core", "androidx.activity", "androidx.webkit", "kotlin-stdlib"} {
+			if strings.Contains(text, banned) {
+				t.Errorf("%s still mentions %s", path, banned)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	proxy, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/GoProxy.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(proxy), "nativeInvoke") {
+		t.Fatalf("GoProxy:\n%s", proxy)
 	}
 
 	sh, err := os.ReadFile(filepath.Join(out, "scripts/build-go.sh"))
@@ -129,18 +178,52 @@ func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
 	if !strings.Contains(s, `android:mimeType="text/markdown"`) {
 		t.Fatalf("mime:\n%s", s)
 	}
-	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.kt")); err != nil {
+	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.java")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.kt")); err != nil {
+	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.java")); err != nil {
 		t.Fatal(err)
 	}
 	man, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(man), "FileProvider") {
+	if !strings.Contains(string(man), `android:name="lewkit.FileProvider"`) {
 		t.Fatalf("FileProvider:\n%s", man)
+	}
+}
+
+func TestCreate_FirstPageReplacesSplash(t *testing.T) {
+	out := t.TempDir()
+	err := Create(Options{
+		OutDir: out,
+		Config: Config{
+			PackageID: "br.tec.lew.counter",
+			AppName:   "Counter",
+			GoMain:    ".",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mainJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/MainActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	main := string(mainJava)
+	if !strings.Contains(main, "finish()") {
+		t.Fatal("splash activity stays on the back stack")
+	}
+	page, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(page)
+	if !strings.Contains(body, "SwipeRefreshLayout") || !strings.Contains(body, "setOnRefreshListener") {
+		t.Fatal("page is missing pull-to-refresh")
+	}
+	if !strings.Contains(body, "canGoBack()") || !strings.Contains(body, "OnBackInvokedDispatcher") {
+		t.Fatal("back leaves the page without walking its history")
 	}
 }
 

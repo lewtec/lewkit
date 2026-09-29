@@ -1,0 +1,34 @@
+package android
+
+import (
+	"testing"
+
+	"github.com/lewtec/lewkit/x/driver/battery"
+	"github.com/stretchr/testify/require"
+)
+
+func TestStatusFrom(t *testing.T) {
+	known := levels{unknown: 1, charging: 2, discharging: 3, notCharging: 4, full: 5}
+	tests := []struct {
+		name    string
+		present bool
+		code    int
+		want    battery.Status
+		err     error
+	}{
+		{name: "absent", present: false, code: 2, want: battery.Unknown, err: battery.ErrNoBattery},
+		{name: "charging", present: true, code: 2, want: battery.Charging},
+		{name: "discharging", present: true, code: 3, want: battery.Discharging},
+		{name: "not charging", present: true, code: 4, want: battery.Status("Not charging")},
+		{name: "full", present: true, code: 5, want: battery.Full},
+		{name: "unknown", present: true, code: 1, want: battery.Unknown},
+		{name: "other", present: true, code: 9, want: battery.Unknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := statusFrom(tt.present, tt.code, known)
+			require.ErrorIs(t, err, tt.err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

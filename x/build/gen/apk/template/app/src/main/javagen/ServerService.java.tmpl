@@ -1,0 +1,452 @@
+package {{.PackageID}};
+
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.os.Binder;
+import android.os.Build;
+import android.os.IBinder;
+import android.util.Log;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.Socket;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.LinkedHashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Runs the packaged Go binary (ELETROCROMO_NO_UI=1), learns the READY URL
+ * (stdout and/or ready file), then hands it to MainActivity for WebView.
+ *
+ * Loopback must stay on-device: always 127.0.0.1 + Proxy.NO_PROXY. A VPN
+ * (e.g. Tailscale) must not be required off and must not break localhost;
+ * if a system HTTP proxy black-holes probes we still load WebView.
+ */
+public class ServerService extends Service {
+    public interface Listener {
+        void onStatus(String message);
+
+        void onReady(String url);
+
+        void onFailed(String message);
+    }
+
+    public class LocalBinder extends Binder {
+        public ServerService getService() {
+            return ServerService.this;
+        }
+    }
+
+    private static final String TAG = "eletrocromo";
+    private static final int NOTIFICATION_ID = 7701;
+    private static final String READY_PREFIX = "ELETROCROMO_READY ";
+    private static final int READY_WAIT_ATTEMPTS = 200;
+    private static final Pattern URL_IN_LINE = Pattern.compile("https?://[^\\s\"'<>]+");
+
+    private final LocalBinder binder = new LocalBinder();
+    private final AtomicBoolean started = new AtomicBoolean(false);
+    private Process process;
+    private Listener listener;
+    private String readyUrl;
+    private String lastError;
+
+    public void setListener(Listener l) {
+        listener = l;
+        if (readyUrl != null && l != null) {
+            l.onReady(readyUrl);
+        }
+        if (lastError != null && l != null) {
+            l.onFailed(lastError);
+        }
+    }
+
+    public void ensureStarted() {
+        if (!started.compareAndSet(false, true)) {
+            if (readyUrl != null && listener != null) {
+                listener.onReady(readyUrl);
+            }
+            if (lastError != null && listener != null) {
+                listener.onFailed(lastError);
+            }
+            return;
+        }
+        startForeground(NOTIFICATION_ID, buildNotification());
+        Thread worker = new Thread(this::runServer, "eletrocromo-server");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    /** Kill Go process and start again (Retry after failure). */
+    public void restart() {
+        if (process != null) {
+            process.destroy();
+        }
+        process = null;
+        readyUrl = null;
+        lastError = null;
+        started.set(false);
+        ensureStarted();
+    }
+
+    private void runServer() {
+        File readyFile = new File(getFilesDir(), "eletrocromo-ready.url");
+        try {
+            readyFile.delete();
+            if (listener != null) {
+                listener.onStatus(getString(R.string.status_binding));
+            }
+            File bin = resolveBinary();
+            ProcessBuilder pb = new ProcessBuilder(bin.getAbsolutePath());
+            pb.directory(getFilesDir());
+            pb.redirectErrorStream(true);
+            File config = new File(getFilesDir(), "config");
+            java.util.Map<String, String> env = pb.environment();
+            env.put("ELETROCROMO_NO_UI", "1");
+            env.put("ELETROCROMO_NO_ENSURE", "1");
+            env.put("ELETROCROMO_READY_FILE", readyFile.getAbsolutePath());
+            env.put("ELETROCROMO_DATA_DIR", getFilesDir().getAbsolutePath());
+            env.put("ELETROCROMO_CACHE_DIR", getCacheDir().getAbsolutePath());
+            env.put("ELETROCROMO_CONFIG_DIR", config.getAbsolutePath());
+            env.put("LEWKIT_APP_ID", "{{.PackageID}}");
+            env.put("LEWKIT_DATA_DIR", getFilesDir().getAbsolutePath());
+            env.put("LEWKIT_CACHE_DIR", getCacheDir().getAbsolutePath());
+            env.put("LEWKIT_CONFIG_DIR", config.getAbsolutePath());
+            env.put("HOME", getFilesDir().getAbsolutePath());
+            env.put("TMPDIR", getCacheDir().getAbsolutePath());
+            // Pure-Go DNS cannot talk to Android netd on [::1]:53; pass real resolvers.
+            env.put("ELETROCROMO_DNS", androidDNSServers());
+            // Child must not send loopback through a proxy either.
+            env.put("NO_PROXY", "127.0.0.1,localhost,::1");
+            env.put("no_proxy", "127.0.0.1,localhost,::1");
+
+            Process proc = pb.start();
+            process = proc;
+
+            // Drain stdout/stderr for the life of the process. Stopping after
+            // READY fills the pipe and blocks Go (workers logs, panics, …).
+            AtomicReference<String> stdoutUrl = new AtomicReference<>();
+            Thread readerThread = new Thread(() -> {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        Log.i(TAG, "go: " + line);
+                        if (stdoutUrl.get() == null) {
+                            String found = extractReadyUrl(line);
+                            if (found != null) {
+                                stdoutUrl.compareAndSet(null, found);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "stdout reader: " + e);
+                }
+            }, "eletrocromo-stdout");
+            readerThread.setDaemon(true);
+            readerThread.start();
+
+            String parsedUrl = waitForReadyUrl(readyFile, stdoutUrl, proc);
+            if (parsedUrl == null) {
+                int code;
+                try {
+                    code = proc.isAlive() ? -1 : proc.exitValue();
+                } catch (Exception e) {
+                    code = -1;
+                }
+                fail("no ELETROCROMO_READY (exit=" + code + ")");
+                return;
+            }
+
+            String loopbackUrl = forceLoopbackUrl(parsedUrl);
+            Log.i(TAG, "ready url=" + loopbackUrl);
+            if (listener != null) {
+                listener.onStatus(getString(R.string.status_connecting));
+            }
+
+            // Probe is best-effort. VPN/system proxies have black-holed Java
+            // HttpURLConnection/Socket to 127.0.0.1 while WebView still works.
+            String probe = probeLoopback(loopbackUrl);
+            Log.i(TAG, "loopback probe: " + probe);
+            if (probe.startsWith("HTTP 401") || probe.startsWith("HTTP 403")) {
+                fail(probe + " — auth token rejected");
+                return;
+            }
+            readyUrl = loopbackUrl;
+            if (listener != null) {
+                listener.onReady(loopbackUrl);
+            }
+
+            readerThread.join(2_000);
+            proc.waitFor();
+            if (readyUrl != null) {
+                lastError = "server process exited";
+            }
+        } catch (Exception e) {
+            fail(e.getMessage() != null ? e.getMessage() : e.toString());
+        }
+    }
+
+    private String waitForReadyUrl(File readyFile, AtomicReference<String> stdoutUrl, Process proc)
+            throws IOException, InterruptedException {
+        for (int i = 0; i < READY_WAIT_ATTEMPTS; i++) {
+            String fromOut = stdoutUrl.get();
+            if (fromOut != null) {
+                return fromOut;
+            }
+            if (readyFile.isFile() && readyFile.length() > 0) {
+                String text = readText(readyFile);
+                String extracted = extractReadyUrl(READY_PREFIX + text);
+                if (extracted != null) {
+                    return extracted;
+                }
+                if (text.startsWith("http://") || text.startsWith("https://")) {
+                    return firstLine(text);
+                }
+            }
+            if (!proc.isAlive()) {
+                if (readyFile.isFile()) {
+                    String text = readText(readyFile);
+                    if (text.startsWith("http")) {
+                        return firstLine(text);
+                    }
+                }
+                return stdoutUrl.get();
+            }
+            Thread.sleep(50);
+        }
+        return stdoutUrl.get();
+    }
+
+    private void fail(String message) {
+        Log.e(TAG, message);
+        lastError = message;
+        if (listener != null) {
+            listener.onFailed(message);
+        }
+    }
+
+    /**
+     * Accept either a bare READY line or one embedded in log timestamps:
+     * ELETROCROMO_READY http://127.0.0.1:1234/?token=…
+     */
+    private String extractReadyUrl(String text) {
+        int idx = text.indexOf(READY_PREFIX);
+        if (idx < 0) {
+            return null;
+        }
+        String rest = text.substring(idx + READY_PREFIX.length()).trim();
+        Matcher m = URL_IN_LINE.matcher(rest);
+        if (m.find()) {
+            return m.group();
+        }
+        String[] parts = rest.split("\\s+");
+        if (parts.length == 0 || parts[0].isEmpty()) {
+            return null;
+        }
+        String token = parts[0];
+        if (token.startsWith("http://") || token.startsWith("https://")) {
+            return token;
+        }
+        return null;
+    }
+
+    /** Rewrite host to literal 127.0.0.1 so MagicDNS / VPN resolvers cannot steal "localhost". */
+    private String forceLoopbackUrl(String raw) {
+        try {
+            URI u = new URI(raw);
+            int port = u.getPort() > 0 ? u.getPort() : 80;
+            String q = u.getRawQuery() != null ? "?" + u.getRawQuery() : "";
+            String frag = u.getRawFragment() != null ? "#" + u.getRawFragment() : "";
+            String path = u.getRawPath();
+            if (path == null || path.isEmpty()) {
+                path = "/";
+            }
+            return "http://127.0.0.1:" + port + path + q + frag;
+        } catch (Exception e) {
+            return raw.replace("://localhost", "://127.0.0.1").replace("://[::1]", "://127.0.0.1");
+        }
+    }
+
+    /**
+     * Best-effort health check. Returns a short status string.
+     * Never throws. VPN-safe: Proxy.NO_PROXY + literal 127.0.0.1 bytes.
+     */
+    private String probeLoopback(String url) {
+        int port = 80;
+        try {
+            int p = new URI(url).getPort();
+            if (p > 0) {
+                port = p;
+            }
+        } catch (Exception ignored) {
+        }
+        InetAddress loop;
+        try {
+            loop = InetAddress.getByAddress(new byte[] {127, 0, 0, 1});
+        } catch (Exception e) {
+            return "error: " + (e.getMessage() != null ? e.getMessage() : e);
+        }
+        try (Socket sock = new Socket()) {
+            sock.connect(new InetSocketAddress(loop, port), 400);
+        } catch (Exception e) {
+            Log.w(TAG, "tcp probe: " + e);
+        }
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(url).openConnection(Proxy.NO_PROXY);
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(3_000);
+            conn.setReadTimeout(15_000);
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Connection", "close");
+            conn.setUseCaches(false);
+            return "HTTP " + conn.getResponseCode();
+        } catch (Exception e) {
+            return "error: " + (e.getMessage() != null ? e.getMessage() : e);
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+    }
+
+    /**
+     * System DNS from getprop, plus public fallbacks. Skips 127.0.0.1 / ::1
+     * stubs that pure-Go UDP cannot use on Android.
+     */
+    private String androidDNSServers() {
+        LinkedHashSet<String> found = new LinkedHashSet<>();
+        String[] keys = {
+            "net.dns1", "net.dns2", "net.dns3", "net.dns4",
+            "dhcp.wlan0.dns1", "dhcp.wlan0.dns2",
+        };
+        for (String key : keys) {
+            String v = getprop(key);
+            if (v == null || v.trim().isEmpty() || v.equals("0.0.0.0") || v.equals("::")
+                    || v.equals("127.0.0.1") || v.equals("::1") || v.startsWith("fe80:")) {
+                continue;
+            }
+            found.add(v);
+        }
+        found.add("8.8.8.8");
+        found.add("1.1.1.1");
+        StringBuilder joined = new StringBuilder();
+        for (String v : found) {
+            if (joined.length() > 0) {
+                joined.append(',');
+            }
+            joined.append(v);
+        }
+        return joined.toString();
+    }
+
+    private String getprop(String key) {
+        try {
+            Process p = Runtime.getRuntime().exec(new String[] {"/system/bin/getprop", key});
+            String out;
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                StringBuilder b = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (b.length() > 0) {
+                        b.append('\n');
+                    }
+                    b.append(line);
+                }
+                out = b.toString().trim();
+            }
+            p.waitFor();
+            if (out.isEmpty()) {
+                return null;
+            }
+            return out;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Native libs ship as libeletrocromo.so under jniLibs/abi/.
+     * Run in place from nativeLibraryDir (filesDir is often noexec).
+     */
+    private File resolveBinary() {
+        String[] abis = Build.SUPPORTED_ABIS;
+        if (abis.length == 0) {
+            throw new IllegalStateException("no supported ABI");
+        }
+        String abi = abis[0];
+        ApplicationInfo info = getApplicationInfo();
+        String nativeDir = info.nativeLibraryDir;
+        File bin = new File(nativeDir, "libeletrocromo.so");
+        if (!bin.exists()) {
+            throw new IllegalStateException("missing libeletrocromo.so for abi=" + abi + " path=" + nativeDir);
+        }
+        bin.setReadable(true);
+        return bin;
+    }
+
+    private Notification buildNotification() {
+        String channelId = "eletrocromo_server";
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(new NotificationChannel(
+                    channelId,
+                    getString(R.string.server_notification_title),
+                    NotificationManager.IMPORTANCE_LOW));
+        }
+        PendingIntent open = PendingIntent.getActivity(
+                this,
+                0,
+                new Intent(this, MainActivity.class),
+                PendingIntent.FLAG_IMMUTABLE);
+        return new Notification.Builder(this, channelId)
+                .setContentTitle(getString(R.string.server_notification_title))
+                .setContentText(getString(R.string.server_notification_text))
+                .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+                .setContentIntent(open)
+                .setOngoing(true)
+                .build();
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return binder;
+    }
+
+    @Override
+    public void onDestroy() {
+        if (process != null) {
+            process.destroy();
+        }
+        process = null;
+        super.onDestroy();
+    }
+
+    private static String readText(File file) throws IOException {
+        return new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8).trim();
+    }
+
+    private static String firstLine(String text) {
+        int n = text.indexOf('\n');
+        if (n < 0) {
+            return text.trim();
+        }
+        return text.substring(0, n).trim();
+    }
+}

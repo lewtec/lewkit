@@ -10,7 +10,7 @@ WebView shell + foreground service that runs the packaged binary.
 | Path | Role |
 |------|------|
 | `eletrocromo.json` | Generator config (re-run / rebuild inputs) |
-| `app/` | Kotlin WebView + ServerService |
+| `app/` | Java WebView + ServerService |
 | `app/src/main/jniLibs/<abi>/libeletrocromo.so` | Cross-compiled Go app (`ELETROCROMO_NO_UI=1`) |
 | `scripts/build-go.sh` | Multiarch `go build` into jniLibs |
 
@@ -56,5 +56,5 @@ go run ./cmd/eletrocromo android create \
   --force
 ```
 
-Do not hand-edit generated Kotlin if you expect to re-run `create --force`;
+Do not hand-edit generated Java if you expect to re-run `create --force`;
 put app logic in the Go module instead.
