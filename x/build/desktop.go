@@ -127,7 +127,12 @@ type goBinary struct {
 }
 
 func (b goBinary) compile(ctx context.Context) error {
-	if err := os.MkdirAll(filepath.Dir(b.dest), 0o755); err != nil {
+	// -o is relative to Cmd.Dir, which is the module, not the caller's cwd.
+	dest, err := filepath.Abs(b.dest)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 		return err
 	}
 	stamp := version.Info{Version: b.version, BuiltBy: "lewkit"}.WithAppID(b.appID)
@@ -135,10 +140,10 @@ func (b goBinary) compile(ctx context.Context) error {
 		stamp += " -H windowsgui"
 	}
 	slog.Info("build " + b.goos + "/" + b.goarch)
-	err := gocmd.Command{
+	err = gocmd.Command{
 		Dir:  b.dir,
 		Env:  append(os.Environ(), "CGO_ENABLED=0", "GOOS="+b.goos, "GOARCH="+b.goarch),
-		Args: []string{"-trimpath", "-ldflags", stamp, "-o", b.dest, "."},
+		Args: []string{"-trimpath", "-ldflags", stamp, "-o", dest, "."},
 	}.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("build %s/%s: %w", b.goos, b.goarch, err)

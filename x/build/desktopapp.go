@@ -38,6 +38,11 @@ func (host Host) packageDesktop(ctx context.Context, goos string) (string, error
 	if arch == "" {
 		arch = runtime.GOARCH
 	}
+	out, err := filepath.Abs(host.Out)
+	if err != nil {
+		return "", err
+	}
+	host.Out = out
 	if err := (goBinary{
 		dir:        cfg.GoMain,
 		appID:      cfg.PackageID,

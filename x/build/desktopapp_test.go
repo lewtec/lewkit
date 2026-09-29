@@ -53,14 +53,20 @@ func TestWindowsAppIsGUIWithIcon(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tiny\n\ngo 1.27.0\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "eletrocromo.json"), []byte("{\n  \"schema_version\": 1,\n  \"package_id\": \"br.tec.lew.tiny\",\n  \"app_name\": \"Tiny\",\n  \"version_name\": \"0.1.0\",\n  \"go_main\": \".\"\n}\n"), 0o644))
-	exe := filepath.Join(t.TempDir(), "Tiny.exe")
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	rel := filepath.Join("dist", "Tiny.exe")
 	got, err := Host{
 		Spec:   Spec{Dir: dir},
-		Out:    exe,
+		Out:    rel,
 		GOARCH: "amd64",
 	}.Windows(t.Context())
 	require.NoError(t, err)
+	exe, err := filepath.Abs(rel)
+	require.NoError(t, err)
 	require.Equal(t, exe, got)
+	_, err = os.Stat(filepath.Join(dir, rel))
+	require.True(t, os.IsNotExist(err))
 	require.Equal(t, uint16(pe.IMAGE_SUBSYSTEM_WINDOWS_GUI), peSubsystem(t, exe))
 
 	file, err := os.Open(exe)
