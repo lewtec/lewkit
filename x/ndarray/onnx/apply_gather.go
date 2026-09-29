@@ -37,21 +37,36 @@ func applyScan[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node
 	}
 	axis := int(node.attributeInteger("axis", 0))
 	if len(node.Inputs) > 1 && node.Inputs[1] != "" {
-		if ints, ok := integerShapes[node.Inputs[1]]; ok && len(ints) > 0 {
-			axis = int(ints[0])
-		} else if t, ok := values[node.Inputs[1]]; ok {
-			t, err = leaf(t)
-			if err != nil {
-				return nil, err
-			}
-			d, err := t.Data()
-			if err != nil || len(d) == 0 {
-				return nil, fmt.Errorf("%w: axis", ErrOp)
-			}
-			axis = int(d[0])
+		got, ok, err := optionalInt(values, integerShapes, node.Inputs[1], "axis")
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			axis = int(got)
 		}
 	}
 	return scanTensor(x, axis, node.attributeInteger("reverse", 0) != 0, node.attributeInteger("exclusive", 0) != 0, op, identity)
+}
+
+// optionalInt reads one scalar from an integer shape or a tensor input.
+// Missing names are not an error. label is the ErrOp text when the tensor is empty.
+func optionalInt[T ndarray.Number](values map[string]*ndarray.Tensor[T], integerShapes map[string][]int64, name, label string) (int64, bool, error) {
+	if ints, ok := integerShapes[name]; ok && len(ints) > 0 {
+		return ints[0], true, nil
+	}
+	tensor, ok := values[name]
+	if !ok {
+		return 0, false, nil
+	}
+	tensor, err := leaf(tensor)
+	if err != nil {
+		return 0, false, err
+	}
+	data, err := tensor.Data()
+	if err != nil || len(data) == 0 {
+		return 0, false, fmt.Errorf("%w: %s", ErrOp, label)
+	}
+	return int64(data[0]), true, nil
 }
 
 func applyHardmax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node) (*ndarray.Tensor[T], error) {

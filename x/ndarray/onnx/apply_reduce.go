@@ -127,18 +127,12 @@ func applyTrilu[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Nod
 	}
 	k := int32(0)
 	if len(node.Inputs) > 1 && node.Inputs[1] != "" {
-		if ints, ok := integerShapes[node.Inputs[1]]; ok && len(ints) > 0 {
-			k = int32(ints[0])
-		} else if t, ok := values[node.Inputs[1]]; ok {
-			t, err = leaf(t)
-			if err != nil {
-				return nil, err
-			}
-			d, err := t.Data()
-			if err != nil || len(d) == 0 {
-				return nil, fmt.Errorf("%w: k", ErrOp)
-			}
-			k = int32(d[0])
+		got, ok, err := optionalInt(values, integerShapes, node.Inputs[1], "k")
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			k = int32(got)
 		}
 	}
 	upper := node.attributeInteger("upper", 1) != 0
