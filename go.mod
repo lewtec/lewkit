@@ -18,6 +18,7 @@ require (
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
+	github.com/google/uuid v1.6.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jezek/xgb v1.3.1
@@ -84,7 +85,6 @@ require (
 	github.com/google/cel-go v0.28.0 // indirect
 	github.com/google/renameio/v2 v2.0.2 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -95,9 +95,9 @@ require (
 	github.com/ktr0731/go-ansisgr v0.1.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20250303204525-1544bccde3a3 // indirect
 	github.com/lewtec/leaven v0.0.0-20260814142252-666e23083398 // indirect
+	github.com/lewtec/modot v0.0.0-20260929134515-210a7cf9e4f3 // indirect
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
-	github.com/lucasew/workspaced v0.0.0-20260916163621-96ab77cd3132 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
@@ -154,6 +154,6 @@ require (
 
 tool (
 	github.com/a-h/templ/cmd/templ
-	github.com/lucasew/workspaced/cmd/workspaced
+	github.com/lewtec/modot/cmd/modot
 	google.golang.org/protobuf/cmd/protoc-gen-go
 )

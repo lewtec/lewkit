@@ -205,6 +205,8 @@ github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260927175155-6b7c6c643bc9 
 github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260927175155-6b7c6c643bc9/go.mod h1:OxqZKICIWGwyxFEx8Wri6I4DCUU7lg0tSLzX73tkHQ8=
 github.com/lewtec/leaven-tree-sitter/grammar/json v0.0.0-20260927175155-6b7c6c643bc9 h1:tTvpnzndgXBscnFjqHZiJvmqrPwIZIXvzr4zaaP9zgk=
 github.com/lewtec/leaven-tree-sitter/grammar/json v0.0.0-20260927175155-6b7c6c643bc9/go.mod h1:d347ipdlOhfOBhKfyPSw22KMhKQ3VZZV2wgs2R9DYfo=
+github.com/lewtec/modot v0.0.0-20260929134515-210a7cf9e4f3 h1:CKjcg9PH6hb3kBaMNH4toyBIAqJTtUeCX2+WTysIEyY=
+github.com/lewtec/modot v0.0.0-20260929134515-210a7cf9e4f3/go.mod h1:hSunxKnlwdIsiQzxJNMML9BuD6HkYyqQKERzZYc23rs=
 github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06 h1:qYGqfJ5fiQeRfSxsvcOwVbADQsZy8raGYr6l1EpaaOc=
 github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06/go.mod h1:xwgf7PJSOWRAqcuffR314NyyEYgsyeTP/Y1FxvykQBk=
 github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260927175003-766673523e06 h1:7hqe8Tgq7t8kQJqVcOFMqGrGZ3zVwFGSqVK+2oGBDWQ=
@@ -214,8 +216,6 @@ github.com/lib/pq v1.12.3/go.mod h1:/p+8NSbOcwzAEI7wiMXFlgydTwcgTr3OSKMsD2BitpA=
 github.com/lucasb-eyer/go-colorful v1.2.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/lucasb-eyer/go-colorful v1.4.0 h1:UtrWVfLdarDgc44HcS7pYloGHJUjHV/4FwW4TvVgFr4=
 github.com/lucasb-eyer/go-colorful v1.4.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
-github.com/lucasew/workspaced v0.0.0-20260916163621-96ab77cd3132 h1:7GpIHihorB1DvHxRbi/PT8j8mGjfantb3GUFRJnEJPQ=
-github.com/lucasew/workspaced v0.0.0-20260916163621-96ab77cd3132/go.mod h1:CKk6HQpjlKiRj8Don0dSR/BadTuWMhOthzy/V3amqMI=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 h1:6E+4a0GO5zZEnZ81pIr0yLvtUWk2if982qA3F3QD6H4=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
 github.com/mattn/go-colorable v0.1.13 h1:fFA4WZxdEF4tXPZVKMLwD8oUnCTTo08duU7wxecdEvA=

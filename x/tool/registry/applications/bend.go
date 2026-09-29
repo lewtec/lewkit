@@ -23,7 +23,7 @@ func init() {
 
 // bendTool installs Bend 2 from bend-lang.com tarballs. The official site
 // only ships curl|sh, which also phones home. bun is not copied into the
-// dest dir; the launcher re-enters workspaced (tool with bun) at runtime.
+// dest dir; the launcher re-enters modot (tool with bun) at runtime.
 type bendTool struct {
 	origin   string
 	fetchURL func(context.Context, string) ([]byte, error)
@@ -174,12 +174,12 @@ if [ -z "$main" ]; then
 	echo "bend: missing bend2/main.ts under $root" >&2
 	exit 1
 fi
-ws=$(command -v workspaced) || {
-	echo "bend: workspaced not found on PATH" >&2
+modot=$(command -v modot) || {
+	echo "bend: modot not found on PATH" >&2
 	exit 1
 }
 export BEND_NO_TELEMETRY=1
-exec -a bun "$ws" tool with bun -- bun "$main" "$@"
+exec -a bun "$modot" tool with bun -- bun "$main" "$@"
 `
 
 func writeBendLauncher(destDir string) error {

@@ -2,7 +2,7 @@
 //
 // glslang.wasm is built from Khronos glslang plus
 // ../build/compile.c via ../build/generate.sh (mise emscripten/cmake,
-// uv python). workspaced requires the artifact here.
+// uv python). The wasm file is committed next to this package.
 package wasm
 
 import _ "embed"

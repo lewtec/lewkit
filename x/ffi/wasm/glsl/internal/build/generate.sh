@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build glslang.wasm.
 # Tools: mise conda:emscripten + conda:cmake; Python via uv.
-# workspaced places the resulting wasm into this directory.
+# The wasm file is written into ../wasm.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 out="$(cd "$here/../wasm" && pwd)/glslang.wasm"

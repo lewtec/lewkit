@@ -112,8 +112,8 @@ func TestWriteBendLauncher(t *testing.T) {
 	for _, want := range []string{
 		"#!/bin/sh",
 		"BEND_NO_TELEMETRY=1",
-		`ws=$(command -v workspaced)`,
-		`exec -a bun "$ws" tool with bun -- bun "$main" "$@"`,
+		`modot=$(command -v modot)`,
+		`exec -a bun "$modot" tool with bun -- bun "$main" "$@"`,
 		"bend2/main.ts",
 	} {
 		require.Contains(t, script, want)

@@ -1,7 +1,7 @@
 // Package dotfiles locates the user's dotfiles checkout.
 //
 // [Root] walks [Candidates] and returns the first directory that exists.
-// The order matches workspaced: a Codespaces persisted share, then
+// The order matches modot: a Codespaces persisted share, then
 // ~/.dotfiles, then /etc/.dotfiles.
 package dotfiles
 
@@ -35,7 +35,7 @@ func Root(home string) (string, error) {
 	return "", ErrNotFound
 }
 
-// expand matches workspaced ExpandPathIn: ~ and ~/ use home, otherwise $VAR.
+// expand matches modot ExpandPathIn: ~ and ~/ use home, otherwise $VAR.
 func expand(path, home string) string {
 	if home != "" && strings.HasPrefix(path, "~") {
 		if path == "~" {
