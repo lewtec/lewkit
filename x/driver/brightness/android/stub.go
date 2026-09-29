@@ -7,21 +7,21 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/dirs"
+	"github.com/lewtec/lewkit/x/driver/brightness"
 )
 
-func init() { driver.Register[dirs.Driver](factory{}) }
+func init() { driver.Register[brightness.Driver](factory{}) }
 
 type factory struct{}
 
-func (factory) ID() string   { return "dirs_android" }
-func (factory) Name() string { return "Android directories" }
+func (factory) ID() string   { return "brightness_android" }
+func (factory) Name() string { return "Android brightness" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
 	return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
 }
 
-func (factory) New(context.Context) (dirs.Driver, error) {
+func (factory) New(context.Context) (brightness.Driver, error) {
 	return nil, fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
 }

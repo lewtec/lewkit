@@ -1,2 +1,2 @@
-// Package android reads UI night mode from the Android configuration.
+// Package android reads night mode from the binder activity configuration.
 package android

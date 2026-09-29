@@ -2,4 +2,7 @@
 
 package prelude
 
-import _ "github.com/lewtec/lewkit/x/driver/volume/pulse"
+import (
+	_ "github.com/lewtec/lewkit/x/driver/volume/android"
+	_ "github.com/lewtec/lewkit/x/driver/volume/pulse"
+)

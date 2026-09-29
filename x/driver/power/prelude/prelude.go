@@ -2,4 +2,7 @@
 
 package prelude
 
-import _ "github.com/lewtec/lewkit/x/driver/power/systemd"
+import (
+	_ "github.com/lewtec/lewkit/x/driver/power/android"
+	_ "github.com/lewtec/lewkit/x/driver/power/systemd"
+)
