@@ -82,7 +82,6 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 	if err := os.MkdirAll(job.Out, 0o755); err != nil {
 		return nil, err
 	}
-	stamp := version.Info{Version: job.Version, BuiltBy: "lewkit"}
 	var written []string
 	for _, target := range job.Targets {
 		if err := ctx.Err(); err != nil {
@@ -97,15 +96,17 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 			return written, err
 		}
 		binPath := filepath.Join(tmp, binary)
-		slog.Info("build " + target.GOOS + "/" + target.GOARCH)
-		err = gocmd.Command{
-			Dir:  job.Dir,
-			Env:  append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
-			Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(job.AppID), "-o", binPath, "."},
-		}.Run(ctx)
+		err = goBinary{
+			dir:     job.Dir,
+			appID:   job.AppID,
+			version: job.Version,
+			goos:    target.GOOS,
+			goarch:  target.GOARCH,
+			dest:    binPath,
+		}.compile(ctx)
 		if err != nil {
 			os.RemoveAll(tmp)
-			return written, fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
+			return written, err
 		}
 		archive := filepath.Join(job.Out, ArchiveName(project, target))
 		if err := writeArchive(archive, binPath, binary); err != nil {
@@ -116,6 +117,38 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 		written = append(written, archive)
 	}
 	return written, nil
+}
+
+// goBinary is one CGO-free go build. windowsGUI sets the PE subsystem to
+// IMAGE_SUBSYSTEM_WINDOWS_GUI so opening the exe does not create a console.
+type goBinary struct {
+	dir, appID, version, goos, goarch, dest string
+	windowsGUI                              bool
+}
+
+func (b goBinary) compile(ctx context.Context) error {
+	// -o is relative to Cmd.Dir, which is the module, not the caller's cwd.
+	dest, err := filepath.Abs(b.dest)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	stamp := version.Info{Version: b.version, BuiltBy: "lewkit"}.WithAppID(b.appID)
+	if b.windowsGUI {
+		stamp += " -H windowsgui"
+	}
+	slog.Info("build " + b.goos + "/" + b.goarch)
+	err = gocmd.Command{
+		Dir:  b.dir,
+		Env:  append(os.Environ(), "CGO_ENABLED=0", "GOOS="+b.goos, "GOARCH="+b.goarch),
+		Args: []string{"-trimpath", "-ldflags", stamp, "-o", dest, "."},
+	}.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("build %s/%s: %w", b.goos, b.goarch, err)
+	}
+	return nil
 }
 
 func writeArchive(archive, binPath, name string) error {
