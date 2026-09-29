@@ -19,7 +19,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/brightness"
 	"github.com/lewtec/lewkit/x/driver/camera"
 	"github.com/lewtec/lewkit/x/driver/clipboard"
-	"github.com/lewtec/lewkit/x/driver/exec"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
@@ -334,13 +334,13 @@ func runExec(ctx context.Context, _ *page, op string, r *http.Request) (string, 
 	if name == "" {
 		return "", errCommandEmpty
 	}
-	cmd, err := exec.Command(name, formLines(r.FormValue("args"))...)
+	cmd, err := execdriver.Command(name, formLines(r.FormValue("args"))...)
 	if err != nil {
 		return "", err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	out, err := exec.Output(ctx, cmd)
+	out, err := execdriver.Output(ctx, cmd)
 	text := strings.TrimRight(string(out), "\n")
 	if err != nil {
 		if text == "" {

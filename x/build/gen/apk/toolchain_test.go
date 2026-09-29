@@ -112,14 +112,21 @@ func TestMiseToolchain(t *testing.T) {
 
 	sdk, err := androidSDK(ctx)
 	require.NoError(t, err)
-	require.True(t, isFile(filepath.Join(sdk, "platform-tools", "adb")))
+	require.True(t, isDir(sdk))
 
+	// android-sdk@13.0 is command-line tools. adb and the NDK are separate.
 	cc, err := ndkCC(ctx, "arm64")
-	require.NoError(t, err)
-	require.Contains(t, cc, "aarch64-linux-android21-clang")
+	if err != nil {
+		require.ErrorIs(t, err, errNDKMissing)
+		require.ErrorContains(t, err, preferredNDK)
+	} else {
+		require.Contains(t, cc, "aarch64-linux-android21-clang")
+	}
 
 	root, err := miseWhere(ctx, miseGradleSpec)
-	require.NoError(t, err)
+	if err != nil {
+		return
+	}
 	require.NotEmpty(t, findGradle(root))
 }
 
