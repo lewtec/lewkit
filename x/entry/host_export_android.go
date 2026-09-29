@@ -19,9 +19,11 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"sync/atomic"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/ffi/jni"
 )
 
@@ -68,6 +70,8 @@ func NotifyFail(message string) {
 
 //export Java_lewkit_Host_start
 func Java_lewkit_Host_start(env *C.JNIEnv, _ C.jclass, file C.jstring) {
+	// The JNIEnv passed in is only valid on this thread.
+	runtime.LockOSThread()
 	C.lewkit_bind_host(env)
 	jni.SetCurrentEnv(func() uintptr {
 		env := C.lewkit_attach()
@@ -76,6 +80,9 @@ func Java_lewkit_Host_start(env *C.JNIEnv, _ C.jclass, file C.jstring) {
 		}
 		return uintptr(unsafe.Pointer(env))
 	})
+	// entry.Run pumps the queue on this goroutine. Java calls from request
+	// goroutines join that queue instead of attaching a new JNI thread.
+	jni.SetRunner(func(fn func()) { thread.Do(fn) })
 	if err := jni.Bind(uintptr(unsafe.Pointer(env)), "lewkit/Host"); err != nil {
 		slog.Error("jni bind", "err", err)
 		return

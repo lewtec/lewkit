@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/daynight/android"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/cocoa"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/fixed"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/portal"

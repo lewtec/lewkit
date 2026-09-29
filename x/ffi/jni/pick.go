@@ -15,8 +15,10 @@ const (
 
 var (
 	errArgument  = errors.New("unsupported java argument")
-	errNoMethod  = errors.New("no method")
 	errAmbiguous = errors.New("ambiguous method")
+
+	// ErrNoMethod means no public method accepts these arguments.
+	ErrNoMethod = errors.New("no method")
 )
 
 type kind int
@@ -234,7 +236,7 @@ func pick(cands []candidate, sel selector) (int, error) {
 		}
 	}
 	if len(matched) == 0 {
-		return -1, fmt.Errorf("%w: %s", errNoMethod, sel.name)
+		return -1, fmt.Errorf("%w: %s", ErrNoMethod, sel.name)
 	}
 	if len(matched) > 1 {
 		sigs := make([]string, len(matched))

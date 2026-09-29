@@ -84,6 +84,25 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if strings.Contains(string(manifest), `android:scheme=`) {
 		t.Fatalf("unexpected scheme filter:\n%s", manifest)
 	}
+	if !strings.Contains(string(manifest), `android:configChanges="orientation|screenSize|keyboardHidden|uiMode"`) {
+		t.Fatalf("manifest uiMode:\n%s", manifest)
+	}
+
+	hostKt, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.kt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(hostKt), "fun dataDir") || strings.Contains(string(hostKt), "fun cacheDir") || strings.Contains(string(hostKt), "fun configDir") {
+		t.Fatalf("host still owns directory methods:\n%s", hostKt)
+	}
+
+	proxy, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/GoProxy.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(proxy), "nativeInvoke") {
+		t.Fatalf("GoProxy:\n%s", proxy)
+	}
 
 	sh, err := os.ReadFile(filepath.Join(out, "scripts/build-go.sh"))
 	if err != nil {

@@ -103,24 +103,18 @@ func cptr(b []byte) uintptr {
 	return uintptr(unsafe.Pointer(&b[0]))
 }
 
-// openEnv accepts either the JNI function table or a pointer to it.
-// cgo types JNIEnv as *JNINativeInterface, and a Go export adds another pointer.
+// openEnv separates the JNIEnv from its function table.
+// A non-null word at FindClass is not enough: JNIEnvExt fills that slot
+// after the first calls, and indexing the env object jumps into the heap.
 func openEnv(raw uintptr) env {
-	if raw == 0 {
+	self, tab, ok := functionTable(raw, func(p uintptr) uintptr {
+		return *(*uintptr)(unsafe.Pointer(p))
+	})
+	if !ok {
 		return env{}
 	}
-	e := env{self: raw, tab: raw}
-	if e.slot(idxFindClass) != 0 {
-		return e
-	}
-	inner := untag(e.slot(0))
-	if inner != 0 && (env{self: raw, tab: inner}).slot(idxFindClass) != 0 {
-		e.tab = inner
-	}
-	return e
+	return env{self: self, tab: tab}
 }
-
-func untag(p uintptr) uintptr { return p & 0x00ffffffffffffff }
 
 func (e env) slot(i int) uintptr {
 	return *(*uintptr)(unsafe.Pointer(e.tab + uintptr(i)*unsafe.Sizeof(uintptr(0))))

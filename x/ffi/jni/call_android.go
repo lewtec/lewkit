@@ -116,6 +116,7 @@ func bind(raw uintptr, anchor string) error {
 	if err != nil {
 		return err
 	}
+	javaRaw.Store(raw)
 	bound.Store(vm)
 	return nil
 }
@@ -140,24 +141,111 @@ func callRef(r *Ref, method string, args ...any) (any, error) {
 	return dispatch(call{recv: r.ptr, name: method, args: args})
 }
 
-func release(r *Ref) bool {
-	e, err := attach()
-	if err != nil {
-		return false
+func classObject(name string) (*Ref, error) {
+	if bound.Load() == nil {
+		return nil, errUnbound
 	}
-	e.deleteGlobal(r.ptr)
-	return true
+	v, err := withJava(func(e env) (any, error) {
+		vm := bound.Load()
+		if vm == nil {
+			return nil, errUnbound
+		}
+		if err := e.push(32); err != nil {
+			return nil, err
+		}
+		defer e.pop()
+		local, err := e.load(vm, name)
+		if err != nil {
+			return nil, err
+		}
+		return e.asRef(vm, local)
+	})
+	if err != nil {
+		return nil, err
+	}
+	ref, ok := v.(*Ref)
+	if !ok || ref == nil {
+		return nil, errNullClass
+	}
+	return ref, nil
 }
 
-func attach() (env, error) {
-	loaded := currentEnv.Load()
-	fn, ok := loaded.(func() uintptr)
-	if !ok || fn == nil {
-		return env{}, errNoEnv
+func staticField(className, name string) (any, error) {
+	cls, err := classObject(className)
+	if err != nil {
+		return nil, err
 	}
-	raw := fn()
+	defer cls.Release()
+	return readField(cls, nil, name)
+}
+
+func instanceField(r *Ref, name string) (any, error) {
+	got, err := callRef(r, "getClass")
+	if err != nil {
+		return nil, err
+	}
+	cls, ok := got.(*Ref)
+	if !ok || cls == nil {
+		return nil, errNullClass
+	}
+	defer cls.Release()
+	return readField(cls, r, name)
+}
+
+func readField(cls *Ref, recv *Ref, name string) (any, error) {
+	got, err := callRef(cls, "getField", name)
+	if err != nil {
+		return nil, err
+	}
+	field, ok := got.(*Ref)
+	if !ok || field == nil {
+		return nil, errNullClass
+	}
+	defer field.Release()
+	var target any
+	if recv != nil {
+		target = recv
+	}
+	return callRef(field, "get", target)
+}
+
+func release(r *Ref) bool {
+	_, err := withJava(func(e env) (any, error) {
+		dropProxy(r.ptr)
+		e.deleteGlobal(r.ptr)
+		return nil, nil
+	})
+	return err == nil
+}
+
+// withJava runs fn on the Bind thread. The JNIEnv is the one Bind saved.
+func withJava(fn func(env) (any, error)) (any, error) {
+	var (
+		v   any
+		err error
+	)
+	runOnJava(func() {
+		e, openErr := envHere()
+		if openErr != nil {
+			err = openErr
+			return
+		}
+		v, err = fn(e)
+	})
+	return v, err
+}
+
+func envHere() (env, error) {
+	raw := javaRaw.Load()
 	if raw == 0 {
-		return env{}, errAttach
+		fn, ok := currentEnv.Load().(func() uintptr)
+		if !ok || fn == nil {
+			return env{}, errNoEnv
+		}
+		raw = fn()
+		if raw == 0 {
+			return env{}, errAttach
+		}
 	}
 	e := openEnv(raw)
 	if e.tab == 0 {
@@ -354,77 +442,79 @@ func dispatch(in call) (any, error) {
 		}
 		vals[i] = v
 	}
-	vm := bound.Load()
-	if vm == nil {
+	if bound.Load() == nil {
 		return nil, errUnbound
 	}
-	e, err := attach()
-	if err != nil {
-		return nil, err
-	}
-	if err := e.push(256); err != nil {
-		return nil, err
-	}
-	defer e.pop()
+	return withJava(func(e env) (any, error) {
+		vm := bound.Load()
+		if vm == nil {
+			return nil, errUnbound
+		}
+		if err := e.push(256); err != nil {
+			return nil, err
+		}
+		defer e.pop()
 
-	var cls uintptr
-	if in.ctor || in.static {
-		cls, err = e.load(vm, in.class)
-	} else {
-		cls, err = e.objectClass(in.recv, vm.errIDs)
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	spec := methodSpec(vm)
-	list := vm.getMethods
-	wantStatic := in.static
-	if in.ctor {
-		spec = ctorSpec(vm, dotted(in.class))
-		list = vm.getConstructors
-		wantStatic = false
-	}
-	helds, err := e.scan(cls, list, vm, spec, in.name, wantStatic, len(vals))
-	if err != nil {
-		return nil, err
-	}
-	defer freeHeld(e, helds)
-
-	as, err := e.argList(vm, vals, helds)
-	if err != nil {
-		return nil, err
-	}
-	idx, err := pick(candsOf(helds), selector{name: in.name, static: wantStatic, args: as})
-	if err != nil {
-		return nil, err
-	}
-	boxed := make([]uintptr, len(vals))
-	for i, v := range vals {
-		p, err := e.box(vm, v)
+		var cls uintptr
+		var err error
+		if in.ctor || in.static {
+			cls, err = e.load(vm, in.class)
+		} else {
+			cls, err = e.objectClass(in.recv, vm.errIDs)
+		}
 		if err != nil {
 			return nil, err
 		}
-		boxed[i] = p
-	}
-	arr, err := e.objectArray(vm, boxed)
-	if err != nil {
-		return nil, err
-	}
-	var result uintptr
-	if in.ctor {
-		result, err = e.callObject(idxCallObjectA, e.self, helds[idx].obj, vm.newInstance, []jvalue{jobj(arr)}, vm.errIDs)
-	} else {
-		receiver := uintptr(0)
-		if !in.static {
-			receiver = in.recv
+
+		spec := methodSpec(vm)
+		list := vm.getMethods
+		wantStatic := in.static
+		if in.ctor {
+			spec = ctorSpec(vm, dotted(in.class))
+			list = vm.getConstructors
+			wantStatic = false
 		}
-		result, err = e.callObject(idxCallObjectA, e.self, helds[idx].obj, vm.invoke, []jvalue{jobj(receiver), jobj(arr)}, vm.errIDs)
-	}
-	if err != nil {
-		return nil, err
-	}
-	return e.unbox(vm, result, helds[idx].ret, in.ctor)
+		helds, err := e.scan(cls, list, vm, spec, in.name, wantStatic, len(vals))
+		if err != nil {
+			return nil, err
+		}
+		defer freeHeld(e, helds)
+
+		as, err := e.argList(vm, vals, helds)
+		if err != nil {
+			return nil, err
+		}
+		idx, err := pick(candsOf(helds), selector{name: in.name, static: wantStatic, args: as})
+		if err != nil {
+			return nil, err
+		}
+		boxed := make([]uintptr, len(vals))
+		for i, v := range vals {
+			p, err := e.box(vm, v)
+			if err != nil {
+				return nil, err
+			}
+			boxed[i] = p
+		}
+		arr, err := e.objectArray(vm, boxed)
+		if err != nil {
+			return nil, err
+		}
+		var result uintptr
+		if in.ctor {
+			result, err = e.callObject(idxCallObjectA, e.self, helds[idx].obj, vm.newInstance, []jvalue{jobj(arr)}, vm.errIDs)
+		} else {
+			receiver := uintptr(0)
+			if !in.static {
+				receiver = in.recv
+			}
+			result, err = e.callObject(idxCallObjectA, e.self, helds[idx].obj, vm.invoke, []jvalue{jobj(receiver), jobj(arr)}, vm.errIDs)
+		}
+		if err != nil {
+			return nil, err
+		}
+		return e.unbox(vm, result, helds[idx].ret, in.ctor)
+	})
 }
 
 func methodSpec(vm *vm) scanSpec {

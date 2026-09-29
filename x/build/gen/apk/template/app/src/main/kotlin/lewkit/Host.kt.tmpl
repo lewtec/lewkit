@@ -56,26 +56,6 @@ object Host {
     }
 
     @JvmStatic
-    fun dataDir(): String {
-        val ctx = app ?: return ""
-        return ctx.filesDir.absolutePath
-    }
-
-    @JvmStatic
-    fun cacheDir(): String {
-        val ctx = app ?: return ""
-        return ctx.cacheDir.absolutePath
-    }
-
-    @JvmStatic
-    fun configDir(): String {
-        val ctx = app ?: return ""
-        val dir = java.io.File(ctx.filesDir, "config")
-        dir.mkdirs()
-        return dir.absolutePath
-    }
-
-    @JvmStatic
     external fun start(readyFile: String)
 
     @JvmStatic

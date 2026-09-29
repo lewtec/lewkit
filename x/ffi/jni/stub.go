@@ -25,6 +25,26 @@ func callRef(r *Ref, method string, args ...any) (any, error) {
 	return nil, ErrUnavailable
 }
 
+func classObject(name string) (*Ref, error) {
+	_ = name
+	return nil, ErrUnavailable
+}
+
+func staticField(className, name string) (any, error) {
+	_, _ = className, name
+	return nil, ErrUnavailable
+}
+
+func instanceField(r *Ref, name string) (any, error) {
+	_, _ = r, name
+	return nil, ErrUnavailable
+}
+
+func makeProxy(iface string, invoke func(string, []any) (any, error)) (*Ref, error) {
+	_, _ = iface, invoke
+	return nil, ErrUnavailable
+}
+
 func release(r *Ref) bool {
 	_ = r
 	return true
