@@ -97,9 +97,9 @@ func (s *screen) Draw(ctx context.Context, instances, under, ink []byte, width, 
 	if s == nil || s.binding == nil {
 		return ffivulkan.ErrClosed
 	}
-	vert, frag, inkVert, inkFrag, err := drawCode(ctx)
+	code, err := drawCode.GetContext(ctx)
 	if err == nil {
-		err = s.binding.Draw(instances, under, ink, width, height, vert, frag, inkVert, inkFrag)
+		err = s.binding.Draw(instances, under, ink, width, height, code.vert, code.frag, code.inkVert, code.inkFrag)
 	}
 	return err
 }
