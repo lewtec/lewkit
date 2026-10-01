@@ -155,7 +155,10 @@ func (picture *Picture) Show(ctx context.Context, screen vulkan.Screen, root Nod
 	if err != nil {
 		return err
 	}
-	return drawFills(ctx, screen, picture.fills, under, ink, int(size.Width), int(size.Height))
+	return Play(ctx, Vulkan(screen), Frame{
+		Width: int(size.Width), Height: int(size.Height),
+		Fills: picture.fills, Under: under, Ink: ink,
+	})
 }
 
 // drawFills paints an optional tensor image, then fills, then glyph ink.

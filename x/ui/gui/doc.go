@@ -11,6 +11,8 @@
 // Layout returns Size; Paint returns the accumulator tensor.
 // A node records one [Mark] per draw, in paint order, through [Picture.Fill],
 // [Picture.Text], [Picture.Image], and [Picture.Backdrop].
+// [Play] draws the lowered [Frame] on a [Canvas]. [Vulkan] attaches a swapchain.
+// An OpenGL framebuffer implements the same [Canvas.Draw].
 // Marquee rewrites bar Y on a reused node tree. Layout is CPU ([Box], [Flex], [Stack]).
 // Glyphs are [Text] nodes; Picture rasters them into ink in the same kernel.
 // [Marquee] View maps offset and size onto [Bar] values; Update is the

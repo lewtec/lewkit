@@ -82,7 +82,10 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 	if err != nil {
 		return err
 	}
-	return drawFills(ctx, d.screen, picture.fills, under, ink, size.X, size.Y)
+	return Play(ctx, Vulkan(d.screen), Frame{
+		Width: size.X, Height: size.Y,
+		Fills: picture.fills, Under: under, Ink: ink,
+	})
 }
 
 type runner struct {
