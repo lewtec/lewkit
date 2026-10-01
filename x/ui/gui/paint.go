@@ -3,6 +3,7 @@ package gui
 import (
 	"image"
 	"math"
+	"slices"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/vulkan"
@@ -36,6 +37,9 @@ type Picture struct {
 	fills       []Draw
 	texts       []textRun
 	images      []imageStamp
+	marks       []Mark
+	yield       func(Mark) bool
+	stop        bool
 	raster      *ndarray.Tensor[float32]
 	rasterFrom  *ndarray.Tensor[float32]
 	rasterCast  *ndarray.Tensor[uint8]
@@ -146,14 +150,6 @@ func (picture *Picture) withInk(accumulator *ndarray.Tensor[float32]) *ndarray.T
 	return lit.Where(picture.ink.Cast[float32](), accumulator).Cast[uint8]()
 }
 
-func (picture *Picture) glyph(run textRun) {
-	picture.texts = append(picture.texts, run)
-}
-
-func (picture *Picture) blit(stamp imageStamp) {
-	picture.images = append(picture.images, stamp)
-}
-
 func (picture *Picture) over(fill Draw) *ndarray.Tensor[float32] {
 	if picture == nil {
 		return nil
@@ -213,6 +209,21 @@ func (picture *Picture) compile(count int) error {
 	return nil
 }
 
+// replayFills compiles the current fill list onto picture.base.
+// The list is cloned first because over appends as it compiles.
+func (picture *Picture) replayFills() {
+	if picture == nil {
+		return
+	}
+	fills := slices.Clone(picture.fills)
+	picture.fills = picture.fills[:0]
+	picture.fillCount = 0
+	picture.accumulator = picture.base
+	for _, fill := range fills {
+		picture.over(fill)
+	}
+}
+
 func channelColor(channel *ndarray.Tensor[int32], red, green, blue, alpha *ndarray.Tensor[float32]) *ndarray.Tensor[float32] {
 	return channel.Equal(ndarray.Const(int32(0))).Where(red,
 		channel.Equal(ndarray.Const(int32(1))).Where(green,
@@ -243,7 +254,8 @@ func (slot slot) coverage(pixelX, pixelY *ndarray.Tensor[float32]) *ndarray.Tens
 	return clipMask.Where(cover, zero)
 }
 
-// Render layouts root, then Paint returns the over-composite tensor.
+// Render lays out root and paints it.
+// The paint walk streams marks. One pass lowers that sequence into the frame.
 func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], error) {
 	if picture == nil || picture.base == nil {
 		return nil, ErrView
@@ -256,6 +268,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]
 	picture.images = picture.images[:0]
+	picture.marks = picture.marks[:0]
 	picture.keys = picture.keys[:0]
 	picture.raster = nil
 	if picture.black != nil && picture.base != picture.black && picture.mounted == nil {
@@ -265,7 +278,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 		picture.inkedFrom = nil
 	}
 	picture.accumulator = picture.base
-	accumulator := root.Paint(Offset{}, Rect{0, 0, size.Width, size.Height}, picture)
+	picture.adopt(lower(picture.paintMarks(root, size)))
 	mount := picture.mountable()
 	overlay := picture.overlaySig()
 	if mount && picture.mounted == picture.raster && picture.pixels != nil && overlay == picture.overlay {
@@ -278,8 +291,12 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	if mount {
 		picture.recordOnly = false
 	}
+	var accumulator *ndarray.Tensor[float32]
 	if !picture.recordOnly {
 		picture.fuseRaster()
+		if picture.base == picture.black {
+			picture.replayFills()
+		}
 		accumulator = picture.accumulator
 	}
 	if picture.recordOnly {

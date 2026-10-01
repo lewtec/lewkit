@@ -26,15 +26,8 @@ func (raster *Raster) Paint(origin Offset, clip Rect, picture *Picture) *ndarray
 	if raster == nil || picture == nil || raster.Pixels == nil {
 		return accumulatorOf(picture)
 	}
-	picture.useRaster(raster.Pixels)
+	picture.Backdrop(raster.Pixels)
 	return accumulatorOf(picture)
-}
-
-func (picture *Picture) useRaster(src *ndarray.Tensor[float32]) {
-	if picture == nil || src == nil {
-		return
-	}
-	picture.raster = src
 }
 
 func (picture *Picture) fuseRaster() {
@@ -45,17 +38,11 @@ func (picture *Picture) fuseRaster() {
 	if shape != nil && !shape.Equal(ndarray.Shape{1, 1, 4}) {
 		return
 	}
-	fills := append([]Draw(nil), picture.fills...)
 	picture.base = picture.raster
 	picture.slots = nil
 	picture.composites = nil
 	picture.inkedFrom = nil
-	picture.fills = picture.fills[:0]
-	picture.fillCount = 0
-	picture.accumulator = picture.base
-	for _, fill := range fills {
-		picture.over(fill)
-	}
+	picture.replayFills()
 }
 
 func (picture *Picture) rasterBytes(ctx context.Context, evaluator ndarray.Evaluator, width, height int) ([]byte, error) {

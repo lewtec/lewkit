@@ -52,7 +52,7 @@ func (node *Image) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Te
 	if visible.Width < 1 || visible.Height < 1 {
 		return accumulatorOf(picture)
 	}
-	picture.blit(imageStamp{src: node.Src, box: full, clip: visible, radius: node.Radius})
+	picture.Image(node.Src, full, visible, node.Radius)
 	return accumulatorOf(picture)
 }
 

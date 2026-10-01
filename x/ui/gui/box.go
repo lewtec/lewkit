@@ -79,15 +79,7 @@ func (box *Box) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tenso
 	}
 	accumulator := accumulatorOf(picture)
 	if box.Fill != nil && picture != nil {
-		accumulator = picture.over(Draw{
-			X: origin.X, Y: origin.Y, Width: box.size.Width, Height: box.size.Height,
-			Red: float32(box.Fill.Red), Green: float32(box.Fill.Green), Blue: float32(box.Fill.Blue), Alpha: float32(box.Fill.Alpha),
-			Radius:     box.Radius,
-			ClipX:      clip.X,
-			ClipY:      clip.Y,
-			ClipWidth:  clip.Width,
-			ClipHeight: clip.Height,
-		})
+		accumulator = picture.Fill(bounds, box.Radius, *box.Fill, clip)
 	}
 	if box.Child == nil {
 		return accumulator
