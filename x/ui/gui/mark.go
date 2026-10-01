@@ -40,27 +40,20 @@ type Mark struct {
 }
 
 // Fill records a rounded rectangle in paint order.
-// The returned tensor is the software composite after this fill.
+// The returned tensor is the picture's current accumulator.
+// [Picture.Render] lowers the recorded marks before it composites them.
 func (picture *Picture) Fill(box Rect, radius float32, color RGB, clip Rect) *ndarray.Tensor[float32] {
 	if picture == nil {
 		return nil
 	}
-	picture.marks = append(picture.marks, Mark{
+	picture.emit(Mark{
 		Kind:   MarkFill,
 		Box:    box,
 		Clip:   clip,
 		Radius: radius,
 		Color:  color,
 	})
-	return picture.over(Draw{
-		X: box.X, Y: box.Y, Width: box.Width, Height: box.Height,
-		Red: float32(color.Red), Green: float32(color.Green), Blue: float32(color.Blue), Alpha: float32(color.Alpha),
-		Radius:     radius,
-		ClipX:      clip.X,
-		ClipY:      clip.Y,
-		ClipWidth:  clip.Width,
-		ClipHeight: clip.Height,
-	})
+	return accumulatorOf(picture)
 }
 
 // Text records one glyph run in paint order.
@@ -72,7 +65,7 @@ func (picture *Picture) Text(body string, face font.Face, color RGB, box, clip R
 	if color == (RGB{}) {
 		color = RGB{255, 255, 255, 255}
 	}
-	picture.marks = append(picture.marks, Mark{
+	picture.emit(Mark{
 		Kind:   MarkText,
 		Box:    box,
 		Clip:   clip,
@@ -82,15 +75,6 @@ func (picture *Picture) Text(body string, face font.Face, color RGB, box, clip R
 		Cursor: cursor,
 		Caret:  caret,
 	})
-	picture.glyph(textRun{
-		box:    box,
-		clip:   clip,
-		body:   []rune(body),
-		face:   face,
-		cursor: cursor,
-		caret:  caret,
-		ink:    color,
-	})
 }
 
 // Image records src scaled into box. Radius punches a rounded mask.
@@ -98,14 +82,13 @@ func (picture *Picture) Image(src image.Image, box, clip Rect, radius float32) {
 	if picture == nil || src == nil {
 		return
 	}
-	picture.marks = append(picture.marks, Mark{
+	picture.emit(Mark{
 		Kind:   MarkImage,
 		Box:    box,
 		Clip:   clip,
 		Radius: radius,
 		Src:    src,
 	})
-	picture.blit(imageStamp{src: src, box: box, clip: clip, radius: radius})
 }
 
 // Backdrop records a frame-sized tensor under the marks that follow it.
@@ -113,8 +96,7 @@ func (picture *Picture) Backdrop(pixels *ndarray.Tensor[float32]) {
 	if picture == nil || pixels == nil {
 		return
 	}
-	picture.marks = append(picture.marks, Mark{Kind: MarkBackdrop, Pixels: pixels})
-	picture.useRaster(pixels)
+	picture.emit(Mark{Kind: MarkBackdrop, Pixels: pixels})
 }
 
 // Marks returns a copy of the draws recorded since the last [Picture.Render].
