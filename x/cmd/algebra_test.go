@@ -129,6 +129,25 @@ func TestDashSplitsSeqs(t *testing.T) {
 	}
 }
 
+func TestDashSkipsDefaultedPositional(t *testing.T) {
+	type args struct {
+		dir  StringArg `default:"."`
+		sep  *Dash
+		rest []StringArg
+	}
+	plain := ParseOK[args](t, "--", "smoke")
+	assert.Equal(t, ".", plain.dir.Value())
+	assert.Equal(t, []string{"smoke"}, Values(plain.rest))
+
+	kept := ParseOK[args](t, "module", "--", "smoke")
+	assert.Equal(t, "module", kept.dir.Value())
+	assert.Equal(t, []string{"smoke"}, Values(kept.rest))
+
+	onlyDir := ParseOK[args](t, "module")
+	assert.Equal(t, "module", onlyDir.dir.Value())
+	assert.Empty(t, onlyDir.rest)
+}
+
 func TestTwoRestsSplitByDash(t *testing.T) {
 	type args struct {
 		a []StringArg

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lewtec/lewkit/cmd/lewkit/experiments"
 	"github.com/lewtec/lewkit/report/sentry"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db/generate"
@@ -29,7 +28,6 @@ type root struct {
 	release       *releaseCmd
 	disasm        *disasmCmd
 	doctor        *doctorCmd
-	experiments   *experiments.Command
 	completion    *completionCmd
 }
 

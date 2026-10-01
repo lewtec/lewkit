@@ -432,8 +432,17 @@ func (s *spec) parse(args []string, allPos bool) error {
 			if len(s.cmds) > 0 {
 				return s.feedCommand(args[i+1:], true)
 			}
-			for posi < len(s.pos) && s.fields[s.pos[posi]].kind == kindRest && s.nextIsDash(posi) {
-				posi++
+			for posi < len(s.pos) {
+				f := s.fields[s.pos[posi]]
+				if f.kind == kindRest && s.nextIsDash(posi) {
+					posi++
+					continue
+				}
+				if f.kind != kindDash && (f.optional || f.hasDef) && s.dashAfter(posi) {
+					posi++
+					continue
+				}
+				break
 			}
 			if posi < len(s.pos) && s.fields[s.pos[posi]].kind == kindDash {
 				n, err := s.takePos(posi, args[i:], consumeMode{allPos: true, optional: s.fields[s.pos[posi]].optional})
@@ -487,6 +496,15 @@ func (s *spec) parse(args []string, allPos bool) error {
 		posi++
 	}
 	return s.finish()
+}
+
+func (s *spec) dashAfter(posi int) bool {
+	for j := posi + 1; j < len(s.pos); j++ {
+		if s.fields[s.pos[j]].kind == kindDash {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *spec) nextIsDash(posi int) bool {

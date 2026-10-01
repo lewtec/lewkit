@@ -16,23 +16,28 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 )
 
-func runBuilt(ctx context.Context, goos, goarch, archive string) error {
-	if goos != runtime.GOOS || goarch != runtime.GOARCH {
-		return fmt.Errorf("built %s/%s (%s); this machine is %s/%s", goos, goarch, archive, runtime.GOOS, runtime.GOARCH)
+type builtProgram struct {
+	goos, goarch, archive string
+	args                  []string
+}
+
+func runBuilt(ctx context.Context, prog builtProgram) error {
+	if prog.goos != runtime.GOOS || prog.goarch != runtime.GOARCH {
+		return fmt.Errorf("built %s/%s (%s); this machine is %s/%s", prog.goos, prog.goarch, prog.archive, runtime.GOOS, runtime.GOARCH)
 	}
 	dir, err := os.MkdirTemp("", "lewkit-run-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(dir)
-	bin, err := extractOne(archive, dir)
+	bin, err := extractOne(prog.archive, dir)
 	if err != nil {
 		return err
 	}
 	if err := os.Chmod(bin, 0o755); err != nil {
 		return err
 	}
-	return runTool(ctx, bin)
+	return runTool(ctx, bin, prog.args...)
 }
 
 func extractOne(archive, dir string) (string, error) {
