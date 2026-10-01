@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,8 +11,25 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/battery"
 	"github.com/stretchr/testify/require"
 )
+
+type fixedBattery struct{}
+
+func (fixedBattery) ID() string                               { return "battery_fixed" }
+func (fixedBattery) Name() string                             { return "Fixed battery" }
+func (fixedBattery) Weight() int                              { return 0 }
+func (fixedBattery) CheckCompatibility(context.Context) error { return nil }
+func (fixedBattery) New(context.Context) (battery.Driver, error) {
+	return fixedBattery{}, nil
+}
+func (fixedBattery) BatteryStatus(context.Context) (battery.Status, error) {
+	return battery.Discharging, nil
+}
+func (fixedBattery) BatteryLevel(context.Context) (int, error) { return 42, nil }
+
+func init() { driver.Register[battery.Driver](fixedBattery{}) }
 
 func TestHomeListsADriver(t *testing.T) {
 	srv := httptest.NewServer(newPage(t.Context()))
@@ -65,7 +83,8 @@ func TestDriverPagesShowState(t *testing.T) {
 	require.NoError(t, battery.Body.Close())
 	batteryText := string(batteryBody)
 	require.NotContains(t, batteryText, "<form")
-	require.True(t, strings.Contains(batteryText, ">Status<") || strings.Contains(batteryText, `role="alert"`))
+	hasRows := strings.Contains(batteryText, ">Status<") && strings.Contains(batteryText, ">Level<")
+	require.True(t, hasRows || strings.Contains(batteryText, `role="alert"`))
 
 	volume, err := client.Get(srv.URL + "/driver/volume")
 	require.NoError(t, err)
@@ -97,6 +116,26 @@ func TestDriverPagesShowState(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, unknown.Body.Close())
 	require.Equal(t, http.StatusNotFound, unknown.StatusCode)
+}
+
+func TestBatteryPageShowsLevel(t *testing.T) {
+	t.Setenv("LEWKIT_FORCE_BATTERY_DRIVER", "battery_fixed")
+	srv := httptest.NewServer(newPage(t.Context()))
+	defer srv.Close()
+	client := srv.Client()
+	client.Timeout = 5 * time.Second
+	res, err := client.Get(srv.URL + "/driver/battery")
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	text := string(body)
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.Contains(t, text, ">Status<")
+	require.Contains(t, text, ">Discharging<")
+	require.Contains(t, text, ">Level<")
+	require.Contains(t, text, ">42%<")
+	require.NotContains(t, text, "<form")
 }
 
 func TestDriverSlugsUnique(t *testing.T) {

@@ -42,36 +42,11 @@ func (backend) BatteryStatus(ctx context.Context) (battery.Status, error) {
 	if err != nil {
 		return battery.Unknown, err
 	}
-	app, err := host.Context()
+	intent, release, err := openBattery(ctx)
 	if err != nil {
 		return battery.Unknown, err
 	}
-	defer app.Release()
-	action, err := host.Text(jni.StaticField("android.content.Intent", "ACTION_BATTERY_CHANGED"))
-	if err != nil {
-		return battery.Unknown, err
-	}
-	filter, err := jni.New("android.content.IntentFilter", action)
-	if err != nil {
-		return battery.Unknown, err
-	}
-	defer filter.Release()
-	intent, err := sticky(app, filter)
-	if err != nil {
-		return battery.Unknown, err
-	}
-	if intent == nil {
-		return battery.Unknown, battery.ErrNoBattery
-	}
-	defer intent.Release()
-	presentKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_PRESENT"))
-	if err != nil {
-		return battery.Unknown, err
-	}
-	present, err := host.Bool(intent.Call("getBooleanExtra", presentKey, true))
-	if err != nil {
-		return battery.Unknown, err
-	}
+	defer release()
 	statusKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_STATUS"))
 	if err != nil {
 		return battery.Unknown, err
@@ -80,7 +55,85 @@ func (backend) BatteryStatus(ctx context.Context) (battery.Status, error) {
 	if err != nil {
 		return battery.Unknown, err
 	}
-	return statusFrom(present, code, known)
+	return statusFrom(true, code, known)
+}
+
+func (backend) BatteryLevel(ctx context.Context) (int, error) {
+	intent, release, err := openBattery(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer release()
+	levelKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_LEVEL"))
+	if err != nil {
+		return 0, err
+	}
+	scaleKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_SCALE"))
+	if err != nil {
+		return 0, err
+	}
+	level, err := host.Int(intent.Call("getIntExtra", levelKey, -1))
+	if err != nil {
+		return 0, err
+	}
+	scale, err := host.Int(intent.Call("getIntExtra", scaleKey, -1))
+	if err != nil {
+		return 0, err
+	}
+	return percent(level, scale)
+}
+
+// openBattery returns the sticky battery intent when a battery is present.
+// release frees the intent and the application context.
+func openBattery(ctx context.Context) (*jni.Ref, func(), error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, err
+	}
+	app, err := host.Context()
+	if err != nil {
+		return nil, nil, err
+	}
+	action, err := host.Text(jni.StaticField("android.content.Intent", "ACTION_BATTERY_CHANGED"))
+	if err != nil {
+		app.Release()
+		return nil, nil, err
+	}
+	filter, err := jni.New("android.content.IntentFilter", action)
+	if err != nil {
+		app.Release()
+		return nil, nil, err
+	}
+	defer filter.Release()
+	intent, err := sticky(app, filter)
+	if err != nil {
+		app.Release()
+		return nil, nil, err
+	}
+	if intent == nil {
+		app.Release()
+		return nil, nil, battery.ErrNoBattery
+	}
+	presentKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_PRESENT"))
+	if err != nil {
+		intent.Release()
+		app.Release()
+		return nil, nil, err
+	}
+	present, err := host.Bool(intent.Call("getBooleanExtra", presentKey, true))
+	if err != nil {
+		intent.Release()
+		app.Release()
+		return nil, nil, err
+	}
+	if !present {
+		intent.Release()
+		app.Release()
+		return nil, nil, battery.ErrNoBattery
+	}
+	return intent, func() {
+		intent.Release()
+		app.Release()
+	}, nil
 }
 
 func readLevels() (levels, error) {
