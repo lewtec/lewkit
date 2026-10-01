@@ -47,6 +47,6 @@ func Vulkan(screen vulkan.Screen) Canvas { return vulkanCanvas{screen} }
 
 type vulkanCanvas struct{ screen vulkan.Screen }
 
-func (canvas vulkanCanvas) Draw(ctx context.Context, frame Frame) error {
-	return drawFills(ctx, canvas.screen, frame.Fills, frame.Under, frame.Ink, frame.Width, frame.Height)
+func (canvas vulkanCanvas) Draw(_ context.Context, frame Frame) error {
+	return drawFills(canvas.screen, frame.Fills, frame.Under, frame.Ink, frame.Width, frame.Height)
 }
