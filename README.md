@@ -176,6 +176,8 @@ go run ./cmd/lewkit release run --config ./examples/basic/eletrocromo.json
 
 A plain `go run` of an example has no release stamp and panics.
 
+The progress view tracks the build. The program starts after that view and writes its output.
+
 | Directory | Result |
 | --- | --- |
 | `examples/basic` | One-line web handler. |

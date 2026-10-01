@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gocmd"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 type builtProgram struct {
@@ -37,7 +39,25 @@ func runBuilt(ctx context.Context, prog builtProgram) error {
 	if err := os.Chmod(bin, 0o755); err != nil {
 		return err
 	}
-	return runTool(ctx, bin, prog.args...)
+	return runForeground(ctx, bin, prog.args...)
+}
+
+// runForeground runs name on the process terminal.
+// Stdin, stdout, and stderr are the process files. A nil stderr is the taskgroup line writer.
+// The watched context ignores cancel so interrupt stays with the child, which shares the process group.
+func runForeground(ctx context.Context, name string, args ...string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return execdriver.Run(context.WithoutCancel(ctx), foregroundCommand(name, args...))
+}
+
+func foregroundCommand(name string, args ...string) *exec.Cmd {
+	cmd := execdriver.MustCommand(name, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd
 }
 
 func extractOne(archive, dir string) (string, error) {
