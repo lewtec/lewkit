@@ -4,8 +4,9 @@
 //	level, err := battery.BatteryLevel(ctx)
 //	if errors.Is(err, battery.ErrNoBattery) {
 //
-// Import [github.com/lewtec/lewkit/x/driver/battery/linux]. The backend
-// reads the first /sys/class/power_supply/BAT* supply. Level is 0..100.
+// Import [github.com/lewtec/lewkit/x/driver/prelude] or one backend.
+// Linux reads the first /sys/class/power_supply/BAT* supply.
+// Darwin reads AppleSmartBattery through ioreg. Level is 0..100.
 package battery
 
 import (

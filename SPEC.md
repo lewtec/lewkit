@@ -127,6 +127,7 @@ Inherited C (cite the file):
 | `x/driver/brightness/android` | Android `SetBrightness`, `Status` | foreground window override | the override stays here | no Java VM is `driver.ErrIncompatible` | import `x/ffi/native`; `DisplayManager.setBrightness` |
 | `x/driver/battery` | `BatteryStatus`, `BatteryLevel` | charging state; level 0..100 | protocol stays here | no battery is `ErrNoBattery`; no level is `ErrUnknownLevel` | import `x/ffi` |
 | `x/driver/battery/android` | Android `BatteryStatus`, `BatteryLevel` | sticky `ACTION_BATTERY_CHANGED` | status and level mapping stay here | no Java VM is `driver.ErrIncompatible`; no battery is `battery.ErrNoBattery` | import `x/ffi/native` |
+| `x/driver/battery/darwin` | Darwin `BatteryStatus`, `BatteryLevel` | `AppleSmartBattery` via `ioreg` | status and level mapping stay here | not darwin is `driver.ErrIncompatible`; no battery is `battery.ErrNoBattery` | import `x/ffi` |
 | `x/driver/media` | `Next`, `Previous`, `PlayPause`, `Stop`, `GetMetadata`, `Watch`, `StatusNotification` | MPRIS player | protocol stays here | no player is `ErrNoPlayer` | import `x/driver/audio_play`; post the alert here |
 | `x/driver/power` | `Lock`, `Logout`, `Suspend`, `Hibernate`, `Reboot`, `Shutdown`, `Wake` | session power | protocol stays here | missing loginctl is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/screen` | `SetDPMS`, `IsDPMSOn`, `ToggleDPMS`, `Reset` | display power | protocol stays here | missing swaymsg or xset is `driver.ErrIncompatible` | a hostname layout table |
@@ -329,6 +330,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-20 grill: native export placement; SPEC at repo root. Rejected: nested `x/ui/SPEC.md`; a shared `Widget`; moving progress into `tui`; moving triangle into `gui` now; calling this a UI library.
 - 2026-10-01: demos left `cmd/lewkit/experiments` for one program per directory under `examples/`. Each program has `eletrocromo.json` and calls `x/entry`. A library package MUST NOT import `examples`. Rejected: moving triangle, perlin, and compute into `x/ui/gui`.
 - 2026-10-01: `BatteryLevel` is an integer from 0 to 100 on the same supply as `BatteryStatus`. Linux reads `capacity`, then `energy_now`/`energy_full`, then `charge_now`/`charge_full`. Android reads `EXTRA_LEVEL` and `EXTRA_SCALE` on the sticky battery intent. No supply is `ErrNoBattery`. A supply with no level is `ErrUnknownLevel`.
+- 2026-10-01: Darwin reads `AppleSmartBattery` through `ioreg`. `CurrentCapacity` and `MaxCapacity` become the 0..100 level. No registry entry is `ErrNoBattery`. Linux sysfs stays the Linux backend.
 - 2026-09-20: `gui` follows bubbletea (`Model` / `Msg` / `Cmd` / `Run`) with tensors in `View`. Host events are `Resize`, `Expose`, `Close` only. Rejected: Flutter widget tree as the public API; `gui` calling `window.Open`.
 - 2026-09-21: `gui.Model.View` returns a layout `Node`. `Run` paints it through `Picture` to a `(h,w,4)` tensor.
 - 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.
