@@ -39,6 +39,55 @@ func TestPickNDKUsesOtherWhenPreferredMissing(t *testing.T) {
 	require.Equal(t, filepath.Join(sdk, "ndk", "26.1.10909125"), got)
 }
 
+func TestNDKClangUsesX86Prebuilt(t *testing.T) {
+	sdk := t.TempDir()
+	clang := "aarch64-linux-android21-clang"
+	path := filepath.Join(sdk, "ndk", preferredNDK, "toolchains", "llvm", "prebuilt", "darwin-x86_64", "bin", clang)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, nil, 0o755))
+	t.Setenv("ANDROID_HOME", sdk)
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	t.Setenv("ANDROID_NDK_HOME", "")
+	t.Setenv("ANDROID_NDK_ROOT", "")
+	t.Setenv("NDK_HOME", "")
+	t.Setenv("CC", "")
+	cc, err := ndkCC(t.Context(), "arm64")
+	if ndkHost() != "darwin-arm64" {
+		require.Error(t, err)
+		return
+	}
+	require.NoError(t, err)
+	require.Contains(t, cc, "darwin-x86_64")
+}
+
+func TestSDKSiblingWithPlatforms(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "android-sdk")
+	tools := filepath.Join(parent, "13.0")
+	full := filepath.Join(parent, "19.0")
+	require.NoError(t, os.MkdirAll(filepath.Join(tools, "cmdline-tools"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(full, "platforms"), 0o755))
+	require.Equal(t, full, sdkWithPlatforms(tools))
+}
+
+func TestSDKWithPlatformsStays(t *testing.T) {
+	sdk := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(sdk, "platforms"), 0o755))
+	require.Equal(t, sdk, sdkWithPlatforms(sdk))
+}
+
+func TestSDKForAPKFollowsLatest(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "android-sdk")
+	tools := filepath.Join(parent, "13.0")
+	full := filepath.Join(parent, "19.0")
+	require.NoError(t, os.MkdirAll(filepath.Join(tools, "cmdline-tools"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(full, "platforms"), 0o755))
+	require.NoError(t, os.Symlink("19.0", filepath.Join(parent, "latest")))
+	got := sdkForAPK(tools)
+	want, err := filepath.EvalSymlinks(full)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
 func TestPickNDKMissingNamesPackage(t *testing.T) {
 	sdk := t.TempDir()
 	_, err := pickNDK(sdk, ndkHost(), "aarch64-linux-android21-clang")
@@ -88,6 +137,21 @@ func TestAndroidSDKRejectsNonDir(t *testing.T) {
 	t.Setenv("ANDROID_HOME", filepath.Join(t.TempDir(), "missing"))
 	_, err := androidSDK(t.Context())
 	require.ErrorIs(t, err, ErrSDKEnvNotDir)
+}
+
+func TestResolveGradleUsesInstalledMise(t *testing.T) {
+	miseBin, err := execdriver.Which(t.Context(), "mise")
+	if err != nil {
+		t.Skip("mise")
+	}
+	if _, err := miseWhere(t.Context(), "gradle"); err != nil {
+		t.Skip("gradle")
+	}
+	t.Setenv("PATH", filepath.Dir(miseBin)+string(os.PathListSeparator)+"/usr/bin:/bin")
+	bins, err := resolveGradle(t.Context(), t.TempDir())
+	require.NoError(t, err)
+	require.NotEmpty(t, bins)
+	require.True(t, isFile(bins[0]))
 }
 
 func TestMiseToolchain(t *testing.T) {
