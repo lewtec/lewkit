@@ -39,15 +39,15 @@ func (picture *Picture) Show(ctx context.Context, screen vulkan.Screen, root Nod
 }
 
 // drawFills paints an optional tensor image, then fills, then glyph ink.
-func drawFills(screen vulkan.Screen, fills []Draw, under, ink []byte, width, height int) error {
-	if screen == nil || width < 1 || height < 1 {
+func drawFills(ctx context.Context, screen vulkan.Screen, frame Frame) error {
+	if screen == nil || frame.Width < 1 || frame.Height < 1 {
 		return ndarray.ErrShape
 	}
-	raw := make([]byte, len(fills)*64)
-	for i, fill := range fills {
+	raw := make([]byte, len(frame.Fills)*64)
+	for i, fill := range frame.Fills {
 		putFill(raw[i*64:(i+1)*64], fill)
 	}
-	return screen.Draw(raw, under, ink, width, height)
+	return screen.Draw(ctx, raw, frame.Under, frame.Ink, frame.Width, frame.Height)
 }
 
 func (picture *Picture) paintMounted(ctx context.Context, screen vulkan.Screen, pixels *ndarray.Tensor[uint8]) error {

@@ -30,7 +30,7 @@ type Screen interface {
 	Adopt(window uintptr, width, height int) error
 	// Draw paints an optional RGBA8 underlay, rounded-rect instances, then glyph ink.
 	// instances is 16 float32 values per fill. The fill and ink shaders belong to the screen.
-	Draw(instances, under, ink []byte, width, height int) error
+	Draw(ctx context.Context, instances, under, ink []byte, width, height int) error
 	OnInput(func(Input))
 	Close() error
 }
@@ -93,11 +93,15 @@ func (s *screen) Adopt(window uintptr, width, height int) error {
 	return s.binding.Adopt(window, width, height)
 }
 
-func (s *screen) Draw(instances, under, ink []byte, width, height int) error {
+func (s *screen) Draw(ctx context.Context, instances, under, ink []byte, width, height int) error {
 	if s == nil || s.binding == nil {
 		return ffivulkan.ErrClosed
 	}
-	return s.binding.Draw(instances, under, ink, width, height, fillVertSPIRV, fillFragSPIRV, inkVertSPIRV, inkFragSPIRV)
+	vert, frag, inkVert, inkFrag, err := drawCode(ctx)
+	if err == nil {
+		err = s.binding.Draw(instances, under, ink, width, height, vert, frag, inkVert, inkFrag)
+	}
+	return err
 }
 
 func (s *screen) OnInput(fn func(Input)) {
