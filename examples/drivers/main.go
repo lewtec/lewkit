@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lewtec/lewkit/cmd/lewkit/experiments"
+	"github.com/lewtec/lewkit/examples/internal/scene"
 	"github.com/lewtec/lewkit/x/app"
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
@@ -123,7 +123,7 @@ func clip(text string, n int) string {
 
 func (p *page) openTriangle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	model, err := experiments.TriangleModel(800, 600)
+	model, err := scene.TriangleModel(800, 600)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})

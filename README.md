@@ -53,7 +53,6 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `cmd/lewkit` | The `lewkit` program. |
-| `cmd/lewkit/experiments` | Demo commands. `sound sinks`, `sound play`, and `sound mix` play registered decoders. `--at` seeks first. Only `cmd/lewkit` imports this package. |
 | `report` | `Reporter`, `RegisterReporter`, `Report`, `Must`. |
 | `report/sentry` | Sentry `Reporter`. |
 | `x/logging` | `NewHandler`. Level letter, message, then `key=value`. Color on a terminal. |
@@ -73,7 +72,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
 | `x/release` | `Version`, `AppID`, `ValidateAppID`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
-| `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. |
+| `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. Arguments after `--` go to that program. |
 | `x/app` | `Web`, `GUI`, `Open`, `Run`. A window is a web handler or a GUI model on a Vulkan surface. `Run` opens that window, or a loopback server when `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` is set. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
@@ -167,27 +166,58 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes the prelude for `DIR` to stdout and does not write the nested preludes. `generate protobuf` takes `--package` when the file has no `go_package`.
 
-### Demos
+### Examples
 
-| Command | Result |
+Each directory under `examples/` is one program. `eletrocromo.json` sits next to the Go main. Run a program from the repository root:
+
+```bash
+go run ./cmd/lewkit release run --config ./examples/basic/eletrocromo.json
+```
+
+A plain `go run` of an example has no release stamp and panics.
+
+The progress view tracks the build. The program starts after that view and writes its output.
+
+| Directory | Result |
 | --- | --- |
-| `lewkit experiments demo tasks` | Progress bars, logs, pools, and dependencies. |
-| `lewkit experiments demo plain` | The `tasks` schedule with no progress view. |
-| `lewkit experiments demo nested` | `GoIsolated` around child tasks. |
-| `lewkit experiments demo loop` | Five steps and a moving bar. |
-| `lewkit experiments demo map` | `Map` over a list under one bar. |
-| `lewkit experiments demo many` | 256 `Map` items. The view calls `List(n)`. |
-| `lewkit experiments demo tree` | A deep tree: release, then fetch, compile, and package. |
-| `lewkit experiments demo lines` | Three rows that rewrite until a newline. |
-| `lewkit experiments demo rsync` | Parallel fake transfers. Each transfer rewrites one row. |
-| `lewkit experiments window triangle` | RGB triangle, one turn every four seconds. Plus and minus step the rate by 0.05. Flags `--width` and `--height`. |
-| `lewkit experiments window perlin` | Animated Perlin noise. Flags `--width` and `--height`. |
-| `lewkit experiments window compute [SHADER]` | Default shader `example.comp`. `SHADER` is a `.spv` or `.comp` path. |
-| `lewkit experiments window scroll` | Rounded translucent boxes in a loop. Flags `--width` and `--height`. |
-| `lewkit experiments window notepad` | An editor. The buffer stays in memory. Flags `--width` and `--height`. |
-| `lewkit experiments window counter` | Two buttons that add and subtract an integer. Flags `--width` and `--height`. |
-| `lewkit experiments window music` | Drop a music folder, or pass `--dir`. Browse and play from an in-memory catalog. |
+| `examples/basic` | One-line web handler. |
+| `examples/counter` | Server-rendered increment form. |
+| `examples/ticker` | Adds one every second. The page reads that count. |
+| `examples/inbox` | URL and file opens. Notes go under the app dirs. |
+| `examples/astro` | Astro page in a web window. Build the embed first. See `examples/astro/README.md`. |
+| `examples/host` | Host drivers, brightness, and the clipboard. |
+| `examples/drivers` | Driver panels. Opens the triangle window. |
+| `examples/tasks` | Progress bars, logs, pools, and dependencies. |
+| `examples/plain` | Fetch, process, and write. |
+| `examples/nested` | Isolated child tasks inside a bundle. |
+| `examples/loop` | Five steps and a moving bar. |
+| `examples/map` | `Map` over a list under one bar. |
+| `examples/many` | 256 `Map` items. The view calls `List(n)`. |
+| `examples/tree` | Release, then fetch, compile, and package. |
+| `examples/lines` | Three rows that rewrite until a newline. |
+| `examples/rsync` | Parallel fake transfers. Each transfer rewrites one row. |
+| `examples/triangle` | RGB triangle, one turn every four seconds. Plus and minus step the rate by 0.05. |
+| `examples/perlin` | Animated Perlin noise. |
+| `examples/compute` | Embedded shader `example.comp`. A path argument loads that shader. |
+| `examples/scroll` | Rounded translucent boxes in a loop. |
+| `examples/notepad` | An editor. The buffer stays in memory. |
+| `examples/elm` | Two buttons that add and subtract an integer. |
+| `examples/webview` | In-process page in the system web view. |
+| `examples/spa` | Templ page as a single-page app. |
+| `examples/music` | Drop a music directory, or pass one after `--`. Browse and play from an in-memory catalog. |
+| `examples/tray` | Status item until Quit or interrupt. |
+| `examples/sound` | No arguments lists sinks. Other arguments play those files. |
+| `examples/filedialog` | Asks for files and prints each path. |
+| `examples/welcome` | Picks a directory from the start screen. |
 
-`lewkit experiments window compute --smoke` prints a 4-byte probe. The probe needs a Vulkan compute device.
+Arguments after `--` go to the program:
 
-`demo` commands run in the terminal. `window` commands call `window.Open`.
+```bash
+go run ./cmd/lewkit release run --config ./examples/compute/eletrocromo.json -- smoke
+```
+
+`smoke` prints a 4-byte probe. The probe needs a Vulkan compute device. A shader path loads that file.
+
+`examples/music` takes an optional directory after `--`. No directory waits for a drop.
+
+`examples/sound` with no arguments lists sinks. `mix OUT INPUTS...` writes one WAV. Other arguments play those files.

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "package_id": "br.tec.lew.eletrocromo.music",
+  "app_name": "Music",
+  "version_name": "0.1.0",
+  "go_main": ".",
+  "abis": ["arm64-v8a"]
+}

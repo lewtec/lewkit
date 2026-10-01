@@ -18,10 +18,25 @@ func TestRootUsage(t *testing.T) {
 	assert.Contains(t, text, "generate")
 	assert.Contains(t, text, "disasm")
 	assert.Contains(t, text, "doctor")
-	assert.Contains(t, text, "experiments")
 	assert.Contains(t, text, "completion")
 	assert.Contains(t, text, "--sentry-dsn")
 	assert.Contains(t, text, "SENTRY_DSN")
+}
+
+func TestReleaseRunArgs(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--config", "examples/compute/eletrocromo.json", "--", "smoke")
+	require.NotNil(t, app.Args.release)
+	require.NotNil(t, app.Args.release.run)
+	assert.Equal(t, "examples/compute/eletrocromo.json", app.Args.release.run.config.Value())
+	assert.Equal(t, ".", app.Args.release.run.dir.Value())
+	assert.Equal(t, []string{"smoke"}, cmd.Values(app.Args.release.run.args))
+}
+
+func TestReleaseRunKeepsModuleDir(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--config", "examples/basic/eletrocromo.json")
+	require.NotNil(t, app.Args.release.run)
+	assert.Equal(t, ".", app.Args.release.run.dir.Value())
+	assert.Empty(t, app.Args.release.run.args)
 }
 
 func TestRootSentryDSN(t *testing.T) {

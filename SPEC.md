@@ -23,7 +23,7 @@ Non-goals:
 6. Window `Open`, `Frame`, `Fit`, `Present`, and `Animate`.
 7. A `Widget` type shared by `tui`, `web`, and `gui`.
 8. Moving `x/taskgroup/progress`.
-9. Moving triangle, perlin, and compute demos.
+9. Moving triangle, perlin, and compute demos into `x/ui/gui`.
 10. A second constitution at any other path.
 
 Inherited C (cite the file):
@@ -36,7 +36,7 @@ Inherited C (cite the file):
 - `path:x/ndarray/image`: pack `(h,w,4)` into `image.RGBA`.
 - `path:x/image`: CPU blit and `Label`.
 - `path:x/image/convert`: PNG, JPEG, ICO, and ICNS icon bytes.
-- `path:cmd/lewkit/experiments`: triangle, perlin, compute demos.
+- `path:examples`: triangle, perlin, compute demos.
 - templ is the web toolkit. A tag for one registered asset lives in that asset package. Page templates live in `x/ui/web`.
 
 ## Technique
@@ -92,7 +92,7 @@ Inherited C (cite the file):
 | binding | C library package nested under the loader package it imports | facade |
 | facade | package that imports a binding and does not import `x/ffi/native`. It does not import `x/ffi/wasm` | binding |
 | viewer | code that uses a toolkit to show another package's type | component package |
-| demo | `cmd/lewkit/experiments` | component package |
+| demo | `examples/<name>` | component package |
 
 `tui`, `web`, and `gui` are package names. They are not a product.
 
@@ -118,7 +118,7 @@ Inherited C (cite the file):
 | `x/driver/bundle` | `Resolve`, `Root`, `SharePath` | stamped reverse-domain tree plus web profile | protocol stays here | missing id is `release.ErrAppIDRequired` | import `x/driver/webview`; replace `x/driver/dirs` |
 | `x/driver/thread` | `Driver` | UI thread for this process | protocol stays here | JNI without a Java looper is `driver.ErrIncompatible` | import `x/ui/gui` |
 | `x/release` | `Version`, `AppID`, `ValidateAppID` | binary stamp | the reverse-domain id stays here | empty id is `ErrAppIDRequired` | import `x/driver` |
-| `x/entry` | `Main`, `Run` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped | import `x/ui/gui` |
+| `x/entry` | `Main`, `Run`, `After` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped | import `x/ui/gui` |
 | `x/app` | `Web`, `GUI`, `Open`, `Run` | one window is a web handler or a GUI model | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` |
 | `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here | existing build errors | import `x/driver/webview` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
@@ -185,7 +185,7 @@ Inherited C (cite the file):
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRecords`, `WriteRustc`, `WriteSARIF` | diagnostic value | text, rustc, and SARIF stay here; the finding table is an `x/text/table` view | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
 | `x/text/table` | `Format`, `Write`, `Column`, `Formatter`, `View`, `Make` | value | one writer for table, jsonl, and csv; `Make` builds a `View` once from a row type and a spec struct of `Field`s; a column spec picks order and replaces formats | unknown format is `ErrFormat`; a bad column is `ErrColumn` | import `x/cmd` |
-| `cmd/lewkit/experiments` | commands, not a library | demo | demos MAY stay | command failure | import experiments as a component package |
+| `examples` | programs, not a library | demo | demos MAY stay | program failure | import `examples` from a library package |
 
 ## Invariants
 
@@ -314,7 +314,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 1. Reusable bubbletea types in `x/ui/tui`.
 2. Text input (IME) and mapped key names.
-3. Extract triangle and perlin from experiments into `gui` only after they are reusable transformers.
+3. Extract triangle and perlin from `examples/internal/scene` into `gui` only after they are reusable transformers.
 
 ## Assumptions
 
@@ -327,6 +327,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 ## Decision history
 
 - 2026-09-20 grill: native export placement; SPEC at repo root. Rejected: nested `x/ui/SPEC.md`; a shared `Widget`; moving progress into `tui`; moving triangle into `gui` now; calling this a UI library.
+- 2026-10-01: demos left `cmd/lewkit/experiments` for one program per directory under `examples/`. Each program has `eletrocromo.json` and calls `x/entry`. A library package MUST NOT import `examples`. Rejected: moving triangle, perlin, and compute into `x/ui/gui`.
 - 2026-09-20: `gui` follows bubbletea (`Model` / `Msg` / `Cmd` / `Run`) with tensors in `View`. Host events are `Resize`, `Expose`, `Close` only. Rejected: Flutter widget tree as the public API; `gui` calling `window.Open`.
 - 2026-09-21: `gui.Model.View` returns a layout `Node`. `Run` paints it through `Picture` to a `(h,w,4)` tensor.
 - 2026-09-20: window bus adds `Pointer`, `Scroll`, and `Key`. `gui.Run` forwards them. Marquee drag/wheel/space.
