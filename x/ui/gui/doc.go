@@ -9,6 +9,8 @@
 // (one over-composite tensor of rounded rects + ink overlay). A swapchain
 // paints those same fills with a graphics pipeline and skips the kernel.
 // Layout returns Size; Paint returns the accumulator tensor.
+// A node records one [Mark] per draw, in paint order, through [Picture.Fill],
+// [Picture.Text], [Picture.Image], and [Picture.Backdrop].
 // Marquee rewrites bar Y on a reused node tree. Layout is CPU ([Box], [Flex], [Stack]).
 // Glyphs are [Text] nodes; Picture rasters them into ink in the same kernel.
 // [Marquee] View maps offset and size onto [Bar] values; Update is the

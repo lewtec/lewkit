@@ -53,15 +53,7 @@ func (text *Text) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Ten
 		if visible.Width < 1 || visible.Height < 1 {
 			return accumulatorOf(picture)
 		}
-		picture.glyph(textRun{
-			box:    full,
-			clip:   visible,
-			body:   []rune(text.Value),
-			face:   text.face(),
-			cursor: text.Cursor,
-			caret:  text.Caret,
-			ink:    text.Ink,
-		})
+		picture.Text(text.Value, text.face(), text.Ink, full, visible, text.Cursor, text.Caret)
 	}
 	return accumulatorOf(picture)
 }

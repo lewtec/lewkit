@@ -26,7 +26,7 @@ func (raster *Raster) Paint(origin Offset, clip Rect, picture *Picture) *ndarray
 	if raster == nil || picture == nil || raster.Pixels == nil {
 		return accumulatorOf(picture)
 	}
-	picture.useRaster(raster.Pixels)
+	picture.Backdrop(raster.Pixels)
 	return accumulatorOf(picture)
 }
 
