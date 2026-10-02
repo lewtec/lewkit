@@ -60,7 +60,6 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/taskgroup/progress` | Bubbletea view of a `Session`. |
 | `x/driver/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
-| `x/future` | `Future`, `NewFuture`, `Get`, `Peek`, `State`. |
 | `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
 | `x/git` | `Git`, `Info`, `Worktree`, `Resolve`. Checkouts, branches, and linked worktrees. |
 | `x/singleton` | `NewSingleton`, `Get`, `MustGet`. |

@@ -356,3 +356,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-02: `Triangle` and `TriangleTurn` leave `x/image`. The RGB triangle demo stays in `examples/internal/scene`.
 - 2026-10-02: name-and-args command runs live on `x/driver/exec` as `RunProgram` and `OutputString`. `x/driver/exec`, `x/driver/httpclient`, and `x/driver/fetchurl` have placement rows. Android volume, power, and screen have rows.
 - 2026-10-02: `x/io.Mkdirp` is removed. The profile writer uses `os.MkdirAll`.
+- 2026-10-02: `x/future` is removed. It had no production caller.
