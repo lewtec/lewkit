@@ -55,8 +55,12 @@ func TestWelcomeOpenCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
 	done := make(chan error, 1)
+	host, err := window.Open(ctx, window.Config{Width: 80, Height: 60})
+	require.NoError(t, err)
 	go func() {
-		done <- Open(ctx, welcome, Options{Config: window.Config{Width: 80, Height: 60}})
+		err := Run(ctx, host, nil, welcome)
+		_ = host.Close()
+		done <- err
 	}()
 	time.Sleep(30 * time.Millisecond)
 	cancel()

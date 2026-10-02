@@ -103,7 +103,7 @@ Inherited C (cite the file):
 | `x/ui` | no Go API | names `tui`, `web`, `gui` | MUST NOT grow types | the directory MAY have no Go package | import `x/ui` |
 | `x/ui/tui` | bubbletea types for callers to compose | value | catalog MAY grow | package MAY be absent until the first type | put Session viewers here |
 | `x/ui/web` | page templ templates | value | catalog MAY grow | package MAY be absent until the first page template | put a page template outside `web`; put an asset tag outside its asset package |
-| `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`, `Welcome`, `EnsureDir`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer | own the host; own the engine; call `window.Open` |
+| `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`, `Welcome`, `EnsureDir`, `Pick`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer; empty dir with no terminal is `ErrNeedWindow` | own the host; own the engine; call `window.Open`; declare `Open` |
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
 | `x/driver/tray` | `Open`, `Tray`, `Icon`, `Item` | host status item | protocol stays here | missing session bus or host is the tray error | import `x/ffi/wasm` |
 | `x/driver/daynight` | `Current`, `Watch`, `Mode` | light or dark | protocol stays here | missing portal or host is `driver.ErrUnavailable` | import `x/ui/gui`; import `x/driver/webview`; import `x/ffi/wasm` |
@@ -119,7 +119,7 @@ Inherited C (cite the file):
 | `x/driver/thread` | `Driver` | UI thread for this process | protocol stays here | JNI without a Java looper is `driver.ErrIncompatible` | import `x/ui/gui` |
 | `x/release` | `Version`, `AppID`, `ValidateAppID` | binary stamp | the reverse-domain id stays here | empty id is `ErrAppIDRequired` | import `x/driver` |
 | `x/entry` | `Main`, `Run`, `After` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped | import `x/ui/gui` |
-| `x/app` | `Web`, `GUI`, `Open`, `Run` | windows of one process; each is a web handler or a GUI model; Run returns when the last window closes | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` |
+| `x/app` | `Web`, `GUI`, `Open`, `Run` | windows of one process; each is a web handler or a GUI model; a GUI model is `window.Open` then `gui.Run`; Run returns when the last window closes | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` beside `App.Run`; call `gui.Open` |
 | `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here | existing build errors | import `x/driver/webview` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
@@ -201,7 +201,7 @@ Inherited C (cite the file):
 | INV-07 | `tui`, `web`, and `gui` MUST NOT import each other | those packages | `gui` emitting HTML; `tui` importing `gui` |
 | INV-08 | Host and engine MUST NOT import `tui`, `web`, and `gui` | `x/driver/window`, `x/ndarray` | `window` depending on `gui` |
 | INV-09 | This repository has one constitution: `SPEC.md` at the repo root | this file | `x/ui/SPEC.md`; a second SPEC beside this file |
-| INV-10 | `gui.Run` consumes a caller-supplied `Window`. It MUST NOT call `window.Open`. | `x/ui/gui` | `gui` opening a host window |
+| INV-10 | `gui.Run` consumes a caller-supplied `Window`. `gui` MUST NOT call `window.Open`. `x/app` opens that window and calls `gui.Run`. | `x/ui/gui`; `x/app` | `gui.Open`; `EnsureDir` calling `window.Open` |
 | INV-11 | This module is not a UI library | this repository | advertising `x/ui` as the product; a Flutter widget tree as the public API |
 | INV-12 | Host window events include `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, `Key`, and `Drop` | `x/driver/window` | pointer `Msg` types that the host does not emit |
 | INV-13 | `x/ffi` has no Go package | `x/ffi` | a `.go` file whose package is `ffi` |
@@ -273,6 +273,7 @@ Inherited C (cite the file):
 | Export from `x/ui` | A Go type on the namespace | Move the type into the one of `tui`, `web`, `gui` that needs it. |
 | `gui.Run` | nil `Model` | Return `ErrModel`. |
 | `gui.Run` | nil `Window` | Return `window.ErrClosed`. |
+| `gui.EnsureDir` | empty dir and no terminal | Return `ErrNeedWindow`. The caller opens a window and calls `Pick`. |
 | `gui.Model.View` | nil `Node` | Return `ErrView`. Do not `Draw`. |
 | `filedialog.Choose` | `Save` with `Folder` or `Multiple` | Return `ErrRequest`. |
 
@@ -342,3 +343,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.
 - 2026-09-26: `x/text/report` owns diagnostic findings. Output is a text line, a table, a rustc-style snippet, or SARIF 2.1.0. The root `report` package stays the error-reporter registry. The finding table is an `x/text/table` view, so the same columns render as a table, JSONL, or CSV.
 - 2026-09-26: the reverse-domain id is `x/release.AppID`. `x/driver/bundle` is that binary's data, cache, config, and web profile. `x/driver/dirs` stays the generic tree. `lewkit build` writes desktop archives and the Android, macOS, and iOS hosts. A web view request is normalized inside `webview.Dispatch`.
+- 2026-10-02: `x/ui/gui` has no `Open`. `x/app` calls `window.Open` and then `gui.Run`. `EnsureDir` returns `ErrNeedWindow` when a picker is required. `Pick` runs `Welcome` on the caller's window.

@@ -7,6 +7,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	"github.com/lewtec/lewkit/x/driver/window"
+	_ "github.com/lewtec/lewkit/x/driver/window/prelude"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
@@ -81,9 +83,10 @@ type guiWindow struct{ model gui.Model }
 func (guiWindow) httpHandler() http.Handler { return nil }
 
 func (w guiWindow) open(ctx context.Context, title string, width, height int, _ string) error {
-	return gui.Open(ctx, w.model, gui.Options{
-		Title:  title,
-		Width:  width,
-		Height: height,
-	})
+	host, err := window.Open(ctx, window.Config{Title: title, Width: width, Height: height})
+	if err != nil {
+		return err
+	}
+	defer host.Close()
+	return gui.Run(ctx, host, nil, w.model)
 }

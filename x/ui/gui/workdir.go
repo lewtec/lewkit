@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 
@@ -9,10 +10,13 @@ import (
 	"golang.org/x/term"
 )
 
+// ErrNeedWindow means an empty directory with no terminal needs [Pick].
+var ErrNeedWindow = errors.New("directory picker needs a window")
+
 // EnsureDir returns dir when the caller already has one.
 // An empty dir on a terminal is the process working directory.
-// An empty dir with no terminal opens [Welcome] and returns the folder the user picks.
-// The picked folder is stored with [Remember].
+// An empty dir with no terminal returns [ErrNeedWindow]. The caller opens a
+// window and calls [Pick]. The picked folder is stored with [Remember].
 func EnsureDir(ctx context.Context, dir string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", context.Cause(ctx)
@@ -28,7 +32,33 @@ func EnsureDir(ctx context.Context, dir string) (string, error) {
 		}
 		return existingDir(cwd)
 	}
-	return pickDir(ctx)
+	return "", ErrNeedWindow
+}
+
+// Pick runs [Welcome] on host until the user chooses a directory or closes the window.
+func Pick(ctx context.Context, host window.Window) (string, error) {
+	if host == nil {
+		return "", window.ErrClosed
+	}
+	dirs, err := Recent()
+	if err != nil {
+		dirs = nil
+	}
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: dirs})
+	err = Run(ctx, host, nil, welcome)
+	if welcome.Picked() != "" {
+		if saveErr := Remember(welcome.Picked()); saveErr != nil {
+			return "", saveErr
+		}
+		return welcome.Picked(), nil
+	}
+	if ctx.Err() != nil {
+		return "", context.Cause(ctx)
+	}
+	if err != nil {
+		return "", err
+	}
+	return "", ErrCanceled
 }
 
 func workDirAction(dir string, terminal bool) (openView, useCwd bool) {
@@ -47,28 +77,4 @@ func existingDir(dir string) (string, error) {
 		return "", os.ErrNotExist
 	}
 	return cleaned, nil
-}
-
-func pickDir(ctx context.Context) (string, error) {
-	dirs, err := Recent()
-	if err != nil {
-		dirs = nil
-	}
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: dirs})
-	err = Open(ctx, welcome, Options{
-		Config: window.Config{Title: "lewkit", Width: 880, Height: 720},
-	})
-	if welcome.Picked() != "" {
-		if saveErr := Remember(welcome.Picked()); saveErr != nil {
-			return "", saveErr
-		}
-		return welcome.Picked(), nil
-	}
-	if ctx.Err() != nil {
-		return "", context.Cause(ctx)
-	}
-	if err != nil {
-		return "", err
-	}
-	return "", ErrCanceled
 }
