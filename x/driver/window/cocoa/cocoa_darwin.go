@@ -163,6 +163,13 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	if err != nil {
 		return nil, err
 	}
+	if !thread.Bound() {
+		return nil, fmt.Errorf("%w", window.ErrNotBound)
+	}
+	// TransformProcessType must run before sharedApplication. startApp creates that.
+	onApp(func() {
+		window.ShowShell(cfg.Title, nil)
+	})
 	if err := startApp(); err != nil {
 		return nil, err
 	}

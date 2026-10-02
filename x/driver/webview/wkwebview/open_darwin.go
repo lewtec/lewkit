@@ -23,6 +23,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native/webkit"
 )
 
@@ -200,6 +201,7 @@ func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 	if err != nil {
 		return err
 	}
+	window.ShowShell(cfg.Title, nil)
 	application := objc.ID(objc.GetClass("NSApplication")).Send(selShared)
 	application.Send(selSetPolicy, 0)
 	application.Send(selFinishLaunch)

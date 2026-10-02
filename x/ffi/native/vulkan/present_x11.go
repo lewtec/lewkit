@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -54,6 +55,7 @@ func openHost(screen *Screen, width, height int, title string) (hostSurface, err
 	}
 	name := cstr(title)
 	xStoreName(dpy, win, name)
+	xSetIcon(dpy, win)
 	xSelectInput(dpy, win, xInputMask)
 	_ = screen
 	xMapWindow(dpy, win)
@@ -156,24 +158,47 @@ func (h *xlibHost) destroy() {
 }
 
 var (
-	xOpenDisplay   func(name *byte) uintptr
-	xCloseDisplay  func(dpy uintptr) int32
-	xDefaultScreen func(dpy uintptr) int32
-	xRootWindow    func(dpy uintptr, screen int32) uint64
-	xBlackPixel    func(dpy uintptr, screen int32) uint64
-	xWhitePixel    func(dpy uintptr, screen int32) uint64
-	xCreateSimple  func(dpy uintptr, parent uint64, x, y int32, w, h, border uint32, borderC, bg uint64) uint64
-	xStoreName     func(dpy uintptr, win uint64, name *byte) int32
-	xMapWindow     func(dpy uintptr, win uint64) int32
-	xFlush         func(dpy uintptr) int32
-	xDestroyWindow func(dpy uintptr, win uint64) int32
-	xSelectInput   func(dpy uintptr, win uint64, mask int64) int32
-	xPending       func(dpy uintptr) int32
-	xNext          func(dpy uintptr, ev *xEvent) int32
-	xlibOnce       uint32
+	xOpenDisplay    func(name *byte) uintptr
+	xCloseDisplay   func(dpy uintptr) int32
+	xDefaultScreen  func(dpy uintptr) int32
+	xRootWindow     func(dpy uintptr, screen int32) uint64
+	xBlackPixel     func(dpy uintptr, screen int32) uint64
+	xWhitePixel     func(dpy uintptr, screen int32) uint64
+	xCreateSimple   func(dpy uintptr, parent uint64, x, y int32, w, h, border uint32, borderC, bg uint64) uint64
+	xStoreName      func(dpy uintptr, win uint64, name *byte) int32
+	xMapWindow      func(dpy uintptr, win uint64) int32
+	xFlush          func(dpy uintptr) int32
+	xDestroyWindow  func(dpy uintptr, win uint64) int32
+	xSelectInput    func(dpy uintptr, win uint64, mask int64) int32
+	xPending        func(dpy uintptr) int32
+	xNext           func(dpy uintptr, ev *xEvent) int32
+	xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int32) uint64
+	xChangeProperty func(dpy uintptr, win, property, typ uint64, format, mode int32, data unsafe.Pointer, nelements int32) int32
+	xlibOnce        uint32
 )
 
 const xInputMask int64 = 1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<6 | 1<<15 | 1<<17
+
+func xSetIcon(dpy uintptr, win uint64) {
+	if xInternAtom == nil || xChangeProperty == nil || dpy == 0 || win == 0 {
+		return
+	}
+	words := window.ShellPicture(nil)
+	if len(words) == 0 {
+		return
+	}
+	// XChangeProperty format 32 reads C longs. On this host a long is 64 bits.
+	longs := make([]uint64, len(words))
+	for i, word := range words {
+		longs[i] = uint64(word)
+	}
+	atomName := append([]byte("_NET_WM_ICON"), 0)
+	atom := xInternAtom(dpy, unsafe.SliceData(atomName), 0)
+	if atom == 0 {
+		return
+	}
+	xChangeProperty(dpy, win, atom, 6, 32, 0, unsafe.Pointer(unsafe.SliceData(longs)), int32(len(longs)))
+}
 
 func xOpen() (uintptr, error) {
 	if xlibOnce == 0 {
@@ -195,6 +220,12 @@ func xOpen() (uintptr, error) {
 		native.Func(lib, "XSelectInput", &xSelectInput)
 		native.Func(lib, "XPending", &xPending)
 		native.Func(lib, "XNextEvent", &xNext)
+		if err := native.Bind(lib, "XInternAtom", &xInternAtom); err != nil {
+			xInternAtom = nil
+		}
+		if err := native.Bind(lib, "XChangeProperty", &xChangeProperty); err != nil {
+			xChangeProperty = nil
+		}
 		xlibOnce = 1
 	}
 	if xOpenDisplay == nil {

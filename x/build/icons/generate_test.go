@@ -9,6 +9,16 @@ import (
 	"testing"
 )
 
+func TestDefaultMark(t *testing.T) {
+	img, err := DefaultMark()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if img.Bounds().Dx() != 1024 || img.Bounds().Dy() != 1024 {
+		t.Fatalf("mark %v", img.Bounds())
+	}
+}
+
 func TestPadCenterSquare(t *testing.T) {
 	img := image.NewNRGBA(image.Rect(0, 0, 100, 50))
 	for y := 0; y < 50; y++ {

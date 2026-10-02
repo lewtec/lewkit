@@ -216,6 +216,7 @@ func (w *win) create() error {
 	}
 	w.hwnd = hwnd
 	windows.Store(hwnd, w)
+	window.ApplyWindowIcon(hwnd)
 	procShowWindow.Call(hwnd, swShow)
 	return nil
 }

@@ -51,6 +51,11 @@ func defaultMaster() (image.Image, error) {
 	return Resize(ExtractUpperMark(KnockoutBackground(img)), 1024), nil
 }
 
+// DefaultMark is the square built-in app mark.
+func DefaultMark() (image.Image, error) {
+	return defaultMaster()
+}
+
 // Generate writes a full icon matrix under opts.OutputDir.
 // If the tree is already Complete and !Force, it is a no-op.
 // MasterPath resolves a config icon against the config directory.
