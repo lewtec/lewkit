@@ -44,7 +44,6 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/db/sqlite` | Blank-import. Schemes `sqlite`, `sqlite3`, `file`, a bare path, and `:memory:`. |
 | `x/db/postgres` | Blank-import. Scheme `postgres`. |
 | `x/db/generate` | Called by `lewkit generate db`. Writes `Queries` and `DBArg`. |
-| `x/io` | `Mkdirp`. |
 | `x/io/atomic` | `NewOperation`, `Commit`, `Rollback`, `WriteFileFunction`, `WriteString`. |
 | `x/text` | `LineIndex`, `NewLineIndex`. UTF-8 byte offset to line and column. |
 

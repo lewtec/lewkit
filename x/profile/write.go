@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
-
-	"github.com/lewtec/lewkit/x/io"
 )
 
 func (p *Profile) file(name string) string {
@@ -15,7 +13,7 @@ func (p *Profile) file(name string) string {
 }
 
 func (p *Profile) write(ctx context.Context) error {
-	if err := io.Mkdirp(p.directory); err != nil {
+	if err := os.MkdirAll(p.directory, 0o755); err != nil {
 		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 	}
 	cpuFile, err := os.Create(p.file("cpu"))
