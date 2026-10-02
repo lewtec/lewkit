@@ -54,7 +54,7 @@ func (host Host) Android(ctx context.Context) (string, error) {
 	return result.APKPath, nil
 }
 
-// Mac builds an unsigned Debug .app from an eletrocromo.json config.
+// Mac builds an unsigned .app whose executable is the Go program.
 func (host Host) Mac(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {

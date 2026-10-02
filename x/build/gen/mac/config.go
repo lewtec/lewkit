@@ -1,8 +1,6 @@
-// Package mac generates an ephemeral macOS WKWebView host and packages
-// a CGo-less darwin Go binary into an unsigned Debug .app.
-//
-// The importable eletrocromo library stays free of Xcode; this package only
-// writes an XcodeGen tree that runs the Go server and opens WKWebView.
+// Package mac packages a CGo-less darwin Go binary as a macOS .app.
+// The launched executable is that binary, with Info.plist and an icon.
+// Create still writes an XcodeGen tree. Build does not compile or run it.
 package mac
 
 import (
@@ -18,7 +16,8 @@ var (
 	ErrOutDirNotEmpty  = common.ErrOutDirNotEmpty
 )
 
-// HelperName is the Go child binary inside Contents/MacOS.
+// HelperName is the Go binary written into the host work directory.
+// The .app from Build does not install this name. Its executable is ProductName.
 const HelperName = "eletrocromo-server"
 
 // Config is the project identity written into the generated tree.
