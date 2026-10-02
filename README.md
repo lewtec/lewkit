@@ -93,7 +93,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/ndarray/nn` | `Convolution2D`, `MaximumPool2D`, `AveragePool2D`, `MatrixMultiply`, `Linear`. |
 | `x/ndarray/onnx` | `Load`, `LoadBytes`, `FunctionOf`, `Apply`, `ApplyInputs`. |
 | `x/ndarray/image` | `Fill`, `Eval`, `Raster`, `Write`, `RGBA`. Pixels are `(h, w, 4)`. |
-| `x/image` | `Triangle`, `TriangleTurn`, `Label`, `CopyRGBA`, `CenterSquare`, `Face`. |
+| `x/image` | `Label`, `CopyRGBA`, `CenterSquare`, `Face`. |
 | `x/graph` | `Graph`, `DOT`, `Mermaid`. |
 | `x/ui/gui` | `Model`, `Node`, `Box`, `Row`, `Column`, `Stack`, `Text`, `Run`, `Pick`, `Tick`, `Every`. |
 

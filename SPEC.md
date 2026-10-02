@@ -347,3 +347,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-02: `x/driver/window` is the only host window. `vulkan.OpenNative` attaches a swapchain to that window. `OpenScreen` and `x/driver/vulkanwindow` are removed. The binding takes a UI thread hook from `x/driver/vulkan` and does not import `x/driver`.
 - 2026-10-02: `x/release.version` is the only runtime version stamp. `x/build/version` keeps packaging `Info` and does not export `Version`. Git describe, rev-parse, log, and rev-list go through `x/git`.
 - 2026-10-02: Pad, resize, PNG, ICO, and ICNS encoding live in `x/image/convert`. `x/build/icons` keeps knockout, the upper-mark crop, and the packaging file tree.
+- 2026-10-02: `Triangle` and `TriangleTurn` leave `x/image`. The RGB triangle demo stays in `examples/internal/scene`.
