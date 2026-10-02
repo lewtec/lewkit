@@ -34,6 +34,21 @@ func TestProgramHostRejectsArgs(t *testing.T) {
 	require.ErrorIs(t, err, errHostArgs)
 }
 
+func TestConfigDefaultsToEletrocromoJSON(t *testing.T) {
+	run := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--app")
+	assert.Equal(t, "./eletrocromo.json", run.Args.release.run.config.Value())
+	build := cmd.ParseOK[cmd.App[root]](t, "release", "build")
+	assert.Equal(t, "./eletrocromo.json", build.Args.release.build.config.Value())
+}
+
+func TestAppUsesDefaultConfig(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--app", "--go-only")
+	_, err := app.Args.release.build.produce(t.Context())
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "config is required")
+	assert.Contains(t, err.Error(), "eletrocromo.json")
+}
+
 func TestProgramStartsAfterProgress(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell script")
