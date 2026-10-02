@@ -169,7 +169,7 @@ Inherited C (cite the file):
 | `x/ffi` | no Go API | names `native`, `wasm`, `android`, `jni` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter`; import `x/ffi/native/android` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
-| `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw` | libvulkan binding | compute plus one graphics draw for the swapchain | existing vulkan errors | import `x/ffi/wasm` |
+| `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw`, `OpenNative` | libvulkan binding | compute plus one graphics draw for a window the caller owns | existing vulkan errors | import `x/ffi/wasm`; import `x/driver`; open a host window |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
 | `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
 | `x/ffi/native/treesitter` | `Available`, `OpenLanguage`, `Parse` | libtree-sitter binding | loader stays here | missing library is the load error | import `x/ffi/wasm`; import `x/driver` |
@@ -181,7 +181,7 @@ Inherited C (cite the file):
 | `x/ffi/jni` | `Bind`, `SetCurrentEnv`, `SetRunner`, `CallStatic`, `New`, `Class`, `StaticField`, `Field`, `Proxy`, `Ref` | Java method, field, and interface proxy | calls stay here; `Bind` keeps the app ClassLoader and JNIEnv from the Java thread that loaded the library; `SetRunner` runs later calls on that thread; `Proxy` uses one `lewkit.GoProxy` dispatcher | unbound loader, an ambiguous method, a missing member, or a Java exception is the error | import `x/driver`; import `x/ffi/native/android` |
 | `x/driver/thread/jni` | Android looper factory | facade of the android binding | selection stays here | no Java looper is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
-| `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
+| `x/driver/vulkan` | `Open`, `List`, `OpenNative`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here; `OpenNative` attaches a swapchain to a `window` the caller opened | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm`; `OpenScreen`; a second host window |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRecords`, `WriteRustc`, `WriteSARIF` | diagnostic value | text, rustc, and SARIF stay here; the finding table is an `x/text/table` view | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
@@ -208,7 +208,7 @@ Inherited C (cite the file):
 | INV-14 | `x/ffi/native` does not import a nested binding | `x/ffi/native` | an import of `vulkan`, `pulse`, `winmm`, `coreaudio`, `webkitgtk`, `webkit`, `webview2`, or `android` |
 | INV-15 | `x/ffi/wasm` does not import `x/ffi/wasm/glsl` | `x/ffi/wasm` | that import |
 | INV-16 | `x/ffi/wasm` does not import `x/ffi/wasm/capstone` | `x/ffi/wasm` | that import |
-| INV-17 | `x/ffi/native/vulkan` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
+| INV-17 | `x/ffi/native/vulkan` imports `x/ffi/native` and does not import `x/driver` | that package | an import of `x/ffi/wasm`; an import of `x/driver/window` or `x/driver/thread`; `OpenScreen` |
 | INV-18 | `x/ffi/wasm/glsl` imports `x/ffi/wasm` | that package | an import of `x/ffi/native` |
 | INV-19 | `x/ffi/wasm/capstone` imports `x/ffi/wasm` | that package | an import of `x/ffi/native` |
 | INV-20 | `x/driver/vulkan.Device` does not return the binding device | `x/driver/vulkan` | a method whose result type is the binding `Device` |
@@ -344,3 +344,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-26: `x/text/report` owns diagnostic findings. Output is a text line, a table, a rustc-style snippet, or SARIF 2.1.0. The root `report` package stays the error-reporter registry. The finding table is an `x/text/table` view, so the same columns render as a table, JSONL, or CSV.
 - 2026-09-26: the reverse-domain id is `x/release.AppID`. `x/driver/bundle` is that binary's data, cache, config, and web profile. `x/driver/dirs` stays the generic tree. `lewkit build` writes desktop archives and the Android, macOS, and iOS hosts. A web view request is normalized inside `webview.Dispatch`.
 - 2026-10-02: `x/ui/gui` has no `Open`. `x/app` calls `window.Open` and then `gui.Run`. `EnsureDir` returns `ErrNeedWindow` when a picker is required. `Pick` runs `Welcome` on the caller's window.
+- 2026-10-02: `x/driver/window` is the only host window. `vulkan.OpenNative` attaches a swapchain to that window. `OpenScreen` and `x/driver/vulkanwindow` are removed. The binding takes a UI thread hook from `x/driver/vulkan` and does not import `x/driver`.

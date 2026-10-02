@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver/tray"
-	"github.com/lewtec/lewkit/x/driver/vulkanwindow"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
 )
@@ -20,7 +19,6 @@ type held struct {
 	webTitle string
 	tray     tray.Tray
 	trayTip  string
-	swap     vulkanwindow.Screen
 }
 
 func (h *held) windowView() (bool, string) {
@@ -201,59 +199,4 @@ func (h *held) closeTray() error {
 		return errNoTray
 	}
 	return item.Close()
-}
-
-func (h *held) swapView() (bool, string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	if h.swap == nil {
-		return false, ""
-	}
-	size := h.swap.Size()
-	return true, fmt.Sprintf("%dx%d", size.X, size.Y)
-}
-
-func (h *held) openSwap(ctx context.Context, cfg window.Config) (string, error) {
-	screen, err := vulkanwindow.Open(ctx, cfg)
-	if err != nil {
-		return "", err
-	}
-	h.mu.Lock()
-	busy := h.swap != nil
-	if !busy {
-		h.swap = screen
-	}
-	h.mu.Unlock()
-	if busy {
-		if err := screen.Close(); err != nil {
-			slog.Error("screen close", "err", err)
-		}
-		return "", errSwapOpen
-	}
-	context.AfterFunc(ctx, func() {
-		h.mu.Lock()
-		current := h.swap == screen
-		if current {
-			h.swap = nil
-		}
-		h.mu.Unlock()
-		if current {
-			if err := screen.Close(); err != nil {
-				slog.Error("screen close", "err", err)
-			}
-		}
-	})
-	size := screen.Size()
-	return fmt.Sprintf("%dx%d", size.X, size.Y), nil
-}
-
-func (h *held) closeSwap() error {
-	h.mu.Lock()
-	screen := h.swap
-	h.swap = nil
-	h.mu.Unlock()
-	if screen == nil {
-		return errNoSwap
-	}
-	return screen.Close()
 }

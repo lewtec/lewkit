@@ -64,8 +64,6 @@ var (
 	errNoWeb           = errors.New("no web view open")
 	errTrayOpen        = errors.New("a tray is already open")
 	errNoTray          = errors.New("no tray open")
-	errSwapOpen        = errors.New("a vulkan window is already open")
-	errNoSwap          = errors.New("no vulkan window open")
 )
 
 var driverSpecs = map[string]spec{
@@ -99,7 +97,6 @@ var driverSpecs = map[string]spec{
 	"treesitter":         {load: loadTreesitter, run: runTreesitter},
 	"volume":             {load: loadVolume, run: runVolume},
 	"vulkan.Device":      {load: loadVulkan},
-	"vulkanwindow":       {load: loadSwap, run: runSwap},
 	"wallpaper":          {load: loadWallpaper, run: runWallpaper},
 	"webview":            {load: loadWeb, run: runWeb},
 	"window":             {load: loadWindow, run: runWindow},
@@ -631,23 +628,6 @@ func loadVulkan(ctx context.Context, _ *page) (panel, error) {
 
 func loadEval(ctx context.Context, _ *page) (panel, error) {
 	return handleRows(driver.List[ndarray.Evaluator](ctx))
-}
-
-func loadSwap(ctx context.Context, p *page) (panel, error) {
-	open, size := p.held.swapView()
-	if open {
-		return panel{
-			rows: []row{{Label: "Screen", Value: "open"}, {Label: "Size", Value: size}},
-			acts: []act{actOf("close", "Close")},
-		}, nil
-	}
-	return panel{
-		rows: []row{{Label: "Screen", Value: "closed"}},
-		acts: []act{actOf("open", "Open",
-			whole("width", "Width", "640"),
-			whole("height", "Height", "480"),
-		)},
-	}, nil
 }
 
 func handleRows[T any](handles []driver.Handle[T], err error) (panel, error) {

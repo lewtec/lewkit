@@ -633,29 +633,6 @@ func runThread(ctx context.Context, _ *page, op string, _ *http.Request) (string
 	return "ran, but not on the ui thread", nil
 }
 
-func runSwap(ctx context.Context, p *page, op string, r *http.Request) (string, error) {
-	switch op {
-	case "open":
-		width, err := formInt(r, "width", 640)
-		if err != nil {
-			return "", err
-		}
-		height, err := formInt(r, "height", 480)
-		if err != nil {
-			return "", err
-		}
-		size, err := p.held.openSwap(p.ctx, window.Config{Title: "lewkit", Width: width, Height: height})
-		if err != nil {
-			return "", err
-		}
-		return "open " + size, nil
-	case "close":
-		return okNote("closed", p.held.closeSwap())
-	default:
-		return "", errNoDriverOp
-	}
-}
-
 func okNote(note string, err error) (string, error) {
 	if err != nil {
 		return "", err

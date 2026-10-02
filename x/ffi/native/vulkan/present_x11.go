@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"unsafe"
 
-	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -39,28 +38,6 @@ func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
 
 func loadHost(w *wsi, d *Device) error {
 	return nil
-}
-
-func openHost(screen *Screen, width, height int, title string) (hostSurface, error) {
-	dpy, err := xOpen()
-	if err != nil {
-		return nil, err
-	}
-	display := xDefaultScreen(dpy)
-	root := xRootWindow(dpy, display)
-	win := xCreateSimple(dpy, root, 0, 0, uint32(width), uint32(height), 0, xBlackPixel(dpy, display), xWhitePixel(dpy, display))
-	if win == 0 {
-		xCloseDisplay(dpy)
-		return nil, fmt.Errorf("%w: x window", ErrUnavailable)
-	}
-	name := cstr(title)
-	xStoreName(dpy, win, name)
-	xSetIcon(dpy, win)
-	xSelectInput(dpy, win, xInputMask)
-	_ = screen
-	xMapWindow(dpy, win)
-	xFlush(dpy)
-	return &xlibHost{screen: screen, dpy: dpy, win: win}, nil
 }
 
 func (h *xlibHost) poll() {
@@ -178,27 +155,6 @@ var (
 )
 
 const xInputMask int64 = 1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<6 | 1<<15 | 1<<17
-
-func xSetIcon(dpy uintptr, win uint64) {
-	if xInternAtom == nil || xChangeProperty == nil || dpy == 0 || win == 0 {
-		return
-	}
-	words := window.ShellPicture(nil)
-	if len(words) == 0 {
-		return
-	}
-	// XChangeProperty format 32 reads C longs. On this host a long is 64 bits.
-	longs := make([]uint64, len(words))
-	for i, word := range words {
-		longs[i] = uint64(word)
-	}
-	atomName := append([]byte("_NET_WM_ICON"), 0)
-	atom := xInternAtom(dpy, unsafe.SliceData(atomName), 0)
-	if atom == 0 {
-		return
-	}
-	xChangeProperty(dpy, win, atom, 6, 32, 0, unsafe.Pointer(unsafe.SliceData(longs)), int32(len(longs)))
-}
 
 func xOpen() (uintptr, error) {
 	if xlibOnce == 0 {
