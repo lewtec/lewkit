@@ -108,6 +108,15 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(string(ui), "openExternal") {
 		t.Fatalf("custom scheme open missing:\n%s", ui)
 	}
+	if !strings.Contains(string(ui), "SiblingWindow") {
+		t.Fatalf("new window leaves the app:\n%s", ui)
+	}
+	if !strings.Contains(string(ui), "javaScriptCanOpenWindowsAutomatically") {
+		t.Fatalf("scripted window.open stays blocked:\n%s", ui)
+	}
+	if !strings.Contains(string(ui), "isReleasedWhenClosed") {
+		t.Fatalf("popup window is released on close:\n%s", ui)
+	}
 }
 
 func TestCreate_CapabilitiesPlist(t *testing.T) {
