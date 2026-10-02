@@ -2,7 +2,8 @@
 //
 //	import _ "github.com/lewtec/lewkit/x/db/sqlite"
 //
-// Schemes: sqlite, sqlite3, file. Bare paths and :memory: also map here.
+// sqlite, sqlite3, and file URLs, plus a bare path and :memory:,
+// canonicalize to this connector.
 package sqlite
 
 import (
@@ -19,10 +20,7 @@ import (
 )
 
 func init() {
-	c := db.Connector{Driver: "sqlite", Up: up}
-	db.Register("sqlite", c)
-	db.Register("sqlite3", c)
-	db.Register("file", c)
+	db.Register("sqlite", db.Connector{Driver: "sqlite", Up: up})
 }
 
 func up(ctx context.Context, conn *sql.DB, fsys fs.FS) error {

@@ -2,7 +2,7 @@
 //
 //	import _ "github.com/lewtec/lewkit/x/db/postgres"
 //
-// Schemes: postgres, postgresql.
+// postgres and postgresql URLs canonicalize to this connector.
 package postgres
 
 import (
@@ -19,9 +19,7 @@ import (
 )
 
 func init() {
-	c := db.Connector{Driver: "pgx", Up: up}
-	db.Register("postgres", c)
-	db.Register("postgresql", c)
+	db.Register("postgres", db.Connector{Driver: "pgx", Up: up})
 }
 
 func up(ctx context.Context, conn *sql.DB, fsys fs.FS) error {
