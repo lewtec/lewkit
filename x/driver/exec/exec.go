@@ -1,8 +1,9 @@
 // Package exec runs host programs.
 //
 // Command builds a command and does not take a context.
-// Run, Start, Output, and Wait take the context: it cancels the process
-// and, when stderr is still unset, attaches the stderr hook.
+// Run, Start, Output, and Wait take a command and a context: it cancels the
+// process and, when stderr is still unset, attaches the stderr hook.
+// RunProgram and OutputString take a program name and args.
 // taskgroup registers that hook with the line writer.
 // Stdout stays unset so Output can capture it.
 // Import prelude or native so the host driver is registered.
@@ -134,6 +135,24 @@ func Output(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
 	cmd.Stdout = &buf
 	err := Run(ctx, cmd)
 	return buf.Bytes(), err
+}
+
+// RunProgram runs name with args. A failure names the program.
+func RunProgram(ctx context.Context, name string, args ...string) error {
+	if err := Run(ctx, MustCommand(name, args...)); err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	return nil
+}
+
+// OutputString runs name with args and returns stdout text.
+// A failure names the program.
+func OutputString(ctx context.Context, name string, args ...string) (string, error) {
+	out, err := Output(ctx, MustCommand(name, args...))
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", name, err)
+	}
+	return string(out), nil
 }
 
 // Which resolves name with the selected driver, or LookPath when none is registered.

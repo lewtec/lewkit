@@ -123,9 +123,5 @@ func videoIndex(device string) int {
 	return idx
 }
 
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
-}
-
 var _ camera.Driver = backend{}
 var _ camera.Camera = cameraDevice{}

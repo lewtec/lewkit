@@ -123,6 +123,7 @@ Inherited C (cite the file):
 | `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here; `x/build/version.Info` is packaging metadata | existing build errors | import `x/driver/webview`; `-X` `x/build/version.Version` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
+| `x/driver/volume/android` | Android `SetVolume`, `GetVolume`, `ToggleMute` | music stream volume 0..1 | the binder read stays here | no binder is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/brightness` | `SetBrightness`, `Status`, `Increase`, `Decrease`, `StatusNotification` | display brightness | protocol stays here | missing brightnessctl is `driver.ErrIncompatible` | import `x/ffi`; post the alert here |
 | `x/driver/brightness/android` | Android `SetBrightness`, `Status` | foreground window override | the override stays here | no Java VM is `driver.ErrIncompatible` | import `x/ffi/native`; `DisplayManager.setBrightness` |
 | `x/driver/battery` | `BatteryStatus`, `BatteryLevel` | charging state; level 0..100 | protocol stays here | no battery is `ErrNoBattery`; no level is `ErrUnknownLevel` | import `x/ffi` |
@@ -130,13 +131,18 @@ Inherited C (cite the file):
 | `x/driver/battery/darwin` | Darwin `BatteryStatus`, `BatteryLevel` | `AppleSmartBattery` via `ioreg` | status and level mapping stay here | not darwin is `driver.ErrIncompatible`; no battery is `battery.ErrNoBattery` | import `x/ffi` |
 | `x/driver/media` | `Next`, `Previous`, `PlayPause`, `Stop`, `GetMetadata`, `Watch`, `StatusNotification` | MPRIS player | protocol stays here | no player is `ErrNoPlayer` | import `x/driver/audio_play`; post the alert here |
 | `x/driver/power` | `Lock`, `Logout`, `Suspend`, `Hibernate`, `Reboot`, `Shutdown`, `Wake` | session power | protocol stays here | missing loginctl is `driver.ErrIncompatible` | import `x/ffi` |
+| `x/driver/power/android` | Android `Lock`, `Suspend`, `Reboot`, `Shutdown` | binder power | the binder calls stay here | no binder is `driver.ErrIncompatible`; logout and hibernate are unavailable | import `x/ffi/native` |
 | `x/driver/screen` | `SetDPMS`, `IsDPMSOn`, `ToggleDPMS`, `Reset` | display power | protocol stays here | missing swaymsg or xset is `driver.ErrIncompatible` | a hostname layout table |
+| `x/driver/screen/android` | Android `SetDPMS`, `IsDPMSOn` | interactive bit | the binder calls stay here | no binder is `driver.ErrIncompatible`; reset is unavailable | import `x/ffi/native` |
 | `x/driver/screenshot` | `Capture`, `SelectArea` | one image and a `wm.Rect` | protocol stays here | missing grim or maim is `driver.ErrIncompatible` | save into a config directory |
 | `x/driver/wallpaper` | `SetStatic` | one still image | protocol stays here | missing feh or swaybg is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/wm` | workspace switch, `AdvanceWorkspace`, `RotateWorkspaces`, scratchpad, focused rect, outputs | compositor IPC | protocol stays here | missing compositor is `driver.ErrIncompatible` | import `x/ffi`; post a notification here |
 | `x/driver/camera` | `List`, `Capture` | one still frame | protocol stays here | missing ffmpeg or video device is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
+| `x/driver/exec` | `Command`, `MustCommand`, `Run`, `RunProgram`, `Output`, `OutputString`, `Which`, `RequireBinary` | host process | the runner stays here | missing binary is `ErrNotFound`; `RequireBinary` is `driver.ErrIncompatible` | `os/exec.Command`; `os/exec.LookPath` |
+| `x/driver/httpclient` | `Driver`, `WithProgress` | process HTTP client | the client stays here | missing driver is the existing driver error | import `x/ffi` |
+| `x/driver/fetchurl` | `Fetch`, `FetchOptions`, `StatusError` | hashed download | the protocol stays here | no URLs is `ErrNoURLs`; no writer is `ErrNoOutputWriter` | import `x/ffi` |
 | `x/driver/treesitter` | `Get`, `Open`, `ForFile`, `Parse`, `Names`, `(*Tree).Parsed` | one grammar from a registered engine | protocol stays here | unknown language is `ErrUnknown`; no backend is `driver.ErrNotFound`; a null or error tree is `ErrParse` | import a grammar module |
 | `x/driver/treesitter/ccgo` | ccgo registry | facade of ccgo-tree-sitter | selection stays here | a missing name is skipped | import a ccgo `grammar/<lang>` package |
 | `x/driver/treesitter/leaven` | leaven registry | facade of leaven-tree-sitter | selection stays here | a missing name is skipped | import another tree-sitter module |
@@ -348,3 +354,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-02: `x/release.version` is the only runtime version stamp. `x/build/version` keeps packaging `Info` and does not export `Version`. Git describe, rev-parse, log, and rev-list go through `x/git`.
 - 2026-10-02: Pad, resize, PNG, ICO, and ICNS encoding live in `x/image/convert`. `x/build/icons` keeps knockout, the upper-mark crop, and the packaging file tree.
 - 2026-10-02: `Triangle` and `TriangleTurn` leave `x/image`. The RGB triangle demo stays in `examples/internal/scene`.
+- 2026-10-02: name-and-args command runs live on `x/driver/exec` as `RunProgram` and `OutputString`. `x/driver/exec`, `x/driver/httpclient`, and `x/driver/fetchurl` have placement rows. Android volume, power, and screen have rows.

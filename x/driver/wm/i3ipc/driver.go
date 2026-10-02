@@ -13,18 +13,18 @@ type backend struct {
 }
 
 func (b backend) MoveWorkspaceToOutput(ctx context.Context, workspace string, output string) error {
-	return run(ctx, b.bin, fmt.Sprintf("[workspace=%q] move workspace to output %q", workspace, output))
+	return execdriver.RunProgram(ctx, b.bin, fmt.Sprintf("[workspace=%q] move workspace to output %q", workspace, output))
 }
 
 func (b backend) SwitchToWorkspace(ctx context.Context, ws string, move bool) error {
 	if move {
-		return run(ctx, b.bin, "move", "container", "to", "workspace", ws)
+		return execdriver.RunProgram(ctx, b.bin, "move", "container", "to", "workspace", ws)
 	}
-	return run(ctx, b.bin, "workspace", ws)
+	return execdriver.RunProgram(ctx, b.bin, "workspace", ws)
 }
 
 func (b backend) ToggleScratchpad(ctx context.Context) error {
-	return run(ctx, b.bin, "scratchpad", "show")
+	return execdriver.RunProgram(ctx, b.bin, "scratchpad", "show")
 }
 
 func (b backend) GetOutputs(ctx context.Context) ([]wm.Output, error) {
@@ -100,14 +100,6 @@ func findFocusedNode(node *wm.Node) *wm.Node {
 		}
 	}
 	return nil
-}
-
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
-}
-
-func run(ctx context.Context, name string, args ...string) error {
-	return execdriver.Run(ctx, execdriver.MustCommand(name, args...))
 }
 
 var _ wm.Driver = backend{}

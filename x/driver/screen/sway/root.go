@@ -21,14 +21,10 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
 		return err
 	}
-	return requireBinary(ctx, "swaymsg")
+	return execdriver.RequireBinary(ctx, "swaymsg")
 }
 
 func (factory) New(context.Context) (screen.Driver, error) { return backend{}, nil }
-
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
-}
 
 func init() {
 	driver.Register[screen.Driver](factory{})

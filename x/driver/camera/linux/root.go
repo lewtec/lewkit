@@ -8,6 +8,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/camera"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 type factory struct{}
@@ -20,7 +21,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("%w: linux is required", driver.ErrIncompatible)
 	}
-	return requireBinary(ctx, "ffmpeg")
+	return execdriver.RequireBinary(ctx, "ffmpeg")
 }
 
 func (factory) New(context.Context) (camera.Driver, error) { return backend{}, nil }

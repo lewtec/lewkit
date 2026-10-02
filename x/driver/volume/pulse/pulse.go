@@ -15,14 +15,14 @@ type backend struct{}
 
 func (backend) SetVolume(ctx context.Context, level float64) error {
 	percent := fmt.Sprintf("%d%%", int(level*100))
-	if err := run(ctx, "pactl", "set-sink-volume", sink, percent); err != nil {
+	if err := execdriver.RunProgram(ctx, "pactl", "set-sink-volume", sink, percent); err != nil {
 		return fmt.Errorf("set volume: %w", err)
 	}
 	return nil
 }
 
 func (backend) GetVolume(ctx context.Context) (float64, error) {
-	out, err := output(ctx, "pactl", "get-sink-volume", sink)
+	out, err := execdriver.OutputString(ctx, "pactl", "get-sink-volume", sink)
 	if err != nil {
 		return 0, err
 	}
@@ -30,7 +30,7 @@ func (backend) GetVolume(ctx context.Context) (float64, error) {
 }
 
 func (backend) GetMute(ctx context.Context) (bool, error) {
-	out, err := output(ctx, "pactl", "get-sink-mute", sink)
+	out, err := execdriver.OutputString(ctx, "pactl", "get-sink-mute", sink)
 	if err != nil {
 		return false, err
 	}
@@ -38,7 +38,7 @@ func (backend) GetMute(ctx context.Context) (bool, error) {
 }
 
 func (backend) SinkName(ctx context.Context) (string, error) {
-	out, err := output(ctx, "pactl", "get-default-sink")
+	out, err := execdriver.OutputString(ctx, "pactl", "get-default-sink")
 	if err != nil {
 		return "", err
 	}
@@ -54,7 +54,7 @@ func (b backend) ToggleMute(ctx context.Context) error {
 	if muted {
 		state = "no"
 	}
-	return run(ctx, "pactl", "set-sink-mute", sink, state)
+	return execdriver.RunProgram(ctx, "pactl", "set-sink-mute", sink, state)
 }
 
 func parseVolume(output string) (float64, error) {
@@ -70,21 +70,4 @@ func parseVolume(output string) (float64, error) {
 		return float64(volume) / 100, nil
 	}
 	return 0, nil
-}
-
-func run(ctx context.Context, name string, args ...string) error {
-	cmd := execdriver.MustCommand(name, args...)
-	if err := execdriver.Run(ctx, cmd); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	return nil
-}
-
-func output(ctx context.Context, name string, args ...string) (string, error) {
-	cmd := execdriver.MustCommand(name, args...)
-	out, err := execdriver.Output(ctx, cmd)
-	if err != nil {
-		return "", fmt.Errorf("%s: %w", name, err)
-	}
-	return string(out), nil
 }

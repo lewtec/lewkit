@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 func TestParseVolume(t *testing.T) {
@@ -22,7 +23,7 @@ func TestParseVolume(t *testing.T) {
 }
 
 func TestMissingBinary(t *testing.T) {
-	err := requireBinary(t.Context(), "lewkit-missing-pactl")
+	err := execdriver.RequireBinary(t.Context(), "lewkit-missing-pactl")
 	if !errors.Is(err, driver.ErrIncompatible) {
 		t.Fatalf("got %v", err)
 	}

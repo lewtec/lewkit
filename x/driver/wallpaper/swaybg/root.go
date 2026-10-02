@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/wallpaper"
 )
 
@@ -18,10 +19,10 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
 		return err
 	}
-	if err := requireBinary(ctx, "systemd-run"); err != nil {
+	if err := execdriver.RequireBinary(ctx, "systemd-run"); err != nil {
 		return err
 	}
-	return requireBinary(ctx, "swaybg")
+	return execdriver.RequireBinary(ctx, "swaybg")
 }
 
 func (factory) New(context.Context) (wallpaper.Driver, error) { return backend{}, nil }

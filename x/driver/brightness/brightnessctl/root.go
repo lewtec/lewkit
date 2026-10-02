@@ -16,14 +16,10 @@ func (factory) Name() string { return "brightnessctl" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	return requireBinary(ctx, "brightnessctl")
+	return execdriver.RequireBinary(ctx, "brightnessctl")
 }
 
 func (factory) New(context.Context) (brightness.Driver, error) { return backend{}, nil }
-
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
-}
 
 func init() {
 	driver.Register[brightness.Driver](factory{})
