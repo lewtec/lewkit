@@ -19,6 +19,7 @@ var errNDKMissing = errors.New("android cgo needs an NDK")
 // installed under the Android SDK (prefer ndk;27.2.12479018).
 // ANDROID_API selects the platform (default 21).
 // arm64 uses aarch64-linux-android, which is the arm64-v8a ABI.
+// An arm64 Mac uses the darwin-x86_64 prebuilt when darwin-arm64 is absent.
 func ndkCC(ctx context.Context, goarch string) (string, error) {
 	api := strings.TrimSpace(os.Getenv("ANDROID_API"))
 	if api == "" {
@@ -33,12 +34,17 @@ func ndkCC(ctx context.Context, goarch string) (string, error) {
 		return clangAt(root, clang)
 	}
 	if sdk, err := androidSDK(ctx); err == nil {
-		root, pickErr := pickNDK(sdk, ndkHost(), clang)
-		if pickErr == nil {
-			slog.Info("android ndk", "dir", root)
+		var pickErr error
+		for _, host := range ndkPrebuiltHosts() {
+			root, err := pickNDK(sdk, host, clang)
+			if err != nil {
+				pickErr = err
+				continue
+			}
+			slog.Info("android ndk", "dir", root, "host", host)
 			return clangAt(root, clang)
 		}
-		if strings.TrimSpace(os.Getenv("CC")) == "" {
+		if strings.TrimSpace(os.Getenv("CC")) == "" && pickErr != nil {
 			return "", pickErr
 		}
 	}
@@ -57,12 +63,32 @@ func ndkFromEnv() (string, bool) {
 	return "", false
 }
 
-func clangAt(root, clang string) (string, error) {
-	bin := filepath.Join(root, "toolchains", "llvm", "prebuilt", ndkHost(), "bin", clang)
-	if _, err := os.Stat(bin); err != nil {
-		return "", fmt.Errorf("ndk clang %s: %w", bin, err)
+func ndkPrebuiltHosts() []string {
+	host := ndkHost()
+	if host == "darwin-arm64" {
+		return []string{host, "darwin-x86_64"}
 	}
-	return bin, nil
+	return []string{host}
+}
+
+func clangAt(root, clang string) (string, error) {
+	var last error
+	for _, host := range ndkPrebuiltHosts() {
+		bin := filepath.Join(root, "toolchains", "llvm", "prebuilt", host, "bin", clang)
+		info, err := os.Stat(bin)
+		if err != nil || info.IsDir() {
+			if err == nil {
+				err = os.ErrNotExist
+			}
+			last = fmt.Errorf("ndk clang %s: %w", bin, err)
+			continue
+		}
+		return bin, nil
+	}
+	if last == nil {
+		last = errNDKMissing
+	}
+	return "", last
 }
 
 // pickNDK chooses an NDK directory under sdk/ndk that contains clang.

@@ -11,6 +11,17 @@ type levels struct {
 	full        int
 }
 
+// percent maps EXTRA_LEVEL and EXTRA_SCALE onto 0..100.
+func percent(level, scale int) (int, error) {
+	if level < 0 || scale <= 0 {
+		return 0, battery.ErrUnknownLevel
+	}
+	if level > scale {
+		level = scale
+	}
+	return (level*100 + scale/2) / scale, nil
+}
+
 func statusFrom(present bool, code int, known levels) (battery.Status, error) {
 	if !present {
 		return battery.Unknown, battery.ErrNoBattery

@@ -1,13 +1,32 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/battery"
 	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
 	"github.com/stretchr/testify/require"
 )
+
+type fixedBattery struct{}
+
+func (fixedBattery) ID() string                               { return "battery_fixed" }
+func (fixedBattery) Name() string                             { return "Fixed battery" }
+func (fixedBattery) Weight() int                              { return 0 }
+func (fixedBattery) CheckCompatibility(context.Context) error { return nil }
+func (fixedBattery) New(context.Context) (battery.Driver, error) {
+	return fixedBattery{}, nil
+}
+func (fixedBattery) BatteryStatus(context.Context) (battery.Status, error) {
+	return battery.Discharging, nil
+}
+func (fixedBattery) BatteryLevel(context.Context) (int, error) { return 42, nil }
+
+func init() { driver.Register[battery.Driver](fixedBattery{}) }
 
 func TestProbeNames(t *testing.T) {
 	t.Setenv("LEWKIT_APP_ID", "br.tec.lew.host")
@@ -26,6 +45,17 @@ func TestProbeNames(t *testing.T) {
 		require.True(t, ok, name)
 		require.NotEmpty(t, text, name)
 	}
+}
+
+func TestProbeBatteryLevel(t *testing.T) {
+	t.Setenv("LEWKIT_FORCE_BATTERY_DRIVER", "battery_fixed")
+	var text string
+	for _, row := range probe(t.Context(), "br.tec.lew.host") {
+		if row.Name == "battery" {
+			text = row.Text
+		}
+	}
+	require.Contains(t, text, "Discharging 42%")
 }
 
 func TestActUnknown(t *testing.T) {

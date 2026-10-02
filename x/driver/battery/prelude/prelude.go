@@ -4,5 +4,6 @@ package prelude
 
 import (
 	_ "github.com/lewtec/lewkit/x/driver/battery/android"
+	_ "github.com/lewtec/lewkit/x/driver/battery/darwin"
 	_ "github.com/lewtec/lewkit/x/driver/battery/linux"
 )

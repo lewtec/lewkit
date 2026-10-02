@@ -27,8 +27,18 @@ func probe(ctx context.Context, appID string) []result {
 	selected := selectedIDs(ctx)
 	rows := make([]result, 0, 8)
 	rows = append(rows, read("battery", selected, func() (string, error) {
-		status, err := battery.BatteryStatus(ctx)
-		return string(status), err
+		status, serr := battery.BatteryStatus(ctx)
+		level, lerr := battery.BatteryLevel(ctx)
+		switch {
+		case serr != nil && lerr != nil:
+			return "", serr
+		case serr != nil:
+			return fmt.Sprintf("%d%%", level), serr
+		case lerr != nil:
+			return string(status), lerr
+		default:
+			return fmt.Sprintf("%s %d%%", status, level), nil
+		}
 	}))
 	rows = append(rows, read("brightness", selected, func() (string, error) {
 		dev, err := brightness.Status(ctx)

@@ -161,11 +161,15 @@ func exampleAppID() string {
 }
 
 func loadBattery(ctx context.Context, _ *page) (panel, error) {
-	status, err := battery.BatteryStatus(ctx)
-	if err != nil {
-		return panel{}, err
+	status, serr := battery.BatteryStatus(ctx)
+	level, lerr := battery.BatteryLevel(ctx)
+	if serr != nil && lerr != nil {
+		return panel{}, serr
 	}
-	return panel{rows: []row{{Label: "Status", Value: string(status)}}}, nil
+	return panel{rows: []row{
+		{Label: "Status", Value: valueOrErr(string(status), serr)},
+		{Label: "Level", Value: percentText(level, lerr)},
+	}}, nil
 }
 
 func loadDaynight(ctx context.Context, _ *page) (panel, error) {
@@ -678,6 +682,13 @@ func treeLang(names []string) string {
 
 func seconds(us int64) string {
 	return fmt.Sprintf("%.1f s", float64(us)/1e6)
+}
+
+func percentText(level int, err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return fmt.Sprintf("%d%%", level)
 }
 
 func valueOrErr(value string, err error) string {

@@ -36,6 +36,8 @@ var (
 // AndroidSDK returns the Android SDK root for Gradle and adb.
 // ANDROID_HOME and ANDROID_SDK_ROOT win when they name a directory.
 // Otherwise mise android-sdk@13.0, then the usual Android Studio paths.
+// android-sdk@13.0 is command-line tools. A sibling install that has
+// platforms, such as android-sdk@19.0, is used for the APK.
 func AndroidSDK(ctx context.Context) (string, error) {
 	return androidSDK(ctx)
 }
@@ -45,6 +47,7 @@ func androidSDK(ctx context.Context) (string, error) {
 		return dir, err
 	}
 	if root, err := miseWhere(ctx, miseSDKSpec); err == nil && isDir(root) {
+		root = sdkForAPK(root)
 		slog.Info("android sdk", "dir", root)
 		return root, nil
 	}
@@ -58,8 +61,22 @@ func androidSDK(ctx context.Context) (string, error) {
 		}
 		return "", fmt.Errorf("%w: %w", ErrAndroidSDKNotFound, err)
 	}
+	root = sdkForAPK(root)
 	slog.Info("android sdk", "dir", root)
 	return root, nil
+}
+
+// sdkForAPK prefers a sibling that contains platforms, then resolves symlinks.
+// mise android-sdk@13.0 is command-line tools. android-sdk/latest often points at the full SDK.
+func sdkForAPK(root string) string {
+	if full := sdkWithPlatforms(root); full != "" {
+		root = full
+	}
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return root
+	}
+	return resolved
 }
 
 func sdkFromEnv() (string, error) {
@@ -74,6 +91,46 @@ func sdkFromEnv() (string, error) {
 		return value, nil
 	}
 	return "", nil
+}
+
+// sdkWithPlatforms returns root when it contains platforms.
+// mise android-sdk@13.0 is command-line tools and lives next to fuller SDKs.
+func sdkWithPlatforms(root string) string {
+	if hasPlatforms(root) {
+		return root
+	}
+	parent := filepath.Dir(root)
+	if filepath.Base(parent) != "android-sdk" {
+		return ""
+	}
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return ""
+	}
+	var best string
+	for _, entry := range entries {
+		dir := filepath.Join(parent, entry.Name())
+		if !hasPlatforms(dir) {
+			continue
+		}
+		if best == "" || preferSDK(dir, best) {
+			best = dir
+		}
+	}
+	return best
+}
+
+func hasPlatforms(dir string) bool {
+	return isDir(filepath.Join(dir, "platforms"))
+}
+
+func preferSDK(a, b string) bool {
+	aNDK := isDir(filepath.Join(a, "ndk", preferredNDK))
+	bNDK := isDir(filepath.Join(b, "ndk", preferredNDK))
+	if aNDK != bNDK {
+		return aNDK
+	}
+	return ndkNewer(filepath.Base(a), filepath.Base(b))
 }
 
 func sdkFromHome() (string, bool) {
@@ -201,10 +258,11 @@ func resolveGradle(ctx context.Context, workDir string) ([]string, error) {
 	if bin, err := execdriver.Which(ctx, "gradle"); err == nil {
 		return []string{bin}, nil
 	}
-	root, err := miseWhere(ctx, miseGradleSpec)
-	if err != nil || !isDir(root) {
-		root, err = miseInstallWhere(ctx, miseGradleSpec)
+	if bin := gradleFromMise(ctx, "gradle"); bin != "" {
+		slog.Info("android gradle", "bin", bin)
+		return []string{bin}, nil
 	}
+	root, err := miseInstallWhere(ctx, miseGradleSpec)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrGradleNotFound, err)
 	}
@@ -216,7 +274,7 @@ func resolveGradle(ctx context.Context, workDir string) ([]string, error) {
 	return []string{bin}, nil
 }
 
-// findGradle locates the gradle launcher. mise gradle@9.6.1 keeps it at
+// findGradle locates the gradle launcher. A mise install keeps it at
 // gradle-<version>/bin/gradle, not at the install root.
 func findGradle(root string) string {
 	if bin := tool.FindBinary(root, "gradle"); bin != "" {
@@ -231,6 +289,14 @@ func findGradle(root string) string {
 		return matches[len(matches)-1]
 	}
 	return ""
+}
+
+func gradleFromMise(ctx context.Context, spec string) string {
+	root, err := miseWhere(ctx, spec)
+	if err != nil || !isDir(root) {
+		return ""
+	}
+	return findGradle(root)
 }
 
 func gradleEnv(base []string, javaHome, sdk string) []string {

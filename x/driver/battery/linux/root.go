@@ -1,10 +1,11 @@
-// Package linux reads battery status from sysfs.
+// Package linux reads battery status and charge level from sysfs.
+// Level is capacity, then energy_now/energy_full, then charge_now/charge_full.
 package linux
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/battery"
@@ -17,14 +18,14 @@ func (factory) Name() string { return "Linux sysfs" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	matches, err := filepath.Glob("/sys/class/power_supply/BAT*/status")
-	if err != nil {
-		return err
+	_, err := batteryDir()
+	if err == nil {
+		return nil
 	}
-	if len(matches) == 0 {
+	if errors.Is(err, battery.ErrNoBattery) {
 		return fmt.Errorf("%w: /sys/class/power_supply/BAT*/status", driver.ErrIncompatible)
 	}
-	return nil
+	return err
 }
 
 func (factory) New(context.Context) (battery.Driver, error) { return backend{}, nil }
