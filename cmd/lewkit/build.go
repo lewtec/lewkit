@@ -180,9 +180,6 @@ type goarchArg struct{ cmd.StringArg }
 func (goarchArg) ArgDefault() string { return runtime.GOARCH }
 
 func (c *buildFlags) host(run func() (string, error)) ([]string, error) {
-	if c.config.Value() == "" {
-		return nil, fmt.Errorf("config is required for %s", c.goos.Value())
-	}
 	path, err := run()
 	if err != nil {
 		return nil, err
