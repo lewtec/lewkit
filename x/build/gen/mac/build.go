@@ -16,6 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -274,7 +275,7 @@ func applyMacIcons(iconRoot, assetsDir string) error {
 		return err
 	}
 	for _, slot := range macIconSlots {
-		if err := icons.WritePNG(filepath.Join(iconDir, slot.name), icons.Resize(img, slot.px)); err != nil {
+		if err := icons.WritePNG(filepath.Join(iconDir, slot.name), convert.Resize(img, slot.px)); err != nil {
 			return err
 		}
 	}

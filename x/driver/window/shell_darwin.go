@@ -11,9 +11,9 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
-	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/image/convert"
 )
 
 const (
@@ -91,7 +91,7 @@ func setAppIcon(app objc.ID, icon image.Image) {
 	if icon == nil {
 		return
 	}
-	png, err := icons.EncodePNG(icon)
+	png, err := convert.EncodePNG(icon)
 	if err != nil || len(png) == 0 {
 		return
 	}

@@ -1,8 +1,8 @@
 // Package convert decodes and encodes icon images.
 //
-// Decode reads PNG, JPEG, ICO, and ICNS. Square pads to a square and resizes.
-// EncodeICO and EncodeICNS write PNG payloads. ARGB is straight-alpha
-// big-endian bytes for a Status Notifier pixmap.
+// Decode reads PNG, JPEG, ICO, and ICNS. Pad centers onto a square. Resize
+// scales to a square. Square does both. EncodeICO and EncodeICNS write PNG
+// payloads. ARGB is straight-alpha big-endian bytes for a Status Notifier pixmap.
 package convert
 
 import (
@@ -82,6 +82,16 @@ func Decode(raw []byte) (image.Image, error) {
 		}
 		return img, nil
 	}
+}
+
+// Pad centers src on a transparent square. The side is the longer edge.
+func Pad(src image.Image) *image.NRGBA {
+	return padSquare(src)
+}
+
+// Resize scales src to size×size with CatmullRom.
+func Resize(src image.Image, size int) *image.NRGBA {
+	return resize(src, size)
 }
 
 // Square pads src to a square and resizes it to size×size.

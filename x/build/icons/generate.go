@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/lewtec/lewkit/x/image/convert"
 )
 
 // Sentinel errors for icon generation.
@@ -48,7 +50,7 @@ func defaultMaster() (image.Image, error) {
 	if err != nil {
 		return nil, fmt.Errorf("default lockup: %w", err)
 	}
-	return Resize(ExtractUpperMark(KnockoutBackground(img)), 1024), nil
+	return convert.Resize(ExtractUpperMark(KnockoutBackground(img)), 1024), nil
 }
 
 // DefaultMark is the square built-in app mark.
@@ -110,12 +112,10 @@ func Generate(opts Options) (*Manifest, error) {
 
 	// Knock out light photo canvas so splash/launcher icons are not boxed.
 	img = KnockoutBackground(img)
-	square := PadCenter(img)
+	square := convert.Pad(img)
 	// Work from a high-res square for downscales
-	if square.Bounds().Dx() < 1024 {
-		square = Resize(square, 1024)
-	} else if square.Bounds().Dx() > 1024 {
-		square = Resize(square, 1024)
+	if square.Bounds().Dx() != 1024 {
+		square = convert.Resize(square, 1024)
 	}
 
 	if err := os.MkdirAll(absOut, 0o755); err != nil {
@@ -149,7 +149,7 @@ func Generate(opts Options) (*Manifest, error) {
 	// linux/
 	for _, s := range LinuxPNGSizes {
 		rel := fmt.Sprintf("linux/icon-%d.png", s)
-		if err := WritePNG(filepath.Join(absOut, rel), Resize(square, s)); err != nil {
+		if err := WritePNG(filepath.Join(absOut, rel), convert.Resize(square, s)); err != nil {
 			return nil, err
 		}
 		record(rel, fmt.Sprintf("%dpx", s))
@@ -158,7 +158,7 @@ func Generate(opts Options) (*Manifest, error) {
 	// android/
 	for _, m := range AndroidMipmaps {
 		rel := filepath.Join("android", m.Dir, "ic_launcher.png")
-		if err := WritePNG(filepath.Join(absOut, rel), Resize(square, m.Size)); err != nil {
+		if err := WritePNG(filepath.Join(absOut, rel), convert.Resize(square, m.Size)); err != nil {
 			return nil, err
 		}
 		record(filepath.ToSlash(rel), m.Dir)
@@ -167,7 +167,7 @@ func Generate(opts Options) (*Manifest, error) {
 	// web/
 	for _, w := range WebPNGSizes {
 		rel := filepath.Join("web", w.Name)
-		if err := WritePNG(filepath.Join(absOut, rel), Resize(square, w.Size)); err != nil {
+		if err := WritePNG(filepath.Join(absOut, rel), convert.Resize(square, w.Size)); err != nil {
 			return nil, err
 		}
 		record(filepath.ToSlash(rel), fmt.Sprintf("%dpx", w.Size))

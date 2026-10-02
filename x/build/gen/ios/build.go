@@ -17,6 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -226,8 +227,8 @@ func applyIOSIcons(iconRoot, assetsDir string) error {
 	if err != nil {
 		return fmt.Errorf("ios app icon: %w", err)
 	}
-	square := icons.KnockoutBackground(icons.PadCenter(img))
-	store := icons.FlattenOpaque(icons.Resize(square, 1024))
+	square := icons.KnockoutBackground(convert.Pad(img))
+	store := icons.FlattenOpaque(convert.Resize(square, 1024))
 	iconDir := filepath.Join(assetsDir, "AppIcon.appiconset")
 	if err := os.MkdirAll(iconDir, 0o755); err != nil {
 		return err
@@ -247,7 +248,7 @@ func applyIOSIcons(iconRoot, assetsDir string) error {
 		{"SplashLogo@2x.png", SplashPointSize * 2},
 		{"SplashLogo@3x.png", SplashPointSize * 3},
 	} {
-		if err := icons.WritePNG(filepath.Join(logoDir, scale.name), icons.Resize(square, scale.px)); err != nil {
+		if err := icons.WritePNG(filepath.Join(logoDir, scale.name), convert.Resize(square, scale.px)); err != nil {
 			return err
 		}
 	}

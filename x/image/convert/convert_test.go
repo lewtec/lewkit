@@ -13,6 +13,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPadCentersWideImage(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 100, 50))
+	for y := 0; y < 50; y++ {
+		for x := 0; x < 100; x++ {
+			img.SetNRGBA(x, y, color.NRGBA{R: 255, A: 255})
+		}
+	}
+	sq := Pad(img)
+	require.Equal(t, 100, sq.Bounds().Dx())
+	require.Equal(t, 100, sq.Bounds().Dy())
+	require.Equal(t, color.NRGBA{}, sq.NRGBAAt(0, 0))
+	require.Equal(t, color.NRGBA{R: 255, A: 255}, sq.NRGBAAt(0, 25))
+}
+
 func TestDecodePNG(t *testing.T) {
 	src := image.NewNRGBA(image.Rect(0, 0, 1, 1))
 	src.SetNRGBA(0, 0, color.NRGBA{R: 10, G: 20, B: 30, A: 255})
