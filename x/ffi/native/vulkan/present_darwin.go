@@ -10,6 +10,7 @@ import (
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -103,6 +104,7 @@ func openHost(screen *Screen, width, height int, title string) (hostSurface, err
 }
 
 func openMetalWindow(screen *Screen, width, height int, title string) (hostSurface, error) {
+	window.ShowShell(title, nil)
 	app, err := nsApp()
 	if err != nil {
 		return nil, err

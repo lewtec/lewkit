@@ -124,6 +124,10 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
+	if err := applyMacIcons(iconRoot, filepath.Join(workDir, "Assets.xcassets")); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
 
 	arch, xArch, err := hostDarwinArch()
 	if opts.GOARCH != "" {
@@ -278,6 +282,43 @@ func resignApp(ctx context.Context, appPath string) error {
 	}
 	if err := gocmd.Tool(ctx, "codesign", "", nil, "--force", "--deep", "--sign", "-", appPath); err != nil {
 		return fmt.Errorf("codesign: %w", err)
+	}
+	return nil
+}
+
+// macIconSlots are the AppIcon.appiconset filenames from the host template.
+var macIconSlots = []struct {
+	name string
+	px   int
+}{
+	{"icon_16x16.png", 16},
+	{"icon_16x16@2x.png", 32},
+	{"icon_32x32.png", 32},
+	{"icon_32x32@2x.png", 64},
+	{"icon_128x128.png", 128},
+	{"icon_128x128@2x.png", 256},
+	{"icon_256x256.png", 256},
+	{"icon_256x256@2x.png", 512},
+	{"icon_512x512.png", 512},
+	{"icon_512x512@2x.png", 1024},
+}
+
+func applyMacIcons(iconRoot, assetsDir string) error {
+	img, err := icons.DecodeImage(filepath.Join(iconRoot, "source", "master.png"))
+	if err != nil {
+		return fmt.Errorf("macos app icon: %w", err)
+	}
+	if img.Bounds().Dx() < 1 || img.Bounds().Dy() < 1 {
+		return errors.New("macos app icon: empty master")
+	}
+	iconDir := filepath.Join(assetsDir, "AppIcon.appiconset")
+	if err := os.MkdirAll(iconDir, 0o755); err != nil {
+		return err
+	}
+	for _, slot := range macIconSlots {
+		if err := icons.WritePNG(filepath.Join(iconDir, slot.name), icons.Resize(img, slot.px)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

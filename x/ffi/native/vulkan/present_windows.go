@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"unicode/utf16"
 
+	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -124,6 +125,7 @@ func openHost(screen *Screen, width, height int, title string) (hostSurface, err
 	if hwnd == 0 {
 		return nil, fmt.Errorf("%w: win32 window", ErrUnavailable)
 	}
+	window.ApplyWindowIcon(hwnd)
 	showWindow(hwnd, swShow)
 	return &win32Host{screen: screen, hwnd: hwnd, instance: inst}, nil
 }

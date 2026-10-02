@@ -20,6 +20,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 	webview2 "github.com/lewtec/lewkit/x/ffi/native/webview2"
 )
@@ -291,6 +292,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	}
 	view.hwnd = hwnd
 	windows.Store(hwnd, view)
+	window.ApplyWindowIcon(hwnd)
 	_, _, _ = procShowWindow.Call(hwnd, swShow)
 	var folderUTF *uint16
 	profile := strings.TrimSpace(view.profile)

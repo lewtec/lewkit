@@ -3,6 +3,7 @@ package x11
 import (
 	"context"
 	"image"
+	"log/slog"
 	"sync"
 
 	"github.com/jezek/xgb"
@@ -75,6 +76,10 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		conn.Close()
 		return nil, err
 	}
+	// The icon is optional. Open still succeeds when the property is rejected.
+	if err := setWindowIcon(conn, wid); err != nil {
+		slog.Debug("x11 icon", "err", err)
+	}
 	if err := xproto.MapWindowChecked(conn, wid).Check(); err != nil {
 		conn.Close()
 		return nil, err
@@ -130,6 +135,27 @@ func setMinSize(conn *xgb.Conn, wid xproto.Window) error {
 	}
 	return xproto.ChangePropertyChecked(conn, xproto.PropModeReplace, wid,
 		name.Atom, typ.Atom, 32, 18, raw).Check()
+}
+
+func setWindowIcon(conn *xgb.Conn, wid xproto.Window) error {
+	words := window.ShellPicture(nil)
+	if len(words) == 0 {
+		return nil
+	}
+	name := "_NET_WM_ICON"
+	atom, err := xproto.InternAtom(conn, false, uint16(len(name)), name).Reply()
+	if err != nil {
+		return err
+	}
+	raw := make([]byte, len(words)*4)
+	for i, v := range words {
+		raw[i*4] = byte(v)
+		raw[i*4+1] = byte(v >> 8)
+		raw[i*4+2] = byte(v >> 16)
+		raw[i*4+3] = byte(v >> 24)
+	}
+	return xproto.ChangePropertyChecked(conn, xproto.PropModeReplace, wid,
+		atom.Atom, xproto.AtomCardinal, 32, uint32(len(words)), raw).Check()
 }
 
 func setDeleteProtocol(conn *xgb.Conn, wid xproto.Window) (xproto.Atom, error) {
