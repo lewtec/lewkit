@@ -212,17 +212,30 @@ func (g *Git) HasRef(ctx context.Context, repo, ref string) bool {
 	return code == 0
 }
 
+// Output runs git in repo and returns trimmed stdout.
+func (g *Git) Output(ctx context.Context, repo string, args ...string) (string, error) {
+	stdout, stderr, code := g.run(ctx, repo, args...)
+	if code != 0 {
+		return "", gitFailed(repo, args, stderr, code)
+	}
+	return strings.TrimSpace(stdout), nil
+}
+
 // Run runs git in repo and returns stderr on failure.
 func (g *Git) Run(ctx context.Context, repo string, args ...string) error {
 	_, stderr, code := g.run(ctx, repo, args...)
 	if code != 0 {
-		msg := strings.TrimSpace(stderr)
-		if msg == "" {
-			msg = fmt.Sprintf("exit %d", code)
-		}
-		return fmt.Errorf("%w -C %s %s: %s", errGit, repo, strings.Join(args, " "), msg)
+		return gitFailed(repo, args, stderr, code)
 	}
 	return nil
+}
+
+func gitFailed(repo string, args []string, stderr string, code int) error {
+	msg := strings.TrimSpace(stderr)
+	if msg == "" {
+		msg = fmt.Sprintf("exit %d", code)
+	}
+	return fmt.Errorf("%w -C %s %s: %s", errGit, repo, strings.Join(args, " "), msg)
 }
 
 // OriginSlug is owner-name from origin, lowercased.
