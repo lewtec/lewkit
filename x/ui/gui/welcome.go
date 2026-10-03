@@ -306,7 +306,9 @@ func (welcome *Welcome) logo() Node {
 		height = width * float32(bounds.Dy()) / float32(bounds.Dx())
 	}
 	imageNode := &Image{Src: lockup, Width: width, Height: height}
-	if welcome.mode == daynight.Light {
+	// The built-in lockup is dark ink, so night mode puts it on a white card.
+	// A caller logo already carries its own alpha and sits on the page.
+	if welcome.mode == daynight.Light || welcome.mark != nil {
 		return &Box{Width: welcomeWidth, Align: Alignment{0.5, 0.5}, Child: imageNode}
 	}
 	return &Box{

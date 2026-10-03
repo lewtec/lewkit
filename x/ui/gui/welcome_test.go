@@ -119,6 +119,34 @@ func TestWelcomeLogo(t *testing.T) {
 	assert.Greater(t, navy, 50)
 }
 
+func TestWelcomeCallerLogoSkipsWhitePlate(t *testing.T) {
+	src := image.NewNRGBA(image.Rect(0, 0, 1, 1))
+	src.Pix = []uint8{13, 53, 89, 128}
+	welcome := NewWelcome(WelcomeArgs{Title: "Contapila", Logo: src})
+	plate := welcomeLogoBox(t, welcome.View())
+	assert.Nil(t, plate.Fill)
+	imageNode, ok := plate.Child.(*Image)
+	require.True(t, ok)
+	assert.Equal(t, src, imageNode.Src)
+
+	plain := NewWelcome(WelcomeArgs{Title: "lewkit"})
+	builtIn := welcomeLogoBox(t, plain.View())
+	require.NotNil(t, builtIn.Fill)
+	assert.Equal(t, RGB{255, 255, 255, 255}, *builtIn.Fill)
+}
+
+func welcomeLogoBox(t *testing.T, node Node) *Box {
+	t.Helper()
+	page, ok := node.(*Box)
+	require.True(t, ok)
+	column, ok := page.Child.(*Flex)
+	require.True(t, ok)
+	require.NotEmpty(t, column.Children)
+	box, ok := column.Children[0].Child.(*Box)
+	require.True(t, ok)
+	return box
+}
+
 func TestImageKeepsStraightAlpha(t *testing.T) {
 	src := image.NewNRGBA(image.Rect(0, 0, 1, 1))
 	src.Pix = []uint8{13, 53, 89, 128}
