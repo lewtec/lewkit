@@ -15,12 +15,6 @@ import (
 
 const (
 	instanceStride = 64
-	pixelBGRA      = 80
-	loadDontCare   = 1
-	storeStore     = 1
-	primStrip      = 2
-	blendOne       = 1
-	blendOneMinus  = 5
 	kindView       = 3
 	kindUIView     = 5
 )

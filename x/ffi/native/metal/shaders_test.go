@@ -6,6 +6,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDrawEnumsMatchMetal(t *testing.T) {
+	require.Equal(t, 4, primStrip)
+	require.Equal(t, 0, loadDontCare)
+	require.Equal(t, 1, storeStore)
+	require.Equal(t, 1, blendOne)
+	require.Equal(t, 5, blendOneMinus)
+	require.Equal(t, 80, pixelBGRA)
+}
+
 func TestShaderSourceKeepsTheFillContract(t *testing.T) {
 	require.Contains(t, ShaderSource, "fill_vert")
 	require.Contains(t, ShaderSource, "fill_frag")
