@@ -17,6 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/http/asset"
 )
 
 //go:generate go tool templ generate
@@ -45,7 +46,7 @@ func newFiles(ctx context.Context, choose chooseFunc) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /{$}", page.post)
 	mux.HandleFunc("GET /{$}", page.get)
-	return mux
+	return asset.Mount(mux)
 }
 
 // filesPage keeps the last pick. The picker runs apart from the POST so a

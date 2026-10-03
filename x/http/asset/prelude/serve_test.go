@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/http/asset"
+	"github.com/lewtec/lewkit/x/http/asset/daisyui"
 	"github.com/lewtec/lewkit/x/http/asset/htmx"
 	"github.com/lewtec/lewkit/x/http/asset/jquery"
 	"github.com/lewtec/lewkit/x/http/asset/lewtec_logo"
@@ -32,6 +33,7 @@ func TestPreludeServes(t *testing.T) {
 		{path: htmx.Path, contentType: "text/javascript", needle: "htmx"},
 		{path: jquery.Path, contentType: "text/javascript", needle: "jQuery"},
 		{path: tailwindcss.Path, contentType: "text/javascript", needle: tailwindcss.Version},
+		{path: daisyui.Path, contentType: "text/css", needle: daisyui.Version},
 		{path: sakuracss.Path, contentType: "text/css", needle: "Sakura.css"},
 		{path: lewtec_logo.Path, contentType: "image/png", needle: "PNG"},
 	}
