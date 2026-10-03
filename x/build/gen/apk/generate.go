@@ -1,8 +1,9 @@
-// Package apk generates ad-hoc Android WebView host projects from an
-// embedded template (PhoneGap/Expo-style), keyed by reverse-domain package ID.
+// Package apk generates an Android host project from an embedded template,
+// keyed by reverse-domain package ID.
 //
-// The core eletrocromo library stays free of the Android SDK; this package only
-// writes a Gradle tree that runs a multiarch Go binary and opens WebView.
+// The core eletrocromo library stays free of the Android SDK. This package
+// writes a Gradle tree that runs the Go binary. The Go app opens either a
+// native surface or a loopback page.
 package apk
 
 import (

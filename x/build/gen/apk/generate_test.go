@@ -31,6 +31,8 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/build.gradle",
 		"app/src/main/AndroidManifest.xml",
 		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
+		"app/src/main/java/lewkit/FileChooser.java",
+		"app/src/main/java/lewkit/Documents.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
 		"app/src/main/java/br/tec/lew/counter/ServerService.java",
@@ -71,6 +73,28 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.HasPrefix(string(mainJava), "package br.tec.lew.counter;\n") {
 		t.Fatalf("java package mismatch:\n%s", mainJava[:80])
 	}
+	if !strings.Contains(string(mainJava), "Host.noteForeground(this, true)") {
+		t.Fatal("splash activity does not record the foreground window")
+	}
+	if !strings.Contains(string(mainJava), "R.id.splash") {
+		t.Fatal("launcher has no splash")
+	}
+	if !strings.Contains(string(mainJava), "url.isEmpty()") {
+		t.Fatal("splash does not yield when the surface opens")
+	}
+	if !strings.Contains(string(mainJava), "Host.onPage") {
+		t.Fatal("a page published after the splash has no window")
+	}
+	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(surface), "Host.noteForeground(this, true)") {
+		t.Fatal("surface activity does not record the foreground window")
+	}
+	if !strings.Contains(string(surface), "Host.boot(this)") {
+		t.Fatal("surface activity does not start the app")
+	}
 
 	cfg, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
 	if err != nil {
@@ -93,6 +117,22 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(manifest), `android:configChanges="orientation|screenSize|keyboardHidden|uiMode"`) {
 		t.Fatalf("manifest uiMode:\n%s", manifest)
 	}
+	mainAt := strings.Index(string(manifest), `android:name=".MainActivity"`)
+	launchAt := strings.Index(string(manifest), "LAUNCHER")
+	surfaceAt := strings.Index(string(manifest), `android:name="lewkit.SurfaceActivity"`)
+	if mainAt < 0 || launchAt < mainAt || surfaceAt < launchAt {
+		t.Fatalf("web launcher:\n%s", manifest)
+	}
+	if !strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
+		t.Fatalf("file chooser activity:\n%s", manifest)
+	}
+	docs, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Documents.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(docs), "int readFd") || !strings.Contains(string(docs), "int thumbFd") {
+		t.Fatal("document reader")
+	}
 
 	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
 	if err != nil {
@@ -100,6 +140,9 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	}
 	if strings.Contains(string(hostJava), "dataDir") || strings.Contains(string(hostJava), "cacheDir") || strings.Contains(string(hostJava), "configDir") {
 		t.Fatalf("host still owns directory methods:\n%s", hostJava)
+	}
+	if !strings.Contains(string(hostJava), `cb.call("")`) {
+		t.Fatal("surface open does not replace the splash")
 	}
 	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

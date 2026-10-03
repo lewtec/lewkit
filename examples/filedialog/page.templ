@@ -1,0 +1,74 @@
+package main
+
+import "github.com/lewtec/lewkit/x/http/asset/daisyui"
+import "github.com/lewtec/lewkit/x/http/asset/tailwindcss"
+
+templ filesDocument(v filesView) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Files</title>
+			if v.Pending {
+				<meta http-equiv="refresh" content="1"/>
+			}
+			@daisyui.Load()
+			@tailwindcss.Load()
+		</head>
+		<body>
+			<main class="max-w-lg mx-auto p-4 flex flex-col gap-4">
+				<h1 class="text-xl font-semibold text-center">Files</h1>
+				if v.Pending {
+					<p class="text-center opacity-70">Waiting for the picker…</p>
+				}
+				if v.Here != "" {
+					<p class="text-center font-mono text-sm break-all">{ v.Here }</p>
+				}
+				if v.Up != "" {
+					<a class="link" href={ templ.URL(v.Up) }>Up</a>
+				}
+				if v.Note != "" {
+					<div role="alert" class="alert">{ v.Note }</div>
+				}
+				if len(v.Entries) > 0 {
+					<ul class="list">
+						for _, entry := range v.Entries {
+							<li class="list-row">
+								if entry.Dir {
+									<a class="link list-col-grow font-mono text-sm break-all" href={ templ.URL(entry.Href) }>{ entry.Name }</a>
+								} else if entry.Media == "" && entry.Src != "" {
+									<a class="link list-col-grow font-mono text-sm break-all" href={ templ.URL(entry.Src) }>{ entry.Name }</a>
+								} else {
+									<span class="list-col-grow font-mono text-sm break-all">{ entry.Name }</span>
+								}
+								if !entry.Dir {
+									<span class="text-sm opacity-70">{ entry.Size }</span>
+								}
+								if entry.Media == "image" {
+									<img class="list-col-wrap max-h-48 max-w-full object-contain" src={ templ.URL(entry.Src) } alt=""/>
+								} else if entry.Media == "text" {
+									<pre class="list-col-wrap max-h-80 overflow-auto whitespace-pre-wrap break-all text-sm">{ entry.Text }</pre>
+								} else if entry.Media == "audio" {
+									<audio class="list-col-wrap w-full" controls src={ templ.URL(entry.Src) }></audio>
+								} else if entry.Media == "video" {
+									<video class="list-col-wrap max-h-80 w-full" controls src={ templ.URL(entry.Src) }></video>
+								}
+							</li>
+						}
+					</ul>
+				}
+				<form method="POST" action="/">
+					<button class="btn btn-block" type="submit" name="op" value="files">Open files</button>
+				</form>
+				<form method="POST" action="/">
+					<button class="btn btn-block" type="submit" name="op" value="folder">Choose folder</button>
+				</form>
+				<form method="POST" action="/" class="flex flex-col gap-2">
+					<input class="input w-full" name="name" value="notes.txt" aria-label="File name"/>
+					<button class="btn" type="submit" name="op" value="save">Save</button>
+				</form>
+			</main>
+		</body>
+	</html>
+}

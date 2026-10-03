@@ -164,12 +164,13 @@ Inherited C (cite the file):
 | `x/driver/audio_play/winmm` | waveOut `Open` | facade of the winmm binding | selection stays here | missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/ffi/native/coreaudio` | `Open`, `Devices`, `Stream` | AudioQueue binding | playback stays here | CoreAudio error text | import `x/ffi/wasm`; import `x/driver` |
 | `x/driver/audio_play/coreaudio` | AudioQueue `Open` | facade of the coreaudio binding | selection stays here | missing framework is `driver.ErrIncompatible` | import `x/ffi/native` |
-| `x/driver/filedialog` | `Choose`, `Request`, `Filter` | host file or folder dialog | protocol stays here | `ErrCanceled`, `ErrRequest`; missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
+| `x/driver/filedialog` | `Choose`, `Open`, `Request`, `Filter` | host file or folder dialog | protocol stays here | `ErrCanceled`, `ErrRequest`; a content URI with no document opener is `driver.ErrUnavailable`; missing driver is `driver.ErrUnavailable` | import `x/ffi/native`; import `x/ffi/wasm` |
 | `x/driver/filedialog/portal` | `Choose`, `Available` | portal file chooser call | GTK and KDE service names stay here | missing bus name is `driver.ErrIncompatible` | import `x/ffi/native`; show a dialog by itself |
 | `x/driver/filedialog/gtk` | GTK `Choose` | facade of the gtk portal backend | selection stays here | missing gtk portal is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/filedialog/qt` | Qt `Choose` | facade of the KDE portal backend | selection stays here | missing KDE portal is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/filedialog/cocoa` | `NSOpenPanel` and `NSSavePanel` | macOS file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
 | `x/driver/filedialog/win32` | common item dialog `Choose` | Windows file dialog | selection stays here | missing main thread is the file dialog error | import `x/ffi/wasm` |
+| `x/driver/filedialog/android` | Android `Choose`, document `FS` | system document picker and document tree | selection stays here | no Java VM is `driver.ErrIncompatible`; cancel is `filedialog.ErrCanceled` | import `x/ffi/native` |
 | `x/taskgroup/progress` | bubbletea viewer of `Session` | viewer of `Session` | stays next to `Session` | existing TUI skip rules | move into `x/ui/tui` |
 | `x/ffi` | no Go API | names `native`, `wasm`, `android`, `jni` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter`; import `x/ffi/native/android` |
@@ -263,6 +264,7 @@ Inherited C (cite the file):
 | INV-64 | `x/driver/dirs/android`, `x/driver/power/android`, `x/driver/screen/android`, `x/driver/volume/android`, and `x/driver/daynight/android` import `x/ffi/android` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
 | INV-65 | `x/driver/battery/android`, `x/driver/clipboard/android`, and `x/driver/brightness/android` import `x/ffi/jni` and `x/ffi/native/android` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
 | INV-66 | `CompileStage` returns registered SPIR-V without starting the embedded glslang. A miss compiles with that reactor | `x/ffi/wasm/glsl` | starting the reactor before the registry lookup |
+| INV-67 | `x/driver/filedialog/android` imports `x/ffi/jni` and `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/filedialog/android` | an import of `x/ffi/native` |
 
 ## Errors
 
@@ -282,6 +284,9 @@ Inherited C (cite the file):
 | `gui.EnsureDir` | empty dir and no terminal | Return `ErrNeedWindow`. The caller opens a window and calls `Pick`. |
 | `gui.Model.View` | nil `Node` | Return `ErrView`. Do not `Draw`. |
 | `filedialog.Choose` | `Save` with `Folder` or `Multiple` | Return `ErrRequest`. |
+| `filedialog.Open` | no path | Return `ErrRequest`. |
+| `filedialog.Open` | a content URI and a local path | Return `ErrRequest`. |
+| `filedialog.Open` | a content URI and no document opener | Return `driver.ErrUnavailable`. |
 
 ## Actors
 
@@ -344,6 +349,10 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-24: window bus adds `Drop` (local paths). X11 delivers it through Xdnd. Cocoa delivers it through `NSDraggingDestination` on the content view. `gui.Run` forwards it with the other host events.
 - 2026-09-21: C libraries live under the mechanism that loads them. `x/ffi/native/vulkan`, `x/ffi/wasm/glsl`, `x/ffi/wasm/capstone`. `x/driver/vulkan`, `x/driver/ndeval`, and `x/disasm` are facades. `x/ffi` is not a Go package. `x/thread` and cocoa call `x/ffi/native`.
 - 2026-09-23: templ is adopted. A tag for one registered asset lives in that asset package. Page templates stay in `x/ui/web`. htmx, tailwindcss, jquery, and sakuracss are blank-import assets served from `/__lewkit__/`. The first page template is `x/ui/web` `Page`.
+- 2026-10-02: daisyUI 5.6.18 is a blank-import asset next to the vendored Tailwind browser build. Its tag is `x/http/asset/daisyui` `Load`. Pages load that tag instead of a CDN URL.
+- 2026-10-02: `filedialog.Open` reads paths from `Choose` as an `fs.FS`. One directory is the root. Several paths share a root named by base name. A `content:` URI is the Android document tree. The bytes stay in the provider.
+- 2026-10-03: `SurfaceActivity` records `Host.foreground` on resume and clears it on pause, same as the splash and page activities. The document picker starts from that activity.
+- 2026-10-03: The Android launcher shows a splash until the Go entrypoint opens the first window. A GUI model replaces the splash with the surface. A web handler is `webview.Open`, not a loopback page forced by `ELETROCROMO_NO_UI`. A URL published after the splash has closed still opens a page.
 - 2026-09-24: light or dark is `x/driver/daynight`. Web views push it into the page without a reload. `gui.Run` delivers `ModeMsg`.
 - 2026-09-25: host capabilities that lived in modot and eletrocromo sit under `x/driver`. Volume is sink level, not PCM playback. Launcher is a menu, not a file dialog. Termux backends stay in modot. Screen reset enables outputs; it does not store a hostname layout. Share does not own the eletrocromo JSONL drop.
 - 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.

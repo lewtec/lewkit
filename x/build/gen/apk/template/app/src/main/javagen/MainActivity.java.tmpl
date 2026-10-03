@@ -16,13 +16,11 @@ import android.widget.TextView;
 
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import java.io.File;
-
 import lewkit.Host;
 
 /**
- * Splash until the Go app prints READY, then the first page replaces this
- * activity. Later pages are their own windows.
+ * Splash until the Go entrypoint opens the first window. A surface replaces
+ * this activity with an empty ready URL. A page replaces it with the loopback URL.
  */
 public class MainActivity extends Activity {
     private WebView webView;
@@ -53,10 +51,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void onReady(String url) {
                     appUrl = url;
-                    runOnUiThread(() -> {
-                        showSplash(getString(R.string.status_loading), null, false);
-                        loadApp(url);
-                    });
+                    runOnUiThread(() -> loadApp(url));
                 }
 
                 @Override
@@ -77,7 +72,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Loopback must never go through a system/VPN HTTP proxy.
         System.setProperty("java.net.useSystemProxies", "false");
         System.setProperty("http.nonProxyHosts", "localhost|127.*|[::1]");
         setContentView(R.layout.activity_main);
@@ -91,7 +85,6 @@ public class MainActivity extends Activity {
         webContainer = findViewById(R.id.webview_container);
 
         swipeRefresh.setOnRefreshListener(this::refreshPage);
-        // Only start pull-to-refresh when the WebView is scrolled to the top.
         swipeRefresh.setOnChildScrollUpCallback((parent, child) ->
                 webView != null && webView.canScrollVertically(-1));
 
@@ -105,9 +98,28 @@ public class MainActivity extends Activity {
             }
         });
 
-        startBackend();
+        Host.onPage = url -> Windows.pushWebWindow(getApplicationContext(), url);
+        Host.onReady = url -> loadApp(url);
+        Host.onFail = message -> showSplash(getString(R.string.server_failed), message, true);
+        try {
+            Host.boot(this);
+        } catch (UnsatisfiedLinkError e) {
+            startBackend();
+        }
         OpenDrop.handle(this, getIntent());
         ShareOut.start(this);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Host.noteForeground(this, true);
+    }
+
+    @Override
+    protected void onPause() {
+        Host.noteForeground(this, false);
+        super.onPause();
     }
 
     @Override
@@ -118,24 +130,9 @@ public class MainActivity extends Activity {
     }
 
     private void startBackend() {
-        try {
-            Host.app = getApplicationContext();
-            Host.onReady = url -> {
-                appUrl = url;
-                loadApp(url);
-            };
-            Host.onFail = message -> showSplash(getString(R.string.server_failed), message, true);
-            Host.load();
-            File file = new File(getCacheDir(), "eletrocromo-ready");
-            file.delete();
-            Thread go = new Thread(() -> Host.start(file.getAbsolutePath()), "lewkit-go");
-            go.setDaemon(true);
-            go.start();
-        } catch (UnsatisfiedLinkError e) {
-            Intent svc = new Intent(this, ServerService.class);
-            startForegroundService(svc);
-            bindService(svc, connection, Context.BIND_AUTO_CREATE);
-        }
+        Intent svc = new Intent(this, ServerService.class);
+        startForegroundService(svc);
+        bindService(svc, connection, Context.BIND_AUTO_CREATE);
     }
 
     private void refreshPage() {
@@ -154,11 +151,17 @@ public class MainActivity extends Activity {
         if (isFinishing()) {
             return;
         }
+        // Empty URL: the entrypoint opened a surface. This splash is replaced by that window.
+        if (url == null || url.isEmpty()) {
+            Host.onReady = null;
+            Host.onFail = null;
+            finish();
+            overridePendingTransition(0, 0);
+            return;
+        }
         appUrl = url;
         Windows.pushWebWindow(this, url);
         overridePendingTransition(0, 0);
-        // The page is the screen now. Leaving this activity under it puts the
-        // splash back on the stack, so Back shows "Starting local server…".
         Host.onReady = null;
         Host.onFail = null;
         finish();
@@ -190,7 +193,9 @@ public class MainActivity extends Activity {
             unbindService(connection);
             bound = false;
         }
-        webContainer.removeAllViews();
+        if (webContainer != null) {
+            webContainer.removeAllViews();
+        }
         if (webView != null) {
             webView.destroy();
             webView = null;

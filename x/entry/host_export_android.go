@@ -35,6 +35,13 @@ type surfaceBox struct {
 
 var surfaceCh = make(chan surfaceBox, 1)
 
+// ShowSurface tells the host the Go app is a native window, not a page.
+func ShowSurface() {
+	if _, err := jni.CallStatic("lewkit.Host", "openSurface"); err != nil {
+		slog.Error("android surface", "err", err)
+	}
+}
+
 // RequestSurface asks the Android host for a native window and waits for it.
 // The size is the surface the activity reported, which is the GUI window size.
 func RequestSurface(ctx context.Context) (uintptr, int, int, error) {
@@ -95,6 +102,9 @@ func Java_lewkit_Host_start(env *C.JNIEnv, _ C.jclass, file C.jstring) {
 	C.free(unsafe.Pointer(raw))
 	_ = os.Setenv("ELETROCROMO_NO_UI", "1")
 	_ = os.Setenv("ELETROCROMO_READY_FILE", path)
+	// Bind before the app runs. A failure before entry.Run has no loop yet,
+	// and reporting it must run on this thread instead of waiting for that loop.
+	thread.Bind()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			NotifyFail(fmt.Sprint(recovered))

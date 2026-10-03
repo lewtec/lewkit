@@ -7,11 +7,16 @@ import android.os.Handler;
 import android.os.Looper;
 import android.view.Surface;
 
+import java.io.File;
+
 public final class Host {
     public static volatile Context app;
     public static volatile Ready onReady;
+    public static volatile Ready onPage;
     public static volatile Fail onFail;
     public static volatile Activity foreground;
+    private static boolean booted;
+    private static boolean surfaceOpening;
 
     public interface Ready {
         void call(String url);
@@ -27,6 +32,27 @@ public final class Host {
         System.loadLibrary("eletrocromo");
     }
 
+    // boot loads the Go library once and starts it. The calling activity is foreground.
+    public static synchronized void boot(Context context) {
+        if (context == null) {
+            return;
+        }
+        app = context.getApplicationContext();
+        if (context instanceof Activity) {
+            noteForeground((Activity) context, true);
+        }
+        if (booted) {
+            return;
+        }
+        load();
+        booted = true;
+        File file = new File(context.getCacheDir(), "eletrocromo-ready");
+        file.delete();
+        Thread go = new Thread(() -> start(file.getAbsolutePath()), "lewkit-go");
+        go.setDaemon(true);
+        go.start();
+    }
+
     public static void noteForeground(Activity activity, boolean visible) {
         if (visible) {
             foreground = activity;
@@ -36,22 +62,40 @@ public final class Host {
     }
 
     public static void openSurface() {
-        new Handler(Looper.getMainLooper()).post(() -> {
-            Activity fg = foreground;
-            if (fg != null) {
-                fg.startActivity(new Intent(fg, SurfaceActivity.class));
-                return;
-            }
-            Context ctx = app;
-            if (ctx == null) {
-                return;
-            }
-            ctx.startActivity(
-                    new Intent(ctx, SurfaceActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        });
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            openSurfaceNow();
+            return;
+        }
+        new Handler(Looper.getMainLooper()).post(Host::openSurfaceNow);
+    }
+
+    private static void openSurfaceNow() {
+        if (foreground instanceof SurfaceActivity || surfaceOpening) {
+            return;
+        }
+        Context ctx = app != null ? app : foreground;
+        if (ctx == null) {
+            return;
+        }
+        surfaceOpening = true;
+        ctx.startActivity(new Intent(ctx, SurfaceActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        // The first window is up. The splash activity replaces itself with it.
+        Ready cb = onReady;
+        if (cb != null) {
+            onReady = null;
+            onFail = null;
+            cb.call("");
+        }
     }
 
     public static void ready(String url) {
+        if (url != null && !url.isEmpty()) {
+            Ready page = onPage;
+            if (page != null) {
+                new Handler(Looper.getMainLooper()).post(() -> page.call(url));
+                return;
+            }
+        }
         Ready cb = onReady;
         if (cb == null) {
             return;

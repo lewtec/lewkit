@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:background="?android:attr/colorBackground">
 
-    <!-- Logo fixed at screen center; status/progress/retry stack under it -->
     <RelativeLayout
         android:id="@+id/splash"
         android:layout_width="match_parent"
@@ -67,7 +66,6 @@
         </LinearLayout>
     </RelativeLayout>
 
-    <!-- WebView + pull-to-refresh once the local server is ready -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_refresh"
         android:layout_width="match_parent"

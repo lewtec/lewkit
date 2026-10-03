@@ -2,6 +2,8 @@
 // a GUI model, and it may open another window. Run returns when the last
 // window closes. A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI
 // serves a web handler on a loopback port instead of opening that first window.
+// The handler decides the Android window: a GUI model opens the surface and
+// leaves the splash, and a web handler publishes a loopback URL.
 package app
 
 import (
@@ -12,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/google/uuid"
@@ -78,13 +81,15 @@ func (a App) open(ctx context.Context, id string) error {
 	if win == nil {
 		win = Web(nil)
 	}
+	if _, ok := win.(guiWindow); ok {
+		entry.ShowSurface()
+	}
 	if a.NoUI || envOn("LEWKIT_NO_UI") || envOn("ELETROCROMO_NO_UI") {
-		web, ok := win.(webWindow)
-		if !ok {
-			return fmt.Errorf("loopback host needs a web handler")
+		next, err := loopbackWindow(win, runtime.GOOS == "android")
+		if err != nil {
+			return err
 		}
-		web.hosted = true
-		win = web
+		win = next
 	}
 	return runSession(ctx, win, openCall{
 		title:   title,
@@ -92,6 +97,21 @@ func (a App) open(ctx context.Context, id string) error {
 		height:  height,
 		profile: root.Profile,
 	})
+}
+
+// loopbackWindow serves a web handler on a desktop packaged host.
+// On Android the entrypoint's window is left as it is: a GUI model is the
+// surface, and a web handler is webview.Open rather than a forced loopback page.
+func loopbackWindow(win Window, guiNative bool) (Window, error) {
+	if guiNative {
+		return win, nil
+	}
+	web, ok := win.(webWindow)
+	if !ok {
+		return nil, fmt.Errorf("loopback host needs a web handler")
+	}
+	web.hosted = true
+	return web, nil
 }
 
 func serveWeb(ctx context.Context, handler http.Handler) error {

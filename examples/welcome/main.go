@@ -21,7 +21,7 @@ func main() { entry.Main(runApp) }
 func runApp(ctx context.Context) error {
 	dirs, err := gui.Recent()
 	if err != nil {
-		return err
+		dirs = nil
 	}
 	model := gui.NewWelcome(gui.WelcomeArgs{Title: release.Name(), Dirs: dirs})
 	err = app.App{
