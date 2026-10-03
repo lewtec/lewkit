@@ -51,8 +51,8 @@
       "ref": "github:onnx/onnx",
       "depName": "onnx/onnx",
       "packageName": "https://github.com/onnx/onnx",
-      "currentValue": "v1.22.0",
-      "currentDigest": "2bb50465112feca9003e1ed654d77f01ff1415ca",
+      "currentValue": "v1.23.1",
+      "currentDigest": "ecfb5f08b88b2c60733323bb8a691e99ba11e469",
       "datasource": "git-refs"
     },
     {
