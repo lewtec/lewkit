@@ -8,22 +8,18 @@ import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.view.View;
-import android.webkit.WebView;
 import android.widget.Button;
-import android.widget.FrameLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
-
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import lewkit.Host;
 
 /**
  * Splash until the Go entrypoint opens the first window. A surface replaces
- * this activity with an empty ready URL. A page replaces it with the loopback URL.
+ * this activity with an empty ready URL. A page replaces it with the loopback
+ * URL. Later pages open on their own.
  */
 public class MainActivity extends Activity {
-    private WebView webView;
     private ServerService server;
     private boolean bound;
     private String appUrl;
@@ -33,8 +29,6 @@ public class MainActivity extends Activity {
     private TextView splashDetail;
     private ProgressBar splashProgress;
     private Button splashRetry;
-    private SwipeRefreshLayout swipeRefresh;
-    private FrameLayout webContainer;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -81,12 +75,6 @@ public class MainActivity extends Activity {
         splashDetail = findViewById(R.id.splash_detail);
         splashProgress = findViewById(R.id.splash_progress);
         splashRetry = findViewById(R.id.splash_retry);
-        swipeRefresh = findViewById(R.id.swipe_refresh);
-        webContainer = findViewById(R.id.webview_container);
-
-        swipeRefresh.setOnRefreshListener(this::refreshPage);
-        swipeRefresh.setOnChildScrollUpCallback((parent, child) ->
-                webView != null && webView.canScrollVertically(-1));
 
         splashRetry.setOnClickListener(v -> {
             showSplash(getString(R.string.loading), null, false);
@@ -135,18 +123,6 @@ public class MainActivity extends Activity {
         bindService(svc, connection, Context.BIND_AUTO_CREATE);
     }
 
-    private void refreshPage() {
-        String url = appUrl;
-        if (url != null) {
-            loadApp(url);
-            return;
-        }
-        swipeRefresh.setRefreshing(false);
-        if (server != null) {
-            server.restart();
-        }
-    }
-
     private void loadApp(String url) {
         if (isFinishing()) {
             return;
@@ -170,8 +146,6 @@ public class MainActivity extends Activity {
 
     private void showSplash(String status, String detail, boolean error) {
         splash.setVisibility(View.VISIBLE);
-        swipeRefresh.setVisibility(View.GONE);
-        swipeRefresh.setRefreshing(false);
         splashStatus.setText(status);
         if (detail == null || detail.trim().isEmpty()) {
             splashDetail.setVisibility(View.GONE);
@@ -192,13 +166,6 @@ public class MainActivity extends Activity {
             }
             unbindService(connection);
             bound = false;
-        }
-        if (webContainer != null) {
-            webContainer.removeAllViews();
-        }
-        if (webView != null) {
-            webView.destroy();
-            webView = null;
         }
         super.onDestroy();
     }

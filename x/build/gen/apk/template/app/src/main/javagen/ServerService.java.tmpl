@@ -33,7 +33,8 @@ import java.util.regex.Pattern;
 
 /**
  * Runs the packaged Go binary (ELETROCROMO_NO_UI=1), learns the READY URL
- * (stdout and/or ready file), then hands it to MainActivity for WebView.
+ * (stdout and/or ready file), then hands it to the splash. The splash
+ * opens the page window and leaves the back stack.
  *
  * Loopback must stay on-device: always 127.0.0.1 + Proxy.NO_PROXY. A VPN
  * (e.g. Tailscale) must not be required off and must not break localhost;

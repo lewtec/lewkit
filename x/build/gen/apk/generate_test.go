@@ -85,6 +85,16 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(mainJava), "Host.onPage") {
 		t.Fatal("a page published after the splash has no window")
 	}
+	if strings.Contains(string(mainJava), "android.webkit.WebView") || strings.Contains(string(mainJava), "webview_container") {
+		t.Fatal("splash still embeds a web view")
+	}
+	layout, err := os.ReadFile(filepath.Join(out, "app/src/main/res/layout/activity_main.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(layout), "webview_container") || strings.Contains(string(layout), "SwipeRefreshLayout") {
+		t.Fatal("splash layout still stacks a web view")
+	}
 	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
 	if err != nil {
 		t.Fatal(err)
@@ -143,6 +153,11 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	}
 	if !strings.Contains(string(hostJava), `cb.call("")`) {
 		t.Fatal("surface open does not replace the splash")
+	}
+	splashAt := strings.Index(string(hostJava), "Ready splash = onReady")
+	pageAt := strings.Index(string(hostJava), "Ready page = onPage")
+	if splashAt < 0 || pageAt < splashAt {
+		t.Fatal("first window does not close the splash before a later page opens")
 	}
 	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -256,6 +271,9 @@ func TestCreate_FirstPageReplacesSplash(t *testing.T) {
 	main := string(mainJava)
 	if !strings.Contains(main, "finish()") {
 		t.Fatal("splash activity stays on the back stack")
+	}
+	if strings.Contains(main, "WebView") {
+		t.Fatal("splash activity still hosts a web view")
 	}
 	page, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
 	if err != nil {
