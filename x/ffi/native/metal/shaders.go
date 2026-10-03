@@ -3,7 +3,7 @@ package metal
 // ShaderSource is the Metal shading language for one GUI frame.
 // The fill coverage matches the Vulkan fill shader and present.Composite:
 // pixel centers, a hard rounded rect, then an optional clip rectangle.
-// swapRB is 1 when the drawable is BGRA8.
+// swapRB stays 0. BGRA8Unorm still reads the shader output as logical RGBA.
 const ShaderSource = `
 #include <metal_stdlib>
 using namespace metal;

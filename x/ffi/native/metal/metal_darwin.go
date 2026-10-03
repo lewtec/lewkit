@@ -353,7 +353,7 @@ func (s *Screen) draw(instances, under, ink []byte, width, height int) error {
 		s.blit(enc, s.underBuf, width, height)
 	}
 	if fills > 0 {
-		push := fillPush{extentX: float32(width), extentY: float32(height), swapRB: 1}
+		push := fillPush{extentX: float32(width), extentY: float32(height), swapRB: channelSwap}
 		enc.Send(selSetPipeline, s.fill)
 		enc.Send(selSetVertexBuffer, s.fillBuf, uintptr(0), uintptr(0))
 		enc.Send(selSetFragmentBuffer, s.fillBuf, uintptr(0), uintptr(0))
@@ -372,7 +372,7 @@ func (s *Screen) draw(instances, under, ink []byte, width, height int) error {
 }
 
 func (s *Screen) blit(enc, buf objc.ID, width, height int) {
-	push := inkPush{sizeX: int32(width), sizeY: int32(height), swapRB: 1}
+	push := inkPush{sizeX: int32(width), sizeY: int32(height), swapRB: channelSwap}
 	enc.Send(selSetPipeline, s.ink)
 	enc.Send(selSetFragmentBuffer, buf, uintptr(0), uintptr(0))
 	enc.Send(selSetFragmentBytes, unsafe.Pointer(&push), uintptr(unsafe.Sizeof(push)), uintptr(1))

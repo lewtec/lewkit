@@ -9,4 +9,7 @@ const (
 	primStrip     = 4  // MTLPrimitiveTypeTriangleStrip
 	blendOne      = 1  // MTLBlendFactorOne
 	blendOneMinus = 5  // MTLBlendFactorOneMinusSourceAlpha
+	// channelSwap stays 0. BGRA8Unorm stores shader output as logical RGBA.
+	// Swapping red and blue paints the blue lockup amber.
+	channelSwap = 0
 )

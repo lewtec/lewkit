@@ -13,6 +13,7 @@ func TestDrawEnumsMatchMetal(t *testing.T) {
 	require.Equal(t, 1, blendOne)
 	require.Equal(t, 5, blendOneMinus)
 	require.Equal(t, 80, pixelBGRA)
+	require.Equal(t, 0, channelSwap)
 }
 
 func TestShaderSourceKeepsTheFillContract(t *testing.T) {
