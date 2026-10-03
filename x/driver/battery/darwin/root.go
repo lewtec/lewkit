@@ -4,7 +4,6 @@ package darwin
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -26,9 +25,6 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 		return err
 	}
 	_, err := read(ctx)
-	if errors.Is(err, battery.ErrNoBattery) {
-		return fmt.Errorf("%w: AppleSmartBattery", driver.ErrIncompatible)
-	}
 	return err
 }
 
