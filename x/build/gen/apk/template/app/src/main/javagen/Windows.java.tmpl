@@ -16,10 +16,13 @@ final class Windows {
     private Windows() {}
 
     static void pushWebWindow(Context context, String url) {
-        context.startActivity(
-                new Intent(context, PageActivity.class)
-                        .putExtra(PageActivity.EXTRA_URL, url)
-                        .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        Intent intent = new Intent(context, PageActivity.class)
+                .putExtra(PageActivity.EXTRA_URL, url)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (!(context instanceof Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        context.startActivity(intent);
     }
 
     static void installStackedWindows(Activity activity, WebView webView) {

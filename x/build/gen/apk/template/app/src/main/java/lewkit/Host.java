@@ -61,29 +61,23 @@ public final class Host {
     }
 
     public static void openSurface() {
-        new Handler(Looper.getMainLooper()).post(() -> {
-            Activity fg = foreground;
-            if (fg instanceof SurfaceActivity || surfaceOpening) {
-                return;
-            }
-            Context ctx = fg != null ? fg : app;
-            if (ctx == null) {
-                return;
-            }
-            surfaceOpening = true;
-            Intent intent = new Intent(ctx, SurfaceActivity.class);
-            if (fg == null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            }
-            ctx.startActivity(intent);
-            // The Go app asked for a surface. Leave the splash; do not open a page.
-            Ready cb = onReady;
-            if (cb != null) {
-                onReady = null;
-                onFail = null;
-                cb.call("");
-            }
-        });
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            openSurfaceNow();
+            return;
+        }
+        new Handler(Looper.getMainLooper()).post(Host::openSurfaceNow);
+    }
+
+    private static void openSurfaceNow() {
+        if (foreground instanceof SurfaceActivity || surfaceOpening) {
+            return;
+        }
+        Context ctx = app != null ? app : foreground;
+        if (ctx == null) {
+            return;
+        }
+        surfaceOpening = true;
+        ctx.startActivity(new Intent(ctx, SurfaceActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
     public static void ready(String url) {
