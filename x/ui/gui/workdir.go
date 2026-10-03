@@ -13,6 +13,7 @@ import (
 // An empty dir on a terminal is the process working directory.
 // An empty dir with no terminal opens [Welcome] and returns the folder the user picks.
 // The picked folder is stored with [Remember].
+// release run keeps stdin a terminal, so an app that must show the window calls [ChooseDir].
 func EnsureDir(ctx context.Context, dir string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", context.Cause(ctx)
@@ -49,26 +50,44 @@ func existingDir(dir string) (string, error) {
 	return cleaned, nil
 }
 
-func pickDir(ctx context.Context) (string, error) {
-	dirs, err := Recent()
-	if err != nil {
-		dirs = nil
+// ChooseDir opens the welcome window and returns the folder the user picks.
+// A nil Dirs list loads [Recent]. The picked folder is stored with [Remember].
+// Closing the window returns [ErrCanceled].
+// [EnsureDir] does not call this when stdin is a terminal.
+func ChooseDir(ctx context.Context, args WelcomeArgs) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", context.Cause(ctx)
 	}
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: dirs})
-	err = Open(ctx, welcome, Options{
-		Config: window.Config{Title: "lewkit", Width: 880, Height: 720},
-	})
-	if welcome.Picked() != "" {
-		if saveErr := Remember(welcome.Picked()); saveErr != nil {
-			return "", saveErr
+	if args.Dirs == nil {
+		dirs, err := Recent()
+		if err != nil {
+			dirs = nil
 		}
-		return welcome.Picked(), nil
+		args.Dirs = dirs
+	}
+	welcome := NewWelcome(args)
+	err := Open(ctx, welcome, Options{
+		Config: window.Config{Title: welcome.title, Width: 880, Height: 720},
+	})
+	return finishChoose(ctx, welcome, err)
+}
+
+func pickDir(ctx context.Context) (string, error) {
+	return ChooseDir(ctx, WelcomeArgs{Title: "lewkit"})
+}
+
+func finishChoose(ctx context.Context, welcome *Welcome, openErr error) (string, error) {
+	if path := welcome.Picked(); path != "" {
+		if err := Remember(path); err != nil {
+			return "", err
+		}
+		return path, nil
 	}
 	if ctx.Err() != nil {
 		return "", context.Cause(ctx)
 	}
-	if err != nil {
-		return "", err
+	if openErr != nil {
+		return "", openErr
 	}
 	return "", ErrCanceled
 }

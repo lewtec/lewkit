@@ -20,4 +20,5 @@
 // only writer. [Counter] is the Elm example (one int, two buttons).
 // [WelcomeArgs] is the start screen: the lockup, recent folders, and an optional accent.
 // [EnsureDir] opens it when a tool still needs a directory and stdin is not a terminal.
+// [ChooseDir] opens it even when stdin is a terminal. release run keeps that terminal.
 package gui

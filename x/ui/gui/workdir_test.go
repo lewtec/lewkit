@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -30,6 +31,39 @@ func TestEnsureDirGiven(t *testing.T) {
 func TestEnsureDirMissing(t *testing.T) {
 	_, err := EnsureDir(t.Context(), filepathMissing(t))
 	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestChooseDirCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := ChooseDir(ctx, WelcomeArgs{Title: "lewkit"})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestFinishChooseRemembers(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	dir := t.TempDir()
+	welcome := NewWelcome(WelcomeArgs{Title: "gaderno"})
+	welcome.picked = dir
+	got, err := finishChoose(t.Context(), welcome, os.ErrClosed)
+	require.NoError(t, err)
+	assert.Equal(t, absPath(t, dir), got)
+	recent, err := Recent()
+	require.NoError(t, err)
+	require.Len(t, recent, 1)
+	assert.Equal(t, absPath(t, dir), recent[0].Path)
+}
+
+func TestFinishChooseClosed(t *testing.T) {
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
+	_, err := finishChoose(t.Context(), welcome, nil)
+	require.ErrorIs(t, err, ErrCanceled)
+}
+
+func TestFinishChooseOpenError(t *testing.T) {
+	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
+	_, err := finishChoose(t.Context(), welcome, os.ErrClosed)
+	require.ErrorIs(t, err, os.ErrClosed)
 }
 
 func filepathMissing(t *testing.T) string {
