@@ -36,15 +36,7 @@ func open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	buf.SetFramePeriod(cfg.Period)
 	w := &win{Buffer: buf}
 	entry.HandlePointer(func(x, y, action int) {
-		pos := image.Pt(x, y)
-		switch action {
-		case 0:
-			w.Emit(window.Pointer{Pos: pos, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
-		case 1:
-			w.Emit(window.Pointer{Pos: pos, Button: 1, Pressed: false})
-		default:
-			w.Emit(window.Pointer{Pos: pos})
-		}
+		w.Emit(window.TouchPointer(x, y, action))
 	})
 	entry.HandleResize(func(pw, ph int) {
 		if pw < 1 || ph < 1 {

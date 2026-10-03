@@ -43,6 +43,23 @@ type Pointer struct {
 
 func (Pointer) windowEvent() {}
 
+// TouchPointer is a touch sample in client pixels.
+// action 0 is down, 1 is up, 2 is move. A move keeps [ButtonLeft]
+// down so the sample is a drag, not a hover.
+func TouchPointer(x, y, action int) Pointer {
+	pos := image.Pt(x, y)
+	switch action {
+	case 0:
+		return Pointer{Pos: pos, Button: 1, Pressed: true, Buttons: ButtonLeft}
+	case 1:
+		return Pointer{Pos: pos, Button: 1, Pressed: false}
+	case 2:
+		return Pointer{Pos: pos, Buttons: ButtonLeft}
+	default:
+		return Pointer{Pos: pos}
+	}
+}
+
 // Scroll is a wheel or trackpad step. +Y is down in Frame coordinates.
 type Scroll struct {
 	Pos   image.Point
