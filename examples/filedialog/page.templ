@@ -35,9 +35,24 @@ templ filesDocument(v filesView) {
 					<ul class="list">
 						for _, entry := range v.Entries {
 							<li class="list-row">
-								<a class="link font-mono text-sm break-all" href={ templ.URL(entry.Href) }>{ entry.Name }</a>
+								if entry.Dir {
+									<a class="link list-col-grow font-mono text-sm break-all" href={ templ.URL(entry.Href) }>{ entry.Name }</a>
+								} else if entry.Media == "" && entry.Src != "" {
+									<a class="link list-col-grow font-mono text-sm break-all" href={ templ.URL(entry.Src) }>{ entry.Name }</a>
+								} else {
+									<span class="list-col-grow font-mono text-sm break-all">{ entry.Name }</span>
+								}
 								if !entry.Dir {
 									<span class="text-sm opacity-70">{ entry.Size }</span>
+								}
+								if entry.Media == "image" {
+									<img class="list-col-wrap max-h-80 w-full object-contain" src={ templ.URL(entry.Src) } alt=""/>
+								} else if entry.Media == "text" {
+									<pre class="list-col-wrap max-h-80 overflow-auto whitespace-pre-wrap break-all text-sm">{ entry.Text }</pre>
+								} else if entry.Media == "audio" {
+									<audio class="list-col-wrap w-full" controls src={ templ.URL(entry.Src) }></audio>
+								} else if entry.Media == "video" {
+									<video class="list-col-wrap max-h-80 w-full" controls src={ templ.URL(entry.Src) }></video>
 								}
 							</li>
 						}

@@ -87,12 +87,15 @@ func TestFolderListsNames(t *testing.T) {
 
 	body := httpPage.get()
 	require.Contains(t, body, "pics")
+	require.Contains(t, body, "hello")
 	require.Contains(t, body, "5 B")
 	require.NotContains(t, body, "a.jpg")
 	require.NotContains(t, body, "content://")
 
 	body = httpPage.textAt("/?path=pics")
 	require.Contains(t, body, "a.jpg")
+	require.Contains(t, body, "<img")
+	require.Contains(t, body, "/file?path="+url.QueryEscape("pics/a.jpg"))
 	require.Contains(t, body, "Up")
 	require.Equal(t, "hello", httpPage.textAt("/file?path=readme.txt"))
 	require.Equal(t, "jpg", httpPage.textAt("/file?path="+url.QueryEscape("pics/a.jpg")))
@@ -101,6 +104,23 @@ func TestFolderListsNames(t *testing.T) {
 	require.Contains(t, miss, "open ..")
 	require.NotContains(t, miss, "readme.txt")
 	require.Contains(t, miss, "Open files")
+}
+
+func TestTextShowsEscaped(t *testing.T) {
+	httpPage := openFiles(t, func(context.Context, filedialog.Request) ([]string, error) {
+		return []string{"content://note"}, nil
+	}, func(names ...string) (fs.FS, error) {
+		return fstest.MapFS{"note.txt": &fstest.MapFile{Data: []byte("<b>hi</b>")}}, nil
+	})
+
+	httpPage.post(url.Values{"op": {"files"}})
+	require.Eventually(t, func() bool {
+		return strings.Contains(httpPage.get(), "note.txt")
+	}, time.Second, 10*time.Millisecond)
+	body := httpPage.get()
+	require.Contains(t, body, "&lt;b&gt;hi&lt;/b&gt;")
+	require.NotContains(t, body, "<b>")
+	require.Contains(t, body, "Open files")
 }
 
 func TestSaveSendsTheName(t *testing.T) {

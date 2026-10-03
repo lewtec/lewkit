@@ -206,7 +206,7 @@ The progress view tracks the build. The program starts after that view and write
 | `examples/music` | Drop a music directory, or pass one after `--`. Browse and play from an in-memory catalog. |
 | `examples/tray` | Status item until Quit or interrupt. |
 | `examples/sound` | No arguments lists sinks. Other arguments play those files. |
-| `examples/filedialog` | Page with Open, Folder, and Save. A button opens the dialog and lists the files. |
+| `examples/filedialog` | Page with Open, Folder, and Save. A button opens the dialog and shows the files. |
 | `examples/welcome` | Picks a directory from the start screen. |
 
 Arguments after `--` go to the program:

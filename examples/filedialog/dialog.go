@@ -1,4 +1,4 @@
-// Files is a page. A button opens the file dialog and lists the files.
+// Files is a page. A button opens the file dialog and shows the files.
 //
 //	go run ./cmd/lewkit release run --config ./examples/filedialog/eletrocromo.json
 //
@@ -17,6 +17,7 @@ import (
 	"net/url"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/app"
@@ -75,10 +76,13 @@ type filesPage struct {
 }
 
 type filesEntry struct {
-	Name string
-	Href string
-	Dir  bool
-	Size string
+	Name  string
+	Href  string
+	Dir   bool
+	Size  string
+	Media string
+	Src   string
+	Text  string
 }
 
 type filesView struct {
@@ -204,15 +208,21 @@ func (p *filesPage) view(raw string) filesView {
 		if name != "." {
 			full = path.Join(name, entry.Name())
 		}
-		item := filesEntry{
-			Name: entry.Name(),
-			Dir:  entry.IsDir(),
-			Href: entryHref(entry.IsDir(), full),
-		}
-		if !entry.IsDir() {
+		item := filesEntry{Name: entry.Name(), Dir: entry.IsDir()}
+		if entry.IsDir() {
+			item.Href = "/?" + url.Values{"path": {full}}.Encode()
+		} else {
 			info, err := entry.Info()
 			if err == nil {
 				item.Size = formatSize(info.Size())
+			}
+			shown, err := showFile(fsys, full)
+			if err != nil {
+				view.Note = err.Error()
+			} else {
+				item.Media = shown.Media
+				item.Src = shown.Src
+				item.Text = shown.Text
 			}
 		}
 		view.Entries = append(view.Entries, item)
@@ -220,12 +230,61 @@ func (p *filesPage) view(raw string) filesView {
 	return view
 }
 
-func entryHref(dir bool, full string) string {
-	q := url.Values{"path": {full}}.Encode()
-	if dir {
-		return "/?" + q
+// previewBytes is how much of a text file the page renders.
+const previewBytes = 32 << 10
+
+type shownFile struct {
+	Media string
+	Src   string
+	Text  string
+}
+
+func showFile(fsys fs.FS, full string) (shownFile, error) {
+	src := "/file?" + url.Values{"path": {full}}.Encode()
+	kind := mediaKind(full)
+	switch kind {
+	case "image", "audio", "video":
+		return shownFile{Media: kind, Src: src}, nil
+	case "text":
+		f, err := fsys.Open(full)
+		if err != nil {
+			return shownFile{}, err
+		}
+		defer f.Close()
+		body, err := io.ReadAll(io.LimitReader(f, previewBytes+1))
+		if err != nil {
+			return shownFile{}, err
+		}
+		if len(body) > previewBytes {
+			body = body[:previewBytes]
+		}
+		return shownFile{Media: "text", Text: string(body)}, nil
+	default:
+		return shownFile{Src: src}, nil
 	}
-	return "/file?" + q
+}
+
+func mediaKind(name string) string {
+	media, _, err := mime.ParseMediaType(mime.TypeByExtension(path.Ext(name)))
+	if err != nil || media == "" {
+		return ""
+	}
+	switch {
+	case strings.HasPrefix(media, "image/"):
+		return "image"
+	case strings.HasPrefix(media, "audio/"):
+		return "audio"
+	case strings.HasPrefix(media, "video/"):
+		return "video"
+	case strings.HasPrefix(media, "text/"):
+		return "text"
+	}
+	switch media {
+	case "application/json", "application/xml", "application/javascript", "application/xhtml+xml":
+		return "text"
+	default:
+		return ""
+	}
 }
 
 func formatSize(n int64) string {
