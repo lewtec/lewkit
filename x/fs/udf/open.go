@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	stdpath "path"
 
 	"github.com/Xmister/udf"
 
@@ -13,8 +12,9 @@ import (
 )
 
 // FS is a read-only UDF volume.
+// Lookup walks the volume's own directories. It does not keep an index.
 type FS struct {
-	root *dnode
+	root entry
 }
 
 var (
@@ -38,48 +38,50 @@ func Open(ctx context.Context, r io.Reader) (out *FS, err error) {
 	if err != nil {
 		return nil, err
 	}
-	root := newDir(".")
-	var walk func(*dnode, []udf.File, string) error
-	walk = func(root *dnode, items []udf.File, prefix string) error {
-		if err := ctx.Err(); err != nil {
-			return context.Cause(ctx)
-		}
-		for i := range items {
-			if err := ctx.Err(); err != nil {
-				return context.Cause(ctx)
-			}
-			item := &items[i]
-			name := item.Name()
-			if name == "" || name == "." || name == ".." {
-				continue
-			}
-			p := name
-			if prefix != "" {
-				p = stdpath.Join(prefix, name)
-			}
-			p = stdpath.Clean(p)
-			if !fs.ValidPath(p) {
-				return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
-			}
-			if item.IsDir() {
-				if err := root.add(p, item, true); err != nil {
-					return err
-				}
-				if err := walk(root, item.ReadDir(), p); err != nil {
-					return err
-				}
-				continue
-			}
-			if err := root.add(p, item, false); err != nil {
-				return err
-			}
-		}
-		return nil
+	return &FS{root: udfNode{vol: u}}, nil
+}
+
+// entry is one directory the volume already has.
+type entry interface {
+	lewfs.Entry
+	info() fs.FileInfo
+	open() (fs.File, error)
+	children() ([]entry, error)
+}
+
+type udfNode struct {
+	vol  *udf.Udf
+	file *udf.File
+}
+
+func (n udfNode) Name() string {
+	if n.file == nil {
+		return "."
 	}
-	if err := walk(root, u.ReadDir(nil), ""); err != nil {
-		return nil, err
+	return n.file.Name()
+}
+
+func (n udfNode) IsDir() bool {
+	return n.file == nil || n.file.IsDir()
+}
+
+func (n udfNode) children() ([]entry, error) {
+	var items []udf.File
+	if n.file == nil {
+		items = n.vol.ReadDir(nil)
+	} else {
+		items = n.file.ReadDir()
 	}
-	return &FS{root: root}, nil
+	out := make([]entry, 0, len(items))
+	for i := range items {
+		item := items[i]
+		name := item.Name()
+		if name == "" || name == "." || name == ".." {
+			continue
+		}
+		out = append(out, udfNode{vol: n.vol, file: &item})
+	}
+	return out, nil
 }
 
 func recovered(errp *error) {

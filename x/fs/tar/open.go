@@ -13,7 +13,8 @@ import (
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
-// Open reads a tar archive from r and indexes [Files] with [lewfs.New].
+// Open reads a tar archive from r.
+// Tar has no directory table, so [lewfs.New] indexes [Files].
 //
 // A compressed wrapper is chosen by file name (if r has Stat) or by
 // magic prefix, then decompressed into memory. An uncompressed tar

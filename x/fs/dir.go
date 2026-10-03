@@ -1,39 +1,41 @@
 package fs
 
 import (
-	"cmp"
 	iofs "io/fs"
-	"slices"
 	"time"
 )
 
-func (n *dnode) readDir() []iofs.DirEntry {
-	out := make([]iofs.DirEntry, 0, len(n.kids))
-	for _, k := range n.kids {
-		out = append(out, iofs.FileInfoToDirEntry(k.file.info()))
+// FileInfo is an [io/fs.FileInfo] with the given fields.
+func FileInfo(name string, size int64, mode iofs.FileMode, mod time.Time) iofs.FileInfo {
+	return fileInfo{name: name, size: size, mode: mode, mod: mod}
+}
+
+// DirFile is a read-only directory. Stat returns info. ReadDir pages ents.
+func DirFile(name string, info iofs.FileInfo, ents []iofs.DirEntry) iofs.ReadDirFile {
+	return &dirPage{
+		name: name,
+		stat: func() iofs.FileInfo { return info },
+		ents: ents,
 	}
-	slices.SortFunc(out, func(a, b iofs.DirEntry) int {
-		return cmp.Compare(a.Name(), b.Name())
-	})
-	return out
 }
 
-type dirFile struct {
-	n     *dnode
-	infos []iofs.DirEntry
-	off   int
+type dirPage struct {
+	name string
+	stat func() iofs.FileInfo
+	ents []iofs.DirEntry
+	off  int
 }
 
-func (d *dirFile) Stat() (iofs.FileInfo, error) { return d.n.file.info(), nil }
+func (d *dirPage) Stat() (iofs.FileInfo, error) { return d.stat(), nil }
 
-func (d *dirFile) Read([]byte) (int, error) {
-	return 0, &iofs.PathError{Op: "read", Path: d.n.file.Name.String(), Err: iofs.ErrInvalid}
+func (d *dirPage) Read([]byte) (int, error) {
+	return 0, &iofs.PathError{Op: "read", Path: d.name, Err: iofs.ErrInvalid}
 }
 
-func (d *dirFile) Close() error { return nil }
+func (d *dirPage) Close() error { return nil }
 
-func (d *dirFile) ReadDir(n int) ([]iofs.DirEntry, error) {
-	return DirEntries(d.infos, &d.off, n)
+func (d *dirPage) ReadDir(n int) ([]iofs.DirEntry, error) {
+	return DirEntries(d.ents, &d.off, n)
 }
 
 type fileInfo struct {

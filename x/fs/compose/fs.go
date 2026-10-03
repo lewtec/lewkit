@@ -10,8 +10,10 @@ import (
 )
 
 // FS is the encoded destination. Open returns the combined file.
+// The directory index is an [lewfs.Index]. The declarations themselves
+// are not a filesystem.
 type FS struct {
-	root *lewfs.PathNode[File]
+	idx  *lewfs.Index[File]
 	base iofs.FS
 }
 
@@ -28,47 +30,31 @@ func (tree *Tree) FS(base iofs.FS) (*FS, error) {
 	if tree == nil {
 		return nil, pathError("open", ".", iofs.ErrInvalid)
 	}
-	root := lewfs.NewPathDir[File](".")
+	filesystem := &FS{base: base}
+	filesystem.idx = lewfs.NewIndex(filesystem.info, filesystem.openFile)
 	for name, file := range tree.files {
 		stored := file
-		if err := root.Add(name, &stored, false); err != nil {
+		if err := filesystem.idx.Add(name, &stored, false, time.Time{}); err != nil {
 			return nil, err
 		}
 	}
-	return &FS{root: root, base: base}, nil
+	return filesystem, nil
 }
 
 // Open implements [io/fs.FS].
 func (filesystem *FS) Open(name string) (iofs.File, error) {
-	node, err := filesystem.lookup(name)
-	if err != nil {
-		return nil, err
+	if filesystem == nil || filesystem.idx == nil {
+		return nil, pathError("open", name, iofs.ErrInvalid)
 	}
-	if node.IsDir() {
-		return node.OpenDir(filesystem.info), nil
-	}
-	file := node.Payload()
-	if file == nil {
-		return nil, pathError("open", name, iofs.ErrNotExist)
-	}
-	body, err := Encode(*file, filesystem.base)
-	if err != nil {
-		return nil, pathError("open", name, err)
-	}
-	info := node.Info(int64(len(body)), presentedMode(file), time.Time{})
-	return &memFile{info: info, Reader: bytes.NewReader(body)}, nil
+	return filesystem.idx.Open(name)
 }
 
 // ReadDir implements [io/fs.ReadDirFS].
 func (filesystem *FS) ReadDir(name string) ([]iofs.DirEntry, error) {
-	node, err := filesystem.lookup(name)
-	if err != nil {
-		return nil, err
-	}
-	if !node.IsDir() {
+	if filesystem == nil || filesystem.idx == nil {
 		return nil, pathError("readdir", name, iofs.ErrInvalid)
 	}
-	return node.Entries(filesystem.info), nil
+	return filesystem.idx.ReadDir(name)
 }
 
 // ReadFile implements [io/fs.ReadFileFS].
@@ -124,14 +110,28 @@ func (filesystem *FS) Stat(name string) (iofs.FileInfo, error) {
 	return opened.Stat()
 }
 
-func (filesystem *FS) lookup(name string) (*lewfs.PathNode[File], error) {
-	if filesystem == nil || filesystem.root == nil {
-		return nil, pathError("open", name, iofs.ErrInvalid)
+func (filesystem *FS) openFile(node *lewfs.Node[File]) (iofs.File, error) {
+	name := node.Path()
+	file := node.Payload()
+	if file == nil {
+		return nil, pathError("open", name, iofs.ErrNotExist)
 	}
-	return filesystem.root.Lookup(name)
+	body, err := Encode(*file, filesystem.base)
+	if err != nil {
+		return nil, pathError("open", name, err)
+	}
+	info := node.Info(int64(len(body)), presentedMode(file), time.Time{})
+	return &memFile{info: info, Reader: bytes.NewReader(body)}, nil
 }
 
-func (filesystem *FS) info(node *lewfs.PathNode[File]) iofs.FileInfo {
+func (filesystem *FS) lookup(name string) (*lewfs.Node[File], error) {
+	if filesystem == nil || filesystem.idx == nil {
+		return nil, pathError("open", name, iofs.ErrInvalid)
+	}
+	return filesystem.idx.Lookup(name)
+}
+
+func (filesystem *FS) info(node *lewfs.Node[File]) iofs.FileInfo {
 	if node.IsDir() {
 		return node.Info(0, iofs.ModeDir|0o755, time.Time{})
 	}

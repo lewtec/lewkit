@@ -5,6 +5,8 @@ package wim
 import (
 	"io"
 	"io/fs"
+
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 // Open implements [fs.FS].
@@ -12,9 +14,16 @@ func (d *FS) Open(name string) (fs.File, error) {
 	if d.closed {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrClosed}
 	}
-	n, err := d.lookup(name)
+	n, err := d.lookup("open", name)
 	if err != nil {
 		return nil, err
+	}
+	if n.IsDir() {
+		ents, err := listEntries(n)
+		if err != nil {
+			return nil, err
+		}
+		return lewfs.DirFile(name, n.info(), ents), nil
 	}
 	return n.open()
 }
@@ -24,14 +33,14 @@ func (d *FS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if d.closed {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrClosed}
 	}
-	n, err := d.lookup(name)
+	n, err := d.lookup("readdir", name)
 	if err != nil {
 		return nil, err
 	}
 	if !n.IsDir() {
 		return nil, &fs.PathError{Op: "readdir", Path: name, Err: fs.ErrInvalid}
 	}
-	return n.readDir(), nil
+	return listEntries(n)
 }
 
 // ReadFile implements [fs.ReadFileFS].
@@ -39,7 +48,7 @@ func (d *FS) ReadFile(name string) ([]byte, error) {
 	if d.closed {
 		return nil, &fs.PathError{Op: "read", Path: name, Err: fs.ErrClosed}
 	}
-	n, err := d.lookup(name)
+	n, err := d.lookup("read", name)
 	if err != nil {
 		return nil, err
 	}
@@ -59,17 +68,18 @@ func (d *FS) Stat(name string) (fs.FileInfo, error) {
 	if d.closed {
 		return nil, &fs.PathError{Op: "stat", Path: name, Err: fs.ErrClosed}
 	}
-	n, err := d.lookup(name)
+	n, err := d.lookup("stat", name)
 	if err != nil {
 		return nil, err
 	}
 	return n.info(), nil
 }
 
-func (d *FS) lookup(name string) (*dnode, error) {
-	n, err := d.root.Lookup(name)
-	if err != nil {
-		return nil, err
+func (d *FS) lookup(op, name string) (entry, error) {
+	if d.root == nil {
+		return nil, &fs.PathError{Op: op, Path: name, Err: fs.ErrInvalid}
 	}
-	return &dnode{PathNode: n}, nil
+	return lewfs.Lookup(op, name, d.root, func(e entry) ([]entry, error) {
+		return e.children()
+	})
 }

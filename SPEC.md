@@ -359,3 +359,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-02: `x/future` is removed. It had no production caller.
 - 2026-10-02: `sqlite3`, `file`, and `postgresql` are not separate connectors. `splitURL` maps them onto `sqlite` and `postgres`.
 - 2026-10-02: `lewkit` launch extracts the first archive member through `x/fs/tar.ExtractFirst` and `x/fs/zip.ExtractFirst`.
+- 2026-10-03: `x/fs.Index` decorates a flat listing with directory lookup. A later file replaces an earlier one. A later directory keeps the newer ModTime. A file and a directory at the same name is `fs.ErrExist`. Tar and compose use it. UDF, WIM, zip, and squashfs walk the format's own directories and do not keep a second index. `x/fs.Lookup` is that walk.

@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"strings"
 	"testing"
+	"time"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
@@ -40,10 +41,10 @@ func TestInvalidVolume(t *testing.T) {
 
 func TestTree(t *testing.T) {
 	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("a/b.txt", nil, false))
-	require.NoError(t, root.add("a/c", nil, true))
-	require.NoError(t, root.add("z.txt", nil, false))
+	root := memDir(".",
+		memDir("a", memFileEnt("b.txt"), memDir("c")),
+		memFileEnt("z.txt"),
+	)
 	fsys := &FS{root: root}
 
 	ents, err := fsys.ReadDir(".")
@@ -78,14 +79,13 @@ func TestTree(t *testing.T) {
 	require.ErrorIs(t, err, fs.ErrInvalid)
 
 	f, err := fsys.Open("z.txt")
-	require.ErrorIs(t, err, fs.ErrInvalid)
-	assert.Nil(t, f)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
 }
 
 func TestPathReadDir(t *testing.T) {
 	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("sources/install.wim", nil, false))
+	root := memDir(".", memDir("sources", memFileEnt("install.wim")))
 	fsys := &FS{root: root}
 	ents, err := path.New("sources").ReadDir(fsys)
 	require.NoError(t, err)
@@ -93,27 +93,69 @@ func TestPathReadDir(t *testing.T) {
 	assert.Equal(t, "install.wim", ents[0].Name())
 }
 
-func TestDuplicateFile(t *testing.T) {
+func TestLookupFirstName(t *testing.T) {
 	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("a.txt", nil, false))
-	err := root.add("a.txt", nil, false)
-	require.ErrorIs(t, err, fs.ErrExist)
+	root := memDir(".", memFileEnt("a.txt"), memFileEnt("a.txt"))
+	root.kids[1].body = []byte("second")
+	fsys := &FS{root: root}
+	b, err := fsys.ReadFile("a.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "first", string(b))
 }
 
 func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("a.txt", nil, false))
-	fsys := &FS{root: root}
+	fsys := &FS{root: memDir(".", memFileEnt("a.txt"))}
 	err := path.New("a.txt").WriteFile(fsys, []byte("x"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
 }
 
-func TestAddDirTwice(t *testing.T) {
-	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("a", nil, true))
-	require.NoError(t, root.add("a", nil, true))
-	require.NoError(t, root.add("a/b.txt", nil, false))
+type mem struct {
+	name string
+	dir  bool
+	body []byte
+	kids []*mem
 }
+
+func memDir(name string, kids ...*mem) *mem {
+	return &mem{name: name, dir: true, kids: kids}
+}
+
+func memFileEnt(name string) *mem {
+	return &mem{name: name, body: []byte("first")}
+}
+
+func (m *mem) Name() string { return m.name }
+func (m *mem) IsDir() bool  { return m.dir }
+
+func (m *mem) info() fs.FileInfo {
+	mode := fs.FileMode(0o444)
+	if m.dir {
+		mode = fs.ModeDir | 0o555
+	}
+	return lewfs.FileInfo(m.name, int64(len(m.body)), mode, time.Time{})
+}
+
+func (m *mem) open() (fs.File, error) {
+	if m.dir {
+		return nil, &fs.PathError{Op: "open", Path: m.name, Err: fs.ErrInvalid}
+	}
+	return &memFile{info: m.info(), r: bytes.NewReader(m.body)}, nil
+}
+
+func (m *mem) children() ([]entry, error) {
+	out := make([]entry, len(m.kids))
+	for i, k := range m.kids {
+		out[i] = k
+	}
+	return out, nil
+}
+
+type memFile struct {
+	info fs.FileInfo
+	r    *bytes.Reader
+}
+
+func (f *memFile) Stat() (fs.FileInfo, error) { return f.info, nil }
+func (f *memFile) Read(p []byte) (int, error) { return f.r.Read(p) }
+func (f *memFile) Close() error               { return nil }

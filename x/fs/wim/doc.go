@@ -5,7 +5,7 @@
 // [Open] and [Images] take an [io.Reader]. The reader must also be an
 // [io.ReaderAt]. A missing [io.ReaderAt] returns
 // [github.com/lewtec/lewkit/x/fs.ErrNeedReadAt]. Neither call copies
-// or spools the file.
+// or spools the file. Open does not build a second directory index.
 //
 // Image is 1-based, same as DISM and the WIM XML index.
 //

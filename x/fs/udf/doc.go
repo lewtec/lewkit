@@ -2,7 +2,7 @@
 //
 // [Open] takes an [io.Reader]. The reader must also be an [io.ReaderAt].
 // A missing [io.ReaderAt] returns [github.com/lewtec/lewkit/x/fs.ErrNeedReadAt].
-// Open does not copy or spool the volume.
+// Open does not copy or spool the volume, and it does not build a second directory index.
 //
 //	vol, err := path.OpenFS(ctx, path.New("en-us.iso"), root, udf.Open)
 //	b, err := fs.ReadFile(vol, "sources/install.wim")
