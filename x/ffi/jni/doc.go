@@ -15,6 +15,10 @@
 // StaticField and Ref.Field read a public field. A primitive comes back as a
 // Go value. An object comes back as a *Ref.
 //
+// AsRef, Int, Text, Bool, and Float turn that result into one Go type.
+// Float widens float32. Context reads lewkit.Host's application context.
+// The caller releases that reference.
+//
 // Proxy builds one java.lang.reflect.Proxy for an interface. The callback runs
 // on the Java thread that invoked the method. *Ref arguments belong to the
 // callback. Release drops the proxy and the callback. Proxy uses lewkit.GoProxy

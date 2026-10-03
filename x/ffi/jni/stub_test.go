@@ -26,4 +26,6 @@ func TestStubIsUnavailable(t *testing.T) {
 	require.ErrorIs(t, err, ErrUnavailable)
 	_, err = Proxy("java.lang.Runnable", func(string, []any) (any, error) { return nil, nil })
 	require.ErrorIs(t, err, ErrUnavailable)
+	_, err = Context()
+	require.ErrorIs(t, err, ErrUnavailable)
 }

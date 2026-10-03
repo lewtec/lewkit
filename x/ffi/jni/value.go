@@ -1,23 +1,21 @@
-package android
+package jni
 
 import (
 	"errors"
 	"fmt"
-
-	"github.com/lewtec/lewkit/x/ffi/jni"
 )
 
 var errJavaValue = errors.New("java value")
 
-// Ref returns v as a Java reference. A null reference is a nil *jni.Ref.
-func Ref(v any, err error) (*jni.Ref, error) {
+// AsRef returns v as a Java reference. A null reference is a nil *Ref.
+func AsRef(v any, err error) (*Ref, error) {
 	if err != nil {
 		return nil, err
 	}
 	if v == nil {
 		return nil, nil
 	}
-	ref, ok := v.(*jni.Ref)
+	ref, ok := v.(*Ref)
 	if !ok || ref == nil {
 		return nil, fmt.Errorf("%w: %T", errJavaValue, v)
 	}

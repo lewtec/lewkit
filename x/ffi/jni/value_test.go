@@ -1,28 +1,27 @@
-package android
+package jni
 
 import (
 	"errors"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/ffi/jni"
 	"github.com/stretchr/testify/require"
 )
 
 var errBoom = errors.New("boom")
 
-func TestRef(t *testing.T) {
-	got, err := Ref(nil, nil)
+func TestAsRef(t *testing.T) {
+	got, err := AsRef(nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, got)
 
-	_, err = Ref(nil, errBoom)
+	_, err = AsRef(nil, errBoom)
 	require.EqualError(t, err, "boom")
 
-	_, err = Ref("nope", nil)
+	_, err = AsRef("nope", nil)
 	require.ErrorIs(t, err, errJavaValue)
 
-	ref := &jni.Ref{}
-	got, err = Ref(ref, nil)
+	ref := &Ref{}
+	got, err = AsRef(ref, nil)
 	require.NoError(t, err)
 	require.Same(t, ref, got)
 }

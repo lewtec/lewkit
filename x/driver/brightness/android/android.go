@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
-	host "github.com/lewtec/lewkit/x/driver/android"
 	"github.com/lewtec/lewkit/x/driver/brightness"
 	"github.com/lewtec/lewkit/x/ffi/jni"
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
@@ -96,7 +95,7 @@ func (h heldRefs) release() {
 
 func postBrightness(level float32, done chan<- error) (heldRefs, error) {
 	var held heldRefs
-	looper, err := host.Ref(jni.CallStatic("android.os.Looper", "getMainLooper"))
+	looper, err := jni.AsRef(jni.CallStatic("android.os.Looper", "getMainLooper"))
 	if err != nil {
 		return held, err
 	}
@@ -133,7 +132,7 @@ func postBrightness(level float32, done chan<- error) (heldRefs, error) {
 }
 
 func applyWindowBrightness(level float32) error {
-	fg, err := host.Ref(jni.StaticField("lewkit.Host", "foreground"))
+	fg, err := jni.AsRef(jni.StaticField("lewkit.Host", "foreground"))
 	if err != nil {
 		return err
 	}
@@ -141,7 +140,7 @@ func applyWindowBrightness(level float32) error {
 		return errNoWindow
 	}
 	defer fg.Release()
-	window, err := host.Ref(fg.Call("getWindow"))
+	window, err := jni.AsRef(fg.Call("getWindow"))
 	if err != nil {
 		return err
 	}
@@ -149,7 +148,7 @@ func applyWindowBrightness(level float32) error {
 		return errNoWindow
 	}
 	defer window.Release()
-	attrs, err := host.Ref(window.Call("getAttributes"))
+	attrs, err := jni.AsRef(window.Call("getAttributes"))
 	if err != nil {
 		return err
 	}
@@ -157,7 +156,7 @@ func applyWindowBrightness(level float32) error {
 		return errNoWindow
 	}
 	defer attrs.Release()
-	class, err := host.Ref(attrs.Call("getClass"))
+	class, err := jni.AsRef(attrs.Call("getClass"))
 	if err != nil {
 		return err
 	}
@@ -165,7 +164,7 @@ func applyWindowBrightness(level float32) error {
 		return errNoWindow
 	}
 	defer class.Release()
-	field, err := host.Ref(class.Call("getField", "screenBrightness"))
+	field, err := jni.AsRef(class.Call("getField", "screenBrightness"))
 	if err != nil {
 		return err
 	}
@@ -181,7 +180,7 @@ func applyWindowBrightness(level float32) error {
 }
 
 func currentBrightness() (float64, error) {
-	fg, err := host.Ref(jni.StaticField("lewkit.Host", "foreground"))
+	fg, err := jni.AsRef(jni.StaticField("lewkit.Host", "foreground"))
 	if err != nil {
 		return 0, err
 	}
@@ -196,17 +195,17 @@ func currentBrightness() (float64, error) {
 }
 
 func windowLevel(fg *jni.Ref) (float64, bool, error) {
-	window, err := host.Ref(fg.Call("getWindow"))
+	window, err := jni.AsRef(fg.Call("getWindow"))
 	if err != nil || window == nil {
 		return 0, false, err
 	}
 	defer window.Release()
-	attrs, err := host.Ref(window.Call("getAttributes"))
+	attrs, err := jni.AsRef(window.Call("getAttributes"))
 	if err != nil || attrs == nil {
 		return 0, false, err
 	}
 	defer attrs.Release()
-	level, err := host.Float(attrs.Field("screenBrightness"))
+	level, err := jni.Float(attrs.Field("screenBrightness"))
 	if err != nil {
 		return 0, false, err
 	}
@@ -217,12 +216,12 @@ func windowLevel(fg *jni.Ref) (float64, bool, error) {
 }
 
 func systemBrightness() (float64, error) {
-	app, err := host.Context()
+	app, err := jni.Context()
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("%w: %w", driver.ErrUnavailable, err)
 	}
 	defer app.Release()
-	resolver, err := host.Ref(app.Call("getContentResolver"))
+	resolver, err := jni.AsRef(app.Call("getContentResolver"))
 	if err != nil {
 		return 0, err
 	}
@@ -230,7 +229,7 @@ func systemBrightness() (float64, error) {
 		return 0, errNoBrightness
 	}
 	defer resolver.Release()
-	resources, err := host.Ref(app.Call("getResources"))
+	resources, err := jni.AsRef(app.Call("getResources"))
 	if err != nil {
 		return 0, err
 	}
@@ -249,11 +248,11 @@ func systemBrightness() (float64, error) {
 	if high == 0 {
 		low, high = 0, 255
 	}
-	key, err := host.Text(jni.StaticField("android.provider.Settings$System", "SCREEN_BRIGHTNESS"))
+	key, err := jni.Text(jni.StaticField("android.provider.Settings$System", "SCREEN_BRIGHTNESS"))
 	if err != nil {
 		return 0, err
 	}
-	raw, err := host.Int(jni.CallStatic("android.provider.Settings$System", "getInt", resolver, key, -1))
+	raw, err := jni.Int(jni.CallStatic("android.provider.Settings$System", "getInt", resolver, key, -1))
 	if err != nil {
 		return 0, err
 	}
@@ -264,9 +263,9 @@ func systemBrightness() (float64, error) {
 }
 
 func resourceInt(res *jni.Ref, name string) (int, error) {
-	id, err := host.Int(res.Call("getIdentifier", name, "integer", "android"))
+	id, err := jni.Int(res.Call("getIdentifier", name, "integer", "android"))
 	if err != nil || id == 0 {
 		return 0, err
 	}
-	return host.Int(res.Call("getInteger", id))
+	return jni.Int(res.Call("getInteger", id))
 }
