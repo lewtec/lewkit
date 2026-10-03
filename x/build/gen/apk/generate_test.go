@@ -135,8 +135,8 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if strings.Contains(string(hostJava), "dataDir") || strings.Contains(string(hostJava), "cacheDir") || strings.Contains(string(hostJava), "configDir") {
 		t.Fatalf("host still owns directory methods:\n%s", hostJava)
 	}
-	if strings.Contains(string(hostJava), `cb.call("")`) {
-		t.Fatal("surface open still dismisses the splash through the page callback")
+	if !strings.Contains(string(hostJava), `cb.call("")`) {
+		t.Fatal("surface open does not leave the splash")
 	}
 	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -261,45 +261,6 @@ func TestCreate_FirstPageReplacesSplash(t *testing.T) {
 	}
 	if !strings.Contains(body, "canGoBack()") || !strings.Contains(body, "OnBackInvokedDispatcher") {
 		t.Fatal("back leaves the page without walking its history")
-	}
-}
-
-func TestCreate_SurfaceLauncher(t *testing.T) {
-	out := t.TempDir()
-	err := Create(Options{
-		OutDir: out,
-		Config: Config{
-			PackageID: "br.tec.lew.welcome",
-			AppName:   "Welcome",
-			UI:        "surface",
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	manifest, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(manifest)
-	surfaceAt := strings.Index(text, `android:name="lewkit.SurfaceActivity"`)
-	launchAt := strings.Index(text, "LAUNCHER")
-	if surfaceAt < 0 || launchAt < surfaceAt {
-		t.Fatalf("surface launcher:\n%s", text)
-	}
-	mainAt := strings.Index(text, `android:name=".MainActivity"`)
-	if mainAt < 0 || mainAt > surfaceAt {
-		t.Fatalf("main activity:\n%s", text)
-	}
-	exported := text[mainAt:surfaceAt]
-	if !strings.Contains(exported, `android:exported="false"`) {
-		t.Fatalf("web splash is still the launcher:\n%s", exported)
-	}
-	if err := Create(Options{
-		OutDir: t.TempDir(),
-		Config: Config{PackageID: "br.tec.lew.welcome", AppName: "Welcome", UI: "desktop"},
-	}); err == nil {
-		t.Fatal("expected ui error")
 	}
 }
 

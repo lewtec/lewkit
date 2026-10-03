@@ -45,7 +45,6 @@ type fileConfig struct {
 	Icon          string          `json:"icon,omitempty"`
 	Generator     string          `json:"generator,omitempty"`
 	ABIs          []string        `json:"abis,omitempty"`
-	UI            string          `json:"ui,omitempty"`
 	Capabilities  json.RawMessage `json:"capabilities,omitempty"`
 }
 
@@ -84,7 +83,6 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 		GoMain:      doc.GoMain,
 		Icon:        doc.Icon,
 		ABIs:        doc.ABIs,
-		UI:          doc.UI,
 	}
 	caps, err := common.ParseCapabilities(doc.Capabilities)
 	if err != nil {
@@ -117,9 +115,6 @@ func Merge(base, overlay Config) Config {
 	}
 	if len(overlay.ABIs) > 0 {
 		out.ABIs = append([]string(nil), overlay.ABIs...)
-	}
-	if strings.TrimSpace(overlay.UI) != "" {
-		out.UI = overlay.UI
 	}
 	if !overlay.Capabilities.Empty() {
 		out.Capabilities = overlay.Capabilities
@@ -174,7 +169,6 @@ func encodeConfigJSON(cfg Config, generator string) ([]byte, error) {
 		Icon:          cfg.Icon,
 		Generator:     generator,
 		ABIs:          abis,
-		UI:            cfg.UI,
 	}
 	if !cfg.Capabilities.Empty() {
 		rawCaps, err := json.Marshal(cfg.Capabilities)

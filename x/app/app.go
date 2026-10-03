@@ -2,7 +2,8 @@
 // a GUI model, and it may open another window. Run returns when the last
 // window closes. A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI
 // serves a web handler on a loopback port instead of opening that first window.
-// An Android GUI window still opens the surface, and that open closes the splash.
+// The handler decides the Android window: a GUI model opens the surface and
+// leaves the splash, and a web handler publishes a loopback URL.
 package app
 
 import (
@@ -79,6 +80,9 @@ func (a App) open(ctx context.Context, id string) error {
 	win := a.Handler
 	if win == nil {
 		win = Web(nil)
+	}
+	if _, ok := win.(guiWindow); ok {
+		entry.ShowSurface()
 	}
 	if a.NoUI || envOn("LEWKIT_NO_UI") || envOn("ELETROCROMO_NO_UI") {
 		next, err := loopbackWindow(win, runtime.GOOS == "android")

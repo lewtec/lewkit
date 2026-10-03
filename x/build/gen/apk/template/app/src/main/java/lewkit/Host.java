@@ -15,6 +15,7 @@ public final class Host {
     public static volatile Fail onFail;
     public static volatile Activity foreground;
     private static boolean booted;
+    private static boolean surfaceOpening;
 
     public interface Ready {
         void call(String url);
@@ -62,18 +63,26 @@ public final class Host {
     public static void openSurface() {
         new Handler(Looper.getMainLooper()).post(() -> {
             Activity fg = foreground;
-            if (fg instanceof SurfaceActivity) {
+            if (fg instanceof SurfaceActivity || surfaceOpening) {
                 return;
             }
             Context ctx = fg != null ? fg : app;
             if (ctx == null) {
                 return;
             }
+            surfaceOpening = true;
             Intent intent = new Intent(ctx, SurfaceActivity.class);
             if (fg == null) {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             }
             ctx.startActivity(intent);
+            // The Go app asked for a surface. Leave the splash; do not open a page.
+            Ready cb = onReady;
+            if (cb != null) {
+                onReady = null;
+                onFail = null;
+                cb.call("");
+            }
         });
     }
 

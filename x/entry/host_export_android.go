@@ -35,6 +35,13 @@ type surfaceBox struct {
 
 var surfaceCh = make(chan surfaceBox, 1)
 
+// ShowSurface tells the host the Go app is a native window, not a page.
+func ShowSurface() {
+	if _, err := jni.CallStatic("lewkit.Host", "openSurface"); err != nil {
+		slog.Error("android surface", "err", err)
+	}
+}
+
 // RequestSurface asks the Android host for a native window and waits for it.
 // The size is the surface the activity reported, which is the GUI window size.
 func RequestSurface(ctx context.Context) (uintptr, int, int, error) {

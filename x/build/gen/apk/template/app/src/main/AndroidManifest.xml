@@ -17,28 +17,19 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="{{if .Surface}}false{{else}}true{{end}}"
+            android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:launchMode="singleTask">
-            {{if not .Surface}}
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            {{end}}{{.IntentFiltersXML}}
+            </intent-filter>{{.IntentFiltersXML}}
         </activity>
 
         <activity
             android:name="lewkit.SurfaceActivity"
-            android:exported="{{if .Surface}}true{{else}}false{{end}}"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode">
-            {{if .Surface}}
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            {{end}}
-        </activity>
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
 
         <activity
             android:name="lewkit.FileChooser"
