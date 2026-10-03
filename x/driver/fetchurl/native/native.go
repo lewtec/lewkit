@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	sdk "github.com/fetchurl/fetchurl"
@@ -57,7 +60,11 @@ func (downloader downloader) Fetch(ctx context.Context, options fetchurl.FetchOp
 	if options.ConfigureRequest != nil {
 		ctx = context.WithValue(ctx, configureKey{}, options.ConfigureRequest)
 	}
-	err := downloader.fetcher.Fetch(ctx, sdk.FetchOptions{
+	fetcher := downloader.fetcher
+	if next, skipped := withoutUnresolvableServers(ctx, fetcher); len(skipped) > 0 {
+		fetcher = next
+	}
+	err := fetcher.Fetch(ctx, sdk.FetchOptions{
 		Algo: options.Algo,
 		Hash: options.Hash,
 		URLs: options.URLs,
@@ -74,6 +81,57 @@ func (downloader downloader) Fetch(ctx context.Context, options fetchurl.FetchOp
 		}, err)
 	}
 	return err
+}
+
+// withoutUnresolvableServers drops servers whose host does not resolve.
+// A failed dial is a taskgroup error and cancels the session, so the source
+// URLs would not be tried. The lookup miss is logged and the caller carries on.
+func withoutUnresolvableServers(ctx context.Context, fetcher *sdk.Fetcher) (*sdk.Fetcher, []string) {
+	if fetcher == nil || len(fetcher.Servers) == 0 || ctx.Err() != nil {
+		return fetcher, nil
+	}
+	kept := make([]string, 0, len(fetcher.Servers))
+	var skipped []string
+	var miss error
+	for _, server := range fetcher.Servers {
+		err := resolutionMiss(ctx, server)
+		if err != nil {
+			skipped = append(skipped, server)
+			miss = err
+			continue
+		}
+		kept = append(kept, server)
+	}
+	if len(skipped) == 0 {
+		return fetcher, nil
+	}
+	slog.WarnContext(ctx, "fetchurl server host did not resolve", "server", skipped, "error", miss)
+	copied := *fetcher
+	copied.Servers = kept
+	return &copied, skipped
+}
+
+func resolutionMiss(ctx context.Context, server string) error {
+	if ctx.Err() != nil {
+		return nil
+	}
+	parsed, err := url.Parse(server)
+	if err != nil {
+		return nil
+	}
+	host := parsed.Hostname()
+	if host == "" || net.ParseIP(host) != nil {
+		return nil
+	}
+	_, err = net.DefaultResolver.LookupHost(ctx, host)
+	if err == nil || ctx.Err() != nil {
+		return nil
+	}
+	var dnsErr *net.DNSError
+	if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
+		return err
+	}
+	return nil
 }
 
 type hookTransport struct {

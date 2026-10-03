@@ -71,6 +71,22 @@ func TestFetchContinuesWhenServerDoesNotResolve(t *testing.T) {
 	require.NoError(t, session.Wait())
 }
 
+func TestFetchSourceMissFailsTheSession(t *testing.T) {
+	t.Setenv("FETCHURL_SERVER", "")
+	session, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	fetcher, err := factory{}.New(ctx)
+	require.NoError(t, err)
+	sum := sha256.Sum256([]byte("hello"))
+	err = fetcher.Fetch(ctx, fetchurl.FetchOptions{
+		URLs: []string{"http://fetchurl.invalid/file"},
+		Algo: "sha256",
+		Hash: hex.EncodeToString(sum[:]),
+		Out:  &bytes.Buffer{},
+	})
+	require.ErrorContains(t, err, "no such host")
+	require.Error(t, session.Wait())
+}
+
 func TestFetchRunsConfigureRequest(t *testing.T) {
 	t.Setenv("FETCHURL_SERVER", "")
 	body := []byte("hello")
