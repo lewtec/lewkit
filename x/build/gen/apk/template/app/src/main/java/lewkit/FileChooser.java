@@ -1,7 +1,6 @@
 package lewkit;
 
 import android.app.Activity;
-import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Intent;
 import android.net.Uri;
@@ -115,7 +114,8 @@ public final class FileChooser {
         try {
             activity.startActivityForResult(
                     pickerIntent(title, directory, name, extensions, multiple, folder, save), REQUEST);
-        } catch (ActivityNotFoundException | RuntimeException ex) {
+        } catch (RuntimeException ex) {
+            // Includes ActivityNotFoundException. Those two cannot share a multi-catch.
             deliver("no picker", "");
         }
     }
