@@ -228,14 +228,14 @@ func filesDocument(v filesView) templ.Component {
 					}
 				}
 				if entry.Media == "image" {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<img class=\"list-col-wrap max-h-80 w-full object-contain\" src=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<img class=\"list-col-wrap max-h-48 max-w-full object-contain\" src=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.URL(entry.Src))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `page.templ`, Line: 49, Col: 93}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `page.templ`, Line: 49, Col: 97}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 					if templ_7745c5c3_Err != nil {

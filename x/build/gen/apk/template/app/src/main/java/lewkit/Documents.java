@@ -3,17 +3,25 @@ package lewkit;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Point;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
+import android.util.Log;
 
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Reads documents the picker granted.
  * info and list return a catalog. readFd detaches a read-only descriptor.
+ * thumbFd detaches a JPEG preview, not the original file.
  * A catalog line is name, size, dir, uri separated by tabs.
  * name and uri escape backslash, newline, carriage return, and tab.
  */
@@ -59,6 +67,23 @@ public final class Documents {
         int fd = pfd.detachFd();
         pfd.close();
         return fd;
+    }
+
+    public static int thumbFd(String uri) throws IOException {
+        if (uri == null || uri.isEmpty()) {
+            throw new IOException("no uri");
+        }
+        ContentResolver resolver = resolver();
+        Bitmap bitmap = loadThumb(resolver, Uri.parse(uri));
+        if (bitmap == null) {
+            throw new IOException("no thumbnail");
+        }
+        bitmap = fit(bitmap, THUMB);
+        try {
+            return pipeJpeg(bitmap);
+        } finally {
+            bitmap.recycle();
+        }
     }
 
     private static Resolved resolve(String raw) throws IOException {
@@ -151,6 +176,136 @@ public final class Documents {
             return out;
         } finally {
             cursor.close();
+        }
+    }
+
+    private static final int THUMB = 384;
+
+    private static Bitmap loadThumb(ContentResolver resolver, Uri uri) throws IOException {
+        Bitmap bitmap = null;
+        FileNotFoundException missed = null;
+        try {
+            bitmap = DocumentsContract.getDocumentThumbnail(resolver, uri, new Point(THUMB, THUMB), null);
+        } catch (FileNotFoundException ex) {
+            missed = ex;
+        } catch (RuntimeException ex) {
+            throw io(ex);
+        }
+        if (bitmap != null) {
+            return bitmap;
+        }
+        bitmap = sample(resolver, uri, THUMB);
+        if (bitmap == null && missed != null) {
+            throw new IOException(missed.getMessage(), missed);
+        }
+        return bitmap;
+    }
+
+    private static Bitmap sample(ContentResolver resolver, Uri uri, int max) throws IOException {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        if (!decode(resolver, uri, bounds)) {
+            return null;
+        }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+            return null;
+        }
+        int sampleSize = 1;
+        while (bounds.outWidth / sampleSize > max || bounds.outHeight / sampleSize > max) {
+            int next = sampleSize * 2;
+            if (next <= sampleSize) {
+                break;
+            }
+            sampleSize = next;
+        }
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inSampleSize = sampleSize;
+        return decodeBitmap(resolver, uri, opts);
+    }
+
+    private static boolean decode(ContentResolver resolver, Uri uri, BitmapFactory.Options opts) throws IOException {
+        ParcelFileDescriptor pfd = openRead(resolver, uri);
+        if (pfd == null) {
+            return false;
+        }
+        try {
+            BitmapFactory.decodeFileDescriptor(pfd.getFileDescriptor(), null, opts);
+            return true;
+        } finally {
+            pfd.close();
+        }
+    }
+
+    private static Bitmap decodeBitmap(ContentResolver resolver, Uri uri, BitmapFactory.Options opts) throws IOException {
+        ParcelFileDescriptor pfd = openRead(resolver, uri);
+        if (pfd == null) {
+            return null;
+        }
+        try {
+            return BitmapFactory.decodeFileDescriptor(pfd.getFileDescriptor(), null, opts);
+        } finally {
+            pfd.close();
+        }
+    }
+
+    private static ParcelFileDescriptor openRead(ContentResolver resolver, Uri uri) throws IOException {
+        try {
+            return resolver.openFileDescriptor(uri, "r");
+        } catch (RuntimeException ex) {
+            throw io(ex);
+        }
+    }
+
+    private static Bitmap fit(Bitmap bitmap, int max) {
+        int w = bitmap.getWidth();
+        int h = bitmap.getHeight();
+        if (w <= max && h <= max) {
+            return bitmap;
+        }
+        float scale = Math.min(max / (float) w, max / (float) h);
+        int nw = Math.max(1, Math.round(w * scale));
+        int nh = Math.max(1, Math.round(h * scale));
+        Bitmap fitted = Bitmap.createScaledBitmap(bitmap, nw, nh, true);
+        if (fitted != bitmap) {
+            bitmap.recycle();
+        }
+        return fitted;
+    }
+
+    private static int pipeJpeg(Bitmap bitmap) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 80, bytes)) {
+            throw new IOException("thumbnail");
+        }
+        byte[] data = bytes.toByteArray();
+        ParcelFileDescriptor[] pipe;
+        try {
+            pipe = ParcelFileDescriptor.createPipe();
+        } catch (RuntimeException ex) {
+            throw io(ex);
+        }
+        int fd = pipe[0].detachFd();
+        final ParcelFileDescriptor write = pipe[1];
+        Thread writer = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                writeJpeg(write, data);
+            }
+        });
+        writer.setDaemon(true);
+        writer.start();
+        return fd;
+    }
+
+    private static void writeJpeg(ParcelFileDescriptor write, byte[] data) {
+        try (OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(write)) {
+            out.write(data);
+        } catch (IOException ex) {
+            String message = ex.getMessage();
+            if (message == null || message.isEmpty()) {
+                message = "thumbnail";
+            }
+            Log.w("lewkit", message);
         }
     }
 

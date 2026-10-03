@@ -46,7 +46,7 @@ templ filesDocument(v filesView) {
 									<span class="text-sm opacity-70">{ entry.Size }</span>
 								}
 								if entry.Media == "image" {
-									<img class="list-col-wrap max-h-80 w-full object-contain" src={ templ.URL(entry.Src) } alt=""/>
+									<img class="list-col-wrap max-h-48 max-w-full object-contain" src={ templ.URL(entry.Src) } alt=""/>
 								} else if entry.Media == "text" {
 									<pre class="list-col-wrap max-h-80 overflow-auto whitespace-pre-wrap break-all text-sm">{ entry.Text }</pre>
 								} else if entry.Media == "audio" {

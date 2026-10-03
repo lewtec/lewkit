@@ -105,7 +105,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(docs), "int readFd") {
+	if !strings.Contains(string(docs), "int readFd") || !strings.Contains(string(docs), "int thumbFd") {
 		t.Fatal("document reader")
 	}
 

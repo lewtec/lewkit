@@ -59,6 +59,7 @@ func newFiles(ctx context.Context, choose chooseFunc, open openFunc) http.Handle
 	mux.HandleFunc("POST /{$}", page.post)
 	mux.HandleFunc("GET /{$}", page.get)
 	mux.HandleFunc("GET /file", page.file)
+	mux.HandleFunc("GET /thumb", page.thumb)
 	return asset.Mount(mux)
 }
 
@@ -139,6 +140,26 @@ func (p *filesPage) get(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := filesDocument(p.view(r.URL.Query().Get("path"))).Render(r.Context(), w); err != nil {
 		slog.Error("files template", "err", err)
+	}
+}
+
+func (p *filesPage) thumb(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("path")
+	fsys := p.current()
+	preview, ok := fsys.(interface{ Preview(string) (fs.File, error) })
+	if fsys == nil || name == "" || !ok {
+		p.file(w, r)
+		return
+	}
+	f, err := preview.Preview(name)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	w.Header().Set("Content-Type", "image/jpeg")
+	if _, err := io.Copy(w, f); err != nil {
+		slog.Error("files thumb", "err", err)
 	}
 }
 
@@ -240,8 +261,11 @@ type shownFile struct {
 }
 
 func showFile(fsys fs.FS, full string) (shownFile, error) {
-	src := "/file?" + url.Values{"path": {full}}.Encode()
 	kind := mediaKind(full)
+	src := "/file?" + url.Values{"path": {full}}.Encode()
+	if kind == "image" {
+		src = "/thumb?" + url.Values{"path": {full}}.Encode()
+	}
 	switch kind {
 	case "image", "audio", "video":
 		return shownFile{Media: kind, Src: src}, nil
@@ -291,17 +315,21 @@ func formatSize(n int64) string {
 	if n < 0 {
 		n = 0
 	}
-	if n < 1024 {
-		return strconv.FormatInt(n, 10) + " B"
-	}
-	units := []string{"KB", "MB", "GB", "TB"}
+	units := []string{"B", "KB", "MB", "GB", "TB"}
 	value := float64(n)
 	i := 0
 	for value >= 1024 && i < len(units)-1 {
 		value /= 1024
 		i++
 	}
-	return strconv.FormatFloat(value, 'f', 1, 64) + " " + units[i]
+	if i == 0 {
+		return strconv.FormatInt(n, 10) + " B"
+	}
+	digits := 0
+	if value < 10 {
+		digits = 1
+	}
+	return strconv.FormatFloat(value, 'f', digits, 64) + " " + units[i]
 }
 
 func requestOf(op, name string) (filedialog.Request, bool) {

@@ -95,7 +95,8 @@ func TestFolderListsNames(t *testing.T) {
 	body = httpPage.textAt("/?path=pics")
 	require.Contains(t, body, "a.jpg")
 	require.Contains(t, body, "<img")
-	require.Contains(t, body, "/file?path="+url.QueryEscape("pics/a.jpg"))
+	require.Contains(t, body, "/thumb?path="+url.QueryEscape("pics/a.jpg"))
+	require.Equal(t, "jpg", httpPage.textAt("/thumb?path="+url.QueryEscape("pics/a.jpg")))
 	require.Contains(t, body, "Up")
 	require.Equal(t, "hello", httpPage.textAt("/file?path=readme.txt"))
 	require.Equal(t, "jpg", httpPage.textAt("/file?path="+url.QueryEscape("pics/a.jpg")))
@@ -104,6 +105,13 @@ func TestFolderListsNames(t *testing.T) {
 	require.Contains(t, miss, "open ..")
 	require.NotContains(t, miss, "readme.txt")
 	require.Contains(t, miss, "Open files")
+}
+
+func TestFormatSize(t *testing.T) {
+	require.Equal(t, "5 B", formatSize(5))
+	require.Equal(t, "1.5 KB", formatSize(1536))
+	require.Equal(t, "26 KB", formatSize(26*1024))
+	require.Equal(t, "26 MB", formatSize(26*1024*1024))
 }
 
 func TestTextShowsEscaped(t *testing.T) {

@@ -1,6 +1,7 @@
 package android
 
 import (
+	"io"
 	"io/fs"
 	"strconv"
 	"strings"
@@ -49,6 +50,29 @@ func TestDocumentTree(t *testing.T) {
 	_, err = fs.ReadDir(fsys, "pics")
 	require.NoError(t, err)
 	require.Equal(t, n, docs.lists)
+}
+
+func TestPreviewIsNotTheFile(t *testing.T) {
+	t.Parallel()
+	const photo = "content://photo"
+	docs := &thumbDocs{
+		memDocs: memDocs{
+			info: map[string]Doc{photo: {Name: "a.jpg", Size: 26 << 20, URI: photo}},
+			body: map[string]string{photo: "original"},
+		},
+		thumb: "small",
+	}
+	fsys, err := FS([]string{photo}, docs)
+	require.NoError(t, err)
+	body, err := fs.ReadFile(fsys, "a.jpg")
+	require.NoError(t, err)
+	require.Equal(t, "original", string(body))
+	prev, err := fsys.(interface{ Preview(string) (fs.File, error) }).Preview("a.jpg")
+	require.NoError(t, err)
+	defer prev.Close()
+	got, err := io.ReadAll(prev)
+	require.NoError(t, err)
+	require.Equal(t, "small", string(got))
 }
 
 func TestDocumentFile(t *testing.T) {
@@ -224,6 +248,18 @@ func (m *memDocs) Open(uri string) (fs.File, error) {
 		return nil, fs.ErrNotExist
 	}
 	return memFile{r: strings.NewReader(body)}, nil
+}
+
+type thumbDocs struct {
+	memDocs
+	thumb string
+}
+
+func (d *thumbDocs) Thumb(uri string) (fs.File, error) {
+	if uri == "" {
+		return nil, fs.ErrNotExist
+	}
+	return memFile{r: strings.NewReader(d.thumb)}, nil
 }
 
 type memFile struct{ r *strings.Reader }

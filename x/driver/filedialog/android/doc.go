@@ -86,67 +86,91 @@ type docFS struct {
 }
 
 func (f *docFS) Open(name string) (fs.File, error) {
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	doc, err := f.lookup(name)
+	if err != nil {
+		return nil, err
 	}
-	if f.root != "" {
-		return f.walk(f.root, name, name)
+	if name == "." && f.root == "" {
+		return newDir(".", f.tops), nil
+	}
+	file, err := f.openDoc(doc)
+	if err != nil {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
+	}
+	return file, nil
+}
+
+// Preview is a small picture of a file. It is not the original bytes.
+func (f *docFS) Preview(name string) (fs.File, error) {
+	doc, err := f.lookup(name)
+	if err != nil {
+		return nil, err
+	}
+	thumbs, ok := f.docs.(thumbnailer)
+	if !ok || doc.Dir || doc.URI == "" {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+	}
+	file, err := thumbs.Thumb(doc.URI)
+	if err != nil {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: err}
+	}
+	return file, nil
+}
+
+type thumbnailer interface {
+	Thumb(uri string) (fs.File, error)
+}
+
+func (f *docFS) lookup(name string) (Doc, error) {
+	if !fs.ValidPath(name) {
+		return Doc{}, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
 	if name == "." {
-		return newDir(".", f.tops), nil
+		if f.root != "" {
+			return Doc{Name: ".", Dir: true, URI: f.root}, nil
+		}
+		return Doc{Name: ".", Dir: true}, nil
+	}
+	if f.root != "" {
+		return f.find(f.root, name, name)
 	}
 	head, rest, more := strings.Cut(name, "/")
 	doc, ok := findDoc(f.tops, head)
 	if !ok {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+		return Doc{}, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
 	if !more {
-		file, err := f.openDoc(doc)
-		if err != nil {
-			return nil, &fs.PathError{Op: "open", Path: name, Err: err}
-		}
-		return file, nil
+		return doc, nil
 	}
 	if !doc.Dir {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
+		return Doc{}, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 	}
-	return f.walk(doc.URI, rest, name)
+	return f.find(doc.URI, rest, name)
 }
 
-func (f *docFS) walk(dirURI, rel, full string) (fs.File, error) {
-	if rel == "." {
-		kids, err := f.children(dirURI)
-		if err != nil {
-			return nil, &fs.PathError{Op: "open", Path: full, Err: err}
-		}
-		return newDir(".", kids), nil
-	}
+func (f *docFS) find(dirURI, rel, full string) (Doc, error) {
 	cur := dirURI
 	parts := strings.Split(rel, "/")
 	var doc Doc
 	for i, part := range parts {
 		kids, err := f.children(cur)
 		if err != nil {
-			return nil, &fs.PathError{Op: "open", Path: full, Err: err}
+			return Doc{}, &fs.PathError{Op: "open", Path: full, Err: err}
 		}
 		var ok bool
 		doc, ok = findDoc(kids, part)
 		if !ok {
-			return nil, &fs.PathError{Op: "open", Path: full, Err: fs.ErrNotExist}
+			return Doc{}, &fs.PathError{Op: "open", Path: full, Err: fs.ErrNotExist}
 		}
 		if i == len(parts)-1 {
-			file, err := f.openDoc(doc)
-			if err != nil {
-				return nil, &fs.PathError{Op: "open", Path: full, Err: err}
-			}
-			return file, nil
+			return doc, nil
 		}
 		if !doc.Dir {
-			return nil, &fs.PathError{Op: "open", Path: full, Err: fs.ErrNotExist}
+			return Doc{}, &fs.PathError{Op: "open", Path: full, Err: fs.ErrNotExist}
 		}
 		cur = doc.URI
 	}
-	return nil, &fs.PathError{Op: "open", Path: full, Err: fs.ErrNotExist}
+	return Doc{}, &fs.PathError{Op: "open", Path: full, Err: fs.ErrNotExist}
 }
 
 func (f *docFS) openDoc(d Doc) (fs.File, error) {

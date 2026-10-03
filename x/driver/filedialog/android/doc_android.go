@@ -42,7 +42,15 @@ func (jniDocuments) List(uri string) ([]Doc, error) {
 }
 
 func (jniDocuments) Open(uri string) (fs.File, error) {
-	fd, err := jni.Int(jni.CallStatic("lewkit.Documents", "readFd", uri))
+	return detach("readFd", uri)
+}
+
+func (jniDocuments) Thumb(uri string) (fs.File, error) {
+	return detach("thumbFd", uri)
+}
+
+func detach(method, uri string) (fs.File, error) {
+	fd, err := jni.Int(jni.CallStatic("lewkit.Documents", method, uri))
 	if err != nil {
 		return nil, err
 	}
