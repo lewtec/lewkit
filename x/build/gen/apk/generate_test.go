@@ -32,6 +32,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/src/main/AndroidManifest.xml",
 		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
 		"app/src/main/java/lewkit/FileChooser.java",
+		"app/src/main/java/lewkit/HostActivity.java",
 		"app/src/main/java/lewkit/Documents.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
@@ -73,8 +74,8 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.HasPrefix(string(mainJava), "package br.tec.lew.counter;\n") {
 		t.Fatalf("java package mismatch:\n%s", mainJava[:80])
 	}
-	if !strings.Contains(string(mainJava), "Host.noteForeground(this, true)") {
-		t.Fatal("splash activity does not record the foreground window")
+	if !strings.Contains(string(mainJava), "extends HostActivity") {
+		t.Fatal("splash activity does not share the window base")
 	}
 	if !strings.Contains(string(mainJava), "R.id.splash") {
 		t.Fatal("launcher has no splash")
@@ -99,8 +100,8 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(surface), "Host.noteForeground(this, true)") {
-		t.Fatal("surface activity does not record the foreground window")
+	if !strings.Contains(string(surface), "extends HostActivity") {
+		t.Fatal("surface activity does not share the window base")
 	}
 	if !strings.Contains(string(surface), "Host.boot(this)") {
 		t.Fatal("surface activity does not start the app")
@@ -150,15 +151,23 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT_TREE") || !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT") || !strings.Contains(chooserJava, "ACTION_CREATE_DOCUMENT") {
 		t.Fatal("file chooser lost the file, folder, and save pickers")
 	}
+	hostAct, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/HostActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostActJava := string(hostAct)
+	if !strings.Contains(hostActJava, "Host.noteForeground(this, true)") || !strings.Contains(hostActJava, "FileChooser.onResult") || !strings.Contains(hostActJava, "FileChooser.hostGone") {
+		t.Fatal("window base does not track the foreground activity or the picker result")
+	}
 	pageJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(pageJava), "FileChooser.onResult") || !strings.Contains(string(pageJava), "wv.onResume()") {
-		t.Fatal("page does not take the picker result or resume its web view")
+	if !strings.Contains(string(pageJava), "extends HostActivity") || !strings.Contains(string(pageJava), "wv.onResume()") {
+		t.Fatal("page does not share the window base or resume its web view")
 	}
-	if !strings.Contains(string(surface), "FileChooser.onResult") || !strings.Contains(string(mainJava), "FileChooser.onResult") {
-		t.Fatal("window does not take the picker result")
+	if strings.Contains(string(mainJava), "onActivityResult") || strings.Contains(string(pageJava), "onActivityResult") || strings.Contains(string(surface), "onActivityResult") {
+		t.Fatal("picker result is copied onto each window")
 	}
 	docs, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Documents.java"))
 	if err != nil {
