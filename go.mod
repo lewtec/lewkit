@@ -15,7 +15,7 @@ require (
 	github.com/dave/jennifer v1.7.1
 	github.com/diskfs/go-diskfs v1.9.4
 	github.com/ebitengine/purego v0.11.0
-	github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b
+	github.com/fetchurl/fetchurl v0.0.0-20260824103541-49881a25d469
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
