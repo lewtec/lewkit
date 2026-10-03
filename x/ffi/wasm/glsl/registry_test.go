@@ -46,6 +46,16 @@ func TestCompileStageUsesRegistry(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
+func TestRegisterHashKeepsSlice(t *testing.T) {
+	src := []byte("registry-keeps-slice")
+	spirv := sampleSPIRV(0x41)
+	require.NoError(t, RegisterHash(StageCompute, Hash(StageCompute, src), spirv))
+	spirv[4] = 0x42
+	got, ok := Lookup(StageCompute, src)
+	require.True(t, ok)
+	require.Equal(t, byte(0x42), got[4])
+}
+
 func TestMustRegisterHashPanics(t *testing.T) {
 	require.Panics(t, func() {
 		MustRegisterHash(StageVertex, Hash(StageVertex, []byte("bad")), []byte{1, 2, 3, 4})

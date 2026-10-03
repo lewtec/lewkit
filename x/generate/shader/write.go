@@ -31,13 +31,11 @@ func writePackage(ctx context.Context, dir string, files []shaderFile) error {
 	}
 	type compiled struct {
 		rel   string
-		ident string
 		stage glsl.Stage
 		hash  [32]byte
 		spirv []byte
 	}
 	out := make([]compiled, 0, len(files))
-	used := map[string]int{}
 	for _, file := range files {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -50,10 +48,8 @@ func writePackage(ctx context.Context, dir string, files []shaderFile) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", file.rel, err)
 		}
-		name := uniqueIdent(ident(file.rel), used)
 		out = append(out, compiled{
 			rel:   file.rel,
-			ident: name,
 			stage: file.stage,
 			hash:  glsl.Hash(file.stage, src),
 			spirv: spirv,
@@ -62,22 +58,16 @@ func writePackage(ctx context.Context, dir string, files []shaderFile) error {
 	f := jen.NewFile(pkg)
 	f.HeaderComment(generatedBy)
 	f.ImportName(glslPath, "glsl")
-	regs := make([]jen.Code, 0, len(out))
-	for _, file := range out {
-		regs = append(regs, jen.Qual(glslPath, "MustRegisterHash").Call(
-			stageCode(file.stage),
-			jen.Id(file.ident+"Hash"),
-			jen.Id(file.ident+"SPIRV"),
-		))
-	}
-	f.Func().Id("init").Params().Block(regs...)
-	for _, file := range out {
-		f.Line()
-		f.Comment(file.rel)
-		f.Var().Id(file.ident + "Hash").Op("=").Index(jen.Lit(32)).Byte().Add(hexValues(file.hash[:]))
-		f.Line()
-		f.Var().Id(file.ident + "SPIRV").Op("=").Index().Byte().Add(hexValues(file.spirv))
-	}
+	f.Func().Id("init").Params().BlockFunc(func(g *jen.Group) {
+		for _, file := range out {
+			g.Comment(file.rel)
+			g.Qual(glslPath, "MustRegisterHash").Call(
+				stageCode(file.stage),
+				jen.Index(jen.Lit(32)).Byte().Add(hexValues(file.hash[:])),
+				jen.Index().Byte().Add(hexValues(file.spirv)),
+			)
+		}
+	})
 	var body bytes.Buffer
 	if err := f.Render(&body); err != nil {
 		return fmt.Errorf("%s: %w", generatedName, err)

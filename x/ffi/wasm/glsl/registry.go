@@ -33,7 +33,7 @@ func Hash(stage Stage, src []byte) [32]byte {
 // RegisterHash stores spirv under stage and sum.
 // sum is [Hash] of the stage and the GLSL source.
 // The same sum with the same SPIR-V is a no-op.
-// spirv is copied.
+// The registry keeps the spirv slice it is given.
 func RegisterHash(stage Stage, sum [32]byte, spirv []byte) error {
 	if !knownStage(stage) || !validSPIRV(spirv) {
 		return ErrCompile
@@ -47,7 +47,7 @@ func RegisterHash(stage Stage, sum [32]byte, spirv []byte) error {
 		}
 		return ErrExist
 	}
-	registry[key] = append([]byte(nil), spirv...)
+	registry[key] = spirv
 	return nil
 }
 
