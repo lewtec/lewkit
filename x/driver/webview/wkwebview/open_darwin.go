@@ -199,7 +199,7 @@ func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 	if err != nil {
 		return err
 	}
-	window.ShowShell(cfg.Title, nil)
+	window.ShowShell(cfg.Title, cfg.Icon)
 	application := objc.ID(objc.GetClass("NSApplication")).Send(selShared)
 	application.Send(selSetPolicy, 0)
 	application.Send(selFinishLaunch)

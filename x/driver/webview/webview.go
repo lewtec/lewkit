@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"io/fs"
 	"net/http"
 	"path"
@@ -38,6 +39,7 @@ type Config struct {
 	Title   string
 	Width   int
 	Height  int
+	Icon    image.Image
 	HTML    string
 	FS      fs.FS
 	Profile string

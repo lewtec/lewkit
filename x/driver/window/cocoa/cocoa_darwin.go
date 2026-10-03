@@ -168,7 +168,7 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	}
 	// TransformProcessType must run before sharedApplication. startApp creates that.
 	onApp(func() {
-		window.ShowShell(cfg.Title, nil)
+		window.ShowShell(cfg.Title, cfg.Icon)
 	})
 	if err := startApp(); err != nil {
 		return nil, err

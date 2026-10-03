@@ -17,18 +17,6 @@ func TestShellPicturePixel(t *testing.T) {
 	require.Equal(t, []uint32{2, 1, 0xFFFF0000, 0x80FF0000}, got)
 }
 
-func TestShellPictureDefaultSizes(t *testing.T) {
-	got := window.ShellPicture(nil)
-	require.GreaterOrEqual(t, len(got), 2)
-	require.Equal(t, uint32(32), got[0])
-	require.Equal(t, uint32(32), got[1])
-	at128 := 2 + 32*32
-	require.Greater(t, len(got), at128+1)
-	require.Equal(t, uint32(128), got[at128])
-	require.Equal(t, uint32(128), got[at128+1])
-	at256 := at128 + 2 + 128*128
-	require.Greater(t, len(got), at256+1)
-	require.Equal(t, uint32(256), got[at256])
-	require.Equal(t, uint32(256), got[at256+1])
-	require.Len(t, got, at256+2+256*256)
+func TestShellPictureNil(t *testing.T) {
+	require.Empty(t, window.ShellPicture(nil))
 }

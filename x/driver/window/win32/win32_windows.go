@@ -142,7 +142,7 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		period = desktopFramePeriod()
 	}
 	buf.SetFramePeriod(period)
-	out := &win{Buffer: buf, title: cfg.Title, cw: w, ch: h, want: window.WantSize{Width: w, Height: h}}
+	out := &win{Buffer: buf, title: cfg.Title, icon: cfg.Icon, cw: w, ch: h, want: window.WantSize{Width: w, Height: h}}
 	go func() {
 		runtime.LockOSThread()
 		ready <- out.create()
@@ -162,6 +162,7 @@ type win struct {
 	mu     sync.Mutex
 	hwnd   uintptr
 	title  string
+	icon   image.Image
 	cw, ch int
 	want   window.WantSize
 }
@@ -217,7 +218,7 @@ func (w *win) create() error {
 	}
 	w.hwnd = hwnd
 	windows.Store(hwnd, w)
-	window.ApplyWindowIcon(hwnd)
+	window.ApplyWindowIcon(hwnd, w.icon)
 	procShowWindow.Call(hwnd, swShow)
 	return nil
 }
