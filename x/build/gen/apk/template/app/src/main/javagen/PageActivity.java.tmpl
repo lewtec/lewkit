@@ -1,7 +1,6 @@
 package {{.PackageID}};
 
 import android.annotation.SuppressLint;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Build;
@@ -17,10 +16,10 @@ import android.window.OnBackInvokedDispatcher;
 
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import lewkit.Host;
+import lewkit.HostActivity;
 
 /** One webapp window. Pull down at the top of the page to reload it. */
-public class PageActivity extends Activity {
+public class PageActivity extends HostActivity {
     public static final String EXTRA_URL = "url";
 
     private WebView webView;
@@ -129,12 +128,19 @@ public class PageActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        Host.noteForeground(this, true);
+        WebView wv = webView;
+        if (wv != null) {
+            wv.onResume();
+            wv.resumeTimers();
+        }
     }
 
     @Override
     protected void onPause() {
-        Host.noteForeground(this, false);
+        WebView wv = webView;
+        if (wv != null) {
+            wv.onPause();
+        }
         super.onPause();
     }
 
