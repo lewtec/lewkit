@@ -22,6 +22,9 @@ func (backend) SelectArea(ctx context.Context) (*wm.Rect, error) {
 		return nil, err
 	}
 	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		return nil, screenshot.ErrEmptySelection
+	}
 	parts := strings.Fields(raw)
 	rect, err := screenshot.ParseRectParts(parts)
 	if err != nil {
