@@ -10,9 +10,8 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-// Show records root and draws it on the screen. It does not run the fused kernel
-// unless screen is a Vulkan swapchain with a mounted tensor.
-func (picture *Picture) Show(ctx context.Context, screen Drawer, root Node, size Size) error {
+// Show records root and draws it on the swapchain. It does not run the fused kernel.
+func (picture *Picture) Show(ctx context.Context, screen vulkan.Screen, root Node, size Size) error {
 	if picture == nil || root == nil {
 		return ErrView
 	}
@@ -23,9 +22,7 @@ func (picture *Picture) Show(ctx context.Context, screen Drawer, root Node, size
 		return err
 	}
 	if pixels != nil && picture.raster != nil {
-		if swap, ok := screen.(vulkan.Screen); ok {
-			return picture.paintMounted(ctx, swap, pixels)
-		}
+		return picture.paintMounted(ctx, screen, pixels)
 	}
 	var ink []byte
 	if picture.hadInk && picture.inkRGBA != nil {
@@ -35,14 +32,14 @@ func (picture *Picture) Show(ctx context.Context, screen Drawer, root Node, size
 	if err != nil {
 		return err
 	}
-	return Play(ctx, Attach(screen), Frame{
+	return Play(ctx, Vulkan(screen), Frame{
 		Width: int(size.Width), Height: int(size.Height),
 		Fills: picture.fills, Under: under, Ink: ink,
 	})
 }
 
 // drawFills paints an optional tensor image, then fills, then glyph ink.
-func drawFills(ctx context.Context, screen Drawer, frame Frame) error {
+func drawFills(ctx context.Context, screen vulkan.Screen, frame Frame) error {
 	if screen == nil || frame.Width < 1 || frame.Height < 1 {
 		return ndarray.ErrShape
 	}

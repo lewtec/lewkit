@@ -100,9 +100,6 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(s, "CODE_SIGNING_ALLOWED: YES") {
 		t.Fatalf("ad-hoc signing required for app groups:\n%s", s)
 	}
-	if !strings.Contains(s, "-framework Metal") || !strings.Contains(s, "-framework QuartzCore") {
-		t.Fatalf("metal frameworks missing:\n%s", s)
-	}
 
 	plist, err := os.ReadFile(filepath.Join(out, "Info.plist"))
 	if err != nil {
@@ -156,9 +153,6 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(ss, "EletrocromoStart") {
 		t.Fatalf("c-archive entry missing:\n%s", ss)
 	}
-	if !strings.Contains(ss, "hostsNativeSurface") {
-		t.Fatalf("native surface must skip the ready timeout:\n%s", ss)
-	}
 	if !strings.Contains(ss, "dirs.cache.path") {
 		t.Fatalf("start must pass cache dir into Go:\n%s", ss)
 	}
@@ -182,12 +176,6 @@ func TestCreate_WritesHost(t *testing.T) {
 	}
 	if !strings.Contains(us, "openExternal") {
 		t.Fatalf("custom scheme open missing:\n%s", us)
-	}
-	if !strings.Contains(us, "func openSurface()") {
-		t.Fatalf("native surface missing:\n%s", us)
-	}
-	if !strings.Contains(us, "EletrocromoPointer") || !strings.Contains(us, "EletrocromoResize") {
-		t.Fatalf("surface events missing:\n%s", us)
 	}
 	if !strings.Contains(us, "revealIfStuck") {
 		t.Fatalf("stuck reveal missing:\n%s", us)
@@ -319,17 +307,5 @@ func TestBridgeSource_ExportsStart(t *testing.T) {
 	}
 	if !strings.Contains(iosBridgeSource, "main()") {
 		t.Fatal("missing main() call")
-	}
-	if !strings.Contains(iosBridgeSource, "//export EletrocromoPointer") {
-		t.Fatal("missing pointer export")
-	}
-	if !strings.Contains(iosBridgeSource, "//export EletrocromoResize") {
-		t.Fatal("missing resize export")
-	}
-	if !strings.Contains(iosBridgeSource, "//export EletrocromoSurfaceLost") {
-		t.Fatal("missing surface-lost export")
-	}
-	if !strings.Contains(iosBridgeSource, "entry.DeliverPointer") {
-		t.Fatal("pointer export must deliver")
 	}
 }

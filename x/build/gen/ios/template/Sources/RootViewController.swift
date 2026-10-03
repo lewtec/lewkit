@@ -16,22 +16,8 @@ final class RootViewController: UIViewController, WKNavigationDelegate, WKUIDele
     private var appURL: URL?
     private var lastStatus = "Starting local server…"
     private var stuckWork: DispatchWorkItem?
-    private static let nativeLock = NSLock()
-    private static var nativeSurface = false
 
     private static let stuckAfter: TimeInterval = 3
-
-    static func hostsNativeSurface() -> Bool {
-        nativeLock.lock()
-        defer { nativeLock.unlock() }
-        return nativeSurface
-    }
-
-    private static func noteNativeSurface() {
-        nativeLock.lock()
-        nativeSurface = true
-        nativeLock.unlock()
-    }
 
     init() {
         let config = WKWebViewConfiguration()
@@ -155,25 +141,6 @@ final class RootViewController: UIViewController, WKNavigationDelegate, WKUIDele
         }
         noteStatus(status)
         quietSplash()
-    }
-
-    /// The Go UIKit window asks for this view and draws into it.
-    /// Touches and size changes go back through the c-archive.
-    @objc func openSurface() -> UIView {
-        Self.noteNativeSurface()
-        stuckWork?.cancel()
-        splash.isHidden = true
-        webView.isHidden = true
-        progressStack.isHidden = true
-        spinner.stopAnimating()
-        let surface = SurfaceView(frame: view.bounds)
-        surface.tag = 0x6C6577
-        surface.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        surface.backgroundColor = .black
-        surface.isMultipleTouchEnabled = true
-        view.addSubview(surface)
-        view.bringSubviewToFront(surface)
-        return surface
     }
 
     func load(_ url: URL) {
@@ -301,37 +268,5 @@ final class RootViewController: UIViewController, WKNavigationDelegate, WKUIDele
         let scheme = url.scheme?.lowercased() ?? ""
         if scheme == "about" || scheme == "blob" { return }
         UIApplication.shared.open(url)
-    }
-}
-
-/// SurfaceView is the UIView Metal presents into.
-final class SurfaceView: UIView {
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let scale = window?.screen.scale ?? UIScreen.main.scale
-        EletrocromoResize(Int32(bounds.width * scale), Int32(bounds.height * scale))
-    }
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        send(touches, action: 0)
-    }
-
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        send(touches, action: 2)
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        send(touches, action: 1)
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        send(touches, action: 1)
-    }
-
-    private func send(_ touches: Set<UITouch>, action: Int32) {
-        guard let touch = touches.first else { return }
-        let point = touch.location(in: self)
-        let scale = window?.screen.scale ?? UIScreen.main.scale
-        EletrocromoPointer(Int32(point.x * scale), Int32(point.y * scale), action)
     }
 }

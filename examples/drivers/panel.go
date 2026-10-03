@@ -18,7 +18,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver/dirs"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/driver/media"
-	"github.com/lewtec/lewkit/x/driver/present"
 	"github.com/lewtec/lewkit/x/driver/screen"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/driver/treesitter"
@@ -89,7 +88,6 @@ var driverSpecs = map[string]spec{
 	"notification":       {load: loadNotification, run: runNotification},
 	"opener":             {load: loadOpener, run: runOpener},
 	"power":              {load: loadPower, run: runPower},
-	"present":            {load: loadPresent},
 	"screen":             {load: loadScreen, run: runScreen},
 	"screenshot":         {load: loadScreenshot, run: runScreenshot},
 	"share":              {load: loadShare, run: runShare},
@@ -622,10 +620,6 @@ func loadThread(ctx context.Context, _ *page) (panel, error) {
 		{Label: "UI thread bound", Value: yesNo(ui.Bound())},
 		{Label: "Request on UI thread", Value: yesNo(ui.On())},
 	}, acts: acts}, nil
-}
-
-func loadPresent(ctx context.Context, _ *page) (panel, error) {
-	return handleRows(driver.List[present.Driver](ctx))
 }
 
 func loadVulkan(ctx context.Context, _ *page) (panel, error) {

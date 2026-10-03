@@ -42,24 +42,6 @@ func TestMountedRasterReusesKernel(t *testing.T) {
 	assert.NotEqual(t, out[0], out[3*4])
 }
 
-func TestHoldListSkipsMountedKernel(t *testing.T) {
-	shape := ndarray.Shape{1, 1, 4}
-	source := ndarray.Coord(1, shape).Cast[float32]()
-	picture, err := NewPicture()
-	require.NoError(t, err)
-	picture.recordOnly = true
-	picture.holdList = true
-	pixels, err := picture.Render(&Raster{Pixels: source}, Size{4, 4})
-	require.NoError(t, err)
-	assert.Nil(t, pixels)
-	assert.False(t, picture.holdList)
-	buffer, err := picture.rasterBytes(t.Context(), nil, 4, 4)
-	require.NoError(t, err)
-	require.Len(t, buffer, 4*4*4)
-	assert.Equal(t, uint8(0), buffer[0])
-	assert.NotEqual(t, buffer[0], buffer[3*4])
-}
-
 func TestShapedRasterStaysOnDrawList(t *testing.T) {
 	values := make([]float32, 4*4*4)
 	values[0] = 255
