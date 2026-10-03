@@ -1,8 +1,9 @@
-// Package apk generates ad-hoc Android WebView host projects from an
-// embedded template (PhoneGap/Expo-style), keyed by reverse-domain package ID.
+// Package apk generates an Android host project from an embedded template,
+// keyed by reverse-domain package ID.
 //
-// The core eletrocromo library stays free of the Android SDK; this package only
-// writes a Gradle tree that runs a multiarch Go binary and opens WebView.
+// The core eletrocromo library stays free of the Android SDK. This package
+// writes a Gradle tree that runs the Go binary. "ui": "surface" launches the
+// native window. "ui": "web" keeps the loopback page.
 package apk
 
 import (
@@ -48,6 +49,9 @@ type Config struct {
 	ABIs []string `json:"abis,omitempty"`
 	// Capabilities is the closed catalog (url, files) emitted into the host manifest.
 	Capabilities common.Capabilities `json:"capabilities,omitempty"`
+	// UI is the Android first window. "surface" is the native window.
+	// Empty and "web" keep the loopback page.
+	UI string `json:"ui,omitempty"`
 }
 
 // templateData is passed to text/template for file bodies.
@@ -59,6 +63,8 @@ type templateData struct {
 	PackagePath string
 	// IntentFiltersXML is extra activity intent-filters from capabilities.
 	IntentFiltersXML string
+	// Surface is true when the launcher is the native window.
+	Surface bool
 }
 
 // Options controls Create.
@@ -97,6 +103,7 @@ func Create(opts Options) error {
 		RootProjectName:  rootProjectName(cfg.PackageID, cfg.AppName),
 		PackagePath:      strings.ReplaceAll(cfg.PackageID, ".", "/"),
 		IntentFiltersXML: cfg.Capabilities.AndroidIntentFilters(),
+		Surface:          cfg.UI == "surface",
 	}
 
 	if err := common.WalkTemplateDest(templateFS, data, out, data.javaDest); err != nil {
@@ -137,6 +144,14 @@ func normalizeConfig(cfg Config) (Config, error) {
 	}
 	if strings.TrimSpace(cfg.GoMain) == "" {
 		cfg.GoMain = "."
+	}
+	switch strings.TrimSpace(cfg.UI) {
+	case "", "web":
+		cfg.UI = ""
+	case "surface":
+		cfg.UI = "surface"
+	default:
+		return Config{}, fmt.Errorf("ui %q: want web or surface", cfg.UI)
 	}
 	return cfg, nil
 }

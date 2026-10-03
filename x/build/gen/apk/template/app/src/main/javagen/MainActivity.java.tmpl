@@ -16,8 +16,6 @@ import android.widget.TextView;
 
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
-import java.io.File;
-
 import lewkit.Host;
 
 /**
@@ -105,7 +103,16 @@ public class MainActivity extends Activity {
             }
         });
 
-        startBackend();
+        try {
+            Host.onReady = url -> {
+                appUrl = url;
+                loadApp(url);
+            };
+            Host.onFail = message -> showSplash(getString(R.string.server_failed), message, true);
+            Host.boot(this);
+        } catch (UnsatisfiedLinkError e) {
+            startBackend();
+        }
         OpenDrop.handle(this, getIntent());
         ShareOut.start(this);
     }
@@ -130,24 +137,9 @@ public class MainActivity extends Activity {
     }
 
     private void startBackend() {
-        try {
-            Host.app = getApplicationContext();
-            Host.onReady = url -> {
-                appUrl = url;
-                loadApp(url);
-            };
-            Host.onFail = message -> showSplash(getString(R.string.server_failed), message, true);
-            Host.load();
-            File file = new File(getCacheDir(), "eletrocromo-ready");
-            file.delete();
-            Thread go = new Thread(() -> Host.start(file.getAbsolutePath()), "lewkit-go");
-            go.setDaemon(true);
-            go.start();
-        } catch (UnsatisfiedLinkError e) {
-            Intent svc = new Intent(this, ServerService.class);
-            startForegroundService(svc);
-            bindService(svc, connection, Context.BIND_AUTO_CREATE);
-        }
+        Intent svc = new Intent(this, ServerService.class);
+        startForegroundService(svc);
+        bindService(svc, connection, Context.BIND_AUTO_CREATE);
     }
 
     private void refreshPage() {

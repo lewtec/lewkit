@@ -4,5 +4,6 @@
   "app_name": "Welcome",
   "version_name": "0.1.0",
   "go_main": ".",
+  "ui": "surface",
   "abis": ["arm64-v8a"]
 }

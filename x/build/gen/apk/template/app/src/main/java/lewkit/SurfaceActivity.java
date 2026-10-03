@@ -19,6 +19,7 @@ public final class SurfaceActivity extends Activity implements SurfaceHolder.Cal
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Host.boot(this);
         SurfaceView view = new SurfaceView(this);
         view.setZOrderOnTop(true);
         view.setClickable(true);
