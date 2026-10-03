@@ -1,6 +1,7 @@
 package lewkit;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
 import android.os.Bundle;
@@ -66,6 +67,21 @@ public final class SurfaceActivity extends Activity implements SurfaceHolder.Cal
     protected void onPause() {
         Host.noteForeground(this, false);
         super.onPause();
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (FileChooser.onResult(this, requestCode, resultCode, data)) {
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    @Override
+    protected void onDestroy() {
+        FileChooser.hostGone(this);
+        super.onDestroy();
     }
 
     @Override

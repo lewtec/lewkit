@@ -133,8 +133,32 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if mainAt < 0 || launchAt < mainAt || surfaceAt < launchAt {
 		t.Fatalf("web launcher:\n%s", manifest)
 	}
-	if !strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
-		t.Fatalf("file chooser activity:\n%s", manifest)
+	if strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
+		t.Fatalf("file chooser is an activity:\n%s", manifest)
+	}
+	chooser, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/FileChooser.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chooserJava := string(chooser)
+	if strings.Contains(chooserJava, "extends Activity") || strings.Contains(chooserJava, "FileChooser.class") {
+		t.Fatal("file chooser replaces the current activity")
+	}
+	if !strings.Contains(chooserJava, "Host.foreground") || !strings.Contains(chooserJava, "startActivityForResult") {
+		t.Fatal("file chooser does not stack on the foreground activity")
+	}
+	if !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT_TREE") || !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT") || !strings.Contains(chooserJava, "ACTION_CREATE_DOCUMENT") {
+		t.Fatal("file chooser lost the file, folder, and save pickers")
+	}
+	pageJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(pageJava), "FileChooser.onResult") || !strings.Contains(string(pageJava), "wv.onResume()") {
+		t.Fatal("page does not take the picker result or resume its web view")
+	}
+	if !strings.Contains(string(surface), "FileChooser.onResult") || !strings.Contains(string(mainJava), "FileChooser.onResult") {
+		t.Fatal("window does not take the picker result")
 	}
 	docs, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Documents.java"))
 	if err != nil {

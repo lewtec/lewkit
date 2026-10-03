@@ -17,6 +17,7 @@ import android.window.OnBackInvokedDispatcher;
 
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import lewkit.FileChooser;
 import lewkit.Host;
 
 /** One webapp window. Pull down at the top of the page to reload it. */
@@ -130,12 +131,30 @@ public class PageActivity extends Activity {
     protected void onResume() {
         super.onResume();
         Host.noteForeground(this, true);
+        WebView wv = webView;
+        if (wv != null) {
+            wv.onResume();
+            wv.resumeTimers();
+        }
     }
 
     @Override
     protected void onPause() {
+        WebView wv = webView;
+        if (wv != null) {
+            wv.onPause();
+        }
         Host.noteForeground(this, false);
         super.onPause();
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (FileChooser.onResult(this, requestCode, resultCode, data)) {
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override
@@ -167,6 +186,7 @@ public class PageActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        FileChooser.hostGone(this);
         if (webView != null) {
             webView.destroy();
             webView = null;

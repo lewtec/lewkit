@@ -12,6 +12,7 @@ import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import lewkit.FileChooser;
 import lewkit.Host;
 
 /**
@@ -158,8 +159,18 @@ public class MainActivity extends Activity {
         splashRetry.setVisibility(error ? View.VISIBLE : View.GONE);
     }
 
+    @SuppressWarnings("deprecation")
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (FileChooser.onResult(this, requestCode, resultCode, data)) {
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
     @Override
     protected void onDestroy() {
+        FileChooser.hostGone(this);
         if (bound) {
             if (server != null) {
                 server.setListener(null);
