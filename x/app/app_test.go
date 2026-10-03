@@ -33,6 +33,14 @@ func TestLoopbackRejectsDesktopGUI(t *testing.T) {
 	require.EqualError(t, err, "loopback host needs a web handler")
 }
 
+func TestLoopbackLeavesAndroidWeb(t *testing.T) {
+	win, err := loopbackWindow(Web(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})), true)
+	require.NoError(t, err)
+	web, ok := win.(webWindow)
+	require.True(t, ok)
+	require.False(t, web.hosted)
+}
+
 func TestLoopbackHostsWeb(t *testing.T) {
 	win, err := loopbackWindow(Web(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})), false)
 	require.NoError(t, err)

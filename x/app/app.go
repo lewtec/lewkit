@@ -99,13 +99,12 @@ func (a App) open(ctx context.Context, id string) error {
 	})
 }
 
-// loopbackWindow serves a web handler on the packaged host.
-// An Android GUI window stays a surface. The splash closes when that surface opens.
+// loopbackWindow serves a web handler on a desktop packaged host.
+// On Android the entrypoint's window is left as it is: a GUI model is the
+// surface, and a web handler is webview.Open rather than a forced loopback page.
 func loopbackWindow(win Window, guiNative bool) (Window, error) {
 	if guiNative {
-		if _, ok := win.(guiWindow); ok {
-			return win, nil
-		}
+		return win, nil
 	}
 	web, ok := win.(webWindow)
 	if !ok {

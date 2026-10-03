@@ -98,6 +98,7 @@ public class MainActivity extends Activity {
             }
         });
 
+        Host.onPage = url -> Windows.pushWebWindow(getApplicationContext(), url);
         Host.onReady = url -> loadApp(url);
         Host.onFail = message -> showSplash(getString(R.string.server_failed), message, true);
         try {

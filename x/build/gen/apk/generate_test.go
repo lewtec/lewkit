@@ -82,6 +82,9 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(mainJava), "url.isEmpty()") {
 		t.Fatal("splash does not yield when the surface opens")
 	}
+	if !strings.Contains(string(mainJava), "Host.onPage") {
+		t.Fatal("a page published after the splash has no window")
+	}
 	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
 	if err != nil {
 		t.Fatal(err)

@@ -12,6 +12,7 @@ import java.io.File;
 public final class Host {
     public static volatile Context app;
     public static volatile Ready onReady;
+    public static volatile Ready onPage;
     public static volatile Fail onFail;
     public static volatile Activity foreground;
     private static boolean booted;
@@ -88,6 +89,13 @@ public final class Host {
     }
 
     public static void ready(String url) {
+        if (url != null && !url.isEmpty()) {
+            Ready page = onPage;
+            if (page != null) {
+                new Handler(Looper.getMainLooper()).post(() -> page.call(url));
+                return;
+            }
+        }
         Ready cb = onReady;
         if (cb == null) {
             return;
