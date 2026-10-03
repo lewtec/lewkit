@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/filedialog"
+	"github.com/lewtec/lewkit/x/http/asset/daisyui"
+	"github.com/lewtec/lewkit/x/http/asset/tailwindcss"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,6 +39,11 @@ func TestPageStartsBeforeThePicker(t *testing.T) {
 	require.Contains(t, body, "Open files")
 	require.Contains(t, body, "Choose folder")
 	require.Contains(t, body, "Save")
+	require.Contains(t, body, daisyui.Path)
+	require.Contains(t, body, tailwindcss.Path)
+	require.NotContains(t, body, "cdn.jsdelivr.net")
+	require.Contains(t, httpPage.textAt(daisyui.Path), daisyui.Version)
+	require.Contains(t, httpPage.textAt(tailwindcss.Path), tailwindcss.Version)
 	require.NotContains(t, body, "Waiting for the picker")
 	select {
 	case req := <-called:
@@ -128,7 +135,12 @@ func openFiles(t *testing.T, choose chooseFunc) *filesHTTP {
 
 func (h *filesHTTP) get() string {
 	h.t.Helper()
-	res, err := h.client.Get(h.base + "/")
+	return h.textAt("/")
+}
+
+func (h *filesHTTP) textAt(path string) string {
+	h.t.Helper()
+	res, err := h.client.Get(h.base + path)
 	require.NoError(h.t, err)
 	return h.text(res)
 }
