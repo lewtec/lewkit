@@ -50,5 +50,5 @@ configurations.configureEach {
 
 dependencies {
     // Java widget. The 1.1.0 graph is annotation, core 1.1.0, and interpolator.
-    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
+    implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.2.0"
 }
