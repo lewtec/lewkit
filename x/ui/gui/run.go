@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
-	"github.com/lewtec/lewkit/x/driver/ndeval"
-	"github.com/lewtec/lewkit/x/driver/vulkan"
+	"github.com/lewtec/lewkit/x/driver/present"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -36,18 +35,24 @@ func (d imageDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], 
 
 type bridgeDisplay struct {
 	window.Window
-	screen    vulkan.Screen
+	screen    present.Screen
 	evaluator ndarray.Evaluator
 }
 
+func (d bridgeDisplay) gpuPaint() bool { return d.evaluator != nil }
+
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
 	if err := d.sync(); err != nil {
-		if errors.Is(err, vulkan.ErrLost) {
+		if present.Lost(err) {
 			return nil
 		}
 		return err
 	}
-	return ndeval.Paint(ctx, d.evaluator, view, d.screen)
+	painter, ok := d.screen.(present.Painter)
+	if !ok {
+		return present.ErrClosed
+	}
+	return painter.Paint(ctx, view)
 }
 
 func (d bridgeDisplay) sync() error {
@@ -57,7 +62,7 @@ func (d bridgeDisplay) sync() error {
 	}
 	surface := surfacer.Surface()
 	if surface.A == 0 {
-		return vulkan.ErrLost
+		return present.ErrLost
 	}
 	size := d.Size()
 	return d.screen.Adopt(surface.A, size.X, size.Y)
@@ -73,7 +78,7 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 		ink = picture.inkRGBA.Pix
 	}
 	if err := d.sync(); err != nil {
-		if errors.Is(err, vulkan.ErrLost) {
+		if present.Lost(err) {
 			return nil
 		}
 		return err
@@ -82,7 +87,7 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 	if err != nil {
 		return err
 	}
-	return Play(ctx, Vulkan(d.screen), Frame{
+	return Play(ctx, Attach(d.screen), Frame{
 		Width: size.X, Height: size.Y,
 		Fills: picture.fills, Under: under, Ink: ink,
 	})
@@ -112,7 +117,9 @@ func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, m
 	}
 	if screen, gpu, err := bridge(ctx, host); err == nil {
 		defer screen.Close()
-		defer gpu.Close()
+		if gpu != nil {
+			defer gpu.Close()
+		}
 		return run(ctx, bridgeDisplay{Window: host, screen: screen, evaluator: gpu}, nil, model)
 	}
 	return run(ctx, imageDisplay{host}, evaluator, model)
@@ -346,12 +353,19 @@ func (runner *runner) flush(force bool) error {
 		return nil
 	}
 	_, listed := runner.host.(listPainter)
+	gpu := false
+	if painter, ok := runner.host.(interface{ gpuPaint() bool }); ok {
+		gpu = painter.gpuPaint()
+	}
+	runner.picture.holdList = listed && !gpu
 	runner.picture.recordOnly = listed
 	if err := runner.render(); err != nil {
 		runner.picture.recordOnly = false
+		runner.picture.holdList = false
 		return err
 	}
 	runner.picture.recordOnly = false
+	runner.picture.holdList = false
 	runner.dirty = false
 	if !force && runner.picture.raster == nil && runner.signature != 0 && runner.signature == runner.lastSignature {
 		return nil

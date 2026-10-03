@@ -67,11 +67,17 @@ final class ServerProcess {
 
         let deadline = Date().addingTimeInterval(30)
         while Date() < deadline {
+            if RootViewController.hostsNativeSurface() {
+                return
+            }
             if let raw = Self.readReadyFile(readyFile), let url = Self.forceLoopback(raw) {
                 ready(url)
                 return
             }
             Thread.sleep(forTimeInterval: 0.05)
+        }
+        if RootViewController.hostsNativeSurface() {
+            return
         }
         failed("timed out waiting for ELETROCROMO_READY")
     }

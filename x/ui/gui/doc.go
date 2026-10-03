@@ -6,14 +6,15 @@
 // is unchanged. Animation is [Tick] / [Every]. A root [Row]/[Column] fills the window; wrap it in a
 // [Box] with Align to center a packed inner cluster. Solid, Marquee, and
 // Notepad all paint through one fused kernel
-// (one over-composite tensor of rounded rects + ink overlay). A swapchain
-// paints those same fills with a graphics pipeline and skips the kernel.
-// Layout returns Size; Paint returns the accumulator tensor.
+// (one over-composite tensor of rounded rects + ink overlay). A present
+// screen paints those same fills. Vulkan can paint a mounted tensor on
+// the device. Metal keeps the fill list, so the process does not need
+// MoltenVK. Layout returns Size; Paint returns the accumulator tensor.
 // A node records one [Mark] per draw, in paint order, through [Picture.Fill],
 // [Picture.Text], [Picture.Image], and [Picture.Backdrop].
 // Each [Picture.Render] streams those marks and lowers them into fills, ink, and the backdrop.
-// [Play] draws the lowered [Frame] on a [Canvas]. [Vulkan] attaches a swapchain.
-// An OpenGL framebuffer implements the same [Canvas.Draw].
+// [Play] draws the lowered [Frame] on a [Canvas]. [Attach] sends it to any [Drawer].
+// [Vulkan] is that attachment for a swapchain. An OpenGL framebuffer implements the same [Canvas.Draw].
 // Marquee rewrites bar Y on a reused node tree. Layout is CPU ([Box], [Flex], [Stack]).
 // Glyphs are [Text] nodes; Picture rasters them into ink in the same kernel.
 // [Marquee] View maps offset and size onto [Bar] values; Update is the
