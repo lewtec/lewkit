@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,14 @@ func TestAnnounceReadyWritesFile(t *testing.T) {
 
 func TestLoopbackLinkUsesIPv4(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:9/?token=abc", loopbackLink("http://[::1]:9", "abc"))
+}
+
+func TestDesktopIsNotNativeHost(t *testing.T) {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		t.Skip()
+	}
+	require.False(t, nativeHost(GUI(nil)))
+	require.False(t, nativeHost(Web(nil)))
 }
 
 func TestLoopbackKeepsAndroidGUI(t *testing.T) {

@@ -17,12 +17,16 @@ type Frame struct {
 	Ink           []byte
 }
 
+// Drawer paints one lowered frame. A Vulkan swapchain and a Metal layer both do.
+type Drawer interface {
+	Draw(ctx context.Context, instances, under, ink []byte, width, height int) error
+}
+
 // Canvas owns the pixels of one screen.
 // Draw paints Under, then Fills, then Ink.
 //
-// [Vulkan] attaches a Vulkan swapchain. An OpenGL framebuffer attaches
-// by implementing the same Draw: upload the fills, the underlay, and the
-// ink, draw those quads, and swap buffers.
+// [Attach] sends that frame to a [Drawer]. [Vulkan] is the swapchain form.
+// An OpenGL framebuffer attaches by implementing the same Draw.
 type Canvas interface {
 	Draw(ctx context.Context, frame Frame) error
 }
@@ -43,10 +47,19 @@ func Play(ctx context.Context, canvas Canvas, frame Frame) error {
 
 // Vulkan attaches a swapchain as a [Canvas].
 // The screen keeps its pipelines. This adapter only supplies the frame.
-func Vulkan(screen vulkan.Screen) Canvas { return vulkanCanvas{screen} }
+func Vulkan(screen vulkan.Screen) Canvas { return Attach(screen) }
 
-type vulkanCanvas struct{ screen vulkan.Screen }
+// Attach paints the frame through screen.Draw.
+// A nil screen draws nothing and [Play] returns [ErrView].
+func Attach(screen Drawer) Canvas {
+	if screen == nil {
+		return nil
+	}
+	return drawerCanvas{screen}
+}
 
-func (canvas vulkanCanvas) Draw(ctx context.Context, frame Frame) error {
+type drawerCanvas struct{ screen Drawer }
+
+func (canvas drawerCanvas) Draw(ctx context.Context, frame Frame) error {
 	return drawFills(ctx, canvas.screen, frame)
 }
