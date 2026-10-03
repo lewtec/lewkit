@@ -32,6 +32,12 @@
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
 
         <activity
+            android:name="lewkit.FileChooser"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <activity
             android:name=".PageActivity"
             android:exported="false"
             android:launchMode="singleTop"
