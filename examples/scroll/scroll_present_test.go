@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/stretchr/testify/require"
@@ -15,7 +16,7 @@ import (
 func BenchmarkScrollPresent(b *testing.B) {
 	const width, height = 1024, 1024
 	ctx := b.Context()
-	host, err := window.Open(ctx, window.Config{Title: "lewkit scroll", Width: width, Height: height})
+	host, err := window.Open(ctx, window.Config{Title: release.Name() + " scroll", Width: width, Height: height})
 	if err != nil {
 		b.Skip(err)
 	}

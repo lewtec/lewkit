@@ -1,17 +1,20 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRootUsage(t *testing.T) {
-	text, err := cmd.Usage[cmd.App[root]]("lewkit")
+	text, err := cmd.Usage[cmd.App[root]](release.Name())
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(text, "Well planned primitives to be used in other projects.\n\nUsage:"))
 	assert.Contains(t, text, "log verbosity (default: 0)")
@@ -50,25 +53,25 @@ func TestCompletionLine(t *testing.T) {
 		require.NoError(t, app.Run(t.Context()))
 	})
 	assert.Contains(t, got, "complete -C")
-	assert.Contains(t, got, "lewkit")
+	assert.Contains(t, got, filepath.Base(os.Args[0]))
 }
 
 func TestGenerateDbUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd]("lewkit generate")
+	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "db")
 	assert.Contains(t, text, "shared Queries")
 }
 
 func TestGeneratePreludeUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd]("lewkit generate")
+	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "prelude")
 	assert.Contains(t, text, "blank-import")
 }
 
 func TestGenerateProtobufUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd]("lewkit generate")
+	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "protobuf")
 	assert.Contains(t, text, ".proto file")

@@ -21,10 +21,10 @@ func TestMessageAndAsset(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	files := fstest.MapFS{
-		"app.js": &fstest.MapFile{Data: []byte(`window.lewkit.postMessage("asset")`)},
+		"app.js": &fstest.MapFile{Data: []byte(`window.` + webview.ScriptName() + `.postMessage("asset")`)},
 	}
 	view, err := gtkDriver{}.Open(ctx, webview.Config{
-		Title:   "lewkit webview",
+		Title:   webview.ScriptName(),
 		HTML:    `<!doctype html><script src="app.js"></script>`,
 		FS:      files,
 		Profile: t.TempDir(),
@@ -50,14 +50,14 @@ func TestHandler(t *testing.T) {
 	handler := http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path == "/app.js" {
 			response.Header().Set("Content-Type", "text/javascript")
-			_, _ = response.Write([]byte(`window.lewkit.postMessage("handler")`))
+			_, _ = response.Write([]byte(`window.` + webview.ScriptName() + `.postMessage("handler")`))
 			return
 		}
 		response.Header().Set("Content-Type", "text/html")
 		_, _ = response.Write([]byte(`<!doctype html><script src="app.js"></script>`))
 	})
 	view, err := gtkDriver{}.Open(ctx, webview.Config{
-		Title:   "lewkit handler",
+		Title:   webview.ScriptName() + " handler",
 		Handler: handler,
 		Profile: t.TempDir(),
 	})

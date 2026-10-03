@@ -23,19 +23,18 @@ import (
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 	webview2 "github.com/lewtec/lewkit/x/ffi/native/webview2"
+	lewrelease "github.com/lewtec/lewkit/x/release"
 )
 
 const (
-	bridgeJavaScript = `window.lewkit={postMessage:function(value){window.chrome.webview.postMessage(value);}};`
-	viewHostSuffix   = ".lewkit.invalid"
-	wmClose          = 0x0010
-	wmDestroy        = 0x0002
-	wmSize           = 0x0005
-	wmJob            = 0x8000 + 1
-	wsOverlapped     = 0x00CF0000
-	wsVisible        = 0x10000000
-	swShow           = 5
-	cwUseDefault     = 0x80000000
+	wmClose      = 0x0010
+	wmDestroy    = 0x0002
+	wmSize       = 0x0005
+	wmJob        = 0x8000 + 1
+	wsOverlapped = 0x00CF0000
+	wsVisible    = 0x10000000
+	swShow       = 5
+	cwUseDefault = 0x80000000
 )
 
 var (
@@ -223,7 +222,7 @@ func ensureLoop() error {
 func registerWindowClass() error {
 	classOnce.Do(func() {
 		instance, _, _ := procGetModule.Call(0)
-		name, err := syscall.UTF16PtrFromString("lewkit.webview")
+		name, err := syscall.UTF16PtrFromString(lewrelease.Name() + ".webview")
 		if err != nil {
 			classErr = err
 			return
@@ -353,7 +352,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	if hr < 0 {
 		return fmt.Errorf("add_WebResourceRequested: %x", uint32(hr))
 	}
-	filter, err := syscall.UTF16PtrFromString("https://view*" + viewHostSuffix + "/*")
+	filter, err := syscall.UTF16PtrFromString("https://view*" + webview.HostSuffix() + "/*")
 	if err != nil {
 		return err
 	}
@@ -364,9 +363,9 @@ func (view *edgeView) create(ctx context.Context) error {
 	if scheme, err := daynight.Current(ctx); err == nil {
 		view.useScheme(scheme)
 	}
-	target := fmt.Sprintf("https://view%d%s/index.html", view.identifier, viewHostSuffix)
+	target := fmt.Sprintf("https://view%d%s/index.html", view.identifier, webview.HostSuffix())
 	if view.handler != nil && strings.TrimSpace(view.html) == "" {
-		target = fmt.Sprintf("https://view%d%s/", view.identifier, viewHostSuffix)
+		target = fmt.Sprintf("https://view%d%s/", view.identifier, webview.HostSuffix())
 	}
 	targetUTF, err := syscall.UTF16PtrFromString(target)
 	if err != nil {
@@ -617,7 +616,7 @@ func resourceInvoke(this, _, args uintptr) uintptr {
 			return 0
 		}
 		if strings.Contains(responseHeader.Get("Content-Type"), "html") && (parsed.Path == "/" || parsed.Path == "/index.html") {
-			payload = prefixReader(payload, "<script>"+bridgeJavaScript+"</script>")
+			payload = prefixReader(payload, "<script>"+webview.ChromeBridge()+"</script>")
 		}
 		writeWebResource(handler.view, args, status, responseHeader, payload)
 		return 0
@@ -627,7 +626,7 @@ func resourceInvoke(this, _, args uintptr) uintptr {
 		return 0
 	}
 	if parsed.Path == "/" || parsed.Path == "/index.html" {
-		body = append([]byte("<script>"+bridgeJavaScript+"</script>"), body...)
+		body = append([]byte("<script>"+webview.ChromeBridge()+"</script>"), body...)
 	}
 	stream, err := webview2.MemoryStream(body)
 	if err != nil {

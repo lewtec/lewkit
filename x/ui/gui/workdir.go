@@ -44,7 +44,7 @@ func Pick(ctx context.Context, host window.Window) (string, error) {
 	if err != nil {
 		dirs = nil
 	}
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: dirs})
+	welcome := NewWelcome(WelcomeArgs{Dirs: dirs})
 	err = Run(ctx, host, nil, welcome)
 	if welcome.Picked() != "" {
 		if saveErr := Remember(welcome.Picked()); saveErr != nil {

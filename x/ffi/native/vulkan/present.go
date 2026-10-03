@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const (
@@ -509,7 +510,7 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 	if hasExt(d.api.instanceExts(), extPortabilityEnum) {
 		exts = append(exts, extPortabilityEnum)
 	}
-	appName := cstr("lewkit")
+	appName := cstr(release.Name())
 	app := applicationInfo{
 		sType:            structureApplicationInfo,
 		pApplicationName: appName,

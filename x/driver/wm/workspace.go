@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 var opMu sync.Mutex
@@ -42,8 +43,8 @@ func toggleScratchpad(ctx context.Context) error {
 }
 
 // AdvanceWorkspace returns the next numbered workspace and stores it.
-// The counter is $XDG_RUNTIME_DIR/lewkit/last-workspace and starts at 10.
-// When XDG_RUNTIME_DIR is unset the file is under os.TempDir()/lewkit-<uid>.
+// The counter is $XDG_RUNTIME_DIR/<release.Name>/last-workspace and starts at 10.
+// When XDG_RUNTIME_DIR is unset the file is under os.TempDir()/<release.Name>-<uid>.
 // The caller passes the name to SwitchToWorkspace.
 func AdvanceWorkspace() (string, error) {
 	dir, err := runtimeDir()
@@ -119,7 +120,7 @@ func RotateWorkspaces(ctx context.Context) error {
 func runtimeDir() (string, error) {
 	dir := os.Getenv("XDG_RUNTIME_DIR")
 	if dir == "" {
-		dir = filepath.Join(os.TempDir(), fmt.Sprintf("lewkit-%d", os.Getuid()))
+		dir = filepath.Join(os.TempDir(), fmt.Sprintf("%s-%d", release.Name(), os.Getuid()))
 	}
-	return filepath.Join(dir, "lewkit"), nil
+	return filepath.Join(dir, release.Name()), nil
 }

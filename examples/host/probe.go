@@ -14,6 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/dirs"
 	"github.com/lewtec/lewkit/x/driver/screen"
 	"github.com/lewtec/lewkit/x/driver/volume"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 var errUnknown = errors.New("unknown action")
@@ -141,7 +142,7 @@ func (a action) run(ctx context.Context) error {
 	case "clipboard":
 		text := strings.TrimSpace(a.Text)
 		if text == "" {
-			text = "lewkit"
+			text = release.Name()
 		}
 		return clipboard.WriteText(ctx, text)
 	default:

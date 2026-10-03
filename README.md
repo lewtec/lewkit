@@ -68,7 +68,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
 | `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Load`. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
-| `x/release` | `Version`, `AppID`, `ValidateAppID`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. |
+| `x/release` | `Version`, `AppID`, `ValidateAppID`, `Name`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. The short name is the `-X` stamp `x/release.name`, or `LEWKIT_NAME`, or the built-in default. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
 | `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. Arguments after `--` go to that program. |
 | `x/app` | `Web`, `GUI`, `Open`, `Run`. An app is the windows of one process. Each window is a web handler or a GUI model, and it may open another. `Run` returns when the last window closes. `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` serves the first web handler on a loopback port. |

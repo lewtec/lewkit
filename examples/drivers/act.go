@@ -40,6 +40,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/sound"
 )
 
@@ -481,7 +482,7 @@ func runAudio(ctx context.Context, _ *page, op string, r *http.Request) (string,
 	writer, err := audio_play.Open(ctx, audio_play.Config{
 		Sink:   strings.TrimSpace(r.FormValue("sink")),
 		Format: format,
-		Name:   "lewkit",
+		Name:   release.Name(),
 	})
 	if err != nil {
 		return "", err
@@ -523,7 +524,7 @@ func runWindow(ctx context.Context, p *page, op string, r *http.Request) (string
 		}
 		title := strings.TrimSpace(r.FormValue("title"))
 		if title == "" {
-			title = "lewkit"
+			title = release.Name()
 		}
 		size, err := p.held.openWindow(p.ctx, window.Config{Title: title, Width: width, Height: height})
 		if err != nil {
@@ -550,7 +551,7 @@ func runWeb(ctx context.Context, p *page, op string, r *http.Request) (string, e
 		}
 		title := strings.TrimSpace(r.FormValue("title"))
 		if title == "" {
-			title = "lewkit"
+			title = release.Name()
 		}
 		return okNote("open", p.held.openWeb(p.ctx, webview.Config{
 			Title:  title,
@@ -589,7 +590,7 @@ func trayConfig(r *http.Request) tray.Config {
 	}
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		title = "lewkit"
+		title = release.Name()
 	}
 	return tray.Config{
 		Title:   title,

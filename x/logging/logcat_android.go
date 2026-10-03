@@ -5,6 +5,8 @@ package logging
 import (
 	"io"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/release"
 )
 
 /*
@@ -12,14 +14,15 @@ import (
 #include <android/log.h>
 #include <stdlib.h>
 
-static void lewkit_log(int prio, char *text) {
-	__android_log_write(prio, "lewkit", text);
+static void log_write(int prio, char *tag, char *text) {
+	__android_log_write(prio, tag, text);
+	free(tag);
 	free(text);
 }
 */
 import "C"
 
-// Logcat writes process logs to Android logcat under the tag lewkit.
+// Logcat writes process logs to Android logcat under the tag [release.Name].
 func Logcat() io.Writer { return logcatWriter{} }
 
 type logcatWriter struct{}
@@ -30,8 +33,9 @@ func (logcatWriter) Write(p []byte) (int, error) {
 		return len(p), nil
 	}
 	for _, line := range strings.Split(text, "\n") {
+		tag := C.CString(release.Name())
 		c := C.CString(line)
-		C.lewkit_log(C.int(logPriority(line)), c)
+		C.log_write(C.int(logPriority(line)), tag, c)
 	}
 	return len(p), nil
 }

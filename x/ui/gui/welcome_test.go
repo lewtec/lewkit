@@ -9,13 +9,14 @@ import (
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
 	lewimage "github.com/lewtec/lewkit/x/image"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWelcomePicksRecent(t *testing.T) {
 	dir := t.TempDir()
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: []Directory{{Path: dir}, {Path: t.TempDir()}}})
+	welcome := NewWelcome(WelcomeArgs{Title: "Demo", Dirs: []Directory{{Path: dir}, {Path: t.TempDir()}}})
 	paintWelcome(t, welcome)
 	require.Len(t, welcome.rows, 2)
 	_, cmd := welcome.Update(window.Pointer{Pos: mid(welcome.rows[0]), Button: 1, Pressed: true})
@@ -29,18 +30,18 @@ func TestWelcomeKeyboard(t *testing.T) {
 	welcome.Update(window.Key{Code: 116, Pressed: true})
 	welcome.Update(window.Key{Rune: '\n', Pressed: true})
 	assert.Equal(t, second, welcome.Picked())
-	assert.Equal(t, "lewkit", welcome.title)
+	assert.Equal(t, release.Name(), welcome.title)
 }
 
 func TestWelcomeEscape(t *testing.T) {
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
+	welcome := NewWelcome(WelcomeArgs{Title: "Demo"})
 	_, cmd := welcome.Update(window.Key{Rune: 0x1b, Pressed: true})
 	assertQuit(t, cmd)
 	assert.Empty(t, welcome.Picked())
 }
 
 func TestWelcomeDialogUsesCallerContext(t *testing.T) {
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
+	welcome := NewWelcome(WelcomeArgs{Title: "Demo"})
 	welcome.cursor = welcome.browseAt()
 	_, cmd := welcome.Update(window.Key{Rune: '\n', Pressed: true})
 	require.NotNil(t, cmd)
@@ -53,7 +54,7 @@ func TestWelcomeDialogUsesCallerContext(t *testing.T) {
 
 func TestWelcomeOpenCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
+	welcome := NewWelcome(WelcomeArgs{Title: "Demo"})
 	done := make(chan error, 1)
 	host, err := window.Open(ctx, window.Config{Width: 80, Height: 60})
 	require.NoError(t, err)
@@ -75,7 +76,7 @@ func TestWelcomeOpenCancel(t *testing.T) {
 func TestWelcomeLightMode(t *testing.T) {
 	accent := RGB{200, 0, 0, 255}
 	welcome := NewWelcome(WelcomeArgs{
-		Title:  "lewkit",
+		Title:  "Demo",
 		Dirs:   []Directory{{Path: t.TempDir()}},
 		Accent: &accent,
 	})
@@ -88,7 +89,7 @@ func TestWelcomeLightMode(t *testing.T) {
 }
 
 func TestWelcomeAccentFromLogo(t *testing.T) {
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit", Dirs: []Directory{{Path: t.TempDir()}}})
+	welcome := NewWelcome(WelcomeArgs{Title: "Demo", Dirs: []Directory{{Path: t.TempDir()}}})
 	welcome.View()
 	require.NotNil(t, welcome.browse.Fill)
 	assert.Equal(t, lewimage.Average(logoImage()), *welcome.browse.Fill)
@@ -97,7 +98,7 @@ func TestWelcomeAccentFromLogo(t *testing.T) {
 func TestWelcomeAccentOverride(t *testing.T) {
 	accent := RGB{20, 180, 40, 255}
 	welcome := NewWelcome(WelcomeArgs{
-		Title:  "lewkit",
+		Title:  "Demo",
 		Dirs:   []Directory{{Path: t.TempDir()}},
 		Accent: &accent,
 	})
@@ -106,7 +107,7 @@ func TestWelcomeAccentOverride(t *testing.T) {
 }
 
 func TestWelcomeLogo(t *testing.T) {
-	welcome := NewWelcome(WelcomeArgs{Title: "lewkit"})
+	welcome := NewWelcome(WelcomeArgs{Title: "Demo"})
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	picture.recordOnly = true

@@ -11,6 +11,7 @@ import (
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	lewpath "github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
 	_ "github.com/lewtec/lewkit/x/tool/github"
 )
@@ -73,7 +74,7 @@ func ensureProtoc(ctx context.Context, directory string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	store, err := tool.Open(filepath.Join(cache, "lewkit", "tools"))
+	store, err := tool.Open(filepath.Join(cache, release.Name(), "tools"))
 	if err != nil {
 		return "", err
 	}

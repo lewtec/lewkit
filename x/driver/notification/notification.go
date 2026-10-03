@@ -1,7 +1,7 @@
 // Package notification posts a local notification.
 //
 //	err := notification.Notify(ctx, notification.Notification{
-//		Title: "lewkit", Message: "done",
+//		Title: "hello", Message: "done",
 //	})
 //
 // Import the dbus or notify-send backend. DBus speaks

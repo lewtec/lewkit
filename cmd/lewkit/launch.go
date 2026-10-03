@@ -14,6 +14,7 @@ import (
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/fs/tar"
 	"github.com/lewtec/lewkit/x/fs/zip"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 type builtProgram struct {
@@ -25,7 +26,7 @@ func runBuilt(ctx context.Context, prog builtProgram) error {
 	if prog.goos != runtime.GOOS || prog.goarch != runtime.GOARCH {
 		return fmt.Errorf("built %s/%s (%s); this machine is %s/%s", prog.goos, prog.goarch, prog.archive, runtime.GOOS, runtime.GOARCH)
 	}
-	dir, err := os.MkdirTemp("", "lewkit-run-")
+	dir, err := os.MkdirTemp("", release.Name()+"-run-")
 	if err != nil {
 		return err
 	}

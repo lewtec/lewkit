@@ -10,6 +10,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/notification"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 type backend struct {
@@ -42,7 +43,7 @@ func (b *backend) Notify(ctx context.Context, n notification.Notification) error
 	}
 
 	call := obj.CallWithContext(ctx, "org.freedesktop.Notifications.Notify", 0,
-		"lewkit", replaces, n.Icon, n.Title, n.Message, []string{}, hints, int32(-1))
+		release.Name(), replaces, n.Icon, n.Title, n.Message, []string{}, hints, int32(-1))
 	var serverID uint32
 	if err := call.Store(&serverID); err != nil {
 		return err

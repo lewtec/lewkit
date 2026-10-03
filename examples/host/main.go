@@ -35,6 +35,7 @@ func newMux() http.Handler {
 type page struct {
 	Style  string
 	Notice string
+	Sample string
 	Rows   []result
 }
 
@@ -46,6 +47,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 	data := page{
 		Style:  sakuracss.Path,
 		Notice: r.URL.Query().Get("notice"),
+		Sample: release.Name(),
 		Rows:   probe(r.Context(), id),
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -89,7 +91,7 @@ var pageTmpl = template.Must(template.New("host").Parse(`<!DOCTYPE html>
 <button name="action" value="brightness-down">Brightness down</button>
 </form>
 <form method="post" action="/act">
-<input name="text" value="lewkit">
+<input name="text" value="{{ .Sample }}">
 <button name="action" value="clipboard">Copy text</button>
 </form>
 </body>

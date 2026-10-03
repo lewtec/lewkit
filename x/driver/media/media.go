@@ -5,7 +5,8 @@
 //	note, ok := media.StatusNotification(meta)
 //
 // Import [github.com/lewtec/lewkit/x/driver/media/dbus]. Album art from
-// http(s) is cached under os.UserCacheDir()/lewkit/media-art.
+// http(s) is cached under os.UserCacheDir()/<name>/media-art.
+// <name> is [github.com/lewtec/lewkit/x/release.Name].
 package media
 
 import (
@@ -20,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 // ErrNoPlayer means no MPRIS player is on the session bus.
@@ -88,7 +90,7 @@ func Watch(ctx context.Context, callback func(*Metadata)) error {
 
 // GetArtCachePath returns a local path for url.
 // file:// is returned as-is. Other non-http values are returned unchanged.
-// http(s) bodies are stored under os.UserCacheDir()/lewkit/media-art.
+// http(s) bodies are stored under os.UserCacheDir()/<release.Name>/media-art.
 func GetArtCachePath(ctx context.Context, url string) (string, error) {
 	if after, ok := strings.CutPrefix(url, "file://"); ok {
 		return after, nil
@@ -100,7 +102,7 @@ func GetArtCachePath(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cacheDir := filepath.Join(cacheRoot, "lewkit", "media-art")
+	cacheDir := filepath.Join(cacheRoot, release.Name(), "media-art")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}

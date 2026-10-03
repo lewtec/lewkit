@@ -13,6 +13,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const (
@@ -136,10 +137,10 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 		return nil, err
 	}
 	if client == "" {
-		client = "lewkit"
+		client = release.Name()
 	}
 	if stream == "" {
-		stream = "lewkit"
+		stream = release.Name()
 	}
 	width := 2
 	if sample == SampleF32LE {
@@ -248,7 +249,7 @@ func List(ctx context.Context) ([]Sink, error) {
 		return nil, errMainloop
 	}
 	defer mainloopFree(loop)
-	name := native.CString("lewkit")
+	name := native.CString(release.Name())
 	ctxp := contextNew(mainloopAPI(loop), ptr(name))
 	runtime.KeepAlive(name)
 	if ctxp == 0 {

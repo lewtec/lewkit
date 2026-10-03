@@ -37,7 +37,7 @@ func TestVersionCmdUsage(t *testing.T) {
 }
 
 func TestVersionCmdNotDefault(t *testing.T) {
-	text, err := Usage[App[None]]("lewkit")
+	text, err := Usage[App[None]](release.Name())
 	require.NoError(t, err)
 	assert.NotContains(t, text, "Commands:")
 	assert.Contains(t, text, "--version")

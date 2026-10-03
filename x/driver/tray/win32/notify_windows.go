@@ -16,6 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/tray"
 	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/image/convert"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const (
@@ -72,7 +73,7 @@ var (
 	classOnce sync.Once
 	classAtom uintptr
 	classErr  error
-	className = syscall.StringToUTF16Ptr("lewkit.driver.tray")
+	className = syscall.StringToUTF16Ptr(release.Name() + ".driver.tray")
 	windows   sync.Map
 )
 

@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	lewrelease "github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/singleton"
 )
 
 const (
-	userAgent  = "lewkit (+https://github.com/lewtec/lewkit)"
 	apiVersion = "2022-11-28"
 
 	tokenProbeEnv = "LEWKIT_GITHUB_TOKEN_PROBE"
@@ -71,7 +71,7 @@ func ApplyAPIHeaders(ctx context.Context, request *http.Request) {
 	if request == nil {
 		return
 	}
-	request.Header.Set("User-Agent", userAgent)
+	request.Header.Set("User-Agent", lewrelease.Name()+" (+https://github.com/lewtec/lewkit)")
 	request.Header.Set("X-GitHub-Api-Version", apiVersion)
 	if value := Token(ctx); value != "" {
 		request.Header.Set("Authorization", "Bearer "+value)

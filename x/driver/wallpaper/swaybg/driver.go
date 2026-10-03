@@ -7,6 +7,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/wallpaper"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 type backend struct{}
@@ -17,7 +18,8 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	cmd := execdriver.MustCommand("systemd-run", "--user", "-u", "lewkit-wallpaper", "--collect", swaybg, "-i", path)
+	unit := release.Name() + "-wallpaper"
+	cmd := execdriver.MustCommand("systemd-run", "--user", "-u", unit, "--collect", swaybg, "-i", path)
 	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("can't run swaybg in systemd unit: %w", err)
 	}
@@ -25,7 +27,8 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 }
 
 func stopWallpaper(ctx context.Context) {
-	_ = execdriver.Run(ctx, execdriver.MustCommand("systemctl", "--user", "stop", "lewkit-wallpaper.service"))
+	unit := release.Name() + "-wallpaper.service"
+	_ = execdriver.Run(ctx, execdriver.MustCommand("systemctl", "--user", "stop", unit))
 }
 
 func look(ctx context.Context, name string) (string, error) {

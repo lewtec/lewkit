@@ -9,6 +9,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/disasm"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +22,7 @@ func TestDisasmBadArchitecture(t *testing.T) {
 }
 
 func TestDisasmUsage(t *testing.T) {
-	text, err := cmd.Usage[disasmCmd]("lewkit disasm")
+	text, err := cmd.Usage[disasmCmd](release.Name() + " disasm")
 	require.NoError(t, err)
 	assert.Contains(t, text, "hex")
 	assert.Contains(t, text, "raw")
@@ -79,7 +80,7 @@ func TestDisasmFile(t *testing.T) {
 }
 
 func TestRootUsageListsDisasm(t *testing.T) {
-	text, err := cmd.Usage[cmd.App[root]]("lewkit")
+	text, err := cmd.Usage[cmd.App[root]](release.Name())
 	require.NoError(t, err)
 	assert.Contains(t, text, "disasm")
 }

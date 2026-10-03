@@ -15,6 +15,7 @@ import (
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 
 	stdgzip "compress/gzip"
@@ -245,7 +246,7 @@ func TestFS(t *testing.T) {
 
 func TestExtractFirst(t *testing.T) {
 	t.Parallel()
-	raw := packTarWrapped(t, map[string][]byte{"bin/lewkit": []byte("hi")}, func(w io.Writer) io.WriteCloser {
+	raw := packTarWrapped(t, map[string][]byte{"bin/" + release.Name(): []byte("hi")}, func(w io.Writer) io.WriteCloser {
 		return stdgzip.NewWriter(w)
 	})
 	dir := t.TempDir()
@@ -255,7 +256,7 @@ func TestExtractFirst(t *testing.T) {
 	require.NoError(t, os.WriteFile(archive, data, 0o644))
 	dest, err := ExtractFirst(archive, dir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, "lewkit"), dest)
+	assert.Equal(t, filepath.Join(dir, release.Name()), dest)
 	got, err := os.ReadFile(dest)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hi"), got)

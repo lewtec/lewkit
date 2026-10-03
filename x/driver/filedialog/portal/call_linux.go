@@ -12,6 +12,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 var (
@@ -85,7 +86,7 @@ func Choose(ctx context.Context, service string, req filedialog.Request) ([]stri
 		method,
 		0,
 		nextHandle(),
-		appID,
+		release.Name(),
 		"",
 		req.TitleOrDefault(),
 		options(req),

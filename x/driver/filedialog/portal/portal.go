@@ -16,7 +16,6 @@ const (
 
 	objectPath = "/org/freedesktop/portal/desktop"
 	iface      = "org.freedesktop.impl.portal.FileChooser"
-	appID      = "lewkit"
 )
 
 // PreferQt reports a KDE or Plasma session, where the Qt dialog should win.

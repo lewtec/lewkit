@@ -14,6 +14,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 // Target is one CGO-free desktop binary.
@@ -82,7 +83,7 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 	if err := os.MkdirAll(job.Out, 0o755); err != nil {
 		return nil, err
 	}
-	stamp := version.Info{Version: job.Version, BuiltBy: "lewkit"}
+	stamp := version.Info{Version: job.Version, BuiltBy: release.Name()}
 	var written []string
 	for _, target := range job.Targets {
 		if err := ctx.Err(); err != nil {
@@ -92,7 +93,7 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 		if target.GOOS == "windows" {
 			binary += ".exe"
 		}
-		tmp, err := os.MkdirTemp("", "lewkit-build-")
+		tmp, err := os.MkdirTemp("", release.Name()+"-build-")
 		if err != nil {
 			return written, err
 		}

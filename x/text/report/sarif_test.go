@@ -33,7 +33,7 @@ func TestWriteSARIFFix(t *testing.T) {
 		}},
 	}
 	var buf bytes.Buffer
-	tool := Tool{Name: "lewkit", Version: "dev", InformationURI: "https://github.com/lewtec/lewkit"}
+	tool := Tool{Name: "demo", Version: "dev", InformationURI: "https://github.com/lewtec/lewkit"}
 	require.NoError(t, WriteSARIF(&buf, "", tool, []Finding{f}, nil))
 	var log struct {
 		Version string `json:"version"`
@@ -83,7 +83,7 @@ func TestWriteSARIFFix(t *testing.T) {
 	require.Equal(t, "2.1.0", log.Version)
 	require.Len(t, log.Runs, 1)
 	run := log.Runs[0]
-	require.Equal(t, "lewkit", run.Tool.Driver.Name)
+	require.Equal(t, "demo", run.Tool.Driver.Name)
 	require.Equal(t, "demo/hello", run.Tool.Driver.Rules[0].ID)
 	res := run.Results[0]
 	require.Equal(t, "demo/hello", res.RuleID)
