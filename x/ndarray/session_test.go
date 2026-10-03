@@ -25,5 +25,7 @@ func TestEvalIntoVirtStable(t *testing.T) {
 	require.NoError(t, err)
 	grew := int64(after.VMS) - int64(before.VMS)
 	t.Logf("VMS %d -> %d (%+d) RSS %d -> %d over 80 CPU evals", before.VMS, after.VMS, grew, before.RSS, after.RSS)
-	require.Less(t, grew, int64(64<<20), "virtual size grew %d bytes", grew)
+	// The runtime reserves virtual address space in 64 MiB arenas.
+	// One arena in this window is not a per-eval leak. A second arena still fails.
+	require.LessOrEqual(t, grew, int64(64<<20), "virtual size grew %d bytes", grew)
 }
