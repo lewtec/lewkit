@@ -45,4 +45,15 @@ func TestPlainValues(t *testing.T) {
 	require.True(t, on)
 	_, err = Bool(1, nil)
 	require.ErrorIs(t, err, errJavaValue)
+
+	wide, err := Float(float32(0.5), nil)
+	require.NoError(t, err)
+	require.InDelta(t, 0.5, wide, 0)
+	exact, err := Float(0.25, nil)
+	require.NoError(t, err)
+	require.Equal(t, 0.25, exact)
+	_, err = Float(1, nil)
+	require.ErrorIs(t, err, errJavaValue)
+	_, err = Float(0.5, errBoom)
+	require.EqualError(t, err, "boom")
 }

@@ -113,7 +113,7 @@ Inherited C (cite the file):
 | `x/driver/clipboard/android` | Android `WriteText`, `WriteImage` | clipboard text | text stays here | no Java VM is `driver.ErrIncompatible`; an image is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/opener` | `Open` | launch a file or URL | protocol stays here | missing opener is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/dirs` | `Resolve`, `Dirs` | per-app data, cache, config, inbox | protocol stays here | bad app id is `ErrInvalidAppID` | hardcode a product name in the path |
-| `x/driver/android` | `Context`, `Ref`, `Int`, `Text`, `Bool`, `Open` | application `Context` and the shared binder client | lookup stays here | missing host is `driver.ErrUnavailable`; a non-Android process is `driver.ErrIncompatible` | import `x/ffi/native`; a driver factory; a second binder open |
+| `x/driver/android` | `Context`, `Ref`, `Int`, `Text`, `Bool`, `Float`, `Open` | application `Context` and the shared binder client | lookup stays here | missing host is `driver.ErrUnavailable`; a non-Android process is `driver.ErrIncompatible` | import `x/ffi/native`; a driver factory; a second binder open |
 | `x/driver/dirs/android` | Android `Resolve` | files, cache, and config from the package data dir | paths stay here | not android or no binder is `driver.ErrIncompatible` | import `x/ffi/native`; import `x/driver/webview` |
 | `x/driver/bundle` | `Resolve`, `Root`, `SharePath` | stamped reverse-domain tree plus web profile | protocol stays here | missing id is `release.ErrAppIDRequired` | import `x/driver/webview`; replace `x/driver/dirs` |
 | `x/driver/thread` | `Driver` | UI thread for this process | protocol stays here | JNI without a Java looper is `driver.ErrIncompatible` | import `x/ui/gui` |

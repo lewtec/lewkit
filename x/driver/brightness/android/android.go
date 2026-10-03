@@ -17,7 +17,6 @@ import (
 func init() { driver.Register[brightness.Driver](factory{}) }
 
 var (
-	errJavaValue    = errors.New("unexpected java value")
 	errNoBrightness = errors.New("screen brightness is unset")
 	errNoWindow     = errors.New("no foreground window")
 	errWindow       = errors.New("window brightness")
@@ -207,7 +206,7 @@ func windowLevel(fg *jni.Ref) (float64, bool, error) {
 		return 0, false, err
 	}
 	defer attrs.Release()
-	level, err := floatOf(attrs.Field("screenBrightness"))
+	level, err := host.Float(attrs.Field("screenBrightness"))
 	if err != nil {
 		return 0, false, err
 	}
@@ -270,18 +269,4 @@ func resourceInt(res *jni.Ref, name string) (int, error) {
 		return 0, err
 	}
 	return host.Int(res.Call("getInteger", id))
-}
-
-func floatOf(v any, err error) (float64, error) {
-	if err != nil {
-		return 0, err
-	}
-	switch n := v.(type) {
-	case float32:
-		return float64(n), nil
-	case float64:
-		return n, nil
-	default:
-		return 0, fmt.Errorf("%w: %T", errJavaValue, v)
-	}
 }

@@ -59,3 +59,18 @@ func Bool(v any, err error) (bool, error) {
 	}
 	return b, nil
 }
+
+// Float returns v as a float64. A float32 is widened.
+func Float(v any, err error) (float64, error) {
+	if err != nil {
+		return 0, err
+	}
+	switch n := v.(type) {
+	case float32:
+		return float64(n), nil
+	case float64:
+		return n, nil
+	default:
+		return 0, fmt.Errorf("%w: %T", errJavaValue, v)
+	}
+}
