@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
+	host "github.com/lewtec/lewkit/x/driver/android"
 	"github.com/lewtec/lewkit/x/driver/volume"
-	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
 
 func init() { driver.Register[volume.Driver](factory{}) }
@@ -18,7 +18,7 @@ func (factory) Name() string { return "Android volume" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := host.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -33,7 +33,7 @@ func (factory) New(context.Context) (volume.Driver, error) { return backend{}, n
 type backend struct{}
 
 func (backend) SetVolume(ctx context.Context, level float64) error {
-	client, err := open(ctx)
+	client, err := host.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (backend) GetVolume(ctx context.Context) (float64, error) {
 }
 
 func (backend) ToggleMute(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := host.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -73,17 +73,9 @@ func music(ctx context.Context) (int32, int32, error) {
 }
 
 func volumes(ctx context.Context) (int32, int32, bool, error) {
-	client, err := open(ctx)
+	client, err := host.Open(ctx)
 	if err != nil {
 		return 0, 0, false, err
 	}
 	return client.StreamVolume(ctx, musicStream)
-}
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
 }

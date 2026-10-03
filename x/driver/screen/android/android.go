@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
+	host "github.com/lewtec/lewkit/x/driver/android"
 	"github.com/lewtec/lewkit/x/driver/screen"
-	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
 
 func init() { driver.Register[screen.Driver](factory{}) }
@@ -21,7 +21,7 @@ func (factory) Name() string { return "Android screen" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := host.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -36,7 +36,7 @@ func (factory) New(context.Context) (screen.Driver, error) { return backend{}, n
 type backend struct{}
 
 func (backend) SetDPMS(ctx context.Context, on bool) error {
-	client, err := open(ctx)
+	client, err := host.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (backend) SetDPMS(ctx context.Context, on bool) error {
 }
 
 func (backend) IsDPMSOn(ctx context.Context) (bool, error) {
-	client, err := open(ctx)
+	client, err := host.Open(ctx)
 	if err != nil {
 		return false, err
 	}
@@ -55,11 +55,3 @@ func (backend) IsDPMSOn(ctx context.Context) (bool, error) {
 }
 
 func (backend) Reset(context.Context) error { return errNoLayout }
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
-}
