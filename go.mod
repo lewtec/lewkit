@@ -26,7 +26,7 @@ require (
 	github.com/jfreymuth/oggvorbis v1.0.5
 	github.com/klauspost/compress v1.18.5
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
-	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260927175155-6b7c6c643bc9
+	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260927191427-b55c533d023c
 	github.com/lewtec/leaven-tree-sitter/grammar/json v0.0.0-20260927175155-6b7c6c643bc9
 	github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06
 	github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260927175003-766673523e06
