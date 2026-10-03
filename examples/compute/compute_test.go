@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"testing"
 
@@ -17,8 +18,16 @@ func TestExampleComp(t *testing.T) {
 	require.True(t, glsl.IsSPIRV(got))
 }
 
+func TestExampleCompRegistered(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	got, err := loadShader(ctx, "")
+	require.NoError(t, err)
+	require.True(t, glsl.IsSPIRV(got))
+}
+
 func TestLoadShaderFile(t *testing.T) {
-	got, err := loadShader(t.Context(), "example.comp")
+	got, err := loadShader(t.Context(), "example.compute.glsl")
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(got))
 }

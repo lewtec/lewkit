@@ -1,5 +1,7 @@
 package vulkan
 
+//go:generate go run ../../../cmd/lewkit generate shader .
+
 import (
 	"context"
 	"embed"
@@ -8,7 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/singleton"
 )
 
-//go:embed shader/fill.vert shader/fill.frag shader/ink.vert shader/ink.frag
+//go:embed shader/fill.vertex.glsl shader/fill.fragment.glsl shader/ink.vertex.glsl shader/ink.fragment.glsl
 var drawShaders embed.FS
 
 // drawModules is the fill and ink SPIR-V for one swapchain draw.
@@ -16,8 +18,9 @@ type drawModules struct {
 	vert, frag, inkVert, inkFrag []byte
 }
 
-// drawCode compiles the swapchain fill and ink shaders once.
-// The GLSL source is shader/. The compiler is the wasm glslang in x/ffi/wasm/glsl.
+// drawCode loads the swapchain fill and ink shaders once.
+// The GLSL source is shader/. A registered hash returns SPIR-V.
+// A missing hash compiles with the embedded glslang.
 var drawCode = singleton.NewSingleton(func(ctx context.Context) (drawModules, error) {
 	var code drawModules
 	steps := []struct {
@@ -25,10 +28,10 @@ var drawCode = singleton.NewSingleton(func(ctx context.Context) (drawModules, er
 		name  string
 		dst   *[]byte
 	}{
-		{glsl.StageVertex, "shader/fill.vert", &code.vert},
-		{glsl.StageFragment, "shader/fill.frag", &code.frag},
-		{glsl.StageVertex, "shader/ink.vert", &code.inkVert},
-		{glsl.StageFragment, "shader/ink.frag", &code.inkFrag},
+		{glsl.StageVertex, "shader/fill.vertex.glsl", &code.vert},
+		{glsl.StageFragment, "shader/fill.fragment.glsl", &code.frag},
+		{glsl.StageVertex, "shader/ink.vertex.glsl", &code.inkVert},
+		{glsl.StageFragment, "shader/ink.fragment.glsl", &code.inkFrag},
 	}
 	for _, shader := range steps {
 		src, err := drawShaders.ReadFile(shader.name)

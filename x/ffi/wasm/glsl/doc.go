@@ -1,5 +1,12 @@
-// Package glsl compiles Vulkan GLSL to SPIR-V using an embedded
-// glslang reactor in [github.com/lewtec/lewkit/x/ffi/wasm].
+// Package glsl compiles Vulkan GLSL to SPIR-V.
 //
-// [Compile] takes GLSL source in memory. [IsSPIRV] reports the SPIR-V magic.
+// [CompileStage] returns SPIR-V already registered for the SHA-256 of the
+// stage and the source. The lewkit generate shader command writes that
+// registry for name.vertex.glsl, name.fragment.glsl, and name.compute.glsl
+// files. The second-to-last extension is the stage. A missing hash
+// compiles with the embedded glslang reactor in
+// [github.com/lewtec/lewkit/x/ffi/wasm].
+//
+// [Compile] takes GLSL compute source in memory. [IsSPIRV] reports the
+// SPIR-V magic.
 package glsl

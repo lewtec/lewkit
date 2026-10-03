@@ -32,16 +32,19 @@ const (
 
 // Compile turns Vulkan GLSL compute source into SPIR-V.
 // src must be GLSL, not SPIR-V.
+// A registered hash returns that SPIR-V and does not run a compiler.
 func Compile(ctx context.Context, src []byte) ([]byte, error) {
 	return CompileStage(ctx, StageCompute, src)
 }
 
 // CompileStage turns Vulkan GLSL for stage into SPIR-V.
+// A registered hash returns that SPIR-V and does not start the embedded glslang.
+// A missing hash compiles with that reactor.
 func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return nil, ErrEmpty
 	}
-	if stage != StageVertex && stage != StageFragment && stage != StageCompute {
+	if !knownStage(stage) {
 		return nil, ErrCompile
 	}
 	if IsSPIRV(src) {
@@ -50,7 +53,32 @@ func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 		}
 		return append([]byte(nil), src...), nil
 	}
+	if spv, ok := Lookup(stage, src); ok {
+		return spv, nil
+	}
 	return compileStage(ctx, stage, src)
+}
+
+// CompileGlslang compiles src with the embedded glslang reactor.
+// It does not read the registry. Codegen uses it so the committed
+// SPIR-V comes from the same reactor a miss uses at runtime.
+func CompileGlslang(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
+	if len(src) == 0 {
+		return nil, ErrEmpty
+	}
+	if !knownStage(stage) {
+		return nil, ErrCompile
+	}
+	if IsSPIRV(src) {
+		if len(src)%4 != 0 {
+			return nil, ErrCompile
+		}
+		return append([]byte(nil), src...), nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return compileSPIRV(ctx, stage, src)
 }
 
 // Load returns SPIR-V. SPIR-V is copied; GLSL is compiled.
