@@ -3,7 +3,7 @@
     <string name="app_name">{{.AppName}}</string>
     <string name="server_notification_title">{{.AppName}}</string>
     <string name="server_notification_text">Local server running</string>
-    <string name="loading">Starting local server…</string>
+    <string name="loading">Starting…</string>
     <string name="status_binding">Waiting for server…</string>
     <string name="status_connecting">Connecting…</string>
     <string name="status_loading">Loading app…</string>

@@ -76,11 +76,11 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(mainJava), "Host.noteForeground(this, true)") {
 		t.Fatal("splash activity does not record the foreground window")
 	}
-	if !strings.Contains(string(mainJava), "Host.openSurface()") {
-		t.Fatal("launcher does not open the surface activity")
+	if !strings.Contains(string(mainJava), "R.id.splash") {
+		t.Fatal("launcher has no splash")
 	}
-	if strings.Contains(string(mainJava), "Starting local server") {
-		t.Fatal("launcher still shows the loading screen")
+	if !strings.Contains(string(mainJava), "url.isEmpty()") {
+		t.Fatal("splash does not yield when the surface opens")
 	}
 	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
 	if err != nil {
@@ -138,8 +138,8 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if strings.Contains(string(hostJava), "dataDir") || strings.Contains(string(hostJava), "cacheDir") || strings.Contains(string(hostJava), "configDir") {
 		t.Fatalf("host still owns directory methods:\n%s", hostJava)
 	}
-	if strings.Contains(string(hostJava), `cb.call("")`) {
-		t.Fatal("surface open still routes through the page callback")
+	if !strings.Contains(string(hostJava), `cb.call("")`) {
+		t.Fatal("surface open does not replace the splash")
 	}
 	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

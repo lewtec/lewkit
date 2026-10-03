@@ -7,16 +7,34 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.view.View;
+import android.webkit.WebView;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
+
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import lewkit.Host;
 
 /**
- * Starts the Go app and opens the surface activity. A web handler later
- * opens its own page. There is no loading screen.
+ * Splash until the Go entrypoint opens the first window. A surface replaces
+ * this activity with an empty ready URL. A page replaces it with the loopback URL.
  */
 public class MainActivity extends Activity {
+    private WebView webView;
     private ServerService server;
     private boolean bound;
+    private String appUrl;
+
+    private View splash;
+    private TextView splashStatus;
+    private TextView splashDetail;
+    private ProgressBar splashProgress;
+    private Button splashRetry;
+    private SwipeRefreshLayout swipeRefresh;
+    private FrameLayout webContainer;
 
     private final ServiceConnection connection = new ServiceConnection() {
         @Override
@@ -26,15 +44,20 @@ public class MainActivity extends Activity {
             bound = true;
             server.setListener(new ServerService.Listener() {
                 @Override
-                public void onStatus(String message) {}
-
-                @Override
-                public void onReady(String url) {
-                    Windows.pushWebWindow(getApplicationContext(), url);
+                public void onStatus(String message) {
+                    runOnUiThread(() -> showSplash(message, null, false));
                 }
 
                 @Override
-                public void onFailed(String message) {}
+                public void onReady(String url) {
+                    appUrl = url;
+                    runOnUiThread(() -> loadApp(url));
+                }
+
+                @Override
+                public void onFailed(String message) {
+                    runOnUiThread(() -> showSplash(getString(R.string.server_failed), message, true));
+                }
             });
             server.ensureStarted();
         }
@@ -51,23 +74,39 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         System.setProperty("java.net.useSystemProxies", "false");
         System.setProperty("http.nonProxyHosts", "localhost|127.*|[::1]");
-        Host.onReady = url -> {
-            if (url == null || url.isEmpty()) {
-                return;
+        setContentView(R.layout.activity_main);
+
+        splash = findViewById(R.id.splash);
+        splashStatus = findViewById(R.id.splash_status);
+        splashDetail = findViewById(R.id.splash_detail);
+        splashProgress = findViewById(R.id.splash_progress);
+        splashRetry = findViewById(R.id.splash_retry);
+        swipeRefresh = findViewById(R.id.swipe_refresh);
+        webContainer = findViewById(R.id.webview_container);
+
+        swipeRefresh.setOnRefreshListener(this::refreshPage);
+        swipeRefresh.setOnChildScrollUpCallback((parent, child) ->
+                webView != null && webView.canScrollVertically(-1));
+
+        splashRetry.setOnClickListener(v -> {
+            showSplash(getString(R.string.loading), null, false);
+            String url = appUrl;
+            if (url != null) {
+                loadApp(url);
+            } else if (server != null) {
+                server.restart();
             }
-            Windows.pushWebWindow(getApplicationContext(), url);
-        };
-        OpenDrop.handle(this, getIntent());
-        ShareOut.start(this);
+        });
+
+        Host.onReady = url -> loadApp(url);
+        Host.onFail = message -> showSplash(getString(R.string.server_failed), message, true);
         try {
             Host.boot(this);
         } catch (UnsatisfiedLinkError e) {
             startBackend();
-            return;
         }
-        Host.openSurface();
-        finish();
-        overridePendingTransition(0, 0);
+        OpenDrop.handle(this, getIntent());
+        ShareOut.start(this);
     }
 
     @Override
@@ -95,6 +134,55 @@ public class MainActivity extends Activity {
         bindService(svc, connection, Context.BIND_AUTO_CREATE);
     }
 
+    private void refreshPage() {
+        String url = appUrl;
+        if (url != null) {
+            loadApp(url);
+            return;
+        }
+        swipeRefresh.setRefreshing(false);
+        if (server != null) {
+            server.restart();
+        }
+    }
+
+    private void loadApp(String url) {
+        if (isFinishing()) {
+            return;
+        }
+        // Empty URL: the entrypoint opened a surface. This splash is replaced by that window.
+        if (url == null || url.isEmpty()) {
+            Host.onReady = null;
+            Host.onFail = null;
+            finish();
+            overridePendingTransition(0, 0);
+            return;
+        }
+        appUrl = url;
+        Windows.pushWebWindow(this, url);
+        overridePendingTransition(0, 0);
+        Host.onReady = null;
+        Host.onFail = null;
+        finish();
+        overridePendingTransition(0, 0);
+    }
+
+    private void showSplash(String status, String detail, boolean error) {
+        splash.setVisibility(View.VISIBLE);
+        swipeRefresh.setVisibility(View.GONE);
+        swipeRefresh.setRefreshing(false);
+        splashStatus.setText(status);
+        if (detail == null || detail.trim().isEmpty()) {
+            splashDetail.setVisibility(View.GONE);
+            splashDetail.setText("");
+        } else {
+            splashDetail.setVisibility(View.VISIBLE);
+            splashDetail.setText(detail);
+        }
+        splashProgress.setVisibility(error ? View.GONE : View.VISIBLE);
+        splashRetry.setVisibility(error ? View.VISIBLE : View.GONE);
+    }
+
     @Override
     protected void onDestroy() {
         if (bound) {
@@ -103,6 +191,13 @@ public class MainActivity extends Activity {
             }
             unbindService(connection);
             bound = false;
+        }
+        if (webContainer != null) {
+            webContainer.removeAllViews();
+        }
+        if (webView != null) {
+            webView.destroy();
+            webView = null;
         }
         super.onDestroy();
     }

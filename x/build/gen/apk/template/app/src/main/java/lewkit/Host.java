@@ -78,6 +78,13 @@ public final class Host {
         }
         surfaceOpening = true;
         ctx.startActivity(new Intent(ctx, SurfaceActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        // The first window is up. The splash activity replaces itself with it.
+        Ready cb = onReady;
+        if (cb != null) {
+            onReady = null;
+            onFail = null;
+            cb.call("");
+        }
     }
 
     public static void ready(String url) {
