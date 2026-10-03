@@ -158,7 +158,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit generate db DIR` | sqlc packages, a `Queries` interface, and `DBArg`. |
 | `lewkit generate prelude DIR [OUT]` | One blank-import prelude per directory under `DIR` that contains a descendant `root.go`. `OUT` is the file for `DIR`. |
 | `lewkit generate protobuf FILE` | Go source for a `.proto` file. |
-| `lewkit generate shader DIR` | One `spirv_gen.go` per Go package under `DIR` that owns a `.vert`, `.frag`, or `.comp` file. The file maps that shader hash to SPIR-V. |
+| `lewkit generate shader DIR` | One `spirv_gen.go` per Go package under `DIR` that owns a `name.<stage>.glsl` file. The second-to-last extension is `vertex`, `fragment`, or `compute`. The file maps that shader hash to SPIR-V. |
 | `lewkit completion` | The bash `complete -C` line for this program. |
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
@@ -197,7 +197,7 @@ The progress view tracks the build. The program starts after that view and write
 | `examples/rsync` | Parallel fake transfers. Each transfer rewrites one row. |
 | `examples/triangle` | RGB triangle, one turn every four seconds. Plus and minus step the rate by 0.05. |
 | `examples/perlin` | Animated Perlin noise. |
-| `examples/compute` | Embedded shader `example.comp`. A path argument loads that shader. |
+| `examples/compute` | Embedded shader `example.compute.glsl`. A path argument loads that shader. |
 | `examples/scroll` | Rounded translucent boxes in a loop. |
 | `examples/notepad` | An editor. The buffer stays in memory. |
 | `examples/elm` | Two buttons that add and subtract an integer. |

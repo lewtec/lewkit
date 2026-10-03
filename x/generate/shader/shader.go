@@ -1,6 +1,8 @@
 // Package shader writes a SPIR-V registry for GLSL files in a tree.
-// .vert, .frag, and .comp files are compiled with the embedded glslang
-// and recorded in spirv_gen.go beside the Go package that owns them.
+// A shader is name.<stage>.glsl. The second-to-last extension is the
+// stage: vertex, fragment, or compute. Each file is compiled with the
+// embedded glslang and recorded in spirv_gen.go beside the Go package
+// that owns it.
 package shader
 
 import (
@@ -117,16 +119,28 @@ func skipDir(name string) bool {
 }
 
 func stageOf(name string) (glsl.Stage, bool) {
-	switch filepath.Ext(name) {
-	case ".vert":
-		return glsl.StageVertex, true
-	case ".frag":
-		return glsl.StageFragment, true
-	case ".comp":
-		return glsl.StageCompute, true
-	default:
-		return 0, false
+	_, stage, ok := splitShader(name)
+	return stage, ok
+}
+
+// splitShader reads a name.<stage>.glsl path.
+// The second-to-last extension is the stage. stem is the path without that suffix.
+func splitShader(name string) (stem string, stage glsl.Stage, ok bool) {
+	if filepath.Ext(name) != ".glsl" {
+		return "", 0, false
 	}
+	without := strings.TrimSuffix(name, ".glsl")
+	switch filepath.Ext(without) {
+	case ".vertex":
+		stage = glsl.StageVertex
+	case ".fragment":
+		stage = glsl.StageFragment
+	case ".compute":
+		stage = glsl.StageCompute
+	default:
+		return "", 0, false
+	}
+	return strings.TrimSuffix(without, filepath.Ext(without)), stage, true
 }
 
 func packageDir(file, root string) (string, error) {

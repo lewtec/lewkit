@@ -27,7 +27,7 @@ func TestExampleCompRegistered(t *testing.T) {
 }
 
 func TestLoadShaderFile(t *testing.T) {
-	got, err := loadShader(t.Context(), "example.comp")
+	got, err := loadShader(t.Context(), "example.compute.glsl")
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(got))
 }

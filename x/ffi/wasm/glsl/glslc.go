@@ -69,10 +69,10 @@ func stageFlag(stage Stage) string {
 func stageExt(stage Stage) string {
 	switch stage {
 	case StageVertex:
-		return ".vert"
+		return ".vertex.glsl"
 	case StageFragment:
-		return ".frag"
+		return ".fragment.glsl"
 	default:
-		return ".comp"
+		return ".compute.glsl"
 	}
 }

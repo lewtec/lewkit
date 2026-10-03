@@ -32,10 +32,10 @@ func TestDrawSPIRVRegistered(t *testing.T) {
 		stage glsl.Stage
 		name  string
 	}{
-		{glsl.StageVertex, "shader/fill.vert"},
-		{glsl.StageFragment, "shader/fill.frag"},
-		{glsl.StageVertex, "shader/ink.vert"},
-		{glsl.StageFragment, "shader/ink.frag"},
+		{glsl.StageVertex, "shader/fill.vertex.glsl"},
+		{glsl.StageFragment, "shader/fill.fragment.glsl"},
+		{glsl.StageVertex, "shader/ink.vertex.glsl"},
+		{glsl.StageFragment, "shader/ink.fragment.glsl"},
 	}
 	for _, shader := range steps {
 		src, err := drawShaders.ReadFile(shader.name)

@@ -96,7 +96,7 @@ func (c *protobufCmd) Run(ctx context.Context) error {
 }
 
 type shaderCmd struct {
-	dir cmd.WorkDirArg `help:"directory to scan for .vert, .frag, and .comp"`
+	dir cmd.WorkDirArg `help:"directory to scan for name.<stage>.glsl"`
 }
 
 func (shaderCmd) Description() string {

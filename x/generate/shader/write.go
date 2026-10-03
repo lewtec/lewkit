@@ -90,21 +90,27 @@ func stageExpr(stage glsl.Stage) string {
 	}
 }
 
+func stageToken(stage glsl.Stage) string {
+	switch stage {
+	case glsl.StageVertex:
+		return "vertex"
+	case glsl.StageFragment:
+		return "fragment"
+	default:
+		return "compute"
+	}
+}
+
 func ident(rel string) string {
-	ext := filepath.Ext(rel)
-	stem := strings.TrimSuffix(rel, ext)
+	stem, stage, ok := splitShader(rel)
+	if !ok {
+		return "shader"
+	}
 	var parts []string
 	for _, part := range strings.Split(stem, "/") {
 		parts = append(parts, words(part)...)
 	}
-	switch ext {
-	case ".vert":
-		parts = append(parts, "vert")
-	case ".frag":
-		parts = append(parts, "frag")
-	case ".comp":
-		parts = append(parts, "comp")
-	}
+	parts = append(parts, stageToken(stage))
 	parts = slices.DeleteFunc(parts, func(part string) bool { return part == "" })
 	if len(parts) == 0 {
 		return "shader"

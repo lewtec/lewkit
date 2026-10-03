@@ -10,7 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 )
 
-//go:embed example.comp
+//go:embed example.compute.glsl
 var exampleComp []byte
 
 func loadShader(ctx context.Context, path string) ([]byte, error) {
