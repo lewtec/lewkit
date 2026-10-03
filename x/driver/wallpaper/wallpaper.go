@@ -2,8 +2,8 @@
 //
 //	err := wallpaper.SetStatic(ctx, path)
 //
-// Import swaybg or feh. Swaybg is Wayland. Feh is X11.
-// Both start the tool with systemd-run --user.
+// Import swaybg or feh. Swaybg is Wayland and starts through systemd-run.
+// Feh is X11 and runs feh itself.
 package wallpaper
 
 import (

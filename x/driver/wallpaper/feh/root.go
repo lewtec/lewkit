@@ -19,9 +19,6 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "DISPLAY"); err != nil {
 		return err
 	}
-	if err := execdriver.RequireBinary(ctx, "systemd-run"); err != nil {
-		return err
-	}
 	return execdriver.RequireBinary(ctx, "feh")
 }
 
