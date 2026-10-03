@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/lewtec/lewkit/report"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 	"github.com/lewtec/lewkit/x/logging"
@@ -26,13 +27,14 @@ func slogOut() io.Writer {
 	return os.Stderr
 }
 
-// Main runs fn as the process. A non-nil error is logged and the process exits 1.
+// Main runs fn as the process. A non-nil error is logged, reported, and the process exits 1.
 func Main(fn func(context.Context) error) {
 	slog.SetDefault(slog.New(logging.NewHandler(slogOut(), &slog.HandlerOptions{Level: slog.LevelInfo})))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	if err := Run(ctx, fn); err != nil {
 		slog.Error(err.Error())
+		report.Report(err)
 		os.Exit(1)
 	}
 }
