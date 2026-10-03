@@ -4,6 +4,7 @@
 //		Title:   "Open",
 //		Filters: []filedialog.Filter{{Name: "Audio", Patterns: []string{"*.mp3", "*.flac"}}},
 //	})
+//	tree, err := filedialog.Open(paths...)
 //
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one implementation
 // (gtk, qt, cocoa, win32, android).
@@ -11,7 +12,9 @@
 // Linux GTK uses the gtk portal file chooser. Linux Qt uses the KDE portal
 // file chooser. Windows uses the common item dialog. macOS uses NSOpenPanel
 // and NSSavePanel. Android uses the system document picker and returns
-// content URIs. On macOS and Windows, call
+// content URIs. [Open] reads those paths. One directory is the root. A
+// content URI is the Android document tree; the bytes stay in the provider.
+// On macOS and Windows, call
 // [github.com/lewtec/lewkit/x/driver/thread.Bind] from main and run
 // [github.com/lewtec/lewkit/x/driver/thread.Loop]. [github.com/lewtec/lewkit/x/driver/thread.Run]
 // does both. Choose may be called from another goroutine while Loop is running.

@@ -22,13 +22,24 @@ templ filesDocument(v filesView) {
 				if v.Pending {
 					<p class="text-center opacity-70">Waiting for the picker…</p>
 				}
+				if v.Here != "" {
+					<p class="text-center font-mono text-sm break-all">{ v.Here }</p>
+				}
+				if v.Up != "" {
+					<a class="link" href={ templ.URL(v.Up) }>Up</a>
+				}
 				if v.Note != "" {
 					<div role="alert" class="alert">{ v.Note }</div>
 				}
-				if len(v.Paths) > 0 {
+				if len(v.Entries) > 0 {
 					<ul class="list">
-						for _, path := range v.Paths {
-							<li class="list-row font-mono text-sm break-all">{ path }</li>
+						for _, entry := range v.Entries {
+							<li class="list-row">
+								<a class="link font-mono text-sm break-all" href={ templ.URL(entry.Href) }>{ entry.Name }</a>
+								if !entry.Dir {
+									<span class="text-sm opacity-70">{ entry.Size }</span>
+								}
+							</li>
 						}
 					</ul>
 				}

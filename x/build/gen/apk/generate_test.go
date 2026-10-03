@@ -32,6 +32,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/src/main/AndroidManifest.xml",
 		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
 		"app/src/main/java/lewkit/FileChooser.java",
+		"app/src/main/java/lewkit/Documents.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
 		"app/src/main/java/br/tec/lew/counter/ServerService.java",
@@ -99,6 +100,13 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	}
 	if !strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
 		t.Fatalf("file chooser activity:\n%s", manifest)
+	}
+	docs, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Documents.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(docs), "int readFd") {
+		t.Fatal("document reader")
 	}
 
 	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
