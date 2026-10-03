@@ -31,6 +31,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/build.gradle",
 		"app/src/main/AndroidManifest.xml",
 		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
+		"app/src/main/java/lewkit/FileChooser.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
 		"app/src/main/java/br/tec/lew/counter/ServerService.java",
@@ -71,6 +72,9 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.HasPrefix(string(mainJava), "package br.tec.lew.counter;\n") {
 		t.Fatalf("java package mismatch:\n%s", mainJava[:80])
 	}
+	if !strings.Contains(string(mainJava), "Host.noteForeground(this, true)") {
+		t.Fatal("splash activity does not record the foreground window")
+	}
 
 	cfg, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
 	if err != nil {
@@ -92,6 +96,9 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	}
 	if !strings.Contains(string(manifest), `android:configChanges="orientation|screenSize|keyboardHidden|uiMode"`) {
 		t.Fatalf("manifest uiMode:\n%s", manifest)
+	}
+	if !strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
+		t.Fatalf("file chooser activity:\n%s", manifest)
 	}
 
 	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))

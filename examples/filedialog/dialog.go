@@ -1,6 +1,10 @@
 // Files asks for files and prints each path.
 //
 //	go run ./cmd/lewkit release run --config ./examples/filedialog/eletrocromo.json
+//
+// Android (document picker, needs a device and the NDK):
+//
+//	go run ./cmd/lewkit release run --config ./examples/filedialog/eletrocromo.json --goos android --app --cgo
 package main
 
 import (
