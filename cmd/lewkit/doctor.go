@@ -10,6 +10,8 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
+	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/text/table"
 )
 
@@ -23,10 +25,18 @@ func (doctorCmd) Description() string {
 
 func (command *doctorCmd) Run(ctx context.Context) error {
 	report := driver.Doctor(ctx)
-	if command.Columns.Value() != "" {
-		return cmd.Rows(ctx, os.Stdout, implementationRows(report), driverLayout)
+	write := func(context.Context) error {
+		if command.Columns.Value() != "" {
+			return cmd.Rows(ctx, os.Stdout, implementationRows(report), driverLayout)
+		}
+		return cmd.Rows(ctx, os.Stdout, doctorLines(report), lineLayout)
 	}
-	return cmd.Rows(ctx, os.Stdout, doctorLines(report), lineLayout)
+	// The progress view stops after Run returns. Print once the terminal is back.
+	if taskgroup.FromContext(ctx) != nil {
+		entry.After(write)
+		return nil
+	}
+	return write(ctx)
 }
 
 // driverRow is one implementation. --columns selects these fields.

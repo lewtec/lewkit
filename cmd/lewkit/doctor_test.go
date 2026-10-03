@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,18 @@ func TestDoctorPrintsTable(t *testing.T) {
 	assert.Contains(t, got, "  window_mem")
 	assert.Contains(t, got, "✓")
 	assert.Contains(t, got, "Memory")
+}
+
+func TestDoctorPrintsAfterViewStops(t *testing.T) {
+	test.RestoreSlog(t)
+	app := cmd.ParseOK[cmd.App[root]](t, "doctor")
+	got := test.Stdout(t, func() {
+		require.NoError(t, entry.Run(t.Context(), app.Run))
+	})
+	assert.Contains(t, got, "mark")
+	assert.Contains(t, got, "driver")
+	assert.Contains(t, got, "window.Driver")
+	assert.Contains(t, got, "  window_mem")
 }
 
 func TestDoctorPrintsJSONL(t *testing.T) {
