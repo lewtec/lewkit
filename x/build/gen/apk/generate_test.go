@@ -76,6 +76,9 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(mainJava), "Host.noteForeground(this, true)") {
 		t.Fatal("splash activity does not record the foreground window")
 	}
+	if !strings.Contains(string(mainJava), "native surface") {
+		t.Fatal("splash does not yield to the surface")
+	}
 	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
 	if err != nil {
 		t.Fatal(err)
@@ -122,6 +125,9 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	}
 	if strings.Contains(string(hostJava), "dataDir") || strings.Contains(string(hostJava), "cacheDir") || strings.Contains(string(hostJava), "configDir") {
 		t.Fatalf("host still owns directory methods:\n%s", hostJava)
+	}
+	if !strings.Contains(string(hostJava), `cb.call("")`) {
+		t.Fatal("surface open does not dismiss the splash")
 	}
 	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

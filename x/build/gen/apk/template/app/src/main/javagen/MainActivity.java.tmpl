@@ -166,6 +166,14 @@ public class MainActivity extends Activity {
         if (isFinishing()) {
             return;
         }
+        // An empty URL is a native surface. The splash finishes and no page loads.
+        if (url == null || url.isEmpty()) {
+            Host.onReady = null;
+            Host.onFail = null;
+            finish();
+            overridePendingTransition(0, 0);
+            return;
+        }
         appUrl = url;
         Windows.pushWebWindow(this, url);
         overridePendingTransition(0, 0);

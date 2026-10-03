@@ -38,16 +38,22 @@ public final class Host {
     public static void openSurface() {
         new Handler(Looper.getMainLooper()).post(() -> {
             Activity fg = foreground;
-            if (fg != null) {
-                fg.startActivity(new Intent(fg, SurfaceActivity.class));
-                return;
-            }
-            Context ctx = app;
+            Context ctx = fg != null ? fg : app;
             if (ctx == null) {
                 return;
             }
-            ctx.startActivity(
-                    new Intent(ctx, SurfaceActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            Intent intent = new Intent(ctx, SurfaceActivity.class);
+            if (fg == null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            }
+            ctx.startActivity(intent);
+            // The splash is still in front. Yield it once the surface is started.
+            Ready cb = onReady;
+            if (cb != null) {
+                onReady = null;
+                onFail = null;
+                cb.call("");
+            }
         });
     }
 

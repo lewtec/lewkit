@@ -1,6 +1,7 @@
 package app
 
 import (
+	"net/http"
 	"os"
 	"testing"
 
@@ -18,6 +19,26 @@ func TestAnnounceReadyWritesFile(t *testing.T) {
 
 func TestLoopbackLinkUsesIPv4(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:9/?token=abc", loopbackLink("http://[::1]:9", "abc"))
+}
+
+func TestLoopbackKeepsAndroidGUI(t *testing.T) {
+	win, err := loopbackWindow(GUI(nil), true)
+	require.NoError(t, err)
+	_, ok := win.(guiWindow)
+	require.True(t, ok)
+}
+
+func TestLoopbackRejectsDesktopGUI(t *testing.T) {
+	_, err := loopbackWindow(GUI(nil), false)
+	require.EqualError(t, err, "loopback host needs a web handler")
+}
+
+func TestLoopbackHostsWeb(t *testing.T) {
+	win, err := loopbackWindow(Web(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})), false)
+	require.NoError(t, err)
+	web, ok := win.(webWindow)
+	require.True(t, ok)
+	require.True(t, web.hosted)
 }
 
 func TestRunPanicsWithoutStamp(t *testing.T) {

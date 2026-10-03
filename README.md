@@ -207,7 +207,7 @@ The progress view tracks the build. The program starts after that view and write
 | `examples/tray` | Status item until Quit or interrupt. |
 | `examples/sound` | No arguments lists sinks. Other arguments play those files. |
 | `examples/filedialog` | Page with Open, Folder, and Save. A button opens the dialog and shows the files. |
-| `examples/welcome` | Page with Open a folder. A button opens the dialog. |
+| `examples/welcome` | Picks a directory from the start screen. |
 
 Arguments after `--` go to the program:
 
