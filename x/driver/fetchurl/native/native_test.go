@@ -10,6 +10,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+	"github.com/lewtec/lewkit/x/taskgroup"
 
 	"github.com/stretchr/testify/require"
 )
@@ -43,6 +44,31 @@ func TestFetchChecksHash(t *testing.T) {
 		Out:  &output,
 	})
 	require.Error(t, err)
+}
+
+func TestFetchContinuesWhenServerDoesNotResolve(t *testing.T) {
+	t.Setenv("FETCHURL_SERVER", "http://fetchurl.invalid/api/fetchurl")
+	body := []byte("hello")
+	sum := sha256.Sum256(body)
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Write(body)
+	}))
+	t.Cleanup(server.Close)
+
+	session, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+
+	fetcher, err := factory{}.New(ctx)
+	require.NoError(t, err)
+	var output bytes.Buffer
+	err = fetcher.Fetch(ctx, fetchurl.FetchOptions{
+		URLs: []string{server.URL},
+		Algo: "sha256",
+		Hash: hex.EncodeToString(sum[:]),
+		Out:  &output,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "hello", output.String())
+	require.NoError(t, session.Wait())
 }
 
 func TestFetchRunsConfigureRequest(t *testing.T) {

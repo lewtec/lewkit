@@ -35,7 +35,11 @@ func (transport *progressTransport) RoundTrip(request *http.Request) (*http.Resp
 		response, err := transport.base.RoundTrip(outgoing)
 		if err != nil {
 			resultChannel <- roundTripResult{err: err}
-			return err
+			// The caller decides whether this attempt is fatal. Returning the
+			// error cancels the session, so a later source never runs. That
+			// includes fetchurl falling back from an unresolvable server.
+			status.Update("request failed")
+			return nil
 		}
 		total := response.ContentLength
 		if total > 0 {
