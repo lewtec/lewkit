@@ -3,8 +3,8 @@
 // [CompileStage] returns SPIR-V already registered for the SHA-256 of the
 // stage and the source. The lewkit generate shader command writes that
 // registry for name.vertex.glsl, name.fragment.glsl, and name.compute.glsl
-// files. The second-to-last extension is the stage. A missing hash runs
-// glslc when it is on PATH, and otherwise the embedded glslang reactor in
+// files. The second-to-last extension is the stage. A missing hash
+// compiles with the embedded glslang reactor in
 // [github.com/lewtec/lewkit/x/ffi/wasm].
 //
 // [Compile] takes GLSL compute source in memory. [IsSPIRV] reports the

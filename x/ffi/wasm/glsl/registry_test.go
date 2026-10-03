@@ -1,11 +1,7 @@
 package glsl
 
 import (
-	"bytes"
 	"context"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,36 +36,12 @@ func TestRegisterHash(t *testing.T) {
 }
 
 func TestCompileStageUsesRegistry(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("glslc stand-in is a shell script")
-	}
-	src := []byte("registry-beats-glslc")
+	src := []byte("registry-skips-glslang")
 	want := sampleSPIRV(0x31)
 	require.NoError(t, RegisterHash(StageVertex, Hash(StageVertex, src), want))
-	dir := t.TempDir()
-	writeGLSLC(t, dir, sampleSPIRV(0x32), 0)
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	mark := filepath.Join(dir, "mark")
-	t.Setenv("GLSLC_MARK", mark)
-
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	got, err := CompileStage(ctx, StageVertex, src)
-	require.NoError(t, err)
-	require.Equal(t, want, got)
-	_, err = os.Stat(mark)
-	require.ErrorIs(t, err, os.ErrNotExist)
-}
-
-func TestCompileStageRunsGLSLC(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("glslc stand-in is a shell script")
-	}
-	want := sampleSPIRV(0x41)
-	dir := t.TempDir()
-	writeGLSLC(t, dir, want, 0)
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	got, err := CompileStage(t.Context(), StageFragment, []byte("glslc-stand-in"))
 	require.NoError(t, err)
 	require.Equal(t, want, got)
 }
@@ -90,30 +62,4 @@ func sampleSPIRV(mark byte) []byte {
 	}
 	spv[4] = mark
 	return spv
-}
-
-func writeGLSLC(t *testing.T, dir string, spirv []byte, exitCode int) {
-	t.Helper()
-	var body bytes.Buffer
-	body.WriteString("#!/bin/sh\n")
-	body.WriteString("if [ -n \"$GLSLC_MARK\" ]; then echo ran >> \"$GLSLC_MARK\"; fi\n")
-	body.WriteString("out=\n")
-	body.WriteString("while [ $# -gt 0 ]; do\n")
-	body.WriteString("  if [ \"$1\" = \"-o\" ]; then out=$2; shift 2; continue; fi\n")
-	body.WriteString("  shift\ndone\n")
-	if exitCode != 0 {
-		body.WriteString("exit 1\n")
-	} else {
-		body.WriteString("if [ -z \"$out\" ]; then echo missing -o >&2; exit 1; fi\n")
-		body.WriteString("printf '")
-		for _, b := range spirv {
-			body.WriteString("\\")
-			body.WriteByte('0' + (b >> 6))
-			body.WriteByte('0' + ((b >> 3) & 7))
-			body.WriteByte('0' + (b & 7))
-		}
-		body.WriteString("' > \"$out\"\n")
-	}
-	path := filepath.Join(dir, "glslc")
-	require.NoError(t, os.WriteFile(path, body.Bytes(), 0o755))
 }

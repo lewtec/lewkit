@@ -20,7 +20,7 @@ type drawModules struct {
 
 // drawCode loads the swapchain fill and ink shaders once.
 // The GLSL source is shader/. A registered hash returns SPIR-V.
-// A missing hash compiles with glslc or the embedded glslang.
+// A missing hash compiles with the embedded glslang.
 var drawCode = singleton.NewSingleton(func(ctx context.Context) (drawModules, error) {
 	var code drawModules
 	steps := []struct {

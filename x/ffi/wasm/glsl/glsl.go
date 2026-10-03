@@ -38,8 +38,8 @@ func Compile(ctx context.Context, src []byte) ([]byte, error) {
 }
 
 // CompileStage turns Vulkan GLSL for stage into SPIR-V.
-// A registered hash returns that SPIR-V and does not run a compiler.
-// A missing hash runs glslc when it is on PATH, then the embedded glslang.
+// A registered hash returns that SPIR-V and does not start the embedded glslang.
+// A missing hash compiles with that reactor.
 func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return nil, ErrEmpty
@@ -60,8 +60,8 @@ func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 }
 
 // CompileGlslang compiles src with the embedded glslang reactor.
-// It does not read the registry and it does not run glslc.
-// Codegen uses it so the committed SPIR-V does not depend on the host.
+// It does not read the registry. Codegen uses it so the committed
+// SPIR-V comes from the same reactor a miss uses at runtime.
 func CompileGlslang(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return nil, ErrEmpty

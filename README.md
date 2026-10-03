@@ -131,11 +131,11 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/ffi/native/vulkan` | Binding. `Open`, `List`, `Buffer`, `Alloc`, `Shader`, `Compile`, `Run`, `Begin`. |
 | `x/ffi/wasm` | `Compile`, `Compiled.Instantiate`. wazero, with WASI and optional Emscripten. |
 | `x/ffi/wasm/capstone` | Binding. `Open`, `Handle`. |
-| `x/ffi/wasm/glsl` | `Compile`, `CompileStage`, `Load`, `IsSPIRV`, `Hash`, `RegisterHash`, `Lookup`. A registered shader hash returns SPIR-V. A missing hash runs `glslc` when it is on `PATH`, then the embedded glslang. `Load` keeps a SPIR-V buffer as-is. |
+| `x/ffi/wasm/glsl` | `Compile`, `CompileStage`, `Load`, `IsSPIRV`, `Hash`, `RegisterHash`, `Lookup`. A registered shader hash returns SPIR-V. A missing hash compiles with the embedded glslang. `Load` keeps a SPIR-V buffer as-is. |
 
 `window.Subscribe` yields `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, and `Key`.
 
-`x/driver/vulkan` keeps the libvulkan `Device` private. `x/driver/ndeval` loads a kernel through `x/ffi/wasm/glsl` and runs it on that facade. A registered hash is stored SPIR-V. Anything else compiles, with `glslc` when it is on `PATH` and the embedded glslang otherwise.
+`x/driver/vulkan` keeps the libvulkan `Device` private. `x/driver/ndeval` loads a kernel through `x/ffi/wasm/glsl` and runs it on that facade. A registered hash is stored SPIR-V. Anything else compiles with the embedded glslang.
 
 `x/ffi/native/vulkan` `Cmd` methods are `Bind`, `Push`, `Dispatch`, `Copy`, `Barrier`, `Submit`, `Wait`, and `Abort`. `Shader` takes SPIR-V.
 
@@ -163,7 +163,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 
-`lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes the prelude for `DIR` to stdout and does not write the nested preludes. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, so the committed bytes do not depend on a host `glslc`. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
+`lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes the prelude for `DIR` to stdout and does not write the nested preludes. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
 
 ### Examples
 
