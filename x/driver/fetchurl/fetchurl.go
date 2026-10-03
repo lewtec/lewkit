@@ -2,7 +2,8 @@
 //
 // The native driver uses [github.com/fetchurl/fetchurl]. Fetch requires a hash
 // and at least one source URL. FETCHURL_SERVER is tried first, then the source
-// URLs. [FetchOptions.ConfigureRequest] runs on each request that client sends.
+// URLs. A server whose host does not resolve is skipped.
+// [FetchOptions.ConfigureRequest] runs on each request that client sends.
 package fetchurl
 
 import (

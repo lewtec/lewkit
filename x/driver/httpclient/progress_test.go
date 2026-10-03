@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -59,6 +60,24 @@ func TestWithProgressRegistersInternetTask(t *testing.T) {
 	require.NoError(t, response.Body.Close())
 	require.NotZero(t, session.Latest("bundle.tar.gz"))
 	require.NoError(t, session.Wait())
+}
+
+func TestWithProgressTransportErrorFailsTheSession(t *testing.T) {
+	session, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	client := &http.Client{Transport: WithProgress(roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, &net.DNSError{Err: "no such host", Name: "fetchurl.invalid", IsNotFound: true}
+	}))}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://fetchurl.invalid/file", nil)
+	require.NoError(t, err)
+	_, err = client.Do(request)
+	require.Error(t, err)
+	require.Error(t, session.Wait())
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (roundTrip roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return roundTrip(request)
 }
 
 func requestWithURL(t *testing.T, raw string) *http.Request {
