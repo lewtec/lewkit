@@ -40,6 +40,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/sound"
 )
 
@@ -481,7 +482,7 @@ func runAudio(ctx context.Context, _ *page, op string, r *http.Request) (string,
 	writer, err := audio_play.Open(ctx, audio_play.Config{
 		Sink:   strings.TrimSpace(r.FormValue("sink")),
 		Format: format,
-		Name:   "lewkit",
+		Name:   release.Name(),
 	})
 	if err != nil {
 		return "", err
@@ -523,7 +524,7 @@ func runWindow(ctx context.Context, p *page, op string, r *http.Request) (string
 		}
 		title := strings.TrimSpace(r.FormValue("title"))
 		if title == "" {
-			title = "lewkit"
+			title = release.Name()
 		}
 		size, err := p.held.openWindow(p.ctx, window.Config{Title: title, Width: width, Height: height})
 		if err != nil {
@@ -550,7 +551,7 @@ func runWeb(ctx context.Context, p *page, op string, r *http.Request) (string, e
 		}
 		title := strings.TrimSpace(r.FormValue("title"))
 		if title == "" {
-			title = "lewkit"
+			title = release.Name()
 		}
 		return okNote("open", p.held.openWeb(p.ctx, webview.Config{
 			Title:  title,
@@ -589,7 +590,7 @@ func trayConfig(r *http.Request) tray.Config {
 	}
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
-		title = "lewkit"
+		title = release.Name()
 	}
 	return tray.Config{
 		Title:   title,
@@ -631,29 +632,6 @@ func runThread(ctx context.Context, _ *page, op string, _ *http.Request) (string
 		return "ran on the ui thread", nil
 	}
 	return "ran, but not on the ui thread", nil
-}
-
-func runSwap(ctx context.Context, p *page, op string, r *http.Request) (string, error) {
-	switch op {
-	case "open":
-		width, err := formInt(r, "width", 640)
-		if err != nil {
-			return "", err
-		}
-		height, err := formInt(r, "height", 480)
-		if err != nil {
-			return "", err
-		}
-		size, err := p.held.openSwap(p.ctx, window.Config{Title: "lewkit", Width: width, Height: height})
-		if err != nil {
-			return "", err
-		}
-		return "open " + size, nil
-	case "close":
-		return okNote("closed", p.held.closeSwap())
-	default:
-		return "", errNoDriverOp
-	}
 }
 
 func okNote(note string, err error) (string, error) {

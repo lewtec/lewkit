@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,8 +36,8 @@ func TestRecentSkipsMissingDir(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", home)
 	keep := t.TempDir()
 	require.NoError(t, Remember(keep))
-	file := filepath.Join(home, "lewkit", "recent-dirs")
-	require.NoError(t, os.WriteFile(file, []byte("/no/such/lewkit/dir\n"+absPath(t, keep)+"\n"), 0o600))
+	file := filepath.Join(home, release.Name(), "recent-dirs")
+	require.NoError(t, os.WriteFile(file, []byte("/no/such/dir\n"+absPath(t, keep)+"\n"), 0o600))
 	got, err := Recent()
 	require.NoError(t, err)
 	require.Len(t, got, 1)

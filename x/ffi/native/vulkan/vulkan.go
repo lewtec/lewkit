@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 // Device is a compute-capable Vulkan device with host-visible buffers.
@@ -87,7 +88,7 @@ func openInstance(ctx context.Context) (*Device, error) {
 	if err := d.api.loadLoader(lib); err != nil {
 		return nil, err
 	}
-	appName := cstr("lewkit")
+	appName := cstr(release.Name())
 	app := applicationInfo{
 		sType:            structureApplicationInfo,
 		pApplicationName: appName,

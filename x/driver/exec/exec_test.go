@@ -44,6 +44,15 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	require.ErrorIs(t, <-done, context.Canceled)
 }
 
+func TestRunProgramAndOutputString(t *testing.T) {
+	out, err := execdriver.OutputString(t.Context(), "sh", "-c", "echo hi")
+	require.NoError(t, err)
+	require.Equal(t, "hi\n", out)
+	err = execdriver.RunProgram(t.Context(), "sh", "-c", "exit 3")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "sh:")
+}
+
 func TestWhichAndRequireBinary(t *testing.T) {
 	path, err := execdriver.Which(t.Context(), "sh")
 	require.NoError(t, err)

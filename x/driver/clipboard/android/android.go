@@ -8,7 +8,6 @@ import (
 	"image"
 
 	"github.com/lewtec/lewkit/x/driver"
-	host "github.com/lewtec/lewkit/x/driver/android"
 	"github.com/lewtec/lewkit/x/driver/clipboard"
 	"github.com/lewtec/lewkit/x/ffi/jni"
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
@@ -38,16 +37,16 @@ func (backend) WriteText(ctx context.Context, text string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	app, err := host.Context()
+	app, err := jni.Context()
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", driver.ErrUnavailable, err)
 	}
 	defer app.Release()
-	service, err := host.Text(jni.StaticField("android.content.Context", "CLIPBOARD_SERVICE"))
+	service, err := jni.Text(jni.StaticField("android.content.Context", "CLIPBOARD_SERVICE"))
 	if err != nil {
 		return err
 	}
-	manager, err := host.Ref(app.Call("getSystemService", service))
+	manager, err := jni.AsRef(app.Call("getSystemService", service))
 	if err != nil {
 		return err
 	}
@@ -55,7 +54,7 @@ func (backend) WriteText(ctx context.Context, text string) error {
 		return fmt.Errorf("%w: clipboard", driver.ErrUnavailable)
 	}
 	defer manager.Release()
-	clip, err := host.Ref(jni.CallStatic("android.content.ClipData", "newPlainText", "text", text))
+	clip, err := jni.AsRef(jni.CallStatic("android.content.ClipData", "newPlainText", "text", text))
 	if err != nil {
 		return err
 	}

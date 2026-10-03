@@ -18,7 +18,13 @@ import (
 )
 
 func main() {
-	entry.Main(run)
+	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
+	if err != nil {
+		entry.Main(func(context.Context) error { return err })
+		return
+	}
+	parent := taskgroup.WithLimits(context.Background(), app.Args.Apply(taskgroup.DefaultLimits()))
+	entry.MainFrom(parent, app.Run)
 }
 
 type root struct {
@@ -100,12 +106,4 @@ func (*completionCmd) Run(context.Context) error {
 
 func (root) Description() string {
 	return "Well planned primitives to be used in other projects."
-}
-
-func run(ctx context.Context) error {
-	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
-	if err != nil {
-		return err
-	}
-	return app.Run(ctx)
 }

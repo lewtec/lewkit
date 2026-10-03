@@ -11,7 +11,7 @@ import (
 type backend struct{}
 
 func (backend) MoveWorkspaceToOutput(ctx context.Context, workspace string, output string) error {
-	return run(ctx, "hyprctl", "dispatch", "moveworkspacetomonitor", workspace, output)
+	return execdriver.RunProgram(ctx, "hyprctl", "dispatch", "moveworkspacetomonitor", workspace, output)
 }
 
 func (backend) SwitchToWorkspace(ctx context.Context, ws string, move bool) error {
@@ -19,11 +19,11 @@ func (backend) SwitchToWorkspace(ctx context.Context, ws string, move bool) erro
 	if move {
 		cmd = "movetoworkspace"
 	}
-	return run(ctx, "hyprctl", "dispatch", cmd, ws)
+	return execdriver.RunProgram(ctx, "hyprctl", "dispatch", cmd, ws)
 }
 
 func (backend) ToggleScratchpad(ctx context.Context) error {
-	return run(ctx, "hyprctl", "dispatch", "togglespecialworkspace")
+	return execdriver.RunProgram(ctx, "hyprctl", "dispatch", "togglespecialworkspace")
 }
 
 func (backend) GetOutputs(ctx context.Context) ([]wm.Output, error) {
@@ -105,14 +105,6 @@ func (backend) GetFocusedWindowRect(ctx context.Context) (*wm.Rect, error) {
 		return nil, fmt.Errorf("%w: invalid hyprland active window geometry", wm.ErrIPC)
 	}
 	return &wm.Rect{X: win.At[0], Y: win.At[1], Width: win.Size[0], Height: win.Size[1]}, nil
-}
-
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
-}
-
-func run(ctx context.Context, name string, args ...string) error {
-	return execdriver.Run(ctx, execdriver.MustCommand(name, args...))
 }
 
 var _ wm.Driver = backend{}

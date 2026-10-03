@@ -11,6 +11,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/window"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	lewpath "github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const welcomeWidth = 460
@@ -39,11 +40,11 @@ type Welcome struct {
 	browse    *Box
 }
 
-// NewWelcome copies args. An empty Title is lewkit.
+// NewWelcome copies args. An empty Title is [release.Name].
 func NewWelcome(args WelcomeArgs) *Welcome {
 	title := args.Title
 	if title == "" {
-		title = "lewkit"
+		title = release.Name()
 	}
 	dirs := args.Dirs
 	if len(dirs) > recentLimit {

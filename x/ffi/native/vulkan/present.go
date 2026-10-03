@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const (
@@ -321,31 +322,6 @@ type descriptorImageInfo struct {
 	layout  int32
 }
 
-// OpenScreen opens an X11 window and a swapchain on the best present-capable GPU.
-func OpenScreen(ctx context.Context, width, height int, title string) (*Screen, error) {
-	if width < 1 || height < 1 {
-		return nil, ErrSize
-	}
-	d, err := openPresentInstance(ctx)
-	if err != nil {
-		return nil, err
-	}
-	s := &Screen{d: d, width: width, height: height}
-	if err := s.wsi.load(d); err != nil {
-		return nil, errors.Join(err, d.Close())
-	}
-	if err := s.openWindow(title); err != nil {
-		return nil, errors.Join(err, s.Close())
-	}
-	if err := s.openDevice(ctx); err != nil {
-		return nil, errors.Join(err, s.Close())
-	}
-	if err := s.makeSwapchain(); err != nil {
-		return nil, errors.Join(err, s.Close())
-	}
-	return s, nil
-}
-
 // OpenNative builds a swapchain for a window the caller already owns.
 // kind, a, and b match window.Surface. The native window is not destroyed.
 func OpenNative(ctx context.Context, kind int, a, b uintptr, width, height int) (*Screen, error) {
@@ -534,7 +510,7 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 	if hasExt(d.api.instanceExts(), extPortabilityEnum) {
 		exts = append(exts, extPortabilityEnum)
 	}
-	appName := cstr("lewkit")
+	appName := cstr(release.Name())
 	app := applicationInfo{
 		sType:            structureApplicationInfo,
 		pApplicationName: appName,
@@ -613,20 +589,6 @@ func (w *wsi) loadDevice(d *Device) error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (s *Screen) openWindow(title string) error {
-	host, err := openHost(s, s.width, s.height, title)
-	if err != nil {
-		return err
-	}
-	s.host = host
-	surface, err := host.create(s.d, &s.wsi)
-	if err != nil {
-		return err
-	}
-	s.surface = surface
 	return nil
 }
 

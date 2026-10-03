@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"sync"
 	"syscall"
 	"unsafe"
 
@@ -27,56 +26,31 @@ var (
 	procCreateIconIndirect = native.ProcOf("user32.dll", "CreateIconIndirect")
 	procDeleteObject       = native.ProcOf("gdi32.dll", "DeleteObject")
 	procSendMessageW       = native.ProcOf("user32.dll", "SendMessageW")
-
-	iconOnce   sync.Once
-	iconBigH   uintptr
-	iconSmallH uintptr
 )
 
 // ApplyWindowIcon sets the taskbar and Alt-Tab icons for hwnd.
-// The handles live until the process exits.
-func ApplyWindowIcon(hwnd uintptr) {
-	if hwnd == 0 {
+// A nil icon leaves the window unchanged. The handles live until the process exits.
+func ApplyWindowIcon(hwnd uintptr, icon image.Image) {
+	if hwnd == 0 || icon == nil {
 		return
 	}
-	big, small := windowIcons()
-	if big != 0 {
-		procSendMessageW.Call(hwnd, wmSetIcon, iconBig, big)
+	big, err := convert.Square(icon, 256)
+	if err != nil {
+		return
 	}
-	if small != 0 {
-		procSendMessageW.Call(hwnd, wmSetIcon, iconSmall, small)
+	small, err := convert.Square(icon, 32)
+	if err != nil {
+		return
+	}
+	if handle, err := hicon(big); err == nil && handle != 0 {
+		procSendMessageW.Call(hwnd, wmSetIcon, iconBig, handle)
+	}
+	if handle, err := hicon(small); err == nil && handle != 0 {
+		procSendMessageW.Call(hwnd, wmSetIcon, iconSmall, handle)
 	}
 }
 
 func showShell(string, image.Image) {}
-
-func windowIcons() (uintptr, uintptr) {
-	iconOnce.Do(loadWindowIcons)
-	return iconBigH, iconSmallH
-}
-
-func loadWindowIcons() {
-	src := shellImage(nil)
-	if src == nil {
-		return
-	}
-	big, err := convert.Square(src, 256)
-	if err != nil {
-		return
-	}
-	small, err := convert.Square(src, 32)
-	if err != nil {
-		return
-	}
-	iconBigH, err = hicon(big)
-	if err != nil {
-		iconBigH = 0
-	}
-	iconSmallH, err = hicon(small)
-	if err != nil {
-		iconSmallH = 0
-	}
-}
 
 type bitmapInfoHeader struct {
 	size          uint32

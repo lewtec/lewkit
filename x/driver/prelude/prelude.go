@@ -30,7 +30,6 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/treesitter/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/volume/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/vulkan"
-	_ "github.com/lewtec/lewkit/x/driver/vulkanwindow"
 	_ "github.com/lewtec/lewkit/x/driver/wallpaper/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/webview/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/window/prelude"

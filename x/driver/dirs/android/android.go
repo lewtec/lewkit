@@ -11,6 +11,14 @@ import (
 	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
 
+func open(ctx context.Context) (*ffiandroid.Client, error) {
+	client, err := ffiandroid.ForAndroid(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
+	}
+	return client, nil
+}
+
 func init() { driver.Register[dirs.Driver](factory{}) }
 
 type factory struct{}
@@ -55,12 +63,4 @@ func pathsFromDataDir(dataDir string) dirs.Dirs {
 		Config: filepath.Join(data, "config"),
 		Inbox:  filepath.Join(cache, "inbox"),
 	}
-}
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
 }

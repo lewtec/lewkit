@@ -10,6 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/app"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
@@ -22,7 +23,7 @@ func runApp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	model := gui.NewWelcome(gui.WelcomeArgs{Title: "lewkit", Dirs: dirs})
+	model := gui.NewWelcome(gui.WelcomeArgs{Title: release.Name(), Dirs: dirs})
 	err = app.App{
 		Title:   "Welcome",
 		Width:   880,

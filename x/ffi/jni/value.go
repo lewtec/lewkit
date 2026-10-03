@@ -1,23 +1,21 @@
-package android
+package jni
 
 import (
 	"errors"
 	"fmt"
-
-	"github.com/lewtec/lewkit/x/ffi/jni"
 )
 
 var errJavaValue = errors.New("java value")
 
-// Ref returns v as a Java reference. A null reference is a nil *jni.Ref.
-func Ref(v any, err error) (*jni.Ref, error) {
+// AsRef returns v as a Java reference. A null reference is a nil *Ref.
+func AsRef(v any, err error) (*Ref, error) {
 	if err != nil {
 		return nil, err
 	}
 	if v == nil {
 		return nil, nil
 	}
-	ref, ok := v.(*jni.Ref)
+	ref, ok := v.(*Ref)
 	if !ok || ref == nil {
 		return nil, fmt.Errorf("%w: %T", errJavaValue, v)
 	}
@@ -58,4 +56,19 @@ func Bool(v any, err error) (bool, error) {
 		return false, fmt.Errorf("%w: %T", errJavaValue, v)
 	}
 	return b, nil
+}
+
+// Float returns v as a float64. A float32 is widened.
+func Float(v any, err error) (float64, error) {
+	if err != nil {
+		return 0, err
+	}
+	switch n := v.(type) {
+	case float32:
+		return float64(n), nil
+	case float64:
+		return n, nil
+	default:
+		return 0, fmt.Errorf("%w: %T", errJavaValue, v)
+	}
 }

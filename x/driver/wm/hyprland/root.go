@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/wm"
 )
 
@@ -18,7 +19,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "HYPRLAND_INSTANCE_SIGNATURE"); err != nil {
 		return err
 	}
-	return requireBinary(ctx, "hyprctl")
+	return execdriver.RequireBinary(ctx, "hyprctl")
 }
 
 func (factory) New(context.Context) (wm.Driver, error) { return backend{}, nil }

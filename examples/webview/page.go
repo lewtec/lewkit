@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"sync/atomic"
+
+	"github.com/lewtec/lewkit/x/driver/webview"
 )
 
 func webviewPage(count *atomic.Int64) http.Handler {
@@ -22,14 +24,16 @@ func webviewPage(count *atomic.Int64) http.Handler {
 			fmt.Fprintf(response, "%d", count.Load())
 		default:
 			response.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = response.Write([]byte(webviewHTML))
+			_, _ = response.Write([]byte(webviewHTML()))
 		}
 	})
 }
 
-const webviewHTML = `<!doctype html>
+func webviewHTML() string {
+	name := webview.ScriptName()
+	return fmt.Sprintf(`<!doctype html>
 <meta charset="utf-8">
-<title>lewkit webview</title>
+<title>%s webview</title>
 <style>
   body { font: 18px sans-serif; margin: 2rem; background: #fff; color: #111; }
   @media (prefers-color-scheme: dark) {
@@ -50,8 +54,9 @@ document.querySelector("#up").addEventListener("click", async () => {
   const response = await fetch("/increment", { method: "POST" });
   const count = await response.text();
   document.querySelector("#count").textContent = count;
-  window.lewkit.postMessage(count);
+  window.%s.postMessage(count);
 });
 refresh();
 </script>
-`
+`, name, name)
+}

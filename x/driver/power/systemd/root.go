@@ -16,17 +16,13 @@ func (factory) Name() string { return "systemd" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := requireBinary(ctx, "loginctl"); err != nil {
+	if err := execdriver.RequireBinary(ctx, "loginctl"); err != nil {
 		return err
 	}
-	return requireBinary(ctx, "systemctl")
+	return execdriver.RequireBinary(ctx, "systemctl")
 }
 
 func (factory) New(context.Context) (power.Driver, error) { return backend{}, nil }
-
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
-}
 
 func init() {
 	driver.Register[power.Driver](factory{})

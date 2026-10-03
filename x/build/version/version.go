@@ -1,15 +1,12 @@
-// Package version holds build identity for the eletrocromo CLI and packaging.
+// Package version resolves packaging identity for a module tree.
 //
-// Goreleaser / go build inject via -ldflags -X (same pattern as most Go CLIs):
+// The runtime binary stamp is x/release.version. This package does not
+// export a Version variable. GoBuildLdflags writes that stamp. Commit,
+// Date, and BuiltBy are link metadata for Resolve, not a second version.
 //
-//	-X github.com/lewtec/lewkit/x/build/version.Version={{.Version}}
-//	-X github.com/lewtec/lewkit/x/build/version.Commit={{.Commit}}
-//	-X github.com/lewtec/lewkit/x/build/version.Date={{.Date}}
-//	-X github.com/lewtec/lewkit/x/build/version.BuiltBy=goreleaser
-//
-// When those are left at defaults, Resolve fills what it can from
-// runtime/debug.BuildInfo (module version + vcs.* when built with VCS stamping)
-// and, for a given module directory, from git describe / rev-list.
+// When those metadata fields are empty, Resolve fills what it can from
+// runtime/debug.BuildInfo and, for a module directory, from git describe,
+// rev-parse, log, and rev-list through x/git.
 package version
 
 import (
@@ -21,14 +18,14 @@ import (
 	"strings"
 	"time"
 
-	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/git"
 )
 
 func getwd() (string, error) { return os.Getwd() }
 
-// Set by -ldflags -X at link time (goreleaser, CI, or make).
+// Commit, Date, and BuiltBy are set by -ldflags -X. They are build
+// metadata. The runtime version stamp is x/release.version.
 var (
-	Version = "devel"
 	Commit  = ""
 	Date    = ""
 	BuiltBy = ""
@@ -61,18 +58,15 @@ func (i Info) String() string {
 	return strings.Join(parts, " ")
 }
 
-// stampedFromLdflags returns Info from -X package vars (Version defaults to "devel").
+// stampedFromLdflags returns Info from -X metadata. Version starts as
+// "devel" until build info or git fills it. There is no Version variable.
 func stampedFromLdflags() Info {
-	info := Info{
-		Version: strings.TrimSpace(Version),
+	return Info{
+		Version: "devel",
 		Commit:  strings.TrimSpace(Commit),
 		Date:    strings.TrimSpace(Date),
 		BuiltBy: strings.TrimSpace(BuiltBy),
 	}
-	if info.Version == "" {
-		info.Version = "devel"
-	}
-	return info
 }
 
 // Resolve returns CLI/binary version from -X vars, then buildinfo VCS,
@@ -158,13 +152,8 @@ func fillFromGit(info *Info, dir string) {
 }
 
 func gitOutput(dir string, args ...string) (string, error) {
-	cmd := execdriver.MustCommand("git", args...)
-	cmd.Dir = dir
-	out, err := execdriver.Output(context.Background(), cmd)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
+	var g git.Git
+	return g.Output(context.Background(), dir, args...)
 }
 
 func isDevel(v string) bool {
@@ -253,45 +242,49 @@ func GitCommitCount(dir string) int {
 	return n
 }
 
-const ldflagsPackage = "github.com/lewtec/lewkit/x/build/version"
+const (
+	metaPackage    = "github.com/lewtec/lewkit/x/build/version"
+	releasePackage = "github.com/lewtec/lewkit/x/release"
+)
 
-// GoBuildLdflags is a single -ldflags value: strip + goreleaser-style -X stamps.
+// GoBuildLdflags is one -ldflags value. The version stamp is
+// x/release.version. Commit, Date, and BuiltBy stay metadata on this package.
 func (i Info) GoBuildLdflags() string {
 	var b strings.Builder
 	b.WriteString("-s -w")
-	writeX := func(name, val string) {
-		if val == "" && name != "Version" {
+	if versionName := sanitizeLdflag(i.Version); versionName != "" {
+		b.WriteString(" -X ")
+		b.WriteString(releasePackage)
+		b.WriteString(".version=")
+		b.WriteString(versionName)
+	}
+	writeMeta := func(name, val string) {
+		val = sanitizeLdflag(val)
+		if val == "" {
 			return
 		}
-		if val == "" {
-			val = "devel"
-		}
 		b.WriteString(" -X ")
-		b.WriteString(ldflagsPackage)
+		b.WriteString(metaPackage)
 		b.WriteByte('.')
 		b.WriteString(name)
 		b.WriteByte('=')
-		b.WriteString(sanitizeLdflag(val))
+		b.WriteString(val)
 	}
-	writeX("Version", i.Version)
-	writeX("Commit", i.Commit)
-	writeX("Date", i.Date)
-	writeX("BuiltBy", i.BuiltBy)
+	writeMeta("Commit", i.Commit)
+	writeMeta("Date", i.Date)
+	writeMeta("BuiltBy", i.BuiltBy)
 	return b.String()
 }
 
-// WithAppID appends the x/release stamps for this binary.
-// Version is written to x/release.version. appID is written to x/release.appID.
+// WithAppID appends x/release.appID. The version stamp is already
+// x/release.version from GoBuildLdflags.
 func (i Info) WithAppID(appID string) string {
 	flags := i.GoBuildLdflags()
-	if versionName := sanitizeLdflag(i.Version); versionName != "" {
-		flags += " -X github.com/lewtec/lewkit/x/release.version=" + versionName
-	}
 	appID = sanitizeLdflag(appID)
 	if appID == "" {
 		return flags
 	}
-	return flags + " -X github.com/lewtec/lewkit/x/release.appID=" + appID
+	return flags + " -X " + releasePackage + ".appID=" + appID
 }
 
 func sanitizeLdflag(s string) string {

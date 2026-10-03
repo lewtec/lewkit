@@ -3,7 +3,7 @@
 // There is no loopback listener and no browser binary. The window is the
 // system web view: WebKitGTK 6 on Linux, WKWebView on macOS, and WebView2
 // on Windows. The page is memory or an fs.FS. JavaScript calls
-// window.lewkit.postMessage. Go calls View.Evaluate.
+// window.<ScriptName>.postMessage. Go calls View.Evaluate.
 // Config.Profile is the directory for that view's cookies and storage.
 // Config.Handler answers origin requests in-process. Nothing listens.
 //

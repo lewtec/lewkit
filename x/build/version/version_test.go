@@ -40,12 +40,11 @@ func TestAndroidCodeFrom_Semver(t *testing.T) {
 }
 
 func TestResolve_Defaults(t *testing.T) {
-	// Do not mutate package vars permanently beyond test — save/restore.
-	oldV, oldC, oldD, oldB := Version, Commit, Date, BuiltBy
+	oldC, oldD, oldB := Commit, Date, BuiltBy
 	t.Cleanup(func() {
-		Version, Commit, Date, BuiltBy = oldV, oldC, oldD, oldB
+		Commit, Date, BuiltBy = oldC, oldD, oldB
 	})
-	Version, Commit, Date, BuiltBy = "devel", "", "", ""
+	Commit, Date, BuiltBy = "", "", ""
 	info := Resolve()
 	if info.Version == "" {
 		t.Fatal("empty version")
@@ -61,10 +60,23 @@ func TestGoBuildLdflags(t *testing.T) {
 	if !strings.Contains(lf, "-s -w") {
 		t.Fatal(lf)
 	}
-	if !strings.Contains(lf, "Version=v1.0.0") {
+	if !strings.Contains(lf, "github.com/lewtec/lewkit/x/release.version=v1.0.0") {
+		t.Fatal(lf)
+	}
+	if strings.Contains(lf, "x/build/version.Version=") {
 		t.Fatal(lf)
 	}
 	if !strings.Contains(lf, "BuiltBy=test") {
 		t.Fatal(lf)
+	}
+	withID := Info{Version: "v1.0.0", Commit: "abc"}.WithAppID("br.tec.lew.app")
+	if !strings.Contains(withID, "x/release.version=v1.0.0") {
+		t.Fatal(withID)
+	}
+	if !strings.Contains(withID, "x/release.appID=br.tec.lew.app") {
+		t.Fatal(withID)
+	}
+	if strings.Count(withID, "x/release.version=") != 1 {
+		t.Fatal(withID)
 	}
 }

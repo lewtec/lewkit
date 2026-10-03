@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +62,8 @@ func TestWriteEnvCompletionsAbsent(t *testing.T) {
 }
 
 func TestBashCompleteLine(t *testing.T) {
-	got := BashCompleteLine("lewkit")
-	assert.Equal(t, "complete -C 'lewkit' 'lewkit'", got)
-	assert.True(t, strings.HasPrefix(BashCompleteLine("lewkit's"), "complete -C "))
+	name := release.Name()
+	got := BashCompleteLine(name)
+	assert.Equal(t, "complete -C '"+name+"' '"+name+"'", got)
+	assert.True(t, strings.HasPrefix(BashCompleteLine(name+"'s"), "complete -C "))
 }

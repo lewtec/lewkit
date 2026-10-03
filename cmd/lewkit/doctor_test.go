@@ -6,13 +6,14 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDoctorUsage(t *testing.T) {
-	text, err := cmd.Usage[doctorCmd]("lewkit doctor")
+	text, err := cmd.Usage[doctorCmd](release.Name() + " doctor")
 	require.NoError(t, err)
 	assert.Contains(t, text, "list registered drivers")
 	assert.Contains(t, text, "--format")

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,7 +91,7 @@ func TestNextWorkspace(t *testing.T) {
 	next, err := AdvanceWorkspace()
 	require.NoError(t, err)
 	require.Equal(t, "11", next)
-	got, err := os.ReadFile(filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), "lewkit", "last-workspace"))
+	got, err := os.ReadFile(filepath.Join(os.Getenv("XDG_RUNTIME_DIR"), release.Name(), "last-workspace"))
 	require.NoError(t, err)
 	require.Equal(t, "11", string(got))
 }

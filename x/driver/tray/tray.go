@@ -1,7 +1,7 @@
 // Package tray opens a host status item and its menu.
 //
 //	item, err := tray.Open(ctx, tray.Config{
-//		Title: "lewkit",
+//		Title: "Status",
 //		Icon:  tray.Icon{Image: img}, // or PNG, JPEG, ICO, or ICNS bytes
 //		Menu:  []tray.Item{{Label: "Quit", OnClick: cancel}},
 //	})
@@ -27,6 +27,7 @@ import (
 	"image"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 var (
@@ -60,7 +61,7 @@ type Item struct {
 	OnClick   func()
 }
 
-// Config is the status item. ID defaults to "lewkit".
+// Config is the status item. An empty ID is [release.Name].
 // Tooltip is the hover text. When Tooltip is empty, Title is used.
 type Config struct {
 	ID      string
@@ -85,7 +86,7 @@ type Tray interface {
 // The item is removed when ctx is canceled or Close returns.
 func Open(ctx context.Context, cfg Config) (Tray, error) {
 	if cfg.ID == "" {
-		cfg.ID = "lewkit"
+		cfg.ID = release.Name()
 	}
 	return driver.WithResult(ctx, func(d Driver) (Tray, error) {
 		return d.Open(ctx, cfg)

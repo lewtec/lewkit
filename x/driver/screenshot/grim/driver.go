@@ -44,8 +44,4 @@ func (backend) Capture(ctx context.Context, rect *wm.Rect) (image.Image, error) 
 	return screenshot.CaptureViaCmd(ctx, "grim", args...)
 }
 
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
-}
-
 var _ screenshot.Driver = backend{}

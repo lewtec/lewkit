@@ -46,5 +46,5 @@ func (backend) RunApp(ctx context.Context) error {
 }
 
 func (backend) SwitchWindow(ctx context.Context) error {
-	return backend{}.RunApp(ctx)
+	return execdriver.Run(ctx, execdriver.MustCommand("wofi", "--show", "window"))
 }

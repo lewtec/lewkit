@@ -37,12 +37,14 @@ const (
 
 // Config is the initial window. Width or Height 0 means 640×480.
 // Period 0 means the host display rate (or [DefaultFramePeriod]).
+// Icon is the switcher image. Nil leaves the host icon unchanged.
 // The window is resizable after Open.
 type Config struct {
 	Title  string
 	Width  int
 	Height int
 	Period time.Duration
+	Icon   image.Image
 }
 
 // Size is the initial client size. Width or Height 0 becomes 640 or 480.

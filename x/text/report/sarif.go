@@ -13,7 +13,7 @@ import (
 )
 
 // WriteSARIF writes a SARIF 2.1.0 log. Findings with edits include result.fixes.
-// An empty rules slice is filled from findings. A zero Tool names the driver lewkit.
+// An empty rules slice is filled from findings. A zero Tool names the driver [release.Name].
 func WriteSARIF(w io.Writer, root string, tool Tool, findings []Finding, rules []Rule) error {
 	tool = tool.orDefault()
 	if len(rules) == 0 {
@@ -95,7 +95,7 @@ func WriteSARIF(w io.Writer, root string, tool Tool, findings []Finding, rules [
 
 func (t Tool) orDefault() Tool {
 	if t.Name == "" {
-		t.Name = "lewkit"
+		t.Name = release.Name()
 	}
 	if t.Version == "" {
 		t.Version = release.Version()

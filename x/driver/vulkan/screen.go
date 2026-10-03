@@ -49,15 +49,6 @@ func OpenNative(ctx context.Context, kind int, a, b uintptr, width, height int) 
 	return &screen{binding: binding}, nil
 }
 
-// OpenScreen opens an X11 window and a swapchain on the best present-capable GPU.
-func OpenScreen(ctx context.Context, width, height int, title string) (Screen, error) {
-	binding, err := ffivulkan.OpenScreen(ctx, width, height, title)
-	if err != nil {
-		return nil, err
-	}
-	return &screen{binding: binding}, nil
-}
-
 func (s *screen) Device() Device {
 	if s == nil || s.binding == nil {
 		return nil

@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/lewtec/lewkit/x/driver"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/wm"
 )
 
@@ -18,7 +19,7 @@ func (swayFactory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
 		return err
 	}
-	return requireBinary(ctx, "swaymsg")
+	return execdriver.RequireBinary(ctx, "swaymsg")
 }
 
 func (swayFactory) New(context.Context) (wm.Driver, error) {
@@ -35,7 +36,7 @@ func (i3Factory) CheckCompatibility(ctx context.Context) error {
 	if err := driver.RequireEnv(ctx, "DISPLAY"); err != nil {
 		return err
 	}
-	return requireBinary(ctx, "i3-msg")
+	return execdriver.RequireBinary(ctx, "i3-msg")
 }
 
 func (i3Factory) New(context.Context) (wm.Driver, error) {

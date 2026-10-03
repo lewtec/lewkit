@@ -7,6 +7,9 @@ package thread
 
 import "context"
 
+// OSThread is the current OS thread id. Zero means the id is unavailable.
+func OSThread() uint64 { return osThread() }
+
 // Driver runs functions on the UI thread.
 type Driver interface {
 	Bind()

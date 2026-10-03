@@ -11,6 +11,14 @@ import (
 	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
 
+func open(ctx context.Context) (*ffiandroid.Client, error) {
+	client, err := ffiandroid.ForAndroid(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
+	}
+	return client, nil
+}
+
 func init() { driver.Register[daynight.Driver](factory{}) }
 
 type factory struct{}
@@ -79,12 +87,4 @@ func current(ctx context.Context) (daynight.Mode, error) {
 		return daynight.Dark, nil
 	}
 	return daynight.Light, nil
-}
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
 }

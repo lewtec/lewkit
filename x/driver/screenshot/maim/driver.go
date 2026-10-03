@@ -22,6 +22,9 @@ func (backend) SelectArea(ctx context.Context) (*wm.Rect, error) {
 		return nil, err
 	}
 	raw := strings.TrimSpace(string(out))
+	if raw == "" {
+		return nil, screenshot.ErrEmptySelection
+	}
 	parts := strings.Fields(raw)
 	rect, err := screenshot.ParseRectParts(parts)
 	if err != nil {
@@ -36,10 +39,6 @@ func (backend) Capture(ctx context.Context, rect *wm.Rect) (image.Image, error) 
 		args = append(args, "-g", fmt.Sprintf("%dx%d+%d+%d", rect.Width, rect.Height, rect.X, rect.Y))
 	}
 	return screenshot.CaptureViaCmd(ctx, "maim", args...)
-}
-
-func requireBinary(ctx context.Context, name string) error {
-	return execdriver.RequireBinary(ctx, name)
 }
 
 var _ screenshot.Driver = backend{}

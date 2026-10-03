@@ -77,7 +77,7 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		return nil, err
 	}
 	// The icon is optional. Open still succeeds when the property is rejected.
-	if err := setWindowIcon(conn, wid); err != nil {
+	if err := setWindowIcon(conn, wid, cfg.Icon); err != nil {
 		slog.Debug("x11 icon", "err", err)
 	}
 	if err := xproto.MapWindowChecked(conn, wid).Check(); err != nil {
@@ -137,8 +137,8 @@ func setMinSize(conn *xgb.Conn, wid xproto.Window) error {
 		name.Atom, typ.Atom, 32, 18, raw).Check()
 }
 
-func setWindowIcon(conn *xgb.Conn, wid xproto.Window) error {
-	words := window.ShellPicture(nil)
+func setWindowIcon(conn *xgb.Conn, wid xproto.Window, icon image.Image) error {
+	words := window.ShellPicture(icon)
 	if len(words) == 0 {
 		return nil
 	}

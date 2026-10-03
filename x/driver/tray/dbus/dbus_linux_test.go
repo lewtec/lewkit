@@ -15,6 +15,7 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver/tray"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +33,7 @@ func TestOpenUpdateClose(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	item, err := tray.Open(ctx, tray.Config{
-		Title: "lewkit tray test",
+		Title: release.Name() + " tray test",
 		Icon:  tray.Icon{Image: img},
 		Menu:  []tray.Item{{Label: "Ping", OnClick: func() { clicked <- struct{}{} }}},
 	})
@@ -51,7 +52,7 @@ func TestOpenUpdateClose(t *testing.T) {
 		}
 	}, 2*time.Second, 10*time.Millisecond)
 	require.NoError(t, item.Update(tray.Config{
-		Title:   "lewkit tray test",
+		Title:   release.Name() + " tray test",
 		Tooltip: "updated",
 		Icon:    tray.Icon{Name: "applications-system"},
 		Menu: []tray.Item{

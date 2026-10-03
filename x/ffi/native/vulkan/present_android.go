@@ -31,10 +31,6 @@ func attachHost(s *Screen, kind int, a, _ uintptr) (hostSurface, error) {
 	return &androidHost{screen: s, window: a, borrowed: true}, nil
 }
 
-func openHost(*Screen, int, int, string) (hostSurface, error) {
-	return nil, fmt.Errorf("%w: no vulkan surface", ErrUnavailable)
-}
-
 func (h *androidHost) create(d *Device, w *wsi) (uint64, error) {
 	if err := d.api.bind(d.api.getInstanceProcAddr, d.inst, "vkCreateAndroidSurfaceKHR", &h.createFn); err != nil {
 		return 0, err

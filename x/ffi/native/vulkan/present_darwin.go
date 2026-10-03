@@ -8,9 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
-	"github.com/lewtec/lewkit/x/driver/thread"
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
-	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -53,7 +50,7 @@ func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
 	_ = b
 	var host hostSurface
 	var err error
-	thread.Do(func() {
+	uiDo(func() {
 		host, err = attachMetalView(s, objc.ID(a))
 	})
 	return host, err
@@ -87,63 +84,6 @@ func attachMetalView(s *Screen, view objc.ID) (hostSurface, error) {
 	return host, nil
 }
 
-func openHost(screen *Screen, width, height int, title string) (hostSurface, error) {
-	if !thread.Bound() {
-		return nil, fmt.Errorf("%w: main thread", ErrUnavailable)
-	}
-	var host hostSurface
-	var err error
-	thread.Do(func() {
-		if !thread.ProcessMain() {
-			err = fmt.Errorf("%w: NSWindow requires the main thread", ErrUnavailable)
-			return
-		}
-		host, err = openMetalWindow(screen, width, height, title)
-	})
-	return host, err
-}
-
-func openMetalWindow(screen *Screen, width, height int, title string) (hostSurface, error) {
-	window.ShowShell(title, nil)
-	app, err := nsApp()
-	if err != nil {
-		return nil, err
-	}
-	rect := nsRect{Size: nsSize{Width: float64(width), Height: float64(height)}}
-	wnd := objc.ID(objc.GetClass("NSWindow")).Send(objc.RegisterName("alloc"))
-	wnd = wnd.Send(objc.RegisterName("initWithContentRect:styleMask:backing:defer:"),
-		rect, uintptr(1|2|4|8), uintptr(2), false)
-	if wnd == 0 {
-		return nil, fmt.Errorf("%w: ns window", ErrUnavailable)
-	}
-	if title != "" {
-		ns := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), title)
-		wnd.Send(objc.RegisterName("setTitle:"), ns)
-	}
-	view := wnd.Send(objc.RegisterName("contentView"))
-	layer := objc.ID(objc.GetClass("CAMetalLayer")).Send(objc.RegisterName("alloc"))
-	layer = layer.Send(objc.RegisterName("init"))
-	if layer == 0 {
-		wnd.Send(objc.RegisterName("close"))
-		return nil, fmt.Errorf("%w: CAMetalLayer", ErrUnavailable)
-	}
-	layer.Send(objc.RegisterName("setContentsScale:"), 1.0)
-	layer.Send(objc.RegisterName("setDrawableSize:"), nsSize{Width: float64(width), Height: float64(height)})
-	layer.Send(objc.RegisterName("setDisplaySyncEnabled:"), true)
-	view.Send(objc.RegisterName("setLayer:"), layer)
-	view.Send(objc.RegisterName("setWantsLayer:"), true)
-	wnd.Send(objc.RegisterName("center"))
-	wnd.Send(objc.RegisterName("orderFrontRegardless"))
-	wnd.Send(objc.RegisterName("makeKeyAndOrderFront:"), objc.ID(0))
-	wnd.Send(objc.RegisterName("display"))
-	wnd.Send(objc.RegisterName("setAcceptsMouseMovedEvents:"), true)
-	app.Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
-	host := &metalHost{screen: screen, wnd: wnd, layer: layer, lastW: width, lastH: height}
-	trackMetal(host)
-	pollDarwin()
-	return host, nil
-}
-
 func (h *metalHost) poll() {}
 
 var appOnce sync.Once
@@ -159,7 +99,7 @@ func nsApp() (objc.ID, error) {
 		app = objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 		app.Send(objc.RegisterName("setActivationPolicy:"), 0)
 		app.Send(objc.RegisterName("finishLaunching"))
-		thread.OnIdle(pollDarwin)
+		uiOnIdle(pollDarwin)
 	})
 	if err != nil {
 		return 0, err
@@ -177,7 +117,7 @@ var (
 )
 
 func pumpApp() {
-	if !thread.ProcessMain() {
+	if !uiProcessMain() {
 		return
 	}
 	cfOnce.Do(func() {
@@ -226,7 +166,7 @@ func (h *metalHost) destroy() {
 	wnd := h.wnd
 	h.wnd = 0
 	h.layer = 0
-	thread.Do(func() {
+	uiDo(func() {
 		wnd.Send(objc.RegisterName("close"))
 	})
 }
@@ -254,7 +194,7 @@ func untrackMetal(h *metalHost) {
 }
 
 func pollDarwin() {
-	if !thread.ProcessMain() {
+	if !uiProcessMain() {
 		return
 	}
 	pumpApp()

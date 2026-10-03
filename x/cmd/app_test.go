@@ -71,7 +71,7 @@ func TestOutputEmbed(t *testing.T) {
 }
 
 func TestAppUsage(t *testing.T) {
-	text, err := Usage[App[None]]("lewkit")
+	text, err := Usage[App[None]](release.Name())
 	require.NoError(t, err)
 	for _, want := range []string{
 		"Usage:",
@@ -370,7 +370,7 @@ func (describedRoot) Description() string {
 }
 
 func TestAppForwardsDescription(t *testing.T) {
-	text, err := Usage[App[describedRoot]]("lewkit")
+	text, err := Usage[App[describedRoot]](release.Name())
 	require.NoError(t, err)
 	assert.Contains(t, text, "inner tool")
 }

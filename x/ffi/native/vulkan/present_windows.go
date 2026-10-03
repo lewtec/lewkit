@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"unicode/utf16"
 
-	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -91,43 +90,6 @@ func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
 		return nil, ErrUnavailable
 	}
 	return &win32Host{screen: s, hwnd: a, instance: b, borrowed: true}, nil
-}
-
-func openHost(screen *Screen, width, height int, title string) (hostSurface, error) {
-	if err := loadUser32(); err != nil {
-		return nil, err
-	}
-	inst := getModuleHandle(nil)
-	class, err := utf16z("lewkitvulkan")
-	if err != nil {
-		return nil, err
-	}
-	if !classReady {
-		proc, err := native.Symbol(user32, "DefWindowProcW")
-		if err != nil {
-			return nil, fmt.Errorf("%w: DefWindowProcW", ErrUnavailable)
-		}
-		wc := wndClassW{
-			wndProc:   proc,
-			instance:  inst,
-			className: class,
-		}
-		if registerClass(&wc) == 0 {
-			return nil, fmt.Errorf("%w: register class", ErrUnavailable)
-		}
-		classReady = true
-	}
-	name, err := utf16z(title)
-	if err != nil {
-		return nil, err
-	}
-	hwnd := createWindow(0, class, name, wsOverlappedWindow, cwUseDefault, cwUseDefault, int32(width), int32(height), 0, 0, inst, 0)
-	if hwnd == 0 {
-		return nil, fmt.Errorf("%w: win32 window", ErrUnavailable)
-	}
-	window.ApplyWindowIcon(hwnd)
-	showWindow(hwnd, swShow)
-	return &win32Host{screen: screen, hwnd: hwnd, instance: inst}, nil
 }
 
 func (h *win32Host) poll() {

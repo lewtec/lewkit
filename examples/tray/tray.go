@@ -12,6 +12,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/driver/tray"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 func init() { entry.Bind(run) }
@@ -22,8 +23,8 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	item, err := tray.Open(ctx, tray.Config{
-		Title:   "lewkit",
-		Tooltip: "lewkit tray",
+		Title:   release.Name(),
+		Tooltip: release.Name() + " tray",
 		Icon:    greenIcon(),
 		Menu: []tray.Item{
 			{Label: "Ping", OnClick: func() { slog.Info("tray ping") }},
@@ -38,7 +39,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer item.Close()
-	slog.Info("tray open", "title", "lewkit")
+	slog.Info("tray open", "title", release.Name())
 	<-ctx.Done()
 	return nil
 }

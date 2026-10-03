@@ -103,7 +103,7 @@ Inherited C (cite the file):
 | `x/ui` | no Go API | names `tui`, `web`, `gui` | MUST NOT grow types | the directory MAY have no Go package | import `x/ui` |
 | `x/ui/tui` | bubbletea types for callers to compose | value | catalog MAY grow | package MAY be absent until the first type | put Session viewers here |
 | `x/ui/web` | page templ templates | value | catalog MAY grow | package MAY be absent until the first page template | put a page template outside `web`; put an asset tag outside its asset package |
-| `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`, `Welcome`, `EnsureDir`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer | own the host; own the engine; call `window.Open` |
+| `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`, `Welcome`, `EnsureDir`, `Pick`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer; empty dir with no terminal is `ErrNeedWindow` | own the host; own the engine; call `window.Open`; declare `Open` |
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
 | `x/driver/tray` | `Open`, `Tray`, `Icon`, `Item` | host status item | protocol stays here | missing session bus or host is the tray error | import `x/ffi/wasm` |
 | `x/driver/daynight` | `Current`, `Watch`, `Mode` | light or dark | protocol stays here | missing portal or host is `driver.ErrUnavailable` | import `x/ui/gui`; import `x/driver/webview`; import `x/ffi/wasm` |
@@ -113,16 +113,16 @@ Inherited C (cite the file):
 | `x/driver/clipboard/android` | Android `WriteText`, `WriteImage` | clipboard text | text stays here | no Java VM is `driver.ErrIncompatible`; an image is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/opener` | `Open` | launch a file or URL | protocol stays here | missing opener is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/dirs` | `Resolve`, `Dirs` | per-app data, cache, config, inbox | protocol stays here | bad app id is `ErrInvalidAppID` | hardcode a product name in the path |
-| `x/driver/android` | `Context`, `Ref`, `Int`, `Text`, `Bool` | application `Context` | lookup stays here | missing host is `driver.ErrUnavailable` | import `x/ffi/native`; a driver factory |
 | `x/driver/dirs/android` | Android `Resolve` | files, cache, and config from the package data dir | paths stay here | not android or no binder is `driver.ErrIncompatible` | import `x/ffi/native`; import `x/driver/webview` |
 | `x/driver/bundle` | `Resolve`, `Root`, `SharePath` | stamped reverse-domain tree plus web profile | protocol stays here | missing id is `release.ErrAppIDRequired` | import `x/driver/webview`; replace `x/driver/dirs` |
 | `x/driver/thread` | `Driver` | UI thread for this process | protocol stays here | JNI without a Java looper is `driver.ErrIncompatible` | import `x/ui/gui` |
-| `x/release` | `Version`, `AppID`, `ValidateAppID` | binary stamp | the reverse-domain id stays here | empty id is `ErrAppIDRequired` | import `x/driver` |
-| `x/entry` | `Main`, `Run`, `After` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped | import `x/ui/gui` |
-| `x/app` | `Web`, `GUI`, `Open`, `Run` | windows of one process; each is a web handler or a GUI model; Run returns when the last window closes | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` |
-| `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here | existing build errors | import `x/driver/webview` |
+| `x/release` | `Version`, `AppID`, `ValidateAppID`, `Name` | the runtime stamp and the short product name | `version`, the reverse-domain id, and `name` stay here | empty id is `ErrAppIDRequired`; an invalid name keeps the built-in default | import `x/driver`; a second version `-X`; a path, title, or protocol name that writes the product literal instead of calling `Name` |
+| `x/entry` | `Main`, `MainFrom`, `Run`, `After` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped | import `x/ui/gui`; start the session before command flags are parsed |
+| `x/app` | `Web`, `GUI`, `Open`, `Run` | windows of one process; each is a web handler or a GUI model; a GUI model is `window.Open` then `gui.Run`; Run returns when the last window closes | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` beside `App.Run`; call `gui.Open` |
+| `x/build` | `Desktop`, `Android`, `Mac`, `IOS` | archives and packaged hosts | packaging stays here; `x/build/version.Info` is packaging metadata | existing build errors | import `x/driver/webview`; `-X` `x/build/version.Version` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
+| `x/driver/volume/android` | Android `SetVolume`, `GetVolume`, `ToggleMute` | music stream volume 0..1 | the binder read stays here | no binder is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/brightness` | `SetBrightness`, `Status`, `Increase`, `Decrease`, `StatusNotification` | display brightness | protocol stays here | missing brightnessctl is `driver.ErrIncompatible` | import `x/ffi`; post the alert here |
 | `x/driver/brightness/android` | Android `SetBrightness`, `Status` | foreground window override | the override stays here | no Java VM is `driver.ErrIncompatible` | import `x/ffi/native`; `DisplayManager.setBrightness` |
 | `x/driver/battery` | `BatteryStatus`, `BatteryLevel` | charging state; level 0..100 | protocol stays here | no battery is `ErrNoBattery`; no level is `ErrUnknownLevel` | import `x/ffi` |
@@ -130,13 +130,18 @@ Inherited C (cite the file):
 | `x/driver/battery/darwin` | Darwin `BatteryStatus`, `BatteryLevel` | `AppleSmartBattery` via `ioreg` | status and level mapping stay here | not darwin is `driver.ErrIncompatible`; no battery is `battery.ErrNoBattery` | import `x/ffi` |
 | `x/driver/media` | `Next`, `Previous`, `PlayPause`, `Stop`, `GetMetadata`, `Watch`, `StatusNotification` | MPRIS player | protocol stays here | no player is `ErrNoPlayer` | import `x/driver/audio_play`; post the alert here |
 | `x/driver/power` | `Lock`, `Logout`, `Suspend`, `Hibernate`, `Reboot`, `Shutdown`, `Wake` | session power | protocol stays here | missing loginctl is `driver.ErrIncompatible` | import `x/ffi` |
+| `x/driver/power/android` | Android `Lock`, `Suspend`, `Reboot`, `Shutdown` | binder power | the binder calls stay here | no binder is `driver.ErrIncompatible`; logout and hibernate are unavailable | import `x/ffi/native` |
 | `x/driver/screen` | `SetDPMS`, `IsDPMSOn`, `ToggleDPMS`, `Reset` | display power | protocol stays here | missing swaymsg or xset is `driver.ErrIncompatible` | a hostname layout table |
+| `x/driver/screen/android` | Android `SetDPMS`, `IsDPMSOn` | interactive bit | the binder calls stay here | no binder is `driver.ErrIncompatible`; reset is unavailable | import `x/ffi/native` |
 | `x/driver/screenshot` | `Capture`, `SelectArea` | one image and a `wm.Rect` | protocol stays here | missing grim or maim is `driver.ErrIncompatible` | save into a config directory |
 | `x/driver/wallpaper` | `SetStatic` | one still image | protocol stays here | missing feh or swaybg is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/wm` | workspace switch, `AdvanceWorkspace`, `RotateWorkspaces`, scratchpad, focused rect, outputs | compositor IPC | protocol stays here | missing compositor is `driver.ErrIncompatible` | import `x/ffi`; post a notification here |
 | `x/driver/camera` | `List`, `Capture` | one still frame | protocol stays here | missing ffmpeg or video device is `driver.ErrIncompatible` | import `x/ffi` |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
+| `x/driver/exec` | `Command`, `MustCommand`, `Run`, `RunProgram`, `Output`, `OutputString`, `Which`, `RequireBinary` | host process | the runner stays here | missing binary is `ErrNotFound`; `RequireBinary` is `driver.ErrIncompatible` | `os/exec.Command`; `os/exec.LookPath` |
+| `x/driver/httpclient` | `Driver`, `Client`, `WithProgress` | process HTTP client | the client stays here | missing driver is the existing driver error | import `x/ffi` |
+| `x/driver/fetchurl` | `Fetch`, `FetchOptions`, `StatusError` | hashed download | the protocol stays here | no URLs is `ErrNoURLs`; no writer is `ErrNoOutputWriter` | import `x/ffi` |
 | `x/driver/treesitter` | `Get`, `Open`, `ForFile`, `Parse`, `Names`, `(*Tree).Parsed` | one grammar from a registered engine | protocol stays here | unknown language is `ErrUnknown`; no backend is `driver.ErrNotFound`; a null or error tree is `ErrParse` | import a grammar module |
 | `x/driver/treesitter/ccgo` | ccgo registry | facade of ccgo-tree-sitter | selection stays here | a missing name is skipped | import a ccgo `grammar/<lang>` package |
 | `x/driver/treesitter/leaven` | leaven registry | facade of leaven-tree-sitter | selection stays here | a missing name is skipped | import another tree-sitter module |
@@ -145,7 +150,7 @@ Inherited C (cite the file):
 | `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label`, `RGB`, `BGR`, `CMYK`, `HSV` | value | blit stays here; each color space is its own struct and converts to `RGB` | existing blit errors | hold bubbletea types; hold templ; hold transformers |
-| `x/image/convert` | `Decode`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | icon bytes stay here | bad bytes are `ErrFormat` | import `x/driver` |
+| `x/image/convert` | `Decode`, `Pad`, `Resize`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | icon bytes stay here | bad bytes are `ErrFormat` | import `x/driver` |
 | `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV` | PCM value | mixing, seek, and the decoder registry stay here | `ErrFormat`, `ErrFrame`, `ErrClosed`, `ErrSeek` | open a host device; import `x/driver`; import `x/sound/mp3`; import `x/sound/ogg` |
 | `x/sound/mp3` | MP3 `Decoder` | registered decoder | decode stays here | mp3 decode error | import `x/driver` |
 | `x/sound/ogg` | Ogg Vorbis `Decoder` | registered decoder | decode stays here | vorbis decode error | import `x/driver` |
@@ -169,7 +174,7 @@ Inherited C (cite the file):
 | `x/ffi` | no Go API | names `native`, `wasm`, `android`, `jni` | MUST NOT grow a Go package | directory has no `.go` file | import `x/ffi` |
 | `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter`; import `x/ffi/native/android` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
-| `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw` | libvulkan binding | compute plus one graphics draw for the swapchain | existing vulkan errors | import `x/ffi/wasm` |
+| `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw`, `OpenNative` | libvulkan binding | compute plus one graphics draw for a window the caller owns | existing vulkan errors | import `x/ffi/wasm`; import `x/driver`; open a host window |
 | `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
 | `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
 | `x/ffi/native/treesitter` | `Available`, `OpenLanguage`, `Parse` | libtree-sitter binding | loader stays here | missing library is the load error | import `x/ffi/wasm`; import `x/driver` |
@@ -178,10 +183,10 @@ Inherited C (cite the file):
 | `x/ffi/native/webview2` | `Available`, `CreateEnvironment` | WebView2Loader.dll | loader stays here | missing loader is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper` | libnativehelper and libandroid | loader stays here | missing library is the load error | import `x/driver` |
 | `x/ffi/android` | `Open`, `Client` | `/dev/binder` session | one process-wide client | missing device is `ErrUnavailable` | import `x/driver`; import `x/ffi/native` |
-| `x/ffi/jni` | `Bind`, `SetCurrentEnv`, `SetRunner`, `CallStatic`, `New`, `Class`, `StaticField`, `Field`, `Proxy`, `Ref` | Java method, field, and interface proxy | calls stay here; `Bind` keeps the app ClassLoader and JNIEnv from the Java thread that loaded the library; `SetRunner` runs later calls on that thread; `Proxy` uses one `lewkit.GoProxy` dispatcher | unbound loader, an ambiguous method, a missing member, or a Java exception is the error | import `x/driver`; import `x/ffi/native/android` |
+| `x/ffi/jni` | `Bind`, `SetCurrentEnv`, `SetRunner`, `CallStatic`, `New`, `Class`, `StaticField`, `Field`, `Proxy`, `Ref`, `AsRef`, `Int`, `Text`, `Bool`, `Float`, `Context` | Java method, field, and interface proxy; `AsRef`, `Int`, `Text`, `Bool`, and `Float` decode a call result; `Context` is `lewkit.Host.app` | calls stay here; `Bind` keeps the app ClassLoader and JNIEnv from the Java thread that loaded the library; `SetRunner` runs later calls on that thread; `Proxy` uses one `lewkit.GoProxy` dispatcher; a float32 widens in `Float` | unbound loader, an ambiguous method, a missing member, or a Java exception is the error; a wrong Go type is `java value`; a null application context is an error; this build's stub is `ErrUnavailable` | import `x/driver`; import `x/ffi/native/android` |
 | `x/driver/thread/jni` | Android looper factory | facade of the android binding | selection stays here | no Java looper is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/webview` | `Open`, `View` | OS web view; page bytes and script messages stay in-process | protocol stays here | missing driver is the existing driver error | `net.Listen`; launch a browser; import `x/ffi/native` |
-| `x/driver/vulkan` | `Open`, `List`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm` |
+| `x/driver/vulkan` | `Open`, `List`, `OpenNative`, `Device` with `Buffer`, `Compile`, `Begin` | facade of the vulkan binding | selection stays here; `OpenNative` attaches a swapchain to a `window` the caller opened | existing vulkan errors | return the binding `Device`; import `x/ffi/native`; import `x/ffi/wasm`; `OpenScreen`; a second host window |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRecords`, `WriteRustc`, `WriteSARIF` | diagnostic value | text, rustc, and SARIF stay here; the finding table is an `x/text/table` view | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
@@ -201,14 +206,14 @@ Inherited C (cite the file):
 | INV-07 | `tui`, `web`, and `gui` MUST NOT import each other | those packages | `gui` emitting HTML; `tui` importing `gui` |
 | INV-08 | Host and engine MUST NOT import `tui`, `web`, and `gui` | `x/driver/window`, `x/ndarray` | `window` depending on `gui` |
 | INV-09 | This repository has one constitution: `SPEC.md` at the repo root | this file | `x/ui/SPEC.md`; a second SPEC beside this file |
-| INV-10 | `gui.Run` consumes a caller-supplied `Window`. It MUST NOT call `window.Open`. | `x/ui/gui` | `gui` opening a host window |
+| INV-10 | `gui.Run` consumes a caller-supplied `Window`. `gui` MUST NOT call `window.Open`. `x/app` opens that window and calls `gui.Run`. | `x/ui/gui`; `x/app` | `gui.Open`; `EnsureDir` calling `window.Open` |
 | INV-11 | This module is not a UI library | this repository | advertising `x/ui` as the product; a Flutter widget tree as the public API |
 | INV-12 | Host window events include `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, `Key`, and `Drop` | `x/driver/window` | pointer `Msg` types that the host does not emit |
 | INV-13 | `x/ffi` has no Go package | `x/ffi` | a `.go` file whose package is `ffi` |
 | INV-14 | `x/ffi/native` does not import a nested binding | `x/ffi/native` | an import of `vulkan`, `pulse`, `winmm`, `coreaudio`, `webkitgtk`, `webkit`, `webview2`, or `android` |
 | INV-15 | `x/ffi/wasm` does not import `x/ffi/wasm/glsl` | `x/ffi/wasm` | that import |
 | INV-16 | `x/ffi/wasm` does not import `x/ffi/wasm/capstone` | `x/ffi/wasm` | that import |
-| INV-17 | `x/ffi/native/vulkan` imports `x/ffi/native` | that package | an import of `x/ffi/wasm` |
+| INV-17 | `x/ffi/native/vulkan` imports `x/ffi/native` and does not import `x/driver` | that package | an import of `x/ffi/wasm`; an import of `x/driver/window` or `x/driver/thread`; `OpenScreen` |
 | INV-18 | `x/ffi/wasm/glsl` imports `x/ffi/wasm` | that package | an import of `x/ffi/native` |
 | INV-19 | `x/ffi/wasm/capstone` imports `x/ffi/wasm` | that package | an import of `x/ffi/native` |
 | INV-20 | `x/driver/vulkan.Device` does not return the binding device | `x/driver/vulkan` | a method whose result type is the binding `Device` |
@@ -255,7 +260,7 @@ Inherited C (cite the file):
 | INV-61 | `x/driver/thread/jni` imports `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/thread/jni` | an import of `x/ffi/native` |
 | INV-62 | `x/ffi/native/android` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/android` | an import of `x/driver` |
 | INV-63 | `x/ffi/jni` imports `x/ffi/native` and does not import `x/driver` or `x/ffi/native/android` | `x/ffi/jni` | an import of `x/driver` or `x/ffi/native/android` |
-| INV-64 | `x/driver/android` imports `x/ffi/jni` and does not import `x/ffi/native` | `x/driver/android` | an import of `x/ffi/native` |
+| INV-64 | `x/driver/dirs/android`, `x/driver/power/android`, `x/driver/screen/android`, `x/driver/volume/android`, and `x/driver/daynight/android` import `x/ffi/android` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
 | INV-65 | `x/driver/battery/android`, `x/driver/clipboard/android`, and `x/driver/brightness/android` import `x/ffi/jni` and `x/ffi/native/android` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
 
 ## Errors
@@ -273,6 +278,7 @@ Inherited C (cite the file):
 | Export from `x/ui` | A Go type on the namespace | Move the type into the one of `tui`, `web`, `gui` that needs it. |
 | `gui.Run` | nil `Model` | Return `ErrModel`. |
 | `gui.Run` | nil `Window` | Return `window.ErrClosed`. |
+| `gui.EnsureDir` | empty dir and no terminal | Return `ErrNeedWindow`. The caller opens a window and calls `Pick`. |
 | `gui.Model.View` | nil `Node` | Return `ErrView`. Do not `Draw`. |
 | `filedialog.Choose` | `Save` with `Folder` or `Multiple` | Return `ErrRequest`. |
 
@@ -342,3 +348,17 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-09-25: status alerts, workspace rotation, the next-workspace counter, and Wake-on-LAN live in the driver packages. A status function returns the alert. The caller posts it. A change function does not post. Screenshot still returns an image. The caller saves it.
 - 2026-09-26: `x/text/report` owns diagnostic findings. Output is a text line, a table, a rustc-style snippet, or SARIF 2.1.0. The root `report` package stays the error-reporter registry. The finding table is an `x/text/table` view, so the same columns render as a table, JSONL, or CSV.
 - 2026-09-26: the reverse-domain id is `x/release.AppID`. `x/driver/bundle` is that binary's data, cache, config, and web profile. `x/driver/dirs` stays the generic tree. `lewkit build` writes desktop archives and the Android, macOS, and iOS hosts. A web view request is normalized inside `webview.Dispatch`.
+- 2026-10-02: `x/ui/gui` has no `Open`. `x/app` calls `window.Open` and then `gui.Run`. `EnsureDir` returns `ErrNeedWindow` when a picker is required. `Pick` runs `Welcome` on the caller's window.
+- 2026-10-02: `x/driver/window` is the only host window. `vulkan.OpenNative` attaches a swapchain to that window. `OpenScreen` and `x/driver/vulkanwindow` are removed. The binding takes a UI thread hook from `x/driver/vulkan` and does not import `x/driver`.
+- 2026-10-02: `x/release.version` is the only runtime version stamp. `x/build/version` keeps packaging `Info` and does not export `Version`. Git describe, rev-parse, log, and rev-list go through `x/git`.
+- 2026-10-02: Pad, resize, PNG, ICO, and ICNS encoding live in `x/image/convert`. `x/build/icons` keeps knockout, the upper-mark crop, and the packaging file tree.
+- 2026-10-02: `Triangle` and `TriangleTurn` leave `x/image`. The RGB triangle demo stays in `examples/internal/scene`.
+- 2026-10-02: name-and-args command runs live on `x/driver/exec` as `RunProgram` and `OutputString`. `x/driver/exec`, `x/driver/httpclient`, and `x/driver/fetchurl` have placement rows. Android volume, power, and screen have rows.
+- 2026-10-02: `x/io.Mkdirp` is removed. The profile writer uses `os.MkdirAll`.
+- 2026-10-02: `x/future` is removed. It had no production caller.
+- 2026-10-02: `sqlite3`, `file`, and `postgresql` are not separate connectors. `splitURL` maps them onto `sqlite` and `postgres`.
+- 2026-10-02: `lewkit` launch extracts the first archive member through `x/fs/tar.ExtractFirst` and `x/fs/zip.ExtractFirst`.
+- 2026-10-03: `x/fs.Index` decorates a flat listing with directory lookup. A later file replaces an earlier one. A later directory keeps the newer ModTime. A file and a directory at the same name is `fs.ErrExist`. Tar and compose use it. UDF, WIM, zip, and squashfs walk the format's own directories and do not keep a second index. `x/fs.Lookup` is that walk.
+- 2026-10-03: `x/entry` starts the task session after the command is parsed. `MainFrom` keeps context values, including pool caps from `taskgroup.WithLimits`. `Main` still uses `DefaultLimits`.
+- 2026-10-03: the short product name is `x/release.Name`. The stamp `-X github.com/lewtec/lewkit/x/release.name` wins, then `LEWKIT_NAME`, then the built-in default. An empty or invalid override keeps that default. Paths, protocol names, and titles call `Name`. A caller's own field still overrides it. `AppID` stays the reverse-domain id. The Java package `lewkit` and the asset URL `/__lewkit__/` stay fixed contracts.
+- 2026-10-03: `x/driver/android` is removed. It was not a capability. Java result decoding and the `lewkit.Host` application context live in `x/ffi/jni`. The process binder client stays `x/ffi/android.ForAndroid`. Android dirs, power, screen, volume, and daynight map a binder failure to `driver.ErrIncompatible`. A missing application context stays `driver.ErrUnavailable` at the driver that reads it.

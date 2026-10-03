@@ -5,7 +5,7 @@
 // holds the name and a Reader for the body.
 // [github.com/lewtec/lewkit/x/fs.File.Open] reads that body.
 // [Open] makes an uncompressed [io.ReaderAt], then
-// [github.com/lewtec/lewkit/x/fs.New] indexes [Files].
+// [github.com/lewtec/lewkit/x/fs.New] decorates [Files] with an index.
 //
 //	for f, err := range tar.Files(ctx, r) {
 //		if ok, _ := f.Name.MatchGlob("**/*.go"); ok {

@@ -19,19 +19,6 @@ func TestDefaultMark(t *testing.T) {
 	}
 }
 
-func TestPadCenterSquare(t *testing.T) {
-	img := image.NewNRGBA(image.Rect(0, 0, 100, 50))
-	for y := 0; y < 50; y++ {
-		for x := 0; x < 100; x++ {
-			img.Set(x, y, color.NRGBA{R: 255, A: 255})
-		}
-	}
-	sq := PadCenter(img)
-	if sq.Bounds().Dx() != 100 || sq.Bounds().Dy() != 100 {
-		t.Fatalf("side got %v", sq.Bounds())
-	}
-}
-
 func TestGenerateDefaultAndSkip(t *testing.T) {
 	dir := t.TempDir()
 	m1, err := Generate(Options{OutputDir: dir, Force: true})

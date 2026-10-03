@@ -31,9 +31,4 @@ func look(ctx context.Context, name string) (string, error) {
 	return path, nil
 }
 
-func requireBinary(ctx context.Context, name string) error {
-	_, err := look(ctx, name)
-	return err
-}
-
 var _ wallpaper.Driver = backend{}

@@ -4,8 +4,6 @@ package linux
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/battery"
@@ -19,12 +17,6 @@ func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
 	_, err := batteryDir()
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, battery.ErrNoBattery) {
-		return fmt.Errorf("%w: /sys/class/power_supply/BAT*/status", driver.ErrIncompatible)
-	}
 	return err
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	lewpath "github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const recentLimit = 8
@@ -81,7 +82,7 @@ func recentFile() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "lewkit", "recent-dirs"), nil
+	return filepath.Join(dir, release.Name(), "recent-dirs"), nil
 }
 
 func cleanDir(dir string) (string, bool) {

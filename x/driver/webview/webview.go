@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"io/fs"
 	"net/http"
 	"path"
@@ -38,6 +39,7 @@ type Config struct {
 	Title   string
 	Width   int
 	Height  int
+	Icon    image.Image
 	HTML    string
 	FS      fs.FS
 	Profile string
@@ -141,7 +143,7 @@ func ContentType(name string) string {
 
 // View is one OS web view.
 //
-// Messages delivers JSON text from window.lewkit.post / postMessage.
+// Messages delivers JSON text from window.<ScriptName>.post / postMessage.
 // Evaluate runs JavaScript in the page and returns JSON text.
 // Done closes when the window closes.
 type View interface {

@@ -16,6 +16,8 @@ import (
 	gbinder "github.com/AndroidGoLab/binder/binder"
 	"github.com/AndroidGoLab/binder/servicemanager"
 	"golang.org/x/sys/unix"
+
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const (
@@ -105,7 +107,7 @@ func (r *raw) wake(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return power.WakeUp(ctx, elapsedRealtime(), wakeReasonApplication, "lewkit")
+	return power.WakeUp(ctx, elapsedRealtime(), wakeReasonApplication, release.Name())
 }
 
 func (r *raw) sleep(ctx context.Context) error {

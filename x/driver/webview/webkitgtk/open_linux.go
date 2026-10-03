@@ -25,10 +25,8 @@ import (
 )
 
 const (
-	bridgeJavaScript = `window.lewkit={postMessage:function(value){window.webkit.messageHandlers.lewkit.postMessage(value);}};`
-	messageName      = "lewkit"
-	schemeName       = "app"
-	viewHostPrefix   = "view"
+	schemeName     = "app"
+	viewHostPrefix = "view"
 )
 
 func libraries(context.Context) error {
@@ -202,13 +200,13 @@ func (state *loopState) open(ctx context.Context, cfg webview.Config) (webview.V
 	state.symbols.SetDefaultSize(window, width, height)
 	state.symbols.Connect(window, "close-request", closeCallback, identifier)
 	manager := state.symbols.Manager(webView)
-	state.symbols.Connect(manager, "script-message-received::"+messageName, messageCallback, identifier)
-	if !state.symbols.RegisterMessageHandler(manager, messageName) {
+	state.symbols.Connect(manager, "script-message-received::"+webview.ScriptName(), messageCallback, identifier)
+	if !state.symbols.RegisterMessageHandler(manager, webview.ScriptName()) {
 		view.markClosed()
 		state.symbols.Destroy(window)
 		return nil, fmt.Errorf("%w: message handler", driver.ErrUnavailable)
 	}
-	state.symbols.AddUserScript(manager, bridgeJavaScript)
+	state.symbols.AddUserScript(manager, webview.WebKitBridge())
 	webContext := state.symbols.Context(webView)
 	schemeRegistered.Do(func() {
 		state.symbols.RegisterScheme(webContext, schemeName, schemeCallback, 0)

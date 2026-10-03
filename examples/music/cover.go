@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/release"
 )
 
 const maxTagBytes = 16 << 20
@@ -22,7 +24,7 @@ func (lib *Library) trackCover(dir, audioPath string) string {
 
 func (lib *Library) writeCover(audioPath string, raw []byte) (string, error) {
 	if lib.covers == "" {
-		dir, err := os.MkdirTemp("", "lewkit-music-")
+		dir, err := os.MkdirTemp("", release.Name()+"-music-")
 		if err != nil {
 			return "", err
 		}

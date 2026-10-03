@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	xdraw "golang.org/x/image/draw"
+	"github.com/lewtec/lewkit/x/image/convert"
 )
 
 // DecodeImage loads PNG or JPEG from path.
@@ -47,23 +47,6 @@ func DecodeBytes(raw []byte, name string) (image.Image, error) {
 	}
 	_ = format
 	return img, nil
-}
-
-// PadCenter returns a square image: master centered, transparent margins if needed.
-// Side is max(width, height).
-func PadCenter(src image.Image) *image.NRGBA {
-	b := src.Bounds()
-	w, h := b.Dx(), b.Dy()
-	side := w
-	if h > side {
-		side = h
-	}
-	dst := image.NewNRGBA(image.Rect(0, 0, side, side))
-	// transparent background (zero value)
-	off := image.Pt((side-w)/2, (side-h)/2)
-	r := image.Rect(off.X, off.Y, off.X+w, off.Y+h)
-	draw.Draw(dst, r, src, b.Min, draw.Over)
-	return dst
 }
 
 // KnockoutBackground makes pixels near the corner sample color transparent
@@ -286,23 +269,7 @@ func ExtractUpperMark(src image.Image) *image.NRGBA {
 	mark = ContentBounds(cropTo(src, mark), minA).Add(mark.Min)
 	const padFrac = 0.08
 	pad := int(float64(max(mark.Dx(), mark.Dy())) * padFrac)
-	return PadCenter(cropTo(src, mark.Inset(-pad)))
-}
-
-// Resize returns a size×size NRGBA using CatmullRom.
-func Resize(src image.Image, size int) *image.NRGBA {
-	dst := image.NewNRGBA(image.Rect(0, 0, size, size))
-	xdraw.CatmullRom.Scale(dst, dst.Bounds(), src, src.Bounds(), draw.Over, nil)
-	return dst
-}
-
-// EncodePNG encodes img as PNG bytes.
-func EncodePNG(img image.Image) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return convert.Pad(cropTo(src, mark.Inset(-pad)))
 }
 
 // WritePNG writes a PNG file, creating parent dirs.

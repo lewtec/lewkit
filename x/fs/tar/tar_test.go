@@ -7,12 +7,15 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 
 	stdgzip "compress/gzip"
@@ -239,6 +242,24 @@ func TestFS(t *testing.T) {
 	fsys, err := Open(t.Context(), r)
 	require.NoError(t, err)
 	require.NoError(t, fstest.TestFS(fsys, "a/b.txt", "z.txt"))
+}
+
+func TestExtractFirst(t *testing.T) {
+	t.Parallel()
+	raw := packTarWrapped(t, map[string][]byte{"bin/" + release.Name(): []byte("hi")}, func(w io.Writer) io.WriteCloser {
+		return stdgzip.NewWriter(w)
+	})
+	dir := t.TempDir()
+	archive := filepath.Join(dir, "a.tar.gz")
+	data, err := io.ReadAll(raw)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(archive, data, 0o644))
+	dest, err := ExtractFirst(archive, dir)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, release.Name()), dest)
+	got, err := os.ReadFile(dest)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("hi"), got)
 }
 
 func TestCopyExtract(t *testing.T) {

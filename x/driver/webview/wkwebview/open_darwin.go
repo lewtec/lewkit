@@ -28,12 +28,10 @@ import (
 )
 
 const (
-	bridgeJavaScript = `window.lewkit={postMessage:function(value){window.webkit.messageHandlers.lewkit.postMessage(value);}};`
-	messageName      = "lewkit"
-	schemeName       = "app"
-	viewHostPrefix   = "view"
-	windowStyle      = 1 | 2 | 4 | 8
-	backingBuffered  = 2
+	schemeName      = "app"
+	viewHostPrefix  = "view"
+	windowStyle     = 1 | 2 | 4 | 8
+	backingBuffered = 2
 )
 
 type nsPoint struct{ X, Y float64 }
@@ -201,7 +199,7 @@ func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 	if err != nil {
 		return err
 	}
-	window.ShowShell(cfg.Title, nil)
+	window.ShowShell(cfg.Title, cfg.Icon)
 	application := objc.ID(objc.GetClass("NSApplication")).Send(selShared)
 	application.Send(selSetPolicy, 0)
 	application.Send(selFinishLaunch)
@@ -213,8 +211,8 @@ func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 	handlers.Store(uintptr(handler), view)
 	configuration := objc.ID(objc.GetClass("WKWebViewConfiguration")).Send(selAlloc).Send(selInit)
 	controller := configuration.Send(selUserContent)
-	controller.Send(selAddHandler, handler, nsString(messageName))
-	script := objc.ID(objc.GetClass("WKUserScript")).Send(selAlloc).Send(selInitScript, nsString(bridgeJavaScript), 0, true)
+	controller.Send(selAddHandler, handler, nsString(webview.ScriptName()))
+	script := objc.ID(objc.GetClass("WKUserScript")).Send(selAlloc).Send(selInitScript, nsString(webview.WebKitBridge()), 0, true)
 	controller.Send(selAddScript, script)
 	configuration.Send(selSetScheme, handler, nsString(schemeName))
 	if err := applyProfile(configuration, cfg.Profile); err != nil {

@@ -3,12 +3,33 @@ package app
 import (
 	"context"
 	"errors"
+	"image"
 	"net/http"
+	"sync"
 
+	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	"github.com/lewtec/lewkit/x/driver/window"
+	_ "github.com/lewtec/lewkit/x/driver/window/prelude"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
+
+var (
+	markOnce sync.Once
+	markImg  image.Image
+)
+
+func shellMark() image.Image {
+	markOnce.Do(func() {
+		img, err := icons.DefaultMark()
+		if err != nil {
+			return
+		}
+		markImg = img
+	})
+	return markImg
+}
 
 // Window is one surface the app opens. [Web] is a web view. [GUI] is a
 // Vulkan surface driven by a [gui.Model].
@@ -58,6 +79,7 @@ func (w webWindow) open(ctx context.Context, title string, width, height int, pr
 		Title:   title,
 		Width:   width,
 		Height:  height,
+		Icon:    shellMark(),
 		Profile: profile,
 		Handler: w.handler,
 	})
@@ -81,9 +103,10 @@ type guiWindow struct{ model gui.Model }
 func (guiWindow) httpHandler() http.Handler { return nil }
 
 func (w guiWindow) open(ctx context.Context, title string, width, height int, _ string) error {
-	return gui.Open(ctx, w.model, gui.Options{
-		Title:  title,
-		Width:  width,
-		Height: height,
-	})
+	host, err := window.Open(ctx, window.Config{Title: title, Width: width, Height: height, Icon: shellMark()})
+	if err != nil {
+		return err
+	}
+	defer host.Close()
+	return gui.Run(ctx, host, nil, w.model)
 }

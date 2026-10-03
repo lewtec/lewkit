@@ -30,7 +30,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | --- | --- |
 | `x/path` | `Path`, `New`, `Open`. A `Path` is a slash name. `Open` takes the OS directory. |
 | `x/path/pick` | `Predicate`, `Match`, `Glob`, `Prune`, `And`, `Or`, `Not`. |
-| `x/fs` | `Files`, `Walk`, `Filter`, `Copy`, `New`, `StripTopDirectory`. `Walk` reads an `io/fs`. `Copy` writes a listing. `New` indexes a listing. `StripTopDirectory` returns an `io/fs` with one leading directory removed. |
+| `x/fs` | `Files`, `Walk`, `Filter`, `Copy`, `Index`, `New`, `Lookup`, `StripTopDirectory`. `Walk` reads an `io/fs`. `Copy` writes a listing. `Index` decorates a flat listing. `New` builds that index. `Lookup` walks a filesystem that already has directories. `StripTopDirectory` returns an `io/fs` with one leading directory removed. |
 | `x/fs/compose` | `New`, `Add`, `Merge`, `All`, `Squash`, `FS`, `Mount`, `Parse`, `Register`. A symlink is a `link` slot. `Squash` turns `name.d.tmpl/` into `lines` slots. `FS` encodes the tree. |
 | `x/fs/tar` | `Open`, `Files`. A tar archive as `io/fs`. |
 | `x/fs/zip` | `Open`. A ZIP archive as `io/fs`. |
@@ -44,7 +44,6 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/db/sqlite` | Blank-import. Schemes `sqlite`, `sqlite3`, `file`, a bare path, and `:memory:`. |
 | `x/db/postgres` | Blank-import. Scheme `postgres`. |
 | `x/db/generate` | Called by `lewkit generate db`. Writes `Queries` and `DBArg`. |
-| `x/io` | `Mkdirp`. |
 | `x/io/atomic` | `NewOperation`, `Commit`, `Rollback`, `WriteFileFunction`, `WriteString`. |
 | `x/text` | `LineIndex`, `NewLineIndex`. UTF-8 byte offset to line and column. |
 
@@ -61,7 +60,6 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/taskgroup/progress` | Bubbletea view of a `Session`. |
 | `x/driver/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
-| `x/future` | `Future`, `NewFuture`, `Get`, `Peek`, `State`. |
 | `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
 | `x/git` | `Git`, `Info`, `Worktree`, `Resolve`. Checkouts, branches, and linked worktrees. |
 | `x/singleton` | `NewSingleton`, `Get`, `MustGet`. |
@@ -70,7 +68,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
 | `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Load`. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
-| `x/release` | `Version`, `AppID`, `ValidateAppID`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. |
+| `x/release` | `Version`, `AppID`, `ValidateAppID`, `Name`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. The short name is the `-X` stamp `x/release.name`, or `LEWKIT_NAME`, or the built-in default. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
 | `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. Arguments after `--` go to that program. |
 | `x/app` | `Web`, `GUI`, `Open`, `Run`. An app is the windows of one process. Each window is a web handler or a GUI model, and it may open another. `Run` returns when the last window closes. `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` serves the first web handler on a loopback port. |
@@ -93,13 +91,13 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/ndarray/nn` | `Convolution2D`, `MaximumPool2D`, `AveragePool2D`, `MatrixMultiply`, `Linear`. |
 | `x/ndarray/onnx` | `Load`, `LoadBytes`, `FunctionOf`, `Apply`, `ApplyInputs`. |
 | `x/ndarray/image` | `Fill`, `Eval`, `Raster`, `Write`, `RGBA`. Pixels are `(h, w, 4)`. |
-| `x/image` | `Triangle`, `TriangleTurn`, `Label`, `CopyRGBA`, `CenterSquare`, `Face`. |
+| `x/image` | `Label`, `CopyRGBA`, `CenterSquare`, `Face`. |
 | `x/graph` | `Graph`, `DOT`, `Mermaid`. |
-| `x/ui/gui` | `Model`, `Node`, `Box`, `Row`, `Column`, `Stack`, `Text`, `Run`, `Open`, `Tick`, `Every`. |
+| `x/ui/gui` | `Model`, `Node`, `Box`, `Row`, `Column`, `Stack`, `Text`, `Run`, `Pick`, `Tick`, `Every`. |
 
 `ndarray.Open` returns the highest-weight `Evaluator`. Blank-import `x/driver/ndeval` or `x/driver/prelude` first.
 
-`Model` is `Init`, `Update`, `View`. `View` returns a `Node`. `Run` paints a window the caller opened. `Open` calls `window.Open`, then `Run`. Layout types are `Box`, `Row`, `Column`, and `Stack`.
+`Model` is `Init`, `Update`, `View`. `View` returns a `Node`. `Run` paints a window the caller opened. `x/app` opens that window. Layout types are `Box`, `Row`, `Column`, and `Stack`.
 
 ### Host and bindings
 

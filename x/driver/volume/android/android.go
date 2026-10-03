@@ -9,6 +9,14 @@ import (
 	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
 
+func open(ctx context.Context) (*ffiandroid.Client, error) {
+	client, err := ffiandroid.ForAndroid(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
+	}
+	return client, nil
+}
+
 func init() { driver.Register[volume.Driver](factory{}) }
 
 type factory struct{}
@@ -78,12 +86,4 @@ func volumes(ctx context.Context) (int32, int32, bool, error) {
 		return 0, 0, false, err
 	}
 	return client.StreamVolume(ctx, musicStream)
-}
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
 }

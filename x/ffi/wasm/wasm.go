@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/emscripten"
@@ -96,7 +97,7 @@ func withCache(config wazero.RuntimeConfig, name string) wazero.RuntimeConfig {
 	if err != nil {
 		return config
 	}
-	cache, err := wazero.NewCompilationCacheWithDir(filepath.Join(dir, "lewtec-lewkit-wasm", name))
+	cache, err := wazero.NewCompilationCacheWithDir(filepath.Join(dir, release.Name()+"-wasm", name))
 	if err != nil {
 		return config
 	}

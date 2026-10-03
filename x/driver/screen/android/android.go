@@ -10,6 +10,14 @@ import (
 	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
 
+func open(ctx context.Context) (*ffiandroid.Client, error) {
+	client, err := ffiandroid.ForAndroid(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
+	}
+	return client, nil
+}
+
 func init() { driver.Register[screen.Driver](factory{}) }
 
 var errNoLayout = errors.New("android display layout reset is unavailable")
@@ -55,11 +63,3 @@ func (backend) IsDPMSOn(ctx context.Context) (bool, error) {
 }
 
 func (backend) Reset(context.Context) error { return errNoLayout }
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
-}

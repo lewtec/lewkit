@@ -25,9 +25,10 @@ type Info struct {
 }
 
 // FS is a read-only WIM image.
+// Lookup walks the image's own directories. It does not keep an index.
 type FS struct {
 	r      *winwim.Reader
-	root   *dnode
+	root   entry
 	closed bool
 }
 
@@ -81,51 +82,15 @@ func Open(ctx context.Context, r io.Reader, image int) (*FS, error) {
 		rd.Close()
 		return nil, err
 	}
-	root := newDir(".")
-	var walk func(*dnode, *winwim.File, string) error
-	walk = func(root *dnode, dir *winwim.File, prefix string) error {
-		if err := ctx.Err(); err != nil {
-			return context.Cause(ctx)
-		}
-		ents, err := dir.Readdir()
-		if err != nil {
-			return err
-		}
-		for _, e := range ents {
-			if err := ctx.Err(); err != nil {
-				return context.Cause(ctx)
-			}
-			name := e.Name
-			if name == "" || name == "." || name == ".." {
-				continue
-			}
-			p := name
-			if prefix != "" {
-				p = prefix + "/" + name
-			}
-			if !fs.ValidPath(p) {
-				return &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
-			}
-			if e.IsDir() {
-				if err := root.add(p, e, true); err != nil {
-					return err
-				}
-				if err := walk(root, e, p); err != nil {
-					return err
-				}
-				continue
-			}
-			if err := root.add(p, e, false); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	if err := walk(root, rootFile, ""); err != nil {
-		rd.Close()
-		return nil, err
-	}
-	return &FS{r: rd, root: root}, nil
+	return &FS{r: rd, root: wimNode{f: rootFile}}, nil
+}
+
+// entry is one directory the image already has.
+type entry interface {
+	lewfs.Entry
+	info() fs.FileInfo
+	open() (fs.File, error)
+	children() ([]entry, error)
 }
 
 // Close releases the WIM reader.

@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
-	host "github.com/lewtec/lewkit/x/driver/android"
 	"github.com/lewtec/lewkit/x/driver/battery"
 	"github.com/lewtec/lewkit/x/ffi/jni"
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
@@ -47,11 +46,11 @@ func (backend) BatteryStatus(ctx context.Context) (battery.Status, error) {
 		return battery.Unknown, err
 	}
 	defer release()
-	statusKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_STATUS"))
+	statusKey, err := jni.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_STATUS"))
 	if err != nil {
 		return battery.Unknown, err
 	}
-	code, err := host.Int(intent.Call("getIntExtra", statusKey, known.unknown))
+	code, err := jni.Int(intent.Call("getIntExtra", statusKey, known.unknown))
 	if err != nil {
 		return battery.Unknown, err
 	}
@@ -64,19 +63,19 @@ func (backend) BatteryLevel(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	defer release()
-	levelKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_LEVEL"))
+	levelKey, err := jni.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_LEVEL"))
 	if err != nil {
 		return 0, err
 	}
-	scaleKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_SCALE"))
+	scaleKey, err := jni.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_SCALE"))
 	if err != nil {
 		return 0, err
 	}
-	level, err := host.Int(intent.Call("getIntExtra", levelKey, -1))
+	level, err := jni.Int(intent.Call("getIntExtra", levelKey, -1))
 	if err != nil {
 		return 0, err
 	}
-	scale, err := host.Int(intent.Call("getIntExtra", scaleKey, -1))
+	scale, err := jni.Int(intent.Call("getIntExtra", scaleKey, -1))
 	if err != nil {
 		return 0, err
 	}
@@ -89,11 +88,11 @@ func openBattery(ctx context.Context) (*jni.Ref, func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, nil, err
 	}
-	app, err := host.Context()
+	app, err := jni.Context()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("%w: %w", driver.ErrUnavailable, err)
 	}
-	action, err := host.Text(jni.StaticField("android.content.Intent", "ACTION_BATTERY_CHANGED"))
+	action, err := jni.Text(jni.StaticField("android.content.Intent", "ACTION_BATTERY_CHANGED"))
 	if err != nil {
 		app.Release()
 		return nil, nil, err
@@ -113,13 +112,13 @@ func openBattery(ctx context.Context) (*jni.Ref, func(), error) {
 		app.Release()
 		return nil, nil, battery.ErrNoBattery
 	}
-	presentKey, err := host.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_PRESENT"))
+	presentKey, err := jni.Text(jni.StaticField("android.os.BatteryManager", "EXTRA_PRESENT"))
 	if err != nil {
 		intent.Release()
 		app.Release()
 		return nil, nil, err
 	}
-	present, err := host.Bool(intent.Call("getBooleanExtra", presentKey, true))
+	present, err := jni.Bool(intent.Call("getBooleanExtra", presentKey, true))
 	if err != nil {
 		intent.Release()
 		app.Release()
@@ -139,23 +138,23 @@ func openBattery(ctx context.Context) (*jni.Ref, func(), error) {
 func readLevels() (levels, error) {
 	var known levels
 	var err error
-	known.unknown, err = host.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_UNKNOWN"))
+	known.unknown, err = jni.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_UNKNOWN"))
 	if err != nil {
 		return levels{}, err
 	}
-	known.charging, err = host.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_CHARGING"))
+	known.charging, err = jni.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_CHARGING"))
 	if err != nil {
 		return levels{}, err
 	}
-	known.discharging, err = host.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_DISCHARGING"))
+	known.discharging, err = jni.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_DISCHARGING"))
 	if err != nil {
 		return levels{}, err
 	}
-	known.notCharging, err = host.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_NOT_CHARGING"))
+	known.notCharging, err = jni.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_NOT_CHARGING"))
 	if err != nil {
 		return levels{}, err
 	}
-	known.full, err = host.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_FULL"))
+	known.full, err = jni.Int(jni.StaticField("android.os.BatteryManager", "BATTERY_STATUS_FULL"))
 	if err != nil {
 		return levels{}, err
 	}
@@ -165,9 +164,9 @@ func readLevels() (levels, error) {
 // sticky reads the current battery intent. API 33 takes an export flag.
 // Older platforms only have the two-argument form.
 func sticky(app, filter *jni.Ref) (*jni.Ref, error) {
-	flag, err := host.Int(jni.StaticField("android.content.Context", "RECEIVER_NOT_EXPORTED"))
+	flag, err := jni.Int(jni.StaticField("android.content.Context", "RECEIVER_NOT_EXPORTED"))
 	if err == nil {
-		intent, callErr := host.Ref(app.Call("registerReceiver", nil, filter, flag))
+		intent, callErr := jni.AsRef(app.Call("registerReceiver", nil, filter, flag))
 		if callErr == nil {
 			return intent, nil
 		}
@@ -175,5 +174,5 @@ func sticky(app, filter *jni.Ref) (*jni.Ref, error) {
 			return nil, callErr
 		}
 	}
-	return host.Ref(app.Call("registerReceiver", nil, filter))
+	return jni.AsRef(app.Call("registerReceiver", nil, filter))
 }

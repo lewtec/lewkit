@@ -5,9 +5,11 @@ package wim
 import (
 	"bytes"
 	"errors"
+	"io"
 	"io/fs"
 	"strings"
 	"testing"
+	"time"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
@@ -40,9 +42,12 @@ func TestInvalidWim(t *testing.T) {
 
 func TestTree(t *testing.T) {
 	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("Windows/Fonts/arial.ttf", nil, false))
-	require.NoError(t, root.add("Windows/System32", nil, true))
+	root := memDir(".",
+		memDir("Windows",
+			memDir("Fonts", memFileEnt("arial.ttf")),
+			memDir("System32"),
+		),
+	)
 	fsys := &FS{root: root}
 
 	ents, err := fsys.ReadDir("Windows")
@@ -69,8 +74,7 @@ func TestTree(t *testing.T) {
 
 func TestPathReadDir(t *testing.T) {
 	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("Windows/Fonts/arial.ttf", nil, false))
+	root := memDir(".", memDir("Windows", memDir("Fonts", memFileEnt("arial.ttf"))))
 	fsys := &FS{root: root}
 	ents, err := path.New("Windows", "Fonts").ReadDir(fsys)
 	require.NoError(t, err)
@@ -80,9 +84,51 @@ func TestPathReadDir(t *testing.T) {
 
 func TestWriteReadOnly(t *testing.T) {
 	t.Parallel()
-	root := newDir(".")
-	require.NoError(t, root.add("a.txt", nil, false))
-	fsys := &FS{root: root}
+	fsys := &FS{root: memDir(".", memFileEnt("a.txt"))}
 	err := path.New("a.txt").WriteFile(fsys, []byte("x"), 0o644)
 	require.ErrorIs(t, err, path.ErrReadOnly)
 }
+
+type mem struct {
+	name string
+	dir  bool
+	kids []*mem
+}
+
+func memDir(name string, kids ...*mem) *mem {
+	return &mem{name: name, dir: true, kids: kids}
+}
+
+func memFileEnt(name string) *mem { return &mem{name: name} }
+
+func (m *mem) Name() string { return m.name }
+func (m *mem) IsDir() bool  { return m.dir }
+
+func (m *mem) info() fs.FileInfo {
+	mode := fs.FileMode(0o444)
+	if m.dir {
+		mode = fs.ModeDir | 0o555
+	}
+	return lewfs.FileInfo(m.name, 0, mode, time.Time{})
+}
+
+func (m *mem) open() (fs.File, error) {
+	if m.dir {
+		return nil, &fs.PathError{Op: "open", Path: m.name, Err: fs.ErrInvalid}
+	}
+	return nopFile{info: m.info()}, nil
+}
+
+func (m *mem) children() ([]entry, error) {
+	out := make([]entry, len(m.kids))
+	for i, k := range m.kids {
+		out[i] = k
+	}
+	return out, nil
+}
+
+type nopFile struct{ info fs.FileInfo }
+
+func (f nopFile) Stat() (fs.FileInfo, error) { return f.info, nil }
+func (nopFile) Read([]byte) (int, error)     { return 0, io.EOF }
+func (nopFile) Close() error                 { return nil }
