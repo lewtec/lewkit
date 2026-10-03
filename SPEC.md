@@ -141,7 +141,7 @@ Inherited C (cite the file):
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`, `RunApp`, `SwitchWindow` | list, text, or yes/no | protocol stays here | missing menu tool is `driver.ErrUnavailable` | a file dialog; import `x/driver/filedialog` |
 | `x/driver/terminal` | `Open`, `Options` | a terminal emulator | protocol stays here | missing emulator is `driver.ErrUnavailable` | import `x/ffi` |
 | `x/driver/exec` | `Command`, `MustCommand`, `Run`, `RunProgram`, `Output`, `OutputString`, `Which`, `RequireBinary` | host process | the runner stays here | missing binary is `ErrNotFound`; `RequireBinary` is `driver.ErrIncompatible` | `os/exec.Command`; `os/exec.LookPath` |
-| `x/driver/httpclient` | `Driver`, `WithProgress` | process HTTP client | the client stays here | missing driver is the existing driver error | import `x/ffi` |
+| `x/driver/httpclient` | `Driver`, `Client`, `WithProgress` | process HTTP client | the client stays here | missing driver is the existing driver error | import `x/ffi` |
 | `x/driver/fetchurl` | `Fetch`, `FetchOptions`, `StatusError` | hashed download | the protocol stays here | no URLs is `ErrNoURLs`; no writer is `ErrNoOutputWriter` | import `x/ffi` |
 | `x/driver/treesitter` | `Get`, `Open`, `ForFile`, `Parse`, `Names`, `(*Tree).Parsed` | one grammar from a registered engine | protocol stays here | unknown language is `ErrUnknown`; no backend is `driver.ErrNotFound`; a null or error tree is `ErrParse` | import a grammar module |
 | `x/driver/treesitter/ccgo` | ccgo registry | facade of ccgo-tree-sitter | selection stays here | a missing name is skipped | import a ccgo `grammar/<lang>` package |

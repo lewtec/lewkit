@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	_ "github.com/lewtec/lewkit/x/driver/dirs/os"
+	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
 )
 
 func TestArtCacheLocal(t *testing.T) {
@@ -21,7 +24,10 @@ func TestArtCacheLocal(t *testing.T) {
 }
 
 func TestArtCacheHTTP(t *testing.T) {
-	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	root := t.TempDir()
+	t.Setenv("LEWKIT_DATA_DIR", filepath.Join(root, "data"))
+	t.Setenv("LEWKIT_CACHE_DIR", filepath.Join(root, "cache"))
+	t.Setenv("LEWKIT_CONFIG_DIR", filepath.Join(root, "config"))
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits++

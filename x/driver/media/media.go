@@ -5,8 +5,8 @@
 //	note, ok := media.StatusNotification(meta)
 //
 // Import [github.com/lewtec/lewkit/x/driver/media/dbus]. Album art from
-// http(s) is cached under os.UserCacheDir()/<name>/media-art.
-// <name> is [github.com/lewtec/lewkit/x/release.Name].
+// http(s) is cached under the dirs cache for [release.Name], in media-art.
+// The body is fetched with the httpclient driver.
 package media
 
 import (
@@ -21,6 +21,8 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/dirs"
+	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -90,7 +92,7 @@ func Watch(ctx context.Context, callback func(*Metadata)) error {
 
 // GetArtCachePath returns a local path for url.
 // file:// is returned as-is. Other non-http values are returned unchanged.
-// http(s) bodies are stored under os.UserCacheDir()/<release.Name>/media-art.
+// http(s) bodies are stored under dirs.Resolve(release.Name) cache/media-art.
 func GetArtCachePath(ctx context.Context, url string) (string, error) {
 	if after, ok := strings.CutPrefix(url, "file://"); ok {
 		return after, nil
@@ -98,11 +100,11 @@ func GetArtCachePath(ctx context.Context, url string) (string, error) {
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return url, nil
 	}
-	cacheRoot, err := os.UserCacheDir()
+	tree, err := dirs.Resolve(ctx, release.Name())
 	if err != nil {
 		return "", err
 	}
-	cacheDir := filepath.Join(cacheRoot, release.Name(), "media-art")
+	cacheDir := filepath.Join(tree.Cache, "media-art")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}
@@ -115,7 +117,11 @@ func GetArtCachePath(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	client, err := httpclient.Client(ctx)
+	if err != nil {
+		return "", err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
