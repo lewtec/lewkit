@@ -1,6 +1,5 @@
 package lewkit;
 
-import android.app.Activity;
 import android.content.res.Configuration;
 import android.graphics.PixelFormat;
 import android.os.Bundle;
@@ -10,7 +9,7 @@ import android.view.SurfaceView;
 import android.view.View;
 
 /** A Vulkan surface window. The Go app presents into the native window. */
-public final class SurfaceActivity extends Activity implements SurfaceHolder.Callback {
+public final class SurfaceActivity extends HostActivity implements SurfaceHolder.Callback {
     private boolean sent;
     private boolean alive;
     private int lastW;
@@ -54,18 +53,6 @@ public final class SurfaceActivity extends Activity implements SurfaceHolder.Cal
         if (content != null) {
             content.requestLayout();
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        Host.noteForeground(this, true);
-    }
-
-    @Override
-    protected void onPause() {
-        Host.noteForeground(this, false);
-        super.onPause();
     }
 
     @Override

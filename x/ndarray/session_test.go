@@ -16,14 +16,35 @@ func TestEvalIntoVirtStable(t *testing.T) {
 	require.NoError(t, out.Eval(t.Context(), CPU, dst))
 	proc, err := process.NewProcess(int32(os.Getpid()))
 	require.NoError(t, err)
-	before, err := proc.MemoryInfo()
-	require.NoError(t, err)
-	for range 80 {
-		require.NoError(t, out.Eval(t.Context(), CPU, dst))
+	sample := func() (uint64, uint64) {
+		info, err := proc.MemoryInfo()
+		require.NoError(t, err)
+		return info.VMS, info.RSS
 	}
-	after, err := proc.MemoryInfo()
-	require.NoError(t, err)
-	grew := int64(after.VMS) - int64(before.VMS)
-	t.Logf("VMS %d -> %d (%+d) RSS %d -> %d over 80 CPU evals", before.VMS, after.VMS, grew, before.RSS, after.RSS)
-	require.Less(t, grew, int64(64<<20), "virtual size grew %d bytes", grew)
+	eval := func() {
+		for range 80 {
+			require.NoError(t, out.Eval(t.Context(), CPU, dst))
+		}
+	}
+	v0, r0 := sample()
+	eval()
+	v1, r1 := sample()
+	eval()
+	v2, r2 := sample()
+	first := int64(v1) - int64(v0)
+	second := int64(v2) - int64(v1)
+	t.Logf("VMS %d -> %d -> %d (%+d, %+d) RSS %d -> %d -> %d", v0, v1, v2, first, second, r0, r1, r2)
+	// The runtime reserves virtual address space in 64 MiB arenas. Crossing a
+	// boundary maps one arena. A leak maps another on the next run.
+	const arena = int64(64 << 20)
+	count := func(grew int64) (int, int64) {
+		if grew <= 0 {
+			return 0, 0
+		}
+		return int(grew / arena), grew % arena
+	}
+	arenas1, rest1 := count(first)
+	arenas2, rest2 := count(second)
+	require.LessOrEqual(t, arenas1+arenas2, 1, "virtual size grew %+d then %+d", first, second)
+	require.Less(t, rest1+rest2, int64(1<<20), "virtual size grew %+d then %+d", first, second)
 }

@@ -88,19 +88,24 @@ public final class Host {
         }
     }
 
+    // ready delivers the first window to the splash. A URL after the splash
+    // has closed opens another page. An empty URL is the native surface.
     public static void ready(String url) {
-        if (url != null && !url.isEmpty()) {
-            Ready page = onPage;
-            if (page != null) {
-                new Handler(Looper.getMainLooper()).post(() -> page.call(url));
-                return;
-            }
-        }
-        Ready cb = onReady;
-        if (cb == null) {
+        Ready splash = onReady;
+        if (splash != null) {
+            onReady = null;
+            onFail = null;
+            new Handler(Looper.getMainLooper()).post(() -> splash.call(url));
             return;
         }
-        new Handler(Looper.getMainLooper()).post(() -> cb.call(url));
+        if (url == null || url.isEmpty()) {
+            return;
+        }
+        Ready page = onPage;
+        if (page == null) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).post(() -> page.call(url));
     }
 
     public static void fail(String message) {

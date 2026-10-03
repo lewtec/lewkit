@@ -32,6 +32,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/src/main/AndroidManifest.xml",
 		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
 		"app/src/main/java/lewkit/FileChooser.java",
+		"app/src/main/java/lewkit/HostActivity.java",
 		"app/src/main/java/lewkit/Documents.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
@@ -73,8 +74,8 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.HasPrefix(string(mainJava), "package br.tec.lew.counter;\n") {
 		t.Fatalf("java package mismatch:\n%s", mainJava[:80])
 	}
-	if !strings.Contains(string(mainJava), "Host.noteForeground(this, true)") {
-		t.Fatal("splash activity does not record the foreground window")
+	if !strings.Contains(string(mainJava), "extends HostActivity") {
+		t.Fatal("splash activity does not share the window base")
 	}
 	if !strings.Contains(string(mainJava), "R.id.splash") {
 		t.Fatal("launcher has no splash")
@@ -85,12 +86,22 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(mainJava), "Host.onPage") {
 		t.Fatal("a page published after the splash has no window")
 	}
+	if strings.Contains(string(mainJava), "android.webkit.WebView") || strings.Contains(string(mainJava), "webview_container") {
+		t.Fatal("splash still embeds a web view")
+	}
+	layout, err := os.ReadFile(filepath.Join(out, "app/src/main/res/layout/activity_main.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(layout), "webview_container") || strings.Contains(string(layout), "SwipeRefreshLayout") {
+		t.Fatal("splash layout still stacks a web view")
+	}
 	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(surface), "Host.noteForeground(this, true)") {
-		t.Fatal("surface activity does not record the foreground window")
+	if !strings.Contains(string(surface), "extends HostActivity") {
+		t.Fatal("surface activity does not share the window base")
 	}
 	if !strings.Contains(string(surface), "Host.boot(this)") {
 		t.Fatal("surface activity does not start the app")
@@ -123,8 +134,40 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if mainAt < 0 || launchAt < mainAt || surfaceAt < launchAt {
 		t.Fatalf("web launcher:\n%s", manifest)
 	}
-	if !strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
-		t.Fatalf("file chooser activity:\n%s", manifest)
+	if strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
+		t.Fatalf("file chooser is an activity:\n%s", manifest)
+	}
+	chooser, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/FileChooser.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	chooserJava := string(chooser)
+	if strings.Contains(chooserJava, "extends Activity") || strings.Contains(chooserJava, "FileChooser.class") {
+		t.Fatal("file chooser replaces the current activity")
+	}
+	if !strings.Contains(chooserJava, "Host.foreground") || !strings.Contains(chooserJava, "startActivityForResult") {
+		t.Fatal("file chooser does not stack on the foreground activity")
+	}
+	if !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT_TREE") || !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT") || !strings.Contains(chooserJava, "ACTION_CREATE_DOCUMENT") {
+		t.Fatal("file chooser lost the file, folder, and save pickers")
+	}
+	hostAct, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/HostActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostActJava := string(hostAct)
+	if !strings.Contains(hostActJava, "Host.noteForeground(this, true)") || !strings.Contains(hostActJava, "FileChooser.onResult") || !strings.Contains(hostActJava, "FileChooser.hostGone") {
+		t.Fatal("window base does not track the foreground activity or the picker result")
+	}
+	pageJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(pageJava), "extends HostActivity") || !strings.Contains(string(pageJava), "wv.onResume()") {
+		t.Fatal("page does not share the window base or resume its web view")
+	}
+	if strings.Contains(string(mainJava), "onActivityResult") || strings.Contains(string(pageJava), "onActivityResult") || strings.Contains(string(surface), "onActivityResult") {
+		t.Fatal("picker result is copied onto each window")
 	}
 	docs, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Documents.java"))
 	if err != nil {
@@ -143,6 +186,11 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	}
 	if !strings.Contains(string(hostJava), `cb.call("")`) {
 		t.Fatal("surface open does not replace the splash")
+	}
+	splashAt := strings.Index(string(hostJava), "Ready splash = onReady")
+	pageAt := strings.Index(string(hostJava), "Ready page = onPage")
+	if splashAt < 0 || pageAt < splashAt {
+		t.Fatal("first window does not close the splash before a later page opens")
 	}
 	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -256,6 +304,9 @@ func TestCreate_FirstPageReplacesSplash(t *testing.T) {
 	main := string(mainJava)
 	if !strings.Contains(main, "finish()") {
 		t.Fatal("splash activity stays on the back stack")
+	}
+	if strings.Contains(main, "WebView") {
+		t.Fatal("splash activity still hosts a web view")
 	}
 	page, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
 	if err != nil {
