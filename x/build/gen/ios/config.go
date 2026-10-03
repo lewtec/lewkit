@@ -1,10 +1,8 @@
-// Package ios generates an ephemeral iOS host and packages
+// Package ios generates an ephemeral iOS WKWebView host and packages
 // a GOOS=ios c-archive into a Debug .app.
-// A GUI model draws on a UIView. A web handler stays in the WKWebView.
 //
 // iOS cannot exec a helper binary. The Go app is linked in-process
-// (EletrocromoStart). A web handler writes ELETROCROMO_READY_FILE.
-// A GUI model calls openSurface and does not write that file.
+// (EletrocromoStart) and the host waits on ELETROCROMO_READY_FILE.
 // The importable eletrocromo library stays free of Xcode.
 package ios
 

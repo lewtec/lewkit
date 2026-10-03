@@ -8,11 +8,7 @@ package main
 
 import "C"
 
-import (
-	"os"
-
-	"github.com/lewtec/lewkit/x/entry"
-)
+import "os"
 
 //export EletrocromoStart
 func EletrocromoStart(readyFile, dataDir, cacheDir, configDir *C.char) {
@@ -38,20 +34,5 @@ func EletrocromoStart(readyFile, dataDir, cacheDir, configDir *C.char) {
 		os.Setenv("LEWKIT_CONFIG_DIR", C.GoString(configDir))
 	}
 	main()
-}
-
-//export EletrocromoPointer
-func EletrocromoPointer(x, y, action C.int) {
-	entry.DeliverPointer(int(x), int(y), int(action))
-}
-
-//export EletrocromoResize
-func EletrocromoResize(width, height C.int) {
-	entry.DeliverResize(int(width), int(height))
-}
-
-//export EletrocromoSurfaceLost
-func EletrocromoSurfaceLost() {
-	entry.DeliverSurfaceLost()
 }
 `

@@ -32,7 +32,7 @@ func shellMark() image.Image {
 }
 
 // Window is one surface the app opens. [Web] is a web view. [GUI] is a
-// host surface driven by a [gui.Model].
+// Vulkan surface driven by a [gui.Model].
 type Window interface {
 	httpHandler() http.Handler
 	open(ctx context.Context, title string, width, height int, profile string) error
@@ -41,8 +41,8 @@ type Window interface {
 // Web is a window whose document is handler.
 func Web(handler http.Handler) Window { return webWindow{handler: handler} }
 
-// GUI is a window whose picture is model. The present driver paints it
-// when the host can lend a surface. Metal is the Apple screen. Vulkan is the other.
+// GUI is a window whose picture is model, presented on a Vulkan surface
+// when the host can lend one.
 func GUI(model gui.Model) Window { return guiWindow{model} }
 
 // Open opens another window and blocks until that window closes.

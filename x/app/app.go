@@ -2,9 +2,8 @@
 // a GUI model, and it may open another window. Run returns when the last
 // window closes. A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI
 // serves a web handler on a loopback port instead of opening that first window.
-// Android keeps that window: a GUI model opens the surface and a web handler
-// is the web view. iOS keeps a GUI model on the UIKit surface. A web handler
-// on iOS still publishes a loopback URL for the host web view.
+// The handler decides the Android window: a GUI model opens the surface and
+// leaves the splash, and a web handler publishes a loopback URL.
 package app
 
 import (
@@ -45,10 +44,9 @@ type App struct {
 // Run opens the app window and returns when the last window of the process
 // closes. Closing one window leaves the others up. Canceling ctx closes them
 // all. A second Run while one is active returns an error.
-// A web handler pushes a webapp. A GUI model opens a host surface. Metal
-// presents it on Apple. Vulkan presents it where libvulkan is the screen.
-// A host without a webview driver keeps the web handler on a loopback port
-// and shows that window itself.
+// A web handler pushes a webapp. A GUI model opens a Vulkan surface. A host
+// without a webview driver keeps the web handler on a loopback port and shows
+// that window itself.
 func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -87,7 +85,7 @@ func (a App) open(ctx context.Context, id string) error {
 		entry.ShowSurface()
 	}
 	if a.NoUI || envOn("LEWKIT_NO_UI") || envOn("ELETROCROMO_NO_UI") {
-		next, err := loopbackWindow(win, nativeHost(win))
+		next, err := loopbackWindow(win, runtime.GOOS == "android")
 		if err != nil {
 			return err
 		}
@@ -102,9 +100,8 @@ func (a App) open(ctx context.Context, id string) error {
 }
 
 // loopbackWindow serves a web handler on a desktop packaged host.
-// guiNative leaves the window as it is. Android does that for every window.
-// iOS does it for a GUI model, which draws on the UIKit surface. A web
-// handler on iOS still publishes a loopback URL for the host web view.
+// On Android the entrypoint's window is left as it is: a GUI model is the
+// surface, and a web handler is webview.Open rather than a forced loopback page.
 func loopbackWindow(win Window, guiNative bool) (Window, error) {
 	if guiNative {
 		return win, nil
@@ -115,20 +112,6 @@ func loopbackWindow(win Window, guiNative bool) (Window, error) {
 	}
 	web.hosted = true
 	return web, nil
-}
-
-// nativeHost reports whether a packaged no-UI process should keep win.
-// Android keeps every window. iOS keeps a GUI model and loopbacks the web handler.
-func nativeHost(win Window) bool {
-	switch runtime.GOOS {
-	case "android":
-		return true
-	case "ios":
-		_, ok := win.(guiWindow)
-		return ok
-	default:
-		return false
-	}
 }
 
 func serveWeb(ctx context.Context, handler http.Handler) error {

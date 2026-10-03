@@ -121,10 +121,6 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/window/win32` | Windows backend. |
 | `x/driver/window/x11` | X11 backend. |
 | `x/driver/window/mem` | In-memory backend for tests. |
-| `x/driver/window/uikit` | iOS backend. `Open` asks the host for a UIView and runs on the main queue. |
-| `x/driver/present` | `Open`, `Screen`, `Composite`. Paints one GUI frame on a surface the caller owns. The highest compatible driver wins. |
-| `x/driver/present/metal` | Metal screen. Weight 80 on Apple, so GUI does not need MoltenVK. |
-| `x/driver/present/vulkan` | Vulkan screen. Weight 40. A mounted tensor stays on the device. |
 | `x/driver/vulkan` | Facade. `Open`, `List`, `Buffer`, `Compile`, `Begin`. Re-exports `Buffer`, `Shader`, and `Cmd`. |
 | `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan wraps the selected GPU. |
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |
@@ -133,8 +129,6 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/ffi/android` | Binder session. `Open`, `Client`. |
 | `x/ffi/jni` | Java calls. `Bind`, `CallStatic`, `New`, `Class`, `StaticField`, `Field`, `Proxy`. |
 | `x/ffi/native/vulkan` | Binding. `Open`, `List`, `Buffer`, `Alloc`, `Shader`, `Compile`, `Run`, `Begin`. |
-| `x/ffi/native/metal` | Binding. `OpenNative`, `Draw`. Rounded rects and glyph ink on a caller-owned view. |
-| `x/ffi/native/dispatch` | `OnMain`. iOS runs the function on the UIKit main queue. |
 | `x/ffi/wasm` | `Compile`, `Compiled.Instantiate`. wazero, with WASI and optional Emscripten. |
 | `x/ffi/wasm/capstone` | Binding. `Open`, `Handle`. |
 | `x/ffi/wasm/glsl` | `Compile`, `CompileStage`, `Load`, `IsSPIRV`, `Hash`, `RegisterHash`, `Lookup`. A registered shader hash returns SPIR-V. A missing hash compiles with the embedded glslang. `Load` keeps a SPIR-V buffer as-is. |

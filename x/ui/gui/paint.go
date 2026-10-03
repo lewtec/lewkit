@@ -56,9 +56,6 @@ type Picture struct {
 	keys        []hitKey
 	fillCount   int
 	recordOnly  bool
-	// holdList keeps a mountable backdrop on the draw list.
-	// Metal has no compute device, so the fills stay instances.
-	holdList bool
 }
 
 func accumulatorOf(picture *Picture) *ndarray.Tensor[float32] {
@@ -266,7 +263,6 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	if root == nil || size.Width < 1 || size.Height < 1 {
 		return nil, ndarray.ErrShape
 	}
-	defer func() { picture.holdList = false }()
 	root.Layout(Tight(size.Width, size.Height))
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]
@@ -363,7 +359,7 @@ func (picture *Picture) overlaySig() uint64 {
 }
 
 func (picture *Picture) mountable() bool {
-	if picture == nil || picture.holdList || picture.raster == nil || !picture.recordOnly {
+	if picture == nil || picture.raster == nil || !picture.recordOnly {
 		return false
 	}
 	shape := picture.raster.Shape()
