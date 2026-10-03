@@ -175,7 +175,7 @@ Inherited C (cite the file):
 | `x/ffi/native` | `Open`, `OpenChain`, `OpenIn`, `SearchDirs`, `ProcOf`, `OpenFirst`, `Singleton`, `Once`, `Bind`, `Func`, `Symbol`, `Register`, `CString`, `GoString` | direct C ABI | loader stays here; one path is loaded once for a covered flag set; a soname chain is one singleton; Windows procedures use `ProcOf` | purego error; a failed `Open` is not cached; a failed `OpenChain` is cached | import `x/ffi/native/vulkan`; import `x/ffi/native/pulse`; import `x/ffi/native/winmm`; import `x/ffi/native/coreaudio`; import `x/ffi/native/treesitter`; import `x/ffi/native/android` |
 | `x/ffi/wasm` | `Compile`, `Instance` | wasm runtime | host stays here | existing wasm errors | import `x/ffi/wasm/glsl`; import `x/ffi/wasm/capstone` |
 | `x/ffi/native/vulkan` | `Device`, `Buffer`, `Shader`, `Cmd`, swapchain `Draw`, `OpenNative` | libvulkan binding | compute plus one graphics draw for a window the caller owns | existing vulkan errors | import `x/ffi/wasm`; import `x/driver`; open a host window |
-| `x/ffi/wasm/glsl` | `Compile`, `Load`, `IsSPIRV` | glslang binding | compiler stays here | existing glsl errors | import `x/ffi/native` |
+| `x/ffi/wasm/glsl` | `Compile`, `CompileStage`, `CompileGlslang`, `Load`, `IsSPIRV`, `Hash`, `RegisterHash`, `Lookup` | glslang binding and SPIR-V registry | compiler and the hash registry stay here; a hit returns the stored SPIR-V; a miss runs `glslc` when it is on PATH, then the embedded glslang | `ErrCompile`, `ErrEmpty`, `ErrExist` | import `x/ffi/native` |
 | `x/ffi/wasm/capstone` | `Open`, `Handle`, `Instruction` | Capstone binding | guest stays here | capstone error text | import `x/ffi/native` |
 | `x/ffi/native/treesitter` | `Available`, `OpenLanguage`, `Parse` | libtree-sitter binding | loader stays here | missing library is the load error | import `x/ffi/wasm`; import `x/driver` |
 | `x/ffi/native/webkitgtk` | `Load`, `Symbols` | WebKitGTK 6 and GTK 4, dlopen | loader stays here | missing library is `ErrUnavailable` | import `x/ffi/wasm`; listen on a port |
@@ -262,6 +262,7 @@ Inherited C (cite the file):
 | INV-63 | `x/ffi/jni` imports `x/ffi/native` and does not import `x/driver` or `x/ffi/native/android` | `x/ffi/jni` | an import of `x/driver` or `x/ffi/native/android` |
 | INV-64 | `x/driver/dirs/android`, `x/driver/power/android`, `x/driver/screen/android`, `x/driver/volume/android`, and `x/driver/daynight/android` import `x/ffi/android` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
 | INV-65 | `x/driver/battery/android`, `x/driver/clipboard/android`, and `x/driver/brightness/android` import `x/ffi/jni` and `x/ffi/native/android` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
+| INV-66 | `CompileStage` returns registered SPIR-V without running `glslc` or glslang. A miss runs `glslc` when it is on PATH, then the embedded glslang | `x/ffi/wasm/glsl` | running `glslc` before the registry lookup |
 
 ## Errors
 

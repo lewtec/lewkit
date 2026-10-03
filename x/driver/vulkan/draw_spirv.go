@@ -1,5 +1,7 @@
 package vulkan
 
+//go:generate go run ../../../cmd/lewkit generate shader .
+
 import (
 	"context"
 	"embed"
@@ -16,8 +18,9 @@ type drawModules struct {
 	vert, frag, inkVert, inkFrag []byte
 }
 
-// drawCode compiles the swapchain fill and ink shaders once.
-// The GLSL source is shader/. The compiler is the wasm glslang in x/ffi/wasm/glsl.
+// drawCode loads the swapchain fill and ink shaders once.
+// The GLSL source is shader/. A registered hash returns SPIR-V.
+// A missing hash compiles with glslc or the embedded glslang.
 var drawCode = singleton.NewSingleton(func(ctx context.Context) (drawModules, error) {
 	var code drawModules
 	steps := []struct {

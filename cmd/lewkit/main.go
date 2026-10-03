@@ -12,6 +12,7 @@ import (
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/generate/prelude"
 	"github.com/lewtec/lewkit/x/generate/protobuf"
+	"github.com/lewtec/lewkit/x/generate/shader"
 	"github.com/lewtec/lewkit/x/taskgroup"
 
 	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
@@ -45,6 +46,7 @@ type generateCmd struct {
 	db       *dbCmd
 	prelude  *preludeCmd
 	protobuf *protobufCmd
+	shader   *shaderCmd
 }
 
 func (generateCmd) Description() string {
@@ -91,6 +93,18 @@ func (protobufCmd) Description() string {
 
 func (c *protobufCmd) Run(ctx context.Context) error {
 	return protobuf.Run(ctx, c.proto.Value(), c.goPackage.Value())
+}
+
+type shaderCmd struct {
+	dir cmd.WorkDirArg `help:"directory to scan for .vert, .frag, and .comp"`
+}
+
+func (shaderCmd) Description() string {
+	return "SPIR-V registry for GLSL shaders under DIR"
+}
+
+func (c *shaderCmd) Run(ctx context.Context) error {
+	return shader.Run(ctx, c.dir.Value())
 }
 
 type completionCmd struct{}

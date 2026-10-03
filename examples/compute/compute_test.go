@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"testing"
 
@@ -13,6 +14,14 @@ import (
 func TestExampleComp(t *testing.T) {
 	require.Contains(t, string(exampleComp), "local_size_x = 8")
 	got, err := loadShader(t.Context(), "")
+	require.NoError(t, err)
+	require.True(t, glsl.IsSPIRV(got))
+}
+
+func TestExampleCompRegistered(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	got, err := loadShader(ctx, "")
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(got))
 }

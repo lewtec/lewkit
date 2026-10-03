@@ -23,6 +23,16 @@ func compileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	spv, found, err := compileGLSLC(ctx, stage, src)
+	if found && err == nil {
+		return spv, nil
+	}
+	if found && err != nil && ctx.Err() == nil {
+		slog.Info("glslc", "stage", int(stage), "err", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return compileSPIRV(ctx, stage, src)
 }
 

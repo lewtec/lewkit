@@ -1,5 +1,7 @@
 package main
 
+//go:generate go run ../../cmd/lewkit generate shader .
+
 import (
 	"context"
 	_ "embed"
