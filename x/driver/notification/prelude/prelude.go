@@ -8,4 +8,5 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/notification/ios"
 	_ "github.com/lewtec/lewkit/x/driver/notification/notify_send"
 	_ "github.com/lewtec/lewkit/x/driver/notification/osascript"
+	_ "github.com/lewtec/lewkit/x/driver/notification/windows"
 )

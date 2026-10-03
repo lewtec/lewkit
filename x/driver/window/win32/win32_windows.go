@@ -8,6 +8,7 @@ import (
 	"image"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	"unsafe"
@@ -20,6 +21,18 @@ import (
 const (
 	wsOverlappedWindow = 0x00CF0000
 	wsVisible          = 0x10000000
+	wsExAcceptFiles    = 0x00000010
+	wsExAppWindow      = 0x00040000
+	colorWindow        = 5
+	swpNoSize          = 0x0001
+	swpNoMove          = 0x0002
+	swpShowWindow      = 0x0040
+	wmDropFiles        = 0x0233
+	wmSetIcon          = 0x0080
+	iconBig            = 1
+	iconSmall          = 0
+	imageIcon          = 1
+	lrShared           = 0x8000
 	cwUseDefault       = 0x80000000
 	swShow             = 5
 	wmDestroy          = 0x0002
@@ -47,26 +60,41 @@ const (
 )
 
 var (
-	procRegisterClassExW = native.ProcOf("user32.dll", "RegisterClassExW")
-	procCreateWindowExW  = native.ProcOf("user32.dll", "CreateWindowExW")
-	procDefWindowProcW   = native.ProcOf("user32.dll", "DefWindowProcW")
-	procGetMessageW      = native.ProcOf("user32.dll", "GetMessageW")
-	procTranslateMessage = native.ProcOf("user32.dll", "TranslateMessage")
-	procDispatchMessageW = native.ProcOf("user32.dll", "DispatchMessageW")
-	procShowWindow       = native.ProcOf("user32.dll", "ShowWindow")
-	procGetDC            = native.ProcOf("user32.dll", "GetDC")
-	procReleaseDC        = native.ProcOf("user32.dll", "ReleaseDC")
-	procDestroyWindow    = native.ProcOf("user32.dll", "DestroyWindow")
-	procSetWindowPos     = native.ProcOf("user32.dll", "SetWindowPos")
-	procGetClientRect    = native.ProcOf("user32.dll", "GetClientRect")
-	procPostQuitMessage  = native.ProcOf("user32.dll", "PostQuitMessage")
-	procGetModuleHandleW = native.ProcOf("kernel32.dll", "GetModuleHandleW")
-	procStretchDIBits    = native.ProcOf("gdi32.dll", "StretchDIBits")
-	procGetDeviceCaps    = native.ProcOf("gdi32.dll", "GetDeviceCaps")
-	classOnce            sync.Once
-	classAtom            uintptr
-	classErr             error
-	className            = syscall.StringToUTF16Ptr(release.Name() + ".driver.window")
+	procRegisterClassExW         = native.ProcOf("user32.dll", "RegisterClassExW")
+	procCreateWindowExW          = native.ProcOf("user32.dll", "CreateWindowExW")
+	procDefWindowProcW           = native.ProcOf("user32.dll", "DefWindowProcW")
+	procGetMessageW              = native.ProcOf("user32.dll", "GetMessageW")
+	procTranslateMessage         = native.ProcOf("user32.dll", "TranslateMessage")
+	procDispatchMessageW         = native.ProcOf("user32.dll", "DispatchMessageW")
+	procShowWindow               = native.ProcOf("user32.dll", "ShowWindow")
+	procGetForegroundWindow      = native.ProcOf("user32.dll", "GetForegroundWindow")
+	procGetWindowThreadProcessId = native.ProcOf("user32.dll", "GetWindowThreadProcessId")
+	procSetForegroundWindow      = native.ProcOf("user32.dll", "SetForegroundWindow")
+	procBringWindowToTop         = native.ProcOf("user32.dll", "BringWindowToTop")
+	procAttachThreadInput        = native.ProcOf("user32.dll", "AttachThreadInput")
+	procAllowSetForegroundWindow = native.ProcOf("user32.dll", "AllowSetForegroundWindow")
+	procGetCurrentProcessId      = native.ProcOf("kernel32.dll", "GetCurrentProcessId")
+	procGetCurrentThreadId       = native.ProcOf("kernel32.dll", "GetCurrentThreadId")
+	procGetDC                    = native.ProcOf("user32.dll", "GetDC")
+	procReleaseDC                = native.ProcOf("user32.dll", "ReleaseDC")
+	procBeginPaint               = native.ProcOf("user32.dll", "BeginPaint")
+	procEndPaint                 = native.ProcOf("user32.dll", "EndPaint")
+	procDestroyWindow            = native.ProcOf("user32.dll", "DestroyWindow")
+	procSetWindowPos             = native.ProcOf("user32.dll", "SetWindowPos")
+	procGetClientRect            = native.ProcOf("user32.dll", "GetClientRect")
+	procPostQuitMessage          = native.ProcOf("user32.dll", "PostQuitMessage")
+	procGetModuleHandleW         = native.ProcOf("kernel32.dll", "GetModuleHandleW")
+	procStretchDIBits            = native.ProcOf("gdi32.dll", "StretchDIBits")
+	procGetDeviceCaps            = native.ProcOf("gdi32.dll", "GetDeviceCaps")
+	procDragAcceptFiles          = native.ProcOf("shell32.dll", "DragAcceptFiles")
+	procDragQueryFileW           = native.ProcOf("shell32.dll", "DragQueryFileW")
+	procDragFinish               = native.ProcOf("shell32.dll", "DragFinish")
+	procLoadImageW               = native.ProcOf("user32.dll", "LoadImageW")
+	procSendMessageW             = native.ProcOf("user32.dll", "SendMessageW")
+	classOnce                    sync.Once
+	classAtom                    uintptr
+	classErr                     error
+	className                    = syscall.StringToUTF16Ptr(release.Name() + ".driver.window")
 )
 
 type wndClassEx struct {
@@ -89,6 +117,19 @@ type rect struct {
 }
 
 type point struct{ x, y int32 }
+
+// paintStruct matches PAINTSTRUCT. On 64-bit Windows the fields occupy 68 bytes.
+type paintStruct struct {
+	hdc       uintptr
+	erase     int32
+	rcLeft    int32
+	rcTop     int32
+	rcRight   int32
+	rcBottom  int32
+	restore   int32
+	incUpdate int32
+	reserved  [32]byte
+}
 
 type msg struct {
 	hwnd    uintptr
@@ -165,6 +206,9 @@ type win struct {
 	icon   image.Image
 	cw, ch int
 	want   window.WantSize
+	// gdi is set after a CPU Draw has published a front buffer.
+	// A Vulkan window never Draws, so WM_PAINT leaves the swapchain visible.
+	gdi atomic.Bool
 }
 
 func (w *win) Surface() window.Surface {
@@ -187,10 +231,11 @@ func (w *win) create() error {
 	classOnce.Do(func() {
 		inst, _, _ := procGetModuleHandleW.Call(0)
 		wc := wndClassEx{
-			size:      uint32(unsafe.Sizeof(wndClassEx{})),
-			wndProc:   syscall.NewCallback(wndProc),
-			instance:  inst,
-			className: className,
+			size:       uint32(unsafe.Sizeof(wndClassEx{})),
+			wndProc:    syscall.NewCallback(wndProc),
+			instance:   inst,
+			background: colorWindow + 1,
+			className:  className,
 		}
 		classAtom, _, classErr = procRegisterClassExW.Call(uintptr(unsafe.Pointer(&wc)))
 		if classAtom == 0 {
@@ -207,20 +252,86 @@ func (w *win) create() error {
 	if err != nil {
 		return err
 	}
+	owner := foregroundProcessWindow()
 	hwnd, _, e := procCreateWindowExW.Call(
-		0, uintptr(unsafe.Pointer(className)), uintptr(unsafe.Pointer(title)),
+		wsExAcceptFiles|wsExAppWindow, uintptr(unsafe.Pointer(className)), uintptr(unsafe.Pointer(title)),
 		wsOverlappedWindow|wsVisible,
 		uintptr(cwUseDefault), uintptr(cwUseDefault), uintptr(w.cw+16), uintptr(w.ch+39),
-		0, 0, inst, 0,
+		owner, 0, inst, 0,
 	)
 	if hwnd == 0 {
 		return fmt.Errorf("%w: %v", window.ErrInit, e)
 	}
 	w.hwnd = hwnd
 	windows.Store(hwnd, w)
-	window.ApplyWindowIcon(hwnd, w.icon)
+	window.RegisterUI(hwnd)
+	procDragAcceptFiles.Call(hwnd, 1)
+	if w.icon != nil {
+		window.ApplyWindowIcon(hwnd, w.icon)
+	} else if h := moduleIcon(inst); h != 0 {
+		procSendMessageW.Call(hwnd, wmSetIcon, iconBig, h)
+		procSendMessageW.Call(hwnd, wmSetIcon, iconSmall, h)
+	}
 	procShowWindow.Call(hwnd, swShow)
+	raiseWindow(hwnd)
 	return nil
+}
+
+func foregroundProcessWindow() uintptr {
+	hwnd, _, _ := procGetForegroundWindow.Call()
+	if hwnd == 0 {
+		return 0
+	}
+	var pid uint32
+	procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	current, _, _ := procGetCurrentProcessId.Call()
+	if uint32(current) != pid {
+		return 0
+	}
+	return hwnd
+}
+
+func raiseWindow(hwnd uintptr) {
+	if hwnd == 0 {
+		return
+	}
+	procAllowSetForegroundWindow.Call(uintptr(0xFFFFFFFF))
+	fg, _, _ := procGetForegroundWindow.Call()
+	var fgThread uintptr
+	if fg != 0 {
+		fgThread, _, _ = procGetWindowThreadProcessId.Call(fg, 0)
+	}
+	our, _, _ := procGetCurrentThreadId.Call()
+	attached := false
+	if fgThread != 0 && fgThread != our {
+		r, _, _ := procAttachThreadInput.Call(our, fgThread, 1)
+		attached = r != 0
+	}
+	procSetForegroundWindow.Call(hwnd)
+	procBringWindowToTop.Call(hwnd)
+	procSetWindowPos.Call(hwnd, 0, 0, 0, 0, 0, swpNoMove|swpNoSize|swpShowWindow)
+	if attached {
+		procAttachThreadInput.Call(our, fgThread, 0)
+	}
+}
+
+func moduleIcon(inst uintptr) uintptr {
+	h, _, _ := procLoadImageW.Call(inst, 1, imageIcon, 0, 0, lrShared)
+	return h
+}
+
+func dropPaths(hdrop uintptr) []string {
+	count, _, _ := procDragQueryFileW.Call(hdrop, 0xFFFFFFFF, 0, 0)
+	paths := make([]string, 0, count)
+	for i := uintptr(0); i < count; i++ {
+		buf := make([]uint16, 32768)
+		n, _, _ := procDragQueryFileW.Call(hdrop, i, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+		if n == 0 {
+			continue
+		}
+		paths = append(paths, syscall.UTF16ToString(buf))
+	}
+	return paths
 }
 
 func (w *win) pump() {
@@ -230,13 +341,21 @@ func (w *win) pump() {
 		if int32(r) <= 0 {
 			return
 		}
+		// A file dialog has to start outside the window procedure.
+		if window.DeliverUI(uintptr(m.message), m.wParam) {
+			continue
+		}
 		procTranslateMessage.Call(uintptr(unsafe.Pointer(&m)))
 		procDispatchMessageW.Call(uintptr(unsafe.Pointer(&m)))
 	}
 }
 
 func (w *win) Draw() error {
-	return window.SwapBlit(w.Buffer, w.blit)
+	err := window.SwapBlit(w.Buffer, w.blit)
+	if err == nil {
+		w.gdi.Store(true)
+	}
+	return err
 }
 
 func (w *win) Resize(size image.Point) error {
@@ -266,6 +385,7 @@ func (w *win) Close() error {
 	_ = w.Buffer.Close()
 	if hwnd != 0 {
 		windows.Delete(hwnd)
+		window.ForgetUI(hwnd)
 		procDestroyWindow.Call(hwnd)
 	}
 	return nil
@@ -278,6 +398,15 @@ func (w *win) blit() error {
 	if hwnd == 0 {
 		return window.ErrClosed
 	}
+	hdc, _, _ := procGetDC.Call(hwnd)
+	if hdc == 0 {
+		return fmt.Errorf("%w: dc", window.ErrPresent)
+	}
+	defer procReleaseDC.Call(hwnd, hdc)
+	return w.stretch(hdc)
+}
+
+func (w *win) stretch(hdc uintptr) error {
 	var width, height int
 	var bgra []byte
 	w.WithFront(func(src *image.RGBA) {
@@ -288,14 +417,9 @@ func (w *win) blit() error {
 		bgra = make([]byte, len(src.Pix))
 		window.ToBGRA(bgra, src)
 	})
-	if width == 0 || height == 0 {
+	if width == 0 || height == 0 || len(bgra) == 0 {
 		return nil
 	}
-	hdc, _, _ := procGetDC.Call(hwnd)
-	if hdc == 0 {
-		return fmt.Errorf("%w: dc", window.ErrPresent)
-	}
-	defer procReleaseDC.Call(hwnd, hdc)
 	bi := bitmapInfo{
 		size:        uint32(unsafe.Sizeof(bitmapInfo{})),
 		width:       int32(width),
@@ -313,6 +437,8 @@ func (w *win) blit() error {
 		dibRGBColors,
 		srcCopy,
 	)
+	runtime.KeepAlive(bgra)
+	runtime.KeepAlive(&bi)
 	if r == 0 {
 		return fmt.Errorf("%w: %v", window.ErrPresent, err)
 	}
@@ -320,6 +446,9 @@ func (w *win) blit() error {
 }
 
 func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
+	if window.DeliverUI(msg, wparam) {
+		return 1
+	}
 	v, ok := windows.Load(hwnd)
 	if !ok {
 		r, _, _ := procDefWindowProcW.Call(hwnd, msg, wparam, lparam)
@@ -336,8 +465,14 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 			}
 		}
 	case wmPaint:
+		var painted paintStruct
+		hdc, _, _ := procBeginPaint.Call(hwnd, uintptr(unsafe.Pointer(&painted)))
+		if hdc != 0 && w.gdi.Load() {
+			_ = w.stretch(hdc)
+		}
+		procEndPaint.Call(hwnd, uintptr(unsafe.Pointer(&painted)))
 		w.Emit(window.Expose{})
-		_ = w.blit()
+		return 0
 	case wmMouseMove:
 		w.Emit(window.Pointer{Pos: win32Pos(lparam), Buttons: win32Buttons(wparam)})
 	case wmLButtonDown:
@@ -359,6 +494,10 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 		w.Emit(window.Key{Code: uint32(wparam), Pressed: true, Repeat: lparam&0x40000000 != 0, Mod: win32KeyMod(wparam)})
 	case wmKeyUp:
 		w.Emit(window.Key{Code: uint32(wparam), Pressed: false, Mod: win32KeyMod(wparam)})
+	case wmDropFiles:
+		w.Emit(window.Drop{Paths: dropPaths(wparam)})
+		procDragFinish.Call(wparam)
+		return 0
 	case wmClose:
 		_ = w.Close()
 		return 0

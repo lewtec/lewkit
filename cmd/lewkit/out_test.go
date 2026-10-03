@@ -21,6 +21,12 @@ func TestArtifactPathMissingDirectory(t *testing.T) {
 	require.Equal(t, filepath.Join("dist", "contapila-debug.apk"), got)
 }
 
+func TestArtifactPathWindowsExe(t *testing.T) {
+	got, err := artifactPath("windows", "dist", build.Spec{Dir: t.TempDir(), ID: "br.tec.lew.counter", Name: "Counter"})
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join("dist", "Counter.exe"), got)
+}
+
 func TestArtifactPathKeepsExplicitFile(t *testing.T) {
 	got, err := artifactPath("android", "out/app.apk", build.Spec{Dir: t.TempDir(), ID: "br.tec.lew.contapila"})
 	require.NoError(t, err)

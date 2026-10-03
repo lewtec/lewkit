@@ -8,19 +8,21 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/filedialog"
-	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/ffi/native"
-
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 )
 
 const (
-	coinitApartment    = 2
 	clsctxInprocServer = 1
+	rpcEChangedMode    = 0x80010106
+	wsOverlappedWindow = 0x00CF0000
+	wsVisible          = 0x10000000
+	cwUseDefault       = 0x80000000
+	swShowNormal       = 1
 	sigdnFileSysPath   = 0x80058000
 	fosOverwrite       = 0x2
 	fosNoChangeDir     = 0x8
@@ -30,6 +32,20 @@ const (
 	fosPathMustExist   = 0x800
 	fosFileMustExist   = 0x1000
 	hrCanceled         = 0x800704C7
+	eFail              = 0x80004005
+	pmNoRemove         = 0
+
+	// IFileDialog vtable. IUnknown is 0..2, IModalWindow.Show is 3,
+	// then IFileDialog in IDL order. IFileOpenDialog.GetResults is 27.
+	slotShow         = 3
+	slotSetFileTypes = 4
+	slotSetOptions   = 9
+	slotGetOptions   = 10
+	slotSetFolder    = 12
+	slotSetFileName  = 15
+	slotSetTitle     = 17
+	slotGetResult    = 20
+	slotGetResults   = 27
 )
 
 var errDialog = errors.New("file dialog")
@@ -41,12 +57,46 @@ var (
 	iidSave   = syscall.GUID{Data1: 0x84BCCD23, Data2: 0x5FDE, Data3: 0x4CDB, Data4: [8]byte{0xAE, 0xA4, 0xAF, 0x64, 0xB8, 0x3D, 0x78, 0xAB}}
 	iidItem   = syscall.GUID{Data1: 0x43826D1E, Data2: 0xE718, Data3: 0x42EE, Data4: [8]byte{0xBC, 0x55, 0xA1, 0xE2, 0x61, 0xC3, 0x7B, 0xFE}}
 
-	procCoInitializeEx              = native.ProcOf("ole32.dll", "CoInitializeEx")
-	procCoUninitialize              = native.ProcOf("ole32.dll", "CoUninitialize")
+	procOleInitialize               = native.ProcOf("ole32.dll", "OleInitialize")
+	procOleUninitialize             = native.ProcOf("ole32.dll", "OleUninitialize")
 	procCoCreateInstance            = native.ProcOf("ole32.dll", "CoCreateInstance")
 	procCoTaskMemFree               = native.ProcOf("ole32.dll", "CoTaskMemFree")
 	procSHCreateItemFromParsingName = native.ProcOf("shell32.dll", "SHCreateItemFromParsingName")
+	procRegisterClassExW            = native.ProcOf("user32.dll", "RegisterClassExW")
+	procCreateWindowExW             = native.ProcOf("user32.dll", "CreateWindowExW")
+	procDestroyWindow               = native.ProcOf("user32.dll", "DestroyWindow")
+	procDefWindowProcW              = native.ProcOf("user32.dll", "DefWindowProcW")
+	procShowWindow                  = native.ProcOf("user32.dll", "ShowWindow")
+	procGetForegroundWindow         = native.ProcOf("user32.dll", "GetForegroundWindow")
+	procGetWindowThreadProcessId    = native.ProcOf("user32.dll", "GetWindowThreadProcessId")
+	procSetForegroundWindow         = native.ProcOf("user32.dll", "SetForegroundWindow")
+	procBringWindowToTop            = native.ProcOf("user32.dll", "BringWindowToTop")
+	procAttachThreadInput           = native.ProcOf("user32.dll", "AttachThreadInput")
+	procAllowSetForegroundWindow    = native.ProcOf("user32.dll", "AllowSetForegroundWindow")
+	procGetModuleHandleW            = native.ProcOf("kernel32.dll", "GetModuleHandleW")
+	procGetCurrentThreadId          = native.ProcOf("kernel32.dll", "GetCurrentThreadId")
+	procPeekMessageW                = native.ProcOf("user32.dll", "PeekMessageW")
+
+	ownerOnce  sync.Once
+	ownerName  = syscall.StringToUTF16Ptr("lewkit.filedialog.owner")
+	ownerTitle = syscall.StringToUTF16Ptr("Open")
+	ownerProc  = syscall.NewCallback(ownerWndProc)
 )
+
+type ownerClassEx struct {
+	size       uint32
+	style      uint32
+	wndProc    uintptr
+	clsExtra   int32
+	wndExtra   int32
+	instance   uintptr
+	icon       uintptr
+	cursor     uintptr
+	background uintptr
+	menuName   *uint16
+	className  *uint16
+	iconSm     uintptr
+}
 
 type filterSpec struct {
 	name *uint16
@@ -60,39 +110,77 @@ func (opener) Choose(ctx context.Context, req filedialog.Request) ([]string, err
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
-	if !thread.Bound() {
-		return nil, fmt.Errorf("%w: thread not bound", errDialog)
-	}
-	var (
-		paths []string
-		err   error
-	)
-	thread.Do(func() {
-		paths, err = show(req)
-	})
-	return paths, err
+	return showDedicated(req)
 }
 
-func show(req filedialog.Request) ([]string, error) {
-	hr, _, callErr := procCoInitializeEx.Call(0, coinitApartment)
-	if int32(hr) < 0 {
-		return nil, statusErr("com", hr, callErr)
-	}
-	if hr == 0 {
-		defer func() {
-			_, _, uninitErr := procCoUninitialize.Call()
-			if uninitErr != nil {
-				return
-			}
-		}()
-	}
+// queueMessage is a Windows MSG. Field alignment matches the system
+// struct: 28 bytes on 386, 48 on amd64.
+type queueMessage struct {
+	hwnd    uintptr
+	message uint32
+	wparam  uintptr
+	lparam  uintptr
+	time    uint32
+	ptX     int32
+	ptY     int32
+}
 
+// dialogText is the UTF-16 Show still reads. SetTitle and SetFileTypes
+// are not a reason to drop the strings before the dialog returns.
+type dialogText struct {
+	title *uint16
+	name  *uint16
+	text  [][]uint16
+	specs []filterSpec
+}
+
+var (
+	_ = [1]struct{}{}[(unsafe.Sizeof(queueMessage{})-28)*(unsafe.Sizeof(queueMessage{})-48)]
+	_ = [1]struct{}{}[(unsafe.Sizeof(ownerClassEx{})-48)*(unsafe.Sizeof(ownerClassEx{})-80)]
+)
+
+func oleInit() error {
+	hr, _, callErr := procOleInitialize.Call(0)
+	if uint32(hr) == rpcEChangedMode || int32(hr) < 0 {
+		return statusErr("com", hr, callErr)
+	}
+	return nil
+}
+
+func showDedicated(req filedialog.Request) ([]string, error) {
+	type result struct {
+		paths []string
+		err   error
+	}
+	done := make(chan result, 1)
+	go func() {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		// A fresh STA. The WebView2 window is a different thread, and Show
+		// on that thread returns E_FAIL. OleInitialize, not CoInitializeEx
+		// with OLE1 DDE disabled: the shell dialog needs OLE.
+		if err := oleInit(); err != nil {
+			done <- result{err: err}
+			return
+		}
+		defer procOleUninitialize.Call()
+		var queued queueMessage
+		procPeekMessageW.Call(uintptr(unsafe.Pointer(&queued)), 0, 0, 0, pmNoRemove)
+		paths, err := showPrepared(req, 0)
+		runtime.KeepAlive(&queued)
+		done <- result{paths: paths, err: err}
+	}()
+	out := <-done
+	return out.paths, out.err
+}
+
+func showPrepared(req filedialog.Request, owner uintptr) ([]string, error) {
 	class, iid := &clsidOpen, &iidOpen
 	if req.Save {
 		class, iid = &clsidSave, &iidSave
 	}
 	var dialog uintptr
-	hr, _, callErr = procCoCreateInstance.Call(
+	hr, _, callErr := procCoCreateInstance.Call(
 		uintptr(unsafe.Pointer(class)),
 		0,
 		clsctxInprocServer,
@@ -102,16 +190,24 @@ func show(req filedialog.Request) ([]string, error) {
 	if failed(hr) || dialog == 0 {
 		return nil, statusErr("dialog", hr, callErr)
 	}
+	var temporary uintptr
 	defer func() {
-		if releaseErr := release(dialog); releaseErr != nil {
-			return
+		release(dialog)
+		if temporary != 0 {
+			procDestroyWindow.Call(temporary)
 		}
 	}()
 
-	if err := prepare(dialog, req); err != nil {
+	kept, err := prepare(dialog, req)
+	if err != nil {
 		return nil, err
 	}
-	hr, err := comCall(dialog, 3, 0)
+	defer runtime.KeepAlive(&kept)
+	if owner != 0 {
+		hr, err = showDialog(dialog, owner)
+	} else {
+		hr, err, temporary = presentDialog(dialog)
+	}
 	if uint32(hr) == hrCanceled {
 		return nil, filedialog.ErrCanceled
 	}
@@ -128,10 +224,11 @@ func show(req filedialog.Request) ([]string, error) {
 	return []string{path}, nil
 }
 
-func prepare(dialog uintptr, req filedialog.Request) error {
+func prepare(dialog uintptr, req filedialog.Request) (dialogText, error) {
+	var kept dialogText
 	var opts uint32
-	if hr, err := comCall(dialog, 10, uintptr(unsafe.Pointer(&opts))); err != nil {
-		return statusErr("options", hr, err)
+	if hr, err := comCall(dialog, slotGetOptions, uintptr(unsafe.Pointer(&opts))); err != nil {
+		return kept, statusErr("options", hr, err)
 	}
 	opts |= fosForceFileSystem | fosNoChangeDir
 	if req.Folder {
@@ -145,31 +242,36 @@ func prepare(dialog uintptr, req filedialog.Request) error {
 	} else if !req.Folder {
 		opts |= fosFileMustExist | fosPathMustExist
 	}
-	if hr, err := comCall(dialog, 9, uintptr(opts)); err != nil {
-		return statusErr("options", hr, err)
+	if hr, err := comCall(dialog, slotSetOptions, uintptr(opts)); err != nil {
+		return kept, statusErr("options", hr, err)
 	}
 	title, err := syscall.UTF16PtrFromString(req.TitleOrDefault())
 	if err != nil {
-		return err
+		return kept, err
 	}
-	if hr, err := comCall(dialog, 16, uintptr(unsafe.Pointer(title))); err != nil {
-		return statusErr("title", hr, err)
+	kept.title = title
+	if hr, err := comCall(dialog, slotSetTitle, uintptr(unsafe.Pointer(title))); err != nil {
+		return kept, statusErr("title", hr, err)
 	}
 	if req.Save && req.Name != "" {
 		name, err := syscall.UTF16PtrFromString(req.Name)
 		if err != nil {
-			return err
+			return kept, err
 		}
-		if hr, err := comCall(dialog, 14, uintptr(unsafe.Pointer(name))); err != nil {
-			return statusErr("name", hr, err)
+		kept.name = name
+		if hr, err := comCall(dialog, slotSetFileName, uintptr(unsafe.Pointer(name))); err != nil {
+			return kept, statusErr("name", hr, err)
 		}
 	}
 	if req.Directory != "" {
 		if err := setFolder(dialog, req.Directory); err != nil {
-			return err
+			return kept, err
 		}
 	}
-	return setFilters(dialog, req)
+	if err := setFilters(dialog, req, &kept); err != nil {
+		return kept, err
+	}
+	return kept, nil
 }
 
 func setFolder(dialog uintptr, directory string) error {
@@ -184,6 +286,7 @@ func setFolder(dialog uintptr, directory string) error {
 		uintptr(unsafe.Pointer(&iidItem)),
 		uintptr(unsafe.Pointer(&item)),
 	)
+	runtime.KeepAlive(path)
 	if failed(hr) || item == 0 {
 		return statusErr("folder", hr, callErr)
 	}
@@ -192,15 +295,13 @@ func setFolder(dialog uintptr, directory string) error {
 			return
 		}
 	}()
-	if hr, err = comCall(dialog, 12, item); err != nil {
+	if hr, err = comCall(dialog, slotSetFolder, item); err != nil {
 		return statusErr("folder", hr, err)
 	}
 	return nil
 }
 
-func setFilters(dialog uintptr, req filedialog.Request) error {
-	var specs []filterSpec
-	var kept [][]uint16
+func setFilters(dialog uintptr, req filedialog.Request, kept *dialogText) error {
 	for _, item := range req.Filters {
 		var globs []string
 		for _, pattern := range item.Patterns {
@@ -223,23 +324,22 @@ func setFilters(dialog uintptr, req filedialog.Request) error {
 		if err != nil {
 			return err
 		}
-		kept = append(kept, nameUTF, specUTF)
-		specs = append(specs, filterSpec{name: &nameUTF[0], spec: &specUTF[0]})
+		kept.text = append(kept.text, nameUTF, specUTF)
+		n := len(kept.text)
+		kept.specs = append(kept.specs, filterSpec{name: &kept.text[n-2][0], spec: &kept.text[n-1][0]})
 	}
-	if len(specs) == 0 {
+	if len(kept.specs) == 0 {
 		return nil
 	}
-	if hr, err := comCall(dialog, 4, uintptr(len(specs)), uintptr(unsafe.Pointer(&specs[0]))); err != nil {
+	if hr, err := comCall(dialog, slotSetFileTypes, uintptr(len(kept.specs)), uintptr(unsafe.Pointer(&kept.specs[0]))); err != nil {
 		return statusErr("filter", hr, err)
 	}
-	runtime.KeepAlive(kept)
-	runtime.KeepAlive(specs)
 	return nil
 }
 
 func onePath(dialog uintptr) (string, error) {
 	var item uintptr
-	if hr, err := comCall(dialog, 19, uintptr(unsafe.Pointer(&item))); err != nil || item == 0 {
+	if hr, err := comCall(dialog, slotGetResult, uintptr(unsafe.Pointer(&item))); err != nil || item == 0 {
 		return "", statusErr("result", hr, err)
 	}
 	defer func() {
@@ -252,7 +352,7 @@ func onePath(dialog uintptr) (string, error) {
 
 func collectMany(dialog uintptr) ([]string, error) {
 	var items uintptr
-	if hr, err := comCall(dialog, 26, uintptr(unsafe.Pointer(&items))); err != nil || items == 0 {
+	if hr, err := comCall(dialog, slotGetResults, uintptr(unsafe.Pointer(&items))); err != nil || items == 0 {
 		return nil, statusErr("result", hr, err)
 	}
 	defer func() {
@@ -328,6 +428,86 @@ func statusErr(op string, hr uintptr, callErr error) error {
 
 func failed(hr uintptr) bool {
 	return int32(hr) < 0
+}
+
+func ownerWndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
+	ret, _, _ := procDefWindowProcW.Call(hwnd, msg, wparam, lparam)
+	return ret
+}
+
+func presentDialog(dialog uintptr) (uintptr, error, uintptr) {
+	// NULL owner. The WebView2 HWND belongs to another thread, and passing
+	// it makes Show return E_FAIL.
+	hr, err := showDialog(dialog, 0)
+	if err == nil || uint32(hr) == hrCanceled || uint32(hr) != eFail {
+		return hr, err, 0
+	}
+	local := createOwner()
+	if local == 0 {
+		return hr, err, 0
+	}
+	hr, err = showDialog(dialog, local)
+	return hr, err, local
+}
+
+func showDialog(dialog, owner uintptr) (uintptr, error) {
+	if owner != 0 {
+		procAllowSetForegroundWindow.Call(uintptr(0xFFFFFFFF))
+		detach := attachForeground(owner)
+		defer detach()
+	}
+	return comCall(dialog, slotShow, owner)
+}
+
+func attachForeground(target uintptr) func() {
+	fg, _, _ := procGetForegroundWindow.Call()
+	var fgThread uintptr
+	if fg != 0 {
+		fgThread, _, _ = procGetWindowThreadProcessId.Call(fg, 0)
+	}
+	our, _, _ := procGetCurrentThreadId.Call()
+	attached := false
+	if fgThread != 0 && fgThread != our {
+		r, _, _ := procAttachThreadInput.Call(our, fgThread, 1)
+		attached = r != 0
+	}
+	if target != 0 {
+		procSetForegroundWindow.Call(target)
+		procBringWindowToTop.Call(target)
+	}
+	return func() {
+		if attached {
+			procAttachThreadInput.Call(our, fgThread, 0)
+		}
+	}
+}
+
+func createOwner() uintptr {
+	ownerOnce.Do(func() {
+		inst, _, _ := procGetModuleHandleW.Call(0)
+		class := ownerClassEx{
+			wndProc:   ownerProc,
+			instance:  inst,
+			className: ownerName,
+		}
+		class.size = uint32(unsafe.Sizeof(class))
+		procRegisterClassExW.Call(uintptr(unsafe.Pointer(&class)))
+	})
+	inst, _, _ := procGetModuleHandleW.Call(0)
+	hwnd, _, _ := procCreateWindowExW.Call(
+		0,
+		uintptr(unsafe.Pointer(ownerName)),
+		uintptr(unsafe.Pointer(ownerTitle)),
+		wsOverlappedWindow|wsVisible,
+		uintptr(cwUseDefault), uintptr(cwUseDefault), 480, 240,
+		0, 0, inst, 0,
+	)
+	if hwnd == 0 {
+		return 0
+	}
+	procShowWindow.Call(hwnd, swShowNormal)
+	procSetForegroundWindow.Call(hwnd)
+	return hwnd
 }
 
 func utf16z(p *uint16) string {

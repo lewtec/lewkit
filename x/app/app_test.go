@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,6 +57,11 @@ func TestLoopbackHostsWeb(t *testing.T) {
 	web, ok := win.(webWindow)
 	require.True(t, ok)
 	require.True(t, web.hosted)
+}
+
+func TestMissingWebViewDoesNotLoopback(t *testing.T) {
+	err := webWindow{handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})}.open(t.Context(), "Demo", 100, 100, "")
+	require.ErrorIs(t, err, driver.ErrUnavailable)
 }
 
 func TestRunPanicsWithoutStamp(t *testing.T) {

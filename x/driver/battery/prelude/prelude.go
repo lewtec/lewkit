@@ -7,4 +7,5 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/battery/darwin"
 	_ "github.com/lewtec/lewkit/x/driver/battery/ios"
 	_ "github.com/lewtec/lewkit/x/driver/battery/linux"
+	_ "github.com/lewtec/lewkit/x/driver/battery/windows"
 )

@@ -1,3 +1,5 @@
+//go:build !windows
+
 // Package ccgo registers the ccgo tree-sitter engine.
 //
 // This package imports the ccgo grammar runtime only.

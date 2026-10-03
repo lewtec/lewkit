@@ -7,7 +7,7 @@
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one backend.
 // Linux reads the first /sys/class/power_supply/BAT* supply.
 // Darwin reads AppleSmartBattery through ioreg. iOS reads the host
-// battery file. Level is 0..100.
+// battery file. Windows reads GetSystemPowerStatus. Level is 0..100.
 package battery
 
 import (

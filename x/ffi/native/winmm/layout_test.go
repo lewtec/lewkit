@@ -35,3 +35,9 @@ func TestWaveLayout(t *testing.T) {
 	require.Equal(t, uintptr(72), unsafe.Offsetof(caps.formats))
 	require.Equal(t, "Speakers", utf16z([]uint16{'S', 'p', 'e', 'a', 'k', 'e', 'r', 's', 0, 'x'}))
 }
+
+func TestChunkBytes(t *testing.T) {
+	require.Equal(t, 17640, chunkBytes(44100, 4))
+	require.Equal(t, 4, chunkBytes(1, 4))
+	require.Equal(t, 1, chunkBytes(0, 0))
+}

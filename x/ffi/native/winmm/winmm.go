@@ -24,6 +24,25 @@ type Layout struct {
 	Channels int
 }
 
+// chunkBytes is about 100ms of PCM, aligned to the sample block.
+func chunkBytes(rate, block int) int {
+	if block < 1 {
+		block = 1
+	}
+	if rate < 1 {
+		rate = 1
+	}
+	n := rate * block / 10
+	if n < block {
+		n = block
+	}
+	n -= n % block
+	if n < block {
+		return block
+	}
+	return n
+}
+
 // Device is one waveOut endpoint. ID is the decimal device index.
 type Device struct {
 	ID   string

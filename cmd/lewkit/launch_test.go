@@ -42,6 +42,15 @@ func TestRunForegroundLeavesCancelToChild(t *testing.T) {
 	require.NoError(t, runForeground(ctx, "sleep", "0.2"))
 }
 
+func TestLaunchWindowsAppNeedsWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("this machine can start the exe")
+	}
+	err := launchApp(t.Context(), "windows", "Demo.exe", "br.tec.lew.demo")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "windows")
+}
+
 func TestRunBuiltRejectsOtherPlatform(t *testing.T) {
 	err := runBuilt(t.Context(), builtProgram{goos: "js", goarch: "wasm", archive: "unused"})
 	require.EqualError(t, err, "built js/wasm (unused); this machine is "+runtime.GOOS+"/"+runtime.GOARCH)

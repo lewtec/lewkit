@@ -81,6 +81,11 @@ func launchApp(ctx context.Context, goos, path, id string) error {
 			return err
 		}
 		return runTool(ctx, "xcrun", "simctl", "launch", "booted", id)
+	case "windows":
+		if runtime.GOOS != "windows" {
+			return fmt.Errorf("built windows app (%s); this machine is %s", path, runtime.GOOS)
+		}
+		return runForeground(ctx, path)
 	default:
 		return fmt.Errorf("%s has no app to launch", goos)
 	}

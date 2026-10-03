@@ -192,6 +192,28 @@ func TestSubscribePointer(t *testing.T) {
 	assert.True(t, p.Pressed)
 }
 
+func TestEmitKeepsPressWhenMovesFillTheQueue(t *testing.T) {
+	buf := window.NewBuffer(8, 8)
+	ch := buf.Subscribe(t.Context())
+	for i := 0; i < 16; i++ {
+		buf.Emit(window.Pointer{Pos: image.Pt(i, 0)})
+	}
+	buf.Emit(window.Pointer{Pos: image.Pt(3, 4), Button: 1, Pressed: true})
+	saw := false
+	for {
+		select {
+		case ev := <-ch:
+			if p, ok := ev.(window.Pointer); ok && p.Pressed {
+				saw = true
+				assert.Equal(t, image.Pt(3, 4), p.Pos)
+			}
+		default:
+			require.True(t, saw)
+			return
+		}
+	}
+}
+
 func TestSubscribeCancelCloses(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 4, Height: 4})
 	require.NoError(t, err)

@@ -35,7 +35,7 @@ func guard(fn func(context.Context) error) func(context.Context) error {
 			if recovered == nil {
 				return
 			}
-			if !driver.AppMode() {
+			if !failureVisible() {
 				panic(recovered)
 			}
 			err = fmt.Errorf("panic: %v", recovered)
@@ -59,6 +59,7 @@ func Main(fn func(context.Context) error) {
 // MainFrom is Main with parent's context values kept on the signal context.
 // Pool caps from taskgroup.WithLimits apply when Run starts the session.
 func MainFrom(parent context.Context, fn func(context.Context) error) {
+	prepareHost()
 	slog.SetDefault(slog.New(logging.NewHandler(slogOut(), &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if parent == nil {
 		parent = context.Background()
@@ -73,10 +74,15 @@ func MainFrom(parent context.Context, fn func(context.Context) error) {
 	}
 }
 
-// showFailure is the app-mode escape hatch. A terminal is closed, so the
-// error is shown in a message box before the process exits.
+// failureVisible is app mode, or a Windows GUI executable with no console.
+func failureVisible() bool {
+	return driver.AppMode() || windowsGUI()
+}
+
+// showFailure is the escape hatch when the process has no terminal.
+// The error is shown in a message box before the process exits.
 func showFailure(err error) {
-	if err == nil || !driver.AppMode() {
+	if err == nil || !failureVisible() {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -107,9 +113,19 @@ func Run(ctx context.Context, fn func(context.Context) error) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return thread.Run(ctx, func(ctx context.Context) error {
+	return thread.Run(ctx, func(ctx context.Context) (err error) {
+		defer func() {
+			rec := recover()
+			if rec == nil {
+				return
+			}
+			if !failureVisible() {
+				panic(rec)
+			}
+			err = fmt.Errorf("panic: %v", rec)
+			slog.Error(err.Error())
+		}()
 		parent := ctx
-		var err error
 		if taskgroup.FromContext(ctx) == nil {
 			limits := taskgroup.DefaultLimits()
 			if chosen, ok := taskgroup.LimitsFrom(ctx); ok {

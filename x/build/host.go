@@ -6,6 +6,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/apk"
 	"github.com/lewtec/lewkit/x/build/gen/ios"
 	"github.com/lewtec/lewkit/x/build/gen/mac"
+	"github.com/lewtec/lewkit/x/build/gen/win"
 )
 
 // AndroidSDK returns the Android SDK root used by the host build and adb.
@@ -78,6 +79,31 @@ func (host Host) Mac(ctx context.Context) (string, error) {
 	return result.AppPath, nil
 }
 
+// Windows builds a GUI .exe. The binary is windowsgui, with the app icon,
+// a PerMonitorV2 manifest, and version info.
+func (host Host) Windows(ctx context.Context) (string, error) {
+	cfg, base, err := host.Load()
+	if err != nil {
+		return "", err
+	}
+	result, err := win.Build(ctx, win.BuildOptions{
+		Config:      winConfig(cfg),
+		BaseDir:     base,
+		WorkDir:     host.Work,
+		KeepWorkDir: host.Work != "",
+		OutExe:      host.Out,
+		GoOnly:      host.GoOnly,
+		GOARCH:      host.GOARCH,
+	})
+	if err != nil {
+		return "", err
+	}
+	if host.GoOnly {
+		return result.WorkDir, nil
+	}
+	return result.ExePath, nil
+}
+
 // IOS builds a simulator or device .app from an eletrocromo.json config.
 func (host Host) IOS(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
@@ -105,6 +131,18 @@ func (host Host) IOS(ctx context.Context) (string, error) {
 
 func macConfig(cfg apk.Config) mac.Config {
 	return mac.Config{
+		PackageID:    cfg.PackageID,
+		AppName:      cfg.AppName,
+		VersionName:  cfg.VersionName,
+		VersionCode:  cfg.VersionCode,
+		GoMain:       cfg.GoMain,
+		Icon:         cfg.Icon,
+		Capabilities: cfg.Capabilities,
+	}
+}
+
+func winConfig(cfg apk.Config) win.Config {
+	return win.Config{
 		PackageID:    cfg.PackageID,
 		AppName:      cfg.AppName,
 		VersionName:  cfg.VersionName,

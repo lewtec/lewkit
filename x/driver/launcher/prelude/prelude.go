@@ -8,6 +8,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/launcher/host"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/rofi"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/terminal"
+	_ "github.com/lewtec/lewkit/x/driver/launcher/win32"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/wofi"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/zenity"
 )
