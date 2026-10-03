@@ -1,0 +1,45 @@
+package main
+
+templ filesDocument(v filesView) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Files</title>
+			if v.Pending {
+				<meta http-equiv="refresh" content="1"/>
+			}
+			<link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css"/>
+			<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+		</head>
+		<body>
+			<main class="max-w-lg mx-auto p-4 flex flex-col gap-4">
+				<h1 class="text-xl font-semibold text-center">Files</h1>
+				if v.Pending {
+					<p class="text-center opacity-70">Waiting for the picker…</p>
+				}
+				if v.Note != "" {
+					<div role="alert" class="alert">{ v.Note }</div>
+				}
+				if len(v.Paths) > 0 {
+					<ul class="list">
+						for _, path := range v.Paths {
+							<li class="list-row font-mono text-sm break-all">{ path }</li>
+						}
+					</ul>
+				}
+				<form method="POST" action="/">
+					<button class="btn btn-block" type="submit" name="op" value="files">Open files</button>
+				</form>
+				<form method="POST" action="/">
+					<button class="btn btn-block" type="submit" name="op" value="folder">Choose folder</button>
+				</form>
+				<form method="POST" action="/" class="flex flex-col gap-2">
+					<input class="input w-full" name="name" value="notes.txt" aria-label="File name"/>
+					<button class="btn" type="submit" name="op" value="save">Save</button>
+				</form>
+			</main>
+		</body>
+	</html>
+}
