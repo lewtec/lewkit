@@ -193,7 +193,7 @@ Inherited C (cite the file):
 | `x/driver/present/vulkan` | Vulkan `Open` | facade of `x/driver/vulkan` | selection stays here; weight 40, after Metal | missing Vulkan is `driver.ErrIncompatible` | import `x/ffi/native`; import `x/ffi/native/vulkan` |
 | `x/driver/window/uikit` | UIKit `Open` | iOS host view | selection stays here; weight 80 | not iOS is `driver.ErrIncompatible` | import `x/ui/gui`; open a second host window |
 | `x/ffi/native/metal` | `OpenNative`, `Screen.Draw`, `Available` | Metal binding | one graphics draw for a view the caller owns; the frame is the GUI fill list | `ErrLost`, `ErrSize`, `ErrClosed`, `ErrUnavailable` | import `x/ffi/wasm`; import `x/driver`; open a host window |
-| `x/ffi/native/dispatch` | `OnMain` | libSystem dispatch binding | the iOS main queue stays here | a missing libSystem runs the function on the caller | import `x/driver` |
+| `x/ffi/native/dispatch` | `OnMain` | UIKit main queue on iOS, via cgo `dispatch_sync` | the main-thread hop stays here | not iOS runs the function on the caller | import `x/driver` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRecords`, `WriteRustc`, `WriteSARIF` | diagnostic value | text, rustc, and SARIF stay here; the finding table is an `x/text/table` view | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
@@ -276,7 +276,7 @@ Inherited C (cite the file):
 | INV-70 | `x/driver/present/metal` imports `x/ffi/native/metal` and does not import `x/ffi/native` | `x/driver/present/metal` | an import of `x/ffi/native`; an import of `x/ui/gui` |
 | INV-71 | `x/driver/present/vulkan` imports `x/driver/vulkan` and does not import `x/ffi/native/vulkan` or `x/ffi/native` | `x/driver/present/vulkan` | an import of `x/ffi/native/vulkan` |
 | INV-72 | `x/driver/window/uikit` does not import `x/ui/gui` | `x/driver/window/uikit` | that import |
-| INV-73 | `x/ffi/native/dispatch` imports `x/ffi/native` and does not import `x/driver` | `x/ffi/native/dispatch` | an import of `x/driver` |
+| INV-73 | `x/ffi/native/dispatch` does not import `x/driver` | `x/ffi/native/dispatch` | an import of `x/driver` |
 
 ## Errors
 
