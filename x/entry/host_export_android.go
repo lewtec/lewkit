@@ -102,6 +102,9 @@ func Java_lewkit_Host_start(env *C.JNIEnv, _ C.jclass, file C.jstring) {
 	C.free(unsafe.Pointer(raw))
 	_ = os.Setenv("ELETROCROMO_NO_UI", "1")
 	_ = os.Setenv("ELETROCROMO_READY_FILE", path)
+	// Bind before the app runs. A failure before entry.Run has no loop yet,
+	// and reporting it must run on this thread instead of waiting for that loop.
+	thread.Bind()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			NotifyFail(fmt.Sprint(recovered))
