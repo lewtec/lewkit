@@ -1,12 +1,8 @@
 package main
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"compress/gzip"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +12,8 @@ import (
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/fs/tar"
+	"github.com/lewtec/lewkit/x/fs/zip"
 )
 
 type builtProgram struct {
@@ -62,70 +60,9 @@ func foregroundCommand(name string, args ...string) *exec.Cmd {
 
 func extractOne(archive, dir string) (string, error) {
 	if strings.HasSuffix(archive, ".zip") {
-		return extractZip(archive, dir)
+		return zip.ExtractFirst(archive, dir)
 	}
-	return extractTarGz(archive, dir)
-}
-
-func extractTarGz(archive, dir string) (string, error) {
-	file, err := os.Open(archive)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	gz, err := gzip.NewReader(file)
-	if err != nil {
-		return "", err
-	}
-	defer gz.Close()
-	tr := tar.NewReader(gz)
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			return "", fmt.Errorf("empty archive %s", archive)
-		}
-		if err != nil {
-			return "", err
-		}
-		dest := filepath.Join(dir, filepath.Base(header.Name))
-		out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-		if err != nil {
-			return "", err
-		}
-		if _, err := io.Copy(out, tr); err != nil {
-			out.Close()
-			return "", err
-		}
-		out.Close()
-		return dest, nil
-	}
-}
-
-func extractZip(archive, dir string) (string, error) {
-	zr, err := zip.OpenReader(archive)
-	if err != nil {
-		return "", err
-	}
-	defer zr.Close()
-	if len(zr.File) == 0 {
-		return "", fmt.Errorf("empty archive %s", archive)
-	}
-	entry := zr.File[0]
-	in, err := entry.Open()
-	if err != nil {
-		return "", err
-	}
-	defer in.Close()
-	dest := filepath.Join(dir, filepath.Base(entry.Name))
-	out, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		return "", err
-	}
-	defer out.Close()
-	if _, err := io.Copy(out, in); err != nil {
-		return "", err
-	}
-	return dest, nil
+	return tar.ExtractFirst(archive, dir)
 }
 
 func launchApp(ctx context.Context, goos, path, id string) error {

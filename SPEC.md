@@ -358,3 +358,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-02: `x/io.Mkdirp` is removed. The profile writer uses `os.MkdirAll`.
 - 2026-10-02: `x/future` is removed. It had no production caller.
 - 2026-10-02: `sqlite3`, `file`, and `postgresql` are not separate connectors. `splitURL` maps them onto `sqlite` and `postgres`.
+- 2026-10-02: `lewkit` launch extracts the first archive member through `x/fs/tar.ExtractFirst` and `x/fs/zip.ExtractFirst`.
