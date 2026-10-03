@@ -1,6 +1,7 @@
-// Package app opens one window. The window is a web handler or a GUI model.
-// A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI serves a web
-// handler on a loopback port instead.
+// Package app runs the windows of one process. A window is a web handler or
+// a GUI model, and it may open another window. Run returns when the last
+// window closes. A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI
+// serves a web handler on a loopback port instead of opening that first window.
 package app
 
 import (
@@ -27,7 +28,7 @@ import (
 // Packaged hosts parse the URL that follows it.
 const ReadyLinePrefix = "ELETROCROMO_READY "
 
-// App is one window for the id stamped in x/release.
+// App opens the first window for the id stamped in x/release.
 // Handler is a [Web] view or a [GUI] model.
 type App struct {
 	Handler Window
@@ -37,17 +38,18 @@ type App struct {
 	Height  int
 }
 
-// Run instantiates the app window. A web handler pushes a webapp. A GUI model
-// opens a Vulkan surface. A host without a webview driver keeps the web
-// handler on a loopback port and shows that window itself.
+// Run opens the app window and returns when the last window of the process
+// closes. Closing one window leaves the others up. Canceling ctx closes them
+// all. A second Run while one is active returns an error.
+// A web handler pushes a webapp. A GUI model opens a Vulkan surface. A host
+// without a webview driver keeps the web handler on a loopback port and shows
+// that window itself.
 func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	id, _ := release.RequireStamp()
 	run := func(ctx context.Context) error {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
 		return a.open(ctx, id)
 	}
 	if taskgroup.FromContext(ctx) != nil {
@@ -84,7 +86,12 @@ func (a App) open(ctx context.Context, id string) error {
 		web.hosted = true
 		win = web
 	}
-	return win.open(ctx, title, width, height, root.Profile)
+	return runSession(ctx, win, openCall{
+		title:   title,
+		width:   width,
+		height:  height,
+		profile: root.Profile,
+	})
 }
 
 func serveWeb(ctx context.Context, handler http.Handler) error {
