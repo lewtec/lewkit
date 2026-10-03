@@ -5,6 +5,7 @@ package webview2
 import (
 	"context"
 	"fmt"
+	"image"
 	"io"
 	"io/fs"
 	"net/http"
@@ -21,7 +22,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/ffi/native"
 	webview2 "github.com/lewtec/lewkit/x/ffi/native/webview2"
 	lewrelease "github.com/lewtec/lewkit/x/release"
 )
@@ -38,18 +38,6 @@ const (
 )
 
 var (
-	procRegisterClassEx = native.ProcOf("user32.dll", "RegisterClassExW")
-	procCreateWindowEx  = native.ProcOf("user32.dll", "CreateWindowExW")
-	procDefWindowProc   = native.ProcOf("user32.dll", "DefWindowProcW")
-	procGetMessage      = native.ProcOf("user32.dll", "GetMessageW")
-	procTranslate       = native.ProcOf("user32.dll", "TranslateMessage")
-	procDispatch        = native.ProcOf("user32.dll", "DispatchMessageW")
-	procShowWindow      = native.ProcOf("user32.dll", "ShowWindow")
-	procDestroyWindow   = native.ProcOf("user32.dll", "DestroyWindow")
-	procPostMessage     = native.ProcOf("user32.dll", "PostMessageW")
-	procGetClientRect   = native.ProcOf("user32.dll", "GetClientRect")
-	procGetModule       = native.ProcOf("kernel32.dll", "GetModuleHandleW")
-
 	classOnce sync.Once
 	classErr  error
 	classAtom uintptr
@@ -152,6 +140,7 @@ func (edgeDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, e
 		files:      cfg.FS,
 		handler:    cfg.Handler,
 		title:      cfg.Title,
+		icon:       cfg.Icon,
 		profile:    cfg.Profile,
 		messages:   make(chan []byte, 32),
 		done:       make(chan struct{}),
@@ -196,7 +185,7 @@ func ensureLoop() error {
 			}
 			// HWND_MESSAGE is a message-only window. It keeps the queue alive.
 			hwndMessage := ^uintptr(2)
-			hwnd, _, _ := procCreateWindowEx.Call(0, classAtom, 0, 0, 0, 0, 0, 0, hwndMessage, 0, 0, 0)
+			hwnd, _, _ := webview2.CreateWindowEx.Call(0, classAtom, 0, 0, 0, 0, 0, 0, hwndMessage, 0, 0, 0)
 			if hwnd == 0 {
 				loopErr = fmt.Errorf("%w: message window", driver.ErrUnavailable)
 				close(loopStarted)
@@ -206,12 +195,12 @@ func ensureLoop() error {
 			close(loopStarted)
 			var msg message
 			for {
-				ret, _, _ := procGetMessage.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
+				ret, _, _ := webview2.GetMessage.Call(uintptr(unsafe.Pointer(&msg)), 0, 0, 0)
 				if int32(ret) <= 0 {
 					return
 				}
-				_, _, _ = procTranslate.Call(uintptr(unsafe.Pointer(&msg)))
-				_, _, _ = procDispatch.Call(uintptr(unsafe.Pointer(&msg)))
+				_, _, _ = webview2.TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
+				_, _, _ = webview2.DispatchMessage.Call(uintptr(unsafe.Pointer(&msg)))
 			}
 		}()
 	})
@@ -221,7 +210,7 @@ func ensureLoop() error {
 
 func registerWindowClass() error {
 	classOnce.Do(func() {
-		instance, _, _ := procGetModule.Call(0)
+		instance, _, _ := webview2.GetModuleHandle.Call(0)
 		name, err := syscall.UTF16PtrFromString(lewrelease.Name() + ".webview")
 		if err != nil {
 			classErr = err
@@ -233,7 +222,7 @@ func registerWindowClass() error {
 			class:    name,
 		}
 		class.size = uint32(unsafe.Sizeof(class))
-		atom, _, err := procRegisterClassEx.Call(uintptr(unsafe.Pointer(&class)))
+		atom, _, err := webview2.RegisterClassEx.Call(uintptr(unsafe.Pointer(&class)))
 		if atom == 0 {
 			classErr = fmt.Errorf("register class: %v", err)
 			return
@@ -246,7 +235,7 @@ func registerWindowClass() error {
 func post(job func()) {
 	loopJobs <- job
 	if loopWindow != 0 {
-		_, _, _ = procPostMessage.Call(loopWindow, wmJob, 0, 0)
+		_, _, _ = webview2.PostMessage.Call(loopWindow, wmJob, 0, 0)
 	}
 }
 
@@ -267,6 +256,7 @@ type edgeView struct {
 	files       fs.FS
 	handler     http.Handler
 	title       string
+	icon        image.Image
 	profile     string
 	width       int32
 	height      int32
@@ -284,15 +274,15 @@ func (view *edgeView) create(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	instance, _, _ := procGetModule.Call(0)
-	hwnd, _, _ := procCreateWindowEx.Call(0, classAtom, uintptr(unsafe.Pointer(title)), wsOverlapped|wsVisible, cwUseDefault, cwUseDefault, uintptr(view.width), uintptr(view.height), 0, 0, instance, 0)
+	instance, _, _ := webview2.GetModuleHandle.Call(0)
+	hwnd, _, _ := webview2.CreateWindowEx.Call(0, classAtom, uintptr(unsafe.Pointer(title)), wsOverlapped|wsVisible, cwUseDefault, cwUseDefault, uintptr(view.width), uintptr(view.height), 0, 0, instance, 0)
 	if hwnd == 0 {
 		return fmt.Errorf("%w: window", driver.ErrUnavailable)
 	}
 	view.hwnd = hwnd
 	windows.Store(hwnd, view)
-	window.ApplyWindowIcon(hwnd)
-	_, _, _ = procShowWindow.Call(hwnd, swShow)
+	window.ApplyWindowIcon(hwnd, view.icon)
+	_, _, _ = webview2.ShowWindow.Call(hwnd, swShow)
 	var folderUTF *uint16
 	profile := strings.TrimSpace(view.profile)
 	if profile != "" {
@@ -407,7 +397,7 @@ func (view *edgeView) resize() {
 		return
 	}
 	var bounds rect
-	_, _, _ = procGetClientRect.Call(view.hwnd, uintptr(unsafe.Pointer(&bounds)))
+	_, _, _ = webview2.GetClientRect.Call(view.hwnd, uintptr(unsafe.Pointer(&bounds)))
 	_ = call(view.controller, 6, uintptr(unsafe.Pointer(&bounds)))
 }
 
@@ -417,7 +407,7 @@ func (view *edgeView) Done() <-chan struct{}   { return view.done }
 func (view *edgeView) Close() error {
 	post(func() {
 		if view.hwnd != 0 {
-			_, _, _ = procPostMessage.Call(view.hwnd, wmClose, 0, 0)
+			_, _, _ = webview2.PostMessage.Call(view.hwnd, wmClose, 0, 0)
 			return
 		}
 		view.markClosed()
@@ -667,7 +657,7 @@ func windowProcedure(hwnd, msg, wparam, lparam uintptr) uintptr {
 	}
 	loaded, ok := windows.Load(hwnd)
 	if !ok {
-		ret, _, _ := procDefWindowProc.Call(hwnd, msg, wparam, lparam)
+		ret, _, _ := webview2.DefWindowProc.Call(hwnd, msg, wparam, lparam)
 		return ret
 	}
 	view := loaded.(*edgeView)
@@ -677,7 +667,7 @@ func windowProcedure(hwnd, msg, wparam, lparam uintptr) uintptr {
 	case wmClose, wmDestroy:
 		view.markClosed()
 	}
-	ret, _, _ := procDefWindowProc.Call(hwnd, msg, wparam, lparam)
+	ret, _, _ := webview2.DefWindowProc.Call(hwnd, msg, wparam, lparam)
 	return ret
 }
 

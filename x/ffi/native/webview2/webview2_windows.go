@@ -19,6 +19,19 @@ var (
 	coInitializeEx     = native.ProcOf("ole32.dll", "CoInitializeEx")
 	coTaskMemFree      = native.ProcOf("ole32.dll", "CoTaskMemFree")
 	createMemoryStream = native.ProcOf("shlwapi.dll", "SHCreateMemStream")
+
+	// User32 and kernel32 entry points for the window the loader attaches to.
+	RegisterClassEx  = native.ProcOf("user32.dll", "RegisterClassExW")
+	CreateWindowEx   = native.ProcOf("user32.dll", "CreateWindowExW")
+	DefWindowProc    = native.ProcOf("user32.dll", "DefWindowProcW")
+	GetMessage       = native.ProcOf("user32.dll", "GetMessageW")
+	TranslateMessage = native.ProcOf("user32.dll", "TranslateMessage")
+	DispatchMessage  = native.ProcOf("user32.dll", "DispatchMessageW")
+	ShowWindow       = native.ProcOf("user32.dll", "ShowWindow")
+	DestroyWindow    = native.ProcOf("user32.dll", "DestroyWindow")
+	PostMessage      = native.ProcOf("user32.dll", "PostMessageW")
+	GetClientRect    = native.ProcOf("user32.dll", "GetClientRect")
+	GetModuleHandle  = native.ProcOf("kernel32.dll", "GetModuleHandleW")
 )
 
 // Available opens WebView2Loader.dll. WEBVIEW2_LOADER, when set, is a full path.
