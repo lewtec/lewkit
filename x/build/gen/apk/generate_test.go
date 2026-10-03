@@ -76,6 +76,13 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(mainJava), "Host.noteForeground(this, true)") {
 		t.Fatal("splash activity does not record the foreground window")
 	}
+	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(surface), "Host.noteForeground(this, true)") {
+		t.Fatal("surface activity does not record the foreground window")
+	}
 
 	cfg, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
 	if err != nil {

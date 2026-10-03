@@ -56,6 +56,18 @@ public final class SurfaceActivity extends Activity implements SurfaceHolder.Cal
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        Host.noteForeground(this, true);
+    }
+
+    @Override
+    protected void onPause() {
+        Host.noteForeground(this, false);
+        super.onPause();
+    }
+
+    @Override
     public void surfaceCreated(SurfaceHolder holder) {}
 
     @Override
