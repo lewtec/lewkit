@@ -39,14 +39,14 @@ type backend struct {
 
 func (t *backend) Bind() {
 	runtime.LockOSThread()
-	t.tid.Store(osThread())
+	t.tid.Store(uithread.OSThread())
 	t.bound.Store(true)
 }
 
 func (t *backend) Bound() bool { return t.bound.Load() }
 
 func (t *backend) On() bool {
-	id := osThread()
+	id := uithread.OSThread()
 	if id == 0 || !t.bound.Load() {
 		return false
 	}
@@ -61,7 +61,7 @@ func (t *backend) OnIdle(fn func()) {
 
 func (t *backend) Loop(ctx context.Context) {
 	runtime.LockOSThread()
-	t.tid.Store(osThread())
+	t.tid.Store(uithread.OSThread())
 	t.bound.Store(true)
 	t.running.Store(true)
 	defer t.running.Store(false)
