@@ -182,6 +182,25 @@ func (s *Status) Unit() (done func()) {
 
 type sessionKey struct{}
 type taskKey struct{}
+type limitsKey struct{}
+
+// WithLimits stores pool caps on ctx for the process session.
+// entry.Run reads them when it starts that session. A zero field keeps DefaultLimits.
+func WithLimits(ctx context.Context, limits Limits) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, limitsKey{}, limits)
+}
+
+// LimitsFrom reports caps stored by WithLimits.
+func LimitsFrom(ctx context.Context) (Limits, bool) {
+	if ctx == nil {
+		return Limits{}, false
+	}
+	limits, ok := ctx.Value(limitsKey{}).(Limits)
+	return limits, ok
+}
 
 // Session owns the task tree and the worker pools for one run.
 type Session struct {
@@ -209,6 +228,16 @@ type Session struct {
 
 	hookMu     sync.Mutex
 	onSchedule func()
+
+	limits Limits
+}
+
+// Limits is the normalized pool caps this session started with.
+func (s *Session) Limits() Limits {
+	if s == nil {
+		return Limits{}
+	}
+	return s.limits
 }
 
 // SetOnSchedule sets a hook invoked after each Go (and from LineWriter).
@@ -273,6 +302,7 @@ func New(ctx context.Context, limits Limits) (*Session, context.Context) {
 		root:         1,
 		latestByDesc: make(map[string]ID),
 		live:         newLiveHub(),
+		limits:       limits,
 	}
 	s.cond = sync.NewCond(&s.mu)
 	s.ready[IO] = newReadyQ()

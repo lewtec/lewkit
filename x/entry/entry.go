@@ -29,8 +29,17 @@ func slogOut() io.Writer {
 
 // Main runs fn as the process. A non-nil error is logged, reported, and the process exits 1.
 func Main(fn func(context.Context) error) {
+	MainFrom(context.Background(), fn)
+}
+
+// MainFrom is Main with parent's context values kept on the signal context.
+// Pool caps from taskgroup.WithLimits apply when Run starts the session.
+func MainFrom(parent context.Context, fn func(context.Context) error) {
 	slog.SetDefault(slog.New(logging.NewHandler(slogOut(), &slog.HandlerOptions{Level: slog.LevelInfo})))
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, stop := signal.NotifyContext(parent, os.Interrupt)
 	defer stop()
 	if err := Run(ctx, fn); err != nil {
 		slog.Error(err.Error())
@@ -64,8 +73,12 @@ func Run(ctx context.Context, fn func(context.Context) error) error {
 		parent := ctx
 		var err error
 		if taskgroup.FromContext(ctx) == nil {
+			limits := taskgroup.DefaultLimits()
+			if chosen, ok := taskgroup.LimitsFrom(ctx); ok {
+				limits = chosen
+			}
 			var session *taskgroup.Session
-			session, ctx = taskgroup.New(ctx, taskgroup.DefaultLimits())
+			session, ctx = taskgroup.New(ctx, limits)
 			err = progress.Run(session, ctx, fn)
 		} else {
 			err = progress.Run(taskgroup.FromContext(ctx), ctx, fn)

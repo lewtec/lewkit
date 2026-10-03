@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver/thread"
+	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,4 +55,15 @@ func TestAfterError(t *testing.T) {
 	After(func(context.Context) error { return errChildFailed })
 	err := Run(t.Context(), func(context.Context) error { return nil })
 	require.ErrorIs(t, err, errChildFailed)
+}
+
+func TestRunUsesContextLimits(t *testing.T) {
+	ctx := taskgroup.WithLimits(t.Context(), taskgroup.Limits{IO: 1, CPU: 2, Internet: 3})
+	var got taskgroup.Limits
+	err := Run(ctx, func(ctx context.Context) error {
+		got = taskgroup.FromContext(ctx).Limits()
+		return nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, taskgroup.Limits{IO: 1, CPU: 2, Internet: 3}, got)
 }
