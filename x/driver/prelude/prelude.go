@@ -21,6 +21,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/notification/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/opener/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/power/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/present/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/screen/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/screenshot/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/share/prelude"

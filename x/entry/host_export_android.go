@@ -148,59 +148,17 @@ func HandleSurface(fn func(ptr uintptr, width, height int)) {
 	surfaceFn.Store(fn)
 }
 
-var surfaceLostFn atomic.Value
-
-// HandleSurfaceLost runs when Android destroys the current surface.
-func HandleSurfaceLost(fn func()) {
-	if fn == nil {
-		return
-	}
-	surfaceLostFn.Store(fn)
-}
-
 //export Java_lewkit_Host_surfaceLost
 func Java_lewkit_Host_surfaceLost(env *C.JNIEnv, class C.jclass) {
-	fn, _ := surfaceLostFn.Load().(func())
-	if fn == nil {
-		return
-	}
-	fn()
-}
-
-var pointerFn atomic.Value
-
-// HandlePointer receives Android touch samples. action is 0 down, 1 up, 2 move.
-func HandlePointer(fn func(x, y, action int)) {
-	if fn == nil {
-		return
-	}
-	pointerFn.Store(fn)
+	DeliverSurfaceLost()
 }
 
 //export Java_lewkit_Host_pointer
 func Java_lewkit_Host_pointer(env *C.JNIEnv, class C.jclass, x, y, action C.jint) {
-	fn, _ := pointerFn.Load().(func(int, int, int))
-	if fn == nil {
-		return
-	}
-	fn(int(x), int(y), int(action))
-}
-
-var resizeFn atomic.Value
-
-// HandleResize receives a new Android surface size in pixels.
-func HandleResize(fn func(width, height int)) {
-	if fn == nil {
-		return
-	}
-	resizeFn.Store(fn)
+	DeliverPointer(int(x), int(y), int(action))
 }
 
 //export Java_lewkit_Host_resize
 func Java_lewkit_Host_resize(env *C.JNIEnv, class C.jclass, width, height C.jint) {
-	fn, _ := resizeFn.Load().(func(int, int))
-	if fn == nil {
-		return
-	}
-	fn(int(width), int(height))
+	DeliverResize(int(width), int(height))
 }

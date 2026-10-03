@@ -3,13 +3,13 @@ package gui
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/x/driver/ndeval"
-	"github.com/lewtec/lewkit/x/driver/vulkan"
+	"github.com/lewtec/lewkit/x/driver/present"
+	_ "github.com/lewtec/lewkit/x/driver/present/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-func bridge(ctx context.Context, host window.Window) (vulkan.Screen, ndarray.Evaluator, error) {
+func bridge(ctx context.Context, host window.Window) (present.Screen, ndarray.Evaluator, error) {
 	surfacer, ok := host.(window.Surfacer)
 	if !ok {
 		return nil, nil, window.ErrPresent
@@ -19,10 +19,12 @@ func bridge(ctx context.Context, host window.Window) (vulkan.Screen, ndarray.Eva
 		return nil, nil, window.ErrPresent
 	}
 	size := host.Size()
-	screen, err := vulkan.OpenNative(ctx, surface.Kind, surface.A, surface.B, size.X, size.Y)
+	screen, err := present.Open(ctx, surface.Kind, surface.A, surface.B, size.X, size.Y)
 	if err != nil {
 		return nil, nil, err
 	}
-	evaluator := ndeval.Bind(screen.Device())
-	return screen, evaluator, nil
+	if painter, ok := screen.(present.Painter); ok {
+		return screen, painter.Evaluator(), nil
+	}
+	return screen, nil, nil
 }
