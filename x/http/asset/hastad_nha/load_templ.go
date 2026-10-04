@@ -51,6 +51,3 @@ func Load() templ.Component {
 }
 
 var _ = templruntime.GeneratedTemplate
-
-
-var _ = templruntime.GeneratedTemplate
