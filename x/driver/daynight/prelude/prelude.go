@@ -6,6 +6,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/daynight/android"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/cocoa"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/fixed"
+	_ "github.com/lewtec/lewkit/x/driver/daynight/ios"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/portal"
 	_ "github.com/lewtec/lewkit/x/driver/daynight/win32"
 )

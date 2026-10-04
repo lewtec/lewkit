@@ -150,6 +150,15 @@ templ oneField(f field) {
 			<legend class="fieldset-legend">{ f.Label }</legend>
 			<input class="input w-full" type="number" name={ f.Name } value={ f.Value } min={ f.Min } max={ f.Max } step={ f.Step } placeholder={ f.Placeholder }/>
 		</fieldset>
+	} else if f.Kind == "combo" {
+		<fieldset class="fieldset">
+			<legend class="fieldset-legend">{ f.Label }</legend>
+			<select class="select w-full" name={ f.Name }>
+				for _, option := range f.Options {
+					<option value={ option } selected?={ option == f.Value }>{ option }</option>
+				}
+			</select>
+		</fieldset>
 	} else {
 		<fieldset class="fieldset">
 			<legend class="fieldset-legend">{ f.Label }</legend>

@@ -48,6 +48,8 @@ final class ServerProcess {
 
         status("Waiting for server…")
         let dirs = OpenDrop.applyProcessEnv()
+        AskWatch.start(directory: dirs.cache.appendingPathComponent("ask", isDirectory: true).path)
+        HostWatch.start(directory: dirs.cache.appendingPathComponent("ios", isDirectory: true).path)
         DispatchQueue.global(qos: .userInitiated).async {
             readyFile.path.withCString { ready in
                 dirs.data.path.withCString { data in
@@ -65,10 +67,14 @@ final class ServerProcess {
             }
         }
 
-        let deadline = Date().addingTimeInterval(30)
+        let askRequest = dirs.cache.appendingPathComponent("ask/request.json")
+        var deadline = Date().addingTimeInterval(30)
         while Date() < deadline {
             if RootViewController.hostsNativeSurface() {
                 return
+            }
+            if FileManager.default.fileExists(atPath: askRequest.path) {
+                deadline = Date().addingTimeInterval(30)
             }
             if let raw = Self.readReadyFile(readyFile), let url = Self.forceLoopback(raw) {
                 ready(url)

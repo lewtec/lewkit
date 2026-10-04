@@ -67,7 +67,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/middleware` | `SPA`. Serves an `fs.FS` with the goftpd SPA rules. A miss goes to the next handler. |
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
 | `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Load`. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
-| `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, jquery, and sakuracss. |
+| `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, daisyui, jquery, sakuracss, lewtec_logo, and hastad_nha. |
 | `x/release` | `Version`, `AppID`, `ValidateAppID`, `Name`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. The short name is the `-X` stamp `x/release.name`, or `LEWKIT_NAME`, or the built-in default. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
 | `x/build` | `Job`, `Host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. `--app` writes the host instead: a macOS `.app`, an Android APK, or an iOS `.app`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. Arguments after `--` go to that program. |
@@ -115,16 +115,18 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/audio_play/pulse` | Linux playback through libpulse-simple. `Sink` is the PulseAudio sink name. PipeWire serves that API. |
 | `x/driver/audio_play/winmm` | Windows playback through waveOut. `Sink` is a device index or the endpoint name. An empty sink is `WAVE_MAPPER`. |
 | `x/driver/audio_play/coreaudio` | macOS playback through AudioQueue. `Sink` is a device UID or the display name. |
-| `x/driver/audio_play/mem` | Records PCM. Incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
+| `x/driver/audio_play/mem` | Records PCM. `MemoryGate` keeps it incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
 | `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. |
 | `x/driver/window/x11` | X11 backend. |
-| `x/driver/window/mem` | In-memory backend for tests. |
+| `x/driver/window/mem` | In-memory backend for tests. `MemoryGate` keeps it incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
 | `x/driver/window/uikit` | iOS backend. `Open` asks the host for a UIView and runs on the main queue. |
 | `x/driver/present` | `Open`, `Screen`, `Composite`. Paints one GUI frame on a surface the caller owns. The highest compatible driver wins. |
 | `x/driver/present/metal` | Metal screen. Weight 80 on Apple, so GUI does not need MoltenVK. |
 | `x/driver/present/vulkan` | Vulkan screen. Weight 40. A mounted tensor stays on the device. |
+| `x/driver/messagebox` | `Show`. One message the user dismisses. Android, the packaged iOS or macOS host, AppKit, Win32, and zenity. App mode uses this instead of a terminal. |
+| `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`. Android alerts and the packaged host present them. `TerminalGate` enables the stdin backend only when stdin and stdout are terminals and the process is not an app. |
 | `x/driver/vulkan` | Facade. `Open`, `List`, `Buffer`, `Compile`, `Begin`. Re-exports `Buffer`, `Shader`, and `Cmd`. |
 | `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan wraps the selected GPU. |
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |

@@ -4,8 +4,9 @@
 //	text, err := launcher.Prompt(ctx, "Name")
 //	ok, err := launcher.Confirm(ctx, "Delete?")
 //
-// Import a backend (rofi, wofi, zenity, terminal). Rofi and wofi also
-// launch applications and switch windows.
+// Import a backend (rofi, wofi, zenity, terminal, cocoa, host, android).
+// Rofi and wofi also launch applications and switch windows. AppKit is the
+// macOS dialog when no ask host is running.
 package launcher
 
 import (

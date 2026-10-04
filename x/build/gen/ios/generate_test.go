@@ -58,6 +58,8 @@ func TestCreate_WritesHost(t *testing.T) {
 		"Info.plist",
 		"README.md",
 		"Sources/AppDelegate.swift",
+		"Sources/AskWatch.swift",
+		"Sources/HostWatch.swift",
 		"Sources/ServerProcess.swift",
 		"Sources/RootViewController.swift",
 		"Sources/eletrocromo-Bridging-Header.h",
@@ -162,6 +164,47 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(ss, "dirs.cache.path") {
 		t.Fatalf("start must pass cache dir into Go:\n%s", ss)
 	}
+	if !strings.Contains(ss, "AskWatch.start") {
+		t.Fatal("ios host does not watch the ask directory")
+	}
+	if !strings.Contains(ss, "HostWatch.start") {
+		t.Fatal("ios host does not watch the ios directory")
+	}
+	ask, err := os.ReadFile(filepath.Join(out, "Sources/AskWatch.swift"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet := string(ask)
+	if strings.Contains(sheet, "DispatchQueue.main.sync") || strings.Contains(sheet, "RunLoop.current.run") {
+		t.Fatal("ios ask blocks the main run loop")
+	}
+	if !strings.Contains(sheet, "removeItem") || !strings.Contains(sheet, ".actionSheet") {
+		t.Fatal("ios chooser still replays a killed request as an alert")
+	}
+	host, err := os.ReadFile(filepath.Join(out, "Sources/HostWatch.swift"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	hs := string(host)
+	if strings.Contains(hs, "DispatchQueue.main.sync") || strings.Contains(hs, "RunLoop.current.run") {
+		t.Fatal("ios host blocks the main run loop")
+	}
+	for _, needle := range []string{
+		"UIDocumentPickerViewController",
+		"UIPasteboard",
+		"UNUserNotificationCenter",
+		"isBatteryMonitoringEnabled",
+		"watchBattery",
+		"probeBattery",
+		"UIApplication.shared.open",
+		"battery.json",
+		"daynight.txt",
+		"removeItem",
+	} {
+		if !strings.Contains(hs, needle) {
+			t.Errorf("HostWatch missing %s", needle)
+		}
+	}
 
 	ui, err := os.ReadFile(filepath.Join(out, "Sources/RootViewController.swift"))
 	if err != nil {
@@ -192,6 +235,9 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(us, "revealIfStuck") {
 		t.Fatalf("stuck reveal missing:\n%s", us)
 	}
+	if !strings.Contains(us, "publishDaynight") {
+		t.Fatalf("appearance publish missing:\n%s", us)
+	}
 	if strings.Contains(us, "UIBarButtonItem") || strings.Contains(us, "arrow.clockwise") {
 		t.Fatalf("navbar reload still present:\n%s", us)
 	}
@@ -212,6 +258,9 @@ func TestCreate_WritesHost(t *testing.T) {
 	}
 	if !strings.Contains(ds, "applicationDidBecomeActive") {
 		t.Fatalf("become-active drain missing:\n%s", ds)
+	}
+	if !strings.Contains(ds, "HostWatch.prepare") {
+		t.Fatalf("ios host state is not published at launch:\n%s", ds)
 	}
 
 	hdr, err := os.ReadFile(filepath.Join(out, "Sources/eletrocromo-Bridging-Header.h"))
@@ -310,6 +359,9 @@ func TestBridgeSource_ExportsStart(t *testing.T) {
 	}
 	if !strings.Contains(iosBridgeSource, "ELETROCROMO_CACHE_DIR") {
 		t.Fatal("missing CACHE_DIR")
+	}
+	if !strings.Contains(iosBridgeSource, "ELETROCROMO_ASK_DIR") {
+		t.Fatal("missing ASK_DIR")
 	}
 	if !strings.Contains(iosBridgeSource, "ELETROCROMO_DATA_DIR") {
 		t.Fatal("missing DATA_DIR")

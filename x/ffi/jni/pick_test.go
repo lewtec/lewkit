@@ -35,6 +35,16 @@ func TestClassify(t *testing.T) {
 	require.Equal(t, kindRef, v.kind)
 	require.Equal(t, "java.lang.String", v.class)
 
+	v, err = classify([]byte{1, 2})
+	require.NoError(t, err)
+	require.Equal(t, kindBytes, v.kind)
+	require.Equal(t, []byte{1, 2}, v.raw)
+
+	v, err = classify([]byte(nil))
+	require.NoError(t, err)
+	require.Equal(t, kindBytes, v.kind)
+	require.Nil(t, v.raw)
+
 	_, err = classify(struct{}{})
 	require.Error(t, err)
 }
@@ -128,6 +138,27 @@ func TestPickAmbiguousInterfaces(t *testing.T) {
 	}}})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ambiguous")
+}
+
+func TestPickByteArray(t *testing.T) {
+	cands := []candidate{
+		{name: "write", params: []string{"java.lang.Object", "int", "int"}},
+		{name: "write", params: []string{"[B", "int", "int"}},
+		{name: "write", params: []string{"[S", "int", "int"}},
+	}
+	i, err := pick(cands, selector{name: "write", args: []arg{
+		{kind: kindBytes},
+		{kind: kindInt},
+		{kind: kindInt},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, "[B", cands[i].params[0])
+
+	_, err = pick(cands, selector{name: "write", args: []arg{
+		{kind: kindBytes},
+		{kind: kindInt},
+	}})
+	require.Error(t, err)
 }
 
 func TestClassNameSlashes(t *testing.T) {

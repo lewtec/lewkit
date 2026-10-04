@@ -17,6 +17,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = root
+        HostWatch.prepare(style: window.traitCollection.userInterfaceStyle)
         window.makeKeyAndVisible()
         self.window = window
         if let url = launchOptions?[.url] as? URL {
@@ -39,6 +40,10 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func applicationDidBecomeActive(_ application: UIApplication) {
         OpenDrop.drainIncoming()
+        if let style = window?.traitCollection.userInterfaceStyle {
+            HostWatch.publishDaynight(style)
+        }
+        HostWatch.watchBattery()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

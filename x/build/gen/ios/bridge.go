@@ -10,6 +10,7 @@ import "C"
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/entry"
 )
@@ -30,8 +31,12 @@ func EletrocromoStart(readyFile, dataDir, cacheDir, configDir *C.char) {
 		os.Setenv("LEWKIT_DATA_DIR", C.GoString(dataDir))
 	}
 	if cacheDir != nil {
-		os.Setenv("ELETROCROMO_CACHE_DIR", C.GoString(cacheDir))
-		os.Setenv("LEWKIT_CACHE_DIR", C.GoString(cacheDir))
+		cache := C.GoString(cacheDir)
+		os.Setenv("ELETROCROMO_CACHE_DIR", cache)
+		os.Setenv("LEWKIT_CACHE_DIR", cache)
+		ask := filepath.Join(cache, "ask")
+		_ = os.MkdirAll(ask, 0o700)
+		os.Setenv("ELETROCROMO_ASK_DIR", ask)
 	}
 	if configDir != nil {
 		os.Setenv("ELETROCROMO_CONFIG_DIR", C.GoString(configDir))

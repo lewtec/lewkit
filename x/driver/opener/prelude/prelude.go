@@ -3,6 +3,8 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/opener/android"
+	_ "github.com/lewtec/lewkit/x/driver/opener/ios"
 	_ "github.com/lewtec/lewkit/x/driver/opener/macopen"
 	_ "github.com/lewtec/lewkit/x/driver/opener/winstart"
 	_ "github.com/lewtec/lewkit/x/driver/opener/xdg"

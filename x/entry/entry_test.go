@@ -57,6 +57,17 @@ func TestAfterError(t *testing.T) {
 	require.ErrorIs(t, err, errChildFailed)
 }
 
+func TestAppModePanicBecomesError(t *testing.T) {
+	t.Setenv("ELETROCROMO_NO_UI", "1")
+	t.Setenv("TERMUX_VERSION", "")
+	t.Setenv("TERM", "dumb")
+	err := Run(t.Context(), func(context.Context) error {
+		panic("boom")
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "panic: boom")
+}
+
 func TestRunUsesContextLimits(t *testing.T) {
 	ctx := taskgroup.WithLimits(t.Context(), taskgroup.Limits{IO: 1, CPU: 2, Internet: 3})
 	var got taskgroup.Limits

@@ -30,6 +30,15 @@ public class HostActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
     }
 
+    @SuppressWarnings("deprecation")
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (Notify.onResult(requestCode, grantResults)) {
+            return;
+        }
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    }
+
     @Override
     protected void onDestroy() {
         FileChooser.hostGone(this);

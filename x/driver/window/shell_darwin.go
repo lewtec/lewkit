@@ -33,8 +33,8 @@ type processSerial struct {
 var shellReady atomic.Bool
 
 func showShell(title string, icon image.Image) {
-	// An off-main call must not stick, or the real UI thread would skip adoption.
-	if !thread.ProcessMain() {
+	// An off-thread call must not stick, or the UI thread would skip adoption.
+	if !thread.On() {
 		return
 	}
 	if shellReady.Load() {

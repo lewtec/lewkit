@@ -1,10 +1,11 @@
 package vulkan
 
-// UIThread runs work on the process main thread.
-// The driver facade installs one. This package does not import x/driver.
+// UIThread runs work on the UI thread.
+// The driver facade installs the thread driver. This package does not import x/driver.
 type UIThread interface {
 	Do(func())
 	Bound() bool
+	// ProcessMain reports whether this goroutine is on the UI thread.
 	ProcessMain() bool
 	OnIdle(func())
 }

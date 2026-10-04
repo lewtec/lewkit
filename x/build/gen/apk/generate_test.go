@@ -32,6 +32,9 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/src/main/AndroidManifest.xml",
 		"app/src/main/java/br/tec/lew/counter/MainActivity.java",
 		"app/src/main/java/lewkit/FileChooser.java",
+		"app/src/main/java/lewkit/Ask.java",
+		"app/src/main/java/lewkit/Notify.java",
+		"app/src/main/java/lewkit/Open.java",
 		"app/src/main/java/lewkit/HostActivity.java",
 		"app/src/main/java/lewkit/Documents.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
@@ -156,8 +159,45 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		t.Fatal(err)
 	}
 	hostActJava := string(hostAct)
+	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(hostJava), "AlertDialog") || !strings.Contains(string(hostJava), "showFail") {
+		t.Fatal("startup failure does not show a message box")
+	}
+	askJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Ask.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	askText := string(askJava)
+	if !strings.Contains(askText, "void alert") || !strings.Contains(askText, "void confirm") || !strings.Contains(askText, "void prompt") || !strings.Contains(askText, "void choose") {
+		t.Fatal("ask dialog is missing alert, confirm, prompt, or choose")
+	}
 	if !strings.Contains(hostActJava, "Host.noteForeground(this, true)") || !strings.Contains(hostActJava, "FileChooser.onResult") || !strings.Contains(hostActJava, "FileChooser.hostGone") {
 		t.Fatal("window base does not track the foreground activity or the picker result")
+	}
+	if !strings.Contains(hostActJava, "Notify.onResult") {
+		t.Fatal("window base does not receive the notification permission")
+	}
+	if !strings.Contains(string(manifest), "android.permission.POST_NOTIFICATIONS") {
+		t.Fatal("manifest missing notification permission")
+	}
+	note, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Notify.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	noteJava := string(note)
+	if !strings.Contains(noteJava, "NotificationManager") || !strings.Contains(noteJava, "createNotificationChannel") || !strings.Contains(noteJava, "requestPermissions") {
+		t.Fatal("notification host does not post or ask")
+	}
+	openJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Open.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	openText := string(openJava)
+	if !strings.Contains(openText, "ACTION_VIEW") || !strings.Contains(openText, "FileProvider.getUriForFile") || !strings.Contains(openText, "startActivity") {
+		t.Fatal("open host does not view a URL or file")
 	}
 	pageJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
 	if err != nil {
@@ -177,7 +217,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		t.Fatal("document reader")
 	}
 
-	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
+	hostJava, err = os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
 	if err != nil {
 		t.Fatal(err)
 	}

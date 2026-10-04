@@ -4,6 +4,7 @@ package prelude
 
 import (
 	_ "github.com/lewtec/lewkit/x/http/asset/daisyui"
+	_ "github.com/lewtec/lewkit/x/http/asset/hastad_nha"
 	_ "github.com/lewtec/lewkit/x/http/asset/htmx"
 	_ "github.com/lewtec/lewkit/x/http/asset/jquery"
 	_ "github.com/lewtec/lewkit/x/http/asset/lewtec_logo"

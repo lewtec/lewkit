@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/audio_play/android"
 	_ "github.com/lewtec/lewkit/x/driver/audio_play/coreaudio"
 	_ "github.com/lewtec/lewkit/x/driver/audio_play/mem"
 	_ "github.com/lewtec/lewkit/x/driver/audio_play/pulse"

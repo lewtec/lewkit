@@ -9,6 +9,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/http/asset"
 	"github.com/lewtec/lewkit/x/http/asset/daisyui"
+	"github.com/lewtec/lewkit/x/http/asset/hastad_nha"
 	"github.com/lewtec/lewkit/x/http/asset/htmx"
 	"github.com/lewtec/lewkit/x/http/asset/jquery"
 	"github.com/lewtec/lewkit/x/http/asset/lewtec_logo"
@@ -36,6 +37,7 @@ func TestPreludeServes(t *testing.T) {
 		{path: daisyui.Path, contentType: "text/css", needle: daisyui.Version},
 		{path: sakuracss.Path, contentType: "text/css", needle: "Sakura.css"},
 		{path: lewtec_logo.Path, contentType: "image/png", needle: "PNG"},
+		{path: hastad_nha.Path, contentType: "audio/mpeg", needle: "ID3"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {

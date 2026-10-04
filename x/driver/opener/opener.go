@@ -2,7 +2,7 @@
 //
 //	err := opener.Open(ctx, "https://lew.tec.br")
 //
-// Backends are xdg-open, open, and cmd /c start.
+// Backends are xdg-open, open, cmd /c start, the iOS host, and Android.
 package opener
 
 import (

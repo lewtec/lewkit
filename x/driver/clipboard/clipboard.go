@@ -2,7 +2,7 @@
 //
 //	err := clipboard.WriteText(ctx, "hello")
 //
-// Backends are wl-copy, xclip, pbcopy, and the Windows clip command.
+// Backends are wl-copy, xclip, pbcopy, the Windows clip command, and the iOS pasteboard.
 package clipboard
 
 import (

@@ -56,6 +56,10 @@ final class ServerProcess {
         env["NO_PROXY"] = "127.0.0.1,localhost,::1"
         env["no_proxy"] = "127.0.0.1,localhost,::1"
         OpenDrop.applyEnv(&env)
+        let askDir = OpenDrop.cacheDir().appendingPathComponent("ask", isDirectory: true)
+        try? FileManager.default.createDirectory(at: askDir, withIntermediateDirectories: true)
+        env["ELETROCROMO_ASK_DIR"] = askDir.path
+        AskWatch.start(directory: askDir.path)
         proc.environment = env
 
         let pipe = Pipe()
@@ -91,8 +95,11 @@ final class ServerProcess {
             }
         }
 
-        let deadline = Date().addingTimeInterval(30)
+        var deadline = Date().addingTimeInterval(30)
         while Date() < deadline {
+            if FileManager.default.fileExists(atPath: askDir.appendingPathComponent("request.json").path) {
+                deadline = Date().addingTimeInterval(30)
+            }
             if let raw = stdoutURL ?? Self.readReadyFile(readyFile) {
                 if let url = Self.forceLoopback(raw) {
                     ready(url)

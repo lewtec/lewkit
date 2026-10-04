@@ -32,6 +32,7 @@ const (
 	kindDouble
 	kindString
 	kindRef
+	kindBytes
 )
 
 // value is one Go argument after classification.
@@ -45,6 +46,7 @@ type value struct {
 	f64   float64
 	text  string
 	ref   uintptr
+	raw   []byte
 }
 
 type arg struct {
@@ -89,6 +91,8 @@ func classify(v any) (value, error) {
 			return value{kind: kindNil}, nil
 		}
 		return value{kind: kindRef, class: n.class, ref: n.ptr}, nil
+	case []byte:
+		return value{kind: kindBytes, raw: n}, nil
 	default:
 		return value{}, fmt.Errorf("%w: %T", errArgument, v)
 	}
@@ -204,6 +208,15 @@ func scoreArg(param string, a arg) (int, bool) {
 			return 1, true
 		}
 		return 0, false
+	case kindBytes:
+		switch param {
+		case "[B":
+			return 4, true
+		case "java.lang.Object":
+			return 1, true
+		default:
+			return 0, false
+		}
 	default:
 		return 0, false
 	}

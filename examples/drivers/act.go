@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"image"
 	"image/color"
@@ -25,6 +24,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 	"github.com/lewtec/lewkit/x/driver/media"
+	"github.com/lewtec/lewkit/x/driver/messagebox"
 	"github.com/lewtec/lewkit/x/driver/notification"
 	"github.com/lewtec/lewkit/x/driver/opener"
 	"github.com/lewtec/lewkit/x/driver/power"
@@ -40,8 +40,10 @@ import (
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/http/asset/hastad_nha"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/sound"
+	_ "github.com/lewtec/lewkit/x/sound/mp3"
 )
 
 func runBrightness(ctx context.Context, _ *page, op string, r *http.Request) (string, error) {
@@ -134,6 +136,17 @@ func runNotification(ctx context.Context, _ *page, op string, r *http.Request) (
 		Title:   r.FormValue("title"),
 		Message: r.FormValue("message"),
 		Urgency: r.FormValue("urgency"),
+	}))
+}
+
+func runMessagebox(ctx context.Context, _ *page, op string, r *http.Request) (string, error) {
+	if op != "show" {
+		return "", errNoDriverOp
+	}
+	return okNote("shown", messagebox.ShowNotice(ctx, messagebox.Notice{
+		Title:   r.FormValue("title"),
+		Message: r.FormValue("message"),
+		Style:   r.FormValue("style"),
 	}))
 }
 
@@ -476,18 +489,25 @@ func runAudio(ctx context.Context, _ *page, op string, r *http.Request) (string,
 	if op != "play" {
 		return "", errNoDriverOp
 	}
-	format := sound.Format{Rate: 8000, Channels: 1, Sample: sound.SampleS16LE}
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	pipe, err := sound.Decode(hastad_nha.Name, bytes.NewReader(hastad_nha.Bytes()))
+	if err != nil {
+		return "", err
+	}
+	pcm, err := io.ReadAll(pipe)
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	writer, err := audio_play.Open(ctx, audio_play.Config{
 		Sink:   strings.TrimSpace(r.FormValue("sink")),
-		Format: format,
-		Name:   release.Name(),
+		Format: pipe.Format(),
+		Name:   hastad_nha.Name,
 	})
 	if err != nil {
 		return "", err
 	}
-	_, writeErr := writer.Write(tonePCM(format.Rate))
+	_, writeErr := writer.Write(pcm)
 	closeErr := writer.Close()
 	if writeErr != nil {
 		return "", writeErr
@@ -495,20 +515,7 @@ func runAudio(ctx context.Context, _ *page, op string, r *http.Request) (string,
 	if closeErr != nil {
 		return "", closeErr
 	}
-	return "played", nil
-}
-
-func tonePCM(rate int) []byte {
-	n := rate / 10
-	buf := make([]byte, n*2)
-	for i := 0; i < n; i++ {
-		sample := int16(2000)
-		if (i/20)%2 == 1 {
-			sample = -2000
-		}
-		binary.LittleEndian.PutUint16(buf[i*2:], uint16(sample))
-	}
-	return buf
+	return "played " + pipe.Duration().Round(time.Millisecond).String(), nil
 }
 
 func runWindow(ctx context.Context, p *page, op string, r *http.Request) (string, error) {

@@ -125,6 +125,10 @@ final class RootViewController: UIViewController, WKNavigationDelegate, WKUIDele
             progressStack.trailingAnchor.constraint(equalTo: splash.trailingAnchor, constant: -32),
         ])
 
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (vc: Self, _: UITraitCollection) in
+            HostWatch.publishDaynight(vc.traitCollection.userInterfaceStyle)
+        }
+        HostWatch.publishDaynight(traitCollection.userInterfaceStyle)
         quietSplash()
     }
 
