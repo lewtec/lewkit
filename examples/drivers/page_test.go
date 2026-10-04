@@ -94,6 +94,17 @@ func TestDriverPagesShowState(t *testing.T) {
 	require.Contains(t, string(volumeBody), `action="/driver/volume/set"`)
 	require.Contains(t, string(volumeBody), ">Refresh<")
 
+	box, err := client.Get(srv.URL + "/driver/messagebox")
+	require.NoError(t, err)
+	boxBody, err := io.ReadAll(box.Body)
+	require.NoError(t, err)
+	require.NoError(t, box.Body.Close())
+	require.Contains(t, string(boxBody), `action="/driver/messagebox/show"`)
+	require.Contains(t, string(boxBody), `<select class="select w-full" name="style">`)
+	require.Contains(t, string(boxBody), `<option value="informational" selected>informational</option>`)
+	require.Contains(t, string(boxBody), `<option value="warning">warning</option>`)
+	require.Contains(t, string(boxBody), `<option value="critical">critical</option>`)
+
 	screen, err := client.Get(srv.URL + "/driver/screen")
 	require.NoError(t, err)
 	screenBody, err := io.ReadAll(screen.Body)

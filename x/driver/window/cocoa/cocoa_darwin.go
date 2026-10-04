@@ -95,10 +95,6 @@ func startApp() error {
 	}
 	appOnce.Do(func() {
 		thread.Do(func() {
-			if !thread.ProcessMain() {
-				appErr = fmt.Errorf("%w", window.ErrNotMain)
-				return
-			}
 			if _, err := native.Open("/System/Library/Frameworks/Cocoa.framework/Cocoa", native.Global|native.Lazy); err != nil {
 				appErr = fmt.Errorf("%w: cocoa: %w", window.ErrInit, err)
 				return
@@ -137,7 +133,7 @@ func withPool(fn func()) {
 }
 
 func pump(app objc.ID) {
-	if !thread.ProcessMain() {
+	if !thread.On() {
 		return
 	}
 	withPool(func() {

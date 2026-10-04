@@ -18,6 +18,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/dirs"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/driver/media"
+	"github.com/lewtec/lewkit/x/driver/messagebox"
 	"github.com/lewtec/lewkit/x/driver/present"
 	"github.com/lewtec/lewkit/x/driver/screen"
 	"github.com/lewtec/lewkit/x/driver/thread"
@@ -85,6 +86,7 @@ var driverSpecs = map[string]spec{
 	"launcher.Prompter":  {load: loadPrompter, run: runPrompter},
 	"launcher.Confirmer": {load: loadConfirmer, run: runConfirmer},
 	"media":              {load: loadMedia, run: runMedia},
+	"messagebox":         {load: loadMessagebox, run: runMessagebox},
 	"ndarray.Evaluator":  {load: loadEval},
 	"notification":       {load: loadNotification, run: runNotification},
 	"opener":             {load: loadOpener, run: runOpener},
@@ -131,6 +133,10 @@ func whole(name, label, value string) field {
 
 func check(name, label string) field {
 	return field{Name: name, Label: label, Kind: "check"}
+}
+
+func combo(name, label, value string, options ...string) field {
+	return field{Name: name, Label: label, Kind: "combo", Value: value, Options: options}
 }
 
 func hidden(name, value string) field {
@@ -407,6 +413,20 @@ func loadWallpaper(ctx context.Context, _ *page) (panel, error) {
 	}}, nil
 }
 
+func loadMessagebox(ctx context.Context, _ *page) (panel, error) {
+	return panel{acts: []act{
+		actOf("show", "Show",
+			text("title", "Title", release.Name(), ""),
+			area("message", "Message", "drivers", ""),
+			combo("style", "Style", messagebox.StyleInformational,
+				messagebox.StyleInformational,
+				messagebox.StyleWarning,
+				messagebox.StyleCritical,
+			),
+		),
+	}}, nil
+}
+
 func loadLauncher(ctx context.Context, _ *page) (panel, error) {
 	return panel{acts: []act{
 		actOf("run", "Open the app launcher"),
@@ -507,7 +527,7 @@ func loadHTTP(ctx context.Context, _ *page) (panel, error) {
 }
 
 func loadAudio(ctx context.Context, _ *page) (panel, error) {
-	acts := []act{actOf("play", "Play 100 ms", text("sink", "Sink", "", "default"))}
+	acts := []act{actOf("play", "Play hastad-nha", text("sink", "Sink", "", "default"))}
 	sinks, err := audio_play.Sinks(ctx)
 	if err != nil {
 		return panel{acts: acts}, err

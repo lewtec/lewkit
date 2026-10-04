@@ -7,7 +7,7 @@
 // An empty Sink is the server default. Write accepts any length and keeps a
 // partial frame until the next Write. Close returns [github.com/lewtec/lewkit/x/sound.ErrFrame]
 // when a partial frame is still queued. Import
-// [github.com/lewtec/lewkit/x/driver/prelude] or one backend (mem, pulse, winmm, coreaudio).
+// [github.com/lewtec/lewkit/x/driver/prelude] or one backend (mem, pulse, winmm, coreaudio, android).
 package audio_play
 
 import (

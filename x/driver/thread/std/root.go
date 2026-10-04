@@ -43,6 +43,19 @@ func (t *backend) Bind() {
 	t.bound.Store(true)
 }
 
+func (t *backend) Loop(ctx context.Context) {
+	runtime.LockOSThread()
+	t.tid.Store(uithread.OSThread())
+	t.bound.Store(true)
+	t.running.Store(true)
+	defer t.running.Store(false)
+	t.serveJobs(ctx)
+}
+
+func (t *backend) Do(fn func())      { t.doBlocking(fn) }
+func (t *backend) Go(fn func())      { t.goAsync(fn) }
+func (t *backend) Enqueue(fn func()) { t.enqueue(fn) }
+
 func (t *backend) Bound() bool { return t.bound.Load() }
 
 func (t *backend) On() bool {
@@ -59,12 +72,7 @@ func (t *backend) OnIdle(fn func()) {
 	t.idleMu.Unlock()
 }
 
-func (t *backend) Loop(ctx context.Context) {
-	runtime.LockOSThread()
-	t.tid.Store(uithread.OSThread())
-	t.bound.Store(true)
-	t.running.Store(true)
-	defer t.running.Store(false)
+func (t *backend) serveJobs(ctx context.Context) {
 	wait := time.NewTicker(2 * time.Millisecond)
 	defer wait.Stop()
 	for {
@@ -103,7 +111,7 @@ func (t *backend) runIdle() {
 	}
 }
 
-func (t *backend) Do(fn func()) {
+func (t *backend) doBlocking(fn func()) {
 	if t.On() {
 		fn()
 		return
@@ -116,7 +124,7 @@ func (t *backend) Do(fn func()) {
 	<-done
 }
 
-func (t *backend) Go(fn func()) {
+func (t *backend) goAsync(fn func()) {
 	if t.On() {
 		fn()
 		return
@@ -124,7 +132,7 @@ func (t *backend) Go(fn func()) {
 	t.jobs <- fn
 }
 
-func (t *backend) Enqueue(fn func()) {
+func (t *backend) enqueue(fn func()) {
 	if t.On() {
 		fn()
 		return

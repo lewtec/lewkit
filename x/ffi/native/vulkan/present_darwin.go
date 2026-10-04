@@ -110,36 +110,6 @@ func nsApp() (objc.ID, error) {
 	return app, nil
 }
 
-var (
-	cfOnce             sync.Once
-	cfRunLoopRunInMode func(mode uintptr, seconds float64, returnAfter bool) int32
-	cfDefaultMode      uintptr
-)
-
-func pumpApp() {
-	if !uiProcessMain() {
-		return
-	}
-	cfOnce.Do(func() {
-		lib, err := native.Open("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", native.Global|native.Lazy)
-		if err != nil {
-			return
-		}
-		native.Func(lib, "CFRunLoopRunInMode", &cfRunLoopRunInMode)
-		addr, err := native.Symbol(lib, "kCFRunLoopDefaultMode")
-		if err != nil || addr == 0 {
-			return
-		}
-		cfDefaultMode = *(*uintptr)(unsafe.Pointer(addr))
-	})
-	if cfRunLoopRunInMode == nil || cfDefaultMode == 0 {
-		return
-	}
-	// Zero seconds: drain what AppKit already queued and return. A nil
-	// NSDate in nextEventMatchingMask blocks the main thread forever.
-	cfRunLoopRunInMode(cfDefaultMode, 0, false)
-}
-
 func (h *metalHost) create(d *Device, w *wsi) (uint64, error) {
 	_ = w
 	if err := d.api.bind(d.api.getInstanceProcAddr, d.inst, "vkCreateMetalSurfaceEXT", &h.createSurf); err != nil {
@@ -197,7 +167,6 @@ func pollDarwin() {
 	if !uiProcessMain() {
 		return
 	}
-	pumpApp()
 	dispatchMetalEvents()
 	metalMu.Lock()
 	hosts := append([]*metalHost(nil), metals...)

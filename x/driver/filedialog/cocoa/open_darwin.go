@@ -26,7 +26,6 @@ var (
 	errPanel    = errors.New("file dialog panel")
 	errPath     = errors.New("file dialog path")
 	errNotBound = errors.New("file dialog: thread not bound")
-	errNotMain  = errors.New("file dialog: not main thread")
 
 	appOnce sync.Once
 	appErr  error
@@ -77,10 +76,6 @@ func (opener) Choose(ctx context.Context, req filedialog.Request) ([]string, err
 		err   error
 	)
 	thread.Do(func() {
-		if !thread.ProcessMain() {
-			err = errNotMain
-			return
-		}
 		paths, err = show(req)
 	})
 	return paths, err

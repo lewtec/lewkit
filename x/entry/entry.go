@@ -7,18 +7,42 @@ package entry
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/lewtec/lewkit/report"
+	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/messagebox"
+	_ "github.com/lewtec/lewkit/x/driver/messagebox/prelude"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 	"github.com/lewtec/lewkit/x/logging"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
+
+// guard turns a panic into an error while the process is an app.
+// A command still panics.
+func guard(fn func(context.Context) error) func(context.Context) error {
+	return func(ctx context.Context) (err error) {
+		defer func() {
+			recovered := recover()
+			if recovered == nil {
+				return
+			}
+			if !driver.AppMode() {
+				panic(recovered)
+			}
+			err = fmt.Errorf("panic: %v", recovered)
+		}()
+		return fn(ctx)
+	}
+}
 
 func slogOut() io.Writer {
 	if w := logging.Logcat(); w != nil {
@@ -44,7 +68,21 @@ func MainFrom(parent context.Context, fn func(context.Context) error) {
 	if err := Run(ctx, fn); err != nil {
 		slog.Error(err.Error())
 		report.Report(err)
+		showFailure(err)
 		os.Exit(1)
+	}
+}
+
+// showFailure is the app-mode escape hatch. A terminal is closed, so the
+// error is shown in a message box before the process exits.
+func showFailure(err error) {
+	if err == nil || !driver.AppMode() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if showErr := messagebox.Show(ctx, release.Name(), err.Error()); showErr != nil {
+		NotifyFail(err.Error())
 	}
 }
 
@@ -79,9 +117,9 @@ func Run(ctx context.Context, fn func(context.Context) error) error {
 			}
 			var session *taskgroup.Session
 			session, ctx = taskgroup.New(ctx, limits)
-			err = progress.Run(session, ctx, fn)
+			err = progress.Run(session, ctx, guard(fn))
 		} else {
-			err = progress.Run(taskgroup.FromContext(ctx), ctx, fn)
+			err = progress.Run(taskgroup.FromContext(ctx), ctx, guard(fn))
 		}
 		follow := after
 		after = nil

@@ -88,6 +88,8 @@ var (
 	selDidReceiveData = objc.RegisterName("didReceiveData:")
 	selDidFinish      = objc.RegisterName("didFinish")
 	selDidFail        = objc.RegisterName("didFailWithError:")
+	selRetain         = objc.RegisterName("retain")
+	selRelease        = objc.RegisterName("release")
 	selBody           = objc.RegisterName("body")
 	selNextEvent      = objc.RegisterName("nextEventMatchingMask:untilDate:inMode:dequeue:")
 	selSendEvent      = objc.RegisterName("sendEvent:")
@@ -395,19 +397,18 @@ func startURLSchemeTask(self objc.ID, _ objc.SEL, _ objc.ID, task objc.ID) {
 		return
 	}
 	if view.handler != nil {
+		// This callback is the UI thread. Waiting on the handler deadlocks
+		// thread.Do, which daynight and the file dialog both use.
 		method := cocoaString(request.Send(objc.RegisterName("HTTPMethod")))
-		status, header, payload, err := webview.Dispatch(view.handler, method, parsed.String(), requestHeader(request), httpBody(request))
+		header := requestHeader(request)
+		posted, err := io.ReadAll(httpBody(request))
 		if err != nil {
 			failTask(task)
 			return
 		}
-		body, err := io.ReadAll(payload)
-		payload.Close()
-		if err != nil {
-			failTask(task)
-			return
-		}
-		completeTask(task, target, status, header, body)
+		task.Send(selRetain)
+		target.Send(selRetain)
+		go finishSchemeTask(task, target, view.handler, method, parsed.String(), header, posted)
 		return
 	}
 	body, contentType, err := webview.ReadPage(view.html, view.files, parsed.Path)
@@ -424,6 +425,26 @@ func startURLSchemeTask(self objc.ID, _ objc.SEL, _ objc.ID, task objc.ID) {
 		task.Send(selDidReceiveData, data)
 	}
 	task.Send(selDidFinish)
+}
+
+func finishSchemeTask(task, page objc.ID, handler http.Handler, method, target string, header http.Header, posted []byte) {
+	status, respHeader, body, err := webview.Dispatch(handler, method, target, header, bytes.NewReader(posted))
+	var payload []byte
+	if body != nil {
+		if err == nil {
+			payload, err = io.ReadAll(body)
+		}
+		body.Close()
+	}
+	thread.Do(func() {
+		defer task.Send(selRelease)
+		defer page.Send(selRelease)
+		if err != nil {
+			failTask(task)
+			return
+		}
+		completeTask(task, page, status, respHeader, payload)
+	})
 }
 
 // stopURLSchemeTask records a cancelled load. A reload, including the

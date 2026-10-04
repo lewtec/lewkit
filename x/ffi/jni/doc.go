@@ -6,7 +6,8 @@
 // FindClass on a goroutine attached later does not see the app loader, so
 // those calls load classes through the saved loader.
 //
-// Arguments may be a string, a boolean, an integer, a float, nil, or a *Ref.
+// Arguments may be a string, a boolean, an integer, a float, a byte slice,
+// nil, or a *Ref. A byte slice is a Java byte[]. A nil slice is null.
 // CallStatic, Ref.Call, and New choose one public method or constructor by
 // name and by which parameter types accept those arguments. A tie is an error.
 // A returned string or boxed number becomes a Go value. Any other object comes

@@ -48,6 +48,7 @@ type field struct {
 	Min         string
 	Max         string
 	Step        string
+	Options     []string
 }
 
 type act struct {

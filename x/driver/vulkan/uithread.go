@@ -14,5 +14,5 @@ type processThread struct{}
 
 func (processThread) Do(fn func())      { thread.Do(fn) }
 func (processThread) Bound() bool       { return thread.Bound() }
-func (processThread) ProcessMain() bool { return thread.ProcessMain() }
+func (processThread) ProcessMain() bool { return thread.On() }
 func (processThread) OnIdle(fn func())  { thread.OnIdle(fn) }

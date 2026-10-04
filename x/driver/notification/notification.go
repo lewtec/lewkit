@@ -4,8 +4,10 @@
 //		Title: "hello", Message: "done",
 //	})
 //
-// Import the dbus or notify-send backend. DBus speaks
-// org.freedesktop.Notifications. notify-send is the command fallback.
+// Import the dbus, notify-send, osascript, iOS, or Android backend. DBus speaks
+// org.freedesktop.Notifications. notify-send is the Linux command fallback.
+// osascript posts through Notification Center. iOS and Android post a local
+// notification.
 package notification
 
 import (

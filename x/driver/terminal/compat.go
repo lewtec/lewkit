@@ -8,7 +8,11 @@ import (
 )
 
 // RequireBinary returns ErrIncompatible when name is not on PATH.
+// The terminal gate closes first when stdio is not a terminal or the process is an app.
 func RequireBinary(ctx context.Context, name string) error {
+	if err := driver.TerminalGate(); err != nil {
+		return err
+	}
 	return execdriver.RequireBinary(ctx, name)
 }
 

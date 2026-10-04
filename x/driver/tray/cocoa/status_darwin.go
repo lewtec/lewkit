@@ -118,10 +118,6 @@ func startApp() error {
 	}
 	var err error
 	thread.Do(func() {
-		if !thread.ProcessMain() {
-			err = tray.ErrNotMain
-			return
-		}
 		appOnce.Do(func() {
 			if _, openErr := native.Open("/System/Library/Frameworks/Cocoa.framework/Cocoa", native.Global|native.Lazy); openErr != nil {
 				appErr = fmt.Errorf("%w: %w", errCocoa, openErr)
@@ -165,7 +161,7 @@ func trayActivate(self objc.ID, _ objc.SEL, sender objc.ID) {
 }
 
 func pump(app objc.ID) {
-	if !thread.ProcessMain() {
+	if !thread.On() {
 		return
 	}
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selNew)

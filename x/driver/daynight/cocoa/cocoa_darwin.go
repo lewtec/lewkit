@@ -11,6 +11,8 @@ import (
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
+	"github.com/lewtec/lewkit/x/driver/thread"
+	_ "github.com/lewtec/lewkit/x/driver/thread/std"
 	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -54,18 +56,35 @@ func open(ctx context.Context) (daynight.Driver, error) {
 type host struct{}
 
 func (host) Current(context.Context) (daynight.Mode, error) {
-	mu.Lock()
-	defer mu.Unlock()
-	current = readStyle()
-	return current, nil
+	var mode daynight.Mode
+	onUI(func() {
+		mu.Lock()
+		current = readStyle()
+		mode = current
+		mu.Unlock()
+	})
+	return mode, nil
 }
 
 func (host) Watch(ctx context.Context) (<-chan daynight.Mode, error) {
-	mu.Lock()
-	scheme := readStyle()
-	current = scheme
-	mu.Unlock()
+	var scheme daynight.Mode
+	onUI(func() {
+		mu.Lock()
+		scheme = readStyle()
+		current = scheme
+		mu.Unlock()
+	})
 	return daynight.Changes(ctx, scheme, bus.Subscribe(ctx)), nil
+}
+
+// onUI runs fn on the UI thread when one is bound. A command with no loop
+// still reads defaults on the caller.
+func onUI(fn func()) {
+	if thread.Bound() && !thread.On() {
+		thread.Do(fn)
+		return
+	}
+	fn()
 }
 
 func frameworks() error {
@@ -77,39 +96,43 @@ func frameworks() error {
 }
 
 func startWatch() error {
-	watchOnce.Do(func() {
-		if err := frameworks(); err != nil {
-			watchErr = err
-			return
-		}
-		class, err := objc.RegisterClass(
-			"LewkitAppearanceObserver",
-			objc.GetClass("NSObject"),
-			nil,
-			nil,
-			[]objc.MethodDef{{
-				Cmd: selChanged,
-				Fn: func(objc.ID, objc.SEL, objc.ID) {
-					publish(readStyle())
-				},
-			}},
-		)
-		if err != nil {
-			watchErr = err
-			return
-		}
-		observer = objc.ID(class).Send(selAlloc).Send(selInit)
-		if observer == 0 {
-			watchErr = fmt.Errorf("%w: observer", driver.ErrUnavailable)
-			return
-		}
-		center := objc.ID(objc.GetClass("NSDistributedNotificationCenter")).Send(selDefault)
-		center.Send(selAdd, observer, selChanged, nsString("AppleInterfaceThemeChangedNotification"), objc.ID(0))
-		mu.Lock()
-		current = readStyle()
-		mu.Unlock()
-	})
+	onUI(func() { watchOnce.Do(registerWatch) })
 	return watchErr
+}
+
+func registerWatch() {
+	if err := frameworks(); err != nil {
+		watchErr = err
+		return
+	}
+	class, err := objc.RegisterClass(
+		"LewkitAppearanceObserver",
+		objc.GetClass("NSObject"),
+		nil,
+		nil,
+		[]objc.MethodDef{{
+			Cmd: selChanged,
+			Fn: func(objc.ID, objc.SEL, objc.ID) {
+				var mode daynight.Mode
+				onUI(func() { mode = readStyle() })
+				publish(mode)
+			},
+		}},
+	)
+	if err != nil {
+		watchErr = err
+		return
+	}
+	observer = objc.ID(class).Send(selAlloc).Send(selInit)
+	if observer == 0 {
+		watchErr = fmt.Errorf("%w: observer", driver.ErrUnavailable)
+		return
+	}
+	center := objc.ID(objc.GetClass("NSDistributedNotificationCenter")).Send(selDefault)
+	center.Send(selAdd, observer, selChanged, nsString("AppleInterfaceThemeChangedNotification"), objc.ID(0))
+	mu.Lock()
+	current = readStyle()
+	mu.Unlock()
 }
 
 func publish(scheme daynight.Mode) {

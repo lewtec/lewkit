@@ -17,6 +17,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/media/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/messagebox/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/ndeval"
 	_ "github.com/lewtec/lewkit/x/driver/notification/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/opener/prelude"

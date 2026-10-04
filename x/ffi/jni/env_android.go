@@ -40,6 +40,8 @@ const (
 	idxNewObjectArray        = 172
 	idxGetObjectArrayElement = 173
 	idxSetObjectArrayElement = 174
+	idxNewByteArray          = 176
+	idxSetByteArrayRegion    = 208
 )
 
 var (
@@ -53,6 +55,7 @@ var (
 	errGlobalRef     = errors.New("jni global ref")
 	errNullClass     = errors.New("java class is null")
 	errObjectArray   = errors.New("jni object array")
+	errByteArray     = errors.New("jni byte array")
 )
 
 // env is one JNIEnv. self is the pointer passed to JNI functions.
@@ -381,6 +384,43 @@ func (e env) newObjectArray(n int32, cls uintptr, ids errIDs) (uintptr, error) {
 	}
 	if arr == 0 {
 		return 0, errObjectArray
+	}
+	return arr, nil
+}
+
+func (e env) newByteArray(b []byte, ids errIDs) (uintptr, error) {
+	if b == nil {
+		return 0, nil
+	}
+	if len(b) > math.MaxInt32 {
+		return 0, errByteArray
+	}
+	fp, err := e.fn(idxNewByteArray)
+	if err != nil {
+		return 0, err
+	}
+	var fn func(uintptr, int32) uintptr
+	native.Register(&fn, fp)
+	arr := fn(e.self, int32(len(b)))
+	if err := e.ex(ids); err != nil {
+		return 0, err
+	}
+	if arr == 0 {
+		return 0, errByteArray
+	}
+	if len(b) == 0 {
+		return arr, nil
+	}
+	fp, err = e.fn(idxSetByteArrayRegion)
+	if err != nil {
+		return 0, err
+	}
+	var set func(uintptr, uintptr, int32, int32, uintptr)
+	native.Register(&set, fp)
+	set(e.self, arr, 0, int32(len(b)), cptr(b))
+	runtime.KeepAlive(b)
+	if err := e.ex(ids); err != nil {
+		return 0, err
 	}
 	return arr, nil
 }

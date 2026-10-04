@@ -94,6 +94,9 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(string(swift), "ELETROCROMO_NO_UI") {
 		t.Fatalf("helper env missing:\n%s", swift)
 	}
+	if !strings.Contains(string(swift), "ELETROCROMO_ASK_DIR") || !strings.Contains(string(swift), "AskWatch.start") {
+		t.Fatal("mac host does not watch the ask directory")
+	}
 
 	ui, err := os.ReadFile(filepath.Join(out, "Sources/MainWindow.swift"))
 	if err != nil {

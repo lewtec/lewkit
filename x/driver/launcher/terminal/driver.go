@@ -10,6 +10,7 @@ import (
 
 	"github.com/ktr0731/go-fuzzyfinder"
 
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
 
@@ -18,7 +19,7 @@ type base struct{}
 func (base) ID() string  { return "terminal" }
 func (base) Weight() int { return 10 }
 
-func (base) CheckCompatibility(context.Context) error { return nil }
+func (base) CheckCompatibility(context.Context) error { return driver.TerminalGate() }
 
 type chooserFactory struct{ base }
 

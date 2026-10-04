@@ -4,13 +4,14 @@
 //	changes, err := daynight.Watch(ctx)
 //
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one implementation
-// (portal, cocoa, win32). LEWKIT_DAYNIGHT=light or dark pins a mode
+// (portal, cocoa, win32, ios). LEWKIT_DAYNIGHT=light or dark pins a mode
 // for tests and wins over the host.
 //
 // Linux reads org.freedesktop.appearance color-scheme from the desktop
 // portal and the SettingChanged signal. macOS reads AppleInterfaceStyle
 // and AppleInterfaceThemeChangedNotification. Windows reads
-// AppsUseLightTheme and the registry change notification.
+// AppsUseLightTheme and the registry change notification. iOS reads the
+// host appearance file.
 package daynight
 
 import (

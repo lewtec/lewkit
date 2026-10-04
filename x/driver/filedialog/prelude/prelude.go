@@ -6,6 +6,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/android"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/cocoa"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/gtk"
+	_ "github.com/lewtec/lewkit/x/driver/filedialog/ios"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/qt"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/win32"
 )

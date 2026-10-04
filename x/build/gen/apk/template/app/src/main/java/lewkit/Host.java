@@ -1,6 +1,7 @@
 package lewkit;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
@@ -109,11 +110,24 @@ public final class Host {
     }
 
     public static void fail(String message) {
+        String text = message == null || message.isEmpty() ? "The app stopped." : message;
+        new Handler(Looper.getMainLooper()).post(() -> showFail(text));
+    }
+
+    private static void showFail(String text) {
         Fail cb = onFail;
-        if (cb == null) {
+        if (cb != null) {
+            cb.call(text);
+        }
+        Activity activity = foreground;
+        if (activity == null || activity.isFinishing()) {
             return;
         }
-        new Handler(Looper.getMainLooper()).post(() -> cb.call(message));
+        new AlertDialog.Builder(activity)
+                .setTitle("Error")
+                .setMessage(text)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
     }
 
     public static native void start(String readyFile);

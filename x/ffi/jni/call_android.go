@@ -720,6 +720,8 @@ func (e env) box(vm *vm, v value) (uintptr, error) {
 		return v.ref, nil
 	case kindString:
 		return e.newString(v.text, vm.errIDs)
+	case kindBytes:
+		return e.newByteArray(v.raw, vm.errIDs)
 	case kindBool:
 		p, err = e.callObject(idxCallStaticObjectA, e.self, vm.booleanClass, vm.boolValueOf, []jvalue{jbool(v.b)}, vm.errIDs)
 	case kindInt:
