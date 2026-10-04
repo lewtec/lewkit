@@ -507,7 +507,7 @@ func loadHTTP(ctx context.Context, _ *page) (panel, error) {
 }
 
 func loadAudio(ctx context.Context, _ *page) (panel, error) {
-	acts := []act{actOf("play", "Play 100 ms", text("sink", "Sink", "", "default"))}
+	acts := []act{actOf("play", "Play hastad-nha", text("sink", "Sink", "", "default"))}
 	sinks, err := audio_play.Sinks(ctx)
 	if err != nil {
 		return panel{acts: acts}, err
