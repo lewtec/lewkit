@@ -443,6 +443,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-04: A WKWebView page handler runs off the UI thread. The scheme task is finished back on that thread. A handler that calls `thread.Do`, including daynight and the file dialog, no longer stalls the window.
 - 2026-10-04: Metal `Screen.Draw` resizes the layer on the UI hook, then encodes, presents, and waits on the caller. The present finishes on the main queue, so that wait leaves the AppKit pump free. Rejected: `waitUntilCompleted` inside the UI hook.
 - 2026-10-05: `window.Dead` is the client area a navbar or notch covers. Android reads system bars and the display cutout. iOS and macOS read the view safe area. `gui.Hint` lays its child in the largest box that misses those zones and clips paint to it. The view does not list rectangles. A change emits `Expose`.
+- 2026-10-05: `examples/deadzone` bounces one square on the world frame. `Hint` keeps that square in the fully shown box. The rest of the window is black.
 - 2026-10-04: AppKit choose, prompt, and confirm run when no ask host is running. osascript posts a Notification Center banner. A message box style is informational, warning, or critical. `Show` stays critical.
 - 2026-10-04: iOS AskWatch presents choose, prompt, and confirm without spinning the main run loop. A request left by a killed app is dropped on the next launch.
 - 2026-10-04: The packaged iOS host serves battery, clipboard, day or night, the document picker, local notifications, and open URL. Go writes `<cache>/ios`. UIKit performs the call.
