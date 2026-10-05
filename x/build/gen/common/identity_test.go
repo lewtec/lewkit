@@ -11,7 +11,7 @@ import (
 
 func TestApplyHostDefaults_FillsAppNameAndGoMain(t *testing.T) {
 	t.Parallel()
-	got, err := ApplyHostDefaults(HostConfig{
+	got, err := ApplyHostDefaults(t.Context(), HostConfig{
 		PackageID:   " br.tec.lew.counter ",
 		VersionName: "1.0.0",
 		VersionCode: 1,
@@ -35,7 +35,7 @@ func TestApplyHostDefaults_FillsAppNameAndGoMain(t *testing.T) {
 
 func TestApplyHostDefaults_RejectsBadPackageID(t *testing.T) {
 	t.Parallel()
-	_, err := ApplyHostDefaults(HostConfig{})
+	_, err := ApplyHostDefaults(t.Context(), HostConfig{})
 	if !errors.Is(err, release.ErrAppIDRequired) {
 		t.Fatalf("got %v", err)
 	}

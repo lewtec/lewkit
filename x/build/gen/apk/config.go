@@ -1,6 +1,7 @@
 package apk
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -146,8 +147,8 @@ func ResolveGoMain(goMain, baseDir string) (string, error) {
 	return abs, nil
 }
 
-func (c Config) withDefaults() (Config, error) {
-	return normalizeConfig(c)
+func (c Config) withDefaults(ctx context.Context) (Config, error) {
+	return normalizeConfig(ctx, c)
 }
 
 func (c Config) abis() []string {

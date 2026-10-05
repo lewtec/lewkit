@@ -71,7 +71,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		stderr = stdout
 	}
 
-	cfg, err := opts.Config.withDefaults()
+	cfg, err := opts.Config.withDefaults(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, err
 	}
 
-	vi, name, code := common.StampPackagingVersion(goMain, opts.Config.VersionName, opts.Config.VersionCode)
+	vi, name, code := common.StampPackagingVersion(ctx, goMain, opts.Config.VersionName, opts.Config.VersionCode)
 	cfg.VersionName = name
 	cfg.VersionCode = code
 	slog.Info("ios version", "version", cfg.VersionName, "code", cfg.VersionCode)
@@ -118,7 +118,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg.GoMain = goMain
 
 	slog.Info("ios host", "dir", workDir)
-	if err := Create(Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
+	if err := Create(ctx, Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
 		buildErr = fmt.Errorf("generate host: %w", err)
 		return nil, buildErr
 	}

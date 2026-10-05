@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -22,7 +23,8 @@ type HostConfig struct {
 
 // ApplyHostDefaults trims identity fields, fills empty app name / version / go_main,
 // and validates the package id and capabilities.
-func ApplyHostDefaults(cfg HostConfig) (HostConfig, error) {
+// ctx is the caller's context. Git reads for a missing version stop when it ends.
+func ApplyHostDefaults(ctx context.Context, cfg HostConfig) (HostConfig, error) {
 	cfg.PackageID = strings.TrimSpace(cfg.PackageID)
 	if err := release.ValidateAppID(cfg.PackageID); err != nil {
 		return HostConfig{}, fmt.Errorf("package id: %w", err)
@@ -33,7 +35,7 @@ func ApplyHostDefaults(cfg HostConfig) (HostConfig, error) {
 		cfg.AppName = parts[len(parts)-1]
 	}
 	if cfg.VersionName == "" || cfg.VersionCode <= 0 {
-		info := version.Resolve()
+		info := version.Resolve(ctx)
 		if cfg.VersionName == "" {
 			cfg.VersionName = info.AndroidName()
 		}

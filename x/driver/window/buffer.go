@@ -35,8 +35,19 @@ func (b *Buffer) Subscribe(ctx context.Context) <-chan Event {
 }
 
 // Emit sends ev to subscribers. Hosts call it for Expose.
+// A button, key, close, resize, scroll, drop, or expose replaces the
+// oldest queued sample when the subscriber is full of pointer moves.
 func (b *Buffer) Emit(ev Event) {
+	if keepEvent(ev) {
+		b.bus.PublishKeep(ev)
+		return
+	}
 	b.bus.Publish(ev)
+}
+
+func keepEvent(ev Event) bool {
+	pointer, move := ev.(Pointer)
+	return !move || pointer.Button != 0
 }
 
 // Frame is the back buffer. After Draw, the next Frame is the other page.

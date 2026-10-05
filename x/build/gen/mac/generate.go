@@ -1,6 +1,7 @@
 package mac
 
 import (
+	"context"
 	"embed"
 	"fmt"
 
@@ -28,8 +29,8 @@ type templateData struct {
 }
 
 // Create writes an ephemeral XcodeGen host under opts.OutDir.
-func Create(opts Options) error {
-	cfg, err := opts.Config.withDefaults()
+func Create(ctx context.Context, opts Options) error {
+	cfg, err := opts.Config.withDefaults(ctx)
 	if err != nil {
 		return err
 	}

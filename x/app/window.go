@@ -2,13 +2,11 @@ package app
 
 import (
 	"context"
-	"errors"
 	"image"
 	"net/http"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/build/icons"
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
 	_ "github.com/lewtec/lewkit/x/driver/window/prelude"
@@ -84,9 +82,6 @@ func (w webWindow) open(ctx context.Context, title string, width, height int, pr
 		Handler: w.handler,
 	})
 	if err != nil {
-		if errors.Is(err, driver.ErrUnavailable) {
-			return serveWeb(ctx, w.handler)
-		}
 		return err
 	}
 	defer view.Close()

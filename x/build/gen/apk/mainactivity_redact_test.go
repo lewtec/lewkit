@@ -10,7 +10,7 @@ import (
 // Splash error paths must not render the authenticated READY URL (token in query).
 func TestCreate_MainActivityRedactsErrorURLs(t *testing.T) {
 	out := t.TempDir()
-	if err := Create(Options{
+	if err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",

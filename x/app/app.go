@@ -1,10 +1,11 @@
 // Package app runs the windows of one process. A window is a web handler or
 // a GUI model, and it may open another window. Run returns when the last
-// window closes. A packaged host that sets LEWKIT_NO_UI or ELETROCROMO_NO_UI
-// serves a web handler on a loopback port instead of opening that first window.
-// Android keeps that window: a GUI model opens the surface and a web handler
-// is the web view. iOS keeps a GUI model on the UIKit surface. A web handler
-// on iOS still publishes a loopback URL for the host web view.
+// window closes. Loopback is opt-in: App.NoUI, LEWKIT_NO_UI, or
+// ELETROCROMO_NO_UI serves a web handler on a port instead of opening that
+// first window. A missing web view is returned. Android keeps that window:
+// a GUI model opens the surface and a web handler is the web view. iOS keeps
+// a GUI model on the UIKit surface. A web handler on iOS still publishes a
+// loopback URL when the host opted into loopback.
 package app
 
 import (
@@ -45,13 +46,12 @@ type App struct {
 // Run opens the app window and returns when the last window of the process
 // closes. Closing one window leaves the others up. Canceling ctx closes them
 // all. A second Run while one is active returns an error.
-// A web handler pushes a webapp. A GUI model opens a host surface. Metal
+// A web handler opens a web view. A GUI model opens a host surface. Metal
 // presents it on Apple. Vulkan presents it where libvulkan is the screen.
-// A host without a webview driver keeps the web handler on a loopback port
-// and shows that window itself.
+// Loopback runs only when the caller opted in.
 func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return fmt.Errorf("app: nil context")
 	}
 	id, _ := release.RequireStamp()
 	run := func(ctx context.Context) error {

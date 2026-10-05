@@ -8,15 +8,16 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	"time"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 const (
-	waveMapper = 0xFFFFFFFF
-	whdrDone   = 1
+	waveMapper    = 0xFFFFFFFF
+	whdrDone      = 1
+	callbackEvent = 0x00050000
+	waitTimeout   = 0x102
 )
 
 var (
@@ -34,6 +35,12 @@ var (
 	waveOutWrite         func(h uintptr, hdr uintptr, size uint32) uint32
 	waveOutReset         func(h uintptr) uint32
 	waveOutClose         func(h uintptr) uint32
+
+	procCreateEvent = native.ProcOf("kernel32.dll", "CreateEventW")
+	procSetEvent    = native.ProcOf("kernel32.dll", "SetEvent")
+	procResetEvent  = native.ProcOf("kernel32.dll", "ResetEvent")
+	procWait        = native.ProcOf("kernel32.dll", "WaitForSingleObject")
+	procCloseHandle = native.ProcOf("kernel32.dll", "CloseHandle")
 )
 
 var available = native.Once(bindAll)
@@ -102,10 +109,14 @@ type Stream struct {
 	mu       sync.Mutex
 	ctx      context.Context
 	h        uintptr
+	event    uintptr
 	hdr      waveHdr
 	buf      []byte
+	chunk    int
+	block    int
 	prepared bool
 	closed   bool
+	busy     bool
 }
 
 // Open plays layout on id. An empty id uses WAVE_MAPPER.
@@ -136,28 +147,78 @@ func Open(ctx context.Context, id string, layout Layout) (*Stream, error) {
 		block:    uint16(block),
 		bits:     bits,
 	}
+	event, _, _ := procCreateEvent.Call(0, 1, 0, 0)
+	if event == 0 {
+		return nil, fmt.Errorf("%w: event", errWinmm)
+	}
 	var h uintptr
-	rc := waveOutOpen(&h, device, uintptr(unsafe.Pointer(&format)), 0, 0, 0)
+	rc := waveOutOpen(&h, device, uintptr(unsafe.Pointer(&format)), event, 0, callbackEvent)
 	if rc != 0 {
+		procCloseHandle.Call(event)
 		return nil, statusErr(rc)
 	}
-	return &Stream{ctx: ctx, h: h}, nil
+	return &Stream{
+		ctx:   ctx,
+		h:     h,
+		event: event,
+		chunk: chunkBytes(layout.Rate, block),
+		block: block,
+	}, nil
 }
 
 // Write blocks until the device finishes p.
+// PCM goes out in short buffers. The device signals an event when each one finishes.
 func (s *Stream) Write(p []byte) error {
 	if len(p) == 0 {
 		return nil
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.busy = true
+	defer func() {
+		s.busy = false
+		if s.closed {
+			s.shutdown()
+		}
+		s.mu.Unlock()
+	}()
 	if s.closed || s.h == 0 {
 		return errClosed
 	}
+	for len(p) > 0 {
+		if s.closed {
+			return errClosed
+		}
+		if err := s.ctx.Err(); err != nil {
+			if s.h != 0 {
+				waveOutReset(s.h)
+			}
+			return err
+		}
+		n := s.chunk
+		if n > len(p) {
+			n = len(p)
+		} else if s.block > 1 {
+			n -= n % s.block
+			if n == 0 {
+				n = len(p)
+			}
+		}
+		if err := s.play(p[:n]); err != nil {
+			return err
+		}
+		p = p[n:]
+	}
+	return nil
+}
+
+func (s *Stream) play(p []byte) error {
 	if err := s.unprepare(); err != nil {
 		return err
 	}
-	s.buf = append([]byte(nil), p...)
+	if s.event != 0 {
+		procResetEvent.Call(s.event)
+	}
+	s.buf = append(s.buf[:0], p...)
 	s.hdr = waveHdr{
 		data:   uintptr(unsafe.Pointer(&s.buf[0])),
 		length: uint32(len(s.buf)),
@@ -170,19 +231,40 @@ func (s *Stream) Write(p []byte) error {
 	if rc := waveOutWrite(s.h, uintptr(unsafe.Pointer(&s.hdr)), size); rc != 0 {
 		return statusErr(rc)
 	}
-	for s.hdr.flags&whdrDone == 0 {
+	return s.waitDone()
+}
+
+func (s *Stream) waitDone() error {
+	for {
 		if s.closed {
 			return errClosed
 		}
 		if err := s.ctx.Err(); err != nil {
-			waveOutReset(s.h)
+			if s.h != 0 {
+				waveOutReset(s.h)
+			}
 			return err
 		}
+		event := s.event
 		s.mu.Unlock()
-		time.Sleep(time.Millisecond)
+		rc, _, _ := procWait.Call(event, 50)
 		s.mu.Lock()
+		if s.closed {
+			return errClosed
+		}
+		if err := s.ctx.Err(); err != nil {
+			if s.h != 0 {
+				waveOutReset(s.h)
+			}
+			return err
+		}
+		if rc == 0 || s.hdr.flags&whdrDone != 0 {
+			return nil
+		}
+		if rc != waitTimeout {
+			return fmt.Errorf("%w: wait %d", errWinmm, rc)
+		}
 	}
-	return nil
 }
 
 func (s *Stream) unprepare() error {
@@ -194,26 +276,48 @@ func (s *Stream) unprepare() error {
 	return statusErr(rc)
 }
 
-// Close resets the device and closes the handle.
+// Close stops playback and closes the handle.
+// A Write that is waiting drains the current buffer after Reset marks it done.
 func (s *Stream) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.closed && !s.busy {
 		return nil
 	}
 	s.closed = true
-	if s.h == 0 {
+	var reset uint32
+	if s.h != 0 {
+		reset = waveOutReset(s.h)
+	}
+	if s.event != 0 {
+		procSetEvent.Call(s.event)
+	}
+	if s.busy {
+		if reset != 0 {
+			return statusErr(reset)
+		}
 		return nil
 	}
-	reset := waveOutReset(s.h)
-	prep := s.unprepare()
-	rc := waveOutClose(s.h)
-	s.h = 0
-	err := statusErr(rc)
+	err := s.shutdown()
 	if reset != 0 {
-		err = statusErr(reset)
-	} else if prep != nil {
-		err = prep
+		return statusErr(reset)
 	}
 	return err
+}
+
+func (s *Stream) shutdown() error {
+	prep := s.unprepare()
+	var rc uint32
+	if s.h != 0 {
+		rc = waveOutClose(s.h)
+		s.h = 0
+	}
+	if s.event != 0 {
+		procCloseHandle.Call(s.event)
+		s.event = 0
+	}
+	if rc != 0 {
+		return statusErr(rc)
+	}
+	return prep
 }

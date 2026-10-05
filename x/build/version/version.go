@@ -71,21 +71,23 @@ func stampedFromLdflags() Info {
 
 // Resolve returns CLI/binary version from -X vars, then buildinfo VCS,
 // then git in the current working directory (local `go run` convenience).
-func Resolve() Info {
+// ctx is the caller's context. Git reads stop when it ends.
+func Resolve(ctx context.Context) Info {
 	info := stampedFromLdflags()
 	fillFromBuildInfo(&info)
 	if cwd, err := osGetwd(); err == nil {
-		fillFromGit(&info, cwd)
+		fillFromGit(ctx, &info, cwd)
 	}
 	return info
 }
 
 // ResolveDir is like Resolve but prefers git metadata from dir (app module root).
-// Use this when stamping an APK for a specific project tree.
-func ResolveDir(dir string) Info {
+// Use this when stamping a package for a specific project tree.
+// ctx is the caller's context. Git reads stop when it ends.
+func ResolveDir(ctx context.Context, dir string) Info {
 	info := stampedFromLdflags()
 	fillFromBuildInfo(&info)
-	fillFromGit(&info, dir)
+	fillFromGit(ctx, &info, dir)
 	return info
 }
 
@@ -126,13 +128,13 @@ func fillFromBuildInfo(info *Info) {
 	}
 }
 
-func fillFromGit(info *Info, dir string) {
+func fillFromGit(ctx context.Context, info *Info, dir string) {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
 		return
 	}
 	if isDevel(info.Version) {
-		if desc, err := gitOutput(dir, "describe", "--tags", "--always", "--dirty"); err == nil && desc != "" {
+		if desc, err := gitOutput(ctx, dir, "describe", "--tags", "--always", "--dirty"); err == nil && desc != "" {
 			info.Version = desc
 			if info.BuiltBy == "" {
 				info.BuiltBy = "git"
@@ -140,20 +142,20 @@ func fillFromGit(info *Info, dir string) {
 		}
 	}
 	if info.Commit == "" {
-		if sha, err := gitOutput(dir, "rev-parse", "HEAD"); err == nil {
+		if sha, err := gitOutput(ctx, dir, "rev-parse", "HEAD"); err == nil {
 			info.Commit = sha
 		}
 	}
 	if info.Date == "" {
-		if d, err := gitOutput(dir, "log", "-1", "--format=%cI"); err == nil {
+		if d, err := gitOutput(ctx, dir, "log", "-1", "--format=%cI"); err == nil {
 			info.Date = d
 		}
 	}
 }
 
-func gitOutput(dir string, args ...string) (string, error) {
+func gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
 	var g git.Git
-	return g.Output(context.Background(), dir, args...)
+	return g.Output(ctx, dir, args...)
 }
 
 func isDevel(v string) bool {
@@ -230,8 +232,9 @@ func AndroidCodeFrom(version string, gitCommitCount int) int {
 }
 
 // GitCommitCount returns rev-list --count HEAD in dir, or 0 on error.
-func GitCommitCount(dir string) int {
-	out, err := gitOutput(dir, "rev-list", "--count", "HEAD")
+// ctx is the caller's context.
+func GitCommitCount(ctx context.Context, dir string) int {
+	out, err := gitOutput(ctx, dir, "rev-list", "--count", "HEAD")
 	if err != nil {
 		return 0
 	}

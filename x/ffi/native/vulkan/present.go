@@ -8,7 +8,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -498,7 +497,7 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 		return nil, err
 	}
 	ensurePlatform()
-	lib, err := native.OpenChain(native.Lazy, libNames()...)
+	lib, err := openLoader()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}

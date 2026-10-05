@@ -7,7 +7,7 @@ import (
 func TestStampPackagingVersion_FillsEmpty(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	vi, name, code := StampPackagingVersion(dir, "", 0)
+	vi, name, code := StampPackagingVersion(t.Context(), dir, "", 0)
 	if vi.Version == "" {
 		t.Fatal("empty version info")
 	}
@@ -22,7 +22,7 @@ func TestStampPackagingVersion_FillsEmpty(t *testing.T) {
 func TestStampPackagingVersion_KeepsExplicit(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	_, name, code := StampPackagingVersion(dir, "9.8.7", 42)
+	_, name, code := StampPackagingVersion(t.Context(), dir, "9.8.7", 42)
 	if name != "9.8.7" {
 		t.Fatalf("name=%q", name)
 	}

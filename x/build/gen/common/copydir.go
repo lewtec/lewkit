@@ -1,6 +1,8 @@
 package common
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -43,4 +45,22 @@ func CopyDir(src, dst string) error {
 		}
 		return os.WriteFile(target, raw, info.Mode())
 	})
+}
+
+// CopyFile copies src onto dst, creating the destination directory.
+// mode is the permission of the new file.
+func CopyFile(src, dst string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return errors.Join(err, in.Close())
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
+	if err != nil {
+		return errors.Join(err, in.Close())
+	}
+	_, copyErr := io.Copy(out, in)
+	return errors.Join(copyErr, out.Close(), in.Close())
 }

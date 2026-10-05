@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -578,9 +579,9 @@ func runWeb(ctx context.Context, p *page, op string, r *http.Request) (string, e
 func runTray(ctx context.Context, p *page, op string, r *http.Request) (string, error) {
 	switch op {
 	case "open":
-		return okNote("open", p.held.openTray(p.ctx, trayConfig(r)))
+		return okNote("open", p.held.openTray(p.ctx, trayConfig(&p.held, r)))
 	case "update":
-		return okNote("updated", p.held.updateTray(trayConfig(r)))
+		return okNote("updated", p.held.updateTray(trayConfig(&p.held, r)))
 	case "close":
 		return okNote("closed", p.held.closeTray())
 	default:
@@ -588,13 +589,7 @@ func runTray(ctx context.Context, p *page, op string, r *http.Request) (string, 
 	}
 }
 
-func trayConfig(r *http.Request) tray.Config {
-	img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
-	for y := range 16 {
-		for x := range 16 {
-			img.Set(x, y, color.NRGBA{R: 32, G: 160, B: 96, A: 255})
-		}
-	}
+func trayConfig(h *held, r *http.Request) tray.Config {
 	title := strings.TrimSpace(r.FormValue("title"))
 	if title == "" {
 		title = release.Name()
@@ -602,7 +597,48 @@ func trayConfig(r *http.Request) tray.Config {
 	return tray.Config{
 		Title:   title,
 		Tooltip: r.FormValue("tooltip"),
-		Icon:    tray.Icon{Image: img},
+		Icon:    sampleIcon(),
+		Menu:    trayMenu(h, title),
+	}
+}
+
+func sampleIcon() tray.Icon {
+	if runtime.GOOS == "windows" {
+		return tray.Icon{}
+	}
+	img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
+	for y := range 16 {
+		for x := range 16 {
+			img.Set(x, y, color.NRGBA{R: 32, G: 160, B: 96, A: 255})
+		}
+	}
+	return tray.Icon{Image: img}
+}
+
+func trayMenu(h *held, title string) []tray.Item {
+	return []tray.Item{
+		{
+			Label: "Ping",
+			OnClick: func() {
+				h.mu.Lock()
+				item := h.tray
+				h.mu.Unlock()
+				if item == nil {
+					return
+				}
+				cfg := tray.Config{Title: title, Tooltip: "ping", Icon: sampleIcon(), Menu: trayMenu(h, title)}
+				if err := item.Update(cfg); err != nil {
+					return
+				}
+				h.mu.Lock()
+				if h.tray == item {
+					h.trayTip = tray.Tip(cfg)
+				}
+				h.mu.Unlock()
+			},
+		},
+		{Separator: true},
+		{Label: "Close", OnClick: func() { _ = h.closeTray() }},
 	}
 }
 

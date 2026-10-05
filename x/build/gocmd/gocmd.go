@@ -3,6 +3,7 @@ package gocmd
 
 import (
 	"context"
+	"fmt"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -21,7 +22,7 @@ type Command struct {
 // With a taskgroup session on ctx, the command is an IO subtask.
 func (c Command) Run(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return fmt.Errorf("gocmd: nil context")
 	}
 	verb := c.Verb
 	if verb == "" {
@@ -53,7 +54,7 @@ func (c Command) exec(ctx context.Context, verb string) error {
 // Stdout and stderr share that task's progress row.
 func Tool(ctx context.Context, name, dir string, env []string, args ...string) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return fmt.Errorf("gocmd: nil context")
 	}
 	if taskgroup.FromContext(ctx) == nil {
 		return run(ctx, name, dir, env, args...)

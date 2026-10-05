@@ -248,10 +248,11 @@ func (runner *runner) loop() error {
 			if !ok {
 				return nil
 			}
-			if err := runner.handle(event); err != nil {
+			stop, err := runner.drainEvents(events, event)
+			if err != nil {
 				return err
 			}
-			if stopLoop(event) {
+			if stop {
 				return nil
 			}
 			select {
@@ -293,6 +294,33 @@ func (runner *runner) loop() error {
 			if err := runner.flush(false); err != nil {
 				return err
 			}
+		}
+	}
+}
+
+// drainEvents applies input already queued, then the loop presents once.
+// A slow frame otherwise turns each pointer sample into its own present.
+func (runner *runner) drainEvents(events <-chan window.Event, first window.Event) (bool, error) {
+	if err := runner.handle(first); err != nil {
+		return false, err
+	}
+	if stopLoop(first) {
+		return true, nil
+	}
+	for {
+		select {
+		case ev, ok := <-events:
+			if !ok {
+				return true, nil
+			}
+			if err := runner.handle(ev); err != nil {
+				return false, err
+			}
+			if stopLoop(ev) {
+				return true, nil
+			}
+		default:
+			return false, nil
 		}
 	}
 }

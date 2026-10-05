@@ -80,6 +80,10 @@ func (t *backend) serveJobs(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
+		pumpMessages()
+		if ctx.Err() != nil {
+			return
+		}
 		t.runIdle()
 		select {
 		case <-ctx.Done():

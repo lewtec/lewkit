@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-// ErrUnavailable means the WebView2 loader is not loaded.
+// ErrUnavailable means the Edge WebView2 runtime is not available.
 var ErrUnavailable = errors.New("webview2 unavailable")
 
 // Available reports that WebView2 is a Windows library.

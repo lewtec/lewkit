@@ -61,3 +61,28 @@ func TestReplaceDir_MovesOntoExisting(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestCopyFile_WritesMode(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "built")
+	if err := os.WriteFile(src, []byte("exe"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(t.TempDir(), "dist", "app.exe")
+	if err := CopyFile(src, dst, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "exe" {
+		t.Fatalf("got %q", got)
+	}
+	info, err := os.Stat(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o755 {
+		t.Fatalf("mode=%v", info.Mode().Perm())
+	}
+}

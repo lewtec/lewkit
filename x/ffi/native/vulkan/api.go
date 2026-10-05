@@ -428,7 +428,7 @@ type api struct {
 func libNames() []string {
 	switch runtime.GOOS {
 	case "windows":
-		return []string{"vulkan-1.dll"}
+		return windowsLibNames()
 	case "darwin":
 		names := []string{"libvulkan.1.dylib", "libvulkan.dylib"}
 		// Homebrew and the LunarG SDK are not on dyld's default path.

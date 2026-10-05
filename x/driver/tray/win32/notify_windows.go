@@ -44,6 +44,8 @@ const (
 	tpmRightButton = 0x2
 	dibRGBColors   = 0
 	hwndMessage    = ^uintptr(2)
+	imageIcon      = 1
+	lrShared       = 0x8000
 )
 
 var (
@@ -68,6 +70,8 @@ var (
 	procDeleteObject        = native.ProcOf("gdi32.dll", "DeleteObject")
 	procCreateIconIndirect  = native.ProcOf("user32.dll", "CreateIconIndirect")
 	procDestroyIcon         = native.ProcOf("user32.dll", "DestroyIcon")
+	procLoadImageW          = native.ProcOf("user32.dll", "LoadImageW")
+	procCopyIcon            = native.ProcOf("user32.dll", "CopyIcon")
 	procShellNotifyIconW    = native.ProcOf("shell32.dll", "Shell_NotifyIconW")
 
 	classOnce sync.Once
@@ -475,6 +479,9 @@ func iconHandle(icon tray.Icon) (uintptr, error) {
 		}
 	}
 	if img == nil {
+		if icon, ok := moduleIconCopy(); ok {
+			return icon, nil
+		}
 		img = image.NewNRGBA(image.Rect(0, 0, 16, 16))
 		for y := range 16 {
 			for x := range 16 {
@@ -483,6 +490,24 @@ func iconHandle(icon tray.Icon) (uintptr, error) {
 		}
 	}
 	return iconFromNRGBA(img)
+}
+
+// moduleIconCopy is an owned HICON of the exe's icon resource.
+// LoadImage with LR_SHARED must not be passed to DestroyIcon.
+func moduleIconCopy() (uintptr, bool) {
+	inst, _, _ := procGetModuleHandleW.Call(0)
+	if inst == 0 {
+		return 0, false
+	}
+	shared, _, _ := procLoadImageW.Call(inst, 1, imageIcon, 0, 0, lrShared)
+	if shared == 0 {
+		return 0, false
+	}
+	copied, _, _ := procCopyIcon.Call(shared)
+	if copied == 0 {
+		return 0, false
+	}
+	return copied, true
 }
 
 func iconFromNRGBA(img *image.NRGBA) (uintptr, error) {

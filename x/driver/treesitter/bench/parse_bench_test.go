@@ -9,7 +9,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver/treesitter"
 	_ "github.com/lewtec/lewkit/x/driver/treesitter/prelude"
 	_ "github.com/lewtec/wazero-tree-sitter/grammar/json"
-	_ "github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json"
 	"github.com/stretchr/testify/require"
 )
 
