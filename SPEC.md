@@ -442,6 +442,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-04: `hastad-nha.mp3` is a blank-import asset next to Tailwind. Its tag is `x/http/asset/hastad_nha` `Load`. Decode and playback tests use `Bytes`. The drivers example plays that clip.
 - 2026-10-04: A WKWebView page handler runs off the UI thread. The scheme task is finished back on that thread. A handler that calls `thread.Do`, including daynight and the file dialog, no longer stalls the window.
 - 2026-10-04: Metal `Screen.Draw` resizes the layer on the UI hook, then encodes, presents, and waits on the caller. The present finishes on the main queue, so that wait leaves the AppKit pump free. Rejected: `waitUntilCompleted` inside the UI hook.
+- 2026-10-05: `gui.Detect` is the largest box inside the window that misses navbars and notches. `gui.Hint` lays its child out in that box and clips paint to it. The caller supplies the zones. The host window does not grow an event for them.
 - 2026-10-04: AppKit choose, prompt, and confirm run when no ask host is running. osascript posts a Notification Center banner. A message box style is informational, warning, or critical. `Show` stays critical.
 - 2026-10-04: iOS AskWatch presents choose, prompt, and confirm without spinning the main run loop. A request left by a killed app is dropped on the next launch.
 - 2026-10-04: The packaged iOS host serves battery, clipboard, day or night, the document picker, local notifications, and open URL. Go writes `<cache>/ios`. UIKit performs the call.
