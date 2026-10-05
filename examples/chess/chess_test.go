@@ -472,6 +472,83 @@ func assertBlackHome(t *testing.T, sim *world.Sim) {
 	})
 }
 
+func TestPiecesCatchTheKeyLight(t *testing.T) {
+	screen := newScreen(t.Context())
+	bounds := screen.frame.Bounds()
+	minR, maxR := 255, 0
+	for y := 0; y < bounds.Dy(); y++ {
+		for x := 0; x < bounds.Dx(); x++ {
+			pixel := screen.frame.RGBAAt(x, y)
+			if pixel.R > 170 && pixel.G > 140 && int(pixel.R) > int(pixel.B)+40 {
+				if int(pixel.R) < minR {
+					minR = int(pixel.R)
+				}
+				if int(pixel.R) > maxR {
+					maxR = int(pixel.R)
+				}
+			}
+		}
+	}
+	assert.Greater(t, maxR-minR, 40)
+}
+
+func TestCaptionSitsOnTheBoard(t *testing.T) {
+	screen := newScreen(t.Context())
+	picture, err := gui.NewPicture()
+	require.NoError(t, err)
+	_, err = picture.Render(screen.View(), gui.Size{Width: 640, Height: 720})
+	require.NoError(t, err)
+	ink := picture.Ink()
+	require.NotNil(t, ink)
+	var hits int
+	for y := 0; y < 32; y++ {
+		for x := 0; x < 280; x++ {
+			pixel := ink.RGBAAt(x, y)
+			if pixel.A > 200 && pixel.R > 180 && pixel.R < 230 &&
+				absInt(int(pixel.R)-int(pixel.G)) < 16 && absInt(int(pixel.G)-int(pixel.B)) < 16 {
+				hits++
+			}
+		}
+	}
+	assert.Greater(t, hits, 20)
+}
+
+func TestTallFrameKeepsTheBoard(t *testing.T) {
+	for _, size := range []image.Point{{400, 900}, {640, 720}, {900, 400}} {
+		cam := lookAt(size)
+		minX, maxX := float32(size.X), float32(0)
+		minY, maxY := float32(size.Y), float32(0)
+		for _, p := range boardHull() {
+			x, y, _, ok := cam.project(p)
+			require.True(t, ok, size)
+			assert.GreaterOrEqual(t, x, float32(0), size)
+			assert.LessOrEqual(t, x, float32(size.X), size)
+			assert.GreaterOrEqual(t, y, float32(0), size)
+			assert.LessOrEqual(t, y, float32(size.Y), size)
+			minX, maxX = min(minX, x), max(maxX, x)
+			minY, maxY = min(minY, y), max(maxY, y)
+		}
+		spanX := (maxX - minX) / float32(size.X)
+		spanY := (maxY - minY) / float32(size.Y)
+		assert.Greater(t, max(spanX, spanY), float32(0.7), size)
+		if size.Y > size.X {
+			assert.Greater(t, spanX, spanY, size)
+		}
+		if size.X > size.Y {
+			assert.Greater(t, spanY, spanX, size)
+		}
+		for file := uint8(0); file < 8; file++ {
+			for rank := uint8(0); rank < 8; rank++ {
+				at := squareCenter(size, rank, file)
+				assert.GreaterOrEqual(t, at.X, 0, size)
+				assert.Less(t, at.X, size.X, size)
+				assert.GreaterOrEqual(t, at.Y, 0, size)
+				assert.Less(t, at.Y, size.Y, size)
+			}
+		}
+	}
+}
+
 func TestBoardStaysBelowTheBar(t *testing.T) {
 	t.Setenv("LEWKIT_ENABLE_MEMORY_DRIVER", "1")
 	const width, height, bar = 160, 200, 28

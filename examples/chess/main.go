@@ -8,9 +8,10 @@
 // A click is a resource the host replaces. The accepted click and the
 // reset are messages a later system reads. The view
 // is the article's scene: a camera above the side of the board, one
-// plane per square, and pieces that slide toward their square. Hint
-// keeps that picture in the box the host leaves clear of navbars and
-// notches. This package does not load a mesh kit.
+// plane per square, and pieces that slide toward their square. The eye
+// backs up until the board fits, so a tall frame does not crop it. Hint
+// keeps that picture, and the move line on it, in the box the host
+// leaves clear of navbars and notches. This package does not load a mesh kit.
 //
 //	go run ./cmd/lewkit release run --config ./examples/chess/eletrocromo.json
 package main
