@@ -35,6 +35,9 @@ func open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	buf := window.NewBuffer(width, height)
 	buf.SetFramePeriod(cfg.Period)
 	w := &win{Buffer: buf}
+	entry.HandleInsets(func(left, top, right, bottom, width, height int) {
+		w.SetDead(window.InsetZones(width, height, left, top, right, bottom))
+	})
 	entry.HandlePointer(func(x, y, action int) {
 		w.Emit(window.TouchPointer(x, y, action))
 	})
@@ -43,6 +46,7 @@ func open(ctx context.Context, cfg window.Config) (window.Window, error) {
 			return
 		}
 		_ = w.Resize(image.Pt(pw, ph))
+		dispatch.OnMain(func() { w.noteSafe() })
 	})
 	entry.HandleSurfaceLost(func() {
 		w.mu.Lock()
@@ -67,8 +71,44 @@ func open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	w.mu.Lock()
 	w.view = view
 	w.mu.Unlock()
+	dispatch.OnMain(func() { w.noteSafe() })
 	return w, nil
 }
+
+func (w *win) noteSafe() {
+	if w == nil {
+		return
+	}
+	w.mu.Lock()
+	view := objc.ID(w.view)
+	w.mu.Unlock()
+	if view == 0 || !responds(view, selSafeAreaInsets) {
+		return
+	}
+	insets := edgeInsetsOf(view)
+	rect := boundsOf(view)
+	scale := 1.0
+	if host := view.Send(selWindow); host != 0 {
+		scale = screenScale(host)
+	}
+	width := int(rect.Size.Width*scale + 0.5)
+	height := int(rect.Size.Height*scale + 0.5)
+	w.SetDead(window.InsetZones(width, height,
+		int(insets.Left*scale+0.5),
+		int(insets.Top*scale+0.5),
+		int(insets.Right*scale+0.5),
+		int(insets.Bottom*scale+0.5),
+	))
+}
+
+func edgeInsetsOf(view objc.ID) uiEdgeInsets {
+	if insetsFn == nil {
+		native.Register(&insetsFn, msgSend())
+	}
+	return insetsFn(view, selSafeAreaInsets)
+}
+
+type uiEdgeInsets struct{ Top, Left, Bottom, Right float64 }
 
 type win struct {
 	*window.Buffer
@@ -253,6 +293,7 @@ var (
 	msgAddr    uintptr
 	boundsFn   func(objc.ID, objc.SEL) cgRect
 	scaleFn    func(objc.ID, objc.SEL) float64
+	insetsFn   func(objc.ID, objc.SEL) uiEdgeInsets
 	respondsFn func(objc.ID, objc.SEL, objc.SEL) bool
 )
 
@@ -296,6 +337,8 @@ var (
 	selScale               = objc.RegisterName("scale")
 	selMaximumFrames       = objc.RegisterName("maximumFramesPerSecond")
 	selBounds              = objc.RegisterName("bounds")
+	selWindow              = objc.RegisterName("window")
+	selSafeAreaInsets      = objc.RegisterName("safeAreaInsets")
 	selNew                 = objc.RegisterName("new")
 	selDrain               = objc.RegisterName("drain")
 )

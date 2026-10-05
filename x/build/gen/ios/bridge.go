@@ -55,6 +55,11 @@ func EletrocromoResize(width, height C.int) {
 	entry.DeliverResize(int(width), int(height))
 }
 
+//export EletrocromoDead
+func EletrocromoDead(left, top, right, bottom, width, height C.int) {
+	entry.DeliverInsets(int(left), int(top), int(right), int(bottom), int(width), int(height))
+}
+
 //export EletrocromoSurfaceLost
 func EletrocromoSurfaceLost() {
 	entry.DeliverSurfaceLost()

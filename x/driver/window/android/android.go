@@ -43,6 +43,9 @@ func (opener) Open(ctx context.Context, cfg window.Config) (window.Window, error
 	buf := window.NewBuffer(width, height)
 	buf.SetFramePeriod(cfg.Period)
 	w := &win{Buffer: buf, native: native}
+	entry.HandleInsets(func(left, top, right, bottom, width, height int) {
+		w.SetDead(window.InsetZones(width, height, left, top, right, bottom))
+	})
 	entry.HandlePointer(func(x, y, action int) {
 		w.Emit(window.TouchPointer(x, y, action))
 	})

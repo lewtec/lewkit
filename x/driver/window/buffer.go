@@ -18,6 +18,7 @@ type Buffer struct {
 	closed      bool
 	bus         *event.Bus[Event]
 	period      time.Duration
+	dead        []image.Rectangle
 }
 
 // NewBuffer returns a w×h double buffer.
@@ -75,6 +76,57 @@ func (b *Buffer) SetFramePeriod(d time.Duration) {
 	b.mu.Lock()
 	b.period = d
 	b.mu.Unlock()
+}
+
+// Dead is the client area a navbar or notch covers. The slice is a copy.
+func (b *Buffer) Dead() []image.Rectangle {
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return cloneRects(b.dead)
+}
+
+// SetDead records zones covered by a navbar or notch, in client pixels.
+// An unchanged set does not emit. A change emits [Expose].
+func (b *Buffer) SetDead(zones []image.Rectangle) {
+	if b == nil {
+		return
+	}
+	next := cloneRects(zones)
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return
+	}
+	same := rectsEqual(b.dead, next)
+	b.dead = next
+	b.mu.Unlock()
+	if !same {
+		b.bus.Publish(Expose{})
+	}
+}
+
+func cloneRects(zones []image.Rectangle) []image.Rectangle {
+	if len(zones) == 0 {
+		return nil
+	}
+	out := make([]image.Rectangle, len(zones))
+	copy(out, zones)
+	return out
+}
+
+func rectsEqual(a, b []image.Rectangle) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Size is the back buffer size. Hosts that track a window size override this.

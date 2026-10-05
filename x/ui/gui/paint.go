@@ -56,6 +56,8 @@ type Picture struct {
 	keys        []hitKey
 	fillCount   int
 	recordOnly  bool
+	// dead is the host navbar and notch rects for this frame, in window pixels.
+	dead []Rect
 	// holdList keeps a mountable backdrop on the draw list.
 	// Metal present does not paint a mounted tensor, so the fills stay instances.
 	holdList bool
@@ -267,7 +269,9 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 		return nil, ndarray.ErrShape
 	}
 	defer func() { picture.holdList = false }()
-	root.Layout(Tight(size.Width, size.Height))
+	constraints := Tight(size.Width, size.Height)
+	constraints.dead = picture.dead
+	root.Layout(constraints)
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]

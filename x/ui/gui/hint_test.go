@@ -3,9 +3,22 @@ package gui
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func pixelsOf(t *testing.T, root Node, width, height int, dead []Rect) []uint8 {
+	t.Helper()
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.dead = dead
+	pixels, err := picture.Render(root, Size{float32(width), float32(height)})
+	require.NoError(t, err)
+	out := make([]uint8, width*height*4)
+	require.NoError(t, pixels.Eval(t.Context(), ndarray.CPU, out))
+	return out
+}
 
 func TestDetectEmptyIsWindow(t *testing.T) {
 	window := Rect{10, 20, 100, 80}
@@ -49,11 +62,10 @@ func TestDetectEqualAreaPrefersWider(t *testing.T) {
 
 func TestHintPlacesChildInShownBox(t *testing.T) {
 	child := &Box{Fill: &RGB{255, 0, 0, 255}}
-	hint := &Hint{
-		Dead:  []Rect{{0, 0, 100, 12}, {0, 70, 100, 10}},
-		Child: child,
-	}
-	assert.Equal(t, Size{100, 80}, hint.Layout(Tight(100, 80)))
+	hint := &Hint{Child: child}
+	constraints := Tight(100, 80)
+	constraints.dead = []Rect{{0, 0, 100, 12}, {0, 70, 100, 10}}
+	assert.Equal(t, Size{100, 80}, hint.Layout(constraints))
 	assert.Equal(t, Rect{0, 12, 100, 58}, hint.Shown())
 	picture, err := NewPicture()
 	require.NoError(t, err)
@@ -71,28 +83,36 @@ func TestHintPlacesChildInShownBox(t *testing.T) {
 }
 
 func TestHintClipsDeadZone(t *testing.T) {
-	hint := &Hint{
-		Dead: []Rect{{0, 0, 40, 8}},
-		Child: &Stack{Children: []Node{
-			&Positioned{Y: -8, Child: &Box{Width: 40, Height: 24, Fill: &RGB{255, 0, 0, 255}}},
-		}},
-	}
-	pixels := raster(t, hint, 40, 24)
+	hint := &Hint{Child: &Stack{Children: []Node{
+		&Positioned{Y: -8, Child: &Box{Width: 40, Height: 24, Fill: &RGB{255, 0, 0, 255}}},
+	}}}
+	pixels := pixelsOf(t, hint, 40, 24, []Rect{{0, 0, 40, 8}})
 	assert.Equal(t, uint8(0), at(pixels, 40, 4, 2).R)
 	assert.InDelta(t, 255, at(pixels, 40, 4, 12).R, 2)
 	assert.Equal(t, uint8(0), at(pixels, 40, 4, 12).G)
 }
 
 func TestHintCoveredDrawsNothing(t *testing.T) {
-	hint := &Hint{Dead: []Rect{{0, 0, 8, 8}}, Child: &Box{Fill: &RGB{255, 0, 0, 255}}}
-	pixels := raster(t, hint, 8, 8)
+	hint := &Hint{Child: &Box{Fill: &RGB{255, 0, 0, 255}}}
+	pixels := pixelsOf(t, hint, 8, 8, []Rect{{0, 0, 8, 8}})
 	assert.Equal(t, uint8(0), at(pixels, 8, 3, 3).R)
 	assert.Equal(t, Rect{}, hint.Shown())
 }
 
+func TestHintInStackKeepsHostZones(t *testing.T) {
+	hint := &Hint{Child: &Box{Fill: &RGB{255, 0, 0, 255}}}
+	stack := &Stack{Children: []Node{hint}}
+	constraints := Tight(20, 20)
+	constraints.dead = []Rect{{0, 0, 20, 5}}
+	stack.Layout(constraints)
+	assert.Equal(t, Rect{0, 5, 20, 15}, hint.Shown())
+}
+
 func TestHintWithoutChild(t *testing.T) {
-	hint := &Hint{Dead: []Rect{{0, 0, 10, 2}}}
-	assert.Equal(t, Size{10, 10}, hint.Layout(Tight(10, 10)))
+	hint := &Hint{}
+	constraints := Tight(10, 10)
+	constraints.dead = []Rect{{0, 0, 10, 2}}
+	assert.Equal(t, Size{10, 10}, hint.Layout(constraints))
 	assert.Equal(t, Rect{0, 2, 10, 8}, hint.Shown())
 	var bare *Hint
 	assert.Equal(t, Rect{}, bare.Shown())

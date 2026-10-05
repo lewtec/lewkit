@@ -16,6 +16,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestInsetZonesAndDeadRoundTrip(t *testing.T) {
+	zones := window.InsetZones(20, 40, 0, 6, 0, 4)
+	require.Equal(t, []image.Rectangle{
+		image.Rect(0, 0, 20, 6),
+		image.Rect(0, 36, 20, 40),
+	}, zones)
+	assert.Nil(t, window.InsetZones(0, 10, 1, 1, 1, 1))
+
+	w, err := window.Open(t.Context(), window.Config{Width: 20, Height: 40})
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, w)
+	assert.Empty(t, w.Dead())
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	events := w.Subscribe(ctx)
+	setter := w.(interface{ SetDead([]image.Rectangle) })
+	setter.SetDead(zones)
+	assert.Equal(t, zones, w.Dead())
+	select {
+	case event := <-events:
+		assert.IsType(t, window.Expose{}, event)
+	case <-time.After(time.Second):
+		t.Fatal("dead zone change did not expose")
+	}
+	setter.SetDead(zones)
+	select {
+	case event := <-events:
+		t.Fatalf("unchanged dead zones exposed: %T", event)
+	default:
+	}
+}
+
 func TestFramePeriodFromConfig(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8, Period: time.Millisecond})
 	require.NoError(t, err)

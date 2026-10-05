@@ -194,9 +194,9 @@ func (constraints BoxConstraints) mainMinimum(axis Axis) float32 {
 
 func (axis Axis) box(minMain, maxMain, minCross, maxCross float32) BoxConstraints {
 	if axis == Horizontal {
-		return BoxConstraints{minMain, minCross, maxMain, maxCross}
+		return BoxConstraints{MinWidth: minMain, MinHeight: minCross, MaxWidth: maxMain, MaxHeight: maxCross}
 	}
-	return BoxConstraints{minCross, minMain, maxCross, maxMain}
+	return BoxConstraints{MinWidth: minCross, MinHeight: minMain, MaxWidth: maxCross, MaxHeight: maxMain}
 }
 
 func (flex *Flex) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32] {

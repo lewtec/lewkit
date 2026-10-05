@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"image"
 	"sort"
 
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -59,14 +60,13 @@ func Detect(window Rect, dead []Rect) Rect {
 	return best
 }
 
-// Hint is the fully shown box of its layout slot.
-// Dead holds navbars and notches in local coordinates, origin at the top left.
-// Layout gives [Child] the box from [Detect], so a child that honors
-// constraints stays inside it. Paint clips to that box.
-// The hint fills the incoming constraints. [Hint.Shown] is the box after Layout.
+// Hint lays [Child] in the box the host keeps clear of navbars and notches.
+// [Run] reads that box from the window. Place Hint at the root of [Model.View],
+// or in a [Stack] that fills the window. Layout gives Child the box from
+// [Detect], and Paint clips to it, so a draw stays inside the part of the
+// window that is fully shown. [Hint.Shown] is that box after Layout.
 type Hint struct {
 	Child Node
-	Dead  []Rect
 
 	box Rect
 }
@@ -84,7 +84,7 @@ func (hint *Hint) Layout(constraints BoxConstraints) Size {
 		return Size{}
 	}
 	size := constraints.Constrain(Size{Width: constraints.MaxWidth, Height: constraints.MaxHeight})
-	hint.box = Detect(Rect{Width: size.Width, Height: size.Height}, hint.Dead)
+	hint.box = Detect(Rect{Width: size.Width, Height: size.Height}, constraints.dead)
 	if hint.Child != nil {
 		hint.Child.Layout(Tight(hint.box.Width, hint.box.Height))
 	}
@@ -101,6 +101,21 @@ func (hint *Hint) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Ten
 		return accumulatorOf(picture)
 	}
 	return hint.Child.Paint(origin.Add(Offset{hint.box.X, hint.box.Y}), next, picture)
+}
+
+func zonesOf(zones []image.Rectangle) []Rect {
+	if len(zones) == 0 {
+		return nil
+	}
+	out := make([]Rect, 0, len(zones))
+	for _, zone := range zones {
+		width, height := zone.Dx(), zone.Dy()
+		if width <= 0 || height <= 0 {
+			continue
+		}
+		out = append(out, Rect{float32(zone.Min.X), float32(zone.Min.Y), float32(width), float32(height)})
+	}
+	return out
 }
 
 type band struct {

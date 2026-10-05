@@ -314,6 +314,25 @@ final class SurfaceView: UIView {
         super.layoutSubviews()
         let scale = window?.screen.scale ?? UIScreen.main.scale
         EletrocromoResize(Int32(bounds.width * scale), Int32(bounds.height * scale))
+        reportDead(scale)
+    }
+
+    override func safeAreaInsetsDidChange() {
+        super.safeAreaInsetsDidChange()
+        reportDead(window?.screen.scale ?? UIScreen.main.scale)
+    }
+
+    /// safeAreaInsets is the navbar and notch, in the same pixels as the surface.
+    private func reportDead(_ scale: CGFloat) {
+        let insets = safeAreaInsets
+        EletrocromoDead(
+            Int32((insets.left * scale).rounded()),
+            Int32((insets.top * scale).rounded()),
+            Int32((insets.right * scale).rounded()),
+            Int32((insets.bottom * scale).rounded()),
+            Int32((bounds.width * scale).rounded()),
+            Int32((bounds.height * scale).rounded())
+        )
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {

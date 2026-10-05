@@ -84,6 +84,31 @@ func TestSolidView(t *testing.T) {
 	require.NotNil(t, solid.View())
 }
 
+type hintHost struct{}
+
+func (hintHost) Init() Cmd               { return nil }
+func (hintHost) Update(Msg) (Model, Cmd) { return hintHost{}, nil }
+func (hintHost) View() Node              { return &Hint{Child: &Box{Fill: &RGB{255, 0, 0, 255}}} }
+
+func TestRunHintReadsWindowDead(t *testing.T) {
+	host, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8, Period: time.Hour})
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, host)
+	setter, ok := host.(interface{ SetDead([]image.Rectangle) })
+	require.True(t, ok)
+	setter.SetDead([]image.Rectangle{image.Rect(0, 0, 8, 3)})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, host, ndarray.CPU, hintHost{}) }()
+	require.Eventually(t, func() bool {
+		return host.Front().RGBAAt(1, 1) == color.RGBA{0, 0, 0, 255} &&
+			host.Front().RGBAAt(1, 5) == color.RGBA{255, 0, 0, 255}
+	}, time.Second, 5*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+}
+
 func TestRunPaintsSolid(t *testing.T) {
 	host, err := window.Open(t.Context(), window.Config{Width: 4, Height: 3})
 	require.NoError(t, err)
