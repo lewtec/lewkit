@@ -511,7 +511,13 @@ func (s *Screen) pipeline(vert, frag string, blend bool) (objc.ID, error) {
 	return pipe, nil
 }
 
+// withPool runs fn inside one NSAutoreleasePool.
+// The pool belongs to the OS thread that creates it. Lock around the
+// push, the work, and the drain so a goroutine migration cannot drain
+// it on another thread.
 func withPool(fn func()) {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selNew)
 	defer pool.Send(selDrain)
 	fn()

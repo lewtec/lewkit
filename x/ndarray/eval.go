@@ -10,6 +10,7 @@ import (
 )
 
 // Evaluator binds a kernel to backend code (CPU tape, GPU session).
+// The engine does not know which GPU built the session.
 type Evaluator interface {
 	Program(ctx context.Context, kernel *Kernel) (Program, error)
 	Close() error
@@ -98,10 +99,10 @@ func (c *cpuEvaluator) Close() error {
 
 func (*cpuEvaluator) Name() string { return "cpu" }
 
-// Open is the highest-weight compatible evaluator (Vulkan if a GPU
-// driver registered, else CPU). Import
+// Open is the highest-weight compatible evaluator. Import
 // [github.com/lewtec/lewkit/x/driver/prelude] or
-// [github.com/lewtec/lewkit/x/driver/ndeval].
+// [github.com/lewtec/lewkit/x/driver/ndeval] so a driver can register.
+// CPU is the fallback when no GPU driver accepts this process.
 func Open(ctx context.Context) (Evaluator, error) {
 	evaluator, err := driver.Get[Evaluator](ctx)
 	if err != nil {

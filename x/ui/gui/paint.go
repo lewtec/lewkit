@@ -57,7 +57,7 @@ type Picture struct {
 	fillCount   int
 	recordOnly  bool
 	// holdList keeps a mountable backdrop on the draw list.
-	// Metal has no compute device, so the fills stay instances.
+	// Metal present does not paint a mounted tensor, so the fills stay instances.
 	holdList bool
 }
 

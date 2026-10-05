@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/ndeval"
+	ndvulkan "github.com/lewtec/lewkit/x/driver/ndeval/vulkan"
 	"github.com/lewtec/lewkit/x/driver/present"
 	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -34,7 +34,7 @@ func (opener) Open(ctx context.Context, kind int, a, b uintptr, width, height in
 	if err != nil {
 		return nil, err
 	}
-	return &gpuScreen{screen: screen, eval: ndeval.Bind(screen.Device())}, nil
+	return &gpuScreen{screen: screen, eval: ndvulkan.Bind(screen.Device())}, nil
 }
 
 type gpuScreen struct {
@@ -70,7 +70,7 @@ func (s *gpuScreen) Paint(ctx context.Context, pixels *ndarray.Tensor[uint8]) er
 	if s == nil || s.screen == nil || s.eval == nil {
 		return present.ErrClosed
 	}
-	return mapErr(ndeval.Paint(ctx, s.eval, pixels, s.screen))
+	return mapErr(ndvulkan.Paint(ctx, s.eval, pixels, s.screen))
 }
 
 func (s *gpuScreen) Evaluator() ndarray.Evaluator {

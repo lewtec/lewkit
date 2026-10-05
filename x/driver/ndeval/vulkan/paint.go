@@ -1,10 +1,10 @@
-package ndeval
+package vulkan
 
 import (
 	"context"
 	"errors"
 
-	"github.com/lewtec/lewkit/x/driver/vulkan"
+	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
@@ -56,14 +56,14 @@ func (g *gpuEvaluator) presentCode(ctx context.Context) ([]byte, error) {
 }
 
 // Bind returns an evaluator for a caller-owned device. Close does not close the device.
-func Bind(device vulkan.Device) ndarray.Evaluator {
+func Bind(device drvvulkan.Device) ndarray.Evaluator {
 	return &gpuEvaluator{device: device, own: false}
 }
 
 // Paint runs the tensor on the screen's device and presents it. There is no host readback.
-func Paint(ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Tensor[uint8], screen vulkan.Screen) error {
+func Paint(ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Tensor[uint8], screen drvvulkan.Screen) error {
 	gpu, ok := evaluator.(*gpuEvaluator)
-	if !ok || gpu == nil || screen == nil || !vulkan.Same(gpu.device, screen.Device()) {
+	if !ok || gpu == nil || screen == nil || !drvvulkan.Same(gpu.device, screen.Device()) {
 		return ndarray.ErrOp
 	}
 	if tensor == nil {
@@ -87,7 +87,7 @@ func Paint(ctx context.Context, evaluator ndarray.Evaluator, tensor *ndarray.Ten
 	return session.paint(screen, code)
 }
 
-func (s *session) paint(screen vulkan.Screen, spirv []byte) error {
+func (s *session) paint(screen drvvulkan.Screen, spirv []byte) error {
 	if s == nil || s.kernel == nil || s.device == nil {
 		return ndarray.ErrOp
 	}

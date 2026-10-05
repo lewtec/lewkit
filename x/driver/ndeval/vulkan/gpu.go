@@ -1,4 +1,7 @@
-package ndeval
+// Package vulkan is the ndarray evaluator backed by a Vulkan device.
+// Bind attaches a caller-owned device. Paint presents a mounted tensor
+// on that device. x/ndarray does not import this package.
+package vulkan
 
 import (
 	"context"
@@ -7,13 +10,17 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
-	"github.com/lewtec/lewkit/x/driver/vulkan"
+	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
 func init() {
 	driver.Register[ndarray.Evaluator](gpuFactory{})
 }
+
+var _ driver.DriverFactory[ndarray.Evaluator] = gpuFactory{}
+var _ ndarray.Evaluator = (*gpuEvaluator)(nil)
+var _ ndarray.Program = (*session)(nil)
 
 type gpuFactory struct{}
 
@@ -22,12 +29,12 @@ func (gpuFactory) Name() string { return "Vulkan" }
 func (gpuFactory) Weight() int  { return 50 }
 
 func (gpuFactory) CheckCompatibility(ctx context.Context) error {
-	_, err := vulkan.List(ctx)
+	_, err := drvvulkan.List(ctx)
 	return err
 }
 
 func (gpuFactory) New(ctx context.Context) (ndarray.Evaluator, error) {
-	gpu, err := vulkan.Open(ctx)
+	gpu, err := drvvulkan.Open(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +42,7 @@ func (gpuFactory) New(ctx context.Context) (ndarray.Evaluator, error) {
 }
 
 type gpuEvaluator struct {
-	device      vulkan.Device
+	device      drvvulkan.Device
 	own         bool
 	mu          sync.Mutex
 	evalMu      sync.Mutex

@@ -1,4 +1,4 @@
-package ndeval
+package metal
 
 import (
 	"context"
@@ -8,26 +8,28 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/lewtec/lewkit/x/driver/vulkan"
-	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
+	ffimetal "github.com/lewtec/lewkit/x/ffi/native/metal"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-// session is one kernel bound to a device: SPIR-V pipeline and GPU buffers.
+// session is one kernel bound to a Metal device.
 type session struct {
 	kernel  *ndarray.Kernel
-	device  vulkan.Device
-	shader  *vulkan.Shader
-	output  *vulkan.Buffer
-	inputs  []*vulkan.Buffer
-	bound   []*vulkan.Buffer
+	device  *ffimetal.Device
+	pipe    *ffimetal.Pipeline
+	output  *ffimetal.Buffer
+	inputs  []*ffimetal.Buffer
+	bound   []*ffimetal.Buffer
 	staging []byte
 	push    []byte
 	eval    *sync.Mutex
 	forget  func()
 }
 
-func newSession(ctx context.Context, kernel *ndarray.Kernel, device vulkan.Device) (*session, error) {
+func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffimetal.Device) (*session, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if kernel == nil || device == nil {
 		return nil, ndarray.ErrOp
 	}
@@ -35,29 +37,27 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device vulkan.Devic
 	if err != nil {
 		return nil, err
 	}
-	spirv, err := glsl.Load(ctx, []byte(src))
+	msl, threads, err := mslSource(src)
 	if err != nil {
 		return nil, err
 	}
-	slog.Debug("ndeval spirv", "bytes", len(spirv))
-	push := kernel.Push()
-	shader, err := device.Compile(ctx, vulkan.ShaderConfig{
-		SPIRV:     spirv,
-		Bindings:  kernel.Bindings(),
-		PushBytes: len(push),
-	})
+	pipe, err := device.Compile(msl, threads)
 	if err != nil {
 		return nil, err
 	}
+	slog.Debug("ndeval metal compile", "bytes", len(msl), "threads", threads)
 	return &session{
 		kernel: kernel,
 		device: device,
-		shader: shader,
-		inputs: make([]*vulkan.Buffer, kernel.InputCount()),
+		pipe:   pipe,
+		inputs: make([]*ffimetal.Buffer, kernel.InputCount()),
 	}, nil
 }
 
 func (s *session) Eval(ctx context.Context, output []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if s == nil || s.kernel == nil || s.device == nil {
 		return ndarray.ErrOp
 	}
@@ -65,7 +65,7 @@ func (s *session) Eval(ctx context.Context, output []byte) error {
 		s.eval.Lock()
 		defer s.eval.Unlock()
 	}
-	if s.shader == nil {
+	if s.pipe == nil {
 		return ndarray.ErrOp
 	}
 	size := s.kernel.Size()
@@ -101,17 +101,17 @@ func (s *session) dispatch() error {
 	if err := s.prepare(); err != nil {
 		return err
 	}
-	cmd, err := s.device.Begin()
-	if err != nil {
-		return err
+	if cap(s.push) < ndarray.PushBytes {
+		s.push = make([]byte, ndarray.PushBytes)
+	} else {
+		s.push = s.push[:ndarray.PushBytes]
 	}
-	if err := s.record(cmd); err != nil {
-		return errors.Join(err, cmd.Abort())
+	s.kernel.FillPush(s.push)
+	groups := int(s.kernel.Groups())
+	if groups < 1 {
+		return nil
 	}
-	if err := cmd.Submit(); err != nil {
-		return err
-	}
-	return cmd.Wait()
+	return s.pipe.Dispatch(s.bound, s.push, groups)
 }
 
 func (s *session) prepare() error {
@@ -125,29 +125,13 @@ func (s *session) prepare() error {
 	}
 	need := s.kernel.Bindings()
 	if cap(s.bound) < need {
-		s.bound = make([]*vulkan.Buffer, need)
+		s.bound = make([]*ffimetal.Buffer, need)
 	} else {
 		s.bound = s.bound[:need]
 	}
 	s.bound[0] = s.output
 	copy(s.bound[1:], s.inputs)
 	return nil
-}
-
-func (s *session) record(cmd *vulkan.Cmd) error {
-	if err := cmd.Bind(s.shader, s.bound...); err != nil {
-		return err
-	}
-	if cap(s.push) < ndarray.PushBytes {
-		s.push = make([]byte, ndarray.PushBytes)
-	} else {
-		s.push = s.push[:ndarray.PushBytes]
-	}
-	s.kernel.FillPush(s.push)
-	if err := cmd.Push(s.push); err != nil {
-		return err
-	}
-	return cmd.Dispatch(s.kernel.Groups(), 1, 1)
 }
 
 func (s *session) fit() error {
@@ -162,12 +146,12 @@ func (s *session) fit() error {
 		}
 	}
 	if grew > 0 {
-		slog.Debug("ndeval buffer grow", "buffers", grew, "bytes", total)
+		slog.Debug("ndeval metal buffer grow", "buffers", grew, "bytes", total)
 	}
 	return nil
 }
 
-func (s *session) grow(slot **vulkan.Buffer, bytes int, grew, total *int) error {
+func (s *session) grow(slot **ffimetal.Buffer, bytes int, grew, total *int) error {
 	cur := *slot
 	if cur != nil && cur.Len() >= bytes {
 		return nil
@@ -200,9 +184,9 @@ func (s *session) Close() error {
 		s.forget = nil
 	}
 	var err error
-	if s.shader != nil {
-		err = s.shader.Close()
-		s.shader = nil
+	if s.pipe != nil {
+		err = s.pipe.Close()
+		s.pipe = nil
 	}
 	if s.output != nil {
 		err = errors.Join(err, s.output.Close())
