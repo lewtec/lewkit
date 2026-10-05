@@ -6,7 +6,10 @@ import "context"
 // Call from main. init already locked the main goroutine to the process
 // main OS thread so AppKit nextEvent is legal.
 func Run(ctx context.Context, fn func(context.Context) error) error {
-	Bind()
+	if ctx == nil {
+		panic("thread: nil context")
+	}
+	open(ctx).Bind()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	errc := make(chan error, 1)

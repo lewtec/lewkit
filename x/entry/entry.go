@@ -69,7 +69,7 @@ func MainFrom(parent context.Context, fn func(context.Context) error) {
 	if err := Run(ctx, fn); err != nil {
 		slog.Error(err.Error())
 		report.Report(err)
-		showFailure(err)
+		showFailure(ctx, err)
 		os.Exit(1)
 	}
 }
@@ -81,13 +81,13 @@ func failureVisible() bool {
 
 // showFailure is the escape hatch when the process has no terminal.
 // The error is shown in a message box before the process exits.
-func showFailure(err error) {
-	if err == nil || !failureVisible() {
+func showFailure(ctx context.Context, err error) {
+	if err == nil || ctx == nil || !failureVisible() {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	box, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	if showErr := messagebox.Show(ctx, release.Name(), err.Error()); showErr != nil {
+	if showErr := messagebox.Show(box, release.Name(), err.Error()); showErr != nil {
 		NotifyFail(err.Error())
 	}
 }
@@ -111,7 +111,7 @@ func Run(ctx context.Context, fn func(context.Context) error) error {
 		slog.SetDefault(slog.New(logging.NewHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return fmt.Errorf("entry: nil context")
 	}
 	return thread.Run(ctx, func(ctx context.Context) (err error) {
 		defer func() {

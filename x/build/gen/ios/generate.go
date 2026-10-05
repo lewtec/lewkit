@@ -1,6 +1,7 @@
 package ios
 
 import (
+	"context"
 	"embed"
 	"fmt"
 
@@ -33,8 +34,8 @@ type templateData struct {
 }
 
 // Create writes an ephemeral XcodeGen iOS host under opts.OutDir.
-func Create(opts Options) error {
-	cfg, err := opts.Config.withDefaults()
+func Create(ctx context.Context, opts Options) error {
+	cfg, err := opts.Config.withDefaults(ctx)
 	if err != nil {
 		return err
 	}

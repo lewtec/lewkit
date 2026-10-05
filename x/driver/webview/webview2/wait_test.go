@@ -11,7 +11,7 @@ import (
 func TestWaitForPumpsUntilTheHandlerSignals(t *testing.T) {
 	done := make(chan uintptr, 1)
 	pumps := 0
-	got, err := waitFor(context.Background(), done, make(chan error, 1), func(context.Context) error {
+	got, err := waitFor(t.Context(), done, make(chan error, 1), func(context.Context) error {
 		pumps++
 		if pumps == 2 {
 			done <- 7
@@ -25,7 +25,7 @@ func TestWaitForPumpsUntilTheHandlerSignals(t *testing.T) {
 
 func TestWaitForReturnsTheHandlerError(t *testing.T) {
 	failed := make(chan error, 1)
-	_, err := waitFor(context.Background(), make(chan uintptr, 1), failed, func(context.Context) error {
+	_, err := waitFor(t.Context(), make(chan uintptr, 1), failed, func(context.Context) error {
 		failed <- io.EOF
 		return nil
 	})
@@ -33,7 +33,7 @@ func TestWaitForReturnsTheHandlerError(t *testing.T) {
 }
 
 func TestWaitForStopsWhenTheContextEnds(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	pumps := 0
 	_, err := waitFor(ctx, make(chan uintptr), make(chan error), func(context.Context) error {
@@ -46,7 +46,7 @@ func TestWaitForStopsWhenTheContextEnds(t *testing.T) {
 
 func TestWaitForPrefersTheHandlerError(t *testing.T) {
 	failed := make(chan error, 1)
-	_, err := waitFor(context.Background(), make(chan uintptr, 1), failed, func(context.Context) error {
+	_, err := waitFor(t.Context(), make(chan uintptr, 1), failed, func(context.Context) error {
 		failed <- io.EOF
 		return io.ErrClosedPipe
 	})
@@ -54,7 +54,7 @@ func TestWaitForPrefersTheHandlerError(t *testing.T) {
 }
 
 func TestWaitForReturnsAPumpError(t *testing.T) {
-	_, err := waitFor(context.Background(), make(chan uintptr), make(chan error), func(context.Context) error {
+	_, err := waitFor(t.Context(), make(chan uintptr), make(chan error), func(context.Context) error {
 		return io.ErrClosedPipe
 	})
 	require.ErrorIs(t, err, io.ErrClosedPipe)

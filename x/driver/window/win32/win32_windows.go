@@ -172,6 +172,9 @@ func desktopFramePeriod() time.Duration {
 }
 
 func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("window: nil context")
+	}
 	w, h, err := cfg.Size()
 	if err != nil {
 		return nil, err
@@ -191,8 +194,18 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 			out.pump()
 		}
 	}()
-	if err := <-ready; err != nil {
-		return nil, err
+	select {
+	case <-ctx.Done():
+		go func() {
+			if err := <-ready; err == nil {
+				_ = out.Close()
+			}
+		}()
+		return nil, ctx.Err()
+	case err := <-ready:
+		if err != nil {
+			return nil, err
+		}
 	}
 	window.CloseWhenDone(ctx, out)
 	return out, nil

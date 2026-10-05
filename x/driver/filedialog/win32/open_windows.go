@@ -110,7 +110,7 @@ func (opener) Choose(ctx context.Context, req filedialog.Request) ([]string, err
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
-	return showDedicated(req)
+	return showDedicated(ctx, req)
 }
 
 // queueMessage is a Windows MSG. Field alignment matches the system
@@ -147,7 +147,7 @@ func oleInit() error {
 	return nil
 }
 
-func showDedicated(req filedialog.Request) ([]string, error) {
+func showDedicated(ctx context.Context, req filedialog.Request) ([]string, error) {
 	type result struct {
 		paths []string
 		err   error
@@ -170,8 +170,12 @@ func showDedicated(req filedialog.Request) ([]string, error) {
 		runtime.KeepAlive(&queued)
 		done <- result{paths: paths, err: err}
 	}()
-	out := <-done
-	return out.paths, out.err
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case out := <-done:
+		return out.paths, out.err
+	}
 }
 
 func showPrepared(req filedialog.Request, owner uintptr) ([]string, error) {

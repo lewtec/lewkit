@@ -50,13 +50,22 @@ func ask(ctx context.Context, kind, title, body string, items []string) (string,
 		return "", false, err
 	}
 	if thread.Bound() && !thread.On() {
-		var text string
-		var ok bool
-		var err error
-		thread.Do(func() {
-			text, ok, err = askHere(kind, title, body, items)
+		type result struct {
+			text string
+			ok   bool
+			err  error
+		}
+		done := make(chan result, 1)
+		thread.Go(func() {
+			text, ok, err := askHere(kind, title, body, items)
+			done <- result{text: text, ok: ok, err: err}
 		})
-		return text, ok, err
+		select {
+		case <-ctx.Done():
+			return "", false, ctx.Err()
+		case out := <-done:
+			return out.text, out.ok, out.err
+		}
 	}
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

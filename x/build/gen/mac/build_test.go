@@ -9,7 +9,7 @@ import (
 
 func TestWriteBundle_GoExecutable(t *testing.T) {
 	work := t.TempDir()
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: work,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",

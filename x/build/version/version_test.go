@@ -45,7 +45,7 @@ func TestResolve_Defaults(t *testing.T) {
 		Commit, Date, BuiltBy = oldC, oldD, oldB
 	})
 	Commit, Date, BuiltBy = "", "", ""
-	info := Resolve()
+	info := Resolve(t.Context())
 	if info.Version == "" {
 		t.Fatal("empty version")
 	}

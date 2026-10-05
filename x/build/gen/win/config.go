@@ -3,7 +3,11 @@
 // and version info. Build does not need a Windows SDK.
 package win
 
-import "github.com/lewtec/lewkit/x/build/gen/common"
+import (
+	"context"
+
+	"github.com/lewtec/lewkit/x/build/gen/common"
+)
 
 // Config is the project identity stamped into the executable.
 type Config struct {
@@ -45,8 +49,8 @@ func configFromHost(id common.HostConfig) Config {
 	}
 }
 
-func (c Config) withDefaults() (Config, error) {
-	id, err := common.ApplyHostDefaults(c.hostConfig())
+func (c Config) withDefaults(ctx context.Context) (Config, error) {
+	id, err := common.ApplyHostDefaults(ctx, c.hostConfig())
 	if err != nil {
 		return Config{}, err
 	}

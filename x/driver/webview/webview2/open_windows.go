@@ -10,6 +10,7 @@ import (
 	"image"
 	"io"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -161,6 +162,7 @@ func (edgeDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, e
 		return nil, err
 	}
 	view := &edgeView{
+		ctx:        ctx,
 		identifier: uintptr(nextIdentifier.Add(1)),
 		html:       cfg.HTML,
 		files:      cfg.FS,
@@ -295,6 +297,7 @@ func drainJobs() {
 }
 
 type edgeView struct {
+	ctx         context.Context
 	identifier  uintptr
 	html        string
 	files       fs.FS
@@ -332,7 +335,7 @@ func (view *edgeView) noteFail(err error) {
 		return
 	}
 	if view.ready.Load() {
-		reportOnce(err)
+		view.report(err)
 	}
 }
 
@@ -910,7 +913,7 @@ func windowProcedure(hwnd, msg, wparam, lparam uintptr) uintptr {
 			if loaded, ok := windows.Load(hwnd); ok {
 				loaded.(*edgeView).noteFail(fmt.Errorf("webview: %v", rec))
 			} else {
-				reportOnce(fmt.Errorf("webview: %v", rec))
+				slog.Error("webview", "err", rec)
 			}
 		}
 	}()
@@ -988,12 +991,13 @@ func (handler *comHandler) catch() {
 
 var reported sync.Once
 
-func reportOnce(err error) {
-	if err == nil {
+func (view *edgeView) report(err error) {
+	if view == nil || err == nil || view.ctx == nil {
 		return
 	}
+	ctx := view.ctx
 	reported.Do(func() {
-		_ = messagebox.Show(context.Background(), lewrelease.Name(), err.Error())
+		_ = messagebox.Show(ctx, lewrelease.Name(), err.Error())
 	})
 }
 

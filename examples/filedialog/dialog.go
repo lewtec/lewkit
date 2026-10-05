@@ -45,9 +45,6 @@ type chooseFunc func(context.Context, filedialog.Request) ([]string, error)
 type openFunc func(...string) (fs.FS, error)
 
 func newFiles(ctx context.Context, choose chooseFunc, open openFunc) http.Handler {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	if choose == nil {
 		choose = filedialog.Choose
 	}

@@ -63,7 +63,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		stderr = stdout
 	}
 
-	cfg, err := opts.Config.withDefaults()
+	cfg, err := opts.Config.withDefaults(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, err
 	}
 
-	vi, name, code := common.StampPackagingVersion(goMain, opts.Config.VersionName, opts.Config.VersionCode)
+	vi, name, code := common.StampPackagingVersion(ctx, goMain, opts.Config.VersionName, opts.Config.VersionCode)
 	cfg.VersionName = name
 	cfg.VersionCode = code
 	slog.Info("macos version", "version", cfg.VersionName, "code", cfg.VersionCode)
@@ -101,7 +101,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg.GoMain = goMain
 
 	slog.Info("macos host", "dir", workDir)
-	if err := Create(Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
+	if err := Create(ctx, Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
 		buildErr = fmt.Errorf("generate host: %w", err)
 		return nil, buildErr
 	}
@@ -182,18 +182,18 @@ func writeBundle(outApp, product, plistPath, binaryPath, icnsPath string) error 
 	if err := os.MkdirAll(resources, 0o755); err != nil {
 		return err
 	}
-	if err := copyFile(plistPath, filepath.Join(outApp, "Contents", "Info.plist")); err != nil {
+	if err := common.CopyFile(plistPath, filepath.Join(outApp, "Contents", "Info.plist"), 0o755); err != nil {
 		return fmt.Errorf("bundle plist: %w", err)
 	}
 	exe := filepath.Join(macOS, product)
-	if err := copyFile(binaryPath, exe); err != nil {
+	if err := common.CopyFile(binaryPath, exe, 0o755); err != nil {
 		return fmt.Errorf("bundle executable: %w", err)
 	}
 	if err := os.Chmod(exe, 0o755); err != nil {
 		return err
 	}
 	if icnsPath != "" {
-		if err := copyFile(icnsPath, filepath.Join(resources, "AppIcon.icns")); err != nil {
+		if err := common.CopyFile(icnsPath, filepath.Join(resources, "AppIcon.icns"), 0o755); err != nil {
 			return fmt.Errorf("bundle icon: %w", err)
 		}
 	}
@@ -280,20 +280,4 @@ func applyMacIcons(iconRoot, assetsDir string) error {
 		}
 	}
 	return nil
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return errors.Join(err, in.Close())
-	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
-	if err != nil {
-		return errors.Join(err, in.Close())
-	}
-	_, copyErr := io.Copy(out, in)
-	return errors.Join(copyErr, out.Close(), in.Close())
 }

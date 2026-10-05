@@ -7,6 +7,7 @@
 package apk
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"os"
@@ -73,8 +74,8 @@ type Options struct {
 }
 
 // Create materializes an Android host project under opts.OutDir.
-func Create(opts Options) error {
-	cfg, err := normalizeConfig(opts.Config)
+func Create(ctx context.Context, opts Options) error {
+	cfg, err := normalizeConfig(ctx, opts.Config)
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func (data templateData) javaDest(rel, destRel string) string {
 	return destRel
 }
 
-func normalizeConfig(cfg Config) (Config, error) {
+func normalizeConfig(ctx context.Context, cfg Config) (Config, error) {
 	cfg.PackageID = strings.TrimSpace(cfg.PackageID)
 	if err := release.ValidateAppID(cfg.PackageID); err != nil {
 		return Config{}, fmt.Errorf("package id: %w", err)
@@ -128,7 +129,7 @@ func normalizeConfig(cfg Config) (Config, error) {
 	}
 	// Version defaults: prefer goreleaser-style / VCS identity over a fake 0.1.0.
 	if cfg.VersionName == "" || cfg.VersionCode <= 0 {
-		info := version.Resolve()
+		info := version.Resolve(ctx)
 		if cfg.VersionName == "" {
 			cfg.VersionName = info.AndroidName()
 		}

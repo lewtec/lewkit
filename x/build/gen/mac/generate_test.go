@@ -17,7 +17,7 @@ import (
 
 func TestCreate_WritesHost(t *testing.T) {
 	out := t.TempDir()
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",
@@ -115,7 +115,7 @@ func TestCreate_WritesHost(t *testing.T) {
 
 func TestCreate_CapabilitiesPlist(t *testing.T) {
 	out := t.TempDir()
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",
@@ -148,7 +148,7 @@ func TestCreate_CapabilitiesPlist(t *testing.T) {
 
 func TestApplyMacIcons(t *testing.T) {
 	out := t.TempDir()
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",
@@ -234,7 +234,7 @@ func TestApplyMacIcons(t *testing.T) {
 }
 
 func TestCreate_RejectsBadID(t *testing.T) {
-	err := Create(Options{OutDir: t.TempDir(), Config: Config{PackageID: "Not an id"}})
+	err := Create(t.Context(), Options{OutDir: t.TempDir(), Config: Config{PackageID: "Not an id"}})
 	if err == nil {
 		t.Fatal("expected error")
 	}

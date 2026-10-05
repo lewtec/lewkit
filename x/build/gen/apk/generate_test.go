@@ -13,7 +13,7 @@ import (
 
 func TestCreate_PackageIDLayout(t *testing.T) {
 	out := t.TempDir()
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",
@@ -283,7 +283,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 
 func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
 	out := t.TempDir()
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",
@@ -326,7 +326,7 @@ func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
 
 func TestCreate_FirstPageReplacesSplash(t *testing.T) {
 	out := t.TempDir()
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{
 			PackageID: "br.tec.lew.counter",
@@ -362,7 +362,7 @@ func TestCreate_FirstPageReplacesSplash(t *testing.T) {
 }
 
 func TestCreate_RejectsBadID(t *testing.T) {
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: t.TempDir(),
 		Config: Config{PackageID: "Not.Valid"},
 	})
@@ -376,14 +376,14 @@ func TestCreate_RequiresForceWhenNonEmpty(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(out, "keep"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	err := Create(Options{
+	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{PackageID: "br.tec.lew.x"},
 	})
 	if err == nil {
 		t.Fatal("expected non-empty error")
 	}
-	if err := Create(Options{
+	if err := Create(t.Context(), Options{
 		OutDir: out,
 		Force:  true,
 		Config: Config{PackageID: "br.tec.lew.x", AppName: "X"},
@@ -397,7 +397,7 @@ func TestCreate_RequiresForceWhenNonEmpty(t *testing.T) {
 
 func TestCreate_DefaultAppNameFromID(t *testing.T) {
 	out := t.TempDir()
-	if err := Create(Options{
+	if err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{PackageID: "br.tec.lew.myapp"},
 	}); err != nil {

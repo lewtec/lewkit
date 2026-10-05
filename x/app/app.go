@@ -51,7 +51,7 @@ type App struct {
 // Loopback runs only when the caller opted in.
 func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
-		ctx = context.Background()
+		return fmt.Errorf("app: nil context")
 	}
 	id, _ := release.RequireStamp()
 	run := func(ctx context.Context) error {

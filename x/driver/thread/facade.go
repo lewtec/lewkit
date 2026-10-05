@@ -12,9 +12,12 @@ var (
 	ui   Driver
 )
 
-func current() Driver {
+func open(ctx context.Context) Driver {
 	once.Do(func() {
-		d, err := driver.Get[Driver](context.Background())
+		if ctx == nil {
+			panic("thread: nil context")
+		}
+		d, err := driver.Get[Driver](ctx)
 		if err != nil {
 			panic(err)
 		}
@@ -23,8 +26,17 @@ func current() Driver {
 	return ui
 }
 
-// Bind locks this goroutine to the UI thread. Call from main.
-func Bind() { current().Bind() }
+func current() Driver {
+	if ui == nil {
+		panic("thread: used before Run or Bind")
+	}
+	return ui
+}
+
+// Bind locks this goroutine to the UI thread.
+// Run resolves the driver from the process context. Bind is the root
+// for a host that has no parent context, such as the Android loader.
+func Bind() { open(context.Background()).Bind() }
 
 // Bound reports whether Bind has been called.
 func Bound() bool { return current().Bound() }

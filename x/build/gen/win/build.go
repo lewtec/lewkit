@@ -58,7 +58,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	}
 	_ = stdout
 
-	cfg, err := opts.Config.withDefaults()
+	cfg, err := opts.Config.withDefaults(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, err
 	}
 
-	vi, name, code := common.StampPackagingVersion(goMain, opts.Config.VersionName, opts.Config.VersionCode)
+	vi, name, code := common.StampPackagingVersion(ctx, goMain, opts.Config.VersionName, opts.Config.VersionCode)
 	cfg.VersionName = name
 	cfg.VersionCode = code
 	slog.Info("windows version", "version", cfg.VersionName, "code", cfg.VersionCode)
@@ -135,7 +135,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := copyFile(built, out); err != nil {
+	if err := common.CopyFile(built, out, 0o755); err != nil {
 		buildErr = fmt.Errorf("copy exe: %w", err)
 		return nil, buildErr
 	}
@@ -173,20 +173,4 @@ func buildGo(ctx context.Context, dest, goMainDir, goarch string, stamp version.
 		return fmt.Errorf("go build windows/%s: %w", goarch, err)
 	}
 	return nil
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return errors.Join(err, in.Close())
-	}
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
-	if err != nil {
-		return errors.Join(err, in.Close())
-	}
-	_, copyErr := io.Copy(out, in)
-	return errors.Join(copyErr, out.Close(), in.Close())
 }

@@ -74,7 +74,7 @@ func Desktop(ctx context.Context, job Job) ([]string, error) {
 // Run writes one archive for each target.
 func (job Job) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, fmt.Errorf("build: nil context")
 	}
 	project := job.Name
 	if project == "" {
