@@ -2,7 +2,9 @@
 //
 // The world schedule owns the logo. Startup spawns it. On each tick,
 // drift moves it and turns it around at the edges of the fully shown box.
-// A wall changes its color. Both walls at once, a corner, turn it white.
+// The axes travel at different speeds. A wall hit picks a new speed for
+// that axis and changes the color. Both walls at once, a corner, turn it
+// white.
 // Hint is that box. A light rectangle plots its edges, and the area a
 // navbar or notch covers stays outside the rectangle.
 //

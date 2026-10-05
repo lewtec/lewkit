@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogoStartsInTheCorner(t *testing.T) {
+func TestLogoLeavesTheCorner(t *testing.T) {
 	screen := newScreen(t.Context())
 	at, color := screen.logo()
 	assert.Equal(t, float32(0), at.X)
@@ -26,22 +26,38 @@ func TestLogoStartsInTheCorner(t *testing.T) {
 
 	screen.advance(0.5)
 	at, color = screen.logo()
-	assert.InDelta(t, float64(pace*0.5), float64(at.X), 1e-4)
-	assert.InDelta(t, float64(pace*0.5), float64(at.Y), 1e-4)
+	assert.InDelta(t, float64(paceX*0.5), float64(at.X), 1e-4)
+	assert.InDelta(t, float64(paceY*0.5), float64(at.Y), 1e-4)
+	assert.Greater(t, at.X, at.Y)
 	assert.Equal(t, dvdColors[0], color)
 }
 
-func TestLogoHitsTheFarCorner(t *testing.T) {
+func TestLogoChangesCourseAtAWall(t *testing.T) {
 	screen := newScreen(t.Context())
-	screen.advance(5)
+	screen.advance(3)
 	at, color := screen.logo()
 	_, step, ok := world.Query[glide](screen.sim.World).First(nil)
 	require.True(t, ok)
-	assert.Equal(t, float32(1), at.X)
-	assert.Equal(t, float32(1), at.Y)
-	assert.Negative(t, step.X)
-	assert.Negative(t, step.Y)
-	assert.Equal(t, ink{R: 255, G: 255, B: 255}, color)
+	assert.InDelta(t, float64(2-paceX*3), float64(at.X), 1e-4)
+	assert.InDelta(t, float64(paceY*3), float64(at.Y), 1e-4)
+	assert.InDelta(t, float64(-kick[1]), float64(step.X), 1e-5)
+	assert.InDelta(t, float64(paceY), float64(step.Y), 1e-5)
+	want := dvdColors[1]
+	want.N = 1
+	assert.Equal(t, want, color)
+
+	// The far horizontal edge arrives on its own. The vertical pace stays.
+	screen.advance(2.6)
+	at, color = screen.logo()
+	_, step, ok = world.Query[glide](screen.sim.World).First(nil)
+	require.True(t, ok)
+	assert.Greater(t, at.X, float32(0))
+	assert.Less(t, at.Y, float32(1))
+	assert.InDelta(t, float64(-kick[1]), float64(step.X), 1e-5)
+	assert.InDelta(t, float64(-kick[5]), float64(step.Y), 1e-5)
+	want = dvdColors[2]
+	want.N = 2
+	assert.Equal(t, want, color)
 }
 
 func TestRectanglePlotsTheUsableBox(t *testing.T) {
