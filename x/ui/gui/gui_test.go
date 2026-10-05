@@ -157,6 +157,53 @@ func TestRunResizeFlushesWithoutTicker(t *testing.T) {
 	require.NoError(t, <-done)
 }
 
+type sizedPaint struct {
+	mu   sync.Mutex
+	got  image.Point
+	fill RGB
+}
+
+func (paint *sizedPaint) Init() Cmd { return nil }
+
+func (paint *sizedPaint) Update(msg Msg) (Model, Cmd) {
+	if resize, ok := msg.(window.Resize); ok {
+		paint.mu.Lock()
+		paint.got = resize.Size
+		paint.mu.Unlock()
+	}
+	return paint, nil
+}
+
+func (paint *sizedPaint) View() Node {
+	return &Box{Fill: &paint.fill}
+}
+
+func (paint *sizedPaint) size() image.Point {
+	paint.mu.Lock()
+	defer paint.mu.Unlock()
+	return paint.got
+}
+
+func TestRunAdoptsHostSizeBeforePaint(t *testing.T) {
+	host, err := window.Open(t.Context(), window.Config{Width: 4, Height: 3, Period: time.Hour})
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, host)
+	require.NoError(t, host.Resize(image.Pt(8, 6)))
+	paint := &sizedPaint{fill: RGB{0, 255, 0, 255}}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, host, ndarray.CPU, paint) }()
+	require.Eventually(t, func() bool {
+		front := host.Front()
+		return front != nil && front.Rect.Dx() == 8 && front.Rect.Dy() == 6 &&
+			front.RGBAAt(7, 5) == color.RGBA{0, 255, 0, 255} &&
+			paint.size() == image.Pt(8, 6)
+	}, time.Second, 5*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+}
+
 func TestRunTicksWhileIdle(t *testing.T) {
 	host, err := window.Open(t.Context(), window.Config{Width: 4, Height: 3})
 	require.NoError(t, err)

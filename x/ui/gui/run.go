@@ -230,7 +230,10 @@ func (runner *runner) loop() error {
 			}
 		}()
 	}
-	if err := runner.flush(true); err != nil {
+	// Open can publish Resize before Subscribe, and that event is dropped.
+	// The host still records the client size. Adopt it before the first paint
+	// so the frame matches the window without a later resize.
+	if err := runner.adoptSize(); err != nil {
 		return err
 	}
 	runner.spawn(runner.model.Init())
@@ -350,6 +353,14 @@ func stopLoop(msg Msg) bool {
 	default:
 		return false
 	}
+}
+
+func (runner *runner) adoptSize() error {
+	size := runner.host.Size()
+	if size.X < 1 || size.Y < 1 {
+		return runner.flush(true)
+	}
+	return runner.handle(window.Resize{Size: size})
 }
 
 func (runner *runner) decorate(msg Msg) Msg {

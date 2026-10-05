@@ -78,6 +78,45 @@ func TestImageThumbIsReused(t *testing.T) {
 	assert.Len(t, picture.thumbs, 1)
 }
 
+func TestMutatedImageChangesFrame(t *testing.T) {
+	src := image.NewRGBA(image.Rect(0, 0, 8, 8))
+	fillRGBA(src, 20)
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	node := &Image{Src: src, Width: 8, Height: 8}
+	picture.recordOnly = true
+	_, err = picture.Render(node, Size{8, 8})
+	require.NoError(t, err)
+	firstSig := picture.frameSig()
+	first := picture.Ink().RGBAAt(3, 3)
+
+	picture.recordOnly = true
+	_, err = picture.Render(node, Size{8, 8})
+	require.NoError(t, err)
+	assert.Equal(t, firstSig, picture.frameSig())
+	assert.Equal(t, first, picture.Ink().RGBAAt(3, 3))
+	assert.False(t, picture.inkFresh)
+
+	fillRGBA(src, 230)
+	picture.recordOnly = true
+	_, err = picture.Render(node, Size{8, 8})
+	require.NoError(t, err)
+	assert.NotEqual(t, firstSig, picture.frameSig())
+	assert.True(t, picture.inkFresh)
+	got := picture.Ink().RGBAAt(3, 3)
+	assert.Greater(t, int(got.R), 180)
+	assert.Len(t, picture.thumbs, 1)
+}
+
+func fillRGBA(src *image.RGBA, red uint8) {
+	for i := 0; i < len(src.Pix); i += 4 {
+		src.Pix[i] = red
+		src.Pix[i+1] = 0
+		src.Pix[i+2] = 0
+		src.Pix[i+3] = 255
+	}
+}
+
 func TestTextColor(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)

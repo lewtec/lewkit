@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"hash/maphash"
 	"image"
 	"math"
 
@@ -63,6 +64,84 @@ type thumbKey struct {
 	radius uint32
 }
 
+// thumbSlot pairs a scaled copy with a hash of the source bytes.
+// An animation reuses one *image.RGBA; a later frame replaces this slot
+// when that hash changes.
+type thumbSlot struct {
+	rgba *image.RGBA
+	sig  uint64
+}
+
+// pixSeed stays inside this process. imageSig is compared only here.
+var pixSeed = maphash.MakeSeed()
+
+// imageSig hashes pixels of the standard library images that can change
+// without a new pointer. Every other image returns 0 and stays keyed by pointer.
+func imageSig(src image.Image) uint64 {
+	pix := mutablePix(src)
+	if len(pix) == 0 {
+		return 0
+	}
+	return maphash.Bytes(pixSeed, pix)
+}
+
+func mutablePix(src image.Image) []byte {
+	switch src := src.(type) {
+	case *image.Alpha:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.Alpha16:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.Gray:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.Gray16:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.RGBA:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.RGBA64:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.NRGBA:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.NRGBA64:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.CMYK:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	case *image.Paletted:
+		if src == nil {
+			return nil
+		}
+		return src.Pix
+	default:
+		return nil
+	}
+}
+
 func (stamp imageStamp) draw(picture *Picture, destination *image.RGBA) {
 	if destination == nil || stamp.src == nil || stamp.box.Width < 1 || stamp.box.Height < 1 {
 		return
@@ -87,9 +166,10 @@ func (stamp imageStamp) draw(picture *Picture, destination *image.RGBA) {
 
 func (picture *Picture) thumb(stamp imageStamp, width, height int) *image.RGBA {
 	key := thumbKey{src: pointerOf(stamp.src), width: width, height: height, radius: math.Float32bits(stamp.radius)}
+	sig := imageSig(stamp.src)
 	if picture != nil {
-		if got := picture.thumbs[key]; got != nil {
-			return got
+		if got := picture.thumbs[key]; got.rgba != nil && got.sig == sig {
+			return got.rgba
 		}
 	}
 	// Ink stores straight alpha. The ink shader multiplies rgb by a.
@@ -103,10 +183,12 @@ func (picture *Picture) thumb(stamp imageStamp, width, height int) *image.RGBA {
 	if picture == nil {
 		return scaled
 	}
-	if picture.thumbs == nil || len(picture.thumbs) > 256 {
-		picture.thumbs = map[thumbKey]*image.RGBA{}
+	if picture.thumbs == nil {
+		picture.thumbs = map[thumbKey]thumbSlot{}
+	} else if _, exists := picture.thumbs[key]; !exists && len(picture.thumbs) > 256 {
+		picture.thumbs = map[thumbKey]thumbSlot{}
 	}
-	picture.thumbs[key] = scaled
+	picture.thumbs[key] = thumbSlot{rgba: scaled, sig: sig}
 	return scaled
 }
 

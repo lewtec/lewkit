@@ -49,6 +49,28 @@ func (markFill) Eval(_ context.Context, output []byte) error {
 
 func (markFill) Close() error { return nil }
 
+func TestListLeafBackdropSkipsEvaluator(t *testing.T) {
+	values := make([]float32, 2*2*4)
+	values[0] = 246
+	source, err := ndarray.New(values, ndarray.Shape{2, 2, 4})
+	require.NoError(t, err)
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.raster = source
+	host, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = host.Close() })
+	screen := &captureScreen{}
+	display := bridgeDisplay{
+		Window:    surfaceHost{host},
+		screen:    screen,
+		evaluator: markProgramEval{},
+	}
+	require.NoError(t, display.presentList(t.Context(), picture))
+	require.Len(t, screen.under, 2*2*4)
+	require.Equal(t, uint8(246), screen.under[0])
+}
+
 func TestListBackdropUsesHeldEvaluator(t *testing.T) {
 	shape := ndarray.Shape{1, 1, 4}
 	source := ndarray.Coord(1, shape).Cast[float32]()
