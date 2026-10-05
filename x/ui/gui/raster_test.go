@@ -83,7 +83,7 @@ func TestRasterCastReused(t *testing.T) {
 	require.NoError(t, err)
 	picture, err := NewPicture()
 	require.NoError(t, err)
-	picture.raster = source
+	picture.raster = source.Add(ndarray.Const(float32(0)))
 	_, err = picture.rasterBytes(t.Context(), nil, 4, 4)
 	require.NoError(t, err)
 	first := picture.rasterCast
@@ -92,6 +92,26 @@ func TestRasterCastReused(t *testing.T) {
 	require.NoError(t, err)
 	assert.Same(t, first, picture.rasterCast)
 	assert.Same(t, first.Kernel(), picture.rasterCast.Kernel())
+}
+
+func TestShapedLeafSkipsEvaluator(t *testing.T) {
+	values := make([]float32, 2*2*4)
+	values[0] = 246
+	values[1] = 254
+	values[2] = 12
+	values[3] = 255
+	values[4] = -3
+	values[5] = 300
+	source, err := ndarray.New(values, ndarray.Shape{2, 2, 4})
+	require.NoError(t, err)
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	picture.raster = source
+	buffer, err := picture.rasterBytes(t.Context(), markProgramEval{}, 2, 2)
+	require.NoError(t, err)
+	require.Len(t, buffer, 2*2*4)
+	assert.Equal(t, []byte{246, 254, 12, 255, 0, 255}, buffer[:6])
+	assert.Nil(t, picture.rasterCast)
 }
 
 func TestRasterBytesVaryAcrossFrame(t *testing.T) {

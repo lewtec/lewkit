@@ -52,7 +52,7 @@ type Picture struct {
 	inkSig      uint64
 	inkFresh    bool
 	hadInk      bool
-	thumbs      map[thumbKey]*image.RGBA
+	thumbs      map[thumbKey]thumbSlot
 	keys        []hitKey
 	fillCount   int
 	recordOnly  bool
@@ -440,6 +440,7 @@ func (picture *Picture) mixInk(mix func(uint64)) {
 	}
 	for _, stamp := range picture.images {
 		mix(pointerOf(stamp.src))
+		mix(imageSig(stamp.src))
 		for _, value := range []float32{
 			stamp.box.X, stamp.box.Y, stamp.box.Width, stamp.box.Height,
 			stamp.clip.X, stamp.clip.Y, stamp.clip.Width, stamp.clip.Height,

@@ -51,6 +51,9 @@ type Screen struct {
 	height   int
 	inkW     int
 	inkH     int
+	frame    cgRect
+	scale    float64
+	sized    bool
 	inkReady bool
 	closed   bool
 }
@@ -218,25 +221,50 @@ func (s *Screen) attach(kind int, view objc.ID, width, height int) error {
 		}
 		s.layer.Send(selRemove)
 		host.Send(selAddSublayer, s.layer)
-		setRect(s.layer, selSetFrame, boundsOf(view))
 	} else {
 		view.Send(selSetWantsLayer, true)
 		view.Send(selSetLayer, s.layer)
 	}
 	s.view = view
-	s.fit(width, height)
+	s.frame = cgRect{}
+	s.scale = 0
+	s.sized = false
+	s.place(width, height)
 	return nil
 }
 
-func (s *Screen) fit(width, height int) {
+// place keeps the layer on the view. The installed layer is ours, so AppKit
+// leaves its frame and contents scale alone until a resize lays the view out.
+func (s *Screen) place(width, height int) {
+	changed := false
+	if s.layer != 0 && s.view != 0 {
+		bounds := boundsOf(s.view)
+		if bounds.Size.Width >= 1 && bounds.Size.Height >= 1 && bounds != s.frame {
+			setRect(s.layer, selSetFrame, bounds)
+			s.frame = bounds
+			changed = true
+		}
+		if scale := hostScale(s.view); scale >= 1 && scale != s.scale {
+			setContentsScale(s.layer, scale)
+			s.scale = scale
+			changed = true
+		}
+	}
 	if width < 1 {
 		width = 1
 	}
 	if height < 1 {
 		height = 1
 	}
-	setSize(s.layer, selSetDrawableSize, cgSize{Width: float64(width), Height: float64(height)})
-	s.width, s.height = width, height
+	if changed || !s.sized || width != s.width || height != s.height {
+		setSize(s.layer, selSetDrawableSize, cgSize{Width: float64(width), Height: float64(height)})
+		s.width, s.height = width, height
+		s.sized = true
+		changed = true
+	}
+	if changed {
+		objc.ID(objc.GetClass("CATransaction")).Send(selFlush)
+	}
 }
 
 // Adopt moves the layer onto a replacement view.
@@ -260,10 +288,7 @@ func (s *Screen) Adopt(view uintptr, width, height int) error {
 	uiDo(func() {
 		withPool(func() {
 			if s.view == objc.ID(view) {
-				s.fit(width, height)
-				if kind == kindUIView && s.view != 0 {
-					setRect(s.layer, selSetFrame, boundsOf(s.view))
-				}
+				s.place(width, height)
 				return
 			}
 			err = s.attach(kind, objc.ID(view), width, height)
@@ -315,7 +340,7 @@ func (s *Screen) syncFrame(width, height int) error {
 			if width == s.width && height == s.height {
 				return
 			}
-			s.fit(width, height)
+			s.place(width, height)
 			if runtime.GOOS == "ios" {
 				setRect(s.layer, selSetFrame, boundsOf(s.view))
 			}
@@ -572,14 +597,53 @@ func setSize(id objc.ID, sel objc.SEL, size cgSize) {
 	sendSize(id, sel, size)
 }
 
+func setContentsScale(layer objc.ID, scale float64) {
+	if setScale == nil {
+		native.Register(&setScale, msgSend())
+	}
+	setScale(layer, selSetContentsScale, scale)
+}
+
+func hostScale(view objc.ID) float64 {
+	if view == 0 {
+		return 0
+	}
+	var scale float64
+	if runtime.GOOS == "ios" {
+		scale = msgFloat(view, selContentScaleFactor)
+	} else {
+		win := view.Send(selWindow)
+		if win == 0 {
+			return 0
+		}
+		scale = msgFloat(win, selBackingScaleFactor)
+	}
+	if scale < 1 {
+		return 0
+	}
+	return scale
+}
+
+func msgFloat(id objc.ID, sel objc.SEL) float64 {
+	if msgFloatFn == nil {
+		native.Register(&msgFloatFn, msgSend())
+	}
+	if msgFloatFn == nil {
+		return 0
+	}
+	return msgFloatFn(id, sel)
+}
+
 var (
-	msgOnce  sync.Once
-	msgAddr  uintptr
-	newLib   func(objc.ID, objc.SEL, objc.ID, objc.ID, *objc.ID) objc.ID
-	newPipe  func(objc.ID, objc.SEL, objc.ID, *objc.ID) objc.ID
-	boundsFn func(objc.ID, objc.SEL) cgRect
-	sendRect func(objc.ID, objc.SEL, cgRect)
-	sendSize func(objc.ID, objc.SEL, cgSize)
+	msgOnce    sync.Once
+	msgAddr    uintptr
+	newLib     func(objc.ID, objc.SEL, objc.ID, objc.ID, *objc.ID) objc.ID
+	newPipe    func(objc.ID, objc.SEL, objc.ID, *objc.ID) objc.ID
+	boundsFn   func(objc.ID, objc.SEL) cgRect
+	sendRect   func(objc.ID, objc.SEL, cgRect)
+	sendSize   func(objc.ID, objc.SEL, cgSize)
+	setScale   func(objc.ID, objc.SEL, float64)
+	msgFloatFn func(objc.ID, objc.SEL) float64
 )
 
 func msgSend() uintptr {
@@ -633,6 +697,11 @@ var (
 	selRemove             = objc.RegisterName("removeFromSuperlayer")
 	selSetFrame           = objc.RegisterName("setFrame:")
 	selBounds             = objc.RegisterName("bounds")
+	selWindow             = objc.RegisterName("window")
+	selBackingScaleFactor = objc.RegisterName("backingScaleFactor")
+	selContentScaleFactor = objc.RegisterName("contentScaleFactor")
+	selSetContentsScale   = objc.RegisterName("setContentsScale:")
+	selFlush              = objc.RegisterName("flush")
 	selSetDrawableSize    = objc.RegisterName("setDrawableSize:")
 	selNextDrawable       = objc.RegisterName("nextDrawable")
 	selCommandBuffer      = objc.RegisterName("commandBuffer")

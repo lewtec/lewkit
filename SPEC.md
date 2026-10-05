@@ -25,6 +25,7 @@ Non-goals:
 8. Moving `x/taskgroup/progress`.
 9. Moving triangle, perlin, fractal, and compute demos into `x/ui/gui`.
 10. A second constitution at any other path.
+11. A game engine. `x/ui/world` is one frame of columns and ordered systems. It does not render, load assets, or replace `gui.Model`.
 
 Inherited C (cite the file):
 
@@ -56,7 +57,7 @@ Inherited C (cite the file):
 
 | TEC | Tool | Relation | We do not | Cite |
 |-----|------|----------|-----------|------|
-| TEC-01 | this SPEC | implement | add a fourth package under `x/ui` | none |
+| TEC-01 | this SPEC | implement | add a package under `x/ui` besides `tui`, `web`, `gui`, and `world` | none |
 | TEC-02 | this SPEC | implement | unify `tui`, `web`, and `gui` behind one interface | none |
 | TEC-03 | existing host loops | wrap | start the host loop from `x/ui` packages | path:x/driver/window path:x/taskgroup/progress |
 | TEC-04 | ndarray + window | wrap | relocate Present into `gui`; relocate Tensor into `gui` | path:x/ndarray path:x/driver/window |
@@ -73,7 +74,7 @@ Inherited C (cite the file):
 | Language | Go 1.27 | C | all | go.mod |
 | Runtime | the calling Go process | C | TEC-03 | go.mod |
 | Persistence | none | C | this SPEC stores no data | none |
-| UI | not a UI library; three component packages under `x/ui` | D | TEC-01 | |
+| UI | not a UI library; `tui`, `web`, `gui`, and the world frame under `x/ui` | D | TEC-01 | |
 | Packaging | this Go module | C | all | go.mod |
 | Identity | none | C | packages have no user identity | none |
 | Host OS | window backends already in tree | C | TEC-03 TEC-04 | path:x/driver/window |
@@ -87,6 +88,8 @@ Inherited C (cite the file):
 | component | bubbletea type; templ template; tensor transformer | widget |
 | transformer | `Picture.Render` of a `Node` tree: a fused `(h,w,4)` `Tensor` headless, and the same fills drawn on a swapchain | painter, widget, GUI framework |
 | Model | Init, Update, View (bubbletea shape; View is a layout Node) | Widget, Flutter Element |
+| column | one Go type on entities in `x/ui/world` | component; that word stays the bubbletea, templ, or transformer kind; archetype |
+| message | values of one Go type in `x/ui/world`, kept for the frame they are sent and the next frame, with a cursor per reader | `gui.Msg`; `x/event.Bus` |
 | host | `x/driver/window` | gui, windowing toolkit |
 | engine | `x/ndarray` | tinygrad |
 | binding | C library package nested under the loader package it imports | facade |
@@ -127,6 +130,7 @@ Inherited C (cite the file):
 | `x/release` | `Version`, `AppID`, `ValidateAppID`, `Name` | the runtime stamp and the short product name | `version`, the reverse-domain id, and `name` stay here | empty id is `ErrAppIDRequired`; an invalid name keeps the built-in default | import `x/driver`; a second version `-X`; a path, title, or protocol name that writes the product literal instead of calling `Name` |
 | `x/entry` | `Main`, `MainFrom`, `Run`, `After` | process startup for apps and commands | the signal context, UI thread, and taskgroup session stay here | a second progress view is skipped; in app mode, or in a Windows GUI process, a panic becomes an error and `Main` shows it with `messagebox.Show` | import `x/ui/gui`; start the session before command flags are parsed |
 | `x/app` | `Web`, `GUI`, `Open`, `Run` | windows of one process; each is a web handler or a GUI model; a GUI model is `window.Open` then `gui.Run`; Run returns when the last window closes | the session stays here | invalid id is `release.ErrAppIDNotReverseDNS`; a loopback host with a GUI model fails | call `window.Open` beside `App.Run`; call `gui.Open` |
+| `x/ui/world` | `Sim`, `World`, `Entity`, `Column`, `Join`, `Query`, `With`, `Without`, `Spawn`, `Init`, `Put`, `Send`, `Chain`, `Frame`, `Step`, `Time` | one frame: entities, columns, resources, messages, and ordered systems | the schedule stays here; despawn during a system applies after that system; `Chain` and `Reg.After` order systems by function; `Step` writes `Time` from a host delta | a missing value is the zero result; a dead entity insert is a no-op; the zero `Entity` is never alive | import `x/ui/gui`; import `x/ui/tui`; import `x/ui/web`; import `x/app`; import `x/driver`; import `x/event`; import `x/singleton`; call a column a component; open a window |
 | `x/build` | `Desktop`, `Android`, `Mac`, `IOS`, `Windows` | archives and packaged hosts | packaging stays here; `x/build/version.Info` is packaging metadata | existing build errors | import `x/driver/webview`; `-X` `x/build/version.Version` |
 | `x/driver/share` | `Out`, `Item` | text, URL, or files to another app | protocol stays here | empty item is `ErrEmptyItem` | the eletrocromo JSONL host file |
 | `x/driver/volume` | `SetVolume`, `GetVolume`, `ToggleMute`, `Increase`, `Decrease`, `StatusNotification` | sink volume 0..1 | protocol stays here | missing pactl is `driver.ErrIncompatible` | play PCM; import `x/driver/audio_play`; post the alert here |
@@ -231,7 +235,7 @@ Inherited C (cite the file):
 
 | ID | Predicate | On | Forbidden bypass |
 |----|-----------|----|------------------|
-| INV-01 | A type has exactly one owner in the placement table | every new type | a fourth package under `x/ui`; a type copied into two owners |
+| INV-01 | A type has exactly one owner in the placement table | every new type | a package under `x/ui` other than `tui`, `web`, `gui`, and `world`; a type copied into two owners |
 | INV-02 | `x/ui` exports no types | `x/ui` | `Widget`, shared `Color`, shared `Align` |
 | INV-03 | `tui` native export is a bubbletea type | `x/ui/tui` | templ files; tensor transformers |
 | INV-04 | `web` native export is a page templ template. A tag for one registered asset lives in that asset package | `x/ui/web`; `x/http/asset` | bubbletea types; tensor transformers; an asset tag in `web` |
@@ -317,13 +321,14 @@ Inherited C (cite the file):
 | INV-84 | `x/driver/ndeval` does not import Vulkan or Metal bindings | `x/driver/ndeval` | an import of `x/driver/vulkan`, `x/ffi/native/vulkan`, `x/ffi/native/metal`, or `x/ffi/wasm` |
 | INV-85 | `x/driver/ndeval/metal` imports `x/ffi/native/metal` and does not import `x/ffi/native` or `x/driver/vulkan` | `x/driver/ndeval/metal` | an import of `x/ffi/native`; an import of `x/driver/vulkan`; a type that is `vulkan.Device` |
 | INV-86 | `x/driver/ndeval/vulkan` imports `x/driver/vulkan` and does not import `x/ffi/native/vulkan`, `x/ffi/native`, or `x/ffi/wasm` | `x/driver/ndeval/vulkan` | an import of `x/ffi/native/vulkan`; an import of `x/ffi/wasm` |
+| INV-87 | `x/ui/world` does not import `x/ui/gui`, `x/ui/tui`, `x/ui/web`, `x/app`, `x/driver`, `x/event`, or `x/singleton` | `x/ui/world` | that import; a renderer, asset server, or second `Model` in this package |
 
 ## Errors
 
 | Public operation | Bad input | One reaction |
 |------------------|-----------|--------------|
 | Place a type | Matches two of `tui`, `web`, `gui` | Split into two types. MUST NOT add a `Widget` in `x/ui`. |
-| Place a type | Matches no row in the table | Leave it in its existing owner. MUST NOT add a fourth package under `x/ui`. |
+| Place a type | Matches no row in the table | Leave it in its existing owner. MUST NOT add a package under `x/ui` other than `tui`, `web`, `gui`, and `world`. |
 | Place a type | Uses bubbletea to view `Session` | Keep it in `x/taskgroup/progress`. |
 | Place a type | First page templ template in the module | Create `x/ui/web`. MUST NOT put the file in `gui`. MUST NOT put the file in `tui`. |
 | Place a type | Tag for one registered browser asset | Put the templ file in that asset package. |
@@ -376,6 +381,8 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - [ ] `x/driver/ndeval` does not import `x/ffi/native/vulkan`.
 - [ ] `x/disasm` does not import `x/ffi/wasm`.
 - [ ] `x/ffi/native/vulkan` does not import `x/ffi/wasm`.
+- [ ] `x/ui/world` does not import `x/ui/gui`, `x/ui/tui`, `x/ui/web`, `x/app`, `x/driver`, `x/event`, or `x/singleton`.
+- [ ] `gui.Model` is still Init, Update, View. A world is not a second model.
 
 ## Later work
 
@@ -444,7 +451,10 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-04: Android open is `x/driver/opener/android`. `lewkit.Open` starts a view intent. A URL keeps its scheme. A file path is shared through the file provider.
 - 2026-10-04: an ndarray backend is an `Evaluator` driver. `x/ndarray` does not import one. CPU stays in `x/driver/ndeval`. The Vulkan session and mounted-tensor `Paint` move to `x/driver/ndeval/vulkan`. Metal eval is `x/driver/ndeval/metal`, weight 80, and lowers `Kernel.GLSL` to Metal shading language on `OpenDevice`. `ndarray.Open` still picks by weight. Rejected: a Metal type that implements `vulkan.Device`; present painting through that device. Metal present still paints the fill list.
 - 2026-10-05: a list screen evaluates its raster backdrop with `ndarray.Open`. On Apple that is the Metal evaluator. The bytes are the underlay; the fill list is unchanged. `x/ui/gui` does not import `x/driver/ndeval/metal`.
+- 2026-10-05: A raster leaf whose shape is the frame is quantized to the RGBA8 underlay on the CPU. Metal and Vulkan present those bytes with the fill list. An expression still evaluates. Rejected: a generated kernel that only copies stored pixels.
 - 2026-10-05: a Metal autorelease pool stays on the OS thread that pushed it. `withPool` locks that thread across the push, the work, and the drain. Compute dispatch and present both use it. Rejected: draining the pool on whichever thread the goroutine is running on after a wait.
+- 2026-10-04: Bevy's model is a world of columns and a schedule of systems. `gui.Model` stays Init, Update, View and may read a world on `TickMsg`. The world does not open a window. A column is one Go type on entities. The word component stays the UI kind. A message lasts until the next `Frame` and is read by a later set. `x/event.Bus` stays the lossy fan-out. `x/singleton` stays process-wide. Despawn during a system applies when that system returns. Rejected: replacing `gui.Model`; overloading `x/app`, `gui.Cmd`, or `driver.Register`; a renderer, asset server, observer graph, relationship edge, archetype table, or parallel executor.
+- 2026-10-04: The frame lives at `x/ui/world`. A top-level `x/world` was the wrong owner. `tui`, `web`, and `gui` stay the component packages. `world` is the frame beside them. It still does not import them.
 - 2026-10-05: `examples/fractal` animates a Julia set. The parameter is an ndarray splat and the frame is one `(h, w, 4)` kernel painted by `gui`. The bailout is unrolled. Rejected: a loop op in ndarray; moving the demo into `x/ui/gui`.
 - 2026-10-05: a GUI window with no present screen evaluates through `ndarray.Open` when the caller passes no evaluator. `ndarray.CPU` is the parallel tape and was saturating every core on the fractal frame. Rejected: keeping a nil evaluator as CPU.
 - 2026-10-05: A WebView2 page handler runs off the web view thread. The request body is read on that thread. `GetDeferral` keeps the event until `Complete` runs back there. A GUI window opened from the page no longer blocks the web view.
@@ -460,3 +470,5 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-05: The Windows file dialog runs on a fresh STA thread after `OleInitialize`. `Show` is passed NULL, or a window created on that same thread. `SetTitle` is vtable slot 17 (`GetFileName` is 16), `SetFileName` is 15, `GetResult` is 20, and `IFileOpenDialog.GetResults` is 27. The title, file name, and filter strings stay alive until `Show` returns. The WebView2 window is not the owner.
 - 2026-10-05: The Vulkan loader search includes the staged package names, not only `vulkan-1.dll`. NVIDIA stages `vulkan-1-x64.dll`, `vulkan-1-x86.dll`, `vulkan-1-a64.dll`, and `vulkan-1-a64ec.dll`. Intel stages `vulkan-1-64.dll` and `vulkan-1-32.dll`. AMD stages `vulkan64.dll` and `vulkan32.dll`, often one directory under the driver package (`Bxxxxxx`). Qualcomm stages `vulkan-1.dll`. The Vulkan runtime installer writes `vulkan-1-<major>-<minor>-<patch>-<build>.dll` in the system directory and copies the newest to `vulkan-1.dll`; `vulkan-1-999-0-0-0.dll` is that loader under the GPU-PV placeholder name and is tried after a real version. A DLL is kept only when it exports `vkGetInstanceProcAddr`.
 - 2026-10-05: A context is the caller's context, or a child of it. `context.Background` is the process root in `entry.Main`, a nil parent in `entry.MainFrom`, and `entry.RunBound` for the Android host. `thread.Bind` is that root only when `thread.Run` has not already resolved the driver. A nil context passed to `entry.Run`, `app.Run`, `gocmd`, or a desktop build is an error. Host file copies go through `x/build/gen/common.CopyFile`. Rejected: a fresh `context.Background` inside a build, a message box, or a driver lookup that already has a parent.
+- 2026-10-05: A frame composes like a Bevy schedule. `Query`, `With`, and `Without` filter a column. `Spawn` stores a column on a new entity. `Init` stores a resource once. `Chain` runs systems in the order written. `Reg.After` and `Reg.Before` name other functions in that set, so a plugin can sit in a chain it does not own. `Time` and `Sim.Step` are the delta the host already measured. The view is still not a renderer. Rejected: calling a column a component; a parallel executor; a fixed timestep.
+- 2026-10-05: A remove and an insert of one column share one generation. Insert stays immediate, remove waits until the system returns, and an insert after a remove in that system keeps the new value. `Each` and `Join` stamp a row only when the value changes. `Mut` stamps when the stored value changes. `Changed` and `Written` compare that stamp with the reading system, so a later writer is visible on the reader's next run. A message lasts for its frame and the next one. `Messages` returns a copy and advances that reader's cursor. `Send` before `Frame` belongs to that frame. `Frame` orders every set before it changes the world. A nil context panics. `Put` writes the existing resource cell. Rejected: a fresh `context.Background` inside `Frame`; marking a row changed because a system looked at it.

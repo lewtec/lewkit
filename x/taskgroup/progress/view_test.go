@@ -2,6 +2,7 @@ package progress
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -214,6 +215,32 @@ func TestRunWithoutGoSkipsProgram(t *testing.T) {
 	t.Setenv("LEWKIT_FORCE_TUI", "1")
 	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
 	require.NoError(t, Run(s, ctx, func(context.Context) error { return nil }))
+}
+
+func TestNullDeviceSkipsTTY(t *testing.T) {
+	null, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = null.Close() })
+	assert.False(t, terminalView(null, null))
+
+	oldIn, oldOut, oldErr := os.Stdin, os.Stdout, os.Stderr
+	os.Stdin, os.Stdout, os.Stderr = null, null, null
+	t.Cleanup(func() {
+		os.Stdin, os.Stdout, os.Stderr = oldIn, oldOut, oldErr
+	})
+	t.Setenv("LEWKIT_FORCE_TUI", "1")
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("CI", "")
+	t.Setenv("NO_COLOR", "")
+	assert.False(t, Interactive())
+
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	require.NoError(t, Run(s, ctx, func(ctx context.Context) error {
+		taskgroup.Go(ctx, "t", taskgroup.CPU, func(context.Context, *taskgroup.Status) error {
+			return nil
+		})
+		return nil
+	}))
 }
 
 func TestRunNonInteractiveWaits(t *testing.T) {

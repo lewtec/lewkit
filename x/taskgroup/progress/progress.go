@@ -3,42 +3,66 @@
 // Run polls Session.List until work finishes and draws a nom-style
 // tree (├ └ │, status glyphs). The TUI starts on the first Go or
 // LineWriter, not when Run is entered. The last frame is empty: the
-// view quits only after Wait and List is empty. Non-tty, TERM=dumb, CI,
-// and NO_COLOR skip the TUI and Wait. LEWKIT_FORCE_TUI=1 forces the TUI.
+// view quits only after Wait and List is empty. A missing terminal,
+// TERM=dumb, CI, and NO_COLOR skip the TUI and Wait.
 package progress
 
 import (
 	"context"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/lewtec/lewkit/x/taskgroup"
+	"golang.org/x/term"
 )
 
 const defaultMaxRows = 16
 
-// Interactive is false for TERM=dumb, NO_COLOR, CI, or a non-tty stdout/stderr.
+// Interactive is false for TERM=dumb, NO_COLOR, CI, or when the view
+// cannot take a terminal. /dev/null is a character device and is not a
+// terminal. LEWKIT_FORCE_TUI=1 draws even when TERM=dumb, NO_COLOR, or
+// CI is set, and still requires a real terminal.
 func Interactive() bool {
-	if os.Getenv("LEWKIT_FORCE_TUI") != "" {
-		return true
-	}
-	if os.Getenv("TERM") == "dumb" || os.Getenv("NO_COLOR") != "" || os.Getenv("CI") != "" {
+	forced := os.Getenv("LEWKIT_FORCE_TUI") != ""
+	if !forced && (os.Getenv("TERM") == "dumb" || os.Getenv("NO_COLOR") != "" || os.Getenv("CI") != "") {
 		return false
 	}
-	return isCharDevice(os.Stdout) && isCharDevice(os.Stderr)
+	return terminalView(os.Stdin, os.Stderr)
 }
 
-func isCharDevice(f *os.File) bool {
+// terminalView reports that out is a terminal and input can be read.
+// Bubbletea reads stdin, and opens /dev/tty when stdin is not a terminal.
+func terminalView(in, out *os.File) bool {
+	if !isTerminal(out) {
+		return false
+	}
+	if isTerminal(in) {
+		return true
+	}
+	return ttyAvailable()
+}
+
+func isTerminal(f *os.File) bool {
 	if f == nil {
 		return false
 	}
-	fi, err := f.Stat()
+	return term.IsTerminal(int(f.Fd()))
+}
+
+func ttyAvailable() bool {
+	file, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
 		return false
 	}
-	return fi.Mode()&os.ModeCharDevice != 0
+	_ = file.Close()
+	return true
+}
+
+func ttyUnavailable(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "could not open TTY")
 }
 
 type runKey struct{}
@@ -104,6 +128,9 @@ func (u *teaUI) start(s *taskgroup.Session) func() {
 		go func() {
 			defer close(u.done)
 			_, u.err = u.p.Run()
+			if ttyUnavailable(u.err) {
+				u.err = nil
+			}
 			u.restoreLogs(s)
 			if u.err != nil {
 				s.Cancel(u.err)
