@@ -1,4 +1,4 @@
-//go:build android
+//go:build android && cgo
 
 package logging
 
@@ -23,6 +23,7 @@ static void log_write(int prio, char *tag, char *text) {
 import "C"
 
 // Logcat writes process logs to Android logcat under the tag [release.Name].
+// This build has cgo, which is what calls __android_log_write.
 func Logcat() io.Writer { return logcatWriter{} }
 
 type logcatWriter struct{}
