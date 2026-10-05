@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"image"
+	"image/color"
 	"testing"
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
+	_ "github.com/lewtec/lewkit/x/driver/window/mem"
+	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/lewtec/lewkit/x/ui/world"
 	"github.com/stretchr/testify/assert"
@@ -387,9 +392,9 @@ func TestSceneIsTheBoard(t *testing.T) {
 
 	images, texts, rasters := 0, 0, 0
 	walkNodes(screen.View(), &images, &texts, &rasters)
-	assert.Equal(t, 0, images)
+	assert.Equal(t, 1, images)
 	assert.Equal(t, 1, texts)
-	assert.Equal(t, 1, rasters)
+	assert.Equal(t, 0, rasters)
 }
 
 func TestHoverRecolorsTheSquare(t *testing.T) {
@@ -467,8 +472,35 @@ func assertBlackHome(t *testing.T, sim *world.Sim) {
 	})
 }
 
+func TestBoardStaysBelowTheBar(t *testing.T) {
+	t.Setenv("LEWKIT_ENABLE_MEMORY_DRIVER", "1")
+	const width, height, bar = 160, 200, 28
+	host, err := window.Open(t.Context(), window.Config{Width: width, Height: height, Period: time.Hour})
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, host)
+	setter, ok := host.(interface{ SetDead([]image.Rectangle) })
+	require.True(t, ok)
+	setter.SetDead([]image.Rectangle{image.Rect(0, 0, width, bar)})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- gui.Run(ctx, host, ndarray.CPU, newScreen(ctx)) }()
+	light := squareCenter(image.Pt(width, height-bar), 3, 4)
+	require.Eventually(t, func() bool {
+		return host.Front().RGBAAt(8, 8) == color.RGBA{0, 0, 0, 255} &&
+			host.Front().RGBAAt(light.X, light.Y+bar).R > 180
+	}, 2*time.Second, 10*time.Millisecond)
+	cancel()
+	require.NoError(t, <-done)
+}
+
 func walkNodes(n gui.Node, images, texts, rasters *int) {
 	switch node := n.(type) {
+	case *inset:
+		walkNodes(node.screen.view(), images, texts, rasters)
+	case *gui.Hint:
+		walkNodes(node.Child, images, texts, rasters)
 	case *gui.Stack:
 		for _, child := range node.Children {
 			walkNodes(child, images, texts, rasters)

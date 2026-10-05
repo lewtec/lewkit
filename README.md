@@ -89,7 +89,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | --- | --- |
 | `x/ui/world` | `Sim`, `Frame`, `Entity`, `Column`, `Join`, `Put`, `Send`. Entities and columns advance in schedule order. `gui.Model` stays the view and may read a `World` on a tick. This package does not open a window. |
 
-`Frame` runs `Startup` once, then `First`, `PreUpdate`, `Update`, `PostUpdate`, and `Last`. A `Plugin` registers those systems. It is not a driver. A column is one Go type on entities. A message lasts until the next frame. `x/event.Bus` stays the fan-out. `examples/duck` spins an embedded mallard scan on that frame and loops an embedded clip. `examples/chess` plays the Caballero Coll tutorial on the same frame. `examples/deadzone` bounces one square on that frame, inside the box the host keeps clear of navbars and notches.
+`Frame` runs `Startup` once, then `First`, `PreUpdate`, `Update`, `PostUpdate`, and `Last`. A `Plugin` registers those systems. It is not a driver. A column is one Go type on entities. A message lasts until the next frame. `x/event.Bus` stays the fan-out. `examples/duck` spins an embedded mallard scan on that frame and loops an embedded clip. `examples/chess` plays the Caballero Coll tutorial on the same frame and keeps the board in that fully shown box. `examples/deadzone` bounces one square on that frame, inside the same box.
 
 ### Tensors
 

@@ -15,7 +15,7 @@ func (s *screen) track(pointer window.Pointer) {
 	if s == nil || s.sim == nil {
 		return
 	}
-	x, y, hit := pickSquare(s.size, pointer.Pos)
+	x, y, hit := pickSquare(s.size, pointer.Pos.Sub(s.origin))
 	cur := cursor{}
 	if hit {
 		cur = cursor{x: x, y: y, on: true}
@@ -28,9 +28,9 @@ func (s *screen) track(pointer window.Pointer) {
 
 func (s *screen) view() gui.Node {
 	text := "Next move: White"
-	var picture *ndarray.Tensor[float32]
+	var frame image.Image
 	if s != nil {
-		picture = s.picture
+		frame = s.frame
 		if s.sim != nil {
 			if line, ok := world.Read[banner](s.sim.World); ok && line.text != "" {
 				text = line.text
@@ -38,9 +38,62 @@ func (s *screen) view() gui.Node {
 		}
 	}
 	return &gui.Stack{Children: []gui.Node{
-		&gui.Raster{Pixels: picture},
+		&gui.Image{Src: frame},
 		&gui.Positioned{X: 16, Y: 12, Child: &gui.Text{Value: text, Ink: inkBanner, Cursor: -1}},
 	}}
+}
+
+// inset is the root of the chess view. Hint keeps the board and the
+// caption in the fully shown box. A navbar or notch stays black.
+type inset struct {
+	screen *screen
+	hint   *gui.Hint
+}
+
+func (n *inset) Layout(constraints gui.BoxConstraints) gui.Size {
+	if n == nil || n.screen == nil {
+		return gui.Size{}
+	}
+	if n.hint == nil {
+		n.hint = &gui.Hint{}
+	}
+	n.hint.Child = n.screen.view()
+	size := n.hint.Layout(constraints)
+	if n.screen.fit(n.hint.Shown()) {
+		n.hint.Child = n.screen.view()
+		size = n.hint.Layout(constraints)
+	}
+	return size
+}
+
+func (n *inset) Paint(origin gui.Offset, clip gui.Rect, picture *gui.Picture) *ndarray.Tensor[float32] {
+	if n == nil || n.hint == nil {
+		return nil
+	}
+	return n.hint.Paint(origin, clip, picture)
+}
+
+// fit paints the scene at the safe box. The host zones are only known
+// once Hint has laid out, so a change paints and the caller lays out again.
+func (s *screen) fit(shown gui.Rect) bool {
+	if s == nil {
+		return false
+	}
+	width := int(shown.Width + 0.5)
+	height := int(shown.Height + 0.5)
+	if width < 16 || height < 16 {
+		return false
+	}
+	origin := image.Pt(int(shown.X+0.5), int(shown.Y+0.5))
+	size := image.Pt(width, height)
+	if s.fitted && origin == s.origin && size == s.size {
+		return false
+	}
+	s.fitted = true
+	s.origin = origin
+	s.size = size
+	s.paint()
+	return true
 }
 
 // paint draws the scene into a tensor the size of the window.
