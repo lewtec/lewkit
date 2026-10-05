@@ -23,3 +23,14 @@ func PerlinModel(width, height int) (gui.Model, error) {
 	}
 	return newFrameModel(0.4, width, height, perlinDynamic)
 }
+
+// FractalModel animates a Julia set, one revolution every twenty seconds.
+func FractalModel(width, height int) (gui.Model, error) {
+	if width <= 0 {
+		width = 800
+	}
+	if height <= 0 {
+		height = 600
+	}
+	return newFrameModel(fractalTurnsPerSecond, width, height, fractalDynamic)
+}
