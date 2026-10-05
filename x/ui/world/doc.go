@@ -11,20 +11,25 @@
 // templ template, or a tensor transformer, so this package does not.
 // A Bevy resource is [Put] and [Mut]: one value of a Go type on that
 // world. That is not x/singleton, which is process-wide.
-// A Bevy message is [Send] and [Messages]: values a later system in
-// this frame can read. That is not gui.Msg, and it is not x/event.Bus.
-// The bus fans out and drops when a subscriber is full. A message here
-// stays until the next frame.
+// A Bevy message is [Send] and [Messages]: values kept for the frame
+// they are sent and the next frame. Each reader has a cursor, so a
+// system scheduled before the sender observes the message on its next
+// run. That is not gui.Msg, and it is not x/event.Bus. The bus fans
+// out and drops when a subscriber is full.
 //
 // [World.Despawn] and [Table.Remove] during a system apply after that
 // system returns, so a column walk stays valid. [World.Spawn] and
 // [Table.Insert] happen immediately. A walk does not visit rows inserted
-// during that walk.
+// during that walk. [Table.Insert] after [Table.Remove] of that same
+// column, in the same system, keeps the inserted value.
 //
 // [Query] walks one column. [With] and [Without] keep or drop rows that
 // also store another column. [Spawn] and [Spawn2] store columns on a
 // new entity. [Init] stores a resource once, so two plugins can declare
 // it. [Sim.Step] writes [Time] from a duration the host already measured.
+// [Each] and [Join] mark a row when the value changes. [Mut] marks it
+// when the caller stores a different value. [Changed] and [Written]
+// compare that stamp with the system that is reading.
 //
 // Systems in one [Set] run on the caller goroutine. With no [Reg.After]
 // or [Reg.Before], registration order is the order. [Sim.Chain] runs its
@@ -33,11 +38,6 @@
 // Bevy also runs non-overlapping systems in parallel. That executor is
 // not this package. x/taskgroup remains the pool for work that outlives
 // a frame.
-//
-// Bevy keeps a message for two frames and gives each reader a cursor, so
-// a system scheduled before the sender still observes it. Here the
-// sender runs in an earlier set than the reader. The next [Sim.Frame]
-// clears the log.
 //
 // Not in this package: archetype storage, observers, relationship edges,
 // states, a fixed timestep, assets, scenes, and a render world. The

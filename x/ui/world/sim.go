@@ -28,6 +28,8 @@ type Plugin func(*Sim)
 type Sim struct {
 	World   *World
 	systems [setCount][]placed
+	saved   [setCount][]int
+	fresh   bool
 	seq     int
 	started bool
 	delta   float64
@@ -70,6 +72,7 @@ func (s *Sim) System(set Set, sys System) *Reg {
 	if name == "" {
 		panic("world: system has no name")
 	}
+	s.fresh = false
 	for _, existing := range s.systems[set] {
 		if existing.name == name {
 			panic("world: duplicate system " + name)
@@ -103,9 +106,11 @@ func (s *Sim) Chain(set Set, systems ...System) {
 	}
 }
 
-// Frame clears the previous message log, runs Startup once, then runs
-// First through Last. A canceled ctx runs no further systems. The
-// system that observed the cancel still flushes its deferred edits.
+// Frame runs Startup once, then First through Last.
+// Every set is ordered before the world changes. A nil ctx panics.
+// A canceled ctx runs no further systems. The system that observed the
+// cancel still flushes its deferred edits. A message is dropped on the
+// frame after the one that follows its send.
 func (s *Sim) Frame(ctx context.Context) {
 	if s == nil || s.World == nil {
 		if s != nil {
@@ -114,41 +119,69 @@ func (s *Sim) Frame(ctx context.Context) {
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		panic("world: nil context")
 	}
+	plan := s.prepare()
 	if ctx.Err() != nil {
 		s.stepped = false
 		return
 	}
-	s.World.tick++
+	w := s.World
+	w.settle()
+	w.frame++
+	w.inFrame = true
+	defer func() { w.inFrame = false }()
+	w.clock++
+	boundary := w.clock
+	defer func() { w.seen = boundary - 1 }()
 	s.writeTime()
-	s.World.roll()
+	w.roll()
 	if !s.started {
 		s.started = true
-		if !s.run(ctx, Startup) {
+		if !s.run(ctx, Startup, plan[Startup]) {
 			return
 		}
 	}
 	for set := First; set <= Last; set++ {
-		if !s.run(ctx, set) {
+		if !s.run(ctx, set, plan[set]) {
 			return
 		}
 	}
 }
 
-func (s *Sim) run(ctx context.Context, set Set) bool {
-	systems := order(s.systems[set])
-	for _, sys := range systems {
+func (s *Sim) prepare() [setCount][]int {
+	if s.fresh {
+		return s.saved
+	}
+	var saved [setCount][]int
+	for set := Startup; set < setCount; set++ {
+		saved[set] = order(s.systems[set])
+	}
+	s.saved = saved
+	s.fresh = true
+	return saved
+}
+
+func (s *Sim) run(ctx context.Context, set Set, idxs []int) bool {
+	for _, i := range idxs {
 		if ctx.Err() != nil {
 			return false
 		}
-		s.World.inSystem = true
+		sys := &s.systems[set][i]
+		w := s.World
+		w.inSystem = true
+		w.reader = sys.seq
+		w.sysLast = sys.lastRun
 		func() {
 			defer func() {
-				s.World.inSystem = false
-				s.World.flush()
+				w.settle()
+				sys.lastRun = w.clock
+				w.clock++
+				w.inSystem = false
+				w.reader = outsideReader
+				w.flush()
 			}()
-			sys(ctx, s.World)
+			sys.run(ctx, w)
 		}()
 	}
 	return ctx.Err() == nil

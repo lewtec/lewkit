@@ -42,7 +42,7 @@ func Without[T, U any](v View[T]) View[T] {
 	return next
 }
 
-// Changed keeps rows of T written during this frame.
+// Changed keeps rows of T written since this reader last ran.
 func Changed[T any](v View[T]) View[T] {
 	v.onlyChanged = true
 	return v
@@ -51,16 +51,18 @@ func Changed[T any](v View[T]) View[T] {
 // Get copies the value stored for e when e passes the filters.
 func (v View[T]) Get(e Entity) (T, bool) {
 	var zero T
-	if !v.pass(e) {
+	entry := v.row(e)
+	if entry == nil {
 		return zero, false
 	}
-	return Column[T](v.w).Get(e)
+	return entry.v, true
 }
 
-// Mut returns the stored value when e passes the filters, and marks it
-// written this frame. Nil means the row is absent or filtered out.
+// Mut returns the stored value when e passes the filters. The row is
+// marked written when the caller changes it. Nil means the row is absent
+// or filtered out.
 func (v View[T]) Mut(e Entity) *T {
-	if !v.pass(e) {
+	if v.row(e) == nil {
 		return nil
 	}
 	return Column[T](v.w).Mut(e)
@@ -75,8 +77,8 @@ func (v View[T]) Read(fn func(Entity, T)) {
 	v.each(false, func(e Entity, value *T) { fn(e, *value) })
 }
 
-// Each walks the filtered rows. fn may change the value, and each visit
-// marks that value written. Rows inserted during fn are not visited.
+// Each walks the filtered rows. A value fn changes is marked written.
+// Rows inserted during fn are not visited.
 func (v View[T]) Each(fn func(Entity, *T)) {
 	v.each(true, fn)
 }
@@ -84,18 +86,28 @@ func (v View[T]) Each(fn func(Entity, *T)) {
 // First returns the first filtered row that matches. A nil match accepts
 // the first filtered row.
 func (v View[T]) First(match func(T) bool) (Entity, T, bool) {
-	var (
-		id    Entity
-		value T
-		ok    bool
-	)
-	v.Read(func(e Entity, item T) {
-		if ok || (match != nil && !match(item)) {
-			return
+	var zero T
+	if v.w == nil {
+		return Entity{}, zero, false
+	}
+	table := Column[T](v.w)
+	n := len(table.ids)
+	for i := 0; i < n; i++ {
+		index := table.ids[i]
+		entry := table.sparse[index]
+		if entry == nil {
+			continue
 		}
-		id, value, ok = e, item, true
-	})
-	return id, value, ok
+		e := Entity{Index: index, Gen: entry.gen}
+		if v.row(e) == nil {
+			continue
+		}
+		if match != nil && !match(entry.v) {
+			continue
+		}
+		return e, entry.v, true
+	}
+	return Entity{}, zero, false
 }
 
 // All copies the filtered values.
@@ -105,22 +117,23 @@ func (v View[T]) All() []T {
 	return out
 }
 
-func (v View[T]) pass(e Entity) bool {
+func (v View[T]) row(e Entity) *row[T] {
 	if v.w == nil || !v.w.Alive(e) {
-		return false
+		return nil
 	}
-	if _, ok := Column[T](v.w).Get(e); !ok {
-		return false
+	entry := Column[T](v.w).lookup(e)
+	if entry == nil {
+		return nil
 	}
 	for _, hide := range v.hide {
 		if hide(e) {
-			return false
+			return nil
 		}
 	}
-	if v.onlyChanged && !Column[T](v.w).Changed(e) {
-		return false
+	if v.onlyChanged && !v.w.changed(&entry.tick) {
+		return nil
 	}
-	return true
+	return entry
 }
 
 func (v View[T]) each(edit bool, fn func(Entity, *T)) {
@@ -136,12 +149,17 @@ func (v View[T]) each(edit bool, fn func(Entity, *T)) {
 			continue
 		}
 		e := Entity{Index: index, Gen: entry.gen}
-		if !v.pass(e) {
+		if v.row(e) == nil {
 			continue
 		}
+		if !edit {
+			fn(e, &entry.v)
+			continue
+		}
+		before := entry.v
 		fn(e, &entry.v)
-		if edit {
-			entry.tick = v.w.tick
+		if !same(before, entry.v) {
+			v.w.mark(&entry.tick)
 		}
 	}
 }

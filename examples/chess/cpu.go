@@ -8,8 +8,8 @@ import (
 )
 
 // cpuSide is the side the computer plays. play is false for a board
-// where both sides are clicked by hand. It is a resource, not a message:
-// it has to still be there on the frame after White moves.
+// where both sides are clicked by hand. It is a resource because it
+// lasts the whole game.
 type cpuSide struct {
 	side side
 	play bool

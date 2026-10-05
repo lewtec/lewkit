@@ -5,12 +5,23 @@ type cell[T any] struct {
 	tick uint64
 }
 
-// Put stores the single value of T on w and marks it written this frame.
+// Put stores the single value of T on w. The same cell stays in place,
+// so a pointer from [Mut] still refers to it. An equal value is not a write.
 func Put[T any](w *World, v T) {
 	if w == nil {
 		return
 	}
-	w.res[key[T]{}] = &cell[T]{v: v, tick: w.tick}
+	if c := resource[T](w); c != nil {
+		if same(c.v, v) {
+			return
+		}
+		c.v = v
+		w.mark(&c.tick)
+		return
+	}
+	c := &cell[T]{v: v}
+	w.res[key[T]{}] = c
+	w.mark(&c.tick)
 }
 
 // Read copies the resource of T.
@@ -23,21 +34,30 @@ func Read[T any](w *World) (T, bool) {
 	return c.v, true
 }
 
-// Mut returns the resource of T and marks it written. Nil means Put was
-// not called for T.
+// Mut returns the resource of T. The resource is marked written when the
+// caller changes it. Nil means Put was not called for T.
 func Mut[T any](w *World) *T {
 	c := resource[T](w)
 	if c == nil {
 		return nil
 	}
-	c.tick = w.tick
+	before := c.v
+	w.watch(func() {
+		if !same(before, c.v) {
+			w.mark(&c.tick)
+		}
+	})
 	return &c.v
 }
 
-// Written reports that Put or Mut touched T during this frame.
+// Written reports that T was written since this reader last ran.
+// Inside a system, the reader is that system. Outside, it is the last frame.
 func Written[T any](w *World) bool {
 	c := resource[T](w)
-	return c != nil && w.tick != 0 && c.tick == w.tick
+	if c == nil {
+		return false
+	}
+	return w.changed(&c.tick)
 }
 
 func resource[T any](w *World) *cell[T] {

@@ -98,6 +98,10 @@ func TestScheduleOrderAndMessages(t *testing.T) {
 	assert.Equal(t, []int{7}, late)
 
 	sim.Frame(t.Context())
+	assert.Equal(t, []int{7}, early)
+	assert.Empty(t, late)
+
+	sim.Frame(t.Context())
 	assert.Empty(t, early)
 	assert.Empty(t, late)
 }
@@ -155,7 +159,10 @@ func TestChangedStamp(t *testing.T) {
 
 	sim.Frame(t.Context())
 	assert.False(t, col.Changed(e))
-	assert.Equal(t, 4, *col.Mut(e))
+	edited := col.Mut(e)
+	require.NotNil(t, edited)
+	assert.False(t, col.Changed(e))
+	*edited = 5
 	assert.True(t, col.Changed(e))
 
 	type clock struct{ N int }
@@ -192,8 +199,11 @@ func TestQueryWithoutAndChanged(t *testing.T) {
 
 	sim.Frame(t.Context())
 	assert.Empty(t, Changed(Query[int](w)).All())
-	require.NotNil(t, Query[int](w).Mut(keep))
-	assert.Equal(t, []int{1}, Changed(Query[int](w)).All())
+	edited := Query[int](w).Mut(keep)
+	require.NotNil(t, edited)
+	assert.Empty(t, Changed(Query[int](w)).All())
+	*edited = 4
+	assert.Equal(t, []int{4}, Changed(Query[int](w)).All())
 }
 
 func TestInitKeepsTheFirstValue(t *testing.T) {
@@ -306,6 +316,129 @@ func TestResourceTypesDoNotCollide(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 9, got)
 	assert.Nil(t, Mut[string](w))
+}
+
+func TestRemoveThenInsertKeepsTheValue(t *testing.T) {
+	sim := New()
+	e := Spawn(sim.World, 1)
+	sim.System(Update, func(_ context.Context, w *World) {
+		Column[int](w).Remove(e)
+		Column[int](w).Insert(e, 5)
+		got, ok := Column[int](w).Get(e)
+		require.True(t, ok)
+		assert.Equal(t, 5, got)
+	})
+	var after int
+	var ok bool
+	sim.System(PostUpdate, func(_ context.Context, w *World) {
+		after, ok = Column[int](w).Get(e)
+	})
+	sim.Frame(t.Context())
+	require.True(t, ok)
+	assert.Equal(t, 5, after)
+}
+
+func TestInsertThenRemoveDropsTheValue(t *testing.T) {
+	sim := New()
+	e := Spawn(sim.World, 1)
+	sim.System(Update, func(_ context.Context, w *World) {
+		Column[int](w).Insert(e, 5)
+		Column[int](w).Remove(e)
+	})
+	sim.System(PostUpdate, func(_ context.Context, w *World) {
+		_, ok := Column[int](w).Get(e)
+		assert.False(t, ok)
+	})
+	sim.Frame(t.Context())
+}
+
+func TestEachDoesNotDirtyARead(t *testing.T) {
+	sim := New()
+	e := Spawn(sim.World, 1)
+	sim.System(Update, func(_ context.Context, w *World) {
+		Column[int](w).Each(func(Entity, *int) {})
+	})
+	sim.System(PostUpdate, func(_ context.Context, w *World) {
+		assert.False(t, Column[int](w).Changed(e))
+	})
+	sim.Frame(t.Context())
+}
+
+func TestChangeReachesAnEarlierSystemNextFrame(t *testing.T) {
+	sim := New()
+	e := Spawn(sim.World, 0)
+	var n int
+	var early bool
+	writer := func(_ context.Context, w *World) {
+		n++
+		if n != 1 {
+			return
+		}
+		got := Column[int](w).Mut(e)
+		*got = 1
+	}
+	reader := func(_ context.Context, w *World) {
+		early = Column[int](w).Changed(e)
+	}
+	sim.System(Update, writer)
+	sim.System(Update, reader).Before(writer)
+
+	sim.Frame(t.Context())
+	assert.False(t, early)
+	sim.Frame(t.Context())
+	assert.True(t, early)
+	sim.Frame(t.Context())
+	assert.False(t, early)
+}
+
+func TestSendBeforeFrameReachesSystems(t *testing.T) {
+	sim := New()
+	var got []int
+	sim.System(Update, func(_ context.Context, w *World) {
+		got = Messages[int](w)
+	})
+	Send(sim.World, 4)
+	sim.Frame(t.Context())
+	assert.Equal(t, []int{4}, got)
+	sim.Frame(t.Context())
+	assert.Empty(t, got)
+}
+
+func TestPutKeepsTheMutPointer(t *testing.T) {
+	w := newWorld()
+	Put(w, 1)
+	p := Mut[int](w)
+	require.NotNil(t, p)
+	Put(w, 2)
+	assert.Equal(t, 2, *p)
+}
+
+func TestDeferredDeferRunsAfterTheBatch(t *testing.T) {
+	sim := New()
+	var got []int
+	sim.System(Update, func(_ context.Context, w *World) {
+		w.Defer(func() {
+			got = append(got, 1)
+			w.Defer(func() { got = append(got, 2) })
+		})
+		w.Defer(func() { got = append(got, 3) })
+	})
+	sim.Frame(t.Context())
+	assert.Equal(t, []int{1, 3, 2}, got)
+}
+
+func TestNilContextPanics(t *testing.T) {
+	assert.Panics(t, func() { New().Frame(nil) })
+}
+
+func TestBadScheduleDoesNotRun(t *testing.T) {
+	sim := New()
+	ran := false
+	sim.System(Startup, func(context.Context, *World) { ran = true })
+	sim.System(Last, func(context.Context, *World) {}).After(func(context.Context, *World) {})
+	assert.Panics(t, func() { sim.Frame(t.Context()) })
+	assert.False(t, ran)
+	assert.Equal(t, uint64(0), sim.World.Tick())
 }
 
 func entityWith[T any](t *testing.T, col *Table[T]) Entity {

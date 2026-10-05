@@ -17,11 +17,12 @@ type Reg struct {
 }
 
 // After runs this system after each prev. A missing name panics when
-// the frame orders the set.
+// the frame is ordered, before the world changes.
 func (r *Reg) After(prevs ...System) *Reg {
 	if r == nil {
 		return nil
 	}
+	r.sim.fresh = false
 	item := &r.sim.systems[r.set][r.idx]
 	for _, prev := range prevs {
 		if prev == nil {
@@ -37,6 +38,7 @@ func (r *Reg) Before(nexts ...System) *Reg {
 	if r == nil {
 		return nil
 	}
+	r.sim.fresh = false
 	item := &r.sim.systems[r.set][r.idx]
 	for _, next := range nexts {
 		if next == nil {
@@ -48,14 +50,15 @@ func (r *Reg) Before(nexts ...System) *Reg {
 }
 
 type placed struct {
-	run    System
-	name   string
-	after  []string
-	before []string
-	seq    int
+	run     System
+	name    string
+	after   []string
+	before  []string
+	seq     int
+	lastRun uint64
 }
 
-func order(nodes []placed) []System {
+func order(nodes []placed) []int {
 	n := len(nodes)
 	if n == 0 {
 		return nil
@@ -100,7 +103,7 @@ func order(nodes []placed) []System {
 			ready = append(ready, i)
 		}
 	}
-	out := make([]System, 0, n)
+	out := make([]int, 0, n)
 	for len(out) < n {
 		if len(ready) == 0 {
 			panic("world: system cycle")
@@ -113,7 +116,7 @@ func order(nodes []placed) []System {
 		}
 		i := ready[best]
 		ready = append(ready[:best], ready[best+1:]...)
-		out = append(out, nodes[i].run)
+		out = append(out, i)
 		for _, j := range next[i] {
 			indeg[j]--
 			if indeg[j] == 0 {

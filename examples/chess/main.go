@@ -5,8 +5,8 @@
 // select piece, reset, despawn, and color. PiecesPlugin spawns the
 // pieces at startup. The CPU plugin places its system after reset and
 // before despawn, so that order holds whichever plugin was added first.
-// A click is a resource, because Frame clears messages before systems
-// run. Reset is a message the move sends for a later system. The view
+// A click is a resource the host replaces. The accepted click and the
+// reset are messages a later system reads. The view
 // is the article's scene: a camera above the side of the board, one
 // plane per square, and pieces that slide toward their square. The
 // picture is a raster. This package does not load a mesh kit.

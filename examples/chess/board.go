@@ -24,8 +24,7 @@ const (
 )
 
 // click is the pointer sample for this frame.
-// The host writes it before Frame. selectSquare consumes it.
-// A message would not survive: Frame clears the log before systems run.
+// The host replaces it before Frame. selectSquare clears it.
 type click struct {
 	x, y uint8
 	hit  bool
@@ -60,8 +59,13 @@ func (t *playerTurn) change() {
 // taken marks a piece movePiece captured. despawnTaken removes it.
 type taken struct{}
 
+// picked is a click selectSquare accepted. movePiece and selectPiece
+// each keep a cursor, so both observe the one send.
+type picked struct{}
+
 // resetSelected asks the later system to clear the selection.
-// movePiece sends it in this frame; the next Frame drops it.
+// movePiece sends it. The reader that has not caught up can still see
+// it on the next frame.
 type resetSelected struct{}
 
 // outcome is set when a king is taken. The other side won.
@@ -133,6 +137,7 @@ func selectSquare(_ context.Context, w *world.World) {
 	}
 	sel.e = e
 	sel.ok = true
+	world.Send(w, picked{})
 }
 
 func squareAt(w *world.World, x, y uint8) (world.Entity, bool) {
@@ -143,7 +148,7 @@ func squareAt(w *world.World, x, y uint8) (world.Entity, bool) {
 }
 
 func movePiece(_ context.Context, w *world.World) {
-	if !world.Written[selectedSquare](w) {
+	if len(world.Messages[picked](w)) == 0 {
 		return
 	}
 	pieceSel, _ := world.Read[selectedPiece](w)
@@ -198,7 +203,7 @@ func applyMove(w *world.World, mover *piece, x, y uint8) {
 }
 
 func selectPiece(_ context.Context, w *world.World) {
-	if !world.Written[selectedSquare](w) {
+	if len(world.Messages[picked](w)) == 0 {
 		return
 	}
 	sqSel, _ := world.Read[selectedSquare](w)

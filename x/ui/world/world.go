@@ -16,15 +16,22 @@ type column interface {
 }
 
 type roller interface {
-	roll()
+	roll(frame uint64)
 }
 
 // World is the entities, columns, resources, and messages of one [Sim].
 // Use it from the goroutine that calls [Sim.Frame].
 type World struct {
-	tick     uint64
+	frame    uint64
+	clock    uint64
+	seen     uint64
+	sysLast  uint64
+	reader   int
+	inFrame  bool
 	inSystem bool
+	flushing bool
 	queue    []func()
+	watches  []func()
 	slots    []slot
 	free     []uint32
 	cols     map[any]column
@@ -36,9 +43,10 @@ type World struct {
 
 func newWorld() *World {
 	return &World{
-		cols: map[any]column{},
-		res:  map[any]any{},
-		msgs: map[any]roller{},
+		reader: outsideReader,
+		cols:   map[any]column{},
+		res:    map[any]any{},
+		msgs:   map[any]roller{},
 	}
 }
 
@@ -47,7 +55,7 @@ func (w *World) Tick() uint64 {
 	if w == nil {
 		return 0
 	}
-	return w.tick
+	return w.frame
 }
 
 // Spawn returns a live entity. During a system the id is live immediately.
@@ -83,16 +91,18 @@ func (w *World) Despawn(e Entity) {
 	w.Defer(func() { w.despawnNow(e) })
 }
 
-// Defer runs fn after the current system. Outside a system, fn runs now.
+// Defer runs fn after the current system, in queue order.
+// A Defer made while the queue is flushing waits for the next batch.
+// Outside a system, and outside a flush, fn runs now.
 func (w *World) Defer(fn func()) {
 	if w == nil || fn == nil {
 		return
 	}
-	if !w.inSystem {
-		fn()
+	if w.inSystem || w.flushing {
+		w.queue = append(w.queue, fn)
 		return
 	}
-	w.queue = append(w.queue, fn)
+	fn()
 }
 
 func (w *World) despawnNow(e Entity) {
@@ -112,7 +122,10 @@ func (w *World) despawnNow(e Entity) {
 }
 
 func (w *World) flush() {
-	w.inSystem = false
+	if w == nil || w.flushing {
+		return
+	}
+	w.flushing = true
 	for len(w.queue) > 0 {
 		batch := w.queue
 		w.queue = nil
@@ -120,10 +133,12 @@ func (w *World) flush() {
 			fn()
 		}
 	}
+	w.flushing = false
+	w.settle()
 }
 
 func (w *World) roll() {
 	for _, box := range w.rolls {
-		box.roll()
+		box.roll(w.frame)
 	}
 }
