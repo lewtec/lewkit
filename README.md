@@ -89,7 +89,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | --- | --- |
 | `x/ui/world` | `Sim`, `Frame`, `Entity`, `Column`, `Join`, `Put`, `Send`. Entities and columns advance in schedule order. `gui.Model` stays the view and may read a `World` on a tick. This package does not open a window. |
 
-`Frame` runs `Startup` once, then `First`, `PreUpdate`, `Update`, `PostUpdate`, and `Last`. A `Plugin` registers those systems. It is not a driver. A column is one Go type on entities. A message lasts until the next frame. `x/event.Bus` stays the fan-out. `examples/duck` spins an embedded mallard scan on that frame and loops an embedded clip. `examples/chess` plays the Caballero Coll tutorial on the same frame and keeps the board in that fully shown box. `examples/deadzone` bounces one square on that frame, inside the same box.
+`Frame` runs `Startup` once, then `First`, `PreUpdate`, `Update`, `PostUpdate`, and `Last`. A `Plugin` registers those systems. It is not a driver. A column is one Go type on entities. A message lasts until the next frame. `x/event.Bus` stays the fan-out. `examples/duck` spins an embedded mallard scan on that frame and loops an embedded clip. `examples/chess` plays the Caballero Coll tutorial on the same frame and keeps the board in that fully shown box. `examples/deadzone` bounces one square on that frame, inside the same box. `examples/dvd` bounces a logo in that box and draws a rectangle around it.
 
 ### Tensors
 
@@ -221,6 +221,7 @@ The progress view tracks the build. The program starts after that view and write
 | `examples/notepad` | An editor. The buffer stays in memory. |
 | `examples/elm` | Two buttons that add and subtract an integer. |
 | `examples/deadzone` | One colored square bouncing on black. The world frame moves it inside the fully shown box. |
+| `examples/dvd` | A DVD logo bouncing inside the usable box. A rectangle plots that box. |
 | `examples/webview` | In-process page in the system web view. |
 | `examples/spa` | Templ page as a single-page app. |
 | `examples/music` | Drop a music directory, or pass one after `--`. Browse and play from an in-memory catalog. |
