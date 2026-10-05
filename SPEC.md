@@ -23,7 +23,7 @@ Non-goals:
 6. Window `Open`, `Frame`, `Fit`, `Present`, and `Animate`.
 7. A `Widget` type shared by `tui`, `web`, and `gui`.
 8. Moving `x/taskgroup/progress`.
-9. Moving triangle, perlin, and compute demos into `x/ui/gui`.
+9. Moving triangle, perlin, fractal, and compute demos into `x/ui/gui`.
 10. A second constitution at any other path.
 
 Inherited C (cite the file):
@@ -36,7 +36,7 @@ Inherited C (cite the file):
 - `path:x/ndarray/image`: pack `(h,w,4)` into `image.RGBA`.
 - `path:x/image`: CPU blit and `Label`.
 - `path:x/image/convert`: PNG, JPEG, ICO, and ICNS icon bytes.
-- `path:examples`: triangle, perlin, compute demos.
+- `path:examples`: triangle, perlin, fractal, and compute demos.
 - templ is the web toolkit. A tag for one registered asset lives in that asset package. Page templates live in `x/ui/web`.
 
 ## Technique
@@ -378,7 +378,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 1. Reusable bubbletea types in `x/ui/tui`.
 2. Text input (IME) and mapped key names.
-3. Extract triangle and perlin from `examples/internal/scene` into `gui` only after they are reusable transformers.
+3. Extract triangle, perlin, and fractal from `examples/internal/scene` into `gui` only after they are reusable transformers.
 
 ## Assumptions
 
@@ -436,3 +436,5 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-04: an ndarray backend is an `Evaluator` driver. `x/ndarray` does not import one. CPU stays in `x/driver/ndeval`. The Vulkan session and mounted-tensor `Paint` move to `x/driver/ndeval/vulkan`. Metal eval is `x/driver/ndeval/metal`, weight 80, and lowers `Kernel.GLSL` to Metal shading language on `OpenDevice`. `ndarray.Open` still picks by weight. Rejected: a Metal type that implements `vulkan.Device`; present painting through that device. Metal present still paints the fill list.
 - 2026-10-05: a list screen evaluates its raster backdrop with `ndarray.Open`. On Apple that is the Metal evaluator. The bytes are the underlay; the fill list is unchanged. `x/ui/gui` does not import `x/driver/ndeval/metal`.
 - 2026-10-05: a Metal autorelease pool stays on the OS thread that pushed it. `withPool` locks that thread across the push, the work, and the drain. Compute dispatch and present both use it. Rejected: draining the pool on whichever thread the goroutine is running on after a wait.
+- 2026-10-05: `examples/fractal` animates a Julia set. The parameter is an ndarray splat and the frame is one `(h, w, 4)` kernel painted by `gui`. The bailout is unrolled. Rejected: a loop op in ndarray; moving the demo into `x/ui/gui`.
+- 2026-10-05: a GUI window with no present screen evaluates through `ndarray.Open` when the caller passes no evaluator. `ndarray.CPU` is the parallel tape and was saturating every core on the fractal frame. Rejected: keeping a nil evaluator as CPU.

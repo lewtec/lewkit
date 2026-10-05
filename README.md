@@ -205,6 +205,7 @@ The progress view tracks the build. The program starts after that view and write
 | `examples/rsync` | Parallel fake transfers. Each transfer rewrites one row. |
 | `examples/triangle` | RGB triangle, one turn every four seconds. Plus and minus step the rate by 0.05. |
 | `examples/perlin` | Animated Perlin noise. |
+| `examples/fractal` | Animated Julia set. The parameter walks the Mandelbrot cardioid once every twenty seconds. |
 | `examples/compute` | Embedded shader `example.compute.glsl`. A path argument loads that shader. |
 | `examples/scroll` | Rounded translucent boxes in a loop. |
 | `examples/notepad` | An editor. The buffer stays in memory. |

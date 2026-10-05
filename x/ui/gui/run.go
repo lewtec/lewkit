@@ -170,6 +170,13 @@ func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, m
 		defer hold.close()
 		return run(ctx, bridgeDisplay{Window: host, screen: screen, evaluator: gpu, raster: hold}, nil, model)
 	}
+	// No present screen. A nil evaluator would run the frame tape on every
+	// core. Open picks the registered GPU ndarray evaluator when one exists.
+	if evaluator == nil {
+		hold := &rasterHold{}
+		defer hold.close()
+		evaluator = hold.get(ctx)
+	}
 	return run(ctx, imageDisplay{host}, evaluator, model)
 }
 
