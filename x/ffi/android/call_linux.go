@@ -204,5 +204,6 @@ func elapsedRealtime() int64 {
 	if err := unix.ClockGettime(unix.CLOCK_BOOTTIME, &ts); err != nil {
 		return time.Now().UnixMilli()
 	}
-	return ts.Sec*1000 + int64(ts.Nsec)/1e6
+	// Sec is int32 on 32-bit Linux. Widen it before multiplying.
+	return int64(ts.Sec)*1000 + int64(ts.Nsec)/1e6
 }
