@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	_ "github.com/lewtec/lewkit/x/driver/ndeval"
-	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
@@ -25,11 +24,11 @@ func TestLinear(t *testing.T) {
 	require.Equal(t, want, got)
 	require.Equal(t, ndarray.Shape{2}, y.Shape())
 
-	if _, err := vulkan.List(t.Context()); err != nil {
-		t.Skip(err)
-	}
 	evaluator, err := ndarray.Open(t.Context())
 	require.NoError(t, err)
+	if evaluator == ndarray.CPU {
+		t.Skip("no gpu evaluator")
+	}
 	test.CloseOnCleanup(t, evaluator)
 	test.CloseOnCleanup(t, y)
 	gpu := make([]float32, y.Size())

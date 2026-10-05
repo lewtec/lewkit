@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"math"
 
-	"github.com/lewtec/lewkit/x/driver/ndeval"
+	ndvulkan "github.com/lewtec/lewkit/x/driver/ndeval/vulkan"
 	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
@@ -58,10 +58,10 @@ func (picture *Picture) paintMounted(ctx context.Context, screen vulkan.Screen, 
 		if picture.paintEval != nil {
 			_ = picture.paintEval.Close()
 		}
-		picture.paintEval = ndeval.Bind(screen.Device())
+		picture.paintEval = ndvulkan.Bind(screen.Device())
 		picture.paintDevice = screen.Device()
 	}
-	return ndeval.Paint(ctx, picture.paintEval, pixels, screen)
+	return ndvulkan.Paint(ctx, picture.paintEval, pixels, screen)
 }
 
 func putFill(dst []byte, fill Draw) {

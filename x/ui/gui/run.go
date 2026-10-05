@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"image"
+	"sync"
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
@@ -37,6 +38,47 @@ type bridgeDisplay struct {
 	window.Window
 	screen    present.Screen
 	evaluator ndarray.Evaluator
+	raster    *rasterHold
+}
+
+// rasterHold is the ndarray evaluator for a backdrop on a list screen.
+// Metal present has no mounted-tensor painter, so the backdrop is evaluated
+// here and uploaded as the underlay. Open picks the registered driver.
+type rasterHold struct {
+	once  sync.Once
+	eval  ndarray.Evaluator
+	owned bool
+}
+
+func (hold *rasterHold) get(ctx context.Context) ndarray.Evaluator {
+	if hold == nil {
+		return ndarray.CPU
+	}
+	if hold.eval != nil {
+		return hold.eval
+	}
+	hold.once.Do(func() {
+		opened, err := ndarray.Open(ctx)
+		if err != nil || opened == nil {
+			hold.eval = ndarray.CPU
+			return
+		}
+		hold.eval = opened
+		hold.owned = opened != ndarray.CPU
+	})
+	if hold.eval == nil {
+		return ndarray.CPU
+	}
+	return hold.eval
+}
+
+func (hold *rasterHold) close() {
+	if hold == nil || !hold.owned || hold.eval == nil {
+		return
+	}
+	_ = hold.eval.Close()
+	hold.eval = nil
+	hold.owned = false
 }
 
 func (d bridgeDisplay) gpuPaint() bool { return d.evaluator != nil }
@@ -83,7 +125,11 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 		}
 		return err
 	}
-	under, err := picture.rasterBytes(ctx, d.evaluator, size.X, size.Y)
+	eval := d.evaluator
+	if eval == nil && picture.raster != nil {
+		eval = d.raster.get(ctx)
+	}
+	under, err := picture.rasterBytes(ctx, eval, size.X, size.Y)
 	if err != nil {
 		return err
 	}
@@ -120,7 +166,9 @@ func Run(ctx context.Context, host window.Window, evaluator ndarray.Evaluator, m
 		if gpu != nil {
 			defer gpu.Close()
 		}
-		return run(ctx, bridgeDisplay{Window: host, screen: screen, evaluator: gpu}, nil, model)
+		hold := &rasterHold{}
+		defer hold.close()
+		return run(ctx, bridgeDisplay{Window: host, screen: screen, evaluator: gpu, raster: hold}, nil, model)
 	}
 	return run(ctx, imageDisplay{host}, evaluator, model)
 }

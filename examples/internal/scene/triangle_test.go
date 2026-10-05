@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	_ "github.com/lewtec/lewkit/x/driver/ndeval"
-	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 	ndimage "github.com/lewtec/lewkit/x/ndarray/image"
 	"github.com/lewtec/lewkit/x/test"
@@ -134,11 +133,11 @@ func TestPainterDrawAllocs(t *testing.T) {
 }
 
 func TestTriangleExec(t *testing.T) {
-	if _, err := vulkan.List(t.Context()); err != nil {
-		t.Skip(err)
-	}
 	evaluator, err := ndarray.Open(t.Context())
 	require.NoError(t, err)
+	if evaluator == ndarray.CPU {
+		t.Skip("no gpu evaluator")
+	}
 	test.CloseOnCleanup(t, evaluator)
 	expr, err := triangleAt(32, 32, nil)
 	require.NoError(t, err)

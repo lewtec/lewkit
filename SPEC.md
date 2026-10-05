@@ -167,7 +167,7 @@ Inherited C (cite the file):
 | `x/driver/treesitter/leaven` | leaven registry | facade of leaven-tree-sitter | selection stays here | a missing name is skipped | import another tree-sitter module |
 | `x/driver/treesitter/native` | installed `libtree-sitter-<name>` | facade of the tree-sitter binding | selection stays here | unset `LEWKIT_ENABLE_NATIVE_TREESITTER` or a missing library is `driver.ErrIncompatible` | import `x/ffi/native` |
 | `x/driver/treesitter/wazero` | wazero registry | facade of wazero-tree-sitter | selection stays here | a missing name is skipped | import a wazero `grammar/<lang>` package |
-| `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here | existing ndarray errors | import `x/ui/gui` |
+| `x/ndarray` | `Tensor`, ops, `Evaluator` | engine | ISA stays here; a backend is an `Evaluator` driver | existing ndarray errors | import `x/ui/gui`; import `x/driver/vulkan`; import `x/driver/ndeval`; import `x/ffi/native/metal`; import `x/ffi/native/vulkan` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label`, `RGB`, `BGR`, `CMYK`, `HSV` | value | blit stays here; each color space is its own struct and converts to `RGB` | existing blit errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image/convert` | `Decode`, `Pad`, `Resize`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | icon bytes stay here | bad bytes are `ErrFormat` | import `x/driver` |
@@ -214,10 +214,12 @@ Inherited C (cite the file):
 | `x/driver/present/metal` | Metal `Open` | facade of the metal binding | selection stays here; weight 80 so an Apple surface does not need MoltenVK | missing Metal or a surface that is not a view is `driver.ErrIncompatible` | import `x/ffi/native`; import `x/ui/gui` |
 | `x/driver/present/vulkan` | Vulkan `Open` | facade of `x/driver/vulkan` | selection stays here; weight 40, after Metal | missing Vulkan is `driver.ErrIncompatible` | import `x/ffi/native`; import `x/ffi/native/vulkan` |
 | `x/driver/window/uikit` | UIKit `Open` | iOS host view | selection stays here; weight 80 | not iOS is `driver.ErrIncompatible` | import `x/ui/gui`; open a second host window |
-| `x/ffi/native/metal` | `OpenNative`, `Screen.Draw`, `Available` | Metal binding | one graphics draw for a view the caller owns; the frame is the GUI fill list | `ErrLost`, `ErrSize`, `ErrClosed`, `ErrUnavailable` | import `x/ffi/wasm`; import `x/driver`; open a host window |
+| `x/ffi/native/metal` | `OpenNative`, `Screen.Draw`, `Available`, `OpenDevice`, `Device`, `Buffer`, `Pipeline` | Metal binding | one graphics draw for a view the caller owns; the frame is the GUI fill list; `OpenDevice` is a compute queue that does not attach a view | `ErrLost`, `ErrSize`, `ErrClosed`, `ErrUnavailable` | import `x/ffi/wasm`; import `x/driver`; import `x/ndarray`; open a host window |
 | `x/ffi/native/dispatch` | `OnMain` | UIKit main queue on iOS, via cgo `dispatch_sync` | the main-thread hop stays here | not iOS runs the function on the caller | import `x/driver` |
 | `x/disasm` | `Engine`, object files, hex | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
-| `x/driver/ndeval` | CPU and Vulkan `Evaluator` factories | facade | factories stay here | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/wasm` |
+| `x/driver/ndeval` | CPU `Evaluator` factory | facade | CPU stays here; blank-imports the Vulkan and Metal evaluators | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/native/metal`; import `x/ffi/wasm`; import `x/driver/vulkan` |
+| `x/driver/ndeval/vulkan` | Vulkan `Evaluator`, `Bind`, `Paint` | facade of `x/driver/vulkan` | the session and the mounted-tensor present stay here; weight 50 | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/native`; import `x/ffi/wasm`; import `x/ui/gui` |
+| `x/driver/ndeval/metal` | Metal `Evaluator` | facade of the metal binding | selection stays here; weight 80 so Apple eval does not need MoltenVK; GLSL from the kernel is lowered here | missing Metal is `driver.ErrIncompatible` | import `x/ffi/native`; import `x/driver/vulkan`; import `x/ui/gui`; a Vulkan `Device` |
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRecords`, `WriteRustc`, `WriteSARIF` | diagnostic value | text, rustc, and SARIF stay here; the finding table is an `x/text/table` view | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
 | `x/text/table` | `Format`, `Write`, `Column`, `Formatter`, `View`, `Make` | value | one writer for table, jsonl, and csv; `Make` builds a `View` once from a row type and a spec struct of `Field`s; a column spec picks order and replaces formats | unknown format is `ErrFormat`; a bad column is `ErrColumn` | import `x/cmd` |
 | `examples` | programs, not a library | demo | demos MAY stay | program failure | import `examples` from a library package |
@@ -308,6 +310,10 @@ Inherited C (cite the file):
 | INV-80 | `x/driver/audio_play/android` imports `x/ffi/jni` and `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/audio_play/android` | an import of `x/ffi/native` |
 | INV-81 | `x/driver/notification/android` imports `x/ffi/jni` and `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/notification/android` | an import of `x/ffi/native` |
 | INV-82 | `x/driver/opener/android` imports `x/ffi/jni` and `x/ffi/native/android` and does not import `x/ffi/native` | `x/driver/opener/android` | an import of `x/ffi/native` |
+| INV-83 | `x/ndarray` does not import a GPU backend | `x/ndarray` | an import of `x/driver/vulkan`, `x/driver/ndeval`, `x/ffi/native/metal`, or `x/ffi/native/vulkan` |
+| INV-84 | `x/driver/ndeval` does not import Vulkan or Metal bindings | `x/driver/ndeval` | an import of `x/driver/vulkan`, `x/ffi/native/vulkan`, `x/ffi/native/metal`, or `x/ffi/wasm` |
+| INV-85 | `x/driver/ndeval/metal` imports `x/ffi/native/metal` and does not import `x/ffi/native` or `x/driver/vulkan` | `x/driver/ndeval/metal` | an import of `x/ffi/native`; an import of `x/driver/vulkan`; a type that is `vulkan.Device` |
+| INV-86 | `x/driver/ndeval/vulkan` imports `x/driver/vulkan` and does not import `x/ffi/native/vulkan`, `x/ffi/native`, or `x/ffi/wasm` | `x/driver/ndeval/vulkan` | an import of `x/ffi/native/vulkan`; an import of `x/ffi/wasm` |
 
 ## Errors
 
@@ -356,6 +362,8 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - [ ] `window.Present` is not declared in `x/ui/gui`.
 - [ ] `x/taskgroup/progress` still views `Session` with bubbletea.
 - [ ] `x/ndarray` does not import `x/ui/gui`.
+- [ ] `x/ndarray` does not import `x/driver/vulkan`.
+- [ ] `x/driver/ndeval` does not import `x/driver/vulkan`.
 - [ ] The only `SPEC.md` in this repository is this file.
 - [ ] `x/ui` has no exported Go type.
 - [ ] README still describes lewkit as a reuse library of primitives.
@@ -425,3 +433,6 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-04: Android playback is `x/driver/audio_play/android`. It writes interleaved PCM to `AudioTrack`. A byte slice argument in `x/ffi/jni` is a Java `byte[]`.
 - 2026-10-04: Android notifications are `x/driver/notification/android`. `lewkit.Notify` posts through `NotificationManager`. The first post asks for `POST_NOTIFICATIONS`.
 - 2026-10-04: Android open is `x/driver/opener/android`. `lewkit.Open` starts a view intent. A URL keeps its scheme. A file path is shared through the file provider.
+- 2026-10-04: an ndarray backend is an `Evaluator` driver. `x/ndarray` does not import one. CPU stays in `x/driver/ndeval`. The Vulkan session and mounted-tensor `Paint` move to `x/driver/ndeval/vulkan`. Metal eval is `x/driver/ndeval/metal`, weight 80, and lowers `Kernel.GLSL` to Metal shading language on `OpenDevice`. `ndarray.Open` still picks by weight. Rejected: a Metal type that implements `vulkan.Device`; present painting through that device. Metal present still paints the fill list.
+- 2026-10-05: a list screen evaluates its raster backdrop with `ndarray.Open`. On Apple that is the Metal evaluator. The bytes are the underlay; the fill list is unchanged. `x/ui/gui` does not import `x/driver/ndeval/metal`.
+- 2026-10-05: a Metal autorelease pool stays on the OS thread that pushed it. `withPool` locks that thread across the push, the work, and the drain. Compute dispatch and present both use it. Rejected: draining the pool on whichever thread the goroutine is running on after a wait.

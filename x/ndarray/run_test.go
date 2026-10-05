@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	_ "github.com/lewtec/lewkit/x/driver/ndeval"
-	"github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
@@ -19,11 +18,11 @@ func mustEvalCPU[T ndarray.Number](t *testing.T, x *ndarray.Tensor[T]) []T {
 
 func mustGPU(t *testing.T) ndarray.Evaluator {
 	t.Helper()
-	if _, err := vulkan.List(t.Context()); err != nil {
-		t.Skip(err)
-	}
 	evaluator, err := ndarray.Open(t.Context())
 	require.NoError(t, err)
+	if evaluator == ndarray.CPU {
+		t.Skip("no gpu evaluator")
+	}
 	test.CloseOnCleanup(t, evaluator)
 	return evaluator
 }
