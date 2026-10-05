@@ -273,6 +273,8 @@ func (s *Screen) Adopt(view uintptr, width, height int) error {
 }
 
 // Draw paints under, then the rounded rects, then ink, and presents.
+// The UI hook only resizes the layer. Encode, present, and the GPU wait
+// run on the caller so the main queue can finish the present.
 func (s *Screen) Draw(instances, under, ink []byte, width, height int) error {
 	if s == nil {
 		return ErrClosed
@@ -285,10 +287,38 @@ func (s *Screen) Draw(instances, under, ink []byte, width, height int) error {
 	if s.closed || s.device == 0 {
 		return ErrClosed
 	}
+	if err := s.syncFrame(width, height); err != nil {
+		return err
+	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	var err error
+	withPool(func() {
+		err = s.draw(instances, under, ink, width, height)
+	})
+	return err
+}
+
+// syncFrame fits the layer on the UI hook. A matching size skips the hook
+// so a steady frame does not take the thread that pumps AppKit.
+func (s *Screen) syncFrame(width, height int) error {
+	if s.layer != 0 && s.view != 0 && width == s.width && height == s.height {
+		return nil
+	}
 	var err error
 	uiDo(func() {
 		withPool(func() {
-			err = s.draw(instances, under, ink, width, height)
+			if s.layer == 0 || s.view == 0 {
+				err = ErrLost
+				return
+			}
+			if width == s.width && height == s.height {
+				return
+			}
+			s.fit(width, height)
+			if runtime.GOOS == "ios" {
+				setRect(s.layer, selSetFrame, boundsOf(s.view))
+			}
 		})
 	})
 	return err
@@ -297,12 +327,6 @@ func (s *Screen) Draw(instances, under, ink []byte, width, height int) error {
 func (s *Screen) draw(instances, under, ink []byte, width, height int) error {
 	if s.layer == 0 || s.view == 0 {
 		return ErrLost
-	}
-	if width != s.width || height != s.height {
-		s.fit(width, height)
-		if runtime.GOOS == "ios" {
-			setRect(s.layer, selSetFrame, boundsOf(s.view))
-		}
 	}
 	need := width * height * 4
 	fills := len(instances) / instanceStride
