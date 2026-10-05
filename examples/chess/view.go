@@ -4,7 +4,6 @@ import (
 	"image"
 
 	"github.com/lewtec/lewkit/x/driver/window"
-	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/lewtec/lewkit/x/ui/world"
@@ -38,10 +37,9 @@ func (s *screen) view() gui.Node {
 			}
 		}
 	}
-	face := lewimage.FaceSize(22)
 	return &gui.Stack{Children: []gui.Node{
 		&gui.Raster{Pixels: picture},
-		&gui.Positioned{X: 16, Y: 12, Child: &gui.Text{Value: text, Face: face, Ink: inkBanner, Cursor: -1}},
+		&gui.Positioned{X: 16, Y: 12, Child: &gui.Text{Value: text, Ink: inkBanner, Cursor: -1}},
 	}}
 }
 

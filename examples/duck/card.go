@@ -1,13 +1,9 @@
 package main
 
 import (
-	"os"
-	"sync"
-
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
 )
 
 // cardNodes is the credits overlay as layout nodes.
@@ -19,7 +15,7 @@ func cardNodes(w, h float32) gui.Node {
 	sx := func(v float32) float32 { return v * w / 498 }
 	sy := func(v float32) float32 { return v * h / 280 }
 	ink := gui.RGB{16, 16, 16, 255}
-	word := italicFace(int(sy(22)))
+	word := lewimage.FaceSize(float64(max(8, int(sy(22)))))
 	body := lewimage.FaceSize(float64(max(8, int(sy(9)))))
 	tiny := lewimage.FaceSize(float64(max(8, int(sy(8)))))
 	nodes := []gui.Node{
@@ -103,50 +99,4 @@ func glitch(w, h float32) []gui.Node {
 func swatch(r, g, b uint8) *gui.RGB {
 	c := gui.RGB{r, g, b, 255}
 	return &c
-}
-
-var (
-	italicOnce sync.Once
-	italicFont *opentype.Font
-	italicMu   sync.Mutex
-	italicMap  map[int]font.Face
-)
-
-func italicFace(px int) font.Face {
-	if px < 8 {
-		px = 8
-	}
-	if px > 96 {
-		px = 96
-	}
-	italicOnce.Do(func() {
-		data, err := os.ReadFile("/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf")
-		if err != nil {
-			return
-		}
-		col, err := opentype.ParseCollection(data)
-		if err != nil {
-			return
-		}
-		italicFont, _ = col.Font(0)
-	})
-	if italicFont == nil {
-		return lewimage.FaceSize(float64(px))
-	}
-	italicMu.Lock()
-	defer italicMu.Unlock()
-	if italicMap == nil {
-		italicMap = map[int]font.Face{}
-	}
-	if face, ok := italicMap[px]; ok {
-		return face
-	}
-	face, err := opentype.NewFace(italicFont, &opentype.FaceOptions{
-		Size: float64(px), DPI: 72, Hinting: font.HintingFull,
-	})
-	if err != nil {
-		return lewimage.FaceSize(float64(px))
-	}
-	italicMap[px] = face
-	return face
 }
