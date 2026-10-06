@@ -1,6 +1,7 @@
 package lewkit;
 
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
 import android.os.Build;
@@ -10,7 +11,9 @@ import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.Window;
 import android.view.WindowInsets;
+import android.view.WindowManager;
 
 /** A Vulkan surface window. The Go app presents into the native window. */
 public final class SurfaceActivity extends HostActivity implements SurfaceHolder.Callback {
@@ -22,6 +25,7 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        extendUnderBars();
         Host.boot(this);
         SurfaceView view = new SurfaceView(this);
         view.setZOrderOnTop(true);
@@ -50,8 +54,36 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
             reportDead(v, insets);
             return insets;
         });
+        view.requestApplyInsets();
         view.getHolder().setFormat(PixelFormat.OPAQUE);
         view.getHolder().addCallback(this);
+    }
+
+    /**
+     * The surface uses the whole screen, including the area under the status
+     * bar, navigation bar, and cutout. Those bars stay visible. Layout flags
+     * only extend the view; they do not hide anything.
+     */
+    @SuppressWarnings("deprecation")
+    private void extendUnderBars() {
+        Window window = getWindow();
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.setDecorFitsSystemWindows(false);
+        } else {
+            window.getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        }
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams attrs = window.getAttributes();
+            attrs.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            window.setAttributes(attrs);
+            window.setNavigationBarDividerColor(Color.TRANSPARENT);
+        }
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
     }
 
     /** Bars and cutouts are pixels of this view that are not fully shown. */

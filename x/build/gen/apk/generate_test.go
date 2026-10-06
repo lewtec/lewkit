@@ -109,6 +109,17 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(surface), "Host.boot(this)") {
 		t.Fatal("surface activity does not start the app")
 	}
+	if !strings.Contains(string(surface), "setDecorFitsSystemWindows(false)") {
+		t.Fatal("surface stays inside the system bars")
+	}
+	if !strings.Contains(string(surface), "LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES") {
+		t.Fatal("surface stays out of the cutout")
+	}
+	if strings.Contains(string(surface), "SYSTEM_UI_FLAG_HIDE_NAVIGATION") ||
+		strings.Contains(string(surface), "SYSTEM_UI_FLAG_FULLSCREEN") ||
+		strings.Contains(string(surface), "IMMERSIVE") {
+		t.Fatal("surface hides the system bars")
+	}
 
 	cfg, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
 	if err != nil {
