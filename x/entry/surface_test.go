@@ -25,3 +25,18 @@ func TestDeliverPointerReachesTheHandler(t *testing.T) {
 		t.Fatal("surface lost was not delivered")
 	}
 }
+
+func TestDeliverInsetsReplaysTheLatest(t *testing.T) {
+	DeliverInsets(1, 2, 3, 4, 50, 80)
+	var got [6]int
+	HandleInsets(func(left, top, right, bottom, width, height int) {
+		got = [6]int{left, top, right, bottom, width, height}
+	})
+	if got != [6]int{1, 2, 3, 4, 50, 80} {
+		t.Fatalf("replay = %v", got)
+	}
+	DeliverInsets(0, 9, 0, 1, 50, 80)
+	if got != [6]int{0, 9, 0, 1, 50, 80} {
+		t.Fatalf("update = %v", got)
+	}
+}

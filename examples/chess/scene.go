@@ -9,8 +9,11 @@ import (
 
 // The tutorial's chess kit is a Sketchfab model. These pieces are original.
 // The camera matches the article's setup: high, off the board's side,
-// looking at the center. Squares are the article's pale and near-black
-// planes. A light above the board shades them.
+// looking at the center. It backs up until the board fits the frame.
+// A tall frame keeps the horizontal field and shows more above and below.
+// Squares are the article's pale and near-black planes. A warm key from
+// the camera's left and a cool fill from the right shade the pieces.
+// Square tops stay evenly lit.
 
 const squareTop float32 = 0.08
 
@@ -257,7 +260,7 @@ var (
 
 type camera struct {
 	eye, right, up, forward vec3
-	focal, aspect           float32
+	scaleX, scaleY          float32
 	w, h                    int
 }
 
@@ -269,20 +272,78 @@ func lookAt(size image.Point) camera {
 	if h < 2 {
 		h = 2
 	}
-	// The article puts the camera at (-7, 20, 4). This sits closer so the
-	// board fills the window, and still looks across the squares.
-	eye := vec3{-5.5, 10.5, 0.2}
+	// The article puts the camera at (-7, 20, 4). The eye stays on that
+	// side and moves along the same ray until the board fits.
 	target := vec3{3.5, 0, 3.5}
+	approach := norm(sub(vec3{-5.5, 10.5, 0.2}, target))
+	fov := float32(34 * math.Pi / 180)
+	focal := float32(1 / math.Tan(float64(fov/2)))
+	aspect := float32(w) / float32(h)
+	// The shorter edge keeps the 34° field. The longer edge opens, so a
+	// tall frame does not crop the sides of the board.
+	scaleX, scaleY := focal/aspect, focal
+	if aspect < 1 {
+		scaleX, scaleY = focal, focal*aspect
+	}
+	top, rim := framePad(w, h)
+	lo, hi := float32(6), float32(70)
+	for range 20 {
+		dist := (lo + hi) * 0.5
+		cam := placeCamera(target, approach, dist, scaleX, scaleY, w, h)
+		if boardInside(cam, top, rim) {
+			hi = dist
+			continue
+		}
+		lo = dist
+	}
+	return placeCamera(target, approach, hi, scaleX, scaleY, w, h)
+}
+
+func placeCamera(target, approach vec3, dist, scaleX, scaleY float32, w, h int) camera {
+	eye := add(target, mul(approach, dist))
 	forward := norm(sub(target, eye))
 	right := norm(cross(forward, vec3{0, 1, 0}))
 	up := cross(right, forward)
-	fov := float32(34 * math.Pi / 180)
 	return camera{
 		eye: eye, right: right, up: up, forward: forward,
-		focal:  float32(1 / math.Tan(float64(fov/2))),
-		aspect: float32(w) / float32(h),
-		w:      w, h: h,
+		scaleX: scaleX, scaleY: scaleY,
+		w: w, h: h,
 	}
+}
+
+// framePad is the clear band above the board, for the move line, and the
+// rim kept around the other three edges.
+func framePad(w, h int) (top, rim float32) {
+	top, rim = 36, 12
+	if h < 80 || w < 80 {
+		top, rim = 8, 4
+	}
+	return top, rim
+}
+
+// boardHull is the plinth and the tallest piece, in world space.
+func boardHull() []vec3 {
+	var pts []vec3
+	for _, x := range []float32{-0.9, 8.05} {
+		for _, y := range []float32{-0.14, 1.45} {
+			for _, z := range []float32{-0.9, 8.05} {
+				pts = append(pts, vec3{x, y, z})
+			}
+		}
+	}
+	return pts
+}
+
+func boardInside(cam camera, top, rim float32) bool {
+	limitX := float32(cam.w) - rim
+	limitY := float32(cam.h) - rim
+	for _, p := range boardHull() {
+		x, y, _, ok := cam.project(p)
+		if !ok || x < rim || x > limitX || y < top || y > limitY {
+			return false
+		}
+	}
+	return true
 }
 
 func (c camera) project(p vec3) (x, y, z float32, ok bool) {
@@ -291,16 +352,17 @@ func (c camera) project(p vec3) (x, y, z float32, ok bool) {
 	if q.z < 0.05 {
 		return 0, 0, 0, false
 	}
-	x = ((c.focal/c.aspect)*(q.x/q.z)*0.5 + 0.5) * float32(c.w)
-	y = (0.5 - c.focal*(q.y/q.z)*0.5) * float32(c.h)
+	rx, ry := q.x/q.z, q.y/q.z
+	x = (c.scaleX*rx*0.5 + 0.5) * float32(c.w)
+	y = (0.5 - c.scaleY*ry*0.5) * float32(c.h)
 	return x, y, q.z, true
 }
 
 func (c camera) ray(px, py float32) (origin, dir vec3) {
 	sx := px / float32(c.w)
 	sy := py / float32(c.h)
-	cx := (sx - 0.5) * 2 * c.aspect / c.focal
-	cy := (0.5 - sy) * 2 / c.focal
+	cx := (sx - 0.5) * 2 / c.scaleX
+	cy := (0.5 - sy) * 2 / c.scaleY
 	dir = norm(add(add(mul(c.right, cx), mul(c.up, cy)), c.forward))
 	return c.eye, dir
 }
@@ -380,6 +442,57 @@ func squareLit() float32 {
 	return 0.46 + 0.54*light.y
 }
 
+// lit shades one face. A straight-up normal keeps squareLit, so the
+// squares stay pale and near-black. key, fill, and rim are directions
+// toward those lights. The key sits off to the camera's left, so the
+// visible side of a piece goes from light to dark.
+func lit(n, world, eye, key, fill, rim vec3) (r, g, b float32) {
+	up := n.y
+	if up < 0 {
+		up = 0
+	}
+	flat := squareLit()
+	crown := up * up * up
+	kd := dot(n, key)
+	if kd < 0 {
+		kd = 0
+	}
+	fd := dot(n, fill)
+	if fd < 0 {
+		fd = 0
+	}
+	rd := dot(n, rim)
+	if rd < 0 {
+		rd = 0
+	}
+	wrap := kd*0.88 + 0.12
+	edge := rd * rd
+	sr := 0.06 + 0.92*wrap + 0.14*fd + 0.20*edge
+	sg := 0.05 + 0.82*wrap + 0.16*fd + 0.14*edge
+	sb := 0.05 + 0.62*wrap + 0.26*fd + 0.10*edge
+	view := norm(sub(eye, world))
+	half := norm(add(key, view))
+	spec := dot(n, half)
+	if spec < 0 {
+		spec = 0
+	}
+	spec = spec * spec
+	spec = spec * spec
+	shine := spec * spec * 0.42 * (1 - crown)
+	r = flat*crown + sr*(1-crown) + shine
+	g = flat*crown + sg*(1-crown) + shine*0.92
+	b = flat*crown + sb*(1-crown) + shine*0.7
+	return r, g, b
+}
+
+// stageLights puts the key to the camera's left and the fill to its right.
+func stageLights(cam camera) (key, fill, rim vec3) {
+	key = norm(add(add(mul(cam.right, -0.95), mul(cam.up, 0.7)), mul(cam.forward, -0.2)))
+	fill = norm(add(add(mul(cam.right, 0.8), mul(cam.up, 0.28)), mul(cam.forward, -0.15)))
+	rim = norm(add(mul(cam.up, 0.25), cam.forward))
+	return key, fill, rim
+}
+
 type canvas struct {
 	pix    []byte
 	stride int
@@ -432,8 +545,8 @@ func paintChess(dst *image.RGBA, sim *world.Sim, depth []float32, cover []uint8,
 	}
 	cv := canvas{pix: pix, stride: stride, depth: depth, cover: cover, boxes: boxes, w: w, h: h}
 	cam := lookAt(image.Pt(w, h))
-	light := norm(vec3{0.25, 1, 0.2})
-	cv.draw(cam, onePlinth, 0, vec3{}, light, colPlinth)
+	key, fill, rim := stageLights(cam)
+	cv.draw(cam, onePlinth, 0, vec3{}, key, fill, rim, colPlinth)
 	if sim == nil || sim.World == nil {
 		return
 	}
@@ -460,7 +573,7 @@ func paintChess(dst *image.RGBA, sim *world.Sim, depth []float32, cover []uint8,
 			cv.mark = sq.x*8 + sq.y + 1
 		}
 		origin := vec3{float32(sq.x) + 0.5, 0, float32(sq.y) + 0.5}
-		cv.draw(cam, oneSquare, 0, origin, light, tint)
+		cv.draw(cam, oneSquare, 0, origin, key, fill, rim, tint)
 	})
 	cv.mark = 0
 	world.Query[piece](sim.World).Read(func(e world.Entity, body piece) {
@@ -479,11 +592,11 @@ func paintChess(dst *image.RGBA, sim *world.Sim, depth []float32, cover []uint8,
 		if int(body.kind) < len(pieceModels) {
 			mesh = pieceModels[body.kind]
 		}
-		cv.draw(cam, mesh, yaw, origin, light, tint)
+		cv.draw(cam, mesh, yaw, origin, key, fill, rim, tint)
 	})
 }
 
-func (cv *canvas) draw(cam camera, mesh model, yaw float32, origin, light vec3, tint rgb) {
+func (cv *canvas) draw(cam camera, mesh model, yaw float32, origin, key, fill, rim vec3, tint rgb) {
 	if cap(cv.proj) < len(mesh.v) {
 		cv.proj = make([]screenVert, len(mesh.v))
 	}
@@ -496,16 +609,12 @@ func (cv *canvas) draw(cam camera, mesh model, yaw float32, origin, light vec3, 
 			proj[i] = screenVert{}
 			continue
 		}
-		shade := dot(n, light)
-		if shade < 0 {
-			shade = 0
-		}
-		gain := 0.46 + 0.54*shade
+		lr, lg, lb := lit(n, p, cam.eye, key, fill, rim)
 		proj[i] = screenVert{
 			x: sx, y: sy, z: z, ok: true,
-			r:  tint.r * v.c.r * gain,
-			g:  tint.g * v.c.g * gain,
-			b:  tint.b * v.c.b * gain,
+			r:  tint.r * v.c.r * lr,
+			g:  tint.g * v.c.g * lg,
+			b:  tint.b * v.c.b * lb,
 			nx: n.x, ny: n.y, nz: n.z,
 			wx: p.x, wy: p.y, wz: p.z,
 		}

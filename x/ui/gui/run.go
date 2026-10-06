@@ -20,6 +20,7 @@ type display interface {
 	Size() image.Point
 	FramePeriod() time.Duration
 	Subscribe(ctx context.Context) <-chan window.Event
+	Dead() []image.Rectangle
 	present(ctx context.Context, view *ndarray.Tensor[uint8], evaluator ndarray.Evaluator) error
 }
 
@@ -425,6 +426,7 @@ func (runner *runner) render() error {
 		return ErrView
 	}
 	size := runner.host.Size()
+	runner.picture.dead = zonesOf(runner.host.Dead())
 	pixels, err := runner.picture.Render(root, Size{float32(size.X), float32(size.Y)})
 	if err != nil {
 		return err

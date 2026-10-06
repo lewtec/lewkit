@@ -62,6 +62,8 @@ var (
 	selIsVisible                 = objc.RegisterName("isVisible")
 	selInLiveResize              = objc.RegisterName("inLiveResize")
 	selBounds                    = objc.RegisterName("bounds")
+	selSafeAreaInsets            = objc.RegisterName("safeAreaInsets")
+	selRespondsToSelector        = objc.RegisterName("respondsToSelector:")
 	selBackingScaleFactor        = objc.RegisterName("backingScaleFactor")
 	selScreen                    = objc.RegisterName("screen")
 	selMainScreen                = objc.RegisterName("mainScreen")
@@ -252,7 +254,39 @@ func (w *win) create(title string, width, height int) error {
 	acceptMouseMoved(wnd)
 	wnd.Send(selMakeKeyAndOrderFront, objc.ID(0))
 	objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication")).Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
+	w.noteSafe()
 	return nil
+}
+
+// noteSafe records the content view's safe area. The title bar sits outside
+// that view. A notch insets it. Caller is on the app thread.
+func (w *win) noteSafe() {
+	if w == nil {
+		return
+	}
+	w.mu.Lock()
+	closed := w.dead
+	wnd := w.wnd
+	w.mu.Unlock()
+	if closed || wnd == 0 {
+		return
+	}
+	view := wnd.Send(selContentView)
+	if view == 0 || !responds(view, selSafeAreaInsets) {
+		return
+	}
+	insets := edgeInsetsOf(view)
+	width, height := w.clientSize()
+	scale := w.scale()
+	if scale < 1 {
+		scale = 1
+	}
+	w.SetDead(window.InsetZones(width, height,
+		int(insets.Left*scale+0.5),
+		int(insets.Top*scale+0.5),
+		int(insets.Right*scale+0.5),
+		int(insets.Bottom*scale+0.5),
+	))
 }
 
 func (w *win) Size() image.Point {
@@ -530,6 +564,7 @@ func (w *win) setContents(surface objc.ID) {
 	if wnd == 0 {
 		return
 	}
+	w.noteSafe()
 	withPool(func() {
 		view := wnd.Send(selContentView)
 		layer := view.Send(selLayer)
@@ -830,13 +865,34 @@ func nsstr(s string) objc.ID {
 }
 
 var (
-	boundsFn  func(objc.ID, objc.SEL) nsRect
-	scaleFn   func(objc.ID, objc.SEL) float64
-	setScale  func(objc.ID, objc.SEL, float64)
-	setIDFn   func(objc.ID, objc.SEL, objc.ID)
-	setBoolFn func(objc.ID, objc.SEL, bool)
-	setMaskFn func(objc.ID, objc.SEL, uint32)
+	boundsFn   func(objc.ID, objc.SEL) nsRect
+	insetsFn   func(objc.ID, objc.SEL) nsEdgeInsets
+	respondsFn func(objc.ID, objc.SEL, objc.SEL) bool
+	scaleFn    func(objc.ID, objc.SEL) float64
+	setScale   func(objc.ID, objc.SEL, float64)
+	setIDFn    func(objc.ID, objc.SEL, objc.ID)
+	setBoolFn  func(objc.ID, objc.SEL, bool)
+	setMaskFn  func(objc.ID, objc.SEL, uint32)
 )
+
+type nsEdgeInsets struct{ Top, Left, Bottom, Right float64 }
+
+func responds(id objc.ID, sel objc.SEL) bool {
+	if id == 0 {
+		return false
+	}
+	if respondsFn == nil {
+		native.Register(&respondsFn, objcMsgSend)
+	}
+	return respondsFn(id, selRespondsToSelector, sel)
+}
+
+func edgeInsetsOf(view objc.ID) nsEdgeInsets {
+	if insetsFn == nil {
+		native.Register(&insetsFn, objcMsgSend)
+	}
+	return insetsFn(view, selSafeAreaInsets)
+}
 
 func setID(obj objc.ID, sel objc.SEL, v objc.ID) {
 	if setIDFn == nil {

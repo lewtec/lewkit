@@ -4,7 +4,8 @@
 // Elm loop: messages Update; View returns a Node; Run paints it on the
 // display ticker (and Resize/Expose), skipped when an embedded [Dirty] is clear. [See] and [Touch] return that flag. The picture signature
 // is unchanged. Animation is [Tick] / [Every]. A root [Row]/[Column] fills the window; wrap it in a
-// [Box] with Align to center a packed inner cluster. Solid, Marquee, and
+// [Box] with Align to center a packed inner cluster. [Hint] lays its child in the box the host
+// keeps clear of navbars and notches, and clips to that box. Solid, Marquee, and
 // Notepad all paint through one fused kernel
 // (one over-composite tensor of rounded rects + ink overlay). A present
 // screen paints those same fills. Vulkan can paint a mounted tensor on

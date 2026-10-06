@@ -229,7 +229,7 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(us, "func openSurface()") {
 		t.Fatalf("native surface missing:\n%s", us)
 	}
-	if !strings.Contains(us, "EletrocromoPointer") || !strings.Contains(us, "EletrocromoResize") {
+	if !strings.Contains(us, "EletrocromoPointer") || !strings.Contains(us, "EletrocromoResize") || !strings.Contains(us, "EletrocromoDead") {
 		t.Fatalf("surface events missing:\n%s", us)
 	}
 	if !strings.Contains(us, "revealIfStuck") {
@@ -375,7 +375,7 @@ func TestBridgeSource_ExportsStart(t *testing.T) {
 	if !strings.Contains(iosBridgeSource, "//export EletrocromoPointer") {
 		t.Fatal("missing pointer export")
 	}
-	if !strings.Contains(iosBridgeSource, "//export EletrocromoResize") {
+	if !strings.Contains(iosBridgeSource, "//export EletrocromoResize") || !strings.Contains(iosBridgeSource, "//export EletrocromoDead") {
 		t.Fatal("missing resize export")
 	}
 	if !strings.Contains(iosBridgeSource, "//export EletrocromoSurfaceLost") {

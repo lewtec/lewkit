@@ -162,3 +162,8 @@ func Java_lewkit_Host_pointer(env *C.JNIEnv, class C.jclass, x, y, action C.jint
 func Java_lewkit_Host_resize(env *C.JNIEnv, class C.jclass, width, height C.jint) {
 	DeliverResize(int(width), int(height))
 }
+
+//export Java_lewkit_Host_obscure
+func Java_lewkit_Host_obscure(env *C.JNIEnv, class C.jclass, left, top, right, bottom, width, height C.jint) {
+	DeliverInsets(int(left), int(top), int(right), int(bottom), int(width), int(height))
+}

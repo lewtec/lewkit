@@ -23,7 +23,8 @@ func (stack *Stack) Layout(constraints BoxConstraints) Size {
 		return Size{}
 	}
 	stack.size = constraints.Constrain(Size{Width: constraints.MaxWidth, Height: constraints.MaxHeight})
-	inner := Tight(stack.size.Width, stack.size.Height).Loosen()
+	// Children share this origin, so host zones stay in window coordinates.
+	inner := BoxConstraints{MaxWidth: stack.size.Width, MaxHeight: stack.size.Height, dead: constraints.dead}
 	for _, node := range stack.Children {
 		if node != nil {
 			node.Layout(inner)
@@ -54,6 +55,8 @@ func (positioned *Positioned) Layout(constraints BoxConstraints) Size {
 	}
 	inner := constraints.Loosen()
 	inner.MaxHeight = unbounded
+	// Paint shifts this child, so window zones would inset the wrong place.
+	inner.dead = nil
 	positioned.size = positioned.Child.Layout(inner)
 	return positioned.size
 }

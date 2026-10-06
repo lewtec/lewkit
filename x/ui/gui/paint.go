@@ -37,6 +37,7 @@ type Picture struct {
 	fills       []Draw
 	texts       []textRun
 	images      []imageStamp
+	order       []inkStep
 	marks       []Mark
 	yield       func(Mark) bool
 	stop        bool
@@ -56,6 +57,8 @@ type Picture struct {
 	keys        []hitKey
 	fillCount   int
 	recordOnly  bool
+	// dead is the host navbar and notch rects for this frame, in window pixels.
+	dead []Rect
 	// holdList keeps a mountable backdrop on the draw list.
 	// Metal present does not paint a mounted tensor, so the fills stay instances.
 	holdList bool
@@ -267,11 +270,14 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 		return nil, ndarray.ErrShape
 	}
 	defer func() { picture.holdList = false }()
-	root.Layout(Tight(size.Width, size.Height))
+	constraints := Tight(size.Width, size.Height)
+	constraints.dead = picture.dead
+	root.Layout(constraints)
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]
 	picture.texts = picture.texts[:0]
 	picture.images = picture.images[:0]
+	picture.order = picture.order[:0]
 	picture.marks = picture.marks[:0]
 	picture.keys = picture.keys[:0]
 	picture.raster = nil
@@ -421,6 +427,15 @@ func (picture *Picture) stamp(ink bool) {
 func (picture *Picture) mixInk(mix func(uint64)) {
 	mix(uint64(len(picture.texts)))
 	mix(uint64(len(picture.images)))
+	for _, step := range picture.order {
+		if step.image < 0 {
+			mix(1)
+			mix(uint64(step.text))
+			continue
+		}
+		mix(2)
+		mix(uint64(step.image))
+	}
 	for _, run := range picture.texts {
 		for _, value := range []float32{
 			run.box.X, run.box.Y, run.box.Width, run.box.Height,
@@ -491,11 +506,21 @@ func (picture *Picture) drawInk() {
 	if picture == nil || picture.inkRGBA == nil {
 		return
 	}
-	for _, run := range picture.texts {
-		run.stamp(picture.inkRGBA)
+	if len(picture.order) == 0 {
+		for _, run := range picture.texts {
+			run.stamp(picture.inkRGBA)
+		}
+		for _, stamp := range picture.images {
+			stamp.draw(picture, picture.inkRGBA)
+		}
+		return
 	}
-	for _, stamp := range picture.images {
-		stamp.draw(picture, picture.inkRGBA)
+	for _, step := range picture.order {
+		if step.image < 0 {
+			picture.texts[step.text].stamp(picture.inkRGBA)
+			continue
+		}
+		picture.images[step.image].draw(picture, picture.inkRGBA)
 	}
 }
 

@@ -30,13 +30,16 @@ func (rectangle Rect) Intersect(other Rect) Rect {
 }
 
 // BoxConstraints is the Flutter box protocol: min/max width and height.
+// dead is the host navbar and notch list, in this node's coordinates.
+// [Loosen] keeps it. A root [Hint] reads it.
 type BoxConstraints struct {
 	MinWidth, MinHeight, MaxWidth, MaxHeight float32
+	dead                                     []Rect
 }
 
 // Tight is min = max = size.
 func Tight(width, height float32) BoxConstraints {
-	return BoxConstraints{width, height, width, height}
+	return BoxConstraints{MinWidth: width, MinHeight: height, MaxWidth: width, MaxHeight: height}
 }
 
 func (constraints BoxConstraints) Constrain(size Size) Size {
@@ -56,7 +59,7 @@ func (constraints BoxConstraints) Deflate(padding EdgeInsets) BoxConstraints {
 }
 
 func (constraints BoxConstraints) Loosen() BoxConstraints {
-	return BoxConstraints{0, 0, constraints.MaxWidth, constraints.MaxHeight}
+	return BoxConstraints{MaxWidth: constraints.MaxWidth, MaxHeight: constraints.MaxHeight, dead: constraints.dead}
 }
 
 func (constraints BoxConstraints) TightenWidth(width float32) BoxConstraints {

@@ -8,8 +8,10 @@
 // A click is a resource the host replaces. The accepted click and the
 // reset are messages a later system reads. The view
 // is the article's scene: a camera above the side of the board, one
-// plane per square, and pieces that slide toward their square. The
-// picture is a raster. This package does not load a mesh kit.
+// plane per square, and pieces that slide toward their square. The eye
+// backs up until the board fits, so a tall frame does not crop it. Hint
+// keeps that picture, and the move line on it, in the box the host
+// leaves clear of navbars and notches. This package does not load a mesh kit.
 //
 //	go run ./cmd/lewkit release run --config ./examples/chess/eletrocromo.json
 package main
@@ -48,6 +50,8 @@ type screen struct {
 	frame      *image.RGBA
 	picture    *ndarray.Tensor[float32]
 	size       image.Point
+	origin     image.Point
+	fitted     bool
 	seen       time.Duration
 	ctx        context.Context
 	depth      []float32
@@ -107,7 +111,9 @@ func (s *screen) adopt(size image.Point) {
 	if s == nil || size.X < 16 || size.Y < 16 {
 		return
 	}
-	s.size = size
+	if !s.fitted {
+		s.size = size
+	}
 }
 
 // advance runs one frame. Hover and selection recolor those squares.
@@ -188,5 +194,5 @@ func (s *screen) View() gui.Node {
 	if s == nil {
 		return &gui.Stack{}
 	}
-	return s.view()
+	return &inset{screen: s}
 }

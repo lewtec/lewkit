@@ -77,6 +77,8 @@ type Driver interface {
 // Subscribe is an event source: Resize, Expose, Close, Pointer, Scroll, Key, and Drop.
 // [Drive] is the immediate-mode paint loop; [Animate] is Drive that paints on tick and Resize.
 // After Resize the next Frame has the new size.
+// Dead is the client area a navbar or notch covers, in pixels, origin at the top left.
+// An empty slice means the whole client is fully shown. A change emits Expose.
 type Window interface {
 	Frame() *image.RGBA
 	Front() *image.RGBA
@@ -85,7 +87,30 @@ type Window interface {
 	Draw() error
 	Resize(size image.Point) error
 	Subscribe(ctx context.Context) <-chan Event
+	Dead() []image.Rectangle
 	Close() error
+}
+
+// InsetZones is the edge bands a safe-area inset covers inside a width×height client.
+// The arguments are pixels. A zero inset adds no band.
+func InsetZones(width, height, left, top, right, bottom int) []image.Rectangle {
+	if width < 1 || height < 1 {
+		return nil
+	}
+	var zones []image.Rectangle
+	if left > 0 {
+		zones = append(zones, image.Rect(0, 0, min(left, width), height))
+	}
+	if top > 0 {
+		zones = append(zones, image.Rect(0, 0, width, min(top, height)))
+	}
+	if right > 0 {
+		zones = append(zones, image.Rect(max(0, width-right), 0, width, height))
+	}
+	if bottom > 0 {
+		zones = append(zones, image.Rect(0, max(0, height-bottom), width, height))
+	}
+	return zones
 }
 
 // Open asks the active window driver for a window.

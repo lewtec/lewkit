@@ -139,4 +139,6 @@ public final class Host {
     public static native void resize(int width, int height);
 
     public static native void surfaceLost();
+
+    public static native void obscure(int left, int top, int right, int bottom, int width, int height);
 }

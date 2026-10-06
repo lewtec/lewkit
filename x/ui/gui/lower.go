@@ -7,12 +7,21 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
+// inkStep is one glyph run or one image, in the order they were painted.
+// image is -1 when the step is the text at text.
+type inkStep struct {
+	text  int
+	image int
+}
+
 // lowered is the frame a screen plays, folded from a mark sequence.
-// Fills, text, and images each keep paint order. The backdrop is the last tensor.
+// Fills keep their order. Text and images share order, so a line drawn
+// after a picture stays on top of it. The backdrop is the last tensor.
 type lowered struct {
 	fills    []Draw
 	texts    []textRun
 	images   []imageStamp
+	order    []inkStep
 	backdrop *ndarray.Tensor[float32]
 }
 
@@ -34,6 +43,7 @@ func lower(seq iter.Seq[Mark]) lowered {
 				ClipWidth: mark.Clip.Width, ClipHeight: mark.Clip.Height,
 			})
 		case MarkText:
+			out.order = append(out.order, inkStep{text: len(out.texts), image: -1})
 			out.texts = append(out.texts, textRun{
 				box:    mark.Box,
 				clip:   mark.Clip,
@@ -47,6 +57,7 @@ func lower(seq iter.Seq[Mark]) lowered {
 			if mark.Src == nil {
 				break
 			}
+			out.order = append(out.order, inkStep{image: len(out.images)})
 			out.images = append(out.images, imageStamp{src: mark.Src, box: mark.Box, clip: mark.Clip, radius: mark.Radius})
 		case MarkBackdrop:
 			if mark.Pixels != nil {
@@ -64,6 +75,7 @@ func (picture *Picture) adopt(list lowered) {
 	picture.fills = list.fills
 	picture.texts = list.texts
 	picture.images = list.images
+	picture.order = list.order
 	picture.raster = list.backdrop
 	picture.fillCount = len(list.fills)
 }
