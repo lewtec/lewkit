@@ -35,6 +35,7 @@ type root struct {
 	release       *releaseCmd
 	disasm        *disasmCmd
 	doctor        *doctorCmd
+	workflow      *workflowCmd
 	completion    *completionCmd
 }
 

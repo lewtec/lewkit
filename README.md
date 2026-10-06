@@ -58,6 +58,9 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/cmd` | `Parse`, `App`. Struct fields become commands and flags. This package writes bash completion. |
 | `x/taskgroup` | `Session`, `New`, `Go`, `Map`, `Each`, `List`, `WithSession`, `GoIsolated`. Pools are IO, CPU, and internet. |
 | `x/taskgroup/progress` | Bubbletea view of a `Session`. |
+| `x/workflow` | `Graph`, `Step`, `Task`, `Command`, `Func`, `Download`, `Extract`, `Run`. One graph for shell commands, downloads, extracts, and in-process tasks. `Run` schedules it on the taskgroup session. |
+| `x/workflow/make` | `Load`, `Graph`. Makefile frontend for `lewkit workflow make`. The makefile is parsed with the tree-sitter driver. |
+| `x/workflow/ninja` | `Load`, `Graph`. Ninja frontend for `lewkit workflow ninja`. |
 | `x/driver/thread` | `Run`, `Bind`, `Do`, `Go`, `Loop`. `Run` starts the call from `main`. |
 | `x/event` | `Bus`, `New`, `Subscribe`, `Publish`, `CreateTimer`, `FPS`. |
 | `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |

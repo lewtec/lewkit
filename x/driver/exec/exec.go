@@ -99,21 +99,24 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 	if cmd == nil {
 		return ErrNilCommand
 	}
+	if ctx == nil {
+		return errors.New("exec: nil context")
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if cmd.Stderr == nil {
 		cmd.Stderr = stderrWriter(ctx)
 	}
+	// A shell's children inherit the stdout and stderr pipes. Killing only
+	// the shell leaves those children holding the pipes, and Wait never
+	// returns. The command runs in its own group so cancel reaches them.
+	prepareCancel(cmd)
 	slog.DebugContext(ctx, "exec", "path", cmd.Path, "args", cmd.Args)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	context.AfterFunc(ctx, func() {
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
-	})
+	context.AfterFunc(ctx, func() { cancelProcess(cmd) })
 	return nil
 }
 
