@@ -7,6 +7,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/ios"
 	"github.com/lewtec/lewkit/x/build/gen/mac"
 	"github.com/lewtec/lewkit/x/build/gen/win"
+	"github.com/lewtec/lewkit/x/build/sign"
 )
 
 // AndroidSDK returns the Android SDK root used by the host build and adb.
@@ -23,6 +24,10 @@ type Host struct {
 	SDK    string
 	GoOnly bool
 	CGO    bool
+	// Sign is the publisher key. Nil leaves the Android debug keystore in
+	// place and ad-hoc signs the macOS Mach-O. A key signs the APK, the
+	// macOS Mach-O, and the iOS Mach-O with that identity.
+	Sign *sign.Identity
 }
 
 // Android builds an APK from an eletrocromo.json config.
@@ -52,10 +57,16 @@ func (host Host) Android(ctx context.Context) (string, error) {
 	if host.GoOnly {
 		return result.WorkDir, nil
 	}
+	if host.Sign != nil {
+		if err := host.Sign.SignAPKFile(result.APKPath); err != nil {
+			return "", err
+		}
+	}
 	return result.APKPath, nil
 }
 
-// Mac builds an unsigned .app whose executable is the Go program.
+// Mac builds a .app whose executable is the Go program, then ad-hoc signs
+// that Mach-O. Host.Sign replaces the ad-hoc signature with the publisher key.
 func (host Host) Mac(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {
@@ -75,6 +86,9 @@ func (host Host) Mac(ctx context.Context) (string, error) {
 	}
 	if host.GoOnly {
 		return result.WorkDir, nil
+	}
+	if err := sign.SignTree(host.Sign, result.AppPath, cfg.PackageID); err != nil {
+		return "", err
 	}
 	return result.AppPath, nil
 }
@@ -125,6 +139,11 @@ func (host Host) IOS(ctx context.Context) (string, error) {
 	}
 	if host.GoOnly {
 		return result.WorkDir, nil
+	}
+	if host.Sign != nil {
+		if err := sign.SignTree(host.Sign, result.AppPath, cfg.PackageID); err != nil {
+			return "", err
+		}
 	}
 	return result.AppPath, nil
 }

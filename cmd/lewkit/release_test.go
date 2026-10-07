@@ -42,6 +42,43 @@ func TestConfigDefaultsToEletrocromoJSON(t *testing.T) {
 	assert.Equal(t, "./eletrocromo.json", build.Args.release.build.config.Value())
 }
 
+func TestP12FlagReadsSecretFile(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "publisher.p12")
+	passPath := filepath.Join(dir, "password.txt")
+	require.NoError(t, os.WriteFile(keyPath, []byte{0x30, 0x82}, 0o600))
+	require.NoError(t, os.WriteFile(passPath, []byte("hunter2\n"), 0o600))
+
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--p12", keyPath, "--p12-password", passPath)
+	assert.Equal(t, []byte{0x30, 0x82}, app.Args.release.build.p12.Value())
+	assert.Equal(t, "hunter2", app.Args.release.build.p12Password.Text())
+
+	_, err := app.Args.release.build.identity()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pkcs12")
+}
+
+func TestP12EnvReadsSecretFile(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "publisher.p12")
+	require.NoError(t, os.WriteFile(keyPath, []byte("pkcs"), 0o600))
+	t.Setenv("LEWKIT_SIGN_P12", keyPath)
+	t.Setenv("LEWKIT_SIGN_P12_PASSWORD", "")
+
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build")
+	assert.Equal(t, []byte("pkcs"), app.Args.release.build.p12.Value())
+	assert.Empty(t, app.Args.release.build.p12Password.Text())
+}
+
+func TestIdentityUnset(t *testing.T) {
+	t.Setenv("LEWKIT_SIGN_P12", "")
+	t.Setenv("LEWKIT_SIGN_P12_PASSWORD", "")
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build")
+	id, err := app.Args.release.build.identity()
+	require.NoError(t, err)
+	assert.Nil(t, id)
+}
+
 func TestAppUsesDefaultConfig(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--app", "--go-only")
 	_, err := app.Args.release.build.produce(t.Context())

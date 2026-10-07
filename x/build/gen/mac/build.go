@@ -15,7 +15,6 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
-	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -51,8 +50,8 @@ type BuildResult struct {
 	HelperPath string
 }
 
-// Build compiles the Go program and, unless GoOnly, writes an unsigned .app
-// whose executable is that program.
+// Build compiles the Go program and, unless GoOnly, writes a .app whose
+// executable is that program. The caller signs the Mach-O.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
@@ -159,12 +158,6 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if runtime.GOOS == "darwin" {
-		if err := resignApp(ctx, outApp); err != nil {
-			buildErr = err
-			return nil, buildErr
-		}
-	}
 	result.AppPath = outApp
 	slog.Info("macos app", "path", outApp)
 	return result, nil
@@ -233,16 +226,6 @@ func buildGoHelper(ctx context.Context, dest, goMainDir, goarch string, stamp ve
 		return fmt.Errorf("go build darwin/%s: %w", goarch, err)
 	}
 	return os.Chmod(dest, 0o755)
-}
-
-func resignApp(ctx context.Context, appPath string) error {
-	if _, err := execdriver.Which(ctx, "codesign"); err != nil {
-		return nil
-	}
-	if err := gocmd.Tool(ctx, "codesign", "", nil, "--force", "--deep", "--sign", "-", appPath); err != nil {
-		return fmt.Errorf("codesign: %w", err)
-	}
-	return nil
 }
 
 // macIconSlots are the AppIcon.appiconset filenames from the host template.
