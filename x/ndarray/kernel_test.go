@@ -2,10 +2,8 @@ package ndarray
 
 import (
 	"math"
-	"strings"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,10 +28,10 @@ func TestCompileOneMain(t *testing.T) {
 	require.NoError(t, err)
 	k, err := compile(a.Add(b).Mul(Const(float32(2))).Max(Const(float32(0))).node)
 	require.NoError(t, err)
-	src, err := k.GLSL()
+	code, err := k.Code()
 	require.NoError(t, err)
-	require.Equal(t, 1, strings.Count(src, "void main()"))
-	require.Equal(t, 1, strings.Count(src, "gl_GlobalInvocationID"))
+	require.Equal(t, 128, code.Threads)
+	require.Equal(t, 1, stmtCount(code, StmtStore))
 	require.Equal(t, Shape{2, 3}, k.Shape())
 	require.Equal(t, 3, k.Bindings())
 }
@@ -170,10 +168,11 @@ func TestCompileConstFold(t *testing.T) {
 	require.NoError(t, err)
 	k, err := compile(ones.Mul(Const(float32(2)).Add(Const(float32(3)))).node)
 	require.NoError(t, err)
-	src, err := k.GLSL()
+	code, err := k.Code()
 	require.NoError(t, err)
-	require.Contains(t, src, "5.0")
-	require.NotContains(t, src, "2.0+3.0")
+	require.Equal(t, 0, exprCount(code, ExprAdd))
+	require.True(t, hasConst(code, F32, math.Float32bits(5)))
+	require.False(t, hasConst(code, F32, math.Float32bits(2)))
 	require.Equal(t, []float32{5, 5}, mustEval(t, ones.Mul(Const(float32(2)).Add(Const(float32(3))))))
 }
 
@@ -183,9 +182,9 @@ func TestCompileCSE(t *testing.T) {
 	sum := a.Add(Const(float32(1)))
 	k, err := compile(sum.Max(sum).node)
 	require.NoError(t, err)
-	src, err := k.GLSL()
+	code, err := k.Code()
 	require.NoError(t, err)
-	require.Equal(t, 1, strings.Count(src, "+"))
+	require.Equal(t, 1, exprCount(code, ExprAdd))
 	require.Equal(t, []float32{2, 3}, mustEval(t, sum.Max(sum)))
 }
 
@@ -216,20 +215,6 @@ func TestCompileShapeMismatch(t *testing.T) {
 	b, err := New([]float32{1, 2, 3}, Shape{3})
 	require.NoError(t, err)
 	require.ErrorIs(t, a.Add(b).Eval(t.Context(), CPU, nil), ErrShape)
-}
-
-func TestCompileGLSL(t *testing.T) {
-	a, err := New([]float32{1, 2, 3, 4}, Shape{2, 2})
-	require.NoError(t, err)
-	b, err := New([]float32{1, 1, 1, 1}, Shape{2, 2})
-	require.NoError(t, err)
-	k, err := compile(a.Add(b).Mul(Const(float32(0.5))).node)
-	require.NoError(t, err)
-	src, err := k.GLSL()
-	require.NoError(t, err)
-	spirv, err := glsl.Load(t.Context(), []byte(src))
-	require.NoError(t, err)
-	require.True(t, glsl.IsSPIRV(spirv))
 }
 
 func TestRealSize(t *testing.T) {
@@ -277,33 +262,73 @@ func TestFloatAddZeroClearsSign(t *testing.T) {
 	require.Equal(t, uint32(0), math.Float32bits(got[0]))
 }
 
-func TestGLSLLiteralsAndRank(t *testing.T) {
+func TestCodeLiteralsAndRank(t *testing.T) {
 	low, err := Full(float32(math.Inf(-1)), Shape{1})
 	require.NoError(t, err)
 	k, err := compile(low.node)
 	require.NoError(t, err)
-	src, err := k.GLSL()
+	code, err := k.Code()
 	require.NoError(t, err)
-	require.Contains(t, src, "uintBitsToFloat(")
-	require.NotContains(t, src, "Inf")
-	require.Contains(t, src, "local_size_x = 128")
-	spirv, err := glsl.Load(t.Context(), []byte(src))
-	require.NoError(t, err)
-	require.True(t, glsl.IsSPIRV(spirv))
+	require.Equal(t, 128, code.Threads)
+	require.True(t, hasConst(code, F32, math.Float32bits(float32(math.Inf(-1)))))
 	minInt, err := Full(int32(math.MinInt32), Shape{1})
 	require.NoError(t, err)
 	k, err = compile(minInt.node)
 	require.NoError(t, err)
-	src, err = k.GLSL()
+	code, err = k.Code()
 	require.NoError(t, err)
-	require.Contains(t, src, "0x80000000u")
-	require.Contains(t, src, "buffer Out { int o[]; }")
+	minBits := int32(math.MinInt32)
+	require.True(t, hasConst(code, I32, uint32(minBits)))
 	wide, err := Ones[float32](Shape{1, 1, 1, 1, 1})
 	require.NoError(t, err)
 	k, err = compile(wide.node)
 	require.NoError(t, err)
-	_, err = k.GLSL()
+	_, err = k.Code()
 	require.ErrorIs(t, err, ErrShape)
+}
+
+func stmtCount(c Code, op StmtOp) int {
+	n := 0
+	for _, s := range c.Stmts {
+		if s.Op == op {
+			n++
+		}
+	}
+	return n
+}
+
+func exprCount(c Code, op ExprOp) int {
+	n := 0
+	walkCode(c, func(e Expr) {
+		if e.Op == op {
+			n++
+		}
+	})
+	return n
+}
+
+func hasConst(c Code, d DType, bits uint32) bool {
+	ok := false
+	walkCode(c, func(e Expr) {
+		if e.Op == ExprConst && e.DType == d && e.Bits == bits {
+			ok = true
+		}
+	})
+	return ok
+}
+
+func walkCode(c Code, fn func(Expr)) {
+	for _, s := range c.Stmts {
+		walkExpr(s.RHS, fn)
+		walkExpr(s.Cond, fn)
+	}
+}
+
+func walkExpr(e Expr, fn func(Expr)) {
+	fn(e)
+	for _, a := range e.Args {
+		walkExpr(a, fn)
+	}
 }
 
 func TestResizePastLeafIsZero(t *testing.T) {

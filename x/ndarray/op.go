@@ -23,17 +23,6 @@ func (d DType) String() string {
 	}
 }
 
-func (d DType) glsl() string {
-	switch d {
-	case I32:
-		return "int"
-	case U8:
-		return "uint"
-	default:
-		return "float"
-	}
-}
-
 func (d DType) size() int {
 	switch d {
 	case U8:

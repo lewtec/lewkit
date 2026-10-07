@@ -2,7 +2,7 @@ package ndarray
 
 // optimize rewrites the node graph before any backend lowers it.
 // Rules run bottom-up, in slice order. The first match wins.
-// CPU and GLSL both consume the rewritten graph.
+// CPU and the GPU backends consume the rewritten graph.
 
 const optRewriteLimit = 4096
 

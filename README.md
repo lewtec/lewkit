@@ -138,7 +138,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/messagebox` | `Show`. One message the user dismisses. Android, the packaged iOS or macOS host, AppKit, Win32, and zenity. App mode uses this instead of a terminal. |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`. Android alerts and the packaged host present them. `TerminalGate` enables the stdin backend only when stdin and stdout are terminals and the process is not an app. |
 | `x/driver/vulkan` | Facade. `Open`, `List`, `Buffer`, `Compile`, `Begin`. Re-exports `Buffer`, `Shader`, and `Cmd`. |
-| `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan wraps the selected GPU. |
+| `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan and Metal register beside it. |
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
@@ -153,7 +153,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 
 `window.Subscribe` yields `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, and `Key`.
 
-`x/driver/vulkan` keeps the libvulkan `Device` private. `x/driver/ndeval` loads a kernel through `x/ffi/wasm/glsl` and runs it on that facade. A registered hash is stored SPIR-V. Anything else compiles with the embedded glslang.
+`x/driver/vulkan` keeps the libvulkan `Device` private. `x/ndarray` schedules a kernel and spells no shading language. The Vulkan evaluator renders that schedule as GLSL and loads it through `x/ffi/wasm/glsl`. Metal renders the same schedule in its own shading language. A registered hash is stored SPIR-V. Anything else compiles with the embedded glslang.
 
 `x/ffi/native/vulkan` `Cmd` methods are `Bind`, `Push`, `Dispatch`, `Copy`, `Barrier`, `Submit`, `Wait`, and `Abort`. `Shader` takes SPIR-V.
 
