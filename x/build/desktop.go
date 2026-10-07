@@ -117,7 +117,7 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 			return written, fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
 		}
 		if job.Sign != nil && target.GOOS == "windows" {
-			if err := job.Sign.SignPEFile(binPath, project); err != nil {
+			if err := job.Sign.SignPEFile(ctx, binPath, project); err != nil {
 				os.RemoveAll(tmp)
 				return written, fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
 			}

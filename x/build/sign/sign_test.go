@@ -69,10 +69,17 @@ func TestAPKRoundTrip(t *testing.T) {
 	require.NotContains(t, string(signed), "old-debug-signature")
 }
 
+func TestSignPENilContext(t *testing.T) {
+	id, err := Generate("Publisher")
+	require.NoError(t, err)
+	_, err = id.SignPE(nil, minimalPE(), PEOptions{})
+	require.EqualError(t, err, "pe: nil context")
+}
+
 func TestPERoundTrip(t *testing.T) {
 	id, err := Generate("Publisher")
 	require.NoError(t, err)
-	signed, err := id.SignPE(minimalPE(), PEOptions{ProgramName: "demo", SigningTime: id.Certs[0].NotBefore})
+	signed, err := id.SignPE(t.Context(), minimalPE(), PEOptions{ProgramName: "demo", SigningTime: id.Certs[0].NotBefore})
 	require.NoError(t, err)
 	require.NoError(t, id.VerifyPE(signed))
 }
@@ -95,7 +102,7 @@ func TestPEGoWindowsExe(t *testing.T) {
 	require.NoError(t, err)
 	id, err := Generate("Publisher")
 	require.NoError(t, err)
-	signed, err := id.SignPE(raw, PEOptions{ProgramName: "hello"})
+	signed, err := id.SignPE(t.Context(), raw, PEOptions{ProgramName: "hello"})
 	require.NoError(t, err)
 	require.NoError(t, id.VerifyPE(signed))
 }

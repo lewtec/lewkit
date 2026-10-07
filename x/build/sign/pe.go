@@ -29,7 +29,13 @@ type PEOptions struct {
 
 // SignPE returns pe with an RSA Authenticode signature embedded.
 // pe is a PE32 or PE32+ image, such as a Go windows .exe.
-func (id *Identity) SignPE(pe []byte, opts PEOptions) ([]byte, error) {
+func (id *Identity) SignPE(ctx context.Context, pe []byte, opts PEOptions) ([]byte, error) {
+	if ctx == nil {
+		return nil, errors.New("pe: nil context")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if err := id.require(); err != nil {
 		return nil, err
 	}
@@ -45,7 +51,7 @@ func (id *Identity) SignPE(pe []byte, opts PEOptions) ([]byte, error) {
 	if opts.SigningTime.IsZero() {
 		opts.SigningTime = time.Now().UTC()
 	}
-	cms, err := buildAuthenticodeCMS(spc, id.Key, id.Certs, opts)
+	cms, err := buildAuthenticodeCMS(ctx, spc, id.Key, id.Certs, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -53,12 +59,15 @@ func (id *Identity) SignPE(pe []byte, opts PEOptions) ([]byte, error) {
 }
 
 // SignPEFile signs the Windows executable at path in place.
-func (id *Identity) SignPEFile(path, programName string) error {
+func (id *Identity) SignPEFile(ctx context.Context, path, programName string) error {
+	if ctx == nil {
+		return errors.New("pe: nil context")
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	signed, err := id.SignPE(raw, PEOptions{ProgramName: programName})
+	signed, err := id.SignPE(ctx, raw, PEOptions{ProgramName: programName})
 	if err != nil {
 		return err
 	}
@@ -89,7 +98,7 @@ func (id *Identity) VerifyPE(signed []byte) error {
 	return verifyAuthenticodeRSA(cms, id.Certs[0])
 }
 
-func buildAuthenticodeCMS(spc []byte, key crypto.Signer, chain []*x509.Certificate, opts PEOptions) ([]byte, error) {
+func buildAuthenticodeCMS(ctx context.Context, spc []byte, key crypto.Signer, chain []*x509.Certificate, opts PEOptions) ([]byte, error) {
 	leaf := chain[0]
 	h := crypto.SHA256
 	hOID := asn1.ObjectIdentifier{2, 16, 840, 1, 101, 3, 4, 2, 1}
@@ -118,7 +127,7 @@ func buildAuthenticodeCMS(spc []byte, key crypto.Signer, chain []*x509.Certifica
 
 	var unsigned asn1.RawValue
 	if opts.TimestampURL != "" {
-		token, err := authenticode.RequestTimestamp(context.Background(), opts.TimestampURL, signature, h)
+		token, err := authenticode.RequestTimestamp(ctx, opts.TimestampURL, signature, h)
 		if err != nil {
 			return nil, fmt.Errorf("pe: %w", err)
 		}
