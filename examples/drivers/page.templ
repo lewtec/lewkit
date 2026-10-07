@@ -34,7 +34,7 @@ templ Home(report []driver.InterfaceStatus) {
 								<li>none</li>
 							}
 							for _, d := range iface.Drivers {
-								@driverRow(d)
+								@driverRow(slug, d)
 							}
 						</ul>
 					</div>
@@ -103,7 +103,7 @@ templ DriverPage(view driverView) {
 					<li>none</li>
 				}
 				for _, d := range view.Drivers {
-					@driverRow(d)
+					@driverRow(view.Slug, d)
 				}
 			</ul>
 		</div>
@@ -167,9 +167,9 @@ templ oneField(f field) {
 	}
 }
 
-templ driverRow(d driver.DriverStatus) {
+templ driverRow(slug string, d driver.DriverStatus) {
 	{{ className, label := driverMark(d) }}
-	<li class="flex flex-col">
+	<li class="flex flex-col gap-1">
 		<span>
 			<span class={ "badge", className }>{ label }</span>
 			{ " " }{ d.Name }
@@ -177,6 +177,12 @@ templ driverRow(d driver.DriverStatus) {
 		<span class="text-sm text-base-content/70">{ d.ID } · { d.Weight }</span>
 		if d.Error != nil {
 			<span class="text-sm">{ d.Error.Error() }</span>
+		}
+		if d.Available && !d.Selected {
+			<form method="post" action={ templ.URL("/driver/" + slug + "/pin") }>
+				<input type="hidden" name="id" value={ d.ID }/>
+				<button class="btn btn-xs" type="submit">Use</button>
+			</form>
 		}
 	</li>
 }

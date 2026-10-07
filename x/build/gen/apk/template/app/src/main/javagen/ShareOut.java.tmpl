@@ -34,6 +34,12 @@ public final class ShareOut {
         }
         started = true;
         Context app = ctx.getApplicationContext();
+        // Lines already in the file belong to an earlier process. A launch
+        // that replays them opens the share sheet before the app is ready.
+        File existing = new File(app.getCacheDir(), "share.jsonl");
+        if (existing.isFile()) {
+            offset = existing.length();
+        }
         Thread worker = new Thread(() -> {
             while (true) {
                 poll(app);

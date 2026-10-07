@@ -61,12 +61,17 @@ func (p *page) driver(w http.ResponseWriter, r *http.Request) {
 	}
 	spec, known := driverSpecs[slug]
 	if r.Method == http.MethodPost {
-		if !known || spec.run == nil {
-			http.NotFound(w, r)
-			return
-		}
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if r.PathValue("op") == "pin" {
+			driver.Pin(iface.Name, r.FormValue("id"))
+			redirectResult(w, r, slug, "using "+strings.TrimSpace(r.FormValue("id")), nil)
+			return
+		}
+		if !known || spec.run == nil {
+			http.NotFound(w, r)
 			return
 		}
 		notice, err := spec.run(r.Context(), p, r.PathValue("op"), r)

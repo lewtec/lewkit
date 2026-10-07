@@ -8,6 +8,7 @@ package entry
 #include <jni.h>
 #include <stdlib.h>
 
+void lewkit_note_vm(JavaVM *vm);
 void lewkit_bind_host(JNIEnv *env);
 JNIEnv *lewkit_attach(void);
 char *lewkit_go_string(JNIEnv *env, jstring s);
@@ -25,7 +26,19 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/ffi/jni"
+	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
+
+//export JNI_OnLoad
+func JNI_OnLoad(vm *C.JavaVM, _ unsafe.Pointer) C.jint {
+	// The VM calls this on the thread that loaded the library, after the
+	// linker lock is released. init has already finished. Keeping the VM
+	// here lets later threads ask about it without dlopen.
+	C.lewkit_note_vm(vm)
+	androidffi.NoteVM(uintptr(unsafe.Pointer(vm)))
+	androidffi.NoteLoader()
+	return C.JNI_VERSION_1_6
+}
 
 type surfaceBox struct {
 	ptr    uintptr

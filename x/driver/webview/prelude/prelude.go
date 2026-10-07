@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/webview/android"
 	_ "github.com/lewtec/lewkit/x/driver/webview/webkitgtk"
 	_ "github.com/lewtec/lewkit/x/driver/webview/webview2"
 	_ "github.com/lewtec/lewkit/x/driver/webview/wkwebview"

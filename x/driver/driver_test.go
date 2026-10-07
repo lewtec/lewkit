@@ -148,6 +148,56 @@ func TestGetSkipsInitFailure(t *testing.T) {
 	require.Equal(t, "pick_low", got.ID())
 }
 
+func TestPinOverridesWeight(t *testing.T) {
+	registerPickers()
+	iface := pickerIfaceName()
+	require.NotEmpty(t, iface)
+	setAllWeights(t, iface, map[string]int{
+		"pick_high":   80,
+		"pick_mid":    90,
+		"pick_low":    10,
+		"pick_broken": 70,
+	})
+	t.Cleanup(func() { driver.Pin(iface, "") })
+
+	driver.Pin(iface, "pick_low")
+	got, err := driver.Get[picker](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "pick_low", got.ID())
+
+	var selected string
+	var weight int
+	for _, st := range driver.Doctor(t.Context()) {
+		if st.Name != iface {
+			continue
+		}
+		for _, d := range st.Drivers {
+			if d.Selected {
+				selected = d.ID
+				weight = d.Weight
+			}
+		}
+	}
+	require.Equal(t, "pick_low", selected)
+	require.Equal(t, 101, weight)
+
+	t.Setenv("LEWKIT_FORCE_DRIVER", "pick_high")
+	got, err = driver.Get[picker](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "pick_high", got.ID())
+	t.Setenv("LEWKIT_FORCE_DRIVER", "")
+
+	driver.Pin(iface, "pick_mid")
+	got, err = driver.Get[picker](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "pick_high", got.ID())
+
+	driver.Pin(iface, "")
+	got, err = driver.Get[picker](t.Context())
+	require.NoError(t, err)
+	require.Equal(t, "pick_high", got.ID())
+}
+
 func TestGetForceEnv(t *testing.T) {
 	registerPickers()
 	iface := pickerIfaceName()

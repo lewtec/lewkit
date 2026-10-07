@@ -5,6 +5,7 @@
 // every compatible driver; Get opens the first. With and WithResult load
 // the winner and call fn. LEWKIT_FORCE_DRIVER and LEWKIT_FORCE_<IFACE>_DRIVER
 // pin an implementation for tests (weight 101); incompatible pins fall through.
+// Pin does the same for one interface until the next Pin.
 package driver
 
 import (
@@ -162,6 +163,34 @@ func SetWeights(w map[string]map[string]int) error {
 	return nil
 }
 
+var (
+	pinMu sync.Mutex
+	pins  = map[string]string{}
+)
+
+// Pin makes id the winner for iface until the next Pin for that interface.
+// An empty id clears it. An incompatible id is skipped and the next driver runs.
+func Pin(iface, id string) {
+	pinMu.Lock()
+	defer pinMu.Unlock()
+	iface = strings.TrimSpace(iface)
+	id = strings.TrimSpace(id)
+	if iface == "" {
+		return
+	}
+	if id == "" {
+		delete(pins, iface)
+		return
+	}
+	pins[iface] = id
+}
+
+func pinnedDriver(iface string) string {
+	pinMu.Lock()
+	defer pinMu.Unlock()
+	return pins[iface]
+}
+
 func forceDriverFromEnv(ifaceName string) string {
 	if v := os.Getenv("LEWKIT_FORCE_DRIVER"); v != "" {
 		return v
@@ -222,6 +251,9 @@ func idPrefixes(id string) []string {
 
 func effectiveWeight(weights map[string]int, driverID, ifaceName string, fallback int) int {
 	if forced := forceDriverFromEnv(ifaceName); driverForced(forced, driverID) {
+		return 101
+	}
+	if driverForced(pinnedDriver(ifaceName), driverID) {
 		return 101
 	}
 	for _, key := range idPrefixes(driverID) {

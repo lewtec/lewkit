@@ -25,6 +25,15 @@ final class Windows {
         context.startActivity(intent);
     }
 
+    static void openPage(Context context, int id) {
+        Intent intent = new Intent(context, PageActivity.class)
+                .putExtra(PageActivity.EXTRA_PAGE, id);
+        if (!(context instanceof Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        context.startActivity(intent);
+    }
+
     static void installStackedWindows(Activity activity, WebView webView) {
         webView.getSettings().setSupportMultipleWindows(true);
         webView.getSettings().setJavaScriptCanOpenWindowsAutomatically(true);

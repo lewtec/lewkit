@@ -36,6 +36,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/src/main/java/lewkit/Notify.java",
 		"app/src/main/java/lewkit/Open.java",
 		"app/src/main/java/lewkit/HostActivity.java",
+		"app/src/main/java/lewkit/Page.java",
 		"app/src/main/java/lewkit/Documents.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
@@ -323,8 +324,12 @@ func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.java")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.java")); err != nil {
+	shareOut, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.java"))
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(string(shareOut), "existing.length()") {
+		t.Fatalf("share tail should start at the end of the file:\n%s", shareOut)
 	}
 	man, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
 	if err != nil {
@@ -369,6 +374,36 @@ func TestCreate_FirstPageReplacesSplash(t *testing.T) {
 	}
 	if !strings.Contains(body, "canGoBack()") || !strings.Contains(body, "OnBackInvokedDispatcher") {
 		t.Fatal("back leaves the page without walking its history")
+	}
+	if !strings.Contains(body, "EXTRA_PAGE") || !strings.Contains(body, "Page.intercept") || !strings.Contains(body, "lewkitPage") {
+		t.Fatal("page activity does not serve the in-process web view")
+	}
+	if !strings.Contains(main, "Page.onOpen") {
+		t.Fatal("splash does not open the in-process page")
+	}
+	if strings.Index(main, "Page.onOpen") > strings.Index(main, "Host.boot") {
+		t.Fatal("page opener is installed after the Go library starts")
+	}
+	pageHost, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Page.java"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pageText := string(pageHost)
+	if !strings.Contains(pageText, "shouldInterceptRequest") && !strings.Contains(pageText, "WebResourceRequest") {
+		t.Fatal("in-process page does not intercept requests")
+	}
+	if strings.Contains(pageText, "ServerService") || strings.Contains(pageText, "127.0.0.1") {
+		t.Fatal("in-process page publishes a loopback server")
+	}
+	if !strings.Contains(pageText, `Host.ready("")`) {
+		t.Fatal("in-process page does not dismiss the splash without a URL")
+	}
+	manifest, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(manifest), `android:name=".PageActivity"`) || !strings.Contains(string(manifest), `android:launchMode="standard"`) {
+		t.Fatal("page activity does not stack an in-process window")
 	}
 }
 
