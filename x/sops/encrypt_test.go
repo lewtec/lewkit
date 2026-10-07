@@ -2,33 +2,12 @@ package sops
 
 import (
 	"bytes"
-	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
-	_ "github.com/lewtec/lewkit/x/driver/exec/native"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	dir := filepath.Join(os.TempDir(), "lewkit-sops-bin")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	bin := filepath.Join(dir, "sops")
-	cmd := exec.Command("go", "build", "-o", bin, "github.com/getsops/sops/v3/cmd/sops")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, "build sops:", err)
-		os.Exit(1)
-	}
-	os.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	os.Exit(m.Run())
-}
 
 const ageConfig = "creation_rules:\n  - age: age1zufvjtsk0p7wgsz7nth4032t4tqmev7d4dwq72x6cgngjqcnxgmq6l7ts0\n"
 
@@ -82,7 +61,8 @@ func TestEncryptNoCreationRules(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".sops.yaml"), []byte("{}\n"), 0o644))
 	_, err := Encrypt(t.Context(), filepath.Join(dir, "key.p12"), []byte("plain"))
-	require.ErrorIs(t, err, ErrNoConfig)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, ErrNoConfig)
 	require.ErrorContains(t, err, "no creation rules")
 }
 

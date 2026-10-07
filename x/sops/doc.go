@@ -10,8 +10,8 @@
 // case the decrypted JSON document is returned. YAML, JSON, and dotenv come
 // back as the decrypted document.
 //
-// Encrypt runs the sops program. The creation rule comes from .sops.yaml
-// above the output path. A missing config file is an error.
+// Encrypt calls the sops library in-process. The creation rule comes from
+// .sops.yaml above the output path. A missing config file is an error.
 //
 // Env is a dotenv assignment list. Command runs a program with that environment.
 package sops
