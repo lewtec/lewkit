@@ -22,6 +22,9 @@ var ErrNotRSA = errors.New("publisher key must be RSA")
 // ErrNoKey means a signature was requested without a private key.
 var ErrNoKey = errors.New("publisher key is required")
 
+// ErrPKCS12 means the PKCS#12 bytes could not be decoded.
+var ErrPKCS12 = errors.New("pkcs12")
+
 // Identity is one RSA publisher key and its certificates, leaf first.
 // The same key is presented as a PKCS#12, an APK signer, an Authenticode
 // signer, a Mach-O signer, and a detached CMS signer.
@@ -70,14 +73,14 @@ func Generate(commonName string) (*Identity, error) {
 func LoadPKCS12(data []byte, password string) (*Identity, error) {
 	key, cert, cas, err := pkcs12.DecodeChain(data, password)
 	if err != nil {
-		return nil, fmt.Errorf("pkcs12: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrPKCS12, err)
 	}
 	rsaKey, ok := key.(*rsa.PrivateKey)
 	if !ok {
 		return nil, ErrNotRSA
 	}
 	if cert == nil {
-		return nil, errors.New("pkcs12: missing certificate")
+		return nil, fmt.Errorf("%w: missing certificate", ErrPKCS12)
 	}
 	certs := append([]*x509.Certificate{cert}, cas...)
 	return &Identity{Key: rsaKey, Certs: certs}, nil

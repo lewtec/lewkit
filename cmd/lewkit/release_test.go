@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -54,8 +55,7 @@ func TestP12FlagReadsSecretFile(t *testing.T) {
 	assert.Equal(t, "hunter2", app.Args.release.build.p12Password.Text())
 
 	_, err := app.Args.release.build.identity()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pkcs12")
+	require.ErrorIs(t, err, sign.ErrPKCS12)
 }
 
 func TestP12EnvReadsSecretFile(t *testing.T) {

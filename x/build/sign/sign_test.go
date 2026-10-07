@@ -73,7 +73,7 @@ func TestSignPENilContext(t *testing.T) {
 	id, err := Generate("Publisher")
 	require.NoError(t, err)
 	_, err = id.SignPE(nil, minimalPE(), PEOptions{})
-	require.EqualError(t, err, "pe: nil context")
+	require.ErrorIs(t, err, ErrNilContext)
 }
 
 func TestPERoundTrip(t *testing.T) {
