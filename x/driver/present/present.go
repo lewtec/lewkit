@@ -5,7 +5,8 @@
 // [Open] asks the registered drivers, highest weight first, and uses the
 // first screen that accepts the surface. Metal is the Apple screen, so the
 // process does not need MoltenVK. Vulkan remains the screen when libvulkan
-// is the one that can attach.
+// is the one that can attach. OpenGL is the fallback after Vulkan on
+// Windows, Linux, and Android. Apple does not open it.
 package present
 
 import (

@@ -138,10 +138,12 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/present` | `Open`, `Screen`, `Composite`. Paints one GUI frame on a surface the caller owns. The highest compatible driver wins. |
 | `x/driver/present/metal` | Metal screen. Weight 80 on Apple, so GUI does not need MoltenVK. |
 | `x/driver/present/vulkan` | Vulkan screen. Weight 40. A mounted tensor stays on the device. |
+| `x/driver/present/opengl` | OpenGL screen. Weight 15, after Vulkan. Windows and Linux use desktop GL. Android uses OpenGL ES. Apple stays on Metal. |
 | `x/driver/messagebox` | `Show`. One message the user dismisses. Android, the packaged iOS or macOS host, AppKit, Win32, and zenity. App mode uses this instead of a terminal. |
 | `x/driver/launcher` | `Choose`, `Prompt`, `Confirm`. Android alerts and the packaged host present them. `TerminalGate` enables the stdin backend only when stdin and stdout are terminals and the process is not an app. |
 | `x/driver/vulkan` | Facade. `Open`, `List`, `Buffer`, `Compile`, `Begin`. Re-exports `Buffer`, `Shader`, and `Cmd`. |
-| `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan and Metal register beside it. |
+| `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan, Metal, and OpenGL register beside it. |
+| `x/driver/ndeval/opengl` | OpenGL evaluator. Weight 20, after Vulkan. Renders `Code` as a compute shader on GL 4.3 or OpenGL ES 3.1. Apple stays on Metal. |
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
@@ -149,6 +151,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/ffi/jni` | Java calls. `Bind`, `CallStatic`, `New`, `Class`, `StaticField`, `Field`, `Proxy`. |
 | `x/ffi/native/vulkan` | Binding. `Open`, `List`, `Buffer`, `Alloc`, `Shader`, `Compile`, `Run`, `Begin`. |
 | `x/ffi/native/metal` | Binding. `OpenNative`, `Draw`. Rounded rects and glyph ink on a caller-owned view. |
+| `x/ffi/native/opengl` | Binding. `OpenNative`, `Draw`, `OpenDevice`. One context thread. Present is the GL 3.3 / ES 3.0 subset. Compute is a separate device. No context on Apple. |
 | `x/ffi/native/dispatch` | `OnMain`. iOS runs the function on the UIKit main queue. |
 | `x/ffi/wasm` | `Compile`, `Compiled.Instantiate`. wazero, with WASI and optional Emscripten. |
 | `x/ffi/wasm/capstone` | Binding. `Open`, `Handle`. |
@@ -156,7 +159,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 
 `window.Subscribe` yields `Resize`, `Expose`, `Close`, `Pointer`, `Scroll`, and `Key`.
 
-`x/driver/vulkan` keeps the libvulkan `Device` private. `x/ndarray` schedules a kernel and spells no shading language. The Vulkan evaluator renders that schedule as GLSL and loads it through `x/ffi/wasm/glsl`. Metal renders the same schedule in its own shading language. A registered hash is stored SPIR-V. Anything else compiles with the embedded glslang.
+`x/driver/vulkan` keeps the libvulkan `Device` private. `x/ndarray` schedules a kernel and spells no shading language. The Vulkan evaluator renders that schedule as GLSL and loads it through `x/ffi/wasm/glsl`. Metal renders the same schedule in its own shading language. OpenGL compute renders it as desktop GL 4.3 or OpenGL ES 3.1 where that context exists, at a lower weight than Vulkan. Apple does not open OpenGL. A registered hash is stored SPIR-V. Anything else compiles with the embedded glslang.
 
 `x/ffi/native/vulkan` `Cmd` methods are `Bind`, `Push`, `Dispatch`, `Copy`, `Barrier`, `Submit`, `Wait`, and `Abort`. `Shader` takes SPIR-V.
 
