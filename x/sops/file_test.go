@@ -42,6 +42,7 @@ func TestDecryptFixtures(t *testing.T) {
 		{"testdata/doc.json", "testdata/doc.plain"},
 		{"testdata/secrets.yaml", "testdata/secrets.plain"},
 		{"testdata/only.yaml", "testdata/only.plain"},
+		{"testdata/env.env", "testdata/env.plain"},
 	} {
 		t.Run(tc.enc, func(t *testing.T) {
 			want, err := os.ReadFile(tc.plain)
@@ -56,14 +57,12 @@ func TestDecryptFixtures(t *testing.T) {
 func TestAgeKeyFile(t *testing.T) {
 	key, err := os.ReadFile("testdata/age.txt")
 	require.NoError(t, err)
+	isolateAge(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sops", "age", "keys.txt")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, append([]byte("# fixture\n"), key...), 0o600))
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	t.Setenv("SOPS_AGE_KEY", "")
-	t.Setenv("SOPS_AGE_KEY_FILE", "")
-	t.Setenv("SOPS_AGE_KEY_CMD", "")
 
 	want, err := os.ReadFile("testdata/secrets.plain")
 	require.NoError(t, err)
@@ -73,12 +72,10 @@ func TestAgeKeyFile(t *testing.T) {
 }
 
 func TestWrongAgeKey(t *testing.T) {
+	isolateAge(t)
 	id, err := age.GenerateX25519Identity()
 	require.NoError(t, err)
 	t.Setenv("SOPS_AGE_KEY", id.String())
-	t.Setenv("SOPS_AGE_KEY_FILE", "")
-	t.Setenv("SOPS_AGE_KEY_CMD", "")
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	_, err = Open("testdata/blob.sops")
 	require.ErrorIs(t, err, ErrNotAge)
 }
@@ -128,30 +125,73 @@ sops:
 	require.Contains(t, err.Error(), "shamir")
 }
 
-func TestDotenvAndINIRejected(t *testing.T) {
+func TestDotenvMetadataAndINI(t *testing.T) {
 	_, err := Decode([]byte("password=hunter2\nsops_mac=ENC[nope]\n"))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "dotenv")
+	require.Contains(t, err.Error(), "lastmodified")
 
 	_, err = Decode([]byte("[sops]\nmac=ENC[nope]\n"))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ini")
 }
 
-func TestAgeKeyCommandRejected(t *testing.T) {
-	useAgeKey(t)
-	t.Setenv("SOPS_AGE_KEY_CMD", "cat testdata/age.txt")
-	_, err := Open("testdata/blob.sops")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "SOPS_AGE_KEY_CMD")
+func TestPlainDotenvPassesThrough(t *testing.T) {
+	raw := []byte("# keep\npassword=hunter2\n")
+	got, err := Decode(raw)
+	require.NoError(t, err)
+	require.Equal(t, raw, got)
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "file.env")
+	require.NoError(t, os.WriteFile(path, raw, 0o600))
+	got, err = Open(path)
+	require.NoError(t, err)
+	require.Equal(t, raw, got)
+}
+
+func TestAgeKeyCommand(t *testing.T) {
+	isolateAge(t)
+	path, err := filepath.Abs("testdata/age.txt")
+	require.NoError(t, err)
+	t.Setenv("SOPS_AGE_KEY_CMD", "cat "+path)
+	want, err := os.ReadFile("testdata/blob.plain")
+	require.NoError(t, err)
+	got, err := Open("testdata/blob.sops")
+	require.NoError(t, err)
+	require.Equal(t, want, got)
 }
 
 func useAgeKey(t *testing.T) {
 	t.Helper()
+	isolateAge(t)
 	key, err := os.ReadFile("testdata/age.txt")
 	require.NoError(t, err)
 	t.Setenv("SOPS_AGE_KEY", string(key))
-	t.Setenv("SOPS_AGE_KEY_FILE", "")
-	t.Setenv("SOPS_AGE_KEY_CMD", "")
+}
+
+func isolateAge(t *testing.T) {
+	t.Helper()
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	for _, key := range []string{
+		"SOPS_AGE_KEY",
+		"SOPS_AGE_KEY_FILE",
+		"SOPS_AGE_KEY_CMD",
+		"SOPS_AGE_SSH_PRIVATE_KEY_FILE",
+	} {
+		unsetEnv(t, key)
+	}
+}
+
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+	prev, ok := os.LookupEnv(key)
+	t.Cleanup(func() {
+		if ok {
+			os.Setenv(key, prev)
+			return
+		}
+		os.Unsetenv(key)
+	})
+	os.Unsetenv(key)
 }

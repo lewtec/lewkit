@@ -95,10 +95,7 @@ func decode(in []byte, format string) ([]byte, error) {
 	case "json":
 		return decodeJSON(in, false)
 	case "dotenv":
-		if looksLikeDotenv(in) {
-			return nil, errors.New("sops: dotenv files are not supported")
-		}
-		return in, nil
+		return decodeDotenv(in)
 	case "ini":
 		if looksLikeINI(in) {
 			return nil, errors.New("sops: ini files are not supported")
@@ -112,7 +109,7 @@ func decode(in []byte, format string) ([]byte, error) {
 			return out, err
 		}
 		if textFile(in) && looksLikeDotenv(in) {
-			return nil, errors.New("sops: dotenv files are not supported")
+			return decodeDotenv(in)
 		}
 		if textFile(in) && looksLikeINI(in) {
 			return nil, errors.New("sops: ini files are not supported")
