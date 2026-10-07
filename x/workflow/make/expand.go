@@ -609,7 +609,7 @@ func (f *File) shell(script string) (string, error) {
 	if err := f.ctx.Err(); err != nil {
 		return "", err
 	}
-	cmd := execdriver.MustCommand("sh", "-c", script)
+	cmd := execdriver.MustCommand(f.ctx, "sh", "-c", script)
 	cmd.Dir = f.dir
 	out, _ := execdriver.Output(f.ctx, cmd)
 	if err := f.ctx.Err(); err != nil {

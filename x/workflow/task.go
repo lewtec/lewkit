@@ -51,7 +51,7 @@ func (c Command) Run(ctx context.Context, _ *taskgroup.Status) error {
 	if strings.TrimSpace(c.Text) == "" {
 		return nil
 	}
-	cmd := execdriver.MustCommand("sh", "-c", c.Text)
+	cmd := execdriver.MustCommand(ctx, "sh", "-c", c.Text)
 	dir := c.Dir
 	if dir == "" {
 		dir = Dir(ctx)
