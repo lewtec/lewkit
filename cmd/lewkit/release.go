@@ -11,11 +11,12 @@ import (
 )
 
 type releaseCmd struct {
+	key   *keyCmd
 	build *buildCmd
 	run   *runCmd
 }
 
-func (releaseCmd) Description() string { return "build or run an app" }
+func (releaseCmd) Description() string { return "key, build, or run an app" }
 
 var errHostArgs = errors.New("program arguments are not passed to a host app")
 
