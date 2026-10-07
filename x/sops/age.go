@@ -41,7 +41,7 @@ func (Keys) DataKey(stanzas []Stanza) ([]byte, error) {
 	if last == nil {
 		return nil, ErrNotAge
 	}
-	return nil, fmt.Errorf("%w: %v", ErrNotAge, last)
+	return nil, fmt.Errorf("%w: %w", ErrNotAge, last)
 }
 
 func dataKey(recipients []ageRecipient) ([]byte, error) {

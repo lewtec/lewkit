@@ -78,6 +78,9 @@ func TestWrongAgeKey(t *testing.T) {
 	t.Setenv("SOPS_AGE_KEY", id.String())
 	_, err = Open("testdata/blob.sops")
 	require.ErrorIs(t, err, ErrNotAge)
+	var chain interface{ Unwrap() []error }
+	require.ErrorAs(t, err, &chain)
+	require.GreaterOrEqual(t, len(chain.Unwrap()), 2)
 }
 
 func TestTamperFailsMAC(t *testing.T) {

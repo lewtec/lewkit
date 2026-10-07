@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
@@ -15,16 +16,18 @@ type Command struct {
 	Args []string
 }
 
-// Run starts the command and waits. Stdin, stdout, and stderr are the process streams.
+// Run starts the command and waits. The exec driver is the one selected for ctx.
+// Stdin, stdout, and stderr are the process streams.
 // A non-zero child status is returned as the process exit error.
 func (c Command) Run(ctx context.Context) error {
 	if len(c.Args) == 0 {
 		return fmt.Errorf("sops: command is empty")
 	}
-	cmd, err := execdriver.Command(c.Args[0], c.Args[1:]...)
+	selected, err := driver.Get[execdriver.Driver](ctx)
 	if err != nil {
 		return err
 	}
+	cmd := selected.Command(c.Args[0], c.Args[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

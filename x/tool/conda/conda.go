@@ -21,6 +21,12 @@ import (
 	lewtool "github.com/lewtec/lewkit/x/tool"
 )
 
+func init() {
+	// cmd/lewkit imports this package directly. A root.go would add it to
+	// x/tool/prelude, which go tool modot imports before registering conda.
+	lewtool.Register("conda", &Backend{})
+}
+
 // Backend installs packages from conda repositories.
 type Backend struct {
 	fetch    fetcher

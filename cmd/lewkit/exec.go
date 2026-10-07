@@ -15,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 
+	_ "github.com/lewtec/lewkit/x/tool/conda"
 	_ "github.com/lewtec/lewkit/x/tool/prelude"
 )
 

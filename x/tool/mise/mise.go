@@ -151,7 +151,7 @@ func miseCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
 		return nil, err
 	}
 	if _, err := selected.Which(ctx, "mise"); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrMiseNotFound, err)
+		return nil, fmt.Errorf("%w: %w", ErrMiseNotFound, err)
 	}
 	return selected.Command("mise", args...), nil
 }

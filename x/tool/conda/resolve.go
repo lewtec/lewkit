@@ -170,7 +170,7 @@ func (state *resolveState) reconcile(ctx context.Context, ch channel, slot *choi
 	if err != nil {
 		current := slot.rec
 		slot.mu.Unlock()
-		return fmt.Errorf("%w: %s %s conflicts with %s=%s", ErrUnsatisfied, name, strings.TrimSpace(versionSpec+" "+buildSpec), current.Version, current.Build)
+		return fmt.Errorf("%w: %s %s conflicts with %s=%s: %w", ErrUnsatisfied, name, strings.TrimSpace(versionSpec+" "+buildSpec), current.Version, current.Build, err)
 	}
 	next.URL = ch.artifactURL(next.Subdir, next.Filename)
 	if sameArtifact(next, slot.rec) {

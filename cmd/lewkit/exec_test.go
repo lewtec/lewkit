@@ -10,9 +10,16 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/tool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestExecRegistersConda(t *testing.T) {
+	backend, err := tool.Get("conda")
+	require.NoError(t, err)
+	require.Equal(t, "conda", backend.Name())
+}
 
 func TestExecParsesEnvTargetAndCommand(t *testing.T) {
 	dir := t.TempDir()

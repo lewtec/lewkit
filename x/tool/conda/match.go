@@ -306,7 +306,7 @@ func parseVersionAtom(token string) (versionExpr, error) {
 		}
 		re, err := regexp.Compile(token)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrInvalidVersion, err)
+			return nil, fmt.Errorf("%w: %w", ErrInvalidVersion, err)
 		}
 		return regexExpr{re: re}, nil
 	}
@@ -321,7 +321,7 @@ func parseVersionAtom(token string) (versionExpr, error) {
 	if strings.Contains(token, "*") && !strings.HasSuffix(token, "*") {
 		re, err := regexp.Compile("^" + globToRegexp(token) + "$")
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s", ErrInvalidVersion, err)
+			return nil, fmt.Errorf("%w: %w", ErrInvalidVersion, err)
 		}
 		return regexExpr{re: re}, nil
 	}
