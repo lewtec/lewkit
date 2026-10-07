@@ -1,4 +1,4 @@
-package metal
+package vulkan
 
 import (
 	"fmt"
@@ -9,38 +9,34 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
-// mslSource renders the kernel schedule as one Metal compute kernel.
-func mslSource(k *ndarray.Kernel) (string, int, error) {
+// glslSource renders the kernel schedule as a Vulkan compute shader.
+func glslSource(k *ndarray.Kernel) (string, error) {
 	if k == nil {
-		return "", 0, ndarray.ErrOp
+		return "", ndarray.ErrOp
 	}
 	code, err := k.Code()
 	if err != nil {
-		return "", 0, err
+		return "", err
 	}
-	return mslOf(code), code.Threads, nil
+	return glslOf(code), nil
 }
 
-func mslOf(c ndarray.Code) string {
+func glslOf(c ndarray.Code) string {
 	var b strings.Builder
-	b.WriteString("#include <metal_stdlib>\nusing namespace metal;\n\n")
-	b.WriteString("struct Push {\n    uint n;\n    uint d0;\n    uint d1;\n    uint d2;\n    uint d3;\n};\n\n")
-	b.WriteString("kernel void ndeval(\n")
-	fmt.Fprintf(&b, "    device %s* o [[buffer(0)]],\n", scalar(c.Out))
+	b.WriteString("#version 450\n")
+	b.WriteString("layout(local_size_x = ")
+	b.WriteString(strconv.Itoa(c.Threads))
+	b.WriteString(") in;\n")
+	b.WriteString("layout(push_constant) uniform Push { uint n; uint d0; uint d1; uint d2; uint d3; };\n")
+	fmt.Fprintf(&b, "layout(set = 0, binding = 0) buffer Out { %s o[]; };\n", scalar(c.Out))
 	for i, dt := range c.In {
-		fmt.Fprintf(&b, "    device %s* x%d [[buffer(%d)]],\n", scalar(dt), i+1, i+1)
+		fmt.Fprintf(&b, "layout(set = 0, binding = %d) buffer In%d { %s x%d[]; };\n", i+1, i+1, scalar(dt), i+1)
 	}
-	fmt.Fprintf(&b, "    constant Push& push [[buffer(%d)]],\n", 1+len(c.In))
-	b.WriteString("    uint gid [[thread_position_in_grid]])\n{\n")
-	b.WriteString("    uint n = push.n;\n")
-	b.WriteString("    uint d0 = push.d0;\n")
-	b.WriteString("    uint d1 = push.d1;\n")
-	b.WriteString("    uint d2 = push.d2;\n")
-	b.WriteString("    uint d3 = push.d3;\n")
-	b.WriteString("    uint gi = gid;\n")
+	b.WriteString("void main() {\n")
+	b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
 	writeBody(&b, c, func(e ndarray.Expr) string {
 		var s strings.Builder
-		(&msl{b: &s}).expr(e, 0)
+		(&spell{b: &s}).expr(e, 0)
 		return s.String()
 	})
 	b.WriteString("}\n")
@@ -84,9 +80,9 @@ func scalar(d ndarray.DType) string {
 	}
 }
 
-type msl struct{ b *strings.Builder }
+type spell struct{ b *strings.Builder }
 
-func (p *msl) expr(e ndarray.Expr, limit int) {
+func (p *spell) expr(e ndarray.Expr, limit int) {
 	if prec(e.Op) < limit {
 		p.b.WriteByte('(')
 		p.expr(e, 0)
@@ -166,13 +162,13 @@ func (p *msl) expr(e ndarray.Expr, limit int) {
 	}
 }
 
-func (p *msl) infix(e ndarray.Expr, op string) {
+func (p *spell) infix(e ndarray.Expr, op string) {
 	p.expr(e.Args[0], prec(e.Op))
 	p.b.WriteString(op)
 	p.expr(e.Args[1], prec(e.Op)+1)
 }
 
-func (p *msl) constant(e ndarray.Expr) {
+func (p *spell) constant(e ndarray.Expr) {
 	switch e.DType {
 	case ndarray.I32:
 		if int32(e.Bits) == math.MinInt32 {
@@ -186,7 +182,7 @@ func (p *msl) constant(e ndarray.Expr) {
 	default:
 		f := math.Float32frombits(e.Bits)
 		if math.IsNaN(float64(f)) || math.IsInf(float64(f), 0) {
-			fmt.Fprintf(p.b, "as_type<float>(%du)", e.Bits)
+			fmt.Fprintf(p.b, "uintBitsToFloat(%du)", e.Bits)
 			return
 		}
 		p.b.WriteString(formatFloat(e.Bits))

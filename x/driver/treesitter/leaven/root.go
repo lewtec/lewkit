@@ -61,17 +61,23 @@ type lang struct {
 
 func (l lang) Name() string { return l.name }
 
-func (l lang) Parse(source []byte) (*treesitter.Tree, error) {
+func (l lang) Parse(source []byte) (tree *treesitter.Tree, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			tree = nil
+			err = fmt.Errorf("%w: %s: lexer failed", treesitter.ErrParse, l.name)
+		}
+	}()
 	parser := grammar.NewParser()
 	defer parser.Delete()
 	if !parser.SetLanguage(l.raw) {
 		return nil, fmt.Errorf("%w: %s", treesitter.ErrParse, l.name)
 	}
-	tree := parser.ParseBytes(source)
-	if tree == nil {
+	parsed := parser.ParseBytes(source)
+	if parsed == nil {
 		return nil, fmt.Errorf("%w: %s", treesitter.ErrParse, l.name)
 	}
-	return treesitter.NewTree(syntax{tree: tree, n: tree.RootNode()}), nil
+	return treesitter.NewTree(syntax{tree: parsed, n: parsed.RootNode()}), nil
 }
 
 type syntax struct {

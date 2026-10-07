@@ -21,6 +21,7 @@ func TestRootUsage(t *testing.T) {
 	assert.Contains(t, text, "generate")
 	assert.Contains(t, text, "disasm")
 	assert.Contains(t, text, "doctor")
+	assert.Contains(t, text, "workflow")
 	assert.Contains(t, text, "completion")
 	assert.Contains(t, text, "--sentry-dsn")
 	assert.Contains(t, text, "SENTRY_DSN")

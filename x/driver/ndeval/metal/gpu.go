@@ -1,7 +1,6 @@
 // Package metal is the ndarray evaluator backed by a Metal device.
-// The kernel source stays GLSL inside ndarray. This package lowers that
-// dialect to Metal shading language and dispatches it. It does not implement
-// a Vulkan device.
+// It renders the kernel schedule as Metal shading language and dispatches
+// it. It does not implement a Vulkan device.
 package metal
 
 import (

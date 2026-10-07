@@ -1,7 +1,6 @@
 package ndarray
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,11 +23,11 @@ func TestOptimizeAssocInt(t *testing.T) {
 	k, err := compile(expr.node)
 	require.NoError(t, err)
 	require.Equal(t, 2, opCount(k))
-	src, err := k.GLSL()
+	code, err := k.Code()
 	require.NoError(t, err)
-	require.Equal(t, 1, strings.Count(src, "+"))
-	require.Equal(t, 1, strings.Count(src, "*"))
-	require.Contains(t, src, "5")
+	require.Equal(t, 1, exprCount(code, ExprAdd))
+	require.Equal(t, 1, exprCount(code, ExprMul))
+	require.True(t, hasConst(code, I32, 5))
 	require.Equal(t, []int32{24, 28, 32}, mustEval(t, expr))
 }
 
@@ -43,15 +42,15 @@ func TestOptimizeFloatAssocStays(t *testing.T) {
 }
 
 func TestOptimizeDeterministic(t *testing.T) {
-	build := func() string {
+	build := func() Code {
 		x, err := New([]int32{4, 5}, Shape{2})
 		require.NoError(t, err)
 		expr := Const(int32(2)).Add(x).Add(Const(int32(3))).Neg().Neg()
 		k, err := compile(expr.node)
 		require.NoError(t, err)
-		src, err := k.GLSL()
+		code, err := k.Code()
 		require.NoError(t, err)
-		return src
+		return code
 	}
 	require.Equal(t, build(), build())
 }
