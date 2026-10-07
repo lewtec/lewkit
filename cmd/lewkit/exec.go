@@ -9,8 +9,10 @@ import (
 	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/sops"
+	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 
 	_ "github.com/lewtec/lewkit/x/tool/prelude"
@@ -49,15 +51,22 @@ func (c *execCmd) Run(ctx context.Context) error {
 		}
 		command = path
 	}
-	err := (sops.Command{
-		Env:  env,
-		Args: append([]string{command}, argv[1:]...),
-	}).Run(ctx)
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		os.Exit(exitErr.ExitCode())
+	args := append([]string{command}, argv[1:]...)
+	// The progress view stops after Run returns. Start the process once the
+	// terminal is back. The after context is the one Session.Wait does not cancel.
+	run := func(ctx context.Context) error {
+		err := (sops.Command{Env: env, Args: args}).Run(ctx)
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			os.Exit(exitErr.ExitCode())
+		}
+		return err
 	}
-	return err
+	if taskgroup.FromContext(ctx) != nil {
+		entry.After(run)
+		return nil
+	}
+	return run(ctx)
 }
 
 func ensureTools(ctx context.Context, specs []string, command string) (string, error) {

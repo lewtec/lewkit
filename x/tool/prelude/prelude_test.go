@@ -11,13 +11,11 @@ import (
 )
 
 func TestPreludeRegistersBackends(t *testing.T) {
-	for _, id := range []string{"github", "mise", "registry"} {
+	for _, id := range []string{"github", "mise", "registry", "conda"} {
 		backend, err := tool.Get(id)
 		require.NoError(t, err)
 		require.NotEmpty(t, backend.Name())
 	}
-	_, err := tool.Get("conda")
-	require.ErrorIs(t, err, tool.ErrBackendNotFound)
 	names := registry.ListTools()
 	require.Contains(t, names, "uv")
 	require.Contains(t, names, "golang")

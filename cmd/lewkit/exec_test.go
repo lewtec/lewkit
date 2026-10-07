@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/entry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,4 +32,41 @@ func TestExecParsesEnvTargetAndCommand(t *testing.T) {
 func TestExecDashKeepsHelpArgument(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "exec", "--", "go", "--help")
 	assert.Equal(t, []string{"go", "--help"}, cmd.Values(app.Args.exec.args))
+}
+
+func TestExecStartsCommandAfterProgress(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script")
+	}
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "ran")
+	script := filepath.Join(dir, "mark")
+	body := "#!/bin/sh\n: > " + strconv.Quote(marker) + "\n"
+	require.NoError(t, os.WriteFile(script, []byte(body), 0o755))
+
+	app := cmd.ParseOK[cmd.App[root]](t, "exec", "--", script)
+	require.NoError(t, entry.Run(t.Context(), func(ctx context.Context) error {
+		err := app.Args.exec.Run(ctx)
+		_, statErr := os.Stat(marker)
+		require.ErrorIs(t, statErr, os.ErrNotExist)
+		return err
+	}))
+	_, err := os.Stat(marker)
+	require.NoError(t, err)
+}
+
+func TestExecRunsImmediatelyWithoutSession(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script")
+	}
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "ran")
+	script := filepath.Join(dir, "mark")
+	body := "#!/bin/sh\n: > " + strconv.Quote(marker) + "\n"
+	require.NoError(t, os.WriteFile(script, []byte(body), 0o755))
+
+	app := cmd.ParseOK[cmd.App[root]](t, "exec", "--", script)
+	require.NoError(t, app.Args.exec.Run(t.Context()))
+	_, err := os.Stat(marker)
+	require.NoError(t, err)
 }

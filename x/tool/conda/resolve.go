@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -162,15 +161,13 @@ func (state *resolveState) reconcile(ctx context.Context, ch channel, slot *choi
 	if err != nil {
 		return wrapMiss(name, versionSpec, buildSpec, err, false)
 	}
-	variants := state.activeVariants()
 	slot.mu.Lock()
 	slot.constraints = append(slot.constraints, constraint{version: versionSpec, build: buildSpec})
-	addVariant(variants, buildSpec)
-	next, err := pickSatisfying(recs, slot.constraints, state.subdir, variants)
+	next, err := pickSatisfying(recs, slot.constraints, state.subdir)
 	if err != nil {
 		current := slot.rec
 		slot.mu.Unlock()
-		return fmt.Errorf("%w: %s %s conflicts with %s=%s: %w", ErrUnsatisfied, name, strings.TrimSpace(versionSpec+" "+buildSpec), current.Version, current.Build, err)
+		return fmt.Errorf("%w: %s %s conflicts with %s=%s", ErrUnsatisfied, name, strings.TrimSpace(versionSpec+" "+buildSpec), current.Version, current.Build)
 	}
 	next.URL = ch.artifactURL(next.Subdir, next.Filename)
 	if sameArtifact(next, slot.rec) {
@@ -220,7 +217,7 @@ func (state *resolveState) selectRecord(ctx context.Context, ch channel, name, v
 	if err != nil {
 		return record{}, wrapMiss(name, versionSpec, buildSpec, err, root)
 	}
-	rec, err := state.pickRecord(recs, versionSpec, buildSpec)
+	rec, err := pickRecord(recs, versionSpec, buildSpec, state.subdir)
 	if err != nil {
 		return record{}, wrapMiss(name, versionSpec, buildSpec, err, root)
 	}
@@ -250,50 +247,6 @@ func (state *resolveState) startDownload(ctx context.Context, rec record) <-chan
 }
 
 func (state *resolveState) fetchDeps(ctx context.Context, ch channel, name string, deps []string) error {
-	if len(deps) == 0 {
-		return nil
-	}
-	pinned, loose, err := splitDeps(deps)
-	if err != nil {
-		return err
-	}
-	// A loose package such as cctools is chosen after pinned siblings.
-	// clang's ld64_osx-arm64 * llvm23_1_* is then already selected, and the
-	// loose package can follow that variant instead of an incompatible build.
-	if err := state.fetchSome(ctx, ch, name, pinned); err != nil {
-		return err
-	}
-	return state.fetchSome(ctx, ch, name, loose)
-}
-
-func splitDeps(deps []string) (pinned, loose []string, err error) {
-	for _, dep := range deps {
-		spec, parseErr := parseMatchSpec(dep)
-		if parseErr != nil {
-			return nil, nil, parseErr
-		}
-		if spec.Name == "" || strings.HasPrefix(spec.Name, "__") {
-			continue
-		}
-		if constrainedSpec(spec) {
-			pinned = append(pinned, dep)
-			continue
-		}
-		loose = append(loose, dep)
-	}
-	return pinned, loose, nil
-}
-
-func constrainedSpec(spec matchSpec) bool {
-	version := strings.TrimSpace(spec.Version)
-	build := strings.TrimSpace(spec.Build)
-	if version != "" && version != "*" {
-		return true
-	}
-	return build != "" && build != "*"
-}
-
-func (state *resolveState) fetchSome(ctx context.Context, ch channel, name string, deps []string) error {
 	if len(deps) == 0 {
 		return nil
 	}
@@ -431,7 +384,7 @@ func sameArtifact(left, right record) bool {
 	return left.Subdir == right.Subdir && left.Version == right.Version && left.Build == right.Build && left.Filename == right.Filename
 }
 
-func pickSatisfying(records []record, constraints []constraint, native string, variants map[string]struct{}) (record, error) {
+func pickSatisfying(records []record, constraints []constraint, native string) (record, error) {
 	matched := records
 	for _, item := range constraints {
 		next := make([]record, 0, len(matched))
@@ -457,7 +410,7 @@ func pickSatisfying(records []record, constraints []constraint, native string, v
 	}
 	best := matched[0]
 	for _, rec := range matched[1:] {
-		if betterRecord(rec, best, native, variants) {
+		if newerRecord(rec, best, native) {
 			best = rec
 		}
 	}
@@ -465,84 +418,7 @@ func pickSatisfying(records []record, constraints []constraint, native string, v
 }
 
 func pickRecord(records []record, versionSpec, buildSpec, native string) (record, error) {
-	return pickSatisfying(records, []constraint{{version: versionSpec, build: buildSpec}}, native, nil)
-}
-
-func (state *resolveState) pickRecord(records []record, versionSpec, buildSpec string) (record, error) {
-	return pickSatisfying(records, []constraint{{version: versionSpec, build: buildSpec}}, state.subdir, state.activeVariants())
-}
-
-// buildVariant is the conda-forge mutex prefix on a build string.
-// llvm23_1_hc8058f9_6 and the glob llvm23_1_* share llvm23_1.
-var buildVariant = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*[0-9][A-Za-z0-9]*(?:_[0-9]+)*)_h[0-9a-f]{5,}_[0-9]+$`)
-
-func variantKey(build string) string {
-	build = strings.TrimSpace(build)
-	if build == "" || build == "*" {
-		return ""
-	}
-	if strings.HasSuffix(build, "*") {
-		build = strings.TrimRight(strings.TrimSuffix(build, "*"), "_")
-		if build == "" || strings.Contains(build, "*") || !containsDigit(build) {
-			return ""
-		}
-		return build
-	}
-	match := buildVariant.FindStringSubmatch(build)
-	if match == nil {
-		return ""
-	}
-	return match[1]
-}
-
-func containsDigit(value string) bool {
-	return strings.ContainsAny(value, "0123456789")
-}
-
-func (state *resolveState) activeVariants() map[string]struct{} {
-	state.mu.Lock()
-	slots := make([]*choice, 0, len(state.chosen))
-	for _, slot := range state.chosen {
-		slots = append(slots, slot)
-	}
-	state.mu.Unlock()
-	variants := map[string]struct{}{}
-	for _, slot := range slots {
-		slot.mu.Lock()
-		addVariant(variants, slot.rec.Build)
-		for _, item := range slot.constraints {
-			addVariant(variants, item.build)
-		}
-		slot.mu.Unlock()
-	}
-	return variants
-}
-
-func addVariant(variants map[string]struct{}, build string) {
-	key := variantKey(build)
-	if key == "" {
-		return
-	}
-	variants[key] = struct{}{}
-}
-
-func variantMatch(build string, variants map[string]struct{}) bool {
-	if len(variants) == 0 {
-		return false
-	}
-	_, ok := variants[variantKey(build)]
-	return ok
-}
-
-// betterRecord prefers a build whose variant a sibling already required.
-// Version and build number still decide when the variant does not.
-func betterRecord(a, b record, native string, variants map[string]struct{}) bool {
-	aHit := variantMatch(a.Build, variants)
-	bHit := variantMatch(b.Build, variants)
-	if aHit != bHit {
-		return aHit
-	}
-	return newerRecord(a, b, native)
+	return pickSatisfying(records, []constraint{{version: versionSpec, build: buildSpec}}, native)
 }
 
 func newerRecord(a, b record, native string) bool {

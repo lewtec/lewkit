@@ -280,51 +280,6 @@ func TestSplitPackageBuildsStayPaired(t *testing.T) {
 	require.Less(t, pos["libfoo"], pos["libmeta"])
 }
 
-func TestLooseDepFollowsPinnedVariant(t *testing.T) {
-	t.Parallel()
-	// clang pins ld64 to llvm23 and also depends on cctools with no build.
-	// cctools publishes llvm21 and llvm23 at the same version and build
-	// number. Filename order would take llvm21, whose ld64 pin cannot sit
-	// beside llvm23.
-	bodies := map[string][]byte{
-		"https://api.anaconda.org/package/conda-forge/clang": apiJSON(t, "clang", []apiFile{
-			apiEntry("clang", "23.1.2", "default_h8f9c3af_0", 0, "linux-64", []string{"cctools", "ld64 * llvm23_1_*"}, []string{"main"}),
-		}),
-		"https://api.anaconda.org/package/conda-forge/cctools": apiJSON(t, "cctools", []apiFile{
-			apiEntry("cctools", "1030.6.3", "llvm21_1_h8e84c17_6", 6, "linux-64", []string{"ld64 956.6 llvm21_1_h1a10cc4_6"}, []string{"main"}),
-			apiEntry("cctools", "1030.6.3", "llvm23_1_h54b4f4b_6", 6, "linux-64", []string{"ld64 956.6 llvm23_1_hc8058f9_6"}, []string{"main"}),
-		}),
-		"https://api.anaconda.org/package/conda-forge/ld64": apiJSON(t, "ld64", []apiFile{
-			apiEntry("ld64", "956.6", "llvm21_1_h1a10cc4_6", 6, "linux-64", nil, []string{"main"}),
-			apiEntry("ld64", "956.6", "llvm23_1_hc8058f9_6", 6, "linux-64", nil, []string{"main"}),
-		}),
-	}
-	ix := newIndex(func(_ context.Context, rawURL string) ([]byte, error) {
-		body, ok := bodies[rawURL]
-		if !ok {
-			return nil, &fetchurl.StatusError{Code: 404, Status: "404"}
-		}
-		return body, nil
-	})
-	recs, err := ix.closure(t.Context(), knownChannels["conda-forge"], "clang", "", "", "linux-64", nil)
-	require.NoError(t, err)
-	got := map[string]string{}
-	for _, rec := range recs {
-		got[rec.Name] = rec.Build
-	}
-	require.Equal(t, "llvm23_1_hc8058f9_6", got["ld64"])
-	require.Equal(t, "llvm23_1_h54b4f4b_6", got["cctools"])
-}
-
-func TestVariantKey(t *testing.T) {
-	t.Parallel()
-	require.Equal(t, "llvm23_1", variantKey("llvm23_1_hc8058f9_6"))
-	require.Equal(t, "llvm23_1", variantKey("llvm23_1_*"))
-	require.Equal(t, "llvm21_1", variantKey("llvm21_1_h1a10cc4_6"))
-	require.Empty(t, variantKey("default_h8f9c3af_0"))
-	require.Empty(t, variantKey("a_pin_b"))
-}
-
 func TestFetchAndDownloadOverlap(t *testing.T) {
 	t.Parallel()
 	hello := condaPackage(t, map[string]archiveFile{
