@@ -14,8 +14,11 @@ import (
 
 // COM slots follow the Windows C++ vtable. Void methods are not HRESULTs.
 // A CPU descriptor handle is an 8-byte struct written through a pointer
-// argument; RAX is that pointer, not the handle. syscall.Errno is
-// GetLastError, which these methods do not set.
+// argument; the register return is that pointer, not the handle.
+// asmcgocall pushes a frame pointer and then copies SP into the second
+// argument register, so a call that omits the pointer returns the address
+// of its own saved BP. syscall.Errno is GetLastError, which these methods
+// do not set.
 
 const (
 	slotRelease = 2
@@ -181,13 +184,19 @@ func syscallV(obj uintptr, slot int, args ...uintptr) uintptr {
 }
 
 // cpuHandle reads ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart.
-// The method writes the handle through its second argument.
+// The method writes the handle through its second argument and returns that
+// pointer. Returning the register hands CreateRenderTargetView the saved BP
+// of this syscall. vkd3d then stores the RTV view and resource over that
+// slot and the return address, and the epilogue executes the resource.
 func cpuHandle(heap uintptr) uintptr {
 	var handle uintptr
 	var p pins
 	p.keep(&handle)
 	syscallV(heap, slotHeapCPU, uintptr(unsafe.Pointer(&handle)))
 	p.done()
+	if handle == 0 || onStack(handle) {
+		return 0
+	}
 	return handle
 }
 

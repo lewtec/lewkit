@@ -177,6 +177,9 @@ func (s *Screen) bindBacks() error {
 		}
 		s.back[i] = res
 		handle := s.rtvStart + uintptr(i)*uintptr(s.rtvInc)
+		if handle == 0 || onStack(handle) {
+			return ErrUnavailable
+		}
 		s.rtv[i] = handle
 		syscallV(s.eng.dev, slotDevRTV, res, 0, handle)
 	}

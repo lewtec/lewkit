@@ -1,5 +1,7 @@
 package d3d12
 
+import "unsafe"
+
 // ABI layouts match the MSVC x64 and ARM64 headers. BOOL and enums are int32.
 // Pointers are 8 bytes. A test checks the sizes that Create* reads.
 
@@ -239,6 +241,22 @@ type adapterDesc struct {
 
 type heapDesc struct {
 	typ, num, flags, node uint32
+}
+
+// onStack reports whether p lies within 64KiB of the current stack pointer.
+// A CPU descriptor is a heap address. The bad GetCPU return is asmcgocall's
+// saved frame pointer, a few frames above the caller.
+func onStack(p uintptr) bool {
+	if p == 0 {
+		return false
+	}
+	var mark uintptr
+	m := uintptr(unsafe.Pointer(&mark))
+	const window = 64 << 10
+	if p > m {
+		return p-m < window
+	}
+	return m-p < window
 }
 
 func constParam(reg, n uint32) rootParam {

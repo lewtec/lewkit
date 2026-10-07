@@ -7,6 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestOnStack(t *testing.T) {
+	var local byte
+	require.True(t, onStack(uintptr(unsafe.Pointer(&local))))
+	require.False(t, onStack(0))
+	require.False(t, onStack(uintptr(unsafe.Pointer(&local))+1<<30))
+}
+
 func TestABILayout(t *testing.T) {
 	if unsafe.Sizeof(uintptr(0)) != 8 {
 		t.Skip()
