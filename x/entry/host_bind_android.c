@@ -4,6 +4,12 @@
 
 static JavaVM *g_vm;
 
+void lewkit_note_vm(JavaVM *vm) {
+	if (vm != NULL) {
+		g_vm = vm;
+	}
+}
+
 void lewkit_bind_host(JNIEnv *env) {
 	if (g_vm == NULL) {
 		(*env)->GetJavaVM(env, &g_vm);
