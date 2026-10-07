@@ -15,4 +15,6 @@
 // Command runs a program with that environment.
 //
 // Age identities are opened with github.com/getsops/sops/v3/age.
+// Encrypt uses the sops library and the creation rule from .sops.yaml.
+// A missing config file is an error.
 package sops
