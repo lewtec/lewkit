@@ -32,9 +32,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Runs the packaged Go binary (ELETROCROMO_NO_UI=1), learns the READY URL
- * (stdout and/or ready file), then hands it to the splash. The splash
- * opens the page window and leaves the back stack.
+ * Fallback when the in-process library cannot load. Runs the packaged Go
+ * binary (ELETROCROMO_NO_UI=1), learns the READY URL (stdout and/or ready
+ * file), then hands it to the splash. The splash opens the page window and
+ * leaves the back stack. A loaded library serves the page in this process
+ * and does not start this service.
  *
  * Loopback must stay on-device: always 127.0.0.1 + Proxy.NO_PROXY. A VPN
  * (e.g. Tailscale) must not be required off and must not break localhost;

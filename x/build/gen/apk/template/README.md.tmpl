@@ -2,15 +2,16 @@
 
 Generated ad-hoc Android host for package **`{{.PackageID}}`**.
 
-Same model as desktop: Go owns loopback HTTP + auth; this project is a dumb
-WebView shell + foreground service that runs the packaged binary.
+The Go library runs inside the activity process. The WebView asks that
+library for each page. The foreground service starts only when the library
+cannot load.
 
 ## Layout
 
 | Path | Role |
 |------|------|
 | `eletrocromo.json` | Generator config (re-run / rebuild inputs) |
-| `app/` | Java WebView + ServerService |
+| `app/` | Activity WebView. ServerService starts only if the library cannot load |
 | `app/src/main/jniLibs/<abi>/libeletrocromo.so` | Cross-compiled Go app (`ELETROCROMO_NO_UI=1`) |
 | `scripts/build-go.sh` | Multiarch `go build` into jniLibs |
 
@@ -32,8 +33,8 @@ From this directory (after pointing `go_main` in `eletrocromo.json`):
 ABIs: `arm64-v8a`, `armeabi-v7a`, `x86_64`.
 
 Your Go `main` should call `eletrocromo.App.Run()` with
-`ID: "{{.PackageID}}"`. The service sets `ELETROCROMO_NO_UI=1` so Helium is
-skipped and a parseable `ELETROCROMO_READY <url>` line is logged.
+`ID: "{{.PackageID}}"`. Build the library with `lewkit build --goos android --cgo`
+so the activity can load `Java_lewkit_Host_start`.
 
 ## Assemble APK
 

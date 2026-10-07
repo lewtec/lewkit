@@ -13,11 +13,12 @@ import android.widget.TextView;
 
 import lewkit.Host;
 import lewkit.HostActivity;
+import lewkit.Page;
 
 /**
- * Splash until the Go entrypoint opens the first window. A surface replaces
- * this activity with an empty ready URL. A page replaces it with the loopback
- * URL. Later pages open on their own.
+ * Splash until the Go entrypoint opens the first window. A surface or an
+ * in-process page replaces this activity. A URL published after that still
+ * opens a page. The packaged service starts only when the Go library cannot load.
  */
 public class MainActivity extends HostActivity {
     private ServerService server;
@@ -87,6 +88,7 @@ public class MainActivity extends HostActivity {
         });
 
         Host.onPage = url -> Windows.pushWebWindow(getApplicationContext(), url);
+        Page.onOpen = id -> Windows.openPage(getApplicationContext(), id);
         Host.onReady = url -> loadApp(url);
         Host.onFail = message -> showSplash(getString(R.string.server_failed), message, true);
         try {
