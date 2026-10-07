@@ -1,20 +1,17 @@
 // Package sops reads a secret file and runs a command with it.
 //
 // File is a command-line argument. Parse takes a path and Value returns the
-// plaintext. A SOPS file encrypted to an age recipient decrypts. A file with
-// no SOPS metadata is returned as stored, so a plain PKCS#12 still loads.
+// plaintext. A SOPS file decrypts with github.com/getsops/sops/v3/decrypt.
+// A file with no SOPS metadata is returned as stored, so a plain PKCS#12
+// still loads.
 //
 // A SOPS binary file is a JSON object whose only keys are data and sops.
 // Open returns those original bytes unless the path ends in .json, in which
 // case the decrypted JSON document is returned. YAML, JSON, and dotenv come
 // back as the decrypted document.
 //
-// Keys is the age search sops uses. SystemKeys reads SOPS_AGE_KEY,
-// SOPS_AGE_KEY_FILE, SOPS_AGE_KEY_CMD, an SSH private key, and sops/age/keys.txt.
-// On macOS, XDG_CONFIG_HOME is honored first. Env is a dotenv assignment list.
-// Command runs a program with that environment.
+// Encrypt runs the sops program. The creation rule comes from .sops.yaml
+// above the output path. A missing config file is an error.
 //
-// Age identities are opened with github.com/getsops/sops/v3/age.
-// Encrypt uses the sops library and the creation rule from .sops.yaml.
-// A missing config file is an error.
+// Env is a dotenv assignment list. Command runs a program with that environment.
 package sops

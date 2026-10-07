@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
+
+	sopsv3 "github.com/getsops/sops/v3"
+	sopsdecrypt "github.com/getsops/sops/v3/decrypt"
 )
 
 // ErrNotAge means the file is SOPS but no age recipient could open it.
@@ -23,7 +26,7 @@ type File struct {
 	raw []byte
 }
 
-// Parse reads path. A SOPS age file decrypts. Any other file is kept as stored.
+// Parse reads path. A SOPS file decrypts. Any other file is kept as stored.
 func (f *File) Parse(path string) error {
 	if strings.TrimSpace(path) == "" {
 		f.raw = nil
@@ -89,33 +92,68 @@ func formatOf(path string) string {
 }
 
 func decode(in []byte, format string) ([]byte, error) {
-	switch format {
-	case "yaml":
-		return decodeYAML(in)
-	case "json":
-		return decodeJSON(in, false)
-	case "dotenv":
-		return decodeDotenv(in)
-	case "ini":
-		if looksLikeINI(in) {
-			return nil, errors.New("sops: ini files are not supported")
-		}
-		return in, nil
-	default:
-		if out, ok, err := tryJSON(in); ok || err != nil {
-			return out, err
-		}
-		if out, ok, err := tryYAML(in); ok || err != nil {
-			return out, err
-		}
-		if textFile(in) && looksLikeDotenv(in) {
-			return decodeDotenv(in)
-		}
-		if textFile(in) && looksLikeINI(in) {
-			return nil, errors.New("sops: ini files are not supported")
-		}
+	if format == "" {
+		format = sniff(in)
+	}
+	if !encrypted(in, format) {
 		return in, nil
 	}
+	out, err := sopsdecrypt.Data(in, format)
+	if errors.Is(err, sopsv3.MetadataNotFound) {
+		return in, nil
+	}
+	if err != nil {
+		if format == "ini" {
+			err = fmt.Errorf("sops: ini: %w", err)
+		}
+		return nil, wrapDecrypt(err)
+	}
+	return out, nil
+}
+
+func encrypted(in []byte, format string) bool {
+	switch format {
+	case "":
+		return false
+	case "dotenv":
+		return looksLikeDotenv(in)
+	case "ini":
+		return looksLikeINI(in)
+	case "yaml":
+		return bytes.Contains(in, []byte("sops:"))
+	case "json", "binary":
+		return bytes.Contains(in, []byte(`"sops"`))
+	default:
+		return true
+	}
+}
+
+func sniff(in []byte) string {
+	trim := bytes.TrimSpace(in)
+	if len(trim) > 0 && trim[0] == '{' {
+		return "binary"
+	}
+	if !textFile(in) {
+		return ""
+	}
+	if looksLikeDotenv(in) {
+		return "dotenv"
+	}
+	if looksLikeINI(in) {
+		return "ini"
+	}
+	if bytes.Contains(in, []byte("sops:")) {
+		return "yaml"
+	}
+	return ""
+}
+
+func wrapDecrypt(err error) error {
+	msg := err.Error()
+	if strings.Contains(msg, "mac") || strings.Contains(msg, "MAC") || strings.Contains(msg, "integrity") {
+		return fmt.Errorf("%w: %w", ErrMAC, err)
+	}
+	return fmt.Errorf("%w: %w", ErrNotAge, err)
 }
 
 func textFile(in []byte) bool {

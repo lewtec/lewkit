@@ -125,13 +125,13 @@ sops:
 `
 	_, err := Decode([]byte(doc))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "shamir")
+	require.ErrorContains(t, err, "data key")
 }
 
 func TestDotenvMetadataAndINI(t *testing.T) {
 	_, err := Decode([]byte("password=hunter2\nsops_mac=ENC[nope]\n"))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "lastmodified")
+	require.ErrorIs(t, err, ErrNotAge)
 
 	_, err = Decode([]byte("[sops]\nmac=ENC[nope]\n"))
 	require.Error(t, err)
