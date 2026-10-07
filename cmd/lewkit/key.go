@@ -18,19 +18,18 @@ import (
 )
 
 var (
-	errNameRequired     = errors.New("publisher name is required")
-	errPathRequired     = errors.New("PKCS#12 path is required")
-	errPasswordMismatch = errors.New("PKCS#12 passwords do not match")
-	errReplaceRefused   = errors.New("PKCS#12 already exists")
+	errNameRequired   = errors.New("publisher name is required")
+	errPathRequired   = errors.New("PKCS#12 path is required")
+	errReplaceRefused = errors.New("PKCS#12 already exists")
 )
 
-// keyCmd writes one RSA-2048 PKCS#12. A name, path, or password that was
-// not supplied is prompted on the caller context.
+// keyCmd writes one passwordless RSA-2048 PKCS#12 and encrypts it with the
+// sops config above that path. A name or path that was not supplied is
+// prompted on the caller context. A missing .sops.yaml is an error.
 type keyCmd struct {
-	name     cmd.StringArg `long:"name" help:"certificate common name" default:""`
-	out      cmd.StringArg `long:"out" env:"LEWKIT_SIGN_P12" help:"PKCS#12 file to write" default:""`
-	password sops.File     `long:"p12-password" env:"LEWKIT_SIGN_P12_PASSWORD" help:"PKCS#12 password file. Prompted when omitted. A SOPS age file is decrypted." default:""`
-	force    cmd.Flag      `long:"force" help:"replace an existing PKCS#12"`
+	name  cmd.StringArg `long:"name" help:"certificate common name" default:""`
+	out   cmd.StringArg `long:"out" env:"LEWKIT_SIGN_P12" help:"PKCS#12 file to write" default:""`
+	force cmd.Flag      `long:"force" help:"replace an existing PKCS#12"`
 }
 
 func (keyCmd) Description() string {
@@ -59,10 +58,6 @@ func (c *keyCmd) generate(ctx context.Context, ask func(context.Context, string)
 	if err != nil {
 		return err
 	}
-	password, err := c.secret(ctx, ask)
-	if err != nil {
-		return err
-	}
 	if err := c.replace(ctx, path, confirm); err != nil {
 		return err
 	}
@@ -70,14 +65,18 @@ func (c *keyCmd) generate(ctx context.Context, ask func(context.Context, string)
 	if err != nil {
 		return err
 	}
-	der, err := id.PKCS12(password)
+	der, err := id.PKCS12("")
+	if err != nil {
+		return err
+	}
+	enc, err := sops.Encrypt(path, der)
 	if err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, der, 0o600); err != nil {
+	if err := os.WriteFile(path, enc, 0o600); err != nil {
 		return err
 	}
 	fmt.Fprintln(os.Stdout, path)
@@ -114,24 +113,6 @@ func (c *keyCmd) destination(ctx context.Context, ask func(context.Context, stri
 		return "", errPathRequired
 	}
 	return path, nil
-}
-
-func (c *keyCmd) secret(ctx context.Context, ask func(context.Context, string) (string, error)) (string, error) {
-	if c.password.Value() != nil {
-		return c.password.Text(), nil
-	}
-	password, err := ask(ctx, "PKCS#12 password")
-	if err != nil {
-		return "", err
-	}
-	again, err := ask(ctx, "Repeat PKCS#12 password")
-	if err != nil {
-		return "", err
-	}
-	if password != again {
-		return "", errPasswordMismatch
-	}
-	return password, nil
 }
 
 func (c *keyCmd) replace(ctx context.Context, path string, confirm func(context.Context, string) (bool, error)) error {
