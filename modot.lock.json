@@ -73,6 +73,13 @@
     },
     {
       "kind": "tool",
+      "ref": "github:getsops/sops",
+      "depName": "getsops/sops",
+      "currentValue": "v3.10.2",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
       "ref": "github:rhysd/actionlint",
       "depName": "rhysd/actionlint",
       "currentValue": "v1.7.12",

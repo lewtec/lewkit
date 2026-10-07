@@ -10,8 +10,9 @@
 // case the decrypted JSON document is returned. YAML, JSON, and dotenv come
 // back as the decrypted document.
 //
-// Encrypt calls the sops library in-process. The creation rule comes from
-// .sops.yaml above the output path. A missing config file is an error.
+// Encrypt runs the sops lazy tool. The version is the modot.lock.json pin
+// above the output path, or latest. x/tool installs that binary. The
+// creation rule comes from .sops.yaml. A missing config file is an error.
 //
 // Env is a dotenv assignment list. Command runs a program with that environment.
 package sops
