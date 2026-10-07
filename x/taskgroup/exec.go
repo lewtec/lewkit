@@ -252,14 +252,16 @@ func (s *Session) failSubtree(id ID) {
 	}
 }
 
-func (s *Session) waitUntil(ctx context.Context, done func() (error, bool)) error {
+// done reports whether the wait is over. A finished wait still returns a nil
+// error when the task succeeded, so the bool stays in front of the error.
+func (s *Session) waitUntil(ctx context.Context, done func() (finished bool, err error)) error {
 	stop := context.AfterFunc(ctx, func() { s.cond.Broadcast() })
 	defer stop()
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for {
-		if err, ok := done(); ok {
+		if finished, err := done(); finished {
 			return err
 		}
 		if err := ctx.Err(); err != nil {
@@ -270,23 +272,23 @@ func (s *Session) waitUntil(ctx context.Context, done func() (error, bool)) erro
 }
 
 func (s *Session) waitLive(ctx context.Context, id ID) error {
-	return s.waitUntil(ctx, func() (error, bool) {
+	return s.waitUntil(ctx, func() (bool, error) {
 		if s.slots[id].liveN.Load() > 0 {
-			return nil, false
+			return false, nil
 		}
 		if s.slots[id].err != nil {
-			return s.slots[id].err, true
+			return true, s.slots[id].err
 		}
-		return s.err, true
+		return true, s.err
 	})
 }
 
 func (s *Session) waitTask(ctx context.Context, id ID) error {
-	return s.waitUntil(ctx, func() (error, bool) {
+	return s.waitUntil(ctx, func() (bool, error) {
 		st := State(s.slots[id].state.Load())
 		if st == Done || st == Failed {
-			return s.slots[id].err, true
+			return true, s.slots[id].err
 		}
-		return nil, false
+		return false, nil
 	})
 }
