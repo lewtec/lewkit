@@ -117,7 +117,7 @@ func (e *engine) rtvHeap() (heap, start uintptr, inc uint32, err error) {
 		return 0, 0, 0, err
 	}
 	inc = uint32(syscallV(e.dev, slotDevInc, uintptr(heapRTV)))
-	start = syscallV(heap, slotHeapCPU)
+	start = cpuHandle(heap)
 	if inc == 0 || start == 0 {
 		return heap, start, inc, ErrUnavailable
 	}

@@ -12,9 +12,10 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
-// COM slots follow the Windows C++ vtable. An 8-byte struct such as a CPU
-// descriptor handle comes back in RAX. Void methods are not HRESULTs.
-// syscall.Errno is GetLastError, which these methods do not set.
+// COM slots follow the Windows C++ vtable. Void methods are not HRESULTs.
+// A CPU descriptor handle is an 8-byte struct written through a pointer
+// argument; RAX is that pointer, not the handle. syscall.Errno is
+// GetLastError, which these methods do not set.
 
 const (
 	slotRelease = 2
@@ -177,6 +178,17 @@ func syscallV(obj uintptr, slot int, args ...uintptr) uintptr {
 	all = append(all, args...)
 	r, _, _ := syscall.SyscallN(vslot(obj, slot), all...)
 	return r
+}
+
+// cpuHandle reads ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart.
+// The method writes the handle through its second argument.
+func cpuHandle(heap uintptr) uintptr {
+	var handle uintptr
+	var p pins
+	p.keep(&handle)
+	syscallV(heap, slotHeapCPU, uintptr(unsafe.Pointer(&handle)))
+	p.done()
+	return handle
 }
 
 func callHR(obj uintptr, slot int, args ...uintptr) error {
