@@ -14,6 +14,11 @@ import (
 
 const ageConfig = "creation_rules:\n  - age: age1zufvjtsk0p7wgsz7nth4032t4tqmev7d4dwq72x6cgngjqcnxgmq6l7ts0\n"
 
+func TestEncryptNilContext(t *testing.T) {
+	_, err := Encrypt(nil, "x", []byte("a"))
+	require.EqualError(t, err, "sops: nil context")
+}
+
 func TestEncryptRoundTrip(t *testing.T) {
 	useAgeKey(t)
 	dir := t.TempDir()

@@ -1,8 +1,9 @@
 // Package entry is the process startup shared by apps and commands.
 //
 // Main installs the signal context, binds the UI thread, and runs work
-// inside one taskgroup session and its progress view. Run is the same
-// sequence when the caller already owns the process lifetime.
+// inside one taskgroup session and its progress view. The process root
+// is the context main passes in. Run is the same sequence when the
+// caller already owns the process lifetime.
 package entry
 
 import (
@@ -51,9 +52,10 @@ func slogOut() io.Writer {
 	return os.Stderr
 }
 
-// Main runs fn as the process. A non-nil error is logged, reported, and the process exits 1.
-func Main(fn func(context.Context) error) {
-	MainFrom(context.Background(), fn)
+// Main runs fn as the process. parent is the root from main.
+// A non-nil error is logged, reported, and the process exits 1.
+func Main(parent context.Context, fn func(context.Context) error) {
+	MainFrom(parent, fn)
 }
 
 // MainFrom is Main with parent's context values kept on the signal context.
@@ -62,7 +64,8 @@ func MainFrom(parent context.Context, fn func(context.Context) error) {
 	prepareHost()
 	slog.SetDefault(slog.New(logging.NewHandler(slogOut(), &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if parent == nil {
-		parent = context.Background()
+		slog.Error("entry: nil context")
+		os.Exit(1)
 	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt)
 	defer stop()
@@ -85,7 +88,7 @@ func showFailure(ctx context.Context, err error) {
 	if err == nil || ctx == nil || !failureVisible() {
 		return
 	}
-	box, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	box, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 	defer cancel()
 	if showErr := messagebox.Show(box, release.Name(), err.Error()); showErr != nil {
 		NotifyFail(err.Error())

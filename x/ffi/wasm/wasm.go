@@ -71,7 +71,7 @@ func compileRuntime(ctx context.Context, bin []byte, cfg Config, config wazero.R
 			err = fmt.Errorf("wasm compiler: %v", recovered)
 			compiled = nil
 			if rt != nil {
-				err = errors.Join(err, rt.Close(context.Background()))
+				err = errors.Join(err, rt.Close(context.WithoutCancel(ctx)))
 			}
 		}
 	}()

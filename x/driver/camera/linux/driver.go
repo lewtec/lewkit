@@ -67,7 +67,7 @@ func (c cameraDevice) Capture(ctx context.Context) (image.Image, error) {
 		return nil, err
 	}
 
-	cmd := execdriver.MustCommand("ffmpeg",
+	cmd := execdriver.MustCommand(ctx, "ffmpeg",
 		"-hide_banner",
 		"-loglevel", "error",
 		"-nostdin",

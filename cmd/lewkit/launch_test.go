@@ -16,7 +16,7 @@ import (
 )
 
 func TestForegroundCommandUsesProcessStreams(t *testing.T) {
-	cmd := foregroundCommand("true")
+	cmd := foregroundCommand(t.Context(), "true")
 	assert.Same(t, os.Stdin, cmd.Stdin)
 	assert.Same(t, os.Stdout, cmd.Stdout)
 	assert.Same(t, os.Stderr, cmd.Stderr)

@@ -94,7 +94,7 @@ func (t *grokBuildTool) InstallArtifact(ctx context.Context, art tool.Artifact, 
 		return err
 	}
 
-	command := execdriver.MustCommand(path, "--version")
+	command := execdriver.MustCommand(ctx, path, "--version")
 	command.Stdin = strings.NewReader("")
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard

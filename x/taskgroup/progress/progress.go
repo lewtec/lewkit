@@ -91,7 +91,7 @@ func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) e
 
 func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) (err error) {
 	var ui teaUI
-	s.SetOnSchedule(sync.OnceFunc(ui.start(s)))
+	s.SetOnSchedule(sync.OnceFunc(ui.start(s, ctx)))
 	defer s.SetOnSchedule(nil)
 	defer func() {
 		if uiErr := ui.stop(s); uiErr != nil && err == nil {
@@ -113,7 +113,7 @@ type teaUI struct {
 	restore func()
 }
 
-func (u *teaUI) start(s *taskgroup.Session) func() {
+func (u *teaUI) start(s *taskgroup.Session, ctx context.Context) func() {
 	return func() {
 		m := newModel(s)
 		u.p = tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
@@ -123,7 +123,7 @@ func (u *teaUI) start(s *taskgroup.Session) func() {
 			return msg
 		}))
 		s.SetLinePrint(u.print)
-		u.restore = hijackSlog(u.print)
+		u.restore = hijackSlog(ctx, u.print)
 		u.done = make(chan struct{})
 		go func() {
 			defer close(u.done)

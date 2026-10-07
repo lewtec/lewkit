@@ -22,7 +22,7 @@ import (
 func main() {
 	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
 	if err != nil {
-		entry.Main(func(context.Context) error { return err })
+		entry.Main(context.Background(), func(context.Context) error { return err })
 		return
 	}
 	parent := taskgroup.WithLimits(context.Background(), app.Args.Apply(taskgroup.DefaultLimits()))

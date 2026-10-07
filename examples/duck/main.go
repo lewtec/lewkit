@@ -28,7 +28,7 @@ import (
 
 func init() { entry.Bind(runApp) }
 
-func main() { entry.Main(runApp) }
+func main() { entry.Main(context.Background(), runApp) }
 
 // turnsPerLoop matches the reference gif: one revolution across 6.8s.
 const turnsPerLoop = 1 / 6.8
@@ -81,9 +81,6 @@ type screen struct {
 }
 
 func newScreen(ctx context.Context) (*screen, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	model, err := pato()
 	if err != nil {
 		return nil, err

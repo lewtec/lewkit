@@ -48,11 +48,11 @@ func runForeground(ctx context.Context, name string, args ...string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return execdriver.Run(context.WithoutCancel(ctx), foregroundCommand(name, args...))
+	return execdriver.Run(context.WithoutCancel(ctx), foregroundCommand(ctx, name, args...))
 }
 
-func foregroundCommand(name string, args ...string) *exec.Cmd {
-	cmd := execdriver.MustCommand(name, args...)
+func foregroundCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+	cmd := execdriver.MustCommand(ctx, name, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -1,7 +1,6 @@
 package media
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,11 +12,11 @@ import (
 )
 
 func TestArtCacheLocal(t *testing.T) {
-	got, err := GetArtCachePath(context.Background(), "file:///tmp/cover.png")
+	got, err := GetArtCachePath(t.Context(), "file:///tmp/cover.png")
 	if err != nil || got != "/tmp/cover.png" {
 		t.Fatalf("file: %q %v", got, err)
 	}
-	got, err = GetArtCachePath(context.Background(), "audio-x-generic")
+	got, err = GetArtCachePath(t.Context(), "audio-x-generic")
 	if err != nil || got != "audio-x-generic" {
 		t.Fatalf("plain: %q %v", got, err)
 	}
@@ -34,11 +33,11 @@ func TestArtCacheHTTP(t *testing.T) {
 		_, _ = w.Write([]byte("png"))
 	}))
 	t.Cleanup(srv.Close)
-	first, err := GetArtCachePath(context.Background(), srv.URL+"/cover")
+	first, err := GetArtCachePath(t.Context(), srv.URL+"/cover")
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := GetArtCachePath(context.Background(), srv.URL+"/cover")
+	second, err := GetArtCachePath(t.Context(), srv.URL+"/cover")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -30,7 +30,7 @@ func (factory) New(context.Context) (notification.Driver, error) { return backen
 type backend struct{}
 
 func (backend) Notify(ctx context.Context, n notification.Notification) error {
-	cmd := execdriver.MustCommand("osascript", "-e", script(n))
+	cmd := execdriver.MustCommand(ctx, "osascript", "-e", script(n))
 	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("osascript: %w", err)
 	}

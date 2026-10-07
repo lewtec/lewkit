@@ -1,7 +1,6 @@
 package dirs_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -11,7 +10,7 @@ import (
 
 func TestResolve_RejectsBadAppID(t *testing.T) {
 	for _, id := range []string{"", "..", "a/b", `a\b`, "a/../b"} {
-		_, err := dirs.Resolve(context.Background(), id)
+		_, err := dirs.Resolve(t.Context(), id)
 		if !errors.Is(err, dirs.ErrInvalidAppID) {
 			t.Fatalf("%q: %v", id, err)
 		}

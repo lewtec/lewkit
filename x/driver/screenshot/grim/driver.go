@@ -17,7 +17,7 @@ func (backend) SelectArea(ctx context.Context) (*wm.Rect, error) {
 	if !execdriver.IsBinaryAvailable(ctx, "slurp") {
 		return nil, screenshot.ErrSelectionToolNotFound
 	}
-	out, err := execdriver.Output(ctx, execdriver.MustCommand("slurp"))
+	out, err := execdriver.Output(ctx, execdriver.MustCommand(ctx, "slurp"))
 	if err != nil {
 		return nil, err
 	}

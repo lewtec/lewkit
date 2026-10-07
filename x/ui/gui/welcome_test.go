@@ -187,7 +187,7 @@ func TestImageClip(t *testing.T) {
 func assertQuit(t *testing.T, cmd Cmd) {
 	t.Helper()
 	require.NotNil(t, cmd)
-	_, ok := cmd(context.Background()).(quitMsg)
+	_, ok := cmd(t.Context()).(quitMsg)
 	assert.True(t, ok)
 }
 

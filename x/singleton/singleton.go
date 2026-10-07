@@ -2,6 +2,7 @@ package singleton
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 )
@@ -16,6 +17,10 @@ func NewSingleton[T any](f func(context.Context) (T, error)) Singleton[T] {
 		return f(*first.Load())
 	})
 	return singleton[T](func(ctx context.Context) (T, error) {
+		if ctx == nil {
+			var z T
+			return z, errors.New("singleton: nil context")
+		}
 		if err := ctx.Err(); err != nil {
 			var z T
 			return z, context.Cause(ctx)
@@ -42,24 +47,17 @@ func NewSingleton[T any](f func(context.Context) (T, error)) Singleton[T] {
 	})
 }
 
-func NewSingletonFunc[T any](f func(context.Context) (T, error)) func() T {
-	return sync.OnceValue(func() T {
-		v, err := f(context.Background())
-		if err != nil {
-			panic(err)
-		}
-		return v
-	})
+func NewSingletonFunc[T any](f func(context.Context) (T, error)) func(context.Context) T {
+	s := NewSingleton(f)
+	return func(ctx context.Context) T {
+		return MustGet(s, ctx)
+	}
 }
 
 type singleton[T any] func(context.Context) (T, error)
 
 func (s singleton[T]) GetContext(ctx context.Context) (T, error) {
 	return s(ctx)
-}
-
-func Get[T any](s Singleton[T]) (T, error) {
-	return s.GetContext(context.Background())
 }
 
 func MustGet[T any](s Singleton[T], ctx context.Context) T {

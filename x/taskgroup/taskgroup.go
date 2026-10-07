@@ -188,7 +188,7 @@ type limitsKey struct{}
 // entry.Run reads them when it starts that session. A zero field keeps DefaultLimits.
 func WithLimits(ctx context.Context, limits Limits) context.Context {
 	if ctx == nil {
-		ctx = context.Background()
+		panic("taskgroup: nil context")
 	}
 	return context.WithValue(ctx, limitsKey{}, limits)
 }

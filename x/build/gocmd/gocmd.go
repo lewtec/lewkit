@@ -75,7 +75,7 @@ func Tool(ctx context.Context, name, dir string, env []string, args ...string) e
 }
 
 func run(ctx context.Context, name, dir string, env []string, args ...string) error {
-	cmd := execdriver.MustCommand(name, args...)
+	cmd := execdriver.MustCommand(ctx, name, args...)
 	cmd.Dir = dir
 	if env != nil {
 		cmd.Env = env

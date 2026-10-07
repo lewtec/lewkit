@@ -1,11 +1,9 @@
 package image
 
 import (
-	"context"
 	"os"
 	"sync"
 
-	"github.com/lewtec/lewkit/x/singleton"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/font/opentype"
@@ -13,7 +11,7 @@ import (
 
 const facePoints = 18
 
-var systemFont = singleton.NewSingleton(func(context.Context) (*opentype.Font, error) {
+var loadSystemFont = sync.OnceValues(func() (*opentype.Font, error) {
 	var last error
 	for _, path := range systemFonts {
 		if path == "" {
@@ -66,7 +64,7 @@ func FaceSize(points float64) font.Face {
 	if size > 256 {
 		size = 256
 	}
-	parsed, err := singleton.Get(systemFont)
+	parsed, err := loadSystemFont()
 	if err != nil || parsed == nil {
 		return basicfont.Face7x13
 	}

@@ -31,20 +31,38 @@ type calls interface {
 	dataDir(ctx context.Context, packageName string) (string, error)
 }
 
-var openOnce = sync.OnceValues(func() (*Client, error) {
-	return open(context.Background())
-})
+var (
+	openMu sync.Mutex
+	shared *Client
+)
 
 // Open returns the shared binder client.
+// The first successful call opens it with ctx. A nil context is an error.
 func Open(ctx context.Context) (*Client, error) {
+	if ctx == nil {
+		return nil, errors.New("android: nil context")
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return openOnce()
+	openMu.Lock()
+	defer openMu.Unlock()
+	if shared != nil {
+		return shared, nil
+	}
+	opened, err := open(ctx)
+	if err != nil {
+		return nil, err
+	}
+	shared = opened
+	return shared, nil
 }
 
 // ForAndroid opens the client on an Android process.
 func ForAndroid(ctx context.Context) (*Client, error) {
+	if ctx == nil {
+		return nil, errors.New("android: nil context")
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

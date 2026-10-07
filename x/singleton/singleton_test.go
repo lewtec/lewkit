@@ -63,7 +63,7 @@ func TestNewSingletonFunc(t *testing.T) {
 		n.Add(1)
 		return 3, nil
 	})
-	require.Equal(t, 3, get())
-	require.Equal(t, 3, get())
+	require.Equal(t, 3, get(t.Context()))
+	require.Equal(t, 3, get(t.Context()))
 	require.Equal(t, int32(1), n.Load())
 }

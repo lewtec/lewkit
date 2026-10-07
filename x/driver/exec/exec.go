@@ -1,6 +1,7 @@
 // Package exec runs host programs.
 //
-// Command builds a command and does not take a context.
+// Command and MustCommand take a context to select the driver. That context
+// is not stored on the command.
 // Run, Start, Output, and Wait take a command and a context: it cancels the
 // process and, when stderr is still unset, attaches the stderr hook.
 // RunProgram and OutputString take a program name and args.
@@ -33,10 +34,6 @@ var (
 	ErrStdoutSet = errors.New("stdout already set")
 )
 
-// lookupCtx is only for driver selection. Command takes no caller context,
-// and the process context must not be stored on the command.
-var lookupCtx = context.Background()
-
 // stderrHook, when set, supplies Stderr if it is still nil at start.
 // Unset means os.Stderr. taskgroup registers the line writer.
 var stderrHook atomic.Value // func(context.Context) io.Writer
@@ -60,16 +57,21 @@ func stderrWriter(ctx context.Context) io.Writer {
 }
 
 // Driver builds commands and resolves executables for this host.
-// Command does not take a context and does not start the process.
+// Command does not start the process. The facade passes the caller context
+// to Get and does not store it on the command.
 type Driver interface {
 	Command(name string, args ...string) *exec.Cmd
 	Which(ctx context.Context, name string) (string, error)
 }
 
 // Command returns a command from the selected driver.
+// ctx selects the driver. It is not stored on the command.
 // The process is not started and streams are left unset.
-func Command(name string, args ...string) (*exec.Cmd, error) {
-	d, err := driver.Get[Driver](lookupCtx)
+func Command(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
+	if ctx == nil {
+		return nil, errors.New("exec: nil context")
+	}
+	d, err := driver.Get[Driver](ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -77,10 +79,14 @@ func Command(name string, args ...string) (*exec.Cmd, error) {
 }
 
 // MustCommand is Command, or a raw command when no driver is registered.
-func MustCommand(name string, args ...string) *exec.Cmd {
-	cmd, err := Command(name, args...)
+// A nil context panics.
+func MustCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+	if ctx == nil {
+		panic("exec: nil context")
+	}
+	cmd, err := Command(ctx, name, args...)
 	if err != nil {
-		slog.Warn("exec driver unavailable", "name", name, "error", err)
+		slog.WarnContext(ctx, "exec driver unavailable", "name", name, "error", err)
 		return exec.Command(name, args...)
 	}
 	return cmd
@@ -142,7 +148,10 @@ func Output(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
 
 // RunProgram runs name with args. A failure names the program.
 func RunProgram(ctx context.Context, name string, args ...string) error {
-	if err := Run(ctx, MustCommand(name, args...)); err != nil {
+	if ctx == nil {
+		return errors.New("exec: nil context")
+	}
+	if err := Run(ctx, MustCommand(ctx, name, args...)); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil
@@ -151,7 +160,10 @@ func RunProgram(ctx context.Context, name string, args ...string) error {
 // OutputString runs name with args and returns stdout text.
 // A failure names the program.
 func OutputString(ctx context.Context, name string, args ...string) (string, error) {
-	out, err := Output(ctx, MustCommand(name, args...))
+	if ctx == nil {
+		return "", errors.New("exec: nil context")
+	}
+	out, err := Output(ctx, MustCommand(ctx, name, args...))
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", name, err)
 	}

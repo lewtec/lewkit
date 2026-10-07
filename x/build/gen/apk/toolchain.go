@@ -206,7 +206,7 @@ func jdkDirOK(ctx context.Context, home string) (bool, error) {
 }
 
 func javaVersionText(ctx context.Context, bin string) (string, error) {
-	command := execdriver.MustCommand(bin, "-version")
+	command := execdriver.MustCommand(ctx, bin, "-version")
 	var buf bytes.Buffer
 	command.Stdout = &buf
 	command.Stderr = &buf
@@ -318,7 +318,7 @@ func miseWhere(ctx context.Context, spec string) (string, error) {
 }
 
 func miseWhereBin(ctx context.Context, miseBin, spec string) (string, error) {
-	command := execdriver.MustCommand(miseBin, "where", spec)
+	command := execdriver.MustCommand(ctx, miseBin, "where", spec)
 	out, err := execdriver.Output(ctx, command)
 	if err != nil {
 		return "", err
@@ -344,7 +344,7 @@ func miseInstallWhere(ctx context.Context, spec string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	command := execdriver.MustCommand(bin, "install", spec)
+	command := execdriver.MustCommand(ctx, bin, "install", spec)
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	if yq := yqDir(ctx, bin); yq != "" {

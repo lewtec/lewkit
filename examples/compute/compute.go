@@ -24,7 +24,7 @@ import (
 
 func init() { entry.Bind(runApp) }
 
-func main() { entry.Main(runApp) }
+func main() { entry.Main(context.Background(), runApp) }
 
 func runApp(ctx context.Context) error {
 	if len(os.Args) > 1 && os.Args[1] == "smoke" {

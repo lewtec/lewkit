@@ -28,7 +28,7 @@ func (factory) New(context.Context) (messagebox.Driver, error) { return backend{
 type backend struct{}
 
 func (backend) Show(ctx context.Context, n messagebox.Notice) error {
-	return execdriver.Run(ctx, execdriver.MustCommand("zenity", zenityFlag(n.Style), "--title", n.Title, "--text", n.Message))
+	return execdriver.Run(ctx, execdriver.MustCommand(ctx, "zenity", zenityFlag(n.Style), "--title", n.Title, "--text", n.Message))
 }
 
 func zenityFlag(style string) string {

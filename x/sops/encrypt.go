@@ -31,7 +31,7 @@ var ErrNoConfig = errors.New("sops config file not found")
 // is ErrNoConfig.
 func Encrypt(ctx context.Context, path string, plaintext []byte) ([]byte, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		return nil, errors.New("sops: nil context")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

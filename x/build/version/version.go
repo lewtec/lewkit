@@ -11,6 +11,7 @@ package version
 
 import (
 	"context"
+	"errors"
 	"os"
 	"regexp"
 	"runtime/debug"
@@ -71,7 +72,7 @@ func stampedFromLdflags() Info {
 
 // Resolve returns CLI/binary version from -X vars, then buildinfo VCS,
 // then git in the current working directory (local `go run` convenience).
-// ctx is the caller's context. Git reads stop when it ends.
+// A nil context skips the git read.
 func Resolve(ctx context.Context) Info {
 	info := stampedFromLdflags()
 	fillFromBuildInfo(&info)
@@ -82,8 +83,8 @@ func Resolve(ctx context.Context) Info {
 }
 
 // ResolveDir is like Resolve but prefers git metadata from dir (app module root).
-// Use this when stamping a package for a specific project tree.
-// ctx is the caller's context. Git reads stop when it ends.
+// Use this when stamping an APK for a specific project tree.
+// A nil context skips the git read.
 func ResolveDir(ctx context.Context, dir string) Info {
 	info := stampedFromLdflags()
 	fillFromBuildInfo(&info)
@@ -154,6 +155,9 @@ func fillFromGit(ctx context.Context, info *Info, dir string) {
 }
 
 func gitOutput(ctx context.Context, dir string, args ...string) (string, error) {
+	if ctx == nil {
+		return "", errors.New("version: nil context")
+	}
 	var g git.Git
 	return g.Output(ctx, dir, args...)
 }
@@ -232,7 +236,7 @@ func AndroidCodeFrom(version string, gitCommitCount int) int {
 }
 
 // GitCommitCount returns rev-list --count HEAD in dir, or 0 on error.
-// ctx is the caller's context.
+// A nil context returns 0.
 func GitCommitCount(ctx context.Context, dir string) int {
 	out, err := gitOutput(ctx, dir, "rev-list", "--count", "HEAD")
 	if err != nil {

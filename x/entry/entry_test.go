@@ -17,6 +17,11 @@ var (
 	errChildFailed = errors.New("child failed")
 )
 
+func TestRunNilContext(t *testing.T) {
+	err := Run(nil, func(context.Context) error { return nil })
+	require.EqualError(t, err, "entry: nil context")
+}
+
 func TestAfterOutlivesSession(t *testing.T) {
 	t.Cleanup(func() { After(nil) })
 	var sessionCtx context.Context

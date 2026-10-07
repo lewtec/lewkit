@@ -1,7 +1,6 @@
 package sway
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +14,7 @@ func TestDPMSOn(t *testing.T) {
 }
 
 func TestMissingWayland(t *testing.T) {
-	ctx := driver.WithEnv(context.Background(), []string{"WAYLAND_DISPLAY="})
+	ctx := driver.WithEnv(t.Context(), []string{"WAYLAND_DISPLAY="})
 	err := factory{}.CheckCompatibility(ctx)
 	if !errors.Is(err, driver.ErrIncompatible) {
 		t.Fatalf("got %v", err)

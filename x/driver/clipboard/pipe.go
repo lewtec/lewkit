@@ -27,7 +27,7 @@ func PipeImage(ctx context.Context, img image.Image, name string, args ...string
 }
 
 func pipe(ctx context.Context, name string, args []string, write func(io.Writer) error) error {
-	cmd := execdriver.MustCommand(name, args...)
+	cmd := execdriver.MustCommand(ctx, name, args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
