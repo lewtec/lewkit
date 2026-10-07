@@ -7,6 +7,9 @@ import (
 	"sync/atomic"
 )
 
+// ErrNilContext means the caller did not pass a context.
+var ErrNilContext = errors.New("singleton: nil context")
+
 type Singleton[T any] interface {
 	GetContext(ctx context.Context) (T, error)
 }
@@ -19,7 +22,7 @@ func NewSingleton[T any](f func(context.Context) (T, error)) Singleton[T] {
 	return singleton[T](func(ctx context.Context) (T, error) {
 		if ctx == nil {
 			var z T
-			return z, errors.New("singleton: nil context")
+			return z, ErrNilContext
 		}
 		if err := ctx.Err(); err != nil {
 			var z T

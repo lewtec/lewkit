@@ -5,6 +5,7 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,9 @@ import (
 	"github.com/lewtec/lewkit/x/build/version"
 	"github.com/lewtec/lewkit/x/release"
 )
+
+// ErrNilContext means the caller did not pass a context.
+var ErrNilContext = errors.New("build: nil context")
 
 // Target is one CGO-free desktop binary.
 type Target struct {
@@ -74,7 +78,7 @@ func Desktop(ctx context.Context, job Job) ([]string, error) {
 // Run writes one archive for each target.
 func (job Job) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
-		return nil, fmt.Errorf("build: nil context")
+		return nil, ErrNilContext
 	}
 	project := job.Name
 	if project == "" {

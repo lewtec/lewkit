@@ -19,13 +19,13 @@ import (
 
 func TestCommandNilContext(t *testing.T) {
 	_, err := execdriver.Command(nil, "sh")
-	require.EqualError(t, err, "exec: nil context")
+	require.ErrorIs(t, err, execdriver.ErrNilContext)
 	_, err = execdriver.OutputString(nil, "sh")
-	require.EqualError(t, err, "exec: nil context")
+	require.ErrorIs(t, err, execdriver.ErrNilContext)
 	_, err = execdriver.Which(nil, "sh")
-	require.EqualError(t, err, "exec: nil context")
+	require.ErrorIs(t, err, execdriver.ErrNilContext)
 	err = execdriver.Wait(nil, nil)
-	require.EqualError(t, err, "exec: nil context")
+	require.ErrorIs(t, err, execdriver.ErrNilContext)
 }
 
 func TestMustRunCapturesStdout(t *testing.T) {

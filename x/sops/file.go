@@ -19,6 +19,9 @@ var ErrNotAge = errors.New("sops file requires an age recipient")
 // ErrMAC means the decrypted values do not match the SOPS MAC.
 var ErrMAC = errors.New("sops mac mismatch")
 
+// ErrINI means an encrypted INI file failed to decrypt.
+var ErrINI = errors.New("sops: ini")
+
 // File is a path to a secret file.
 // An empty path leaves Value nil. After a successful Parse, Value is the
 // plaintext, and an empty file is a non-nil empty slice.
@@ -104,7 +107,7 @@ func decode(in []byte, format string) ([]byte, error) {
 	}
 	if err != nil {
 		if format == "ini" {
-			err = fmt.Errorf("sops: ini: %w", err)
+			err = fmt.Errorf("%w: %w", ErrINI, err)
 		}
 		return nil, wrapDecrypt(err)
 	}
@@ -149,11 +152,16 @@ func sniff(in []byte) string {
 }
 
 func wrapDecrypt(err error) error {
-	msg := err.Error()
-	if strings.Contains(msg, "mac") || strings.Contains(msg, "MAC") || strings.Contains(msg, "integrity") {
+	if errors.Is(err, sopsv3.MacMismatch) || integrityError(err) {
 		return fmt.Errorf("%w: %w", ErrMAC, err)
 	}
 	return fmt.Errorf("%w: %w", ErrNotAge, err)
+}
+
+// integrityError reports the untyped integrity failure from decrypt.Data.
+// That package does not return sops.MacMismatch.
+func integrityError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Failed to verify data integrity")
 }
 
 func textFile(in []byte) bool {

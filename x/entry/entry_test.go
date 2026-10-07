@@ -19,7 +19,7 @@ var (
 
 func TestRunNilContext(t *testing.T) {
 	err := Run(nil, func(context.Context) error { return nil })
-	require.EqualError(t, err, "entry: nil context")
+	require.ErrorIs(t, err, ErrNilContext)
 }
 
 func TestShowFailureNilContext(t *testing.T) {

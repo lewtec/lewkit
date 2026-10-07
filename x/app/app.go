@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -28,6 +29,9 @@ import (
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
+
+// ErrNilContext means the caller did not pass a context.
+var ErrNilContext = errors.New("app: nil context")
 
 // ReadyLinePrefix is printed once the loopback server is listening.
 // Packaged hosts parse the URL that follows it.
@@ -51,7 +55,7 @@ type App struct {
 // Loopback runs only when the caller opted in.
 func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
-		return fmt.Errorf("app: nil context")
+		return ErrNilContext
 	}
 	id, _ := release.RequireStamp()
 	run := func(ctx context.Context) error {

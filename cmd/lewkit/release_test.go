@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -44,9 +45,7 @@ func TestConfigDefaultsToEletrocromoJSON(t *testing.T) {
 func TestAppUsesDefaultConfig(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--app", "--go-only")
 	_, err := app.Args.release.build.produce(t.Context())
-	require.Error(t, err)
-	assert.NotContains(t, err.Error(), "config is required")
-	assert.Contains(t, err.Error(), "eletrocromo.json")
+	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func TestProgramStartsAfterProgress(t *testing.T) {

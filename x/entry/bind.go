@@ -20,7 +20,7 @@ func RunBound(ctx context.Context) error {
 		return fmt.Errorf("entry: no app")
 	}
 	if ctx == nil {
-		return fmt.Errorf("entry: nil context")
+		return ErrNilContext
 	}
 	return bound(ctx)
 }

@@ -53,7 +53,7 @@ func TestLaunchWindowsAppNeedsWindows(t *testing.T) {
 
 func TestRunBuiltRejectsOtherPlatform(t *testing.T) {
 	err := runBuilt(t.Context(), builtProgram{goos: "js", goarch: "wasm", archive: "unused"})
-	require.EqualError(t, err, "built js/wasm (unused); this machine is "+runtime.GOOS+"/"+runtime.GOARCH)
+	require.ErrorIs(t, err, errOtherPlatform)
 }
 
 func scriptArchive(t *testing.T, body string) string {

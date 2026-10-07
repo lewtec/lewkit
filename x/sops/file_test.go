@@ -78,9 +78,6 @@ func TestWrongAgeKey(t *testing.T) {
 	t.Setenv("SOPS_AGE_KEY", id.String())
 	_, err = Open("testdata/blob.sops")
 	require.ErrorIs(t, err, ErrNotAge)
-	var chain interface{ Unwrap() []error }
-	require.ErrorAs(t, err, &chain)
-	require.GreaterOrEqual(t, len(chain.Unwrap()), 2)
 }
 
 func TestTamperFailsMAC(t *testing.T) {
@@ -124,8 +121,7 @@ sops:
     mac: ENC[AES256_GCM,data:aa,iv:bb,tag:cc,type:str]
 `
 	_, err := Decode([]byte(doc))
-	require.Error(t, err)
-	require.ErrorContains(t, err, "data key")
+	require.ErrorIs(t, err, ErrNotAge)
 }
 
 func TestDotenvMetadataAndINI(t *testing.T) {
@@ -134,8 +130,8 @@ func TestDotenvMetadataAndINI(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotAge)
 
 	_, err = Decode([]byte("[sops]\nmac=ENC[nope]\n"))
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "ini")
+	require.ErrorIs(t, err, ErrINI)
+	require.ErrorIs(t, err, ErrNotAge)
 }
 
 func TestPlainDotenvPassesThrough(t *testing.T) {

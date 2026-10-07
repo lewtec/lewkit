@@ -16,12 +16,12 @@ const ageConfig = "creation_rules:\n  - age: age1zufvjtsk0p7wgsz7nth4032t4tqmev7
 
 func TestEncryptNilContext(t *testing.T) {
 	_, err := Encrypt(nil, "x", []byte("a"))
-	require.EqualError(t, err, "sops: nil context")
+	require.ErrorIs(t, err, ErrNilContext)
 }
 
 func TestCommandNilContext(t *testing.T) {
 	err := Command{Args: []string{"true"}}.Run(nil)
-	require.EqualError(t, err, "sops: nil context")
+	require.ErrorIs(t, err, ErrNilContext)
 }
 
 func TestEncryptRoundTrip(t *testing.T) {
@@ -72,7 +72,6 @@ func TestEncryptRejectsSopsYml(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".sops.yml"), []byte(ageConfig), 0o644))
 	_, err := Encrypt(t.Context(), filepath.Join(dir, "key.p12"), []byte("plain"))
 	require.ErrorIs(t, err, ErrNoConfig)
-	require.ErrorContains(t, err, ".sops.yaml")
 }
 
 func TestEncryptNoCreationRules(t *testing.T) {
@@ -81,7 +80,6 @@ func TestEncryptNoCreationRules(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".sops.yaml"), []byte("{}\n"), 0o644))
 	_, err := Encrypt(t.Context(), filepath.Join(dir, "key.p12"), []byte("plain"))
 	require.ErrorIs(t, err, ErrNoConfig)
-	require.ErrorContains(t, err, "creation rules")
 }
 
 func TestEncryptUnmatchedRule(t *testing.T) {

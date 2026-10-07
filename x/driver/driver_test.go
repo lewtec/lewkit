@@ -16,7 +16,7 @@ var errInitFailed = errors.New("init failed")
 
 func TestListNilContext(t *testing.T) {
 	_, err := driver.List[picker](nil)
-	require.EqualError(t, err, "driver: nil context")
+	require.ErrorIs(t, err, driver.ErrNilContext)
 }
 
 func TestForGOOS(t *testing.T) {

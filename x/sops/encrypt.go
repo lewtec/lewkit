@@ -24,6 +24,9 @@ const sopsRef = "github:getsops/sops"
 // ErrNoConfig means no .sops.yaml was found above the output path.
 var ErrNoConfig = errors.New("sops config file not found")
 
+// ErrNilContext means the caller did not pass a context.
+var ErrNilContext = errors.New("sops: nil context")
+
 // Encrypt encrypts plaintext for path with the sops lazy tool.
 // The version is the modot.lock.json pin above path, or latest when
 // that pin is absent. x/tool installs the binary. The creation rule
@@ -31,7 +34,7 @@ var ErrNoConfig = errors.New("sops config file not found")
 // is ErrNoConfig.
 func Encrypt(ctx context.Context, path string, plaintext []byte) ([]byte, error) {
 	if ctx == nil {
-		return nil, errors.New("sops: nil context")
+		return nil, ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
