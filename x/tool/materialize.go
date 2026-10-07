@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
@@ -71,6 +72,8 @@ func InstallArtifact(ctx context.Context, artifact Artifact, destination string,
 }
 
 // DownloadFile writes url to destination and checks options.Hash when set.
+// Concurrent callers of the same URL and hash share one fetch. Each caller
+// still writes its own destination.
 func DownloadFile(ctx context.Context, url, destination string, options DownloadOptions) error {
 	if strings.TrimSpace(url) == "" {
 		return ErrEmptyDownloadURL
@@ -78,9 +81,143 @@ func DownloadFile(ctx context.Context, url, destination string, options Download
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return err
 	}
-	if err := downloadDirect(ctx, url, destination, options); err != nil {
+	key := url + "\x00" + options.Hash
+	call, leader := joinDownload(ctx, key)
+	if leader {
+		go func() {
+			path, dir, err := fetchShared(call.ctx, url, options)
+			call.path = path
+			call.dir = dir
+			call.err = err
+			close(call.done)
+		}()
+	}
+	select {
+	case <-call.done:
+	case <-ctx.Done():
+		leaveDownload(key, call)
+		return context.Cause(ctx)
+	}
+	if call.err != nil {
+		leaveDownload(key, call)
+		return call.err
+	}
+	err := publishFile(call.path, destination, options.Mode)
+	leaveDownload(key, call)
+	return err
+}
+
+// downloadCall is one in-flight fetch shared by every caller of that key.
+type downloadCall struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
+	path   string
+	dir    string
+	err    error
+	refs   int
+}
+
+var (
+	downloadMu sync.Mutex
+	downloads  = map[string]*downloadCall{}
+)
+
+func joinDownload(ctx context.Context, key string) (*downloadCall, bool) {
+	downloadMu.Lock()
+	defer downloadMu.Unlock()
+	if call, ok := downloads[key]; ok {
+		call.refs++
+		return call, false
+	}
+	flightCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	call := &downloadCall{
+		ctx:    flightCtx,
+		cancel: cancel,
+		done:   make(chan struct{}),
+		refs:   1,
+	}
+	downloads[key] = call
+	return call, true
+}
+
+func leaveDownload(key string, call *downloadCall) {
+	downloadMu.Lock()
+	call.refs--
+	left := call.refs
+	if left == 0 {
+		delete(downloads, key)
+	}
+	downloadMu.Unlock()
+	if left != 0 {
+		return
+	}
+	call.cancel()
+	go func() {
+		<-call.done
+		if call.dir != "" {
+			os.RemoveAll(call.dir)
+		}
+	}()
+}
+
+func downloadRefs(url, hash string) int {
+	downloadMu.Lock()
+	defer downloadMu.Unlock()
+	call := downloads[url+"\x00"+hash]
+	if call == nil {
+		return 0
+	}
+	return call.refs
+}
+
+func fetchShared(ctx context.Context, url string, options DownloadOptions) (path, dir string, err error) {
+	dir, err = os.MkdirTemp("", "lewkit-fetch-*")
+	if err != nil {
+		return "", "", err
+	}
+	path = filepath.Join(dir, "body")
+	options.Mode = 0
+	if err = downloadDirect(ctx, url, path, options); err != nil {
+		os.RemoveAll(dir)
+		return "", "", err
+	}
+	return path, dir, nil
+}
+
+func publishFile(src, destination string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
 		return err
 	}
+	defer in.Close()
+	temporary, err := os.CreateTemp(filepath.Dir(destination), ".download-*")
+	if err != nil {
+		return err
+	}
+	temporaryPath := temporary.Name()
+	success := false
+	defer func() {
+		if !success {
+			os.Remove(temporaryPath)
+		}
+	}()
+	if _, err := io.Copy(temporary, in); err != nil {
+		temporary.Close()
+		return err
+	}
+	if err := temporary.Close(); err != nil {
+		return err
+	}
+	if mode != 0 {
+		if err := os.Chmod(temporaryPath, mode); err != nil {
+			return err
+		}
+	}
+	if err := os.Rename(temporaryPath, destination); err != nil {
+		return err
+	}
+	success = true
 	return nil
 }
 
