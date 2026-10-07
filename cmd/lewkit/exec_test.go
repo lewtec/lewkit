@@ -24,3 +24,8 @@ func TestExecParsesEnvTargetAndCommand(t *testing.T) {
 	assert.Equal(t, "conda:foo", app.Args.exec.target.Value())
 	assert.Equal(t, []string{"echo", "hi"}, cmd.Values(app.Args.exec.args))
 }
+
+func TestExecDashKeepsHelpArgument(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "exec", "--", "go", "--help")
+	assert.Equal(t, []string{"go", "--help"}, cmd.Values(app.Args.exec.args))
+}

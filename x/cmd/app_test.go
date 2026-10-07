@@ -402,3 +402,37 @@ func TestAppArgsSetupError(t *testing.T) {
 	app := ParseOK[App[setupFail]](t)
 	assert.ErrorIs(t, app.Run(t.Context()), ErrInvalidArgument)
 }
+
+type dashExec struct {
+	sep  *Dash
+	args []StringArg `help:"command and arguments"`
+	ran  bool
+	got  []string
+}
+
+func (c *dashExec) Run(context.Context) error {
+	c.ran = true
+	c.got = Values(c.args)
+	return nil
+}
+
+type dashRoot struct {
+	exec *dashExec
+}
+
+func TestDashRunsCommand(t *testing.T) {
+	test.RestoreSlog(t)
+	app := ParseOK[App[dashRoot]](t, "exec", "--", "go", "--help")
+	require.NoError(t, app.Run(t.Context()))
+	require.NotNil(t, app.Args.exec)
+	assert.True(t, app.Args.exec.ran)
+	assert.Equal(t, []string{"go", "--help"}, app.Args.exec.got)
+
+	help := ParseOK[App[dashRoot]](t, "exec", "--help")
+	got := test.Stdout(t, func() {
+		require.NoError(t, help.Run(t.Context()))
+	})
+	assert.Contains(t, got, "exec [flags]")
+	assert.Contains(t, got, "--")
+	assert.NotContains(t, got, "sep")
+}
