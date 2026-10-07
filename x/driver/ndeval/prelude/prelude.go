@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/ndeval/d3d12"
 	_ "github.com/lewtec/lewkit/x/driver/ndeval/metal"
 	_ "github.com/lewtec/lewkit/x/driver/ndeval/opengl"
 	_ "github.com/lewtec/lewkit/x/driver/ndeval/vulkan"

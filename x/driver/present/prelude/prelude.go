@@ -3,6 +3,7 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/driver/present/d3d12"
 	_ "github.com/lewtec/lewkit/x/driver/present/metal"
 	_ "github.com/lewtec/lewkit/x/driver/present/opengl"
 	_ "github.com/lewtec/lewkit/x/driver/present/vulkan"
