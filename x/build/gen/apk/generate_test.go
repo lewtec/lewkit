@@ -323,8 +323,12 @@ func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.java")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.java")); err != nil {
+	shareOut, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.java"))
+	if err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(string(shareOut), "existing.length()") {
+		t.Fatalf("share tail should start at the end of the file:\n%s", shareOut)
 	}
 	man, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
 	if err != nil {
