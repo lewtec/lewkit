@@ -15,7 +15,7 @@ import (
 
 func init() { entry.Bind(run) }
 
-func main() { entry.Main(run) }
+func main() { entry.Main(context.Background(), run) }
 
 func run(ctx context.Context) error {
 	const step = 80 * time.Millisecond

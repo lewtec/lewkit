@@ -26,7 +26,7 @@ func (backend) Notify(ctx context.Context, n notification.Notification) error {
 		args = append(args, "-r", strconv.FormatUint(uint64(n.ID), 10))
 	}
 	args = append(args, n.Title, n.Message)
-	cmd := execdriver.MustCommand("notify-send", args...)
+	cmd := execdriver.MustCommand(ctx, "notify-send", args...)
 	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("notify-send: %w", err)
 	}

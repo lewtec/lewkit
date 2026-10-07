@@ -1,7 +1,6 @@
 package metal
 
 import (
-	"context"
 	"runtime"
 	"testing"
 
@@ -13,6 +12,6 @@ func TestFactoryRejectsNonApple(t *testing.T) {
 	if runtime.GOOS == "darwin" || runtime.GOOS == "ios" {
 		t.Skip()
 	}
-	err := factory{}.CheckCompatibility(context.Background())
+	err := factory{}.CheckCompatibility(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)
 }

@@ -38,7 +38,9 @@ var (
 	ErrMissingWeight = errors.New("missing driver weight")
 	// ErrUnavailable means every registered factory failed compatibility or New.
 	ErrUnavailable = errors.New("no available driver")
-	errCorrupt     = errors.New("driver registry corrupt")
+	// ErrNilContext means the caller did not pass a context.
+	ErrNilContext = errors.New("driver: nil context")
+	errCorrupt    = errors.New("driver registry corrupt")
 )
 
 // ForGOOS reports [ErrIncompatible] when this process is not goos.
@@ -374,7 +376,11 @@ func (s factorySet[T]) weightOf(factory DriverFactory[T]) int {
 
 // List returns every compatible driver for T, highest weight first, without
 // constructing them. Get opens the first Handle that New succeeds for.
+// A nil context is an error.
 func List[T any](ctx context.Context) ([]Handle[T], error) {
+	if ctx == nil {
+		return nil, ErrNilContext
+	}
 	set, err := snapshot[T]()
 	if err != nil {
 		return nil, err

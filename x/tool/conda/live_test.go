@@ -28,7 +28,7 @@ func TestLiveRipgrepFromCondaForge(t *testing.T) {
 	_, err = os.Stat(bin)
 	require.NoError(t, err)
 
-	cmd, err := execdriver.Command(bin, "--version")
+	cmd, err := execdriver.Command(t.Context(), bin, "--version")
 	require.NoError(t, err)
 	out, err := execdriver.Output(t.Context(), cmd)
 	require.NoError(t, err)

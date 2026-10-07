@@ -1,7 +1,6 @@
 package x11
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +14,7 @@ func TestMonitorOn(t *testing.T) {
 }
 
 func TestMissingDisplay(t *testing.T) {
-	ctx := driver.WithEnv(context.Background(), []string{"DISPLAY="})
+	ctx := driver.WithEnv(t.Context(), []string{"DISPLAY="})
 	err := factory{}.CheckCompatibility(ctx)
 	if !errors.Is(err, driver.ErrIncompatible) {
 		t.Fatalf("got %v", err)

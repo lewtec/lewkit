@@ -349,7 +349,7 @@ func runExec(ctx context.Context, _ *page, op string, r *http.Request) (string, 
 	if name == "" {
 		return "", errCommandEmpty
 	}
-	cmd, err := execdriver.Command(name, formLines(r.FormValue("args"))...)
+	cmd, err := execdriver.Command(ctx, name, formLines(r.FormValue("args"))...)
 	if err != nil {
 		return "", err
 	}

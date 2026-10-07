@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -22,9 +23,11 @@ type builtProgram struct {
 	args                  []string
 }
 
+var errOtherPlatform = errors.New("built program is for another machine")
+
 func runBuilt(ctx context.Context, prog builtProgram) error {
 	if prog.goos != runtime.GOOS || prog.goarch != runtime.GOARCH {
-		return fmt.Errorf("built %s/%s (%s); this machine is %s/%s", prog.goos, prog.goarch, prog.archive, runtime.GOOS, runtime.GOARCH)
+		return fmt.Errorf("%w: %s/%s (%s); this machine is %s/%s", errOtherPlatform, prog.goos, prog.goarch, prog.archive, runtime.GOOS, runtime.GOARCH)
 	}
 	dir, err := os.MkdirTemp("", release.Name()+"-run-")
 	if err != nil {
@@ -48,11 +51,11 @@ func runForeground(ctx context.Context, name string, args ...string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return execdriver.Run(context.WithoutCancel(ctx), foregroundCommand(name, args...))
+	return execdriver.Run(context.WithoutCancel(ctx), foregroundCommand(ctx, name, args...))
 }
 
-func foregroundCommand(name string, args ...string) *exec.Cmd {
-	cmd := execdriver.MustCommand(name, args...)
+func foregroundCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
+	cmd := execdriver.MustCommand(ctx, name, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

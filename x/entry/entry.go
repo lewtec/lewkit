@@ -1,12 +1,14 @@
 // Package entry is the process startup shared by apps and commands.
 //
 // Main installs the signal context, binds the UI thread, and runs work
-// inside one taskgroup session and its progress view. Run is the same
-// sequence when the caller already owns the process lifetime.
+// inside one taskgroup session and its progress view. The process root
+// is the context main passes in. Run is the same sequence when the
+// caller already owns the process lifetime.
 package entry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -25,6 +27,9 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
+
+// ErrNilContext means the caller did not pass a context.
+var ErrNilContext = errors.New("entry: nil context")
 
 // guard turns a panic into an error while the process is an app.
 // A command still panics.
@@ -51,9 +56,10 @@ func slogOut() io.Writer {
 	return os.Stderr
 }
 
-// Main runs fn as the process. A non-nil error is logged, reported, and the process exits 1.
-func Main(fn func(context.Context) error) {
-	MainFrom(context.Background(), fn)
+// Main runs fn as the process. parent is the root from main.
+// A non-nil error is logged, reported, and the process exits 1.
+func Main(parent context.Context, fn func(context.Context) error) {
+	MainFrom(parent, fn)
 }
 
 // MainFrom is Main with parent's context values kept on the signal context.
@@ -62,7 +68,8 @@ func MainFrom(parent context.Context, fn func(context.Context) error) {
 	prepareHost()
 	slog.SetDefault(slog.New(logging.NewHandler(slogOut(), &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if parent == nil {
-		parent = context.Background()
+		slog.Error("entry: nil context")
+		os.Exit(1)
 	}
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt)
 	defer stop()
@@ -82,10 +89,16 @@ func failureVisible() bool {
 // showFailure is the escape hatch when the process has no terminal.
 // The error is shown in a message box before the process exits.
 func showFailure(ctx context.Context, err error) {
-	if err == nil || ctx == nil || !failureVisible() {
+	if err == nil {
 		return
 	}
-	box, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	if ctx == nil {
+		panic("entry: nil context")
+	}
+	if !failureVisible() {
+		return
+	}
+	box, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
 	defer cancel()
 	if showErr := messagebox.Show(box, release.Name(), err.Error()); showErr != nil {
 		NotifyFail(err.Error())
@@ -111,7 +124,7 @@ func Run(ctx context.Context, fn func(context.Context) error) error {
 		slog.SetDefault(slog.New(logging.NewHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	}
 	if ctx == nil {
-		return fmt.Errorf("entry: nil context")
+		return ErrNilContext
 	}
 	return thread.Run(ctx, func(ctx context.Context) (err error) {
 		defer func() {

@@ -8,35 +8,45 @@ import (
 )
 
 var (
-	once sync.Once
-	ui   Driver
+	mu sync.Mutex
+	ui Driver
 )
 
+// open selects the UI-thread driver from ctx. Later calls return that driver.
 func open(ctx context.Context) Driver {
-	once.Do(func() {
-		if ctx == nil {
-			panic("thread: nil context")
-		}
-		d, err := driver.Get[Driver](ctx)
-		if err != nil {
-			panic(err)
-		}
-		ui = d
-	})
-	return ui
-}
-
-func current() Driver {
+	if ctx == nil {
+		panic("thread: nil context")
+	}
+	mu.Lock()
+	d := ui
+	mu.Unlock()
+	if d != nil {
+		return d
+	}
+	created, err := driver.Get[Driver](ctx)
+	if err != nil {
+		panic(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
 	if ui == nil {
-		panic("thread: used before Run or Bind")
+		ui = created
 	}
 	return ui
 }
 
-// Bind locks this goroutine to the UI thread.
-// Run resolves the driver from the process context. Bind is the root
-// for a host that has no parent context, such as the Android loader.
-func Bind() { open(context.Background()).Bind() }
+func current() Driver {
+	mu.Lock()
+	defer mu.Unlock()
+	if ui == nil {
+		panic("thread: driver not open")
+	}
+	return ui
+}
+
+// Bind locks this goroutine to the UI thread. Call from main.
+// ctx selects the driver. A nil context panics.
+func Bind(ctx context.Context) { open(ctx).Bind() }
 
 // Bound reports whether Bind has been called.
 func Bound() bool { return current().Bound() }
@@ -48,7 +58,7 @@ func On() bool { return current().On() }
 func OnIdle(fn func()) { current().OnIdle(fn) }
 
 // Loop serves the UI thread until ctx is done.
-func Loop(ctx context.Context) { current().Loop(ctx) }
+func Loop(ctx context.Context) { open(ctx).Loop(ctx) }
 
 // Do runs fn on the UI thread and waits.
 func Do(fn func()) { current().Do(fn) }

@@ -36,11 +36,17 @@ func TestLinePrinterHoldsPartial(t *testing.T) {
 	assert.Empty(t, got)
 }
 
+func TestHijackSlogNilContext(t *testing.T) {
+	require.PanicsWithValue(t, "progress: nil context", func() {
+		hijackSlog(nil, func(string) {})
+	})
+}
+
 func TestHijackSlogRestoreDropsLaterLogs(t *testing.T) {
 	t.Setenv("NO_COLOR", "1")
 	var mu sync.Mutex
 	var got []string
-	restore := hijackSlog(func(s string) {
+	restore := hijackSlog(t.Context(), func(s string) {
 		mu.Lock()
 		got = append(got, s)
 		mu.Unlock()

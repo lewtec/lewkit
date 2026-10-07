@@ -30,7 +30,7 @@ func TestLiveAppleSmartBattery(t *testing.T) {
 	require.GreaterOrEqual(t, level, 0)
 	require.LessOrEqual(t, level, 100)
 
-	out, err := execdriver.Output(ctx, execdriver.MustCommand("/usr/bin/pmset", "-g", "batt"))
+	out, err := execdriver.Output(ctx, execdriver.MustCommand(ctx, "/usr/bin/pmset", "-g", "batt"))
 	require.NoError(t, err)
 	text := string(out)
 	wantLevel, err := pmsetPercent(text)

@@ -38,7 +38,7 @@ func read(ctx context.Context) (reading, error) {
 	if err := ctx.Err(); err != nil {
 		return reading{}, err
 	}
-	out, err := execdriver.Output(ctx, execdriver.MustCommand(ioregBin, "-rn", "AppleSmartBattery", "-d", "1"))
+	out, err := execdriver.Output(ctx, execdriver.MustCommand(ctx, ioregBin, "-rn", "AppleSmartBattery", "-d", "1"))
 	if err != nil {
 		return reading{}, fmt.Errorf("ioreg: %w", err)
 	}

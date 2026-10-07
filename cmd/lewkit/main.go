@@ -22,7 +22,7 @@ import (
 func main() {
 	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
 	if err != nil {
-		entry.Main(func(context.Context) error { return err })
+		entry.Main(context.Background(), func(context.Context) error { return err })
 		return
 	}
 	parent := taskgroup.WithLimits(context.Background(), app.Args.Apply(taskgroup.DefaultLimits()))
@@ -34,6 +34,7 @@ type root struct {
 	sentry        sentry.Arg `long:"sentry-dsn" env:"SENTRY_DSN" help:"Sentry DSN" default:"https://26fa6b84edbc334b77bf7f6e1d7d69bc@o4508616651505664.ingest.us.sentry.io/4512090764607488"`
 	generate      *generateCmd
 	release       *releaseCmd
+	exec          *execCmd
 	disasm        *disasmCmd
 	doctor        *doctorCmd
 	workflow      *workflowCmd

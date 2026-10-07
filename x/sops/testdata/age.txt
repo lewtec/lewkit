@@ -1,0 +1,2 @@
+# Fixture key. It only decrypts the files in this directory.
+AGE-SECRET-KEY-1Y2LR5FSXRRL7AZXNM8VJLY2LTZJWSYCX7JEYP2UL2UE9CLV4MK9S7GGNKM

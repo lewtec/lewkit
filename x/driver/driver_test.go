@@ -14,6 +14,11 @@ import (
 
 var errInitFailed = errors.New("init failed")
 
+func TestListNilContext(t *testing.T) {
+	_, err := driver.List[picker](nil)
+	require.ErrorIs(t, err, driver.ErrNilContext)
+}
+
 func TestForGOOS(t *testing.T) {
 	require.NoError(t, driver.ForGOOS(runtime.GOOS))
 	other := "plan9"

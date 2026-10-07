@@ -118,6 +118,64 @@ func (store *Store) Ensure(ctx context.Context, specification, binaryName string
 	return binaryPath, nil
 }
 
+// EnsureCommand installs each spec and returns the path of command.
+// Specs install together. The rightmost spec that contains that binary wins.
+// A spec with no binary of that name is skipped.
+func (store *Store) EnsureCommand(ctx context.Context, specs []string, command string) (string, error) {
+	if strings.TrimSpace(command) == "" {
+		return "", fmt.Errorf("command is empty")
+	}
+	if len(specs) == 0 {
+		return "", fmt.Errorf("no tool specs")
+	}
+	type hit struct {
+		path string
+		miss bool
+	}
+	var hits []hit
+	err := taskgroup.WithSession(ctx, func(ctx context.Context) error {
+		items := make([]int, len(specs))
+		for i := range specs {
+			items[i] = i
+		}
+		got, err := taskgroup.Map[int, hit]{
+			Name:     "tool:ensure",
+			Items:    items,
+			PoolKind: taskgroup.Control,
+			TaskName: func(_ int, i int) string { return "ensure:" + specs[i] },
+			Fn: func(ctx context.Context, status *taskgroup.Status, i int) (hit, error) {
+				status.Update(specs[i])
+				path, err := store.Ensure(ctx, specs[i], command)
+				if err == nil {
+					return hit{path: path}, nil
+				}
+				if errors.Is(err, ErrBinaryNotFound) {
+					return hit{miss: true}, nil
+				}
+				return hit{}, fmt.Errorf("ensure tool %s: %w", specs[i], err)
+			},
+		}.Run(ctx)
+		if err != nil {
+			return err
+		}
+		hits = got
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	found := ""
+	for _, item := range hits {
+		if !item.miss && item.path != "" {
+			found = item.path
+		}
+	}
+	if found == "" {
+		return "", fmt.Errorf("none of the tools (%s) provide a binary named %q", strings.Join(specs, ", "), command)
+	}
+	return found, nil
+}
+
 func (store *Store) ensureBinaryTool(ctx context.Context, spec Spec, installed Tool, binaryTool BinaryTool, actualVersion, normalized, versionDirectory, binaryName string) (string, error) {
 	operation := atomic.NewOperation(versionDirectory, true)
 	workPath := operation.StagingPath()

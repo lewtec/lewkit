@@ -117,13 +117,15 @@ func Java_lewkit_Host_start(env *C.JNIEnv, _ C.jclass, file C.jstring) {
 	_ = os.Setenv("ELETROCROMO_READY_FILE", path)
 	// Bind before the app runs. A failure before entry.Run has no loop yet,
 	// and reporting it must run on this thread instead of waiting for that loop.
-	thread.Bind()
+	// This export is the Android process entry, so the root starts here.
+	root := context.Background()
+	thread.Bind(root)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			NotifyFail(fmt.Sprint(recovered))
 		}
 	}()
-	if err := RunBound(); err != nil {
+	if err := RunBound(root); err != nil {
 		NotifyFail(err.Error())
 	}
 }

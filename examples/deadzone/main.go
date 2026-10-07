@@ -21,7 +21,7 @@ import (
 
 func init() { entry.Bind(runApp) }
 
-func main() { entry.Main(runApp) }
+func main() { entry.Main(context.Background(), runApp) }
 
 func runApp(ctx context.Context) error {
 	return app.App{
@@ -43,9 +43,6 @@ type screen struct {
 }
 
 func newScreen(ctx context.Context) *screen {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	sim := world.New()
 	sim.System(world.Startup, spawnFill)
 	sim.System(world.Update, recolor)

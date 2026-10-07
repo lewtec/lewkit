@@ -24,7 +24,7 @@ var assetsRoot embed.FS
 
 func init() { entry.Bind(runApp) }
 
-func main() { entry.Main(runApp) }
+func main() { entry.Main(context.Background(), runApp) }
 
 func runApp(ctx context.Context) error {
 	assets, err := fs.Sub(assetsRoot, "embed/assets")

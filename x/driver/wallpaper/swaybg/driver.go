@@ -19,7 +19,7 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 		return err
 	}
 	unit := release.Name() + "-wallpaper"
-	cmd := execdriver.MustCommand("systemd-run", "--user", "-u", unit, "--collect", swaybg, "-i", path)
+	cmd := execdriver.MustCommand(ctx, "systemd-run", "--user", "-u", unit, "--collect", swaybg, "-i", path)
 	if err := execdriver.Run(ctx, cmd); err != nil {
 		return fmt.Errorf("can't run swaybg in systemd unit: %w", err)
 	}
@@ -28,7 +28,7 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 
 func stopWallpaper(ctx context.Context) {
 	unit := release.Name() + "-wallpaper.service"
-	_ = execdriver.Run(ctx, execdriver.MustCommand("systemctl", "--user", "stop", unit))
+	_ = execdriver.Run(ctx, execdriver.MustCommand(ctx, "systemctl", "--user", "stop", unit))
 }
 
 func look(ctx context.Context, name string) (string, error) {

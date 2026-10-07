@@ -29,6 +29,10 @@ lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
 	bins: ["protoc"]
 }
+lazy_tools: sops: {
+	ref:  "github:getsops/sops"
+	bins: ["sops"]
+}
 
 // The browser bundle is not in the git tag. Place that package.json
 // as upstream.package.json. tailwindcss.js stays in the repo.

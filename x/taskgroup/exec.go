@@ -18,6 +18,9 @@ func (s *Session) Go(ctx context.Context, name string, pool PoolKind, fn func(co
 }
 
 func (s *Session) goTask(ctx context.Context, name string, pool PoolKind, fn func(context.Context, *Status) error, isolate bool, deps ...ID) ID {
+	if ctx == nil {
+		panic("taskgroup: nil context")
+	}
 	parent := taskFromContext(ctx)
 	if parent == 0 {
 		parent = s.root
@@ -113,7 +116,7 @@ func (s *Session) run(id ID) {
 
 	ctx := t.ctx
 	if ctx == nil {
-		ctx = s.ctx
+		panic("taskgroup: nil context")
 	}
 	ctx = context.WithValue(ctx, sessionKey{}, s)
 	ctx = context.WithValue(ctx, taskKey{}, id)

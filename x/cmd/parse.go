@@ -575,6 +575,9 @@ func commandName(sf reflect.StructField, fv reflect.Value) (string, bool) {
 	if fv.Kind() != reflect.Pointer || fv.Type().Elem().Kind() != reflect.Struct {
 		return "", false
 	}
+	if isDashType(fv.Type().Elem()) {
+		return "", false
+	}
 	elem := reflect.New(fv.Type().Elem())
 	if (rvalue{elem}).hasParse() || (rvalue{elem}).hasCount() {
 		return "", false

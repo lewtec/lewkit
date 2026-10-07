@@ -11,6 +11,9 @@ import (
 // ErrUnavailable means this process cannot open /dev/binder.
 var ErrUnavailable = errors.New("binder is unavailable")
 
+// ErrNilContext means the caller did not pass a context.
+var ErrNilContext = errors.New("android: nil context")
+
 // Client is the process-wide binder session.
 type Client struct {
 	call calls
@@ -31,20 +34,38 @@ type calls interface {
 	dataDir(ctx context.Context, packageName string) (string, error)
 }
 
-var openOnce = sync.OnceValues(func() (*Client, error) {
-	return open(context.Background())
-})
+var (
+	openMu sync.Mutex
+	shared *Client
+)
 
 // Open returns the shared binder client.
+// The first successful call opens it with ctx. A nil context is an error.
 func Open(ctx context.Context) (*Client, error) {
+	if ctx == nil {
+		return nil, ErrNilContext
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return openOnce()
+	openMu.Lock()
+	defer openMu.Unlock()
+	if shared != nil {
+		return shared, nil
+	}
+	opened, err := open(ctx)
+	if err != nil {
+		return nil, err
+	}
+	shared = opened
+	return shared, nil
 }
 
 // ForAndroid opens the client on an Android process.
 func ForAndroid(ctx context.Context) (*Client, error) {
+	if ctx == nil {
+		return nil, ErrNilContext
+	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

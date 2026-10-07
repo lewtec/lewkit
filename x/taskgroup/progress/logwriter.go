@@ -38,7 +38,10 @@ func (w *linePrinter) close() {
 	w.mu.Unlock()
 }
 
-func hijackSlog(print func(string)) func() {
+func hijackSlog(ctx context.Context, print func(string)) func() {
+	if ctx == nil {
+		panic("progress: nil context")
+	}
 	oldSlog := slog.Default()
 	oldLog := log.Default().Writer()
 	w := &linePrinter{print: print}
@@ -47,7 +50,7 @@ func hijackSlog(print func(string)) func() {
 		out = io.MultiWriter(w, logcat)
 	}
 	slog.SetDefault(slog.New(logging.NewHandler(out, &slog.HandlerOptions{
-		Level: handlerLevel{oldSlog.Handler()},
+		Level: handlerLevel{h: oldSlog.Handler(), ctx: ctx},
 	})))
 	log.SetOutput(out)
 	var once sync.Once
@@ -60,11 +63,17 @@ func hijackSlog(print func(string)) func() {
 	}
 }
 
-type handlerLevel struct{ h slog.Handler }
+type handlerLevel struct {
+	h   slog.Handler
+	ctx context.Context
+}
 
 func (l handlerLevel) Level() slog.Level {
+	if l.ctx == nil {
+		panic("progress: nil context")
+	}
 	for _, lv := range []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError} {
-		if l.h.Enabled(context.Background(), lv) {
+		if l.h.Enabled(l.ctx, lv) {
 			return lv
 		}
 	}

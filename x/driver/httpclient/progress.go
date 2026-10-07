@@ -145,8 +145,12 @@ func humanBytes(size int64) string {
 type taskLabelKey struct{}
 
 // WithTaskLabel sets the Internet task title for HTTP requests made with ctx.
+// A nil context panics. An empty label leaves ctx unchanged.
 func WithTaskLabel(ctx context.Context, label string) context.Context {
-	if ctx == nil || strings.TrimSpace(label) == "" {
+	if ctx == nil {
+		panic("httpclient: nil context")
+	}
+	if strings.TrimSpace(label) == "" {
 		return ctx
 	}
 	return context.WithValue(ctx, taskLabelKey{}, strings.TrimSpace(label))

@@ -36,7 +36,7 @@ func TestLiveClangLinksZlib(t *testing.T) {
 	require.NoError(t, os.WriteFile(src, []byte(program), 0o644))
 
 	out := filepath.Join(t.TempDir(), "app")
-	cmd, err := execdriver.Command(
+	cmd, err := execdriver.Command(t.Context(),
 		clangBin,
 		"-I"+filepath.Join(zlibDir, "include"),
 		"-L"+filepath.Join(zlibDir, "lib"),
@@ -49,7 +49,7 @@ func TestLiveClangLinksZlib(t *testing.T) {
 	compileOut, err := combined(t.Context(), cmd)
 	require.NoError(t, err, "compile failed:\n%s", compileOut)
 
-	run, err := execdriver.Command(out)
+	run, err := execdriver.Command(t.Context(), out)
 	require.NoError(t, err)
 	got, err := combined(t.Context(), run)
 	require.NoError(t, err, "run failed:\n%s", got)

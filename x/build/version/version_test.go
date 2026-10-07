@@ -39,6 +39,27 @@ func TestAndroidCodeFrom_Semver(t *testing.T) {
 	}
 }
 
+func TestNilContextPanics(t *testing.T) {
+	for _, name := range []string{"Resolve", "ResolveDir", "GitCommitCount"} {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				got := recover()
+				if got != "version: nil context" {
+					t.Fatalf("panic %v", got)
+				}
+			}()
+			switch name {
+			case "Resolve":
+				Resolve(nil)
+			case "ResolveDir":
+				ResolveDir(nil, "")
+			default:
+				GitCommitCount(nil, "")
+			}
+		})
+	}
+}
+
 func TestResolve_Defaults(t *testing.T) {
 	oldC, oldD, oldB := Commit, Date, BuiltBy
 	t.Cleanup(func() {

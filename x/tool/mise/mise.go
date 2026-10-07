@@ -1,7 +1,8 @@
 // Package mise is the mise backend.
 //
-// A spec mise:node@22 installs that package with the mise binary on PATH
-// and symlinks the named command under the store's bin directory.
+// A spec mise:node@22 installs that package by running mise through the exec
+// driver selected for the call, then symlinks the named command under the
+// store's bin directory.
 package mise
 
 import (
@@ -9,11 +10,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	lewpath "github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 )
 
@@ -139,20 +143,24 @@ func symlinkBinary(destination, binaryPath, commandName string) (string, error) 
 	return filepath.Join(root.Name(), filepath.FromSlash(link.String())), nil
 }
 
-func miseBinary(ctx context.Context) (string, error) {
-	path, err := execdriver.Which(ctx, "mise")
+// miseCommand builds a mise process with the exec driver on ctx.
+// Stderr stays unset so Run can attach the session writer.
+func miseCommand(ctx context.Context, args ...string) (*exec.Cmd, error) {
+	selected, err := driver.Get[execdriver.Driver](ctx)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrMiseNotFound, err)
+		return nil, err
 	}
-	return path, nil
+	if _, err := selected.Which(ctx, "mise"); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrMiseNotFound, err)
+	}
+	return selected.Command("mise", args...), nil
 }
 
 func output(ctx context.Context, args ...string) (string, error) {
-	binary, err := miseBinary(ctx)
+	command, err := miseCommand(ctx, args...)
 	if err != nil {
 		return "", err
 	}
-	command := execdriver.MustCommand(binary, args...)
 	out, err := execdriver.Output(ctx, command)
 	if err != nil {
 		return "", err
@@ -168,13 +176,12 @@ func run(ctx context.Context, args ...string) error {
 	if spec == "" {
 		return ErrMissingMiseSpec
 	}
-	binary, err := miseBinary(ctx)
+	command, err := miseCommand(ctx, args...)
 	if err != nil {
 		return err
 	}
-	command := execdriver.MustCommand(binary, args...)
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	command.Stdin = os.Stdin
+	stdout := taskgroup.LineWriterFrom(ctx)
+	defer stdout.Close()
+	command.Stdout = stdout
 	return execdriver.Run(ctx, command)
 }

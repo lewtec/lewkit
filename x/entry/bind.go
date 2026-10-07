@@ -14,10 +14,13 @@ func Bind(fn func(ctx context.Context) error) {
 }
 
 // RunBound runs the function registered with [Bind].
-// The Android host has no parent context, so this call is the root.
-func RunBound() error {
+// ctx is the process root. A nil context is an error.
+func RunBound(ctx context.Context) error {
 	if bound == nil {
 		return fmt.Errorf("entry: no app")
 	}
-	return bound(context.Background())
+	if ctx == nil {
+		return ErrNilContext
+	}
+	return bound(ctx)
 }

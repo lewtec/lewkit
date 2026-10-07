@@ -17,7 +17,7 @@ import (
 
 func init() { entry.Bind(run) }
 
-func main() { entry.Main(run) }
+func main() { entry.Main(context.Background(), run) }
 
 var errSimulated503 = errors.New("simulated 503 from registry")
 
