@@ -123,6 +123,7 @@ type glAPI struct {
 	bindBufferBase   func(uint32, uint32, uint32)
 	mapBuffer        func(uint32, int, int, uint32) uintptr
 	unmapBuffer      func(uint32) uint8
+	getIntegeri      func(uint32, uint32, *int32)
 }
 
 func loadAPI(ctx glContext) (*glAPI, error) {
@@ -195,8 +196,36 @@ func loadAPI(ctx glContext) (*glAPI, error) {
 	_ = bindProc(ctx, "glBindBufferBase", &g.bindBufferBase)
 	_ = bindProc(ctx, "glMapBufferRange", &g.mapBuffer)
 	_ = bindProc(ctx, "glUnmapBuffer", &g.unmapBuffer)
+	_ = bindProc(ctx, "glGetIntegeri_v", &g.getIntegeri)
 	g.readVersion(ctx.GLES())
 	return g, nil
+}
+
+// glMaxComputeWorkGroupCount is the per-axis dispatch limit.
+const glMaxComputeWorkGroupCount = 0x91BE
+
+// workGroupLimit is how many work groups Dispatch may launch on each axis.
+// The spec guarantees 65535. A larger phone frame does not fit on X alone.
+func (g *glAPI) workGroupLimit() [3]uint32 {
+	out := [3]uint32{65535, 65535, 65535}
+	if g == nil || g.getIntegeri == nil {
+		return out
+	}
+	if g.getError != nil {
+		for g.getError() != 0 {
+		}
+	}
+	for i := uint32(0); i < 3; i++ {
+		var v int32
+		g.getIntegeri(glMaxComputeWorkGroupCount, i, &v)
+		if g.getError != nil && g.getError() != 0 {
+			continue
+		}
+		if v > 0 {
+			out[i] = uint32(v)
+		}
+	}
+	return out
 }
 
 func bindProc(ctx glContext, name string, fn any) error {

@@ -38,7 +38,11 @@ func glslOf(c ndarray.Code, gles bool) string {
 		fmt.Fprintf(&b, "layout(std430, binding = %d) buffer In%d { %s x%d[]; };\n", i+1, i+1, scalar(dt), i+1)
 	}
 	b.WriteString("void main() {\n")
-	b.WriteString("    uint gi = gl_GlobalInvocationID.x;\n")
+	// X alone is at most GL_MAX_COMPUTE_WORK_GROUP_COUNT, which is 65535
+	// on Adreno. A phone frame needs more groups, so Run may use Y and Z.
+	// gi stays the linear element index either way.
+	b.WriteString("    uint span = gl_NumWorkGroups.x * gl_WorkGroupSize.x;\n")
+	b.WriteString("    uint gi = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * span + gl_GlobalInvocationID.z * span * gl_NumWorkGroups.y;\n")
 	writeBody(&b, c, func(e ndarray.Expr) string {
 		var s strings.Builder
 		(&spell{b: &s}).expr(e, 0)

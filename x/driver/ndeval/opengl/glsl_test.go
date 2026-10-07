@@ -22,7 +22,8 @@ func TestGLSLMarkers(t *testing.T) {
 	require.Contains(t, desktop, "layout(local_size_x = 128)")
 	require.Contains(t, desktop, "layout(std430, binding = 0) buffer Out")
 	require.Contains(t, desktop, "uniform uint n;")
-	require.Contains(t, desktop, "gl_GlobalInvocationID")
+	require.Contains(t, desktop, "uint span = gl_NumWorkGroups.x * gl_WorkGroupSize.x;")
+	require.Contains(t, desktop, "gl_GlobalInvocationID.y * span")
 	require.NotContains(t, desktop, "set =")
 	require.NotContains(t, desktop, "push_constant")
 

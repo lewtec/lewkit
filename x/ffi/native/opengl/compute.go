@@ -16,6 +16,7 @@ type Device struct {
 	run    *runner
 	gl     *glAPI
 	name   string
+	limit  [3]uint32
 	closed bool
 }
 
@@ -47,6 +48,7 @@ func openCompute(ctx glContext) (*Device, error) {
 		}
 		d.gl = api
 		d.name = api.renderer
+		d.limit = api.workGroupLimit()
 		if !api.compute {
 			return ErrUnavailable
 		}
@@ -272,13 +274,52 @@ func (d *Device) Run(prog *Program, groups uint32, buffers []*Buffer, push []byt
 			}
 			g.bindBufferBase(glShaderStorageBuffer, uint32(i), buf.id)
 		}
+		if err := g.check("bind"); err != nil {
+			return err
+		}
 		if groups == 0 {
 			groups = 1
 		}
-		g.dispatch(groups, 1, 1)
+		x, y, z, err := coverGroups(groups, d.limit)
+		if err != nil {
+			return err
+		}
+		g.dispatch(x, y, z)
 		g.barrier(glShaderStorageBarrierBit | glBufferUpdateBarrierBit)
-		return g.check("dispatch")
+		if err := g.check("dispatch"); err != nil {
+			return fmt.Errorf("%w (%d groups as %d,%d,%d)", err, groups, x, y, z)
+		}
+		return nil
 	})
+}
+
+// coverGroups spreads a 1D group count across X, then Y, then Z.
+// Each axis stays within the device maximum. The shader lines the
+// invocation id back up, so element i is still invocation i.
+func coverGroups(groups uint32, max [3]uint32) (uint32, uint32, uint32, error) {
+	if groups == 0 {
+		return 0, 0, 0, fmt.Errorf("%w: no groups", ErrUnavailable)
+	}
+	for i := range max {
+		if max[i] < 1 {
+			max[i] = 65535
+		}
+	}
+	if groups <= max[0] {
+		return groups, 1, 1, nil
+	}
+	x := max[0]
+	y64 := (uint64(groups) + uint64(x) - 1) / uint64(x)
+	if y64 <= uint64(max[1]) {
+		return x, uint32(y64), 1, nil
+	}
+	y := max[1]
+	plane := uint64(x) * uint64(y)
+	z64 := (uint64(groups) + plane - 1) / plane
+	if z64 > uint64(max[2]) {
+		return 0, 0, 0, fmt.Errorf("%w: dispatch %d groups", ErrUnavailable, groups)
+	}
+	return x, y, uint32(z64), nil
 }
 
 func pushWords(push []byte) [5]uint32 {
