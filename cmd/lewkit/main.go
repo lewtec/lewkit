@@ -16,6 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 
 	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
+	_ "github.com/lewtec/lewkit/x/tool/conda"
 )
 
 func main() {
