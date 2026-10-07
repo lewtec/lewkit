@@ -127,7 +127,11 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 }
 
 // Wait waits for cmd. A cancelled ctx wins over the process exit error.
+// A nil context is an error.
 func Wait(ctx context.Context, cmd *exec.Cmd) error {
+	if ctx == nil {
+		return errors.New("exec: nil context")
+	}
 	err := cmd.Wait()
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
@@ -171,7 +175,11 @@ func OutputString(ctx context.Context, name string, args ...string) (string, err
 }
 
 // Which resolves name with the selected driver, or LookPath when none is registered.
+// A nil context is an error and does not fall through to LookPath.
 func Which(ctx context.Context, name string) (string, error) {
+	if ctx == nil {
+		return "", errors.New("exec: nil context")
+	}
 	d, err := driver.Get[Driver](ctx)
 	if err != nil {
 		return lookPath(name)

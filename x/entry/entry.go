@@ -85,7 +85,13 @@ func failureVisible() bool {
 // showFailure is the escape hatch when the process has no terminal.
 // The error is shown in a message box before the process exits.
 func showFailure(ctx context.Context, err error) {
-	if err == nil || ctx == nil || !failureVisible() {
+	if err == nil {
+		return
+	}
+	if ctx == nil {
+		panic("entry: nil context")
+	}
+	if !failureVisible() {
 		return
 	}
 	box, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)

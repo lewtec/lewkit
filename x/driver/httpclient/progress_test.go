@@ -33,6 +33,12 @@ func TestTaskName(t *testing.T) {
 	require.Equal(t, "example.com", taskName(requestWithURL(t, "https://example.com/")))
 }
 
+func TestWithTaskLabelNilContext(t *testing.T) {
+	require.PanicsWithValue(t, "httpclient: nil context", func() {
+		WithTaskLabel(nil, "tool")
+	})
+}
+
 func TestTaskNameWithLabel(t *testing.T) {
 	request := requestWithURL(t, "https://api.github.com/repos/o/r/releases/assets/1")
 	request = request.WithContext(WithTaskLabel(request.Context(), "tool@1.2.3"))

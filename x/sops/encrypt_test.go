@@ -19,6 +19,11 @@ func TestEncryptNilContext(t *testing.T) {
 	require.EqualError(t, err, "sops: nil context")
 }
 
+func TestCommandNilContext(t *testing.T) {
+	err := Command{Args: []string{"true"}}.Run(nil)
+	require.EqualError(t, err, "sops: nil context")
+}
+
 func TestEncryptRoundTrip(t *testing.T) {
 	useAgeKey(t)
 	dir := t.TempDir()

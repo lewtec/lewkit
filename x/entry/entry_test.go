@@ -22,6 +22,12 @@ func TestRunNilContext(t *testing.T) {
 	require.EqualError(t, err, "entry: nil context")
 }
 
+func TestShowFailureNilContext(t *testing.T) {
+	require.PanicsWithValue(t, "entry: nil context", func() {
+		showFailure(nil, errors.New("boom"))
+	})
+}
+
 func TestAfterOutlivesSession(t *testing.T) {
 	t.Cleanup(func() { After(nil) })
 	var sessionCtx context.Context

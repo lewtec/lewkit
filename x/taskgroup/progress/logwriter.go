@@ -39,6 +39,9 @@ func (w *linePrinter) close() {
 }
 
 func hijackSlog(ctx context.Context, print func(string)) func() {
+	if ctx == nil {
+		panic("progress: nil context")
+	}
 	oldSlog := slog.Default()
 	oldLog := log.Default().Writer()
 	w := &linePrinter{print: print}
@@ -67,7 +70,7 @@ type handlerLevel struct {
 
 func (l handlerLevel) Level() slog.Level {
 	if l.ctx == nil {
-		return slog.LevelInfo
+		panic("progress: nil context")
 	}
 	for _, lv := range []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn, slog.LevelError} {
 		if l.h.Enabled(l.ctx, lv) {

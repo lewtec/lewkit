@@ -20,6 +20,17 @@ func newPinned(t *testing.T) *Session {
 	return s
 }
 
+func TestNilContextPanics(t *testing.T) {
+	require.PanicsWithValue(t, "taskgroup: nil context", func() { LimitsFrom(nil) })
+	require.PanicsWithValue(t, "taskgroup: nil context", func() { New(nil, DefaultLimits()) })
+	require.PanicsWithValue(t, "taskgroup: nil context", func() { FromContext(nil) })
+	require.PanicsWithValue(t, "taskgroup: nil context", func() { _ = WithSession(nil, nil) })
+	s := newPinned(t)
+	require.PanicsWithValue(t, "taskgroup: nil context", func() {
+		s.Go(nil, "missing", CPU, nop)
+	})
+}
+
 func TestPinDepsSelfCycle(t *testing.T) {
 	s := newPinned(t)
 	s.mu.Lock()

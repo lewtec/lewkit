@@ -86,9 +86,9 @@ func (s *Session) alloc(parent ID, name string, pool PoolKind, fn func(context.C
 
 	// The task runs with the context Go was given, so values bound on that
 	// context stay visible. Isolate gets its own cancel so a failure there
-	// does not cancel the caller.
+	// does not cancel the caller. A nil caller panics.
 	if caller == nil {
-		caller = s.ctx
+		panic("taskgroup: nil context")
 	}
 	if isolate {
 		t.ctx, t.cancel = context.WithCancelCause(caller)
