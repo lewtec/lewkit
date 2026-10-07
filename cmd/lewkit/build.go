@@ -81,7 +81,7 @@ func (c *buildFlags) identity() (*sign.Identity, error) {
 	if raw == nil {
 		return nil, nil
 	}
-	return sign.LoadPKCS12(raw, c.p12Password.Text())
+	return sign.LoadPKCS12(raw, "")
 }
 
 func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, sdk string, goOnly, cgo bool, identity *sign.Identity) (string, error) {
