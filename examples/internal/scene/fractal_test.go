@@ -2,7 +2,6 @@ package scene
 
 import (
 	stdimage "image"
-	"strings"
 	"testing"
 	"time"
 
@@ -53,10 +52,19 @@ func TestFractalOneKernel(t *testing.T) {
 	require.NoError(t, pixels.Eval(t.Context(), ndarray.CPU, dst))
 	k := pixels.Kernel()
 	require.NotNil(t, k)
-	src, err := k.GLSL()
+	code, err := k.Code()
 	require.NoError(t, err)
-	require.Equal(t, 1, strings.Count(src, "void main()"))
-	require.Equal(t, 1, strings.Count(src, "gl_GlobalInvocationID"))
+	require.Equal(t, 1, stores(code))
+}
+
+func stores(c ndarray.Code) int {
+	n := 0
+	for _, s := range c.Stmts {
+		if s.Op == ndarray.StmtStore {
+			n++
+		}
+	}
+	return n
 }
 
 func TestFractalRejectsShape(t *testing.T) {

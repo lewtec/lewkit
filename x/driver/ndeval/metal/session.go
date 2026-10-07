@@ -33,11 +33,7 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffimetal.De
 	if kernel == nil || device == nil {
 		return nil, ndarray.ErrOp
 	}
-	src, err := kernel.GLSL()
-	if err != nil {
-		return nil, err
-	}
-	msl, threads, err := mslSource(src)
+	msl, threads, err := mslSource(kernel)
 	if err != nil {
 		return nil, err
 	}

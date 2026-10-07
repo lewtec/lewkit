@@ -1,6 +1,7 @@
 package metal
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -15,9 +16,7 @@ func TestTranslateAdd(t *testing.T) {
 	require.NoError(t, err)
 	expr := a.Add(b)
 	require.NoError(t, expr.Resize(expr.Shape()))
-	src, err := expr.Kernel().GLSL()
-	require.NoError(t, err)
-	msl, threads, err := mslSource(src)
+	msl, threads, err := mslSource(expr.Kernel())
 	require.NoError(t, err)
 	require.Equal(t, 128, threads)
 	require.Contains(t, msl, "kernel void ndeval(")
@@ -41,9 +40,7 @@ func TestTranslateBackdropCast(t *testing.T) {
 	)
 	view := expr.Cast[uint8]()
 	require.NoError(t, view.Resize(ndarray.Shape{2, 2, 4}))
-	src, err := view.Kernel().GLSL()
-	require.NoError(t, err)
-	msl, _, err := mslSource(src)
+	msl, _, err := mslSource(view.Kernel())
 	require.NoError(t, err)
 	require.Contains(t, msl, "device uint* o [[buffer(0)]]")
 	require.Contains(t, msl, "uint gi = gid;")
@@ -57,9 +54,7 @@ func TestTranslatePermuteAndInt(t *testing.T) {
 	perm, err := raw.Permute(1, 0)
 	require.NoError(t, err)
 	require.NoError(t, perm.Resize(perm.Shape()))
-	src, err := perm.Kernel().GLSL()
-	require.NoError(t, err)
-	msl, _, err := mslSource(src)
+	msl, _, err := mslSource(perm.Kernel())
 	require.NoError(t, err)
 	require.Contains(t, msl, "device int* o [[buffer(0)]]")
 	require.Contains(t, msl, "device int* x1 [[buffer(1)]]")
@@ -71,9 +66,7 @@ func TestTranslatePermuteAndInt(t *testing.T) {
 	require.NoError(t, err)
 	quot := numerator.IDiv(divisor)
 	require.NoError(t, quot.Resize(quot.Shape()))
-	src, err = quot.Kernel().GLSL()
-	require.NoError(t, err)
-	msl, _, err = mslSource(src)
+	msl, _, err = mslSource(quot.Kernel())
 	require.NoError(t, err)
 	require.Contains(t, msl, "device int*")
 	require.True(t, strings.Contains(msl, "/"))
@@ -83,15 +76,18 @@ func TestTranslateU8(t *testing.T) {
 	raw, err := ndarray.New([]uint8{1, 2, 3, 4}, ndarray.Shape{4})
 	require.NoError(t, err)
 	require.NoError(t, raw.Resize(raw.Shape()))
-	src, err := raw.Kernel().GLSL()
-	require.NoError(t, err)
-	msl, _, err := mslSource(src)
+	msl, _, err := mslSource(raw.Kernel())
 	require.NoError(t, err)
 	require.Contains(t, msl, "device uint* o [[buffer(0)]]")
 	require.Contains(t, msl, "device uint* x1 [[buffer(1)]]")
 }
 
-func TestTranslateRejectsForeignGLSL(t *testing.T) {
-	_, _, err := mslSource("#version 450\nvoid main() {}\n")
-	require.ErrorIs(t, err, ndarray.ErrOp)
+func TestTranslateInf(t *testing.T) {
+	low, err := ndarray.Full(float32(math.Inf(-1)), ndarray.Shape{1})
+	require.NoError(t, err)
+	require.NoError(t, low.Resize(low.Shape()))
+	msl, _, err := mslSource(low.Kernel())
+	require.NoError(t, err)
+	require.Contains(t, msl, "as_type<float>(")
+	require.NotContains(t, msl, "uintBitsToFloat")
 }
