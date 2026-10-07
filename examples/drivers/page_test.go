@@ -82,7 +82,9 @@ func TestDriverPagesShowState(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, battery.Body.Close())
 	batteryText := string(batteryBody)
-	require.NotContains(t, batteryText, "<form")
+	for _, action := range formActions(batteryText) {
+		require.Equal(t, "/driver/battery/pin", action)
+	}
 	hasRows := strings.Contains(batteryText, ">Status<") && strings.Contains(batteryText, ">Level<")
 	require.True(t, hasRows || strings.Contains(batteryText, `role="alert"`))
 
@@ -146,7 +148,110 @@ func TestBatteryPageShowsLevel(t *testing.T) {
 	require.Contains(t, text, ">Discharging<")
 	require.Contains(t, text, ">Level<")
 	require.Contains(t, text, ">42%<")
-	require.NotContains(t, text, "<form")
+	for _, action := range formActions(text) {
+		require.Equal(t, "/driver/battery/pin", action)
+	}
+	require.NotContains(t, text, `value="battery_fixed"`)
+}
+
+func TestUseButtonPinsDriver(t *testing.T) {
+	batteryName := interfaceNameBySlug(t, "battery")
+	presentName := interfaceNameBySlug(t, "present")
+	evalName := interfaceNameBySlug(t, "ndarray.Evaluator")
+	t.Cleanup(func() {
+		driver.Pin(batteryName, "")
+		driver.Pin(presentName, "")
+		driver.Pin(evalName, "")
+	})
+
+	srv := httptest.NewServer(newPage(t.Context()))
+	defer srv.Close()
+	client := srv.Client()
+	client.Timeout = 20 * time.Second
+	client.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	posted, err := client.PostForm(srv.URL+"/driver/battery/pin", url.Values{"id": {"battery_fixed"}})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSeeOther, posted.StatusCode)
+	require.Contains(t, posted.Header.Get("Location"), "notice=using+battery_fixed")
+	require.NoError(t, posted.Body.Close())
+
+	res, err := client.Get(srv.URL + "/driver/battery?notice=using+battery_fixed")
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	text := string(body)
+	require.Contains(t, text, "using battery_fixed")
+	require.Contains(t, text, "battery_fixed · 101")
+	require.Contains(t, text, "badge-success")
+	require.NotContains(t, text, `value="battery_fixed"`)
+
+	posted, err = client.PostForm(srv.URL+"/driver/present/pin", url.Values{"id": {"present_opengl"}})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSeeOther, posted.StatusCode)
+	require.Contains(t, posted.Header.Get("Location"), "using+present_opengl")
+	require.NoError(t, posted.Body.Close())
+
+	res, err = client.Get(srv.URL + posted.Header.Get("Location"))
+	require.NoError(t, err)
+	body, err = io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	require.Contains(t, string(body), "present_opengl · 101")
+
+	missing, err := client.PostForm(srv.URL+"/driver/present/nope", url.Values{})
+	require.NoError(t, err)
+	require.NoError(t, missing.Body.Close())
+	require.Equal(t, http.StatusNotFound, missing.StatusCode)
+
+	posted, err = client.PostForm(srv.URL+"/driver/ndarray.Evaluator/pin", url.Values{"id": {"ndeval_opengl"}})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusSeeOther, posted.StatusCode)
+	require.Contains(t, posted.Header.Get("Location"), "using+ndeval_opengl")
+	require.NoError(t, posted.Body.Close())
+}
+
+func interfaceNameBySlug(t *testing.T, slug string) string {
+	t.Helper()
+	for _, iface := range driver.Doctor(t.Context()) {
+		if driverSlug(iface.Name) == slug {
+			return iface.Name
+		}
+	}
+	t.Fatalf("slug %s missing", slug)
+	return ""
+}
+
+func formActions(html string) []string {
+	var out []string
+	rest := html
+	for {
+		i := strings.Index(rest, "<form ")
+		if i < 0 {
+			return out
+		}
+		rest = rest[i:]
+		end := strings.Index(rest, ">")
+		if end < 0 {
+			return out
+		}
+		tag := rest[:end]
+		rest = rest[end+1:]
+		const key = `action="`
+		j := strings.Index(tag, key)
+		if j < 0 {
+			continue
+		}
+		tag = tag[j+len(key):]
+		k := strings.IndexByte(tag, '"')
+		if k < 0 {
+			continue
+		}
+		out = append(out, tag[:k])
+	}
 }
 
 func TestDriverSlugsUnique(t *testing.T) {
