@@ -26,7 +26,7 @@ type Host struct {
 	CGO    bool
 	// Sign is the publisher key. Nil leaves the Android debug keystore in
 	// place and ad-hoc signs the macOS Mach-O. A key signs the APK, the
-	// macOS Mach-O, and the iOS Mach-O with that identity.
+	// Windows exe, the macOS Mach-O, and the iOS Mach-O with that identity.
 	Sign *sign.Identity
 }
 
@@ -114,6 +114,11 @@ func (host Host) Windows(ctx context.Context) (string, error) {
 	}
 	if host.GoOnly {
 		return result.WorkDir, nil
+	}
+	if host.Sign != nil {
+		if err := host.Sign.SignPEFile(ctx, result.ExePath, cfg.AppName); err != nil {
+			return "", err
+		}
 	}
 	return result.ExePath, nil
 }
