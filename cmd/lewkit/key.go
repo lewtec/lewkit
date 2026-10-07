@@ -69,7 +69,7 @@ func (c *keyCmd) generate(ctx context.Context, ask func(context.Context, string)
 	if err != nil {
 		return err
 	}
-	enc, err := sops.Encrypt(path, der)
+	enc, err := sops.Encrypt(ctx, path, der)
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 const publisherAgeConfig = "creation_rules:\n  - age: age1zufvjtsk0p7wgsz7nth4032t4tqmev7d4dwq72x6cgngjqcnxgmq6l7ts0\n"
 
 func TestKeyRunWritesWithoutPrompt(t *testing.T) {
+	useSopsProgram(t)
 	usePublisherAgeKey(t)
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	dir := t.TempDir()
@@ -33,6 +35,7 @@ func TestKeyRunWritesWithoutPrompt(t *testing.T) {
 }
 
 func TestKeyPromptsForMissingFields(t *testing.T) {
+	useSopsProgram(t)
 	usePublisherAgeKey(t)
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	out := filepath.Join(t.TempDir(), "publisher.p12")
@@ -65,6 +68,7 @@ func TestKeyRejectsEmptyName(t *testing.T) {
 }
 
 func TestKeyMissingSopsConfig(t *testing.T) {
+	useSopsProgram(t)
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	out := filepath.Join(t.TempDir(), "publisher.p12")
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "key", "--name", "Acme", "--out", out)
@@ -75,6 +79,7 @@ func TestKeyMissingSopsConfig(t *testing.T) {
 }
 
 func TestKeyConfirmsReplace(t *testing.T) {
+	useSopsProgram(t)
 	usePublisherAgeKey(t)
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	dir := t.TempDir()
@@ -103,6 +108,7 @@ func TestKeyConfirmsReplace(t *testing.T) {
 }
 
 func TestKeyForceReplaces(t *testing.T) {
+	useSopsProgram(t)
 	usePublisherAgeKey(t)
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	dir := t.TempDir()
@@ -113,6 +119,19 @@ func TestKeyForceReplaces(t *testing.T) {
 	require.NoError(t, app.Args.release.key.generate(t.Context(), unexpectedAsk, refuseConfirm))
 	id := openPublisherKey(t, out)
 	assert.Equal(t, "Acme", id.Certs[0].Subject.CommonName)
+}
+
+func useSopsProgram(t *testing.T) {
+	t.Helper()
+	dir := filepath.Join(os.TempDir(), "lewkit-sops-bin")
+	bin := filepath.Join(dir, "sops")
+	if _, err := os.Stat(bin); err != nil {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		cmd := exec.Command("go", "build", "-o", bin, "github.com/getsops/sops/v3/cmd/sops")
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 func writePublisherSops(t *testing.T, dir string) {
