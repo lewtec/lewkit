@@ -118,6 +118,34 @@ func (store *Store) Ensure(ctx context.Context, specification, binaryName string
 	return binaryPath, nil
 }
 
+// EnsureCommand installs each spec and returns the path of command.
+// The rightmost spec that contains that binary wins. A spec with no binary
+// of that name is skipped.
+func (store *Store) EnsureCommand(ctx context.Context, specs []string, command string) (string, error) {
+	if strings.TrimSpace(command) == "" {
+		return "", fmt.Errorf("command is empty")
+	}
+	if len(specs) == 0 {
+		return "", fmt.Errorf("no tool specs")
+	}
+	var found string
+	for _, spec := range specs {
+		path, err := store.Ensure(ctx, spec, command)
+		if err == nil {
+			found = path
+			continue
+		}
+		if errors.Is(err, ErrBinaryNotFound) {
+			continue
+		}
+		return "", fmt.Errorf("ensure tool %s: %w", spec, err)
+	}
+	if found == "" {
+		return "", fmt.Errorf("none of the tools (%s) provide a binary named %q", strings.Join(specs, ", "), command)
+	}
+	return found, nil
+}
+
 func (store *Store) ensureBinaryTool(ctx context.Context, spec Spec, installed Tool, binaryTool BinaryTool, actualVersion, normalized, versionDirectory, binaryName string) (string, error) {
 	operation := atomic.NewOperation(versionDirectory, true)
 	workPath := operation.StagingPath()

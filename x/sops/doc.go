@@ -12,8 +12,7 @@
 // Keys is the age search sops uses. SystemKeys reads SOPS_AGE_KEY,
 // SOPS_AGE_KEY_FILE, SOPS_AGE_KEY_CMD, an SSH private key, and sops/age/keys.txt.
 // On macOS, XDG_CONFIG_HOME is honored first. Env is a dotenv assignment list.
-// Target is a tool named kind:name, such as conda:foo. Command runs a program
-// with that environment and target.
+// Command runs a program with that environment.
 //
 // Age identities are opened with github.com/getsops/sops/v3/age.
 package sops

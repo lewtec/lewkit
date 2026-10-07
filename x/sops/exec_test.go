@@ -30,28 +30,6 @@ func TestEnvRejectsBadLine(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestTargetCommand(t *testing.T) {
-	target, err := ParseTarget("conda:foo:bar")
-	require.NoError(t, err)
-	require.Equal(t, Target{Kind: KindConda, Name: "foo:bar"}, target)
-	name, argv, err := target.Command([]string{"python", "-c", "print(1)"})
-	require.NoError(t, err)
-	require.Equal(t, "conda", name)
-	require.Equal(t, []string{"run", "-n", "foo:bar", "--no-capture-output", "--", "python", "-c", "print(1)"}, argv)
-
-	direct, err := ParseTarget("  ")
-	require.NoError(t, err)
-	name, argv, err = direct.Command([]string{"echo", "hi"})
-	require.NoError(t, err)
-	require.Equal(t, "echo", name)
-	require.Equal(t, []string{"hi"}, argv)
-
-	_, err = ParseTarget("docker:foo")
-	require.Error(t, err)
-	_, err = ParseTarget("conda")
-	require.Error(t, err)
-}
-
 func TestCommandAppliesEnv(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "out")

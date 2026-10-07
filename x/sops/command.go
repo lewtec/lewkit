@@ -10,11 +10,9 @@ import (
 )
 
 // Command runs Args with Env merged onto the process environment.
-// An empty Target runs Args directly. A conda target runs them with conda run.
 type Command struct {
-	Env    Env
-	Target Target
-	Args   []string
+	Env  Env
+	Args []string
 }
 
 // Run starts the command and waits. Stdin, stdout, and stderr are the process streams.
@@ -23,11 +21,7 @@ func (c Command) Run(ctx context.Context) error {
 	if len(c.Args) == 0 {
 		return fmt.Errorf("sops: command is empty")
 	}
-	name, args, err := c.Target.Command(c.Args)
-	if err != nil {
-		return err
-	}
-	cmd, err := execdriver.Command(name, args...)
+	cmd, err := execdriver.Command(c.Args[0], c.Args[1:]...)
 	if err != nil {
 		return err
 	}

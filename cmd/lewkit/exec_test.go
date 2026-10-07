@@ -17,12 +17,12 @@ func TestExecParsesEnvTargetAndCommand(t *testing.T) {
 	require.NoError(t, os.WriteFile(first, []byte("A=1\n"), 0o600))
 	require.NoError(t, os.WriteFile(second, []byte("B=2\n"), 0o600))
 
-	app := cmd.ParseOK[cmd.App[root]](t, "exec", "-e", first, "-e", second, "-t", "conda:foo", "--", "echo", "hi")
+	app := cmd.ParseOK[cmd.App[root]](t, "exec", "-e", first, "-e", second, "-t", "conda:clang", "-t", "mise:go", "--", "go", "--help")
 	require.Len(t, app.Args.exec.env, 2)
 	assert.Equal(t, "A=1\n", string(app.Args.exec.env[0].Value()))
 	assert.Equal(t, "B=2\n", string(app.Args.exec.env[1].Value()))
-	assert.Equal(t, "conda:foo", app.Args.exec.target.Value())
-	assert.Equal(t, []string{"echo", "hi"}, cmd.Values(app.Args.exec.args))
+	assert.Equal(t, []string{"conda:clang", "mise:go"}, cmd.Values(app.Args.exec.tools))
+	assert.Equal(t, []string{"go", "--help"}, cmd.Values(app.Args.exec.args))
 }
 
 func TestExecDashKeepsHelpArgument(t *testing.T) {
