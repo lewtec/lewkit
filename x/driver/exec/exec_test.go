@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
@@ -40,8 +41,14 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	cmd := execdriver.MustCommand("sh", "-c", "sleep 30")
 	done := make(chan error, 1)
 	go func() { done <- execdriver.Run(ctx, cmd) }()
+	time.Sleep(150 * time.Millisecond)
 	cancel()
-	require.ErrorIs(t, <-done, context.Canceled)
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(3 * time.Second):
+		t.Fatal("process kept running after cancel")
+	}
 }
 
 func TestRunProgramAndOutputString(t *testing.T) {
