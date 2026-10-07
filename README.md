@@ -16,6 +16,14 @@ go get github.com/lewtec/lewkit@main
 
 `@latest` selects the highest tag. That tag can lag `main`.
 
+### Badge
+
+Add the badge to a project's README:
+
+```markdown
+[![Built with lewkit](https://raw.githubusercontent.com/lewtec/lewkit/main/.github/assets/built-with-lewkit.svg)](https://github.com/lewtec/lewkit)
+```
+
 The program is `cmd/lewkit`. [SPEC.md](SPEC.md) names the owner package for a new type. The license text is [LICENSE.md](LICENSE.md).
 
 `x/ffi` and `x/ui` have no Go package. An import of either path fails. [SPEC.md](SPEC.md) lists `x/ui/tui` and `x/ui/web`. Both packages are absent.
