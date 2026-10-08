@@ -43,7 +43,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/sqlc-dev/sqlc v1.31.1
 	github.com/stretchr/testify v1.12.1
-	github.com/tc-hib/winres v0.2.1
+	github.com/tc-hib/winres v0.3.1
 	github.com/tetratelabs/wazero v1.12.0
 	github.com/ulikunitz/xz v0.5.15
 	go.yaml.in/yaml/v3 v3.0.5
