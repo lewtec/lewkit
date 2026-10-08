@@ -231,6 +231,8 @@ github.com/envoyproxy/go-control-plane/ratelimit v0.1.0 h1:/G9QYbddjL25KvtKTv3an
 github.com/envoyproxy/go-control-plane/ratelimit v0.1.0/go.mod h1:Wk+tMFAFbCXaJPzVVHnPgRKdUdwW/KdbRt94AzgRee4=
 github.com/envoyproxy/protoc-gen-validate v1.3.3 h1:MVQghNeW+LZcmXe7SY1V36Z+WFMDjpqGAGacLe2T0ds=
 github.com/envoyproxy/protoc-gen-validate v1.3.3/go.mod h1:TsndJ/ngyIdQRhMcVVGDDHINPLWB7C82oDArY51KfB0=
+github.com/evanw/esbuild v0.28.2 h1:A2uETn4jrQTcXaT/shwTDTYBxDjl7fV7nXmUrJxfA2w=
+github.com/evanw/esbuild v0.28.2/go.mod h1:D2vIQZqV/vIf/VRHtViaUtViZmG7o+kKmlBfVQuRi48=
 github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f h1:MlG3PjCUpnbPN0JVX8UFu2Qherr6VzWqXo4GYF3J5nI=
 github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f/go.mod h1:ATrLnViIvvcC4AbrF7g/s2MXJPfl6+MEQNCXwKOIB+M=
 github.com/fatih/color v1.18.0 h1:S8gINlzdQ840/4pfAwic/ZE0djQEH3wM94VfqLTZcOM=
@@ -241,6 +243,8 @@ github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeO
 github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
 github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b h1:dx7DXonAznC51yya+/6GR08U1c45hV8ovZqgRD2gG4Y=
 github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b/go.mod h1:DPetlyhaswp5gzjSxJ11ouPp40CCY7TeC1I3yIGNdA4=
+github.com/fetchurl/fetchurl v0.0.0-20260824103541-49881a25d469 h1:896ojs98TfrzsemmmCb7wjCLOFy3HyJLqtZWZnCP+5Y=
+github.com/fetchurl/fetchurl v0.0.0-20260824103541-49881a25d469/go.mod h1:+4lDJG/idFLKctgMQXUwPc+m9IQUuJ+DyGrJ1i11THg=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/gdamore/encoding v1.0.0/go.mod h1:alR0ol34c49FCSBLjhosxzcPHQbf2trDkoo5dl+VrEg=
@@ -411,6 +415,8 @@ github.com/lucasb-eyer/go-colorful v1.4.0 h1:UtrWVfLdarDgc44HcS7pYloGHJUjHV/4FwW
 github.com/lucasb-eyer/go-colorful v1.4.0/go.mod h1:R4dSotOR9KMtayYi1e77YzuveK+i7ruzyGqttikkLy0=
 github.com/lucasew/orvalho v0.0.0-20260720233020-b4936fd61914 h1:PnD0zBNAUmKQhd45tf6u3awwlWP2QltDDr7hHeZv3q8=
 github.com/lucasew/orvalho v0.0.0-20260720233020-b4936fd61914/go.mod h1:gHNREX9Q6czkMcop43F9ViJR81mU/2wfMK/3ZMISrz4=
+github.com/lucasew/orvalho v0.0.0-20260920134237-d61ba6ce2eb5 h1:8qp/pG6jc8Rl72pkgFtah5jpFEnE8oRGRmZ6Isy/KbI=
+github.com/lucasew/orvalho v0.0.0-20260920134237-d61ba6ce2eb5/go.mod h1:Q2eiDTv1E+4T/jIIKrTx5UiVbHC+zu+r5Yrn5rUo9pc=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 h1:6E+4a0GO5zZEnZ81pIr0yLvtUWk2if982qA3F3QD6H4=
 github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0/go.mod h1:zJYVVT2jmtg6P3p1VtQj7WsuWi/y4VnjVBn7F8KPB3I=
 github.com/mattn/go-colorable v0.1.14 h1:9A9LHSqF/7dyVVX6g0U9cwm9pG3kP9gSzcuIPHPsaIE=
@@ -658,6 +664,7 @@ golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220712014510-0a85c31ab51e/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
+golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.1.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.5.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
