@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	charm.land/bubbletea/v2 v2.0.7
 	cuelang.org/go v0.17.1
-	filippo.io/age v1.3.1
+	filippo.io/age v1.3.2
 	github.com/AndroidGoLab/binder v0.0.9
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/Xmister/udf v0.0.0-20210116171753-6c18325874a7
@@ -68,7 +68,7 @@ require (
 	cloud.google.com/go/longrunning v1.1.0 // indirect
 	cloud.google.com/go/monitoring v1.29.0 // indirect
 	cloud.google.com/go/storage v1.56.0 // indirect
-	filippo.io/edwards25519 v1.1.1 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	filippo.io/hpke v0.4.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0 // indirect
