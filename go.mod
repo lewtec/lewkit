@@ -16,7 +16,7 @@ require (
 	github.com/dave/jennifer v1.7.1
 	github.com/diskfs/go-diskfs v1.9.4
 	github.com/ebitengine/purego v0.11.0
-	github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b
+	github.com/fetchurl/fetchurl v0.0.0-20260824103541-49881a25d469
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/getsops/sops/v3 v3.10.2
 	github.com/godbus/dbus/v5 v5.2.2
@@ -33,7 +33,7 @@ require (
 	github.com/lewtec/leaven-tree-sitter/grammar/make v0.0.0-20260927175155-6b7c6c643bc9
 	github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06
 	github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260927175003-766673523e06
-	github.com/lucasew/orvalho v0.0.0-20260720233020-b4936fd61914
+	github.com/lucasew/orvalho v0.0.0-20260920134237-d61ba6ce2eb5
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/core v0.0.0-20260927184652-669b18df5afb
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json v0.0.0-20260927184652-669b18df5afb
@@ -131,6 +131,7 @@ require (
 	github.com/emicklei/proto v1.14.3 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
+	github.com/evanw/esbuild v0.28.2 // indirect
 	github.com/facebookincubator/go-belt v0.0.0-20250308011339-62fb7027b11f // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
