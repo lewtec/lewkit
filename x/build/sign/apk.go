@@ -3,7 +3,6 @@ package sign
 import (
 	"archive/zip"
 	"bytes"
-	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -28,7 +27,7 @@ func (id *Identity) SignAPK(apk []byte) ([]byte, error) {
 	}
 	alg, err := algo.PickAlgorithm(id.Key)
 	if err != nil {
-		return nil, err
+		return nil, cause(ErrAPK, err)
 	}
 	var out bytes.Buffer
 	w := &apkwriter.SignedAPKWriter{
@@ -43,7 +42,7 @@ func (id *Identity) SignAPK(apk []byte) ([]byte, error) {
 		Align:    true,
 	}
 	if err := w.Write(&out); err != nil {
-		return nil, fmt.Errorf("apk: %w", err)
+		return nil, cause(ErrAPK, err)
 	}
 	return out.Bytes(), nil
 }
@@ -68,10 +67,10 @@ func (id *Identity) VerifyAPK(apk []byte) error {
 	}
 	res, err := apkverifier.Verify(datasource.NewBytes(apk), 26, 35)
 	if err != nil {
-		return fmt.Errorf("apk: %w", err)
+		return cause(ErrAPK, err)
 	}
 	if res == nil || !res.Verified || (!res.V2Verified && !res.V3Verified) {
-		return fmt.Errorf("apk: signature rejected")
+		return fail(ErrAPK, "signature rejected")
 	}
 	want := id.Certs[0].Raw
 	for _, got := range res.SignerCerts {
@@ -79,13 +78,13 @@ func (id *Identity) VerifyAPK(apk []byte) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("apk: signer certificate does not match")
+	return fail(ErrAPK, "signer certificate does not match")
 }
 
 func stripJARSignature(apk []byte) ([]byte, error) {
 	r, err := zip.NewReader(bytes.NewReader(apk), int64(len(apk)))
 	if err != nil {
-		return nil, fmt.Errorf("apk: %w", err)
+		return nil, cause(ErrAPK, err)
 	}
 	var buf bytes.Buffer
 	w := zip.NewWriter(&buf)
@@ -99,20 +98,20 @@ func stripJARSignature(apk []byte) ([]byte, error) {
 			Modified: f.Modified,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("apk: %w", err)
+			return nil, cause(ErrAPK, err)
 		}
 		rc, err := f.Open()
 		if err != nil {
-			return nil, fmt.Errorf("apk: %w", err)
+			return nil, cause(ErrAPK, err)
 		}
 		_, copyErr := io.Copy(dst, rc)
 		rc.Close()
 		if copyErr != nil {
-			return nil, fmt.Errorf("apk: %w", copyErr)
+			return nil, cause(ErrAPK, copyErr)
 		}
 	}
 	if err := w.Close(); err != nil {
-		return nil, fmt.Errorf("apk: %w", err)
+		return nil, cause(ErrAPK, err)
 	}
 	return buf.Bytes(), nil
 }

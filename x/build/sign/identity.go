@@ -5,8 +5,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"errors"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -14,16 +12,6 @@ import (
 )
 
 const rsaBits = 2048
-
-// ErrNotRSA means the PKCS#12 key is not RSA. Apple code-signing certificates
-// and Microsoft Authenticode are issued for RSA keys.
-var ErrNotRSA = errors.New("publisher key must be RSA")
-
-// ErrNoKey means a signature was requested without a private key.
-var ErrNoKey = errors.New("publisher key is required")
-
-// ErrPKCS12 means the PKCS#12 bytes could not be decoded.
-var ErrPKCS12 = errors.New("pkcs12")
 
 // Identity is one RSA publisher key and its certificates, leaf first.
 // The same key is presented as a PKCS#12, an APK signer, an Authenticode
@@ -73,14 +61,14 @@ func Generate(commonName string) (*Identity, error) {
 func LoadPKCS12(data []byte, password string) (*Identity, error) {
 	key, cert, cas, err := pkcs12.DecodeChain(data, password)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrPKCS12, err)
+		return nil, cause(ErrPKCS12, err)
 	}
 	rsaKey, ok := key.(*rsa.PrivateKey)
 	if !ok {
 		return nil, ErrNotRSA
 	}
 	if cert == nil {
-		return nil, fmt.Errorf("%w: missing certificate", ErrPKCS12)
+		return nil, fail(ErrCertificate, "missing certificate")
 	}
 	certs := append([]*x509.Certificate{cert}, cas...)
 	return &Identity{Key: rsaKey, Certs: certs}, nil
@@ -91,7 +79,11 @@ func (id *Identity) PKCS12(password string) ([]byte, error) {
 	if err := id.require(); err != nil {
 		return nil, err
 	}
-	return pkcs12.Modern2023.Encode(id.Key, id.Certs[0], id.Certs[1:], password)
+	der, err := pkcs12.Modern2023.Encode(id.Key, id.Certs[0], id.Certs[1:], password)
+	if err != nil {
+		return nil, cause(ErrPKCS12, err)
+	}
+	return der, nil
 }
 
 // CSR is a PKCS#10 request for this key, using the leaf subject.
@@ -114,10 +106,10 @@ func (id *Identity) WithCertificate(cert *x509.Certificate) (*Identity, error) {
 		return nil, err
 	}
 	if cert == nil {
-		return nil, errors.New("certificate is required")
+		return nil, fail(ErrCertificate, "certificate is required")
 	}
 	if !id.Key.PublicKey.Equal(cert.PublicKey) {
-		return nil, errors.New("certificate was not issued for this key")
+		return nil, fail(ErrCertificate, "certificate was not issued for this key")
 	}
 	certs := make([]*x509.Certificate, 1, len(id.Certs))
 	certs[0] = cert

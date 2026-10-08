@@ -34,7 +34,14 @@ func TestIdentityPKCS12AndCSR(t *testing.T) {
 	require.NoError(t, csr.CheckSignature())
 
 	_, err = LoadPKCS12(p12, "nope")
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrPKCS12)
+
+	_, err = id.WithCertificate(nil)
+	require.ErrorIs(t, err, ErrCertificate)
+	other, err := Generate("Other")
+	require.NoError(t, err)
+	_, err = id.WithCertificate(other.Certs[0])
+	require.ErrorIs(t, err, ErrCertificate)
 }
 
 func TestCMSRoundTrip(t *testing.T) {
@@ -44,7 +51,7 @@ func TestCMSRoundTrip(t *testing.T) {
 	sig, err := id.SignCMS(body)
 	require.NoError(t, err)
 	require.NoError(t, VerifyCMS(body, sig))
-	require.Error(t, VerifyCMS([]byte("other"), sig))
+	require.ErrorIs(t, VerifyCMS([]byte("other"), sig), ErrCMS)
 }
 
 func TestAPKRoundTrip(t *testing.T) {
@@ -82,6 +89,7 @@ func TestPERoundTrip(t *testing.T) {
 	signed, err := id.SignPE(t.Context(), minimalPE(), PEOptions{ProgramName: "demo", SigningTime: id.Certs[0].NotBefore})
 	require.NoError(t, err)
 	require.NoError(t, id.VerifyPE(signed))
+	require.ErrorIs(t, id.VerifyPE([]byte("not a pe")), ErrPE)
 }
 
 func TestPEGoWindowsExe(t *testing.T) {

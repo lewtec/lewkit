@@ -1,8 +1,6 @@
 package sign
 
 import (
-	"fmt"
-
 	"github.com/smallstep/pkcs7"
 )
 
@@ -14,16 +12,16 @@ func (id *Identity) SignCMS(content []byte) ([]byte, error) {
 	}
 	sd, err := pkcs7.NewSignedData(content)
 	if err != nil {
-		return nil, err
+		return nil, cause(ErrCMS, err)
 	}
 	parents := id.Certs[1:]
 	if err := sd.AddSignerChain(id.Certs[0], id.Key, parents, pkcs7.SignerInfoConfig{}); err != nil {
-		return nil, fmt.Errorf("cms: %w", err)
+		return nil, cause(ErrCMS, err)
 	}
 	sd.Detach()
 	der, err := sd.Finish()
 	if err != nil {
-		return nil, fmt.Errorf("cms: %w", err)
+		return nil, cause(ErrCMS, err)
 	}
 	return der, nil
 }
@@ -33,11 +31,11 @@ func (id *Identity) SignCMS(content []byte) ([]byte, error) {
 func VerifyCMS(content, signature []byte) error {
 	p7, err := pkcs7.Parse(signature)
 	if err != nil {
-		return fmt.Errorf("cms: %w", err)
+		return cause(ErrCMS, err)
 	}
 	p7.Content = content
 	if err := p7.Verify(); err != nil {
-		return fmt.Errorf("cms: %w", err)
+		return cause(ErrCMS, err)
 	}
 	return nil
 }

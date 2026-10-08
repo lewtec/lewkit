@@ -9,8 +9,6 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/binary"
-	"errors"
-	"fmt"
 	"math/big"
 	"os"
 	"sort"
@@ -18,9 +16,6 @@ import (
 
 	"github.com/KarpelesLab/authenticode"
 )
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("pe: nil context")
 
 // PEOptions selects Authenticode attributes. Zero values sign with SHA-256
 // and the current time, and skip the RFC 3161 timestamp.
@@ -44,12 +39,12 @@ func (id *Identity) SignPE(ctx context.Context, pe []byte, opts PEOptions) ([]by
 	}
 	parsed, err := authenticode.Parse(pe)
 	if err != nil {
-		return nil, fmt.Errorf("pe: %w", err)
+		return nil, cause(ErrPE, err)
 	}
 	digest := parsed.AuthenticodeDigest(sha256.New())
 	spc, err := authenticode.BuildSpcIndirectDataContent(digest, crypto.SHA256)
 	if err != nil {
-		return nil, fmt.Errorf("pe: %w", err)
+		return nil, cause(ErrPE, err)
 	}
 	if opts.SigningTime.IsZero() {
 		opts.SigningTime = time.Now().UTC()
@@ -85,18 +80,18 @@ func (id *Identity) VerifyPE(signed []byte) error {
 	}
 	parsed, err := authenticode.Parse(signed)
 	if err != nil {
-		return fmt.Errorf("pe: %w", err)
+		return cause(ErrPE, err)
 	}
 	cms, err := winCert(signed)
 	if err != nil {
 		return err
 	}
 	if !bytes.Contains(cms, id.Certs[0].Raw) {
-		return errors.New("pe: signer certificate is not embedded")
+		return fail(ErrPE, "signer certificate is not embedded")
 	}
 	digest := parsed.AuthenticodeDigest(sha256.New())
 	if !bytes.Contains(cms, digest) {
-		return errors.New("pe: authenticode digest is not in the signature")
+		return fail(ErrPE, "authenticode digest is not in the signature")
 	}
 	return verifyAuthenticodeRSA(cms, id.Certs[0])
 }
@@ -109,7 +104,7 @@ func buildAuthenticodeCMS(ctx context.Context, spc []byte, key crypto.Signer, ch
 
 	spcValue, err := tlvValue(spc)
 	if err != nil {
-		return nil, fmt.Errorf("pe: %w", err)
+		return nil, err
 	}
 	hh := h.New()
 	hh.Write(spcValue)
@@ -125,21 +120,21 @@ func buildAuthenticodeCMS(ctx context.Context, spc []byte, key crypto.Signer, ch
 	attrDigest := hh.Sum(nil)
 	signature, err := key.Sign(rand.Reader, attrDigest, h)
 	if err != nil {
-		return nil, fmt.Errorf("pe: %w", err)
+		return nil, cause(ErrPE, err)
 	}
 
 	var unsigned asn1.RawValue
 	if opts.TimestampURL != "" {
 		token, err := authenticode.RequestTimestamp(ctx, opts.TimestampURL, signature, h)
 		if err != nil {
-			return nil, fmt.Errorf("pe: %w", err)
+			return nil, cause(ErrPE, err)
 		}
 		attrDER, err := asn1.Marshal(attribute{
 			Type:   asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 3, 3, 1},
 			Values: asn1.RawValue{FullBytes: tlv(0x31, token)},
 		})
 		if err != nil {
-			return nil, err
+			return nil, cause(ErrPE, err)
 		}
 		unsigned = asn1.RawValue{FullBytes: tlv(0xA1, attrDER)}
 	}
@@ -177,7 +172,7 @@ func buildAuthenticodeCMS(ctx context.Context, spc []byte, key crypto.Signer, ch
 	}
 	sdDER, err := asn1.Marshal(sd)
 	if err != nil {
-		return nil, fmt.Errorf("pe: %w", err)
+		return nil, cause(ErrPE, err)
 	}
 	ci := contentInfo{
 		ContentType: asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 7, 2},
@@ -185,7 +180,7 @@ func buildAuthenticodeCMS(ctx context.Context, spc []byte, key crypto.Signer, ch
 	}
 	der, err := asn1.Marshal(ci)
 	if err != nil {
-		return nil, fmt.Errorf("pe: %w", err)
+		return nil, cause(ErrPE, err)
 	}
 	return der, nil
 }
@@ -193,19 +188,19 @@ func buildAuthenticodeCMS(ctx context.Context, spc []byte, key crypto.Signer, ch
 func signedAttributes(messageDigest []byte, signingTime time.Time, programName string) ([]byte, error) {
 	ctVal, err := asn1.Marshal(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 2, 1, 4})
 	if err != nil {
-		return nil, err
+		return nil, cause(ErrPE, err)
 	}
 	mdVal, err := asn1.Marshal(messageDigest)
 	if err != nil {
-		return nil, err
+		return nil, cause(ErrPE, err)
 	}
 	stVal, err := asn1.Marshal(signingTime)
 	if err != nil {
-		return nil, err
+		return nil, cause(ErrPE, err)
 	}
 	individual, err := asn1.Marshal(asn1.ObjectIdentifier{1, 3, 6, 1, 4, 1, 311, 2, 1, 21})
 	if err != nil {
-		return nil, err
+		return nil, cause(ErrPE, err)
 	}
 	attrs := []attribute{
 		{Type: asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 3}, Values: asn1.RawValue{FullBytes: tlv(0x31, ctVal)}},
@@ -227,7 +222,7 @@ func signedAttributes(messageDigest []byte, signingTime time.Time, programName s
 	for _, a := range attrs {
 		b, err := asn1.Marshal(a)
 		if err != nil {
-			return nil, err
+			return nil, cause(ErrPE, err)
 		}
 		encoded = append(encoded, b)
 	}
@@ -242,7 +237,7 @@ func opusInfo(programName string) ([]byte, error) {
 	bmp := make([]byte, 2*len(runes))
 	for i, r := range runes {
 		if r > 0xFFFF {
-			return nil, errors.New("pe: program name is outside the BMP")
+			return nil, fail(ErrPE, "program name is outside the BMP")
 		}
 		binary.BigEndian.PutUint16(bmp[2*i:], uint16(r))
 	}
@@ -252,7 +247,7 @@ func opusInfo(programName string) ([]byte, error) {
 func verifyAuthenticodeRSA(cms []byte, cert *x509.Certificate) error {
 	var info contentInfo
 	if _, err := asn1.Unmarshal(cms, &info); err != nil {
-		return fmt.Errorf("pe: %w", err)
+		return cause(ErrPE, err)
 	}
 	body, err := tlvValue(info.Content.FullBytes)
 	if err != nil {
@@ -260,31 +255,31 @@ func verifyAuthenticodeRSA(cms []byte, cert *x509.Certificate) error {
 	}
 	var sd signedData
 	if _, err := asn1.Unmarshal(body, &sd); err != nil {
-		return fmt.Errorf("pe: %w", err)
+		return cause(ErrPE, err)
 	}
 	if len(sd.SignerInfos) != 1 {
-		return errors.New("pe: expected one signer")
+		return fail(ErrPE, "expected one signer")
 	}
 	si := sd.SignerInfos[0]
 	attrs := si.SignedAttrs.FullBytes
 	if len(attrs) < 2 || attrs[0] != 0xA0 {
-		return errors.New("pe: signed attributes are missing")
+		return fail(ErrPE, "signed attributes are missing")
 	}
 	signedAttrs := append([]byte{0x31}, attrs[1:]...)
 	if err := cert.CheckSignature(x509.SHA256WithRSA, signedAttrs, si.Signature); err != nil {
-		return fmt.Errorf("pe: %w", err)
+		return cause(ErrPE, err)
 	}
 	return nil
 }
 
 func winCert(raw []byte) ([]byte, error) {
 	if len(raw) < 64 || raw[0] != 'M' || raw[1] != 'Z' {
-		return nil, errors.New("pe: not a PE")
+		return nil, fail(ErrPE, "not a PE")
 	}
 	lfanew := int(binary.LittleEndian.Uint32(raw[60:64]))
 	opt := lfanew + 24
 	if opt+2 > len(raw) {
-		return nil, errors.New("pe: truncated optional header")
+		return nil, fail(ErrPE, "truncated optional header")
 	}
 	optSize := int(binary.LittleEndian.Uint16(raw[lfanew+20 : lfanew+22]))
 	magic := binary.LittleEndian.Uint16(raw[opt : opt+2])
@@ -295,21 +290,21 @@ func winCert(raw []byte) ([]byte, error) {
 	case 0x20B:
 		dataDir = opt + 112
 	default:
-		return nil, errors.New("pe: unknown optional header")
+		return nil, fail(ErrPE, "unknown optional header")
 	}
 	certOff := dataDir + 4*8
 	if certOff+8 > len(raw) || opt+optSize > len(raw) {
-		return nil, errors.New("pe: certificate table is missing")
+		return nil, fail(ErrPE, "certificate table is missing")
 	}
 	va := binary.LittleEndian.Uint32(raw[certOff : certOff+4])
 	size := binary.LittleEndian.Uint32(raw[certOff+4 : certOff+8])
 	if va == 0 || size < 8 || int(va)+int(size) > len(raw) {
-		return nil, errors.New("pe: signature table is missing")
+		return nil, fail(ErrPE, "signature table is missing")
 	}
 	hdr := raw[va : va+8]
 	dwLength := binary.LittleEndian.Uint32(hdr[0:4])
 	if binary.LittleEndian.Uint16(hdr[6:8]) != 0x0002 || int(dwLength) < 8 || int(va)+int(dwLength) > len(raw) {
-		return nil, errors.New("pe: signature table is truncated")
+		return nil, fail(ErrPE, "signature table is truncated")
 	}
 	return raw[va+8 : va+dwLength], nil
 }
@@ -381,14 +376,14 @@ func tlv(tag byte, value []byte) []byte {
 
 func tlvValue(der []byte) ([]byte, error) {
 	if len(der) < 2 {
-		return nil, errors.New("truncated TLV")
+		return nil, fail(ErrPE, "truncated TLV")
 	}
 	off := 2
 	l := int(der[1])
 	if l&0x80 != 0 {
 		nl := l & 0x7F
 		if nl == 0 || nl > 4 || 2+nl > len(der) {
-			return nil, errors.New("bad long-form length")
+			return nil, fail(ErrPE, "bad long-form length")
 		}
 		l = 0
 		for i := 0; i < nl; i++ {
@@ -397,7 +392,7 @@ func tlvValue(der []byte) ([]byte, error) {
 		off = 2 + nl
 	}
 	if off+l > len(der) {
-		return nil, errors.New("truncated TLV body")
+		return nil, fail(ErrPE, "truncated TLV body")
 	}
 	return der[off : off+l], nil
 }

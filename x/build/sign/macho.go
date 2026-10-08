@@ -2,7 +2,6 @@ package sign
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,13 +21,13 @@ func SignMachO(id *Identity, path, bundleID string) error {
 	}
 	m, err := macho.NewFile(path)
 	if err != nil {
-		return fmt.Errorf("macho: %w", err)
+		return cause(ErrMachO, err)
 	}
 	defer m.Close()
 
 	if m.HasCodeSigningCmd() {
 		if err := m.RemoveSigningContent(); err != nil {
-			return fmt.Errorf("macho: %w", err)
+			return cause(ErrMachO, err)
 		}
 	}
 
@@ -38,25 +37,25 @@ func SignMachO(id *Identity, path, bundleID string) error {
 	}
 
 	if err := m.AddEmptyCodeSigningCmd(); err != nil {
-		return fmt.Errorf("macho: %w", err)
+		return cause(ErrMachO, err)
 	}
 	superBlobSize, sbBytes, err := sign.GenerateSigningSuperBlob(bundleID, m, material, "", 0)
 	if err != nil {
-		return fmt.Errorf("macho: %w", err)
+		return cause(ErrMachO, err)
 	}
 	if err := sign.UpdateSuperBlobOffsetReferences(m, uint64(len(sbBytes))); err != nil {
-		return fmt.Errorf("macho: %w", err)
+		return cause(ErrMachO, err)
 	}
 	_, sbBytes, err = sign.GenerateSigningSuperBlob(bundleID, m, material, "", superBlobSize)
 	if err != nil {
-		return fmt.Errorf("macho: %w", err)
+		return cause(ErrMachO, err)
 	}
 	cmd, _, err := m.CodeSigningCmd()
 	if err != nil {
-		return fmt.Errorf("macho: %w", err)
+		return cause(ErrMachO, err)
 	}
 	if err := m.Patch(sbBytes, len(sbBytes), uint64(cmd.DataOffset)); err != nil {
-		return fmt.Errorf("macho: %w", err)
+		return cause(ErrMachO, err)
 	}
 	return nil
 }
@@ -97,7 +96,7 @@ func signingMaterial(id *Identity) (pki.SigningMaterial, error) {
 		Certificates: id.Certs[1:],
 	}, false)
 	if err != nil {
-		return pki.SigningMaterial{}, fmt.Errorf("macho: %w", err)
+		return pki.SigningMaterial{}, cause(ErrMachO, err)
 	}
 	return *sm, nil
 }

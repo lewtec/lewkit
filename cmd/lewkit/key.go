@@ -20,6 +20,7 @@ import (
 var (
 	errNameRequired   = errors.New("publisher name is required")
 	errPathRequired   = errors.New("PKCS#12 path is required")
+	errPathIsDir      = errors.New("PKCS#12 path is a directory")
 	errReplaceRefused = errors.New("PKCS#12 already exists")
 )
 
@@ -124,7 +125,7 @@ func (c *keyCmd) replace(ctx context.Context, path string, confirm func(context.
 		return err
 	}
 	if info.IsDir() {
-		return fmt.Errorf("PKCS#12 path is a directory")
+		return errPathIsDir
 	}
 	if c.force.Value() {
 		return nil
