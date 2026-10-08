@@ -241,6 +241,8 @@ github.com/felixge/httpsnoop v1.1.0 h1:3YtUj32ZZkqZtt3sZZsClsymw/QDuVfpNhoA31zeO
 github.com/felixge/httpsnoop v1.1.0/go.mod h1:Zqxgdd+1Rkcz8euOqdr7lqgCRJztwr5hp9vDSi5UZCE=
 github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b h1:dx7DXonAznC51yya+/6GR08U1c45hV8ovZqgRD2gG4Y=
 github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b/go.mod h1:DPetlyhaswp5gzjSxJ11ouPp40CCY7TeC1I3yIGNdA4=
+github.com/fetchurl/fetchurl v0.0.0-20260824103541-49881a25d469 h1:896ojs98TfrzsemmmCb7wjCLOFy3HyJLqtZWZnCP+5Y=
+github.com/fetchurl/fetchurl v0.0.0-20260824103541-49881a25d469/go.mod h1:+4lDJG/idFLKctgMQXUwPc+m9IQUuJ+DyGrJ1i11THg=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/gdamore/encoding v1.0.0/go.mod h1:alR0ol34c49FCSBLjhosxzcPHQbf2trDkoo5dl+VrEg=
