@@ -20,11 +20,15 @@ import (
 	"github.com/lewtec/lewkit/x/path/pick"
 )
 
-// Run scans directory for root.go files and writes one prelude per
-// directory that contains a descendant root.go. A prelude blank-imports
-// each child package that has root.go and each child prelude when that
-// child has a nested root.go. dest is the prelude file for directory.
-// An empty dest prints that file to stdout and does not write the others.
+// Run scans directory for root.go files and writes one prelude per Go
+// package that contains a descendant root.go. A directory with no Go
+// file is not a package; its children attach to the package above it.
+// A prelude blank-imports each child package that has root.go and each
+// child prelude when that child has a nested root.go. dest is the
+// prelude file for directory. An empty dest prints that file to stdout
+// and does not write the others. A generated prelude.go that this scan
+// no longer emits is removed. A prelude.go without the generated header
+// stays.
 func Run(ctx context.Context, directory, dest string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -54,10 +58,7 @@ func Run(ctx context.Context, directory, dest string) error {
 	}
 	defer outFS.Close()
 	for _, file := range files {
-		target := top
-		if file.rel != "" {
-			target = path.New(file.rel).Join("prelude", "prelude.go")
-		}
+		target := targetOf(top, file.rel)
 		packageName := "prelude"
 		if name, err := packageOfDirectory(ctx, outFS, target.Parent()); err == nil {
 			packageName = name
@@ -72,6 +73,43 @@ func Run(ctx context.Context, directory, dest string) error {
 			}
 		}
 		if err := target.WriteFile(outFS, body.Bytes(), 0o644); err != nil {
+			return err
+		}
+	}
+	keep := make(map[string]struct{}, len(files))
+	for _, file := range files {
+		keep[targetOf(top, file.rel).String()] = struct{}{}
+	}
+	return removeStale(ctx, outFS, keep)
+}
+
+func targetOf(top path.Path, rel string) path.Path {
+	if rel == "" {
+		return top
+	}
+	return path.New(rel).Join("prelude", "prelude.go")
+}
+
+func removeStale(ctx context.Context, outFS *path.Root, keep map[string]struct{}) error {
+	for found, err := range lewfs.Walk(ctx, outFS, pick.Glob("**/prelude.go")) {
+		if err != nil {
+			return err
+		}
+		name := found.Name
+		if name.Name() != "prelude.go" || name.Parent().Name() != "prelude" {
+			continue
+		}
+		if _, ok := keep[name.String()]; ok {
+			continue
+		}
+		body, err := name.ReadFile(outFS)
+		if err != nil {
+			return err
+		}
+		if !bytes.Contains(body, []byte(generatedBy)) {
+			continue
+		}
+		if err := name.Remove(outFS); err != nil {
 			return err
 		}
 	}
@@ -108,6 +146,7 @@ type preludeFile struct {
 
 type dirNode struct {
 	hasRoot bool
+	isPkg   bool
 	kids    map[string]*dirNode
 }
 
@@ -160,9 +199,62 @@ func preludeFiles(ctx context.Context, filesystem *path.Root, base string) ([]pr
 		}
 		root.add(file.Name.Parent())
 	}
+	var mark func(*dirNode, string) error
+	mark = func(n *dirNode, rel string) error {
+		pkg, err := dirIsPackage(ctx, filesystem, rel)
+		if err != nil {
+			return err
+		}
+		n.isPkg = pkg
+		for _, name := range kidNames(n) {
+			childRel := name
+			if rel != "" {
+				childRel = rel + "/" + name
+			}
+			if err := mark(n.kids[name], childRel); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := mark(root, ""); err != nil {
+		return nil, err
+	}
 	plan := preludePlan{base: base}
 	plan.add(root, "")
 	return plan.out, nil
+}
+
+func dirIsPackage(ctx context.Context, filesystem *path.Root, rel string) (bool, error) {
+	dir := path.New(rel)
+	for child, err := range dir.IterDir(filesystem) {
+		if err != nil {
+			return false, err
+		}
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		if child.Suffix() != ".go" || strings.HasSuffix(child.Stem(), "_test") {
+			continue
+		}
+		ok, err := child.IsFile(filesystem)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func kidNames(n *dirNode) []string {
+	names := make([]string, 0, len(n.kids))
+	for name := range n.kids {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
 }
 
 func (p *preludePlan) add(n *dirNode, rel string) {
@@ -172,17 +264,29 @@ func (p *preludePlan) add(n *dirNode, rel string) {
 		}
 		return
 	}
-	names := make([]string, 0, len(n.kids))
-	for name := range n.kids {
-		names = append(names, name)
+	if rel == "" || n.isPkg {
+		p.out = append(p.out, preludeFile{rel: rel, imports: p.collect(n, rel)})
 	}
-	slices.Sort(names)
-	imports := make([]string, 0, len(names))
-	for _, name := range names {
+	for _, name := range kidNames(n) {
+		childRel := name
+		if rel != "" {
+			childRel = rel + "/" + name
+		}
+		p.add(n.kids[name], childRel)
+	}
+}
+
+func (p *preludePlan) collect(n *dirNode, rel string) []string {
+	imports := make([]string, 0, len(n.kids))
+	for _, name := range kidNames(n) {
 		kid := n.kids[name]
 		childRel := name
 		if rel != "" {
 			childRel = rel + "/" + name
+		}
+		if !kid.isPkg {
+			imports = append(imports, p.collect(kid, childRel)...)
+			continue
 		}
 		if kid.hasRoot {
 			imports = append(imports, stdpath.Join(p.base, childRel))
@@ -192,14 +296,7 @@ func (p *preludePlan) add(n *dirNode, rel string) {
 		}
 	}
 	slices.Sort(imports)
-	p.out = append(p.out, preludeFile{rel: rel, imports: slices.Compact(imports)})
-	for _, name := range names {
-		childRel := name
-		if rel != "" {
-			childRel = rel + "/" + name
-		}
-		p.add(n.kids[name], childRel)
-	}
+	return slices.Compact(imports)
 }
 
 func packageOfDirectory(ctx context.Context, filesystem *path.Root, directory path.Path) (string, error) {
