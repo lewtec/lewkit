@@ -265,52 +265,59 @@ func (m Interview) View() tea.View {
 			b.WriteByte('\n')
 		}
 		if i < m.index {
-			b.WriteString("◇ ")
-			b.WriteString(q.Prompt)
+			b.WriteString(styleDone.Render("◇ " + q.Prompt))
 			b.WriteByte('\n')
-			b.WriteString("│ ")
-			b.WriteString(answerText(q, m.answers, i))
+			b.WriteString(styleDone.Render("│ " + answerText(q, m.answers, i)))
 			continue
 		}
-		b.WriteString("◆ ")
-		b.WriteString(q.Prompt)
+		b.WriteString(styleActive.Render("◆ " + q.Prompt))
 		b.WriteByte('\n')
 		if len(q.Choices) > 0 {
 			for ci, choice := range q.Choices {
 				if ci > 0 {
 					b.WriteByte('\n')
 				}
-				b.WriteString("│ ")
+				row := "│ "
 				if ci == m.choice {
-					b.WriteString("● ")
+					row += "● "
 				} else {
-					b.WriteString("○ ")
+					row += "○ "
 				}
-				b.WriteString(choice)
+				row += choice
 				if q.Default != "" && choice == q.Default {
-					b.WriteString("  default")
+					row += "  default"
+				}
+				if ci == m.choice {
+					b.WriteString(stylePick.Render(row))
+				} else {
+					b.WriteString(styleChoice.Render(row))
 				}
 			}
 		} else {
-			b.WriteString("│ > ")
 			line := string(m.input)
-			b.WriteString(line)
+			plain := "│ > " + line
+			b.WriteString(styleInput.Render(plain))
 			showCursor = true
-			cursorX = runewidth.StringWidth("│ > " + line)
+			cursorX = runewidth.StringWidth(plain)
 			cursorY = strings.Count(b.String(), "\n")
 			if q.Default != "" {
-				b.WriteString("\n│ default: ")
-				b.WriteString(q.Default)
+				b.WriteByte('\n')
+				b.WriteString(styleHint.Render("│ default: " + q.Default))
 			}
 		}
 	}
 	if len(m.questions) > 0 && m.index < len(m.questions) {
-		b.WriteString("\n│\n│ ")
+		b.WriteByte('\n')
+		b.WriteString(styleBar.Render("│"))
+		b.WriteByte('\n')
+		b.WriteString(styleBar.Render("│ "))
 		if m.index > 0 {
-			b.WriteString("← back    ")
+			b.WriteString(styleBack.Render("← back"))
+			b.WriteString(styleBar.Render("    "))
 		}
-		b.WriteString(m.forwardLabel())
-		b.WriteString("\n└")
+		b.WriteString(styleNext.Render(m.forwardLabel()))
+		b.WriteByte('\n')
+		b.WriteString(styleBar.Render("└"))
 	}
 	view := tea.NewView(b.String())
 	if showCursor {

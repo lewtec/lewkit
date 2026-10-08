@@ -61,6 +61,26 @@ func TestKeyPromptsForMissingFields(t *testing.T) {
 	assert.Equal(t, "Acme", id.Certs[0].Subject.CommonName)
 }
 
+func TestKeyOutDefaultsToPublisherFile(t *testing.T) {
+	unsetTestEnv(t, "LEWKIT_SIGN_P12")
+	key := cmd.ParseOK[cmd.App[root]](t, "release", "key").Args.release.key
+	assert.False(t, key.out.ArgSet())
+	assert.Equal(t, "publisher.p12", key.out.Value())
+	asks, err := cmd.Asks(key)
+	require.NoError(t, err)
+	var path cmd.Ask
+	var saw bool
+	for _, ask := range asks {
+		if ask.Name == "out" {
+			path = ask
+			saw = true
+		}
+	}
+	require.True(t, saw)
+	assert.Equal(t, "publisher.p12", path.Default)
+	assert.Equal(t, "PKCS#12 file to write", path.Prompt)
+}
+
 func TestKeyRejectsEmptyName(t *testing.T) {
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "key", "--out", filepath.Join(t.TempDir(), "k.p12"))

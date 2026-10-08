@@ -29,7 +29,7 @@ var (
 // interview on the caller context. A missing .sops.yaml is an error.
 type keyCmd struct {
 	name  cmd.StringArg `long:"name" help:"certificate common name" default:""`
-	out   cmd.StringArg `long:"out" env:"LEWKIT_SIGN_P12" help:"PKCS#12 file to write" default:""`
+	out   cmd.StringArg `long:"out" env:"LEWKIT_SIGN_P12" help:"PKCS#12 file to write" default:"publisher.p12"`
 	force cmd.Flag      `long:"force" help:"replace an existing PKCS#12"`
 }
 
