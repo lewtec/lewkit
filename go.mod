@@ -45,7 +45,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/tc-hib/winres v0.2.1
 	github.com/tetratelabs/wazero v1.12.0
-	github.com/ulikunitz/xz v0.5.15
+	github.com/ulikunitz/xz v0.5.17
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/crypto v0.57.0
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
