@@ -68,21 +68,14 @@ func (c *dbCmd) Run(ctx context.Context) error {
 	return generate.Run(ctx, c.dir.Value())
 }
 
-type preludeCmd struct {
-	dir cmd.WorkDirArg `help:"directory to scan for root.go"`
-	out *cmd.StringArg `help:"prelude file for DIR; stdout if omitted"`
-}
+type preludeCmd struct{}
 
 func (preludeCmd) Description() string {
-	return "one blank-import prelude per directory with a descendant root.go"
+	return "blank-import preludes for every root.go in the working directory"
 }
 
-func (c *preludeCmd) Run(ctx context.Context) error {
-	dest := ""
-	if c.out != nil {
-		dest = c.out.Value()
-	}
-	return prelude.Run(ctx, c.dir.Value(), dest)
+func (preludeCmd) Run(ctx context.Context) error {
+	return prelude.Run(ctx, ".", "prelude/prelude.go")
 }
 
 type protobufCmd struct {

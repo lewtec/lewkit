@@ -36,6 +36,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 
 | Path | API |
 | --- | --- |
+| `prelude` | Blank-import. Registers every `root.go` tree in this module. |
 | `x/path` | `Path`, `New`, `Open`. A `Path` is a slash name. `Open` takes the OS directory. |
 | `x/path/pick` | `Predicate`, `Match`, `Glob`, `Prune`, `And`, `Or`, `Not`. |
 | `x/fs` | `Files`, `Walk`, `Filter`, `Copy`, `Index`, `New`, `Lookup`, `StripTopDirectory`. `Walk` reads an `io/fs`. `Copy` writes a listing. `Index` decorates a flat listing. `New` builds that index. `Lookup` walks a filesystem that already has directories. `StripTopDirectory` returns an `io/fs` with one leading directory removed. |
@@ -86,7 +87,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
 | `x/generate` | Helpers shared by the generator packages. |
-| `x/generate/prelude` | Writes one blank-import prelude per directory that contains a descendant `root.go`. |
+| `x/generate/prelude` | Writes one blank-import prelude per Go package that contains a descendant `root.go`. A directory with no Go file is skipped. |
 | `x/generate/protobuf` | Writes Go from one `.proto` file. `protoc` comes from `x/tool`. A `modot.lock.json` pin selects the version. |
 | `x/tool` | `Open`, `Ensure`, `Install`, `Resolve`. A spec is `backend:ref@version`. The caller owns the store directory. |
 | `x/tool/github` | GitHub Releases backend. |
@@ -188,14 +189,14 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit disasm raw PATH` | Instructions for a raw byte file. `PATH` `-` reads stdin. |
 | `lewkit disasm file PATH` | One text section from an ELF, PE, or Mach-O file. |
 | `lewkit generate db DIR` | sqlc packages, a `Queries` interface, and `DBArg`. |
-| `lewkit generate prelude DIR [OUT]` | One blank-import prelude per directory under `DIR` that contains a descendant `root.go`. `OUT` is the file for `DIR`. |
+| `lewkit generate prelude` | Blank-import preludes for every `root.go` in the working directory. Writes `prelude/prelude.go`. |
 | `lewkit generate protobuf FILE` | Go source for a `.proto` file. |
 | `lewkit generate shader DIR` | One `spirv_gen.go` per Go package under `DIR` that owns a `name.<stage>.glsl` file. The second-to-last extension is `vertex`, `fragment`, or `compute`. The file maps that shader hash to SPIR-V. |
 | `lewkit completion` | The bash `complete -C` line for this program. |
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 
-`lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. An omitted `OUT` on `generate prelude` writes the prelude for `DIR` to stdout and does not write the nested preludes. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
+`lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. `lewkit generate prelude` takes no arguments. It scans the working directory and writes `prelude/prelude.go` there, plus a prelude for each Go package under it that has a descendant `root.go`. A directory with no Go file does not get a prelude; its children attach to the package above it. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
 
 ### Examples
 

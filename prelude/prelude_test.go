@@ -1,4 +1,4 @@
-package prelude
+package prelude_test
 
 import (
 	"testing"

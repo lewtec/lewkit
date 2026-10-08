@@ -69,6 +69,10 @@ func TestGeneratePreludeUsage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "prelude")
 	assert.Contains(t, text, "blank-import")
+	assert.Contains(t, text, "working directory")
+	cmd.ParseOK[cmd.App[root]](t, "generate", "prelude")
+	err = cmd.ParseErr[cmd.App[root]](t, "generate", "prelude", ".")
+	assert.ErrorIs(t, err, cmd.ErrInvalidArgument)
 }
 
 func TestGenerateProtobufUsage(t *testing.T) {
