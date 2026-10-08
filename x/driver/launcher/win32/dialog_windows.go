@@ -11,7 +11,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/ffi/native"
 
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 )
 
 const (

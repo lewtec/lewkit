@@ -3,6 +3,6 @@
 package prelude
 
 import (
-	_ "github.com/lewtec/lewkit/x/sound/mp3"
-	_ "github.com/lewtec/lewkit/x/sound/ogg"
+	_ "github.com/lewtec/lewkit/x/db/postgres"
+	_ "github.com/lewtec/lewkit/x/db/sqlite"
 )

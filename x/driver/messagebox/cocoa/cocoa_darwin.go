@@ -13,7 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/messagebox"
 	"github.com/lewtec/lewkit/x/driver/thread"
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 

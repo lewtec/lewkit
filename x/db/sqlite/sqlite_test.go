@@ -13,7 +13,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db"
-	_ "github.com/lewtec/lewkit/x/db/sqlite"
+	_ "github.com/lewtec/lewkit/x/db/prelude"
 	"github.com/lewtec/lewkit/x/test"
 )
 

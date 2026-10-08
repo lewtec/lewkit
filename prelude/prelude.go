@@ -3,7 +3,10 @@
 package prelude
 
 import (
+	_ "github.com/lewtec/lewkit/x/compression/prelude"
+	_ "github.com/lewtec/lewkit/x/db/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	_ "github.com/lewtec/lewkit/x/http/asset/prelude"
+	_ "github.com/lewtec/lewkit/x/sound/prelude"
 	_ "github.com/lewtec/lewkit/x/tool/prelude"
 )

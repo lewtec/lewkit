@@ -13,7 +13,7 @@ import (
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
-	_ "github.com/lewtec/lewkit/x/tool/github"
+	_ "github.com/lewtec/lewkit/x/tool/prelude"
 )
 
 const protocRef = "github:protocolbuffers/protobuf"

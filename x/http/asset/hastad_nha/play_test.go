@@ -10,7 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/audio_play"
 	"github.com/lewtec/lewkit/x/driver/audio_play/mem"
 	"github.com/lewtec/lewkit/x/sound"
-	_ "github.com/lewtec/lewkit/x/sound/mp3"
+	_ "github.com/lewtec/lewkit/x/sound/prelude"
 	"github.com/stretchr/testify/require"
 )
 

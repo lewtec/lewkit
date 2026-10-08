@@ -2,4 +2,7 @@
 
 package prelude
 
-import _ "github.com/lewtec/lewkit/x/driver/thread/std"
+import (
+	_ "github.com/lewtec/lewkit/x/driver/thread/jni"
+	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+)

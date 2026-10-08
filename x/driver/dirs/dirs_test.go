@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver/dirs"
-	_ "github.com/lewtec/lewkit/x/driver/dirs/os"
+	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
 )
 
 func TestResolve_RejectsBadAppID(t *testing.T) {

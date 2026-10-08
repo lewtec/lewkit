@@ -21,7 +21,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/messagebox"
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/prelude"
 	"github.com/lewtec/lewkit/x/driver/thread"
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"

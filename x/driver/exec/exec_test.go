@@ -12,7 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
-	_ "github.com/lewtec/lewkit/x/driver/exec/native"
+	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/stretchr/testify/require"
 )
