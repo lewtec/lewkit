@@ -88,7 +88,7 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 		return nil, ErrClosed
 	}
 	if size < 1 {
-		return nil, ErrSize
+		return nil, fmt.Errorf("%w: buffer", ErrSize)
 	}
 	n := size
 	if n < 4 {
@@ -158,7 +158,7 @@ func (b *Buffer) Store(p []byte) error {
 		return ErrClosed
 	}
 	if len(p) > b.size {
-		return ErrSize
+		return fmt.Errorf("%w: store", ErrSize)
 	}
 	b.dev.mu.Lock()
 	defer b.dev.mu.Unlock()
@@ -178,7 +178,7 @@ func (b *Buffer) Read(p []byte) error {
 		return ErrClosed
 	}
 	if len(p) > b.size {
-		return ErrSize
+		return fmt.Errorf("%w: read", ErrSize)
 	}
 	if len(p) == 0 {
 		return nil
@@ -300,7 +300,7 @@ func (d *Device) Compile(source string, threads int) (*Pipeline, error) {
 
 func shaderBindings(source string, threads int) (int, error) {
 	if threads < 1 || threads > 1024 || source == "" {
-		return 0, ErrSize
+		return 0, fmt.Errorf("%w: threads", ErrSize)
 	}
 	mark := fmt.Sprintf("[numthreads(%d, 1, 1)]", threads)
 	if strings.Count(source, mark) != 1 {
@@ -326,6 +326,7 @@ func shaderBindings(source string, threads int) (int, error) {
 
 // Dispatch runs groups thread groups and waits until the GPU finishes.
 // bufs[0] is the UAV. The rest are SRVs. push is the 20-byte root constant.
+// Groups above one dimension stack on Y. The sixth root constant is that span.
 func (p *Pipeline) Dispatch(bufs []*Buffer, push []byte, groups int) error {
 	if p == nil || p.dev == nil {
 		return ErrClosed
@@ -333,8 +334,15 @@ func (p *Pipeline) Dispatch(bufs []*Buffer, push []byte, groups int) error {
 	if groups < 1 {
 		return nil
 	}
-	if groups > maxGroup || len(push) < 20 || len(bufs) != 1+p.srvs {
-		return ErrSize
+	gx, gy, err := DispatchGrid(groups)
+	if err != nil {
+		return err
+	}
+	if len(push) < 20 {
+		return fmt.Errorf("%w: push", ErrSize)
+	}
+	if len(bufs) != 1+p.srvs {
+		return fmt.Errorf("%w: bindings", ErrSize)
 	}
 	p.dev.mu.Lock()
 	defer p.dev.mu.Unlock()
@@ -343,20 +351,20 @@ func (p *Pipeline) Dispatch(bufs []*Buffer, push []byte, groups int) error {
 	}
 	for _, b := range bufs {
 		if b == nil || b.dev != p.dev || b.closed || b.def == 0 {
-			return ErrSize
+			return fmt.Errorf("%w: binding", ErrSize)
 		}
 	}
 	if err := p.dev.eng.begin(); err != nil {
 		return err
 	}
-	if err := p.record(bufs, push, groups); err != nil {
+	if err := p.record(bufs, push, gx, gy); err != nil {
 		_ = p.dev.eng.closeList()
 		return err
 	}
 	return p.dev.eng.submit()
 }
 
-func (p *Pipeline) record(bufs []*Buffer, push []byte, groups int) error {
+func (p *Pipeline) record(bufs []*Buffer, push []byte, gx, gy uint32) error {
 	eng := p.dev.eng
 	for _, b := range bufs {
 		if err := b.flush(); err != nil {
@@ -380,12 +388,13 @@ func (p *Pipeline) record(bufs []*Buffer, push []byte, groups int) error {
 	for i, b := range bufs[1:] {
 		syscallV(eng.list, slotComputeSRV, uintptr(1+i), b.addr)
 	}
-	var words [5]uint32
-	for i := range words {
+	var words [pushWords]uint32
+	for i := 0; i < pushWords-1; i++ {
 		words[i] = binary.LittleEndian.Uint32(push[i*4 : i*4+4])
 	}
+	words[pushWords-1] = gx * uint32(p.threads)
 	eng.constants(slotComputeConst, 1+p.srvs, words[:])
-	syscallV(eng.list, slotDispatch, uintptr(groups), 1, 1)
+	syscallV(eng.list, slotDispatch, uintptr(gx), uintptr(gy), 1)
 	return nil
 }
 

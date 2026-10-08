@@ -28,11 +28,14 @@ func hlslOf(c ndarray.Code) string {
 	for i, dt := range c.In {
 		fmt.Fprintf(&b, "StructuredBuffer<%s> x%d : register(t%d);\n", scalar(dt), i+1, i)
 	}
+	// span is the sixth root constant: groupsX * numthreads.x.
+	// A dispatch wider than 65535 groups stacks the rest on Y.
+	// tid.y is 0 when that stack is one row, so gid stays tid.x.
 	b.WriteString("cbuffer Push : register(b0) {\n")
-	b.WriteString("    uint n;\n    uint d0;\n    uint d1;\n    uint d2;\n    uint d3;\n};\n")
+	b.WriteString("    uint n;\n    uint d0;\n    uint d1;\n    uint d2;\n    uint d3;\n    uint span;\n};\n")
 	fmt.Fprintf(&b, "[numthreads(%d, 1, 1)]\n", c.Threads)
 	b.WriteString("void ndeval(uint3 tid : SV_DispatchThreadID) {\n")
-	b.WriteString("    uint gid = tid.x;\n")
+	b.WriteString("    uint gid = tid.y * span + tid.x;\n")
 	b.WriteString("    uint gi = gid;\n")
 	writeBody(&b, c, func(e ndarray.Expr) string {
 		var s strings.Builder

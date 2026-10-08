@@ -652,7 +652,7 @@ func computeRoot(dev uintptr, srvs int) (uintptr, error) {
 	for i := 0; i < srvs; i++ {
 		params = append(params, srvParam(uint32(i)))
 	}
-	params = append(params, constParam(0, 5))
+	params = append(params, constParam(0, pushWords))
 	return makeRoot(dev, params, rootDenyGraphics)
 }
 
