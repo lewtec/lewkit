@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
-	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
 	"github.com/lewtec/lewkit/x/taskgroup"
 
 	"github.com/stretchr/testify/require"

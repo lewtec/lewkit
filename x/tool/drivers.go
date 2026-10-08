@@ -1,6 +1,6 @@
 package tool
 
 import (
-	_ "github.com/lewtec/lewkit/x/driver/fetchurl/native"
-	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+	_ "github.com/lewtec/lewkit/x/driver/fetchurl/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
 )

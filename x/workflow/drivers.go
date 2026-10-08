@@ -1,7 +1,7 @@
 package workflow
 
 import (
-	_ "github.com/lewtec/lewkit/x/driver/exec/native"
-	_ "github.com/lewtec/lewkit/x/driver/fetchurl/native"
-	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/fetchurl/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
 )

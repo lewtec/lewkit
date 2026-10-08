@@ -2,7 +2,7 @@ package vulkan
 
 import (
 	"github.com/lewtec/lewkit/x/driver/thread"
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	ffivulkan "github.com/lewtec/lewkit/x/ffi/native/vulkan"
 )
 

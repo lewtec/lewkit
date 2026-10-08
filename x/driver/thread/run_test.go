@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver/thread"
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/stretchr/testify/require"
 )
 

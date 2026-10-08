@@ -16,10 +16,10 @@
 //
 // Off the CLI, same type: Parse the URL (or FromURL), Open, Value.
 //
-// Blank-import engines so their schemes register:
+// Blank-import the prelude so every engine registers. Import one engine
+// package when the binary should carry only that driver.
 //
-//	import _ "github.com/lewtec/lewkit/x/db/sqlite"
-//	import _ "github.com/lewtec/lewkit/x/db/postgres"
+//	import _ "github.com/lewtec/lewkit/x/db/prelude"
 //
 // URLs: postgres://…, sqlite://path, file:path, :memory:, or a bare path.
 //

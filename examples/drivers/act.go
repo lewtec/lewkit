@@ -44,7 +44,7 @@ import (
 	"github.com/lewtec/lewkit/x/http/asset/hastad_nha"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/sound"
-	_ "github.com/lewtec/lewkit/x/sound/mp3"
+	_ "github.com/lewtec/lewkit/x/sound/prelude"
 )
 
 func runBrightness(ctx context.Context, _ *page, op string, r *http.Request) (string, error) {

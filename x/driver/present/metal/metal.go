@@ -9,7 +9,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/present"
 	"github.com/lewtec/lewkit/x/driver/thread"
-	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/ffi/native/dispatch"
 	ffimetal "github.com/lewtec/lewkit/x/ffi/native/metal"

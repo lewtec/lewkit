@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "github.com/lewtec/lewkit/x/driver/dirs/os"
-	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
 )
 
 func TestArtCacheLocal(t *testing.T) {
