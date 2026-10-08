@@ -398,6 +398,8 @@ github.com/lewtec/leaven-tree-sitter/grammar/json v0.0.0-20260927175155-6b7c6c64
 github.com/lewtec/leaven-tree-sitter/grammar/json v0.0.0-20260927175155-6b7c6c643bc9/go.mod h1:d347ipdlOhfOBhKfyPSw22KMhKQ3VZZV2wgs2R9DYfo=
 github.com/lewtec/leaven-tree-sitter/grammar/make v0.0.0-20260927175155-6b7c6c643bc9 h1:lWv5+GriK+jp19N1vvc26cGcqAzuWrc7J22R/kkKXYg=
 github.com/lewtec/leaven-tree-sitter/grammar/make v0.0.0-20260927175155-6b7c6c643bc9/go.mod h1:XWpUGeAdj1aYHmyRIUXU+xAj9CEqWjmf9ROfPVQh6es=
+github.com/lewtec/leaven-tree-sitter/grammar/make v0.0.0-20260927191427-b55c533d023c h1:ZeHHv646GYjOU5DPnqAvbnE4MnT3mAXN2dPWljs7BNY=
+github.com/lewtec/leaven-tree-sitter/grammar/make v0.0.0-20260927191427-b55c533d023c/go.mod h1:IB7OVNZwS8puiE6bD8zgRaaJK5J1+3iOwPtPh7TfSII=
 github.com/lewtec/modot v0.0.0-20260929134515-210a7cf9e4f3 h1:CKjcg9PH6hb3kBaMNH4toyBIAqJTtUeCX2+WTysIEyY=
 github.com/lewtec/modot v0.0.0-20260929134515-210a7cf9e4f3/go.mod h1:hSunxKnlwdIsiQzxJNMML9BuD6HkYyqQKERzZYc23rs=
 github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06 h1:qYGqfJ5fiQeRfSxsvcOwVbADQsZy8raGYr6l1EpaaOc=
