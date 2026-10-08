@@ -32,7 +32,7 @@ require (
 	github.com/lewtec/leaven-tree-sitter/grammar/json v0.0.0-20260927175155-6b7c6c643bc9
 	github.com/lewtec/leaven-tree-sitter/grammar/make v0.0.0-20260927175155-6b7c6c643bc9
 	github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06
-	github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260927175003-766673523e06
+	github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260927191430-7863ea35cdcc
 	github.com/lucasew/orvalho v0.0.0-20260720233020-b4936fd61914
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/core v0.0.0-20260927184652-669b18df5afb
