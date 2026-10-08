@@ -15,7 +15,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/dave/jennifer v1.7.1
 	github.com/diskfs/go-diskfs v1.9.4
-	github.com/ebitengine/purego v0.11.0
+	github.com/ebitengine/purego v0.11.1
 	github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/getsops/sops/v3 v3.10.2
@@ -40,7 +40,7 @@ require (
 	github.com/opencontainers/selinux v1.13.1
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
-	github.com/shirou/gopsutil/v4 v4.26.8
+	github.com/shirou/gopsutil/v4 v4.26.9
 	github.com/sqlc-dev/sqlc v1.31.1
 	github.com/stretchr/testify v1.12.1
 	github.com/tc-hib/winres v0.2.1
@@ -209,7 +209,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/xattr v0.4.12 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
-	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20260420112717-c39628bde8b5 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
@@ -222,8 +222,8 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
 	github.com/sqlc-dev/doubleclick v1.0.0 // indirect
-	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/tklauser/numcpus v0.11.0 // indirect
+	github.com/tklauser/go-sysconf v0.4.0 // indirect
+	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/urfave/cli v1.22.16 // indirect
 	github.com/wasilibs/go-pgquery v0.0.0-20250409022910-10ac41983c07 // indirect
 	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
