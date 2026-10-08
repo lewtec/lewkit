@@ -47,14 +47,18 @@ func (c *keyCmd) Run(ctx context.Context) error {
 }
 
 func (c *keyCmd) write(ctx context.Context) error {
-	return c.generate(ctx, tui.Run)
+	return c.generate(ctx, func(ctx context.Context, questions []tui.Question, grow tui.Grow) ([]tui.Answer, error) {
+		return tui.Run(ctx, tui.New(questions).WithGrow(grow))
+	})
 }
 
-type interview func(context.Context, []tui.Question) ([]tui.Answer, error)
+type interview func(context.Context, []tui.Question, tui.Grow) ([]tui.Answer, error)
 
 func (c *keyCmd) generate(ctx context.Context, run interview) error {
 	if run == nil {
-		run = tui.Run
+		run = func(ctx context.Context, questions []tui.Question, grow tui.Grow) ([]tui.Answer, error) {
+			return tui.Run(ctx, tui.New(questions).WithGrow(grow))
+		}
 	}
 	name, path, err := c.interview(ctx, run)
 	if err != nil {
@@ -83,80 +87,115 @@ func (c *keyCmd) generate(ctx context.Context, run interview) error {
 }
 
 func (c *keyCmd) interview(ctx context.Context, run interview) (string, string, error) {
-	name := strings.TrimSpace(c.name.Value())
-	path := strings.TrimSpace(c.out.Value())
-	questions := make([]tui.Question, 0, 3)
-	if name == "" {
-		questions = append(questions, tui.Question{Prompt: "Publisher name"})
+	asks, err := cmd.Asks(c)
+	if err != nil {
+		return "", "", err
 	}
-	if path == "" {
-		questions = append(questions, tui.Question{Prompt: "PKCS#12 path"})
+	questions := make([]tui.Question, len(asks))
+	for i, ask := range asks {
+		questions[i] = tui.Question{Prompt: ask.Prompt, Default: ask.Default, Choices: ask.Choices}
 	}
-	confirmed := ""
-	if path != "" {
-		exists, err := occupied(path)
+	var grow tui.Grow
+	if !c.out.ArgSet() || strings.TrimSpace(c.out.Value()) == "" {
+		grow = c.replaceGrow(asks)
+	} else if !c.force.Value() {
+		exists, err := occupied(c.out.Value())
 		if err != nil {
 			return "", "", err
 		}
-		if exists && !c.force.Value() {
-			confirmed = path
-			questions = append(questions, tui.Question{Prompt: "Replace " + path + "?", Confirm: true})
+		if exists {
+			questions = append(questions, replaceQuestion(c.out.Value()))
 		}
 	}
+	var answers []tui.Answer
 	if len(questions) > 0 {
-		answers, err := run(ctx, questions)
+		answers, err = run(ctx, questions, grow)
 		if err != nil {
 			return "", "", err
 		}
-		if len(answers) != len(questions) {
+		if len(answers) < len(questions) {
 			return "", "", tui.ErrCanceled
 		}
-		n := 0
-		if name == "" {
-			name = strings.TrimSpace(answers[n].Text)
-			n++
-			if name == "" {
-				return "", "", errNameRequired
-			}
-		}
-		if path == "" {
-			path = strings.TrimSpace(answers[n].Text)
-			n++
-			if path == "" {
-				return "", "", errPathRequired
-			}
-		}
-		if confirmed != "" && !answers[n].Yes {
-			return "", "", errReplaceRefused
+	}
+	for i, ask := range asks {
+		if err := ask.Apply(strings.TrimSpace(answers[i].Text)); err != nil {
+			return "", "", err
 		}
 	}
+	name := strings.TrimSpace(c.name.Value())
+	path := strings.TrimSpace(c.out.Value())
 	if name == "" {
 		return "", "", errNameRequired
 	}
 	if path == "" {
 		return "", "", errPathRequired
 	}
-	if path == confirmed {
+	if c.force.Value() {
+		return name, path, nil
+	}
+	if len(answers) > len(asks) {
+		if answers[len(asks)].Text != "yes" {
+			return "", "", errReplaceRefused
+		}
 		return name, path, nil
 	}
 	exists, err := occupied(path)
 	if err != nil {
 		return "", "", err
 	}
-	if !exists || c.force.Value() {
+	if !exists {
 		return name, path, nil
 	}
-	answers, err := run(ctx, []tui.Question{{
-		Prompt:  "Replace " + path + "?",
-		Confirm: true,
-	}})
+	more, err := run(ctx, []tui.Question{replaceQuestion(path)}, nil)
 	if err != nil {
 		return "", "", err
 	}
-	if len(answers) != 1 || !answers[0].Yes {
+	if len(more) != 1 || more[0].Text != "yes" {
 		return "", "", errReplaceRefused
 	}
 	return name, path, nil
+}
+
+func (c *keyCmd) replaceGrow(asks []cmd.Ask) tui.Grow {
+	return func(answers []tui.Answer) ([]tui.Question, error) {
+		if c.force.Value() {
+			return nil, nil
+		}
+		path, ok := answerFor(asks, answers, "out")
+		if !ok {
+			path = strings.TrimSpace(c.out.Value())
+		}
+		path = strings.TrimSpace(path)
+		if path == "" {
+			return nil, nil
+		}
+		exists, err := occupied(path)
+		if err != nil {
+			return nil, err
+		}
+		if !exists {
+			return nil, nil
+		}
+		return []tui.Question{replaceQuestion(path)}, nil
+	}
+}
+
+func answerFor(asks []cmd.Ask, answers []tui.Answer, name string) (string, bool) {
+	for i, ask := range asks {
+		if ask.Name != name || i >= len(answers) {
+			continue
+		}
+		return answers[i].Text, true
+	}
+	return "", false
+}
+
+func replaceQuestion(path string) tui.Question {
+	return tui.Question{
+		Prompt:  "Replace " + path + "?",
+		Choices: []string{"yes", "no"},
+		Default: "no",
+	}
 }
 
 func occupied(path string) (bool, error) {

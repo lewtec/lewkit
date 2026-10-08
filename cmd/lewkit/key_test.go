@@ -39,14 +39,14 @@ func TestKeyPromptsForMissingFields(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "publisher.p12")
 	writePublisherSops(t, filepath.Dir(out))
 	var prompts []string
-	ask := func(_ context.Context, questions []tui.Question) ([]tui.Answer, error) {
+	ask := func(_ context.Context, questions []tui.Question, _ tui.Grow) ([]tui.Answer, error) {
 		answers := make([]tui.Answer, len(questions))
 		for i, q := range questions {
 			prompts = append(prompts, q.Prompt)
 			switch q.Prompt {
-			case "Publisher name":
+			case "certificate common name":
 				answers[i] = tui.Answer{Text: "Acme"}
-			case "PKCS#12 path":
+			case "PKCS#12 file to write":
 				answers[i] = tui.Answer{Text: out}
 			default:
 				return nil, assert.AnError
@@ -56,7 +56,7 @@ func TestKeyPromptsForMissingFields(t *testing.T) {
 	}
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "key")
 	require.NoError(t, app.Args.release.key.generate(t.Context(), ask))
-	assert.Equal(t, []string{"Publisher name", "PKCS#12 path"}, prompts)
+	assert.Equal(t, []string{"certificate common name", "PKCS#12 file to write"}, prompts)
 	id := openPublisherKey(t, out)
 	assert.Equal(t, "Acme", id.Certs[0].Subject.CommonName)
 }
@@ -64,7 +64,7 @@ func TestKeyPromptsForMissingFields(t *testing.T) {
 func TestKeyRejectsEmptyName(t *testing.T) {
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "key", "--out", filepath.Join(t.TempDir(), "k.p12"))
-	ask := func(context.Context, []tui.Question) ([]tui.Answer, error) {
+	ask := func(context.Context, []tui.Question, tui.Grow) ([]tui.Answer, error) {
 		return []tui.Answer{{Text: "  "}}, nil
 	}
 	err := app.Args.release.key.generate(t.Context(), ask)
@@ -80,7 +80,7 @@ func TestKeyRejectsDirectory(t *testing.T) {
 
 func TestKeyInterviewCancelWritesNothing(t *testing.T) {
 	t.Setenv("LEWKIT_SIGN_P12", "")
-	err := cmd.ParseOK[cmd.App[root]](t, "release", "key").Args.release.key.generate(t.Context(), func(context.Context, []tui.Question) ([]tui.Answer, error) {
+	err := cmd.ParseOK[cmd.App[root]](t, "release", "key").Args.release.key.generate(t.Context(), func(context.Context, []tui.Question, tui.Grow) ([]tui.Answer, error) {
 		return nil, tui.ErrCanceled
 	})
 	require.ErrorIs(t, err, tui.ErrCanceled)
@@ -105,20 +105,19 @@ func TestKeyConfirmsReplace(t *testing.T) {
 	require.NoError(t, os.WriteFile(out, []byte("old"), 0o600))
 
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "key", "--name", "Acme", "--out", out)
-	err := app.Args.release.key.generate(t.Context(), func(_ context.Context, questions []tui.Question) ([]tui.Answer, error) {
-		require.Len(t, questions, 1)
-		assert.True(t, questions[0].Confirm)
-		assert.Equal(t, "Replace "+out+"?", questions[0].Prompt)
-		return []tui.Answer{{Text: "n"}}, nil
+	err := app.Args.release.key.generate(t.Context(), func(_ context.Context, questions []tui.Question, grow tui.Grow) ([]tui.Answer, error) {
+		require.Nil(t, grow)
+		require.Equal(t, []tui.Question{replaceQuestion(out)}, questions)
+		return []tui.Answer{{Text: "no"}}, nil
 	})
 	require.ErrorIs(t, err, errReplaceRefused)
 	raw, err := os.ReadFile(out)
 	require.NoError(t, err)
 	assert.Equal(t, "old", string(raw))
 
-	err = app.Args.release.key.generate(t.Context(), func(_ context.Context, questions []tui.Question) ([]tui.Answer, error) {
-		require.Equal(t, []tui.Question{{Prompt: "Replace " + out + "?", Confirm: true}}, questions)
-		return []tui.Answer{{Yes: true, Text: "y"}}, nil
+	err = app.Args.release.key.generate(t.Context(), func(_ context.Context, questions []tui.Question, _ tui.Grow) ([]tui.Answer, error) {
+		require.Equal(t, []tui.Question{replaceQuestion(out)}, questions)
+		return []tui.Answer{{Text: "yes", Yes: true}}, nil
 	})
 	require.NoError(t, err)
 	id := openPublisherKey(t, out)
@@ -134,21 +133,27 @@ func TestKeyConfirmsPromptedReplace(t *testing.T) {
 	require.NoError(t, os.WriteFile(out, []byte("old"), 0o600))
 
 	var prompts []string
-	ask := func(_ context.Context, questions []tui.Question) ([]tui.Answer, error) {
-		answers := make([]tui.Answer, len(questions))
-		for i, q := range questions {
+	ask := func(_ context.Context, questions []tui.Question, grow tui.Grow) ([]tui.Answer, error) {
+		answers := make([]tui.Answer, 0, len(questions)+1)
+		for _, q := range questions {
 			prompts = append(prompts, q.Prompt)
-			if q.Confirm {
-				answers[i] = tui.Answer{Yes: true, Text: "y"}
-				continue
+			if len(q.Choices) > 0 {
+				return nil, assert.AnError
 			}
-			answers[i] = tui.Answer{Text: out}
+			answers = append(answers, tui.Answer{Text: out})
+		}
+		require.NotNil(t, grow)
+		extra, err := grow(answers)
+		require.NoError(t, err)
+		for _, q := range extra {
+			prompts = append(prompts, q.Prompt)
+			answers = append(answers, tui.Answer{Text: "yes", Yes: true})
 		}
 		return answers, nil
 	}
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "key", "--name", "Acme")
 	require.NoError(t, app.Args.release.key.generate(t.Context(), ask))
-	assert.Equal(t, []string{"PKCS#12 path", "Replace " + out + "?"}, prompts)
+	assert.Equal(t, []string{"PKCS#12 file to write", "Replace " + out + "?"}, prompts)
 	id := openPublisherKey(t, out)
 	assert.Equal(t, "Acme", id.Certs[0].Subject.CommonName)
 }
@@ -212,6 +217,6 @@ func openPublisherKey(t *testing.T, path string) *sign.Identity {
 	return id
 }
 
-func refuseInterview(context.Context, []tui.Question) ([]tui.Answer, error) {
+func refuseInterview(context.Context, []tui.Question, tui.Grow) ([]tui.Answer, error) {
 	return nil, assert.AnError
 }

@@ -75,11 +75,19 @@ func Map[T any, V Arg[T], S ~[]KV[T, V]](in S) map[string]T {
 
 type Container[T any] struct {
 	value T
+	set   bool
 }
 
 func (c Container[T]) Value() T {
 	return c.value
 }
+
+// MarkSet records that the user or the environment supplied this value.
+// A default does not.
+func (c *Container[T]) MarkSet() { c.set = true }
+
+// ArgSet reports that the user or the environment supplied this value.
+func (c Container[T]) ArgSet() bool { return c.set }
 
 type StringArg struct {
 	Container[string]

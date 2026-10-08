@@ -104,7 +104,7 @@ Inherited C (cite the file):
 | Type | Exported | Identity or value | Mutable | Nil/error | Callers MUST NOT |
 |------|----------|-------------------|---------|-----------|------------------|
 | `x/ui` | no Go API | names `tui`, `web`, `gui` | MUST NOT grow types | the directory MAY have no Go package | import `x/ui` |
-| `x/ui/tui` | `Interview`, `Question`, `Answer`, `Run` | one question at a time | the interview stays here | a nil context is `ErrNilContext`; a dismiss is `ErrCanceled` | a Session viewer; `context.Background` |
+| `x/ui/tui` | `Interview`, `Question`, `Answer`, `Run` | one question at a time; back returns to the previous answer; the last step finishes; a default is the initial value; choices are a list | the interview stays here | a nil context is `ErrNilContext`; a dismiss is `ErrCanceled` | a Session viewer; `context.Background` |
 | `x/ui/web` | page templ templates | value | catalog MAY grow | package MAY be absent until the first page template | put a page template outside `web`; put an asset tag outside its asset package |
 | `x/ui/gui` | `Model`, `Msg`, `Cmd`, `Run`, `Welcome`, `EnsureDir`, `Pick`; `View` is a layout `Node` | value | catalog MAY grow | package MAY be absent until the first transformer; empty dir with no terminal is `ErrNeedWindow` | own the host; own the engine; call `window.Open`; declare `Open` |
 | `x/driver/window` | `Open`, `Frame`, `Fit`, `Present`, `Animate` | host identity is the opened window | protocol stays here | missing driver is the existing window error | move Present into `gui` |
@@ -533,3 +533,4 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - 2026-10-07: the publisher key has an empty PKCS#12 password. `x/sops` encrypts that file. `release build` and `release key` have no password flag. Rejected: `--p12-password`.
 - 2026-10-07: `x/build/sign` tells failures apart with `errors.Is`. A bad certificate is `ErrCertificate`. A PE, APK, CMS, or Mach-O failure is `ErrPE`, `ErrAPK`, `ErrCMS`, or `ErrMachO`. The cause stays wrapped. Rejected: matching the error text.
 - 2026-10-08: `lewkit release key` asks for a missing publisher name, path, or replace with `x/ui/tui` `Interview`. That program uses the caller context. A nil context is `ErrNilContext`. A dismiss is `ErrCanceled`. Rejected: `launcher.Prompt` for that key; `context.Background` inside the interview.
+- 2026-10-08: `Interview` steps with back, next, and finish. A default is the initial value. Choices are a list. `x/cmd` `Asks` reads those from the unset flags, including `EnumArg` choices. `release key` uses that for the publisher name and path. Rejected: a second question schema; `context.Background` inside the interview.
