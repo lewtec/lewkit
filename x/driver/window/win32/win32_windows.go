@@ -220,7 +220,7 @@ type win struct {
 	cw, ch int
 	want   window.WantSize
 	// gdi is set after a CPU Draw has published a front buffer.
-	// A Vulkan window never Draws, so WM_PAINT leaves the swapchain visible.
+	// A GPU present window (Vulkan or Direct3D 12) never CPU-Draws, so WM_PAINT leaves the swapchain visible.
 	gdi atomic.Bool
 }
 

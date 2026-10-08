@@ -4,9 +4,10 @@
 // RGBA8 underlay, rounded-rect instances, then tightly packed RGBA8 glyph ink.
 // [Open] asks the registered drivers, highest weight first, and uses the
 // first screen that accepts the surface. Metal is the Apple screen, so the
-// process does not need MoltenVK. Vulkan remains the screen when libvulkan
-// is the one that can attach. OpenGL is the fallback after Vulkan on
-// Windows, Linux, and Android. Apple does not open it.
+// process does not need MoltenVK. Direct3D 12 is the Windows screen at
+// weight 70, so that process does not need a Vulkan loader. Vulkan remains
+// the screen when it is the one that can attach. OpenGL is the fallback
+// after Vulkan on Windows, Linux, and Android. Apple does not open it.
 package present
 
 import (
