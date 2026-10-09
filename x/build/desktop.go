@@ -125,7 +125,7 @@ func (job Job) Paths() []string {
 
 // Run writes one archive for each target.
 // Each target is a workflow step named goos/goarch, so the steps run
-// together on the taskgroup session. Run waits for those steps.
+// together. Run waits on the future for those steps.
 func (job Job) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
@@ -136,7 +136,11 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 	if err := os.MkdirAll(job.Out, 0o755); err != nil {
 		return nil, err
 	}
-	if err := runGraph(ctx, job.graph()); err != nil {
+	fut, err := workflow.Run(ctx, job.graph(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := fut.Wait(ctx); err != nil {
 		return nil, err
 	}
 	return job.Paths(), nil

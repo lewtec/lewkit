@@ -100,5 +100,6 @@ func buildMake(t *testing.T, dir string, targets []string) error {
 	if err != nil {
 		return err
 	}
-	return workflow.Run(t.Context(), g, targets)
+	_, err = workflow.Run(t.Context(), g, targets)
+	return err
 }

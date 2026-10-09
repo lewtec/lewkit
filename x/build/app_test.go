@@ -50,7 +50,8 @@ func TestWorkflowPackagesWindowsExe(t *testing.T) {
 	}
 	graph, err := host.Workflow("windows")
 	require.NoError(t, err)
-	require.NoError(t, workflow.Run(t.Context(), graph, nil))
+	_, err = workflow.Run(t.Context(), graph, nil)
+	require.NoError(t, err)
 	body, err := os.ReadFile(out)
 	require.NoError(t, err)
 	require.Contains(t, string(body), "IHDR")
@@ -68,7 +69,8 @@ func TestWorkflowPackagesLinuxAppImage(t *testing.T) {
 	}
 	graph, err := host.Workflow("linux")
 	require.NoError(t, err)
-	require.NoError(t, workflow.Run(t.Context(), graph, nil))
+	_, err = workflow.Run(t.Context(), graph, nil)
+	require.NoError(t, err)
 	raw, err := os.ReadFile(out)
 	require.NoError(t, err)
 	require.Equal(t, "\x7fELF", string(raw[:4]))

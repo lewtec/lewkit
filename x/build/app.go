@@ -12,8 +12,8 @@ import (
 )
 
 // Build runs Workflow and returns the artifact path.
-// GoOnly returns the work directory. A session already on ctx is waited
-// here, on the caller, so the path exists when Build returns.
+// GoOnly returns the work directory. The wait is the future Run
+// returns, so the path exists when Build returns.
 func (host Host) Build(ctx context.Context, goos string) (string, error) {
 	if ctx == nil {
 		return "", ErrNilContext
@@ -23,7 +23,11 @@ func (host Host) Build(ctx context.Context, goos string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := runGraph(ctx, graph); err != nil {
+	fut, err := workflow.Run(ctx, graph, nil)
+	if err != nil {
+		return "", err
+	}
+	if err := fut.Wait(ctx); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -33,7 +37,7 @@ func (host Host) Build(ctx context.Context, goos string) (string, error) {
 // The icons step writes the icon tree the host packages already apply.
 // The goos/goarch step compiles, packages, and signs that app.
 // A set IconRoot skips the icons step and uses that tree.
-// Build runs this graph and waits for it.
+// Build waits on the future Run returns for this graph.
 func (host Host) Workflow(goos string) (workflow.Graph, error) {
 	return host.workflow(goos, nil)
 }
