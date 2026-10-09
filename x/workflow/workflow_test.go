@@ -33,8 +33,8 @@ func TestRunSkipsFreshOutputs(t *testing.T) {
 			},
 		}},
 	}
-	require.NoError(t, Run(t.Context(), g, nil))
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	got, err := os.ReadFile(filepath.Join(dir, "runs"))
 	require.NoError(t, err)
 	assert.Equal(t, "ran\n", string(got))
@@ -63,8 +63,8 @@ func TestRunRebuildsWhenDependencyRuns(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, Run(t.Context(), g, nil))
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	got, err := os.ReadFile(filepath.Join(dir, "runs"))
 	require.NoError(t, err)
 	assert.Equal(t, "ran\nran\n", string(got))
@@ -85,7 +85,7 @@ func TestRunStopsDependentsAfterFailure(t *testing.T) {
 			},
 		},
 	}
-	err := Run(t.Context(), g, nil)
+	err := run(t.Context(), g, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bad")
 	_, statErr := os.Stat(filepath.Join(dir, "no.txt"))
@@ -98,11 +98,11 @@ func TestRunCycleAndUnknown(t *testing.T) {
 		{Name: "a", Deps: []string{"b"}},
 		{Name: "b", Deps: []string{"a"}},
 	}}
-	require.ErrorIs(t, Run(t.Context(), cycle, []string{"a"}), ErrCycle)
+	require.ErrorIs(t, run(t.Context(), cycle, []string{"a"}), ErrCycle)
 	unknown := Graph{Dir: dir, Steps: []Step{{Name: "a", Deps: []string{"missing"}}}}
-	require.ErrorIs(t, Run(t.Context(), unknown, []string{"a"}), ErrUnknownStep)
-	require.ErrorIs(t, Run(t.Context(), Graph{}, nil), ErrNoTarget)
-	require.Error(t, Run(nil, Graph{}, nil))
+	require.ErrorIs(t, run(t.Context(), unknown, []string{"a"}), ErrUnknownStep)
+	require.ErrorIs(t, run(t.Context(), Graph{}, nil), ErrNoTarget)
+	require.Error(t, run(nil, Graph{}, nil))
 }
 
 func TestRunAlias(t *testing.T) {
@@ -116,7 +116,7 @@ func TestRunAlias(t *testing.T) {
 			Tasks:   []Task{Command{Text: "echo m > main.txt; echo e > extra.txt"}},
 		}},
 	}
-	require.NoError(t, Run(t.Context(), g, []string{"extra"}))
+	require.NoError(t, run(t.Context(), g, []string{"extra"}))
 	got, err := os.ReadFile(filepath.Join(dir, "extra.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "e\n", string(got))
@@ -139,11 +139,11 @@ func TestRunParallelJoin(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	got, err := os.ReadFile(filepath.Join(dir, "join.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "L\nR\n", string(got))
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	got, err = os.ReadFile(filepath.Join(dir, "join.txt"))
 	require.NoError(t, err)
 	assert.False(t, strings.Contains(string(got), "ran"))
@@ -184,8 +184,8 @@ func TestRunInProcess(t *testing.T) {
 			})},
 		}},
 	}
-	require.NoError(t, Run(t.Context(), g, nil))
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	assert.Equal(t, 1, n)
 	assert.Equal(t, dir, saw)
 	body, err := os.ReadFile(filepath.Join(dir, "out.txt"))
@@ -205,8 +205,8 @@ func TestRunInProcessEveryTime(t *testing.T) {
 			})},
 		}},
 	}
-	require.NoError(t, Run(t.Context(), g, nil))
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	assert.Equal(t, 2, n)
 }
 
@@ -224,7 +224,7 @@ func TestRunInProcessStopsDependents(t *testing.T) {
 			})}},
 		},
 	}
-	err := Run(t.Context(), g, nil)
+	err := run(t.Context(), g, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bad")
 	assert.Equal(t, 0, n)
@@ -252,7 +252,7 @@ func TestRunMixesFuncAndCommand(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	got, err := os.ReadFile(filepath.Join(dir, "copy.txt"))
 	require.NoError(t, err)
 	assert.Equal(t, "in\n", string(got))
@@ -290,8 +290,8 @@ func TestRunDownloadsAndExtracts(t *testing.T) {
 			},
 		},
 	}
-	require.NoError(t, Run(t.Context(), g, nil))
-	require.NoError(t, Run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
+	require.NoError(t, run(t.Context(), g, nil))
 	assert.Equal(t, int32(1), hits.Load())
 	got, err := os.ReadFile(filepath.Join(dir, "out", "hello.txt"))
 	require.NoError(t, err)
@@ -327,12 +327,68 @@ func TestRunDownloadRejectsHash(t *testing.T) {
 			},
 		},
 	}
-	err := Run(t.Context(), g, nil)
+	err := run(t.Context(), g, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fetch")
 	assert.Equal(t, 0, n)
 	_, statErr := os.Stat(filepath.Join(dir, "hello.txt"))
 	assert.Error(t, statErr)
+}
+
+func TestFutureWaitsAfterSchedule(t *testing.T) {
+	release := make(chan struct{})
+	entered := make(chan struct{})
+	g := Graph{Defaults: []string{"work"}, Steps: []Step{{
+		Name: "work",
+		Tasks: []Task{Func(func(ctx context.Context, _ *taskgroup.Status) error {
+			close(entered)
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return context.Cause(ctx)
+			}
+		})},
+	}}}
+	sess, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	fut, err := Run(ctx, g, nil)
+	require.NoError(t, err)
+	<-entered
+	close(release)
+	require.NoError(t, fut.Wait(ctx))
+	require.NoError(t, sess.Wait())
+}
+
+func TestFutureFromControlTask(t *testing.T) {
+	var ran atomic.Bool
+	g := Graph{Defaults: []string{"next"}, Steps: []Step{
+		{Name: "bad", Tasks: []Task{Func(func(context.Context, *taskgroup.Status) error {
+			return errors.New("boom")
+		})}},
+		{Name: "next", Deps: []string{"bad"}, Tasks: []Task{Func(func(context.Context, *taskgroup.Status) error {
+			ran.Store(true)
+			return nil
+		})}},
+	}}
+	sess, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	var got error
+	taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, _ *taskgroup.Status) error {
+		fut, err := Run(ctx, g, nil)
+		if err != nil {
+			got = err
+			return err
+		}
+		got = fut.Wait(ctx)
+		return got
+	})
+	require.Error(t, sess.Wait())
+	require.ErrorContains(t, got, "boom")
+	require.False(t, ran.Load())
+}
+
+func run(ctx context.Context, g Graph, targets []string) error {
+	_, err := Run(ctx, g, targets)
+	return err
 }
 
 func zipBytes(t *testing.T, name string, body []byte) []byte {

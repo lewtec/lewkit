@@ -49,6 +49,8 @@ type BuildOptions struct {
 	CGO bool
 	// IconRoot is a dist/icons tree with android/mipmap-* (optional; if empty, no mipmaps).
 	IconRoot string
+	// SkipGenerate leaves an existing scaffold in WorkDir in place.
+	SkipGenerate bool
 	// Stdout/Stderr for subprocess logs (default os.Stdout/Stderr).
 	Stdout io.Writer
 	Stderr io.Writer
@@ -118,14 +120,16 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg := cfg
 	genCfg.GoMain = goMain
 
-	slog.Info("android host", "dir", workDir)
-	if err := Create(ctx, Options{
-		OutDir: workDir,
-		Force:  true, // work dir is ours or full rebuild
-		Config: genCfg,
-	}); err != nil {
-		buildErr = fmt.Errorf("generate host: %w", err)
-		return nil, buildErr
+	if !opts.SkipGenerate {
+		slog.Info("android host", "dir", workDir)
+		if err := Create(ctx, Options{
+			OutDir: workDir,
+			Force:  true, // work dir is ours or full rebuild
+			Config: genCfg,
+		}); err != nil {
+			buildErr = fmt.Errorf("generate host: %w", err)
+			return nil, buildErr
+		}
 	}
 
 	// Manifest expects @mipmap/ic_launcher — always install mipmaps.

@@ -46,11 +46,11 @@ func (c *workflowMakeCmd) Run(ctx context.Context) error {
 }
 
 // onSession reads the file as a task so the progress view opens during load.
-// Recipe steps are children of that task. The task returns after scheduling
-// them; waiting inside it would hold a pool worker until they finished.
+// Recipe steps are children of that task. This task is CPU, so it schedules
+// the graph and returns the future unwaited. Waiting here would hold a pool
+// worker until the steps finished. The session wait is the barrier.
 // entry.Run already shows this session, so progress.Run joins that view and
-// does not start another. With no session yet, the root taskgroup limits
-// apply and this call waits.
+// does not start another. With no session yet, Run waits and returns that error.
 func onSession(ctx context.Context, name string, targets []string, load func(context.Context, *taskgroup.Status) (workflow.Graph, error)) error {
 	session, ctx := sessionFrom(ctx)
 	return progress.Run(session, ctx, func(ctx context.Context) error {
@@ -59,7 +59,8 @@ func onSession(ctx context.Context, name string, targets []string, load func(con
 			if err != nil {
 				return err
 			}
-			return workflow.Run(ctx, graph, targets)
+			_, err = workflow.Run(ctx, graph, targets)
+			return err
 		})
 		return nil
 	})

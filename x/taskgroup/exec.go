@@ -295,3 +295,12 @@ func (s *Session) waitTask(ctx context.Context, id ID) error {
 		return false, nil
 	})
 }
+
+// WaitTask blocks until id finishes or ctx ends.
+// It returns that task's error. It does not wait for the rest of the session.
+func (s *Session) WaitTask(ctx context.Context, id ID) error {
+	if ctx == nil {
+		panic("taskgroup: nil context")
+	}
+	return s.waitTask(ctx, id)
+}

@@ -3,11 +3,11 @@
 // A step lists tasks. A shell command, a download, an extract, and an
 // in-process function are the kinds. Make and ninja both produce a
 // graph of commands.
-// Run schedules each step with taskgroup.Go, so the progress view shows
-// the work. A step with outputs is skipped when those files are newer
-// than its inputs and no dependency ran. Commands inherit the process
-// environment, which is how a conda compiler on PATH or in CC is the
-// one that compiles.
+// Run schedules each step with taskgroup.Go and returns a Future for
+// those steps. The progress view shows the work. A step with outputs
+// is skipped when those files are newer than its inputs and no
+// dependency ran. Commands inherit the process environment, which is
+// how a conda compiler on PATH or in CC is the one that compiles.
 package workflow
 
 import (
@@ -58,38 +58,73 @@ type Graph struct {
 	Alias    map[string]string
 }
 
-// Run builds targets. An empty list uses Graph.Defaults.
-// A session already on ctx is used and not waited on; the caller waits.
-// Without a session, Run starts one and waits.
-func Run(ctx context.Context, g Graph, targets []string) error {
+// Future is the steps Run scheduled.
+// Wait blocks until those steps finish. It does not wait for the rest
+// of the session, so the task that scheduled the graph can wait for it.
+type Future struct {
+	session *taskgroup.Session
+	ids     []taskgroup.ID
+}
+
+// Wait blocks until every scheduled step has finished and returns the
+// first step error. A future with no steps returns nil. A cancelled
+// ctx does not cut the wait short; the step context stops the step.
+func (f Future) Wait(ctx context.Context) error {
+	if len(f.ids) == 0 {
+		return nil
+	}
 	if ctx == nil {
 		return errors.New("workflow: nil context")
 	}
+	ctx = context.WithoutCancel(ctx)
+	var err error
+	for _, id := range f.ids {
+		werr := f.session.WaitTask(ctx, id)
+		if werr != nil && err == nil {
+			err = werr
+		}
+	}
+	return err
+}
+
+// Run builds targets. An empty list uses Graph.Defaults.
+// The future is those steps. A session already on ctx is used and not
+// waited on; Wait on the future waits for the steps. Without a session,
+// Run starts one and waits, and that wait error is Run's error.
+func Run(ctx context.Context, g Graph, targets []string) (Future, error) {
+	if ctx == nil {
+		return Future{}, errors.New("workflow: nil context")
+	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return Future{}, err
 	}
 	order, byName, err := g.closure(targets)
 	if err != nil {
-		return err
+		return Future{}, err
 	}
-	return taskgroup.WithSession(ctx, func(ctx context.Context) error {
-		return schedule(ctx, g.Dir, order, byName, g.Alias)
+	var fut Future
+	err = taskgroup.WithSession(ctx, func(ctx context.Context) error {
+		var schedErr error
+		fut, schedErr = schedule(ctx, g.Dir, order, byName, g.Alias)
+		return schedErr
 	})
+	return fut, err
 }
 
-func schedule(ctx context.Context, dir string, order []Step, byName map[string]Step, alias map[string]string) error {
+func schedule(ctx context.Context, dir string, order []Step, byName map[string]Step, alias map[string]string) (Future, error) {
 	rt := &runtime{rebuilt: map[string]bool{}}
 	ids := map[string]taskgroup.ID{}
+	scheduled := make([]taskgroup.ID, 0, len(order))
 	for _, step := range order {
 		deps := make([]taskgroup.ID, 0, len(step.Deps))
 		for _, d := range step.Deps {
 			name, err := resolveAlias(d, byName, alias)
 			if err != nil {
-				return err
+				return Future{}, err
 			}
 			id, ok := ids[name]
 			if !ok {
-				return fmt.Errorf("workflow: %w: %s", ErrUnknownStep, d)
+				return Future{}, fmt.Errorf("workflow: %w: %s", ErrUnknownStep, d)
 			}
 			deps = append(deps, id)
 		}
@@ -98,8 +133,9 @@ func schedule(ctx context.Context, dir string, order []Step, byName map[string]S
 			return runStep(ctx, dir, step, st, rt)
 		}, deps...)
 		ids[step.Name] = id
+		scheduled = append(scheduled, id)
 	}
-	return nil
+	return Future{session: taskgroup.MustFromContext(ctx), ids: scheduled}, nil
 }
 
 func (g Graph) closure(targets []string) ([]Step, map[string]Step, error) {

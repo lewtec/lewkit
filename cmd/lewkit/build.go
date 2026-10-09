@@ -42,9 +42,10 @@ func (c *buildCmd) Run(ctx context.Context) error {
 	session, ctx := sessionFrom(ctx)
 	var paths []string
 	err := progress.Run(session, ctx, func(ctx context.Context) error {
-		taskgroup.Go(ctx, c.goos.Value()+"/"+c.goarch.Value(), taskgroup.CPU, func(ctx context.Context, status *taskgroup.Status) error {
-			done := status.Unit()
-			defer done()
+		// Control does not take a pool worker. produce waits on the
+		// workflow future for icons, the scaffold when the host has one,
+		// and the goos/goarch step.
+		taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, _ *taskgroup.Status) error {
 			written, err := c.produce(ctx)
 			paths = written
 			return err
@@ -71,9 +72,32 @@ func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 	if !c.app.Value() {
 		return c.archive(ctx, target, identity)
 	}
-	return c.host(func() (string, error) {
-		return packageHost(ctx, c.spec(), goos, goarch, c.out.Value(), c.work.Value(), c.sdk.Value(), c.goOnly.Value(), c.cgo.Value(), identity)
-	})
+	out, err := artifactPath(goos, goarch, c.out.Value(), c.spec())
+	if err != nil {
+		return nil, err
+	}
+	work := c.work.Value()
+	if c.goOnly.Value() && strings.TrimSpace(work) == "" {
+		work, err = os.MkdirTemp("", release.Name()+"-app-")
+		if err != nil {
+			return nil, err
+		}
+	}
+	host := build.Host{
+		Spec:   c.spec(),
+		Out:    out,
+		Work:   work,
+		GOARCH: goarch,
+		SDK:    c.sdk.Value(),
+		GoOnly: c.goOnly.Value(),
+		CGO:    c.cgo.Value(),
+		Sign:   identity,
+	}
+	path, err := host.Build(ctx, goos)
+	if err != nil {
+		return nil, err
+	}
+	return []string{path}, nil
 }
 
 func (c *buildFlags) identity() (*sign.Identity, error) {
@@ -84,41 +108,9 @@ func (c *buildFlags) identity() (*sign.Identity, error) {
 	return sign.LoadPKCS12(raw, "")
 }
 
-func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, sdk string, goOnly, cgo bool, identity *sign.Identity) (string, error) {
-	out, err := artifactPath(goos, out, spec)
-	if err != nil {
-		return "", err
-	}
-	host := build.Host{
-		Spec:   spec,
-		Out:    out,
-		Work:   work,
-		GOARCH: goarch,
-		SDK:    sdk,
-		GoOnly: goOnly,
-		CGO:    cgo,
-		Sign:   identity,
-	}
-	switch goos {
-	case "darwin":
-		return host.Mac(ctx)
-	case "android":
-		return host.Android(ctx)
-	case "ios":
-		return host.IOS(ctx)
-	case "windows":
-		return host.Windows(ctx)
-	case "linux":
-		return host.Linux(ctx)
-	default:
-		return "", fmt.Errorf("%s has no app package", goos)
-	}
-}
-
-// artifactPath turns a directory such as dist into the file the host wrote:
-// dist/<label>-debug.apk, dist/<App>.exe, dist/<App>.AppImage, or dist/<App>.app.
-// A path that already names a file is kept.
-func artifactPath(goos, out string, spec build.Spec) (string, error) {
+// artifactPath turns a directory such as dist into one host file whose
+// name contains GOOS and GOARCH. A path that already names a file is kept.
+func artifactPath(goos, goarch, out string, spec build.Spec) (string, error) {
 	out = strings.TrimSpace(out)
 	if out == "" {
 		out = "dist"
@@ -135,23 +127,7 @@ func artifactPath(goos, out string, spec build.Spec) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	switch goos {
-	case "android":
-		label := cfg.PackageID
-		if i := strings.LastIndex(label, "."); i >= 0 {
-			label = label[i+1:]
-		}
-		if label == "" {
-			label = "app"
-		}
-		return filepath.Join(out, label+"-debug.apk"), nil
-	case "windows":
-		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".exe"), nil
-	case "linux":
-		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".AppImage"), nil
-	default:
-		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".app"), nil
-	}
+	return filepath.Join(out, build.AppFile(common.ProductName(cfg.PackageID, cfg.AppName), cfg.PackageID, goos, goarch)), nil
 }
 
 func (c *buildFlags) archive(ctx context.Context, target build.Target, identity *sign.Identity) ([]string, error) {
@@ -202,11 +178,3 @@ func (goosArg) ArgDefault() string { return runtime.GOOS }
 type goarchArg struct{ cmd.StringArg }
 
 func (goarchArg) ArgDefault() string { return runtime.GOARCH }
-
-func (c *buildFlags) host(run func() (string, error)) ([]string, error) {
-	path, err := run()
-	if err != nil {
-		return nil, err
-	}
-	return []string{path}, nil
-}

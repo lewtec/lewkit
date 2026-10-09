@@ -17,6 +17,8 @@ import (
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/build/version"
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/lewtec/lewkit/x/taskgroup"
+	"github.com/lewtec/lewkit/x/workflow"
 )
 
 // ErrNilContext means the caller did not pass a context.
@@ -39,24 +41,44 @@ func DesktopTargets() []Target {
 	return out
 }
 
-// ArchiveName is Name_OS_arch.tar.gz, or .zip on Windows.
+// ArchiveName is project_goos_goarch.tar.gz, or .zip when GOOS is windows.
+// GOOS and GOARCH are the go env values, so a dist directory can be
+// uploaded as release assets without renaming.
 func ArchiveName(project string, target Target) string {
-	arch := target.GOARCH
-	if arch == "amd64" {
-		arch = "x86_64"
-	}
 	ext := ".tar.gz"
 	if target.GOOS == "windows" {
 		ext = ".zip"
 	}
-	return fmt.Sprintf("%s_%s_%s%s", project, title(target.GOOS), arch, ext)
+	return project + "_" + target.GOOS + "_" + target.GOARCH + ext
 }
 
-func title(goos string) string {
-	if goos == "" {
-		return ""
+// AppFile is one host artifact: stem_goos_goarch plus the host suffix.
+// Windows is .exe, Android is .apk, Linux is .AppImage, and every other host is .app.
+// Android's stem is the last package-id label. Every other host uses product.
+func AppFile(product, packageID, goos, goarch string) string {
+	stem := product
+	ext := ".app"
+	switch goos {
+	case "android":
+		stem = androidLabel(packageID)
+		ext = ".apk"
+	case "windows":
+		ext = ".exe"
+	case "linux":
+		ext = ".AppImage"
 	}
-	return strings.ToUpper(goos[:1]) + goos[1:]
+	return stem + "_" + goos + "_" + goarch + ext
+}
+
+func androidLabel(packageID string) string {
+	label := packageID
+	if i := strings.LastIndex(label, "."); i >= 0 {
+		label = label[i+1:]
+	}
+	if label == "" {
+		return "app"
+	}
+	return label
 }
 
 // Job is one or more CGO-free archives.
@@ -79,79 +101,119 @@ func Desktop(ctx context.Context, job Job) ([]string, error) {
 	return job.Run(ctx)
 }
 
+func (job Job) project() string {
+	if job.Name != "" {
+		return job.Name
+	}
+	return filepath.Base(job.Dir)
+}
+
+// Paths is the archive list Run writes, including a .cms file beside
+// each archive when Sign is set. The names are known before the build.
+func (job Job) Paths() []string {
+	project := job.project()
+	out := make([]string, 0, len(job.Targets)*2)
+	for _, target := range job.Targets {
+		archive := filepath.Join(job.Out, ArchiveName(project, target))
+		out = append(out, archive)
+		if job.Sign != nil {
+			out = append(out, archive+".cms")
+		}
+	}
+	return out
+}
+
 // Run writes one archive for each target.
+// Each target is a workflow step named goos/goarch, so the steps run
+// together. Run waits on the future for those steps.
 func (job Job) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
 	}
-	project := job.Name
-	if project == "" {
-		project = filepath.Base(job.Dir)
+	if len(job.Targets) == 0 {
+		return nil, fmt.Errorf("build: no target")
 	}
 	if err := os.MkdirAll(job.Out, 0o755); err != nil {
 		return nil, err
 	}
+	fut, err := workflow.Run(ctx, job.graph(), nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := fut.Wait(ctx); err != nil {
+		return nil, err
+	}
+	return job.Paths(), nil
+}
+
+func (job Job) graph() workflow.Graph {
+	project := job.project()
 	stamp := version.Info{Version: job.Version, BuiltBy: release.Name()}
-	var written []string
+	steps := make([]workflow.Step, 0, len(job.Targets))
+	defaults := make([]string, 0, len(job.Targets))
 	for _, target := range job.Targets {
-		if err := ctx.Err(); err != nil {
-			return written, err
-		}
-		binary := project
-		if target.GOOS == "windows" {
-			binary += ".exe"
-		}
-		tmp, err := os.MkdirTemp("", release.Name()+"-build-")
-		if err != nil {
-			return written, err
-		}
-		binPath := filepath.Join(tmp, binary)
-		slog.Info("build " + target.GOOS + "/" + target.GOARCH)
-		err = gocmd.Command{
-			Dir:  job.Dir,
-			Env:  append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
-			Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(job.AppID), "-o", binPath, "."},
-		}.Run(ctx)
-		if err != nil {
-			os.RemoveAll(tmp)
-			return written, fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
-		}
-		if job.Sign != nil && target.GOOS == "windows" {
-			if err := job.Sign.SignPEFile(ctx, binPath, project); err != nil {
-				os.RemoveAll(tmp)
-				return written, fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
-			}
-		}
-		if job.Sign != nil && target.GOOS == "darwin" {
-			if err := sign.SignMachO(job.Sign, binPath, job.AppID); err != nil {
-				os.RemoveAll(tmp)
-				return written, fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
-			}
-		}
-		archive := filepath.Join(job.Out, ArchiveName(project, target))
-		if err := writeArchive(archive, binPath, binary); err != nil {
-			os.RemoveAll(tmp)
-			return written, err
-		}
-		os.RemoveAll(tmp)
-		written = append(written, archive)
-		if job.Sign != nil {
-			raw, err := os.ReadFile(archive)
-			if err != nil {
-				return written, err
-			}
-			sig, err := job.Sign.SignCMS(raw)
-			if err != nil {
-				return written, fmt.Errorf("sign %s: %w", archive, err)
-			}
-			cmsPath := archive + ".cms"
-			if err := os.WriteFile(cmsPath, sig, 0o644); err != nil {
-				return written, err
-			}
-			written = append(written, cmsPath)
+		target := target
+		name := target.GOOS + "/" + target.GOARCH
+		defaults = append(defaults, name)
+		steps = append(steps, workflow.Step{
+			Name: name,
+			Desc: "build " + name,
+			Tasks: []workflow.Task{
+				workflow.Func(func(ctx context.Context, _ *taskgroup.Status) error {
+					return job.archiveTarget(ctx, project, stamp, target)
+				}),
+			},
+		})
+	}
+	return workflow.Graph{Dir: job.Out, Steps: steps, Defaults: defaults}
+}
+
+func (job Job) archiveTarget(ctx context.Context, project string, stamp version.Info, target Target) error {
+	binary := project
+	if target.GOOS == "windows" {
+		binary += ".exe"
+	}
+	tmp, err := os.MkdirTemp("", release.Name()+"-build-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	binPath := filepath.Join(tmp, binary)
+	slog.Info("build " + target.GOOS + "/" + target.GOARCH)
+	err = gocmd.Command{
+		Dir:  job.Dir,
+		Env:  append(os.Environ(), "CGO_ENABLED=0", "GOOS="+target.GOOS, "GOARCH="+target.GOARCH),
+		Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(job.AppID), "-o", binPath, "."},
+	}.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
+	}
+	if job.Sign != nil && target.GOOS == "windows" {
+		if err := job.Sign.SignPEFile(ctx, binPath, project); err != nil {
+			return fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
 		}
 	}
-	return written, nil
+	if job.Sign != nil && target.GOOS == "darwin" {
+		if err := sign.SignMachO(job.Sign, binPath, job.AppID); err != nil {
+			return fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
+		}
+	}
+	archive := filepath.Join(job.Out, ArchiveName(project, target))
+	if err := writeArchive(archive, binPath, binary); err != nil {
+		return err
+	}
+	if job.Sign == nil {
+		return nil
+	}
+	raw, err := os.ReadFile(archive)
+	if err != nil {
+		return err
+	}
+	sig, err := job.Sign.SignCMS(raw)
+	if err != nil {
+		return fmt.Errorf("sign %s: %w", archive, err)
+	}
+	return os.WriteFile(archive+".cms", sig, 0o644)
 }
 
 func writeArchive(archive, binPath, name string) error {
