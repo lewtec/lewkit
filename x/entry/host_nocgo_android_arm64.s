@@ -23,9 +23,11 @@ TEXT lewkit_crosscall2<>(SB),NOSPLIT|NOFRAME,$0
 
 	// ART calls with its own x28. load_g does not replace g unless cgo
 	// is linked, and cgocallback then loads g.m. On the lewkit-go thread
-	// that word was nil, so the load faulted at 0. Keep g only when this
-	// stack is already its stack and m.g0 points back at that m.
-	// Otherwise needm attaches an M. The saved x28 is restored below.
+	// that word was nil, so the load faulted at 0. Keep g when it is
+	// already m.g0: a JNI call runs there, and the recorded bounds of
+	// that stack are only an estimate. Otherwise keep it when this stack
+	// is the goroutine stack and m.g0 points back at that m. Anything
+	// else is cleared so needm can attach an M. The saved x28 is restored.
 	CBZ	g, crossHaveG
 	MOVD	$0x10000, R4
 	CMP	R4, g
@@ -35,20 +37,6 @@ TEXT lewkit_crosscall2<>(SB),NOSPLIT|NOFRAME,$0
 	MOVD	g, R4
 	LSR	$56, R4, R4
 	CBNZ	R4, crossDropG
-	MOVD	(g), R4
-	MOVD	8(g), R5
-	ADD	$(8*24), RSP, R16
-	CMP	R4, R16
-	BLS	crossDropG
-	CMP	R5, R16
-	BHS	crossDropG
-	SUB	R4, R5, R6
-	MOVD	$1024, R7
-	CMP	R7, R6
-	BLS	crossDropG
-	MOVD	$0x40000000, R7
-	CMP	R7, R6
-	BHI	crossDropG
 	MOVD	48(g), R4
 	CBZ	R4, crossDropG
 	TST	$7, R4
@@ -64,6 +52,22 @@ TEXT lewkit_crosscall2<>(SB),NOSPLIT|NOFRAME,$0
 	MOVD	48(R6), R7
 	CMP	R4, R7
 	BNE	crossDropG
+	CMP	R6, g
+	BEQ	crossHaveG
+	MOVD	(g), R4
+	MOVD	8(g), R5
+	ADD	$(8*24), RSP, R16
+	CMP	R4, R16
+	BLS	crossDropG
+	CMP	R5, R16
+	BHS	crossDropG
+	SUB	R4, R5, R6
+	MOVD	$1024, R7
+	CMP	R7, R6
+	BLS	crossDropG
+	MOVD	$0x40000000, R7
+	CMP	R7, R6
+	BHI	crossDropG
 	B	crossHaveG
 crossDropG:
 	MOVD	ZR, g
