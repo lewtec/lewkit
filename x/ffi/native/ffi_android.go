@@ -8,8 +8,8 @@ import (
 	"unsafe"
 )
 
-// Bionic keeps dlopen in libc.so. libdl.so.2 is a glibc soname, so the
-// Linux nocgo loader cannot open Android libraries.
+// dlopen comes from libdl.so. libc.so does not export it to the app, and
+// libdl.so.2 is a glibc soname that Android does not ship.
 const (
 	Lazy   = 1
 	Now    = 2

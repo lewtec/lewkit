@@ -418,6 +418,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-09: The cgo-free arm64 loader imports `dlopen`, `dlsym`, `dlerror`, and `dlclose` from `libdl.so`. `libc.so` does not export them, so `dlopen` of `libeletrocromo.so` failed with `cannot locate symbol "dlopen"`. Rejected: `libc.so`; the glibc soname `libdl.so.2`.
 - 2026-10-09: The Android host does not run a foreground service. The Go library stays in the activity process. `System.loadLibrary` failing stays on the splash. Rejected: executing `libeletrocromo.so` and waiting for `ELETROCROMO_READY`.
 - 2026-10-09: A process with no Java VM noted by `JNI_OnLoad` publishes `ELETROCROMO_READY` for a web handler. The activity process noted a VM and keeps the native window. Rejected: a loopback listener in the activity process; opening `libnativehelper` to discover the VM.
 - 2026-10-09: Android Java reaches Go through one `lewkit.Hook.call`. `GoProxy.nativeInvoke` stays the callback entry. A cgo build exports those two. A cgo-free arm64 library (`-tags androidnocgo`) starts from `JNI_OnLoad`, registers both methods, and does not use cgo. That link passes `-checklinkname=0` and publishes `JNI_OnLoad`. The build schedule owns those flags. Rejected: a cgo export per host method; editing the APK build schedule in this change.
