@@ -418,6 +418,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-09: A Java thread enters `cgocallback` with ART's `x28`. Without cgo, `load_g` does not replace it, and `g.m` is nil, so the `lewkit-go` thread faults at `0` in `runtime.cgocallback`. `crosscall2` keeps `g` only when that stack is already the goroutine stack and `m.g0` points back at `m`. Otherwise `g` is cleared and `needm` attaches an M. Rejected: clearing `g` on every entry, which would borrow a second M during `GoProxy.nativeInvoke`.
 - 2026-10-09: The cgo-free arm64 entry is `android && !cgo && arm64`. There is no `androidnocgo` tag. The arm64 link still passes `-ldflags=-checklinkname=0` and `-toolexec` for `x/build/androidtoolexec` so `JNI_OnLoad` is in `.dynsym`. Rejected: a custom tag for the only `!cgo` implementation.
 - 2026-10-09: cgo-free `JNI_OnLoad` calls `libpreinit`, maps the thread stack with the `mmap` syscall, and `clone`s into `rt0_go`. `_rt0_arm64_lib` clears `g`, and `newosproc0` then calls `setVMAName`, whose prologue reads `g.stackguard0` and faults at `0x10` on the activity thread. Rejected: calling `_rt0_arm64_android_lib`.
 - 2026-10-09: The cgo-free arm64 APK link passes `-tags androidnocgo`, `-ldflags=-checklinkname=0`, and `-toolexec` for `x/build/androidtoolexec`. Without them `libeletrocromo.so` loads and `lewkit.Hook.call` is missing. arm and amd64 stay on the plain `CGO_ENABLED=0` link. Rejected: a cgo export per host method.

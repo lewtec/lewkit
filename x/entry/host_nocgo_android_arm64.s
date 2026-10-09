@@ -21,6 +21,53 @@ TEXT lewkit_crosscall2<>(SB),NOSPLIT|NOFRAME,$0
 	FSTPD	(F14, F15), (8*20)(RSP)
 	STP	(R29, R30), (8*22)(RSP)
 
+	// ART calls with its own x28. load_g does not replace g unless cgo
+	// is linked, and cgocallback then loads g.m. On the lewkit-go thread
+	// that word was nil, so the load faulted at 0. Keep g only when this
+	// stack is already its stack and m.g0 points back at that m.
+	// Otherwise needm attaches an M. The saved x28 is restored below.
+	CBZ	g, crossHaveG
+	MOVD	$0x10000, R4
+	CMP	R4, g
+	BLS	crossDropG
+	TST	$7, g
+	BNE	crossDropG
+	MOVD	g, R4
+	LSR	$56, R4, R4
+	CBNZ	R4, crossDropG
+	MOVD	(g), R4
+	MOVD	8(g), R5
+	ADD	$(8*24), RSP, R16
+	CMP	R4, R16
+	BLS	crossDropG
+	CMP	R5, R16
+	BHS	crossDropG
+	SUB	R4, R5, R6
+	MOVD	$1024, R7
+	CMP	R7, R6
+	BLS	crossDropG
+	MOVD	$0x40000000, R7
+	CMP	R7, R6
+	BHI	crossDropG
+	MOVD	48(g), R4
+	CBZ	R4, crossDropG
+	TST	$7, R4
+	BNE	crossDropG
+	MOVD	R4, R6
+	LSR	$56, R6, R6
+	CBNZ	R6, crossDropG
+	MOVD	$0x10000, R7
+	CMP	R7, R4
+	BLS	crossDropG
+	MOVD	(R4), R6
+	CBZ	R6, crossDropG
+	MOVD	48(R6), R7
+	CMP	R4, R7
+	BNE	crossDropG
+	B	crossHaveG
+crossDropG:
+	MOVD	ZR, g
+crossHaveG:
 	BL	runtime·load_g(SB)
 	BL	runtime·cgocallback(SB)
 
@@ -44,9 +91,10 @@ TEXT lewkit_crosscall2<>(SB),NOSPLIT|NOFRAME,$0
 // stack allocation reaches setVMAName, which is not nosplit, so the
 // prologue loads g.stackguard0. With g nil that is a fault at 0x10 on
 // this thread. libpreinit is nosplit. The stack comes from mmap, and
-// the new thread enters rt0_go. g stays clear through the callback so
-// load_g, a no-op without cgo, leaves needm to attach an M. x28 is
-// restored for ART.
+// the new thread enters rt0_go. g stays clear through this callback so
+// load_g, a no-op without cgo, leaves needm to attach an M. A later
+// Java thread arrives with ART's x28; crosscall2 drops that unless it
+// is already the g for this stack. x28 is restored for ART.
 TEXT JNI_OnLoad(SB),NOSPLIT|NOFRAME,$0
 	SUB	$32, RSP
 	STP	(R29, R30), 16(RSP)
