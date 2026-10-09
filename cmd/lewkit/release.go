@@ -11,9 +11,10 @@ import (
 )
 
 type releaseCmd struct {
-	key   *keyCmd
-	build *buildCmd
-	run   *runCmd
+	key      *keyCmd
+	build    *buildCmd
+	buildAll *buildAllCmd `cmd:"build-all"`
+	run      *runCmd
 }
 
 func (releaseCmd) Description() string { return "key, build, or run an app" }

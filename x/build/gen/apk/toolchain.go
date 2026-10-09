@@ -42,6 +42,22 @@ func AndroidSDK(ctx context.Context) (string, error) {
 	return androidSDK(ctx)
 }
 
+// SDKInstalled reports an Android SDK that is already on the machine.
+// A missing SDK is false. This does not install one.
+func SDKInstalled(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	if dir, err := sdkFromEnv(); err != nil || dir != "" {
+		return err == nil && isDir(dir)
+	}
+	if dir, ok := sdkFromHome(); ok {
+		return isDir(dir)
+	}
+	root, err := miseWhere(ctx, miseSDKSpec)
+	return err == nil && isDir(root)
+}
+
 func androidSDK(ctx context.Context) (string, error) {
 	if dir, err := sdkFromEnv(); err != nil || dir != "" {
 		return dir, err
