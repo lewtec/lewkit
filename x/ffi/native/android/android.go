@@ -26,6 +26,15 @@ func NoteVM(vm uintptr) {
 	noteMu.Unlock()
 }
 
+// NotedVM reports whether JNI_OnLoad recorded a Java VM.
+// It does not open a library. A packaged fallback process never notes one.
+func NotedVM() bool {
+	noteMu.Lock()
+	noted := notedVM != 0
+	noteMu.Unlock()
+	return noted
+}
+
 // NoteLoader records the thread that loaded the library. That thread runs
 // the main looper. Call it from JNI_OnLoad.
 func NoteLoader() {

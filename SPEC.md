@@ -418,6 +418,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-09: A packaged Android process publishes `ELETROCROMO_READY` when `JNI_OnLoad` did not note a Java VM. The activity process did, so it keeps the native window and does not listen. `ServerService` still starts only when `System.loadLibrary` fails. Rejected: a loopback listener in the activity process; opening `libnativehelper` to discover the VM.
 - 2026-10-09: Android Java reaches Go through one `lewkit.Hook.call`. `GoProxy.nativeInvoke` stays the callback entry. A cgo build exports those two. A cgo-free arm64 library (`-tags androidnocgo`) starts from `JNI_OnLoad`, registers both methods, and does not use cgo. That link passes `-checklinkname=0` and publishes `JNI_OnLoad`. The build schedule owns those flags. Rejected: a cgo export per host method; editing the APK build schedule in this change.
 - 2026-10-07: OpenGL compute spreads a 1D group count across Y and Z when X would pass `GL_MAX_COMPUTE_WORK_GROUP_COUNT`. The invocation index stays linear. A phone-sized frame dispatched on X alone is `GL_INVALID_VALUE` on Adreno. Rejected: shrinking the frame to stay under 65535 groups.
 - 2026-10-07: `driver.Pin` makes one driver the winner for one interface until the next pin. The drivers page has a Use button on each available driver that is not already selected. OpenGL stays behind Vulkan until that button is used. Rejected: raising the OpenGL weight above Vulkan.
