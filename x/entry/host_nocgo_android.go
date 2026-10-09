@@ -1,4 +1,4 @@
-//go:build android && !cgo && arm64 && androidnocgo
+//go:build android && !cgo && arm64
 
 package entry
 
@@ -12,9 +12,8 @@ import (
 )
 
 // runtimeNewextram makes an M for a Java thread that enters Go.
-// mstartm0 only does this when cgo is linked. The Android link passes
+// mstartm0 only does this when cgo is linked. The arm64 link passes
 // -checklinkname=0 because this symbol is not on the allowlist.
-// The build schedule owns that flag and -tags androidnocgo.
 //
 //go:linkname runtimeNewextram runtime.newextram
 func runtimeNewextram()
