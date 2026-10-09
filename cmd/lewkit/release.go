@@ -40,9 +40,7 @@ func (c *runCmd) Run(ctx context.Context) error {
 	ch := make(chan pendingRun, 1)
 	var pending pendingRun
 	err := progress.Run(session, ctx, func(ctx context.Context) error {
-		taskgroup.Go(ctx, c.goos.Value()+"/"+c.goarch.Value(), taskgroup.CPU, func(ctx context.Context, status *taskgroup.Status) error {
-			done := status.Unit()
-			defer done()
+		taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, _ *taskgroup.Status) error {
 			run, err := c.stage(ctx)
 			ch <- pendingRun{err: err, run: run}
 			return err

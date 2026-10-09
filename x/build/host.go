@@ -25,6 +25,9 @@ type Host struct {
 	SDK    string
 	GoOnly bool
 	CGO    bool
+	// IconRoot is a generated icon tree. Empty means Workflow's icons
+	// step, or the host build itself, writes one.
+	IconRoot string
 	// Sign is the publisher key. Nil leaves the Android debug keystore in
 	// place and ad-hoc signs the macOS Mach-O. A key signs the APK, the
 	// Windows exe, the macOS Mach-O, and the iOS Mach-O with that identity.
@@ -51,6 +54,7 @@ func (host Host) Android(ctx context.Context) (string, error) {
 		OutAPK:      host.Out,
 		GoOnly:      host.GoOnly,
 		CGO:         host.CGO,
+		IconRoot:    host.IconRoot,
 	})
 	if err != nil {
 		return "", err
@@ -81,6 +85,7 @@ func (host Host) Mac(ctx context.Context) (string, error) {
 		OutApp:      host.Out,
 		GoOnly:      host.GoOnly,
 		GOARCH:      host.GOARCH,
+		IconRoot:    host.IconRoot,
 	})
 	if err != nil {
 		return "", err
@@ -109,6 +114,7 @@ func (host Host) Linux(ctx context.Context) (string, error) {
 		OutApp:      host.Out,
 		GoOnly:      host.GoOnly,
 		GOARCH:      host.GOARCH,
+		IconRoot:    host.IconRoot,
 	})
 	if err != nil {
 		return "", err
@@ -131,6 +137,7 @@ func (host Host) Windows(ctx context.Context) (string, error) {
 		OutExe:      host.Out,
 		GoOnly:      host.GoOnly,
 		GOARCH:      host.GOARCH,
+		IconRoot:    host.IconRoot,
 	})
 	if err != nil {
 		return "", err
@@ -161,6 +168,7 @@ func (host Host) IOS(ctx context.Context) (string, error) {
 		GoOnly:      host.GoOnly,
 		SDK:         host.SDK,
 		GOARCH:      host.GOARCH,
+		IconRoot:    host.IconRoot,
 	})
 	if err != nil {
 		return "", err
