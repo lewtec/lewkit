@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -40,6 +41,36 @@ func TestConfigDefaultsToEletrocromoJSON(t *testing.T) {
 	assert.Equal(t, "./eletrocromo.json", run.Args.release.run.config.Value())
 	build := cmd.ParseOK[cmd.App[root]](t, "release", "build")
 	assert.Equal(t, "./eletrocromo.json", build.Args.release.build.config.Value())
+}
+
+func TestP12FlagReadsSecretFile(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "publisher.p12")
+	require.NoError(t, os.WriteFile(keyPath, []byte{0x30, 0x82}, 0o600))
+
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--p12", keyPath)
+	assert.Equal(t, []byte{0x30, 0x82}, app.Args.release.build.p12.Value())
+
+	_, err := app.Args.release.build.identity()
+	require.ErrorIs(t, err, sign.ErrPKCS12)
+}
+
+func TestP12EnvReadsSecretFile(t *testing.T) {
+	dir := t.TempDir()
+	keyPath := filepath.Join(dir, "publisher.p12")
+	require.NoError(t, os.WriteFile(keyPath, []byte("pkcs"), 0o600))
+	t.Setenv("LEWKIT_SIGN_P12", keyPath)
+
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build")
+	assert.Equal(t, []byte("pkcs"), app.Args.release.build.p12.Value())
+}
+
+func TestIdentityUnset(t *testing.T) {
+	t.Setenv("LEWKIT_SIGN_P12", "")
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build")
+	id, err := app.Args.release.build.identity()
+	require.NoError(t, err)
+	assert.Nil(t, id)
 }
 
 func TestAppUsesDefaultConfig(t *testing.T) {

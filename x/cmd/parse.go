@@ -864,6 +864,19 @@ func (s *spec) mark(fi int) {
 	if s.set != nil {
 		s.set[fi] = true
 	}
+	noteSet(s.root.FieldByIndex(s.fields[fi].index))
+}
+
+func noteSet(v reflect.Value) {
+	m := rvalue{v}.ptr().MethodByName("MarkSet")
+	if !m.IsValid() {
+		return
+	}
+	t := m.Type()
+	if t.NumIn() != 0 || t.NumOut() != 0 {
+		return
+	}
+	m.Call(nil)
 }
 
 func (s *spec) setValueAt(fi int, val string) error {

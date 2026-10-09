@@ -12,6 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -63,15 +64,27 @@ func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 	goos := c.goos.Value()
 	goarch := c.goarch.Value()
 	target := build.Target{GOOS: goos, GOARCH: goarch}
+	identity, err := c.identity()
+	if err != nil {
+		return nil, err
+	}
 	if !c.app.Value() {
-		return c.archive(ctx, target)
+		return c.archive(ctx, target, identity)
 	}
 	return c.host(func() (string, error) {
-		return packageHost(ctx, c.spec(), goos, goarch, c.out.Value(), c.work.Value(), c.sdk.Value(), c.goOnly.Value(), c.cgo.Value())
+		return packageHost(ctx, c.spec(), goos, goarch, c.out.Value(), c.work.Value(), c.sdk.Value(), c.goOnly.Value(), c.cgo.Value(), identity)
 	})
 }
 
-func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, sdk string, goOnly, cgo bool) (string, error) {
+func (c *buildFlags) identity() (*sign.Identity, error) {
+	raw := c.p12.Value()
+	if raw == nil {
+		return nil, nil
+	}
+	return sign.LoadPKCS12(raw, "")
+}
+
+func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, sdk string, goOnly, cgo bool, identity *sign.Identity) (string, error) {
 	out, err := artifactPath(goos, out, spec)
 	if err != nil {
 		return "", err
@@ -84,6 +97,7 @@ func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, 
 		SDK:    sdk,
 		GoOnly: goOnly,
 		CGO:    cgo,
+		Sign:   identity,
 	}
 	switch goos {
 	case "darwin":
@@ -135,7 +149,7 @@ func artifactPath(goos, out string, spec build.Spec) (string, error) {
 	}
 }
 
-func (c *buildFlags) archive(ctx context.Context, target build.Target) ([]string, error) {
+func (c *buildFlags) archive(ctx context.Context, target build.Target, identity *sign.Identity) ([]string, error) {
 	cfg, _, err := c.spec().Load()
 	if err != nil {
 		return nil, err
@@ -162,6 +176,7 @@ func (c *buildFlags) archive(ctx context.Context, target build.Target) ([]string
 		AppID:   id,
 		Version: cfg.VersionName,
 		Targets: []build.Target{target},
+		Sign:    identity,
 	}.Run(ctx)
 }
 

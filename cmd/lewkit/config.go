@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/sops"
 )
 
 // appConfig is the flag set shared by release build and release run.
@@ -16,6 +17,7 @@ type appConfig struct {
 	version cmd.StringArg `long:"version" help:"version name" default:""`
 	config  cmd.StringArg `long:"config" help:"eletrocromo.json file or directory" default:"./eletrocromo.json"`
 	main    cmd.StringArg `long:"main" help:"main package directory" default:""`
+	p12     sops.File     `long:"p12" env:"LEWKIT_SIGN_P12" help:"passwordless PKCS#12 publisher key. A SOPS age file is decrypted." default:""`
 }
 
 func (c appConfig) spec() build.Spec {

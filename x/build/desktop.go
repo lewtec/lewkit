@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
+	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/build/version"
 	"github.com/lewtec/lewkit/x/release"
 )
@@ -67,6 +68,9 @@ type Job struct {
 	AppID   string
 	Version string
 	Targets []Target
+	// Sign, when set, Authenticode-signs a Windows exe, Mach-O-signs a
+	// Darwin binary, and writes a detached CMS signature beside every archive.
+	Sign *sign.Identity
 }
 
 // Desktop cross-compiles one archive for every release target.
@@ -112,6 +116,18 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 			os.RemoveAll(tmp)
 			return written, fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
 		}
+		if job.Sign != nil && target.GOOS == "windows" {
+			if err := job.Sign.SignPEFile(ctx, binPath, project); err != nil {
+				os.RemoveAll(tmp)
+				return written, fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
+			}
+		}
+		if job.Sign != nil && target.GOOS == "darwin" {
+			if err := sign.SignMachO(job.Sign, binPath, job.AppID); err != nil {
+				os.RemoveAll(tmp)
+				return written, fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
+			}
+		}
 		archive := filepath.Join(job.Out, ArchiveName(project, target))
 		if err := writeArchive(archive, binPath, binary); err != nil {
 			os.RemoveAll(tmp)
@@ -119,6 +135,21 @@ func (job Job) Run(ctx context.Context) ([]string, error) {
 		}
 		os.RemoveAll(tmp)
 		written = append(written, archive)
+		if job.Sign != nil {
+			raw, err := os.ReadFile(archive)
+			if err != nil {
+				return written, err
+			}
+			sig, err := job.Sign.SignCMS(raw)
+			if err != nil {
+				return written, fmt.Errorf("sign %s: %w", archive, err)
+			}
+			cmsPath := archive + ".cms"
+			if err := os.WriteFile(cmsPath, sig, 0o644); err != nil {
+				return written, err
+			}
+			written = append(written, cmsPath)
+		}
 	}
 	return written, nil
 }
