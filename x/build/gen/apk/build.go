@@ -216,11 +216,11 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		if cgoEnabled {
 			args = []string{"-buildmode=c-shared", "-trimpath", "-ldflags", linkFlags, "-o", dest, "."}
 		} else if goarch == "arm64" {
-			// JNI_OnLoad and Hook.call are published only with these three.
+			// JNI_OnLoad is in .dynsym only with the wrapper, and the
+			// runtime symbol references need -checklinkname=0.
 			linkFlags = strings.TrimSpace(ldflags + " -checklinkname=0")
 			args = []string{
 				"-trimpath",
-				"-tags", "androidnocgo",
 				"-toolexec", toolexec,
 				"-ldflags", linkFlags,
 				"-o", dest, ".",

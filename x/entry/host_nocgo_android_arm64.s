@@ -1,4 +1,4 @@
-//go:build android && !cgo && arm64 && androidnocgo
+//go:build android && !cgo && arm64
 
 #include "textflag.h"
 
