@@ -1,4 +1,4 @@
-//go:build android && cgo
+//go:build android
 
 package jni
 
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
@@ -40,9 +41,19 @@ const (
 	idxNewObjectArray        = 172
 	idxGetObjectArrayElement = 173
 	idxSetObjectArrayElement = 174
+	idxDeleteLocalRef        = 23
 	idxNewByteArray          = 176
 	idxSetByteArrayRegion    = 208
+	idxRegisterNatives       = 215
 )
+
+// Native is one method Register binds on a Java class.
+// Name is the Java method. Sig is its JNI descriptor. Fn is the C ABI entry.
+type Native struct {
+	Name string
+	Sig  string
+	Fn   uintptr
+}
 
 var (
 	errNoEnv         = errors.New("jni env is not set")
@@ -556,4 +567,117 @@ func (e env) callDouble(obj, mid uintptr, ids errIDs) (float64, error) {
 		return 0, err
 	}
 	return out, nil
+}
+
+const jniVersion16 = 0x00010006
+
+// javaVM is the invocation interface noted from JNI_OnLoad.
+var javaVM atomic.Uintptr
+
+// SetVM records the JavaVM* passed to JNI_OnLoad.
+func SetVM(vm uintptr) {
+	if vm == 0 {
+		return
+	}
+	javaVM.Store(vm)
+}
+
+// UTF reads a JNI jstring with env, which is the JNIEnv of this thread.
+func UTF(env, jstr uintptr) (string, error) {
+	return openEnv(env).readString(jstr)
+}
+
+// Attach returns a JNIEnv for this thread.
+// GetEnv is used when the thread is already attached. Otherwise the VM
+// attaches it. A zero VM returns zero.
+func Attach() uintptr {
+	vm := javaVM.Load()
+	if vm == 0 {
+		return 0
+	}
+	tab := *(*uintptr)(unsafe.Pointer(vm))
+	var env uintptr
+	getEnv := *(*uintptr)(unsafe.Pointer(tab + 6*unsafe.Sizeof(uintptr(0))))
+	var get func(vm uintptr, out *uintptr, ver int32) int32
+	native.Register(&get, getEnv)
+	if get(vm, &env, jniVersion16) == 0 && env != 0 {
+		return env
+	}
+	attach := *(*uintptr)(unsafe.Pointer(tab + 4*unsafe.Sizeof(uintptr(0))))
+	var at func(vm uintptr, out *uintptr, args uintptr) int32
+	native.Register(&at, attach)
+	if at(vm, &env, 0) != 0 {
+		return 0
+	}
+	return env
+}
+
+// Register binds methods on class. class uses JNI slashes, such as "lewkit/Hook".
+// env is the JNIEnv of the thread that loaded the library. Call it from JNI_OnLoad.
+func Register(env uintptr, class string, methods []Native) error {
+	if class == "" {
+		return errEmptyClass
+	}
+	if len(methods) == 0 {
+		return nil
+	}
+	e := openEnv(env)
+	if e.tab == 0 {
+		return errNoEnv
+	}
+	find, err := e.fn(idxFindClass)
+	if err != nil {
+		return err
+	}
+	var findFn func(uintptr, uintptr) uintptr
+	native.Register(&findFn, find)
+	cname := cstr(class)
+	cls := findFn(e.self, cptr(cname))
+	runtime.KeepAlive(cname)
+	if cls == 0 {
+		e.clear()
+		return fmt.Errorf("%w: %s", errClass, class)
+	}
+	defer e.dropLocal(cls)
+	reg, err := e.fn(idxRegisterNatives)
+	if err != nil {
+		return err
+	}
+	var regFn func(uintptr, uintptr, uintptr, int32) int32
+	native.Register(&regFn, reg)
+	type row struct {
+		name, sig, fn uintptr
+	}
+	rows := make([]row, len(methods))
+	held := make([][]byte, 0, len(methods)*2)
+	for i, m := range methods {
+		if m.Fn == 0 || m.Name == "" || m.Sig == "" {
+			return fmt.Errorf("%w: %s.%s", errMissingMethod, class, m.Name)
+		}
+		nb := cstr(m.Name)
+		sb := cstr(m.Sig)
+		held = append(held, nb, sb)
+		rows[i] = row{name: cptr(nb), sig: cptr(sb), fn: m.Fn}
+	}
+	rc := regFn(e.self, cls, uintptr(unsafe.Pointer(&rows[0])), int32(len(rows)))
+	runtime.KeepAlive(held)
+	runtime.KeepAlive(rows)
+	if rc != 0 {
+		e.clear()
+		return fmt.Errorf("%w: %s", errClass, class)
+	}
+	return nil
+}
+
+func (e env) dropLocal(obj uintptr) {
+	if obj == 0 {
+		return
+	}
+	fp, err := e.fn(idxDeleteLocalRef)
+	if err != nil {
+		return
+	}
+	var fn func(uintptr, uintptr)
+	native.Register(&fn, fp)
+	fn(e.self, obj)
 }

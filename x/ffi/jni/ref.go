@@ -19,3 +19,11 @@ func (r *Ref) Class() string {
 	}
 	return r.class
 }
+
+// Peer is the JNI object pointer. It stays valid until Release.
+func (r *Ref) Peer() uintptr {
+	if r == nil {
+		return 0
+	}
+	return r.ptr
+}
