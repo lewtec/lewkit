@@ -12,6 +12,7 @@ const (
 )
 
 func openPath(path string, flags int) (uintptr, error) {
+	preloadSiblingDeps(path, flags)
 	return purego.Dlopen(path, flags)
 }
 

@@ -2,7 +2,7 @@
 //
 //	err := messagebox.Show(ctx, "Hello", "Saved.")
 //
-// Import a backend (android, host, cocoa, win32, zenity). App mode uses
+// Import a backend (android, host, cocoa, gtk, win32, zenity). App mode uses
 // the packaged host or the Android dialog. A terminal is not required.
 // [Show] is a critical alert. [ShowNotice] selects informational, warning,
 // or critical. An empty style is informational.

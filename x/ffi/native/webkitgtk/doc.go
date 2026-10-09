@@ -1,6 +1,6 @@
-// Package webkitgtk loads WebKitGTK 6 and GTK 4 without cgo.
+// Package webkitgtk loads WebKitGTK without cgo.
 //
-// The shared libraries are the ones the OS already provides
-// (libwebkitgtk-6.0.so.4, libgtk-4.so.1, and their GLib siblings).
-// Nothing in this package listens on a socket.
+// WebKitGTK 6 with GTK 4 is preferred. WebKit2GTK 4.1 with GTK 3 is the
+// fallback, which is the conda-forge webkit2gtk4.1 package. Nothing in
+// this package listens on a socket.
 package webkitgtk

@@ -20,6 +20,10 @@ var (
 
 func shellMark() image.Image {
 	markOnce.Do(func() {
+		if img := window.BundleIcon(); img != nil {
+			markImg = img
+			return
+		}
 		img, err := icons.DefaultMark()
 		if err != nil {
 			return

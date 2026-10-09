@@ -5,6 +5,7 @@ package webkitgtk
 import (
 	"context"
 	"fmt"
+	"image"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -20,7 +21,10 @@ import (
 	"github.com/ebitengine/purego"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
+	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/driver/webview"
+	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/ffi/native/gtk"
 	"github.com/lewtec/lewkit/x/ffi/native/webkitgtk"
 )
 
@@ -29,8 +33,8 @@ const (
 	viewHostPrefix = "view"
 )
 
-func libraries(context.Context) error {
-	if _, err := webkitgtk.Load(); err != nil {
+func libraries(ctx context.Context) error {
+	if _, err := webkitgtk.Load(ctx); err != nil {
 		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
 	}
 	return nil
@@ -52,6 +56,7 @@ var (
 	schemeRegistered sync.Once
 
 	closeCallback    = purego.NewCallback(onClose)
+	deleteCallback   = purego.NewCallback(onDelete)
 	messageCallback  = purego.NewCallback(onMessage)
 	schemeCallback   = purego.NewCallback(onScheme)
 	evaluateCallback = purego.NewCallback(onEvaluate)
@@ -67,7 +72,7 @@ func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, er
 	if driver.GetEnv(ctx, "DISPLAY") == "" && driver.GetEnv(ctx, "WAYLAND_DISPLAY") == "" {
 		return nil, fmt.Errorf("%w: no display", driver.ErrUnavailable)
 	}
-	state, err := ensureLoop()
+	state, err := ensureLoop(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,32 +100,80 @@ func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, er
 	}
 }
 
-func ensureLoop() (*loopState, error) {
+func ensureLoop(ctx context.Context) (*loopState, error) {
 	loopOnce.Do(func() {
+		if err := ctx.Err(); err != nil {
+			loopError = err
+			return
+		}
 		if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
 			loopError = fmt.Errorf("%w: no display", driver.ErrUnavailable)
 			return
 		}
-		symbols, err := webkitgtk.Load()
+		symbols, err := webkitgtk.Load(ctx)
 		if err != nil {
 			loopError = err
 			return
 		}
-		state := &loopState{symbols: symbols, jobs: make(chan func(), 32)}
+		state := &loopState{symbols: symbols}
+		if symbols.GTK3() {
+			state.jobs = make(chan func(), 32)
+		}
 		ready := make(chan error, 1)
-		go func() {
-			runtime.LockOSThread()
-			defer runtime.UnlockOSThread()
+		boot := func() (err error) {
 			defer func() {
 				if recovered := recover(); recovered != nil {
-					ready <- fmt.Errorf("gtk init: %v", recovered)
+					err = fmt.Errorf("gtk init: %v", recovered)
 				}
 			}()
+			if !symbols.GTK3() {
+				if err = gtk.Ensure(); err != nil {
+					return err
+				}
+			}
 			symbols.Init()
-			ready <- nil
-			state.loop()
-		}()
-		loopError = <-ready
+			return nil
+		}
+		switch {
+		case symbols.GTK3():
+			go func() {
+				runtime.LockOSThread()
+				defer runtime.UnlockOSThread()
+				if err := boot(); err != nil {
+					ready <- err
+					return
+				}
+				ready <- nil
+				for {
+					state.drain()
+					if symbols.Iterate(0) == 0 {
+						time.Sleep(5 * time.Millisecond)
+					}
+				}
+			}()
+			loopError = <-ready
+		case uiOwnsGTK():
+			thread.Go(func() { ready <- boot() })
+			loopError = <-ready
+		case onUIThread():
+			loopError = boot()
+		default:
+			go func() {
+				runtime.LockOSThread()
+				defer runtime.UnlockOSThread()
+				if err := boot(); err != nil {
+					ready <- err
+					return
+				}
+				ready <- nil
+				for {
+					if gtk.Poll() == 0 {
+						time.Sleep(5 * time.Millisecond)
+					}
+				}
+			}()
+			loopError = <-ready
+		}
 		loopStateValue = state
 	})
 	if loopError != nil {
@@ -129,25 +182,44 @@ func ensureLoop() (*loopState, error) {
 	return loopStateValue, nil
 }
 
-func (state *loopState) loop() {
+func (state *loopState) do(job func()) {
+	if state.jobs != nil {
+		state.jobs <- job
+		return
+	}
+	_ = gtk.Enqueue(job)
+}
+
+func (state *loopState) drain() {
+	if state.jobs == nil {
+		return
+	}
 	for {
-		for {
-			select {
-			case job := <-state.jobs:
-				job()
-			default:
-				goto idle
-			}
-		}
-	idle:
-		if state.symbols.Iterate(0) == 0 {
-			time.Sleep(5 * time.Millisecond)
+		select {
+		case job := <-state.jobs:
+			job()
+		default:
+			return
 		}
 	}
 }
 
-func (state *loopState) do(job func()) {
-	state.jobs <- job
+func uiOwnsGTK() bool {
+	bound, on := uiThread()
+	return bound && !on
+}
+
+func onUIThread() bool {
+	_, on := uiThread()
+	return on
+}
+
+func uiThread() (bound, on bool) {
+	defer func() { _ = recover() }()
+	if !thread.Bound() {
+		return false, false
+	}
+	return true, thread.On()
 }
 
 func (state *loopState) webView(profile string) (uintptr, error) {
@@ -198,7 +270,12 @@ func (state *loopState) open(ctx context.Context, cfg webview.Config) (webview.V
 		state.symbols.SetTitle(window, cfg.Title)
 	}
 	state.symbols.SetDefaultSize(window, width, height)
-	state.symbols.Connect(window, "close-request", closeCallback, identifier)
+	setViewIcon(window, cfg.Icon)
+	if state.symbols.GTK3() {
+		state.symbols.Connect(window, "delete-event", deleteCallback, identifier)
+	} else {
+		state.symbols.Connect(window, "close-request", closeCallback, identifier)
+	}
 	manager := state.symbols.Manager(webView)
 	state.symbols.Connect(manager, "script-message-received::"+webview.ScriptName(), messageCallback, identifier)
 	if !state.symbols.RegisterMessageHandler(manager, webview.ScriptName()) {
@@ -224,6 +301,20 @@ func (state *loopState) open(ctx context.Context, cfg webview.Config) (webview.V
 	}
 	state.symbols.Present(window)
 	return view, nil
+}
+
+func setViewIcon(widget uintptr, icon image.Image) {
+	if icon == nil {
+		icon = window.BundleIcon()
+	}
+	if icon == nil {
+		return
+	}
+	xid, err := gtk.SurfaceXID(widget)
+	if err != nil || xid == 0 {
+		return
+	}
+	_ = window.ApplyXIcon(xid, icon)
 }
 
 type gtkView struct {
@@ -300,6 +391,11 @@ func onClose(_, data uintptr) uintptr {
 	if loaded, ok := views.Load(data); ok {
 		loaded.(*gtkView).markClosed()
 	}
+	return 0
+}
+
+func onDelete(_, _, data uintptr) uintptr {
+	onClose(0, data)
 	return 0
 }
 

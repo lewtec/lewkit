@@ -89,6 +89,11 @@ func launchApp(ctx context.Context, goos, path, id string) error {
 			return fmt.Errorf("built windows app (%s); this machine is %s", path, runtime.GOOS)
 		}
 		return runForeground(ctx, path)
+	case "linux":
+		if runtime.GOOS != "linux" {
+			return fmt.Errorf("built linux app (%s); this machine is %s", path, runtime.GOOS)
+		}
+		return runForeground(ctx, path)
 	default:
 		return fmt.Errorf("%s has no app to launch", goos)
 	}

@@ -3,6 +3,7 @@
 package entry
 
 import (
+	"context"
 	"syscall"
 	"unsafe"
 
@@ -17,7 +18,7 @@ var (
 	procGetConsole    = native.ProcOf("kernel32.dll", "GetConsoleWindow")
 )
 
-func prepareHost() {
+func prepareHost(context.Context) {
 	// DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 is -4.
 	if r, _, _ := procSetDpiContext.Call(^uintptr(3)); r == 0 {
 		procSetDpiAware.Call()
@@ -37,3 +38,5 @@ func windowsGUI() bool {
 	hwnd, _, _ := procGetConsole.Call()
 	return hwnd == 0
 }
+
+func linuxApp() bool { return false }

@@ -108,13 +108,16 @@ func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, 
 		return host.IOS(ctx)
 	case "windows":
 		return host.Windows(ctx)
+	case "linux":
+		return host.Linux(ctx)
 	default:
 		return "", fmt.Errorf("%s has no app package", goos)
 	}
 }
 
-// artifactPath turns a directory such as dist into the file eletrocromo wrote:
-// dist/<label>-debug.apk or dist/<App>.app. A path that already names a file is kept.
+// artifactPath turns a directory such as dist into the file the host wrote:
+// dist/<label>-debug.apk, dist/<App>.exe, dist/<App>.AppImage, or dist/<App>.app.
+// A path that already names a file is kept.
 func artifactPath(goos, out string, spec build.Spec) (string, error) {
 	out = strings.TrimSpace(out)
 	if out == "" {
@@ -144,6 +147,8 @@ func artifactPath(goos, out string, spec build.Spec) (string, error) {
 		return filepath.Join(out, label+"-debug.apk"), nil
 	case "windows":
 		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".exe"), nil
+	case "linux":
+		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".AppImage"), nil
 	default:
 		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".app"), nil
 	}

@@ -1,6 +1,7 @@
 package native
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -36,11 +37,15 @@ func unique(dirs []string) []string {
 }
 
 func TestOpenChainTriesBareNameThenDirsAndRemembers(t *testing.T) {
-	t.Setenv("LEWKIT_LIB", "/tmp/lewkit-chain")
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "libgood.so"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("LEWKIT_LIB", dir)
 	var paths []string
 	swapLoader(t, func(path string, _ int) (uintptr, error) {
 		paths = append(paths, path)
-		if path == filepath.Join("/tmp/lewkit-chain", "libgood.so") {
+		if path == filepath.Join(dir, "libgood.so") {
 			return 4, nil
 		}
 		return 0, errMissing
@@ -49,7 +54,8 @@ func TestOpenChainTriesBareNameThenDirsAndRemembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uintptr(4), first)
 	require.Equal(t, "libgood.so", paths[0])
-	require.Contains(t, paths, filepath.Join("/tmp/lewkit-chain", "libgood.so"))
+	require.Contains(t, paths, filepath.Join(dir, "libgood.so"))
+	require.NotContains(t, paths, "/usr/local/lib/libgood.so")
 	n := len(paths)
 	second, err := OpenChain(Lazy, "libgood.so")
 	require.NoError(t, err)
@@ -79,25 +85,28 @@ func TestOpenChainLeavesPathsAlone(t *testing.T) {
 		return 0, errMissing
 	})
 	path := filepath.Join(t.TempDir(), "libonly.so")
+	require.NoError(t, os.WriteFile(path, []byte("x"), 0o644))
 	_, err := OpenChain(Lazy, path)
 	require.ErrorIs(t, err, errMissing)
 	require.Equal(t, []string{path}, paths)
 }
 
 func TestOpenInTriesExtraDirsFirst(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "libextra.so"), []byte("x"), 0o644))
 	var paths []string
 	swapLoader(t, func(path string, _ int) (uintptr, error) {
 		paths = append(paths, path)
-		if path == filepath.Join("/tmp/extra-chain", "libextra.so") {
+		if path == filepath.Join(dir, "libextra.so") {
 			return 5, nil
 		}
 		return 0, errMissing
 	})
-	handle, err := OpenIn(Lazy, []string{"/tmp/extra-chain"}, "libextra.so")
+	handle, err := OpenIn(Lazy, []string{dir}, "libextra.so")
 	require.NoError(t, err)
 	require.Equal(t, uintptr(5), handle)
 	require.Equal(t, "libextra.so", paths[0])
-	require.Equal(t, filepath.Join("/tmp/extra-chain", "libextra.so"), paths[1])
+	require.Equal(t, filepath.Join(dir, "libextra.so"), paths[1])
 }
 
 func TestProcOfRemembersTheLookup(t *testing.T) {

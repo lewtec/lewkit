@@ -65,12 +65,12 @@ func Main(parent context.Context, fn func(context.Context) error) {
 // MainFrom is Main with parent's context values kept on the signal context.
 // Pool caps from taskgroup.WithLimits apply when Run starts the session.
 func MainFrom(parent context.Context, fn func(context.Context) error) {
-	prepareHost()
 	slog.SetDefault(slog.New(logging.NewHandler(slogOut(), &slog.HandlerOptions{Level: slog.LevelInfo})))
 	if parent == nil {
 		slog.Error("entry: nil context")
 		os.Exit(1)
 	}
+	prepareHost(parent)
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt)
 	defer stop()
 	if err := Run(ctx, fn); err != nil {
@@ -81,9 +81,10 @@ func MainFrom(parent context.Context, fn func(context.Context) error) {
 	}
 }
 
-// failureVisible is app mode, or a Windows GUI executable with no console.
+// failureVisible is app mode, a Windows GUI executable with no console,
+// or a Linux AppImage.
 func failureVisible() bool {
-	return driver.AppMode() || windowsGUI()
+	return driver.AppMode() || windowsGUI() || linuxApp()
 }
 
 // showFailure is the escape hatch when the process has no terminal.

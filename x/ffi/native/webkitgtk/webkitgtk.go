@@ -3,6 +3,7 @@
 package webkitgtk
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -33,7 +34,12 @@ type Symbols struct {
 	ioErrorQuark        func() uint32
 	newError            func(domain uint32, code int32, message *byte) uintptr
 	freeError           func(gError uintptr)
+	gtk3                bool
 	windowNew           func() uintptr
+	windowNewTyped      func(kind int32) uintptr
+	containerAdd        func(parent, child uintptr)
+	showAll             func(widget uintptr)
+	widgetDestroy       func(widget uintptr)
 	settingsDefault     func() uintptr
 	valueInit           func(value uintptr, gtype uintptr)
 	valueSetBool        func(value uintptr, v int32)
@@ -48,6 +54,12 @@ type Symbols struct {
 	webViewType         func() uintptr
 	objectNew           func(objectType uintptr, property *byte, value, terminator uintptr) uintptr
 	networkSession      func(dataDirectory, cacheDirectory *byte) uintptr
+	dataManagerNew      func(name1, value1, name2, value2 *byte, end uintptr) uintptr
+	contextWithManager  func(manager uintptr) uintptr
+	viewWithContext     func(context uintptr) uintptr
+	settingsNew         func() uintptr
+	setHardwarePolicy   func(settings uintptr, policy int32)
+	objectNewPair       func(objectType uintptr, name1 *byte, value1 uintptr, name2 *byte, value2, end uintptr) uintptr
 	loadHTML            func(view uintptr, html, base *byte)
 	loadURI             func(view uintptr, uri *byte)
 	getManager          func(view uintptr) uintptr
@@ -84,7 +96,11 @@ type Symbols struct {
 // Load opens the system WebKitGTK 6 stack. WEBKITGTK_LIB, when set, is a
 // colon-separated list of directories searched before the NixOS system
 // profile (/run/current-system/sw/lib) and the loader path.
-func Load() (*Symbols, error) {
+// ctx is the caller context used to resolve the toolkit through the exec driver.
+func Load(ctx context.Context) (*Symbols, error) {
+	if err := native.Prepare(ctx); err != nil {
+		return nil, err
+	}
 	glib, err := openOne("libglib-2.0.so.0")
 	if err != nil {
 		return nil, err
@@ -97,19 +113,11 @@ func Load() (*Symbols, error) {
 	if err != nil {
 		return nil, err
 	}
-	gtk, err := openOne("libgtk-4.so.1")
+	web, gtk, jsc, gtk3, err := openWebKit()
 	if err != nil {
 		return nil, err
 	}
-	jsc, err := openOne("libjavascriptcoregtk-6.0.so.1")
-	if err != nil {
-		return nil, err
-	}
-	web, err := openOne("libwebkitgtk-6.0.so.4")
-	if err != nil {
-		return nil, err
-	}
-	s := &Symbols{}
+	s := &Symbols{gtk3: gtk3}
 	if err := bind(glib, "g_main_context_iteration", &s.iterate); err != nil {
 		return nil, err
 	}
@@ -155,28 +163,7 @@ func Load() (*Symbols, error) {
 	if err := bind(gio, "g_io_error_quark", &s.ioErrorQuark); err != nil {
 		return nil, err
 	}
-	if err := bind(gtk, "gtk_init", &s.init); err != nil {
-		return nil, err
-	}
-	if err := bind(gtk, "gtk_settings_get_default", &s.settingsDefault); err != nil {
-		return nil, err
-	}
-	if err := bind(gtk, "gtk_window_new", &s.windowNew); err != nil {
-		return nil, err
-	}
-	if err := bind(gtk, "gtk_window_set_title", &s.setTitle); err != nil {
-		return nil, err
-	}
-	if err := bind(gtk, "gtk_window_set_default_size", &s.setSize); err != nil {
-		return nil, err
-	}
-	if err := bind(gtk, "gtk_window_set_child", &s.setChild); err != nil {
-		return nil, err
-	}
-	if err := bind(gtk, "gtk_window_present", &s.present); err != nil {
-		return nil, err
-	}
-	if err := bind(gtk, "gtk_window_destroy", &s.destroy); err != nil {
+	if err := bindGTK(s, gtk); err != nil {
 		return nil, err
 	}
 	if err := bind(web, "webkit_web_view_new", &s.newWebView); err != nil {
@@ -186,6 +173,12 @@ func Load() (*Symbols, error) {
 		return nil, err
 	}
 	_ = native.Bind(web, "webkit_network_session_new", &s.networkSession)
+	_ = native.Bind(web, "webkit_website_data_manager_new", &s.dataManagerNew)
+	_ = native.Bind(web, "webkit_web_context_new_with_website_data_manager", &s.contextWithManager)
+	_ = native.Bind(web, "webkit_web_view_new_with_context", &s.viewWithContext)
+	_ = native.Bind(web, "webkit_settings_new", &s.settingsNew)
+	_ = native.Bind(web, "webkit_settings_set_hardware_acceleration_policy", &s.setHardwarePolicy)
+	_ = native.Bind(gobject, "g_object_new", &s.objectNewPair)
 	if err := bind(web, "webkit_web_view_load_html", &s.loadHTML); err != nil {
 		return nil, err
 	}
@@ -272,6 +265,70 @@ func webkitDirs() []string {
 	return dirs
 }
 
+// openWebKit prefers WebKitGTK 6 on GTK 4. WebKit2GTK 4.1 on GTK 3 is the
+// fallback, including the conda-forge webkit2gtk4.1 package.
+func openWebKit() (web, gtk, jsc uintptr, gtk3 bool, err error) {
+	web, err6 := openOne("libwebkitgtk-6.0.so.4")
+	if err6 == nil {
+		gtk, err = openOne("libgtk-4.so.1")
+		if err != nil {
+			return 0, 0, 0, false, err
+		}
+		jsc, err = openOne("libjavascriptcoregtk-6.0.so.1")
+		return web, gtk, jsc, false, err
+	}
+	if native.Loaded("libgtk-4.so.1") {
+		return 0, 0, 0, false, fmt.Errorf("%v; %w: GTK 4 is already loaded", err6, ErrUnavailable)
+	}
+	web, err41 := openOne("libwebkit2gtk-4.1.so.0")
+	if err41 != nil {
+		return 0, 0, 0, false, fmt.Errorf("%v; %v", err6, err41)
+	}
+	gtk, err = openOne("libgtk-3.so.0")
+	if err != nil {
+		return 0, 0, 0, true, err
+	}
+	jsc, err = openOne("libjavascriptcoregtk-4.1.so.0")
+	return web, gtk, jsc, true, err
+}
+
+func bindGTK(s *Symbols, gtk uintptr) error {
+	if err := bind(gtk, "gtk_init", &s.init); err != nil {
+		return err
+	}
+	if err := bind(gtk, "gtk_settings_get_default", &s.settingsDefault); err != nil {
+		return err
+	}
+	if err := bind(gtk, "gtk_window_set_title", &s.setTitle); err != nil {
+		return err
+	}
+	if err := bind(gtk, "gtk_window_set_default_size", &s.setSize); err != nil {
+		return err
+	}
+	if err := bind(gtk, "gtk_window_present", &s.present); err != nil {
+		return err
+	}
+	if s.gtk3 {
+		if err := bind(gtk, "gtk_window_new", &s.windowNewTyped); err != nil {
+			return err
+		}
+		if err := bind(gtk, "gtk_container_add", &s.containerAdd); err != nil {
+			return err
+		}
+		if err := bind(gtk, "gtk_widget_show_all", &s.showAll); err != nil {
+			return err
+		}
+		return bind(gtk, "gtk_widget_destroy", &s.widgetDestroy)
+	}
+	if err := bind(gtk, "gtk_window_new", &s.windowNew); err != nil {
+		return err
+	}
+	if err := bind(gtk, "gtk_window_set_child", &s.setChild); err != nil {
+		return err
+	}
+	return bind(gtk, "gtk_window_destroy", &s.destroy)
+}
+
 func openOne(soname string) (uintptr, error) {
 	lib, err := native.OpenIn(native.Global|native.Lazy, webkitDirs(), soname)
 	if err != nil {
@@ -304,8 +361,16 @@ func (s *Symbols) Connect(obj uintptr, signal string, handler, data uintptr) {
 	runtime.KeepAlive(name)
 }
 
+// GTK3 reports that this stack is WebKit2GTK 4.1 on GTK 3.
+func (s *Symbols) GTK3() bool { return s != nil && s.gtk3 }
+
 // WindowNew returns a GtkWindow.
-func (s *Symbols) WindowNew() uintptr { return s.windowNew() }
+func (s *Symbols) WindowNew() uintptr {
+	if s.windowNewTyped != nil {
+		return s.windowNewTyped(0)
+	}
+	return s.windowNew()
+}
 
 // SetTitle sets the window title.
 func (symbols *Symbols) SetTitle(window uintptr, title string) {
@@ -320,10 +385,26 @@ func (symbols *Symbols) SetDefaultSize(window uintptr, width, height int) {
 }
 
 // SetChild parents child in the window.
-func (symbols *Symbols) SetChild(window, child uintptr) { symbols.setChild(window, child) }
+func (symbols *Symbols) SetChild(window, child uintptr) {
+	if symbols.containerAdd != nil {
+		symbols.containerAdd(window, child)
+		if symbols.showAll != nil {
+			symbols.showAll(child)
+		}
+		return
+	}
+	symbols.setChild(window, child)
+}
 
 // Present shows the window.
-func (symbols *Symbols) Present(window uintptr) { symbols.present(window) }
+func (symbols *Symbols) Present(window uintptr) {
+	if symbols.showAll != nil {
+		symbols.showAll(window)
+	}
+	if symbols.present != nil {
+		symbols.present(window)
+	}
+}
 
 // gTypeBoolean is G_TYPE_BOOLEAN on LP64 (5 << 2).
 const gTypeBoolean = 20
@@ -334,7 +415,16 @@ type gValue struct {
 	data1 uint64
 }
 
-// SetPreferDark sets gtk-application-prefer-dark on the default GtkSettings.
+// preferDarkProperty is the GtkSettings key WebKit watches for prefers-color-scheme.
+// GTK 3 names it gtk-application-prefer-dark-theme. GTK 4 names it gtk-application-prefer-dark.
+func preferDarkProperty(gtk3 bool) string {
+	if gtk3 {
+		return "gtk-application-prefer-dark-theme"
+	}
+	return "gtk-application-prefer-dark"
+}
+
+// SetPreferDark sets the dark-theme GtkSettings property.
 // WebKitGTK reads that property for prefers-color-scheme, including on a page
 // that is already loaded.
 func (symbols *Symbols) SetPreferDark(dark bool) {
@@ -352,7 +442,7 @@ func (symbols *Symbols) SetPreferDark(dark bool) {
 		flag = 1
 	}
 	symbols.valueSetBool(uintptr(unsafe.Pointer(&value)), flag)
-	name := native.CString("gtk-application-prefer-dark")
+	name := native.CString(preferDarkProperty(symbols.gtk3))
 	symbols.setProperty(settings, cStringPointer(name), uintptr(unsafe.Pointer(&value)))
 	symbols.valueUnset(uintptr(unsafe.Pointer(&value)))
 	runtime.KeepAlive(name)
@@ -361,20 +451,136 @@ func (symbols *Symbols) SetPreferDark(dark bool) {
 
 // Destroy closes the window.
 func (symbols *Symbols) Destroy(window uintptr) {
-	if window != 0 {
+	if window == 0 {
+		return
+	}
+	if symbols.widgetDestroy != nil {
+		symbols.widgetDestroy(window)
+		return
+	}
+	if symbols.destroy != nil {
 		symbols.destroy(window)
 	}
 }
 
+// hardwareAccelerationNever is WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER
+// in the WebKit2GTK 4.1 enum: ON_DEMAND is 0, ALWAYS is 1, NEVER is 2.
+const hardwareAccelerationNever int32 = 2
+
 // WebViewNew returns a WebKitWebView on the default profile.
-func (symbols *Symbols) WebViewNew() uintptr { return symbols.newWebView() }
+func (symbols *Symbols) WebViewNew() uintptr { return symbols.newWebViewFor(0) }
+
+// newWebViewFor returns a view. webContext 0 uses the default web context.
+// A failed EGL smoke paints in software. A passing smoke keeps the GPU.
+func (symbols *Symbols) newWebViewFor(webContext uintptr) uintptr {
+	if view := symbols.softwareWebView(webContext); view != 0 {
+		return view
+	}
+	if webContext != 0 && symbols.viewWithContext != nil {
+		return symbols.viewWithContext(webContext)
+	}
+	if symbols.newWebView == nil {
+		return 0
+	}
+	return symbols.newWebView()
+}
+
+// accelAvailable is the EGL smoke. Tests replace it.
+// A false result is software rendering. The probe does not abort.
+var accelAvailable = func() bool { return native.DMABufSmoke() }
+
+// paintInSoftware is the fallback after the smoke fails.
+// WebKit 2.48 aborts its web process when eglInitialize fails, and a
+// failed DMA-BUF import repeats on every frame. Either failure paints
+// with hardware-acceleration-policy NEVER.
+func paintInSoftware(accelOK bool) bool {
+	return !accelOK
+}
+
+// softwarePolicy is WEBKIT_HARDWARE_ACCELERATION_POLICY_NEVER.
+// GTK 3 numbers that value 2. GTK 4 numbers it 1.
+func softwarePolicy(gtk3 bool) int32 {
+	if gtk3 {
+		return hardwareAccelerationNever
+	}
+	return 1
+}
+
+func (symbols *Symbols) softwareWebView(webContext uintptr) uintptr {
+	if symbols == nil || !paintInSoftware(accelAvailable()) || symbols.settingsNew == nil || symbols.setHardwarePolicy == nil || symbols.webViewType == nil {
+		return 0
+	}
+	if webContext != 0 && symbols.objectNewPair == nil {
+		return 0
+	}
+	if webContext == 0 && symbols.objectNew == nil {
+		return 0
+	}
+	settings := symbols.settingsNew()
+	if settings == 0 {
+		return 0
+	}
+	symbols.setHardwarePolicy(settings, softwarePolicy(symbols.gtk3))
+	var webView uintptr
+	if webContext != 0 {
+		contextName := native.CString("web-context")
+		settingsName := native.CString("settings")
+		webView = symbols.objectNewPair(
+			symbols.webViewType(),
+			cStringPointer(contextName), webContext,
+			cStringPointer(settingsName), settings,
+			0,
+		)
+		runtime.KeepAlive(contextName)
+		runtime.KeepAlive(settingsName)
+	} else {
+		settingsName := native.CString("settings")
+		webView = symbols.objectNew(symbols.webViewType(), cStringPointer(settingsName), settings, 0)
+		runtime.KeepAlive(settingsName)
+	}
+	if symbols.unref != nil {
+		symbols.unref(settings)
+	}
+	return webView
+}
 
 // WebViewWithProfile returns a WebKitWebView whose cookies and storage
 // live in dataDirectory. cacheDirectory holds the network cache.
+// WebKitGTK 6 builds that view on a network session. WebKit2GTK 4.1
+// builds it on a website data manager.
 func (symbols *Symbols) WebViewWithProfile(dataDirectory, cacheDirectory string) (uintptr, error) {
-	if symbols.networkSession == nil || symbols.objectNew == nil || symbols.webViewType == nil {
+	switch profileBackend(symbols.networkSessionReady(), symbols.dataManagerReady()) {
+	case "network-session":
+		return symbols.webViewWithNetworkSession(dataDirectory, cacheDirectory)
+	case "website-data-manager":
+		return symbols.webViewWithDataManager(dataDirectory, cacheDirectory)
+	default:
 		return 0, fmt.Errorf("%w: network session", ErrUnavailable)
 	}
+}
+
+// profileBackend chooses the persistent-profile constructor.
+// WebKitGTK 6 uses a network session. WebKit2GTK 4.1, including
+// conda-forge webkit2gtk4.1, uses a website data manager.
+func profileBackend(networkSession, dataManager bool) string {
+	if networkSession {
+		return "network-session"
+	}
+	if dataManager {
+		return "website-data-manager"
+	}
+	return ""
+}
+
+func (symbols *Symbols) networkSessionReady() bool {
+	return symbols.networkSession != nil && symbols.objectNew != nil && symbols.webViewType != nil
+}
+
+func (symbols *Symbols) dataManagerReady() bool {
+	return symbols.dataManagerNew != nil && symbols.contextWithManager != nil && symbols.viewWithContext != nil
+}
+
+func (symbols *Symbols) webViewWithNetworkSession(dataDirectory, cacheDirectory string) (uintptr, error) {
 	dataBytes := native.CString(dataDirectory)
 	cacheBytes := native.CString(cacheDirectory)
 	session := symbols.networkSession(cStringPointer(dataBytes), cStringPointer(cacheBytes))
@@ -386,6 +592,37 @@ func (symbols *Symbols) WebViewWithProfile(dataDirectory, cacheDirectory string)
 	property := native.CString("network-session")
 	webView := symbols.objectNew(symbols.webViewType(), cStringPointer(property), session, 0)
 	runtime.KeepAlive(property)
+	if webView == 0 {
+		return 0, fmt.Errorf("%w: web view", ErrUnavailable)
+	}
+	return webView, nil
+}
+
+func (symbols *Symbols) webViewWithDataManager(dataDirectory, cacheDirectory string) (uintptr, error) {
+	dataName := native.CString("base-data-directory")
+	cacheName := native.CString("base-cache-directory")
+	dataBytes := native.CString(dataDirectory)
+	cacheBytes := native.CString(cacheDirectory)
+	manager := symbols.dataManagerNew(
+		cStringPointer(dataName), cStringPointer(dataBytes),
+		cStringPointer(cacheName), cStringPointer(cacheBytes),
+		0,
+	)
+	runtime.KeepAlive(dataName)
+	runtime.KeepAlive(cacheName)
+	runtime.KeepAlive(dataBytes)
+	runtime.KeepAlive(cacheBytes)
+	if manager == 0 {
+		return 0, fmt.Errorf("%w: website data manager", ErrUnavailable)
+	}
+	webContext := symbols.contextWithManager(manager)
+	if webContext == 0 {
+		symbols.unref(manager)
+		return 0, fmt.Errorf("%w: website data manager", ErrUnavailable)
+	}
+	webView := symbols.newWebViewFor(webContext)
+	symbols.unref(webContext)
+	symbols.unref(manager)
 	if webView == 0 {
 		return 0, fmt.Errorf("%w: web view", ErrUnavailable)
 	}
