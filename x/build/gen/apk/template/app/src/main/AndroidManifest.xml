@@ -3,8 +3,6 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:allowBackup="false"
@@ -37,15 +35,6 @@
             android:exported="false"
             android:launchMode="standard"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
-
-        <service
-            android:name=".ServerService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="local eletrocromo HTTP server for WebView UI" />
-        </service>
 
         <provider
             android:name="lewkit.FileProvider"
