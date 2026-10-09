@@ -1,17 +1,12 @@
-//go:build android && cgo
+//go:build android
 
 package jni
 
-/*
-#include <jni.h>
-*/
-import "C"
 import (
 	"errors"
 	"log/slog"
 	"sync"
 	"sync/atomic"
-	"unsafe"
 )
 
 var errNullProxy = errors.New("java proxy is null")
@@ -112,16 +107,9 @@ func releaseValues(args []any) {
 	}
 }
 
-func jobject(p uintptr) C.jobject {
-	if p == 0 {
-		var zero C.jobject
-		return zero
-	}
-	return C.jobject(unsafe.Pointer(p))
-}
-
-//export Java_lewkit_GoProxy_nativeInvoke
-func Java_lewkit_GoProxy_nativeInvoke(envPtr *C.JNIEnv, _ C.jclass, id C.jlong, name C.jstring, args C.jobjectArray) (out C.jobject) {
+// InvokeProxy runs a Go proxy method for Java_lewkit_GoProxy_nativeInvoke.
+// env is the calling thread's JNIEnv. name is a jstring and args is a jobjectArray.
+func InvokeProxy(env uintptr, id int64, name, args uintptr) (out uintptr) {
 	var owned []any
 	handed := false
 	defer func() {
@@ -130,49 +118,49 @@ func Java_lewkit_GoProxy_nativeInvoke(envPtr *C.JNIEnv, _ C.jclass, id C.jlong, 
 				releaseValues(owned)
 			}
 			slog.Error("jni proxy", "panic", rec)
-			out = jobject(0)
+			out = 0
 		}
 	}()
-	e := openEnv(uintptr(unsafe.Pointer(envPtr)))
+	e := openEnv(env)
 	if e.tab == 0 {
-		return jobject(0)
+		return 0
 	}
 	vm := bound.Load()
 	if vm == nil {
-		return jobject(0)
+		return 0
 	}
-	method, err := e.readString(uintptr(unsafe.Pointer(name)))
+	method, err := e.readString(name)
 	if err != nil {
-		return jobject(0)
+		return 0
 	}
-	owned, err = e.values(vm, uintptr(unsafe.Pointer(args)))
+	owned, err = e.values(vm, args)
 	if err != nil {
 		slog.Error("jni proxy", "err", err)
-		return jobject(0)
+		return 0
 	}
-	fn := proxyFunc(int64(id))
+	fn := proxyFunc(id)
 	if fn == nil {
 		releaseValues(owned)
-		return jobject(0)
+		return 0
 	}
 	handed = true
 	v, err := fn(method, owned)
 	if err != nil {
 		slog.Error("jni proxy", "method", method, "err", err)
-		return jobject(0)
+		return 0
 	}
 	if v == nil {
-		return jobject(0)
+		return 0
 	}
 	val, err := classify(v)
 	if err != nil {
 		slog.Error("jni proxy", "method", method, "err", err)
-		return jobject(0)
+		return 0
 	}
 	p, err := e.box(vm, val)
 	if err != nil {
 		slog.Error("jni proxy", "method", method, "err", err)
-		return jobject(0)
+		return 0
 	}
-	return jobject(p)
+	return p
 }

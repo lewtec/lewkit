@@ -113,3 +113,37 @@ func open(names ...string) (uintptr, error) {
 	}
 	return 0, err
 }
+
+var (
+	windowOnce sync.Once
+	windowFn   func(env, surface uintptr) uintptr
+	windowErr  error
+)
+
+// WindowFromSurface returns the ANativeWindow for a Java Surface.
+// The high byte is left intact; the caller clears Android pointer tags.
+func WindowFromSurface(env, surface uintptr) (uintptr, error) {
+	if surface == 0 {
+		return 0, nil
+	}
+	windowOnce.Do(func() {
+		lib, err := native.Open("libandroid.so", native.Now)
+		if err != nil {
+			windowErr = err
+			return
+		}
+		sym, err := native.Symbol(lib, "ANativeWindow_fromSurface")
+		if err != nil {
+			windowErr = err
+			return
+		}
+		native.Register(&windowFn, sym)
+	})
+	if windowFn == nil {
+		if windowErr == nil {
+			windowErr = fmt.Errorf("ANativeWindow_fromSurface")
+		}
+		return 0, windowErr
+	}
+	return windowFn(env, surface), nil
+}

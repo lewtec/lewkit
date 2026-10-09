@@ -1,4 +1,4 @@
-//go:build android && cgo
+//go:build android
 
 package jni
 
@@ -123,6 +123,23 @@ func bind(raw uintptr, anchor string) error {
 
 func callStatic(className, method string, args ...any) (any, error) {
 	return dispatch(call{class: className, name: method, static: true, args: args})
+}
+
+// Objects reads a jobjectArray into Go values.
+// A null array is nil. Call it after Bind. The caller releases every *Ref.
+func Objects(env, arr uintptr) ([]any, error) {
+	if arr == 0 {
+		return nil, nil
+	}
+	vm := bound.Load()
+	if vm == nil {
+		return nil, errUnbound
+	}
+	e := openEnv(env)
+	if e.tab == 0 {
+		return nil, errNoEnv
+	}
+	return e.values(vm, arr)
 }
 
 func callNew(className string, args ...any) (*Ref, error) {

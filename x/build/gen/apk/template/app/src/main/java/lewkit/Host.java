@@ -130,15 +130,27 @@ public final class Host {
                 .show();
     }
 
-    public static native void start(String readyFile);
+    public static void start(String readyFile) {
+        Hook.call("start", new Object[]{readyFile});
+    }
 
-    public static native long nativeWindow(Surface surface, int width, int height);
+    public static long nativeWindow(Surface surface, int width, int height) {
+        return Hook.call("window", new Object[]{surface, width, height});
+    }
 
-    public static native void pointer(int x, int y, int action);
+    public static void pointer(int x, int y, int action) {
+        Hook.call("pointer", new Object[]{x, y, action});
+    }
 
-    public static native void resize(int width, int height);
+    public static void resize(int width, int height) {
+        Hook.call("resize", new Object[]{width, height});
+    }
 
-    public static native void surfaceLost();
+    public static void surfaceLost() {
+        Hook.call("lost", null);
+    }
 
-    public static native void obscure(int left, int top, int right, int bottom, int width, int height);
+    public static void obscure(int left, int top, int right, int bottom, int width, int height) {
+        Hook.call("obscure", new Object[]{left, top, right, bottom, width, height});
+    }
 }
