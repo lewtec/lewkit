@@ -98,4 +98,23 @@ func fromWord(typ reflect.Type, r uintptr, f32 float32, f64 float64) reflect.Val
 	}
 }
 
-func callC(fn, a0, a1, a2, a3, a4, a5, a6, a7 uintptr) (r uintptr, f32 float32, f64 float64)
+// entersyscall records this frame, then the C function runs on m.g0.
+// exitsyscall pairs with a reentrant cgocallback. Neither call can grow
+// the stack: the uintptr arguments may be pointers.
+//
+//go:nosplit
+func callC(fn, a0, a1, a2, a3, a4, a5, a6, a7 uintptr) (r uintptr, f32 float32, f64 float64) {
+	runtimeEntersyscall()
+	r, f32, f64 = callCOnG0(fn, a0, a1, a2, a3, a4, a5, a6, a7)
+	runtimeExitsyscall()
+	return
+}
+
+//go:nosplit
+func callCOnG0(fn, a0, a1, a2, a3, a4, a5, a6, a7 uintptr) (r uintptr, f32 float32, f64 float64)
+
+//go:linkname runtimeEntersyscall runtime.entersyscall
+func runtimeEntersyscall()
+
+//go:linkname runtimeExitsyscall runtime.exitsyscall
+func runtimeExitsyscall()
