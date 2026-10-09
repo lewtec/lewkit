@@ -191,6 +191,13 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		abis = DefaultABIs
 	}
 	ldflags := stamp.WithAppID(appID)
+	toolexec, err := nocgoAndroidToolexec(ctx, abis, cgoEnabled)
+	if err != nil {
+		return nil, err
+	}
+	if toolexec != "" {
+		defer os.RemoveAll(filepath.Dir(toolexec))
+	}
 	var out []string
 	for _, abi := range abis {
 		goarch, ok := abiToGOARCH[abi]
@@ -204,9 +211,20 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		dest := filepath.Join(destDir, "libeletrocromo.so")
 		slog.Info("android abi", "abi", abi, "goarch", goarch)
 		cgoFlag := "0"
-		args := []string{"-trimpath", "-ldflags", ldflags, "-o", dest, "."}
+		linkFlags := ldflags
+		args := []string{"-trimpath", "-ldflags", linkFlags, "-o", dest, "."}
 		if cgoEnabled {
-			args = []string{"-buildmode=c-shared", "-trimpath", "-ldflags", ldflags, "-o", dest, "."}
+			args = []string{"-buildmode=c-shared", "-trimpath", "-ldflags", linkFlags, "-o", dest, "."}
+		} else if goarch == "arm64" {
+			// JNI_OnLoad and Hook.call are published only with these three.
+			linkFlags = strings.TrimSpace(ldflags + " -checklinkname=0")
+			args = []string{
+				"-trimpath",
+				"-tags", "androidnocgo",
+				"-toolexec", toolexec,
+				"-ldflags", linkFlags,
+				"-o", dest, ".",
+			}
 		}
 		env := append(os.Environ(), "GOOS=android", "GOARCH="+goarch)
 		if goarch == "arm" {
@@ -228,6 +246,37 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		out = append(out, dest)
 	}
 	return out, nil
+}
+
+// nocgoAndroidToolexec builds the host wrapper that publishes JNI_OnLoad
+// for a cgo-free arm64 library. Other ABIs do not use it.
+func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (string, error) {
+	if cgoEnabled {
+		return "", nil
+	}
+	need := false
+	for _, abi := range abis {
+		if abiToGOARCH[abi] == "arm64" {
+			need = true
+			break
+		}
+	}
+	if !need {
+		return "", nil
+	}
+	dir, err := os.MkdirTemp("", "lewkit-androidtoolexec-")
+	if err != nil {
+		return "", err
+	}
+	dest := filepath.Join(dir, "androidtoolexec")
+	err = (gocmd.Command{
+		Args: []string{"-o", dest, "github.com/lewtec/lewkit/x/build/androidtoolexec"},
+	}).Run(ctx)
+	if err != nil {
+		os.RemoveAll(dir)
+		return "", fmt.Errorf("android toolexec: %w", err)
+	}
+	return dest, nil
 }
 
 // AssembleDebug runs Gradle assembleDebug in workDir and returns the debug APK path.

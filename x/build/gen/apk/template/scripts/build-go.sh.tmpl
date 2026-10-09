@@ -34,13 +34,30 @@ build_one() {
   # Optional goreleaser-style stamps (set by `eletrocromo android build` env or export yourself):
   #   ELETROCROMO_LDFLAGS='-s -w -X github.com/lewtec/eletrocromo/internal/version.Version=v1.0.0 …'
   ldflags="${ELETROCROMO_LDFLAGS:--s -w}"
+  tags=()
+  toolexec=()
+  tool=""
+  if [[ "$goarch" == "arm64" ]]; then
+    # Hook.call is missing unless these three travel together.
+    tool="$(mktemp)"
+    (
+      cd "$go_main"
+      CGO_ENABLED=0 go build -o "$tool" github.com/lewtec/lewkit/x/build/androidtoolexec
+    )
+    ldflags="$ldflags -checklinkname=0"
+    tags=(-tags androidnocgo)
+    toolexec=(-toolexec "$tool")
+  fi
   (
     cd "$go_main"
     CGO_ENABLED=0 GOOS=android GOARCH="$goarch" \
-      go build -trimpath -ldflags="$ldflags" \
+      go build -trimpath "${tags[@]}" "${toolexec[@]}" -ldflags="$ldflags" \
       -o "$outdir/libeletrocromo.so" \
       .
   )
+  if [[ -n "$tool" ]]; then
+    rm -f "$tool"
+  fi
 }
 
 build_one arm64 arm64-v8a

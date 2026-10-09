@@ -1,8 +1,8 @@
 // Command androidtoolexec is the go -toolexec wrapper for a cgo-free
 // Android library. It adds x/entry/_cgo_android_export.go when compiling
 // that package, so the linker writes JNI_OnLoad into .dynsym.
-// The build schedule invokes it with -tags androidnocgo and
-// -ldflags=-checklinkname=0. This package does not change that schedule.
+// The arm64 cgo-free build passes -tags androidnocgo and
+// -ldflags=-checklinkname=0 with this wrapper.
 package main
 
 import (
