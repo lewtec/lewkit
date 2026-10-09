@@ -31,6 +31,27 @@ func TestDesktopIsNotNativeHost(t *testing.T) {
 	require.False(t, nativeHost(Web(nil)))
 }
 
+func TestAndroidHostKeepsEveryWindow(t *testing.T) {
+	require.True(t, keepNative("android", GUI(nil), true))
+	require.True(t, keepNative("android", Web(nil), true))
+}
+
+func TestAndroidWithoutHostPublishesLoopback(t *testing.T) {
+	web := Web(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	require.False(t, keepNative("android", GUI(nil), false))
+	require.False(t, keepNative("android", web, false))
+	win, err := loopbackWindow(web, false)
+	require.NoError(t, err)
+	hosted, ok := win.(webWindow)
+	require.True(t, ok)
+	require.True(t, hosted.hosted)
+}
+
+func TestIOSKeepsGUIOnly(t *testing.T) {
+	require.True(t, keepNative("ios", GUI(nil), false))
+	require.False(t, keepNative("ios", Web(nil), true))
+}
+
 func TestLoopbackKeepsAndroidGUI(t *testing.T) {
 	win, err := loopbackWindow(GUI(nil), true)
 	require.NoError(t, err)

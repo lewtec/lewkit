@@ -2,10 +2,11 @@
 // a GUI model, and it may open another window. Run returns when the last
 // window closes. Loopback is opt-in: App.NoUI, LEWKIT_NO_UI, or
 // ELETROCROMO_NO_UI serves a web handler on a port instead of opening that
-// first window. A missing web view is returned. Android keeps that window:
-// a GUI model opens the surface and a web handler is the web view. iOS keeps
-// a GUI model on the UIKit surface. A web handler on iOS still publishes a
-// loopback URL when the host opted into loopback.
+// first window. A missing web view is returned. Android keeps that window
+// when JNI_OnLoad noted a Java VM: a GUI model opens the surface and a web
+// handler is the web view. A packaged fallback has no VM and publishes a
+// loopback URL. iOS keeps a GUI model on the UIKit surface. A web handler
+// on iOS still publishes a loopback URL when the host opted into loopback.
 package app
 
 import (
@@ -105,10 +106,10 @@ func (a App) open(ctx context.Context, id string) error {
 	})
 }
 
-// loopbackWindow serves a web handler on a desktop packaged host.
-// guiNative leaves the window as it is. Android does that for every window.
-// iOS does it for a GUI model, which draws on the UIKit surface. A web
-// handler on iOS still publishes a loopback URL for the host web view.
+// loopbackWindow serves a web handler on a packaged host that opted into
+// loopback. guiNative leaves the window as it is. Android does that when
+// the process has a Java VM. iOS does it for a GUI model, which draws on
+// the UIKit surface. A web handler on iOS still publishes a loopback URL.
 func loopbackWindow(win Window, guiNative bool) (Window, error) {
 	if guiNative {
 		return win, nil
@@ -122,11 +123,17 @@ func loopbackWindow(win Window, guiNative bool) (Window, error) {
 }
 
 // nativeHost reports whether a packaged no-UI process should keep win.
-// Android keeps every window. iOS keeps a GUI model and loopbacks the web handler.
+// Android keeps it when JNI_OnLoad noted a Java VM. The packaged fallback
+// has no VM, so a web handler publishes ELETROCROMO_READY. iOS keeps a GUI
+// model and loopbacks the web handler.
 func nativeHost(win Window) bool {
-	switch runtime.GOOS {
+	return keepNative(runtime.GOOS, win, entry.AndroidHost())
+}
+
+func keepNative(goos string, win Window, androidHost bool) bool {
+	switch goos {
 	case "android":
-		return true
+		return androidHost
 	case "ios":
 		_, ok := win.(guiWindow)
 		return ok

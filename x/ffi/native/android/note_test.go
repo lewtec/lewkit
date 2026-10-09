@@ -7,7 +7,13 @@ import "testing"
 func TestNotedVMSkipsLoad(t *testing.T) {
 	resetNote()
 	t.Cleanup(resetNote)
+	if NotedVM() {
+		t.Fatal("vm noted before JNI_OnLoad")
+	}
 	NoteVM(1)
+	if !NotedVM() {
+		t.Fatal("vm not noted")
+	}
 	NoteLoader()
 	n, err := JavaVMs()
 	if err != nil {
