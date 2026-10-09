@@ -19,6 +19,18 @@ import (
 //go:linkname runtimeNewextram runtime.newextram
 func runtimeNewextram()
 
+// runtimeLibpreinit installs the library signal handlers. It is nosplit
+// and does not read g. JNI_OnLoad calls it with g clear.
+//
+//go:nosplit
+//go:linkname runtimeLibpreinit runtime.libpreinit
+func runtimeLibpreinit()
+
+// bootPreinit is the ABI0 entry assembly can call. The body is ABIInternal.
+//
+//go:nosplit
+func bootPreinit() { runtimeLibpreinit() }
+
 func addrHook() uintptr
 func addrProxy() uintptr
 
