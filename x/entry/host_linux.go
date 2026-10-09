@@ -17,46 +17,41 @@ func prepareHost(ctx context.Context) {
 	if err := native.Prepare(ctx); err != nil {
 		return
 	}
-	if !linuxApp() {
+	id, ok := appMarker()
+	if !ok {
 		return
-	}
-	id := markerID()
-	if id == "" {
-		stamped, err := release.AppID()
-		if err != nil {
-			return
-		}
-		id = stamped
 	}
 	gtk.SetPrgname(id)
 }
 
 func windowsGUI() bool { return false }
 
-// linuxApp reports whether this executable sits in a lewkit desktop bundle.
+// linuxApp reports whether this executable is a lewkit AppImage.
 func linuxApp() bool {
-	exe, err := os.Executable()
-	if err != nil {
-		return false
-	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
-	_, err = os.Stat(filepath.Join(filepath.Dir(exe), release.MarkerFile))
-	return err == nil
+	_, ok := appMarker()
+	return ok
 }
 
-func markerID() string {
+func appMarker() (string, bool) {
 	exe, err := os.Executable()
 	if err != nil {
-		return ""
+		return "", false
 	}
 	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
 		exe = resolved
 	}
-	raw, err := os.ReadFile(filepath.Join(filepath.Dir(exe), release.MarkerFile))
+	tr, err := release.OpenTrailer(exe)
 	if err != nil {
-		return ""
+		return "", false
 	}
-	return strings.TrimSpace(string(raw))
+	defer tr.Close()
+	raw, err := tr.Bytes(release.MarkerFile)
+	if err != nil {
+		return "", false
+	}
+	id := strings.TrimSpace(string(raw))
+	if id == "" {
+		return "", false
+	}
+	return id, true
 }

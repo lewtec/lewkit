@@ -21,7 +21,7 @@ import (
 
 // Build / toolchain sentinels.
 var (
-	ErrOutAppRequired    = errors.New("out .app path is required (or use --go-only)")
+	ErrOutAppRequired    = errors.New("out .AppImage path is required (or use --go-only)")
 	ErrUnsupportedGOARCH = errors.New("unsupported GOARCH for linux")
 )
 
@@ -45,8 +45,8 @@ type BuildResult struct {
 	WorkDir string
 }
 
-// Build compiles the Go program and writes a desktop app directory.
-// GoOnly stops after that directory, in WorkDir.
+// Build compiles the Go program and writes one AppImage file.
+// GoOnly leaves that file in WorkDir.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
@@ -113,15 +113,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := copyIcons(iconRoot, workDir, cfg.PackageID); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
-	if err := os.WriteFile(filepath.Join(workDir, "AppRun"), []byte(appRunScript(product)), 0o755); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
-	if err := os.WriteFile(filepath.Join(workDir, release.MarkerFile), []byte(cfg.PackageID+"\n"), 0o644); err != nil {
+	icon, err := linuxIcon(iconRoot)
+	if err != nil {
 		buildErr = err
 		return nil, buildErr
 	}
@@ -129,14 +122,28 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
+	image := filepath.Join(workDir, product+".AppImage")
+	if err := os.Rename(built, image); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+	desktop := DesktopFile(cfg.AppName, cfg.PackageID, cfg.VersionName, product, "icon")
+	if err := release.AppendTrailer(image, map[string][]byte{
+		release.MarkerFile:   []byte(cfg.PackageID + "\n"),
+		"icon.png":           icon,
+		product + ".desktop": []byte(desktop),
+	}); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+	if err := os.Chmod(image, 0o755); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
 
-	result := &BuildResult{WorkDir: workDir, AppPath: workDir}
+	result := &BuildResult{WorkDir: workDir, AppPath: image}
 	if opts.GoOnly {
-		if err := writeDesktop(workDir, cfg, product); err != nil {
-			buildErr = err
-			return nil, buildErr
-		}
-		slog.Info("linux go-only", "app", workDir)
+		slog.Info("linux go-only", "app", image)
 		return result, nil
 	}
 	out := strings.TrimSpace(opts.OutApp)
@@ -149,12 +156,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		buildErr = err
 		return nil, buildErr
 	}
-	if err := common.ReplaceDir(workDir, out); err != nil {
+	if err := publishFile(image, out); err != nil {
 		buildErr = fmt.Errorf("copy app: %w", err)
-		return nil, buildErr
-	}
-	if err := writeDesktop(out, cfg, product); err != nil {
-		buildErr = err
 		return nil, buildErr
 	}
 	result.AppPath = out
@@ -162,31 +165,45 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	return result, nil
 }
 
-func writeDesktop(dir string, cfg Config, product string) error {
-	body := DesktopFile(cfg.AppName, cfg.PackageID, cfg.VersionName, filepath.Join(dir, product), filepath.Join(dir, "icon.png"))
-	return os.WriteFile(filepath.Join(dir, product+".desktop"), []byte(body), 0o755)
+func linuxIcon(iconRoot string) ([]byte, error) {
+	raw, err := os.ReadFile(filepath.Join(iconRoot, "linux", "icon-256.png"))
+	if err != nil {
+		return nil, fmt.Errorf("icon: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("icon: 256px linux icon missing")
+	}
+	return raw, nil
 }
 
-func copyIcons(iconRoot, dest, id string) error {
-	var chosen string
-	for _, size := range icons.LinuxPNGSizes {
-		src := filepath.Join(iconRoot, "linux", fmt.Sprintf("icon-%d.png", size))
-		dir := filepath.Join(dest, "icons", "hicolor", fmt.Sprintf("%dx%d", size, size), "apps")
-		dst := filepath.Join(dir, id+".png")
-		if err := common.CopyFile(src, dst, 0o644); err != nil {
-			return fmt.Errorf("icon %d: %w", size, err)
-		}
-		if size == 256 {
-			chosen = dst
-		}
+func publishFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
 	}
-	if chosen == "" {
-		return fmt.Errorf("icon: 256px linux icon missing")
+	if err := os.RemoveAll(dst); err != nil {
+		return err
 	}
-	if err := common.CopyFile(chosen, filepath.Join(dest, "icon.png"), 0o644); err != nil {
-		return fmt.Errorf("icon: %w", err)
+	if err := os.Rename(src, dst); err == nil {
+		return os.Chmod(dst, 0o755)
 	}
-	return nil
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if copyErr != nil {
+		return copyErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Remove(src)
 }
 
 func linuxArch(goarch string) (string, error) {

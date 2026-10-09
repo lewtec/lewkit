@@ -18,7 +18,7 @@ func TestBuildNilContextPanics(t *testing.T) {
 	_, _ = Build(nil, BuildOptions{})
 }
 
-func TestBuildAppDirectory(t *testing.T) {
+func TestBuildAppImage(t *testing.T) {
 	mainDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -26,7 +26,7 @@ func TestBuildAppDirectory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out := filepath.Join(t.TempDir(), "Demo.app")
+	out := filepath.Join(t.TempDir(), "Demo.AppImage")
 	result, err := Build(t.Context(), BuildOptions{
 		Config: Config{
 			PackageID:   "br.tec.lew.demo",
@@ -46,52 +46,45 @@ func TestBuildAppDirectory(t *testing.T) {
 	if result.AppPath != out {
 		t.Fatalf("app %s", result.AppPath)
 	}
-	bin := filepath.Join(out, "Demo")
-	info, err := os.Stat(bin)
+	info, err := os.Stat(out)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if info.IsDir() {
+		t.Fatal("app image is a directory")
 	}
 	if info.Mode()&0o111 == 0 {
-		t.Fatal("binary is not executable")
+		t.Fatal("app image is not executable")
 	}
-	run, err := os.Stat(filepath.Join(out, "AppRun"))
+	raw, err := os.ReadFile(out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.Mode()&0o111 == 0 {
-		t.Fatal("AppRun is not executable")
+	if string(raw[:4]) != "\x7fELF" {
+		t.Fatalf("prefix %q", raw[:4])
 	}
-	marker, err := os.ReadFile(filepath.Join(out, release.MarkerFile))
+	tr, err := release.OpenTrailer(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.Close()
+	marker, err := tr.Bytes(release.MarkerFile)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.TrimSpace(string(marker)) != "br.tec.lew.demo" {
 		t.Fatalf("marker %q", marker)
 	}
-	desktopPath := filepath.Join(out, "Demo.desktop")
-	desktopInfo, err := os.Stat(desktopPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if desktopInfo.Mode()&0o111 == 0 {
-		t.Fatal("desktop file is not executable")
-	}
-	desktop, err := os.ReadFile(desktopPath)
+	desktop, err := tr.Bytes("Demo.desktop")
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(desktop)
-	if !strings.Contains(text, "StartupWMClass=br.tec.lew.demo") {
+	if !strings.Contains(text, "StartupWMClass=br.tec.lew.demo") || !strings.Contains(text, "Exec=Demo") || !strings.Contains(text, "Icon=icon") {
 		t.Fatalf("desktop %s", text)
 	}
-	if !strings.Contains(text, "Exec=\""+bin+"\"") {
-		t.Fatalf("exec path %s", text)
-	}
-	icon := filepath.Join(out, "icons", "hicolor", "256x256", "apps", "br.tec.lew.demo.png")
-	if _, err := os.Stat(icon); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(out, "icon.png")); err != nil {
-		t.Fatal(err)
+	icon, err := tr.Bytes("icon.png")
+	if err != nil || len(icon) == 0 {
+		t.Fatalf("icon %v", err)
 	}
 }

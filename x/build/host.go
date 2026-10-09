@@ -94,8 +94,8 @@ func (host Host) Mac(ctx context.Context) (string, error) {
 	return result.AppPath, nil
 }
 
-// Linux builds a desktop .app directory: the executable, AppRun,
-// a desktop entry, and hicolor icons.
+// Linux builds one AppImage file. The file is the executable.
+// Its trailer holds the app id, icon.png, and a desktop entry.
 func (host Host) Linux(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {

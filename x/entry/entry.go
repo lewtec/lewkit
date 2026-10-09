@@ -82,7 +82,7 @@ func MainFrom(parent context.Context, fn func(context.Context) error) {
 }
 
 // failureVisible is app mode, a Windows GUI executable with no console,
-// or a Linux app bundle.
+// or a Linux AppImage.
 func failureVisible() bool {
 	return driver.AppMode() || windowsGUI() || linuxApp()
 }

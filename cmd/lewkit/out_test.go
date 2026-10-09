@@ -27,6 +27,12 @@ func TestArtifactPathWindowsExe(t *testing.T) {
 	require.Equal(t, filepath.Join("dist", "Counter.exe"), got)
 }
 
+func TestArtifactPathLinuxAppImage(t *testing.T) {
+	got, err := artifactPath("linux", "dist", build.Spec{Dir: t.TempDir(), ID: "br.tec.lew.drivers", Name: "Drivers"})
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join("dist", "Drivers.AppImage"), got)
+}
+
 func TestArtifactPathKeepsExplicitFile(t *testing.T) {
 	got, err := artifactPath("android", "out/app.apk", build.Spec{Dir: t.TempDir(), ID: "br.tec.lew.contapila"})
 	require.NoError(t, err)
