@@ -143,6 +143,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/messagebox` | `Show`. One message the user dismisses. The Win32 backend is `MessageBoxW`. A Windows GUI process uses it for a startup error. |
 | `x/driver/launcher/win32` | `Choose`, `Prompt`, `Confirm` as Win32 dialogs. |
 | `x/driver/window/x11` | X11 backend. |
+| `x/driver/window/wayland` | Wayland backend. The frame is shared memory. It is used when `DISPLAY` is unset and `WAYLAND_DISPLAY` names a live socket. |
 | `x/driver/window/mem` | In-memory backend for tests. `MemoryGate` keeps it incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
 | `x/driver/window/uikit` | iOS backend. `Open` asks the host for a UIView and runs on the main queue. |
 | `x/driver/present` | `Open`, `Screen`, `Composite`. Paints one GUI frame on a surface the caller owns. The highest compatible driver wins. |
