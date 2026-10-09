@@ -40,7 +40,6 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/src/main/java/lewkit/Documents.java",
 		"app/src/main/java/br/tec/lew/counter/PageActivity.java",
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
-		"app/src/main/java/br/tec/lew/counter/ServerService.java",
 		"app/src/main/res/xml/network_security_config.xml",
 		"app/src/main/res/layout/activity_main.xml",
 		"scripts/build-go.sh",
@@ -90,6 +89,16 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(mainJava), "Host.onPage") {
 		t.Fatal("a page published after the splash has no window")
 	}
+	if strings.Contains(string(mainJava), "ServerService") || strings.Contains(string(mainJava), "startForegroundService") {
+		t.Fatal("splash starts a server process")
+	}
+	manifest, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(manifest), "ServerService") || strings.Contains(string(manifest), "FOREGROUND_SERVICE") {
+		t.Fatal("manifest still declares the server service")
+	}
 	if strings.Contains(string(mainJava), "android.webkit.WebView") || strings.Contains(string(mainJava), "webview_container") {
 		t.Fatal("splash still embeds a web view")
 	}
@@ -133,7 +142,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		t.Fatalf("go_main: %s", cfg)
 	}
 
-	manifest, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
+	manifest, err = os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
 	if err != nil {
 		t.Fatal(err)
 	}

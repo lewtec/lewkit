@@ -51,8 +51,8 @@ func RequestSurface(ctx context.Context) (uintptr, int, int, error) {
 }
 
 // AndroidHost reports whether JNI_OnLoad noted a Java VM in this process.
-// The activity did. The packaged fallback executes this library as a
-// process, notes nothing, and has to publish the loopback ready line.
+// The activity did. A process that did not is not that activity, so a web
+// handler publishes the loopback ready line.
 func AndroidHost() bool {
 	return androidffi.NotedVM()
 }
@@ -211,7 +211,7 @@ func releaseHookArgs(args []any) {
 // runHost is Hook.call("start") after the JNIEnv is bound.
 // The library skips main, so the app registered with Bind runs here.
 // ELETROCROMO_NO_UI asks for a loopback URL. This process has a Java VM,
-// so the window stays the activity page. The fallback process has no VM.
+// so the window stays the activity page.
 func runHost(path string) {
 	_ = os.Setenv("ELETROCROMO_NO_UI", "1")
 	_ = os.Setenv("ELETROCROMO_READY_FILE", path)

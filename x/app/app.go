@@ -4,7 +4,7 @@
 // ELETROCROMO_NO_UI serves a web handler on a port instead of opening that
 // first window. A missing web view is returned. Android keeps that window
 // when JNI_OnLoad noted a Java VM: a GUI model opens the surface and a web
-// handler is the web view. A packaged fallback has no VM and publishes a
+// handler is the web view. A process JNI_OnLoad did not enter publishes a
 // loopback URL. iOS keeps a GUI model on the UIKit surface. A web handler
 // on iOS still publishes a loopback URL when the host opted into loopback.
 package app
@@ -123,8 +123,8 @@ func loopbackWindow(win Window, guiNative bool) (Window, error) {
 }
 
 // nativeHost reports whether a packaged no-UI process should keep win.
-// Android keeps it when JNI_OnLoad noted a Java VM. The packaged fallback
-// has no VM, so a web handler publishes ELETROCROMO_READY. iOS keeps a GUI
+// Android keeps it when JNI_OnLoad noted a Java VM. Without that note, a
+// web handler publishes ELETROCROMO_READY. iOS keeps a GUI
 // model and loopbacks the web handler.
 func nativeHost(win Window) bool {
 	return keepNative(runtime.GOOS, win, entry.AndroidHost())
