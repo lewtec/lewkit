@@ -29,18 +29,6 @@ func prepareHost(ctx context.Context) {
 		id = stamped
 	}
 	gtk.SetPrgname(id)
-	exe, err := os.Executable()
-	if err != nil {
-		return
-	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
-	data, err := dataHome()
-	if err != nil {
-		return
-	}
-	_ = publishLauncher(exe, data)
 }
 
 func windowsGUI() bool { return false }
