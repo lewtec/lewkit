@@ -108,6 +108,8 @@ func packageHost(ctx context.Context, spec build.Spec, goos, goarch, out, work, 
 		return host.IOS(ctx)
 	case "windows":
 		return host.Windows(ctx)
+	case "linux":
+		return host.Linux(ctx)
 	default:
 		return "", fmt.Errorf("%s has no app package", goos)
 	}
@@ -144,6 +146,8 @@ func artifactPath(goos, out string, spec build.Spec) (string, error) {
 		return filepath.Join(out, label+"-debug.apk"), nil
 	case "windows":
 		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".exe"), nil
+	case "linux":
+		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".app"), nil
 	default:
 		return filepath.Join(out, common.ProductName(cfg.PackageID, cfg.AppName)+".app"), nil
 	}

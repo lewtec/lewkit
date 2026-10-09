@@ -10,6 +10,7 @@ import (
 	"github.com/jezek/xgb/xproto"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/release"
 )
 
 type factory struct{}
@@ -67,6 +68,10 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		conn.Close()
 		return nil, err
 	}
+	instance, class := windowClass()
+	if err := setClass(conn, wid, instance, class); err != nil {
+		slog.Debug("x11 class", "err", err)
+	}
 	if err := setMinSize(conn, wid); err != nil {
 		conn.Close()
 		return nil, err
@@ -77,7 +82,11 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		return nil, err
 	}
 	// The icon is optional. Open still succeeds when the property is rejected.
-	if err := setWindowIcon(conn, wid, cfg.Icon); err != nil {
+	icon := cfg.Icon
+	if icon == nil {
+		icon = window.BundleIcon()
+	}
+	if err := setWindowIcon(conn, wid, icon); err != nil {
 		slog.Debug("x11 icon", "err", err)
 	}
 	if err := xproto.MapWindowChecked(conn, wid).Check(); err != nil {
@@ -101,6 +110,48 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	go win.loop()
 	window.CloseWhenDone(ctx, win)
 	return win, nil
+}
+
+func windowClass() (instance, class string) {
+	instance = release.Name()
+	id, err := release.AppID()
+	if err != nil || id == "" {
+		return instance, instance
+	}
+	return instance, id
+}
+
+// wmClassBytes is the ICCCM WM_CLASS value: instance and class, each NUL-terminated.
+func wmClassBytes(instance, class string) []byte {
+	if instance == "" {
+		instance = class
+	}
+	if class == "" {
+		class = instance
+	}
+	if class == "" {
+		return nil
+	}
+	raw := make([]byte, 0, len(instance)+len(class)+2)
+	raw = append(raw, instance...)
+	raw = append(raw, 0)
+	raw = append(raw, class...)
+	raw = append(raw, 0)
+	return raw
+}
+
+func setClass(conn *xgb.Conn, wid xproto.Window, instance, class string) error {
+	raw := wmClassBytes(instance, class)
+	if len(raw) == 0 {
+		return nil
+	}
+	name := "WM_CLASS"
+	atom, err := xproto.InternAtom(conn, false, uint16(len(name)), name).Reply()
+	if err != nil {
+		return err
+	}
+	return xproto.ChangePropertyChecked(conn, xproto.PropModeReplace, wid,
+		atom.Atom, xproto.AtomString, 8, uint32(len(raw)), raw).Check()
 }
 
 func setTitle(conn *xgb.Conn, wid xproto.Window, title string) error {

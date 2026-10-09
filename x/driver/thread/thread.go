@@ -3,7 +3,8 @@
 // The JNI backend posts work onto Android's main looper when a Java VM is
 // already running. Otherwise the OS backend locks the process thread and
 // runs Loop. Win32 uses the same process thread and Loop drains that
-// thread's message queue between jobs. AppKit and Win32 require that thread.
+// thread's message queue between jobs. Linux Loop drains the GTK queue when
+// this thread owns it. AppKit and Win32 require that thread.
 package thread
 
 import "context"

@@ -24,8 +24,9 @@ type libraryCall struct {
 }
 
 var (
-	libraries    sync.Map // path -> *librarySlot
-	errNoLibrary = errors.New("no library path")
+	libraries     sync.Map // path -> *librarySlot
+	errNoLibrary  = errors.New("no library path")
+	errNilContext = errors.New("nil context")
 )
 
 func slotFor(path string) *librarySlot {

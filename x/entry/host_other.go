@@ -1,7 +1,11 @@
-//go:build !windows
+//go:build !windows && !linux
 
 package entry
 
-func prepareHost() {}
+import "context"
+
+func prepareHost(context.Context) {}
 
 func windowsGUI() bool { return false }
+
+func linuxApp() bool { return false }

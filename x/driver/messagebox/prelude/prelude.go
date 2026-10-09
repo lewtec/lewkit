@@ -5,6 +5,7 @@ package prelude
 import (
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/android"
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/cocoa"
+	_ "github.com/lewtec/lewkit/x/driver/messagebox/gtk"
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/host"
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/win32"
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/zenity"

@@ -5,6 +5,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gen/apk"
 	"github.com/lewtec/lewkit/x/build/gen/ios"
+	"github.com/lewtec/lewkit/x/build/gen/linux"
 	"github.com/lewtec/lewkit/x/build/gen/mac"
 	"github.com/lewtec/lewkit/x/build/gen/win"
 	"github.com/lewtec/lewkit/x/build/sign"
@@ -93,6 +94,28 @@ func (host Host) Mac(ctx context.Context) (string, error) {
 	return result.AppPath, nil
 }
 
+// Linux builds a desktop .app directory: the executable, AppRun,
+// a desktop entry, and hicolor icons.
+func (host Host) Linux(ctx context.Context) (string, error) {
+	cfg, base, err := host.Load()
+	if err != nil {
+		return "", err
+	}
+	result, err := linux.Build(ctx, linux.BuildOptions{
+		Config:      linuxConfig(cfg),
+		BaseDir:     base,
+		WorkDir:     host.Work,
+		KeepWorkDir: host.Work != "",
+		OutApp:      host.Out,
+		GoOnly:      host.GoOnly,
+		GOARCH:      host.GOARCH,
+	})
+	if err != nil {
+		return "", err
+	}
+	return result.AppPath, nil
+}
+
 // Windows builds a GUI .exe. The binary is windowsgui, with the app icon,
 // a PerMonitorV2 manifest, and version info.
 func (host Host) Windows(ctx context.Context) (string, error) {
@@ -155,6 +178,18 @@ func (host Host) IOS(ctx context.Context) (string, error) {
 
 func macConfig(cfg apk.Config) mac.Config {
 	return mac.Config{
+		PackageID:    cfg.PackageID,
+		AppName:      cfg.AppName,
+		VersionName:  cfg.VersionName,
+		VersionCode:  cfg.VersionCode,
+		GoMain:       cfg.GoMain,
+		Icon:         cfg.Icon,
+		Capabilities: cfg.Capabilities,
+	}
+}
+
+func linuxConfig(cfg apk.Config) linux.Config {
+	return linux.Config{
 		PackageID:    cfg.PackageID,
 		AppName:      cfg.AppName,
 		VersionName:  cfg.VersionName,

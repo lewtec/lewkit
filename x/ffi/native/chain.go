@@ -41,6 +41,9 @@ func SearchDirs(extra ...string) []string {
 	if home, err := os.UserHomeDir(); err == nil {
 		add(filepath.Join(home, ".nix-profile", "lib"))
 	}
+	for _, dir := range hostLibDirs() {
+		add(dir)
+	}
 	add("/usr/lib")
 	add("/usr/lib64")
 	add("/usr/local/lib")
@@ -82,6 +85,11 @@ func tryChain(flags int, extra, names []string) (uintptr, error) {
 	var last error
 	for _, name := range names {
 		for _, path := range expandName(name, dirs) {
+			if filepath.IsAbs(path) {
+				if _, err := os.Stat(path); err != nil {
+					continue
+				}
+			}
 			lib, err := Open(path, flags)
 			if err == nil {
 				return lib, nil

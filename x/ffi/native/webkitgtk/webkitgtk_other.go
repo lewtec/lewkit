@@ -3,6 +3,7 @@
 package webkitgtk
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -14,6 +15,12 @@ var ErrUnavailable = errors.New("webkitgtk unavailable")
 type Symbols struct{}
 
 // Load reports that WebKitGTK is a Linux library.
-func Load() (*Symbols, error) {
+func Load(ctx context.Context) (*Symbols, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("%w: nil context", ErrUnavailable)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return nil, fmt.Errorf("%w: not linux", ErrUnavailable)
 }
