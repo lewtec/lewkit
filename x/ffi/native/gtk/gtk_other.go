@@ -11,7 +11,12 @@ import (
 var ErrUnavailable = errors.New("gtk unavailable")
 
 // Available reports that this process is not Linux.
-func Available(context.Context) error { return ErrUnavailable }
+func Available(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return ErrUnavailable
+}
 
 // SetPrgname is a no-op where GTK is not the host toolkit.
 func SetPrgname(string) {}
@@ -38,17 +43,33 @@ func Poll() int32 { return 0 }
 func SurfaceXID(uintptr) (uint32, error) { return 0, ErrUnavailable }
 
 // Show reports that GTK is unavailable.
-func Show(context.Context, string, string, string) error { return ErrUnavailable }
+func Show(ctx context.Context, _, _, _ string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return ErrUnavailable
+}
 
 // Confirm reports that GTK is unavailable.
-func Confirm(context.Context, string) (bool, error) { return false, ErrUnavailable }
+func Confirm(ctx context.Context, _ string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	return false, ErrUnavailable
+}
 
 // Prompt reports that GTK is unavailable.
-func Prompt(context.Context, string) (string, bool, error) {
+func Prompt(ctx context.Context, _ string) (string, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return "", false, err
+	}
 	return "", false, ErrUnavailable
 }
 
 // Choose reports that GTK is unavailable.
-func Choose(context.Context, string, []string) (int, bool, error) {
+func Choose(ctx context.Context, _ string, _ []string) (int, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, false, err
+	}
 	return 0, false, ErrUnavailable
 }

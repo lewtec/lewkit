@@ -188,7 +188,7 @@ func present(ctx context.Context, f *form) error {
 	connect(f.win, "close-request", closeCB)
 	bound.present(f.win)
 	for !f.done {
-		if ctx != nil && ctx.Err() != nil {
+		if ctx.Err() != nil {
 			f.ok = false
 			break
 		}

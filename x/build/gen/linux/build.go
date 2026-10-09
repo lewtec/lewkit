@@ -48,9 +48,6 @@ type BuildResult struct {
 // Build compiles the Go program and writes a desktop app directory.
 // GoOnly stops after that directory, in WorkDir.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("linux: nil context")
-	}
 	stdout := opts.Stdout
 	if stdout == nil {
 		stdout = taskgroup.LineWriterFrom(ctx)

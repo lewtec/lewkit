@@ -16,9 +16,6 @@ type Symbols struct{}
 
 // Load reports that WebKitGTK is a Linux library.
 func Load(ctx context.Context) (*Symbols, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("%w: nil context", ErrUnavailable)
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

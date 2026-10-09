@@ -87,9 +87,6 @@ var (
 // exec driver and keeps their library directories for SearchDirs.
 // The first caller context is the one that runs the lookup.
 func Prepare(ctx context.Context) error {
-	if ctx == nil {
-		return errNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

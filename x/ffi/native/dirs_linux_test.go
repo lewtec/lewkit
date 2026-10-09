@@ -91,10 +91,13 @@ func TestHostLibDirsReadsPathSiblingLib(t *testing.T) {
 	}
 }
 
-func TestPrepareRejectsNilContext(t *testing.T) {
-	if err := Prepare(nil); err != errNilContext {
-		t.Fatalf("Prepare(nil) = %v", err)
-	}
+func TestPrepareNilContextPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("nil context returned")
+		}
+	}()
+	_ = Prepare(nil)
 }
 
 func containsDir(dirs []string, want string) bool {

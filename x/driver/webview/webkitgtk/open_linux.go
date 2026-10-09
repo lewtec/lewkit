@@ -63,9 +63,6 @@ var (
 )
 
 func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("%w: nil context", driver.ErrUnavailable)
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -104,9 +101,6 @@ func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, er
 }
 
 func ensureLoop(ctx context.Context) (*loopState, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("%w: nil context", driver.ErrUnavailable)
-	}
 	loopOnce.Do(func() {
 		if err := ctx.Err(); err != nil {
 			loopError = err

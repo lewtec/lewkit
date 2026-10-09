@@ -14,6 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestOpenNilContextPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("nil context returned")
+		}
+	}()
+	_, _ = gtkDriver{}.Open(nil, webview.Config{})
+}
+
 func TestMessageAndAsset(t *testing.T) {
 	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
 		t.Skip("no display")

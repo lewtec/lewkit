@@ -9,6 +9,15 @@ import (
 	"github.com/lewtec/lewkit/x/release"
 )
 
+func TestBuildNilContextPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("nil context returned")
+		}
+	}()
+	_, _ = Build(nil, BuildOptions{})
+}
+
 func TestBuildAppDirectory(t *testing.T) {
 	mainDir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644); err != nil {
