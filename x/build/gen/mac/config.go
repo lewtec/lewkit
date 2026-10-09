@@ -1,6 +1,7 @@
-// Package mac packages a CGo-less darwin Go binary as a macOS .app.
-// The launched executable is that binary, with Info.plist and an icon.
-// Create still writes an XcodeGen tree. Build does not compile or run it.
+// Package mac packages a macOS .app from the XcodeGen scaffold.
+// The launched executable is that Swift shell. It shows the window and
+// starts the Go server beside it. Create writes the scaffold. Build
+// compiles it with xcodebuild unless GoOnly is set.
 package mac
 
 import (
@@ -18,8 +19,8 @@ var (
 	ErrOutDirNotEmpty  = common.ErrOutDirNotEmpty
 )
 
-// HelperName is the Go binary written into the host work directory.
-// The .app from Build does not install this name. Its executable is ProductName.
+// HelperName is the Go server copied into Contents/MacOS.
+// The scaffold executable is ProductName. This process is not the Dock tile.
 const HelperName = "eletrocromo-server"
 
 // Config is the project identity written into the generated tree.

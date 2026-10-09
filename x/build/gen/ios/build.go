@@ -39,17 +39,18 @@ const (
 
 // BuildOptions drives an iOS .app build from an eletrocromo app.
 type BuildOptions struct {
-	Config      Config
-	BaseDir     string
-	WorkDir     string
-	KeepWorkDir bool
-	OutApp      string
-	GoOnly      bool
-	SDK         string
-	GOARCH      string
-	IconRoot    string
-	Stdout      io.Writer
-	Stderr      io.Writer
+	Config       Config
+	BaseDir      string
+	WorkDir      string
+	KeepWorkDir  bool
+	OutApp       string
+	GoOnly       bool
+	SDK          string
+	GOARCH       string
+	IconRoot     string
+	SkipGenerate bool
+	Stdout       io.Writer
+	Stderr       io.Writer
 }
 
 // BuildResult is the outcome of Build.
@@ -117,10 +118,12 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg := cfg
 	genCfg.GoMain = goMain
 
-	slog.Info("ios host", "dir", workDir)
-	if err := Create(ctx, Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
-		buildErr = fmt.Errorf("generate host: %w", err)
-		return nil, buildErr
+	if !opts.SkipGenerate {
+		slog.Info("ios host", "dir", workDir)
+		if err := Create(ctx, Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
+			buildErr = fmt.Errorf("generate host: %w", err)
+			return nil, buildErr
+		}
 	}
 
 	iconRoot := strings.TrimSpace(opts.IconRoot)

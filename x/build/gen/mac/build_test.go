@@ -1,110 +1,70 @@
 package mac
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
-	"strings"
+	"runtime"
 	"testing"
 )
 
-func TestWriteBundle_GoExecutable(t *testing.T) {
-	work := t.TempDir()
-	err := Create(t.Context(), Options{
-		OutDir: work,
-		Config: Config{
-			PackageID: "br.tec.lew.counter",
-			AppName:   "Counter",
-			GoMain:    ".",
-		},
-	})
+func TestInstallHelper(t *testing.T) {
+	app := filepath.Join(t.TempDir(), "Counter.app")
+	macOS := filepath.Join(app, "Contents", "MacOS")
+	if err := os.MkdirAll(macOS, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(macOS, "Counter"), []byte("swift-shell"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	helper := filepath.Join(t.TempDir(), HelperName)
+	if err := os.WriteFile(helper, []byte("go-server"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := installHelper(app, helper); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(macOS, HelperName))
 	if err != nil {
 		t.Fatal(err)
 	}
-	bin := filepath.Join(work, "bin", HelperName)
-	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
-		t.Fatal(err)
+	if string(body) != "go-server" {
+		t.Fatalf("server %q", body)
 	}
-	if err := os.WriteFile(bin, []byte("go-bin"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	icns := filepath.Join(work, "Resources", "AppIcon.icns")
-	if err := os.MkdirAll(filepath.Dir(icns), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(icns, []byte("icns"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	out := filepath.Join(t.TempDir(), "Counter.app")
-	if err := os.WriteFile(out, []byte("old"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := writeBundle(out, "Counter", filepath.Join(work, "Info.plist"), bin, icns); err != nil {
-		t.Fatal(err)
-	}
-
-	exe := filepath.Join(out, "Contents", "MacOS", "Counter")
-	body, err := os.ReadFile(exe)
+	shell, err := os.ReadFile(filepath.Join(macOS, "Counter"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(body) != "go-bin" {
-		t.Fatalf("executable %q", body)
+	if string(shell) != "swift-shell" {
+		t.Fatalf("shell %q", shell)
 	}
-	st, err := os.Stat(exe)
+	st, err := os.Stat(filepath.Join(macOS, HelperName))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if st.Mode().Perm()&0o111 == 0 {
-		t.Fatalf("executable mode %v", st.Mode())
-	}
-	entries, err := os.ReadDir(filepath.Join(out, "Contents", "MacOS"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) != 1 || entries[0].Name() != "Counter" {
-		names := make([]string, len(entries))
-		for i, entry := range entries {
-			names[i] = entry.Name()
-		}
-		t.Fatalf("MacOS entries %q", names)
-	}
-	if _, err := os.Stat(filepath.Join(out, "Contents", "MacOS", HelperName)); !os.IsNotExist(err) {
-		t.Fatalf("helper present: %v", err)
-	}
-	plist, err := os.ReadFile(filepath.Join(out, "Contents", "Info.plist"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, ok := plistValue(string(plist), "CFBundleExecutable")
-	if !ok || got != "Counter" {
-		t.Fatalf("CFBundleExecutable %q\n%s", got, plist)
-	}
-	pkg, err := os.ReadFile(filepath.Join(out, "Contents", "PkgInfo"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(pkg) != "APPL????" {
-		t.Fatalf("PkgInfo %q", pkg)
-	}
-	icon, err := os.ReadFile(filepath.Join(out, "Contents", "Resources", "AppIcon.icns"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(icon) != "icns" {
-		t.Fatalf("icon %q", icon)
+		t.Fatalf("server mode %v", st.Mode())
 	}
 }
 
-func plistValue(plist, key string) (string, bool) {
-	i := strings.Index(plist, "<key>"+key+"</key>")
-	if i < 0 {
-		return "", false
+func TestBuildFullAppNeedsMacOS(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("full build uses xcodebuild")
 	}
-	rest := plist[i:]
-	open := strings.Index(rest, "<string>")
-	close := strings.Index(rest, "</string>")
-	if open < 0 || close < open {
-		return "", false
+	mainDir := t.TempDir()
+	_, err := Build(t.Context(), BuildOptions{
+		Config: Config{
+			PackageID:   "br.tec.lew.demo",
+			AppName:     "Demo",
+			VersionName: "1.2.3",
+			VersionCode: 5,
+			GoMain:      mainDir,
+		},
+		BaseDir: mainDir,
+		WorkDir: t.TempDir(),
+		OutApp:  filepath.Join(t.TempDir(), "Demo.app"),
+	})
+	if !errors.Is(err, ErrMacOSRequired) {
+		t.Fatalf("err %v", err)
 	}
-	return rest[open+len("<string>") : close], true
 }

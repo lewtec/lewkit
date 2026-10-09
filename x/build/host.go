@@ -28,6 +28,8 @@ type Host struct {
 	// IconRoot is a generated icon tree. Empty means Workflow's icons
 	// step, or the host build itself, writes one.
 	IconRoot string
+	// prepared means the scaffold step already wrote the host tree into Work.
+	prepared bool
 	// Sign is the publisher key. Nil leaves the Android debug keystore in
 	// place and ad-hoc signs the macOS Mach-O. A key signs the APK, the
 	// Windows exe, the macOS Mach-O, and the iOS Mach-O with that identity.
@@ -47,14 +49,15 @@ func (host Host) Android(ctx context.Context) (string, error) {
 	}
 	cfg.ABIs = []string{abi}
 	result, err := apk.Build(ctx, apk.BuildOptions{
-		Config:      cfg,
-		BaseDir:     base,
-		WorkDir:     host.Work,
-		KeepWorkDir: host.Work != "",
-		OutAPK:      host.Out,
-		GoOnly:      host.GoOnly,
-		CGO:         host.CGO,
-		IconRoot:    host.IconRoot,
+		Config:       cfg,
+		BaseDir:      base,
+		WorkDir:      host.Work,
+		KeepWorkDir:  host.Work != "",
+		OutAPK:       host.Out,
+		GoOnly:       host.GoOnly,
+		CGO:          host.CGO,
+		IconRoot:     host.IconRoot,
+		SkipGenerate: host.prepared,
 	})
 	if err != nil {
 		return "", err
@@ -70,22 +73,24 @@ func (host Host) Android(ctx context.Context) (string, error) {
 	return result.APKPath, nil
 }
 
-// Mac builds a .app whose executable is the Go program, then ad-hoc signs
-// that Mach-O. Host.Sign replaces the ad-hoc signature with the publisher key.
+// Mac builds a .app whose executable is the Swift scaffold, then ad-hoc
+// signs that bundle. The Go program is the server inside Contents/MacOS.
+// Host.Sign replaces the ad-hoc signature with the publisher key.
 func (host Host) Mac(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {
 		return "", err
 	}
 	result, err := mac.Build(ctx, mac.BuildOptions{
-		Config:      macConfig(cfg),
-		BaseDir:     base,
-		WorkDir:     host.Work,
-		KeepWorkDir: host.Work != "",
-		OutApp:      host.Out,
-		GoOnly:      host.GoOnly,
-		GOARCH:      host.GOARCH,
-		IconRoot:    host.IconRoot,
+		Config:       macConfig(cfg),
+		BaseDir:      base,
+		WorkDir:      host.Work,
+		KeepWorkDir:  host.Work != "",
+		OutApp:       host.Out,
+		GoOnly:       host.GoOnly,
+		GOARCH:       host.GOARCH,
+		IconRoot:     host.IconRoot,
+		SkipGenerate: host.prepared,
 	})
 	if err != nil {
 		return "", err
@@ -160,15 +165,16 @@ func (host Host) IOS(ctx context.Context) (string, error) {
 		return "", err
 	}
 	result, err := ios.Build(ctx, ios.BuildOptions{
-		Config:      iosConfig(cfg),
-		BaseDir:     base,
-		WorkDir:     host.Work,
-		KeepWorkDir: host.Work != "",
-		OutApp:      host.Out,
-		GoOnly:      host.GoOnly,
-		SDK:         host.SDK,
-		GOARCH:      host.GOARCH,
-		IconRoot:    host.IconRoot,
+		Config:       iosConfig(cfg),
+		BaseDir:      base,
+		WorkDir:      host.Work,
+		KeepWorkDir:  host.Work != "",
+		OutApp:       host.Out,
+		GoOnly:       host.GoOnly,
+		SDK:          host.SDK,
+		GOARCH:       host.GOARCH,
+		IconRoot:     host.IconRoot,
+		SkipGenerate: host.prepared,
 	})
 	if err != nil {
 		return "", err

@@ -43,7 +43,8 @@ func (c *buildCmd) Run(ctx context.Context) error {
 	var paths []string
 	err := progress.Run(session, ctx, func(ctx context.Context) error {
 		// Control does not take a pool worker. produce waits on the
-		// workflow future for the icons step and the goos/goarch step.
+		// workflow future for icons, the scaffold when the host has one,
+		// and the goos/goarch step.
 		taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, _ *taskgroup.Status) error {
 			written, err := c.produce(ctx)
 			paths = written

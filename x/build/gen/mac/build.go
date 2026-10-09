@@ -15,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -39,8 +40,10 @@ type BuildOptions struct {
 	GoOnly      bool
 	GOARCH      string
 	IconRoot    string
-	Stdout      io.Writer
-	Stderr      io.Writer
+	// SkipGenerate leaves an existing scaffold in WorkDir in place.
+	SkipGenerate bool
+	Stdout       io.Writer
+	Stderr       io.Writer
 }
 
 // BuildResult is the outcome of Build.
@@ -50,8 +53,9 @@ type BuildResult struct {
 	HelperPath string
 }
 
-// Build compiles the Go program and, unless GoOnly, writes a .app whose
-// executable is that program. The caller signs the Mach-O.
+// Build compiles the Go server and, unless GoOnly, builds the scaffold
+// with xcodegen and xcodebuild. The .app executable is that shell. The
+// Go server is Contents/MacOS/eletrocromo-server. The caller signs the Mach-Os.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout := opts.Stdout
 	if stdout == nil {
@@ -99,10 +103,12 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	genCfg := cfg
 	genCfg.GoMain = goMain
 
-	slog.Info("macos host", "dir", workDir)
-	if err := Create(ctx, Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
-		buildErr = fmt.Errorf("generate host: %w", err)
-		return nil, buildErr
+	if !opts.SkipGenerate {
+		slog.Info("macos host", "dir", workDir)
+		if err := Create(ctx, Options{OutDir: workDir, Force: true, Config: genCfg}); err != nil {
+			buildErr = fmt.Errorf("generate host: %w", err)
+			return nil, buildErr
+		}
 	}
 
 	iconRoot := strings.TrimSpace(opts.IconRoot)
@@ -114,10 +120,18 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		}
 		iconRoot = tmpIcons
 	}
-	icnsDest := filepath.Join(workDir, "Resources", "AppIcon.icns")
 	slog.Info("macos icon", "dir", iconRoot)
-	if err := icons.ApplyMacOSICNS(iconRoot, icnsDest); err != nil {
+	if err := applyMacIcons(iconRoot, filepath.Join(workDir, "Assets.xcassets")); err != nil {
 		buildErr = err
+		return nil, buildErr
+	}
+	if err := icons.ApplyMacOSICNS(iconRoot, filepath.Join(workDir, "Resources", "AppIcon.icns")); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+
+	if !opts.GoOnly && runtime.GOOS != "darwin" {
+		buildErr = ErrMacOSRequired
 		return nil, buildErr
 	}
 
@@ -153,9 +167,23 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 
-	slog.Info("macos bundle", "path", outApp)
-	if err := writeBundle(outApp, cfg.ProductName(), filepath.Join(workDir, "Info.plist"), helperDest, icnsDest); err != nil {
+	xArch, err := darwinXArch(arch)
+	if err != nil {
 		buildErr = err
+		return nil, buildErr
+	}
+	slog.Info("macos xcode", "arch", xArch)
+	built, err := assembleMac(ctx, workDir, cfg.ProductName(), xArch)
+	if err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+	if err := installHelper(built, helperDest); err != nil {
+		buildErr = err
+		return nil, buildErr
+	}
+	if err := common.ReplaceDir(built, outApp); err != nil {
+		buildErr = fmt.Errorf("copy app: %w", err)
 		return nil, buildErr
 	}
 	result.AppPath = outApp
@@ -163,37 +191,61 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	return result, nil
 }
 
-func writeBundle(outApp, product, plistPath, binaryPath, icnsPath string) error {
-	if err := os.RemoveAll(outApp); err != nil {
-		return err
+func installHelper(appPath, helperPath string) error {
+	dest := filepath.Join(appPath, "Contents", "MacOS", HelperName)
+	if err := common.CopyFile(helperPath, dest, 0o755); err != nil {
+		return fmt.Errorf("bundle server: %w", err)
 	}
-	macOS := filepath.Join(outApp, "Contents", "MacOS")
-	resources := filepath.Join(outApp, "Contents", "Resources")
-	if err := os.MkdirAll(macOS, 0o755); err != nil {
-		return err
+	return os.Chmod(dest, 0o755)
+}
+
+func assembleMac(ctx context.Context, workDir, product, xArch string) (string, error) {
+	if _, err := execdriver.Which(ctx, "xcodegen"); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrXcodeGenNotFound, err)
 	}
-	if err := os.MkdirAll(resources, 0o755); err != nil {
-		return err
+	if _, err := execdriver.Which(ctx, "xcodebuild"); err != nil {
+		return "", fmt.Errorf("%w: %w", ErrXcodebuildNotFound, err)
 	}
-	if err := common.CopyFile(plistPath, filepath.Join(outApp, "Contents", "Info.plist"), 0o755); err != nil {
-		return fmt.Errorf("bundle plist: %w", err)
+	if err := gocmd.Tool(ctx, "xcodegen", workDir, nil, "generate"); err != nil {
+		return "", fmt.Errorf("xcodegen generate: %w", err)
 	}
-	exe := filepath.Join(macOS, product)
-	if err := common.CopyFile(binaryPath, exe, 0o755); err != nil {
-		return fmt.Errorf("bundle executable: %w", err)
+	derived := filepath.Join(workDir, "build", "DerivedData")
+	proj := filepath.Join(workDir, product+".xcodeproj")
+	if err := gocmd.Tool(ctx, "xcodebuild", workDir, nil,
+		"-project", proj,
+		"-scheme", product,
+		"-configuration", "Debug",
+		"-sdk", "macosx",
+		"-destination", "generic/platform=macOS",
+		"-derivedDataPath", derived,
+		"-skipPackagePluginValidation",
+		"CODE_SIGN_IDENTITY=-",
+		"CODE_SIGNING_REQUIRED=NO",
+		"CODE_SIGNING_ALLOWED=YES",
+		"AD_HOC_CODE_SIGNING_ALLOWED=YES",
+		"ENABLE_DEBUG_DYLIB=NO",
+		"ARCHS="+xArch,
+		"ONLY_ACTIVE_ARCH=YES",
+		"build",
+	); err != nil {
+		return "", fmt.Errorf("xcodebuild: %w\n(work dir left at %s)", err, workDir)
 	}
-	if err := os.Chmod(exe, 0o755); err != nil {
-		return err
+	app := filepath.Join(derived, "Build", "Products", "Debug", product+".app")
+	if st, err := os.Stat(app); err != nil || !st.IsDir() {
+		return "", fmt.Errorf("%w: %s", ErrDebugAppMissing, app)
 	}
-	if icnsPath != "" {
-		if err := common.CopyFile(icnsPath, filepath.Join(resources, "AppIcon.icns"), 0o755); err != nil {
-			return fmt.Errorf("bundle icon: %w", err)
-		}
+	return app, nil
+}
+
+func darwinXArch(goarch string) (string, error) {
+	switch goarch {
+	case "arm64":
+		return "arm64", nil
+	case "amd64":
+		return "x86_64", nil
+	default:
+		return "", fmt.Errorf("%w: %s", ErrUnsupportedGOARCH, goarch)
 	}
-	if err := os.WriteFile(filepath.Join(outApp, "Contents", "PkgInfo"), []byte("APPL????"), 0o644); err != nil {
-		return err
-	}
-	return nil
 }
 
 func darwinArch(goarch string) (string, error) {
