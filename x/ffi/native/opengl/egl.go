@@ -67,25 +67,29 @@ var loadEGL = native.Singleton(func() (*eglLib, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := BindEGL(lib); err != nil {
+	eglSyms, err := native.Bind[EGL](lib)
+	if err != nil {
 		return nil, err
 	}
-	_ = BindEGLPlatform(lib)
+	plat, err := native.Bind[EGLPlatform](lib)
+	if err != nil {
+		return nil, err
+	}
 	e := &eglLib{
-		getDisplay:     EglGetDisplay,
-		getPlatform:    EglGetPlatformDisplay,
-		initialize:     EglInitialize,
-		bindAPI:        EglBindAPI,
-		chooseConfig:   EglChooseConfig,
-		createContext:  EglCreateContext,
-		createWindow:   EglCreateWindowSurface,
-		createPbuffer:  EglCreatePbufferSurface,
-		makeCurrent:    EglMakeCurrent,
-		swap:           EglSwapBuffers,
-		destroyContext: EglDestroyContext,
-		destroySurface: EglDestroySurface,
-		getProc:        EglGetProcAddress,
-		getError:       EglGetError,
+		getDisplay:     eglSyms.EglGetDisplay,
+		getPlatform:    plat.EglGetPlatformDisplay,
+		initialize:     eglSyms.EglInitialize,
+		bindAPI:        eglSyms.EglBindAPI,
+		chooseConfig:   eglSyms.EglChooseConfig,
+		createContext:  eglSyms.EglCreateContext,
+		createWindow:   eglSyms.EglCreateWindowSurface,
+		createPbuffer:  eglSyms.EglCreatePbufferSurface,
+		makeCurrent:    eglSyms.EglMakeCurrent,
+		swap:           eglSyms.EglSwapBuffers,
+		destroyContext: eglSyms.EglDestroyContext,
+		destroySurface: eglSyms.EglDestroySurface,
+		getProc:        eglSyms.EglGetProcAddress,
+		getError:       eglSyms.EglGetError,
 	}
 	return e, nil
 })

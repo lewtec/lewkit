@@ -51,22 +51,24 @@ func openGLX(dpy, win uintptr) (glContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := BindX11(xLib); err != nil {
+	xSyms, err := native.Bind[X11](xLib)
+	if err != nil {
 		return nil, err
 	}
-	if err := BindGLX(glLib); err != nil {
+	glSyms, err := native.Bind[GLX](glLib)
+	if err != nil {
 		return nil, err
 	}
-	defaultScreen := XDefaultScreen
-	windowAttr := XGetWindowAttributes
-	visualID := XVisualIDFromVisual
-	xFree := XFree
-	choose := GlXChooseFBConfig
-	getAttrib := GlXGetFBConfigAttrib
-	getProc := GlXGetProcAddress
-	makeCurrent := GlXMakeCurrent
-	swap := GlXSwapBuffers
-	destroy := GlXDestroyContext
+	defaultScreen := xSyms.XDefaultScreen
+	windowAttr := xSyms.XGetWindowAttributes
+	visualID := xSyms.XVisualIDFromVisual
+	xFree := xSyms.XFree
+	choose := glSyms.GlXChooseFBConfig
+	getAttrib := glSyms.GlXGetFBConfigAttrib
+	getProc := glSyms.GlXGetProcAddress
+	makeCurrent := glSyms.GlXMakeCurrent
+	swap := glSyms.GlXSwapBuffers
+	destroy := glSyms.GlXDestroyContext
 	var raw [256]byte
 	if windowAttr(dpy, win, unsafe.Pointer(&raw[0])) == 0 {
 		return nil, fmt.Errorf("%w: XGetWindowAttributes", ErrUnavailable)

@@ -174,20 +174,22 @@ func loadUser32() error {
 	if err != nil {
 		return fmt.Errorf("%w: kernel32", ErrUnavailable)
 	}
-	if err := BindKernel32(k32); err != nil {
+	k32Syms, err := native.Bind[Kernel32](k32)
+	if err != nil {
 		return fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
 	}
-	if err := BindUser32(lib); err != nil {
+	userSyms, err := native.Bind[User32](lib)
+	if err != nil {
 		return fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
 	}
-	getModuleHandle = GetModuleHandleW
-	registerClass = RegisterClassW
-	createWindow = CreateWindowExW
-	showWindow = ShowWindow
-	destroyWindow = DestroyWindow
-	peekMessage = PeekMessageW
-	translateMessage = TranslateMessage
-	dispatchMessage = DispatchMessageW
+	getModuleHandle = k32Syms.GetModuleHandleW
+	registerClass = userSyms.RegisterClassW
+	createWindow = userSyms.CreateWindowExW
+	showWindow = userSyms.ShowWindow
+	destroyWindow = userSyms.DestroyWindow
+	peekMessage = userSyms.PeekMessageW
+	translateMessage = userSyms.TranslateMessage
+	dispatchMessage = userSyms.DispatchMessageW
 	user32 = lib
 	if getModuleHandle == nil || registerClass == nil || createWindow == nil {
 		return fmt.Errorf("%w: win32 window procs", ErrUnavailable)

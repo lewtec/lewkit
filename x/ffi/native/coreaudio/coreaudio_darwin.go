@@ -59,28 +59,31 @@ func bindAll() error {
 	if err != nil {
 		return err
 	}
-	if err := BindAudioToolbox(audio); err != nil {
+	audioSyms, err := native.Bind[AudioToolbox](audio)
+	if err != nil {
 		return err
 	}
-	if err := BindCoreAudio(core); err != nil {
+	coreSyms, err := native.Bind[CoreAudio](core)
+	if err != nil {
 		return err
 	}
-	if err := BindCF(cf); err != nil {
+	cfSyms, err := native.Bind[CF](cf)
+	if err != nil {
 		return err
 	}
-	queueNew = AudioQueueNewOutput
-	queueAlloc = AudioQueueAllocateBuffer
-	queueEnqueue = AudioQueueEnqueueBuffer
-	queueStart = AudioQueueStart
-	queueStop = AudioQueueStop
-	queueDispose = AudioQueueDispose
-	queueSetProp = AudioQueueSetProperty
-	objectSize = AudioObjectGetPropertyDataSize
-	objectData = AudioObjectGetPropertyData
-	cfCreate = CFStringCreateWithCString
-	cfGetCString = CFStringGetCString
-	cfLength = CFStringGetLength
-	cfRelease = CFRelease
+	queueNew = audioSyms.AudioQueueNewOutput
+	queueAlloc = audioSyms.AudioQueueAllocateBuffer
+	queueEnqueue = audioSyms.AudioQueueEnqueueBuffer
+	queueStart = audioSyms.AudioQueueStart
+	queueStop = audioSyms.AudioQueueStop
+	queueDispose = audioSyms.AudioQueueDispose
+	queueSetProp = audioSyms.AudioQueueSetProperty
+	objectSize = coreSyms.AudioObjectGetPropertyDataSize
+	objectData = coreSyms.AudioObjectGetPropertyData
+	cfCreate = cfSyms.CFStringCreateWithCString
+	cfGetCString = cfSyms.CFStringGetCString
+	cfLength = cfSyms.CFStringGetLength
+	cfRelease = cfSyms.CFRelease
 	return nil
 }
 

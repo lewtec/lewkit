@@ -13,10 +13,11 @@ var (
 			return err
 		}
 		libc = lib
-		if err := BindPthread(lib); err != nil {
+		got, err := native.Bind[Pthread](lib)
+		if err != nil {
 			return err
 		}
-		self = PthreadSelf
+		self = got.PthreadSelf
 		return nil
 	})
 )

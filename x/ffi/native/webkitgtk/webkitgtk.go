@@ -124,116 +124,150 @@ func Load(ctx context.Context) (*Symbols, error) {
 	return s, nil
 }
 
+// gtk_window_new is void() on GTK 4. GTK 3 takes a window kind.
+type gtk3WindowNew struct {
+	New func(kind int32) uintptr `sym:"gtk_window_new"`
+}
+
+// g_object_new is variadic. GObject.GObjectNew is the four-argument form.
+// This six-argument form is the GTK property-pair call site.
+type gobjectNewPair struct {
+	New func(objectType uintptr, name1 *byte, value1 uintptr, name2 *byte, value2, end uintptr) uintptr `sym:"g_object_new"`
+}
+
 func bindStack(s *Symbols, glib, gobject, gio, web, gtk, jsc uintptr) error {
-	if err := BindGlib(glib); err != nil {
+	glibSyms, err := native.Bind[Glib](glib)
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if err := BindGObject(gobject); err != nil {
+	objSyms, err := native.Bind[GObject](gobject)
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if err := BindGio(gio); err != nil {
+	gioSyms, err := native.Bind[Gio](gio)
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	_ = BindGioOpt(gio)
-	if err := BindGTK(gtk); err != nil {
+	gioOpt, err := native.Bind[GioOpt](gio)
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
+	gtkSyms, err := native.Bind[GTK](gtk)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	var gtk3Syms GTK3
+	var gtk4Syms GTK4
 	if s.gtk3 {
-		if err := BindGTK3(gtk); err != nil {
+		gtk3Syms, err = native.Bind[GTK3](gtk)
+		if err != nil {
 			return fmt.Errorf("%w: %v", ErrUnavailable, err)
 		}
-		if err := bind(gtk, "gtk_window_new", &s.windowNewTyped); err != nil {
-			return err
+		typed, err := native.Bind[gtk3WindowNew](gtk)
+		if err != nil {
+			return fmt.Errorf("%w: gtk_window_new", ErrUnavailable)
 		}
-	} else if err := BindGTK4(gtk); err != nil {
+		s.windowNewTyped = typed.New
+	} else if gtk4Syms, err = native.Bind[GTK4](gtk); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if err := BindWebKit(web); err != nil {
+	webSyms, err := native.Bind[WebKit](web)
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	_ = BindWebKitOpt(web)
-	if err := BindJSC(jsc); err != nil {
+	webOpt, err := native.Bind[WebKitOpt](web)
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	// g_object_new is variadic. BindGObject registers the four-argument form.
-	// This six-argument form is the GTK property-pair call site.
-	_ = native.Bind(gobject, "g_object_new", &s.objectNewPair)
-	if soup, err := openOne("libsoup-3.0.so.0"); err == nil {
-		_ = BindSoup(soup)
+	jscSyms, err := native.Bind[JSC](jsc)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	assignSymbols(s)
+	pair, err := native.Bind[gobjectNewPair](gobject)
+	if err != nil {
+		return fmt.Errorf("%w: g_object_new", ErrUnavailable)
+	}
+	s.objectNewPair = pair.New
+	var soupSyms Soup
+	if soupLib, openErr := openOne("libsoup-3.0.so.0"); openErr == nil {
+		soupSyms, err = native.Bind[Soup](soupLib)
+		if err != nil {
+			return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		}
+	}
+	assignSymbols(s, glibSyms, objSyms, gioSyms, gioOpt, gtkSyms, gtk3Syms, gtk4Syms, webSyms, webOpt, jscSyms, soupSyms)
 	return nil
 }
 
-func assignSymbols(s *Symbols) {
-	s.iterate = GMainContextIteration
-	s.wake = GMainContextWakeup
-	s.pending = GMainContextPending
-	s.free = GFree
-	s.newError = GErrorNewLiteral
-	s.freeError = GErrorFree
-	s.signal = GSignalConnectData
-	s.unref = GObjectUnref
-	s.valueInit = GValueInit
-	s.valueSetBool = GValueSetBoolean
-	s.valueUnset = GValueUnset
-	s.setProperty = GObjectSetProperty
-	s.objectNew = GObjectNew
-	s.memoryStream = GMemoryInputStreamNewFromData
-	s.ioErrorQuark = GIoErrorQuark
-	s.init = GtkInit
-	s.settingsDefault = GtkSettingsGetDefault
-	s.setTitle = GtkWindowSetTitle
-	s.setSize = GtkWindowSetDefaultSize
-	s.present = GtkWindowPresent
+func assignSymbols(s *Symbols, glib Glib, obj GObject, gio Gio, gioOpt GioOpt, gtk GTK, gtk3 GTK3, gtk4 GTK4, web WebKit, webOpt WebKitOpt, jsc JSC, soup Soup) {
+	s.iterate = glib.GMainContextIteration
+	s.wake = glib.GMainContextWakeup
+	s.pending = glib.GMainContextPending
+	s.free = glib.GFree
+	s.newError = glib.GErrorNewLiteral
+	s.freeError = glib.GErrorFree
+	s.signal = obj.GSignalConnectData
+	s.unref = obj.GObjectUnref
+	s.valueInit = obj.GValueInit
+	s.valueSetBool = obj.GValueSetBoolean
+	s.valueUnset = obj.GValueUnset
+	s.setProperty = obj.GObjectSetProperty
+	s.objectNew = obj.GObjectNew
+	s.memoryStream = gio.GMemoryInputStreamNewFromData
+	s.ioErrorQuark = gio.GIoErrorQuark
+	s.init = gtk.GtkInit
+	s.settingsDefault = gtk.GtkSettingsGetDefault
+	s.setTitle = gtk.GtkWindowSetTitle
+	s.setSize = gtk.GtkWindowSetDefaultSize
+	s.present = gtk.GtkWindowPresent
 	if s.gtk3 {
-		s.containerAdd = GtkContainerAdd
-		s.showAll = GtkWidgetShowAll
-		s.widgetDestroy = GtkWidgetDestroy
+		s.containerAdd = gtk3.GtkContainerAdd
+		s.showAll = gtk3.GtkWidgetShowAll
+		s.widgetDestroy = gtk3.GtkWidgetDestroy
 	} else {
-		s.windowNew = GtkWindowNew
-		s.setChild = GtkWindowSetChild
-		s.destroy = GtkWindowDestroy
+		s.windowNew = gtk4.GtkWindowNew
+		s.setChild = gtk4.GtkWindowSetChild
+		s.destroy = gtk4.GtkWindowDestroy
 	}
-	s.newWebView = WebkitWebViewNew
-	s.webViewType = WebkitWebViewGetType
-	s.networkSession = WebkitNetworkSessionNew
-	s.dataManagerNew = WebkitWebsiteDataManagerNew
-	s.contextWithManager = WebkitWebContextNewWithWebsiteDataManager
-	s.viewWithContext = WebkitWebViewNewWithContext
-	s.settingsNew = WebkitSettingsNew
-	s.setHardwarePolicy = WebkitSettingsSetHardwareAccelerationPolicy
-	s.loadHTML = WebkitWebViewLoadHtml
-	s.loadURI = WebkitWebViewLoadUri
-	s.getManager = WebkitWebViewGetUserContentManager
-	s.getContext = WebkitWebViewGetContext
-	s.registerMessage = WebkitUserContentManagerRegisterScriptMessageHandler
-	s.newUserScript = WebkitUserScriptNew
-	s.unrefUserScript = WebkitUserScriptUnref
-	s.addUserScript = WebkitUserContentManagerAddScript
-	s.evaluateJavaScript = WebkitWebViewEvaluateJavascript
-	s.finishJavaScript = WebkitWebViewEvaluateJavascriptFinish
-	s.valueToJSON = JscValueToJson
-	s.valueToString = JscValueToString
-	s.securityManager = WebkitWebContextGetSecurityManager
-	s.registerSecure = WebkitSecurityManagerRegisterUriSchemeAsSecure
-	s.registerCORS = WebkitSecurityManagerRegisterUriSchemeAsCorsEnabled
-	s.registerLocal = WebkitSecurityManagerRegisterUriSchemeAsLocal
-	s.registerScheme = WebkitWebContextRegisterUriScheme
-	s.requestURI = WebkitUriSchemeRequestGetUri
-	s.requestMethod = WebkitUriSchemeRequestGetHttpMethod
-	s.requestBody = WebkitUriSchemeRequestGetHttpBody
-	s.streamRead = GInputStreamRead
-	s.unixInputStream = GUnixInputStreamNew
-	s.responseNew = WebkitUriSchemeResponseNew
-	s.responseStatus = WebkitUriSchemeResponseSetStatus
-	s.responseContentType = WebkitUriSchemeResponseSetContentType
-	s.responseHeaders = WebkitUriSchemeResponseSetHttpHeaders
-	s.finishWithResponse = WebkitUriSchemeRequestFinishWithResponse
-	s.headersNew = SoupMessageHeadersNew
-	s.headersAppend = SoupMessageHeadersAppend
-	s.finishRequest = WebkitUriSchemeRequestFinish
-	s.finishRequestError = WebkitUriSchemeRequestFinishError
+	s.newWebView = web.WebkitWebViewNew
+	s.webViewType = web.WebkitWebViewGetType
+	s.networkSession = webOpt.WebkitNetworkSessionNew
+	s.dataManagerNew = webOpt.WebkitWebsiteDataManagerNew
+	s.contextWithManager = webOpt.WebkitWebContextNewWithWebsiteDataManager
+	s.viewWithContext = webOpt.WebkitWebViewNewWithContext
+	s.settingsNew = webOpt.WebkitSettingsNew
+	s.setHardwarePolicy = webOpt.WebkitSettingsSetHardwareAccelerationPolicy
+	s.loadHTML = web.WebkitWebViewLoadHtml
+	s.loadURI = web.WebkitWebViewLoadUri
+	s.getManager = web.WebkitWebViewGetUserContentManager
+	s.getContext = web.WebkitWebViewGetContext
+	s.registerMessage = web.WebkitUserContentManagerRegisterScriptMessageHandler
+	s.newUserScript = web.WebkitUserScriptNew
+	s.unrefUserScript = web.WebkitUserScriptUnref
+	s.addUserScript = web.WebkitUserContentManagerAddScript
+	s.evaluateJavaScript = web.WebkitWebViewEvaluateJavascript
+	s.finishJavaScript = web.WebkitWebViewEvaluateJavascriptFinish
+	s.valueToJSON = jsc.JscValueToJson
+	s.valueToString = jsc.JscValueToString
+	s.securityManager = web.WebkitWebContextGetSecurityManager
+	s.registerSecure = web.WebkitSecurityManagerRegisterUriSchemeAsSecure
+	s.registerCORS = web.WebkitSecurityManagerRegisterUriSchemeAsCorsEnabled
+	s.registerLocal = web.WebkitSecurityManagerRegisterUriSchemeAsLocal
+	s.registerScheme = web.WebkitWebContextRegisterUriScheme
+	s.requestURI = web.WebkitUriSchemeRequestGetUri
+	s.requestMethod = webOpt.WebkitUriSchemeRequestGetHttpMethod
+	s.requestBody = webOpt.WebkitUriSchemeRequestGetHttpBody
+	s.streamRead = gioOpt.GInputStreamRead
+	s.unixInputStream = gioOpt.GUnixInputStreamNew
+	s.responseNew = webOpt.WebkitUriSchemeResponseNew
+	s.responseStatus = webOpt.WebkitUriSchemeResponseSetStatus
+	s.responseContentType = webOpt.WebkitUriSchemeResponseSetContentType
+	s.responseHeaders = webOpt.WebkitUriSchemeResponseSetHttpHeaders
+	s.finishWithResponse = webOpt.WebkitUriSchemeRequestFinishWithResponse
+	s.headersNew = soup.SoupMessageHeadersNew
+	s.headersAppend = soup.SoupMessageHeadersAppend
+	s.finishRequest = web.WebkitUriSchemeRequestFinish
+	s.finishRequestError = web.WebkitUriSchemeRequestFinishError
 }
 
 func webkitDirs() []string {
@@ -279,13 +313,6 @@ func openOne(soname string) (uintptr, error) {
 		return 0, fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
 	}
 	return lib, nil
-}
-
-func bind(lib uintptr, name string, fnptr any) error {
-	if err := native.Bind(lib, name, fnptr); err != nil {
-		return fmt.Errorf("%w: %s", ErrUnavailable, name)
-	}
-	return nil
 }
 
 // Init prepares GTK on the calling thread.

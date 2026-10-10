@@ -7,8 +7,8 @@
 // this thread owns it. AppKit and Win32 require that thread.
 package thread
 
-//go:generate go run ../../../cmd/lewkit generate header --package thread --bind BindPthread --out pthread_bind.go pthread.h
-//go:generate go run ../../../cmd/lewkit generate header --package thread --bind BindMain --out main_bind.go main.h
+//go:generate go run ../../../cmd/lewkit generate header --package thread --bind Pthread --out pthread_bind.go pthread.h
+//go:generate go run ../../../cmd/lewkit generate header --package thread --bind Main --out main_bind.go main.h
 
 import "context"
 

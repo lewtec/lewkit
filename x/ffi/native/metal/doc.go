@@ -9,4 +9,4 @@
 // share the screen's queue. ndarray talks to it through a driver.
 package metal
 
-//go:generate go run ../../../../cmd/lewkit generate header --package metal --bind BindMetal --out device_bind.go device.h
+//go:generate go run ../../../../cmd/lewkit generate header --package metal --bind Metal --out device_bind.go device.h

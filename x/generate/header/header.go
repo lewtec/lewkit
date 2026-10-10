@@ -26,9 +26,10 @@ type Config struct {
 	Include []string
 	Define  []string
 	Libs    []string
-	// Bind is the Go function that resolves symbols. Empty means Bind.
+	// Bind names the struct whose fields are the C functions. Empty means Symbols.
+	// Callers pass that struct to native.Bind.
 	Bind string
-	// Soft leaves each missing symbol nil and still returns nil.
+	// Soft marks every function field optional. A missing symbol stays nil.
 	Soft bool
 }
 

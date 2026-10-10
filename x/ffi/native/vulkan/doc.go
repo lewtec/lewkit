@@ -22,8 +22,8 @@
 // bound with lewkit generate header.
 package vulkan
 
-//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind BindMetal --out metal_bind.go metal.h
-//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind BindX11 --out x11_bind.go x11.h
-//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind BindX11Opt --soft --out x11_opt_bind.go x11_opt.h
-//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind BindUser32 --out user32_bind.go user32.h
-//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind BindKernel32 --out kernel32_bind.go kernel32.h
+//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind Metal --out metal_bind.go metal.h
+//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind X11 --out x11_bind.go x11.h
+//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind X11Opt --soft --out x11_opt_bind.go x11_opt.h
+//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind User32 --out user32_bind.go user32.h
+//go:generate go run ../../../../cmd/lewkit generate header --package vulkan --bind Kernel32 --out kernel32_bind.go kernel32.h

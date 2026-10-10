@@ -162,26 +162,30 @@ func xOpen() (uintptr, error) {
 		if err != nil {
 			return 0, fmt.Errorf("%w: libX11", ErrUnavailable)
 		}
-		if err := BindX11(lib); err != nil {
+		x11Syms, err := native.Bind[X11](lib)
+		if err != nil {
 			return 0, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
 		}
-		_ = BindX11Opt(lib)
-		xOpenDisplay = XOpenDisplay
-		xCloseDisplay = XCloseDisplay
-		xDefaultScreen = XDefaultScreen
-		xRootWindow = XRootWindow
-		xBlackPixel = XBlackPixel
-		xWhitePixel = XWhitePixel
-		xCreateSimple = XCreateSimpleWindow
-		xStoreName = XStoreName
-		xMapWindow = XMapWindow
-		xFlush = XFlush
-		xDestroyWindow = XDestroyWindow
-		xSelectInput = XSelectInput
-		xPending = XPending
-		xNext = XNextEvent
-		xInternAtom = XInternAtom
-		xChangeProperty = XChangeProperty
+		opt, err := native.Bind[X11Opt](lib)
+		if err != nil {
+			return 0, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
+		}
+		xOpenDisplay = x11Syms.XOpenDisplay
+		xCloseDisplay = x11Syms.XCloseDisplay
+		xDefaultScreen = x11Syms.XDefaultScreen
+		xRootWindow = x11Syms.XRootWindow
+		xBlackPixel = x11Syms.XBlackPixel
+		xWhitePixel = x11Syms.XWhitePixel
+		xCreateSimple = x11Syms.XCreateSimpleWindow
+		xStoreName = x11Syms.XStoreName
+		xMapWindow = x11Syms.XMapWindow
+		xFlush = x11Syms.XFlush
+		xDestroyWindow = x11Syms.XDestroyWindow
+		xSelectInput = x11Syms.XSelectInput
+		xPending = x11Syms.XPending
+		xNext = x11Syms.XNextEvent
+		xInternAtom = opt.XInternAtom
+		xChangeProperty = opt.XChangeProperty
 		xlibOnce = 1
 	}
 	if xOpenDisplay == nil {

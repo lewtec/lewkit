@@ -5,8 +5,8 @@
 // words, then the node id, then the tree pointer.
 package treesitter
 
-//go:generate go run ../../../../cmd/lewkit generate header --package treesitter --bind BindTreeSitter --out ts_bind.go ts.h
-//go:generate go run ../../../../cmd/lewkit generate header --package treesitter --bind BindLibc --out libc_bind.go libc.h
+//go:generate go run ../../../../cmd/lewkit generate header --package treesitter --bind TreeSitter --out ts_bind.go ts.h
+//go:generate go run ../../../../cmd/lewkit generate header --package treesitter --bind Libc --out libc_bind.go libc.h
 
 import (
 	"errors"
@@ -72,33 +72,35 @@ func bindRuntime() error {
 	if err != nil {
 		return err
 	}
-	if err := BindTreeSitter(lib); err != nil {
+	ts, err := native.Bind[TreeSitter](lib)
+	if err != nil {
 		return err
 	}
-	if err := BindLibc(libc); err != nil {
+	c, err := native.Bind[Libc](libc)
+	if err != nil {
 		return err
 	}
-	parserNew = TsParserNew
-	parserDelete = TsParserDelete
-	setLanguage = TsParserSetLanguage
-	parseString = TsParserParseString
-	treeDelete = TsTreeDelete
-	rootNode = TsTreeRootNode
-	nodeType = TsNodeType
-	nodeStartByte = TsNodeStartByte
-	nodeEndByte = TsNodeEndByte
-	nodeChildCount = TsNodeChildCount
-	nodeChild = TsNodeChild
-	nodeFieldName = TsNodeFieldNameForChild
-	nodeNamedCount = TsNodeNamedChildCount
-	nodeNamedChild = TsNodeNamedChild
-	nodeString = TsNodeString
-	nodeIsNull = TsNodeIsNull
-	nodeIsNamed = TsNodeIsNamed
-	nodeIsExtra = TsNodeIsExtra
-	nodeIsError = TsNodeIsError
-	nodeHasError = TsNodeHasError
-	libcFree = Free
+	parserNew = ts.TsParserNew
+	parserDelete = ts.TsParserDelete
+	setLanguage = ts.TsParserSetLanguage
+	parseString = ts.TsParserParseString
+	treeDelete = ts.TsTreeDelete
+	rootNode = ts.TsTreeRootNode
+	nodeType = ts.TsNodeType
+	nodeStartByte = ts.TsNodeStartByte
+	nodeEndByte = ts.TsNodeEndByte
+	nodeChildCount = ts.TsNodeChildCount
+	nodeChild = ts.TsNodeChild
+	nodeFieldName = ts.TsNodeFieldNameForChild
+	nodeNamedCount = ts.TsNodeNamedChildCount
+	nodeNamedChild = ts.TsNodeNamedChild
+	nodeString = ts.TsNodeString
+	nodeIsNull = ts.TsNodeIsNull
+	nodeIsNamed = ts.TsNodeIsNamed
+	nodeIsExtra = ts.TsNodeIsExtra
+	nodeIsError = ts.TsNodeIsError
+	nodeHasError = ts.TsNodeHasError
+	libcFree = c.Free
 	return nil
 }
 

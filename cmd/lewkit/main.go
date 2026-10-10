@@ -113,7 +113,7 @@ type headerCmd struct {
 	define  []cmd.StringArg `long:"define" short:"D" help:"macro NAME or NAME=value"`
 	lib     []cmd.StringArg `long:"lib" help:"soname passed to Open"`
 	abi     cmd.StringArg   `long:"abi" default:"" help:"all by default; host, sysv64, win64, darwinarm64, 386, win386, arm, or goos/goarch"`
-	bind    cmd.StringArg   `long:"bind" default:"" help:"Go function that resolves symbols; Bind when empty"`
+	bind    cmd.StringArg   `long:"bind" default:"" help:"struct type holding the C functions; Symbols when empty"`
 	soft    cmd.Flag        `long:"soft" help:"leave missing symbols nil"`
 }
 

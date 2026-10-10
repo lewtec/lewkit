@@ -74,31 +74,33 @@ func bindAll() error {
 	if err != nil {
 		return fmt.Errorf("libpulse.so.0: %w", err)
 	}
-	if err := BindSimple(simple); err != nil {
+	simpleSyms, err := native.Bind[Simple](simple)
+	if err != nil {
 		return err
 	}
-	if err := BindPulse(full); err != nil {
+	pulseSyms, err := native.Bind[Pulse](full)
+	if err != nil {
 		return err
 	}
-	simpleNew = PaSimpleNew
-	simpleFree = PaSimpleFree
-	simpleWrite = PaSimpleWrite
-	simpleDrain = PaSimpleDrain
-	strerror = PaStrerror
-	mainloopNew = PaMainloopNew
-	mainloopFree = PaMainloopFree
-	mainloopAPI = PaMainloopGetApi
-	mainloopPrepare = PaMainloopPrepare
-	mainloopPoll = PaMainloopPoll
-	mainloopDispatch = PaMainloopDispatch
-	contextNew = PaContextNew
-	contextUnref = PaContextUnref
-	contextConnect = PaContextConnect
-	contextDisconnect = PaContextDisconnect
-	contextState = PaContextGetState
-	contextErrno = PaContextErrno
-	contextSinks = PaContextGetSinkInfoList
-	operationUnref = PaOperationUnref
+	simpleNew = simpleSyms.PaSimpleNew
+	simpleFree = simpleSyms.PaSimpleFree
+	simpleWrite = simpleSyms.PaSimpleWrite
+	simpleDrain = simpleSyms.PaSimpleDrain
+	strerror = pulseSyms.PaStrerror
+	mainloopNew = pulseSyms.PaMainloopNew
+	mainloopFree = pulseSyms.PaMainloopFree
+	mainloopAPI = pulseSyms.PaMainloopGetApi
+	mainloopPrepare = pulseSyms.PaMainloopPrepare
+	mainloopPoll = pulseSyms.PaMainloopPoll
+	mainloopDispatch = pulseSyms.PaMainloopDispatch
+	contextNew = pulseSyms.PaContextNew
+	contextUnref = pulseSyms.PaContextUnref
+	contextConnect = pulseSyms.PaContextConnect
+	contextDisconnect = pulseSyms.PaContextDisconnect
+	contextState = pulseSyms.PaContextGetState
+	contextErrno = pulseSyms.PaContextErrno
+	contextSinks = pulseSyms.PaContextGetSinkInfoList
+	operationUnref = pulseSyms.PaOperationUnref
 	return nil
 }
 

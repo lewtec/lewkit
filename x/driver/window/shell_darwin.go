@@ -73,11 +73,12 @@ func transformForeground() bool {
 	if err != nil {
 		return false
 	}
-	if err := BindAppServices(lib); err != nil || TransformProcessType == nil {
+	got, err := native.Bind[AppServices](lib)
+	if err != nil || got.TransformProcessType == nil {
 		return false
 	}
 	psn := ProcessSerial{Low: currentProcessPSN}
-	return TransformProcessType(&psn, transformStateFG) == 0
+	return got.TransformProcessType(&psn, transformStateFG) == 0
 }
 
 func setAppIcon(app objc.ID, icon image.Image) {

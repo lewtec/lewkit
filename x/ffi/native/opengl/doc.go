@@ -15,7 +15,7 @@
 // 3.1. ndarray talks to the device through a driver.
 package opengl
 
-//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind BindEGL --out egl_bind.go egl.h
-//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind BindEGLPlatform --soft --out egl_platform_bind.go egl_platform.h
-//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind BindX11 --out x11_bind.go x11.h
-//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind BindGLX --out glx_bind.go glx.h
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind EGL --out egl_bind.go egl.h
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind EGLPlatform --soft --out egl_platform_bind.go egl_platform.h
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind X11 --out x11_bind.go x11.h
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind GLX --out glx_bind.go glx.h

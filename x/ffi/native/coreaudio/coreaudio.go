@@ -1,9 +1,9 @@
 // Package coreaudio binds AudioQueue playback and CoreAudio device names without cgo.
 package coreaudio
 
-//go:generate go run ../../../../cmd/lewkit generate header --package coreaudio --bind BindAudioToolbox --out audiotoolbox_bind.go audiotoolbox.h
-//go:generate go run ../../../../cmd/lewkit generate header --package coreaudio --bind BindCoreAudio --out coreaudio_bind.go coreaudio.h
-//go:generate go run ../../../../cmd/lewkit generate header --package coreaudio --bind BindCF --out corefoundation_bind.go corefoundation.h
+//go:generate go run ../../../../cmd/lewkit generate header --package coreaudio --bind AudioToolbox --out audiotoolbox_bind.go audiotoolbox.h
+//go:generate go run ../../../../cmd/lewkit generate header --package coreaudio --bind CoreAudio --out coreaudio_bind.go coreaudio.h
+//go:generate go run ../../../../cmd/lewkit generate header --package coreaudio --bind CF --out corefoundation_bind.go corefoundation.h
 
 import "errors"
 

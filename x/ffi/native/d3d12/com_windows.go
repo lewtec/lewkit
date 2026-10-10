@@ -140,19 +140,22 @@ func bindDLLs() error {
 	if err != nil {
 		return err
 	}
-	if err := BindD3D12(d3d); err != nil {
+	d3dSyms, err := native.Bind[D3D12](d3d)
+	if err != nil {
 		return err
 	}
-	if err := BindDXGI(dxgi); err != nil {
+	dxgiSyms, err := native.Bind[DXGI](dxgi)
+	if err != nil {
 		return err
 	}
-	if err := BindD3DCompile(compiler); err != nil {
+	cc, err := native.Bind[D3DCompile](compiler)
+	if err != nil {
 		return err
 	}
-	d3d12CreateDevice = D3D12CreateDevice
-	serializeRootSig = D3D12SerializeRootSignature
-	createFactory2 = CreateDXGIFactory2
-	d3dCompile = D3DCompile
+	d3d12CreateDevice = d3dSyms.D3D12CreateDevice
+	serializeRootSig = d3dSyms.D3D12SerializeRootSignature
+	createFactory2 = dxgiSyms.CreateDXGIFactory2
+	d3dCompile = cc.D3DCompileFunc
 	return nil
 }
 

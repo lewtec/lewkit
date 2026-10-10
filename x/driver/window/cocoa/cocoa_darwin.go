@@ -689,15 +689,16 @@ func loadCG() error {
 	if err != nil {
 		return err
 	}
-	if err := BindCG(lib); err != nil {
+	got, err := native.Bind[CG](lib)
+	if err != nil {
 		return err
 	}
-	cgColorSpaceCreateDeviceRGB = CGColorSpaceCreateDeviceRGB
-	cgDataProviderCreateWithCFData = CGDataProviderCreateWithCFData
-	cgImageCreate = CGImageCreate
-	cgColorSpaceRelease = CGColorSpaceRelease
-	cgDataProviderRelease = CGDataProviderRelease
-	cgImageRelease = CGImageRelease
+	cgColorSpaceCreateDeviceRGB = got.CGColorSpaceCreateDeviceRGB
+	cgDataProviderCreateWithCFData = got.CGDataProviderCreateWithCFData
+	cgImageCreate = got.CGImageCreate
+	cgColorSpaceRelease = got.CGColorSpaceRelease
+	cgDataProviderRelease = got.CGDataProviderRelease
+	cgImageRelease = got.CGImageRelease
 	return nil
 }
 

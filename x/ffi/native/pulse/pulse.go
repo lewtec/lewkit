@@ -1,8 +1,8 @@
 // Package pulse binds libpulse and libpulse-simple without cgo.
 package pulse
 
-//go:generate go run ../../../../cmd/lewkit generate header --package pulse --bind BindSimple --out simple_bind.go simple.h
-//go:generate go run ../../../../cmd/lewkit generate header --package pulse --bind BindPulse --out full_bind.go full.h
+//go:generate go run ../../../../cmd/lewkit generate header --package pulse --bind Simple --out simple_bind.go simple.h
+//go:generate go run ../../../../cmd/lewkit generate header --package pulse --bind Pulse --out full_bind.go full.h
 
 import (
 	"errors"

@@ -11,10 +11,11 @@ var loadMain = native.Once(func() error {
 	if err := loadLibc(); err != nil {
 		return err
 	}
-	if err := BindMain(libc); err != nil {
+	got, err := native.Bind[Main](libc)
+	if err != nil {
 		return err
 	}
-	pthreadMainNP = PthreadMainNp
+	pthreadMainNP = got.PthreadMainNp
 	return nil
 })
 

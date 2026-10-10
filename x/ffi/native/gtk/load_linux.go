@@ -109,10 +109,11 @@ func SetPrgname(name string) {
 	if err != nil {
 		return
 	}
-	if err := BindGlib(glib); err != nil {
+	got, err := native.Bind[Glib](glib)
+	if err != nil {
 		return
 	}
-	withCString(name, func(p *byte) { GSetPrgname(p) })
+	withCString(name, func(p *byte) { got.GSetPrgname(p) })
 }
 
 // Owned reports whether Ensure has claimed a thread.
@@ -276,57 +277,61 @@ func bindOnce() error {
 	if err != nil {
 		return err
 	}
-	if err := BindGlib(glib); err != nil {
+	glibSyms, err := native.Bind[Glib](glib)
+	if err != nil {
 		return err
 	}
-	if err := BindGObject(gobject); err != nil {
+	objSyms, err := native.Bind[GObject](gobject)
+	if err != nil {
 		return err
 	}
-	if err := BindGtk(gtk); err != nil {
+	gtkSyms, err := native.Bind[Gtk](gtk)
+	if err != nil {
 		return err
 	}
-	if err := BindLibc(libc); err != nil {
+	libcSyms, err := native.Bind[Libc](libc)
+	if err != nil {
 		return err
 	}
-	bound.setPrgname = GSetPrgname
-	bound.iterate = GMainContextIteration
-	bound.signal = GSignalConnectData
-	bound.initCheck = GtkInitCheck
-	bound.windowNew = GtkWindowNew
-	bound.setTitle = GtkWindowSetTitle
-	bound.setSize = GtkWindowSetDefaultSize
-	bound.setModal = GtkWindowSetModal
-	bound.setChild = GtkWindowSetChild
-	bound.setResizable = GtkWindowSetResizable
-	bound.setDefault = GtkWindowSetDefaultWidget
-	bound.present = GtkWindowPresent
-	bound.destroy = GtkWindowDestroy
-	bound.boxNew = GtkBoxNew
-	bound.boxAppend = GtkBoxAppend
-	bound.marginTop = GtkWidgetSetMarginTop
-	bound.marginBottom = GtkWidgetSetMarginBottom
-	bound.marginStart = GtkWidgetSetMarginStart
-	bound.marginEnd = GtkWidgetSetMarginEnd
-	bound.hexpand = GtkWidgetSetHexpand
-	bound.vexpand = GtkWidgetSetVexpand
-	bound.grabFocus = GtkWidgetGrabFocus
-	bound.labelNew = GtkLabelNew
-	bound.labelWrap = GtkLabelSetWrap
-	bound.buttonNew = GtkButtonNewWithLabel
-	bound.entryNew = GtkEntryNew
-	bound.setText = GtkEditableSetText
-	bound.getText = GtkEditableGetText
-	bound.listNew = GtkListBoxNew
-	bound.listInsert = GtkListBoxInsert
-	bound.listSelected = GtkListBoxGetSelectedRow
-	bound.listSelect = GtkListBoxSelectRow
-	bound.rowAt = GtkListBoxGetRowAtIndex
-	bound.rowIndex = GtkListBoxRowGetIndex
-	bound.scrollNew = GtkScrolledWindowNew
-	bound.scrollChild = GtkScrolledWindowSetChild
-	bound.scrollMin = GtkScrolledWindowSetMinContentHeight
-	bound.scrollPolicy = GtkScrolledWindowSetPolicy
-	bound.self = PthreadSelf
+	bound.setPrgname = glibSyms.GSetPrgname
+	bound.iterate = glibSyms.GMainContextIteration
+	bound.signal = objSyms.GSignalConnectData
+	bound.initCheck = gtkSyms.GtkInitCheck
+	bound.windowNew = gtkSyms.GtkWindowNew
+	bound.setTitle = gtkSyms.GtkWindowSetTitle
+	bound.setSize = gtkSyms.GtkWindowSetDefaultSize
+	bound.setModal = gtkSyms.GtkWindowSetModal
+	bound.setChild = gtkSyms.GtkWindowSetChild
+	bound.setResizable = gtkSyms.GtkWindowSetResizable
+	bound.setDefault = gtkSyms.GtkWindowSetDefaultWidget
+	bound.present = gtkSyms.GtkWindowPresent
+	bound.destroy = gtkSyms.GtkWindowDestroy
+	bound.boxNew = gtkSyms.GtkBoxNew
+	bound.boxAppend = gtkSyms.GtkBoxAppend
+	bound.marginTop = gtkSyms.GtkWidgetSetMarginTop
+	bound.marginBottom = gtkSyms.GtkWidgetSetMarginBottom
+	bound.marginStart = gtkSyms.GtkWidgetSetMarginStart
+	bound.marginEnd = gtkSyms.GtkWidgetSetMarginEnd
+	bound.hexpand = gtkSyms.GtkWidgetSetHexpand
+	bound.vexpand = gtkSyms.GtkWidgetSetVexpand
+	bound.grabFocus = gtkSyms.GtkWidgetGrabFocus
+	bound.labelNew = gtkSyms.GtkLabelNew
+	bound.labelWrap = gtkSyms.GtkLabelSetWrap
+	bound.buttonNew = gtkSyms.GtkButtonNewWithLabel
+	bound.entryNew = gtkSyms.GtkEntryNew
+	bound.setText = gtkSyms.GtkEditableSetText
+	bound.getText = gtkSyms.GtkEditableGetText
+	bound.listNew = gtkSyms.GtkListBoxNew
+	bound.listInsert = gtkSyms.GtkListBoxInsert
+	bound.listSelected = gtkSyms.GtkListBoxGetSelectedRow
+	bound.listSelect = gtkSyms.GtkListBoxSelectRow
+	bound.rowAt = gtkSyms.GtkListBoxGetRowAtIndex
+	bound.rowIndex = gtkSyms.GtkListBoxRowGetIndex
+	bound.scrollNew = gtkSyms.GtkScrolledWindowNew
+	bound.scrollChild = gtkSyms.GtkScrolledWindowSetChild
+	bound.scrollMin = gtkSyms.GtkScrolledWindowSetMinContentHeight
+	bound.scrollPolicy = gtkSyms.GtkScrolledWindowSetPolicy
+	bound.self = libcSyms.PthreadSelf
 	loaded = true
 	return nil
 }
@@ -376,13 +381,14 @@ func bindX11() error {
 			x11Err = ErrUnavailable
 			return
 		}
-		if err := BindGDKX11(gtkLib); err != nil {
+		x11Syms, err := native.Bind[GDKX11](gtkLib)
+		if err != nil {
 			x11Err = err
 			return
 		}
-		realize = GtkWidgetRealize
-		nativeSurface = GtkNativeGetSurface
-		x11XID = GdkX11SurfaceGetXid
+		realize = x11Syms.GtkWidgetRealize
+		nativeSurface = x11Syms.GtkNativeGetSurface
+		x11XID = x11Syms.GdkX11SurfaceGetXid
 	})
 	return x11Err
 }

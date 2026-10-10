@@ -58,17 +58,18 @@ func bindAll() error {
 	if err != nil {
 		return err
 	}
-	if err := BindWinmm(lib); err != nil {
+	got, err := native.Bind[Winmm](lib)
+	if err != nil {
 		return err
 	}
-	waveOutGetNumDevs = WaveOutGetNumDevs
-	waveOutGetDevCapsW = WaveOutGetDevCapsW
-	waveOutOpen = WaveOutOpen
-	waveOutPrepareHeader = WaveOutPrepareHeader
-	waveOutUnprepare = WaveOutUnprepareHeader
-	waveOutWrite = WaveOutWrite
-	waveOutReset = WaveOutReset
-	waveOutClose = WaveOutClose
+	waveOutGetNumDevs = got.WaveOutGetNumDevs
+	waveOutGetDevCapsW = got.WaveOutGetDevCapsW
+	waveOutOpen = got.WaveOutOpen
+	waveOutPrepareHeader = got.WaveOutPrepareHeader
+	waveOutUnprepare = got.WaveOutUnprepareHeader
+	waveOutWrite = got.WaveOutWrite
+	waveOutReset = got.WaveOutReset
+	waveOutClose = got.WaveOutClose
 	return nil
 }
 

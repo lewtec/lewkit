@@ -25,11 +25,12 @@ func ensurePlatform() {
 			slog.Debug("vulkan metal framework", "err", err)
 			return
 		}
-		if err := BindMetal(lib); err != nil {
+		got, err := native.Bind[Metal](lib)
+		if err != nil {
 			slog.Debug("vulkan metal create", "err", err)
 			return
 		}
-		createMetalDevice = MTLCreateSystemDefaultDevice
+		createMetalDevice = got.MTLCreateSystemDefaultDevice
 		if createMetalDevice == nil {
 			slog.Debug("vulkan metal create missing")
 			return

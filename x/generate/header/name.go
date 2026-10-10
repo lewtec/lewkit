@@ -11,7 +11,7 @@ import (
 
 func bindFuncName(unit *Unit) error {
 	if unit.BindName == "" {
-		unit.BindName = "Bind"
+		unit.BindName = "Symbols"
 	}
 	if !token.IsIdentifier(unit.BindName) || token.IsKeyword(unit.BindName) {
 		return fmt.Errorf("%w: %s", errPackage, unit.BindName)

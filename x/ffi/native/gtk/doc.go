@@ -5,8 +5,8 @@
 // A missing library or display is ErrUnavailable.
 package gtk
 
-//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind BindGlib --out glib_bind.go glib.h
-//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind BindGObject --out gobject_bind.go gobject.h
-//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind BindGtk --out gtk_bind.go gtk.h
-//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind BindLibc --out libc_bind.go libc.h
-//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind BindGDKX11 --out gdkx11_bind.go gdkx11.h
+//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind Glib --out glib_bind.go glib.h
+//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind GObject --out gobject_bind.go gobject.h
+//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind Gtk --out gtk_bind.go gtk.h
+//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind Libc --out libc_bind.go libc.h
+//go:generate go run ../../../../cmd/lewkit generate header --package gtk --bind GDKX11 --out gdkx11_bind.go gdkx11.h
