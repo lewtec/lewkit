@@ -10,6 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db/generate"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/generate/header"
 	"github.com/lewtec/lewkit/x/generate/prelude"
 	"github.com/lewtec/lewkit/x/generate/protobuf"
 	"github.com/lewtec/lewkit/x/generate/shader"
@@ -50,6 +51,7 @@ type generateCmd struct {
 	prelude  *preludeCmd
 	protobuf *protobufCmd
 	shader   *shaderCmd
+	header   *headerCmd
 }
 
 func (generateCmd) Description() string {
@@ -101,6 +103,40 @@ func (shaderCmd) Description() string {
 
 func (c *shaderCmd) Run(ctx context.Context) error {
 	return shader.Run(ctx, c.dir.Value())
+}
+
+type headerCmd struct {
+	file    cmd.StringArg   `help:"C header"`
+	out     cmd.StringArg   `long:"out" help:"Go file to write"`
+	pkg     cmd.StringArg   `long:"package" help:"Go package name"`
+	include []cmd.StringArg `long:"include" short:"I" help:"include directory"`
+	define  []cmd.StringArg `long:"define" short:"D" help:"macro NAME or NAME=value"`
+	lib     []cmd.StringArg `long:"lib" help:"soname passed to Open"`
+	abi     cmd.StringArg   `long:"abi" help:"host, sysv64, win64, 386, or arm"`
+}
+
+func (headerCmd) Description() string {
+	return "purego bindings for a C header"
+}
+
+func (c *headerCmd) Run(ctx context.Context) error {
+	return header.Run(ctx, header.Config{
+		File:    c.file.Value(),
+		Out:     c.out.Value(),
+		Package: c.pkg.Value(),
+		ABI:     c.abi.Value(),
+		Include: argValues(c.include),
+		Define:  argValues(c.define),
+		Libs:    argValues(c.lib),
+	})
+}
+
+func argValues(args []cmd.StringArg) []string {
+	out := make([]string, len(args))
+	for i := range args {
+		out[i] = args[i].Value()
+	}
+	return out
 }
 
 type completionCmd struct{}

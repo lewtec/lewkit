@@ -18,6 +18,6 @@
 // vkGetInstanceProcAddr. Most vk* names are not loader exports.
 //
 // This is a compute subset, not a generated dump of vulkan.h.
-// Khronos generates the C headers from vk.xml; lewkit has no
-// C-header bindgen.
+// Khronos generates the C headers from vk.xml. A C header can be
+// bound with lewkit generate header.
 package vulkan
