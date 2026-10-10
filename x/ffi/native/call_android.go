@@ -33,6 +33,8 @@ func Register(fnptr any, addr uintptr) {
 
 // RegisterLocal binds fnptr like Register, but the call stays on this
 // thread. JNI and ANativeWindow_fromSurface need the caller's JNIEnv.
+// The call runs on that thread's g0 stack. A Java callback's g0 is the
+// pthread stack; the goroutine stack under the callback is a few kilobytes.
 func RegisterLocal(fnptr any, addr uintptr) {
 	register(fnptr, addr, true)
 }

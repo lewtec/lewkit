@@ -417,10 +417,103 @@ cThreadOn:
 
 // func callHereOnG0(fn, argv, argc uintptr) (r uintptr, f32 float32, f64 float64)
 //
-// RegisterLocal. The callee stays on this goroutine stack. JNI local
-// refs are thread-local, and g0 is 16KB on a non-cgo M.
+// RegisterLocal. The callee stays on this thread. JNI local refs are
+// thread-local. A callback goroutine starts at 4KB, so the call runs
+// on g0. During a Java callback that sched.sp is the pthread stack
+// cgocallback saved, not the 16KB allocation of a cloned M.
 TEXT ·callHereOnG0(SB),NOSPLIT,$16-48
 	MOVD	R20, r20-16(SP)
+	CBZ	g, callHereNow
+	MOVD	48(g), R8
+	MOVD	(R8), R3
+	CMP	R3, g
+	BEQ	callHereNow
+
+	MOVD	fn+0(FP), R16
+	MOVD	argv+8(FP), R15
+	MOVD	argc+16(FP), R14
+	MOVD	g, R11
+	MOVD	RSP, R12
+	MOVD	$runtime·systemstack_switch(SB), R0
+	ADD	$8, R0
+	MOVD	R0, 64(g) // sched.pc
+	MOVD	R12, R0
+	MOVD	R0, 56(g) // sched.sp
+	MOVD	R29, 96(g) // sched.bp
+	MOVD	ZR, 88(g) // sched.lr
+	MOVD	80(g), R0 // sched.ctxt
+	CBZ	R0, callHereSaved
+	BL	runtime·abort(SB)
+
+callHereSaved:
+	MOVD	R3, g
+	BL	runtime·save_g(SB)
+	MOVD	56(g), R0 // g0.sched.sp
+	MOVD	R0, RSP
+	MOVD	96(g), R29 // g0.sched.bp
+	MOVD	8(R11), R13 // old g.stack.hi
+	SUB	R12, R13, R13
+	SUB	$80, RSP
+	MOVD	R11, 64(RSP)
+	MOVD	R13, 72(RSP)
+	CMP	$8, R14
+	BLS	callHereG0Regs
+	MOVD	64(R15), R8
+	MOVD	R8, (RSP)
+	CMP	$9, R14
+	BLS	callHereG0Regs
+	MOVD	72(R15), R8
+	MOVD	R8, 8(RSP)
+	CMP	$10, R14
+	BLS	callHereG0Regs
+	MOVD	80(R15), R8
+	MOVD	R8, 16(RSP)
+	CMP	$11, R14
+	BLS	callHereG0Regs
+	MOVD	88(R15), R8
+	MOVD	R8, 24(RSP)
+	CMP	$12, R14
+	BLS	callHereG0Regs
+	MOVD	96(R15), R8
+	MOVD	R8, 32(RSP)
+	CMP	$13, R14
+	BLS	callHereG0Regs
+	MOVD	104(R15), R8
+	MOVD	R8, 40(RSP)
+	CMP	$14, R14
+	BLS	callHereG0Regs
+	MOVD	112(R15), R8
+	MOVD	R8, 48(RSP)
+	CMP	$15, R14
+	BLS	callHereG0Regs
+	MOVD	120(R15), R8
+	MOVD	R8, 56(RSP)
+
+callHereG0Regs:
+	MOVD	(R15), R0
+	MOVD	8(R15), R1
+	MOVD	16(R15), R2
+	MOVD	24(R15), R3
+	MOVD	32(R15), R4
+	MOVD	40(R15), R5
+	MOVD	48(R15), R6
+	MOVD	56(R15), R7
+	BL	(R16)
+	MOVD	R0, R9
+	MOVD	64(RSP), g
+	BL	runtime·save_g(SB)
+	MOVD	72(RSP), R6
+	MOVD	8(g), R5
+	SUB	R6, R5, R5
+	MOVD	R9, R0
+	MOVD	R5, RSP
+	MOVD	r20-16(SP), R20
+	MOVD	R0, r+24(FP)
+	FMOVS	F0, f32+32(FP)
+	FMOVD	F0, f64+40(FP)
+	RET
+
+callHereNow:
 	MOVD	fn+0(FP), R16
 	MOVD	argv+8(FP), R15
 	MOVD	argc+16(FP), R14
