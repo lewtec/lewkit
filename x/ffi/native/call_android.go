@@ -5,13 +5,19 @@ package native
 import (
 	"fmt"
 	"reflect"
+	"runtime"
 	"unsafe"
 )
 
+// callWords is the most integer words one android call passes.
+// Eight travel in R0–R7. The rest are stacked, up to eight more.
+const callWords = 16
+
 // Register binds fnptr to a C function at addr.
-// arm64 passes the first eight integer arguments in R0–R7 and returns
-// an integer in R0 or a float in V0, which is the Go ABI as well.
-// Float arguments and calls with more than eight words are rejected.
+// arm64 passes the first eight integer arguments in R0–R7, the rest
+// on the stack, and returns an integer in R0 or a float in V0.
+// A string argument is a NUL-terminated C string, the same as purego.
+// Float arguments are rejected.
 func Register(fnptr any, addr uintptr) {
 	if fnptr == nil {
 		panic("native: nil function pointer")
@@ -28,24 +34,29 @@ func Register(fnptr any, addr uintptr) {
 	if typ.NumOut() > 1 {
 		panic("native: function can only return zero or one value")
 	}
-	if typ.NumIn() > 8 {
-		panic("native: android call supports at most 8 integer arguments")
+	if typ.NumIn() > callWords {
+		panic("native: android call supports at most 16 integer arguments")
 	}
 	for i := 0; i < typ.NumIn(); i++ {
-		if _, ok := asWord(reflect.Zero(typ.In(i))); !ok {
+		if !wordKind(typ.In(i).Kind()) {
 			panic(fmt.Sprintf("native: argument %d is not an integer word", i))
 		}
 	}
 	fn.Set(reflect.MakeFunc(typ, func(args []reflect.Value) []reflect.Value {
-		var a [8]uintptr
+		var a [callWords]uintptr
+		var keep [][]byte
 		for i, arg := range args {
-			word, ok := asWord(arg)
+			word, buf, ok := asWord(arg)
 			if !ok {
 				panic(fmt.Sprintf("native: argument %d is not an integer word", i))
 			}
 			a[i] = word
+			if buf != nil {
+				keep = append(keep, buf)
+			}
 		}
-		r, f32, f64 := callC(addr, a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7])
+		r, f32, f64 := callC(addr, &a[0], uintptr(len(args)))
+		runtime.KeepAlive(keep)
 		if typ.NumOut() == 0 {
 			return nil
 		}
@@ -53,25 +64,41 @@ func Register(fnptr any, addr uintptr) {
 	}))
 }
 
-func asWord(v reflect.Value) (uintptr, bool) {
+func wordKind(k reflect.Kind) bool {
+	switch k {
+	case reflect.Uintptr, reflect.UnsafePointer, reflect.Pointer,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Bool, reflect.String:
+		return true
+	default:
+		return false
+	}
+}
+
+func asWord(v reflect.Value) (uintptr, []byte, bool) {
 	switch v.Kind() {
+	case reflect.String:
+		// C sees a pointer to the bytes, plus the trailing NUL.
+		buf := append([]byte(v.String()), 0)
+		return uintptr(unsafe.Pointer(unsafe.SliceData(buf))), buf, true
 	case reflect.Uintptr:
-		return uintptr(v.Uint()), true
+		return uintptr(v.Uint()), nil, true
 	case reflect.UnsafePointer:
-		return uintptr(v.Pointer()), true
+		return uintptr(v.Pointer()), nil, true
 	case reflect.Pointer:
-		return uintptr(v.Pointer()), true
+		return uintptr(v.Pointer()), nil, true
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return uintptr(v.Uint()), true
+		return uintptr(v.Uint()), nil, true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return uintptr(v.Int()), true
+		return uintptr(v.Int()), nil, true
 	case reflect.Bool:
 		if v.Bool() {
-			return 1, true
+			return 1, nil, true
 		}
-		return 0, true
+		return 0, nil, true
 	default:
-		return 0, false
+		return 0, nil, false
 	}
 }
 
@@ -100,18 +127,19 @@ func fromWord(typ reflect.Type, r uintptr, f32 float32, f64 float64) reflect.Val
 
 // entersyscall records this frame, then the C function runs on m.g0.
 // exitsyscall pairs with a reentrant cgocallback. Neither call can grow
-// the stack: the uintptr arguments may be pointers.
+// the stack: argv's words may be pointers. The caller keeps any string
+// buffers live across this call.
 //
 //go:nosplit
-func callC(fn, a0, a1, a2, a3, a4, a5, a6, a7 uintptr) (r uintptr, f32 float32, f64 float64) {
+func callC(fn uintptr, argv *uintptr, argc uintptr) (r uintptr, f32 float32, f64 float64) {
 	runtimeEntersyscall()
-	r, f32, f64 = callCOnG0(fn, a0, a1, a2, a3, a4, a5, a6, a7)
+	r, f32, f64 = callCOnG0(fn, uintptr(unsafe.Pointer(argv)), argc)
 	runtimeExitsyscall()
 	return
 }
 
 //go:nosplit
-func callCOnG0(fn, a0, a1, a2, a3, a4, a5, a6, a7 uintptr) (r uintptr, f32 float32, f64 float64)
+func callCOnG0(fn, argv, argc uintptr) (r uintptr, f32 float32, f64 float64)
 
 //go:linkname runtimeEntersyscall runtime.entersyscall
 func runtimeEntersyscall()
