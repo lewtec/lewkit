@@ -240,6 +240,40 @@ func TestOptionalStringAbsent(t *testing.T) {
 	assert.Empty(t, got.rest)
 }
 
+func TestOptionalStringPresent(t *testing.T) {
+	type args struct {
+		name *StringArg
+		rest []StringArg
+	}
+	got := ParseOK[args](t, "bash", "extra")
+	require.NotNil(t, got.name)
+	assert.Equal(t, got.name.Value(), "bash")
+	assert.True(t, got.name.ArgSet())
+	assert.Equal(t, Values(got.rest), []string{"extra"})
+}
+
+func TestOptionalStringNested(t *testing.T) {
+	type initCmd struct {
+		shell *StringArg
+	}
+	type shellCmd struct {
+		init *initCmd
+	}
+	type utilsCmd struct {
+		shell *shellCmd
+	}
+	type root struct {
+		utils *utilsCmd
+	}
+	got := ParseOK[root](t, "utils", "shell", "init", "bash")
+	require.NotNil(t, got.utils)
+	require.NotNil(t, got.utils.shell)
+	require.NotNil(t, got.utils.shell.init)
+	require.NotNil(t, got.utils.shell.init.shell)
+	assert.Equal(t, got.utils.shell.init.shell.Value(), "bash")
+	assert.True(t, got.utils.shell.init.shell.ArgSet())
+}
+
 func TestOptionalProduct(t *testing.T) {
 	type args struct {
 		pair *KV[string, *StringArg]
