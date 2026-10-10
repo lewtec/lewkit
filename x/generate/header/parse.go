@@ -115,7 +115,8 @@ func (p *parser) seed() {
 	t := p.target
 	llAlign := 8
 	doubleAlign := 8
-	if t.I386 {
+	// Unix i386 aligns long long and double to 4. MSVC aligns both to 8.
+	if t.I386 && !t.Windows {
 		llAlign = 4
 		doubleAlign = 4
 	}
@@ -163,18 +164,7 @@ func (p *parser) seed() {
 	if t.Ptr == 8 && t.Long == 8 {
 		p.define("__LP64__", "1", false)
 	}
-	if t.Linux {
-		p.define("__linux__", "1", false)
-		p.define("__unix__", "1", false)
-	}
-	if t.Darwin {
-		p.define("__APPLE__", "1", false)
-		p.define("__unix__", "1", false)
-	}
-	if t.Windows {
-		p.define("_WIN32", "1", false)
-		p.define("_WIN64", "1", false)
-	}
+	p.seedOS()
 	if t.AMD64 {
 		p.define("__x86_64__", "1", false)
 		p.define("__amd64__", "1", false)
@@ -192,6 +182,57 @@ func (p *parser) seed() {
 	p.define("__SIZEOF_INT__", fmt.Sprint(t.Int), false)
 	p.define("__SIZEOF_LONG__", fmt.Sprint(t.Long), false)
 	p.define("__SIZEOF_LONG_DOUBLE__", fmt.Sprint(t.LongDouble), false)
+}
+
+func (p *parser) seedOS() {
+	t := p.target
+	switch t.GOOS {
+	case "linux":
+		p.define("__linux__", "1", false)
+		p.define("__unix__", "1", false)
+	case "android":
+		p.define("__linux__", "1", false)
+		p.define("__ANDROID__", "1", false)
+		p.define("__unix__", "1", false)
+	case "darwin", "ios":
+		p.define("__APPLE__", "1", false)
+		p.define("__unix__", "1", false)
+	case "freebsd":
+		p.define("__FreeBSD__", "1", false)
+		p.define("__unix__", "1", false)
+	case "openbsd":
+		p.define("__OpenBSD__", "1", false)
+		p.define("__unix__", "1", false)
+	case "netbsd":
+		p.define("__NetBSD__", "1", false)
+		p.define("__unix__", "1", false)
+	case "dragonfly":
+		p.define("__DragonFly__", "1", false)
+		p.define("__unix__", "1", false)
+	case "solaris", "illumos":
+		p.define("__sun", "1", false)
+		p.define("__unix__", "1", false)
+	case "windows":
+		p.define("_WIN32", "1", false)
+		if t.Ptr == 8 {
+			p.define("_WIN64", "1", false)
+		}
+	default:
+		if t.Linux {
+			p.define("__linux__", "1", false)
+			p.define("__unix__", "1", false)
+		}
+		if t.Darwin {
+			p.define("__APPLE__", "1", false)
+			p.define("__unix__", "1", false)
+		}
+		if t.Windows {
+			p.define("_WIN32", "1", false)
+			if t.Ptr == 8 {
+				p.define("_WIN64", "1", false)
+			}
+		}
+	}
 }
 
 func (p *parser) define(name, text string, header bool) {

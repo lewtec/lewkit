@@ -3,6 +3,7 @@ package header
 import (
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 // Target is the C data layout the generator matches.
@@ -16,17 +17,21 @@ type Target struct {
 	Wchar      int
 	WcharSign  bool
 	Linux      bool
+	Android    bool
 	Darwin     bool
 	Windows    bool
 	AMD64      bool
 	ARM64      bool
 	I386       bool
 	ARM        bool
+	GOOS       string
+	GOARCH     string
 }
 
-// SysV64 is the LP64 layout used by amd64 and arm64 on Unix.
-// long double is 16 bytes. The Go type cannot be aligned to 16; the
-// generator keeps the C size and pads fields to the C offsets.
+// SysV64 is the LP64 layout with a 16-byte long double.
+// Apple arm64 is DarwinARM64: long double there is 8 bytes.
+// The Go type cannot be aligned to 16; the generator keeps the C
+// size and pads fields to the C offsets.
 func SysV64() Target {
 	return Target{
 		ID: "sysv64", Ptr: 8, Int: 4, Long: 8,
@@ -61,8 +66,30 @@ func ARM() Target {
 	}
 }
 
+// DarwinARM64 is the Apple arm64 layout. long double matches double.
+func DarwinARM64() Target {
+	return Target{
+		ID: "darwinarm64", Ptr: 8, Int: 4, Long: 8,
+		LongDouble: 8, LongAlign: 8, Wchar: 4, WcharSign: true,
+		Darwin: true, ARM64: true,
+	}
+}
+
+// Win386 is the MSVC 32-bit layout. long long and double align to 8,
+// and long double is 8 bytes.
+func Win386() Target {
+	return Target{
+		ID: "win386", Ptr: 4, Int: 4, Long: 4,
+		LongDouble: 8, LongAlign: 8, Wchar: 2, WcharSign: false,
+		Windows: true, I386: true,
+	}
+}
+
 // Host is the C layout of this process.
 func Host() Target {
+	if t, err := For(runtime.GOOS, runtime.GOARCH); err == nil {
+		return t
+	}
 	t := SysV64()
 	switch runtime.GOARCH {
 	case "386":
@@ -86,16 +113,63 @@ func Host() Target {
 	default:
 		t.Linux = runtime.GOOS == "linux" || runtime.GOOS == "android"
 	}
-	if runtime.GOARCH == "amd64" {
-		t.AMD64 = true
-	}
-	if runtime.GOARCH == "arm64" {
-		t.ARM64 = true
-	}
+	t.GOOS = runtime.GOOS
+	t.GOARCH = runtime.GOARCH
 	return t
 }
 
-// ParseABI reads host, sysv64, win64, 386, or arm. An empty name is Host.
+// For is the C layout Go uses for goos/goarch.
+func For(goos, goarch string) (Target, error) {
+	if !platformKnown(goos, goarch) {
+		return Target{}, fmt.Errorf("%w: %s/%s", errABI, goos, goarch)
+	}
+	var t Target
+	switch goarch {
+	case "amd64":
+		if goos == "windows" {
+			t = Win64()
+		} else {
+			t = SysV64()
+		}
+		t.AMD64 = true
+	case "arm64":
+		switch goos {
+		case "windows":
+			t = Win64()
+		case "darwin", "ios":
+			t = DarwinARM64()
+		default:
+			t = SysV64()
+		}
+		t.ARM64 = true
+	case "386":
+		if goos == "windows" {
+			t = Win386()
+		} else {
+			t = I386()
+		}
+	case "arm":
+		t = ARM()
+	default:
+		return Target{}, fmt.Errorf("%w: %s/%s", errABI, goos, goarch)
+	}
+	t.GOOS = goos
+	t.GOARCH = goarch
+	switch goos {
+	case "linux":
+		t.Linux = true
+	case "android":
+		t.Linux = true
+		t.Android = true
+	case "darwin", "ios":
+		t.Darwin = true
+	case "windows":
+		t.Windows = true
+	}
+	return t, nil
+}
+
+// ParseABI reads host, an ABI id, or goos/goarch. An empty name is Host.
 func ParseABI(name string) (Target, error) {
 	switch name {
 	case "", "host":
@@ -117,22 +191,126 @@ func ParseABI(name string) (Target, error) {
 		t := ARM()
 		t.Linux = true
 		return t, nil
+	case "darwinarm64":
+		return DarwinARM64(), nil
+	case "win386":
+		return Win386(), nil
 	default:
-		return Target{}, fmt.Errorf("%w: %s", errABI, name)
+		goos, goarch, ok := strings.Cut(name, "/")
+		if !ok {
+			return Target{}, fmt.Errorf("%w: %s", errABI, name)
+		}
+		return For(goos, goarch)
 	}
+}
+
+// Platforms is the set of layouts spec selects. An empty spec is every
+// supported GOOS/GOARCH pair. An ABI id selects that layout. host is
+// this process. goos/goarch selects one pair.
+func Platforms(spec string) ([]Target, error) {
+	switch spec {
+	case "":
+		return allTargets(), nil
+	case "host":
+		return []Target{Host()}, nil
+	case "sysv64", "win64", "386", "arm", "darwinarm64", "win386":
+		var out []Target
+		for _, t := range allTargets() {
+			if t.ID == spec {
+				out = append(out, t)
+			}
+		}
+		if len(out) == 0 {
+			return nil, fmt.Errorf("%w: %s", errABI, spec)
+		}
+		return out, nil
+	default:
+		t, err := ParseABI(spec)
+		if err != nil {
+			return nil, err
+		}
+		if t.GOOS == "" || t.GOARCH == "" {
+			return nil, fmt.Errorf("%w: %s", errABI, spec)
+		}
+		return []Target{t}, nil
+	}
+}
+
+func allTargets() []Target {
+	pairs := platformPairs()
+	out := make([]Target, 0, len(pairs))
+	for _, pair := range pairs {
+		t, err := For(pair[0], pair[1])
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+func platformPairs() [][2]string {
+	return [][2]string{
+		{"linux", "amd64"},
+		{"android", "amd64"},
+		{"darwin", "amd64"},
+		{"ios", "amd64"},
+		{"dragonfly", "amd64"},
+		{"freebsd", "amd64"},
+		{"netbsd", "amd64"},
+		{"openbsd", "amd64"},
+		{"illumos", "amd64"},
+		{"solaris", "amd64"},
+		{"linux", "arm64"},
+		{"android", "arm64"},
+		{"freebsd", "arm64"},
+		{"netbsd", "arm64"},
+		{"openbsd", "arm64"},
+		{"darwin", "arm64"},
+		{"ios", "arm64"},
+		{"windows", "amd64"},
+		{"windows", "arm64"},
+		{"linux", "386"},
+		{"android", "386"},
+		{"freebsd", "386"},
+		{"netbsd", "386"},
+		{"openbsd", "386"},
+		{"windows", "386"},
+		{"linux", "arm"},
+		{"android", "arm"},
+	}
+}
+
+func platformKnown(goos, goarch string) bool {
+	for _, pair := range platformPairs() {
+		if pair[0] == goos && pair[1] == goarch {
+			return true
+		}
+	}
+	return false
 }
 
 // Constraint is the //go:build line for files generated for t.
 func (t Target) Constraint() string {
+	if t.GOOS != "" && t.GOARCH != "" {
+		return t.GOOS + " && " + t.GOARCH
+	}
 	switch t.ID {
 	case "win64":
 		return "windows && (amd64 || arm64)"
+	case "win386":
+		return "windows && 386"
+	case "darwinarm64":
+		return "(darwin || ios) && arm64"
 	case "386":
-		return "(android || darwin || freebsd || linux || netbsd || openbsd) && 386"
+		return "(android || freebsd || linux || netbsd || openbsd) && 386"
 	case "arm":
 		return "(android || linux) && arm"
 	default:
-		return "(aix || android || darwin || dragonfly || freebsd || illumos || ios || linux || netbsd || openbsd || solaris) && (amd64 || arm64)"
+		if t.ARM64 && !t.AMD64 {
+			return "(android || freebsd || linux || netbsd || openbsd) && arm64"
+		}
+		return "(android || darwin || dragonfly || freebsd || illumos || ios || linux || netbsd || openbsd || solaris) && amd64"
 	}
 }
 

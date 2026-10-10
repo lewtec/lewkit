@@ -1,9 +1,11 @@
 // Package header writes purego bindings for a C header.
-// The tree-sitter C grammar supplies the syntax. Layout follows the
-// selected ABI, and the generated file dlopens through x/ffi/native.
+// The tree-sitter C grammar supplies the syntax. Each generated file
+// is build-tagged for the C layouts that share it, and dlopens through
+// x/ffi/native.
 package header
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	goparser "go/parser"
@@ -26,9 +28,12 @@ type Config struct {
 	Libs    []string
 }
 
-// Run parses File and writes a Go binding. Out defaults to
-// <stem>_purego.go beside the header. Package is inferred from that
-// directory when empty.
+// Run parses File once per selected platform and writes Go bindings.
+// An empty ABI covers every supported architecture. Platforms whose
+// generated source matches share one file and one //go:build line.
+// Out defaults to <stem>_<abi>.go beside the header. When Out ends in
+// .go and only one file is produced, that path is used as given.
+// Package is inferred from the output directory when empty.
 func Run(ctx context.Context, cfg Config) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -36,42 +41,227 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.File == "" {
 		return errHeader
 	}
-	target, err := ParseABI(cfg.ABI)
+	targets, err := Platforms(cfg.ABI)
 	if err != nil {
 		return err
-	}
-	unit, err := Parse(ctx, cfg.File, Options{
-		Include: cfg.Include,
-		Define:  cfg.Define,
-		Target:  target,
-	})
-	if err != nil {
-		return err
-	}
-	out := cfg.Out
-	if out == "" {
-		stem := strings.TrimSuffix(filepath.Base(cfg.File), filepath.Ext(cfg.File))
-		out = filepath.Join(filepath.Dir(cfg.File), stem+"_purego.go")
 	}
 	pkg := cfg.Package
 	if pkg == "" {
-		pkg = inferPackage(filepath.Dir(out))
+		pkg = inferPackage(outputDir(cfg.File, cfg.Out))
 	}
 	if !token.IsIdentifier(pkg) || token.IsKeyword(pkg) {
 		return fmt.Errorf("%w: %s", errPackage, pkg)
 	}
-	buf, err := Write(unit, pkg, cfg.Libs)
-	if err != nil {
+	items := make([]rendered, 0, len(targets))
+	for _, target := range targets {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		unit, err := Parse(ctx, cfg.File, Options{
+			Include: cfg.Include,
+			Define:  cfg.Define,
+			Target:  target,
+		})
+		if err != nil {
+			return fmt.Errorf("%s/%s: %w", target.GOOS, target.GOARCH, err)
+		}
+		buf, err := Write(unit, pkg, cfg.Libs)
+		if err != nil {
+			return fmt.Errorf("%s/%s: %w", target.GOOS, target.GOARCH, err)
+		}
+		items = append(items, rendered{target: target, src: buf})
+	}
+	groups := groupRendered(items)
+	paths := bindingPaths(cfg.File, cfg.Out, assignSlugs(groups))
+	for i, group := range groups {
+		body := rewriteConstraint(group[0].src, mergeConstraint(targetsOf(group)))
+		if err := writeAtomic(paths[i], body); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type rendered struct {
+	target Target
+	src    []byte
+}
+
+func groupRendered(items []rendered) [][]rendered {
+	var groups [][]rendered
+	index := map[string]int{}
+	for _, item := range items {
+		key := bodyKey(item.src)
+		if n, ok := index[key]; ok {
+			groups[n] = append(groups[n], item)
+			continue
+		}
+		index[key] = len(groups)
+		groups = append(groups, []rendered{item})
+	}
+	return groups
+}
+
+func bodyKey(src []byte) string {
+	text := string(src)
+	if strings.HasPrefix(text, "//go:build ") {
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			return text[i+1:]
+		}
+	}
+	return text
+}
+
+func rewriteConstraint(src []byte, constraint string) []byte {
+	text := string(src)
+	if strings.HasPrefix(text, "//go:build ") {
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			return []byte("//go:build " + constraint + text[i:])
+		}
+	}
+	return src
+}
+
+func mergeConstraint(targets []Target) string {
+	if len(targets) == 1 {
+		return targets[0].Constraint()
+	}
+	arch := targets[0].GOARCH
+	osName := targets[0].GOOS
+	sameArch := true
+	sameOS := true
+	var osList, archList []string
+	seenOS := map[string]bool{}
+	seenArch := map[string]bool{}
+	for _, t := range targets {
+		if t.GOARCH != arch {
+			sameArch = false
+		}
+		if t.GOOS != osName {
+			sameOS = false
+		}
+		if t.GOOS != "" && !seenOS[t.GOOS] {
+			seenOS[t.GOOS] = true
+			osList = append(osList, t.GOOS)
+		}
+		if t.GOARCH != "" && !seenArch[t.GOARCH] {
+			seenArch[t.GOARCH] = true
+			archList = append(archList, t.GOARCH)
+		}
+	}
+	if sameArch && arch != "" {
+		return "(" + strings.Join(osList, " || ") + ") && " + arch
+	}
+	if sameOS && osName != "" {
+		return osName + " && (" + strings.Join(archList, " || ") + ")"
+	}
+	byArch := map[string][]string{}
+	var archOrder []string
+	for _, t := range targets {
+		if _, ok := byArch[t.GOARCH]; !ok {
+			archOrder = append(archOrder, t.GOARCH)
+		}
+		byArch[t.GOARCH] = append(byArch[t.GOARCH], t.GOOS)
+	}
+	parts := make([]string, 0, len(archOrder))
+	for _, archName := range archOrder {
+		oses := byArch[archName]
+		if len(oses) == 1 {
+			parts = append(parts, "("+oses[0]+" && "+archName+")")
+			continue
+		}
+		parts = append(parts, "(("+strings.Join(oses, " || ")+") && "+archName+")")
+	}
+	return strings.Join(parts, " || ")
+}
+
+func groupSlug(targets []Target) string {
+	if len(targets) == 1 {
+		return targets[0].GOOS + "_" + targets[0].GOARCH
+	}
+	id := targets[0].ID
+	arch := targets[0].GOARCH
+	sameID := true
+	sameArch := true
+	for _, t := range targets[1:] {
+		if t.ID != id {
+			sameID = false
+		}
+		if t.GOARCH != arch {
+			sameArch = false
+		}
+	}
+	if sameID && sameArch {
+		if id == arch {
+			return id
+		}
+		return id + "_" + arch
+	}
+	if sameID {
+		return id
+	}
+	return "abi"
+}
+
+func assignSlugs(groups [][]rendered) []string {
+	slugs := make([]string, len(groups))
+	used := map[string]int{}
+	for i, group := range groups {
+		base := groupSlug(targetsOf(group))
+		n := used[base]
+		used[base] = n + 1
+		if n == 0 {
+			slugs[i] = base
+			continue
+		}
+		slugs[i] = fmt.Sprintf("%s_%d", base, n+1)
+	}
+	return slugs
+}
+
+func targetsOf(group []rendered) []Target {
+	out := make([]Target, len(group))
+	for i := range group {
+		out[i] = group[i].target
+	}
+	return out
+}
+
+func outputDir(file, out string) string {
+	if out == "" {
+		return filepath.Dir(file)
+	}
+	if strings.HasSuffix(out, ".go") {
+		return filepath.Dir(out)
+	}
+	return out
+}
+
+func bindingPaths(file, out string, slugs []string) []string {
+	if len(slugs) == 1 && strings.HasSuffix(out, ".go") {
+		return []string{out}
+	}
+	dir := outputDir(file, out)
+	stem := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+	if strings.HasSuffix(out, ".go") {
+		stem = strings.TrimSuffix(filepath.Base(out), filepath.Ext(out))
+	}
+	paths := make([]string, len(slugs))
+	for i, slug := range slugs {
+		paths[i] = filepath.Join(dir, stem+"_"+slug+".go")
+	}
+	return paths
+}
+
+func writeAtomic(path string, buf []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
-		return err
-	}
-	tmp := out + ".tmp"
+	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, buf, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, out)
+	return os.Rename(tmp, path)
 }
 
 func inferPackage(dir string) string {
@@ -82,7 +272,7 @@ func inferPackage(dir string) string {
 			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 				continue
 			}
-			if strings.HasSuffix(name, "_purego.go") {
+			if strings.HasSuffix(name, "_purego.go") || generatedSource(filepath.Join(dir, name)) {
 				continue
 			}
 			pkg, err := packageClause(filepath.Join(dir, name))
@@ -99,6 +289,17 @@ func inferPackage(dir string) string {
 		}
 	}
 	return "bind"
+}
+
+func generatedSource(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	buf := make([]byte, 512)
+	n, _ := f.Read(buf)
+	return bytes.Contains(buf[:n], []byte(generatedBy))
 }
 
 func packageClause(file string) (string, error) {

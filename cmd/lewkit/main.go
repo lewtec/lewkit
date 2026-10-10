@@ -107,12 +107,12 @@ func (c *shaderCmd) Run(ctx context.Context) error {
 
 type headerCmd struct {
 	file    cmd.StringArg   `help:"C header"`
-	out     cmd.StringArg   `long:"out" help:"Go file to write"`
+	out     cmd.StringArg   `long:"out" help:"Go file to write; several ABIs get one file each"`
 	pkg     cmd.StringArg   `long:"package" help:"Go package name"`
 	include []cmd.StringArg `long:"include" short:"I" help:"include directory"`
 	define  []cmd.StringArg `long:"define" short:"D" help:"macro NAME or NAME=value"`
 	lib     []cmd.StringArg `long:"lib" help:"soname passed to Open"`
-	abi     cmd.StringArg   `long:"abi" help:"host, sysv64, win64, 386, or arm"`
+	abi     cmd.StringArg   `long:"abi" help:"all by default; host, sysv64, win64, darwinarm64, 386, win386, arm, or goos/goarch"`
 }
 
 func (headerCmd) Description() string {
