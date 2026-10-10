@@ -4,9 +4,16 @@ package native
 
 import (
 	"fmt"
+	"log/slog"
 	"reflect"
 	"unsafe"
 )
+
+// pthread_create, so a C call is not the 16KB g0 of a non-cgo M.
+// That stack is also the creator's TLS: clone does not pass CLONE_SETTLS.
+//
+//go:cgo_import_dynamic libc_pthread_create pthread_create "libc.so"
+//go:cgo_import_dynamic _ _ "libc.so"
 
 // callWords is the most integer words one android call passes.
 // Eight travel in R0–R7. The rest are stacked, up to eight more.
@@ -115,10 +122,10 @@ func fromWord(typ reflect.Type, r uintptr, f32 float32, f64 float64) reflect.Val
 	}
 }
 
-// entersyscall records this frame, then the C function runs on m.g0.
-// exitsyscall pairs with a reentrant cgocallback. Neither call can grow
-// the stack: argv's words may be pointers. The caller keeps those
-// pointers live across this call.
+// entersyscall records this frame, then the C function runs on the
+// pthread started by StartCThread. exitsyscall pairs with a reentrant
+// cgocallback. Neither call can grow the stack: argv's words may be
+// pointers. The caller keeps those pointers live across this call.
 //
 //go:nosplit
 func callC(fn uintptr, argv *uintptr, argc uintptr) (r uintptr, f32 float32, f64 float64) {
@@ -127,6 +134,18 @@ func callC(fn uintptr, argv *uintptr, argc uintptr) (r uintptr, f32 float32, f64
 	runtimeExitsyscall()
 	return
 }
+
+// StartCThread starts the pthread Register uses for C calls.
+// JNI waits until entry's init finishes, and that init calls this
+// before the main thread leaves its spin, so pthread_create runs
+// while that thread is not inside libc.
+func StartCThread() {
+	if err := startCThread(); err != 0 {
+		slog.Error("c thread", "errno", err)
+	}
+}
+
+func startCThread() int32
 
 //go:nosplit
 func callCOnG0(fn, argv, argc uintptr) (r uintptr, f32 float32, f64 float64)
