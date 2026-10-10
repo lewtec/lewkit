@@ -1,0 +1,9 @@
+package heliumbrowser
+
+import (
+	"github.com/lewtec/lewkit/x/tool/registry"
+)
+
+func init() {
+	registry.RegisterTool("helium-browser", newHeliumBrowser)
+}

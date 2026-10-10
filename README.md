@@ -93,7 +93,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/tool` | `Open`, `Ensure`, `Install`, `Resolve`. A spec is `backend:ref@version`. The caller owns the store directory. |
 | `x/tool/github` | GitHub Releases backend. |
 | `x/tool/mise` | mise backend. |
-| `x/tool/registry` | Short-name backend. Curated names live in `x/tool/registry/applications`. |
+| `x/tool/registry` | Short-name backend. Each curated name is `x/tool/registry/<name>`. |
 | `x/tool/prelude` | Blank-import. Registers GitHub, mise, the short-name registry, and the curated names. |
 
 ### Frame
