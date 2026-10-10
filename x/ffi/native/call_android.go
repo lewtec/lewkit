@@ -10,13 +10,12 @@ import (
 
 // pthread_create, so a C call is not the 16KB g0 of a non-cgo M.
 // That stack is also the creator's TLS: clone does not pass CLONE_SETTLS.
-// pthread_self and pthread_gettid_np name that owner. A call whose
-// gettid matches stays on this thread. JNI local refs and JNI_OnLoad
-// belong to the caller; moving them onto the worker never returns.
+// Register runs the call on the pthread from startCThread. A thread
+// that already is that pthread stays on its own stack. RegisterLocal
+// stays on the caller: JNI local refs belong to that thread, and
+// moving them onto the worker is a CheckJNI abort.
 //
 //go:cgo_import_dynamic libc_pthread_create pthread_create "libc.so"
-//go:cgo_import_dynamic libc_pthread_self pthread_self "libc.so"
-//go:cgo_import_dynamic libc_pthread_gettid_np pthread_gettid_np "libc.so"
 //go:cgo_import_dynamic _ _ "libc.so"
 
 // callWords is the most integer words one android call passes.
@@ -27,8 +26,18 @@ const callWords = 16
 // arm64 passes the first eight integer arguments in R0–R7, the rest
 // on the stack, and returns an integer in R0 or a float in V0.
 // A C string is a *byte, built by the caller with CString.
-// Float arguments are rejected.
+// Float arguments are rejected. The call runs on the worker pthread.
 func Register(fnptr any, addr uintptr) {
+	register(fnptr, addr, false)
+}
+
+// RegisterLocal binds fnptr like Register, but the call stays on this
+// thread. JNI and ANativeWindow_fromSurface need the caller's JNIEnv.
+func RegisterLocal(fnptr any, addr uintptr) {
+	register(fnptr, addr, true)
+}
+
+func register(fnptr any, addr uintptr, local bool) {
 	if fnptr == nil {
 		panic("native: nil function pointer")
 	}
@@ -61,7 +70,14 @@ func Register(fnptr any, addr uintptr) {
 			}
 			a[i] = word
 		}
-		r, f32, f64 := callC(addr, &a[0], uintptr(len(args)))
+		var r uintptr
+		var f32 float32
+		var f64 float64
+		if local {
+			r, f32, f64 = callHere(addr, &a[0], uintptr(len(args)))
+		} else {
+			r, f32, f64 = callC(addr, &a[0], uintptr(len(args)))
+		}
 		if typ.NumOut() == 0 {
 			return nil
 		}
@@ -127,15 +143,25 @@ func fromWord(typ reflect.Type, r uintptr, f32 float32, f64 float64) reflect.Val
 }
 
 // entersyscall records this frame, then the C function runs.
-// A caller that owns its TLS stays on this stack. A non-cgo M uses
-// the pthread from startCThread. exitsyscall pairs with a reentrant
-// cgocallback. Neither call can grow the stack: argv's words may be
-// pointers. The caller keeps those pointers live across this call.
+// The worker pthread runs it, unless this thread already is that
+// pthread. exitsyscall pairs with a reentrant cgocallback. Neither
+// call can grow the stack: argv's words may be pointers. The caller
+// keeps those pointers live across this call.
 //
 //go:nosplit
 func callC(fn uintptr, argv *uintptr, argc uintptr) (r uintptr, f32 float32, f64 float64) {
 	runtimeEntersyscall()
 	r, f32, f64 = callCOnG0(fn, uintptr(unsafe.Pointer(argv)), argc)
+	runtimeExitsyscall()
+	return
+}
+
+// callHere is RegisterLocal. The C function runs on this stack.
+//
+//go:nosplit
+func callHere(fn uintptr, argv *uintptr, argc uintptr) (r uintptr, f32 float32, f64 float64) {
+	runtimeEntersyscall()
+	r, f32, f64 = callHereOnG0(fn, uintptr(unsafe.Pointer(argv)), argc)
 	runtimeExitsyscall()
 	return
 }
@@ -149,6 +175,9 @@ func startCThread() int32
 
 //go:nosplit
 func callCOnG0(fn, argv, argc uintptr) (r uintptr, f32 float32, f64 float64)
+
+//go:nosplit
+func callHereOnG0(fn, argv, argc uintptr) (r uintptr, f32 float32, f64 float64)
 
 //go:linkname runtimeEntersyscall runtime.entersyscall
 func runtimeEntersyscall()

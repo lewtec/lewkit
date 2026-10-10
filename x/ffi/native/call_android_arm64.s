@@ -8,18 +8,20 @@
 // past that are stored at the C stack, eight bytes each, before BL.
 // A non-cgo M's g0 is 16KB and clone leaves it on the creator's TLS, so
 // the Vulkan driver faults there with no debuggerd tombstone. That call
-// runs on the pthread from startCThread. A thread that owns its TLS
-// (gettid matches pthread_gettid_np of pthread_self) keeps the call.
-// JNI_OnLoad and a Java thread are that case; the worker would block
-// ART on the loader. callC enters the syscall first. If the pthread did
-// not start, the call runs on this stack.
+// runs on the pthread from startCThread. The worker stores its tid at
+// cComm+52. A call whose gettid matches that tid is already on the
+// pthread and stays there. Every other Register call uses the pthread.
+// RegisterLocal does not: JNI local refs belong to the caller.
+// callC enters the syscall first. If the pthread did not start, the
+// call runs on g0.
 //
 // R19 and R20 are saved in the frame. The fallback parks the Go SP in
 // R20 across BL; AAPCS64 callees preserve it.
 //
 // cComm: lock at 0, seq at 4, fn at 8, argv at 16, argc at 24,
-// ret at 32, f64 at 40, alive at 48. seq is even while idle and odd
-// while a call is posted. FUTEX_PRIVATE is 128, SYS_futex is 98.
+// ret at 32, f64 at 40, alive at 48, tid at 52. seq is even while
+// idle and odd while a call is posted. FUTEX_PRIVATE is 128,
+// SYS_futex is 98.
 TEXT ·callCOnG0(SB),NOSPLIT,$16-48
 	// Negative SP offsets are the local frame. 0(RSP) is the saved LR.
 	MOVD	R19, r19-8(SP)
@@ -29,15 +31,15 @@ TEXT ·callCOnG0(SB),NOSPLIT,$16-48
 	LDARW	(R0), R0
 	CBZ	R0, callDirect
 
-	// TLS owner tid against the kernel tid. Equal means this pthread
-	// owns the slot, so the callee stays here. SYS_gettid is 178.
-	BL	libc_pthread_self(SB)
-	BL	libc_pthread_gettid_np(SB)
-	MOVD	R0, R20
+	// Worker tid against gettid. Equal means this is the pthread,
+	// whose stack is already 1MB. SYS_gettid is 178. A TLS-owning
+	// Java thread does not match, so Vulkan does not stay on g0.
 	MOVW	$178, R8
 	SVC
-	CMP	R0, R20
-	BEQ	callDirect
+	MOVD	$·cComm+52(SB), R1
+	LDARW	(R1), R1
+	CMP	R0, R1
+	BEQ	callNosave
 
 	// One caller at a time. The lock word is cComm+0.
 	MOVD	$·cComm(SB), R19
@@ -294,6 +296,13 @@ TEXT ·cWorker(SB),NOSPLIT|NOFRAME,$0
 	MOVW	$167, R8
 	SVC
 
+	// Publish tid before the wait loop. callCOnG0 uses it to detect
+	// a re-entrant call on this stack.
+	MOVW	$178, R8
+	SVC
+	MOVD	$·cComm+52(SB), R1
+	STLRW	R0, (R1)
+
 	MOVD	$·cComm(SB), R19
 
 workerLoop:
@@ -404,6 +413,67 @@ cThreadRet:
 cThreadOn:
 	MOVW	ZR, R0
 	MOVW	R0, ret+0(FP)
+	RET
+
+// func callHereOnG0(fn, argv, argc uintptr) (r uintptr, f32 float32, f64 float64)
+//
+// RegisterLocal. The callee stays on this goroutine stack. JNI local
+// refs are thread-local, and g0 is 16KB on a non-cgo M.
+TEXT ·callHereOnG0(SB),NOSPLIT,$16-48
+	MOVD	R20, r20-16(SP)
+	MOVD	fn+0(FP), R16
+	MOVD	argv+8(FP), R15
+	MOVD	argc+16(FP), R14
+	MOVD	RSP, R20
+	SUB	$80, RSP
+	CMP	$8, R14
+	BLS	hereRegs
+	MOVD	64(R15), R8
+	MOVD	R8, (RSP)
+	CMP	$9, R14
+	BLS	hereRegs
+	MOVD	72(R15), R8
+	MOVD	R8, 8(RSP)
+	CMP	$10, R14
+	BLS	hereRegs
+	MOVD	80(R15), R8
+	MOVD	R8, 16(RSP)
+	CMP	$11, R14
+	BLS	hereRegs
+	MOVD	88(R15), R8
+	MOVD	R8, 24(RSP)
+	CMP	$12, R14
+	BLS	hereRegs
+	MOVD	96(R15), R8
+	MOVD	R8, 32(RSP)
+	CMP	$13, R14
+	BLS	hereRegs
+	MOVD	104(R15), R8
+	MOVD	R8, 40(RSP)
+	CMP	$14, R14
+	BLS	hereRegs
+	MOVD	112(R15), R8
+	MOVD	R8, 48(RSP)
+	CMP	$15, R14
+	BLS	hereRegs
+	MOVD	120(R15), R8
+	MOVD	R8, 56(RSP)
+
+hereRegs:
+	MOVD	(R15), R0
+	MOVD	8(R15), R1
+	MOVD	16(R15), R2
+	MOVD	24(R15), R3
+	MOVD	32(R15), R4
+	MOVD	40(R15), R5
+	MOVD	48(R15), R6
+	MOVD	56(R15), R7
+	BL	(R16)
+	MOVD	R20, RSP
+	MOVD	r20-16(SP), R20
+	MOVD	R0, r+24(FP)
+	FMOVS	F0, f32+32(FP)
+	FMOVD	F0, f64+40(FP)
 	RET
 
 DATA	·cName+0(SB)/8, $"lewkit-c"

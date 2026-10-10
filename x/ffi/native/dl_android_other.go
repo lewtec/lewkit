@@ -26,3 +26,7 @@ func Register(fnptr any, addr uintptr) {
 	_, _ = fnptr, addr
 	panic("native: android dynamic calls are arm64")
 }
+
+func RegisterLocal(fnptr any, addr uintptr) {
+	Register(fnptr, addr)
+}

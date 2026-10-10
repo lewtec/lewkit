@@ -311,12 +311,13 @@ GLOBL ·goSigtramp(SB), NOPTR, $8
 // sigGate is the wrapped SIGSEGV handler. R0 is the signal, R1 the
 // siginfo, and R2 the kernel ucontext. Go 1.27's arm64 ucontext keeps
 // mcontext at 176 and sigcontext.pc at 264, so the faulting PC is at
-// 440(R2). libsigchain is the kernel handler and runs ART's special
-// handlers before this one. A PC inside Go text goes to sigtramp on
-// the stack the kernel chose, which SA_ONSTACK makes gsignal. A PC
-// outside that range is forwarded to the handler Go replaced, on this
-// same stack. That handler is debuggerd when the chain was left in
-// place. There is no fallthrough into sigtramp from a foreign PC.
+// 440(R2) and the faulting SP is at 432(R2). libsigchain is the kernel
+// handler and runs ART's special handlers before this one. A PC inside
+// Go text goes to sigtramp on the stack the kernel chose, which
+// SA_ONSTACK makes gsignal. A PC outside that range is forwarded on
+// the faulting thread's stack. bionic's sigaltstack is too small for
+// debuggerd, and calling it there dies with no tombstone. There is no
+// fallthrough into sigtramp from a foreign PC.
 TEXT ·sigGate(SB),NOSPLIT|NOFRAME,$0
 	MOVD	440(R2), R4
 	MOVD	$runtime·text(SB), R5
@@ -346,46 +347,62 @@ sigGoDone:
 	RET
 
 sigForeign:
-	// Stay on the stack libsigchain used. The faulting SP may be the
-	// stack that overflowed, and a raw SIG_DFL here would remove the chain.
-	SUB	$80, RSP
-	STP	(R29, R30), 64(RSP)
-	MOVD	R0, 0(RSP)
-	MOVD	R1, 8(RSP)
-	MOVD	R2, 16(RSP)
-	MOVD	g, 24(RSP)
+	// 432(R2) is sigcontext.sp. Move there before calling the previous
+	// handler. 160 bytes holds this frame; the callee uses the rest of
+	// the faulting stack. A zero SP stays on the signal stack.
+	MOVD	432(R2), R4
+	CBZ	R4, sigForeignHere
+	SUB	$160, R4, R4
+	MOVD	RSP, R5
+	MOVD	R4, RSP
+	B	sigForeignFrame
+
+sigForeignHere:
+	SUB	$160, RSP
+	MOVD	RSP, R5
+	ADD	$160, R5, R5
+
+sigForeignFrame:
+	STP	(R29, R30), 144(RSP)
+	MOVD	R5, 0(RSP)
+	MOVD	R0, 8(RSP)
+	MOVD	R1, 16(RSP)
+	MOVD	R2, 24(RSP)
+	MOVD	g, 32(RSP)
 	MOVD	ZR, g
 
 	// runtime.fwdSig is [_NSIG]uintptr. SIG_DFL is 0 and SIG_IGN is 1.
-	MOVW	0(RSP), R5
+	MOVW	8(RSP), R5
 	MOVD	$runtime·fwdSig(SB), R4
 	LSL	$3, R5, R5
 	MOVD	(R4)(R5), R4
 	CMP	$1, R4
 	BLS	sigForeignDefault
-	MOVD	0(RSP), R0
-	MOVD	8(RSP), R1
-	MOVD	16(RSP), R2
+	MOVD	8(RSP), R0
+	MOVD	16(RSP), R1
+	MOVD	24(RSP), R2
 	BL	(R4)
 	B	sigForeignDone
 
 sigForeignDefault:
 	// No previous handler. Tell the chain this signal is SIG_DFL.
 	// The faulting instruction runs again, and libsigchain's default
-	// path can reach debuggerd.
-	MOVD	ZR, 32(RSP)
-	MOVD	ZR, 40(RSP)
+	// path can reach debuggerd. This is libc sigaction, not the raw
+	// syscall, so the chain stays the kernel handler.
 	MOVD	ZR, 48(RSP)
 	MOVD	ZR, 56(RSP)
-	MOVW	0(RSP), R0
-	ADD	$32, RSP, R1
+	MOVD	ZR, 64(RSP)
+	MOVD	ZR, 72(RSP)
+	MOVW	8(RSP), R0
+	ADD	$48, RSP, R1
 	MOVD	ZR, R2
 	BL	·xCgoSigaction(SB)
 
 sigForeignDone:
-	MOVD	24(RSP), g
-	LDP	64(RSP), (R29, R30)
-	ADD	$80, RSP
+	MOVD	32(RSP), g
+	MOVD	0(RSP), R5
+	LDP	144(RSP), (R29, R30)
+	MOVD	R5, RSP
 	RET
 
 // startRuntime maps an 8MB stack and clones a thread at rt0entry.

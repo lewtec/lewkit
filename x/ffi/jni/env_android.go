@@ -151,7 +151,7 @@ func (e env) push(n int32) error {
 		return err
 	}
 	var fn func(uintptr, int32) int32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	if rc := fn(e.self, n); rc != 0 {
 		e.clear()
 		return fmt.Errorf("%w: %d", errLocalFrame, rc)
@@ -165,7 +165,7 @@ func (e env) pop() {
 		return
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self, 0)
 }
 
@@ -175,7 +175,7 @@ func (e env) occurred() uintptr {
 		return 0
 	}
 	var fn func(uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	return fn(e.self)
 }
 
@@ -185,7 +185,7 @@ func (e env) clear() {
 		return
 	}
 	var fn func(uintptr)
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self)
 }
 
@@ -195,7 +195,7 @@ func (e env) raw4(slot int, a, b, c, d uintptr) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	return fn(a, b, c, d), nil
 }
 
@@ -251,7 +251,7 @@ func (e env) find(name string, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	cls := fn(e.self, cptr(b))
 	runtime.KeepAlive(b)
 	if err := e.ex(ids); err != nil {
@@ -289,7 +289,7 @@ func (e env) global(obj uintptr, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	g := fn(e.self, obj)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -309,7 +309,7 @@ func (e env) deleteGlobal(obj uintptr) {
 		return
 	}
 	var fn func(uintptr, uintptr)
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self, obj)
 }
 
@@ -319,7 +319,7 @@ func (e env) objectClass(obj uintptr, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	cls := fn(e.self, obj)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -339,7 +339,7 @@ func (e env) isAssign(from, to uintptr) bool {
 		return false
 	}
 	var fn func(uintptr, uintptr, uintptr) uint8
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	return fn(e.self, from, to) != 0
 }
 
@@ -349,7 +349,7 @@ func (e env) arrayLen(arr uintptr, ids errIDs) (int32, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) int32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	n := fn(e.self, arr)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -363,7 +363,7 @@ func (e env) element(arr uintptr, i int32, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, int32) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	obj := fn(e.self, arr, i)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -377,7 +377,7 @@ func (e env) setElement(arr uintptr, i int32, val uintptr, ids errIDs) error {
 		return err
 	}
 	var fn func(uintptr, uintptr, int32, uintptr)
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self, arr, i, val)
 	return e.ex(ids)
 }
@@ -388,7 +388,7 @@ func (e env) newObjectArray(n int32, cls uintptr, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, int32, uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	arr := fn(e.self, n, cls, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -411,7 +411,7 @@ func (e env) newByteArray(b []byte, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, int32) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	arr := fn(e.self, int32(len(b)))
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -427,7 +427,7 @@ func (e env) newByteArray(b []byte, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var set func(uintptr, uintptr, int32, int32, uintptr)
-	native.Register(&set, fp)
+	native.RegisterLocal(&set, fp)
 	set(e.self, arr, 0, int32(len(b)), cptr(b))
 	runtime.KeepAlive(b)
 	if err := e.ex(ids); err != nil {
@@ -443,7 +443,7 @@ func (e env) newString(s string, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, cptr(b))
 	runtime.KeepAlive(b)
 	if err := e.ex(ids); err != nil {
@@ -464,7 +464,7 @@ func (e env) readString(jstr uintptr) (string, error) {
 		return "", err
 	}
 	var length func(uintptr, uintptr) int32
-	native.Register(&length, fp)
+	native.RegisterLocal(&length, fp)
 	n := length(e.self, jstr)
 	if e.occurred() != 0 {
 		e.clear()
@@ -481,7 +481,7 @@ func (e env) readString(jstr uintptr) (string, error) {
 		return "", err
 	}
 	var chars func(uintptr, uintptr, uintptr) uintptr
-	native.Register(&chars, fp)
+	native.RegisterLocal(&chars, fp)
 	p := chars(e.self, jstr, 0)
 	if e.occurred() != 0 || p == 0 {
 		e.clear()
@@ -492,7 +492,7 @@ func (e env) readString(jstr uintptr) (string, error) {
 	fp, err = e.fn(idxReleaseStringUTFChars)
 	if err == nil {
 		var rel func(uintptr, uintptr, uintptr)
-		native.Register(&rel, fp)
+		native.RegisterLocal(&rel, fp)
 		rel(e.self, jstr, p)
 	}
 	return decodeMUTF8(buf), nil
@@ -504,7 +504,7 @@ func (e env) callInt(obj, mid uintptr, args []jvalue, ids errIDs) (int32, error)
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) int32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, argv(args))
 	runtime.KeepAlive(args)
 	if err := e.ex(ids); err != nil {
@@ -519,7 +519,7 @@ func (e env) callLong(obj, mid uintptr, ids errIDs) (int64, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) int64
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -533,7 +533,7 @@ func (e env) callBool(obj, mid uintptr, ids errIDs) (bool, error) {
 		return false, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) uint8
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return false, err
@@ -547,7 +547,7 @@ func (e env) callFloat(obj, mid uintptr, ids errIDs) (float32, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) float32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -561,7 +561,7 @@ func (e env) callDouble(obj, mid uintptr, ids errIDs) (float64, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) float64
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -599,13 +599,13 @@ func Attach() uintptr {
 	var env uintptr
 	getEnv := *(*uintptr)(unsafe.Pointer(tab + 6*unsafe.Sizeof(uintptr(0))))
 	var get func(vm uintptr, out *uintptr, ver int32) int32
-	native.Register(&get, getEnv)
+	native.RegisterLocal(&get, getEnv)
 	if get(vm, &env, jniVersion16) == 0 && env != 0 {
 		return env
 	}
 	attach := *(*uintptr)(unsafe.Pointer(tab + 4*unsafe.Sizeof(uintptr(0))))
 	var at func(vm uintptr, out *uintptr, args uintptr) int32
-	native.Register(&at, attach)
+	native.RegisterLocal(&at, attach)
 	if at(vm, &env, 0) != 0 {
 		return 0
 	}
@@ -630,7 +630,7 @@ func Register(env uintptr, class string, methods []Native) error {
 		return err
 	}
 	var findFn func(uintptr, uintptr) uintptr
-	native.Register(&findFn, find)
+	native.RegisterLocal(&findFn, find)
 	cname := cstr(class)
 	cls := findFn(e.self, cptr(cname))
 	runtime.KeepAlive(cname)
@@ -644,7 +644,7 @@ func Register(env uintptr, class string, methods []Native) error {
 		return err
 	}
 	var regFn func(uintptr, uintptr, uintptr, int32) int32
-	native.Register(&regFn, reg)
+	native.RegisterLocal(&regFn, reg)
 	type row struct {
 		name, sig, fn uintptr
 	}
@@ -678,6 +678,6 @@ func (e env) dropLocal(obj uintptr) {
 		return
 	}
 	var fn func(uintptr, uintptr)
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self, obj)
 }

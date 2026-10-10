@@ -15,8 +15,7 @@ var (
 	notedVM     uintptr
 	notedLoader int
 
-	bindJNI    = native.BindOnce[JNI](native.Now, "libnativehelper.so", "libart.so")
-	bindLooper = native.BindOnce[Looper](native.Now, "libandroid.so")
+	bindJNI = native.BindOnce[JNI](native.Now, "libnativehelper.so", "libart.so")
 )
 
 // NoteVM records the JavaVM from JNI_OnLoad. Later calls skip dlopen.
@@ -88,6 +87,8 @@ func JavaVMs() (int, error) {
 // OnLooper reports whether this thread runs the Android main looper.
 // The loader thread noted at JNI_OnLoad is that looper. libandroid is
 // opened only when no loader thread was noted.
+// ALooper_forThread is thread-local. Bind runs the call on the worker,
+// so this path stays on the caller.
 func OnLooper() (bool, error) {
 	noteMu.Lock()
 	tid := notedLoader
@@ -95,11 +96,17 @@ func OnLooper() (bool, error) {
 	if tid != 0 {
 		return tid == currentTID(), nil
 	}
-	got, err := bindLooper()
+	lib, err := native.Open("libandroid.so", native.Now)
 	if err != nil {
 		return false, err
 	}
-	return got.ALooperForThread() != 0, nil
+	sym, err := native.Symbol(lib, "ALooper_forThread")
+	if err != nil {
+		return false, err
+	}
+	var fn func() uintptr
+	native.RegisterLocal(&fn, sym)
+	return fn() != 0, nil
 }
 
 var (
@@ -125,7 +132,7 @@ func WindowFromSurface(env, surface uintptr) (uintptr, error) {
 			windowErr = err
 			return
 		}
-		native.Register(&windowFn, sym)
+		native.RegisterLocal(&windowFn, sym)
 	})
 	if windowFn == nil {
 		if windowErr == nil {
