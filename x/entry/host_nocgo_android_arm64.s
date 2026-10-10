@@ -121,6 +121,12 @@ TEXT JNI_OnLoad(SB),NOSPLIT|NOFRAME,$0
 	// bootPreinit is the ABI0 wrapper around runtime.libpreinit.
 	MOVD	$·bootPreinit(SB), R4
 	BL	(R4)
+	// libpreinit installed Go's SIGSEGV handler. Without cgo, that
+	// handler trusts x28, and ART's value is not a g. A fault on a
+	// Java or WebView thread is then Go's, and the process dies
+	// with no tombstone. installSigGate runs before any Go thread.
+	MOVD	$·installSigGate(SB), R4
+	BL	(R4)
 	MOVD	$·startRuntime(SB), R4
 	BL	(R4)
 	CMP	$0, R0
@@ -150,6 +156,114 @@ jniFail:
 	LDP	16(RSP), (R29, R30)
 	ADD	$32, RSP
 	MOVD	ZR, R0
+	RET
+
+// installSigGate wraps the SIGBUS and SIGSEGV handlers libpreinit just
+// installed. The saved address is runtime.sigtramp. A fault outside
+// the Go text is delivered to it with g cleared, so sigfwdgo forwards
+// to the handler Go replaced. That is ART, which turns null checks
+// into Java exceptions. g is nil on this thread; this frame is NOFRAME
+// so the assembler does not load it.
+TEXT ·installSigGate(SB),NOSPLIT|NOFRAME,$0
+	SUB	$128, RSP
+	MOVD	R30, 120(RSP)
+
+	// SIGBUS is 7, SIGSEGV is 11. Both use the same Go trampoline.
+	MOVD	$7, R11
+
+installOne:
+	MOVD	ZR, 0(RSP)
+	MOVD	ZR, 8(RSP)
+	MOVD	ZR, 16(RSP)
+	MOVD	ZR, 24(RSP)
+	MOVD	ZR, 32(RSP)
+	MOVD	ZR, 40(RSP)
+	MOVD	ZR, 48(RSP)
+	MOVD	ZR, 56(RSP)
+
+	// rt_sigaction(sig, nil, old, 8). The kernel sigset is 8 bytes.
+	MOVD	R11, R0
+	MOVD	ZR, R1
+	MOVD	RSP, R2
+	MOVD	$8, R3
+	MOVD	$134, R8
+	SVC
+	CBNZ	R0, installNext
+
+	// SIG_DFL is 0 and SIG_IGN is 1. Anything else is Go's trampoline.
+	MOVD	0(RSP), R5
+	CMP	$1, R5
+	BLS	installNext
+	MOVD	$·goSigtramp(SB), R10
+	MOVD	R5, (R10)
+
+	MOVD	$·sigGate(SB), R6
+	MOVD	R6, 32(RSP)
+	MOVD	8(RSP), R6
+	MOVD	R6, 40(RSP)
+	MOVD	16(RSP), R6
+	MOVD	R6, 48(RSP)
+	MOVD	24(RSP), R6
+	MOVD	R6, 56(RSP)
+
+	MOVD	R11, R0
+	ADD	$32, RSP, R1
+	MOVD	ZR, R2
+	MOVD	$8, R3
+	MOVD	$134, R8
+	SVC
+
+installNext:
+	CMP	$11, R11
+	BEQ	installDone
+	MOVD	$11, R11
+	B	installOne
+
+installDone:
+	MOVD	120(RSP), R30
+	ADD	$128, RSP
+	RET
+
+GLOBL ·goSigtramp(SB), NOPTR, $8
+
+// sigGate is the wrapped SIGSEGV handler. R0 is the signal, R1 the
+// siginfo, and R2 the kernel ucontext. Go 1.27's arm64 ucontext keeps
+// mcontext at 176 and sigcontext.pc at 264, so the faulting PC is at
+// 440(R2). A PC outside runtime.text..runtime.etext is not a Go
+// fault: clear g so the trampoline forwards. The faulting thread's
+// x28 is restored on the way out; sigreturn restores it anyway.
+TEXT ·sigGate(SB),NOSPLIT|NOFRAME,$0
+	SUB	$48, RSP
+	STP	(R29, R30), 32(RSP)
+	MOVD	R0, 0(RSP)
+	MOVD	R1, 8(RSP)
+	MOVD	R2, 16(RSP)
+	MOVD	g, 24(RSP)
+
+	MOVD	440(R2), R4
+	MOVD	$runtime·text(SB), R5
+	MOVD	$runtime·etext(SB), R6
+	CMP	R5, R4
+	BLO	sigOutside
+	CMP	R6, R4
+	BLO	sigCall
+
+sigOutside:
+	MOVD	ZR, g
+
+sigCall:
+	MOVD	0(RSP), R0
+	MOVD	8(RSP), R1
+	MOVD	16(RSP), R2
+	MOVD	$·goSigtramp(SB), R3
+	MOVD	(R3), R3
+	CBZ	R3, sigDone
+	BL	(R3)
+
+sigDone:
+	MOVD	24(RSP), g
+	LDP	32(RSP), (R29, R30)
+	ADD	$48, RSP
 	RET
 
 // startRuntime maps an 8MB stack and clones a thread at rt0entry.
