@@ -169,10 +169,11 @@ func callHere(fn uintptr, argv *uintptr, argc uintptr) (r uintptr, f32 float32, 
 }
 
 // startCThread starts the pthread Register uses when the caller does
-// not own its TLS. JNI_OnLoad calls it on the main thread before the
-// runtime starts. Zero means the thread is running. A non-cgo M must
-// not call this: clone shares the creator's TLS, and pthread_create
-// does not return.
+// not own its TLS. Java_lewkit_Hook_call starts it on the ART thread
+// after the library load. JNI_OnLoad cannot: pthread_create returns
+// EAGAIN while the linker is inside that load. Zero means the thread
+// is running. A non-cgo M must not call this: clone shares the
+// creator's TLS, and pthread_create does not return.
 func startCThread() int32
 
 //go:nosplit

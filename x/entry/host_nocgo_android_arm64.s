@@ -134,14 +134,10 @@ TEXT JNI_OnLoad(SB),NOSPLIT|NOFRAME,$0
 	// with no tombstone. installSigGate runs before any Go thread.
 	MOVD	$·installSigGate(SB), R4
 	BL	(R4)
-	// pthread_create on this main thread, before the runtime's M
-	// exists. That M shares this TLS, and pthread_create from there
-	// does not return. The 16-byte gap keeps the result slot off the
-	// saved JavaVM. g is nil; startCThread does not load it.
-	SUB	$16, RSP
-	MOVD	$github·com∕lewtec∕lewkit∕x∕ffi∕native·startCThread(SB), R4
-	BL	(R4)
-	ADD	$16, RSP
+	// pthread_create here returns EAGAIN. The linker is still inside
+	// this load, and bionic will not start a thread. Hook.call starts
+	// the worker after the load, on an ART pthread. A cloned Go M
+	// shares this TLS, and pthread_create from there does not return.
 	MOVD	$·startRuntime(SB), R4
 	BL	(R4)
 	CMP	$0, R0
@@ -466,12 +462,20 @@ GLOBL ·bootArgv0(SB), RODATA, $8
 // Java_lewkit_Hook_call is the one host entry.
 // R0 is JNIEnv*, R2 is the name jstring, R3 is the argument array.
 // The jlong result is written at 24(RSP).
+// The worker starts here. This thread is an ART pthread and the
+// library load has returned, so pthread_create can run. JNI_OnLoad
+// cannot start it. g is ART's x28; startCThread does not load it.
 TEXT Java_lewkit_Hook_call(SB),NOSPLIT|NOFRAME,$0
 	SUB	$48, RSP
 	STP	(R29, R30), 32(RSP)
 	MOVD	R0, 0(RSP)
 	MOVD	R2, 8(RSP)
 	MOVD	R3, 16(RSP)
+	// 16 bytes keeps startCThread's result off the saved JNI args.
+	SUB	$16, RSP
+	MOVD	$github·com∕lewtec∕lewkit∕x∕ffi∕native·startCThread(SB), R4
+	BL	(R4)
+	ADD	$16, RSP
 	MOVD	$·pcHook(SB), R0
 	MOVD	(R0), R0
 	MOVD	RSP, R1
