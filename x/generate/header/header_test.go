@@ -103,7 +103,7 @@ func TestWriteSample(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "sample_purego.go"), buf, 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "layout_test.go"), []byte(bindLayoutTest), 0o644))
-	mod := "module example.com/bind\n\ngo 1.27.0\n\nrequire github.com/lewtec/lewkit v0.0.0\n\nreplace github.com/lewtec/lewkit => " +
+	mod := "module example.com/bind\n\ngo 1.27.0\n\nrequire (\n\tgithub.com/lewtec/lewkit v0.0.0\n\tgithub.com/stretchr/testify v1.12.1\n)\n\nreplace github.com/lewtec/lewkit => " +
 		moduleRoot(t) + "\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644))
 	cmd := exec.Command("go", "test", "-mod=mod", ".")
@@ -374,7 +374,7 @@ func findType(t *testing.T, unit *Unit, name string) *Type {
 			return typ
 		}
 	}
-	t.Fatalf("missing type %s", name)
+	require.FailNow(t, "missing type "+name)
 	return nil
 }
 
@@ -385,7 +385,7 @@ func fieldOf(t *testing.T, typ *Type, name string) *Field {
 			return field
 		}
 	}
-	t.Fatalf("missing field %s.%s", typ.Tag, name)
+	require.FailNow(t, "missing field "+typ.Tag+"."+name)
 	return nil
 }
 
@@ -396,7 +396,7 @@ func constOf(t *testing.T, unit *Unit, name string) int64 {
 			return c.Value
 		}
 	}
-	t.Fatalf("missing const %s", name)
+	require.FailNow(t, "missing const "+name)
 	return 0
 }
 
@@ -474,7 +474,7 @@ int main(void) {
 			require.NoError(t, err)
 			lay.fields[fields[1]+"."+fields[2]] = off
 		default:
-			t.Fatalf("gcc line %q", line)
+			require.FailNow(t, "gcc line "+line)
 		}
 	}
 	return lay
@@ -511,86 +511,89 @@ const bindLayoutTest = `package bind
 import (
 	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLayout(t *testing.T) {
 	var p Point
-	if unsafe.Sizeof(p) != 24 || unsafe.Alignof(p) != 8 {
-		t.Fatalf("Point %d %d", unsafe.Sizeof(p), unsafe.Alignof(p))
-	}
-	if unsafe.Offsetof(p.Tag) != 0 || unsafe.Offsetof(p.X) != 4 || unsafe.Offsetof(p.Y) != 8 || unsafe.Offsetof(p.Z) != 16 {
-		t.Fatalf("Point offsets %d %d %d %d", unsafe.Offsetof(p.Tag), unsafe.Offsetof(p.X), unsafe.Offsetof(p.Y), unsafe.Offsetof(p.Z))
-	}
+	require.Equal(t, uintptr(24), unsafe.Sizeof(p))
+	require.Equal(t, uintptr(8), unsafe.Alignof(p))
+	require.Equal(t, uintptr(0), unsafe.Offsetof(p.Tag))
+	require.Equal(t, uintptr(4), unsafe.Offsetof(p.X))
+	require.Equal(t, uintptr(8), unsafe.Offsetof(p.Y))
+	require.Equal(t, uintptr(16), unsafe.Offsetof(p.Z))
+
 	var o Outer
-	if unsafe.Sizeof(o) != 32 || unsafe.Offsetof(o.Inner) != 0 || unsafe.Offsetof(o.C) != 8 || unsafe.Offsetof(o.Hook) != 16 || unsafe.Offsetof(o.Name) != 24 {
-		t.Fatalf("Outer size %d offsets %d %d %d %d", unsafe.Sizeof(o), unsafe.Offsetof(o.Inner), unsafe.Offsetof(o.C), unsafe.Offsetof(o.Hook), unsafe.Offsetof(o.Name))
-	}
+	require.Equal(t, uintptr(32), unsafe.Sizeof(o))
+	require.Equal(t, uintptr(0), unsafe.Offsetof(o.Inner))
+	require.Equal(t, uintptr(8), unsafe.Offsetof(o.C))
+	require.Equal(t, uintptr(16), unsafe.Offsetof(o.Hook))
+	require.Equal(t, uintptr(24), unsafe.Offsetof(o.Name))
+
 	var inner OuterInner
-	if unsafe.Sizeof(inner) != 8 || unsafe.Offsetof(inner.A) != 0 || unsafe.Offsetof(inner.B) != 4 {
-		t.Fatalf("OuterInner %d %d %d", unsafe.Sizeof(inner), unsafe.Offsetof(inner.A), unsafe.Offsetof(inner.B))
-	}
+	require.Equal(t, uintptr(8), unsafe.Sizeof(inner))
+	require.Equal(t, uintptr(0), unsafe.Offsetof(inner.A))
+	require.Equal(t, uintptr(4), unsafe.Offsetof(inner.B))
+
 	var h Hold
-	if unsafe.Sizeof(h) != 16 || unsafe.Offsetof(h.A) != 0 || unsafe.Offsetof(h.Z) != 4 || unsafe.Offsetof(h.S) != 12 {
-		t.Fatalf("Hold %d %d %d %d", unsafe.Sizeof(h), unsafe.Offsetof(h.A), unsafe.Offsetof(h.Z), unsafe.Offsetof(h.S))
-	}
+	require.Equal(t, uintptr(16), unsafe.Sizeof(h))
+	require.Equal(t, uintptr(0), unsafe.Offsetof(h.A))
+	require.Equal(t, uintptr(4), unsafe.Offsetof(h.Z))
+	require.Equal(t, uintptr(12), unsafe.Offsetof(h.S))
+
 	var a Arr
-	if unsafe.Sizeof(a) != 48 || unsafe.Offsetof(a.C) != 0 || unsafe.Offsetof(a.D) != 16 || unsafe.Offsetof(a.F) != 24 {
-		t.Fatalf("Arr %d %d %d %d", unsafe.Sizeof(a), unsafe.Offsetof(a.C), unsafe.Offsetof(a.D), unsafe.Offsetof(a.F))
-	}
+	require.Equal(t, uintptr(48), unsafe.Sizeof(a))
+	require.Equal(t, uintptr(0), unsafe.Offsetof(a.C))
+	require.Equal(t, uintptr(16), unsafe.Offsetof(a.D))
+	require.Equal(t, uintptr(24), unsafe.Offsetof(a.F))
+
 	var al Aligned
-	if unsafe.Sizeof(al) != 16 || unsafe.Offsetof(al.B) != 8 {
-		t.Fatalf("Aligned %d %d", unsafe.Sizeof(al), unsafe.Offsetof(al.B))
-	}
-	if unsafe.Sizeof(Color(0)) != 4 {
-		t.Fatalf("Color %d", unsafe.Sizeof(Color(0)))
-	}
-	if RED != 1 || GREEN != 2 || BLUE != 4 || ANSWER != 42 || FLAG != 0x10 || SUM != 4 {
-		t.Fatal("constants")
-	}
+	require.Equal(t, uintptr(16), unsafe.Sizeof(al))
+	require.Equal(t, uintptr(8), unsafe.Offsetof(al.B))
+
+	require.Equal(t, uintptr(4), unsafe.Sizeof(Color(0)))
+	require.Equal(t, Color(1), RED)
+	require.Equal(t, Color(2), GREEN)
+	require.Equal(t, Color(4), BLUE)
+	require.Equal(t, 42, ANSWER)
+	require.Equal(t, 0x10, FLAG)
+	require.Equal(t, 4, SUM)
+
 	var b Bit
-	if unsafe.Sizeof(b) != 4 || b.A() != 0 || b.C() != 0 {
-		t.Fatalf("Bit %d", unsafe.Sizeof(b))
-	}
+	require.Equal(t, uintptr(4), unsafe.Sizeof(b))
+	require.Equal(t, uint32(0), b.A())
+	require.Equal(t, byte(0), b.C())
 	b.SetA(1)
-	if b.A() != 1 {
-		t.Fatalf("Bit.A %d", b.A())
-	}
+	require.Equal(t, uint32(1), b.A())
+
 	var b2 Bit2
-	if unsafe.Sizeof(b2) != 12 || unsafe.Alignof(b2) != 4 {
-		t.Fatalf("Bit2 %d %d", unsafe.Sizeof(b2), unsafe.Alignof(b2))
-	}
+	require.Equal(t, uintptr(12), unsafe.Sizeof(b2))
+	require.Equal(t, uintptr(4), unsafe.Alignof(b2))
+
 	var r R
-	if unsafe.Sizeof(r) != 2 || unsafe.Alignof(r) != 1 {
-		t.Fatalf("R %d %d", unsafe.Sizeof(r), unsafe.Alignof(r))
-	}
+	require.Equal(t, uintptr(2), unsafe.Sizeof(r))
+	require.Equal(t, uintptr(1), unsafe.Alignof(r))
 	r.SetB(9)
-	if r.B() != 9 {
-		t.Fatalf("R.B %d", r.B())
-	}
+	require.Equal(t, byte(9), r.B())
+
 	var s Slot
-	if unsafe.Sizeof(s) != 8 || unsafe.Alignof(s) != 8 {
-		t.Fatalf("Slot %d %d", unsafe.Sizeof(s), unsafe.Alignof(s))
-	}
+	require.Equal(t, uintptr(8), unsafe.Sizeof(s))
+	require.Equal(t, uintptr(8), unsafe.Alignof(s))
 	s.SetD(1.5)
-	if s.D() != 1.5 {
-		t.Fatal(s.D())
-	}
+	require.Equal(t, 1.5, s.D())
+
 	var pk Packed
-	if unsafe.Sizeof(pk) != 5 || unsafe.Alignof(pk) != 1 {
-		t.Fatalf("Packed %d %d", unsafe.Sizeof(pk), unsafe.Alignof(pk))
-	}
+	require.Equal(t, uintptr(5), unsafe.Sizeof(pk))
+	require.Equal(t, uintptr(1), unsafe.Alignof(pk))
 	pk.SetB(3)
-	if pk.B() != 3 {
-		t.Fatal(pk.B())
-	}
+	require.Equal(t, int32(3), pk.B())
+
 	var _ func(*Point, uint32) int32 = PointSum
 	var _ func(Slot) unsafe.Pointer = SlotPtr
 	var _ func(uintptr) error = Bind
 	var _ func() (uintptr, error) = Open
 	var _ func(uintptr) (*int32, error) = AnswerValue
 	var _ Handle
-	_ = fmtKeep(0)
 }
-
-func fmtKeep(n int) int { return n }
 `
