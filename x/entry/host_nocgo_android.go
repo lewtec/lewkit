@@ -25,6 +25,14 @@ func runtimeNewextram()
 //go:linkname runtimeLibpreinit runtime.libpreinit
 func runtimeLibpreinit()
 
+// libc sigaction, not the raw rt_sigaction syscall. libsigchain interposes
+// the libc entry and keeps ART's handlers in front of ours. __errno is how
+// a failed sigaction reports EINVAL for the pthread signals Go must skip.
+//
+//go:cgo_import_dynamic libc_sigaction sigaction "libc.so"
+//go:cgo_import_dynamic libc_errno __errno "libc.so"
+//go:cgo_import_dynamic _ _ "libc.so"
+
 // bootPreinit is the ABI0 entry assembly can call. The body is ABIInternal.
 //
 //go:nosplit

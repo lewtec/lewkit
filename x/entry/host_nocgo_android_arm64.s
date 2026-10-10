@@ -117,6 +117,13 @@ TEXT JNI_OnLoad(SB),NOSPLIT|NOFRAME,$0
 	MOVD	$1, R5
 	MOVB	R5, (R4)
 
+	// Point runtime sigaction at libc before libpreinit. A raw
+	// rt_sigaction replaces libsigchain, so ART never sees the fault.
+	// _cgo_sigaction is the linkname, not runtime._cgo_sigaction.
+	MOVD	$·xCgoSigaction(SB), R5
+	MOVD	$_cgo_sigaction(SB), R4
+	MOVD	R5, (R4)
+
 	// Indirect so this nosplit frame does not absorb libpreinit.
 	// bootPreinit is the ABI0 wrapper around runtime.libpreinit.
 	MOVD	$·bootPreinit(SB), R4
@@ -161,33 +168,28 @@ jniFail:
 // installSigGate wraps the SIGBUS and SIGSEGV handlers libpreinit just
 // installed. The saved address is runtime.sigtramp. Flags are copied
 // whole, including SA_ONSTACK, so a Go fault is delivered on gsignal.
-// A fault outside the Go text is handed to the handler Go replaced.
-// g is nil on this thread; this frame is NOFRAME so the assembler
-// does not load it.
+// The swap goes through libc sigaction, so libsigchain stays the kernel
+// handler. g is nil on this thread; this frame is NOFRAME so the
+// assembler does not load it.
 TEXT ·installSigGate(SB),NOSPLIT|NOFRAME,$0
 	SUB	$128, RSP
 	MOVD	R30, 120(RSP)
+	MOVD	R19, 112(RSP)
 
 	// SIGBUS is 7, SIGSEGV is 11. Both use the same Go trampoline.
-	MOVD	$7, R11
+	MOVD	$7, R19
 
 installOne:
 	MOVD	ZR, 0(RSP)
 	MOVD	ZR, 8(RSP)
 	MOVD	ZR, 16(RSP)
 	MOVD	ZR, 24(RSP)
-	MOVD	ZR, 32(RSP)
-	MOVD	ZR, 40(RSP)
-	MOVD	ZR, 48(RSP)
-	MOVD	ZR, 56(RSP)
 
-	// rt_sigaction(sig, nil, old, 8). The kernel sigset is 8 bytes.
-	MOVD	R11, R0
+	// xCgoSigaction(sig, nil, old). The struct is the kernel layout.
+	MOVD	R19, R0
 	MOVD	ZR, R1
 	MOVD	RSP, R2
-	MOVD	$8, R3
-	MOVD	$134, R8
-	SVC
+	BL	·xCgoSigaction(SB)
 	CBNZ	R0, installNext
 
 	// SIG_DFL is 0 and SIG_IGN is 1. Anything else is Go's trampoline.
@@ -208,22 +210,92 @@ installOne:
 	MOVD	24(RSP), R6
 	MOVD	R6, 56(RSP)
 
-	MOVD	R11, R0
+	MOVD	R19, R0
 	ADD	$32, RSP, R1
 	MOVD	ZR, R2
-	MOVD	$8, R3
-	MOVD	$134, R8
-	SVC
+	BL	·xCgoSigaction(SB)
 
 installNext:
-	CMP	$11, R11
+	CMP	$11, R19
 	BEQ	installDone
-	MOVD	$11, R11
+	MOVD	$11, R19
 	B	installOne
 
 installDone:
+	MOVD	112(RSP), R19
 	MOVD	120(RSP), R30
 	ADD	$128, RSP
+	RET
+
+// xCgoSigaction is the C function stored in runtime._cgo_sigaction.
+// R0 is the signal, R1 the new kernel sigactiont or nil, R2 the old one
+// or nil. Return 0, or errno. Bionic's struct sigaction is not the kernel
+// struct: flags, pad, handler, mask, restorer, 32 bytes. SA_RESTORER is
+// stripped so the VDSO restorer stays in place.
+TEXT ·xCgoSigaction(SB),NOSPLIT|NOFRAME,$0
+	SUB	$112, RSP
+	STP	(R29, R30), 96(RSP)
+	MOVD	R19, 80(RSP)
+	MOVD	R20, 88(RSP)
+	MOVD	R1, R19
+	MOVD	R2, R20
+
+	MOVD	ZR, 0(RSP)
+	MOVD	ZR, 8(RSP)
+	MOVD	ZR, 16(RSP)
+	MOVD	ZR, 24(RSP)
+	MOVD	ZR, 32(RSP)
+	MOVD	ZR, 40(RSP)
+	MOVD	ZR, 48(RSP)
+	MOVD	ZR, 56(RSP)
+
+	CBZ	R19, xCgoNoNew
+	MOVD	8(R19), R3
+	MOVD	$0x4000000, R4
+	BIC	R4, R3, R3
+	MOVW	R3, 0(RSP)
+	MOVD	(R19), R3
+	MOVD	R3, 8(RSP)
+	MOVD	24(R19), R3
+	MOVD	R3, 16(RSP)
+	MOVD	RSP, R1
+	B	xCgoHaveNew
+
+xCgoNoNew:
+	MOVD	ZR, R1
+
+xCgoHaveNew:
+	MOVD	ZR, R2
+	CBZ	R20, xCgoCall
+	ADD	$32, RSP, R2
+
+xCgoCall:
+	BL	libc_sigaction(SB)
+	CMP	$0, R0
+	BGE	xCgoOK
+	BL	libc_errno(SB)
+	MOVW	(R0), R0
+	B	xCgoDone
+
+xCgoOK:
+	CBZ	R20, xCgoZero
+	MOVD	40(RSP), R3
+	MOVD	R3, (R20)
+	MOVWU	32(RSP), R3
+	MOVD	R3, 8(R20)
+	MOVD	56(RSP), R3
+	MOVD	R3, 16(R20)
+	MOVD	48(RSP), R3
+	MOVD	R3, 24(R20)
+
+xCgoZero:
+	MOVD	ZR, R0
+
+xCgoDone:
+	MOVD	80(RSP), R19
+	MOVD	88(RSP), R20
+	LDP	96(RSP), (R29, R30)
+	ADD	$112, RSP
 	RET
 
 GLOBL ·goSigtramp(SB), NOPTR, $8
@@ -231,14 +303,12 @@ GLOBL ·goSigtramp(SB), NOPTR, $8
 // sigGate is the wrapped SIGSEGV handler. R0 is the signal, R1 the
 // siginfo, and R2 the kernel ucontext. Go 1.27's arm64 ucontext keeps
 // mcontext at 176 and sigcontext.pc at 264, so the faulting PC is at
-// 440(R2) and the faulting SP at 432(R2). A PC inside Go text goes to
-// sigtramp on the stack the kernel chose, which SA_ONSTACK makes
-// gsignal. A PC outside that range belongs to ART or WebView. bionic's
-// sigaltstack is too small for the forward call, so that call runs on
-// the faulting thread's own stack, then returns to the kernel frame.
-// sigreturn restores the faulting thread's x28. There is no fallthrough
-// into sigtramp from a foreign PC: sigtramp aborts when SP is not on
-// gsignal.
+// 440(R2). libsigchain is the kernel handler and runs ART's special
+// handlers before this one. A PC inside Go text goes to sigtramp on
+// the stack the kernel chose, which SA_ONSTACK makes gsignal. A PC
+// outside that range is forwarded to the handler Go replaced, on this
+// same stack. That handler is debuggerd when the chain was left in
+// place. There is no fallthrough into sigtramp from a foreign PC.
 TEXT ·sigGate(SB),NOSPLIT|NOFRAME,$0
 	MOVD	440(R2), R4
 	MOVD	$runtime·text(SB), R5
@@ -268,14 +338,10 @@ sigGoDone:
 	RET
 
 sigForeign:
-	// Entry SP is the kernel frame, often bionic's sigaltstack.
-	// 432(R2) is the thread SP at the fault. Park the forward call
-	// 80 bytes below it. 80 keeps SP 16-aligned.
-	MOVD	RSP, R8
-	MOVD	432(R2), R7
-	SUB	$80, R7, RSP
-	MOVD	R8, 64(RSP)
-	MOVD	R30, 72(RSP)
+	// Stay on the stack libsigchain used. The faulting SP may be the
+	// stack that overflowed, and a raw SIG_DFL here would remove the chain.
+	SUB	$80, RSP
+	STP	(R29, R30), 64(RSP)
 	MOVD	R0, 0(RSP)
 	MOVD	R1, 8(RSP)
 	MOVD	R2, 16(RSP)
@@ -296,9 +362,9 @@ sigForeign:
 	B	sigForeignDone
 
 sigForeignDefault:
-	// No previous handler. Install SIG_DFL and raise the signal
-	// again. It stays masked until sigreturn, then the default
-	// action runs.
+	// No previous handler. Tell the chain this signal is SIG_DFL.
+	// The faulting instruction runs again, and libsigchain's default
+	// path can reach debuggerd.
 	MOVD	ZR, 32(RSP)
 	MOVD	ZR, 40(RSP)
 	MOVD	ZR, 48(RSP)
@@ -306,25 +372,12 @@ sigForeignDefault:
 	MOVW	0(RSP), R0
 	ADD	$32, RSP, R1
 	MOVD	ZR, R2
-	MOVD	$8, R3
-	MOVD	$134, R8
-	SVC
-	MOVD	$172, R8
-	SVC
-	MOVD	R0, R9
-	MOVD	$178, R8
-	SVC
-	MOVD	R0, R1
-	MOVD	R9, R0
-	MOVW	0(RSP), R2
-	MOVD	$131, R8
-	SVC
+	BL	·xCgoSigaction(SB)
 
 sigForeignDone:
 	MOVD	24(RSP), g
-	MOVD	72(RSP), R30
-	MOVD	64(RSP), R8
-	MOVD	R8, RSP
+	LDP	64(RSP), (R29, R30)
+	ADD	$80, RSP
 	RET
 
 // startRuntime maps an 8MB stack and clones a thread at rt0entry.
