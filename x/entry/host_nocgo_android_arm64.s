@@ -134,6 +134,14 @@ TEXT JNI_OnLoad(SB),NOSPLIT|NOFRAME,$0
 	// with no tombstone. installSigGate runs before any Go thread.
 	MOVD	$·installSigGate(SB), R4
 	BL	(R4)
+	// pthread_create on this main thread, before the runtime's M
+	// exists. That M shares this TLS, and pthread_create from there
+	// does not return. The 16-byte gap keeps the result slot off the
+	// saved JavaVM. g is nil; startCThread does not load it.
+	SUB	$16, RSP
+	MOVD	$github·com∕lewtec∕lewkit∕x∕ffi∕native·startCThread(SB), R4
+	BL	(R4)
+	ADD	$16, RSP
 	MOVD	$·startRuntime(SB), R4
 	BL	(R4)
 	CMP	$0, R0

@@ -6,10 +6,13 @@
 //
 // argv points at callWords uintptrs. The first eight fill R0–R7. Words
 // past that are stored at the C stack, eight bytes each, before BL.
-// The callee runs on the pthread from startCThread. A non-cgo M's g0 is
-// 16KB and clone leaves it on the creator's TLS, so the Vulkan driver
-// faults there with no debuggerd tombstone. callC enters the syscall
-// first. If the pthread did not start, the call runs on this stack.
+// A non-cgo M's g0 is 16KB and clone leaves it on the creator's TLS, so
+// the Vulkan driver faults there with no debuggerd tombstone. That call
+// runs on the pthread from startCThread. A thread that owns its TLS
+// (gettid matches pthread_gettid_np of pthread_self) keeps the call.
+// JNI_OnLoad and a Java thread are that case; the worker would block
+// ART on the loader. callC enters the syscall first. If the pthread did
+// not start, the call runs on this stack.
 //
 // R19 and R20 are saved in the frame. The fallback parks the Go SP in
 // R20 across BL; AAPCS64 callees preserve it.
@@ -25,6 +28,16 @@ TEXT ·callCOnG0(SB),NOSPLIT,$16-48
 	MOVD	$·cComm+48(SB), R0
 	LDARW	(R0), R0
 	CBZ	R0, callDirect
+
+	// TLS owner tid against the kernel tid. Equal means this pthread
+	// owns the slot, so the callee stays here. SYS_gettid is 178.
+	BL	libc_pthread_self(SB)
+	BL	libc_pthread_gettid_np(SB)
+	MOVD	R0, R20
+	MOVW	$178, R8
+	SVC
+	CMP	R0, R20
+	BEQ	callDirect
 
 	// One caller at a time. The lock word is cComm+0.
 	MOVD	$·cComm(SB), R19

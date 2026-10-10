@@ -8,7 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/jni"
-	"github.com/lewtec/lewkit/x/ffi/native"
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
 
@@ -60,9 +59,9 @@ func init() {
 	pcHook = funcPC(onHook)
 	pcProxy = funcPC(onProxy)
 	runtimeNewextram()
-	// Before rtReady: the main thread is still in JNI_OnLoad's spin,
-	// not in libc. The new pthread has its own TLS and a full stack.
-	native.StartCThread()
+	// rtReady releases JNI_OnLoad. pthread_create already ran on the
+	// main thread. This M shares that TLS, and pthread_create from
+	// here does not return.
 	atomic.StoreUint32(&rtReady, 1)
 }
 
