@@ -4,6 +4,7 @@ package prelude
 
 import (
 	_ "github.com/lewtec/lewkit/x/tool/registry/actionlint"
+	_ "github.com/lewtec/lewkit/x/tool/registry/android-platform-tools"
 	_ "github.com/lewtec/lewkit/x/tool/registry/bend"
 	_ "github.com/lewtec/lewkit/x/tool/registry/biome"
 	_ "github.com/lewtec/lewkit/x/tool/registry/bun"
