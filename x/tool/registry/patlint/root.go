@@ -6,5 +6,5 @@ import (
 )
 
 func init() {
-	registry.RegisterGitHub("refactree", "lucasew/refactree", tool.Binary("rft"))
+	registry.RegisterGitHub("patlint", "lewtec/patlint", tool.Binary("patlint"))
 }
