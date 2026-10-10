@@ -109,7 +109,7 @@ func startApp() error {
 				slog.Debug("cocoa IOSurface missing", "err", err)
 			}
 			runLoopMode = nsstr("kCFRunLoopDefaultMode").Send(objc.RegisterName("retain"))
-			colorSpace = cgColorSpaceCreateDeviceRGB()
+			colorSpace = coreGraphics.CGColorSpaceCreateDeviceRGB()
 			app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 			app.Send(objc.RegisterName("setActivationPolicy:"), nsApplicationActivateRegular)
 			thread.OnIdle(func() {
@@ -639,7 +639,7 @@ func (w *win) blit() error {
 				return
 			}
 			layer.Send(selSetContents, objc.ID(cgImage))
-			cgImageRelease(cgImage)
+			coreGraphics.CGImageRelease(cgImage)
 		})
 	})
 	return err
@@ -675,31 +675,12 @@ const (
 	cgRenderingIntentDefault = 0
 )
 
-var (
-	cgColorSpaceCreateDeviceRGB    func() uintptr
-	cgDataProviderCreateWithCFData func(uintptr) uintptr
-	cgImageCreate                  func(width, height, bpc, bpp, bpr uintptr, space uintptr, bitmapInfo uint32, provider, decode uintptr, interpolate bool, intent int32) uintptr
-	cgColorSpaceRelease            func(uintptr)
-	cgDataProviderRelease          func(uintptr)
-	cgImageRelease                 func(uintptr)
-)
+var coreGraphics CG
 
 func loadCG() error {
-	lib, err := native.Open("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics", native.Lazy)
-	if err != nil {
-		return err
-	}
-	got, err := native.Bind[CG](lib)
-	if err != nil {
-		return err
-	}
-	cgColorSpaceCreateDeviceRGB = got.CGColorSpaceCreateDeviceRGB
-	cgDataProviderCreateWithCFData = got.CGDataProviderCreateWithCFData
-	cgImageCreate = got.CGImageCreate
-	cgColorSpaceRelease = got.CGColorSpaceRelease
-	cgDataProviderRelease = got.CGDataProviderRelease
-	cgImageRelease = got.CGImageRelease
-	return nil
+	var err error
+	coreGraphics, err = native.Bind[CG](native.Lazy, "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+	return err
 }
 
 func nsNumber(value int) objc.ID {
@@ -820,7 +801,7 @@ func copyIOSurface(surface objc.ID, source *image.RGBA) bool {
 
 func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	width, height := src.Rect.Dx(), src.Rect.Dy()
-	if width < 1 || height < 1 || cgImageCreate == nil || len(src.Pix) == 0 {
+	if width < 1 || height < 1 || coreGraphics.CGImageCreate == nil || len(src.Pix) == 0 {
 		return 0, fmt.Errorf("%w: empty", window.ErrPresent)
 	}
 	n := len(src.Pix)
@@ -845,12 +826,12 @@ func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	if colorSpace == 0 {
 		return 0, fmt.Errorf("%w: color space", window.ErrPresent)
 	}
-	provider := cgDataProviderCreateWithCFData(uintptr(data))
+	provider := coreGraphics.CGDataProviderCreateWithCFData(uintptr(data))
 	if provider == 0 {
 		return 0, fmt.Errorf("%w: data provider", window.ErrPresent)
 	}
-	defer cgDataProviderRelease(provider)
-	img := cgImageCreate(
+	defer coreGraphics.CGDataProviderRelease(provider)
+	img := coreGraphics.CGImageCreate(
 		uintptr(width), uintptr(height), 8, 32, uintptr(src.Stride),
 		colorSpace,
 		cgImageAlphaLast|cgBitmapByteOrder32Big,

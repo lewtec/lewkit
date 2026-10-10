@@ -69,11 +69,7 @@ func adoptShell(title string, icon image.Image) bool {
 }
 
 func transformForeground() bool {
-	lib, err := native.Open(appServicesPath, native.Global|native.Lazy)
-	if err != nil {
-		return false
-	}
-	got, err := native.Bind[AppServices](lib)
+	got, err := native.Bind[AppServices](native.Global|native.Lazy, appServicesPath)
 	if err != nil || got.TransformProcessType == nil {
 		return false
 	}

@@ -27,62 +27,21 @@ const (
 	listBoxAppendPos = -1
 )
 
-type symbols struct {
-	initCheck    func() int32
-	setPrgname   func(*byte)
-	iterate      func(ctx uintptr, block int32) int32
-	signal       func(obj uintptr, name *byte, handler, data, destroy uintptr, flags uint32) uint64
-	windowNew    func() uintptr
-	setTitle     func(win uintptr, title *byte)
-	setSize      func(win uintptr, w, h int32)
-	setModal     func(win uintptr, modal int32)
-	setChild     func(win, child uintptr)
-	setResizable func(win uintptr, resizable int32)
-	setDefault   func(win, widget uintptr)
-	present      func(win uintptr)
-	destroy      func(win uintptr)
-	boxNew       func(orient, spacing int32) uintptr
-	boxAppend    func(box, child uintptr)
-	marginTop    func(w uintptr, m int32)
-	marginBottom func(w uintptr, m int32)
-	marginStart  func(w uintptr, m int32)
-	marginEnd    func(w uintptr, m int32)
-	hexpand      func(w uintptr, expand int32)
-	vexpand      func(w uintptr, expand int32)
-	grabFocus    func(w uintptr) int32
-	labelNew     func(text *byte) uintptr
-	labelWrap    func(label uintptr, wrap int32)
-	buttonNew    func(text *byte) uintptr
-	entryNew     func() uintptr
-	setText      func(editable uintptr, text *byte)
-	getText      func(editable uintptr) uintptr
-	listNew      func() uintptr
-	listInsert   func(box, child uintptr, pos int32)
-	listSelected func(box uintptr) uintptr
-	listSelect   func(box, row uintptr)
-	rowAt        func(box uintptr, index int32) uintptr
-	rowIndex     func(row uintptr) int32
-	scrollNew    func() uintptr
-	scrollChild  func(scroll, child uintptr)
-	scrollMin    func(scroll uintptr, height int32)
-	scrollPolicy func(scroll uintptr, h, v int32)
-	self         func() uintptr
-}
-
 var (
 	mu      sync.Mutex
-	bound   symbols
 	loaded  bool
 	ready   bool
 	ownerID uint64
-	gtkLib  uintptr
 	jobs    = make(chan func(), 32)
 
-	x11Once       sync.Once
-	x11Err        error
-	realize       func(uintptr)
-	nativeSurface func(uintptr) uintptr
-	x11XID        func(uintptr) uintptr
+	glib    Glib
+	gobject GObject
+	widgets Gtk
+	threads Libc
+	gdk     GDKX11
+
+	x11Once sync.Once
+	x11Err  error
 )
 
 // Available reports whether GTK 4 and GLib can be loaded.
@@ -105,11 +64,7 @@ func SetPrgname(name string) {
 	if name == "" {
 		return
 	}
-	glib, err := native.OpenChain(native.Global|native.Lazy, "libglib-2.0.so.0")
-	if err != nil {
-		return
-	}
-	got, err := native.Bind[Glib](glib)
+	got, err := native.Bind[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
 	if err != nil {
 		return
 	}
@@ -151,7 +106,7 @@ func Ensure() error {
 		return nil
 	}
 	mu.Unlock()
-	if bound.initCheck() == 0 {
+	if widgets.GtkInitCheck() == 0 {
 		return fmt.Errorf("%w: gtk_init_check failed", ErrUnavailable)
 	}
 	mu.Lock()
@@ -212,7 +167,7 @@ func Poll() int32 {
 			fn()
 			dispatched = 1
 		default:
-			if bound.iterate(0, 0) != 0 {
+			if glib.GMainContextIteration(0, 0) != 0 {
 				return 1
 			}
 			return dispatched
@@ -260,78 +215,23 @@ func bindOnce() error {
 	if blockGTK4() {
 		return errMixedGTK
 	}
-	glib, err := native.OpenChain(native.Global|native.Lazy, "libglib-2.0.so.0")
+	var err error
+	glib, err = native.Bind[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
 	if err != nil {
 		return err
 	}
-	gobject, err := native.OpenChain(native.Global|native.Lazy, "libgobject-2.0.so.0")
+	gobject, err = native.Bind[GObject](native.Global|native.Lazy, "libgobject-2.0.so.0")
 	if err != nil {
 		return err
 	}
-	gtk, err := native.OpenChain(native.Global|native.Lazy, "libgtk-4.so.1")
+	widgets, err = native.Bind[Gtk](native.Global|native.Lazy, "libgtk-4.so.1")
 	if err != nil {
 		return err
 	}
-	gtkLib = gtk
-	libc, err := native.OpenChain(native.Lazy, "libc.so.6")
+	threads, err = native.Bind[Libc](native.Lazy, "libc.so.6")
 	if err != nil {
 		return err
 	}
-	glibSyms, err := native.Bind[Glib](glib)
-	if err != nil {
-		return err
-	}
-	objSyms, err := native.Bind[GObject](gobject)
-	if err != nil {
-		return err
-	}
-	gtkSyms, err := native.Bind[Gtk](gtk)
-	if err != nil {
-		return err
-	}
-	libcSyms, err := native.Bind[Libc](libc)
-	if err != nil {
-		return err
-	}
-	bound.setPrgname = glibSyms.GSetPrgname
-	bound.iterate = glibSyms.GMainContextIteration
-	bound.signal = objSyms.GSignalConnectData
-	bound.initCheck = gtkSyms.GtkInitCheck
-	bound.windowNew = gtkSyms.GtkWindowNew
-	bound.setTitle = gtkSyms.GtkWindowSetTitle
-	bound.setSize = gtkSyms.GtkWindowSetDefaultSize
-	bound.setModal = gtkSyms.GtkWindowSetModal
-	bound.setChild = gtkSyms.GtkWindowSetChild
-	bound.setResizable = gtkSyms.GtkWindowSetResizable
-	bound.setDefault = gtkSyms.GtkWindowSetDefaultWidget
-	bound.present = gtkSyms.GtkWindowPresent
-	bound.destroy = gtkSyms.GtkWindowDestroy
-	bound.boxNew = gtkSyms.GtkBoxNew
-	bound.boxAppend = gtkSyms.GtkBoxAppend
-	bound.marginTop = gtkSyms.GtkWidgetSetMarginTop
-	bound.marginBottom = gtkSyms.GtkWidgetSetMarginBottom
-	bound.marginStart = gtkSyms.GtkWidgetSetMarginStart
-	bound.marginEnd = gtkSyms.GtkWidgetSetMarginEnd
-	bound.hexpand = gtkSyms.GtkWidgetSetHexpand
-	bound.vexpand = gtkSyms.GtkWidgetSetVexpand
-	bound.grabFocus = gtkSyms.GtkWidgetGrabFocus
-	bound.labelNew = gtkSyms.GtkLabelNew
-	bound.labelWrap = gtkSyms.GtkLabelSetWrap
-	bound.buttonNew = gtkSyms.GtkButtonNewWithLabel
-	bound.entryNew = gtkSyms.GtkEntryNew
-	bound.setText = gtkSyms.GtkEditableSetText
-	bound.getText = gtkSyms.GtkEditableGetText
-	bound.listNew = gtkSyms.GtkListBoxNew
-	bound.listInsert = gtkSyms.GtkListBoxInsert
-	bound.listSelected = gtkSyms.GtkListBoxGetSelectedRow
-	bound.listSelect = gtkSyms.GtkListBoxSelectRow
-	bound.rowAt = gtkSyms.GtkListBoxGetRowAtIndex
-	bound.rowIndex = gtkSyms.GtkListBoxRowGetIndex
-	bound.scrollNew = gtkSyms.GtkScrolledWindowNew
-	bound.scrollChild = gtkSyms.GtkScrolledWindowSetChild
-	bound.scrollMin = gtkSyms.GtkScrolledWindowSetMinContentHeight
-	bound.scrollPolicy = gtkSyms.GtkScrolledWindowSetPolicy
-	bound.self = libcSyms.PthreadSelf
 	loaded = true
 	return nil
 }
@@ -348,13 +248,13 @@ func SurfaceXID(widget uintptr) (uint32, error) {
 	var xid uint32
 	var callErr error
 	run := func() {
-		realize(widget)
-		surface := nativeSurface(widget)
+		gdk.GtkWidgetRealize(widget)
+		surface := gdk.GtkNativeGetSurface(widget)
 		if surface == 0 {
 			callErr = ErrUnavailable
 			return
 		}
-		id := x11XID(surface)
+		id := gdk.GdkX11SurfaceGetXid(surface)
 		if id == 0 {
 			callErr = ErrUnavailable
 			return
@@ -377,27 +277,21 @@ func bindX11() error {
 			x11Err = err
 			return
 		}
-		if gtkLib == 0 {
-			x11Err = ErrUnavailable
-			return
-		}
-		x11Syms, err := native.Bind[GDKX11](gtkLib)
+		var err error
+		gdk, err = native.Bind[GDKX11](native.Global|native.Lazy, "libgtk-4.so.1")
 		if err != nil {
 			x11Err = err
 			return
 		}
-		realize = x11Syms.GtkWidgetRealize
-		nativeSurface = x11Syms.GtkNativeGetSurface
-		x11XID = x11Syms.GdkX11SurfaceGetXid
 	})
 	return x11Err
 }
 
 func osThread() uint64 {
-	if err := bindOnce(); err != nil || bound.self == nil {
+	if err := bindOnce(); err != nil || threads.PthreadSelf == nil {
 		return 0
 	}
-	return uint64(bound.self())
+	return uint64(threads.PthreadSelf())
 }
 
 func withCString(s string, fn func(*byte)) {
@@ -415,28 +309,28 @@ func cStringPointer(text []byte) *byte {
 
 func connect(obj uintptr, signal string, handler uintptr) {
 	name := native.CString(signal)
-	bound.signal(obj, cStringPointer(name), handler, 0, 0, 0)
+	gobject.GSignalConnectData(obj, cStringPointer(name), handler, 0, 0, 0)
 	runtime.KeepAlive(name)
 }
 
 func margin(widget uintptr, px int32) {
-	bound.marginTop(widget, px)
-	bound.marginBottom(widget, px)
-	bound.marginStart(widget, px)
-	bound.marginEnd(widget, px)
+	widgets.GtkWidgetSetMarginTop(widget, px)
+	widgets.GtkWidgetSetMarginBottom(widget, px)
+	widgets.GtkWidgetSetMarginStart(widget, px)
+	widgets.GtkWidgetSetMarginEnd(widget, px)
 }
 
 func label(text string) uintptr {
 	var widget uintptr
-	withCString(text, func(p *byte) { widget = bound.labelNew(p) })
-	bound.labelWrap(widget, 1)
-	bound.hexpand(widget, 1)
+	withCString(text, func(p *byte) { widget = widgets.GtkLabelNew(p) })
+	widgets.GtkLabelSetWrap(widget, 1)
+	widgets.GtkWidgetSetHexpand(widget, 1)
 	return widget
 }
 
 func button(text string) uintptr {
 	var widget uintptr
-	withCString(text, func(p *byte) { widget = bound.buttonNew(p) })
+	withCString(text, func(p *byte) { widget = widgets.GtkButtonNewWithLabel(p) })
 	connect(widget, "clicked", clickCB)
 	return widget
 }

@@ -18,15 +18,12 @@ func TestBindFillsStructFields(t *testing.T) {
 	default:
 		t.Skip("no libc path")
 	}
-	lib, err := native.Open(path, native.Lazy)
-	require.NoError(t, err)
-
 	type libc struct {
 		Strlen  func(s *byte) uintptr   `sym:"strlen"`
 		Malloc  func(n uintptr) uintptr `sym:"malloc,soft"`
 		Missing func()                  `sym:"lewkit_missing_symbol,soft"`
 	}
-	got, err := native.Bind[libc](lib)
+	got, err := native.Bind[libc](native.Lazy, path)
 	require.NoError(t, err)
 	require.NotNil(t, got.Strlen)
 	require.NotNil(t, got.Malloc)
@@ -37,7 +34,7 @@ func TestBindFillsStructFields(t *testing.T) {
 	type missing struct {
 		Nope func() `sym:"lewkit_missing_symbol"`
 	}
-	_, err = native.Bind[missing](lib)
+	_, err = native.Bind[missing](native.Lazy, path)
 	require.Error(t, err)
 }
 

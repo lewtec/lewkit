@@ -94,17 +94,17 @@ func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
 }
 
 func (h *win32Host) poll() {
-	if h == nil || h.hwnd == 0 || peekMessage == nil {
+	if h == nil || h.hwnd == 0 || user.PeekMessageW == nil {
 		return
 	}
 	var msg win32Msg
-	for peekMessage(unsafe.Pointer(&msg), h.hwnd, 0, 0, 1) {
+	for user.PeekMessageW(unsafe.Pointer(&msg), h.hwnd, 0, 0, 1) {
 		h.one(msg)
-		if translateMessage != nil {
-			translateMessage(unsafe.Pointer(&msg))
+		if user.TranslateMessage != nil {
+			user.TranslateMessage(unsafe.Pointer(&msg))
 		}
-		if dispatchMessage != nil {
-			dispatchMessage(unsafe.Pointer(&msg))
+		if user.DispatchMessageW != nil {
+			user.DispatchMessageW(unsafe.Pointer(&msg))
 		}
 	}
 }
@@ -126,7 +126,7 @@ func (h *win32Host) destroy() {
 	if h == nil || h.borrowed || h.hwnd == 0 {
 		return
 	}
-	destroyWindow(h.hwnd)
+	user.DestroyWindow(h.hwnd)
 	h.hwnd = 0
 }
 
@@ -150,48 +150,27 @@ type wndClassW struct {
 }
 
 var (
-	user32           uintptr
-	classReady       bool
-	getModuleHandle  func(name *uint16) uintptr
-	registerClass    func(wc unsafe.Pointer) uint16
-	createWindow     func(ex uint32, class, title *uint16, style uint32, x, y, w, h int32, parent, menu, inst, param uintptr) uintptr
-	showWindow       func(hwnd uintptr, cmd int32) int32
-	destroyWindow    func(hwnd uintptr) int32
-	peekMessage      func(msg unsafe.Pointer, hwnd uintptr, min, max, remove uint32) bool
-	translateMessage func(msg unsafe.Pointer) bool
-	dispatchMessage  func(msg unsafe.Pointer) uintptr
+	user       User32
+	kernel     Kernel32
+	win32Ready bool
+	classReady bool
 )
 
 func loadUser32() error {
-	if user32 != 0 {
+	if win32Ready {
 		return nil
 	}
-	lib, err := native.OpenChain(0, "user32.dll")
-	if err != nil {
-		return fmt.Errorf("%w: user32", ErrUnavailable)
-	}
-	k32, err := native.OpenChain(0, "kernel32.dll")
-	if err != nil {
-		return fmt.Errorf("%w: kernel32", ErrUnavailable)
-	}
-	k32Syms, err := native.Bind[Kernel32](k32)
-	if err != nil {
-		return fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
-	}
-	userSyms, err := native.Bind[User32](lib)
+	var err error
+	user, err = native.Bind[User32](0, "user32.dll")
 	if err != nil {
 		return fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
 	}
-	getModuleHandle = k32Syms.GetModuleHandleW
-	registerClass = userSyms.RegisterClassW
-	createWindow = userSyms.CreateWindowExW
-	showWindow = userSyms.ShowWindow
-	destroyWindow = userSyms.DestroyWindow
-	peekMessage = userSyms.PeekMessageW
-	translateMessage = userSyms.TranslateMessage
-	dispatchMessage = userSyms.DispatchMessageW
-	user32 = lib
-	if getModuleHandle == nil || registerClass == nil || createWindow == nil {
+	kernel, err = native.Bind[Kernel32](0, "kernel32.dll")
+	if err != nil {
+		return fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
+	}
+	win32Ready = true
+	if kernel.GetModuleHandleW == nil || user.RegisterClassW == nil || user.CreateWindowExW == nil {
 		return fmt.Errorf("%w: win32 window procs", ErrUnavailable)
 	}
 	return nil

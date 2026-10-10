@@ -101,24 +101,17 @@ func Load(ctx context.Context) (*Symbols, error) {
 	if err := native.Prepare(ctx); err != nil {
 		return nil, err
 	}
-	glib, err := openOne("libglib-2.0.so.0")
-	if err != nil {
-		return nil, err
+	for _, name := range []string{"libglib-2.0.so.0", "libgobject-2.0.so.0", "libgio-2.0.so.0"} {
+		if err := probe(name); err != nil {
+			return nil, err
+		}
 	}
-	gobject, err := openOne("libgobject-2.0.so.0")
-	if err != nil {
-		return nil, err
-	}
-	gio, err := openOne("libgio-2.0.so.0")
-	if err != nil {
-		return nil, err
-	}
-	web, gtk, jsc, gtk3, err := openWebKit()
+	gtk3, err := openWebKit()
 	if err != nil {
 		return nil, err
 	}
 	s := &Symbols{gtk3: gtk3}
-	if err := bindStack(s, glib, gobject, gio, web, gtk, jsc); err != nil {
+	if err := bindStack(s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -135,68 +128,85 @@ type gobjectNewPair struct {
 	New func(objectType uintptr, name1 *byte, value1 uintptr, name2 *byte, value2, end uintptr) uintptr `sym:"g_object_new"`
 }
 
-func bindStack(s *Symbols, glib, gobject, gio, web, gtk, jsc uintptr) error {
-	glibSyms, err := native.Bind[Glib](glib)
+func bindStack(s *Symbols) error {
+	glibSyms, err := bindOne[Glib]("libglib-2.0.so.0")
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
-	objSyms, err := native.Bind[GObject](gobject)
+	objSyms, err := bindOne[GObject]("libgobject-2.0.so.0")
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
-	gioSyms, err := native.Bind[Gio](gio)
+	gioSyms, err := bindOne[Gio]("libgio-2.0.so.0")
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
-	gioOpt, err := native.Bind[GioOpt](gio)
+	gioOpt, err := bindOne[GioOpt]("libgio-2.0.so.0")
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
-	gtkSyms, err := native.Bind[GTK](gtk)
+	gtkSoname := "libgtk-4.so.1"
+	webSoname := "libwebkitgtk-6.0.so.4"
+	jscSoname := "libjavascriptcoregtk-6.0.so.1"
+	if s.gtk3 {
+		gtkSoname = "libgtk-3.so.0"
+		webSoname = "libwebkit2gtk-4.1.so.0"
+		jscSoname = "libjavascriptcoregtk-4.1.so.0"
+	}
+	gtkSyms, err := bindOne[GTK](gtkSoname)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
 	var gtk3Syms GTK3
 	var gtk4Syms GTK4
 	if s.gtk3 {
-		gtk3Syms, err = native.Bind[GTK3](gtk)
+		gtk3Syms, err = bindOne[GTK3](gtkSoname)
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrUnavailable, err)
+			return err
 		}
-		typed, err := native.Bind[gtk3WindowNew](gtk)
+		typed, err := bindOne[gtk3WindowNew](gtkSoname)
 		if err != nil {
 			return fmt.Errorf("%w: gtk_window_new", ErrUnavailable)
 		}
 		s.windowNewTyped = typed.New
-	} else if gtk4Syms, err = native.Bind[GTK4](gtk); err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+	} else if gtk4Syms, err = bindOne[GTK4](gtkSoname); err != nil {
+		return err
 	}
-	webSyms, err := native.Bind[WebKit](web)
+	webSyms, err := bindOne[WebKit](webSoname)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
-	webOpt, err := native.Bind[WebKitOpt](web)
+	webOpt, err := bindOne[WebKitOpt](webSoname)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
-	jscSyms, err := native.Bind[JSC](jsc)
+	jscSyms, err := bindOne[JSC](jscSoname)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrUnavailable, err)
+		return err
 	}
-	pair, err := native.Bind[gobjectNewPair](gobject)
+	pair, err := bindOne[gobjectNewPair]("libgobject-2.0.so.0")
 	if err != nil {
 		return fmt.Errorf("%w: g_object_new", ErrUnavailable)
 	}
 	s.objectNewPair = pair.New
 	var soupSyms Soup
-	if soupLib, openErr := openOne("libsoup-3.0.so.0"); openErr == nil {
-		soupSyms, err = native.Bind[Soup](soupLib)
+	if probe("libsoup-3.0.so.0") == nil {
+		soupSyms, err = bindOne[Soup]("libsoup-3.0.so.0")
 		if err != nil {
-			return fmt.Errorf("%w: %v", ErrUnavailable, err)
+			return err
 		}
 	}
 	assignSymbols(s, glibSyms, objSyms, gioSyms, gioOpt, gtkSyms, gtk3Syms, gtk4Syms, webSyms, webOpt, jscSyms, soupSyms)
 	return nil
+}
+
+func bindOne[T any](soname string) (T, error) {
+	got, err := native.BindIn[T](native.Global|native.Lazy, webkitDirs(), soname)
+	if err != nil {
+		var zero T
+		return zero, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	return got, nil
 }
 
 func assignSymbols(s *Symbols, glib Glib, obj GObject, gio Gio, gioOpt GioOpt, gtk GTK, gtk3 GTK3, gtk4 GTK4, web WebKit, webOpt WebKitOpt, jsc JSC, soup Soup) {
@@ -282,37 +292,33 @@ func webkitDirs() []string {
 
 // openWebKit prefers WebKitGTK 6 on GTK 4. WebKit2GTK 4.1 on GTK 3 is the
 // fallback, including the conda-forge webkit2gtk4.1 package.
-func openWebKit() (web, gtk, jsc uintptr, gtk3 bool, err error) {
-	web, err6 := openOne("libwebkitgtk-6.0.so.4")
+func openWebKit() (gtk3 bool, err error) {
+	err6 := probe("libwebkitgtk-6.0.so.4")
 	if err6 == nil {
-		gtk, err = openOne("libgtk-4.so.1")
-		if err != nil {
-			return 0, 0, 0, false, err
+		if err = probe("libgtk-4.so.1"); err != nil {
+			return false, err
 		}
-		jsc, err = openOne("libjavascriptcoregtk-6.0.so.1")
-		return web, gtk, jsc, false, err
+		return false, probe("libjavascriptcoregtk-6.0.so.1")
 	}
 	if native.Loaded("libgtk-4.so.1") {
-		return 0, 0, 0, false, fmt.Errorf("%v; %w: GTK 4 is already loaded", err6, ErrUnavailable)
+		return false, fmt.Errorf("%v; %w: GTK 4 is already loaded", err6, ErrUnavailable)
 	}
-	web, err41 := openOne("libwebkit2gtk-4.1.so.0")
+	err41 := probe("libwebkit2gtk-4.1.so.0")
 	if err41 != nil {
-		return 0, 0, 0, false, fmt.Errorf("%v; %v", err6, err41)
+		return false, fmt.Errorf("%v; %v", err6, err41)
 	}
-	gtk, err = openOne("libgtk-3.so.0")
-	if err != nil {
-		return 0, 0, 0, true, err
+	if err = probe("libgtk-3.so.0"); err != nil {
+		return true, err
 	}
-	jsc, err = openOne("libjavascriptcoregtk-4.1.so.0")
-	return web, gtk, jsc, true, err
+	return true, probe("libjavascriptcoregtk-4.1.so.0")
 }
 
-func openOne(soname string) (uintptr, error) {
-	lib, err := native.OpenIn(native.Global|native.Lazy, webkitDirs(), soname)
+func probe(soname string) error {
+	_, err := native.OpenIn(native.Global|native.Lazy, webkitDirs(), soname)
 	if err != nil {
-		return 0, fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
+		return fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
 	}
-	return lib, nil
+	return nil
 }
 
 // Init prepares GTK on the calling thread.

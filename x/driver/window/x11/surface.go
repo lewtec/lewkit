@@ -13,20 +13,16 @@ func (w *xwin) Surface() window.Surface {
 }
 
 var (
+	xlib    Xlib
 	xlibDpy uintptr
-	xOpen   func(name *byte) uintptr
 	loadX11 = native.Once(func() error {
-		lib, err := native.OpenChain(native.Global|native.Lazy, "libX11.so.6")
+		var err error
+		xlib, err = native.Bind[Xlib](native.Global|native.Lazy, "libX11.so.6")
 		if err != nil {
 			return err
 		}
-		got, err := native.Bind[Xlib](lib)
-		if err != nil {
-			return err
-		}
-		xOpen = got.XOpenDisplay
-		if xOpen != nil {
-			xlibDpy = xOpen(nil)
+		if xlib.XOpenDisplay != nil {
+			xlibDpy = xlib.XOpenDisplay(nil)
 		}
 		return nil
 	})

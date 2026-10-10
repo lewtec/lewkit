@@ -24,27 +24,8 @@ const (
 )
 
 var (
-	simpleNew   func(server, name uintptr, dir int32, dev, stream uintptr, spec *SampleSpec, chmap uintptr, attr *BufferAttr, errno *int32) uintptr
-	simpleFree  func(s uintptr)
-	simpleWrite func(s uintptr, data uintptr, nbytes uintptr, errno *int32) int32
-	simpleDrain func(s uintptr, errno *int32) int32
-	strerror    func(code int32) uintptr
-
-	mainloopNew      func() uintptr
-	mainloopFree     func(m uintptr)
-	mainloopAPI      func(m uintptr) uintptr
-	mainloopPrepare  func(m uintptr, timeout int32) int32
-	mainloopPoll     func(m uintptr) int32
-	mainloopDispatch func(m uintptr) int32
-
-	contextNew        func(api uintptr, name uintptr) uintptr
-	contextUnref      func(c uintptr)
-	contextConnect    func(c uintptr, server uintptr, flags int32, api uintptr) int32
-	contextDisconnect func(c uintptr)
-	contextState      func(c uintptr) int32
-	contextErrno      func(c uintptr) int32
-	contextSinks      func(c uintptr, cb uintptr, userdata uintptr) uintptr
-	operationUnref    func(o uintptr)
+	simple Simple
+	full   Pulse
 )
 
 type listState struct {
@@ -66,46 +47,20 @@ var available = native.Once(bindAll)
 func Available() error { return available() }
 
 func bindAll() error {
-	simple, err := native.OpenChain(native.Lazy, "libpulse-simple.so.0")
+	var err error
+	simple, err = native.Bind[Simple](native.Lazy, "libpulse-simple.so.0")
 	if err != nil {
 		return fmt.Errorf("libpulse-simple.so.0: %w", err)
 	}
-	full, err := native.OpenChain(native.Lazy, "libpulse.so.0")
+	full, err = native.Bind[Pulse](native.Lazy, "libpulse.so.0")
 	if err != nil {
 		return fmt.Errorf("libpulse.so.0: %w", err)
 	}
-	simpleSyms, err := native.Bind[Simple](simple)
-	if err != nil {
-		return err
-	}
-	pulseSyms, err := native.Bind[Pulse](full)
-	if err != nil {
-		return err
-	}
-	simpleNew = simpleSyms.PaSimpleNew
-	simpleFree = simpleSyms.PaSimpleFree
-	simpleWrite = simpleSyms.PaSimpleWrite
-	simpleDrain = simpleSyms.PaSimpleDrain
-	strerror = pulseSyms.PaStrerror
-	mainloopNew = pulseSyms.PaMainloopNew
-	mainloopFree = pulseSyms.PaMainloopFree
-	mainloopAPI = pulseSyms.PaMainloopGetApi
-	mainloopPrepare = pulseSyms.PaMainloopPrepare
-	mainloopPoll = pulseSyms.PaMainloopPoll
-	mainloopDispatch = pulseSyms.PaMainloopDispatch
-	contextNew = pulseSyms.PaContextNew
-	contextUnref = pulseSyms.PaContextUnref
-	contextConnect = pulseSyms.PaContextConnect
-	contextDisconnect = pulseSyms.PaContextDisconnect
-	contextState = pulseSyms.PaContextGetState
-	contextErrno = pulseSyms.PaContextErrno
-	contextSinks = pulseSyms.PaContextGetSinkInfoList
-	operationUnref = pulseSyms.PaOperationUnref
 	return nil
 }
 
 func pulseErr(code int32) error {
-	text := native.GoString(strerror(code))
+	text := native.GoString(full.PaStrerror(code))
 	if text == "" {
 		return errUnavailable
 	}
@@ -154,7 +109,7 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 	}
 	streamB := native.CString(stream)
 	var errno int32
-	h := simpleNew(0, ptr(clientB), streamPlayback, ptr(sinkB), ptr(streamB), &spec, 0, &attr, &errno)
+	h := simple.PaSimpleNew(0, ptr(clientB), streamPlayback, ptr(sinkB), ptr(streamB), &spec, 0, &attr, &errno)
 	runtime.KeepAlive(clientB)
 	runtime.KeepAlive(sinkB)
 	runtime.KeepAlive(streamB)
@@ -192,7 +147,7 @@ func (s *Stream) Write(p []byte) error {
 			return nil
 		}
 		var errno int32
-		rc := simpleWrite(s.h, uintptr(unsafe.Pointer(&p[0])), uintptr(n), &errno)
+		rc := simple.PaSimpleWrite(s.h, uintptr(unsafe.Pointer(&p[0])), uintptr(n), &errno)
 		runtime.KeepAlive(p)
 		if rc < 0 {
 			return pulseErr(errno)
@@ -210,12 +165,12 @@ func (s *Stream) Close() error {
 	h := s.h
 	s.h = 0
 	if s.ctx.Err() != nil {
-		simpleFree(h)
+		simple.PaSimpleFree(h)
 		return nil
 	}
 	var errno int32
-	rc := simpleDrain(h, &errno)
-	simpleFree(h)
+	rc := simple.PaSimpleDrain(h, &errno)
+	simple.PaSimpleFree(h)
 	if rc < 0 {
 		return pulseErr(errno)
 	}
@@ -227,30 +182,30 @@ func List(ctx context.Context) ([]Sink, error) {
 	if err := Available(); err != nil {
 		return nil, err
 	}
-	loop := mainloopNew()
+	loop := full.PaMainloopNew()
 	if loop == 0 {
 		return nil, errMainloop
 	}
-	defer mainloopFree(loop)
+	defer full.PaMainloopFree(loop)
 	name := native.CString(release.Name())
-	ctxp := contextNew(mainloopAPI(loop), ptr(name))
+	ctxp := full.PaContextNew(full.PaMainloopGetApi(loop), ptr(name))
 	runtime.KeepAlive(name)
 	if ctxp == 0 {
 		return nil, errContext
 	}
-	defer contextUnref(ctxp)
-	if rc := contextConnect(ctxp, 0, 0, 0); rc < 0 {
-		return nil, pulseErr(contextErrno(ctxp))
+	defer full.PaContextUnref(ctxp)
+	if rc := full.PaContextConnect(ctxp, 0, 0, 0); rc < 0 {
+		return nil, pulseErr(full.PaContextErrno(ctxp))
 	}
-	defer contextDisconnect(ctxp)
+	defer full.PaContextDisconnect(ctxp)
 	if err := wait(ctx, loop, func() bool {
-		state := contextState(ctxp)
+		state := full.PaContextGetState(ctxp)
 		return state == contextReady || state == contextFailed || state == contextTerminated
 	}); err != nil {
 		return nil, err
 	}
-	if contextState(ctxp) != contextReady {
-		return nil, pulseErr(contextErrno(ctxp))
+	if full.PaContextGetState(ctxp) != contextReady {
+		return nil, pulseErr(full.PaContextErrno(ctxp))
 	}
 	sinkOnce.Do(func() {
 		sinkCB = purego.NewCallback(onSink)
@@ -259,11 +214,11 @@ func List(ctx context.Context) ([]Sink, error) {
 	state := &listState{}
 	lists.Store(id, state)
 	defer lists.Delete(id)
-	op := contextSinks(ctxp, sinkCB, id)
+	op := full.PaContextGetSinkInfoList(ctxp, sinkCB, id)
 	if op == 0 {
-		return nil, pulseErr(contextErrno(ctxp))
+		return nil, pulseErr(full.PaContextErrno(ctxp))
 	}
-	defer operationUnref(op)
+	defer full.PaOperationUnref(op)
 	if err := wait(ctx, loop, func() bool { return state.done.Load() }); err != nil {
 		return nil, err
 	}
@@ -285,7 +240,7 @@ func wait(ctx context.Context, loop uintptr, done func() bool) error {
 		if time.Now().After(deadline) {
 			return errTimeout
 		}
-		if mainloopPrepare(loop, 200) < 0 || mainloopPoll(loop) < 0 || mainloopDispatch(loop) < 0 {
+		if full.PaMainloopPrepare(loop, 200) < 0 || full.PaMainloopPoll(loop) < 0 || full.PaMainloopDispatch(loop) < 0 {
 			return errMainloop
 		}
 	}

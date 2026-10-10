@@ -4,24 +4,18 @@ package thread
 
 import "github.com/lewtec/lewkit/x/ffi/native"
 
-var pthreadMainNP func() int32
+var mainMain Main
 
 // ProcessMain reports whether this goroutine is on the process main OS thread.
 var loadMain = native.Once(func() error {
-	if err := loadLibc(); err != nil {
-		return err
-	}
-	got, err := native.Bind[Main](libc)
-	if err != nil {
-		return err
-	}
-	pthreadMainNP = got.PthreadMainNp
-	return nil
+	var err error
+	mainMain, err = native.Bind[Main](native.Lazy, libcPath)
+	return err
 })
 
 func ProcessMain() bool {
-	if loadMain() == nil && pthreadMainNP != nil {
-		return pthreadMainNP() != 0
+	if loadMain() == nil && mainMain.PthreadMainNp != nil {
+		return mainMain.PthreadMainNp() != 0
 	}
 	return processMainTID != 0 && osThread() == processMainTID
 }

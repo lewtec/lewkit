@@ -34,20 +34,8 @@ const (
 )
 
 type eglLib struct {
-	getDisplay     func(uintptr) uintptr
-	getPlatform    func(uint32, uintptr, uintptr) uintptr
-	initialize     func(uintptr, *int32, *int32) uint32
-	bindAPI        func(uint32) uint32
-	chooseConfig   func(uintptr, *int32, *uintptr, int32, *int32) uint32
-	createContext  func(uintptr, uintptr, uintptr, *int32) uintptr
-	createWindow   func(uintptr, uintptr, uintptr, *int32) uintptr
-	createPbuffer  func(uintptr, uintptr, *int32) uintptr
-	makeCurrent    func(uintptr, uintptr, uintptr, uintptr) uint32
-	swap           func(uintptr, uintptr) uint32
-	destroyContext func(uintptr, uintptr) uint32
-	destroySurface func(uintptr, uintptr) uint32
-	getProc        func(*byte) uintptr
-	getError       func() int32
+	EGL
+	EGLPlatform
 }
 
 type eglContext struct {
@@ -63,35 +51,15 @@ type eglContext struct {
 }
 
 var loadEGL = native.Singleton(func() (*eglLib, error) {
-	lib, err := native.OpenChain(native.Now|native.Global, "libEGL.so.1", "libEGL.so")
+	eglSyms, err := native.Bind[EGL](native.Now|native.Global, "libEGL.so.1", "libEGL.so")
 	if err != nil {
 		return nil, err
 	}
-	eglSyms, err := native.Bind[EGL](lib)
+	plat, err := native.Bind[EGLPlatform](native.Now|native.Global, "libEGL.so.1", "libEGL.so")
 	if err != nil {
 		return nil, err
 	}
-	plat, err := native.Bind[EGLPlatform](lib)
-	if err != nil {
-		return nil, err
-	}
-	e := &eglLib{
-		getDisplay:     eglSyms.EglGetDisplay,
-		getPlatform:    plat.EglGetPlatformDisplay,
-		initialize:     eglSyms.EglInitialize,
-		bindAPI:        eglSyms.EglBindAPI,
-		chooseConfig:   eglSyms.EglChooseConfig,
-		createContext:  eglSyms.EglCreateContext,
-		createWindow:   eglSyms.EglCreateWindowSurface,
-		createPbuffer:  eglSyms.EglCreatePbufferSurface,
-		makeCurrent:    eglSyms.EglMakeCurrent,
-		swap:           eglSyms.EglSwapBuffers,
-		destroyContext: eglSyms.EglDestroyContext,
-		destroySurface: eglSyms.EglDestroySurface,
-		getProc:        eglSyms.EglGetProcAddress,
-		getError:       eglSyms.EglGetError,
-	}
-	return e, nil
+	return &eglLib{EGL: eglSyms, EGLPlatform: plat}, nil
 })
 
 func preloadGL(gles bool) (uintptr, error) {
@@ -128,12 +96,12 @@ func openEGL(nativeDisplay, window uintptr, gles, compute, replace bool) (*eglCo
 	var last error
 	for _, dpy := range eglDisplays(lib, nativeDisplay) {
 		var vmaj, vmin int32
-		if lib.initialize(dpy, &vmaj, &vmin) == 0 {
-			last = fmt.Errorf("%w: eglInitialize 0x%x", ErrUnavailable, lib.getError())
+		if lib.EglInitialize(dpy, &vmaj, &vmin) == 0 {
+			last = fmt.Errorf("%w: eglInitialize 0x%x", ErrUnavailable, lib.EglGetError())
 			continue
 		}
-		if lib.bindAPI(api) == 0 {
-			last = fmt.Errorf("%w: eglBindAPI 0x%x", ErrUnavailable, lib.getError())
+		if lib.EglBindAPI(api) == 0 {
+			last = fmt.Errorf("%w: eglBindAPI 0x%x", ErrUnavailable, lib.EglGetError())
 			continue
 		}
 		cfg, err := eglConfig(lib, dpy, gles, window != 0)
@@ -150,38 +118,38 @@ func openEGL(nativeDisplay, window uintptr, gles, compute, replace bool) (*eglCo
 		if window != 0 {
 			surf, err := eglWindow(lib, dpy, cfg, window)
 			if err != nil {
-				lib.destroyContext(dpy, ctx)
+				lib.EglDestroyContext(dpy, ctx)
 				last = err
 				continue
 			}
-			if lib.makeCurrent(dpy, surf, surf, ctx) == 0 {
-				lib.destroySurface(dpy, surf)
-				lib.destroyContext(dpy, ctx)
-				last = fmt.Errorf("%w: eglMakeCurrent 0x%x", ErrUnavailable, lib.getError())
+			if lib.EglMakeCurrent(dpy, surf, surf, ctx) == 0 {
+				lib.EglDestroySurface(dpy, surf)
+				lib.EglDestroyContext(dpy, ctx)
+				last = fmt.Errorf("%w: eglMakeCurrent 0x%x", ErrUnavailable, lib.EglGetError())
 				continue
 			}
-			lib.makeCurrent(dpy, 0, 0, 0)
+			lib.EglMakeCurrent(dpy, 0, 0, 0)
 			out.surf = surf
 			return out, nil
 		}
-		if lib.makeCurrent(dpy, 0, 0, ctx) != 0 {
-			lib.makeCurrent(dpy, 0, 0, 0)
+		if lib.EglMakeCurrent(dpy, 0, 0, ctx) != 0 {
+			lib.EglMakeCurrent(dpy, 0, 0, 0)
 			return out, nil
 		}
 		surf, err := eglPbuffer(lib, dpy, cfg)
 		if err != nil {
-			lib.destroyContext(dpy, ctx)
+			lib.EglDestroyContext(dpy, ctx)
 			last = err
 			continue
 		}
 		out.surf = surf
-		if lib.makeCurrent(dpy, surf, surf, ctx) == 0 {
-			lib.destroySurface(dpy, surf)
-			lib.destroyContext(dpy, ctx)
-			last = fmt.Errorf("%w: eglMakeCurrent 0x%x", ErrUnavailable, lib.getError())
+		if lib.EglMakeCurrent(dpy, surf, surf, ctx) == 0 {
+			lib.EglDestroySurface(dpy, surf)
+			lib.EglDestroyContext(dpy, ctx)
+			last = fmt.Errorf("%w: eglMakeCurrent 0x%x", ErrUnavailable, lib.EglGetError())
 			continue
 		}
-		lib.makeCurrent(dpy, 0, 0, 0)
+		lib.EglMakeCurrent(dpy, 0, 0, 0)
 		return out, nil
 	}
 	if last == nil {
@@ -204,15 +172,15 @@ func eglDisplays(lib *eglLib, native uintptr) []uintptr {
 		out = append(out, d)
 	}
 	if native != 0 {
-		if lib.getPlatform != nil {
-			add(lib.getPlatform(eglPlatformX11, native, 0))
+		if lib.EglGetPlatformDisplay != nil {
+			add(lib.EglGetPlatformDisplay(eglPlatformX11, native, 0))
 		}
-		add(lib.getDisplay(native))
+		add(lib.EglGetDisplay(native))
 		return out
 	}
-	add(lib.getDisplay(0))
-	if lib.getPlatform != nil {
-		add(lib.getPlatform(eglPlatformSurfaceless, 0, 0))
+	add(lib.EglGetDisplay(0))
+	if lib.EglGetPlatformDisplay != nil {
+		add(lib.EglGetPlatformDisplay(eglPlatformSurfaceless, 0, 0))
 	}
 	return out
 }
@@ -237,8 +205,8 @@ func eglConfig(lib *eglLib, dpy uintptr, gles, window bool) (uintptr, error) {
 	}
 	var cfg uintptr
 	var n int32
-	if lib.chooseConfig(dpy, &attribs[0], &cfg, 1, &n) == 0 || n < 1 || cfg == 0 {
-		return 0, fmt.Errorf("%w: eglChooseConfig 0x%x", ErrUnavailable, lib.getError())
+	if lib.EglChooseConfig(dpy, &attribs[0], &cfg, 1, &n) == 0 || n < 1 || cfg == 0 {
+		return 0, fmt.Errorf("%w: eglChooseConfig 0x%x", ErrUnavailable, lib.EglGetError())
 	}
 	return cfg, nil
 }
@@ -253,26 +221,26 @@ func eglCreate(lib *eglLib, dpy, cfg uintptr, gles bool, major, minor int32) (ui
 			eglNone,
 		}
 	}
-	ctx := lib.createContext(dpy, cfg, 0, &attribs[0])
+	ctx := lib.EglCreateContext(dpy, cfg, 0, &attribs[0])
 	if ctx == 0 {
-		return 0, fmt.Errorf("%w: eglCreateContext 0x%x", ErrUnavailable, lib.getError())
+		return 0, fmt.Errorf("%w: eglCreateContext 0x%x", ErrUnavailable, lib.EglGetError())
 	}
 	return ctx, nil
 }
 
 func eglWindow(lib *eglLib, dpy, cfg, win uintptr) (uintptr, error) {
-	surf := lib.createWindow(dpy, cfg, win, nil)
+	surf := lib.EglCreateWindowSurface(dpy, cfg, win, nil)
 	if surf == 0 {
-		return 0, fmt.Errorf("%w: eglCreateWindowSurface 0x%x", ErrUnavailable, lib.getError())
+		return 0, fmt.Errorf("%w: eglCreateWindowSurface 0x%x", ErrUnavailable, lib.EglGetError())
 	}
 	return surf, nil
 }
 
 func eglPbuffer(lib *eglLib, dpy, cfg uintptr) (uintptr, error) {
 	attribs := []int32{eglWidth, 1, eglHeight, 1, eglNone}
-	surf := lib.createPbuffer(dpy, cfg, &attribs[0])
+	surf := lib.EglCreatePbufferSurface(dpy, cfg, &attribs[0])
 	if surf == 0 {
-		return 0, fmt.Errorf("%w: eglCreatePbufferSurface 0x%x", ErrUnavailable, lib.getError())
+		return 0, fmt.Errorf("%w: eglCreatePbufferSurface 0x%x", ErrUnavailable, lib.EglGetError())
 	}
 	return surf, nil
 }
@@ -282,8 +250,8 @@ func (c *eglContext) Make() error {
 		return ErrClosed
 	}
 	draw, read := c.surf, c.surf
-	if c.lib.makeCurrent(c.dpy, draw, read, c.ctx) == 0 {
-		return fmt.Errorf("%w: eglMakeCurrent 0x%x", ErrLost, c.lib.getError())
+	if c.lib.EglMakeCurrent(c.dpy, draw, read, c.ctx) == 0 {
+		return fmt.Errorf("%w: eglMakeCurrent 0x%x", ErrLost, c.lib.EglGetError())
 	}
 	return nil
 }
@@ -292,15 +260,15 @@ func (c *eglContext) Unmake() {
 	if c == nil || c.lib == nil {
 		return
 	}
-	c.lib.makeCurrent(c.dpy, 0, 0, 0)
+	c.lib.EglMakeCurrent(c.dpy, 0, 0, 0)
 }
 
 func (c *eglContext) Swap() error {
 	if c == nil || c.lib == nil || c.surf == 0 || c.win == 0 {
 		return nil
 	}
-	if c.lib.swap(c.dpy, c.surf) == 0 {
-		return fmt.Errorf("%w: eglSwapBuffers 0x%x", ErrLost, c.lib.getError())
+	if c.lib.EglSwapBuffers(c.dpy, c.surf) == 0 {
+		return fmt.Errorf("%w: eglSwapBuffers 0x%x", ErrLost, c.lib.EglGetError())
 	}
 	return nil
 }
@@ -311,11 +279,11 @@ func (c *eglContext) Destroy() {
 	}
 	c.Unmake()
 	if c.surf != 0 {
-		c.lib.destroySurface(c.dpy, c.surf)
+		c.lib.EglDestroySurface(c.dpy, c.surf)
 		c.surf = 0
 	}
 	if c.ctx != 0 {
-		c.lib.destroyContext(c.dpy, c.ctx)
+		c.lib.EglDestroyContext(c.dpy, c.ctx)
 		c.ctx = 0
 	}
 }
@@ -327,8 +295,8 @@ func (c *eglContext) Proc(name string) uintptr {
 		return 0
 	}
 	buf := native.CString(name)
-	if c.lib.getProc != nil {
-		if p := c.lib.getProc(&buf[0]); p != 0 {
+	if c.lib.EglGetProcAddress != nil {
+		if p := c.lib.EglGetProcAddress(&buf[0]); p != 0 {
 			runtime.KeepAlive(buf)
 			return p
 		}
@@ -352,7 +320,7 @@ func (c *eglContext) Retarget(native uintptr, _, _ int) error {
 	}
 	c.Unmake()
 	if c.surf != 0 {
-		c.lib.destroySurface(c.dpy, c.surf)
+		c.lib.EglDestroySurface(c.dpy, c.surf)
 		c.surf = 0
 	}
 	surf, err := eglWindow(c.lib, c.dpy, c.cfg, native)

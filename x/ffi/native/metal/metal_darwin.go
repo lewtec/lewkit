@@ -86,7 +86,7 @@ var (
 	devOnce  sync.Once
 	devErr   error
 	devID    objc.ID
-	createFn func() uintptr
+	metalDev Metal
 )
 
 // Available reports whether this process can open a Metal device.
@@ -101,11 +101,11 @@ func systemDevice() (objc.ID, error) {
 			devErr = err
 			return
 		}
-		if createFn == nil {
+		if metalDev.MTLCreateSystemDefaultDevice == nil {
 			devErr = ErrUnavailable
 			return
 		}
-		id := objc.ID(createFn())
+		id := objc.ID(metalDev.MTLCreateSystemDefaultDevice())
 		if id == 0 {
 			devErr = ErrUnavailable
 			return
@@ -122,21 +122,18 @@ func loadFrameworks() error {
 	for _, path := range []string{
 		"/System/Library/Frameworks/Foundation.framework/Foundation",
 		"/System/Library/Frameworks/QuartzCore.framework/QuartzCore",
-		"/System/Library/Frameworks/Metal.framework/Metal",
 	} {
-		lib, err := native.Open(path, native.Global|native.Lazy)
-		if err != nil {
+		if _, err := native.Open(path, native.Global|native.Lazy); err != nil {
 			return fmt.Errorf("%w: %s", ErrUnavailable, path)
 		}
-		if path[len(path)-5:] == "Metal" {
-			got, err := native.Bind[Metal](lib)
-			if err != nil {
-				return fmt.Errorf("%w: %s", ErrUnavailable, path)
-			}
-			createFn = got.MTLCreateSystemDefaultDevice
-		}
 	}
-	if createFn == nil {
+	path := "/System/Library/Frameworks/Metal.framework/Metal"
+	var err error
+	metalDev, err = native.Bind[Metal](native.Global|native.Lazy, path)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrUnavailable, path)
+	}
+	if metalDev.MTLCreateSystemDefaultDevice == nil {
 		return ErrUnavailable
 	}
 	return nil

@@ -61,11 +61,7 @@ func JavaVMs() (int, error) {
 	if noted != 0 {
 		return 1, nil
 	}
-	lib, err := open("libnativehelper.so", "libart.so")
-	if err != nil {
-		return 0, err
-	}
-	got, err := native.Bind[JNI](lib)
+	got, err := native.Bind[JNI](native.Now, "libnativehelper.so", "libart.so")
 	if err != nil {
 		return 0, err
 	}
@@ -87,25 +83,9 @@ func OnLooper() (bool, error) {
 	if tid != 0 {
 		return tid == currentTID(), nil
 	}
-	lib, err := native.Open("libandroid.so", native.Now)
-	if err != nil {
-		return false, err
-	}
-	got, err := native.Bind[Looper](lib)
+	got, err := native.Bind[Looper](native.Now, "libandroid.so")
 	if err != nil {
 		return false, err
 	}
 	return got.ALooperForThread() != 0, nil
-}
-
-func open(names ...string) (uintptr, error) {
-	var err error
-	for _, name := range names {
-		var lib uintptr
-		lib, err = native.Open(name, native.Now)
-		if err == nil {
-			return lib, nil
-		}
-	}
-	return 0, err
 }

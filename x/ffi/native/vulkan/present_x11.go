@@ -41,13 +41,13 @@ func loadHost(w *wsi, d *Device) error {
 }
 
 func (h *xlibHost) poll() {
-	if h == nil || h.dpy == 0 || xPending == nil {
+	if h == nil || h.dpy == 0 || x11.XPending == nil {
 		return
 	}
-	for xPending(h.dpy) > 0 {
+	for x11.XPending(h.dpy) > 0 {
 		var raw [192]byte
 		ev := (*xEvent)(unsafe.Pointer(&raw[0]))
-		xNext(h.dpy, unsafe.Pointer(ev))
+		x11.XNextEvent(h.dpy, unsafe.Pointer(ev))
 		h.one(ev)
 	}
 }
@@ -128,70 +128,37 @@ func (h *xlibHost) destroy() {
 		return
 	}
 	if h.win != 0 {
-		xDestroyWindow(h.dpy, h.win)
+		x11.XDestroyWindow(h.dpy, h.win)
 	}
-	xCloseDisplay(h.dpy)
+	x11.XCloseDisplay(h.dpy)
 	h.dpy, h.win = 0, 0
 }
 
 var (
-	xOpenDisplay    func(name *byte) uintptr
-	xCloseDisplay   func(dpy uintptr) int32
-	xDefaultScreen  func(dpy uintptr) int32
-	xRootWindow     func(dpy uintptr, screen int32) uint64
-	xBlackPixel     func(dpy uintptr, screen int32) uint64
-	xWhitePixel     func(dpy uintptr, screen int32) uint64
-	xCreateSimple   func(dpy uintptr, parent uint64, x, y int32, w, h, border uint32, borderC, bg uint64) uint64
-	xStoreName      func(dpy uintptr, win uint64, name *byte) int32
-	xMapWindow      func(dpy uintptr, win uint64) int32
-	xFlush          func(dpy uintptr) int32
-	xDestroyWindow  func(dpy uintptr, win uint64) int32
-	xSelectInput    func(dpy uintptr, win uint64, mask int64) int32
-	xPending        func(dpy uintptr) int32
-	xNext           func(dpy uintptr, ev unsafe.Pointer) int32
-	xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int32) uint64
-	xChangeProperty func(dpy uintptr, win, property, typ uint64, format, mode int32, data unsafe.Pointer, nelements int32) int32
-	xlibOnce        uint32
+	x11      X11
+	x11opt   X11Opt
+	xlibOnce uint32
 )
 
 const xInputMask int64 = 1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<6 | 1<<15 | 1<<17
 
 func xOpen() (uintptr, error) {
 	if xlibOnce == 0 {
-		lib, err := native.OpenChain(0, "libX11.so.6")
-		if err != nil {
-			return 0, fmt.Errorf("%w: libX11", ErrUnavailable)
-		}
-		x11Syms, err := native.Bind[X11](lib)
+		var err error
+		x11, err = native.Bind[X11](0, "libX11.so.6")
 		if err != nil {
 			return 0, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
 		}
-		opt, err := native.Bind[X11Opt](lib)
+		x11opt, err = native.Bind[X11Opt](0, "libX11.so.6")
 		if err != nil {
 			return 0, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
 		}
-		xOpenDisplay = x11Syms.XOpenDisplay
-		xCloseDisplay = x11Syms.XCloseDisplay
-		xDefaultScreen = x11Syms.XDefaultScreen
-		xRootWindow = x11Syms.XRootWindow
-		xBlackPixel = x11Syms.XBlackPixel
-		xWhitePixel = x11Syms.XWhitePixel
-		xCreateSimple = x11Syms.XCreateSimpleWindow
-		xStoreName = x11Syms.XStoreName
-		xMapWindow = x11Syms.XMapWindow
-		xFlush = x11Syms.XFlush
-		xDestroyWindow = x11Syms.XDestroyWindow
-		xSelectInput = x11Syms.XSelectInput
-		xPending = x11Syms.XPending
-		xNext = x11Syms.XNextEvent
-		xInternAtom = opt.XInternAtom
-		xChangeProperty = opt.XChangeProperty
 		xlibOnce = 1
 	}
-	if xOpenDisplay == nil {
+	if x11.XOpenDisplay == nil {
 		return 0, fmt.Errorf("%w: XOpenDisplay", ErrUnavailable)
 	}
-	dpy := xOpenDisplay(nil)
+	dpy := x11.XOpenDisplay(nil)
 	if dpy == 0 {
 		return 0, fmt.Errorf("%w: DISPLAY", ErrUnavailable)
 	}

@@ -6,52 +6,79 @@ import (
 	"strings"
 )
 
-// Bind resolves the exported function fields of T from lib and returns the
-// filled struct. Each field carries a sym tag naming the C symbol. A tag
-// of the form `sym:"name,soft"` leaves that field nil when the symbol is
-// missing. T is a struct, and its function fields are exported so this
-// package can set them.
-func Bind[T any](lib uintptr) (T, error) {
-	var out T
-	v := reflect.ValueOf(&out).Elem()
-	if v.Kind() != reflect.Struct {
-		var zero T
-		return zero, fmt.Errorf("native.Bind: %s is not a struct", v.Type())
+// Bind loads the first library in names and returns T filled from it.
+// names are sonames or paths, searched the same way as OpenChain.
+// flags 0 means Lazy. Each exported func field of T carries a sym tag
+// naming the C symbol. A tag of the form `sym:"name,soft"` leaves that
+// field nil when the symbol is missing.
+func Bind[T any](flags int, names ...string) (T, error) {
+	return BindIn[T](flags, nil, names...)
+}
+
+// BindIn is Bind with extra directories searched before the default chain.
+func BindIn[T any](flags int, extra []string, names ...string) (T, error) {
+	var zero T
+	if err := checkBind(reflect.TypeOf(&zero).Elem()); err != nil {
+		return zero, err
 	}
-	rt := v.Type()
+	lib, err := OpenIn(flags, extra, names...)
+	if err != nil {
+		return zero, err
+	}
+	if err := fillBind(reflect.ValueOf(&zero).Elem(), lib); err != nil {
+		var fail T
+		return fail, err
+	}
+	return zero, nil
+}
+
+func checkBind(rt reflect.Type) error {
+	if rt.Kind() != reflect.Struct {
+		return fmt.Errorf("native.Bind: %s is not a struct", rt)
+	}
 	for i := 0; i < rt.NumField(); i++ {
 		sf := rt.Field(i)
 		tag, ok := sf.Tag.Lookup("sym")
 		if !ok {
 			if sf.Type.Kind() == reflect.Func {
-				var zero T
-				return zero, fmt.Errorf("native.Bind: %s.%s missing sym tag", rt.Name(), sf.Name)
+				return fmt.Errorf("native.Bind: %s.%s missing sym tag", rt.Name(), sf.Name)
 			}
+			continue
+		}
+		if _, _, err := parseSym(tag); err != nil {
+			return fmt.Errorf("native.Bind: %s.%s: %w", rt.Name(), sf.Name, err)
+		}
+		if sf.Type.Kind() != reflect.Func || !sf.IsExported() {
+			return fmt.Errorf("native.Bind: %s.%s is not an exported function", rt.Name(), sf.Name)
+		}
+	}
+	return nil
+}
+
+func fillBind(v reflect.Value, lib uintptr) error {
+	rt := v.Type()
+	for i := 0; i < rt.NumField(); i++ {
+		sf := rt.Field(i)
+		tag, ok := sf.Tag.Lookup("sym")
+		if !ok {
 			continue
 		}
 		name, soft, err := parseSym(tag)
 		if err != nil {
-			var zero T
-			return zero, fmt.Errorf("native.Bind: %s.%s: %w", rt.Name(), sf.Name, err)
-		}
-		if sf.Type.Kind() != reflect.Func || !sf.IsExported() {
-			var zero T
-			return zero, fmt.Errorf("native.Bind: %s.%s is not an exported function", rt.Name(), sf.Name)
+			return fmt.Errorf("native.Bind: %s.%s: %w", rt.Name(), sf.Name, err)
 		}
 		field := v.Field(i)
 		if !field.CanSet() {
-			var zero T
-			return zero, fmt.Errorf("native.Bind: %s.%s cannot be set", rt.Name(), sf.Name)
+			return fmt.Errorf("native.Bind: %s.%s cannot be set", rt.Name(), sf.Name)
 		}
 		if err := bindExport(lib, name, field.Addr().Interface()); err != nil {
 			if soft {
 				continue
 			}
-			var zero T
-			return zero, err
+			return err
 		}
 	}
-	return out, nil
+	return nil
 }
 
 func parseSym(tag string) (string, bool, error) {

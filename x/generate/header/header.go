@@ -27,7 +27,7 @@ type Config struct {
 	Define  []string
 	Libs    []string
 	// Bind names the struct whose fields are the C functions. Empty means Symbols.
-	// Callers pass that struct to native.Bind.
+	// native.Bind dlopens the library and returns that struct.
 	Bind string
 	// Soft marks every function field optional. A missing symbol stays nil.
 	Soft bool

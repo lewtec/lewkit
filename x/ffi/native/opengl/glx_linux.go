@@ -47,15 +47,11 @@ func openGLX(dpy, win uintptr) (glContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	xLib, err := native.OpenChain(native.Now|native.Global, "libX11.so.6")
+	xSyms, err := native.Bind[X11](native.Now|native.Global, "libX11.so.6")
 	if err != nil {
 		return nil, err
 	}
-	xSyms, err := native.Bind[X11](xLib)
-	if err != nil {
-		return nil, err
-	}
-	glSyms, err := native.Bind[GLX](glLib)
+	glSyms, err := native.Bind[GLX](native.Now|native.Global, "libGL.so.1")
 	if err != nil {
 		return nil, err
 	}
