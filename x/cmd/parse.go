@@ -944,7 +944,13 @@ type rvalue struct{ reflect.Value }
 
 func (v rvalue) ptr() rvalue {
 	if v.Kind() == reflect.Pointer {
-		return v
+		// FieldByIndex sets flagRO on an unexported field. Method values
+		// keep that flag, and Call panics. NewAt addresses the same
+		// object with a clear flag. Nil and exported pointers stay put.
+		if v.IsNil() || v.CanInterface() {
+			return v
+		}
+		return rvalue{reflect.NewAt(v.Type().Elem(), v.UnsafePointer())}
 	}
 	return rvalue{reflect.NewAt(v.Type(), v.Addr().UnsafePointer())}
 }
