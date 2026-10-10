@@ -160,10 +160,11 @@ jniFail:
 
 // installSigGate wraps the SIGBUS and SIGSEGV handlers libpreinit just
 // installed. The saved address is runtime.sigtramp. A fault outside
-// the Go text is delivered to it with g cleared, so sigfwdgo forwards
-// to the handler Go replaced. That is ART, which turns null checks
-// into Java exceptions. g is nil on this thread; this frame is NOFRAME
-// so the assembler does not load it.
+// the Go text is handed to the handler Go replaced, which is ART.
+// SA_ONSTACK is cleared: bionic gives every pthread its own small
+// sigaltstack, and delivering there killed the WebView GPU thread
+// before ART or debuggerd could run. g is nil on this thread; this
+// frame is NOFRAME so the assembler does not load it.
 TEXT ·installSigGate(SB),NOSPLIT|NOFRAME,$0
 	SUB	$128, RSP
 	MOVD	R30, 120(RSP)
@@ -199,7 +200,11 @@ installOne:
 
 	MOVD	$·sigGate(SB), R6
 	MOVD	R6, 32(RSP)
+	// sa_flags. Drop SA_ONSTACK (0x8000000) so the kernel delivers
+	// on the faulting thread's own stack.
 	MOVD	8(RSP), R6
+	MOVD	$0x8000000, R7
+	BIC	R7, R6, R6
 	MOVD	R6, 40(RSP)
 	MOVD	16(RSP), R6
 	MOVD	R6, 48(RSP)
@@ -229,9 +234,12 @@ GLOBL ·goSigtramp(SB), NOPTR, $8
 // sigGate is the wrapped SIGSEGV handler. R0 is the signal, R1 the
 // siginfo, and R2 the kernel ucontext. Go 1.27's arm64 ucontext keeps
 // mcontext at 176 and sigcontext.pc at 264, so the faulting PC is at
-// 440(R2). A PC outside runtime.text..runtime.etext is not a Go
-// fault: clear g so the trampoline forwards. The faulting thread's
-// x28 is restored on the way out; sigreturn restores it anyway.
+// 440(R2). A PC outside runtime.text..runtime.etext belongs to ART:
+// call runtime.fwdSig[signo] directly. sigtrampgo would run with g
+// cleared and still consume the faulting thread's stack; that path
+// died inside the handler, so zygote reported signal 11 and debuggerd
+// never logged. A PC inside Go text still goes to sigtramp. sigreturn
+// restores the faulting thread's x28.
 TEXT ·sigGate(SB),NOSPLIT|NOFRAME,$0
 	SUB	$48, RSP
 	STP	(R29, R30), 32(RSP)
@@ -250,6 +258,18 @@ TEXT ·sigGate(SB),NOSPLIT|NOFRAME,$0
 
 sigOutside:
 	MOVD	ZR, g
+	// runtime.fwdSig is [_NSIG]uintptr. SIG_DFL is 0 and SIG_IGN is 1.
+	MOVW	0(RSP), R5
+	MOVD	$runtime·fwdSig(SB), R4
+	LSL	$3, R5, R5
+	MOVD	(R4)(R5), R4
+	CMP	$1, R4
+	BLS	sigCall
+	MOVD	0(RSP), R0
+	MOVD	8(RSP), R1
+	MOVD	16(RSP), R2
+	BL	(R4)
+	B	sigDone
 
 sigCall:
 	MOVD	0(RSP), R0
