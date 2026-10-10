@@ -140,16 +140,20 @@ func bindDLLs() error {
 	if err != nil {
 		return err
 	}
-	if err := native.Bind(d3d, "D3D12CreateDevice", &d3d12CreateDevice); err != nil {
+	if err := BindD3D12(d3d); err != nil {
 		return err
 	}
-	if err := native.Bind(d3d, "D3D12SerializeRootSignature", &serializeRootSig); err != nil {
+	if err := BindDXGI(dxgi); err != nil {
 		return err
 	}
-	if err := native.Bind(dxgi, "CreateDXGIFactory2", &createFactory2); err != nil {
+	if err := BindD3DCompile(compiler); err != nil {
 		return err
 	}
-	return native.Bind(compiler, "D3DCompile", &d3dCompile)
+	d3d12CreateDevice = D3D12CreateDevice
+	serializeRootSig = D3D12SerializeRootSignature
+	createFactory2 = CreateDXGIFactory2
+	d3dCompile = D3DCompile
+	return nil
 }
 
 type pins struct {

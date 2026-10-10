@@ -5,6 +5,7 @@ package vulkan
 import (
 	"fmt"
 	"unicode/utf16"
+	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -97,13 +98,13 @@ func (h *win32Host) poll() {
 		return
 	}
 	var msg win32Msg
-	for peekMessage(&msg, h.hwnd, 0, 0, 1) {
+	for peekMessage(unsafe.Pointer(&msg), h.hwnd, 0, 0, 1) {
 		h.one(msg)
 		if translateMessage != nil {
-			translateMessage(&msg)
+			translateMessage(unsafe.Pointer(&msg))
 		}
 		if dispatchMessage != nil {
-			dispatchMessage(&msg)
+			dispatchMessage(unsafe.Pointer(&msg))
 		}
 	}
 }
@@ -152,13 +153,13 @@ var (
 	user32           uintptr
 	classReady       bool
 	getModuleHandle  func(name *uint16) uintptr
-	registerClass    func(wc *wndClassW) uint16
+	registerClass    func(wc unsafe.Pointer) uint16
 	createWindow     func(ex uint32, class, title *uint16, style uint32, x, y, w, h int32, parent, menu, inst, param uintptr) uintptr
 	showWindow       func(hwnd uintptr, cmd int32) int32
 	destroyWindow    func(hwnd uintptr) int32
-	peekMessage      func(msg *win32Msg, hwnd uintptr, min, max, remove uint32) bool
-	translateMessage func(msg *win32Msg) bool
-	dispatchMessage  func(msg *win32Msg) uintptr
+	peekMessage      func(msg unsafe.Pointer, hwnd uintptr, min, max, remove uint32) bool
+	translateMessage func(msg unsafe.Pointer) bool
+	dispatchMessage  func(msg unsafe.Pointer) uintptr
 )
 
 func loadUser32() error {
@@ -173,14 +174,20 @@ func loadUser32() error {
 	if err != nil {
 		return fmt.Errorf("%w: kernel32", ErrUnavailable)
 	}
-	native.Func(k32, "GetModuleHandleW", &getModuleHandle)
-	native.Func(lib, "RegisterClassW", &registerClass)
-	native.Func(lib, "CreateWindowExW", &createWindow)
-	native.Func(lib, "ShowWindow", &showWindow)
-	native.Func(lib, "DestroyWindow", &destroyWindow)
-	native.Func(lib, "PeekMessageW", &peekMessage)
-	native.Func(lib, "TranslateMessage", &translateMessage)
-	native.Func(lib, "DispatchMessageW", &dispatchMessage)
+	if err := BindKernel32(k32); err != nil {
+		return fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
+	}
+	if err := BindUser32(lib); err != nil {
+		return fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
+	}
+	getModuleHandle = GetModuleHandleW
+	registerClass = RegisterClassW
+	createWindow = CreateWindowExW
+	showWindow = ShowWindow
+	destroyWindow = DestroyWindow
+	peekMessage = PeekMessageW
+	translateMessage = TranslateMessage
+	dispatchMessage = DispatchMessageW
 	user32 = lib
 	if getModuleHandle == nil || registerClass == nil || createWindow == nil {
 		return fmt.Errorf("%w: win32 window procs", ErrUnavailable)

@@ -58,24 +58,17 @@ func bindAll() error {
 	if err != nil {
 		return err
 	}
-	binds := []struct {
-		name string
-		fn   any
-	}{
-		{"waveOutGetNumDevs", &waveOutGetNumDevs},
-		{"waveOutGetDevCapsW", &waveOutGetDevCapsW},
-		{"waveOutOpen", &waveOutOpen},
-		{"waveOutPrepareHeader", &waveOutPrepareHeader},
-		{"waveOutUnprepareHeader", &waveOutUnprepare},
-		{"waveOutWrite", &waveOutWrite},
-		{"waveOutReset", &waveOutReset},
-		{"waveOutClose", &waveOutClose},
+	if err := BindWinmm(lib); err != nil {
+		return err
 	}
-	for _, item := range binds {
-		if err := native.Bind(lib, item.name, item.fn); err != nil {
-			return err
-		}
-	}
+	waveOutGetNumDevs = WaveOutGetNumDevs
+	waveOutGetDevCapsW = WaveOutGetDevCapsW
+	waveOutOpen = WaveOutOpen
+	waveOutPrepareHeader = WaveOutPrepareHeader
+	waveOutUnprepare = WaveOutUnprepareHeader
+	waveOutWrite = WaveOutWrite
+	waveOutReset = WaveOutReset
+	waveOutClose = WaveOutClose
 	return nil
 }
 

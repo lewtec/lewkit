@@ -67,31 +67,26 @@ var loadEGL = native.Singleton(func() (*eglLib, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &eglLib{}
-	binds := []struct {
-		name string
-		fn   any
-	}{
-		{"eglGetDisplay", &e.getDisplay},
-		{"eglInitialize", &e.initialize},
-		{"eglBindAPI", &e.bindAPI},
-		{"eglChooseConfig", &e.chooseConfig},
-		{"eglCreateContext", &e.createContext},
-		{"eglCreateWindowSurface", &e.createWindow},
-		{"eglCreatePbufferSurface", &e.createPbuffer},
-		{"eglMakeCurrent", &e.makeCurrent},
-		{"eglSwapBuffers", &e.swap},
-		{"eglDestroyContext", &e.destroyContext},
-		{"eglDestroySurface", &e.destroySurface},
-		{"eglGetProcAddress", &e.getProc},
-		{"eglGetError", &e.getError},
+	if err := BindEGL(lib); err != nil {
+		return nil, err
 	}
-	for _, item := range binds {
-		if err := native.Bind(lib, item.name, item.fn); err != nil {
-			return nil, err
-		}
+	_ = BindEGLPlatform(lib)
+	e := &eglLib{
+		getDisplay:     EglGetDisplay,
+		getPlatform:    EglGetPlatformDisplay,
+		initialize:     EglInitialize,
+		bindAPI:        EglBindAPI,
+		chooseConfig:   EglChooseConfig,
+		createContext:  EglCreateContext,
+		createWindow:   EglCreateWindowSurface,
+		createPbuffer:  EglCreatePbufferSurface,
+		makeCurrent:    EglMakeCurrent,
+		swap:           EglSwapBuffers,
+		destroyContext: EglDestroyContext,
+		destroySurface: EglDestroySurface,
+		getProc:        EglGetProcAddress,
+		getError:       EglGetError,
 	}
-	_ = native.Bind(lib, "eglGetPlatformDisplay", &e.getPlatform)
 	return e, nil
 })
 

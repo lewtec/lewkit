@@ -23,14 +23,8 @@ const (
 	streamPlayback    = 1
 )
 
-type sampleSpec struct {
-	format   int32
-	rate     uint32
-	channels uint8
-}
-
 var (
-	simpleNew   func(server, name uintptr, dir int32, dev, stream uintptr, spec, chmap, attr uintptr, errno *int32) uintptr
+	simpleNew   func(server, name uintptr, dir int32, dev, stream uintptr, spec *SampleSpec, chmap uintptr, attr *BufferAttr, errno *int32) uintptr
 	simpleFree  func(s uintptr)
 	simpleWrite func(s uintptr, data uintptr, nbytes uintptr, errno *int32) int32
 	simpleDrain func(s uintptr, errno *int32) int32
@@ -80,36 +74,31 @@ func bindAll() error {
 	if err != nil {
 		return fmt.Errorf("libpulse.so.0: %w", err)
 	}
-	binds := []struct {
-		lib  uintptr
-		name string
-		fn   any
-	}{
-		{simple, "pa_simple_new", &simpleNew},
-		{simple, "pa_simple_free", &simpleFree},
-		{simple, "pa_simple_write", &simpleWrite},
-		{simple, "pa_simple_drain", &simpleDrain},
-		{full, "pa_strerror", &strerror},
-		{full, "pa_mainloop_new", &mainloopNew},
-		{full, "pa_mainloop_free", &mainloopFree},
-		{full, "pa_mainloop_get_api", &mainloopAPI},
-		{full, "pa_mainloop_prepare", &mainloopPrepare},
-		{full, "pa_mainloop_poll", &mainloopPoll},
-		{full, "pa_mainloop_dispatch", &mainloopDispatch},
-		{full, "pa_context_new", &contextNew},
-		{full, "pa_context_unref", &contextUnref},
-		{full, "pa_context_connect", &contextConnect},
-		{full, "pa_context_disconnect", &contextDisconnect},
-		{full, "pa_context_get_state", &contextState},
-		{full, "pa_context_errno", &contextErrno},
-		{full, "pa_context_get_sink_info_list", &contextSinks},
-		{full, "pa_operation_unref", &operationUnref},
+	if err := BindSimple(simple); err != nil {
+		return err
 	}
-	for _, item := range binds {
-		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
-			return err
-		}
+	if err := BindPulse(full); err != nil {
+		return err
 	}
+	simpleNew = PaSimpleNew
+	simpleFree = PaSimpleFree
+	simpleWrite = PaSimpleWrite
+	simpleDrain = PaSimpleDrain
+	strerror = PaStrerror
+	mainloopNew = PaMainloopNew
+	mainloopFree = PaMainloopFree
+	mainloopAPI = PaMainloopGetApi
+	mainloopPrepare = PaMainloopPrepare
+	mainloopPoll = PaMainloopPoll
+	mainloopDispatch = PaMainloopDispatch
+	contextNew = PaContextNew
+	contextUnref = PaContextUnref
+	contextConnect = PaContextConnect
+	contextDisconnect = PaContextDisconnect
+	contextState = PaContextGetState
+	contextErrno = PaContextErrno
+	contextSinks = PaContextGetSinkInfoList
+	operationUnref = PaOperationUnref
 	return nil
 }
 
@@ -148,13 +137,13 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 	}
 	frame := channels * width
 	period := periodBytes(rate, frame)
-	spec := sampleSpec{format: int32(sample), rate: uint32(rate), channels: uint8(channels)}
-	attr := bufferAttr{
-		max:    uint32(period * 2),
-		target: uint32(period * 2),
-		prebuf: uint32(period),
-		minreq: uint32(period),
-		frag:   ^uint32(0),
+	spec := SampleSpec{Format: int32(sample), Rate: uint32(rate), Channels: uint8(channels)}
+	attr := BufferAttr{
+		Max:    uint32(period * 2),
+		Target: uint32(period * 2),
+		Prebuf: uint32(period),
+		Minreq: uint32(period),
+		Frag:   ^uint32(0),
 	}
 	clientB := native.CString(client)
 	var sinkB []byte
@@ -163,7 +152,7 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 	}
 	streamB := native.CString(stream)
 	var errno int32
-	h := simpleNew(0, ptr(clientB), streamPlayback, ptr(sinkB), ptr(streamB), uintptr(unsafe.Pointer(&spec)), 0, uintptr(unsafe.Pointer(&attr)), &errno)
+	h := simpleNew(0, ptr(clientB), streamPlayback, ptr(sinkB), ptr(streamB), &spec, 0, &attr, &errno)
 	runtime.KeepAlive(clientB)
 	runtime.KeepAlive(sinkB)
 	runtime.KeepAlive(streamB)
@@ -173,14 +162,6 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 		return nil, pulseErr(errno)
 	}
 	return &Stream{ctx: ctx, h: h, frame: frame, period: period}, nil
-}
-
-type bufferAttr struct {
-	max    uint32
-	target uint32
-	prebuf uint32
-	minreq uint32
-	frag   uint32
 }
 
 func periodBytes(rate, frame int) int {

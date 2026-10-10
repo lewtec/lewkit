@@ -59,30 +59,28 @@ func bindAll() error {
 	if err != nil {
 		return err
 	}
-	binds := []struct {
-		lib  uintptr
-		name string
-		fn   any
-	}{
-		{audio, "AudioQueueNewOutput", &queueNew},
-		{audio, "AudioQueueAllocateBuffer", &queueAlloc},
-		{audio, "AudioQueueEnqueueBuffer", &queueEnqueue},
-		{audio, "AudioQueueStart", &queueStart},
-		{audio, "AudioQueueStop", &queueStop},
-		{audio, "AudioQueueDispose", &queueDispose},
-		{audio, "AudioQueueSetProperty", &queueSetProp},
-		{core, "AudioObjectGetPropertyDataSize", &objectSize},
-		{core, "AudioObjectGetPropertyData", &objectData},
-		{cf, "CFStringCreateWithCString", &cfCreate},
-		{cf, "CFStringGetCString", &cfGetCString},
-		{cf, "CFStringGetLength", &cfLength},
-		{cf, "CFRelease", &cfRelease},
+	if err := BindAudioToolbox(audio); err != nil {
+		return err
 	}
-	for _, item := range binds {
-		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
-			return err
-		}
+	if err := BindCoreAudio(core); err != nil {
+		return err
 	}
+	if err := BindCF(cf); err != nil {
+		return err
+	}
+	queueNew = AudioQueueNewOutput
+	queueAlloc = AudioQueueAllocateBuffer
+	queueEnqueue = AudioQueueEnqueueBuffer
+	queueStart = AudioQueueStart
+	queueStop = AudioQueueStop
+	queueDispose = AudioQueueDispose
+	queueSetProp = AudioQueueSetProperty
+	objectSize = AudioObjectGetPropertyDataSize
+	objectData = AudioObjectGetPropertyData
+	cfCreate = CFStringCreateWithCString
+	cfGetCString = CFStringGetCString
+	cfLength = CFStringGetLength
+	cfRelease = CFRelease
 	return nil
 }
 

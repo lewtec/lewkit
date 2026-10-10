@@ -1,0 +1,21 @@
+/* Required WebKitGTK entry points. */
+uintptr_t webkit_web_view_new(void);
+uintptr_t webkit_web_view_get_type(void);
+void webkit_web_view_load_html(uintptr_t view, char *html, char *base);
+void webkit_web_view_load_uri(uintptr_t view, char *uri);
+uintptr_t webkit_web_view_get_user_content_manager(uintptr_t view);
+uintptr_t webkit_web_view_get_context(uintptr_t view);
+int32_t webkit_user_content_manager_register_script_message_handler(uintptr_t manager, char *name, char *world);
+uintptr_t webkit_user_script_new(uintptr_t source, int32_t frames, int32_t when, uintptr_t allow, uintptr_t block);
+void webkit_user_script_unref(uintptr_t script);
+void webkit_user_content_manager_add_script(uintptr_t manager, uintptr_t script);
+void webkit_web_view_evaluate_javascript(uintptr_t view, char *script, int64_t length, uintptr_t world, uintptr_t source, uintptr_t cancel, uintptr_t callback, uintptr_t data);
+uintptr_t webkit_web_view_evaluate_javascript_finish(uintptr_t view, uintptr_t result, uintptr_t errorOut);
+uintptr_t webkit_web_context_get_security_manager(uintptr_t webContext);
+void webkit_security_manager_register_uri_scheme_as_secure(uintptr_t manager, char *scheme);
+void webkit_security_manager_register_uri_scheme_as_cors_enabled(uintptr_t manager, char *scheme);
+void webkit_security_manager_register_uri_scheme_as_local(uintptr_t manager, char *scheme);
+void webkit_web_context_register_uri_scheme(uintptr_t webContext, char *scheme, uintptr_t callback, uintptr_t data, uintptr_t destroy);
+uintptr_t webkit_uri_scheme_request_get_uri(uintptr_t request);
+void webkit_uri_scheme_request_finish(uintptr_t request, uintptr_t stream, int64_t length, char *mime);
+void webkit_uri_scheme_request_finish_error(uintptr_t request, uintptr_t gError);

@@ -689,12 +689,15 @@ func loadCG() error {
 	if err != nil {
 		return err
 	}
-	native.Func(lib, "CGColorSpaceCreateDeviceRGB", &cgColorSpaceCreateDeviceRGB)
-	native.Func(lib, "CGDataProviderCreateWithCFData", &cgDataProviderCreateWithCFData)
-	native.Func(lib, "CGImageCreate", &cgImageCreate)
-	native.Func(lib, "CGColorSpaceRelease", &cgColorSpaceRelease)
-	native.Func(lib, "CGDataProviderRelease", &cgDataProviderRelease)
-	native.Func(lib, "CGImageRelease", &cgImageRelease)
+	if err := BindCG(lib); err != nil {
+		return err
+	}
+	cgColorSpaceCreateDeviceRGB = CGColorSpaceCreateDeviceRGB
+	cgDataProviderCreateWithCFData = CGDataProviderCreateWithCFData
+	cgImageCreate = CGImageCreate
+	cgColorSpaceRelease = CGColorSpaceRelease
+	cgDataProviderRelease = CGDataProviderRelease
+	cgImageRelease = CGImageRelease
 	return nil
 }
 

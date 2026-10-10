@@ -26,11 +26,18 @@ type Config struct {
 	Include []string
 	Define  []string
 	Libs    []string
+	// Bind is the Go function that resolves symbols. Empty means Bind.
+	Bind string
+	// Soft leaves each missing symbol nil and still returns nil.
+	Soft bool
 }
 
 // Run parses File once per selected platform and writes Go bindings.
 // An empty ABI covers every supported architecture. Platforms whose
 // generated source matches share one file and one //go:build line.
+// When every platform emits the same Go projection, Run writes one
+// file with no build tag. When projections differ, platforms outside
+// the matrix receive the linux/amd64 projection under a complement tag.
 // Out defaults to <stem>_<abi>.go beside the header. When Out ends in
 // .go and only one file is produced, that path is used as given.
 // Package is inferred from the output directory when empty.
@@ -65,11 +72,16 @@ func Run(ctx context.Context, cfg Config) error {
 		if err != nil {
 			return fmt.Errorf("%s/%s: %w", target.GOOS, target.GOARCH, err)
 		}
+		unit.BindName = cfg.Bind
+		unit.BindSoft = cfg.Soft
 		buf, err := Write(unit, pkg, cfg.Libs)
 		if err != nil {
 			return fmt.Errorf("%s/%s: %w", target.GOOS, target.GOARCH, err)
 		}
 		items = append(items, rendered{target: target, src: buf})
+	}
+	if cfg.ABI == "" && sameProjection(items) {
+		return writeAtomic(bindingPaths(cfg.File, cfg.Out, []string{"abi"})[0], rewriteUniversal(items[0].src))
 	}
 	groups := groupRendered(items)
 	paths := bindingPaths(cfg.File, cfg.Out, assignSlugs(groups))
@@ -79,7 +91,96 @@ func Run(ctx context.Context, cfg Config) error {
 			return err
 		}
 	}
+	if cfg.ABI == "" {
+		return writeComplement(cfg.File, cfg.Out, items)
+	}
 	return nil
+}
+
+func sameProjection(items []rendered) bool {
+	if len(items) == 0 {
+		return false
+	}
+	key := projectionKey(items[0].src)
+	for _, item := range items[1:] {
+		if projectionKey(item.src) != key {
+			return false
+		}
+	}
+	return true
+}
+
+func projectionKey(src []byte) string {
+	text := stripBuildLine(string(src))
+	var b strings.Builder
+	for line := range strings.Lines(text) {
+		if strings.HasPrefix(line, "// ABI ") {
+			continue
+		}
+		b.WriteString(line)
+	}
+	return b.String()
+}
+
+func stripBuildLine(text string) string {
+	if strings.HasPrefix(text, "//go:build ") {
+		if i := strings.IndexByte(text, '\n'); i >= 0 {
+			text = text[i+1:]
+			if strings.HasPrefix(text, "\n") {
+				text = text[1:]
+			}
+		}
+	}
+	return text
+}
+
+func rewriteUniversal(src []byte) []byte {
+	lines := strings.Split(stripBuildLine(string(src)), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "// ABI ") {
+			lines[i] = "// Every supported ABI produces this Go projection."
+			break
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+func writeComplement(file, out string, items []rendered) error {
+	var src []byte
+	for _, item := range items {
+		if item.target.GOOS == "linux" && item.target.GOARCH == "amd64" {
+			src = item.src
+			break
+		}
+	}
+	if src == nil {
+		return nil
+	}
+	targets := make([]Target, len(items))
+	for i := range items {
+		targets[i] = items[i].target
+	}
+	body := rewriteConstraint(src, "!("+mergeConstraint(targets)+")")
+	text := string(body)
+	const abiNote = "// ABI "
+	replaced := false
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, abiNote) {
+			lines[i] = "// LP64 projection for platforms outside the ABI matrix."
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		return nil
+	}
+	dir := outputDir(file, out)
+	stem := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+	if strings.HasSuffix(out, ".go") {
+		stem = strings.TrimSuffix(filepath.Base(out), filepath.Ext(out))
+	}
+	return writeAtomic(filepath.Join(dir, stem+"_other.go"), []byte(strings.Join(lines, "\n")))
 }
 
 type rendered struct {

@@ -2,3 +2,6 @@
 // JNI_OnLoad notes the JavaVM and the loader thread. JavaVMs and OnLooper
 // use that note and do not dlopen while it is set.
 package android
+
+//go:generate go run ../../../../cmd/lewkit generate header --package android --bind BindJNI --out jni_bind.go jni.h
+//go:generate go run ../../../../cmd/lewkit generate header --package android --bind BindLooper --out looper_bind.go looper.h

@@ -8,3 +8,7 @@
 // Device runs one compute kernel. It does not attach a window and it does not
 // share the screen's queue. ndarray talks to it through a driver.
 package d3d12
+
+//go:generate go run ../../../../cmd/lewkit generate header --package d3d12 --bind BindD3D12 --out d3d12_bind.go d3d12.h
+//go:generate go run ../../../../cmd/lewkit generate header --package d3d12 --bind BindDXGI --out dxgi_bind.go dxgi.h
+//go:generate go run ../../../../cmd/lewkit generate header --package d3d12 --bind BindD3DCompile --out d3dcompile_bind.go d3dcompile.h

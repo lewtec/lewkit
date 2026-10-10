@@ -4,3 +4,15 @@
 // fallback, which is the conda-forge webkit2gtk4.1 package. Nothing in
 // this package listens on a socket.
 package webkitgtk
+
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindGlib --out glib_bind.go glib.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindGObject --out gobject_bind.go gobject.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindGio --out gio_bind.go gio.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindGioOpt --soft --out gio_opt_bind.go gio_opt.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindGTK --out gtk_bind.go gtk.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindGTK4 --out gtk4_bind.go gtk4.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindGTK3 --out gtk3_bind.go gtk3.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindWebKit --out webkit_bind.go webkit.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindWebKitOpt --soft --out webkit_opt_bind.go webkit_opt.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindJSC --out jsc_bind.go jsc.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind BindSoup --soft --out soup_bind.go soup.h

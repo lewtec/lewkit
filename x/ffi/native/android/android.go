@@ -65,15 +65,12 @@ func JavaVMs() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	sym, err := native.Symbol(lib, "JNI_GetCreatedJavaVMs")
-	if err != nil {
+	if err := BindJNI(lib); err != nil {
 		return 0, err
 	}
-	var fn func(vmBuf *uintptr, bufLen int32, nVMs *int32) int32
-	native.Register(&fn, sym)
 	var vm uintptr
 	var n int32
-	if rc := fn(&vm, 1, &n); rc != 0 {
+	if rc := JNIGetCreatedJavaVMs(&vm, 1, &n); rc != 0 {
 		return 0, fmt.Errorf("JNI_GetCreatedJavaVMs: %d", rc)
 	}
 	return int(n), nil
@@ -93,13 +90,10 @@ func OnLooper() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	sym, err := native.Symbol(lib, "ALooper_forThread")
-	if err != nil {
+	if err := BindLooper(lib); err != nil {
 		return false, err
 	}
-	var fn func() uintptr
-	native.Register(&fn, sym)
-	return fn() != 0, nil
+	return ALooperForThread() != 0, nil
 }
 
 func open(names ...string) (uintptr, error) {

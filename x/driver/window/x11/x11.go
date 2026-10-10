@@ -1,5 +1,7 @@
 package x11
 
+//go:generate go run ../../../../cmd/lewkit generate header --package x11 --bind BindX11 --out xlib_bind.go xlib.h
+
 import (
 	"context"
 	"image"

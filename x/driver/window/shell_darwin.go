@@ -24,12 +24,6 @@ const (
 	currentProcessPSN = 2
 )
 
-// processSerial is ProcessSerialNumber. Both fields are UInt32.
-type processSerial struct {
-	high uint32
-	low  uint32
-}
-
 var shellReady atomic.Bool
 
 func showShell(title string, icon image.Image) {
@@ -79,12 +73,11 @@ func transformForeground() bool {
 	if err != nil {
 		return false
 	}
-	var fn func(*processSerial, uint32) int32
-	if err := native.Bind(lib, "TransformProcessType", &fn); err != nil || fn == nil {
+	if err := BindAppServices(lib); err != nil || TransformProcessType == nil {
 		return false
 	}
-	psn := processSerial{low: currentProcessPSN}
-	return fn(&psn, transformStateFG) == 0
+	psn := ProcessSerial{Low: currentProcessPSN}
+	return TransformProcessType(&psn, transformStateFG) == 0
 }
 
 func setAppIcon(app objc.ID, icon image.Image) {

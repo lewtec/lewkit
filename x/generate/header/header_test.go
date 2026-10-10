@@ -327,6 +327,56 @@ func TestHostOutPath(t *testing.T) {
 	require.Equal(t, "one.go", entries[0].Name())
 }
 
+func TestBindNameSoftAndUniversal(t *testing.T) {
+	dir := t.TempDir()
+	hdr := filepath.Join(dir, "sym.h")
+	require.NoError(t, os.WriteFile(hdr, []byte(`
+typedef uintptr_t handle;
+typedef struct { int32_t format; uint32_t rate; uint8_t channels; } sample_spec;
+handle pa_simple_new(handle server, int32_t dir, sample_spec *spec);
+`), 0o644))
+	out := filepath.Join(dir, "simple.go")
+	require.NoError(t, Run(context.Background(), Config{
+		File:    hdr,
+		Out:     out,
+		Package: "pulse",
+		Bind:    "BindSimple",
+		Soft:    true,
+	}))
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	var goFiles []string
+	for _, entry := range entries {
+		if strings.HasSuffix(entry.Name(), ".go") {
+			goFiles = append(goFiles, entry.Name())
+		}
+	}
+	require.Equal(t, []string{"simple.go"}, goFiles)
+	text, err := os.ReadFile(out)
+	require.NoError(t, err)
+	body := string(text)
+	assert.NotContains(t, body, "//go:build ")
+	assert.Contains(t, body, "Every supported ABI produces this Go projection.")
+	assert.Contains(t, body, "func BindSimple(")
+	assert.Contains(t, body, "_ = native.Bind(lib, \"pa_simple_new\", &PaSimpleNew)")
+	assert.Contains(t, body, "type Handle = uintptr")
+	assert.Contains(t, body, "func(server Handle, dir int32, spec *SampleSpec) Handle")
+	assert.Contains(t, body, "Missing symbols stay nil.")
+	assert.NotContains(t, body, "func Bind(")
+
+	unit := parseHeader(t, `uintptr_t id(uintptr_t p);`, Host())
+	unit.BindName = "BindPulse"
+	buf, err := Write(unit, "pulse", []string{"libpulse.so.0"})
+	require.NoError(t, err)
+	hard := string(buf)
+	assert.Contains(t, hard, "func BindPulse(")
+	assert.Contains(t, hard, "BindPulse(lib)")
+	assert.Contains(t, hard, "func(p uintptr) uintptr")
+	assert.Contains(t, hard, "func Open(")
+	_, err = Write(&Unit{BindName: "func"}, "pulse", nil)
+	require.Error(t, err)
+}
+
 func parseHeader(t *testing.T, src string, target Target) *Unit {
 	t.Helper()
 	dir := t.TempDir()

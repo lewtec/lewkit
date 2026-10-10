@@ -47,7 +47,7 @@ func (h *xlibHost) poll() {
 	for xPending(h.dpy) > 0 {
 		var raw [192]byte
 		ev := (*xEvent)(unsafe.Pointer(&raw[0]))
-		xNext(h.dpy, ev)
+		xNext(h.dpy, unsafe.Pointer(ev))
 		h.one(ev)
 	}
 }
@@ -148,7 +148,7 @@ var (
 	xDestroyWindow  func(dpy uintptr, win uint64) int32
 	xSelectInput    func(dpy uintptr, win uint64, mask int64) int32
 	xPending        func(dpy uintptr) int32
-	xNext           func(dpy uintptr, ev *xEvent) int32
+	xNext           func(dpy uintptr, ev unsafe.Pointer) int32
 	xInternAtom     func(dpy uintptr, name *byte, onlyIfExists int32) uint64
 	xChangeProperty func(dpy uintptr, win, property, typ uint64, format, mode int32, data unsafe.Pointer, nelements int32) int32
 	xlibOnce        uint32
@@ -162,26 +162,26 @@ func xOpen() (uintptr, error) {
 		if err != nil {
 			return 0, fmt.Errorf("%w: libX11", ErrUnavailable)
 		}
-		native.Func(lib, "XOpenDisplay", &xOpenDisplay)
-		native.Func(lib, "XCloseDisplay", &xCloseDisplay)
-		native.Func(lib, "XDefaultScreen", &xDefaultScreen)
-		native.Func(lib, "XRootWindow", &xRootWindow)
-		native.Func(lib, "XBlackPixel", &xBlackPixel)
-		native.Func(lib, "XWhitePixel", &xWhitePixel)
-		native.Func(lib, "XCreateSimpleWindow", &xCreateSimple)
-		native.Func(lib, "XStoreName", &xStoreName)
-		native.Func(lib, "XMapWindow", &xMapWindow)
-		native.Func(lib, "XFlush", &xFlush)
-		native.Func(lib, "XDestroyWindow", &xDestroyWindow)
-		native.Func(lib, "XSelectInput", &xSelectInput)
-		native.Func(lib, "XPending", &xPending)
-		native.Func(lib, "XNextEvent", &xNext)
-		if err := native.Bind(lib, "XInternAtom", &xInternAtom); err != nil {
-			xInternAtom = nil
+		if err := BindX11(lib); err != nil {
+			return 0, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
 		}
-		if err := native.Bind(lib, "XChangeProperty", &xChangeProperty); err != nil {
-			xChangeProperty = nil
-		}
+		_ = BindX11Opt(lib)
+		xOpenDisplay = XOpenDisplay
+		xCloseDisplay = XCloseDisplay
+		xDefaultScreen = XDefaultScreen
+		xRootWindow = XRootWindow
+		xBlackPixel = XBlackPixel
+		xWhitePixel = XWhitePixel
+		xCreateSimple = XCreateSimpleWindow
+		xStoreName = XStoreName
+		xMapWindow = XMapWindow
+		xFlush = XFlush
+		xDestroyWindow = XDestroyWindow
+		xSelectInput = XSelectInput
+		xPending = XPending
+		xNext = XNextEvent
+		xInternAtom = XInternAtom
+		xChangeProperty = XChangeProperty
 		xlibOnce = 1
 	}
 	if xOpenDisplay == nil {

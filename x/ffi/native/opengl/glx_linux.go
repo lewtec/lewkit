@@ -51,39 +51,22 @@ func openGLX(dpy, win uintptr) (glContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	var (
-		defaultScreen func(uintptr) int32
-		windowAttr    func(uintptr, uintptr, unsafe.Pointer) int32
-		visualID      func(uintptr) uintptr
-		xFree         func(uintptr) int32
-		choose        func(uintptr, int32, *int32, *int32) uintptr
-		getAttrib     func(uintptr, uintptr, int32, *int32) int32
-		getProc       func(*byte) uintptr
-		makeCurrent   func(uintptr, uintptr, uintptr) int32
-		swap          func(uintptr, uintptr)
-		destroy       func(uintptr, uintptr)
-	)
-	binds := []struct {
-		lib  uintptr
-		name string
-		fn   any
-	}{
-		{xLib, "XDefaultScreen", &defaultScreen},
-		{xLib, "XGetWindowAttributes", &windowAttr},
-		{xLib, "XVisualIDFromVisual", &visualID},
-		{xLib, "XFree", &xFree},
-		{glLib, "glXChooseFBConfig", &choose},
-		{glLib, "glXGetFBConfigAttrib", &getAttrib},
-		{glLib, "glXGetProcAddress", &getProc},
-		{glLib, "glXMakeCurrent", &makeCurrent},
-		{glLib, "glXSwapBuffers", &swap},
-		{glLib, "glXDestroyContext", &destroy},
+	if err := BindX11(xLib); err != nil {
+		return nil, err
 	}
-	for _, item := range binds {
-		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
-			return nil, err
-		}
+	if err := BindGLX(glLib); err != nil {
+		return nil, err
 	}
+	defaultScreen := XDefaultScreen
+	windowAttr := XGetWindowAttributes
+	visualID := XVisualIDFromVisual
+	xFree := XFree
+	choose := GlXChooseFBConfig
+	getAttrib := GlXGetFBConfigAttrib
+	getProc := GlXGetProcAddress
+	makeCurrent := GlXMakeCurrent
+	swap := GlXSwapBuffers
+	destroy := GlXDestroyContext
 	var raw [256]byte
 	if windowAttr(dpy, win, unsafe.Pointer(&raw[0])) == 0 {
 		return nil, fmt.Errorf("%w: XGetWindowAttributes", ErrUnavailable)

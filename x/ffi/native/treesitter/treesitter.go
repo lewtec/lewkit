@@ -5,6 +5,9 @@
 // words, then the node id, then the tree pointer.
 package treesitter
 
+//go:generate go run ../../../../cmd/lewkit generate header --package treesitter --bind BindTreeSitter --out ts_bind.go ts.h
+//go:generate go run ../../../../cmd/lewkit generate header --package treesitter --bind BindLibc --out libc_bind.go libc.h
+
 import (
 	"errors"
 	"fmt"
@@ -17,13 +20,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
-
-// RawNode is one tree-sitter TSNode.
-type RawNode struct {
-	Context [4]uint32
-	ID      uintptr
-	Tree    uintptr
-}
 
 // Language is a TSLanguage pointer from a grammar shared library.
 type Language uintptr
@@ -76,38 +72,33 @@ func bindRuntime() error {
 	if err != nil {
 		return err
 	}
-	binds := []struct {
-		lib  uintptr
-		name string
-		fn   any
-	}{
-		{lib, "ts_parser_new", &parserNew},
-		{lib, "ts_parser_delete", &parserDelete},
-		{lib, "ts_parser_set_language", &setLanguage},
-		{lib, "ts_parser_parse_string", &parseString},
-		{lib, "ts_tree_delete", &treeDelete},
-		{lib, "ts_tree_root_node", &rootNode},
-		{lib, "ts_node_type", &nodeType},
-		{lib, "ts_node_start_byte", &nodeStartByte},
-		{lib, "ts_node_end_byte", &nodeEndByte},
-		{lib, "ts_node_child_count", &nodeChildCount},
-		{lib, "ts_node_child", &nodeChild},
-		{lib, "ts_node_field_name_for_child", &nodeFieldName},
-		{lib, "ts_node_named_child_count", &nodeNamedCount},
-		{lib, "ts_node_named_child", &nodeNamedChild},
-		{lib, "ts_node_string", &nodeString},
-		{lib, "ts_node_is_null", &nodeIsNull},
-		{lib, "ts_node_is_named", &nodeIsNamed},
-		{lib, "ts_node_is_extra", &nodeIsExtra},
-		{lib, "ts_node_is_error", &nodeIsError},
-		{lib, "ts_node_has_error", &nodeHasError},
-		{libc, "free", &libcFree},
+	if err := BindTreeSitter(lib); err != nil {
+		return err
 	}
-	for _, item := range binds {
-		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
-			return err
-		}
+	if err := BindLibc(libc); err != nil {
+		return err
 	}
+	parserNew = TsParserNew
+	parserDelete = TsParserDelete
+	setLanguage = TsParserSetLanguage
+	parseString = TsParserParseString
+	treeDelete = TsTreeDelete
+	rootNode = TsTreeRootNode
+	nodeType = TsNodeType
+	nodeStartByte = TsNodeStartByte
+	nodeEndByte = TsNodeEndByte
+	nodeChildCount = TsNodeChildCount
+	nodeChild = TsNodeChild
+	nodeFieldName = TsNodeFieldNameForChild
+	nodeNamedCount = TsNodeNamedChildCount
+	nodeNamedChild = TsNodeNamedChild
+	nodeString = TsNodeString
+	nodeIsNull = TsNodeIsNull
+	nodeIsNamed = TsNodeIsNamed
+	nodeIsExtra = TsNodeIsExtra
+	nodeIsError = TsNodeIsError
+	nodeHasError = TsNodeHasError
+	libcFree = Free
 	return nil
 }
 

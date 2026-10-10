@@ -11,7 +11,11 @@ var loadMain = native.Once(func() error {
 	if err := loadLibc(); err != nil {
 		return err
 	}
-	return native.Bind(libc, "pthread_main_np", &pthreadMainNP)
+	if err := BindMain(libc); err != nil {
+		return err
+	}
+	pthreadMainNP = PthreadMainNp
+	return nil
 })
 
 func ProcessMain() bool {

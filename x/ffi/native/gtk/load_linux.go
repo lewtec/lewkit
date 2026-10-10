@@ -109,11 +109,10 @@ func SetPrgname(name string) {
 	if err != nil {
 		return
 	}
-	var set func(*byte)
-	if err := bind(glib, "g_set_prgname", &set); err != nil {
+	if err := BindGlib(glib); err != nil {
 		return
 	}
-	withCString(name, func(p *byte) { set(p) })
+	withCString(name, func(p *byte) { GSetPrgname(p) })
 }
 
 // Owned reports whether Ensure has claimed a thread.
@@ -277,131 +276,58 @@ func bindOnce() error {
 	if err != nil {
 		return err
 	}
-	if err := bind(glib, "g_set_prgname", &bound.setPrgname); err != nil {
+	if err := BindGlib(glib); err != nil {
 		return err
 	}
-	if err := bind(glib, "g_main_context_iteration", &bound.iterate); err != nil {
+	if err := BindGObject(gobject); err != nil {
 		return err
 	}
-	if err := bind(gobject, "g_signal_connect_data", &bound.signal); err != nil {
+	if err := BindGtk(gtk); err != nil {
 		return err
 	}
-	if err := bind(gtk, "gtk_init_check", &bound.initCheck); err != nil {
+	if err := BindLibc(libc); err != nil {
 		return err
 	}
-	if err := bind(gtk, "gtk_window_new", &bound.windowNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_title", &bound.setTitle); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_default_size", &bound.setSize); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_modal", &bound.setModal); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_child", &bound.setChild); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_resizable", &bound.setResizable); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_default_widget", &bound.setDefault); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_present", &bound.present); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_destroy", &bound.destroy); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_box_new", &bound.boxNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_box_append", &bound.boxAppend); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_top", &bound.marginTop); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_bottom", &bound.marginBottom); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_start", &bound.marginStart); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_end", &bound.marginEnd); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_hexpand", &bound.hexpand); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_vexpand", &bound.vexpand); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_grab_focus", &bound.grabFocus); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_label_new", &bound.labelNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_label_set_wrap", &bound.labelWrap); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_button_new_with_label", &bound.buttonNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_entry_new", &bound.entryNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_editable_set_text", &bound.setText); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_editable_get_text", &bound.getText); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_new", &bound.listNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_insert", &bound.listInsert); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_get_selected_row", &bound.listSelected); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_select_row", &bound.listSelect); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_get_row_at_index", &bound.rowAt); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_row_get_index", &bound.rowIndex); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_new", &bound.scrollNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_set_child", &bound.scrollChild); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_set_min_content_height", &bound.scrollMin); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_set_policy", &bound.scrollPolicy); err != nil {
-		return err
-	}
-	if err := bind(libc, "pthread_self", &bound.self); err != nil {
-		return err
-	}
+	bound.setPrgname = GSetPrgname
+	bound.iterate = GMainContextIteration
+	bound.signal = GSignalConnectData
+	bound.initCheck = GtkInitCheck
+	bound.windowNew = GtkWindowNew
+	bound.setTitle = GtkWindowSetTitle
+	bound.setSize = GtkWindowSetDefaultSize
+	bound.setModal = GtkWindowSetModal
+	bound.setChild = GtkWindowSetChild
+	bound.setResizable = GtkWindowSetResizable
+	bound.setDefault = GtkWindowSetDefaultWidget
+	bound.present = GtkWindowPresent
+	bound.destroy = GtkWindowDestroy
+	bound.boxNew = GtkBoxNew
+	bound.boxAppend = GtkBoxAppend
+	bound.marginTop = GtkWidgetSetMarginTop
+	bound.marginBottom = GtkWidgetSetMarginBottom
+	bound.marginStart = GtkWidgetSetMarginStart
+	bound.marginEnd = GtkWidgetSetMarginEnd
+	bound.hexpand = GtkWidgetSetHexpand
+	bound.vexpand = GtkWidgetSetVexpand
+	bound.grabFocus = GtkWidgetGrabFocus
+	bound.labelNew = GtkLabelNew
+	bound.labelWrap = GtkLabelSetWrap
+	bound.buttonNew = GtkButtonNewWithLabel
+	bound.entryNew = GtkEntryNew
+	bound.setText = GtkEditableSetText
+	bound.getText = GtkEditableGetText
+	bound.listNew = GtkListBoxNew
+	bound.listInsert = GtkListBoxInsert
+	bound.listSelected = GtkListBoxGetSelectedRow
+	bound.listSelect = GtkListBoxSelectRow
+	bound.rowAt = GtkListBoxGetRowAtIndex
+	bound.rowIndex = GtkListBoxRowGetIndex
+	bound.scrollNew = GtkScrolledWindowNew
+	bound.scrollChild = GtkScrolledWindowSetChild
+	bound.scrollMin = GtkScrolledWindowSetMinContentHeight
+	bound.scrollPolicy = GtkScrolledWindowSetPolicy
+	bound.self = PthreadSelf
 	loaded = true
-	return nil
-}
-
-func bind(lib uintptr, name string, fnptr any) error {
-	if err := native.Bind(lib, name, fnptr); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
 	return nil
 }
 
@@ -450,18 +376,13 @@ func bindX11() error {
 			x11Err = ErrUnavailable
 			return
 		}
-		if err := bind(gtkLib, "gtk_widget_realize", &realize); err != nil {
+		if err := BindGDKX11(gtkLib); err != nil {
 			x11Err = err
 			return
 		}
-		if err := bind(gtkLib, "gtk_native_get_surface", &nativeSurface); err != nil {
-			x11Err = err
-			return
-		}
-		if err := bind(gtkLib, "gdk_x11_surface_get_xid", &x11XID); err != nil {
-			x11Err = err
-			return
-		}
+		realize = GtkWidgetRealize
+		nativeSurface = GtkNativeGetSurface
+		x11XID = GdkX11SurfaceGetXid
 	})
 	return x11Err
 }

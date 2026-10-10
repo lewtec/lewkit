@@ -1,6 +1,8 @@
 // Package winmm binds winmm waveOut without cgo.
 package winmm
 
+//go:generate go run ../../../../cmd/lewkit generate header --package winmm --bind BindWinmm --out wave_bind.go wave.h
+
 import (
 	"errors"
 	"unicode/utf16"

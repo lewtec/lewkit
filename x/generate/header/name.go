@@ -1,6 +1,7 @@
 package header
 
 import (
+	"fmt"
 	"go/token"
 	"strconv"
 	"strings"
@@ -8,11 +9,21 @@ import (
 	"unicode/utf8"
 )
 
+func bindFuncName(unit *Unit) error {
+	if unit.BindName == "" {
+		unit.BindName = "Bind"
+	}
+	if !token.IsIdentifier(unit.BindName) || token.IsKeyword(unit.BindName) {
+		return fmt.Errorf("%w: %s", errPackage, unit.BindName)
+	}
+	return nil
+}
+
 func assignNames(unit *Unit) {
 	used := map[string]bool{
-		"Bind":   true,
-		"Open":   true,
-		"copyAt": true,
+		unit.BindName: true,
+		"Open":        true,
+		"copyAt":      true,
 	}
 	for _, t := range unit.Types {
 		if t.Go != "" {

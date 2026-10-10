@@ -97,12 +97,14 @@ type Const struct {
 
 // Unit is the binding model for one header and the includes it pulled in.
 type Unit struct {
-	Target  Target
-	Types   []*Type
-	Consts  []Const
-	Funcs   []Func
-	Objects []Object
-	Skipped []string
+	Target   Target
+	Types    []*Type
+	Consts   []Const
+	Funcs    []Func
+	Objects  []Object
+	Skipped  []string
+	BindName string
+	BindSoft bool
 }
 
 func (t *Type) flex() bool {

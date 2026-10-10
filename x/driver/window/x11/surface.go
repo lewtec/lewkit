@@ -20,9 +20,10 @@ var (
 		if err != nil {
 			return err
 		}
-		if err := native.Bind(lib, "XOpenDisplay", &xOpen); err != nil {
+		if err := BindX11(lib); err != nil {
 			return err
 		}
+		xOpen = XOpenDisplay
 		if xOpen != nil {
 			xlibDpy = xOpen(nil)
 		}

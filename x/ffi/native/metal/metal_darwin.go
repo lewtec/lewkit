@@ -129,7 +129,10 @@ func loadFrameworks() error {
 			return fmt.Errorf("%w: %s", ErrUnavailable, path)
 		}
 		if path[len(path)-5:] == "Metal" {
-			native.Func(lib, "MTLCreateSystemDefaultDevice", &createFn)
+			if err := BindMetal(lib); err != nil {
+				return fmt.Errorf("%w: %s", ErrUnavailable, path)
+			}
+			createFn = MTLCreateSystemDefaultDevice
 		}
 	}
 	if createFn == nil {

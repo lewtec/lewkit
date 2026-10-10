@@ -1,5 +1,7 @@
 package cocoa
 
+//go:generate go run ../../../../cmd/lewkit generate header --package cocoa --bind BindCG --out cg_bind.go cg.h
+
 import (
 	"context"
 
