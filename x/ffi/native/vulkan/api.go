@@ -353,8 +353,10 @@ type extensionProperties struct {
 }
 
 type api struct {
-	getInstanceProcAddr func(instance uintptr, name string) uintptr
-	getDeviceProcAddr   func(device uintptr, name string) uintptr
+	// Names are C strings. The caller passes *byte so the android trampoline
+	// stays an integer call; purego accepts the pointer the same way.
+	getInstanceProcAddr func(instance uintptr, name *byte) uintptr
+	getDeviceProcAddr   func(device uintptr, name *byte) uintptr
 
 	enumerateInstanceExt func(layer *byte, count *uint32, props *extensionProperties) int32
 	enumerateDeviceExt   func(phys uintptr, layer *byte, count *uint32, props *extensionProperties) int32
@@ -466,8 +468,10 @@ func darwinLibDirs() []string {
 	return dirs
 }
 
-func (a *api) bind(get func(uintptr, string) uintptr, handle uintptr, name string, dst any) error {
-	addr := get(handle, name)
+func (a *api) bind(get func(uintptr, *byte) uintptr, handle uintptr, name string, dst any) error {
+	buf := native.CString(name)
+	addr := get(handle, unsafe.SliceData(buf))
+	runtime.KeepAlive(buf)
 	if addr == 0 {
 		return fmt.Errorf("%w: missing %s", ErrUnavailable, name)
 	}

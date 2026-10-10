@@ -5,7 +5,6 @@ package native
 import (
 	"fmt"
 	"reflect"
-	"runtime"
 	"unsafe"
 )
 
@@ -16,7 +15,7 @@ const callWords = 16
 // Register binds fnptr to a C function at addr.
 // arm64 passes the first eight integer arguments in R0–R7, the rest
 // on the stack, and returns an integer in R0 or a float in V0.
-// A string argument is a NUL-terminated C string, the same as purego.
+// A C string is a *byte, built by the caller with CString.
 // Float arguments are rejected.
 func Register(fnptr any, addr uintptr) {
 	if fnptr == nil {
@@ -44,19 +43,14 @@ func Register(fnptr any, addr uintptr) {
 	}
 	fn.Set(reflect.MakeFunc(typ, func(args []reflect.Value) []reflect.Value {
 		var a [callWords]uintptr
-		var keep [][]byte
 		for i, arg := range args {
-			word, buf, ok := asWord(arg)
+			word, ok := asWord(arg)
 			if !ok {
 				panic(fmt.Sprintf("native: argument %d is not an integer word", i))
 			}
 			a[i] = word
-			if buf != nil {
-				keep = append(keep, buf)
-			}
 		}
 		r, f32, f64 := callC(addr, &a[0], uintptr(len(args)))
-		runtime.KeepAlive(keep)
 		if typ.NumOut() == 0 {
 			return nil
 		}
@@ -69,36 +63,32 @@ func wordKind(k reflect.Kind) bool {
 	case reflect.Uintptr, reflect.UnsafePointer, reflect.Pointer,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Bool, reflect.String:
+		reflect.Bool:
 		return true
 	default:
 		return false
 	}
 }
 
-func asWord(v reflect.Value) (uintptr, []byte, bool) {
+func asWord(v reflect.Value) (uintptr, bool) {
 	switch v.Kind() {
-	case reflect.String:
-		// C sees a pointer to the bytes, plus the trailing NUL.
-		buf := append([]byte(v.String()), 0)
-		return uintptr(unsafe.Pointer(unsafe.SliceData(buf))), buf, true
 	case reflect.Uintptr:
-		return uintptr(v.Uint()), nil, true
+		return uintptr(v.Uint()), true
 	case reflect.UnsafePointer:
-		return uintptr(v.Pointer()), nil, true
+		return uintptr(v.Pointer()), true
 	case reflect.Pointer:
-		return uintptr(v.Pointer()), nil, true
+		return uintptr(v.Pointer()), true
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return uintptr(v.Uint()), nil, true
+		return uintptr(v.Uint()), true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return uintptr(v.Int()), nil, true
+		return uintptr(v.Int()), true
 	case reflect.Bool:
 		if v.Bool() {
-			return 1, nil, true
+			return 1, true
 		}
-		return 0, nil, true
+		return 0, true
 	default:
-		return 0, nil, false
+		return 0, false
 	}
 }
 
@@ -127,8 +117,8 @@ func fromWord(typ reflect.Type, r uintptr, f32 float32, f64 float64) reflect.Val
 
 // entersyscall records this frame, then the C function runs on m.g0.
 // exitsyscall pairs with a reentrant cgocallback. Neither call can grow
-// the stack: argv's words may be pointers. The caller keeps any string
-// buffers live across this call.
+// the stack: argv's words may be pointers. The caller keeps those
+// pointers live across this call.
 //
 //go:nosplit
 func callC(fn uintptr, argv *uintptr, argc uintptr) (r uintptr, f32 float32, f64 float64) {
