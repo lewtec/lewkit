@@ -181,9 +181,3 @@ func ListTools() []string {
 	sort.Strings(names)
 	return names
 }
-
-// init registers the backend here so this package has no root.go.
-// x/tool/prelude blank-imports x/tool/registry/prelude.
-func init() {
-	tool.Register("registry", &catalog{})
-}
