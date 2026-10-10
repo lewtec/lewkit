@@ -22,4 +22,6 @@ func TestPreludeRegistersBackends(t *testing.T) {
 	require.Contains(t, names, "uv")
 	require.Contains(t, names, "golang")
 	require.Contains(t, names, "protobuf")
+	require.Contains(t, names, "patlint")
+	require.NotContains(t, names, "refactree")
 }
