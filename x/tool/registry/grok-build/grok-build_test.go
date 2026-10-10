@@ -1,4 +1,4 @@
-package grokbuild
+package pkg
 
 import (
 	"testing"

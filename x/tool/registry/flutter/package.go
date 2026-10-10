@@ -1,4 +1,4 @@
-package flutter
+package pkg
 
 import (
 	"context"

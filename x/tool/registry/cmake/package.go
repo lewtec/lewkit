@@ -1,4 +1,4 @@
-package cmake
+package pkg
 
 import (
 	"context"

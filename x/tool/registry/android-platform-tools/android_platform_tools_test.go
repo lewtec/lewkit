@@ -1,4 +1,4 @@
-package androidplatformtools
+package pkg
 
 import (
 	"context"

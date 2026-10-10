@@ -1,4 +1,4 @@
-package tirith
+package pkg
 
 import (
 	"context"

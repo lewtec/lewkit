@@ -1,4 +1,4 @@
-package heliumbrowser
+package pkg
 
 import (
 	"context"

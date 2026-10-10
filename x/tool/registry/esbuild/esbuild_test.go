@@ -1,4 +1,4 @@
-package esbuild
+package pkg
 
 import (
 	"testing"

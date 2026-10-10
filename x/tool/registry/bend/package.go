@@ -1,4 +1,4 @@
-package bend
+package pkg
 
 import (
 	"context"

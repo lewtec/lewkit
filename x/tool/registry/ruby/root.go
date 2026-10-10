@@ -1,4 +1,4 @@
-package ruby
+package pkg
 
 import (
 	"github.com/lewtec/lewkit/x/tool/registry"

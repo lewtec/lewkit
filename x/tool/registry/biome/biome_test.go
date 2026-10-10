@@ -1,4 +1,4 @@
-package biome
+package pkg
 
 import (
 	"strings"
