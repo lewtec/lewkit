@@ -104,6 +104,8 @@ func TestProductionSpawnsUseTheDriver(t *testing.T) {
 	allowed := map[string]bool{
 		filepath.Join("x", "driver", "exec", "exec.go"):               true,
 		filepath.Join("x", "driver", "exec", "native", "provider.go"): true,
+		// go -toolexec must run the compiler path it was given.
+		filepath.Join("x", "build", "androidtoolexec", "main.go"): true,
 	}
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {

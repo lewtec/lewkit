@@ -22,6 +22,11 @@ func TestHostTargetsSkipUnavailableHosts(t *testing.T) {
 			require.NotEqual(t, "ios", target.GOOS)
 		}
 	}
+	for _, target := range targets {
+		if target.GOOS == "android" {
+			require.Equal(t, "arm64", target.GOARCH)
+		}
+	}
 }
 
 func TestUberGraphSharesIcons(t *testing.T) {
