@@ -59,9 +59,23 @@ type Picture struct {
 	recordOnly  bool
 	// dead is the host navbar and notch rects for this frame, in window pixels.
 	dead []Rect
+	// scale is device pixels per logical pixel for authored layout lengths.
+	scale float32
 	// holdList keeps a mountable backdrop on the draw list.
 	// Metal present does not paint a mounted tensor, so the fills stay instances.
 	holdList bool
+}
+
+// SetScale records device pixels per logical pixel for the next layout.
+// A missing value is one, so a paint before the host reports a scale stays 1:1.
+func (picture *Picture) SetScale(scale float32) {
+	if picture == nil {
+		return
+	}
+	if scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		scale = 1
+	}
+	picture.scale = scale
 }
 
 func accumulatorOf(picture *Picture) *ndarray.Tensor[float32] {
@@ -272,6 +286,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	defer func() { picture.holdList = false }()
 	constraints := Tight(size.Width, size.Height)
 	constraints.dead = picture.dead
+	constraints.scale = picture.scale
 	root.Layout(constraints)
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]

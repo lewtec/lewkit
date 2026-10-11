@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,6 +78,16 @@ type wlwin struct {
 	buttons    int
 	mods       window.Modifier
 
+	outputScale map[uint32]float64
+	lastScale   float64
+	entered     uint32
+	logicalW    int
+	logicalH    int
+	fractional  bool
+	fracScale   float64
+	fracMgr     uint32
+	bufferScale int
+
 	format     uint32
 	haveFormat bool
 	pool       uint32
@@ -138,6 +149,8 @@ func (w *wlwin) negotiate(ctx context.Context, title string) error {
 	w.seat = w.bind("wl_seat", 5, func(id uint32) func(uint16, []byte) {
 		return func(op uint16, payload []byte) { w.onSeat(id, op, payload) }
 	})
+	w.fracMgr = w.bind("wp_fractional_scale_manager_v1", 1, nil)
+	w.bindOutputs()
 	if w.compositor == 0 || w.shm == 0 || w.wm == 0 {
 		return fmt.Errorf("wayland: compositor, shm, or xdg_wm_base missing")
 	}
@@ -147,10 +160,20 @@ func (w *wlwin) negotiate(ctx context.Context, title string) error {
 	if !w.haveFormat {
 		return fmt.Errorf("wayland: no argb8888 shm format")
 	}
-	w.surface = w.conn.alloc(nil)
+	w.surface = w.conn.alloc(w.onSurface)
 	if err := w.conn.send(w.compositor, 0, pack(w.surface)); err != nil {
 		return err
 	}
+	if w.fracMgr != 0 {
+		frac := w.conn.alloc(w.onFractional)
+		if err := w.conn.send(w.fracMgr, 1, pack(frac, w.surface)); err != nil {
+			return err
+		}
+		if err := w.conn.roundtrip(ctx); err != nil {
+			return err
+		}
+	}
+	w.noteScale()
 	w.xdgSurface = w.conn.alloc(w.onXdgSurface)
 	if err := w.conn.send(w.wm, 2, pack(w.xdgSurface, w.surface)); err != nil {
 		return err
@@ -207,6 +230,119 @@ func (w *wlwin) bind(iface string, max uint32, fn func(uint32) func(uint16, []by
 	return 0
 }
 
+func (w *wlwin) bindOutputs() {
+	for _, g := range w.globals {
+		if g.iface != "wl_output" || g.version < 2 {
+			continue
+		}
+		version := g.version
+		if version > 3 {
+			version = 3
+		}
+		id := w.conn.alloc(nil)
+		w.conn.set(id, func(op uint16, payload []byte) { w.onOutput(id, op, payload) })
+		if err := w.conn.send(w.registry, 0, pack(g.name, "wl_output", version, id)); err != nil {
+			return
+		}
+	}
+}
+
+func (w *wlwin) onOutput(id uint32, op uint16, payload []byte) {
+	if op != 3 {
+		return
+	}
+	factor, _ := takeI32(payload)
+	if factor < 1 {
+		factor = 1
+	}
+	w.mu.Lock()
+	if w.outputScale == nil {
+		w.outputScale = map[uint32]float64{}
+	}
+	w.outputScale[id] = float64(factor)
+	w.lastScale = float64(factor)
+	w.mu.Unlock()
+	w.noteScale()
+}
+
+func (w *wlwin) onSurface(op uint16, payload []byte) {
+	if op != 0 {
+		return
+	}
+	output, _ := takeU32(payload)
+	w.mu.Lock()
+	w.entered = output
+	w.mu.Unlock()
+	w.noteScale()
+}
+
+func (w *wlwin) onFractional(op uint16, payload []byte) {
+	if op != 0 {
+		return
+	}
+	raw, _ := takeU32(payload)
+	if raw == 0 {
+		return
+	}
+	w.mu.Lock()
+	w.fractional = true
+	w.fracScale = float64(raw) / 120
+	w.mu.Unlock()
+	w.noteScale()
+}
+
+func (w *wlwin) factorLocked() float64 {
+	if w.fractional && w.fracScale > 0 {
+		return w.fracScale
+	}
+	if w.entered != 0 {
+		if factor := w.outputScale[w.entered]; factor > 0 {
+			return factor
+		}
+	}
+	if w.lastScale > 0 {
+		return w.lastScale
+	}
+	return 1
+}
+
+func (w *wlwin) noteScale() {
+	w.mu.Lock()
+	factor := w.factorLocked()
+	logicalW, logicalH := w.logicalW, w.logicalH
+	fractional := w.fractional
+	w.mu.Unlock()
+	w.SetScale(window.Scale(factor))
+	if !fractional {
+		w.applyBufferScale(factor)
+	}
+	if logicalW > 0 && logicalH > 0 {
+		scale := window.Scale(factor)
+		window.SetWant(w.Buffer, &w.mu, &w.want, scale.Device(logicalW), scale.Device(logicalH))
+	}
+}
+
+func (w *wlwin) applyBufferScale(factor float64) {
+	rounded := int(math.Round(factor))
+	if rounded <= 1 || math.Abs(factor-float64(rounded)) > 0.001 {
+		return
+	}
+	w.mu.Lock()
+	if w.fractional || w.bufferScale == rounded || w.surface == 0 || w.conn == nil {
+		w.mu.Unlock()
+		return
+	}
+	w.bufferScale = rounded
+	surface := w.surface
+	conn := w.conn
+	w.mu.Unlock()
+	_ = conn.send(surface, 8, pack(int32(rounded)))
+}
+
+func deviceOf(logical int, factor float64) int {
+	return window.Scale(factor).Device(logical)
+}
+
 func (w *wlwin) onRegistry(op uint16, payload []byte) {
 	if op != 0 {
 		return
@@ -250,7 +386,10 @@ func (w *wlwin) onToplevel(op uint16, payload []byte) {
 		width, payload := takeI32(payload)
 		height, _ := takeI32(payload)
 		if width > 0 && height > 0 {
-			window.SetWant(w.Buffer, &w.mu, &w.want, int(width), int(height))
+			w.mu.Lock()
+			w.logicalW, w.logicalH = int(width), int(height)
+			w.mu.Unlock()
+			w.noteScale()
 		}
 	case 1:
 		_ = w.Close()

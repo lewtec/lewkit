@@ -186,6 +186,7 @@ func (cdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 				period = screenFramePeriod(out.wnd)
 			}
 			out.SetFramePeriod(period)
+			out.SetScale(window.Scale(out.scale()))
 		}
 	})
 	if openErr != nil {
@@ -505,6 +506,7 @@ func (w *win) note() {
 		_ = w.Close()
 		return
 	}
+	w.SetScale(window.Scale(w.scale()))
 	width, height := w.clientSize()
 	if width < 1 || height < 1 {
 		return

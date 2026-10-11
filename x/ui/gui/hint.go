@@ -86,7 +86,9 @@ func (hint *Hint) Layout(constraints BoxConstraints) Size {
 	size := constraints.Constrain(Size{Width: constraints.MaxWidth, Height: constraints.MaxHeight})
 	hint.box = Detect(Rect{Width: size.Width, Height: size.Height}, constraints.dead)
 	if hint.Child != nil {
-		hint.Child.Layout(Tight(hint.box.Width, hint.box.Height))
+		tight := Tight(hint.box.Width, hint.box.Height)
+		tight.scale = constraints.scale
+		hint.Child.Layout(tight)
 	}
 	return size
 }

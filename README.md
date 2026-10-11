@@ -137,7 +137,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/audio_play/winmm` | Windows playback through waveOut. `Sink` is a device index or the endpoint name. An empty sink is `WAVE_MAPPER`. |
 | `x/driver/audio_play/coreaudio` | macOS playback through AudioQueue. `Sink` is a device UID or the display name. |
 | `x/driver/audio_play/mem` | Records PCM. `MemoryGate` keeps it incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
-| `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
+| `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`, `Scale`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. The window accepts a file drop. A packaged app embeds its icon in the `.exe`. |
 | `x/driver/messagebox` | `Show`. One message the user dismisses. The Win32 backend is `MessageBoxW`. A Windows GUI process uses it for a startup error. |

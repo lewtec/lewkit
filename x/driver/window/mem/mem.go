@@ -28,7 +28,9 @@ func (opener) Open(_ context.Context, cfg window.Config) (window.Window, error) 
 	if err != nil {
 		return nil, err
 	}
-	buf := window.NewBuffer(w, h)
+	scale := window.Scale(cfg.Scale)
+	buf := window.NewBuffer(scale.Device(w), scale.Device(h))
+	buf.SetScale(scale)
 	buf.SetFramePeriod(cfg.Period)
 	return &win{Buffer: buf}, nil
 }

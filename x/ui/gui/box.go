@@ -20,29 +20,39 @@ type Box struct {
 	origin    Offset
 	size      Size
 	childSize Size
+	scale     float32
 }
 
 func (box *Box) Layout(constraints BoxConstraints) Size {
 	if box == nil {
 		return Size{}
 	}
-	inner := constraints.Deflate(box.Padding)
-	inner.MinWidth, inner.MinHeight = 0, 0
-	if box.Width > 0 {
-		inner.MaxWidth = min(inner.MaxWidth, box.Width)
+	box.scale = constraints.scale
+	pad := scaleInsets(box.Padding, box.scale)
+	width, height := box.Width, box.Height
+	if width > 0 {
+		width *= factor(box.scale)
 	}
-	if box.Height > 0 {
-		inner.MaxHeight = min(inner.MaxHeight, box.Height)
+	if height > 0 {
+		height *= factor(box.scale)
+	}
+	inner := constraints.Deflate(pad)
+	inner.MinWidth, inner.MinHeight = 0, 0
+	if width > 0 {
+		inner.MaxWidth = min(inner.MaxWidth, width)
+	}
+	if height > 0 {
+		inner.MaxHeight = min(inner.MaxHeight, height)
 	}
 	var child Size
 	if box.Child != nil {
 		child = box.Child.Layout(inner)
 	}
-	want := Size{Width: box.Width, Height: box.Height}
+	want := Size{Width: width, Height: height}
 	if want.Width == 0 {
 		if box.Child != nil {
 			want.Width = child.Width
-		} else if box.Height > 0 {
+		} else if height > 0 {
 			want.Width = 0
 		} else {
 			want.Width = inner.MaxWidth
@@ -51,7 +61,7 @@ func (box *Box) Layout(constraints BoxConstraints) Size {
 	if want.Height == 0 {
 		if box.Child != nil {
 			want.Height = child.Height
-		} else if box.Width > 0 {
+		} else if width > 0 {
 			want.Height = 0
 		} else {
 			want.Height = inner.MaxHeight
@@ -59,8 +69,8 @@ func (box *Box) Layout(constraints BoxConstraints) Size {
 	}
 	box.childSize = child
 	box.size = constraints.Constrain(Size{
-		Width:  want.Width + box.Padding.Horizontal(),
-		Height: want.Height + box.Padding.Vertical(),
+		Width:  want.Width + pad.Horizontal(),
+		Height: want.Height + pad.Vertical(),
 	})
 	return box.size
 }
@@ -78,15 +88,20 @@ func (box *Box) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tenso
 		picture.noteKey(box.Key, bounds, clip)
 	}
 	accumulator := accumulatorOf(picture)
+	pad := scaleInsets(box.Padding, box.scale)
+	radius := box.Radius
+	if radius > 0 {
+		radius *= factor(box.scale)
+	}
 	if box.Fill != nil && picture != nil {
-		accumulator = picture.Fill(bounds, box.Radius, *box.Fill, clip)
+		accumulator = picture.Fill(bounds, radius, *box.Fill, clip)
 	}
 	if box.Child == nil {
 		return accumulator
 	}
-	inner := Size{Width: box.size.Width - box.Padding.Horizontal(), Height: box.size.Height - box.Padding.Vertical()}
-	childX := box.Padding.Left + (inner.Width-box.childSize.Width)*box.Align.X
-	childY := box.Padding.Top + (inner.Height-box.childSize.Height)*box.Align.Y
+	inner := Size{Width: box.size.Width - pad.Horizontal(), Height: box.size.Height - pad.Vertical()}
+	childX := pad.Left + (inner.Width-box.childSize.Width)*box.Align.X
+	childY := pad.Top + (inner.Height-box.childSize.Height)*box.Align.Y
 	return box.Child.Paint(origin.Add(Offset{childX, childY}), clip, picture)
 }
 

@@ -30,11 +30,37 @@ func (rectangle Rect) Intersect(other Rect) Rect {
 }
 
 // BoxConstraints is the Flutter box protocol: min/max width and height.
-// dead is the host navbar and notch list, in this node's coordinates.
+// dead is the host navbar and notch list, in device pixels, in this node's coordinates.
 // [Loosen] keeps it. A root [Hint] reads it.
+// scale is device pixels per logical pixel. Zero means one.
 type BoxConstraints struct {
 	MinWidth, MinHeight, MaxWidth, MaxHeight float32
 	dead                                     []Rect
+	scale                                    float32
+}
+
+func factor(scale float32) float32 {
+	if scale <= 0 {
+		return 1
+	}
+	return scale
+}
+
+func (constraints BoxConstraints) density() float32 {
+	return factor(constraints.scale)
+}
+
+func scaleInsets(insets EdgeInsets, scale float32) EdgeInsets {
+	scale = factor(scale)
+	if scale == 1 {
+		return insets
+	}
+	return EdgeInsets{
+		Left:   insets.Left * scale,
+		Top:    insets.Top * scale,
+		Right:  insets.Right * scale,
+		Bottom: insets.Bottom * scale,
+	}
 }
 
 // Tight is min = max = size.
@@ -55,11 +81,12 @@ func (constraints BoxConstraints) Deflate(padding EdgeInsets) BoxConstraints {
 		MinHeight: max(float32(0), constraints.MinHeight-padding.Vertical()),
 		MaxWidth:  max(float32(0), constraints.MaxWidth-padding.Horizontal()),
 		MaxHeight: max(float32(0), constraints.MaxHeight-padding.Vertical()),
+		scale:     constraints.scale,
 	}
 }
 
 func (constraints BoxConstraints) Loosen() BoxConstraints {
-	return BoxConstraints{MaxWidth: constraints.MaxWidth, MaxHeight: constraints.MaxHeight, dead: constraints.dead}
+	return BoxConstraints{MaxWidth: constraints.MaxWidth, MaxHeight: constraints.MaxHeight, dead: constraints.dead, scale: constraints.scale}
 }
 
 func (constraints BoxConstraints) TightenWidth(width float32) BoxConstraints {

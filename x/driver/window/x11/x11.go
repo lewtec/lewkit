@@ -41,6 +41,8 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 		return nil, err
 	}
 	screen := xproto.Setup(conn).DefaultScreen(conn)
+	scale := displayScale(conn)
+	w, h = clampDevice(scale.Device(w)), clampDevice(scale.Device(h))
 	wid, err := xproto.NewWindowId(conn)
 	if err != nil {
 		conn.Close()
@@ -97,6 +99,7 @@ func (xdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	}
 
 	buf := window.NewBuffer(w, h)
+	buf.SetScale(scale)
 	buf.SetFramePeriod(cfg.Period)
 	win := &xwin{
 		Buffer:   buf,

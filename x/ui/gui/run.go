@@ -234,6 +234,7 @@ func (runner *runner) loop() error {
 	// Open can publish Resize before Subscribe, and that event is dropped.
 	// The host still records the client size. Adopt it before the first paint
 	// so the frame matches the window without a later resize.
+	// SetScale before Subscribe drops Density the same way. render reads Scale.
 	if err := runner.adoptSize(); err != nil {
 		return err
 	}
@@ -398,7 +399,7 @@ func (runner *runner) handle(msg Msg) error {
 		return nil
 	}
 	switch msg.(type) {
-	case window.Expose, window.Resize:
+	case window.Expose, window.Resize, window.Density:
 		return runner.flush(true)
 	}
 	return nil
@@ -420,12 +421,24 @@ func (runner *runner) spawn(cmd Cmd) {
 	}()
 }
 
+func hostScale(host display) float32 {
+	if host == nil {
+		return 1
+	}
+	scaled, ok := host.(interface{ Scale() window.Scale })
+	if !ok {
+		return 1
+	}
+	return float32(scaled.Scale().Factor())
+}
+
 func (runner *runner) render() error {
 	root := runner.model.View()
 	if root == nil {
 		return ErrView
 	}
 	size := runner.host.Size()
+	runner.picture.SetScale(hostScale(runner.host))
 	runner.picture.dead = zonesOf(runner.host.Dead())
 	pixels, err := runner.picture.Render(root, Size{float32(size.X), float32(size.Y)})
 	if err != nil {
