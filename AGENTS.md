@@ -1,1 +1,5 @@
-- All writes to this repo must be done as lewtec style PRs using the lewgh trick (lewbot)
+- Optimize code for human readers. High signal/noise ratio.
+- Avoid shortening names
+- Keep stuff simple and organized, do step backs and refactors if necessary
+- Respect the context chain: only context.Background in main, ctx as first positional arg
+- Table all errors: %w in fmt.Errorf
