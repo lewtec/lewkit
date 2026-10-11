@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,6 +33,8 @@ func TestParseExpr(t *testing.T) {
 	got, err := parseExpr(" vulkan:integrated | cpu ")
 	require.NoError(t, err)
 	require.Equal(t, []choice{{name: "vulkan", kind: "integrated"}, {name: "cpu"}}, got)
+	require.Equal(t, "ndeval_vulkan:integrated", got[0].id())
+	require.Equal(t, "ndeval_cpu", got[1].id())
 	_, err = parseExpr("opengl:integrated")
 	require.ErrorIs(t, err, cmd.ErrInvalidArgument)
 	_, err = parseExpr("|")
@@ -49,6 +52,19 @@ func TestEvalCPU(t *testing.T) {
 	require.NoError(t, arg.Prepare(t.Context()))
 	require.Equal(t, "cpu", arg.Device())
 	require.Equal(t, "nope | cpu", arg.Expression())
+}
+
+func TestEvalDefaultExpression(t *testing.T) {
+	var arg Arg
+	require.NoError(t, arg.Parse(arg.ArgDefault()))
+	require.NoError(t, arg.Prepare(t.Context()))
+	require.NotNil(t, arg.Value())
+	if arg.Value() == ndarray.CPU {
+		require.Equal(t, "cpu", arg.Device())
+		return
+	}
+	require.Contains(t, arg.Device(), "vulkan")
+	test.CloseOnCleanup(t, arg.Value())
 }
 
 func TestArgGivesOneEvaluator(t *testing.T) {
