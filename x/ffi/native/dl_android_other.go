@@ -1,4 +1,8 @@
-//go:build android && !cgo && !arm64
+//go:build android && !cgo && (!arm64 || !appmode)
+
+// The arm64 call bridge is android && !cgo && arm64 && appmode.
+// This file covers the other cgo-free Android builds, including a
+// Termux executable.
 
 package native
 

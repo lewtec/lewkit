@@ -300,7 +300,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	if !strings.Contains(string(sh), "GOOS=android") {
 		t.Fatalf("script missing GOOS=android")
 	}
-	if strings.Contains(string(sh), "androidnocgo") || !strings.Contains(string(sh), "-checklinkname=0") || !strings.Contains(string(sh), "androidtoolexec") || !strings.Contains(string(sh), "_cgo_android_export.go") {
+	if strings.Contains(string(sh), "androidnocgo") || !strings.Contains(string(sh), "-checklinkname=0") || !strings.Contains(string(sh), "androidtoolexec") || !strings.Contains(string(sh), "_cgo_android_export.go") || !strings.Contains(string(sh), "-tags appmode") {
 		t.Fatal("arm64 build does not publish Hook.call")
 	}
 }

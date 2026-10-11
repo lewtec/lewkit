@@ -224,10 +224,12 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 			// JNI_OnLoad is in .dynsym only when the wrapper compiles in
 			// _cgo_android_export.go. -toolexec is that wrapper plus the
 			// export file, so the compile cache key includes the file.
-			// The runtime symbol references need -checklinkname=0.
+			// -tags appmode compiles the JNI host. The runtime symbol
+			// references need -checklinkname=0.
 			linkFlags = strings.TrimSpace(ldflags + " -checklinkname=0")
 			args = []string{
 				"-trimpath",
+				"-tags", "appmode",
 				"-toolexec", toolexec,
 				"-ldflags", linkFlags,
 				"-o", dest, ".",

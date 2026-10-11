@@ -30,12 +30,12 @@ func TestNocgoArm64ExportsJNIOnLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	poison := filepath.Join(t.TempDir(), "poison.so")
-	cmd := exec.Command("go", "build", "-trimpath", "-ldflags", "-checklinkname=0", "-o", poison, ".")
+	poison := filepath.Join(t.TempDir(), "plain")
+	cmd := exec.Command("go", "build", "-trimpath", "-o", poison, ".")
 	cmd.Dir = mini
 	cmd.Env = append(os.Environ(), "GOOS=android", "GOARCH=arm64", "CGO_ENABLED=0")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("poison build: %v\n%s", err, out)
+		t.Fatalf("plain build: %v\n%s", err, out)
 	}
 	ok, err := dynDefined(poison, "JNI_OnLoad")
 	if err != nil {
