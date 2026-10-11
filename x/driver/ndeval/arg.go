@@ -29,6 +29,7 @@ import (
 // is the evaluator.
 type Arg struct {
 	expr string
+	used string
 	ev   ndarray.Evaluator
 }
 
@@ -40,6 +41,7 @@ func (a *Arg) Parse(s string) error {
 		return err
 	}
 	a.expr = s
+	a.used = ""
 	a.ev = nil
 	return nil
 }
@@ -49,35 +51,67 @@ func (a *Arg) Prepare(ctx context.Context) error {
 	if a.ev != nil {
 		return nil
 	}
-	ev, err := Eval(ctx, a.expr)
+	ev, used, err := resolve(ctx, a.expr)
 	if err != nil {
 		return err
 	}
 	a.ev = ev
+	a.used = used
 	return nil
 }
 
 // Value is the evaluator opened by Prepare. It is nil before that.
 func (a Arg) Value() ndarray.Evaluator { return a.ev }
 
+// Expression is the text that selected the evaluator.
+func (a Arg) Expression() string { return a.expr }
+
+// Device is the opened evaluator. A Vulkan evaluator names its physical device.
+func (a Arg) Device() string {
+	if named, ok := a.ev.(interface{ Name() string }); ok {
+		if name := named.Name(); name != "" {
+			return name
+		}
+	}
+	if a.used != "" {
+		return a.used
+	}
+	return a.expr
+}
+
 // Eval resolves expression to one evaluator.
 func Eval(ctx context.Context, expression string) (ndarray.Evaluator, error) {
+	ev, _, err := resolve(ctx, expression)
+	return ev, err
+}
+
+func resolve(ctx context.Context, expression string) (ndarray.Evaluator, string, error) {
 	choices, err := parseExpr(expression)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if len(choices) == 0 {
-		return driver.Get[ndarray.Evaluator](ctx)
+		ev, err := driver.Get[ndarray.Evaluator](ctx)
+		return ev, deviceName(ev), err
 	}
 	var fails []string
 	for _, choice := range choices {
 		ev, err := choice.open(ctx)
 		if err == nil {
-			return ev, nil
+			return ev, deviceName(ev), nil
 		}
 		fails = append(fails, err.Error())
 	}
-	return nil, fmt.Errorf("evaluator %q: %s", expression, strings.Join(fails, "; "))
+	return nil, "", fmt.Errorf("evaluator %q: %s", expression, strings.Join(fails, "; "))
+}
+
+func deviceName(ev ndarray.Evaluator) string {
+	if named, ok := ev.(interface{ Name() string }); ok {
+		if name := named.Name(); name != "" {
+			return name
+		}
+	}
+	return ""
 }
 
 type choice struct {

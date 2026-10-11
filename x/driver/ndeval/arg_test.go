@@ -44,6 +44,10 @@ func TestEvalCPU(t *testing.T) {
 	ev, err := Eval(t.Context(), "cpu")
 	require.NoError(t, err)
 	require.Equal(t, ndarray.CPU, ev)
+	var arg Arg
+	require.NoError(t, arg.Parse("cpu"))
+	require.NoError(t, arg.Prepare(t.Context()))
+	require.Equal(t, "cpu", arg.Device())
 }
 
 func TestArgGivesOneEvaluator(t *testing.T) {
