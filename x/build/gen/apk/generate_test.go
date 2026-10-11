@@ -1,7 +1,6 @@
 package apk
 
 import (
-	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -9,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreate_PackageIDLayout(t *testing.T) {
@@ -21,9 +22,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 			GoMain:    "../../examples/counter",
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	mustExist := []string{
 		"eletrocromo.json",
@@ -46,219 +45,145 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"README.md",
 	}
 	for _, rel := range mustExist {
-		p := filepath.Join(out, rel)
-		if _, err := os.Stat(p); err != nil {
-			t.Errorf("missing %s: %v", rel, err)
-		}
+		_, err := os.Stat(filepath.Join(out, rel))
+		assert.NoError(t, err, "missing %s", rel)
 	}
 
 	gradle, err := os.ReadFile(filepath.Join(out, "app/build.gradle"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s := string(gradle)
-	if !strings.Contains(s, `applicationId = "br.tec.lew.counter"`) {
-		t.Fatalf("applicationId not baked in:\n%s", s)
-	}
-	if !strings.Contains(s, `namespace = "br.tec.lew.counter"`) {
-		t.Fatalf("namespace not baked in:\n%s", s)
-	}
-	if !strings.Contains(s, "swiperefreshlayout:swiperefreshlayout:1.1.0") {
-		t.Fatal("pull-to-refresh dependency missing")
-	}
-	if strings.Contains(s, "kotlin-stdlib") || strings.Contains(s, "appcompat") || strings.Contains(s, "androidx.core") || strings.Contains(s, "androidx.webkit") {
-		t.Fatalf("kotlin or appcompat still on the classpath:\n%s", s)
-	}
+	require.Contains(t, s, `applicationId = "br.tec.lew.counter"`)
+	require.Contains(t, s, `namespace = "br.tec.lew.counter"`)
+	require.Contains(t, s, "swiperefreshlayout:swiperefreshlayout:1.1.0")
+	require.NotContains(t, s, "kotlin-stdlib")
+	require.NotContains(t, s, "appcompat")
+	require.NotContains(t, s, "androidx.core")
+	require.NotContains(t, s, "androidx.webkit")
 
 	mainJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/MainActivity.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(string(mainJava), "package br.tec.lew.counter;\n") {
-		t.Fatalf("java package mismatch:\n%s", mainJava[:80])
-	}
-	if !strings.Contains(string(mainJava), "extends HostActivity") {
-		t.Fatal("splash activity does not share the window base")
-	}
-	if !strings.Contains(string(mainJava), "R.id.splash") {
-		t.Fatal("launcher has no splash")
-	}
-	if !strings.Contains(string(mainJava), "url.isEmpty()") {
-		t.Fatal("splash does not yield when the surface opens")
-	}
-	if !strings.Contains(string(mainJava), "Host.onPage") {
-		t.Fatal("a page published after the splash has no window")
-	}
-	if strings.Contains(string(mainJava), "ServerService") || strings.Contains(string(mainJava), "startForegroundService") {
-		t.Fatal("splash starts a server process")
-	}
+	require.NoError(t, err)
+	main := string(mainJava)
+	require.True(t, strings.HasPrefix(main, "package br.tec.lew.counter;\n"), "java package mismatch:\n%s", main[:80])
+	require.Contains(t, main, "extends HostActivity")
+	require.Contains(t, main, "R.id.splash")
+	require.Contains(t, main, "url.isEmpty()")
+	require.Contains(t, main, "Host.onPage")
+	require.NotContains(t, main, "ServerService")
+	require.NotContains(t, main, "startForegroundService")
 	manifest, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(manifest), "ServerService") || strings.Contains(string(manifest), "FOREGROUND_SERVICE") {
-		t.Fatal("manifest still declares the server service")
-	}
-	if strings.Contains(string(mainJava), "android.webkit.WebView") || strings.Contains(string(mainJava), "webview_container") {
-		t.Fatal("splash still embeds a web view")
-	}
+	require.NoError(t, err)
+	man := string(manifest)
+	require.NotContains(t, man, "ServerService")
+	require.NotContains(t, man, "FOREGROUND_SERVICE")
+	require.NotContains(t, main, "android.webkit.WebView")
+	require.NotContains(t, main, "webview_container")
 	layout, err := os.ReadFile(filepath.Join(out, "app/src/main/res/layout/activity_main.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(layout), "webview_container") || strings.Contains(string(layout), "SwipeRefreshLayout") {
-		t.Fatal("splash layout still stacks a web view")
-	}
+	require.NoError(t, err)
+	lay := string(layout)
+	require.NotContains(t, lay, "webview_container")
+	require.NotContains(t, lay, "SwipeRefreshLayout")
 	surface, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/SurfaceActivity.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(surface), "extends HostActivity") {
-		t.Fatal("surface activity does not share the window base")
-	}
-	if !strings.Contains(string(surface), "Host.boot(this)") {
-		t.Fatal("surface activity does not start the app")
-	}
-	if !strings.Contains(string(surface), "setDecorFitsSystemWindows(false)") {
-		t.Fatal("surface stays inside the system bars")
-	}
-	if !strings.Contains(string(surface), "LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES") {
-		t.Fatal("surface stays out of the cutout")
-	}
-	if strings.Contains(string(surface), "SYSTEM_UI_FLAG_HIDE_NAVIGATION") ||
-		strings.Contains(string(surface), "SYSTEM_UI_FLAG_FULLSCREEN") ||
-		strings.Contains(string(surface), "IMMERSIVE") {
-		t.Fatal("surface hides the system bars")
-	}
+	require.NoError(t, err)
+	surf := string(surface)
+	require.Contains(t, surf, "extends HostActivity")
+	require.Contains(t, surf, "Host.boot(this)")
+	require.Contains(t, surf, "setDecorFitsSystemWindows(false)")
+	require.Contains(t, surf, "LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES")
+	require.NotContains(t, surf, "SYSTEM_UI_FLAG_HIDE_NAVIGATION")
+	require.NotContains(t, surf, "SYSTEM_UI_FLAG_FULLSCREEN")
+	require.NotContains(t, surf, "IMMERSIVE")
 
 	cfg, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(cfg), `"package_id": "br.tec.lew.counter"`) {
-		t.Fatalf("json: %s", cfg)
-	}
-	if !strings.Contains(string(cfg), `"go_main": "../../examples/counter"`) {
-		t.Fatalf("go_main: %s", cfg)
-	}
+	require.NoError(t, err)
+	cfgText := string(cfg)
+	require.Contains(t, cfgText, `"package_id": "br.tec.lew.counter"`)
+	require.Contains(t, cfgText, `"go_main": "../../examples/counter"`)
 
 	manifest, err = os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(manifest), `android:scheme=`) {
-		t.Fatalf("unexpected scheme filter:\n%s", manifest)
-	}
-	if !strings.Contains(string(manifest), `android:configChanges="orientation|screenSize|keyboardHidden|uiMode"`) {
-		t.Fatalf("manifest uiMode:\n%s", manifest)
-	}
-	mainAt := strings.Index(string(manifest), `android:name=".MainActivity"`)
-	launchAt := strings.Index(string(manifest), "LAUNCHER")
-	surfaceAt := strings.Index(string(manifest), `android:name="lewkit.SurfaceActivity"`)
-	if mainAt < 0 || launchAt < mainAt || surfaceAt < launchAt {
-		t.Fatalf("web launcher:\n%s", manifest)
-	}
-	if strings.Contains(string(manifest), `android:name="lewkit.FileChooser"`) {
-		t.Fatalf("file chooser is an activity:\n%s", manifest)
-	}
+	require.NoError(t, err)
+	man = string(manifest)
+	require.NotContains(t, man, `android:scheme=`)
+	require.Contains(t, man, `android:configChanges="orientation|screenSize|keyboardHidden|uiMode"`)
+	mainAt := strings.Index(man, `android:name=".MainActivity"`)
+	launchAt := strings.Index(man, "LAUNCHER")
+	surfaceAt := strings.Index(man, `android:name="lewkit.SurfaceActivity"`)
+	require.GreaterOrEqual(t, mainAt, 0, "web launcher:\n%s", man)
+	require.GreaterOrEqual(t, launchAt, mainAt, "web launcher:\n%s", man)
+	require.GreaterOrEqual(t, surfaceAt, launchAt, "web launcher:\n%s", man)
+	require.NotContains(t, man, `android:name="lewkit.FileChooser"`)
 	chooser, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/FileChooser.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	chooserJava := string(chooser)
-	if strings.Contains(chooserJava, "extends Activity") || strings.Contains(chooserJava, "FileChooser.class") {
-		t.Fatal("file chooser replaces the current activity")
-	}
-	if !strings.Contains(chooserJava, "Host.foreground") || !strings.Contains(chooserJava, "startActivityForResult") {
-		t.Fatal("file chooser does not stack on the foreground activity")
-	}
-	if !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT_TREE") || !strings.Contains(chooserJava, "ACTION_OPEN_DOCUMENT") || !strings.Contains(chooserJava, "ACTION_CREATE_DOCUMENT") {
-		t.Fatal("file chooser lost the file, folder, and save pickers")
-	}
+	require.NotContains(t, chooserJava, "extends Activity")
+	require.NotContains(t, chooserJava, "FileChooser.class")
+	require.Contains(t, chooserJava, "Host.foreground")
+	require.Contains(t, chooserJava, "startActivityForResult")
+	require.Contains(t, chooserJava, "ACTION_OPEN_DOCUMENT_TREE")
+	require.Contains(t, chooserJava, "ACTION_OPEN_DOCUMENT")
+	require.Contains(t, chooserJava, "ACTION_CREATE_DOCUMENT")
 	hostAct, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/HostActivity.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	hostActJava := string(hostAct)
 	hostJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(hostJava), "AlertDialog") || !strings.Contains(string(hostJava), "showFail") {
-		t.Fatal("startup failure does not show a message box")
-	}
+	require.NoError(t, err)
+	host := string(hostJava)
+	require.Contains(t, host, "AlertDialog")
+	require.Contains(t, host, "showFail")
 	askJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Ask.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	askText := string(askJava)
-	if !strings.Contains(askText, "void alert") || !strings.Contains(askText, "void confirm") || !strings.Contains(askText, "void prompt") || !strings.Contains(askText, "void choose") {
-		t.Fatal("ask dialog is missing alert, confirm, prompt, or choose")
-	}
-	if !strings.Contains(hostActJava, "Host.noteForeground(this, true)") || !strings.Contains(hostActJava, "FileChooser.onResult") || !strings.Contains(hostActJava, "FileChooser.hostGone") {
-		t.Fatal("window base does not track the foreground activity or the picker result")
-	}
-	if !strings.Contains(hostActJava, "Notify.onResult") {
-		t.Fatal("window base does not receive the notification permission")
-	}
-	if !strings.Contains(string(manifest), "android.permission.POST_NOTIFICATIONS") {
-		t.Fatal("manifest missing notification permission")
-	}
+	require.Contains(t, askText, "void alert")
+	require.Contains(t, askText, "void confirm")
+	require.Contains(t, askText, "void prompt")
+	require.Contains(t, askText, "void choose")
+	require.Contains(t, hostActJava, "Host.noteForeground(this, true)")
+	require.Contains(t, hostActJava, "FileChooser.onResult")
+	require.Contains(t, hostActJava, "FileChooser.hostGone")
+	require.Contains(t, hostActJava, "Notify.onResult")
+	require.Contains(t, man, "android.permission.POST_NOTIFICATIONS")
 	note, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Notify.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	noteJava := string(note)
-	if !strings.Contains(noteJava, "NotificationManager") || !strings.Contains(noteJava, "createNotificationChannel") || !strings.Contains(noteJava, "requestPermissions") {
-		t.Fatal("notification host does not post or ask")
-	}
+	require.Contains(t, noteJava, "NotificationManager")
+	require.Contains(t, noteJava, "createNotificationChannel")
+	require.Contains(t, noteJava, "requestPermissions")
 	openJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Open.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	openText := string(openJava)
-	if !strings.Contains(openText, "ACTION_VIEW") || !strings.Contains(openText, "FileProvider.getUriForFile") || !strings.Contains(openText, "startActivity") {
-		t.Fatal("open host does not view a URL or file")
-	}
+	require.Contains(t, openText, "ACTION_VIEW")
+	require.Contains(t, openText, "FileProvider.getUriForFile")
+	require.Contains(t, openText, "startActivity")
 	pageJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(pageJava), "extends HostActivity") || !strings.Contains(string(pageJava), "wv.onResume()") {
-		t.Fatal("page does not share the window base or resume its web view")
-	}
-	if strings.Contains(string(mainJava), "onActivityResult") || strings.Contains(string(pageJava), "onActivityResult") || strings.Contains(string(surface), "onActivityResult") {
-		t.Fatal("picker result is copied onto each window")
-	}
+	require.NoError(t, err)
+	page := string(pageJava)
+	require.Contains(t, page, "extends HostActivity")
+	require.Contains(t, page, "wv.onResume()")
+	require.NotContains(t, main, "onActivityResult")
+	require.NotContains(t, page, "onActivityResult")
+	require.NotContains(t, surf, "onActivityResult")
 	docs, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Documents.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(docs), "int readFd") || !strings.Contains(string(docs), "int thumbFd") {
-		t.Fatal("document reader")
-	}
+	require.NoError(t, err)
+	docText := string(docs)
+	require.Contains(t, docText, "int readFd")
+	require.Contains(t, docText, "int thumbFd")
 
 	hostJava, err = os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Host.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(hostJava), "dataDir") || strings.Contains(string(hostJava), "cacheDir") || strings.Contains(string(hostJava), "configDir") {
-		t.Fatalf("host still owns directory methods:\n%s", hostJava)
-	}
-	if !strings.Contains(string(hostJava), `cb.call("")`) {
-		t.Fatal("surface open does not replace the splash")
-	}
-	splashAt := strings.Index(string(hostJava), "Ready splash = onReady")
-	pageAt := strings.Index(string(hostJava), "Ready page = onPage")
-	if splashAt < 0 || pageAt < splashAt {
-		t.Fatal("first window does not close the splash before a later page opens")
-	}
-	if err := filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
+	require.NoError(t, err)
+	host = string(hostJava)
+	require.NotContains(t, host, "dataDir")
+	require.NotContains(t, host, "cacheDir")
+	require.NotContains(t, host, "configDir")
+	require.Contains(t, host, `cb.call("")`)
+	splashAt := strings.Index(host, "Ready splash = onReady")
+	pageAt := strings.Index(host, "Ready page = onPage")
+	require.GreaterOrEqual(t, splashAt, 0)
+	require.GreaterOrEqual(t, pageAt, splashAt)
+	require.NoError(t, filepath.WalkDir(out, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if strings.HasSuffix(path, ".kt") || strings.HasSuffix(path, ".kts") {
-			t.Errorf("kotlin source %s", path)
+			assert.Failf(t, "kotlin source", "%s", path)
 		}
 		if d.IsDir() || !(strings.HasSuffix(path, ".java") || strings.HasSuffix(path, ".xml") || strings.HasSuffix(path, ".gradle")) {
 			return nil
@@ -269,40 +194,27 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		}
 		text := string(body)
 		for _, banned := range []string{"androidx.appcompat", "androidx.core", "androidx.activity", "androidx.webkit", "kotlin-stdlib"} {
-			if strings.Contains(text, banned) {
-				t.Errorf("%s still mentions %s", path, banned)
-			}
+			assert.NotContains(t, text, banned, path)
 		}
 		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+	}))
 
 	proxy, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/GoProxy.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(proxy), "nativeInvoke") {
-		t.Fatalf("GoProxy:\n%s", proxy)
-	}
+	require.NoError(t, err)
+	require.Contains(t, string(proxy), "nativeInvoke")
 
 	sh, err := os.ReadFile(filepath.Join(out, "scripts/build-go.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	info, err := os.Stat(filepath.Join(out, "scripts/build-go.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode()&0o111 == 0 {
-		t.Fatalf("build-go.sh not executable: %v", info.Mode())
-	}
-	if !strings.Contains(string(sh), "GOOS=android") {
-		t.Fatalf("script missing GOOS=android")
-	}
-	if strings.Contains(string(sh), "androidnocgo") || !strings.Contains(string(sh), "-checklinkname=0") || !strings.Contains(string(sh), "androidtoolexec") {
-		t.Fatal("arm64 build does not publish Hook.call")
-	}
+	require.NoError(t, err)
+	require.NotZero(t, info.Mode()&0o111, "build-go.sh not executable: %v", info.Mode())
+	script := string(sh)
+	require.Contains(t, script, "GOOS=android")
+	require.NotContains(t, script, "androidnocgo")
+	require.Contains(t, script, "-checklinkname=0")
+	require.Contains(t, script, "androidtoolexec")
+	require.Contains(t, script, "_cgo_android_export.go")
+	require.Contains(t, script, "-tags appmode")
 }
 
 func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
@@ -319,37 +231,20 @@ func TestCreate_CapabilitiesIntentFilters(t *testing.T) {
 			},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	manifest, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s := string(manifest)
-	if !strings.Contains(s, `android:scheme="myapp"`) {
-		t.Fatalf("scheme:\n%s", s)
-	}
-	if !strings.Contains(s, `android:mimeType="text/markdown"`) {
-		t.Fatalf("mime:\n%s", s)
-	}
-	if _, err := os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.java")); err != nil {
-		t.Fatal(err)
-	}
+	require.Contains(t, s, `android:scheme="myapp"`)
+	require.Contains(t, s, `android:mimeType="text/markdown"`)
+	_, err = os.Stat(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/OpenDrop.java"))
+	require.NoError(t, err)
 	shareOut, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/ShareOut.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(shareOut), "existing.length()") {
-		t.Fatalf("share tail should start at the end of the file:\n%s", shareOut)
-	}
+	require.NoError(t, err)
+	require.Contains(t, string(shareOut), "existing.length()")
 	man, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(man), `android:name="lewkit.FileProvider"`) {
-		t.Fatalf("FileProvider:\n%s", man)
-	}
+	require.NoError(t, err)
+	require.Contains(t, string(man), `android:name="lewkit.FileProvider"`)
 }
 
 func TestCreate_FirstPageReplacesSplash(t *testing.T) {
@@ -362,61 +257,36 @@ func TestCreate_FirstPageReplacesSplash(t *testing.T) {
 			GoMain:    ".",
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	mainJava, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/MainActivity.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	main := string(mainJava)
-	if !strings.Contains(main, "finish()") {
-		t.Fatal("splash activity stays on the back stack")
-	}
-	if strings.Contains(main, "WebView") {
-		t.Fatal("splash activity still hosts a web view")
-	}
+	require.Contains(t, main, "finish()")
+	require.NotContains(t, main, "WebView")
 	page, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/counter/PageActivity.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	body := string(page)
-	if !strings.Contains(body, "SwipeRefreshLayout") || !strings.Contains(body, "setOnRefreshListener") {
-		t.Fatal("page is missing pull-to-refresh")
-	}
-	if !strings.Contains(body, "canGoBack()") || !strings.Contains(body, "OnBackInvokedDispatcher") {
-		t.Fatal("back leaves the page without walking its history")
-	}
-	if !strings.Contains(body, "EXTRA_PAGE") || !strings.Contains(body, "Page.intercept") || !strings.Contains(body, "lewkitPage") {
-		t.Fatal("page activity does not serve the in-process web view")
-	}
-	if !strings.Contains(main, "Page.onOpen") {
-		t.Fatal("splash does not open the in-process page")
-	}
-	if strings.Index(main, "Page.onOpen") > strings.Index(main, "Host.boot") {
-		t.Fatal("page opener is installed after the Go library starts")
-	}
+	require.Contains(t, body, "SwipeRefreshLayout")
+	require.Contains(t, body, "setOnRefreshListener")
+	require.Contains(t, body, "canGoBack()")
+	require.Contains(t, body, "OnBackInvokedDispatcher")
+	require.Contains(t, body, "EXTRA_PAGE")
+	require.Contains(t, body, "Page.intercept")
+	require.Contains(t, body, "lewkitPage")
+	require.Contains(t, main, "Page.onOpen")
+	require.LessOrEqual(t, strings.Index(main, "Page.onOpen"), strings.Index(main, "Host.boot"))
 	pageHost, err := os.ReadFile(filepath.Join(out, "app/src/main/java/lewkit/Page.java"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pageText := string(pageHost)
-	if !strings.Contains(pageText, "shouldInterceptRequest") && !strings.Contains(pageText, "WebResourceRequest") {
-		t.Fatal("in-process page does not intercept requests")
-	}
-	if strings.Contains(pageText, "ServerService") || strings.Contains(pageText, "127.0.0.1") {
-		t.Fatal("in-process page publishes a loopback server")
-	}
-	if !strings.Contains(pageText, `Host.ready("")`) {
-		t.Fatal("in-process page does not dismiss the splash without a URL")
-	}
+	require.True(t, strings.Contains(pageText, "shouldInterceptRequest") || strings.Contains(pageText, "WebResourceRequest"))
+	require.NotContains(t, pageText, "ServerService")
+	require.NotContains(t, pageText, "127.0.0.1")
+	require.Contains(t, pageText, `Host.ready("")`)
 	manifest, err := os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(manifest), `android:name=".PageActivity"`) || !strings.Contains(string(manifest), `android:launchMode="standard"`) {
-		t.Fatal("page activity does not stack an in-process window")
-	}
+	require.NoError(t, err)
+	man := string(manifest)
+	require.Contains(t, man, `android:name=".PageActivity"`)
+	require.Contains(t, man, `android:launchMode="standard"`)
 }
 
 func TestCreate_RejectsBadID(t *testing.T) {
@@ -424,48 +294,33 @@ func TestCreate_RejectsBadID(t *testing.T) {
 		OutDir: t.TempDir(),
 		Config: Config{PackageID: "Not.Valid"},
 	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 }
 
 func TestCreate_RequiresForceWhenNonEmpty(t *testing.T) {
 	out := t.TempDir()
-	if err := os.WriteFile(filepath.Join(out, "keep"), []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(out, "keep"), []byte("x"), 0o644))
 	err := Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{PackageID: "br.tec.lew.x"},
 	})
-	if err == nil {
-		t.Fatal("expected non-empty error")
-	}
-	if err := Create(t.Context(), Options{
+	require.Error(t, err)
+	require.NoError(t, Create(t.Context(), Options{
 		OutDir: out,
 		Force:  true,
 		Config: Config{PackageID: "br.tec.lew.x", AppName: "X"},
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(out, "keep")); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("force should wipe old files, keep still there: %v", err)
-	}
+	}))
+	_, err = os.Stat(filepath.Join(out, "keep"))
+	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 func TestCreate_DefaultAppNameFromID(t *testing.T) {
 	out := t.TempDir()
-	if err := Create(t.Context(), Options{
+	require.NoError(t, Create(t.Context(), Options{
 		OutDir: out,
 		Config: Config{PackageID: "br.tec.lew.myapp"},
-	}); err != nil {
-		t.Fatal(err)
-	}
+	}))
 	stringsXML, err := os.ReadFile(filepath.Join(out, "app/src/main/res/values/strings.xml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(stringsXML), ">myapp</string>") {
-		t.Fatalf("default name: %s", stringsXML)
-	}
+	require.NoError(t, err)
+	require.Contains(t, string(stringsXML), ">myapp</string>")
 }

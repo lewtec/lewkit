@@ -1,4 +1,4 @@
-//go:build android && !cgo && arm64
+//go:build android && !cgo && arm64 && appmode
 
 package entry
 
@@ -12,8 +12,9 @@ import (
 )
 
 // runtimeNewextram makes an M for a Java thread that enters Go.
-// mstartm0 only does this when cgo is linked. The arm64 link passes
-// -checklinkname=0 because this symbol is not on the allowlist.
+// mstartm0 only does this when cgo is linked. The app link passes
+// -tags appmode and -checklinkname=0. A plain android/arm64 build
+// leaves this file out.
 //
 //go:linkname runtimeNewextram runtime.newextram
 func runtimeNewextram()
