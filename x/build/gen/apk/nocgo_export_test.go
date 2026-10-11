@@ -9,56 +9,36 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/stretchr/testify/require"
 )
 
 func TestJoinToolexecQuotesSpaces(t *testing.T) {
 	got, err := joinToolexec("/tmp/android toolexec", "/tmp/x/_cgo_android_export.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := "'/tmp/android toolexec' /tmp/x/_cgo_android_export.go"
-	if got != want {
-		t.Fatalf("joinToolexec() = %q, want %q", got, want)
-	}
-	if _, err := joinToolexec("", "x"); err == nil {
-		t.Fatal("empty bin returned nil")
-	}
+	require.NoError(t, err)
+	require.Equal(t, "'/tmp/android toolexec' /tmp/x/_cgo_android_export.go", got)
+	_, err = joinToolexec("", "x")
+	require.Error(t, err)
 }
 
 func TestNocgoArm64ExportsJNIOnLoad(t *testing.T) {
 	mini, err := filepath.Abs("testdata/nocgo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	poison := filepath.Join(t.TempDir(), "plain")
-	cmd := exec.Command("go", "build", "-trimpath", "-o", poison, ".")
+	require.NoError(t, err)
+	plain := filepath.Join(t.TempDir(), "plain")
+	cmd := exec.Command("go", "build", "-trimpath", "-o", plain, ".")
 	cmd.Dir = mini
 	cmd.Env = append(os.Environ(), "GOOS=android", "GOARCH=arm64", "CGO_ENABLED=0")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("plain build: %v\n%s", err, out)
-	}
-	ok, err := dynDefined(poison, "JNI_OnLoad")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ok {
-		t.Fatal("build without the wrapper exported JNI_OnLoad")
-	}
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "plain build:\n%s", out)
+	ok, err := dynDefined(plain, "JNI_OnLoad")
+	require.NoError(t, err)
+	require.False(t, ok, "build without the wrapper exported JNI_OnLoad")
 
 	libs, err := BuildGoLibs(t.Context(), t.TempDir(), mini, []string{"arm64-v8a"}, version.Info{}, "br.tec.lew.nocgo", false, io.Discard)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(libs) != 1 {
-		t.Fatalf("libs = %#v", libs)
-	}
+	require.NoError(t, err)
+	require.Len(t, libs, 1)
 	ok, err = dynDefined(libs[0], "JNI_OnLoad")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("cgo-free arm64 library has no JNI_OnLoad in .dynsym")
-	}
+	require.NoError(t, err)
+	require.True(t, ok, "cgo-free arm64 library has no JNI_OnLoad in .dynsym")
 }
 
 func dynDefined(path, name string) (bool, error) {

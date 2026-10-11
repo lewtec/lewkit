@@ -1,14 +1,16 @@
 package apk
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestNDKTriple(t *testing.T) {
 	got, err := ndkTriple("arm64")
-	if err != nil || got != "aarch64-linux-android" {
-		t.Fatalf("arm64: %s %v", got, err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "aarch64-linux-android", got)
 	got, err = ndkTriple("arm")
-	if err != nil || got != "armv7a-linux-androideabi" {
-		t.Fatalf("arm: %s %v", got, err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "armv7a-linux-androideabi", got)
 }

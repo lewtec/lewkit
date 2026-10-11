@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPeelExport(t *testing.T) {
@@ -12,45 +14,28 @@ func TestPeelExport(t *testing.T) {
 		"/usr/lib/compile",
 		"-V=full",
 	})
-	if export != "/tmp/x/_cgo_android_export.go" {
-		t.Fatalf("export = %q", export)
-	}
-	if len(rest) != 2 || rest[0] != "/usr/lib/compile" || rest[1] != "-V=full" {
-		t.Fatalf("rest = %#v", rest)
-	}
+	require.Equal(t, "/tmp/x/_cgo_android_export.go", export)
+	require.Equal(t, []string{"/usr/lib/compile", "-V=full"}, rest)
+
 	rest, export = peelExport([]string{"/usr/lib/compile", "-p", entryPkg})
-	if export != "" || len(rest) != 3 {
-		t.Fatalf("export %q rest %#v", export, rest)
-	}
+	require.Empty(t, export)
+	require.Len(t, rest, 3)
 }
 
 func TestVersionProbe(t *testing.T) {
-	if !versionProbe([]string{"/usr/lib/compile", "-V=full"}) {
-		t.Fatal("probe not recognized")
-	}
-	if versionProbe([]string{"/usr/lib/compile", "-o", "a.o", "-V=full"}) {
-		t.Fatal("compile line treated as a version probe")
-	}
+	require.True(t, versionProbe([]string{"/usr/lib/compile", "-V=full"}))
+	require.False(t, versionProbe([]string{"/usr/lib/compile", "-o", "a.o", "-V=full"}))
 }
 
 func TestExportStampTracksBytes(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "_cgo_android_export.go")
-	if err := os.WriteFile(path, []byte("package entry\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte("package entry\n"), 0o644))
 	first, err := exportStamp(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, []byte("package entry\n\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, []byte("package entry\n\n"), 0o644))
 	second, err := exportStamp(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first == second || first == "" {
-		t.Fatalf("stamp did not change: %q %q", first, second)
-	}
+	require.NoError(t, err)
+	require.NotEmpty(t, first)
+	require.NotEqual(t, first, second)
 }
