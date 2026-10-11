@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
@@ -196,7 +197,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		abis = DefaultABIs
 	}
 	ldflags := stamp.WithAppID(appID)
-	toolDir, toolexec, err := nocgoAndroidToolexec(ctx, goMainDir, abis, cgoEnabled)
+	toolDir, toolexec, err := nocgoAndroidToolexec(ctx, abis, cgoEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +262,7 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 // for a cgo-free arm64 library. Other ABIs do not use it.
 // toolDir is removed by the caller. arg is the -toolexec value: the wrapper
 // and the export file. An empty arg means this build does not use the wrapper.
-func nocgoAndroidToolexec(ctx context.Context, goMainDir string, abis []string, cgoEnabled bool) (toolDir, arg string, err error) {
+func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (toolDir, arg string, err error) {
 	if cgoEnabled {
 		return "", "", nil
 	}
@@ -275,7 +276,7 @@ func nocgoAndroidToolexec(ctx context.Context, goMainDir string, abis []string, 
 	if !need {
 		return "", "", nil
 	}
-	export, err := entryExportFile(ctx, goMainDir)
+	export, err := entryExportFile(ctx)
 	if err != nil {
 		return "", "", err
 	}
@@ -285,7 +286,7 @@ func nocgoAndroidToolexec(ctx context.Context, goMainDir string, abis []string, 
 	}
 	dest := filepath.Join(dir, "androidtoolexec")
 	err = (gocmd.Command{
-		Dir:  goMainDir,
+		Dir:  lewkitDir(),
 		Args: []string{"-o", dest, "github.com/lewtec/lewkit/x/build/androidtoolexec"},
 	}).Run(ctx)
 	if err != nil {
@@ -300,9 +301,10 @@ func nocgoAndroidToolexec(ctx context.Context, goMainDir string, abis []string, 
 	return dir, joined, nil
 }
 
-func entryExportFile(ctx context.Context, goMainDir string) (string, error) {
+func entryExportFile(ctx context.Context) (string, error) {
 	cmd := execdriver.MustCommand(ctx, "go", "list", "-f", "{{.Dir}}", "github.com/lewtec/lewkit/x/entry")
-	cmd.Dir = goMainDir
+	// The app main may be another module. go list has to run in this one.
+	cmd.Dir = lewkitDir()
 	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("android entry dir: %w", err)
@@ -316,6 +318,27 @@ func entryExportFile(ctx context.Context, goMainDir string) (string, error) {
 		return "", err
 	}
 	return file, nil
+}
+
+// lewkitDir is the directory of the module that contains this package.
+// An empty result leaves go in the process working directory.
+func lewkitDir() string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok || !filepath.IsAbs(file) {
+		return ""
+	}
+	dir := filepath.Dir(file)
+	for {
+		body, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+		if err == nil && strings.Contains(string(body), "module github.com/lewtec/lewkit") {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 // joinToolexec is the -toolexec value. cmd/go splits it on spaces the way
