@@ -127,6 +127,17 @@ func TestNoteResultKeepsALostSurfaceRetryable(t *testing.T) {
 	assert.False(t, surfaceGone(Result(-3)))
 }
 
+func TestOutputReportsSwapchainExtent(t *testing.T) {
+	screen := &Screen{width: 1080, height: 2400, outW: 2400, outH: 1080}
+	w, h := screen.Output()
+	assert.Equal(t, 2400, w)
+	assert.Equal(t, 1080, h)
+	upright := &Screen{width: 800, height: 400}
+	w, h = upright.Output()
+	assert.Equal(t, 800, w)
+	assert.Equal(t, 400, h)
+}
+
 func TestPresentSourceRotatesUprightPixel(t *testing.T) {
 	const width, height = 8, 4
 	sx, sy := presentSource(transform90, width, height, 0, 0)

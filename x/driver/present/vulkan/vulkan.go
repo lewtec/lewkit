@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 
 	"github.com/lewtec/lewkit/x/driver"
 	ndvulkan "github.com/lewtec/lewkit/x/driver/ndeval/vulkan"
@@ -54,6 +55,19 @@ func (s *gpuScreen) Adopt(window uintptr, width, height int) error {
 		return present.ErrClosed
 	}
 	return mapErr(s.screen.Adopt(window, width, height))
+}
+
+// Output is the swapchain image, in pixels. A zero point means unknown.
+func (s *gpuScreen) Output() image.Point {
+	if s == nil || s.screen == nil {
+		return image.Point{}
+	}
+	sized, ok := s.screen.(interface{ Output() (int, int) })
+	if !ok {
+		return image.Point{}
+	}
+	w, h := sized.Output()
+	return image.Pt(w, h)
 }
 
 func (s *gpuScreen) Close() error {

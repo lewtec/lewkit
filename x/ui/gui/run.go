@@ -84,6 +84,10 @@ func (hold *rasterHold) close() {
 
 func (d bridgeDisplay) gpuPaint() bool { return d.evaluator != nil }
 
+// errRefit means the Android swapchain extent replaced the window size.
+// The picture still belongs to the previous size, so the frame is painted again.
+var errRefit = errors.New("gui refit")
+
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
 	if err := d.sync(); err != nil {
 		if present.Lost(err) {
@@ -111,7 +115,34 @@ func (d bridgeDisplay) sync() error {
 		return present.ErrLost
 	}
 	size := d.Size()
-	return d.screen.Adopt(surface.A, size.X, size.Y)
+	if err := d.screen.Adopt(surface.A, size.X, size.Y); err != nil {
+		return err
+	}
+	return d.noteExtent(surface.Kind, size)
+}
+
+// noteExtent resizes an Android window to the swapchain image.
+// That image is already the oriented window. A portrait picture stored
+// into it is the frame turned on its side, which is what a landscape
+// phone showed. The next adopt matches the image, so the store stays
+// upright and the layout uses the wide size. Other hosts keep their
+// own size: a desktop extent must not fight the window.
+func (d bridgeDisplay) noteExtent(kind int, requested image.Point) error {
+	if kind != window.SurfaceAndroid || d.Window == nil {
+		return nil
+	}
+	sized, ok := d.screen.(interface{ Output() image.Point })
+	if !ok {
+		return nil
+	}
+	out := sized.Output()
+	if out.X < 1 || out.Y < 1 || out == requested {
+		return nil
+	}
+	if err := d.Resize(out); err != nil {
+		return err
+	}
+	return errRefit
 }
 
 func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error {
@@ -383,22 +414,8 @@ func (runner *runner) decorate(msg Msg) Msg {
 }
 
 func (runner *runner) handle(msg Msg) error {
-	msg = runner.decorate(msg)
-	if runner.model == nil {
-		return ErrModel
-	}
-	next, cmd := runner.model.Update(msg)
-	if next == nil {
-		return ErrModel
-	}
-	runner.model = next
-	runner.spawn(cmd)
-	if changed, ok := next.(interface{ Consume() bool }); ok {
-		if changed.Consume() {
-			runner.dirty = true
-		}
-	} else {
-		runner.dirty = true
+	if err := runner.deliver(msg); err != nil {
+		return err
 	}
 	if stopLoop(msg) {
 		return nil
@@ -475,6 +492,9 @@ func (runner *runner) render() error {
 }
 
 func (runner *runner) flush(force bool) error {
+	if err := runner.fitHost(); err != nil {
+		return err
+	}
 	if !force && !runner.dirty {
 		return nil
 	}
@@ -496,31 +516,77 @@ func (runner *runner) flush(force bool) error {
 	if !force && runner.picture.raster == nil && runner.signature != 0 && runner.signature == runner.lastSignature {
 		return nil
 	}
-	if listed && runner.view != nil && runner.picture.raster != nil {
-		if err := runner.host.present(runner.ctx, runner.view, runner.evaluator); err != nil {
-			return err
-		}
-		runner.hertz = runner.fps.Get()
-		runner.lastSignature = runner.signature
+	err := runner.paintFrame(listed)
+	if errors.Is(err, errRefit) {
 		return nil
 	}
-	if listed {
-		if err := runner.host.(listPainter).presentList(runner.ctx, runner.picture); err != nil {
-			return err
-		}
-		runner.hertz = runner.fps.Get()
-		runner.lastSignature = runner.signature
-		return nil
-	}
-	if runner.view == nil {
-		return ErrView
-	}
-	if err := runner.host.present(runner.ctx, runner.view, runner.evaluator); err != nil {
+	if err != nil {
 		return err
 	}
 	runner.hertz = runner.fps.Get()
 	runner.lastSignature = runner.signature
 	return nil
+}
+
+// fitHost adopts the Android swapchain before the signature check.
+// Rotation changes the image without changing the picture, and a skipped
+// present would leave the previous frame turned on its side. The model
+// hears the new size before this flush paints.
+func (runner *runner) fitHost() error {
+	bridged, ok := runner.host.(bridgeDisplay)
+	if !ok {
+		return nil
+	}
+	surfacer, ok := bridged.Window.(window.Surfacer)
+	if !ok || surfacer.Surface().Kind != window.SurfaceAndroid {
+		return nil
+	}
+	err := bridged.sync()
+	if err == nil || present.Lost(err) {
+		return nil
+	}
+	if !errors.Is(err, errRefit) {
+		return err
+	}
+	if err := runner.deliver(window.Resize{Size: runner.host.Size()}); err != nil {
+		return err
+	}
+	runner.dirty = true
+	return nil
+}
+
+func (runner *runner) deliver(msg Msg) error {
+	msg = runner.decorate(msg)
+	if runner.model == nil {
+		return ErrModel
+	}
+	next, cmd := runner.model.Update(msg)
+	if next == nil {
+		return ErrModel
+	}
+	runner.model = next
+	runner.spawn(cmd)
+	if changed, ok := next.(interface{ Consume() bool }); ok {
+		if changed.Consume() {
+			runner.dirty = true
+		}
+	} else {
+		runner.dirty = true
+	}
+	return nil
+}
+
+func (runner *runner) paintFrame(listed bool) error {
+	if listed && runner.view != nil && runner.picture.raster != nil {
+		return runner.host.present(runner.ctx, runner.view, runner.evaluator)
+	}
+	if listed {
+		return runner.host.(listPainter).presentList(runner.ctx, runner.picture)
+	}
+	if runner.view == nil {
+		return ErrView
+	}
+	return runner.host.present(runner.ctx, runner.view, runner.evaluator)
 }
 
 func closed(err error) error {

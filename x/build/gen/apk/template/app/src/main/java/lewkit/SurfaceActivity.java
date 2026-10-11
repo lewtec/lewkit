@@ -55,6 +55,13 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
             return true;
         });
         setContentView(view);
+        view.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                    if (right - left == oldRight - oldLeft && bottom - top == oldBottom - oldTop) {
+                        return;
+                    }
+                    adoptWindow();
+                });
         view.setOnApplyWindowInsetsListener((v, insets) -> {
             reportDead(v, insets);
             return insets;
@@ -134,8 +141,9 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     }
 
     /**
-     * The oriented window size, in pixels. A rotation changes this even when
-     * the surface callback still reports the previous buffer.
+     * The oriented window size, in pixels. Used when the view has not been
+     * laid out yet. After layout, the view's own width and height are the
+     * size the phone is showing.
      */
     @SuppressWarnings("deprecation")
     private int[] windowBounds() {
@@ -161,11 +169,19 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         }
     }
 
-    /** Pin the buffer to the window and tell the GUI that size. */
+    /** Pin the buffer to the laid-out view and tell the GUI that size. */
     private void adoptWindow() {
-        int[] bounds = windowBounds();
-        int width = bounds[0];
-        int height = bounds[1];
+        int width = 0;
+        int height = 0;
+        if (surface != null) {
+            width = surface.getWidth();
+            height = surface.getHeight();
+        }
+        if (width < 64 || height < 64) {
+            int[] bounds = windowBounds();
+            width = bounds[0];
+            height = bounds[1];
+        }
         if (width < 64 || height < 64) {
             return;
         }
@@ -195,11 +211,14 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         if (width < 64 || height < 64) {
             return;
         }
-        int[] bounds = windowBounds();
-        if (!pinning && bounds[0] >= 64 && bounds[1] >= 64 && (bounds[0] != width || bounds[1] != height)) {
-            pinSurface(bounds[0], bounds[1]);
-            width = bounds[0];
-            height = bounds[1];
+        if (surface != null && !pinning) {
+            int viewW = surface.getWidth();
+            int viewH = surface.getHeight();
+            if (viewW >= 64 && viewH >= 64 && (viewW != width || viewH != height)) {
+                pinSurface(viewW, viewH);
+                width = viewW;
+                height = viewH;
+            }
         }
         boolean same = sent && alive && width == lastW && height == lastH;
         lastW = width;

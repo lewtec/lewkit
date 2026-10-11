@@ -90,6 +90,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	require.Contains(t, surf, "setFixedSize")
 	require.Contains(t, surf, "Host.resize")
 	require.Contains(t, surf, "getCurrentWindowMetrics")
+	require.Contains(t, surf, "addOnLayoutChangeListener")
 	require.Contains(t, surf, "setDecorFitsSystemWindows(false)")
 	require.Contains(t, surf, "LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES")
 	require.NotContains(t, surf, "SYSTEM_UI_FLAG_HIDE_NAVIGATION")

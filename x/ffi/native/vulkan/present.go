@@ -766,6 +766,18 @@ func (s *Screen) emit(in Input) {
 	}
 }
 
+// Output is the swapchain image size. It follows the surface extent when
+// the surface defines one, which on Android is the oriented window.
+func (s *Screen) Output() (int, int) {
+	if s == nil {
+		return 0, 0
+	}
+	if s.outW > 0 && s.outH > 0 {
+		return s.outW, s.outH
+	}
+	return s.width, s.height
+}
+
 func (s *Screen) resizeTo(width, height int) error {
 	if s.d != nil {
 		_ = s.d.WaitIdle()
