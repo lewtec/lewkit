@@ -26,7 +26,7 @@ func displayScale(conn *xgb.Conn) window.Scale {
 	if dpi <= 0 {
 		return 1
 	}
-	return window.Scale(dpi / 96)
+	return window.Scale(dpi / float64(window.BaselineDPI))
 }
 
 // parseXftDPI returns the Xft.dpi number, or 0 when the resource is absent

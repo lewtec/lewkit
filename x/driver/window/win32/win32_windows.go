@@ -189,7 +189,7 @@ func systemScale() window.Scale {
 	if dpi == 0 {
 		return 1
 	}
-	return window.Scale(float64(dpi) / 96)
+	return window.Scale(float64(dpi) / float64(window.BaselineDPI))
 }
 
 func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, error) {
@@ -327,7 +327,7 @@ func (w *win) noteDPI() {
 	if dpi == 0 {
 		return
 	}
-	w.SetScale(window.Scale(float64(dpi) / 96))
+	w.SetScale(window.Scale(float64(dpi) / float64(window.BaselineDPI)))
 }
 
 func (w *win) framePad() (int, int) {
@@ -515,7 +515,7 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 	case wmDpiChanged:
 		dpi := int(wparam & 0xFFFF)
 		if dpi > 0 {
-			w.SetScale(window.Scale(float64(dpi) / 96))
+			w.SetScale(window.Scale(float64(dpi) / float64(window.BaselineDPI)))
 		}
 		if lparam != 0 {
 			suggested := *(*rect)(unsafe.Pointer(lparam))

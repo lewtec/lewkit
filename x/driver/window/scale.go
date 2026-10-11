@@ -6,6 +6,10 @@ import "math"
 // Two means each authored pixel covers two device pixels.
 type Scale float64
 
+// BaselineDPI is the display density at scale 1.
+// Windows (USER_DEFAULT_SCREEN_DPI) and Xft.dpi both use 96 for 100%.
+const BaselineDPI = 96
+
 // Factor is the scale, or one when the value is missing or not finite.
 func (s Scale) Factor() float64 {
 	f := float64(s)
