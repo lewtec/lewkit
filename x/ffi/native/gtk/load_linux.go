@@ -27,63 +27,62 @@ const (
 	listBoxAppendPos = -1
 )
 
-type symbols struct {
-	initCheck    func() int32
-	setPrgname   func(*byte)
-	iterate      func(ctx uintptr, block int32) int32
-	signal       func(obj uintptr, name *byte, handler, data, destroy uintptr, flags uint32) uint64
-	windowNew    func() uintptr
-	setTitle     func(win uintptr, title *byte)
-	setSize      func(win uintptr, w, h int32)
-	setModal     func(win uintptr, modal int32)
-	setChild     func(win, child uintptr)
-	setResizable func(win uintptr, resizable int32)
-	setDefault   func(win, widget uintptr)
-	present      func(win uintptr)
-	destroy      func(win uintptr)
-	boxNew       func(orient, spacing int32) uintptr
-	boxAppend    func(box, child uintptr)
-	marginTop    func(w uintptr, m int32)
-	marginBottom func(w uintptr, m int32)
-	marginStart  func(w uintptr, m int32)
-	marginEnd    func(w uintptr, m int32)
-	hexpand      func(w uintptr, expand int32)
-	vexpand      func(w uintptr, expand int32)
-	grabFocus    func(w uintptr) int32
-	labelNew     func(text *byte) uintptr
-	labelWrap    func(label uintptr, wrap int32)
-	buttonNew    func(text *byte) uintptr
-	entryNew     func() uintptr
-	setText      func(editable uintptr, text *byte)
-	getText      func(editable uintptr) uintptr
-	listNew      func() uintptr
-	listInsert   func(box, child uintptr, pos int32)
-	listSelected func(box uintptr) uintptr
-	listSelect   func(box, row uintptr)
-	rowAt        func(box uintptr, index int32) uintptr
-	rowIndex     func(row uintptr) int32
-	scrollNew    func() uintptr
-	scrollChild  func(scroll, child uintptr)
-	scrollMin    func(scroll uintptr, height int32)
-	scrollPolicy func(scroll uintptr, h, v int32)
-	self         func() uintptr
+var (
+	mu      sync.Mutex
+	ready   bool
+	ownerID uint64
+	jobs    = make(chan func(), 32)
+)
+
+// gtkBound is glib, gobject, GTK, and libc from one load.
+type gtkBound struct {
+	glib    Glib
+	gobject GObject
+	widgets Gtk
+	threads Libc
 }
 
 var (
-	mu      sync.Mutex
-	bound   symbols
-	loaded  bool
-	ready   bool
-	ownerID uint64
-	gtkLib  uintptr
-	jobs    = make(chan func(), 32)
-
-	x11Once       sync.Once
-	x11Err        error
-	realize       func(uintptr)
-	nativeSurface func(uintptr) uintptr
-	x11XID        func(uintptr) uintptr
+	bindGlib    = native.BindOnce[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
+	bindGObject = native.BindOnce[GObject](native.Global|native.Lazy, "libgobject-2.0.so.0")
+	bindGTK     = native.BindOnce[Gtk](native.Global|native.Lazy, "libgtk-4.so.1")
+	bindThreads = native.BindOnce[Libc](native.Lazy, "libc.so.6")
+	bindGDK     = native.BindOnce[GDKX11](native.Global|native.Lazy, "libgtk-4.so.1")
 )
+
+// loadGTK binds the GTK libraries and returns them from that same call.
+// The load stays on the caller. gtk_init still runs later, on the owner thread.
+// bindGTK is not called when this process must stay on GTK 3.
+func loadGTK() (gtkBound, error) {
+	if blockGTK4() {
+		return gtkBound{}, errMixedGTK
+	}
+	glib, err := bindGlib()
+	if err != nil {
+		return gtkBound{}, err
+	}
+	gobject, err := bindGObject()
+	if err != nil {
+		return gtkBound{}, err
+	}
+	widgets, err := bindGTK()
+	if err != nil {
+		return gtkBound{}, err
+	}
+	threads, err := bindThreads()
+	if err != nil {
+		return gtkBound{}, err
+	}
+	return gtkBound{glib: glib, gobject: gobject, widgets: widgets, threads: threads}, nil
+}
+
+// loadGDK binds the GDK X11 symbols after GTK itself loaded.
+func loadGDK() (GDKX11, error) {
+	if _, err := loadGTK(); err != nil {
+		return GDKX11{}, err
+	}
+	return bindGDK()
+}
 
 // Available reports whether GTK 4 and GLib can be loaded.
 // ctx is the caller context used to resolve the toolkit through the exec driver.
@@ -91,7 +90,7 @@ func Available(ctx context.Context) error {
 	if err := native.Prepare(ctx); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if err := bindOnce(); err != nil {
+	if _, err := loadGTK(); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	return nil
@@ -105,15 +104,11 @@ func SetPrgname(name string) {
 	if name == "" {
 		return
 	}
-	glib, err := native.OpenChain(native.Global|native.Lazy, "libglib-2.0.so.0")
+	got, err := bindGlib()
 	if err != nil {
 		return
 	}
-	var set func(*byte)
-	if err := bind(glib, "g_set_prgname", &set); err != nil {
-		return
-	}
-	withCString(name, func(p *byte) { set(p) })
+	withCString(name, func(p *byte) { got.GSetPrgname(p) })
 }
 
 // Owned reports whether Ensure has claimed a thread.
@@ -134,7 +129,8 @@ func OnOwner() bool {
 // Ensure initializes GTK on this thread and claims the main context.
 // The caller keeps this OS thread locked.
 func Ensure() error {
-	if err := bindOnce(); err != nil {
+	bound, err := loadGTK()
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	id := osThread()
@@ -151,7 +147,7 @@ func Ensure() error {
 		return nil
 	}
 	mu.Unlock()
-	if bound.initCheck() == 0 {
+	if bound.widgets.GtkInitCheck() == 0 {
 		return fmt.Errorf("%w: gtk_init_check failed", ErrUnavailable)
 	}
 	mu.Lock()
@@ -205,6 +201,10 @@ func Poll() int32 {
 	if !OnOwner() {
 		return 0
 	}
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
 	var dispatched int32
 	for {
 		select {
@@ -212,7 +212,7 @@ func Poll() int32 {
 			fn()
 			dispatched = 1
 		default:
-			if bound.iterate(0, 0) != 0 {
+			if bound.glib.GMainContextIteration(0, 0) != 0 {
 				return 1
 			}
 			return dispatched
@@ -251,179 +251,26 @@ func sonamePresent(name string) bool {
 	return false
 }
 
-func bindOnce() error {
-	mu.Lock()
-	defer mu.Unlock()
-	if loaded {
-		return nil
-	}
-	if blockGTK4() {
-		return errMixedGTK
-	}
-	glib, err := native.OpenChain(native.Global|native.Lazy, "libglib-2.0.so.0")
-	if err != nil {
-		return err
-	}
-	gobject, err := native.OpenChain(native.Global|native.Lazy, "libgobject-2.0.so.0")
-	if err != nil {
-		return err
-	}
-	gtk, err := native.OpenChain(native.Global|native.Lazy, "libgtk-4.so.1")
-	if err != nil {
-		return err
-	}
-	gtkLib = gtk
-	libc, err := native.OpenChain(native.Lazy, "libc.so.6")
-	if err != nil {
-		return err
-	}
-	if err := bind(glib, "g_set_prgname", &bound.setPrgname); err != nil {
-		return err
-	}
-	if err := bind(glib, "g_main_context_iteration", &bound.iterate); err != nil {
-		return err
-	}
-	if err := bind(gobject, "g_signal_connect_data", &bound.signal); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_init_check", &bound.initCheck); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_new", &bound.windowNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_title", &bound.setTitle); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_default_size", &bound.setSize); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_modal", &bound.setModal); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_child", &bound.setChild); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_resizable", &bound.setResizable); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_default_widget", &bound.setDefault); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_present", &bound.present); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_destroy", &bound.destroy); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_box_new", &bound.boxNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_box_append", &bound.boxAppend); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_top", &bound.marginTop); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_bottom", &bound.marginBottom); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_start", &bound.marginStart); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_margin_end", &bound.marginEnd); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_hexpand", &bound.hexpand); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_set_vexpand", &bound.vexpand); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_widget_grab_focus", &bound.grabFocus); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_label_new", &bound.labelNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_label_set_wrap", &bound.labelWrap); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_button_new_with_label", &bound.buttonNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_entry_new", &bound.entryNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_editable_set_text", &bound.setText); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_editable_get_text", &bound.getText); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_new", &bound.listNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_insert", &bound.listInsert); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_get_selected_row", &bound.listSelected); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_select_row", &bound.listSelect); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_get_row_at_index", &bound.rowAt); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_list_box_row_get_index", &bound.rowIndex); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_new", &bound.scrollNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_set_child", &bound.scrollChild); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_set_min_content_height", &bound.scrollMin); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_scrolled_window_set_policy", &bound.scrollPolicy); err != nil {
-		return err
-	}
-	if err := bind(libc, "pthread_self", &bound.self); err != nil {
-		return err
-	}
-	loaded = true
-	return nil
-}
-
-func bind(lib uintptr, name string, fnptr any) error {
-	if err := native.Bind(lib, name, fnptr); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
-	}
-	return nil
-}
-
 // SurfaceXID is the X11 window id for a realized GTK widget.
 // Wayland and a missing GDK X11 backend return ErrUnavailable.
 func SurfaceXID(widget uintptr) (uint32, error) {
 	if widget == 0 {
 		return 0, ErrUnavailable
 	}
-	if err := bindX11(); err != nil {
+	gdk, err := loadGDK()
+	if err != nil {
 		return 0, err
 	}
 	var xid uint32
 	var callErr error
 	run := func() {
-		realize(widget)
-		surface := nativeSurface(widget)
+		gdk.GtkWidgetRealize(widget)
+		surface := gdk.GtkNativeGetSurface(widget)
 		if surface == 0 {
 			callErr = ErrUnavailable
 			return
 		}
-		id := x11XID(surface)
+		id := gdk.GdkX11SurfaceGetXid(surface)
 		if id == 0 {
 			callErr = ErrUnavailable
 			return
@@ -440,37 +287,12 @@ func SurfaceXID(widget uintptr) (uint32, error) {
 	return xid, callErr
 }
 
-func bindX11() error {
-	x11Once.Do(func() {
-		if err := bindOnce(); err != nil {
-			x11Err = err
-			return
-		}
-		if gtkLib == 0 {
-			x11Err = ErrUnavailable
-			return
-		}
-		if err := bind(gtkLib, "gtk_widget_realize", &realize); err != nil {
-			x11Err = err
-			return
-		}
-		if err := bind(gtkLib, "gtk_native_get_surface", &nativeSurface); err != nil {
-			x11Err = err
-			return
-		}
-		if err := bind(gtkLib, "gdk_x11_surface_get_xid", &x11XID); err != nil {
-			x11Err = err
-			return
-		}
-	})
-	return x11Err
-}
-
 func osThread() uint64 {
-	if err := bindOnce(); err != nil || bound.self == nil {
+	bound, err := loadGTK()
+	if err != nil {
 		return 0
 	}
-	return uint64(bound.self())
+	return uint64(bound.threads.PthreadSelf())
 }
 
 func withCString(s string, fn func(*byte)) {
@@ -487,29 +309,47 @@ func cStringPointer(text []byte) *byte {
 }
 
 func connect(obj uintptr, signal string, handler uintptr) {
+	bound, err := loadGTK()
+	if err != nil {
+		return
+	}
 	name := native.CString(signal)
-	bound.signal(obj, cStringPointer(name), handler, 0, 0, 0)
+	bound.gobject.GSignalConnectData(obj, cStringPointer(name), handler, 0, 0, 0)
 	runtime.KeepAlive(name)
 }
 
 func margin(widget uintptr, px int32) {
-	bound.marginTop(widget, px)
-	bound.marginBottom(widget, px)
-	bound.marginStart(widget, px)
-	bound.marginEnd(widget, px)
+	bound, err := loadGTK()
+	if err != nil {
+		return
+	}
+	w := bound.widgets
+	w.GtkWidgetSetMarginTop(widget, px)
+	w.GtkWidgetSetMarginBottom(widget, px)
+	w.GtkWidgetSetMarginStart(widget, px)
+	w.GtkWidgetSetMarginEnd(widget, px)
 }
 
 func label(text string) uintptr {
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
+	w := bound.widgets
 	var widget uintptr
-	withCString(text, func(p *byte) { widget = bound.labelNew(p) })
-	bound.labelWrap(widget, 1)
-	bound.hexpand(widget, 1)
+	withCString(text, func(p *byte) { widget = w.GtkLabelNew(p) })
+	w.GtkLabelSetWrap(widget, 1)
+	w.GtkWidgetSetHexpand(widget, 1)
 	return widget
 }
 
 func button(text string) uintptr {
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
 	var widget uintptr
-	withCString(text, func(p *byte) { widget = bound.buttonNew(p) })
+	withCString(text, func(p *byte) { widget = bound.widgets.GtkButtonNewWithLabel(p) })
 	connect(widget, "clicked", clickCB)
 	return widget
 }

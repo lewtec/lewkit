@@ -5,6 +5,7 @@ package vulkan
 import (
 	"fmt"
 	"unicode/utf16"
+	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
@@ -93,18 +94,18 @@ func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
 }
 
 func (h *win32Host) poll() {
-	if h == nil || h.hwnd == 0 || peekMessage == nil {
+	if h == nil || h.hwnd == 0 {
+		return
+	}
+	user, err := loadWin32()
+	if err != nil {
 		return
 	}
 	var msg win32Msg
-	for peekMessage(&msg, h.hwnd, 0, 0, 1) {
+	for user.PeekMessageW(unsafe.Pointer(&msg), h.hwnd, 0, 0, 1) {
 		h.one(msg)
-		if translateMessage != nil {
-			translateMessage(&msg)
-		}
-		if dispatchMessage != nil {
-			dispatchMessage(&msg)
-		}
+		user.TranslateMessage(unsafe.Pointer(&msg))
+		user.DispatchMessageW(unsafe.Pointer(&msg))
 	}
 }
 
@@ -125,7 +126,10 @@ func (h *win32Host) destroy() {
 	if h == nil || h.borrowed || h.hwnd == 0 {
 		return
 	}
-	destroyWindow(h.hwnd)
+	user, err := loadWin32()
+	if err == nil {
+		user.DestroyWindow(h.hwnd)
+	}
 	h.hwnd = 0
 }
 
@@ -149,43 +153,20 @@ type wndClassW struct {
 }
 
 var (
-	user32           uintptr
-	classReady       bool
-	getModuleHandle  func(name *uint16) uintptr
-	registerClass    func(wc *wndClassW) uint16
-	createWindow     func(ex uint32, class, title *uint16, style uint32, x, y, w, h int32, parent, menu, inst, param uintptr) uintptr
-	showWindow       func(hwnd uintptr, cmd int32) int32
-	destroyWindow    func(hwnd uintptr) int32
-	peekMessage      func(msg *win32Msg, hwnd uintptr, min, max, remove uint32) bool
-	translateMessage func(msg *win32Msg) bool
-	dispatchMessage  func(msg *win32Msg) uintptr
+	bindUser32   = native.BindOnce[User32](0, "user32.dll")
+	bindKernel32 = native.BindOnce[Kernel32](0, "kernel32.dll")
 )
 
-func loadUser32() error {
-	if user32 != 0 {
-		return nil
-	}
-	lib, err := native.OpenChain(0, "user32.dll")
+// loadWin32 binds user32 and kernel32 and returns the user32 symbols from that load.
+func loadWin32() (User32, error) {
+	user, err := bindUser32()
 	if err != nil {
-		return fmt.Errorf("%w: user32", ErrUnavailable)
+		return User32{}, fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
 	}
-	k32, err := native.OpenChain(0, "kernel32.dll")
-	if err != nil {
-		return fmt.Errorf("%w: kernel32", ErrUnavailable)
+	if _, err = bindKernel32(); err != nil {
+		return User32{}, fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
 	}
-	native.Func(k32, "GetModuleHandleW", &getModuleHandle)
-	native.Func(lib, "RegisterClassW", &registerClass)
-	native.Func(lib, "CreateWindowExW", &createWindow)
-	native.Func(lib, "ShowWindow", &showWindow)
-	native.Func(lib, "DestroyWindow", &destroyWindow)
-	native.Func(lib, "PeekMessageW", &peekMessage)
-	native.Func(lib, "TranslateMessage", &translateMessage)
-	native.Func(lib, "DispatchMessageW", &dispatchMessage)
-	user32 = lib
-	if getModuleHandle == nil || registerClass == nil || createWindow == nil {
-		return fmt.Errorf("%w: win32 window procs", ErrUnavailable)
-	}
-	return nil
+	return user, nil
 }
 
 func utf16z(s string) (*uint16, error) {

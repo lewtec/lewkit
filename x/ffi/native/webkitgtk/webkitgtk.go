@@ -101,158 +101,183 @@ func Load(ctx context.Context) (*Symbols, error) {
 	if err := native.Prepare(ctx); err != nil {
 		return nil, err
 	}
-	glib, err := openOne("libglib-2.0.so.0")
-	if err != nil {
-		return nil, err
+	for _, name := range []string{"libglib-2.0.so.0", "libgobject-2.0.so.0", "libgio-2.0.so.0"} {
+		if err := probe(name); err != nil {
+			return nil, err
+		}
 	}
-	gobject, err := openOne("libgobject-2.0.so.0")
-	if err != nil {
-		return nil, err
-	}
-	gio, err := openOne("libgio-2.0.so.0")
-	if err != nil {
-		return nil, err
-	}
-	web, gtk, jsc, gtk3, err := openWebKit()
+	gtk3, err := openWebKit()
 	if err != nil {
 		return nil, err
 	}
 	s := &Symbols{gtk3: gtk3}
-	if err := bind(glib, "g_main_context_iteration", &s.iterate); err != nil {
-		return nil, err
-	}
-	if err := bind(glib, "g_main_context_wakeup", &s.wake); err != nil {
-		return nil, err
-	}
-	if err := bind(glib, "g_main_context_pending", &s.pending); err != nil {
-		return nil, err
-	}
-	if err := bind(glib, "g_free", &s.free); err != nil {
-		return nil, err
-	}
-	if err := bind(glib, "g_error_new_literal", &s.newError); err != nil {
-		return nil, err
-	}
-	if err := bind(glib, "g_error_free", &s.freeError); err != nil {
-		return nil, err
-	}
-	if err := bind(gobject, "g_signal_connect_data", &s.signal); err != nil {
-		return nil, err
-	}
-	if err := bind(gobject, "g_object_unref", &s.unref); err != nil {
-		return nil, err
-	}
-	if err := bind(gobject, "g_value_init", &s.valueInit); err != nil {
-		return nil, err
-	}
-	if err := bind(gobject, "g_value_set_boolean", &s.valueSetBool); err != nil {
-		return nil, err
-	}
-	if err := bind(gobject, "g_value_unset", &s.valueUnset); err != nil {
-		return nil, err
-	}
-	if err := bind(gobject, "g_object_set_property", &s.setProperty); err != nil {
-		return nil, err
-	}
-	if err := bind(gobject, "g_object_new", &s.objectNew); err != nil {
-		return nil, err
-	}
-	if err := bind(gio, "g_memory_input_stream_new_from_data", &s.memoryStream); err != nil {
-		return nil, err
-	}
-	if err := bind(gio, "g_io_error_quark", &s.ioErrorQuark); err != nil {
-		return nil, err
-	}
-	if err := bindGTK(s, gtk); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_view_new", &s.newWebView); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_view_get_type", &s.webViewType); err != nil {
-		return nil, err
-	}
-	_ = native.Bind(web, "webkit_network_session_new", &s.networkSession)
-	_ = native.Bind(web, "webkit_website_data_manager_new", &s.dataManagerNew)
-	_ = native.Bind(web, "webkit_web_context_new_with_website_data_manager", &s.contextWithManager)
-	_ = native.Bind(web, "webkit_web_view_new_with_context", &s.viewWithContext)
-	_ = native.Bind(web, "webkit_settings_new", &s.settingsNew)
-	_ = native.Bind(web, "webkit_settings_set_hardware_acceleration_policy", &s.setHardwarePolicy)
-	_ = native.Bind(gobject, "g_object_new", &s.objectNewPair)
-	if err := bind(web, "webkit_web_view_load_html", &s.loadHTML); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_view_load_uri", &s.loadURI); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_view_get_user_content_manager", &s.getManager); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_view_get_context", &s.getContext); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_user_content_manager_register_script_message_handler", &s.registerMessage); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_user_script_new", &s.newUserScript); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_user_script_unref", &s.unrefUserScript); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_user_content_manager_add_script", &s.addUserScript); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_view_evaluate_javascript", &s.evaluateJavaScript); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_view_evaluate_javascript_finish", &s.finishJavaScript); err != nil {
-		return nil, err
-	}
-	if err := bind(jsc, "jsc_value_to_json", &s.valueToJSON); err != nil {
-		return nil, err
-	}
-	if err := bind(jsc, "jsc_value_to_string", &s.valueToString); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_context_get_security_manager", &s.securityManager); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_security_manager_register_uri_scheme_as_secure", &s.registerSecure); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_security_manager_register_uri_scheme_as_cors_enabled", &s.registerCORS); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_security_manager_register_uri_scheme_as_local", &s.registerLocal); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_web_context_register_uri_scheme", &s.registerScheme); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_uri_scheme_request_get_uri", &s.requestURI); err != nil {
-		return nil, err
-	}
-	_ = native.Bind(web, "webkit_uri_scheme_request_get_http_method", &s.requestMethod)
-	_ = native.Bind(web, "webkit_uri_scheme_request_get_http_body", &s.requestBody)
-	_ = native.Bind(gio, "g_input_stream_read", &s.streamRead)
-	_ = native.Bind(gio, "g_unix_input_stream_new", &s.unixInputStream)
-	_ = native.Bind(web, "webkit_uri_scheme_response_new", &s.responseNew)
-	_ = native.Bind(web, "webkit_uri_scheme_response_set_status", &s.responseStatus)
-	_ = native.Bind(web, "webkit_uri_scheme_response_set_content_type", &s.responseContentType)
-	_ = native.Bind(web, "webkit_uri_scheme_response_set_http_headers", &s.responseHeaders)
-	_ = native.Bind(web, "webkit_uri_scheme_request_finish_with_response", &s.finishWithResponse)
-	if soup, err := openOne("libsoup-3.0.so.0"); err == nil {
-		_ = native.Bind(soup, "soup_message_headers_new", &s.headersNew)
-		_ = native.Bind(soup, "soup_message_headers_append", &s.headersAppend)
-	}
-	if err := bind(web, "webkit_uri_scheme_request_finish", &s.finishRequest); err != nil {
-		return nil, err
-	}
-	if err := bind(web, "webkit_uri_scheme_request_finish_error", &s.finishRequestError); err != nil {
+	if err := bindStack(s); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// gtk_window_new is void() on GTK 4. GTK 3 takes a window kind.
+type gtk3WindowNew struct {
+	New func(kind int32) uintptr `sym:"gtk_window_new"`
+}
+
+// g_object_new is variadic. GObject.GObjectNew is the four-argument form.
+// This six-argument form is the GTK property-pair call site.
+type gobjectNewPair struct {
+	New func(objectType uintptr, name1 *byte, value1 uintptr, name2 *byte, value2, end uintptr) uintptr `sym:"g_object_new"`
+}
+
+func bindStack(s *Symbols) error {
+	glibSyms, err := bindOne[Glib]("libglib-2.0.so.0")
+	if err != nil {
+		return err
+	}
+	objSyms, err := bindOne[GObject]("libgobject-2.0.so.0")
+	if err != nil {
+		return err
+	}
+	gioSyms, err := bindOne[Gio]("libgio-2.0.so.0")
+	if err != nil {
+		return err
+	}
+	gioOpt, err := bindOne[GioOpt]("libgio-2.0.so.0")
+	if err != nil {
+		return err
+	}
+	gtkSoname := "libgtk-4.so.1"
+	webSoname := "libwebkitgtk-6.0.so.4"
+	javascriptCoreSoname := "libjavascriptcoregtk-6.0.so.1"
+	if s.gtk3 {
+		gtkSoname = "libgtk-3.so.0"
+		webSoname = "libwebkit2gtk-4.1.so.0"
+		javascriptCoreSoname = "libjavascriptcoregtk-4.1.so.0"
+	}
+	gtkSyms, err := bindOne[GTK](gtkSoname)
+	if err != nil {
+		return err
+	}
+	var gtk3Syms GTK3
+	var gtk4Syms GTK4
+	if s.gtk3 {
+		gtk3Syms, err = bindOne[GTK3](gtkSoname)
+		if err != nil {
+			return err
+		}
+		typed, err := bindOne[gtk3WindowNew](gtkSoname)
+		if err != nil {
+			return fmt.Errorf("%w: gtk_window_new", ErrUnavailable)
+		}
+		s.windowNewTyped = typed.New
+	} else if gtk4Syms, err = bindOne[GTK4](gtkSoname); err != nil {
+		return err
+	}
+	webSyms, err := bindOne[WebKit](webSoname)
+	if err != nil {
+		return err
+	}
+	webOpt, err := bindOne[WebKitOpt](webSoname)
+	if err != nil {
+		return err
+	}
+	javascriptCore, err := bindOne[JavaScriptCore](javascriptCoreSoname)
+	if err != nil {
+		return err
+	}
+	pair, err := bindOne[gobjectNewPair]("libgobject-2.0.so.0")
+	if err != nil {
+		return fmt.Errorf("%w: g_object_new", ErrUnavailable)
+	}
+	s.objectNewPair = pair.New
+	var soupSyms Soup
+	if probe("libsoup-3.0.so.0") == nil {
+		soupSyms, err = bindOne[Soup]("libsoup-3.0.so.0")
+		if err != nil {
+			return err
+		}
+	}
+	assignSymbols(s, glibSyms, objSyms, gioSyms, gioOpt, gtkSyms, gtk3Syms, gtk4Syms, webSyms, webOpt, javascriptCore, soupSyms)
+	return nil
+}
+
+func bindOne[T any](soname string) (T, error) {
+	got, err := native.BindIn[T](native.Global|native.Lazy, webkitDirs(), soname)
+	if err != nil {
+		var zero T
+		return zero, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
+	return got, nil
+}
+
+func assignSymbols(s *Symbols, glib Glib, obj GObject, gio Gio, gioOpt GioOpt, gtk GTK, gtk3 GTK3, gtk4 GTK4, web WebKit, webOpt WebKitOpt, javascriptCore JavaScriptCore, soup Soup) {
+	s.iterate = glib.GMainContextIteration
+	s.wake = glib.GMainContextWakeup
+	s.pending = glib.GMainContextPending
+	s.free = glib.GFree
+	s.newError = glib.GErrorNewLiteral
+	s.freeError = glib.GErrorFree
+	s.signal = obj.GSignalConnectData
+	s.unref = obj.GObjectUnref
+	s.valueInit = obj.GValueInit
+	s.valueSetBool = obj.GValueSetBoolean
+	s.valueUnset = obj.GValueUnset
+	s.setProperty = obj.GObjectSetProperty
+	s.objectNew = obj.GObjectNew
+	s.memoryStream = gio.GMemoryInputStreamNewFromData
+	s.ioErrorQuark = gio.GIoErrorQuark
+	s.init = gtk.GtkInit
+	s.settingsDefault = gtk.GtkSettingsGetDefault
+	s.setTitle = gtk.GtkWindowSetTitle
+	s.setSize = gtk.GtkWindowSetDefaultSize
+	s.present = gtk.GtkWindowPresent
+	if s.gtk3 {
+		s.containerAdd = gtk3.GtkContainerAdd
+		s.showAll = gtk3.GtkWidgetShowAll
+		s.widgetDestroy = gtk3.GtkWidgetDestroy
+	} else {
+		s.windowNew = gtk4.GtkWindowNew
+		s.setChild = gtk4.GtkWindowSetChild
+		s.destroy = gtk4.GtkWindowDestroy
+	}
+	s.newWebView = web.WebkitWebViewNew
+	s.webViewType = web.WebkitWebViewGetType
+	s.networkSession = webOpt.WebkitNetworkSessionNew
+	s.dataManagerNew = webOpt.WebkitWebsiteDataManagerNew
+	s.contextWithManager = webOpt.WebkitWebContextNewWithWebsiteDataManager
+	s.viewWithContext = webOpt.WebkitWebViewNewWithContext
+	s.settingsNew = webOpt.WebkitSettingsNew
+	s.setHardwarePolicy = webOpt.WebkitSettingsSetHardwareAccelerationPolicy
+	s.loadHTML = web.WebkitWebViewLoadHtml
+	s.loadURI = web.WebkitWebViewLoadUri
+	s.getManager = web.WebkitWebViewGetUserContentManager
+	s.getContext = web.WebkitWebViewGetContext
+	s.registerMessage = web.WebkitUserContentManagerRegisterScriptMessageHandler
+	s.newUserScript = web.WebkitUserScriptNew
+	s.unrefUserScript = web.WebkitUserScriptUnref
+	s.addUserScript = web.WebkitUserContentManagerAddScript
+	s.evaluateJavaScript = web.WebkitWebViewEvaluateJavascript
+	s.finishJavaScript = web.WebkitWebViewEvaluateJavascriptFinish
+	s.valueToJSON = javascriptCore.JscValueToJson
+	s.valueToString = javascriptCore.JscValueToString
+	s.securityManager = web.WebkitWebContextGetSecurityManager
+	s.registerSecure = web.WebkitSecurityManagerRegisterUriSchemeAsSecure
+	s.registerCORS = web.WebkitSecurityManagerRegisterUriSchemeAsCorsEnabled
+	s.registerLocal = web.WebkitSecurityManagerRegisterUriSchemeAsLocal
+	s.registerScheme = web.WebkitWebContextRegisterUriScheme
+	s.requestURI = web.WebkitUriSchemeRequestGetUri
+	s.requestMethod = webOpt.WebkitUriSchemeRequestGetHttpMethod
+	s.requestBody = webOpt.WebkitUriSchemeRequestGetHttpBody
+	s.streamRead = gioOpt.GInputStreamRead
+	s.unixInputStream = gioOpt.GUnixInputStreamNew
+	s.responseNew = webOpt.WebkitUriSchemeResponseNew
+	s.responseStatus = webOpt.WebkitUriSchemeResponseSetStatus
+	s.responseContentType = webOpt.WebkitUriSchemeResponseSetContentType
+	s.responseHeaders = webOpt.WebkitUriSchemeResponseSetHttpHeaders
+	s.finishWithResponse = webOpt.WebkitUriSchemeRequestFinishWithResponse
+	s.headersNew = soup.SoupMessageHeadersNew
+	s.headersAppend = soup.SoupMessageHeadersAppend
+	s.finishRequest = web.WebkitUriSchemeRequestFinish
+	s.finishRequestError = web.WebkitUriSchemeRequestFinishError
 }
 
 func webkitDirs() []string {
@@ -267,79 +292,31 @@ func webkitDirs() []string {
 
 // openWebKit prefers WebKitGTK 6 on GTK 4. WebKit2GTK 4.1 on GTK 3 is the
 // fallback, including the conda-forge webkit2gtk4.1 package.
-func openWebKit() (web, gtk, jsc uintptr, gtk3 bool, err error) {
-	web, err6 := openOne("libwebkitgtk-6.0.so.4")
+func openWebKit() (gtk3 bool, err error) {
+	err6 := probe("libwebkitgtk-6.0.so.4")
 	if err6 == nil {
-		gtk, err = openOne("libgtk-4.so.1")
-		if err != nil {
-			return 0, 0, 0, false, err
+		if err = probe("libgtk-4.so.1"); err != nil {
+			return false, err
 		}
-		jsc, err = openOne("libjavascriptcoregtk-6.0.so.1")
-		return web, gtk, jsc, false, err
+		return false, probe("libjavascriptcoregtk-6.0.so.1")
 	}
 	if native.Loaded("libgtk-4.so.1") {
-		return 0, 0, 0, false, fmt.Errorf("%v; %w: GTK 4 is already loaded", err6, ErrUnavailable)
+		return false, fmt.Errorf("%v; %w: GTK 4 is already loaded", err6, ErrUnavailable)
 	}
-	web, err41 := openOne("libwebkit2gtk-4.1.so.0")
+	err41 := probe("libwebkit2gtk-4.1.so.0")
 	if err41 != nil {
-		return 0, 0, 0, false, fmt.Errorf("%v; %v", err6, err41)
+		return false, fmt.Errorf("%v; %v", err6, err41)
 	}
-	gtk, err = openOne("libgtk-3.so.0")
+	if err = probe("libgtk-3.so.0"); err != nil {
+		return true, err
+	}
+	return true, probe("libjavascriptcoregtk-4.1.so.0")
+}
+
+func probe(soname string) error {
+	_, err := native.OpenIn(native.Global|native.Lazy, webkitDirs(), soname)
 	if err != nil {
-		return 0, 0, 0, true, err
-	}
-	jsc, err = openOne("libjavascriptcoregtk-4.1.so.0")
-	return web, gtk, jsc, true, err
-}
-
-func bindGTK(s *Symbols, gtk uintptr) error {
-	if err := bind(gtk, "gtk_init", &s.init); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_settings_get_default", &s.settingsDefault); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_title", &s.setTitle); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_default_size", &s.setSize); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_present", &s.present); err != nil {
-		return err
-	}
-	if s.gtk3 {
-		if err := bind(gtk, "gtk_window_new", &s.windowNewTyped); err != nil {
-			return err
-		}
-		if err := bind(gtk, "gtk_container_add", &s.containerAdd); err != nil {
-			return err
-		}
-		if err := bind(gtk, "gtk_widget_show_all", &s.showAll); err != nil {
-			return err
-		}
-		return bind(gtk, "gtk_widget_destroy", &s.widgetDestroy)
-	}
-	if err := bind(gtk, "gtk_window_new", &s.windowNew); err != nil {
-		return err
-	}
-	if err := bind(gtk, "gtk_window_set_child", &s.setChild); err != nil {
-		return err
-	}
-	return bind(gtk, "gtk_window_destroy", &s.destroy)
-}
-
-func openOne(soname string) (uintptr, error) {
-	lib, err := native.OpenIn(native.Global|native.Lazy, webkitDirs(), soname)
-	if err != nil {
-		return 0, fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
-	}
-	return lib, nil
-}
-
-func bind(lib uintptr, name string, fnptr any) error {
-	if err := native.Bind(lib, name, fnptr); err != nil {
-		return fmt.Errorf("%w: %s", ErrUnavailable, name)
+		return fmt.Errorf("%w: %s: %v", ErrUnavailable, soname, err)
 	}
 	return nil
 }

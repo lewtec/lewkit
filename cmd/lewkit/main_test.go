@@ -89,6 +89,14 @@ func TestGenerateShaderUsage(t *testing.T) {
 	assert.Contains(t, text, "SPIR-V registry")
 }
 
+func TestGenerateHeaderUsage(t *testing.T) {
+	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	require.NoError(t, err)
+	assert.Contains(t, text, "header")
+	assert.Contains(t, text, "purego")
+	assert.Contains(t, text, "C header")
+}
+
 func TestGenerateProtobufHelp(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "generate", "protobuf", "--help")
 	got := test.Stdout(t, func() {
@@ -108,6 +116,7 @@ func TestGenerateHelp(t *testing.T) {
 	assert.Contains(t, got, "prelude")
 	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "shader")
+	assert.Contains(t, got, "header")
 	assert.Contains(t, got, "shared Queries")
 	assert.Contains(t, got, "--sentry-dsn")
 }
@@ -123,5 +132,6 @@ func TestGenerateErrUsage(t *testing.T) {
 	assert.Contains(t, got, "prelude")
 	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "shader")
+	assert.Contains(t, got, "header")
 	assert.Contains(t, got, "--sentry-dsn")
 }

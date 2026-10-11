@@ -25,65 +25,40 @@ var (
 	errCoreAudio = errors.New("coreaudio")
 )
 
+// audioLibs is AudioToolbox, CoreAudio, and CoreFoundation from one load.
+type audioLibs struct {
+	audio AudioToolbox
+	core  CoreAudio
+	cf    CoreFoundation
+}
+
 var (
-	queueNew     func(format uintptr, cb uintptr, user uintptr, runLoop uintptr, mode uintptr, flags uint32, out *uintptr) int32
-	queueAlloc   func(q uintptr, size uint32, out *uintptr) int32
-	queueEnqueue func(q uintptr, buf uintptr, packets uint32, descs uintptr) int32
-	queueStart   func(q uintptr, when uintptr) int32
-	queueStop    func(q uintptr, immediate byte) int32
-	queueDispose func(q uintptr, immediate byte) int32
-	queueSetProp func(q uintptr, prop uint32, data uintptr, size uint32) int32
-	objectSize   func(id uint32, addr uintptr, qualSize uint32, qual uintptr, out *uint32) int32
-	objectData   func(id uint32, addr uintptr, qualSize uint32, qual uintptr, size *uint32, out uintptr) int32
-	cfCreate     func(alloc uintptr, cstr uintptr, encoding uint32) uintptr
-	cfGetCString func(str uintptr, buf uintptr, size int64, encoding uint32) byte
-	cfLength     func(str uintptr) int64
-	cfRelease    func(str uintptr)
+	bindAudioToolbox   = native.BindOnce[AudioToolbox](native.Lazy|native.Global, "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox")
+	bindCoreAudio      = native.BindOnce[CoreAudio](native.Lazy|native.Global, "/System/Library/Frameworks/CoreAudio.framework/CoreAudio")
+	bindCoreFoundation = native.BindOnce[CoreFoundation](native.Lazy|native.Global, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
 )
 
-var available = native.Once(bindAll)
+// loadAudio binds the three frameworks and returns them from that same call.
+func loadAudio() (audioLibs, error) {
+	audio, err := bindAudioToolbox()
+	if err != nil {
+		return audioLibs{}, err
+	}
+	core, err := bindCoreAudio()
+	if err != nil {
+		return audioLibs{}, err
+	}
+	cf, err := bindCoreFoundation()
+	if err != nil {
+		return audioLibs{}, err
+	}
+	return audioLibs{audio: audio, core: core, cf: cf}, nil
+}
 
 // Available loads AudioToolbox, CoreAudio, and CoreFoundation.
-func Available() error { return available() }
-
-func bindAll() error {
-	audio, err := native.Open("/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox", native.Lazy|native.Global)
-	if err != nil {
-		return err
-	}
-	core, err := native.Open("/System/Library/Frameworks/CoreAudio.framework/CoreAudio", native.Lazy|native.Global)
-	if err != nil {
-		return err
-	}
-	cf, err := native.Open("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", native.Lazy|native.Global)
-	if err != nil {
-		return err
-	}
-	binds := []struct {
-		lib  uintptr
-		name string
-		fn   any
-	}{
-		{audio, "AudioQueueNewOutput", &queueNew},
-		{audio, "AudioQueueAllocateBuffer", &queueAlloc},
-		{audio, "AudioQueueEnqueueBuffer", &queueEnqueue},
-		{audio, "AudioQueueStart", &queueStart},
-		{audio, "AudioQueueStop", &queueStop},
-		{audio, "AudioQueueDispose", &queueDispose},
-		{audio, "AudioQueueSetProperty", &queueSetProp},
-		{core, "AudioObjectGetPropertyDataSize", &objectSize},
-		{core, "AudioObjectGetPropertyData", &objectData},
-		{cf, "CFStringCreateWithCString", &cfCreate},
-		{cf, "CFStringGetCString", &cfGetCString},
-		{cf, "CFStringGetLength", &cfLength},
-		{cf, "CFRelease", &cfRelease},
-	}
-	for _, item := range binds {
-		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
-			return err
-		}
-	}
-	return nil
+func Available() error {
+	_, err := loadAudio()
+	return err
 }
 
 func statusErr(st int32) error {
@@ -93,16 +68,16 @@ func statusErr(st int32) error {
 	return fmt.Errorf("%w: %d", errCoreAudio, st)
 }
 
-func cfString(ref uintptr) string {
+func cfString(cf CoreFoundation, ref uintptr) string {
 	if ref == 0 {
 		return ""
 	}
-	n := cfLength(ref)
+	n := cf.CFStringGetLength(ref)
 	if n < 0 {
 		n = 0
 	}
 	buf := make([]byte, n*4+1)
-	if cfGetCString(ref, uintptr(unsafe.Pointer(&buf[0])), int64(len(buf)), cfUTF8) == 0 {
+	if cf.CFStringGetCString(ref, uintptr(unsafe.Pointer(&buf[0])), int64(len(buf)), cfUTF8) == 0 {
 		return ""
 	}
 	end := bytes.IndexByte(buf, 0)
@@ -112,35 +87,35 @@ func cfString(ref uintptr) string {
 	return string(buf[:end])
 }
 
-func prop(id uint32, addr propAddr, out []byte) error {
+func prop(core CoreAudio, id uint32, addr propAddr, out []byte) error {
 	size := uint32(len(out))
-	st := objectData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&out[0])))
+	st := core.AudioObjectGetPropertyData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&out[0])))
 	return statusErr(st)
 }
 
-func propString(id uint32, selector uint32) (string, error) {
+func propString(libs audioLibs, id uint32, selector uint32) (string, error) {
 	addr := propAddr{selector: selector, scope: fourcc("glob"), element: 0}
 	var ref uintptr
 	size := uint32(unsafe.Sizeof(ref))
-	st := objectData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&ref)))
+	st := libs.core.AudioObjectGetPropertyData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&ref)))
 	if st != 0 {
 		return "", statusErr(st)
 	}
-	defer cfRelease(ref)
-	return cfString(ref), nil
+	defer libs.cf.CFRelease(ref)
+	return cfString(libs.cf, ref), nil
 }
 
-func outputChannels(id uint32) (int, error) {
+func outputChannels(libs audioLibs, id uint32) (int, error) {
 	addr := propAddr{selector: fourcc("slay"), scope: fourcc("outp"), element: 0}
 	var size uint32
-	if st := objectSize(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
+	if st := libs.core.AudioObjectGetPropertyDataSize(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
 		return 0, statusErr(st)
 	}
 	if size < 8 {
 		return 0, nil
 	}
 	buf := make([]byte, size)
-	if err := prop(id, addr, buf); err != nil {
+	if err := prop(libs.core, id, addr, buf); err != nil {
 		return 0, err
 	}
 	n := *(*uint32)(unsafe.Pointer(&buf[0]))
@@ -157,12 +132,13 @@ func outputChannels(id uint32) (int, error) {
 
 // Devices lists output devices.
 func Devices() ([]Device, error) {
-	if err := Available(); err != nil {
+	libs, err := loadAudio()
+	if err != nil {
 		return nil, err
 	}
 	addr := propAddr{selector: fourcc("dev#"), scope: fourcc("glob"), element: 0}
 	var size uint32
-	if st := objectSize(1, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
+	if st := libs.core.AudioObjectGetPropertyDataSize(1, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
 		return nil, statusErr(st)
 	}
 	if size < 4 {
@@ -170,20 +146,20 @@ func Devices() ([]Device, error) {
 	}
 	ids := make([]uint32, size/4)
 	raw := unsafe.Slice((*byte)(unsafe.Pointer(&ids[0])), len(ids)*4)
-	if err := prop(1, addr, raw); err != nil {
+	if err := prop(libs.core, 1, addr, raw); err != nil {
 		return nil, err
 	}
 	var out []Device
 	for _, id := range ids {
-		channels, err := outputChannels(id)
+		channels, err := outputChannels(libs, id)
 		if err != nil || channels == 0 {
 			continue
 		}
-		uid, err := propString(id, fourcc("uid "))
+		uid, err := propString(libs, id, fourcc("uid "))
 		if err != nil || uid == "" {
 			continue
 		}
-		name, err := propString(id, fourcc("lnam"))
+		name, err := propString(libs, id, fourcc("lnam"))
 		if err != nil || name == "" {
 			name = uid
 		}
@@ -203,6 +179,7 @@ type Stream struct {
 	id      uintptr
 	started bool
 	closed  bool
+	libs    audioLibs
 }
 
 var (
@@ -226,7 +203,8 @@ func onQueue(user, _, buf uintptr) uintptr {
 // Open plays layout on uid. An empty uid uses the default output device.
 // Write stays one period behind the device clock. A cancelled ctx stops playback.
 func Open(ctx context.Context, uid string, layout Layout) (*Stream, error) {
-	if err := Available(); err != nil {
+	libs, err := loadAudio()
+	if err != nil {
 		return nil, err
 	}
 	width := 2
@@ -249,21 +227,21 @@ func Open(ctx context.Context, uid string, layout Layout) (*Stream, error) {
 	cbOnce.Do(func() { queueCB = purego.NewCallback(onQueue) })
 	id := nextID.Add(1)
 	var q uintptr
-	st := queueNew(uintptr(unsafe.Pointer(&desc)), queueCB, id, 0, 0, 0, &q)
+	st := libs.audio.AudioQueueNewOutput(uintptr(unsafe.Pointer(&desc)), queueCB, id, 0, 0, 0, &q)
 	if st != 0 {
 		return nil, statusErr(st)
 	}
 	if uid != "" {
 		raw := native.CString(uid)
-		ref := cfCreate(0, uintptr(unsafe.Pointer(&raw[0])), cfUTF8)
+		ref := libs.cf.CFStringCreateWithCString(0, uintptr(unsafe.Pointer(&raw[0])), cfUTF8)
 		if ref == 0 {
-			queueDispose(q, 1)
+			libs.audio.AudioQueueDispose(q, 1)
 			return nil, errCoreAudio
 		}
-		st = queueSetProp(q, fourcc("aqcd"), uintptr(unsafe.Pointer(&ref)), uint32(unsafe.Sizeof(ref)))
-		cfRelease(ref)
+		st = libs.audio.AudioQueueSetProperty(q, fourcc("aqcd"), uintptr(unsafe.Pointer(&ref)), uint32(unsafe.Sizeof(ref)))
+		libs.cf.CFRelease(ref)
 		if st != 0 {
-			queueDispose(q, 1)
+			libs.audio.AudioQueueDispose(q, 1)
 			return nil, statusErr(st)
 		}
 	}
@@ -271,13 +249,13 @@ func Open(ctx context.Context, uid string, layout Layout) (*Stream, error) {
 	free := make(chan uintptr, periods)
 	for range periods {
 		var buf uintptr
-		if st = queueAlloc(q, uint32(period), &buf); st != 0 {
-			queueDispose(q, 1)
+		if st = libs.audio.AudioQueueAllocateBuffer(q, uint32(period), &buf); st != 0 {
+			libs.audio.AudioQueueDispose(q, 1)
 			return nil, statusErr(st)
 		}
 		free <- buf
 	}
-	s := &Stream{ctx: ctx, q: q, frame: frame, period: period, free: free, id: id}
+	s := &Stream{ctx: ctx, q: q, frame: frame, period: period, free: free, id: id, libs: libs}
 	streams.Store(id, free)
 	return s, nil
 }
@@ -307,12 +285,12 @@ func (s *Stream) Write(p []byte) error {
 			s.mu.Unlock()
 			return errClosed
 		}
-		if st := queueEnqueue(s.q, buf, 0, 0); st != 0 {
+		if st := s.libs.audio.AudioQueueEnqueueBuffer(s.q, buf, 0, 0); st != 0 {
 			s.mu.Unlock()
 			return statusErr(st)
 		}
 		if !s.started {
-			if st := queueStart(s.q, 0); st != 0 {
+			if st := s.libs.audio.AudioQueueStart(s.q, 0); st != 0 {
 				s.mu.Unlock()
 				return statusErr(st)
 			}
@@ -372,11 +350,11 @@ func (s *Stream) halt(immediate bool) error {
 	}
 	var err error
 	if started {
-		if st := queueStop(q, flag); st != 0 {
+		if st := s.libs.audio.AudioQueueStop(q, flag); st != 0 {
 			err = statusErr(st)
 		}
 	}
-	if st := queueDispose(q, 1); st != 0 && err == nil {
+	if st := s.libs.audio.AudioQueueDispose(q, 1); st != 0 && err == nil {
 		err = statusErr(st)
 	}
 	return err

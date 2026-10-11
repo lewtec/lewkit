@@ -27,15 +27,6 @@ var (
 )
 
 var (
-	waveOutGetNumDevs    func() uint32
-	waveOutGetDevCapsW   func(id uintptr, caps uintptr, size uint32) uint32
-	waveOutOpen          func(out *uintptr, id uint32, format uintptr, callback, instance uintptr, flags uint32) uint32
-	waveOutPrepareHeader func(h uintptr, hdr uintptr, size uint32) uint32
-	waveOutUnprepare     func(h uintptr, hdr uintptr, size uint32) uint32
-	waveOutWrite         func(h uintptr, hdr uintptr, size uint32) uint32
-	waveOutReset         func(h uintptr) uint32
-	waveOutClose         func(h uintptr) uint32
-
 	procCreateEvent = native.ProcOf("kernel32.dll", "CreateEventW")
 	procSetEvent    = native.ProcOf("kernel32.dll", "SetEvent")
 	procResetEvent  = native.ProcOf("kernel32.dll", "ResetEvent")
@@ -43,40 +34,16 @@ var (
 	procCloseHandle = native.ProcOf("kernel32.dll", "CloseHandle")
 )
 
-var available = native.Once(bindAll)
+// loadWave is the winmm.dll binding.
+var loadWave = native.BindOnce[Winmm](native.Lazy, "winmm.dll")
 
 // Available loads winmm.dll.
 func Available() error {
 	if !layoutOK() {
 		return errUnavailable
 	}
-	return available()
-}
-
-func bindAll() error {
-	lib, err := native.OpenChain(native.Lazy, "winmm.dll")
-	if err != nil {
-		return err
-	}
-	binds := []struct {
-		name string
-		fn   any
-	}{
-		{"waveOutGetNumDevs", &waveOutGetNumDevs},
-		{"waveOutGetDevCapsW", &waveOutGetDevCapsW},
-		{"waveOutOpen", &waveOutOpen},
-		{"waveOutPrepareHeader", &waveOutPrepareHeader},
-		{"waveOutUnprepareHeader", &waveOutUnprepare},
-		{"waveOutWrite", &waveOutWrite},
-		{"waveOutReset", &waveOutReset},
-		{"waveOutClose", &waveOutClose},
-	}
-	for _, item := range binds {
-		if err := native.Bind(lib, item.name, item.fn); err != nil {
-			return err
-		}
-	}
-	return nil
+	_, err := loadWave()
+	return err
 }
 
 func statusErr(code uint32) error {
@@ -91,11 +58,15 @@ func Devices() ([]Device, error) {
 	if err := Available(); err != nil {
 		return nil, err
 	}
-	n := int(waveOutGetNumDevs())
+	wave, err := loadWave()
+	if err != nil {
+		return nil, err
+	}
+	n := int(wave.WaveOutGetNumDevs())
 	out := make([]Device, 0, n)
 	for i := 0; i < n; i++ {
 		var caps waveCaps
-		rc := waveOutGetDevCapsW(uintptr(i), uintptr(unsafe.Pointer(&caps)), uint32(unsafe.Sizeof(caps)))
+		rc := wave.WaveOutGetDevCapsW(uintptr(i), uintptr(unsafe.Pointer(&caps)), uint32(unsafe.Sizeof(caps)))
 		if rc != 0 {
 			return nil, statusErr(rc)
 		}
@@ -117,12 +88,17 @@ type Stream struct {
 	prepared bool
 	closed   bool
 	busy     bool
+	wave     Winmm
 }
 
 // Open plays layout on id. An empty id uses WAVE_MAPPER.
 // Write waits out each buffer on the device clock. A cancelled ctx resets it.
 func Open(ctx context.Context, id string, layout Layout) (*Stream, error) {
 	if err := Available(); err != nil {
+		return nil, err
+	}
+	wave, err := loadWave()
+	if err != nil {
 		return nil, err
 	}
 	device := uint32(waveMapper)
@@ -152,7 +128,7 @@ func Open(ctx context.Context, id string, layout Layout) (*Stream, error) {
 		return nil, fmt.Errorf("%w: event", errWinmm)
 	}
 	var h uintptr
-	rc := waveOutOpen(&h, device, uintptr(unsafe.Pointer(&format)), event, 0, callbackEvent)
+	rc := wave.WaveOutOpen(&h, device, uintptr(unsafe.Pointer(&format)), event, 0, callbackEvent)
 	if rc != 0 {
 		procCloseHandle.Call(event)
 		return nil, statusErr(rc)
@@ -163,6 +139,7 @@ func Open(ctx context.Context, id string, layout Layout) (*Stream, error) {
 		event: event,
 		chunk: chunkBytes(layout.Rate, block),
 		block: block,
+		wave:  wave,
 	}, nil
 }
 
@@ -190,7 +167,7 @@ func (s *Stream) Write(p []byte) error {
 		}
 		if err := s.ctx.Err(); err != nil {
 			if s.h != 0 {
-				waveOutReset(s.h)
+				s.wave.WaveOutReset(s.h)
 			}
 			return err
 		}
@@ -224,11 +201,11 @@ func (s *Stream) play(p []byte) error {
 		length: uint32(len(s.buf)),
 	}
 	size := uint32(unsafe.Sizeof(s.hdr))
-	if rc := waveOutPrepareHeader(s.h, uintptr(unsafe.Pointer(&s.hdr)), size); rc != 0 {
+	if rc := s.wave.WaveOutPrepareHeader(s.h, uintptr(unsafe.Pointer(&s.hdr)), size); rc != 0 {
 		return statusErr(rc)
 	}
 	s.prepared = true
-	if rc := waveOutWrite(s.h, uintptr(unsafe.Pointer(&s.hdr)), size); rc != 0 {
+	if rc := s.wave.WaveOutWrite(s.h, uintptr(unsafe.Pointer(&s.hdr)), size); rc != 0 {
 		return statusErr(rc)
 	}
 	return s.waitDone()
@@ -241,7 +218,7 @@ func (s *Stream) waitDone() error {
 		}
 		if err := s.ctx.Err(); err != nil {
 			if s.h != 0 {
-				waveOutReset(s.h)
+				s.wave.WaveOutReset(s.h)
 			}
 			return err
 		}
@@ -254,7 +231,7 @@ func (s *Stream) waitDone() error {
 		}
 		if err := s.ctx.Err(); err != nil {
 			if s.h != 0 {
-				waveOutReset(s.h)
+				s.wave.WaveOutReset(s.h)
 			}
 			return err
 		}
@@ -271,7 +248,7 @@ func (s *Stream) unprepare() error {
 	if !s.prepared {
 		return nil
 	}
-	rc := waveOutUnprepare(s.h, uintptr(unsafe.Pointer(&s.hdr)), uint32(unsafe.Sizeof(s.hdr)))
+	rc := s.wave.WaveOutUnprepareHeader(s.h, uintptr(unsafe.Pointer(&s.hdr)), uint32(unsafe.Sizeof(s.hdr)))
 	s.prepared = false
 	return statusErr(rc)
 }
@@ -287,7 +264,7 @@ func (s *Stream) Close() error {
 	s.closed = true
 	var reset uint32
 	if s.h != 0 {
-		reset = waveOutReset(s.h)
+		reset = s.wave.WaveOutReset(s.h)
 	}
 	if s.event != 0 {
 		procSetEvent.Call(s.event)
@@ -309,7 +286,7 @@ func (s *Stream) shutdown() error {
 	prep := s.unprepare()
 	var rc uint32
 	if s.h != 0 {
-		rc = waveOutClose(s.h)
+		rc = s.wave.WaveOutClose(s.h)
 		s.h = 0
 	}
 	if s.event != 0 {

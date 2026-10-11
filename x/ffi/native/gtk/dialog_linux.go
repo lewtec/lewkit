@@ -36,17 +36,22 @@ func Show(ctx context.Context, title, message, style string) error {
 		return err
 	}
 	return onOwner(func() error {
+		bound, err := loadGTK()
+		if err != nil {
+			return err
+		}
+		w := bound.widgets
 		f := &form{}
 		root := column()
 		if head := heading(style); head != "" {
-			bound.boxAppend(root, label(head))
+			w.GtkBoxAppend(root, label(head))
 		}
-		bound.boxAppend(root, label(message))
+		w.GtkBoxAppend(root, label(message))
 		ok := button("OK")
 		f.accept = ok
-		bound.boxAppend(root, ok)
+		w.GtkBoxAppend(root, ok)
 		f.win = window(title, root, 420, 160, false)
-		bound.setDefault(f.win, ok)
+		w.GtkWindowSetDefaultWidget(f.win, ok)
 		return present(ctx, f)
 	})
 }
@@ -58,18 +63,23 @@ func Confirm(ctx context.Context, message string) (bool, error) {
 	}
 	var ok bool
 	err := onOwner(func() error {
+		bound, err := loadGTK()
+		if err != nil {
+			return err
+		}
+		w := bound.widgets
 		f := &form{}
 		root := column()
-		bound.boxAppend(root, label(message))
-		row := bound.boxNew(0, 8)
+		w.GtkBoxAppend(root, label(message))
+		row := w.GtkBoxNew(0, 8)
 		yes := button("Yes")
 		no := button("No")
 		f.accept = yes
-		bound.boxAppend(row, yes)
-		bound.boxAppend(row, no)
-		bound.boxAppend(root, row)
+		w.GtkBoxAppend(row, yes)
+		w.GtkBoxAppend(row, no)
+		w.GtkBoxAppend(root, row)
 		f.win = window("Confirm", root, 420, 140, false)
-		bound.setDefault(f.win, yes)
+		w.GtkWindowSetDefaultWidget(f.win, yes)
 		if err := present(ctx, f); err != nil {
 			return err
 		}
@@ -88,22 +98,27 @@ func Prompt(ctx context.Context, prompt string) (string, bool, error) {
 	var text string
 	var ok bool
 	err := onOwner(func() error {
+		bound, err := loadGTK()
+		if err != nil {
+			return err
+		}
+		w := bound.widgets
 		f := &form{}
 		root := column()
-		bound.boxAppend(root, label(prompt))
-		f.entry = bound.entryNew()
-		bound.hexpand(f.entry, 1)
+		w.GtkBoxAppend(root, label(prompt))
+		f.entry = w.GtkEntryNew()
+		w.GtkWidgetSetHexpand(f.entry, 1)
 		connect(f.entry, "activate", activeCB)
-		bound.boxAppend(root, f.entry)
-		row := bound.boxNew(0, 8)
+		w.GtkBoxAppend(root, f.entry)
+		row := w.GtkBoxNew(0, 8)
 		accept := button("OK")
 		f.accept = accept
-		bound.boxAppend(row, accept)
-		bound.boxAppend(row, button("Cancel"))
-		bound.boxAppend(root, row)
+		w.GtkBoxAppend(row, accept)
+		w.GtkBoxAppend(row, button("Cancel"))
+		w.GtkBoxAppend(root, row)
 		f.win = window(prompt, root, 420, 160, false)
-		bound.setDefault(f.win, accept)
-		bound.grabFocus(f.entry)
+		w.GtkWindowSetDefaultWidget(f.win, accept)
+		w.GtkWidgetGrabFocus(f.entry)
 		if err := present(ctx, f); err != nil {
 			return err
 		}
@@ -125,35 +140,40 @@ func Choose(ctx context.Context, prompt string, labels []string) (int, bool, err
 	var index int
 	var ok bool
 	err := onOwner(func() error {
+		bound, err := loadGTK()
+		if err != nil {
+			return err
+		}
+		w := bound.widgets
 		f := &form{index: -1}
 		root := column()
-		bound.boxAppend(root, label(prompt))
-		f.list = bound.listNew()
+		w.GtkBoxAppend(root, label(prompt))
+		f.list = w.GtkListBoxNew()
 		connect(f.list, "row-activated", rowCB)
 		for _, item := range labels {
-			bound.listInsert(f.list, label(item), listBoxAppendPos)
+			w.GtkListBoxInsert(f.list, label(item), listBoxAppendPos)
 		}
-		scroll := bound.scrollNew()
-		bound.scrollChild(scroll, f.list)
-		bound.scrollMin(scroll, 200)
-		bound.scrollPolicy(scroll, policyNever, policyAutomatic)
-		bound.vexpand(scroll, 1)
-		bound.hexpand(scroll, 1)
-		bound.boxAppend(root, scroll)
-		row := bound.boxNew(0, 8)
+		scroll := w.GtkScrolledWindowNew()
+		w.GtkScrolledWindowSetChild(scroll, f.list)
+		w.GtkScrolledWindowSetMinContentHeight(scroll, 200)
+		w.GtkScrolledWindowSetPolicy(scroll, policyNever, policyAutomatic)
+		w.GtkWidgetSetVexpand(scroll, 1)
+		w.GtkWidgetSetHexpand(scroll, 1)
+		w.GtkBoxAppend(root, scroll)
+		row := w.GtkBoxNew(0, 8)
 		accept := button("OK")
 		f.accept = accept
-		bound.boxAppend(row, accept)
-		bound.boxAppend(row, button("Cancel"))
-		bound.boxAppend(root, row)
+		w.GtkBoxAppend(row, accept)
+		w.GtkBoxAppend(row, button("Cancel"))
+		w.GtkBoxAppend(root, row)
 		title := prompt
 		if title == "" {
 			title = "Choose"
 		}
 		f.win = window(title, root, 420, 360, true)
-		bound.setDefault(f.win, accept)
-		if first := bound.rowAt(f.list, 0); first != 0 {
-			bound.listSelect(f.list, first)
+		w.GtkWindowSetDefaultWidget(f.win, accept)
+		if first := w.GtkListBoxGetRowAtIndex(f.list, 0); first != 0 {
+			w.GtkListBoxSelectRow(f.list, first)
 		}
 		if err := present(ctx, f); err != nil {
 			return err
@@ -182,11 +202,16 @@ func onOwner(fn func() error) error {
 }
 
 func present(ctx context.Context, f *form) error {
+	bound, err := loadGTK()
+	if err != nil {
+		return err
+	}
+	w := bound.widgets
 	prev := current
 	current = f
-	bound.setModal(f.win, 1)
+	w.GtkWindowSetModal(f.win, 1)
 	connect(f.win, "close-request", closeCB)
-	bound.present(f.win)
+	w.GtkWindowPresent(f.win)
 	for !f.done {
 		if ctx.Err() != nil {
 			f.ok = false
@@ -196,27 +221,36 @@ func present(ctx context.Context, f *form) error {
 			time.Sleep(2 * time.Millisecond)
 		}
 	}
-	bound.destroy(f.win)
+	w.GtkWindowDestroy(f.win)
 	current = prev
 	return nil
 }
 
 func column() uintptr {
-	box := bound.boxNew(orientVertical, 12)
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
+	box := bound.widgets.GtkBoxNew(orientVertical, 12)
 	margin(box, 12)
 	return box
 }
 
 func window(title string, child uintptr, width, height int32, resizable bool) uintptr {
-	win := bound.windowNew()
-	withCString(title, func(p *byte) { bound.setTitle(win, p) })
-	bound.setSize(win, width, height)
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
+	w := bound.widgets
+	win := w.GtkWindowNew()
+	withCString(title, func(p *byte) { w.GtkWindowSetTitle(win, p) })
+	w.GtkWindowSetDefaultSize(win, width, height)
 	resize := int32(0)
 	if resizable {
 		resize = 1
 	}
-	bound.setResizable(win, resize)
-	bound.setChild(win, child)
+	w.GtkWindowSetResizable(win, resize)
+	w.GtkWindowSetChild(win, child)
 	return win
 }
 
@@ -262,8 +296,12 @@ func onRow(_, row, _ uintptr) uintptr {
 	if current == nil {
 		return 0
 	}
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
 	current.ok = true
-	current.index = int(bound.rowIndex(row))
+	current.index = int(bound.widgets.GtkListBoxRowGetIndex(row))
 	current.done = true
 	return 0
 }
@@ -277,16 +315,22 @@ func onClose(_, _ uintptr) uintptr {
 }
 
 func acceptForm(f *form) {
+	bound, err := loadGTK()
+	if err != nil {
+		f.ok = false
+		return
+	}
+	w := bound.widgets
 	f.ok = true
 	if f.entry != 0 {
-		f.text = native.GoString(bound.getText(f.entry))
+		f.text = native.GoString(w.GtkEditableGetText(f.entry))
 	}
 	if f.list != 0 {
-		row := bound.listSelected(f.list)
+		row := w.GtkListBoxGetSelectedRow(f.list)
 		if row == 0 {
 			f.ok = false
 			return
 		}
-		f.index = int(bound.rowIndex(row))
+		f.index = int(w.GtkListBoxRowGetIndex(row))
 	}
 }

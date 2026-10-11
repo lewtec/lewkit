@@ -39,6 +39,11 @@ type glxContext struct {
 	destroy func(uintptr, uintptr)
 }
 
+var (
+	bindGLXX11 = native.BindOnce[X11](native.Now|native.Global, "libX11.so.6")
+	bindGLX    = native.BindOnce[GLX](native.Now|native.Global, "libGL.so.1")
+)
+
 func openGLX(dpy, win uintptr) (glContext, error) {
 	if dpy == 0 || win == 0 {
 		return nil, ErrUnavailable
@@ -47,43 +52,24 @@ func openGLX(dpy, win uintptr) (glContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	xLib, err := native.OpenChain(native.Now|native.Global, "libX11.so.6")
+	xSyms, err := bindGLXX11()
 	if err != nil {
 		return nil, err
 	}
-	var (
-		defaultScreen func(uintptr) int32
-		windowAttr    func(uintptr, uintptr, unsafe.Pointer) int32
-		visualID      func(uintptr) uintptr
-		xFree         func(uintptr) int32
-		choose        func(uintptr, int32, *int32, *int32) uintptr
-		getAttrib     func(uintptr, uintptr, int32, *int32) int32
-		getProc       func(*byte) uintptr
-		makeCurrent   func(uintptr, uintptr, uintptr) int32
-		swap          func(uintptr, uintptr)
-		destroy       func(uintptr, uintptr)
-	)
-	binds := []struct {
-		lib  uintptr
-		name string
-		fn   any
-	}{
-		{xLib, "XDefaultScreen", &defaultScreen},
-		{xLib, "XGetWindowAttributes", &windowAttr},
-		{xLib, "XVisualIDFromVisual", &visualID},
-		{xLib, "XFree", &xFree},
-		{glLib, "glXChooseFBConfig", &choose},
-		{glLib, "glXGetFBConfigAttrib", &getAttrib},
-		{glLib, "glXGetProcAddress", &getProc},
-		{glLib, "glXMakeCurrent", &makeCurrent},
-		{glLib, "glXSwapBuffers", &swap},
-		{glLib, "glXDestroyContext", &destroy},
+	glSyms, err := bindGLX()
+	if err != nil {
+		return nil, err
 	}
-	for _, item := range binds {
-		if err := native.Bind(item.lib, item.name, item.fn); err != nil {
-			return nil, err
-		}
-	}
+	defaultScreen := xSyms.XDefaultScreen
+	windowAttr := xSyms.XGetWindowAttributes
+	visualID := xSyms.XVisualIDFromVisual
+	xFree := xSyms.XFree
+	choose := glSyms.GlXChooseFBConfig
+	getAttrib := glSyms.GlXGetFBConfigAttrib
+	getProc := glSyms.GlXGetProcAddress
+	makeCurrent := glSyms.GlXMakeCurrent
+	swap := glSyms.GlXSwapBuffers
+	destroy := glSyms.GlXDestroyContext
 	var raw [256]byte
 	if windowAttr(dpy, win, unsafe.Pointer(&raw[0])) == 0 {
 		return nil, fmt.Errorf("%w: XGetWindowAttributes", ErrUnavailable)

@@ -8,3 +8,5 @@
 // Device runs one compute kernel. It does not attach a view and it does not
 // share the screen's queue. ndarray talks to it through a driver.
 package metal
+
+//go:generate go run ../../../../cmd/lewkit generate header --package metal --bind Metal --out device_bind.go device.h

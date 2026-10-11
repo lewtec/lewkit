@@ -4,19 +4,14 @@ package thread
 
 import "github.com/lewtec/lewkit/x/ffi/native"
 
-var pthreadMainNP func() int32
+// pthreadMain is pthread_main_np from libc.
+var pthreadMain = native.BindOnce[PthreadMain](native.Lazy, libcPath)
 
 // ProcessMain reports whether this goroutine is on the process main OS thread.
-var loadMain = native.Once(func() error {
-	if err := loadLibc(); err != nil {
-		return err
-	}
-	return native.Bind(libc, "pthread_main_np", &pthreadMainNP)
-})
-
 func ProcessMain() bool {
-	if loadMain() == nil && pthreadMainNP != nil {
-		return pthreadMainNP() != 0
+	main, err := pthreadMain()
+	if err == nil {
+		return main.PthreadMainNp() != 0
 	}
 	return processMainTID != 0 && osThread() == processMainTID
 }

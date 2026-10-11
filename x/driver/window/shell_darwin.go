@@ -17,20 +17,17 @@ import (
 )
 
 const (
-	cocoaFramework    = "/System/Library/Frameworks/Cocoa.framework/Cocoa"
-	appServicesPath   = "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
-	policyRegular     = 0
-	transformStateFG  = 1
-	currentProcessPSN = 2
+	cocoaFramework          = "/System/Library/Frameworks/Cocoa.framework/Cocoa"
+	applicationServicesPath = "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+	policyRegular           = 0
+	transformStateFG        = 1
+	currentProcessPSN       = 2
 )
 
-// processSerial is ProcessSerialNumber. Both fields are UInt32.
-type processSerial struct {
-	high uint32
-	low  uint32
-}
-
-var shellReady atomic.Bool
+var (
+	shellReady          atomic.Bool
+	applicationServices = native.BindOnce[ApplicationServices](native.Global|native.Lazy, applicationServicesPath)
+)
 
 func showShell(title string, icon image.Image) {
 	// An off-thread call must not stick, or the UI thread would skip adoption.
@@ -75,16 +72,12 @@ func adoptShell(title string, icon image.Image) bool {
 }
 
 func transformForeground() bool {
-	lib, err := native.Open(appServicesPath, native.Global|native.Lazy)
+	got, err := applicationServices()
 	if err != nil {
 		return false
 	}
-	var fn func(*processSerial, uint32) int32
-	if err := native.Bind(lib, "TransformProcessType", &fn); err != nil || fn == nil {
-		return false
-	}
-	psn := processSerial{low: currentProcessPSN}
-	return fn(&psn, transformStateFG) == 0
+	psn := ProcessSerial{Low: currentProcessPSN}
+	return got.TransformProcessType(&psn, transformStateFG) == 0
 }
 
 func setAppIcon(app objc.ID, icon image.Image) {

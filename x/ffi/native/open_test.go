@@ -116,6 +116,9 @@ func TestOpenConcurrentFailureIsShared(t *testing.T) {
 }
 
 func TestOpenPromotesFlags(t *testing.T) {
+	if Global|Lazy == Lazy {
+		t.Skip("platform load flags do not distinguish global from lazy")
+	}
 	var got []int
 	swapLoader(t, func(_ string, flags int) (uintptr, error) {
 		got = append(got, flags)
@@ -150,6 +153,14 @@ func TestOpenFirst(t *testing.T) {
 	handle, err := OpenFirst(Lazy, "a", "good", "c")
 	require.NoError(t, err)
 	require.Equal(t, uintptr(9), handle)
+}
+
+func TestBindOnceKeepsTheFirstError(t *testing.T) {
+	load := BindOnce[int](0)
+	_, first := load()
+	_, second := load()
+	require.EqualError(t, first, "native.Bind: int is not a struct")
+	require.True(t, first == second)
 }
 
 func TestOnceKeepsTheFirstError(t *testing.T) {

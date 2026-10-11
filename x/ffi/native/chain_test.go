@@ -91,6 +91,19 @@ func TestOpenChainLeavesPathsAlone(t *testing.T) {
 	require.Equal(t, []string{path}, paths)
 }
 
+func TestOpenChainOpensAMissingPath(t *testing.T) {
+	var paths []string
+	swapLoader(t, func(path string, _ int) (uintptr, error) {
+		paths = append(paths, path)
+		return 7, nil
+	})
+	path := filepath.Join(t.TempDir(), "libcache.dylib")
+	handle, err := OpenChain(Lazy, path)
+	require.NoError(t, err)
+	require.Equal(t, uintptr(7), handle)
+	require.Equal(t, []string{path}, paths)
+}
+
 func TestOpenInTriesExtraDirsFirst(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "libextra.so"), []byte("x"), 0o644))

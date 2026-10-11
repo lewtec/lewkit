@@ -12,7 +12,7 @@ import (
 var (
 	platformOnce       sync.Once
 	metalDefaultDevice uintptr
-	createMetalDevice  func() uintptr
+	bindMetal          = native.BindOnce[Metal](native.Lazy, "/System/Library/Frameworks/Metal.framework/Metal")
 )
 
 // ensurePlatform wakes Metal so MoltenVK can enumerate a GPU without a window.
@@ -20,17 +20,12 @@ var (
 // and doctor did not.
 func ensurePlatform() {
 	platformOnce.Do(func() {
-		lib, err := native.Open("/System/Library/Frameworks/Metal.framework/Metal", native.Lazy)
+		metal, err := bindMetal()
 		if err != nil {
-			slog.Debug("vulkan metal framework", "err", err)
+			slog.Debug("vulkan metal create", "err", err)
 			return
 		}
-		native.Func(lib, "MTLCreateSystemDefaultDevice", &createMetalDevice)
-		if createMetalDevice == nil {
-			slog.Debug("vulkan metal create missing")
-			return
-		}
-		metalDefaultDevice = createMetalDevice()
+		metalDefaultDevice = metal.MTLCreateSystemDefaultDevice()
 		slog.Debug("vulkan metal device", "ok", metalDefaultDevice != 0)
 	})
 }

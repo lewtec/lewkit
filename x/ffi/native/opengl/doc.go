@@ -14,3 +14,8 @@
 // not share the screen's context. Compute needs desktop GL 4.3 or OpenGL ES
 // 3.1. ndarray talks to the device through a driver.
 package opengl
+
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind EGL --out egl_bind.go egl.h
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind EGLPlatform --soft --out egl_platform_bind.go egl_platform.h
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind X11 --out x11_bind.go x11.h
+//go:generate go run ../../../../cmd/lewkit generate header --package opengl --bind GLX --out glx_bind.go glx.h
