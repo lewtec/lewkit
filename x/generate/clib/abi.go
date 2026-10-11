@@ -1,9 +1,6 @@
 package clib
 
 import (
-	"fmt"
-	"runtime"
-
 	"github.com/lewtec/lewkit/x/generate/header"
 )
 
@@ -47,83 +44,13 @@ type target struct {
 	// fileOS is the GOOS in the generated file name. Empty means the
 	// file is shared by linux and android, so the name carries only the arch.
 	fileOS string
+	// link is set when the internal linker can write a PIE shared library.
+	// Generate still runs when it is false.
+	link bool
 }
 
 func (t target) header() (header.Target, error) {
 	return header.For(t.goos, t.goarch)
-}
-
-func linuxTargets() []target {
-	return []target{
-		{goos: "linux", goarch: "amd64", mach: machAmd64, constraint: "(linux || android) && amd64"},
-		{goos: "linux", goarch: "arm64", mach: machArm64, constraint: "(linux || android) && arm64"},
-		{goos: "linux", goarch: "386", mach: mach386, constraint: "(linux || android) && 386"},
-		{goos: "linux", goarch: "arm", mach: machARM, constraint: "(linux || android) && arm"},
-	}
-}
-
-func windowsTargets() []target {
-	return []target{
-		{goos: "windows", goarch: "amd64", mach: machWin64, constraint: "windows && amd64", fileOS: "windows"},
-		{goos: "windows", goarch: "arm64", mach: machArm64, constraint: "windows && arm64", fileOS: "windows"},
-		{goos: "windows", goarch: "386", mach: machWin386, constraint: "windows && 386", fileOS: "windows"},
-	}
-}
-
-func darwinTargets() []target {
-	return []target{
-		{goos: "darwin", goarch: "amd64", mach: machAmd64, constraint: "darwin && amd64", fileOS: "darwin"},
-		{goos: "darwin", goarch: "arm64", mach: machArm64, constraint: "darwin && arm64", fileOS: "darwin"},
-	}
-}
-
-func targetsFor(spec string) ([]target, error) {
-	switch spec {
-	case "", "all":
-		return linuxTargets(), nil
-	case "windows":
-		return windowsTargets(), nil
-	case "darwin":
-		return darwinTargets(), nil
-	case "host":
-		spec = runtime.GOOS + "/" + runtime.GOARCH
-	case "sysv64":
-		spec = "linux/amd64"
-	case "386":
-		spec = "linux/386"
-	case "arm":
-		spec = "linux/arm"
-	case "win64":
-		spec = "windows/amd64"
-	case "win386":
-		spec = "windows/386"
-	case "darwinarm64":
-		spec = "darwin/arm64"
-	}
-	parsed, err := header.ParseABI(spec)
-	if err != nil {
-		return nil, err
-	}
-	if parsed.GOOS == "" || parsed.GOARCH == "" {
-		return nil, fmt.Errorf("%w: %s", ErrHost, spec)
-	}
-	var list []target
-	switch parsed.GOOS {
-	case "linux", "android":
-		list = linuxTargets()
-	case "windows":
-		list = windowsTargets()
-	case "darwin":
-		list = darwinTargets()
-	default:
-		return nil, fmt.Errorf("%w: %s/%s", ErrHost, parsed.GOOS, parsed.GOARCH)
-	}
-	for _, t := range list {
-		if t.goarch == parsed.GOARCH {
-			return []target{t}, nil
-		}
-	}
-	return nil, fmt.Errorf("%w: %s/%s", ErrHost, parsed.GOOS, parsed.GOARCH)
 }
 
 func place(m machine, params []param) error {
@@ -138,8 +65,10 @@ func place(m machine, params []param) error {
 		return placeStack(params, 4)
 	case machWin386:
 		return placeStack(params, 8)
-	default:
+	case machARM:
 		return placeARM(params)
+	default:
+		return ErrType
 	}
 }
 

@@ -82,6 +82,73 @@ func dllStub(machine uint16) []byte {
 	}
 }
 
+// peExports reads the PE export name table. A file with no export
+// directory returns an empty set.
+func peExports(buf []byte) (map[string]bool, error) {
+	if len(buf) < 0x40 || string(buf[:2]) != "MZ" {
+		return nil, fmt.Errorf("not a PE file")
+	}
+	lfanew := int(binary.LittleEndian.Uint32(buf[0x3c:]))
+	if lfanew < 0 || lfanew+24 > len(buf) || string(buf[lfanew:lfanew+4]) != "PE\x00\x00" {
+		return nil, fmt.Errorf("not a PE file")
+	}
+	coff := lfanew + 4
+	nsects := int(binary.LittleEndian.Uint16(buf[coff+2:]))
+	optSize := int(binary.LittleEndian.Uint16(buf[coff+16:]))
+	opt := coff + 20
+	if opt < 0 || opt+optSize > len(buf) || opt+2 > len(buf) {
+		return nil, fmt.Errorf("short optional header")
+	}
+	var ddOff int
+	switch binary.LittleEndian.Uint16(buf[opt:]) {
+	case peOptPE32:
+		ddOff = 96
+	case peOptPE32Plus:
+		ddOff = 112
+	default:
+		return nil, fmt.Errorf("unknown PE magic")
+	}
+	if ddOff+8 > optSize {
+		return map[string]bool{}, nil
+	}
+	expRVA := binary.LittleEndian.Uint32(buf[opt+ddOff:])
+	expSize := binary.LittleEndian.Uint32(buf[opt+ddOff+4:])
+	if expRVA == 0 || expSize == 0 {
+		return map[string]bool{}, nil
+	}
+	sect := opt + optSize
+	if sect+nsects*40 > len(buf) {
+		return nil, fmt.Errorf("section headers are out of range")
+	}
+	off, ok := peFileOff(buf[sect:], nsects, expRVA)
+	if !ok || off < 0 || off+40 > len(buf) {
+		return nil, fmt.Errorf("export directory is outside its sections")
+	}
+	n := binary.LittleEndian.Uint32(buf[off+24:])
+	namesRVA := binary.LittleEndian.Uint32(buf[off+32:])
+	namesOff, ok := peFileOff(buf[sect:], nsects, namesRVA)
+	if !ok {
+		return nil, fmt.Errorf("export names are outside its sections")
+	}
+	out := make(map[string]bool, n)
+	for i := uint32(0); i < n; i++ {
+		at := namesOff + int(i)*4
+		if at < 0 || at+4 > len(buf) {
+			return nil, fmt.Errorf("export names are truncated")
+		}
+		noff, ok := peFileOff(buf[sect:], nsects, binary.LittleEndian.Uint32(buf[at:]))
+		if !ok || noff < 0 || noff >= len(buf) {
+			return nil, fmt.Errorf("export name is outside its sections")
+		}
+		end := noff
+		for end < len(buf) && buf[end] != 0 {
+			end++
+		}
+		out[string(buf[noff:end])] = true
+	}
+	return out, nil
+}
+
 func peFileOff(sects []byte, n int, rva uint32) (int, bool) {
 	for i := 0; i < n; i++ {
 		off := i * 40

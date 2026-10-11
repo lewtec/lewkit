@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 const (
@@ -502,4 +503,92 @@ func put64be(b []byte, x uint64) []byte {
 func put8(b []byte, x byte) []byte {
 	b[0] = x
 	return b[1:]
+}
+
+func machoExportTrie(path string) ([]byte, error) {
+	f, err := macho.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("clib: %s: %w", path, err)
+	}
+	defer f.Close()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	for _, load := range f.Loads {
+		cmdb := load.Raw()
+		if len(cmdb) < 48 {
+			continue
+		}
+		cmd := binary.LittleEndian.Uint32(cmdb)
+		if cmd != lcDyldInfo && cmd != lcDyldInfoOnly {
+			continue
+		}
+		off := binary.LittleEndian.Uint32(cmdb[40:])
+		sz := binary.LittleEndian.Uint32(cmdb[44:])
+		if sz == 0 || uint64(off)+uint64(sz) > uint64(len(raw)) {
+			return nil, fmt.Errorf("clib: %s export trie is empty", path)
+		}
+		return raw[off : off+sz], nil
+	}
+	return nil, fmt.Errorf("clib: %s has no export trie", path)
+}
+
+func trieLookup(buf []byte, name string) (uint64, bool) {
+	return trieWalk(buf, 0, name)
+}
+
+func trieWalk(buf []byte, off int, name string) (uint64, bool) {
+	if off < 0 || off >= len(buf) {
+		return 0, false
+	}
+	term, n := readUleb(buf[off:])
+	p := off + n
+	if term > 0 {
+		if p+int(term) > len(buf) {
+			return 0, false
+		}
+		payload := buf[p : p+int(term)]
+		p += int(term)
+		_, n1 := readUleb(payload)
+		addr, _ := readUleb(payload[n1:])
+		if name == "" {
+			return addr, true
+		}
+	} else if name == "" {
+		return 0, false
+	}
+	if p >= len(buf) {
+		return 0, false
+	}
+	count := int(buf[p])
+	p++
+	for i := 0; i < count; i++ {
+		end := p
+		for end < len(buf) && buf[end] != 0 {
+			end++
+		}
+		if end >= len(buf) {
+			return 0, false
+		}
+		edge := string(buf[p:end])
+		p = end + 1
+		child, cn := readUleb(buf[p:])
+		p += cn
+		if strings.HasPrefix(name, edge) {
+			return trieWalk(buf, int(child), name[len(edge):])
+		}
+	}
+	return 0, false
+}
+
+func readUleb(buf []byte) (uint64, int) {
+	var v uint64
+	for i := 0; i < len(buf) && i < 10; i++ {
+		v |= uint64(buf[i]&0x7f) << (7 * i)
+		if buf[i]&0x80 == 0 {
+			return v, i + 1
+		}
+	}
+	return 0, 0
 }

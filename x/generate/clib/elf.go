@@ -1,6 +1,7 @@
 package clib
 
 import (
+	"debug/elf"
 	"encoding/binary"
 	"fmt"
 	"os"
@@ -109,4 +110,26 @@ func MakeShared(path string) error {
 		}
 	}
 	return os.WriteFile(path, buf, info.Mode())
+}
+
+// elfExports is the defined dynamic symbol names. An undefined dynsym entry
+// is an import, so it does not count as an export.
+func elfExports(path string) (map[string]bool, error) {
+	f, err := elf.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	syms, err := f.DynamicSymbols()
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]bool, len(syms))
+	for _, sym := range syms {
+		if sym.Name == "" || sym.Section == elf.SHN_UNDEF {
+			continue
+		}
+		out[sym.Name] = true
+	}
+	return out, nil
 }

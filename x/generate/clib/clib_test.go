@@ -3,8 +3,12 @@ package clib
 import (
 	"bytes"
 	"context"
+	"errors"
+	"go/build"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sort"
 	"strings"
 	"testing"
 
@@ -215,65 +219,10 @@ func TestMakeDLLStub(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint16(0x2022), u16(got, 0x96))
 	assert.Equal(t, []byte{0xb8, 0x01, 0x00, 0x00, 0x00, 0xc3}, got[0x400:0x406])
-}
-
-func trieLookup(buf []byte, name string) (uint64, bool) {
-	return trieWalk(buf, 0, name)
-}
-
-func trieWalk(buf []byte, off int, name string) (uint64, bool) {
-	if off < 0 || off >= len(buf) {
-		return 0, false
-	}
-	term, n := readUleb(buf[off:])
-	p := off + n
-	if term > 0 {
-		if p+int(term) > len(buf) {
-			return 0, false
-		}
-		payload := buf[p : p+int(term)]
-		p += int(term)
-		_, n1 := readUleb(payload)
-		addr, _ := readUleb(payload[n1:])
-		if name == "" {
-			return addr, true
-		}
-	} else if name == "" {
-		return 0, false
-	}
-	if p >= len(buf) {
-		return 0, false
-	}
-	count := int(buf[p])
-	p++
-	for i := 0; i < count; i++ {
-		end := p
-		for end < len(buf) && buf[end] != 0 {
-			end++
-		}
-		if end >= len(buf) {
-			return 0, false
-		}
-		edge := string(buf[p:end])
-		p = end + 1
-		child, cn := readUleb(buf[p:])
-		p += cn
-		if strings.HasPrefix(name, edge) {
-			return trieWalk(buf, int(child), name[len(edge):])
-		}
-	}
-	return 0, false
-}
-
-func readUleb(buf []byte) (uint64, int) {
-	var v uint64
-	for i := 0; i < len(buf) && i < 10; i++ {
-		v |= uint64(buf[i]&0x7f) << (7 * i)
-		if buf[i]&0x80 == 0 {
-			return v, i + 1
-		}
-	}
-	return 0, 0
+	err = requireImageExports(path, "windows", []string{"add"})
+	require.Error(t, err)
+	assert.False(t, errors.Is(err, ErrHost))
+	assert.Contains(t, err.Error(), "add")
 }
 
 func TestGenerateArches(t *testing.T) {
@@ -436,4 +385,177 @@ func u64(buf []byte, off int) uint64 {
 		v |= uint64(buf[off+i]) << (8 * i)
 	}
 	return v
+}
+
+func TestHostTable(t *testing.T) {
+	want := map[string]bool{
+		"linux/amd64":   true,
+		"linux/arm64":   true,
+		"linux/386":     false,
+		"linux/arm":     false,
+		"android/amd64": false,
+		"android/arm64": true,
+		"android/386":   false,
+		"android/arm":   false,
+		"windows/amd64": true,
+		"windows/arm64": true,
+		"windows/386":   true,
+		"darwin/amd64":  true,
+		"darwin/arm64":  true,
+	}
+	got := map[string]bool{}
+	for _, h := range hosts() {
+		key := h.goos + "/" + h.goarch
+		_, dup := got[key]
+		require.False(t, dup, key)
+		got[key] = h.link
+		abi, err := h.header()
+		require.NoError(t, err, key)
+		assert.Equal(t, h.goos, abi.GOOS, key)
+		assert.Equal(t, h.goarch, abi.GOARCH, key)
+	}
+	assert.Equal(t, want, got)
+
+	all, err := targetsFor("")
+	require.NoError(t, err)
+	require.Len(t, all, 4)
+	for _, item := range all {
+		assert.Equal(t, "linux", item.goos)
+		assert.Empty(t, item.fileOS)
+	}
+	same, err := targetsFor("all")
+	require.NoError(t, err)
+	assert.Equal(t, all, same)
+
+	android, err := targetsFor("android/arm64")
+	require.NoError(t, err)
+	require.Len(t, android, 1)
+	assert.Equal(t, "android", android[0].goos)
+	assert.Equal(t, "arm64", android[0].goarch)
+	assert.Empty(t, android[0].fileOS)
+	assert.True(t, android[0].link)
+
+	host, err := targetsFor("host")
+	require.NoError(t, err)
+	require.Len(t, host, 1)
+	assert.Equal(t, runtime.GOOS, host[0].goos)
+	assert.Equal(t, runtime.GOARCH, host[0].goarch)
+
+	assert.ErrorIs(t, place(machine(-1), nil), ErrType)
+}
+
+func TestBuildGate(t *testing.T) {
+	ctx := context.Background()
+	out := filepath.Join(t.TempDir(), "out")
+	err := BuildFor(ctx, t.TempDir(), out, "ios", "arm64")
+	assert.EqualError(t, err, "unsupported target: ios/arm64")
+
+	err = BuildFor(ctx, t.TempDir(), out, "linux", "386")
+	assert.EqualError(t, err, "unsupported target: linux/386 has no internal PIE shared library")
+
+	dir := t.TempDir()
+	export := filepath.Join(dir, exportFileName)
+	body := "//go:build (linux || android) && (amd64 || arm64 || 386 || arm)\n\npackage main\n\n//go:cgo_export_dynamic add add\n"
+	require.NoError(t, os.WriteFile(export, []byte(body), 0o644))
+	err = BuildFor(ctx, dir, filepath.Join(dir, "out.so"), "android", "amd64")
+	assert.EqualError(t, err, "unsupported target: android/amd64 has no internal PIE shared library")
+	err = BuildFor(ctx, dir, filepath.Join(dir, "out.dll"), "windows", "amd64")
+	assert.EqualError(t, err, "unsupported target: generated export does not include windows/amd64")
+	require.NoError(t, exportCovers(export, "linux", "amd64"))
+	require.NoError(t, exportCovers(export, "android", "arm64"))
+	assert.ErrorIs(t, exportCovers(export, "darwin", "arm64"), ErrHost)
+}
+
+func TestGateFiles(t *testing.T) {
+	dir := filepath.Join(moduleRoot(t), "x", "ffi", "clib")
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	universal := map[string]bool{
+		"doc.go": true, "handle.go": true, "ptr.go": true, "word.go": true,
+	}
+	var plain, gated []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || (!strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, ".s")) {
+			continue
+		}
+		if universal[name] {
+			plain = append(plain, name)
+			continue
+		}
+		gated = append(gated, name)
+	}
+	sort.Strings(plain)
+	assert.Equal(t, []string{"doc.go", "handle.go", "ptr.go", "word.go"}, plain)
+
+	check := func(goos, goarch string, export bool, want []string) {
+		t.Helper()
+		ctx := &build.Context{GOOS: goos, GOARCH: goarch, Compiler: "gc"}
+		if export {
+			ctx.BuildTags = []string{"clibexport"}
+		}
+		var got []string
+		for _, name := range gated {
+			ok, err := ctx.MatchFile(dir, name)
+			require.NoError(t, err, "%s %s/%s", name, goos, goarch)
+			if ok {
+				got = append(got, name)
+			}
+		}
+		sort.Strings(got)
+		sort.Strings(want)
+		assert.Equal(t, want, got, "%s/%s export=%v", goos, goarch, export)
+	}
+	for _, h := range hosts() {
+		check(h.goos, h.goarch, true, gateFiles(h.goos, h.goarch, true))
+		check(h.goos, h.goarch, false, gateFiles(h.goos, h.goarch, false))
+	}
+	for _, pair := range [][2]string{
+		{"ios", "arm64"},
+		{"freebsd", "amd64"},
+		{"darwin", "386"},
+		{"windows", "arm"},
+		{"linux", "ppc64le"},
+	} {
+		check(pair[0], pair[1], true, nil)
+		check(pair[0], pair[1], false, nil)
+	}
+}
+
+func gateFiles(goos, goarch string, export bool) []string {
+	files := []string{"dispatch.go", "slot.go", "slot_test.go"}
+	switch goos {
+	case "linux", "android":
+		files = append(files, "serve.go")
+		if export {
+			files = append(files, "call_"+goarch+".s")
+		}
+	case "windows":
+		files = append(files, "import_windows.go", "serve_windows.go")
+		if export {
+			files = append(files, "call_windows_"+goarch+".s")
+		}
+	case "darwin":
+		files = append(files, "import_darwin.go", "serve_darwin.go")
+		if export {
+			files = append(files, "call_darwin_"+goarch+".s")
+		}
+	}
+	return files
+}
+
+func moduleRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	require.NoError(t, err)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("go.mod not found")
+		}
+		dir = parent
+	}
 }

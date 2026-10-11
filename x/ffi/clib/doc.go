@@ -22,5 +22,6 @@
 // -checklinkname=0 because the entry refers to runtime startup symbols.
 // The internal PIE link is linux/amd64, linux/arm64, android/arm64,
 // windows/amd64, windows/arm64, windows/386, darwin/amd64, and
-// darwin/arm64. arm uses GOARM=7.
+// darwin/arm64. The build tags match that set. The darwin files exclude
+// ios. arm uses GOARM=7.
 package clib

@@ -1,4 +1,4 @@
-//go:build ((linux || android) && (amd64 || arm64 || 386 || arm)) || ((windows || darwin) && (amd64 || arm64 || 386))
+//go:build ((linux || android) && (amd64 || arm64 || 386 || arm)) || (windows && (amd64 || arm64 || 386)) || (darwin && !ios && (amd64 || arm64))
 
 package clib
 

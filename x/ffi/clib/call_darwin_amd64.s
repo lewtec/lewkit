@@ -1,4 +1,4 @@
-//go:build darwin && clibexport
+//go:build darwin && !ios && clibexport
 
 #include "textflag.h"
 

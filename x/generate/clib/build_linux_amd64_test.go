@@ -300,9 +300,9 @@ func peExportNames(t *testing.T, f *pe.File, raw []byte, dir pe.DataDirectory) [
 }
 
 // TestEntryLinks proves the 386 and arm entry against the real runtime.
-// Go's internal linker has no PIE for those architectures, so BuildFor
-// cannot write the shared library. The test binary still resolves
-// runtime.clone, runtime.rt0_go, and runtime.islibrary.
+// Those pairs have no internal PIE, so BuildFor returns ErrHost before
+// the linker. The test binary still resolves runtime.clone, runtime.rt0_go,
+// and runtime.islibrary.
 func TestEntryLinks(t *testing.T) {
 	repo := moduleRoot(t)
 	for _, arch := range []string{"386", "arm"} {
@@ -329,21 +329,5 @@ func TestEntryLinks(t *testing.T) {
 			outb, err := cmd.CombinedOutput()
 			require.NoError(t, err, string(outb))
 		})
-	}
-}
-
-func moduleRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	require.NoError(t, err)
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("go.mod not found")
-		}
-		dir = parent
 	}
 }

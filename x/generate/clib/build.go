@@ -16,22 +16,29 @@ func Build(ctx context.Context, dir, out string) error {
 	return BuildFor(ctx, dir, out, runtime.GOOS, runtime.GOARCH)
 }
 
-// BuildFor links dir for goos/goarch. The link is an internal PIE with the
-// clibexport tag. Linux and android then clear DF_1_PIE and drop PT_INTERP.
-// Windows sets the DLL bit and replaces the entry with a DllMain that
-// returns TRUE. Darwin rewrites the image as a dylib and installs an
-// export trie. arm uses GOARM=7.
+// BuildFor links dir for goos/goarch. The host table decides the pair.
+// A pair with no internal PIE, and a generated export whose build
+// constraint omits the pair, return ErrHost before the linker. The link
+// is an internal PIE with the clibexport tag. Linux and android then
+// clear DF_1_PIE and drop PT_INTERP. Windows sets the DLL bit and replaces
+// the entry with a DllMain that returns TRUE. Darwin rewrites the image
+// as a dylib and installs an export trie. The patched image must contain
+// every export name. arm uses GOARM=7.
 func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := targetsFor(goos + "/" + goarch); err != nil {
+	host, err := hostFor(goos, goarch)
+	if err != nil {
 		return err
+	}
+	if !host.link {
+		return fmt.Errorf("%w: %s/%s has no internal PIE shared library", ErrHost, goos, goarch)
 	}
 	if dir == "" || out == "" {
 		return fmt.Errorf("clib: directory and output are required")
 	}
-	dir, err := filepath.Abs(dir)
+	dir, err = filepath.Abs(dir)
 	if err != nil {
 		return err
 	}
@@ -41,6 +48,13 @@ func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 	}
 	export := filepath.Join(dir, exportFileName)
 	if _, err := os.Stat(export); err != nil {
+		return err
+	}
+	if err := exportCovers(export, goos, goarch); err != nil {
+		return err
+	}
+	names, err := readExports(dir)
+	if err != nil {
 		return err
 	}
 	if strings.Contains(export, " ") || strings.Contains(out, " ") {
@@ -70,16 +84,19 @@ func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 	}
 	switch goos {
 	case "windows":
-		return MakeDLL(out)
-	case "darwin":
-		names, err := readExports(dir)
-		if err != nil {
+		if err := MakeDLL(out); err != nil {
 			return err
 		}
-		return MakeDylib(out, names)
+	case "darwin":
+		if err := MakeDylib(out, names); err != nil {
+			return err
+		}
 	default:
-		return MakeShared(out)
+		if err := MakeShared(out); err != nil {
+			return err
+		}
 	}
+	return requireImageExports(out, goos, names)
 }
 
 func readExports(dir string) ([]string, error) {
