@@ -25,7 +25,7 @@ func TestFlattenCtxStoresValue(t *testing.T) {
 	}
 	got := ParseOK[args](t, "--io", "3", "--cpu", "4")
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&got).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&got).Elem()))
 	assert.Equal(t, 7, Get[int](ctx, "pool"))
 	assert.Panics(t, func() { Get[int](ctx, "io") })
 }
@@ -43,7 +43,7 @@ func TestFlattenCtxStoresFieldWhenValueNil(t *testing.T) {
 	}
 	got := ParseOK[args](t, "--n", "1")
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&got).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&got).Elem()))
 	obj := Get[nilPtrValuer](ctx, "obj")
 	assert.Equal(t, 1, obj.n.Value())
 	assert.Nil(t, obj.Value())
@@ -66,7 +66,7 @@ func TestLookupMissing(t *testing.T) {
 func TestGetAppFlags(t *testing.T) {
 	app := ParseOK[App[None]](t, "-vv", "--pprof", "/tmp/p")
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&app).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&app).Elem()))
 	assert.Equal(t, 2, Get[int](ctx, "verbose"))
 	assert.Equal(t, "/tmp/p", Get[string](ctx, "pprof"))
 	assert.False(t, Get[bool](ctx, "help"))
@@ -107,7 +107,7 @@ func TestGetUnwrapsArgAndSlice(t *testing.T) {
 	}
 	got := ParseOK[args](t, "--name", "Ada", "--tag", "a", "--tag", "b", "--n", "3", "--ok")
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&got).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&got).Elem()))
 	assert.Equal(t, "Ada", Get[string](ctx, "name"))
 	assert.Equal(t, []string{"a", "b"}, Get[[]string](ctx, "tag"))
 	assert.Equal(t, 3, Get[int](ctx, "n"))
@@ -120,7 +120,7 @@ func TestEmptyCtxUsesLong(t *testing.T) {
 	}
 	got := ParseOK[args](t, "--name", "Ada")
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&got).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&got).Elem()))
 	assert.Equal(t, "Ada", Get[string](ctx, "name"))
 }
 
@@ -130,7 +130,7 @@ func TestEmptyCtxUsesFieldName(t *testing.T) {
 	}
 	got := ParseOK[args](t)
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&got).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&got).Elem()))
 	assert.Equal(t, ".", Get[string](ctx, "path"))
 }
 
@@ -140,7 +140,7 @@ func TestUntaggedNotInBag(t *testing.T) {
 	}
 	got := ParseOK[args](t, "--name", "Ada")
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&got).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&got).Elem()))
 	assert.PanicsWithError(t, "context key not set: name", func() {
 		Get[string](ctx, "name")
 	})
@@ -182,7 +182,7 @@ func TestNilPointerSkipped(t *testing.T) {
 	}
 	got := ParseOK[args](t)
 	ctx := withValues(t.Context())
-	bind(ctx, reflect.ValueOf(&got).Elem())
+	require.NoError(t, bind(ctx, reflect.ValueOf(&got).Elem()))
 	assert.PanicsWithError(t, "context key not set: name", func() {
 		Get[string](ctx, "name")
 	})

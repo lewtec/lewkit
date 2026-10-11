@@ -63,7 +63,9 @@ func (a *App[T]) Run(ctx context.Context) error {
 		return context.Cause(ctx)
 	}
 	ctx = withValues(ctx)
-	bind(ctx, reflect.ValueOf(a).Elem())
+	if err := bind(ctx, reflect.ValueOf(a).Elem()); err != nil {
+		return err
+	}
 	switch {
 	case Get[bool](ctx, "help"):
 		return a.printUsage()
