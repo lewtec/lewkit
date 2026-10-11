@@ -7,5 +7,5 @@ var (
 	ErrEmpty  = errors.New("no functions")
 	ErrType   = errors.New("unsupported type")
 	ErrSymbol = errors.New("unsupported symbol")
-	ErrHost   = errors.New("host is not linux/amd64")
+	ErrHost   = errors.New("unsupported target")
 )

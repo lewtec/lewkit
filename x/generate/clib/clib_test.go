@@ -27,11 +27,11 @@ int foo(int a);
 int Foo(int b);
 int log_line(const char *fmt, ...);
 `), 0o644))
-	require.NoError(t, Run(context.Background(), Config{File: header}))
-	goSrc, err := os.ReadFile(filepath.Join(dir, "add_clib.go"))
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "linux/amd64"}))
+	goSrc, err := os.ReadFile(filepath.Join(dir, "add_clib_amd64.go"))
 	require.NoError(t, err)
 	text := string(goSrc)
-	assert.True(t, strings.HasPrefix(text, "//go:build linux && amd64\n"))
+	assert.True(t, strings.HasPrefix(text, "//go:build (linux || android) && amd64\n"))
 	assert.Contains(t, text, "package main")
 	assert.Regexp(t, `Add\s+func\(a int32, b int32\) int32`, text)
 	assert.Regexp(t, `Scale\s+func\(x float64\) float64`, text)
@@ -43,11 +43,14 @@ int log_line(const char *fmt, ...);
 	assert.Contains(t, text, "clib.Handle(0, callAdd)")
 	assert.Contains(t, text, "math.Float64frombits(xmm[0])")
 	assert.Contains(t, text, "math.Float32frombits(uint32(xmm[0]))")
-	assert.Contains(t, text, "(*int32)(clib.Ptr(args[0]))")
+	assert.Contains(t, text, "(*int32)(clib.Ptr(uintptr(args[0])))")
+	assert.Contains(t, text, "clib.KindF64")
+	assert.Contains(t, text, "clib.KindF32")
+	assert.Contains(t, text, "uint64(int64(v))")
 	assert.Contains(t, text, "Skipped variadic: log_line")
 	assert.NotContains(t, text, "func callLog")
 
-	asm, err := os.ReadFile(filepath.Join(dir, "add_clib_linux_amd64.s"))
+	asm, err := os.ReadFile(filepath.Join(dir, "add_clib_amd64.s"))
 	require.NoError(t, err)
 	assert.Contains(t, string(asm), "TEXT add(SB),NOSPLIT|NOFRAME,$0")
 	assert.Contains(t, string(asm), "MOVL $0, AX")
@@ -82,8 +85,102 @@ func TestGenerateRejects(t *testing.T) {
 	assert.ErrorIs(t, err, ErrSymbol)
 
 	agg := write("agg.h", "struct P { int x; };\nint sum(struct P p);\n")
-	err = Run(context.Background(), Config{File: agg})
+	err = Run(context.Background(), Config{File: agg, ABI: "linux/amd64"})
 	assert.ErrorIs(t, err, ErrType)
+
+	win := write("win.h", "int add(int a, int b);\n")
+	err = Run(context.Background(), Config{File: win, ABI: "windows/amd64"})
+	assert.ErrorIs(t, err, ErrHost)
+}
+
+func TestGenerateArches(t *testing.T) {
+	dir := t.TempDir()
+	header := filepath.Join(dir, "calc.h")
+	require.NoError(t, os.WriteFile(header, []byte(`
+#include <stdint.h>
+int32_t add(int32_t a, int32_t b, int32_t c, int32_t d, int32_t e, int32_t f, int32_t g, int32_t h);
+int64_t wide(int32_t a, int64_t b);
+float mix(float a, double b, float c);
+int32_t pack(int8_t a, double b);
+`), 0o644))
+	err := Run(context.Background(), Config{File: header, ABI: "linux/amd64"})
+	assert.ErrorIs(t, err, ErrType)
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "linux/arm64"}))
+	arm64, err := os.ReadFile(filepath.Join(dir, "calc_clib_arm64.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(arm64), "int32(args[7])")
+	asm, err := os.ReadFile(filepath.Join(dir, "calc_clib_arm64.s"))
+	require.NoError(t, err)
+	assert.Contains(t, string(asm), "MOVD $0, R9")
+
+	// arm keeps four integer registers and does not spill, so the eight-word
+	// add above is rejected there. The rest of the header still exercises
+	// the even-odd int64 pair and the VFP backfill hole.
+	armHeader := filepath.Join(dir, "arm.h")
+	require.NoError(t, os.WriteFile(armHeader, []byte(`
+#include <stdint.h>
+int32_t add(int32_t a, int32_t b, int32_t c, int32_t d);
+int64_t wide(int32_t a, int64_t b);
+float mix(float a, double b, float c);
+int32_t pack(int8_t a, double b);
+`), 0o644))
+	require.NoError(t, Run(context.Background(), Config{File: armHeader, ABI: "linux/arm"}))
+	armSrc, err := os.ReadFile(filepath.Join(dir, "arm_clib_arm.go"))
+	require.NoError(t, err)
+	text := string(armSrc)
+	assert.Contains(t, text, "int32(args[0])")
+	assert.Contains(t, text, "uint64(uint32(args[2]))|uint64(uint32(args[3]))<<32")
+	assert.Contains(t, text, "math.Float32frombits(uint32(xmm[0]))")
+	assert.Contains(t, text, "math.Float64frombits(xmm[1])")
+	assert.Contains(t, text, "math.Float32frombits(uint32(xmm[0]>>32))")
+	asm, err = os.ReadFile(filepath.Join(dir, "arm_clib_arm.s"))
+	require.NoError(t, err)
+	assert.Contains(t, string(asm), "MOVW.W R4, -8(R13)")
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "linux/386"}))
+	i386, err := os.ReadFile(filepath.Join(dir, "calc_clib_386.go"))
+	require.NoError(t, err)
+	text = string(i386)
+	assert.Contains(t, text, "clib.U32(args, 0)")
+	assert.Contains(t, text, "clib.U64(args, 4)")
+	assert.NotContains(t, text, "args[7]")
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "android/arm64"}))
+	_, err = os.Stat(filepath.Join(dir, "calc_clib_arm64.go"))
+	require.NoError(t, err)
+}
+
+func TestMakeSharedClearsPIE32(t *testing.T) {
+	buf := bytes.Repeat([]byte{0}, 160)
+	copy(buf[:4], []byte{0x7f, 'E', 'L', 'F'})
+	buf[4] = 1
+	buf[5] = 1
+	buf[6] = 1
+	// e_phoff
+	buf[28] = 52
+	// e_phentsize, e_phnum
+	buf[42] = 32
+	buf[44] = 2
+	// PT_INTERP at 52. p_offset 120, p_filesz 4.
+	buf[52] = elfPTInterp
+	put32(buf, 52+4, 120)
+	put32(buf, 52+16, 4)
+	// PT_DYNAMIC at 84. p_offset 128, p_filesz 16.
+	buf[84] = elfPTDynamic
+	put32(buf, 84+4, 128)
+	put32(buf, 84+16, 16)
+	// DT_FLAGS_1 = DF_1_PIE, then DT_NULL.
+	put32(buf, 128, uint32(elfDTFlags1))
+	put32(buf, 132, elfDF1PIE)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "lib.so")
+	require.NoError(t, os.WriteFile(path, buf, 0o755))
+	require.NoError(t, MakeShared(path))
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, byte(elfPTNull), got[52])
+	assert.Equal(t, uint32(0), u32(got, 132))
 }
 
 func TestMakeSharedClearsPIE(t *testing.T) {
@@ -117,6 +214,17 @@ func TestMakeSharedClearsPIE(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, byte(elfPTNull), got[64])
 	assert.Equal(t, uint64(0), u64(got, 208))
+}
+
+func put32(buf []byte, off int, v uint32) {
+	buf[off] = byte(v)
+	buf[off+1] = byte(v >> 8)
+	buf[off+2] = byte(v >> 16)
+	buf[off+3] = byte(v >> 24)
+}
+
+func u32(buf []byte, off int) uint32 {
+	return uint32(buf[off]) | uint32(buf[off+1])<<8 | uint32(buf[off+2])<<16 | uint32(buf[off+3])<<24
 }
 
 func put64(buf []byte, off int, v uint64) {

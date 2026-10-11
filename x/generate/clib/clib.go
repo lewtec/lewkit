@@ -23,12 +23,23 @@ type Config struct {
 	Define  []string
 	// Bind names the struct whose fields are the C functions. Empty means API.
 	Bind string
+	// ABI selects the C layout. Empty and all write linux and android on
+	// amd64, arm64, 386, and arm. host, an ABI id, or goos/goarch writes one.
+	ABI string
 }
 
-// Run reads File as a linux/amd64 header and writes the Go stubs, the
-// SysV trampolines, and _cgo_clib_export.go. Out defaults to
-// <stem>_clib.go beside the header. One header per package: a later run
-// replaces the export file.
+type generated struct {
+	goFile  string
+	asmFile string
+	goSrc   []byte
+	asmSrc  []byte
+	funcs   []fn
+}
+
+// Run reads File and writes the Go stubs, the trampolines, and
+// _cgo_clib_export.go. Out defaults to files beside the header. A path
+// that ends in .go is one arch, linux/amd64 when ABI is empty.
+// One header per package: a later run replaces the export file.
 func Run(ctx context.Context, cfg Config) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -36,19 +47,24 @@ func Run(ctx context.Context, cfg Config) error {
 	if cfg.File == "" {
 		return ErrHeader
 	}
-	target, err := header.ParseABI("linux/amd64")
+	spec := cfg.ABI
+	single := strings.HasSuffix(cfg.Out, ".go")
+	if single && (spec == "" || spec == "all") {
+		spec = "linux/amd64"
+	}
+	targets, err := targetsFor(spec)
 	if err != nil {
 		return err
 	}
-	unit, err := header.Parse(ctx, cfg.File, header.Options{
-		Include: cfg.Include,
-		Define:  cfg.Define,
-		Target:  target,
-	})
-	if err != nil {
-		return err
+	dir := filepath.Dir(cfg.File)
+	stem := strings.TrimSuffix(filepath.Base(cfg.File), filepath.Ext(cfg.File))
+	if cfg.Out != "" {
+		if single {
+			dir = filepath.Dir(cfg.Out)
+		} else {
+			dir = cfg.Out
+		}
 	}
-	dir, goFile, asmFile, exportFile := outputPaths(cfg.File, cfg.Out)
 	pkg := cfg.Package
 	if pkg == "" {
 		pkg = inferPackage(dir)
@@ -63,42 +79,76 @@ func Run(ctx context.Context, cfg Config) error {
 	if !token.IsIdentifier(bind) || token.IsKeyword(bind) {
 		return fmt.Errorf("%w: %s", ErrSymbol, bind)
 	}
-	funcs, err := classify(unit.Funcs)
-	if err != nil {
-		return err
+	outs := make([]generated, 0, len(targets))
+	var exportConstraint []string
+	var exportFuncs []fn
+	for _, t := range targets {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		abi, err := t.header()
+		if err != nil {
+			return err
+		}
+		unit, err := header.Parse(ctx, cfg.File, header.Options{
+			Include: cfg.Include,
+			Define:  cfg.Define,
+			Target:  abi,
+		})
+		if err != nil {
+			return err
+		}
+		funcs, err := classify(unit.Funcs, t.mach)
+		if err != nil {
+			return fmt.Errorf("%s/%s: %w", t.goos, t.goarch, err)
+		}
+		if len(funcs) == 0 {
+			return fmt.Errorf("%s/%s: %w", t.goos, t.goarch, ErrEmpty)
+		}
+		goFile := filepath.Join(dir, stem+"_clib_"+t.goarch+".go")
+		if single {
+			goFile = cfg.Out
+		}
+		goSrc, err := emitGo(t.constraint, pkg, bind, unit.Skipped, funcs)
+		if err != nil {
+			return err
+		}
+		outs = append(outs, generated{
+			goFile:  goFile,
+			asmFile: asmPath(goFile, t.goarch),
+			goSrc:   goSrc,
+			asmSrc:  emitAsm(t.mach, funcs),
+			funcs:   funcs,
+		})
+		exportConstraint = append(exportConstraint, t.goarch)
+		exportFuncs = funcs
 	}
-	if len(funcs) == 0 {
-		return ErrEmpty
+	for _, out := range outs {
+		if err := writeAtomic(out.goFile, out.goSrc); err != nil {
+			return err
+		}
+		if err := writeAtomic(out.asmFile, out.asmSrc); err != nil {
+			return err
+		}
 	}
-	goSrc, err := emitGo(pkg, bind, unit.Skipped, funcs)
-	if err != nil {
-		return err
-	}
-	if err := writeAtomic(goFile, goSrc); err != nil {
-		return err
-	}
-	if err := writeAtomic(asmFile, emitAsm(funcs)); err != nil {
-		return err
-	}
-	return writeAtomic(exportFile, emitExport(pkg, funcs))
+	tag := exportTag(exportConstraint)
+	return writeAtomic(filepath.Join(dir, exportFileName), emitExport(tag, pkg, exportFuncs))
 }
 
-func outputPaths(file, out string) (dir, goFile, asmFile, exportFile string) {
-	dir = filepath.Dir(file)
-	stem := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
-	if strings.HasSuffix(out, ".go") {
-		goFile = out
-		dir = filepath.Dir(out)
-	} else {
-		if out != "" {
-			dir = out
-		}
-		goFile = filepath.Join(dir, stem+"_clib.go")
+func asmPath(goFile, goarch string) string {
+	base := strings.TrimSuffix(goFile, ".go")
+	suffix := "_" + goarch
+	if strings.HasSuffix(base, suffix) {
+		return base + ".s"
 	}
-	base := strings.TrimSuffix(filepath.Base(goFile), ".go")
-	asmFile = filepath.Join(dir, base+"_linux_amd64.s")
-	exportFile = filepath.Join(dir, exportFileName)
-	return dir, goFile, asmFile, exportFile
+	return base + suffix + ".s"
+}
+
+func exportTag(arches []string) string {
+	if len(arches) == 1 {
+		return "(linux || android) && " + arches[0]
+	}
+	return "(linux || android) && (" + strings.Join(arches, " || ") + ")"
 }
 
 const exportFileName = "_cgo_clib_export.go"

@@ -27,13 +27,31 @@ func MakeShared(path string) error {
 	if err != nil {
 		return err
 	}
-	if len(buf) < 64 || string(buf[:4]) != "\x7fELF" || buf[4] != 2 || buf[5] != 1 || buf[6] != 1 {
-		return fmt.Errorf("clib: %s is not an ELF64 little-endian file", path)
+	if len(buf) < 52 || string(buf[:4]) != "\x7fELF" || buf[5] != 1 || buf[6] != 1 || (buf[4] != 1 && buf[4] != 2) {
+		return fmt.Errorf("clib: %s is not a little-endian ELF file", path)
 	}
-	phoff := binary.LittleEndian.Uint64(buf[32:])
-	phentsize := binary.LittleEndian.Uint16(buf[54:])
-	phnum := binary.LittleEndian.Uint16(buf[56:])
-	if phentsize < 56 || phnum == 0 {
+	class64 := buf[4] == 2
+	var phoff uint64
+	var phentsize, phnum uint16
+	if class64 {
+		if len(buf) < 64 {
+			return fmt.Errorf("clib: %s is not an ELF64 file", path)
+		}
+		phoff = binary.LittleEndian.Uint64(buf[32:])
+		phentsize = binary.LittleEndian.Uint16(buf[54:])
+		phnum = binary.LittleEndian.Uint16(buf[56:])
+		if phentsize < 56 {
+			return fmt.Errorf("clib: %s has a short program header", path)
+		}
+	} else {
+		phoff = uint64(binary.LittleEndian.Uint32(buf[28:]))
+		phentsize = binary.LittleEndian.Uint16(buf[42:])
+		phnum = binary.LittleEndian.Uint16(buf[44:])
+		if phentsize < 32 {
+			return fmt.Errorf("clib: %s has a short program header", path)
+		}
+	}
+	if phnum == 0 {
 		return fmt.Errorf("clib: %s has no program headers", path)
 	}
 	phend := phoff + uint64(phnum)*uint64(phentsize)
@@ -49,8 +67,13 @@ func MakeShared(path string) error {
 			binary.LittleEndian.PutUint32(buf[off:], elfPTNull)
 		}
 		if pType == elfPTDynamic {
-			dynOff = binary.LittleEndian.Uint64(buf[off+8:])
-			dynSize = binary.LittleEndian.Uint64(buf[off+32:])
+			if class64 {
+				dynOff = binary.LittleEndian.Uint64(buf[off+8:])
+				dynSize = binary.LittleEndian.Uint64(buf[off+32:])
+			} else {
+				dynOff = uint64(binary.LittleEndian.Uint32(buf[off+4:]))
+				dynSize = uint64(binary.LittleEndian.Uint32(buf[off+16:]))
+			}
 			sawDyn = true
 		}
 	}
@@ -60,14 +83,29 @@ func MakeShared(path string) error {
 	if dynOff > uint64(len(buf)) || dynSize > uint64(len(buf))-dynOff {
 		return fmt.Errorf("clib: %s dynamic segment is out of range", path)
 	}
-	for off := dynOff; off+16 <= dynOff+dynSize; off += 16 {
-		tag := binary.LittleEndian.Uint64(buf[off:])
+	step := uint64(8)
+	if class64 {
+		step = 16
+	}
+	for off := dynOff; off+step <= dynOff+dynSize; off += step {
+		var tag, val uint64
+		if class64 {
+			tag = binary.LittleEndian.Uint64(buf[off:])
+			val = binary.LittleEndian.Uint64(buf[off+8:])
+		} else {
+			tag = uint64(binary.LittleEndian.Uint32(buf[off:]))
+			val = uint64(binary.LittleEndian.Uint32(buf[off+4:]))
+		}
 		if tag == elfDTNull {
 			break
 		}
 		if tag == elfDTFlags1 {
-			val := binary.LittleEndian.Uint64(buf[off+8:])
-			binary.LittleEndian.PutUint64(buf[off+8:], val&^elfDF1PIE)
+			val &^= elfDF1PIE
+			if class64 {
+				binary.LittleEndian.PutUint64(buf[off+8:], val)
+			} else {
+				binary.LittleEndian.PutUint32(buf[off+4:], uint32(val))
+			}
 		}
 	}
 	return os.WriteFile(path, buf, info.Mode())

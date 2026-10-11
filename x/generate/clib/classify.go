@@ -33,6 +33,7 @@ type val struct {
 	kind   valKind
 	goType string
 	reg    regKind
+	size   int
 }
 
 type fn struct {
@@ -47,16 +48,17 @@ type fn struct {
 type param struct {
 	name string
 	val  val
+	at   loc
 }
 
-func classify(funcs []header.Func) ([]fn, error) {
+func classify(funcs []header.Func, m machine) ([]fn, error) {
 	used := map[string]int{}
 	out := make([]fn, 0, len(funcs))
 	for _, raw := range funcs {
 		if !cNameOK(raw.Name) {
 			return nil, fmt.Errorf("%w: %s", ErrSymbol, raw.Name)
 		}
-		item, err := classifyFunc(raw)
+		item, err := classifyFunc(raw, m)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", raw.Name, err)
 		}
@@ -74,12 +76,11 @@ func classify(funcs []header.Func) ([]fn, error) {
 	return out, nil
 }
 
-func classifyFunc(raw header.Func) (fn, error) {
+func classifyFunc(raw header.Func, m machine) (fn, error) {
 	ret, err := classifyType(raw.Ret, true)
 	if err != nil {
 		return fn{}, err
 	}
-	gpr, xmm := 0, 0
 	params := make([]param, len(raw.Params))
 	seen := map[string]bool{}
 	for i, p := range raw.Params {
@@ -90,15 +91,10 @@ func classifyFunc(raw header.Func) (fn, error) {
 		if v.kind == vkVoid {
 			return fn{}, ErrType
 		}
-		if v.reg == regXMM {
-			xmm++
-		} else {
-			gpr++
-		}
-		if gpr > 6 || xmm > 8 {
-			return fn{}, ErrType
-		}
 		params[i] = param{name: paramName(p.Name, i, seen), val: v}
+	}
+	if err := place(m, params); err != nil {
+		return fn{}, err
 	}
 	return fn{cName: raw.Name, ret: ret, params: params}, nil
 }
@@ -115,7 +111,7 @@ func classifyType(t *header.Type, asReturn bool) (val, error) {
 		}
 		return val{kind: vkVoid}, nil
 	case header.ShapeBool:
-		return val{kind: vkBool, goType: "bool"}, nil
+		return val{kind: vkBool, goType: "bool", size: c.Size}, nil
 	case header.ShapeSInt:
 		return intVal(c, true)
 	case header.ShapeUInt:
@@ -125,14 +121,19 @@ func classifyType(t *header.Type, asReturn bool) (val, error) {
 	case header.ShapeFloat:
 		switch c.Size {
 		case 4:
-			return val{kind: vkF32, goType: "float32", reg: regXMM}, nil
+			return val{kind: vkF32, goType: "float32", reg: regXMM, size: 4}, nil
 		case 8:
-			return val{kind: vkF64, goType: "float64", reg: regXMM}, nil
+			return val{kind: vkF64, goType: "float64", reg: regXMM, size: 8}, nil
 		default:
 			return val{}, ErrType
 		}
 	case header.ShapePtr:
-		return ptrVal(c.Elem)
+		v, err := ptrVal(c.Elem)
+		if err != nil {
+			return val{}, err
+		}
+		v.size = c.Size
+		return v, nil
 	default:
 		return val{}, ErrType
 	}
@@ -188,7 +189,7 @@ func intVal(t *header.Type, signed bool) (val, error) {
 	if signed {
 		k = vkSInt
 	}
-	return val{kind: k, goType: g}, nil
+	return val{kind: k, goType: g, size: t.Size}, nil
 }
 
 func ptrVal(elem *header.Type) (val, error) {

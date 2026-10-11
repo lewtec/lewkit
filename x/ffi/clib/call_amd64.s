@@ -1,4 +1,4 @@
-//go:build linux && amd64 && clibexport
+//go:build (linux || android) && clibexport
 
 #include "textflag.h"
 
@@ -9,10 +9,10 @@
 // stack. A cloned Go thread reads the pointer from the pipe and wakes
 // the futex at Done.
 //
-// The frame is 152 bytes so the 144-byte slot is followed by the 8-byte
-// pointer written to the pipe, and SP is 0 mod 16 before CALL.
+// The frame is 168 bytes: the 160-byte slot, then the 8-byte pointer
+// written to the pipe. SP is 0 mod 16 before CALL.
 TEXT ·call(SB),NOSPLIT|NOFRAME,$0
-	SUBQ $152, SP
+	SUBQ $168, SP
 
 	MOVL AX, 0(SP)
 	MOVL $0, 4(SP)
@@ -22,18 +22,20 @@ TEXT ·call(SB),NOSPLIT|NOFRAME,$0
 	MOVQ CX, 32(SP)
 	MOVQ R8, 40(SP)
 	MOVQ R9, 48(SP)
-	MOVQ X0, 56(SP)
-	MOVQ X1, 64(SP)
-	MOVQ X2, 72(SP)
-	MOVQ X3, 80(SP)
-	MOVQ X4, 88(SP)
-	MOVQ X5, 96(SP)
-	MOVQ X6, 104(SP)
-	MOVQ X7, 112(SP)
-	MOVQ $0, 120(SP)
-	MOVQ $0, 128(SP)
-	MOVL $0, 136(SP)
-	MOVL $0, 140(SP)
+	MOVQ $0, 56(SP)
+	MOVQ $0, 64(SP)
+	MOVQ X0, 72(SP)
+	MOVQ X1, 80(SP)
+	MOVQ X2, 88(SP)
+	MOVQ X3, 96(SP)
+	MOVQ X4, 104(SP)
+	MOVQ X5, 112(SP)
+	MOVQ X6, 120(SP)
+	MOVQ X7, 128(SP)
+	MOVQ $0, 136(SP)
+	MOVQ $0, 144(SP)
+	MOVL $0, 152(SP)
+	MOVL $0, 156(SP)
 
 	CALL ·ensure(SB)
 
@@ -41,8 +43,8 @@ TEXT ·call(SB),NOSPLIT|NOFRAME,$0
 	CMPL AX, $1
 	JNE callFail
 
-	MOVQ SP, 144(SP)
-	LEAQ 144(SP), SI
+	MOVQ SP, 160(SP)
+	LEAQ 160(SP), SI
 	MOVQ $8, DX
 callWrite:
 	MOVQ $1, AX
@@ -61,10 +63,10 @@ callWriteErr:
 	JMP callFail
 
 callWait:
-	MOVL 136(SP), AX
+	MOVL 152(SP), AX
 	CMPL AX, $0
 	JNE callDone
-	LEAQ 136(SP), DI
+	LEAQ 152(SP), DI
 	MOVL $128, SI
 	MOVL $0, DX
 	MOVQ $0, R10
@@ -75,15 +77,15 @@ callWait:
 	JMP callWait
 
 callDone:
-	MOVQ 120(SP), AX
-	MOVQ 128(SP), X0
-	ADDQ $152, SP
+	MOVQ 136(SP), AX
+	MOVQ 144(SP), X0
+	ADDQ $168, SP
 	RET
 
 callFail:
 	XORQ AX, AX
 	XORPS X0, X0
-	ADDQ $152, SP
+	ADDQ $168, SP
 	RET
 
 // ensure boots the runtime once. Losers, and the winner, wait until

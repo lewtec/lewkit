@@ -1,4 +1,4 @@
-//go:build linux && amd64
+//go:build (linux || android) && (amd64 || arm64 || 386 || arm)
 
 package clib
 
@@ -38,6 +38,7 @@ func init() {
 // calls back into the library: the reader would still be inside the first
 // call. The ready flag is stored before the read so a caller that woke
 // on it can write a pointer the pipe buffer holds until Read.
+// The pointer is eight bytes on every arch. A 32-bit caller zero-extends it.
 func serve(r int) {
 	atomic.StoreUint32(&rtReady, 1)
 	wake(&rtReady)
@@ -72,6 +73,7 @@ func dispatch(slot *Slot) {
 		if recover() != nil {
 			slot.Ret = 0
 			slot.RetX = 0
+			slot.Kind = KindInt
 		}
 		atomic.StoreUint32(&slot.Done, 1)
 		wake(&slot.Done)
@@ -80,7 +82,7 @@ func dispatch(slot *Slot) {
 	if h == nil {
 		return
 	}
-	slot.Ret, slot.RetX = h(&slot.Args, &slot.XMM)
+	slot.Ret, slot.RetX, slot.Kind = h(&slot.Args, &slot.XMM)
 }
 
 func wake(addr *uint32) {

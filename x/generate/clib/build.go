@@ -1,5 +1,3 @@
-//go:build linux && amd64
-
 package clib
 
 import (
@@ -12,16 +10,21 @@ import (
 	"strings"
 )
 
-// Build links dir as a cgo-free shared library at out.
-// The package must already contain the files Run wrote. The link is an
-// internal PIE with the clibexport tag. MakeShared then clears DF_1_PIE
-// and drops PT_INTERP so glibc will dlopen the file.
+// Build links dir as a cgo-free shared library for this process.
+// The package must already contain the files Run wrote.
 func Build(ctx context.Context, dir, out string) error {
+	return BuildFor(ctx, dir, out, runtime.GOOS, runtime.GOARCH)
+}
+
+// BuildFor links dir for goos/goarch. The link is an internal PIE with the
+// clibexport tag. MakeShared then clears DF_1_PIE and drops PT_INTERP so
+// the dynamic loader will open the file. arm uses GOARM=7.
+func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		return ErrHost
+	if _, err := targetsFor(goos + "/" + goarch); err != nil {
+		return err
 	}
 	if dir == "" || out == "" {
 		return fmt.Errorf("clib: directory and output are required")
@@ -53,7 +56,7 @@ func Build(ctx context.Context, dir, out string) error {
 	if strings.Contains(tool, " ") {
 		return fmt.Errorf("clib: tool path must not contain spaces")
 	}
-	if err := runGo(ctx, dir, linkEnv(), "build",
+	if err := runGo(ctx, dir, linkEnv(goos, goarch), "build",
 		"-buildmode=pie",
 		"-tags=clibexport",
 		"-buildvcs=false",
@@ -82,17 +85,24 @@ func runGo(ctx context.Context, dir string, env []string, args ...string) error 
 }
 
 func hostEnv() []string {
-	return filterEnv(nil)
+	return filterEnv(nil, false)
 }
 
-func linkEnv() []string {
-	return filterEnv([]string{"CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64"})
+func linkEnv(goos, goarch string) []string {
+	extra := []string{"CGO_ENABLED=0", "GOOS=" + goos, "GOARCH=" + goarch}
+	if goarch == "arm" {
+		extra = append(extra, "GOARM=7")
+	}
+	return filterEnv(extra, true)
 }
 
-func filterEnv(extra []string) []string {
+func filterEnv(extra []string, dropTune bool) []string {
 	out := make([]string, 0, len(os.Environ())+len(extra))
 	for _, e := range os.Environ() {
 		if strings.HasPrefix(e, "CGO_ENABLED=") || strings.HasPrefix(e, "GOOS=") || strings.HasPrefix(e, "GOARCH=") || strings.HasPrefix(e, "CC=") {
+			continue
+		}
+		if dropTune && (strings.HasPrefix(e, "GOARM=") || strings.HasPrefix(e, "GO386=")) {
 			continue
 		}
 		out = append(out, e)

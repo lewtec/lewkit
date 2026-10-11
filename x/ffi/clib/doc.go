@@ -11,7 +11,10 @@
 // Assign the stubs from init and do not call back into the library from
 // there: init runs before the runtime reports itself ready.
 //
-// The entry assembly is built only with the clibexport tag. The link is
-// an internal PIE, not c-shared, and it passes -checklinkname=0 because
-// the entry refers to runtime startup symbols.
+// linux and android share this path on amd64, arm64, 386, and arm.
+// amd64 is SysV. arm64 is AAPCS64. arm is AAPCS hard-float. 386 is cdecl
+// and returns a float in ST(0). The entry assembly is built only with
+// the clibexport tag, and the link passes -checklinkname=0 because the
+// entry refers to runtime startup symbols. The internal PIE link is
+// linux/amd64, linux/arm64, and android/arm64. arm uses GOARM=7.
 package clib
