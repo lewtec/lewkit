@@ -32,22 +32,28 @@ type audioLibs struct {
 	cf    CoreFoundation
 }
 
+var (
+	bindAudioToolbox   = native.BindOnce[AudioToolbox](native.Lazy|native.Global, "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox")
+	bindCoreAudio      = native.BindOnce[CoreAudio](native.Lazy|native.Global, "/System/Library/Frameworks/CoreAudio.framework/CoreAudio")
+	bindCoreFoundation = native.BindOnce[CoreFoundation](native.Lazy|native.Global, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+)
+
 // loadAudio binds the three frameworks and returns them from that same call.
-var loadAudio = native.Singleton(func() (audioLibs, error) {
-	audio, err := native.Bind[AudioToolbox](native.Lazy|native.Global, "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox")
+func loadAudio() (audioLibs, error) {
+	audio, err := bindAudioToolbox()
 	if err != nil {
 		return audioLibs{}, err
 	}
-	core, err := native.Bind[CoreAudio](native.Lazy|native.Global, "/System/Library/Frameworks/CoreAudio.framework/CoreAudio")
+	core, err := bindCoreAudio()
 	if err != nil {
 		return audioLibs{}, err
 	}
-	cf, err := native.Bind[CoreFoundation](native.Lazy|native.Global, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+	cf, err := bindCoreFoundation()
 	if err != nil {
 		return audioLibs{}, err
 	}
 	return audioLibs{audio: audio, core: core, cf: cf}, nil
-})
+}
 
 // Available loads AudioToolbox, CoreAudio, and CoreFoundation.
 func Available() error {

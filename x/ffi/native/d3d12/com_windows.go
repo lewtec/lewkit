@@ -114,22 +114,28 @@ type d3dLibs struct {
 	hlsl  D3DCompile
 }
 
+var (
+	bindD3D12      = native.BindOnce[D3D12](native.Lazy, "d3d12.dll")
+	bindDXGI       = native.BindOnce[DXGI](native.Lazy, "dxgi.dll")
+	bindD3DCompile = native.BindOnce[D3DCompile](native.Lazy, "d3dcompiler_47.dll")
+)
+
 // loadD3D binds the three DLLs and returns them from that same call.
-var loadD3D = native.Singleton(func() (d3dLibs, error) {
-	d3d12, err := native.Bind[D3D12](native.Lazy, "d3d12.dll")
+func loadD3D() (d3dLibs, error) {
+	d3d12, err := bindD3D12()
 	if err != nil {
 		return d3dLibs{}, err
 	}
-	dxgi, err := native.Bind[DXGI](native.Lazy, "dxgi.dll")
+	dxgi, err := bindDXGI()
 	if err != nil {
 		return d3dLibs{}, err
 	}
-	hlsl, err := native.Bind[D3DCompile](native.Lazy, "d3dcompiler_47.dll")
+	hlsl, err := bindD3DCompile()
 	if err != nil {
 		return d3dLibs{}, err
 	}
 	return d3dLibs{d3d12: d3d12, dxgi: dxgi, hlsl: hlsl}, nil
-})
+}
 
 var available = native.Once(func() error {
 	libs, err := loadD3D()

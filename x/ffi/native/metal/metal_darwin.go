@@ -114,6 +114,8 @@ func systemDevice() (objc.ID, error) {
 	return devID, nil
 }
 
+var bindMetal = native.BindOnce[Metal](native.Global|native.Lazy, "/System/Library/Frameworks/Metal.framework/Metal")
+
 func loadFrameworks() (Metal, error) {
 	for _, path := range []string{
 		"/System/Library/Frameworks/Foundation.framework/Foundation",
@@ -123,10 +125,9 @@ func loadFrameworks() (Metal, error) {
 			return Metal{}, fmt.Errorf("%w: %s", ErrUnavailable, path)
 		}
 	}
-	path := "/System/Library/Frameworks/Metal.framework/Metal"
-	metal, err := native.Bind[Metal](native.Global|native.Lazy, path)
+	metal, err := bindMetal()
 	if err != nil {
-		return Metal{}, fmt.Errorf("%w: %s", ErrUnavailable, path)
+		return Metal{}, fmt.Errorf("%w: Metal", ErrUnavailable)
 	}
 	return metal, nil
 }

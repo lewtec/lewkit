@@ -50,17 +50,22 @@ type eglContext struct {
 	replace bool
 }
 
-var loadEGL = native.Singleton(func() (*eglLib, error) {
-	eglSyms, err := native.Bind[EGL](native.Now|native.Global, "libEGL.so.1", "libEGL.so")
+var (
+	bindEGL         = native.BindOnce[EGL](native.Now|native.Global, "libEGL.so.1", "libEGL.so")
+	bindEGLPlatform = native.BindOnce[EGLPlatform](native.Now|native.Global, "libEGL.so.1", "libEGL.so")
+)
+
+func loadEGL() (*eglLib, error) {
+	eglSyms, err := bindEGL()
 	if err != nil {
 		return nil, err
 	}
-	plat, err := native.Bind[EGLPlatform](native.Now|native.Global, "libEGL.so.1", "libEGL.so")
+	plat, err := bindEGLPlatform()
 	if err != nil {
 		return nil, err
 	}
 	return &eglLib{EGL: eglSyms, EGLPlatform: plat}, nil
-})
+}
 
 func preloadGL(gles bool) (uintptr, error) {
 	if gles {

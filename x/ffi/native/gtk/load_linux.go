@@ -42,38 +42,47 @@ type gtkBound struct {
 	threads Libc
 }
 
+var (
+	bindGlib    = native.BindOnce[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
+	bindGObject = native.BindOnce[GObject](native.Global|native.Lazy, "libgobject-2.0.so.0")
+	bindGTK     = native.BindOnce[Gtk](native.Global|native.Lazy, "libgtk-4.so.1")
+	bindThreads = native.BindOnce[Libc](native.Lazy, "libc.so.6")
+	bindGDK     = native.BindOnce[GDKX11](native.Global|native.Lazy, "libgtk-4.so.1")
+)
+
 // loadGTK binds the GTK libraries and returns them from that same call.
 // The load stays on the caller. gtk_init still runs later, on the owner thread.
-var loadGTK = native.Singleton(func() (gtkBound, error) {
+// bindGTK is not called when this process must stay on GTK 3.
+func loadGTK() (gtkBound, error) {
 	if blockGTK4() {
 		return gtkBound{}, errMixedGTK
 	}
-	glib, err := native.Bind[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
+	glib, err := bindGlib()
 	if err != nil {
 		return gtkBound{}, err
 	}
-	gobject, err := native.Bind[GObject](native.Global|native.Lazy, "libgobject-2.0.so.0")
+	gobject, err := bindGObject()
 	if err != nil {
 		return gtkBound{}, err
 	}
-	widgets, err := native.Bind[Gtk](native.Global|native.Lazy, "libgtk-4.so.1")
+	widgets, err := bindGTK()
 	if err != nil {
 		return gtkBound{}, err
 	}
-	threads, err := native.Bind[Libc](native.Lazy, "libc.so.6")
+	threads, err := bindThreads()
 	if err != nil {
 		return gtkBound{}, err
 	}
 	return gtkBound{glib: glib, gobject: gobject, widgets: widgets, threads: threads}, nil
-})
+}
 
 // loadGDK binds the GDK X11 symbols after GTK itself loaded.
-var loadGDK = native.Singleton(func() (GDKX11, error) {
+func loadGDK() (GDKX11, error) {
 	if _, err := loadGTK(); err != nil {
 		return GDKX11{}, err
 	}
-	return native.Bind[GDKX11](native.Global|native.Lazy, "libgtk-4.so.1")
-})
+	return bindGDK()
+}
 
 // Available reports whether GTK 4 and GLib can be loaded.
 // ctx is the caller context used to resolve the toolkit through the exec driver.
@@ -95,7 +104,7 @@ func SetPrgname(name string) {
 	if name == "" {
 		return
 	}
-	got, err := native.Bind[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
+	got, err := bindGlib()
 	if err != nil {
 		return
 	}

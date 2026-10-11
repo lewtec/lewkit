@@ -152,17 +152,22 @@ type wndClassW struct {
 	className *uint16
 }
 
+var (
+	bindUser32   = native.BindOnce[User32](0, "user32.dll")
+	bindKernel32 = native.BindOnce[Kernel32](0, "kernel32.dll")
+)
+
 // loadWin32 binds user32 and kernel32 and returns the user32 symbols from that load.
-var loadWin32 = native.Singleton(func() (User32, error) {
-	user, err := native.Bind[User32](0, "user32.dll")
+func loadWin32() (User32, error) {
+	user, err := bindUser32()
 	if err != nil {
 		return User32{}, fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
 	}
-	if _, err = native.Bind[Kernel32](0, "kernel32.dll"); err != nil {
+	if _, err = bindKernel32(); err != nil {
 		return User32{}, fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
 	}
 	return user, nil
-})
+}
 
 func utf16z(s string) (*uint16, error) {
 	u := utf16.Encode([]rune(s))

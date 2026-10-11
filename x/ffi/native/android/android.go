@@ -14,6 +14,9 @@ var (
 	noteMu      sync.Mutex
 	notedVM     uintptr
 	notedLoader int
+
+	bindJNI    = native.BindOnce[JNI](native.Now, "libnativehelper.so", "libart.so")
+	bindLooper = native.BindOnce[Looper](native.Now, "libandroid.so")
 )
 
 // NoteVM records the JavaVM from JNI_OnLoad. Later calls skip dlopen.
@@ -61,7 +64,7 @@ func JavaVMs() (int, error) {
 	if noted != 0 {
 		return 1, nil
 	}
-	got, err := native.Bind[JNI](native.Now, "libnativehelper.so", "libart.so")
+	got, err := bindJNI()
 	if err != nil {
 		return 0, err
 	}
@@ -83,7 +86,7 @@ func OnLooper() (bool, error) {
 	if tid != 0 {
 		return tid == currentTID(), nil
 	}
-	got, err := native.Bind[Looper](native.Now, "libandroid.so")
+	got, err := bindLooper()
 	if err != nil {
 		return false, err
 	}

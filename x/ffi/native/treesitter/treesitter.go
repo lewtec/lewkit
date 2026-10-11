@@ -32,25 +32,30 @@ type runtimeLibs struct {
 	libc Libc
 }
 
+var (
+	bindTreeSitter = native.BindOnce[TreeSitter](native.Now|native.Global, runtimeSonames()...)
+	bindLibc       = native.BindOnce[Libc](native.Now|native.Global, libcSoname())
+)
+
 // loadRuntime binds both libraries and returns them from that same call.
-var loadRuntime = native.Singleton(func() (runtimeLibs, error) {
+func loadRuntime() (runtimeLibs, error) {
 	switch runtime.GOOS {
 	case "linux", "darwin":
 	default:
 		return runtimeLibs{}, fmt.Errorf("%w: %s", errUnavailable, runtime.GOOS)
 	}
-	ts, err := native.Bind[TreeSitter](native.Now|native.Global, runtimeSonames()...)
+	ts, err := bindTreeSitter()
 	if err != nil {
 		return runtimeLibs{}, err
 	}
-	libc, err := native.Bind[Libc](native.Now|native.Global, libcSoname())
+	libc, err := bindLibc()
 	if err != nil {
 		return runtimeLibs{}, err
 	}
 	return runtimeLibs{ts: ts, libc: libc}, nil
-})
+}
 
-// Available loads libtree-sitter. Later calls return the first result.
+// Available loads libtree-sitter. Each library bind keeps its first result.
 func Available() error {
 	_, err := loadRuntime()
 	return err

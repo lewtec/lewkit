@@ -24,7 +24,10 @@ const (
 	currentProcessPSN       = 2
 )
 
-var shellReady atomic.Bool
+var (
+	shellReady          atomic.Bool
+	applicationServices = native.BindOnce[ApplicationServices](native.Global|native.Lazy, applicationServicesPath)
+)
 
 func showShell(title string, icon image.Image) {
 	// An off-thread call must not stick, or the UI thread would skip adoption.
@@ -69,8 +72,8 @@ func adoptShell(title string, icon image.Image) bool {
 }
 
 func transformForeground() bool {
-	got, err := native.Bind[ApplicationServices](native.Global|native.Lazy, applicationServicesPath)
-	if err != nil || got.TransformProcessType == nil {
+	got, err := applicationServices()
+	if err != nil {
 		return false
 	}
 	psn := ProcessSerial{Low: currentProcessPSN}

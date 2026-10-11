@@ -141,17 +141,22 @@ func (h *xlibHost) destroy() {
 	h.dpy, h.win = 0, 0
 }
 
+var (
+	bindX11    = native.BindOnce[X11](0, "libX11.so.6")
+	bindX11Opt = native.BindOnce[X11Opt](0, "libX11.so.6")
+)
+
 // loadX11 binds libX11, including the optional symbols, and returns the hard set.
-var loadX11 = native.Singleton(func() (X11, error) {
-	x11, err := native.Bind[X11](0, "libX11.so.6")
+func loadX11() (X11, error) {
+	x11, err := bindX11()
 	if err != nil {
 		return X11{}, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
 	}
-	if _, err = native.Bind[X11Opt](0, "libX11.so.6"); err != nil {
+	if _, err = bindX11Opt(); err != nil {
 		return X11{}, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
 	}
 	return x11, nil
-})
+}
 
 const xInputMask int64 = 1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<6 | 1<<15 | 1<<17
 

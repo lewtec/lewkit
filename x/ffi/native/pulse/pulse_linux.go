@@ -28,18 +28,23 @@ type pulseLibs struct {
 	pulse  Pulse
 }
 
+var (
+	bindSimple = native.BindOnce[Simple](native.Lazy, "libpulse-simple.so.0")
+	bindPulse  = native.BindOnce[Pulse](native.Lazy, "libpulse.so.0")
+)
+
 // loadPulse binds libpulse-simple and libpulse and returns both.
-var loadPulse = native.Singleton(func() (pulseLibs, error) {
-	simple, err := native.Bind[Simple](native.Lazy, "libpulse-simple.so.0")
+func loadPulse() (pulseLibs, error) {
+	simple, err := bindSimple()
 	if err != nil {
 		return pulseLibs{}, fmt.Errorf("libpulse-simple.so.0: %w", err)
 	}
-	pulse, err := native.Bind[Pulse](native.Lazy, "libpulse.so.0")
+	pulse, err := bindPulse()
 	if err != nil {
 		return pulseLibs{}, fmt.Errorf("libpulse.so.0: %w", err)
 	}
 	return pulseLibs{simple: simple, pulse: pulse}, nil
-})
+}
 
 type listState struct {
 	sinks []Sink

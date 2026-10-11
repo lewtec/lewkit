@@ -13,9 +13,11 @@ func (w *xwin) Surface() window.Surface {
 	return window.Surface{Kind: window.SurfaceX11, A: dpy, B: uintptr(w.wid)}
 }
 
+var bindXlib = native.BindOnce[Xlib](native.Global|native.Lazy, "libX11.so.6")
+
 // xlibDisplay opens libX11 and returns the display from that same load.
 var xlibDisplay = native.Singleton(func() (uintptr, error) {
-	xlib, err := native.Bind[Xlib](native.Global|native.Lazy, "libX11.so.6")
+	xlib, err := bindXlib()
 	if err != nil {
 		return 0, err
 	}

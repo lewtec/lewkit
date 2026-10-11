@@ -39,6 +39,11 @@ type glxContext struct {
 	destroy func(uintptr, uintptr)
 }
 
+var (
+	bindGLXX11 = native.BindOnce[X11](native.Now|native.Global, "libX11.so.6")
+	bindGLX    = native.BindOnce[GLX](native.Now|native.Global, "libGL.so.1")
+)
+
 func openGLX(dpy, win uintptr) (glContext, error) {
 	if dpy == 0 || win == 0 {
 		return nil, ErrUnavailable
@@ -47,11 +52,11 @@ func openGLX(dpy, win uintptr) (glContext, error) {
 	if err != nil {
 		return nil, err
 	}
-	xSyms, err := native.Bind[X11](native.Now|native.Global, "libX11.so.6")
+	xSyms, err := bindGLXX11()
 	if err != nil {
 		return nil, err
 	}
-	glSyms, err := native.Bind[GLX](native.Now|native.Global, "libGL.so.1")
+	glSyms, err := bindGLX()
 	if err != nil {
 		return nil, err
 	}
