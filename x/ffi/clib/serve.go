@@ -68,23 +68,6 @@ func serve(r int) {
 	}
 }
 
-func dispatch(slot *Slot) {
-	defer func() {
-		if recover() != nil {
-			slot.Ret = 0
-			slot.RetX = 0
-			slot.Kind = KindInt
-		}
-		atomic.StoreUint32(&slot.Done, 1)
-		wake(&slot.Done)
-	}()
-	h := handler(slot.ID)
-	if h == nil {
-		return
-	}
-	slot.Ret, slot.RetX, slot.Kind = h(&slot.Args, &slot.XMM)
-}
-
 func wake(addr *uint32) {
 	_, _, _ = syscall.Syscall6(syscall.SYS_FUTEX, uintptr(unsafe.Pointer(addr)), uintptr(futexWakePrivate), 1, 0, 0, 0)
 }

@@ -5,6 +5,9 @@ package clib
 import (
 	"context"
 	"debug/elf"
+	"debug/macho"
+	"debug/pe"
+	"encoding/binary"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -131,6 +134,169 @@ func TestCrossLink(t *testing.T) {
 			require.True(t, found, "dynamic symbol add")
 		})
 	}
+}
+
+// TestDesktopLink builds a Windows DLL and a Darwin dylib with the internal
+// linker and reads the export back. This host does not load either image.
+func TestDesktopLink(t *testing.T) {
+	repo := moduleRoot(t)
+	writeDemo := func(t *testing.T, abi string) string {
+		t.Helper()
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n\nrequire github.com/lewtec/lewkit v0.0.0\n\nreplace github.com/lewtec/lewkit => "+repo+"\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "add.h"), []byte("#include <stdint.h>\nint32_t add(int32_t a, int32_t b);\n"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644))
+		require.NoError(t, Run(context.Background(), Config{File: filepath.Join(dir, "add.h"), ABI: abi}))
+		return dir
+	}
+
+	t.Run("windows", func(t *testing.T) {
+		dir := writeDemo(t, "windows")
+		cases := []struct {
+			arch    string
+			machine uint16
+			stub    []byte
+		}{
+			{"amd64", pe.IMAGE_FILE_MACHINE_AMD64, []byte{0xb8, 0x01, 0x00, 0x00, 0x00, 0xc3}},
+			{"arm64", pe.IMAGE_FILE_MACHINE_ARM64, []byte{0x20, 0x00, 0x80, 0x52, 0xc0, 0x03, 0x5f, 0xd6}},
+			{"386", pe.IMAGE_FILE_MACHINE_I386, []byte{0xb8, 0x01, 0x00, 0x00, 0x00, 0xc2, 0x0c, 0x00}},
+		}
+		for _, tc := range cases {
+			t.Run(tc.arch, func(t *testing.T) {
+				lib := filepath.Join(dir, "demo_"+tc.arch+".dll")
+				require.NoError(t, BuildFor(context.Background(), dir, lib, "windows", tc.arch))
+				f, err := pe.Open(lib)
+				require.NoError(t, err)
+				defer f.Close()
+				require.Equal(t, tc.machine, f.Machine)
+				require.NotZero(t, f.Characteristics&pe.IMAGE_FILE_DLL)
+				require.NotZero(t, f.Characteristics&pe.IMAGE_FILE_EXECUTABLE_IMAGE)
+				raw, err := os.ReadFile(lib)
+				require.NoError(t, err)
+				entry, dir := peEntry(f)
+				off, ok := peOff(f, entry)
+				require.True(t, ok)
+				require.Equal(t, tc.stub, raw[off:off+len(tc.stub)])
+				names := peExportNames(t, f, raw, dir)
+				require.Contains(t, names, "add")
+				imps, err := f.ImportedSymbols()
+				require.NoError(t, err)
+				require.Contains(t, imps, "CreatePipe:kernel32.dll")
+				require.Contains(t, imps, "WriteFile:kernel32.dll")
+				require.Contains(t, imps, "WaitForSingleObject:kernel32.dll")
+			})
+		}
+	})
+
+	t.Run("darwin", func(t *testing.T) {
+		dir := writeDemo(t, "darwin")
+		cases := []struct {
+			arch string
+			cpu  macho.Cpu
+		}{
+			{"amd64", macho.CpuAmd64},
+			{"arm64", macho.CpuArm64},
+		}
+		for _, tc := range cases {
+			t.Run(tc.arch, func(t *testing.T) {
+				lib := filepath.Join(dir, "libdemo_"+tc.arch+".dylib")
+				require.NoError(t, BuildFor(context.Background(), dir, lib, "darwin", tc.arch))
+				f, err := macho.Open(lib)
+				require.NoError(t, err)
+				defer f.Close()
+				require.Equal(t, macho.TypeDylib, f.Type)
+				require.Equal(t, tc.cpu, f.Cpu)
+				require.Zero(t, f.Flags&0x200000)
+				raw, err := os.ReadFile(lib)
+				require.NoError(t, err)
+				var sawID, sawSig bool
+				var trie []byte
+				for _, load := range f.Loads {
+					cmdb := load.Raw()
+					if len(cmdb) < 8 {
+						continue
+					}
+					cmd := binary.LittleEndian.Uint32(cmdb)
+					switch cmd {
+					case 0xd:
+						sawID = true
+						require.Contains(t, string(cmdb), "@rpath/libdemo_"+tc.arch+".dylib")
+					case 0x5, 0xe, 0x80000028:
+						t.Fatalf("executable load command %#x", cmd)
+					case 0x22, 0x80000022:
+						require.GreaterOrEqual(t, len(cmdb), 48)
+						off := binary.LittleEndian.Uint32(cmdb[40:])
+						sz := binary.LittleEndian.Uint32(cmdb[44:])
+						require.NotZero(t, sz)
+						require.LessOrEqual(t, int(off)+int(sz), len(raw))
+						trie = raw[off : off+sz]
+					case 0x1d:
+						require.GreaterOrEqual(t, len(cmdb), 16)
+						off := binary.LittleEndian.Uint32(cmdb[8:])
+						require.GreaterOrEqual(t, len(raw), int(off)+4)
+						require.Equal(t, uint32(0xfade0cc0), binary.BigEndian.Uint32(raw[off:]))
+						sawSig = true
+					}
+				}
+				require.True(t, sawID)
+				require.True(t, sawSig)
+				addr, ok := trieLookup(trie, "add")
+				require.True(t, ok, "export trie names add")
+				require.NotZero(t, addr)
+			})
+		}
+	})
+}
+
+func peEntry(f *pe.File) (uint32, pe.DataDirectory) {
+	switch oh := f.OptionalHeader.(type) {
+	case *pe.OptionalHeader64:
+		return oh.AddressOfEntryPoint, oh.DataDirectory[pe.IMAGE_DIRECTORY_ENTRY_EXPORT]
+	case *pe.OptionalHeader32:
+		return oh.AddressOfEntryPoint, oh.DataDirectory[pe.IMAGE_DIRECTORY_ENTRY_EXPORT]
+	default:
+		return 0, pe.DataDirectory{}
+	}
+}
+
+func peOff(f *pe.File, rva uint32) (int, bool) {
+	for _, s := range f.Sections {
+		span := s.VirtualSize
+		if s.Size > span {
+			span = s.Size
+		}
+		if rva < s.VirtualAddress || rva >= s.VirtualAddress+span {
+			continue
+		}
+		return int(s.Offset) + int(rva-s.VirtualAddress), true
+	}
+	return 0, false
+}
+
+func peExportNames(t *testing.T, f *pe.File, raw []byte, dir pe.DataDirectory) []string {
+	t.Helper()
+	require.NotZero(t, dir.Size)
+	off, ok := peOff(f, dir.VirtualAddress)
+	require.True(t, ok)
+	require.GreaterOrEqual(t, len(raw), off+40)
+	n := binary.LittleEndian.Uint32(raw[off+24:])
+	namesRVA := binary.LittleEndian.Uint32(raw[off+32:])
+	namesOff, ok := peOff(f, namesRVA)
+	require.True(t, ok)
+	names := make([]string, 0, n)
+	for i := uint32(0); i < n; i++ {
+		at := namesOff + int(i)*4
+		require.LessOrEqual(t, at+4, len(raw))
+		nrva := binary.LittleEndian.Uint32(raw[at:])
+		noff, ok := peOff(f, nrva)
+		require.True(t, ok)
+		end := noff
+		for end < len(raw) && raw[end] != 0 {
+			end++
+		}
+		names = append(names, string(raw[noff:end]))
+	}
+	return names
 }
 
 // TestEntryLinks proves the 386 and arm entry against the real runtime.

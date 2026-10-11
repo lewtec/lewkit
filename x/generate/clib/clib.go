@@ -24,7 +24,8 @@ type Config struct {
 	// Bind names the struct whose fields are the C functions. Empty means API.
 	Bind string
 	// ABI selects the C layout. Empty and all write linux and android on
-	// amd64, arm64, 386, and arm. host, an ABI id, or goos/goarch writes one.
+	// amd64, arm64, 386, and arm. windows writes its three arches, darwin
+	// writes amd64 and arm64. host, an ABI id, or goos/goarch writes one.
 	ABI string
 }
 
@@ -105,7 +106,7 @@ func Run(ctx context.Context, cfg Config) error {
 		if len(funcs) == 0 {
 			return fmt.Errorf("%s/%s: %w", t.goos, t.goarch, ErrEmpty)
 		}
-		goFile := filepath.Join(dir, stem+"_clib_"+t.goarch+".go")
+		goFile := filepath.Join(dir, stem+"_clib_"+fileArch(t)+".go")
 		if single {
 			goFile = cfg.Out
 		}
@@ -117,7 +118,7 @@ func Run(ctx context.Context, cfg Config) error {
 			goFile:  goFile,
 			asmFile: asmPath(goFile, t.goarch),
 			goSrc:   goSrc,
-			asmSrc:  emitAsm(t.mach, funcs),
+			asmSrc:  emitAsm(t, funcs),
 			funcs:   funcs,
 		})
 		exportConstraint = append(exportConstraint, t.goarch)
@@ -131,8 +132,15 @@ func Run(ctx context.Context, cfg Config) error {
 			return err
 		}
 	}
-	tag := exportTag(exportConstraint)
+	tag := exportTag(targets[0], exportConstraint)
 	return writeAtomic(filepath.Join(dir, exportFileName), emitExport(tag, pkg, exportFuncs))
+}
+
+func fileArch(t target) string {
+	if t.fileOS == "" {
+		return t.goarch
+	}
+	return t.fileOS + "_" + t.goarch
 }
 
 func asmPath(goFile, goarch string) string {
@@ -144,11 +152,16 @@ func asmPath(goFile, goarch string) string {
 	return base + suffix + ".s"
 }
 
-func exportTag(arches []string) string {
-	if len(arches) == 1 {
-		return "(linux || android) && " + arches[0]
+func exportTag(t target, arches []string) string {
+	osTag := "(linux || android)"
+	switch t.fileOS {
+	case "windows", "darwin":
+		osTag = t.fileOS
 	}
-	return "(linux || android) && (" + strings.Join(arches, " || ") + ")"
+	if len(arches) == 1 {
+		return osTag + " && " + arches[0]
+	}
+	return osTag + " && (" + strings.Join(arches, " || ") + ")"
 }
 
 const exportFileName = "_cgo_clib_export.go"

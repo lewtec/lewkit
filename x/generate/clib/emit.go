@@ -222,12 +222,12 @@ func usesUnsafe(v val, result bool) bool {
 	return strings.Contains(v.goType, "unsafe.")
 }
 
-func emitAsm(m machine, funcs []fn) []byte {
+func emitAsm(t target, funcs []fn) []byte {
 	var b strings.Builder
-	b.WriteString("//go:build (linux || android) && clibexport\n\n")
+	b.WriteString("//go:build " + asmTag(t) + "\n\n")
 	b.WriteString("#include \"textflag.h\"\n\n")
 	b.WriteString("// " + generatedBy + "\n")
-	switch m {
+	switch t.mach {
 	case machArm64:
 		b.WriteString("// R9 carries the handler id into x/ffi/clib.call.\n\n")
 	case machARM:
@@ -237,7 +237,7 @@ func emitAsm(m machine, funcs []fn) []byte {
 	}
 	for _, fn := range funcs {
 		fmt.Fprintf(&b, "TEXT %s(SB),NOSPLIT|NOFRAME,$0\n", fn.cName)
-		switch m {
+		switch t.mach {
 		case machArm64:
 			fmt.Fprintf(&b, "\tMOVD $%d, R9\n", fn.id)
 		case machARM:
@@ -253,12 +253,23 @@ func emitAsm(m machine, funcs []fn) []byte {
 	return []byte(b.String())
 }
 
+func asmTag(t target) string {
+	switch t.fileOS {
+	case "windows":
+		return "windows && clibexport"
+	case "darwin":
+		return "darwin && clibexport"
+	default:
+		return "(linux || android) && clibexport"
+	}
+}
+
 func emitExport(constraint, pkg string, funcs []fn) []byte {
 	var b strings.Builder
 	b.WriteString("//go:build " + constraint + "\n\n")
 	b.WriteString("// " + generatedBy + "\n")
 	b.WriteString("// cmd/go skips this file. clibtoolexec passes it to the compiler\n")
-	b.WriteString("// so the linker writes the C names into .dynsym.\n\n")
+	b.WriteString("// so the linker records the C names for the dynamic symbol table.\n\n")
 	b.WriteString("package " + pkg + "\n\n")
 	for _, fn := range funcs {
 		fmt.Fprintf(&b, "//go:cgo_export_dynamic %s %s\n", fn.cName, fn.cName)

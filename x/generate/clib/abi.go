@@ -14,6 +14,8 @@ const (
 	machArm64
 	mach386
 	machARM
+	machWin64
+	machWin386
 )
 
 type locKind int
@@ -42,6 +44,9 @@ type target struct {
 	goarch     string
 	mach       machine
 	constraint string
+	// fileOS is the GOOS in the generated file name. Empty means the
+	// file is shared by linux and android, so the name carries only the arch.
+	fileOS string
 }
 
 func (t target) header() (header.Target, error) {
@@ -57,31 +62,63 @@ func linuxTargets() []target {
 	}
 }
 
+func windowsTargets() []target {
+	return []target{
+		{goos: "windows", goarch: "amd64", mach: machWin64, constraint: "windows && amd64", fileOS: "windows"},
+		{goos: "windows", goarch: "arm64", mach: machArm64, constraint: "windows && arm64", fileOS: "windows"},
+		{goos: "windows", goarch: "386", mach: machWin386, constraint: "windows && 386", fileOS: "windows"},
+	}
+}
+
+func darwinTargets() []target {
+	return []target{
+		{goos: "darwin", goarch: "amd64", mach: machAmd64, constraint: "darwin && amd64", fileOS: "darwin"},
+		{goos: "darwin", goarch: "arm64", mach: machArm64, constraint: "darwin && arm64", fileOS: "darwin"},
+	}
+}
+
 func targetsFor(spec string) ([]target, error) {
-	if spec == "" || spec == "all" {
-		return linuxTargets(), nil
-	}
-	if spec == "host" {
-		spec = runtime.GOOS + "/" + runtime.GOARCH
-	}
 	switch spec {
+	case "", "all":
+		return linuxTargets(), nil
+	case "windows":
+		return windowsTargets(), nil
+	case "darwin":
+		return darwinTargets(), nil
+	case "host":
+		spec = runtime.GOOS + "/" + runtime.GOARCH
 	case "sysv64":
 		spec = "linux/amd64"
 	case "386":
 		spec = "linux/386"
 	case "arm":
 		spec = "linux/arm"
-	case "win64", "win386", "darwinarm64":
-		return nil, fmt.Errorf("%w: %s", ErrHost, spec)
+	case "win64":
+		spec = "windows/amd64"
+	case "win386":
+		spec = "windows/386"
+	case "darwinarm64":
+		spec = "darwin/arm64"
 	}
 	parsed, err := header.ParseABI(spec)
 	if err != nil {
 		return nil, err
 	}
-	if parsed.GOOS != "linux" && parsed.GOOS != "android" {
+	if parsed.GOOS == "" || parsed.GOARCH == "" {
+		return nil, fmt.Errorf("%w: %s", ErrHost, spec)
+	}
+	var list []target
+	switch parsed.GOOS {
+	case "linux", "android":
+		list = linuxTargets()
+	case "windows":
+		list = windowsTargets()
+	case "darwin":
+		list = darwinTargets()
+	default:
 		return nil, fmt.Errorf("%w: %s/%s", ErrHost, parsed.GOOS, parsed.GOARCH)
 	}
-	for _, t := range linuxTargets() {
+	for _, t := range list {
 		if t.goarch == parsed.GOARCH {
 			return []target{t}, nil
 		}
@@ -95,11 +132,34 @@ func place(m machine, params []param) error {
 		return placeSplit(params, 6, 8)
 	case machArm64:
 		return placeSplit(params, 8, 8)
+	case machWin64:
+		return placeWin64(params)
 	case mach386:
-		return placeStack(params)
+		return placeStack(params, 4)
+	case machWin386:
+		return placeStack(params, 8)
 	default:
 		return placeARM(params)
 	}
+}
+
+// placeWin64 gives every argument one position. The first four use a
+// register or an xmm register. The rest are 8-byte stack slots. The
+// entry copies each stack slot into both images so the handler can read
+// the one that matches the C type.
+func placeWin64(params []param) error {
+	for i := range params {
+		if i >= 8 {
+			return ErrType
+		}
+		p := &params[i]
+		kind := locGPR
+		if p.val.reg == regXMM {
+			kind = locXMM
+		}
+		p.at = loc{kind: kind, a: i, b: -1}
+	}
+	return nil
 }
 
 func placeSplit(params []param, gprMax, xmmMax int) error {
@@ -123,7 +183,10 @@ func placeSplit(params []param, gprMax, xmmMax int) error {
 	return nil
 }
 
-func placeStack(params []param) error {
+// placeStack packs cdecl arguments. wideAlign is 4 on Unix 386 and 8 on
+// Win386, where a long long or a double is aligned to 8 and the compiler
+// inserts the pad.
+func placeStack(params []param, wideAlign int) error {
 	off := 0
 	for i := range params {
 		p := &params[i]
@@ -133,6 +196,9 @@ func placeStack(params []param) error {
 		}
 		if stride != 4 && stride != 8 {
 			return ErrType
+		}
+		if stride == 8 && wideAlign > 4 {
+			off = (off + wideAlign - 1) &^ (wideAlign - 1)
 		}
 		if off+stride > 64 {
 			return ErrType

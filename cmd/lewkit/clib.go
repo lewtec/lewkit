@@ -18,7 +18,7 @@ type clibCmd struct {
 	include []cmd.StringArg `long:"include" short:"I" help:"include directory"`
 	define  []cmd.StringArg `long:"define" short:"D" help:"macro NAME or NAME=value"`
 	bind    cmd.StringArg   `long:"bind" default:"" help:"struct holding the C functions; API when empty"`
-	abi     cmd.StringArg   `long:"abi" default:"" help:"all linux and android arches, or host, an ABI id, or goos/goarch"`
+	abi     cmd.StringArg   `long:"abi" default:"" help:"linux and android arches, windows, darwin, host, an ABI id, or goos/goarch"`
 	build   cmd.StringArg   `long:"build" default:"" help:"also link this shared library without cgo"`
 	target  cmd.StringArg   `long:"target" default:"" help:"GOOS/GOARCH for --build; this process when empty"`
 }

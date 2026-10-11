@@ -119,6 +119,9 @@ func classifyType(t *header.Type, asReturn bool) (val, error) {
 	case header.ShapeEnum:
 		return intVal(c, true)
 	case header.ShapeFloat:
+		if c.Spell == "long double" {
+			return val{}, ErrType
+		}
 		switch c.Size {
 		case 4:
 			return val{kind: vkF32, goType: "float32", reg: regXMM, size: 4}, nil

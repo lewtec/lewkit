@@ -88,9 +88,192 @@ func TestGenerateRejects(t *testing.T) {
 	err = Run(context.Background(), Config{File: agg, ABI: "linux/amd64"})
 	assert.ErrorIs(t, err, ErrType)
 
-	win := write("win.h", "int add(int a, int b);\n")
-	err = Run(context.Background(), Config{File: win, ABI: "windows/amd64"})
+	ios := write("ios.h", "int add(int a, int b);\n")
+	err = Run(context.Background(), Config{File: ios, ABI: "ios/arm64"})
 	assert.ErrorIs(t, err, ErrHost)
+
+	bsd := write("bsd.h", "int add(int a, int b);\n")
+	err = Run(context.Background(), Config{File: bsd, ABI: "freebsd/amd64"})
+	assert.ErrorIs(t, err, ErrHost)
+}
+
+func TestGenerateDesktop(t *testing.T) {
+	dir := t.TempDir()
+	header := filepath.Join(dir, "calc.h")
+	require.NoError(t, os.WriteFile(header, []byte(`
+#include <stdint.h>
+int32_t add(int32_t a, int32_t b, int32_t c, int32_t d, int32_t e);
+int32_t mix(int32_t a, double b);
+int64_t wide(int32_t a, int64_t b);
+`), 0o644))
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "windows/amd64"}))
+	win, err := os.ReadFile(filepath.Join(dir, "calc_clib_windows_amd64.go"))
+	require.NoError(t, err)
+	text := string(win)
+	assert.True(t, strings.HasPrefix(text, "//go:build windows && amd64\n"))
+	assert.Contains(t, text, "int32(args[4])")
+	assert.Contains(t, text, "math.Float64frombits(xmm[1])")
+	asm, err := os.ReadFile(filepath.Join(dir, "calc_clib_windows_amd64.s"))
+	require.NoError(t, err)
+	assert.Contains(t, string(asm), "//go:build windows && clibexport\n")
+	assert.Contains(t, string(asm), "MOVL $0, AX")
+	exp, err := os.ReadFile(filepath.Join(dir, "_cgo_clib_export.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(exp), "//go:build windows && amd64\n")
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "win64"}))
+	_, err = os.Stat(filepath.Join(dir, "calc_clib_windows_amd64.go"))
+	require.NoError(t, err)
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "darwin/amd64"}))
+	dar, err := os.ReadFile(filepath.Join(dir, "calc_clib_darwin_amd64.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(dar), "int32(args[0])")
+	assert.Contains(t, string(dar), "math.Float64frombits(xmm[0])")
+	assert.NotContains(t, string(dar), "xmm[1]")
+	asm, err = os.ReadFile(filepath.Join(dir, "calc_clib_darwin_amd64.s"))
+	require.NoError(t, err)
+	assert.Contains(t, string(asm), "//go:build darwin && clibexport\n")
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "windows/386"}))
+	i386, err := os.ReadFile(filepath.Join(dir, "calc_clib_windows_386.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(i386), "clib.U64(args, 8)")
+
+	many := filepath.Join(dir, "many.h")
+	require.NoError(t, os.WriteFile(many, []byte(`
+int sum(int a, int b, int c, int d, int e, int f, int g, int h, int i);
+`), 0o644))
+	err = Run(context.Background(), Config{File: many, ABI: "windows/amd64"})
+	assert.ErrorIs(t, err, ErrType)
+
+	ld := filepath.Join(dir, "ld.h")
+	require.NoError(t, os.WriteFile(ld, []byte("long double widen(long double x);\n"), 0o644))
+	err = Run(context.Background(), Config{File: ld, ABI: "darwin/arm64"})
+	assert.ErrorIs(t, err, ErrType)
+	err = Run(context.Background(), Config{File: ld, ABI: "windows/amd64"})
+	assert.ErrorIs(t, err, ErrType)
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "windows"}))
+	_, err = os.Stat(filepath.Join(dir, "calc_clib_windows_arm64.go"))
+	require.NoError(t, err)
+	exp, err = os.ReadFile(filepath.Join(dir, "_cgo_clib_export.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(exp), "//go:build windows && (amd64 || arm64 || 386)\n")
+
+	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "darwin"}))
+	_, err = os.Stat(filepath.Join(dir, "calc_clib_darwin_arm64.s"))
+	require.NoError(t, err)
+	exp, err = os.ReadFile(filepath.Join(dir, "_cgo_clib_export.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(exp), "//go:build darwin && (amd64 || arm64)\n")
+	asm, err = os.ReadFile(filepath.Join(dir, "calc_clib_darwin_arm64.s"))
+	require.NoError(t, err)
+	assert.Contains(t, string(asm), "MOVD $0, R9")
+}
+
+func TestExportTrie(t *testing.T) {
+	buf := exportTrie([]exportSym{{name: "add", addr: 0x1234}, {name: "neg", addr: 0x50}})
+	addr, ok := trieLookup(buf, "add")
+	assert.True(t, ok)
+	assert.Equal(t, uint64(0x1234), addr)
+	addr, ok = trieLookup(buf, "neg")
+	assert.True(t, ok)
+	assert.Equal(t, uint64(0x50), addr)
+	_, ok = trieLookup(buf, "missing")
+	assert.False(t, ok)
+	_, ok = trieLookup(buf, "")
+	assert.False(t, ok)
+}
+
+func TestMakeDLLStub(t *testing.T) {
+	buf := bytes.Repeat([]byte{0}, 0x600)
+	buf[0] = 'M'
+	buf[1] = 'Z'
+	put32(buf, 0x3c, 0x80)
+	copy(buf[0x80:], []byte{'P', 'E', 0, 0})
+	put16(buf, 0x84, peMachineAmd64)
+	put16(buf, 0x86, 1)
+	put16(buf, 0x94, 240)
+	put16(buf, 0x96, 0x22)
+	put16(buf, 0x98, peOptPE32Plus)
+	put32(buf, 0xa8, 0x1000)
+	sect := 0x98 + 240
+	copy(buf[sect:], []byte(".text\x00\x00\x00"))
+	put32(buf, sect+8, 0x100)
+	put32(buf, sect+12, 0x1000)
+	put32(buf, sect+16, 0x200)
+	put32(buf, sect+20, 0x400)
+	for i := 0; i < 16; i++ {
+		buf[0x400+i] = 0x90
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "demo.dll")
+	require.NoError(t, os.WriteFile(path, buf, 0o755))
+	require.NoError(t, MakeDLL(path))
+	got, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, uint16(0x2022), u16(got, 0x96))
+	assert.Equal(t, []byte{0xb8, 0x01, 0x00, 0x00, 0x00, 0xc3}, got[0x400:0x406])
+}
+
+func trieLookup(buf []byte, name string) (uint64, bool) {
+	return trieWalk(buf, 0, name)
+}
+
+func trieWalk(buf []byte, off int, name string) (uint64, bool) {
+	if off < 0 || off >= len(buf) {
+		return 0, false
+	}
+	term, n := readUleb(buf[off:])
+	p := off + n
+	if term > 0 {
+		if p+int(term) > len(buf) {
+			return 0, false
+		}
+		payload := buf[p : p+int(term)]
+		p += int(term)
+		_, n1 := readUleb(payload)
+		addr, _ := readUleb(payload[n1:])
+		if name == "" {
+			return addr, true
+		}
+	} else if name == "" {
+		return 0, false
+	}
+	if p >= len(buf) {
+		return 0, false
+	}
+	count := int(buf[p])
+	p++
+	for i := 0; i < count; i++ {
+		end := p
+		for end < len(buf) && buf[end] != 0 {
+			end++
+		}
+		if end >= len(buf) {
+			return 0, false
+		}
+		edge := string(buf[p:end])
+		p = end + 1
+		child, cn := readUleb(buf[p:])
+		p += cn
+		if strings.HasPrefix(name, edge) {
+			return trieWalk(buf, int(child), name[len(edge):])
+		}
+	}
+	return 0, false
+}
+
+func readUleb(buf []byte) (uint64, int) {
+	var v uint64
+	for i := 0; i < len(buf) && i < 10; i++ {
+		v |= uint64(buf[i]&0x7f) << (7 * i)
+		if buf[i]&0x80 == 0 {
+			return v, i + 1
+		}
+	}
+	return 0, 0
 }
 
 func TestGenerateArches(t *testing.T) {
@@ -214,6 +397,15 @@ func TestMakeSharedClearsPIE(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, byte(elfPTNull), got[64])
 	assert.Equal(t, uint64(0), u64(got, 208))
+}
+
+func put16(buf []byte, off int, v uint16) {
+	buf[off] = byte(v)
+	buf[off+1] = byte(v >> 8)
+}
+
+func u16(buf []byte, off int) uint16 {
+	return uint16(buf[off]) | uint16(buf[off+1])<<8
 }
 
 func put32(buf []byte, off int, v uint32) {

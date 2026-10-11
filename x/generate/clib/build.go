@@ -17,8 +17,10 @@ func Build(ctx context.Context, dir, out string) error {
 }
 
 // BuildFor links dir for goos/goarch. The link is an internal PIE with the
-// clibexport tag. MakeShared then clears DF_1_PIE and drops PT_INTERP so
-// the dynamic loader will open the file. arm uses GOARM=7.
+// clibexport tag. Linux and android then clear DF_1_PIE and drop PT_INTERP.
+// Windows sets the DLL bit and replaces the entry with a DllMain that
+// returns TRUE. Darwin rewrites the image as a dylib and installs an
+// export trie. arm uses GOARM=7.
 func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -66,7 +68,36 @@ func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 		"."); err != nil {
 		return err
 	}
-	return MakeShared(out)
+	switch goos {
+	case "windows":
+		return MakeDLL(out)
+	case "darwin":
+		names, err := readExports(dir)
+		if err != nil {
+			return err
+		}
+		return MakeDylib(out, names)
+	default:
+		return MakeShared(out)
+	}
+}
+
+func readExports(dir string) ([]string, error) {
+	buf, err := os.ReadFile(filepath.Join(dir, exportFileName))
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	for _, line := range strings.Split(string(buf), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] == "//go:cgo_export_dynamic" {
+			names = append(names, fields[1])
+		}
+	}
+	if len(names) == 0 {
+		return nil, fmt.Errorf("clib: no exports")
+	}
+	return names, nil
 }
 
 func runGo(ctx context.Context, dir string, env []string, args ...string) error {
