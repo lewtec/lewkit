@@ -85,7 +85,11 @@ func tryChain(flags int, extra, names []string) (uintptr, error) {
 	var last error
 	for _, name := range names {
 		for _, path := range expandName(name, dirs) {
-			if filepath.IsAbs(path) {
+			// A path the caller named is opened even when Stat fails.
+			// Darwin serves libSystem and some frameworks from the dyld
+			// shared cache, where the file is absent and dlopen still works.
+			// A path joined onto a search directory is skipped when missing.
+			if path != name && filepath.IsAbs(path) {
 				if _, err := os.Stat(path); err != nil {
 					continue
 				}
@@ -106,8 +110,9 @@ func tryChain(flags int, extra, names []string) (uintptr, error) {
 // OpenChain loads the first name that opens and remembers that result.
 //
 // A bare name is tried as itself, then inside each SearchDirs entry.
-// A path is tried only as given. The chain for these flags and names runs
-// once: later calls return the first handle or the first error.
+// A path is tried only as given, even when that file is absent.
+// The chain for these flags and names runs once: later calls return
+// the first handle or the first error.
 func OpenChain(flags int, names ...string) (uintptr, error) {
 	return OpenIn(flags, nil, names...)
 }
