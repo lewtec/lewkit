@@ -118,6 +118,7 @@ func TestGenerateHelp(t *testing.T) {
 	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "shader")
 	assert.Contains(t, got, "header")
+	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "shared Queries")
 	assert.Contains(t, got, "--sentry-dsn")
 }
@@ -134,5 +135,6 @@ func TestGenerateErrUsage(t *testing.T) {
 	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "shader")
 	assert.Contains(t, got, "header")
+	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "--sentry-dsn")
 }

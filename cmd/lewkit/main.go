@@ -61,6 +61,7 @@ type generateCmd struct {
 	protobuf *protobufCmd
 	shader   *shaderCmd
 	header   *headerCmd
+	clib     *clibCmd
 }
 
 func (generateCmd) Description() string {
