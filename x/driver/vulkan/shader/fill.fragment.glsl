@@ -1,6 +1,6 @@
 #version 450
 layout(set = 0, binding = 0) readonly buffer Inst { vec4 data[]; };
-layout(push_constant) uniform Push { vec2 extent; int swapRB; } push;
+layout(push_constant) uniform Push { vec2 extent; int swapRB; int turn; } push;
 layout(location = 0) flat in int instance;
 layout(location = 0) out vec4 outColor;
 void main() {
@@ -10,6 +10,13 @@ void main() {
     vec4 rad = data[base + 2];
     float clipH = data[base + 3].x;
     vec2 pixel = gl_FragCoord.xy;
+    if (push.turn == 2) {
+        pixel = vec2(gl_FragCoord.y, push.extent.y - gl_FragCoord.x);
+    } else if (push.turn == 8) {
+        pixel = vec2(push.extent.x - gl_FragCoord.y, gl_FragCoord.x);
+    } else if (push.turn == 4) {
+        pixel = vec2(push.extent.x - gl_FragCoord.x, push.extent.y - gl_FragCoord.y);
+    }
     float halfv = 0.5;
     float localX = pixel.x - box.x + halfv - box.z * halfv;
     float localY = pixel.y - box.y + halfv - box.w * halfv;

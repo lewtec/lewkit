@@ -251,8 +251,11 @@ type bufferBarrier struct {
 // instances is 16 floats per rounded rect (box, color, radius+clip xyz, clip height).
 // under and ink are tightly packed RGBA8, or nil. fillVert, fillFrag, inkVert, and inkFrag are SPIR-V.
 func (s *Screen) Draw(instances, under, ink []byte, width, height int, fillVert, fillFrag, inkVert, inkFrag []byte) error {
-	if s == nil || s.d == nil || s.swap == 0 {
+	if s == nil || s.d == nil {
 		return ErrClosed
+	}
+	if err := s.d.live(); err != nil {
+		return err
 	}
 	if width < 1 || height < 1 {
 		return ErrSize
@@ -266,7 +269,7 @@ func (s *Screen) Draw(instances, under, ink []byte, width, height int, fillVert,
 	if s.host != nil {
 		s.host.poll()
 	}
-	if width != s.width || height != s.height {
+	if s.swap == 0 || s.stale || width != s.width || height != s.height {
 		if err := s.resizeTo(width, height); err != nil {
 			return err
 		}
@@ -411,7 +414,7 @@ func (s *Screen) ensureGraphics(pipe, lay, setLay, pool, set, vert, frag *uint64
 	if err := check(s.d.api.createSetLayout(s.d.dev, &setInfo, 0, setLay)); err != nil {
 		return err
 	}
-	push := pushConstantRange{stageFlags: shaderStageVertex | fragStages, size: 12}
+	push := pushConstantRange{stageFlags: shaderStageVertex | fragStages, size: 16}
 	layInfo := pipelineLayoutCreateInfo{
 		sType: structurePipelineLayoutCreateInfo, setLayoutCount: 1, pSetLayouts: setLay,
 		pushConstantRangeCount: 1, pPushConstantRanges: &push,
@@ -470,7 +473,8 @@ func (s *Screen) shaderModule(spirv []byte) (uint64, error) {
 }
 
 func (s *Screen) ensureFrames() error {
-	if len(s.drawFrames) == len(s.images) && (len(s.images) == 0 || s.drawFrames[0] != 0) {
+	fw, fh := s.frameSize()
+	if len(s.drawFrames) == len(s.images) && fw == s.framesW && fh == s.framesH && (len(s.images) == 0 || s.drawFrames[0] != 0) {
 		return nil
 	}
 	s.destroyFrames()
@@ -486,7 +490,7 @@ func (s *Screen) ensureFrames() error {
 		view := s.views[i]
 		info := framebufferInfo{
 			sType: structureFramebuffer, renderPass: s.drawPass, attachCount: 1, attachments: &view,
-			width: uint32(s.width), height: uint32(s.height), layers: 1,
+			width: uint32(fw), height: uint32(fh), layers: 1,
 		}
 		var fb uint64
 		if err := check(s.d.api.createFramebuffer(s.d.dev, uintptr(unsafe.Pointer(&info)), 0, &fb)); err != nil {
@@ -494,7 +498,18 @@ func (s *Screen) ensureFrames() error {
 		}
 		s.drawFrames[i] = fb
 	}
+	s.framesW, s.framesH = fw, fh
 	return nil
+}
+
+func (s *Screen) frameSize() (int, int) {
+	if s != nil && s.outW > 0 && s.outH > 0 {
+		return s.outW, s.outH
+	}
+	if s == nil {
+		return 0, 0
+	}
+	return s.width, s.height
 }
 
 func (s *Screen) ensureUnder() error {
@@ -539,36 +554,38 @@ func (s *Screen) recordDraw(index uint32, fills int, backed, inked bool) error {
 		s.bufferBarrier(s.inkBuf)
 	}
 	clear := clearColor{a: 1}
-	area := rect2D{width: uint32(s.width), height: uint32(s.height)}
+	fw, fh := s.frameSize()
+	area := rect2D{width: uint32(fw), height: uint32(fh)}
 	pass := renderPassBegin{
 		sType: structureRenderPassBegin, renderPass: s.drawPass, framebuffer: s.drawFrames[index],
 		area: area, clearCount: 1, clears: &clear,
 	}
 	d.api.cmdBeginRenderPass(d.cmd, uintptr(unsafe.Pointer(&pass)), 0)
-	view := viewport{width: float32(s.width), height: float32(s.height), maxDepth: 1}
-	scissor := rect2D{width: uint32(s.width), height: uint32(s.height)}
+	view := viewport{width: float32(fw), height: float32(fh), maxDepth: 1}
+	scissor := rect2D{width: uint32(fw), height: uint32(fh)}
 	d.api.cmdSetViewport(d.cmd, 0, 1, uintptr(unsafe.Pointer(&view)))
 	d.api.cmdSetScissor(d.cmd, 0, 1, uintptr(unsafe.Pointer(&scissor)))
 	// Color-attachment output is logical RGBA. The swapchain format
 	// places the bytes; swapping here again turns red into blue.
-	push := [3]uint32{mathFloatBits(float32(s.width)), mathFloatBits(float32(s.height)), 0}
-	inkPush := [3]uint32{uint32(s.width), uint32(s.height), 0}
+	// turn rotates window pixels into a transposed swapchain image.
+	push := [4]uint32{mathFloatBits(float32(s.width)), mathFloatBits(float32(s.height)), 0, s.turn}
+	inkPush := [4]uint32{uint32(s.width), uint32(s.height), 0, s.turn}
 	if backed {
 		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.inkPipe)
 		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.inkLay, 0, 1, &s.underSet, 0, nil)
-		d.api.cmdPushConstants(d.cmd, s.inkLay, shaderStageVertex|shaderStageFragment, 0, 12, uintptr(unsafe.Pointer(&inkPush[0])))
+		d.api.cmdPushConstants(d.cmd, s.inkLay, shaderStageVertex|shaderStageFragment, 0, 16, uintptr(unsafe.Pointer(&inkPush[0])))
 		d.api.cmdDraw(d.cmd, 4, 1, 0, 0)
 	}
 	if fills > 0 {
 		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.fillPipe)
 		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.fillLay, 0, 1, &s.fillSet, 0, nil)
-		d.api.cmdPushConstants(d.cmd, s.fillLay, shaderStageVertex|shaderStageFragment, 0, 12, uintptr(unsafe.Pointer(&push[0])))
+		d.api.cmdPushConstants(d.cmd, s.fillLay, shaderStageVertex|shaderStageFragment, 0, 16, uintptr(unsafe.Pointer(&push[0])))
 		d.api.cmdDraw(d.cmd, 4, uint32(fills), 0, 0)
 	}
 	if inked {
 		d.api.cmdBindPipeline(d.cmd, bindPointGraphics, s.inkPipe)
 		d.api.cmdBindSets(d.cmd, bindPointGraphics, s.inkLay, 0, 1, &s.inkSet, 0, nil)
-		d.api.cmdPushConstants(d.cmd, s.inkLay, shaderStageVertex|shaderStageFragment, 0, 12, uintptr(unsafe.Pointer(&inkPush[0])))
+		d.api.cmdPushConstants(d.cmd, s.inkLay, shaderStageVertex|shaderStageFragment, 0, 16, uintptr(unsafe.Pointer(&inkPush[0])))
 		d.api.cmdDraw(d.cmd, 4, 1, 0, 0)
 	}
 	d.api.cmdEndRenderPass(d.cmd)
@@ -596,6 +613,7 @@ func (s *Screen) bufferBarrier(buf *Buffer) {
 func (s *Screen) destroyFrames() {
 	if s.d == nil || s.d.dev == 0 || s.d.api.destroyFramebuffer == nil {
 		s.drawFrames = nil
+		s.framesW, s.framesH = 0, 0
 		return
 	}
 	for _, fb := range s.drawFrames {
@@ -604,6 +622,7 @@ func (s *Screen) destroyFrames() {
 		}
 	}
 	s.drawFrames = nil
+	s.framesW, s.framesH = 0, 0
 }
 
 func (s *Screen) destroyPipes() {

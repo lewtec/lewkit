@@ -1,9 +1,16 @@
 #version 450
 layout(set = 0, binding = 0) readonly buffer Pix { uint words[]; };
-layout(push_constant) uniform Push { ivec2 size; int swapRB; } push;
+layout(push_constant) uniform Push { ivec2 size; int swapRB; int turn; } push;
 layout(location = 0) out vec4 outColor;
 void main() {
     ivec2 c = ivec2(gl_FragCoord.xy);
+    if (push.turn == 2) {
+        c = ivec2(c.y, push.size.y - 1 - c.x);
+    } else if (push.turn == 8) {
+        c = ivec2(push.size.x - 1 - c.y, c.x);
+    } else if (push.turn == 4) {
+        c = ivec2(push.size.x - 1 - c.x, push.size.y - 1 - c.y);
+    }
     if (c.x < 0 || c.y < 0 || c.x >= push.size.x || c.y >= push.size.y) {
         outColor = vec4(0.0);
         return;
