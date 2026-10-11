@@ -23,10 +23,23 @@ const (
 	streamPlayback    = 1
 )
 
-var (
-	simple   Simple
-	libpulse Pulse
-)
+type pulseLibs struct {
+	simple Simple
+	pulse  Pulse
+}
+
+// loadPulse binds libpulse-simple and libpulse and returns both.
+var loadPulse = native.Singleton(func() (pulseLibs, error) {
+	simple, err := native.Bind[Simple](native.Lazy, "libpulse-simple.so.0")
+	if err != nil {
+		return pulseLibs{}, fmt.Errorf("libpulse-simple.so.0: %w", err)
+	}
+	pulse, err := native.Bind[Pulse](native.Lazy, "libpulse.so.0")
+	if err != nil {
+		return pulseLibs{}, fmt.Errorf("libpulse.so.0: %w", err)
+	}
+	return pulseLibs{simple: simple, pulse: pulse}, nil
+})
 
 type listState struct {
 	sinks []Sink
@@ -41,26 +54,14 @@ var (
 	sinkOnce sync.Once
 )
 
-var available = native.Once(bindAll)
-
 // Available loads libpulse-simple and libpulse.
-func Available() error { return available() }
-
-func bindAll() error {
-	var err error
-	simple, err = native.Bind[Simple](native.Lazy, "libpulse-simple.so.0")
-	if err != nil {
-		return fmt.Errorf("libpulse-simple.so.0: %w", err)
-	}
-	libpulse, err = native.Bind[Pulse](native.Lazy, "libpulse.so.0")
-	if err != nil {
-		return fmt.Errorf("libpulse.so.0: %w", err)
-	}
-	return nil
+func Available() error {
+	_, err := loadPulse()
+	return err
 }
 
-func pulseErr(code int32) error {
-	text := native.GoString(libpulse.PaStrerror(code))
+func pulseErr(lib Pulse, code int32) error {
+	text := native.GoString(lib.PaStrerror(code))
 	if text == "" {
 		return errUnavailable
 	}
@@ -73,13 +74,16 @@ type Stream struct {
 	h      uintptr
 	frame  int
 	period int
+	simple Simple
+	pulse  Pulse
 }
 
 // Playback opens sink. An empty sink uses the server default.
 // The server buffer is two periods, so Write stays on the playback clock.
 // A cancelled ctx stops the next period.
 func Playback(ctx context.Context, client, sink, stream string, sample Sample, rate, channels int) (*Stream, error) {
-	if err := Available(); err != nil {
+	libs, err := loadPulse()
+	if err != nil {
 		return nil, err
 	}
 	if client == "" {
@@ -109,16 +113,16 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 	}
 	streamB := native.CString(stream)
 	var errno int32
-	h := simple.PaSimpleNew(0, ptr(clientB), streamPlayback, ptr(sinkB), ptr(streamB), &spec, 0, &attr, &errno)
+	h := libs.simple.PaSimpleNew(0, ptr(clientB), streamPlayback, ptr(sinkB), ptr(streamB), &spec, 0, &attr, &errno)
 	runtime.KeepAlive(clientB)
 	runtime.KeepAlive(sinkB)
 	runtime.KeepAlive(streamB)
 	runtime.KeepAlive(&spec)
 	runtime.KeepAlive(&attr)
 	if h == 0 {
-		return nil, pulseErr(errno)
+		return nil, pulseErr(libs.pulse, errno)
 	}
-	return &Stream{ctx: ctx, h: h, frame: frame, period: period}, nil
+	return &Stream{ctx: ctx, h: h, frame: frame, period: period, simple: libs.simple, pulse: libs.pulse}, nil
 }
 
 func periodBytes(rate, frame int) int {
@@ -147,10 +151,10 @@ func (s *Stream) Write(p []byte) error {
 			return nil
 		}
 		var errno int32
-		rc := simple.PaSimpleWrite(s.h, uintptr(unsafe.Pointer(&p[0])), uintptr(n), &errno)
+		rc := s.simple.PaSimpleWrite(s.h, uintptr(unsafe.Pointer(&p[0])), uintptr(n), &errno)
 		runtime.KeepAlive(p)
 		if rc < 0 {
-			return pulseErr(errno)
+			return pulseErr(s.pulse, errno)
 		}
 		p = p[n:]
 	}
@@ -165,47 +169,49 @@ func (s *Stream) Close() error {
 	h := s.h
 	s.h = 0
 	if s.ctx.Err() != nil {
-		simple.PaSimpleFree(h)
+		s.simple.PaSimpleFree(h)
 		return nil
 	}
 	var errno int32
-	rc := simple.PaSimpleDrain(h, &errno)
-	simple.PaSimpleFree(h)
+	rc := s.simple.PaSimpleDrain(h, &errno)
+	s.simple.PaSimpleFree(h)
 	if rc < 0 {
-		return pulseErr(errno)
+		return pulseErr(s.pulse, errno)
 	}
 	return nil
 }
 
 // List asks the server for playback sinks.
 func List(ctx context.Context) ([]Sink, error) {
-	if err := Available(); err != nil {
+	libs, err := loadPulse()
+	if err != nil {
 		return nil, err
 	}
-	loop := libpulse.PaMainloopNew()
+	pulse := libs.pulse
+	loop := pulse.PaMainloopNew()
 	if loop == 0 {
 		return nil, errMainloop
 	}
-	defer libpulse.PaMainloopFree(loop)
+	defer pulse.PaMainloopFree(loop)
 	name := native.CString(release.Name())
-	ctxp := libpulse.PaContextNew(libpulse.PaMainloopGetApi(loop), ptr(name))
+	ctxp := pulse.PaContextNew(pulse.PaMainloopGetApi(loop), ptr(name))
 	runtime.KeepAlive(name)
 	if ctxp == 0 {
 		return nil, errContext
 	}
-	defer libpulse.PaContextUnref(ctxp)
-	if rc := libpulse.PaContextConnect(ctxp, 0, 0, 0); rc < 0 {
-		return nil, pulseErr(libpulse.PaContextErrno(ctxp))
+	defer pulse.PaContextUnref(ctxp)
+	if rc := pulse.PaContextConnect(ctxp, 0, 0, 0); rc < 0 {
+		return nil, pulseErr(pulse, pulse.PaContextErrno(ctxp))
 	}
-	defer libpulse.PaContextDisconnect(ctxp)
-	if err := wait(ctx, loop, func() bool {
-		state := libpulse.PaContextGetState(ctxp)
+	defer pulse.PaContextDisconnect(ctxp)
+	if err := wait(ctx, pulse, loop, func() bool {
+		state := pulse.PaContextGetState(ctxp)
 		return state == contextReady || state == contextFailed || state == contextTerminated
 	}); err != nil {
 		return nil, err
 	}
-	if libpulse.PaContextGetState(ctxp) != contextReady {
-		return nil, pulseErr(libpulse.PaContextErrno(ctxp))
+	if pulse.PaContextGetState(ctxp) != contextReady {
+		return nil, pulseErr(pulse, pulse.PaContextErrno(ctxp))
 	}
 	sinkOnce.Do(func() {
 		sinkCB = purego.NewCallback(onSink)
@@ -214,12 +220,12 @@ func List(ctx context.Context) ([]Sink, error) {
 	state := &listState{}
 	lists.Store(id, state)
 	defer lists.Delete(id)
-	op := libpulse.PaContextGetSinkInfoList(ctxp, sinkCB, id)
+	op := pulse.PaContextGetSinkInfoList(ctxp, sinkCB, id)
 	if op == 0 {
-		return nil, pulseErr(libpulse.PaContextErrno(ctxp))
+		return nil, pulseErr(pulse, pulse.PaContextErrno(ctxp))
 	}
-	defer libpulse.PaOperationUnref(op)
-	if err := wait(ctx, loop, func() bool { return state.done.Load() }); err != nil {
+	defer pulse.PaOperationUnref(op)
+	if err := wait(ctx, pulse, loop, func() bool { return state.done.Load() }); err != nil {
 		return nil, err
 	}
 	if state.fail.Load() {
@@ -228,7 +234,7 @@ func List(ctx context.Context) ([]Sink, error) {
 	return append([]Sink(nil), state.sinks...), nil
 }
 
-func wait(ctx context.Context, loop uintptr, done func() bool) error {
+func wait(ctx context.Context, pulse Pulse, loop uintptr, done func() bool) error {
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		if err := ctx.Err(); err != nil {
@@ -240,7 +246,7 @@ func wait(ctx context.Context, loop uintptr, done func() bool) error {
 		if time.Now().After(deadline) {
 			return errTimeout
 		}
-		if libpulse.PaMainloopPrepare(loop, 200) < 0 || libpulse.PaMainloopPoll(loop) < 0 || libpulse.PaMainloopDispatch(loop) < 0 {
+		if pulse.PaMainloopPrepare(loop, 200) < 0 || pulse.PaMainloopPoll(loop) < 0 || pulse.PaMainloopDispatch(loop) < 0 {
 			return errMainloop
 		}
 	}

@@ -107,17 +107,36 @@ var (
 	procCloseHandle = native.ProcOf("kernel32.dll", "CloseHandle")
 )
 
-var (
-	d3d12lib D3D12
-	dxgiLib  DXGI
-	hlsl     D3DCompile
-)
+// d3dLibs is d3d12, dxgi, and the shader compiler from one load.
+type d3dLibs struct {
+	d3d12 D3D12
+	dxgi  DXGI
+	hlsl  D3DCompile
+}
+
+// loadD3D binds the three DLLs and returns them from that same call.
+var loadD3D = native.Singleton(func() (d3dLibs, error) {
+	d3d12, err := native.Bind[D3D12](native.Lazy, "d3d12.dll")
+	if err != nil {
+		return d3dLibs{}, err
+	}
+	dxgi, err := native.Bind[DXGI](native.Lazy, "dxgi.dll")
+	if err != nil {
+		return d3dLibs{}, err
+	}
+	hlsl, err := native.Bind[D3DCompile](native.Lazy, "d3dcompiler_47.dll")
+	if err != nil {
+		return d3dLibs{}, err
+	}
+	return d3dLibs{d3d12: d3d12, dxgi: dxgi, hlsl: hlsl}, nil
+})
 
 var available = native.Once(func() error {
-	if err := bindDLLs(); err != nil {
+	libs, err := loadD3D()
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	dev, _, err := createDevice()
+	dev, _, err := createDevice(libs)
 	if err != nil {
 		return err
 	}
@@ -127,20 +146,6 @@ var available = native.Once(func() error {
 
 // Available reports whether Direct3D 12 can open a device.
 func Available() error { return available() }
-
-func bindDLLs() error {
-	var err error
-	d3d12lib, err = native.Bind[D3D12](native.Lazy, "d3d12.dll")
-	if err != nil {
-		return err
-	}
-	dxgiLib, err = native.Bind[DXGI](native.Lazy, "dxgi.dll")
-	if err != nil {
-		return err
-	}
-	hlsl, err = native.Bind[D3DCompile](native.Lazy, "d3dcompiler_47.dll")
-	return err
-}
 
 type pins struct {
 	runtime.Pinner
@@ -236,8 +241,8 @@ func query(obj uintptr, id guid) (uintptr, error) {
 	return out, nil
 }
 
-func createDevice() (uintptr, uint32, error) {
-	if d3d12lib.D3D12CreateDevice == nil {
+func createDevice(libs d3dLibs) (uintptr, uint32, error) {
+	if libs.d3d12.D3D12CreateDevice == nil {
 		return 0, 0, ErrUnavailable
 	}
 	levels := []uint32{0xc100, 0xc000, 0xb100, 0xb000}
@@ -245,7 +250,7 @@ func createDevice() (uintptr, uint32, error) {
 		var dev uintptr
 		var p pins
 		p.keep(&dev)
-		hr := d3d12lib.D3D12CreateDevice(0, level, uintptr(unsafe.Pointer(&iidDevice)), &dev)
+		hr := libs.d3d12.D3D12CreateDevice(0, level, uintptr(unsafe.Pointer(&iidDevice)), &dev)
 		p.done()
 		if int32(hr) >= 0 && dev != 0 {
 			return dev, level, nil
@@ -255,14 +260,14 @@ func createDevice() (uintptr, uint32, error) {
 	return 0, 0, ErrUnavailable
 }
 
-func createFactory() (uintptr, error) {
-	if dxgiLib.CreateDXGIFactory2 == nil {
+func createFactory(libs d3dLibs) (uintptr, error) {
+	if libs.dxgi.CreateDXGIFactory2 == nil {
 		return 0, ErrUnavailable
 	}
 	var factory uintptr
 	var p pins
 	p.keep(&factory)
-	hr := dxgiLib.CreateDXGIFactory2(0, uintptr(unsafe.Pointer(&iidFactory2)), &factory)
+	hr := libs.dxgi.CreateDXGIFactory2(0, uintptr(unsafe.Pointer(&iidFactory2)), &factory)
 	p.done()
 	if err := hrErr(hr); err != nil || factory == 0 {
 		release(factory)
@@ -311,6 +316,10 @@ func newEngine(kind uint32, needFactory bool) (eng *engine, err error) {
 	if err = available(); err != nil {
 		return nil, err
 	}
+	libs, err := loadD3D()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnavailable, err)
+	}
 	eng = &engine{kind: kind, name: "Direct3D 12"}
 	defer func() {
 		if err != nil && eng != nil {
@@ -318,11 +327,11 @@ func newEngine(kind uint32, needFactory bool) (eng *engine, err error) {
 			eng = nil
 		}
 	}()
-	eng.dev, eng.level, err = createDevice()
+	eng.dev, eng.level, err = createDevice(libs)
 	if err != nil {
 		return eng, err
 	}
-	eng.factory, err = createFactory()
+	eng.factory, err = createFactory(libs)
 	if err != nil && needFactory {
 		return eng, err
 	}
@@ -538,7 +547,8 @@ func adapterName(factory uintptr) string {
 }
 
 func compileHLSL(source, entry, target string) ([]byte, error) {
-	if hlsl.D3DCompileFunc == nil || source == "" || entry == "" || target == "" {
+	libs, err := loadD3D()
+	if err != nil || libs.hlsl.D3DCompileFunc == nil || source == "" || entry == "" || target == "" {
 		return nil, ErrUnavailable
 	}
 	src := []byte(source)
@@ -551,7 +561,7 @@ func compileHLSL(source, entry, target string) ([]byte, error) {
 	p.keep(&targetB[0])
 	p.keep(&code)
 	p.keep(&errs)
-	hr := hlsl.D3DCompileFunc(
+	hr := libs.hlsl.D3DCompileFunc(
 		uintptr(unsafe.Pointer(&src[0])),
 		uintptr(len(src)),
 		0, 0, 0,
@@ -599,7 +609,8 @@ func blobString(blob uintptr) string {
 }
 
 func makeRoot(dev uintptr, params []rootParam, flags uint32) (uintptr, error) {
-	if dev == 0 || len(params) == 0 || d3d12lib.D3D12SerializeRootSignature == nil {
+	libs, err := loadD3D()
+	if dev == 0 || len(params) == 0 || err != nil || libs.d3d12.D3D12SerializeRootSignature == nil {
 		return 0, ErrUnavailable
 	}
 	desc := rootSigDesc{
@@ -613,7 +624,7 @@ func makeRoot(dev uintptr, params []rootParam, flags uint32) (uintptr, error) {
 	p.keep(&desc)
 	p.keep(&blob)
 	p.keep(&errBlob)
-	hr := d3d12lib.D3D12SerializeRootSignature(uintptr(unsafe.Pointer(&desc)), 1, &blob, &errBlob)
+	hr := libs.d3d12.D3D12SerializeRootSignature(uintptr(unsafe.Pointer(&desc)), 1, &blob, &errBlob)
 	p.done()
 	defer release(blob)
 	defer release(errBlob)

@@ -83,10 +83,9 @@ func uiDo(fn func()) {
 }
 
 var (
-	devOnce  sync.Once
-	devErr   error
-	devID    objc.ID
-	metalDev Metal
+	devOnce sync.Once
+	devErr  error
+	devID   objc.ID
 )
 
 // Available reports whether this process can open a Metal device.
@@ -97,15 +96,12 @@ func Available() error {
 
 func systemDevice() (objc.ID, error) {
 	devOnce.Do(func() {
-		if err := loadFrameworks(); err != nil {
+		metal, err := loadFrameworks()
+		if err != nil {
 			devErr = err
 			return
 		}
-		if metalDev.MTLCreateSystemDefaultDevice == nil {
-			devErr = ErrUnavailable
-			return
-		}
-		id := objc.ID(metalDev.MTLCreateSystemDefaultDevice())
+		id := objc.ID(metal.MTLCreateSystemDefaultDevice())
 		if id == 0 {
 			devErr = ErrUnavailable
 			return
@@ -118,25 +114,24 @@ func systemDevice() (objc.ID, error) {
 	return devID, nil
 }
 
-func loadFrameworks() error {
+func loadFrameworks() (Metal, error) {
 	for _, path := range []string{
 		"/System/Library/Frameworks/Foundation.framework/Foundation",
 		"/System/Library/Frameworks/QuartzCore.framework/QuartzCore",
 	} {
 		if _, err := native.Open(path, native.Global|native.Lazy); err != nil {
-			return fmt.Errorf("%w: %s", ErrUnavailable, path)
+			return Metal{}, fmt.Errorf("%w: %s", ErrUnavailable, path)
 		}
 	}
 	path := "/System/Library/Frameworks/Metal.framework/Metal"
-	var err error
-	metalDev, err = native.Bind[Metal](native.Global|native.Lazy, path)
+	metal, err := native.Bind[Metal](native.Global|native.Lazy, path)
 	if err != nil {
-		return fmt.Errorf("%w: %s", ErrUnavailable, path)
+		return Metal{}, fmt.Errorf("%w: %s", ErrUnavailable, path)
 	}
-	if metalDev.MTLCreateSystemDefaultDevice == nil {
-		return ErrUnavailable
+	if metal.MTLCreateSystemDefaultDevice == nil {
+		return Metal{}, ErrUnavailable
 	}
-	return nil
+	return metal, nil
 }
 
 // OpenNative attaches a CAMetalLayer to view and compiles the frame shaders.

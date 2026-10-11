@@ -9,28 +9,18 @@ func (w *xwin) Surface() window.Surface {
 	if w == nil {
 		return window.Surface{}
 	}
-	return window.Surface{Kind: window.SurfaceX11, A: xlibDisplay(), B: uintptr(w.wid)}
+	dpy, _ := xlibDisplay()
+	return window.Surface{Kind: window.SurfaceX11, A: dpy, B: uintptr(w.wid)}
 }
 
-var (
-	xlib    Xlib
-	xlibDpy uintptr
-	loadX11 = native.Once(func() error {
-		var err error
-		xlib, err = native.Bind[Xlib](native.Global|native.Lazy, "libX11.so.6")
-		if err != nil {
-			return err
-		}
-		if xlib.XOpenDisplay != nil {
-			xlibDpy = xlib.XOpenDisplay(nil)
-		}
-		return nil
-	})
-)
-
-func xlibDisplay() uintptr {
-	if loadX11() != nil {
-		return 0
+// xlibDisplay opens libX11 and returns the display from that same load.
+var xlibDisplay = native.Singleton(func() (uintptr, error) {
+	xlib, err := native.Bind[Xlib](native.Global|native.Lazy, "libX11.so.6")
+	if err != nil {
+		return 0, err
 	}
-	return xlibDpy
-}
+	if xlib.XOpenDisplay == nil {
+		return 0, nil
+	}
+	return xlib.XOpenDisplay(nil), nil
+})

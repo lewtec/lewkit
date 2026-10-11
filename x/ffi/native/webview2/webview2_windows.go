@@ -28,7 +28,6 @@ const (
 )
 
 var (
-	createEnvironment  native.Proc
 	regOpen            = native.ProcOf("advapi32.dll", "RegOpenKeyExW")
 	regQuery           = native.ProcOf("advapi32.dll", "RegQueryValueExW")
 	regClose           = native.ProcOf("advapi32.dll", "RegCloseKey")
@@ -52,20 +51,24 @@ var (
 	GetModuleHandle  = native.ProcOf("kernel32.dll", "GetModuleHandleW")
 )
 
-// Available opens EmbeddedBrowserWebView.dll from the installed Edge WebView2 runtime.
-var available = native.Once(func() error {
+// loadEnvironment opens EmbeddedBrowserWebView.dll and returns its entry point.
+var loadEnvironment = native.Singleton(func() (native.Proc, error) {
 	path, err := findClient(readInstall, archName(runtime.GOARCH), fileExists)
 	if err != nil {
-		return err
+		return native.Proc{}, err
 	}
-	createEnvironment = native.ProcOf(path, "CreateWebViewEnvironmentWithOptionsInternal")
-	if err := createEnvironment.Find(); err != nil {
-		return fmt.Errorf("%w: %s: %v", ErrUnavailable, path, err)
+	proc := native.ProcOf(path, "CreateWebViewEnvironmentWithOptionsInternal")
+	if err := proc.Find(); err != nil {
+		return native.Proc{}, fmt.Errorf("%w: %s: %v", ErrUnavailable, path, err)
 	}
-	return nil
+	return proc, nil
 })
 
-func Available() error { return available() }
+// Available opens EmbeddedBrowserWebView.dll from the installed Edge WebView2 runtime.
+func Available() error {
+	_, err := loadEnvironment()
+	return err
+}
 
 // CoInitialize enters the single-threaded apartment.
 func CoInitialize() error {
@@ -100,7 +103,8 @@ func MemoryStream(body []byte) (uintptr, error) {
 // ICoreWebView2CreateCoreWebView2EnvironmentCompletedHandler.
 // userDataFolder is the profile directory.
 func CreateEnvironment(userDataFolder *uint16, handler uintptr) error {
-	if err := Available(); err != nil {
+	createEnvironment, err := loadEnvironment()
+	if err != nil {
 		return err
 	}
 	// CreateWebViewEnvironmentWithOptionsInternal(checkRunningInstance, installed, userData, options, handler).

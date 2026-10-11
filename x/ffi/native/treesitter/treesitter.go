@@ -24,36 +24,36 @@ import (
 // Language is a TSLanguage pointer from a grammar shared library.
 type Language uintptr
 
-var (
-	errUnavailable = errors.New("tree-sitter library unavailable")
+var errUnavailable = errors.New("tree-sitter library unavailable")
 
-	treeSitter TreeSitter
-	libc       Libc
-)
+// runtimeLibs is the tree-sitter runtime and the libc that frees its strings.
+type runtimeLibs struct {
+	ts   TreeSitter
+	libc Libc
+}
 
-var available = native.Once(bindRuntime)
-
-// Available loads libtree-sitter. Later calls return the first result.
-func Available() error {
+// loadRuntime binds both libraries and returns them from that same call.
+var loadRuntime = native.Singleton(func() (runtimeLibs, error) {
 	switch runtime.GOOS {
 	case "linux", "darwin":
 	default:
-		return fmt.Errorf("%w: %s", errUnavailable, runtime.GOOS)
+		return runtimeLibs{}, fmt.Errorf("%w: %s", errUnavailable, runtime.GOOS)
 	}
-	return available()
-}
+	ts, err := native.Bind[TreeSitter](native.Now|native.Global, runtimeSonames()...)
+	if err != nil {
+		return runtimeLibs{}, err
+	}
+	libc, err := native.Bind[Libc](native.Now|native.Global, libcSoname())
+	if err != nil {
+		return runtimeLibs{}, err
+	}
+	return runtimeLibs{ts: ts, libc: libc}, nil
+})
 
-func bindRuntime() error {
-	var err error
-	treeSitter, err = native.Bind[TreeSitter](native.Now|native.Global, runtimeSonames()...)
-	if err != nil {
-		return err
-	}
-	libc, err = native.Bind[Libc](native.Now|native.Global, libcSoname())
-	if err != nil {
-		return err
-	}
-	return nil
+// Available loads libtree-sitter. Later calls return the first result.
+func Available() error {
+	_, err := loadRuntime()
+	return err
 }
 
 var (
@@ -115,49 +115,54 @@ func OpenLanguage(name string) (Language, error) {
 
 // Parser is one native parser. Close is optional.
 type Parser struct {
-	mu sync.Mutex
-	p  uintptr
+	mu   sync.Mutex
+	p    uintptr
+	libs runtimeLibs
 }
 
-// NewParser returns a parser. The runtime library must already be available.
+// NewParser returns a parser loaded from the same call that opened the runtime.
 func NewParser() (*Parser, error) {
-	if err := Available(); err != nil {
+	libs, err := loadRuntime()
+	if err != nil {
 		return nil, err
 	}
-	p := treeSitter.TsParserNew()
+	if libs.ts.TsParserNew == nil {
+		return nil, errUnavailable
+	}
+	p := libs.ts.TsParserNew()
 	if p == 0 {
 		return nil, errUnavailable
 	}
-	out := &Parser{p: p}
+	out := &Parser{p: p, libs: libs}
 	runtime.SetFinalizer(out, func(p *Parser) { p.Close() })
 	return out, nil
 }
 
 // SetLanguage selects lang.
 func (p *Parser) SetLanguage(lang Language) bool {
-	if p == nil || p.p == 0 || lang == 0 {
+	if p == nil || p.p == 0 || lang == 0 || p.libs.ts.TsParserSetLanguage == nil {
 		return false
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return treeSitter.TsParserSetLanguage(p.p, uintptr(lang))
+	return p.libs.ts.TsParserSetLanguage(p.p, uintptr(lang))
 }
 
 // Parse parses source. The returned tree keeps the native allocation alive.
 func (p *Parser) Parse(source []byte) (*Tree, error) {
-	if p == nil || p.p == 0 {
+	if p == nil || p.p == 0 || p.libs.ts.TsParserParseString == nil {
 		return nil, errUnavailable
 	}
 	buf := make([]byte, len(source)+1)
 	copy(buf, source)
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	raw := treeSitter.TsParserParseString(p.p, 0, &buf[0], uint32(len(source)))
+	raw := p.libs.ts.TsParserParseString(p.p, 0, &buf[0], uint32(len(source)))
 	runtime.KeepAlive(buf)
 	if raw == 0 {
 		return nil, errUnavailable
 	}
-	tree := &Tree{raw: raw}
+	tree := &Tree{raw: raw, libs: p.libs}
 	runtime.SetFinalizer(tree, func(t *Tree) { t.Close() })
 	return tree, nil
 }
@@ -172,23 +177,26 @@ func (p *Parser) Close() {
 	if p.p == 0 {
 		return
 	}
-	treeSitter.TsParserDelete(p.p)
+	if p.libs.ts.TsParserDelete != nil {
+		p.libs.ts.TsParserDelete(p.p)
+	}
 	p.p = 0
 	runtime.SetFinalizer(p, nil)
 }
 
 // Tree is a native syntax tree.
 type Tree struct {
-	mu  sync.Mutex
-	raw uintptr
+	mu   sync.Mutex
+	raw  uintptr
+	libs runtimeLibs
 }
 
 // Root returns the root node. The node keeps t reachable.
 func (t *Tree) Root() Node {
-	if t == nil || t.raw == 0 {
+	if t == nil || t.raw == 0 || t.libs.ts.TsTreeRootNode == nil {
 		return Node{}
 	}
-	return Node{raw: treeSitter.TsTreeRootNode(t.raw), tree: t}
+	return Node{raw: t.libs.ts.TsTreeRootNode(t.raw), tree: t, libs: t.libs}
 }
 
 // Close frees the tree.
@@ -201,19 +209,23 @@ func (t *Tree) Close() {
 	if t.raw == 0 {
 		return
 	}
-	treeSitter.TsTreeDelete(t.raw)
+	if t.libs.ts.TsTreeDelete != nil {
+		t.libs.ts.TsTreeDelete(t.raw)
+	}
 	t.raw = 0
 	runtime.SetFinalizer(t, nil)
 }
 
 // Node is one syntax node. tree keeps the native tree alive.
+// libs is the runtime that produced the node.
 type Node struct {
 	raw  RawNode
 	tree *Tree
+	libs runtimeLibs
 }
 
 func (n Node) live() bool {
-	return n.tree != nil && n.raw.ID != 0 && !treeSitter.TsNodeIsNull(n.raw)
+	return n.tree != nil && n.raw.ID != 0 && n.libs.ts.TsNodeIsNull != nil && !n.libs.ts.TsNodeIsNull(n.raw)
 }
 
 // Type returns the node type.
@@ -221,7 +233,7 @@ func (n Node) Type() string {
 	if !n.live() {
 		return ""
 	}
-	return native.GoString(treeSitter.TsNodeType(n.raw))
+	return native.GoString(n.libs.ts.TsNodeType(n.raw))
 }
 
 // StartByte returns the start offset.
@@ -229,7 +241,7 @@ func (n Node) StartByte() uint32 {
 	if !n.live() {
 		return 0
 	}
-	return treeSitter.TsNodeStartByte(n.raw)
+	return n.libs.ts.TsNodeStartByte(n.raw)
 }
 
 // EndByte returns the end offset.
@@ -237,7 +249,7 @@ func (n Node) EndByte() uint32 {
 	if !n.live() {
 		return 0
 	}
-	return treeSitter.TsNodeEndByte(n.raw)
+	return n.libs.ts.TsNodeEndByte(n.raw)
 }
 
 // ChildCount returns the number of children.
@@ -245,15 +257,15 @@ func (n Node) ChildCount() uint32 {
 	if !n.live() {
 		return 0
 	}
-	return treeSitter.TsNodeChildCount(n.raw)
+	return n.libs.ts.TsNodeChildCount(n.raw)
 }
 
 // Child returns the child at index.
 func (n Node) Child(index uint32) Node {
 	if !n.live() {
-		return Node{tree: n.tree}
+		return Node{tree: n.tree, libs: n.libs}
 	}
-	return Node{raw: treeSitter.TsNodeChild(n.raw, index), tree: n.tree}
+	return Node{raw: n.libs.ts.TsNodeChild(n.raw, index), tree: n.tree, libs: n.libs}
 }
 
 // FieldNameForChild returns the field name of the child at index.
@@ -261,7 +273,7 @@ func (n Node) FieldNameForChild(index uint32) string {
 	if !n.live() {
 		return ""
 	}
-	return native.GoString(treeSitter.TsNodeFieldNameForChild(n.raw, index))
+	return native.GoString(n.libs.ts.TsNodeFieldNameForChild(n.raw, index))
 }
 
 // NamedChildCount returns the number of named children.
@@ -269,43 +281,45 @@ func (n Node) NamedChildCount() uint32 {
 	if !n.live() {
 		return 0
 	}
-	return treeSitter.TsNodeNamedChildCount(n.raw)
+	return n.libs.ts.TsNodeNamedChildCount(n.raw)
 }
 
 // NamedChild returns the named child at index.
 func (n Node) NamedChild(index uint32) Node {
 	if !n.live() {
-		return Node{tree: n.tree}
+		return Node{tree: n.tree, libs: n.libs}
 	}
-	return Node{raw: treeSitter.TsNodeNamedChild(n.raw, index), tree: n.tree}
+	return Node{raw: n.libs.ts.TsNodeNamedChild(n.raw, index), tree: n.tree, libs: n.libs}
 }
 
 // IsNull reports a null node.
 func (n Node) IsNull() bool { return !n.live() }
 
 // IsNamed reports a named node.
-func (n Node) IsNamed() bool { return n.live() && treeSitter.TsNodeIsNamed(n.raw) }
+func (n Node) IsNamed() bool { return n.live() && n.libs.ts.TsNodeIsNamed(n.raw) }
 
 // IsExtra reports an extra node.
-func (n Node) IsExtra() bool { return n.live() && treeSitter.TsNodeIsExtra(n.raw) }
+func (n Node) IsExtra() bool { return n.live() && n.libs.ts.TsNodeIsExtra(n.raw) }
 
 // IsError reports an error node.
-func (n Node) IsError() bool { return n.live() && treeSitter.TsNodeIsError(n.raw) }
+func (n Node) IsError() bool { return n.live() && n.libs.ts.TsNodeIsError(n.raw) }
 
 // HasError reports an error in this node or a descendant.
-func (n Node) HasError() bool { return n.live() && treeSitter.TsNodeHasError(n.raw) }
+func (n Node) HasError() bool { return n.live() && n.libs.ts.TsNodeHasError(n.raw) }
 
 // String returns the s-expression. The native buffer is freed.
 func (n Node) String() string {
 	if !n.live() {
 		return ""
 	}
-	p := treeSitter.TsNodeString(n.raw)
+	p := n.libs.ts.TsNodeString(n.raw)
 	if p == 0 {
 		return ""
 	}
 	s := native.GoString(p)
-	libc.Free(p)
+	if n.libs.libc.Free != nil {
+		n.libs.libc.Free(p)
+	}
 	return s
 }
 

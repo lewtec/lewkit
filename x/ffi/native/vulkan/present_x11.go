@@ -41,7 +41,11 @@ func loadHost(w *wsi, d *Device) error {
 }
 
 func (h *xlibHost) poll() {
-	if h == nil || h.dpy == 0 || x11.XPending == nil {
+	if h == nil || h.dpy == 0 {
+		return
+	}
+	x11, err := loadX11()
+	if err != nil || x11.XPending == nil {
 		return
 	}
 	for x11.XPending(h.dpy) > 0 {
@@ -127,33 +131,36 @@ func (h *xlibHost) destroy() {
 	if h == nil || h.borrowed || h.dpy == 0 {
 		return
 	}
-	if h.win != 0 {
-		x11.XDestroyWindow(h.dpy, h.win)
+	x11, err := loadX11()
+	if err == nil {
+		if h.win != 0 && x11.XDestroyWindow != nil {
+			x11.XDestroyWindow(h.dpy, h.win)
+		}
+		if x11.XCloseDisplay != nil {
+			x11.XCloseDisplay(h.dpy)
+		}
 	}
-	x11.XCloseDisplay(h.dpy)
 	h.dpy, h.win = 0, 0
 }
 
-var (
-	x11      X11
-	x11opt   X11Opt
-	xlibOnce uint32
-)
+// loadX11 binds libX11, including the optional symbols, and returns the hard set.
+var loadX11 = native.Singleton(func() (X11, error) {
+	x11, err := native.Bind[X11](0, "libX11.so.6")
+	if err != nil {
+		return X11{}, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
+	}
+	if _, err = native.Bind[X11Opt](0, "libX11.so.6"); err != nil {
+		return X11{}, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
+	}
+	return x11, nil
+})
 
 const xInputMask int64 = 1<<0 | 1<<1 | 1<<2 | 1<<3 | 1<<6 | 1<<15 | 1<<17
 
 func xOpen() (uintptr, error) {
-	if xlibOnce == 0 {
-		var err error
-		x11, err = native.Bind[X11](0, "libX11.so.6")
-		if err != nil {
-			return 0, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
-		}
-		x11opt, err = native.Bind[X11Opt](0, "libX11.so.6")
-		if err != nil {
-			return 0, fmt.Errorf("%w: libX11: %v", ErrUnavailable, err)
-		}
-		xlibOnce = 1
+	x11, err := loadX11()
+	if err != nil {
+		return 0, err
 	}
 	if x11.XOpenDisplay == nil {
 		return 0, fmt.Errorf("%w: XOpenDisplay", ErrUnavailable)

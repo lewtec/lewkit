@@ -29,20 +29,51 @@ const (
 
 var (
 	mu      sync.Mutex
-	loaded  bool
 	ready   bool
 	ownerID uint64
 	jobs    = make(chan func(), 32)
+)
 
+// gtkBound is glib, gobject, GTK, and libc from one load.
+type gtkBound struct {
 	glib    Glib
 	gobject GObject
 	widgets Gtk
 	threads Libc
-	gdk     GDKX11
+}
 
-	x11Once sync.Once
-	x11Err  error
-)
+// loadGTK binds the GTK libraries and returns them from that same call.
+// The load stays on the caller. gtk_init still runs later, on the owner thread.
+var loadGTK = native.Singleton(func() (gtkBound, error) {
+	if blockGTK4() {
+		return gtkBound{}, errMixedGTK
+	}
+	glib, err := native.Bind[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
+	if err != nil {
+		return gtkBound{}, err
+	}
+	gobject, err := native.Bind[GObject](native.Global|native.Lazy, "libgobject-2.0.so.0")
+	if err != nil {
+		return gtkBound{}, err
+	}
+	widgets, err := native.Bind[Gtk](native.Global|native.Lazy, "libgtk-4.so.1")
+	if err != nil {
+		return gtkBound{}, err
+	}
+	threads, err := native.Bind[Libc](native.Lazy, "libc.so.6")
+	if err != nil {
+		return gtkBound{}, err
+	}
+	return gtkBound{glib: glib, gobject: gobject, widgets: widgets, threads: threads}, nil
+})
+
+// loadGDK binds the GDK X11 symbols after GTK itself loaded.
+var loadGDK = native.Singleton(func() (GDKX11, error) {
+	if _, err := loadGTK(); err != nil {
+		return GDKX11{}, err
+	}
+	return native.Bind[GDKX11](native.Global|native.Lazy, "libgtk-4.so.1")
+})
 
 // Available reports whether GTK 4 and GLib can be loaded.
 // ctx is the caller context used to resolve the toolkit through the exec driver.
@@ -50,7 +81,7 @@ func Available(ctx context.Context) error {
 	if err := native.Prepare(ctx); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
-	if err := bindOnce(); err != nil {
+	if _, err := loadGTK(); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	return nil
@@ -89,7 +120,8 @@ func OnOwner() bool {
 // Ensure initializes GTK on this thread and claims the main context.
 // The caller keeps this OS thread locked.
 func Ensure() error {
-	if err := bindOnce(); err != nil {
+	bound, err := loadGTK()
+	if err != nil {
 		return fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}
 	id := osThread()
@@ -106,7 +138,7 @@ func Ensure() error {
 		return nil
 	}
 	mu.Unlock()
-	if widgets.GtkInitCheck() == 0 {
+	if bound.widgets.GtkInitCheck() == 0 {
 		return fmt.Errorf("%w: gtk_init_check failed", ErrUnavailable)
 	}
 	mu.Lock()
@@ -160,6 +192,10 @@ func Poll() int32 {
 	if !OnOwner() {
 		return 0
 	}
+	bound, err := loadGTK()
+	if err != nil || bound.glib.GMainContextIteration == nil {
+		return 0
+	}
 	var dispatched int32
 	for {
 		select {
@@ -167,7 +203,7 @@ func Poll() int32 {
 			fn()
 			dispatched = 1
 		default:
-			if glib.GMainContextIteration(0, 0) != 0 {
+			if bound.glib.GMainContextIteration(0, 0) != 0 {
 				return 1
 			}
 			return dispatched
@@ -206,43 +242,14 @@ func sonamePresent(name string) bool {
 	return false
 }
 
-func bindOnce() error {
-	mu.Lock()
-	defer mu.Unlock()
-	if loaded {
-		return nil
-	}
-	if blockGTK4() {
-		return errMixedGTK
-	}
-	var err error
-	glib, err = native.Bind[Glib](native.Global|native.Lazy, "libglib-2.0.so.0")
-	if err != nil {
-		return err
-	}
-	gobject, err = native.Bind[GObject](native.Global|native.Lazy, "libgobject-2.0.so.0")
-	if err != nil {
-		return err
-	}
-	widgets, err = native.Bind[Gtk](native.Global|native.Lazy, "libgtk-4.so.1")
-	if err != nil {
-		return err
-	}
-	threads, err = native.Bind[Libc](native.Lazy, "libc.so.6")
-	if err != nil {
-		return err
-	}
-	loaded = true
-	return nil
-}
-
 // SurfaceXID is the X11 window id for a realized GTK widget.
 // Wayland and a missing GDK X11 backend return ErrUnavailable.
 func SurfaceXID(widget uintptr) (uint32, error) {
 	if widget == 0 {
 		return 0, ErrUnavailable
 	}
-	if err := bindX11(); err != nil {
+	gdk, err := loadGDK()
+	if err != nil {
 		return 0, err
 	}
 	var xid uint32
@@ -271,27 +278,12 @@ func SurfaceXID(widget uintptr) (uint32, error) {
 	return xid, callErr
 }
 
-func bindX11() error {
-	x11Once.Do(func() {
-		if err := bindOnce(); err != nil {
-			x11Err = err
-			return
-		}
-		var err error
-		gdk, err = native.Bind[GDKX11](native.Global|native.Lazy, "libgtk-4.so.1")
-		if err != nil {
-			x11Err = err
-			return
-		}
-	})
-	return x11Err
-}
-
 func osThread() uint64 {
-	if err := bindOnce(); err != nil || threads.PthreadSelf == nil {
+	bound, err := loadGTK()
+	if err != nil || bound.threads.PthreadSelf == nil {
 		return 0
 	}
-	return uint64(threads.PthreadSelf())
+	return uint64(bound.threads.PthreadSelf())
 }
 
 func withCString(s string, fn func(*byte)) {
@@ -308,29 +300,47 @@ func cStringPointer(text []byte) *byte {
 }
 
 func connect(obj uintptr, signal string, handler uintptr) {
+	bound, err := loadGTK()
+	if err != nil || bound.gobject.GSignalConnectData == nil {
+		return
+	}
 	name := native.CString(signal)
-	gobject.GSignalConnectData(obj, cStringPointer(name), handler, 0, 0, 0)
+	bound.gobject.GSignalConnectData(obj, cStringPointer(name), handler, 0, 0, 0)
 	runtime.KeepAlive(name)
 }
 
 func margin(widget uintptr, px int32) {
-	widgets.GtkWidgetSetMarginTop(widget, px)
-	widgets.GtkWidgetSetMarginBottom(widget, px)
-	widgets.GtkWidgetSetMarginStart(widget, px)
-	widgets.GtkWidgetSetMarginEnd(widget, px)
+	bound, err := loadGTK()
+	if err != nil {
+		return
+	}
+	w := bound.widgets
+	w.GtkWidgetSetMarginTop(widget, px)
+	w.GtkWidgetSetMarginBottom(widget, px)
+	w.GtkWidgetSetMarginStart(widget, px)
+	w.GtkWidgetSetMarginEnd(widget, px)
 }
 
 func label(text string) uintptr {
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
+	w := bound.widgets
 	var widget uintptr
-	withCString(text, func(p *byte) { widget = widgets.GtkLabelNew(p) })
-	widgets.GtkLabelSetWrap(widget, 1)
-	widgets.GtkWidgetSetHexpand(widget, 1)
+	withCString(text, func(p *byte) { widget = w.GtkLabelNew(p) })
+	w.GtkLabelSetWrap(widget, 1)
+	w.GtkWidgetSetHexpand(widget, 1)
 	return widget
 }
 
 func button(text string) uintptr {
+	bound, err := loadGTK()
+	if err != nil {
+		return 0
+	}
 	var widget uintptr
-	withCString(text, func(p *byte) { widget = widgets.GtkButtonNewWithLabel(p) })
+	withCString(text, func(p *byte) { widget = bound.widgets.GtkButtonNewWithLabel(p) })
 	connect(widget, "clicked", clickCB)
 	return widget
 }

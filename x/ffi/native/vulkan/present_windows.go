@@ -94,7 +94,11 @@ func attachHost(s *Screen, kind int, a, b uintptr) (hostSurface, error) {
 }
 
 func (h *win32Host) poll() {
-	if h == nil || h.hwnd == 0 || user.PeekMessageW == nil {
+	if h == nil || h.hwnd == 0 {
+		return
+	}
+	user, err := loadWin32()
+	if err != nil || user.PeekMessageW == nil {
 		return
 	}
 	var msg win32Msg
@@ -126,7 +130,10 @@ func (h *win32Host) destroy() {
 	if h == nil || h.borrowed || h.hwnd == 0 {
 		return
 	}
-	user.DestroyWindow(h.hwnd)
+	user, err := loadWin32()
+	if err == nil && user.DestroyWindow != nil {
+		user.DestroyWindow(h.hwnd)
+	}
 	h.hwnd = 0
 }
 
@@ -149,32 +156,21 @@ type wndClassW struct {
 	className *uint16
 }
 
-var (
-	user       User32
-	kernel     Kernel32
-	win32Ready bool
-	classReady bool
-)
-
-func loadUser32() error {
-	if win32Ready {
-		return nil
-	}
-	var err error
-	user, err = native.Bind[User32](0, "user32.dll")
+// loadWin32 binds user32 and kernel32 and returns the user32 symbols from that load.
+var loadWin32 = native.Singleton(func() (User32, error) {
+	user, err := native.Bind[User32](0, "user32.dll")
 	if err != nil {
-		return fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
+		return User32{}, fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
 	}
-	kernel, err = native.Bind[Kernel32](0, "kernel32.dll")
+	kernel, err := native.Bind[Kernel32](0, "kernel32.dll")
 	if err != nil {
-		return fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
+		return User32{}, fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
 	}
-	win32Ready = true
 	if kernel.GetModuleHandleW == nil || user.RegisterClassW == nil || user.CreateWindowExW == nil {
-		return fmt.Errorf("%w: win32 window procs", ErrUnavailable)
+		return User32{}, fmt.Errorf("%w: win32 window procs", ErrUnavailable)
 	}
-	return nil
-}
+	return user, nil
+})
 
 func utf16z(s string) (*uint16, error) {
 	u := utf16.Encode([]rune(s))
