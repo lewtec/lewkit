@@ -30,10 +30,15 @@ type Uber struct {
 	Sign *sign.Identity
 }
 
-// HostTargets is the host packages this process can finish.
+// HostTargets is the host packages this process can finish without cgo.
 // Linux and Windows are pure Go. macOS and iOS need xcodebuild and
 // xcodegen. Android needs an SDK that is already installed.
+// The cgo-free Android package is arm64. android/amd64 needs the NDK.
 func HostTargets(ctx context.Context) ([]Target, error) {
+	return hostTargets(ctx, false)
+}
+
+func hostTargets(ctx context.Context, cgo bool) ([]Target, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
 	}
@@ -51,8 +56,9 @@ func HostTargets(ctx context.Context) ([]Target, error) {
 		out = append(out, Target{GOOS: "ios", GOARCH: "arm64"})
 	}
 	if apk.SDKInstalled(ctx) {
-		for _, goarch := range []string{"amd64", "arm64"} {
-			out = append(out, Target{GOOS: "android", GOARCH: goarch})
+		out = append(out, Target{GOOS: "android", GOARCH: "arm64"})
+		if cgo {
+			out = append(out, Target{GOOS: "android", GOARCH: "amd64"})
 		}
 	}
 	return out, nil
@@ -75,7 +81,7 @@ func (u Uber) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
 	}
-	apps, err := HostTargets(ctx)
+	apps, err := hostTargets(ctx, u.CGO)
 	if err != nil {
 		return nil, err
 	}

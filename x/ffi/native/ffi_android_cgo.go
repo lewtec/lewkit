@@ -29,3 +29,8 @@ func Func(lib uintptr, name string, fnptr any) {
 func Register(fnptr any, addr uintptr) {
 	purego.RegisterFunc(fnptr, addr)
 }
+
+// RegisterLocal is Register. cgo calls already run on the caller.
+func RegisterLocal(fnptr any, addr uintptr) {
+	Register(fnptr, addr)
+}

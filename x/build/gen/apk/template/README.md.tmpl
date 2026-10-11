@@ -3,15 +3,14 @@
 Generated ad-hoc Android host for package **`{{.PackageID}}`**.
 
 The Go library runs inside the activity process. The WebView asks that
-library for each page. The foreground service starts only when the library
-cannot load.
+library for each page.
 
 ## Layout
 
 | Path | Role |
 |------|------|
 | `eletrocromo.json` | Generator config (re-run / rebuild inputs) |
-| `app/` | Activity WebView. ServerService starts only if the library cannot load |
+| `app/` | Activity, in-process WebView, and the Go library |
 | `app/src/main/jniLibs/<abi>/libeletrocromo.so` | Cross-compiled Go app (`ELETROCROMO_NO_UI=1`) |
 | `scripts/build-go.sh` | Multiarch `go build` into jniLibs |
 

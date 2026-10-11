@@ -1,4 +1,4 @@
-//go:build android && cgo
+//go:build android
 
 package jni
 
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"runtime"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
@@ -40,9 +41,19 @@ const (
 	idxNewObjectArray        = 172
 	idxGetObjectArrayElement = 173
 	idxSetObjectArrayElement = 174
+	idxDeleteLocalRef        = 23
 	idxNewByteArray          = 176
 	idxSetByteArrayRegion    = 208
+	idxRegisterNatives       = 215
 )
+
+// Native is one method Register binds on a Java class.
+// Name is the Java method. Sig is its JNI descriptor. Fn is the C ABI entry.
+type Native struct {
+	Name string
+	Sig  string
+	Fn   uintptr
+}
 
 var (
 	errNoEnv         = errors.New("jni env is not set")
@@ -140,7 +151,7 @@ func (e env) push(n int32) error {
 		return err
 	}
 	var fn func(uintptr, int32) int32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	if rc := fn(e.self, n); rc != 0 {
 		e.clear()
 		return fmt.Errorf("%w: %d", errLocalFrame, rc)
@@ -154,7 +165,7 @@ func (e env) pop() {
 		return
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self, 0)
 }
 
@@ -164,7 +175,7 @@ func (e env) occurred() uintptr {
 		return 0
 	}
 	var fn func(uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	return fn(e.self)
 }
 
@@ -174,7 +185,7 @@ func (e env) clear() {
 		return
 	}
 	var fn func(uintptr)
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self)
 }
 
@@ -184,7 +195,7 @@ func (e env) raw4(slot int, a, b, c, d uintptr) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	return fn(a, b, c, d), nil
 }
 
@@ -240,7 +251,7 @@ func (e env) find(name string, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	cls := fn(e.self, cptr(b))
 	runtime.KeepAlive(b)
 	if err := e.ex(ids); err != nil {
@@ -278,7 +289,7 @@ func (e env) global(obj uintptr, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	g := fn(e.self, obj)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -298,7 +309,7 @@ func (e env) deleteGlobal(obj uintptr) {
 		return
 	}
 	var fn func(uintptr, uintptr)
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self, obj)
 }
 
@@ -308,7 +319,7 @@ func (e env) objectClass(obj uintptr, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	cls := fn(e.self, obj)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -328,7 +339,7 @@ func (e env) isAssign(from, to uintptr) bool {
 		return false
 	}
 	var fn func(uintptr, uintptr, uintptr) uint8
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	return fn(e.self, from, to) != 0
 }
 
@@ -338,7 +349,7 @@ func (e env) arrayLen(arr uintptr, ids errIDs) (int32, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) int32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	n := fn(e.self, arr)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -352,7 +363,7 @@ func (e env) element(arr uintptr, i int32, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, int32) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	obj := fn(e.self, arr, i)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -366,7 +377,7 @@ func (e env) setElement(arr uintptr, i int32, val uintptr, ids errIDs) error {
 		return err
 	}
 	var fn func(uintptr, uintptr, int32, uintptr)
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	fn(e.self, arr, i, val)
 	return e.ex(ids)
 }
@@ -377,7 +388,7 @@ func (e env) newObjectArray(n int32, cls uintptr, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, int32, uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	arr := fn(e.self, n, cls, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -400,7 +411,7 @@ func (e env) newByteArray(b []byte, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, int32) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	arr := fn(e.self, int32(len(b)))
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -416,7 +427,7 @@ func (e env) newByteArray(b []byte, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var set func(uintptr, uintptr, int32, int32, uintptr)
-	native.Register(&set, fp)
+	native.RegisterLocal(&set, fp)
 	set(e.self, arr, 0, int32(len(b)), cptr(b))
 	runtime.KeepAlive(b)
 	if err := e.ex(ids); err != nil {
@@ -432,7 +443,7 @@ func (e env) newString(s string, ids errIDs) (uintptr, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr) uintptr
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, cptr(b))
 	runtime.KeepAlive(b)
 	if err := e.ex(ids); err != nil {
@@ -453,7 +464,7 @@ func (e env) readString(jstr uintptr) (string, error) {
 		return "", err
 	}
 	var length func(uintptr, uintptr) int32
-	native.Register(&length, fp)
+	native.RegisterLocal(&length, fp)
 	n := length(e.self, jstr)
 	if e.occurred() != 0 {
 		e.clear()
@@ -470,7 +481,7 @@ func (e env) readString(jstr uintptr) (string, error) {
 		return "", err
 	}
 	var chars func(uintptr, uintptr, uintptr) uintptr
-	native.Register(&chars, fp)
+	native.RegisterLocal(&chars, fp)
 	p := chars(e.self, jstr, 0)
 	if e.occurred() != 0 || p == 0 {
 		e.clear()
@@ -481,7 +492,7 @@ func (e env) readString(jstr uintptr) (string, error) {
 	fp, err = e.fn(idxReleaseStringUTFChars)
 	if err == nil {
 		var rel func(uintptr, uintptr, uintptr)
-		native.Register(&rel, fp)
+		native.RegisterLocal(&rel, fp)
 		rel(e.self, jstr, p)
 	}
 	return decodeMUTF8(buf), nil
@@ -493,7 +504,7 @@ func (e env) callInt(obj, mid uintptr, args []jvalue, ids errIDs) (int32, error)
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) int32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, argv(args))
 	runtime.KeepAlive(args)
 	if err := e.ex(ids); err != nil {
@@ -508,7 +519,7 @@ func (e env) callLong(obj, mid uintptr, ids errIDs) (int64, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) int64
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -522,7 +533,7 @@ func (e env) callBool(obj, mid uintptr, ids errIDs) (bool, error) {
 		return false, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) uint8
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return false, err
@@ -536,7 +547,7 @@ func (e env) callFloat(obj, mid uintptr, ids errIDs) (float32, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) float32
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
@@ -550,10 +561,123 @@ func (e env) callDouble(obj, mid uintptr, ids errIDs) (float64, error) {
 		return 0, err
 	}
 	var fn func(uintptr, uintptr, uintptr, uintptr) float64
-	native.Register(&fn, fp)
+	native.RegisterLocal(&fn, fp)
 	out := fn(e.self, obj, mid, 0)
 	if err := e.ex(ids); err != nil {
 		return 0, err
 	}
 	return out, nil
+}
+
+const jniVersion16 = 0x00010006
+
+// javaVM is the invocation interface noted from JNI_OnLoad.
+var javaVM atomic.Uintptr
+
+// SetVM records the JavaVM* passed to JNI_OnLoad.
+func SetVM(vm uintptr) {
+	if vm == 0 {
+		return
+	}
+	javaVM.Store(vm)
+}
+
+// UTF reads a JNI jstring with env, which is the JNIEnv of this thread.
+func UTF(env, jstr uintptr) (string, error) {
+	return openEnv(env).readString(jstr)
+}
+
+// Attach returns a JNIEnv for this thread.
+// GetEnv is used when the thread is already attached. Otherwise the VM
+// attaches it. A zero VM returns zero.
+func Attach() uintptr {
+	vm := javaVM.Load()
+	if vm == 0 {
+		return 0
+	}
+	tab := *(*uintptr)(unsafe.Pointer(vm))
+	var env uintptr
+	getEnv := *(*uintptr)(unsafe.Pointer(tab + 6*unsafe.Sizeof(uintptr(0))))
+	var get func(vm uintptr, out *uintptr, ver int32) int32
+	native.RegisterLocal(&get, getEnv)
+	if get(vm, &env, jniVersion16) == 0 && env != 0 {
+		return env
+	}
+	attach := *(*uintptr)(unsafe.Pointer(tab + 4*unsafe.Sizeof(uintptr(0))))
+	var at func(vm uintptr, out *uintptr, args uintptr) int32
+	native.RegisterLocal(&at, attach)
+	if at(vm, &env, 0) != 0 {
+		return 0
+	}
+	return env
+}
+
+// Register binds methods on class. class uses JNI slashes, such as "lewkit/Hook".
+// env is the JNIEnv of the thread that loaded the library. Call it from JNI_OnLoad.
+func Register(env uintptr, class string, methods []Native) error {
+	if class == "" {
+		return errEmptyClass
+	}
+	if len(methods) == 0 {
+		return nil
+	}
+	e := openEnv(env)
+	if e.tab == 0 {
+		return errNoEnv
+	}
+	find, err := e.fn(idxFindClass)
+	if err != nil {
+		return err
+	}
+	var findFn func(uintptr, uintptr) uintptr
+	native.RegisterLocal(&findFn, find)
+	cname := cstr(class)
+	cls := findFn(e.self, cptr(cname))
+	runtime.KeepAlive(cname)
+	if cls == 0 {
+		e.clear()
+		return fmt.Errorf("%w: %s", errClass, class)
+	}
+	defer e.dropLocal(cls)
+	reg, err := e.fn(idxRegisterNatives)
+	if err != nil {
+		return err
+	}
+	var regFn func(uintptr, uintptr, uintptr, int32) int32
+	native.RegisterLocal(&regFn, reg)
+	type row struct {
+		name, sig, fn uintptr
+	}
+	rows := make([]row, len(methods))
+	held := make([][]byte, 0, len(methods)*2)
+	for i, m := range methods {
+		if m.Fn == 0 || m.Name == "" || m.Sig == "" {
+			return fmt.Errorf("%w: %s.%s", errMissingMethod, class, m.Name)
+		}
+		nb := cstr(m.Name)
+		sb := cstr(m.Sig)
+		held = append(held, nb, sb)
+		rows[i] = row{name: cptr(nb), sig: cptr(sb), fn: m.Fn}
+	}
+	rc := regFn(e.self, cls, uintptr(unsafe.Pointer(&rows[0])), int32(len(rows)))
+	runtime.KeepAlive(held)
+	runtime.KeepAlive(rows)
+	if rc != 0 {
+		e.clear()
+		return fmt.Errorf("%w: %s", errClass, class)
+	}
+	return nil
+}
+
+func (e env) dropLocal(obj uintptr) {
+	if obj == 0 {
+		return
+	}
+	fp, err := e.fn(idxDeleteLocalRef)
+	if err != nil {
+		return
+	}
+	var fn func(uintptr, uintptr)
+	native.RegisterLocal(&fn, fp)
+	fn(e.self, obj)
 }
