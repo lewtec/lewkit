@@ -1,6 +1,8 @@
 #!/bin/sh
 # clang wrapper for GOOS=ios c-archive. Default SDK is the simulator.
 # Set ELETROCROMO_IOS_SDK=iphoneos for a device archive.
+# go build execs this file as CC, so it stays a script. The archive step
+# writes it, then compiles.
 set -e
 SDK="${ELETROCROMO_IOS_SDK:-iphonesimulator}"
 MIN_VERSION="${ELETROCROMO_IOS_MIN:-17.0}"

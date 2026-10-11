@@ -14,7 +14,6 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/common"
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
-	"github.com/lewtec/lewkit/x/build/version"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -190,74 +189,6 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	return result, nil
 }
 
-// BuildGoLibs cross-compiles the app into workDir/app/src/main/jniLibs/<abi>/libeletrocromo.so.
-// stamp is injected via -ldflags -X (goreleaser-style) when apps import internal/version.
-func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, stamp version.Info, appID string, cgoEnabled bool, stdout io.Writer) ([]string, error) {
-	if len(abis) == 0 {
-		abis = DefaultABIs
-	}
-	ldflags := stamp.WithAppID(appID)
-	toolDir, toolexec, err := nocgoAndroidToolexec(ctx, abis, cgoEnabled)
-	if err != nil {
-		return nil, err
-	}
-	if toolDir != "" {
-		defer os.RemoveAll(toolDir)
-	}
-	var out []string
-	for _, abi := range abis {
-		goarch, ok := abiToGOARCH[abi]
-		if !ok {
-			return nil, fmt.Errorf("%w: %q", ErrUnsupportedABI, abi)
-		}
-		destDir := filepath.Join(workDir, "app", "src", "main", "jniLibs", abi)
-		if err := os.MkdirAll(destDir, 0o755); err != nil {
-			return nil, err
-		}
-		dest := filepath.Join(destDir, "libeletrocromo.so")
-		slog.Info("android abi", "abi", abi, "goarch", goarch)
-		cgoFlag := "0"
-		linkFlags := ldflags
-		args := []string{"-trimpath", "-ldflags", linkFlags, "-o", dest, "."}
-		if cgoEnabled {
-			args = []string{"-buildmode=c-shared", "-trimpath", "-ldflags", linkFlags, "-o", dest, "."}
-		} else if goarch == "arm64" {
-			// JNI_OnLoad is in .dynsym only when the wrapper compiles in
-			// _cgo_android_export.go. -toolexec is that wrapper plus the
-			// export file, so the compile cache key includes the file.
-			// -tags appmode compiles the JNI host. The runtime symbol
-			// references need -checklinkname=0.
-			linkFlags = strings.TrimSpace(ldflags + " -checklinkname=0")
-			args = []string{
-				"-trimpath",
-				"-tags", "appmode",
-				"-toolexec", toolexec,
-				"-ldflags", linkFlags,
-				"-o", dest, ".",
-			}
-		}
-		env := append(os.Environ(), "GOOS=android", "GOARCH="+goarch)
-		if goarch == "arm" {
-			env = append(env, "GOARM=7")
-		}
-		if cgoEnabled {
-			cc, err := ndkCC(ctx, goarch)
-			if err != nil {
-				return nil, err
-			}
-			cgoFlag = "1"
-			env = append(env, "CC="+cc)
-			slog.Info("android cgo", "cc", cc)
-		}
-		env = append(env, "CGO_ENABLED="+cgoFlag)
-		if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx); err != nil {
-			return nil, fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=%s): %w", abi, goarch, cgoFlag, err)
-		}
-		out = append(out, dest)
-	}
-	return out, nil
-}
-
 // nocgoAndroidToolexec builds the host wrapper that publishes JNI_OnLoad
 // for a cgo-free arm64 library. Other ABIs do not use it.
 // toolDir is removed by the caller. arg is the -toolexec value: the wrapper
@@ -285,6 +216,8 @@ func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (
 		return "", "", err
 	}
 	dest := filepath.Join(dir, "androidtoolexec")
+	// The caller is an orchestrator. This host binary is in the embedded
+	// compiler's scope: no cgo, no -buildmode, and no -toolexec.
 	err = (gocmd.Command{
 		Dir:  lewkitDir(),
 		Args: []string{"-o", dest, "github.com/lewtec/lewkit/x/build/androidtoolexec"},
