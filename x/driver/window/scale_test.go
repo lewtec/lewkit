@@ -50,6 +50,33 @@ func TestSetScaleEmitsDensity(t *testing.T) {
 	assertNoEvent(t, events)
 }
 
+func TestSetFontScaleDoesNotChangeDensity(t *testing.T) {
+	buf := NewBuffer(8, 6)
+	assert.Equal(t, 1.0, buf.FontScale().Factor())
+
+	ctx := t.Context()
+	events := buf.Subscribe(ctx)
+	buf.SetScale(2)
+	require.Equal(t, Density{Scale: 2}, readEvent(t, events))
+	buf.SetFontScale(1.3)
+	require.Equal(t, FontScale{Scale: Scale(1.3)}, readEvent(t, events))
+	assert.Equal(t, Scale(2), buf.Scale())
+	assert.Equal(t, Scale(1.3), buf.FontScale())
+
+	buf.SetFontScale(1.3)
+	assertNoEvent(t, events)
+
+	buf.SetFontScale(0)
+	require.Equal(t, FontScale{Scale: 1}, readEvent(t, events))
+	assert.Equal(t, 1.0, buf.FontScale().Factor())
+
+	require.NoError(t, buf.Close())
+	drainClose(t, events)
+	buf.SetFontScale(2)
+	assert.Equal(t, 1.0, buf.FontScale().Factor())
+	assertNoEvent(t, events)
+}
+
 func readEvent(t *testing.T, events <-chan Event) Event {
 	t.Helper()
 	select {

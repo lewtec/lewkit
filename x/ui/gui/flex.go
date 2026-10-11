@@ -202,7 +202,7 @@ func (constraints BoxConstraints) mainMinimum(axis Axis) float32 {
 }
 
 func (constraints BoxConstraints) along(axis Axis, minMain, maxMain, minCross, maxCross float32) BoxConstraints {
-	next := BoxConstraints{scale: constraints.scale}
+	next := BoxConstraints{scale: constraints.scale, font: constraints.font}
 	if axis == Horizontal {
 		next.MinWidth, next.MaxWidth = minMain, maxMain
 		next.MinHeight, next.MaxHeight = minCross, maxCross

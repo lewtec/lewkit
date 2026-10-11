@@ -33,10 +33,13 @@ func (rectangle Rect) Intersect(other Rect) Rect {
 // dead is the host navbar and notch list, in device pixels, in this node's coordinates.
 // [Loosen] keeps it. A root [Stage] or [Hint] reads it.
 // scale is device pixels per logical pixel. Zero means one.
+// font is the user's text-size preference. Zero means one.
+// Glyphs use both. Layout lengths use scale only.
 type BoxConstraints struct {
 	MinWidth, MinHeight, MaxWidth, MaxHeight float32
 	dead                                     []Rect
 	scale                                    float32
+	font                                     float32
 }
 
 func factor(scale float32) float32 {
@@ -49,6 +52,12 @@ func factor(scale float32) float32 {
 // Density is device pixels per logical pixel for this layout. Zero means one.
 func (constraints BoxConstraints) Density() float32 {
 	return factor(constraints.scale)
+}
+
+// TextScale is the glyph raster scale: density times the text preference.
+// A missing preference is one, so a host without one matches density alone.
+func (constraints BoxConstraints) TextScale() float32 {
+	return factor(constraints.scale) * factor(constraints.font)
 }
 
 func scaleInsets(insets EdgeInsets, scale float32) EdgeInsets {
@@ -83,11 +92,12 @@ func (constraints BoxConstraints) Deflate(padding EdgeInsets) BoxConstraints {
 		MaxWidth:  max(float32(0), constraints.MaxWidth-padding.Horizontal()),
 		MaxHeight: max(float32(0), constraints.MaxHeight-padding.Vertical()),
 		scale:     constraints.scale,
+		font:      constraints.font,
 	}
 }
 
 func (constraints BoxConstraints) Loosen() BoxConstraints {
-	return BoxConstraints{MaxWidth: constraints.MaxWidth, MaxHeight: constraints.MaxHeight, dead: constraints.dead, scale: constraints.scale}
+	return BoxConstraints{MaxWidth: constraints.MaxWidth, MaxHeight: constraints.MaxHeight, dead: constraints.dead, scale: constraints.scale, font: constraints.font}
 }
 
 func (constraints BoxConstraints) TightenWidth(width float32) BoxConstraints {

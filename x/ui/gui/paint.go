@@ -61,6 +61,8 @@ type Picture struct {
 	dead []Rect
 	// scale is device pixels per logical pixel for authored layout lengths.
 	scale float32
+	// font is the user's text-size preference. One leaves glyphs on scale.
+	font float32
 	// holdList keeps a mountable backdrop on the draw list.
 	// Metal present does not paint a mounted tensor, so the fills stay instances.
 	holdList bool
@@ -76,6 +78,19 @@ func (picture *Picture) SetScale(scale float32) {
 		scale = 1
 	}
 	picture.scale = scale
+}
+
+// SetFontScale records the user's text-size preference for the next layout.
+// A missing value is one. Layout lengths ignore it; glyphs multiply it
+// by the window scale.
+func (picture *Picture) SetFontScale(scale float32) {
+	if picture == nil {
+		return
+	}
+	if scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
+		scale = 1
+	}
+	picture.font = scale
 }
 
 func accumulatorOf(picture *Picture) *ndarray.Tensor[float32] {
@@ -288,6 +303,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	constraints := Tight(size.Width, size.Height)
 	constraints.dead = picture.dead
 	constraints.scale = picture.scale
+	constraints.font = picture.font
 	root.Layout(constraints)
 	picture.fillCount = 0
 	picture.fills = picture.fills[:0]

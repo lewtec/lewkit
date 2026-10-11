@@ -102,18 +102,22 @@ const (
 
 // Screen is a native window plus the swapchain on its device.
 type Screen struct {
-	d          *Device
-	host       hostSurface
-	surface    uint64
-	swap       uint64
-	format     int32
-	swapRB     int32
-	width      int
-	height     int
-	outW       int
-	outH       int
-	turn       uint32
-	stale      bool
+	d       *Device
+	host    hostSurface
+	surface uint64
+	swap    uint64
+	format  int32
+	swapRB  int32
+	width   int
+	height  int
+	outW    int
+	outH    int
+	turn    uint32
+	stale   bool
+	// lost is set when the VkSurface itself is dead, not only its swapchain.
+	// Android rotation destroys the native window; the next Adopt builds
+	// another surface. A resize of a live surface does not set it.
+	lost       bool
 	framesW    int
 	framesH    int
 	images     []uint64
@@ -698,8 +702,8 @@ func (s *Screen) makeSwapchain() error {
 	if caps.maxImageCount != 0 && count > caps.maxImageCount {
 		count = caps.maxImageCount
 	}
-	extentW, extentH, turn := chooseSwapchain(s.width, s.height, caps)
-	s.turn = turn
+	extentW, extentH, pre, content := chooseSwapchain(s.width, s.height, caps)
+	s.turn = content
 	s.outW, s.outH = extentW, extentH
 	info := swapchainInfo{
 		sType:            structureSwap,
@@ -710,7 +714,7 @@ func (s *Screen) makeSwapchain() error {
 		imageExtent:      extent2D{uint32(extentW), uint32(extentH)},
 		imageArrayLayers: 1,
 		imageUsage:       swapUsage(caps.usage),
-		preTransform:     turn,
+		preTransform:     pre,
 		compositeAlpha:   pickAlpha(caps.alpha),
 		presentMode:      mode,
 		clipped:          1,
@@ -771,12 +775,37 @@ func (s *Screen) resizeTo(width, height int) error {
 	if err := s.makeSwapchain(); err != nil {
 		if surfaceGone(err) {
 			s.stale = true
+			if surfaceDead(err) {
+				s.lost = true
+			}
 			return ErrLost
 		}
 		return err
 	}
 	s.stale = false
+	s.lost = false
 	return nil
+}
+
+// releaseSurface drops the swapchain and the VkSurface.
+// The present fence is the command buffer, so it is waited out before the
+// images are destroyed. The native window is already gone and is not what
+// that fence waits on.
+func (s *Screen) releaseSurface() {
+	if s == nil {
+		return
+	}
+	if s.d != nil && !s.d.recording {
+		_ = s.d.WaitIdle()
+	}
+	s.dropSwap()
+	d := s.d
+	if d != nil && d.inst != 0 && s.surface != 0 && s.wsi.destroySurface != nil {
+		s.wsi.destroySurface(d.inst, s.surface, 0)
+	}
+	s.surface = 0
+	s.stale = true
+	s.lost = true
 }
 
 func (s *Screen) dropSwap() {
@@ -833,14 +862,16 @@ func (s *Screen) pickMode() int32 {
 	return choosePresentMode(modes[:n])
 }
 
-// chooseSwapchain is the extent the surface will accept and the rotation
-// that stores an upright width×height picture in it.
+// chooseSwapchain is the extent the surface will accept, the preTransform
+// to declare, and the rotation that stores an upright picture in that image.
 // A defined current extent is used as given. Swapping it because the
-// current transform is 90° makes vkCreateSwapchainKHR reject the landscape
-// window, and the next present then reports the device closed.
-// Identity means the pixels are already upright. A transposed extent stores
-// them at 90° or 270°.
-func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32) {
+// current transform is 90° asks for a buffer the window did not report.
+// preTransform follows that current transform. Android presents
+// VK_SUBOPTIMAL_KHR while it is identity and the hint is 90°, and rebuilding
+// the same identity swapchain every frame never settles. The compositor
+// applies the inverse, so an extent that matches the window stays upright.
+// A transposed extent stores the picture at 90° or 270°.
+func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uint32) {
 	extentW, extentH := width, height
 	if extentW < 1 {
 		extentW = 1
@@ -868,22 +899,30 @@ func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32) {
 			}
 		}
 	}
-	transposed := extentW == height && extentH == width && width != height
-	if transposed {
-		turn := caps.currentTrans
-		if turn != transform90 && turn != transform270 {
-			turn = transform90
-		}
-		return extentW, extentH, turn
-	}
-	turn := uint32(transformIdent)
-	if caps.transforms != 0 && caps.transforms&transformIdent == 0 {
-		turn = caps.currentTrans
-		if turn == transform90 || turn == transform270 || turn == 0 {
-			turn = transformIdent
+	content := uint32(transformIdent)
+	if extentW == height && extentH == width && width != height {
+		content = caps.currentTrans
+		if content != transform90 && content != transform270 {
+			content = transform90
 		}
 	}
-	return extentW, extentH, turn
+	return extentW, extentH, preTransformOf(caps), content
+}
+
+// preTransformOf is the transform the swapchain declares.
+// The current transform is the one Android compares at present time.
+func preTransformOf(caps surfaceCaps) uint32 {
+	current := caps.currentTrans
+	if current == 0 {
+		current = transformIdent
+	}
+	if caps.transforms == 0 || caps.transforms&current != 0 {
+		return current
+	}
+	if caps.transforms&transformIdent != 0 {
+		return transformIdent
+	}
+	return current
 }
 
 func realExtent(w, h uint32) bool {
@@ -1152,8 +1191,17 @@ func (s *Screen) reclaim() error {
 }
 
 func (s *Screen) ensureSems() error {
+	if s == nil || s.d == nil {
+		return ErrClosed
+	}
+	if err := s.d.live(); err != nil {
+		return err
+	}
 	n := len(s.images)
-	if n == 0 || s.d == nil || s.d.api.createSemaphore == nil {
+	if n == 0 || s.swap == 0 {
+		return ErrLost
+	}
+	if s.d.api.createSemaphore == nil {
 		return ErrClosed
 	}
 	if s.acquireSem != 0 && len(s.renderSem) == n {
@@ -1299,6 +1347,9 @@ func (s *Screen) submitFrame(index uint32, waitStage uint32) error {
 	}
 	if int(index) >= len(s.renderSem) || s.acquireSem == 0 {
 		d.recording = false
+		if s.swap == 0 || len(s.images) == 0 || s.stale || s.lost {
+			return ErrLost
+		}
 		return ErrClosed
 	}
 	if err := check(d.api.endCommandBuffer(d.cmd)); err != nil {
@@ -1390,6 +1441,12 @@ func surfaceGone(err error) bool {
 		}
 	}
 	return false
+}
+
+// surfaceDead reports a VkSurface that will not accept another swapchain.
+func surfaceDead(err error) bool {
+	var result Result
+	return errors.As(err, &result) && result == surfaceLost
 }
 
 const structureImageBarrier = 45

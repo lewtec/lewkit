@@ -21,6 +21,8 @@ type Buffer struct {
 	dead        []image.Rectangle
 	scale       Scale
 	haveScale   bool
+	font        Scale
+	haveFont    bool
 }
 
 // NewBuffer returns a w×h double buffer.
@@ -114,6 +116,43 @@ func (b *Buffer) SetScale(s Scale) {
 	b.haveScale = true
 	b.mu.Unlock()
 	b.Emit(Density{Scale: next})
+}
+
+// FontScale is the user's text-size preference. One is the default.
+// Before the host reports one, it is one. It does not change [Scale].
+func (b *Buffer) FontScale() Scale {
+	if b == nil {
+		return 1
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if !b.haveFont {
+		return 1
+	}
+	return b.font
+}
+
+// SetFontScale records the user's text-size preference.
+// The first value, and each later change, emits [FontScale].
+// A closed buffer does nothing. An unchanged factor does nothing.
+func (b *Buffer) SetFontScale(s Scale) {
+	if b == nil {
+		return
+	}
+	next := Scale(s.Factor())
+	b.mu.Lock()
+	if b.closed {
+		b.mu.Unlock()
+		return
+	}
+	if b.haveFont && b.font == next {
+		b.mu.Unlock()
+		return
+	}
+	b.font = next
+	b.haveFont = true
+	b.mu.Unlock()
+	b.Emit(FontScale{Scale: next})
 }
 
 // Dead is the client area a navbar or notch covers. The slice is a copy.

@@ -360,6 +360,10 @@ func (d *Device) live() error {
 }
 
 // WaitIdle blocks until the submitted command buffer finishes.
+// Begin records [Cmd], and that Wait invalidates the buffers it wrote.
+// Present submits the same device command buffer without Begin. Waiting
+// through Cmd then reports the device closed, which is what a landscape
+// rebuild did on every suboptimal frame.
 func (d *Device) WaitIdle() error {
 	if err := d.live(); err != nil {
 		return err
@@ -370,7 +374,28 @@ func (d *Device) WaitIdle() error {
 	if !d.pending {
 		return nil
 	}
-	return d.recorded.Wait()
+	if d.recorded.d != nil {
+		return d.recorded.Wait()
+	}
+	return d.finishPresent()
+}
+
+// finishPresent waits for a submit that did not go through Begin.
+func (d *Device) finishPresent() error {
+	if d.fence != 0 && d.api.waitForFences != nil {
+		if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
+			return fmt.Errorf("frame wait: %w", err)
+		}
+		if err := check(d.api.resetFences(d.dev, 1, &d.fence)); err != nil {
+			return fmt.Errorf("reset fence: %w", err)
+		}
+	} else if d.api.queueWaitIdle != nil {
+		if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
+			return fmt.Errorf("queue wait: %w", err)
+		}
+	}
+	d.pending = false
+	return nil
 }
 
 func (d *Device) memoryType(bits, flags uint32) (uint32, bool) {

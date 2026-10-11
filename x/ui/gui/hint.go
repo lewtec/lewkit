@@ -88,6 +88,7 @@ func (hint *Hint) Layout(constraints BoxConstraints) Size {
 	if hint.Child != nil {
 		tight := Tight(hint.box.Width, hint.box.Height)
 		tight.scale = constraints.scale
+		tight.font = constraints.font
 		hint.Child.Layout(tight)
 	}
 	return size

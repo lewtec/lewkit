@@ -25,7 +25,7 @@ func (stack *Stack) Layout(constraints BoxConstraints) Size {
 	}
 	stack.size = constraints.Constrain(Size{Width: constraints.MaxWidth, Height: constraints.MaxHeight})
 	// Children share this origin, so host zones stay in window coordinates.
-	inner := BoxConstraints{MaxWidth: stack.size.Width, MaxHeight: stack.size.Height, dead: constraints.dead, scale: constraints.scale}
+	inner := BoxConstraints{MaxWidth: stack.size.Width, MaxHeight: stack.size.Height, dead: constraints.dead, scale: constraints.scale, font: constraints.font}
 	for _, node := range stack.Children {
 		if node != nil {
 			node.Layout(inner)

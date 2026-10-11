@@ -119,6 +119,9 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        if (newConfig != null && newConfig.fontScale > 0f) {
+            Host.fontScale(newConfig.fontScale);
+        }
         View content = findViewById(android.R.id.content);
         if (content != null) {
             content.requestLayout();

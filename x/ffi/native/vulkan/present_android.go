@@ -53,33 +53,51 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 	if s == nil || s.d == nil {
 		return ErrClosed
 	}
+	if err := s.d.live(); err != nil {
+		return err
+	}
 	if window == 0 {
+		s.releaseSurface()
 		return ErrLost
 	}
 	host, ok := s.host.(*androidHost)
 	if !ok || host == nil {
 		return s.Fit(width, height)
 	}
-	if host.window == window && s.swap != 0 && s.width == width && s.height == height {
+	if host.window == window && s.surface != 0 && !s.lost && s.swap != 0 && !s.stale && s.width == width && s.height == height {
 		return nil
 	}
-	if err := s.d.WaitIdle(); err != nil {
-		return err
-	}
-	if host.window != window || s.surface == 0 {
+	_ = s.d.WaitIdle()
+	if host.window != window || s.surface == 0 || s.lost {
 		s.dropSwap()
 		if s.surface != 0 && s.wsi.destroySurface != nil {
 			s.wsi.destroySurface(s.d.inst, s.surface, 0)
 			s.surface = 0
 		}
+		s.lost = false
 		host.window = window
 		surface, err := host.create(s.d, &s.wsi)
 		if err != nil {
+			s.stale = true
+			if surfaceGone(err) {
+				return ErrLost
+			}
 			return err
 		}
 		s.surface = surface
 		s.width, s.height = width, height
-		return s.makeSwapchain()
+		if err := s.makeSwapchain(); err != nil {
+			if surfaceGone(err) {
+				s.stale = true
+				if surfaceDead(err) {
+					s.lost = true
+				}
+				return ErrLost
+			}
+			return err
+		}
+		s.stale = false
+		return nil
 	}
 	return s.resizeTo(width, height)
 }

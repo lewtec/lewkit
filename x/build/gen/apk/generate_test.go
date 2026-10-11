@@ -103,7 +103,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	require.NoError(t, err)
 	man = string(manifest)
 	require.NotContains(t, man, `android:scheme=`)
-	require.Contains(t, man, `android:configChanges="orientation|screenSize|keyboardHidden|uiMode"`)
+	require.Contains(t, man, `android:configChanges="orientation|screenSize|keyboardHidden|uiMode|fontScale"`)
 	mainAt := strings.Index(man, `android:name=".MainActivity"`)
 	launchAt := strings.Index(man, "LAUNCHER")
 	surfaceAt := strings.Index(man, `android:name="lewkit.SurfaceActivity"`)

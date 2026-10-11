@@ -32,6 +32,7 @@ func (stage *Stage) Layout(constraints BoxConstraints) Size {
 	stage.size = size
 	full := Tight(size.Width, size.Height)
 	full.scale = constraints.scale
+	full.font = constraints.font
 	if stage.Scene != nil {
 		stage.Scene.Layout(full)
 	}
@@ -39,6 +40,7 @@ func (stage *Stage) Layout(constraints BoxConstraints) Size {
 	if stage.Child != nil && stage.alive.Width > 0 && stage.alive.Height > 0 {
 		tight := Tight(stage.alive.Width, stage.alive.Height)
 		tight.scale = constraints.scale
+		tight.font = constraints.font
 		stage.Child.Layout(tight)
 	}
 	return size
@@ -108,8 +110,8 @@ func stageStack(stack *Stack) Node {
 }
 
 // Device lays Child out in device pixels. The window scale does not
-// multiply its lengths. Use it when those lengths already follow the
-// framebuffer, as a poster or a responsive layout does.
+// multiply its lengths. The text preference still does. Use it when those
+// lengths already follow the framebuffer, as a poster or a responsive layout does.
 type Device struct {
 	Child Node
 }

@@ -80,7 +80,8 @@ type Driver interface {
 // on its next turn. Size may move during live resize; Draw still
 // presents the last painted page. FramePeriod is the host display interval.
 // Scale is device pixels per logical pixel. One is the baseline. A change emits Density.
-// Subscribe is an event source: Resize, Expose, Close, Pointer, Scroll, Key, Drop, and Density.
+// FontScale is the user's text-size preference. One is the default. A change emits FontScale.
+// Subscribe is an event source: Resize, Expose, Close, Pointer, Scroll, Key, Drop, Density, and FontScale.
 // [Drive] is the immediate-mode paint loop; [Animate] is Drive that paints on tick and Resize.
 // After Resize the next Frame has the new size.
 // Dead is the client area a navbar or notch covers, in device pixels, origin at the top left.
@@ -91,6 +92,7 @@ type Window interface {
 	Size() image.Point
 	FramePeriod() time.Duration
 	Scale() Scale
+	FontScale() Scale
 	Draw() error
 	Resize(size image.Point) error
 	Subscribe(ctx context.Context) <-chan Event

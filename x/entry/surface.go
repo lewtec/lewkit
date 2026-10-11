@@ -71,6 +71,25 @@ func DeliverSurfaceLost() {
 	}
 }
 
+var fontScaleFn atomic.Value
+
+// HandleFontScale receives the user's text-size preference.
+// One is the default. The value does not include display density.
+func HandleFontScale(fn func(float64)) {
+	if fn == nil {
+		return
+	}
+	fontScaleFn.Store(fn)
+}
+
+// DeliverFontScale runs the handler registered with [HandleFontScale].
+func DeliverFontScale(scale float64) {
+	fn, _ := fontScaleFn.Load().(func(float64))
+	if fn != nil {
+		fn(scale)
+	}
+}
+
 // HandleInsets receives the host safe area. The arguments are pixels:
 // left, top, right, and bottom insets, then the client width and height.
 // A sample that arrived before the handler is delivered when it is registered.

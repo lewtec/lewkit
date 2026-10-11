@@ -17,7 +17,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|fontScale"
             android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -28,13 +28,13 @@
         <activity
             android:name="lewkit.SurfaceActivity"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|fontScale" />
 
         <activity
             android:name=".PageActivity"
             android:exported="false"
             android:launchMode="standard"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode" />
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|fontScale" />
 
         <provider
             android:name="lewkit.FileProvider"

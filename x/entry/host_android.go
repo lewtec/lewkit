@@ -143,6 +143,8 @@ func hookCall(env, namePtr, argsPtr uintptr) (ret uintptr) {
 		DeliverResize(hookInt(args, 0), hookInt(args, 1))
 	case "lost":
 		DeliverSurfaceLost()
+	case "font":
+		DeliverFontScale(hookFloat(args, 0))
 	case "obscure":
 		DeliverInsets(
 			hookInt(args, 0),
@@ -174,6 +176,26 @@ func hookString(args []any, i int) string {
 	}
 	s, _ := args[i].(string)
 	return s
+}
+
+func hookFloat(args []any, i int) float64 {
+	if i >= len(args) || args[i] == nil {
+		return 1
+	}
+	switch n := args[i].(type) {
+	case float32:
+		return float64(n)
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	case int32:
+		return float64(n)
+	case int64:
+		return float64(n)
+	default:
+		return 1
+	}
 }
 
 func hookInt(args []any, i int) int {

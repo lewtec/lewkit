@@ -105,6 +105,9 @@ func (d bridgeDisplay) sync() error {
 	}
 	surface := surfacer.Surface()
 	if surface.A == 0 {
+		// Drop the VkSurface while the native window is still the one
+		// Android is destroying. The next surface builds a new one.
+		_ = d.screen.Adopt(0, 0, 0)
 		return present.ErrLost
 	}
 	size := d.Size()
@@ -400,7 +403,7 @@ func (runner *runner) handle(msg Msg) error {
 		return nil
 	}
 	switch msg.(type) {
-	case window.Expose, window.Resize, window.Density:
+	case window.Expose, window.Resize, window.Density, window.FontScale:
 		return runner.flush(true)
 	}
 	return nil
@@ -433,6 +436,17 @@ func hostScale(host display) float32 {
 	return float32(scaled.Scale().Factor())
 }
 
+func hostFont(host display) float32 {
+	if host == nil {
+		return 1
+	}
+	scaled, ok := host.(interface{ FontScale() window.Scale })
+	if !ok {
+		return 1
+	}
+	return float32(scaled.FontScale().Factor())
+}
+
 func (runner *runner) render() error {
 	root := runner.model.View()
 	if root == nil {
@@ -440,6 +454,7 @@ func (runner *runner) render() error {
 	}
 	size := runner.host.Size()
 	runner.picture.SetScale(hostScale(runner.host))
+	runner.picture.SetFontScale(hostFont(runner.host))
 	runner.picture.dead = zonesOf(runner.host.Dead())
 	pixels, err := runner.picture.Render(root, Size{float32(size.X), float32(size.Y)})
 	if err != nil {

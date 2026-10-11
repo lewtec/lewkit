@@ -11,7 +11,8 @@
 // the device. Metal keeps the fill list, so the process does not need
 // MoltenVK. Layout lengths are logical pixels. [Run] multiplies them by the window
 // scale and paints device pixels, so a control keeps its physical size when
-// the window moves to a denser screen. The frame stays device pixels, so a
+// the window moves to a denser screen. Glyphs also multiply the host text
+// preference, which is one when the host has none. The frame stays device pixels, so a
 // raster still fills every pixel. Layout returns Size; Paint returns the accumulator tensor.
 // A node records one [Mark] per draw, in paint order, through [Picture.Fill],
 // [Picture.Text], [Picture.Image], and [Picture.Backdrop].
