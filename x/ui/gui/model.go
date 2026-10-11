@@ -56,12 +56,14 @@ type Model interface {
 
 // TickMsg is the clock. Models request it with [Tick] and [Every]; Run
 // does not tick on its own. Pointer, Scroll, Resize, and Key stay the
-// messages [window] emits. Size is the window client size. Period is
-// [window.Window.FramePeriod]. FPS is the smoothed frames-per-second
-// since the previous tick.
+// messages [window] emits. Size is the window client size in device
+// pixels. Scale is device pixels per logical pixel. Zero means one.
+// Period is [window.Window.FramePeriod]. FPS is the smoothed
+// frames-per-second since the previous tick.
 type TickMsg struct {
 	Elapsed time.Duration
 	Size    image.Point
+	Scale   float32
 	FPS     float64
 	Period  time.Duration
 }

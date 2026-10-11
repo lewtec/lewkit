@@ -9,9 +9,9 @@
 // reset are messages a later system reads. The view
 // is the article's scene: a camera above the side of the board, one
 // plane per square, and pieces that slide toward their square. The eye
-// backs up until the board fits, so a tall frame does not crop it. Hint
-// keeps that picture, and the move line on it, in the box the host
-// leaves clear of navbars and notches. This package does not load a mesh kit.
+// backs up until the board fits, so a tall frame does not crop it. The
+// board paints the whole window, including navbars and notches. The move
+// line stays in the alive box. This package does not load a mesh kit.
 //
 //	go run ./cmd/lewkit release run --config ./examples/chess/eletrocromo.json
 package main
@@ -50,8 +50,6 @@ type screen struct {
 	frame      *image.RGBA
 	picture    *ndarray.Tensor[float32]
 	size       image.Point
-	origin     image.Point
-	fitted     bool
 	seen       time.Duration
 	ctx        context.Context
 	depth      []float32
@@ -108,9 +106,7 @@ func (s *screen) adopt(size image.Point) {
 	if s == nil || size.X < 16 || size.Y < 16 {
 		return
 	}
-	if !s.fitted {
-		s.size = size
-	}
+	s.size = size
 }
 
 // advance runs one frame. Hover and selection recolor those squares.
@@ -185,11 +181,4 @@ func (s *screen) geometry() uint64 {
 		}
 	})
 	return h
-}
-
-func (s *screen) View() gui.Node {
-	if s == nil {
-		return &gui.Stack{}
-	}
-	return &inset{screen: s}
 }

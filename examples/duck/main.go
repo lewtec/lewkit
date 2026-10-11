@@ -3,8 +3,8 @@
 // The world schedule owns the turn. A tick calls Step with the host
 // delta, the next system advances yaw from Time, and the system after
 // that samples the scan into a backdrop tensor the size of the window.
-// View mounts that tensor as a Raster under the credit nodes. Text and
-// fills are the card. The picture pipeline paints the window.
+// View mounts that tensor as the scene, across the whole window. The
+// credit text stays in the alive box. The picture pipeline paints the window.
 //
 //	go run ./cmd/lewkit release run --config ./examples/duck/eletrocromo.json
 package main
@@ -171,10 +171,38 @@ func (s *screen) View() gui.Node {
 		return nil
 	}
 	w, h := s.windowSize()
-	return &gui.Stack{Children: []gui.Node{
-		&gui.Raster{Pixels: s.pixels},
-		cardNodes(float32(w), float32(h)),
-	}}
+	overlay := &credits{}
+	overlay.Layout(gui.Tight(float32(w), float32(h)))
+	return &gui.Stage{
+		Scene: &gui.Raster{Pixels: s.pixels},
+		Child: overlay,
+	}
+}
+
+// credits rebuilds the card from the box it is given, so a navbar
+// shrinks the type instead of covering it. Faces and positions are
+// already device pixels of that box.
+type credits struct {
+	root gui.Node
+}
+
+func (c *credits) Layout(constraints gui.BoxConstraints) gui.Size {
+	if c == nil {
+		return gui.Size{}
+	}
+	size := constraints.Constrain(gui.Size{Width: constraints.MaxWidth, Height: constraints.MaxHeight})
+	c.root = cardNodes(size.Width, size.Height)
+	if c.root != nil {
+		c.root.Layout(gui.Tight(size.Width, size.Height))
+	}
+	return size
+}
+
+func (c *credits) Paint(origin gui.Offset, clip gui.Rect, picture *gui.Picture) *ndarray.Tensor[float32] {
+	if c == nil || c.root == nil {
+		return nil
+	}
+	return c.root.Paint(origin, clip, picture)
 }
 
 // sample writes one scan frame into a backdrop the size of the window.

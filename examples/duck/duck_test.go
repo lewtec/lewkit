@@ -85,6 +85,11 @@ func cardParts(root gui.Node) (lines []string, reds, rasters, images int) {
 	var walk func(gui.Node)
 	walk = func(node gui.Node) {
 		switch n := node.(type) {
+		case *gui.Stage:
+			walk(n.Scene)
+			walk(n.Child)
+		case *credits:
+			walk(n.root)
 		case *gui.Stack:
 			for _, child := range n.Children {
 				walk(child)
@@ -132,6 +137,11 @@ func textTop(root gui.Node, value string) (float32, bool) {
 	var walk func(gui.Node, float32)
 	walk = func(node gui.Node, top float32) {
 		switch n := node.(type) {
+		case *gui.Stage:
+			walk(n.Scene, top)
+			walk(n.Child, top)
+		case *credits:
+			walk(n.root, top)
 		case *gui.Stack:
 			for _, child := range n.Children {
 				walk(child, top)

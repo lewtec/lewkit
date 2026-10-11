@@ -61,10 +61,10 @@ func Detect(window Rect, dead []Rect) Rect {
 }
 
 // Hint lays [Child] in the box the host keeps clear of navbars and notches.
-// [Run] reads that box from the window. Place Hint at the root of [Model.View],
-// or in a [Stack] that fills the window. Layout gives Child the box from
-// [Detect], and Paint clips to it, so a draw stays inside the part of the
-// window that is fully shown. [Hint.Shown] is that box after Layout.
+// [Stage] is the window root: its scene paints the whole frame, and its
+// child uses this same box. Hint remains for a nested inset. Layout gives
+// Child the box from [Detect], and Paint clips to it. [Hint.Shown] is that
+// box after Layout.
 type Hint struct {
 	Child Node
 

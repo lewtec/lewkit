@@ -41,7 +41,7 @@ func (text *Text) Layout(constraints BoxConstraints) Size {
 	if text == nil {
 		return Size{}
 	}
-	text.used = lewimage.Zoom(text.Face, float64(constraints.density()))
+	text.used = lewimage.Zoom(text.Face, float64(constraints.Density()))
 	width, height := text.measure(constraints.MaxWidth)
 	text.size = constraints.Constrain(Size{Width: width, Height: height})
 	return text.size

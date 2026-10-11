@@ -31,7 +31,7 @@ func (rectangle Rect) Intersect(other Rect) Rect {
 
 // BoxConstraints is the Flutter box protocol: min/max width and height.
 // dead is the host navbar and notch list, in device pixels, in this node's coordinates.
-// [Loosen] keeps it. A root [Hint] reads it.
+// [Loosen] keeps it. A root [Stage] or [Hint] reads it.
 // scale is device pixels per logical pixel. Zero means one.
 type BoxConstraints struct {
 	MinWidth, MinHeight, MaxWidth, MaxHeight float32
@@ -46,7 +46,8 @@ func factor(scale float32) float32 {
 	return scale
 }
 
-func (constraints BoxConstraints) density() float32 {
+// Density is device pixels per logical pixel for this layout. Zero means one.
+func (constraints BoxConstraints) Density() float32 {
 	return factor(constraints.scale)
 }
 

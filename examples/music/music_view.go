@@ -42,6 +42,7 @@ func paintFor(mode daynight.Mode) musicPaint {
 
 // scale is 1 at 900×700. It follows the shorter side, including a retina
 // surface whose pixel size is already a multiple of the point size.
+// Those lengths are device pixels, so the tree is a Device child.
 func (m *musicModel) scale() float32 {
 	if m == nil {
 		return 1
@@ -64,14 +65,14 @@ func (m *musicModel) View() gui.Node {
 	if inner < m.px(160) {
 		inner = m.px(160)
 	}
-	return &gui.Box{
-		Fill: &m.paint.bg,
-		Child: &gui.Box{
+	return &gui.Stage{
+		Scene: &gui.Box{Fill: &m.paint.bg},
+		Child: &gui.Device{Child: &gui.Box{
 			Height:  float32(m.size.Y),
 			Padding: gui.EdgeInsets{Left: pad, Top: pad, Right: pad, Bottom: pad},
 			Clip:    true,
 			Child:   m.body(inner),
-		},
+		}},
 	}
 }
 

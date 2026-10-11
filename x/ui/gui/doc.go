@@ -4,8 +4,7 @@
 // Elm loop: messages Update; View returns a Node; Run paints it on the
 // display ticker (and Resize/Expose/Density), skipped when an embedded [Dirty] is clear. [See] and [Touch] return that flag. The picture signature
 // is unchanged. Animation is [Tick] / [Every]. A root [Row]/[Column] fills the window; wrap it in a
-// [Box] with Align to center a packed inner cluster. [Hint] lays its child in the box the host
-// keeps clear of navbars and notches, and clips to that box. Solid, Marquee, and
+// [Box] with Align to center a packed inner cluster. [Stage] paints [Stage.Scene] across the whole frame, including dead zones, and lays [Stage.Child] in the alive box. Render wraps a root that is not a Stage, so text stays in that box; a [Raster] root is the scene. [Hint] remains a nested inset into the same box. Solid, Marquee, and
 // Notepad all paint through one fused kernel
 // (one over-composite tensor of rounded rects + ink overlay). A present
 // screen paints those same fills. Vulkan can paint a mounted tensor on

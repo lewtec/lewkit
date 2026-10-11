@@ -131,9 +131,11 @@ func TestMusicFollowsLight(t *testing.T) {
 	model := newMusic(t.Context(), nil, nil)
 	next, cmd := model.Update(gui.ModeMsg{Mode: daynight.Light})
 	require.Nil(t, cmd)
-	view := next.(*musicModel).View().(*gui.Box)
-	require.NotNil(t, view.Fill)
-	assert.Equal(t, uint8(246), view.Fill.Red)
+	view := next.(*musicModel).View().(*gui.Stage)
+	scene, _ := view.Scene.(*gui.Box)
+	require.NotNil(t, scene)
+	require.NotNil(t, scene.Fill)
+	assert.Equal(t, uint8(246), scene.Fill.Red)
 	assert.Equal(t, uint8(28), next.(*musicModel).paint.text.Red)
 }
 

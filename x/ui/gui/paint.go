@@ -284,6 +284,7 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 		return nil, ndarray.ErrShape
 	}
 	defer func() { picture.holdList = false }()
+	root = stageRoot(root)
 	constraints := Tight(size.Width, size.Height)
 	constraints.dead = picture.dead
 	constraints.scale = picture.scale

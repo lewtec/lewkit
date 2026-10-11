@@ -114,11 +114,11 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/ndarray/image` | `Fill`, `Eval`, `Raster`, `Write`, `RGBA`. Pixels are `(h, w, 4)`. |
 | `x/image` | `Label`, `CopyRGBA`, `CenterSquare`, `Face`. |
 | `x/graph` | `Graph`, `DOT`, `Mermaid`. |
-| `x/ui/gui` | `Model`, `Node`, `Box`, `Row`, `Column`, `Stack`, `Text`, `Run`, `Pick`, `Tick`, `Every`. |
+| `x/ui/gui` | `Model`, `Node`, `Box`, `Row`, `Column`, `Stack`, `Stage`, `Device`, `Text`, `Run`, `Pick`, `Tick`, `Every`. |
 
 `ndarray.Open` returns the highest-weight `Evaluator`. Blank-import `x/driver/ndeval` or `x/driver/prelude` first.
 
-`Model` is `Init`, `Update`, `View`. `View` returns a `Node`. `Run` paints a window the caller opened. `x/app` opens that window. Layout types are `Box`, `Row`, `Column`, and `Stack`.
+`Model` is `Init`, `Update`, `View`. `View` returns a `Node`. `Run` paints a window the caller opened. `x/app` opens that window. Layout types are `Box`, `Row`, `Column`, `Stack`, and `Stage`. `Stage` paints its scene across the whole frame, including dead zones, and keeps its child in the alive box.
 
 ### Host and bindings
 

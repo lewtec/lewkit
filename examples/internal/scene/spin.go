@@ -54,19 +54,15 @@ func (model *spinModel) View() gui.Node {
 			Ink:   ink,
 		},
 	}
-	const rowW, rowH float32 = 232, 56
-	x := (float32(model.size.X) - rowW) / 2
-	y := float32(model.size.Y) - rowH - 36
-	if y < 16 {
-		y = 16
-	}
-	return &gui.Stack{Children: []gui.Node{
-		raster,
-		&gui.Positioned{
-			X: x, Y: y,
-			Child: gui.Row(model.minus, &gui.Box{Width: 12}, label, &gui.Box{Width: 12}, model.plus),
+	return &gui.Stage{
+		Scene: raster,
+		Child: &gui.Box{
+			Align:   gui.Alignment{X: 0.5, Y: 1},
+			Padding: gui.EdgeInsets{Bottom: 36},
+			Clip:    true,
+			Child:   gui.Row(model.minus, &gui.Box{Width: 12}, label, &gui.Box{Width: 12}, model.plus),
 		},
-	}}
+	}
 }
 
 func (model *spinModel) bump(delta float64) {
