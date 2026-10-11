@@ -37,15 +37,21 @@ build_one() {
   toolexec=()
   tool=""
   if [[ "$goarch" == "arm64" ]]; then
-    # Hook.call is missing from .dynsym unless the wrapper and
-    # -checklinkname=0 travel together.
+    # Hook.call is missing from .dynsym unless the wrapper compiles in
+    # _cgo_android_export.go. The wrapper's first argument is that file.
+    # Its hash is part of the compile cache key.
     tool="$(mktemp)"
+    entry_dir="$(
+      cd "$go_main"
+      go list -f '{{ "{{.Dir}}" }}' github.com/lewtec/lewkit/x/entry
+    )"
+    export_go="$entry_dir/_cgo_android_export.go"
     (
       cd "$go_main"
       CGO_ENABLED=0 go build -o "$tool" github.com/lewtec/lewkit/x/build/androidtoolexec
     )
     ldflags="$ldflags -checklinkname=0"
-    toolexec=(-toolexec "$tool")
+    toolexec=(-toolexec "'$tool' '$export_go'")
   fi
   (
     cd "$go_main"

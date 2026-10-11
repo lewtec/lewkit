@@ -14,6 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -195,12 +196,12 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		abis = DefaultABIs
 	}
 	ldflags := stamp.WithAppID(appID)
-	toolexec, err := nocgoAndroidToolexec(ctx, abis, cgoEnabled)
+	toolDir, toolexec, err := nocgoAndroidToolexec(ctx, goMainDir, abis, cgoEnabled)
 	if err != nil {
 		return nil, err
 	}
-	if toolexec != "" {
-		defer os.RemoveAll(filepath.Dir(toolexec))
+	if toolDir != "" {
+		defer os.RemoveAll(toolDir)
 	}
 	var out []string
 	for _, abi := range abis {
@@ -220,8 +221,10 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 		if cgoEnabled {
 			args = []string{"-buildmode=c-shared", "-trimpath", "-ldflags", linkFlags, "-o", dest, "."}
 		} else if goarch == "arm64" {
-			// JNI_OnLoad is in .dynsym only with the wrapper, and the
-			// runtime symbol references need -checklinkname=0.
+			// JNI_OnLoad is in .dynsym only when the wrapper compiles in
+			// _cgo_android_export.go. -toolexec is that wrapper plus the
+			// export file, so the compile cache key includes the file.
+			// The runtime symbol references need -checklinkname=0.
 			linkFlags = strings.TrimSpace(ldflags + " -checklinkname=0")
 			args = []string{
 				"-trimpath",
@@ -254,9 +257,11 @@ func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, 
 
 // nocgoAndroidToolexec builds the host wrapper that publishes JNI_OnLoad
 // for a cgo-free arm64 library. Other ABIs do not use it.
-func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (string, error) {
+// toolDir is removed by the caller. arg is the -toolexec value: the wrapper
+// and the export file. An empty arg means this build does not use the wrapper.
+func nocgoAndroidToolexec(ctx context.Context, goMainDir string, abis []string, cgoEnabled bool) (toolDir, arg string, err error) {
 	if cgoEnabled {
-		return "", nil
+		return "", "", nil
 	}
 	need := false
 	for _, abi := range abis {
@@ -266,21 +271,79 @@ func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (
 		}
 	}
 	if !need {
-		return "", nil
+		return "", "", nil
+	}
+	export, err := entryExportFile(ctx, goMainDir)
+	if err != nil {
+		return "", "", err
 	}
 	dir, err := os.MkdirTemp("", "lewkit-androidtoolexec-")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	dest := filepath.Join(dir, "androidtoolexec")
 	err = (gocmd.Command{
+		Dir:  goMainDir,
 		Args: []string{"-o", dest, "github.com/lewtec/lewkit/x/build/androidtoolexec"},
 	}).Run(ctx)
 	if err != nil {
 		os.RemoveAll(dir)
-		return "", fmt.Errorf("android toolexec: %w", err)
+		return "", "", fmt.Errorf("android toolexec: %w", err)
 	}
-	return dest, nil
+	joined, err := joinToolexec(dest, export)
+	if err != nil {
+		os.RemoveAll(dir)
+		return "", "", err
+	}
+	return dir, joined, nil
+}
+
+func entryExportFile(ctx context.Context, goMainDir string) (string, error) {
+	cmd := execdriver.MustCommand(ctx, "go", "list", "-f", "{{.Dir}}", "github.com/lewtec/lewkit/x/entry")
+	cmd.Dir = goMainDir
+	out, err := execdriver.Output(ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("android entry dir: %w", err)
+	}
+	dir := strings.TrimSpace(string(out))
+	if dir == "" {
+		return "", errors.New("android entry dir is empty")
+	}
+	file := filepath.Join(dir, "_cgo_android_export.go")
+	if _, err := os.Stat(file); err != nil {
+		return "", err
+	}
+	return file, nil
+}
+
+// joinToolexec is the -toolexec value. cmd/go splits it on spaces the way
+// a shell would, so a path with a space is quoted.
+func joinToolexec(bin, export string) (string, error) {
+	b, err := quoteToolexec(bin)
+	if err != nil {
+		return "", err
+	}
+	e, err := quoteToolexec(export)
+	if err != nil {
+		return "", err
+	}
+	return b + " " + e, nil
+}
+
+func quoteToolexec(s string) (string, error) {
+	if s == "" {
+		return "", errors.New("empty toolexec arg")
+	}
+	if !strings.ContainsAny(s, " \t\n\r'\"") {
+		return s, nil
+	}
+	if strings.Contains(s, "'") && strings.Contains(s, `"`) {
+		return "", fmt.Errorf("toolexec arg contains both quotes: %s", s)
+	}
+	if strings.Contains(s, "'") {
+		return `"` + s + `"`, nil
+	}
+	return "'" + s + "'", nil
 }
 
 // AssembleDebug runs Gradle assembleDebug in workDir and returns the debug APK path.
