@@ -116,6 +116,9 @@ func TestOpenConcurrentFailureIsShared(t *testing.T) {
 }
 
 func TestOpenPromotesFlags(t *testing.T) {
+	if Global|Lazy == Lazy {
+		t.Skip("platform load flags do not distinguish global from lazy")
+	}
 	var got []int
 	swapLoader(t, func(_ string, flags int) (uintptr, error) {
 		got = append(got, flags)
