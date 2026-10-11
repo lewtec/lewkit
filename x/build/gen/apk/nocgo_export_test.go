@@ -12,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLewkitDirFindsModule(t *testing.T) {
+	dir := lewkitDir()
+	require.NotEmpty(t, dir)
+	_, err := os.Stat(filepath.Join(dir, "x/entry/_cgo_android_export.go"))
+	require.NoError(t, err)
+}
+
 func TestJoinToolexecQuotesSpaces(t *testing.T) {
 	got, err := joinToolexec("/tmp/android toolexec", "/tmp/x/_cgo_android_export.go")
 	require.NoError(t, err)
