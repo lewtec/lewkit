@@ -63,7 +63,7 @@ func statusErr(st int32) error {
 }
 
 func cfString(cf CoreFoundation, ref uintptr) string {
-	if ref == 0 || cf.CFStringGetLength == nil || cf.CFStringGetCString == nil {
+	if ref == 0 {
 		return ""
 	}
 	n := cf.CFStringGetLength(ref)

@@ -13,7 +13,7 @@ var pthreadMain = native.Singleton(func() (PthreadMain, error) {
 // ProcessMain reports whether this goroutine is on the process main OS thread.
 func ProcessMain() bool {
 	main, err := pthreadMain()
-	if err == nil && main.PthreadMainNp != nil {
+	if err == nil {
 		return main.PthreadMainNp() != 0
 	}
 	return processMainTID != 0 && osThread() == processMainTID

@@ -242,9 +242,6 @@ func query(obj uintptr, id guid) (uintptr, error) {
 }
 
 func createDevice(libs d3dLibs) (uintptr, uint32, error) {
-	if libs.d3d12.D3D12CreateDevice == nil {
-		return 0, 0, ErrUnavailable
-	}
 	levels := []uint32{0xc100, 0xc000, 0xb100, 0xb000}
 	for _, level := range levels {
 		var dev uintptr
@@ -261,9 +258,6 @@ func createDevice(libs d3dLibs) (uintptr, uint32, error) {
 }
 
 func createFactory(libs d3dLibs) (uintptr, error) {
-	if libs.dxgi.CreateDXGIFactory2 == nil {
-		return 0, ErrUnavailable
-	}
 	var factory uintptr
 	var p pins
 	p.keep(&factory)
@@ -548,7 +542,7 @@ func adapterName(factory uintptr) string {
 
 func compileHLSL(source, entry, target string) ([]byte, error) {
 	libs, err := loadD3D()
-	if err != nil || libs.hlsl.D3DCompileFunc == nil || source == "" || entry == "" || target == "" {
+	if err != nil || source == "" || entry == "" || target == "" {
 		return nil, ErrUnavailable
 	}
 	src := []byte(source)
@@ -610,7 +604,7 @@ func blobString(blob uintptr) string {
 
 func makeRoot(dev uintptr, params []rootParam, flags uint32) (uintptr, error) {
 	libs, err := loadD3D()
-	if dev == 0 || len(params) == 0 || err != nil || libs.d3d12.D3D12SerializeRootSignature == nil {
+	if dev == 0 || len(params) == 0 || err != nil {
 		return 0, ErrUnavailable
 	}
 	desc := rootSigDesc{

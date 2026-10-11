@@ -297,7 +297,7 @@ func onRow(_, row, _ uintptr) uintptr {
 		return 0
 	}
 	bound, err := loadGTK()
-	if err != nil || bound.widgets.GtkListBoxRowGetIndex == nil {
+	if err != nil {
 		return 0
 	}
 	current.ok = true

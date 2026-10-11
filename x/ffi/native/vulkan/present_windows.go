@@ -98,18 +98,14 @@ func (h *win32Host) poll() {
 		return
 	}
 	user, err := loadWin32()
-	if err != nil || user.PeekMessageW == nil {
+	if err != nil {
 		return
 	}
 	var msg win32Msg
 	for user.PeekMessageW(unsafe.Pointer(&msg), h.hwnd, 0, 0, 1) {
 		h.one(msg)
-		if user.TranslateMessage != nil {
-			user.TranslateMessage(unsafe.Pointer(&msg))
-		}
-		if user.DispatchMessageW != nil {
-			user.DispatchMessageW(unsafe.Pointer(&msg))
-		}
+		user.TranslateMessage(unsafe.Pointer(&msg))
+		user.DispatchMessageW(unsafe.Pointer(&msg))
 	}
 }
 
@@ -131,7 +127,7 @@ func (h *win32Host) destroy() {
 		return
 	}
 	user, err := loadWin32()
-	if err == nil && user.DestroyWindow != nil {
+	if err == nil {
 		user.DestroyWindow(h.hwnd)
 	}
 	h.hwnd = 0
@@ -162,12 +158,8 @@ var loadWin32 = native.Singleton(func() (User32, error) {
 	if err != nil {
 		return User32{}, fmt.Errorf("%w: user32: %v", ErrUnavailable, err)
 	}
-	kernel, err := native.Bind[Kernel32](0, "kernel32.dll")
-	if err != nil {
+	if _, err = native.Bind[Kernel32](0, "kernel32.dll"); err != nil {
 		return User32{}, fmt.Errorf("%w: kernel32: %v", ErrUnavailable, err)
-	}
-	if kernel.GetModuleHandleW == nil || user.RegisterClassW == nil || user.CreateWindowExW == nil {
-		return User32{}, fmt.Errorf("%w: win32 window procs", ErrUnavailable)
 	}
 	return user, nil
 })

@@ -24,10 +24,6 @@ func ensurePlatform() {
 			slog.Debug("vulkan metal create", "err", err)
 			return
 		}
-		if metal.MTLCreateSystemDefaultDevice == nil {
-			slog.Debug("vulkan metal create missing")
-			return
-		}
 		metalDefaultDevice = metal.MTLCreateSystemDefaultDevice()
 		slog.Debug("vulkan metal device", "ok", metalDefaultDevice != 0)
 	})

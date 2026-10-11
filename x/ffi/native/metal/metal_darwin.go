@@ -128,9 +128,6 @@ func loadFrameworks() (Metal, error) {
 	if err != nil {
 		return Metal{}, fmt.Errorf("%w: %s", ErrUnavailable, path)
 	}
-	if metal.MTLCreateSystemDefaultDevice == nil {
-		return Metal{}, ErrUnavailable
-	}
 	return metal, nil
 }
 

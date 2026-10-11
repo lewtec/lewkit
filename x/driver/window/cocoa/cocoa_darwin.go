@@ -805,7 +805,7 @@ func copyIOSurface(surface objc.ID, source *image.RGBA) bool {
 func (w *win) cgImageFromRGBA(src *image.RGBA) (uintptr, error) {
 	cg, err := coreGraphics()
 	width, height := src.Rect.Dx(), src.Rect.Dy()
-	if err != nil || width < 1 || height < 1 || cg.CGImageCreate == nil || len(src.Pix) == 0 {
+	if err != nil || width < 1 || height < 1 || len(src.Pix) == 0 {
 		return 0, fmt.Errorf("%w: empty", window.ErrPresent)
 	}
 	n := len(src.Pix)

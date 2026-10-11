@@ -45,7 +45,7 @@ func (h *xlibHost) poll() {
 		return
 	}
 	x11, err := loadX11()
-	if err != nil || x11.XPending == nil {
+	if err != nil {
 		return
 	}
 	for x11.XPending(h.dpy) > 0 {
@@ -133,12 +133,10 @@ func (h *xlibHost) destroy() {
 	}
 	x11, err := loadX11()
 	if err == nil {
-		if h.win != 0 && x11.XDestroyWindow != nil {
+		if h.win != 0 {
 			x11.XDestroyWindow(h.dpy, h.win)
 		}
-		if x11.XCloseDisplay != nil {
-			x11.XCloseDisplay(h.dpy)
-		}
+		x11.XCloseDisplay(h.dpy)
 	}
 	h.dpy, h.win = 0, 0
 }
@@ -161,9 +159,6 @@ func xOpen() (uintptr, error) {
 	x11, err := loadX11()
 	if err != nil {
 		return 0, err
-	}
-	if x11.XOpenDisplay == nil {
-		return 0, fmt.Errorf("%w: XOpenDisplay", ErrUnavailable)
 	}
 	dpy := x11.XOpenDisplay(nil)
 	if dpy == 0 {

@@ -12,7 +12,7 @@ var pthread = native.Singleton(func() (Pthread, error) {
 
 func osThread() uint64 {
 	lib, err := pthread()
-	if err != nil || lib.PthreadSelf == nil {
+	if err != nil {
 		return 0
 	}
 	return uint64(lib.PthreadSelf())

@@ -193,7 +193,7 @@ func Poll() int32 {
 		return 0
 	}
 	bound, err := loadGTK()
-	if err != nil || bound.glib.GMainContextIteration == nil {
+	if err != nil {
 		return 0
 	}
 	var dispatched int32
@@ -280,7 +280,7 @@ func SurfaceXID(widget uintptr) (uint32, error) {
 
 func osThread() uint64 {
 	bound, err := loadGTK()
-	if err != nil || bound.threads.PthreadSelf == nil {
+	if err != nil {
 		return 0
 	}
 	return uint64(bound.threads.PthreadSelf())
@@ -301,7 +301,7 @@ func cStringPointer(text []byte) *byte {
 
 func connect(obj uintptr, signal string, handler uintptr) {
 	bound, err := loadGTK()
-	if err != nil || bound.gobject.GSignalConnectData == nil {
+	if err != nil {
 		return
 	}
 	name := native.CString(signal)

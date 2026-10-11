@@ -19,8 +19,5 @@ var xlibDisplay = native.Singleton(func() (uintptr, error) {
 	if err != nil {
 		return 0, err
 	}
-	if xlib.XOpenDisplay == nil {
-		return 0, nil
-	}
 	return xlib.XOpenDisplay(nil), nil
 })

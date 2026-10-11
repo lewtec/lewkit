@@ -126,9 +126,6 @@ func NewParser() (*Parser, error) {
 	if err != nil {
 		return nil, err
 	}
-	if libs.ts.TsParserNew == nil {
-		return nil, errUnavailable
-	}
 	p := libs.ts.TsParserNew()
 	if p == 0 {
 		return nil, errUnavailable
@@ -140,7 +137,7 @@ func NewParser() (*Parser, error) {
 
 // SetLanguage selects lang.
 func (p *Parser) SetLanguage(lang Language) bool {
-	if p == nil || p.p == 0 || lang == 0 || p.libs.ts.TsParserSetLanguage == nil {
+	if p == nil || p.p == 0 || lang == 0 {
 		return false
 	}
 	p.mu.Lock()
@@ -150,7 +147,7 @@ func (p *Parser) SetLanguage(lang Language) bool {
 
 // Parse parses source. The returned tree keeps the native allocation alive.
 func (p *Parser) Parse(source []byte) (*Tree, error) {
-	if p == nil || p.p == 0 || p.libs.ts.TsParserParseString == nil {
+	if p == nil || p.p == 0 {
 		return nil, errUnavailable
 	}
 	buf := make([]byte, len(source)+1)
@@ -177,9 +174,7 @@ func (p *Parser) Close() {
 	if p.p == 0 {
 		return
 	}
-	if p.libs.ts.TsParserDelete != nil {
-		p.libs.ts.TsParserDelete(p.p)
-	}
+	p.libs.ts.TsParserDelete(p.p)
 	p.p = 0
 	runtime.SetFinalizer(p, nil)
 }
@@ -193,7 +188,7 @@ type Tree struct {
 
 // Root returns the root node. The node keeps t reachable.
 func (t *Tree) Root() Node {
-	if t == nil || t.raw == 0 || t.libs.ts.TsTreeRootNode == nil {
+	if t == nil || t.raw == 0 {
 		return Node{}
 	}
 	return Node{raw: t.libs.ts.TsTreeRootNode(t.raw), tree: t, libs: t.libs}
@@ -209,9 +204,7 @@ func (t *Tree) Close() {
 	if t.raw == 0 {
 		return
 	}
-	if t.libs.ts.TsTreeDelete != nil {
-		t.libs.ts.TsTreeDelete(t.raw)
-	}
+	t.libs.ts.TsTreeDelete(t.raw)
 	t.raw = 0
 	runtime.SetFinalizer(t, nil)
 }
@@ -225,7 +218,7 @@ type Node struct {
 }
 
 func (n Node) live() bool {
-	return n.tree != nil && n.raw.ID != 0 && n.libs.ts.TsNodeIsNull != nil && !n.libs.ts.TsNodeIsNull(n.raw)
+	return n.tree != nil && n.raw.ID != 0 && !n.libs.ts.TsNodeIsNull(n.raw)
 }
 
 // Type returns the node type.
@@ -317,9 +310,7 @@ func (n Node) String() string {
 		return ""
 	}
 	s := native.GoString(p)
-	if n.libs.libc.Free != nil {
-		n.libs.libc.Free(p)
-	}
+	n.libs.libc.Free(p)
 	return s
 }
 
