@@ -98,11 +98,21 @@ func resolve(ctx context.Context, expression string) (ndarray.Evaluator, string,
 	for _, choice := range choices {
 		ev, err := choice.open(ctx)
 		if err == nil {
-			return ev, deviceName(ev), nil
+			if name := deviceName(ev); name != "" {
+				return ev, name, nil
+			}
+			return ev, choice.label(), nil
 		}
 		fails = append(fails, err.Error())
 	}
 	return nil, "", fmt.Errorf("evaluator %q: %s", expression, strings.Join(fails, "; "))
+}
+
+func (c choice) label() string {
+	if c.kind == "" {
+		return c.name
+	}
+	return c.name + ":" + c.kind
 }
 
 func deviceName(ev ndarray.Evaluator) string {
