@@ -78,15 +78,15 @@ type wlwin struct {
 	buttons    int
 	mods       window.Modifier
 
-	outputScale map[uint32]float64
-	lastScale   float64
-	entered     uint32
-	logicalW    int
-	logicalH    int
-	fractional  bool
-	fracScale   float64
-	fracMgr     uint32
-	bufferScale int
+	outputScale            map[uint32]float64
+	lastScale              float64
+	entered                uint32
+	logicalW               int
+	logicalH               int
+	fractional             bool
+	fractionalScale        float64
+	fractionalScaleManager uint32
+	bufferScale            int
 
 	format     uint32
 	haveFormat bool
@@ -149,7 +149,7 @@ func (w *wlwin) negotiate(ctx context.Context, title string) error {
 	w.seat = w.bind("wl_seat", 5, func(id uint32) func(uint16, []byte) {
 		return func(op uint16, payload []byte) { w.onSeat(id, op, payload) }
 	})
-	w.fracMgr = w.bind("wp_fractional_scale_manager_v1", 1, nil)
+	w.fractionalScaleManager = w.bind("wp_fractional_scale_manager_v1", 1, nil)
 	w.bindOutputs()
 	if w.compositor == 0 || w.shm == 0 || w.wm == 0 {
 		return fmt.Errorf("wayland: compositor, shm, or xdg_wm_base missing")
@@ -164,9 +164,9 @@ func (w *wlwin) negotiate(ctx context.Context, title string) error {
 	if err := w.conn.send(w.compositor, 0, pack(w.surface)); err != nil {
 		return err
 	}
-	if w.fracMgr != 0 {
-		frac := w.conn.alloc(w.onFractional)
-		if err := w.conn.send(w.fracMgr, 1, pack(frac, w.surface)); err != nil {
+	if w.fractionalScaleManager != 0 {
+		fractionalScaleID := w.conn.alloc(w.onFractional)
+		if err := w.conn.send(w.fractionalScaleManager, 1, pack(fractionalScaleID, w.surface)); err != nil {
 			return err
 		}
 		if err := w.conn.roundtrip(ctx); err != nil {
@@ -286,14 +286,14 @@ func (w *wlwin) onFractional(op uint16, payload []byte) {
 	}
 	w.mu.Lock()
 	w.fractional = true
-	w.fracScale = float64(raw) / 120
+	w.fractionalScale = float64(raw) / 120
 	w.mu.Unlock()
 	w.noteScale()
 }
 
 func (w *wlwin) factorLocked() float64 {
-	if w.fractional && w.fracScale > 0 {
-		return w.fracScale
+	if w.fractional && w.fractionalScale > 0 {
+		return w.fractionalScale
 	}
 	if w.entered != 0 {
 		if factor := w.outputScale[w.entered]; factor > 0 {
