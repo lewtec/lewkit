@@ -24,8 +24,8 @@ const (
 )
 
 var (
-	simple Simple
-	full   Pulse
+	simple   Simple
+	libpulse Pulse
 )
 
 type listState struct {
@@ -52,7 +52,7 @@ func bindAll() error {
 	if err != nil {
 		return fmt.Errorf("libpulse-simple.so.0: %w", err)
 	}
-	full, err = native.Bind[Pulse](native.Lazy, "libpulse.so.0")
+	libpulse, err = native.Bind[Pulse](native.Lazy, "libpulse.so.0")
 	if err != nil {
 		return fmt.Errorf("libpulse.so.0: %w", err)
 	}
@@ -60,7 +60,7 @@ func bindAll() error {
 }
 
 func pulseErr(code int32) error {
-	text := native.GoString(full.PaStrerror(code))
+	text := native.GoString(libpulse.PaStrerror(code))
 	if text == "" {
 		return errUnavailable
 	}
@@ -182,30 +182,30 @@ func List(ctx context.Context) ([]Sink, error) {
 	if err := Available(); err != nil {
 		return nil, err
 	}
-	loop := full.PaMainloopNew()
+	loop := libpulse.PaMainloopNew()
 	if loop == 0 {
 		return nil, errMainloop
 	}
-	defer full.PaMainloopFree(loop)
+	defer libpulse.PaMainloopFree(loop)
 	name := native.CString(release.Name())
-	ctxp := full.PaContextNew(full.PaMainloopGetApi(loop), ptr(name))
+	ctxp := libpulse.PaContextNew(libpulse.PaMainloopGetApi(loop), ptr(name))
 	runtime.KeepAlive(name)
 	if ctxp == 0 {
 		return nil, errContext
 	}
-	defer full.PaContextUnref(ctxp)
-	if rc := full.PaContextConnect(ctxp, 0, 0, 0); rc < 0 {
-		return nil, pulseErr(full.PaContextErrno(ctxp))
+	defer libpulse.PaContextUnref(ctxp)
+	if rc := libpulse.PaContextConnect(ctxp, 0, 0, 0); rc < 0 {
+		return nil, pulseErr(libpulse.PaContextErrno(ctxp))
 	}
-	defer full.PaContextDisconnect(ctxp)
+	defer libpulse.PaContextDisconnect(ctxp)
 	if err := wait(ctx, loop, func() bool {
-		state := full.PaContextGetState(ctxp)
+		state := libpulse.PaContextGetState(ctxp)
 		return state == contextReady || state == contextFailed || state == contextTerminated
 	}); err != nil {
 		return nil, err
 	}
-	if full.PaContextGetState(ctxp) != contextReady {
-		return nil, pulseErr(full.PaContextErrno(ctxp))
+	if libpulse.PaContextGetState(ctxp) != contextReady {
+		return nil, pulseErr(libpulse.PaContextErrno(ctxp))
 	}
 	sinkOnce.Do(func() {
 		sinkCB = purego.NewCallback(onSink)
@@ -214,11 +214,11 @@ func List(ctx context.Context) ([]Sink, error) {
 	state := &listState{}
 	lists.Store(id, state)
 	defer lists.Delete(id)
-	op := full.PaContextGetSinkInfoList(ctxp, sinkCB, id)
+	op := libpulse.PaContextGetSinkInfoList(ctxp, sinkCB, id)
 	if op == 0 {
-		return nil, pulseErr(full.PaContextErrno(ctxp))
+		return nil, pulseErr(libpulse.PaContextErrno(ctxp))
 	}
-	defer full.PaOperationUnref(op)
+	defer libpulse.PaOperationUnref(op)
 	if err := wait(ctx, loop, func() bool { return state.done.Load() }); err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ func wait(ctx context.Context, loop uintptr, done func() bool) error {
 		if time.Now().After(deadline) {
 			return errTimeout
 		}
-		if full.PaMainloopPrepare(loop, 200) < 0 || full.PaMainloopPoll(loop) < 0 || full.PaMainloopDispatch(loop) < 0 {
+		if libpulse.PaMainloopPrepare(loop, 200) < 0 || libpulse.PaMainloopPoll(loop) < 0 || libpulse.PaMainloopDispatch(loop) < 0 {
 			return errMainloop
 		}
 	}

@@ -26,9 +26,9 @@ var (
 )
 
 var (
-	audio AudioToolbox
-	core  CoreAudio
-	cf    CF
+	audio          AudioToolbox
+	coreAudio      CoreAudio
+	coreFoundation CoreFoundation
 )
 
 var available = native.Once(bindAll)
@@ -42,11 +42,11 @@ func bindAll() error {
 	if err != nil {
 		return err
 	}
-	core, err = native.Bind[CoreAudio](native.Lazy|native.Global, "/System/Library/Frameworks/CoreAudio.framework/CoreAudio")
+	coreAudio, err = native.Bind[CoreAudio](native.Lazy|native.Global, "/System/Library/Frameworks/CoreAudio.framework/CoreAudio")
 	if err != nil {
 		return err
 	}
-	cf, err = native.Bind[CF](native.Lazy|native.Global, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+	coreFoundation, err = native.Bind[CoreFoundation](native.Lazy|native.Global, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
 	return err
 }
 
@@ -61,12 +61,12 @@ func cfString(ref uintptr) string {
 	if ref == 0 {
 		return ""
 	}
-	n := cf.CFStringGetLength(ref)
+	n := coreFoundation.CFStringGetLength(ref)
 	if n < 0 {
 		n = 0
 	}
 	buf := make([]byte, n*4+1)
-	if cf.CFStringGetCString(ref, uintptr(unsafe.Pointer(&buf[0])), int64(len(buf)), cfUTF8) == 0 {
+	if coreFoundation.CFStringGetCString(ref, uintptr(unsafe.Pointer(&buf[0])), int64(len(buf)), cfUTF8) == 0 {
 		return ""
 	}
 	end := bytes.IndexByte(buf, 0)
@@ -78,7 +78,7 @@ func cfString(ref uintptr) string {
 
 func prop(id uint32, addr propAddr, out []byte) error {
 	size := uint32(len(out))
-	st := core.AudioObjectGetPropertyData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&out[0])))
+	st := coreAudio.AudioObjectGetPropertyData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&out[0])))
 	return statusErr(st)
 }
 
@@ -86,18 +86,18 @@ func propString(id uint32, selector uint32) (string, error) {
 	addr := propAddr{selector: selector, scope: fourcc("glob"), element: 0}
 	var ref uintptr
 	size := uint32(unsafe.Sizeof(ref))
-	st := core.AudioObjectGetPropertyData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&ref)))
+	st := coreAudio.AudioObjectGetPropertyData(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size, uintptr(unsafe.Pointer(&ref)))
 	if st != 0 {
 		return "", statusErr(st)
 	}
-	defer cf.CFRelease(ref)
+	defer coreFoundation.CFRelease(ref)
 	return cfString(ref), nil
 }
 
 func outputChannels(id uint32) (int, error) {
 	addr := propAddr{selector: fourcc("slay"), scope: fourcc("outp"), element: 0}
 	var size uint32
-	if st := core.AudioObjectGetPropertyDataSize(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
+	if st := coreAudio.AudioObjectGetPropertyDataSize(id, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
 		return 0, statusErr(st)
 	}
 	if size < 8 {
@@ -126,7 +126,7 @@ func Devices() ([]Device, error) {
 	}
 	addr := propAddr{selector: fourcc("dev#"), scope: fourcc("glob"), element: 0}
 	var size uint32
-	if st := core.AudioObjectGetPropertyDataSize(1, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
+	if st := coreAudio.AudioObjectGetPropertyDataSize(1, uintptr(unsafe.Pointer(&addr)), 0, 0, &size); st != 0 {
 		return nil, statusErr(st)
 	}
 	if size < 4 {
@@ -219,13 +219,13 @@ func Open(ctx context.Context, uid string, layout Layout) (*Stream, error) {
 	}
 	if uid != "" {
 		raw := native.CString(uid)
-		ref := cf.CFStringCreateWithCString(0, uintptr(unsafe.Pointer(&raw[0])), cfUTF8)
+		ref := coreFoundation.CFStringCreateWithCString(0, uintptr(unsafe.Pointer(&raw[0])), cfUTF8)
 		if ref == 0 {
 			audio.AudioQueueDispose(q, 1)
 			return nil, errCoreAudio
 		}
 		st = audio.AudioQueueSetProperty(q, fourcc("aqcd"), uintptr(unsafe.Pointer(&ref)), uint32(unsafe.Sizeof(ref)))
-		cf.CFRelease(ref)
+		coreFoundation.CFRelease(ref)
 		if st != 0 {
 			audio.AudioQueueDispose(q, 1)
 			return nil, statusErr(st)

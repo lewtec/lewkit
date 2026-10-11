@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	cocoaFramework    = "/System/Library/Frameworks/Cocoa.framework/Cocoa"
-	appServicesPath   = "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
-	policyRegular     = 0
-	transformStateFG  = 1
-	currentProcessPSN = 2
+	cocoaFramework          = "/System/Library/Frameworks/Cocoa.framework/Cocoa"
+	applicationServicesPath = "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+	policyRegular           = 0
+	transformStateFG        = 1
+	currentProcessPSN       = 2
 )
 
 var shellReady atomic.Bool
@@ -69,7 +69,7 @@ func adoptShell(title string, icon image.Image) bool {
 }
 
 func transformForeground() bool {
-	got, err := native.Bind[AppServices](native.Global|native.Lazy, appServicesPath)
+	got, err := native.Bind[ApplicationServices](native.Global|native.Lazy, applicationServicesPath)
 	if err != nil || got.TransformProcessType == nil {
 		return false
 	}

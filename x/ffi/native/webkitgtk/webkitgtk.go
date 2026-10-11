@@ -147,11 +147,11 @@ func bindStack(s *Symbols) error {
 	}
 	gtkSoname := "libgtk-4.so.1"
 	webSoname := "libwebkitgtk-6.0.so.4"
-	jscSoname := "libjavascriptcoregtk-6.0.so.1"
+	javascriptCoreSoname := "libjavascriptcoregtk-6.0.so.1"
 	if s.gtk3 {
 		gtkSoname = "libgtk-3.so.0"
 		webSoname = "libwebkit2gtk-4.1.so.0"
-		jscSoname = "libjavascriptcoregtk-4.1.so.0"
+		javascriptCoreSoname = "libjavascriptcoregtk-4.1.so.0"
 	}
 	gtkSyms, err := bindOne[GTK](gtkSoname)
 	if err != nil {
@@ -180,7 +180,7 @@ func bindStack(s *Symbols) error {
 	if err != nil {
 		return err
 	}
-	jscSyms, err := bindOne[JSC](jscSoname)
+	javascriptCore, err := bindOne[JavaScriptCore](javascriptCoreSoname)
 	if err != nil {
 		return err
 	}
@@ -196,7 +196,7 @@ func bindStack(s *Symbols) error {
 			return err
 		}
 	}
-	assignSymbols(s, glibSyms, objSyms, gioSyms, gioOpt, gtkSyms, gtk3Syms, gtk4Syms, webSyms, webOpt, jscSyms, soupSyms)
+	assignSymbols(s, glibSyms, objSyms, gioSyms, gioOpt, gtkSyms, gtk3Syms, gtk4Syms, webSyms, webOpt, javascriptCore, soupSyms)
 	return nil
 }
 
@@ -209,7 +209,7 @@ func bindOne[T any](soname string) (T, error) {
 	return got, nil
 }
 
-func assignSymbols(s *Symbols, glib Glib, obj GObject, gio Gio, gioOpt GioOpt, gtk GTK, gtk3 GTK3, gtk4 GTK4, web WebKit, webOpt WebKitOpt, jsc JSC, soup Soup) {
+func assignSymbols(s *Symbols, glib Glib, obj GObject, gio Gio, gioOpt GioOpt, gtk GTK, gtk3 GTK3, gtk4 GTK4, web WebKit, webOpt WebKitOpt, javascriptCore JavaScriptCore, soup Soup) {
 	s.iterate = glib.GMainContextIteration
 	s.wake = glib.GMainContextWakeup
 	s.pending = glib.GMainContextPending
@@ -257,8 +257,8 @@ func assignSymbols(s *Symbols, glib Glib, obj GObject, gio Gio, gioOpt GioOpt, g
 	s.addUserScript = web.WebkitUserContentManagerAddScript
 	s.evaluateJavaScript = web.WebkitWebViewEvaluateJavascript
 	s.finishJavaScript = web.WebkitWebViewEvaluateJavascriptFinish
-	s.valueToJSON = jsc.JscValueToJson
-	s.valueToString = jsc.JscValueToString
+	s.valueToJSON = javascriptCore.JscValueToJson
+	s.valueToString = javascriptCore.JscValueToString
 	s.securityManager = web.WebkitWebContextGetSecurityManager
 	s.registerSecure = web.WebkitSecurityManagerRegisterUriSchemeAsSecure
 	s.registerCORS = web.WebkitSecurityManagerRegisterUriSchemeAsCorsEnabled

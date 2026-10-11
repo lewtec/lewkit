@@ -14,5 +14,5 @@ package webkitgtk
 //go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind GTK3 --out gtk3_bind.go gtk3.h
 //go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind WebKit --out webkit_bind.go webkit.h
 //go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind WebKitOpt --soft --out webkit_opt_bind.go webkit_opt.h
-//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind JSC --out jsc_bind.go jsc.h
+//go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind JavaScriptCore --out javascriptcore_bind.go jsc.h
 //go:generate go run ../../../../cmd/lewkit generate header --package webkitgtk --bind Soup --soft --out soup_bind.go soup.h

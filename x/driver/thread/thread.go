@@ -8,7 +8,7 @@
 package thread
 
 //go:generate go run ../../../cmd/lewkit generate header --package thread --bind Pthread --out pthread_bind.go pthread.h
-//go:generate go run ../../../cmd/lewkit generate header --package thread --bind Main --out main_bind.go main.h
+//go:generate go run ../../../cmd/lewkit generate header --package thread --bind PthreadMain --out pthread_main_bind.go main.h
 
 import "context"
 

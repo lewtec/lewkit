@@ -675,11 +675,11 @@ const (
 	cgRenderingIntentDefault = 0
 )
 
-var coreGraphics CG
+var coreGraphics CoreGraphics
 
 func loadCG() error {
 	var err error
-	coreGraphics, err = native.Bind[CG](native.Lazy, "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+	coreGraphics, err = native.Bind[CoreGraphics](native.Lazy, "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
 	return err
 }
 
