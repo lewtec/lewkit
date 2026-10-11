@@ -513,6 +513,25 @@ func TestCaptionSitsOnTheBoard(t *testing.T) {
 	assert.Greater(t, hits, 20)
 }
 
+func TestCaptionClearanceFollowsText(t *testing.T) {
+	top, rim := framePad(640, 720, 1, 1)
+	assert.Equal(t, float32(36), top)
+	assert.Equal(t, float32(12), rim)
+
+	grown, grownRim := framePad(1080, 2400, 2.75, 1.3)
+	assert.Greater(t, grown, top)
+	assert.Greater(t, grownRim, rim)
+
+	plain := lookAt(image.Pt(1080, 2400))
+	fit := lookInto(image.Pt(1080, 2400), 2.75, 1.3)
+	assert.Greater(t, fit.eye.y, plain.eye.y)
+
+	tall := lookAt(image.Pt(1080, 2400))
+	wide := lookAt(image.Pt(2400, 1080))
+	assert.Greater(t, tall.scaleX, tall.scaleY)
+	assert.Greater(t, wide.scaleY, wide.scaleX)
+}
+
 func TestTallFrameKeepsTheBoard(t *testing.T) {
 	for _, size := range []image.Point{{400, 900}, {640, 720}, {900, 400}} {
 		cam := lookAt(size)

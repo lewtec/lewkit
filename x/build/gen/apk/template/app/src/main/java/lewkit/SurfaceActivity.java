@@ -4,8 +4,10 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.view.DisplayCutout;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -21,6 +23,8 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     private boolean alive;
     private int lastW;
     private int lastH;
+    private SurfaceView surface;
+    private boolean pinning;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,6 +32,7 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         extendUnderBars();
         Host.boot(this);
         SurfaceView view = new SurfaceView(this);
+        surface = view;
         view.setZOrderOnTop(true);
         view.setClickable(true);
         view.setOnTouchListener((v, event) -> {
@@ -122,11 +127,57 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         if (newConfig != null && newConfig.fontScale > 0f) {
             Host.fontScale(newConfig.fontScale);
         }
-        View content = findViewById(android.R.id.content);
-        if (content != null) {
-            content.requestLayout();
-            content.requestApplyInsets();
+        if (surface != null) {
+            surface.requestLayout();
+            surface.post(this::adoptWindow);
         }
+    }
+
+    /**
+     * The oriented window size, in pixels. A rotation changes this even when
+     * the surface callback still reports the previous buffer.
+     */
+    @SuppressWarnings("deprecation")
+    private int[] windowBounds() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            Rect bounds = getWindowManager().getCurrentWindowMetrics().getBounds();
+            return new int[]{bounds.width(), bounds.height()};
+        }
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+        return new int[]{metrics.widthPixels, metrics.heightPixels};
+    }
+
+    /** setFixedSize can call surfaceChanged on this thread. pinning stops that reentry. */
+    private void pinSurface(int width, int height) {
+        if (surface == null || pinning || width < 64 || height < 64) {
+            return;
+        }
+        pinning = true;
+        try {
+            surface.getHolder().setFixedSize(width, height);
+        } finally {
+            pinning = false;
+        }
+    }
+
+    /** Pin the buffer to the window and tell the GUI that size. */
+    private void adoptWindow() {
+        int[] bounds = windowBounds();
+        int width = bounds[0];
+        int height = bounds[1];
+        if (width < 64 || height < 64) {
+            return;
+        }
+        if (sent && alive && width == lastW && height == lastH) {
+            return;
+        }
+        pinSurface(width, height);
+        Host.resize(width, height);
+        lastW = width;
+        lastH = height;
+        alive = true;
+        requestDead();
     }
 
     private void requestDead() {
@@ -143,6 +194,12 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
         if (width < 64 || height < 64) {
             return;
+        }
+        int[] bounds = windowBounds();
+        if (!pinning && bounds[0] >= 64 && bounds[1] >= 64 && (bounds[0] != width || bounds[1] != height)) {
+            pinSurface(bounds[0], bounds[1]);
+            width = bounds[0];
+            height = bounds[1];
         }
         boolean same = sent && alive && width == lastW && height == lastH;
         lastW = width;

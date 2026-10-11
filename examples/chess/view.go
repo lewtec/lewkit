@@ -11,11 +11,18 @@ import (
 
 var inkBanner = gui.RGB{204, 204, 204, 255}
 
+func (s *screen) cam() camera {
+	if s == nil {
+		return lookAt(image.Pt(2, 2))
+	}
+	return lookInto(s.size, s.density, s.font)
+}
+
 func (s *screen) track(pointer window.Pointer) {
 	if s == nil || s.sim == nil {
 		return
 	}
-	x, y, hit := pickSquare(s.size, pointer.Pos)
+	x, y, hit := pickOn(s.cam(), pointer.Pos)
 	cur := cursor{}
 	if hit {
 		cur = cursor{x: x, y: y, on: true}
@@ -68,7 +75,7 @@ func (s *screen) paint() {
 	}
 	s.depth = s.depth[:n]
 	s.cover = s.cover[:n]
-	paintChess(s.frame, s.sim, s.depth, s.cover, &s.boxes)
+	paintChess(s.frame, s.sim, s.depth, s.cover, &s.boxes, s.density, s.font)
 	if s.picture == nil || len(s.picture.Shape()) != 3 || s.picture.Shape()[0] != h || s.picture.Shape()[1] != w {
 		if s.picture != nil {
 			_ = s.picture.Close()

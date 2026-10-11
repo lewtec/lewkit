@@ -7,6 +7,9 @@ import (
 )
 
 // Box is size, padding, alignment, optional fill, optional child.
+// Width and Height are logical pixels. Zero takes the child, or the incoming
+// max when there is no child. Once the text preference is above one, Height
+// is only a minimum, so a larger face makes the box taller and the parent reflows.
 type Box struct {
 	Child     Node
 	Padding   EdgeInsets
@@ -41,7 +44,10 @@ func (box *Box) Layout(constraints BoxConstraints) Size {
 	if width > 0 {
 		inner.MaxWidth = min(inner.MaxWidth, width)
 	}
-	if height > 0 {
+	// Preference one keeps an explicit height exact, including a child that
+	// would overflow it. Above one, the face may need more lines, so the
+	// height is a floor and the measured child can raise it.
+	if height > 0 && factor(constraints.font) <= 1 {
 		inner.MaxHeight = min(inner.MaxHeight, height)
 	}
 	var child Size
@@ -66,6 +72,8 @@ func (box *Box) Layout(constraints BoxConstraints) Size {
 		} else {
 			want.Height = inner.MaxHeight
 		}
+	} else if box.Child != nil && child.Height > want.Height {
+		want.Height = child.Height
 	}
 	box.childSize = child
 	box.size = constraints.Constrain(Size{

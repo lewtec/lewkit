@@ -65,6 +65,28 @@ func TestTextFollowsFontPreference(t *testing.T) {
 	assert.Equal(t, base.Height*3, caption.size.Height)
 }
 
+func TestTextReflowsAShortBox(t *testing.T) {
+	loose := BoxConstraints{MaxWidth: 400, MaxHeight: 400}
+	box := &Box{Width: 80, Height: 20, Child: &Text{Value: "M", Face: basicfont.Face7x13}}
+	base := box.Layout(loose)
+	assert.Equal(t, float32(80), base.Width)
+	assert.Equal(t, float32(20), base.Height)
+
+	grown := &Box{Width: 80, Height: 20, Child: &Text{Value: "M", Face: basicfont.Face7x13}}
+	loose.font = 2
+	got := grown.Layout(loose)
+	assert.Equal(t, float32(80), got.Width)
+	assert.Greater(t, got.Height, base.Height)
+
+	row := Column(
+		&Box{Width: 80, Height: 20, Child: &Text{Value: "M", Face: basicfont.Face7x13}},
+		&Box{Width: 10, Height: 8, Fill: &RGB{1, 2, 3, 255}},
+	)
+	placed := row.Layout(loose)
+	assert.Greater(t, placed.Height, float32(28))
+	assert.Greater(t, row.Children[1].position, float32(20))
+}
+
 func TestFlexGapScales(t *testing.T) {
 	loose := BoxConstraints{MaxWidth: 400, MaxHeight: 400}
 	plain := Row(&Box{Width: 10, Height: 8}, &Box{Width: 10, Height: 8})

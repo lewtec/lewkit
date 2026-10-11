@@ -376,6 +376,7 @@ func (runner *runner) decorate(msg Msg) Msg {
 	tick.Elapsed = time.Since(runner.started)
 	tick.Size = runner.host.Size()
 	tick.Scale = hostScale(runner.host)
+	tick.Font = hostFont(runner.host)
 	tick.FPS = runner.hertz
 	tick.Period = runner.host.FramePeriod()
 	return tick

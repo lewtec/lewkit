@@ -265,6 +265,12 @@ type camera struct {
 }
 
 func lookAt(size image.Point) camera {
+	return lookInto(size, 1, 1)
+}
+
+// lookInto fits the board to size. density and font reserve the move line.
+// One, or a missing factor, keeps the 36 by 12 band.
+func lookInto(size image.Point, density, font float32) camera {
 	w, h := size.X, size.Y
 	if w < 2 {
 		w = 2
@@ -285,7 +291,7 @@ func lookAt(size image.Point) camera {
 	if aspect < 1 {
 		scaleX, scaleY = focal, focal*aspect
 	}
-	top, rim := framePad(w, h)
+	top, rim := framePad(w, h, density, font)
 	lo, hi := float32(6), float32(70)
 	for range 20 {
 		dist := (lo + hi) * 0.5
@@ -312,11 +318,30 @@ func placeCamera(target, approach vec3, dist, scaleX, scaleY float32, w, h int) 
 }
 
 // framePad is the clear band above the board, for the move line, and the
-// rim kept around the other three edges.
-func framePad(w, h int) (top, rim float32) {
+// rim kept around the other three edges. density is device pixels per
+// logical pixel. font is the text preference. One of each is 36 by 12.
+// The line sits 12 logical pixels down and is about 22 pixels tall.
+func framePad(w, h int, density, font float32) (top, rim float32) {
 	top, rim = 36, 12
 	if h < 80 || w < 80 {
-		top, rim = 8, 4
+		return 8, 4
+	}
+	if density <= 0 {
+		density = 1
+	}
+	if font <= 0 {
+		font = 1
+	}
+	if density == 1 && font == 1 {
+		return top, rim
+	}
+	top = (12 + 22*font) * density
+	rim = 12 * density
+	if limit := float32(h) * 0.45; top > limit {
+		top = limit
+	}
+	if limit := float32(min(w, h)) * 0.2; rim > limit {
+		rim = limit
 	}
 	return top, rim
 }
@@ -369,7 +394,10 @@ func (c camera) ray(px, py float32) (origin, dir vec3) {
 
 // squareCenter is the pixel at the middle of rank x, file y.
 func squareCenter(size image.Point, x, y uint8) image.Point {
-	c := lookAt(size)
+	return squareOn(lookAt(size), x, y)
+}
+
+func squareOn(c camera, x, y uint8) image.Point {
 	sx, sy, _, ok := c.project(vec3{float32(x) + 0.5, squareTop, float32(y) + 0.5})
 	if !ok {
 		return image.Point{}
@@ -380,7 +408,10 @@ func squareCenter(size image.Point, x, y uint8) image.Point {
 // pickSquare is the square under a window pixel. The ray hits the
 // square tops, which is the tutorial's board pick without a mesh ray.
 func pickSquare(size image.Point, at image.Point) (uint8, uint8, bool) {
-	c := lookAt(size)
+	return pickOn(lookAt(size), at)
+}
+
+func pickOn(c camera, at image.Point) (uint8, uint8, bool) {
 	origin, dir := c.ray(float32(at.X)+0.5, float32(at.Y)+0.5)
 	if dir.y > -1e-4 {
 		return 0, 0, false
@@ -508,7 +539,7 @@ type canvas struct {
 // the square under each pixel (0 is empty, otherwise rank*8+file+1)
 // so a later hover can recolor those pixels. Piece positions are the
 // sliding poses.
-func paintChess(dst *image.RGBA, sim *world.Sim, depth []float32, cover []uint8, boxes *[64]pixelBox) {
+func paintChess(dst *image.RGBA, sim *world.Sim, depth []float32, cover []uint8, boxes *[64]pixelBox, density, font float32) {
 	if dst == nil {
 		return
 	}
@@ -544,7 +575,7 @@ func paintChess(dst *image.RGBA, sim *world.Sim, depth []float32, cover []uint8,
 		}
 	}
 	cv := canvas{pix: pix, stride: stride, depth: depth, cover: cover, boxes: boxes, w: w, h: h}
-	cam := lookAt(image.Pt(w, h))
+	cam := lookInto(image.Pt(w, h), density, font)
 	key, fill, rim := stageLights(cam)
 	cv.draw(cam, onePlinth, 0, vec3{}, key, fill, rim, colPlinth)
 	if sim == nil || sim.World == nil {
