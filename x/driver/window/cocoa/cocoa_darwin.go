@@ -681,10 +681,8 @@ const (
 	cgRenderingIntentDefault = 0
 )
 
-// coreGraphics loads CoreGraphics and returns that binding.
-var coreGraphics = native.Singleton(func() (CoreGraphics, error) {
-	return native.Bind[CoreGraphics](native.Lazy, "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
-})
+// coreGraphics is the CoreGraphics binding.
+var coreGraphics = native.BindOnce[CoreGraphics](native.Lazy, "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
 
 func nsNumber(value int) objc.ID {
 	return objc.ID(objc.GetClass("NSNumber")).Send(selNumberInteger, value)

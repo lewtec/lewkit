@@ -11,6 +11,14 @@ func Singleton[T any](load func() (T, error)) func() (T, error) {
 	return sync.OnceValues(load)
 }
 
+// BindOnce is Bind cached on the first call.
+// Later calls return that same value and error. The bind runs on the caller.
+func BindOnce[T any](flags int, names ...string) func() (T, error) {
+	return Singleton(func() (T, error) {
+		return Bind[T](flags, names...)
+	})
+}
+
 // Once is the error singleton. Later calls return the first error.
 func Once(load func() error) func() error {
 	run := Singleton(func() (struct{}, error) {

@@ -155,6 +155,14 @@ func TestOpenFirst(t *testing.T) {
 	require.Equal(t, uintptr(9), handle)
 }
 
+func TestBindOnceKeepsTheFirstError(t *testing.T) {
+	load := BindOnce[int](0)
+	_, first := load()
+	_, second := load()
+	require.EqualError(t, first, "native.Bind: int is not a struct")
+	require.True(t, first == second)
+}
+
 func TestOnceKeepsTheFirstError(t *testing.T) {
 	var n atomic.Int32
 	load := Once(func() error {

@@ -34,10 +34,8 @@ var (
 	procCloseHandle = native.ProcOf("kernel32.dll", "CloseHandle")
 )
 
-// loadWave binds winmm.dll and returns that binding.
-var loadWave = native.Singleton(func() (Winmm, error) {
-	return native.Bind[Winmm](native.Lazy, "winmm.dll")
-})
+// loadWave is the winmm.dll binding.
+var loadWave = native.BindOnce[Winmm](native.Lazy, "winmm.dll")
 
 // Available loads winmm.dll.
 func Available() error {
