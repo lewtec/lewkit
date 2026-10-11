@@ -74,15 +74,15 @@ func ctxName(sf reflect.StructField) string {
 	return strings.ToLower(sf.Name)
 }
 
-func bind(ctx context.Context, v reflect.Value) {
+func bind(ctx context.Context, v reflect.Value) error {
 	if v.Kind() == reflect.Pointer {
 		if v.IsNil() {
-			return
+			return nil
 		}
 		v = v.Elem()
 	}
 	if v.Kind() != reflect.Struct {
-		return
+		return nil
 	}
 	t := v.Type()
 	for i := range t.NumField() {
@@ -91,11 +91,16 @@ func bind(ctx context.Context, v reflect.Value) {
 		if !fv.CanAddr() {
 			continue
 		}
+		if err := prepare(ctx, fv); err != nil {
+			return err
+		}
 		if ev, ok, err := flattenField(sf, fv); ok {
 			if err != nil {
 				continue
 			}
-			bind(ctx, ev)
+			if err := bind(ctx, ev); err != nil {
+				return err
+			}
 			if key := ctxName(sf); key != "" {
 				put(ctx, key, flattenValue(rvalue{fv}.settable()))
 			}
@@ -106,10 +111,31 @@ func bind(ctx context.Context, v reflect.Value) {
 		}
 		if fv.Kind() == reflect.Pointer && !fv.IsNil() && fv.Type().Elem().Kind() == reflect.Struct {
 			if _, ok := commandName(sf, fv); ok {
-				bind(ctx, rvalue{fv}.settable())
+				if err := bind(ctx, rvalue{fv}.settable()); err != nil {
+					return err
+				}
 			}
 		}
 	}
+	return nil
+}
+
+// prepare opens an argument before its Value is stored on the context.
+func prepare(ctx context.Context, fv reflect.Value) error {
+	if fv.Kind() == reflect.Pointer && fv.IsNil() {
+		return nil
+	}
+	addr := fv.Addr()
+	if !addr.CanInterface() {
+		return nil
+	}
+	opener, ok := addr.Interface().(interface {
+		Prepare(context.Context) error
+	})
+	if !ok {
+		return nil
+	}
+	return opener.Prepare(ctx)
 }
 
 // flattenValue is the ctx payload for a flatten+ctx field.

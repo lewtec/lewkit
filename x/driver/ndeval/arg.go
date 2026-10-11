@@ -1,0 +1,186 @@
+package ndeval
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/driver"
+	ndvulkan "github.com/lewtec/lewkit/x/driver/ndeval/vulkan"
+	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
+	"github.com/lewtec/lewkit/x/ndarray"
+)
+
+// Arg is a command flag whose text is an expression of evaluator references.
+// Prepare resolves that expression to one ndarray evaluator. x/cmd stores
+// Value on the context after Prepare.
+//
+//	cpu
+//	vulkan
+//	vulkan:integrated
+//	ndeval_opengl
+//	vulkan:integrated | cpu
+//
+// A bare name is an ndeval driver: cpu, vulkan, opengl, metal, or d3d12.
+// A full driver id such as ndeval_vulkan is the same reference.
+// vulkan:TYPE binds that evaluator to one Vulkan device type.
+// Choices separated by | are tried from the left. The first one that opens
+// is the evaluator.
+type Arg struct {
+	expr string
+	ev   ndarray.Evaluator
+}
+
+// ArgDefault is the onboard Vulkan evaluator, then the CPU tape.
+func (Arg) ArgDefault() string { return "vulkan:integrated | cpu" }
+
+func (a *Arg) Parse(s string) error {
+	if _, err := parseExpr(s); err != nil {
+		return err
+	}
+	a.expr = s
+	a.ev = nil
+	return nil
+}
+
+// Prepare opens the one evaluator named by the expression.
+func (a *Arg) Prepare(ctx context.Context) error {
+	if a.ev != nil {
+		return nil
+	}
+	ev, err := Eval(ctx, a.expr)
+	if err != nil {
+		return err
+	}
+	a.ev = ev
+	return nil
+}
+
+// Value is the evaluator opened by Prepare. It is nil before that.
+func (a Arg) Value() ndarray.Evaluator { return a.ev }
+
+// Eval resolves expression to one evaluator.
+func Eval(ctx context.Context, expression string) (ndarray.Evaluator, error) {
+	choices, err := parseExpr(expression)
+	if err != nil {
+		return nil, err
+	}
+	if len(choices) == 0 {
+		return driver.Get[ndarray.Evaluator](ctx)
+	}
+	var fails []string
+	for _, choice := range choices {
+		ev, err := choice.open(ctx)
+		if err == nil {
+			return ev, nil
+		}
+		fails = append(fails, err.Error())
+	}
+	return nil, fmt.Errorf("evaluator %q: %s", expression, strings.Join(fails, "; "))
+}
+
+type choice struct {
+	name string
+	kind string
+}
+
+func parseExpr(s string) ([]choice, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	parts := strings.Split(s, "|")
+	out := make([]choice, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil, fmt.Errorf("%w: empty evaluator choice", cmd.ErrInvalidArgument)
+		}
+		name, kind, ok := strings.Cut(part, ":")
+		name = strings.TrimSpace(name)
+		kind = strings.TrimSpace(kind)
+		if name == "" || ok && kind == "" || strings.Contains(kind, ":") {
+			return nil, fmt.Errorf("%w: %q", cmd.ErrInvalidArgument, part)
+		}
+		if kind != "" && name != "vulkan" && name != "ndeval_vulkan" {
+			return nil, fmt.Errorf("%w: %s has no device type", cmd.ErrInvalidArgument, name)
+		}
+		if kind != "" {
+			if _, err := drvvulkan.ParseDeviceType(kind); err != nil {
+				return nil, fmt.Errorf("%w: %s", cmd.ErrInvalidArgument, err)
+			}
+		}
+		out = append(out, choice{name: name, kind: kind})
+	}
+	return out, nil
+}
+
+func (c choice) open(ctx context.Context) (ndarray.Evaluator, error) {
+	if c.kind != "" {
+		return openVulkan(ctx, c.kind)
+	}
+	id := c.name
+	if !strings.HasPrefix(id, "ndeval_") {
+		id = "ndeval_" + id
+	}
+	handles, err := driver.List[ndarray.Evaluator](ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, handle := range handles {
+		if handle.ID == id {
+			return handle.Open(ctx)
+		}
+	}
+	return nil, fmt.Errorf("no evaluator %s", id)
+}
+
+func openVulkan(ctx context.Context, kind string) (ndarray.Evaluator, error) {
+	want, err := drvvulkan.ParseDeviceType(kind)
+	if err != nil {
+		return nil, err
+	}
+	handles, err := drvvulkan.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	handle, err := vulkanDevice(handles, want)
+	if err != nil {
+		return nil, err
+	}
+	device, err := handle.Open(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return ndvulkan.Bind(device), nil
+}
+
+func vulkanDevice(handles []driver.Handle[drvvulkan.Device], kind drvvulkan.DeviceType) (driver.Handle[drvvulkan.Device], error) {
+	for _, handle := range handles {
+		if deviceKind(handle.ID) == kind {
+			return handle, nil
+		}
+	}
+	if kind == drvvulkan.DeviceTypeIntegrated {
+		for _, handle := range handles {
+			if deviceKind(handle.ID) == drvvulkan.DeviceTypeSoftware {
+				continue
+			}
+			return handle, nil
+		}
+	}
+	return driver.Handle[drvvulkan.Device]{}, fmt.Errorf("no %s vulkan device", kind)
+}
+
+func deviceKind(id string) drvvulkan.DeviceType {
+	parts := strings.Split(id, ":")
+	if len(parts) < 3 {
+		return drvvulkan.DeviceTypeOther
+	}
+	kind, err := drvvulkan.ParseDeviceType(parts[2])
+	if err != nil {
+		return drvvulkan.DeviceTypeOther
+	}
+	return kind
+}
