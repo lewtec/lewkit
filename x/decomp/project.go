@@ -414,6 +414,23 @@ func (artifact *Artifact) SetSource(ctx context.Context, address uint64, source 
 	return nil
 }
 
+// Contains reports whether address falls in a loaded section.
+// The section name is .text, .idata, .bss, or the name the image uses.
+func (artifact *Artifact) Contains(address uint64) (string, bool) {
+	if artifact == nil {
+		return "", false
+	}
+	for _, section := range artifact.sections {
+		if section.Size == 0 {
+			continue
+		}
+		if address >= section.Address && address < section.Address+section.Size {
+			return section.Name, true
+		}
+	}
+	return "", false
+}
+
 // Label is the name printed at address.
 // A function name is used when the address starts a function.
 func (artifact *Artifact) Label(address uint64) (string, bool) {

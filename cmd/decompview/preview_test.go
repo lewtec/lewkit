@@ -3,6 +3,7 @@ package decompview
 import (
 	"context"
 	"debug/elf"
+	"encoding/binary"
 	"io"
 	"net"
 	"net/http"
@@ -17,7 +18,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/decomp"
 	"github.com/lewtec/lewkit/x/disasm"
-	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
+	"github.com/lewtec/lewkit/x/http/asset/daisyui"
+	"github.com/lewtec/lewkit/x/http/asset/tailwindcss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,11 +39,12 @@ func TestPreviewShowsTheReopenedFunction(t *testing.T) {
 	assert.Contains(t, index.Body.String(), "branch.elf")
 	assert.Contains(t, index.Body.String(), "data-cmdpalette")
 	assert.Contains(t, index.Body.String(), "Ctrl+K")
-	assert.Contains(t, index.Body.String(), `event.key === "k"`)
+	assert.Contains(t, index.Body.String(), `e.key === "k"`)
 	assert.Contains(t, index.Body.String(), "data-keywords")
 	assert.Contains(t, index.Body.String(), "start 0x1000")
 	assert.Contains(t, index.Body.String(), "/artifact/"+slug)
-	assert.Contains(t, index.Body.String(), sakuracss.Path)
+	assert.Contains(t, index.Body.String(), daisyui.Path)
+	assert.Contains(t, index.Body.String(), tailwindcss.Path)
 
 	artifact := get(t, handler, "/artifact/"+slug)
 	assert.Equal(t, http.StatusOK, artifact.Code)
@@ -76,9 +79,13 @@ func TestPreviewShowsTheReopenedFunction(t *testing.T) {
 	bad := get(t, handler, "/artifact/branch.elf/function/nope")
 	assert.Equal(t, http.StatusBadRequest, bad.Code)
 
-	style := get(t, handler, sakuracss.Path)
+	style := get(t, handler, daisyui.Path)
 	assert.Equal(t, http.StatusOK, style.Code)
 	assert.Contains(t, style.Header().Get("Content-Type"), "text/css")
+	assert.Contains(t, style.Body.String(), daisyui.Version)
+	script := get(t, handler, tailwindcss.Path)
+	assert.Equal(t, http.StatusOK, script.Code)
+	assert.Contains(t, script.Header().Get("Content-Type"), "javascript")
 }
 
 func TestPreviewStoresNameAndNote(t *testing.T) {
@@ -231,6 +238,80 @@ func TestPreviewAssemblyAndSource(t *testing.T) {
 	assert.Empty(t, function.Source)
 }
 
+func TestPreviewLinksEveryImageAddress(t *testing.T) {
+	code := []byte{
+		0x83, 0xc4, 0xa4,
+		0xb8, 0x01, 0x10, 0x00, 0x00,
+		0xb8, 0x00, 0x20, 0x00, 0x00,
+		0xc3,
+	}
+	project := decomp.New()
+	artifact, err := project.AddBytes(t.Context(), "refs.elf", elfTextAndRodata(code, []byte("hello\x00")))
+	require.NoError(t, err)
+	handler := Handler(project)
+	slug := artifact.Slug()
+
+	page := get(t, handler, "/artifact/"+slug+"/function/0x1000")
+	require.Equal(t, http.StatusOK, page.Code)
+	body := page.Body.String()
+	assert.Contains(t, body, `class="asm-addr" href="#0x1000">0x1001</a>`)
+	assert.Contains(t, body, `class="asm-addr" href="/artifact/`+slug+`/at/0x2000">0x2000</a>`)
+	assert.Contains(t, body, `class="asm-imm">0x5c</span>`)
+	assert.NotContains(t, body, `href="#0x5c"`)
+	assert.NotContains(t, body, `/at/0x5c`)
+
+	data := get(t, handler, "/artifact/"+slug+"/at/0x2000")
+	require.Equal(t, http.StatusOK, data.Code)
+	assert.Contains(t, data.Body.String(), ".rodata")
+	assert.Contains(t, data.Body.String(), "0x1008")
+	missing := get(t, handler, "/artifact/"+slug+"/at/0x5c")
+	assert.Equal(t, http.StatusNotFound, missing.Code)
+}
+
+func elfTextAndRodata(code, rodata []byte) []byte {
+	const (
+		headerSize  = 64
+		sectionSize = 64
+		sectionNum  = 4
+	)
+	names := []byte("\x00.text\x00.rodata\x00.shstrtab\x00")
+	sectionOff := headerSize
+	textOff := sectionOff + sectionNum*sectionSize
+	rodataOff := textOff + len(code)
+	namesOff := rodataOff + len(rodata)
+	buf := make([]byte, namesOff+len(names))
+	copy(buf, "\x7fELF")
+	buf[4] = 2
+	buf[5] = 1
+	buf[6] = 1
+	binary.LittleEndian.PutUint16(buf[16:], 1)
+	binary.LittleEndian.PutUint16(buf[18:], uint16(elf.EM_X86_64))
+	binary.LittleEndian.PutUint32(buf[20:], 1)
+	binary.LittleEndian.PutUint64(buf[24:], 0x1000)
+	binary.LittleEndian.PutUint64(buf[40:], uint64(sectionOff))
+	binary.LittleEndian.PutUint16(buf[52:], headerSize)
+	binary.LittleEndian.PutUint16(buf[58:], sectionSize)
+	binary.LittleEndian.PutUint16(buf[60:], sectionNum)
+	binary.LittleEndian.PutUint16(buf[62:], 3)
+	putSection := func(index, name, kind int, flags, addr, off, size uint64) {
+		section := buf[sectionOff+index*sectionSize:]
+		binary.LittleEndian.PutUint32(section[0:], uint32(name))
+		binary.LittleEndian.PutUint32(section[4:], uint32(kind))
+		binary.LittleEndian.PutUint64(section[8:], flags)
+		binary.LittleEndian.PutUint64(section[16:], addr)
+		binary.LittleEndian.PutUint64(section[24:], off)
+		binary.LittleEndian.PutUint64(section[32:], size)
+		binary.LittleEndian.PutUint64(section[48:], 1)
+	}
+	putSection(1, 1, int(elf.SHT_PROGBITS), uint64(elf.SHF_ALLOC|elf.SHF_EXECINSTR), 0x1000, uint64(textOff), uint64(len(code)))
+	putSection(2, 7, int(elf.SHT_PROGBITS), uint64(elf.SHF_ALLOC), 0x2000, uint64(rodataOff), uint64(len(rodata)))
+	putSection(3, 15, int(elf.SHT_STRTAB), 0, 0, uint64(namesOff), uint64(len(names)))
+	copy(buf[textOff:], code)
+	copy(buf[rodataOff:], rodata)
+	copy(buf[namesOff:], names)
+	return buf
+}
+
 func TestRegisterWord(t *testing.T) {
 	assert.True(t, isRegister("rsp"))
 	assert.True(t, isRegister("RIP"))
@@ -281,7 +362,7 @@ func TestListenServesTheIndex(t *testing.T) {
 }
 
 func paletteHits(body, word string) []string {
-	pattern := regexp.MustCompile(`data-keywords="([^"]*)" role="option"><a href="([^"]+)"`)
+	pattern := regexp.MustCompile(`(?s)data-keywords="([^"]*)".*?href="([^"]+)"`)
 	var hrefs []string
 	for _, match := range pattern.FindAllStringSubmatch(body, -1) {
 		if strings.Contains(match[1], word) {

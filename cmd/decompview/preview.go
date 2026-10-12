@@ -1,9 +1,7 @@
 package decompview
 
 import (
-	"bytes"
 	"fmt"
-	"html/template"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -13,8 +11,9 @@ import (
 
 	"github.com/lewtec/lewkit/x/decomp"
 	"github.com/lewtec/lewkit/x/http/asset"
-	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
 )
+
+//go:generate go tool templ generate
 
 // Handler serves the preview of project.
 // Saving a function name, a signature, a held source, or an address note writes it through to the project.
@@ -23,6 +22,7 @@ func Handler(project *decomp.Project) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", view.index)
 	mux.HandleFunc("GET /artifact/{name}/stream", view.stream)
+	mux.HandleFunc("GET /artifact/{name}/at/{address}", view.address)
 	mux.HandleFunc("GET /artifact/{name}", view.artifact)
 	mux.HandleFunc("POST /artifact/{name}/note", view.saveNote)
 	mux.HandleFunc("GET /artifact/{name}/function/{address}", view.function)
@@ -41,7 +41,6 @@ type preview struct {
 
 type previewPage struct {
 	Title           string
-	Style           string
 	Project         string
 	ProjectName     string
 	Heading         string
@@ -51,7 +50,7 @@ type previewPage struct {
 	Comment         string
 	StreamHref      string
 	AssemblyHeading string
-	Assembly        template.HTML
+	Assembly        string
 	Source          string
 	FunctionName    string
 	AddressText     string
@@ -69,6 +68,7 @@ type previewPage struct {
 
 type previewNote struct {
 	Address string
+	Href    string
 	Text    string
 }
 
@@ -85,11 +85,11 @@ type paletteItem struct {
 	Keywords string
 }
 
-func (view *preview) index(response http.ResponseWriter, _ *http.Request) {
+func (view *preview) index(response http.ResponseWriter, request *http.Request) {
 	view.mu.Lock()
 	page := view.indexPage()
 	view.mu.Unlock()
-	writePage(response, page)
+	writePage(response, request, page)
 }
 
 func (view *preview) artifact(response http.ResponseWriter, request *http.Request) {
@@ -100,7 +100,7 @@ func (view *preview) artifact(response http.ResponseWriter, request *http.Reques
 		http.NotFound(response, request)
 		return
 	}
-	writePage(response, page)
+	writePage(response, request, page)
 }
 
 func (view *preview) stream(response http.ResponseWriter, request *http.Request) {
@@ -111,7 +111,23 @@ func (view *preview) stream(response http.ResponseWriter, request *http.Request)
 		http.NotFound(response, request)
 		return
 	}
-	writePage(response, page)
+	writePage(response, request, page)
+}
+
+func (view *preview) address(response http.ResponseWriter, request *http.Request) {
+	address, err := parseAddress(request.PathValue("address"))
+	if err != nil {
+		http.Error(response, "bad address", http.StatusBadRequest)
+		return
+	}
+	view.mu.Lock()
+	page, ok := view.addressPage(request.PathValue("name"), address)
+	view.mu.Unlock()
+	if !ok {
+		http.NotFound(response, request)
+		return
+	}
+	writePage(response, request, page)
 }
 
 func (view *preview) function(response http.ResponseWriter, request *http.Request) {
@@ -127,7 +143,7 @@ func (view *preview) function(response http.ResponseWriter, request *http.Reques
 		http.NotFound(response, request)
 		return
 	}
-	writePage(response, page)
+	writePage(response, request, page)
 }
 
 func (view *preview) indexPage() previewPage {
@@ -156,7 +172,7 @@ func (view *preview) artifactPage(name string) (previewPage, bool) {
 	page.StreamHref = artifactPath(slug) + "/stream"
 	page.NoteAction = artifactPath(slug) + "/note"
 	page.Next = artifactPath(slug)
-	page.Notes = previewNotes(artifact.Notes())
+	page.Notes = noteLinks(artifact, newLinker(artifact, artifact.Functions(), nil, false))
 	for _, function := range artifact.Functions() {
 		page.Rows = append(page.Rows, previewRow{
 			Label:  function.Name,
@@ -206,7 +222,11 @@ func (view *preview) functionPage(name string, address uint64) (previewPage, boo
 	if text, ok := artifact.Note(function.Address); ok {
 		page.AddressNote = text
 	}
-	page.Notes = previewNotes(artifact.Notes())
+	here := map[uint64]struct{}{}
+	for _, instruction := range function.Instructions {
+		here[instruction.Address] = struct{}{}
+	}
+	page.Notes = noteLinks(artifact, newLinker(artifact, artifact.Functions(), here, false))
 	return page, true
 }
 
@@ -333,10 +353,44 @@ func (view *preview) saveNote(response http.ResponseWriter, request *http.Reques
 	http.Redirect(response, request, safeNext(artifact, request.PostForm.Get("next")), http.StatusSeeOther)
 }
 
-func previewNotes(notes []decomp.Note) []previewNote {
-	out := make([]previewNote, 0, len(notes))
-	for _, note := range notes {
-		out = append(out, previewNote{Address: formatHex(note.Address), Text: note.Text})
+func (view *preview) addressPage(name string, address uint64) (previewPage, bool) {
+	artifact, ok := view.project.Lookup(name)
+	if !ok {
+		return previewPage{}, false
+	}
+	section, inImage := artifact.Contains(address)
+	if !inImage {
+		return previewPage{}, false
+	}
+	link := newLinker(artifact, artifact.Functions(), nil, false)
+	page := view.basePage(formatHex(address))
+	if label, named := artifact.Label(address); named {
+		page.Heading = formatHex(address) + " " + label
+	}
+	page.Notice = section
+	page.Next = artifactPath(artifact.Slug())
+	for _, reference := range artifact.XRefs(address) {
+		href, _ := link.href(reference.From)
+		page.Rows = append(page.Rows, previewRow{
+			Label:  formatHex(reference.From),
+			Href:   href,
+			Detail: reference.Kind,
+		})
+	}
+	if len(page.Rows) == 0 {
+		page.Notice = section + ". No references."
+	}
+	return page, true
+}
+
+func noteLinks(artifact *decomp.Artifact, link *linker) []previewNote {
+	out := make([]previewNote, 0, len(artifact.Notes()))
+	for _, note := range artifact.Notes() {
+		item := previewNote{Address: formatHex(note.Address), Text: note.Text}
+		if href, ok := link.href(note.Address); ok {
+			item.Href = href
+		}
+		out = append(out, item)
 	}
 	return out
 }
@@ -361,7 +415,6 @@ func (view *preview) basePage(heading string) previewPage {
 	path := view.project.Path()
 	return previewPage{
 		Title:       "decompview",
-		Style:       sakuracss.Path,
 		Project:     path,
 		ProjectName: filepath.Base(path),
 		Heading:     heading,
@@ -403,14 +456,10 @@ func (view *preview) paletteItems() []paletteItem {
 	return items
 }
 
-func writePage(response http.ResponseWriter, page previewPage) {
-	var body bytes.Buffer
-	if err := pageTemplate.Execute(&body, page); err != nil {
+func writePage(response http.ResponseWriter, request *http.Request, page previewPage) {
+	if err := previewDocument(page).Render(request.Context(), response); err != nil {
 		http.Error(response, err.Error(), http.StatusInternalServerError)
-		return
 	}
-	response.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = response.Write(body.Bytes())
 }
 
 func artifactPath(name string) string {
@@ -491,193 +540,3 @@ func paletteKeywords(parts ...string) string {
 	}
 	return text
 }
-
-var pageTemplate = template.Must(template.New("preview").Parse(`<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ .Title }}</title>
-<link rel="stylesheet" href="{{ .Style }}">
-<style>
-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
-header p { margin: 0; }
-#palette { width: min(36rem, calc(100vw - 2rem)); padding: 0; border: 1px solid; }
-#palette input { width: 100%; box-sizing: border-box; margin: 0; border-width: 0 0 1px; }
-#palette-list { list-style: none; margin: 0; padding: 0; max-height: 24rem; overflow: auto; }
-#palette-list a { display: block; padding: 0.35rem 0.6rem; text-decoration: none; }
-#palette-list .palette-group { display: block; font-size: 0.75rem; opacity: 0.7; }
-#palette-list .palette-active { background: #f4e4b3; }
-pre { overflow: auto; }
-.asm { line-height: 1.5; }
-.asm-addr { color: #8a5a00; }
-.asm-bytes { color: #6b7280; }
-.asm-mnem { color: #1e4d8c; font-weight: 600; }
-.asm-reg { color: #0f6b4c; }
-.asm-imm { color: #9a3412; }
-.asm-label { color: #6d28d9; font-weight: 600; }
-.asm-comment { color: #4b5563; }
-a.asm-addr, a.asm-label { text-decoration: none; }
-a.asm-addr:hover, a.asm-label:hover { text-decoration: underline; }
-textarea[name="source"] { width: 100%; min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-table { width: 100%; }
-</style>
-</head>
-<body>
-<header>
-<p><a href="/" title="{{ .Project }}">{{ .ProjectName }}</a></p>
-<button id="palette-open" type="button">Jump <kbd id="palette-hotkey">Ctrl+K</kbd></button>
-</header>
-<h1>{{ .Heading }}</h1>
-{{ if .Notice }}<p>{{ .Notice }}</p>{{ end }}
-{{ if .Comment }}<p>{{ .Comment }}</p>{{ end }}
-{{ if .NameAction }}<form method="post" action="{{ .NameAction }}">
-<label>Function name <input name="name" value="{{ .FunctionName }}"></label>
-<button type="submit">Save name</button>
-</form>{{ end }}
-{{ if .SignatureAction }}<form method="post" action="{{ .SignatureAction }}">
-<label>Signature <input name="signature" value="{{ .Signature }}"></label>
-<button type="submit">Save signature</button>
-</form>{{ end }}
-{{ if .Callees }}<h2>Calls</h2><ul>
-{{ range .Callees }}<li><a href="{{ .Href }}">{{ .Label }}</a></li>{{ end }}
-</ul>{{ end }}
-{{ if .NoteAction }}<h2>Notes</h2>
-<form method="post" action="{{ .NoteAction }}">
-<input type="hidden" name="next" value="{{ .Next }}">
-<label>Address <input name="address" value="{{ .AddressText }}"></label>
-<label>What it means <input name="text" value="{{ .AddressNote }}"></label>
-<button type="submit">Save note</button>
-</form>
-{{ if .Notes }}<ul>
-{{ range .Notes }}<li><code>{{ .Address }}</code> {{ .Text }}</li>{{ end }}
-</ul>{{ end }}{{ end }}
-{{ if .StreamHref }}<p><a href="{{ .StreamHref }}">Instructions</a></p>{{ end }}
-{{ if .Summary }}<pre>{{ .Summary }}</pre>{{ end }}
-{{ if .Rows }}<table>
-{{ range .Rows }}<tr><td><a href="{{ .Href }}">{{ .Label }}</a></td><td>{{ .Detail }}</td></tr>
-{{ end }}</table>{{ end }}
-{{ if .Assembly }}<h2>{{ .AssemblyHeading }}</h2><pre class="asm">{{ .Assembly }}</pre>{{ end }}
-{{ if .SourceAction }}<h2>Source</h2>
-<p>The source held for this function. explain stores a draft here. match replaces it when the blocks agree.</p>
-<form method="post" action="{{ .SourceAction }}">
-<textarea name="source" rows="14" spellcheck="false">{{ .Source }}</textarea>
-<button type="submit">Save source</button>
-</form>{{ end }}
-<dialog id="palette" data-cmdpalette aria-label="Jump to">
-<input id="palette-input" type="text" placeholder="Jump to…" autocomplete="off" aria-controls="palette-list" aria-autocomplete="list">
-<p id="palette-empty" hidden>No matches</p>
-<ul id="palette-list" role="listbox">
-{{ range .Items }}<li data-cmd-item data-keywords="{{ .Keywords }}" role="option"><a href="{{ .Href }}"><span class="palette-group">{{ .Group }}</span> {{ .Label }}</a></li>
-{{ end }}</ul>
-</dialog>
-<script>
-(function () {
-  var dialog = document.getElementById("palette");
-  var input = document.getElementById("palette-input");
-  var list = document.getElementById("palette-list");
-  var empty = document.getElementById("palette-empty");
-  var openButton = document.getElementById("palette-open");
-  var hotkey = document.getElementById("palette-hotkey");
-  if (!dialog || !input || !list) return;
-  var items = Array.prototype.slice.call(list.querySelectorAll("[data-cmd-item]"));
-  var visible = items.slice();
-  var active = 0;
-  if (hotkey && /Mac|iPhone|iPad|iPod/.test(navigator.platform || "")) {
-    hotkey.textContent = "\u2318K";
-  }
-  function setActive(index) {
-    for (var i = 0; i < items.length; i++) {
-      items[i].setAttribute("aria-selected", "false");
-      items[i].classList.remove("palette-active");
-    }
-    if (visible.length === 0) {
-      active = -1;
-      return;
-    }
-    if (index < 0) index = visible.length - 1;
-    if (index >= visible.length) index = 0;
-    active = index;
-    visible[active].setAttribute("aria-selected", "true");
-    visible[active].classList.add("palette-active");
-    visible[active].scrollIntoView({ block: "nearest" });
-  }
-  function filter() {
-    var query = input.value.trim().toLowerCase();
-    var tokens = query ? query.split(/\s+/).filter(Boolean) : [];
-    visible = [];
-    for (var i = 0; i < items.length; i++) {
-      var haystack = (items[i].getAttribute("data-keywords") || "").toLowerCase();
-      var matched = true;
-      for (var token = 0; token < tokens.length; token++) {
-        if (haystack.indexOf(tokens[token]) === -1) {
-          matched = false;
-          break;
-        }
-      }
-      items[i].hidden = !matched;
-      if (matched) visible.push(items[i]);
-    }
-    if (empty) empty.hidden = visible.length !== 0;
-    setActive(0);
-  }
-  function openPalette() {
-    if (dialog.open) return;
-    input.value = "";
-    filter();
-    if (dialog.showModal) dialog.showModal();
-    else dialog.setAttribute("open", "");
-    input.focus();
-  }
-  function closePalette() {
-    if (dialog.close && dialog.open) dialog.close();
-    else dialog.removeAttribute("open");
-  }
-  function activate() {
-    if (active < 0 || active >= visible.length) return;
-    var link = visible[active].querySelector("a");
-    if (link) window.location.href = link.href;
-  }
-  document.addEventListener("keydown", function (event) {
-    var chord = (event.metaKey || event.ctrlKey) && (event.key === "k" || event.key === "K");
-    if (chord) {
-      event.preventDefault();
-      if (dialog.open) closePalette();
-      else openPalette();
-      return;
-    }
-    if (!dialog.open) return;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closePalette();
-    } else if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setActive(active + 1);
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setActive(active - 1);
-    } else if (event.key === "Enter") {
-      event.preventDefault();
-      activate();
-    }
-  }, true);
-  input.addEventListener("input", filter);
-  if (openButton) openButton.addEventListener("click", function (event) {
-    event.preventDefault();
-    openPalette();
-  });
-  dialog.addEventListener("click", function (event) {
-    if (event.target === dialog) closePalette();
-  });
-  list.addEventListener("mousemove", function (event) {
-    var item = event.target.closest("[data-cmd-item]");
-    if (!item || item.hidden) return;
-    var index = visible.indexOf(item);
-    if (index >= 0) setActive(index);
-  });
-  filter();
-})();
-</script>
-</body>
-</html>
-`))

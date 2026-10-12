@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html"
-	"html/template"
 	"regexp"
 	"sort"
 	"strconv"
@@ -31,18 +30,31 @@ var registerWord = regexp.MustCompile(`^(?:` +
 	`st[0-7]` +
 	`)$`)
 
-// linker turns an address into an anchor on this page or a function page.
+// linker turns an address into an anchor on this page, a function page, or the address page.
 type linker struct {
 	artifact   *decomp.Artifact
 	slug       string
 	here       map[uint64]struct{}
 	starts     map[uint64]struct{}
 	owner      map[uint64]uint64
+	covers     []addressSpan
+	spans      []addressSpan
 	anchored   map[uint64]struct{}
 	labelLinks bool
 }
 
+// addressSpan is an instruction or a function extent.
+// end is the first address past the span.
+type addressSpan struct {
+	start    uint64
+	end      uint64
+	function uint64
+}
+
 func newLinker(artifact *decomp.Artifact, functions []decomp.Function, here map[uint64]struct{}, labelLinks bool) *linker {
+	if here == nil {
+		here = map[uint64]struct{}{}
+	}
 	link := &linker{
 		artifact:   artifact,
 		slug:       artifact.Slug(),
@@ -54,16 +66,31 @@ func newLinker(artifact *decomp.Artifact, functions []decomp.Function, here map[
 	}
 	for _, function := range functions {
 		link.starts[function.Address] = struct{}{}
+		if function.Size > 0 {
+			link.spans = append(link.spans, addressSpan{
+				start:    function.Address,
+				end:      function.Address + function.Size,
+				function: function.Address,
+			})
+		}
 		for _, instruction := range function.Instructions {
-			if _, ok := link.owner[instruction.Address]; !ok {
-				link.owner[instruction.Address] = function.Address
+			if _, ok := link.owner[instruction.Address]; ok || instruction.Size == 0 {
+				continue
 			}
+			link.owner[instruction.Address] = function.Address
+			link.covers = append(link.covers, addressSpan{
+				start:    instruction.Address,
+				end:      instruction.Address + uint64(instruction.Size),
+				function: function.Address,
+			})
 		}
 	}
+	sort.Slice(link.covers, func(i, j int) bool { return link.covers[i].start < link.covers[j].start })
+	sort.Slice(link.spans, func(i, j int) bool { return link.spans[i].start < link.spans[j].start })
 	return link
 }
 
-func functionAssembly(artifact *decomp.Artifact, function decomp.Function) template.HTML {
+func functionAssembly(artifact *decomp.Artifact, function decomp.Function) string {
 	here := map[uint64]struct{}{}
 	for _, instruction := range function.Instructions {
 		here[instruction.Address] = struct{}{}
@@ -80,10 +107,10 @@ func functionAssembly(artifact *decomp.Artifact, function decomp.Function) templ
 	for _, text := range function.Strings {
 		fmt.Fprintf(&body, `<span class="asm-comment">; string %s</span>`+"\n", html.EscapeString(strconv.Quote(text)))
 	}
-	return template.HTML(body.String())
+	return body.String()
 }
 
-func streamAssembly(artifact *decomp.Artifact) template.HTML {
+func streamAssembly(artifact *decomp.Artifact) string {
 	functions := artifact.Functions()
 	type row struct {
 		function    decomp.Function
@@ -105,7 +132,7 @@ func streamAssembly(artifact *decomp.Artifact) template.HTML {
 	for _, row := range rows {
 		writeInstruction(&body, link, artifact, row.function, row.instruction)
 	}
-	return template.HTML(body.String())
+	return body.String()
 }
 
 func writeBlock(body *strings.Builder, link *linker, block decomp.Block) {
@@ -226,9 +253,62 @@ func (link *linker) href(address uint64) (string, bool) {
 		return functionPath(link.slug, address), true
 	}
 	if owner, ok := link.owner[address]; ok {
-		return functionPath(link.slug, owner) + "#" + formatHex(address), true
+		return link.instruction(owner, address), true
+	}
+	if hit, ok := link.cover(address); ok {
+		if _, onPage := link.here[hit.start]; onPage {
+			return "#" + formatHex(hit.start), true
+		}
+		return link.instruction(hit.function, hit.start), true
+	}
+	if function, ok := link.span(address); ok {
+		if _, onPage := link.here[function]; onPage {
+			return "#" + formatHex(function), true
+		}
+		return functionPath(link.slug, function), true
+	}
+	if _, inImage := link.artifact.Contains(address); inImage {
+		return artifactPath(link.slug) + "/at/" + formatHex(address), true
 	}
 	return "", false
+}
+
+func (link *linker) instruction(function, address uint64) string {
+	if _, onPage := link.here[address]; onPage {
+		return "#" + formatHex(address)
+	}
+	return functionPath(link.slug, function) + "#" + formatHex(address)
+}
+
+// cover is the instruction that contains address when address is not the first byte.
+func (link *linker) cover(address uint64) (addressSpan, bool) {
+	index := sort.Search(len(link.covers), func(i int) bool { return link.covers[i].start > address }) - 1
+	if index < 0 {
+		return addressSpan{}, false
+	}
+	hit := link.covers[index]
+	if address >= hit.start && address < hit.end {
+		return hit, true
+	}
+	return addressSpan{}, false
+}
+
+// span is the tightest function extent that contains address.
+func (link *linker) span(address uint64) (uint64, bool) {
+	index := sort.Search(len(link.spans), func(i int) bool { return link.spans[i].start > address }) - 1
+	var function uint64
+	width := uint64(^uint64(0))
+	found := false
+	for index >= 0 {
+		hit := link.spans[index]
+		if address >= hit.start && address < hit.end && hit.end-hit.start < width {
+			function = hit.function
+			width = hit.end - hit.start
+			found = true
+		}
+		index--
+	}
+	return function, found
 }
 
 func writeOperands(body *strings.Builder, link *linker, operands string) {
@@ -236,13 +316,19 @@ func writeOperands(body *strings.Builder, link *linker, operands string) {
 		if start, end, address, ok := operandHex(operands, index); ok {
 			body.WriteString(html.EscapeString(operands[index:start]))
 			token := operands[start:end]
-			if href, linked := link.href(address); linked {
+			href, linked := link.href(address)
+			if linked {
 				fmt.Fprintf(body, `<a class="asm-addr" href="%s">%s</a>`, html.EscapeString(href), html.EscapeString(token))
 			} else {
 				fmt.Fprintf(body, `<span class="asm-imm">%s</span>`, html.EscapeString(token))
 			}
 			if name, named := link.artifact.Label(address); named {
-				fmt.Fprintf(body, ` <span class="asm-label">&lt;%s&gt;</span>`, html.EscapeString(name))
+				escaped := html.EscapeString(name)
+				if linked {
+					fmt.Fprintf(body, ` <a class="asm-label" href="%s">&lt;%s&gt;</a>`, html.EscapeString(href), escaped)
+				} else {
+					fmt.Fprintf(body, ` <span class="asm-label">&lt;%s&gt;</span>`, escaped)
+				}
 			}
 			index = end
 			continue
