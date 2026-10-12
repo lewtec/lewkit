@@ -36,7 +36,7 @@ func Load() templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `hastad_nha/load.templ`, Line: 4, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `x/http/asset/hastad_nha/load.templ`, Line: 4, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
