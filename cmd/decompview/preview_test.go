@@ -1,4 +1,4 @@
-package main
+package decompview
 
 import (
 	"context"
@@ -7,47 +7,25 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/decomp"
 	"github.com/lewtec/lewkit/x/disasm"
 	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
-	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestUsage(t *testing.T) {
-	text, err := cmd.Usage[cmd.App[arguments]]("decompview")
-	require.NoError(t, err)
-	assert.Contains(t, text, "preview a decomp project")
-	assert.Contains(t, text, "listen")
-	assert.Contains(t, text, "sqlite program database")
-}
-
-func TestMissingProject(t *testing.T) {
-	test.RestoreSlog(t)
-	err := (&arguments{}).Run(t.Context())
-	assert.ErrorIs(t, err, cmd.ErrUsage)
-
-	application := cmd.ParseOK[cmd.App[arguments]](t, filepath.Join(t.TempDir(), "missing.decomp"))
-	err = application.Run(t.Context())
-	require.Error(t, err)
-	assert.ErrorIs(t, err, os.ErrNotExist)
-}
 
 func TestPreviewShowsTheReopenedFunction(t *testing.T) {
 	path := writeProject(t)
 	project, err := decomp.Open(t.Context(), path)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = project.Close() })
-	handler := newPreview(project)
+	handler := Handler(project)
 
 	index := get(t, handler, "/")
 	assert.Equal(t, http.StatusOK, index.Code)
@@ -97,7 +75,7 @@ func TestListenServesTheIndex(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	errc := make(chan error, 1)
 	go func() {
-		errc <- serveListener(ctx, listener, newPreview(project))
+		errc <- Serve(ctx, listener, Handler(project))
 	}()
 
 	address := "http://" + listener.Addr().String() + "/"

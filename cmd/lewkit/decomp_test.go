@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
 	"debug/elf"
 	"encoding/json"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/disasm"
@@ -22,7 +27,70 @@ func TestDecompUsage(t *testing.T) {
 	assert.Contains(t, text, "functions")
 	assert.Contains(t, text, "listing")
 	assert.Contains(t, text, "match")
+	assert.Contains(t, text, "view")
 	assert.Contains(t, text, "project")
+}
+
+func TestDecompViewUsage(t *testing.T) {
+	test.RestoreSlog(t)
+	view := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "view", "--help")
+	got := test.Stdout(t, func() {
+		require.NoError(t, view.Run(t.Context()))
+	})
+	assert.Contains(t, got, "listen")
+	assert.Contains(t, got, "preview the program database")
+}
+
+func TestDecompViewNeedsProject(t *testing.T) {
+	test.RestoreSlog(t)
+	view := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "view")
+	err := view.Run(t.Context())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, errProjectRequired)
+}
+
+func TestDecompViewServesTheProject(t *testing.T) {
+	test.RestoreSlog(t)
+	path := writeELF(t, []byte{0x90, 0xc3})
+	database := filepath.Join(t.TempDir(), "program.decomp")
+	load := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	require.NoError(t, load.Run(t.Context()))
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	view := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "view", "--listen", address)
+	ctx, cancel := context.WithCancel(t.Context())
+	errc := make(chan error, 1)
+	go func() {
+		errc <- view.Run(ctx)
+	}()
+
+	var response *http.Response
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		response, err = http.Get("http://" + address + "/")
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			cancel()
+			t.Fatal(err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, response.Body.Close())
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Contains(t, string(body), "a.out")
+	assert.Contains(t, string(body), "sub_1000")
+	assert.Contains(t, string(body), "data-cmdpalette")
+
+	cancel()
+	require.NoError(t, <-errc)
 }
 
 func TestDecompFunctionsAndListing(t *testing.T) {

@@ -1,4 +1,4 @@
-package main
+package decompview
 
 import (
 	"bytes"
@@ -16,7 +16,8 @@ import (
 	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
 )
 
-func newPreview(project *decomp.Project) http.Handler {
+// Handler serves the preview of project. The database is read-only.
+func Handler(project *decomp.Project) http.Handler {
 	view := &preview{project: project}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", view.index)

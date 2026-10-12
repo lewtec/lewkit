@@ -2,15 +2,21 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 
+	"github.com/lewtec/lewkit/cmd/decompview"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/decomp"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
+
+// errProjectRequired means view was started without a sqlite program database.
+var errProjectRequired = errors.New("missing --project")
 
 type decompCmd struct {
 	project   cmd.StringArg `long:"project" default:"" help:"sqlite program database" ctx:""`
@@ -18,6 +24,7 @@ type decompCmd struct {
 	functions *decompFunctionsCmd
 	listing   *decompListingCmd
 	match     *decompMatchCmd
+	view      *decompViewCmd
 }
 
 func (decompCmd) Description() string {
@@ -131,6 +138,43 @@ func (command *decompMatchCmd) Run(ctx context.Context) (err error) {
 		}
 	}
 	return err
+}
+
+type decompViewCmd struct {
+	listen cmd.StringArg `long:"listen" default:"127.0.0.1:8766" help:"preview address"`
+}
+
+func (decompViewCmd) Description() string {
+	return "preview the program database in the browser"
+}
+
+func (command *decompViewCmd) Run(ctx context.Context) (err error) {
+	path := cmd.Get[string](ctx, "project")
+	if path == "" {
+		return fmt.Errorf("decomp view: %w", errProjectRequired)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("project: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("project %s is a directory", path)
+	}
+	project, err := decomp.Open(ctx, path)
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+
+	listener, err := net.Listen("tcp", command.listen.Value())
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+	if _, err := fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "http://%s/\n", listener.Addr().String()); err != nil {
+		_ = listener.Close()
+		return err
+	}
+	return decompview.Serve(ctx, listener, decompview.Handler(project))
 }
 
 func openDecomp(ctx context.Context, path string) (*decomp.Project, *decomp.Artifact, error) {
