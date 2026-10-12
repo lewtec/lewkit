@@ -102,18 +102,21 @@ const (
 
 // Screen is a native window plus the swapchain on its device.
 type Screen struct {
-	d       *Device
-	host    hostSurface
-	surface uint64
-	swap    uint64
-	format  int32
-	swapRB  int32
-	width   int
-	height  int
-	outW    int
-	outH    int
-	turn    uint32
-	stale   bool
+	d        *Device
+	host     hostSurface
+	surface  uint64
+	swap     uint64
+	format   int32
+	swapRB   int32
+	width    int
+	height   int
+	outW     int
+	outH     int
+	turn     uint32
+	prevW    int
+	prevH    int
+	prevTurn uint32
+	stale    bool
 	// lost is set when the VkSurface itself is dead, not only its swapchain.
 	// Android rotation destroys the native window; the next Adopt builds
 	// another surface. A resize of a live surface does not set it.
@@ -702,7 +705,7 @@ func (s *Screen) makeSwapchain() error {
 	if caps.maxImageCount != 0 && count > caps.maxImageCount {
 		count = caps.maxImageCount
 	}
-	extentW, extentH, pre, content := chooseSwapchain(s.width, s.height, caps)
+	extentW, extentH, pre, content := chooseSwapchain(s.width, s.height, caps, s.prevW, s.prevH, s.prevTurn)
 	s.turn = content
 	s.outW, s.outH = extentW, extentH
 	info := swapchainInfo{
@@ -793,6 +796,7 @@ func (s *Screen) resizeTo(width, height int) error {
 	if s.d != nil {
 		_ = s.d.WaitIdle()
 	}
+	s.notePresented()
 	s.dropSwap()
 	s.width, s.height = width, height
 	if err := s.makeSwapchain(); err != nil {
@@ -894,7 +898,11 @@ func (s *Screen) pickMode() int32 {
 // VK_SUBOPTIMAL_KHR while it is identity and the hint is 90°, and rebuilding
 // the same identity swapchain every frame never settles. An identity
 // transform keeps the current extent and stores the picture unturned.
-func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uint32) {
+// prevW, prevH, and prevTurn are the oriented size and turn already showing.
+// After that image exists, a caps query can report the identity buffer as
+// the current extent. Swapping that extent again turns the picture twice
+// and the following frame has to put the layout back.
+func chooseSwapchain(width, height int, caps surfaceCaps, prevW, prevH int, prevTurn uint32) (int, int, uint32, uint32) {
 	extentW, extentH := width, height
 	if extentW < 1 {
 		extentW = 1
@@ -923,6 +931,14 @@ func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uin
 		}
 	}
 	pre := preTransformOf(caps)
+	if realExtent(caps.currentW, caps.currentH) && (pre == transform90 || pre == transform270) {
+		cw, ch := int(caps.currentW), int(caps.currentH)
+		identity := cw == height && ch == width && (cw != width || ch != height)
+		reqChanged := prevW > 0 && prevH > 0 && (width != prevW || height != prevH)
+		if identity && (reqChanged || pre == prevTurn) {
+			extentW, extentH = width, height
+		}
+	}
 	content := uint32(transformIdent)
 	if pre == transform90 || pre == transform270 {
 		extentW, extentH = extentH, extentW
@@ -931,6 +947,57 @@ func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uin
 		content = pre
 	}
 	return extentW, extentH, pre, content
+}
+
+// notePresented remembers the oriented frame now showing, before a rebuild
+// replaces it. chooseSwapchain uses it to tell an identity-buffer extent
+// from a rotation.
+func (s *Screen) notePresented() {
+	if s == nil {
+		return
+	}
+	s.prevW, s.prevH, s.prevTurn = s.width, s.height, s.turn
+}
+
+// imageSizeReport is true when the host size is the swapchain image of the
+// frame already showing, and the transform has not changed.
+// A 90° or 270° picture is stored in that swapped buffer. The surface
+// callback reports the buffer once. Rebuilding for it orphans the displayed
+// image and flashes one frame of the unrotated layout. A real rotation
+// changes the transform, so this returns false and the swapchain rebuilds.
+func imageSizeReport(orientedW, orientedH, reportedW, reportedH int, turn, capsPre uint32) bool {
+	if turn != transform90 && turn != transform270 {
+		return false
+	}
+	if capsPre != turn || orientedW < 1 || orientedH < 1 {
+		return false
+	}
+	if reportedW == orientedW && reportedH == orientedH {
+		return false
+	}
+	return reportedW == orientedH && reportedH == orientedW
+}
+
+// holdStill keeps the swapchain when this adopt would only flash.
+// A matching size whose transform changed does not hold: the old image
+// would be presented under the new hint. The identity-buffer size is held
+// so the GUI can return to the oriented window without orphaning that image.
+func (s *Screen) holdStill(width, height int) bool {
+	if s == nil || s.swap == 0 || s.stale || s.surface == 0 || s.d == nil || s.wsi.surfaceCaps == nil {
+		return false
+	}
+	var caps surfaceCaps
+	if check(s.wsi.surfaceCaps(s.d.phys, s.surface, &caps)) != nil {
+		return s.width == width && s.height == height
+	}
+	pre := preTransformOf(caps)
+	if s.turn != 0 && pre != s.turn {
+		return false
+	}
+	if s.width == width && s.height == height {
+		return true
+	}
+	return imageSizeReport(s.width, s.height, width, height, s.turn, pre)
 }
 
 // preTransformOf is the transform the swapchain declares.

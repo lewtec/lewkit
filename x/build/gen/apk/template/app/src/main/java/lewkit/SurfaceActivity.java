@@ -193,22 +193,32 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        int viewW = 0;
+        int viewH = 0;
         if (surface != null) {
-            int viewW = surface.getWidth();
-            int viewH = surface.getHeight();
-            if (viewW >= 64 && viewH >= 64) {
-                width = viewW;
-                height = viewH;
-            }
+            viewW = surface.getWidth();
+            viewH = surface.getHeight();
+        }
+        // The callback size is the buffer. A sideways swapchain stores the
+        // identity size there. Reporting that buffer rebuilds the picture,
+        // flashes one frame, and the next layout puts the view back.
+        boolean bufferOnly = viewW >= 64 && viewH >= 64 && (width != viewW || height != viewH);
+        if (viewW >= 64 && viewH >= 64) {
+            width = viewW;
+            height = viewH;
         }
         if (width < 64 || height < 64) {
             return;
         }
+        if (bufferOnly && sent && alive && width == lastW && height == lastH) {
+            return;
+        }
+        boolean recreate = !sent || !alive;
         boolean same = sent && alive && width == lastW && height == lastH;
         lastW = width;
         lastH = height;
         alive = true;
-        if (!sent) {
+        if (recreate) {
             sent = true;
             Host.nativeWindow(holder.getSurface(), width, height);
             requestDead();
@@ -217,7 +227,7 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         if (same) {
             return;
         }
-        Host.nativeWindow(holder.getSurface(), width, height);
+        Host.resize(width, height);
         requestDead();
     }
 
