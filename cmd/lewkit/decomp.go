@@ -8,7 +8,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/lewtec/lewkit/cmd/decompview"
+	"github.com/lewtec/lewkit/cmd/lewkit/decompview"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/decomp"
 	lewfs "github.com/lewtec/lewkit/x/fs"

@@ -62,7 +62,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `cmd/lewkit` | The `lewkit` program. |
-| `cmd/decompview` | Page for `lewkit decomp view`. Cmd+K and Ctrl+K jump to an artifact or a function. A call links to that function. Highlighted assembly links each address to its instruction or function. Names, signatures, held source, and address notes save into the project. |
+| `cmd/lewkit/decompview` | Page for `lewkit decomp view`. Cmd+K and Ctrl+K jump to an artifact or a function. A call links to that function. Highlighted assembly links each address to its instruction or function. Names, signatures, held source, and address notes save into the project. |
 | `report` | `Reporter`, `RegisterReporter`, `Report`, `Must`. |
 | `report/sentry` | Sentry `Reporter`. |
 | `x/logging` | `NewHandler`. Level letter, message, then `key=value`. Color on a terminal. |
