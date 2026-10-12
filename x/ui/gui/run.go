@@ -121,21 +121,21 @@ func (d bridgeDisplay) sync() error {
 	return d.noteExtent(surface.Kind, size)
 }
 
-// noteExtent resizes an Android window to the swapchain image.
-// That image is already the oriented window. A portrait picture stored
-// into it is the frame turned on its side, which is what a landscape
-// phone showed. The next adopt matches the image, so the store stays
-// upright and the layout uses the wide size. Other hosts keep their
-// own size: a desktop extent must not fight the window.
+// noteExtent resizes an Android window to the oriented surface.
+// The swapchain image is the identity size. A 90° or 270° preTransform
+// turns this picture into that image, and the compositor's inverse stands
+// it back up in the orientation the phone is held. The image size itself
+// is the unrotated buffer, so adopting it leaves a reflowed frame on its
+// side. Other hosts keep their own size.
 func (d bridgeDisplay) noteExtent(kind int, requested image.Point) error {
 	if kind != window.SurfaceAndroid || d.Window == nil {
 		return nil
 	}
-	sized, ok := d.screen.(interface{ Output() image.Point })
+	sized, ok := d.screen.(interface{ Oriented() image.Point })
 	if !ok {
 		return nil
 	}
-	out := sized.Output()
+	out := sized.Oriented()
 	if out.X < 1 || out.Y < 1 || out == requested {
 		return nil
 	}

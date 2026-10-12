@@ -24,7 +24,6 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     private int lastW;
     private int lastH;
     private SurfaceView surface;
-    private boolean pinning;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -156,20 +155,7 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         return new int[]{metrics.widthPixels, metrics.heightPixels};
     }
 
-    /** setFixedSize can call surfaceChanged on this thread. pinning stops that reentry. */
-    private void pinSurface(int width, int height) {
-        if (surface == null || pinning || width < 64 || height < 64) {
-            return;
-        }
-        pinning = true;
-        try {
-            surface.getHolder().setFixedSize(width, height);
-        } finally {
-            pinning = false;
-        }
-    }
-
-    /** Pin the buffer to the laid-out view and tell the GUI that size. */
+    /** Tell the GUI the laid-out size. The swapchain owns the buffer size. */
     private void adoptWindow() {
         int width = 0;
         int height = 0;
@@ -188,7 +174,6 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         if (sent && alive && width == lastW && height == lastH) {
             return;
         }
-        pinSurface(width, height);
         Host.resize(width, height);
         lastW = width;
         lastH = height;
@@ -208,17 +193,16 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-        if (width < 64 || height < 64) {
-            return;
-        }
-        if (surface != null && !pinning) {
+        if (surface != null) {
             int viewW = surface.getWidth();
             int viewH = surface.getHeight();
-            if (viewW >= 64 && viewH >= 64 && (viewW != width || viewH != height)) {
-                pinSurface(viewW, viewH);
+            if (viewW >= 64 && viewH >= 64) {
                 width = viewW;
                 height = viewH;
             }
+        }
+        if (width < 64 || height < 64) {
+            return;
         }
         boolean same = sent && alive && width == lastW && height == lastH;
         lastW = width;

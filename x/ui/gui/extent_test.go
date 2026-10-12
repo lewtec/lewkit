@@ -18,16 +18,16 @@ func (androidHost) Surface() window.Surface {
 	return window.Surface{Kind: window.SurfaceAndroid, A: 1}
 }
 
-// extentScreen reports one swapchain image. Output stays put while Adopt
-// follows the GUI, which is the Android landscape mismatch.
+// extentScreen reports the size the user sees. The swapchain image may be
+// the identity size underneath that.
 type extentScreen struct {
-	out    image.Point
-	drawn  image.Point
-	draws  int
-	adopts int
+	oriented image.Point
+	drawn    image.Point
+	draws    int
+	adopts   int
 }
 
-func (s *extentScreen) Output() image.Point { return s.out }
+func (s *extentScreen) Oriented() image.Point { return s.oriented }
 
 func (s *extentScreen) Draw(_ context.Context, _, _, _ []byte, width, height int) error {
 	s.draws++
@@ -46,7 +46,7 @@ func TestLandscapeExtentRefitsBeforePresent(t *testing.T) {
 	host, err := window.Open(t.Context(), window.Config{Width: 8, Height: 20, Period: time.Hour})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = host.Close() })
-	screen := &extentScreen{out: image.Pt(20, 8)}
+	screen := &extentScreen{oriented: image.Pt(20, 8)}
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	paint := &sizedPaint{fill: RGB{255, 0, 0, 255}}
@@ -69,7 +69,7 @@ func TestDesktopExtentDoesNotResizeTheWindow(t *testing.T) {
 	host, err := window.Open(t.Context(), window.Config{Width: 8, Height: 20, Period: time.Hour})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = host.Close() })
-	screen := &extentScreen{out: image.Pt(20, 8)}
+	screen := &extentScreen{oriented: image.Pt(20, 8)}
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	runner := &runner{
@@ -89,7 +89,7 @@ func TestMatchingAndroidExtentPaintsTheWindow(t *testing.T) {
 	host, err := window.Open(t.Context(), window.Config{Width: 12, Height: 6, Period: time.Hour})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = host.Close() })
-	screen := &extentScreen{out: image.Pt(12, 6)}
+	screen := &extentScreen{oriented: image.Pt(12, 6)}
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	runner := &runner{

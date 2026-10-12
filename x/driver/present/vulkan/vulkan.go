@@ -70,6 +70,19 @@ func (s *gpuScreen) Output() image.Point {
 	return image.Pt(w, h)
 }
 
+// Oriented is the size the user sees. A zero point means unknown.
+func (s *gpuScreen) Oriented() image.Point {
+	if s == nil || s.screen == nil {
+		return image.Point{}
+	}
+	sized, ok := s.screen.(interface{ Oriented() (int, int) })
+	if !ok {
+		return image.Point{}
+	}
+	w, h := sized.Oriented()
+	return image.Pt(w, h)
+}
+
 func (s *gpuScreen) Close() error {
 	if s == nil || s.screen == nil {
 		return nil

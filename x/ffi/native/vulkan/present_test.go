@@ -16,37 +16,16 @@ func TestPresentExtent(t *testing.T) {
 	assert.Equal(t, 2400, h)
 }
 
-func TestChooseSwapchainKeepsTheLandscapeExtent(t *testing.T) {
-	// The phone is sideways. The surface already reports the landscape
-	// buffer. currentTransform is 90°. The swapchain declares that
-	// transform so present is not suboptimal, and the picture stays upright.
+func TestChooseSwapchainPrerotatesLandscape(t *testing.T) {
+	// The phone is sideways. currentExtent is the landscape size the user
+	// sees. The swapchain image is the identity size, and the picture is
+	// stored with the same 90° turn the compositor inverts.
 	caps := surfaceCaps{
 		currentW: 2400, currentH: 1080,
 		currentTrans: transform90,
 		transforms:   transformIdent | transform90 | transform180 | transform270,
 	}
-	w, h, pre, content := chooseSwapchain(2400, 1080, caps)
-	assert.Equal(t, 2400, w)
-	assert.Equal(t, 1080, h)
-	assert.Equal(t, uint32(transform90), pre)
-	assert.Equal(t, uint32(transformIdent), content)
-
-	w, h, pre, content = chooseSwapchain(1080, 2400, surfaceCaps{
-		currentW: 1080, currentH: 2400, currentTrans: transformIdent, transforms: transformIdent,
-	})
-	assert.Equal(t, 1080, w)
-	assert.Equal(t, 2400, h)
-	assert.Equal(t, uint32(transformIdent), pre)
-	assert.Equal(t, uint32(transformIdent), content)
-}
-
-func TestChooseSwapchainStoresATransposedBuffer(t *testing.T) {
-	caps := surfaceCaps{
-		currentW: 1080, currentH: 2400,
-		currentTrans: transform90,
-		transforms:   transformIdent | transform90,
-	}
-	w, h, pre, content := chooseSwapchain(2400, 1080, caps)
+	w, h, pre, content := chooseSwapchain(1080, 2400, caps)
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform90), pre)
@@ -56,13 +35,37 @@ func TestChooseSwapchainStoresATransposedBuffer(t *testing.T) {
 	assert.Equal(t, h, gotH)
 
 	caps.currentTrans = transform270
-	caps.transforms |= transform270
-	_, _, pre, content = chooseSwapchain(2400, 1080, caps)
+	w, h, pre, content = chooseSwapchain(2400, 1080, caps)
+	assert.Equal(t, 1080, w)
+	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform270), pre)
 	assert.Equal(t, uint32(transform270), content)
 }
 
-func TestChooseSwapchainLeavesAnUndefinedExtentUpright(t *testing.T) {
+func TestChooseSwapchainLeavesPortraitUpright(t *testing.T) {
+	w, h, pre, content := chooseSwapchain(1080, 2400, surfaceCaps{
+		currentW: 1080, currentH: 2400, currentTrans: transformIdent, transforms: transformIdent,
+	})
+	assert.Equal(t, 1080, w)
+	assert.Equal(t, 2400, h)
+	assert.Equal(t, uint32(transformIdent), pre)
+	assert.Equal(t, uint32(transformIdent), content)
+}
+
+func TestChooseSwapchainTurnsUpsideDown(t *testing.T) {
+	caps := surfaceCaps{
+		currentW: 1080, currentH: 2400,
+		currentTrans: transform180,
+		transforms:   transformIdent | transform180,
+	}
+	w, h, pre, content := chooseSwapchain(1080, 2400, caps)
+	assert.Equal(t, 1080, w)
+	assert.Equal(t, 2400, h)
+	assert.Equal(t, uint32(transform180), pre)
+	assert.Equal(t, uint32(transform180), content)
+}
+
+func TestChooseSwapchainPrerotatesAnUndefinedExtent(t *testing.T) {
 	caps := surfaceCaps{
 		currentW: extentUnset, currentH: extentUnset,
 		minW: 1, minH: 1, maxW: 4096, maxH: 4096,
@@ -70,10 +73,10 @@ func TestChooseSwapchainLeavesAnUndefinedExtentUpright(t *testing.T) {
 		transforms:   transformIdent | transform90,
 	}
 	w, h, pre, content := chooseSwapchain(800, 400, caps)
-	assert.Equal(t, 800, w)
-	assert.Equal(t, 400, h)
+	assert.Equal(t, 400, w)
+	assert.Equal(t, 800, h)
 	assert.Equal(t, uint32(transform90), pre)
-	assert.Equal(t, uint32(transformIdent), content)
+	assert.Equal(t, uint32(transform90), content)
 }
 
 func TestWaitIdleAfterPresentIsNotClosed(t *testing.T) {
@@ -136,6 +139,17 @@ func TestOutputReportsSwapchainExtent(t *testing.T) {
 	w, h = upright.Output()
 	assert.Equal(t, 800, w)
 	assert.Equal(t, 400, h)
+}
+
+func TestOrientedUndoesATurnedImage(t *testing.T) {
+	screen := &Screen{outW: 1080, outH: 2400, turn: transform90}
+	w, h := screen.Oriented()
+	assert.Equal(t, 2400, w)
+	assert.Equal(t, 1080, h)
+	screen.turn = transformIdent
+	w, h = screen.Oriented()
+	assert.Equal(t, 1080, w)
+	assert.Equal(t, 2400, h)
 }
 
 func TestPresentSourceRotatesUprightPixel(t *testing.T) {

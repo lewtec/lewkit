@@ -766,8 +766,9 @@ func (s *Screen) emit(in Input) {
 	}
 }
 
-// Output is the swapchain image size. It follows the surface extent when
-// the surface defines one, which on Android is the oriented window.
+// Output is the swapchain image size. A 90° or 270° preTransform stores
+// the oriented picture in the identity size, so this is swapped from the
+// size the user sees.
 func (s *Screen) Output() (int, int) {
 	if s == nil {
 		return 0, 0
@@ -776,6 +777,16 @@ func (s *Screen) Output() (int, int) {
 		return s.outW, s.outH
 	}
 	return s.width, s.height
+}
+
+// Oriented is the size the user sees. It is the swapchain image until the
+// picture is stored turned.
+func (s *Screen) Oriented() (int, int) {
+	w, h := s.Output()
+	if s != nil && (s.turn == transform90 || s.turn == transform270) {
+		return h, w
+	}
+	return w, h
 }
 
 func (s *Screen) resizeTo(width, height int) error {
@@ -874,15 +885,15 @@ func (s *Screen) pickMode() int32 {
 	return choosePresentMode(modes[:n])
 }
 
-// chooseSwapchain is the extent the surface will accept, the preTransform
-// to declare, and the rotation that stores an upright picture in that image.
-// A defined current extent is used as given. Swapping it because the
-// current transform is 90° asks for a buffer the window did not report.
-// preTransform follows that current transform. Android presents
+// chooseSwapchain is the swapchain image size, the preTransform to declare,
+// and the rotation that stores the oriented picture in that image.
+// The surface's current extent is the size the user sees. A 90° or 270°
+// current transform means that image is the other way: the identity size,
+// with the picture turned so the compositor's inverse stands it upright.
+// preTransform follows the current transform. Android presents
 // VK_SUBOPTIMAL_KHR while it is identity and the hint is 90°, and rebuilding
-// the same identity swapchain every frame never settles. The compositor
-// applies the inverse, so an extent that matches the window stays upright.
-// A transposed extent stores the picture at 90° or 270°.
+// the same identity swapchain every frame never settles. An identity
+// transform keeps the current extent and stores the picture unturned.
 func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uint32) {
 	extentW, extentH := width, height
 	if extentW < 1 {
@@ -911,14 +922,15 @@ func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uin
 			}
 		}
 	}
+	pre := preTransformOf(caps)
 	content := uint32(transformIdent)
-	if extentW == height && extentH == width && width != height {
-		content = caps.currentTrans
-		if content != transform90 && content != transform270 {
-			content = transform90
-		}
+	if pre == transform90 || pre == transform270 {
+		extentW, extentH = extentH, extentW
+		content = pre
+	} else if pre == transform180 {
+		content = pre
 	}
-	return extentW, extentH, preTransformOf(caps), content
+	return extentW, extentH, pre, content
 }
 
 // preTransformOf is the transform the swapchain declares.
