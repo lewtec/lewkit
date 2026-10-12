@@ -2,6 +2,7 @@ package main
 
 import (
 	"debug/elf"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,14 +42,40 @@ func TestDecompFunctionsAndListing(t *testing.T) {
 	assert.Contains(t, got, "ret")
 }
 
-func TestDecompMatchNeedsKey(t *testing.T) {
+func TestDecompMatchUsesHarness(t *testing.T) {
 	test.RestoreSlog(t)
 	t.Setenv("XAI_API_KEY", "")
 	path := writeELF(t, []byte{0xc3})
-	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "match", "--at", "0x1000", path)
+	bin := filepath.Join(t.TempDir(), "grok")
+	candidate := `{"name":"sub_1000","signature":"void sub_1000(void)","source":"void sub_1000(void) {\n  return;\n}\n","blocks":[{"address":"0x1000","kind":"return"}]}`
+	payload, err := json.Marshal(map[string]string{"text": candidate, "stopReason": "end_turn"})
+	require.NoError(t, err)
+	script := "#!/bin/sh\ncat <<'END'\n" + string(payload) + "\nEND\n"
+	require.NoError(t, os.WriteFile(bin, []byte(script), 0o755))
+	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "match", "--at", "0x1000", "--rounds", "1", path)
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "matched in 1")
+	assert.Contains(t, got, "sub_1000")
+}
+
+func TestDecompMatchEndpointNeedsKey(t *testing.T) {
+	test.RestoreSlog(t)
+	t.Setenv("XAI_API_KEY", "")
+	marker := filepath.Join(t.TempDir(), "called")
+	bin := filepath.Join(filepath.Dir(marker), "grok")
+	script := "#!/bin/sh\ntouch " + marker + "\nexit 1\n"
+	require.NoError(t, os.WriteFile(bin, []byte(script), 0o755))
+	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	path := writeELF(t, []byte{0xc3})
+	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "match", "--at", "0x1000", "--endpoint", "http://127.0.0.1:9", path)
 	err := app.Run(t.Context())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "api key")
+	_, statErr := os.Stat(marker)
+	assert.ErrorIs(t, statErr, os.ErrNotExist)
 }
 
 func writeELF(t *testing.T, code []byte) string {

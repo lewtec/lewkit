@@ -87,10 +87,11 @@ func (command *decompListingCmd) Run(ctx context.Context) error {
 type decompMatchCmd struct {
 	path     cmd.StringArg      `help:"elf, pe, or macho path"`
 	at       cmd.IntArg[uint64] `long:"at" default:"0" help:"function address"`
-	endpoint cmd.StringArg      `long:"endpoint" default:"https://api.x.ai/v1/chat/completions" help:"chat completions URL"`
-	model    cmd.StringArg      `long:"model" default:"grok-4" help:"model name"`
+	harness  cmd.StringArg      `long:"harness" default:"grok" help:"grok executable for the signed-in subscription"`
+	model    cmd.StringArg      `long:"model" default:"" help:"harness model; empty uses the signed-in default"`
 	rounds   cmd.IntArg[int]    `long:"rounds" default:"4" help:"match attempts"`
-	apiKey   cmd.StringArg      `long:"api-key" env:"XAI_API_KEY" default:"" help:"bearer token"`
+	endpoint cmd.StringArg      `long:"endpoint" default:"" help:"chat completions URL; skips the harness"`
+	apiKey   cmd.StringArg      `long:"api-key" env:"XAI_API_KEY" default:"" help:"bearer token used with --endpoint"`
 }
 
 func (decompMatchCmd) Description() string {
@@ -102,11 +103,22 @@ func (command *decompMatchCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	artifact.Attach(decomp.Chat{
-		Endpoint: command.endpoint.Value(),
-		Model:    command.model.Value(),
-		APIKey:   command.apiKey.Value(),
-	})
+	if command.endpoint.Value() != "" {
+		model := command.model.Value()
+		if model == "" {
+			model = "grok-4"
+		}
+		artifact.Attach(decomp.Chat{
+			Endpoint: command.endpoint.Value(),
+			Model:    model,
+			APIKey:   command.apiKey.Value(),
+		})
+	} else {
+		artifact.Attach(decomp.Harness{
+			Path:  command.harness.Value(),
+			Model: command.model.Value(),
+		})
+	}
 	result, err := artifact.Match(ctx, command.at.Value(), decomp.MatchConfig{Rounds: command.rounds.Value()})
 	if result.Rounds > 0 {
 		if writeErr := writeMatch(ctx, result); writeErr != nil {
