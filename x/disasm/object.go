@@ -18,6 +18,8 @@ var ErrNoText = errors.New("no text section")
 type Object interface {
 	Architecture() (Architecture, Mode, error)
 	TextSection(name string) (address uint64, data []byte, section string, err error)
+	Sections() ([]Section, error)
+	Entry() uint64
 	Symbols() Symbols
 	Close() error
 }

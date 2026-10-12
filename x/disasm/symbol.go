@@ -4,6 +4,8 @@ package disasm
 type Symbol struct {
 	Name    string
 	Address uint64
+	// Code is true when the symbol labels a function.
+	Code bool
 }
 
 // Symbols is a symbol table. Function symbols are listed first so

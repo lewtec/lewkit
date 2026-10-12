@@ -157,7 +157,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan, Metal, OpenGL, and Direct3D 12 register beside it. |
 | `x/driver/ndeval/d3d12` | Direct3D 12 evaluator. Weight 70 on Windows, after Metal. Renders `Code` as HLSL. |
 | `x/driver/ndeval/opengl` | OpenGL evaluator. Weight 20, after Vulkan. Renders `Code` as a compute shader on GL 4.3 or OpenGL ES 3.1. Apple stays on Metal. |
-| `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |
+| `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. `Object` also exposes `Sections` and `Entry`. |
+| `x/decomp` | In-process program database. `New`, `Project.Add`, `Project.Attach`, `Artifact.Match`. Capstone lifts the artifact. An attached model match-decompiles one function. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
 | `x/ffi/android` | Binder session. `Open`, `Client`. |
@@ -179,6 +180,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 
 `x/disasm` reads ELF, PE, and Mach-O through `x/ffi/wasm/capstone`.
 
+`x/decomp` keeps that image in one process. `Project.Add` loads an ELF, PE, or Mach-O artifact. The lift recovers functions, basic blocks, references, and strings. `Project.Attach` sets the model. `Artifact.Match` asks that model for C and accepts it when the blocks copy the lifted control flow and the source names the function, each direct callee, and each referenced string. `Chat` posts one OpenAI-compatible completion. xAI's endpoint is `https://api.x.ai/v1/chat/completions`.
+
 ## Commands
 
 Build the program from a clone with `go build -o lewkit ./cmd/lewkit`.
@@ -193,6 +196,10 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit disasm hex HEX` | Instructions for a hex byte string. |
 | `lewkit disasm raw PATH` | Instructions for a raw byte file. `PATH` `-` reads stdin. |
 | `lewkit disasm file PATH` | One text section from an ELF, PE, or Mach-O file. |
+| `lewkit decomp summary PATH` | Format, entry, sections, and function count. |
+| `lewkit decomp functions PATH` | Recovered function address, name, and size. |
+| `lewkit decomp listing PATH` | Blocks and instructions for `--at`. |
+| `lewkit decomp match PATH` | Match-decompile the function at `--at`. |
 | `lewkit generate db DIR` | sqlc packages, a `Queries` interface, and `DBArg`. |
 | `lewkit generate prelude` | Blank-import preludes for every `root.go` in the working directory. Writes `prelude/prelude.go`. |
 | `lewkit generate protobuf FILE` | Go source for a `.proto` file. |
@@ -200,6 +207,8 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit completion` | The bash `complete -C` line for this program. |
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
+
+`lewkit decomp listing` and `lewkit decomp match` take `--at` (default `0`). `lewkit decomp match` also takes `--endpoint` (default `https://api.x.ai/v1/chat/completions`), `--model` (default `grok-4`), `--rounds` (default `4`), and `--api-key`. `XAI_API_KEY` sets the same key.
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. `lewkit generate prelude` takes no arguments. It scans the working directory and writes `prelude/prelude.go` there, plus a prelude for each Go package under it that has a descendant `root.go`. A directory with no Go file does not get a prelude; its children attach to the package above it. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
 

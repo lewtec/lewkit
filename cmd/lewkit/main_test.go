@@ -20,6 +20,7 @@ func TestRootUsage(t *testing.T) {
 	assert.Contains(t, text, "log verbosity (default: 0)")
 	assert.Contains(t, text, "generate")
 	assert.Contains(t, text, "disasm")
+	assert.Contains(t, text, "decomp")
 	assert.Contains(t, text, "doctor")
 	assert.Contains(t, text, "workflow")
 	assert.Contains(t, text, "completion")
