@@ -32,6 +32,7 @@ func TestDecompUsage(t *testing.T) {
 	assert.Contains(t, text, "summary")
 	assert.Contains(t, text, "functions")
 	assert.Contains(t, text, "listing")
+	assert.Contains(t, text, "stream")
 	assert.Contains(t, text, "xrefs")
 	assert.Contains(t, text, "strings")
 	assert.Contains(t, text, "match")

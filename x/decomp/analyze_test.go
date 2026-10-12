@@ -1,8 +1,11 @@
 package decomp
 
 import (
+	"crypto/sha256"
 	"debug/elf"
 	"encoding/binary"
+	"encoding/hex"
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/disasm"
@@ -113,6 +116,29 @@ func elfTextAndRodata(code, rodata []byte) []byte {
 	copy(buf[rodataOff:], rodata)
 	copy(buf[namesOff:], names)
 	return buf
+}
+
+func TestSlugAndStream(t *testing.T) {
+	raw := disasm.ELF64(elf.EM_X86_64, []byte{0x90, 0xc3})
+	sum := sha256.Sum256(raw)
+	slug := hex.EncodeToString(sum[:])[:16]
+	project := New()
+	artifact, err := project.AddBytes(t.Context(), "setup.exe", raw)
+	require.NoError(t, err)
+	assert.Equal(t, slug, artifact.Slug())
+	assert.Contains(t, artifact.Summary(), "slug "+slug)
+	found, ok := project.Lookup(slug)
+	require.True(t, ok)
+	assert.Equal(t, artifact.Name(), found.Name())
+
+	require.NoError(t, artifact.SetComment(t.Context(), 0x1000, "entry point"))
+	artifact.notes[0x1001] = "on the ret"
+	stream := artifact.Stream()
+	assert.Contains(t, stream, "; entry point")
+	assert.Contains(t, stream, "nop")
+	assert.Contains(t, stream, "ret")
+	assert.Contains(t, stream, "; note on the ret")
+	assert.Less(t, strings.Index(stream, "nop"), strings.Index(stream, "ret"))
 }
 
 func TestSetName(t *testing.T) {

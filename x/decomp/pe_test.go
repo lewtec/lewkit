@@ -360,6 +360,26 @@ func TestProjectRemembersTheFile(t *testing.T) {
 	assert.NotContains(t, strings.ToLower(text), "capstone")
 }
 
+func TestSameBytesUseOneSlug(t *testing.T) {
+	root := t.TempDir()
+	firstPath := filepath.Join(root, "one", "setup.exe")
+	secondPath := filepath.Join(root, "two", "setup.exe")
+	require.NoError(t, os.MkdirAll(filepath.Dir(firstPath), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Dir(secondPath), 0o755))
+	raw := disasm.ELF64(elf.EM_X86_64, []byte{0xc3})
+	require.NoError(t, os.WriteFile(firstPath, raw, 0o644))
+	require.NoError(t, os.WriteFile(secondPath, raw, 0o644))
+	project, err := Open(t.Context(), filepath.Join(root, "program.decomp"))
+	require.NoError(t, err)
+	defer project.Close()
+	first, err := project.Remember(t.Context(), firstPath, raw)
+	require.NoError(t, err)
+	second, err := project.Remember(t.Context(), secondPath, raw)
+	require.NoError(t, err)
+	assert.Equal(t, first.Slug(), second.Slug())
+	assert.Len(t, project.Artifacts(), 1)
+}
+
 func openPE(t *testing.T, raw []byte) *Artifact {
 	t.Helper()
 	project := New()

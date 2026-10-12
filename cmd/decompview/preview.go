@@ -22,6 +22,7 @@ func Handler(project *decomp.Project) http.Handler {
 	view := &preview{project: project}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", view.index)
+	mux.HandleFunc("GET /artifact/{name}/stream", view.stream)
 	mux.HandleFunc("GET /artifact/{name}", view.artifact)
 	mux.HandleFunc("POST /artifact/{name}/note", view.saveNote)
 	mux.HandleFunc("GET /artifact/{name}/function/{address}", view.function)
@@ -47,6 +48,8 @@ type previewPage struct {
 	Summary         string
 	Signature       string
 	Comment         string
+	StreamHref      string
+	Stream          string
 	Listing         string
 	Source          string
 	ShowSource      bool
@@ -99,6 +102,17 @@ func (view *preview) artifact(response http.ResponseWriter, request *http.Reques
 	writePage(response, page)
 }
 
+func (view *preview) stream(response http.ResponseWriter, request *http.Request) {
+	view.mu.Lock()
+	page, ok := view.streamPage(request.PathValue("name"))
+	view.mu.Unlock()
+	if !ok {
+		http.NotFound(response, request)
+		return
+	}
+	writePage(response, page)
+}
+
 func (view *preview) function(response http.ResponseWriter, request *http.Request) {
 	address, err := parseAddress(request.PathValue("address"))
 	if err != nil {
@@ -119,9 +133,9 @@ func (view *preview) indexPage() previewPage {
 	page := view.basePage("Artifacts")
 	for _, artifact := range view.project.Artifacts() {
 		page.Rows = append(page.Rows, previewRow{
-			Label:  artifact.Name(),
-			Href:   artifactPath(artifact.Name()),
-			Detail: fmt.Sprintf("%s, %d functions", artifact.Format(), len(artifact.Functions())),
+			Label:  artifact.Slug(),
+			Href:   artifactPath(artifact.Slug()),
+			Detail: fmt.Sprintf("%s, %s, %d functions", artifactLabel(artifact), artifact.Format(), len(artifact.Functions())),
 		})
 	}
 	if len(page.Rows) == 0 {
@@ -131,30 +145,44 @@ func (view *preview) indexPage() previewPage {
 }
 
 func (view *preview) artifactPage(name string) (previewPage, bool) {
-	artifact, ok := view.project.Artifact(name)
+	artifact, ok := view.project.Lookup(name)
 	if !ok {
 		return previewPage{}, false
 	}
-	page := view.basePage(artifact.Name())
+	slug := artifact.Slug()
+	page := view.basePage(artifactLabel(artifact))
 	page.Summary = artifact.Summary()
-	page.NoteAction = artifactPath(name) + "/note"
-	page.Next = artifactPath(name)
+	page.StreamHref = artifactPath(slug) + "/stream"
+	page.NoteAction = artifactPath(slug) + "/note"
+	page.Next = artifactPath(slug)
 	page.Notes = previewNotes(artifact.Notes())
 	for _, function := range artifact.Functions() {
 		page.Rows = append(page.Rows, previewRow{
 			Label:  function.Name,
-			Href:   functionPath(name, function.Address),
+			Href:   functionPath(slug, function.Address),
 			Detail: fmt.Sprintf("%s %d", formatHex(function.Address), function.Size),
 		})
 	}
 	return page, true
 }
 
-func (view *preview) functionPage(name string, address uint64) (previewPage, bool) {
-	artifact, ok := view.project.Artifact(name)
+func (view *preview) streamPage(name string) (previewPage, bool) {
+	artifact, ok := view.project.Lookup(name)
 	if !ok {
 		return previewPage{}, false
 	}
+	page := view.basePage(artifact.Slug())
+	page.Stream = artifact.Stream()
+	page.Next = artifactPath(artifact.Slug())
+	return page, true
+}
+
+func (view *preview) functionPage(name string, address uint64) (previewPage, bool) {
+	artifact, ok := view.project.Lookup(name)
+	if !ok {
+		return previewPage{}, false
+	}
+	slug := artifact.Slug()
 	function, ok := artifact.Function(address)
 	if !ok {
 		return previewPage{}, false
@@ -171,11 +199,11 @@ func (view *preview) functionPage(name string, address uint64) (previewPage, boo
 	page.ShowSource = true
 	page.FunctionName = function.Name
 	page.AddressText = formatHex(function.Address)
-	page.NameAction = functionPath(name, function.Address) + "/name"
-	page.SignatureAction = functionPath(name, function.Address) + "/signature"
-	page.NoteAction = artifactPath(name) + "/note"
-	page.Callees = callLinks(name, function)
-	page.Next = functionPath(name, function.Address)
+	page.NameAction = functionPath(slug, function.Address) + "/name"
+	page.SignatureAction = functionPath(slug, function.Address) + "/signature"
+	page.NoteAction = artifactPath(slug) + "/note"
+	page.Callees = callLinks(slug, function)
+	page.Next = functionPath(slug, function.Address)
 	if text, ok := artifact.Note(function.Address); ok {
 		page.AddressNote = text
 	}
@@ -196,7 +224,7 @@ func (view *preview) saveName(response http.ResponseWriter, request *http.Reques
 	artifactName := request.PathValue("name")
 	functionName := strings.TrimSpace(request.PostForm.Get("name"))
 	view.mu.Lock()
-	artifact, ok := view.project.Artifact(artifactName)
+	artifact, ok := view.project.Lookup(artifactName)
 	var saveErr error
 	if ok {
 		saveErr = artifact.SetName(request.Context(), address, functionName)
@@ -210,7 +238,7 @@ func (view *preview) saveName(response http.ResponseWriter, request *http.Reques
 		http.Error(response, saveErr.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(response, request, functionPath(artifactName, address), http.StatusSeeOther)
+	http.Redirect(response, request, functionPath(artifact.Slug(), address), http.StatusSeeOther)
 }
 
 func (view *preview) saveSignature(response http.ResponseWriter, request *http.Request) {
@@ -226,7 +254,7 @@ func (view *preview) saveSignature(response http.ResponseWriter, request *http.R
 	artifactName := request.PathValue("name")
 	signature := strings.TrimSpace(request.PostForm.Get("signature"))
 	view.mu.Lock()
-	artifact, ok := view.project.Artifact(artifactName)
+	artifact, ok := view.project.Lookup(artifactName)
 	var saveErr error
 	if ok {
 		saveErr = artifact.SetSignature(request.Context(), address, signature)
@@ -240,7 +268,7 @@ func (view *preview) saveSignature(response http.ResponseWriter, request *http.R
 		http.Error(response, saveErr.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(response, request, functionPath(artifactName, address), http.StatusSeeOther)
+	http.Redirect(response, request, functionPath(artifact.Slug(), address), http.StatusSeeOther)
 }
 
 func (view *preview) saveNote(response http.ResponseWriter, request *http.Request) {
@@ -256,7 +284,7 @@ func (view *preview) saveNote(response http.ResponseWriter, request *http.Reques
 	artifactName := request.PathValue("name")
 	text := strings.TrimSpace(request.PostForm.Get("text"))
 	view.mu.Lock()
-	artifact, ok := view.project.Artifact(artifactName)
+	artifact, ok := view.project.Lookup(artifactName)
 	var saveErr error
 	if ok {
 		saveErr = artifact.SetNote(request.Context(), address, text)
@@ -270,7 +298,7 @@ func (view *preview) saveNote(response http.ResponseWriter, request *http.Reques
 		http.Error(response, saveErr.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(response, request, safeNext(artifactName, request.PostForm.Get("next")), http.StatusSeeOther)
+	http.Redirect(response, request, safeNext(artifact, request.PostForm.Get("next")), http.StatusSeeOther)
 }
 
 func previewNotes(notes []decomp.Note) []previewNote {
@@ -281,12 +309,20 @@ func previewNotes(notes []decomp.Note) []previewNote {
 	return out
 }
 
-func safeNext(artifactName, next string) string {
-	prefix := artifactPath(artifactName)
-	if next == prefix || strings.HasPrefix(next, prefix+"/") {
-		return next
+func safeNext(artifact *decomp.Artifact, next string) string {
+	for _, prefix := range []string{artifactPath(artifact.Slug()), artifactPath(artifact.Name())} {
+		if next == prefix || strings.HasPrefix(next, prefix+"/") {
+			return next
+		}
 	}
-	return prefix
+	return artifactPath(artifact.Slug())
+}
+
+func artifactLabel(artifact *decomp.Artifact) string {
+	if artifact.Path() != "" {
+		return filepath.Base(artifact.Path())
+	}
+	return artifact.Name()
 }
 
 func (view *preview) basePage(heading string) previewPage {
@@ -311,13 +347,13 @@ func (view *preview) paletteItems() []paletteItem {
 	for _, artifact := range view.project.Artifacts() {
 		items = append(items, paletteItem{
 			Group:    "Artifact",
-			Label:    artifact.Name(),
-			Href:     artifactPath(artifact.Name()),
-			Keywords: paletteKeywords("Artifact", artifact.Name(), artifact.Format()),
+			Label:    artifact.Slug() + " " + artifactLabel(artifact),
+			Href:     artifactPath(artifact.Slug()),
+			Keywords: paletteKeywords("Artifact", artifact.Slug(), artifact.Digest(), artifact.Name(), artifactLabel(artifact), artifact.Format()),
 		})
 		for _, function := range artifact.Functions() {
 			label := function.Name + " " + formatHex(function.Address)
-			keywords := []string{artifact.Name(), function.Name, function.Signature, formatHex(function.Address), strconv.FormatUint(function.Address, 16)}
+			keywords := []string{artifact.Slug(), artifact.Name(), function.Name, function.Signature, formatHex(function.Address), strconv.FormatUint(function.Address, 16)}
 			for _, note := range artifact.Notes() {
 				if !noteBelongs(function, note.Address) {
 					continue
@@ -325,9 +361,9 @@ func (view *preview) paletteItems() []paletteItem {
 				keywords = append(keywords, note.Text, formatHex(note.Address))
 			}
 			items = append(items, paletteItem{
-				Group:    artifact.Name(),
+				Group:    artifact.Slug(),
 				Label:    label,
-				Href:     functionPath(artifact.Name(), function.Address),
+				Href:     functionPath(artifact.Slug(), function.Address),
 				Keywords: paletteKeywords(keywords...),
 			})
 		}
@@ -473,7 +509,9 @@ table { width: 100%; }
 {{ if .Notes }}<ul>
 {{ range .Notes }}<li><code>{{ .Address }}</code> {{ .Text }}</li>{{ end }}
 </ul>{{ end }}{{ end }}
+{{ if .StreamHref }}<p><a href="{{ .StreamHref }}">Instructions</a></p>{{ end }}
 {{ if .Summary }}<pre>{{ .Summary }}</pre>{{ end }}
+{{ if .Stream }}<h2>Instructions</h2><pre>{{ .Stream }}</pre>{{ end }}
 {{ if .Rows }}<table>
 {{ range .Rows }}<tr><td><a href="{{ .Href }}">{{ .Label }}</a></td><td>{{ .Detail }}</td></tr>
 {{ end }}</table>{{ end }}

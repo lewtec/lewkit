@@ -18,4 +18,6 @@
 // every block copies the lifted control flow and the source names the
 // function, each direct callee, and each referenced string.
 // [Artifact.Explain] stores the model's source without comparing blocks.
+// [Artifact.Slug] is the image hash used in the preview. [Artifact.Stream]
+// prints the instructions in address order with function comments and address notes.
 package decomp

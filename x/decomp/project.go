@@ -11,6 +11,7 @@ import (
 	"io"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/lewtec/lewkit/x/disasm"
 )
@@ -186,8 +187,9 @@ func (project *Project) AddBytes(ctx context.Context, name string, data []byte) 
 
 // Remember stores the image loaded from path.
 // The same path and the same bytes return the stored artifact and do not disassemble.
-// Different bytes at that path return [ErrImage] and name the stored image and the new bytes.
-// A second path is a second artifact, even when the file name matches.
+// The same bytes at another path return that same artifact. [Artifact.Slug] is their shared id.
+// Different bytes at a stored path return [ErrImage] and name the stored image and the new bytes.
+// A second path with different bytes is a second artifact, even when the file name matches.
 func (project *Project) Remember(ctx context.Context, path string, data []byte) (*Artifact, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -205,6 +207,9 @@ func (project *Project) Remember(ctx context.Context, path string, data []byte) 
 			return existing, nil
 		}
 		return nil, fmt.Errorf("%s: stored image %s new bytes %s: %w", absolute, existing.digest, digest, ErrImage)
+	}
+	if existing := project.byDigest(digest); existing != nil {
+		return existing, nil
 	}
 	base := filepath.Base(absolute)
 	if existing, ok := project.Artifact(base); ok && existing.path == "" && existing.digest == digest {
@@ -234,6 +239,18 @@ func (project *Project) byPath(path string) *Artifact {
 	return nil
 }
 
+func (project *Project) byDigest(digest string) *Artifact {
+	if digest == "" {
+		return nil
+	}
+	for _, artifact := range project.artifacts {
+		if artifact.digest == digest {
+			return artifact
+		}
+	}
+	return nil
+}
+
 // Artifacts returns the open images in the order they were added.
 func (project *Project) Artifacts() []*Artifact {
 	out := make([]*Artifact, len(project.artifacts))
@@ -243,6 +260,71 @@ func (project *Project) Artifacts() []*Artifact {
 
 // Name is the name passed to [Project.Add].
 func (artifact *Artifact) Name() string { return artifact.name }
+
+// Path is the file this image was loaded from. It is empty for [Project.AddBytes].
+func (artifact *Artifact) Path() string {
+	if artifact == nil {
+		return ""
+	}
+	return artifact.path
+}
+
+// Digest is the SHA-256 hex of the image bytes.
+func (artifact *Artifact) Digest() string {
+	if artifact == nil {
+		return ""
+	}
+	return artifact.digest
+}
+
+// Slug is the first 16 hex characters of [Artifact.Digest].
+// The preview uses it as the artifact path. A project with no digest keeps [Artifact.Name].
+func (artifact *Artifact) Slug() string {
+	if artifact == nil {
+		return ""
+	}
+	if len(artifact.digest) >= 16 {
+		return artifact.digest[:16]
+	}
+	if artifact.digest != "" {
+		return artifact.digest
+	}
+	return artifact.name
+}
+
+// Lookup finds an image by its name, its full digest, or a unique slug prefix of at least 8 hex characters.
+func (project *Project) Lookup(key string) (*Artifact, bool) {
+	if artifact, ok := project.Artifact(key); ok {
+		return artifact, true
+	}
+	if project == nil || len(key) < 8 || !hexKey(key) {
+		return nil, false
+	}
+	var found *Artifact
+	for _, artifact := range project.artifacts {
+		if artifact.digest != key && !strings.HasPrefix(artifact.digest, key) {
+			continue
+		}
+		if found != nil && found.digest != artifact.digest {
+			return nil, false
+		}
+		found = artifact
+	}
+	return found, found != nil
+}
+
+func hexKey(key string) bool {
+	for _, char := range key {
+		switch {
+		case char >= '0' && char <= '9':
+		case char >= 'a' && char <= 'f':
+		case char >= 'A' && char <= 'F':
+		default:
+			return false
+		}
+	}
+	return true
+}
 
 // Format is elf, pe, or macho.
 func (artifact *Artifact) Format() string { return artifact.format }

@@ -26,6 +26,7 @@ type decompCmd struct {
 	summary   *decompSummaryCmd
 	functions *decompFunctionsCmd
 	listing   *decompListingCmd
+	stream    *decompStreamCmd
 	xrefs     *decompXRefsCmd
 	strings   *decompStringsCmd
 	match     *decompMatchCmd
@@ -101,6 +102,24 @@ func (command *decompListingCmd) Run(ctx context.Context) (err error) {
 		return err
 	}
 	_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), listing)
+	return err
+}
+
+type decompStreamCmd struct {
+	path cmd.StringArg `help:"elf, pe, or macho path"`
+}
+
+func (decompStreamCmd) Description() string {
+	return "print instructions and comments in address order"
+}
+
+func (command *decompStreamCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), artifact.Stream())
 	return err
 }
 

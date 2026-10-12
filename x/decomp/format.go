@@ -2,6 +2,7 @@ package decomp
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/disasm"
@@ -10,6 +11,7 @@ import (
 // Summary describes the image, its sections, and how many functions were recovered.
 func (artifact *Artifact) Summary() string {
 	var builder strings.Builder
+	fmt.Fprintf(&builder, "slug %s\n", artifact.Slug())
 	fmt.Fprintf(&builder, "%s %s %s entry 0x%x\n", artifact.format, artifact.architecture, modeLabel(artifact.mode), artifact.entry)
 	fmt.Fprintf(&builder, "sections %d\n", len(artifact.sections))
 	for _, section := range artifact.sections {
@@ -80,6 +82,51 @@ func (artifact *Artifact) Listing(address uint64) (string, error) {
 		fmt.Fprintf(&builder, "; string %q\n", text)
 	}
 	return builder.String(), nil
+}
+
+// Stream prints every recovered instruction in address order.
+// A function comment is printed at that function's first instruction.
+// An address note is printed on the instruction that carries it and on each instruction that references it.
+func (artifact *Artifact) Stream() string {
+	type row struct {
+		function    Function
+		instruction disasm.Instruction
+	}
+	rows := make([]row, 0)
+	for _, function := range artifact.functions {
+		for _, instruction := range function.Instructions {
+			rows = append(rows, row{function: function, instruction: instruction})
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].instruction.Address < rows[j].instruction.Address
+	})
+	names := artifact.displayNames()
+	var builder strings.Builder
+	for _, row := range rows {
+		if row.instruction.Address == row.function.Address && row.function.Comment != "" {
+			fmt.Fprintf(&builder, "; %s\n", row.function.Comment)
+		}
+		builder.WriteString(disasm.FormatInstruction(row.instruction, names))
+		written := map[uint64]struct{}{}
+		if text, ok := artifact.Note(row.instruction.Address); ok {
+			fmt.Fprintf(&builder, "; note %s\n", text)
+			written[row.instruction.Address] = struct{}{}
+		}
+		next := row.instruction.Address + uint64(row.instruction.Size)
+		for _, address := range referencedAddresses(row.instruction.Operands, next) {
+			if _, seen := written[address]; seen {
+				continue
+			}
+			text, ok := artifact.Note(address)
+			if !ok {
+				continue
+			}
+			fmt.Fprintf(&builder, "; note %s\n", text)
+			written[address] = struct{}{}
+		}
+	}
+	return builder.String()
 }
 
 func (artifact *Artifact) notesIn(start, size uint64) []Note {

@@ -200,6 +200,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit decomp summary PATH` | Format, entry, sections, and function count. Section sizes are hexadecimal. |
 | `lewkit decomp functions PATH` | Recovered function address, name, and size. |
 | `lewkit decomp listing PATH` | Blocks and instructions. `--at` defaults to the entry. |
+| `lewkit decomp stream PATH` | Every instruction in address order, with function comments and address notes. |
 | `lewkit decomp xrefs PATH` | References to `--at`, as address and kind. |
 | `lewkit decomp strings PATH` | Image strings, including UTF-16, with their addresses. |
 | `lewkit decomp match PATH` | Match-decompile the function at `--at`. `--at` defaults to the entry. |
@@ -217,6 +218,10 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 
 `lewkit decomp --project FILE` selects a sqlite program database. The file remembers each image by its path and the SHA-256 of its bytes. The same path and the same bytes reload that artifact and do not disassemble it. Different bytes at that path make the command fail and name the stored digest and the new digest. A later command reads the saved lift, names, comments, signatures, address notes, image strings, and matched source. `lewkit decomp name --at ADDR --name NAME PATH` stores a function name. `lewkit decomp note --at ADDR --text TEXT PATH` stores what that address means. An empty `--text` clears it. `--at` without `--text` prints the stored note. Neither flag lists every note. A note is also printed on each instruction that references its address. `lewkit decomp signature --at ADDR --text TEXT PATH` stores a function signature. `name`, `note`, and `signature` require `--project`; without it the command fails and says the clue was not stored. `lewkit decomp listing`, `lewkit decomp match`, and `lewkit decomp explain` take `--at`, which defaults to the entry when the flag is omitted. `lewkit decomp xrefs --at ADDR PATH` lists references to that address. `lewkit decomp strings PATH` lists image strings. `lewkit decomp match` also takes `--harness` (default `grok`), `--model` (empty uses the signed-in default), and `--rounds` (default `4`). `lewkit decomp explain` takes the same harness flags, and `--rounds` defaults to `1`. It stores the source without comparing blocks. `--endpoint` skips the harness and posts one chat completion; `--api-key` is that request's bearer token, and `XAI_API_KEY` sets the same key. With `--endpoint` and an empty `--model`, the model is `grok-4`.
+
+`lewkit decomp stream PATH` prints that same instruction stream for the whole image: function comments, then each instruction, then an address note where one is stored. `listing` stays on one function and its blocks.
+
+An artifact's preview path is `Artifact.Slug`, the first 16 hex characters of the image SHA-256. The file name stays on the page as a label. The same bytes opened from another path are that same artifact.
 
 `lewkit decomp view` serves that same database at `http://127.0.0.1:8766/`. It requires `--project FILE`. `--listen` changes the address. Cmd+K or Ctrl+K opens the jump palette. A note keyword stays on the function that contains that address. The page shows each artifact summary, function address and size, function listing, comment, and matched source. A call links to that function. Save name, Save signature, and Save note write those clues into the sqlite file.
 
