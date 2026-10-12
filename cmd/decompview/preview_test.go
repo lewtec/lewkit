@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -64,6 +65,44 @@ func TestPreviewShowsTheReopenedFunction(t *testing.T) {
 	assert.Contains(t, style.Header().Get("Content-Type"), "text/css")
 }
 
+func TestPreviewStoresNameAndNote(t *testing.T) {
+	path := writeProject(t)
+	project, err := decomp.Open(t.Context(), path)
+	require.NoError(t, err)
+	handler := Handler(project)
+
+	renamed := post(t, handler, "/artifact/branch.elf/function/0x1000/name", url.Values{"name": {"greet"}})
+	assert.Equal(t, http.StatusSeeOther, renamed.Code)
+	assert.Equal(t, "/artifact/branch.elf/function/0x1000", renamed.Header().Get("Location"))
+
+	noted := post(t, handler, "/artifact/branch.elf/note", url.Values{
+		"address": {"0x1000"},
+		"text":    {"saved clue"},
+		"next":    {"/artifact/branch.elf/function/0x1000"},
+	})
+	assert.Equal(t, http.StatusSeeOther, noted.Code)
+
+	page := get(t, handler, "/artifact/branch.elf/function/0x1000")
+	assert.Equal(t, http.StatusOK, page.Code)
+	assert.Contains(t, page.Body.String(), "greet")
+	assert.Contains(t, page.Body.String(), "saved clue")
+	assert.Contains(t, page.Body.String(), "Save name")
+	assert.Contains(t, page.Body.String(), "Save note")
+	require.NoError(t, project.Close())
+
+	reopened, err := decomp.Open(t.Context(), path)
+	require.NoError(t, err)
+	defer reopened.Close()
+	artifact, ok := reopened.Artifact("branch.elf")
+	require.True(t, ok)
+	function, ok := artifact.Function(0x1000)
+	require.True(t, ok)
+	assert.Equal(t, "greet", function.Name)
+	text, ok := artifact.Note(0x1000)
+	require.True(t, ok)
+	assert.Equal(t, "saved clue", text)
+}
+
 func TestListenServesTheIndex(t *testing.T) {
 	path := writeProject(t)
 	project, err := decomp.Open(t.Context(), path)
@@ -100,6 +139,15 @@ func TestListenServesTheIndex(t *testing.T) {
 
 	cancel()
 	require.NoError(t, <-errc)
+}
+
+func post(t *testing.T, handler http.Handler, path string, form url.Values) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder
 }
 
 func get(t *testing.T, handler http.Handler, path string) *httptest.ResponseRecorder {

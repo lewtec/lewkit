@@ -201,7 +201,9 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit decomp functions PATH` | Recovered function address, name, and size. |
 | `lewkit decomp listing PATH` | Blocks and instructions for `--at`. |
 | `lewkit decomp match PATH` | Match-decompile the function at `--at`. |
-| `lewkit decomp view` | Browser preview of `--project`. |
+| `lewkit decomp name PATH` | Store a function name at `--at`. |
+| `lewkit decomp note PATH` | Store what `--at` means. |
+| `lewkit decomp view` | Browser preview of `--project`. Names and address notes save into the file. |
 | `lewkit generate db DIR` | sqlc packages, a `Queries` interface, and `DBArg`. |
 | `lewkit generate prelude` | Blank-import preludes for every `root.go` in the working directory. Writes `prelude/prelude.go`. |
 | `lewkit generate protobuf FILE` | Go source for a `.proto` file. |
@@ -210,9 +212,9 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 
-`lewkit decomp --project FILE` selects a sqlite program database. A later command with the same artifact name reads the saved lift, names, comments, and matched source. `lewkit decomp listing` and `lewkit decomp match` take `--at` (default `0`). `lewkit decomp match` also takes `--harness` (default `grok`), `--model` (empty uses the signed-in default), and `--rounds` (default `4`). `--endpoint` skips the harness and posts one chat completion; `--api-key` is that request's bearer token, and `XAI_API_KEY` sets the same key. With `--endpoint` and an empty `--model`, the model is `grok-4`.
+`lewkit decomp --project FILE` selects a sqlite program database. A later command with the same artifact name reads the saved lift, names, comments, address notes, and matched source. `lewkit decomp name --at ADDR --name NAME PATH` stores a function name. `lewkit decomp note --at ADDR --text TEXT PATH` stores what that address means. An empty `--text` clears it. Omitting `--text` prints the stored note. `lewkit decomp listing` and `lewkit decomp match` take `--at` (default `0`). `lewkit decomp match` also takes `--harness` (default `grok`), `--model` (empty uses the signed-in default), and `--rounds` (default `4`). `--endpoint` skips the harness and posts one chat completion; `--api-key` is that request's bearer token, and `XAI_API_KEY` sets the same key. With `--endpoint` and an empty `--model`, the model is `grok-4`.
 
-`lewkit decomp view` serves that same database at `http://127.0.0.1:8766/`. It requires `--project FILE`. `--listen` changes the address. Cmd+K or Ctrl+K opens the jump palette. The page shows each artifact summary, function listing, comment, and matched source.
+`lewkit decomp view` serves that same database at `http://127.0.0.1:8766/`. It requires `--project FILE`. `--listen` changes the address. Cmd+K or Ctrl+K opens the jump palette. The page shows each artifact summary, function listing, comment, and matched source. Save name and Save note write those clues into the sqlite file.
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. `lewkit generate prelude` takes no arguments. It scans the working directory and writes `prelude/prelude.go` there, plus a prelude for each Go package under it that has a descendant `root.go`. A directory with no Go file does not get a prelude; its children attach to the package above it. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
 

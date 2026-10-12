@@ -15,8 +15,12 @@ import (
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
-// errProjectRequired means view was started without a sqlite program database.
-var errProjectRequired = errors.New("missing --project")
+var (
+	// errProjectRequired means view was started without a sqlite program database.
+	errProjectRequired = errors.New("missing --project")
+	// errFunctionName means name was started without a function name.
+	errFunctionName = errors.New("missing --name")
+)
 
 type decompCmd struct {
 	project   cmd.StringArg `long:"project" default:"" help:"sqlite program database" ctx:""`
@@ -24,6 +28,8 @@ type decompCmd struct {
 	functions *decompFunctionsCmd
 	listing   *decompListingCmd
 	match     *decompMatchCmd
+	name      *decompNameCmd
+	note      *decompNoteCmd
 	view      *decompViewCmd
 }
 
@@ -137,6 +143,65 @@ func (command *decompMatchCmd) Run(ctx context.Context) (err error) {
 			return writeErr
 		}
 	}
+	return err
+}
+
+type decompNameCmd struct {
+	path   cmd.StringArg      `help:"elf, pe, or macho path"`
+	at     cmd.IntArg[uint64] `long:"at" default:"0" help:"function address"`
+	rename cmd.StringArg      `long:"name" default:"" help:"function name"`
+}
+
+func (decompNameCmd) Description() string {
+	return "name one function"
+}
+
+func (command *decompNameCmd) Run(ctx context.Context) (err error) {
+	if !command.rename.ArgSet() || command.rename.Value() == "" {
+		return fmt.Errorf("decomp name: %w", errFunctionName)
+	}
+	project, artifact, err := openDecomp(ctx, command.path.Value())
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	if err := artifact.SetName(ctx, command.at.Value(), command.rename.Value()); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", command.rename.Value())
+	return err
+}
+
+type decompNoteCmd struct {
+	path cmd.StringArg      `help:"elf, pe, or macho path"`
+	at   cmd.IntArg[uint64] `long:"at" default:"0" help:"address"`
+	text cmd.StringArg      `long:"text" default:"" help:"what this address means; empty clears the note"`
+}
+
+func (decompNoteCmd) Description() string {
+	return "store what an address means"
+}
+
+func (command *decompNoteCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	address := command.at.Value()
+	if command.text.ArgSet() {
+		if err := artifact.SetNote(ctx, address, command.text.Value()); err != nil {
+			return err
+		}
+	}
+	text, ok := artifact.Note(address)
+	if !ok {
+		if command.text.ArgSet() {
+			return nil
+		}
+		return fmt.Errorf("no note at 0x%x", address)
+	}
+	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", text)
 	return err
 }
 

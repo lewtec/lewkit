@@ -27,6 +27,8 @@ func TestDecompUsage(t *testing.T) {
 	assert.Contains(t, text, "functions")
 	assert.Contains(t, text, "listing")
 	assert.Contains(t, text, "match")
+	assert.Contains(t, text, "name")
+	assert.Contains(t, text, "note")
 	assert.Contains(t, text, "view")
 	assert.Contains(t, text, "project")
 }
@@ -39,6 +41,34 @@ func TestDecompViewUsage(t *testing.T) {
 	})
 	assert.Contains(t, got, "listen")
 	assert.Contains(t, got, "preview the program database")
+}
+
+func TestDecompNameAndNoteStayInTheProject(t *testing.T) {
+	test.RestoreSlog(t)
+	path := writeELF(t, []byte{0x90, 0xc3})
+	database := filepath.Join(t.TempDir(), "program.decomp")
+	load := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	require.NoError(t, load.Run(t.Context()))
+
+	rename := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "name", "--at", "0x1000", "--name", "greet", path)
+	got := test.Stdout(t, func() {
+		require.NoError(t, rename.Run(t.Context()))
+	})
+	assert.Contains(t, got, "greet")
+
+	note := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", "--at", "0x1001", "--text", "padding", path)
+	got = test.Stdout(t, func() {
+		require.NoError(t, note.Run(t.Context()))
+	})
+	assert.Contains(t, got, "padding")
+	require.NoError(t, os.Remove(path))
+
+	listing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "listing", "--at", "0x1000", path)
+	got = test.Stdout(t, func() {
+		require.NoError(t, listing.Run(t.Context()))
+	})
+	assert.Contains(t, got, "greet")
+	assert.Contains(t, got, "; note padding")
 }
 
 func TestDecompViewNeedsProject(t *testing.T) {

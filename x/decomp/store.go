@@ -16,7 +16,7 @@ import (
 // ErrProject is a sqlite file that is not a decomp program database.
 var ErrProject = errors.New("not a decomp project")
 
-const projectSchemaVersion = "1"
+const projectSchemaVersion = "2"
 
 // Open opens a sqlite program database, creating it when the file is new.
 // The saved lift is loaded into this process. A later Add, rename, comment,
@@ -119,8 +119,29 @@ func (project *Project) prepare(ctx context.Context) error {
 	if err := project.db.QueryRowContext(ctx, `SELECT value FROM meta WHERE key = 'schema'`).Scan(&version); err != nil {
 		return fmt.Errorf("%w: %s", ErrProject, project.path)
 	}
-	if version != projectSchemaVersion {
-		return fmt.Errorf("%w: schema %s", ErrProject, version)
+	if version == projectSchemaVersion {
+		return nil
+	}
+	if version == "1" {
+		return project.migrateNotes(ctx)
+	}
+	return fmt.Errorf("%w: schema %s", ErrProject, version)
+}
+
+func (project *Project) migrateNotes(ctx context.Context) error {
+	transaction, err := project.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("migrate project: %w", err)
+	}
+	defer transaction.Rollback()
+	if _, err := transaction.ExecContext(ctx, noteTable); err != nil {
+		return fmt.Errorf("migrate project: %w", err)
+	}
+	if _, err := transaction.ExecContext(ctx, `UPDATE meta SET value = ? WHERE key = 'schema'`, projectSchemaVersion); err != nil {
+		return fmt.Errorf("migrate project: %w", err)
+	}
+	if err := transaction.Commit(); err != nil {
+		return fmt.Errorf("migrate project: %w", err)
 	}
 	return nil
 }
@@ -133,7 +154,7 @@ func (project *Project) load(ctx context.Context) error {
 	defer rows.Close()
 	var artifacts []*Artifact
 	for rows.Next() {
-		artifact := &Artifact{project: project, symbols: map[uint64]string{}}
+		artifact := &Artifact{project: project, symbols: map[uint64]string{}, notes: map[uint64]string{}}
 		var architecture, mode, entry int64
 		if err := rows.Scan(&artifact.name, &artifact.format, &architecture, &mode, &entry); err != nil {
 			return fmt.Errorf("load project: %w", err)
@@ -164,6 +185,32 @@ func (artifact *Artifact) load(ctx context.Context, database *sql.DB) error {
 	}
 	if err := artifact.loadFunctions(ctx, database); err != nil {
 		return err
+	}
+	return artifact.loadNotes(ctx, database)
+}
+
+func (artifact *Artifact) loadNotes(ctx context.Context, database *sql.DB) error {
+	rows, err := database.QueryContext(ctx, `SELECT address, text FROM note WHERE artifact = ? ORDER BY address`, artifact.name)
+	if err != nil {
+		return fmt.Errorf("load notes: %w", err)
+	}
+	defer rows.Close()
+	if artifact.notes == nil {
+		artifact.notes = map[uint64]string{}
+	}
+	for rows.Next() {
+		var address int64
+		var text string
+		if err := rows.Scan(&address, &text); err != nil {
+			return fmt.Errorf("load notes: %w", err)
+		}
+		if text == "" {
+			continue
+		}
+		artifact.notes[uint64(address)] = text
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("load notes: %w", err)
 	}
 	return nil
 }
@@ -486,12 +533,42 @@ func (artifact *Artifact) saveFunction(ctx context.Context, function *Function) 
 	return nil
 }
 
+func (artifact *Artifact) saveNote(ctx context.Context, address uint64, text string) error {
+	if artifact == nil || artifact.project == nil || artifact.project.db == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("save note: nil context")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var err error
+	if text == "" {
+		_, err = artifact.project.db.ExecContext(ctx, `DELETE FROM note WHERE artifact = ? AND address = ?`, artifact.name, int64(address))
+	} else {
+		_, err = artifact.project.db.ExecContext(ctx, `INSERT INTO note (artifact, address, text) VALUES (?, ?, ?)
+			ON CONFLICT(artifact, address) DO UPDATE SET text = excluded.text`, artifact.name, int64(address), text)
+	}
+	if err != nil {
+		return fmt.Errorf("save note 0x%x: %w", address, err)
+	}
+	return nil
+}
+
+const noteTable = `CREATE TABLE IF NOT EXISTS note (
+	artifact TEXT NOT NULL REFERENCES artifact(name) ON DELETE CASCADE,
+	address INTEGER NOT NULL,
+	text TEXT NOT NULL,
+	PRIMARY KEY (artifact, address)
+)`
+
 var projectSchema = []string{
 	`CREATE TABLE meta (
 		key TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	)`,
-	`INSERT INTO meta (key, value) VALUES ('schema', '1')`,
+	`INSERT INTO meta (key, value) VALUES ('schema', '2')`,
 	`CREATE TABLE artifact (
 		name TEXT PRIMARY KEY,
 		format TEXT NOT NULL,
@@ -570,4 +647,5 @@ var projectSchema = []string{
 		PRIMARY KEY (artifact, function_address, position),
 		FOREIGN KEY (artifact, function_address) REFERENCES function(artifact, address) ON DELETE CASCADE
 	)`,
+	noteTable,
 }

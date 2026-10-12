@@ -16,13 +16,16 @@ import (
 	"github.com/lewtec/lewkit/x/http/asset/sakuracss"
 )
 
-// Handler serves the preview of project. The database is read-only.
+// Handler serves the preview of project.
+// Saving a function name or an address note writes it through to the project.
 func Handler(project *decomp.Project) http.Handler {
 	view := &preview{project: project}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", view.index)
 	mux.HandleFunc("GET /artifact/{name}", view.artifact)
+	mux.HandleFunc("POST /artifact/{name}/note", view.saveNote)
 	mux.HandleFunc("GET /artifact/{name}/function/{address}", view.function)
+	mux.HandleFunc("POST /artifact/{name}/function/{address}/name", view.saveName)
 	return asset.Mount(mux)
 }
 
@@ -34,20 +37,32 @@ type preview struct {
 }
 
 type previewPage struct {
-	Title       string
-	Style       string
-	Project     string
-	ProjectName string
-	Heading     string
-	Notice      string
-	Summary     string
-	Signature   string
-	Comment     string
-	Listing     string
-	Source      string
-	ShowSource  bool
-	Rows        []previewRow
-	Items       []paletteItem
+	Title        string
+	Style        string
+	Project      string
+	ProjectName  string
+	Heading      string
+	Notice       string
+	Summary      string
+	Signature    string
+	Comment      string
+	Listing      string
+	Source       string
+	ShowSource   bool
+	FunctionName string
+	AddressText  string
+	AddressNote  string
+	NameAction   string
+	NoteAction   string
+	Next         string
+	Notes        []previewNote
+	Rows         []previewRow
+	Items        []paletteItem
+}
+
+type previewNote struct {
+	Address string
+	Text    string
 }
 
 type previewRow struct {
@@ -119,6 +134,9 @@ func (view *preview) artifactPage(name string) (previewPage, bool) {
 	}
 	page := view.basePage(artifact.Name())
 	page.Summary = artifact.Summary()
+	page.NoteAction = artifactPath(name) + "/note"
+	page.Next = artifactPath(name)
+	page.Notes = previewNotes(artifact.Notes())
 	for _, function := range artifact.Functions() {
 		page.Rows = append(page.Rows, previewRow{
 			Label:  function.Name,
@@ -148,7 +166,92 @@ func (view *preview) functionPage(name string, address uint64) (previewPage, boo
 	page.Listing = listing
 	page.Source = function.Source
 	page.ShowSource = true
+	page.FunctionName = function.Name
+	page.AddressText = formatHex(function.Address)
+	page.NameAction = functionPath(name, function.Address) + "/name"
+	page.NoteAction = artifactPath(name) + "/note"
+	page.Next = functionPath(name, function.Address)
+	if text, ok := artifact.Note(function.Address); ok {
+		page.AddressNote = text
+	}
+	page.Notes = previewNotes(artifact.Notes())
 	return page, true
+}
+
+func (view *preview) saveName(response http.ResponseWriter, request *http.Request) {
+	if err := request.ParseForm(); err != nil {
+		http.Error(response, err.Error(), http.StatusBadRequest)
+		return
+	}
+	address, err := parseAddress(request.PathValue("address"))
+	if err != nil {
+		http.Error(response, "bad function address", http.StatusBadRequest)
+		return
+	}
+	artifactName := request.PathValue("name")
+	functionName := strings.TrimSpace(request.PostForm.Get("name"))
+	view.mu.Lock()
+	artifact, ok := view.project.Artifact(artifactName)
+	var saveErr error
+	if ok {
+		saveErr = artifact.SetName(request.Context(), address, functionName)
+	}
+	view.mu.Unlock()
+	if !ok {
+		http.NotFound(response, request)
+		return
+	}
+	if saveErr != nil {
+		http.Error(response, saveErr.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(response, request, functionPath(artifactName, address), http.StatusSeeOther)
+}
+
+func (view *preview) saveNote(response http.ResponseWriter, request *http.Request) {
+	if err := request.ParseForm(); err != nil {
+		http.Error(response, err.Error(), http.StatusBadRequest)
+		return
+	}
+	address, err := parseAddress(request.PostForm.Get("address"))
+	if err != nil {
+		http.Error(response, "bad note address", http.StatusBadRequest)
+		return
+	}
+	artifactName := request.PathValue("name")
+	text := strings.TrimSpace(request.PostForm.Get("text"))
+	view.mu.Lock()
+	artifact, ok := view.project.Artifact(artifactName)
+	var saveErr error
+	if ok {
+		saveErr = artifact.SetNote(request.Context(), address, text)
+	}
+	view.mu.Unlock()
+	if !ok {
+		http.NotFound(response, request)
+		return
+	}
+	if saveErr != nil {
+		http.Error(response, saveErr.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(response, request, safeNext(artifactName, request.PostForm.Get("next")), http.StatusSeeOther)
+}
+
+func previewNotes(notes []decomp.Note) []previewNote {
+	out := make([]previewNote, 0, len(notes))
+	for _, note := range notes {
+		out = append(out, previewNote{Address: formatHex(note.Address), Text: note.Text})
+	}
+	return out
+}
+
+func safeNext(artifactName, next string) string {
+	prefix := artifactPath(artifactName)
+	if next == prefix || strings.HasPrefix(next, prefix+"/") {
+		return next
+	}
+	return prefix
 }
 
 func (view *preview) basePage(heading string) previewPage {
@@ -177,13 +280,19 @@ func (view *preview) paletteItems() []paletteItem {
 			Href:     artifactPath(artifact.Name()),
 			Keywords: paletteKeywords("Artifact", artifact.Name(), artifact.Format()),
 		})
+		var clues []string
+		for _, note := range artifact.Notes() {
+			clues = append(clues, note.Text, formatHex(note.Address))
+		}
 		for _, function := range artifact.Functions() {
 			label := function.Name + " " + formatHex(function.Address)
+			keywords := []string{artifact.Name(), function.Name, function.Signature, formatHex(function.Address), strconv.FormatUint(function.Address, 16)}
+			keywords = append(keywords, clues...)
 			items = append(items, paletteItem{
 				Group:    artifact.Name(),
 				Label:    label,
 				Href:     functionPath(artifact.Name(), function.Address),
-				Keywords: paletteKeywords(artifact.Name(), function.Name, function.Signature, formatHex(function.Address), strconv.FormatUint(function.Address, 16)),
+				Keywords: paletteKeywords(keywords...),
 			})
 		}
 	}
@@ -273,6 +382,20 @@ table { width: 100%; }
 {{ if .Notice }}<p>{{ .Notice }}</p>{{ end }}
 {{ if .Signature }}<p>{{ .Signature }}</p>{{ end }}
 {{ if .Comment }}<p>{{ .Comment }}</p>{{ end }}
+{{ if .NameAction }}<form method="post" action="{{ .NameAction }}">
+<label>Function name <input name="name" value="{{ .FunctionName }}"></label>
+<button type="submit">Save name</button>
+</form>{{ end }}
+{{ if .NoteAction }}<h2>Notes</h2>
+<form method="post" action="{{ .NoteAction }}">
+<input type="hidden" name="next" value="{{ .Next }}">
+<label>Address <input name="address" value="{{ .AddressText }}"></label>
+<label>What it means <input name="text" value="{{ .AddressNote }}"></label>
+<button type="submit">Save note</button>
+</form>
+{{ if .Notes }}<ul>
+{{ range .Notes }}<li><code>{{ .Address }}</code> {{ .Text }}</li>{{ end }}
+</ul>{{ end }}{{ end }}
 {{ if .Summary }}<pre>{{ .Summary }}</pre>{{ end }}
 {{ if .Rows }}<table>
 {{ range .Rows }}<tr><td><a href="{{ .Href }}">{{ .Label }}</a></td><td>{{ .Detail }}</td></tr>

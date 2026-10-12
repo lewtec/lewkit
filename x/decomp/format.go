@@ -45,12 +45,48 @@ func (artifact *Artifact) Listing(address uint64) (string, error) {
 		builder.WriteByte('\n')
 		for _, instruction := range block.Instructions {
 			builder.WriteString(disasm.FormatInstruction(instruction, names))
+			if text, ok := artifact.Note(instruction.Address); ok {
+				fmt.Fprintf(&builder, "; note %s\n", text)
+			}
 		}
+	}
+	for _, note := range artifact.notesIn(function.Address, function.Size) {
+		if artifact.instructionAt(function, note.Address) {
+			continue
+		}
+		fmt.Fprintf(&builder, "; note 0x%x %s\n", note.Address, note.Text)
 	}
 	for _, text := range function.Strings {
 		fmt.Fprintf(&builder, "; string %q\n", text)
 	}
 	return builder.String(), nil
+}
+
+func (artifact *Artifact) notesIn(start, size uint64) []Note {
+	var notes []Note
+	for _, note := range artifact.Notes() {
+		if size == 0 {
+			if note.Address == start {
+				notes = append(notes, note)
+			}
+			continue
+		}
+		if note.Address >= start && note.Address < start+size {
+			notes = append(notes, note)
+		}
+	}
+	return notes
+}
+
+func (artifact *Artifact) instructionAt(function Function, address uint64) bool {
+	for _, block := range function.Blocks {
+		for _, instruction := range block.Instructions {
+			if instruction.Address == address {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (artifact *Artifact) displayNames() map[uint64]string {

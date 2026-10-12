@@ -110,6 +110,7 @@ func lift(ctx context.Context, object disasm.Object, format string) (*Artifact, 
 		entry:        object.Entry(),
 		sections:     sections,
 		symbols:      names,
+		notes:        map[uint64]string{},
 		functions:    functions,
 		byAddress:    map[uint64]*Function{},
 	}

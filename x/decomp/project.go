@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 
 	"github.com/lewtec/lewkit/x/disasm"
 )
@@ -34,7 +35,7 @@ type Project struct {
 	path      string
 }
 
-// Artifact is one loaded image and the names, comments, and matched
+// Artifact is one loaded image and the names, notes, and matched
 // source written onto it.
 type Artifact struct {
 	project      *Project
@@ -45,8 +46,15 @@ type Artifact struct {
 	entry        uint64
 	sections     []disasm.Section
 	symbols      map[uint64]string
+	notes        map[uint64]string
 	functions    []Function
 	byAddress    map[uint64]*Function
+}
+
+// Note is a user clue about one address.
+type Note struct {
+	Address uint64
+	Text    string
 }
 
 // Function is one recovered function.
@@ -221,6 +229,64 @@ func (artifact *Artifact) SetSignature(ctx context.Context, address uint64, sign
 	function.Signature = signature
 	if err := artifact.saveFunction(ctx, function); err != nil {
 		function.Signature = previous
+		return err
+	}
+	return nil
+}
+
+// Note returns the clue stored at address.
+func (artifact *Artifact) Note(address uint64) (string, bool) {
+	if artifact == nil {
+		return "", false
+	}
+	text, ok := artifact.notes[address]
+	if !ok || text == "" {
+		return "", false
+	}
+	return text, true
+}
+
+// Notes returns every stored clue, lowest address first.
+func (artifact *Artifact) Notes() []Note {
+	if artifact == nil || len(artifact.notes) == 0 {
+		return nil
+	}
+	addresses := make([]uint64, 0, len(artifact.notes))
+	for address, text := range artifact.notes {
+		if text == "" {
+			continue
+		}
+		addresses = append(addresses, address)
+	}
+	sort.Slice(addresses, func(i, j int) bool { return addresses[i] < addresses[j] })
+	notes := make([]Note, 0, len(addresses))
+	for _, address := range addresses {
+		notes = append(notes, Note{Address: address, Text: artifact.notes[address]})
+	}
+	return notes
+}
+
+// SetNote stores what address means. An empty text removes the clue.
+// An [Open] project writes the clue into the sqlite file.
+func (artifact *Artifact) SetNote(ctx context.Context, address uint64, text string) error {
+	if artifact == nil {
+		return errors.New("set note: nil artifact")
+	}
+	if artifact.notes == nil {
+		artifact.notes = map[uint64]string{}
+	}
+	previous, had := artifact.notes[address]
+	if text == "" {
+		delete(artifact.notes, address)
+	} else {
+		artifact.notes[address] = text
+	}
+	if err := artifact.saveNote(ctx, address, text); err != nil {
+		if had {
+			artifact.notes[address] = previous
+		} else {
+			delete(artifact.notes, address)
+		}
 		return err
 	}
 	return nil

@@ -5,7 +5,9 @@
 // [github.com/lewtec/lewkit/x/disasm], which keeps Capstone inside this
 // process. The artifact records functions, basic blocks, references, and
 // strings. [Open] stores that database in a sqlite file and reloads the
-// saved lift. [New] keeps the same database in memory. [Project.Attach]
+// saved lift, including names and address notes. [New] keeps the same
+// database in memory. [Artifact.SetName] and [Artifact.SetNote] write
+// those clues back when the project has a file. [Project.Attach]
 // sets the [Model] that writes a decompilation.
 // [Harness] runs the Grok harness, which uses the signed-in subscription.
 // [Chat] is a direct completion for a caller who passes an endpoint.
