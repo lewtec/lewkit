@@ -59,6 +59,85 @@ func lift(ctx context.Context, object disasm.Object, format string) (*Artifact, 
 		}
 		names[symbol.Address] = symbol.Name
 	}
+	imports := imageImports(object, names)
+	exports := imageExports(object, names, decoded)
+	starts := functionStarts(object, symbols, sections, decoded, imports, names, exports)
+	texts := scanStrings(sections)
+	functions := recoverFunctions(starts, decoded, names, sections, texts)
+	artifact := &Artifact{
+		format:       format,
+		architecture: architecture,
+		mode:         mode,
+		entry:        object.Entry(),
+		sections:     sections,
+		symbols:      names,
+		notes:        map[uint64]string{},
+		imageStrings: texts,
+		functions:    functions,
+		byAddress:    map[uint64]*Function{},
+	}
+	indexArtifact(artifact)
+	return artifact, nil
+}
+
+func imageImports(object disasm.Object, names map[uint64]string) map[uint64]string {
+	importer, ok := object.(interface {
+		Imports() ([]disasm.Import, error)
+	})
+	if !ok {
+		return nil
+	}
+	imported, err := importer.Imports()
+	if err != nil || len(imported) == 0 {
+		return nil
+	}
+	imports := map[uint64]string{}
+	for _, item := range imported {
+		if item.Name == "" {
+			continue
+		}
+		label := item.Name
+		if item.Library != "" {
+			label = item.Library + "!" + item.Name
+		}
+		if _, exists := imports[item.Address]; exists {
+			continue
+		}
+		imports[item.Address] = label
+		if _, exists := names[item.Address]; !exists {
+			names[item.Address] = label
+		}
+	}
+	return imports
+}
+
+func imageExports(object disasm.Object, names map[uint64]string, decoded map[uint64]disasm.Instruction) map[uint64]struct{} {
+	exporter, ok := object.(interface {
+		Exports() ([]disasm.Export, error)
+	})
+	if !ok {
+		return nil
+	}
+	exported, err := exporter.Exports()
+	if err != nil {
+		return nil
+	}
+	starts := map[uint64]struct{}{}
+	for _, item := range exported {
+		if item.Name == "" {
+			continue
+		}
+		if _, exists := names[item.Address]; !exists {
+			names[item.Address] = item.Name
+		}
+		if _, ok := decoded[item.Address]; ok {
+			starts[item.Address] = struct{}{}
+		}
+	}
+	return starts
+}
+
+func functionStarts(object disasm.Object, symbols disasm.Symbols, sections []disasm.Section, decoded map[uint64]disasm.Instruction, imports, names map[uint64]string, exports map[uint64]struct{}) []uint64 {
 	starts := map[uint64]struct{}{}
 	if _, ok := decoded[object.Entry()]; ok {
 		starts[object.Entry()] = struct{}{}
@@ -70,6 +149,9 @@ func lift(ctx context.Context, object disasm.Object, format string) (*Artifact, 
 		if _, ok := decoded[symbol.Address]; ok {
 			starts[symbol.Address] = struct{}{}
 		}
+	}
+	for address := range exports {
+		starts[address] = struct{}{}
 	}
 	for _, section := range sections {
 		if !section.Exec {
@@ -86,36 +168,93 @@ func lift(ctx context.Context, object disasm.Object, format string) (*Artifact, 
 				starts[flow.target] = struct{}{}
 			}
 		}
+		if flow.kind != kindJump || len(imports) == 0 {
+			continue
+		}
+		next := instruction.Address + uint64(instruction.Size)
+		for _, address := range referencedAddresses(instruction.Operands, next) {
+			name := imports[address]
+			if name == "" {
+				continue
+			}
+			starts[instruction.Address] = struct{}{}
+			if _, exists := names[instruction.Address]; !exists {
+				names[instruction.Address] = name
+			}
+		}
 	}
-
 	ordered := make([]uint64, 0, len(starts))
 	for address := range starts {
 		ordered = append(ordered, address)
 	}
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i] < ordered[j] })
+	return ordered
+}
 
-	strings := scanStrings(sections)
-	functions := make([]Function, 0, len(ordered))
-	for index, start := range ordered {
-		var end uint64
-		if index+1 < len(ordered) {
-			end = ordered[index+1]
+func recoverFunctions(starts []uint64, decoded map[uint64]disasm.Instruction, names map[uint64]string, sections []disasm.Section, texts []cstring) []Function {
+	claimed := map[uint64]struct{}{}
+	functions := make([]Function, 0, len(starts))
+	for _, start := range starts {
+		if _, taken := claimed[start]; taken {
+			continue
 		}
-		functions = append(functions, buildFunction(start, end, decoded, sections, strings, names))
+		instructions := walkFunction(start, decoded, claimed)
+		if len(instructions) == 0 {
+			continue
+		}
+		functions = append(functions, buildFunction(start, instructions, sections, texts, names))
 	}
-	artifact := &Artifact{
-		format:       format,
-		architecture: architecture,
-		mode:         mode,
-		entry:        object.Entry(),
-		sections:     sections,
-		symbols:      names,
-		notes:        map[uint64]string{},
-		functions:    functions,
-		byAddress:    map[uint64]*Function{},
+	var rest []uint64
+	for address := range decoded {
+		if _, taken := claimed[address]; taken {
+			continue
+		}
+		rest = append(rest, address)
 	}
-	indexArtifact(artifact)
-	return artifact, nil
+	sort.Slice(rest, func(i, j int) bool { return rest[i] < rest[j] })
+	for _, start := range rest {
+		if _, taken := claimed[start]; taken {
+			continue
+		}
+		instructions := walkFunction(start, decoded, claimed)
+		if len(instructions) == 0 {
+			continue
+		}
+		functions = append(functions, buildFunction(start, instructions, sections, texts, names))
+	}
+	sort.Slice(functions, func(i, j int) bool { return functions[i].Address < functions[j].Address })
+	return functions
+}
+
+func walkFunction(start uint64, decoded map[uint64]disasm.Instruction, claimed map[uint64]struct{}) []disasm.Instruction {
+	if _, ok := decoded[start]; !ok {
+		return nil
+	}
+	queue := []uint64{start}
+	var instructions []disasm.Instruction
+	for len(queue) > 0 {
+		address := queue[0]
+		queue = queue[1:]
+		if _, taken := claimed[address]; taken {
+			continue
+		}
+		instruction, ok := decoded[address]
+		if !ok {
+			continue
+		}
+		claimed[address] = struct{}{}
+		instructions = append(instructions, instruction)
+		flow := inspect(instruction.Mnemonic, instruction.Operands)
+		if flow.direct && (flow.kind == kindJump || flow.kind == kindBranch) {
+			queue = append(queue, flow.target)
+		}
+		switch flow.kind {
+		case kindPlain, kindBranch, kindCall:
+			queue = append(queue, instruction.Address+uint64(instruction.Size))
+		}
+	}
+	sort.Slice(instructions, func(i, j int) bool { return instructions[i].Address < instructions[j].Address })
+	return instructions
 }
 
 func indexArtifact(artifact *Artifact) {
@@ -222,15 +361,7 @@ func firstInstruction(section disasm.Section, decoded map[uint64]disasm.Instruct
 	return found, ok
 }
 
-func buildFunction(start, end uint64, decoded map[uint64]disasm.Instruction, sections []disasm.Section, strings []cstring, names map[uint64]string) Function {
-	var instructions []disasm.Instruction
-	for address, instruction := range decoded {
-		if address < start || (end != 0 && address >= end) {
-			continue
-		}
-		instructions = append(instructions, instruction)
-	}
-	sort.Slice(instructions, func(i, j int) bool { return instructions[i].Address < instructions[j].Address })
+func buildFunction(start uint64, instructions []disasm.Instruction, sections []disasm.Section, strings []cstring, names map[uint64]string) Function {
 	function := Function{Address: start, Name: names[start]}
 	if function.Name == "" {
 		function.Name = fmt.Sprintf("sub_%x", start)
@@ -349,27 +480,82 @@ func scanStrings(sections []disasm.Section) []cstring {
 		if section.Exec || len(section.Bytes) == 0 {
 			continue
 		}
-		data := section.Bytes
-		index := 0
-		for index < len(data) {
-			if !printable(data[index]) {
-				index++
-				continue
-			}
-			end := index
-			for end < len(data) && printable(data[end]) {
-				end++
-			}
-			if end-index >= 4 && end < len(data) && data[end] == 0 {
-				found = append(found, cstring{
-					Address: section.Address + uint64(index),
-					Text:    string(data[index:end]),
-				})
-			}
-			index = end
+		found = append(found, scanASCII(section.Bytes, section.Address)...)
+		found = append(found, scanUTF16(section.Bytes, section.Address)...)
+	}
+	sort.Slice(found, func(i, j int) bool {
+		if found[i].Address == found[j].Address {
+			return len(found[i].Text) > len(found[j].Text)
 		}
+		return found[i].Address < found[j].Address
+	})
+	if len(found) == 0 {
+		return nil
+	}
+	unique := found[:1]
+	for _, item := range found[1:] {
+		if item.Address == unique[len(unique)-1].Address {
+			continue
+		}
+		unique = append(unique, item)
+	}
+	return unique
+}
+
+func scanASCII(data []byte, base uint64) []cstring {
+	var found []cstring
+	index := 0
+	for index < len(data) {
+		if !printable(data[index]) {
+			index++
+			continue
+		}
+		end := index
+		for end < len(data) && printable(data[end]) {
+			end++
+		}
+		if end-index >= 4 && end < len(data) && data[end] == 0 {
+			found = append(found, cstring{
+				Address: base + uint64(index),
+				Text:    string(data[index:end]),
+			})
+		}
+		index = end
 	}
 	return found
+}
+
+func scanUTF16(data []byte, base uint64) []cstring {
+	var found []cstring
+	index := 0
+	for index+1 < len(data) {
+		if !utf16Printable(data, index) {
+			index++
+			continue
+		}
+		end := index
+		for end+1 < len(data) && utf16Printable(data, end) {
+			end += 2
+		}
+		if (end-index)/2 >= 4 && end+1 < len(data) && data[end] == 0 && data[end+1] == 0 {
+			chars := make([]byte, 0, (end-index)/2)
+			for cursor := index; cursor < end; cursor += 2 {
+				chars = append(chars, data[cursor])
+			}
+			found = append(found, cstring{
+				Address: base + uint64(index),
+				Text:    string(chars),
+			})
+			index = end + 2
+			continue
+		}
+		index++
+	}
+	return found
+}
+
+func utf16Printable(data []byte, index int) bool {
+	return index+1 < len(data) && data[index+1] == 0 && printable(data[index])
 }
 
 func stringAt(strings []cstring, address uint64) (string, bool) {

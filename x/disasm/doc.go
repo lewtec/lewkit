@@ -4,7 +4,8 @@
 // [Engine.Iter] yields instructions from a byte slice.
 // File formats are [ReadText] / [OpenObject]: [Object] is implemented
 // by [ELFFile], [PEFile], and [MachOFile]. [Object.Sections] and
-// [Object.Entry] expose the loaded image. [FormatInstruction] prints
-// labels and operand symbol refs.
+// [Object.Entry] expose the loaded image. A PE section stops at its
+// virtual size. [PEFile.Imports] and [PEFile.Exports] name those symbols.
+// [FormatInstruction] prints labels and operand symbol refs.
 // Hex input is [DecodeHex].
 package disasm

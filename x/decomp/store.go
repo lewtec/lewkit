@@ -16,7 +16,7 @@ import (
 // ErrProject is a sqlite file that is not a decomp program database.
 var ErrProject = errors.New("not a decomp project")
 
-const projectSchemaVersion = "2"
+const projectSchemaVersion = "3"
 
 // Open opens a sqlite program database, creating it when the file is new.
 // The saved lift is loaded into this process. A later Add, rename, comment,
@@ -122,20 +122,34 @@ func (project *Project) prepare(ctx context.Context) error {
 	if version == projectSchemaVersion {
 		return nil
 	}
-	if version == "1" {
-		return project.migrateNotes(ctx)
+	if version == "1" || version == "2" {
+		return project.migrate(ctx, version)
 	}
 	return fmt.Errorf("%w: schema %s", ErrProject, version)
 }
 
-func (project *Project) migrateNotes(ctx context.Context) error {
+func (project *Project) migrate(ctx context.Context, version string) error {
 	transaction, err := project.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("migrate project: %w", err)
 	}
 	defer transaction.Rollback()
-	if _, err := transaction.ExecContext(ctx, noteTable); err != nil {
+	if version == "1" {
+		if _, err := transaction.ExecContext(ctx, noteTable); err != nil {
+			return fmt.Errorf("migrate project: %w", err)
+		}
+	}
+	if err := addArtifactColumn(ctx, transaction, "path", `ALTER TABLE artifact ADD COLUMN path TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	if err := addArtifactColumn(ctx, transaction, "digest", `ALTER TABLE artifact ADD COLUMN digest TEXT NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	if _, err := transaction.ExecContext(ctx, imageStringTable); err != nil {
 		return fmt.Errorf("migrate project: %w", err)
+	}
+	if err := backfillDigest(ctx, transaction); err != nil {
+		return err
 	}
 	if _, err := transaction.ExecContext(ctx, `UPDATE meta SET value = ? WHERE key = 'schema'`, projectSchemaVersion); err != nil {
 		return fmt.Errorf("migrate project: %w", err)
@@ -146,8 +160,53 @@ func (project *Project) migrateNotes(ctx context.Context) error {
 	return nil
 }
 
+func addArtifactColumn(ctx context.Context, transaction *sql.Tx, column, statement string) error {
+	var present int
+	if err := transaction.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('artifact') WHERE name = ?`, column).Scan(&present); err != nil {
+		return fmt.Errorf("migrate project: %w", err)
+	}
+	if present > 0 {
+		return nil
+	}
+	if _, err := transaction.ExecContext(ctx, statement); err != nil {
+		return fmt.Errorf("migrate project: %w", err)
+	}
+	return nil
+}
+
+func backfillDigest(ctx context.Context, transaction *sql.Tx) error {
+	rows, err := transaction.QueryContext(ctx, `SELECT name, image FROM artifact WHERE digest = ''`)
+	if err != nil {
+		return fmt.Errorf("migrate project: %w", err)
+	}
+	type storedImage struct {
+		name  string
+		image []byte
+	}
+	var pending []storedImage
+	for rows.Next() {
+		var item storedImage
+		if err := rows.Scan(&item.name, &item.image); err != nil {
+			rows.Close()
+			return fmt.Errorf("migrate project: %w", err)
+		}
+		pending = append(pending, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("migrate project: %w", err)
+	}
+	rows.Close()
+	for _, item := range pending {
+		if _, err := transaction.ExecContext(ctx, `UPDATE artifact SET digest = ? WHERE name = ?`, imageDigest(item.image), item.name); err != nil {
+			return fmt.Errorf("migrate project: %w", err)
+		}
+	}
+	return nil
+}
+
 func (project *Project) load(ctx context.Context) error {
-	rows, err := project.db.QueryContext(ctx, `SELECT name, format, architecture, mode, entry FROM artifact ORDER BY rowid`)
+	rows, err := project.db.QueryContext(ctx, `SELECT name, format, architecture, mode, entry, path, digest FROM artifact ORDER BY rowid`)
 	if err != nil {
 		return fmt.Errorf("load project: %w", err)
 	}
@@ -156,7 +215,7 @@ func (project *Project) load(ctx context.Context) error {
 	for rows.Next() {
 		artifact := &Artifact{project: project, symbols: map[uint64]string{}, notes: map[uint64]string{}}
 		var architecture, mode, entry int64
-		if err := rows.Scan(&artifact.name, &artifact.format, &architecture, &mode, &entry); err != nil {
+		if err := rows.Scan(&artifact.name, &artifact.format, &architecture, &mode, &entry, &artifact.path, &artifact.digest); err != nil {
 			return fmt.Errorf("load project: %w", err)
 		}
 		artifact.architecture = disasm.Architecture(architecture)
@@ -186,7 +245,30 @@ func (artifact *Artifact) load(ctx context.Context, database *sql.DB) error {
 	if err := artifact.loadFunctions(ctx, database); err != nil {
 		return err
 	}
-	return artifact.loadNotes(ctx, database)
+	if err := artifact.loadNotes(ctx, database); err != nil {
+		return err
+	}
+	return artifact.loadImageStrings(ctx, database)
+}
+
+func (artifact *Artifact) loadImageStrings(ctx context.Context, database *sql.DB) error {
+	rows, err := database.QueryContext(ctx, `SELECT address, text FROM image_string WHERE artifact = ? ORDER BY address`, artifact.name)
+	if err != nil {
+		return fmt.Errorf("load strings: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var address int64
+		var text string
+		if err := rows.Scan(&address, &text); err != nil {
+			return fmt.Errorf("load strings: %w", err)
+		}
+		artifact.imageStrings = append(artifact.imageStrings, cstring{Address: uint64(address), Text: text})
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("load strings: %w", err)
+	}
+	return nil
 }
 
 func (artifact *Artifact) loadNotes(ctx context.Context, database *sql.DB) error {
@@ -428,8 +510,8 @@ func (project *Project) insertArtifact(ctx context.Context, artifact *Artifact, 
 		return fmt.Errorf("store artifact: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `INSERT INTO artifact (name, format, architecture, mode, entry, image) VALUES (?, ?, ?, ?, ?, ?)`,
-		artifact.name, artifact.format, int64(artifact.architecture), int64(artifact.mode), int64(artifact.entry), image); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO artifact (name, format, architecture, mode, entry, image, path, digest) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		artifact.name, artifact.format, int64(artifact.architecture), int64(artifact.mode), int64(artifact.entry), image, artifact.path, artifact.digest); err != nil {
 		return fmt.Errorf("store artifact: %w", err)
 	}
 	for position, section := range artifact.sections {
@@ -457,6 +539,12 @@ func (project *Project) insertArtifact(ctx context.Context, artifact *Artifact, 
 	for _, function := range artifact.functions {
 		if err := insertFunction(ctx, tx, artifact.name, function); err != nil {
 			return err
+		}
+	}
+	for _, item := range artifact.imageStrings {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO image_string (artifact, address, text) VALUES (?, ?, ?)`,
+			artifact.name, int64(item.Address), item.Text); err != nil {
+			return fmt.Errorf("store string: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -563,19 +651,62 @@ const noteTable = `CREATE TABLE IF NOT EXISTS note (
 	PRIMARY KEY (artifact, address)
 )`
 
+const imageStringTable = `CREATE TABLE IF NOT EXISTS image_string (
+	artifact TEXT NOT NULL REFERENCES artifact(name) ON DELETE CASCADE,
+	address INTEGER NOT NULL,
+	text TEXT NOT NULL,
+	PRIMARY KEY (artifact, address)
+)`
+
+// ArtifactFile returns the artifact stored for path.
+// A missing file can still resolve to that stored image.
+func (project *Project) ArtifactFile(path string) (*Artifact, bool) {
+	if project == nil || path == "" || path == "-" {
+		return nil, false
+	}
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, false
+	}
+	if artifact := project.byPath(absolute); artifact != nil {
+		return artifact, true
+	}
+	artifact, ok := project.Artifact(filepath.Base(absolute))
+	if !ok {
+		return nil, false
+	}
+	if artifact.path == "" || artifact.path == absolute {
+		return artifact, true
+	}
+	return nil, false
+}
+
+func (project *Project) adoptPath(ctx context.Context, artifact *Artifact, path string) error {
+	artifact.path = path
+	if project == nil || project.db == nil {
+		return nil
+	}
+	if _, err := project.db.ExecContext(ctx, `UPDATE artifact SET path = ? WHERE name = ?`, path, artifact.name); err != nil {
+		return fmt.Errorf("store path: %w", err)
+	}
+	return nil
+}
+
 var projectSchema = []string{
 	`CREATE TABLE meta (
 		key TEXT PRIMARY KEY,
 		value TEXT NOT NULL
 	)`,
-	`INSERT INTO meta (key, value) VALUES ('schema', '2')`,
+	`INSERT INTO meta (key, value) VALUES ('schema', '3')`,
 	`CREATE TABLE artifact (
 		name TEXT PRIMARY KEY,
 		format TEXT NOT NULL,
 		architecture INTEGER NOT NULL,
 		mode INTEGER NOT NULL,
 		entry INTEGER NOT NULL,
-		image BLOB NOT NULL
+		image BLOB NOT NULL,
+		path TEXT NOT NULL DEFAULT '',
+		digest TEXT NOT NULL DEFAULT ''
 	)`,
 	`CREATE TABLE section (
 		artifact TEXT NOT NULL REFERENCES artifact(name) ON DELETE CASCADE,
@@ -648,4 +779,5 @@ var projectSchema = []string{
 		FOREIGN KEY (artifact, function_address) REFERENCES function(artifact, address) ON DELETE CASCADE
 	)`,
 	noteTable,
+	imageStringTable,
 }

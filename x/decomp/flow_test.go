@@ -20,6 +20,11 @@ func TestInspectCallAndBranch(t *testing.T) {
 	assert.Equal(t, kindCall, indirect.kind)
 	assert.False(t, indirect.direct)
 
+	slot := inspect("jmp", "dword ptr [0x41e400]")
+	assert.Equal(t, kindJump, slot.kind)
+	assert.False(t, slot.direct)
+	assert.Equal(t, uint64(0), slot.target)
+
 	ret := inspect("ret", "")
 	assert.Equal(t, kindReturn, ret.kind)
 }

@@ -31,6 +31,8 @@ type Harness struct {
 	Dir string
 	// Run starts one harness process. Nil runs Path through x/driver/exec.
 	Run func(ctx context.Context, call HarnessCall) ([]byte, error)
+	// Schema is the JSON schema passed to grok. Empty uses the match schema.
+	Schema string
 }
 
 // HarnessCall is one grok invocation.
@@ -111,7 +113,7 @@ func (harness Harness) arguments(dir, promptPath string, prompt Prompt) []string
 		"--permission-mode", "dontAsk",
 		"--verbatim",
 		"--output-format", "json",
-		"--json-schema", harnessSchema,
+		"--json-schema", harness.schema(),
 		"--max-turns", "1",
 		"--no-subagents",
 		"--no-plan",
@@ -123,6 +125,16 @@ func (harness Harness) arguments(dir, promptPath string, prompt Prompt) []string
 	}
 	return args
 }
+
+func (harness Harness) schema() string {
+	if harness.Schema != "" {
+		return harness.Schema
+	}
+	return harnessSchema
+}
+
+// ExplainSchema is the JSON object [Artifact.Explain] asks the model to return.
+const ExplainSchema = `{"type":"object","additionalProperties":false,"required":["source"],"properties":{"source":{"type":"string"}}}`
 
 func runGrok(ctx context.Context, call HarnessCall) ([]byte, error) {
 	if _, err := execdriver.Which(ctx, call.Path); err != nil {

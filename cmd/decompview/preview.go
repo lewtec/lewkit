@@ -26,6 +26,7 @@ func Handler(project *decomp.Project) http.Handler {
 	mux.HandleFunc("POST /artifact/{name}/note", view.saveNote)
 	mux.HandleFunc("GET /artifact/{name}/function/{address}", view.function)
 	mux.HandleFunc("POST /artifact/{name}/function/{address}/name", view.saveName)
+	mux.HandleFunc("POST /artifact/{name}/function/{address}/signature", view.saveSignature)
 	return asset.Mount(mux)
 }
 
@@ -37,27 +38,29 @@ type preview struct {
 }
 
 type previewPage struct {
-	Title        string
-	Style        string
-	Project      string
-	ProjectName  string
-	Heading      string
-	Notice       string
-	Summary      string
-	Signature    string
-	Comment      string
-	Listing      string
-	Source       string
-	ShowSource   bool
-	FunctionName string
-	AddressText  string
-	AddressNote  string
-	NameAction   string
-	NoteAction   string
-	Next         string
-	Notes        []previewNote
-	Rows         []previewRow
-	Items        []paletteItem
+	Title           string
+	Style           string
+	Project         string
+	ProjectName     string
+	Heading         string
+	Notice          string
+	Summary         string
+	Signature       string
+	Comment         string
+	Listing         string
+	Source          string
+	ShowSource      bool
+	FunctionName    string
+	AddressText     string
+	AddressNote     string
+	NameAction      string
+	SignatureAction string
+	NoteAction      string
+	Next            string
+	Callees         []previewRow
+	Notes           []previewNote
+	Rows            []previewRow
+	Items           []paletteItem
 }
 
 type previewNote struct {
@@ -141,7 +144,7 @@ func (view *preview) artifactPage(name string) (previewPage, bool) {
 		page.Rows = append(page.Rows, previewRow{
 			Label:  function.Name,
 			Href:   functionPath(name, function.Address),
-			Detail: formatHex(function.Address),
+			Detail: fmt.Sprintf("%s %d", formatHex(function.Address), function.Size),
 		})
 	}
 	return page, true
@@ -169,7 +172,9 @@ func (view *preview) functionPage(name string, address uint64) (previewPage, boo
 	page.FunctionName = function.Name
 	page.AddressText = formatHex(function.Address)
 	page.NameAction = functionPath(name, function.Address) + "/name"
+	page.SignatureAction = functionPath(name, function.Address) + "/signature"
 	page.NoteAction = artifactPath(name) + "/note"
+	page.Callees = callLinks(name, function)
 	page.Next = functionPath(name, function.Address)
 	if text, ok := artifact.Note(function.Address); ok {
 		page.AddressNote = text
@@ -195,6 +200,36 @@ func (view *preview) saveName(response http.ResponseWriter, request *http.Reques
 	var saveErr error
 	if ok {
 		saveErr = artifact.SetName(request.Context(), address, functionName)
+	}
+	view.mu.Unlock()
+	if !ok {
+		http.NotFound(response, request)
+		return
+	}
+	if saveErr != nil {
+		http.Error(response, saveErr.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(response, request, functionPath(artifactName, address), http.StatusSeeOther)
+}
+
+func (view *preview) saveSignature(response http.ResponseWriter, request *http.Request) {
+	if err := request.ParseForm(); err != nil {
+		http.Error(response, err.Error(), http.StatusBadRequest)
+		return
+	}
+	address, err := parseAddress(request.PathValue("address"))
+	if err != nil {
+		http.Error(response, "bad function address", http.StatusBadRequest)
+		return
+	}
+	artifactName := request.PathValue("name")
+	signature := strings.TrimSpace(request.PostForm.Get("signature"))
+	view.mu.Lock()
+	artifact, ok := view.project.Artifact(artifactName)
+	var saveErr error
+	if ok {
+		saveErr = artifact.SetSignature(request.Context(), address, signature)
 	}
 	view.mu.Unlock()
 	if !ok {
@@ -280,14 +315,15 @@ func (view *preview) paletteItems() []paletteItem {
 			Href:     artifactPath(artifact.Name()),
 			Keywords: paletteKeywords("Artifact", artifact.Name(), artifact.Format()),
 		})
-		var clues []string
-		for _, note := range artifact.Notes() {
-			clues = append(clues, note.Text, formatHex(note.Address))
-		}
 		for _, function := range artifact.Functions() {
 			label := function.Name + " " + formatHex(function.Address)
 			keywords := []string{artifact.Name(), function.Name, function.Signature, formatHex(function.Address), strconv.FormatUint(function.Address, 16)}
-			keywords = append(keywords, clues...)
+			for _, note := range artifact.Notes() {
+				if !noteBelongs(function, note.Address) {
+					continue
+				}
+				keywords = append(keywords, note.Text, formatHex(note.Address))
+			}
 			items = append(items, paletteItem{
 				Group:    artifact.Name(),
 				Label:    label,
@@ -332,6 +368,46 @@ func parseAddress(text string) (uint64, error) {
 		return 0, fmt.Errorf("function address: %w", err)
 	}
 	return address, nil
+}
+
+func callLinks(name string, function decomp.Function) []previewRow {
+	seen := map[uint64]struct{}{}
+	var links []previewRow
+	for _, reference := range function.References {
+		if reference.Kind != "call" {
+			continue
+		}
+		if _, ok := seen[reference.To]; ok {
+			continue
+		}
+		seen[reference.To] = struct{}{}
+		links = append(links, previewRow{
+			Label: formatHex(reference.To),
+			Href:  functionPath(name, reference.To),
+		})
+	}
+	return links
+}
+
+func noteBelongs(function decomp.Function, address uint64) bool {
+	if function.Size == 0 {
+		if function.Address == address {
+			return true
+		}
+	} else if address >= function.Address && address < function.Address+function.Size {
+		return true
+	}
+	for _, reference := range function.References {
+		if reference.To == address {
+			return true
+		}
+	}
+	for _, instruction := range function.Instructions {
+		if instruction.Address == address {
+			return true
+		}
+	}
+	return false
 }
 
 func paletteKeywords(parts ...string) string {
@@ -380,12 +456,18 @@ table { width: 100%; }
 </header>
 <h1>{{ .Heading }}</h1>
 {{ if .Notice }}<p>{{ .Notice }}</p>{{ end }}
-{{ if .Signature }}<p>{{ .Signature }}</p>{{ end }}
 {{ if .Comment }}<p>{{ .Comment }}</p>{{ end }}
 {{ if .NameAction }}<form method="post" action="{{ .NameAction }}">
 <label>Function name <input name="name" value="{{ .FunctionName }}"></label>
 <button type="submit">Save name</button>
 </form>{{ end }}
+{{ if .SignatureAction }}<form method="post" action="{{ .SignatureAction }}">
+<label>Signature <input name="signature" value="{{ .Signature }}"></label>
+<button type="submit">Save signature</button>
+</form>{{ end }}
+{{ if .Callees }}<h2>Calls</h2><ul>
+{{ range .Callees }}<li><a href="{{ .Href }}">{{ .Label }}</a></li>{{ end }}
+</ul>{{ end }}
 {{ if .NoteAction }}<h2>Notes</h2>
 <form method="post" action="{{ .NoteAction }}">
 <input type="hidden" name="next" value="{{ .Next }}">

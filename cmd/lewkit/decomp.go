@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 
 	"github.com/lewtec/lewkit/cmd/decompview"
 	"github.com/lewtec/lewkit/x/cmd"
@@ -27,9 +26,13 @@ type decompCmd struct {
 	summary   *decompSummaryCmd
 	functions *decompFunctionsCmd
 	listing   *decompListingCmd
+	xrefs     *decompXRefsCmd
+	strings   *decompStringsCmd
 	match     *decompMatchCmd
+	explain   *decompExplainCmd
 	name      *decompNameCmd
 	note      *decompNoteCmd
+	signature *decompSignatureCmd
 	view      *decompViewCmd
 }
 
@@ -93,12 +96,59 @@ func (command *decompListingCmd) Run(ctx context.Context) (err error) {
 		return err
 	}
 	defer func() { err = joinClose(err, project.Close()) }()
-	listing, err := artifact.Listing(command.at.Value())
+	listing, err := artifact.Listing(commandAddress(command.at, artifact))
 	if err != nil {
 		return err
 	}
 	_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), listing)
 	return err
+}
+
+type decompXRefsCmd struct {
+	path cmd.StringArg      `help:"elf, pe, or macho path"`
+	at   cmd.IntArg[uint64] `long:"at" default:"0" help:"address"`
+}
+
+func (decompXRefsCmd) Description() string {
+	return "list references to one address"
+}
+
+func (command *decompXRefsCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	out := lewfs.ContextWriter(ctx, os.Stdout)
+	for _, reference := range artifact.XRefs(command.at.Value()) {
+		if _, err := fmt.Fprintf(out, "0x%x %s\n", reference.From, reference.Kind); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type decompStringsCmd struct {
+	path cmd.StringArg `help:"elf, pe, or macho path"`
+}
+
+func (decompStringsCmd) Description() string {
+	return "list strings in the image"
+}
+
+func (command *decompStringsCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	out := lewfs.ContextWriter(ctx, os.Stdout)
+	for _, item := range artifact.Strings() {
+		if _, err := fmt.Fprintf(out, "0x%x %s\n", item.Address, item.Text); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type decompMatchCmd struct {
@@ -137,10 +187,47 @@ func (command *decompMatchCmd) Run(ctx context.Context) (err error) {
 			Model: command.model.Value(),
 		})
 	}
-	result, err := artifact.Match(ctx, command.at.Value(), decomp.MatchConfig{Rounds: command.rounds.Value()})
+	result, err := artifact.Match(ctx, commandAddress(command.at, artifact), decomp.MatchConfig{Rounds: command.rounds.Value()})
 	if result.Rounds > 0 {
 		if writeErr := writeMatch(ctx, result); writeErr != nil {
 			return writeErr
+		}
+	}
+	return err
+}
+
+type decompExplainCmd struct {
+	path    cmd.StringArg      `help:"elf, pe, or macho path"`
+	at      cmd.IntArg[uint64] `long:"at" default:"0" help:"function address"`
+	harness cmd.StringArg      `long:"harness" default:"grok" help:"grok executable for the signed-in subscription"`
+	model   cmd.StringArg      `long:"model" default:"" help:"harness model; empty uses the signed-in default"`
+	rounds  cmd.IntArg[int]    `long:"rounds" default:"1" help:"explain attempts"`
+}
+
+func (decompExplainCmd) Description() string {
+	return "ask an attached model to explain one function"
+}
+
+func (command *decompExplainCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	artifact.Attach(decomp.Harness{
+		Path:   command.harness.Value(),
+		Model:  command.model.Value(),
+		Schema: decomp.ExplainSchema,
+	})
+	result, err := artifact.Explain(ctx, commandAddress(command.at, artifact), decomp.MatchConfig{Rounds: command.rounds.Value()})
+	if result.Rounds > 0 && result.Source != "" {
+		if _, writeErr := io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), result.Source); writeErr != nil {
+			return writeErr
+		}
+		if result.Source[len(result.Source)-1] != '\n' {
+			if _, writeErr := io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), "\n"); writeErr != nil {
+				return writeErr
+			}
 		}
 	}
 	return err
@@ -188,6 +275,15 @@ func (command *decompNoteCmd) Run(ctx context.Context) (err error) {
 		return err
 	}
 	defer func() { err = joinClose(err, project.Close()) }()
+	if !command.at.ArgSet() && !command.text.ArgSet() {
+		out := lewfs.ContextWriter(ctx, os.Stdout)
+		for _, note := range artifact.Notes() {
+			if _, err := fmt.Fprintf(out, "0x%x %s\n", note.Address, note.Text); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	address := command.at.Value()
 	if command.text.ArgSet() {
 		if err := artifact.SetNote(ctx, address, command.text.Value()); err != nil {
@@ -202,6 +298,32 @@ func (command *decompNoteCmd) Run(ctx context.Context) (err error) {
 		return fmt.Errorf("no note at 0x%x", address)
 	}
 	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", text)
+	return err
+}
+
+type decompSignatureCmd struct {
+	path cmd.StringArg      `help:"elf, pe, or macho path"`
+	at   cmd.IntArg[uint64] `long:"at" default:"0" help:"function address"`
+	text cmd.StringArg      `long:"text" default:"" help:"function signature"`
+}
+
+func (decompSignatureCmd) Description() string {
+	return "store a function signature"
+}
+
+func (command *decompSignatureCmd) Run(ctx context.Context) (err error) {
+	if !command.text.ArgSet() {
+		return fmt.Errorf("decomp signature: missing --text")
+	}
+	project, artifact, err := openDecomp(ctx, command.path.Value())
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	if err := artifact.SetSignature(ctx, command.at.Value(), command.text.Value()); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", command.text.Value())
 	return err
 }
 
@@ -253,26 +375,43 @@ func openDecomp(ctx context.Context, path string) (*decomp.Project, *decomp.Arti
 	} else {
 		project = decomp.New()
 	}
-	name := path
-	if name == "" || name == "-" {
-		name = "stdin"
-	} else {
-		name = filepath.Base(name)
-	}
-	if artifact, ok := project.Artifact(name); ok {
+	if path == "" || path == "-" {
+		if artifact, ok := project.Artifact("stdin"); ok {
+			return project, artifact, nil
+		}
+		data, err := readInput(ctx, path)
+		if err != nil {
+			_ = project.Close()
+			return nil, nil, err
+		}
+		artifact, err := project.AddBytes(ctx, "stdin", data)
+		if err != nil {
+			_ = project.Close()
+			return nil, nil, err
+		}
 		return project, artifact, nil
 	}
 	data, err := readInput(ctx, path)
 	if err != nil {
+		if artifact, ok := project.ArtifactFile(path); ok {
+			return project, artifact, nil
+		}
 		_ = project.Close()
 		return nil, nil, err
 	}
-	artifact, err := project.AddBytes(ctx, name, data)
+	artifact, err := project.Remember(ctx, path, data)
 	if err != nil {
 		_ = project.Close()
 		return nil, nil, err
 	}
 	return project, artifact, nil
+}
+
+func commandAddress(at cmd.IntArg[uint64], artifact *decomp.Artifact) uint64 {
+	if !at.ArgSet() {
+		return artifact.Entry()
+	}
+	return at.Value()
 }
 
 func joinClose(err, closeErr error) error {

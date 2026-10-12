@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -88,6 +89,12 @@ func TestPreviewStoresNameAndNote(t *testing.T) {
 	assert.Contains(t, page.Body.String(), "saved clue")
 	assert.Contains(t, page.Body.String(), "Save name")
 	assert.Contains(t, page.Body.String(), "Save note")
+	assert.Contains(t, page.Body.String(), `name="signature"`)
+
+	table := get(t, handler, "/artifact/branch.elf")
+	assert.Equal(t, http.StatusOK, table.Code)
+	assert.Contains(t, table.Body.String(), "greet")
+	assert.Contains(t, table.Body.String(), "0x1000 1")
 	require.NoError(t, project.Close())
 
 	reopened, err := decomp.Open(t.Context(), path)
@@ -101,6 +108,42 @@ func TestPreviewStoresNameAndNote(t *testing.T) {
 	text, ok := artifact.Note(0x1000)
 	require.True(t, ok)
 	assert.Equal(t, "saved clue", text)
+}
+
+func TestPreviewFollowsCallsNotesAndSignature(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "program.decomp")
+	project, err := decomp.Open(t.Context(), path)
+	require.NoError(t, err)
+	artifact, err := project.AddBytes(t.Context(), "setup.exe", disasm.ELF64(elf.EM_X86_64, []byte{0xe8, 0x01, 0x00, 0x00, 0x00, 0xc3, 0xc3}))
+	require.NoError(t, err)
+	require.NoError(t, artifact.SetNote(t.Context(), 0x1001, "kernel32!CloseHandle"))
+	handler := Handler(project)
+
+	function := get(t, handler, "/artifact/setup.exe/function/0x1000")
+	assert.Equal(t, http.StatusOK, function.Code)
+	assert.Contains(t, function.Body.String(), `/artifact/setup.exe/function/0x1006`)
+
+	page := get(t, handler, "/artifact/setup.exe")
+	assert.Contains(t, page.Body.String(), "0x1000 6")
+	assert.Contains(t, page.Body.String(), "0x1006 1")
+
+	hits := paletteHits(function.Body.String(), "closehandle")
+	require.Len(t, hits, 1)
+	assert.Equal(t, "/artifact/setup.exe/function/0x1000", hits[0])
+
+	renamed := post(t, handler, "/artifact/setup.exe/function/0x1006/name", url.Values{"name": {"StringAssign"}})
+	assert.Equal(t, http.StatusSeeOther, renamed.Code)
+	assert.Equal(t, "/artifact/setup.exe/function/0x1006", renamed.Header().Get("Location"))
+	page = get(t, handler, "/artifact/setup.exe")
+	assert.Contains(t, page.Body.String(), "StringAssign")
+
+	signed := post(t, handler, "/artifact/setup.exe/function/0x1000/signature", url.Values{"signature": {"void entry(void)"}})
+	assert.Equal(t, http.StatusSeeOther, signed.Code)
+	function = get(t, handler, "/artifact/setup.exe/function/0x1000")
+	assert.Contains(t, function.Body.String(), `name="signature"`)
+	assert.Contains(t, function.Body.String(), "void entry(void)")
+	assert.Contains(t, function.Body.String(), "signature void entry(void)")
+	require.NoError(t, project.Close())
 }
 
 func TestListenServesTheIndex(t *testing.T) {
@@ -139,6 +182,17 @@ func TestListenServesTheIndex(t *testing.T) {
 
 	cancel()
 	require.NoError(t, <-errc)
+}
+
+func paletteHits(body, word string) []string {
+	pattern := regexp.MustCompile(`data-keywords="([^"]*)" role="option"><a href="([^"]+)"`)
+	var hrefs []string
+	for _, match := range pattern.FindAllStringSubmatch(body, -1) {
+		if strings.Contains(match[1], word) {
+			hrefs = append(hrefs, match[2])
+		}
+	}
+	return hrefs
 }
 
 func post(t *testing.T, handler http.Handler, path string, form url.Values) *httptest.ResponseRecorder {

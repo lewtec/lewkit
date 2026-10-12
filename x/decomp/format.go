@@ -13,7 +13,7 @@ func (artifact *Artifact) Summary() string {
 	fmt.Fprintf(&builder, "%s %s %s entry 0x%x\n", artifact.format, artifact.architecture, modeLabel(artifact.mode), artifact.entry)
 	fmt.Fprintf(&builder, "sections %d\n", len(artifact.sections))
 	for _, section := range artifact.sections {
-		fmt.Fprintf(&builder, "  0x%x %s %d%s\n", section.Address, section.Name, section.Size, sectionFlags(section))
+		fmt.Fprintf(&builder, "  0x%x %s 0x%x%s\n", section.Address, section.Name, section.Size, sectionFlags(section))
 	}
 	fmt.Fprintf(&builder, "functions %d\n", len(artifact.functions))
 	return builder.String()
@@ -34,6 +34,12 @@ func (artifact *Artifact) Listing(address uint64) (string, error) {
 	if function.Comment != "" {
 		fmt.Fprintf(&builder, "; %s\n", function.Comment)
 	}
+	if function.Source != "" {
+		builder.WriteString(function.Source)
+		if !strings.HasSuffix(function.Source, "\n") {
+			builder.WriteByte('\n')
+		}
+	}
 	for _, block := range function.Blocks {
 		fmt.Fprintf(&builder, "; block 0x%x %s", block.Address, block.Kind)
 		if block.Target != 0 {
@@ -45,8 +51,22 @@ func (artifact *Artifact) Listing(address uint64) (string, error) {
 		builder.WriteByte('\n')
 		for _, instruction := range block.Instructions {
 			builder.WriteString(disasm.FormatInstruction(instruction, names))
+			written := map[uint64]struct{}{}
 			if text, ok := artifact.Note(instruction.Address); ok {
 				fmt.Fprintf(&builder, "; note %s\n", text)
+				written[instruction.Address] = struct{}{}
+			}
+			next := instruction.Address + uint64(instruction.Size)
+			for _, address := range referencedAddresses(instruction.Operands, next) {
+				if _, seen := written[address]; seen {
+					continue
+				}
+				text, ok := artifact.Note(address)
+				if !ok {
+					continue
+				}
+				fmt.Fprintf(&builder, "; note %s\n", text)
+				written[address] = struct{}{}
 			}
 		}
 	}

@@ -73,7 +73,8 @@ func conditional(name string) bool {
 }
 
 func directTarget(operands string) (uint64, bool) {
-	if strings.Contains(strings.ToLower(operands), "rip") {
+	lower := strings.ToLower(operands)
+	if strings.Contains(lower, "rip") || strings.Contains(operands, "[") {
 		return 0, false
 	}
 	addresses := hexAddresses(operands)
