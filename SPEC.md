@@ -237,6 +237,7 @@ Inherited C (cite the file):
 | `x/ffi/native/dispatch` | `OnMain` | UIKit main queue on iOS, via cgo `dispatch_sync` | the main-thread hop stays here | not iOS runs the function on the caller | import `x/driver` |
 | `x/disasm` | `Engine`, object files, hex, `Section`, `Entry` | facade of capstone | formats stay here | existing disasm errors | import `x/ffi/wasm` |
 | `x/decomp` | `Project`, `Artifact`, `Model`, `Chat`, `Harness`, `Match`, `Open` | in-process program database over `x/disasm`; a sqlite file is the stored project | the lift, the function database, and the match stay here; `Open` writes that database and reloads it; `New` stays in memory; `Chat` is one direct completion; `Harness` is one `grok` process and the signed-in subscription is its credential | `ErrNoCode`, `ErrArtifact`, `ErrNoModel`, `ErrNotFound`, `ErrUnmatched`, `ErrProject` | import `x/ffi/wasm`; import `x/ffi/wasm/capstone`; import `x/db`; recompile out of process; read `~/.grok/auth.json` |
+| `cmd/decompview` | the `decompview` program | localhost preview of a sqlite program database | reads with `Open`; Cmd+K and Ctrl+K jump to an artifact or a function; the page shows the summary, the listing, and matched source | a missing file is the stat error; a missing function is HTTP 404 | import `x/ffi/wasm`; import `x/db`; disassemble; start `grok`; write the project |
 | `x/driver/ndeval` | CPU `Evaluator` factory | facade | CPU stays here; blank-imports `x/driver/ndeval/prelude` | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/native/metal`; import `x/ffi/native/opengl`; import `x/ffi/native/d3d12`; import `x/ffi/wasm`; import `x/driver/vulkan` |
 | `x/driver/ndeval/spell` | `Dialect`, `Scalar`, `WriteBody` | value | the schedule body stays here; a backend passes `Dialect` for the tokens that differ | an unnamed statement or expression is the unsupported token | a kernel header; a shading-language name; import a backend; import `x/ffi` |
 | `x/driver/ndeval/vulkan` | Vulkan `Evaluator`, `Bind`, `Paint` | facade of `x/driver/vulkan` | the session and the mounted-tensor present stay here; weight 50; the GLSL header stays here and the schedule body is `x/driver/ndeval/spell` | existing ndarray errors | import `x/ffi/native/vulkan`; import `x/ffi/native`; import `x/ffi/wasm`; import `x/ui/gui` |
@@ -350,6 +351,7 @@ Inherited C (cite the file):
 | INV-97 | `x/driver/launcher/gtk` and `x/driver/messagebox/gtk` import `x/ffi/native/gtk` and do not import `x/ffi/native` | those packages | an import of `x/ffi/native` |
 | INV-98 | `x/decomp` does not import `x/ffi/wasm` or `x/ffi/wasm/capstone`. `Artifact.Match` accepts a decompilation only from the attached `Model`, and only when the blocks copy the Capstone control flow. `Harness` starts `grok` and leaves the subscription credential with that process | `x/decomp` | that import; a compiler subprocess; reading `~/.grok/auth.json` |
 | INV-99 | `Open` stores the program database in a sqlite file owned by `x/decomp`. Opening that file again returns the saved lift, names, comments, and matched source. `New` has no file | `x/decomp` | import `x/db`; disassemble again when the artifact name is already stored |
+| INV-100 | `cmd/decompview` previews a project opened with `Open`. The page is read-only. It does not disassemble, match, or import `x/ffi/wasm` or `x/db` | `cmd/decompview` | disassemble; `Artifact.Match`; that import |
 
 ## Errors
 
@@ -410,6 +412,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 - [ ] `x/disasm` does not import `x/ffi/wasm`.
 - [ ] `x/decomp` does not import `x/ffi/wasm` or `x/ffi/wasm/capstone`, and it does not read `~/.grok/auth.json`.
 - [ ] `Open` reloads a sqlite project, including names and a matched source, and does not import `x/db`.
+- [ ] `cmd/decompview` serves a reopened project, including a function listing and matched source, and the jump palette names that function.
 - [ ] `x/ffi/native/vulkan` does not import `x/ffi/wasm`.
 - [ ] `x/ui/world` does not import `x/ui/gui`, `x/ui/tui`, `x/ui/web`, `x/app`, `x/driver`, `x/event`, or `x/singleton`.
 - [ ] `gui.Model` is still Init, Update, View. A world is not a second model.
@@ -430,6 +433,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-12: `cmd/decompview` is a localhost preview of a sqlite program database. Cmd+K and Ctrl+K jump to an artifact or a function. The page shows the summary, the listing, the comment, and matched source. It opens the file with `Open` and does not disassemble or match. Rejected: a page inside `cmd/lewkit`; a system web view as the only preview.
 - 2026-10-12: `Open` stores the program database in a sqlite file. The file keeps the image, sections, symbols, functions, blocks, instructions, references, and strings. A rename, comment, signature, or accepted match is written back. Opening the file again returns that lift and does not disassemble it. `New` stays in memory. `lewkit decomp --project` uses the file; a stored artifact name is served from it. Rejected: a process-only database; storing the project through `x/db`, which is the application sqlc database.
 - 2026-10-12: `lewkit decomp match` attaches `Harness`. Each round runs `grok` once, headless, in a private directory, with a read-only sandbox and `dontAsk` permissions. The harness uses the signed-in subscription. `--endpoint` selects `Chat` for one direct completion. Rejected: a chat-completions client as the default, which has no subscription session.
 - 2026-10-12: `x/decomp` is the in-process program database. `Project.Add` loads ELF, PE, and Mach-O through `x/disasm`. Capstone lifts executable bytes in this process. Functions start at the entry, function symbols, direct call targets, and the first instruction of each executable section. `Project.Attach` sets the model. `Artifact.Match` keeps the C only when every basic block copies the lifted kind, target, and fallthrough, and the source names the function, each direct callee, and each referenced string. `Chat` is an OpenAI-compatible completion, including `https://api.x.ai/v1/chat/completions`. Rejected: a Ghidra process; recompiling the candidate out of process.
