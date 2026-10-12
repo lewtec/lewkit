@@ -32,6 +32,8 @@ var (
 	ErrSize = errors.New("present size")
 	// ErrClosed means the screen has been closed.
 	ErrClosed = errors.New("present closed")
+	// ErrHold means the frame would sit off the window, so it is not presented.
+	ErrHold = errors.New("present hold")
 )
 
 // Screen paints under, then fills, then ink, and presents.

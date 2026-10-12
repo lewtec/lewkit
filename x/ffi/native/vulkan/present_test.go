@@ -79,6 +79,13 @@ func TestChooseSwapchainPrerotatesAnUndefinedExtent(t *testing.T) {
 	assert.Equal(t, uint32(transform90), content)
 }
 
+func TestHoldMisalignedWaitsForTheExtentAspect(t *testing.T) {
+	assert.True(t, holdMisaligned(2400, 1080, 1080, 2400, true))
+	assert.False(t, holdMisaligned(2400, 1080, 2400, 1080, true))
+	assert.False(t, holdMisaligned(2400, 1080, 1080, 2400, false))
+	assert.False(t, holdMisaligned(1080, 2400, extentUnset, extentUnset, true))
+}
+
 func TestChooseSwapchainMatchesAFreshTurn(t *testing.T) {
 	// The view is already landscape. The current extent is still the
 	// portrait size. Drawing that extent stretches it into the new window.

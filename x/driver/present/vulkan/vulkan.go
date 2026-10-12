@@ -111,5 +111,8 @@ func mapErr(err error) error {
 	if errors.Is(err, drvvulkan.ErrLost) {
 		return present.ErrLost
 	}
+	if errors.Is(err, drvvulkan.ErrHold) {
+		return present.ErrHold
+	}
 	return err
 }

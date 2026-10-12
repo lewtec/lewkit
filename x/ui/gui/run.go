@@ -88,10 +88,17 @@ func (d bridgeDisplay) gpuPaint() bool { return d.evaluator != nil }
 // The picture still belongs to the previous size, so the frame is painted again.
 var errRefit = errors.New("gui refit")
 
+// errHold means the view changed aspect while the surface extent is still
+// the previous one. Presenting would sit that picture off the window.
+var errHold = errors.New("gui hold")
+
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
 	if err := d.sync(); err != nil {
 		if present.Lost(err) {
 			return nil
+		}
+		if present.Hold(err) {
+			return errHold
 		}
 		return err
 	}
@@ -157,6 +164,9 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 	if err := d.sync(); err != nil {
 		if present.Lost(err) {
 			return nil
+		}
+		if present.Hold(err) {
+			return errHold
 		}
 		return err
 	}
@@ -523,6 +533,10 @@ func (runner *runner) render() error {
 
 func (runner *runner) flush(force bool) error {
 	if err := runner.fitHost(); err != nil {
+		if errors.Is(err, errHold) {
+			runner.dirty = true
+			return nil
+		}
 		return err
 	}
 	if !force && !runner.dirty {
@@ -547,7 +561,10 @@ func (runner *runner) flush(force bool) error {
 		return nil
 	}
 	err := runner.paintFrame(listed)
-	if errors.Is(err, errRefit) {
+	if errors.Is(err, errRefit) || errors.Is(err, errHold) {
+		if errors.Is(err, errHold) {
+			runner.dirty = true
+		}
 		return nil
 	}
 	if err != nil {
@@ -559,8 +576,8 @@ func (runner *runner) flush(force bool) error {
 }
 
 // fitHost adopts the Android swapchain before the signature check.
-// Rotation changes the image without changing the picture, and a skipped
-// present would leave the previous frame turned on its side. The model
+// While the view's aspect and the surface extent disagree, the present
+// waits, so a new buffer is not scaled into the previous extent. The model
 // hears the new size before this flush paints.
 func (runner *runner) fitHost() error {
 	bridged, ok := runner.host.(bridgeDisplay)
@@ -572,6 +589,9 @@ func (runner *runner) fitHost() error {
 		return nil
 	}
 	err := bridged.sync()
+	if present.Hold(err) {
+		return errHold
+	}
 	if err == nil || present.Lost(err) {
 		return nil
 	}

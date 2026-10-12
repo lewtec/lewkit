@@ -40,6 +40,14 @@ func (s *extentScreen) Adopt(_ uintptr, _, _ int) error {
 	return nil
 }
 
+// holdScreen keeps the current frame while the surface extent is behind.
+type holdScreen struct{ extentScreen }
+
+func (s *holdScreen) Adopt(uintptr, int, int) error {
+	s.adopts++
+	return present.ErrHold
+}
+
 func (*extentScreen) Close() error { return nil }
 
 func TestLandscapeExtentRefitsBeforePresent(t *testing.T) {
@@ -88,6 +96,27 @@ func TestResizeBurstPresentsTheSettledSize(t *testing.T) {
 	require.Equal(t, image.Pt(20, 8), paint.size())
 	require.Equal(t, image.Pt(20, 8), screen.drawn)
 	require.Equal(t, 1, screen.draws)
+}
+
+func TestHeldAndroidFrameIsNotPresented(t *testing.T) {
+	host, err := window.Open(t.Context(), window.Config{Width: 8, Height: 20, Period: time.Hour})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = host.Close() })
+	screen := &holdScreen{}
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	runner := &runner{
+		ctx:     t.Context(),
+		host:    bridgeDisplay{Window: androidHost{host}, screen: screen},
+		model:   &sizedPaint{fill: RGB{255, 255, 0, 255}},
+		picture: picture,
+		dirty:   true,
+	}
+	require.NoError(t, runner.flush(true))
+	require.Equal(t, image.Pt(8, 20), host.Size())
+	require.Equal(t, 0, screen.draws)
+	require.GreaterOrEqual(t, screen.adopts, 1)
+	require.True(t, runner.dirty)
 }
 
 func TestDesktopExtentDoesNotResizeTheWindow(t *testing.T) {

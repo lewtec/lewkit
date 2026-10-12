@@ -60,6 +60,12 @@ const (
 // ErrLost means the native window is gone until Android creates another one.
 var ErrLost = errors.New("vulkan: surface lost")
 
+// ErrHold means the view changed aspect while the surface extent is still
+// the previous one. Presenting now scales the new picture into that extent,
+// so the frame sits off the window. The caller keeps the current swapchain
+// and tries again once the extent has caught up.
+var ErrHold = errors.New("vulkan: hold frame")
+
 var adoptNative func(*Screen, uintptr, int, int) error
 
 // Adopt points the swapchain at window when the native window was replaced.
@@ -957,6 +963,17 @@ func chooseSwapchain(width, height, prevW, prevH int, caps surfaceCaps) (int, in
 	return extentW, extentH, pre, content
 }
 
+// holdMisaligned reports that a live swapchain should stay unpresented.
+// The view has changed which side is longer and the current extent has not.
+// A buffer for the new view is scaled into that old extent, so the picture
+// sits off the window for a frame. No swapchain yet still has to be built.
+func holdMisaligned(width, height int, extentW, extentH uint32, swapLive bool) bool {
+	if !swapLive || width < 1 || height < 1 || !realExtent(extentW, extentH) {
+		return false
+	}
+	return (width > height) != (int(extentW) > int(extentH))
+}
+
 // followFreshTurn reports that the view changed which side is longer while
 // the current extent is still the previous aspect. Drawing that extent
 // stretches it into the new window.
@@ -984,6 +1001,14 @@ func preTransformOf(caps surfaceCaps) uint32 {
 		return transformIdent
 	}
 	return current
+}
+
+func contentTurn(caps surfaceCaps) uint32 {
+	pre := preTransformOf(caps)
+	if pre == transform90 || pre == transform270 || pre == transform180 {
+		return pre
+	}
+	return transformIdent
 }
 
 func realExtent(w, h uint32) bool {
