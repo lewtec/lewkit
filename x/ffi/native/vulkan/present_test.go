@@ -3,6 +3,7 @@ package vulkan
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -77,6 +78,26 @@ func TestChooseSwapchainPrerotatesAnUndefinedExtent(t *testing.T) {
 	assert.Equal(t, 800, h)
 	assert.Equal(t, uint32(transform90), pre)
 	assert.Equal(t, uint32(transform90), content)
+}
+
+func TestTurnHoldsThePictureUntilTheScreenSettles(t *testing.T) {
+	now := time.Unix(0, 0)
+	hold, until := turnHold(now, time.Time{}, rotationSettle, true, 1080, 2400, 2400, 1080)
+	assert.True(t, hold)
+	assert.Equal(t, now.Add(rotationSettle), until)
+	// A later frame of the same turn does not extend the wait.
+	hold, again := turnHold(now.Add(100*time.Millisecond), until, rotationSettle, true, 1080, 2400, 2400, 1080)
+	assert.True(t, hold)
+	assert.Equal(t, until, again)
+	// The deadline presents, and it does not arm another wait.
+	hold, expired := turnHold(until, until, rotationSettle, true, 1080, 2400, 2400, 1080)
+	assert.False(t, hold)
+	assert.Equal(t, until, expired)
+	hold, cleared := turnHold(until, until, rotationSettle, true, 2400, 1080, 2500, 1100)
+	assert.False(t, hold)
+	assert.True(t, cleared.IsZero())
+	hold, _ = turnHold(now, time.Time{}, rotationSettle, false, 1080, 2400, 2400, 1080)
+	assert.False(t, hold)
 }
 
 func TestMismatchedAspectIsPresented(t *testing.T) {

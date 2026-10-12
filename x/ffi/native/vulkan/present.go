@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/release"
@@ -972,6 +973,30 @@ func extentReadNeeded(swapLive, stale bool, haveW, haveH, wantW, wantH int) bool
 		return false
 	}
 	return stale || haveW != wantW || haveH != wantH
+}
+
+// rotationSettle is how long a turned frame waits before it is presented.
+// The rotation animation composites the picture already showing. Presenting
+// the new one while that animation runs garbles the switch.
+const rotationSettle = 400 * time.Millisecond
+
+// turnHold reports that the view flipped which side is longer and the
+// picture already showing should stay up. until is the end of a turn
+// already armed, or the zero time when none is. The wait is not extended
+// once armed, and it is not armed again while that deadline is set, so a
+// late extent cannot hold the new frame forever. A matching aspect clears
+// it. No live swapchain presents immediately.
+func turnHold(now, until time.Time, settle time.Duration, swapLive bool, haveW, haveH, wantW, wantH int) (bool, time.Time) {
+	if !swapLive || haveW <= 1 || haveH <= 1 || wantW < 1 || wantH < 1 {
+		return false, time.Time{}
+	}
+	if (haveW > haveH) == (wantW > wantH) {
+		return false, time.Time{}
+	}
+	if until.IsZero() {
+		until = now.Add(settle)
+	}
+	return now.Before(until), until
 }
 
 // followFreshTurn reports that the view changed which side is longer while
