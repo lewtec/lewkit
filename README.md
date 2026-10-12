@@ -62,7 +62,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `cmd/lewkit` | The `lewkit` program. |
-| `cmd/decompview` | Page for `lewkit decomp view`. Cmd+K and Ctrl+K jump to an artifact or a function. A call links to that function. Names, signatures, and address notes save into the project. |
+| `cmd/decompview` | Page for `lewkit decomp view`. Cmd+K and Ctrl+K jump to an artifact or a function. A call links to that function. Highlighted assembly links each address to its instruction or function. Names, signatures, held source, and address notes save into the project. |
 | `report` | `Reporter`, `RegisterReporter`, `Report`, `Must`. |
 | `report/sentry` | Sentry `Reporter`. |
 | `x/logging` | `NewHandler`. Level letter, message, then `key=value`. Color on a terminal. |
@@ -208,7 +208,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit decomp name PATH` | Store a function name at `--at`. Requires `--project`. |
 | `lewkit decomp note PATH` | Store what `--at` means. Requires `--project`. With neither flag, lists every note. |
 | `lewkit decomp signature PATH` | Store a function signature at `--at`. Requires `--project`. |
-| `lewkit decomp view` | Browser preview of `--project`. Names, signatures, and address notes save into the file. |
+| `lewkit decomp view` | Browser preview of `--project`. Names, signatures, held source, and address notes save into the file. |
 | `lewkit generate db DIR` | sqlc packages, a `Queries` interface, and `DBArg`. |
 | `lewkit generate prelude` | Blank-import preludes for every `root.go` in the working directory. Writes `prelude/prelude.go`. |
 | `lewkit generate protobuf FILE` | Go source for a `.proto` file. |
@@ -223,7 +223,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 
 An artifact's preview path is `Artifact.Slug`, the first 16 hex characters of the image SHA-256. The file name stays on the page as a label. The same bytes opened from another path are that same artifact.
 
-`lewkit decomp view` serves that same database at `http://127.0.0.1:8766/`. It requires `--project FILE`. `--listen` changes the address. Cmd+K or Ctrl+K opens the jump palette. A note keyword stays on the function that contains that address. The page shows each artifact summary, function address and size, function listing, comment, and matched source. A call links to that function. Save name, Save signature, and Save note write those clues into the sqlite file.
+`lewkit decomp view` serves that same database at `http://127.0.0.1:8766/`. It requires `--project FILE`. `--listen` changes the address. Cmd+K or Ctrl+K opens the jump palette. A note keyword stays on the function that contains that address. The page shows each artifact summary, function address and size, and comment. The function page shows highlighted assembly: each instruction is a location, and an address jumps to that instruction or to the function that starts there. The instruction stream uses the same highlighting, and a function label opens that function. Save name, Save signature, Save source, and Save note write those clues into the sqlite file. Save source holds the C, or other source, for that function. `explain` stores a draft in that field. `match` replaces it when the blocks agree.
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. `lewkit generate prelude` takes no arguments. It scans the working directory and writes `prelude/prelude.go` there, plus a prelude for each Go package under it that has a descendant `root.go`. A directory with no Go file does not get a prelude; its children attach to the package above it. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
 

@@ -394,6 +394,42 @@ func (artifact *Artifact) SetSignature(ctx context.Context, address uint64, sign
 	return nil
 }
 
+// SetSource stores the source held for the function that starts at address.
+// An empty source clears it. An [Open] project writes it into the sqlite file.
+// [Artifact.Explain] and a matching [Artifact.Match] write this same field.
+func (artifact *Artifact) SetSource(ctx context.Context, address uint64, source string) error {
+	function := artifact.byAddress[address]
+	if function == nil {
+		return fmt.Errorf("%w: 0x%x", ErrNotFound, address)
+	}
+	if err := artifact.requireStored("source"); err != nil {
+		return err
+	}
+	previous := function.Source
+	function.Source = source
+	if err := artifact.saveFunction(ctx, function); err != nil {
+		function.Source = previous
+		return err
+	}
+	return nil
+}
+
+// Label is the name printed at address.
+// A function name is used when the address starts a function.
+func (artifact *Artifact) Label(address uint64) (string, bool) {
+	if artifact == nil {
+		return "", false
+	}
+	if function := artifact.byAddress[address]; function != nil && function.Name != "" {
+		return function.Name, true
+	}
+	name := artifact.symbols[address]
+	if name == "" {
+		return "", false
+	}
+	return name, true
+}
+
 // Note returns the clue stored at address.
 func (artifact *Artifact) Note(address uint64) (string, bool) {
 	if artifact == nil {

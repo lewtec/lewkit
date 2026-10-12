@@ -17,7 +17,7 @@ import (
 )
 
 // Handler serves the preview of project.
-// Saving a function name or an address note writes it through to the project.
+// Saving a function name, a signature, a held source, or an address note writes it through to the project.
 func Handler(project *decomp.Project) http.Handler {
 	view := &preview{project: project}
 	mux := http.NewServeMux()
@@ -28,6 +28,7 @@ func Handler(project *decomp.Project) http.Handler {
 	mux.HandleFunc("GET /artifact/{name}/function/{address}", view.function)
 	mux.HandleFunc("POST /artifact/{name}/function/{address}/name", view.saveName)
 	mux.HandleFunc("POST /artifact/{name}/function/{address}/signature", view.saveSignature)
+	mux.HandleFunc("POST /artifact/{name}/function/{address}/source", view.saveSource)
 	return asset.Mount(mux)
 }
 
@@ -49,15 +50,15 @@ type previewPage struct {
 	Signature       string
 	Comment         string
 	StreamHref      string
-	Stream          string
-	Listing         string
+	AssemblyHeading string
+	Assembly        template.HTML
 	Source          string
-	ShowSource      bool
 	FunctionName    string
 	AddressText     string
 	AddressNote     string
 	NameAction      string
 	SignatureAction string
+	SourceAction    string
 	NoteAction      string
 	Next            string
 	Callees         []previewRow
@@ -172,7 +173,8 @@ func (view *preview) streamPage(name string) (previewPage, bool) {
 		return previewPage{}, false
 	}
 	page := view.basePage(artifact.Slug())
-	page.Stream = artifact.Stream()
+	page.AssemblyHeading = "Instructions"
+	page.Assembly = streamAssembly(artifact)
 	page.Next = artifactPath(artifact.Slug())
 	return page, true
 }
@@ -187,20 +189,17 @@ func (view *preview) functionPage(name string, address uint64) (previewPage, boo
 	if !ok {
 		return previewPage{}, false
 	}
-	listing, err := artifact.Listing(address)
-	if err != nil {
-		return previewPage{}, false
-	}
 	page := view.basePage(function.Name)
 	page.Signature = function.Signature
 	page.Comment = function.Comment
-	page.Listing = listing
+	page.AssemblyHeading = "Assembly"
+	page.Assembly = functionAssembly(artifact, function)
 	page.Source = function.Source
-	page.ShowSource = true
 	page.FunctionName = function.Name
 	page.AddressText = formatHex(function.Address)
 	page.NameAction = functionPath(slug, function.Address) + "/name"
 	page.SignatureAction = functionPath(slug, function.Address) + "/signature"
+	page.SourceAction = functionPath(slug, function.Address) + "/source"
 	page.NoteAction = artifactPath(slug) + "/note"
 	page.Callees = callLinks(slug, function)
 	page.Next = functionPath(slug, function.Address)
@@ -258,6 +257,39 @@ func (view *preview) saveSignature(response http.ResponseWriter, request *http.R
 	var saveErr error
 	if ok {
 		saveErr = artifact.SetSignature(request.Context(), address, signature)
+	}
+	view.mu.Unlock()
+	if !ok {
+		http.NotFound(response, request)
+		return
+	}
+	if saveErr != nil {
+		http.Error(response, saveErr.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(response, request, functionPath(artifact.Slug(), address), http.StatusSeeOther)
+}
+
+func (view *preview) saveSource(response http.ResponseWriter, request *http.Request) {
+	if err := request.ParseForm(); err != nil {
+		http.Error(response, err.Error(), http.StatusBadRequest)
+		return
+	}
+	address, err := parseAddress(request.PathValue("address"))
+	if err != nil {
+		http.Error(response, "bad function address", http.StatusBadRequest)
+		return
+	}
+	artifactName := request.PathValue("name")
+	source := request.PostForm.Get("source")
+	if strings.TrimSpace(source) == "" {
+		source = ""
+	}
+	view.mu.Lock()
+	artifact, ok := view.project.Lookup(artifactName)
+	var saveErr error
+	if ok {
+		saveErr = artifact.SetSource(request.Context(), address, source)
 	}
 	view.mu.Unlock()
 	if !ok {
@@ -477,6 +509,17 @@ header p { margin: 0; }
 #palette-list .palette-group { display: block; font-size: 0.75rem; opacity: 0.7; }
 #palette-list .palette-active { background: #f4e4b3; }
 pre { overflow: auto; }
+.asm { line-height: 1.5; }
+.asm-addr { color: #8a5a00; }
+.asm-bytes { color: #6b7280; }
+.asm-mnem { color: #1e4d8c; font-weight: 600; }
+.asm-reg { color: #0f6b4c; }
+.asm-imm { color: #9a3412; }
+.asm-label { color: #6d28d9; font-weight: 600; }
+.asm-comment { color: #4b5563; }
+a.asm-addr, a.asm-label { text-decoration: none; }
+a.asm-addr:hover, a.asm-label:hover { text-decoration: underline; }
+textarea[name="source"] { width: 100%; min-height: 14rem; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 table { width: 100%; }
 </style>
 </head>
@@ -511,12 +554,16 @@ table { width: 100%; }
 </ul>{{ end }}{{ end }}
 {{ if .StreamHref }}<p><a href="{{ .StreamHref }}">Instructions</a></p>{{ end }}
 {{ if .Summary }}<pre>{{ .Summary }}</pre>{{ end }}
-{{ if .Stream }}<h2>Instructions</h2><pre>{{ .Stream }}</pre>{{ end }}
 {{ if .Rows }}<table>
 {{ range .Rows }}<tr><td><a href="{{ .Href }}">{{ .Label }}</a></td><td>{{ .Detail }}</td></tr>
 {{ end }}</table>{{ end }}
-{{ if .Listing }}<h2>Listing</h2><pre>{{ .Listing }}</pre>{{ end }}
-{{ if .ShowSource }}<h2>Matched source</h2>{{ if .Source }}<pre>{{ .Source }}</pre>{{ else }}<p>No matched source.</p>{{ end }}{{ end }}
+{{ if .Assembly }}<h2>{{ .AssemblyHeading }}</h2><pre class="asm">{{ .Assembly }}</pre>{{ end }}
+{{ if .SourceAction }}<h2>Source</h2>
+<p>The source held for this function. explain stores a draft here. match replaces it when the blocks agree.</p>
+<form method="post" action="{{ .SourceAction }}">
+<textarea name="source" rows="14" spellcheck="false">{{ .Source }}</textarea>
+<button type="submit">Save source</button>
+</form>{{ end }}
 <dialog id="palette" data-cmdpalette aria-label="Jump to">
 <input id="palette-input" type="text" placeholder="Jump to…" autocomplete="off" aria-controls="palette-list" aria-autocomplete="list">
 <p id="palette-empty" hidden>No matches</p>

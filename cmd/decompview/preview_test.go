@@ -65,7 +65,9 @@ func TestPreviewShowsTheReopenedFunction(t *testing.T) {
 	assert.Contains(t, body, "entry point")
 	assert.Contains(t, body, "ret")
 	assert.Contains(t, body, "void start(void) {")
-	assert.Contains(t, body, "Matched source")
+	assert.Contains(t, body, "Save source")
+	assert.Contains(t, body, `id="0x1000"`)
+	assert.Contains(t, body, `class="asm-mnem">ret</span>`)
 
 	missing := get(t, handler, "/artifact/missing.elf")
 	assert.Equal(t, http.StatusNotFound, missing.Code)
@@ -163,8 +165,81 @@ func TestPreviewFollowsCallsNotesAndSignature(t *testing.T) {
 	function = get(t, handler, "/artifact/"+slug+"/function/0x1000")
 	assert.Contains(t, function.Body.String(), `name="signature"`)
 	assert.Contains(t, function.Body.String(), "void entry(void)")
-	assert.Contains(t, function.Body.String(), "signature void entry(void)")
+	assert.Contains(t, function.Body.String(), `class="asm-addr" href="/artifact/`+slug+`/function/0x1006"`)
+	assert.Contains(t, function.Body.String(), `class="asm-mnem">call</span>`)
 	require.NoError(t, project.Close())
+}
+
+func TestPreviewAssemblyAndSource(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "program.decomp")
+	project, err := decomp.Open(t.Context(), path)
+	require.NoError(t, err)
+	branch, err := project.AddBytes(t.Context(), "branch.elf", disasm.ELF64(elf.EM_X86_64, []byte{0x74, 0x00, 0xc3}))
+	require.NoError(t, err)
+	lea, err := project.AddBytes(t.Context(), "lea.elf", disasm.ELF64(elf.EM_X86_64, []byte{0x48, 0x8d, 0x3d, 0xf9, 0x0f, 0x00, 0x00, 0xc3}))
+	require.NoError(t, err)
+	require.NoError(t, branch.SetNote(t.Context(), 0x1000, "a<b"))
+	handler := Handler(project)
+
+	branched := get(t, handler, "/artifact/"+branch.Slug()+"/function/0x1000")
+	assert.Equal(t, http.StatusOK, branched.Code)
+	assert.Contains(t, branched.Body.String(), `href="#0x1002"`)
+	assert.Contains(t, branched.Body.String(), `id="0x1000"`)
+	assert.Contains(t, branched.Body.String(), "a&lt;b")
+	assert.NotContains(t, branched.Body.String(), "a<b")
+
+	loaded := get(t, handler, "/artifact/"+lea.Slug()+"/function/0x1000")
+	assert.Equal(t, http.StatusOK, loaded.Code)
+	assert.Regexp(t, `class="asm-reg">rdi</span>`, loaded.Body.String())
+
+	stream := get(t, handler, "/artifact/"+branch.Slug()+"/stream")
+	assert.Equal(t, http.StatusOK, stream.Code)
+	assert.Contains(t, stream.Body.String(), `id="0x1000"`)
+	assert.Contains(t, stream.Body.String(), `id="0x1002"`)
+	assert.Contains(t, stream.Body.String(), `href="#0x1002"`)
+	assert.Contains(t, stream.Body.String(), `class="asm-label" href="/artifact/`+branch.Slug()+`/function/0x1000"`)
+
+	source := "int start(void) {\n  return 0; /* <draft> */\n}\n"
+	saved := post(t, handler, "/artifact/"+branch.Slug()+"/function/0x1000/source", url.Values{"source": {source}})
+	assert.Equal(t, http.StatusSeeOther, saved.Code)
+	assert.Equal(t, "/artifact/"+branch.Slug()+"/function/0x1000", saved.Header().Get("Location"))
+	page := get(t, handler, "/artifact/"+branch.Slug()+"/function/0x1000")
+	assert.Contains(t, page.Body.String(), "int start(void)")
+	assert.Contains(t, page.Body.String(), "&lt;draft&gt;")
+	assert.NotContains(t, page.Body.String(), "<draft>")
+	require.NoError(t, project.Close())
+
+	reopened, err := decomp.Open(t.Context(), path)
+	require.NoError(t, err)
+	stored, ok := reopened.Artifact("branch.elf")
+	require.True(t, ok)
+	function, ok := stored.Function(0x1000)
+	require.True(t, ok)
+	assert.Equal(t, source, function.Source)
+	handler = Handler(reopened)
+	cleared := post(t, handler, "/artifact/"+stored.Slug()+"/function/0x1000/source", url.Values{"source": {"  \n"}})
+	assert.Equal(t, http.StatusSeeOther, cleared.Code)
+	require.NoError(t, reopened.Close())
+
+	reopened, err = decomp.Open(t.Context(), path)
+	require.NoError(t, err)
+	defer reopened.Close()
+	stored, ok = reopened.Artifact("branch.elf")
+	require.True(t, ok)
+	function, ok = stored.Function(0x1000)
+	require.True(t, ok)
+	assert.Empty(t, function.Source)
+}
+
+func TestRegisterWord(t *testing.T) {
+	assert.True(t, isRegister("rsp"))
+	assert.True(t, isRegister("RIP"))
+	assert.True(t, isRegister("r15d"))
+	assert.True(t, isRegister("xmm0"))
+	assert.True(t, isRegister("x0"))
+	assert.False(t, isRegister("dword"))
+	assert.False(t, isRegister("ptr"))
+	assert.False(t, isRegister("call"))
 }
 
 func TestListenServesTheIndex(t *testing.T) {
