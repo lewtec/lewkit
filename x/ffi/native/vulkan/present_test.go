@@ -25,7 +25,7 @@ func TestChooseSwapchainPrerotatesLandscape(t *testing.T) {
 		currentTrans: transform90,
 		transforms:   transformIdent | transform90 | transform180 | transform270,
 	}
-	w, h, pre, content := chooseSwapchain(1080, 2400, caps)
+	w, h, pre, content := chooseSwapchain(1080, 2400, 0, 0, caps)
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform90), pre)
@@ -35,7 +35,7 @@ func TestChooseSwapchainPrerotatesLandscape(t *testing.T) {
 	assert.Equal(t, h, gotH)
 
 	caps.currentTrans = transform270
-	w, h, pre, content = chooseSwapchain(2400, 1080, caps)
+	w, h, pre, content = chooseSwapchain(2400, 1080, 1080, 2400, caps)
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform270), pre)
@@ -43,7 +43,7 @@ func TestChooseSwapchainPrerotatesLandscape(t *testing.T) {
 }
 
 func TestChooseSwapchainLeavesPortraitUpright(t *testing.T) {
-	w, h, pre, content := chooseSwapchain(1080, 2400, surfaceCaps{
+	w, h, pre, content := chooseSwapchain(1080, 2400, 0, 0, surfaceCaps{
 		currentW: 1080, currentH: 2400, currentTrans: transformIdent, transforms: transformIdent,
 	})
 	assert.Equal(t, 1080, w)
@@ -58,7 +58,7 @@ func TestChooseSwapchainTurnsUpsideDown(t *testing.T) {
 		currentTrans: transform180,
 		transforms:   transformIdent | transform180,
 	}
-	w, h, pre, content := chooseSwapchain(1080, 2400, caps)
+	w, h, pre, content := chooseSwapchain(1080, 2400, 0, 0, caps)
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform180), pre)
@@ -72,11 +72,48 @@ func TestChooseSwapchainPrerotatesAnUndefinedExtent(t *testing.T) {
 		currentTrans: transform90,
 		transforms:   transformIdent | transform90,
 	}
-	w, h, pre, content := chooseSwapchain(800, 400, caps)
+	w, h, pre, content := chooseSwapchain(800, 400, 0, 0, caps)
 	assert.Equal(t, 400, w)
 	assert.Equal(t, 800, h)
 	assert.Equal(t, uint32(transform90), pre)
 	assert.Equal(t, uint32(transform90), content)
+}
+
+func TestChooseSwapchainMatchesAFreshTurn(t *testing.T) {
+	// The view is already landscape. The current extent is still the
+	// portrait size. Drawing that extent stretches it into the new window.
+	// This frame follows the request, and the turned image is the window.
+	caps := surfaceCaps{
+		currentW: 1080, currentH: 2400,
+		currentTrans: transform90,
+		transforms:   transformIdent | transform90 | transform180 | transform270,
+	}
+	w, h, pre, content := chooseSwapchain(2400, 1080, 1080, 2400, caps)
+	assert.Equal(t, 1080, w)
+	assert.Equal(t, 2400, h)
+	assert.Equal(t, uint32(transform90), pre)
+	assert.Equal(t, uint32(transform90), content)
+	gotW, gotH := presentExtent(2400, 1080, content)
+	assert.Equal(t, w, gotW)
+	assert.Equal(t, h, gotH)
+}
+
+func TestChooseSwapchainDoesNotKeepTheIdentityRequest(t *testing.T) {
+	// The request is still the portrait buffer. The extent is the landscape
+	// window. Following that request would stay sideways.
+	caps := surfaceCaps{
+		currentW: 2400, currentH: 1080,
+		currentTrans: transform90,
+		transforms:   transformIdent | transform90 | transform180 | transform270,
+	}
+	w, h, pre, content := chooseSwapchain(1080, 2400, 1080, 2400, caps)
+	assert.Equal(t, 1080, w)
+	assert.Equal(t, 2400, h)
+	assert.Equal(t, uint32(transform90), pre)
+	assert.Equal(t, uint32(transform90), content)
+	gotW, gotH := presentExtent(2400, 1080, content)
+	assert.Equal(t, w, gotW)
+	assert.Equal(t, h, gotH)
 }
 
 func TestWaitIdleAfterPresentIsNotClosed(t *testing.T) {

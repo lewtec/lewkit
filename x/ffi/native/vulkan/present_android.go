@@ -85,7 +85,7 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 			return err
 		}
 		s.surface = surface
-		s.width, s.height = width, height
+		s.holdSize(width, height)
 		if err := s.makeSwapchain(); err != nil {
 			if surfaceGone(err) {
 				s.stale = true

@@ -110,6 +110,8 @@ type Screen struct {
 	swapRB  int32
 	width   int
 	height  int
+	prevW   int
+	prevH   int
 	outW    int
 	outH    int
 	turn    uint32
@@ -702,7 +704,7 @@ func (s *Screen) makeSwapchain() error {
 	if caps.maxImageCount != 0 && count > caps.maxImageCount {
 		count = caps.maxImageCount
 	}
-	extentW, extentH, pre, content := chooseSwapchain(s.width, s.height, caps)
+	extentW, extentH, pre, content := chooseSwapchain(s.width, s.height, s.prevW, s.prevH, caps)
 	s.turn = content
 	s.outW, s.outH = extentW, extentH
 	info := swapchainInfo{
@@ -794,7 +796,7 @@ func (s *Screen) resizeTo(width, height int) error {
 		_ = s.d.WaitIdle()
 	}
 	s.dropSwap()
-	s.width, s.height = width, height
+	s.holdSize(width, height)
 	if err := s.makeSwapchain(); err != nil {
 		if surfaceGone(err) {
 			s.stale = true
@@ -885,6 +887,13 @@ func (s *Screen) pickMode() int32 {
 	return choosePresentMode(modes[:n])
 }
 
+// holdSize remembers the request this image replaced. A turn uses that
+// to tell a stale extent from the window the view just laid out.
+func (s *Screen) holdSize(width, height int) {
+	s.prevW, s.prevH = s.width, s.height
+	s.width, s.height = width, height
+}
+
 // chooseSwapchain is the swapchain image size, the preTransform to declare,
 // and the rotation that stores the oriented picture in that image.
 // The surface's current extent is the size the user sees. A 90° or 270°
@@ -894,7 +903,13 @@ func (s *Screen) pickMode() int32 {
 // VK_SUBOPTIMAL_KHR while it is identity and the hint is 90°, and rebuilding
 // the same identity swapchain every frame never settles. An identity
 // transform keeps the current extent and stores the picture unturned.
-func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uint32) {
+// prevW and prevH are the request before this one. When that previous
+// aspect is still the extent, and this request just changed which side is
+// longer, the extent is one frame behind the window. This image follows
+// the request so the turned picture matches the window. The next frame
+// follows the extent again, so a request that is only the identity buffer
+// cannot stick.
+func chooseSwapchain(width, height, prevW, prevH int, caps surfaceCaps) (int, int, uint32, uint32) {
 	extentW, extentH := width, height
 	if extentW < 1 {
 		extentW = 1
@@ -904,6 +919,15 @@ func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uin
 	}
 	if realExtent(caps.currentW, caps.currentH) {
 		extentW, extentH = int(caps.currentW), int(caps.currentH)
+		if followFreshTurn(width, height, prevW, prevH, extentW, extentH) {
+			extentW, extentH = width, height
+			if extentW < 1 {
+				extentW = 1
+			}
+			if extentH < 1 {
+				extentH = 1
+			}
+		}
 	} else {
 		if realExtent(caps.minW, caps.minH) {
 			if extentW < int(caps.minW) {
@@ -931,6 +955,19 @@ func chooseSwapchain(width, height int, caps surfaceCaps) (int, int, uint32, uin
 		content = pre
 	}
 	return extentW, extentH, pre, content
+}
+
+// followFreshTurn reports that the view changed which side is longer while
+// the current extent is still the previous aspect. Drawing that extent
+// stretches it into the new window.
+func followFreshTurn(width, height, prevW, prevH, extentW, extentH int) bool {
+	if prevW <= 1 || prevH <= 1 || width < 1 || height < 1 {
+		return false
+	}
+	if (width > height) == (extentW > extentH) {
+		return false
+	}
+	return (prevW > prevH) == (extentW > extentH)
 }
 
 // preTransformOf is the transform the swapchain declares.
