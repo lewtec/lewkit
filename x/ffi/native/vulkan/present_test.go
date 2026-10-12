@@ -79,11 +79,13 @@ func TestChooseSwapchainPrerotatesAnUndefinedExtent(t *testing.T) {
 	assert.Equal(t, uint32(transform90), content)
 }
 
-func TestHoldMisalignedWaitsForTheExtentAspect(t *testing.T) {
-	assert.True(t, holdMisaligned(2400, 1080, 1080, 2400, true))
-	assert.False(t, holdMisaligned(2400, 1080, 2400, 1080, true))
-	assert.False(t, holdMisaligned(2400, 1080, 1080, 2400, false))
-	assert.False(t, holdMisaligned(1080, 2400, extentUnset, extentUnset, true))
+func TestMismatchedAspectIsPresented(t *testing.T) {
+	// The extent stays on the old aspect until a new buffer is submitted.
+	// Waiting for it to agree never presents, and the compositor scales the
+	// old picture into the new window. This frame follows the view.
+	assert.True(t, followFreshTurn(2400, 1080, 1080, 2400, 1080, 2400))
+	// Once the extent has the same aspect, the request is not kept.
+	assert.False(t, followFreshTurn(2400, 1080, 2400, 1080, 2400, 1080))
 }
 
 func TestSteadyFrameDoesNotReadTheExtent(t *testing.T) {

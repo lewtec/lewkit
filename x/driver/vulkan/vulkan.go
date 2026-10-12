@@ -19,8 +19,7 @@ import (
 // ErrLost means the native window is gone until the host creates another one.
 var ErrLost = ffivulkan.ErrLost
 
-// ErrHold means the view changed aspect before the surface extent did.
-// The frame is not presented.
+// ErrHold means this frame is not presented.
 var ErrHold = ffivulkan.ErrHold
 
 // DeviceType is [ffivulkan.DeviceType]: software, integrated, dedicated, virtual.

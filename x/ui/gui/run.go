@@ -88,8 +88,8 @@ func (d bridgeDisplay) gpuPaint() bool { return d.evaluator != nil }
 // The picture still belongs to the previous size, so the frame is painted again.
 var errRefit = errors.New("gui refit")
 
-// errHold means the view changed aspect while the surface extent is still
-// the previous one. Presenting would sit that picture off the window.
+// errHold means this frame is not presented. The picture already showing
+// stays up and the next tick tries again.
 var errHold = errors.New("gui hold")
 
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
@@ -570,9 +570,8 @@ func (runner *runner) flush(force bool) error {
 }
 
 // fitHost adopts the Android swapchain before the signature check.
-// While the view's aspect and the surface extent disagree, the present
-// waits, so a new buffer is not scaled into the previous extent. A lost
-// surface waits the same way: painting it ended the process. The model
+// A size change rebuilds and presents after the previous present finishes.
+// A lost surface skips the frame: painting it ended the process. The model
 // hears the new size before this flush paints.
 func (runner *runner) fitHost() error {
 	bridged, ok := runner.host.(bridgeDisplay)

@@ -4,7 +4,6 @@ package vulkan
 
 import (
 	"fmt"
-	"log"
 )
 
 const extHostSurface = "VK_KHR_android_surface"
@@ -68,22 +67,16 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 		return s.Fit(width, height)
 	}
 	if host.window == window && s.surface != 0 && !s.lost && s.swap != 0 {
-		// Steady frames already match. Reading the extent then overlapped
+		// A matching frame does not read the extent. That read overlapped
 		// the previous present and faulted the driver.
 		if !extentReadNeeded(true, s.stale, s.width, s.height, width, height) {
 			return nil
 		}
-		// The present fence is that previous picture. Caps reads the same
-		// native window, so wait it out before asking which side is longer.
-		_ = s.d.WaitIdle()
-		behind, err := s.extentBehind(width, height)
-		if err != nil {
-			return err
-		}
-		if behind {
-			return ErrHold
-		}
 	}
+	// The present fence is the previous picture. Rebuilding reads the same
+	// native window, so wait it out first. The extent keeps the old aspect
+	// until a new buffer is submitted, so holding here never presents and
+	// the compositor scales the old picture into the new window.
 	_ = s.d.WaitIdle()
 	if host.window != window || s.surface == 0 || s.lost {
 		s.dropSwap()
@@ -114,52 +107,7 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 			return err
 		}
 		s.stale = false
-		return s.holdIfBehind(width, height)
+		return nil
 	}
-	if err := s.resizeTo(width, height); err != nil {
-		return err
-	}
-	return s.holdIfBehind(width, height)
-}
-
-// extentBehind reports that the view's aspect and the current extent's
-// aspect disagree. A swapchain whose turn no longer matches the hint is
-// marked stale so the next agreeing frame rebuilds before present.
-func (s *Screen) extentBehind(width, height int) (bool, error) {
-	if s == nil || s.d == nil || s.surface == 0 || s.wsi.surfaceCaps == nil {
-		return false, nil
-	}
-	var caps surfaceCaps
-	if err := check(s.wsi.surfaceCaps(s.d.phys, s.surface, &caps)); err != nil {
-		// The window can go away mid-rotation. Skipping the frame retries.
-		// Returning the wrapped result stopped the process.
-		s.stale = true
-		if surfaceDead(err) {
-			s.lost = true
-		}
-		if !surfaceGone(err) {
-			log.Printf("surface caps: %v", err)
-		}
-		return false, ErrLost
-	}
-	if holdMisaligned(width, height, caps.currentW, caps.currentH, true) {
-		return true, nil
-	}
-	if s.swap != 0 && s.turn != contentTurn(caps) {
-		s.stale = true
-	}
-	return false, nil
-}
-
-func (s *Screen) holdIfBehind(width, height int) error {
-	behind, err := s.extentBehind(width, height)
-	if err != nil || !behind {
-		return err
-	}
-	// This image was built while the extent still had the other aspect.
-	// Presenting it later, unchanged, would sit off the window.
-	if ow, oh := s.Oriented(); ow != width || oh != height {
-		s.stale = true
-	}
-	return ErrHold
+	return s.resizeTo(width, height)
 }

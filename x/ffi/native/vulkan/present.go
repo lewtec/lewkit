@@ -60,10 +60,8 @@ const (
 // ErrLost means the native window is gone until Android creates another one.
 var ErrLost = errors.New("vulkan: surface lost")
 
-// ErrHold means the view changed aspect while the surface extent is still
-// the previous one. Presenting now scales the new picture into that extent,
-// so the frame sits off the window. The caller keeps the current swapchain
-// and tries again once the extent has caught up.
+// ErrHold means this frame is not presented. The picture already showing
+// stays up and the caller tries again.
 var ErrHold = errors.New("vulkan: hold frame")
 
 var adoptNative func(*Screen, uintptr, int, int) error
@@ -963,26 +961,17 @@ func chooseSwapchain(width, height, prevW, prevH int, caps surfaceCaps) (int, in
 	return extentW, extentH, pre, content
 }
 
-// extentReadNeeded reports that a live swapchain should read the current
-// extent before this present. A request that already matches does not:
-// that read ran on the steady frame, overlapped the previous present, and
-// the driver faulted. A size change waits out that present, then reads.
+// extentReadNeeded reports that a live swapchain should be rebuilt before
+// this present. A request that already matches does not: reading the extent
+// on that steady frame overlapped the previous present, and the driver
+// faulted. A size change waits out that present, then rebuilds and presents.
+// The extent keeps its old aspect until that buffer is submitted, so waiting
+// for the aspects to agree never presents.
 func extentReadNeeded(swapLive, stale bool, haveW, haveH, wantW, wantH int) bool {
 	if !swapLive {
 		return false
 	}
 	return stale || haveW != wantW || haveH != wantH
-}
-
-// holdMisaligned reports that a live swapchain should stay unpresented.
-// The view has changed which side is longer and the current extent has not.
-// A buffer for the new view is scaled into that old extent, so the picture
-// sits off the window for a frame. No swapchain yet still has to be built.
-func holdMisaligned(width, height int, extentW, extentH uint32, swapLive bool) bool {
-	if !swapLive || width < 1 || height < 1 || !realExtent(extentW, extentH) {
-		return false
-	}
-	return (width > height) != (int(extentW) > int(extentH))
 }
 
 // followFreshTurn reports that the view changed which side is longer while
@@ -1012,14 +1001,6 @@ func preTransformOf(caps surfaceCaps) uint32 {
 		return transformIdent
 	}
 	return current
-}
-
-func contentTurn(caps surfaceCaps) uint32 {
-	pre := preTransformOf(caps)
-	if pre == transform90 || pre == transform270 || pre == transform180 {
-		return pre
-	}
-	return transformIdent
 }
 
 func realExtent(w, h uint32) bool {

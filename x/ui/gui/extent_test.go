@@ -40,7 +40,9 @@ func (s *extentScreen) Adopt(_ uintptr, _, _ int) error {
 	return nil
 }
 
-// holdScreen keeps the current frame while the surface extent is behind.
+// holdScreen skips the present. A lost surface does the same.
+// An aspect mismatch is not a hold: that wait never released, and the
+// old picture stayed scaled into the new window.
 type holdScreen struct{ extentScreen }
 
 func (s *holdScreen) Adopt(uintptr, int, int) error {
