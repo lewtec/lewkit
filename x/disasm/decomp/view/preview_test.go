@@ -1,4 +1,4 @@
-package decompview
+package view
 
 import (
 	"context"
@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lewtec/lewkit/x/decomp"
 	"github.com/lewtec/lewkit/x/disasm"
+	"github.com/lewtec/lewkit/x/disasm/decomp"
 	"github.com/lewtec/lewkit/x/http/asset/daisyui"
 	"github.com/lewtec/lewkit/x/http/asset/tailwindcss"
 	"github.com/stretchr/testify/assert"

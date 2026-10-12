@@ -1,4 +1,4 @@
-package decompview
+package view
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lewtec/lewkit/x/decomp"
+	"github.com/lewtec/lewkit/x/disasm/decomp"
 	"github.com/lewtec/lewkit/x/http/asset"
 )
 
@@ -414,7 +414,7 @@ func artifactLabel(artifact *decomp.Artifact) string {
 func (view *preview) basePage(heading string) previewPage {
 	path := view.project.Path()
 	return previewPage{
-		Title:       "decompview",
+		Title:       "view",
 		Project:     path,
 		ProjectName: filepath.Base(path),
 		Heading:     heading,

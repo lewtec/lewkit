@@ -1,4 +1,4 @@
-// Package decompview serves a browser preview of a sqlite program database.
+// Package view serves a browser preview of a sqlite program database.
 //
 // The lewkit command is decomp view. Cmd+K and Ctrl+K jump to an artifact or a function.
 // A note keyword belongs to the function that contains that address.
@@ -11,5 +11,5 @@
 // A call links to that function, and the artifact table shows address and size.
 // A saved function name, signature, held source, or address note is written into the sqlite project.
 // Explain stores a draft in that source field. Match replaces it when the blocks agree.
-// The file is opened with [github.com/lewtec/lewkit/x/decomp.Open].
-package decompview
+// The file is opened with [github.com/lewtec/lewkit/x/disasm/decomp.Open].
+package view

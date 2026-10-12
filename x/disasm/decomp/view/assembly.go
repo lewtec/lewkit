@@ -1,4 +1,4 @@
-package decompview
+package view
 
 import (
 	"encoding/hex"
@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/decomp"
 	"github.com/lewtec/lewkit/x/disasm"
+	"github.com/lewtec/lewkit/x/disasm/decomp"
 )
 
 // asmToken is one piece of an assembly line. templ paints it.

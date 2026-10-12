@@ -1,4 +1,4 @@
-package main
+package decomp
 
 import (
 	"context"
@@ -8,9 +8,9 @@ import (
 	"net"
 	"os"
 
-	"github.com/lewtec/lewkit/cmd/lewkit/decompview"
 	"github.com/lewtec/lewkit/x/cmd"
-	"github.com/lewtec/lewkit/x/decomp"
+	xdecomp "github.com/lewtec/lewkit/x/disasm/decomp"
+	"github.com/lewtec/lewkit/x/disasm/decomp/view"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
@@ -21,7 +21,7 @@ var (
 	errFunctionName = errors.New("missing --name")
 )
 
-type decompCmd struct {
+type Cmd struct {
 	project   cmd.StringArg `long:"project" default:"" help:"sqlite program database" ctx:""`
 	summary   *decompSummaryCmd
 	functions *decompFunctionsCmd
@@ -37,7 +37,7 @@ type decompCmd struct {
 	view      *decompViewCmd
 }
 
-func (decompCmd) Description() string {
+func (Cmd) Description() string {
 	return "load a native artifact and match a decompilation"
 }
 
@@ -195,18 +195,18 @@ func (command *decompMatchCmd) Run(ctx context.Context) (err error) {
 		if model == "" {
 			model = "grok-4"
 		}
-		artifact.Attach(decomp.Chat{
+		artifact.Attach(xdecomp.Chat{
 			Endpoint: command.endpoint.Value(),
 			Model:    model,
 			APIKey:   command.apiKey.Value(),
 		})
 	} else {
-		artifact.Attach(decomp.Harness{
+		artifact.Attach(xdecomp.Harness{
 			Path:  command.harness.Value(),
 			Model: command.model.Value(),
 		})
 	}
-	result, err := artifact.Match(ctx, commandAddress(command.at, artifact), decomp.MatchConfig{Rounds: command.rounds.Value()})
+	result, err := artifact.Match(ctx, commandAddress(command.at, artifact), xdecomp.MatchConfig{Rounds: command.rounds.Value()})
 	if result.Rounds > 0 {
 		if writeErr := writeMatch(ctx, result); writeErr != nil {
 			return writeErr
@@ -233,12 +233,12 @@ func (command *decompExplainCmd) Run(ctx context.Context) (err error) {
 		return err
 	}
 	defer func() { err = joinClose(err, project.Close()) }()
-	artifact.Attach(decomp.Harness{
+	artifact.Attach(xdecomp.Harness{
 		Path:   command.harness.Value(),
 		Model:  command.model.Value(),
-		Schema: decomp.ExplainSchema,
+		Schema: xdecomp.ExplainSchema,
 	})
-	result, err := artifact.Explain(ctx, commandAddress(command.at, artifact), decomp.MatchConfig{Rounds: command.rounds.Value()})
+	result, err := artifact.Explain(ctx, commandAddress(command.at, artifact), xdecomp.MatchConfig{Rounds: command.rounds.Value()})
 	if result.Rounds > 0 && result.Source != "" {
 		if _, writeErr := io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), result.Source); writeErr != nil {
 			return writeErr
@@ -366,7 +366,7 @@ func (command *decompViewCmd) Run(ctx context.Context) (err error) {
 	if info.IsDir() {
 		return fmt.Errorf("project %s is a directory", path)
 	}
-	project, err := decomp.Open(ctx, path)
+	project, err := xdecomp.Open(ctx, path)
 	if err != nil {
 		return err
 	}
@@ -380,19 +380,19 @@ func (command *decompViewCmd) Run(ctx context.Context) (err error) {
 		_ = listener.Close()
 		return err
 	}
-	return decompview.Serve(ctx, listener, decompview.Handler(project))
+	return view.Serve(ctx, listener, view.Handler(project))
 }
 
-func openDecomp(ctx context.Context, path string) (*decomp.Project, *decomp.Artifact, error) {
-	var project *decomp.Project
+func openDecomp(ctx context.Context, path string) (*xdecomp.Project, *xdecomp.Artifact, error) {
+	var project *xdecomp.Project
 	if projectPath := cmd.Get[string](ctx, "project"); projectPath != "" {
-		opened, err := decomp.Open(ctx, projectPath)
+		opened, err := xdecomp.Open(ctx, projectPath)
 		if err != nil {
 			return nil, nil, err
 		}
 		project = opened
 	} else {
-		project = decomp.New()
+		project = xdecomp.New()
 	}
 	if path == "" || path == "-" {
 		if artifact, ok := project.Artifact("stdin"); ok {
@@ -426,7 +426,38 @@ func openDecomp(ctx context.Context, path string) (*decomp.Project, *decomp.Arti
 	return project, artifact, nil
 }
 
-func commandAddress(at cmd.IntArg[uint64], artifact *decomp.Artifact) uint64 {
+func readInput(ctx context.Context, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, context.Cause(ctx)
+	}
+	done := make(chan struct {
+		b   []byte
+		err error
+	}, 1)
+	go func() {
+		var (
+			b   []byte
+			err error
+		)
+		if path != "" && path != "-" {
+			b, err = os.ReadFile(path)
+		} else {
+			b, err = io.ReadAll(os.Stdin)
+		}
+		done <- struct {
+			b   []byte
+			err error
+		}{b, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, context.Cause(ctx)
+	case got := <-done:
+		return got.b, got.err
+	}
+}
+
+func commandAddress(at cmd.IntArg[uint64], artifact *xdecomp.Artifact) uint64 {
 	if !at.ArgSet() {
 		return artifact.Entry()
 	}
@@ -440,7 +471,7 @@ func joinClose(err, closeErr error) error {
 	return closeErr
 }
 
-func writeMatch(ctx context.Context, result decomp.Result) error {
+func writeMatch(ctx context.Context, result xdecomp.Result) error {
 	out := lewfs.ContextWriter(ctx, os.Stdout)
 	if result.Matched {
 		if _, err := fmt.Fprintf(out, "matched in %d\n", result.Rounds); err != nil {

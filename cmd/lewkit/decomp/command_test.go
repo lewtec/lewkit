@@ -1,4 +1,4 @@
-package main
+package decomp
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	"github.com/lewtec/lewkit/x/decomp"
 	"github.com/lewtec/lewkit/x/disasm"
+	xdecomp "github.com/lewtec/lewkit/x/disasm/decomp"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +27,7 @@ import (
 )
 
 func TestDecompUsage(t *testing.T) {
-	text, err := cmd.Usage[decompCmd](release.Name() + " decomp")
+	text, err := cmd.Usage[Cmd](release.Name() + " decomp")
 	require.NoError(t, err)
 	assert.Contains(t, text, "summary")
 	assert.Contains(t, text, "functions")
@@ -46,7 +46,7 @@ func TestDecompUsage(t *testing.T) {
 
 func TestDecompViewUsage(t *testing.T) {
 	test.RestoreSlog(t)
-	view := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "view", "--help")
+	view := cmd.ParseOK[cmd.App[Cmd]](t, "view", "--help")
 	got := test.Stdout(t, func() {
 		require.NoError(t, view.Run(t.Context()))
 	})
@@ -58,23 +58,23 @@ func TestDecompNameAndNoteStayInTheProject(t *testing.T) {
 	test.RestoreSlog(t)
 	path := writeELF(t, []byte{0x90, 0xc3})
 	database := filepath.Join(t.TempDir(), "program.decomp")
-	load := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	load := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "functions", path)
 	require.NoError(t, load.Run(t.Context()))
 
-	rename := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "name", "--at", "0x1000", "--name", "greet", path)
+	rename := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "name", "--at", "0x1000", "--name", "greet", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, rename.Run(t.Context()))
 	})
 	assert.Contains(t, got, "greet")
 
-	note := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", "--at", "0x1001", "--text", "padding", path)
+	note := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", "--at", "0x1001", "--text", "padding", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, note.Run(t.Context()))
 	})
 	assert.Contains(t, got, "padding")
 	require.NoError(t, os.Remove(path))
 
-	listing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "listing", "--at", "0x1000", path)
+	listing := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
@@ -84,7 +84,7 @@ func TestDecompNameAndNoteStayInTheProject(t *testing.T) {
 
 func TestDecompViewNeedsProject(t *testing.T) {
 	test.RestoreSlog(t)
-	view := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "view")
+	view := cmd.ParseOK[cmd.App[Cmd]](t, "view")
 	err := view.Run(t.Context())
 	require.Error(t, err)
 	assert.ErrorIs(t, err, errProjectRequired)
@@ -94,7 +94,7 @@ func TestDecompViewServesTheProject(t *testing.T) {
 	test.RestoreSlog(t)
 	path := writeELF(t, []byte{0x90, 0xc3})
 	database := filepath.Join(t.TempDir(), "program.decomp")
-	load := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	load := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "functions", path)
 	require.NoError(t, load.Run(t.Context()))
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -102,7 +102,7 @@ func TestDecompViewServesTheProject(t *testing.T) {
 	address := listener.Addr().String()
 	require.NoError(t, listener.Close())
 
-	view := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "view", "--listen", address)
+	view := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "view", "--listen", address)
 	ctx, cancel := context.WithCancel(t.Context())
 	errc := make(chan error, 1)
 	go func() {
@@ -137,14 +137,14 @@ func TestDecompViewServesTheProject(t *testing.T) {
 func TestDecompFunctionsAndListing(t *testing.T) {
 	test.RestoreSlog(t)
 	path := writeELF(t, []byte{0x90, 0xc3})
-	functions := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "functions", path)
+	functions := cmd.ParseOK[cmd.App[Cmd]](t, "functions", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, functions.Run(t.Context()))
 	})
 	assert.Contains(t, got, "0x1000")
 	assert.Contains(t, got, "sub_1000")
 
-	listing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "listing", "--at", "0x1000", path)
+	listing := cmd.ParseOK[cmd.App[Cmd]](t, "listing", "--at", "0x1000", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
@@ -156,13 +156,13 @@ func TestDecompProjectKeepsFunctions(t *testing.T) {
 	test.RestoreSlog(t)
 	path := writeELF(t, []byte{0x90, 0xc3})
 	database := filepath.Join(t.TempDir(), "program.decomp")
-	first := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	first := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "functions", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, first.Run(t.Context()))
 	})
 	assert.Contains(t, got, "sub_1000")
 	require.NoError(t, os.Remove(path))
-	second := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	second := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "functions", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, second.Run(t.Context()))
 	})
@@ -181,7 +181,7 @@ func TestDecompMatchUsesHarness(t *testing.T) {
 	script := "#!/bin/sh\ncat <<'END'\n" + string(payload) + "\nEND\n"
 	require.NoError(t, os.WriteFile(bin, []byte(script), 0o755))
 	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "match", "--at", "0x1000", "--rounds", "1", path)
+	app := cmd.ParseOK[cmd.App[Cmd]](t, "match", "--at", "0x1000", "--rounds", "1", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
@@ -198,7 +198,7 @@ func TestDecompMatchEndpointNeedsKey(t *testing.T) {
 	require.NoError(t, os.WriteFile(bin, []byte(script), 0o755))
 	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	path := writeELF(t, []byte{0xc3})
-	app := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "match", "--at", "0x1000", "--endpoint", "http://127.0.0.1:9", path)
+	app := cmd.ParseOK[cmd.App[Cmd]](t, "match", "--at", "0x1000", "--endpoint", "http://127.0.0.1:9", path)
 	err := app.Run(t.Context())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "api key")
@@ -210,7 +210,7 @@ func TestDecompProjectRemembersEachFile(t *testing.T) {
 	if os.Getenv("DECOMP_CLI_RELOAD") == "1" {
 		test.RestoreSlog(t)
 		for _, image := range strings.Split(os.Getenv("DECOMP_IMAGES"), "\n") {
-			summary := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", os.Getenv("DECOMP_PROJECT"), "summary", image)
+			summary := cmd.ParseOK[cmd.App[Cmd]](t, "--project", os.Getenv("DECOMP_PROJECT"), "summary", image)
 			require.NoError(t, summary.Run(t.Context()))
 		}
 		return
@@ -228,13 +228,13 @@ func TestDecompProjectRemembersEachFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(secondPath, second, 0o644))
 	database := filepath.Join(dir, "program.decomp")
 
-	loadFirst := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "summary", firstPath)
+	loadFirst := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "summary", firstPath)
 	got := test.Stdout(t, func() {
 		require.NoError(t, loadFirst.Run(t.Context()))
 	})
 	assert.Contains(t, got, ".text 0x1")
 
-	loadSecond := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "summary", secondPath)
+	loadSecond := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "summary", secondPath)
 	got = test.Stdout(t, func() {
 		require.NoError(t, loadSecond.Run(t.Context()))
 	})
@@ -242,10 +242,10 @@ func TestDecompProjectRemembersEachFile(t *testing.T) {
 
 	changed := disasm.ELF64(elf.EM_X86_64, []byte{0x90, 0x90, 0xc3})
 	require.NoError(t, os.WriteFile(firstPath, changed, 0o644))
-	again := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "summary", firstPath)
+	again := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "summary", firstPath)
 	err := again.Run(t.Context())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, decomp.ErrImage)
+	assert.ErrorIs(t, err, xdecomp.ErrImage)
 	assert.Contains(t, err.Error(), "stored image")
 	assert.Contains(t, err.Error(), "new bytes")
 	assert.Contains(t, err.Error(), digestOf(first))
@@ -270,13 +270,13 @@ func TestDecompNameAndNoteNeedAProject(t *testing.T) {
 	test.RestoreSlog(t)
 	path := writeELF(t, []byte{0xe8, 0x01, 0x00, 0x00, 0x00, 0xc3, 0xc3})
 
-	rename := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "name", "--at", "0x1006", "--name", "StringAssign", path)
+	rename := cmd.ParseOK[cmd.App[Cmd]](t, "name", "--at", "0x1006", "--name", "StringAssign", path)
 	err := rename.Run(t.Context())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, decomp.ErrNotStored)
+	assert.ErrorIs(t, err, xdecomp.ErrNotStored)
 	assert.Contains(t, err.Error(), "name was not stored")
 
-	functions := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "functions", path)
+	functions := cmd.ParseOK[cmd.App[Cmd]](t, "functions", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, functions.Run(t.Context()))
 	})
@@ -284,32 +284,32 @@ func TestDecompNameAndNoteNeedAProject(t *testing.T) {
 	assert.Contains(t, got, "sub_1006")
 	assert.NotContains(t, got, "StringAssign")
 
-	note := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "note", "--at", "0x1006", "--text", "assign", path)
+	note := cmd.ParseOK[cmd.App[Cmd]](t, "note", "--at", "0x1006", "--text", "assign", path)
 	err = note.Run(t.Context())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, decomp.ErrNotStored)
+	assert.ErrorIs(t, err, xdecomp.ErrNotStored)
 	assert.Contains(t, err.Error(), "note was not stored")
 
 	database := filepath.Join(t.TempDir(), "program.decomp")
-	stored := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "name", "--at", "0x1006", "--name", "StringAssign", path)
+	stored := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "name", "--at", "0x1006", "--name", "StringAssign", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, stored.Run(t.Context()))
 	})
 	assert.Contains(t, got, "StringAssign")
 
-	listing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "listing", "--at", "0x1000", path)
+	listing := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
 	assert.Contains(t, got, "call 0x1006 <StringAssign>")
 
-	noted := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", "--at", "0x1006", "--text", "assign", path)
+	noted := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", "--at", "0x1006", "--text", "assign", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, noted.Run(t.Context()))
 	})
 	assert.Contains(t, got, "assign")
 
-	printed := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", "--at", "0x1006", path)
+	printed := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", "--at", "0x1006", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, printed.Run(t.Context()))
 	})
@@ -320,30 +320,30 @@ func TestDecompNotesFollowUses(t *testing.T) {
 	test.RestoreSlog(t)
 	path := writeELF(t, []byte{0xe8, 0x01, 0x00, 0x00, 0x00, 0xc3, 0xc3})
 	database := filepath.Join(t.TempDir(), "program.decomp")
-	load := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	load := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "functions", path)
 	require.NoError(t, load.Run(t.Context()))
 
-	first := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", "--at", "0x1006", "--text", "kernel32!CloseHandle", path)
+	first := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", "--at", "0x1006", "--text", "kernel32!CloseHandle", path)
 	require.NoError(t, first.Run(t.Context()))
-	second := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", "--at", "0x1001", "--text", "saved clue", path)
+	second := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", "--at", "0x1001", "--text", "saved clue", path)
 	require.NoError(t, second.Run(t.Context()))
 
-	listing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "listing", "--at", "0x1000", path)
+	listing := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
 	assert.Contains(t, got, "; note kernel32!CloseHandle")
 
-	bare := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", path)
+	bare := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, bare.Run(t.Context()))
 	})
 	assert.Contains(t, got, "0x1006 kernel32!CloseHandle")
 	assert.Contains(t, got, "0x1001 saved clue")
 
-	clear := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", "--at", "0x1006", "--text", "", path)
+	clear := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", "--at", "0x1006", "--text", "", path)
 	require.NoError(t, clear.Run(t.Context()))
-	bare = cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "note", path)
+	bare = cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "note", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, bare.Run(t.Context()))
 	})
@@ -354,7 +354,7 @@ func TestDecompNotesFollowUses(t *testing.T) {
 func TestDecompEntryCallersAndStrings(t *testing.T) {
 	test.RestoreSlog(t)
 	path := writeELFAt(t, []byte{0x55, 0xc3}, 0x1000)
-	listing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "listing", path)
+	listing := cmd.ParseOK[cmd.App[Cmd]](t, "listing", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
@@ -362,7 +362,7 @@ func TestDecompEntryCallersAndStrings(t *testing.T) {
 	assert.Contains(t, got, "push")
 
 	caller := writeELF(t, []byte{0xe8, 0x01, 0x00, 0x00, 0x00, 0xc3, 0xc3})
-	xrefs := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "xrefs", "--at", "0x1006", caller)
+	xrefs := cmd.ParseOK[cmd.App[Cmd]](t, "xrefs", "--at", "0x1006", caller)
 	got = test.Stdout(t, func() {
 		require.NoError(t, xrefs.Run(t.Context()))
 	})
@@ -372,13 +372,13 @@ func TestDecompEntryCallersAndStrings(t *testing.T) {
 	rodata = append(rodata, []byte("SysUtils")...)
 	rodata = append(rodata, 0)
 	image := writeELFTextAndRodata(t, []byte{0x48, 0x8d, 0x3d, 0xf9, 0x0f, 0x00, 0x00, 0xc3}, rodata)
-	stringsCmd := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "strings", image)
+	stringsCmd := cmd.ParseOK[cmd.App[Cmd]](t, "strings", image)
 	got = test.Stdout(t, func() {
 		require.NoError(t, stringsCmd.Run(t.Context()))
 	})
 	assert.Contains(t, got, "0x2000 System")
 	assert.Contains(t, got, "SysUtils")
-	stringListing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "listing", "--at", "0x1000", image)
+	stringListing := cmd.ParseOK[cmd.App[Cmd]](t, "listing", "--at", "0x1000", image)
 	got = test.Stdout(t, func() {
 		require.NoError(t, stringListing.Run(t.Context()))
 	})
@@ -394,43 +394,43 @@ func TestDecompExplainAndSignature(t *testing.T) {
 	writeGrok(t, bin, `{"source":"void entry(void) { return; }"}`)
 	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
 
-	explain := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "explain", "--at", "0x1000", "--rounds", "1", path)
+	explain := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "explain", "--at", "0x1000", "--rounds", "1", path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, explain.Run(t.Context()))
 	})
 	assert.Contains(t, got, "void entry(void) { return; }")
 
-	listing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "listing", "--at", "0x1000", path)
+	listing := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
 	assert.Contains(t, got, "void entry(void) { return; }")
 
 	writeGrok(t, bin, `{"name":"sub_1000","signature":"void sub_1000(void)","source":"void sub_1000(void) { return; }","blocks":[]}`)
-	match := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "match", "--at", "0x1000", "--rounds", "1", path)
+	match := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "match", "--at", "0x1000", "--rounds", "1", path)
 	err := match.Run(t.Context())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, decomp.ErrUnmatched)
+	assert.ErrorIs(t, err, xdecomp.ErrUnmatched)
 
-	listing = cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "listing", "--at", "0x1000", path)
+	listing = cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
 	assert.Contains(t, got, "void entry(void) { return; }")
 
-	missing := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "signature", "--at", "0x1000", "--text", "void entry(void)", path)
+	missing := cmd.ParseOK[cmd.App[Cmd]](t, "signature", "--at", "0x1000", "--text", "void entry(void)", path)
 	err = missing.Run(t.Context())
 	require.Error(t, err)
-	assert.ErrorIs(t, err, decomp.ErrNotStored)
+	assert.ErrorIs(t, err, xdecomp.ErrNotStored)
 	assert.Contains(t, err.Error(), "signature was not stored")
 
-	signature := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "signature", "--at", "0x1000", "--text", "void entry(void)", path)
+	signature := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "signature", "--at", "0x1000", "--text", "void entry(void)", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, signature.Run(t.Context()))
 	})
 	assert.Contains(t, got, "void entry(void)")
 
-	listing = cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "listing", "--at", "0x1000", path)
+	listing = cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})

@@ -62,7 +62,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `cmd/lewkit` | The `lewkit` program. |
-| `cmd/lewkit/decompview` | Page for `lewkit decomp view`. Cmd+K and Ctrl+K jump to an artifact or a function. A call links to that function. Highlighted assembly links each address to its instruction or function. Names, signatures, held source, and address notes save into the project. |
+| `cmd/lewkit/decomp` | The `lewkit decomp` command. `cmd/lewkit` only holds the `Cmd` field. |
+| `x/disasm/decomp/view` | Page for `lewkit decomp view`. Cmd+K and Ctrl+K jump to an artifact or a function. A call links to that function. Highlighted assembly links each address to its instruction or function. Names, signatures, held source, and address notes save into the project. |
 | `report` | `Reporter`, `RegisterReporter`, `Report`, `Must`. |
 | `report/sentry` | Sentry `Reporter`. |
 | `x/logging` | `NewHandler`. Level letter, message, then `key=value`. Color on a terminal. |
@@ -159,7 +160,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/ndeval/d3d12` | Direct3D 12 evaluator. Weight 70 on Windows, after Metal. Renders `Code` as HLSL. |
 | `x/driver/ndeval/opengl` | OpenGL evaluator. Weight 20, after Vulkan. Renders `Code` as a compute shader on GL 4.3 or OpenGL ES 3.1. Apple stays on Metal. |
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. `Object` also exposes `Sections` and `Entry`. |
-| `x/decomp` | In-process program database. `New`, `Open`, `Remember`, `Project.Add`, `Project.Attach`, `Artifact.Match`, `Artifact.Explain`, `Harness`. Capstone lifts the artifact. `Open` keeps the database in a sqlite file. `Remember` returns a stored image when its path and SHA-256 match. An attached model match-decompiles one function, or explains it. |
+| `x/disasm/decomp` | In-process program database. `New`, `Open`, `Remember`, `Project.Add`, `Project.Attach`, `Artifact.Match`, `Artifact.Explain`, `Harness`. Capstone lifts the artifact. `Open` keeps the database in a sqlite file. `Remember` returns a stored image when its path and SHA-256 match. An attached model match-decompiles one function, or explains it. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
 | `x/ffi/android` | Binder session. `Open`, `Client`. |
@@ -181,7 +182,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 
 `x/disasm` reads ELF, PE, and Mach-O through `x/ffi/wasm/capstone`.
 
-`x/decomp` keeps that image in one process. `Project.Add` loads an ELF, PE, or Mach-O artifact. The lift recovers functions, basic blocks, references, and strings. An import names its thunk `library!symbol`. An export at an instruction is a function start. A function body is the code reachable from that start, and a PE section stops at its virtual size. `Open` writes the same database to a sqlite file and loads it again without disassembling. `Remember` returns the stored artifact when the path and SHA-256 match. Different bytes at that path are an error that names both digests. `New` keeps the database in memory. A name, note, or signature on that in-memory project is not stored. `Project.Attach` sets the model. `Artifact.Match` asks that model for C and accepts it when the blocks copy the lifted control flow and the source names the function, each direct callee, and each referenced string. `Artifact.Explain` stores the model's source without comparing blocks. `Harness` runs the Grok harness once per round. The signed-in subscription is the credential. `Chat` posts one OpenAI-compatible completion when the caller sets an endpoint. xAI's endpoint is `https://api.x.ai/v1/chat/completions`.
+`x/disasm/decomp` keeps that image in one process. `Project.Add` loads an ELF, PE, or Mach-O artifact. The lift recovers functions, basic blocks, references, and strings. An import names its thunk `library!symbol`. An export at an instruction is a function start. A function body is the code reachable from that start, and a PE section stops at its virtual size. `Open` writes the same database to a sqlite file and loads it again without disassembling. `Remember` returns the stored artifact when the path and SHA-256 match. Different bytes at that path are an error that names both digests. `New` keeps the database in memory. A name, note, or signature on that in-memory project is not stored. `Project.Attach` sets the model. `Artifact.Match` asks that model for C and accepts it when the blocks copy the lifted control flow and the source names the function, each direct callee, and each referenced string. `Artifact.Explain` stores the model's source without comparing blocks. `Harness` runs the Grok harness once per round. The signed-in subscription is the credential. `Chat` posts one OpenAI-compatible completion when the caller sets an endpoint. xAI's endpoint is `https://api.x.ai/v1/chat/completions`.
 
 ## Commands
 

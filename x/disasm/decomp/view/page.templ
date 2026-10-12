@@ -1,4 +1,4 @@
-package decompview
+package view
 
 import "github.com/lewtec/lewkit/x/http/asset/daisyui"
 import "github.com/lewtec/lewkit/x/http/asset/tailwindcss"
@@ -160,7 +160,7 @@ templ previewDocument(page previewPage) {
 				</div>
 				<form method="dialog" class="modal-backdrop"><button>close</button></form>
 			</dialog>
-			@templ.Raw(previewScript)
+			@palette()
 		</body>
 	</html>
 }

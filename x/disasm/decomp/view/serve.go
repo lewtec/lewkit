@@ -1,4 +1,4 @@
-package decompview
+package view
 
 import (
 	"context"
