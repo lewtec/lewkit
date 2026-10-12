@@ -570,10 +570,9 @@ func (runner *runner) flush(force bool) error {
 }
 
 // fitHost adopts the Android swapchain before the signature check.
-// A turn leaves the picture already showing up until the screen has
-// settled, then rebuilds and presents. A lost surface skips the frame:
-// painting it ended the process. The model hears the new size before
-// this flush paints.
+// A size change rebuilds and presents after the previous present finishes.
+// A lost surface skips the frame: painting it ended the process. The model
+// hears the new size before this flush paints.
 func (runner *runner) fitHost() error {
 	bridged, ok := runner.host.(bridgeDisplay)
 	if !ok {

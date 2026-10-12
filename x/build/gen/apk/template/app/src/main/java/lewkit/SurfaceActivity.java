@@ -87,12 +87,16 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         }
+        // The new frame is presented when the size flips. Seamless rotation
+        // turns that live window. A screenshot animation would rotate the
+        // previous picture and show this frame after.
+        WindowManager.LayoutParams attrs = window.getAttributes();
+        attrs.rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS;
         if (Build.VERSION.SDK_INT >= 28) {
-            WindowManager.LayoutParams attrs = window.getAttributes();
             attrs.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            window.setAttributes(attrs);
             window.setNavigationBarDividerColor(Color.TRANSPARENT);
         }
+        window.setAttributes(attrs);
         window.setStatusBarColor(Color.TRANSPARENT);
         window.setNavigationBarColor(Color.TRANSPARENT);
     }

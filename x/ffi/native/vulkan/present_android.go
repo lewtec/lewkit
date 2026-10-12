@@ -4,7 +4,6 @@ package vulkan
 
 import (
 	"fmt"
-	"time"
 )
 
 const extHostSurface = "VK_KHR_android_surface"
@@ -14,11 +13,10 @@ func surfaceExtensions() []string { return []string{extHostSurface} }
 func loadHost(*wsi, *Device) error { return nil }
 
 type androidHost struct {
-	screen    *Screen
-	window    uintptr
-	borrowed  bool
-	turnUntil time.Time
-	createFn  func(inst uintptr, info *androidSurfaceInfo, alloc uintptr, surface *uint64) int32
+	screen   *Screen
+	window   uintptr
+	borrowed bool
+	createFn func(inst uintptr, info *androidSurfaceInfo, alloc uintptr, surface *uint64) int32
 }
 
 type androidSurfaceInfo struct {
@@ -69,14 +67,6 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 		return s.Fit(width, height)
 	}
 	if host.window == window && s.surface != 0 && !s.lost && s.swap != 0 {
-		// The rotation animation composites the picture already showing.
-		// Presenting the new aspect while that runs garbles the switch.
-		// The picture stays up through the turn, then this frame rebuilds.
-		hold, until := turnHold(time.Now(), host.turnUntil, rotationSettle, true, s.width, s.height, width, height)
-		host.turnUntil = until
-		if hold {
-			return ErrHold
-		}
 		// A matching frame does not read the extent. That read overlapped
 		// the previous present and faulted the driver.
 		if !extentReadNeeded(true, s.stale, s.width, s.height, width, height) {
