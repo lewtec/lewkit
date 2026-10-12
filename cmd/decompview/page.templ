@@ -12,9 +12,6 @@ templ previewDocument(page previewPage) {
 			<title>{ page.Title }</title>
 			@daisyui.Load()
 			@tailwindcss.Load()
-			<style>
-				@templ.Raw(previewCSS)
-			</style>
 		</head>
 		<body>
 			<div class="navbar bg-base-200">
@@ -116,13 +113,11 @@ templ previewDocument(page previewPage) {
 					</table>
 				</div>
 			}
-			if page.Assembly != "" {
+			if len(page.Assembly) > 0 {
 				<div class="card bg-base-200">
 					<div class="card-body">
 						<h2 class="card-title">{ page.AssemblyHeading }</h2>
-						<pre class="asm overflow-x-auto font-mono text-sm leading-6">
-							@templ.Raw(page.Assembly)
-						</pre>
+						@assemblyListing(page.Assembly)
 					</div>
 				</div>
 			}

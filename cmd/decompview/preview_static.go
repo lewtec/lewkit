@@ -1,17 +1,5 @@
 package decompview
 
-const previewCSS = `.asm { white-space: pre; line-height: 1.5; }
-.asm-addr { color: var(--color-warning, #8a5a00); }
-.asm-bytes { color: var(--color-base-content); opacity: 0.55; }
-.asm-mnem { color: var(--color-info, #1e4d8c); font-weight: 600; }
-.asm-reg { color: var(--color-success, #0f6b4c); }
-.asm-imm { color: var(--color-error, #9a3412); }
-.asm-label { color: var(--color-secondary, #6d28d9); font-weight: 600; }
-.asm-comment { color: var(--color-base-content); opacity: 0.6; }
-a.asm-addr, a.asm-label { text-decoration: none; }
-a.asm-addr:hover, a.asm-label:hover { text-decoration: underline; }
-`
-
 // previewScript is the Contapila cmdpalette runtime. IDs are cmdpalette, cmdpalette-open, cmdpalette-input, cmdpalette-list, cmdpalette-empty, and cmdpalette-hotkey.
 const previewScript = `<script>
 (function () {

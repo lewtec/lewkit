@@ -50,7 +50,7 @@ type previewPage struct {
 	Comment         string
 	StreamHref      string
 	AssemblyHeading string
-	Assembly        string
+	Assembly        asmListing
 	Source          string
 	FunctionName    string
 	AddressText     string

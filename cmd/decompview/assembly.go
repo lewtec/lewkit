@@ -3,7 +3,6 @@ package decompview
 import (
 	"encoding/hex"
 	"fmt"
-	"html"
 	"regexp"
 	"sort"
 	"strconv"
@@ -12,6 +11,17 @@ import (
 	"github.com/lewtec/lewkit/x/decomp"
 	"github.com/lewtec/lewkit/x/disasm"
 )
+
+// asmToken is one piece of an assembly line. templ paints it.
+type asmToken struct {
+	Kind string
+	Text string
+	Href string
+	ID   string
+}
+
+// asmListing is the assembly block, one slice per line.
+type asmListing [][]asmToken
 
 // registerWord matches an operand token that is a register.
 // Memory-size words such as dword and ptr are left as plain text.
@@ -90,27 +100,27 @@ func newLinker(artifact *decomp.Artifact, functions []decomp.Function, here map[
 	return link
 }
 
-func functionAssembly(artifact *decomp.Artifact, function decomp.Function) string {
+func functionAssembly(artifact *decomp.Artifact, function decomp.Function) asmListing {
 	here := map[uint64]struct{}{}
 	for _, instruction := range function.Instructions {
 		here[instruction.Address] = struct{}{}
 	}
 	link := newLinker(artifact, artifact.Functions(), here, false)
-	var body strings.Builder
+	var lines asmListing
 	for _, block := range function.Blocks {
-		writeBlock(&body, link, block)
+		lines = append(lines, blockLine(link, block))
 		for _, instruction := range block.Instructions {
-			writeInstruction(&body, link, artifact, function, instruction)
+			lines = append(lines, instructionLines(link, artifact, function, instruction)...)
 		}
 	}
-	writeLooseNotes(&body, link, artifact, function)
+	lines = append(lines, looseNoteLines(link, artifact, function)...)
 	for _, text := range function.Strings {
-		fmt.Fprintf(&body, `<span class="asm-comment">; string %s</span>`+"\n", html.EscapeString(strconv.Quote(text)))
+		lines = append(lines, []asmToken{{Kind: "comment", Text: "; string " + strconv.Quote(text)}})
 	}
-	return body.String()
+	return lines
 }
 
-func streamAssembly(artifact *decomp.Artifact) string {
+func streamAssembly(artifact *decomp.Artifact) asmListing {
 	functions := artifact.Functions()
 	type row struct {
 		function    decomp.Function
@@ -128,34 +138,32 @@ func streamAssembly(artifact *decomp.Artifact) string {
 		return rows[i].instruction.Address < rows[j].instruction.Address
 	})
 	link := newLinker(artifact, functions, here, true)
-	var body strings.Builder
+	var lines asmListing
 	for _, row := range rows {
-		writeInstruction(&body, link, artifact, row.function, row.instruction)
+		lines = append(lines, instructionLines(link, artifact, row.function, row.instruction)...)
 	}
-	return body.String()
+	return lines
 }
 
-func writeBlock(body *strings.Builder, link *linker, block decomp.Block) {
-	body.WriteString(`<span class="asm-comment">; block `)
-	link.writeHex(body, block.Address)
-	body.WriteByte(' ')
-	body.WriteString(html.EscapeString(block.Kind))
+func blockLine(link *linker, block decomp.Block) []asmToken {
+	line := []asmToken{{Kind: "comment", Text: "; block "}, hexToken(link, block.Address), {Kind: "comment", Text: " " + block.Kind}}
 	if block.Target != 0 {
-		body.WriteString(" -&gt; ")
-		link.writeHex(body, block.Target)
+		line = append(line, asmToken{Kind: "comment", Text: " -> "}, hexToken(link, block.Target))
 	}
 	if block.Fall != 0 {
-		body.WriteString(" fall ")
-		link.writeHex(body, block.Fall)
+		line = append(line, asmToken{Kind: "comment", Text: " fall "}, hexToken(link, block.Fall))
 	}
-	body.WriteString("</span>\n")
+	return line
 }
 
-func writeInstruction(body *strings.Builder, link *linker, artifact *decomp.Artifact, function decomp.Function, instruction disasm.Instruction) {
+func instructionLines(link *linker, artifact *decomp.Artifact, function decomp.Function, instruction disasm.Instruction) asmListing {
+	var lines asmListing
 	if instruction.Address == function.Address && function.Comment != "" {
-		fmt.Fprintf(body, `<span class="asm-comment">; %s</span>`+"\n", html.EscapeString(function.Comment))
+		lines = append(lines, []asmToken{{Kind: "comment", Text: "; " + function.Comment}})
 	}
-	link.writeLabel(body, instruction.Address)
+	if label, ok := labelToken(link, instruction.Address); ok {
+		lines = append(lines, []asmToken{label})
+	}
 	raw := hex.EncodeToString(instruction.Bytes)
 	pad := 1
 	if len(raw) < 16 {
@@ -164,22 +172,29 @@ func writeInstruction(body *strings.Builder, link *linker, artifact *decomp.Arti
 	id := ""
 	if _, done := link.anchored[instruction.Address]; !done {
 		link.anchored[instruction.Address] = struct{}{}
-		id = ` id="` + formatHex(instruction.Address) + `"`
+		id = formatHex(instruction.Address)
 	}
-	fmt.Fprintf(body, `<a class="asm-addr"%s href="#%s">0x%08x</a>  <span class="asm-bytes">%s</span>%s<span class="asm-mnem">%s</span>`,
-		id, formatHex(instruction.Address), instruction.Address, raw, strings.Repeat(" ", pad), html.EscapeString(instruction.Mnemonic))
+	line := []asmToken{
+		{Kind: "addr", Text: fmt.Sprintf("0x%08x", instruction.Address), Href: "#" + formatHex(instruction.Address), ID: id},
+		{Kind: "plain", Text: "  "},
+		{Kind: "bytes", Text: raw},
+		{Kind: "plain", Text: strings.Repeat(" ", pad)},
+		{Kind: "mnem", Text: instruction.Mnemonic},
+	}
 	if instruction.Operands != "" {
-		body.WriteByte(' ')
-		writeOperands(body, link, instruction.Operands)
+		line = append(line, asmToken{Kind: "plain", Text: " "})
+		line = append(line, operandTokens(link, instruction.Operands)...)
 	}
-	body.WriteByte('\n')
-	writeInstructionNotes(body, artifact, instruction)
+	lines = append(lines, line)
+	lines = append(lines, instructionNoteLines(artifact, instruction)...)
+	return lines
 }
 
-func writeInstructionNotes(body *strings.Builder, artifact *decomp.Artifact, instruction disasm.Instruction) {
+func instructionNoteLines(artifact *decomp.Artifact, instruction disasm.Instruction) asmListing {
+	var lines asmListing
 	written := map[uint64]struct{}{}
 	if text, ok := artifact.Note(instruction.Address); ok {
-		fmt.Fprintf(body, `<span class="asm-comment">; note %s</span>`+"\n", html.EscapeString(text))
+		lines = append(lines, []asmToken{{Kind: "comment", Text: "; note " + text}})
 		written[instruction.Address] = struct{}{}
 	}
 	for _, address := range operandAddresses(instruction.Operands) {
@@ -190,16 +205,18 @@ func writeInstructionNotes(body *strings.Builder, artifact *decomp.Artifact, ins
 		if !ok {
 			continue
 		}
-		fmt.Fprintf(body, `<span class="asm-comment">; note %s</span>`+"\n", html.EscapeString(text))
+		lines = append(lines, []asmToken{{Kind: "comment", Text: "; note " + text}})
 		written[address] = struct{}{}
 	}
+	return lines
 }
 
-func writeLooseNotes(body *strings.Builder, link *linker, artifact *decomp.Artifact, function decomp.Function) {
+func looseNoteLines(link *linker, artifact *decomp.Artifact, function decomp.Function) asmListing {
 	placed := map[uint64]struct{}{}
 	for _, instruction := range function.Instructions {
 		placed[instruction.Address] = struct{}{}
 	}
+	var lines asmListing
 	for _, note := range artifact.Notes() {
 		if _, ok := placed[note.Address]; ok {
 			continue
@@ -207,12 +224,13 @@ func writeLooseNotes(body *strings.Builder, link *linker, artifact *decomp.Artif
 		if !containsAddress(function, note.Address) {
 			continue
 		}
-		body.WriteString(`<span class="asm-comment">; note `)
-		link.writeHex(body, note.Address)
-		body.WriteByte(' ')
-		body.WriteString(html.EscapeString(note.Text))
-		body.WriteString("</span>\n")
+		lines = append(lines, []asmToken{
+			{Kind: "comment", Text: "; note "},
+			hexToken(link, note.Address),
+			{Kind: "comment", Text: " " + note.Text},
+		})
 	}
+	return lines
 }
 
 func containsAddress(function decomp.Function, address uint64) bool {
@@ -222,27 +240,25 @@ func containsAddress(function decomp.Function, address uint64) bool {
 	return address >= function.Address && address < function.Address+function.Size
 }
 
-func (link *linker) writeLabel(body *strings.Builder, address uint64) {
+func labelToken(link *linker, address uint64) (asmToken, bool) {
 	name, ok := link.artifact.Label(address)
 	if !ok {
-		return
+		return asmToken{}, false
 	}
-	escaped := html.EscapeString(name)
+	token := asmToken{Kind: "label", Text: "<" + name + ">:"}
 	if _, start := link.starts[address]; start && link.labelLinks {
-		fmt.Fprintf(body, `<a class="asm-label" href="%s">&lt;%s&gt;:</a>`+"\n", html.EscapeString(functionPath(link.slug, address)), escaped)
-		return
+		token.Href = functionPath(link.slug, address)
 	}
-	fmt.Fprintf(body, `<span class="asm-label">&lt;%s&gt;:</span>`+"\n", escaped)
+	return token, true
 }
 
-func (link *linker) writeHex(body *strings.Builder, address uint64) {
+func hexToken(link *linker, address uint64) asmToken {
 	text := formatHex(address)
 	href, ok := link.href(address)
 	if !ok {
-		fmt.Fprintf(body, `<span class="asm-imm">%s</span>`, text)
-		return
+		return asmToken{Kind: "imm", Text: text}
 	}
-	fmt.Fprintf(body, `<a class="asm-addr" href="%s">%s</a>`, html.EscapeString(href), text)
+	return asmToken{Kind: "addr", Text: text, Href: href}
 }
 
 func (link *linker) href(address uint64) (string, bool) {
@@ -311,24 +327,33 @@ func (link *linker) span(address uint64) (uint64, bool) {
 	return function, found
 }
 
-func writeOperands(body *strings.Builder, link *linker, operands string) {
+func operandTokens(link *linker, operands string) []asmToken {
+	var tokens []asmToken
+	var plain strings.Builder
+	flush := func() {
+		if plain.Len() == 0 {
+			return
+		}
+		tokens = append(tokens, asmToken{Kind: "plain", Text: plain.String()})
+		plain.Reset()
+	}
 	for index := 0; index < len(operands); {
 		if start, end, address, ok := operandHex(operands, index); ok {
-			body.WriteString(html.EscapeString(operands[index:start]))
+			plain.WriteString(operands[index:start])
+			flush()
 			token := operands[start:end]
 			href, linked := link.href(address)
 			if linked {
-				fmt.Fprintf(body, `<a class="asm-addr" href="%s">%s</a>`, html.EscapeString(href), html.EscapeString(token))
+				tokens = append(tokens, asmToken{Kind: "addr", Text: token, Href: href})
 			} else {
-				fmt.Fprintf(body, `<span class="asm-imm">%s</span>`, html.EscapeString(token))
+				tokens = append(tokens, asmToken{Kind: "imm", Text: token})
 			}
 			if name, named := link.artifact.Label(address); named {
-				escaped := html.EscapeString(name)
+				label := asmToken{Kind: "label", Text: " <" + name + ">"}
 				if linked {
-					fmt.Fprintf(body, ` <a class="asm-label" href="%s">&lt;%s&gt;</a>`, html.EscapeString(href), escaped)
-				} else {
-					fmt.Fprintf(body, ` <span class="asm-label">&lt;%s&gt;</span>`, escaped)
+					label.Href = href
 				}
+				tokens = append(tokens, label)
 			}
 			index = end
 			continue
@@ -340,9 +365,10 @@ func writeOperands(body *strings.Builder, link *linker, operands string) {
 			}
 			word := operands[index:end]
 			if isRegister(word) {
-				fmt.Fprintf(body, `<span class="asm-reg">%s</span>`, html.EscapeString(word))
+				flush()
+				tokens = append(tokens, asmToken{Kind: "reg", Text: word})
 			} else {
-				body.WriteString(html.EscapeString(word))
+				plain.WriteString(word)
 			}
 			index = end
 			continue
@@ -352,13 +378,16 @@ func writeOperands(body *strings.Builder, link *linker, operands string) {
 			for end < len(operands) && operands[end] >= '0' && operands[end] <= '9' {
 				end++
 			}
-			fmt.Fprintf(body, `<span class="asm-imm">%s</span>`, operands[index:end])
+			flush()
+			tokens = append(tokens, asmToken{Kind: "imm", Text: operands[index:end]})
 			index = end
 			continue
 		}
-		body.WriteString(html.EscapeString(operands[index : index+1]))
+		plain.WriteByte(operands[index])
 		index++
 	}
+	flush()
+	return tokens
 }
 
 func operandAddresses(operands string) []uint64 {

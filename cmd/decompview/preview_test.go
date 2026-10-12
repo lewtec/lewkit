@@ -70,7 +70,7 @@ func TestPreviewShowsTheReopenedFunction(t *testing.T) {
 	assert.Contains(t, body, "void start(void) {")
 	assert.Contains(t, body, "Save source")
 	assert.Contains(t, body, `id="0x1000"`)
-	assert.Contains(t, body, `class="asm-mnem">ret</span>`)
+	assert.Contains(t, body, `class="font-semibold text-info">ret</span>`)
 
 	missing := get(t, handler, "/artifact/missing.elf")
 	assert.Equal(t, http.StatusNotFound, missing.Code)
@@ -172,8 +172,8 @@ func TestPreviewFollowsCallsNotesAndSignature(t *testing.T) {
 	function = get(t, handler, "/artifact/"+slug+"/function/0x1000")
 	assert.Contains(t, function.Body.String(), `name="signature"`)
 	assert.Contains(t, function.Body.String(), "void entry(void)")
-	assert.Contains(t, function.Body.String(), `class="asm-addr" href="/artifact/`+slug+`/function/0x1006"`)
-	assert.Contains(t, function.Body.String(), `class="asm-mnem">call</span>`)
+	assert.Contains(t, function.Body.String(), `href="/artifact/`+slug+`/function/0x1006"`)
+	assert.Contains(t, function.Body.String(), `class="font-semibold text-info">call</span>`)
 	require.NoError(t, project.Close())
 }
 
@@ -197,14 +197,14 @@ func TestPreviewAssemblyAndSource(t *testing.T) {
 
 	loaded := get(t, handler, "/artifact/"+lea.Slug()+"/function/0x1000")
 	assert.Equal(t, http.StatusOK, loaded.Code)
-	assert.Regexp(t, `class="asm-reg">rdi</span>`, loaded.Body.String())
+	assert.Regexp(t, `class="text-success">rdi</span>`, loaded.Body.String())
 
 	stream := get(t, handler, "/artifact/"+branch.Slug()+"/stream")
 	assert.Equal(t, http.StatusOK, stream.Code)
 	assert.Contains(t, stream.Body.String(), `id="0x1000"`)
 	assert.Contains(t, stream.Body.String(), `id="0x1002"`)
 	assert.Contains(t, stream.Body.String(), `href="#0x1002"`)
-	assert.Contains(t, stream.Body.String(), `class="asm-label" href="/artifact/`+branch.Slug()+`/function/0x1000"`)
+	assert.Contains(t, stream.Body.String(), `class="font-semibold text-secondary no-underline hover:underline" href="/artifact/`+branch.Slug()+`/function/0x1000"`)
 
 	source := "int start(void) {\n  return 0; /* <draft> */\n}\n"
 	saved := post(t, handler, "/artifact/"+branch.Slug()+"/function/0x1000/source", url.Values{"source": {source}})
@@ -254,9 +254,9 @@ func TestPreviewLinksEveryImageAddress(t *testing.T) {
 	page := get(t, handler, "/artifact/"+slug+"/function/0x1000")
 	require.Equal(t, http.StatusOK, page.Code)
 	body := page.Body.String()
-	assert.Contains(t, body, `class="asm-addr" href="#0x1000">0x1001</a>`)
-	assert.Contains(t, body, `class="asm-addr" href="/artifact/`+slug+`/at/0x2000">0x2000</a>`)
-	assert.Contains(t, body, `class="asm-imm">0x5c</span>`)
+	assert.Contains(t, body, `href="#0x1000">0x1001</a>`)
+	assert.Contains(t, body, `href="/artifact/`+slug+`/at/0x2000">0x2000</a>`)
+	assert.Contains(t, body, `class="text-error">0x5c</span>`)
 	assert.NotContains(t, body, `href="#0x5c"`)
 	assert.NotContains(t, body, `/at/0x5c`)
 

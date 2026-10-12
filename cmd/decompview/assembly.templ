@@ -1,0 +1,41 @@
+package decompview
+
+templ assemblyListing(lines asmListing) {
+	<pre class="overflow-x-auto font-mono text-sm leading-6">
+		for _, line := range lines {
+			for _, token := range line {
+				@paintToken(token)
+			}
+			{"\n"}
+		}
+	</pre>
+}
+
+templ paintToken(token asmToken) {
+	switch token.Kind {
+	case "comment":
+		<span class="text-base-content/60">{ token.Text }</span>
+	case "bytes":
+		<span class="opacity-60">{ token.Text }</span>
+	case "mnem":
+		<span class="font-semibold text-info">{ token.Text }</span>
+	case "reg":
+		<span class="text-success">{ token.Text }</span>
+	case "imm":
+		<span class="text-error">{ token.Text }</span>
+	case "label":
+		if token.Href != "" {
+			<a class="font-semibold text-secondary no-underline hover:underline" href={ templ.URL(token.Href) }>{ token.Text }</a>
+		} else {
+			<span class="font-semibold text-secondary">{ token.Text }</span>
+		}
+	case "addr":
+		if token.ID != "" {
+			<a id={ token.ID } class="text-warning no-underline hover:underline" href={ templ.URL(token.Href) }>{ token.Text }</a>
+		} else {
+			<a class="text-warning no-underline hover:underline" href={ templ.URL(token.Href) }>{ token.Text }</a>
+		}
+	default:
+		{ token.Text }
+	}
+}
