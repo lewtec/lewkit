@@ -13,6 +13,7 @@ import (
 )
 
 type decompCmd struct {
+	project   cmd.StringArg `long:"project" default:"" help:"sqlite program database" ctx:""`
 	summary   *decompSummaryCmd
 	functions *decompFunctionsCmd
 	listing   *decompListingCmd
@@ -31,11 +32,12 @@ func (decompSummaryCmd) Description() string {
 	return "summarize one native artifact"
 }
 
-func (command *decompSummaryCmd) Run(ctx context.Context) error {
-	artifact, err := openArtifact(ctx, command.path.Value())
+func (command *decompSummaryCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
+	defer func() { err = joinClose(err, project.Close()) }()
 	_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), artifact.Summary())
 	return err
 }
@@ -48,11 +50,12 @@ func (decompFunctionsCmd) Description() string {
 	return "list recovered functions"
 }
 
-func (command *decompFunctionsCmd) Run(ctx context.Context) error {
-	artifact, err := openArtifact(ctx, command.path.Value())
+func (command *decompFunctionsCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
+	defer func() { err = joinClose(err, project.Close()) }()
 	out := lewfs.ContextWriter(ctx, os.Stdout)
 	for _, function := range artifact.Functions() {
 		if _, err := fmt.Fprintf(out, "0x%x\t%s\t%d\n", function.Address, function.Name, function.Size); err != nil {
@@ -71,11 +74,12 @@ func (decompListingCmd) Description() string {
 	return "print blocks and instructions for one function"
 }
 
-func (command *decompListingCmd) Run(ctx context.Context) error {
-	artifact, err := openArtifact(ctx, command.path.Value())
+func (command *decompListingCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
+	defer func() { err = joinClose(err, project.Close()) }()
 	listing, err := artifact.Listing(command.at.Value())
 	if err != nil {
 		return err
@@ -98,11 +102,12 @@ func (decompMatchCmd) Description() string {
 	return "ask an attached model to match-decompile one function"
 }
 
-func (command *decompMatchCmd) Run(ctx context.Context) error {
-	artifact, err := openArtifact(ctx, command.path.Value())
+func (command *decompMatchCmd) Run(ctx context.Context) (err error) {
+	project, artifact, err := openDecomp(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
+	defer func() { err = joinClose(err, project.Close()) }()
 	if command.endpoint.Value() != "" {
 		model := command.model.Value()
 		if model == "" {
@@ -128,10 +133,16 @@ func (command *decompMatchCmd) Run(ctx context.Context) error {
 	return err
 }
 
-func openArtifact(ctx context.Context, path string) (*decomp.Artifact, error) {
-	data, err := readInput(ctx, path)
-	if err != nil {
-		return nil, err
+func openDecomp(ctx context.Context, path string) (*decomp.Project, *decomp.Artifact, error) {
+	var project *decomp.Project
+	if projectPath := cmd.Get[string](ctx, "project"); projectPath != "" {
+		opened, err := decomp.Open(ctx, projectPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		project = opened
+	} else {
+		project = decomp.New()
 	}
 	name := path
 	if name == "" || name == "-" {
@@ -139,7 +150,27 @@ func openArtifact(ctx context.Context, path string) (*decomp.Artifact, error) {
 	} else {
 		name = filepath.Base(name)
 	}
-	return decomp.New().AddBytes(ctx, name, data)
+	if artifact, ok := project.Artifact(name); ok {
+		return project, artifact, nil
+	}
+	data, err := readInput(ctx, path)
+	if err != nil {
+		_ = project.Close()
+		return nil, nil, err
+	}
+	artifact, err := project.AddBytes(ctx, name, data)
+	if err != nil {
+		_ = project.Close()
+		return nil, nil, err
+	}
+	return project, artifact, nil
+}
+
+func joinClose(err, closeErr error) error {
+	if err != nil {
+		return err
+	}
+	return closeErr
 }
 
 func writeMatch(ctx context.Context, result decomp.Result) error {

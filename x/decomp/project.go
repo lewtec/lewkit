@@ -3,6 +3,7 @@ package decomp
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -24,10 +25,13 @@ var (
 )
 
 // Project is one session: native artifacts and, once attached, a model.
+// [Open] also keeps those artifacts in a sqlite file. [New] keeps them in memory.
 // A project is not safe for concurrent use.
 type Project struct {
 	model     Model
 	artifacts []*Artifact
+	db        *sql.DB
+	path      string
 }
 
 // Artifact is one loaded image and the names, comments, and matched
@@ -105,7 +109,11 @@ func (project *Project) Add(ctx context.Context, name string, reader io.ReaderAt
 			return nil, fmt.Errorf("%w: %s", ErrArtifact, name)
 		}
 	}
-	object, format, err := disasm.OpenObject(reader, size)
+	image, err := readImage(reader, size)
+	if err != nil {
+		return nil, err
+	}
+	object, format, err := disasm.OpenObject(bytes.NewReader(image), int64(len(image)))
 	if err != nil {
 		return nil, err
 	}
@@ -116,8 +124,29 @@ func (project *Project) Add(ctx context.Context, name string, reader io.ReaderAt
 	}
 	artifact.project = project
 	artifact.name = name
+	if err := project.insertArtifact(ctx, artifact, image); err != nil {
+		return nil, err
+	}
 	project.artifacts = append(project.artifacts, artifact)
 	return artifact, nil
+}
+
+func readImage(reader io.ReaderAt, size int64) ([]byte, error) {
+	if size < 0 {
+		return nil, errors.New("negative artifact size")
+	}
+	image := make([]byte, size)
+	if size == 0 {
+		return image, nil
+	}
+	read, err := reader.ReadAt(image, 0)
+	if read == len(image) {
+		return image, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nil, io.ErrUnexpectedEOF
 }
 
 // AddBytes loads an image held in memory.
@@ -163,7 +192,8 @@ func (artifact *Artifact) Function(address uint64) (Function, bool) {
 }
 
 // SetName renames the function that starts at address.
-func (artifact *Artifact) SetName(address uint64, name string) error {
+// An [Open] project writes the new name into the sqlite file.
+func (artifact *Artifact) SetName(ctx context.Context, address uint64, name string) error {
 	if name == "" {
 		return errors.New("empty function name")
 	}
@@ -171,27 +201,44 @@ func (artifact *Artifact) SetName(address uint64, name string) error {
 	if function == nil {
 		return fmt.Errorf("%w: 0x%x", ErrNotFound, address)
 	}
+	previous := function.Name
 	function.Name = name
+	if err := artifact.saveFunction(ctx, function); err != nil {
+		function.Name = previous
+		return err
+	}
 	return nil
 }
 
 // SetSignature records a prototype for the function that starts at address.
-func (artifact *Artifact) SetSignature(address uint64, signature string) error {
+// An [Open] project writes the prototype into the sqlite file.
+func (artifact *Artifact) SetSignature(ctx context.Context, address uint64, signature string) error {
 	function := artifact.byAddress[address]
 	if function == nil {
 		return fmt.Errorf("%w: 0x%x", ErrNotFound, address)
 	}
+	previous := function.Signature
 	function.Signature = signature
+	if err := artifact.saveFunction(ctx, function); err != nil {
+		function.Signature = previous
+		return err
+	}
 	return nil
 }
 
 // SetComment records a note on the function that starts at address.
-func (artifact *Artifact) SetComment(address uint64, comment string) error {
+// An [Open] project writes the note into the sqlite file.
+func (artifact *Artifact) SetComment(ctx context.Context, address uint64, comment string) error {
 	function := artifact.byAddress[address]
 	if function == nil {
 		return fmt.Errorf("%w: 0x%x", ErrNotFound, address)
 	}
+	previous := function.Comment
 	function.Comment = comment
+	if err := artifact.saveFunction(ctx, function); err != nil {
+		function.Comment = previous
+		return err
+	}
 	return nil
 }
 

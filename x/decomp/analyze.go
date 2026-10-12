@@ -113,10 +113,15 @@ func lift(ctx context.Context, object disasm.Object, format string) (*Artifact, 
 		functions:    functions,
 		byAddress:    map[uint64]*Function{},
 	}
+	indexArtifact(artifact)
+	return artifact, nil
+}
+
+func indexArtifact(artifact *Artifact) {
+	artifact.byAddress = map[uint64]*Function{}
 	for index := range artifact.functions {
 		artifact.byAddress[artifact.functions[index].Address] = &artifact.functions[index]
 	}
-	return artifact, nil
 }
 
 func rebaseSymbols(object disasm.Object, sections []disasm.Section) disasm.Symbols {

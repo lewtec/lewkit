@@ -117,15 +117,15 @@ func elfTextAndRodata(code, rodata []byte) []byte {
 
 func TestSetName(t *testing.T) {
 	artifact := openELF(t, []byte{0xc3})
-	require.NoError(t, artifact.SetName(0x1000, "start"))
-	require.NoError(t, artifact.SetSignature(0x1000, "void start(void)"))
-	require.NoError(t, artifact.SetComment(0x1000, "entry"))
+	require.NoError(t, artifact.SetName(t.Context(), 0x1000, "start"))
+	require.NoError(t, artifact.SetSignature(t.Context(), 0x1000, "void start(void)"))
+	require.NoError(t, artifact.SetComment(t.Context(), 0x1000, "entry"))
 	function, ok := artifact.Function(0x1000)
 	require.True(t, ok)
 	assert.Equal(t, "start", function.Name)
 	assert.Equal(t, "void start(void)", function.Signature)
 	assert.Equal(t, "entry", function.Comment)
-	err := artifact.SetName(0x1, "missing")
+	err := artifact.SetName(t.Context(), 0x1, "missing")
 	assert.ErrorIs(t, err, ErrNotFound)
 }
 

@@ -4,7 +4,9 @@
 // artifact and lifts its executable sections through
 // [github.com/lewtec/lewkit/x/disasm], which keeps Capstone inside this
 // process. The artifact records functions, basic blocks, references, and
-// strings. [Project.Attach] sets the [Model] that writes a decompilation.
+// strings. [Open] stores that database in a sqlite file and reloads the
+// saved lift. [New] keeps the same database in memory. [Project.Attach]
+// sets the [Model] that writes a decompilation.
 // [Harness] runs the Grok harness, which uses the signed-in subscription.
 // [Chat] is a direct completion for a caller who passes an endpoint.
 // [Artifact.Match] keeps that decompilation only when every block copies

@@ -158,7 +158,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/ndeval/d3d12` | Direct3D 12 evaluator. Weight 70 on Windows, after Metal. Renders `Code` as HLSL. |
 | `x/driver/ndeval/opengl` | OpenGL evaluator. Weight 20, after Vulkan. Renders `Code` as a compute shader on GL 4.3 or OpenGL ES 3.1. Apple stays on Metal. |
 | `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. `Object` also exposes `Sections` and `Entry`. |
-| `x/decomp` | In-process program database. `New`, `Project.Add`, `Project.Attach`, `Artifact.Match`, `Harness`. Capstone lifts the artifact. An attached model match-decompiles one function. |
+| `x/decomp` | In-process program database. `New`, `Open`, `Project.Add`, `Project.Attach`, `Artifact.Match`, `Harness`. Capstone lifts the artifact. `Open` keeps the database in a sqlite file. An attached model match-decompiles one function. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
 | `x/ffi/android` | Binder session. `Open`, `Client`. |
@@ -180,7 +180,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 
 `x/disasm` reads ELF, PE, and Mach-O through `x/ffi/wasm/capstone`.
 
-`x/decomp` keeps that image in one process. `Project.Add` loads an ELF, PE, or Mach-O artifact. The lift recovers functions, basic blocks, references, and strings. `Project.Attach` sets the model. `Artifact.Match` asks that model for C and accepts it when the blocks copy the lifted control flow and the source names the function, each direct callee, and each referenced string. `Harness` runs the Grok harness once per round. The signed-in subscription is the credential. `Chat` posts one OpenAI-compatible completion when the caller sets an endpoint. xAI's endpoint is `https://api.x.ai/v1/chat/completions`.
+`x/decomp` keeps that image in one process. `Project.Add` loads an ELF, PE, or Mach-O artifact. The lift recovers functions, basic blocks, references, and strings. `Open` writes the same database to a sqlite file and loads it again without disassembling. `New` keeps the database in memory. `Project.Attach` sets the model. `Artifact.Match` asks that model for C and accepts it when the blocks copy the lifted control flow and the source names the function, each direct callee, and each referenced string. `Harness` runs the Grok harness once per round. The signed-in subscription is the credential. `Chat` posts one OpenAI-compatible completion when the caller sets an endpoint. xAI's endpoint is `https://api.x.ai/v1/chat/completions`.
 
 ## Commands
 
@@ -208,7 +208,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 
-`lewkit decomp listing` and `lewkit decomp match` take `--at` (default `0`). `lewkit decomp match` also takes `--harness` (default `grok`), `--model` (empty uses the signed-in default), and `--rounds` (default `4`). `--endpoint` skips the harness and posts one chat completion; `--api-key` is that request's bearer token, and `XAI_API_KEY` sets the same key. With `--endpoint` and an empty `--model`, the model is `grok-4`.
+`lewkit decomp --project FILE` selects a sqlite program database. A later command with the same artifact name reads the saved lift, names, comments, and matched source. `lewkit decomp listing` and `lewkit decomp match` take `--at` (default `0`). `lewkit decomp match` also takes `--harness` (default `grok`), `--model` (empty uses the signed-in default), and `--rounds` (default `4`). `--endpoint` skips the harness and posts one chat completion; `--api-key` is that request's bearer token, and `XAI_API_KEY` sets the same key. With `--endpoint` and an empty `--model`, the model is `grok-4`.
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. `lewkit generate prelude` takes no arguments. It scans the working directory and writes `prelude/prelude.go` there, plus a prelude for each Go package under it that has a descendant `root.go`. A directory with no Go file does not get a prelude; its children attach to the package above it. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
 

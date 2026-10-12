@@ -22,6 +22,7 @@ func TestDecompUsage(t *testing.T) {
 	assert.Contains(t, text, "functions")
 	assert.Contains(t, text, "listing")
 	assert.Contains(t, text, "match")
+	assert.Contains(t, text, "project")
 }
 
 func TestDecompFunctionsAndListing(t *testing.T) {
@@ -40,6 +41,24 @@ func TestDecompFunctionsAndListing(t *testing.T) {
 	})
 	assert.Contains(t, got, "nop")
 	assert.Contains(t, got, "ret")
+}
+
+func TestDecompProjectKeepsFunctions(t *testing.T) {
+	test.RestoreSlog(t)
+	path := writeELF(t, []byte{0x90, 0xc3})
+	database := filepath.Join(t.TempDir(), "program.decomp")
+	first := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	got := test.Stdout(t, func() {
+		require.NoError(t, first.Run(t.Context()))
+	})
+	assert.Contains(t, got, "sub_1000")
+	require.NoError(t, os.Remove(path))
+	second := cmd.ParseOK[cmd.App[root]](t, "--sentry-dsn", "", "decomp", "--project", database, "functions", path)
+	got = test.Stdout(t, func() {
+		require.NoError(t, second.Run(t.Context()))
+	})
+	assert.Contains(t, got, "sub_1000")
+	assert.Contains(t, got, "0x1000")
 }
 
 func TestDecompMatchUsesHarness(t *testing.T) {

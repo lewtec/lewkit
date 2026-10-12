@@ -74,9 +74,19 @@ func (artifact *Artifact) Match(ctx context.Context, address uint64, config Matc
 		result.Residuals = append([]string(nil), notes...)
 		if len(notes) == 0 {
 			result.Matched = true
+			previousName := function.Name
+			previousSignature := function.Signature
+			previousSource := function.Source
 			function.Name = parsed.Name
 			function.Signature = parsed.Signature
 			function.Source = parsed.Source
+			if err := artifact.saveFunction(ctx, function); err != nil {
+				function.Name = previousName
+				function.Signature = previousSignature
+				function.Source = previousSource
+				result.Matched = false
+				return result, err
+			}
 			return result, nil
 		}
 	}
