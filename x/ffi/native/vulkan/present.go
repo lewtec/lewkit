@@ -963,6 +963,17 @@ func chooseSwapchain(width, height, prevW, prevH int, caps surfaceCaps) (int, in
 	return extentW, extentH, pre, content
 }
 
+// extentReadNeeded reports that a live swapchain should read the current
+// extent before this present. A request that already matches does not:
+// that read ran on the steady frame, overlapped the previous present, and
+// the driver faulted. A size change waits out that present, then reads.
+func extentReadNeeded(swapLive, stale bool, haveW, haveH, wantW, wantH int) bool {
+	if !swapLive {
+		return false
+	}
+	return stale || haveW != wantW || haveH != wantH
+}
+
 // holdMisaligned reports that a live swapchain should stay unpresented.
 // The view has changed which side is longer and the current extent has not.
 // A buffer for the new view is scaled into that old extent, so the picture

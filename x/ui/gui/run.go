@@ -94,10 +94,7 @@ var errHold = errors.New("gui hold")
 
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
 	if err := d.sync(); err != nil {
-		if present.Lost(err) {
-			return nil
-		}
-		if present.Hold(err) {
+		if present.Lost(err) || present.Hold(err) {
 			return errHold
 		}
 		return err
@@ -162,10 +159,7 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 		ink = picture.inkRGBA.Pix
 	}
 	if err := d.sync(); err != nil {
-		if present.Lost(err) {
-			return nil
-		}
-		if present.Hold(err) {
+		if present.Lost(err) || present.Hold(err) {
 			return errHold
 		}
 		return err
@@ -577,7 +571,8 @@ func (runner *runner) flush(force bool) error {
 
 // fitHost adopts the Android swapchain before the signature check.
 // While the view's aspect and the surface extent disagree, the present
-// waits, so a new buffer is not scaled into the previous extent. The model
+// waits, so a new buffer is not scaled into the previous extent. A lost
+// surface waits the same way: painting it ended the process. The model
 // hears the new size before this flush paints.
 func (runner *runner) fitHost() error {
 	bridged, ok := runner.host.(bridgeDisplay)
@@ -589,10 +584,10 @@ func (runner *runner) fitHost() error {
 		return nil
 	}
 	err := bridged.sync()
-	if present.Hold(err) {
+	if present.Hold(err) || present.Lost(err) {
 		return errHold
 	}
-	if err == nil || present.Lost(err) {
+	if err == nil {
 		return nil
 	}
 	if !errors.Is(err, errRefit) {

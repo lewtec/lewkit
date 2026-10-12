@@ -48,6 +48,14 @@ func (s *holdScreen) Adopt(uintptr, int, int) error {
 	return present.ErrHold
 }
 
+// lostScreen is a surface that went away before this present.
+type lostScreen struct{ extentScreen }
+
+func (s *lostScreen) Adopt(uintptr, int, int) error {
+	s.adopts++
+	return present.ErrLost
+}
+
 func (*extentScreen) Close() error { return nil }
 
 func TestLandscapeExtentRefitsBeforePresent(t *testing.T) {
@@ -103,6 +111,27 @@ func TestHeldAndroidFrameIsNotPresented(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = host.Close() })
 	screen := &holdScreen{}
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	runner := &runner{
+		ctx:     t.Context(),
+		host:    bridgeDisplay{Window: androidHost{host}, screen: screen},
+		model:   &sizedPaint{fill: RGB{255, 255, 0, 255}},
+		picture: picture,
+		dirty:   true,
+	}
+	require.NoError(t, runner.flush(true))
+	require.Equal(t, image.Pt(8, 20), host.Size())
+	require.Equal(t, 0, screen.draws)
+	require.GreaterOrEqual(t, screen.adopts, 1)
+	require.True(t, runner.dirty)
+}
+
+func TestLostAndroidFrameIsNotPresented(t *testing.T) {
+	host, err := window.Open(t.Context(), window.Config{Width: 8, Height: 20, Period: time.Hour})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = host.Close() })
+	screen := &lostScreen{}
 	picture, err := NewPicture()
 	require.NoError(t, err)
 	runner := &runner{

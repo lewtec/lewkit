@@ -2,7 +2,10 @@
 
 package vulkan
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 const extHostSurface = "VK_KHR_android_surface"
 
@@ -65,15 +68,20 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 		return s.Fit(width, height)
 	}
 	if host.window == window && s.surface != 0 && !s.lost && s.swap != 0 {
+		// Steady frames already match. Reading the extent then overlapped
+		// the previous present and faulted the driver.
+		if !extentReadNeeded(true, s.stale, s.width, s.height, width, height) {
+			return nil
+		}
+		// The present fence is that previous picture. Caps reads the same
+		// native window, so wait it out before asking which side is longer.
+		_ = s.d.WaitIdle()
 		behind, err := s.extentBehind(width, height)
 		if err != nil {
 			return err
 		}
 		if behind {
 			return ErrHold
-		}
-		if !s.stale && s.width == width && s.height == height {
-			return nil
 		}
 	}
 	_ = s.d.WaitIdle()
@@ -123,7 +131,16 @@ func (s *Screen) extentBehind(width, height int) (bool, error) {
 	}
 	var caps surfaceCaps
 	if err := check(s.wsi.surfaceCaps(s.d.phys, s.surface, &caps)); err != nil {
-		return false, fmt.Errorf("surface caps: %w", err)
+		// The window can go away mid-rotation. Skipping the frame retries.
+		// Returning the wrapped result stopped the process.
+		s.stale = true
+		if surfaceDead(err) {
+			s.lost = true
+		}
+		if !surfaceGone(err) {
+			log.Printf("surface caps: %v", err)
+		}
+		return false, ErrLost
 	}
 	if holdMisaligned(width, height, caps.currentW, caps.currentH, true) {
 		return true, nil

@@ -86,6 +86,13 @@ func TestHoldMisalignedWaitsForTheExtentAspect(t *testing.T) {
 	assert.False(t, holdMisaligned(1080, 2400, extentUnset, extentUnset, true))
 }
 
+func TestSteadyFrameDoesNotReadTheExtent(t *testing.T) {
+	assert.False(t, extentReadNeeded(true, false, 1080, 2400, 1080, 2400))
+	assert.True(t, extentReadNeeded(true, false, 1080, 2400, 2400, 1080))
+	assert.True(t, extentReadNeeded(true, true, 1080, 2400, 1080, 2400))
+	assert.False(t, extentReadNeeded(false, false, 1080, 2400, 2400, 1080))
+}
+
 func TestChooseSwapchainMatchesAFreshTurn(t *testing.T) {
 	// The view is already landscape. The current extent is still the
 	// portrait size. Drawing that extent stretches it into the new window.
