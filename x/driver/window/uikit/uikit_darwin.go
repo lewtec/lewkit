@@ -56,8 +56,9 @@ func open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	var view uintptr
 	var pw, ph int
 	var period time.Duration
+	var scale float64
 	dispatch.OnMain(func() {
-		view, pw, ph, period, err = attach()
+		view, pw, ph, period, scale, err = attach()
 	})
 	if err != nil {
 		return nil, err
@@ -68,6 +69,7 @@ func open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	if pw > 0 && ph > 0 {
 		_, _ = w.EnsureSize(image.Pt(pw, ph))
 	}
+	w.SetScale(window.Scale(scale))
 	w.mu.Lock()
 	w.view = view
 	w.mu.Unlock()
@@ -82,15 +84,19 @@ func (w *win) noteSafe() {
 	w.mu.Lock()
 	view := objc.ID(w.view)
 	w.mu.Unlock()
-	if view == 0 || !responds(view, selSafeAreaInsets) {
+	if view == 0 {
 		return
 	}
-	insets := edgeInsetsOf(view)
-	rect := boundsOf(view)
 	scale := 1.0
 	if host := view.Send(selWindow); host != 0 {
 		scale = screenScale(host)
 	}
+	w.SetScale(window.Scale(scale))
+	if !responds(view, selSafeAreaInsets) {
+		return
+	}
+	insets := edgeInsetsOf(view)
+	rect := boundsOf(view)
 	width := int(rect.Size.Width*scale + 0.5)
 	height := int(rect.Size.Height*scale + 0.5)
 	w.SetDead(window.InsetZones(width, height,
@@ -141,13 +147,14 @@ func (w *win) Close() error {
 	return w.Buffer.Close()
 }
 
-func attach() (uintptr, int, int, time.Duration, error) {
+func attach() (uintptr, int, int, time.Duration, float64, error) {
 	if _, err := native.Open("/System/Library/Frameworks/UIKit.framework/UIKit", native.Global|native.Lazy); err != nil {
-		return 0, 0, 0, 0, fmt.Errorf("%w: UIKit", driver.ErrIncompatible)
+		return 0, 0, 0, 0, 1, fmt.Errorf("%w: UIKit", driver.ErrIncompatible)
 	}
 	var view objc.ID
 	var width, height int
 	var period time.Duration
+	var scale float64 = 1
 	var err error
 	withPool(func() {
 		app := objc.ID(objc.GetClass("UIApplication")).Send(selSharedApplication)
@@ -157,6 +164,7 @@ func attach() (uintptr, int, int, time.Duration, error) {
 			return
 		}
 		period = framePeriod(host)
+		scale = screenScale(host)
 		root := host.Send(selRootViewController)
 		if root != 0 && responds(root, selOpenSurface) {
 			view = root.Send(selOpenSurface)
@@ -167,18 +175,20 @@ func attach() (uintptr, int, int, time.Duration, error) {
 				return
 			}
 		}
-		scale := screenScale(host)
 		rect := boundsOf(view)
 		width = int(rect.Size.Width*scale + 0.5)
 		height = int(rect.Size.Height*scale + 0.5)
 	})
 	if err != nil {
-		return 0, 0, 0, 0, err
+		return 0, 0, 0, 0, 1, err
 	}
 	if view == 0 {
-		return 0, 0, 0, 0, fmt.Errorf("%w: no view", window.ErrInit)
+		return 0, 0, 0, 0, 1, fmt.Errorf("%w: no view", window.ErrInit)
 	}
-	return uintptr(view), width, height, period, nil
+	if scale < 1 {
+		scale = 1
+	}
+	return uintptr(view), width, height, period, scale, nil
 }
 
 func keyWindow(app objc.ID) objc.ID {

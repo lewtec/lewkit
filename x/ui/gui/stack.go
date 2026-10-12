@@ -15,7 +15,8 @@ type Positioned struct {
 	X, Y  float32
 	Child Node
 
-	size Size
+	size  Size
+	scale float32
 }
 
 func (stack *Stack) Layout(constraints BoxConstraints) Size {
@@ -24,7 +25,7 @@ func (stack *Stack) Layout(constraints BoxConstraints) Size {
 	}
 	stack.size = constraints.Constrain(Size{Width: constraints.MaxWidth, Height: constraints.MaxHeight})
 	// Children share this origin, so host zones stay in window coordinates.
-	inner := BoxConstraints{MaxWidth: stack.size.Width, MaxHeight: stack.size.Height, dead: constraints.dead}
+	inner := BoxConstraints{MaxWidth: stack.size.Width, MaxHeight: stack.size.Height, dead: constraints.dead, scale: constraints.scale, font: constraints.font}
 	for _, node := range stack.Children {
 		if node != nil {
 			node.Layout(inner)
@@ -53,6 +54,7 @@ func (positioned *Positioned) Layout(constraints BoxConstraints) Size {
 	if positioned == nil || positioned.Child == nil {
 		return Size{}
 	}
+	positioned.scale = constraints.scale
 	inner := constraints.Loosen()
 	inner.MaxHeight = unbounded
 	// Paint shifts this child, so window zones would inset the wrong place.
@@ -65,5 +67,6 @@ func (positioned *Positioned) Paint(origin Offset, clip Rect, picture *Picture) 
 	if positioned == nil || positioned.Child == nil {
 		return accumulatorOf(picture)
 	}
-	return positioned.Child.Paint(origin.Add(Offset{positioned.X, positioned.Y}), clip, picture)
+	f := factor(positioned.scale)
+	return positioned.Child.Paint(origin.Add(Offset{positioned.X * f, positioned.Y * f}), clip, picture)
 }

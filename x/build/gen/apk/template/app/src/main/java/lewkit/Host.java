@@ -150,6 +150,10 @@ public final class Host {
         Hook.call("lost", null);
     }
 
+    public static void fontScale(float scale) {
+        Hook.call("font", new Object[]{scale});
+    }
+
     public static void obscure(int left, int top, int right, int bottom, int width, int height) {
         Hook.call("obscure", new Object[]{left, top, right, bottom, width, height});
     }

@@ -84,10 +84,18 @@ func (hold *rasterHold) close() {
 
 func (d bridgeDisplay) gpuPaint() bool { return d.evaluator != nil }
 
+// errRefit means the Android swapchain extent replaced the window size.
+// The picture still belongs to the previous size, so the frame is painted again.
+var errRefit = errors.New("gui refit")
+
+// errHold means this frame is not presented. The picture already showing
+// stays up and the next tick tries again.
+var errHold = errors.New("gui hold")
+
 func (d bridgeDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], _ ndarray.Evaluator) error {
 	if err := d.sync(); err != nil {
-		if present.Lost(err) {
-			return nil
+		if present.Lost(err) || present.Hold(err) {
+			return errHold
 		}
 		return err
 	}
@@ -105,10 +113,40 @@ func (d bridgeDisplay) sync() error {
 	}
 	surface := surfacer.Surface()
 	if surface.A == 0 {
+		// Drop the VkSurface while the native window is still the one
+		// Android is destroying. The next surface builds a new one.
+		_ = d.screen.Adopt(0, 0, 0)
 		return present.ErrLost
 	}
 	size := d.Size()
-	return d.screen.Adopt(surface.A, size.X, size.Y)
+	if err := d.screen.Adopt(surface.A, size.X, size.Y); err != nil {
+		return err
+	}
+	return d.noteExtent(surface.Kind, size)
+}
+
+// noteExtent resizes an Android window to the oriented surface.
+// The swapchain image is the identity size. A 90° or 270° preTransform
+// turns this picture into that image, and the compositor's inverse stands
+// it back up in the orientation the phone is held. The image size itself
+// is the unrotated buffer, so adopting it leaves a reflowed frame on its
+// side. Other hosts keep their own size.
+func (d bridgeDisplay) noteExtent(kind int, requested image.Point) error {
+	if kind != window.SurfaceAndroid || d.Window == nil {
+		return nil
+	}
+	sized, ok := d.screen.(interface{ Oriented() image.Point })
+	if !ok {
+		return nil
+	}
+	out := sized.Oriented()
+	if out.X < 1 || out.Y < 1 || out == requested {
+		return nil
+	}
+	if err := d.Resize(out); err != nil {
+		return err
+	}
+	return errRefit
 }
 
 func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error {
@@ -121,8 +159,8 @@ func (d bridgeDisplay) presentList(ctx context.Context, picture *Picture) error 
 		ink = picture.inkRGBA.Pix
 	}
 	if err := d.sync(); err != nil {
-		if present.Lost(err) {
-			return nil
+		if present.Lost(err) || present.Hold(err) {
+			return errHold
 		}
 		return err
 	}
@@ -234,6 +272,7 @@ func (runner *runner) loop() error {
 	// Open can publish Resize before Subscribe, and that event is dropped.
 	// The host still records the client size. Adopt it before the first paint
 	// so the frame matches the window without a later resize.
+	// SetScale before Subscribe drops Density the same way. render reads Scale.
 	if err := runner.adoptSize(); err != nil {
 		return err
 	}
@@ -302,9 +341,12 @@ func (runner *runner) loop() error {
 	}
 }
 
-// drainEvents applies input already queued, then the loop presents once.
-// A slow frame otherwise turns each pointer sample into its own present.
+// drainEvents applies input already queued, then presents one frame.
+// A resize burst is one frame: the identity-buffer size and the oriented
+// size both arrive before the picture is shown, and presenting each of
+// them flashed the upright layout and then left the sideways one up.
 func (runner *runner) drainEvents(events <-chan window.Event, first window.Event) (bool, error) {
+	sawResize := isResize(first)
 	if err := runner.handle(first); err != nil {
 		return false, err
 	}
@@ -315,7 +357,13 @@ func (runner *runner) drainEvents(events <-chan window.Event, first window.Event
 		select {
 		case ev, ok := <-events:
 			if !ok {
+				if err := runner.finishResize(sawResize); err != nil {
+					return false, err
+				}
 				return true, nil
+			}
+			if isResize(ev) {
+				sawResize = true
 			}
 			if err := runner.handle(ev); err != nil {
 				return false, err
@@ -324,9 +372,24 @@ func (runner *runner) drainEvents(events <-chan window.Event, first window.Event
 				return true, nil
 			}
 		default:
+			if err := runner.finishResize(sawResize); err != nil {
+				return false, err
+			}
 			return false, nil
 		}
 	}
+}
+
+func isResize(msg Msg) bool {
+	_, ok := msg.(window.Resize)
+	return ok
+}
+
+func (runner *runner) finishResize(sawResize bool) error {
+	if !sawResize {
+		return nil
+	}
+	return runner.flush(true)
 }
 
 // drainLatest applies ticks already queued. A newer frame replaces one
@@ -361,7 +424,10 @@ func (runner *runner) adoptSize() error {
 	if size.X < 1 || size.Y < 1 {
 		return runner.flush(true)
 	}
-	return runner.handle(window.Resize{Size: size})
+	if err := runner.handle(window.Resize{Size: size}); err != nil {
+		return err
+	}
+	return runner.flush(true)
 }
 
 func (runner *runner) decorate(msg Msg) Msg {
@@ -371,35 +437,26 @@ func (runner *runner) decorate(msg Msg) Msg {
 	}
 	tick.Elapsed = time.Since(runner.started)
 	tick.Size = runner.host.Size()
+	tick.Scale = hostScale(runner.host)
+	tick.Font = hostFont(runner.host)
 	tick.FPS = runner.hertz
 	tick.Period = runner.host.FramePeriod()
 	return tick
 }
 
 func (runner *runner) handle(msg Msg) error {
-	msg = runner.decorate(msg)
-	if runner.model == nil {
-		return ErrModel
-	}
-	next, cmd := runner.model.Update(msg)
-	if next == nil {
-		return ErrModel
-	}
-	runner.model = next
-	runner.spawn(cmd)
-	if changed, ok := next.(interface{ Consume() bool }); ok {
-		if changed.Consume() {
-			runner.dirty = true
-		}
-	} else {
-		runner.dirty = true
+	if err := runner.deliver(msg); err != nil {
+		return err
 	}
 	if stopLoop(msg) {
 		return nil
 	}
 	switch msg.(type) {
-	case window.Expose, window.Resize:
+	case window.Expose, window.Density, window.FontScale:
 		return runner.flush(true)
+	case window.Resize:
+		// The drain presents once after every resize already queued.
+		return nil
 	}
 	return nil
 }
@@ -420,12 +477,36 @@ func (runner *runner) spawn(cmd Cmd) {
 	}()
 }
 
+func hostScale(host display) float32 {
+	if host == nil {
+		return 1
+	}
+	scaled, ok := host.(interface{ Scale() window.Scale })
+	if !ok {
+		return 1
+	}
+	return float32(scaled.Scale().Factor())
+}
+
+func hostFont(host display) float32 {
+	if host == nil {
+		return 1
+	}
+	scaled, ok := host.(interface{ FontScale() window.Scale })
+	if !ok {
+		return 1
+	}
+	return float32(scaled.FontScale().Factor())
+}
+
 func (runner *runner) render() error {
 	root := runner.model.View()
 	if root == nil {
 		return ErrView
 	}
 	size := runner.host.Size()
+	runner.picture.SetScale(hostScale(runner.host))
+	runner.picture.SetFontScale(hostFont(runner.host))
 	runner.picture.dead = zonesOf(runner.host.Dead())
 	pixels, err := runner.picture.Render(root, Size{float32(size.X), float32(size.Y)})
 	if err != nil {
@@ -445,6 +526,13 @@ func (runner *runner) render() error {
 }
 
 func (runner *runner) flush(force bool) error {
+	if err := runner.fitHost(); err != nil {
+		if errors.Is(err, errHold) {
+			runner.dirty = true
+			return nil
+		}
+		return err
+	}
 	if !force && !runner.dirty {
 		return nil
 	}
@@ -466,31 +554,83 @@ func (runner *runner) flush(force bool) error {
 	if !force && runner.picture.raster == nil && runner.signature != 0 && runner.signature == runner.lastSignature {
 		return nil
 	}
-	if listed && runner.view != nil && runner.picture.raster != nil {
-		if err := runner.host.present(runner.ctx, runner.view, runner.evaluator); err != nil {
-			return err
+	err := runner.paintFrame(listed)
+	if errors.Is(err, errRefit) || errors.Is(err, errHold) {
+		if errors.Is(err, errHold) {
+			runner.dirty = true
 		}
-		runner.hertz = runner.fps.Get()
-		runner.lastSignature = runner.signature
 		return nil
 	}
-	if listed {
-		if err := runner.host.(listPainter).presentList(runner.ctx, runner.picture); err != nil {
-			return err
-		}
-		runner.hertz = runner.fps.Get()
-		runner.lastSignature = runner.signature
-		return nil
-	}
-	if runner.view == nil {
-		return ErrView
-	}
-	if err := runner.host.present(runner.ctx, runner.view, runner.evaluator); err != nil {
+	if err != nil {
 		return err
 	}
 	runner.hertz = runner.fps.Get()
 	runner.lastSignature = runner.signature
 	return nil
+}
+
+// fitHost adopts the Android swapchain before the signature check.
+// A size change rebuilds and presents after the previous present finishes.
+// A lost surface skips the frame: painting it ended the process. The model
+// hears the new size before this flush paints.
+func (runner *runner) fitHost() error {
+	bridged, ok := runner.host.(bridgeDisplay)
+	if !ok {
+		return nil
+	}
+	surfacer, ok := bridged.Window.(window.Surfacer)
+	if !ok || surfacer.Surface().Kind != window.SurfaceAndroid {
+		return nil
+	}
+	err := bridged.sync()
+	if present.Hold(err) || present.Lost(err) {
+		return errHold
+	}
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, errRefit) {
+		return err
+	}
+	if err := runner.deliver(window.Resize{Size: runner.host.Size()}); err != nil {
+		return err
+	}
+	runner.dirty = true
+	return nil
+}
+
+func (runner *runner) deliver(msg Msg) error {
+	msg = runner.decorate(msg)
+	if runner.model == nil {
+		return ErrModel
+	}
+	next, cmd := runner.model.Update(msg)
+	if next == nil {
+		return ErrModel
+	}
+	runner.model = next
+	runner.spawn(cmd)
+	if changed, ok := next.(interface{ Consume() bool }); ok {
+		if changed.Consume() {
+			runner.dirty = true
+		}
+	} else {
+		runner.dirty = true
+	}
+	return nil
+}
+
+func (runner *runner) paintFrame(listed bool) error {
+	if listed && runner.view != nil && runner.picture.raster != nil {
+		return runner.host.present(runner.ctx, runner.view, runner.evaluator)
+	}
+	if listed {
+		return runner.host.(listPainter).presentList(runner.ctx, runner.picture)
+	}
+	if runner.view == nil {
+		return ErrView
+	}
+	return runner.host.present(runner.ctx, runner.view, runner.evaluator)
 }
 
 func closed(err error) error {

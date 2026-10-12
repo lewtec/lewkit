@@ -2,8 +2,8 @@
 //
 // The world schedule owns that color. Startup spawns it. On each tick,
 // Step feeds the host delta to Time and recolor walks the hue. View
-// reads the column. Hint paints the color across the whole box the host
-// leaves clear of navbars and notches. The rest of the window stays black.
+// reads the column. The black scene covers the whole window, including
+// navbars and notches. The color fills only the alive box.
 //
 //	go run ./cmd/lewkit release run --config ./examples/deadzone/eletrocromo.json
 package main
@@ -99,8 +99,8 @@ func (s *screen) View() gui.Node {
 	}
 	color := s.color()
 	s.ink = gui.RGB{Red: color.R, Green: color.G, Blue: color.B, Alpha: 255}
-	return &gui.Stack{Children: []gui.Node{
-		&gui.Box{Fill: &black},
-		&gui.Hint{Child: &gui.Box{Fill: &s.ink}},
-	}}
+	return &gui.Stage{
+		Scene: &gui.Box{Fill: &black},
+		Child: &gui.Box{Fill: &s.ink},
+	}
 }

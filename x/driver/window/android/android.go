@@ -12,6 +12,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/ffi/jni"
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
 
@@ -61,7 +62,63 @@ func (opener) Open(ctx context.Context, cfg window.Config) (window.Window, error
 		w.native = 0
 		slog.Info("android surface", "lost", true)
 	})
+	entry.HandleFontScale(func(scale float64) {
+		w.SetFontScale(window.Scale(scale))
+	})
+	w.SetScale(displayScale())
+	w.SetFontScale(displayFontScale())
 	return w, nil
+}
+
+// displayScale reads DisplayMetrics.density. The surface is already physical
+// pixels, so Open does not resize it. A JNI failure leaves the scale at one.
+func displayScale() window.Scale {
+	app, err := jni.Context()
+	if err != nil || app == nil {
+		return 1
+	}
+	defer app.Release()
+	resources, err := jni.AsRef(app.Call("getResources"))
+	if err != nil || resources == nil {
+		return 1
+	}
+	defer resources.Release()
+	metrics, err := jni.AsRef(resources.Call("getDisplayMetrics"))
+	if err != nil || metrics == nil {
+		return 1
+	}
+	defer metrics.Release()
+	density, err := jni.Float(metrics.Field("density"))
+	if err != nil || density <= 0 {
+		return 1
+	}
+	return window.Scale(density)
+}
+
+// displayFontScale reads Configuration.fontScale, the system text-size
+// preference. Density stays DisplayMetrics.density. A JNI failure leaves
+// the preference at one.
+func displayFontScale() window.Scale {
+	app, err := jni.Context()
+	if err != nil || app == nil {
+		return 1
+	}
+	defer app.Release()
+	resources, err := jni.AsRef(app.Call("getResources"))
+	if err != nil || resources == nil {
+		return 1
+	}
+	defer resources.Release()
+	configuration, err := jni.AsRef(resources.Call("getConfiguration"))
+	if err != nil || configuration == nil {
+		return 1
+	}
+	defer configuration.Release()
+	scale, err := jni.Float(configuration.Field("fontScale"))
+	if err != nil || scale <= 0 {
+		return 1
+	}
+	return window.Scale(scale)
 }
 
 type win struct {

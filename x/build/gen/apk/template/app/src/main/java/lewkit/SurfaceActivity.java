@@ -4,8 +4,10 @@ import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
+import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.view.DisplayCutout;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -21,6 +23,7 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     private boolean alive;
     private int lastW;
     private int lastH;
+    private SurfaceView surface;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,6 +31,7 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
         extendUnderBars();
         Host.boot(this);
         SurfaceView view = new SurfaceView(this);
+        surface = view;
         view.setZOrderOnTop(true);
         view.setClickable(true);
         view.setOnTouchListener((v, event) -> {
@@ -50,6 +54,13 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
             return true;
         });
         setContentView(view);
+        view.addOnLayoutChangeListener(
+                (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+                    if (right - left == oldRight - oldLeft && bottom - top == oldBottom - oldTop) {
+                        return;
+                    }
+                    adoptWindow();
+                });
         view.setOnApplyWindowInsetsListener((v, insets) -> {
             reportDead(v, insets);
             return insets;
@@ -76,12 +87,16 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         }
+        // The new frame is presented when the size flips. Seamless rotation
+        // turns that live window. A screenshot animation would rotate the
+        // previous picture and show this frame after.
+        WindowManager.LayoutParams attrs = window.getAttributes();
+        attrs.rotationAnimation = WindowManager.LayoutParams.ROTATION_ANIMATION_SEAMLESS;
         if (Build.VERSION.SDK_INT >= 28) {
-            WindowManager.LayoutParams attrs = window.getAttributes();
             attrs.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            window.setAttributes(attrs);
             window.setNavigationBarDividerColor(Color.TRANSPARENT);
         }
+        window.setAttributes(attrs);
         window.setStatusBarColor(Color.TRANSPARENT);
         window.setNavigationBarColor(Color.TRANSPARENT);
     }
@@ -119,11 +134,55 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        View content = findViewById(android.R.id.content);
-        if (content != null) {
-            content.requestLayout();
-            content.requestApplyInsets();
+        if (newConfig != null && newConfig.fontScale > 0f) {
+            Host.fontScale(newConfig.fontScale);
         }
+        if (surface != null) {
+            surface.requestLayout();
+            surface.post(this::adoptWindow);
+        }
+    }
+
+    /**
+     * The oriented window size, in pixels. Used when the view has not been
+     * laid out yet. After layout, the view's own width and height are the
+     * size the phone is showing.
+     */
+    @SuppressWarnings("deprecation")
+    private int[] windowBounds() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            Rect bounds = getWindowManager().getCurrentWindowMetrics().getBounds();
+            return new int[]{bounds.width(), bounds.height()};
+        }
+        DisplayMetrics metrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+        return new int[]{metrics.widthPixels, metrics.heightPixels};
+    }
+
+    /** Tell the GUI the laid-out size. The swapchain owns the buffer size. */
+    private void adoptWindow() {
+        int width = 0;
+        int height = 0;
+        if (surface != null) {
+            width = surface.getWidth();
+            height = surface.getHeight();
+        }
+        if (width < 64 || height < 64) {
+            int[] bounds = windowBounds();
+            width = bounds[0];
+            height = bounds[1];
+        }
+        if (width < 64 || height < 64) {
+            return;
+        }
+        if (sent && alive && width == lastW && height == lastH) {
+            return;
+        }
+        Host.resize(width, height);
+        lastW = width;
+        lastH = height;
+        alive = true;
+        requestDead();
     }
 
     private void requestDead() {
@@ -138,6 +197,14 @@ public final class SurfaceActivity extends HostActivity implements SurfaceHolder
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        if (surface != null) {
+            int viewW = surface.getWidth();
+            int viewH = surface.getHeight();
+            if (viewW >= 64 && viewH >= 64) {
+                width = viewW;
+                height = viewH;
+            }
+        }
         if (width < 64 || height < 64) {
             return;
         }

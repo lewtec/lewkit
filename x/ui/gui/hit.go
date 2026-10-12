@@ -15,14 +15,20 @@ func (picture *Picture) noteKey(key string, bounds, clip Rect) {
 	picture.keys = append(picture.keys, hitKey{key: key, bounds: bounds, clip: clip})
 }
 
-// Hit is the topmost keyed box under at. The second and third results are
-// the point inside that box, 0 at the start and 1 at the end.
+// Hit is the topmost keyed box under at, at scale one. The second and third
+// results are the point inside that box, 0 at the start and 1 at the end.
 func Hit(root Node, size Size, at image.Point) (string, float32, float32) {
+	return HitScale(root, size, 0, at)
+}
+
+// HitScale is [Hit] at a window scale. Zero means one.
+func HitScale(root Node, size Size, scale float32, at image.Point) (string, float32, float32) {
 	picture, err := NewPicture()
 	if err != nil || root == nil {
 		return "", 0, 0
 	}
 	picture.recordOnly = true
+	picture.SetScale(scale)
 	if _, err := picture.Render(root, size); err != nil {
 		return "", 0, 0
 	}

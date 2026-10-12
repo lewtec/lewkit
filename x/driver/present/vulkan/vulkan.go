@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 
 	"github.com/lewtec/lewkit/x/driver"
 	ndvulkan "github.com/lewtec/lewkit/x/driver/ndeval/vulkan"
@@ -56,6 +57,32 @@ func (s *gpuScreen) Adopt(window uintptr, width, height int) error {
 	return mapErr(s.screen.Adopt(window, width, height))
 }
 
+// Output is the swapchain image, in pixels. A zero point means unknown.
+func (s *gpuScreen) Output() image.Point {
+	if s == nil || s.screen == nil {
+		return image.Point{}
+	}
+	sized, ok := s.screen.(interface{ Output() (int, int) })
+	if !ok {
+		return image.Point{}
+	}
+	w, h := sized.Output()
+	return image.Pt(w, h)
+}
+
+// Oriented is the size the user sees. A zero point means unknown.
+func (s *gpuScreen) Oriented() image.Point {
+	if s == nil || s.screen == nil {
+		return image.Point{}
+	}
+	sized, ok := s.screen.(interface{ Oriented() (int, int) })
+	if !ok {
+		return image.Point{}
+	}
+	w, h := sized.Oriented()
+	return image.Pt(w, h)
+}
+
 func (s *gpuScreen) Close() error {
 	if s == nil || s.screen == nil {
 		return nil
@@ -83,6 +110,9 @@ func (s *gpuScreen) Evaluator() ndarray.Evaluator {
 func mapErr(err error) error {
 	if errors.Is(err, drvvulkan.ErrLost) {
 		return present.ErrLost
+	}
+	if errors.Is(err, drvvulkan.ErrHold) {
+		return present.ErrHold
 	}
 	return err
 }

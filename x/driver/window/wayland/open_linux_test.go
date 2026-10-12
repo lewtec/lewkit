@@ -13,6 +13,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -64,6 +65,13 @@ func TestOpenNilContextPanics(t *testing.T) {
 		}
 	}()
 	_, _ = opener{}.Open(nil, window.Config{})
+}
+
+func TestDeviceOf(t *testing.T) {
+	assert.Equal(t, 640, deviceOf(640, 1))
+	assert.Equal(t, 1280, deviceOf(640, 2))
+	assert.Equal(t, 960, deviceOf(640, 1.5))
+	assert.Equal(t, 1, deviceOf(1, 0.2))
 }
 
 func TestOpenAgainstFakeCompositor(t *testing.T) {

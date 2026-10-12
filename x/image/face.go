@@ -35,6 +35,9 @@ var sizedFaces struct {
 }
 
 var systemFonts = []string{
+	"/system/fonts/Roboto-Regular.ttf",
+	"/system/fonts/NotoSans-Regular.ttf",
+	"/system/fonts/DroidSans.ttf",
 	"/System/Library/Fonts/SFNS.ttf",
 	"/System/Library/Fonts/SFNSText.ttf",
 	"/System/Library/Fonts/Helvetica.ttc",

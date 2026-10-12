@@ -114,11 +114,11 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/ndarray/image` | `Fill`, `Eval`, `Raster`, `Write`, `RGBA`. Pixels are `(h, w, 4)`. |
 | `x/image` | `Label`, `CopyRGBA`, `CenterSquare`, `Face`. |
 | `x/graph` | `Graph`, `DOT`, `Mermaid`. |
-| `x/ui/gui` | `Model`, `Node`, `Box`, `Row`, `Column`, `Stack`, `Text`, `Run`, `Pick`, `Tick`, `Every`. |
+| `x/ui/gui` | `Model`, `Node`, `Box`, `Row`, `Column`, `Stack`, `Stage`, `Device`, `Text`, `Run`, `Pick`, `Tick`, `Every`. |
 
 `ndarray.Open` returns the highest-weight `Evaluator`. Blank-import `x/driver/ndeval` or `x/driver/prelude` first.
 
-`Model` is `Init`, `Update`, `View`. `View` returns a `Node`. `Run` paints a window the caller opened. `x/app` opens that window. Layout types are `Box`, `Row`, `Column`, and `Stack`.
+`Model` is `Init`, `Update`, `View`. `View` returns a `Node`. `Run` paints a window the caller opened. `x/app` opens that window. Layout types are `Box`, `Row`, `Column`, `Stack`, and `Stage`. `Stage` paints its scene across the whole frame, including dead zones, and keeps its child in the alive box.
 
 ### Host and bindings
 
@@ -137,7 +137,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/audio_play/winmm` | Windows playback through waveOut. `Sink` is a device index or the endpoint name. An empty sink is `WAVE_MAPPER`. |
 | `x/driver/audio_play/coreaudio` | macOS playback through AudioQueue. `Sink` is a device UID or the display name. |
 | `x/driver/audio_play/mem` | Records PCM. `MemoryGate` keeps it incompatible unless `LEWKIT_ENABLE_MEMORY_DRIVER` is set. |
-| `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`. |
+| `x/driver/window` | `Open`, `Frame`, `Front`, `Draw`, `Fit`, `Present`, `Animate`, `Drive`, `Subscribe`, `Scale`. |
 | `x/driver/window/cocoa` | macOS backend. `Open` runs on the process main thread. Call `thread.Run` from `main`. |
 | `x/driver/window/win32` | Windows backend. The window accepts a file drop. A packaged app embeds its icon in the `.exe`. |
 | `x/driver/messagebox` | `Show`. One message the user dismisses. The Win32 backend is `MessageBoxW`. A Windows GUI process uses it for a startup error. |

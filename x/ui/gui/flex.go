@@ -64,7 +64,8 @@ type Flex struct {
 	Gap      float32
 	Children []FlexChild
 
-	size Size
+	size  Size
+	scale float32
 }
 
 // Expanded is a flex child that takes leftover main-axis space.
@@ -114,6 +115,7 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 	if flex == nil {
 		return Size{}
 	}
+	flex.scale = constraints.scale
 	axis := flex.Axis
 	maximumMain := constraints.MainMax(axis)
 	maximumCross := constraints.CrossMax(axis)
@@ -124,7 +126,7 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 			totalFlex += max(float32(0), child.Flex)
 			continue
 		}
-		child.size = child.Child.Layout(axis.box(0, maximumMain-usedMain, 0, maximumCross))
+		child.size = child.Child.Layout(constraints.along(axis, 0, maximumMain-usedMain, 0, maximumCross))
 		usedMain += axis.main(child.size)
 		maxChildCross = max(maxChildCross, axis.cross(child.size))
 	}
@@ -138,7 +140,7 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 		if totalFlex > 0 {
 			shareMain = remaining * child.Flex / totalFlex
 		}
-		child.size = child.Child.Layout(axis.box(shareMain, shareMain, 0, maximumCross))
+		child.size = child.Child.Layout(constraints.along(axis, shareMain, shareMain, 0, maximumCross))
 		usedMain += axis.main(child.size)
 		maxChildCross = max(maxChildCross, axis.cross(child.size))
 	}
@@ -160,13 +162,20 @@ func (flex *Flex) Layout(constraints BoxConstraints) Size {
 			continue
 		}
 		if placed > 0 {
-			cursor += flex.Gap
+			cursor += flex.gap()
 		}
 		child.position = cursor
 		cursor += axis.main(child.size)
 		placed++
 	}
 	return flex.size
+}
+
+func (flex *Flex) gap() float32 {
+	if flex == nil || flex.Gap == 0 {
+		return 0
+	}
+	return flex.Gap * factor(flex.scale)
 }
 
 func (flex *Flex) gaps() float32 {
@@ -182,7 +191,7 @@ func (flex *Flex) gaps() float32 {
 	if count < 2 {
 		return 0
 	}
-	return flex.Gap * float32(count-1)
+	return flex.gap() * float32(count-1)
 }
 
 func (constraints BoxConstraints) mainMinimum(axis Axis) float32 {
@@ -192,11 +201,16 @@ func (constraints BoxConstraints) mainMinimum(axis Axis) float32 {
 	return constraints.MinHeight
 }
 
-func (axis Axis) box(minMain, maxMain, minCross, maxCross float32) BoxConstraints {
+func (constraints BoxConstraints) along(axis Axis, minMain, maxMain, minCross, maxCross float32) BoxConstraints {
+	next := BoxConstraints{scale: constraints.scale, font: constraints.font}
 	if axis == Horizontal {
-		return BoxConstraints{MinWidth: minMain, MinHeight: minCross, MaxWidth: maxMain, MaxHeight: maxCross}
+		next.MinWidth, next.MaxWidth = minMain, maxMain
+		next.MinHeight, next.MaxHeight = minCross, maxCross
+		return next
 	}
-	return BoxConstraints{MinWidth: minCross, MinHeight: minMain, MaxWidth: maxCross, MaxHeight: maxMain}
+	next.MinWidth, next.MaxWidth = minCross, maxCross
+	next.MinHeight, next.MaxHeight = minMain, maxMain
+	return next
 }
 
 func (flex *Flex) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tensor[float32] {

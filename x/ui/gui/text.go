@@ -24,11 +24,15 @@ type Text struct {
 
 	origin Offset
 	size   Size
+	used   font.Face
 }
 
 func (text *Text) face() font.Face {
 	if text == nil {
 		return lewimage.Face()
+	}
+	if text.used != nil {
+		return text.used
 	}
 	return lewimage.Use(text.Face)
 }
@@ -37,6 +41,7 @@ func (text *Text) Layout(constraints BoxConstraints) Size {
 	if text == nil {
 		return Size{}
 	}
+	text.used = lewimage.Zoom(text.Face, float64(constraints.TextScale()))
 	width, height := text.measure(constraints.MaxWidth)
 	text.size = constraints.Constrain(Size{Width: width, Height: height})
 	return text.size

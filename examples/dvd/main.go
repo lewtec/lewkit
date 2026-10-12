@@ -5,8 +5,8 @@
 // The axes travel at different speeds. A wall hit picks a new speed for
 // that axis and changes the color. Both walls at once, a corner, turn it
 // white.
-// Hint is that box. A light rectangle plots its edges, and the area a
-// navbar or notch covers stays outside the rectangle.
+// The outside color is the scene, so a navbar or notch stays that color.
+// The light rectangle and the logo stay in the alive box.
 //
 //	go run ./cmd/lewkit release run --config ./examples/dvd/eletrocromo.json
 package main
@@ -18,6 +18,7 @@ import (
 	"github.com/lewtec/lewkit/x/app"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
+	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/lewtec/lewkit/x/ui/world"
@@ -112,16 +113,16 @@ func (s *screen) View() gui.Node {
 		return &gui.Box{Fill: &outside}
 	}
 	at, color := s.logo()
-	return &gui.Stack{Children: []gui.Node{
-		&gui.Box{Fill: &outside},
-		&gui.Hint{Child: &stage{
+	return &gui.Stage{
+		Scene: &gui.Box{Fill: &outside},
+		Child: &stage{
 			x: at.X,
 			y: at.Y,
 			ink: gui.RGB{
 				Red: color.R, Green: color.G, Blue: color.B, Alpha: 255,
 			},
-		}},
-	}}
+		},
+	}
 }
 
 // stage is the usable box. The light bars are its rectangle. The logo
@@ -152,7 +153,10 @@ func (s *stage) Layout(constraints gui.BoxConstraints) gui.Size {
 	}
 	spanX := max(s.size.Width-logoW, 0)
 	spanY := max(s.size.Height-logoH, 0)
-	s.word = gui.Text{Value: "DVD", Cursor: -1, Ink: wordInk}
+	s.word = gui.Text{
+		Value: "DVD", Cursor: -1, Ink: wordInk,
+		Face: lewimage.FaceSize(18 * float64(constraints.Density())),
+	}
 	s.logo = gui.Box{
 		Width:  logoW,
 		Height: logoH,
@@ -170,10 +174,8 @@ func (s *stage) Layout(constraints gui.BoxConstraints) gui.Size {
 		bar(s.size.Width-thickness, 0, thickness, s.size.Height),
 		&s.placed,
 	}}
-	s.root.Layout(gui.BoxConstraints{
-		MinWidth: s.size.Width, MinHeight: s.size.Height,
-		MaxWidth: s.size.Width, MaxHeight: s.size.Height,
-	})
+	// Widths above are already device pixels of this box.
+	s.root.Layout(gui.Tight(s.size.Width, s.size.Height))
 	return s.size
 }
 

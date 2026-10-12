@@ -17,6 +17,7 @@ type Image struct {
 	Height float32
 	Radius float32
 	size   Size
+	scale  float32
 }
 
 type imageStamp struct {
@@ -30,6 +31,7 @@ func (node *Image) Layout(constraints BoxConstraints) Size {
 	if node == nil {
 		return Size{}
 	}
+	node.scale = constraints.scale
 	width, height := node.Width, node.Height
 	if node.Src != nil {
 		bounds := node.Src.Bounds()
@@ -39,6 +41,12 @@ func (node *Image) Layout(constraints BoxConstraints) Size {
 		if height == 0 {
 			height = float32(bounds.Dy())
 		}
+	}
+	if width > 0 {
+		width *= factor(node.scale)
+	}
+	if height > 0 {
+		height *= factor(node.scale)
 	}
 	node.size = constraints.Constrain(Size{Width: width, Height: height})
 	return node.size
@@ -53,7 +61,11 @@ func (node *Image) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Te
 	if visible.Width < 1 || visible.Height < 1 {
 		return accumulatorOf(picture)
 	}
-	picture.Image(node.Src, full, visible, node.Radius)
+	radius := node.Radius
+	if radius > 0 {
+		radius *= factor(node.scale)
+	}
+	picture.Image(node.Src, full, visible, radius)
 	return accumulatorOf(picture)
 }
 

@@ -513,6 +513,25 @@ func TestCaptionSitsOnTheBoard(t *testing.T) {
 	assert.Greater(t, hits, 20)
 }
 
+func TestCaptionClearanceFollowsText(t *testing.T) {
+	top, rim := framePad(640, 720, 1, 1)
+	assert.Equal(t, float32(36), top)
+	assert.Equal(t, float32(12), rim)
+
+	grown, grownRim := framePad(1080, 2400, 2.75, 1.3)
+	assert.Greater(t, grown, top)
+	assert.Greater(t, grownRim, rim)
+
+	plain := lookAt(image.Pt(1080, 2400))
+	fit := lookInto(image.Pt(1080, 2400), 2.75, 1.3)
+	assert.Greater(t, fit.eye.y, plain.eye.y)
+
+	tall := lookAt(image.Pt(1080, 2400))
+	wide := lookAt(image.Pt(2400, 1080))
+	assert.Greater(t, tall.scaleX, tall.scaleY)
+	assert.Greater(t, wide.scaleY, wide.scaleX)
+}
+
 func TestTallFrameKeepsTheBoard(t *testing.T) {
 	for _, size := range []image.Point{{400, 900}, {640, 720}, {900, 400}} {
 		cam := lookAt(size)
@@ -563,19 +582,45 @@ func TestBoardStaysBelowTheBar(t *testing.T) {
 	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- gui.Run(ctx, host, ndarray.CPU, newScreen(ctx)) }()
-	light := squareCenter(image.Pt(width, height-bar), 3, 4)
+	light := squareCenter(image.Pt(width, height), 3, 4)
 	require.Eventually(t, func() bool {
-		return host.Front().RGBAAt(8, 8) == color.RGBA{0, 0, 0, 255} &&
-			host.Front().RGBAAt(light.X, light.Y+bar).R > 180
+		front := host.Front()
+		table := color.RGBA{uint8(colTable.r), uint8(colTable.g), uint8(colTable.b), 255}
+		if front.RGBAAt(8, 8) != table {
+			return false
+		}
+		if front.RGBAAt(light.X, light.Y).R <= 180 {
+			return false
+		}
+		var above, below bool
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				if !grayCaption(front.RGBAAt(x, y)) {
+					continue
+				}
+				if y < bar {
+					above = true
+				} else {
+					below = true
+				}
+			}
+		}
+		return below && !above
 	}, 2*time.Second, 10*time.Millisecond)
 	cancel()
 	require.NoError(t, <-done)
 }
 
+func grayCaption(pixel color.RGBA) bool {
+	return pixel.A > 200 && pixel.R > 180 && pixel.R < 230 &&
+		absInt(int(pixel.R)-int(pixel.G)) < 16 && absInt(int(pixel.G)-int(pixel.B)) < 16
+}
+
 func walkNodes(n gui.Node, images, texts, rasters *int) {
 	switch node := n.(type) {
-	case *inset:
-		walkNodes(node.screen.view(), images, texts, rasters)
+	case *gui.Stage:
+		walkNodes(node.Scene, images, texts, rasters)
+		walkNodes(node.Child, images, texts, rasters)
 	case *gui.Hint:
 		walkNodes(node.Child, images, texts, rasters)
 	case *gui.Stack:

@@ -84,6 +84,22 @@ func (s *screen) Adopt(window uintptr, width, height int) error {
 	return s.binding.Adopt(window, width, height)
 }
 
+// Output is the swapchain image, in pixels.
+func (s *screen) Output() (int, int) {
+	if s == nil || s.binding == nil {
+		return 0, 0
+	}
+	return s.binding.Output()
+}
+
+// Oriented is the size the user sees, in pixels.
+func (s *screen) Oriented() (int, int) {
+	if s == nil || s.binding == nil {
+		return 0, 0
+	}
+	return s.binding.Oriented()
+}
+
 func (s *screen) Draw(ctx context.Context, instances, under, ink []byte, width, height int) error {
 	if s == nil || s.binding == nil {
 		return ffivulkan.ErrClosed

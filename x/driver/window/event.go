@@ -87,6 +87,22 @@ type Drop struct {
 
 func (Drop) windowEvent() {}
 
+// Density is a new device-pixels-per-logical-pixel factor.
+// One is the baseline. The client size stays in device pixels.
+type Density struct {
+	Scale Scale
+}
+
+func (Density) windowEvent() {}
+
+// FontScale is the user's text-size preference. One is the default.
+// Layout lengths stay on [Density]. Glyphs multiply both.
+type FontScale struct {
+	Scale Scale
+}
+
+func (FontScale) windowEvent() {}
+
 // Modifier bits for [Key].
 type Modifier uint32
 

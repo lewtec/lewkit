@@ -9,9 +9,9 @@
 // reset are messages a later system reads. The view
 // is the article's scene: a camera above the side of the board, one
 // plane per square, and pieces that slide toward their square. The eye
-// backs up until the board fits, so a tall frame does not crop it. Hint
-// keeps that picture, and the move line on it, in the box the host
-// leaves clear of navbars and notches. This package does not load a mesh kit.
+// backs up until the board fits, so a tall frame does not crop it. The
+// board paints the whole window, including navbars and notches. The move
+// line stays in the alive box. This package does not load a mesh kit.
 //
 //	go run ./cmd/lewkit release run --config ./examples/chess/eletrocromo.json
 package main
@@ -50,8 +50,6 @@ type screen struct {
 	frame      *image.RGBA
 	picture    *ndarray.Tensor[float32]
 	size       image.Point
-	origin     image.Point
-	fitted     bool
 	seen       time.Duration
 	ctx        context.Context
 	depth      []float32
@@ -61,12 +59,15 @@ type screen struct {
 	drawn      uint64
 	caption    string
 	fullPaints int
+	density    float32
+	font       float32
+	refit      bool
 }
 
 func newScreen(ctx context.Context) *screen {
 	sim := world.New()
 	sim.Plugin(world.Group(boardPlugin, piecesPlugin, cpuPlugin))
-	s := &screen{sim: sim, size: image.Pt(640, 720), ctx: ctx}
+	s := &screen{sim: sim, size: image.Pt(640, 720), ctx: ctx, density: 1, font: 1}
 	s.advance(0)
 	return s
 }
@@ -83,12 +84,25 @@ func (s *screen) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		s.paint()
 		s.Dirty = gui.Touch(s.Dirty)
 		return s, nil
+	case window.Density:
+		if s.noteScale(float32(message.Scale.Factor()), s.font) {
+			s.paint()
+			s.Dirty = gui.Touch(s.Dirty)
+		}
+		return s, nil
+	case window.FontScale:
+		if s.noteScale(s.density, float32(message.Scale.Factor())) {
+			s.paint()
+			s.Dirty = gui.Touch(s.Dirty)
+		}
+		return s, nil
 	case window.Pointer:
 		s.track(message)
 		s.advance(0)
 		return s, nil
 	case gui.TickMsg:
 		s.adopt(message.Size)
+		s.noteScale(message.Scale, message.Font)
 		dt := 0.0
 		if message.Elapsed > s.seen {
 			dt = (message.Elapsed - s.seen).Seconds()
@@ -108,9 +122,27 @@ func (s *screen) adopt(size image.Point) {
 	if s == nil || size.X < 16 || size.Y < 16 {
 		return
 	}
-	if !s.fitted {
-		s.size = size
+	s.size = size
+}
+
+// noteScale records density and the text preference. Zero means one.
+// A change refits the board so the move line keeps its clear band.
+func (s *screen) noteScale(density, font float32) bool {
+	if s == nil {
+		return false
 	}
+	if density <= 0 {
+		density = 1
+	}
+	if font <= 0 {
+		font = 1
+	}
+	if s.density == density && s.font == font {
+		return false
+	}
+	s.density, s.font = density, font
+	s.refit = true
+	return true
 }
 
 // advance runs one frame. Hover and selection recolor those squares.
@@ -120,7 +152,8 @@ func (s *screen) advance(dt float64) {
 		return
 	}
 	s.sim.Step(s.ctx, dt)
-	mismatched := s.frame == nil || s.frame.Bounds().Dx() != s.size.X || s.frame.Bounds().Dy() != s.size.Y
+	mismatched := s.refit || s.frame == nil || s.frame.Bounds().Dx() != s.size.X || s.frame.Bounds().Dy() != s.size.Y
+	s.refit = false
 	if s.picture == nil || mismatched || s.geometry() != s.drawn {
 		s.paint()
 		s.Dirty = gui.Touch(s.Dirty)
@@ -185,11 +218,4 @@ func (s *screen) geometry() uint64 {
 		}
 	})
 	return h
-}
-
-func (s *screen) View() gui.Node {
-	if s == nil {
-		return &gui.Stack{}
-	}
-	return &inset{screen: s}
 }

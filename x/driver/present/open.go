@@ -36,3 +36,6 @@ func Open(ctx context.Context, kind int, a, b uintptr, width, height int) (Scree
 
 // Lost reports whether err is [ErrLost].
 func Lost(err error) bool { return errors.Is(err, ErrLost) }
+
+// Hold reports whether err is [ErrHold]. The frame was not presented.
+func Hold(err error) bool { return errors.Is(err, ErrHold) }

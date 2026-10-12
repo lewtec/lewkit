@@ -26,7 +26,11 @@ const (
 	colorWindow        = 5
 	swpNoSize          = 0x0001
 	swpNoMove          = 0x0002
+	swpNoZOrder        = 0x0004
+	swpNoActivate      = 0x0010
 	swpShowWindow      = 0x0040
+	wmDpiChanged       = 0x02E0
+	logPixelsX         = 88
 	wmDropFiles        = 0x0233
 	wmSetIcon          = 0x0080
 	iconBig            = 1
@@ -86,6 +90,8 @@ var (
 	procGetModuleHandleW         = native.ProcOf("kernel32.dll", "GetModuleHandleW")
 	procStretchDIBits            = native.ProcOf("gdi32.dll", "StretchDIBits")
 	procGetDeviceCaps            = native.ProcOf("gdi32.dll", "GetDeviceCaps")
+	procGetDpiForSystem          = native.ProcOf("user32.dll", "GetDpiForSystem")
+	procGetDpiForWindow          = native.ProcOf("user32.dll", "GetDpiForWindow")
 	procDragAcceptFiles          = native.ProcOf("shell32.dll", "DragAcceptFiles")
 	procDragQueryFileW           = native.ProcOf("shell32.dll", "DragQueryFileW")
 	procDragFinish               = native.ProcOf("shell32.dll", "DragFinish")
@@ -171,6 +177,21 @@ func desktopFramePeriod() time.Duration {
 	return time.Second / time.Duration(hz)
 }
 
+func systemScale() window.Scale {
+	dpi, _, _ := procGetDpiForSystem.Call()
+	if dpi == 0 {
+		hdc, _, _ := procGetDC.Call(0)
+		if hdc != 0 {
+			dpi, _, _ = procGetDeviceCaps.Call(hdc, logPixelsX)
+			procReleaseDC.Call(0, hdc)
+		}
+	}
+	if dpi == 0 {
+		return 1
+	}
+	return window.Scale(float64(dpi) / float64(window.BaselineDPI))
+}
+
 func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("window: nil context")
@@ -179,8 +200,11 @@ func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, erro
 	if err != nil {
 		return nil, err
 	}
+	scale := systemScale()
+	w, h = scale.Device(w), scale.Device(h)
 	ready := make(chan error, 1)
 	buf := window.NewBuffer(w, h)
+	buf.SetScale(scale)
 	period := cfg.Period
 	if period <= 0 {
 		period = desktopFramePeriod()
@@ -266,10 +290,11 @@ func (w *win) create() error {
 		return err
 	}
 	owner := foregroundProcessWindow()
+	padW, padH := w.framePad()
 	hwnd, _, e := procCreateWindowExW.Call(
 		wsExAcceptFiles|wsExAppWindow, uintptr(unsafe.Pointer(className)), uintptr(unsafe.Pointer(title)),
 		wsOverlappedWindow|wsVisible,
-		uintptr(cwUseDefault), uintptr(cwUseDefault), uintptr(w.cw+16), uintptr(w.ch+39),
+		uintptr(cwUseDefault), uintptr(cwUseDefault), uintptr(w.cw+padW), uintptr(w.ch+padH),
 		owner, 0, inst, 0,
 	)
 	if hwnd == 0 {
@@ -287,7 +312,26 @@ func (w *win) create() error {
 	}
 	procShowWindow.Call(hwnd, swShow)
 	raiseWindow(hwnd)
+	w.noteDPI()
 	return nil
+}
+
+func (w *win) noteDPI() {
+	w.mu.Lock()
+	hwnd := w.hwnd
+	w.mu.Unlock()
+	if hwnd == 0 {
+		return
+	}
+	dpi, _, _ := procGetDpiForWindow.Call(hwnd)
+	if dpi == 0 {
+		return
+	}
+	w.SetScale(window.Scale(float64(dpi) / float64(window.BaselineDPI)))
+}
+
+func (w *win) framePad() (int, int) {
+	return w.Scale().Device(16), w.Scale().Device(39)
 }
 
 func foregroundProcessWindow() uintptr {
@@ -384,9 +428,8 @@ func (w *win) Resize(size image.Point) error {
 	if hwnd == 0 {
 		return window.ErrClosed
 	}
-	const swpNoMove = 0x0002
-	const swpNoZOrder = 0x0004
-	procSetWindowPos.Call(hwnd, 0, 0, 0, uintptr(size.X+16), uintptr(size.Y+39), swpNoMove|swpNoZOrder)
+	padW, padH := w.framePad()
+	procSetWindowPos.Call(hwnd, 0, 0, 0, uintptr(size.X+padW), uintptr(size.Y+padH), swpNoMove|swpNoZOrder)
 	return nil
 }
 
@@ -469,6 +512,19 @@ func wndProc(hwnd, msg, wparam, lparam uintptr) uintptr {
 	}
 	w := v.(*win)
 	switch msg {
+	case wmDpiChanged:
+		dpi := int(wparam & 0xFFFF)
+		if dpi > 0 {
+			w.SetScale(window.Scale(float64(dpi) / float64(window.BaselineDPI)))
+		}
+		if lparam != 0 {
+			suggested := *(*rect)(unsafe.Pointer(lparam))
+			procSetWindowPos.Call(hwnd, 0,
+				uintptr(suggested.left), uintptr(suggested.top),
+				uintptr(suggested.right-suggested.left), uintptr(suggested.bottom-suggested.top),
+				swpNoZOrder|swpNoActivate)
+		}
+		return 0
 	case wmSize:
 		if wparam == sizeRestored || wparam == sizeMaximized {
 			width := int(lparam & 0xFFFF)
