@@ -25,7 +25,7 @@ func TestChooseSwapchainPrerotatesLandscape(t *testing.T) {
 		currentTrans: transform90,
 		transforms:   transformIdent | transform90 | transform180 | transform270,
 	}
-	w, h, pre, content := chooseSwapchain(1080, 2400, caps, 0, 0, 0)
+	w, h, pre, content := chooseSwapchain(1080, 2400, caps)
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform90), pre)
@@ -35,55 +35,17 @@ func TestChooseSwapchainPrerotatesLandscape(t *testing.T) {
 	assert.Equal(t, h, gotH)
 
 	caps.currentTrans = transform270
-	w, h, pre, content = chooseSwapchain(2400, 1080, caps, 0, 0, 0)
+	w, h, pre, content = chooseSwapchain(2400, 1080, caps)
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform270), pre)
 	assert.Equal(t, uint32(transform270), content)
 }
 
-func TestChooseSwapchainIgnoresIdentityExtentBlip(t *testing.T) {
-	// Landscape is already showing with turn 90. The next caps query
-	// reports the identity buffer. Swapping that extent again would turn
-	// the picture twice.
-	caps := surfaceCaps{
-		currentW: 1080, currentH: 2400,
-		currentTrans: transform90,
-		transforms:   transformIdent | transform90 | transform180 | transform270,
-	}
-	w, h, pre, content := chooseSwapchain(2400, 1080, caps, 2400, 1080, transform90)
-	assert.Equal(t, 1080, w)
-	assert.Equal(t, 2400, h)
-	assert.Equal(t, uint32(transform90), pre)
-	assert.Equal(t, uint32(transform90), content)
-}
-
-func TestChooseSwapchainUsesFreshLandscapeRequest(t *testing.T) {
-	// The view is already landscape. The extent still says portrait, which
-	// is also what the identity buffer looks like. Follow the view.
-	caps := surfaceCaps{
-		currentW: 1080, currentH: 2400,
-		currentTrans: transform90,
-		transforms:   transformIdent | transform90 | transform180 | transform270,
-	}
-	w, h, pre, content := chooseSwapchain(2400, 1080, caps, 1080, 2400, transformIdent)
-	assert.Equal(t, 1080, w)
-	assert.Equal(t, 2400, h)
-	assert.Equal(t, uint32(transform90), pre)
-	assert.Equal(t, uint32(transform90), content)
-}
-
-func TestImageSizeReportIsTheSwapchainImage(t *testing.T) {
-	assert.True(t, imageSizeReport(2400, 1080, 1080, 2400, transform90, transform90))
-	assert.False(t, imageSizeReport(2400, 1080, 1080, 2400, transform90, transformIdent))
-	assert.False(t, imageSizeReport(2400, 1080, 2400, 1080, transform90, transform90))
-	assert.False(t, imageSizeReport(1080, 2400, 1080, 2400, transformIdent, transformIdent))
-}
-
 func TestChooseSwapchainLeavesPortraitUpright(t *testing.T) {
 	w, h, pre, content := chooseSwapchain(1080, 2400, surfaceCaps{
 		currentW: 1080, currentH: 2400, currentTrans: transformIdent, transforms: transformIdent,
-	}, 0, 0, 0)
+	})
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transformIdent), pre)
@@ -96,7 +58,7 @@ func TestChooseSwapchainTurnsUpsideDown(t *testing.T) {
 		currentTrans: transform180,
 		transforms:   transformIdent | transform180,
 	}
-	w, h, pre, content := chooseSwapchain(1080, 2400, caps, 0, 0, 0)
+	w, h, pre, content := chooseSwapchain(1080, 2400, caps)
 	assert.Equal(t, 1080, w)
 	assert.Equal(t, 2400, h)
 	assert.Equal(t, uint32(transform180), pre)
@@ -110,7 +72,7 @@ func TestChooseSwapchainPrerotatesAnUndefinedExtent(t *testing.T) {
 		currentTrans: transform90,
 		transforms:   transformIdent | transform90,
 	}
-	w, h, pre, content := chooseSwapchain(800, 400, caps, 0, 0, 0)
+	w, h, pre, content := chooseSwapchain(800, 400, caps)
 	assert.Equal(t, 400, w)
 	assert.Equal(t, 800, h)
 	assert.Equal(t, uint32(transform90), pre)

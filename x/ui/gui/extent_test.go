@@ -65,6 +65,31 @@ func TestLandscapeExtentRefitsBeforePresent(t *testing.T) {
 	require.GreaterOrEqual(t, screen.adopts, 2)
 }
 
+func TestResizeBurstPresentsTheSettledSize(t *testing.T) {
+	host, err := window.Open(t.Context(), window.Config{Width: 8, Height: 20, Period: time.Hour})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = host.Close() })
+	screen := &extentScreen{oriented: image.Pt(20, 8)}
+	picture, err := NewPicture()
+	require.NoError(t, err)
+	paint := &sizedPaint{fill: RGB{0, 255, 0, 255}}
+	runner := &runner{
+		ctx:     t.Context(),
+		host:    bridgeDisplay{Window: androidHost{host}, screen: screen},
+		model:   paint,
+		picture: picture,
+	}
+	queued := make(chan window.Event, 1)
+	queued <- window.Resize{Size: image.Pt(9, 15)}
+	stop, err := runner.drainEvents(queued, window.Resize{Size: image.Pt(11, 7)})
+	require.NoError(t, err)
+	require.False(t, stop)
+	require.Equal(t, image.Pt(20, 8), host.Size())
+	require.Equal(t, image.Pt(20, 8), paint.size())
+	require.Equal(t, image.Pt(20, 8), screen.drawn)
+	require.Equal(t, 1, screen.draws)
+}
+
 func TestDesktopExtentDoesNotResizeTheWindow(t *testing.T) {
 	host, err := window.Open(t.Context(), window.Config{Width: 8, Height: 20, Period: time.Hour})
 	require.NoError(t, err)

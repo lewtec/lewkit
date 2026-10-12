@@ -337,9 +337,12 @@ func (runner *runner) loop() error {
 	}
 }
 
-// drainEvents applies input already queued, then the loop presents once.
-// A slow frame otherwise turns each pointer sample into its own present.
+// drainEvents applies input already queued, then presents one frame.
+// A resize burst is one frame: the identity-buffer size and the oriented
+// size both arrive before the picture is shown, and presenting each of
+// them flashed the upright layout and then left the sideways one up.
 func (runner *runner) drainEvents(events <-chan window.Event, first window.Event) (bool, error) {
+	sawResize := isResize(first)
 	if err := runner.handle(first); err != nil {
 		return false, err
 	}
@@ -350,7 +353,13 @@ func (runner *runner) drainEvents(events <-chan window.Event, first window.Event
 		select {
 		case ev, ok := <-events:
 			if !ok {
+				if err := runner.finishResize(sawResize); err != nil {
+					return false, err
+				}
 				return true, nil
+			}
+			if isResize(ev) {
+				sawResize = true
 			}
 			if err := runner.handle(ev); err != nil {
 				return false, err
@@ -359,9 +368,24 @@ func (runner *runner) drainEvents(events <-chan window.Event, first window.Event
 				return true, nil
 			}
 		default:
+			if err := runner.finishResize(sawResize); err != nil {
+				return false, err
+			}
 			return false, nil
 		}
 	}
+}
+
+func isResize(msg Msg) bool {
+	_, ok := msg.(window.Resize)
+	return ok
+}
+
+func (runner *runner) finishResize(sawResize bool) error {
+	if !sawResize {
+		return nil
+	}
+	return runner.flush(true)
 }
 
 // drainLatest applies ticks already queued. A newer frame replaces one
@@ -396,7 +420,10 @@ func (runner *runner) adoptSize() error {
 	if size.X < 1 || size.Y < 1 {
 		return runner.flush(true)
 	}
-	return runner.handle(window.Resize{Size: size})
+	if err := runner.handle(window.Resize{Size: size}); err != nil {
+		return err
+	}
+	return runner.flush(true)
 }
 
 func (runner *runner) decorate(msg Msg) Msg {
@@ -421,8 +448,11 @@ func (runner *runner) handle(msg Msg) error {
 		return nil
 	}
 	switch msg.(type) {
-	case window.Expose, window.Resize, window.Density, window.FontScale:
+	case window.Expose, window.Density, window.FontScale:
 		return runner.flush(true)
+	case window.Resize:
+		// The drain presents once after every resize already queued.
+		return nil
 	}
 	return nil
 }

@@ -64,7 +64,7 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 	if !ok || host == nil {
 		return s.Fit(width, height)
 	}
-	if host.window == window && s.surface != 0 && !s.lost && s.holdStill(width, height) {
+	if host.window == window && s.surface != 0 && !s.lost && s.swap != 0 && !s.stale && s.width == width && s.height == height {
 		return nil
 	}
 	_ = s.d.WaitIdle()
@@ -85,7 +85,6 @@ func adoptAndroid(s *Screen, window uintptr, width, height int) error {
 			return err
 		}
 		s.surface = surface
-		s.notePresented()
 		s.width, s.height = width, height
 		if err := s.makeSwapchain(); err != nil {
 			if surfaceGone(err) {
