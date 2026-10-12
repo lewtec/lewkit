@@ -193,12 +193,16 @@ func functionStarts(object disasm.Object, symbols disasm.Symbols, sections []dis
 
 func recoverFunctions(starts []uint64, decoded map[uint64]disasm.Instruction, names map[uint64]string, sections []disasm.Section, texts []cstring) []Function {
 	claimed := map[uint64]struct{}{}
+	boundaries := map[uint64]struct{}{}
+	for _, start := range starts {
+		boundaries[start] = struct{}{}
+	}
 	functions := make([]Function, 0, len(starts))
 	for _, start := range starts {
 		if _, taken := claimed[start]; taken {
 			continue
 		}
-		instructions := walkFunction(start, decoded, claimed)
+		instructions := walkFunction(start, decoded, claimed, boundaries)
 		if len(instructions) == 0 {
 			continue
 		}
@@ -216,7 +220,7 @@ func recoverFunctions(starts []uint64, decoded map[uint64]disasm.Instruction, na
 		if _, taken := claimed[start]; taken {
 			continue
 		}
-		instructions := walkFunction(start, decoded, claimed)
+		instructions := walkFunction(start, decoded, claimed, boundaries)
 		if len(instructions) == 0 {
 			continue
 		}
@@ -226,7 +230,7 @@ func recoverFunctions(starts []uint64, decoded map[uint64]disasm.Instruction, na
 	return functions
 }
 
-func walkFunction(start uint64, decoded map[uint64]disasm.Instruction, claimed map[uint64]struct{}) []disasm.Instruction {
+func walkFunction(start uint64, decoded map[uint64]disasm.Instruction, claimed, boundaries map[uint64]struct{}) []disasm.Instruction {
 	if _, ok := decoded[start]; !ok {
 		return nil
 	}
@@ -237,6 +241,12 @@ func walkFunction(start uint64, decoded map[uint64]disasm.Instruction, claimed m
 		queue = queue[1:]
 		if _, taken := claimed[address]; taken {
 			continue
+		}
+		// Another function start, including an import thunk, stays that function.
+		if address != start {
+			if _, boundary := boundaries[address]; boundary {
+				continue
+			}
 		}
 		instruction, ok := decoded[address]
 		if !ok {

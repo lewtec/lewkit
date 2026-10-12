@@ -397,11 +397,6 @@ func noteBelongs(function decomp.Function, address uint64) bool {
 	} else if address >= function.Address && address < function.Address+function.Size {
 		return true
 	}
-	for _, reference := range function.References {
-		if reference.To == address {
-			return true
-		}
-	}
 	for _, instruction := range function.Instructions {
 		if instruction.Address == address {
 			return true

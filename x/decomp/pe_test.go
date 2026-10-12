@@ -73,6 +73,66 @@ func TestImportsAreNamesOnTheThunk(t *testing.T) {
 	}
 }
 
+func TestImportThunkSplitsFromTheCaller(t *testing.T) {
+	text := []byte{0x55} // push ebp falls through into the first thunk
+	for _, slot := range []uint32{0x402000, 0x402004} {
+		text = append(text, 0xff, 0x25)
+		var address [4]byte
+		binary.LittleEndian.PutUint32(address[:], slot)
+		text = append(text, address[:]...)
+	}
+	data, directory := importSection()
+	artifact := openPE(t, buildPE(peProgram{
+		imageBase: 0x400000,
+		entryRVA:  0x1000,
+		sections: []peSection{
+			{name: ".text", virtualAddress: 0x1000, virtualSize: uint32(len(text)), data: text, flags: 0x60000020},
+			{name: ".idata", virtualAddress: 0x2000, virtualSize: uint32(len(data)), data: data, flags: 0x40000040},
+		},
+		imports: directory,
+	}))
+
+	caller, ok := artifact.Function(0x401000)
+	require.True(t, ok)
+	assert.Equal(t, "sub_401000", caller.Name)
+	for _, instruction := range caller.Instructions {
+		assert.NotEqual(t, "jmp", instruction.Mnemonic)
+	}
+	thunk, ok := artifact.Function(0x401001)
+	require.True(t, ok)
+	assert.Equal(t, "kernel32!CloseHandle", thunk.Name)
+	require.Len(t, thunk.Instructions, 1)
+	assert.Equal(t, uint64(6), thunk.Size)
+	listing, err := artifact.Listing(0x401001)
+	require.NoError(t, err)
+	assert.Contains(t, listing, "jmp dword ptr [0x402000")
+	assert.Contains(t, listing, "kernel32!CloseHandle")
+	assert.NotContains(t, listing, "->")
+	assert.NotContains(t, listing, "push")
+	assert.NotContains(t, listing, "GetStdHandle")
+
+	direct := []byte{0xe9, 0x01, 0x00, 0x00, 0x00, 0x90}
+	direct = append(direct, 0xff, 0x25, 0x00, 0x20, 0x40, 0x00)
+	jumped := openPE(t, buildPE(peProgram{
+		imageBase: 0x400000,
+		entryRVA:  0x1000,
+		sections: []peSection{
+			{name: ".text", virtualAddress: 0x1000, virtualSize: uint32(len(direct)), data: direct, flags: 0x60000020},
+			{name: ".idata", virtualAddress: 0x2000, virtualSize: uint32(len(data)), data: data, flags: 0x40000040},
+		},
+		imports: directory,
+	}))
+	thunk, ok = jumped.Function(0x401006)
+	require.True(t, ok)
+	assert.Equal(t, "kernel32!CloseHandle", thunk.Name)
+	require.Len(t, thunk.Instructions, 1)
+	caller, ok = jumped.Function(0x401000)
+	require.True(t, ok)
+	for _, instruction := range caller.Instructions {
+		assert.NotEqual(t, uint64(0x401006), instruction.Address)
+	}
+}
+
 func TestExportsAreFunctionStarts(t *testing.T) {
 	artifact := openPE(t, exportExecutable())
 	function, ok := artifact.Function(0x401000)

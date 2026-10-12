@@ -117,6 +117,7 @@ func TestPreviewFollowsCallsNotesAndSignature(t *testing.T) {
 	artifact, err := project.AddBytes(t.Context(), "setup.exe", disasm.ELF64(elf.EM_X86_64, []byte{0xe8, 0x01, 0x00, 0x00, 0x00, 0xc3, 0xc3}))
 	require.NoError(t, err)
 	require.NoError(t, artifact.SetNote(t.Context(), 0x1001, "kernel32!CloseHandle"))
+	require.NoError(t, artifact.SetNote(t.Context(), 0x1006, "owns-close"))
 	handler := Handler(project)
 
 	function := get(t, handler, "/artifact/setup.exe/function/0x1000")
@@ -130,6 +131,9 @@ func TestPreviewFollowsCallsNotesAndSignature(t *testing.T) {
 	hits := paletteHits(function.Body.String(), "closehandle")
 	require.Len(t, hits, 1)
 	assert.Equal(t, "/artifact/setup.exe/function/0x1000", hits[0])
+	owners := paletteHits(function.Body.String(), "owns-close")
+	require.Len(t, owners, 1)
+	assert.Equal(t, "/artifact/setup.exe/function/0x1006", owners[0])
 
 	renamed := post(t, handler, "/artifact/setup.exe/function/0x1006/name", url.Values{"name": {"StringAssign"}})
 	assert.Equal(t, http.StatusSeeOther, renamed.Code)
