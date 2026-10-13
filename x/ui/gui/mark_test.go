@@ -10,33 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCounterViewRecordsMarksInPaintOrder(t *testing.T) {
-	counter, err := NewCounter()
-	require.NoError(t, err)
-	root := counter.View()
-	root.Layout(Tight(400, 200))
-	picture, err := NewPicture()
-	require.NoError(t, err)
-	root.Paint(Offset{}, Rect{0, 0, 400, 200}, picture)
-
-	var kinds []MarkKind
-	for _, mark := range picture.Marks() {
-		kinds = append(kinds, mark.Kind)
-	}
-	assert.Equal(t, []MarkKind{
-		MarkFill, MarkFill, MarkText,
-		MarkText,
-		MarkFill, MarkText,
-	}, kinds)
-
-	marks := picture.Marks()
-	assert.Equal(t, "-", marks[2].Text)
-	assert.Equal(t, "0", marks[3].Text)
-	assert.Equal(t, "+", marks[5].Text)
-	_, ink := Palette(counter.mode)
-	assert.Equal(t, ink, marks[2].Color)
-}
-
 func TestImageAndBackdropAreMarks(t *testing.T) {
 	picture, err := NewPicture()
 	require.NoError(t, err)

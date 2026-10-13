@@ -113,6 +113,14 @@ func (box *Box) Paint(origin Offset, clip Rect, picture *Picture) *ndarray.Tenso
 	return box.Child.Paint(origin.Add(Offset{childX, childY}), clip, picture)
 }
 
+// Center is the middle of the last painted box.
+func (box *Box) Center() image.Point {
+	if box == nil {
+		return image.Point{}
+	}
+	return image.Pt(int(box.origin.X+box.size.Width/2), int(box.origin.Y+box.size.Height/2))
+}
+
 // Contains is true when position is inside the last painted box.
 func (box *Box) Contains(position image.Point) bool {
 	if box == nil {
