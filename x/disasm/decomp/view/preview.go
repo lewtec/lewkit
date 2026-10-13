@@ -94,25 +94,22 @@ func (view *preview) index(response http.ResponseWriter, request *http.Request) 
 }
 
 func (view *preview) artifact(response http.ResponseWriter, request *http.Request) {
-	view.mu.Lock()
-	page, ok := view.artifactPage(request.PathValue("name"))
-	view.mu.Unlock()
-	if !ok {
-		http.NotFound(response, request)
-		return
-	}
-	writePage(response, request, page)
+	view.namedPage(response, request, view.artifactPage)
 }
 
 func (view *preview) stream(response http.ResponseWriter, request *http.Request) {
+	view.namedPage(response, request, view.streamPage)
+}
+
+func (view *preview) namedPage(response http.ResponseWriter, request *http.Request, page func(string) (previewPage, bool)) {
 	view.mu.Lock()
-	page, ok := view.streamPage(request.PathValue("name"))
+	body, ok := page(request.PathValue("name"))
 	view.mu.Unlock()
 	if !ok {
 		http.NotFound(response, request)
 		return
 	}
-	writePage(response, request, page)
+	writePage(response, request, body)
 }
 
 func (view *preview) address(response http.ResponseWriter, request *http.Request) {
