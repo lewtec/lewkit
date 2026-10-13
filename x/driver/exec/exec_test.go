@@ -79,6 +79,13 @@ func TestWhichAndRequireBinary(t *testing.T) {
 
 	err = execdriver.RequireBinary(t.Context(), "lewkit-missing-exec-binary")
 	require.ErrorIs(t, err, driver.ErrIncompatible)
+
+	path, err = execdriver.Find(t.Context(), "sh")
+	require.NoError(t, err)
+	require.NotEmpty(t, path)
+	_, err = execdriver.Find(t.Context(), "lewkit-missing-exec-binary")
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.Contains(t, err.Error(), "lewkit-missing-exec-binary not found")
 }
 
 func TestReplacedStderrIsNotALiveRow(t *testing.T) {
