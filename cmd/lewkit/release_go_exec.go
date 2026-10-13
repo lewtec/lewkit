@@ -35,7 +35,7 @@ func (c *goBuildCmd) execute(ctx context.Context, run bool, args []string) error
 	if dir == "" {
 		dir = "."
 	}
-	g, err := load.Load(dir, cmd.Values(c.pkgs), splitTags(c.tags.Value()))
+	g, err := load.Load(dir, cmd.Values(c.pkgs), load.SplitTags(c.tags.Value()))
 	if err != nil {
 		return err
 	}
@@ -194,21 +194,6 @@ func writeEmbedCfg(work, id string, emb *load.Embed) (string, error) {
 		return "", err
 	}
 	return path, nil
-}
-
-func splitTags(s string) []string {
-	if strings.TrimSpace(s) == "" {
-		return nil
-	}
-	var tags []string
-	for _, part := range strings.FieldsFunc(s, func(r rune) bool {
-		return r == ',' || r == ' ' || r == '\t'
-	}) {
-		if part != "" {
-			tags = append(tags, part)
-		}
-	}
-	return tags
 }
 
 func writeImportCfg(path string, files map[string]string) error {
