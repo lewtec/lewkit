@@ -8,16 +8,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/dirs"
-	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
+	"github.com/lewtec/lewkit/x/driver/internal/androidclient"
 )
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
-}
 
 func init() { driver.Register[dirs.Driver](factory{}) }
 
@@ -28,7 +20,7 @@ func (factory) Name() string { return "Android directories" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	_, err := open(ctx)
+	_, err := androidclient.Open(ctx)
 	return err
 }
 
@@ -37,7 +29,7 @@ func (factory) New(context.Context) (dirs.Driver, error) { return backend{}, nil
 type backend struct{}
 
 func (backend) Resolve(ctx context.Context, appID string) (dirs.Dirs, error) {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return dirs.Dirs{}, err
 	}

@@ -6,17 +6,9 @@ import (
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/androidclient"
 	"github.com/lewtec/lewkit/x/driver/power"
-	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
-}
 
 func init() { driver.Register[power.Driver](factory{}) }
 
@@ -32,7 +24,7 @@ func (factory) Name() string { return "Android power" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -47,7 +39,7 @@ func (factory) New(context.Context) (power.Driver, error) { return backend{}, ni
 type backend struct{}
 
 func (backend) Lock(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -57,7 +49,7 @@ func (backend) Lock(ctx context.Context) error {
 func (backend) Logout(context.Context) error { return errLogout }
 
 func (backend) Suspend(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -67,7 +59,7 @@ func (backend) Suspend(ctx context.Context) error {
 func (backend) Hibernate(context.Context) error { return errHibernate }
 
 func (backend) Reboot(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -75,7 +67,7 @@ func (backend) Reboot(ctx context.Context) error {
 }
 
 func (backend) Shutdown(ctx context.Context) error {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return err
 	}
