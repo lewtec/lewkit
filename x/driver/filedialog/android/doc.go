@@ -4,13 +4,12 @@ import (
 	"cmp"
 	"errors"
 	"io/fs"
-	"path"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/lewtec/lewkit/x/driver/filedialog/internal/names"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
@@ -58,7 +57,7 @@ func FS(uris []string, docs Documents) (fs.FS, error) {
 		if info.Dir {
 			return &docFS{docs: docs, root: info.URI, cache: map[string][]Doc{}}, nil
 		}
-		info.Name = cleanName(info.Name)
+		info.Name = names.Clean(info.Name)
 		return &docFS{docs: docs, tops: []Doc{info}, cache: map[string][]Doc{}}, nil
 	}
 	seen := map[string]struct{}{}
@@ -71,7 +70,7 @@ func FS(uris []string, docs Documents) (fs.FS, error) {
 		if info.URI == "" {
 			info.URI = uri
 		}
-		info.Name = takeName(info.Name, seen)
+		info.Name = names.Take(info.Name, seen)
 		tops = append(tops, info)
 	}
 	slices.SortFunc(tops, func(a, b Doc) int { return cmp.Compare(a.Name, b.Name) })
@@ -233,37 +232,10 @@ func labelDocs(docs []Doc) []Doc {
 	copy(out, docs)
 	seen := map[string]struct{}{}
 	for i := range out {
-		out[i].Name = takeName(out[i].Name, seen)
+		out[i].Name = names.Take(out[i].Name, seen)
 	}
 	slices.SortFunc(out, func(a, b Doc) int { return cmp.Compare(a.Name, b.Name) })
 	return out
-}
-
-func takeName(name string, seen map[string]struct{}) string {
-	name = cleanName(name)
-	if _, ok := seen[name]; !ok {
-		seen[name] = struct{}{}
-		return name
-	}
-	ext := path.Ext(name)
-	stem := strings.TrimSuffix(name, ext)
-	for n := 2; ; n++ {
-		next := stem + " (" + strconv.Itoa(n) + ")" + ext
-		if _, ok := seen[next]; ok {
-			continue
-		}
-		seen[next] = struct{}{}
-		return next
-	}
-}
-
-func cleanName(name string) string {
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
-	if name == "" || name == "." || name == ".." {
-		return "_"
-	}
-	return name
 }
 
 type docFile struct {

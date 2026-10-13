@@ -9,12 +9,12 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
+	entryname "github.com/lewtec/lewkit/x/driver/filedialog/internal/names"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
@@ -97,7 +97,7 @@ func openLocal(names []string) (fs.FS, error) {
 			return nil, err
 		}
 		ents = append(ents, localEntry{
-			name: takeName(filepath.Base(name), seen),
+			name: entryname.Take(filepath.Base(name), seen),
 			path: name,
 			dir:  st.IsDir(),
 		})
@@ -243,30 +243,3 @@ func (r rootInfo) Mode() fs.FileMode  { return fs.ModeDir | 0o555 }
 func (r rootInfo) ModTime() time.Time { return time.Time{} }
 func (r rootInfo) IsDir() bool        { return true }
 func (r rootInfo) Sys() any           { return nil }
-
-func takeName(name string, seen map[string]struct{}) string {
-	name = cleanName(name)
-	if _, ok := seen[name]; !ok {
-		seen[name] = struct{}{}
-		return name
-	}
-	ext := path.Ext(name)
-	stem := strings.TrimSuffix(name, ext)
-	for n := 2; ; n++ {
-		next := stem + " (" + strconv.Itoa(n) + ")" + ext
-		if _, ok := seen[next]; ok {
-			continue
-		}
-		seen[next] = struct{}{}
-		return next
-	}
-}
-
-func cleanName(name string) string {
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
-	if name == "" || name == "." || name == ".." {
-		return "_"
-	}
-	return name
-}
