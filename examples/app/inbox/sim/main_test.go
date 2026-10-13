@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/workflow"
 	"github.com/stretchr/testify/require"
 )
@@ -37,8 +38,20 @@ func TestIPhoneUDID(t *testing.T) {
 	require.True(t, strings.Contains(list, "iPhone"))
 }
 
-func TestKnownTarget(t *testing.T) {
-	require.True(t, knownTarget("sim"))
-	require.True(t, knownTarget("ping"))
-	require.False(t, knownTarget("clean"))
+func TestTarget(t *testing.T) {
+	app, err := cmd.Parse[cmd.App[simCmd]]()
+	require.NoError(t, err)
+	require.Equal(t, "sim", app.Args.target.Value().String())
+	require.Equal(t, 0, app.Args.IO.Value())
+
+	app, err = cmd.Parse[cmd.App[simCmd]]("--io", "2", "ping")
+	require.NoError(t, err)
+	require.Equal(t, "ping", app.Args.target.Value().String())
+	require.Equal(t, 2, app.Args.IO.Value())
+
+	_, err = cmd.Parse[cmd.App[simCmd]]("clean")
+	require.ErrorIs(t, err, cmd.ErrInvalidArgument)
+
+	_, err = cmd.Parse[cmd.App[simCmd]]("ping", "extra")
+	require.ErrorIs(t, err, cmd.ErrInvalidArgument)
 }

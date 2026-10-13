@@ -3,9 +3,23 @@ package main
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGenerateArgs(t *testing.T) {
+	app, err := cmd.Parse[cmd.App[generateCmd]]()
+	require.NoError(t, err)
+	require.Equal(t, 0, app.Args.CPU.Value())
+
+	app, err = cmd.Parse[cmd.App[generateCmd]]("--cpu", "1")
+	require.NoError(t, err)
+	require.Equal(t, 1, app.Args.CPU.Value())
+
+	_, err = cmd.Parse[cmd.App[generateCmd]]("extra")
+	require.ErrorIs(t, err, cmd.ErrInvalidArgument)
+}
 
 func TestWasmGraph(t *testing.T) {
 	graph := wasmGraph("/src", "/work", "/out/glslang.wasm")

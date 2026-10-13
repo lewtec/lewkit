@@ -12,14 +12,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/lewtec/lewkit/x/cmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
 )
@@ -30,39 +30,71 @@ const (
 )
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	target := "sim"
-	if len(os.Args) > 1 {
-		target = os.Args[1]
-	}
-	if len(os.Args) > 2 || !knownTarget(target) {
-		fmt.Fprintln(os.Stderr, "usage: sim [sim|build|boot|install|launch|ping]")
-		os.Exit(2)
-	}
-	root, err := moduleRoot()
+	app, err := cmd.Parse[cmd.App[simCmd]](os.Args[1:]...)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		entry.Main(context.Background(), func(context.Context) error { return err })
+		return
 	}
-	fut, err := workflow.Run(ctx, simGraph(root), []string{target})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	if err := fut.Wait(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	parent := taskgroup.WithLimits(context.Background(), app.Args.Apply(taskgroup.DefaultLimits()))
+	entry.MainFrom(parent, app.Run)
+}
+
+// target is one simulator step.
+type target int
+
+const (
+	targetSim target = iota
+	targetBuild
+	targetBoot
+	targetInstall
+	targetLaunch
+	targetPing
+)
+
+// String is the CLI token.
+func (t target) String() string {
+	switch t {
+	case targetSim:
+		return "sim"
+	case targetBuild:
+		return "build"
+	case targetBoot:
+		return "boot"
+	case targetInstall:
+		return "install"
+	case targetLaunch:
+		return "launch"
+	case targetPing:
+		return "ping"
+	default:
+		return ""
 	}
 }
 
-func knownTarget(name string) bool {
-	switch name {
-	case "sim", "build", "boot", "install", "launch", "ping":
-		return true
-	default:
-		return false
+// Values lists steps for cmd.EnumArg.
+func (target) Values() []target {
+	return []target{targetSim, targetBuild, targetBoot, targetInstall, targetLaunch, targetPing}
+}
+
+type simCmd struct {
+	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
+	target        cmd.EnumArg[target] `default:"sim" help:"step to run"`
+}
+
+func (simCmd) Description() string {
+	return "drive the Inbox iOS simulator"
+}
+
+func (c *simCmd) Run(ctx context.Context) error {
+	root, err := moduleRoot()
+	if err != nil {
+		return err
 	}
+	fut, err := workflow.Run(ctx, simGraph(root), []string{c.target.Value().String()})
+	if err != nil {
+		return err
+	}
+	return fut.Wait(ctx)
 }
 
 // simGraph is the Inbox simulator.

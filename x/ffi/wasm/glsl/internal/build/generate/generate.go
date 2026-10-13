@@ -13,12 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/cmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/workflow"
@@ -27,15 +28,24 @@ import (
 const glslangVersion = "15.1.0"
 
 func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	if err := run(ctx); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	app, err := cmd.Parse[cmd.App[generateCmd]](os.Args[1:]...)
+	if err != nil {
+		entry.Main(context.Background(), func(context.Context) error { return err })
+		return
 	}
+	parent := taskgroup.WithLimits(context.Background(), app.Args.Apply(taskgroup.DefaultLimits()))
+	entry.MainFrom(parent, app.Run)
 }
 
-func run(ctx context.Context) error {
+type generateCmd struct {
+	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
+}
+
+func (generateCmd) Description() string {
+	return "build glslang.wasm"
+}
+
+func (generateCmd) Run(ctx context.Context) error {
 	here, err := sourceDir()
 	if err != nil {
 		return err
