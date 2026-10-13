@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
@@ -25,14 +24,13 @@ var (
 	current   daynight.Mode
 	mu        sync.Mutex
 
-	selStandard   = objc.RegisterName("standardUserDefaults")
-	selStringFor  = objc.RegisterName("stringForKey:")
-	selUTF8String = objc.RegisterName("UTF8String")
-	selDefault    = objc.RegisterName("defaultCenter")
-	selAdd        = objc.RegisterName("addObserver:selector:name:object:")
-	selChanged    = objc.RegisterName("themeChanged:")
-	selAlloc      = objc.RegisterName("alloc")
-	selInit       = objc.RegisterName("init")
+	selStandard  = objc.RegisterName("standardUserDefaults")
+	selStringFor = objc.RegisterName("stringForKey:")
+	selDefault   = objc.RegisterName("defaultCenter")
+	selAdd       = objc.RegisterName("addObserver:selector:name:object:")
+	selChanged   = objc.RegisterName("themeChanged:")
+	selAlloc     = objc.RegisterName("alloc")
+	selInit      = objc.RegisterName("init")
 )
 
 func available(context.Context) error {
@@ -153,23 +151,6 @@ func readStyle() daynight.Mode {
 	if value == 0 {
 		return daynight.Light
 	}
-	text := cocoaString(value)
+	text := driver.UTF8String(value)
 	return fromInterfaceStyle(text)
-}
-
-func cocoaString(id objc.ID) string {
-	if id == 0 {
-		return ""
-	}
-	pointer := id.Send(selUTF8String)
-	if pointer == 0 {
-		return ""
-	}
-	raw := unsafe.Slice((*byte)(unsafe.Pointer(pointer)), 1<<20)
-	for i, b := range raw {
-		if b == 0 {
-			return string(raw[:i])
-		}
-	}
-	return ""
 }

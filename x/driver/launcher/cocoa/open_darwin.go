@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
@@ -37,7 +36,6 @@ var (
 	selView    = objc.RegisterName("setAccessoryView:")
 	selRun     = objc.RegisterName("runModal")
 	selValue   = objc.RegisterName("stringValue")
-	selUTF8Out = objc.RegisterName("UTF8String")
 	selNew     = objc.RegisterName("new")
 	selDrain   = objc.RegisterName("drain")
 	selFrame   = objc.RegisterName("initWithFrame:")
@@ -142,7 +140,7 @@ func ask(prompt string) (string, error) {
 		if _, ok := buttonIndex(modal(alert), 1); !ok {
 			return launcher.ErrCanceled
 		}
-		text = nsText(field.Send(selValue))
+		text = driver.UTF8String(field.Send(selValue))
 		return nil
 	})
 	return text, err
@@ -189,21 +187,4 @@ func ensureApp() error {
 		}
 	})
 	return appErr
-}
-
-func nsText(id objc.ID) string {
-	if id == 0 {
-		return ""
-	}
-	ptr := id.Send(selUTF8Out)
-	if ptr == 0 {
-		return ""
-	}
-	raw := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), 1<<20)
-	for i, b := range raw {
-		if b == 0 {
-			return string(raw[:i])
-		}
-	}
-	return ""
 }
