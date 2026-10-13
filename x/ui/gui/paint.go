@@ -74,10 +74,7 @@ func (picture *Picture) SetScale(scale float32) {
 	if picture == nil {
 		return
 	}
-	if scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
-		scale = 1
-	}
-	picture.scale = scale
+	picture.scale = factorOrOne(scale)
 }
 
 // SetFontScale records the user's text-size preference for the next layout.
@@ -87,10 +84,14 @@ func (picture *Picture) SetFontScale(scale float32) {
 	if picture == nil {
 		return
 	}
+	picture.font = factorOrOne(scale)
+}
+
+func factorOrOne(scale float32) float32 {
 	if scale <= 0 || math.IsNaN(float64(scale)) || math.IsInf(float64(scale), 0) {
-		scale = 1
+		return 1
 	}
-	picture.font = scale
+	return scale
 }
 
 func accumulatorOf(picture *Picture) *ndarray.Tensor[float32] {
