@@ -1,4 +1,4 @@
-package gui
+package main
 
 import (
 	"image"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
 const (
@@ -16,36 +17,36 @@ const (
 	marqueeStride     = float32(marqueeItemHeight + marqueeGap)
 )
 
-var marqueeColors = []RGB{
-	RGB{220, 70, 90, 200},
-	RGB{70, 180, 140, 200},
-	RGB{70, 140, 220, 200},
-	RGB{230, 180, 60, 200},
-	RGB{180, 90, 210, 200},
-	RGB{50, 200, 200, 200},
+var marqueeColors = []gui.RGB{
+	{220, 70, 90, 200},
+	{70, 180, 140, 200},
+	{70, 140, 220, 200},
+	{230, 180, 60, 200},
+	{180, 90, 210, 200},
+	{50, 200, 200, 200},
 }
 
 // Bar is one scrolling rounded rect. It is a view value: Marquee.View
 // builds bars from offset and size; nothing in View writes the model.
 type Bar struct {
-	color  RGB
+	color  gui.RGB
 	y      float32
 	width  float32
 	period float32
 }
 
-func (bar Bar) View() Node {
-	return &Stack{Children: []Node{
+func (bar Bar) View() gui.Node {
+	return &gui.Stack{Children: []gui.Node{
 		bar.rect(bar.y),
 		bar.rect(bar.y - bar.period),
 	}}
 }
 
-func (bar Bar) rect(y float32) Node {
+func (bar Bar) rect(y float32) gui.Node {
 	color := bar.color
-	return &Positioned{
+	return &gui.Positioned{
 		Y: y,
-		Child: &Box{
+		Child: &gui.Box{
 			Width:  bar.width,
 			Height: marqueeItemHeight,
 			Fill:   &color,
@@ -60,7 +61,7 @@ func (marquee *Marquee) wrap(y float32) float32 {
 
 func (marquee *Marquee) shift(delta float32) {
 	next := marquee.wrap(marquee.offset + delta)
-	marquee.Dirty, marquee.offset = See(marquee.Dirty, marquee.offset, next)
+	marquee.Dirty, marquee.offset = gui.See(marquee.Dirty, marquee.offset, next)
 }
 
 func wrapShift(y, period float32) float32 {
@@ -75,23 +76,23 @@ func wrapShift(y, period float32) float32 {
 }
 
 type marqueeItem struct {
-	at, wrap     *Positioned
-	box, wrapBox *Box
-	fill         RGB
+	at, wrap     *gui.Positioned
+	box, wrapBox *gui.Box
+	fill         gui.RGB
 }
 
 // Marquee is a clipped stack of [Bar] children that scroll down and wrap.
 // Offset is the only motion state; View derives each bar from it.
 type Marquee struct {
-	Dirty
+	gui.Dirty
 	size         image.Point
 	offset       float32
 	lastTick     time.Duration
 	lastPointerY int
 	dragging     bool
 	paused       bool
-	root         *Box
-	background   RGB
+	root         *gui.Box
+	background   gui.RGB
 	items        []marqueeItem
 	treeCount    int
 	treeWidth    float32
@@ -111,28 +112,28 @@ func (*Marquee) repeats(innerHeight float32) int {
 	return max(1, int(math.Ceil(float64(innerHeight/period))))
 }
 
-func (marquee *Marquee) Init() Cmd { return Tick() }
+func (marquee *Marquee) Init() gui.Cmd { return gui.Tick() }
 
-func (marquee *Marquee) Update(msg Msg) (Model, Cmd) {
+func (marquee *Marquee) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	if marquee == nil {
 		return marquee, nil
 	}
-	var cmd Cmd
-	if tick, ok := msg.(TickMsg); ok {
+	var cmd gui.Cmd
+	if tick, ok := msg.(gui.TickMsg); ok {
 		if !marquee.dragging && !marquee.paused && tick.Elapsed > marquee.lastTick {
 			marquee.shift(float32((tick.Elapsed - marquee.lastTick).Seconds()) * marqueeSpeed)
 		}
 		marquee.lastTick = tick.Elapsed
-		cmd = Every(tick.Period)
+		cmd = gui.Every(tick.Period)
 	}
 	switch event := msg.(type) {
 	case window.Pointer:
 		if event.Button == 1 && event.Pressed {
-			marquee.Dirty, marquee.dragging = See(marquee.Dirty, marquee.dragging, true)
+			marquee.Dirty, marquee.dragging = gui.See(marquee.Dirty, marquee.dragging, true)
 			marquee.lastPointerY = event.Pos.Y
 		}
 		if event.Button == 1 && !event.Pressed {
-			marquee.Dirty, marquee.dragging = See(marquee.Dirty, marquee.dragging, false)
+			marquee.Dirty, marquee.dragging = gui.See(marquee.Dirty, marquee.dragging, false)
 		}
 		if marquee.dragging && event.Buttons&window.ButtonLeft != 0 {
 			marquee.shift(float32(event.Pos.Y - marquee.lastPointerY))
@@ -142,13 +143,13 @@ func (marquee *Marquee) Update(msg Msg) (Model, Cmd) {
 		marquee.shift(float32(event.Delta.Y))
 	case window.Key:
 		if event.Pressed && !event.Repeat && (event.Rune == ' ' || event.Code == 49) {
-			marquee.Dirty, marquee.paused = See(marquee.Dirty, marquee.paused, !marquee.paused)
+			marquee.Dirty, marquee.paused = gui.See(marquee.Dirty, marquee.paused, !marquee.paused)
 		}
 	case window.Resize:
-		marquee.Dirty, marquee.dragging = See(marquee.Dirty, marquee.dragging, false)
+		marquee.Dirty, marquee.dragging = gui.See(marquee.Dirty, marquee.dragging, false)
 	}
 	if size, ok := sizeOf(msg); ok && size.X > 0 && size.Y > 0 {
-		marquee.Dirty, marquee.size = See(marquee.Dirty, marquee.size, size)
+		marquee.Dirty, marquee.size = gui.See(marquee.Dirty, marquee.size, size)
 	}
 	return marquee, cmd
 }
@@ -171,29 +172,29 @@ func (marquee *Marquee) barWidth() float32 {
 
 func (marquee *Marquee) rebuild(count int, width float32) {
 	items := make([]marqueeItem, count)
-	children := make([]Node, count)
+	children := make([]gui.Node, count)
 	for i := range items {
 		color := marqueeColors[i%len(marqueeColors)]
 		item := marqueeItem{
 			fill:    color,
-			at:      &Positioned{},
-			wrap:    &Positioned{},
-			box:     &Box{Width: width, Height: marqueeItemHeight, Radius: 18},
-			wrapBox: &Box{Width: width, Height: marqueeItemHeight, Radius: 18},
+			at:      &gui.Positioned{},
+			wrap:    &gui.Positioned{},
+			box:     &gui.Box{Width: width, Height: marqueeItemHeight, Radius: 18},
+			wrapBox: &gui.Box{Width: width, Height: marqueeItemHeight, Radius: 18},
 		}
 		item.box.Fill = &item.fill
 		item.wrapBox.Fill = &item.fill
 		item.at.Child = item.box
 		item.wrap.Child = item.wrapBox
-		children[i] = &Stack{Children: []Node{item.at, item.wrap}}
+		children[i] = &gui.Stack{Children: []gui.Node{item.at, item.wrap}}
 		items[i] = item
 	}
-	marquee.background = RGB{18, 18, 24, 255}
-	marquee.root = &Box{
-		Padding: EdgeInsets{marqueePad, marqueePad, marqueePad, marqueePad},
+	marquee.background = gui.RGB{18, 18, 24, 255}
+	marquee.root = &gui.Box{
+		Padding: gui.EdgeInsets{marqueePad, marqueePad, marqueePad, marqueePad},
 		Fill:    &marquee.background,
 		Clip:    true,
-		Child:   &Stack{Clip: true, Children: children},
+		Child:   &gui.Stack{Clip: true, Children: children},
 	}
 	marquee.items = items
 	marquee.treeCount = count
@@ -201,7 +202,7 @@ func (marquee *Marquee) rebuild(count int, width float32) {
 	marquee.treeSize = marquee.size
 }
 
-func (marquee *Marquee) View() Node {
+func (marquee *Marquee) View() gui.Node {
 	if marquee == nil {
 		return nil
 	}
@@ -217,4 +218,15 @@ func (marquee *Marquee) View() Node {
 		marquee.items[i].wrap.Y = y - period
 	}
 	return marquee.root
+}
+
+func sizeOf(msg gui.Msg) (image.Point, bool) {
+	switch message := msg.(type) {
+	case gui.TickMsg:
+		return message.Size, true
+	case window.Resize:
+		return message.Size, true
+	default:
+		return image.Point{}, false
+	}
 }

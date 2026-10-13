@@ -38,7 +38,7 @@ func BenchmarkScroll(b *testing.B) {
 	require.NotNil(b, evaluator)
 	test.CloseOnCleanup(b, evaluator)
 
-	marquee, err := gui.NewMarquee()
+	marquee, err := NewMarquee()
 	require.NoError(b, err)
 	size := image.Pt(width, height)
 	marquee.Update(window.Resize{Size: size})
