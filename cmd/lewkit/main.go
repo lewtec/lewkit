@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/lewtec/lewkit/cmd/lewkit/decomp"
 	"github.com/lewtec/lewkit/cmd/lewkit/generate"
@@ -25,7 +24,7 @@ func main() {
 		}
 		return
 	}
-	app, err := cmd.Parse[cmd.App[root]](normalizeReleaseGoFlags(os.Args[1:])...)
+	app, err := cmd.Parse[cmd.App[root]](normalizeReleaseGoFlags(cmd.Args())...)
 	if err != nil {
 		entry.Main(context.Background(), func(context.Context) error { return err })
 		return
@@ -58,7 +57,7 @@ func (completionCmd) Description() string {
 }
 
 func (*completionCmd) Run(context.Context) error {
-	_, err := fmt.Println(cmd.BashCompleteLine(filepath.Base(os.Args[0])))
+	_, err := fmt.Println(cmd.BashCompleteLine(cmd.Name()))
 	return err
 }
 

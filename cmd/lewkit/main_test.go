@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -56,7 +54,7 @@ func TestCompletionLine(t *testing.T) {
 		require.NoError(t, app.Run(t.Context()))
 	})
 	assert.Contains(t, got, "complete -C")
-	assert.Contains(t, got, filepath.Base(os.Args[0]))
+	assert.Contains(t, got, cmd.Name())
 }
 
 func TestGenerateDbUsage(t *testing.T) {
