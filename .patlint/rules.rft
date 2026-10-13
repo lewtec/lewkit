@@ -1,0 +1,168 @@
+;; -*- mode: lisp; -*-
+;; vim: set ft=lisp:
+;; Helix: common-lisp (.helix/languages.toml maps .rft → common-lisp)
+
+
+(rule go/no-context-check error
+    "Don't check wether context is nil, a crash is deserved"
+    (under (lang go)
+        (seq (token "ctx") (token "==") (token "nil"))
+    )
+)
+
+
+;; Report fmt.Errorf format strings that do not contain %w.
+(rule go/fmt-errorf-missing-wrap
+  warning
+  "fmt.Errorf format lacks %w — wrap the cause (table the error)"
+  (under (lang go)
+    (seq
+      (capture F (errf))
+      "("
+      (capture MSG (not (regex "%w")))
+      (* any)
+      ")")
+  ))
+
+;; Report fmt.Errorf that wraps an inline errors.New instead of a tabled sentinel.
+(rule go/fmt-errorf-funny-wrap
+  warning
+  "fmt.Errorf format lacks a error actually from a table. This is disgusting!"
+  (under (lang go)
+    (seq
+      (capture F (errf))
+      "("
+      (* any)
+      (capture E (err-new))
+      "(" (* any) ")"
+      (* any)
+      ")")
+  ))
+
+;; Report strings.Contains(err.Error(), …) error-inspection smells.
+(rule go/string-contains-error
+  warning
+  "Use errors.Is instead of strings.Contains. Table errors first if you can't."
+  (under (lang go)
+    (seq
+      (token "strings") "." (token "Contains")
+      "("
+      (token "err") "." (token "Error") "(" ")"
+      ","
+      (capture s any)
+      ")")
+  ))
+
+;; Report errors.New not preceded by Err* = errors. lookbehind (tabled sentinels).
+(rule go/error-prefer-err-tables
+  warning
+  "Prefer defining errors in error tables to use in fmt.Errorf %w"
+  (under (lang go)
+    (seq
+      (assert_not_behind (seq (regex "[Ee]rr.*") "=" (token "errors") "."))
+      (ref "go:errors::New"))
+  ))
+
+;; Report Error() that just string()s the receiver (type T string sentinel cheat).
+;; Value or pointer receiver; body must be exactly return string(recv) / string(*recv).
+(rule go/string-sentinel-error
+  warning
+  "Cheating string Error(); table a real sentinel (errors.New or a struct type)"
+  (under (lang go)
+    (seq
+      (token "func")
+      "("
+      (unify recv any)
+      (? "*")
+      (capture typ any)
+      ")"
+      (token "Error")
+      "(" ")"
+      (token "string")
+      "{"
+      (token "return")
+      (token "string")
+      "("
+      (? "*")
+      (unify recv any)
+      ")"
+      "}")))
+
+(def os-err-to-errors-is (old-fn err-ref)
+  "Go body: rewrite old-fn(err) to errors.Is(err, err-ref). Args are product ref strings."
+  (under (lang go)
+    (rewrite
+      (seq (ref old-fn) "(" (token "err") ")")
+      (seq
+        (ref "go:errors::Is")
+        "(" "err" ", " (ref err-ref) ")"))))
+;; Rewrite deprecated IsExist(err) to errors.Is(err, fs.ErrExist).
+(rule go/os-isexist-err
+  warning
+  "See https://pkg.go.dev/os#IsExist"
+  (os-err-to-errors-is "go:os::IsExist" "go:io/fs::ErrExist"))
+;; Rewrite deprecated IsNotExist(err) to errors.Is(err, fs.ErrNotExist).
+(rule go/os-isnotexist-err
+  warning
+  "See https://pkg.go.dev/os#IsNotExist"
+  (os-err-to-errors-is "go:os::IsNotExist" "go:io/fs::ErrNotExist"))
+
+;; Rewrite deprecated IsPermission(err) to errors.Is(err, fs.ErrPermission).
+(rule go/os-ispermission-err
+  warning
+  "See https://pkg.go.dev/os#IsPermission"
+  (os-err-to-errors-is "go:os::IsPermission" "go:io/fs::ErrPermission"))
+
+;; Rewrite os.IsTimeout(err) to errors.Is(err, os.ErrDeadlineExceeded).
+(rule go/os-istimeout-err
+  warning
+  "See https://pkg.go.dev/os#IsTimeout"
+  (os-err-to-errors-is "go:os::IsTimeout" "go:os::ErrDeadlineExceeded"))
+;; take e (RHS); emit errors.Is(err, (slot)) where slot is original RHS.
+(rule go/err-compare
+  error
+  "Use errs.Is instead of naive compare between two errors"
+  (under (lang go)
+    (rewrite
+      (take "e"
+        (seq (token "err") "=" "=" (unify e (not (regex "nil")))))
+      (seq
+        (ref "go:errors::Is")
+        "(" "err" ", " (slot) ")"))
+  ))
+
+;; Nested under lang → path → test-func-region; rewrite Background ref to t.Context.
+(rule go/tests-context-background
+  warning
+  "Prefer t.Context() over context.Background in tests"
+  (under (lang go)
+    (under (path "**/*_test.go")
+      (under (test-func-region)
+        (rewrite
+          (ref "go:context::Background")
+          "t.Context")))
+  ))
+
+;; Report any use of context.TODO.
+(rule go/context-todo
+  error
+  "context.TODO is a placeholder; pass a real context"
+  (under (lang go)
+    (ref "go:context::TODO")
+  ))
+
+;; Report context.Background inside non-main/init functions.
+(rule go/context-background-outside-main-init
+  warning
+  "context.Background outside main/init; pass context from the caller"
+  (under (lang go)
+    (seq
+      (token "func")
+      (capture name (not (regex "^(main|init)$")))
+      "(" (* any) ")"
+      "{"
+      (* any)
+      (capture c (ref "go:context::Background"))
+      (* any)
+      "}")
+  ))

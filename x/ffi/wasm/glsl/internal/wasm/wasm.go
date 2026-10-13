@@ -1,8 +1,9 @@
 // Package wasm embeds the glslang reactor.
 //
 // glslang.wasm is built from Khronos glslang plus
-// ../build/compile.c via ../build/generate.sh (mise emscripten/cmake,
-// uv python). The wasm file is committed next to this package.
+// ../build/compile.c. go run ../build/generate runs that workflow:
+// glslang.wasm depends on libs, libs depends on configure, and configure
+// depends on source and tools. The wasm file is committed next to this package.
 package wasm
 
 import _ "embed"

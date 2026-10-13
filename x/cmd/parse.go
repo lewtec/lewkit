@@ -82,7 +82,11 @@ func newSpec(root reflect.Value) (*spec, error) {
 		cmds:   make(map[string]int),
 		ctxs:   make(map[string]int),
 	}
-	if err := s.addStruct(root, nil); err != nil {
+	// The root keeps its unexported fields. One flattened struct from
+	// another package does too: that is App's command spec. A helper
+	// flattened under that spec contributes only exported fields, so
+	// an unexported pointer there is not a subcommand.
+	if err := s.addStruct(root, nil, true, true); err != nil {
 		return nil, err
 	}
 	if err := s.finalize(); err != nil {
@@ -144,12 +148,15 @@ func (s *spec) checkPos() error {
 	return nil
 }
 
-func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
+func (s *spec) addStruct(rv reflect.Value, prefix []int, allow, cross bool) error {
 	t := rv.Type()
 	for i := range t.NumField() {
 		sf := t.Field(i)
 		fv := rv.Field(i)
 		if !fv.CanAddr() {
+			continue
+		}
+		if sf.PkgPath != "" && !allow {
 			continue
 		}
 		index := append(append([]int(nil), prefix...), i)
@@ -163,7 +170,15 @@ func (s *spec) addStruct(rv reflect.Value, prefix []int) error {
 				}
 				s.ctxs[key] = len(s.fields)
 			}
-			if err := s.addStruct(ev, index); err != nil {
+			childAllow, childCross := allow, cross
+			if ev.Type().PkgPath() != t.PkgPath() {
+				if cross {
+					childAllow, childCross = true, false
+				} else {
+					childAllow, childCross = false, false
+				}
+			}
+			if err := s.addStruct(ev, index, childAllow, childCross); err != nil {
 				return err
 			}
 			continue

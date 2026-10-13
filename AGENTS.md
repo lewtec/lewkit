@@ -3,3 +3,5 @@
 - Keep stuff simple and organized, do step backs and refactors if necessary
 - Respect the context chain: only context.Background in main, ctx as first positional arg
 - Table all errors: %w in fmt.Errorf
+- Explicit is better than implicit
+- Follow the patterns already in the repo: x/cmd, x/test, testify, x/db with sqlc and migrations
