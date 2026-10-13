@@ -3,7 +3,8 @@ package decomp
 import (
 	"strconv"
 	"strings"
-	"unicode"
+
+	hexscan "github.com/lewtec/lewkit/x/disasm/internal/hex"
 )
 
 type kind string
@@ -115,7 +116,7 @@ func ripDisplacement(operands string) (int64, bool) {
 		return 0, false
 	}
 	end := 2
-	for end < len(rest) && isHex(rest[end]) {
+	for end < len(rest) && hexscan.Digit(rest[end]) {
 		end++
 	}
 	if end == 2 {
@@ -131,7 +132,7 @@ func ripDisplacement(operands string) (int64, bool) {
 func hexAddresses(operands string) []uint64 {
 	var addresses []uint64
 	for index := 0; index < len(operands); {
-		_, end, address, ok := hexToken(operands, index)
+		_, end, address, ok := hexscan.Token(operands, index)
 		if !ok {
 			index++
 			continue
@@ -140,38 +141,4 @@ func hexAddresses(operands string) []uint64 {
 		index = end
 	}
 	return addresses
-}
-
-func hexToken(text string, index int) (start, end int, address uint64, ok bool) {
-	if index+2 > len(text) || text[index] != '0' || (text[index+1] != 'x' && text[index+1] != 'X') {
-		return 0, 0, 0, false
-	}
-	if index > 0 {
-		previous := rune(text[index-1])
-		if unicode.IsLetter(previous) || unicode.IsDigit(previous) || previous == '_' {
-			return 0, 0, 0, false
-		}
-	}
-	cursor := index + 2
-	for cursor < len(text) && isHex(text[cursor]) {
-		cursor++
-	}
-	if cursor == index+2 {
-		return 0, 0, 0, false
-	}
-	if cursor < len(text) {
-		next := rune(text[cursor])
-		if unicode.IsLetter(next) || unicode.IsDigit(next) || next == '_' {
-			return 0, 0, 0, false
-		}
-	}
-	address, err := strconv.ParseUint(text[index+2:cursor], 16, 64)
-	if err != nil {
-		return 0, 0, 0, false
-	}
-	return index, cursor, address, true
-}
-
-func isHex(value byte) bool {
-	return value >= '0' && value <= '9' || value >= 'a' && value <= 'f' || value >= 'A' && value <= 'F'
 }
