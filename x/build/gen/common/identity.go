@@ -10,15 +10,16 @@ import (
 	"github.com/lewtec/lewkit/x/release"
 )
 
-// HostConfig is the shared eletrocromo.json identity for iOS and macOS hosts.
+// HostConfig is the shared eletrocromo.json identity.
+// The fields and json tags match each host Config, so a host converts with HostConfig(cfg).
 type HostConfig struct {
-	PackageID    string
-	AppName      string
-	VersionName  string
-	VersionCode  int
-	GoMain       string
-	Icon         string
-	Capabilities Capabilities
+	PackageID    string       `json:"package_id"`
+	AppName      string       `json:"app_name"`
+	VersionName  string       `json:"version_name"`
+	VersionCode  int          `json:"version_code"`
+	GoMain       string       `json:"go_main"`
+	Icon         string       `json:"icon,omitempty"`
+	Capabilities Capabilities `json:"capabilities,omitempty"`
 }
 
 // ApplyHostDefaults trims identity fields, fills empty app name / version / go_main,

@@ -45,13 +45,7 @@ func (engine) ByExtension(filename string) (treesitter.Language, bool) {
 }
 
 func nameOf(raw grammar.Language) string {
-	for _, name := range grammar.List() {
-		got, ok := grammar.Get(name)
-		if ok && got == raw {
-			return name
-		}
-	}
-	return ""
+	return treesitter.NameOf(raw, grammar.List(), grammar.Get)
 }
 
 type lang struct {
@@ -77,85 +71,7 @@ func (l lang) Parse(source []byte) (tree *treesitter.Tree, err error) {
 	if parsed == nil {
 		return nil, fmt.Errorf("%w: %s", treesitter.ErrParse, l.name)
 	}
-	return treesitter.NewTree(syntax{tree: parsed, n: parsed.RootNode()}), nil
-}
-
-type syntax struct {
-	tree *grammar.Tree
-	n    *grammar.Node
-}
-
-func (s syntax) live() bool { return s.n != nil && !s.n.IsNull() }
-
-func (s syntax) Type() string {
-	if !s.live() {
-		return ""
-	}
-	return s.n.Type()
-}
-
-func (s syntax) StartByte() uint32 {
-	if !s.live() {
-		return 0
-	}
-	return s.n.StartByte()
-}
-
-func (s syntax) EndByte() uint32 {
-	if !s.live() {
-		return 0
-	}
-	return s.n.EndByte()
-}
-
-func (s syntax) ChildCount() uint32 {
-	if !s.live() {
-		return 0
-	}
-	return s.n.ChildCount()
-}
-
-func (s syntax) Child(index uint32) treesitter.Node {
-	if !s.live() {
-		return syntax{tree: s.tree}
-	}
-	return syntax{tree: s.tree, n: s.n.Child(index)}
-}
-
-func (s syntax) NamedChildCount() uint32 {
-	if !s.live() {
-		return 0
-	}
-	return s.n.NamedChildCount()
-}
-
-func (s syntax) NamedChild(index uint32) treesitter.Node {
-	if !s.live() {
-		return syntax{tree: s.tree}
-	}
-	return syntax{tree: s.tree, n: s.n.NamedChild(index)}
-}
-
-func (s syntax) FieldNameForChild(index uint32) string {
-	if !s.live() {
-		return ""
-	}
-	return s.n.FieldNameForChild(index)
-}
-
-func (s syntax) IsNull() bool  { return !s.live() }
-func (s syntax) IsNamed() bool { return s.live() && s.n.IsNamed() }
-func (s syntax) IsExtra() bool { return s.live() && s.n.IsExtra() }
-func (s syntax) IsError() bool { return s.live() && s.n.IsError() }
-func (s syntax) HasError() bool {
-	return s.live() && s.n.HasError()
-}
-
-func (s syntax) String() string {
-	if !s.live() {
-		return ""
-	}
-	return s.n.String()
+	return treesitter.NewTree(treesitter.NewSyntax[grammar.Node](parsed, parsed.RootNode())), nil
 }
 
 func init() { driver.Register[treesitter.Driver](factory{}) }

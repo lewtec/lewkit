@@ -11,16 +11,17 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/build/internal/toolexec"
 )
 
+// exportCacheGen is appended to the compiler version. Bump it when the
+// wrapper's compile behavior changes and the export file bytes do not.
 const exportCacheGen = "1"
 
 func main() {
@@ -29,12 +30,14 @@ func main() {
 	if len(args) == 0 {
 		os.Exit(2)
 	}
-	if versionProbe(args) {
-		printToolVersion(args, export)
+	if toolexec.VersionProbe(args) {
+		toolexec.PrintVersion("clibtoolexec", args, export, func(path string) (string, error) {
+			return toolexec.HashStamp("clibexport=", exportCacheGen, path)
+		})
 		return
 	}
-	if toolName(args[0]) == "compile" {
-		flat := flatten(args[1:])
+	if toolexec.ToolName(args[0]) == "compile" {
+		flat := toolexec.Flatten(args[1:])
 		if export == "" {
 			export = exportFile(flat)
 		}
@@ -68,54 +71,6 @@ func peelExport(args []string) (rest []string, export string) {
 	return args, ""
 }
 
-func versionProbe(args []string) bool {
-	return len(args) == 2 && args[1] == "-V=full"
-}
-
-func printToolVersion(args []string, export string) {
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Env = os.Environ()
-	out, err := cmd.Output()
-	if err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			os.Stderr.Write(ee.Stderr)
-			os.Exit(ee.ExitCode())
-		}
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	text := strings.TrimRight(string(out), "\n")
-	if export != "" {
-		stamp, err := exportStamp(export)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "clibtoolexec:", err)
-			os.Exit(1)
-		}
-		text += " " + stamp
-	}
-	fmt.Println(text)
-}
-
-// exportStamp is the cache token for this export file. Bump exportCacheGen
-// when the wrapper's compile behavior changes and the file bytes do not.
-func exportStamp(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return "clibexport=" + exportCacheGen + "-" + hex.EncodeToString(h.Sum(nil)[:8]), nil
-}
-
-func toolName(path string) string {
-	base := filepath.Base(path)
-	return strings.TrimSuffix(base, ".exe")
-}
-
 func sameDir(args []string, export string) bool {
 	want, err := filepath.Abs(filepath.Dir(export))
 	if err != nil {
@@ -144,38 +99,4 @@ func exportFile(args []string) string {
 		}
 	}
 	return ""
-}
-
-// flatten expands @response files enough to find the package directory.
-// The compiler still receives the original arguments.
-func flatten(args []string) []string {
-	var out []string
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "@") || len(arg) == 1 {
-			out = append(out, arg)
-			continue
-		}
-		body, err := os.ReadFile(arg[1:])
-		if err != nil {
-			out = append(out, arg)
-			continue
-		}
-		out = append(out, flatten(responseArgs(string(body)))...)
-	}
-	return out
-}
-
-func responseArgs(body string) []string {
-	var out []string
-	for _, line := range strings.Split(body, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if len(line) >= 2 && line[0] == '"' && line[len(line)-1] == '"' {
-			line = line[1 : len(line)-1]
-		}
-		out = append(out, line)
-	}
-	return out
 }

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
-	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/ndeval/internal/table"
 	ffiopengl "github.com/lewtec/lewkit/x/ffi/native/opengl"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
@@ -46,11 +46,9 @@ func (factory) New(context.Context) (ndarray.Evaluator, error) {
 }
 
 type gpuEvaluator struct {
-	device   *ffiopengl.Device
-	own      bool
-	mu       sync.Mutex
-	evalMu   sync.Mutex
-	sessions map[*ndarray.Kernel]*session
+	device *ffiopengl.Device
+	own    bool
+	table  table.Table[*session]
 }
 
 func (g *gpuEvaluator) Name() string {
@@ -71,59 +69,36 @@ func (g *gpuEvaluator) session(ctx context.Context, kernel *ndarray.Kernel) (*se
 	if g.device == nil || kernel == nil {
 		return nil, ndarray.ErrOp
 	}
-	g.mu.Lock()
-	if g.sessions == nil {
-		g.sessions = make(map[*ndarray.Kernel]*session)
-	}
-	s := g.sessions[kernel]
-	if s != nil && s.kernel == kernel {
-		g.mu.Unlock()
-		return s, nil
-	}
-	g.mu.Unlock()
-	s, err := newSession(ctx, kernel, g.device)
+	s, created, err := g.table.Open(kernel, sameKernel(kernel), func() (*session, error) {
+		return newSession(ctx, kernel, g.device)
+	}, func(s *session) {
+		s.eval = &g.table.Eval
+		s.forget = g.table.Forget(kernel, s)
+	})
 	if err != nil {
 		return nil, err
 	}
-	s.eval = &g.evalMu
-	s.forget = func() {
-		g.mu.Lock()
-		defer g.mu.Unlock()
-		if g.sessions != nil && g.sessions[kernel] == s {
-			delete(g.sessions, kernel)
-		}
+	if created {
+		slog.Debug("ndeval opengl session", "device", g.device.Name())
 	}
-	g.mu.Lock()
-	if existing := g.sessions[kernel]; existing != nil && existing.kernel == kernel {
-		g.mu.Unlock()
-		if err := s.Close(); err != nil {
-			return nil, err
-		}
-		return existing, nil
-	}
-	old := g.sessions[kernel]
-	g.sessions[kernel] = s
-	g.mu.Unlock()
-	if old != nil {
-		if err := old.Close(); err != nil {
-			return nil, err
-		}
-	}
-	slog.Debug("ndeval opengl session", "device", g.device.Name())
 	return s, nil
+}
+
+func sameKernel(kernel *ndarray.Kernel) func(*session) bool {
+	return func(s *session) bool { return s.kernel == kernel }
 }
 
 func (g *gpuEvaluator) Close() error {
 	if g == nil {
 		return nil
 	}
-	g.mu.Lock()
-	sessions := g.sessions
-	g.sessions = nil
-	own, gpu := g.own, g.device
-	g.own = false
-	g.device = nil
-	g.mu.Unlock()
+	var own bool
+	var gpu *ffiopengl.Device
+	sessions := g.table.Take(func() {
+		own, gpu = g.own, g.device
+		g.own = false
+		g.device = nil
+	})
 	var err error
 	for _, s := range sessions {
 		err = errors.Join(err, s.Close())

@@ -39,20 +39,25 @@ void main() {
 `
 
 func (g *gpuEvaluator) presentCode(ctx context.Context) ([]byte, error) {
-	g.mu.Lock()
-	if g.presentDone {
-		code, err := g.present, g.presentErr
-		g.mu.Unlock()
+	var code []byte
+	var err error
+	var done bool
+	g.table.With(func() {
+		if g.presentDone {
+			code, err, done = g.present, g.presentErr, true
+		}
+	})
+	if done {
 		return code, err
 	}
-	g.mu.Unlock()
-	code, err := glsl.Load(ctx, []byte(presentGLSL))
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if !g.presentDone {
-		g.present, g.presentErr, g.presentDone = code, err, true
-	}
-	return g.present, g.presentErr
+	code, err = glsl.Load(ctx, []byte(presentGLSL))
+	g.table.With(func() {
+		if !g.presentDone {
+			g.present, g.presentErr, g.presentDone = code, err, true
+		}
+		code, err = g.present, g.presentErr
+	})
+	return code, err
 }
 
 // Bind returns an evaluator for a caller-owned device. Close does not close the device.
@@ -112,7 +117,7 @@ func (s *session) paint(screen drvvulkan.Screen, spirv []byte) error {
 	if err := cmd.Barrier(); err != nil {
 		return errors.Join(err, cmd.Abort())
 	}
-	if err := screen.JoinPresent(s.output, shape[1], shape[0], spirv); err != nil {
+	if err := screen.JoinPresent(s.buf.Output, shape[1], shape[0], spirv); err != nil {
 		return errors.Join(err, cmd.Abort())
 	}
 	return nil
