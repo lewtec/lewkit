@@ -50,9 +50,6 @@ type Module struct {
 // link are CPU tasks under the current task. The caller must be Control
 // so that wait does not hold a CPU slot.
 func BuildModule(ctx context.Context, m Module) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
