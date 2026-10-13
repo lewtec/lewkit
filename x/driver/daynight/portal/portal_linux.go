@@ -10,7 +10,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
-	"github.com/lewtec/lewkit/x/event"
+	"github.com/lewtec/lewkit/x/driver/daynight/internal/cache"
 )
 
 const (
@@ -36,15 +36,9 @@ func available(ctx context.Context) error {
 	return nil
 }
 
-type source struct {
-	mu     sync.Mutex
-	scheme daynight.Mode
-	bus    *event.Bus[daynight.Mode]
-}
-
 var (
 	openOnce sync.Once
-	openSrc  *source
+	openSrc  *cache.Cache
 	openErr  error
 )
 
@@ -75,8 +69,8 @@ func open(ctx context.Context) (daynight.Driver, error) {
 		}
 		signals := make(chan *dbus.Signal, 16)
 		conn.Signal(signals)
-		openSrc = &source{scheme: scheme, bus: event.New[daynight.Mode]()}
-		go openSrc.loop(conn, signals)
+		openSrc = cache.New(scheme)
+		go loop(openSrc, conn, signals)
 	})
 	if openErr != nil {
 		return nil, openErr
@@ -84,7 +78,7 @@ func open(ctx context.Context) (daynight.Driver, error) {
 	return openSrc, nil
 }
 
-func (src *source) loop(conn *dbus.Conn, signals chan *dbus.Signal) {
+func loop(src *cache.Cache, conn *dbus.Conn, signals chan *dbus.Signal) {
 	defer conn.Close()
 	for signal := range signals {
 		if signal == nil || len(signal.Body) < 3 {
@@ -99,27 +93,8 @@ func (src *source) loop(conn *dbus.Conn, signals chan *dbus.Signal) {
 		if !ok {
 			continue
 		}
-		src.mu.Lock()
-		same := src.scheme == scheme
-		src.scheme = scheme
-		src.mu.Unlock()
-		if !same {
-			src.bus.Publish(scheme)
-		}
+		src.Publish(scheme)
 	}
-}
-
-func (src *source) Current(context.Context) (daynight.Mode, error) {
-	src.mu.Lock()
-	defer src.mu.Unlock()
-	return src.scheme, nil
-}
-
-func (src *source) Watch(ctx context.Context) (<-chan daynight.Mode, error) {
-	src.mu.Lock()
-	current := src.scheme
-	src.mu.Unlock()
-	return daynight.Changes(ctx, current, src.bus.Subscribe(ctx)), nil
 }
 
 func readScheme(conn *dbus.Conn) (daynight.Mode, error) {
