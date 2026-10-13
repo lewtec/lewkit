@@ -239,12 +239,19 @@ func TestLewkitCompilerProgressTree(t *testing.T) {
 	}
 }
 
-func TestAndroidExportArg(t *testing.T) {
-	got, ok := androidExportArg("'/tmp/wrap' '/tmp/_cgo_android_export.go'")
+func TestCgoExportArg(t *testing.T) {
+	got, ok := cgoExportArg("'/tmp/wrap' '/tmp/_cgo_android_export.go'")
 	if !ok || got != "/tmp/_cgo_android_export.go" {
 		t.Fatalf("%q %v", got, ok)
 	}
-	if _, ok := androidExportArg("wrap"); ok {
+	got, ok = cgoExportArg("'/tmp/wrap' '/tmp/_cgo_clib_export.go'")
+	if !ok || got != "/tmp/_cgo_clib_export.go" {
+		t.Fatalf("clib %q %v", got, ok)
+	}
+	if _, ok := cgoExportArg("'/tmp/wrap' '/tmp/_cgo_other.go'"); ok {
+		t.Fatal("accepted _cgo_other.go")
+	}
+	if _, ok := cgoExportArg("wrap"); ok {
 		t.Fatal("accepted wrap")
 	}
 	dir := t.TempDir()

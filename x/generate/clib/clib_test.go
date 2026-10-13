@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"go/build"
 	"os"
 	"path/filepath"
@@ -12,9 +13,21 @@ import (
 	"strings"
 	"testing"
 
+	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	if handled, err := gotool.Child(); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
 
 func TestGenerateAdd(t *testing.T) {
 	dir := t.TempDir()

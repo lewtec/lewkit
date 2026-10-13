@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 )
 
 // Build links dir as a cgo-free shared library for this process.
@@ -18,12 +20,14 @@ func Build(ctx context.Context, dir, out string) error {
 
 // BuildFor links dir for goos/goarch. The host table decides the pair.
 // A pair with no internal PIE, and a generated export whose build
-// constraint omits the pair, return ErrHost before the linker. The link
-// is an internal PIE with the clibexport tag. Linux and android then
-// clear DF_1_PIE and drop PT_INTERP. Windows sets the DLL bit and replaces
-// the entry with a DllMain that returns TRUE. Darwin rewrites the image
-// as a dylib and installs an export trie. The patched image must contain
-// every export name. arm uses GOARM=7.
+// constraint omits the pair, return ErrHost before the linker. amd64 and
+// arm64 link through the embedded compiler as an internal PIE. windows/386
+// uses the host go command, which has the 386 backend. The clibexport tag
+// is set. Linux and android then clear DF_1_PIE and drop PT_INTERP.
+// Windows sets the DLL bit and replaces the entry with a DllMain that
+// returns TRUE. Darwin rewrites the image as a dylib and installs an
+// export trie. The patched image must contain every export name.
+// arm uses GOARM=7.
 func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -60,26 +64,17 @@ func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 	if strings.Contains(export, " ") || strings.Contains(out, " ") {
 		return fmt.Errorf("clib: paths must not contain spaces")
 	}
-	toolDir, err := os.MkdirTemp("", "clibtoolexec")
+	tool, cleanup, err := buildTool(ctx, dir)
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(toolDir)
-	tool := filepath.Join(toolDir, "clibtoolexec")
-	if err := runGo(ctx, dir, hostEnv(), "build", "-buildvcs=false", "-o", tool, "github.com/lewtec/lewkit/x/build/clibtoolexec"); err != nil {
-		return err
+	defer cleanup()
+	if goarch == "386" {
+		err = linkHost(ctx, dir, out, goos, goarch, tool, export)
+	} else {
+		err = linkCompiler(ctx, dir, out, goos, goarch, tool, export)
 	}
-	if strings.Contains(tool, " ") {
-		return fmt.Errorf("clib: tool path must not contain spaces")
-	}
-	if err := runGo(ctx, dir, linkEnv(goos, goarch), "build",
-		"-buildmode=pie",
-		"-tags=clibexport",
-		"-buildvcs=false",
-		"-ldflags=-linkmode=internal -checklinkname=0",
-		"-toolexec="+tool+" "+export,
-		"-o", out,
-		"."); err != nil {
+	if err != nil {
 		return err
 	}
 	switch goos {
@@ -97,6 +92,48 @@ func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 		}
 	}
 	return requireImageExports(out, goos, names)
+}
+
+func buildTool(ctx context.Context, dir string) (string, func(), error) {
+	toolDir, err := os.MkdirTemp("", "clibtoolexec")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup := func() { os.RemoveAll(toolDir) }
+	tool := filepath.Join(toolDir, "clibtoolexec")
+	if err := runGo(ctx, dir, hostEnv(), "build", "-buildvcs=false", "-o", tool, "github.com/lewtec/lewkit/x/build/clibtoolexec"); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	if strings.Contains(tool, " ") {
+		cleanup()
+		return "", nil, fmt.Errorf("clib: tool path must not contain spaces")
+	}
+	return tool, cleanup, nil
+}
+
+func linkHost(ctx context.Context, dir, out, goos, goarch, tool, export string) error {
+	return runGo(ctx, dir, linkEnv(goos, goarch), "build",
+		"-buildmode=pie",
+		"-tags=clibexport",
+		"-buildvcs=false",
+		"-ldflags=-linkmode=internal -checklinkname=0",
+		"-toolexec="+tool+" "+export,
+		"-o", out,
+		".")
+}
+
+func linkCompiler(ctx context.Context, dir, out, goos, goarch, tool, export string) error {
+	return gotool.BuildModule(ctx, gotool.Module{
+		Dir:      dir,
+		Out:      out,
+		GOOS:     goos,
+		GOARCH:   goarch,
+		Tags:     []string{"clibexport"},
+		Ldflags:  []string{"-checklinkname=0"},
+		Toolexec: tool + " " + export,
+		Library:  true,
+	})
 }
 
 func readExports(dir string) ([]string, error) {

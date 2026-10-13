@@ -3,5 +3,7 @@
 // Importing the runtime would start its pipe from every lewkit process.
 // The host table is the gate. BuildFor returns ErrHost when the pair has
 // no internal PIE shared library or the generated export constraint omits
-// that pair. A linked image missing an export name is an error.
+// that pair. amd64 and arm64 link through the embedded compiler.
+// windows/386 uses the host go command. A linked image missing an export
+// name is an error.
 package clib
