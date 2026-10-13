@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/gpuhost"
 	"github.com/lewtec/lewkit/x/driver/present"
 	"github.com/lewtec/lewkit/x/driver/present/internal/nativeerr"
 	"github.com/lewtec/lewkit/x/driver/thread"
@@ -31,15 +32,7 @@ func (factory) ID() string   { return "present_metal" }
 func (factory) Name() string { return "Metal" }
 func (factory) Weight() int  { return 80 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "darwin" && runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not apple", driver.ErrIncompatible)
-	}
-	if err := ffimetal.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
-	}
-	return nil
-}
+func (factory) CheckCompatibility(context.Context) error { return gpuhost.Metal() }
 
 func (factory) New(context.Context) (present.Driver, error) { return opener{}, nil }
 

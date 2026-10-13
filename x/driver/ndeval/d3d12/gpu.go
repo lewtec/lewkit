@@ -3,12 +3,11 @@ package d3d12
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
-	"runtime"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/gpuhost"
 	ffid3d12 "github.com/lewtec/lewkit/x/ffi/native/d3d12"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
@@ -27,15 +26,7 @@ func (factory) ID() string   { return "ndeval_d3d12" }
 func (factory) Name() string { return "Direct3D 12" }
 func (factory) Weight() int  { return 70 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "windows" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
-		return fmt.Errorf("%w: not windows", driver.ErrIncompatible)
-	}
-	if err := ffid3d12.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
-	}
-	return nil
-}
+func (factory) CheckCompatibility(context.Context) error { return gpuhost.Direct3D() }
 
 func (factory) New(context.Context) (ndarray.Evaluator, error) {
 	device, err := ffid3d12.OpenDevice()
