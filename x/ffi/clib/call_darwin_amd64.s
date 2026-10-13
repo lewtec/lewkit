@@ -81,6 +81,7 @@ callWait:
 
 callDone:
 	MOVQ 136(SP), AX
+	MOVQ 144(SP), DX
 	MOVQ 144(SP), X0
 	ADDQ $216, SP
 	RET

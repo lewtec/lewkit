@@ -80,6 +80,7 @@ callWait:
 
 callDone:
 	MOVD 136(RSP), R0
+	MOVD 144(RSP), R1
 	FMOVD 144(RSP), F0
 	MOVD 200(RSP), R30
 	ADD $208, RSP

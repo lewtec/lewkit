@@ -102,7 +102,29 @@ func TestGenerateRejects(t *testing.T) {
 	assert.ErrorIs(t, err, ErrSymbol)
 
 	agg := write("agg.h", "struct P { int x; };\nint sum(struct P p);\n")
-	err = Run(context.Background(), Config{File: agg, ABI: "linux/amd64"})
+	require.NoError(t, Run(context.Background(), Config{File: agg, ABI: "linux/amd64"}))
+	body, err := os.ReadFile(filepath.Join(dir, "agg_clib_amd64.go"))
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "type P struct")
+	assert.Contains(t, string(body), "X int32")
+	assert.Contains(t, string(body), "Sum func(p P) int32")
+
+	err = Run(context.Background(), Config{File: agg, ABI: "linux/386"})
+	assert.ErrorIs(t, err, ErrType)
+	err = Run(context.Background(), Config{File: agg, ABI: "linux/arm"})
+	assert.ErrorIs(t, err, ErrType)
+
+	wide := write("wide.h", "#include <stdint.h>\nstruct V { int64_t a; int32_t b; };\nstruct V id(struct V v);\n")
+	err = Run(context.Background(), Config{File: wide, ABI: "windows/amd64"})
+	assert.ErrorIs(t, err, ErrType)
+	require.NoError(t, Run(context.Background(), Config{File: wide, ABI: "linux/amd64"}))
+
+	flt := write("flt.h", "struct P { double x; };\ndouble sum(struct P p);\n")
+	err = Run(context.Background(), Config{File: flt, ABI: "linux/amd64"})
+	assert.ErrorIs(t, err, ErrType)
+
+	big := write("big.h", "struct P { int a, b, c, d, e; };\nint sum(struct P p);\n")
+	err = Run(context.Background(), Config{File: big, ABI: "linux/amd64"})
 	assert.ErrorIs(t, err, ErrType)
 
 	ios := write("ios.h", "int add(int a, int b);\n")
@@ -484,7 +506,7 @@ func TestGateFiles(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	universal := map[string]bool{
-		"doc.go": true, "handle.go": true, "ptr.go": true, "word.go": true,
+		"doc.go": true, "handle.go": true, "ptr.go": true, "word.go": true, "word_test.go": true,
 	}
 	var plain, gated []string
 	for _, entry := range entries {
@@ -499,7 +521,7 @@ func TestGateFiles(t *testing.T) {
 		gated = append(gated, name)
 	}
 	sort.Strings(plain)
-	assert.Equal(t, []string{"doc.go", "handle.go", "ptr.go", "word.go"}, plain)
+	assert.Equal(t, []string{"doc.go", "handle.go", "ptr.go", "word.go", "word_test.go"}, plain)
 
 	check := func(goos, goarch string, export bool, want []string) {
 		t.Helper()

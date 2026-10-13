@@ -3,6 +3,7 @@
 #include "textflag.h"
 
 // call is the SysV entry every generated trampoline jumps to.
+// A struct return uses AX and DX for its two integer eightbytes.
 // AX is the handler id. The integer arguments are DI, SI, DX, CX, R8, R9
 // and the floats are X0 through X7. This thread never joins the Go
 // scheduler: its FS register belongs to libc. The slot stays on this
@@ -78,6 +79,7 @@ callWait:
 
 callDone:
 	MOVQ 136(SP), AX
+	MOVQ 144(SP), DX
 	MOVQ 144(SP), X0
 	ADDQ $168, SP
 	RET

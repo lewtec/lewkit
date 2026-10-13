@@ -99,7 +99,7 @@ func Run(ctx context.Context, cfg Config) error {
 		if err != nil {
 			return err
 		}
-		funcs, err := classify(unit.Funcs, t.mach)
+		funcs, defs, err := classify(unit.Funcs, t.mach)
 		if err != nil {
 			return fmt.Errorf("%s/%s: %w", t.goos, t.goarch, err)
 		}
@@ -110,7 +110,7 @@ func Run(ctx context.Context, cfg Config) error {
 		if single {
 			goFile = cfg.Out
 		}
-		goSrc, err := emitGo(t.constraint, pkg, bind, unit.Skipped, funcs)
+		goSrc, err := emitGo(t.constraint, pkg, bind, unit.Skipped, funcs, defs)
 		if err != nil {
 			return err
 		}

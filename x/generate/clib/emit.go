@@ -9,21 +9,22 @@ import (
 // callSymbol is x/ffi/clib.call in the assembler's package spelling.
 const callSymbol = "github\u00b7com\u2215lewtec\u2215lewkit\u2215x\u2215ffi\u2215clib\u00b7call"
 
-func emitGo(constraint, pkg, bind string, skipped []string, funcs []fn) ([]byte, error) {
+func emitGo(constraint, pkg, bind string, skipped []string, funcs []fn, defs []*sdef) ([]byte, error) {
 	needMath := false
-	needUnsafe := false
+	needUnsafe := len(defs) > 0
+	needStructs := len(defs) > 0
 	for _, fn := range funcs {
 		if usesMath(fn.ret) {
 			needMath = true
 		}
-		if usesUnsafe(fn.ret, true) {
+		if usesUnsafe(fn.ret, true) || fn.ret.kind == vkStruct {
 			needUnsafe = true
 		}
 		for _, p := range fn.params {
 			if usesMath(p.val) || p.at.kind == locArmF32 || p.at.kind == locArmF64 {
 				needMath = true
 			}
-			if usesUnsafe(p.val, false) {
+			if usesUnsafe(p.val, false) || p.val.kind == vkStruct {
 				needUnsafe = true
 			}
 		}
@@ -36,10 +37,13 @@ func emitGo(constraint, pkg, bind string, skipped []string, funcs []fn) ([]byte,
 	if needMath {
 		b.WriteString("\t\"math\"\n")
 	}
+	if needStructs {
+		b.WriteString("\t\"structs\"\n")
+	}
 	if needUnsafe {
 		b.WriteString("\t\"unsafe\"\n")
 	}
-	if needMath || needUnsafe {
+	if needMath || needUnsafe || needStructs {
 		b.WriteString("\n")
 	}
 	b.WriteString("\t\"github.com/lewtec/lewkit/x/ffi/clib\"\n")
@@ -48,6 +52,9 @@ func emitGo(constraint, pkg, bind string, skipped []string, funcs []fn) ([]byte,
 		b.WriteString("// Skipped variadic: ")
 		b.WriteString(strings.Join(skipped, ", "))
 		b.WriteString("\n\n")
+	}
+	for _, d := range defs {
+		b.WriteString(emitStruct(d))
 	}
 	b.WriteString("// ")
 	b.WriteString(bind)
@@ -99,10 +106,26 @@ func emitHandler(bind string, fn fn) string {
 	b.WriteString(" == nil {\n\t\treturn 0, 0, 0\n\t}\n\t")
 	args := make([]string, len(fn.params))
 	for i, p := range fn.params {
+		if p.val.kind == vkStruct {
+			fmt.Fprintf(&b, "var a%d %s\n", i, p.val.goType)
+			for w, at := range p.ats {
+				word := fmt.Sprintf("args[%d]", at.a)
+				if at.kind == locXMM {
+					word = fmt.Sprintf("xmm[%d]", at.a)
+				}
+				fmt.Fprintf(&b, "\tclib.Store(unsafe.Pointer(&a%d), int(unsafe.Sizeof(a%d)), %d, %s)\n", i, i, w*8, word)
+			}
+			args[i] = fmt.Sprintf("a%d", i)
+			continue
+		}
 		args[i] = argExpr(p)
 	}
 	call := bind + "." + fn.goName + "(" + strings.Join(args, ", ") + ")"
 	switch fn.ret.kind {
+	case vkStruct:
+		b.WriteString("v := ")
+		b.WriteString(call)
+		b.WriteString("\n\treturn clib.Load(unsafe.Pointer(&v), int(unsafe.Sizeof(v)), 0), clib.Load(unsafe.Pointer(&v), int(unsafe.Sizeof(v)), 8), 0\n")
 	case vkVoid:
 		b.WriteString(call)
 		b.WriteString("\n\treturn 0, 0, 0\n")
@@ -126,6 +149,25 @@ func emitHandler(bind string, fn fn) string {
 		b.WriteString(", 0, 0\n")
 	}
 	b.WriteString("}\n")
+	return b.String()
+}
+
+func emitStruct(d *sdef) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "type %s struct {\n\t_ structs.HostLayout\n", d.name)
+	off := 0
+	for _, f := range d.fields {
+		if f.offset > off {
+			fmt.Fprintf(&b, "\t_ [%d]byte\n", f.offset-off)
+			off = f.offset
+		}
+		fmt.Fprintf(&b, "\t%s %s\n", f.name, f.goType)
+		off += f.size
+	}
+	if d.size > off {
+		fmt.Fprintf(&b, "\t_ [%d]byte\n", d.size-off)
+	}
+	b.WriteString("}\n\n")
 	return b.String()
 }
 

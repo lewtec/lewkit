@@ -9,8 +9,8 @@ import gorun
 def check_fan(lib, n, seed):
     got = lib.fan(n, seed)
     want = seed * (n - 1) * n // 2
-    if got != want:
-        raise SystemExit(f"fan({n}, {seed}) = {got}, want {want}")
+    if got.sum != want or got.workers != n:
+        raise SystemExit(f"fan({n}, {seed}) = ({got.sum}, {got.workers}), want ({want}, {n})")
 
 
 def main():
@@ -20,7 +20,8 @@ def main():
 
     check_fan(lib, 32, 3)
     check_fan(lib, 1, 9)
-    if lib.fan(0, 5) != 0:
+    empty = lib.fan(0, 5)
+    if empty.sum != 0 or empty.workers != 0:
         raise SystemExit("fan empty")
 
     n = 128
@@ -28,14 +29,17 @@ def main():
     b = [(i % 5) - 2 for i in range(n)]
     got = lib.dot(a, b)
     want = sum(a[i] * b[i] for i in range(n))
-    if got != want:
-        raise SystemExit(f"dot = {got}, want {want}")
-    if lib.dot([], []) != 0:
+    if got.sum != want or got.workers != 4:
+        raise SystemExit(f"dot = ({got.sum}, {got.workers}), want ({want}, 4)")
+    empty = lib.dot([], [])
+    if empty.sum != 0 or empty.workers != 0:
         raise SystemExit("dot empty")
 
-    if lib.meet(16) != 16:
-        raise SystemExit("meet")
-    if lib.meet(0) != 0:
+    met = lib.meet(16)
+    if met.sum != 16 or met.workers != 16:
+        raise SystemExit(f"meet = ({met.sum}, {met.workers})")
+    met = lib.meet(0)
+    if met.sum != 0 or met.workers != 0:
         raise SystemExit("meet empty")
 
     errors = []
@@ -44,7 +48,8 @@ def main():
     def worker(seed):
         try:
             check_fan(lib, 16, seed)
-            if lib.meet(8) != 8:
+            met = lib.meet(8)
+            if met.sum != 8 or met.workers != 8:
                 raise SystemExit("meet thread")
         except SystemExit as err:
             with lock:

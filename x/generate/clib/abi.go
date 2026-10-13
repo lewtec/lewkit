@@ -82,6 +82,14 @@ func placeWin64(params []param) error {
 			return ErrType
 		}
 		p := &params[i]
+		if p.val.kind == vkStruct {
+			if p.val.size > 8 || p.val.words != 1 {
+				return ErrType
+			}
+			p.at = loc{kind: locGPR, a: i, b: -1}
+			p.ats = []loc{p.at}
+			continue
+		}
 		kind := locGPR
 		if p.val.reg == regXMM {
 			kind = locXMM
@@ -95,6 +103,21 @@ func placeSplit(params []param, gprMax, xmmMax int) error {
 	gpr, xmm := 0, 0
 	for i := range params {
 		p := &params[i]
+		if p.val.kind == vkStruct {
+			if p.val.words < 1 {
+				return ErrType
+			}
+			p.ats = make([]loc, p.val.words)
+			for w := 0; w < p.val.words; w++ {
+				if gpr >= gprMax {
+					return ErrType
+				}
+				p.ats[w] = loc{kind: locGPR, a: gpr, b: -1}
+				gpr++
+			}
+			p.at = p.ats[0]
+			continue
+		}
 		if p.val.reg == regXMM {
 			if xmm >= xmmMax {
 				return ErrType
@@ -119,6 +142,9 @@ func placeStack(params []param, wideAlign int) error {
 	off := 0
 	for i := range params {
 		p := &params[i]
+		if p.val.kind == vkStruct {
+			return ErrType
+		}
 		stride := p.val.size
 		if stride < 4 {
 			stride = 4
@@ -147,6 +173,9 @@ func placeARM(params []param) error {
 	var holes []int
 	for i := range params {
 		p := &params[i]
+		if p.val.kind == vkStruct {
+			return ErrType
+		}
 		if p.val.reg == regXMM {
 			s, next, left, err := armFloat(p.val.size == 8, nsrn, holes)
 			if err != nil {

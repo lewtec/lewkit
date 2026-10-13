@@ -457,6 +457,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-13: A by-value struct whose fields are integers, bools, or pointers passes in register eightbytes, up to 16 bytes, on SysV amd64 and on AAPCS64. The return uses those two integer registers. Windows amd64 does that for a struct of at most 8 bytes. A larger struct, a float or a bit-field inside one, a union, and a by-value struct on 386 or arm are `ErrType`. A pointer to a struct is a Go struct pointer on every host. The Python program passes `Job`, `Vec`, and `Tally` and reads both fields of the returned tally.
 - 2026-10-13: A Python program loads the linux/amd64 library with ctypes and calls `fan`, `dot`, and `meet`. `fan` and `dot` split the work across goroutines. `meet` starts goroutines and releases them together. Several Python threads call in at once, then one more `fan` runs after they join. The program is `x/generate/clib/testdata/python/run.py`.
 - 2026-10-13: Repeated string arguments are read with `cmd.Values`. `lewkit generate header` and `lewkit generate clib` pass include paths, defines, and libraries through that. Rejected: a private `argValues` in `cmd/lewkit/generate`.
 - 2026-10-13: Process arguments are read in `x/cmd`. `Name` is the program base name and `Args` is the slice after it. `lewkit` passes those into `Parse` and `BashCompleteLine`. Rejected: reading `os.Args` in `cmd/lewkit`.
