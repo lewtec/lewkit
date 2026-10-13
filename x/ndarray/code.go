@@ -545,14 +545,13 @@ func (n *node) exprALU(args []string) Expr {
 	}
 }
 
-func divGuard(a, b Expr) Expr {
-	bz := rel(RelEQ, b, iconst(0))
-	return sel(bz, iconst(0), div(a, sel(bz, iconst(1), b)))
-}
+func divGuard(a, b Expr) Expr { return arithGuard(a, b, div) }
 
-func modGuard(a, b Expr) Expr {
+func modGuard(a, b Expr) Expr { return arithGuard(a, b, mod) }
+
+func arithGuard(a, b Expr, op func(Expr, Expr) Expr) Expr {
 	bz := rel(RelEQ, b, iconst(0))
-	return sel(bz, iconst(0), mod(a, sel(bz, iconst(1), b)))
+	return sel(bz, iconst(0), op(a, sel(bz, iconst(1), b)))
 }
 
 func shiftGuard(a, b Expr, arith bool) Expr {
