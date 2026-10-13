@@ -13,6 +13,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/lewtec/lewkit/x/ffi/native"
+	audioperiod "github.com/lewtec/lewkit/x/ffi/native/internal/period"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -102,7 +103,7 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 		width = 4
 	}
 	frame := channels * width
-	period := periodBytes(rate, frame)
+	period := audioperiod.Bytes(rate, frame)
 	spec := SampleSpec{Format: int32(sample), Rate: uint32(rate), Channels: uint8(channels)}
 	attr := BufferAttr{
 		Max:    uint32(period * 2),
@@ -128,14 +129,6 @@ func Playback(ctx context.Context, client, sink, stream string, sample Sample, r
 		return nil, pulseErr(libs.pulse, errno)
 	}
 	return &Stream{ctx: ctx, h: h, frame: frame, period: period, simple: libs.simple, pulse: libs.pulse}, nil
-}
-
-func periodBytes(rate, frame int) int {
-	n := rate * frame / 50
-	if n < frame {
-		n = frame
-	}
-	return n - n%frame
 }
 
 // Write plays p one period at a time. The Pulse buffer holds two periods.

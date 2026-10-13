@@ -13,6 +13,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/lewtec/lewkit/x/ffi/native"
+	audioperiod "github.com/lewtec/lewkit/x/ffi/native/internal/period"
 )
 
 const (
@@ -245,7 +246,7 @@ func Open(ctx context.Context, uid string, layout Layout) (*Stream, error) {
 			return nil, statusErr(st)
 		}
 	}
-	period := periodBytes(layout.Rate, frame)
+	period := audioperiod.Bytes(layout.Rate, frame)
 	free := make(chan uintptr, periods)
 	for range periods {
 		var buf uintptr
@@ -371,12 +372,4 @@ func fillQueueBuffer(buf uintptr, p []byte) {
 	data := *(*uintptr)(unsafe.Pointer(buf + 8))
 	copy(unsafe.Slice((*byte)(unsafe.Pointer(data)), len(p)), p)
 	*(*uint32)(unsafe.Pointer(buf + 16)) = uint32(len(p))
-}
-
-func periodBytes(rate, frame int) int {
-	n := rate * frame / 50
-	if n < frame {
-		n = frame
-	}
-	return n - n%frame
 }
