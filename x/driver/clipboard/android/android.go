@@ -10,7 +10,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/clipboard"
 	"github.com/lewtec/lewkit/x/ffi/jni"
-	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
 
 func init() { driver.Register[clipboard.Driver](factory{}) }
@@ -22,11 +21,7 @@ func (factory) Name() string { return "Android clipboard" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	n, err := androidffi.JavaVMs()
-	if err != nil || n < 1 {
-		return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
-	}
-	return nil
+	return driver.JavaVM()
 }
 
 func (factory) New(context.Context) (clipboard.Driver, error) { return backend{}, nil }

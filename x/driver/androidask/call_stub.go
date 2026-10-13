@@ -11,7 +11,7 @@ import (
 
 // Platform reports that this process has no Java VM.
 func Platform(context.Context) error {
-	return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
+	return driver.JavaVM()
 }
 
 // Call reports that this process has no Java VM.

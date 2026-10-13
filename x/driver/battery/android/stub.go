@@ -19,7 +19,7 @@ func (factory) Name() string { return "Android battery" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
+	return driver.JavaVM()
 }
 
 func (factory) New(context.Context) (battery.Driver, error) {

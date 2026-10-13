@@ -22,11 +22,7 @@ func (factory) Name() string { return "Android file chooser" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	n, err := androidffi.JavaVMs()
-	if err != nil || n < 1 {
-		return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
-	}
-	return nil
+	return driver.JavaVM()
 }
 
 func (factory) New(context.Context) (filedialog.Driver, error) { return backend{}, nil }
