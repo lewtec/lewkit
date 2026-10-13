@@ -66,32 +66,17 @@ func (opener) Open(ctx context.Context, cfg window.Config) (window.Window, error
 // displayScale reads DisplayMetrics.density. The surface is already physical
 // pixels, so Open does not resize it. A JNI failure leaves the scale at one.
 func displayScale() window.Scale {
-	app, err := jni.Context()
-	if err != nil || app == nil {
-		return 1
-	}
-	defer app.Release()
-	resources, err := jni.AsRef(app.Call("getResources"))
-	if err != nil || resources == nil {
-		return 1
-	}
-	defer resources.Release()
-	metrics, err := jni.AsRef(resources.Call("getDisplayMetrics"))
-	if err != nil || metrics == nil {
-		return 1
-	}
-	defer metrics.Release()
-	density, err := jni.Float(metrics.Field("density"))
-	if err != nil || density <= 0 {
-		return 1
-	}
-	return window.Scale(density)
+	return resourceScale("getDisplayMetrics", "density")
 }
 
 // displayFontScale reads Configuration.fontScale, the system text-size
 // preference. Density stays DisplayMetrics.density. A JNI failure leaves
 // the preference at one.
 func displayFontScale() window.Scale {
+	return resourceScale("getConfiguration", "fontScale")
+}
+
+func resourceScale(method, field string) window.Scale {
 	app, err := jni.Context()
 	if err != nil || app == nil {
 		return 1
@@ -102,16 +87,16 @@ func displayFontScale() window.Scale {
 		return 1
 	}
 	defer resources.Release()
-	configuration, err := jni.AsRef(resources.Call("getConfiguration"))
-	if err != nil || configuration == nil {
+	object, err := jni.AsRef(resources.Call(method))
+	if err != nil || object == nil {
 		return 1
 	}
-	defer configuration.Release()
-	scale, err := jni.Float(configuration.Field("fontScale"))
-	if err != nil || scale <= 0 {
+	defer object.Release()
+	value, err := jni.Float(object.Field(field))
+	if err != nil || value <= 0 {
 		return 1
 	}
-	return window.Scale(scale)
+	return window.Scale(value)
 }
 
 type win struct {
