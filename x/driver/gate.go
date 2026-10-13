@@ -20,10 +20,11 @@ func AppMode() bool {
 	case "android", "ios":
 		return true
 	}
-	return envFlag("LEWKIT_NO_UI") || envFlag("ELETROCROMO_NO_UI")
+	return EnvFlag("LEWKIT_NO_UI") || EnvFlag("ELETROCROMO_NO_UI")
 }
 
-func envFlag(key string) bool {
+// EnvFlag reports whether key is 1, true, or yes, ignoring surrounding space.
+func EnvFlag(key string) bool {
 	value := strings.TrimSpace(os.Getenv(key))
 	return value == "1" || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 }
