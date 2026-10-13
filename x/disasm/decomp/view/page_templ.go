@@ -526,7 +526,7 @@ func previewDocument(page previewPage) templ.Component {
 			}
 		}
 		if page.SourceAction != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<h2 class=\"text-lg font-semibold\">Source</h2><p class=\"text-base-content/70\">The source held for this function. explain stores a draft here. match replaces it when the blocks agree.</p><form method=\"post\" action=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "<h2 class=\"text-lg font-semibold\">Source</h2><p class=\"text-base-content/70\">The source held for this function. check stores a candidate when the blocks agree.</p><form method=\"post\" action=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -11,13 +11,10 @@
 // returns the stored artifact when the path and SHA-256 match.
 // [New] keeps the same database in memory. [Artifact.SetName],
 // [Artifact.SetNote], [Artifact.SetSignature], and [Artifact.SetSource]
-// write those clues back when the project has a file. [Project.Attach] sets the [Model]
-// that writes a decompilation. [Harness] runs the Grok harness, which uses the
-// signed-in subscription. [Chat] is a direct completion for a caller who
-// passes an endpoint. [Artifact.Match] keeps that decompilation only when
+// write those clues back when the project has a file. [Artifact.Check]
+// compares a candidate the caller already wrote and stores it only when
 // every block copies the lifted control flow and the source names the
 // function, each direct callee, and each referenced string.
-// [Artifact.Explain] stores the model's source without comparing blocks.
 // [Artifact.Slug] is the image hash used in the preview. [Artifact.Stream]
 // prints the instructions in address order with function comments and address notes.
 package decomp

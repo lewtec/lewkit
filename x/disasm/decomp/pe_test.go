@@ -63,9 +63,7 @@ func TestImportsAreNamesOnTheThunk(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, listing, "; note kernel32!CloseHandle")
 
-	model := &scriptModel{replies: []string{echoCandidate(thunk, thunk.Name, thunk.Name)}}
-	artifact.Attach(model)
-	result, err := artifact.Match(t.Context(), thunk.Address, MatchConfig{Rounds: 1})
+	result, err := artifact.Check(t.Context(), thunk.Address, echoCandidate(thunk, thunk.Name, thunk.Name))
 	require.NoError(t, err)
 	assert.True(t, result.Matched)
 	for _, residual := range result.Residuals {
@@ -267,18 +265,14 @@ func TestExplainKeepsSourceWhenMatchDiffers(t *testing.T) {
 	require.NoError(t, err)
 	artifact, err := project.AddBytes(t.Context(), "a.out", disasm.ELF64(elf.EM_X86_64, []byte{0xc3}))
 	require.NoError(t, err)
-	artifact.Attach(&scriptModel{replies: []string{`{"source":"void entry(void) { return; }"}`}})
-	result, err := artifact.Explain(t.Context(), 0x1000, MatchConfig{Rounds: 1})
-	require.NoError(t, err)
-	assert.Equal(t, "void entry(void) { return; }", result.Source)
+	require.NoError(t, artifact.SetSource(t.Context(), 0x1000, "void entry(void) { return; }"))
 	listing, err := artifact.Listing(0x1000)
 	require.NoError(t, err)
 	assert.Contains(t, listing, "void entry(void) { return; }")
 
 	function, ok := artifact.Function(0x1000)
 	require.True(t, ok)
-	artifact.Attach(&scriptModel{replies: []string{`{"name":"nope","signature":"void nope(void)","source":"void nope(void) { return; }","blocks":[]}`}})
-	_, err = artifact.Match(t.Context(), 0x1000, MatchConfig{Rounds: 1})
+	_, err = artifact.Check(t.Context(), 0x1000, `{"name":"nope","signature":"void nope(void)","source":"void nope(void) { return; }","blocks":[]}`)
 	assert.ErrorIs(t, err, ErrUnmatched)
 	function, ok = artifact.Function(0x1000)
 	require.True(t, ok)

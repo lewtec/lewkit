@@ -123,7 +123,7 @@ templ previewDocument(page previewPage) {
 			}
 			if page.SourceAction != "" {
 				<h2 class="text-lg font-semibold">Source</h2>
-				<p class="text-base-content/70">The source held for this function. explain stores a draft here. match replaces it when the blocks agree.</p>
+				<p class="text-base-content/70">The source held for this function. check stores a candidate when the blocks agree.</p>
 				<form method="post" action={ templ.URL(page.SourceAction) }>
 					<fieldset class="fieldset">
 						<textarea class="textarea w-full font-mono" name="source" rows="14" spellcheck="false">{ page.Source }</textarea>

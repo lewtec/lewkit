@@ -6,7 +6,6 @@ import (
 	"debug/elf"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -35,8 +34,7 @@ func TestDecompUsage(t *testing.T) {
 	assert.Contains(t, text, "stream")
 	assert.Contains(t, text, "xrefs")
 	assert.Contains(t, text, "strings")
-	assert.Contains(t, text, "match")
-	assert.Contains(t, text, "explain")
+	assert.Contains(t, text, "check")
 	assert.Contains(t, text, "name")
 	assert.Contains(t, text, "note")
 	assert.Contains(t, text, "signature")
@@ -170,40 +168,16 @@ func TestDecompProjectKeepsFunctions(t *testing.T) {
 	assert.Contains(t, got, "0x1000")
 }
 
-func TestDecompMatchUsesHarness(t *testing.T) {
+func TestDecompCheckComparesTheCallerCandidate(t *testing.T) {
 	test.RestoreSlog(t)
-	t.Setenv("XAI_API_KEY", "")
 	path := writeELF(t, []byte{0xc3})
-	bin := filepath.Join(t.TempDir(), "grok")
 	candidate := `{"name":"sub_1000","signature":"void sub_1000(void)","source":"void sub_1000(void) {\n  return;\n}\n","blocks":[{"address":"0x1000","kind":"return"}]}`
-	payload, err := json.Marshal(map[string]string{"text": candidate, "stopReason": "end_turn"})
-	require.NoError(t, err)
-	script := "#!/bin/sh\ncat <<'END'\n" + string(payload) + "\nEND\n"
-	require.NoError(t, os.WriteFile(bin, []byte(script), 0o755))
-	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	app := cmd.ParseOK[cmd.App[Cmd]](t, "match", "--at", "0x1000", "--rounds", "1", path)
+	app := cmd.ParseOK[cmd.App[Cmd]](t, "check", "--at", "0x1000", "--text", candidate, path)
 	got := test.Stdout(t, func() {
 		require.NoError(t, app.Run(t.Context()))
 	})
-	assert.Contains(t, got, "matched in 1")
+	assert.Contains(t, got, "matched")
 	assert.Contains(t, got, "sub_1000")
-}
-
-func TestDecompMatchEndpointNeedsKey(t *testing.T) {
-	test.RestoreSlog(t)
-	t.Setenv("XAI_API_KEY", "")
-	marker := filepath.Join(t.TempDir(), "called")
-	bin := filepath.Join(filepath.Dir(marker), "grok")
-	script := "#!/bin/sh\ntouch " + marker + "\nexit 1\n"
-	require.NoError(t, os.WriteFile(bin, []byte(script), 0o755))
-	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
-	path := writeELF(t, []byte{0xc3})
-	app := cmd.ParseOK[cmd.App[Cmd]](t, "match", "--at", "0x1000", "--endpoint", "http://127.0.0.1:9", path)
-	err := app.Run(t.Context())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "api key")
-	_, statErr := os.Stat(marker)
-	assert.ErrorIs(t, statErr, os.ErrNotExist)
 }
 
 func TestDecompProjectRemembersEachFile(t *testing.T) {
@@ -385,38 +359,28 @@ func TestDecompEntryCallersAndStrings(t *testing.T) {
 	assert.Contains(t, got, `; string "System"`)
 }
 
-func TestDecompExplainAndSignature(t *testing.T) {
+func TestDecompCheckKeepsAStoredSource(t *testing.T) {
 	test.RestoreSlog(t)
-	t.Setenv("XAI_API_KEY", "")
 	path := writeELF(t, []byte{0xc3})
 	database := filepath.Join(t.TempDir(), "program.decomp")
-	bin := filepath.Join(t.TempDir(), "grok")
-	writeGrok(t, bin, `{"source":"void entry(void) { return; }"}`)
-	t.Setenv("PATH", filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
-
-	explain := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "explain", "--at", "0x1000", "--rounds", "1", path)
+	good := `{"name":"sub_1000","signature":"void sub_1000(void)","source":"void sub_1000(void) { return; }","blocks":[{"address":"0x1000","kind":"return"}]}`
+	check := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "check", "--at", "0x1000", "--text", good, path)
 	got := test.Stdout(t, func() {
-		require.NoError(t, explain.Run(t.Context()))
+		require.NoError(t, check.Run(t.Context()))
 	})
-	assert.Contains(t, got, "void entry(void) { return; }")
+	assert.Contains(t, got, "void sub_1000(void) { return; }")
+
+	bad := `{"name":"sub_1000","signature":"void sub_1000(void)","source":"void sub_1000(void) { return; }","blocks":[]}`
+	rejected := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "check", "--at", "0x1000", "--text", bad, path)
+	err := rejected.Run(t.Context())
+	require.Error(t, err)
+	assert.ErrorIs(t, err, xdecomp.ErrUnmatched)
 
 	listing := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
 	got = test.Stdout(t, func() {
 		require.NoError(t, listing.Run(t.Context()))
 	})
-	assert.Contains(t, got, "void entry(void) { return; }")
-
-	writeGrok(t, bin, `{"name":"sub_1000","signature":"void sub_1000(void)","source":"void sub_1000(void) { return; }","blocks":[]}`)
-	match := cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "match", "--at", "0x1000", "--rounds", "1", path)
-	err := match.Run(t.Context())
-	require.Error(t, err)
-	assert.ErrorIs(t, err, xdecomp.ErrUnmatched)
-
-	listing = cmd.ParseOK[cmd.App[Cmd]](t, "--project", database, "listing", "--at", "0x1000", path)
-	got = test.Stdout(t, func() {
-		require.NoError(t, listing.Run(t.Context()))
-	})
-	assert.Contains(t, got, "void entry(void) { return; }")
+	assert.Contains(t, got, "void sub_1000(void) { return; }")
 
 	missing := cmd.ParseOK[cmd.App[Cmd]](t, "signature", "--at", "0x1000", "--text", "void entry(void)", path)
 	err = missing.Run(t.Context())
@@ -498,12 +462,6 @@ func writeELFTextAndRodata(t *testing.T, code, rodata []byte) string {
 	path := filepath.Join(t.TempDir(), "a.out")
 	require.NoError(t, os.WriteFile(path, buf, 0o644))
 	return path
-}
-
-func writeGrok(t *testing.T, path, body string) {
-	t.Helper()
-	script := "#!/bin/sh\nprintf '%s\\n' '" + body + "'\n"
-	require.NoError(t, os.WriteFile(path, []byte(script), 0o755))
 }
 
 func digestOf(data []byte) string {

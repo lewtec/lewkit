@@ -21,11 +21,9 @@ var (
 	ErrNoCode = errors.New("no executable section")
 	// ErrArtifact is [Project.Add] when that name is already open.
 	ErrArtifact = errors.New("artifact already open")
-	// ErrNoModel is [Artifact.Match] before [Project.Attach].
-	ErrNoModel = errors.New("no model attached")
 	// ErrNotFound is a function address that is not a function start.
 	ErrNotFound = errors.New("function not found")
-	// ErrUnmatched is [Artifact.Match] when the rounds are spent.
+	// ErrUnmatched is [Artifact.Check] when the candidate does not copy the lift.
 	ErrUnmatched = errors.New("decompilation does not match")
 	// ErrNotStored is a name, note, or signature written on a project with no file.
 	ErrNotStored = errors.New("not stored")
@@ -33,11 +31,10 @@ var (
 	ErrImage = errors.New("stored image does not match")
 )
 
-// Project is one session: native artifacts and, once attached, a model.
+// Project is one session of native artifacts.
 // [Open] also keeps those artifacts in a sqlite file. [New] keeps them in memory.
 // A project is not safe for concurrent use.
 type Project struct {
-	model     Model
 	artifacts []*Artifact
 	db        *sql.DB
 	path      string
@@ -107,18 +104,6 @@ type Reference struct {
 // New starts an empty session.
 func New() *Project {
 	return &Project{}
-}
-
-// Attach sets the model used by [Artifact.Match]. A later call replaces it.
-func (project *Project) Attach(model Model) {
-	project.model = model
-}
-
-// Attach sets the model on the session that owns this artifact.
-func (artifact *Artifact) Attach(model Model) {
-	if artifact.project != nil {
-		artifact.project.Attach(model)
-	}
 }
 
 // Add loads one ELF, PE, or Mach-O image under name.

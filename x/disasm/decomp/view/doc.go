@@ -10,6 +10,6 @@
 // Each artifact URL is the image hash slug.
 // A call links to that function, and the artifact table shows address and size.
 // A saved function name, signature, held source, or address note is written into the sqlite project.
-// Explain stores a draft in that source field. Match replaces it when the blocks agree.
+// Check stores a candidate when the blocks agree.
 // The file is opened with [github.com/lewtec/lewkit/x/disasm/decomp.Open].
 package view

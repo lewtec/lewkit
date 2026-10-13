@@ -19,6 +19,8 @@ var (
 	errProjectRequired = errors.New("missing --project")
 	// errFunctionName means name was started without a function name.
 	errFunctionName = errors.New("missing --name")
+	// errCandidate means check was started without the caller's JSON.
+	errCandidate = errors.New("missing candidate")
 )
 
 type Cmd struct {
@@ -29,8 +31,7 @@ type Cmd struct {
 	stream    *decompStreamCmd
 	xrefs     *decompXRefsCmd
 	strings   *decompStringsCmd
-	match     *decompMatchCmd
-	explain   *decompExplainCmd
+	check     *decompCheckCmd
 	name      *decompNameCmd
 	note      *decompNoteCmd
 	signature *decompSignatureCmd
@@ -170,83 +171,29 @@ func (command *decompStringsCmd) Run(ctx context.Context) (err error) {
 	return nil
 }
 
-type decompMatchCmd struct {
-	path     cmd.StringArg      `help:"elf, pe, or macho path"`
-	at       cmd.IntArg[uint64] `long:"at" default:"0" help:"function address"`
-	harness  cmd.StringArg      `long:"harness" default:"grok" help:"grok executable for the signed-in subscription"`
-	model    cmd.StringArg      `long:"model" default:"" help:"harness model; empty uses the signed-in default"`
-	rounds   cmd.IntArg[int]    `long:"rounds" default:"4" help:"match attempts"`
-	endpoint cmd.StringArg      `long:"endpoint" default:"" help:"chat completions URL; skips the harness"`
-	apiKey   cmd.StringArg      `long:"api-key" env:"XAI_API_KEY" default:"" help:"bearer token used with --endpoint"`
+type decompCheckCmd struct {
+	path cmd.StringArg      `help:"elf, pe, or macho path"`
+	at   cmd.IntArg[uint64] `long:"at" default:"0" help:"function address"`
+	text cmd.StringArg      `long:"text" default:"" help:"candidate JSON the caller already wrote"`
 }
 
-func (decompMatchCmd) Description() string {
-	return "ask an attached model to match-decompile one function"
+func (decompCheckCmd) Description() string {
+	return "compare a candidate with one function"
 }
 
-func (command *decompMatchCmd) Run(ctx context.Context) (err error) {
+func (command *decompCheckCmd) Run(ctx context.Context) (err error) {
+	if !command.text.ArgSet() || command.text.Value() == "" {
+		return fmt.Errorf("decomp check: %w", errCandidate)
+	}
 	project, artifact, err := openDecomp(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
 	defer func() { err = joinClose(err, project.Close()) }()
-	if command.endpoint.Value() != "" {
-		model := command.model.Value()
-		if model == "" {
-			model = "grok-4"
-		}
-		artifact.Attach(xdecomp.Chat{
-			Endpoint: command.endpoint.Value(),
-			Model:    model,
-			APIKey:   command.apiKey.Value(),
-		})
-	} else {
-		artifact.Attach(xdecomp.Harness{
-			Path:  command.harness.Value(),
-			Model: command.model.Value(),
-		})
-	}
-	result, err := artifact.Match(ctx, commandAddress(command.at, artifact), xdecomp.MatchConfig{Rounds: command.rounds.Value()})
-	if result.Rounds > 0 {
+	result, err := artifact.Check(ctx, commandAddress(command.at, artifact), command.text.Value())
+	if result.Matched || len(result.Residuals) > 0 {
 		if writeErr := writeMatch(ctx, result); writeErr != nil {
 			return writeErr
-		}
-	}
-	return err
-}
-
-type decompExplainCmd struct {
-	path    cmd.StringArg      `help:"elf, pe, or macho path"`
-	at      cmd.IntArg[uint64] `long:"at" default:"0" help:"function address"`
-	harness cmd.StringArg      `long:"harness" default:"grok" help:"grok executable for the signed-in subscription"`
-	model   cmd.StringArg      `long:"model" default:"" help:"harness model; empty uses the signed-in default"`
-	rounds  cmd.IntArg[int]    `long:"rounds" default:"1" help:"explain attempts"`
-}
-
-func (decompExplainCmd) Description() string {
-	return "ask an attached model to explain one function"
-}
-
-func (command *decompExplainCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
-		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	artifact.Attach(xdecomp.Harness{
-		Path:   command.harness.Value(),
-		Model:  command.model.Value(),
-		Schema: xdecomp.ExplainSchema,
-	})
-	result, err := artifact.Explain(ctx, commandAddress(command.at, artifact), xdecomp.MatchConfig{Rounds: command.rounds.Value()})
-	if result.Rounds > 0 && result.Source != "" {
-		if _, writeErr := io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), result.Source); writeErr != nil {
-			return writeErr
-		}
-		if result.Source[len(result.Source)-1] != '\n' {
-			if _, writeErr := io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), "\n"); writeErr != nil {
-				return writeErr
-			}
 		}
 	}
 	return err
@@ -474,10 +421,10 @@ func joinClose(err, closeErr error) error {
 func writeMatch(ctx context.Context, result xdecomp.Result) error {
 	out := lewfs.ContextWriter(ctx, os.Stdout)
 	if result.Matched {
-		if _, err := fmt.Fprintf(out, "matched in %d\n", result.Rounds); err != nil {
+		if _, err := fmt.Fprintf(out, "matched\n"); err != nil {
 			return err
 		}
-	} else if _, err := fmt.Fprintf(out, "unmatched after %d\n", result.Rounds); err != nil {
+	} else if _, err := fmt.Fprintf(out, "unmatched\n"); err != nil {
 		return err
 	}
 	if result.Name != "" {

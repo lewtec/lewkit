@@ -398,21 +398,12 @@ func writeProject(t *testing.T) string {
 	require.NoError(t, err)
 	function, ok := artifact.Function(0x1000)
 	require.True(t, ok)
-	artifact.Attach(fixedModel{reply: candidate(function)})
-	result, err := artifact.Match(t.Context(), 0x1000, decomp.MatchConfig{Rounds: 1})
+	result, err := artifact.Check(t.Context(), 0x1000, candidate(function))
 	require.NoError(t, err)
 	require.True(t, result.Matched)
 	require.NoError(t, artifact.SetComment(t.Context(), 0x1000, "entry point"))
 	require.NoError(t, project.Close())
 	return path
-}
-
-type fixedModel struct {
-	reply string
-}
-
-func (model fixedModel) Complete(context.Context, decomp.Prompt) (string, error) {
-	return model.reply, nil
 }
 
 func candidate(function decomp.Function) string {
