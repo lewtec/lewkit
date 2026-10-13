@@ -6,27 +6,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/cocoaalert"
 	"github.com/lewtec/lewkit/x/driver/messagebox"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
-	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
-const (
-	cocoaFramework = "/System/Library/Frameworks/Cocoa.framework/Cocoa"
-)
-
-var (
-	errAlert    = errors.New("alert")
-	errNotBound = errors.New("alert: thread not bound")
-
-	appOnce sync.Once
-	appErr  error
-)
+var errNotBound = errors.New("alert: thread not bound")
 
 var (
 	selAlloc   = objc.RegisterName("alloc")
@@ -66,14 +55,14 @@ func (backend) Show(ctx context.Context, n messagebox.Notice) error {
 }
 
 func show(n messagebox.Notice) error {
-	if err := ensureApp(); err != nil {
+	if err := cocoaalert.Open(); err != nil {
 		return err
 	}
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selNew)
 	defer pool.Send(selDrain)
 	alert := objc.ID(objc.GetClass("NSAlert")).Send(selAlloc).Send(selInit)
 	if alert == 0 {
-		return errAlert
+		return cocoaalert.ErrAlert
 	}
 	alert.Send(selMessage, driver.NSString(n.Title))
 	alert.Send(selInfo, driver.NSString(n.Message))
@@ -81,13 +70,4 @@ func show(n messagebox.Notice) error {
 	alert.Send(selButton, driver.NSString("OK"))
 	alert.Send(selRun)
 	return nil
-}
-
-func ensureApp() error {
-	appOnce.Do(func() {
-		if _, err := native.Open(cocoaFramework, native.Global|native.Lazy); err != nil {
-			appErr = fmt.Errorf("%w: %w", errAlert, err)
-		}
-	})
-	return appErr
 }

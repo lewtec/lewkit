@@ -5,26 +5,18 @@ package cocoa
 import (
 	"context"
 	"errors"
-	"fmt"
-	"sync"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/cocoaalert"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
-	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
-const cocoaFramework = "/System/Library/Frameworks/Cocoa.framework/Cocoa"
-
 var (
-	errAlert    = errors.New("alert")
 	errNoItems  = errors.New("no items")
 	errNotBound = errors.New("alert: thread not bound")
-
-	appOnce sync.Once
-	appErr  error
 )
 
 var (
@@ -131,7 +123,7 @@ func ask(prompt string) (string, error) {
 	err := withAlert(title, func(alert objc.ID) error {
 		field := objc.ID(objc.GetClass("NSTextField")).Send(selAlloc).Send(selFrame, nsRect{Size: nsSize{Width: 240, Height: 24}})
 		if field == 0 {
-			return errAlert
+			return cocoaalert.ErrAlert
 		}
 		alert.Send(selView, field)
 		alert.Send(selButton, driver.NSString("OK"))
@@ -163,14 +155,14 @@ func confirm(message string) (bool, error) {
 }
 
 func withAlert(title string, fn func(objc.ID) error) error {
-	if err := ensureApp(); err != nil {
+	if err := cocoaalert.Open(); err != nil {
 		return err
 	}
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selNew)
 	defer pool.Send(selDrain)
 	alert := objc.ID(objc.GetClass("NSAlert")).Send(selAlloc).Send(selInit)
 	if alert == 0 {
-		return errAlert
+		return cocoaalert.ErrAlert
 	}
 	alert.Send(selMessage, driver.NSString(title))
 	return fn(alert)
@@ -178,13 +170,4 @@ func withAlert(title string, fn func(objc.ID) error) error {
 
 func modal(alert objc.ID) int {
 	return int(int64(alert.Send(selRun)))
-}
-
-func ensureApp() error {
-	appOnce.Do(func() {
-		if _, err := native.Open(cocoaFramework, native.Global|native.Lazy); err != nil {
-			appErr = fmt.Errorf("%w: %w", errAlert, err)
-		}
-	})
-	return appErr
 }
