@@ -15,6 +15,8 @@ func TestBindFillsStructFields(t *testing.T) {
 		path = "/usr/lib/libSystem.B.dylib"
 	case "linux":
 		path = "libc.so.6"
+	case "windows":
+		path = "ucrtbase.dll"
 	default:
 		t.Skip("no libc path")
 	}

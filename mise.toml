@@ -16,6 +16,10 @@ run = "modot codebase lint"
 [tasks.test]
 run = "go test ./..."
 
+[tasks."test:host"]
+description = "JIT, FFI, and the cgo replacement on this host"
+run = "go run ./x/toolchain/host"
+
 [tasks.codegen]
 run = "go generate ./..."
 

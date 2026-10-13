@@ -25,6 +25,8 @@ func libcPath() string {
 		return "/usr/lib/libSystem.B.dylib"
 	case "linux":
 		return "libc.so.6"
+	case "windows":
+		return "ucrtbase.dll"
 	default:
 		return ""
 	}
