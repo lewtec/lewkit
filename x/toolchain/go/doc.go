@@ -32,10 +32,13 @@
 // The child process receives that GOOS and GOARCH. GOARCH other than amd64
 // or arm64 is an error. A target that must link externally is an error.
 // Android and any other default-PIE target links as an internal PIE, and
-// the compiler passes -shared for that PIE except on Windows.
-// Standard-library and assembly archives come from go list -export, or from
-// Pkgdir when that is set. Toolexec is that list's -toolexec when the value
-// names _cgo_android_export.go. lewkit release build, run, and build-all
+// Module.Library forces that PIE, including on Linux. The compiler passes
+// -shared for that PIE except on Windows. go list -export receives
+// -buildmode=pie for the same link. Standard-library and assembly archives
+// come from that list, or from Pkgdir when that is set. A main package
+// that contains assembly uses the list archive when the list recorded one.
+// Toolexec is that list's -toolexec when the basename starts with _cgo_
+// and ends with _export.go. lewkit release build, run, and build-all
 // use this compiler unless --go host selects the go command.
 // Compile and Link still take the files and the importcfg the caller prepared.
 // SharedLibrary compiles one main package from source into a shared object.

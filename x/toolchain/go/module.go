@@ -21,12 +21,16 @@ import (
 // Ldflags are linker arguments. Pkgdir, when set, supplies the standard
 // library and any package with assembly. An empty Pkgdir asks the host
 // go command for those archives with go list -export. Toolexec, when set,
-// is that list's -toolexec value, so an assembly package can see
-// _cgo_android_export.go. Out is the executable.
-// Trimpath strips Dir from recorded source paths.
+// is that list's -toolexec value. The basename must start with _cgo_ and
+// end with _export.go, so an assembly package can see that file.
+// Out is the executable. Trimpath strips Dir from recorded source paths.
 // Android, and any other target whose default buildmode is PIE, links as
-// PIE. The compiler uses -shared for that PIE except on Windows, matching
-// the archives go list writes.
+// PIE. Library forces that PIE for a shared library, including Linux.
+// The compiler uses -shared for that PIE except on Windows. go list
+// receives -buildmode=pie for the same link, so the archives match.
+// A main package that contains assembly uses the go list archive when
+// that list recorded one. The link still runs when every package came
+// from that list.
 type Module struct {
 	Dir      string
 	Out      string
@@ -38,6 +42,7 @@ type Module struct {
 	Pkgdir   string
 	Trimpath bool
 	Toolexec string
+	Library  bool
 }
 
 // BuildModule compiles Module and links its main package.
@@ -45,9 +50,6 @@ type Module struct {
 // link are CPU tasks under the current task. The caller must be Control
 // so that wait does not hold a CPU slot.
 func BuildModule(ctx context.Context, m Module) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -63,14 +65,7 @@ func BuildModule(ctx context.Context, m Module) error {
 	if platform.MustLinkExternal(m.GOOS, m.GOARCH, false) {
 		return fmt.Errorf("toolchain: %s/%s requires external linking", m.GOOS, m.GOARCH)
 	}
-	mode := "exe"
-	shared := false
-	if platform.DefaultPIE(m.GOOS, m.GOARCH, false) {
-		mode = "pie"
-		if m.GOOS != "windows" {
-			shared = true
-		}
-	}
+	mode, shared := moduleMode(m)
 	if m.Out == "" {
 		return fmt.Errorf("%w: output", ErrEmptyImage)
 	}
@@ -90,7 +85,7 @@ func BuildModule(ctx context.Context, m Module) error {
 	if err != nil {
 		return err
 	}
-	std, err := moduleArchives(ctx, dir, m)
+	std, err := moduleArchives(ctx, dir, m, mode)
 	if err != nil {
 		return err
 	}
@@ -106,9 +101,14 @@ func BuildModule(ctx context.Context, m Module) error {
 	for _, pkg := range g.Pkgs {
 		if pkg.Name == "main" {
 			mains++
-		}
-		if pkg.Name == "main" && pkg.Asm {
-			return fmt.Errorf("toolchain: main package has assembly")
+			if pkg.Asm {
+				archive, ok := std[pkg.ImportPath]
+				if !ok {
+					return fmt.Errorf("toolchain: main package has assembly")
+				}
+				archives["main"] = archive
+				continue
+			}
 		}
 		if pkg.Asm {
 			if _, ok := std[pkg.ImportPath]; !ok {
@@ -212,7 +212,18 @@ func BuildModule(ctx context.Context, m Module) error {
 	return Build(ctx, units, image)
 }
 
-func moduleArchives(ctx context.Context, dir string, m Module) (map[string]string, error) {
+func moduleMode(m Module) (mode string, shared bool) {
+	mode = "exe"
+	if m.Library || platform.DefaultPIE(m.GOOS, m.GOARCH, false) {
+		mode = "pie"
+		if m.GOOS != "windows" {
+			shared = true
+		}
+	}
+	return mode, shared
+}
+
+func moduleArchives(ctx context.Context, dir string, m Module, mode string) (map[string]string, error) {
 	if m.Pkgdir != "" {
 		return load.Archives(m.Pkgdir)
 	}
@@ -223,6 +234,9 @@ func moduleArchives(ctx context.Context, dir string, m Module) (map[string]strin
 	args := []string{
 		"list", "-buildvcs=false", "-deps", "-export",
 		"-f", "{{if and .Export (or .Standard (or .SFiles .SysoFiles))}}{{.ImportPath}} {{.Export}}{{end}}",
+	}
+	if mode == "pie" {
+		args = append(args, "-buildmode=pie")
 	}
 	if len(m.Tags) > 0 {
 		args = append(args, "-tags", strings.Join(m.Tags, ","))

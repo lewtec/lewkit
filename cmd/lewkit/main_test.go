@@ -1,11 +1,10 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/cmd/lewkit/generate"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
@@ -55,18 +54,18 @@ func TestCompletionLine(t *testing.T) {
 		require.NoError(t, app.Run(t.Context()))
 	})
 	assert.Contains(t, got, "complete -C")
-	assert.Contains(t, got, filepath.Base(os.Args[0]))
+	assert.Contains(t, got, cmd.Name())
 }
 
 func TestGenerateDbUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "db")
 	assert.Contains(t, text, "shared Queries")
 }
 
 func TestGeneratePreludeUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "prelude")
 	assert.Contains(t, text, "blank-import")
@@ -77,21 +76,21 @@ func TestGeneratePreludeUsage(t *testing.T) {
 }
 
 func TestGenerateProtobufUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "protobuf")
 	assert.Contains(t, text, ".proto file")
 }
 
 func TestGenerateShaderUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "shader")
 	assert.Contains(t, text, "SPIR-V registry")
 }
 
 func TestGenerateHeaderUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "header")
 	assert.Contains(t, text, "purego")
@@ -118,6 +117,7 @@ func TestGenerateHelp(t *testing.T) {
 	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "shader")
 	assert.Contains(t, got, "header")
+	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "shared Queries")
 	assert.Contains(t, got, "--sentry-dsn")
 }
@@ -134,5 +134,6 @@ func TestGenerateErrUsage(t *testing.T) {
 	assert.Contains(t, got, "protobuf")
 	assert.Contains(t, got, "shader")
 	assert.Contains(t, got, "header")
+	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "--sentry-dsn")
 }

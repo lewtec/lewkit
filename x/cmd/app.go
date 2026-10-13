@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"reflect"
 
 	"github.com/lewtec/lewkit/x/logging"
@@ -83,7 +82,7 @@ func (a *App[T]) Run(ctx context.Context) error {
 }
 
 func (a *App[T]) printUsage() error {
-	text, err := usageSelected(reflect.ValueOf(a).Elem(), filepath.Base(os.Args[0]))
+	text, err := usageSelected(reflect.ValueOf(a).Elem(), Name())
 	if err != nil {
 		return err
 	}

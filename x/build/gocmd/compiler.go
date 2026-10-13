@@ -14,9 +14,9 @@ import (
 )
 
 // ErrCompiler means the lewkit compiler cannot perform this go invocation.
-// cgo, a buildmode other than exe, a -toolexec that does not name
-// _cgo_android_export.go, -overlay, and a GOARCH other than amd64 or
-// arm64 return this error. Release commands default to this compiler.
+// cgo, a buildmode other than exe, a -toolexec whose basename does not
+// start with _cgo_ and end with _export.go, -overlay, and a GOARCH other
+// than amd64 or arm64 return this error. Release commands default to this compiler.
 // A Command with no compiler and a context with none still runs the host
 // go command.
 var ErrCompiler = errors.New("gocmd: lewkit compiler")
@@ -216,7 +216,7 @@ func parseBuildArgs(args []string) (parsedBuild, error) {
 			if err != nil {
 				return p, err
 			}
-			export, ok := androidExportArg(v)
+			export, ok := cgoExportArg(v)
 			if !ok {
 				return p, fmt.Errorf("%w: -toolexec", ErrCompiler)
 			}
@@ -231,16 +231,19 @@ func parseBuildArgs(args []string) (parsedBuild, error) {
 	return p, nil
 }
 
-// androidExportArg reports the _cgo_android_export.go path inside one
-// -toolexec value. cmd/go splits that value the way a shell would.
-// Any other wrapper stays rejected: this compiler does not run it.
-func androidExportArg(val string) (string, bool) {
+// cgoExportArg reports the _cgo_*_export.go path inside one -toolexec
+// value. cmd/go splits that value the way a shell would. The basename
+// must start with _cgo_ and end with _export.go. That covers
+// _cgo_android_export.go and _cgo_clib_export.go. Any other wrapper
+// stays rejected: this compiler does not run it.
+func cgoExportArg(val string) (string, bool) {
 	words, err := splitToolexecWords(val)
 	if err != nil {
 		return "", false
 	}
 	for _, w := range words {
-		if filepath.Base(w) == "_cgo_android_export.go" {
+		base := filepath.Base(w)
+		if strings.HasPrefix(base, "_cgo_") && strings.HasSuffix(base, "_export.go") {
 			return w, true
 		}
 	}
