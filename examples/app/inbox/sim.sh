@@ -33,7 +33,7 @@ build)
 		--goarch arm64 \
 		--app \
 		--sdk iphonesimulator \
-		--config examples/inbox/eletrocromo.json \
+		--config examples/app/inbox/eletrocromo.json \
 		--out "$APP" \
 		--workdir dist/ios-inbox
 	;;

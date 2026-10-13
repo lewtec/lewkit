@@ -1,13 +1,13 @@
 // Fractal animates a Julia set. The parameter walks a circle inside the
 // Mandelbrot main cardioid, one revolution every twenty seconds.
 //
-//	go run ./cmd/lewkit release run --config ./examples/fractal/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/fractal/eletrocromo.json
 package main
 
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/examples/internal/scene"
+	"github.com/lewtec/lewkit/examples/app/internal/scene"
 	"github.com/lewtec/lewkit/x/app"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"

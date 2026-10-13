@@ -1,7 +1,7 @@
 // Astro SSR (Cloudflare adapter) hosted by orvalho workers.
 // Guest script and client assets are embedded. Produce them with: mise run build
 //
-//	go run ./cmd/lewkit release run --config ./examples/astro/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/astro/eletrocromo.json
 package main
 
 import (

@@ -1,6 +1,6 @@
 // Rsync rewrites one row per fake transfer.
 //
-//	go run ./cmd/lewkit release run --config ./examples/rsync/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/rsync/eletrocromo.json
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/internal/pace"
+	"github.com/lewtec/lewkit/examples/app/internal/pace"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )

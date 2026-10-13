@@ -1,6 +1,6 @@
 // Basic is a one-line web handler.
 //
-//	go run ./cmd/lewkit release run --config ./examples/basic/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/basic/eletrocromo.json
 package main
 
 import (

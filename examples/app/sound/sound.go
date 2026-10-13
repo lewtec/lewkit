@@ -1,6 +1,6 @@
 // Sound lists sinks, plays files, or writes a mix WAV.
 //
-//	go run ./cmd/lewkit release run --config ./examples/sound/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/sound/eletrocromo.json
 package main
 
 import (

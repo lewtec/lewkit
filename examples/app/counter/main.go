@@ -1,6 +1,6 @@
 // Counter is a server-rendered increment form.
 //
-//	go run ./cmd/lewkit release run --config ./examples/counter/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/counter/eletrocromo.json
 package main
 
 import (

@@ -1,6 +1,6 @@
 // Scroll draws rounded translucent boxes in a loop.
 //
-//	go run ./cmd/lewkit release run --config ./examples/scroll/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/scroll/eletrocromo.json
 package main
 
 import (

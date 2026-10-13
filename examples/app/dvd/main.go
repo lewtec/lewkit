@@ -8,7 +8,7 @@
 // The outside color is the scene, so a navbar or notch stays that color.
 // The light rectangle and the logo stay in the alive box.
 //
-//	go run ./cmd/lewkit release run --config ./examples/dvd/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/dvd/eletrocromo.json
 package main
 
 import (

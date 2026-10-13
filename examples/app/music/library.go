@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/music/musicdb"
+	"github.com/lewtec/lewkit/examples/app/music/musicdb"
 	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/sound"
 )

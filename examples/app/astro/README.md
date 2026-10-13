@@ -21,7 +21,7 @@ The process does not run esbuild at startup.
 From the repository root:
 
 ```bash
-go run ./cmd/lewkit release run --config ./examples/astro/eletrocromo.json
+go run ./cmd/lewkit release run --config ./examples/app/astro/eletrocromo.json
 ```
 
 `mise run run` in this directory runs `go run .`.

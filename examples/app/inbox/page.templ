@@ -62,7 +62,7 @@ templ page(v pageView) {
 				<div class="card-body">
 					<h2 class="card-title">Opens</h2>
 					if len(v.Events) == 0 {
-						<p class="opacity-70">None yet. On a Mac: <code>./examples/inbox/sim.sh ping</code></p>
+						<p class="opacity-70">None yet. On a Mac: <code>./examples/app/inbox/sim.sh ping</code></p>
 					} else {
 						<ul class="list">
 							for _, ev := range v.Events {

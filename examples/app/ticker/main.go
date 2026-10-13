@@ -1,6 +1,6 @@
 // Ticker adds one every second. The page only reads that count.
 //
-//	go run ./cmd/lewkit release run --config ./examples/ticker/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/ticker/eletrocromo.json
 package main
 
 import (

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lewtec/lewkit/examples/internal/scene"
+	"github.com/lewtec/lewkit/examples/app/internal/scene"
 	"github.com/lewtec/lewkit/x/app"
 	"github.com/lewtec/lewkit/x/driver"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"

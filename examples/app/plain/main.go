@@ -1,6 +1,6 @@
 // Plain schedules fetch, process, and write.
 //
-//	go run ./cmd/lewkit release run --config ./examples/plain/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/plain/eletrocromo.json
 package main
 
 import (
@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/internal/pace"
+	"github.com/lewtec/lewkit/examples/app/internal/pace"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )

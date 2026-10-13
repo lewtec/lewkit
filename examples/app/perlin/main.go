@@ -1,12 +1,12 @@
 // Perlin animates Perlin noise.
 //
-//	go run ./cmd/lewkit release run --config ./examples/perlin/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/perlin/eletrocromo.json
 package main
 
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/examples/internal/scene"
+	"github.com/lewtec/lewkit/examples/app/internal/scene"
 	"github.com/lewtec/lewkit/x/app"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
