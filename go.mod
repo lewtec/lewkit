@@ -58,8 +58,8 @@ require (
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
 	golang.org/x/image v0.42.0
 	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/term v0.46.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/term v0.47.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.58.0
 	software.sslmate.com/src/go-pkcs12 v0.7.3
