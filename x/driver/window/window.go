@@ -9,8 +9,6 @@
 // (mem, cocoa, win32, x11, wayland).
 package window
 
-//go:generate go run ../../../cmd/lewkit generate header --package window --bind ApplicationServices --out applicationservices_bind.go appservices.h
-
 import (
 	"context"
 	"errors"

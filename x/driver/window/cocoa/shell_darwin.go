@@ -1,6 +1,8 @@
 //go:build darwin
 
-package window
+package cocoa
+
+//go:generate go run ../../../../cmd/lewkit generate header --package cocoa --bind ApplicationServices --out applicationservices_bind.go appservices.h
 
 import (
 	"image"
@@ -29,7 +31,10 @@ var (
 	applicationServices = native.BindOnce[ApplicationServices](native.Global|native.Lazy, applicationServicesPath)
 )
 
-func showShell(title string, icon image.Image) {
+// ShowShell makes this process a foreground app and sets its switcher icon.
+// title names the menu when the bundle has no display name.
+// A nil icon leaves the host icon unchanged. Call it on the UI thread.
+func ShowShell(title string, icon image.Image) {
 	// An off-thread call must not stick, or the UI thread would skip adoption.
 	if !thread.On() {
 		return

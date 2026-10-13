@@ -2,7 +2,7 @@
 // Every supported ABI produces this Go projection.
 // native.Bind[ApplicationServices] loads a library and fills that struct.
 
-package window
+package cocoa
 
 import "structs"
 

@@ -50,8 +50,6 @@ func ApplyWindowIcon(hwnd uintptr, icon image.Image) {
 	}
 }
 
-func showShell(string, image.Image) {}
-
 type bitmapInfoHeader struct {
 	size          uint32
 	width         int32
