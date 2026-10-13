@@ -1,10 +1,10 @@
 package gpuhost
 
 import (
-	"errors"
 	"runtime"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/lewtec/lewkit/x/driver"
 )
@@ -14,9 +14,8 @@ func TestMetalHost(t *testing.T) {
 	if runtime.GOOS == "darwin" || runtime.GOOS == "ios" {
 		return
 	}
-	if !errors.Is(err, driver.ErrIncompatible) || !strings.Contains(err.Error(), "not apple") {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.ErrorContains(t, err, "not apple")
 }
 
 func TestDirect3DHost(t *testing.T) {
@@ -24,7 +23,6 @@ func TestDirect3DHost(t *testing.T) {
 	if runtime.GOOS == "windows" && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
 		return
 	}
-	if !errors.Is(err, driver.ErrIncompatible) || !strings.Contains(err.Error(), "not windows") {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.ErrorContains(t, err, "not windows")
 }

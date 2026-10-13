@@ -3,13 +3,13 @@
 package driver
 
 import (
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestJavaVM(t *testing.T) {
 	err := JavaVM()
-	if !errors.Is(err, ErrIncompatible) || err.Error() != "component is incompatible: no Java VM" {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, ErrIncompatible)
+	require.EqualError(t, err, "component is incompatible: no Java VM")
 }

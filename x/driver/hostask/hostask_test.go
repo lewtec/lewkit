@@ -3,12 +3,13 @@ package hostask
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
@@ -24,9 +25,8 @@ func TestRequireWithoutHost(t *testing.T) {
 	t.Setenv("LEWKIT_NO_UI", "")
 	t.Setenv("ELETROCROMO_NO_UI", "")
 	err := Require()
-	if !errors.Is(err, driver.ErrIncompatible) || err.Error() != "component is incompatible: no ask host" {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.EqualError(t, err, "component is incompatible: no ask host")
 }
 
 func TestRequireWithHook(t *testing.T) {
@@ -35,9 +35,7 @@ func TestRequireWithHook(t *testing.T) {
 	}
 	t.Cleanup(func() { Set(nil) })
 	Set(func(context.Context, int, string, string) (string, error) { return "", nil })
-	if err := Require(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, Require())
 }
 
 func TestCallUsesHook(t *testing.T) {

@@ -1,9 +1,10 @@
 package androidclient
 
 import (
-	"errors"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/lewtec/lewkit/x/driver"
 )
@@ -13,9 +14,7 @@ func TestOpenNotAndroid(t *testing.T) {
 		t.Skip()
 	}
 	_, err := Open(t.Context())
-	if !errors.Is(err, driver.ErrIncompatible) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
 }
 
 func TestInteractiveNotAndroid(t *testing.T) {
@@ -23,7 +22,5 @@ func TestInteractiveNotAndroid(t *testing.T) {
 		t.Skip()
 	}
 	err := Interactive(t.Context())
-	if !errors.Is(err, driver.ErrIncompatible) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
 }

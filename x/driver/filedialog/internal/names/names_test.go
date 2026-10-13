@@ -1,19 +1,15 @@
 package names
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestTake(t *testing.T) {
 	seen := map[string]struct{}{}
-	if got := Take("a/b.txt", seen); got != "a_b.txt" {
-		t.Fatal(got)
-	}
-	if got := Take("a/b.txt", seen); got != "a_b (2).txt" {
-		t.Fatal(got)
-	}
-	if got := Take(".", seen); got != "_" {
-		t.Fatal(got)
-	}
-	if got := Clean(`a\b`); got != "a_b" {
-		t.Fatal(got)
-	}
+	require.Equal(t, "a_b.txt", Take("a/b.txt", seen))
+	require.Equal(t, "a_b (2).txt", Take("a/b.txt", seen))
+	require.Equal(t, "_", Take(".", seen))
+	require.Equal(t, "a_b", Clean(`a\b`))
 }

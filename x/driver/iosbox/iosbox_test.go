@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
 )
@@ -91,15 +93,10 @@ func TestStateFiles(t *testing.T) {
 
 func TestRequire(t *testing.T) {
 	if runtime.GOOS == "ios" && Dir() != "" {
-		if err := Require(); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, Require())
 		return
 	}
-	err := Require()
-	if !errors.Is(err, driver.ErrIncompatible) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, Require(), driver.ErrIncompatible)
 }
 
 func TestNoHost(t *testing.T) {
