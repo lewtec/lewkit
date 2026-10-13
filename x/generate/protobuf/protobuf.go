@@ -3,14 +3,12 @@ package protobuf
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
-	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
 	_ "github.com/lewtec/lewkit/x/tool/prelude"
@@ -82,51 +80,5 @@ func ensureProtoc(ctx context.Context, directory string) (string, error) {
 }
 
 func protocSpec(directory string) (string, error) {
-	for {
-		spec, found, err := protocSpecIn(directory)
-		if err != nil {
-			return "", err
-		}
-		if found {
-			return spec, nil
-		}
-		parent := filepath.Dir(directory)
-		if parent == directory {
-			return protocRef + "@latest", nil
-		}
-		directory = parent
-	}
-}
-
-func protocSpecIn(directory string) (string, bool, error) {
-	root, err := lewpath.Open(directory)
-	if err != nil {
-		return "", false, nil
-	}
-	defer root.Close()
-	name := lewpath.New("modot.lock.json")
-	isFile, err := name.IsFile(root)
-	if err != nil || !isFile {
-		return "", false, err
-	}
-	body, err := name.ReadFile(root)
-	if err != nil {
-		return "", false, err
-	}
-	var lock struct {
-		Dependencies []struct {
-			Kind         string `json:"kind"`
-			Ref          string `json:"ref"`
-			CurrentValue string `json:"currentValue"`
-		} `json:"dependencies"`
-	}
-	if err := json.Unmarshal(body, &lock); err != nil {
-		return "", false, fmt.Errorf("modot.lock.json: %w", err)
-	}
-	for _, dependency := range lock.Dependencies {
-		if dependency.Kind == "tool" && dependency.Ref == protocRef && dependency.CurrentValue != "" {
-			return protocRef + "@" + dependency.CurrentValue, true, nil
-		}
-	}
-	return "", false, nil
+	return tool.LockSpec(directory, protocRef)
 }

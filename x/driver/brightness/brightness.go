@@ -54,16 +54,6 @@ func adjust(ctx context.Context, delta float64) error {
 		if err != nil {
 			return err
 		}
-		return d.SetBrightness(ctx, clamp01(status.Brightness+delta))
+		return d.SetBrightness(ctx, driver.Clamp01(status.Brightness+delta))
 	})
-}
-
-func clamp01(v float64) float64 {
-	if v > 1 {
-		return 1
-	}
-	if v < 0 {
-		return 0
-	}
-	return v
 }

@@ -236,43 +236,35 @@ func tokenizeVersion(spec string) []string {
 }
 
 func parseOr(tokens []string) (versionExpr, []string, error) {
-	left, rest, err := parseAnd(tokens)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(rest) == 0 || rest[0] != "|" {
-		return left, rest, nil
-	}
-	parts := []versionExpr{left}
-	for len(rest) > 0 && rest[0] == "|" {
-		var next versionExpr
-		next, rest, err = parseAnd(rest[1:])
-		if err != nil {
-			return nil, nil, err
-		}
-		parts = append(parts, next)
-	}
-	return orExpr{parts: parts}, rest, nil
+	return parseBinary(tokens, "|", parseAnd, func(parts []versionExpr) versionExpr {
+		return orExpr{parts: parts}
+	})
 }
 
 func parseAnd(tokens []string) (versionExpr, []string, error) {
-	left, rest, err := parseFactor(tokens)
+	return parseBinary(tokens, ",", parseFactor, func(parts []versionExpr) versionExpr {
+		return andExpr{parts: parts}
+	})
+}
+
+func parseBinary(tokens []string, sep string, lower func([]string) (versionExpr, []string, error), join func([]versionExpr) versionExpr) (versionExpr, []string, error) {
+	left, rest, err := lower(tokens)
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(rest) == 0 || rest[0] != "," {
+	if len(rest) == 0 || rest[0] != sep {
 		return left, rest, nil
 	}
 	parts := []versionExpr{left}
-	for len(rest) > 0 && rest[0] == "," {
+	for len(rest) > 0 && rest[0] == sep {
 		var next versionExpr
-		next, rest, err = parseFactor(rest[1:])
+		next, rest, err = lower(rest[1:])
 		if err != nil {
 			return nil, nil, err
 		}
 		parts = append(parts, next)
 	}
-	return andExpr{parts: parts}, rest, nil
+	return join(parts), rest, nil
 }
 
 func parseFactor(tokens []string) (versionExpr, []string, error) {

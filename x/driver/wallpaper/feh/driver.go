@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/wallpaper"
 )
@@ -12,7 +11,7 @@ import (
 type backend struct{}
 
 func (backend) SetStatic(ctx context.Context, path string) error {
-	feh, err := look(ctx, "feh")
+	feh, err := execdriver.Find(ctx, "feh")
 	if err != nil {
 		return err
 	}
@@ -21,14 +20,6 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 		return fmt.Errorf("feh: %w", err)
 	}
 	return nil
-}
-
-func look(ctx context.Context, name string) (string, error) {
-	path, err := execdriver.Which(ctx, name)
-	if err != nil {
-		return "", fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
-	}
-	return path, nil
 }
 
 var _ wallpaper.Driver = backend{}

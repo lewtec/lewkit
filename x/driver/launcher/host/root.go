@@ -4,8 +4,6 @@ package host
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/hostask"
@@ -17,15 +15,7 @@ type base struct{}
 func (base) ID() string  { return "launcher_host" }
 func (base) Weight() int { return 70 }
 
-func (base) CheckCompatibility(context.Context) error {
-	if runtime.GOOS == "android" {
-		return fmt.Errorf("%w: android", driver.ErrIncompatible)
-	}
-	if !hostask.Available() {
-		return fmt.Errorf("%w: no ask host", driver.ErrIncompatible)
-	}
-	return nil
-}
+func (base) CheckCompatibility(context.Context) error { return hostask.Require() }
 
 type chooserFactory struct{ base }
 

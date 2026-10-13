@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/bundle"
 	_ "github.com/lewtec/lewkit/x/driver/bundle/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
@@ -91,7 +92,7 @@ func (a App) open(ctx context.Context, id string) error {
 	if _, ok := win.(guiWindow); ok {
 		entry.ShowSurface()
 	}
-	if a.NoUI || envOn("LEWKIT_NO_UI") || envOn("ELETROCROMO_NO_UI") {
+	if a.NoUI || driver.EnvFlag("LEWKIT_NO_UI") || driver.EnvFlag("ELETROCROMO_NO_UI") {
 		next, err := loopbackWindow(win, nativeHost(win))
 		if err != nil {
 			return err
@@ -191,9 +192,4 @@ func loopbackLink(raw, token string) string {
 	}
 	base := strings.TrimRight(parsed.String(), "/")
 	return base + "/?token=" + token
-}
-
-func envOn(key string) bool {
-	value := strings.TrimSpace(os.Getenv(key))
-	return value == "1" || strings.EqualFold(value, "true") || strings.EqualFold(value, "yes")
 }

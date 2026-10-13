@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
@@ -145,15 +144,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 }
 
 func windowsArch(goarch string) (string, error) {
-	if goarch == "" {
-		goarch = runtime.GOARCH
-	}
-	switch goarch {
-	case "amd64", "arm64":
-		return goarch, nil
-	default:
-		return "", fmt.Errorf("%w: %s", ErrUnsupportedGOARCH, goarch)
-	}
+	return common.Arch(goarch, ErrUnsupportedGOARCH)
 }
 
 func buildGo(ctx context.Context, dest, goMainDir, goarch string, stamp version.Info, appID string) error {

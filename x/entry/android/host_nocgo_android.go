@@ -1,0 +1,116 @@
+//go:build android && !cgo && arm64 && appmode
+
+package android
+
+import (
+	"log/slog"
+	"sync/atomic"
+	"unsafe"
+
+	"github.com/lewtec/lewkit/x/ffi/jni"
+	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
+)
+
+// runtimeNewextram makes an M for a Java thread that enters Go.
+// mstartm0 only does this when cgo is linked. The app link passes
+// -tags appmode and -checklinkname=0. A plain android/arm64 build
+// leaves this file out.
+//
+//go:linkname runtimeNewextram runtime.newextram
+func runtimeNewextram()
+
+// runtimeLibpreinit installs the library signal handlers. It is nosplit
+// and does not read g. JNI_OnLoad calls it with g clear.
+//
+//go:nosplit
+//go:linkname runtimeLibpreinit runtime.libpreinit
+func runtimeLibpreinit()
+
+// libc sigaction, not the raw rt_sigaction syscall. libsigchain interposes
+// the libc entry and keeps ART's handlers in front of ours. __errno is how
+// a failed sigaction reports EINVAL for the pthread signals Go must skip.
+//
+//go:cgo_import_dynamic libc_sigaction sigaction "libc.so"
+//go:cgo_import_dynamic libc_errno __errno "libc.so"
+//go:cgo_import_dynamic _ _ "libc.so"
+
+// bootPreinit is the ABI0 entry assembly can call. The body is ABIInternal.
+//
+//go:nosplit
+func bootPreinit() { runtimeLibpreinit() }
+
+func addrHook() uintptr
+func addrProxy() uintptr
+
+// rtReady is 1 after that M exists. JNI_OnLoad waits for it before
+// the first callback. booted makes the runtime start once.
+// The pc values are the ABIInternal entry points. User assembly cannot
+// name that ABI, so the callbacks are ordinary function values.
+var (
+	rtReady uint32
+	booted  uint32
+
+	pcLoad  uintptr
+	pcHook  uintptr
+	pcProxy uintptr
+)
+
+func init() {
+	pcLoad = funcPC(onLoad)
+	pcHook = funcPC(onHook)
+	pcProxy = funcPC(onProxy)
+	runtimeNewextram()
+	// rtReady releases JNI_OnLoad. pthread_create already ran on the
+	// main thread. This M shares that TLS, and pthread_create from
+	// here does not return.
+	atomic.StoreUint32(&rtReady, 1)
+}
+
+func funcPC(fn func(unsafe.Pointer)) uintptr {
+	type fv struct{ fn uintptr }
+	raw := *(*unsafe.Pointer)(unsafe.Pointer(&fn))
+	return (*fv)(raw).fn
+}
+
+func words(frame unsafe.Pointer, n int) []uintptr {
+	return unsafe.Slice((*uintptr)(frame), n)
+}
+
+func onLoad(frame unsafe.Pointer) {
+	vm := words(frame, 1)[0]
+	androidffi.NoteVM(vm)
+	androidffi.NoteLoader()
+	jni.SetVM(vm)
+	env := jni.Attach()
+	if env == 0 {
+		slog.Error("jni hook", "err", "no env")
+		return
+	}
+	// RegisterNatives binds the Java methods to these trampolines.
+	// JNI_OnLoad is the symbol the loader has to publish. The method
+	// names do not need their own dynamic exports, and they do not use cgo.
+	if err := jni.Register(env, "lewkit/Hook", []jni.Native{{
+		Name: "call",
+		Sig:  "(Ljava/lang/String;[Ljava/lang/Object;)J",
+		Fn:   addrHook(),
+	}}); err != nil {
+		slog.Error("jni hook", "err", err)
+	}
+	if err := jni.Register(env, "lewkit/GoProxy", []jni.Native{{
+		Name: "nativeInvoke",
+		Sig:  "(JLjava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;",
+		Fn:   addrProxy(),
+	}}); err != nil {
+		slog.Error("jni proxy", "err", err)
+	}
+}
+
+func onHook(frame unsafe.Pointer) {
+	w := words(frame, 4)
+	w[3] = hookCall(w[0], w[1], w[2])
+}
+
+func onProxy(frame unsafe.Pointer) {
+	w := words(frame, 5)
+	w[4] = jni.InvokeProxy(w[0], int64(w[1]), w[2], w[3])
+}

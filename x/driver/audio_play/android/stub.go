@@ -11,7 +11,7 @@ import (
 )
 
 func (factory) CheckCompatibility(context.Context) error {
-	return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
+	return driver.JavaVM()
 }
 
 func (factory) New(context.Context) (audio_play.Driver, error) {

@@ -9,8 +9,6 @@
 // (mem, cocoa, win32, x11, wayland).
 package window
 
-//go:generate go run ../../../cmd/lewkit generate header --package window --bind ApplicationServices --out applicationservices_bind.go appservices.h
-
 import (
 	"context"
 	"errors"
@@ -18,6 +16,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/clientsize"
 )
 
 var (
@@ -30,8 +29,6 @@ var (
 )
 
 const (
-	defaultWidth  = 640
-	defaultHeight = 480
 	// DefaultFramePeriod is used when the host cannot read a display rate
 	// and Config.Period is unset.
 	DefaultFramePeriod = time.Second / 60
@@ -54,17 +51,7 @@ type Config struct {
 
 // Size is the initial client size. Width or Height 0 becomes 640 or 480.
 func (c Config) Size() (int, int, error) {
-	if c.Width < 0 || c.Height < 0 {
-		return 0, 0, ErrSize
-	}
-	w, h := c.Width, c.Height
-	if w == 0 {
-		w = defaultWidth
-	}
-	if h == 0 {
-		h = defaultHeight
-	}
-	return w, h, nil
+	return clientsize.Default(c.Width, c.Height, ErrSize)
 }
 
 // Driver opens a host window.

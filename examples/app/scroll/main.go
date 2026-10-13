@@ -9,7 +9,6 @@ import (
 	"github.com/lewtec/lewkit/x/app"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
-	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
 func init() { entry.Bind(runApp) }
@@ -17,7 +16,7 @@ func init() { entry.Bind(runApp) }
 func main() { entry.Main(context.Background(), runApp) }
 
 func runApp(ctx context.Context) error {
-	model, err := gui.NewMarquee()
+	model, err := NewMarquee()
 	if err != nil {
 		return err
 	}

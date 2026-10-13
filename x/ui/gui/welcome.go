@@ -119,7 +119,7 @@ func (welcome *Welcome) key(event window.Key) (Model, Cmd) {
 		welcome.cursor--
 	case welcome.down(event) && welcome.cursor < welcome.browseAt():
 		welcome.cursor++
-	case welcome.enter(event):
+	case enterKey(event):
 		return welcome.activate()
 	}
 	return welcome, nil
@@ -347,10 +347,6 @@ func fade(ink, background RGB) RGB {
 type folderPicked struct {
 	paths []string
 	err   error
-}
-
-func (*Welcome) enter(key window.Key) bool {
-	return key.Rune == '\r' || key.Rune == '\n' || key.Code == 36 || key.Code == 13 || key.Code == 24
 }
 
 func (*Welcome) up(key window.Key) bool {

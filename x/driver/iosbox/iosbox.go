@@ -100,6 +100,17 @@ func dirFrom(ctx context.Context) string {
 // Available reports whether a host directory is set.
 func Available() bool { return Dir() != "" }
 
+// Require reports ErrIncompatible when this process is not ios or no host directory is set.
+func Require() error {
+	if runtime.GOOS != "ios" {
+		return fmt.Errorf("%w: not ios", driver.ErrIncompatible)
+	}
+	if !Available() {
+		return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
+	}
+	return nil
+}
+
 var fileMu sync.Mutex
 
 // Call writes req and waits for the host reply.

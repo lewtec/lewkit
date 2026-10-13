@@ -41,14 +41,17 @@ func (buildCmd) Description() string {
 }
 
 func (c *buildCmd) Run(ctx context.Context) error {
+	return runRelease(ctx, c.produce)
+}
+
+// runRelease prints each path produce writes.
+// Control does not take a pool worker. produce waits on the workflow future.
+func runRelease(ctx context.Context, produce func(context.Context) ([]string, error)) error {
 	session, ctx := sessionFrom(ctx)
 	var paths []string
 	err := progress.Run(session, ctx, func(ctx context.Context) error {
-		// Control does not take a pool worker. produce waits on the
-		// workflow future for icons, the scaffold when the host has one,
-		// and the goos/goarch step.
 		taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, _ *taskgroup.Status) error {
-			written, err := c.produce(ctx)
+			written, err := produce(ctx)
 			paths = written
 			return err
 		})

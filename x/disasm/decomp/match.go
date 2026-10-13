@@ -234,6 +234,7 @@ func differences(function Function, parsed candidate, artifact *Artifact) []stri
 	return notes
 }
 
-func formatAddress(address uint64) string {
+// FormatAddress prints address as 0x and lowercase hex.
+func FormatAddress(address uint64) string {
 	return fmt.Sprintf("0x%x", address)
 }

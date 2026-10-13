@@ -174,7 +174,8 @@ func (run textRun) drawCaret(destination *image.RGBA, x, baseline, maxY int) {
 	draw.Draw(destination, image.Rect(x, top, x+2, bottom), caretFill, image.Point{}, draw.Src)
 }
 
-func (text *Text) indexAt(position image.Point) int {
+// IndexAt returns the rune index nearest position in the last laid-out text.
+func (text *Text) IndexAt(position image.Point) int {
 	if text == nil {
 		return 0
 	}

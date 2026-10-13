@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 
@@ -43,6 +44,18 @@ func Set(fn Fn) {
 	hook.Lock()
 	hooked = fn
 	hook.Unlock()
+}
+
+// Require reports whether a packaged host can present a dialog.
+// Android is incompatible. No directory and no hook is incompatible.
+func Require() error {
+	if runtime.GOOS == "android" {
+		return fmt.Errorf("%w: android", driver.ErrIncompatible)
+	}
+	if !Available() {
+		return fmt.Errorf("%w: no ask host", driver.ErrIncompatible)
+	}
+	return nil
 }
 
 // Available reports whether Call can present a dialog.

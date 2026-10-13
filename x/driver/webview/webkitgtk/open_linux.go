@@ -24,6 +24,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/driver/window/x11"
 	"github.com/lewtec/lewkit/x/ffi/native/gtk"
 	"github.com/lewtec/lewkit/x/ffi/native/webkitgtk"
 )
@@ -205,21 +206,13 @@ func (state *loopState) drain() {
 }
 
 func uiOwnsGTK() bool {
-	bound, on := uiThread()
+	bound, on := thread.State()
 	return bound && !on
 }
 
 func onUIThread() bool {
-	_, on := uiThread()
+	_, on := thread.State()
 	return on
-}
-
-func uiThread() (bound, on bool) {
-	defer func() { _ = recover() }()
-	if !thread.Bound() {
-		return false, false
-	}
-	return true, thread.On()
 }
 
 func (state *loopState) webView(profile string) (uintptr, error) {
@@ -314,7 +307,7 @@ func setViewIcon(widget uintptr, icon image.Image) {
 	if err != nil || xid == 0 {
 		return
 	}
-	_ = window.ApplyXIcon(xid, icon)
+	_ = x11.ApplyXIcon(xid, icon)
 }
 
 type gtkView struct {

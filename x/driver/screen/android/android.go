@@ -3,20 +3,11 @@ package android
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/androidclient"
 	"github.com/lewtec/lewkit/x/driver/screen"
-	ffiandroid "github.com/lewtec/lewkit/x/ffi/android"
 )
-
-func open(ctx context.Context) (*ffiandroid.Client, error) {
-	client, err := ffiandroid.ForAndroid(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return client, nil
-}
 
 func init() { driver.Register[screen.Driver](factory{}) }
 
@@ -28,23 +19,14 @@ func (factory) ID() string   { return "screen_android" }
 func (factory) Name() string { return "Android screen" }
 func (factory) Weight() int  { return 80 }
 
-func (factory) CheckCompatibility(ctx context.Context) error {
-	client, err := open(ctx)
-	if err != nil {
-		return err
-	}
-	if _, err := client.Interactive(ctx); err != nil {
-		return fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return nil
-}
+func (factory) CheckCompatibility(ctx context.Context) error { return androidclient.Interactive(ctx) }
 
 func (factory) New(context.Context) (screen.Driver, error) { return backend{}, nil }
 
 type backend struct{}
 
 func (backend) SetDPMS(ctx context.Context, on bool) error {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return err
 	}
@@ -55,7 +37,7 @@ func (backend) SetDPMS(ctx context.Context, on bool) error {
 }
 
 func (backend) IsDPMSOn(ctx context.Context) (bool, error) {
-	client, err := open(ctx)
+	client, err := androidclient.Open(ctx)
 	if err != nil {
 		return false, err
 	}

@@ -126,7 +126,7 @@ func (c Command) buildLewkit(ctx context.Context, parsed parsedBuild, goos, goar
 		GOOS:     goos,
 		GOARCH:   goarch,
 		Patterns: parsed.pkgs,
-		Tags:     splitTags(parsed.tags),
+		Tags:     load.SplitTags(parsed.tags),
 		Ldflags:  ldflags,
 		Pkgdir:   parsed.pkgdir,
 		Trimpath: parsed.trimpath,
@@ -288,19 +288,4 @@ func lookupEnv(env []string, key string) string {
 		}
 	}
 	return val
-}
-
-func splitTags(s string) []string {
-	if strings.TrimSpace(s) == "" {
-		return nil
-	}
-	var tags []string
-	for _, part := range strings.FieldsFunc(s, func(r rune) bool {
-		return r == ',' || r == ' ' || r == '\t'
-	}) {
-		if part != "" {
-			tags = append(tags, part)
-		}
-	}
-	return tags
 }

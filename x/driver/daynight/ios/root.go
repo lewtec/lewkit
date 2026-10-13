@@ -5,8 +5,6 @@ package ios
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -21,13 +19,7 @@ func (factory) Name() string { return "iOS appearance" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not ios", driver.ErrIncompatible)
-	}
-	if !iosbox.Available() {
-		return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
-	}
-	return nil
+	return iosbox.Require()
 }
 
 func (factory) New(context.Context) (daynight.Driver, error) { return backend{}, nil }

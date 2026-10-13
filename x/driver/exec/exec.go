@@ -203,6 +203,15 @@ func RequireBinary(ctx context.Context, name string) error {
 	return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
 }
 
+// Find is [Which]. A miss is [driver.ErrIncompatible] and names the binary.
+func Find(ctx context.Context, name string) (string, error) {
+	path, err := Which(ctx, name)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
+	}
+	return path, nil
+}
+
 func lookPath(name string) (string, error) {
 	path, err := exec.LookPath(name)
 	if err != nil {

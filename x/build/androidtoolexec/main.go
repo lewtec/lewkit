@@ -1,6 +1,6 @@
 // Command androidtoolexec is the go -toolexec wrapper for a cgo-free
-// Android library. It adds x/entry/_cgo_android_export.go when compiling
-// that package, so the linker writes JNI_OnLoad into .dynsym.
+// Android library. It adds x/entry/android/_cgo_android_export.go when
+// compiling that package, so the linker writes JNI_OnLoad into .dynsym.
 // The arm64 cgo-free build passes -ldflags=-checklinkname=0 with this wrapper.
 //
 // cmd/go ignores a file whose name starts with _, and it hashes the
@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	entryPkg       = "github.com/lewtec/lewkit/x/entry"
+	entryPkg       = "github.com/lewtec/lewkit/x/entry/android"
 	exportCacheGen = "1"
 )
 
@@ -44,7 +44,7 @@ func main() {
 				export = exportFile(flat)
 			}
 			if export == "" {
-				fmt.Fprintln(os.Stderr, "androidtoolexec: _cgo_android_export.go not found next to x/entry")
+				fmt.Fprintln(os.Stderr, "androidtoolexec: _cgo_android_export.go not found next to x/entry/android")
 				os.Exit(1)
 			}
 			if _, err := os.Stat(export); err != nil {

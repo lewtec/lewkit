@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/driver/ndeval/internal/pack"
 	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -219,27 +220,11 @@ func (s *session) Close() error {
 }
 
 func (s *session) gpuInputBytes(i int) int {
-	n := len(s.kernel.Input(i))
-	if s.kernel.InputDType(i) == ndarray.U8 {
-		return n * 4
-	}
-	return n
+	return pack.Bytes(s.kernel.InputDType(i), len(s.kernel.Input(i)))
 }
 
 func (s *session) inputBytes(i int) []byte {
-	raw := s.kernel.Input(i)
-	if s.kernel.InputDType(i) != ndarray.U8 {
-		return raw
-	}
-	need := len(raw) * 4
-	if cap(s.staging) < need {
-		s.staging = make([]byte, need)
-	} else {
-		s.staging = s.staging[:need]
-		clear(s.staging)
-	}
-	for j, v := range raw {
-		s.staging[j*4] = v
-	}
-	return s.staging
+	data, staging := pack.Widen(s.kernel.InputDType(i), s.kernel.Input(i), s.staging)
+	s.staging = staging
+	return data
 }

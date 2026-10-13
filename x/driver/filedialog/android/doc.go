@@ -3,14 +3,14 @@ package android
 import (
 	"cmp"
 	"errors"
-	"io"
 	"io/fs"
-	"path"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/lewtec/lewkit/x/driver/filedialog/internal/names"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 var (
@@ -57,7 +57,7 @@ func FS(uris []string, docs Documents) (fs.FS, error) {
 		if info.Dir {
 			return &docFS{docs: docs, root: info.URI, cache: map[string][]Doc{}}, nil
 		}
-		info.Name = cleanName(info.Name)
+		info.Name = names.Clean(info.Name)
 		return &docFS{docs: docs, tops: []Doc{info}, cache: map[string][]Doc{}}, nil
 	}
 	seen := map[string]struct{}{}
@@ -70,7 +70,7 @@ func FS(uris []string, docs Documents) (fs.FS, error) {
 		if info.URI == "" {
 			info.URI = uri
 		}
-		info.Name = takeName(info.Name, seen)
+		info.Name = names.Take(info.Name, seen)
 		tops = append(tops, info)
 	}
 	slices.SortFunc(tops, func(a, b Doc) int { return cmp.Compare(a.Name, b.Name) })
@@ -232,37 +232,10 @@ func labelDocs(docs []Doc) []Doc {
 	copy(out, docs)
 	seen := map[string]struct{}{}
 	for i := range out {
-		out[i].Name = takeName(out[i].Name, seen)
+		out[i].Name = names.Take(out[i].Name, seen)
 	}
 	slices.SortFunc(out, func(a, b Doc) int { return cmp.Compare(a.Name, b.Name) })
 	return out
-}
-
-func takeName(name string, seen map[string]struct{}) string {
-	name = cleanName(name)
-	if _, ok := seen[name]; !ok {
-		seen[name] = struct{}{}
-		return name
-	}
-	ext := path.Ext(name)
-	stem := strings.TrimSuffix(name, ext)
-	for n := 2; ; n++ {
-		next := stem + " (" + strconv.Itoa(n) + ")" + ext
-		if _, ok := seen[next]; ok {
-			continue
-		}
-		seen[next] = struct{}{}
-		return next
-	}
-}
-
-func cleanName(name string) string {
-	name = strings.ReplaceAll(name, "/", "_")
-	name = strings.ReplaceAll(name, "\\", "_")
-	if name == "" || name == "." || name == ".." {
-		return "_"
-	}
-	return name
 }
 
 type docFile struct {
@@ -292,7 +265,7 @@ func (f *docFile) ReadDir(n int) ([]fs.DirEntry, error) {
 	if !f.info.dir {
 		return nil, &fs.PathError{Op: "readdir", Path: f.info.name, Err: fs.ErrInvalid}
 	}
-	return pageDir(f.ents, &f.off, n)
+	return lewfs.DirEntries(f.ents, &f.off, n)
 }
 
 type docInfo struct {
@@ -324,24 +297,3 @@ func (d docInfo) Mode() fs.FileMode {
 func (d docInfo) ModTime() time.Time { return time.Time{} }
 func (d docInfo) IsDir() bool        { return d.dir }
 func (d docInfo) Sys() any           { return nil }
-
-func pageDir(ents []fs.DirEntry, off *int, n int) ([]fs.DirEntry, error) {
-	if *off >= len(ents) {
-		if n <= 0 {
-			return nil, nil
-		}
-		return nil, io.EOF
-	}
-	if n <= 0 {
-		out := ents[*off:]
-		*off = len(ents)
-		return out, nil
-	}
-	end := *off + n
-	if end > len(ents) {
-		end = len(ents)
-	}
-	out := ents[*off:end]
-	*off = end
-	return out, nil
-}

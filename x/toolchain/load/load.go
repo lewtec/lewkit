@@ -193,6 +193,23 @@ func Archives(pkgdir string) (map[string]string, error) {
 	return out, nil
 }
 
+// SplitTags splits a -tags value on commas and spaces.
+// A blank value is nil. Empty fields are dropped.
+func SplitTags(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	var tags []string
+	for _, part := range strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t'
+	}) {
+		if part != "" {
+			tags = append(tags, part)
+		}
+	}
+	return tags
+}
+
 // SplitFlags splits a -ldflags value the way the go command does.
 // Single or double quotes group a field. Quotes are not nested.
 func SplitFlags(s string) ([]string, error) {

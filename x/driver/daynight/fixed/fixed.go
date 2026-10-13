@@ -12,7 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
-	"github.com/lewtec/lewkit/x/event"
+	"github.com/lewtec/lewkit/x/driver/daynight/internal/cache"
 )
 
 type factory struct{}
@@ -32,17 +32,14 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 
 var (
 	liveMu sync.Mutex
-	live   *source
+	live   *cache.Cache
 )
 
 func (factory) New(ctx context.Context) (daynight.Driver, error) {
 	liveMu.Lock()
 	defer liveMu.Unlock()
 	if live == nil {
-		live = &source{
-			scheme: parsePinned(driver.GetEnv(ctx, "LEWKIT_DAYNIGHT")),
-			bus:    event.New[daynight.Mode](),
-		}
+		live = cache.New(parsePinned(driver.GetEnv(ctx, "LEWKIT_DAYNIGHT")))
 	}
 	return live, nil
 }
@@ -52,25 +49,6 @@ func parsePinned(text string) daynight.Mode {
 		return daynight.Dark
 	}
 	return daynight.Light
-}
-
-type source struct {
-	mu     sync.Mutex
-	scheme daynight.Mode
-	bus    *event.Bus[daynight.Mode]
-}
-
-func (src *source) Current(context.Context) (daynight.Mode, error) {
-	src.mu.Lock()
-	defer src.mu.Unlock()
-	return src.scheme, nil
-}
-
-func (src *source) Watch(ctx context.Context) (<-chan daynight.Mode, error) {
-	src.mu.Lock()
-	current := src.scheme
-	src.mu.Unlock()
-	return daynight.Changes(ctx, current, src.bus.Subscribe(ctx)), nil
 }
 
 // Set stores scheme and publishes it when the value changed.
@@ -83,12 +61,5 @@ func Set(scheme daynight.Mode) {
 	if src == nil {
 		return
 	}
-	src.mu.Lock()
-	if src.scheme == scheme {
-		src.mu.Unlock()
-		return
-	}
-	src.scheme = scheme
-	src.mu.Unlock()
-	src.bus.Publish(scheme)
+	src.Publish(scheme)
 }

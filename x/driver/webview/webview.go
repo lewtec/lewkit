@@ -11,11 +11,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
-)
-
-const (
-	defaultWidth  = 640
-	defaultHeight = 480
+	"github.com/lewtec/lewkit/x/driver/internal/clientsize"
 )
 
 var (
@@ -48,17 +44,7 @@ type Config struct {
 
 // Size returns the client size. Zero becomes 640×480.
 func (c Config) Size() (int, int, error) {
-	if c.Width < 0 || c.Height < 0 {
-		return 0, 0, ErrSize
-	}
-	width, height := c.Width, c.Height
-	if width == 0 {
-		width = defaultWidth
-	}
-	if height == 0 {
-		height = defaultHeight
-	}
-	return width, height, nil
+	return clientsize.Default(c.Width, c.Height, ErrSize)
 }
 
 // Validate reports a config that cannot open.

@@ -1,6 +1,7 @@
 package view
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -93,25 +94,22 @@ func (view *preview) index(response http.ResponseWriter, request *http.Request) 
 }
 
 func (view *preview) artifact(response http.ResponseWriter, request *http.Request) {
-	view.mu.Lock()
-	page, ok := view.artifactPage(request.PathValue("name"))
-	view.mu.Unlock()
-	if !ok {
-		http.NotFound(response, request)
-		return
-	}
-	writePage(response, request, page)
+	view.namedPage(response, request, view.artifactPage)
 }
 
 func (view *preview) stream(response http.ResponseWriter, request *http.Request) {
+	view.namedPage(response, request, view.streamPage)
+}
+
+func (view *preview) namedPage(response http.ResponseWriter, request *http.Request, page func(string) (previewPage, bool)) {
 	view.mu.Lock()
-	page, ok := view.streamPage(request.PathValue("name"))
+	body, ok := page(request.PathValue("name"))
 	view.mu.Unlock()
 	if !ok {
 		http.NotFound(response, request)
 		return
 	}
-	writePage(response, request, page)
+	writePage(response, request, body)
 }
 
 func (view *preview) address(response http.ResponseWriter, request *http.Request) {
@@ -231,66 +229,28 @@ func (view *preview) functionPage(name string, address uint64) (previewPage, boo
 }
 
 func (view *preview) saveName(response http.ResponseWriter, request *http.Request) {
-	if err := request.ParseForm(); err != nil {
-		http.Error(response, err.Error(), http.StatusBadRequest)
-		return
-	}
-	address, err := parseAddress(request.PathValue("address"))
-	if err != nil {
-		http.Error(response, "bad function address", http.StatusBadRequest)
-		return
-	}
-	artifactName := request.PathValue("name")
-	functionName := strings.TrimSpace(request.PostForm.Get("name"))
-	view.mu.Lock()
-	artifact, ok := view.project.Lookup(artifactName)
-	var saveErr error
-	if ok {
-		saveErr = artifact.SetName(request.Context(), address, functionName)
-	}
-	view.mu.Unlock()
-	if !ok {
-		http.NotFound(response, request)
-		return
-	}
-	if saveErr != nil {
-		http.Error(response, saveErr.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(response, request, functionPath(artifact.Slug(), address), http.StatusSeeOther)
+	view.saveFunction(response, request, func() string {
+		return strings.TrimSpace(request.PostForm.Get("name"))
+	}, (*decomp.Artifact).SetName)
 }
 
 func (view *preview) saveSignature(response http.ResponseWriter, request *http.Request) {
-	if err := request.ParseForm(); err != nil {
-		http.Error(response, err.Error(), http.StatusBadRequest)
-		return
-	}
-	address, err := parseAddress(request.PathValue("address"))
-	if err != nil {
-		http.Error(response, "bad function address", http.StatusBadRequest)
-		return
-	}
-	artifactName := request.PathValue("name")
-	signature := strings.TrimSpace(request.PostForm.Get("signature"))
-	view.mu.Lock()
-	artifact, ok := view.project.Lookup(artifactName)
-	var saveErr error
-	if ok {
-		saveErr = artifact.SetSignature(request.Context(), address, signature)
-	}
-	view.mu.Unlock()
-	if !ok {
-		http.NotFound(response, request)
-		return
-	}
-	if saveErr != nil {
-		http.Error(response, saveErr.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(response, request, functionPath(artifact.Slug(), address), http.StatusSeeOther)
+	view.saveFunction(response, request, func() string {
+		return strings.TrimSpace(request.PostForm.Get("signature"))
+	}, (*decomp.Artifact).SetSignature)
 }
 
 func (view *preview) saveSource(response http.ResponseWriter, request *http.Request) {
+	view.saveFunction(response, request, func() string {
+		source := request.PostForm.Get("source")
+		if strings.TrimSpace(source) == "" {
+			return ""
+		}
+		return source
+	}, (*decomp.Artifact).SetSource)
+}
+
+func (view *preview) saveFunction(response http.ResponseWriter, request *http.Request, value func() string, save func(*decomp.Artifact, context.Context, uint64, string) error) {
 	if err := request.ParseForm(); err != nil {
 		http.Error(response, err.Error(), http.StatusBadRequest)
 		return
@@ -300,16 +260,13 @@ func (view *preview) saveSource(response http.ResponseWriter, request *http.Requ
 		http.Error(response, "bad function address", http.StatusBadRequest)
 		return
 	}
+	text := value()
 	artifactName := request.PathValue("name")
-	source := request.PostForm.Get("source")
-	if strings.TrimSpace(source) == "" {
-		source = ""
-	}
 	view.mu.Lock()
 	artifact, ok := view.project.Lookup(artifactName)
 	var saveErr error
 	if ok {
-		saveErr = artifact.SetSource(request.Context(), address, source)
+		saveErr = save(artifact, request.Context(), address, text)
 	}
 	view.mu.Unlock()
 	if !ok {
@@ -471,7 +428,7 @@ func functionPath(name string, address uint64) string {
 }
 
 func formatHex(address uint64) string {
-	return fmt.Sprintf("0x%x", address)
+	return decomp.FormatAddress(address)
 }
 
 func parseAddress(text string) (uint64, error) {

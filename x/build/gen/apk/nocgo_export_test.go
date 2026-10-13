@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 func TestLewkitDirFindsModule(t *testing.T) {
 	dir := lewkitDir()
 	require.NotEmpty(t, dir)
-	_, err := os.Stat(filepath.Join(dir, "x/entry/_cgo_android_export.go"))
+	_, err := os.Stat(filepath.Join(dir, "x/entry/android/_cgo_android_export.go"))
 	require.NoError(t, err)
 }
 

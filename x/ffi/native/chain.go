@@ -8,6 +8,15 @@ import (
 	"sync"
 )
 
+// addDir appends dir when it is new and not empty.
+func addDir(dirs *[]string, seen map[string]bool, dir string) {
+	if dir == "" || seen[dir] {
+		return
+	}
+	seen[dir] = true
+	*dirs = append(*dirs, dir)
+}
+
 // SearchDirs is the directory chain for a bare soname.
 // extra directories come first, then LEWKIT_LIB, the dynamic linker path,
 // the Nix profiles, and the usual system library directories.
@@ -15,13 +24,7 @@ import (
 func SearchDirs(extra ...string) []string {
 	var dirs []string
 	seen := map[string]bool{}
-	add := func(dir string) {
-		if dir == "" || seen[dir] {
-			return
-		}
-		seen[dir] = true
-		dirs = append(dirs, dir)
-	}
+	add := func(dir string) { addDir(&dirs, seen, dir) }
 	for _, dir := range extra {
 		add(dir)
 	}

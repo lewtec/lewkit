@@ -5,14 +5,6 @@ import (
 	"image/color"
 )
 
-// ShowShell makes this process a foreground app and sets its switcher icon.
-// title names the menu when the bundle has no display name.
-// A nil icon leaves the host icon unchanged. Hosts with no shell icon ignore the call.
-// On darwin, call it on the UI thread.
-func ShowShell(title string, icon image.Image) {
-	showShell(title, icon)
-}
-
 // ShellPicture is the _NET_WM_ICON property: width, height, then
 // straight-alpha ARGB with alpha in the high byte.
 // A nil icon is an empty property.

@@ -10,17 +10,12 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/notification"
 	"github.com/lewtec/lewkit/x/ffi/jni"
-	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
 
 var _ notification.Driver = backend{}
 
 func (factory) CheckCompatibility(context.Context) error {
-	n, err := androidffi.JavaVMs()
-	if err != nil || n < 1 {
-		return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
-	}
-	return nil
+	return driver.JavaVM()
 }
 
 func (factory) New(context.Context) (notification.Driver, error) { return backend{}, nil }

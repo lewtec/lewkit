@@ -5,11 +5,38 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
 )
+
+func TestRequireWithoutHost(t *testing.T) {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		t.Skip()
+	}
+	t.Cleanup(func() { Set(nil) })
+	Set(nil)
+	t.Setenv("ELETROCROMO_ASK_DIR", "")
+	t.Setenv("LEWKIT_NO_UI", "")
+	t.Setenv("ELETROCROMO_NO_UI", "")
+	err := Require()
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.EqualError(t, err, "component is incompatible: no ask host")
+}
+
+func TestRequireWithHook(t *testing.T) {
+	if runtime.GOOS == "android" {
+		t.Skip()
+	}
+	t.Cleanup(func() { Set(nil) })
+	Set(func(context.Context, int, string, string) (string, error) { return "", nil })
+	require.NoError(t, Require())
+}
 
 func TestCallUsesHook(t *testing.T) {
 	t.Cleanup(func() { Set(nil) })

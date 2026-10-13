@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/lewtec/lewkit/cmd/lewkit/internal/input"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db"
 	xdecomp "github.com/lewtec/lewkit/x/disasm/decomp"
@@ -340,7 +341,7 @@ func openDecomp(ctx context.Context, path string) (*xdecomp.Project, *xdecomp.Ar
 		if artifact, ok := project.Artifact("stdin"); ok {
 			return project, artifact, nil
 		}
-		data, err := readInput(ctx, path)
+		data, err := input.Read(ctx, path)
 		if err != nil {
 			_ = project.Close()
 			return nil, nil, err
@@ -352,7 +353,7 @@ func openDecomp(ctx context.Context, path string) (*xdecomp.Project, *xdecomp.Ar
 		}
 		return project, artifact, nil
 	}
-	data, err := readInput(ctx, path)
+	data, err := input.Read(ctx, path)
 	if err != nil {
 		if artifact, ok := project.ArtifactFile(path); ok {
 			return project, artifact, nil
@@ -366,37 +367,6 @@ func openDecomp(ctx context.Context, path string) (*xdecomp.Project, *xdecomp.Ar
 		return nil, nil, err
 	}
 	return project, artifact, nil
-}
-
-func readInput(ctx context.Context, path string) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, context.Cause(ctx)
-	}
-	done := make(chan struct {
-		b   []byte
-		err error
-	}, 1)
-	go func() {
-		var (
-			b   []byte
-			err error
-		)
-		if path != "" && path != "-" {
-			b, err = os.ReadFile(path)
-		} else {
-			b, err = io.ReadAll(os.Stdin)
-		}
-		done <- struct {
-			b   []byte
-			err error
-		}{b, err}
-	}()
-	select {
-	case <-ctx.Done():
-		return nil, context.Cause(ctx)
-	case got := <-done:
-		return got.b, got.err
-	}
 }
 
 func commandAddress(at cmd.IntArg[uint64], artifact *xdecomp.Artifact) uint64 {

@@ -235,7 +235,7 @@ func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (
 }
 
 func entryExportFile(ctx context.Context) (string, error) {
-	cmd := execdriver.MustCommand(ctx, "go", "list", "-f", "{{.Dir}}", "github.com/lewtec/lewkit/x/entry")
+	cmd := execdriver.MustCommand(ctx, "go", "list", "-f", "{{.Dir}}", "github.com/lewtec/lewkit/x/entry/android")
 	// The app main may be another module. go list has to run in this one.
 	cmd.Dir = lewkitDir()
 	out, err := execdriver.Output(ctx, cmd)

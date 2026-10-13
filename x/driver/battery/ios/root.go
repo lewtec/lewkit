@@ -4,8 +4,6 @@ package ios
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/battery"
@@ -19,13 +17,7 @@ func (factory) Name() string { return "iOS battery" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not ios", driver.ErrIncompatible)
-	}
-	if !iosbox.Available() {
-		return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
-	}
-	return nil
+	return iosbox.Require()
 }
 
 func (factory) New(context.Context) (battery.Driver, error) { return backend{}, nil }

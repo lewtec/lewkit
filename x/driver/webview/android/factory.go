@@ -21,7 +21,7 @@ func (factory) CheckCompatibility(context.Context) error {
 	if runtime.GOOS != "android" {
 		return fmt.Errorf("%w: not android", driver.ErrIncompatible)
 	}
-	return vmReady()
+	return driver.JavaVM()
 }
 
 func (factory) New(context.Context) (webview.Driver, error) { return pageDriver{}, nil }

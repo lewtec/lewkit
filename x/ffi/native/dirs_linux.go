@@ -20,13 +20,7 @@ import (
 func hostLibDirs() []string {
 	var dirs []string
 	seen := map[string]bool{}
-	add := func(dir string) {
-		if dir == "" || seen[dir] {
-			return
-		}
-		seen[dir] = true
-		dirs = append(dirs, dir)
-	}
+	add := func(dir string) { addDir(&dirs, seen, dir) }
 	// The graphics driver and nix-ld come before a conda prefix. conda's
 	// DT_RPATH still wins at dlopen time; HostGL maps the driver first.
 	for _, dir := range glDirs(glDriverLib, envList("NIX_LD_LIBRARY_PATH")) {

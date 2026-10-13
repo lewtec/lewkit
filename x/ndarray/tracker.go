@@ -160,26 +160,12 @@ func (t Tracker) Permute(axes ...int) (Tracker, error) {
 
 // Expand broadcasts size-1 axes. Rank stays the same.
 func (t Tracker) Expand(shape Shape) (Tracker, error) {
-	if err := t.check(); err != nil {
-		return Tracker{}, err
-	}
-	v, err := t.last().expand(shape)
-	if err != nil {
-		return Tracker{}, err
-	}
-	return t.replace(v), nil
+	return t.mapView(func(v view) (view, error) { return v.expand(shape) })
 }
 
 // Pad adds zeros before and after each axis. arg[i] is {before, after}.
 func (t Tracker) Pad(arg [][2]int) (Tracker, error) {
-	if err := t.check(); err != nil {
-		return Tracker{}, err
-	}
-	v, err := t.last().pad(arg)
-	if err != nil {
-		return Tracker{}, err
-	}
-	return t.replace(v), nil
+	return t.mapView(func(v view) (view, error) { return v.pad(arg) })
 }
 
 // Splat broadcasts a 1-cell tensor. The buffer offset is kept.
@@ -206,10 +192,14 @@ func (t Tracker) Splat() (Tracker, error) {
 
 // Shrink keeps [start, end) on each axis. arg[i] is {start, end}.
 func (t Tracker) Shrink(arg [][2]int) (Tracker, error) {
+	return t.mapView(func(v view) (view, error) { return v.shrink(arg) })
+}
+
+func (t Tracker) mapView(fn func(view) (view, error)) (Tracker, error) {
 	if err := t.check(); err != nil {
 		return Tracker{}, err
 	}
-	v, err := t.last().shrink(arg)
+	v, err := fn(t.last())
 	if err != nil {
 		return Tracker{}, err
 	}

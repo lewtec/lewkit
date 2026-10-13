@@ -16,11 +16,7 @@ var errMainLooper = errors.New("main looper")
 
 // Platform reports whether a Java VM can present lewkit.Ask.
 func Platform(context.Context) error {
-	n, err := androidffi.JavaVMs()
-	if err != nil || n < 1 {
-		return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
-	}
-	return nil
+	return driver.JavaVM()
 }
 
 // Call sets the listener, invokes method, and waits for one askwire reply.

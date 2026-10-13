@@ -47,12 +47,12 @@ func echoCandidate(function Function, name, signature string) string {
 		if index > 0 {
 			blocks += ","
 		}
-		blocks += `{"address":"` + formatAddress(block.Address) + `","kind":"` + block.Kind + `"`
+		blocks += `{"address":"` + FormatAddress(block.Address) + `","kind":"` + block.Kind + `"`
 		if block.Target != 0 {
-			blocks += `,"target":"` + formatAddress(block.Target) + `"`
+			blocks += `,"target":"` + FormatAddress(block.Target) + `"`
 		}
 		if block.Fall != 0 {
-			blocks += `,"fall":"` + formatAddress(block.Fall) + `"`
+			blocks += `,"fall":"` + FormatAddress(block.Fall) + `"`
 		}
 		blocks += "}"
 	}

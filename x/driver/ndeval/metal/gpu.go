@@ -3,12 +3,11 @@ package metal
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
-	"runtime"
 	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/gpuhost"
 	ffimetal "github.com/lewtec/lewkit/x/ffi/native/metal"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
@@ -27,15 +26,7 @@ func (factory) ID() string   { return "ndeval_metal" }
 func (factory) Name() string { return "Metal" }
 func (factory) Weight() int  { return 80 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "darwin" && runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not apple", driver.ErrIncompatible)
-	}
-	if err := ffimetal.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
-	}
-	return nil
-}
+func (factory) CheckCompatibility(context.Context) error { return gpuhost.Metal() }
 
 func (factory) New(context.Context) (ndarray.Evaluator, error) {
 	device, err := ffimetal.OpenDevice()

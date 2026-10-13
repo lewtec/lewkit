@@ -5,11 +5,10 @@ package gtk
 import (
 	"context"
 	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/internal/gtkui"
 	"github.com/lewtec/lewkit/x/driver/launcher"
-	"github.com/lewtec/lewkit/x/driver/thread"
 	gtklib "github.com/lewtec/lewkit/x/ffi/native/gtk"
 
 	_ "github.com/lewtec/lewkit/x/driver/thread/std"
@@ -20,18 +19,7 @@ type base struct{}
 func (base) ID() string  { return "launcher_gtk" }
 func (base) Weight() int { return 80 }
 
-func (base) CheckCompatibility(ctx context.Context) error {
-	if err := driver.ForGOOS("linux"); err != nil {
-		return err
-	}
-	if driver.GetEnv(ctx, "DISPLAY") == "" && driver.GetEnv(ctx, "WAYLAND_DISPLAY") == "" {
-		return fmt.Errorf("%w: neither DISPLAY nor WAYLAND_DISPLAY set", driver.ErrIncompatible)
-	}
-	if err := gtklib.Available(ctx); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
-	}
-	return nil
-}
+func (base) CheckCompatibility(ctx context.Context) error { return gtkui.Require(ctx) }
 
 type chooserFactory struct{ base }
 
@@ -66,7 +54,7 @@ func (backend) Choose(ctx context.Context, opts launcher.ChooseOptions) (*launch
 	}
 	var index int
 	var ok bool
-	err := present(ctx, func() error {
+	err := gtkui.Run(ctx, func() error {
 		var callErr error
 		index, ok, callErr = gtklib.Choose(ctx, opts.Prompt, labels)
 		return callErr
@@ -84,7 +72,7 @@ func (backend) Prompt(ctx context.Context, prompt string) (string, error) {
 	}
 	var text string
 	var ok bool
-	err := present(ctx, func() error {
+	err := gtkui.Run(ctx, func() error {
 		var callErr error
 		text, ok, callErr = gtklib.Prompt(ctx, prompt)
 		return callErr
@@ -100,7 +88,7 @@ func (backend) Confirm(ctx context.Context, message string) (bool, error) {
 		return false, err
 	}
 	var ok bool
-	err := present(ctx, func() error {
+	err := gtkui.Run(ctx, func() error {
 		var callErr error
 		ok, callErr = gtklib.Confirm(ctx, message)
 		return callErr
@@ -109,35 +97,6 @@ func (backend) Confirm(ctx context.Context, message string) (bool, error) {
 		return false, err
 	}
 	return ok, nil
-}
-
-// present runs fn on the thread that owns GTK.
-// The first dialog claims the UI thread when one is bound.
-func present(ctx context.Context, fn func() error) error {
-	if gtklib.Owned() && !gtklib.OnOwner() {
-		return fn()
-	}
-	if bound, on := uiThread(); bound && !on {
-		done := make(chan error, 1)
-		thread.Go(func() { done <- fn() })
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-done:
-			return err
-		}
-	}
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
-	return fn()
-}
-
-func uiThread() (bound, on bool) {
-	defer func() { _ = recover() }()
-	if !thread.Bound() {
-		return false, false
-	}
-	return true, thread.On()
 }
 
 func init() {

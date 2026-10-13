@@ -19,7 +19,7 @@ func (factory) Name() string { return "Android file chooser" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	return fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
+	return driver.JavaVM()
 }
 
 func (factory) New(context.Context) (filedialog.Driver, error) {

@@ -4,7 +4,6 @@ package host
 import (
 	"context"
 	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
@@ -18,15 +17,7 @@ func (factory) ID() string   { return "messagebox_host" }
 func (factory) Name() string { return "Host alert" }
 func (factory) Weight() int  { return 70 }
 
-func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS == "android" {
-		return fmt.Errorf("%w: android", driver.ErrIncompatible)
-	}
-	if !hostask.Available() {
-		return fmt.Errorf("%w: no ask host", driver.ErrIncompatible)
-	}
-	return nil
-}
+func (factory) CheckCompatibility(context.Context) error { return hostask.Require() }
 
 func (factory) New(context.Context) (messagebox.Driver, error) { return backend{}, nil }
 

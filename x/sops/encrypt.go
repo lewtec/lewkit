@@ -3,7 +3,6 @@ package sops
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
-	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
 	_ "github.com/lewtec/lewkit/x/tool/github"
@@ -85,53 +83,7 @@ func ensureSops(ctx context.Context, directory string) (string, error) {
 }
 
 func sopsSpec(directory string) (string, error) {
-	for {
-		spec, found, err := sopsSpecIn(directory)
-		if err != nil {
-			return "", err
-		}
-		if found {
-			return spec, nil
-		}
-		parent := filepath.Dir(directory)
-		if parent == directory {
-			return sopsRef + "@latest", nil
-		}
-		directory = parent
-	}
-}
-
-func sopsSpecIn(directory string) (string, bool, error) {
-	root, err := lewpath.Open(directory)
-	if err != nil {
-		return "", false, nil
-	}
-	defer root.Close()
-	name := lewpath.New("modot.lock.json")
-	isFile, err := name.IsFile(root)
-	if err != nil || !isFile {
-		return "", false, err
-	}
-	body, err := name.ReadFile(root)
-	if err != nil {
-		return "", false, err
-	}
-	var lock struct {
-		Dependencies []struct {
-			Kind         string `json:"kind"`
-			Ref          string `json:"ref"`
-			CurrentValue string `json:"currentValue"`
-		} `json:"dependencies"`
-	}
-	if err := json.Unmarshal(body, &lock); err != nil {
-		return "", false, fmt.Errorf("modot.lock.json: %w", err)
-	}
-	for _, dependency := range lock.Dependencies {
-		if dependency.Kind == "tool" && dependency.Ref == sopsRef && dependency.CurrentValue != "" {
-			return sopsRef + "@" + dependency.CurrentValue, true, nil
-		}
-	}
-	return "", false, nil
+	return tool.LockSpec(directory, sopsRef)
 }
 
 func commandDir(dir string) string {

@@ -27,8 +27,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/messagebox"
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/win32"
 	"github.com/lewtec/lewkit/x/driver/webview"
-	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/driver/window/win32"
 	webview2 "github.com/lewtec/lewkit/x/ffi/native/webview2"
 	lewrelease "github.com/lewtec/lewkit/x/release"
 )
@@ -46,9 +45,6 @@ const (
 	wsExAppWindow  = 0x00040000
 	swShow         = 5
 	cwUseDefault   = 0x80000000
-	swpNoSize      = 0x0001
-	swpNoMove      = 0x0002
-	swpShowWindow  = 0x0040
 	pmRemove       = 0x0001
 	colorWindow    = 5
 )
@@ -65,16 +61,6 @@ var (
 	loopWindow     uintptr
 	nextIdentifier atomic.Uint64
 	windows        sync.Map
-
-	procGetForegroundWindow      = native.ProcOf("user32.dll", "GetForegroundWindow")
-	procGetWindowThreadProcessId = native.ProcOf("user32.dll", "GetWindowThreadProcessId")
-	procSetForegroundWindow      = native.ProcOf("user32.dll", "SetForegroundWindow")
-	procBringWindowToTop         = native.ProcOf("user32.dll", "BringWindowToTop")
-	procSetWindowPos             = native.ProcOf("user32.dll", "SetWindowPos")
-	procAttachThreadInput        = native.ProcOf("user32.dll", "AttachThreadInput")
-	procAllowSetForegroundWindow = native.ProcOf("user32.dll", "AllowSetForegroundWindow")
-	procGetCurrentProcessId      = native.ProcOf("kernel32.dll", "GetCurrentProcessId")
-	procGetCurrentThreadId       = native.ProcOf("kernel32.dll", "GetCurrentThreadId")
 
 	environmentIID        = guid{0xB96D755E, 0x0319, 0x4E92, [8]byte{0xA2, 0x96, 0x23, 0x43, 0x6F, 0x46, 0xA1, 0xFC}}
 	controllerIID         = guid{0x4D00C0D1, 0x9434, 0x4EB6, [8]byte{0x80, 0x78, 0x86, 0x97, 0xA5, 0x60, 0x33, 0x4F}}
@@ -241,7 +227,7 @@ func ensureLoop() error {
 					drainJobs()
 					continue
 				}
-				if window.DeliverUI(uintptr(msg.message), msg.wparam) {
+				if win32.DeliverUI(uintptr(msg.message), msg.wparam) {
 					continue
 				}
 				_, _, _ = webview2.TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
@@ -350,7 +336,7 @@ func (view *edgeView) create(ctx context.Context) error {
 		return err
 	}
 	instance, _, _ := webview2.GetModuleHandle.Call(0)
-	owner := foregroundProcessWindow()
+	owner := win32.ForegroundProcessWindow()
 	exStyle := uintptr(0)
 	if owner != 0 {
 		exStyle = wsExAppWindow
@@ -361,8 +347,8 @@ func (view *edgeView) create(ctx context.Context) error {
 	}
 	view.hwnd = hwnd
 	windows.Store(hwnd, view)
-	window.RegisterUI(hwnd)
-	window.ApplyWindowIcon(hwnd, view.icon)
+	win32.RegisterUI(hwnd)
+	win32.ApplyWindowIcon(hwnd, view.icon)
 	defer func() {
 		if !view.ready.Load() {
 			view.closeWindow()
@@ -459,50 +445,12 @@ func (view *edgeView) create(ctx context.Context) error {
 		return err
 	}
 	_, _, _ = webview2.ShowWindow.Call(hwnd, swShow)
-	raiseWindow(hwnd)
+	win32.Raise(hwnd)
 	if err := view.startupErr(); err != nil {
 		return err
 	}
 	view.ready.Store(true)
 	return nil
-}
-
-func foregroundProcessWindow() uintptr {
-	hwnd, _, _ := procGetForegroundWindow.Call()
-	if hwnd == 0 {
-		return 0
-	}
-	var pid uint32
-	procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
-	current, _, _ := procGetCurrentProcessId.Call()
-	if uint32(current) != pid {
-		return 0
-	}
-	return hwnd
-}
-
-func raiseWindow(hwnd uintptr) {
-	if hwnd == 0 {
-		return
-	}
-	procAllowSetForegroundWindow.Call(uintptr(0xFFFFFFFF))
-	fg, _, _ := procGetForegroundWindow.Call()
-	var fgThread uintptr
-	if fg != 0 {
-		fgThread, _, _ = procGetWindowThreadProcessId.Call(fg, 0)
-	}
-	our, _, _ := procGetCurrentThreadId.Call()
-	attached := false
-	if fgThread != 0 && fgThread != our {
-		r, _, _ := procAttachThreadInput.Call(our, fgThread, 1)
-		attached = r != 0
-	}
-	procSetForegroundWindow.Call(hwnd)
-	procBringWindowToTop.Call(hwnd)
-	procSetWindowPos.Call(hwnd, 0, 0, 0, 0, 0, swpNoMove|swpNoSize|swpShowWindow)
-	if attached {
-		procAttachThreadInput.Call(our, fgThread, 0)
-	}
 }
 
 func (view *edgeView) startupErr() error {
@@ -548,7 +496,7 @@ func pumpWaiting(context.Context) error {
 		drainJobs()
 		return nil
 	}
-	if window.DeliverUI(uintptr(msg.message), msg.wparam) {
+	if win32.DeliverUI(uintptr(msg.message), msg.wparam) {
 		return nil
 	}
 	_, _, _ = webview2.TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
@@ -636,7 +584,7 @@ func (view *edgeView) markClosed() {
 		return
 	}
 	windows.Delete(view.hwnd)
-	window.ForgetUI(view.hwnd)
+	win32.ForgetUI(view.hwnd)
 	controller := view.controller
 	web := view.webView
 	env := view.environment
@@ -917,7 +865,7 @@ func windowProcedure(hwnd, msg, wparam, lparam uintptr) uintptr {
 			}
 		}
 	}()
-	if window.DeliverUI(msg, wparam) {
+	if win32.DeliverUI(msg, wparam) {
 		return 1
 	}
 	if msg == wmJob {
