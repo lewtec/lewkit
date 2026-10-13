@@ -62,16 +62,6 @@ func adjust(ctx context.Context, delta float64) error {
 		if err != nil {
 			return err
 		}
-		return d.SetVolume(ctx, clamp01(level+delta))
+		return d.SetVolume(ctx, driver.Clamp01(level+delta))
 	})
-}
-
-func clamp01(v float64) float64 {
-	if v > 1 {
-		return 1
-	}
-	if v < 0 {
-		return 0
-	}
-	return v
 }
