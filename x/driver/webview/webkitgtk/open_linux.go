@@ -205,21 +205,13 @@ func (state *loopState) drain() {
 }
 
 func uiOwnsGTK() bool {
-	bound, on := uiThread()
+	bound, on := thread.State()
 	return bound && !on
 }
 
 func onUIThread() bool {
-	_, on := uiThread()
+	_, on := thread.State()
 	return on
-}
-
-func uiThread() (bound, on bool) {
-	defer func() { _ = recover() }()
-	if !thread.Bound() {
-		return false, false
-	}
-	return true, thread.On()
 }
 
 func (state *loopState) webView(profile string) (uintptr, error) {

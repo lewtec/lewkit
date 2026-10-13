@@ -117,7 +117,7 @@ func present(ctx context.Context, fn func() error) error {
 	if gtklib.Owned() && !gtklib.OnOwner() {
 		return fn()
 	}
-	if bound, on := uiThread(); bound && !on {
+	if bound, on := thread.State(); bound && !on {
 		done := make(chan error, 1)
 		thread.Go(func() { done <- fn() })
 		select {
@@ -130,14 +130,6 @@ func present(ctx context.Context, fn func() error) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	return fn()
-}
-
-func uiThread() (bound, on bool) {
-	defer func() { _ = recover() }()
-	if !thread.Bound() {
-		return false, false
-	}
-	return true, thread.On()
 }
 
 func init() {

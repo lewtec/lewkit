@@ -54,6 +54,16 @@ func Bound() bool { return current().Bound() }
 // On reports whether this goroutine is on the UI thread.
 func On() bool { return current().On() }
 
+// State reports whether a UI thread is bound and whether this goroutine is on it.
+// No open driver is unbound.
+func State() (bound, on bool) {
+	defer func() { _ = recover() }()
+	if !Bound() {
+		return false, false
+	}
+	return true, On()
+}
+
 // OnIdle registers fn on the UI thread when Loop has no job.
 func OnIdle(fn func()) { current().OnIdle(fn) }
 
