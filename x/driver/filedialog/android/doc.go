@@ -3,7 +3,6 @@ package android
 import (
 	"cmp"
 	"errors"
-	"io"
 	"io/fs"
 	"path"
 	"slices"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 var (
@@ -292,7 +293,7 @@ func (f *docFile) ReadDir(n int) ([]fs.DirEntry, error) {
 	if !f.info.dir {
 		return nil, &fs.PathError{Op: "readdir", Path: f.info.name, Err: fs.ErrInvalid}
 	}
-	return pageDir(f.ents, &f.off, n)
+	return lewfs.DirEntries(f.ents, &f.off, n)
 }
 
 type docInfo struct {
@@ -324,24 +325,3 @@ func (d docInfo) Mode() fs.FileMode {
 func (d docInfo) ModTime() time.Time { return time.Time{} }
 func (d docInfo) IsDir() bool        { return d.dir }
 func (d docInfo) Sys() any           { return nil }
-
-func pageDir(ents []fs.DirEntry, off *int, n int) ([]fs.DirEntry, error) {
-	if *off >= len(ents) {
-		if n <= 0 {
-			return nil, nil
-		}
-		return nil, io.EOF
-	}
-	if n <= 0 {
-		out := ents[*off:]
-		*off = len(ents)
-		return out, nil
-	}
-	end := *off + n
-	if end > len(ents) {
-		end = len(ents)
-	}
-	out := ents[*off:end]
-	*off = end
-	return out, nil
-}

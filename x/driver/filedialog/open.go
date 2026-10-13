@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
+	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 var errContent = errors.New("content uri")
@@ -225,7 +225,7 @@ func (f *localFile) ReadDir(n int) ([]fs.DirEntry, error) {
 		})
 		f.ents = all
 	}
-	return pageDir(f.ents, &f.off, n)
+	return lewfs.DirEntries(f.ents, &f.off, n)
 }
 
 type namedInfo struct {
@@ -243,27 +243,6 @@ func (r rootInfo) Mode() fs.FileMode  { return fs.ModeDir | 0o555 }
 func (r rootInfo) ModTime() time.Time { return time.Time{} }
 func (r rootInfo) IsDir() bool        { return true }
 func (r rootInfo) Sys() any           { return nil }
-
-func pageDir(ents []fs.DirEntry, off *int, n int) ([]fs.DirEntry, error) {
-	if *off >= len(ents) {
-		if n <= 0 {
-			return nil, nil
-		}
-		return nil, io.EOF
-	}
-	if n <= 0 {
-		out := ents[*off:]
-		*off = len(ents)
-		return out, nil
-	}
-	end := *off + n
-	if end > len(ents) {
-		end = len(ents)
-	}
-	out := ents[*off:end]
-	*off = end
-	return out, nil
-}
 
 func takeName(name string, seen map[string]struct{}) string {
 	name = cleanName(name)
