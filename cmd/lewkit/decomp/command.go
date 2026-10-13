@@ -7,8 +7,10 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/db"
 	xdecomp "github.com/lewtec/lewkit/x/disasm/decomp"
 	"github.com/lewtec/lewkit/x/disasm/decomp/view"
 	lewfs "github.com/lewtec/lewkit/x/fs"
@@ -24,7 +26,7 @@ var (
 )
 
 type Cmd struct {
-	project   cmd.StringArg `long:"project" default:"" help:"sqlite program database" ctx:""`
+	project   xdecomp.DBArg `long:"project" default:"" help:"sqlite program database" ctx:""`
 	summary   *decompSummaryCmd
 	functions *decompFunctionsCmd
 	listing   *decompListingCmd
@@ -302,18 +304,11 @@ func (decompViewCmd) Description() string {
 }
 
 func (command *decompViewCmd) Run(ctx context.Context) (err error) {
-	path := cmd.Get[string](ctx, "project")
-	if path == "" {
+	conn, ok := cmd.Lookup[*db.Conn[xdecomp.Queries]](ctx, "project")
+	if !ok || conn == nil || strings.TrimSpace(conn.URL()) == "" {
 		return fmt.Errorf("decomp view: %w", errProjectRequired)
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("project: %w", err)
-	}
-	if info.IsDir() {
-		return fmt.Errorf("project %s is a directory", path)
-	}
-	project, err := xdecomp.Open(ctx, path)
+	project, err := xdecomp.OpenConn(ctx, conn)
 	if err != nil {
 		return err
 	}
@@ -332,8 +327,8 @@ func (command *decompViewCmd) Run(ctx context.Context) (err error) {
 
 func openDecomp(ctx context.Context, path string) (*xdecomp.Project, *xdecomp.Artifact, error) {
 	var project *xdecomp.Project
-	if projectPath := cmd.Get[string](ctx, "project"); projectPath != "" {
-		opened, err := xdecomp.Open(ctx, projectPath)
+	if conn, ok := cmd.Lookup[*db.Conn[xdecomp.Queries]](ctx, "project"); ok && conn != nil && strings.TrimSpace(conn.URL()) != "" {
+		opened, err := xdecomp.OpenConn(ctx, conn)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/disasm"
 )
 
@@ -36,7 +36,7 @@ var (
 // A project is not safe for concurrent use.
 type Project struct {
 	artifacts []*Artifact
-	db        *sql.DB
+	conn      *db.Conn[Queries]
 	path      string
 }
 
@@ -544,7 +544,7 @@ func (artifact *Artifact) XRefs(address uint64) []Reference {
 }
 
 func (artifact *Artifact) requireStored(what string) error {
-	if artifact == nil || artifact.project == nil || artifact.project.db == nil {
+	if artifact == nil || artifact.project == nil || artifact.project.conn == nil {
 		return fmt.Errorf("%s was not stored: %w", what, ErrNotStored)
 	}
 	return nil

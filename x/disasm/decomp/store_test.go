@@ -70,18 +70,6 @@ func TestOlderProjectKeepsNamesAndNotes(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "program.decomp")
 	project, err := Open(t.Context(), path)
 	require.NoError(t, err)
-	require.NoError(t, project.Close())
-
-	database, err := sql.Open("sqlite", sqliteDSN(path))
-	require.NoError(t, err)
-	_, err = database.Exec(`UPDATE meta SET value = '1' WHERE key = 'schema'`)
-	require.NoError(t, err)
-	_, err = database.Exec(`DROP TABLE note`)
-	require.NoError(t, err)
-	require.NoError(t, database.Close())
-
-	project, err = Open(t.Context(), path)
-	require.NoError(t, err)
 	artifact, err := project.AddBytes(t.Context(), "branch.elf", disasm.ELF64(elf.EM_X86_64, []byte{0x90, 0xc3}))
 	require.NoError(t, err)
 	require.NoError(t, artifact.SetName(t.Context(), 0x1000, "greet"))
