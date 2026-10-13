@@ -25,6 +25,22 @@
     },
     {
       "kind": "tool",
+      "ref": "github:getsops/sops",
+      "depName": "getsops/sops",
+      "currentValue": "v3.10.2",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "source",
+      "ref": "github:golang/go",
+      "depName": "golang/go",
+      "packageName": "https://github.com/golang/go",
+      "currentValue": "go1.27.0",
+      "currentDigest": "8af21751f066eced273ca3ce49506b366847c623",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "tool",
       "ref": "github:golangci/golangci-lint",
       "depName": "golangci/golangci-lint",
       "currentValue": "v2.13.2",
@@ -69,13 +85,6 @@
       "ref": "github:protocolbuffers/protobuf",
       "depName": "protocolbuffers/protobuf",
       "currentValue": "v36.2",
-      "datasource": "github-releases"
-    },
-    {
-      "kind": "tool",
-      "ref": "github:getsops/sops",
-      "depName": "getsops/sops",
-      "currentValue": "v3.10.2",
       "datasource": "github-releases"
     },
     {

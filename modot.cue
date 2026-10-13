@@ -24,6 +24,10 @@ inputs: tailwindcss: {
 	from:    "github:tailwindlabs/tailwindcss"
 	version: "v4.3.3"
 }
+inputs: golang: {
+	from:    "github:golang/go"
+	version: "go1.27.0"
+}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
@@ -91,5 +95,28 @@ file: codebase: {
 				to:   "upstream.package.json"
 			}
 		}
+	}
+	// Pristine Go 1.27 compiler, linker, and the std internal packages they
+	// import. A directory named _upstream is invisible to the go tool.
+	// x/toolchain/go/rewrite turns this pin into packages the module can import.
+	"x/toolchain/go/_upstream/compile": {
+		type:   "place"
+		source: "golang:src/cmd/compile"
+	}
+	"x/toolchain/go/_upstream/link": {
+		type:   "place"
+		source: "golang:src/cmd/link"
+	}
+	"x/toolchain/go/_upstream/cmd": {
+		type:   "place"
+		source: "golang:src/cmd/internal"
+	}
+	"x/toolchain/go/_upstream/std": {
+		type:   "place"
+		source: "golang:src/internal"
+	}
+	"x/toolchain/go/_upstream/telemetry": {
+		type:   "place"
+		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
 	}
 }
