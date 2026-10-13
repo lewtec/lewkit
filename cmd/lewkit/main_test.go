@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/cmd/lewkit/generate"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
@@ -59,14 +60,14 @@ func TestCompletionLine(t *testing.T) {
 }
 
 func TestGenerateDbUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "db")
 	assert.Contains(t, text, "shared Queries")
 }
 
 func TestGeneratePreludeUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "prelude")
 	assert.Contains(t, text, "blank-import")
@@ -77,21 +78,21 @@ func TestGeneratePreludeUsage(t *testing.T) {
 }
 
 func TestGenerateProtobufUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "protobuf")
 	assert.Contains(t, text, ".proto file")
 }
 
 func TestGenerateShaderUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "shader")
 	assert.Contains(t, text, "SPIR-V registry")
 }
 
 func TestGenerateHeaderUsage(t *testing.T) {
-	text, err := cmd.Usage[generateCmd](release.Name() + " generate")
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
 	assert.Contains(t, text, "header")
 	assert.Contains(t, text, "purego")
