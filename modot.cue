@@ -131,3 +131,27 @@ formatter: tools: "go-sources": {
 	}
 	cmd: ["sh", "x/toolchain/format.sh"]
 }
+
+// Prelude golangci-lint and govulncheck run on ./... . That includes
+// x/toolchain/go/src, the rewritten compiler. Point them at the same
+// package list as the tests.
+lint: tools: "golangci-lint": enable: false
+lint: tools: govulncheck: enable: false
+lint: tools: "go-lint": {
+	detect: "00-go-mod": {
+		path:   "go.mod"
+		enable: true
+	}
+	needs: golangci_lint: true
+	cmd: ["sh", "x/toolchain/lint-golangci.sh"]
+	output: "sarif"
+}
+lint: tools: "go-vuln": {
+	detect: "00-go-mod": {
+		path:   "go.mod"
+		enable: true
+	}
+	needs: govulncheck: true
+	cmd: ["sh", "x/toolchain/lint-govuln.sh"]
+	output: "sarif"
+}

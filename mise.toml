@@ -14,7 +14,8 @@ run = "modot codebase format"
 run = "modot codebase lint"
 
 [tasks.test]
-run = "go test ./..."
+description = "go test, skipping the vendored Go compiler tree"
+run = "sh x/toolchain/test.sh"
 
 [tasks."test:host"]
 description = "JIT, FFI, and the cgo replacement on this host"
@@ -25,7 +26,8 @@ description = "go:generate, skipping the vendored Go trees"
 run = "sh x/toolchain/codegen.sh"
 
 [tasks.ci]
-depends = ["test", "lint"]
+description = "Test the module, then lint"
+run = "sh x/toolchain/ci.sh"
 
 [tasks.release]
 description = "Run a release"
