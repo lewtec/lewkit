@@ -1,6 +1,6 @@
 //go:build windows
 
-package window
+package win32
 
 import (
 	"errors"
@@ -13,19 +13,11 @@ import (
 	"github.com/lewtec/lewkit/x/image/convert"
 )
 
-const (
-	wmSetIcon = 0x0080
-	iconSmall = 0
-	iconBig   = 1
-	dibRGB    = 0
-)
-
 var (
 	procCreateDIBSection   = native.ProcOf("gdi32.dll", "CreateDIBSection")
 	procCreateBitmap       = native.ProcOf("gdi32.dll", "CreateBitmap")
 	procCreateIconIndirect = native.ProcOf("user32.dll", "CreateIconIndirect")
 	procDeleteObject       = native.ProcOf("gdi32.dll", "DeleteObject")
-	procSendMessageW       = native.ProcOf("user32.dll", "SendMessageW")
 )
 
 // ApplyWindowIcon sets the taskbar and Alt-Tab icons for hwnd.
@@ -91,7 +83,7 @@ func hicon(img *image.NRGBA) (uintptr, error) {
 		bitCount: 32,
 	}
 	var bits unsafe.Pointer
-	colorBitmap, extra, callErr := procCreateDIBSection.Call(0, uintptr(unsafe.Pointer(&header)), dibRGB, uintptr(unsafe.Pointer(&bits)), 0, 0)
+	colorBitmap, extra, callErr := procCreateDIBSection.Call(0, uintptr(unsafe.Pointer(&header)), dibRGBColors, uintptr(unsafe.Pointer(&bits)), 0, 0)
 	if colorBitmap == 0 || bits == nil {
 		if colorBitmap != 0 {
 			procDeleteObject.Call(colorBitmap)

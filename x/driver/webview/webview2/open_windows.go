@@ -27,7 +27,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver/messagebox"
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/win32"
 	"github.com/lewtec/lewkit/x/driver/webview"
-	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/driver/window/win32"
 	webview2 "github.com/lewtec/lewkit/x/ffi/native/webview2"
 	lewrelease "github.com/lewtec/lewkit/x/release"
@@ -228,7 +227,7 @@ func ensureLoop() error {
 					drainJobs()
 					continue
 				}
-				if window.DeliverUI(uintptr(msg.message), msg.wparam) {
+				if win32.DeliverUI(uintptr(msg.message), msg.wparam) {
 					continue
 				}
 				_, _, _ = webview2.TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
@@ -348,8 +347,8 @@ func (view *edgeView) create(ctx context.Context) error {
 	}
 	view.hwnd = hwnd
 	windows.Store(hwnd, view)
-	window.RegisterUI(hwnd)
-	window.ApplyWindowIcon(hwnd, view.icon)
+	win32.RegisterUI(hwnd)
+	win32.ApplyWindowIcon(hwnd, view.icon)
 	defer func() {
 		if !view.ready.Load() {
 			view.closeWindow()
@@ -497,7 +496,7 @@ func pumpWaiting(context.Context) error {
 		drainJobs()
 		return nil
 	}
-	if window.DeliverUI(uintptr(msg.message), msg.wparam) {
+	if win32.DeliverUI(uintptr(msg.message), msg.wparam) {
 		return nil
 	}
 	_, _, _ = webview2.TranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
@@ -585,7 +584,7 @@ func (view *edgeView) markClosed() {
 		return
 	}
 	windows.Delete(view.hwnd)
-	window.ForgetUI(view.hwnd)
+	win32.ForgetUI(view.hwnd)
 	controller := view.controller
 	web := view.webView
 	env := view.environment
@@ -866,7 +865,7 @@ func windowProcedure(hwnd, msg, wparam, lparam uintptr) uintptr {
 			}
 		}
 	}()
-	if window.DeliverUI(msg, wparam) {
+	if win32.DeliverUI(msg, wparam) {
 		return 1
 	}
 	if msg == wmJob {

@@ -1,6 +1,6 @@
 //go:build windows
 
-package window
+package win32
 
 import (
 	"sync"
@@ -25,9 +25,7 @@ var (
 	uiJobs    sync.Map // id -> *uiJob
 	uiSeq     atomic.Uint64
 
-	procPostMessageW             = native.ProcOf("user32.dll", "PostMessageW")
-	procGetWindowThreadProcessId = native.ProcOf("user32.dll", "GetWindowThreadProcessId")
-	procGetCurrentThreadId       = native.ProcOf("kernel32.dll", "GetCurrentThreadId")
+	procPostMessageW = native.ProcOf("user32.dll", "PostMessageW")
 )
 
 // RegisterUI marks hwnd as a window whose procedure runs DeliverUI.
