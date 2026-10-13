@@ -6,10 +6,9 @@
 // drops the internal element (compile/internal/gc becomes src/compile/gc) and
 // retargets std internal imports onto the placed copy under src/std. It also
 // turns the linker's and compiler's process exits into panics so one process
-// can compile and then link. overlay/ then replaces the files whose library
-// entry points (SetDiag, MainArgs, Run, ParseFS) are not in the upstream pin.
-// modot codebase apply restores those pin files, so the edits live in the
-// overlay rather than in _upstream.
+// can compile and then link. modot replaces the placed trees on purpose.
+// patch.json then adds SetDiag, MainArgs, Run, and ParseFS onto that text,
+// after import paths have been rewritten, and does not contain those paths.
 //
 // Run it after `go tool modot codebase apply`. go generate at the repo root
 // does both.
@@ -17,12 +16,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -47,7 +48,7 @@ func main() {
 	if err := patchAll(dst); err != nil {
 		fatal(err)
 	}
-	if err := applyOverlay(dst); err != nil {
+	if err := patchLib(dst); err != nil {
 		fatal(err)
 	}
 	if err := writeGenerated(dst); err != nil {
@@ -55,29 +56,44 @@ func main() {
 	}
 }
 
-// overlayFiles are src-relative paths. Each file in rewrite/overlay is the
-// import-rewritten copy, including the Exit panic patches.
-var overlayFiles = []string{
-	"compile/base/flag.go",
-	"compile/base/print.go",
-	"compile/gc/main.go",
-	"compile/types/goversion.go",
-	"link/ld/main.go",
-	"link/ld/util.go",
-	"cmd/objabi/flag.go",
-}
-
-func applyOverlay(dst string) error {
-	dir := filepath.Join("x", "toolchain", "go", "rewrite", "overlay")
-	for _, rel := range overlayFiles {
-		body, err := os.ReadFile(filepath.Join(dir, rel))
+// patchLib applies the library-entry edits in patch.json. Each old string is
+// upstream text after patchAll, with no module import path in it, so a modot
+// replace of _upstream still rewrites compiler paths before these edits land.
+func patchLib(dst string) error {
+	body, err := os.ReadFile(filepath.Join("x", "toolchain", "go", "rewrite", "patch.json"))
+	if err != nil {
+		return err
+	}
+	var files map[string][]struct {
+		Old string `json:"old"`
+		New string `json:"new"`
+	}
+	if err := json.Unmarshal(body, &files); err != nil {
+		return err
+	}
+	rels := make([]string, 0, len(files))
+	for rel := range files {
+		rels = append(rels, rel)
+	}
+	sort.Strings(rels)
+	for _, rel := range rels {
+		path := filepath.Join(dst, filepath.FromSlash(rel))
+		textb, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("overlay %s: %w", rel, err)
+			return fmt.Errorf("patch %s: %w", rel, err)
 		}
-		if err := os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755); err != nil {
-			return err
+		text := string(textb)
+		for i, hunk := range files[rel] {
+			if hunk.Old == "" {
+				return fmt.Errorf("patch %s hunk %d: empty anchor", rel, i)
+			}
+			n := strings.Count(text, hunk.Old)
+			if n != 1 {
+				return fmt.Errorf("patch %s hunk %d: found %d anchors", rel, i, n)
+			}
+			text = strings.Replace(text, hunk.Old, hunk.New, 1)
 		}
-		if err := os.WriteFile(filepath.Join(dst, rel), body, 0o644); err != nil {
+		if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
 			return err
 		}
 	}

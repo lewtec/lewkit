@@ -1,0 +1,240 @@
+{
+  "compile/base/flag.go": [
+    {
+      "old": "\t\"encoding/json\"\n",
+      "new": "\t\"bytes\"\n\t\"encoding/json\"\n"
+    },
+    {
+      "old": "func usage() {\n\tfmt.Fprintf(os.Stderr, \"usage: compile [options] file.go...\\n\")\n\tobjabi.Flagprint(os.Stderr)\n",
+      "new": "func usage(fs *flag.FlagSet) {\n\tfmt.Fprintf(diagWriter(), \"usage: compile [options] file.go...\\n\")\n\tfs.SetOutput(diagWriter())\n\tfs.PrintDefaults()\n"
+    },
+    {
+      "old": "// ParseFlags parses the command-line flags into Flag.\n",
+      "new": "// ParseFlags parses os.Args into Flag.\n"
+    },
+    {
+      "old": "\tFlag.I = addImportDir\n",
+      "new": "\tParseArgs(os.Args[1:])\n}\n\n// ParseArgs parses args into Flag and returns the input files.\n// args does not include the program name.\n// The flag set is private to this call: os.Args and flag.CommandLine stay put.\nfunc ParseArgs(args []string) []string {\n\tFlag = CmdFlags{}\n\tDebug = DebugFlags{}\n\tFlag.I = addImportDir\n"
+    },
+    {
+      "old": "\tobjabi.AddVersionFlag() // -V\n\tregisterFlags()\n\tobjabi.Flagparse(usage)\n\tcounter.CountFlags(\"compile/flag:\", *flag.CommandLine)\n",
+      "new": "\tfs := flag.NewFlagSet(\"compile\", flag.ContinueOnError)\n\tvar flagErr bytes.Buffer\n\tfs.SetOutput(&flagErr)\n\tfs.Usage = func() {}\n\tobjabi.AddVersionFlagFS(fs)\n\tregisterFlags(fs)\n\tif err := objabi.ParseFS(fs, args); err != nil {\n\t\tmsg := err.Error()\n\t\tif flagErr.Len() > 0 {\n\t\t\tmsg += \"\\n\" + flagErr.String()\n\t\t}\n\t\tfmt.Fprintln(diagWriter(), msg)\n\t\tExit(2)\n\t}\n\tfiles := fs.Args()\n\tcounter.CountFlags(\"compile/flag:\", *fs)\n"
+    },
+    {
+      "old": "\tif flag.NArg() < 1 {\n\t\tusage()\n",
+      "new": "\tif len(files) < 1 {\n\t\tusage(fs)\n"
+    },
+    {
+      "old": "\t\tp := flag.Arg(0)\n",
+      "new": "\t\tp := files[0]\n"
+    },
+    {
+      "old": "\t\tDebug.AlignHot = 0\n\t}\n}\n",
+      "new": "\t\tDebug.AlignHot = 0\n\t}\n\treturn files\n}\n"
+    },
+    {
+      "old": "func registerFlags() {\n",
+      "new": "func registerFlags(fs *flag.FlagSet) {\n"
+    },
+    {
+      "old": "\t\t\tp := v.Field(i).Addr().Interface().(*bool)\n\t\t\tflag.BoolVar(p, name, *p, help)\n",
+      "new": "\t\t\tp := v.Field(i).Addr().Interface().(*bool)\n\t\t\tfs.BoolVar(p, name, *p, help)\n"
+    },
+    {
+      "old": "\t\t\tp := v.Field(i).Addr().Interface().(*int)\n\t\t\tflag.IntVar(p, name, *p, help)\n",
+      "new": "\t\t\tp := v.Field(i).Addr().Interface().(*int)\n\t\t\tfs.IntVar(p, name, *p, help)\n"
+    },
+    {
+      "old": "\t\t\tp := v.Field(i).Addr().Interface().(*string)\n\t\t\tflag.StringVar(p, name, *p, help)\n",
+      "new": "\t\t\tp := v.Field(i).Addr().Interface().(*string)\n\t\t\tfs.StringVar(p, name, *p, help)\n"
+    },
+    {
+      "old": "\t\t\tp := v.Field(i).Interface().(*bool)\n\t\t\tflag.BoolVar(p, name, *p, help)\n",
+      "new": "\t\t\tp := v.Field(i).Interface().(*bool)\n\t\t\tfs.BoolVar(p, name, *p, help)\n"
+    },
+    {
+      "old": "\t\t\tp := v.Field(i).Interface().(*int)\n\t\t\tflag.IntVar(p, name, *p, help)\n",
+      "new": "\t\t\tp := v.Field(i).Interface().(*int)\n\t\t\tfs.IntVar(p, name, *p, help)\n"
+    },
+    {
+      "old": "\t\t\tp := v.Field(i).Interface().(*string)\n\t\t\tflag.StringVar(p, name, *p, help)\n",
+      "new": "\t\t\tp := v.Field(i).Interface().(*string)\n\t\t\tfs.StringVar(p, name, *p, help)\n"
+    },
+    {
+      "old": "\t\t\tobjabi.Flagcount(name, help, p)\n",
+      "new": "\t\t\tobjabi.FlagcountFS(fs, name, help, p)\n"
+    },
+    {
+      "old": "\t\t\tobjabi.Flagfn1(name, help, f)\n",
+      "new": "\t\t\tobjabi.Flagfn1FS(fs, name, help, f)\n"
+    },
+    {
+      "old": "\t\t\t\tflag.Var(val, name, help)\n",
+      "new": "\t\t\t\tfs.Var(val, name, help)\n"
+    }
+  ],
+  "compile/base/print.go": [
+    {
+      "old": "\t\"os\"\n",
+      "new": "\t\"io\"\n\t\"os\"\n"
+    },
+    {
+      "old": "var Pos src.XPos\n\n",
+      "new": "var Pos src.XPos\n\n// diag receives compiler diagnostics. Nil writes to stdout, which is\n// where FlushErrors has always printed.\nvar diag io.Writer\n\n// SetDiag sends diagnostics to w. Nil restores stdout.\n// The caller serializes compiler calls; diag is package state.\nfunc SetDiag(w io.Writer) { diag = w }\n\nfunc diagWriter() io.Writer {\n\tif diag == nil {\n\t\treturn os.Stdout\n\t}\n\treturn diag\n}\n\n"
+    },
+    {
+      "old": "\t\t\tfmt.Print(err.msg)\n",
+      "new": "\t\t\tfmt.Fprint(diagWriter(), err.msg)\n"
+    }
+  ],
+  "compile/gc/main.go": [
+    {
+      "old": "\t\"flag\"\n",
+      "new": ""
+    },
+    {
+      "old": "// Main parses flags and Go source files specified in the command-line\n// arguments, type-checks the parsed Go package, compiles functions to machine\n// code, and finally writes the compiled package definition to disk.\n",
+      "new": "// Main compiles the files named by os.Args.\n"
+    },
+    {
+      "old": "\tbase.Timer.Start(\"fe\", \"init\")\n",
+      "new": "\tMainArgs(archInit, os.Args[1:])\n}\n\n// MainArgs compiles the files in args. args does not include the program name.\n// It does not read os.Args or flag.CommandLine.\nfunc MainArgs(archInit func(*ssagen.ArchInfo), args []string) {\n\tbase.Timer.Start(\"fe\", \"init\")\n"
+    },
+    {
+      "old": "\tbase.ParseFlags()\n",
+      "new": "\tfiles := base.ParseArgs(args)\n"
+    },
+    {
+      "old": "\tnoder.LoadPackage(flag.Args())\n",
+      "new": "\tnoder.LoadPackage(files)\n"
+    }
+  ],
+  "compile/types/goversion.go": [
+    {
+      "old": "\t\treturn\n",
+      "new": "\t\tlangWant = lang{}\n\t\treturn\n"
+    }
+  ],
+  "link/ld/main.go": [
+    {
+      "old": "\t\"flag\"\n",
+      "new": "\t\"bytes\"\n\t\"flag\"\n"
+    },
+    {
+      "old": "func init() {\n\tflag.Var(&flagExtld, \"extld\", \"use `linker` when linking in external mode\")\n\tflag.Var(&flagExtldflags, \"extldflags\", \"pass `flags` to external linker\")\n\tflag.Var(&macOS, \"macos\", \"mac OS version to write in build info (only used in internal linking)\")\n\tflag.Var(&macSDK, \"macsdk\", \"mac SDK version to write in build info (only used in internal linking)\")\n\tflag.Var(&rpath, \"r\", \"set the ELF dynamic linker search `path` to dir1:dir2:...\")\n\tflag.Var(&flagW, \"w\", \"disable DWARF generation\")\n}\n",
+      "new": "// Flags used by the linker. The exported flags are used by the architecture-specific packages.\n// bindFlags fills them on a private FlagSet. Importing this package does not\n// register anything on flag.CommandLine.\nvar (\n\tflagBuildid *string\n\tflagBindNow *bool\n"
+    },
+    {
+      "old": "// Flags used by the linker. The exported flags are used by the architecture-specific packages.\nvar (\n\tflagBuildid = flag.String(\"buildid\", \"\", \"record `id` as Go toolchain build id\")\n\tflagBindNow = flag.Bool(\"bindnow\", false, \"mark a dynamically linked ELF object for immediate function binding\")\n",
+      "new": "\tflagOutfile    *string\n\tflagPluginPath *string\n\tflagFipso      *string\n"
+    },
+    {
+      "old": "\tflagOutfile    = flag.String(\"o\", \"\", \"write output to `file`\")\n\tflagPluginPath = flag.String(\"pluginpath\", \"\", \"full path name for plugin\")\n\tflagFipso      = flag.String(\"fipso\", \"\", \"write fips module to `file`\")\n",
+      "new": "\tflagInstallSuffix *string\n\tflagDumpDep       *bool\n\tflagRace          *bool\n\tflagMsan          *bool\n\tflagAsan          *bool\n\tflagAslr          *bool\n"
+    },
+    {
+      "old": "\tflagInstallSuffix = flag.String(\"installsuffix\", \"\", \"set package directory `suffix`\")\n\tflagDumpDep       = flag.Bool(\"dumpdep\", false, \"dump symbol dependency graph\")\n\tflagRace          = flag.Bool(\"race\", false, \"enable race detector\")\n\tflagMsan          = flag.Bool(\"msan\", false, \"enable MSan interface\")\n\tflagAsan          = flag.Bool(\"asan\", false, \"enable ASan interface\")\n\tflagAslr          = flag.Bool(\"aslr\", true, \"enable ASLR for buildmode=c-shared on windows\")\n\n\tflagFieldTrack = flag.String(\"k\", \"\", \"set field tracking `symbol`\")\n\tflagLibGCC     = flag.String(\"libgcc\", \"\", \"compiler support lib for internal linking; use \\\"none\\\" to disable\")\n\tflagTmpdir     = flag.String(\"tmpdir\", \"\", \"use `directory` for temporary files\")\n",
+      "new": "\tflagFieldTrack *string\n\tflagLibGCC     *string\n\tflagTmpdir     *string\n"
+    },
+    {
+      "old": "\tflagExtar      = flag.String(\"extar\", \"\", \"archive program for buildmode=c-archive\")\n",
+      "new": "\tflagExtar      *string\n"
+    },
+    {
+      "old": "\tflagCaptureHostObjs = flag.String(\"capturehostobjs\", \"\", \"capture host object files loaded during internal linking to specified dir\")\n",
+      "new": "\tflagCaptureHostObjs *string\n"
+    },
+    {
+      "old": "\tflagA             = flag.Bool(\"a\", false, \"no-op (deprecated)\")\n\tFlagC             = flag.Bool(\"c\", false, \"dump call graph\")\n\tFlagD             = flag.Bool(\"d\", false, \"disable dynamic executable\")\n\tflagF             = flag.Bool(\"f\", false, \"ignore version mismatch\")\n\tflagG             = flag.Bool(\"g\", false, \"disable go package data checks\")\n\tflagH             = flag.Bool(\"h\", false, \"halt on error\")\n\tflagN             = flag.Bool(\"n\", false, \"no-op (deprecated)\")\n\tFlagS             = flag.Bool(\"s\", false, \"disable symbol table\")\n",
+      "new": "\tflagA             *bool\n\tFlagC             *bool\n\tFlagD             *bool\n\tflagF             *bool\n\tflagG             *bool\n\tflagH             *bool\n\tflagN             *bool\n\tFlagS             *bool\n"
+    },
+    {
+      "old": "\tflagHostBuildid   = flag.String(\"B\", \"\", \"set ELF NT_GNU_BUILD_ID `note` or Mach-O UUID; use \\\"gobuildid\\\" to generate it from the Go build ID; \\\"none\\\" to disable\")\n\tflagInterpreter   = flag.String(\"I\", \"\", \"use `linker` as ELF dynamic linker\")\n\tflagCheckLinkname = flag.Bool(\"checklinkname\", true, \"check linkname symbol references\")\n\tFlagDebugTramp    = flag.Int(\"debugtramp\", 0, \"debug trampolines\")\n\tFlagDebugTextSize = flag.Int(\"debugtextsize\", 0, \"debug text section max size\")\n\tflagDebugNosplit  = flag.Bool(\"debugnosplit\", false, \"dump nosplit call graph\")\n\tFlagStrictDups    = flag.Int(\"strictdups\", 0, \"sanity check duplicate symbol contents during object file reading (1=warn 2=err).\")\n\tFlagRound         = flag.Int64(\"R\", -1, \"set address rounding `quantum`\")\n\tFlagTextAddr      = flag.Int64(\"T\", -1, \"set the start address of text symbols\")\n\tFlagDataAddr      = flag.Int64(\"D\", -1, \"set the start address of data symbols\")\n\tFlagFuncAlign     = flag.Int(\"funcalign\", 0, \"set function align to `N` bytes\")\n\tflagEntrySymbol   = flag.String(\"E\", \"\", \"set `entry` symbol name\")\n\tflagPruneWeakMap  = flag.Bool(\"pruneweakmap\", true, \"prune weak mapinit refs\")\n\tflagRandLayout    = flag.Int64(\"randlayout\", 0, \"randomize function layout\")\n\tflagAllErrors     = flag.Bool(\"e\", false, \"no limit on number of errors reported\")\n\tcpuprofile        = flag.String(\"cpuprofile\", \"\", \"write cpu profile to `file`\")\n\tmemprofile        = flag.String(\"memprofile\", \"\", \"write memory profile to `file`\")\n\tmemprofilerate    = flag.Int64(\"memprofilerate\", 0, \"set runtime.MemProfileRate to `rate`\")\n\tbenchmarkFlag     = flag.String(\"benchmark\", \"\", \"set to 'mem' or 'cpu' to enable phase benchmarking\")\n\tbenchmarkFileFlag = flag.String(\"benchmarkprofile\", \"\", \"emit phase profiles to `base`_phase.{cpu,mem}prof\")\n",
+      "new": "\tflagHostBuildid   *string\n\tflagInterpreter   *string\n\tflagCheckLinkname *bool\n\tFlagDebugTramp    *int\n\tFlagDebugTextSize *int\n\tflagDebugNosplit  *bool\n\tFlagStrictDups    *int\n\tFlagRound         *int64\n\tFlagTextAddr      *int64\n\tFlagDataAddr      *int64\n\tFlagFuncAlign     *int\n\tflagEntrySymbol   *string\n\tflagPruneWeakMap  *bool\n\tflagRandLayout    *int64\n\tflagAllErrors     *bool\n\tcpuprofile        *string\n\tmemprofile        *string\n\tmemprofilerate    *int64\n\tbenchmarkFlag     *string\n\tbenchmarkFileFlag *string\n"
+    },
+    {
+      "old": "\tFlagW = new(bool) // the -w flag, computed in main from flagW\n)\n\n",
+      "new": "\tFlagW *bool // the -w flag, computed in main from flagW\n)\n\n// bindFlags registers linker flags on fs and returns the -H value.\nfunc bindFlags(fs *flag.FlagSet, ctxt *Link) *string {\n\tflagW = ternaryFlagUnset\n\tflag8 = false\n\tflagExtld = quoted.Flag{}\n\tflagExtldflags = quoted.Flag{}\n\tFlagW = new(bool)\n\n\tflagBuildid = fs.String(\"buildid\", \"\", \"record `id` as Go toolchain build id\")\n\tflagBindNow = fs.Bool(\"bindnow\", false, \"mark a dynamically linked ELF object for immediate function binding\")\n\tflagOutfile = fs.String(\"o\", \"\", \"write output to `file`\")\n\tflagPluginPath = fs.String(\"pluginpath\", \"\", \"full path name for plugin\")\n\tflagFipso = fs.String(\"fipso\", \"\", \"write fips module to `file`\")\n\tflagInstallSuffix = fs.String(\"installsuffix\", \"\", \"set package directory `suffix`\")\n\tflagDumpDep = fs.Bool(\"dumpdep\", false, \"dump symbol dependency graph\")\n\tflagRace = fs.Bool(\"race\", false, \"enable race detector\")\n\tflagMsan = fs.Bool(\"msan\", false, \"enable MSan interface\")\n\tflagAsan = fs.Bool(\"asan\", false, \"enable ASan interface\")\n\tflagAslr = fs.Bool(\"aslr\", true, \"enable ASLR for buildmode=c-shared on windows\")\n\tflagFieldTrack = fs.String(\"k\", \"\", \"set field tracking `symbol`\")\n\tflagLibGCC = fs.String(\"libgcc\", \"\", \"compiler support lib for internal linking; use \\\"none\\\" to disable\")\n\tflagTmpdir = fs.String(\"tmpdir\", \"\", \"use `directory` for temporary files\")\n\tfs.Var(&flagExtld, \"extld\", \"use `linker` when linking in external mode\")\n\tfs.Var(&flagExtldflags, \"extldflags\", \"pass `flags` to external linker\")\n\tflagExtar = fs.String(\"extar\", \"\", \"archive program for buildmode=c-archive\")\n\tflagCaptureHostObjs = fs.String(\"capturehostobjs\", \"\", \"capture host object files loaded during internal linking to specified dir\")\n\tflagA = fs.Bool(\"a\", false, \"no-op (deprecated)\")\n\tFlagC = fs.Bool(\"c\", false, \"dump call graph\")\n\tFlagD = fs.Bool(\"d\", false, \"disable dynamic executable\")\n\tflagF = fs.Bool(\"f\", false, \"ignore version mismatch\")\n\tflagG = fs.Bool(\"g\", false, \"disable go package data checks\")\n\tflagH = fs.Bool(\"h\", false, \"halt on error\")\n\tflagN = fs.Bool(\"n\", false, \"no-op (deprecated)\")\n\tFlagS = fs.Bool(\"s\", false, \"disable symbol table\")\n\tflagHostBuildid = fs.String(\"B\", \"\", \"set ELF NT_GNU_BUILD_ID `note` or Mach-O UUID; use \\\"gobuildid\\\" to generate it from the Go build ID; \\\"none\\\" to disable\")\n\tflagInterpreter = fs.String(\"I\", \"\", \"use `linker` as ELF dynamic linker\")\n\tflagCheckLinkname = fs.Bool(\"checklinkname\", true, \"check linkname symbol references\")\n\tFlagDebugTramp = fs.Int(\"debugtramp\", 0, \"debug trampolines\")\n\tFlagDebugTextSize = fs.Int(\"debugtextsize\", 0, \"debug text section max size\")\n\tflagDebugNosplit = fs.Bool(\"debugnosplit\", false, \"dump nosplit call graph\")\n\tFlagStrictDups = fs.Int(\"strictdups\", 0, \"sanity check duplicate symbol contents during object file reading (1=warn 2=err).\")\n\tFlagRound = fs.Int64(\"R\", -1, \"set address rounding `quantum`\")\n\tFlagTextAddr = fs.Int64(\"T\", -1, \"set the start address of text symbols\")\n\tFlagDataAddr = fs.Int64(\"D\", -1, \"set the start address of data symbols\")\n\tFlagFuncAlign = fs.Int(\"funcalign\", 0, \"set function align to `N` bytes\")\n\tflagEntrySymbol = fs.String(\"E\", \"\", \"set `entry` symbol name\")\n\tflagPruneWeakMap = fs.Bool(\"pruneweakmap\", true, \"prune weak mapinit refs\")\n\tflagRandLayout = fs.Int64(\"randlayout\", 0, \"randomize function layout\")\n\tflagAllErrors = fs.Bool(\"e\", false, \"no limit on number of errors reported\")\n\tcpuprofile = fs.String(\"cpuprofile\", \"\", \"write cpu profile to `file`\")\n\tmemprofile = fs.String(\"memprofile\", \"\", \"write memory profile to `file`\")\n\tmemprofilerate = fs.Int64(\"memprofilerate\", 0, \"set runtime.MemProfileRate to `rate`\")\n\tbenchmarkFlag = fs.String(\"benchmark\", \"\", \"set to 'mem' or 'cpu' to enable phase benchmarking\")\n\tbenchmarkFileFlag = fs.String(\"benchmarkprofile\", \"\", \"emit phase profiles to `base`_phase.{cpu,mem}prof\")\n\tfs.Var(&macOS, \"macos\", \"mac OS version to write in build info (only used in internal linking)\")\n\tfs.Var(&macSDK, \"macsdk\", \"mac SDK version to write in build info (only used in internal linking)\")\n\tfs.Var(&rpath, \"r\", \"set the ELF dynamic linker search `path` to dir1:dir2:...\")\n\tfs.Var(&flagW, \"w\", \"disable DWARF generation\")\n\n\tflagHeadType := fs.String(\"H\", \"\", \"set header `type`\")\n\tfs.BoolVar(&ctxt.linkShared, \"linkshared\", false, \"link against installed Go shared libraries\")\n\tfs.Var(&ctxt.LinkMode, \"linkmode\", \"set link `mode`\")\n\tfs.Var(&ctxt.BuildMode, \"buildmode\", \"set build `mode`\")\n\tfs.BoolVar(&ctxt.compressDWARF, \"compressdwarf\", true, \"compress DWARF if possible\")\n\tif ctxt.Arch.Family == sys.AMD64 && buildcfg.GOOS == \"plan9\" {\n\t\tfs.BoolVar(&flag8, \"8\", false, \"use 64-bit addresses in symbol table\")\n\t}\n\tobjabi.Flagfn1FS(fs, \"L\", \"add specified `directory` to library path\", func(a string) { Lflag(ctxt, a) })\n\tobjabi.AddVersionFlagFS(fs)\n\tobjabi.Flagfn1FS(fs, \"X\", \"add string value `definition` of the form importpath.name=value\", func(s string) { addstrdata1(ctxt, s) })\n\tobjabi.FlagcountFS(fs, \"v\", \"print link trace\", &ctxt.Debugvlog)\n\tobjabi.Flagfn1FS(fs, \"importcfg\", \"read import configuration from `file`\", ctxt.readImportCfg)\n\treturn flagHeadType\n}\n\n"
+    },
+    {
+      "old": "// Main is the main entry point for the linker code.\n",
+      "new": "// Main links the archive named by os.Args.\n"
+    },
+    {
+      "old": "\tlog.SetPrefix(\"link: \")\n\tlog.SetFlags(0)\n",
+      "new": "\tRun(arch, theArch, os.Args[1:])\n}\n\n// Run links the archive named by args. args does not include the program name.\n// It does not read os.Args or flag.CommandLine.\nfunc Run(arch *sys.Arch, theArch Arch, args []string) {\n"
+    },
+    {
+      "old": "\tctxt.Bso = bufio.NewWriter(os.Stdout)\n",
+      "new": "\tctxt.Bso = bufio.NewWriter(diagOut())\n"
+    },
+    {
+      "old": "\tfor _, arg := range os.Args {\n",
+      "new": "\tfor _, arg := range args {\n"
+    },
+    {
+      "old": "\t\t\tos.Exit(2)\n",
+      "new": "\t\t\tExit(2)\n"
+    },
+    {
+      "old": "\t// TODO(matloob): define these above and then check flag values here\n\tif ctxt.Arch.Family == sys.AMD64 && buildcfg.GOOS == \"plan9\" {\n\t\tflag.BoolVar(&flag8, \"8\", false, \"use 64-bit addresses in symbol table\")\n",
+      "new": "\tfs := flag.NewFlagSet(\"link\", flag.ContinueOnError)\n\tvar flagErr bytes.Buffer\n\tfs.SetOutput(&flagErr)\n\tfs.Usage = func() {}\n\tflagHeadType := bindFlags(fs, ctxt)\n\tif err := objabi.ParseFS(fs, args); err != nil {\n\t\tmsg := err.Error()\n\t\tif text := strings.TrimSpace(flagErr.String()); text != \"\" {\n\t\t\tmsg += \"\\n\" + text\n\t\t}\n\t\tExitf(\"%s\", msg)\n"
+    },
+    {
+      "old": "\tflagHeadType := flag.String(\"H\", \"\", \"set header `type`\")\n\tflag.BoolVar(&ctxt.linkShared, \"linkshared\", false, \"link against installed Go shared libraries\")\n\tflag.Var(&ctxt.LinkMode, \"linkmode\", \"set link `mode`\")\n\tflag.Var(&ctxt.BuildMode, \"buildmode\", \"set build `mode`\")\n\tflag.BoolVar(&ctxt.compressDWARF, \"compressdwarf\", true, \"compress DWARF if possible\")\n\tobjabi.Flagfn1(\"L\", \"add specified `directory` to library path\", func(a string) { Lflag(ctxt, a) })\n\tobjabi.AddVersionFlag() // -V\n\tobjabi.Flagfn1(\"X\", \"add string value `definition` of the form importpath.name=value\", func(s string) { addstrdata1(ctxt, s) })\n\tobjabi.Flagcount(\"v\", \"print link trace\", &ctxt.Debugvlog)\n\tobjabi.Flagfn1(\"importcfg\", \"read import configuration from `file`\", ctxt.readImportCfg)\n\n\tobjabi.Flagparse(usage)\n\tcounter.CountFlags(\"link/flag:\", *flag.CommandLine)\n",
+      "new": "\tfiles := fs.Args()\n\tcounter.CountFlags(\"link/flag:\", *fs)\n"
+    },
+    {
+      "old": "\tif ctxt.BuildMode != BuildModeShared && flag.NArg() != 1 {\n",
+      "new": "\tif ctxt.BuildMode != BuildModeShared && len(files) != 1 {\n"
+    },
+    {
+      "old": "\t\tfor i := 0; i < flag.NArg(); i++ {\n\t\t\targ := flag.Arg(i)\n",
+      "new": "\t\tfor i := 0; i < len(files); i++ {\n\t\t\targ := files[i]\n"
+    },
+    {
+      "old": "\t\taddlibpath(ctxt, \"command line\", \"command line\", flag.Arg(0), *flagPluginPath, \"\", zerofp)\n",
+      "new": "\t\taddlibpath(ctxt, \"command line\", \"command line\", files[0], *flagPluginPath, \"\", zerofp)\n"
+    },
+    {
+      "old": "\t\taddlibpath(ctxt, \"command line\", \"command line\", flag.Arg(0), \"main\", \"\", zerofp)\n",
+      "new": "\t\taddlibpath(ctxt, \"command line\", \"command line\", files[0], \"main\", \"\", zerofp)\n"
+    }
+  ],
+  "link/ld/util.go": [
+    {
+      "old": "\t\"os\"\n)\n\n",
+      "new": "\t\"io\"\n\t\"os\"\n)\n\n// diag receives linker diagnostics. Nil writes to stderr.\nvar diag io.Writer\n\n// SetDiag sends diagnostics to w. Nil restores stderr.\n// The caller serializes link calls; diag is package state.\nfunc SetDiag(w io.Writer) { diag = w }\n\nfunc diagOut() io.Writer {\n\tif diag == nil {\n\t\treturn os.Stderr\n\t}\n\treturn diag\n}\n\n"
+    },
+    {
+      "old": "\tfmt.Fprintf(os.Stderr, os.Args[0]+\": \"+format+\"\\n\", a...)\n",
+      "new": "\tfmt.Fprintf(diagOut(), \"link: \"+format+\"\\n\", a...)\n"
+    },
+    {
+      "old": "func Errorf(format string, args ...any) {\n\tformat += \"\\n\"\n\tfmt.Fprintf(os.Stderr, format, args...)\n",
+      "new": "func Errorf(format string, args ...any) {\n\tformat += \"\\n\"\n\tfmt.Fprintf(diagOut(), format, args...)\n"
+    },
+    {
+      "old": "\tformat = fmt.Sprintf(\"sym %d: %s\", s, format)\n\tformat += \"\\n\"\n\tfmt.Fprintf(os.Stderr, format, args...)\n",
+      "new": "\tformat = fmt.Sprintf(\"sym %d: %s\", s, format)\n\tformat += \"\\n\"\n\tfmt.Fprintf(diagOut(), format, args...)\n"
+    }
+  ],
+  "cmd/objabi/flag.go": [
+    {
+      "old": "\tflag.Var((*count)(val), name, usage)\n",
+      "new": "\tFlagcountFS(flag.CommandLine, name, usage, val)\n}\n\n// FlagcountFS registers the counting flag on fs.\nfunc FlagcountFS(fs *flag.FlagSet, name, usage string, val *int) {\n\tfs.Var((*count)(val), name, usage)\n"
+    },
+    {
+      "old": "\tflag.Var(fn1(f), name, usage)\n",
+      "new": "\tFlagfn1FS(flag.CommandLine, name, usage, f)\n}\n\n// Flagfn1FS registers a single-argument flag on fs.\nfunc Flagfn1FS(fs *flag.FlagSet, name, usage string, f func(string)) {\n\tfs.Var(fn1(f), name, usage)\n"
+    },
+    {
+      "old": "\tflag.Parse()\n}\n",
+      "new": "\tflag.Parse()\n}\n\n// ParseFS parses args with fs. args does not include the program name.\n// It does not read or write os.Args or flag.CommandLine.\nfunc ParseFS(fs *flag.FlagSet, args []string) error {\n\treturn fs.Parse(expandArgs(args))\n}\n"
+    },
+    {
+      "old": "\tflag.Var(versionFlag{}, \"V\", \"print version and exit\")\n",
+      "new": "\tAddVersionFlagFS(flag.CommandLine)\n}\n\n// AddVersionFlagFS registers -V on fs.\nfunc AddVersionFlagFS(fs *flag.FlagSet) {\n\tfs.Var(versionFlag{}, \"V\", \"print version and exit\")\n"
+    }
+  ]
+}
