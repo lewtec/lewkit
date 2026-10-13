@@ -10,7 +10,6 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
@@ -109,10 +108,10 @@ func show(req filedialog.Request) ([]string, error) {
 	if panel == 0 {
 		return nil, errPanel
 	}
-	panel.Send(selTitle, driver.NSString(req.TitleOrDefault()))
+	panel.Send(selTitle, native.NSString(req.TitleOrDefault()))
 	panel.Send(selCreate, true)
 	if req.Directory != "" {
-		dir := objc.ID(objc.GetClass("NSURL")).Send(selFileURL, driver.NSString(req.Directory), true)
+		dir := objc.ID(objc.GetClass("NSURL")).Send(selFileURL, native.NSString(req.Directory), true)
 		panel.Send(selSetDir, dir)
 	}
 	if types := fileTypes(req); types != 0 {
@@ -120,7 +119,7 @@ func show(req filedialog.Request) ([]string, error) {
 	}
 	if req.Save {
 		if req.Name != "" {
-			panel.Send(selName, driver.NSString(req.Name))
+			panel.Send(selName, native.NSString(req.Name))
 		}
 	} else {
 		panel.Send(selFiles, !req.Folder)
@@ -167,7 +166,7 @@ func fileTypes(req filedialog.Request) objc.ID {
 	}
 	list := objc.ID(objc.GetClass("NSMutableArray")).Send(selArray)
 	for _, name := range names {
-		list.Send(selAdd, driver.NSString(name))
+		list.Send(selAdd, native.NSString(name))
 	}
 	return list
 }

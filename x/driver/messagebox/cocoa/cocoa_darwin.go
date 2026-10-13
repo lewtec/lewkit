@@ -13,6 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/messagebox"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var errNotBound = errors.New("alert: thread not bound")
@@ -64,10 +65,10 @@ func show(n messagebox.Notice) error {
 	if alert == 0 {
 		return cocoaalert.ErrAlert
 	}
-	alert.Send(selMessage, driver.NSString(n.Title))
-	alert.Send(selInfo, driver.NSString(n.Message))
+	alert.Send(selMessage, native.NSString(n.Title))
+	alert.Send(selInfo, native.NSString(n.Message))
 	alert.Send(selStyle, alertStyle(n.Style))
-	alert.Send(selButton, driver.NSString("OK"))
+	alert.Send(selButton, native.NSString("OK"))
 	alert.Send(selRun)
 	return nil
 }

@@ -7,11 +7,11 @@ import (
 	"errors"
 
 	"github.com/ebitengine/purego/objc"
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/cocoaalert"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var (
@@ -101,9 +101,9 @@ func choose(opts launcher.ChooseOptions) (*launcher.Item, error) {
 	}
 	err := withAlert(title, func(alert objc.ID) error {
 		for _, label := range labels {
-			alert.Send(selButton, driver.NSString(label))
+			alert.Send(selButton, native.NSString(label))
 		}
-		alert.Send(selButton, driver.NSString("Cancel"))
+		alert.Send(selButton, native.NSString("Cancel"))
 		index, ok := buttonIndex(modal(alert), len(labels))
 		if !ok {
 			return nil
@@ -126,13 +126,13 @@ func ask(prompt string) (string, error) {
 			return cocoaalert.ErrAlert
 		}
 		alert.Send(selView, field)
-		alert.Send(selButton, driver.NSString("OK"))
-		alert.Send(selButton, driver.NSString("Cancel"))
+		alert.Send(selButton, native.NSString("OK"))
+		alert.Send(selButton, native.NSString("Cancel"))
 		alert.Send(selLayout)
 		if _, ok := buttonIndex(modal(alert), 1); !ok {
 			return launcher.ErrCanceled
 		}
-		text = driver.UTF8String(field.Send(selValue))
+		text = native.UTF8String(field.Send(selValue))
 		return nil
 	})
 	return text, err
@@ -145,8 +145,8 @@ func confirm(message string) (bool, error) {
 		title = "Confirm"
 	}
 	err := withAlert(title, func(alert objc.ID) error {
-		alert.Send(selButton, driver.NSString("Yes"))
-		alert.Send(selButton, driver.NSString("No"))
+		alert.Send(selButton, native.NSString("Yes"))
+		alert.Send(selButton, native.NSString("No"))
 		index, ok := buttonIndex(modal(alert), 1)
 		yes = ok && index == 0
 		return nil
@@ -164,7 +164,7 @@ func withAlert(title string, fn func(objc.ID) error) error {
 	if alert == 0 {
 		return cocoaalert.ErrAlert
 	}
-	alert.Send(selMessage, driver.NSString(title))
+	alert.Send(selMessage, native.NSString(title))
 	return fn(alert)
 }
 

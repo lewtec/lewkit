@@ -10,7 +10,6 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/lewtec/lewkit/x/driver/tray"
@@ -138,7 +137,7 @@ func startApp() error {
 				return
 			}
 			targetClass = class
-			runLoopMode = driver.NSString("kCFRunLoopDefaultMode").Send(selRetain)
+			runLoopMode = native.NSString("kCFRunLoopDefaultMode").Send(selRetain)
 			app := objc.ID(objc.GetClass("NSApplication")).Send(selShared)
 			if int(app.Send(selPolicy)) == activationProhibited {
 				app.Send(selSetPolicy, activationAccessory)
@@ -244,7 +243,7 @@ func (item *statusItem) apply(cfg tray.Config) error {
 	if err := setButtonImage(button, cfg.Icon); err != nil {
 		return err
 	}
-	button.Send(selSetToolTip, driver.NSString(tray.Tip(cfg)))
+	button.Send(selSetToolTip, native.NSString(tray.Tip(cfg)))
 	menu, err := buildMenu(tray.Tree(cfg.Menu), item.target)
 	if err != nil {
 		return err
@@ -313,9 +312,9 @@ func addItem(menu objc.ID, node tray.Node, target objc.ID) error {
 	}
 	row := objc.ID(objc.GetClass("NSMenuItem")).Send(selAlloc).Send(
 		selInitItem,
-		driver.NSString(node.Item.Label),
+		native.NSString(node.Item.Label),
 		selActivate,
-		driver.NSString(""),
+		native.NSString(""),
 	)
 	row.Send(selSetTarget, target)
 	row.Send(selSetTag, node.ID)

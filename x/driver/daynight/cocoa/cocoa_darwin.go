@@ -126,7 +126,7 @@ func registerWatch() {
 		return
 	}
 	center := objc.ID(objc.GetClass("NSDistributedNotificationCenter")).Send(selDefault)
-	center.Send(selAdd, observer, selChanged, driver.NSString("AppleInterfaceThemeChangedNotification"), objc.ID(0))
+	center.Send(selAdd, observer, selChanged, native.NSString("AppleInterfaceThemeChangedNotification"), objc.ID(0))
 	mu.Lock()
 	current = readStyle()
 	mu.Unlock()
@@ -147,10 +147,10 @@ func readStyle() daynight.Mode {
 	if defaults == 0 {
 		return daynight.Light
 	}
-	value := defaults.Send(selStringFor, driver.NSString("AppleInterfaceStyle"))
+	value := defaults.Send(selStringFor, native.NSString("AppleInterfaceStyle"))
 	if value == 0 {
 		return daynight.Light
 	}
-	text := driver.UTF8String(value)
+	text := native.UTF8String(value)
 	return fromInterfaceStyle(text)
 }

@@ -1,6 +1,6 @@
 //go:build darwin
 
-package driver
+package native
 
 import (
 	"unsafe"
@@ -14,6 +14,7 @@ var (
 )
 
 // NSString returns text as an NSString.
+// The NUL-terminated bytes stay live across the Objective-C call.
 func NSString(text string) objc.ID {
 	raw := append([]byte(text), 0)
 	return objc.ID(objc.GetClass("NSString")).Send(selStringWithUTF8, unsafe.Pointer(&raw[0]))
@@ -21,6 +22,7 @@ func NSString(text string) objc.ID {
 
 // UTF8String copies the NUL-terminated UTF-8 bytes of an Objective-C string.
 // A zero id, a missing pointer, or no NUL within 1<<20 bytes is empty.
+// GoString returns the bytes it read when the NUL is missing.
 func UTF8String(id objc.ID) string {
 	if id == 0 {
 		return ""
