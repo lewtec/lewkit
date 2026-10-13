@@ -47,18 +47,18 @@ func (c *keyCmd) Run(ctx context.Context) error {
 }
 
 func (c *keyCmd) write(ctx context.Context) error {
-	return c.generate(ctx, func(ctx context.Context, questions []tui.Question, grow tui.Grow) ([]tui.Answer, error) {
-		return tui.Run(ctx, tui.New(questions).WithGrow(grow))
-	})
+	return c.generate(ctx, runInterview)
 }
 
 type interview func(context.Context, []tui.Question, tui.Grow) ([]tui.Answer, error)
 
+func runInterview(ctx context.Context, questions []tui.Question, grow tui.Grow) ([]tui.Answer, error) {
+	return tui.Run(ctx, tui.New(questions).WithGrow(grow))
+}
+
 func (c *keyCmd) generate(ctx context.Context, run interview) error {
 	if run == nil {
-		run = func(ctx context.Context, questions []tui.Question, grow tui.Grow) ([]tui.Answer, error) {
-			return tui.Run(ctx, tui.New(questions).WithGrow(grow))
-		}
+		run = runInterview
 	}
 	name, path, err := c.interview(ctx, run)
 	if err != nil {
