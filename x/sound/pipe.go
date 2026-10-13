@@ -340,15 +340,23 @@ func (w *window) Read(p []byte) (int, error) {
 }
 
 func (w *window) Seek(offset int64, whence int) (int64, error) {
-	next, err := (cursor{length: w.length, at: w.at}).place(offset, whence)
+	at, err := seekSpan(w.src, w.start, cursor{length: w.length, at: w.at}, offset, whence)
 	if err != nil {
 		return 0, err
 	}
-	if _, err := w.src.Seek(w.start+next.at, io.SeekStart); err != nil {
+	w.at = at
+	return w.at, nil
+}
+
+func seekSpan(src io.Seeker, start int64, cur cursor, offset int64, whence int) (int64, error) {
+	next, err := cur.place(offset, whence)
+	if err != nil {
 		return 0, err
 	}
-	w.at = next.at
-	return w.at, nil
+	if _, err := src.Seek(start+next.at, io.SeekStart); err != nil {
+		return 0, err
+	}
+	return next.at, nil
 }
 
 type merged struct {

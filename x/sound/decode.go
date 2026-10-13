@@ -272,13 +272,10 @@ func (s *spanReader) Read(p []byte) (int, error) {
 }
 
 func (s *spanReader) Seek(offset int64, whence int) (int64, error) {
-	next, err := (cursor{length: s.size, at: s.at}).place(offset, whence)
+	at, err := seekSpan(s.r, s.start, cursor{length: s.size, at: s.at}, offset, whence)
 	if err != nil {
 		return 0, err
 	}
-	if _, err := s.r.Seek(s.start+next.at, io.SeekStart); err != nil {
-		return 0, err
-	}
-	s.at = next.at
+	s.at = at
 	return s.at, nil
 }
