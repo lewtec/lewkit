@@ -428,7 +428,7 @@ func functionPath(name string, address uint64) string {
 }
 
 func formatHex(address uint64) string {
-	return fmt.Sprintf("0x%x", address)
+	return decomp.FormatAddress(address)
 }
 
 func parseAddress(text string) (uint64, error) {
