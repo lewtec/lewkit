@@ -15,9 +15,10 @@ type releaseCmd struct {
 	build    *buildCmd
 	buildAll *buildAllCmd `cmd:"build-all"`
 	run      *runCmd
+	gobuild  *goCmd `cmd:"go"`
 }
 
-func (releaseCmd) Description() string { return "key, build, or run an app" }
+func (releaseCmd) Description() string { return "key, build, run, or compile an app" }
 
 var errHostArgs = errors.New("program arguments are not passed to a host app")
 

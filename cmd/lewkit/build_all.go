@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/lewtec/lewkit/x/build"
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
@@ -41,6 +42,7 @@ func (c *buildAllCmd) Run(ctx context.Context) error {
 }
 
 func (c *buildAllCmd) produce(ctx context.Context) ([]string, error) {
+	ctx = gocmd.WithCompiler(ctx, c.compiler.Value())
 	identity, err := c.identity()
 	if err != nil {
 		return nil, err

@@ -1,4 +1,7 @@
 // Package gocmd runs go build or go run.
+// Compiler host runs the go command. Compiler lewkit builds a CGO-free
+// amd64 or arm64 binary with the embedded toolchain. Release commands
+// pass that choice through the context. Their default is lewkit.
 package gocmd
 
 import (
@@ -14,18 +17,27 @@ var ErrNilContext = errors.New("gocmd: nil context")
 
 // Command is one go invocation. Verb is build or run. Empty Verb is build.
 // The child process writes to the session line writer.
+// Compiler selects the host go command or the embedded compiler.
+// The zero value reads the compiler stored by [WithCompiler].
+// That is also host when the context has none.
 type Command struct {
-	Verb string
-	Dir  string
-	Env  []string
-	Args []string
+	Verb     string
+	Dir      string
+	Env      []string
+	Args     []string
+	Compiler Compiler
 }
 
 // Run runs go <verb> -v with Args after the verb.
-// With a taskgroup session on ctx, the command is an IO subtask.
+// With a taskgroup session on ctx, the host go command is an IO subtask.
+// The lewkit compiler is a Control task named "go build". Each package
+// compile and the link are CPU children of that task.
 func (c Command) Run(ctx context.Context) error {
 	if ctx == nil {
 		return ErrNilContext
+	}
+	if c.active(ctx) == CompilerLewkit {
+		return c.runLewkit(ctx)
 	}
 	verb := c.Verb
 	if verb == "" {

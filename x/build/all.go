@@ -234,9 +234,10 @@ func (u Uber) assemble(archives, apps []Target) (workflow.Graph, []string, *stri
 		appName := "app/" + goos + "/" + goarch
 		defaults = append(defaults, appName)
 		steps = append(steps, workflow.Step{
-			Name: appName,
-			Deps: appDeps,
-			Desc: "build " + appName,
+			Name:         appName,
+			Deps:         appDeps,
+			Desc:         "build " + appName,
+			Orchestrator: true,
 			Tasks: []workflow.Task{
 				workflow.Func(func(ctx context.Context, st *taskgroup.Status) error {
 					if err := ctx.Err(); err != nil {

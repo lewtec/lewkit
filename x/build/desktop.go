@@ -156,8 +156,9 @@ func (job Job) graph() workflow.Graph {
 		name := target.GOOS + "/" + target.GOARCH
 		defaults = append(defaults, name)
 		steps = append(steps, workflow.Step{
-			Name: name,
-			Desc: "build " + name,
+			Name:         name,
+			Desc:         "build " + name,
+			Orchestrator: true,
 			Tasks: []workflow.Task{
 				workflow.Func(func(ctx context.Context, _ *taskgroup.Status) error {
 					return job.archiveTarget(ctx, project, stamp, target)
