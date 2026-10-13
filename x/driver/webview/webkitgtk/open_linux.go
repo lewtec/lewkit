@@ -24,6 +24,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/driver/window/x11"
 	"github.com/lewtec/lewkit/x/ffi/native/gtk"
 	"github.com/lewtec/lewkit/x/ffi/native/webkitgtk"
 )
@@ -306,7 +307,7 @@ func setViewIcon(widget uintptr, icon image.Image) {
 	if err != nil || xid == 0 {
 		return
 	}
-	_ = window.ApplyXIcon(xid, icon)
+	_ = x11.ApplyXIcon(xid, icon)
 }
 
 type gtkView struct {

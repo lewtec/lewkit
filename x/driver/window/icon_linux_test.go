@@ -32,9 +32,3 @@ func TestReadIconPNG(t *testing.T) {
 		t.Fatalf("pixel %d %d %d %d", r, g, b, a)
 	}
 }
-
-func TestApplyXIconSkipsWithoutWindow(t *testing.T) {
-	if err := ApplyXIcon(0, image.NewNRGBA(image.Rect(0, 0, 1, 1))); err != nil {
-		t.Fatal(err)
-	}
-}
