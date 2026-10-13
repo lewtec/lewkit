@@ -457,6 +457,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-13: A Python program loads the linux/amd64 library with ctypes and calls `fan`, `dot`, and `meet`. `fan` and `dot` split the work across goroutines. `meet` starts goroutines and releases them together. Several Python threads call in at once, then one more `fan` runs after they join. The program is `x/generate/clib/testdata/python/run.py`.
 - 2026-10-13: Repeated string arguments are read with `cmd.Values`. `lewkit generate header` and `lewkit generate clib` pass include paths, defines, and libraries through that. Rejected: a private `argValues` in `cmd/lewkit/generate`.
 - 2026-10-13: Process arguments are read in `x/cmd`. `Name` is the program base name and `Args` is the slice after it. `lewkit` passes those into `Parse` and `BashCompleteLine`. Rejected: reading `os.Args` in `cmd/lewkit`.
 - 2026-10-13: `lewkit generate` is `cmd/lewkit/generate.Cmd`. The root command only stores that struct. db, prelude, protobuf, shader, header, and clib stay in that package. Rejected: leaving those subcommand types in `package main`.

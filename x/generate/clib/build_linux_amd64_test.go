@@ -89,6 +89,28 @@ int main(void) {
 	require.NoError(t, err, string(out))
 }
 
+func TestPython(t *testing.T) {
+	repo := moduleRoot(t)
+	dir := t.TempDir()
+	for _, name := range []string{"api.h", "main.go", "gorun.py", "run.py"} {
+		buf, err := os.ReadFile(filepath.Join("testdata", "python", name))
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), buf, 0o644))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/gorun\n\ngo 1.27.0\n\nrequire github.com/lewtec/lewkit v0.0.0\n\nreplace github.com/lewtec/lewkit => "+repo+"\n"), 0o644))
+	require.NoError(t, Run(context.Background(), Config{
+		File: filepath.Join(dir, "api.h"),
+		ABI:  "linux/amd64",
+	}))
+	lib := filepath.Join(dir, "libgorun.so")
+	require.NoError(t, Build(context.Background(), dir, lib))
+
+	cmd := exec.Command("python3", filepath.Join(dir, "run.py"), lib)
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	require.Contains(t, string(out), "ok")
+}
+
 func TestCrossLink(t *testing.T) {
 	repo := moduleRoot(t)
 	dir := t.TempDir()
