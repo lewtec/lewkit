@@ -10,6 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/entry"
+	androidentry "github.com/lewtec/lewkit/x/entry/android"
 	"github.com/lewtec/lewkit/x/ffi/jni"
 )
 
@@ -30,7 +31,7 @@ func (factory) New(context.Context) (window.Driver, error) { return opener{}, ni
 type opener struct{}
 
 func (opener) Open(ctx context.Context, cfg window.Config) (window.Window, error) {
-	native, width, height, err := entry.RequestSurface(ctx)
+	native, width, height, err := androidentry.RequestSurface(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +47,7 @@ func (opener) Open(ctx context.Context, cfg window.Config) (window.Window, error
 	entry.HandleResize(func(width, height int) {
 		_ = w.Resize(image.Pt(width, height))
 	})
-	entry.HandleSurface(func(ptr uintptr, width, height int) {
+	androidentry.HandleSurface(func(ptr uintptr, width, height int) {
 		w.native = ptr
 		slog.Info("android surface", "width", width, "height", height)
 		_ = w.Resize(image.Pt(width, height))

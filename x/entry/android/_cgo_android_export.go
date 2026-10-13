@@ -6,7 +6,7 @@
 // The assembly entries are android && !cgo && arm64 && appmode.
 // Keep these names in step with host_nocgo_android_arm64.s.
 
-package entry
+package android
 
 //go:cgo_export_dynamic JNI_OnLoad JNI_OnLoad
 //go:cgo_export_dynamic Java_lewkit_Hook_call Java_lewkit_Hook_call

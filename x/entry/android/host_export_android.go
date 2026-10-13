@@ -1,6 +1,6 @@
 //go:build android && cgo
 
-package entry
+package android
 
 /*
 #include <jni.h>

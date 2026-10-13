@@ -1,6 +1,6 @@
 //go:build android && !cgo && arm64 && appmode
 
-package entry
+package android
 
 import (
 	"log/slog"
