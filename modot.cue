@@ -120,3 +120,14 @@ file: codebase: {
 		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
 	}
 }
+
+// The prelude formatter is `gofmt -w .`. That walks the Go pin, and the
+// pin's testdata does not parse. Format the rest of the module instead.
+formatter: tools: gofmt: enable: false
+formatter: tools: "go-sources": {
+	detect: "00-go-mod": {
+		path:   "go.mod"
+		enable: true
+	}
+	cmd: ["sh", "x/toolchain/format.sh"]
+}
