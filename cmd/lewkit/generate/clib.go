@@ -35,8 +35,8 @@ func (c *clibCmd) Run(ctx context.Context) error {
 		File:    c.file.Value(),
 		Out:     c.out.Value(),
 		Package: c.pkg.Value(),
-		Include: argValues(c.include),
-		Define:  argValues(c.define),
+		Include: cmd.Values(c.include),
+		Define:  cmd.Values(c.define),
 		Bind:    c.bind.Value(),
 		ABI:     c.abi.Value(),
 	}

@@ -29,9 +29,9 @@ func (c *headerCmd) Run(ctx context.Context) error {
 		Out:     c.out.Value(),
 		Package: c.pkg.Value(),
 		ABI:     c.abi.Value(),
-		Include: argValues(c.include),
-		Define:  argValues(c.define),
-		Libs:    argValues(c.lib),
+		Include: cmd.Values(c.include),
+		Define:  cmd.Values(c.define),
+		Libs:    cmd.Values(c.lib),
 		Bind:    c.bind.Value(),
 		Soft:    c.soft.Value(),
 	})
