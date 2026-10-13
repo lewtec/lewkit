@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/image/convert"
@@ -113,14 +114,14 @@ func ensureMenu(app objc.ID, title string) {
 	item := objc.ID(objc.GetClass("NSMenuItem")).Send(objc.RegisterName("alloc")).Send(objc.RegisterName("init"))
 	bar.Send(objc.RegisterName("addItem:"), item)
 	menu := objc.ID(objc.GetClass("NSMenu")).Send(objc.RegisterName("alloc")).Send(
-		objc.RegisterName("initWithTitle:"), nsString(name),
+		objc.RegisterName("initWithTitle:"), driver.NSString(name),
 	)
 	menu.Send(objc.RegisterName("setAutoenablesItems:"), false)
 	quit := objc.ID(objc.GetClass("NSMenuItem")).Send(objc.RegisterName("alloc")).Send(
 		objc.RegisterName("initWithTitle:action:keyEquivalent:"),
-		nsString("Quit "+name),
+		driver.NSString("Quit "+name),
 		objc.RegisterName("terminate:"),
-		nsString("q"),
+		driver.NSString("q"),
 	)
 	quit.Send(objc.RegisterName("setTarget:"), app)
 	menu.Send(objc.RegisterName("addItem:"), quit)
@@ -150,12 +151,7 @@ func infoString(bundle objc.ID, key string) string {
 	if bundle == 0 {
 		return ""
 	}
-	return goString(bundle.Send(objc.RegisterName("objectForInfoDictionaryKey:"), nsString(key)))
-}
-
-func nsString(text string) objc.ID {
-	raw := append([]byte(text), 0)
-	return objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("stringWithUTF8String:"), unsafe.Pointer(&raw[0]))
+	return goString(bundle.Send(objc.RegisterName("objectForInfoDictionaryKey:"), driver.NSString(key)))
 }
 
 func goString(object objc.ID) string {

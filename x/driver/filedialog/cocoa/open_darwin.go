@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
@@ -32,33 +33,32 @@ var (
 )
 
 var (
-	selShared     = objc.RegisterName("sharedApplication")
-	selSetPolicy  = objc.RegisterName("setActivationPolicy:")
-	selActivate   = objc.RegisterName("activateIgnoringOtherApps:")
-	selOpenPanel  = objc.RegisterName("openPanel")
-	selSavePanel  = objc.RegisterName("savePanel")
-	selFiles      = objc.RegisterName("setCanChooseFiles:")
-	selDirs       = objc.RegisterName("setCanChooseDirectories:")
-	selMultiple   = objc.RegisterName("setAllowsMultipleSelection:")
-	selCreate     = objc.RegisterName("setCanCreateDirectories:")
-	selTitle      = objc.RegisterName("setTitle:")
-	selName       = objc.RegisterName("setNameFieldStringValue:")
-	selTypes      = objc.RegisterName("setAllowedFileTypes:")
-	selSetDir     = objc.RegisterName("setDirectoryURL:")
-	selRun        = objc.RegisterName("runModal")
-	selURLs       = objc.RegisterName("URLs")
-	selURL        = objc.RegisterName("URL")
-	selCount      = objc.RegisterName("count")
-	selAt         = objc.RegisterName("objectAtIndex:")
-	selPath       = objc.RegisterName("path")
-	selFileRep    = objc.RegisterName("fileSystemRepresentation")
-	selUTF8       = objc.RegisterName("UTF8String")
-	selNew        = objc.RegisterName("new")
-	selDrain      = objc.RegisterName("drain")
-	selUTF8String = objc.RegisterName("stringWithUTF8String:")
-	selArray      = objc.RegisterName("array")
-	selAdd        = objc.RegisterName("addObject:")
-	selFileURL    = objc.RegisterName("fileURLWithPath:isDirectory:")
+	selShared    = objc.RegisterName("sharedApplication")
+	selSetPolicy = objc.RegisterName("setActivationPolicy:")
+	selActivate  = objc.RegisterName("activateIgnoringOtherApps:")
+	selOpenPanel = objc.RegisterName("openPanel")
+	selSavePanel = objc.RegisterName("savePanel")
+	selFiles     = objc.RegisterName("setCanChooseFiles:")
+	selDirs      = objc.RegisterName("setCanChooseDirectories:")
+	selMultiple  = objc.RegisterName("setAllowsMultipleSelection:")
+	selCreate    = objc.RegisterName("setCanCreateDirectories:")
+	selTitle     = objc.RegisterName("setTitle:")
+	selName      = objc.RegisterName("setNameFieldStringValue:")
+	selTypes     = objc.RegisterName("setAllowedFileTypes:")
+	selSetDir    = objc.RegisterName("setDirectoryURL:")
+	selRun       = objc.RegisterName("runModal")
+	selURLs      = objc.RegisterName("URLs")
+	selURL       = objc.RegisterName("URL")
+	selCount     = objc.RegisterName("count")
+	selAt        = objc.RegisterName("objectAtIndex:")
+	selPath      = objc.RegisterName("path")
+	selFileRep   = objc.RegisterName("fileSystemRepresentation")
+	selUTF8      = objc.RegisterName("UTF8String")
+	selNew       = objc.RegisterName("new")
+	selDrain     = objc.RegisterName("drain")
+	selArray     = objc.RegisterName("array")
+	selAdd       = objc.RegisterName("addObject:")
+	selFileURL   = objc.RegisterName("fileURLWithPath:isDirectory:")
 )
 
 func (opener) Choose(ctx context.Context, req filedialog.Request) ([]string, error) {
@@ -109,10 +109,10 @@ func show(req filedialog.Request) ([]string, error) {
 	if panel == 0 {
 		return nil, errPanel
 	}
-	panel.Send(selTitle, nsString(req.TitleOrDefault()))
+	panel.Send(selTitle, driver.NSString(req.TitleOrDefault()))
 	panel.Send(selCreate, true)
 	if req.Directory != "" {
-		dir := objc.ID(objc.GetClass("NSURL")).Send(selFileURL, nsString(req.Directory), true)
+		dir := objc.ID(objc.GetClass("NSURL")).Send(selFileURL, driver.NSString(req.Directory), true)
 		panel.Send(selSetDir, dir)
 	}
 	if types := fileTypes(req); types != 0 {
@@ -120,7 +120,7 @@ func show(req filedialog.Request) ([]string, error) {
 	}
 	if req.Save {
 		if req.Name != "" {
-			panel.Send(selName, nsString(req.Name))
+			panel.Send(selName, driver.NSString(req.Name))
 		}
 	} else {
 		panel.Send(selFiles, !req.Folder)
@@ -167,7 +167,7 @@ func fileTypes(req filedialog.Request) objc.ID {
 	}
 	list := objc.ID(objc.GetClass("NSMutableArray")).Send(selArray)
 	for _, name := range names {
-		list.Send(selAdd, nsString(name))
+		list.Send(selAdd, driver.NSString(name))
 	}
 	return list
 }
@@ -180,11 +180,6 @@ func urlPath(url objc.ID) string {
 		return path
 	}
 	return goString(url.Send(selPath).Send(selUTF8))
-}
-
-func nsString(text string) objc.ID {
-	raw := append([]byte(text), 0)
-	return objc.ID(objc.GetClass("NSString")).Send(selUTF8String, unsafe.Pointer(&raw[0]))
 }
 
 func goString(id objc.ID) string {

@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
@@ -36,7 +37,6 @@ var (
 	selView    = objc.RegisterName("setAccessoryView:")
 	selRun     = objc.RegisterName("runModal")
 	selValue   = objc.RegisterName("stringValue")
-	selUTF8    = objc.RegisterName("stringWithUTF8String:")
 	selUTF8Out = objc.RegisterName("UTF8String")
 	selNew     = objc.RegisterName("new")
 	selDrain   = objc.RegisterName("drain")
@@ -111,9 +111,9 @@ func choose(opts launcher.ChooseOptions) (*launcher.Item, error) {
 	}
 	err := withAlert(title, func(alert objc.ID) error {
 		for _, label := range labels {
-			alert.Send(selButton, nsString(label))
+			alert.Send(selButton, driver.NSString(label))
 		}
-		alert.Send(selButton, nsString("Cancel"))
+		alert.Send(selButton, driver.NSString("Cancel"))
 		index, ok := buttonIndex(modal(alert), len(labels))
 		if !ok {
 			return nil
@@ -136,8 +136,8 @@ func ask(prompt string) (string, error) {
 			return errAlert
 		}
 		alert.Send(selView, field)
-		alert.Send(selButton, nsString("OK"))
-		alert.Send(selButton, nsString("Cancel"))
+		alert.Send(selButton, driver.NSString("OK"))
+		alert.Send(selButton, driver.NSString("Cancel"))
 		alert.Send(selLayout)
 		if _, ok := buttonIndex(modal(alert), 1); !ok {
 			return launcher.ErrCanceled
@@ -155,8 +155,8 @@ func confirm(message string) (bool, error) {
 		title = "Confirm"
 	}
 	err := withAlert(title, func(alert objc.ID) error {
-		alert.Send(selButton, nsString("Yes"))
-		alert.Send(selButton, nsString("No"))
+		alert.Send(selButton, driver.NSString("Yes"))
+		alert.Send(selButton, driver.NSString("No"))
 		index, ok := buttonIndex(modal(alert), 1)
 		yes = ok && index == 0
 		return nil
@@ -174,7 +174,7 @@ func withAlert(title string, fn func(objc.ID) error) error {
 	if alert == 0 {
 		return errAlert
 	}
-	alert.Send(selMessage, nsString(title))
+	alert.Send(selMessage, driver.NSString(title))
 	return fn(alert)
 }
 
@@ -189,11 +189,6 @@ func ensureApp() error {
 		}
 	})
 	return appErr
-}
-
-func nsString(text string) objc.ID {
-	raw := append([]byte(text), 0)
-	return objc.ID(objc.GetClass("NSString")).Send(selUTF8, unsafe.Pointer(&raw[0]))
 }
 
 func nsText(id objc.ID) string {

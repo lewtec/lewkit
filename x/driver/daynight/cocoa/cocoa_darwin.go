@@ -27,7 +27,6 @@ var (
 
 	selStandard   = objc.RegisterName("standardUserDefaults")
 	selStringFor  = objc.RegisterName("stringForKey:")
-	selUTF8       = objc.RegisterName("stringWithUTF8String:")
 	selUTF8String = objc.RegisterName("UTF8String")
 	selDefault    = objc.RegisterName("defaultCenter")
 	selAdd        = objc.RegisterName("addObserver:selector:name:object:")
@@ -129,7 +128,7 @@ func registerWatch() {
 		return
 	}
 	center := objc.ID(objc.GetClass("NSDistributedNotificationCenter")).Send(selDefault)
-	center.Send(selAdd, observer, selChanged, nsString("AppleInterfaceThemeChangedNotification"), objc.ID(0))
+	center.Send(selAdd, observer, selChanged, driver.NSString("AppleInterfaceThemeChangedNotification"), objc.ID(0))
 	mu.Lock()
 	current = readStyle()
 	mu.Unlock()
@@ -150,17 +149,12 @@ func readStyle() daynight.Mode {
 	if defaults == 0 {
 		return daynight.Light
 	}
-	value := defaults.Send(selStringFor, nsString("AppleInterfaceStyle"))
+	value := defaults.Send(selStringFor, driver.NSString("AppleInterfaceStyle"))
 	if value == 0 {
 		return daynight.Light
 	}
 	text := cocoaString(value)
 	return fromInterfaceStyle(text)
-}
-
-func nsString(text string) objc.ID {
-	bytes := append([]byte(text), 0)
-	return objc.ID(objc.GetClass("NSString")).Send(selUTF8, unsafe.Pointer(&bytes[0]))
 }
 
 func cocoaString(id objc.ID) string {

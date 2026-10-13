@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/lewtec/lewkit/x/driver/tray"
@@ -39,7 +40,6 @@ var (
 	selDrain           = objc.RegisterName("drain")
 	selRetain          = objc.RegisterName("retain")
 	selRelease         = objc.RegisterName("release")
-	selUTF8            = objc.RegisterName("stringWithUTF8String:")
 	selSystemStatusBar = objc.RegisterName("systemStatusBar")
 	selStatusItem      = objc.RegisterName("statusItemWithLength:")
 	selRemoveItem      = objc.RegisterName("removeStatusItem:")
@@ -138,7 +138,7 @@ func startApp() error {
 				return
 			}
 			targetClass = class
-			runLoopMode = nsString("kCFRunLoopDefaultMode").Send(selRetain)
+			runLoopMode = driver.NSString("kCFRunLoopDefaultMode").Send(selRetain)
 			app := objc.ID(objc.GetClass("NSApplication")).Send(selShared)
 			if int(app.Send(selPolicy)) == activationProhibited {
 				app.Send(selSetPolicy, activationAccessory)
@@ -244,7 +244,7 @@ func (item *statusItem) apply(cfg tray.Config) error {
 	if err := setButtonImage(button, cfg.Icon); err != nil {
 		return err
 	}
-	button.Send(selSetToolTip, nsString(tray.Tip(cfg)))
+	button.Send(selSetToolTip, driver.NSString(tray.Tip(cfg)))
 	menu, err := buildMenu(tray.Tree(cfg.Menu), item.target)
 	if err != nil {
 		return err
@@ -313,9 +313,9 @@ func addItem(menu objc.ID, node tray.Node, target objc.ID) error {
 	}
 	row := objc.ID(objc.GetClass("NSMenuItem")).Send(selAlloc).Send(
 		selInitItem,
-		nsString(node.Item.Label),
+		driver.NSString(node.Item.Label),
 		selActivate,
-		nsString(""),
+		driver.NSString(""),
 	)
 	row.Send(selSetTarget, target)
 	row.Send(selSetTag, node.ID)
@@ -334,9 +334,4 @@ func addItem(menu objc.ID, node tray.Node, target objc.ID) error {
 	}
 	menu.Send(selAddItem, row)
 	return nil
-}
-
-func nsString(text string) objc.ID {
-	raw := append([]byte(text), 0)
-	return objc.ID(objc.GetClass("NSString")).Send(selUTF8, unsafe.Pointer(&raw[0]))
 }

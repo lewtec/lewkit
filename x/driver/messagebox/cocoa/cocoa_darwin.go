@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
@@ -37,7 +36,6 @@ var (
 	selStyle   = objc.RegisterName("setAlertStyle:")
 	selButton  = objc.RegisterName("addButtonWithTitle:")
 	selRun     = objc.RegisterName("runModal")
-	selUTF8    = objc.RegisterName("stringWithUTF8String:")
 	selNew     = objc.RegisterName("new")
 	selDrain   = objc.RegisterName("drain")
 )
@@ -77,10 +75,10 @@ func show(n messagebox.Notice) error {
 	if alert == 0 {
 		return errAlert
 	}
-	alert.Send(selMessage, nsString(n.Title))
-	alert.Send(selInfo, nsString(n.Message))
+	alert.Send(selMessage, driver.NSString(n.Title))
+	alert.Send(selInfo, driver.NSString(n.Message))
 	alert.Send(selStyle, alertStyle(n.Style))
-	alert.Send(selButton, nsString("OK"))
+	alert.Send(selButton, driver.NSString("OK"))
 	alert.Send(selRun)
 	return nil
 }
@@ -92,9 +90,4 @@ func ensureApp() error {
 		}
 	})
 	return appErr
-}
-
-func nsString(text string) objc.ID {
-	raw := append([]byte(text), 0)
-	return objc.ID(objc.GetClass("NSString")).Send(selUTF8, unsafe.Pointer(&raw[0]))
 }
