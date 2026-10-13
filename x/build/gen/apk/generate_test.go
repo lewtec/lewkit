@@ -41,7 +41,6 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		"app/src/main/java/br/tec/lew/counter/Windows.java",
 		"app/src/main/res/xml/network_security_config.xml",
 		"app/src/main/res/layout/activity_main.xml",
-		"scripts/build-go.sh",
 		"README.md",
 	}
 	for _, rel := range mustExist {
@@ -208,18 +207,15 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(proxy), "nativeInvoke")
 
-	sh, err := os.ReadFile(filepath.Join(out, "scripts/build-go.sh"))
+	readme, err := os.ReadFile(filepath.Join(out, "README.md"))
 	require.NoError(t, err)
-	info, err := os.Stat(filepath.Join(out, "scripts/build-go.sh"))
-	require.NoError(t, err)
-	require.NotZero(t, info.Mode()&0o111, "build-go.sh not executable: %v", info.Mode())
-	script := string(sh)
-	require.Contains(t, script, "GOOS=android")
-	require.NotContains(t, script, "androidnocgo")
-	require.Contains(t, script, "-checklinkname=0")
-	require.Contains(t, script, "androidtoolexec")
-	require.Contains(t, script, "_cgo_android_export.go")
-	require.Contains(t, script, "-tags appmode")
+	text := string(readme)
+	require.Contains(t, text, "jni")
+	require.Contains(t, text, "toolexec")
+	require.Contains(t, text, "arm64-v8a")
+	require.NotContains(t, text, "build-go.sh")
+	_, err = os.Stat(filepath.Join(out, "scripts/build-go.sh"))
+	require.Error(t, err)
 }
 
 func TestCreate_CapabilitiesIntentFilters(t *testing.T) {

@@ -163,7 +163,7 @@ func page(v pageView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if len(v.Events) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<p class=\"opacity-70\">None yet. On a Mac: <code>./examples/app/inbox/sim.sh ping</code></p>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<p class=\"opacity-70\">None yet. On a Mac: <code>go run ./examples/app/inbox/sim ping</code></p>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
