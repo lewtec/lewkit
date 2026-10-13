@@ -2,7 +2,7 @@
 # JS toolchain: bun (same pin style as base16-showcase / ciborg).
 # Build: mise install && mise run build
 # Run from the repo root:
-#   go run ./cmd/lewkit release run --config ./examples/astro/eletrocromo.json
+#   go run ./cmd/lewkit release run --config ./examples/app/astro/eletrocromo.json
 
 [env]
 _.path = ["./node_modules/.bin"]
@@ -74,7 +74,7 @@ run = "mise run embed"
 
 [tasks.run]
 description = "Open the web window with a stamped release run"
-run = "go -C ../.. run ./cmd/lewkit release run --config ./examples/astro/eletrocromo.json"
+run = "go -C ../../.. run ./cmd/lewkit release run --config ./examples/app/astro/eletrocromo.json"
 
 [tasks."run:build"]
 description = "Build the embed, then open the window"

@@ -1,6 +1,6 @@
 // Tray shows a status item until Quit or interrupt.
 //
-//	go run ./cmd/lewkit release run --config ./examples/tray/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/tray/eletrocromo.json
 package main
 
 import (

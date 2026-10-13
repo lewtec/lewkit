@@ -12,6 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/release"
@@ -21,13 +22,14 @@ import (
 
 type buildFlags struct {
 	appConfig `flatten:""`
-	out       cmd.StringArg `long:"out" help:"output path or directory" default:"dist"`
-	file      cmd.StringArg `long:"archive" help:"archive file name" default:""`
-	work      cmd.StringArg `long:"workdir" help:"generated host directory" default:""`
-	sdk       cmd.StringArg `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
-	goOnly    cmd.Flag      `long:"go-only" help:"stop after the Go binary"`
-	app       cmd.Flag      `long:"app" help:"package a host app instead of a binary archive"`
-	cgo       cmd.Flag      `long:"cgo" help:"android: build with cgo and the NDK clang for GOARCH"`
+	out       cmd.StringArg               `long:"out" help:"output path or directory" default:"dist"`
+	file      cmd.StringArg               `long:"archive" help:"archive file name" default:""`
+	work      cmd.StringArg               `long:"workdir" help:"generated host directory" default:""`
+	sdk       cmd.StringArg               `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
+	goOnly    cmd.Flag                    `long:"go-only" help:"stop after the Go binary"`
+	app       cmd.Flag                    `long:"app" help:"package a host app instead of a binary archive"`
+	cgo       cmd.Flag                    `long:"cgo" help:"android: build with cgo and the NDK clang for GOARCH"`
+	compiler  cmd.EnumArg[gocmd.Compiler] `long:"go" default:"lewkit" help:"Go compiler"`
 }
 
 type buildCmd struct {
@@ -62,6 +64,7 @@ func (c *buildCmd) Run(ctx context.Context) error {
 }
 
 func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
+	ctx = gocmd.WithCompiler(ctx, c.compiler.Value())
 	goos := c.goos.Value()
 	goarch := c.goarch.Value()
 	target := build.Target{GOOS: goos, GOARCH: goarch}

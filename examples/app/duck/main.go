@@ -6,7 +6,7 @@
 // View mounts that tensor as the scene, across the whole window. The
 // credit text stays in the alive box. The picture pipeline paints the window.
 //
-//	go run ./cmd/lewkit release run --config ./examples/duck/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/duck/eletrocromo.json
 package main
 
 import (

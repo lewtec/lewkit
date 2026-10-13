@@ -1,13 +1,13 @@
 // Nested puts child tasks inside an isolated error boundary.
 //
-//	go run ./cmd/lewkit release run --config ./examples/nested/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/nested/eletrocromo.json
 package main
 
 import (
 	"context"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/internal/pace"
+	"github.com/lewtec/lewkit/examples/app/internal/pace"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )

@@ -1,6 +1,6 @@
 // Webview serves an in-process page in the system web view.
 //
-//	go run ./cmd/lewkit release run --config ./examples/webview/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/webview/eletrocromo.json
 package main
 
 import (

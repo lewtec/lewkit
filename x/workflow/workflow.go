@@ -37,16 +37,20 @@ var (
 // relative to Dir or Graph.Dir unless absolute. Tasks run in order when
 // the step is out of date. Phony steps run every time. An empty Pool
 // with a task uses the CPU pool. A step with no tasks is Control.
+// Orchestrator forces Control even when the step has tasks and even
+// when Pool is set, so a step that waits on nested CPU work does not
+// hold a pool slot.
 type Step struct {
-	Name    string
-	Deps    []string
-	Inputs  []string
-	Outputs []string
-	Dir     string
-	Tasks   []Task
-	Desc    string
-	Phony   bool
-	Pool    taskgroup.PoolKind
+	Name         string
+	Deps         []string
+	Inputs       []string
+	Outputs      []string
+	Dir          string
+	Tasks        []Task
+	Desc         string
+	Phony        bool
+	Pool         taskgroup.PoolKind
+	Orchestrator bool
 }
 
 // Graph is the build the frontends hand to Run.
@@ -207,6 +211,9 @@ func resolveAlias(name string, byName map[string]Step, alias map[string]string) 
 }
 
 func (s Step) pool() taskgroup.PoolKind {
+	if s.Orchestrator {
+		return taskgroup.Control
+	}
 	if s.Pool != taskgroup.Control {
 		return s.Pool
 	}

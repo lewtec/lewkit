@@ -13,7 +13,7 @@
 // board paints the whole window, including navbars and notches. The move
 // line stays in the alive box. This package does not load a mesh kit.
 //
-//	go run ./cmd/lewkit release run --config ./examples/chess/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/chess/eletrocromo.json
 package main
 
 import (

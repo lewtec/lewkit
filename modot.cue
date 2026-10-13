@@ -24,6 +24,10 @@ inputs: tailwindcss: {
 	from:    "github:tailwindlabs/tailwindcss"
 	version: "v4.3.3"
 }
+inputs: golang: {
+	from:    "github:golang/go"
+	version: "go1.27.0"
+}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
@@ -92,4 +96,62 @@ file: codebase: {
 			}
 		}
 	}
+	// Pristine Go 1.27 compiler, linker, and the std internal packages they
+	// import. A directory named _upstream is invisible to the go tool.
+	// x/toolchain/go/rewrite turns this pin into packages the module can import.
+	"x/toolchain/go/_upstream/compile": {
+		type:   "place"
+		source: "golang:src/cmd/compile"
+	}
+	"x/toolchain/go/_upstream/link": {
+		type:   "place"
+		source: "golang:src/cmd/link"
+	}
+	"x/toolchain/go/_upstream/cmd": {
+		type:   "place"
+		source: "golang:src/cmd/internal"
+	}
+	"x/toolchain/go/_upstream/std": {
+		type:   "place"
+		source: "golang:src/internal"
+	}
+	"x/toolchain/go/_upstream/telemetry": {
+		type:   "place"
+		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
+	}
+}
+
+// The prelude formatter is `gofmt -w .`. That walks the Go pin, and the
+// pin's testdata does not parse. Format the rest of the module instead.
+formatter: tools: gofmt: enable: false
+formatter: tools: "go-sources": {
+	detect: "00-go-mod": {
+		path:   "go.mod"
+		enable: true
+	}
+	cmd: ["sh", "x/toolchain/format.sh"]
+}
+
+// Prelude golangci-lint and govulncheck run on ./... . That includes
+// x/toolchain/go/src, the rewritten compiler. Point them at the same
+// package list as the tests.
+lint: tools: "golangci-lint": enable: false
+lint: tools: govulncheck: enable: false
+lint: tools: "go-lint": {
+	detect: "00-go-mod": {
+		path:   "go.mod"
+		enable: true
+	}
+	needs: golangci_lint: true
+	cmd: ["sh", "x/toolchain/lint-golangci.sh"]
+	output: "sarif"
+}
+lint: tools: "go-vuln": {
+	detect: "00-go-mod": {
+		path:   "go.mod"
+		enable: true
+	}
+	needs: govulncheck: true
+	cmd: ["sh", "x/toolchain/lint-govuln.sh"]
+	output: "sarif"
 }

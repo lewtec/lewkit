@@ -1,6 +1,6 @@
 // Tasks shows progress bars, logs, pools, and dependencies.
 //
-//	go run ./cmd/lewkit release run --config ./examples/tasks/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/tasks/eletrocromo.json
 package main
 
 import (
@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/internal/pace"
+	"github.com/lewtec/lewkit/examples/app/internal/pace"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )

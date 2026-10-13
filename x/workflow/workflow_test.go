@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
@@ -384,6 +385,38 @@ func TestFutureFromControlTask(t *testing.T) {
 	require.Error(t, sess.Wait())
 	require.ErrorContains(t, got, "boom")
 	require.False(t, ran.Load())
+}
+
+func TestOrchestratorDoesNotHoldCPU(t *testing.T) {
+	started := make(chan struct{})
+	g := Graph{Defaults: []string{"parent"}, Steps: []Step{{
+		Name:         "parent",
+		Orchestrator: true,
+		Tasks: []Task{Func(func(ctx context.Context, _ *taskgroup.Status) error {
+			child := Graph{Defaults: []string{"child"}, Steps: []Step{{
+				Name: "child",
+				Tasks: []Task{Func(func(context.Context, *taskgroup.Status) error {
+					close(started)
+					return nil
+				})},
+			}}}
+			fut, err := Run(ctx, child, nil)
+			if err != nil {
+				return err
+			}
+			return fut.Wait(ctx)
+		})},
+	}}}
+	sess, ctx := taskgroup.New(t.Context(), taskgroup.Limits{CPU: 1})
+	fut, err := Run(ctx, g, nil)
+	require.NoError(t, err)
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("cpu child did not start")
+	}
+	require.NoError(t, fut.Wait(ctx))
+	require.NoError(t, sess.Wait())
 }
 
 func run(ctx context.Context, g Graph, targets []string) error {

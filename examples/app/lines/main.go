@@ -1,6 +1,6 @@
 // Lines rewrites three rows until a newline.
 //
-//	go run ./cmd/lewkit release run --config ./examples/lines/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/lines/eletrocromo.json
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/internal/pace"
+	"github.com/lewtec/lewkit/examples/app/internal/pace"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )

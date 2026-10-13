@@ -5,7 +5,7 @@
 // reads the column. The black scene covers the whole window, including
 // navbars and notches. The color fills only the alive box.
 //
-//	go run ./cmd/lewkit release run --config ./examples/deadzone/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/deadzone/eletrocromo.json
 package main
 
 import (

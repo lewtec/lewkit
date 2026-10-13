@@ -1,10 +1,10 @@
 // Files is a page. A button opens the file dialog and shows the files.
 //
-//	go run ./cmd/lewkit release run --config ./examples/filedialog/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/filedialog/eletrocromo.json
 //
 // Android (document picker, needs a device and the NDK):
 //
-//	go run ./cmd/lewkit release run --config ./examples/filedialog/eletrocromo.json --goos android --app --cgo
+//	go run ./cmd/lewkit release run --config ./examples/app/filedialog/eletrocromo.json --goos android --app --cgo
 package main
 
 import (

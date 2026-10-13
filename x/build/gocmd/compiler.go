@@ -1,0 +1,306 @@
+package gocmd
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/lewtec/lewkit/x/taskgroup"
+	gotool "github.com/lewtec/lewkit/x/toolchain/go"
+	"github.com/lewtec/lewkit/x/toolchain/load"
+)
+
+// ErrCompiler means the lewkit compiler cannot perform this go invocation.
+// cgo, a buildmode other than exe, a -toolexec that does not name
+// _cgo_android_export.go, -overlay, and a GOARCH other than amd64 or
+// arm64 return this error. Release commands default to this compiler.
+// A Command with no compiler and a context with none still runs the host
+// go command.
+var ErrCompiler = errors.New("gocmd: lewkit compiler")
+
+// Compiler selects the go command or the embedded compiler.
+// The zero value runs the host go command.
+type Compiler int
+
+const (
+	// CompilerHost runs the go command.
+	CompilerHost Compiler = iota + 1
+	// CompilerLewkit compiles a CGO-free amd64 or arm64 binary with the embedded compiler.
+	CompilerLewkit
+)
+
+// String is the CLI token.
+func (c Compiler) String() string {
+	switch c {
+	case CompilerHost:
+		return "host"
+	case CompilerLewkit:
+		return "lewkit"
+	default:
+		return ""
+	}
+}
+
+// Values lists compilers for cmd.EnumArg.
+func (Compiler) Values() []Compiler {
+	return []Compiler{CompilerHost, CompilerLewkit}
+}
+
+type compilerKey struct{}
+
+// WithCompiler returns ctx that carries the compiler release builds use.
+func WithCompiler(ctx context.Context, c Compiler) context.Context {
+	return context.WithValue(ctx, compilerKey{}, c)
+}
+
+func (c Command) active(ctx context.Context) Compiler {
+	if c.Compiler != 0 {
+		return c.Compiler
+	}
+	if ctx == nil {
+		return 0
+	}
+	got, _ := ctx.Value(compilerKey{}).(Compiler)
+	return got
+}
+
+func (c Command) runLewkit(ctx context.Context) error {
+	verb := c.Verb
+	if verb == "" {
+		verb = "build"
+	}
+	if verb != "build" {
+		return fmt.Errorf("%w: %s", ErrCompiler, verb)
+	}
+	parsed, err := parseBuildArgs(c.Args)
+	if err != nil {
+		return err
+	}
+	if parsed.buildmode != "" && parsed.buildmode != "exe" {
+		return fmt.Errorf("%w: -buildmode=%s", ErrCompiler, parsed.buildmode)
+	}
+	env := c.Env
+	if env == nil {
+		env = os.Environ()
+	}
+	if lookupEnv(env, "CGO_ENABLED") == "1" {
+		return fmt.Errorf("%w: CGO_ENABLED=1", ErrCompiler)
+	}
+	goos := lookupEnv(env, "GOOS")
+	goarch := lookupEnv(env, "GOARCH")
+	if goarch != "" && goarch != "amd64" && goarch != "arm64" {
+		return fmt.Errorf("%w: GOARCH=%s", ErrCompiler, goarch)
+	}
+	ldflags, err := load.SplitFlags(parsed.ldflags)
+	if err != nil {
+		return err
+	}
+	if taskgroup.FromContext(ctx) == nil {
+		return c.buildLewkit(ctx, parsed, goos, goarch, ldflags)
+	}
+	errCh := make(chan error, 1)
+	taskgroup.Go(ctx, "go build", taskgroup.Control, func(ctx context.Context, st *taskgroup.Status) error {
+		st.Update("lewkit")
+		err := c.buildLewkit(ctx, parsed, goos, goarch, ldflags)
+		errCh <- err
+		return err
+	})
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c Command) buildLewkit(ctx context.Context, parsed parsedBuild, goos, goarch string, ldflags []string) error {
+	if parsed.output == "" {
+		return fmt.Errorf("%w: -o is required", ErrCompiler)
+	}
+	return gotool.BuildModule(ctx, gotool.Module{
+		Dir:      c.Dir,
+		Out:      parsed.output,
+		GOOS:     goos,
+		GOARCH:   goarch,
+		Patterns: parsed.pkgs,
+		Tags:     splitTags(parsed.tags),
+		Ldflags:  ldflags,
+		Pkgdir:   parsed.pkgdir,
+		Trimpath: parsed.trimpath,
+		Toolexec: parsed.toolexec,
+	})
+}
+
+type parsedBuild struct {
+	output    string
+	ldflags   string
+	tags      string
+	pkgdir    string
+	pkgs      []string
+	trimpath  bool
+	buildmode string
+	toolexec  string
+}
+
+func parseBuildArgs(args []string) (parsedBuild, error) {
+	var p parsedBuild
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "" {
+			continue
+		}
+		if a == "--" || !strings.HasPrefix(a, "-") {
+			if a == "--" {
+				return p, fmt.Errorf("%w: %s", ErrCompiler, a)
+			}
+			p.pkgs = append(p.pkgs, a)
+			continue
+		}
+		if strings.HasPrefix(a, "--") {
+			return p, fmt.Errorf("%w: %s", ErrCompiler, a)
+		}
+		key, val, has := strings.Cut(strings.TrimPrefix(a, "-"), "=")
+		take := func() (string, error) {
+			if has {
+				return val, nil
+			}
+			i++
+			if i >= len(args) {
+				return "", fmt.Errorf("%w: %s needs a value", ErrCompiler, key)
+			}
+			return args[i], nil
+		}
+		switch key {
+		case "trimpath", "v":
+			if has {
+				return p, fmt.Errorf("%w: %s", ErrCompiler, a)
+			}
+			if key == "trimpath" {
+				p.trimpath = true
+			}
+		case "o":
+			v, err := take()
+			if err != nil {
+				return p, err
+			}
+			p.output = v
+		case "ldflags":
+			v, err := take()
+			if err != nil {
+				return p, err
+			}
+			p.ldflags = v
+		case "tags":
+			v, err := take()
+			if err != nil {
+				return p, err
+			}
+			p.tags = v
+		case "pkgdir":
+			v, err := take()
+			if err != nil {
+				return p, err
+			}
+			p.pkgdir = v
+		case "buildmode":
+			v, err := take()
+			if err != nil {
+				return p, err
+			}
+			p.buildmode = v
+		case "toolexec":
+			v, err := take()
+			if err != nil {
+				return p, err
+			}
+			export, ok := androidExportArg(v)
+			if !ok {
+				return p, fmt.Errorf("%w: -toolexec", ErrCompiler)
+			}
+			if _, err := os.Stat(export); err != nil {
+				return p, fmt.Errorf("%w: -toolexec: %s", ErrCompiler, err)
+			}
+			p.toolexec = v
+		default:
+			return p, fmt.Errorf("%w: %s", ErrCompiler, a)
+		}
+	}
+	return p, nil
+}
+
+// androidExportArg reports the _cgo_android_export.go path inside one
+// -toolexec value. cmd/go splits that value the way a shell would.
+// Any other wrapper stays rejected: this compiler does not run it.
+func androidExportArg(val string) (string, bool) {
+	words, err := splitToolexecWords(val)
+	if err != nil {
+		return "", false
+	}
+	for _, w := range words {
+		if filepath.Base(w) == "_cgo_android_export.go" {
+			return w, true
+		}
+	}
+	return "", false
+}
+
+func splitToolexecWords(s string) ([]string, error) {
+	var words []string
+	var b strings.Builder
+	var quote rune
+	for _, r := range s {
+		switch {
+		case quote != 0:
+			if r == quote {
+				quote = 0
+				continue
+			}
+			b.WriteRune(r)
+		case r == '\'' || r == '"':
+			quote = r
+		case r == ' ' || r == '\t' || r == '\n' || r == '\r':
+			if b.Len() > 0 {
+				words = append(words, b.String())
+				b.Reset()
+			}
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if quote != 0 {
+		return nil, fmt.Errorf("%w: -toolexec", ErrCompiler)
+	}
+	if b.Len() > 0 {
+		words = append(words, b.String())
+	}
+	return words, nil
+}
+
+func lookupEnv(env []string, key string) string {
+	prefix := key + "="
+	val := ""
+	for _, e := range env {
+		if strings.HasPrefix(e, prefix) {
+			val = e[len(prefix):]
+		}
+	}
+	return val
+}
+
+func splitTags(s string) []string {
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	var tags []string
+	for _, part := range strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t'
+	}) {
+		if part != "" {
+			tags = append(tags, part)
+		}
+	}
+	return tags
+}

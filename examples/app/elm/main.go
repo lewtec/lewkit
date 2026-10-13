@@ -1,6 +1,6 @@
 // Elm is two buttons that add and subtract an integer.
 //
-//	go run ./cmd/lewkit release run --config ./examples/elm/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/elm/eletrocromo.json
 package main
 
 import (

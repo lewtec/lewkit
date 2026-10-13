@@ -22,7 +22,14 @@ import (
 )
 
 func main() {
-	app, err := cmd.Parse[cmd.App[root]](os.Args[1:]...)
+	if done, err := toolchainChild(); done {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	app, err := cmd.Parse[cmd.App[root]](normalizeReleaseGoFlags(os.Args[1:])...)
 	if err != nil {
 		entry.Main(context.Background(), func(context.Context) error { return err })
 		return

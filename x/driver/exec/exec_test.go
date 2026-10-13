@@ -106,14 +106,34 @@ func TestProductionSpawnsUseTheDriver(t *testing.T) {
 		filepath.Join("x", "driver", "exec", "native", "provider.go"): true,
 		// go -toolexec must run the compiler path it was given.
 		filepath.Join("x", "build", "androidtoolexec", "main.go"): true,
+		// The toolchain re-execs itself, runs a built image, and asks host
+		// go for standard-library archives. The share example re-execs so
+		// a Go shared object is not loaded into this process. The host
+		// harness starts go test.
+		filepath.Join("examples", "toolchain", "share.go"):     true,
+		filepath.Join("x", "toolchain", "go", "exec_linux.go"): true,
+		filepath.Join("x", "toolchain", "go", "exec_other.go"): true,
+		filepath.Join("x", "toolchain", "go", "module.go"):     true,
+		filepath.Join("x", "toolchain", "go", "proc.go"):       true,
+		filepath.Join("x", "toolchain", "go", "stdcfg.go"):     true,
+		filepath.Join("x", "toolchain", "host", "main.go"):     true,
 	}
+	vendored := filepath.Join("x", "toolchain", "go", "src")
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 		if entry.IsDir() {
 			switch entry.Name() {
-			case ".git", "vendor":
+			case ".git", "vendor", "_upstream":
+				return filepath.SkipDir
+			}
+			rel, err := filepath.Rel(root, path)
+			if err != nil {
+				return err
+			}
+			// Rewritten compiler and linker. The pin's own spawns are not this module's.
+			if rel == vendored {
 				return filepath.SkipDir
 			}
 			return nil

@@ -19,7 +19,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 		Config: Config{
 			PackageID: "br.tec.lew.counter",
 			AppName:   "Counter",
-			GoMain:    "../../examples/counter",
+			GoMain:    "../../examples/app/counter",
 		},
 	})
 	require.NoError(t, err)
@@ -102,7 +102,7 @@ func TestCreate_PackageIDLayout(t *testing.T) {
 	require.NoError(t, err)
 	cfgText := string(cfg)
 	require.Contains(t, cfgText, `"package_id": "br.tec.lew.counter"`)
-	require.Contains(t, cfgText, `"go_main": "../../examples/counter"`)
+	require.Contains(t, cfgText, `"go_main": "../../examples/app/counter"`)
 
 	manifest, err = os.ReadFile(filepath.Join(out, "app/src/main/AndroidManifest.xml"))
 	require.NoError(t, err)

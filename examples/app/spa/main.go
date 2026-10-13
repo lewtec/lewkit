@@ -1,6 +1,6 @@
 // Spa serves a templ page as a single-page app.
 //
-//	go run ./cmd/lewkit release run --config ./examples/spa/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/spa/eletrocromo.json
 package main
 
 import (

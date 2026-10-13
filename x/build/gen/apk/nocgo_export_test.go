@@ -2,15 +2,30 @@ package apk
 
 import (
 	"debug/elf"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
+	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	if handled, err := gotool.Child(); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
 
 func TestLewkitDirFindsModule(t *testing.T) {
 	dir := lewkitDir()
@@ -46,6 +61,23 @@ func TestNocgoArm64ExportsJNIOnLoad(t *testing.T) {
 	ok, err = dynDefined(libs[0], "JNI_OnLoad")
 	require.NoError(t, err)
 	require.True(t, ok, "cgo-free arm64 library has no JNI_OnLoad in .dynsym")
+}
+
+func TestNocgoArm64ExportsJNIOnLoadLewkit(t *testing.T) {
+	if runtime.GOARCH != "amd64" {
+		t.Skip("embedded compiler runs on amd64")
+	}
+	mini, err := filepath.Abs("testdata/nocgo")
+	require.NoError(t, err)
+	ctx := gocmd.WithCompiler(t.Context(), gocmd.CompilerLewkit)
+	libs, err := BuildGoLibs(ctx, t.TempDir(), mini, []string{"arm64-v8a"}, version.Info{}, "br.tec.lew.nocgo", false, io.Discard)
+	require.NoError(t, err)
+	require.Len(t, libs, 1)
+	for _, name := range []string{"JNI_OnLoad", "Java_lewkit_Hook_call", "Java_lewkit_GoProxy_nativeInvoke"} {
+		ok, err := dynDefined(libs[0], name)
+		require.NoError(t, err)
+		require.True(t, ok, "%s missing from .dynsym", name)
+	}
 }
 
 func dynDefined(path, name string) (bool, error) {

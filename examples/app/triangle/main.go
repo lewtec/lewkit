@@ -1,13 +1,13 @@
 // Triangle draws an RGB triangle, one turn every four seconds.
 // Plus and minus step the rate by 0.05.
 //
-//	go run ./cmd/lewkit release run --config ./examples/triangle/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/triangle/eletrocromo.json
 package main
 
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/examples/internal/scene"
+	"github.com/lewtec/lewkit/examples/app/internal/scene"
 	"github.com/lewtec/lewkit/x/app"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"

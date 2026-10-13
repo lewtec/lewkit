@@ -127,9 +127,10 @@ func (host Host) workflow(goos string, sink func(string)) (workflow.Graph, error
 		deps = []string{"scaffold"}
 	}
 	steps = append(steps, workflow.Step{
-		Name: name,
-		Deps: deps,
-		Desc: "build " + name,
+		Name:         name,
+		Deps:         deps,
+		Desc:         "build " + name,
+		Orchestrator: true,
 		Tasks: []workflow.Task{
 			workflow.Func(func(ctx context.Context, st *taskgroup.Status) error {
 				if iconDir != "" {

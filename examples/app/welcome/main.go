@@ -1,6 +1,6 @@
 // Welcome picks a folder from the start screen.
 //
-//	go run ./cmd/lewkit release run --config ./examples/welcome/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/welcome/eletrocromo.json
 package main
 
 import (

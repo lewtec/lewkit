@@ -85,7 +85,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, daisyui, jquery, sakuracss, lewtec_logo, and hastad_nha. |
 | `x/release` | `Version`, `AppID`, `ValidateAppID`, `Name`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. The short name is the `-X` stamp `x/release.name`, or `LEWKIT_NAME`, or the built-in default. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |
-| `x/build` | `Job`, `Host`, `AppFile`, `ArchiveName`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. The archive name is `name_goos_goarch.tar.gz`, or `.zip` on Windows. `--app` writes the host instead: a macOS `.app`, a Windows GUI `.exe`, a Linux `.AppImage`, an Android APK, or an iOS `.app`. That file is `stem_goos_goarch` plus the host suffix, so `dist` can be uploaded as release assets. The build is a workflow: an icons step, a scaffold step for the Android, macOS, and iOS hosts, then one `goos/goarch` step. The macOS `.app` executable is that scaffold. The Go program is the server beside it. A binary archive is one step per target. `lewkit release build-all` writes every desktop archive and every host package this machine can finish into that directory, as one workflow. Linux and Windows hosts are included. A macOS or iOS app is included when `xcodebuild` and `xcodegen` are present. An Android APK is included when an SDK is already installed. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. Arguments after `--` go to that program. |
+| `x/build` | `Job`, `Host`, `AppFile`, `ArchiveName`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. The archive name is `name_goos_goarch.tar.gz`, or `.zip` on Windows. `--app` writes the host instead: a macOS `.app`, a Windows GUI `.exe`, a Linux `.AppImage`, an Android APK, or an iOS `.app`. That file is `stem_goos_goarch` plus the host suffix, so `dist` can be uploaded as release assets. The build is a workflow: an icons step, a scaffold step for the Android, macOS, and iOS hosts, then one `goos/goarch` step. The macOS `.app` executable is that scaffold. The Go program is the server beside it. A binary archive is one step per target. `lewkit release build-all` writes every desktop archive and every host package this machine can finish into that directory, as one workflow. Linux and Windows hosts are included. A macOS or iOS app is included when `xcodebuild` and `xcodegen` are present. An Android APK is included when an SDK is already installed. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. Arguments after `--` go to that program. `--go lewkit` is the default and compiles that CGO-free amd64 or arm64 binary with the embedded toolchain. Android arm64 links as an internal PIE, and a `-toolexec` that names `_cgo_android_export.go` is forwarded to `go list -export`. `--go host` runs the host `go` command. |
 | `x/app` | `Web`, `GUI`, `Open`, `Run`. An app is the windows of one process. Each window is a web handler or a GUI model, and it may open another. `Run` returns when the last window closes. `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` serves the first web handler on a loopback port. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
@@ -104,7 +104,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | --- | --- |
 | `x/ui/world` | `Sim`, `Frame`, `Entity`, `Column`, `Join`, `Put`, `Send`. Entities and columns advance in schedule order. `gui.Model` stays the view and may read a `World` on a tick. This package does not open a window. |
 
-`Frame` runs `Startup` once, then `First`, `PreUpdate`, `Update`, `PostUpdate`, and `Last`. A `Plugin` registers those systems. It is not a driver. A column is one Go type on entities. A message lasts until the next frame. `x/event.Bus` stays the fan-out. `examples/duck` spins an embedded mallard scan on that frame and loops an embedded clip. `examples/chess` plays the Caballero Coll tutorial on the same frame and keeps the board in that fully shown box. `examples/deadzone` fills that box with one color and walks the hue. `examples/dvd` bounces a logo in that box, changes its speed on each wall, and draws a rectangle around it.
+`Frame` runs `Startup` once, then `First`, `PreUpdate`, `Update`, `PostUpdate`, and `Last`. A `Plugin` registers those systems. It is not a driver. A column is one Go type on entities. A message lasts until the next frame. `x/event.Bus` stays the fan-out. `examples/app/duck` spins an embedded mallard scan on that frame and loops an embedded clip. `examples/app/chess` plays the Caballero Coll tutorial on the same frame and keeps the board in that fully shown box. `examples/app/deadzone` fills that box with one color and walks the hue. `examples/app/dvd` bounces a logo in that box, changes its speed on each wall, and draws a rectangle around it.
 
 ### Tensors
 
@@ -229,10 +229,10 @@ An artifact's preview path is `Artifact.Slug`, the first 16 hex characters of th
 
 ### Examples
 
-Each directory under `examples/` is one program. `eletrocromo.json` sits next to the Go main. Run a program from the repository root:
+App demos live under `examples/app`. Each directory there is one program. `eletrocromo.json` sits next to the Go main. Run a program from the repository root:
 
 ```bash
-go run ./cmd/lewkit release run --config ./examples/basic/eletrocromo.json
+go run ./cmd/lewkit release run --config ./examples/app/basic/eletrocromo.json
 ```
 
 A plain `go run` of an example has no release stamp and panics.
@@ -241,47 +241,56 @@ The progress view tracks the build. The program starts after that view and write
 
 | Directory | Result |
 | --- | --- |
-| `examples/basic` | One-line web handler. |
-| `examples/counter` | Server-rendered increment form. |
-| `examples/ticker` | Adds one every second. The page reads that count. |
-| `examples/inbox` | URL and file opens. Notes go under the app dirs. |
-| `examples/astro` | Astro page in a web window. Build the embed first. See `examples/astro/README.md`. |
-| `examples/host` | Host drivers, brightness, and the clipboard. |
-| `examples/drivers` | Driver panels. Opens the triangle window. |
-| `examples/tasks` | Progress bars, logs, pools, and dependencies. |
-| `examples/plain` | Fetch, process, and write. |
-| `examples/nested` | Isolated child tasks inside a bundle. |
-| `examples/loop` | Five steps and a moving bar. |
-| `examples/map` | `Map` over a list under one bar. |
-| `examples/many` | 256 `Map` items. The view calls `List(n)`. |
-| `examples/tree` | Release, then fetch, compile, and package. |
-| `examples/lines` | Three rows that rewrite until a newline. |
-| `examples/rsync` | Parallel fake transfers. Each transfer rewrites one row. |
-| `examples/triangle` | RGB triangle, one turn every four seconds. Plus and minus step the rate by 0.05. |
-| `examples/perlin` | Animated Perlin noise. |
-| `examples/fractal` | Animated Julia set. The parameter walks the Mandelbrot cardioid once every twenty seconds. |
-| `examples/compute` | Embedded shader `example.compute.glsl`. A path argument loads that shader. |
-| `examples/scroll` | Rounded translucent boxes in a loop. |
-| `examples/notepad` | An editor. The buffer stays in memory. |
-| `examples/elm` | Two buttons that add and subtract an integer. |
-| `examples/deadzone` | The fully shown box filled with one color. The world frame walks the hue. A navbar or notch stays black. |
-| `examples/dvd` | A DVD logo bouncing inside the usable box. Each wall picks a new speed. A rectangle plots that box. |
-| `examples/webview` | In-process page in the system web view. |
-| `examples/spa` | Templ page as a single-page app. |
-| `examples/music` | Drop a music directory, or pass one after `--`. Browse and play from an in-memory catalog. |
-| `examples/tray` | Status item until Quit or interrupt. |
-| `examples/sound` | No arguments lists sinks. Other arguments play those files. |
-| `examples/filedialog` | Page with Open, Folder, and Save. A button opens the dialog and shows the files. |
-| `examples/welcome` | Picks a directory from the start screen. |
+| `examples/app/basic` | One-line web handler. |
+| `examples/app/counter` | Server-rendered increment form. |
+| `examples/app/ticker` | Adds one every second. The page reads that count. |
+| `examples/app/inbox` | URL and file opens. Notes go under the app dirs. |
+| `examples/app/astro` | Astro page in a web window. Build the embed first. See `examples/app/astro/README.md`. |
+| `examples/app/host` | Host drivers, brightness, and the clipboard. |
+| `examples/app/drivers` | Driver panels. Opens the triangle window. |
+| `examples/app/tasks` | Progress bars, logs, pools, and dependencies. |
+| `examples/app/plain` | Fetch, process, and write. |
+| `examples/app/nested` | Isolated child tasks inside a bundle. |
+| `examples/app/loop` | Five steps and a moving bar. |
+| `examples/app/map` | `Map` over a list under one bar. |
+| `examples/app/many` | 256 `Map` items. The view calls `List(n)`. |
+| `examples/app/tree` | Release, then fetch, compile, and package. |
+| `examples/app/lines` | Three rows that rewrite until a newline. |
+| `examples/app/rsync` | Parallel fake transfers. Each transfer rewrites one row. |
+| `examples/app/triangle` | RGB triangle, one turn every four seconds. Plus and minus step the rate by 0.05. |
+| `examples/app/perlin` | Animated Perlin noise. |
+| `examples/app/fractal` | Animated Julia set. The parameter walks the Mandelbrot cardioid once every twenty seconds. |
+| `examples/app/compute` | Embedded shader `example.compute.glsl`. A path argument loads that shader. |
+| `examples/app/scroll` | Rounded translucent boxes in a loop. |
+| `examples/app/notepad` | An editor. The buffer stays in memory. |
+| `examples/app/elm` | Two buttons that add and subtract an integer. |
+| `examples/app/deadzone` | The fully shown box filled with one color. The world frame walks the hue. A navbar or notch stays black. |
+| `examples/app/dvd` | A DVD logo bouncing inside the usable box. Each wall picks a new speed. A rectangle plots that box. |
+| `examples/app/webview` | In-process page in the system web view. |
+| `examples/app/spa` | Templ page as a single-page app. |
+| `examples/app/music` | Drop a music directory, or pass one after `--`. Browse and play from an in-memory catalog. |
+| `examples/app/tray` | Status item until Quit or interrupt. |
+| `examples/app/sound` | No arguments lists sinks. Other arguments play those files. |
+| `examples/app/filedialog` | Page with Open, Folder, and Save. A button opens the dialog and shows the files. |
+| `examples/app/welcome` | Picks a directory from the start screen. |
 
 Arguments after `--` go to the program:
 
 ```bash
-go run ./cmd/lewkit release run --config ./examples/compute/eletrocromo.json -- smoke
+go run ./cmd/lewkit release run --config ./examples/app/compute/eletrocromo.json -- smoke
 ```
 
 `smoke` prints a 4-byte probe. The probe needs a Vulkan compute device. A shader path loads that file.
 
-`examples/music` takes an optional directory after `--`. No directory waits for a drop.
+`examples/app/music` takes an optional directory after `--`. No directory waits for a drop.
 
-`examples/sound` with no arguments lists sinks. `mix OUT INPUTS...` writes one WAV. Other arguments play those files.
+`examples/app/sound` with no arguments lists sinks. `mix OUT INPUTS...` writes one WAV. Other arguments play those files.
+
+Toolchain samples live at `examples/toolchain`. They are not UI demos. They have no `eletrocromo.json` and they do not call `x/entry`.
+
+```bash
+go run ./examples/toolchain share
+go run ./examples/toolchain jit
+```
+
+`share` renders a Go main package with jennifer, compiles it into a shared object, loads it with purego, and calls `HostPing`. `jit` renders a main package with jennifer, compiles it in this process, and calls `Value`.

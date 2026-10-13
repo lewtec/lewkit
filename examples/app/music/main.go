@@ -1,6 +1,6 @@
 // Music browses a dropped music directory and plays it.
 //
-//	go run ./cmd/lewkit release run --config ./examples/music/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/music/eletrocromo.json
 package main
 
 import (

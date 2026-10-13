@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
@@ -15,6 +16,20 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGoCompilerFlag(t *testing.T) {
+	built := cmd.ParseOK[cmd.App[root]](t, "release", "build")
+	assert.Equal(t, gocmd.CompilerLewkit, built.Args.release.build.compiler.Value())
+	run := cmd.ParseOK[cmd.App[root]](t, "release", "run")
+	assert.Equal(t, gocmd.CompilerLewkit, run.Args.release.run.compiler.Value())
+	all := cmd.ParseOK[cmd.App[root]](t, "release", "build-all")
+	assert.Equal(t, gocmd.CompilerLewkit, all.Args.release.buildAll.compiler.Value())
+
+	host := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--go", "host")
+	assert.Equal(t, gocmd.CompilerHost, host.Args.release.build.compiler.Value())
+	_, err := cmd.Parse[cmd.App[root]]("release", "build", "--go", "tinygo")
+	assert.ErrorIs(t, err, cmd.ErrInvalidArgument)
+}
 
 func TestProgramGoOnly(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--go-only")

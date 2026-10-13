@@ -361,6 +361,16 @@ func (s *Session) startWorkers(limits Limits) {
 	start(Internet, limits.Internet)
 }
 
+// WithoutSession returns a child of ctx that carries no Session and no task.
+// A workflow started from it takes a new pool. ctx itself is unchanged.
+func WithoutSession(ctx context.Context) context.Context {
+	if ctx == nil {
+		panic("taskgroup: nil context")
+	}
+	ctx = context.WithValue(ctx, sessionKey{}, (*Session)(nil))
+	return context.WithValue(ctx, taskKey{}, ID(0))
+}
+
 // FromContext retrieves the Session from ctx. Returns nil if none.
 // A nil context panics.
 func FromContext(ctx context.Context) *Session {

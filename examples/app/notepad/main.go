@@ -1,6 +1,6 @@
 // Notepad is an editor. The buffer stays in memory.
 //
-//	go run ./cmd/lewkit release run --config ./examples/notepad/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/notepad/eletrocromo.json
 package main
 
 import (

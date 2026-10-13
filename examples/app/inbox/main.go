@@ -1,7 +1,7 @@
 // Inbox shows URL and file opens, and writes notes under the app dirs.
 //
-//	go run ./cmd/lewkit release run --config ./examples/inbox/eletrocromo.json
-//	./examples/inbox/sim.sh sim
+//	go run ./cmd/lewkit release run --config ./examples/app/inbox/eletrocromo.json
+//	./examples/app/inbox/sim.sh sim
 package main
 
 import (

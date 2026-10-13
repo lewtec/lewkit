@@ -1,6 +1,6 @@
 // Loop advances five steps on one bar.
 //
-//	go run ./cmd/lewkit release run --config ./examples/loop/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/loop/eletrocromo.json
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/internal/pace"
+	"github.com/lewtec/lewkit/examples/app/internal/pace"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )

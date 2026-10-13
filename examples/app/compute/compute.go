@@ -1,7 +1,7 @@
 // Compute shows the embedded shader, or a shader path.
 // Argument smoke prints a 4-byte probe.
 //
-//	go run ./cmd/lewkit release run --config ./examples/compute/eletrocromo.json
+//	go run ./cmd/lewkit release run --config ./examples/app/compute/eletrocromo.json
 package main
 
 import (
