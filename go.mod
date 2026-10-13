@@ -15,7 +15,7 @@ require (
 	github.com/anchore/quill v0.7.1
 	github.com/andybalholm/brotli v1.2.4
 	github.com/bmatcuk/doublestar/v4 v4.10.0
-	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/charmbracelet/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/dave/jennifer v1.7.1
 	github.com/diskfs/go-diskfs v1.9.4
