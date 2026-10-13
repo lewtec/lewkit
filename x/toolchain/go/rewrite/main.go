@@ -6,7 +6,10 @@
 // drops the internal element (compile/internal/gc becomes src/compile/gc) and
 // retargets std internal imports onto the placed copy under src/std. It also
 // turns the linker's and compiler's process exits into panics so one process
-// can compile and then link.
+// can compile and then link. overlay/ then replaces the files whose library
+// entry points (SetDiag, MainArgs, Run, ParseFS) are not in the upstream pin.
+// modot codebase apply restores those pin files, so the edits live in the
+// overlay rather than in _upstream.
 //
 // Run it after `go tool modot codebase apply`. go generate at the repo root
 // does both.
@@ -44,9 +47,41 @@ func main() {
 	if err := patchAll(dst); err != nil {
 		fatal(err)
 	}
+	if err := applyOverlay(dst); err != nil {
+		fatal(err)
+	}
 	if err := writeGenerated(dst); err != nil {
 		fatal(err)
 	}
+}
+
+// overlayFiles are src-relative paths. Each file in rewrite/overlay is the
+// import-rewritten copy, including the Exit panic patches.
+var overlayFiles = []string{
+	"compile/base/flag.go",
+	"compile/base/print.go",
+	"compile/gc/main.go",
+	"compile/types/goversion.go",
+	"link/ld/main.go",
+	"link/ld/util.go",
+	"cmd/objabi/flag.go",
+}
+
+func applyOverlay(dst string) error {
+	dir := filepath.Join("x", "toolchain", "go", "rewrite", "overlay")
+	for _, rel := range overlayFiles {
+		body, err := os.ReadFile(filepath.Join(dir, rel))
+		if err != nil {
+			return fmt.Errorf("overlay %s: %w", rel, err)
+		}
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dst, rel), body, 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeGenerated fills files that `go tool dist` writes into a GOROOT and that

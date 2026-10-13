@@ -194,27 +194,25 @@ func loadProg(archive []byte) (*Prog, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := prepareWrite(mem); err != nil {
-		return nil, err
-	}
 	base := uintptr(unsafe.Pointer(&mem[0]))
-	for i := range place {
-		if place[i].size == 0 {
-			continue
+	// Darwin's MAP_JIT write bit is per OS thread. The copy has to run
+	// on the same thread that toggled pthread_jit_write_protect_np.
+	if err := withMappedWrite(mem, func() error {
+		for i := range place {
+			if place[i].size == 0 {
+				continue
+			}
+			place[i].addr = base + place[i].addr
+			data := obj.Data(uint32(i))
+			dst := mem[place[i].addr-base : place[i].addr-base+uintptr(place[i].size)]
+			copy(dst, data)
 		}
-		place[i].addr = base + place[i].addr
-		data := obj.Data(uint32(i))
-		dst := mem[place[i].addr-base : place[i].addr-base+uintptr(place[i].size)]
-		copy(dst, data)
-	}
-	var tr *trampoline
-	if slots > 0 {
-		tr = &trampoline{mem: mem[trampAt:], base: base + uintptr(trampAt)}
-	}
-	if err := patchRelocs(obj, place, tr); err != nil {
-		return nil, err
-	}
-	if err := protectRX(mem); err != nil {
+		var tr *trampoline
+		if slots > 0 {
+			tr = &trampoline{mem: mem[trampAt:], base: base + uintptr(trampAt)}
+		}
+		return patchRelocs(obj, place, tr)
+	}); err != nil {
 		return nil, err
 	}
 	prog := &Prog{mem: mem, fn: map[string]uintptr{}}
@@ -244,6 +242,22 @@ func loadProg(archive []byte) (*Prog, error) {
 		return nil, err
 	}
 	return prog, nil
+}
+
+// withMappedWrite pins this goroutine while fn stores into mem, then
+// makes the mapping executable again. A failing fn still restores
+// execute permission so the thread is not left in write mode.
+func withMappedWrite(mem []byte, fn func() error) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	if err := prepareWrite(mem); err != nil {
+		return err
+	}
+	err := fn()
+	if rxErr := protectRX(mem); err == nil {
+		err = rxErr
+	}
+	return err
 }
 
 func openObject(archive []byte) (*goobj.Reader, error) {

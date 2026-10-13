@@ -37,7 +37,6 @@ func AllowsGoVersion(major, minor int) bool {
 // exits if not. It initializes data used by AllowsGoVersion.
 func ParseLangFlag() {
 	if base.Flag.Lang == "" {
-		langWant = lang{}
 		return
 	}
 

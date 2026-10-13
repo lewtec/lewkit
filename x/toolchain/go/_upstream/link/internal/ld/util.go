@@ -8,23 +8,8 @@ import (
 	"cmd/link/internal/loader"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"os"
 )
-
-// diag receives linker diagnostics. Nil writes to stderr.
-var diag io.Writer
-
-// SetDiag sends diagnostics to w. Nil restores stderr.
-// The caller serializes link calls; diag is package state.
-func SetDiag(w io.Writer) { diag = w }
-
-func diagOut() io.Writer {
-	if diag == nil {
-		return os.Stderr
-	}
-	return diag
-}
 
 var atExitFuncs []func()
 
@@ -48,7 +33,7 @@ func Exit(code int) {
 
 // Exitf logs an error message then calls Exit(2).
 func Exitf(format string, a ...any) {
-	fmt.Fprintf(diagOut(), "link: "+format+"\n", a...)
+	fmt.Fprintf(os.Stderr, os.Args[0]+": "+format+"\n", a...)
 	nerrors++
 	if *flagH {
 		panic("error")
@@ -77,7 +62,7 @@ func afterErrorAction() {
 // output file and return a non-zero error code.
 func Errorf(format string, args ...any) {
 	format += "\n"
-	fmt.Fprintf(diagOut(), format, args...)
+	fmt.Fprintf(os.Stderr, format, args...)
 	afterErrorAction()
 }
 
@@ -95,7 +80,7 @@ func (ctxt *Link) Errorf(s loader.Sym, format string, args ...any) {
 	// Note: this is not expected to happen very often.
 	format = fmt.Sprintf("sym %d: %s", s, format)
 	format += "\n"
-	fmt.Fprintf(diagOut(), format, args...)
+	fmt.Fprintf(os.Stderr, format, args...)
 	afterErrorAction()
 }
 

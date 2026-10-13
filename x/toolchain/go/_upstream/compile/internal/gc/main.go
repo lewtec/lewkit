@@ -34,6 +34,7 @@ import (
 	"cmd/internal/objabi"
 	"cmd/internal/src"
 	"cmd/internal/telemetry/counter"
+	"flag"
 	"fmt"
 	"internal/buildcfg"
 	"log"
@@ -58,14 +59,10 @@ func handlePanic() {
 	}
 }
 
-// Main compiles the files named by os.Args.
+// Main parses flags and Go source files specified in the command-line
+// arguments, type-checks the parsed Go package, compiles functions to machine
+// code, and finally writes the compiled package definition to disk.
 func Main(archInit func(*ssagen.ArchInfo)) {
-	MainArgs(archInit, os.Args[1:])
-}
-
-// MainArgs compiles the files in args. args does not include the program name.
-// It does not read os.Args or flag.CommandLine.
-func MainArgs(archInit func(*ssagen.ArchInfo), args []string) {
 	base.Timer.Start("fe", "init")
 	counter.Open()
 	counter.Inc("compile/invocations")
@@ -86,7 +83,7 @@ func MainArgs(archInit func(*ssagen.ArchInfo), args []string) {
 	base.Ctxt.UseBASEntries = base.Ctxt.Headtype != objabi.Hdarwin
 
 	base.DebugSSA = ssa.PhaseOption
-	files := base.ParseArgs(args)
+	base.ParseFlags()
 
 	if flagGCStart := base.Debug.GCStart; flagGCStart > 0 || // explicit flags overrides environment variable disable of GC boost
 		os.Getenv("GOGC") == "" && os.Getenv("GOMEMLIMIT") == "" && base.Flag.LowerC != 1 { // explicit GC knobs or no concurrency implies default heap
@@ -218,7 +215,7 @@ func MainArgs(archInit func(*ssagen.ArchInfo), args []string) {
 	ssagen.InitTables()
 
 	// Parse and typecheck input.
-	noder.LoadPackage(files)
+	noder.LoadPackage(flag.Args())
 
 	// As a convenience to users (toolchain maintainers, in particular),
 	// when compiling a package named "main", we default the package

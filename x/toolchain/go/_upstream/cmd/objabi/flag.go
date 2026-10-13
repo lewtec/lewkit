@@ -19,21 +19,11 @@ import (
 )
 
 func Flagcount(name, usage string, val *int) {
-	FlagcountFS(flag.CommandLine, name, usage, val)
-}
-
-// FlagcountFS registers the counting flag on fs.
-func FlagcountFS(fs *flag.FlagSet, name, usage string, val *int) {
-	fs.Var((*count)(val), name, usage)
+	flag.Var((*count)(val), name, usage)
 }
 
 func Flagfn1(name, usage string, f func(string)) {
-	Flagfn1FS(flag.CommandLine, name, usage, f)
-}
-
-// Flagfn1FS registers a single-argument flag on fs.
-func Flagfn1FS(fs *flag.FlagSet, name, usage string, f func(string)) {
-	fs.Var(fn1(f), name, usage)
+	flag.Var(fn1(f), name, usage)
 }
 
 func Flagprint(w io.Writer) {
@@ -45,12 +35,6 @@ func Flagparse(usage func()) {
 	flag.Usage = usage
 	os.Args = expandArgs(os.Args)
 	flag.Parse()
-}
-
-// ParseFS parses args with fs. args does not include the program name.
-// It does not read or write os.Args or flag.CommandLine.
-func ParseFS(fs *flag.FlagSet, args []string) error {
-	return fs.Parse(expandArgs(args))
 }
 
 // expandArgs expands "response files" arguments in the provided slice.
@@ -215,12 +199,7 @@ func ParseArgs(s []byte) []string {
 }
 
 func AddVersionFlag() {
-	AddVersionFlagFS(flag.CommandLine)
-}
-
-// AddVersionFlagFS registers -V on fs.
-func AddVersionFlagFS(fs *flag.FlagSet) {
-	fs.Var(versionFlag{}, "V", "print version and exit")
+	flag.Var(versionFlag{}, "V", "print version and exit")
 }
 
 var buildID string // filled in by linker

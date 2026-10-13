@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"internal/buildcfg"
 	"internal/types/errors"
-	"io"
 	"os"
 	"runtime/debug"
 	"sort"
@@ -28,21 +27,6 @@ type errorMsg struct {
 // Pos is the current source position being processed,
 // printed by Errorf, ErrorfLang, Fatalf, and Warnf.
 var Pos src.XPos
-
-// diag receives compiler diagnostics. Nil writes to stdout, which is
-// where FlushErrors has always printed.
-var diag io.Writer
-
-// SetDiag sends diagnostics to w. Nil restores stdout.
-// The caller serializes compiler calls; diag is package state.
-func SetDiag(w io.Writer) { diag = w }
-
-func diagWriter() io.Writer {
-	if diag == nil {
-		return os.Stdout
-	}
-	return diag
-}
 
 var (
 	errorMsgs       []errorMsg
@@ -104,7 +88,7 @@ func FlushErrors() {
 	}
 	for i, err := range errorMsgs {
 		if i == 0 || err.msg != errorMsgs[i-1].msg {
-			fmt.Fprint(diagWriter(), err.msg)
+			fmt.Print(err.msg)
 		}
 	}
 	errorMsgs = errorMsgs[:0]

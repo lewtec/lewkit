@@ -5,7 +5,6 @@
 package base
 
 import (
-	"bytes"
 	"cmd/internal/cov/covcmd"
 	"cmd/internal/telemetry/counter"
 	"encoding/json"
@@ -24,10 +23,9 @@ import (
 	"cmd/internal/sys"
 )
 
-func usage(fs *flag.FlagSet) {
-	fmt.Fprintf(diagWriter(), "usage: compile [options] file.go...\n")
-	fs.SetOutput(diagWriter())
-	fs.PrintDefaults()
+func usage() {
+	fmt.Fprintf(os.Stderr, "usage: compile [options] file.go...\n")
+	objabi.Flagprint(os.Stderr)
 	Exit(2)
 }
 
@@ -156,17 +154,8 @@ func addEnv(s string) {
 	os.Setenv(s[:i], s[i+1:])
 }
 
-// ParseFlags parses os.Args into Flag.
+// ParseFlags parses the command-line flags into Flag.
 func ParseFlags() {
-	ParseArgs(os.Args[1:])
-}
-
-// ParseArgs parses args into Flag and returns the input files.
-// args does not include the program name.
-// The flag set is private to this call: os.Args and flag.CommandLine stay put.
-func ParseArgs(args []string) []string {
-	Flag = CmdFlags{}
-	Debug = DebugFlags{}
 	Flag.I = addImportDir
 
 	Flag.LowerC = runtime.GOMAXPROCS(0)
@@ -207,22 +196,10 @@ func ParseArgs(args []string) []string {
 
 	Flag.Cfg.ImportMap = make(map[string]string)
 
-	fs := flag.NewFlagSet("compile", flag.ContinueOnError)
-	var flagErr bytes.Buffer
-	fs.SetOutput(&flagErr)
-	fs.Usage = func() {}
-	objabi.AddVersionFlagFS(fs)
-	registerFlags(fs)
-	if err := objabi.ParseFS(fs, args); err != nil {
-		msg := err.Error()
-		if flagErr.Len() > 0 {
-			msg += "\n" + flagErr.String()
-		}
-		fmt.Fprintln(diagWriter(), msg)
-		Exit(2)
-	}
-	files := fs.Args()
-	counter.CountFlags("compile/flag:", *fs)
+	objabi.AddVersionFlag() // -V
+	registerFlags()
+	objabi.Flagparse(usage)
+	counter.CountFlags("compile/flag:", *flag.CommandLine)
 
 	if gcd := os.Getenv("GOCOMPILEDEBUG"); gcd != "" {
 		// This will only override the flags set in gcd;
@@ -332,8 +309,8 @@ func ParseArgs(args []string) []string {
 	Ctxt.Flag_maymorestack = Debug.MayMoreStack
 	Ctxt.Flag_noRefName = Debug.NoRefName != 0
 
-	if len(files) < 1 {
-		usage(fs)
+	if flag.NArg() < 1 {
+		usage()
 	}
 
 	if Flag.GoVersion != "" && Flag.GoVersion != runtime.Version() {
@@ -346,7 +323,7 @@ func ParseArgs(args []string) []string {
 	}
 
 	if Flag.LowerO == "" {
-		p := files[0]
+		p := flag.Arg(0)
 		if i := strings.LastIndex(p, "/"); i >= 0 {
 			p = p[i+1:]
 		}
@@ -410,12 +387,11 @@ func ParseArgs(args []string) []string {
 	if buildcfg.GOOS == "plan9" && buildcfg.GOARCH == "386" {
 		Debug.AlignHot = 0
 	}
-	return files
 }
 
 // registerFlags adds flag registrations for all the fields in Flag.
 // See the comment on type CmdFlags for the rules.
-func registerFlags(fs *flag.FlagSet) {
+func registerFlags() {
 	var (
 		boolType      = reflect.TypeFor[bool]()
 		intType       = reflect.TypeFor[int]()
@@ -459,31 +435,31 @@ func registerFlags(fs *flag.FlagSet) {
 		switch f.Type {
 		case boolType:
 			p := v.Field(i).Addr().Interface().(*bool)
-			fs.BoolVar(p, name, *p, help)
+			flag.BoolVar(p, name, *p, help)
 		case intType:
 			p := v.Field(i).Addr().Interface().(*int)
-			fs.IntVar(p, name, *p, help)
+			flag.IntVar(p, name, *p, help)
 		case stringType:
 			p := v.Field(i).Addr().Interface().(*string)
-			fs.StringVar(p, name, *p, help)
+			flag.StringVar(p, name, *p, help)
 		case ptrBoolType:
 			p := v.Field(i).Interface().(*bool)
-			fs.BoolVar(p, name, *p, help)
+			flag.BoolVar(p, name, *p, help)
 		case ptrIntType:
 			p := v.Field(i).Interface().(*int)
-			fs.IntVar(p, name, *p, help)
+			flag.IntVar(p, name, *p, help)
 		case ptrStringType:
 			p := v.Field(i).Interface().(*string)
-			fs.StringVar(p, name, *p, help)
+			flag.StringVar(p, name, *p, help)
 		case countType:
 			p := (*int)(v.Field(i).Addr().Interface().(*CountFlag))
-			objabi.FlagcountFS(fs, name, help, p)
+			objabi.Flagcount(name, help, p)
 		case funcType:
 			f := v.Field(i).Interface().(func(string))
-			objabi.Flagfn1FS(fs, name, help, f)
+			objabi.Flagfn1(name, help, f)
 		default:
 			if val, ok := v.Field(i).Interface().(flag.Value); ok {
-				fs.Var(val, name, help)
+				flag.Var(val, name, help)
 			} else {
 				panic(fmt.Sprintf("base.Flag.%s has unexpected type %s", f.Name, f.Type))
 			}

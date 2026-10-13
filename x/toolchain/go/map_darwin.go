@@ -55,21 +55,26 @@ func mapNear(n int, hint uintptr) ([]byte, error) {
 	}
 	const step = 2 << 20
 	base := hint &^ (page - 1)
-	for dist := uintptr(0); dist < limit; dist += step {
-		cands := []uintptr{base + dist}
-		if dist > 0 && base > dist {
-			cands = append(cands, base-dist)
-		}
-		for _, addr := range cands {
-			if b, ok := try(addr, jitProt, jitFlags); ok {
-				darwinJIT = true
-				return b, nil
+	// MAP_JIT pages stay read/execute until this thread calls
+	// pthread_jit_write_protect_np(0). Without that symbol, an
+	// anonymous read/write mapping is the one mprotect can flip.
+	if jitWriteOK() {
+		for dist := uintptr(0); dist < limit; dist += step {
+			cands := []uintptr{base + dist}
+			if dist > 0 && base > dist {
+				cands = append(cands, base-dist)
+			}
+			for _, addr := range cands {
+				if b, ok := try(addr, jitProt, jitFlags); ok {
+					darwinJIT = true
+					return b, nil
+				}
 			}
 		}
-	}
-	if b, ok := try(0, jitProt, jitFlags); ok {
-		darwinJIT = true
-		return b, nil
+		if b, ok := try(0, jitProt, jitFlags); ok {
+			darwinJIT = true
+			return b, nil
+		}
 	}
 	darwinJIT = false
 	if b, ok := try(0, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_PRIVATE|unix.MAP_ANON); ok {
@@ -91,27 +96,59 @@ func mmapAt(addr, size uintptr, prot, flags int) (uintptr, bool) {
 }
 
 var (
-	jitFnOnce sync.Once
-	jitFn     uintptr
-	jitFnErr  error
+	jitOnce      sync.Once
+	jitWrite     func(enabled int)
+	jitSupported func() int
+	jitErr       error
 )
 
-func setJITWritable(writable bool) error {
-	jitFnOnce.Do(func() {
+func jitWriteOK() bool {
+	write, supported, err := loadJITWrite()
+	if err != nil || write == nil {
+		return false
+	}
+	if supported != nil && supported() == 0 {
+		return false
+	}
+	return true
+}
+
+func loadJITWrite() (func(int), func() int, error) {
+	jitOnce.Do(func() {
 		lib, err := purego.Dlopen("/usr/lib/libSystem.B.dylib", purego.RTLD_LAZY|purego.RTLD_GLOBAL)
 		if err != nil {
-			jitFnErr = err
+			jitErr = err
 			return
 		}
-		jitFn, jitFnErr = purego.Dlsym(lib, "pthread_jit_write_protect_np")
+		sym, err := purego.Dlsym(lib, "pthread_jit_write_protect_np")
+		if err != nil {
+			jitErr = err
+			return
+		}
+		purego.RegisterFunc(&jitWrite, sym)
+		if supported, err := purego.Dlsym(lib, "pthread_jit_write_protect_supported_np"); err == nil {
+			purego.RegisterFunc(&jitSupported, supported)
+		}
 	})
-	if jitFnErr != nil {
-		return jitFnErr
+	if jitErr != nil {
+		return nil, nil, jitErr
 	}
-	flag := uintptr(1)
+	return jitWrite, jitSupported, nil
+}
+
+func setJITWritable(writable bool) error {
+	write, _, err := loadJITWrite()
+	if err != nil {
+		return err
+	}
+	if write == nil {
+		return fmt.Errorf("jit: pthread_jit_write_protect_np is missing")
+	}
+	// 0 makes MAP_JIT pages writable on this thread. 1 makes them executable.
+	enabled := 1
 	if writable {
-		flag = 0
+		enabled = 0
 	}
-	purego.SyscallN(jitFn, flag)
+	write(enabled)
 	return nil
 }

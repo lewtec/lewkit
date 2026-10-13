@@ -18,6 +18,7 @@ func resolveEmbed(pkgdir string, patterns []string) (*Embed, error) {
 	if len(patterns) == 0 {
 		return nil, nil
 	}
+	pkgdir = canonicalPath(pkgdir)
 	pmap := map[string][]string{}
 	have := map[string]int{}
 	dirOK := map[string]bool{}
@@ -32,7 +33,8 @@ func resolveEmbed(pkgdir string, patterns []string) (*Embed, error) {
 			return nil, fmt.Errorf("%w: %s: %v", ErrEmbed, pattern, err)
 		}
 		var list []string
-		for _, file := range matches {
+		for _, match := range matches {
+			file := canonicalPath(match)
 			rel := filepath.ToSlash(trimPrefix(file, pkgdir))
 			info, err := os.Lstat(file)
 			if err != nil {
@@ -42,13 +44,13 @@ func resolveEmbed(pkgdir string, patterns []string) (*Embed, error) {
 			if info.IsDir() {
 				what = "directory"
 			}
-			for dir := file; len(dir) > len(pkgdir)+1 && !dirOK[dir]; dir = filepath.Dir(dir) {
+			for dir := file; embedBelow(pkgdir, dir) && !dirOK[dir]; dir = filepath.Dir(dir) {
 				if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 					return nil, fmt.Errorf("%w: %s: cannot embed %s %s: in different module", ErrEmbed, pattern, what, rel)
 				}
 				if dir != file {
 					if st, err := os.Lstat(dir); err == nil && !st.IsDir() {
-						return nil, fmt.Errorf("%w: %s: cannot embed %s %s: in non-directory %s", ErrEmbed, pattern, what, rel, dir[len(pkgdir)+1:])
+						return nil, fmt.Errorf("%w: %s: cannot embed %s %s: in non-directory %s", ErrEmbed, pattern, what, rel, trimPrefix(dir, pkgdir))
 					}
 				}
 				dirOK[dir] = true
@@ -122,6 +124,34 @@ func resolveEmbed(pkgdir string, patterns []string) (*Embed, error) {
 		}
 	}
 	return emb, nil
+}
+
+func canonicalPath(p string) string {
+	resolved, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return filepath.Clean(p)
+	}
+	return resolved
+}
+
+// embedBelow reports whether dir is a strict descendant of pkgdir.
+// GitHub's Windows temp dir is often an 8.3 path while Glob returns the
+// long path; both name the same directory, so a length compare walks into
+// the package go.mod and reports a different module.
+func embedBelow(pkgdir, dir string) bool {
+	if dir == pkgdir {
+		return false
+	}
+	a, err1 := os.Stat(pkgdir)
+	b, err2 := os.Stat(dir)
+	if err1 == nil && err2 == nil && os.SameFile(a, b) {
+		return false
+	}
+	rel, err := filepath.Rel(pkgdir, dir)
+	if err != nil {
+		return false
+	}
+	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func validEmbedPattern(pattern string) bool {

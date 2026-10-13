@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -34,7 +35,11 @@ func TestLoadModule(t *testing.T) {
 		t.Fatalf("graph %+v", g)
 	}
 	p := g.Pkgs[0]
-	if p.ImportPath != "example.com/m/p" || p.Name != "p" || len(p.Files) != 1 {
+	hostFiles := 1
+	if runtime.GOOS == "windows" {
+		hostFiles = 2
+	}
+	if p.ImportPath != "example.com/m/p" || p.Name != "p" || len(p.Files) != hostFiles {
 		t.Fatalf("p %+v", p)
 	}
 	main := g.Pkgs[1]
@@ -54,7 +59,7 @@ func TestLoadModule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tagged.Pkgs) != 1 || len(tagged.Pkgs[0].Files) != 2 {
+	if len(tagged.Pkgs) != 1 || len(tagged.Pkgs[0].Files) != hostFiles+1 {
 		t.Fatalf("tagged %+v", tagged.Pkgs)
 	}
 
@@ -203,6 +208,35 @@ func TestLoadEmbed(t *testing.T) {
 	}
 	if _, ok := emb.Files["d/a.txt"]; !ok {
 		t.Fatalf("files %#v", emb.Files)
+	}
+}
+
+func TestLoadEmbedAlias(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("go.mod", "module example.com/m\n\ngo 1.27\n")
+	write("p.go", "package p\n\nimport _ \"embed\"\n\n//go:embed msg.txt\nvar msg string\n")
+	write("msg.txt", "hi\n")
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(dir, alias); err != nil {
+		t.Fatal(err)
+	}
+	g, err := Load(alias, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	emb := g.Pkgs[0].Embed
+	if emb == nil || len(emb.Patterns["msg.txt"]) != 1 || emb.Patterns["msg.txt"][0] != "msg.txt" {
+		t.Fatalf("alias %#v", emb)
 	}
 }
 
