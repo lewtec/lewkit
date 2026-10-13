@@ -12,6 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/present"
+	"github.com/lewtec/lewkit/x/driver/present/internal/nativeerr"
 	ffiopengl "github.com/lewtec/lewkit/x/ffi/native/opengl"
 )
 
@@ -41,7 +42,7 @@ func (opener) Open(_ context.Context, kind int, a, b uintptr, width, height int)
 		if errors.Is(err, ffiopengl.ErrUnavailable) {
 			return nil, fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
 		}
-		return nil, mapErr(err)
+		return nil, nativeerr.Map(err, ffiopengl.ErrLost, ffiopengl.ErrSize, ffiopengl.ErrClosed)
 	}
 	return &screen{binding: binding}, nil
 }
@@ -54,14 +55,14 @@ func (s *screen) Draw(_ context.Context, instances, under, ink []byte, width, he
 	if s == nil || s.binding == nil {
 		return present.ErrClosed
 	}
-	return mapErr(s.binding.Draw(instances, under, ink, width, height))
+	return nativeerr.Map(s.binding.Draw(instances, under, ink, width, height), ffiopengl.ErrLost, ffiopengl.ErrSize, ffiopengl.ErrClosed)
 }
 
 func (s *screen) Adopt(window uintptr, width, height int) error {
 	if s == nil || s.binding == nil {
 		return present.ErrClosed
 	}
-	return mapErr(s.binding.Adopt(window, width, height))
+	return nativeerr.Map(s.binding.Adopt(window, width, height), ffiopengl.ErrLost, ffiopengl.ErrSize, ffiopengl.ErrClosed)
 }
 
 func (s *screen) Close() error {
@@ -70,20 +71,5 @@ func (s *screen) Close() error {
 	}
 	err := s.binding.Close()
 	s.binding = nil
-	return mapErr(err)
-}
-
-func mapErr(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, ffiopengl.ErrLost):
-		return present.ErrLost
-	case errors.Is(err, ffiopengl.ErrSize):
-		return present.ErrSize
-	case errors.Is(err, ffiopengl.ErrClosed):
-		return present.ErrClosed
-	default:
-		return err
-	}
+	return nativeerr.Map(err, ffiopengl.ErrLost, ffiopengl.ErrSize, ffiopengl.ErrClosed)
 }
