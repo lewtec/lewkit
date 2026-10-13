@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/lewtec/lewkit/cmd/lewkit/internal/input"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/disasm"
 	lewfs "github.com/lewtec/lewkit/x/fs"
@@ -52,7 +53,7 @@ func (disasmRawCmd) Description() string {
 }
 
 func (command *disasmRawCmd) Run(ctx context.Context) error {
-	code, err := readInput(ctx, command.path.Value())
+	code, err := input.Read(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
@@ -69,7 +70,7 @@ func (disasmFileCmd) Description() string {
 }
 
 func (command *disasmFileCmd) Run(ctx context.Context) error {
-	raw, err := readInput(ctx, command.path.Value())
+	raw, err := input.Read(ctx, command.path.Value())
 	if err != nil {
 		return err
 	}
@@ -115,37 +116,6 @@ func writeDisassemblyArchitecture(ctx context.Context, architecture disasm.Archi
 		}
 	}
 	return nil
-}
-
-func readInput(ctx context.Context, path string) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, context.Cause(ctx)
-	}
-	done := make(chan struct {
-		b   []byte
-		err error
-	}, 1)
-	go func() {
-		var (
-			b   []byte
-			err error
-		)
-		if path != "" && path != "-" {
-			b, err = os.ReadFile(path)
-		} else {
-			b, err = io.ReadAll(os.Stdin)
-		}
-		done <- struct {
-			b   []byte
-			err error
-		}{b, err}
-	}()
-	select {
-	case <-ctx.Done():
-		return nil, context.Cause(ctx)
-	case r := <-done:
-		return r.b, r.err
-	}
 }
 
 type bytesReader []byte
