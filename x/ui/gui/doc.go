@@ -4,8 +4,7 @@
 // Elm loop: messages Update; View returns a Node; Run paints it on the
 // display ticker (and Resize/Expose/Density), skipped when an embedded [Dirty] is clear. [See] and [Touch] return that flag. The picture signature
 // is unchanged. Animation is [Tick] / [Every]. A root [Row]/[Column] fills the window; wrap it in a
-// [Box] with Align to center a packed inner cluster. [Stage] paints [Stage.Scene] across the whole frame, including dead zones, and lays [Stage.Child] in the alive box. Render wraps a root that is not a Stage, so text stays in that box; a [Raster] root is the scene. [Hint] remains a nested inset into the same box. Solid, Marquee, and
-// Notepad all paint through one fused kernel
+// [Box] with Align to center a packed inner cluster. [Stage] paints [Stage.Scene] across the whole frame, including dead zones, and lays [Stage.Child] in the alive box. Render wraps a root that is not a Stage, so text stays in that box; a [Raster] root is the scene. [Hint] remains a nested inset into the same box. Solid and Marquee paint through one fused kernel
 // (one over-composite tensor of rounded rects + ink overlay). A present
 // screen paints those same fills. Vulkan can paint a mounted tensor on
 // the device. Metal keeps the fill list, so the process does not need
@@ -23,7 +22,7 @@
 // Marquee rewrites bar Y on a reused node tree. Layout is CPU ([Box], [Flex], [Stack]).
 // Glyphs are [Text] nodes; Picture rasters them into ink in the same kernel.
 // [Marquee] View maps offset and size onto [Bar] values; Update is the
-// only writer. [Counter] is the Elm example (one int, two buttons).
+// only writer.
 // [WelcomeArgs] is the start screen: the lockup, recent folders, and an optional accent.
 // [EnsureDir] opens it when a tool still needs a directory and stdin is not a terminal.
 package gui
