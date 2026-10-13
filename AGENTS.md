@@ -14,3 +14,4 @@ Tools are pinned in `mise.toml`. The environment install puts Go 1.27, `modot`, 
 - Test with `mise run test`. That runs `x/toolchain/test.sh` and skips `x/toolchain/go/src`. `go test ./...` loads the vendored compiler and is the command that exhausted CI.
 - `github.com/lewtec/lewkit/cmd/lewkit` tests need a 40 minute timeout. `TestReleaseGoLewkit` builds this module with the embedded compiler and skips under `-short`.
 - Lint with `mise run lint`. Format with `mise run format`.
+- The desktop session sets `DISPLAY`. `x/driver` `TestRequireAnyEnv` expects that variable to be unset, because `GetEnv` falls back to the process environment.
