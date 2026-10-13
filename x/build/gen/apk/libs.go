@@ -2,7 +2,6 @@ package apk
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -30,9 +29,6 @@ import (
 // stdout is accepted for callers that already hold a log writer. The steps
 // write on the taskgroup line writer.
 func BuildGoLibs(ctx context.Context, workDir, goMainDir string, abis []string, stamp version.Info, appID string, cgoEnabled bool, stdout io.Writer) ([]string, error) {
-	if ctx == nil {
-		return nil, errors.New("apk: nil context")
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
