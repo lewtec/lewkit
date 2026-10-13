@@ -76,13 +76,7 @@ func sharedMemoryRendererEnv(disable, forceSHM string) (key, value string, ok bo
 func glDirs(driver string, nixLD []string) []string {
 	var dirs []string
 	seen := map[string]bool{}
-	add := func(dir string) {
-		if dir == "" || seen[dir] {
-			return
-		}
-		seen[dir] = true
-		dirs = append(dirs, dir)
-	}
+	add := func(dir string) { addDir(&dirs, seen, dir) }
 	add(driver)
 	for _, dir := range nixLD {
 		add(dir)
