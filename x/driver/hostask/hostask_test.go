@@ -3,13 +3,42 @@ package hostask
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
 )
+
+func TestRequireWithoutHost(t *testing.T) {
+	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+		t.Skip()
+	}
+	t.Cleanup(func() { Set(nil) })
+	Set(nil)
+	t.Setenv("ELETROCROMO_ASK_DIR", "")
+	t.Setenv("LEWKIT_NO_UI", "")
+	t.Setenv("ELETROCROMO_NO_UI", "")
+	err := Require()
+	if !errors.Is(err, driver.ErrIncompatible) || err.Error() != "component is incompatible: no ask host" {
+		t.Fatal(err)
+	}
+}
+
+func TestRequireWithHook(t *testing.T) {
+	if runtime.GOOS == "android" {
+		t.Skip()
+	}
+	t.Cleanup(func() { Set(nil) })
+	Set(func(context.Context, int, string, string) (string, error) { return "", nil })
+	if err := Require(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestCallUsesHook(t *testing.T) {
 	t.Cleanup(func() { Set(nil) })
