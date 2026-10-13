@@ -19,24 +19,6 @@ func OpenNative(kind int, a, _ uintptr, width, height int) (*Screen, error) {
 	return attach(ctx, width, height, false, a)
 }
 
-// OpenOffscreen draws into a framebuffer the caller can read back.
-func OpenOffscreen(width, height int) (*Screen, error) {
-	ctx, err := openEGLOffscreen(false)
-	if err != nil {
-		return nil, err
-	}
-	return attach(ctx, width, height, true, 0)
-}
-
-// OpenDevice opens an OpenGL ES 3.1 compute context.
-func OpenDevice() (*Device, error) {
-	ctx, err := openEGLOffscreen(true)
-	if err != nil {
-		return nil, err
-	}
-	return openCompute(ctx)
-}
-
 var (
 	presentProbe = native.Once(func() error {
 		screen, err := OpenOffscreen(2, 2)
