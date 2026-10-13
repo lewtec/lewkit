@@ -1,0 +1,10 @@
+DROP TABLE image_string;
+DROP TABLE note;
+DROP TABLE function_string;
+DROP TABLE reference;
+DROP TABLE block;
+DROP TABLE instruction;
+DROP TABLE function;
+DROP TABLE symbol;
+DROP TABLE section;
+DROP TABLE artifact;

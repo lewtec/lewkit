@@ -92,6 +92,43 @@ func (file *ELFFile) pick(name string) (*elf.Section, error) {
 	return nil, ErrNoText
 }
 
+// Entry is the ELF entry address.
+func (file *ELFFile) Entry() uint64 {
+	return file.File.Entry
+}
+
+// Sections returns allocated ELF sections. A NOBITS section has no bytes.
+func (file *ELFFile) Sections() ([]Section, error) {
+	var sections []Section
+	for _, section := range file.File.Sections {
+		if section.Flags&elf.SHF_ALLOC == 0 || section.Size == 0 {
+			continue
+		}
+		item := Section{
+			Name:    section.Name,
+			Address: section.Addr,
+			Size:    section.Size,
+			Exec:    section.Flags&elf.SHF_EXECINSTR != 0,
+			Write:   section.Flags&elf.SHF_WRITE != 0,
+			Read:    true,
+		}
+		if section.Type == elf.SHT_NOBITS {
+			sections = append(sections, item)
+			continue
+		}
+		data, err := section.Data()
+		if err != nil {
+			return nil, fmt.Errorf("elf section %s: %w", section.Name, err)
+		}
+		item.Bytes = data
+		if item.Size < uint64(len(data)) {
+			item.Size = uint64(len(data))
+		}
+		sections = append(sections, item)
+	}
+	return sections, nil
+}
+
 // Symbols returns function symbols first, then other named addresses.
 func (file *ELFFile) Symbols() Symbols {
 	var functions, others Symbols
@@ -107,7 +144,7 @@ func (file *ELFFile) Symbols() Symbols {
 			case elf.STT_FILE, elf.STT_SECTION:
 				continue
 			case elf.STT_FUNC:
-				functions = append(functions, Symbol{Name: symbol.Name, Address: symbol.Value})
+				functions = append(functions, Symbol{Name: symbol.Name, Address: symbol.Value, Code: true})
 			default:
 				others = append(others, Symbol{Name: symbol.Name, Address: symbol.Value})
 			}

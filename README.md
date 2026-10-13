@@ -62,6 +62,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | Path | API |
 | --- | --- |
 | `cmd/lewkit` | The `lewkit` program. |
+| `cmd/lewkit/decomp` | The `lewkit decomp` command. `cmd/lewkit` only holds the `Cmd` field. |
+| `x/disasm/decomp/view` | Page for `lewkit decomp view`. Cmd+K and Ctrl+K jump to an artifact or a function. A call links to that function. Highlighted assembly links each address to its instruction or function. Names, signatures, held source, and address notes save into the project. |
 | `report` | `Reporter`, `RegisterReporter`, `Report`, `Must`. |
 | `report/sentry` | Sentry `Reporter`. |
 | `x/logging` | `NewHandler`. Level letter, message, then `key=value`. Color on a terminal. |
@@ -157,7 +159,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/driver/ndeval` | `Evaluator` factories. The CPU factory registers at init. Vulkan, Metal, OpenGL, and Direct3D 12 register beside it. |
 | `x/driver/ndeval/d3d12` | Direct3D 12 evaluator. Weight 70 on Windows, after Metal. Renders `Code` as HLSL. |
 | `x/driver/ndeval/opengl` | OpenGL evaluator. Weight 20, after Vulkan. Renders `Code` as a compute shader on GL 4.3 or OpenGL ES 3.1. Apple stays on Metal. |
-| `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. |
+| `x/disasm` | Facade for `x/ffi/wasm/capstone`. `Open`, `Engine.Iter`, `DecodeHex`, `ReadText`, `OpenObject`, `FormatInstruction`. `Object` also exposes `Sections` and `Entry`. |
+| `x/disasm/decomp` | In-process program database. `New`, `Open`, `Remember`, `Project.Add`, `Artifact.Check`. Capstone lifts the artifact. `Open` keeps the database in a sqlite file. `Remember` returns a stored image when its path and SHA-256 match. `Check` compares a candidate the caller already wrote. |
 | `x/ffi/native` | `Open`, `Func`, `Symbol`, `Register`. Loads a shared library without cgo. |
 | `x/ffi/native/android` | `JavaVMs`, `OnLooper`. libnativehelper and libandroid. |
 | `x/ffi/android` | Binder session. `Open`, `Client`. |
@@ -179,6 +182,8 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 
 `x/disasm` reads ELF, PE, and Mach-O through `x/ffi/wasm/capstone`.
 
+`x/disasm/decomp` keeps that image in one process. `Project.Add` loads an ELF, PE, or Mach-O artifact. The lift recovers functions, basic blocks, references, and strings. An import names its thunk `library!symbol`. An export at an instruction is a function start. A function body is the code reachable from that start, and a PE section stops at its virtual size. `Open` writes the same database to a sqlite file and loads it again without disassembling. `Remember` returns the stored artifact when the path and SHA-256 match. Different bytes at that path are an error that names both digests. `New` keeps the database in memory. A name, note, or signature on that in-memory project is not stored. `Artifact.Check` compares a candidate the caller already wrote. It stores that candidate when the blocks copy the lifted control flow and the source names the function, each direct callee, and each referenced string. The package does not call a model.
+
 ## Commands
 
 Build the program from a clone with `go build -o lewkit ./cmd/lewkit`.
@@ -193,6 +198,17 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit disasm hex HEX` | Instructions for a hex byte string. |
 | `lewkit disasm raw PATH` | Instructions for a raw byte file. `PATH` `-` reads stdin. |
 | `lewkit disasm file PATH` | One text section from an ELF, PE, or Mach-O file. |
+| `lewkit decomp summary PATH` | Format, entry, sections, and function count. Section sizes are hexadecimal. |
+| `lewkit decomp functions PATH` | Recovered function address, name, and size. |
+| `lewkit decomp listing PATH` | Blocks and instructions. `--at` defaults to the entry. |
+| `lewkit decomp stream PATH` | Every instruction in address order, with function comments and address notes. |
+| `lewkit decomp xrefs PATH` | References to `--at`, as address and kind. |
+| `lewkit decomp strings PATH` | Image strings, including UTF-16, with their addresses. |
+| `lewkit decomp check PATH` | Compare `--text` with the function at `--at`. `--at` defaults to the entry. |
+| `lewkit decomp name PATH` | Store a function name at `--at`. Requires `--project`. |
+| `lewkit decomp note PATH` | Store what `--at` means. Requires `--project`. With neither flag, lists every note. |
+| `lewkit decomp signature PATH` | Store a function signature at `--at`. Requires `--project`. |
+| `lewkit decomp view` | Browser preview of `--project`. Names, signatures, held source, and address notes save into the file. |
 | `lewkit generate db DIR` | sqlc packages, a `Queries` interface, and `DBArg`. |
 | `lewkit generate prelude` | Blank-import preludes for every `root.go` in the working directory. Writes `prelude/prelude.go`. |
 | `lewkit generate protobuf FILE` | Go source for a `.proto` file. |
@@ -200,6 +216,14 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit completion` | The bash `complete -C` line for this program. |
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
+
+`lewkit decomp --project FILE` selects a sqlite program database. The file remembers each image by its path and the SHA-256 of its bytes. The same path and the same bytes reload that artifact and do not disassemble it. Different bytes at that path make the command fail and name the stored digest and the new digest. A later command reads the saved lift, names, comments, signatures, address notes, image strings, and matched source. `lewkit decomp name --at ADDR --name NAME PATH` stores a function name. `lewkit decomp note --at ADDR --text TEXT PATH` stores what that address means. An empty `--text` clears it. `--at` without `--text` prints the stored note. Neither flag lists every note. A note is also printed on each instruction that references its address. `lewkit decomp signature --at ADDR --text TEXT PATH` stores a function signature. `name`, `note`, and `signature` require `--project`; without it the command fails and says the clue was not stored. `lewkit decomp listing` and `lewkit decomp check` take `--at`, which defaults to the entry when the flag is omitted. `lewkit decomp xrefs --at ADDR PATH` lists references to that address. `lewkit decomp strings PATH` lists image strings. `lewkit decomp check --text JSON` compares a candidate the caller already wrote. It stores that candidate when the blocks agree.
+
+`lewkit decomp stream PATH` prints that same instruction stream for the whole image: function comments, then each instruction, then an address note where one is stored. `listing` stays on one function and its blocks.
+
+An artifact's preview path is `Artifact.Slug`, the first 16 hex characters of the image SHA-256. The file name stays on the page as a label. The same bytes opened from another path are that same artifact.
+
+`lewkit decomp view` serves that same database at `http://127.0.0.1:8766/`. It requires `--project FILE`. `--listen` changes the address. Cmd+K or Ctrl+K opens the jump palette. A note keyword stays on the function that contains that address. The page shows each artifact summary, function address and size, and comment. The function page shows highlighted assembly: each instruction is a location. An address in the image jumps to that instruction, to the function that contains it, or to the address page for data. A displacement outside the image stays plain. The instruction stream uses the same highlighting, and a function label opens that function. Save name, Save signature, Save source, and Save note write those clues into the sqlite file. Save source holds the C, or other source, for that function. `check` stores a candidate when the blocks agree.
 
 `lewkit generate db` reads `sqlite/` and `postgres/` under `DIR`. `lewkit generate prelude` takes no arguments. It scans the working directory and writes `prelude/prelude.go` there, plus a prelude for each Go package under it that has a descendant `root.go`. A directory with no Go file does not get a prelude; its children attach to the package above it. `generate protobuf` takes `--package` when the file has no `go_package`. `generate shader` compiles with the embedded glslang, the same reactor a missing hash uses at runtime. `DIR` defaults to the working directory. Packages that ship shaders carry `//go:generate go run ... generate shader .`, the same place a templ package carries `//go:generate go tool templ generate`.
 
