@@ -18,3 +18,16 @@ func Open(ctx context.Context) (*ffiandroid.Client, error) {
 	}
 	return client, nil
 }
+
+// Interactive opens the binder client and reports whether the session is interactive.
+// A binder or query failure is [driver.ErrIncompatible].
+func Interactive(ctx context.Context) error {
+	client, err := Open(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := client.Interactive(ctx); err != nil {
+		return fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
+	}
+	return nil
+}

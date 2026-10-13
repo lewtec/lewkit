@@ -17,3 +17,13 @@ func TestOpenNotAndroid(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestInteractiveNotAndroid(t *testing.T) {
+	if runtime.GOOS == "android" {
+		t.Skip()
+	}
+	err := Interactive(t.Context())
+	if !errors.Is(err, driver.ErrIncompatible) {
+		t.Fatal(err)
+	}
+}

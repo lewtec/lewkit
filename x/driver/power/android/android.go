@@ -3,7 +3,6 @@ package android
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/androidclient"
@@ -23,16 +22,7 @@ func (factory) ID() string   { return "power_android" }
 func (factory) Name() string { return "Android power" }
 func (factory) Weight() int  { return 80 }
 
-func (factory) CheckCompatibility(ctx context.Context) error {
-	client, err := androidclient.Open(ctx)
-	if err != nil {
-		return err
-	}
-	if _, err := client.Interactive(ctx); err != nil {
-		return fmt.Errorf("%w: %w", driver.ErrIncompatible, err)
-	}
-	return nil
-}
+func (factory) CheckCompatibility(ctx context.Context) error { return androidclient.Interactive(ctx) }
 
 func (factory) New(context.Context) (power.Driver, error) { return backend{}, nil }
 
