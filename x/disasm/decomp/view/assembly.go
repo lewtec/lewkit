@@ -10,6 +10,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/disasm"
 	"github.com/lewtec/lewkit/x/disasm/decomp"
+	hexscan "github.com/lewtec/lewkit/x/disasm/internal/hex"
 )
 
 // asmToken is one piece of an assembly line. templ paints it.
@@ -415,7 +416,7 @@ func operandHex(text string, index int) (start, end int, address uint64, ok bool
 		}
 	}
 	end = index + 2
-	for end < len(text) && isHex(text[end]) {
+	for end < len(text) && hexscan.Digit(text[end]) {
 		end++
 	}
 	if end == index+2 {
@@ -429,10 +430,6 @@ func operandHex(text string, index int) (start, end int, address uint64, ok bool
 		return 0, 0, 0, false
 	}
 	return index, end, address, true
-}
-
-func isHex(c byte) bool {
-	return c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F'
 }
 
 func isIdentStart(c byte) bool {
