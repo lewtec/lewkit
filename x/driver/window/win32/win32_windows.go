@@ -289,7 +289,7 @@ func (w *win) create() error {
 	if err != nil {
 		return err
 	}
-	owner := foregroundProcessWindow()
+	owner := ForegroundProcessWindow()
 	padW, padH := w.framePad()
 	hwnd, _, e := procCreateWindowExW.Call(
 		wsExAcceptFiles|wsExAppWindow, uintptr(unsafe.Pointer(className)), uintptr(unsafe.Pointer(title)),
@@ -311,7 +311,7 @@ func (w *win) create() error {
 		procSendMessageW.Call(hwnd, wmSetIcon, iconSmall, h)
 	}
 	procShowWindow.Call(hwnd, swShow)
-	raiseWindow(hwnd)
+	Raise(hwnd)
 	w.noteDPI()
 	return nil
 }
@@ -334,7 +334,8 @@ func (w *win) framePad() (int, int) {
 	return w.Scale().Device(16), w.Scale().Device(39)
 }
 
-func foregroundProcessWindow() uintptr {
+// ForegroundProcessWindow is the foreground window when it belongs to this process.
+func ForegroundProcessWindow() uintptr {
 	hwnd, _, _ := procGetForegroundWindow.Call()
 	if hwnd == 0 {
 		return 0
@@ -348,7 +349,8 @@ func foregroundProcessWindow() uintptr {
 	return hwnd
 }
 
-func raiseWindow(hwnd uintptr) {
+// Raise brings hwnd to the foreground. A zero handle does nothing.
+func Raise(hwnd uintptr) {
 	if hwnd == 0 {
 		return
 	}
