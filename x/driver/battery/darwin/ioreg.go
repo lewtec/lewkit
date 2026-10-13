@@ -120,17 +120,7 @@ func levelOf(props map[string]string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("max capacity: %w", err)
 	}
-	return percentOf(now, full)
-}
-
-func percentOf(now, full int64) (int, error) {
-	if now < 0 || full <= 0 {
-		return 0, battery.ErrUnknownLevel
-	}
-	if now > full {
-		now = full
-	}
-	return int((now*100 + full/2) / full), nil
+	return battery.Percent(now, full)
 }
 
 func yes(v string) bool {

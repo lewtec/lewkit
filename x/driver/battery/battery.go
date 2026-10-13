@@ -52,3 +52,15 @@ func BatteryLevel(ctx context.Context) (int, error) {
 		return d.BatteryLevel(ctx)
 	})
 }
+
+// Percent maps a charge gauge to 0..100.
+// now above full counts as full. A negative now or a non-positive full is [ErrUnknownLevel].
+func Percent(now, full int64) (int, error) {
+	if now < 0 || full <= 0 {
+		return 0, ErrUnknownLevel
+	}
+	if now > full {
+		now = full
+	}
+	return int((now*100 + full/2) / full), nil
+}

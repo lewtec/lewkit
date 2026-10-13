@@ -106,7 +106,7 @@ func readPair(dir, nowName, fullName string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return percentOf(now, full)
+	return battery.Percent(now, full)
 }
 
 func readInt(path string) (int64, error) {
@@ -119,14 +119,4 @@ func readInt(path string) (int64, error) {
 		return 0, fmt.Errorf("%s: %w", filepath.Base(path), err)
 	}
 	return n, nil
-}
-
-func percentOf(now, full int64) (int, error) {
-	if now < 0 || full <= 0 {
-		return 0, battery.ErrUnknownLevel
-	}
-	if now > full {
-		now = full
-	}
-	return int((now*100 + full/2) / full), nil
 }
