@@ -102,20 +102,9 @@ func (b *Buffer) SetScale(s Scale) {
 	if b == nil {
 		return
 	}
-	next := Scale(s.Factor())
-	b.mu.Lock()
-	if b.closed {
-		b.mu.Unlock()
-		return
-	}
-	if b.haveScale && b.scale == next {
-		b.mu.Unlock()
-		return
-	}
-	b.scale = next
-	b.haveScale = true
-	b.mu.Unlock()
-	b.Emit(Density{Scale: next})
+	b.storeScale(&b.haveScale, &b.scale, s, func(next Scale) {
+		b.Emit(Density{Scale: next})
+	})
 }
 
 // FontScale is the user's text-size preference. One is the default.
@@ -139,20 +128,26 @@ func (b *Buffer) SetFontScale(s Scale) {
 	if b == nil {
 		return
 	}
+	b.storeScale(&b.haveFont, &b.font, s, func(next Scale) {
+		b.Emit(FontScale{Scale: next})
+	})
+}
+
+func (b *Buffer) storeScale(have *bool, slot *Scale, s Scale, emit func(Scale)) {
 	next := Scale(s.Factor())
 	b.mu.Lock()
 	if b.closed {
 		b.mu.Unlock()
 		return
 	}
-	if b.haveFont && b.font == next {
+	if *have && *slot == next {
 		b.mu.Unlock()
 		return
 	}
-	b.font = next
-	b.haveFont = true
+	*slot = next
+	*have = true
 	b.mu.Unlock()
-	b.Emit(FontScale{Scale: next})
+	emit(next)
 }
 
 // Dead is the client area a navbar or notch covers. The slice is a copy.
