@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -85,6 +86,19 @@ func TestStateFiles(t *testing.T) {
 	mode, err := ReadMode(ctx)
 	if err != nil || mode != "dark" {
 		t.Fatalf("%s %v", mode, err)
+	}
+}
+
+func TestRequire(t *testing.T) {
+	if runtime.GOOS == "ios" && Dir() != "" {
+		if err := Require(); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	err := Require()
+	if !errors.Is(err, driver.ErrIncompatible) {
+		t.Fatal(err)
 	}
 }
 

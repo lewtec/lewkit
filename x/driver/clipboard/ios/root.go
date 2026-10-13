@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
@@ -23,13 +22,7 @@ func (factory) Name() string { return "iOS clipboard" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not ios", driver.ErrIncompatible)
-	}
-	if !iosbox.Available() {
-		return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
-	}
-	return nil
+	return iosbox.Require()
 }
 
 func (factory) New(context.Context) (clipboard.Driver, error) { return backend{}, nil }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -23,13 +22,7 @@ func (factory) Name() string { return "iOS document picker" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not ios", driver.ErrIncompatible)
-	}
-	if !iosbox.Available() {
-		return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
-	}
-	return nil
+	return iosbox.Require()
 }
 
 func (factory) New(context.Context) (filedialog.Driver, error) { return backend{}, nil }
