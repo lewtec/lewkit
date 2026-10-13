@@ -8,5 +8,6 @@
 // names load from [github.com/lewtec/lewkit/x/tool/prelude]. Conda registers
 // from the lewkit command. That prelude is on modot's import chain, and modot
 // registers conda itself; a second id panics.
-// The store does not read a lockfile or choose ~/.local/share. The caller does.
+// The store does not read a lockfile or choose ~/.local/share.
+// [LockSpec] is the parent walk a caller uses for one tool pin.
 package tool
