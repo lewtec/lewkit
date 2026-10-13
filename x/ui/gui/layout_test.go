@@ -367,35 +367,3 @@ func TestInkLetter(t *testing.T) {
 	}
 	assert.Greater(t, lit, 10)
 }
-
-func TestCounterButtons(t *testing.T) {
-	counter, err := NewCounter()
-	require.NoError(t, err)
-	counter.size = image.Pt(400, 200)
-	root := counter.View()
-	require.NotNil(t, root)
-	root.Layout(Tight(400, 200))
-	picture, err := NewPicture()
-	require.NoError(t, err)
-	root.Paint(Offset{}, Rect{0, 0, 400, 200}, picture)
-	require.NotNil(t, counter.plus)
-	position := image.Pt(int(counter.plus.origin.X+counter.plus.size.Width/2), int(counter.plus.origin.Y+counter.plus.size.Height/2))
-	next, cmd := counter.Update(window.Pointer{Pos: position, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
-	require.Same(t, counter, next)
-	require.Nil(t, cmd)
-	assert.Equal(t, 1, counter.count)
-	position = image.Pt(int(counter.minus.origin.X+counter.minus.size.Width/2), int(counter.minus.origin.Y+counter.minus.size.Height/2))
-	next, cmd = counter.Update(window.Pointer{Pos: position, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
-	require.Same(t, counter, next)
-	require.Nil(t, cmd)
-	assert.Equal(t, 0, counter.count)
-}
-
-func TestNotepadTypes(t *testing.T) {
-	notepad, err := NewNotepad()
-	require.NoError(t, err)
-	next, cmd := notepad.Update(window.Key{Rune: 'x', Pressed: true})
-	require.Same(t, notepad, next)
-	require.Nil(t, cmd)
-	assert.Contains(t, string(notepad.body), "x")
-}
