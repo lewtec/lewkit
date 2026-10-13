@@ -103,7 +103,7 @@ func (notepad *Notepad) key(key window.Key) {
 	switch {
 	case notepad.backspace(key):
 		notepad.deleteBehind()
-	case notepad.enter(key):
+	case enterKey(key):
 		notepad.insert('\n')
 	case notepad.left(key):
 		if notepad.cursor > 0 {
@@ -134,10 +134,6 @@ func (notepad *Notepad) deleteBehind() {
 
 func (*Notepad) backspace(key window.Key) bool {
 	return key.Rune == 8 || key.Rune == 127 || key.Code == 51 || key.Code == 8 || key.Code == 22
-}
-
-func (*Notepad) enter(key window.Key) bool {
-	return key.Rune == '\r' || key.Rune == '\n' || key.Code == 36 || key.Code == 13 || key.Code == 24
 }
 
 func (*Notepad) left(key window.Key) bool {
