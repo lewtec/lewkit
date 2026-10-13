@@ -15,7 +15,7 @@ import (
 // Config / go_main validation sentinels.
 var (
 	ErrConfigPathEmpty = errors.New("config path is empty")
-	ErrGoMainNotDir    = errors.New("go_main must be a directory (main package)")
+	ErrGoMainNotDir    = common.ErrGoMainNotDir
 )
 
 // ConfigFileName is the standard project config next to the Go app (or in a generated host).
@@ -126,25 +126,7 @@ func Merge(base, overlay Config) Config {
 // ResolveGoMain returns an absolute directory containing the Go main package.
 // Relative paths are resolved against baseDir (config file directory, or cwd).
 func ResolveGoMain(goMain, baseDir string) (string, error) {
-	goMain = strings.TrimSpace(goMain)
-	if goMain == "" {
-		goMain = "."
-	}
-	if !filepath.IsAbs(goMain) {
-		goMain = filepath.Join(baseDir, goMain)
-	}
-	abs, err := filepath.Abs(goMain)
-	if err != nil {
-		return "", err
-	}
-	st, err := os.Stat(abs)
-	if err != nil {
-		return "", fmt.Errorf("go_main %q: %w", abs, err)
-	}
-	if !st.IsDir() {
-		return "", fmt.Errorf("%w: %s", ErrGoMainNotDir, abs)
-	}
-	return abs, nil
+	return common.ResolveGoMain(goMain, baseDir)
 }
 
 func (c Config) withDefaults(ctx context.Context) (Config, error) {
