@@ -516,11 +516,6 @@ func TestParseArgs(t *testing.T) {
 	assert.True(t, strings.Contains(strings.Join(assigns, " "), "CC"))
 }
 
-func TestLoadRejectsNilContext(t *testing.T) {
-	_, err := Load(nil, "Makefile", "", nil, nil)
-	require.Error(t, err)
-}
-
 func TestShellStopsWhenContextCancels(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "X := $(shell sleep 30)\nall:\n\techo $(X)\n")

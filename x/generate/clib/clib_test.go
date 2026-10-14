@@ -2,7 +2,6 @@ package clib
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"go/build"
@@ -44,7 +43,7 @@ int foo(int a);
 int Foo(int b);
 int log_line(const char *fmt, ...);
 `), 0o644))
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "linux/amd64"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "linux/amd64"}))
 	goSrc, err := os.ReadFile(filepath.Join(dir, "add_clib_amd64.go"))
 	require.NoError(t, err)
 	text := string(goSrc)
@@ -90,49 +89,49 @@ func TestGenerateRejects(t *testing.T) {
 		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 		return path
 	}
-	err := Run(context.Background(), Config{})
+	err := Run(t.Context(), Config{})
 	assert.ErrorIs(t, err, ErrHeader)
 
 	empty := write("empty.h", "int log_line(const char *fmt, ...);\n")
-	err = Run(context.Background(), Config{File: empty})
+	err = Run(t.Context(), Config{File: empty})
 	assert.ErrorIs(t, err, ErrEmpty)
 
 	mainFn := write("main.h", "int main(int argc, char **argv);\n")
-	err = Run(context.Background(), Config{File: mainFn})
+	err = Run(t.Context(), Config{File: mainFn})
 	assert.ErrorIs(t, err, ErrSymbol)
 
 	agg := write("agg.h", "struct P { int x; };\nint sum(struct P p);\n")
-	require.NoError(t, Run(context.Background(), Config{File: agg, ABI: "linux/amd64"}))
+	require.NoError(t, Run(t.Context(), Config{File: agg, ABI: "linux/amd64"}))
 	body, err := os.ReadFile(filepath.Join(dir, "agg_clib_amd64.go"))
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "type P struct")
 	assert.Contains(t, string(body), "X int32")
 	assert.Contains(t, string(body), "Sum func(p P) int32")
 
-	err = Run(context.Background(), Config{File: agg, ABI: "linux/386"})
+	err = Run(t.Context(), Config{File: agg, ABI: "linux/386"})
 	assert.ErrorIs(t, err, ErrType)
-	err = Run(context.Background(), Config{File: agg, ABI: "linux/arm"})
+	err = Run(t.Context(), Config{File: agg, ABI: "linux/arm"})
 	assert.ErrorIs(t, err, ErrType)
 
 	wide := write("wide.h", "#include <stdint.h>\nstruct V { int64_t a; int32_t b; };\nstruct V id(struct V v);\n")
-	err = Run(context.Background(), Config{File: wide, ABI: "windows/amd64"})
+	err = Run(t.Context(), Config{File: wide, ABI: "windows/amd64"})
 	assert.ErrorIs(t, err, ErrType)
-	require.NoError(t, Run(context.Background(), Config{File: wide, ABI: "linux/amd64"}))
+	require.NoError(t, Run(t.Context(), Config{File: wide, ABI: "linux/amd64"}))
 
 	flt := write("flt.h", "struct P { double x; };\ndouble sum(struct P p);\n")
-	err = Run(context.Background(), Config{File: flt, ABI: "linux/amd64"})
+	err = Run(t.Context(), Config{File: flt, ABI: "linux/amd64"})
 	assert.ErrorIs(t, err, ErrType)
 
 	big := write("big.h", "struct P { int a, b, c, d, e; };\nint sum(struct P p);\n")
-	err = Run(context.Background(), Config{File: big, ABI: "linux/amd64"})
+	err = Run(t.Context(), Config{File: big, ABI: "linux/amd64"})
 	assert.ErrorIs(t, err, ErrType)
 
 	ios := write("ios.h", "int add(int a, int b);\n")
-	err = Run(context.Background(), Config{File: ios, ABI: "ios/arm64"})
+	err = Run(t.Context(), Config{File: ios, ABI: "ios/arm64"})
 	assert.ErrorIs(t, err, ErrHost)
 
 	bsd := write("bsd.h", "int add(int a, int b);\n")
-	err = Run(context.Background(), Config{File: bsd, ABI: "freebsd/amd64"})
+	err = Run(t.Context(), Config{File: bsd, ABI: "freebsd/amd64"})
 	assert.ErrorIs(t, err, ErrHost)
 }
 
@@ -145,7 +144,7 @@ int32_t add(int32_t a, int32_t b, int32_t c, int32_t d, int32_t e);
 int32_t mix(int32_t a, double b);
 int64_t wide(int32_t a, int64_t b);
 `), 0o644))
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "windows/amd64"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "windows/amd64"}))
 	win, err := os.ReadFile(filepath.Join(dir, "calc_clib_windows_amd64.go"))
 	require.NoError(t, err)
 	text := string(win)
@@ -160,11 +159,11 @@ int64_t wide(int32_t a, int64_t b);
 	require.NoError(t, err)
 	assert.Contains(t, string(exp), "//go:build windows && amd64\n")
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "win64"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "win64"}))
 	_, err = os.Stat(filepath.Join(dir, "calc_clib_windows_amd64.go"))
 	require.NoError(t, err)
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "darwin/amd64"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "darwin/amd64"}))
 	dar, err := os.ReadFile(filepath.Join(dir, "calc_clib_darwin_amd64.go"))
 	require.NoError(t, err)
 	assert.Contains(t, string(dar), "int32(args[0])")
@@ -174,7 +173,7 @@ int64_t wide(int32_t a, int64_t b);
 	require.NoError(t, err)
 	assert.Contains(t, string(asm), "//go:build darwin && clibexport\n")
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "windows/386"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "windows/386"}))
 	i386, err := os.ReadFile(filepath.Join(dir, "calc_clib_windows_386.go"))
 	require.NoError(t, err)
 	assert.Contains(t, string(i386), "clib.U64(args, 8)")
@@ -183,24 +182,24 @@ int64_t wide(int32_t a, int64_t b);
 	require.NoError(t, os.WriteFile(many, []byte(`
 int sum(int a, int b, int c, int d, int e, int f, int g, int h, int i);
 `), 0o644))
-	err = Run(context.Background(), Config{File: many, ABI: "windows/amd64"})
+	err = Run(t.Context(), Config{File: many, ABI: "windows/amd64"})
 	assert.ErrorIs(t, err, ErrType)
 
 	ld := filepath.Join(dir, "ld.h")
 	require.NoError(t, os.WriteFile(ld, []byte("long double widen(long double x);\n"), 0o644))
-	err = Run(context.Background(), Config{File: ld, ABI: "darwin/arm64"})
+	err = Run(t.Context(), Config{File: ld, ABI: "darwin/arm64"})
 	assert.ErrorIs(t, err, ErrType)
-	err = Run(context.Background(), Config{File: ld, ABI: "windows/amd64"})
+	err = Run(t.Context(), Config{File: ld, ABI: "windows/amd64"})
 	assert.ErrorIs(t, err, ErrType)
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "windows"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "windows"}))
 	_, err = os.Stat(filepath.Join(dir, "calc_clib_windows_arm64.go"))
 	require.NoError(t, err)
 	exp, err = os.ReadFile(filepath.Join(dir, "_cgo_clib_export.go"))
 	require.NoError(t, err)
 	assert.Contains(t, string(exp), "//go:build windows && (amd64 || arm64 || 386)\n")
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "darwin"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "darwin"}))
 	_, err = os.Stat(filepath.Join(dir, "calc_clib_darwin_arm64.s"))
 	require.NoError(t, err)
 	exp, err = os.ReadFile(filepath.Join(dir, "_cgo_clib_export.go"))
@@ -270,10 +269,10 @@ int64_t wide(int32_t a, int64_t b);
 float mix(float a, double b, float c);
 int32_t pack(int8_t a, double b);
 `), 0o644))
-	err := Run(context.Background(), Config{File: header, ABI: "linux/amd64"})
+	err := Run(t.Context(), Config{File: header, ABI: "linux/amd64"})
 	assert.ErrorIs(t, err, ErrType)
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "linux/arm64"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "linux/arm64"}))
 	arm64, err := os.ReadFile(filepath.Join(dir, "calc_clib_arm64.go"))
 	require.NoError(t, err)
 	assert.Contains(t, string(arm64), "int32(args[7])")
@@ -292,7 +291,7 @@ int64_t wide(int32_t a, int64_t b);
 float mix(float a, double b, float c);
 int32_t pack(int8_t a, double b);
 `), 0o644))
-	require.NoError(t, Run(context.Background(), Config{File: armHeader, ABI: "linux/arm"}))
+	require.NoError(t, Run(t.Context(), Config{File: armHeader, ABI: "linux/arm"}))
 	armSrc, err := os.ReadFile(filepath.Join(dir, "arm_clib_arm.go"))
 	require.NoError(t, err)
 	text := string(armSrc)
@@ -305,7 +304,7 @@ int32_t pack(int8_t a, double b);
 	require.NoError(t, err)
 	assert.Contains(t, string(asm), "MOVW.W R4, -8(R13)")
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "linux/386"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "linux/386"}))
 	i386, err := os.ReadFile(filepath.Join(dir, "calc_clib_386.go"))
 	require.NoError(t, err)
 	text = string(i386)
@@ -313,7 +312,7 @@ int32_t pack(int8_t a, double b);
 	assert.Contains(t, text, "clib.U64(args, 4)")
 	assert.NotContains(t, text, "args[7]")
 
-	require.NoError(t, Run(context.Background(), Config{File: header, ABI: "android/arm64"}))
+	require.NoError(t, Run(t.Context(), Config{File: header, ABI: "android/arm64"}))
 	_, err = os.Stat(filepath.Join(dir, "calc_clib_arm64.go"))
 	require.NoError(t, err)
 }
@@ -480,7 +479,7 @@ func TestHostTable(t *testing.T) {
 }
 
 func TestBuildGate(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	out := filepath.Join(t.TempDir(), "out")
 	err := BuildFor(ctx, t.TempDir(), out, "ios", "arm64")
 	assert.EqualError(t, err, "unsupported target: ios/arm64")

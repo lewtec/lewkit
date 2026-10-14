@@ -11,7 +11,6 @@ import (
 )
 
 func TestBuildRejectsShape(t *testing.T) {
-	require.ErrorIs(t, Build(nil, nil, nil), ErrNilContext)
 	require.ErrorIs(t, Build(t.Context(), nil, nil), ErrNoWork)
 	empty := []Unit{{ImportPath: "a"}}
 	require.ErrorIs(t, Build(t.Context(), empty, nil), ErrEmptyUnit)

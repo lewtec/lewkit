@@ -427,10 +427,6 @@ func TestDeferredDeferRunsAfterTheBatch(t *testing.T) {
 	assert.Equal(t, []int{1, 3, 2}, got)
 }
 
-func TestNilContextPanics(t *testing.T) {
-	assert.Panics(t, func() { New().Frame(nil) })
-}
-
 func TestBadScheduleDoesNotRun(t *testing.T) {
 	sim := New()
 	ran := false

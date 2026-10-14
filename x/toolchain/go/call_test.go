@@ -1,7 +1,6 @@
 package gotool
 
 import (
-	"context"
 	"encoding/binary"
 	"fmt"
 	"runtime"
@@ -54,11 +53,6 @@ func TestARM64RelocBits(t *testing.T) {
 	}
 }
 
-func TestCompileSourceNil(t *testing.T) {
-	_, err := CompileSource(nil, "package main\n")
-	require.ErrorIs(t, err, ErrNilContext)
-}
-
 func TestCallChain(t *testing.T) {
 	prog := compileMain(t, `
 package main
@@ -104,7 +98,7 @@ func main() {}
 		require.FailNow(t, fmt.Sprint("call after gc"))
 	}
 
-	if _, err := CompileSource(context.Background(), "package main\nfunc Other() int { return 9 }\nfunc main() {}\n"); err == nil {
+	if _, err := CompileSource(t.Context(), "package main\nfunc Other() int { return 9 }\nfunc main() {}\n"); err == nil {
 		require.FailNow(t, fmt.Sprint("second compile reused this process"))
 	}
 	if value() != "jit-ok\n" {
@@ -114,7 +108,7 @@ func main() {}
 
 func compileMain(t *testing.T, src string) *Prog {
 	t.Helper()
-	prog, err := CompileSource(context.Background(), src)
+	prog, err := CompileSource(t.Context(), src)
 	require.NoError(t, err)
 	return prog
 }

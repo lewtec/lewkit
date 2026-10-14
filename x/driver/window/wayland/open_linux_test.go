@@ -59,15 +59,6 @@ func TestPointerButton(t *testing.T) {
 	require.Equal(t, 2, number)
 }
 
-func TestOpenNilContextPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			require.FailNow(t, fmt.Sprint("nil context returned"))
-		}
-	}()
-	_, _ = opener{}.Open(nil, window.Config{})
-}
-
 func TestDeviceOf(t *testing.T) {
 	assert.Equal(t, 640, deviceOf(640, 1))
 	assert.Equal(t, 1280, deviceOf(640, 2))

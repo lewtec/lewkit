@@ -3,7 +3,6 @@
 package clib
 
 import (
-	"context"
 	"debug/elf"
 	"debug/macho"
 	"debug/pe"
@@ -47,9 +46,9 @@ func init() {
 
 func main() {}
 `), 0o644))
-	require.NoError(t, Run(context.Background(), Config{File: filepath.Join(dir, "add.h")}))
+	require.NoError(t, Run(t.Context(), Config{File: filepath.Join(dir, "add.h")}))
 	lib := filepath.Join(dir, "libdemo.so")
-	require.NoError(t, Build(context.Background(), dir, lib))
+	require.NoError(t, Build(t.Context(), dir, lib))
 
 	host := filepath.Join(dir, "host.c")
 	require.NoError(t, os.WriteFile(host, []byte(`
@@ -98,12 +97,12 @@ func TestPython(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), buf, 0o644))
 	}
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/gorun\n\ngo 1.27.0\n\nrequire github.com/lewtec/lewkit v0.0.0\n\nreplace github.com/lewtec/lewkit => "+repo+"\n"), 0o644))
-	require.NoError(t, Run(context.Background(), Config{
+	require.NoError(t, Run(t.Context(), Config{
 		File: filepath.Join(dir, "api.h"),
 		ABI:  "linux/amd64",
 	}))
 	lib := filepath.Join(dir, "libgorun.so")
-	require.NoError(t, Build(context.Background(), dir, lib))
+	require.NoError(t, Build(t.Context(), dir, lib))
 
 	cmd := exec.Command("python3", filepath.Join(dir, "run.py"), lib)
 	out, err := cmd.CombinedOutput()
@@ -117,7 +116,7 @@ func TestCrossLink(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n\nrequire github.com/lewtec/lewkit v0.0.0\n\nreplace github.com/lewtec/lewkit => "+repo+"\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "add.h"), []byte("#include <stdint.h>\nint32_t add(int32_t a, int32_t b);\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644))
-	require.NoError(t, Run(context.Background(), Config{File: filepath.Join(dir, "add.h")}))
+	require.NoError(t, Run(t.Context(), Config{File: filepath.Join(dir, "add.h")}))
 
 	targets := []struct {
 		goos, goarch string
@@ -131,7 +130,7 @@ func TestCrossLink(t *testing.T) {
 	for _, target := range targets {
 		t.Run(target.goos+"/"+target.goarch, func(t *testing.T) {
 			lib := filepath.Join(dir, "lib"+target.goos+"_"+target.goarch+".so")
-			require.NoError(t, BuildFor(context.Background(), dir, lib, target.goos, target.goarch))
+			require.NoError(t, BuildFor(t.Context(), dir, lib, target.goos, target.goarch))
 			f, err := elf.Open(lib)
 			require.NoError(t, err)
 			defer f.Close()
@@ -168,7 +167,7 @@ func TestDesktopLink(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n\nrequire github.com/lewtec/lewkit v0.0.0\n\nreplace github.com/lewtec/lewkit => "+repo+"\n"), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "add.h"), []byte("#include <stdint.h>\nint32_t add(int32_t a, int32_t b);\n"), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644))
-		require.NoError(t, Run(context.Background(), Config{File: filepath.Join(dir, "add.h"), ABI: abi}))
+		require.NoError(t, Run(t.Context(), Config{File: filepath.Join(dir, "add.h"), ABI: abi}))
 		return dir
 	}
 
@@ -186,7 +185,7 @@ func TestDesktopLink(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.arch, func(t *testing.T) {
 				lib := filepath.Join(dir, "demo_"+tc.arch+".dll")
-				require.NoError(t, BuildFor(context.Background(), dir, lib, "windows", tc.arch))
+				require.NoError(t, BuildFor(t.Context(), dir, lib, "windows", tc.arch))
 				f, err := pe.Open(lib)
 				require.NoError(t, err)
 				defer f.Close()
@@ -222,7 +221,7 @@ func TestDesktopLink(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.arch, func(t *testing.T) {
 				lib := filepath.Join(dir, "libdemo_"+tc.arch+".dylib")
-				require.NoError(t, BuildFor(context.Background(), dir, lib, "darwin", tc.arch))
+				require.NoError(t, BuildFor(t.Context(), dir, lib, "darwin", tc.arch))
 				f, err := macho.Open(lib)
 				require.NoError(t, err)
 				defer f.Close()

@@ -3,7 +3,6 @@
 package native
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -82,15 +81,6 @@ func TestHostLibDirsReadsPathSiblingLib(t *testing.T) {
 	if containsDir(dirs, "relative/lib") {
 		require.FailNowf(t, "", "relative PATH lib leaked into %q", dirs)
 	}
-}
-
-func TestPrepareNilContextPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			require.FailNow(t, fmt.Sprint("nil context returned"))
-		}
-	}()
-	_ = Prepare(nil)
 }
 
 func containsDir(dirs []string, want string) bool {

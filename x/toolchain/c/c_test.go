@@ -10,8 +10,6 @@ import (
 )
 
 func TestGoHeader(t *testing.T) {
-	_, _, err := Go(nil, "ping.h")
-	require.ErrorIs(t, err, ErrNilContext)
 	dir := t.TempDir()
 	file := filepath.Join(dir, "ping.h")
 	body := "#define ANSWER 7\nint ping(int x);\n"

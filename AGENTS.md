@@ -1,7 +1,7 @@
 - Optimize code for human readers. High signal/noise ratio.
 - Avoid shortening names
 - Keep stuff simple and organized, do step backs and refactors if necessary
-- Respect the context chain: only context.Background in main, ctx as first positional arg
+- Respect the context chain: a function that does I/O or starts work takes ctx first and passes it down. Only main, the Android host entry, and a godoc example create a root context. Tests use t.Context. Do not pass a nil context
 - Sentinel errors live in a package-level var block. Do not create an error inline at a return; wrap a sentinel with %w
 - Tests use testify require. Use assert only when the test should continue. Check sentinels with require.ErrorIs. Skip with test.Skip or test.Skipf
 - Explicit is better than implicit

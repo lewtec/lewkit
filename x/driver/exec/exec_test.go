@@ -18,17 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCommandNilContext(t *testing.T) {
-	_, err := execdriver.Command(nil, "sh")
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-	_, err = execdriver.OutputString(nil, "sh")
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-	_, err = execdriver.Which(nil, "sh")
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-	err = execdriver.Wait(nil, nil)
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-}
-
 func TestMustRunCapturesStdout(t *testing.T) {
 	ctx := t.Context()
 	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo hi")

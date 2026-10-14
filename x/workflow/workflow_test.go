@@ -104,7 +104,6 @@ func TestRunCycleAndUnknown(t *testing.T) {
 	unknown := Graph{Dir: dir, Steps: []Step{{Name: "a", Deps: []string{"missing"}}}}
 	require.ErrorIs(t, run(t.Context(), unknown, []string{"a"}), ErrUnknownStep)
 	require.ErrorIs(t, run(t.Context(), Graph{}, nil), ErrNoTarget)
-	require.Error(t, run(nil, Graph{}, nil))
 }
 
 func TestRunAlias(t *testing.T) {

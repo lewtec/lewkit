@@ -11,15 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildNilContextPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			require.FailNow(t, fmt.Sprint("nil context returned"))
-		}
-	}()
-	_, _ = Build(nil, BuildOptions{})
-}
-
 func TestBuildAppImage(t *testing.T) {
 	mainDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644))

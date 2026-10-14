@@ -187,16 +187,6 @@ func TestCloseWhenDone(t *testing.T) {
 	}, time.Second, 5*time.Millisecond)
 }
 
-func TestCloseWhenDoneNilCtx(t *testing.T) {
-	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
-	require.NoError(t, err)
-	test.CloseOnCleanup(t, w)
-	require.PanicsWithValue(t, "window: nil context", func() {
-		window.CloseWhenDone(nil, w)
-	})
-	require.NoError(t, w.Draw())
-}
-
 func TestDrawAfterClose(t *testing.T) {
 	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
 	require.NoError(t, err)

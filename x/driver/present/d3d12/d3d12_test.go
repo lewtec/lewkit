@@ -1,11 +1,11 @@
 package d3d12
 
 import (
-	"context"
 	"runtime"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,8 +14,8 @@ func TestFactoryRejectsNonWindows(t *testing.T) {
 	require.Equal(t, "Direct3D 12", factory{}.Name())
 	require.Equal(t, 70, factory{}.Weight())
 	if runtime.GOOS == "windows" && (runtime.GOARCH == "amd64" || runtime.GOARCH == "arm64") {
-		t.Skip()
+		test.Skip(t)
 	}
-	err := factory{}.CheckCompatibility(context.Background())
+	err := factory{}.CheckCompatibility(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)
 }

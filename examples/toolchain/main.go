@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -27,15 +28,16 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
+	ctx := context.Background()
 	var (
 		out string
 		err error
 	)
 	switch os.Args[1] {
 	case "share":
-		out, err = share()
+		out, err = share(ctx)
 	case "jit":
-		out, err = jit()
+		out, err = jit(ctx)
 	default:
 		usage()
 		os.Exit(2)
