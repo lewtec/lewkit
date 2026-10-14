@@ -4,6 +4,7 @@ package webkitgtk
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -17,7 +18,7 @@ import (
 func TestOpenNilContextPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
-			t.Fatal("nil context returned")
+			require.FailNow(t, fmt.Sprint("nil context returned"))
 		}
 	}()
 	_, _ = gtkDriver{}.Open(nil, webview.Config{})
@@ -85,9 +86,9 @@ func readMessage(t *testing.T, view webview.View) string {
 	case b := <-view.Messages():
 		return string(b)
 	case <-view.Done():
-		t.Fatal("window closed")
+		require.FailNow(t, fmt.Sprint("window closed"))
 	case <-timer.C:
-		t.Fatal("no script message")
+		require.FailNow(t, fmt.Sprint("no script message"))
 	}
 	return ""
 }

@@ -1,6 +1,10 @@
 package header
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestShapeMatchesKind(t *testing.T) {
 	pairs := []struct {
@@ -22,11 +26,11 @@ func TestShapeMatchesKind(t *testing.T) {
 		{kindAlias, ShapeAlias},
 	}
 	if len(pairs) != int(kindAlias)+1 {
-		t.Fatalf("kind gained a value; update Shape")
+		require.FailNowf(t, "", "kind gained a value; update Shape")
 	}
 	for _, pair := range pairs {
 		if Shape(pair.k) != pair.s {
-			t.Fatalf("kind %d is shape %d, want %d", pair.k, Shape(pair.k), pair.s)
+			require.FailNowf(t, "", "kind %d is shape %d, want %d", pair.k, Shape(pair.k), pair.s)
 		}
 	}
 }

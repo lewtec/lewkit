@@ -2,21 +2,24 @@ package win32
 
 import (
 	"encoding/binary"
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDialogTemplateAlignsControls(t *testing.T) {
 	body := promptDialog("Name", "Ada").bytes()
 	if len(body) < 18 {
-		t.Fatalf("short template %d", len(body))
+		require.FailNowf(t, "", "short template %d", len(body))
 	}
 	count := binary.LittleEndian.Uint16(body[8:10])
 	if count != 4 {
-		t.Fatalf("controls %d", count)
+		require.FailNowf(t, "", "controls %d", count)
 	}
 	width := int16(binary.LittleEndian.Uint16(body[14:16]))
 	if width != 220 {
-		t.Fatalf("width %d", width)
+		require.FailNowf(t, "", "width %d", width)
 	}
 	// The first control starts on a 4-byte boundary and carries the edit id.
 	found := false
@@ -31,7 +34,7 @@ func TestDialogTemplateAlignsControls(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("edit control missing")
+		require.FailNow(t, fmt.Sprint("edit control missing"))
 	}
 }
 
@@ -39,6 +42,6 @@ func TestChooseDialogNamesTheList(t *testing.T) {
 	body := chooseDialog("Open").bytes()
 	count := binary.LittleEndian.Uint16(body[8:10])
 	if count != 4 {
-		t.Fatalf("controls %d", count)
+		require.FailNowf(t, "", "controls %d", count)
 	}
 }

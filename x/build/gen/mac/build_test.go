@@ -1,49 +1,36 @@
 package mac
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestInstallHelper(t *testing.T) {
 	app := filepath.Join(t.TempDir(), "Counter.app")
 	macOS := filepath.Join(app, "Contents", "MacOS")
-	if err := os.MkdirAll(macOS, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(macOS, "Counter"), []byte("swift-shell"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(macOS, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(macOS, "Counter"), []byte("swift-shell"), 0o755))
 	helper := filepath.Join(t.TempDir(), HelperName)
-	if err := os.WriteFile(helper, []byte("go-server"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := installHelper(app, helper); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(helper, []byte("go-server"), 0o644))
+	require.NoError(t, installHelper(app, helper))
 	body, err := os.ReadFile(filepath.Join(macOS, HelperName))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(body) != "go-server" {
-		t.Fatalf("server %q", body)
+		require.FailNowf(t, "", "server %q", body)
 	}
 	shell, err := os.ReadFile(filepath.Join(macOS, "Counter"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(shell) != "swift-shell" {
-		t.Fatalf("shell %q", shell)
+		require.FailNowf(t, "", "shell %q", shell)
 	}
 	st, err := os.Stat(filepath.Join(macOS, HelperName))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if st.Mode().Perm()&0o111 == 0 {
-		t.Fatalf("server mode %v", st.Mode())
+		require.FailNowf(t, "", "server mode %v", st.Mode())
 	}
 }
 
@@ -64,7 +51,5 @@ func TestBuildFullAppNeedsMacOS(t *testing.T) {
 		WorkDir: t.TempDir(),
 		OutApp:  filepath.Join(t.TempDir(), "Demo.app"),
 	})
-	if !errors.Is(err, ErrMacOSRequired) {
-		t.Fatalf("err %v", err)
-	}
+	require.ErrorIs(t, err, ErrMacOSRequired)
 }

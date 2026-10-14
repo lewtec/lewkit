@@ -3,12 +3,14 @@ package hostask
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -44,11 +46,9 @@ func TestCallUsesHook(t *testing.T) {
 		return askwire.Format(askwire.StatusYes, ""), nil
 	})
 	got, err := Call(t.Context(), KindConfirm, "Delete?", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got != askwire.Format(askwire.StatusYes, "") {
-		t.Fatalf("reply %q", got)
+		require.FailNowf(t, "", "reply %q", got)
 	}
 }
 
@@ -58,7 +58,7 @@ func TestFileCall(t *testing.T) {
 	t.Setenv("ELETROCROMO_NO_UI", "")
 	t.Setenv("LEWKIT_NO_UI", "")
 	if !Available() {
-		t.Fatal("ask dir is not available")
+		require.FailNow(t, fmt.Sprint("ask dir is not available"))
 	}
 	done := make(chan struct{})
 	go func() {
@@ -76,25 +76,21 @@ func TestFileCall(t *testing.T) {
 		}
 		var msg request
 		if err := json.Unmarshal(raw, &msg); err != nil {
-			t.Errorf("request: %v", err)
+			assert.Failf(t, "", "request: %v", err)
 			return
 		}
 		if msg.Kind != KindPrompt || msg.Title != "Name" {
-			t.Errorf("request %+v", msg)
+			assert.Failf(t, "", "request %+v", msg)
 		}
 		reply := askwire.Format(askwire.StatusOK, "ada")
-		if err := os.WriteFile(filepath.Join(dir, "reply.txt"), []byte(reply), 0o600); err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "reply.txt"), []byte(reply), 0o600))
 	}()
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	got, err := Call(ctx, KindPrompt, "Name", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got != askwire.Format(askwire.StatusOK, "ada") {
-		t.Fatalf("reply %q", got)
+		require.FailNowf(t, "", "reply %q", got)
 	}
 	<-done
 }

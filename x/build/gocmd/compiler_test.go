@@ -2,7 +2,6 @@ package gocmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/taskgroup"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -43,9 +43,7 @@ func TestLewkitCompilerRejects(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.cmd.Run(t.Context())
-			if !errors.Is(err, ErrCompiler) {
-				t.Fatalf("got %v", err)
-			}
+			require.ErrorIs(t, err, ErrCompiler)
 		})
 	}
 }
@@ -55,13 +53,9 @@ func TestLewkitCompilerBuild(t *testing.T) {
 		t.Skip("lewkit compiler is amd64")
 	}
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644))
 	src := "package main\nfunc main() { println(\"from-lewkit\") }\n"
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644))
 	t.Run("linux", func(t *testing.T) {
 		out := filepath.Join(dir, "hello")
 		err := Command{
@@ -70,15 +64,11 @@ func TestLewkitCompilerBuild(t *testing.T) {
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64"),
 			Args:     []string{"-trimpath", "-ldflags", "-s -w", "-o", out, "."},
 		}.Run(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		got, err := exec.Command(out).CombinedOutput()
-		if err != nil {
-			t.Fatalf("%v\n%s", err, got)
-		}
+		require.NoErrorf(t, err, "%v\n%s", err, got)
 		if string(got) != "from-lewkit\n" {
-			t.Fatalf("output %q", got)
+			require.FailNowf(t, "", "output %q", got)
 		}
 	})
 	t.Run("windows", func(t *testing.T) {
@@ -89,15 +79,11 @@ func TestLewkitCompilerBuild(t *testing.T) {
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=windows", "GOARCH=amd64"),
 			Args:     []string{"-trimpath", "-ldflags", "-H windowsgui -s -w", "-o", out, "."},
 		}.Run(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		body, err := os.ReadFile(out)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		if len(body) < 2 || body[0] != 'M' || body[1] != 'Z' {
-			t.Fatalf("not a PE: %q", body[:min(16, len(body))])
+			require.FailNowf(t, "", "not a PE: %q", body[:min(16, len(body))])
 		}
 	})
 	t.Run("linux-arm64", func(t *testing.T) {
@@ -108,25 +94,19 @@ func TestLewkitCompilerBuild(t *testing.T) {
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=arm64"),
 			Args:     []string{"-trimpath", "-o", out, "."},
 		}.Run(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		typ, machine := elfHeader(t, out)
 		if typ != 2 || machine != 183 {
-			t.Fatalf("ELF type %d machine %d", typ, machine)
+			require.FailNowf(t, "", "ELF type %d machine %d", typ, machine)
 		}
 	})
 	t.Run("android-arm64", func(t *testing.T) {
 		out := filepath.Join(dir, "libhello.so")
 		tool := filepath.Join(dir, "toolexec")
 		script := "#!/bin/sh\nif [ \"$(basename \"$1\")\" = \"_cgo_android_export.go\" ]; then\n\tshift\nfi\nexec \"$@\"\n"
-		if err := os.WriteFile(tool, []byte(script), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(tool, []byte(script), 0o755))
 		export := filepath.Join(dir, "_cgo_android_export.go")
-		if err := os.WriteFile(export, []byte("package unused\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(export, []byte("package unused\n"), 0o644))
 		err := Command{
 			Dir:      dir,
 			Compiler: CompilerLewkit,
@@ -139,12 +119,10 @@ func TestLewkitCompilerBuild(t *testing.T) {
 				"-o", out, ".",
 			},
 		}.Run(t.Context())
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		typ, machine := elfHeader(t, out)
 		if typ != 3 || machine != 183 {
-			t.Fatalf("ELF type %d machine %d", typ, machine)
+			require.FailNowf(t, "", "ELF type %d machine %d", typ, machine)
 		}
 	})
 }
@@ -154,19 +132,11 @@ func TestLewkitCompilerProgressTree(t *testing.T) {
 		t.Skip("lewkit compiler is amd64")
 	}
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filepath.Join(dir, "p"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "p", "p.go"), []byte("package p\n\nfunc N() int { return 7 }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "p"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "p", "p.go"), []byte("package p\n\nfunc N() int { return 7 }\n"), 0o644))
 	src := "package main\n\nimport \"example.com/hello/p\"\n\nfunc main() { println(p.N()) }\n"
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644))
 	out := filepath.Join(dir, "hello")
 	base, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
@@ -222,37 +192,35 @@ func TestLewkitCompilerProgressTree(t *testing.T) {
 	close(stop)
 	<-done
 	if runErr != nil {
-		t.Fatal(runErr)
+		require.FailNow(t, fmt.Sprint(runErr))
 	}
 	if waitErr != nil {
-		t.Fatal(waitErr)
+		require.FailNow(t, fmt.Sprint(waitErr))
 	}
 	if !sawControl || !sawCPU || !sawLink {
-		t.Fatalf("progress tree control=%v cpu=%v link=%v", sawControl, sawCPU, sawLink)
+		require.FailNowf(t, "", "progress tree control=%v cpu=%v link=%v", sawControl, sawCPU, sawLink)
 	}
 	got, err := exec.Command(out).CombinedOutput()
-	if err != nil {
-		t.Fatalf("%v\n%s", err, got)
-	}
+	require.NoErrorf(t, err, "%v\n%s", err, got)
 	if string(got) != "7\n" {
-		t.Fatalf("output %q", got)
+		require.FailNowf(t, "", "output %q", got)
 	}
 }
 
 func TestCgoExportArg(t *testing.T) {
 	got, ok := cgoExportArg("'/tmp/wrap' '/tmp/_cgo_android_export.go'")
 	if !ok || got != "/tmp/_cgo_android_export.go" {
-		t.Fatalf("%q %v", got, ok)
+		require.FailNowf(t, "", "%q %v", got, ok)
 	}
 	got, ok = cgoExportArg("'/tmp/wrap' '/tmp/_cgo_clib_export.go'")
 	if !ok || got != "/tmp/_cgo_clib_export.go" {
-		t.Fatalf("clib %q %v", got, ok)
+		require.FailNowf(t, "", "clib %q %v", got, ok)
 	}
 	if _, ok := cgoExportArg("'/tmp/wrap' '/tmp/_cgo_other.go'"); ok {
-		t.Fatal("accepted _cgo_other.go")
+		require.FailNow(t, fmt.Sprint("accepted _cgo_other.go"))
 	}
 	if _, ok := cgoExportArg("wrap"); ok {
-		t.Fatal("accepted wrap")
+		require.FailNow(t, fmt.Sprint("accepted wrap"))
 	}
 	dir := t.TempDir()
 	missing := filepath.Join(dir, "_cgo_android_export.go")
@@ -261,28 +229,22 @@ func TestCgoExportArg(t *testing.T) {
 		Compiler: CompilerLewkit,
 		Args:     []string{"-toolexec", "wrap " + missing, "-o", "out", "."},
 	}.Run(t.Context())
-	if !errors.Is(err, ErrCompiler) {
-		t.Fatalf("got %v", err)
-	}
+	require.ErrorIs(t, err, ErrCompiler)
 }
 
 func elfHeader(t *testing.T, path string) (typ, machine uint16) {
 	t.Helper()
 	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(body) < 20 || string(body[:4]) != "\x7fELF" || body[4] != 2 || body[5] != 1 {
-		t.Fatalf("not ELF64 LE")
+		require.FailNowf(t, "", "not ELF64 LE")
 	}
 	return uint16(body[16]) | uint16(body[17])<<8, uint16(body[18]) | uint16(body[19])<<8
 }
 
 func TestLewkitCompilerFromContext(t *testing.T) {
 	err := Command{Args: []string{"-buildmode=c-archive", "-o", "x", "."}}.Run(WithCompiler(t.Context(), CompilerLewkit))
-	if !errors.Is(err, ErrCompiler) {
-		t.Fatalf("got %v", err)
-	}
+	require.ErrorIs(t, err, ErrCompiler)
 }
 
 func withEnv(c Command, extra string) Command {

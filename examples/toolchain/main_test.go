@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -27,21 +29,17 @@ func TestShare(t *testing.T) {
 		t.Skip("shared object is an ELF file")
 	}
 	out, err := share()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if out != "7\n" {
-		t.Fatalf("output %q", out)
+		require.FailNowf(t, "", "output %q", out)
 	}
 }
 
 func TestJIT(t *testing.T) {
 	out, err := jit()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if out != "jit-ok\n" {
-		t.Fatalf("output %q", out)
+		require.FailNowf(t, "", "output %q", out)
 	}
 }
 

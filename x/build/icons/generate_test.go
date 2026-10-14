@@ -1,53 +1,48 @@
 package icons
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultMark(t *testing.T) {
 	img, err := DefaultMark()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if img.Bounds().Dx() != 1024 || img.Bounds().Dy() != 1024 {
-		t.Fatalf("mark %v", img.Bounds())
+		require.FailNowf(t, "", "mark %v", img.Bounds())
 	}
 }
 
 func TestGenerateDefaultAndSkip(t *testing.T) {
 	dir := t.TempDir()
 	m1, err := Generate(Options{OutputDir: dir, Force: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if m1.Source != "default" {
-		t.Fatalf("source %q", m1.Source)
+		require.FailNowf(t, "", "source %q", m1.Source)
 	}
 	if !Complete(dir) {
-		t.Fatal("expected complete tree")
+		require.FailNow(t, fmt.Sprint("expected complete tree"))
 	}
 	// second call without force should skip (manifest still readable)
 	m2, err := Generate(Options{OutputDir: dir, Force: false})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if m2.GeneratedAt != m1.GeneratedAt {
-		t.Fatalf("expected skip, times %s vs %s", m1.GeneratedAt, m2.GeneratedAt)
+		require.FailNowf(t, "", "expected skip, times %s vs %s", m1.GeneratedAt, m2.GeneratedAt)
 	}
 	// force rebuild
 	m3, err := Generate(Options{OutputDir: dir, Force: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if m3.GeneratedAt == m1.GeneratedAt {
 		// possible if same second; ensure files still ok
 		if !Complete(dir) {
-			t.Fatal("incomplete after force")
+			require.FailNow(t, fmt.Sprint("incomplete after force"))
 		}
 	}
 }
@@ -62,88 +57,72 @@ func TestGenerateFromPNG(t *testing.T) {
 		}
 	}
 	f, err := os.Create(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := png.Encode(f, img); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, png.Encode(f, img))
+	require.NoError(t, f.Close())
 
 	out := filepath.Join(dir, "icons")
 	m, err := Generate(Options{SourcePath: src, OutputDir: out, Force: true})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if m.Source != src {
-		t.Fatalf("source %q", m.Source)
+		require.FailNowf(t, "", "source %q", m.Source)
 	}
 	if _, err := os.Stat(filepath.Join(out, "windows", "icon.ico")); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	if _, err := os.Stat(filepath.Join(out, "macos", "icon.icns")); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 }
 
 func TestApplyAndroidRes(t *testing.T) {
 	iconsDir := t.TempDir()
 	if _, err := Generate(Options{OutputDir: iconsDir, Force: true}); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	res := filepath.Join(t.TempDir(), "res")
-	if err := ApplyAndroidRes(iconsDir, res); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, ApplyAndroidRes(iconsDir, res))
 	if _, err := os.Stat(filepath.Join(res, "mipmap-mdpi", "ic_launcher.png")); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 }
 
 func TestApplyMacOSICNS(t *testing.T) {
 	iconsDir := t.TempDir()
 	if _, err := Generate(Options{OutputDir: iconsDir, Force: true}); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	dest := filepath.Join(t.TempDir(), "Resources", "AppIcon.icns")
-	if err := ApplyMacOSICNS(iconsDir, dest); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, ApplyMacOSICNS(iconsDir, dest))
 	if _, err := os.Stat(dest); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 }
 
 func TestDefaultLockupEmbed(t *testing.T) {
 	if len(DefaultLockupPNG) < 100 {
-		t.Fatal("default lockup embed empty")
+		require.FailNow(t, fmt.Sprint("default lockup embed empty"))
 	}
 }
 
 func TestDefaultAssetsHaveAlpha(t *testing.T) {
 	t.Parallel()
 	lockup, err := DecodeBytes(DefaultLockupPNG, "lockup.png")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	b := lockup.Bounds()
 	_, _, _, a0 := lockup.At(b.Min.X, b.Min.Y).RGBA()
 	if a0 != 0 {
-		t.Fatalf("lockup corner should be transparent, a=%d", a0>>8)
+		require.FailNowf(t, "", "lockup corner should be transparent, a=%d", a0>>8)
 	}
 	mark, err := defaultMaster()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	mb := mark.Bounds()
 	if mb.Dx() != 1024 || mb.Dy() != 1024 {
-		t.Fatalf("mark size %v", mb)
+		require.FailNowf(t, "", "mark size %v", mb)
 	}
 	_, _, _, ma := mark.At(mb.Min.X, mb.Min.Y).RGBA()
 	if ma != 0 {
-		t.Fatalf("mark corner should be transparent, a=%d", ma>>8)
+		require.FailNowf(t, "", "mark corner should be transparent, a=%d", ma>>8)
 	}
 }
 
@@ -164,16 +143,16 @@ func TestExtractUpperMarkSplitsLockup(t *testing.T) {
 	}
 	got := ExtractUpperMark(img)
 	if got.Bounds().Dx() != got.Bounds().Dy() {
-		t.Fatalf("want square, got %v", got.Bounds())
+		require.FailNowf(t, "", "want square, got %v", got.Bounds())
 	}
 	// bottom of the square must not contain the wordmark band
 	_, _, _, a := got.At(got.Bounds().Min.X+got.Bounds().Dx()/2, got.Bounds().Max.Y-1).RGBA()
 	if a != 0 {
-		t.Fatalf("bottom edge should be padding, a=%d", a>>8)
+		require.FailNowf(t, "", "bottom edge should be padding, a=%d", a>>8)
 	}
 	_, _, _, ac := got.At(got.Bounds().Dx()/2, got.Bounds().Dy()/2).RGBA()
 	if ac < 0x8000 {
-		t.Fatalf("center should keep the mark, a=%d", ac>>8)
+		require.FailNowf(t, "", "center should keep the mark, a=%d", ac>>8)
 	}
 }
 
@@ -187,11 +166,11 @@ func TestContentBoundsAndTrim(t *testing.T) {
 	}
 	box := ContentBounds(img, 8)
 	if box != image.Rect(6, 5, 11, 9) {
-		t.Fatalf("bounds %v", box)
+		require.FailNowf(t, "", "bounds %v", box)
 	}
 	trim := TrimTransparent(img, 0)
 	if trim.Bounds().Dx() != 5 || trim.Bounds().Dy() != 4 {
-		t.Fatalf("trim size %v", trim.Bounds())
+		require.FailNowf(t, "", "trim size %v", trim.Bounds())
 	}
 }
 
@@ -217,11 +196,11 @@ func TestKnockoutKeepsInteriorHighlights(t *testing.T) {
 	out := KnockoutBackground(img)
 	_, _, _, a0 := out.At(0, 0).RGBA()
 	if a0 != 0 {
-		t.Fatalf("corner should be transparent, a=%d", a0>>8)
+		require.FailNowf(t, "", "corner should be transparent, a=%d", a0>>8)
 	}
 	_, _, _, ac := out.At(16, 16).RGBA()
 	if ac < 0x8000 {
-		t.Fatalf("interior highlight should stay opaque, a=%d", ac>>8)
+		require.FailNowf(t, "", "interior highlight should stay opaque, a=%d", ac>>8)
 	}
 }
 
@@ -242,10 +221,10 @@ func TestKnockoutBackgroundLightCanvas(t *testing.T) {
 	out := KnockoutBackground(img)
 	_, _, _, a0 := out.At(0, 0).RGBA()
 	if a0 != 0 {
-		t.Fatalf("corner should be transparent, a=%d", a0>>8)
+		require.FailNowf(t, "", "corner should be transparent, a=%d", a0>>8)
 	}
 	_, _, _, ac := out.At(16, 16).RGBA()
 	if ac < 0x8000 {
-		t.Fatalf("center should stay opaque, a=%d", ac>>8)
+		require.FailNowf(t, "", "center should stay opaque, a=%d", ac>>8)
 	}
 }

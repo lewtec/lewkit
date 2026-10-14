@@ -2,6 +2,7 @@ package make
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -535,6 +536,6 @@ func TestShellStopsWhenContextCancels(t *testing.T) {
 	case err := <-errCh:
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(3 * time.Second):
-		t.Fatal("$(shell) kept running after cancel")
+		require.FailNow(t, fmt.Sprint("$(shell) kept running after cancel"))
 	}
 }

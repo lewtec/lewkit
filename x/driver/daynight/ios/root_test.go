@@ -2,7 +2,7 @@ package ios
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +12,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/iosbox"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNotIOS(t *testing.T) {
@@ -19,9 +20,7 @@ func TestNotIOS(t *testing.T) {
 		t.Skip()
 	}
 	err := factory{}.CheckCompatibility(t.Context())
-	if !errors.Is(err, driver.ErrIncompatible) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
 }
 
 func TestCurrentAndWatch(t *testing.T) {
@@ -30,31 +29,25 @@ func TestCurrentAndWatch(t *testing.T) {
 	dir := t.TempDir()
 	base := iosbox.WithDir(t.Context(), dir)
 	file := filepath.Join(dir, "daynight.txt")
-	if err := os.WriteFile(file, []byte("light\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(file, []byte("light\n"), 0o600))
 	mode, err := backend{}.Current(base)
 	if err != nil || mode != daynight.Light {
-		t.Fatalf("%s %v", mode, err)
+		require.FailNowf(t, "", "%s %v", mode, err)
 	}
 	ctx, cancel := context.WithTimeout(base, 2*time.Second)
 	defer cancel()
 	changes, err := backend{}.Watch(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got := <-changes; got != daynight.Light {
-		t.Fatalf("first %s", got)
+		require.FailNowf(t, "", "first %s", got)
 	}
-	if err := os.WriteFile(file, []byte("dark\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(file, []byte("dark\n"), 0o600))
 	select {
 	case got := <-changes:
 		if got != daynight.Dark {
-			t.Fatalf("change %s", got)
+			require.FailNowf(t, "", "change %s", got)
 		}
 	case <-ctx.Done():
-		t.Fatal(ctx.Err())
+		require.FailNow(t, fmt.Sprint(ctx.Err()))
 	}
 }

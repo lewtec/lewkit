@@ -244,7 +244,7 @@ func TestDesktopLink(t *testing.T) {
 						sawID = true
 						require.Contains(t, string(cmdb), "@rpath/libdemo_"+tc.arch+".dylib")
 					case 0x5, 0xe, 0x80000028:
-						t.Fatalf("executable load command %#x", cmd)
+						require.FailNowf(t, "", "executable load command %#x", cmd)
 					case 0x22, 0x80000022:
 						require.GreaterOrEqual(t, len(cmdb), 48)
 						off := binary.LittleEndian.Uint32(cmdb[40:])

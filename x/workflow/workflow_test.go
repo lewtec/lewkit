@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -413,7 +414,7 @@ func TestOrchestratorDoesNotHoldCPU(t *testing.T) {
 	select {
 	case <-started:
 	case <-time.After(2 * time.Second):
-		t.Fatal("cpu child did not start")
+		require.FailNow(t, fmt.Sprint("cpu child did not start"))
 	}
 	require.NoError(t, fut.Wait(ctx))
 	require.NoError(t, sess.Wait())

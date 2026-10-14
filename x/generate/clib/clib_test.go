@@ -589,7 +589,7 @@ func moduleRoot(t *testing.T) string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatal("go.mod not found")
+			require.FailNow(t, fmt.Sprint("go.mod not found"))
 		}
 		dir = parent
 	}

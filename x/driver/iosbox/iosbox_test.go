@@ -3,13 +3,13 @@ package iosbox
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -35,59 +35,47 @@ func TestCall(t *testing.T) {
 		}
 		var msg Request
 		if err := json.Unmarshal(raw, &msg); err != nil {
-			t.Errorf("request: %v", err)
+			assert.Failf(t, "", "request: %v", err)
 			return
 		}
 		if msg.Op != OpOpen || msg.Target != "https://lew.tec.br" {
-			t.Errorf("request %+v", msg)
+			assert.Failf(t, "", "request %+v", msg)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "reply.txt"), []byte(askwire.Format(askwire.StatusOK, "")), 0o600); err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "reply.txt"), []byte(askwire.Format(askwire.StatusOK, "")), 0o600))
 	}()
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	got, err := Call(ctx, Request{Op: OpOpen, Target: "https://lew.tec.br"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	status, _, err := Result(got)
 	if err != nil || status != askwire.StatusOK {
-		t.Fatalf("reply %q %v", got, err)
+		require.FailNowf(t, "", "reply %q %v", got, err)
 	}
 	<-done
 }
 
 func TestResult(t *testing.T) {
 	_, _, err := Result("error\nnotifications denied")
-	if !errors.Is(err, driver.ErrUnavailable) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrUnavailable)
 	status, payload, err := Result("canceled\n")
 	if err != nil || status != askwire.StatusCanceled || payload != "" {
-		t.Fatalf("%s %q %v", status, payload, err)
+		require.FailNowf(t, "", "%s %q %v", status, payload, err)
 	}
 }
 
 func TestStateFiles(t *testing.T) {
 	dir := t.TempDir()
 	ctx := WithDir(t.Context(), dir)
-	if err := os.WriteFile(filepath.Join(dir, "battery.json"), []byte(`{"status":"Charging","level":40}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "battery.json"), []byte(`{"status":"Charging","level":40}`), 0o600))
 	got, err := ReadBattery(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got.Status != "Charging" || got.Level != 40 {
-		t.Fatalf("%+v", got)
+		require.FailNowf(t, "", "%+v", got)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "daynight.txt"), []byte("dark\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "daynight.txt"), []byte("dark\n"), 0o600))
 	mode, err := ReadMode(ctx)
 	if err != nil || mode != "dark" {
-		t.Fatalf("%s %v", mode, err)
+		require.FailNowf(t, "", "%s %v", mode, err)
 	}
 }
 
@@ -104,7 +92,5 @@ func TestNoHost(t *testing.T) {
 		t.Skip()
 	}
 	_, err := Call(t.Context(), Request{Op: OpNotify})
-	if !errors.Is(err, driver.ErrUnavailable) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrUnavailable)
 }

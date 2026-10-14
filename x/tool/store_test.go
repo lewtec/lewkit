@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -178,7 +179,7 @@ func TestEnsureCommandInstallsInParallel(t *testing.T) {
 		case name := <-started:
 			got[name] = true
 		case <-ctx.Done():
-			t.Fatal("installs did not overlap")
+			require.FailNow(t, fmt.Sprint("installs did not overlap"))
 		}
 	}
 	close(release)

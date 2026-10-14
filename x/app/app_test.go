@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"runtime"
@@ -88,7 +89,7 @@ func TestMissingWebViewDoesNotLoopback(t *testing.T) {
 func TestRunPanicsWithoutStamp(t *testing.T) {
 	defer func() {
 		if recover() == nil {
-			t.Fatal("expected panic")
+			require.FailNow(t, fmt.Sprint("expected panic"))
 		}
 	}()
 	_ = App{NoUI: true}.Run(t.Context())

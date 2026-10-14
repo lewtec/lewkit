@@ -4,18 +4,18 @@ import (
 	"os"
 	"runtime"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestOpenLibcGetpid(t *testing.T) {
 	path, symbol := hostProcessID()
 	handle, err := Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var getpid func() int
 	Register(&getpid, handle, symbol)
 	if got := getpid(); got != os.Getpid() {
-		t.Fatalf("%s %d, process %d", symbol, got, os.Getpid())
+		require.FailNowf(t, "", "%s %d, process %d", symbol, got, os.Getpid())
 	}
 }
 

@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ErrorReader is an io.Reader whose Read always returns Err.
@@ -26,9 +28,8 @@ func (r ErrorReader) Read([]byte) (int, error) { return 0, r.Err }
 func CloseOnCleanup(tb testing.TB, c io.Closer) {
 	tb.Helper()
 	tb.Cleanup(func() {
-		if err := c.Close(); err != nil {
-			tb.Errorf("close: %v", err)
-		}
+		err := c.Close()
+		assert.NoErrorf(tb, err, "close: %v", err)
 	})
 }
 
@@ -37,9 +38,7 @@ func Collect[T any](tb testing.TB, seq iter.Seq2[T, error]) []T {
 	tb.Helper()
 	var out []T
 	for v, err := range seq {
-		if err != nil {
-			tb.Fatal(err)
-		}
+		require.NoError(tb, err)
 		out = append(out, v)
 	}
 	return out
@@ -60,9 +59,7 @@ func Stderr(tb testing.TB, fn func()) string {
 func capture(tb testing.TB, dest **os.File, fn func()) string {
 	tb.Helper()
 	r, w, err := os.Pipe()
-	if err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, err)
 	old := *dest
 	*dest = w
 	closed := false
@@ -75,9 +72,8 @@ func capture(tb testing.TB, dest **os.File, fn func()) string {
 		return w.Close()
 	}
 	tb.Cleanup(func() {
-		if err := closeW(); err != nil {
-			tb.Errorf("close pipe: %v", err)
-		}
+		err := closeW()
+		assert.NoErrorf(tb, err, "close pipe: %v", err)
 	})
 
 	type result struct {
@@ -91,16 +87,10 @@ func capture(tb testing.TB, dest **os.File, fn func()) string {
 	}()
 
 	fn()
-	if err := closeW(); err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, closeW())
 	got := <-done
-	if got.err != nil {
-		tb.Fatal(got.err)
-	}
-	if err := r.Close(); err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, got.err)
+	require.NoError(tb, r.Close())
 	return got.s
 }
 
@@ -133,8 +123,6 @@ func Need(tb testing.TB, name string) string {
 		tb.Skipf("missing %s", name)
 	}
 	abs, err := filepath.Abs(p)
-	if err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, err)
 	return abs
 }

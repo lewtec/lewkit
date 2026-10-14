@@ -3,6 +3,7 @@ package exec_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -58,7 +59,7 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	case err := <-done:
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(3 * time.Second):
-		t.Fatal("process kept running after cancel")
+		require.FailNow(t, fmt.Sprint("process kept running after cancel"))
 	}
 }
 

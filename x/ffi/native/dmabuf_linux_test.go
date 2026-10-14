@@ -2,20 +2,25 @@
 
 package native
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestUseHardwareAccelDegradesWhenTheSmokeFails(t *testing.T) {
 	if useHardwareAccel(accelSmoke{}) {
-		t.Fatal("a display that did not initialize kept the GPU")
+		require.FailNow(t, fmt.Sprint("a display that did not initialize kept the GPU"))
 	}
 	if useHardwareAccel(accelSmoke{display: true, importExt: true}) {
-		t.Fatal("a failed DMA-BUF import kept the GPU")
+		require.FailNow(t, fmt.Sprint("a failed DMA-BUF import kept the GPU"))
 	}
 	if !useHardwareAccel(accelSmoke{display: true}) {
-		t.Fatal("a display without DMA-BUF import was forced to software")
+		require.FailNow(t, fmt.Sprint("a display without DMA-BUF import was forced to software"))
 	}
 	if !useHardwareAccel(accelSmoke{display: true, importExt: true, image: true}) {
-		t.Fatal("a successful import was forced to software")
+		require.FailNow(t, fmt.Sprint("a successful import was forced to software"))
 	}
 }
 

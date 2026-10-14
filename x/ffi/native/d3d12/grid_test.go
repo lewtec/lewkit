@@ -1,6 +1,11 @@
 package d3d12
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestDispatchGrid(t *testing.T) {
 	cases := []struct {
@@ -17,23 +22,21 @@ func TestDispatchGrid(t *testing.T) {
 	}
 	for _, tc := range cases {
 		x, y, err := DispatchGrid(tc.groups)
-		if err != nil {
-			t.Fatalf("groups %d: %v", tc.groups, err)
-		}
+		require.NoErrorf(t, err, "groups %d: %v", tc.groups, err)
 		if x != tc.x || y != tc.y {
-			t.Fatalf("groups %d: got %d×%d want %d×%d", tc.groups, x, y, tc.x, tc.y)
+			require.FailNowf(t, "", "groups %d: got %d×%d want %d×%d", tc.groups, x, y, tc.x, tc.y)
 		}
 		if x < 1 || y < 1 || int(x) > maxGroup || int(y) > maxGroup {
-			t.Fatalf("groups %d: grid %d×%d outside the dimension limit", tc.groups, x, y)
+			require.FailNowf(t, "", "groups %d: grid %d×%d outside the dimension limit", tc.groups, x, y)
 		}
 		if int64(x)*int64(y) < int64(tc.groups) {
-			t.Fatalf("groups %d: grid %d×%d does not cover", tc.groups, x, y)
+			require.FailNowf(t, "", "groups %d: grid %d×%d does not cover", tc.groups, x, y)
 		}
 	}
 	if _, _, err := DispatchGrid(0); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	if _, _, err := DispatchGrid(maxGroup*maxGroup + 1); err == nil {
-		t.Fatal("expected groups past both dimensions to fail")
+		require.FailNow(t, fmt.Sprint("expected groups past both dimensions to fail"))
 	}
 }

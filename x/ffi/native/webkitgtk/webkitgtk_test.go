@@ -3,6 +3,7 @@
 package webkitgtk
 
 import (
+	"fmt"
 	"testing"
 	"unsafe"
 
@@ -40,7 +41,7 @@ func TestGTK3WebViewKeepsAccelerationWhenTheSmokePasses(t *testing.T) {
 	symbols := &Symbols{
 		gtk3: true,
 		settingsNew: func() uintptr {
-			t.Fatal("software settings")
+			require.FailNow(t, fmt.Sprint("software settings"))
 			return 0
 		},
 		newWebView: func() uintptr { return 8 },
@@ -68,7 +69,7 @@ func TestGTK3WebViewDisablesHardwareAcceleration(t *testing.T) {
 			return 9
 		},
 		newWebView: func() uintptr {
-			t.Fatal("accelerated web view")
+			require.FailNow(t, fmt.Sprint("accelerated web view"))
 			return 0
 		},
 		unref: func(obj uintptr) { released = append(released, obj) },
@@ -96,7 +97,7 @@ func TestGTK4WebViewDisablesHardwareAcceleration(t *testing.T) {
 			return 9
 		},
 		newWebView: func() uintptr {
-			t.Fatal("accelerated web view")
+			require.FailNow(t, fmt.Sprint("accelerated web view"))
 			return 0
 		},
 		unref: func(uintptr) {},
@@ -127,7 +128,7 @@ func TestGTK3ProfileViewPassesTheWebContext(t *testing.T) {
 	symbols.dataManagerNew = func(name1, value1, name2, value2 *byte, end uintptr) uintptr { return 11 }
 	symbols.contextWithManager = func(manager uintptr) uintptr { return 22 }
 	symbols.viewWithContext = func(context uintptr) uintptr {
-		t.Fatal("accelerated view")
+		require.FailNow(t, fmt.Sprint("accelerated view"))
 		return 0
 	}
 	symbols.unref = func(uintptr) {}
@@ -166,7 +167,7 @@ func TestWebKit6ProfileUsesNetworkSession(t *testing.T) {
 		},
 		webViewType: func() uintptr { return 5 },
 		dataManagerNew: func(name1, value1, name2, value2 *byte, end uintptr) uintptr {
-			t.Fatal("website data manager used beside a network session")
+			require.FailNow(t, fmt.Sprint("website data manager used beside a network session"))
 			return 0
 		},
 		contextWithManager: func(manager uintptr) uintptr { return 1 },
@@ -210,7 +211,7 @@ func TestWebsiteDataManagerFailureReleasesTheManager(t *testing.T) {
 		dataManagerNew:     func(name1, value1, name2, value2 *byte, end uintptr) uintptr { return 11 },
 		contextWithManager: func(manager uintptr) uintptr { return 0 },
 		viewWithContext: func(context uintptr) uintptr {
-			t.Fatal("view constructed without a context")
+			require.FailNow(t, fmt.Sprint("view constructed without a context"))
 			return 0
 		},
 		unref: func(obj uintptr) { unrefs = append(unrefs, obj) },

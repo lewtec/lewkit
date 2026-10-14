@@ -3,6 +3,7 @@ package text
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,7 +61,7 @@ func TestLineAt(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := tt.li.LineAt(tt.off); got != tt.want {
-				t.Errorf("LineAt(%d) = %d; want %d", tt.off, got, tt.want)
+				assert.Failf(t, "", "LineAt(%d) = %d; want %d", tt.off, got, tt.want)
 			}
 		})
 	}
@@ -93,8 +94,7 @@ func TestLineColumnAt(t *testing.T) {
 			t.Parallel()
 			line, col := li.LineColumnAt(tt.off)
 			if line != tt.wantLine || col != tt.wantColumn {
-				t.Errorf("LineColumnAt(%d) = (%d, %d); want (%d, %d)",
-					tt.off, line, col, tt.wantLine, tt.wantColumn)
+				assert.Failf(t, "", "LineColumnAt(%d) = (%d, %d); want (%d, %d)", tt.off, line, col, tt.wantLine, tt.wantColumn)
 			}
 		})
 	}
@@ -104,7 +104,7 @@ func TestLineColumnAt(t *testing.T) {
 		var nilLI *LineIndex
 		line, col := nilLI.LineColumnAt(5)
 		if line != 1 || col != 0 {
-			t.Errorf("nil LineColumnAt = (%d, %d); want (1, 0)", line, col)
+			assert.Failf(t, "", "nil LineColumnAt = (%d, %d); want (1, 0)", line, col)
 		}
 	})
 }
@@ -112,14 +112,14 @@ func TestLineColumnAt(t *testing.T) {
 func TestLineAtU32(t *testing.T) {
 	li := NewLineIndex("a\nb\n")
 	if got := li.LineAtU32(2); got != 2 {
-		t.Errorf("LineAtU32(2) = %d; want 2", got)
+		assert.Failf(t, "", "LineAtU32(2) = %d; want 2", got)
 	}
 	if got := li.LineAtU32(100); got != 2 {
-		t.Errorf("LineAtU32(100) = %d; want 2", got)
+		assert.Failf(t, "", "LineAtU32(100) = %d; want 2", got)
 	}
 	line, col := li.LineColumnAtU32(3)
 	if line != 2 || col != 1 {
-		t.Errorf("LineColumnAtU32(3) = (%d, %d); want (2, 1)", line, col)
+		assert.Failf(t, "", "LineColumnAtU32(3) = (%d, %d); want (2, 1)", line, col)
 	}
 }
 

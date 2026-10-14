@@ -3,7 +3,6 @@ package ios
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,6 +12,8 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
 	"github.com/lewtec/lewkit/x/driver/iosbox"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNotIOS(t *testing.T) {
@@ -20,9 +21,7 @@ func TestNotIOS(t *testing.T) {
 		t.Skip()
 	}
 	err := factory{}.CheckCompatibility(t.Context())
-	if !errors.Is(err, driver.ErrIncompatible) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
 }
 
 func TestOpen(t *testing.T) {
@@ -42,22 +41,18 @@ func TestOpen(t *testing.T) {
 		}
 		var msg iosbox.Request
 		if err := json.Unmarshal(raw, &msg); err != nil {
-			t.Errorf("request: %v", err)
+			assert.Failf(t, "", "request: %v", err)
 			return
 		}
 		got <- msg
 		body := askwire.Format(askwire.StatusOK, "")
-		if err := os.WriteFile(filepath.Join(dir, "reply.txt"), []byte(body), 0o600); err != nil {
-			t.Error(err)
-		}
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "reply.txt"), []byte(body), 0o600))
 	}()
 	ctx, cancel := context.WithTimeout(iosbox.WithDir(t.Context(), dir), 2*time.Second)
 	defer cancel()
-	if err := (backend{}).Open(ctx, "https://lew.tec.br"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, (backend{}).Open(ctx, "https://lew.tec.br"))
 	msg := <-got
 	if msg.Op != iosbox.OpOpen || msg.Target != "https://lew.tec.br" {
-		t.Fatalf("%+v", msg)
+		require.FailNowf(t, "", "%+v", msg)
 	}
 }

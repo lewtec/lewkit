@@ -4,6 +4,7 @@ package wayland
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"os"
@@ -61,7 +62,7 @@ func TestPointerButton(t *testing.T) {
 func TestOpenNilContextPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
-			t.Fatal("nil context returned")
+			require.FailNow(t, fmt.Sprint("nil context returned"))
 		}
 	}()
 	_, _ = opener{}.Open(nil, window.Config{})
@@ -102,7 +103,7 @@ func TestOpenAgainstFakeCompositor(t *testing.T) {
 	select {
 	case mem = <-mapped:
 	case <-ctx.Done():
-		t.Fatal("compositor did not map the pool")
+		require.FailNow(t, fmt.Sprint("compositor did not map the pool"))
 	}
 	want := []byte{30, 20, 10, 255}
 	found := false

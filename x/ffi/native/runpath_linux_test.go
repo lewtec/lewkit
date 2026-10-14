@@ -4,76 +4,65 @@ package native
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestElfRunpathReadsStorePaths(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "zenity")
-	if err := os.WriteFile(path, elf64WithPaths("/nix/store/gtk/lib:/nix/store/glib/lib", ""), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, elf64WithPaths("/nix/store/gtk/lib:/nix/store/glib/lib", ""), 0o755))
 	got := elfRunpath(path)
 	want := []string{"/nix/store/gtk/lib", "/nix/store/glib/lib"}
 	if len(got) != len(want) {
-		t.Fatalf("runpath %q", got)
+		require.FailNowf(t, "", "runpath %q", got)
 	}
 	for i := range want {
 		if got[i] != want[i] {
-			t.Fatalf("runpath %q", got)
+			require.FailNowf(t, "", "runpath %q", got)
 		}
 	}
 }
 
 func TestElfRunpathExpandsOrigin(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "bin")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(dir, 0o755))
 	path := filepath.Join(dir, "tool")
-	if err := os.WriteFile(path, elf64WithPaths("$ORIGIN/../lib:${ORIGIN}/extra", ""), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, elf64WithPaths("$ORIGIN/../lib:${ORIGIN}/extra", ""), 0o755))
 	got := elfRunpath(path)
 	want := []string{filepath.Join(dir, "../lib"), filepath.Join(dir, "extra")}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-		t.Fatalf("runpath %q", got)
+		require.FailNowf(t, "", "runpath %q", got)
 	}
 }
 
 func TestElfRunpathPrefersRunpathOverRpath(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "tool")
-	if err := os.WriteFile(path, elf64WithPaths("/run/only", "/rpath/ignored"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, elf64WithPaths("/run/only", "/rpath/ignored"), 0o755))
 	got := elfRunpath(path)
 	if len(got) != 1 || got[0] != "/run/only" {
-		t.Fatalf("runpath %q", got)
+		require.FailNowf(t, "", "runpath %q", got)
 	}
 	rpath := filepath.Join(t.TempDir(), "rpath")
-	if err := os.WriteFile(rpath, elf64WithPaths("", "/rpath/only"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(rpath, elf64WithPaths("", "/rpath/only"), 0o755))
 	got = elfRunpath(rpath)
 	if len(got) != 1 || got[0] != "/rpath/only" {
-		t.Fatalf("rpath %q", got)
+		require.FailNowf(t, "", "rpath %q", got)
 	}
 }
 
 func TestRunpathsFollowsWrappedBinary(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "zenity")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\nexec \"$0\"\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\nexec \"$0\"\n"), 0o755))
 	wrapped := filepath.Join(dir, ".zenity-wrapped")
-	if err := os.WriteFile(wrapped, elf64WithPaths("/nix/store/gtk4/lib", ""), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(wrapped, elf64WithPaths("/nix/store/gtk4/lib", ""), 0o755))
 	got := runpathsOf(script)
 	if len(got) != 1 || got[0] != "/nix/store/gtk4/lib" {
-		t.Fatalf("runpath %q", got)
+		require.FailNowf(t, "", "runpath %q", got)
 	}
 }
 
@@ -81,17 +70,15 @@ func TestNixStoreBinPattern(t *testing.T) {
 	text := []byte("exec /nix/store/abc-zenity-4/bin/.zenity-wrapped \"$@\"\n")
 	got := nixStoreBin.FindAll(text, -1)
 	if len(got) != 1 || string(got[0]) != "/nix/store/abc-zenity-4/bin/.zenity-wrapped" {
-		t.Fatalf("bins %q", got)
+		require.FailNowf(t, "", "bins %q", got)
 	}
 }
 
 func TestElfRunpathIgnoresPlainFiles(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "text")
-	if err := os.WriteFile(path, []byte("not elf"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte("not elf"), 0o644))
 	if elfRunpath(path) != nil {
-		t.Fatal("plain file had a runpath")
+		require.FailNow(t, fmt.Sprint("plain file had a runpath"))
 	}
 }
 

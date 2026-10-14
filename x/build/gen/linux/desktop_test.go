@@ -3,6 +3,8 @@ package linux
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDesktopFile(t *testing.T) {
@@ -17,7 +19,7 @@ func TestDesktopFile(t *testing.T) {
 		"X-Lewkit-Version=1.2.3",
 	} {
 		if !strings.Contains(body, line) {
-			t.Fatalf("missing %q in\n%s", line, body)
+			require.FailNowf(t, "", "missing %q in\n%s", line, body)
 		}
 	}
 }

@@ -1,17 +1,20 @@
 package taskgroup
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestWithoutSession(t *testing.T) {
 	sess, ctx := New(t.Context(), DefaultLimits())
 	detached := WithoutSession(ctx)
 	if FromContext(detached) != nil {
-		t.Fatal("session leaked")
+		require.FailNow(t, fmt.Sprint("session leaked"))
 	}
 	if FromContext(ctx) != sess {
-		t.Fatal("parent session")
+		require.FailNow(t, fmt.Sprint("parent session"))
 	}
-	if err := sess.Wait(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, sess.Wait())
 }

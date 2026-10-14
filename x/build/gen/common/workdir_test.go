@@ -1,44 +1,39 @@
 package common
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveWorkDir_CreatesMissingPath(t *testing.T) {
 	want := filepath.Join(t.TempDir(), "nested", "work")
 	got, cleanup, err := ResolveWorkDir(want, "eletrocromo-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if cleanup {
-		t.Fatal("explicit work dir should not be marked cleanup")
+		require.FailNow(t, fmt.Sprint("explicit work dir should not be marked cleanup"))
 	}
 	abs, err := filepath.Abs(want)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got != abs {
-		t.Fatalf("got %q want %q", got, abs)
+		require.FailNowf(t, "", "got %q want %q", got, abs)
 	}
 	st, err := os.Stat(got)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !st.IsDir() {
-		t.Fatalf("%s is not a directory", got)
+		require.FailNowf(t, "", "%s is not a directory", got)
 	}
 }
 
 func TestResolveWorkDir_EmptyMakesTemp(t *testing.T) {
 	dir, cleanup, err := ResolveWorkDir("", "eletrocromo-test-*")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !cleanup {
-		t.Fatal("temp work dir should be marked cleanup")
+		require.FailNow(t, fmt.Sprint("temp work dir should be marked cleanup"))
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(dir); err != nil {
@@ -46,13 +41,11 @@ func TestResolveWorkDir_EmptyMakesTemp(t *testing.T) {
 		}
 	})
 	if !strings.Contains(filepath.Base(dir), "eletrocromo-test-") {
-		t.Fatalf("temp name %q missing prefix", dir)
+		require.FailNowf(t, "", "temp name %q missing prefix", dir)
 	}
 	st, err := os.Stat(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !st.IsDir() {
-		t.Fatalf("%s is not a directory", dir)
+		require.FailNowf(t, "", "%s is not a directory", dir)
 	}
 }

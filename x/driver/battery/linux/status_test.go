@@ -1,22 +1,24 @@
 package linux
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver/battery"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseStatus(t *testing.T) {
 	if parseStatus("Charging\n") != battery.Charging {
-		t.Fatal("charging")
+		require.FailNow(t, fmt.Sprint("charging"))
 	}
 	if parseStatus("Discharging") != battery.Discharging {
-		t.Fatal("discharging")
+		require.FailNow(t, fmt.Sprint("discharging"))
 	}
 	if parseStatus("Full") != battery.Full {
-		t.Fatal("full")
+		require.FailNow(t, fmt.Sprint("full"))
 	}
 	if parseStatus("Not charging\n") != battery.Status("Not charging") {
-		t.Fatal("other")
+		require.FailNow(t, fmt.Sprint("other"))
 	}
 }

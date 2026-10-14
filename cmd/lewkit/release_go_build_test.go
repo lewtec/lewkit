@@ -11,7 +11,8 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
-	"github.com/lewtec/lewkit/x/toolchain/go"
+	gotool "github.com/lewtec/lewkit/x/toolchain/go"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -28,19 +29,11 @@ func TestMain(m *testing.M) {
 func TestReleaseGoBuild(t *testing.T) {
 	setToolchainEnv(t)
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/m\n\ngo 1.27\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/m\n\ngo 1.27\n"), 0o644))
 	mainSrc := "package main\n\nimport \"example.com/m/p\"\n\nfunc main() { println(p.Value()) }\n"
-	if err := os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainSrc), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Join(dir, "p"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "p", "p.go"), []byte("package p\n\nfunc Value() int { return 7 }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(mainSrc), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "p"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "p", "p.go"), []byte("package p\n\nfunc Value() int { return 7 }\n"), 0o644))
 	// release go reads archives from -pkgdir. The fixture copies the
 	// installed runtime out of the build cache; the command does not run go.
 	pkgdir := filepath.Join(dir, "std")
@@ -54,15 +47,11 @@ func TestReleaseGoBuild(t *testing.T) {
 		"-pkgdir", pkgdir,
 	})
 	app := cmd.ParseOK[cmd.App[root]](t, args...)
-	if err := app.Args.release.gobuild.build.Run(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, app.Args.release.gobuild.build.Run(t.Context()))
 	got, err := exec.Command(out).CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, got)
-	}
+	require.NoErrorf(t, err, "run: %v\n%s", err, got)
 	if string(got) != "7\n" {
-		t.Fatalf("output %q", got)
+		require.FailNowf(t, "", "output %q", got)
 	}
 }
 
@@ -79,9 +68,7 @@ func setToolchainEnv(t *testing.T) {
 		{"GOPATH", filepath.Join(os.TempDir(), "lewkit-toolchain-gopath")},
 		{"HOME", filepath.Join(os.TempDir(), "lewkit-toolchain-home")},
 	} {
-		if err := os.MkdirAll(pair[1], 0o755); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.MkdirAll(pair[1], 0o755))
 		t.Setenv(pair[0], pair[1])
 	}
 	t.Setenv("GOTOOLCHAIN", "local")
@@ -102,7 +89,7 @@ func TestReleaseGoLewkit(t *testing.T) {
 	dl := exec.Command("go", "mod", "download")
 	dl.Dir = modRoot
 	if out, err := dl.CombinedOutput(); err != nil {
-		t.Fatalf("go mod download: %v\n%s", err, out)
+		require.FailNowf(t, "", "go mod download: %v\n%s", err, out)
 	}
 	pkgdir := filepath.Join(t.TempDir(), "pkg")
 	fillPrebuilt(t, modRoot, pkgdir)
@@ -114,27 +101,17 @@ func TestReleaseGoLewkit(t *testing.T) {
 		"-pkgdir", pkgdir,
 	})
 	app := cmd.ParseOK[cmd.App[root]](t, args...)
-	if err := app.Args.release.gobuild.build.Run(t.Context()); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, app.Args.release.gobuild.build.Run(t.Context()))
 	helloDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(helloDir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(helloDir, "hello.go"), []byte("package main\n\nfunc main() { println(\"from-lewkit\") }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(helloDir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(helloDir, "hello.go"), []byte("package main\n\nfunc main() { println(\"from-lewkit\") }\n"), 0o644))
 	hello := filepath.Join(helloDir, "hello")
 	got, err := exec.Command(out, "--sentry-dsn=", "release", "go", "build", "-C", helloDir, "-o", hello, "-pkgdir", pkgdir, ".").CombinedOutput()
-	if err != nil {
-		t.Fatalf("built lewkit release go: %v\n%s", err, got)
-	}
+	require.NoErrorf(t, err, "built lewkit release go: %v\n%s", err, got)
 	got, err = exec.Command(hello).CombinedOutput()
-	if err != nil {
-		t.Fatalf("run built hello: %v\n%s", err, got)
-	}
+	require.NoErrorf(t, err, "run built hello: %v\n%s", err, got)
 	if string(got) != "from-lewkit\n" {
-		t.Fatalf("output %q", got)
+		require.FailNowf(t, "", "output %q", got)
 	}
 }
 
@@ -142,7 +119,7 @@ func moduleRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		t.Fatal("caller")
+		require.FailNow(t, fmt.Sprint("caller"))
 	}
 	dir := filepath.Dir(file)
 	for {
@@ -151,7 +128,7 @@ func moduleRoot(t *testing.T) string {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			t.Fatal("go.mod")
+			require.FailNow(t, fmt.Sprint("go.mod"))
 		}
 		dir = parent
 	}
@@ -171,11 +148,9 @@ func fillPrebuilt(t *testing.T, module, pkgdir string) {
 		if ee, ok := err.(*exec.ExitError); ok {
 			stderr = string(ee.Stderr)
 		}
-		t.Fatalf("go list: %v\n%s", err, stderr)
+		require.FailNowf(t, "", "go list: %v\n%s", err, stderr)
 	}
-	if err := os.MkdirAll(pkgdir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(pkgdir, 0o755))
 	n := 0
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
@@ -184,21 +159,17 @@ func fillPrebuilt(t *testing.T, module, pkgdir string) {
 		}
 		imp, src, ok := strings.Cut(line, " ")
 		if !ok {
-			t.Fatalf("go list line %q", line)
+			require.FailNowf(t, "", "go list line %q", line)
 		}
 		dst := filepath.Join(pkgdir, filepath.FromSlash(imp)+".a")
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.MkdirAll(filepath.Dir(dst), 0o755))
 		if err := os.Link(src, dst); err != nil {
-			if err := copyFile(src, dst); err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, copyFile(src, dst))
 		}
 		n++
 	}
 	if n == 0 {
-		t.Fatal("no prebuilt archives")
+		require.FailNow(t, fmt.Sprint("no prebuilt archives"))
 	}
 }
 
@@ -212,11 +183,9 @@ func fillRuntime(t *testing.T, module, pkgdir string) {
 		if ee, ok := err.(*exec.ExitError); ok {
 			stderr = string(ee.Stderr)
 		}
-		t.Fatalf("go list runtime: %v\n%s", err, stderr)
+		require.FailNowf(t, "", "go list runtime: %v\n%s", err, stderr)
 	}
-	if err := os.MkdirAll(pkgdir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(pkgdir, 0o755))
 	for _, line := range strings.Split(string(out), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -224,15 +193,11 @@ func fillRuntime(t *testing.T, module, pkgdir string) {
 		}
 		imp, src, ok := strings.Cut(line, " ")
 		if !ok {
-			t.Fatalf("go list line %q", line)
+			require.FailNowf(t, "", "go list line %q", line)
 		}
 		dst := filepath.Join(pkgdir, filepath.FromSlash(imp)+".a")
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := copyFile(src, dst); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.MkdirAll(filepath.Dir(dst), 0o755))
+		require.NoError(t, copyFile(src, dst))
 	}
 }
 

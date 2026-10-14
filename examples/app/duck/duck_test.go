@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/png"
 	"io"
@@ -262,13 +263,13 @@ func TestClipKeepsTheParentContext(t *testing.T) {
 	select {
 	case <-entered:
 	case <-time.After(3 * time.Second):
-		t.Fatal("clip did not start")
+		require.FailNow(t, fmt.Sprint("clip did not start"))
 	}
 	cancelParent()
 	select {
 	case <-clip.Done():
 	case <-time.After(3 * time.Second):
-		t.Fatal("parent cancel did not reach the clip")
+		require.FailNow(t, fmt.Sprint("parent cancel did not reach the clip"))
 	}
 	waitSession(t, sess)
 }
@@ -284,7 +285,7 @@ func TestWindowReturnStopsTheClip(t *testing.T) {
 	select {
 	case <-entered:
 	case <-time.After(3 * time.Second):
-		t.Fatal("clip did not start")
+		require.FailNow(t, fmt.Sprint("clip did not start"))
 	}
 	stop()
 	assert.NoError(t, ctx.Err())
@@ -299,6 +300,6 @@ func waitSession(t *testing.T, sess *taskgroup.Session) {
 	case err := <-done:
 		require.NoError(t, err)
 	case <-time.After(3 * time.Second):
-		t.Fatal("session still waiting on the clip")
+		require.FailNow(t, fmt.Sprint("session still waiting on the clip"))
 	}
 }

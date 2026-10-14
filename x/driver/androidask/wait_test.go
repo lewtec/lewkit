@@ -1,20 +1,23 @@
 package androidask
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestDeliverOnce(t *testing.T) {
 	ch, g, err := begin()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer end()
 	deliver(g, "ok\n")
 	deliver(g, "again")
 	got := <-ch
 	if got != "ok\n" {
-		t.Fatalf("got %q", got)
+		require.FailNowf(t, "", "got %q", got)
 	}
 	if _, _, err := begin(); err == nil {
-		t.Fatal("second begin succeeded")
+		require.FailNow(t, fmt.Sprint("second begin succeeded"))
 	}
 }

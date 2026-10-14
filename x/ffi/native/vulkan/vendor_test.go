@@ -3,6 +3,7 @@ package vulkan
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +25,7 @@ func TestVendorFrom(t *testing.T) {
 	for _, tt := range tests {
 		got := VendorFrom(tt.vendorID, tt.name)
 		if got != tt.want {
-			t.Errorf("VendorFrom(%#x, %q) = %s, want %s", tt.vendorID, tt.name, got, tt.want)
+			assert.Failf(t, "", "VendorFrom(%#x, %q) = %s, want %s", tt.vendorID, tt.name, got, tt.want)
 		}
 	}
 }
@@ -46,7 +47,7 @@ func TestDeviceTypeFrom(t *testing.T) {
 	for _, tt := range tests {
 		got := deviceTypeFrom(tt.deviceType, tt.name)
 		if got != tt.want {
-			t.Errorf("deviceTypeFrom(%d, %q) = %v, want %v", tt.deviceType, tt.name, got, tt.want)
+			assert.Failf(t, "", "deviceTypeFrom(%d, %q) = %v, want %v", tt.deviceType, tt.name, got, tt.want)
 		}
 	}
 }
