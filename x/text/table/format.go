@@ -1,16 +1,13 @@
 // Package table writes a sequence of values as a table, JSONL, or CSV.
 package table
 
-import (
-	"fmt"
+import "fmt"
 
-	"github.com/lewtec/lewkit/x/errs"
-)
-
-// ErrFormat means the format token is not one of table, jsonl, or csv.
-var ErrFormat = errs.Wrap(errs.ErrUnknown, "unknown format")
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum format.go
 
 // Format selects how Write prints a sequence. The zero value is invalid.
+//
+//lewkit:enum
 type Format int
 
 const (
@@ -19,26 +16,8 @@ const (
 	CSV
 )
 
-func (format Format) String() string {
-	switch format {
-	case Table:
-		return "table"
-	case JSONL:
-		return "jsonl"
-	case CSV:
-		return "csv"
-	default:
-		return ""
-	}
-}
-
-// Values lists the CLI tokens in usage order.
-func (Format) Values() []Format {
-	return []Format{Table, JSONL, CSV}
-}
-
 func (format Format) validate() error {
-	if format.String() == "" {
+	if !format.IsValid() {
 		return fmt.Errorf("%w: %d", ErrFormat, int(format))
 	}
 	return nil

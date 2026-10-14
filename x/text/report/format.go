@@ -3,12 +3,14 @@ package report
 import (
 	"fmt"
 	"io"
-	"strconv"
-	"strings"
 )
+
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum format.go
 
 // Format is one diagnostic rendering. The zero value is unset.
 // It is a cmd.Enum, so cmd.EnumArg[Format] parses a flag when a caller opts in.
+//
+//lewkit:enum fold
 type Format int
 
 const (
@@ -42,43 +44,6 @@ func WriteText(w io.Writer, findings []Finding) error {
 	return nil
 }
 
-// String is the token for cmd.EnumArg.
-func (f Format) String() string {
-	switch f {
-	case FormatText:
-		return "text"
-	case FormatTable:
-		return "table"
-	case FormatSARIF:
-		return "sarif"
-	case FormatRustc:
-		return "rustc"
-	default:
-		return ""
-	}
-}
-
-// Values lists formats for cmd.EnumArg. The zero value is absent.
-func (Format) Values() []Format {
-	return []Format{FormatText, FormatTable, FormatSARIF, FormatRustc}
-}
-
-// ParseFormat accepts text, table, sarif, or rustc, in any case. An empty string is an error.
-func ParseFormat(format string) (Format, error) {
-	switch strings.ToLower(strings.TrimSpace(format)) {
-	case "text":
-		return FormatText, nil
-	case "table":
-		return FormatTable, nil
-	case "sarif":
-		return FormatSARIF, nil
-	case "rustc":
-		return FormatRustc, nil
-	default:
-		return 0, fmt.Errorf("%w %s (want text, table, sarif, or rustc)", ErrFormat, strconv.Quote(format))
-	}
-}
-
 // Render writes findings in this format.
 // root resolves relative paths for SARIF fixes and rustc file links.
 // A zero Tool uses the lewkit driver name in SARIF.
@@ -94,6 +59,6 @@ func (f Format) Render(w io.Writer, root string, tool Tool, findings []Finding, 
 	case FormatRustc:
 		return WriteRustc(w, root, findings)
 	default:
-		return fmt.Errorf("%w %s (want text, table, sarif, or rustc)", ErrFormat, strconv.Quote(f.String()))
+		return fmt.Errorf("%w: %q", ErrFormat, f.String())
 	}
 }
