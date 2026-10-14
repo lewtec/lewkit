@@ -36,13 +36,20 @@ var (
 	ErrXcodebuildNotFound = common.ErrXcodebuildNotFound
 	ErrXcodeGenNotFound   = common.ErrXcodeGenNotFound
 	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug-iphonesimulator .app under DerivedData")
-	ErrUnknownSDK         = errs.Wrap(errs.ErrUnknown, "sdk must be iphonesimulator or iphoneos")
 )
 
-// SDKSimulator / SDKDevice are xcrun SDK names.
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum build.go
+
+// SDK is an xcrun SDK name. An empty text is the simulator.
+//
+//lewkit:enum empty=iphonesimulator
+type SDK string
+
 const (
-	SDKSimulator = "iphonesimulator"
-	SDKDevice    = "iphoneos"
+	// SDKSimulator is the iOS Simulator SDK.
+	SDKSimulator SDK = "iphonesimulator" // simulator
+	// SDKDevice is the iOS device SDK.
+	SDKDevice SDK = "iphoneos" // device
 )
 
 // BuildOptions drives an iOS .app build from an eletrocromo app.
@@ -192,21 +199,11 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 }
 
 func normalizeSDK(sdk string) (string, error) {
-	s := strings.TrimSpace(sdk)
-	if s == "" {
-		return SDKSimulator, nil
+	parsed, err := ParseSDK(sdk)
+	if err != nil {
+		return "", err
 	}
-	switch s {
-	case SDKSimulator, SDKDevice, "simulator":
-		if s == "simulator" {
-			return SDKSimulator, nil
-		}
-		return s, nil
-	case "device":
-		return SDKDevice, nil
-	default:
-		return "", fmt.Errorf("%w: %s", ErrUnknownSDK, s)
-	}
+	return string(parsed), nil
 }
 
 // SplashPointSize is the on-screen logo size (points) for the launch
@@ -381,7 +378,7 @@ func excludedArch(xArch string) string {
 }
 
 func xcodeDestination(sdk string) (destination, productsDir string) {
-	if sdk == SDKDevice {
+	if sdk == string(SDKDevice) {
 		return "generic/platform=iOS", "Debug-iphoneos"
 	}
 	return "generic/platform=iOS Simulator", "Debug-iphonesimulator"
