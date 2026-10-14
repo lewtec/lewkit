@@ -3,30 +3,32 @@ package disasm
 import (
 	"fmt"
 	"strings"
-
-	"github.com/lewtec/lewkit/x/errs"
 )
 
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum arch.go
+
 // Architecture is a Capstone architecture.
+//
+//lewkit:enum fold
 type Architecture uint32
 
 const (
 	ArchitectureARM        Architecture = 0
-	ArchitectureAArch64    Architecture = 1
+	ArchitectureAArch64    Architecture = 1 // aarch64, arm64
 	ArchitectureMIPS       Architecture = 2
-	ArchitectureX86        Architecture = 3
-	ArchitecturePowerPC    Architecture = 4
+	ArchitectureX86        Architecture = 3 // x86, x86_64, amd64
+	ArchitecturePowerPC    Architecture = 4 // powerpc, ppc
 	ArchitectureSPARC      Architecture = 5
-	ArchitectureSystemZ    Architecture = 6
+	ArchitectureSystemZ    Architecture = 6 // systemz, sysz, s390
 	ArchitectureXCore      Architecture = 7
 	ArchitectureM68K       Architecture = 8
 	ArchitectureTMS320C64X Architecture = 9
 	ArchitectureM680X      Architecture = 10
 	ArchitectureEVM        Architecture = 11
-	ArchitectureMOS65XX    Architecture = 12
+	ArchitectureMOS65XX    Architecture = 12 // mos65xx, 6502
 	ArchitectureWASM       Architecture = 13
-	ArchitectureBPF        Architecture = 14
-	ArchitectureRISCV      Architecture = 15
+	ArchitectureBPF        Architecture = 14 // bpf, ebpf
+	ArchitectureRISCV      Architecture = 15 // riscv, risc-v
 	ArchitectureSH         Architecture = 16
 	ArchitectureTriCore    Architecture = 17
 	ArchitectureAlpha      Architecture = 18
@@ -60,46 +62,17 @@ const (
 )
 
 // Syntax is a Capstone assembly syntax.
+//
+//lewkit:enum fold
 type Syntax uint32
 
 const (
 	SyntaxDefault Syntax = 1 << 1
 	SyntaxIntel   Syntax = 1 << 2
-	SyntaxATT     Syntax = 1 << 3
+	SyntaxATT     Syntax = 1 << 3 // att, at&t
 	SyntaxNoReg   Syntax = 1 << 4
 	SyntaxMASM    Syntax = 1 << 5
 )
-
-var architectureNames = map[string]Architecture{
-	"arm":        ArchitectureARM,
-	"arm64":      ArchitectureAArch64,
-	"aarch64":    ArchitectureAArch64,
-	"mips":       ArchitectureMIPS,
-	"x86":        ArchitectureX86,
-	"x86_64":     ArchitectureX86,
-	"amd64":      ArchitectureX86,
-	"ppc":        ArchitecturePowerPC,
-	"powerpc":    ArchitecturePowerPC,
-	"sparc":      ArchitectureSPARC,
-	"sysz":       ArchitectureSystemZ,
-	"systemz":    ArchitectureSystemZ,
-	"s390":       ArchitectureSystemZ,
-	"xcore":      ArchitectureXCore,
-	"m68k":       ArchitectureM68K,
-	"tms320c64x": ArchitectureTMS320C64X,
-	"m680x":      ArchitectureM680X,
-	"evm":        ArchitectureEVM,
-	"mos65xx":    ArchitectureMOS65XX,
-	"6502":       ArchitectureMOS65XX,
-	"wasm":       ArchitectureWASM,
-	"bpf":        ArchitectureBPF,
-	"ebpf":       ArchitectureBPF,
-	"riscv":      ArchitectureRISCV,
-	"risc-v":     ArchitectureRISCV,
-	"sh":         ArchitectureSH,
-	"tricore":    ArchitectureTriCore,
-	"alpha":      ArchitectureAlpha,
-}
 
 var modeNames = map[string]Mode{
 	"little":   ModeLittleEndian,
@@ -127,29 +100,6 @@ var modeNames = map[string]Mode{
 	"riscvc":   ModeRISCVC,
 }
 
-var syntaxNames = map[string]Syntax{
-	"default": SyntaxDefault,
-	"intel":   SyntaxIntel,
-	"att":     SyntaxATT,
-	"at&t":    SyntaxATT,
-	"noreg":   SyntaxNoReg,
-	"masm":    SyntaxMASM,
-}
-
-func lookupNamed[T ~uint32](m map[string]T, name, kind string) (T, error) {
-	v, ok := m[strings.ToLower(strings.TrimSpace(name))]
-	if !ok {
-		var zero T
-		return zero, fmt.Errorf("%w %s %q", errs.ErrUnknown, kind, name)
-	}
-	return v, nil
-}
-
-// ParseArchitecture maps a name such as x86 or aarch64.
-func ParseArchitecture(name string) (Architecture, error) {
-	return lookupNamed(architectureNames, name, "architecture")
-}
-
 // ParseMode maps a comma-separated list of mode bits such as 64 or thumb,v8.
 func ParseMode(name string) (Mode, error) {
 	name = strings.TrimSpace(name)
@@ -169,105 +119,6 @@ func ParseMode(name string) (Mode, error) {
 		mode |= bit
 	}
 	return mode, nil
-}
-
-// ParseSyntax maps a name such as intel or att.
-func ParseSyntax(name string) (Syntax, error) {
-	return lookupNamed(syntaxNames, name, "syntax")
-}
-
-// String is the CLI token for cmd.EnumArg.
-func (architecture Architecture) String() string {
-	switch architecture {
-	case ArchitectureARM:
-		return "arm"
-	case ArchitectureAArch64:
-		return "aarch64"
-	case ArchitectureMIPS:
-		return "mips"
-	case ArchitectureX86:
-		return "x86"
-	case ArchitecturePowerPC:
-		return "powerpc"
-	case ArchitectureSPARC:
-		return "sparc"
-	case ArchitectureSystemZ:
-		return "systemz"
-	case ArchitectureXCore:
-		return "xcore"
-	case ArchitectureM68K:
-		return "m68k"
-	case ArchitectureTMS320C64X:
-		return "tms320c64x"
-	case ArchitectureM680X:
-		return "m680x"
-	case ArchitectureEVM:
-		return "evm"
-	case ArchitectureMOS65XX:
-		return "mos65xx"
-	case ArchitectureWASM:
-		return "wasm"
-	case ArchitectureBPF:
-		return "bpf"
-	case ArchitectureRISCV:
-		return "riscv"
-	case ArchitectureSH:
-		return "sh"
-	case ArchitectureTriCore:
-		return "tricore"
-	case ArchitectureAlpha:
-		return "alpha"
-	default:
-		return ""
-	}
-}
-
-// Values lists architectures for cmd.EnumArg.
-func (Architecture) Values() []Architecture {
-	return []Architecture{
-		ArchitectureARM,
-		ArchitectureAArch64,
-		ArchitectureMIPS,
-		ArchitectureX86,
-		ArchitecturePowerPC,
-		ArchitectureSPARC,
-		ArchitectureSystemZ,
-		ArchitectureXCore,
-		ArchitectureM68K,
-		ArchitectureTMS320C64X,
-		ArchitectureM680X,
-		ArchitectureEVM,
-		ArchitectureMOS65XX,
-		ArchitectureWASM,
-		ArchitectureBPF,
-		ArchitectureRISCV,
-		ArchitectureSH,
-		ArchitectureTriCore,
-		ArchitectureAlpha,
-	}
-}
-
-// String is the CLI token for cmd.EnumArg.
-func (syntax Syntax) String() string {
-	switch syntax {
-	case SyntaxDefault:
-		return "default"
-	case SyntaxIntel:
-		return "intel"
-	case SyntaxATT:
-		return "att"
-	case SyntaxNoReg:
-		return "noreg"
-	case SyntaxMASM:
-		return "masm"
-	default:
-		return ""
-	}
-}
-
-// Values lists syntaxes for cmd.EnumArg.
-func (Syntax) Values() []Syntax {
-	return []Syntax{SyntaxDefault, SyntaxIntel, SyntaxATT, SyntaxNoReg, SyntaxMASM}
 }
 
 // Parse makes Mode a command-line argument (comma-separated bits).
