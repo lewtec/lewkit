@@ -19,7 +19,7 @@ var (
 	// ErrPage means Config has neither HTML nor FS.
 	ErrPage = errs.Wrap(errs.ErrEmpty, "webview page is empty")
 	// ErrSize means a dimension is negative.
-	ErrSize = errs.Wrap(errs.ErrInvalid, "invalid size")
+	ErrSize = clientsize.ErrSize
 	// ErrAsset means a request path cannot be opened from the page FS.
 	ErrAsset = errors.New("webview asset")
 	// ErrClosed means the view is gone.

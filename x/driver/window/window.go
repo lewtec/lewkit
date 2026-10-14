@@ -23,7 +23,7 @@ import (
 
 var (
 	ErrClosed   = errs.Wrap(errs.ErrClosed, "window closed")
-	ErrSize     = errs.Wrap(errs.ErrInvalid, "invalid size")
+	ErrSize     = clientsize.ErrSize
 	ErrNotBound = thread.ErrNotBound
 	ErrNotMain  = thread.ErrNotMain
 	ErrInit     = errors.New("window init")
