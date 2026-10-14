@@ -19,6 +19,14 @@ func TestRequireEnvFallsBackToProcess(t *testing.T) {
 	require.NoError(t, driver.RequireEnv(t.Context(), "LEWKIT_REQUIRE_TEST"))
 }
 
+func TestRequireDisplay(t *testing.T) {
+	ctx := driver.WithEnv(t.Context(), []string{"WAYLAND_DISPLAY=wayland-0"})
+	require.NoError(t, driver.RequireDisplay(ctx))
+	err := driver.RequireDisplay(driver.WithEnv(t.Context(), []string{"DISPLAY=", "WAYLAND_DISPLAY="}))
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.EqualError(t, err, "component is incompatible: neither DISPLAY nor WAYLAND_DISPLAY set")
+}
+
 func TestRequireAnyEnv(t *testing.T) {
 	ctx := driver.WithEnv(t.Context(), []string{"WAYLAND_DISPLAY=wayland-0"})
 	require.NoError(t, driver.RequireAnyEnv(ctx, "DISPLAY", "WAYLAND_DISPLAY"))

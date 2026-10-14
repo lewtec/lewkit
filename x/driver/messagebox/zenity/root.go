@@ -3,7 +3,6 @@ package zenity
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
@@ -17,8 +16,8 @@ func (factory) Name() string { return "Zenity alert" }
 func (factory) Weight() int  { return 40 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if driver.GetEnv(ctx, "DISPLAY") == "" && driver.GetEnv(ctx, "WAYLAND_DISPLAY") == "" {
-		return fmt.Errorf("%w: neither DISPLAY nor WAYLAND_DISPLAY set", driver.ErrIncompatible)
+	if err := driver.RequireDisplay(ctx); err != nil {
+		return err
 	}
 	return execdriver.RequireBinary(ctx, "zenity")
 }
