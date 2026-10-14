@@ -4,6 +4,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +22,7 @@ func TestInfoFlags(t *testing.T) {
 
 func TestNotifyIconLayout(t *testing.T) {
 	if unsafe.Sizeof(uintptr(0)) != 8 {
-		t.Skip()
+		test.Skip(t)
 	}
 	var data notifyIconData
 	if unsafe.Sizeof(data) != 952 {

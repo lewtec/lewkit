@@ -19,7 +19,7 @@ func TestFactoryIdentity(t *testing.T) {
 
 func TestAppleIsIncompatible(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "ios" {
-		t.Skip()
+		test.Skip(t)
 	}
 	err := factory{}.CheckCompatibility(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)
@@ -27,7 +27,7 @@ func TestAppleIsIncompatible(t *testing.T) {
 
 func TestEvalAdd(t *testing.T) {
 	if err := ffiopengl.ComputeAvailable(); err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	evaluator, err := factory{}.New(t.Context())
 	require.NoError(t, err)

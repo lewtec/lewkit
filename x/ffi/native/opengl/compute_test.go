@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +33,7 @@ func TestCoverGroups(t *testing.T) {
 func TestDispatchPastOneAxis(t *testing.T) {
 	device, err := OpenDevice()
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	defer device.Close()
 	device.limit = [3]uint32{4, 4, 4}

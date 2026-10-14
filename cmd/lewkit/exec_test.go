@@ -10,6 +10,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,7 @@ func TestExecDashKeepsHelpArgument(t *testing.T) {
 
 func TestExecStartsCommandAfterProgress(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("shell script")
+		test.Skip(t, "shell script")
 	}
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "ran")
@@ -64,7 +65,7 @@ func TestExecStartsCommandAfterProgress(t *testing.T) {
 
 func TestExecRunsImmediatelyWithoutSession(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("shell script")
+		test.Skip(t, "shell script")
 	}
 	dir := t.TempDir()
 	marker := filepath.Join(dir, "ran")

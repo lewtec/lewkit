@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/test"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
@@ -82,7 +83,7 @@ func setToolchainEnv(t *testing.T) {
 
 func TestReleaseGoLewkit(t *testing.T) {
 	if testing.Short() {
-		t.Skip("builds lewkit with the embedded compiler")
+		test.Skip(t, "builds lewkit with the embedded compiler")
 	}
 	setToolchainEnv(t)
 	modRoot := moduleRoot(t)

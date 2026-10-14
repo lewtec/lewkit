@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -142,10 +143,10 @@ func TestAndroidSDKRejectsNonDir(t *testing.T) {
 func TestResolveGradleUsesInstalledMise(t *testing.T) {
 	miseBin, err := execdriver.Which(t.Context(), "mise")
 	if err != nil {
-		t.Skip("mise")
+		test.Skip(t, "mise")
 	}
 	if _, err := miseWhere(t.Context(), "gradle"); err != nil {
-		t.Skip("gradle")
+		test.Skip(t, "gradle")
 	}
 	t.Setenv("PATH", filepath.Dir(miseBin)+string(os.PathListSeparator)+"/usr/bin:/bin")
 	bins, err := resolveGradle(t.Context(), t.TempDir())
@@ -156,7 +157,7 @@ func TestResolveGradleUsesInstalledMise(t *testing.T) {
 
 func TestMiseToolchain(t *testing.T) {
 	if _, err := execdriver.Which(t.Context(), "mise"); err != nil {
-		t.Skip("mise")
+		test.Skip(t, "mise")
 	}
 	t.Setenv("JAVA_HOME", t.TempDir())
 	t.Setenv("ANDROID_HOME", "")

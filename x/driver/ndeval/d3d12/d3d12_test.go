@@ -24,7 +24,7 @@ func TestFactoryIdentity(t *testing.T) {
 
 func TestEvalAdd(t *testing.T) {
 	if err := ffid3d12.Available(); err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	evaluator, err := factory{}.New(t.Context())
 	require.NoError(t, err)

@@ -6,12 +6,13 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLaunchLinuxApp(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("linux app")
+		test.Skip(t, "linux app")
 	}
 	app := filepath.Join(t.TempDir(), "Demo.AppImage")
 	script := "#!/bin/sh\nexit 0\n"

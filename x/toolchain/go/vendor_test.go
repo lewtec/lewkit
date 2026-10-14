@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +46,7 @@ func TestVendoredExe(t *testing.T) {
 
 func TestVendoredPIE(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("shared object is an ELF file")
+		test.Skip(t, "shared object is an ELF file")
 	}
 	reexec(t, "TestVendoredPIE", func(t *testing.T) {
 		work := workdir(t)

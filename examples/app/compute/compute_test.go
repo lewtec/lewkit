@@ -43,7 +43,7 @@ void main() { data.o = p.v; }
 	require.NoError(t, err)
 	device, err := vulkan.Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, device)
 	buf, err := device.Buffer(4)
@@ -77,7 +77,7 @@ void main() { data.v = 2u; }
 	require.NoError(t, err)
 	device, err := vulkan.Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, device)
 	buf, err := device.Buffer(4)

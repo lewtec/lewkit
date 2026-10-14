@@ -33,7 +33,7 @@ func TestSmokeSPIRVMagic(t *testing.T) {
 func TestListAllComputeDevices(t *testing.T) {
 	infos, err := List(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	require.NotEmpty(t, infos)
 	names := map[string]int{}
@@ -71,7 +71,7 @@ func TestListAllComputeDevices(t *testing.T) {
 func TestOpenInvalid(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	_, err = d.Buffer(0)
@@ -85,7 +85,7 @@ func TestOpenInvalid(t *testing.T) {
 func TestHostRoundTrip(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	buf, err := d.Buffer(16)
@@ -101,7 +101,7 @@ func TestHostRoundTrip(t *testing.T) {
 func TestDispatch(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	require.NotEmpty(t, d.Name())
@@ -125,7 +125,7 @@ func TestDispatch(t *testing.T) {
 func TestRunBufferCount(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	buf, err := d.Buffer(256)
@@ -142,7 +142,7 @@ func TestRunBufferCount(t *testing.T) {
 func TestWriteTooLong(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	buf, err := d.Buffer(4)
@@ -154,7 +154,7 @@ func TestWriteTooLong(t *testing.T) {
 func TestAllocCopy(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	src, err := d.Alloc(16, Host)
@@ -164,7 +164,7 @@ func TestAllocCopy(t *testing.T) {
 	require.NoError(t, src.Write(in))
 	gpu, err := d.Alloc(16, Local)
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, gpu)
 	require.Equal(t, Local, gpu.Memory())
@@ -181,7 +181,7 @@ func TestAllocCopy(t *testing.T) {
 func TestCmdDispatch(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	buf, err := d.Buffer(4)
@@ -205,7 +205,7 @@ func TestCmdDispatch(t *testing.T) {
 func TestBeginBusy(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	c, err := d.Begin()
@@ -218,7 +218,7 @@ func TestBeginBusy(t *testing.T) {
 func TestCompilePushReject(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	test.CloseOnCleanup(t, d)
 	_, err = d.Compile(t.Context(), ShaderConfig{SPIRV: SmokeSPIRV(), Bindings: 1, PushBytes: 3})
@@ -228,7 +228,7 @@ func TestCompilePushReject(t *testing.T) {
 func TestCloseIdempotent(t *testing.T) {
 	d, err := Open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	require.NoError(t, d.Close())
 	require.NoError(t, d.Close())

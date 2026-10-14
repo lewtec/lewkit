@@ -27,7 +27,7 @@ func TestLinear(t *testing.T) {
 	evaluator, err := ndarray.Open(t.Context())
 	require.NoError(t, err)
 	if evaluator == ndarray.CPU {
-		t.Skip("no gpu evaluator")
+		test.Skip(t, "no gpu evaluator")
 	}
 	test.CloseOnCleanup(t, evaluator)
 	test.CloseOnCleanup(t, y)

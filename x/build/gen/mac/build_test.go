@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,7 +37,7 @@ func TestInstallHelper(t *testing.T) {
 
 func TestBuildFullAppNeedsMacOS(t *testing.T) {
 	if runtime.GOOS == "darwin" {
-		t.Skip("full build uses xcodebuild")
+		test.Skip(t, "full build uses xcodebuild")
 	}
 	mainDir := t.TempDir()
 	_, err := Build(t.Context(), BuildOptions{

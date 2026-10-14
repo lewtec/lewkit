@@ -4,12 +4,13 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWaveLayout(t *testing.T) {
 	if unsafe.Sizeof(uintptr(0)) != 8 {
-		t.Skip()
+		test.Skip(t)
 	}
 	var hdr waveHdr
 	require.Equal(t, uintptr(48), unsafe.Sizeof(hdr))

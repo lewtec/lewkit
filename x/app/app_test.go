@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +27,7 @@ func TestLoopbackLinkUsesIPv4(t *testing.T) {
 
 func TestDesktopIsNotNativeHost(t *testing.T) {
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-		t.Skip()
+		test.Skip(t)
 	}
 	require.False(t, nativeHost(GUI(nil)))
 	require.False(t, nativeHost(Web(nil)))

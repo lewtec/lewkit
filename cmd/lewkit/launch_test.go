@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,7 +32,7 @@ func TestRunForegroundRejectsCancelledContext(t *testing.T) {
 
 func TestRunForegroundLeavesCancelToChild(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("sleep")
+		test.Skip(t, "sleep")
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -44,7 +45,7 @@ func TestRunForegroundLeavesCancelToChild(t *testing.T) {
 
 func TestLaunchWindowsAppNeedsWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("this machine can start the exe")
+		test.Skip(t, "this machine can start the exe")
 	}
 	err := launchApp(t.Context(), "windows", "Demo.exe", "br.tec.lew.demo")
 	require.Error(t, err)
@@ -79,7 +80,7 @@ func scriptArchive(t *testing.T, body string) string {
 
 func TestRunBuiltPassesArgs(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("shell script")
+		test.Skip(t, "shell script")
 	}
 	archive := scriptArchive(t, "#!/bin/sh\ntest \"$1\" = smoke\n")
 	err := runBuilt(t.Context(), builtProgram{

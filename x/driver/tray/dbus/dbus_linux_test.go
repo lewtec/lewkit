@@ -16,12 +16,13 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver/tray"
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenUpdateClose(t *testing.T) {
 	if os.Getenv("DBUS_SESSION_BUS_ADDRESS") == "" {
-		t.Skip("no session bus")
+		test.Skip(t, "no session bus")
 	}
 	img := image.NewNRGBA(image.Rect(0, 0, 16, 16))
 	for y := range 16 {
@@ -39,7 +40,7 @@ func TestOpenUpdateClose(t *testing.T) {
 	})
 	var busErr *dbus.Error
 	if errors.As(err, &busErr) {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	require.NoError(t, err)
 	require.NoError(t, callMenu(t, "clicked"))

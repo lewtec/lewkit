@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/taskgroup"
+	"github.com/lewtec/lewkit/x/test"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +51,7 @@ func TestLewkitCompilerRejects(t *testing.T) {
 
 func TestLewkitCompilerBuild(t *testing.T) {
 	if runtime.GOARCH != "amd64" {
-		t.Skip("lewkit compiler is amd64")
+		test.Skip(t, "lewkit compiler is amd64")
 	}
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644))
@@ -129,7 +130,7 @@ func TestLewkitCompilerBuild(t *testing.T) {
 
 func TestLewkitCompilerProgressTree(t *testing.T) {
 	if runtime.GOARCH != "amd64" {
-		t.Skip("lewkit compiler is amd64")
+		test.Skip(t, "lewkit compiler is amd64")
 	}
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644))

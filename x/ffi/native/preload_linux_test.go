@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +36,7 @@ func TestLibraryDepsSkipsLibc(t *testing.T) {
 
 func TestOpenLoadsSiblingBeforeLibraryPath(t *testing.T) {
 	if _, err := exec.LookPath("gcc"); err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	id := time.Now().UnixNano()
 	gstName := fmt.Sprintf("liblewkitgst%d.so", id)

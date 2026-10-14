@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/battery"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -129,7 +130,7 @@ func TestParseIOReg(t *testing.T) {
 
 func TestNotDarwin(t *testing.T) {
 	if runtime.GOOS == "darwin" {
-		t.Skip()
+		test.Skip(t)
 	}
 	err := factory{}.CheckCompatibility(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)

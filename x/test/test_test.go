@@ -98,7 +98,7 @@ func TestNeedFindsSh(t *testing.T) {
 func TestNeedSkipsMissing(t *testing.T) {
 	const missing = "lewkit-no-such-bin"
 	if _, err := exec.LookPath(missing); err == nil {
-		t.Skipf("%s is on PATH", missing)
+		Skipf(t, "%s is on PATH", missing)
 	}
 	var inner *testing.T
 	t.Run("missing", func(t *testing.T) {

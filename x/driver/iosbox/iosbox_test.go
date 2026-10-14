@@ -14,6 +14,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
+	"github.com/lewtec/lewkit/x/test"
 )
 
 func TestCall(t *testing.T) {
@@ -89,7 +90,7 @@ func TestRequire(t *testing.T) {
 
 func TestNoHost(t *testing.T) {
 	if Dir() != "" {
-		t.Skip()
+		test.Skip(t)
 	}
 	_, err := Call(t.Context(), Request{Op: OpNotify})
 	require.ErrorIs(t, err, driver.ErrUnavailable)

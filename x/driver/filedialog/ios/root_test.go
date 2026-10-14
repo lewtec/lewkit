@@ -13,13 +13,14 @@ import (
 	"github.com/lewtec/lewkit/x/driver/askwire"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/iosbox"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNotIOS(t *testing.T) {
 	if runtime.GOOS == "ios" {
-		t.Skip()
+		test.Skip(t)
 	}
 	err := factory{}.CheckCompatibility(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)

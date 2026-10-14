@@ -13,6 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -96,7 +97,7 @@ func TestAppUsesDefaultConfig(t *testing.T) {
 
 func TestProgramStartsAfterProgress(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("shell script")
+		test.Skip(t, "shell script")
 	}
 	archive := scriptArchive(t, "#!/bin/sh\ntest \"$1\" = smoke\n")
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--", "smoke")

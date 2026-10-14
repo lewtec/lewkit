@@ -7,6 +7,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +48,7 @@ func TestPickDevice(t *testing.T) {
 func TestListKeepsWeight50VulkanAheadOfKinds(t *testing.T) {
 	ctx := t.Context()
 	if _, err := drvvulkan.List(ctx); err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	handles, err := driver.List[ndarray.Evaluator](ctx)
 	require.NoError(t, err)

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +42,7 @@ clean:
 
 func TestLinuxBuild(t *testing.T) {
 	if _, err := exec.LookPath("gcc"); err != nil {
-		t.Skip("gcc not installed")
+		test.Skip(t, "gcc not installed")
 	}
 	dir := t.TempDir()
 	writeSources(t, dir)
@@ -54,7 +55,7 @@ func TestLinuxBuild(t *testing.T) {
 func TestCondaCompiler(t *testing.T) {
 	gcc, err := exec.LookPath("gcc")
 	if err != nil {
-		t.Skip("gcc not installed")
+		test.Skip(t, "gcc not installed")
 	}
 	dir := t.TempDir()
 	writeSources(t, dir)

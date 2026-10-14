@@ -9,6 +9,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/present"
 	ffiopengl "github.com/lewtec/lewkit/x/ffi/native/opengl"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -20,7 +21,7 @@ func TestFactoryIdentity(t *testing.T) {
 
 func TestAppleIsIncompatible(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "ios" {
-		t.Skip()
+		test.Skip(t)
 	}
 	err := factory{}.CheckCompatibility(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)
@@ -28,7 +29,7 @@ func TestAppleIsIncompatible(t *testing.T) {
 
 func TestDrawMatchesComposite(t *testing.T) {
 	if err := ffiopengl.Available(); err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	screen, err := ffiopengl.OpenOffscreen(10, 10)
 	require.NoError(t, err)

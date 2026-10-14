@@ -15,11 +15,12 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
+	"github.com/lewtec/lewkit/x/test"
 )
 
 func TestRequireWithoutHost(t *testing.T) {
 	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
-		t.Skip()
+		test.Skip(t)
 	}
 	t.Cleanup(func() { Set(nil) })
 	Set(nil)
@@ -33,7 +34,7 @@ func TestRequireWithoutHost(t *testing.T) {
 
 func TestRequireWithHook(t *testing.T) {
 	if runtime.GOOS == "android" {
-		t.Skip()
+		test.Skip(t)
 	}
 	t.Cleanup(func() { Set(nil) })
 	Set(func(context.Context, int, string, string) (string, error) { return "", nil })

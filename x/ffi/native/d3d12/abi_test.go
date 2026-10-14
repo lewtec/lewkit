@@ -4,6 +4,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +17,7 @@ func TestOnStack(t *testing.T) {
 
 func TestABILayout(t *testing.T) {
 	if unsafe.Sizeof(uintptr(0)) != 8 {
-		t.Skip()
+		test.Skip(t)
 	}
 	require.Equal(t, uintptr(16), unsafe.Sizeof(guid{}))
 	require.Equal(t, uintptr(32), unsafe.Sizeof(rootParam{}))

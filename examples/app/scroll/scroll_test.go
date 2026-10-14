@@ -22,7 +22,7 @@ func BenchmarkScroll(b *testing.B) {
 	)
 	ctx := b.Context()
 	if _, err := vulkan.List(ctx); err != nil {
-		b.Skip(err)
+		test.Skip(b, err)
 	}
 	handles, err := driver.List[ndarray.Evaluator](ctx)
 	require.NoError(b, err)

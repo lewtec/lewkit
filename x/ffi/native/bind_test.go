@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +19,7 @@ func TestBindFillsStructFields(t *testing.T) {
 	case "windows":
 		path = "ucrtbase.dll"
 	default:
-		t.Skip("no libc path")
+		test.Skip(t, "no libc path")
 	}
 	type libc struct {
 		Strlen  func(s *byte) uintptr   `sym:"strlen"`

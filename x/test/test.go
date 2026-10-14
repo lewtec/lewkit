@@ -115,12 +115,24 @@ func DiscardSlog(tb testing.TB) {
 	Slog(tb, slog.DiscardHandler)
 }
 
+// Skip marks tb skipped. Tests call this instead of tb.Skip.
+func Skip(tb testing.TB, args ...any) {
+	tb.Helper()
+	tb.Skip(args...)
+}
+
+// Skipf marks tb skipped with a formatted reason.
+func Skipf(tb testing.TB, format string, args ...any) {
+	tb.Helper()
+	tb.Skipf(format, args...)
+}
+
 // Need returns the absolute path of name on PATH, or skips the test.
 func Need(tb testing.TB, name string) string {
 	tb.Helper()
 	p, err := execdriver.Which(tb.Context(), name)
 	if err != nil {
-		tb.Skipf("missing %s", name)
+		Skipf(tb, "missing %s", name)
 	}
 	abs, err := filepath.Abs(p)
 	require.NoError(tb, err)

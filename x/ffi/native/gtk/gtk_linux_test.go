@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,6 +33,6 @@ func TestPollBeforeInit(t *testing.T) {
 
 func TestAvailableOrSkip(t *testing.T) {
 	if err := Available(t.Context()); err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 }

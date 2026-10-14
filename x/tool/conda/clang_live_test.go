@@ -9,12 +9,13 @@ import (
 	"testing"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLiveClangLinksZlib(t *testing.T) {
 	if os.Getenv("LEWKIT_TEST_CONDA") == "" {
-		t.Skip("set LEWKIT_TEST_CONDA=1 to build a zlib program with conda-forge clang")
+		test.Skip(t, "set LEWKIT_TEST_CONDA=1 to build a zlib program with conda-forge clang")
 	}
 
 	zlibDir := shortPrefix(t, "cz-zlib")
