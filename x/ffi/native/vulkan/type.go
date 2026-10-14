@@ -8,8 +8,16 @@ import "strings"
 // properties.deviceType casts. String is the CLI / driver-id token.
 // A value outside the set is other.
 //
-//lewkit:enum invalid=other values=other,integrated,dedicated,virtual,software
+//lewkit:enum invalid=other
 type DeviceType uint32
+
+const (
+	DeviceTypeOther      DeviceType = 0
+	DeviceTypeIntegrated DeviceType = 1
+	DeviceTypeDedicated  DeviceType = 2
+	DeviceTypeVirtual    DeviceType = 3
+	DeviceTypeSoftware   DeviceType = 4
+)
 
 // Uint32 is the VkPhysicalDeviceType value.
 func (t DeviceType) Uint32() uint32 { return uint32(t) }

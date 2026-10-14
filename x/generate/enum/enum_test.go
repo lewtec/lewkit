@@ -111,12 +111,11 @@ const (
 	format := parsed.enums[0]
 	require.Equal(t, "Format", format.name)
 	require.True(t, format.fold)
-	require.False(t, format.emitConst)
-	requireMembers(t, format.members, []member{
+	require.Equal(t, []member{
 		{name: "FormatText", token: "text"},
 		{name: "FormatTable", token: "table"},
 		{name: "FormatSARIF", token: "sarif"},
-	})
+	}, format.members)
 
 	level := parsed.enums[1]
 	require.True(t, level.stringKind)
@@ -179,142 +178,6 @@ const (
 `
 	_, err := parseSource("kind.go", []byte(src))
 	require.ErrorIs(t, err, ErrEnum)
-}
-
-func requireMembers(t *testing.T, got, want []member) {
-	t.Helper()
-	require.Len(t, got, len(want))
-	for i := range want {
-		require.Equal(t, want[i].name, got[i].name)
-		require.Equal(t, want[i].token, got[i].token)
-		require.Equal(t, want[i].aliases, got[i].aliases)
-	}
-}
-
-func TestDeclaredValues(t *testing.T) {
-	t.Parallel()
-	src := `package sample
-
-//lewkit:enum empty=linux values=linux, darwin, windows fold
-type OS string
-
-//lewkit:enum invalid=unknown values=text,table
-type Kind int
-
-//lewkit:enum values=red,green
-type Shade string
-
-const (
-	ShadeRed Shade = "red"
-	ShadeGreen Shade = "green"
-)
-
-//lewkit:enum values=sim,build
-type target int
-`
-	parsed, err := parseSource("os.go", []byte(src))
-	require.NoError(t, err)
-	require.Len(t, parsed.enums, 4)
-
-	osEnum := parsed.enums[0]
-	require.True(t, osEnum.emitConst)
-	require.True(t, osEnum.fold)
-	require.Equal(t, "linux", osEnum.empty)
-	requireMembers(t, osEnum.members, []member{
-		{name: "OSLinux", token: "linux"},
-		{name: "OSDarwin", token: "darwin"},
-		{name: "OSWindows", token: "windows"},
-	})
-
-	kind := parsed.enums[1]
-	require.True(t, kind.emitConst)
-	require.Equal(t, "unknown", kind.invalid)
-	requireMembers(t, kind.members, []member{
-		{name: "KindText", token: "text"},
-		{name: "KindTable", token: "table"},
-	})
-
-	shade := parsed.enums[2]
-	require.False(t, shade.emitConst)
-	requireMembers(t, shade.members, []member{
-		{name: "ShadeRed", token: "red"},
-		{name: "ShadeGreen", token: "green"},
-	})
-
-	step := parsed.enums[3]
-	require.True(t, step.emitConst)
-	requireMembers(t, step.members, []member{
-		{name: "targetSim", token: "sim"},
-		{name: "targetBuild", token: "build"},
-	})
-
-	buf, err := render(parsed)
-	require.NoError(t, err)
-	text := string(buf)
-	require.Contains(t, text, "OSLinux")
-	require.Contains(t, text, "OS = \"linux\"")
-	require.Contains(t, text, "KindText Kind = iota")
-	require.Contains(t, text, "\tKindTable\n")
-	require.NotContains(t, text, "ShadeRed Shade")
-	require.Contains(t, text, "targetSim target = iota")
-}
-
-func TestDeclaredValuesMustMatch(t *testing.T) {
-	t.Parallel()
-	cases := []string{
-		`package sample
-
-//lewkit:enum values=red,green
-type Shade string
-
-const (
-	ShadeRed Shade = "red"
-	ShadeBlue Shade = "blue"
-)
-`,
-		`package sample
-
-//lewkit:enum values=text,table
-type Kind int
-
-const (
-	KindText Kind = iota + 1
-	KindTable
-)
-`,
-		`package sample
-
-//lewkit:enum values=red,green
-type Shade string
-
-const (
-	ShadeRed Shade = "red" // crimson
-	ShadeGreen Shade = "green"
-)
-`,
-		`package sample
-
-//lewkit:enum values=6502
-type CPU int
-`,
-		`package sample
-
-//lewkit:enum values=
-type OS string
-`,
-		`package sample
-
-//lewkit:enum values=linux values=darwin
-type OS string
-`,
-	}
-	for i, src := range cases {
-		t.Run(string(rune('a'+i)), func(t *testing.T) {
-			t.Parallel()
-			_, err := parseSource("bad.go", []byte(src))
-			require.ErrorIs(t, err, ErrEnum)
-		})
-	}
 }
 
 func TestEmptyOptionMustNameMember(t *testing.T) {
@@ -386,20 +249,6 @@ type Vendor uint32
 const (
 	VendorAMD Vendor = 0x1002
 	VendorBit Vendor = 1 << 4
-)
-
-//lewkit:enum fold empty=linux values=linux,darwin,windows
-type OS string
-
-//lewkit:enum invalid=unknown values=text,table
-type Kind int
-
-//lewkit:enum values=red,green
-type Shade string
-
-const (
-	ShadeRed Shade = "red"
-	ShadeGreen Shade = "green"
 )
 `
 	path := filepath.Join(dir, "format.go")
@@ -528,23 +377,6 @@ func TestLevelArchPoolVendor(t *testing.T) {
 	}
 	if uint32(VendorAMD) != 0x1002 || uint32(VendorBit) != 16 || !VendorBit.IsValid() {
 		t.Fatal("vendor")
-	}
-	if OSLinux != "linux" || OSDarwin != "darwin" || OSWindows != "windows" {
-		t.Fatal(OSLinux)
-	}
-	osName, err := ParseOS("")
-	if err != nil || osName != OSLinux {
-		t.Fatal(err)
-	}
-	osName, err = ParseOS("DARWIN")
-	if err != nil || osName != OSDarwin {
-		t.Fatal(err)
-	}
-	if KindText != 0 || KindTable != 1 || Kind(9).String() != "unknown" || Kind(9).IsValid() {
-		t.Fatal(KindText)
-	}
-	if ShadeRed != "red" || ShadeGreen != "green" || !ShadeGreen.IsValid() {
-		t.Fatal(ShadeRed)
 	}
 }
 `

@@ -24,7 +24,6 @@ type enumSpec struct {
 	empty      string
 	invalid    string
 	hasInvalid bool
-	emitConst  bool
 	members    []member
 }
 
@@ -32,7 +31,6 @@ type member struct {
 	name    string
 	token   string
 	aliases []string
-	value   constant.Value
 }
 
 type directive struct {
@@ -40,8 +38,6 @@ type directive struct {
 	empty      string
 	invalid    string
 	hasInvalid bool
-	hasValues  bool
-	values     []string
 }
 
 func parseSource(path string, src []byte) (fileSpec, error) {
@@ -65,11 +61,10 @@ func parseSource(path string, src []byte) (fileSpec, error) {
 	for _, name := range markOrder(file, marks) {
 		mark := marks[name]
 		got := members[name]
-		list, emit, err := membersFor(name, mark, got)
-		if err != nil {
-			return fileSpec{}, err
+		if len(got) == 0 {
+			return fileSpec{}, fmt.Errorf("%w: %s has no members", ErrEnum, name)
 		}
-		if err := checkMembers(name, mark, list); err != nil {
+		if err := checkMembers(name, mark, got); err != nil {
 			return fileSpec{}, err
 		}
 		enums = append(enums, enumSpec{
@@ -79,8 +74,7 @@ func parseSource(path string, src []byte) (fileSpec, error) {
 			empty:      mark.directive.empty,
 			invalid:    mark.directive.invalid,
 			hasInvalid: mark.directive.hasInvalid,
-			emitConst:  emit,
-			members:    list,
+			members:    got,
 		})
 	}
 	return fileSpec{pkg: file.Name.Name, build: leadingBuild(string(src)), enums: enums}, nil
@@ -193,8 +187,7 @@ func commentLines(groups ...*ast.CommentGroup) []string {
 func parseDirective(line string) (directive, error) {
 	var dir directive
 	fields := strings.Fields(line)
-	for i := 1; i < len(fields); i++ {
-		field := fields[i]
+	for _, field := range fields[1:] {
 		switch {
 		case field == "fold":
 			dir.fold = true
@@ -209,139 +202,11 @@ func parseDirective(line string) (directive, error) {
 			if dir.invalid == "" {
 				return directive{}, fmt.Errorf("%w: invalid option", ErrEnum)
 			}
-		case strings.HasPrefix(field, "values="):
-			if dir.hasValues {
-				return directive{}, fmt.Errorf("%w: values option", ErrEnum)
-			}
-			raw := strings.TrimPrefix(field, "values=")
-			for i+1 < len(fields) && !optionField(fields[i+1]) {
-				i++
-				raw += fields[i]
-			}
-			values, err := splitValues(raw)
-			if err != nil {
-				return directive{}, err
-			}
-			dir.values = values
-			dir.hasValues = true
 		default:
 			return directive{}, fmt.Errorf("%w: %s", ErrEnum, field)
 		}
 	}
 	return dir, nil
-}
-
-func optionField(field string) bool {
-	return field == "fold" || strings.HasPrefix(field, "empty=") || strings.HasPrefix(field, "invalid=") || strings.HasPrefix(field, "values=")
-}
-
-func splitValues(raw string) ([]string, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, fmt.Errorf("%w: values option", ErrEnum)
-	}
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	seen := map[string]struct{}{}
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if !tokenPattern(part) {
-			return nil, fmt.Errorf("%w: values %s", ErrEnum, part)
-		}
-		if _, ok := seen[part]; ok {
-			return nil, fmt.Errorf("%w: values %s", ErrEnum, part)
-		}
-		seen[part] = struct{}{}
-		out = append(out, part)
-	}
-	return out, nil
-}
-
-func membersFor(typeName string, mark mark, got []member) ([]member, bool, error) {
-	if !mark.directive.hasValues {
-		if len(got) == 0 {
-			return nil, false, fmt.Errorf("%w: %s has no members", ErrEnum, typeName)
-		}
-		return got, false, nil
-	}
-	declared, err := declaredMembers(typeName, mark.directive.values)
-	if err != nil {
-		return nil, false, err
-	}
-	if len(got) == 0 {
-		return declared, true, nil
-	}
-	if err := sameMembers(typeName, declared, got, mark.stringKind); err != nil {
-		return nil, false, err
-	}
-	return declared, false, nil
-}
-
-func declaredMembers(typeName string, values []string) ([]member, error) {
-	names := map[string]struct{}{}
-	out := make([]member, 0, len(values))
-	for _, tokenText := range values {
-		name, err := goName(typeName, tokenText)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := names[name]; ok {
-			return nil, fmt.Errorf("%w: %s value %s", ErrEnum, typeName, tokenText)
-		}
-		names[name] = struct{}{}
-		out = append(out, member{name: name, token: tokenText})
-	}
-	return out, nil
-}
-
-func goName(typeName, tokenText string) (string, error) {
-	ident := goIdent(tokenText)
-	name := typeName + ident
-	if ident == "" || !token.IsIdentifier(ident) || token.IsKeyword(ident) || !token.IsIdentifier(name) || token.IsKeyword(name) {
-		return "", fmt.Errorf("%w: %s value %s", ErrEnum, typeName, tokenText)
-	}
-	return name, nil
-}
-
-func goIdent(text string) string {
-	var b strings.Builder
-	upper := true
-	for _, r := range text {
-		switch {
-		case r == '_':
-			b.WriteByte('_')
-			upper = true
-		case r == '-':
-			upper = true
-		case upper:
-			b.WriteRune(unicode.ToUpper(r))
-			upper = false
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
-
-func sameMembers(typeName string, declared, got []member, stringKind bool) error {
-	if len(got) != len(declared) {
-		return fmt.Errorf("%w: %s has %d members, values lists %d", ErrEnum, typeName, len(got), len(declared))
-	}
-	for i := range declared {
-		want, have := declared[i], got[i]
-		if have.name != want.name || have.token != want.token || len(have.aliases) != 0 {
-			return fmt.Errorf("%w: %s member %s", ErrEnum, typeName, want.token)
-		}
-		if stringKind {
-			if have.value.Kind() != constant.String || constant.StringVal(have.value) != want.token {
-				return fmt.Errorf("%w: %s member %s", ErrEnum, typeName, want.token)
-			}
-			continue
-		}
-		if !constant.Compare(have.value, token.EQL, constant.MakeInt64(int64(i))) {
-			return fmt.Errorf("%w: %s member %s", ErrEnum, typeName, want.token)
-		}
-	}
-	return nil
 }
 
 func underlying(expr ast.Expr) (string, bool) {
@@ -454,7 +319,7 @@ func memberOf(typeName, name string, val constant.Value, mark mark, comment *ast
 		}
 		extra = append(extra, alias)
 	}
-	return member{name: name, token: tokenText, aliases: extra, value: val}, nil
+	return member{name: name, token: tokenText, aliases: extra}, nil
 }
 
 func aliasComment(group *ast.CommentGroup) []string {
