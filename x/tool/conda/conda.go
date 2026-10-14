@@ -16,7 +16,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	lewtool "github.com/lewtec/lewkit/x/tool"
 )
@@ -131,15 +130,9 @@ func archiveName(rec record) string {
 func hashOf(rec record) string {
 	switch {
 	case rec.SHA256 != "":
-		if strings.Contains(rec.SHA256, ":") {
-			return rec.SHA256
-		}
-		return "sha256:" + rec.SHA256
+		return lewtool.FormatHash("sha256", rec.SHA256)
 	case rec.MD5 != "":
-		if strings.Contains(rec.MD5, ":") {
-			return rec.MD5
-		}
-		return "md5:" + rec.MD5
+		return lewtool.FormatHash("md5", rec.MD5)
 	default:
 		return ""
 	}

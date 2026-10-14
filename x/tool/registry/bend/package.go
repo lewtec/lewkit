@@ -91,7 +91,7 @@ func (t *bendTool) ListArtifacts(ctx context.Context, version string) ([]tool.Ar
 			u = rel.URL
 		}
 		if rel.SHA256 != "" {
-			hash = "sha256:" + rel.SHA256
+			hash = tool.FormatHash("sha256", rel.SHA256)
 		}
 	}
 
@@ -134,10 +134,7 @@ func (t *bendTool) fetchLatest(ctx context.Context) (bendRelease, error) {
 }
 
 func (t *bendTool) fetch(ctx context.Context, u string) ([]byte, error) {
-	if t.fetchURL != nil {
-		return t.fetchURL(ctx, u)
-	}
-	return install.GetBytes(ctx, u)
+	return install.GetBytesOr(ctx, u, t.fetchURL)
 }
 
 func validBendVersion(v string) bool {

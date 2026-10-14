@@ -171,6 +171,14 @@ func httpGET(ctx context.Context, u string, configure ...func(*http.Request)) (*
 	return resp, nil
 }
 
+// GetBytesOr returns hook's bytes when hook is set, and otherwise GET u.
+func GetBytesOr(ctx context.Context, u string, hook func(context.Context, string) ([]byte, error)) ([]byte, error) {
+	if hook != nil {
+		return hook(ctx, u)
+	}
+	return GetBytes(ctx, u)
+}
+
 func GetBytes(ctx context.Context, u string, configure ...func(*http.Request)) ([]byte, error) {
 	resp, err := httpGET(ctx, u, configure...)
 	if err != nil {

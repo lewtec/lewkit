@@ -57,7 +57,7 @@ func (t *goTool) ListArtifacts(ctx context.Context, version string) ([]tool.Arti
 					OS:   f.OS,
 					Arch: f.Arch,
 					URL:  "https://go.dev/dl/" + f.Filename,
-					Hash: "sha256:" + f.SHA256,
+					Hash: tool.FormatHash("sha256", f.SHA256),
 					Size: f.Size,
 				}}, nil
 			}

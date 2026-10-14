@@ -320,6 +320,15 @@ func downloadPlain(ctx context.Context, url string, out io.Writer, configure fun
 	return err
 }
 
+// FormatHash is the algorithm:sum text [splitHash] reads.
+// A sum that already contains ":" is left as written.
+func FormatHash(algorithm, sum string) string {
+	if strings.Contains(sum, ":") {
+		return sum
+	}
+	return algorithm + ":" + sum
+}
+
 func splitHash(raw string) (algorithm, sum string) {
 	if strings.TrimSpace(raw) == "" {
 		return "", ""

@@ -12,7 +12,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/errs"
-	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
 	_ "github.com/lewtec/lewkit/x/tool/github"
 )
@@ -75,11 +74,7 @@ func ensureSops(ctx context.Context, directory string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-	store, err := tool.Open(filepath.Join(cache, release.Name(), "tools"))
+	store, err := tool.OpenReleaseCache()
 	if err != nil {
 		return "", err
 	}

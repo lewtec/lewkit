@@ -140,13 +140,7 @@ func (t *androidPlatformToolsTool) builds(ctx context.Context, goos, goarch stri
 	if index == "" {
 		index = androidPlatformToolsIndexURL
 	}
-	var body []byte
-	var err error
-	if t.fetchURL != nil {
-		body, err = t.fetchURL(ctx, index)
-	} else {
-		body, err = install.GetBytes(ctx, index)
-	}
+	body, err := install.GetBytesOr(ctx, index, t.fetchURL)
 	if err != nil {
 		return nil, err
 	}

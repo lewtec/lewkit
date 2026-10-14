@@ -15,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/io/atomic"
 	lewpath "github.com/lewtec/lewkit/x/path"
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -58,6 +59,24 @@ type Installed struct {
 	Name    string
 	Version string
 	Path    string
+}
+
+// ReleaseCacheDir is the per-user directory for installed tools.
+func ReleaseCacheDir() (string, error) {
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(cache, release.Name(), "tools"), nil
+}
+
+// OpenReleaseCache binds [ReleaseCacheDir] as the store directory.
+func OpenReleaseCache() (*Store, error) {
+	dir, err := ReleaseCacheDir()
+	if err != nil {
+		return nil, err
+	}
+	return Open(dir)
 }
 
 // Open binds root as the store directory. root is not created until Install.

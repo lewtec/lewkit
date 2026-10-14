@@ -127,7 +127,7 @@ func (t *cmakeTool) ListArtifacts(ctx context.Context, version string) ([]tool.A
 	// Attach hash from SHA-256.txt sidecar (official at cmake.org)
 	filename := filepath.Base(best.URL)
 	if h, err := t.fetchSHA256(ctx, dir, v, filename); err == nil && h != "" {
-		best.Hash = "sha256:" + h
+		best.Hash = tool.FormatHash("sha256", h)
 	}
 
 	return []tool.Artifact{best}, nil

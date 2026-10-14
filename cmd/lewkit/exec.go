@@ -5,11 +5,9 @@ import (
 	"errors"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
-	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/sops"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
@@ -70,11 +68,7 @@ func (c *execCmd) Run(ctx context.Context) error {
 }
 
 func ensureTools(ctx context.Context, specs []string, command string) (string, error) {
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-	store, err := tool.Open(filepath.Join(cache, release.Name(), "tools"))
+	store, err := tool.OpenReleaseCache()
 	if err != nil {
 		return "", err
 	}

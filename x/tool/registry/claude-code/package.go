@@ -124,7 +124,7 @@ func (t *claudeCodeTool) ListArtifacts(ctx context.Context, version string) ([]t
 		OS:   runtime.GOOS,
 		Arch: runtime.GOARCH,
 		URL:  url,
-		Hash: "sha256:" + platformInfo.Checksum,
+		Hash: tool.FormatHash("sha256", platformInfo.Checksum),
 		Size: platformInfo.Size,
 	}}, nil
 }
@@ -147,10 +147,7 @@ func (t *claudeCodeTool) fetchManifest(ctx context.Context, version string) (cla
 }
 
 func (t *claudeCodeTool) fetch(ctx context.Context, url string) ([]byte, error) {
-	if t.fetchURL != nil {
-		return t.fetchURL(ctx, url)
-	}
-	return install.GetBytes(ctx, url)
+	return install.GetBytesOr(ctx, url, t.fetchURL)
 }
 
 func (t *claudeCodeTool) currentPlatform() string {
