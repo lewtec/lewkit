@@ -8,3 +8,4 @@
 - Look for an existing helper before writing new code
 - Explicit is better than implicit
 - Follow the patterns already in the repo: x/cmd, x/test, testify, x/db with sqlc and migrations
+- A closed set (modes, kinds, formats, states, driver names, OS or arch names) is a generated enum. Mark the type with //lewkit:enum and run go generate. Do not add an untyped string const group for a closed set

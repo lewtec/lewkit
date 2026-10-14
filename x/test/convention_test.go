@@ -1,6 +1,7 @@
 package test
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -116,6 +117,56 @@ func TestFixture(t *testing.T) error {
 }
 `
 	require.Empty(t, checkSource("p_test.go", []byte(testSrc)))
+
+	const enums = `package p
+
+const (
+	StatusOK = "ok"
+	StatusNo = "no"
+	StatusYes = "yes"
+)
+
+const (
+	red = "red"
+	green = "green"
+	blue = "blue"
+)
+
+type Kind string
+
+const (
+	KindA Kind = "a"
+	KindB Kind = "b"
+	KindC Kind = "c"
+)
+
+const (
+	mimeHTML = "text/html"
+	mimeText = "text/plain"
+	mimeJSON = "application/json"
+)
+`
+	require.Equal(t, []string{
+		"p.go:4:2: untyped string const group looks like an enum",
+		"p.go:10:2: untyped string const group looks like an enum",
+	}, checkSource("p.go", []byte(enums)))
+	require.Empty(t, checkSource("p_test.go", []byte(enums)))
+
+	const open = `package p
+
+const (
+	alpineRelease = "3.24"
+	alpineVersion = "6.18.56-r0"
+	alpinePkg = "linux-virt"
+)
+
+const (
+	envData = "LEWKIT_DATA_DIR"
+	envCache = "LEWKIT_CACHE_DIR"
+	envConfig = "LEWKIT_CONFIG_DIR"
+)
+`
+	require.Empty(t, checkSource("p.go", []byte(open)))
 }
 
 func TestConventionSkips(t *testing.T) {
@@ -339,6 +390,9 @@ func inspectFile(file parsedFile, index *sigIndex) []string {
 	}
 	checker.readImports(file.file)
 	ast.Walk(checker, file.file)
+	if !checker.testFile {
+		checker.problems = append(checker.problems, stringConstEnums(file)...)
+	}
 	return checker.problems
 }
 
@@ -1043,6 +1097,111 @@ func (c *conventionChecker) readImports(file *ast.File) {
 			c.contextName = local
 		}
 	}
+}
+
+// stringConstEnums flags a parenthesized const block of untyped string
+// literals that names a closed set. A typed enum is not flagged.
+func stringConstEnums(file parsedFile) []string {
+	var problems []string
+	for _, decl := range file.file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST || !gen.Lparen.IsValid() {
+			continue
+		}
+		specs, ok := untypedStringSpecs(gen)
+		if !ok || len(specs) < 3 {
+			continue
+		}
+		names := make([]string, len(specs))
+		singleWords := true
+		for i, vs := range specs {
+			names[i] = vs.Names[0].Name
+			text, err := strconv.Unquote(vs.Values[0].(*ast.BasicLit).Value)
+			if err != nil || !closedSetToken(text) {
+				singleWords = false
+				names = nil
+				break
+			}
+			if !oneWord(text) {
+				singleWords = false
+			}
+		}
+		if names == nil {
+			continue
+		}
+		if !singleWords && !sharedEnumPrefix(names) {
+			continue
+		}
+		pos := file.fset.Position(specs[0].Pos())
+		problems = append(problems, fmt.Sprintf("%s:%d:%d: untyped string const group looks like an enum", file.name, pos.Line, pos.Column))
+	}
+	return problems
+}
+
+func untypedStringSpecs(gen *ast.GenDecl) ([]*ast.ValueSpec, bool) {
+	specs := make([]*ast.ValueSpec, 0, len(gen.Specs))
+	for _, spec := range gen.Specs {
+		vs, ok := spec.(*ast.ValueSpec)
+		if !ok || vs.Type != nil || len(vs.Names) != 1 || len(vs.Values) != 1 {
+			return nil, false
+		}
+		lit, ok := vs.Values[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return nil, false
+		}
+		specs = append(specs, vs)
+	}
+	return specs, true
+}
+
+func closedSetToken(text string) bool {
+	if text == "" || strings.Contains(text, " ") || strings.Contains(text, "/") || strings.Contains(text, ".") {
+		return false
+	}
+	for _, r := range text {
+		if unicode.IsLower(r) || unicode.IsDigit(r) || r == '_' || r == '+' || r == '&' || r == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func oneWord(text string) bool {
+	if text == "" {
+		return false
+	}
+	for _, r := range text {
+		if !unicode.IsLower(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	r, _ := utf8.DecodeRuneInString(text)
+	return unicode.IsLetter(r)
+}
+
+func sharedEnumPrefix(names []string) bool {
+	prefix := names[0]
+	for _, name := range names[1:] {
+		for prefix != "" && !strings.HasPrefix(name, prefix) {
+			prefix = prefix[:len(prefix)-1]
+		}
+	}
+	if len(prefix) < 2 {
+		return false
+	}
+	longer := false
+	for _, name := range names {
+		if len(name) == len(prefix) {
+			continue
+		}
+		longer = true
+		r, _ := utf8.DecodeRuneInString(name[len(prefix):])
+		if !unicode.IsUpper(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return longer
 }
 
 func generatedFile(file *ast.File) bool {
