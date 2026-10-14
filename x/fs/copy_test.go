@@ -3,6 +3,8 @@ package fs
 import (
 	"context"
 	iofs "io/fs"
+	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
@@ -83,12 +85,15 @@ func TestWalkCancel(t *testing.T) {
 
 func TestCopySymlink(t *testing.T) {
 	t.Parallel()
-	dest, err := path.Open(t.TempDir())
+	dir := t.TempDir()
+	dest, err := path.Open(dir)
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, dest)
 	src := fstest.MapFS{"link": {Mode: iofs.ModeSymlink, Data: []byte("a.txt")}}
-	err = Copy(t.Context(), dest, Walk(t.Context(), src, nil))
-	require.ErrorIs(t, err, iofs.ErrInvalid)
+	require.NoError(t, Copy(t.Context(), dest, Walk(t.Context(), src, nil)))
+	target, err := os.Readlink(filepath.Join(dir, "link"))
+	require.NoError(t, err)
+	require.Equal(t, "a.txt", target)
 }
 
 func TestCopyKeep(t *testing.T) {

@@ -135,6 +135,63 @@ func TestInvalidTar(t *testing.T) {
 	assert.False(t, errors.Is(err, lewfs.ErrNeedReadAt))
 }
 
+func TestWalkMixed(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	writer := stdtar.NewWriter(&buf)
+	require.NoError(t, writer.WriteHeader(&stdtar.Header{Name: "bundle/lib/liba.so.1", Mode: 0o644, Size: 5}))
+	_, err := writer.Write([]byte("alpha"))
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteHeader(&stdtar.Header{Name: "bundle/lib/liba.so", Typeflag: stdtar.TypeSymlink, Linkname: "liba.so.1", Mode: 0o777}))
+	require.NoError(t, writer.WriteHeader(&stdtar.Header{Name: "bundle/readme", Mode: 0o644, Size: 4}))
+	_, err = writer.Write([]byte("note"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	fsys, err := Open(t.Context(), bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+	stripped, err := lewfs.StripTopDirectory(fsys)
+	require.NoError(t, err)
+	entries, err := fs.ReadDir(stripped, "lib")
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+	var sawLibrary, sawLink, sawReadme bool
+	for file, err := range lewfs.Walk(t.Context(), stripped, nil) {
+		require.NoError(t, err)
+		switch file.Name.String() {
+		case "lib/liba.so.1":
+			sawLibrary = true
+		case "lib/liba.so":
+			sawLink = file.Link == "liba.so.1"
+		case "readme":
+			sawReadme = true
+		}
+	}
+	require.True(t, sawLibrary)
+	require.True(t, sawLink)
+	require.True(t, sawReadme)
+}
+
+func TestSymlink(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	writer := stdtar.NewWriter(&buf)
+	header := &stdtar.Header{
+		Name:     "lib/libtbb.so.12",
+		Typeflag: stdtar.TypeSymlink,
+		Linkname: "libtbb.so.12.17",
+		Mode:     0o777,
+	}
+	require.NoError(t, writer.WriteHeader(header))
+	require.NoError(t, writer.Close())
+
+	fsys, err := Open(t.Context(), bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+	target, err := fs.ReadLink(fsys, "lib/libtbb.so.12")
+	require.NoError(t, err)
+	require.Equal(t, "libtbb.so.12.17", target)
+}
+
 func TestTree(t *testing.T) {
 	t.Parallel()
 	r := packTar(t, map[string][]byte{

@@ -4,6 +4,8 @@ import (
 	stdtar "archive/tar"
 	"context"
 	"io"
+	iofs "io/fs"
+	"strings"
 
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
@@ -72,6 +74,10 @@ func Files(ctx context.Context, r io.Reader) lewfs.Files {
 				} else {
 					f.Reader = tr
 				}
+			case info.Mode()&iofs.ModeSymlink != 0:
+				f.Size = 0
+				f.Link = hdr.Linkname
+				f.Reader = strings.NewReader(hdr.Linkname)
 			default:
 				continue
 			}

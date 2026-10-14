@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"fmt"
 	"net/http"
@@ -40,6 +41,61 @@ func TestInstallArtifactUnzipsAndStripsTopDirectory(t *testing.T) {
 	body, err := os.ReadFile(filepath.Join(destination, "bin", "demo"))
 	require.NoError(t, err)
 	require.Equal(t, "payload", string(body))
+}
+
+func TestExtractKeepsSymlink(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	archivePath := filepath.Join(dir, "lib.tar")
+	file, err := os.Create(archivePath)
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, file)
+	writer := tar.NewWriter(file)
+	require.NoError(t, writer.WriteHeader(&tar.Header{
+		Name:     "bundle/lib/libtbb.so.12",
+		Typeflag: tar.TypeSymlink,
+		Linkname: "libtbb.so.12.17",
+		Mode:     0o777,
+	}))
+	require.NoError(t, writer.Close())
+
+	destination := filepath.Join(dir, "out")
+	require.NoError(t, Extract(t.Context(), archivePath, destination))
+	target, err := os.Readlink(filepath.Join(destination, "lib", "libtbb.so.12"))
+	require.NoError(t, err)
+	require.Equal(t, "libtbb.so.12.17", target)
+
+	archivePath = filepath.Join(dir, "mixed.tar")
+	file, err = os.Create(archivePath)
+	require.NoError(t, err)
+	test.CloseOnCleanup(t, file)
+	writer = tar.NewWriter(file)
+	require.NoError(t, writer.WriteHeader(&tar.Header{Name: "bundle/lib/liba.so.1", Mode: 0o644, Size: int64(len("alpha"))}))
+	_, err = writer.Write([]byte("alpha"))
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteHeader(&tar.Header{Name: "bundle/lib/liba.so", Typeflag: tar.TypeSymlink, Linkname: "liba.so.1", Mode: 0o777}))
+	require.NoError(t, writer.WriteHeader(&tar.Header{Name: "bundle/lib/libb.so.1", Mode: 0o644, Size: int64(len("beta"))}))
+	_, err = writer.Write([]byte("beta"))
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteHeader(&tar.Header{Name: "bundle/readme", Mode: 0o644, Size: int64(len("note"))}))
+	_, err = writer.Write([]byte("note"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	mixed := filepath.Join(dir, "mixed")
+	require.NoError(t, Extract(t.Context(), archivePath, mixed))
+	body, err := os.ReadFile(filepath.Join(mixed, "lib", "liba.so.1"))
+	require.NoError(t, err)
+	require.Equal(t, "alpha", string(body))
+	body, err = os.ReadFile(filepath.Join(mixed, "lib", "libb.so.1"))
+	require.NoError(t, err)
+	require.Equal(t, "beta", string(body))
+	target, err = os.Readlink(filepath.Join(mixed, "lib", "liba.so"))
+	require.NoError(t, err)
+	require.Equal(t, "liba.so.1", target)
+	body, err = os.ReadFile(filepath.Join(mixed, "readme"))
+	require.NoError(t, err)
+	require.Equal(t, "note", string(body))
 }
 
 func TestDownloadFileSingleflightsURL(t *testing.T) {
