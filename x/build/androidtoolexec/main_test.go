@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/lewtec/lewkit/x/build/internal/toolexec"
 )
 
 func TestPeelExport(t *testing.T) {
@@ -23,19 +25,20 @@ func TestPeelExport(t *testing.T) {
 }
 
 func TestVersionProbe(t *testing.T) {
-	require.True(t, versionProbe([]string{"/usr/lib/compile", "-V=full"}))
-	require.False(t, versionProbe([]string{"/usr/lib/compile", "-o", "a.o", "-V=full"}))
+	require.True(t, toolexec.VersionProbe([]string{"/usr/lib/compile", "-V=full"}))
+	require.False(t, toolexec.VersionProbe([]string{"/usr/lib/compile", "-o", "a.o", "-V=full"}))
 }
 
 func TestExportStampTracksBytes(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "_cgo_android_export.go")
 	require.NoError(t, os.WriteFile(path, []byte("package entry\n"), 0o644))
-	first, err := exportStamp(path)
+	first, err := toolexec.HashStamp("lewkitexport=", exportCacheGen, path)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, []byte("package entry\n\n"), 0o644))
-	second, err := exportStamp(path)
+	second, err := toolexec.HashStamp("lewkitexport=", exportCacheGen, path)
 	require.NoError(t, err)
 	require.NotEmpty(t, first)
 	require.NotEqual(t, first, second)
+	require.Contains(t, first, "lewkitexport="+exportCacheGen+"-")
 }

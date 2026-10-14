@@ -40,7 +40,7 @@ func assignNames(unit *Unit) {
 		if base == "" || base == "struct" || base == "union" || base == "enum" {
 			base = "Anon"
 		}
-		t.Go = take(exportName(base), used)
+		t.Go = take(ExportName(base), used)
 	}
 	for _, t := range unit.Types {
 		usedFields := map[string]bool{}
@@ -57,25 +57,25 @@ func assignNames(unit *Unit) {
 				raw = "Anon" + strconv.Itoa(anon)
 				anon++
 			}
-			f.Go = take(exportName(raw), usedFields)
+			f.Go = take(ExportName(raw), usedFields)
 		}
 		for i := range t.Enums {
-			t.Enums[i].Go = take(exportName(t.Enums[i].Name), used)
+			t.Enums[i].Go = take(ExportName(t.Enums[i].Name), used)
 		}
 	}
 	for i := range unit.Consts {
-		unit.Consts[i].Go = take(exportName(unit.Consts[i].Name), used)
+		unit.Consts[i].Go = take(ExportName(unit.Consts[i].Name), used)
 	}
 	for i := range unit.Funcs {
 		fn := &unit.Funcs[i]
-		fn.Go = take(exportName(fn.Name), used)
+		fn.Go = take(ExportName(fn.Name), used)
 		seen := map[string]bool{}
 		for j := range fn.Params {
 			fn.Params[j].Name = paramName(fn.Params[j].Name, seen)
 		}
 	}
 	for i := range unit.Objects {
-		unit.Objects[i].Go = take(exportName(unit.Objects[i].Name), used)
+		unit.Objects[i].Go = take(ExportName(unit.Objects[i].Name), used)
 	}
 }
 
@@ -84,7 +84,7 @@ func paramName(name string, seen map[string]bool) string {
 		return ""
 	}
 	if !token.IsIdentifier(name) || token.IsKeyword(name) {
-		name = exportName(name)
+		name = ExportName(name)
 	}
 	if seen[name] {
 		name += "2"
@@ -93,7 +93,11 @@ func paramName(name string, seen map[string]bool) string {
 	return name
 }
 
-func exportName(name string) string {
+// ExportName is the Go identifier for a C name.
+// A single token is capitalized. Snake case becomes Pascal case.
+// An empty result is Anon. A leading digit gains an N prefix.
+// A keyword gains an X suffix. A result that is still not an identifier is Name.
+func ExportName(name string) string {
 	parts := strings.Split(name, "_")
 	var b strings.Builder
 	if len(parts) == 1 {

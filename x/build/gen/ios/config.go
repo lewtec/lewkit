@@ -45,29 +45,9 @@ func (c Config) ProductName() string {
 	return common.ProductName(c.PackageID, c.AppName)
 }
 
-func (c Config) hostConfig() common.HostConfig {
-	return common.HostConfig{
-		PackageID:    c.PackageID,
-		AppName:      c.AppName,
-		VersionName:  c.VersionName,
-		VersionCode:  c.VersionCode,
-		GoMain:       c.GoMain,
-		Icon:         c.Icon,
-		Capabilities: c.Capabilities,
-	}
-}
+func (c Config) hostConfig() common.HostConfig { return common.HostConfig(c) }
 
-func configFromHost(id common.HostConfig) Config {
-	return Config{
-		PackageID:    id.PackageID,
-		AppName:      id.AppName,
-		VersionName:  id.VersionName,
-		VersionCode:  id.VersionCode,
-		GoMain:       id.GoMain,
-		Icon:         id.Icon,
-		Capabilities: id.Capabilities,
-	}
-}
+func configFromHost(id common.HostConfig) Config { return Config(id) }
 
 func (c Config) withDefaults(ctx context.Context) (Config, error) {
 	id, err := common.ApplyHostDefaults(ctx, c.hostConfig())

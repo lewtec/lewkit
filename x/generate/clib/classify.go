@@ -3,9 +3,6 @@ package clib
 import (
 	"fmt"
 	"go/token"
-	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/lewtec/lewkit/x/generate/header"
 )
@@ -89,7 +86,7 @@ func classify(funcs []header.Func, m machine) ([]fn, []*sdef, error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("%s: %w", raw.Name, err)
 		}
-		base := exportName(raw.Name)
+		base := header.ExportName(raw.Name)
 		n := used[base]
 		used[base] = n + 1
 		item.goName = base
@@ -216,7 +213,7 @@ func (c *class) define(t *header.Type) (*sdef, error) {
 		if name == "" {
 			name = f.Name
 		}
-		name = exportName(name)
+		name = header.ExportName(name)
 		if seen[name] {
 			name = fmt.Sprintf("F%d", i)
 		}
@@ -242,7 +239,7 @@ func structBase(t *header.Type) string {
 	if base == "" || base == "struct" || base == "union" || base == "enum" {
 		base = "Anon"
 	}
-	return exportName(base)
+	return header.ExportName(base)
 }
 
 func flexible(t *header.Type) bool {
@@ -363,45 +360,4 @@ func paramName(name string, i int, seen map[string]bool) string {
 	}
 	seen[name] = true
 	return name
-}
-
-func exportName(name string) string {
-	parts := strings.Split(name, "_")
-	var b strings.Builder
-	if len(parts) == 1 {
-		b.WriteString(capitalize(parts[0]))
-	} else {
-		for _, part := range parts {
-			if part == "" {
-				continue
-			}
-			b.WriteString(capitalize(part))
-		}
-	}
-	s := b.String()
-	if s == "" {
-		s = "Anon"
-	}
-	r, _ := utf8.DecodeRuneInString(s)
-	if r >= '0' && r <= '9' {
-		s = "N" + s
-	}
-	if token.IsKeyword(s) {
-		s += "X"
-	}
-	if !token.IsIdentifier(s) {
-		s = "Name"
-	}
-	return s
-}
-
-func capitalize(s string) string {
-	if s == "" {
-		return ""
-	}
-	r, size := utf8.DecodeRuneInString(s)
-	if unicode.IsLower(r) {
-		return string(unicode.ToUpper(r)) + s[size:]
-	}
-	return s
 }
