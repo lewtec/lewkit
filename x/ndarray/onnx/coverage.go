@@ -6,26 +6,33 @@ import (
 	"strings"
 )
 
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum coverage.go
+
+// Status is one operator result against the catalog.
+//
+//lewkit:enum
+type Status string
+
 const (
-	StatusPassed      = "passed"
-	StatusSkipped     = "skipped"
-	StatusFailed      = "failed"
-	StatusImplemented = "implemented"
-	StatusMissing     = "missing"
+	StatusPassed      Status = "passed"
+	StatusSkipped     Status = "skipped"
+	StatusFailed      Status = "failed"
+	StatusImplemented Status = "implemented"
+	StatusMissing     Status = "missing"
 )
 
 // CaseResult is one node-test outcome.
 type CaseResult struct {
 	Name      string
 	Operators []string
-	Status    string
+	Status    Status
 	Detail    string
 }
 
 // OperatorCoverage is one ai.onnx name versus node tests.
 type OperatorCoverage struct {
 	Name   string
-	Status string
+	Status Status
 }
 
 // Coverage is catalog vs implemented vs node-test results.
@@ -109,13 +116,13 @@ func (c Coverage) String() string {
 	fmt.Fprintf(&b, "operators passed %d skipped %d failed %d\n", c.Passed, c.Skipped, c.Failed)
 	fmt.Fprintf(&b, "catalog coverage %.1f%% (%d/%d)\n", 100*c.CatalogFraction(), c.Passed, c.Catalog)
 	fmt.Fprintf(&b, "implemented coverage %.1f%% (%d/%d)\n", 100*c.ImplementedFraction(), c.Passed, c.Implemented)
-	by := map[string][]string{}
+	by := map[Status][]string{}
 	for _, op := range c.Operators {
 		if op.Status != StatusMissing {
 			by[op.Status] = append(by[op.Status], op.Name)
 		}
 	}
-	for _, status := range []string{StatusPassed, StatusFailed, StatusSkipped, StatusImplemented} {
+	for _, status := range []Status{StatusPassed, StatusFailed, StatusSkipped, StatusImplemented} {
 		names := by[status]
 		sort.Strings(names)
 		if len(names) == 0 {
