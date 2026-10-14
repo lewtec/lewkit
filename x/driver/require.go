@@ -56,6 +56,15 @@ func RequireDisplay(ctx context.Context) error {
 	return nil
 }
 
+// WrapIncompatible returns nil when err is nil.
+// The text is err's, and errors.Is matches ErrIncompatible only.
+func WrapIncompatible(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %v", ErrIncompatible, err)
+}
+
 // RequireAnyEnv returns ErrIncompatible when none of the keys are set.
 func RequireAnyEnv(ctx context.Context, keys ...string) error {
 	for _, key := range keys {

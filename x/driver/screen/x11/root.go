@@ -18,10 +18,7 @@ func (factory) Name() string { return "X11" }
 func (factory) Weight() int { return 40 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "DISPLAY"); err != nil {
-		return err
-	}
-	if err := execdriver.RequireBinary(ctx, "xset"); err != nil {
+	if err := execdriver.RequireEnvBinary(ctx, "DISPLAY", "xset"); err != nil {
 		return err
 	}
 	return execdriver.RequireBinary(ctx, "xrandr")

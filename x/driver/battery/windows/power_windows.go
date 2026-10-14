@@ -25,7 +25,7 @@ func readPower() (byte, byte, byte, error) {
 	var status systemPowerStatus
 	ok, _, err := procPower.Call(uintptr(unsafe.Pointer(&status)))
 	if ok == 0 {
-		return 0, 0, 0, fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return 0, 0, 0, driver.WrapIncompatible(err)
 	}
 	return status.ac, status.flag, status.percent, nil
 }

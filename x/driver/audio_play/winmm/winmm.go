@@ -6,7 +6,6 @@ package winmm
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strconv"
 
@@ -23,7 +22,7 @@ func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(context.Context) error {
 	if err := lib.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }

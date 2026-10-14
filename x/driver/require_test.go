@@ -1,11 +1,22 @@
 package driver_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/stretchr/testify/require"
 )
+
+func TestWrapIncompatible(t *testing.T) {
+	require.NoError(t, driver.WrapIncompatible(nil))
+	err := driver.WrapIncompatible(errWrapped)
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.False(t, errors.Is(err, errWrapped))
+	require.EqualError(t, err, "component is incompatible: wrapped")
+}
+
+var errWrapped = errors.New("wrapped")
 
 func TestRequireEnv(t *testing.T) {
 	ctx := driver.WithEnv(t.Context(), []string{"FOO=1"})

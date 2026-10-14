@@ -18,10 +18,7 @@ func (factory) Name() string { return "Sway" }
 func (factory) Weight() int { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
-		return err
-	}
-	return execdriver.RequireBinary(ctx, "swaymsg")
+	return execdriver.RequireEnvBinary(ctx, "WAYLAND_DISPLAY", "swaymsg")
 }
 
 func (factory) New(context.Context) (screen.Driver, error) { return backend{}, nil }

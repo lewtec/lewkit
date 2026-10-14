@@ -50,7 +50,7 @@ type source struct {
 func available(context.Context) error {
 	key, err := openKey()
 	if err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	regClose.Call(uintptr(key))
 	return nil

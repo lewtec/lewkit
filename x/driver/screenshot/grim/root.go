@@ -16,10 +16,7 @@ func (factory) Name() string { return "Grim (Wayland)" }
 func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
-		return err
-	}
-	return execdriver.RequireBinary(ctx, "grim")
+	return execdriver.RequireEnvBinary(ctx, "WAYLAND_DISPLAY", "grim")
 }
 
 func (factory) New(context.Context) (screenshot.Driver, error) { return backend{}, nil }

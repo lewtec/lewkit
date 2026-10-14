@@ -18,6 +18,33 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRequireEnvBinary(t *testing.T) {
+	ctx := driver.WithEnv(t.Context(), []string{"LEWKIT_TEST_BIN="})
+	err := execdriver.RequireEnvBinary(ctx, "LEWKIT_TEST_BIN", "sh")
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.ErrorContains(t, err, "LEWKIT_TEST_BIN")
+
+	ctx = driver.WithEnv(t.Context(), []string{"LEWKIT_TEST_BIN=1"})
+	err = execdriver.RequireEnvBinary(ctx, "LEWKIT_TEST_BIN", "lewkit-missing-binary")
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.ErrorContains(t, err, "lewkit-missing-binary")
+
+	require.NoError(t, execdriver.RequireEnvBinary(ctx, "LEWKIT_TEST_BIN", "sh"))
+}
+
+func TestRequireDisplayBinary(t *testing.T) {
+	blank := driver.WithEnv(t.Context(), []string{"DISPLAY=", "WAYLAND_DISPLAY="})
+	err := execdriver.RequireDisplayBinary(blank, "sh")
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.EqualError(t, err, "component is incompatible: neither DISPLAY nor WAYLAND_DISPLAY set")
+
+	shown := driver.WithEnv(t.Context(), []string{"DISPLAY=:0"})
+	err = execdriver.RequireDisplayBinary(shown, "lewkit-missing-binary")
+	require.ErrorIs(t, err, driver.ErrIncompatible)
+	require.ErrorContains(t, err, "lewkit-missing-binary")
+	require.NoError(t, execdriver.RequireDisplayBinary(shown, "sh"))
+}
+
 func TestMustRunCapturesStdout(t *testing.T) {
 	ctx := t.Context()
 	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo hi")

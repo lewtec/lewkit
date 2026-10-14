@@ -45,7 +45,7 @@ func Available(ctx context.Context, service string) error {
 	}
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	defer conn.Close()
 	var owned bool
@@ -53,7 +53,7 @@ func Available(ctx context.Context, service string) error {
 		CallWithContext(ctx, "org.freedesktop.DBus.NameHasOwner", 0, service).
 		Store(&owned)
 	if err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	if !owned {
 		return fmt.Errorf("%w: %s", driver.ErrIncompatible, service)

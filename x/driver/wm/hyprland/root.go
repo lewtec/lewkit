@@ -16,10 +16,7 @@ func (factory) Name() string { return "Hyprland" }
 func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "HYPRLAND_INSTANCE_SIGNATURE"); err != nil {
-		return err
-	}
-	return execdriver.RequireBinary(ctx, "hyprctl")
+	return execdriver.RequireEnvBinary(ctx, "HYPRLAND_INSTANCE_SIGNATURE", "hyprctl")
 }
 
 func (factory) New(context.Context) (wm.Driver, error) { return backend{}, nil }

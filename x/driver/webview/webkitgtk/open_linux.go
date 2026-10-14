@@ -36,7 +36,7 @@ const (
 
 func libraries(ctx context.Context) error {
 	if _, err := webkitgtk.Load(ctx); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }

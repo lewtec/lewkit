@@ -5,7 +5,6 @@ package gtkui
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -22,7 +21,7 @@ func Require(ctx context.Context) error {
 		return err
 	}
 	if err := gtklib.Available(ctx); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }

@@ -16,10 +16,7 @@ func (factory) Name() string { return "Maim (X11)" }
 func (factory) Weight() int  { return 40 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "DISPLAY"); err != nil {
-		return err
-	}
-	return execdriver.RequireBinary(ctx, "maim")
+	return execdriver.RequireEnvBinary(ctx, "DISPLAY", "maim")
 }
 
 func (factory) New(context.Context) (screenshot.Driver, error) { return backend{}, nil }

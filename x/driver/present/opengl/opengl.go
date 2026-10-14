@@ -27,7 +27,7 @@ func (factory) CheckCompatibility(context.Context) error {
 		return fmt.Errorf("%w: apple uses metal", driver.ErrIncompatible)
 	}
 	if err := ffiopengl.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }
@@ -40,7 +40,7 @@ func (opener) Open(_ context.Context, kind int, a, b uintptr, width, height int)
 	binding, err := ffiopengl.OpenNative(kind, a, b, width, height)
 	if err != nil {
 		if errors.Is(err, ffiopengl.ErrUnavailable) {
-			return nil, fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+			return nil, driver.WrapIncompatible(err)
 		}
 		return nil, nativeerr.Map(err, ffiopengl.ErrLost, ffiopengl.ErrSize, ffiopengl.ErrClosed)
 	}
