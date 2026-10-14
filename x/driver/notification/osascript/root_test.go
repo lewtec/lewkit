@@ -1,10 +1,8 @@
 package osascript
 
 import (
-	"runtime"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/notification"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
@@ -17,9 +15,5 @@ func TestScript(t *testing.T) {
 }
 
 func TestNotDarwin(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		test.Skip(t)
-	}
-	err := factory{}.CheckCompatibility(t.Context())
-	require.ErrorIs(t, err, driver.ErrIncompatible)
+	test.IncompatibleOff(t, factory{}.CheckCompatibility, "darwin")
 }

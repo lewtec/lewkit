@@ -17,6 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
+	"github.com/lewtec/lewkit/x/test/fserr"
 
 	stdgzip "compress/gzip"
 	"github.com/andybalholm/brotli"
@@ -122,10 +123,7 @@ func namesOf(ps []path.Path) []string {
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	_, err := Open(t.Context(), test.OnlyReader{strings.NewReader("x")})
-	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
-	pe, ok := errors.AsType[*fs.PathError](err)
-	require.True(t, ok)
-	assert.Equal(t, "open", pe.Op)
+	fserr.NeedReadAt(t, err)
 }
 
 func TestInvalidTar(t *testing.T) {

@@ -1,27 +1,19 @@
 package androidclient
 
 import (
-	"runtime"
+	"context"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/test"
 )
 
 func TestOpenNotAndroid(t *testing.T) {
-	if runtime.GOOS == "android" {
-		test.Skip(t)
-	}
-	_, err := Open(t.Context())
-	require.ErrorIs(t, err, driver.ErrIncompatible)
+	test.IncompatibleOff(t, func(ctx context.Context) error {
+		_, err := Open(ctx)
+		return err
+	}, "android")
 }
 
 func TestInteractiveNotAndroid(t *testing.T) {
-	if runtime.GOOS == "android" {
-		test.Skip(t)
-	}
-	err := Interactive(t.Context())
-	require.ErrorIs(t, err, driver.ErrIncompatible)
+	test.IncompatibleOff(t, Interactive, "android")
 }
