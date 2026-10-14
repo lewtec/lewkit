@@ -11,6 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStepExitIgnoresANormalTest(t *testing.T) {
+	t.Setenv(actionEnv, "")
+	handled, code := stepExit()
+	require.False(t, handled)
+	require.Equal(t, 0, code)
+}
+
 func TestHostSymResolvesMorestack(t *testing.T) {
 	pc, err := hostFunc("runtime.morestack_noctxt", 0)
 	require.NoError(t, err)

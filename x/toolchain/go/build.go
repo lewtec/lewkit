@@ -145,6 +145,27 @@ func Build(ctx context.Context, units []Unit, image *Image) error {
 	return fut.Wait(ctx)
 }
 
+// TestExit runs [Child] when this process is a toolchain step.
+// Otherwise it runs m and exits with that code.
+func TestExit(m interface{ Run() int }) {
+	if handled, code := stepExit(); handled {
+		os.Exit(code)
+	}
+	os.Exit(m.Run())
+}
+
+func stepExit() (bool, int) {
+	handled, err := Child()
+	if !handled {
+		return false, 0
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return true, 1
+	}
+	return true, 0
+}
+
 // Child runs the one compile or link this process was started to do.
 // [Compile] and [Link] start that process. It reports whether this
 // process is that step.
