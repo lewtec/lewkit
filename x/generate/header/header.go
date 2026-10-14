@@ -15,6 +15,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/lewtec/lewkit/x/generate"
 )
 
 // Config is the lewkit generate header invocation.
@@ -82,13 +84,13 @@ func Run(ctx context.Context, cfg Config) error {
 		items = append(items, rendered{target: target, src: buf})
 	}
 	if cfg.ABI == "" && sameProjection(items) {
-		return writeAtomic(bindingPaths(cfg.File, cfg.Out, []string{"abi"})[0], rewriteUniversal(items[0].src))
+		return generate.WriteFile(bindingPaths(cfg.File, cfg.Out, []string{"abi"})[0], rewriteUniversal(items[0].src))
 	}
 	groups := groupRendered(items)
 	paths := bindingPaths(cfg.File, cfg.Out, assignSlugs(groups))
 	for i, group := range groups {
 		body := rewriteConstraint(group[0].src, mergeConstraint(targetsOf(group)))
-		if err := writeAtomic(paths[i], body); err != nil {
+		if err := generate.WriteFile(paths[i], body); err != nil {
 			return err
 		}
 	}
@@ -181,7 +183,7 @@ func writeComplement(file, out string, items []rendered) error {
 	if strings.HasSuffix(out, ".go") {
 		stem = strings.TrimSuffix(filepath.Base(out), filepath.Ext(out))
 	}
-	return writeAtomic(filepath.Join(dir, stem+"_other.go"), []byte(strings.Join(lines, "\n")))
+	return generate.WriteFile(filepath.Join(dir, stem+"_other.go"), []byte(strings.Join(lines, "\n")))
 }
 
 type rendered struct {
@@ -353,17 +355,6 @@ func bindingPaths(file, out string, slugs []string) []string {
 		paths[i] = filepath.Join(dir, stem+"_"+slug+".go")
 	}
 	return paths
-}
-
-func writeAtomic(path string, buf []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, buf, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
 }
 
 func inferPackage(dir string) string {
