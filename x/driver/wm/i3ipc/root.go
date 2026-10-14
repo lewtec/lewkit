@@ -16,10 +16,7 @@ func (swayFactory) Name() string { return "Sway" }
 func (swayFactory) Weight() int  { return 60 }
 
 func (swayFactory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
-		return err
-	}
-	return execdriver.RequireBinary(ctx, "swaymsg")
+	return execdriver.RequireEnvBinary(ctx, "WAYLAND_DISPLAY", "swaymsg")
 }
 
 func (swayFactory) New(context.Context) (wm.Driver, error) {
@@ -33,10 +30,7 @@ func (i3Factory) Name() string { return "i3" }
 func (i3Factory) Weight() int  { return 40 }
 
 func (i3Factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "DISPLAY"); err != nil {
-		return err
-	}
-	return execdriver.RequireBinary(ctx, "i3-msg")
+	return execdriver.RequireEnvBinary(ctx, "DISPLAY", "i3-msg")
 }
 
 func (i3Factory) New(context.Context) (wm.Driver, error) {

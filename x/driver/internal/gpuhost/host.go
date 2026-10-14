@@ -18,7 +18,7 @@ func Metal() error {
 		return fmt.Errorf("%w: not apple", driver.ErrIncompatible)
 	}
 	if err := ffimetal.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }
@@ -30,7 +30,7 @@ func Direct3D() error {
 		return fmt.Errorf("%w: not windows", driver.ErrIncompatible)
 	}
 	if err := ffid3d12.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }

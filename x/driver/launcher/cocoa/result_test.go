@@ -1,10 +1,8 @@
 package cocoa
 
 import (
-	"runtime"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
@@ -23,9 +21,5 @@ func TestButtonIndex(t *testing.T) {
 }
 
 func TestNotDarwin(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		test.Skip(t)
-	}
-	err := available(t.Context())
-	require.ErrorIs(t, err, driver.ErrIncompatible)
+	test.IncompatibleOff(t, available, "darwin")
 }

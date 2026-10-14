@@ -11,6 +11,7 @@ import (
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/test"
+	"github.com/lewtec/lewkit/x/test/fserr"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,10 +27,7 @@ func TestOpenFSNeedReadAt(t *testing.T) {
 func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	_, err := Open(t.Context(), test.OnlyReader{strings.NewReader("x")})
-	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
-	pe, ok := errors.AsType[*fs.PathError](err)
-	require.True(t, ok)
-	assert.Equal(t, "open", pe.Op)
+	fserr.NeedReadAt(t, err)
 }
 
 func TestInvalidVolume(t *testing.T) {

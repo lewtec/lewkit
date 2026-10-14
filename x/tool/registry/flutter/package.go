@@ -55,7 +55,7 @@ func (t *flutterTool) ListArtifacts(ctx context.Context, version string) ([]tool
 		fullURL := base + "/" + strings.TrimLeft(r.Archive, "/")
 		hash := ""
 		if r.SHA256 != "" {
-			hash = "sha256:" + r.SHA256
+			hash = tool.FormatHash("sha256", r.SHA256)
 		}
 		return []tool.Artifact{{
 			OS:   runtime.GOOS,

@@ -181,6 +181,23 @@ func RequireBinary(ctx context.Context, name string) error {
 	return fmt.Errorf("%w: %s not found", driver.ErrIncompatible, name)
 }
 
+// RequireEnvBinary returns ErrIncompatible when key is unset or name is not on PATH.
+func RequireEnvBinary(ctx context.Context, key, name string) error {
+	if err := driver.RequireEnv(ctx, key); err != nil {
+		return err
+	}
+	return RequireBinary(ctx, name)
+}
+
+// RequireDisplayBinary returns ErrIncompatible when neither DISPLAY nor
+// WAYLAND_DISPLAY is set, or when name is not on PATH.
+func RequireDisplayBinary(ctx context.Context, name string) error {
+	if err := driver.RequireDisplay(ctx); err != nil {
+		return err
+	}
+	return RequireBinary(ctx, name)
+}
+
 // Find is [Which]. A miss is [driver.ErrIncompatible] and names the binary.
 func Find(ctx context.Context, name string) (string, error) {
 	path, err := Which(ctx, name)

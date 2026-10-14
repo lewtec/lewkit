@@ -20,9 +20,5 @@ const Name = "jquery.min.js"
 const Path = asset.Prefix + Name
 
 func init() {
-	asset.MustRegister(asset.File{
-		Name:        Name,
-		ContentType: "text/javascript; charset=utf-8",
-		Body:        body,
-	})
+	asset.Must(Name, asset.JavaScript, body)
 }

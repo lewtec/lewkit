@@ -6,12 +6,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/release"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReleaseCacheDir(t *testing.T) {
+	dir, err := ReleaseCacheDir()
+	require.NoError(t, err)
+	require.True(t, strings.HasSuffix(filepath.ToSlash(dir), release.Name()+"/tools"))
+	store, err := OpenReleaseCache()
+	require.NoError(t, err)
+	require.Equal(t, dir, store.directory)
+}
 
 type memoryBackend struct{}
 

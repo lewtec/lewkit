@@ -8,7 +8,6 @@ import (
 	"image/png"
 	"io"
 
-	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
@@ -61,8 +60,5 @@ func RequireTool(ctx context.Context, name string) error {
 
 // RequireEnvTool reports ErrIncompatible when envKey is empty or name is missing.
 func RequireEnvTool(ctx context.Context, envKey, name string) error {
-	if err := driver.RequireEnv(ctx, envKey); err != nil {
-		return err
-	}
-	return RequireTool(ctx, name)
+	return execdriver.RequireEnvBinary(ctx, envKey, name)
 }

@@ -16,10 +16,7 @@ func (factory) Name() string { return "Zenity alert" }
 func (factory) Weight() int  { return 40 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireDisplay(ctx); err != nil {
-		return err
-	}
-	return execdriver.RequireBinary(ctx, "zenity")
+	return execdriver.RequireDisplayBinary(ctx, "zenity")
 }
 
 func (factory) New(context.Context) (messagebox.Driver, error) { return backend{}, nil }

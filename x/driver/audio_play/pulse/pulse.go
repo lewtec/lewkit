@@ -6,7 +6,6 @@ package pulse
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -22,7 +21,7 @@ func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(context.Context) error {
 	if err := lib.Available(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }

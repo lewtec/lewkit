@@ -49,7 +49,7 @@ func (t *nodejsTool) ListArtifacts(ctx context.Context, version string) ([]tool.
 	}
 	hash := ""
 	if h, ok := sums[filename]; ok && h != "" {
-		hash = "sha256:" + h
+		hash = tool.FormatHash("sha256", h)
 	}
 
 	return []tool.Artifact{{

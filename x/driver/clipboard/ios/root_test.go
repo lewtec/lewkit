@@ -8,11 +8,9 @@ import (
 	"image/color"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
 	"github.com/lewtec/lewkit/x/driver/iosbox"
 	"github.com/lewtec/lewkit/x/test"
@@ -21,11 +19,7 @@ import (
 )
 
 func TestNotIOS(t *testing.T) {
-	if runtime.GOOS == "ios" {
-		test.Skip(t)
-	}
-	err := factory{}.CheckCompatibility(t.Context())
-	require.ErrorIs(t, err, driver.ErrIncompatible)
+	test.IncompatibleOff(t, factory{}.CheckCompatibility, "ios")
 }
 
 func TestWriteText(t *testing.T) {

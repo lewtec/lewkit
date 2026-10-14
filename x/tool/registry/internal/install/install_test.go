@@ -121,6 +121,24 @@ func TestHTTPGetHelpers(t *testing.T) {
 	})
 }
 
+func TestGetBytesOr(t *testing.T) {
+	t.Parallel()
+	got, err := GetBytesOr(t.Context(), "http://example.invalid", func(context.Context, string) ([]byte, error) {
+		return []byte("hook"), nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "hook", string(got))
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, err := writer.Write([]byte("plain"))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+	got, err = GetBytesOr(t.Context(), server.URL, nil)
+	require.NoError(t, err)
+	require.Equal(t, "plain", string(got))
+}
+
 func TestParseGNUHashFile(t *testing.T) {
 	t.Parallel()
 	got := ParseGNUHashFile([]byte("abc123  foo.tar.gz\n# comment\ndef456  bar.zip\nmalformed\n"))

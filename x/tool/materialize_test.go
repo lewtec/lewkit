@@ -17,6 +17,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFormatHash(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "sha256:abc", FormatHash("sha256", "abc"))
+	require.Equal(t, "sha256:", FormatHash("sha256", ""))
+	require.Equal(t, "md5:already", FormatHash("sha256", "md5:already"))
+}
+
 func TestInstallArtifactUnzipsAndStripsTopDirectory(t *testing.T) {
 	archivePath := filepath.Join(t.TempDir(), "demo.zip")
 	file, err := os.Create(archivePath)

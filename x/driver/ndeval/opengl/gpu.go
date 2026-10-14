@@ -32,7 +32,7 @@ func (factory) CheckCompatibility(context.Context) error {
 		return fmt.Errorf("%w: apple uses metal", driver.ErrIncompatible)
 	}
 	if err := ffiopengl.ComputeAvailable(); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }

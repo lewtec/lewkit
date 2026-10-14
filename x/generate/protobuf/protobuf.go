@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
-	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
 	_ "github.com/lewtec/lewkit/x/tool/prelude"
 )
@@ -68,11 +67,7 @@ func ensureProtoc(ctx context.Context, directory string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return "", err
-	}
-	store, err := tool.Open(filepath.Join(cache, release.Name(), "tools"))
+	store, err := tool.OpenReleaseCache()
 	if err != nil {
 		return "", err
 	}

@@ -14,6 +14,7 @@ import (
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/test"
+	"github.com/lewtec/lewkit/x/test/fserr"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,10 +24,7 @@ func TestNeedReadAt(t *testing.T) {
 	t.Parallel()
 	r := test.OnlyReader{strings.NewReader("x")}
 	_, err := Open(t.Context(), r, 1)
-	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)
-	pe, ok := errors.AsType[*fs.PathError](err)
-	require.True(t, ok)
-	assert.Equal(t, "open", pe.Op)
+	fserr.NeedReadAt(t, err)
 
 	_, err = Images(t.Context(), r)
 	require.ErrorIs(t, err, lewfs.ErrNeedReadAt)

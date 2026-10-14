@@ -27,11 +27,11 @@ func available(ctx context.Context) error {
 	}
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	defer conn.Close()
 	if _, err := readScheme(conn); err != nil {
-		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)
+		return driver.WrapIncompatible(err)
 	}
 	return nil
 }

@@ -16,10 +16,7 @@ func (factory) Name() string { return "Wayland (swaybg)" }
 func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.RequireEnv(ctx, "WAYLAND_DISPLAY"); err != nil {
-		return err
-	}
-	if err := execdriver.RequireBinary(ctx, "systemd-run"); err != nil {
+	if err := execdriver.RequireEnvBinary(ctx, "WAYLAND_DISPLAY", "systemd-run"); err != nil {
 		return err
 	}
 	return execdriver.RequireBinary(ctx, "swaybg")
