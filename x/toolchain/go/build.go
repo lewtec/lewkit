@@ -55,6 +55,10 @@ type Unit struct {
 	GOARCH string
 	// Trimpath is the compiler -trimpath prefix. Empty leaves paths as they are.
 	Trimpath string
+	// SymABIs is a -symabis file. A non-empty value omits -complete so
+	// assembly packed into the archive later can supply the bodies.
+	// The toolchain does not assemble those files.
+	SymABIs string
 }
 
 // Image is the link step. Dep is the unit whose archive is Archive.
@@ -167,7 +171,7 @@ func Child() (bool, error) {
 	}
 	switch action {
 	case "compile":
-		return true, compileHere(req.ImportPath, req.Out, req.ImportCfg, req.EmbedCfg, req.Lang, req.Shared, req.Trimpath, req.Files)
+		return true, compileHere(req.ImportPath, req.Out, req.ImportCfg, req.EmbedCfg, req.Lang, req.Shared, req.Trimpath, req.SymABIs, req.Files)
 	case "link":
 		return true, linkHere(req.Out, req.ImportCfg, req.Mode, req.Archive, req.Ldflags...)
 	default:
@@ -225,6 +229,7 @@ func compileTask(u Unit) workflow.Task {
 			GOOS:       u.GOOS,
 			GOARCH:     u.GOARCH,
 			Trimpath:   u.Trimpath,
+			SymABIs:    u.SymABIs,
 		})
 	})
 }
@@ -264,4 +269,5 @@ type childRequest struct {
 	GOOS       string   `json:"goos,omitempty"`
 	GOARCH     string   `json:"goarch,omitempty"`
 	Trimpath   string   `json:"trimpath,omitempty"`
+	SymABIs    string   `json:"symabis,omitempty"`
 }

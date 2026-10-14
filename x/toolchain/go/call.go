@@ -177,7 +177,7 @@ func compileOnce(pkgpath, out, importcfg, embedcfg, lang string, shared bool, fi
 			err = fmt.Errorf("jit: compile: %v", rec)
 		}
 	}()
-	return compileHere(pkgpath, out, importcfg, embedcfg, lang, shared, "", files)
+	return compileHere(pkgpath, out, importcfg, embedcfg, lang, shared, "", "", files)
 }
 
 func storedGo(dir string) ([]string, error) {

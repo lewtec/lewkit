@@ -9,6 +9,7 @@ func Hwinit0()
 func Nanotime() int64
 func Printk(c byte)
 
+func inb(port uint16) byte
 func outb(port uint16, val byte)
 func outw(port uint16, val uint16)
 func freeze()
@@ -36,6 +37,35 @@ func GetRandomData(b []byte) {
 
 func Hwinit1() {
 	Exit = halt
+}
+
+const (
+	comData  = 0x3f8
+	comLSR   = 0x3fd
+	psData   = 0x60
+	psStatus = 0x64
+)
+
+// Getc returns the next console byte.
+// A PS/2 Enter key is '\n'. A UART byte is returned as it was received.
+//
+//go:linkname Getc
+func Getc() byte {
+	for {
+		if inb(comLSR)&1 != 0 {
+			return inb(comData)
+		}
+		st := inb(psStatus)
+		if st&1 == 0 {
+			continue
+		}
+		b := inb(psData)
+		// Bit 5 marks a mouse byte. It still has to leave the buffer.
+		if st&0x20 != 0 || b != 0x1C {
+			continue
+		}
+		return '\n'
+	}
 }
 
 func halt(code int32) {

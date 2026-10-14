@@ -41,6 +41,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/path/pick` | `Predicate`, `Match`, `Glob`, `Prune`, `And`, `Or`, `Not`. |
 | `x/fs` | `Files`, `Walk`, `Filter`, `Copy`, `Index`, `New`, `Lookup`, `StripTopDirectory`. `Walk` reads an `io/fs`. `Copy` writes a listing. `Index` decorates a flat listing. `New` builds that index. `Lookup` walks a filesystem that already has directories. `StripTopDirectory` returns an `io/fs` with one leading directory removed. |
 | `x/fs/compose` | `New`, `Add`, `Merge`, `All`, `Squash`, `FS`, `Mount`, `Parse`, `Register`. A symlink is a `link` slot. `Squash` turns `name.d.tmpl/` into `lines` slots. `FS` encodes the tree. |
+| `x/fs/iso` | `Write`, `ReadFile`. An El Torito UEFI CD of an `io/fs.FS`, written with go-diskfs ISO9660 and FAT16. |
 | `x/fs/tar` | `Open`, `Files`. A tar archive as `io/fs`. |
 | `x/fs/zip` | `Open`. A ZIP archive as `io/fs`. |
 | `x/fs/squashfs` | `Open`. A SquashFS image as `io/fs`. |

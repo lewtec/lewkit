@@ -17,6 +17,10 @@ import (
 func TestArchiveName(t *testing.T) {
 	require.Equal(t, "demo_linux_amd64.tar.gz", ArchiveName("demo", Target{GOOS: "linux", GOARCH: "amd64"}))
 	require.Equal(t, "demo_windows_arm64.zip", ArchiveName("demo", Target{GOOS: "windows", GOARCH: "arm64"}))
+	require.Equal(t, "demo_uefi_amd64.efi", ArchiveName("demo", Target{GOOS: "uefi", GOARCH: "amd64"}))
+	require.Equal(t, "demo_mbr_amd64.img", ArchiveName("demo", Target{GOOS: "mbr", GOARCH: "amd64"}))
+	require.Equal(t, "demo_linux_uki_amd64.efi", ArchiveName("demo", Target{GOOS: "linux_uki", GOARCH: "amd64"}))
+	require.Equal(t, "demo_linux_iso_amd64.iso", ArchiveName("demo", Target{GOOS: "linux_iso", GOARCH: "amd64"}))
 	require.Len(t, DesktopTargets(), 6)
 }
 

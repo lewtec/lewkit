@@ -94,7 +94,7 @@ func (w *wlwin) onKeyboard(op uint16, payload []byte) {
 		state, _ := takeU32(payload)
 		shift := w.mods&window.ModShift != 0
 		w.Buffer.Emit(window.Key{
-			Rune:    evdevRune(code, shift),
+			Rune:    window.EvdevRune(code, shift),
 			Code:    code,
 			Pressed: state == 1,
 			Mod:     w.mods,

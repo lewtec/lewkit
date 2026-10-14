@@ -38,12 +38,20 @@ func DesktopTargets() []Target {
 }
 
 // ArchiveName is project_goos_goarch.tar.gz, or .zip when GOOS is windows.
+// uefi and linux_uki are .efi. linux_iso is .iso. mbr is .img.
 // GOOS and GOARCH are the go env values, so a dist directory can be
 // uploaded as release assets without renaming.
 func ArchiveName(project string, target Target) string {
 	ext := ".tar.gz"
-	if target.GOOS == "windows" {
+	switch target.GOOS {
+	case "windows":
 		ext = ".zip"
+	case "uefi", "linux_uki":
+		ext = ".efi"
+	case "linux_iso":
+		ext = ".iso"
+	case "mbr":
+		ext = ".img"
 	}
 	return project + "_" + target.GOOS + "_" + target.GOARCH + ext
 }

@@ -2507,9 +2507,10 @@ var blockedLinknames = map[string][]string{
 	"syscall.runtimeClearenv":                      {"syscall"},
 	"syscall.syscalln":                             {"syscall"},
 	// Others
-	"crypto/internal/rand.SetTestingReader": {"testing/cryptotest"}, // pushed from crypto/internal/rand
-	"testing.checkParallel":                 {"testing/cryptotest"}, // pushed from testing
-	"runtime.addmoduledata":                 {},                     // assembly symbol, disallow all packages
+	"crypto/internal/rand.SetTestingReader": {"testing/cryptotest"},      // pushed from crypto/internal/rand
+	"testing.checkParallel":                 {"testing/cryptotest"},      // pushed from testing
+	"runtime.addmoduledata":                 {},                          // assembly symbol, disallow all packages
+	"runtime.rt0_amd64_tamago":              {"runtime", "runtime/goos"}, // entry from runtime and the goos overlay
 }
 
 // check if a linkname reference to symbol s from refpkg is allowed

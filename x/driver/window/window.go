@@ -6,7 +6,7 @@
 //	err = w.Draw()
 //
 // Import [github.com/lewtec/lewkit/x/driver/prelude] or one implementation
-// (mem, cocoa, win32, x11, wayland).
+// (mem, cocoa, win32, x11, wayland, kms).
 package window
 
 import (

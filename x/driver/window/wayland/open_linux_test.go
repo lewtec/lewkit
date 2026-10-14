@@ -42,11 +42,11 @@ func TestPackStringPads(t *testing.T) {
 }
 
 func TestEvdevRune(t *testing.T) {
-	require.Equal(t, 'a', evdevRune(30, false))
-	require.Equal(t, 'A', evdevRune(30, true))
-	require.Equal(t, '+', evdevRune(13, true))
-	require.Equal(t, '\n', evdevRune(28, false))
-	require.Equal(t, rune(0), evdevRune(999, false))
+	require.Equal(t, 'a', window.EvdevRune(30, false))
+	require.Equal(t, 'A', window.EvdevRune(30, true))
+	require.Equal(t, '+', window.EvdevRune(13, true))
+	require.Equal(t, '\n', window.EvdevRune(28, false))
+	require.Equal(t, rune(0), window.EvdevRune(999, false))
 }
 
 func TestPointerButton(t *testing.T) {
