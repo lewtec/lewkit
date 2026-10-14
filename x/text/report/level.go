@@ -1,7 +1,5 @@
 package report
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum level.go
-
 // Level is a diagnostic severity. The wire form matches SARIF result.level.
 // An empty text is warning.
 //

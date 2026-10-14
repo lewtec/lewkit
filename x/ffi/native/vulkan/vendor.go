@@ -4,8 +4,6 @@ import (
 	"strings"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum vendor.go
-
 // Vendor is a PCI / Khronos vendor ID. String is the CLI / driver-id token.
 // A value outside the set is unknown.
 //

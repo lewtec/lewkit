@@ -8,7 +8,7 @@ import (
 )
 
 type enumCmd struct {
-	file []cmd.StringArg `help:"Go file whose marked types are enums"`
+	file []cmd.StringArg `help:"Go file to read; with none, every marked file in the package"`
 }
 
 func (enumCmd) Description() string {

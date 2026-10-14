@@ -3,6 +3,7 @@ package enum
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,10 +14,84 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunRequiresFile(t *testing.T) {
-	t.Parallel()
+func TestRunScansPackage(t *testing.T) {
+	root := t.TempDir()
+	pkg := filepath.Join(root, "pkg")
+	decoy := filepath.Join(root, "sample")
+	require.NoError(t, os.Mkdir(pkg, 0o755))
+	require.NoError(t, os.Mkdir(decoy, 0o755))
+	writeMarked(t, filepath.Join(pkg, "format.go"), "Format", "text")
+	writeMarked(t, filepath.Join(pkg, "level.go"), "Level", "warning")
+	require.NoError(t, os.WriteFile(filepath.Join(pkg, "plain.go"), []byte("package sample\n\ntype Kind int\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(pkg, "note.go"), []byte("package sample\n\n// lewkit:enum is the mark.\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(pkg, "skip_test.go"), []byte("package sample\n\n//lewkit:enum\ntype Skip string\n"), 0o644))
+	writeMarked(t, filepath.Join(decoy, "other.go"), "Other", "other")
+	t.Chdir(pkg)
+	t.Setenv("GOFILE", "format.go")
+	t.Setenv("GOPACKAGE", "sample")
+	require.NoError(t, Run(t.Context(), nil))
+	require.FileExists(t, filepath.Join(pkg, "format_enum.go"))
+	require.FileExists(t, filepath.Join(pkg, "level_enum.go"))
+	require.NoFileExists(t, filepath.Join(pkg, "plain_enum.go"))
+	require.NoFileExists(t, filepath.Join(pkg, "note_enum.go"))
+	require.NoFileExists(t, filepath.Join(pkg, "skip_test_enum.go"))
+	require.NoFileExists(t, filepath.Join(decoy, "other_enum.go"))
+}
+
+func TestRunUsesGOFILEDirectory(t *testing.T) {
+	root := t.TempDir()
+	pkg := filepath.Join(root, "pkg")
+	elsewhere := filepath.Join(root, "elsewhere")
+	require.NoError(t, os.Mkdir(pkg, 0o755))
+	require.NoError(t, os.Mkdir(elsewhere, 0o755))
+	writeMarked(t, filepath.Join(pkg, "format.go"), "Format", "text")
+	writeMarked(t, filepath.Join(pkg, "level.go"), "Level", "warning")
+	writeMarked(t, filepath.Join(elsewhere, "other.go"), "Other", "other")
+	t.Chdir(elsewhere)
+	t.Setenv("GOFILE", filepath.Join(pkg, "format.go"))
+	require.NoError(t, Run(t.Context(), nil))
+	require.FileExists(t, filepath.Join(pkg, "format_enum.go"))
+	require.FileExists(t, filepath.Join(pkg, "level_enum.go"))
+	require.NoFileExists(t, filepath.Join(elsewhere, "other_enum.go"))
+}
+
+func TestRunUsesRelativeGOFILEDirectory(t *testing.T) {
+	root := t.TempDir()
+	pkg := filepath.Join(root, "pkg")
+	require.NoError(t, os.Mkdir(pkg, 0o755))
+	writeMarked(t, filepath.Join(pkg, "format.go"), "Format", "text")
+	writeMarked(t, filepath.Join(root, "other.go"), "Other", "other")
+	t.Chdir(root)
+	t.Setenv("GOFILE", filepath.Join("pkg", "format.go"))
+	require.NoError(t, Run(t.Context(), nil))
+	require.FileExists(t, filepath.Join(pkg, "format_enum.go"))
+	require.NoFileExists(t, filepath.Join(root, "other_enum.go"))
+}
+
+func TestRunEmptyPackage(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plain.go"), []byte("package plain\n"), 0o644))
+	t.Chdir(dir)
+	t.Setenv("GOFILE", "")
 	err := Run(t.Context(), nil)
-	require.ErrorIs(t, err, ErrFileRequired)
+	require.ErrorIs(t, err, ErrNoEnum)
+}
+
+func TestRunExplicitFileSkipsSiblings(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	format := filepath.Join(dir, "format.go")
+	writeMarked(t, format, "Format", "text")
+	writeMarked(t, filepath.Join(dir, "level.go"), "Level", "warning")
+	require.NoError(t, Run(t.Context(), []string{format}))
+	require.FileExists(t, filepath.Join(dir, "format_enum.go"))
+	require.NoFileExists(t, filepath.Join(dir, "level_enum.go"))
+}
+
+func writeMarked(t *testing.T, path, name, token string) {
+	t.Helper()
+	src := fmt.Sprintf("package sample\n\n//lewkit:enum\ntype %s string\n\nconst (\n\t%sValue %s = %q\n)\n", name, name, name, token)
+	require.NoError(t, os.WriteFile(path, []byte(src), 0o644))
 }
 
 func TestRunRejectsUnmarkedFile(t *testing.T) {

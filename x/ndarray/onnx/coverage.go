@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum coverage.go
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
 
 // Status is one operator result against the catalog.
 //

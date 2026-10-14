@@ -27,27 +27,35 @@
 // is an integer, and a flag either way: Parse reads the text and
 // ArgChoices lists the accepted texts for help.
 //
-// go generate runs it beside the declaration:
+// Run writes <name>_enum.go beside each file it is given. With no
+// file, it writes one for every marked file in the package directory.
+// That directory is the working directory. go generate runs there and
+// sets GOFILE to the base name of the file that holds the directive.
+// A GOFILE that names a path selects that file's directory. One
+// directive covers the package:
 //
-//	//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum format.go
+//	//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
 package enum
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/generate"
 )
 
 // Run reads each Go file and writes <name>_enum.go beside it.
+// With no file, Run reads every marked file in the package directory.
 func Run(ctx context.Context, files []string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	if len(files) == 0 {
-		return ErrFileRequired
+		return runPackage(ctx)
 	}
 	for _, file := range files {
 		if err := ctx.Err(); err != nil {
@@ -60,27 +68,91 @@ func Run(ctx context.Context, files []string) error {
 	return nil
 }
 
-func runFile(path string) error {
-	out, err := outputPath(path)
+func runPackage(ctx context.Context) error {
+	dir, err := packageDir()
 	if err != nil {
 		return err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	wrote := false
+	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_enum.go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		ok, err := generateFile(path, true)
+		if err != nil {
+			return err
+		}
+		wrote = wrote || ok
+	}
+	if !wrote {
+		return fmt.Errorf("%w: %s", ErrNoEnum, dir)
+	}
+	return nil
+}
+
+// packageDir is the working directory. A GOFILE that includes a
+// directory selects that directory.
+func packageDir() (string, error) {
+	gofile := os.Getenv("GOFILE")
+	if gofile != "" && (filepath.IsAbs(gofile) || filepath.Dir(gofile) != ".") {
+		abs, err := filepath.Abs(gofile)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Dir(abs), nil
+	}
+	return os.Getwd()
+}
+
+func runFile(path string) error {
+	wrote, err := generateFile(path, false)
+	if err != nil {
+		return err
+	}
+	if !wrote {
+		return fmt.Errorf("%w: %s", ErrNoEnum, path)
+	}
+	return nil
+}
+
+// generateFile writes <name>_enum.go when path has a marked type.
+// skipUnmarked leaves a file with no enum unwritten.
+func generateFile(path string, skipUnmarked bool) (bool, error) {
+	out, err := outputPath(path)
+	if err != nil {
+		return false, err
 	}
 	src, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return false, err
+	}
+	if skipUnmarked && !bytes.Contains(src, []byte("lewkit:enum")) {
+		return false, nil
 	}
 	parsed, err := parseSource(path, src)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if len(parsed.enums) == 0 {
-		return fmt.Errorf("%w: %s", ErrNoEnum, path)
+		return false, nil
 	}
 	buf, err := render(parsed)
 	if err != nil {
-		return err
+		return false, err
 	}
-	return generate.WriteFile(out, buf)
+	if err := generate.WriteFile(out, buf); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func outputPath(path string) (string, error) {

@@ -8,7 +8,7 @@ import (
 	"github.com/lewtec/lewkit/x/path"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum file.go
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
 
 // Type is the encoding of one destination path.
 type Type string

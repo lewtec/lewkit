@@ -94,7 +94,13 @@ func TestGenerateEnumUsage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, text, "enum")
 	assert.Contains(t, text, "text marshaling")
+	cmd.ParseOK[cmd.App[root]](t, "generate", "enum")
 	cmd.ParseOK[cmd.App[root]](t, "generate", "enum", "format.go")
+	app := cmd.ParseOK[cmd.App[root]](t, "generate", "enum", "--help")
+	got := test.Stdout(t, func() {
+		require.NoError(t, app.Run(t.Context()))
+	})
+	assert.Contains(t, got, "every marked file")
 }
 
 func TestGenerateHeaderUsage(t *testing.T) {

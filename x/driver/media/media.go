@@ -34,7 +34,7 @@ var (
 // ErrNoPlayer means no MPRIS player is on the session bus.
 var ErrNoPlayer = errs.Wrap(errs.ErrNotFound, "no media player")
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum media.go
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
 
 // PlaybackStatus is the MPRIS playback state.
 //

@@ -7,7 +7,7 @@ import (
 	hexscan "github.com/lewtec/lewkit/x/disasm/internal/hex"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum flow.go
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
 
 // kind is how one instruction leaves the basic block.
 //
