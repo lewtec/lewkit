@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/tool"
@@ -9,49 +10,80 @@ import (
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
 )
 
+// heliumRepos are the per-OS release repositories. A newer tag in one
+// repository often has no build in the others, so latest follows the
+// repository for this OS.
+var heliumRepos = []struct {
+	name string
+	goos string
+}{
+	{"imputnet/helium-linux", "linux"},
+	{"imputnet/helium-macos", "darwin"},
+	{"imputnet/helium-windows", "windows"},
+}
+
+type heliumSource struct {
+	goos string
+	tool tool.Tool
+}
+
 type heliumBrowserTool struct {
-	tools []tool.Tool
+	sources []heliumSource
+	goos    string
 }
 
 func newHeliumBrowser() (tool.Tool, error) {
-	repoNames := []string{
-		"imputnet/helium-linux",
-		"imputnet/helium-macos",
-		"imputnet/helium-windows",
-	}
-	tools := make([]tool.Tool, 0, len(repoNames))
-	for _, r := range repoNames {
-		t, err := github.NewTool(r)
+	sources := make([]heliumSource, 0, len(heliumRepos))
+	for _, repo := range heliumRepos {
+		inner, err := github.NewTool(repo.name)
 		if err != nil {
 			return nil, err
 		}
-		tools = append(tools, t)
+		sources = append(sources, heliumSource{goos: repo.goos, tool: inner})
 	}
-	return &heliumBrowserTool{tools: tools}, nil
+	return &heliumBrowserTool{sources: sources}, nil
+}
+
+func (t *heliumBrowserTool) hostOS() string {
+	if t.goos != "" {
+		return t.goos
+	}
+	return runtime.GOOS
 }
 
 func (t *heliumBrowserTool) ListVersions(ctx context.Context) ([]string, error) {
-	seen := make(map[string]struct{})
+	host := t.hostOS()
+	versions := t.collectVersions(ctx, host)
+	if len(versions) == 0 {
+		versions = t.collectVersions(ctx, "")
+	}
+	return install.SortVersionsDesc(versions)
+}
+
+func (t *heliumBrowserTool) collectVersions(ctx context.Context, goos string) []string {
+	seen := map[string]struct{}{}
 	var collected []string
-	for _, inner := range t.tools {
-		vers, err := inner.ListVersions(ctx)
-		if err != nil {
-			// One platform repo may be empty or temporarily unavailable; keep going.
+	for _, source := range t.sources {
+		if goos != "" && source.goos != goos {
 			continue
 		}
-		for _, v := range vers {
-			v = strings.TrimSpace(v)
-			if v == "" {
+		vers, err := source.tool.ListVersions(ctx)
+		if err != nil {
+			continue
+		}
+		for _, version := range vers {
+			version = strings.TrimSpace(version)
+			if version == "" {
 				continue
 			}
-			if _, ok := seen[v]; ok {
+			if _, ok := seen[version]; ok {
 				continue
 			}
-			seen[v] = struct{}{}
-			collected = append(collected, v)
+			seen[version] = struct{}{}
+			collected = append(collected, version)
 		}
 	}
-	return install.SortVersionsDesc(collected)
+	return collected
 }
 
 func (t *heliumBrowserTool) Install(ctx context.Context, version string, destDir string) error {
@@ -59,32 +91,28 @@ func (t *heliumBrowserTool) Install(ctx context.Context, version string, destDir
 }
 
 func (t *heliumBrowserTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
-
-	return pin
+	return tool.Pin{Versioning: "semver"}
 }
 
 func (t *heliumBrowserTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {
-	v, err := install.ResolveToolVersion(ctx, version, strings.TrimSpace, t.ListVersions)
+	resolved, err := install.ResolveToolVersion(ctx, version, strings.TrimSpace, t.ListVersions)
 	if err != nil {
 		return nil, err
 	}
 
 	var all []tool.Artifact
-	for _, inner := range t.tools {
-		at, ok := inner.(tool.ArtifactTool)
+	for _, source := range t.sources {
+		artifactTool, ok := source.tool.(tool.ArtifactTool)
 		if !ok {
 			continue
 		}
-		arts, err := at.ListArtifacts(ctx, v)
+		artifacts, err := artifactTool.ListArtifacts(ctx, resolved)
 		if err != nil {
 			// The version tag may not exist in this OS-specific repo.
 			continue
 		}
-		all = append(all, arts...)
+		all = append(all, artifacts...)
 	}
-
 	if len(all) == 0 {
 		return nil, install.ErrNoPlatformArtifact
 	}
