@@ -7,7 +7,7 @@ import (
 )
 
 func TestNormalizeStyle(t *testing.T) {
-	cases := map[string]string{
+	cases := map[string]Style{
 		"":              StyleInformational,
 		"info":          StyleInformational,
 		"informational": StyleInformational,

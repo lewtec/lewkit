@@ -39,5 +39,5 @@ func TestParseRectParts(t *testing.T) {
 func TestResolveRectUnknownTarget(t *testing.T) {
 	t.Parallel()
 	_, err := ResolveRect(t.Context(), TargetType(99))
-	require.ErrorIs(t, err, ErrUnknownTargetType)
+	require.ErrorIs(t, err, ErrTargetType)
 }

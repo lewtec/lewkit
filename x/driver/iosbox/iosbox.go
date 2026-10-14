@@ -24,21 +24,28 @@ import (
 	"github.com/lewtec/lewkit/x/driver/askwire"
 )
 
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum iosbox.go
+
+// Op is one host call.
+//
+//lewkit:enum
+type Op string
+
 const (
 	// OpClipboard writes the pasteboard.
-	OpClipboard = "clipboard"
+	OpClipboard Op = "clipboard"
 	// OpNotify posts a local notification.
-	OpNotify = "notify"
+	OpNotify Op = "notify"
 	// OpOpen opens a URL or file.
-	OpOpen = "open"
+	OpOpen Op = "open"
 	// OpPick shows the document picker.
-	OpPick = "pick"
+	OpPick Op = "pick"
 )
 
 // Request is one host call.
 // Text is a pointer so an empty clipboard write is still sent.
 type Request struct {
-	Op        string   `json:"op"`
+	Op        Op       `json:"op"`
 	Text      *string  `json:"text,omitempty"`
 	PNG       string   `json:"png,omitempty"`
 	Title     string   `json:"title,omitempty"`
@@ -167,7 +174,7 @@ func Call(ctx context.Context, req Request) (string, error) {
 
 // Result splits a host reply.
 // OK and canceled are not errors. Any other status is unavailable.
-func Result(raw string) (status, payload string, err error) {
+func Result(raw string) (status askwire.Status, payload string, err error) {
 	status, payload = askwire.Split(raw)
 	payload = strings.TrimRight(payload, "\n")
 	switch status {
@@ -176,7 +183,7 @@ func Result(raw string) (status, payload string, err error) {
 	default:
 		msg := strings.TrimSpace(payload)
 		if msg == "" {
-			msg = status
+			msg = string(status)
 		}
 		if msg == "" {
 			msg = "ios host"

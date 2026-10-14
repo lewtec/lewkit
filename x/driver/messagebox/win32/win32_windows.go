@@ -38,7 +38,7 @@ func (backend) Show(ctx context.Context, n messagebox.Notice) error {
 	if err != nil {
 		return err
 	}
-	r, _, callErr := procMessageBox.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(caption)), mbOK|iconOf(n.Style))
+	r, _, callErr := procMessageBox.Call(0, uintptr(unsafe.Pointer(text)), uintptr(unsafe.Pointer(caption)), mbOK|iconOf(string(n.Style)))
 	if r == 0 {
 		return callErr
 	}
