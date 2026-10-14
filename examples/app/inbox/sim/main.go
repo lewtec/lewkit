@@ -44,42 +44,21 @@ func main() {
 	entry.MainFrom(parent, app.Run)
 }
 
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum main.go
+
 // target is one simulator step.
+//
+//lewkit:enum
 type target int
 
 const (
-	targetSim target = iota
-	targetBuild
-	targetBoot
-	targetInstall
-	targetLaunch
-	targetPing
+	targetSim     target = iota // sim
+	targetBuild                 // build
+	targetBoot                  // boot
+	targetInstall               // install
+	targetLaunch                // launch
+	targetPing                  // ping
 )
-
-// String is the CLI token.
-func (t target) String() string {
-	switch t {
-	case targetSim:
-		return "sim"
-	case targetBuild:
-		return "build"
-	case targetBoot:
-		return "boot"
-	case targetInstall:
-		return "install"
-	case targetLaunch:
-		return "launch"
-	case targetPing:
-		return "ping"
-	default:
-		return ""
-	}
-}
-
-// Values lists steps for cmd.EnumArg.
-func (target) Values() []target {
-	return []target{targetSim, targetBuild, targetBoot, targetInstall, targetLaunch, targetPing}
-}
 
 type simCmd struct {
 	taskgroup.Arg `flatten:"" ctx:"taskgroup"`
