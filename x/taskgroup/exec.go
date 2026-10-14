@@ -18,9 +18,6 @@ func (s *Session) Go(ctx context.Context, name string, pool PoolKind, fn func(co
 }
 
 func (s *Session) goTask(ctx context.Context, name string, pool PoolKind, fn func(context.Context, *Status) error, isolate bool, deps ...ID) ID {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	parent := taskFromContext(ctx)
 	if parent == 0 {
 		parent = s.root
@@ -115,9 +112,6 @@ func (s *Session) run(id ID) {
 	s.mu.Unlock()
 
 	ctx := t.ctx
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	ctx = context.WithValue(ctx, sessionKey{}, s)
 	ctx = context.WithValue(ctx, taskKey{}, id)
 
@@ -299,8 +293,5 @@ func (s *Session) waitTask(ctx context.Context, id ID) error {
 // WaitTask blocks until id finishes or ctx ends.
 // It returns that task's error. It does not wait for the rest of the session.
 func (s *Session) WaitTask(ctx context.Context, id ID) error {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	return s.waitTask(ctx, id)
 }

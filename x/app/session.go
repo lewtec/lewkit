@@ -108,10 +108,8 @@ func runSession(ctx context.Context, win Window, call openCall) error {
 func (s *windows) open(ctx context.Context, w Window, title string, width, height int) error {
 	wctx, cancel := context.WithCancel(s.ctx)
 	defer cancel()
-	if ctx != nil {
-		stop := context.AfterFunc(ctx, cancel)
-		defer stop()
-	}
+	stop := context.AfterFunc(ctx, cancel)
+	defer stop()
 	s.add()
 	defer s.remove()
 	return w.open(wctx, title, width, height, s.profile)

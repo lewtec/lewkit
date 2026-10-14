@@ -30,9 +30,6 @@ var (
 // The caller writes src into the unit's files and compiles it with the
 // other packages of the same target.
 func Go(ctx context.Context, file string) (importPath, src string, err error) {
-	if ctx == nil {
-		return "", "", errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return "", "", err
 	}

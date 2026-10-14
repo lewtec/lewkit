@@ -131,9 +131,6 @@ func Plan(units []Unit, image *Image) (workflow.Graph, error) {
 // reports that package on the taskgroup status. A session already on ctx,
 // including the progress view entry.Run starts, shows those rows.
 func Build(ctx context.Context, units []Unit, image *Image) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

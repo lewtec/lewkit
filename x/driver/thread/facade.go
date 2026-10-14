@@ -14,9 +14,6 @@ var (
 
 // open selects the UI-thread driver from ctx. Later calls return that driver.
 func open(ctx context.Context) Driver {
-	if ctx == nil {
-		panic("thread: nil context")
-	}
 	mu.Lock()
 	d := ui
 	mu.Unlock()
@@ -45,7 +42,7 @@ func current() Driver {
 }
 
 // Bind locks this goroutine to the UI thread. Call from main.
-// ctx selects the driver. A nil context panics.
+// ctx selects the driver.
 func Bind(ctx context.Context) { open(ctx).Bind() }
 
 // Bound reports whether Bind has been called.

@@ -141,9 +141,6 @@ func (t Target) match(o Object) error {
 // GOOS and GOARCH, when set, must match target. Assembly on a unit is
 // [ErrNoAsm]. The importcfg lists target.Runtime and then the units.
 func BuildObjects(ctx context.Context, units []Unit, target Target, out string) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	objs := make([]Object, 0, len(units))
 	var root *Object
 	prepared := make([]Unit, len(units))

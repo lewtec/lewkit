@@ -17,10 +17,10 @@ import (
 )
 
 // TestConventions rejects inline errors at return sites, testing assertions
-// outside testify, nil contexts, context roots outside main, a godoc
-// example, and the Android host entry, and sentinels that repeat a meta
-// condition without wrapping it. The vendored compiler trees are not this
-// module's code.
+// outside testify, nil contexts, comparisons of a context to nil, context
+// roots outside main, a godoc example, and the Android host entry, and
+// sentinels that repeat a meta condition without wrapping it. The vendored
+// compiler trees are not this module's code.
 func TestConventions(t *testing.T) {
 	root := moduleRoot(t)
 	index := newSigIndex(modulePath(root))
@@ -200,6 +200,45 @@ func Example() {
 	require.Empty(t, checkSource("p_test.go", []byte(example)))
 }
 
+func TestConventionNilGuard(t *testing.T) {
+	const src = `package p
+
+import "context"
+
+func takes(ctx context.Context) {
+	if ctx == nil {
+		return
+	}
+}
+
+func parentNil(parent context.Context) {
+	if parent != nil {
+		_ = parent
+	}
+}
+
+type hold struct {
+	ctx context.Context
+}
+
+func (h hold) use() {
+	if h.ctx == nil {
+		return
+	}
+}
+
+func buffer(ctx *int) {
+	if ctx == nil {
+	}
+}
+`
+	require.Equal(t, []string{
+		"p.go:6:12: nil context guard",
+		"p.go:12:15: nil context guard",
+		"p.go:22:14: nil context guard",
+	}, checkSource("p.go", []byte(src)))
+}
+
 func TestConventionMeta(t *testing.T) {
 	const src = `package p
 
@@ -315,13 +354,30 @@ type conventionChecker struct {
 	index       *sigIndex
 	dir         string
 	stack       []ast.Node
+	scopes      []nameScope
 	problems    []string
 }
+
+type nameScope struct {
+	depth int
+	names map[string]string
+}
+
+const kindContext = "\x00context"
 
 func (c *conventionChecker) Visit(node ast.Node) ast.Visitor {
 	if node == nil {
 		c.stack = c.stack[:len(c.stack)-1]
+		if len(c.scopes) > 0 && c.scopes[len(c.scopes)-1].depth == len(c.stack) {
+			c.scopes = c.scopes[:len(c.scopes)-1]
+		}
 		return nil
+	}
+	switch n := node.(type) {
+	case *ast.FuncDecl:
+		c.scopes = append(c.scopes, nameScope{depth: len(c.stack), names: c.bindFunc(n.Recv, n.Type)})
+	case *ast.FuncLit:
+		c.scopes = append(c.scopes, nameScope{depth: len(c.stack), names: c.bindFunc(nil, n.Type)})
 	}
 	c.inspect(node)
 	c.stack = append(c.stack, node)
@@ -330,6 +386,9 @@ func (c *conventionChecker) Visit(node ast.Node) ast.Visitor {
 
 func (c *conventionChecker) inspect(node ast.Node) {
 	c.noteSentinel(node)
+	if bin, ok := node.(*ast.BinaryExpr); ok {
+		c.noteNilGuard(bin)
+	}
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return
@@ -508,6 +567,92 @@ func allowedContextRoot(decl *ast.FuncDecl, filename string) bool {
 	}
 }
 
+func (c *conventionChecker) noteNilGuard(bin *ast.BinaryExpr) {
+	if bin.Op != token.EQL && bin.Op != token.NEQ {
+		return
+	}
+	var other, nilExpr ast.Expr
+	switch {
+	case isNilExpr(bin.X):
+		other, nilExpr = bin.Y, bin.X
+	case isNilExpr(bin.Y):
+		other, nilExpr = bin.X, bin.Y
+	default:
+		return
+	}
+	if !c.exprIsContext(other) {
+		return
+	}
+	c.add(nilExpr, "nil context guard")
+}
+
+func (c *conventionChecker) exprIsContext(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		kind, ok := c.lookup(e.Name)
+		return ok && kind == kindContext
+	case *ast.SelectorExpr:
+		id, ok := e.X.(*ast.Ident)
+		if !ok {
+			return c.index.onlyContextField(c.dir, e.Sel.Name)
+		}
+		kind, known := c.lookup(id.Name)
+		if known && kind != "" && kind != kindContext {
+			return c.index.fieldIsContext(c.dir, kind, e.Sel.Name)
+		}
+		if known && kind == kindContext {
+			return false
+		}
+		return c.index.onlyContextField(c.dir, e.Sel.Name)
+	case *ast.ParenExpr:
+		return c.exprIsContext(e.X)
+	default:
+		return false
+	}
+}
+
+func (c *conventionChecker) lookup(name string) (string, bool) {
+	for i := len(c.scopes) - 1; i >= 0; i-- {
+		kind, ok := c.scopes[i].names[name]
+		if ok {
+			return kind, true
+		}
+	}
+	return "", false
+}
+
+func (c *conventionChecker) bindFunc(recv *ast.FieldList, typ *ast.FuncType) map[string]string {
+	names := map[string]string{}
+	c.bindFields(names, recv)
+	if typ != nil {
+		c.bindFields(names, typ.Params)
+	}
+	return names
+}
+
+func (c *conventionChecker) bindFields(names map[string]string, list *ast.FieldList) {
+	if list == nil {
+		return
+	}
+	for _, field := range list.List {
+		kind := c.valueKind(field.Type)
+		for _, name := range field.Names {
+			names[name.Name] = kind
+		}
+	}
+}
+
+func (c *conventionChecker) valueKind(expr ast.Expr) string {
+	if c.contextName != "" && isContextType(expr, c.contextName) {
+		return kindContext
+	}
+	name := typeIdent(expr)
+	if name != "" && c.index.isStruct(c.dir, name) {
+		return name
+	}
+	return ""
+}
+
 func (c *conventionChecker) noteNilContext(call *ast.CallExpr) {
 	for i, arg := range call.Args {
 		if !isNilExpr(arg) || !c.argIsContext(call, i) {
@@ -627,9 +772,12 @@ func stdlibContextArg(name string, index int) bool {
 }
 
 type sigIndex struct {
-	mod     string
-	funcs   map[string][][]bool
-	methods map[string][]methodSig
+	mod          string
+	funcs        map[string][][]bool
+	methods      map[string][]methodSig
+	structs      map[string]bool
+	fieldContext map[string]bool
+	fieldMixed   map[string]bool
 }
 
 type methodSig struct {
@@ -639,15 +787,19 @@ type methodSig struct {
 
 func newSigIndex(mod string) *sigIndex {
 	return &sigIndex{
-		mod:     mod,
-		funcs:   map[string][][]bool{},
-		methods: map[string][]methodSig{},
+		mod:          mod,
+		funcs:        map[string][][]bool{},
+		methods:      map[string][]methodSig{},
+		structs:      map[string]bool{},
+		fieldContext: map[string]bool{},
+		fieldMixed:   map[string]bool{},
 	}
 }
 
 func (idx *sigIndex) addFile(rel string, file *ast.File) {
 	dir := pkgDir(rel)
 	contextName := contextImportName(file)
+	idx.addFields(dir, file, contextName)
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Name == nil || fn.Type == nil {
@@ -666,6 +818,72 @@ func (idx *sigIndex) addFile(rel string, file *ast.File) {
 		}
 		idx.funcs[dir+"\x00"+fn.Name.Name] = append(idx.funcs[dir+"\x00"+fn.Name.Name], mask)
 	}
+}
+
+func (idx *sigIndex) addFields(dir string, file *ast.File, contextName string) {
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			st, ok := ts.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+			idx.structs[dir+"\x00"+ts.Name.Name] = true
+			if st.Fields == nil {
+				continue
+			}
+			for _, field := range st.Fields.List {
+				isContext := contextName != "" && isContextType(field.Type, contextName)
+				for _, name := range field.Names {
+					key := dir + "\x00" + ts.Name.Name + "." + name.Name
+					prev, seen := idx.fieldContext[key]
+					if !seen {
+						idx.fieldContext[key] = isContext
+						continue
+					}
+					if prev != isContext {
+						idx.fieldContext[key] = false
+						idx.fieldMixed[key] = true
+					}
+				}
+			}
+		}
+	}
+}
+
+func (idx *sigIndex) isStruct(dir, name string) bool {
+	return idx.structs[dir+"\x00"+name]
+}
+
+func (idx *sigIndex) fieldIsContext(dir, typ, name string) bool {
+	key := dir + "\x00" + typ + "." + name
+	return idx.fieldContext[key] && !idx.fieldMixed[key]
+}
+
+func (idx *sigIndex) onlyContextField(dir, name string) bool {
+	prefix := dir + "\x00"
+	suffix := "." + name
+	found := false
+	for key, isContext := range idx.fieldContext {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		if !strings.HasSuffix(key[len(prefix):], suffix) {
+			continue
+		}
+		if idx.fieldMixed[key] || !isContext {
+			return false
+		}
+		found = true
+	}
+	return found
 }
 
 func (idx *sigIndex) contextAt(dir, name string, index int) bool {

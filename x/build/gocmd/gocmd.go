@@ -8,7 +8,6 @@ import (
 	"context"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
-	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -30,9 +29,6 @@ type Command struct {
 // The lewkit compiler is a Control task named "go build". Each package
 // compile and the link are CPU children of that task.
 func (c Command) Run(ctx context.Context) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	if c.active(ctx) == CompilerLewkit {
 		return c.runLewkit(ctx)
 	}
@@ -65,9 +61,6 @@ func (c Command) exec(ctx context.Context, verb string) error {
 // Tool runs name as one IO task through the exec driver.
 // Stdout and stderr share that task's progress row.
 func Tool(ctx context.Context, name, dir string, env []string, args ...string) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	if taskgroup.FromContext(ctx) == nil {
 		return run(ctx, name, dir, env, args...)
 	}

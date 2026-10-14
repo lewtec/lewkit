@@ -53,9 +53,6 @@ func HostTargets(ctx context.Context) ([]Target, error) {
 }
 
 func hostTargets(ctx context.Context, cgo bool) ([]Target, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	var out []Target
 	for _, goarch := range []string{"amd64", "arm64"} {
 		out = append(out,
@@ -92,9 +89,6 @@ func darwinTools(ctx context.Context) bool {
 // Run writes every archive and host package under Out.
 // The steps share one workflow. Run waits on the future for that graph.
 func (u Uber) Run(ctx context.Context) ([]string, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	apps, err := hostTargets(ctx, u.CGO)
 	if err != nil {
 		return nil, err

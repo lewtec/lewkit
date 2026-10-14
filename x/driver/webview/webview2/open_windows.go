@@ -951,7 +951,7 @@ func (handler *comHandler) catch() {
 var reported sync.Once
 
 func (view *edgeView) report(err error) {
-	if view == nil || err == nil || view.ctx == nil {
+	if view == nil || err == nil {
 		return
 	}
 	ctx := view.ctx

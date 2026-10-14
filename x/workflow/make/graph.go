@@ -31,9 +31,6 @@ type builder struct {
 // Graph resolves targets into a workflow graph. An empty list builds the
 // default goal.
 func (f *File) Graph(ctx context.Context, targets []string) (workflow.Graph, error) {
-	if ctx == nil {
-		return workflow.Graph{}, errs.ErrNilContext
-	}
 	f.ctx = ctx
 	if len(targets) == 0 {
 		var err error

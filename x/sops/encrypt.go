@@ -38,9 +38,6 @@ var ErrNoConfig = errs.Wrap(errs.ErrNotFound, "sops config file not found")
 // is the one that sops reads from .sops.yaml. A missing config file
 // is ErrNoConfig.
 func Encrypt(ctx context.Context, path string, plaintext []byte) ([]byte, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

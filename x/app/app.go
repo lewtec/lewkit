@@ -28,7 +28,6 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/webview/prelude"
 	"github.com/lewtec/lewkit/x/entry"
-	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -58,9 +57,6 @@ type App struct {
 // presents it on Apple. Vulkan presents it where libvulkan is the screen.
 // Loopback runs only when the caller opted in.
 func (a App) Run(ctx context.Context) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	id, _ := release.RequireStamp()
 	run := func(ctx context.Context) error {
 		return a.open(ctx, id)

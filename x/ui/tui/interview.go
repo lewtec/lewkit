@@ -35,7 +35,7 @@ type Grow func(answers []Answer) ([]Question, error)
 
 // Interview asks one question at a time.
 // Left is back. Enter and right are next, and finish on the last step.
-// Run starts it with the caller context. A nil context is [errs.ErrNilContext].
+// Run starts it with the caller context.
 type Interview struct {
 	questions []Question
 	answers   []Answer
@@ -335,9 +335,6 @@ func Run(ctx context.Context, m Interview) ([]Answer, error) {
 }
 
 func start(ctx context.Context, m Interview, in io.Reader, out io.Writer) ([]Answer, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

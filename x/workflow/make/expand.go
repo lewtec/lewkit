@@ -615,9 +615,6 @@ func (f *File) withCall(name string, args []string, fn func() error) error {
 // shell runs script. A non-zero exit still returns the output, matching
 // GNU make. A cancelled context is returned so the load stops with it.
 func (f *File) shell(script string) (string, error) {
-	if f.ctx == nil {
-		return "", errs.ErrNilContext
-	}
 	if err := f.ctx.Err(); err != nil {
 		return "", err
 	}

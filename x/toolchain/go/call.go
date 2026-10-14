@@ -80,9 +80,6 @@ var (
 // memfd. Darwin and Windows read it from a temporary file. Bind calls
 // the compiled functions in this process.
 func CompileSource(ctx context.Context, src string) (*Prog, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	compileMu.Lock()
 	defer compileMu.Unlock()
 

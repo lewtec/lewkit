@@ -15,7 +15,6 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/build/version"
-	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
@@ -124,9 +123,6 @@ func (job Job) Paths() []string {
 // Each target is a workflow step named goos/goarch, so the steps run
 // together. Run waits on the future for those steps.
 func (job Job) Run(ctx context.Context) ([]string, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if len(job.Targets) == 0 {
 		return nil, ErrBuildNoTarget
 	}

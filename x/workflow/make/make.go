@@ -91,9 +91,6 @@ func Load(ctx context.Context, path, work string, assigns, goals []string) (*Fil
 const maxRemake = 3
 
 func load(ctx context.Context, path, work string, assigns, goals []string, depth int) (*File, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err

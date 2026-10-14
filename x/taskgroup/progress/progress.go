@@ -72,7 +72,7 @@ type runKey struct{}
 // on the first scheduled task or LineWriter. A nested Run uses the
 // session already on ctx and does not start a second view.
 func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) error {
-	if ctx != nil && ctx.Value(runKey{}) != nil {
+	if ctx.Value(runKey{}) != nil {
 		return work(ctx)
 	}
 	if s == nil {

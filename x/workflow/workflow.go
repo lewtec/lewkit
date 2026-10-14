@@ -80,9 +80,6 @@ func (f Future) Wait(ctx context.Context) error {
 	if len(f.ids) == 0 {
 		return nil
 	}
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	ctx = context.WithoutCancel(ctx)
 	var err error
 	for _, id := range f.ids {
@@ -99,9 +96,6 @@ func (f Future) Wait(ctx context.Context) error {
 // waited on; Wait on the future waits for the steps. Without a session,
 // Run starts one and waits, and that wait error is Run's error.
 func Run(ctx context.Context, g Graph, targets []string) (Future, error) {
-	if ctx == nil {
-		return Future{}, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return Future{}, err
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
-	"github.com/lewtec/lewkit/x/errs"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/lewtec/lewkit/x/toolchain/load"
 )
@@ -20,9 +19,6 @@ func (c *goRunCmd) Run(ctx context.Context) error {
 }
 
 func (c *goBuildCmd) execute(ctx context.Context, run bool, args []string) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	ldflags, err := load.SplitFlags(c.ldflags.Value())
 	if err != nil {
 		return err

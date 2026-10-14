@@ -65,9 +65,6 @@ type File struct {
 // Load reads path. work is the directory commands run in; an empty work
 // uses the file's directory.
 func Load(ctx context.Context, path, work string) (*File, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

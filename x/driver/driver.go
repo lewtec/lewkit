@@ -376,11 +376,7 @@ func (s factorySet[T]) weightOf(factory DriverFactory[T]) int {
 
 // List returns every compatible driver for T, highest weight first, without
 // constructing them. Get opens the first Handle that New succeeds for.
-// A nil context is an error.
 func List[T any](ctx context.Context) ([]Handle[T], error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	set, err := snapshot[T]()
 	if err != nil {
 		return nil, err

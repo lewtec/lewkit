@@ -19,13 +19,10 @@ func Bind(fn func(ctx context.Context) error) {
 }
 
 // RunBound runs the function registered with [Bind].
-// ctx is the process root. A nil context is an error.
+// ctx is the process root.
 func RunBound(ctx context.Context) error {
 	if bound == nil {
 		return ErrRunBoundEntryNoApp
-	}
-	if ctx == nil {
-		return errs.ErrNilContext
 	}
 	return bound(ctx)
 }

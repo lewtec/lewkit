@@ -4,8 +4,6 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
-
-	"github.com/lewtec/lewkit/x/errs"
 )
 
 type Singleton[T any] interface {
@@ -18,10 +16,6 @@ func NewSingleton[T any](f func(context.Context) (T, error)) Singleton[T] {
 		return f(*first.Load())
 	})
 	return singleton[T](func(ctx context.Context) (T, error) {
-		if ctx == nil {
-			var z T
-			return z, errs.ErrNilContext
-		}
 		if err := ctx.Err(); err != nil {
 			var z T
 			return z, context.Cause(ctx)

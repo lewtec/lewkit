@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/toolchain/load"
 )
 
@@ -33,9 +32,6 @@ type Loaded struct {
 // "release go: main package has assembly". A missing archive is
 // [load.ErrNoArchive]. The link waits for every package this call compiled.
 func BuildLoaded(ctx context.Context, m Loaded) (string, error) {
-	if ctx == nil {
-		return "", errs.ErrNilContext
-	}
 	if m.Graph == nil {
 		return "", fmt.Errorf("%w: graph", ErrNoWork)
 	}

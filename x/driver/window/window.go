@@ -117,10 +117,7 @@ func Open(ctx context.Context, cfg Config) (Window, error) {
 	})
 }
 
-// CloseWhenDone closes w when ctx is done. A nil context panics.
+// CloseWhenDone closes w when ctx is done.
 func CloseWhenDone(ctx context.Context, w Window) {
-	if ctx == nil {
-		panic("window: nil context")
-	}
 	context.AfterFunc(ctx, func() { _ = w.Close() })
 }

@@ -89,10 +89,8 @@ func Dir() string {
 }
 
 func dirFrom(ctx context.Context) string {
-	if ctx != nil {
-		if dir, _ := ctx.Value(dirKey{}).(string); dir != "" {
-			return dir
-		}
+	if dir, _ := ctx.Value(dirKey{}).(string); dir != "" {
+		return dir
 	}
 	return Dir()
 }

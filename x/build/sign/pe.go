@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/KarpelesLab/authenticode"
-	"github.com/lewtec/lewkit/x/errs"
 )
 
 // PEOptions selects Authenticode attributes. Zero values sign with SHA-256
@@ -29,9 +28,6 @@ type PEOptions struct {
 // SignPE returns pe with an RSA Authenticode signature embedded.
 // pe is a PE32 or PE32+ image, such as a Go windows .exe.
 func (id *Identity) SignPE(ctx context.Context, pe []byte, opts PEOptions) ([]byte, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -59,9 +55,6 @@ func (id *Identity) SignPE(ctx context.Context, pe []byte, opts PEOptions) ([]by
 
 // SignPEFile signs the Windows executable at path in place.
 func (id *Identity) SignPEFile(ctx context.Context, path, programName string) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return err

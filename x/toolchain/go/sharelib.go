@@ -4,8 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-
-	"github.com/lewtec/lewkit/x/errs"
 )
 
 // SharedLibrary compiles src into a linux/amd64 shared object at out.
@@ -13,9 +11,6 @@ import (
 // _cgo_export.go, which is what makes //go:cgo_export_dynamic take effect.
 // The temporary source is removed before return. out is the library.
 func SharedLibrary(ctx context.Context, out, src string) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	dir, err := os.MkdirTemp("", "lewkit-share-")
 	if err != nil {
 		return err

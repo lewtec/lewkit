@@ -2,17 +2,12 @@ package thread
 
 import (
 	"context"
-
-	"github.com/lewtec/lewkit/x/errs"
 )
 
 // Run binds this goroutine, runs fn on another, and Loop until fn returns.
 // Call from main. init already locked the main goroutine to the process
 // main OS thread so AppKit nextEvent is legal.
 func Run(ctx context.Context, fn func(context.Context) error) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	Bind(ctx)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

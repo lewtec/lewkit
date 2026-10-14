@@ -65,9 +65,6 @@ var ErrProject = errs.Wrap(errs.ErrInvalid, "not a decomp project")
 // or accepted check is written back to the same file. Migrations come from
 // the embedded sqlc schema through [schema.DBArg].
 func Open(ctx context.Context, path string) (*Project, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -87,9 +84,6 @@ func Open(ctx context.Context, path string) (*Project, error) {
 
 // OpenConn migrates and loads a program database on a parsed [db.Arg] connection.
 func OpenConn(ctx context.Context, conn *db.Conn[schema.Queries]) (*Project, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -552,9 +546,6 @@ func (artifact *Artifact) saveFunction(ctx context.Context, function *Function) 
 	if artifact == nil || artifact.project == nil || artifact.project.conn == nil {
 		return nil
 	}
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -574,9 +565,6 @@ func (artifact *Artifact) saveFunction(ctx context.Context, function *Function) 
 func (artifact *Artifact) saveNote(ctx context.Context, address uint64, text string) error {
 	if artifact == nil || artifact.project == nil || artifact.project.conn == nil {
 		return nil
-	}
-	if ctx == nil {
-		return errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return err

@@ -118,9 +118,6 @@ func (s *Sim) Frame(ctx context.Context) {
 		}
 		return
 	}
-	if ctx == nil {
-		panic("world: nil context")
-	}
 	plan := s.prepare()
 	if ctx.Err() != nil {
 		s.stepped = false

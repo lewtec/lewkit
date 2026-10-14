@@ -189,17 +189,11 @@ type limitsKey struct{}
 // WithLimits stores pool caps on ctx for the process session.
 // entry.Run reads them when it starts that session. A zero field keeps DefaultLimits.
 func WithLimits(ctx context.Context, limits Limits) context.Context {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	return context.WithValue(ctx, limitsKey{}, limits)
 }
 
-// LimitsFrom reports caps stored by WithLimits. A nil context panics.
+// LimitsFrom reports caps stored by WithLimits.
 func LimitsFrom(ctx context.Context) (Limits, bool) {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	limits, ok := ctx.Value(limitsKey{}).(Limits)
 	return limits, ok
 }
@@ -293,9 +287,6 @@ type task struct {
 // The returned context carries the Session and is cancelled on first
 // non-isolated task error.
 func New(ctx context.Context, limits Limits) (*Session, context.Context) {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	limits = limits.norm()
 	ctx, cancel := context.WithCancelCause(ctx)
 	root := &task{id: 1, ctx: ctx}
@@ -366,19 +357,12 @@ func (s *Session) startWorkers(limits Limits) {
 // WithoutSession returns a child of ctx that carries no Session and no task.
 // A workflow started from it takes a new pool. ctx itself is unchanged.
 func WithoutSession(ctx context.Context) context.Context {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	ctx = context.WithValue(ctx, sessionKey{}, (*Session)(nil))
 	return context.WithValue(ctx, taskKey{}, ID(0))
 }
 
 // FromContext retrieves the Session from ctx. Returns nil if none.
-// A nil context panics.
 func FromContext(ctx context.Context) *Session {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	s, ok := ctx.Value(sessionKey{}).(*Session)
 	if !ok {
 		return nil
@@ -400,9 +384,6 @@ func MustFromContext(ctx context.Context) *Session {
 // Otherwise it starts DefaultLimits, runs fn, then Wait.
 // fn's error wins over Wait.
 func WithSession(ctx context.Context, fn func(context.Context) error) error {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -421,9 +402,6 @@ func WithSession(ctx context.Context, fn func(context.Context) error) error {
 }
 
 func taskFromContext(ctx context.Context) ID {
-	if ctx == nil {
-		panic("taskgroup: nil context")
-	}
 	id, ok := ctx.Value(taskKey{}).(ID)
 	if !ok {
 		return 0

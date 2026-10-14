@@ -21,7 +21,6 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/prelude"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
-	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -63,10 +62,6 @@ func Main(parent context.Context, fn func(context.Context) error) {
 // Pool caps from taskgroup.WithLimits apply when Run starts the session.
 func MainFrom(parent context.Context, fn func(context.Context) error) {
 	slog.SetDefault(slog.New(logging.NewHandler(slogOut(), &slog.HandlerOptions{Level: slog.LevelInfo})))
-	if parent == nil {
-		slog.Error("entry: nil context")
-		os.Exit(1)
-	}
 	prepareHost(parent)
 	ctx, stop := signal.NotifyContext(parent, os.Interrupt)
 	defer stop()
@@ -89,9 +84,6 @@ func failureVisible() bool {
 func showFailure(ctx context.Context, err error) {
 	if err == nil {
 		return
-	}
-	if ctx == nil {
-		panic("entry: nil context")
 	}
 	if !failureVisible() {
 		return
@@ -120,9 +112,6 @@ func After(fn func(context.Context) error) {
 func Run(ctx context.Context, fn func(context.Context) error) error {
 	if w := logging.Logcat(); w != nil {
 		slog.SetDefault(slog.New(logging.NewHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})))
-	}
-	if ctx == nil {
-		return errs.ErrNilContext
 	}
 	return thread.Run(ctx, func(ctx context.Context) (err error) {
 		defer func() {

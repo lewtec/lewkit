@@ -38,11 +38,8 @@ var (
 )
 
 // Open returns the shared binder client.
-// The first successful call opens it with ctx. A nil context is an error.
+// The first successful call opens it with ctx.
 func Open(ctx context.Context) (*Client, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -61,9 +58,6 @@ func Open(ctx context.Context) (*Client, error) {
 
 // ForAndroid opens the client on an Android process.
 func ForAndroid(ctx context.Context) (*Client, error) {
-	if ctx == nil {
-		return nil, errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
