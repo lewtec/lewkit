@@ -26,10 +26,6 @@ func TestNotDarwin(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		test.Skip(t)
 	}
-	err := chooserFactory{}.CheckCompatibility(t.Context())
-	require.ErrorIs(t, err, driver.ErrIncompatible)
-	err = prompterFactory{}.CheckCompatibility(t.Context())
-	require.ErrorIs(t, err, driver.ErrIncompatible)
-	err = confirmerFactory{}.CheckCompatibility(t.Context())
+	err := available(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)
 }

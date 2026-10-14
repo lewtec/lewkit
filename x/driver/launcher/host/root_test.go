@@ -18,13 +18,13 @@ func TestNeedsHost(t *testing.T) {
 	t.Setenv("LEWKIT_CACHE_DIR", "")
 	hostask.Set(nil)
 	t.Cleanup(func() { hostask.Set(nil) })
-	if err := (base{}).CheckCompatibility(t.Context()); err == nil {
+	if err := hostask.Require(); err == nil {
 		require.FailNow(t, fmt.Sprint("host launcher is compatible without an ask host"))
 	}
 	hostask.Set(func(context.Context, int, string, string) (string, error) {
 		return askwire.Format(askwire.StatusYes, ""), nil
 	})
-	require.NoError(t, (base{}).CheckCompatibility(t.Context()))
+	require.NoError(t, hostask.Require())
 	ok, err := backend{}.Confirm(t.Context(), "Delete?")
 	if err != nil || !ok {
 		require.FailNowf(t, "", "confirm %v %v", ok, err)

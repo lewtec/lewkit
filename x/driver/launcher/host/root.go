@@ -5,35 +5,9 @@ package host
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/hostask"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
-
-type base struct{}
-
-func (base) ID() string  { return "launcher_host" }
-func (base) Weight() int { return 70 }
-
-func (base) CheckCompatibility(context.Context) error { return hostask.Require() }
-
-type chooserFactory struct{ base }
-
-func (chooserFactory) Name() string { return "Host (Choose)" }
-
-func (chooserFactory) New(context.Context) (launcher.Chooser, error) { return backend{}, nil }
-
-type prompterFactory struct{ base }
-
-func (prompterFactory) Name() string { return "Host (Prompt)" }
-
-func (prompterFactory) New(context.Context) (launcher.Prompter, error) { return backend{}, nil }
-
-type confirmerFactory struct{ base }
-
-func (confirmerFactory) Name() string { return "Host (Confirm)" }
-
-func (confirmerFactory) New(context.Context) (launcher.Confirmer, error) { return backend{}, nil }
 
 type backend struct{}
 
@@ -62,14 +36,9 @@ func (backend) Confirm(ctx context.Context, message string) (bool, error) {
 }
 
 func init() {
-	driver.Register[launcher.Chooser](chooserFactory{})
-	driver.Register[launcher.Prompter](prompterFactory{})
-	driver.Register[launcher.Confirmer](confirmerFactory{})
+	launcher.RegisterAsk("launcher_host", 70, "Host (Choose)", "Host (Prompt)", "Host (Confirm)", func(context.Context) error {
+		return hostask.Require()
+	}, func(context.Context) (backend, error) {
+		return backend{}, nil
+	})
 }
-
-var (
-	_ driver.DriverFactory[launcher.Chooser]   = chooserFactory{}
-	_ driver.DriverFactory[launcher.Prompter]  = prompterFactory{}
-	_ driver.DriverFactory[launcher.Confirmer] = confirmerFactory{}
-	_ driver.Weighter                          = base{}
-)

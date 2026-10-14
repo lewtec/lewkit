@@ -5,7 +5,6 @@ package gtk
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/gtkui"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 	gtklib "github.com/lewtec/lewkit/x/ffi/native/gtk"
@@ -16,31 +15,6 @@ import (
 var (
 	ErrChooseNoItems = launcher.ErrChooseNoItems
 )
-
-type base struct{}
-
-func (base) ID() string  { return "launcher_gtk" }
-func (base) Weight() int { return 80 }
-
-func (base) CheckCompatibility(ctx context.Context) error { return gtkui.Require(ctx) }
-
-type chooserFactory struct{ base }
-
-func (chooserFactory) Name() string { return "GTK (Choose)" }
-
-func (chooserFactory) New(context.Context) (launcher.Chooser, error) { return backend{}, nil }
-
-type prompterFactory struct{ base }
-
-func (prompterFactory) Name() string { return "GTK (Prompt)" }
-
-func (prompterFactory) New(context.Context) (launcher.Prompter, error) { return backend{}, nil }
-
-type confirmerFactory struct{ base }
-
-func (confirmerFactory) Name() string { return "GTK (Confirm)" }
-
-func (confirmerFactory) New(context.Context) (launcher.Confirmer, error) { return backend{}, nil }
 
 type backend struct{}
 
@@ -103,14 +77,7 @@ func (backend) Confirm(ctx context.Context, message string) (bool, error) {
 }
 
 func init() {
-	driver.Register[launcher.Chooser](chooserFactory{})
-	driver.Register[launcher.Prompter](prompterFactory{})
-	driver.Register[launcher.Confirmer](confirmerFactory{})
+	launcher.RegisterAsk("launcher_gtk", 80, "GTK (Choose)", "GTK (Prompt)", "GTK (Confirm)", gtkui.Require, func(context.Context) (backend, error) {
+		return backend{}, nil
+	})
 }
-
-var (
-	_ driver.DriverFactory[launcher.Chooser]   = chooserFactory{}
-	_ driver.DriverFactory[launcher.Prompter]  = prompterFactory{}
-	_ driver.DriverFactory[launcher.Confirmer] = confirmerFactory{}
-	_ driver.Weighter                          = base{}
-)

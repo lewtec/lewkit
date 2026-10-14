@@ -10,40 +10,8 @@ import (
 
 	"github.com/ktr0731/go-fuzzyfinder"
 
-	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
-
-type base struct{}
-
-func (base) ID() string  { return "terminal" }
-func (base) Weight() int { return 10 }
-
-func (base) CheckCompatibility(context.Context) error { return driver.TerminalGate() }
-
-type chooserFactory struct{ base }
-
-func (chooserFactory) Name() string { return "Terminal (Fuzzy)" }
-
-func (chooserFactory) New(context.Context) (launcher.Chooser, error) {
-	return backend{}, nil
-}
-
-type prompterFactory struct{ base }
-
-func (prompterFactory) Name() string { return "Terminal (Stdin)" }
-
-func (prompterFactory) New(context.Context) (launcher.Prompter, error) {
-	return backend{}, nil
-}
-
-type confirmerFactory struct{ base }
-
-func (confirmerFactory) Name() string { return "Terminal (y/n)" }
-
-func (confirmerFactory) New(context.Context) (launcher.Confirmer, error) {
-	return backend{}, nil
-}
 
 type backend struct{}
 
