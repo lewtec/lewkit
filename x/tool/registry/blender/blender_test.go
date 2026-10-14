@@ -3,8 +3,13 @@ package pkg
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
+	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry"
@@ -150,6 +155,39 @@ func TestBlenderUnsupportedPlatform(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoPlatformArtifact)
 	_, err = installed.ListArtifacts(t.Context(), "5.2.2")
 	require.ErrorIs(t, err, ErrNoPlatformArtifact)
+}
+
+func TestBlenderDMGInstallsAsOneFile(t *testing.T) {
+	t.Parallel()
+
+	const payload = "not-an-archive-dmg"
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(payload))
+	}))
+	t.Cleanup(server.Close)
+
+	raw, err := newBlender()
+	require.NoError(t, err)
+	dest := t.TempDir()
+	err = raw.(tool.ArtifactTool).InstallArtifact(t.Context(), tool.Artifact{
+		OS:   "darwin",
+		Arch: "arm64",
+		URL:  server.URL + "/blender-5.2.2-macos-arm64.dmg",
+	}, dest)
+	require.NoError(t, err)
+
+	body, err := os.ReadFile(filepath.Join(dest, "blender-5.2.2-macos-arm64.dmg"))
+	require.NoError(t, err)
+	require.Equal(t, payload, string(body))
+	entries, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Empty(t, tool.FindBinary(dest, "blender"))
+
+	extracted := t.TempDir()
+	require.NoError(t, tool.Extract(t.Context(), filepath.Join(dest, "blender-5.2.2-macos-arm64.dmg"), extracted))
+	_, err = os.Stat(filepath.Join(extracted, "Blender.app", "Contents", "MacOS", "Blender"))
+	require.Error(t, err)
 }
 
 func TestBlenderSeriesNamesIgnoreNonReleases(t *testing.T) {

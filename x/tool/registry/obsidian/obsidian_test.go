@@ -2,8 +2,13 @@ package pkg
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
+	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry"
@@ -181,6 +186,39 @@ func TestObsidianDecodeRelease(t *testing.T) {
 	_, err := installed.ListArtifacts(t.Context(), "1.14.4")
 	require.ErrorIs(t, err, ErrDecodeRelease)
 	require.ErrorIs(t, err, errs.ErrInvalid)
+}
+
+func TestObsidianDMGInstallsAsOneFile(t *testing.T) {
+	t.Parallel()
+
+	const payload = "not-an-archive-dmg"
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		_, _ = writer.Write([]byte(payload))
+	}))
+	t.Cleanup(server.Close)
+
+	raw, err := newObsidian()
+	require.NoError(t, err)
+	dest := t.TempDir()
+	err = raw.(tool.ArtifactTool).InstallArtifact(t.Context(), tool.Artifact{
+		OS:   "darwin",
+		Arch: "amd64",
+		URL:  server.URL + "/Obsidian-1.14.4.dmg",
+	}, dest)
+	require.NoError(t, err)
+
+	// The shared extractor copies a dmg as one file. NormalizeBinaryName
+	// strips the trailing version, and ".dmg" is part of that token, so
+	// Obsidian-1.14.4.dmg lands as Obsidian. It is not an app bundle.
+	body, err := os.ReadFile(filepath.Join(dest, "Obsidian"))
+	require.NoError(t, err)
+	require.Equal(t, payload, string(body))
+	entries, err := os.ReadDir(dest)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Empty(t, tool.FindBinary(dest, "obsidian"))
+	_, err = os.Stat(filepath.Join(dest, "Obsidian.app", "Contents", "MacOS", "Obsidian"))
+	require.Error(t, err)
 }
 
 func releaseAssets() []obsidianAsset {
