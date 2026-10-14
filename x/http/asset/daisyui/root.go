@@ -20,9 +20,5 @@ const Name = "daisyui.css"
 const Path = asset.Prefix + Name
 
 func init() {
-	asset.MustRegister(asset.File{
-		Name:        Name,
-		ContentType: "text/css; charset=utf-8",
-		Body:        body,
-	})
+	asset.Must(Name, asset.CSS, body)
 }

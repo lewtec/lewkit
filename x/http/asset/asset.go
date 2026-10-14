@@ -58,6 +58,18 @@ func MustRegister(file File) {
 	}
 }
 
+const (
+	// JavaScript is the content type of a vendored script.
+	JavaScript = "text/javascript; charset=utf-8"
+	// CSS is the content type of a vendored stylesheet.
+	CSS = "text/css; charset=utf-8"
+)
+
+// Must registers one file and panics on error.
+func Must(name, contentType string, body []byte) {
+	MustRegister(File{Name: name, ContentType: contentType, Body: body})
+}
+
 func (set *registry) register(file File) error {
 	if file.Name == "" || file.Name == "." || file.Name == ".." || strings.Contains(file.Name, "/") {
 		return fmt.Errorf("%s: %w", file.Name, ErrName)
