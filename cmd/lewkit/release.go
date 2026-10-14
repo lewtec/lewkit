@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/lewtec/lewkit/x/build/gen/uki"
+	"github.com/lewtec/lewkit/x/build/gen/unikernel"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -84,6 +86,25 @@ func (c *runCmd) program(ctx context.Context, paths []string) (func(context.Cont
 			return nil, err
 		}
 		return nil, launchApp(ctx, c.goos.Value(), paths[0], cfg.PackageID)
+	}
+	if uki.Guest(c.goos.Value()) {
+		if len(c.args) > 0 {
+			return nil, errors.New("program arguments are not passed to a linux guest")
+		}
+		dir := paths[0]
+		return func(ctx context.Context) error {
+			return uki.Run(ctx, dir)
+		}, nil
+	}
+	if unikernel.Firmware(c.goos.Value()) {
+		if len(c.args) > 0 {
+			return nil, errors.New("program arguments are not passed to a unikernel")
+		}
+		image := paths[0]
+		goos := c.goos.Value()
+		return func(ctx context.Context) error {
+			return unikernel.Run(ctx, goos, image)
+		}, nil
 	}
 	prog := builtProgram{
 		goos:    c.goos.Value(),

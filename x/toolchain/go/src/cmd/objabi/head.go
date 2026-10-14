@@ -49,6 +49,7 @@ const (
 	Hwasip1
 	Hwindows
 	Haix
+	Htamago
 )
 
 func (h *HeadType) Set(s string) error {
@@ -73,6 +74,8 @@ func (h *HeadType) Set(s string) error {
 		*h = Hplan9
 	case "illumos", "solaris":
 		*h = Hsolaris
+	case "tamago":
+		*h = Htamago
 	case "wasip1":
 		*h = Hwasip1
 	case "windows":
@@ -105,6 +108,8 @@ func (h HeadType) String() string {
 		return "plan9"
 	case Hsolaris:
 		return "solaris"
+	case Htamago:
+		return "tamago"
 	case Hwasip1:
 		return "wasip1"
 	case Hwindows:

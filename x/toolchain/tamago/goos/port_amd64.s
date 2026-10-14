@@ -8,6 +8,12 @@ TEXT ·outb(SB),NOSPLIT,$0-3
 	OUTB
 	RET
 
+TEXT ·inb(SB),NOSPLIT,$0-16
+	MOVW	port+0(FP), DX
+	INB
+	MOVB	AX, ret+8(FP)
+	RET
+
 TEXT ·outw(SB),NOSPLIT,$0-4
 	MOVW	port+0(FP), DX
 	MOVW	val+2(FP), AX

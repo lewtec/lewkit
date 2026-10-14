@@ -19,4 +19,9 @@ func TestLinkFlags(t *testing.T) {
 	if RamStart+0x10000 != 0x10010000 {
 		require.FailNowf(t, "", "text address %x", RamStart+0x10000)
 	}
+	f, err := Overlay().Open("goos/goos.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
 }

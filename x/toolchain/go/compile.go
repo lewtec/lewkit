@@ -31,7 +31,7 @@ func Compile(ctx context.Context, pkgpath, out, importcfg, embedcfg, lang string
 
 // compileHere is the compile inside the process spawn started.
 // One process compiles one package, then exits.
-func compileHere(pkgpath, out, importcfg, embedcfg, lang string, shared bool, trimpath string, files []string) (err error) {
+func compileHere(pkgpath, out, importcfg, embedcfg, lang string, shared bool, trimpath, symabis string, files []string) (err error) {
 	if pkgpath == "" {
 		pkgpath = "main"
 	}
@@ -46,12 +46,18 @@ func compileHere(pkgpath, out, importcfg, embedcfg, lang string, shared bool, tr
 		"-o", out,
 		"-p", pkgpath,
 		"-lang=" + lang,
-		"-complete",
+	}
+	if symabis == "" {
+		args = append(args, "-complete")
+	} else {
+		args = append(args, "-symabis", symabis)
+	}
+	args = append(args,
 		"-nolocalimports",
 		"-importcfg", importcfg,
 		"-pack",
 		"-c=1",
-	}
+	)
 	if trimpath != "" {
 		args = append(args, "-trimpath", trimpath)
 	}

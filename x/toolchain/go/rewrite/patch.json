@@ -236,5 +236,115 @@
       "old": "\tflag.Var(versionFlag{}, \"V\", \"print version and exit\")\n",
       "new": "\tAddVersionFlagFS(flag.CommandLine)\n}\n\n// AddVersionFlagFS registers -V on fs.\nfunc AddVersionFlagFS(fs *flag.FlagSet) {\n\tfs.Var(versionFlag{}, \"V\", \"print version and exit\")\n"
     }
+  ],
+  "cmd/objabi/head.go": [
+    {
+      "old": "\tHwindows\n\tHaix\n)",
+      "new": "\tHwindows\n\tHaix\n\tHtamago\n)"
+    },
+    {
+      "old": "\tcase \"illumos\", \"solaris\":\n\t\t*h = Hsolaris\n\tcase \"wasip1\":",
+      "new": "\tcase \"illumos\", \"solaris\":\n\t\t*h = Hsolaris\n\tcase \"tamago\":\n\t\t*h = Htamago\n\tcase \"wasip1\":"
+    },
+    {
+      "old": "\tcase Hsolaris:\n\t\treturn \"solaris\"\n\tcase Hwasip1:",
+      "new": "\tcase Hsolaris:\n\t\treturn \"solaris\"\n\tcase Htamago:\n\t\treturn \"tamago\"\n\tcase Hwasip1:"
+    }
+  ],
+  "cmd/obj/x86/obj6.go": [
+    {
+      "old": "\t\tcase objabi.Hlinux,\n\t\t\tobjabi.Hplan9,\n\t\t\tobjabi.Hwindows:\n\t\t\treturn false",
+      "new": "\t\tcase objabi.Hlinux,\n\t\t\tobjabi.Hplan9,\n\t\t\tobjabi.Htamago,\n\t\t\tobjabi.Hwindows:\n\t\t\treturn false"
+    },
+    {
+      "old": "\tcase objabi.Hlinux, objabi.Hfreebsd:\n\t\treturn !ctxt.Flag_shared",
+      "new": "\tcase objabi.Hlinux, objabi.Hfreebsd, objabi.Htamago:\n\t\treturn !ctxt.Flag_shared"
+    }
+  ],
+  "cmd/obj/x86/asm6.go": [
+    {
+      "old": "\t\t\tcase objabi.Hlinux:\n\t\t\t\tif isAndroid {",
+      "new": "\t\t\tcase objabi.Hlinux, objabi.Htamago:\n\t\t\t\tif isAndroid {"
+    },
+    {
+      "old": "\t\t\t\t\t\tcase objabi.Hlinux, objabi.Hfreebsd:\n\t\t\t\t\t\t\tif ctxt.Flag_shared {",
+      "new": "\t\t\t\t\t\tcase objabi.Hlinux, objabi.Hfreebsd, objabi.Htamago:\n\t\t\t\t\t\t\tif ctxt.Flag_shared {"
+    },
+    {
+      "old": "\t\t\t\t\tcase objabi.Hlinux, objabi.Hfreebsd:\n\t\t\t\t\t\tif !ctxt.Flag_shared {",
+      "new": "\t\t\t\t\tcase objabi.Hlinux, objabi.Hfreebsd, objabi.Htamago:\n\t\t\t\t\t\tif !ctxt.Flag_shared {"
+    }
+  ],
+  "link/amd64/obj.go": [
+    {
+      "old": "\t\tobjabi.Hsolaris:   /* solaris */\n\t\tld.Elfinit(ctxt)",
+      "new": "\t\tobjabi.Hsolaris,   /* solaris */\n\t\tobjabi.Htamago:    /* tamago */\n\t\tld.Elfinit(ctxt)"
+    }
+  ],
+  "link/ld/sym.go": [
+    {
+      "old": "\t\tobjabi.Hdragonfly,\n\t\tobjabi.Hsolaris:",
+      "new": "\t\tobjabi.Hdragonfly,\n\t\tobjabi.Hsolaris,\n\t\tobjabi.Htamago:"
+    }
+  ],
+  "link/ld/asmb.go": [
+    {
+      "old": "\t\tobjabi.Hopenbsd,\n\t\tobjabi.Hsolaris:\n\t\tasmbElf(ctxt)",
+      "new": "\t\tobjabi.Hopenbsd,\n\t\tobjabi.Hsolaris,\n\t\tobjabi.Htamago:\n\t\tasmbElf(ctxt)"
+    }
+  ],
+  "link/loader/loader.go": [
+    {
+      "old": "\t\"crypto/internal/rand.SetTestingReader\": {\"testing/cryptotest\"}, // pushed from crypto/internal/rand\n\t\"testing.checkParallel\":                 {\"testing/cryptotest\"}, // pushed from testing\n\t\"runtime.addmoduledata\":                 {},                     // assembly symbol, disallow all packages\n}",
+      "new": "\t\"crypto/internal/rand.SetTestingReader\": {\"testing/cryptotest\"},      // pushed from crypto/internal/rand\n\t\"testing.checkParallel\":                 {\"testing/cryptotest\"},      // pushed from testing\n\t\"runtime.addmoduledata\":                 {},                          // assembly symbol, disallow all packages\n\t\"runtime.rt0_amd64_tamago\":              {\"runtime\", \"runtime/goos\"}, // entry from runtime and the goos overlay\n}"
+    }
+  ],
+  "std/pkgbits/version.go": [
+    {
+      "old": "\t// V4: encodes generic methods as standalone function objects\n\tV4\n\n\tnumVersions = iota\n)",
+      "new": "\t// V4: encodes generic methods as standalone function objects\n\tV4\n\n\t// V5: encodes the index of methods to preserve relative order\n\t// of nongeneric and generic methods (go.dev/issue/81188).\n\tV5\n\n\tnumVersions = iota\n)"
+    },
+    {
+      "old": "\t// Generic methods may appear as standalone function objects.\n\tGenericMethods\n\n\tnumFields = iota\n)",
+      "new": "\t// Generic methods may appear as standalone function objects.\n\tGenericMethods\n\n\t// Method index is encoded to preserve relative order of\n\t// nongeneric and generic methods.\n\tPreserveMethodOrder\n\n\tnumFields = iota\n)"
+    },
+    {
+      "old": "\tCompactCompLiterals: V3,\n\tGenericMethods:      V4,\n}",
+      "new": "\tCompactCompLiterals: V3,\n\tGenericMethods:      V4,\n\tPreserveMethodOrder: V5,\n}"
+    }
+  ],
+  "compile/noder/reader.go": [
+    {
+      "old": "\t\t\trecv = r.param()\n\t\t} else {",
+      "new": "\t\t\trecv = r.param()\n\t\t\tif r.Version().Has(pkgbits.PreserveMethodOrder) {\n\t\t\t\t_ = r.Len() // method index not needed in compiler\n\t\t\t}\n\t\t} else {"
+    },
+    {
+      "old": "\tr.Sync(pkgbits.SyncMethod)\n\tnpos := r.pos()",
+      "new": "\tr.Sync(pkgbits.SyncMethod)\n\tif r.Version().Has(pkgbits.PreserveMethodOrder) {\n\t\t_ = r.Len() // method index not needed in compiler\n\t}\n\tnpos := r.pos()"
+    }
+  ],
+  "compile/importer/ureader.go": [
+    {
+      "old": "import (\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/cmd/src\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/compile/base\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/compile/syntax\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/compile/types2\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/std/pkgbits\"\n",
+      "new": "import (\n\t\"cmp\"\n\t\"slices\"\n\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/cmd/src\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/compile/base\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/compile/syntax\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/compile/types2\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/std/pkgbits\"\n"
+    },
+    {
+      "old": "\t\t\t\tunderlying := r.typ().Underlying()\n\n\t\t\t\tmethods := make([]*types2.Func, r.Len())\n\t\t\t\tfor i := range methods {\n\t\t\t\t\tmethods[i] = r.method(true)\n\t\t\t\t}\n\n\t\t\t\tif r.Version().Has(pkgbits.GenericMethods) {\n\t\t\t\t\tfor range r.Len() {\n\t\t\t\t\t\t// Careful: objIdx is used to read in package-scoped declarations, which\n\t\t\t\t\t\t// methods are not. Instead, decode it here. This makes it easier to\n\t\t\t\t\t\t// associate it with the type and avoids the main objIdx loop.\n\t\t\t\t\t\tidx := r.Reloc(pkgbits.SectionObj)\n\n\t\t\t\t\t\tt := pr.tempReader(pkgbits.SectionObj, idx, pkgbits.SyncObject1)\n\t\t\t\t\t\tt.dict = pr.objDictIdx(idx)\n\n\t\t\t\t\t\tpos := t.pos()\n\t\t\t\t\t\tassert(t.Bool()) // generic method\n\t\t\t\t\t\tpkg, name := t.selector()\n\t\t\t\t\t\trtparams := t.typeParamNames(true, true)\n\t\t\t\t\t\trecv := t.param()\n\t\t\t\t\t\ttparams := t.typeParamNames(true, false)\n\t\t\t\t\t\tsig := t.signature(recv, rtparams, tparams)\n\n\t\t\t\t\t\tr.delayed = append(r.delayed, t.delayed...) // propagate before retiring\n\n\t\t\t\t\t\tpr.retireReader(t)\n\t\t\t\t\t\tmethods = append(methods, types2.NewFunc(pos, pkg, name, sig))\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\treturn tparams, underlying, methods, r.delayed\n\t\t\t})\n\n",
+      "new": "\t\t\t\tunderlying := r.typ().Underlying()\n\n\t\t\t\ttype indexedMethod struct {\n\t\t\t\t\tindex int // (or -1 in V4)\n\t\t\t\t\tfn    *types2.Func\n\t\t\t\t}\n\t\t\t\tvar methods []indexedMethod\n\n\t\t\t\tif r.Version().Has(pkgbits.GenericMethods) {\n\t\t\t\t\t// V4 (go1.27.0) emitted all non-generic methods\n\t\t\t\t\t// before all generic ones, discarding source\n\t\t\t\t\t// order: a bug (go.dev/issue/81188).\n\t\t\t\t\t// V5 (go1.27.x) fixes it by emitting an explicit\n\t\t\t\t\t// index along with each method.\n\n\t\t\t\t\t// ordinary methods\n\t\t\t\t\tfor range r.Len() {\n\t\t\t\t\t\tidx, m := r.method(true)\n\t\t\t\t\t\tmethods = append(methods, indexedMethod{idx, m})\n\t\t\t\t\t}\n\n\t\t\t\t\t// generic methods\n\t\t\t\t\tfor range r.Len() {\n\t\t\t\t\t\t// Careful: objIdx is used to read in package-scoped declarations, which\n\t\t\t\t\t\t// methods are not. Instead, decode it here. This makes it easier to\n\t\t\t\t\t\t// associate it with the type and avoids the main objIdx loop.\n\t\t\t\t\t\tidx := r.Reloc(pkgbits.SectionObj)\n\n\t\t\t\t\t\tt := pr.tempReader(pkgbits.SectionObj, idx, pkgbits.SyncObject1)\n\t\t\t\t\t\tt.dict = pr.objDictIdx(idx)\n\n\t\t\t\t\t\tpos := t.pos()\n\t\t\t\t\t\tassert(t.Bool()) // generic method\n\t\t\t\t\t\tpkg, name := t.selector()\n\t\t\t\t\t\trtparams := t.typeParamNames(true, true)\n\t\t\t\t\t\trecv := t.param()\n\t\t\t\t\t\tmethodIdx := -1\n\t\t\t\t\t\tif r.Version().Has(pkgbits.PreserveMethodOrder) {\n\t\t\t\t\t\t\tmethodIdx = t.Len()\n\t\t\t\t\t\t}\n\t\t\t\t\t\ttparams := t.typeParamNames(true, false)\n\t\t\t\t\t\tsig := t.signature(recv, rtparams, tparams)\n\n\t\t\t\t\t\tr.delayed = append(r.delayed, t.delayed...) // propagate before retiring\n\t\t\t\t\t\tpr.retireReader(t)\n\t\t\t\t\t\tmethods = append(methods, indexedMethod{methodIdx, types2.NewFunc(pos, pkg, name, sig)})\n\t\t\t\t\t}\n\n\t\t\t\t\tif r.Version().Has(pkgbits.PreserveMethodOrder) {\n\t\t\t\t\t\tslices.SortFunc(methods, func(a, b indexedMethod) int {\n\t\t\t\t\t\t\treturn cmp.Compare(a.index, b.index)\n\t\t\t\t\t\t})\n\t\t\t\t\t}\n\t\t\t\t} else {\n\t\t\t\t\tfor range r.Len() {\n\t\t\t\t\t\t_, m := r.method(true)\n\t\t\t\t\t\tmethods = append(methods, indexedMethod{-1, m})\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfuncs := make([]*types2.Func, len(methods))\n\t\t\t\tfor i, m := range methods {\n\t\t\t\t\tfuncs[i] = m.fn\n\t\t\t\t}\n\n\t\t\t\treturn tparams, underlying, funcs, r.delayed\n\t\t\t})\n\n"
+    },
+    {
+      "old": "func (r *reader) method(isLazy bool) *types2.Func {\n\tr.Sync(pkgbits.SyncMethod)\n\tpos := r.pos()\n\tpkg, name := r.selector()\n\n\trtparams := r.typeParamNames(isLazy, false)\n\tsig := r.signature(r.param(), rtparams, nil)\n\n\t_ = r.pos() // TODO(mdempsky): Remove; this is a hacker for linker.go.\n\treturn types2.NewFunc(pos, pkg, name, sig)\n}\n",
+      "new": "func (r *reader) method(isLazy bool) (int, *types2.Func) {\n\tr.Sync(pkgbits.SyncMethod)\n\tidx := -1\n\tif r.Version().Has(pkgbits.PreserveMethodOrder) {\n\t\tidx = r.Len()\n\t}\n\tpos := r.pos()\n\tpkg, name := r.selector()\n\n\trtparams := r.typeParamNames(isLazy, false)\n\tsig := r.signature(r.param(), rtparams, nil)\n\n\t_ = r.pos() // TODO(mdempsky): Remove; this is a hacker for linker.go.\n\treturn idx, types2.NewFunc(pos, pkg, name, sig)\n}\n"
+    }
+  ],
+  "std/platform/zosarch.go": [
+    {
+      "old": "\t{\"solaris\", \"amd64\"},\n\t{\"wasip1\", \"wasm\"},",
+      "new": "\t{\"solaris\", \"amd64\"},\n\t{\"tamago\", \"amd64\"},\n\t{\"wasip1\", \"wasm\"},"
+    },
+    {
+      "old": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"wasip1\", \"wasm\"}:",
+      "new": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"tamago\", \"amd64\"}:    {},\n\t{\"wasip1\", \"wasm\"}:"
+    }
   ]
 }

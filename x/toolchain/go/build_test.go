@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/errs"
@@ -33,6 +34,37 @@ func TestBuildRejectsShape(t *testing.T) {
 	}
 	require.ErrorIs(t, Build(t.Context(), cycle, nil), errs.ErrCycle)
 	require.ErrorIs(t, Build(t.Context(), nil, &Image{}), ErrEmptyImage)
+}
+
+func TestSymABIsAllowsAssemblyDecl(t *testing.T) {
+	work := t.TempDir()
+	src := filepath.Join(work, "p.go")
+	if err := os.WriteFile(src, []byte("package p\n\nfunc External()\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(work, "p.cfg")
+	if err := os.WriteFile(cfg, []byte("# import config\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(work, "p.a")
+	unit := Unit{
+		ImportPath: "example.com/p",
+		Files:      []string{src},
+		ImportCfg:  cfg,
+		Archive:    archive,
+	}
+	err := Build(t.Context(), []Unit{unit}, nil)
+	if err == nil || !strings.Contains(err.Error(), "missing function body") {
+		t.Fatalf("complete compile: %v", err)
+	}
+	sym := filepath.Join(work, "symabis")
+	if err := os.WriteFile(sym, []byte("def example.com/p.External ABI0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	unit.SymABIs = sym
+	if err := Build(t.Context(), []Unit{unit}, nil); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestBuildDependentPackages(t *testing.T) {

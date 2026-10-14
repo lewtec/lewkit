@@ -12,6 +12,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gen/common"
+	"github.com/lewtec/lewkit/x/build/gen/uki"
+	"github.com/lewtec/lewkit/x/build/gen/unikernel"
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
@@ -28,6 +30,7 @@ type buildFlags struct {
 	sdk       cmd.StringArg               `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
 	goOnly    cmd.Flag                    `long:"go-only" help:"stop after the Go binary"`
 	app       cmd.Flag                    `long:"app" help:"package a host app instead of a binary archive"`
+	kernel    cmd.StringArg               `long:"kernel" help:"vmlinuz for --goos linux_uki or linux_iso; empty downloads Alpine linux-virt for GOARCH" default:""`
 	cgo       cmd.Flag                    `long:"cgo" help:"android: build with cgo and the NDK clang for GOARCH"`
 	compiler  cmd.EnumArg[gocmd.Compiler] `long:"go" default:"lewkit" help:"Go compiler"`
 }
@@ -71,6 +74,18 @@ func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 	goos := c.goos.Value()
 	goarch := c.goarch.Value()
 	target := build.Target{GOOS: goos, GOARCH: goarch}
+	if kernel := strings.TrimSpace(c.kernel.Value()); kernel != "" && !uki.Guest(goos) {
+		return nil, errors.New("--kernel is used with --goos linux_uki or --goos linux_iso")
+	}
+	if uki.Guest(goos) {
+		if c.app.Value() {
+			return nil, errors.New("--app packages a host; --goos linux_uki and --goos linux_iso are guests")
+		}
+		return c.guest(ctx, target)
+	}
+	if unikernel.Firmware(goos) {
+		return c.firmware(ctx, target)
+	}
 	identity, err := c.identity()
 	if err != nil {
 		return nil, err
@@ -134,6 +149,85 @@ func artifactPath(goos, goarch, out string, spec build.Spec) (string, error) {
 		return "", err
 	}
 	return filepath.Join(out, build.AppFile(common.ProductName(cfg.PackageID, cfg.AppName), cfg.PackageID, goos, goarch)), nil
+}
+
+func (c *buildFlags) firmware(ctx context.Context, target build.Target) ([]string, error) {
+	cfg, _, err := c.spec().Load()
+	if err != nil {
+		return nil, err
+	}
+	id := cfg.PackageID
+	if id == "" {
+		stamped, err := release.AppID()
+		if err != nil {
+			return nil, err
+		}
+		id = stamped
+	}
+	if err := release.ValidateAppID(id); err != nil {
+		return nil, err
+	}
+	name := c.file.Value()
+	if name == "" {
+		name = cfg.AppName
+	}
+	outDir := c.out.Value()
+	if strings.TrimSpace(outDir) == "" {
+		outDir = "dist"
+	}
+	out := filepath.Join(outDir, build.ArchiveName(name, target))
+	err = unikernel.Build(ctx, unikernel.Options{
+		Dir:     cfg.GoMain,
+		Out:     out,
+		AppID:   id,
+		Version: cfg.VersionName,
+		GOOS:    target.GOOS,
+		GOARCH:  target.GOARCH,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []string{out}, nil
+}
+
+func (c *buildFlags) guest(ctx context.Context, target build.Target) ([]string, error) {
+	cfg, _, err := c.spec().Load()
+	if err != nil {
+		return nil, err
+	}
+	id := cfg.PackageID
+	if id == "" {
+		stamped, err := release.AppID()
+		if err != nil {
+			return nil, err
+		}
+		id = stamped
+	}
+	if err := release.ValidateAppID(id); err != nil {
+		return nil, err
+	}
+	name := c.file.Value()
+	if name == "" {
+		name = cfg.AppName
+	}
+	outDir := c.out.Value()
+	if strings.TrimSpace(outDir) == "" {
+		outDir = "dist"
+	}
+	out := filepath.Join(outDir, build.ArchiveName(name, target))
+	err = uki.Build(ctx, uki.Options{
+		Dir:     cfg.GoMain,
+		Out:     out,
+		AppID:   id,
+		Version: cfg.VersionName,
+		GOOS:    target.GOOS,
+		GOARCH:  target.GOARCH,
+		Kernel:  c.kernel.Value(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []string{out}, nil
 }
 
 func (c *buildFlags) archive(ctx context.Context, target build.Target, identity *sign.Identity) ([]string, error) {

@@ -35,6 +35,33 @@ func (d imageDisplay) present(ctx context.Context, view *ndarray.Tensor[uint8], 
 	return window.Show(ctx, d.Window, view, evaluator)
 }
 
+// presentCPU paints the recorded fills. The fused kernel walks every pixel
+// through the whole fill tape, which does not finish on an emulated guest.
+func (d imageDisplay) presentCPU(ctx context.Context, picture *Picture) error {
+	if picture == nil {
+		return ErrView
+	}
+	frame := d.Frame()
+	if frame == nil {
+		return window.ErrClosed
+	}
+	size := d.Size()
+	under, err := picture.rasterBytes(ctx, ndarray.CPU, size.X, size.Y)
+	if err != nil {
+		return err
+	}
+	var ink *image.RGBA
+	if picture.hadInk && picture.inkRGBA != nil {
+		ink = picture.inkRGBA
+	}
+	composite(frame, picture.fills, under, ink)
+	return d.Draw()
+}
+
+func cpuEval(evaluator ndarray.Evaluator) bool {
+	return evaluator == nil || evaluator == ndarray.CPU
+}
+
 type bridgeDisplay struct {
 	window.Window
 	screen    present.Screen
@@ -537,6 +564,11 @@ func (runner *runner) flush(force bool) error {
 		return nil
 	}
 	_, listed := runner.host.(listPainter)
+	if !listed {
+		if _, ok := runner.host.(imageDisplay); ok && cpuEval(runner.evaluator) {
+			listed = true
+		}
+	}
 	gpu := false
 	if painter, ok := runner.host.(interface{ gpuPaint() bool }); ok {
 		gpu = painter.gpuPaint()
@@ -621,11 +653,16 @@ func (runner *runner) deliver(msg Msg) error {
 }
 
 func (runner *runner) paintFrame(listed bool) error {
-	if listed && runner.view != nil && runner.picture.raster != nil {
-		return runner.host.present(runner.ctx, runner.view, runner.evaluator)
-	}
 	if listed {
-		return runner.host.(listPainter).presentList(runner.ctx, runner.picture)
+		if _, ok := runner.host.(listPainter); ok {
+			if runner.view != nil && runner.picture.raster != nil {
+				return runner.host.present(runner.ctx, runner.view, runner.evaluator)
+			}
+			return runner.host.(listPainter).presentList(runner.ctx, runner.picture)
+		}
+		if image, ok := runner.host.(imageDisplay); ok {
+			return image.presentCPU(runner.ctx, runner.picture)
+		}
 	}
 	if runner.view == nil {
 		return ErrView
