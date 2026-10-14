@@ -24,7 +24,7 @@ func render(file fileSpec) ([]byte, error) {
 	out.HeaderComment(header)
 	out.Var().DefsFunc(func(g *jen.Group) {
 		for _, spec := range file.enums {
-			g.Comment(errorName(spec.name) + " means the text is not a " + spec.name + ".")
+			g.Comment(errorName(spec.name) + " means the text is not a known " + strings.TrimPrefix(phrase(spec.name), "unknown ") + ".")
 			g.Id(errorName(spec.name)).Op("=").Qual(errsPath, "Wrap").Call(
 				jen.Qual(errsPath, "ErrUnknown"),
 				jen.Lit(phrase(spec.name)),
