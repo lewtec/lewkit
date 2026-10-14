@@ -2,6 +2,7 @@
 - Avoid shortening names
 - Keep stuff simple and organized, do step backs and refactors if necessary
 - Respect the context chain: only context.Background in main, ctx as first positional arg
-- Table all errors: %w in fmt.Errorf
+- Sentinel errors live in a package-level var block. Do not create an error inline at a return; wrap a sentinel with %w
+- Tests use testify require. Use assert only when the test should continue. Check sentinels with require.ErrorIs
 - Explicit is better than implicit
 - Follow the patterns already in the repo: x/cmd, x/test, testify, x/db with sqlc and migrations
