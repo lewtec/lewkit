@@ -3,11 +3,11 @@ package entry
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/entry/internal/androidcall"
 )
 
 var (
-	ErrRunBoundEntryNoApp = errs.Wrap(errs.ErrNotFound, "entry: no app")
+	ErrRunBoundEntryNoApp = androidcall.ErrRunEntryNoApp
 )
 
 var bound func(ctx context.Context) error

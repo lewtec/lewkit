@@ -2,7 +2,6 @@ package launcher
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
@@ -24,8 +23,8 @@ func RequireEnvBinary(ctx context.Context, key, name string) error {
 // RequireDisplayBinary returns ErrIncompatible when neither DISPLAY nor
 // WAYLAND_DISPLAY is set, or when name is not on PATH.
 func RequireDisplayBinary(ctx context.Context, name string) error {
-	if driver.GetEnv(ctx, "DISPLAY") == "" && driver.GetEnv(ctx, "WAYLAND_DISPLAY") == "" {
-		return fmt.Errorf("%w: neither DISPLAY nor WAYLAND_DISPLAY set", driver.ErrIncompatible)
+	if err := driver.RequireDisplay(ctx); err != nil {
+		return err
 	}
 	return RequireBinary(ctx, name)
 }

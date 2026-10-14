@@ -5,5 +5,6 @@
 - Sentinel errors live in a package-level var block. Do not create an error inline at a return; wrap a sentinel with %w
 - Reuse a meta sentinel from x/errs before adding a new one: not found, invalid, missing, unsupported, already exists, unavailable, closed, canceled, empty, nil context, syntax, cycle, duplicate, out of range, required, unknown. A specific sentinel is errs.Wrap of that parent, so errors.Is matches both. The same condition is one sentinel
 - Tests use testify require. Use assert only when the test should continue. Check sentinels with require.ErrorIs. Skip with test.Skip or test.Skipf
+- Look for an existing helper before writing new code
 - Explicit is better than implicit
 - Follow the patterns already in the repo: x/cmd, x/test, testify, x/db with sqlc and migrations

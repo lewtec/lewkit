@@ -1,6 +1,6 @@
 // Package gtkui is the shared GTK 4 gate for launcher and messagebox dialogs.
 // A missing display or library is [driver.ErrIncompatible].
-// Zenity keeps its own display check.
+// Zenity uses the same display check and does not open GTK.
 package gtkui
 
 import (
@@ -18,8 +18,8 @@ func Require(ctx context.Context) error {
 	if err := driver.ForGOOS("linux"); err != nil {
 		return err
 	}
-	if driver.GetEnv(ctx, "DISPLAY") == "" && driver.GetEnv(ctx, "WAYLAND_DISPLAY") == "" {
-		return fmt.Errorf("%w: neither DISPLAY nor WAYLAND_DISPLAY set", driver.ErrIncompatible)
+	if err := driver.RequireDisplay(ctx); err != nil {
+		return err
 	}
 	if err := gtklib.Available(ctx); err != nil {
 		return fmt.Errorf("%w: %v", driver.ErrIncompatible, err)

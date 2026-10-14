@@ -48,6 +48,14 @@ func RequireEnv(ctx context.Context, key string) error {
 	return fmt.Errorf("%w: %s not set", ErrIncompatible, key)
 }
 
+// RequireDisplay returns ErrIncompatible when neither DISPLAY nor WAYLAND_DISPLAY is set.
+func RequireDisplay(ctx context.Context) error {
+	if GetEnv(ctx, "DISPLAY") == "" && GetEnv(ctx, "WAYLAND_DISPLAY") == "" {
+		return fmt.Errorf("%w: neither DISPLAY nor WAYLAND_DISPLAY set", ErrIncompatible)
+	}
+	return nil
+}
+
 // RequireAnyEnv returns ErrIncompatible when none of the keys are set.
 func RequireAnyEnv(ctx context.Context, keys ...string) error {
 	for _, key := range keys {

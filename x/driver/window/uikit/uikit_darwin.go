@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"runtime"
 	"sync"
 	"time"
 
@@ -22,8 +21,8 @@ import (
 const surfaceTag = 0x6C6577
 
 func open(ctx context.Context, cfg window.Config) (window.Window, error) {
-	if runtime.GOOS != "ios" {
-		return nil, fmt.Errorf("%w: not ios", driver.ErrIncompatible)
+	if err := driver.ForGOOS("ios"); err != nil {
+		return nil, err
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

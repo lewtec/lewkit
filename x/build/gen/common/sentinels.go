@@ -1,4 +1,4 @@
-// Package common holds shared helpers for ephemeral Android, iOS, and macOS host trees.
+// Package common holds shared helpers for host build trees.
 package common
 
 import (
@@ -19,4 +19,5 @@ var (
 	ErrOutAppRequired     = errs.Wrap(errs.ErrRequired, "out .app path is required (or use --go-only)")
 	ErrXcodebuildNotFound = errs.Wrap(errs.ErrNotFound, "xcodebuild not found; install Xcode")
 	ErrXcodeGenNotFound   = errs.Wrap(errs.ErrNotFound, "xcodegen not found; install xcodegen (mise/brew)")
+	ErrIcons              = errors.New("icons")
 )

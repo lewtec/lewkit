@@ -13,33 +13,6 @@ var (
 	ErrChooseNoItems = launcher.ErrChooseNoItems
 )
 
-type base struct{}
-
-func (base) ID() string  { return "launcher_win32" }
-func (base) Weight() int { return 60 }
-
-func (base) CheckCompatibility(context.Context) error {
-	return driver.ForGOOS("windows")
-}
-
-type chooserFactory struct{ base }
-
-func (chooserFactory) Name() string { return "Win32 (Choose)" }
-
-func (chooserFactory) New(context.Context) (launcher.Chooser, error) { return backend{}, nil }
-
-type prompterFactory struct{ base }
-
-func (prompterFactory) Name() string { return "Win32 (Prompt)" }
-
-func (prompterFactory) New(context.Context) (launcher.Prompter, error) { return backend{}, nil }
-
-type confirmerFactory struct{ base }
-
-func (confirmerFactory) Name() string { return "Win32 (Confirm)" }
-
-func (confirmerFactory) New(context.Context) (launcher.Confirmer, error) { return backend{}, nil }
-
 type backend struct{}
 
 func (backend) Choose(ctx context.Context, opts launcher.ChooseOptions) (*launcher.Item, error) {
@@ -83,14 +56,9 @@ func (backend) Confirm(ctx context.Context, message string) (bool, error) {
 }
 
 func init() {
-	driver.Register[launcher.Chooser](chooserFactory{})
-	driver.Register[launcher.Prompter](prompterFactory{})
-	driver.Register[launcher.Confirmer](confirmerFactory{})
+	launcher.RegisterAsk("launcher_win32", 60, "Win32 (Choose)", "Win32 (Prompt)", "Win32 (Confirm)", func(context.Context) error {
+		return driver.ForGOOS("windows")
+	}, func(context.Context) (backend, error) {
+		return backend{}, nil
+	})
 }
-
-var (
-	_ driver.DriverFactory[launcher.Chooser]   = chooserFactory{}
-	_ driver.DriverFactory[launcher.Prompter]  = prompterFactory{}
-	_ driver.DriverFactory[launcher.Confirmer] = confirmerFactory{}
-	_ driver.Weighter                          = base{}
-)

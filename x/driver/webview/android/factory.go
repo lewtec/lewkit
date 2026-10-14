@@ -2,8 +2,6 @@ package android
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
@@ -18,8 +16,8 @@ func (factory) Name() string { return "Android WebView" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "android" {
-		return fmt.Errorf("%w: not android", driver.ErrIncompatible)
+	if err := driver.ForGOOS("android"); err != nil {
+		return err
 	}
 	return driver.JavaVM()
 }

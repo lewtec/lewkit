@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +22,7 @@ func TestDisabledWhenStdioIsNotATTY(t *testing.T) {
 	oldOut := os.Stdout
 	os.Stdout = write
 	t.Cleanup(func() { os.Stdout = oldOut })
-	if err := (base{}).CheckCompatibility(t.Context()); err == nil {
+	if err := driver.TerminalGate(); err == nil {
 		require.FailNow(t, fmt.Sprint("terminal launcher is compatible when stdout is a pipe"))
 	}
 }

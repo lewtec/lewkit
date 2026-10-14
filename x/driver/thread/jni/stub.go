@@ -4,7 +4,6 @@ package jni
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	uithread "github.com/lewtec/lewkit/x/driver/thread"
@@ -19,9 +18,9 @@ func (factory) Name() string { return "Android looper" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	return fmt.Errorf("%w: not android", driver.ErrIncompatible)
+	return driver.ForGOOS("android")
 }
 
 func (factory) New(context.Context) (uithread.Driver, error) {
-	return nil, fmt.Errorf("%w: not android", driver.ErrIncompatible)
+	return nil, driver.ForGOOS("android")
 }

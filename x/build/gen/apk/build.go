@@ -16,7 +16,6 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/errs"
-	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 var (
@@ -85,25 +84,15 @@ type BuildResult struct {
 // Build scaffolds the Android host, cross-compiles the Go app into jniLibs,
 // and (unless GoOnly) runs Gradle assembleDebug and copies the APK to OutAPK.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
-	stdout := opts.Stdout
-	if stdout == nil {
-		stdout = taskgroup.LineWriterFrom(ctx)
-	}
-	stderr := opts.Stderr
-	if stderr == nil {
-		stderr = stdout
-	}
+	stdout, stderr := common.Writers(ctx, opts.Stdout, opts.Stderr)
 
 	cfg, err := opts.Config.withDefaults(ctx)
 	if err != nil {
 		return nil, err
 	}
-	baseDir := strings.TrimSpace(opts.BaseDir)
-	if baseDir == "" {
-		baseDir, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
+	baseDir, err := common.WorkingDir(opts.BaseDir)
+	if err != nil {
+		return nil, err
 	}
 	goMain, err := ResolveGoMain(cfg.GoMain, baseDir)
 	if err != nil {
@@ -124,12 +113,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	// or KeepWorkDir; delete after a successful full APK copy.
 	var buildErr error
 	defer func() {
-		if ephemeral && buildErr == nil && !opts.KeepWorkDir && !opts.GoOnly {
-			if err := os.RemoveAll(workDir); err != nil && stderr != nil {
-				// best-effort cleanup of ephemeral work dir
-				slog.Warn("android cleanup", "err", err)
-			}
-		}
+		common.CleanupWorkDir(ephemeral, buildErr, opts.KeepWorkDir, opts.GoOnly, workDir, stderr, "android")
 	}()
 
 	// Host go_main in generated config is absolute so scripts work from workDir.
@@ -149,14 +133,10 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	}
 
 	// Manifest expects @mipmap/ic_launcher — always install mipmaps.
-	iconRoot := strings.TrimSpace(opts.IconRoot)
-	if iconRoot == "" {
-		tmpIcons := filepath.Join(workDir, ".eletrocromo-icons")
-		if _, err := icons.Generate(icons.Options{OutputDir: tmpIcons, Force: true, SourcePath: icons.MasterPath(baseDir, cfg.Icon)}); err != nil {
-			buildErr = fmt.Errorf("icons: %w", err)
-			return nil, buildErr
-		}
-		iconRoot = tmpIcons
+	iconRoot, err := common.IconRoot(baseDir, cfg.Icon, opts.IconRoot, workDir, ".eletrocromo-icons")
+	if err != nil {
+		buildErr = err
+		return nil, buildErr
 	}
 	resDir := filepath.Join(workDir, "app", "src", "main", "res")
 	slog.Info("android icons", "dir", iconRoot)

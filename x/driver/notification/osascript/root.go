@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -24,8 +23,8 @@ func (factory) Name() string { return "Notification Center" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
+	if err := driver.ForGOOS("darwin"); err != nil {
+		return err
 	}
 	return execdriver.RequireBinary(ctx, "osascript")
 }

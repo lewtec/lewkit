@@ -10,7 +10,17 @@ package thread
 //go:generate go run ../../../cmd/lewkit generate header --package thread --bind Pthread --out pthread_bind.go pthread.h
 //go:generate go run ../../../cmd/lewkit generate header --package thread --bind PthreadMain --out pthread_main_bind.go main.h
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+var (
+	// ErrNotBound means work ran before Bind.
+	ErrNotBound = errors.New("thread not bound")
+	// ErrNotMain means setup did not run on the process main thread.
+	ErrNotMain = errors.New("not main thread")
+)
 
 // OSThread is the current OS thread id. Zero means the id is unavailable.
 func OSThread() uint64 { return osThread() }

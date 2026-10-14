@@ -17,14 +17,15 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/clientsize"
+	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	ErrClosed   = errs.Wrap(errs.ErrClosed, "window closed")
-	ErrSize     = errs.Wrap(errs.ErrInvalid, "invalid size")
-	ErrNotBound = errors.New("thread not bound")
-	ErrNotMain  = errors.New("not main thread")
+	ErrSize     = clientsize.ErrSize
+	ErrNotBound = thread.ErrNotBound
+	ErrNotMain  = thread.ErrNotMain
 	ErrInit     = errors.New("window init")
 	ErrPresent  = errors.New("present")
 )
