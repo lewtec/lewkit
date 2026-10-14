@@ -15,10 +15,8 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
-	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/image/convert"
-	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 var (
@@ -67,25 +65,15 @@ type BuildResult struct {
 // with xcodegen and xcodebuild. The .app executable is that shell. The
 // Go server is Contents/MacOS/eletrocromo-server. The caller signs the Mach-Os.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
-	stdout := opts.Stdout
-	if stdout == nil {
-		stdout = taskgroup.LineWriterFrom(ctx)
-	}
-	stderr := opts.Stderr
-	if stderr == nil {
-		stderr = stdout
-	}
+	_, stderr := common.Writers(ctx, opts.Stdout, opts.Stderr)
 
 	cfg, err := opts.Config.withDefaults(ctx)
 	if err != nil {
 		return nil, err
 	}
-	baseDir := strings.TrimSpace(opts.BaseDir)
-	if baseDir == "" {
-		baseDir, err = os.Getwd()
-		if err != nil {
-			return nil, err
-		}
+	baseDir, err := common.WorkingDir(opts.BaseDir)
+	if err != nil {
+		return nil, err
 	}
 	goMain, err := ResolveGoMain(cfg.GoMain, baseDir)
 	if err != nil {
@@ -103,11 +91,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	}
 	var buildErr error
 	defer func() {
-		if ephemeral && buildErr == nil && !opts.KeepWorkDir && !opts.GoOnly {
-			if err := os.RemoveAll(workDir); err != nil && stderr != nil {
-				slog.Warn("macos cleanup", "err", err)
-			}
-		}
+		common.CleanupWorkDir(ephemeral, buildErr, opts.KeepWorkDir, opts.GoOnly, workDir, stderr, "macos")
 	}()
 
 	genCfg := cfg
@@ -121,14 +105,10 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		}
 	}
 
-	iconRoot := strings.TrimSpace(opts.IconRoot)
-	if iconRoot == "" {
-		tmpIcons := filepath.Join(workDir, ".eletrocromo-icons")
-		if _, err := icons.Generate(icons.Options{OutputDir: tmpIcons, Force: true, SourcePath: icons.MasterPath(baseDir, cfg.Icon)}); err != nil {
-			buildErr = fmt.Errorf("icons: %w", err)
-			return nil, buildErr
-		}
-		iconRoot = tmpIcons
+	iconRoot, err := common.IconRoot(baseDir, cfg.Icon, opts.IconRoot, workDir, ".eletrocromo-icons")
+	if err != nil {
+		buildErr = err
+		return nil, buildErr
 	}
 	slog.Info("macos icon", "dir", iconRoot)
 	if err := applyMacIcons(iconRoot, filepath.Join(workDir, "Assets.xcassets")); err != nil {
@@ -210,11 +190,8 @@ func installHelper(appPath, helperPath string) error {
 }
 
 func assembleMac(ctx context.Context, workDir, product, xArch string) (string, error) {
-	if _, err := execdriver.Which(ctx, "xcodegen"); err != nil {
-		return "", fmt.Errorf("%w: %w", ErrXcodeGenNotFound, err)
-	}
-	if _, err := execdriver.Which(ctx, "xcodebuild"); err != nil {
-		return "", fmt.Errorf("%w: %w", ErrXcodebuildNotFound, err)
+	if err := common.XcodeReady(ctx); err != nil {
+		return "", err
 	}
 	if err := gocmd.Tool(ctx, "xcodegen", workDir, nil, "generate"); err != nil {
 		return "", fmt.Errorf("%w: %w", ErrXcodegenGenerate, err)

@@ -12,7 +12,6 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/common"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/sign"
-	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -79,11 +78,7 @@ func darwinTools(ctx context.Context) bool {
 	if runtime.GOOS != "darwin" {
 		return false
 	}
-	if _, err := execdriver.Which(ctx, "xcodebuild"); err != nil {
-		return false
-	}
-	_, err := execdriver.Which(ctx, "xcodegen")
-	return err == nil
+	return common.XcodeReady(ctx) == nil
 }
 
 // Run writes every archive and host package under Out.

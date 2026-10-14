@@ -1,4 +1,4 @@
-// Package common holds shared helpers for ephemeral Android, iOS, and macOS host trees.
+// Package common holds shared helpers for host build trees.
 package common
 
 import (
