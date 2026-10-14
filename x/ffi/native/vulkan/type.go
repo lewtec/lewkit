@@ -1,12 +1,14 @@
 package vulkan
 
-import (
-	"fmt"
-	"strings"
-)
+import "strings"
+
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum type.go
 
 // DeviceType is VkPhysicalDeviceType. Values match the spec so a raw
 // properties.deviceType casts. String is the CLI / driver-id token.
+// A value outside the set is other.
+//
+//lewkit:enum invalid=other
 type DeviceType uint32
 
 const (
@@ -19,37 +21,6 @@ const (
 
 // Uint32 is the VkPhysicalDeviceType value.
 func (t DeviceType) Uint32() uint32 { return uint32(t) }
-
-// ParseDeviceType maps a String() token such as dedicated or software.
-func ParseDeviceType(name string) (DeviceType, error) {
-	var zero DeviceType
-	for _, v := range zero.Values() {
-		if v.String() == name {
-			return v, nil
-		}
-	}
-	return DeviceTypeOther, fmt.Errorf("%w: %q", ErrDeviceType, name)
-}
-
-func (t DeviceType) String() string {
-	switch t {
-	case DeviceTypeIntegrated:
-		return "integrated"
-	case DeviceTypeDedicated:
-		return "dedicated"
-	case DeviceTypeVirtual:
-		return "virtual"
-	case DeviceTypeSoftware:
-		return "software"
-	default:
-		return "other"
-	}
-}
-
-// Values lists DeviceType members for [github.com/lewtec/lewkit/x/cmd.EnumArg].
-func (DeviceType) Values() []DeviceType {
-	return []DeviceType{DeviceTypeOther, DeviceTypeIntegrated, DeviceTypeDedicated, DeviceTypeVirtual, DeviceTypeSoftware}
-}
 
 // Weight is the default driver weight for this device type.
 func (t DeviceType) Weight() int {
