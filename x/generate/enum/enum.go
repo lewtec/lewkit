@@ -18,10 +18,15 @@
 // A string member uses its literal, and the comment is only extra names.
 //
 //	//lewkit:enum fold empty=warning invalid=unknown
+//	//lewkit:enum values=linux,darwin,windows
 //
 // fold parses without case. empty=<token> accepts a blank string as
 // that member. invalid=<text> is what String returns for a value
 // outside the set; otherwise String returns an empty string.
+// values=<token>,<token> names the members. The generator writes the
+// const block: each name is the type plus the value in Go case, an
+// integer is iota from zero, and a string is the value. A const block
+// already in the file must match that list.
 //
 // The generated type is a [github.com/lewtec/lewkit/x/cmd.Enum] when it
 // is an integer, and a flag either way: Parse reads the text and

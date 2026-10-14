@@ -13,6 +13,14 @@ var (
 	ErrDeviceType = errs.Wrap(errs.ErrUnknown, "unknown device type")
 )
 
+const (
+	DeviceTypeOther DeviceType = iota
+	DeviceTypeIntegrated
+	DeviceTypeDedicated
+	DeviceTypeVirtual
+	DeviceTypeSoftware
+)
+
 // String is the text of a DeviceType.
 func (d DeviceType) String() string {
 	switch d {

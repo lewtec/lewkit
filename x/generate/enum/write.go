@@ -49,6 +49,20 @@ func writeEnum(out *jen.File, spec enumSpec) {
 	recv := recvName(spec.name)
 	errName := errorName(spec.name)
 	parse := parseName(spec.name)
+	if spec.emitConst {
+		out.Const().DefsFunc(func(g *jen.Group) {
+			for i, item := range spec.members {
+				switch {
+				case spec.stringKind:
+					g.Id(item.name).Id(spec.name).Op("=").Lit(item.token)
+				case i == 0:
+					g.Id(item.name).Id(spec.name).Op("=").Iota()
+				default:
+					g.Id(item.name)
+				}
+			}
+		})
+	}
 	out.Comment("String is the text of a " + spec.name + ".")
 	if spec.stringKind {
 		out.Func().Params(jen.Id(recv).Id(spec.name)).Id("String").Params().String().Block(

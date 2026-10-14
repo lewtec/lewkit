@@ -13,6 +13,12 @@ var (
 	ErrLevel = errs.Wrap(errs.ErrUnknown, "unknown level")
 )
 
+const (
+	LevelError   Level = "error"
+	LevelWarning Level = "warning"
+	LevelNote    Level = "note"
+)
+
 // String is the text of a Level.
 func (l Level) String() string {
 	return string(l)
