@@ -3,8 +3,6 @@ package macopen
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/opener"
@@ -17,8 +15,8 @@ func (factory) Name() string { return "open" }
 func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
+	if err := driver.ForGOOS("darwin"); err != nil {
+		return err
 	}
 	return opener.RequireTool(ctx, "open")
 }

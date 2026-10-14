@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"image"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/clipboard"
@@ -18,8 +17,8 @@ func (factory) Name() string { return "clip" }
 func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if runtime.GOOS != "windows" {
-		return fmt.Errorf("%w: not windows", driver.ErrIncompatible)
+	if err := driver.ForGOOS("windows"); err != nil {
+		return err
 	}
 	return clipboard.RequireTool(ctx, "clip")
 }

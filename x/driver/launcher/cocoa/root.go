@@ -4,7 +4,6 @@ package cocoa
 import (
 	"context"
 	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/launcher"
@@ -18,8 +17,8 @@ func (base) Weight() int { return 60 }
 func (base) CheckCompatibility(ctx context.Context) error { return available(ctx) }
 
 func available(context.Context) error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
+	if err := driver.ForGOOS("darwin"); err != nil {
+		return err
 	}
 	if driver.AppMode() {
 		return fmt.Errorf("%w: app mode", driver.ErrIncompatible)

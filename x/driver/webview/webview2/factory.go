@@ -2,8 +2,6 @@ package webview2
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
@@ -16,8 +14,8 @@ func (factory) Name() string { return "WebView2" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "windows" {
-		return fmt.Errorf("%w: not windows", driver.ErrIncompatible)
+	if err := driver.ForGOOS("windows"); err != nil {
+		return err
 	}
 	return loader()
 }

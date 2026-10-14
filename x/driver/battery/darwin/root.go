@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/battery"
@@ -31,8 +30,8 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 func (factory) New(context.Context) (battery.Driver, error) { return backend{}, nil }
 
 func requireDarwin() error {
-	if runtime.GOOS != "darwin" {
-		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
+	if err := driver.ForGOOS("darwin"); err != nil {
+		return err
 	}
 	if _, err := os.Stat(ioregBin); err != nil {
 		return fmt.Errorf("%w: %s", driver.ErrIncompatible, ioregBin)

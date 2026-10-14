@@ -4,7 +4,6 @@ package win32
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/tray"
@@ -13,5 +12,5 @@ import (
 type opener struct{}
 
 func (opener) Open(context.Context, tray.Config) (tray.Tray, error) {
-	return nil, fmt.Errorf("%w: not windows", driver.ErrIncompatible)
+	return nil, driver.ForGOOS("windows")
 }

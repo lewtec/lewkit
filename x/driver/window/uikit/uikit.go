@@ -2,8 +2,6 @@ package uikit
 
 import (
 	"context"
-	"fmt"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
@@ -16,10 +14,7 @@ func (factory) Name() string { return "UIKit" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not ios", driver.ErrIncompatible)
-	}
-	return nil
+	return driver.ForGOOS("ios")
 }
 
 func (factory) New(context.Context) (window.Driver, error) { return opener{}, nil }

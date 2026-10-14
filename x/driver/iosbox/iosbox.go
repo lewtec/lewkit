@@ -100,8 +100,8 @@ func Available() bool { return Dir() != "" }
 
 // Require reports ErrIncompatible when this process is not ios or no host directory is set.
 func Require() error {
-	if runtime.GOOS != "ios" {
-		return fmt.Errorf("%w: not ios", driver.ErrIncompatible)
+	if err := driver.ForGOOS("ios"); err != nil {
+		return err
 	}
 	if !Available() {
 		return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
