@@ -1,30 +1,29 @@
 package pulse
 
 import (
-	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseVolume(t *testing.T) {
 	got, err := parseVolume("Volume: front-left: 26214 /  40% / -23.88 dB")
 	if err != nil || got != 0.4 {
-		t.Fatalf("got %v %v", got, err)
+		require.FailNowf(t, "", "got %v %v", got, err)
 	}
 	got, err = parseVolume("no percent here")
 	if err != nil || got != 0 {
-		t.Fatalf("missing percent: %v %v", got, err)
+		require.FailNowf(t, "", "missing percent: %v %v", got, err)
 	}
 	if _, err := parseVolume("xx%"); err == nil {
-		t.Fatal("expected atoi error")
+		require.FailNow(t, fmt.Sprint("expected atoi error"))
 	}
 }
 
 func TestMissingBinary(t *testing.T) {
 	err := execdriver.RequireBinary(t.Context(), "lewkit-missing-pactl")
-	if !errors.Is(err, driver.ErrIncompatible) {
-		t.Fatalf("got %v", err)
-	}
+	require.ErrorIs(t, err, driver.ErrIncompatible)
 }

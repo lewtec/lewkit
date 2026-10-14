@@ -1,26 +1,21 @@
 package share
 
 import (
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidate_Empty(t *testing.T) {
 	err := Item{}.validate()
-	if !errors.Is(err, ErrEmptyItem) {
-		t.Fatal(err)
-	}
+	require.ErrorIs(t, err, ErrEmptyItem)
 }
 
 func TestValidate_RelativePath(t *testing.T) {
 	err := Item{Paths: []string{"rel"}}.validate()
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err, "expected error")
 }
 
 func TestValidate_Text(t *testing.T) {
-	if err := (Item{Text: "hi"}).validate(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, (Item{Text: "hi"}).validate())
 }

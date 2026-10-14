@@ -17,18 +17,28 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
+var (
+	ErrApplyIOSIconsIosAppIcon = errors.New("ios app icon")
+	ErrBuildArchiveGoBuildIos  = errors.New("go build ios")
+	ErrCArchiveHeader          = errors.New("c-archive header")
+	ErrUnsupportedGoarch       = errs.Wrap(errs.ErrUnsupported, "unsupported GOARCH")
+	ErrWorkDirLeftAt           = common.ErrWorkDirLeftAt
+	ErrXcodegenGenerate        = common.ErrXcodegenGenerate
+)
+
 // Build / toolchain sentinels.
 var (
-	ErrOutAppRequired     = errors.New("out .app path is required (or use --go-only)")
-	ErrDarwinRequired     = errors.New("ios archive and .app require macOS with Xcode; use --go-only on a Mac")
-	ErrXcodebuildNotFound = errors.New("xcodebuild not found; install Xcode")
-	ErrXcodeGenNotFound   = errors.New("xcodegen not found; install xcodegen (mise/brew)")
-	ErrDebugAppMissing    = errors.New("xcodebuild succeeded but no Debug-iphonesimulator .app under DerivedData")
-	ErrUnknownSDK         = errors.New("sdk must be iphonesimulator or iphoneos")
+	ErrOutAppRequired     = common.ErrOutAppRequired
+	ErrDarwinRequired     = errs.Wrap(errs.ErrRequired, "ios archive and .app require macOS with Xcode; use --go-only on a Mac")
+	ErrXcodebuildNotFound = common.ErrXcodebuildNotFound
+	ErrXcodeGenNotFound   = common.ErrXcodeGenNotFound
+	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug-iphonesimulator .app under DerivedData")
+	ErrUnknownSDK         = errs.Wrap(errs.ErrUnknown, "sdk must be iphonesimulator or iphoneos")
 )
 
 // SDKSimulator / SDKDevice are xcrun SDK names.
@@ -228,7 +238,7 @@ func applyIOSIcons(iconRoot, assetsDir string) error {
 	src := filepath.Join(iconRoot, "source", "master.png")
 	img, err := icons.DecodeImage(src)
 	if err != nil {
-		return fmt.Errorf("ios app icon: %w", err)
+		return fmt.Errorf("%w: %w", ErrApplyIOSIconsIosAppIcon, err)
 	}
 	square := icons.KnockoutBackground(convert.Pad(img))
 	store := icons.FlattenOpaque(convert.Resize(square, 1024))
@@ -304,11 +314,11 @@ func buildArchive(ctx context.Context, dest, goMainDir, workDir, sdk string, sta
 		},
 	}.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("go build ios/%s (%s): %w", goarch, sdk, err)
+		return fmt.Errorf("%w/%s (%s): %w", ErrBuildArchiveGoBuildIos, goarch, sdk, err)
 	}
 	hdr := strings.TrimSuffix(dest, ".a") + ".h"
 	if _, err := os.Stat(hdr); err != nil {
-		return fmt.Errorf("c-archive header: %w", err)
+		return fmt.Errorf("%w: %w", ErrCArchiveHeader, err)
 	}
 	return nil
 }
@@ -333,7 +343,7 @@ func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string) (st
 		return "", fmt.Errorf("%w: %w", ErrXcodebuildNotFound, err)
 	}
 	if err := gocmd.Tool(ctx, "xcodegen", workDir, nil, "generate"); err != nil {
-		return "", fmt.Errorf("xcodegen generate: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrXcodegenGenerate, err)
 	}
 
 	dest, destName := xcodeDestination(sdk)
@@ -357,7 +367,7 @@ func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string) (st
 		"EXCLUDED_ARCHS="+excludedArch(xArch),
 		"build",
 	); err != nil {
-		return "", fmt.Errorf("xcodebuild: %w\n(work dir left at %s)", err, workDir)
+		return "", fmt.Errorf("xcodebuild: %w\n(%w %s)", err, ErrWorkDirLeftAt, workDir)
 	}
 
 	app := filepath.Join(derived, "Build", "Products", destName, product+".app")
@@ -374,7 +384,7 @@ func iosArch(goarch string) (string, string, error) {
 	case "amd64":
 		return "amd64", "x86_64", nil
 	default:
-		return "", "", fmt.Errorf("unsupported GOARCH %q", goarch)
+		return "", "", fmt.Errorf("%w %q", ErrUnsupportedGoarch, goarch)
 	}
 }
 

@@ -60,9 +60,6 @@ func (c Command) active(ctx context.Context) Compiler {
 	if c.Compiler != 0 {
 		return c.Compiler
 	}
-	if ctx == nil {
-		return 0
-	}
 	got, _ := ctx.Value(compilerKey{}).(Compiler)
 	return got
 }

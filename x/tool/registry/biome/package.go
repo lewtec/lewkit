@@ -15,6 +15,10 @@ import (
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
 )
 
+var (
+	ErrNoSuitableArtifactFoundFor = install.ErrNoSuitableArtifactFoundFor
+)
+
 // biomeReleasePrefix is the changesets/monorepo tag prefix for the CLI package.
 // Other packages in the same repo (e.g. @biomejs/js-api@…) are not installable CLIs.
 const biomeReleasePrefix = "@biomejs/biome@"
@@ -64,7 +68,7 @@ func (t *biomeTool) Install(ctx context.Context, version string, destDir string)
 	}
 	artifact := selectBiomeArtifact(arts, runtime.GOOS, runtime.GOARCH)
 	if artifact == nil {
-		return fmt.Errorf("no suitable artifact found for %s/%s for registry:biome@%s", runtime.GOOS, runtime.GOARCH, v)
+		return fmt.Errorf("%w %s/%s for registry:biome@%s", ErrNoSuitableArtifactFoundFor, runtime.GOOS, runtime.GOARCH, v)
 	}
 	return t.InstallArtifact(ctx, *artifact, destDir)
 }

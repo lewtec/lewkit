@@ -8,6 +8,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/treesitter"
 	_ "github.com/lewtec/lewkit/x/driver/treesitter/prelude"
+	"github.com/lewtec/lewkit/x/test"
 	_ "github.com/lewtec/wazero-tree-sitter/grammar/json"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,7 @@ func BenchmarkParse(b *testing.B) {
 		b.Run(id, func(b *testing.B) {
 			lang, err := treesitter.Open(b.Context(), id, "json")
 			if errors.Is(err, driver.ErrNotFound) {
-				b.Skip(err)
+				test.Skip(b, err)
 			}
 			require.NoError(b, err)
 			tree, err := lang.Parse(source)

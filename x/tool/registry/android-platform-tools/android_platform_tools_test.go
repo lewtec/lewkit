@@ -13,6 +13,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/exec/native"
 	_ "github.com/lewtec/lewkit/x/driver/fetchurl/native"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
@@ -182,7 +183,7 @@ func TestPlatformToolsIndexRejectsGarbage(t *testing.T) {
 
 func TestAndroidPlatformToolsLiveIndex(t *testing.T) {
 	if testing.Short() {
-		t.Skip("live index")
+		test.Skip(t, "live index")
 	}
 	t.Parallel()
 
@@ -193,7 +194,7 @@ func TestAndroidPlatformToolsLiveIndex(t *testing.T) {
 
 	versions, err := installed.ListVersions(ctx)
 	if errors.Is(err, install.ErrNoVersions) {
-		t.Skip("no platform-tools archive for " + runtime.GOOS + "/" + runtime.GOARCH)
+		test.Skip(t, "no platform-tools archive for "+runtime.GOOS+"/"+runtime.GOARCH)
 	}
 	require.NoError(t, err)
 	require.NotEmpty(t, versions)
@@ -214,14 +215,14 @@ func TestAndroidPlatformToolsLiveIndex(t *testing.T) {
 
 func TestAndroidPlatformToolsInstall(t *testing.T) {
 	if os.Getenv("MODOT_TEST_TOOL_INSTALL") != "1" {
-		t.Skip("set MODOT_TEST_TOOL_INSTALL=1 to download platform-tools")
+		test.Skip(t, "set MODOT_TEST_TOOL_INSTALL=1 to download platform-tools")
 	}
 
 	installed, err := newAndroidPlatformTools()
 	require.NoError(t, err)
 	ctx := t.Context()
 	if _, err := installed.ListVersions(ctx); errors.Is(err, install.ErrNoVersions) {
-		t.Skip("no platform-tools archive for " + runtime.GOOS + "/" + runtime.GOARCH)
+		test.Skip(t, "no platform-tools archive for "+runtime.GOOS+"/"+runtime.GOARCH)
 	}
 	dest := t.TempDir()
 	require.NoError(t, installed.Install(ctx, "latest", dest))

@@ -2,11 +2,12 @@ package common
 
 import (
 	"encoding/json"
-	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/stretchr/testify/require"
 )
 
 func TestApplyHostDefaults_FillsAppNameAndGoMain(t *testing.T) {
@@ -16,29 +17,25 @@ func TestApplyHostDefaults_FillsAppNameAndGoMain(t *testing.T) {
 		VersionName: "1.0.0",
 		VersionCode: 1,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got.PackageID != "br.tec.lew.counter" {
-		t.Fatalf("PackageID = %q", got.PackageID)
+		require.FailNowf(t, "", "PackageID = %q", got.PackageID)
 	}
 	if got.AppName != "counter" {
-		t.Fatalf("AppName = %q", got.AppName)
+		require.FailNowf(t, "", "AppName = %q", got.AppName)
 	}
 	if got.GoMain != "." {
-		t.Fatalf("GoMain = %q", got.GoMain)
+		require.FailNowf(t, "", "GoMain = %q", got.GoMain)
 	}
 	if got.VersionName != "1.0.0" || got.VersionCode != 1 {
-		t.Fatalf("version = %q / %d", got.VersionName, got.VersionCode)
+		require.FailNowf(t, "", "version = %q / %d", got.VersionName, got.VersionCode)
 	}
 }
 
 func TestApplyHostDefaults_RejectsBadPackageID(t *testing.T) {
 	t.Parallel()
 	_, err := ApplyHostDefaults(t.Context(), HostConfig{})
-	if !errors.Is(err, release.ErrAppIDRequired) {
-		t.Fatalf("got %v", err)
-	}
+	require.ErrorIs(t, err, release.ErrAppIDRequired)
 }
 
 func TestEncodeHostJSON(t *testing.T) {
@@ -51,26 +48,22 @@ func TestEncodeHostJSON(t *testing.T) {
 		GoMain:      ".",
 		Icon:        "icon.png",
 	}, "eletrocromo-ios")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !strings.HasSuffix(string(raw), "\n") {
-		t.Fatal("missing trailing newline")
+		require.FailNow(t, fmt.Sprint("missing trailing newline"))
 	}
 	var doc map[string]any
-	if err := json.Unmarshal(raw, &doc); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, json.Unmarshal(raw, &doc))
 	if doc["schema_version"] != float64(1) {
-		t.Fatalf("schema_version = %v", doc["schema_version"])
+		require.FailNowf(t, "", "schema_version = %v", doc["schema_version"])
 	}
 	if doc["generator"] != "eletrocromo-ios" {
-		t.Fatalf("generator = %v", doc["generator"])
+		require.FailNowf(t, "", "generator = %v", doc["generator"])
 	}
 	if doc["package_id"] != "br.tec.lew.counter" {
-		t.Fatalf("package_id = %v", doc["package_id"])
+		require.FailNowf(t, "", "package_id = %v", doc["package_id"])
 	}
 	if doc["icon"] != "icon.png" {
-		t.Fatalf("icon = %v", doc["icon"])
+		require.FailNowf(t, "", "icon = %v", doc["icon"])
 	}
 }

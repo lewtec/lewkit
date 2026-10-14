@@ -8,14 +8,23 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrApplyHostDefaultsPackageId = errors.New("package id")
+	ErrCapabilities               = errors.New("capabilities")
+	ErrResolveGoMainGoMain        = errors.New("go_main")
+	ErrWalkTemplateDest           = errors.New("")
 )
 
 // Capability parse/validate sentinels.
 var (
-	ErrCapabilityUnknown = errors.New("unknown capability")
-	ErrCapabilityEmpty   = errors.New("capability is empty")
-	ErrSchemeInvalid     = errors.New("invalid url scheme")
-	ErrFileTypeInvalid   = errors.New("invalid file type")
+	ErrCapabilityUnknown = errs.Wrap(errs.ErrUnknown, "unknown capability")
+	ErrCapabilityEmpty   = errs.Wrap(errs.ErrEmpty, "capability is empty")
+	ErrSchemeInvalid     = errs.Wrap(errs.ErrInvalid, "invalid url scheme")
+	ErrFileTypeInvalid   = errs.Wrap(errs.ErrInvalid, "invalid file type")
 )
 
 var schemePat = regexp.MustCompile(`^[a-z][a-z0-9+\-.]*$`)
@@ -67,7 +76,7 @@ func ParseCapabilities(raw json.RawMessage) (Capabilities, error) {
 	}
 	var probe map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &probe); err != nil {
-		return Capabilities{}, fmt.Errorf("capabilities: %w", err)
+		return Capabilities{}, fmt.Errorf("%w: %w", ErrCapabilities, err)
 	}
 	for k := range probe {
 		switch k {
@@ -78,7 +87,7 @@ func ParseCapabilities(raw json.RawMessage) (Capabilities, error) {
 	}
 	var c Capabilities
 	if err := json.Unmarshal(raw, &c); err != nil {
-		return Capabilities{}, fmt.Errorf("capabilities: %w", err)
+		return Capabilities{}, fmt.Errorf("%w: %w", ErrCapabilities, err)
 	}
 	if err := c.Validate(); err != nil {
 		return Capabilities{}, err

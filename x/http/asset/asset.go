@@ -9,12 +9,13 @@ package asset
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"net/http"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 const cacheControl = "max-age=5"
@@ -23,13 +24,13 @@ const cacheControl = "max-age=5"
 const Prefix = "/__lewkit__/"
 
 // ErrName is [Register] with an empty name or a name that is not one path segment.
-var ErrName = errors.New("invalid asset name")
+var ErrName = errs.Wrap(errs.ErrInvalid, "invalid asset name")
 
 // ErrExist is [Register] when the name is already in the registry.
-var ErrExist = errors.New("already registered")
+var ErrExist = errs.Wrap(errs.ErrAlreadyExists, "already registered")
 
 // ErrEmpty is [Register] with an empty body.
-var ErrEmpty = errors.New("empty asset")
+var ErrEmpty = errs.Wrap(errs.ErrEmpty, "empty asset")
 
 // File is one browser library served at [Prefix] plus [File.Name].
 type File struct {

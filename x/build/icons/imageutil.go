@@ -2,6 +2,7 @@ package icons
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -13,6 +14,12 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/image/convert"
+)
+
+var (
+	ErrDecodeBytesDecode = errors.New("decode")
+	ErrDefaultLockup     = errors.New("default lockup")
+	ErrSupportedPngJpeg  = errors.New("supported: png, jpeg")
 )
 
 // DecodeImage loads PNG or JPEG from path.
@@ -33,17 +40,17 @@ func DecodeBytes(raw []byte, name string) (image.Image, error) {
 		ext := strings.ToLower(filepath.Ext(name))
 		if ext == ".jpg" || ext == ".jpeg" {
 			if _, seekErr := r.Seek(0, 0); seekErr != nil {
-				return nil, fmt.Errorf("decode %s: %w", name, seekErr)
+				return nil, fmt.Errorf("%w %s: %w", ErrDecodeBytesDecode, name, seekErr)
 			}
 			return jpeg.Decode(r)
 		}
 		if ext == ".png" {
 			if _, seekErr := r.Seek(0, 0); seekErr != nil {
-				return nil, fmt.Errorf("decode %s: %w", name, seekErr)
+				return nil, fmt.Errorf("%w %s: %w", ErrDecodeBytesDecode, name, seekErr)
 			}
 			return png.Decode(r)
 		}
-		return nil, fmt.Errorf("decode %s: %w (supported: png, jpeg)", name, err)
+		return nil, fmt.Errorf("decode %s: %w (%w)", name, err, ErrSupportedPngJpeg)
 	}
 	_ = format
 	return img, nil

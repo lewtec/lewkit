@@ -1,16 +1,13 @@
 package launcher
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
+	"github.com/lewtec/lewkit/x/errs"
 )
-
-// ErrCanceled means the user dismissed a prompt or a list.
-var ErrCanceled = errors.New("canceled")
 
 // ChoiceLines is one label per line. A newline inside a label becomes a space.
 func ChoiceLines(items []Item) string {
@@ -46,7 +43,7 @@ func PromptAnswer(raw string) (string, error) {
 	case askwire.StatusOK:
 		return payload, nil
 	case askwire.StatusCanceled:
-		return "", ErrCanceled
+		return "", errs.ErrCanceled
 	case askwire.StatusNoActivity, askwire.StatusBusy:
 		return "", fmt.Errorf("%w: %s", driver.ErrUnavailable, status)
 	default:

@@ -11,9 +11,6 @@ import (
 // _cgo_export.go, which is what makes //go:cgo_export_dynamic take effect.
 // The temporary source is removed before return. out is the library.
 func SharedLibrary(ctx context.Context, out, src string) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	dir, err := os.MkdirTemp("", "lewkit-share-")
 	if err != nil {
 		return err

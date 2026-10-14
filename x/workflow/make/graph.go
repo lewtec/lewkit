@@ -2,13 +2,13 @@ package make
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/workflow"
 )
@@ -31,9 +31,6 @@ type builder struct {
 // Graph resolves targets into a workflow graph. An empty list builds the
 // default goal.
 func (f *File) Graph(ctx context.Context, targets []string) (workflow.Graph, error) {
-	if ctx == nil {
-		return workflow.Graph{}, errors.New("make: nil context")
-	}
 	f.ctx = ctx
 	if len(targets) == 0 {
 		var err error
@@ -86,7 +83,7 @@ func (b *builder) need(target string) error {
 		return nil
 	}
 	if b.visiting[target] {
-		return fmt.Errorf("make: %w: %s", ErrCycle, target)
+		return fmt.Errorf("make: %w: %s", errs.ErrCycle, target)
 	}
 	b.visiting[target] = true
 	spec := b.f.ruleFor(target)

@@ -1,8 +1,11 @@
 package clib
 
 import (
+	"fmt"
 	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestStoreLoadStruct(t *testing.T) {
@@ -15,15 +18,15 @@ func TestStoreLoadStruct(t *testing.T) {
 	Store(unsafe.Pointer(&got), int(unsafe.Sizeof(got)), 0, 42)
 	Store(unsafe.Pointer(&got), int(unsafe.Sizeof(got)), 8, 3)
 	if got.sum != 42 || got.workers != 3 {
-		t.Fatalf("store %+v", got)
+		require.FailNowf(t, "", "store %+v", got)
 	}
 	if Load(unsafe.Pointer(&got), int(unsafe.Sizeof(got)), 0) != 42 {
-		t.Fatal("load low")
+		require.FailNow(t, fmt.Sprint("load low"))
 	}
 	if Load(unsafe.Pointer(&got), int(unsafe.Sizeof(got)), 8) != 3 {
-		t.Fatal("load high")
+		require.FailNow(t, fmt.Sprint("load high"))
 	}
 	if Load(unsafe.Pointer(&got), int(unsafe.Sizeof(got)), 16) != 0 {
-		t.Fatal("load past end")
+		require.FailNow(t, fmt.Sprint("load past end"))
 	}
 }

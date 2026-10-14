@@ -61,11 +61,11 @@ func Constrain(value cue.Value, mountPath string) (cue.Value, error) {
 	}
 	layer := cueContext.CompileString(source, cue.Filename("compose.cue"))
 	if err := layer.Err(); err != nil {
-		return cue.Value{}, fmt.Errorf("compile mount %s: %w", mountPath, err)
+		return cue.Value{}, fmt.Errorf("%w %s: %w", ErrCompileMount, mountPath, err)
 	}
 	out := value.Unify(layer)
 	if err := out.Err(); err != nil {
-		return cue.Value{}, fmt.Errorf("unify mount %s: %w", mountPath, err)
+		return cue.Value{}, fmt.Errorf("%w %s: %w", ErrConstrainUnifyMount, mountPath, err)
 	}
 	return out, nil
 }
@@ -78,14 +78,14 @@ func Parse(value cue.Value) (*Tree, error) {
 		return tree, nil
 	}
 	if err := value.Err(); err != nil {
-		return nil, fmt.Errorf("parse: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParseParse, err)
 	}
 	if value.Kind() == cue.BottomKind && !value.IsConcrete() {
 		return tree, nil
 	}
 	iterator, err := value.Fields()
 	if err != nil {
-		return nil, fmt.Errorf("parse: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParseParse, err)
 	}
 	for iterator.Next() {
 		name := iterator.Selector().Unquoted()
@@ -106,7 +106,7 @@ func parseFile(value cue.Value) (File, error) {
 	}
 	typeName, err := value.LookupPath(cue.ParsePath("type")).String()
 	if err != nil {
-		return File{}, fmt.Errorf("type: %w", err)
+		return File{}, fmt.Errorf("%w: %w", ErrParseFileType, err)
 	}
 	file := File{Type: Type(typeName)}
 	modeValue := value.LookupPath(cue.ParsePath("mode"))
@@ -119,7 +119,7 @@ func parseFile(value cue.Value) (File, error) {
 	}
 	values := value.LookupPath(cue.ParsePath("values"))
 	if err := values.Err(); err != nil {
-		return File{}, fmt.Errorf("values: %w", err)
+		return File{}, fmt.Errorf("%w: %w", ErrParseFileValues2, err)
 	}
 	if file.Type.structured() {
 		data, err := decodeData(values)
@@ -131,14 +131,14 @@ func parseFile(value cue.Value) (File, error) {
 	}
 	iterator, err := values.Fields()
 	if err != nil {
-		return File{}, fmt.Errorf("values: %w", err)
+		return File{}, fmt.Errorf("%w: %w", ErrParseFileValues2, err)
 	}
 	slots := map[string]Slot{}
 	for iterator.Next() {
 		key := iterator.Selector().Unquoted()
 		slot, err := parseSlot(iterator.Value())
 		if err != nil {
-			return File{}, fmt.Errorf("values.%s: %w", key, err)
+			return File{}, fmt.Errorf("%w.%s: %w", ErrParseFileValues, key, err)
 		}
 		slots[key] = slot
 	}
@@ -166,19 +166,19 @@ func parseSlot(value cue.Value) (Slot, error) {
 		case slotText:
 			text, err := value.LookupPath(cue.ParsePath("text")).String()
 			if err != nil {
-				return Slot{}, fmt.Errorf("slot kind text: %w", err)
+				return Slot{}, fmt.Errorf("%w: %w", ErrSlotKindText, err)
 			}
 			return Text(text), nil
 		case slotRef:
 			name, err := value.LookupPath(cue.ParsePath("ref")).String()
 			if err != nil {
-				return Slot{}, fmt.Errorf("slot kind ref: %w", err)
+				return Slot{}, fmt.Errorf("%w: %w", ErrParseSlotSlotKindRef, err)
 			}
 			return Ref(name), nil
 		case slotLink:
 			target, err := value.LookupPath(cue.ParsePath("link")).String()
 			if err != nil {
-				return Slot{}, fmt.Errorf("slot kind link: %w", err)
+				return Slot{}, fmt.Errorf("%w: %w", ErrSlotKindLink, err)
 			}
 			return Link(target), nil
 		default:

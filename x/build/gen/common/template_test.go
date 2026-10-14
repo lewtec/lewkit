@@ -1,11 +1,12 @@
 package common
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"testing/fstest"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestMaterializeHost_RendersAndWritesJSON(t *testing.T) {
@@ -14,22 +15,16 @@ func TestMaterializeHost_RendersAndWritesJSON(t *testing.T) {
 	}
 	out := filepath.Join(t.TempDir(), "host")
 	err := MaterializeHost(src, struct{ Name string }{Name: "App"}, out, false, []byte("{\"ok\":true}\n"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	plist, err := os.ReadFile(filepath.Join(out, "Info.plist"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(plist) != "<name>App</name>" {
-		t.Fatalf("plist: %q", plist)
+		require.FailNowf(t, "", "plist: %q", plist)
 	}
 	jsonb, err := os.ReadFile(filepath.Join(out, HostConfigFile))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(jsonb) != "{\"ok\":true}\n" {
-		t.Fatalf("json: %q", jsonb)
+		require.FailNowf(t, "", "json: %q", jsonb)
 	}
 }
 
@@ -37,9 +32,8 @@ func TestMaterializeHost_EmptyOutDir(t *testing.T) {
 	src := fstest.MapFS{
 		"template/static.txt": {Data: []byte("x")},
 	}
-	if err := MaterializeHost(src, nil, "  ", false, nil); !errors.Is(err, ErrOutDirRequired) {
-		t.Fatalf("want ErrOutDirRequired, got %v", err)
-	}
+	err := MaterializeHost(src, nil, "  ", false, nil)
+	require.ErrorIs(t, err, ErrOutDirRequired)
 }
 
 func TestWalkTemplate_RendersAndCopies(t *testing.T) {
@@ -50,36 +44,26 @@ func TestWalkTemplate_RendersAndCopies(t *testing.T) {
 		"template/scripts/run.sh":  {Data: []byte("#!/bin/sh\n")},
 	}
 	out := t.TempDir()
-	if err := WalkTemplate(src, struct{ Name string }{Name: "App"}, out); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, WalkTemplate(src, struct{ Name string }{Name: "App"}, out))
 	plist, err := os.ReadFile(filepath.Join(out, "Info.plist"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(plist) != "<name>App</name>" {
-		t.Fatalf("plist: %q", plist)
+		require.FailNowf(t, "", "plist: %q", plist)
 	}
 	static, err := os.ReadFile(filepath.Join(out, "static.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(static) != "keep" {
-		t.Fatalf("static: %q", static)
+		require.FailNowf(t, "", "static: %q", static)
 	}
 	kts, err := os.ReadFile(filepath.Join(out, "settings.kts"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(kts) != `name = "App"` {
-		t.Fatalf("kts: %q", kts)
+		require.FailNowf(t, "", "kts: %q", kts)
 	}
 	info, err := os.Stat(filepath.Join(out, "scripts/run.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if info.Mode()&0o111 == 0 {
-		t.Fatalf("run.sh not executable: %v", info.Mode())
+		require.FailNowf(t, "", "run.sh not executable: %v", info.Mode())
 	}
 }
 
@@ -94,14 +78,10 @@ func TestWalkTemplateDest_RemapsPath(t *testing.T) {
 		}
 		return destRel
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	got, err := os.ReadFile(filepath.Join(out, "app/src/main/java/br/tec/lew/x/Main.kt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(got) != "package br.tec.lew.x\n" {
-		t.Fatalf("body: %q", got)
+		require.FailNowf(t, "", "body: %q", got)
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/audio_play"
 	pcs "github.com/lewtec/lewkit/x/sound"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +15,7 @@ func TestPlaySilence(t *testing.T) {
 	format := pcs.Format{Rate: 48000, Channels: 2, Sample: pcs.SampleS16LE}
 	w, err := backend{}.Open(t.Context(), audio_play.Config{Format: format, Name: "lewkit-test"})
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	frame, err := format.Frame()
 	require.NoError(t, err)
@@ -26,7 +27,7 @@ func TestPlaySilence(t *testing.T) {
 func TestListSinks(t *testing.T) {
 	sinks, err := backend{}.Sinks(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	require.NotEmpty(t, sinks)
 	t.Log(sinks)

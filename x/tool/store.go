@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/io/atomic"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -19,11 +20,32 @@ import (
 
 var (
 	// ErrNoVersionsFound is returned when a backend lists no versions.
-	ErrNoVersionsFound = errors.New("no versions found")
+	ErrNoVersionsFound = errs.Wrap(errs.ErrNotFound, "no versions found")
 	// ErrToolDirectoryNotFound is returned when a version directory is missing.
-	ErrToolDirectoryNotFound = errors.New("tool directory not found")
+	ErrToolDirectoryNotFound = errs.Wrap(errs.ErrNotFound, "tool directory not found")
 	// ErrEmptyStore is returned when Open is given a blank root.
-	ErrEmptyStore = errors.New("tool store root is empty")
+	ErrEmptyStore                       = errs.Wrap(errs.ErrEmpty, "tool store root is empty")
+	ErrAllDownloadsFailed               = errors.New("all downloads failed")
+	ErrCommandIsEmpty                   = errs.Wrap(errs.ErrEmpty, "command is empty")
+	ErrInstallArtifactExtract           = errors.New("extract")
+	ErrInstallChecks                    = errors.New("install checks")
+	ErrInstallation                     = errors.New("installation")
+	ErrInstallationAt                   = errors.New("installation at")
+	ErrIsADirectoryWantAFile            = errors.New("is a directory, want a file")
+	ErrIsADirectoryWantAnExecutableFile = errors.New("is a directory, want an executable file")
+	ErrIsNotExecutable                  = errors.New("is not executable")
+	ErrModotLockJson                    = errors.New("modot.lock.json")
+	ErrOpenHostFileNotAnOsFile          = errors.New("not an os file")
+	ErrProvideABinaryNamed              = errors.New("provide a binary named")
+	ErrReadToolVersionScan              = errors.New("scan")
+	ErrResolveLatestVersion             = errors.New("resolve latest version")
+	ErrStoreEnsureBinaryToolInstallSwap = errors.New("install swap")
+	ErrStoreEnsureBinaryToolInstallTool = errors.New("install tool")
+	ErrStoreEnsureCommandEnsureTool     = errors.New("ensure tool")
+	ErrStoreEnsureCommandNoToolSpecs    = errs.Wrap(errs.ErrNotFound, "no tool specs")
+	ErrStoreEnsureInstallTool           = errors.New("install tool")
+	ErrStoreInstallInstallSwap          = errors.New("install swap")
+	ErrToolInstalledButBinaryNotFound   = errs.Wrap(errs.ErrNotFound, "tool installed but binary not found")
 )
 
 // Store maps specs onto version directories under directory.
@@ -61,7 +83,7 @@ func (store *Store) Ensure(ctx context.Context, specification, binaryName string
 	if spec.Version == "latest" {
 		resolved, err := store.resolveLatest(ctx, spec)
 		if err != nil {
-			return "", fmt.Errorf("resolve latest version: %w", err)
+			return "", fmt.Errorf("%w: %w", ErrResolveLatestVersion, err)
 		}
 		actualVersion = resolved
 		spec.Version = actualVersion
@@ -108,11 +130,11 @@ func (store *Store) Ensure(ctx context.Context, specification, binaryName string
 		return store.ensureBinaryTool(ctx, spec, installed, binaryTool, actualVersion, normalized, versionDirectory, binaryName)
 	}
 	if err := store.install(ctx, spec.String(), binaryName); err != nil {
-		return "", fmt.Errorf("install tool: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrStoreEnsureInstallTool, err)
 	}
 	binaryPath, err := store.lookup(spec, binaryName)
 	if err != nil {
-		return "", fmt.Errorf("tool installed but binary not found: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrToolInstalledButBinaryNotFound, err)
 	}
 	slog.InfoContext(ctx, "tool installed", "spec", spec.String(), "path", binaryPath)
 	return binaryPath, nil
@@ -123,10 +145,10 @@ func (store *Store) Ensure(ctx context.Context, specification, binaryName string
 // A spec with no binary of that name is skipped.
 func (store *Store) EnsureCommand(ctx context.Context, specs []string, command string) (string, error) {
 	if strings.TrimSpace(command) == "" {
-		return "", fmt.Errorf("command is empty")
+		return "", ErrCommandIsEmpty
 	}
 	if len(specs) == 0 {
-		return "", fmt.Errorf("no tool specs")
+		return "", ErrStoreEnsureCommandNoToolSpecs
 	}
 	type hit struct {
 		path string
@@ -152,7 +174,7 @@ func (store *Store) EnsureCommand(ctx context.Context, specs []string, command s
 				if errors.Is(err, ErrBinaryNotFound) {
 					return hit{miss: true}, nil
 				}
-				return hit{}, fmt.Errorf("ensure tool %s: %w", specs[i], err)
+				return hit{}, fmt.Errorf("%w %s: %w", ErrStoreEnsureCommandEnsureTool, specs[i], err)
 			},
 		}.Run(ctx)
 		if err != nil {
@@ -171,7 +193,7 @@ func (store *Store) EnsureCommand(ctx context.Context, specs []string, command s
 		}
 	}
 	if found == "" {
-		return "", fmt.Errorf("none of the tools (%s) provide a binary named %q", strings.Join(specs, ", "), command)
+		return "", fmt.Errorf("none of the tools (%s) %w %q", strings.Join(specs, ", "), ErrProvideABinaryNamed, command)
 	}
 	return found, nil
 }
@@ -195,13 +217,13 @@ func (store *Store) ensureBinaryTool(ctx context.Context, spec Spec, installed T
 		return err
 	})
 	if installErr != nil {
-		return "", fmt.Errorf("install tool: %w", installErr)
+		return "", fmt.Errorf("%w: %w", ErrStoreEnsureBinaryToolInstallTool, installErr)
 	}
 	if err := fixAndCheck(ctx, installed, workPath); err != nil {
 		return "", err
 	}
 	if err := operation.Commit(); err != nil {
-		return "", fmt.Errorf("install swap %s: %w", versionDirectory, err)
+		return "", fmt.Errorf("%w %s: %w", ErrStoreEnsureBinaryToolInstallSwap, versionDirectory, err)
 	}
 	binaryPath = FindBinary(versionDirectory, binaryName)
 	if binaryPath == "" {
@@ -232,7 +254,7 @@ func (store *Store) install(ctx context.Context, specification, binaryHint strin
 	if version == "latest" {
 		resolved, err := store.resolveLatest(ctx, spec)
 		if err != nil {
-			return fmt.Errorf("resolve latest version: %w", err)
+			return fmt.Errorf("%w: %w", ErrResolveLatestVersion, err)
 		}
 		version = resolved
 	}
@@ -269,13 +291,13 @@ func (store *Store) install(ctx context.Context, specification, binaryHint strin
 		status.Update("installing " + normalized)
 		return doInstall(ctx)
 	}); err != nil {
-		return fmt.Errorf("installation: %w", err)
+		return fmt.Errorf("%w: %w", ErrInstallation, err)
 	}
 	if err := fixAndCheck(ctx, installed, workPath); err != nil {
 		return err
 	}
 	if err := operation.Commit(); err != nil {
-		return fmt.Errorf("install swap %s: %w", finalPath, err)
+		return fmt.Errorf("%w %s: %w", ErrStoreInstallInstallSwap, finalPath, err)
 	}
 	slog.InfoContext(ctx, "tool installed", "spec", spec.String(), "version", normalized, "path", finalPath)
 	return nil
@@ -482,7 +504,7 @@ func readToolVersion(directory, binaryName string) (string, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return "", fmt.Errorf("scan %s: %w", directory, err)
+		return "", fmt.Errorf("%w %s: %w", ErrReadToolVersionScan, directory, err)
 	}
 	return "", nil
 }
@@ -526,7 +548,7 @@ func fixAndCheck(ctx context.Context, installed Tool, destination string) error 
 		if removeErr := os.RemoveAll(destination); removeErr != nil {
 			slog.WarnContext(ctx, "remove broken install directory", "error", removeErr, "directory", destination)
 		}
-		return fmt.Errorf("install checks: %w", err)
+		return fmt.Errorf("%w: %w", ErrInstallChecks, err)
 	}
 	return nil
 }

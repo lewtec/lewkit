@@ -12,6 +12,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/test"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +66,7 @@ func TestNocgoArm64ExportsJNIOnLoad(t *testing.T) {
 
 func TestNocgoArm64ExportsJNIOnLoadLewkit(t *testing.T) {
 	if runtime.GOARCH != "amd64" {
-		t.Skip("embedded compiler runs on amd64")
+		test.Skip(t, "embedded compiler runs on amd64")
 	}
 	mini, err := filepath.Abs("testdata/nocgo")
 	require.NoError(t, err)

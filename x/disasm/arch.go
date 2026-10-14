@@ -3,6 +3,8 @@ package disasm
 import (
 	"fmt"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // Architecture is a Capstone architecture.
@@ -138,7 +140,7 @@ func lookupNamed[T ~uint32](m map[string]T, name, kind string) (T, error) {
 	v, ok := m[strings.ToLower(strings.TrimSpace(name))]
 	if !ok {
 		var zero T
-		return zero, fmt.Errorf("unknown %s %q", kind, name)
+		return zero, fmt.Errorf("%w %s %q", errs.ErrUnknown, kind, name)
 	}
 	return v, nil
 }
@@ -162,7 +164,7 @@ func ParseMode(name string) (Mode, error) {
 		}
 		bit, ok := modeNames[part]
 		if !ok {
-			return 0, fmt.Errorf("unknown mode %q", part)
+			return 0, fmt.Errorf("%w %q", ErrParseModeUnknownMode, part)
 		}
 		mode |= bit
 	}

@@ -11,7 +11,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,8 +19,14 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
+)
+
+var (
+	ErrNoAvailableIphoneSimulator = errs.Wrap(errs.ErrUnavailable, "no available iPhone simulator")
+	ErrSimLewkitModuleNotFound    = errs.Wrap(errs.ErrNotFound, "sim: lewkit module not found")
 )
 
 const (
@@ -214,7 +219,7 @@ func bootSimulator(ctx context.Context) error {
 	}
 	udid := iphoneUDID(list)
 	if udid == "" {
-		return errors.New("no available iPhone simulator")
+		return ErrNoAvailableIphoneSimulator
 	}
 	if err := commandRun(ctx, "", "xcrun", "simctl", "boot", udid); err != nil {
 		return err
@@ -298,7 +303,7 @@ func moduleRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", errors.New("sim: lewkit module not found")
+			return "", ErrSimLewkitModuleNotFound
 		}
 		dir = parent
 	}

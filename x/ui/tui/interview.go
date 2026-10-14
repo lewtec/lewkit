@@ -10,14 +10,9 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/mattn/go-runewidth"
 )
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("tui: nil context")
-
-// ErrCanceled means the interview stopped before every question had an answer.
-var ErrCanceled = errors.New("tui: canceled")
 
 // Question is one step.
 // Choices, when set, are a closed list. Otherwise the answer is the entered line.
@@ -40,7 +35,7 @@ type Grow func(answers []Answer) ([]Question, error)
 
 // Interview asks one question at a time.
 // Left is back. Enter and right are next, and finish on the last step.
-// Run starts it with the caller context. A nil context is ErrNilContext.
+// Run starts it with the caller context.
 type Interview struct {
 	questions []Question
 	answers   []Answer
@@ -334,15 +329,12 @@ func answerText(q Question, answers []Answer, i int) string {
 }
 
 // Run asks questions on the caller context and returns each answer.
-// An empty interview returns no answers. Cancel and ctrl+c are ErrCanceled.
+// An empty interview returns no answers. Cancel and ctrl+c are [errs.ErrCanceled].
 func Run(ctx context.Context, m Interview) ([]Answer, error) {
 	return start(ctx, m, nil, os.Stderr)
 }
 
 func start(ctx context.Context, m Interview, in io.Reader, out io.Writer) ([]Answer, error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -364,20 +356,20 @@ func start(ctx context.Context, m Interview, in io.Reader, out io.Writer) ([]Ans
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, ErrCanceled
+		return nil, errs.ErrCanceled
 	}
 	if err != nil {
 		return nil, err
 	}
 	done, ok := final.(Interview)
 	if !ok || done.canceled {
-		return nil, ErrCanceled
+		return nil, errs.ErrCanceled
 	}
 	if done.fail != nil {
 		return nil, done.fail
 	}
 	if !done.done {
-		return nil, ErrCanceled
+		return nil, errs.ErrCanceled
 	}
 	return done.Answers(), nil
 }

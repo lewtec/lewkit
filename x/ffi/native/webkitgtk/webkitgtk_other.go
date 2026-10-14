@@ -4,12 +4,13 @@ package webkitgtk
 
 import (
 	"context"
-	"errors"
 	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrUnavailable means the WebKitGTK libraries are not loaded.
-var ErrUnavailable = errors.New("webkitgtk unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "webkitgtk unavailable")
 
 // Symbols is the loaded C API. It is never returned on this OS.
 type Symbols struct{}

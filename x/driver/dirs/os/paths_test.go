@@ -3,6 +3,8 @@ package host
 import (
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPaths_EnvWins(t *testing.T) {
@@ -25,14 +27,12 @@ func TestPaths_EnvWins(t *testing.T) {
 		func() (string, error) { return "/unused-cache", nil },
 		func() (string, error) { return "/unused-config", nil },
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got.Data != "/data" || got.Cache != "/cache" || got.Config != "/config" {
-		t.Fatalf("%+v", got)
+		require.FailNowf(t, "", "%+v", got)
 	}
 	if got.Inbox != filepath.Join("/cache", "inbox") {
-		t.Fatalf("Inbox = %q", got.Inbox)
+		require.FailNowf(t, "", "Inbox = %q", got.Inbox)
 	}
 }
 
@@ -45,15 +45,13 @@ func TestPaths_AppIDUnderHome(t *testing.T) {
 		func() (string, error) { return "/cache", nil },
 		func() (string, error) { return "/config", nil },
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	wantData := filepath.Join("/home/u", ".local", "share", "br.tec.lew.counter")
 	if got.Data != wantData {
-		t.Fatalf("Data = %q", got.Data)
+		require.FailNowf(t, "", "Data = %q", got.Data)
 	}
 	if got.Cache != filepath.Join("/cache", "br.tec.lew.counter") {
-		t.Fatalf("Cache = %q", got.Cache)
+		require.FailNowf(t, "", "Cache = %q", got.Cache)
 	}
 }
 
@@ -63,25 +61,19 @@ func TestDataHome_ByGOOS(t *testing.T) {
 	home := func() (string, error) { return "/home/u", nil }
 
 	got, err := dataHome("linux", getenv, home)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got != filepath.Join("/home/u", ".local", "share") {
-		t.Fatalf("linux: %q", got)
+		require.FailNowf(t, "", "linux: %q", got)
 	}
 	got, err = dataHome("darwin", getenv, home)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got != filepath.Join("/home/u", "Library", "Application Support") {
-		t.Fatalf("darwin: %q", got)
+		require.FailNowf(t, "", "darwin: %q", got)
 	}
 	env["LOCALAPPDATA"] = filepath.Join("C:", "Users", "u", "AppData", "Local")
 	got, err = dataHome("windows", getenv, home)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if got != env["LOCALAPPDATA"] {
-		t.Fatalf("windows: %q", got)
+		require.FailNowf(t, "", "windows: %q", got)
 	}
 }

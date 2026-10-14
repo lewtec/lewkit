@@ -2,12 +2,13 @@
 package table
 
 import (
-	"errors"
 	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrFormat means the format token is not one of table, jsonl, or csv.
-var ErrFormat = errors.New("unknown format")
+var ErrFormat = errs.Wrap(errs.ErrUnknown, "unknown format")
 
 // Format selects how Write prints a sequence. The zero value is invalid.
 type Format int

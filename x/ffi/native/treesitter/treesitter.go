@@ -21,6 +21,10 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
+var (
+	ErrOpenLanguage = errors.New("")
+)
+
 // Language is a TSLanguage pointer from a grammar shared library.
 type Language uintptr
 
@@ -107,7 +111,7 @@ func OpenLanguage(name string) (Language, error) {
 	}
 	sym, err := native.Symbol(lib, symbolName(name))
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", symbolName(name), err)
+		return 0, fmt.Errorf("%w%s: %w", ErrOpenLanguage, symbolName(name), err)
 	}
 	addr := callLanguage(sym)
 	if addr == 0 {

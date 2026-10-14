@@ -9,14 +9,19 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
 )
 
+var (
+	ErrDecodeBendLatestJson = errors.New("decode bend latest.json")
+)
+
 const bendOrigin = "https://bend-lang.com"
 
-var ErrInvalidBendVersion = errors.New("invalid bend version")
+var ErrInvalidBendVersion = errs.Wrap(errs.ErrInvalid, "invalid bend version")
 
 // bendTool installs Bend 2 from bend-lang.com tarballs. The official site
 // only ships curl|sh, which also phones home. bun is not copied into the
@@ -120,7 +125,7 @@ func (t *bendTool) fetchLatest(ctx context.Context) (bendRelease, error) {
 	}
 	var rel bendRelease
 	if err := jsonv2.Unmarshal(body, &rel); err != nil {
-		return bendRelease{}, fmt.Errorf("decode bend latest.json: %w", err)
+		return bendRelease{}, fmt.Errorf("%w: %w", ErrDecodeBendLatestJson, err)
 	}
 	if !validBendVersion(rel.Ver) {
 		return bendRelease{}, fmt.Errorf("%w in latest.json: %q", ErrInvalidBendVersion, rel.Ver)

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,7 +98,7 @@ build main.o: cc main.c
 
 func TestLinuxBuild(t *testing.T) {
 	if _, err := exec.LookPath("gcc"); err != nil {
-		t.Skip("gcc not installed")
+		test.Skip(t, "gcc not installed")
 	}
 	dir := t.TempDir()
 	writeSources(t, dir)
@@ -109,7 +110,7 @@ func TestLinuxBuild(t *testing.T) {
 func TestCondaCompilerOnPath(t *testing.T) {
 	gcc, err := exec.LookPath("gcc")
 	if err != nil {
-		t.Skip("gcc not installed")
+		test.Skip(t, "gcc not installed")
 	}
 	dir := t.TempDir()
 	writeSources(t, dir)
@@ -159,11 +160,6 @@ func writeSources(t *testing.T, dir string) {
 	write(t, dir, "main.c", "#include \"util.h\"\nint main(void) { return answer() == 42 ? 0 : 1; }\n")
 	write(t, dir, "util.c", "#include \"util.h\"\nint answer(void) { return 42; }\n")
 	write(t, dir, "util.h", "int answer(void);\n")
-}
-
-func TestLoadRejectsNilContext(t *testing.T) {
-	_, err := Load(nil, "build.ninja", "")
-	require.Error(t, err)
 }
 
 func build(t *testing.T, dir string, targets []string) error {

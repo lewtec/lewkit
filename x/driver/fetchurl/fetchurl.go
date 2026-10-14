@@ -8,16 +8,17 @@ package fetchurl
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrNoURLs is returned when Fetch is given no URLs.
-	ErrNoURLs = errors.New("no URLs provided")
+	ErrNoURLs = errs.Wrap(errs.ErrNotFound, "no URLs provided")
 	// ErrNoOutputWriter is returned when Fetch is given no writer.
-	ErrNoOutputWriter = errors.New("no output writer provided")
+	ErrNoOutputWriter = errs.Wrap(errs.ErrNotFound, "no output writer provided")
 )
 
 // StatusError is a non-OK HTTP response.

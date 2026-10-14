@@ -3,6 +3,7 @@ package exec_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,17 +17,6 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/stretchr/testify/require"
 )
-
-func TestCommandNilContext(t *testing.T) {
-	_, err := execdriver.Command(nil, "sh")
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-	_, err = execdriver.OutputString(nil, "sh")
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-	_, err = execdriver.Which(nil, "sh")
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-	err = execdriver.Wait(nil, nil)
-	require.ErrorIs(t, err, execdriver.ErrNilContext)
-}
 
 func TestMustRunCapturesStdout(t *testing.T) {
 	ctx := t.Context()
@@ -58,7 +48,7 @@ func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	case err := <-done:
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(3 * time.Second):
-		t.Fatal("process kept running after cancel")
+		require.FailNow(t, fmt.Sprint("process kept running after cancel"))
 	}
 }
 

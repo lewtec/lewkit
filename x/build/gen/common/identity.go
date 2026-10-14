@@ -28,7 +28,7 @@ type HostConfig struct {
 func ApplyHostDefaults(ctx context.Context, cfg HostConfig) (HostConfig, error) {
 	cfg.PackageID = strings.TrimSpace(cfg.PackageID)
 	if err := release.ValidateAppID(cfg.PackageID); err != nil {
-		return HostConfig{}, fmt.Errorf("package id: %w", err)
+		return HostConfig{}, fmt.Errorf("%w: %w", ErrApplyHostDefaultsPackageId, err)
 	}
 	cfg.AppName = strings.TrimSpace(cfg.AppName)
 	if cfg.AppName == "" {

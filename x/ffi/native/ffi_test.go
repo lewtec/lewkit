@@ -4,13 +4,14 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestOpenAndSymbol(t *testing.T) {
 	path := libcPath()
 	if path == "" {
-		t.Skip("no libc path")
+		test.Skip(t, "no libc path")
 	}
 	lib, err := Open(path, Lazy)
 	require.NoError(t, err)

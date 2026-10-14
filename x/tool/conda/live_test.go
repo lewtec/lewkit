@@ -9,12 +9,13 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/exec/native"
 	_ "github.com/lewtec/lewkit/x/driver/fetchurl/native"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/native"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLiveRipgrepFromCondaForge(t *testing.T) {
 	if os.Getenv("LEWKIT_TEST_CONDA") == "" {
-		t.Skip("set LEWKIT_TEST_CONDA=1 to install ripgrep from conda-forge")
+		test.Skip(t, "set LEWKIT_TEST_CONDA=1 to install ripgrep from conda-forge")
 	}
 	tool, err := (&Backend{}).Tool("conda-forge/ripgrep")
 	require.NoError(t, err)

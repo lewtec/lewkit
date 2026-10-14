@@ -80,6 +80,6 @@ func linkArch(goarch string) (*sys.Arch, ld.Arch, error) {
 		arch, theArch := arm64.Init()
 		return arch, theArch, nil
 	default:
-		return nil, ld.Arch{}, fmt.Errorf("link supports GOARCH=amd64 or arm64, have %s", goarch)
+		return nil, ld.Arch{}, fmt.Errorf("%w %s", ErrLinkSupportsGoarchAmd64OrArm64Have, goarch)
 	}
 }

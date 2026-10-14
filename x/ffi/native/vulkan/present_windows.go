@@ -117,7 +117,7 @@ func (h *win32Host) create(d *Device, w *wsi) (uint64, error) {
 	info := win32SurfaceInfo{sType: 1000009000, hinstance: h.instance, hwnd: h.hwnd}
 	var surface uint64
 	if err := check(h.createSurf(d.inst, &info, 0, &surface)); err != nil {
-		return 0, fmt.Errorf("win32 surface: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrWin32HostCreateWin32Surface, err)
 	}
 	return surface, nil
 }

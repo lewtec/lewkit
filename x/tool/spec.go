@@ -1,13 +1,14 @@
 package tool
 
 import (
-	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrEmptySpec is returned when Parse is given an empty string.
-var ErrEmptySpec = errors.New("spec cannot be empty")
+var ErrEmptySpec = errs.Wrap(errs.ErrEmpty, "spec cannot be empty")
 
 // Spec is a parsed backend:ref@version reference.
 // A missing backend is registry. A missing version is latest.

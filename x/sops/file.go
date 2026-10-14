@@ -37,7 +37,7 @@ func (f *File) Parse(path string) error {
 	}
 	raw, err := Open(path)
 	if err != nil {
-		return fmt.Errorf("%s: %w", path, err)
+		return fmt.Errorf("%w%s: %w", ErrFileParse, path, err)
 	}
 	f.raw = raw
 	return nil

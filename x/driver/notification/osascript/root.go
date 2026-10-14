@@ -3,6 +3,7 @@ package osascript
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -10,6 +11,10 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/notification"
+)
+
+var (
+	ErrBackendNotifyOsascript = errors.New("osascript")
 )
 
 type factory struct{}
@@ -32,7 +37,7 @@ type backend struct{}
 func (backend) Notify(ctx context.Context, n notification.Notification) error {
 	cmd := execdriver.MustCommand(ctx, "osascript", "-e", script(n))
 	if err := execdriver.Run(ctx, cmd); err != nil {
-		return fmt.Errorf("osascript: %w", err)
+		return fmt.Errorf("%w: %w", ErrBackendNotifyOsascript, err)
 	}
 	return nil
 }

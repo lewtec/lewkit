@@ -1,16 +1,20 @@
 package wasm
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 var (
-	ErrEmpty   = errors.New("empty wasm")
+	ErrEmpty   = errs.Wrap(errs.ErrEmpty, "empty wasm")
 	ErrNil     = errors.New("nil compiled module")
 	ErrWASI    = errors.New("wasi")
 	ErrCompile = errors.New("compile wasm")
 	ErrEnv     = errors.New("emscripten env")
 	ErrInst    = errors.New("instantiate")
 	ErrInit    = errors.New("initialize")
-	ErrExport  = errors.New("missing export")
+	ErrExport  = errs.Wrap(errs.ErrMissing, "missing export")
 	ErrMalloc  = errors.New("malloc")
 	ErrMemory  = errors.New("wasm memory")
 )

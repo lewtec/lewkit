@@ -2,6 +2,7 @@ package window_test
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -38,12 +39,12 @@ func TestInsetZonesAndDeadRoundTrip(t *testing.T) {
 	case event := <-events:
 		assert.IsType(t, window.Expose{}, event)
 	case <-time.After(time.Second):
-		t.Fatal("dead zone change did not expose")
+		require.FailNow(t, fmt.Sprint("dead zone change did not expose"))
 	}
 	setter.SetDead(zones)
 	select {
 	case event := <-events:
-		t.Fatalf("unchanged dead zones exposed: %T", event)
+		require.FailNowf(t, "", "unchanged dead zones exposed: %T", event)
 	default:
 	}
 }
@@ -184,16 +185,6 @@ func TestCloseWhenDone(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return w.Draw() == window.ErrClosed
 	}, time.Second, 5*time.Millisecond)
-}
-
-func TestCloseWhenDoneNilCtx(t *testing.T) {
-	w, err := window.Open(t.Context(), window.Config{Width: 2, Height: 2})
-	require.NoError(t, err)
-	test.CloseOnCleanup(t, w)
-	require.PanicsWithValue(t, "window: nil context", func() {
-		window.CloseWhenDone(nil, w)
-	})
-	require.NoError(t, w.Draw())
 }
 
 func TestDrawAfterClose(t *testing.T) {

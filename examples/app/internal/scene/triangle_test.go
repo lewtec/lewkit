@@ -136,7 +136,7 @@ func TestTriangleExec(t *testing.T) {
 	evaluator, err := ndarray.Open(t.Context())
 	require.NoError(t, err)
 	if evaluator == ndarray.CPU {
-		t.Skip("no gpu evaluator")
+		test.Skip(t, "no gpu evaluator")
 	}
 	test.CloseOnCleanup(t, evaluator)
 	expr, err := triangleAt(32, 32, nil)

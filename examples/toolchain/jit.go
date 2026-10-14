@@ -8,7 +8,7 @@ import (
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 )
 
-func jit() (string, error) {
+func jit(ctx context.Context) (string, error) {
 	file := jen.NewFile("main")
 	file.Func().Id("Value").Params().String().Block(
 		jen.Return(jen.Lit("jit-ok\n")),
@@ -18,7 +18,7 @@ func jit() (string, error) {
 	if err := file.Render(&src); err != nil {
 		return "", err
 	}
-	prog, err := gotool.CompileSource(context.Background(), src.String())
+	prog, err := gotool.CompileSource(ctx, src.String())
 	if err != nil {
 		return "", err
 	}

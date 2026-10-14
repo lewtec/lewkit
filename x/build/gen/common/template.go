@@ -51,7 +51,7 @@ func WalkTemplateDest(src fs.FS, data any, out string, dest func(rel, destRel st
 		}
 		destRel, body, err := RenderFile(rel, raw, data)
 		if err != nil {
-			return fmt.Errorf("%s: %w", p, err)
+			return fmt.Errorf("%w%s: %w", ErrWalkTemplateDest, p, err)
 		}
 		if dest != nil {
 			destRel = dest(rel, destRel)

@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -31,7 +32,7 @@ var (
 	// ErrSize means the frame size or the instance bytes are not usable.
 	ErrSize = errors.New("present size")
 	// ErrClosed means the screen has been closed.
-	ErrClosed = errors.New("present closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "present closed")
 	// ErrHold means this frame is not presented. The picture already showing stays up.
 	ErrHold = errors.New("present hold")
 )

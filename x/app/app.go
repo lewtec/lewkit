@@ -32,8 +32,9 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("app: nil context")
+var (
+	ErrLoopbackHostNeedsAWebHandler = errors.New("loopback host needs a web handler")
+)
 
 // ReadyLinePrefix is printed once the loopback server is listening.
 // Packaged hosts parse the URL that follows it.
@@ -56,9 +57,6 @@ type App struct {
 // presents it on Apple. Vulkan presents it where libvulkan is the screen.
 // Loopback runs only when the caller opted in.
 func (a App) Run(ctx context.Context) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	id, _ := release.RequireStamp()
 	run := func(ctx context.Context) error {
 		return a.open(ctx, id)
@@ -117,7 +115,7 @@ func loopbackWindow(win Window, guiNative bool) (Window, error) {
 	}
 	web, ok := win.(webWindow)
 	if !ok {
-		return nil, fmt.Errorf("loopback host needs a web handler")
+		return nil, ErrLoopbackHostNeedsAWebHandler
 	}
 	web.hosted = true
 	return web, nil

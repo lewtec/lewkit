@@ -2,7 +2,6 @@ package sops
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -20,11 +19,8 @@ type Command struct {
 // Stdin, stdout, and stderr are the process streams.
 // A non-zero child status is returned as the process exit error.
 func (c Command) Run(ctx context.Context) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	if len(c.Args) == 0 {
-		return fmt.Errorf("sops: command is empty")
+		return ErrSopsCommandIsEmpty
 	}
 	selected, err := driver.Get[execdriver.Driver](ctx)
 	if err != nil {

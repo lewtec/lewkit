@@ -14,14 +14,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/generate/header"
 )
 
 var (
-	// ErrNilContext means Go was given no context.
-	ErrNilContext = errors.New("c: nil context")
 	// ErrFile means the path is empty.
-	ErrFile = errors.New("c: no file")
+	ErrFile = errs.Wrap(errs.ErrNotFound, "c: no file")
 	// ErrName means the file name is not a Go package name.
 	ErrName = errors.New("c: package name")
 )
@@ -31,9 +30,6 @@ var (
 // The caller writes src into the unit's files and compiles it with the
 // other packages of the same target.
 func Go(ctx context.Context, file string) (importPath, src string, err error) {
-	if ctx == nil {
-		return "", "", ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return "", "", err
 	}

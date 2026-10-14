@@ -17,6 +17,11 @@ import (
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
 )
 
+var (
+	ErrSmokeTestFailed = errors.New("smoke test failed")
+	ErrSymlinkAgent    = errors.New("symlink agent")
+)
+
 var ErrGrokBuildProbeFailure = errors.New("probe grok-build latest from x.ai channels")
 
 type grokBuildTool struct{}
@@ -98,7 +103,7 @@ func (t *grokBuildTool) InstallArtifact(ctx context.Context, art tool.Artifact, 
 		if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
 			slog.WarnContext(ctx, "remove broken binary", "error", removeErr, "path", path)
 		}
-		return fmt.Errorf("smoke test failed: %w", err)
+		return fmt.Errorf("%w: %w", ErrSmokeTestFailed, err)
 	}
 
 	agent := "agent"
@@ -115,7 +120,7 @@ func (t *grokBuildTool) InstallArtifact(ctx context.Context, art tool.Artifact, 
 		return err
 	}
 	if err := root.Symlink(bin, agentLink.String()); err != nil {
-		return fmt.Errorf("symlink agent: %w", err)
+		return fmt.Errorf("%w: %w", ErrSymlinkAgent, err)
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
 )
@@ -20,18 +21,16 @@ const (
 )
 
 var (
-	// ErrNilContext means Build was given no context.
-	ErrNilContext = errors.New("toolchain: nil context")
 	// ErrNoWork means Plan was given no units and no image.
 	ErrNoWork = errors.New("toolchain: nothing to build")
 	// ErrEmptyUnit means a unit has no import path, files, archive, or importcfg.
-	ErrEmptyUnit = errors.New("toolchain: empty unit")
+	ErrEmptyUnit = errs.Wrap(errs.ErrEmpty, "toolchain: empty unit")
 	// ErrEmptyImage means the link has no output, archive, importcfg, or mode.
-	ErrEmptyImage = errors.New("toolchain: empty link")
+	ErrEmptyImage = errs.Wrap(errs.ErrEmpty, "toolchain: empty link")
 	// ErrDuplicate means two units share an import path, or a unit is named [LinkStep].
-	ErrDuplicate = errors.New("toolchain: duplicate unit")
+	ErrDuplicate = errs.Wrap(errs.ErrDuplicate, "toolchain: duplicate unit")
 	// ErrUnknownDep means a dependency is not a unit in this build.
-	ErrUnknownDep = errors.New("toolchain: unknown dependency")
+	ErrUnknownDep = errs.Wrap(errs.ErrUnknown, "toolchain: unknown dependency")
 )
 
 // Unit is one package the graph compiles.
@@ -132,9 +131,6 @@ func Plan(units []Unit, image *Image) (workflow.Graph, error) {
 // reports that package on the taskgroup status. A session already on ctx,
 // including the progress view entry.Run starts, shows those rows.
 func Build(ctx context.Context, units []Unit, image *Image) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -159,7 +155,7 @@ func Child() (bool, error) {
 	}
 	path := os.Getenv(requestEnv)
 	if path == "" {
-		return true, errors.New("toolchain: missing request")
+		return true, ErrToolchainMissingRequest
 	}
 	body, err := os.ReadFile(path)
 	if err != nil {
@@ -175,7 +171,7 @@ func Child() (bool, error) {
 	case "link":
 		return true, linkHere(req.Out, req.ImportCfg, req.Mode, req.Archive, req.Ldflags...)
 	default:
-		return true, fmt.Errorf("toolchain: unknown action %s", action)
+		return true, fmt.Errorf("%w %s", ErrToolchainUnknownAction, action)
 	}
 }
 

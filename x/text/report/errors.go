@@ -1,9 +1,13 @@
 package report
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 var (
 	ErrLevel  = errors.New("level")
 	ErrFormat = errors.New("format")
-	ErrSpan   = errors.New("span out of range")
+	ErrSpan   = errs.Wrap(errs.ErrOutOfRange, "span out of range")
 )

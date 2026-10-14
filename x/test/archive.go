@@ -1,10 +1,11 @@
 package test
 
 import (
-	"errors"
 	"io"
 	"io/fs"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 // ArchiveTree checks a two-member archive: a/b.txt "hello" and z.txt "zee".
@@ -13,75 +14,43 @@ import (
 func ArchiveTree(tb testing.TB, fsys fs.FS) {
 	tb.Helper()
 	ents, err := fs.ReadDir(fsys, ".")
-	if err != nil {
-		tb.Fatal(err)
-	}
-	if len(ents) != 2 {
-		tb.Fatalf("ReadDir(.) len=%d want 2", len(ents))
-	}
-	if ents[0].Name() != "a" || !ents[0].IsDir() {
-		tb.Fatalf("ents[0]=%s dir=%v want a/", ents[0].Name(), ents[0].IsDir())
-	}
-	if ents[1].Name() != "z.txt" || ents[1].IsDir() {
-		tb.Fatalf("ents[1]=%s dir=%v want z.txt", ents[1].Name(), ents[1].IsDir())
-	}
+	require.NoError(tb, err)
+	require.Len(tb, ents, 2)
+	require.Equal(tb, "a", ents[0].Name())
+	require.True(tb, ents[0].IsDir())
+	require.Equal(tb, "z.txt", ents[1].Name())
+	require.False(tb, ents[1].IsDir())
 
 	ents, err = fs.ReadDir(fsys, "a")
-	if err != nil {
-		tb.Fatal(err)
-	}
-	if len(ents) != 1 || ents[0].Name() != "b.txt" {
-		got := "<none>"
-		if len(ents) > 0 {
-			got = ents[0].Name()
-		}
-		tb.Fatalf("ReadDir(a) len=%d first=%s want one b.txt", len(ents), got)
-	}
+	require.NoError(tb, err)
+	require.Len(tb, ents, 1)
+	require.Equal(tb, "b.txt", ents[0].Name())
 
 	b, err := fs.ReadFile(fsys, "a/b.txt")
-	if err != nil {
-		tb.Fatal(err)
-	}
-	if string(b) != "hello" {
-		tb.Fatalf("a/b.txt = %q want hello", b)
-	}
+	require.NoError(tb, err)
+	require.Equal(tb, "hello", string(b))
 
 	st, err := fs.Stat(fsys, "a")
-	if err != nil {
-		tb.Fatal(err)
-	}
-	if !st.IsDir() {
-		tb.Fatal("stat a: not a directory")
-	}
+	require.NoError(tb, err)
+	require.True(tb, st.IsDir())
 
 	_, err = fsys.Open("missing")
-	if !errors.Is(err, fs.ErrNotExist) {
-		tb.Fatalf("open missing: %v want ErrNotExist", err)
-	}
+	require.ErrorIs(tb, err, fs.ErrNotExist)
 	_, err = fsys.Open("../x")
-	if !errors.Is(err, fs.ErrInvalid) {
-		tb.Fatalf("open ../x: %v want ErrInvalid", err)
-	}
+	require.ErrorIs(tb, err, fs.ErrInvalid)
 }
 
 // ArchiveReadAt checks a.bin "hello world" via ReadAt at offset 6.
 func ArchiveReadAt(tb testing.TB, fsys fs.FS) {
 	tb.Helper()
 	f, err := fsys.Open("a.bin")
-	if err != nil {
-		tb.Fatal(err)
-	}
+	require.NoError(tb, err)
 	CloseOnCleanup(tb, f)
 	ra, ok := f.(io.ReaderAt)
-	if !ok {
-		tb.Fatal("open a.bin: not io.ReaderAt")
-	}
+	require.True(tb, ok)
 	buf := make([]byte, 5)
 	n, err := ra.ReadAt(buf, 6)
-	if err != nil {
-		tb.Fatal(err)
-	}
-	if n != 5 || string(buf) != "world" {
-		tb.Fatalf("ReadAt = %d %q want 5 world", n, buf)
-	}
+	require.NoError(tb, err)
+	require.Equal(tb, 5, n)
+	require.Equal(tb, "world", string(buf))
 }

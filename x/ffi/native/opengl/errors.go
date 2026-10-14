@@ -1,6 +1,10 @@
 package opengl
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 const (
 	// maxDim keeps a frame inside a size every GL 3.3 / ES 3.0 target accepts.
@@ -11,11 +15,11 @@ const (
 
 var (
 	// ErrClosed means Draw or Adopt ran after Close.
-	ErrClosed = errors.New("opengl closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "opengl closed")
 	// ErrLost means the native surface is gone.
 	ErrLost = errors.New("opengl surface lost")
 	// ErrSize means the frame size or the instance bytes are not usable.
 	ErrSize = errors.New("opengl size")
 	// ErrUnavailable means OpenGL cannot be opened here.
-	ErrUnavailable = errors.New("opengl unavailable")
+	ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "opengl unavailable")
 )

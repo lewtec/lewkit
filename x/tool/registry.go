@@ -1,13 +1,14 @@
 package tool
 
 import (
-	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrBackendNotFound is returned when a spec names a backend that is not registered.
-var ErrBackendNotFound = errors.New("tool backend not found")
+var ErrBackendNotFound = errs.Wrap(errs.ErrNotFound, "tool backend not found")
 
 var (
 	backendMu sync.RWMutex

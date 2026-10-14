@@ -50,7 +50,7 @@ func TestDirtySkipsUnchangedPointer(t *testing.T) {
 	require.Eventually(t, func() bool {
 		select {
 		case err := <-done:
-			t.Fatalf("run: %v", err)
+			require.FailNowf(t, "", "run: %v", err)
 		default:
 		}
 		return model.paints.Load() == 1

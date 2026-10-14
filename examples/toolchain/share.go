@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,10 @@ import (
 	"github.com/dave/jennifer/jen"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/lewtec/lewkit/x/toolchain/purego"
+)
+
+var (
+	ErrShare = errors.New("")
 )
 
 // hostPingSrc renders the library. HostPing is the C symbol.
@@ -30,7 +35,7 @@ func hostPingSrc() (string, error) {
 	return src.String(), nil
 }
 
-func share() (string, error) {
+func share(ctx context.Context) (string, error) {
 	src, err := hostPingSrc()
 	if err != nil {
 		return "", err
@@ -41,16 +46,16 @@ func share() (string, error) {
 	}
 	defer os.RemoveAll(dir)
 	so := filepath.Join(dir, "lib.so")
-	if err := gotool.SharedLibrary(context.Background(), so, src); err != nil {
+	if err := gotool.SharedLibrary(ctx, so, src); err != nil {
 		return "", err
 	}
-	cmd := exec.Command(os.Args[0])
+	cmd := exec.CommandContext(ctx, os.Args[0])
 	cmd.Env = append(os.Environ(), "LEWKIT_SHARE_SO="+so)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%w\n%s", err, stderr.String())
+		return "", fmt.Errorf("%w%w\n%s", ErrShare, err, stderr.String())
 	}
 	return stdout.String(), nil
 }

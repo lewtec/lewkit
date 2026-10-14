@@ -20,20 +20,21 @@ import (
 	"github.com/lewtec/lewkit/report"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/tool"
 )
 
 var (
 	// ErrEmptyGitHubRef is returned when a github ref is blank.
-	ErrEmptyGitHubRef = errors.New("github ref cannot be empty (expected owner/repo)")
+	ErrEmptyGitHubRef = errs.Wrap(errs.ErrEmpty, "github ref cannot be empty (expected owner/repo)")
 	// ErrInvalidGitHubRef is returned when a github ref is not owner/repo.
-	ErrInvalidGitHubRef = errors.New("invalid github ref (expected owner/repo)")
+	ErrInvalidGitHubRef = errs.Wrap(errs.ErrInvalid, "invalid github ref (expected owner/repo)")
 	// ErrAPIError is returned when the GitHub API responds with a non-OK status.
 	ErrAPIError = errors.New("github api error")
 	// ErrAPIRateLimit is returned when the API body says the rate limit was exceeded.
 	ErrAPIRateLimit = errors.New("github api rate limit exceeded")
 	// ErrNoArtifact is returned when no asset matches this OS and architecture.
-	ErrNoArtifact = errors.New("no suitable artifact")
+	ErrNoArtifact = errs.Wrap(errs.ErrNotFound, "no suitable artifact")
 )
 
 // Backend is the github releases backend.

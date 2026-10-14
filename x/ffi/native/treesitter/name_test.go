@@ -4,6 +4,7 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +34,7 @@ func TestSymbolName(t *testing.T) {
 
 func TestRawNodeSize(t *testing.T) {
 	if unsafe.Sizeof(uintptr(0)) != 8 {
-		t.Skip("TSNode layout is asserted on 64-bit")
+		test.Skip(t, "TSNode layout is asserted on 64-bit")
 	}
 	require.Equal(t, uintptr(32), unsafe.Sizeof(RawNode{}))
 }

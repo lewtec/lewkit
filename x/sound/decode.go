@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrNil is Register with a nil decoder.
 	ErrNil = errors.New("nil decoder")
 	// ErrExist is Register when the name is already in the registry.
-	ErrExist = errors.New("decoder already registered")
+	ErrExist = errs.Wrap(errs.ErrAlreadyExists, "decoder already registered")
 )
 
 // Decoder identifies an audio file and turns it into a pipeline.

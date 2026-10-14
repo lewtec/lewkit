@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/anchore/quill/quill/macho"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,13 +77,6 @@ func TestAPKRoundTrip(t *testing.T) {
 	require.NotContains(t, string(signed), "old-debug-signature")
 }
 
-func TestSignPENilContext(t *testing.T) {
-	id, err := Generate("Publisher")
-	require.NoError(t, err)
-	_, err = id.SignPE(nil, minimalPE(), PEOptions{})
-	require.ErrorIs(t, err, ErrNilContext)
-}
-
 func TestPERoundTrip(t *testing.T) {
 	id, err := Generate("Publisher")
 	require.NoError(t, err)
@@ -94,7 +88,7 @@ func TestPERoundTrip(t *testing.T) {
 
 func TestPEGoWindowsExe(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
-		t.Skip("go is not on PATH")
+		test.Skip(t, "go is not on PATH")
 	}
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644))
@@ -117,7 +111,7 @@ func TestPEGoWindowsExe(t *testing.T) {
 
 func TestSignGoDarwinBinary(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
-		t.Skip("go is not on PATH")
+		test.Skip(t, "go is not on PATH")
 	}
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\nfunc main() {}\n"), 0o644))

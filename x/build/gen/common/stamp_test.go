@@ -1,7 +1,10 @@
 package common
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestStampPackagingVersion_FillsEmpty(t *testing.T) {
@@ -9,13 +12,13 @@ func TestStampPackagingVersion_FillsEmpty(t *testing.T) {
 	dir := t.TempDir()
 	vi, name, code := StampPackagingVersion(t.Context(), dir, "", 0)
 	if vi.Version == "" {
-		t.Fatal("empty version info")
+		require.FailNow(t, fmt.Sprint("empty version info"))
 	}
 	if name == "" {
-		t.Fatal("empty name")
+		require.FailNow(t, fmt.Sprint("empty name"))
 	}
 	if code <= 0 {
-		t.Fatalf("code=%d", code)
+		require.FailNowf(t, "", "code=%d", code)
 	}
 }
 
@@ -24,9 +27,9 @@ func TestStampPackagingVersion_KeepsExplicit(t *testing.T) {
 	dir := t.TempDir()
 	_, name, code := StampPackagingVersion(t.Context(), dir, "9.8.7", 42)
 	if name != "9.8.7" {
-		t.Fatalf("name=%q", name)
+		require.FailNowf(t, "", "name=%q", name)
 	}
 	if code != 42 {
-		t.Fatalf("code=%d", code)
+		require.FailNowf(t, "", "code=%d", code)
 	}
 }

@@ -87,7 +87,7 @@ func (w *wlwin) slotsFree() bool {
 
 func (w *wlwin) realloc(width, height int) error {
 	if width > 16384 || height > 16384 || !w.haveFormat {
-		return fmt.Errorf("wayland: size %dx%d", width, height)
+		return fmt.Errorf("%w %dx%d", ErrWlwinReallocWaylandSize, width, height)
 	}
 	stride := width * 4
 	size := stride * height * len(w.slots)

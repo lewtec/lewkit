@@ -8,6 +8,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -24,24 +27,20 @@ func TestMain(m *testing.M) {
 
 func TestShare(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("shared object is an ELF file")
+		test.Skip(t, "shared object is an ELF file")
 	}
-	out, err := share()
-	if err != nil {
-		t.Fatal(err)
-	}
+	out, err := share(t.Context())
+	require.NoError(t, err)
 	if out != "7\n" {
-		t.Fatalf("output %q", out)
+		require.FailNowf(t, "", "output %q", out)
 	}
 }
 
 func TestJIT(t *testing.T) {
-	out, err := jit()
-	if err != nil {
-		t.Fatal(err)
-	}
+	out, err := jit(t.Context())
+	require.NoError(t, err)
 	if out != "jit-ok\n" {
-		t.Fatalf("output %q", out)
+		require.FailNowf(t, "", "output %q", out)
 	}
 }
 

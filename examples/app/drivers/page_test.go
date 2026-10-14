@@ -221,7 +221,7 @@ func interfaceNameBySlug(t *testing.T, slug string) string {
 			return iface.Name
 		}
 	}
-	t.Fatalf("slug %s missing", slug)
+	require.FailNowf(t, "", "slug %s missing", slug)
 	return ""
 }
 

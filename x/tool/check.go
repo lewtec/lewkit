@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 )
 
@@ -16,9 +17,9 @@ var (
 	// ErrCheckFailed is returned when one or more install checks do not pass.
 	ErrCheckFailed = errors.New("install check failed")
 	// ErrBinaryNotFound is returned when a named binary is missing from an install directory.
-	ErrBinaryNotFound = errors.New("binary not found")
+	ErrBinaryNotFound = errs.Wrap(errs.ErrNotFound, "binary not found")
 	// ErrEmptyRelativePath is returned when a check path is empty or ".".
-	ErrEmptyRelativePath = errors.New("empty relative path")
+	ErrEmptyRelativePath = errs.Wrap(errs.ErrEmpty, "empty relative path")
 	// ErrPathEscapes is returned when a check path resolves outside the install directory.
 	ErrPathEscapes = errors.New("path escapes install directory")
 )
@@ -65,7 +66,7 @@ func FileExists(relativePath string) Check {
 		relativePath: relativePath,
 		fn: func(_ context.Context, path string, info fs.FileInfo) error {
 			if info.IsDir() {
-				return fmt.Errorf("%s is a directory, want a file", path)
+				return fmt.Errorf("%s %w", path, ErrIsADirectoryWantAFile)
 			}
 			return nil
 		},
@@ -80,13 +81,13 @@ func Executable(relativePath string) Check {
 		relativePath: relativePath,
 		fn: func(_ context.Context, path string, info fs.FileInfo) error {
 			if info.IsDir() {
-				return fmt.Errorf("%s is a directory, want an executable file", path)
+				return fmt.Errorf("%s %w", path, ErrIsADirectoryWantAnExecutableFile)
 			}
 			if runtime.GOOS == "windows" {
 				return nil
 			}
 			if info.Mode()&0o111 == 0 {
-				return fmt.Errorf("%s is not executable", path)
+				return fmt.Errorf("%s %w", path, ErrIsNotExecutable)
 			}
 			return nil
 		},
@@ -169,10 +170,10 @@ func (check binaryCheck) Check(ctx context.Context, destination string) error {
 		return err
 	}
 	if info.IsDir() {
-		return fmt.Errorf("%s is a directory, want an executable file", host)
+		return fmt.Errorf("%s %w", host, ErrIsADirectoryWantAnExecutableFile)
 	}
 	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
-		return fmt.Errorf("%s is not executable", host)
+		return fmt.Errorf("%s %w", host, ErrIsNotExecutable)
 	}
 	return nil
 }

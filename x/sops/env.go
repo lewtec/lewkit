@@ -2,7 +2,6 @@ package sops
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 )
 
@@ -22,11 +21,11 @@ func ParseEnv(in []byte) (Env, error) {
 		}
 		pos := bytes.IndexByte(line, '=')
 		if pos < 0 {
-			return Env{}, fmt.Errorf("sops: invalid dotenv line")
+			return Env{}, ErrSopsInvalidDotenvLine
 		}
 		key := string(line[:pos])
 		if key == "" {
-			return Env{}, fmt.Errorf("sops: empty dotenv key")
+			return Env{}, ErrSopsEmptyDotenvKey
 		}
 		env.set(key, strings.ReplaceAll(string(line[pos+1:]), `\n`, "\n"))
 	}

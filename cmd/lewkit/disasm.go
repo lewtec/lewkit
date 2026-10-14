@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 
@@ -122,7 +121,7 @@ type bytesReader []byte
 
 func (data bytesReader) ReadAt(p []byte, offset int64) (int, error) {
 	if offset < 0 {
-		return 0, fmt.Errorf("negative offset")
+		return 0, ErrNegativeOffset
 	}
 	if offset >= int64(len(data)) {
 		return 0, io.EOF

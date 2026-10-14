@@ -119,7 +119,7 @@ func (data templateData) javaDest(rel, destRel string) string {
 func normalizeConfig(ctx context.Context, cfg Config) (Config, error) {
 	cfg.PackageID = strings.TrimSpace(cfg.PackageID)
 	if err := release.ValidateAppID(cfg.PackageID); err != nil {
-		return Config{}, fmt.Errorf("package id: %w", err)
+		return Config{}, fmt.Errorf("%w: %w", ErrNormalizeConfigPackageId, err)
 	}
 	cfg.AppName = strings.TrimSpace(cfg.AppName)
 	if cfg.AppName == "" {

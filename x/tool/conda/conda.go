@@ -109,7 +109,7 @@ func (installed *condaTool) Install(ctx context.Context, version, destination st
 	for _, rec := range recs {
 		archivePath := filepath.Join(tmp, archiveName(rec))
 		if err := extractPackage(archivePath, destination, prefix); err != nil {
-			return fmt.Errorf("extract %s-%s: %w", rec.Name, rec.Version, err)
+			return fmt.Errorf("%w %s-%s: %w", ErrCondaToolInstallExtract, rec.Name, rec.Version, err)
 		}
 	}
 	return nil
@@ -148,7 +148,7 @@ func hashOf(rec record) string {
 func defaultDownload(ctx context.Context, rawURL, dest, hash string, size int64) error {
 	opts := lewtool.DownloadOptions{Size: size, Hash: hash}
 	if err := lewtool.DownloadFile(ctx, rawURL, dest, opts); err != nil {
-		return fmt.Errorf("download %s: %w", rawURL, err)
+		return fmt.Errorf("%w %s: %w", ErrDefaultDownloadDownload, rawURL, err)
 	}
 	return nil
 }

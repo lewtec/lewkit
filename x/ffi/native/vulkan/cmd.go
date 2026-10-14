@@ -25,13 +25,13 @@ func (d *Device) Begin() (*Cmd, error) {
 		return nil, ErrBusy
 	}
 	if err := check(d.api.resetCommandBuffer(d.cmd, 0)); err != nil {
-		return nil, fmt.Errorf("reset command buffer: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrResetCommandBuffer, err)
 	}
 	begin := commandBufferBeginInfo{
 		sType: structureCommandBufferBeginInfo,
 	}
 	if err := check(d.api.beginCommandBuffer(d.cmd, &begin)); err != nil {
-		return nil, fmt.Errorf("begin command buffer: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrBeginCommandBuffer, err)
 	}
 	d.recording = true
 	c := &d.recorded
@@ -163,7 +163,7 @@ func (s *Shader) ensureDescriptors() error {
 	}
 	var pool uint64
 	if err := check(d.api.createDescriptorPool(d.dev, &poolInfo, 0, &pool)); err != nil {
-		return fmt.Errorf("descriptor pool: %w", err)
+		return fmt.Errorf("%w: %w", ErrDescriptorPool, err)
 	}
 	alloc := descriptorSetAllocateInfo{
 		sType:              structureDescriptorSetAllocateInfo,
@@ -174,7 +174,7 @@ func (s *Shader) ensureDescriptors() error {
 	var set uint64
 	if err := check(d.api.allocateDescriptorSets(d.dev, &alloc, &set)); err != nil {
 		d.api.destroyDescriptorPool(d.dev, pool, 0)
-		return fmt.Errorf("descriptor set: %w", err)
+		return fmt.Errorf("%w: %w", ErrDescriptorSet, err)
 	}
 	s.descriptorPool, s.descriptorSet = pool, set
 	return nil
@@ -265,7 +265,7 @@ func (c *Cmd) Submit() error {
 	}
 	if err := check(d.api.endCommandBuffer(d.cmd)); err != nil {
 		d.recording = false
-		return fmt.Errorf("end command buffer: %w", err)
+		return fmt.Errorf("%w: %w", ErrEndCommandBuffer, err)
 	}
 	submit := submitInfo{
 		sType:              structureSubmitInfo,
@@ -274,7 +274,7 @@ func (c *Cmd) Submit() error {
 	}
 	if err := check(d.api.queueSubmit(d.queue, 1, &submit, d.fence)); err != nil {
 		d.recording = false
-		return fmt.Errorf("queue submit: %w", err)
+		return fmt.Errorf("%w: %w", ErrCmdSubmitQueueSubmit, err)
 	}
 	d.recording = false
 	d.pending = true
@@ -299,13 +299,13 @@ func (c *Cmd) Wait() error {
 	started := time.Now()
 	if d.fence != 0 && d.api.waitForFences != nil {
 		if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
-			return fmt.Errorf("fence wait: %w", err)
+			return fmt.Errorf("%w: %w", ErrCmdWaitFenceWait, err)
 		}
 		if err := check(d.api.resetFences(d.dev, 1, &d.fence)); err != nil {
-			return fmt.Errorf("reset fence: %w", err)
+			return fmt.Errorf("%w: %w", ErrCmdWaitResetFence, err)
 		}
 	} else if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
-		return fmt.Errorf("queue wait: %w", err)
+		return fmt.Errorf("%w: %w", ErrCmdWaitQueueWait, err)
 	}
 	if wait := time.Since(started); wait >= 8*time.Millisecond {
 		slog.Debug("vulkan fence wait", "elapsed", wait)

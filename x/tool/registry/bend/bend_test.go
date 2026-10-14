@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
 )
 
@@ -54,7 +55,7 @@ func TestBendListVersionsReadsLatestJSON(t *testing.T) {
 func TestBendListArtifactsUsesLatestHash(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
-		t.Skip("bend is not packaged for windows")
+		test.Skip(t, "bend is not packaged for windows")
 	}
 	const sha = "4db70e77ce1b1027f1d0e15dee025921fa794a9b415add4350ec7c64acf2775b"
 	tool := newTestBend(t, fmt.Sprintf(`{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":%q}`, sha))
@@ -69,7 +70,7 @@ func TestBendListArtifactsUsesLatestHash(t *testing.T) {
 func TestBendListArtifactsPinnedVersionOmitsUnknownHash(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
-		t.Skip("bend is not packaged for windows")
+		test.Skip(t, "bend is not packaged for windows")
 	}
 	tool := newTestBend(t, `{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":"abcd"}`)
 
@@ -83,7 +84,7 @@ func TestBendListArtifactsPinnedVersionOmitsUnknownHash(t *testing.T) {
 func TestBendListArtifactsRejectsUnsafeVersion(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
-		t.Skip("bend is not packaged for windows")
+		test.Skip(t, "bend is not packaged for windows")
 	}
 	tool := newTestBend(t, `{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":"abcd"}`)
 	_, err := tool.ListArtifacts(t.Context(), "../evil")
@@ -93,7 +94,7 @@ func TestBendListArtifactsRejectsUnsafeVersion(t *testing.T) {
 func TestBendListArtifactsWindowsUnsupported(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != "windows" {
-		t.Skip("windows-only assertion")
+		test.Skip(t, "windows-only assertion")
 	}
 	tool := newTestBend(t, `{"ver":"2.0.5","url":"https://bend-lang.com/dl/2.0.5.tar.gz","sha256":"abcd"}`)
 	_, err := tool.ListArtifacts(t.Context(), "2.0.5")

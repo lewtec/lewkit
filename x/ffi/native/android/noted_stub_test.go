@@ -2,10 +2,15 @@
 
 package android
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestNotedVMIsFalseOffAndroid(t *testing.T) {
 	if NotedVM() {
-		t.Fatal("host build noted a Java VM")
+		require.FailNow(t, fmt.Sprint("host build noted a Java VM"))
 	}
 }

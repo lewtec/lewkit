@@ -114,7 +114,7 @@ func (opener) Open(ctx context.Context, cfg window.Config) (window.Window, error
 	}
 	conn, err := dial(path)
 	if err != nil {
-		return nil, fmt.Errorf("wayland: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenerOpenWayland, err)
 	}
 	buf := window.NewBuffer(width, height)
 	buf.SetFramePeriod(cfg.Period)
@@ -152,13 +152,13 @@ func (w *wlwin) negotiate(ctx context.Context, title string) error {
 	w.fractionalScaleManager = w.bind("wp_fractional_scale_manager_v1", 1, nil)
 	w.bindOutputs()
 	if w.compositor == 0 || w.shm == 0 || w.wm == 0 {
-		return fmt.Errorf("wayland: compositor, shm, or xdg_wm_base missing")
+		return ErrWaylandCompositorShmOrXdgWmBaseMissing
 	}
 	if err := w.conn.roundtrip(ctx); err != nil {
 		return err
 	}
 	if !w.haveFormat {
-		return fmt.Errorf("wayland: no argb8888 shm format")
+		return ErrWaylandNoArgb8888ShmFormat
 	}
 	w.surface = w.conn.alloc(w.onSurface)
 	if err := w.conn.send(w.compositor, 0, pack(w.surface)); err != nil {

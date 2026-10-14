@@ -23,17 +23,19 @@ import (
 	"sync/atomic"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrNotFound means the executable is not on PATH.
-	ErrNotFound = errors.New("executable not found")
+	ErrNotFound = errs.Wrap(errs.ErrNotFound, "executable not found")
 	// ErrNilCommand means Start was given no command.
 	ErrNilCommand = errors.New("nil command")
 	// ErrStdoutSet means Output was called with Stdout already set.
-	ErrStdoutSet = errors.New("stdout already set")
-	// ErrNilContext means the caller did not pass a context.
-	ErrNilContext = errors.New("exec: nil context")
+	ErrStdoutSet = errs.Wrap(errs.ErrAlreadyExists, "stdout already set")
+
+	ErrOutputString = errors.New("")
+	ErrRunProgram   = errors.New("")
 )
 
 // stderrHook, when set, supplies Stderr if it is still nil at start.
@@ -70,9 +72,6 @@ type Driver interface {
 // ctx selects the driver. It is not stored on the command.
 // The process is not started and streams are left unset.
 func Command(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	d, err := driver.Get[Driver](ctx)
 	if err != nil {
 		return nil, err
@@ -81,11 +80,7 @@ func Command(ctx context.Context, name string, args ...string) (*exec.Cmd, error
 }
 
 // MustCommand is Command, or a raw command when no driver is registered.
-// A nil context panics.
 func MustCommand(ctx context.Context, name string, args ...string) *exec.Cmd {
-	if ctx == nil {
-		panic("exec: nil context")
-	}
 	cmd, err := Command(ctx, name, args...)
 	if err != nil {
 		slog.WarnContext(ctx, "exec driver unavailable", "name", name, "error", err)
@@ -107,9 +102,6 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 	if cmd == nil {
 		return ErrNilCommand
 	}
-	if ctx == nil {
-		return ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -129,11 +121,7 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 }
 
 // Wait waits for cmd. A cancelled ctx wins over the process exit error.
-// A nil context is an error.
 func Wait(ctx context.Context, cmd *exec.Cmd) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	err := cmd.Wait()
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
@@ -154,11 +142,8 @@ func Output(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
 
 // RunProgram runs name with args. A failure names the program.
 func RunProgram(ctx context.Context, name string, args ...string) error {
-	if ctx == nil {
-		return ErrNilContext
-	}
 	if err := Run(ctx, MustCommand(ctx, name, args...)); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return fmt.Errorf("%w%s: %w", ErrRunProgram, name, err)
 	}
 	return nil
 }
@@ -166,22 +151,15 @@ func RunProgram(ctx context.Context, name string, args ...string) error {
 // OutputString runs name with args and returns stdout text.
 // A failure names the program.
 func OutputString(ctx context.Context, name string, args ...string) (string, error) {
-	if ctx == nil {
-		return "", ErrNilContext
-	}
 	out, err := Output(ctx, MustCommand(ctx, name, args...))
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", name, err)
+		return "", fmt.Errorf("%w%s: %w", ErrOutputString, name, err)
 	}
 	return string(out), nil
 }
 
 // Which resolves name with the selected driver, or LookPath when none is registered.
-// A nil context is an error and does not fall through to LookPath.
 func Which(ctx context.Context, name string) (string, error) {
-	if ctx == nil {
-		return "", ErrNilContext
-	}
 	d, err := driver.Get[Driver](ctx)
 	if err != nil {
 		return lookPath(name)

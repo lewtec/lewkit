@@ -12,17 +12,18 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/clientsize"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrPage means Config has neither HTML nor FS.
-	ErrPage = errors.New("webview page is empty")
+	ErrPage = errs.Wrap(errs.ErrEmpty, "webview page is empty")
 	// ErrSize means a dimension is negative.
-	ErrSize = errors.New("invalid size")
+	ErrSize = errs.Wrap(errs.ErrInvalid, "invalid size")
 	// ErrAsset means a request path cannot be opened from the page FS.
 	ErrAsset = errors.New("webview asset")
 	// ErrClosed means the view is gone.
-	ErrClosed = errors.New("webview closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "webview closed")
 )
 
 // Config is the window and the document it shows.

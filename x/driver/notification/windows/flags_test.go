@@ -3,29 +3,32 @@ package windows
 import (
 	"testing"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestInfoFlags(t *testing.T) {
 	if infoFlags("critical") != niifError {
-		t.Fatalf("critical")
+		require.FailNowf(t, "", "critical")
 	}
 	if infoFlags("low") != niifInfo|niifNoSound {
-		t.Fatalf("low")
+		require.FailNowf(t, "", "low")
 	}
 	if infoFlags("normal") != niifInfo || infoFlags("") != niifInfo {
-		t.Fatalf("normal")
+		require.FailNowf(t, "", "normal")
 	}
 }
 
 func TestNotifyIconLayout(t *testing.T) {
 	if unsafe.Sizeof(uintptr(0)) != 8 {
-		t.Skip()
+		test.Skip(t)
 	}
 	var data notifyIconData
 	if unsafe.Sizeof(data) != 952 {
-		t.Fatalf("size %d", unsafe.Sizeof(data))
+		require.FailNowf(t, "", "size %d", unsafe.Sizeof(data))
 	}
 	if unsafe.Offsetof(data.infoFlags) != 948 {
-		t.Fatalf("infoFlags %d", unsafe.Offsetof(data.infoFlags))
+		require.FailNowf(t, "", "infoFlags %d", unsafe.Offsetof(data.infoFlags))
 	}
 }

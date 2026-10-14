@@ -13,6 +13,10 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+var (
+	ErrLoadGitHubHostParse = errors.New("parse")
+)
+
 type ghHost struct {
 	User       string            `yaml:"user"`
 	OAuthToken string            `yaml:"oauth_token"`
@@ -63,7 +67,7 @@ func loadGitHubHost() (*ghHost, error) {
 	}
 	var hosts map[string]ghHost
 	if err := yaml.Unmarshal(data, &hosts); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, fmt.Errorf("%w %s: %w", ErrLoadGitHubHostParse, path, err)
 	}
 	host, ok := hosts[githubHost]
 	if !ok {

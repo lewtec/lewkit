@@ -1,32 +1,25 @@
 package common
 
 import (
-	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCopyDir_PreservesTree(t *testing.T) {
 	src := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(src, "nested"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(src, "nested", "a.txt"), []byte("hello"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(filepath.Join(src, "nested"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "nested", "a.txt"), []byte("hello"), 0o644))
 
 	dst := filepath.Join(t.TempDir(), "out")
-	if err := CopyDir(src, dst); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, CopyDir(src, dst))
 	got, err := os.ReadFile(filepath.Join(dst, "nested", "a.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(got) != "hello" {
-		t.Fatalf("got %q", got)
+		require.FailNowf(t, "", "got %q", got)
 	}
 }
 
@@ -34,55 +27,34 @@ func TestReplaceDir_MovesOntoExisting(t *testing.T) {
 	root := t.TempDir()
 	src := filepath.Join(root, "src")
 	dst := filepath.Join(root, "dst")
-	if err := os.MkdirAll(src, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(dst, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(src, "new.txt"), []byte("new"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dst, "old.txt"), []byte("old"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(src, 0o755))
+	require.NoError(t, os.MkdirAll(dst, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(src, "new.txt"), []byte("new"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dst, "old.txt"), []byte("old"), 0o644))
 
-	if err := ReplaceDir(src, dst); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := os.Stat(filepath.Join(dst, "old.txt")); !errors.Is(err, fs.ErrNotExist) {
-		t.Fatalf("old dest file still present: %v", err)
-	}
+	require.NoError(t, ReplaceDir(src, dst))
+	_, err := os.Stat(filepath.Join(dst, "old.txt"))
+	require.ErrorIs(t, err, fs.ErrNotExist)
 	got, err := os.ReadFile(filepath.Join(dst, "new.txt"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(got) != "new" {
-		t.Fatalf("got %q", got)
+		require.FailNowf(t, "", "got %q", got)
 	}
 }
 
 func TestCopyFile_WritesMode(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "built")
-	if err := os.WriteFile(src, []byte("exe"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(src, []byte("exe"), 0o644))
 	dst := filepath.Join(t.TempDir(), "dist", "app.exe")
-	if err := CopyFile(src, dst, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, CopyFile(src, dst, 0o755))
 	got, err := os.ReadFile(dst)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(got) != "exe" {
-		t.Fatalf("got %q", got)
+		require.FailNowf(t, "", "got %q", got)
 	}
 	info, err := os.Stat(dst)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if info.Mode().Perm() != 0o755 {
-		t.Fatalf("mode=%v", info.Mode().Perm())
+		require.FailNowf(t, "", "mode=%v", info.Mode().Perm())
 	}
 }

@@ -1,15 +1,19 @@
 package ndarray
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 var (
-	ErrShape  = errors.New("invalid shape")
-	ErrAxis   = errors.New("invalid axis")
+	ErrShape  = errs.Wrap(errs.ErrInvalid, "invalid shape")
+	ErrAxis   = errs.Wrap(errs.ErrInvalid, "invalid axis")
 	ErrSize   = errors.New("size mismatch")
-	ErrExpand = errors.New("invalid expand")
-	ErrPad    = errors.New("invalid pad")
-	ErrShrink = errors.New("invalid shrink")
-	ErrIndex  = errors.New("index out of range")
-	ErrOp     = errors.New("invalid op")
-	ErrType   = errors.New("invalid dtype")
+	ErrExpand = errs.Wrap(errs.ErrInvalid, "invalid expand")
+	ErrPad    = errs.Wrap(errs.ErrInvalid, "invalid pad")
+	ErrShrink = errs.Wrap(errs.ErrInvalid, "invalid shrink")
+	ErrIndex  = errs.Wrap(errs.ErrOutOfRange, "index out of range")
+	ErrOp     = errs.Wrap(errs.ErrInvalid, "invalid op")
+	ErrType   = errs.Wrap(errs.ErrInvalid, "invalid dtype")
 )

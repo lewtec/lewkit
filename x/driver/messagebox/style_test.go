@@ -1,6 +1,10 @@
 package messagebox
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestNormalizeStyle(t *testing.T) {
 	cases := map[string]string{
@@ -15,7 +19,7 @@ func TestNormalizeStyle(t *testing.T) {
 	}
 	for in, want := range cases {
 		if got := NormalizeStyle(in); got != want {
-			t.Fatalf("NormalizeStyle(%q) = %q, want %q", in, got, want)
+			require.FailNowf(t, "", "NormalizeStyle(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

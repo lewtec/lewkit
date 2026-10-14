@@ -1,9 +1,11 @@
 package jni
 
-import "errors"
+import (
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 // ErrUnavailable means this build cannot call Java.
-var ErrUnavailable = errors.New("jni unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "jni unavailable")
 
 // Ref is one global reference to a Java object.
 // Release frees it. Call Release once.

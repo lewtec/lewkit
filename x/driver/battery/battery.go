@@ -12,16 +12,16 @@ package battery
 
 import (
 	"context"
-	"errors"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrNoBattery means no battery supply is present.
-var ErrNoBattery = errors.New("no battery found")
+var ErrNoBattery = errs.Wrap(errs.ErrNotFound, "no battery found")
 
 // ErrUnknownLevel means the supply has no charge reading from 0 to 100.
-var ErrUnknownLevel = errors.New("battery level unknown")
+var ErrUnknownLevel = errs.Wrap(errs.ErrUnknown, "battery level unknown")
 
 // Status is the kernel power_supply status string.
 type Status string

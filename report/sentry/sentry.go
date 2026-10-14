@@ -10,6 +10,10 @@ import (
 	"github.com/lewtec/lewkit/report"
 )
 
+var (
+	ErrSentryClient = errors.New("sentry client")
+)
+
 var _ report.Reporter = (*Reporter)(nil)
 
 // Reporter sends errors to Sentry.
@@ -22,7 +26,7 @@ type Reporter struct {
 func New(dsn string) (*Reporter, error) {
 	client, err := sdk.NewClient(sdk.ClientOptions{Dsn: dsn})
 	if err != nil {
-		return nil, fmt.Errorf("sentry client: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrSentryClient, err)
 	}
 	return &Reporter{hub: sdk.NewHub(client, sdk.NewScope())}, nil
 }

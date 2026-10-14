@@ -1,7 +1,9 @@
 - Optimize code for human readers. High signal/noise ratio.
 - Avoid shortening names
 - Keep stuff simple and organized, do step backs and refactors if necessary
-- Respect the context chain: only context.Background in main, ctx as first positional arg
-- Table all errors: %w in fmt.Errorf
+- Respect the context chain: a function that does I/O or starts work takes ctx first and passes it down. Only main, the Android host entry, and a godoc example create a root context. Tests use t.Context. Do not pass a nil context, and do not compare a context to nil
+- Sentinel errors live in a package-level var block. Do not create an error inline at a return; wrap a sentinel with %w
+- Reuse a meta sentinel from x/errs before adding a new one: not found, invalid, missing, unsupported, already exists, unavailable, closed, canceled, empty, nil context, syntax, cycle, duplicate, out of range, required, unknown. A specific sentinel is errs.Wrap of that parent, so errors.Is matches both. The same condition is one sentinel
+- Tests use testify require. Use assert only when the test should continue. Check sentinels with require.ErrorIs. Skip with test.Skip or test.Skipf
 - Explicit is better than implicit
 - Follow the patterns already in the repo: x/cmd, x/test, testify, x/db with sqlc and migrations

@@ -1,9 +1,14 @@
 package nn
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/ndarray"
+)
+
+var (
+	ErrMatrixMultiplyA = errors.New("a")
 )
 
 // MatrixMultiply is numpy-style a @ b. 1D operands are promoted and squeezed.
@@ -45,7 +50,7 @@ func MatrixMultiply[T ndarray.Number](a, b *ndarray.Tensor[T]) (*ndarray.Tensor[
 	}
 	batch, err := broadcastPrefix(aBatch, bBatch)
 	if err != nil {
-		return nil, fmt.Errorf("%w: a %v b %v", err, aShape, bShape)
+		return nil, fmt.Errorf("%w: %w %v b %v", err, ErrMatrixMultiplyA, aShape, bShape)
 	}
 	outRank := len(batch) + 2
 	a, err = ndarray.PadRank(a, outRank)

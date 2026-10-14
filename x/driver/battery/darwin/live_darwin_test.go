@@ -18,7 +18,7 @@ func TestLiveAppleSmartBattery(t *testing.T) {
 	test.DiscardSlog(t)
 	ctx := t.Context()
 	if _, err := read(ctx); errors.Is(err, battery.ErrNoBattery) {
-		t.Skip(err.Error())
+		test.Skip(t, err.Error())
 	}
 	err := factory{}.CheckCompatibility(ctx)
 	require.NoError(t, err)

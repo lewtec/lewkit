@@ -3,6 +3,7 @@
 package vulkan
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,11 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+)
+
+var (
+	ErrLoadVulkanDLLLoad           = errors.New("load")
+	ErrWin32HostCreateWin32Surface = errors.New("win32 surface")
 )
 
 const (
@@ -490,7 +496,7 @@ func loadVulkanDLL(path string) (uintptr, error) {
 			err = callErr
 		}
 	}
-	return 0, fmt.Errorf("load %s: %w", path, err)
+	return 0, fmt.Errorf("%w %s: %w", ErrLoadVulkanDLLLoad, path, err)
 }
 
 func expandString(text string) string {

@@ -9,15 +9,15 @@ package dirs
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrInvalidAppID means the app id is empty or contains a path element.
-var ErrInvalidAppID = errors.New("invalid app id")
+var ErrInvalidAppID = errs.Wrap(errs.ErrInvalid, "invalid app id")
 
 // Dirs is the app-private tree. Inbox is a subdirectory of Cache.
 type Dirs struct {

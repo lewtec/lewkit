@@ -4,11 +4,12 @@ package gtk
 
 import (
 	"context"
-	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrUnavailable means GTK 4 is missing or this process cannot open a display.
-var ErrUnavailable = errors.New("gtk unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "gtk unavailable")
 
 // Available reports that this process is not Linux.
 func Available(ctx context.Context) error {

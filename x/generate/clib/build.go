@@ -40,7 +40,7 @@ func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 		return fmt.Errorf("%w: %s/%s has no internal PIE shared library", ErrHost, goos, goarch)
 	}
 	if dir == "" || out == "" {
-		return fmt.Errorf("clib: directory and output are required")
+		return ErrClibDirectoryAndOutputAreRequired
 	}
 	dir, err = filepath.Abs(dir)
 	if err != nil {
@@ -62,7 +62,7 @@ func BuildFor(ctx context.Context, dir, out, goos, goarch string) error {
 		return err
 	}
 	if strings.Contains(export, " ") || strings.Contains(out, " ") {
-		return fmt.Errorf("clib: paths must not contain spaces")
+		return ErrClibPathsMustNotContainSpaces
 	}
 	tool, cleanup, err := buildTool(ctx, dir)
 	if err != nil {
@@ -107,7 +107,7 @@ func buildTool(ctx context.Context, dir string) (string, func(), error) {
 	}
 	if strings.Contains(tool, " ") {
 		cleanup()
-		return "", nil, fmt.Errorf("clib: tool path must not contain spaces")
+		return "", nil, ErrClibToolPathMustNotContainSpaces
 	}
 	return tool, cleanup, nil
 }
@@ -149,7 +149,7 @@ func readExports(dir string) ([]string, error) {
 		}
 	}
 	if len(names) == 0 {
-		return nil, fmt.Errorf("clib: no exports")
+		return nil, ErrClibNoExports
 	}
 	return names, nil
 }
@@ -162,9 +162,9 @@ func runGo(ctx context.Context, dir string, env []string, args ...string) error 
 	if err != nil {
 		text := strings.TrimSpace(string(out))
 		if text == "" {
-			return fmt.Errorf("clib: go %s: %w", args[0], err)
+			return fmt.Errorf("%w %s: %w", ErrRunGoClibGo2, args[0], err)
 		}
-		return fmt.Errorf("clib: go %s: %w\n%s", args[0], err, text)
+		return fmt.Errorf("%w %s: %w\n%s", ErrRunGoClibGo, args[0], err, text)
 	}
 	return nil
 }

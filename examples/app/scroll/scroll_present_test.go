@@ -18,17 +18,17 @@ func BenchmarkScrollPresent(b *testing.B) {
 	ctx := b.Context()
 	host, err := window.Open(ctx, window.Config{Title: release.Name() + " scroll", Width: width, Height: height})
 	if err != nil {
-		b.Skip(err)
+		test.Skip(b, err)
 	}
 	test.CloseOnCleanup(b, host)
 	surfacer, ok := host.(window.Surfacer)
 	if !ok {
-		b.Skip("window has no vulkan surface")
+		test.Skip(b, "window has no vulkan surface")
 	}
 	surface := surfacer.Surface()
 	screen, err := vulkan.OpenNative(ctx, surface.Kind, surface.A, surface.B, width, height)
 	if err != nil {
-		b.Skip(err)
+		test.Skip(b, err)
 	}
 	test.CloseOnCleanup(b, screen)
 

@@ -4,6 +4,7 @@ package windows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -13,6 +14,11 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/notification"
 	"github.com/lewtec/lewkit/x/ffi/native"
+)
+
+var (
+	ErrShellNotifyIcon  = errors.New("notify icon")
+	ErrShellNotifyIcon2 = errors.New("notify icon")
 )
 
 const (
@@ -123,9 +129,9 @@ func shell(cmd uintptr, data *notifyIconData) error {
 	r, _, callErr := procShellNotifyIconW.Call(cmd, uintptr(unsafe.Pointer(data)))
 	if r == 0 {
 		if callErr == nil {
-			return fmt.Errorf("notify icon")
+			return ErrShellNotifyIcon2
 		}
-		return fmt.Errorf("notify icon: %w", callErr)
+		return fmt.Errorf("%w: %w", ErrShellNotifyIcon, callErr)
 	}
 	return nil
 }

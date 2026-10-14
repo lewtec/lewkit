@@ -9,16 +9,17 @@ import (
 
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
+	"github.com/stretchr/testify/require"
 )
 
 func TestArtCacheLocal(t *testing.T) {
 	got, err := GetArtCachePath(t.Context(), "file:///tmp/cover.png")
 	if err != nil || got != "/tmp/cover.png" {
-		t.Fatalf("file: %q %v", got, err)
+		require.FailNowf(t, "", "file: %q %v", got, err)
 	}
 	got, err = GetArtCachePath(t.Context(), "audio-x-generic")
 	if err != nil || got != "audio-x-generic" {
-		t.Fatalf("plain: %q %v", got, err)
+		require.FailNowf(t, "", "plain: %q %v", got, err)
 	}
 }
 
@@ -34,21 +35,17 @@ func TestArtCacheHTTP(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 	first, err := GetArtCachePath(t.Context(), srv.URL+"/cover")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	second, err := GetArtCachePath(t.Context(), srv.URL+"/cover")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if first != second || hits != 1 {
-		t.Fatalf("path %q hits %d", first, hits)
+		require.FailNowf(t, "", "path %q hits %d", first, hits)
 	}
 	body, err := os.ReadFile(first)
 	if err != nil || string(body) != "png" {
-		t.Fatalf("body %q %v", body, err)
+		require.FailNowf(t, "", "body %q %v", body, err)
 	}
 	if filepath.Base(filepath.Dir(first)) != "media-art" {
-		t.Fatalf("dir %s", first)
+		require.FailNowf(t, "", "dir %s", first)
 	}
 }

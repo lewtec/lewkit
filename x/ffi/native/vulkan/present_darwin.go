@@ -3,12 +3,17 @@
 package vulkan
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/ffi/native"
+)
+
+var (
+	ErrMetalSurface = errors.New("metal surface")
 )
 
 const extHostSurface = "VK_EXT_metal_surface"
@@ -118,7 +123,7 @@ func (h *metalHost) create(d *Device, w *wsi) (uint64, error) {
 	info := metalSurfaceInfo{sType: 1000217000, layer: uintptr(h.layer)}
 	var surface uint64
 	if err := check(h.createSurf(d.inst, &info, 0, &surface)); err != nil {
-		return 0, fmt.Errorf("metal surface: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrMetalSurface, err)
 	}
 	return surface, nil
 }

@@ -1,8 +1,11 @@
 package terminal
 
 import (
+	"fmt"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDisabledWhenStdioIsNotATTY(t *testing.T) {
@@ -10,9 +13,7 @@ func TestDisabledWhenStdioIsNotATTY(t *testing.T) {
 	t.Setenv("ELETROCROMO_NO_UI", "")
 	t.Setenv("TERMUX_VERSION", "")
 	read, write, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		read.Close()
 		write.Close()
@@ -21,6 +22,6 @@ func TestDisabledWhenStdioIsNotATTY(t *testing.T) {
 	os.Stdout = write
 	t.Cleanup(func() { os.Stdout = oldOut })
 	if err := (base{}).CheckCompatibility(t.Context()); err == nil {
-		t.Fatal("terminal launcher is compatible when stdout is a pipe")
+		require.FailNow(t, fmt.Sprint("terminal launcher is compatible when stdout is a pipe"))
 	}
 }

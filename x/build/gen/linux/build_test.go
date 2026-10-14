@@ -1,31 +1,20 @@
 package linux
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/stretchr/testify/require"
 )
-
-func TestBuildNilContextPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("nil context returned")
-		}
-	}()
-	_, _ = Build(nil, BuildOptions{})
-}
 
 func TestBuildAppImage(t *testing.T) {
 	mainDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 	out := filepath.Join(t.TempDir(), "Demo.AppImage")
 	result, err := Build(t.Context(), BuildOptions{
 		Config: Config{
@@ -40,51 +29,39 @@ func TestBuildAppImage(t *testing.T) {
 		OutApp:  out,
 		GOARCH:  "amd64",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if result.AppPath != out {
-		t.Fatalf("app %s", result.AppPath)
+		require.FailNowf(t, "", "app %s", result.AppPath)
 	}
 	info, err := os.Stat(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if info.IsDir() {
-		t.Fatal("app image is a directory")
+		require.FailNow(t, fmt.Sprint("app image is a directory"))
 	}
 	if info.Mode()&0o111 == 0 {
-		t.Fatal("app image is not executable")
+		require.FailNow(t, fmt.Sprint("app image is not executable"))
 	}
 	raw, err := os.ReadFile(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if string(raw[:4]) != "\x7fELF" {
-		t.Fatalf("prefix %q", raw[:4])
+		require.FailNowf(t, "", "prefix %q", raw[:4])
 	}
 	tr, err := release.OpenTrailer(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer tr.Close()
 	marker, err := tr.Bytes(release.MarkerFile)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if strings.TrimSpace(string(marker)) != "br.tec.lew.demo" {
-		t.Fatalf("marker %q", marker)
+		require.FailNowf(t, "", "marker %q", marker)
 	}
 	desktop, err := tr.Bytes("Demo.desktop")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	text := string(desktop)
 	if !strings.Contains(text, "StartupWMClass=br.tec.lew.demo") || !strings.Contains(text, "Exec=Demo") || !strings.Contains(text, "Icon=icon") {
-		t.Fatalf("desktop %s", text)
+		require.FailNowf(t, "", "desktop %s", text)
 	}
 	icon, err := tr.Bytes("icon.png")
 	if err != nil || len(icon) == 0 {
-		t.Fatalf("icon %v", err)
+		require.FailNowf(t, "", "icon %v", err)
 	}
 }

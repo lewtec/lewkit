@@ -44,7 +44,7 @@ func runStep(ctx context.Context, dir string, step Step, status *taskgroup.Statu
 		return nil
 	}
 	if err := mkdirOutputs(work, step.Outputs); err != nil {
-		return fmt.Errorf("%s: %w", step.Name, err)
+		return fmt.Errorf("%w%s: %w", ErrRunStep, step.Name, err)
 	}
 	ctx = withDir(ctx, work)
 	for _, task := range step.Tasks {
@@ -52,7 +52,7 @@ func runStep(ctx context.Context, dir string, step Step, status *taskgroup.Statu
 			continue
 		}
 		if err := task.Run(ctx, status); err != nil {
-			return fmt.Errorf("%s: %w", step.Name, err)
+			return fmt.Errorf("%w%s: %w", ErrRunStep, step.Name, err)
 		}
 	}
 	rt.mark(step.Name)

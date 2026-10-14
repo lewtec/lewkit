@@ -13,6 +13,13 @@ var (
 	errEmptyAnchor = errors.New("jni anchor class is empty")
 	errNilObject   = errors.New("nil java object")
 	errNilInvoke   = errors.New("nil java proxy callback")
+	ErrCallStatic  = errors.New("")
+	ErrClassClass  = errors.New("class")
+	ErrNewNew      = errors.New("new")
+	ErrProxyProxy  = errors.New("proxy")
+	ErrRefCall     = errors.New("")
+	ErrRefField    = errors.New("")
+	ErrStaticField = errors.New("")
 )
 
 // SetRunner runs later Java calls on the thread that called Bind.
@@ -37,7 +44,7 @@ func CallStatic(className, method string, args ...any) (any, error) {
 	}
 	v, err := callStatic(className, method, args...)
 	if err != nil {
-		return nil, fmt.Errorf("%s.%s: %w", dotted(className), method, err)
+		return nil, fmt.Errorf("%w%s.%s: %w", ErrCallStatic, dotted(className), method, err)
 	}
 	return v, nil
 }
@@ -50,7 +57,7 @@ func New(className string, args ...any) (*Ref, error) {
 	}
 	ref, err := callNew(className, args...)
 	if err != nil {
-		return nil, fmt.Errorf("new %s: %w", dotted(className), err)
+		return nil, fmt.Errorf("%w %s: %w", ErrNewNew, dotted(className), err)
 	}
 	return ref, nil
 }
@@ -65,7 +72,7 @@ func (r *Ref) Call(method string, args ...any) (any, error) {
 	}
 	v, err := callRef(r, method, args...)
 	if err != nil {
-		return nil, fmt.Errorf("%s.%s: %w", r.class, method, err)
+		return nil, fmt.Errorf("%w%s.%s: %w", ErrRefCall, r.class, method, err)
 	}
 	return v, nil
 }
@@ -78,7 +85,7 @@ func Class(className string) (*Ref, error) {
 	}
 	ref, err := classObject(className)
 	if err != nil {
-		return nil, fmt.Errorf("class %s: %w", dotted(className), err)
+		return nil, fmt.Errorf("%w %s: %w", ErrClassClass, dotted(className), err)
 	}
 	return ref, nil
 }
@@ -93,7 +100,7 @@ func StaticField(className, name string) (any, error) {
 	}
 	v, err := staticField(className, name)
 	if err != nil {
-		return nil, fmt.Errorf("%s.%s: %w", dotted(className), name, err)
+		return nil, fmt.Errorf("%w%s.%s: %w", ErrStaticField, dotted(className), name, err)
 	}
 	return v, nil
 }
@@ -108,7 +115,7 @@ func (r *Ref) Field(name string) (any, error) {
 	}
 	v, err := instanceField(r, name)
 	if err != nil {
-		return nil, fmt.Errorf("%s.%s: %w", r.class, name, err)
+		return nil, fmt.Errorf("%w%s.%s: %w", ErrRefField, r.class, name, err)
 	}
 	return v, nil
 }
@@ -126,7 +133,7 @@ func Proxy(iface string, invoke func(method string, args []any) (any, error)) (*
 	}
 	ref, err := makeProxy(iface, invoke)
 	if err != nil {
-		return nil, fmt.Errorf("proxy %s: %w", dotted(iface), err)
+		return nil, fmt.Errorf("%w %s: %w", ErrProxyProxy, dotted(iface), err)
 	}
 	return ref, nil
 }

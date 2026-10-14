@@ -2,6 +2,7 @@ package clipboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/png"
@@ -9,6 +10,10 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+)
+
+var (
+	ErrPipe = errors.New("")
 )
 
 // PipeText writes text to name's stdin.
@@ -33,7 +38,7 @@ func pipe(ctx context.Context, name string, args []string, write func(io.Writer)
 		return err
 	}
 	if err := execdriver.Start(ctx, cmd); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return fmt.Errorf("%w%s: %w", ErrPipe, name, err)
 	}
 	werr := write(stdin)
 	cerr := stdin.Close()
@@ -41,7 +46,7 @@ func pipe(ctx context.Context, name string, args []string, write func(io.Writer)
 		if werr != nil {
 			return werr
 		}
-		return fmt.Errorf("%s: %w", name, err)
+		return fmt.Errorf("%w%s: %w", ErrPipe, name, err)
 	}
 	if werr != nil {
 		return werr

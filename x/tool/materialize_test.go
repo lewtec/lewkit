@@ -2,6 +2,7 @@ package tool
 
 import (
 	"archive/zip"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -67,7 +68,7 @@ func TestDownloadFileSingleflightsURL(t *testing.T) {
 	select {
 	case <-entered:
 	case <-time.After(5 * time.Second):
-		t.Fatal("download did not start")
+		require.FailNow(t, fmt.Sprint("download did not start"))
 	}
 	wg.Add(1)
 	go fetch("b.txt")

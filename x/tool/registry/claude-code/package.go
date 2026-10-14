@@ -8,8 +8,15 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
+)
+
+var (
+	ErrEmptyClaudeCodeVersionResponseFor = errs.Wrap(errs.ErrEmpty, "empty claude-code version response for")
+	ErrNoSuitableArtifactFoundFor        = install.ErrNoSuitableArtifactFoundFor
+	ErrNotFoundInClaudeCodeManifestFor   = errs.Wrap(errs.ErrNotFound, "not found in claude-code manifest for")
 )
 
 const claudeCodeReleasesBaseURL = "https://downloads.claude.ai/claude-code-releases"
@@ -66,7 +73,7 @@ func (t *claudeCodeTool) ResolveVersion(ctx context.Context, version string) (st
 		}
 		resolved := strings.TrimSpace(string(body))
 		if resolved == "" {
-			return "", fmt.Errorf("empty claude-code version response for %s", requested)
+			return "", fmt.Errorf("%w %s", ErrEmptyClaudeCodeVersionResponseFor, requested)
 		}
 		return resolved, nil
 	default:
@@ -82,7 +89,7 @@ func (t *claudeCodeTool) Install(ctx context.Context, version string, destDir st
 
 	artifact := tool.SelectArtifact(artifacts, runtime.GOOS, runtime.GOARCH, "claude")
 	if artifact == nil {
-		return fmt.Errorf("no suitable artifact found for %s/%s for registry:claude-code@%s", runtime.GOOS, runtime.GOARCH, version)
+		return fmt.Errorf("%w %s/%s for registry:claude-code@%s", ErrNoSuitableArtifactFoundFor, runtime.GOOS, runtime.GOARCH, version)
 	}
 
 	return t.InstallArtifact(ctx, *artifact, destDir)
@@ -109,7 +116,7 @@ func (t *claudeCodeTool) ListArtifacts(ctx context.Context, version string) ([]t
 	platformKey := t.currentPlatform()
 	platformInfo, ok := manifest.Platforms[platformKey]
 	if !ok {
-		return nil, fmt.Errorf("platform %s not found in claude-code manifest for %s", platformKey, resolvedVersion)
+		return nil, fmt.Errorf("platform %s %w %s", platformKey, ErrNotFoundInClaudeCodeManifestFor, resolvedVersion)
 	}
 
 	url := fmt.Sprintf("%s/%s/%s/%s", t.baseURL, resolvedVersion, platformKey, platformInfo.Binary)

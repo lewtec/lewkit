@@ -2,6 +2,7 @@ package gui
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"testing"
 	"time"
@@ -69,7 +70,7 @@ func TestWelcomeOpenCancel(t *testing.T) {
 	case <-done:
 		assert.Empty(t, welcome.Picked())
 	case <-time.After(2 * time.Second):
-		t.Fatal("Open did not return")
+		require.FailNow(t, fmt.Sprint("Open did not return"))
 	}
 }
 

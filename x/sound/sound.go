@@ -8,15 +8,17 @@
 // dropped when its writer closes.
 package sound
 
-import "errors"
+import (
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 var (
 	// ErrFormat means the rate, channel count, or sample encoding is unusable.
-	ErrFormat = errors.New("invalid sound format")
+	ErrFormat = errs.Wrap(errs.ErrInvalid, "invalid sound format")
 	// ErrFrame means a buffer is not a whole number of PCM frames.
-	ErrFrame = errors.New("pcm length is not a whole number of frames")
+	ErrFrame = errs.Wrap(errs.ErrInvalid, "pcm length is not a whole number of frames")
 	// ErrClosed means a write happened after close.
-	ErrClosed = errors.New("sound closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "sound closed")
 )
 
 // Sample is the encoding of one interleaved channel.

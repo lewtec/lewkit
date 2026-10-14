@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
@@ -96,14 +97,14 @@ func (f *File) parseFile(ctx context.Context, path string, sc *scope) error {
 		case "default":
 			rest, err := expand(strings.TrimSpace(trim[len("default"):]), sc.resolve, true)
 			if err != nil {
-				return fmt.Errorf("ninja: %s:%d: %w", path, no, err)
+				return fmt.Errorf("%w: %s:%d: %w", ErrFileParseFileNinja, path, no, err)
 			}
 			f.defaults = append(f.defaults, tokenize(rest)...)
 		case "include", "subninja":
 			rest := strings.TrimSpace(trim[len(fields[0]):])
 			expanded, err := expand(rest, sc.resolve, true)
 			if err != nil {
-				return fmt.Errorf("ninja: %s:%d: %w", path, no, err)
+				return fmt.Errorf("%w: %s:%d: %w", ErrFileParseFileNinja, path, no, err)
 			}
 			inc := strings.TrimSpace(strings.ReplaceAll(expanded, "\x00", " "))
 			inc = workflow.Join(filepath.Dir(path), inc)
@@ -138,7 +139,7 @@ func (s *scope) resolve(name string) (string, bool, bool) {
 func (f *File) parseBuild(path string, no int, rest string, scope *scope) (*edge, error) {
 	expanded, err := expand(strings.TrimSpace(rest), scope.resolve, true)
 	if err != nil {
-		return nil, fmt.Errorf("ninja: %s:%d: %w", path, no, err)
+		return nil, fmt.Errorf("%w: %s:%d: %w", ErrFileParseBuildNinja, path, no, err)
 	}
 	toks := tokenize(expanded)
 	var outs, implicitOut []string
@@ -266,5 +267,5 @@ func stripComment(s string) string {
 }
 
 func syntax(path string, line int, msg string) error {
-	return fmt.Errorf("ninja: %s:%d: %w: %s", path, line, ErrSyntax, msg)
+	return fmt.Errorf("ninja: %s:%d: %w: %s", path, line, errs.ErrSyntax, msg)
 }

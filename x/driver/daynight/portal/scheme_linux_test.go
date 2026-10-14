@@ -7,13 +7,14 @@ import (
 
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver/daynight"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSessionRead(t *testing.T) {
 	src, err := open(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	scheme, err := src.Current(t.Context())
 	require.NoError(t, err)

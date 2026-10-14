@@ -119,7 +119,7 @@ func (ix *index) recordsFromAPI(ctx context.Context, rawURL, name string) ([]rec
 	}
 	var payload apiPackage
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return nil, fmt.Errorf("decode %s: %w", rawURL, err)
+		return nil, fmt.Errorf("%w %s: %w", ErrIndexRecordsFromAPIDecode, rawURL, err)
 	}
 	files := preferMainLabel(payload.Files)
 	recs := make([]record, 0, len(files))
@@ -182,7 +182,7 @@ func (ix *index) recordsFromRepodata(ctx context.Context, ch channel, name, subd
 		foundIndex = true
 		parsed, err := decodeRepodata(body)
 		if err != nil {
-			return nil, fmt.Errorf("decode repodata %s/%s: %w", ch.Base, dirs[i], err)
+			return nil, fmt.Errorf("%w %s/%s: %w", ErrDecodeRepodata, ch.Base, dirs[i], err)
 		}
 		recs = append(recs, parsed.records(name, dirs[i])...)
 	}
@@ -399,11 +399,11 @@ func defaultFetch(ctx context.Context, rawURL string) ([]byte, error) {
 	}
 	defer os.Remove(name)
 	if err := lewtool.DownloadFile(ctx, rawURL, name, lewtool.DownloadOptions{}); err != nil {
-		return nil, fmt.Errorf("fetch %s: %w", rawURL, err)
+		return nil, fmt.Errorf("%w %s: %w", ErrDefaultFetchFetch, rawURL, err)
 	}
 	body, err := os.ReadFile(name)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", rawURL, err)
+		return nil, fmt.Errorf("%w %s: %w", ErrDefaultFetchRead, rawURL, err)
 	}
 	return body, nil
 }

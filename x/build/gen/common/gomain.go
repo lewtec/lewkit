@@ -22,7 +22,7 @@ func ResolveGoMain(goMain, baseDir string) (string, error) {
 	}
 	st, err := os.Stat(abs)
 	if err != nil {
-		return "", fmt.Errorf("go_main %q: %w", abs, err)
+		return "", fmt.Errorf("%w %q: %w", ErrResolveGoMainGoMain, abs, err)
 	}
 	if !st.IsDir() {
 		return "", fmt.Errorf("%w: %s", ErrGoMainNotDir, abs)

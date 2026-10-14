@@ -4,10 +4,15 @@ package opengl
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
 	"unsafe"
+)
+
+var (
+	ErrDeviceRunGroupsAs = errors.New("groups as")
 )
 
 // Device runs one compute kernel. It does not attach a surface.
@@ -287,7 +292,7 @@ func (d *Device) Run(prog *Program, groups uint32, buffers []*Buffer, push []byt
 		g.dispatch(x, y, z)
 		g.barrier(glShaderStorageBarrierBit | glBufferUpdateBarrierBit)
 		if err := g.check("dispatch"); err != nil {
-			return fmt.Errorf("%w (%d groups as %d,%d,%d)", err, groups, x, y, z)
+			return fmt.Errorf("%w (%d %w %d,%d,%d)", err, groups, ErrDeviceRunGroupsAs, x, y, z)
 		}
 		return nil
 	})

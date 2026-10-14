@@ -18,6 +18,17 @@ import (
 	"github.com/lewtec/lewkit/x/image/convert"
 )
 
+var (
+	ErrExportIntrospectable       = errors.New("export introspectable")
+	ErrExportMenuProperties       = errors.New("export menu properties")
+	ErrExportProperties           = errors.New("export properties")
+	ErrExportStatusNotifier       = errors.New("export status notifier")
+	ErrOpenerOpenRequestName      = errors.New("request name")
+	ErrOpenerOpenSessionBus       = errors.New("session bus")
+	ErrRegisterStatusNotifier     = errors.New("register status notifier")
+	ErrStatusItemExportExportMenu = errors.New("export menu")
+)
+
 const (
 	itemPath        = dbus.ObjectPath("/StatusNotifierItem")
 	menuPath        = dbus.ObjectPath("/MenuBar")
@@ -35,7 +46,7 @@ type opener struct{}
 func (opener) Open(ctx context.Context, cfg tray.Config) (tray.Tray, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		return nil, fmt.Errorf("session bus: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenerOpenSessionBus, err)
 	}
 	item := &statusItem{conn: conn, cfg: cfg}
 	if _, err := iconPixmaps(cfg); err != nil {
@@ -47,7 +58,7 @@ func (opener) Open(ctx context.Context, cfg tray.Config) (tray.Tray, error) {
 	name := fmt.Sprintf("org.kde.StatusNotifierItem-%d-%d", os.Getpid(), serviceSerial.Add(1))
 	reply, err := conn.RequestName(name, dbus.NameFlagDoNotQueue)
 	if err != nil {
-		return nil, abandon(conn, fmt.Errorf("request name: %w", err))
+		return nil, abandon(conn, fmt.Errorf("%w: %w", ErrOpenerOpenRequestName, err))
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
 		return nil, abandon(conn, fmt.Errorf("%w: %s", errNameTaken, name))
@@ -56,7 +67,7 @@ func (opener) Open(ctx context.Context, cfg tray.Config) (tray.Tray, error) {
 	watcher := conn.Object(watcherService, watcherPath)
 	call := watcher.Call(watcherRegister, 0, name)
 	if call.Err != nil {
-		return nil, abandon(conn, fmt.Errorf("register status notifier: %w", call.Err))
+		return nil, abandon(conn, fmt.Errorf("%w: %w", ErrRegisterStatusNotifier, call.Err))
 	}
 	if err := conn.Emit(itemPath, itemInterface+".NewStatus", "Active"); err != nil {
 		return nil, abandon(conn, err)
@@ -111,11 +122,11 @@ type statusItem struct {
 func (item *statusItem) export() error {
 	notifier := &notifier{item: item}
 	if err := item.conn.Export(notifier, itemPath, itemInterface); err != nil {
-		return fmt.Errorf("export status notifier: %w", err)
+		return fmt.Errorf("%w: %w", ErrExportStatusNotifier, err)
 	}
 	item.menu = &menuNode{item: item, revision: 1}
 	if err := item.conn.Export(item.menu, menuPath, menuInterface); err != nil {
-		return fmt.Errorf("export menu: %w", err)
+		return fmt.Errorf("%w: %w", ErrStatusItemExportExportMenu, err)
 	}
 	if err := exportNode(item.conn, itemPath, notifierSpec()); err != nil {
 		return err
@@ -127,7 +138,7 @@ func (item *statusItem) export() error {
 		itemInterface: propMap(item.properties()),
 	})
 	if err != nil {
-		return fmt.Errorf("export properties: %w", err)
+		return fmt.Errorf("%w: %w", ErrExportProperties, err)
 	}
 	item.props = props
 	_, err = prop.Export(item.conn, menuPath, prop.Map{
@@ -139,7 +150,7 @@ func (item *statusItem) export() error {
 		}),
 	})
 	if err != nil {
-		return fmt.Errorf("export menu properties: %w", err)
+		return fmt.Errorf("%w: %w", ErrExportMenuProperties, err)
 	}
 	return nil
 }
@@ -288,7 +299,7 @@ func exportNode(conn *dbus.Conn, path dbus.ObjectPath, spec introspect.Interface
 		},
 	}
 	if err := conn.Export(introspect.NewIntrospectable(node), path, "org.freedesktop.DBus.Introspectable"); err != nil {
-		return fmt.Errorf("export introspectable: %w", err)
+		return fmt.Errorf("%w: %w", ErrExportIntrospectable, err)
 	}
 	return nil
 }

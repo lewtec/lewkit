@@ -29,12 +29,12 @@ func Serve(ctx context.Context, listener net.Listener, handler http.Handler) err
 		shutdown, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
 		defer cancel()
 		if err := server.Shutdown(shutdown); err != nil {
-			return fmt.Errorf("stop preview: %w", err)
+			return fmt.Errorf("%w: %w", ErrServeStopPreview, err)
 		}
 		return <-serveError
 	case err := <-serveError:
 		if err != nil {
-			return fmt.Errorf("preview: %w", err)
+			return fmt.Errorf("%w: %w", ErrServePreview, err)
 		}
 		return nil
 	}

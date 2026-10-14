@@ -51,7 +51,7 @@ func lockSpecIn(directory, ref string) (string, bool, error) {
 		} `json:"dependencies"`
 	}
 	if err := json.Unmarshal(body, &lock); err != nil {
-		return "", false, fmt.Errorf("modot.lock.json: %w", err)
+		return "", false, fmt.Errorf("%w: %w", ErrModotLockJson, err)
 	}
 	for _, dependency := range lock.Dependencies {
 		if dependency.Kind == "tool" && dependency.Ref == ref && dependency.CurrentValue != "" {

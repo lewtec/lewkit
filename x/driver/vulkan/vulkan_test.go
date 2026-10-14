@@ -10,7 +10,7 @@ import (
 func TestListAndOpen(t *testing.T) {
 	handles, err := List(t.Context())
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	require.NotEmpty(t, handles)
 	gpu, err := handles[0].Open(t.Context())

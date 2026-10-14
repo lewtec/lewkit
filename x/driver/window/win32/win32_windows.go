@@ -193,9 +193,6 @@ func systemScale() window.Scale {
 }
 
 func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("window: nil context")
-	}
 	w, h, err := cfg.Size()
 	if err != nil {
 		return nil, err

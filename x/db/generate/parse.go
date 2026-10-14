@@ -88,7 +88,7 @@ func loadGenerated(ctx context.Context, root string, engines []engine) (map[stri
 		dir := filepath.Join(root, e.dir)
 		ms, ts, err := parsePkg(dir)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", e.dir, err)
+			return nil, nil, fmt.Errorf("%w%s: %w", ErrLoadGenerated, e.dir, err)
 		}
 		methods[e.dir] = ms
 		types[e.dir] = ts

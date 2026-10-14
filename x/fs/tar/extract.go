@@ -7,6 +7,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/lewtec/lewkit/x/fs"
+)
+
+var (
+	ErrEmptyArchive = fs.ErrEmptyArchive
 )
 
 // ExtractFirst writes the first member of a gzip tar into dir.
@@ -25,7 +31,7 @@ func ExtractFirst(archive, dir string) (string, error) {
 	tr := tar.NewReader(gz)
 	header, err := tr.Next()
 	if err == io.EOF {
-		return "", fmt.Errorf("empty archive %s", archive)
+		return "", fmt.Errorf("%w %s", ErrEmptyArchive, archive)
 	}
 	if err != nil {
 		return "", err

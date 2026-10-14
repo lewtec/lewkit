@@ -18,6 +18,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
+	"github.com/lewtec/lewkit/x/errs"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/fs/squashfs"
 	tarfs "github.com/lewtec/lewkit/x/fs/tar"
@@ -27,9 +28,9 @@ import (
 
 var (
 	// ErrEmptyDownloadURL is returned when a download URL is blank.
-	ErrEmptyDownloadURL = errors.New("download URL cannot be empty")
+	ErrEmptyDownloadURL = errs.Wrap(errs.ErrEmpty, "download URL cannot be empty")
 	// ErrNoDownloadURLs is returned when every candidate URL is blank.
-	ErrNoDownloadURLs = errors.New("no download URLs provided")
+	ErrNoDownloadURLs = errs.Wrap(errs.ErrNotFound, "no download URLs provided")
 )
 
 // DownloadOptions controls one file download.
@@ -66,7 +67,7 @@ func InstallArtifact(ctx context.Context, artifact Artifact, destination string,
 		return err
 	}
 	if err := Extract(ctx, downloadPath, destination); err != nil {
-		return fmt.Errorf("extract %s: %w", stdpath.Base(artifact.URL), err)
+		return fmt.Errorf("%w %s: %w", ErrInstallArtifactExtract, stdpath.Base(artifact.URL), err)
 	}
 	return NormalizeInstalledBinaries(destination)
 }
@@ -237,7 +238,7 @@ func DownloadFirst(ctx context.Context, urls []string, destination string, optio
 	if len(failures) == 0 {
 		return ErrNoDownloadURLs
 	}
-	return fmt.Errorf("all downloads failed: %s", strings.Join(failures, "; "))
+	return fmt.Errorf("%w: %s", ErrAllDownloadsFailed, strings.Join(failures, "; "))
 }
 
 func downloadDirect(ctx context.Context, url, destination string, options DownloadOptions) error {
@@ -398,7 +399,7 @@ func openHostFile(osPath string) (*hostFile, error) {
 	if !ok {
 		opened.Close()
 		parent.Close()
-		return nil, fmt.Errorf("open %s: not an os file", osPath)
+		return nil, fmt.Errorf("open %s: %w", osPath, ErrOpenHostFileNotAnOsFile)
 	}
 	return &hostFile{File: file, root: parent}, nil
 }

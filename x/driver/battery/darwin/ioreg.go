@@ -2,12 +2,19 @@ package darwin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver/battery"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+)
+
+var (
+	ErrCurrentCapacity    = errors.New("current capacity")
+	ErrLevelOfMaxCapacity = errors.New("max capacity")
+	ErrReadIoreg          = errors.New("ioreg")
 )
 
 type backend struct{}
@@ -40,7 +47,7 @@ func read(ctx context.Context) (reading, error) {
 	}
 	out, err := execdriver.Output(ctx, execdriver.MustCommand(ctx, ioregBin, "-rn", "AppleSmartBattery", "-d", "1"))
 	if err != nil {
-		return reading{}, fmt.Errorf("ioreg: %w", err)
+		return reading{}, fmt.Errorf("%w: %w", ErrReadIoreg, err)
 	}
 	return parseIOReg(string(out))
 }
@@ -107,7 +114,7 @@ func levelOf(props map[string]string) (int, error) {
 	}
 	now, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("current capacity: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrCurrentCapacity, err)
 	}
 	rawMax, ok := props["MaxCapacity"]
 	if !ok {
@@ -118,7 +125,7 @@ func levelOf(props map[string]string) (int, error) {
 	}
 	full, err := strconv.ParseInt(rawMax, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("max capacity: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrLevelOfMaxCapacity, err)
 	}
 	return battery.Percent(now, full)
 }

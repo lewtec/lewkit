@@ -2,6 +2,7 @@ package android
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,10 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/dirs"
 	"github.com/lewtec/lewkit/x/driver/internal/androidclient"
+)
+
+var (
+	ErrBackendResolveMkdir = errors.New("mkdir")
 )
 
 func init() { driver.Register[dirs.Driver](factory{}) }
@@ -40,7 +45,7 @@ func (backend) Resolve(ctx context.Context, appID string) (dirs.Dirs, error) {
 	got := pathsFromDataDir(dataDir)
 	for _, dir := range []string{got.Data, got.Cache, got.Config, got.Inbox} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return dirs.Dirs{}, fmt.Errorf("mkdir %s: %w", dir, err)
+			return dirs.Dirs{}, fmt.Errorf("%w %s: %w", ErrBackendResolveMkdir, dir, err)
 		}
 	}
 	return got, nil

@@ -21,11 +21,12 @@ import (
 	"slices"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrUnknown means no registered engine has that language.
-	ErrUnknown = errors.New("unknown tree-sitter language")
+	ErrUnknown = errs.Wrap(errs.ErrUnknown, "unknown tree-sitter language")
 	// ErrParse means the engine rejected the language or returned no tree.
 	ErrParse = errors.New("tree-sitter parse failed")
 )

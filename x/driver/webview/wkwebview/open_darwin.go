@@ -5,6 +5,7 @@ package wkwebview
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -24,7 +25,14 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window/cocoa"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native/webkit"
+)
+
+var (
+	ErrWebviewProfileThisWebkitCannotPlaceStorageIn            = errors.New("webview profile: this WebKit cannot place storage in")
+	ErrWebviewProfileWebkitDataStoreConfigurationIsUnavailable = errs.Wrap(errs.ErrUnavailable, "webview profile: WebKit data store configuration is unavailable")
+	ErrWebviewProfileWebkitDidNotCreateADataStoreFor           = errors.New("webview profile: WebKit did not create a data store for")
 )
 
 const (
@@ -470,17 +478,17 @@ func applyProfile(configuration objc.ID, profile string) error {
 	}
 	dataConfiguration := newDataStoreConfiguration()
 	if dataConfiguration == 0 {
-		return fmt.Errorf("webview profile: WebKit data store configuration is unavailable")
+		return ErrWebviewProfileWebkitDataStoreConfigurationIsUnavailable
 	}
 	directory := objc.ID(objc.GetClass("NSURL")).Send(objc.RegisterName("fileURLWithPath:isDirectory:"), nsString(profile), true)
 	if !sendIfResponds(dataConfiguration, "setGeneralStorageDirectory:", directory) &&
 		!sendIfResponds(dataConfiguration, "_setWebStorageDirectory:", directory) {
-		return fmt.Errorf("webview profile: this WebKit cannot place storage in %s", profile)
+		return fmt.Errorf("%w %s", ErrWebviewProfileThisWebkitCannotPlaceStorageIn, profile)
 	}
 	sendIfResponds(dataConfiguration, "setShouldUseCustomStoragePaths:", 1)
 	store := newDataStore(dataConfiguration)
 	if store == 0 {
-		return fmt.Errorf("webview profile: WebKit did not create a data store for %s", profile)
+		return fmt.Errorf("%w %s", ErrWebviewProfileWebkitDidNotCreateADataStoreFor, profile)
 	}
 	configuration.Send(objc.RegisterName("setWebsiteDataStore:"), store)
 	return nil

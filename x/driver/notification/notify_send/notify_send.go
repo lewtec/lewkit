@@ -2,11 +2,16 @@ package notify_send
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/notification"
+)
+
+var (
+	ErrBackendNotifyNotifySend = errors.New("notify-send")
 )
 
 type backend struct{}
@@ -28,7 +33,7 @@ func (backend) Notify(ctx context.Context, n notification.Notification) error {
 	args = append(args, n.Title, n.Message)
 	cmd := execdriver.MustCommand(ctx, "notify-send", args...)
 	if err := execdriver.Run(ctx, cmd); err != nil {
-		return fmt.Errorf("notify-send: %w", err)
+		return fmt.Errorf("%w: %w", ErrBackendNotifyNotifySend, err)
 	}
 	return nil
 }

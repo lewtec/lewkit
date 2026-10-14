@@ -136,7 +136,7 @@ func TestOpenFilesystemRootDoesNotStat(t *testing.T) {
 		return nil, &os.PathError{Op: "open", Path: "/", Err: os.ErrPermission}
 	}
 	lstat := func(name string) (fs.FileInfo, error) {
-		t.Errorf("lstat %s", name)
+		assert.Failf(t, "", "lstat %s", name)
 		return nil, os.ErrPermission
 	}
 	_, err := open("/", openRoot, lstat)

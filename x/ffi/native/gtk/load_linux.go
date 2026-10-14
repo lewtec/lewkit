@@ -11,11 +11,12 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 // ErrUnavailable means GTK 4 is missing or this process cannot open a display.
-var ErrUnavailable = errors.New("gtk unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "gtk unavailable")
 
 // errMixedGTK means this process is on GTK 3, so GTK 4 must not be loaded.
 var errMixedGTK = errors.New("GTK 4 cannot share a process with GTK 3")

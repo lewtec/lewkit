@@ -1,15 +1,16 @@
 package table
 
 import (
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrColumn means a column name, value, or format is missing or unknown.
-var ErrColumn = errors.New("bad column")
+var ErrColumn = errs.Wrap(errs.ErrInvalid, "bad column")
 
 // Column is one field of Row. Format is how the cell shows in every output.
 // An empty Format uses the default text. A Format containing % is a fmt

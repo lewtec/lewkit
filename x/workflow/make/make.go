@@ -8,22 +8,18 @@ package make
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
 var (
-	// ErrSyntax means the makefile could not be parsed.
-	ErrSyntax = errors.New("syntax")
 	// ErrNoRule means a target has no rule and no file.
-	ErrNoRule = errors.New("no rule to make target")
-	// ErrCycle means prerequisites depend on the target.
-	ErrCycle = errors.New("cycle")
+	ErrNoRule = errs.Wrap(errs.ErrNotFound, "no rule to make target")
 )
 
 type origin int
@@ -95,9 +91,6 @@ func Load(ctx context.Context, path, work string, assigns, goals []string) (*Fil
 const maxRemake = 3
 
 func load(ctx context.Context, path, work string, assigns, goals []string, depth int) (*File, error) {
-	if ctx == nil {
-		return nil, errors.New("make: nil context")
-	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
@@ -397,5 +390,5 @@ func uniq(in []string) []string {
 }
 
 func syntax(path string, line int, msg string) error {
-	return fmt.Errorf("make: %s:%d: %w: %s", path, line, ErrSyntax, msg)
+	return fmt.Errorf("make: %s:%d: %w: %s", path, line, errs.ErrSyntax, msg)
 }

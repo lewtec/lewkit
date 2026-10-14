@@ -279,7 +279,7 @@ func (p *parser) parseFile(path string) error {
 	src := string(buf)
 	tree, err := treesitter.Parse(p.ctx, "c", buf)
 	if err != nil {
-		return fmt.Errorf("%s: %w", abs, err)
+		return fmt.Errorf("%w%s: %w", ErrParserParseFile, abs, err)
 	}
 	if err := tree.Parsed(); err != nil {
 		return fmt.Errorf("%s: %w", abs, errSyntax)
@@ -358,7 +358,7 @@ func (p *parser) fail(path, src string, n treesitter.Node, err error) error {
 	if err == nil {
 		return nil
 	}
-	return fmt.Errorf("%s:%d: %w", path, lineAt(src, n), err)
+	return fmt.Errorf("%w%s:%d: %w", ErrParserFail, path, lineAt(src, n), err)
 }
 
 func (p *parser) walkIfdef(path, src string, n treesitter.Node) error {

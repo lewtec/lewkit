@@ -158,7 +158,7 @@ func buildABI(ctx context.Context, goMainDir, abi, goarch, dest, ldflags, toolex
 		// -tags appmode compiles the JNI host. The runtime symbol
 		// references need -checklinkname=0.
 		if toolexec == "" {
-			return fmt.Errorf("go build %s: toolexec is empty", abi)
+			return fmt.Errorf("go build %s: %w", abi, ErrToolexecIsEmpty)
 		}
 		linkFlags = strings.TrimSpace(ldflags + " -checklinkname=0")
 		args = []string{
@@ -187,7 +187,7 @@ func buildABI(ctx context.Context, goMainDir, abi, goarch, dest, ldflags, toolex
 	// The host go command takes an IO task. The embedded compiler takes
 	// CPU children. A cgo-free arm64 build is in that compiler's scope.
 	if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx); err != nil {
-		return fmt.Errorf("go build %s (GOARCH=%s CGO_ENABLED=%s): %w", abi, goarch, cgoFlag, err)
+		return fmt.Errorf("go build %s (GOARCH=%s %w=%s): %w", abi, goarch, ErrBuildABICgoEnabled, cgoFlag, err)
 	}
 	return nil
 }

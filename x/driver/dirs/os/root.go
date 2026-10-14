@@ -29,7 +29,7 @@ func (backend) Resolve(_ context.Context, appID string) (dirs.Dirs, error) {
 	}
 	for _, dir := range []string{got.Data, got.Cache, got.Config, got.Inbox} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
-			return dirs.Dirs{}, fmt.Errorf("mkdir %s: %w", dir, err)
+			return dirs.Dirs{}, fmt.Errorf("%w %s: %w", ErrBackendResolveMkdir, dir, err)
 		}
 	}
 	return dirs.Dirs{Data: got.Data, Cache: got.Cache, Config: got.Config, Inbox: got.Inbox}, nil

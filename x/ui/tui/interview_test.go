@@ -126,11 +126,6 @@ func TestInterviewCancel(t *testing.T) {
 	assert.Empty(t, m.Answers())
 }
 
-func TestRunNilContext(t *testing.T) {
-	_, err := Run(nil, New([]Question{{Prompt: "Publisher name"}}))
-	require.ErrorIs(t, err, ErrNilContext)
-}
-
 func TestRunCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

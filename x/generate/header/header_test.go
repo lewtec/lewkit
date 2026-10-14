@@ -1,7 +1,6 @@
 package header
 
 import (
-	"context"
 	"go/build/constraint"
 	"os"
 	"os/exec"
@@ -11,13 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestParseSample(t *testing.T) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		t.Skip("oracle is the host C ABI")
+		test.Skip(t, "oracle is the host C ABI")
 	}
 	unit := parseSample(t)
 	point := findType(t, unit, "Point")
@@ -85,7 +85,7 @@ func TestParseSample(t *testing.T) {
 
 func TestWriteSample(t *testing.T) {
 	if runtime.GOOS != "linux" || runtime.GOARCH != "amd64" {
-		t.Skip("generated file targets the host ABI")
+		test.Skip(t, "generated file targets the host ABI")
 	}
 	unit := parseSample(t)
 	buf, err := Write(unit, "bind", []string{"libsample.so"})
@@ -208,7 +208,7 @@ typedef int apple_flag;
 
 func TestAllABIs(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, Run(context.Background(), Config{
+	require.NoError(t, Run(t.Context(), Config{
 		File:    filepath.Join("testdata", "sample.h"),
 		Out:     filepath.Join(dir, "sample.go"),
 		Package: "bind",
@@ -286,7 +286,7 @@ typedef int win_flag;
 typedef int common_flag;
 `), 0o644))
 	out := filepath.Join(dir, "gen")
-	require.NoError(t, Run(context.Background(), Config{
+	require.NoError(t, Run(t.Context(), Config{
 		File:    hdr,
 		Out:     out,
 		Package: "bind",
@@ -316,7 +316,7 @@ func TestInferPackageSkipsGenerated(t *testing.T) {
 func TestHostOutPath(t *testing.T) {
 	dir := t.TempDir()
 	out := filepath.Join(dir, "one.go")
-	require.NoError(t, Run(context.Background(), Config{
+	require.NoError(t, Run(t.Context(), Config{
 		File:    filepath.Join("testdata", "sample.h"),
 		Out:     out,
 		Package: "bind",
@@ -337,7 +337,7 @@ typedef struct { int32_t format; uint32_t rate; uint8_t channels; } sample_spec;
 handle pa_simple_new(handle server, int32_t dir, sample_spec *spec);
 `), 0o644))
 	out := filepath.Join(dir, "simple.go")
-	require.NoError(t, Run(context.Background(), Config{
+	require.NoError(t, Run(t.Context(), Config{
 		File:    hdr,
 		Out:     out,
 		Package: "pulse",
@@ -385,7 +385,7 @@ func parseHeader(t *testing.T, src string, target Target) *Unit {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "t.h")
 	require.NoError(t, os.WriteFile(path, []byte(src), 0o644))
-	unit, err := Parse(context.Background(), path, Options{Target: target})
+	unit, err := Parse(t.Context(), path, Options{Target: target})
 	require.NoError(t, err)
 	return unit
 }
@@ -415,7 +415,7 @@ func generatedFor(t *testing.T, dir, goos, goarch string) string {
 
 func parseSample(t *testing.T) *Unit {
 	t.Helper()
-	unit, err := Parse(context.Background(), filepath.Join("testdata", "sample.h"), Options{})
+	unit, err := Parse(t.Context(), filepath.Join("testdata", "sample.h"), Options{})
 	require.NoError(t, err)
 	return unit
 }

@@ -9,8 +9,20 @@ import (
 	"strings"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/workflow"
+)
+
+var (
+	ErrFileCallFuncMake                 = errors.New("make")
+	ErrFileRunRecipe                    = errors.New("")
+	ErrMakeEvalIsNotSupported           = errs.Wrap(errs.ErrUnsupported, "make: eval is not supported")
+	ErrMakeIncludedMakefileWasNotRemade = errors.New("make: included makefile was not remade")
+
+	ErrMakeUnterminatedVariableNear = errors.New("make: unterminated variable near")
+	ErrMakeVariableRecursion        = errors.New("make: variable recursion")
+	ErrNoSuchFileOrDirectory        = errs.Wrap(errs.ErrNotFound, "no such file or directory")
 )
 
 const maxExpand = 64
@@ -21,7 +33,7 @@ func (f *File) expand(s string, auto map[string]string) (string, error) {
 
 func (f *File) expandDepth(s string, auto map[string]string, depth int) (string, error) {
 	if depth > maxExpand {
-		return "", errors.New("make: variable recursion")
+		return "", ErrMakeVariableRecursion
 	}
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
@@ -107,7 +119,7 @@ func scanClose(s string, openAt int, open, close byte) (string, int, error) {
 	if len(near) > 80 {
 		near = near[:80]
 	}
-	return "", 0, fmt.Errorf("make: unterminated variable near %q", near)
+	return "", 0, fmt.Errorf("%w %q", ErrMakeUnterminatedVariableNear, near)
 }
 
 func (f *File) expandRef(body string, auto map[string]string, depth int) (string, error) {
@@ -243,12 +255,12 @@ func (f *File) callFunc(name, rest string, auto map[string]string, depth int) (s
 		if err != nil {
 			return "", err
 		}
-		return "", fmt.Errorf("make: %s", strings.TrimSpace(arg))
+		return "", fmt.Errorf("%w: %s", ErrFileCallFuncMake, strings.TrimSpace(arg))
 	case "warning", "info":
 		_, err := f.expandDepth(rest, auto, depth+1)
 		return "", err
 	case "eval":
-		return "", errors.New("make: eval is not supported")
+		return "", ErrMakeEvalIsNotSupported
 	case "shell":
 		arg, err := f.expandDepth(rest, auto, depth+1)
 		if err != nil {
@@ -603,9 +615,6 @@ func (f *File) withCall(name string, args []string, fn func() error) error {
 // shell runs script. A non-zero exit still returns the output, matching
 // GNU make. A cancelled context is returned so the load stops with it.
 func (f *File) shell(script string) (string, error) {
-	if f.ctx == nil {
-		return "", errors.New("make: nil context")
-	}
 	if err := f.ctx.Err(); err != nil {
 		return "", err
 	}

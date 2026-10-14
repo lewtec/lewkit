@@ -4,13 +4,15 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrCompile means GLSL did not become SPIR-V.
 	ErrCompile = errors.New("glsl compile")
 	// ErrEmpty means the source is empty.
-	ErrEmpty = errors.New("empty shader")
+	ErrEmpty = errs.Wrap(errs.ErrEmpty, "empty shader")
 )
 
 // IsSPIRV reports whether b starts with the SPIR-V magic number.

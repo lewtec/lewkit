@@ -4,6 +4,7 @@ package webkitgtk
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -11,21 +12,13 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/webview"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpenNilContextPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("nil context returned")
-		}
-	}()
-	_, _ = gtkDriver{}.Open(nil, webview.Config{})
-}
-
 func TestMessageAndAsset(t *testing.T) {
 	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
-		t.Skip("no display")
+		test.Skip(t, "no display")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
@@ -39,7 +32,7 @@ func TestMessageAndAsset(t *testing.T) {
 		Profile: t.TempDir(),
 	})
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	defer view.Close()
 
@@ -52,7 +45,7 @@ func TestMessageAndAsset(t *testing.T) {
 
 func TestHandler(t *testing.T) {
 	if os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
-		t.Skip("no display")
+		test.Skip(t, "no display")
 	}
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
@@ -71,7 +64,7 @@ func TestHandler(t *testing.T) {
 		Profile: t.TempDir(),
 	})
 	if err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	defer view.Close()
 	require.Contains(t, readMessage(t, view), "handler")
@@ -85,9 +78,9 @@ func readMessage(t *testing.T, view webview.View) string {
 	case b := <-view.Messages():
 		return string(b)
 	case <-view.Done():
-		t.Fatal("window closed")
+		require.FailNow(t, fmt.Sprint("window closed"))
 	case <-timer.C:
-		t.Fatal("no script message")
+		require.FailNow(t, fmt.Sprint("no script message"))
 	}
 	return ""
 }

@@ -10,6 +10,7 @@ import (
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -21,13 +22,13 @@ const (
 
 var (
 	// ErrClosed means Draw or Adopt ran after Close.
-	ErrClosed = errors.New("metal closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "metal closed")
 	// ErrLost means the view or the drawable is gone.
 	ErrLost = errors.New("metal surface lost")
 	// ErrSize means the frame size or instance bytes are not usable.
 	ErrSize = errors.New("metal size")
 	// ErrUnavailable means Metal or the shader failed to open.
-	ErrUnavailable = errors.New("metal unavailable")
+	ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "metal unavailable")
 )
 
 // Screen is one Metal drawable attached to a view the caller owns.

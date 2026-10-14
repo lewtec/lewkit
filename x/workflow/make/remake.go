@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
@@ -26,9 +27,9 @@ func (f *File) missingError() error {
 		if _, err := os.Stat(m.abs); err == nil {
 			continue
 		}
-		return fmt.Errorf("make: %s:%d: %s: no such file or directory", m.from, m.line, m.name)
+		return fmt.Errorf("make: %s:%d: %s: %w", m.from, m.line, m.name, ErrNoSuchFileOrDirectory)
 	}
-	return fmt.Errorf("make: included makefile was not remade")
+	return ErrMakeIncludedMakefileWasNotRemade
 }
 
 // remakeMissing builds included makefiles that were absent.
@@ -52,7 +53,7 @@ func (f *File) remakeMissing(ctx context.Context) (bool, error) {
 			if m.optional {
 				return false, err
 			}
-			return false, fmt.Errorf("make: %s:%d: %s: no such file or directory\n%w", m.from, m.line, m.name, err)
+			return false, fmt.Errorf("make: %s:%d: %s: %w\n%w", m.from, m.line, m.name, ErrNoSuchFileOrDirectory, err)
 		}
 		if _, err := os.Stat(m.abs); err == nil {
 			created = true
@@ -66,7 +67,7 @@ func (f *File) update(ctx context.Context, target string, visiting, done map[str
 		return nil
 	}
 	if visiting[target] {
-		return fmt.Errorf("make: %w: %s", ErrCycle, target)
+		return fmt.Errorf("make: %w: %s", errs.ErrCycle, target)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -140,7 +141,7 @@ func (f *File) runRecipe(ctx context.Context, target string, spec *resolved) err
 		cmd.Dir = f.dir
 		cmd.Env = env
 		if err := cmd.Run(ctx, nil); err != nil {
-			return fmt.Errorf("%s: %w", target, err)
+			return fmt.Errorf("%w%s: %w", ErrFileRunRecipe, target, err)
 		}
 	}
 	return nil

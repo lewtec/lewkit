@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/test"
 )
 
 func TestDisabledWithoutEnv(t *testing.T) {
@@ -23,7 +24,7 @@ func TestEnabledNeedsLibrary(t *testing.T) {
 	}
 	lang, ok := engine{}.Language("json")
 	if !ok {
-		t.Skip("libtree-sitter-json is not installed")
+		test.Skip(t, "libtree-sitter-json is not installed")
 	}
 	tree, err := lang.Parse([]byte(`{"a":1}`))
 	require.NoError(t, err)

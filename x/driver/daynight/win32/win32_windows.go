@@ -4,6 +4,7 @@ package win32
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
@@ -13,6 +14,10 @@ import (
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/event"
 	"github.com/lewtec/lewkit/x/ffi/native"
+)
+
+var (
+	ErrOpenKeyRegistry = errors.New("registry")
 )
 
 const (
@@ -122,7 +127,7 @@ func openKey() (syscall.Handle, error) {
 	var key syscall.Handle
 	status, _, _ := regOpen.Call(hkeyCurrentUser, uintptr(unsafe.Pointer(name)), 0, keyQueryValue|keyNotify, uintptr(unsafe.Pointer(&key)))
 	if status != 0 {
-		return 0, fmt.Errorf("registry: %w", syscall.Errno(status))
+		return 0, fmt.Errorf("%w: %w", ErrOpenKeyRegistry, syscall.Errno(status))
 	}
 	return key, nil
 }

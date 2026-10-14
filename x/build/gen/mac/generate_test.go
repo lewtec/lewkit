@@ -2,6 +2,7 @@ package mac
 
 import (
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
 	"github.com/lewtec/lewkit/x/build/icons"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreate_WritesHost(t *testing.T) {
@@ -25,9 +28,7 @@ func TestCreate_WritesHost(t *testing.T) {
 			GoMain:    ".",
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	mustExist := []string{
 		"eletrocromo.json",
@@ -42,74 +43,64 @@ func TestCreate_WritesHost(t *testing.T) {
 	}
 	for _, rel := range mustExist {
 		if _, err := os.Stat(filepath.Join(out, rel)); err != nil {
-			t.Errorf("missing %s: %v", rel, err)
+			assert.Failf(t, "", "missing %s: %v", rel, err)
 		}
 	}
 
 	yml, err := os.ReadFile(filepath.Join(out, "project.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	s := string(yml)
 	if !strings.Contains(s, "PRODUCT_BUNDLE_IDENTIFIER: br.tec.lew.counter") {
-		t.Fatalf("bundle id missing:\n%s", s)
+		require.FailNowf(t, "", "bundle id missing:\n%s", s)
 	}
 	if !strings.Contains(s, "ENABLE_APP_SANDBOX: NO") {
-		t.Fatalf("sandbox not off:\n%s", s)
+		require.FailNowf(t, "", "sandbox not off:\n%s", s)
 	}
 	if !strings.Contains(s, "ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon") {
-		t.Fatalf("app icon name missing:\n%s", s)
+		require.FailNowf(t, "", "app icon name missing:\n%s", s)
 	}
 	if !strings.Contains(s, "Assets.xcassets") {
-		t.Fatalf("asset catalog missing:\n%s", s)
+		require.FailNowf(t, "", "asset catalog missing:\n%s", s)
 	}
 
 	plist, err := os.ReadFile(filepath.Join(out, "Info.plist"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ps := string(plist)
 	if !strings.Contains(ps, "br.tec.lew.counter") {
-		t.Fatalf("plist id:\n%s", ps)
+		require.FailNowf(t, "", "plist id:\n%s", ps)
 	}
 	if !strings.Contains(ps, "NSAllowsLocalNetworking") {
-		t.Fatalf("plist ATS:\n%s", ps)
+		require.FailNowf(t, "", "plist ATS:\n%s", ps)
 	}
 	if !strings.Contains(ps, "<key>CFBundleIconName</key>") || !strings.Contains(ps, "<string>AppIcon</string>") {
-		t.Fatalf("plist icon name:\n%s", ps)
+		require.FailNowf(t, "", "plist icon name:\n%s", ps)
 	}
 
 	jsonb, err := os.ReadFile(filepath.Join(out, "eletrocromo.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !strings.Contains(string(jsonb), `"package_id": "br.tec.lew.counter"`) {
-		t.Fatalf("json: %s", jsonb)
+		require.FailNowf(t, "", "json: %s", jsonb)
 	}
 
 	swift, err := os.ReadFile(filepath.Join(out, "Sources/ServerProcess.swift"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !strings.Contains(string(swift), "ELETROCROMO_NO_UI") {
-		t.Fatalf("helper env missing:\n%s", swift)
+		require.FailNowf(t, "", "helper env missing:\n%s", swift)
 	}
 	if !strings.Contains(string(swift), "ELETROCROMO_ASK_DIR") || !strings.Contains(string(swift), "AskWatch.start") {
-		t.Fatal("mac host does not watch the ask directory")
+		require.FailNow(t, fmt.Sprint("mac host does not watch the ask directory"))
 	}
 
 	ui, err := os.ReadFile(filepath.Join(out, "Sources/MainWindow.swift"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !strings.Contains(string(ui), "NSTitlebarAccessoryViewController") {
-		t.Fatalf("titlebar reload missing:\n%s", ui)
+		require.FailNowf(t, "", "titlebar reload missing:\n%s", ui)
 	}
 	if !strings.Contains(string(ui), "arrow.clockwise") {
-		t.Fatalf("reload symbol missing:\n%s", ui)
+		require.FailNowf(t, "", "reload symbol missing:\n%s", ui)
 	}
 	if !strings.Contains(string(ui), "openExternal") {
-		t.Fatalf("custom scheme open missing:\n%s", ui)
+		require.FailNowf(t, "", "custom scheme open missing:\n%s", ui)
 	}
 }
 
@@ -127,22 +118,18 @@ func TestCreate_CapabilitiesPlist(t *testing.T) {
 			},
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	plist, err := os.ReadFile(filepath.Join(out, "Info.plist"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	ps := string(plist)
 	if !strings.Contains(ps, "CFBundleURLTypes") || !strings.Contains(ps, "myapp") {
-		t.Fatalf("url types:\n%s", ps)
+		require.FailNowf(t, "", "url types:\n%s", ps)
 	}
 	if !strings.Contains(ps, "CFBundleDocumentTypes") {
-		t.Fatalf("docs:\n%s", ps)
+		require.FailNowf(t, "", "docs:\n%s", ps)
 	}
 	if _, err := os.Stat(filepath.Join(out, "Sources/OpenDrop.swift")); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 }
 
@@ -156,9 +143,7 @@ func TestApplyMacIcons(t *testing.T) {
 			GoMain:    ".",
 		},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	srcDir := t.TempDir()
 	src := filepath.Join(srcDir, "in.png")
 	img := image.NewNRGBA(image.Rect(0, 0, 8, 8))
@@ -168,27 +153,17 @@ func TestApplyMacIcons(t *testing.T) {
 		}
 	}
 	f, err := os.Create(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := png.Encode(f, img); err != nil {
-		t.Fatal(err)
-	}
-	if err := f.Close(); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, png.Encode(f, img))
+	require.NoError(t, f.Close())
 	iconRoot := filepath.Join(srcDir, "icons")
 	if _, err := icons.Generate(icons.Options{SourcePath: src, OutputDir: iconRoot, Force: true}); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	assets := filepath.Join(out, "Assets.xcassets")
-	if err := applyMacIcons(iconRoot, assets); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, applyMacIcons(iconRoot, assets))
 	raw, err := os.ReadFile(filepath.Join(assets, "AppIcon.appiconset", "Contents.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var catalog struct {
 		Images []struct {
 			Filename string `json:"filename"`
@@ -196,46 +171,34 @@ func TestApplyMacIcons(t *testing.T) {
 			Scale    string `json:"scale"`
 		} `json:"images"`
 	}
-	if err := json.Unmarshal(raw, &catalog); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, json.Unmarshal(raw, &catalog))
 	if len(catalog.Images) != len(macIconSlots) {
-		t.Fatalf("slots %d catalog %d", len(macIconSlots), len(catalog.Images))
+		require.FailNowf(t, "", "slots %d catalog %d", len(macIconSlots), len(catalog.Images))
 	}
 	for _, slot := range catalog.Images {
 		pngFile, err := os.Open(filepath.Join(assets, "AppIcon.appiconset", slot.Filename))
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		cfg, err := png.DecodeConfig(pngFile)
 		closeErr := pngFile.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		if closeErr != nil {
-			t.Fatal(closeErr)
+			require.FailNow(t, fmt.Sprint(closeErr))
 		}
 		parts := strings.Split(slot.Size, "x")
 		if len(parts) != 2 {
-			t.Fatalf("size %q", slot.Size)
+			require.FailNowf(t, "", "size %q", slot.Size)
 		}
 		points, err := strconv.Atoi(parts[0])
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		scale, err := strconv.Atoi(strings.TrimSuffix(slot.Scale, "x"))
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		if cfg.Width != points*scale || cfg.Height != points*scale {
-			t.Fatalf("%s: got %dx%d want %d", slot.Filename, cfg.Width, cfg.Height, points*scale)
+			require.FailNowf(t, "", "%s: got %dx%d want %d", slot.Filename, cfg.Width, cfg.Height, points*scale)
 		}
 	}
 }
 
 func TestCreate_RejectsBadID(t *testing.T) {
 	err := Create(t.Context(), Options{OutDir: t.TempDir(), Config: Config{PackageID: "Not an id"}})
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err, "expected error")
 }

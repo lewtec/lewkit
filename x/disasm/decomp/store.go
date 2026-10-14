@@ -12,50 +12,87 @@ import (
 	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/disasm"
 	"github.com/lewtec/lewkit/x/disasm/decomp/schema"
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrArtifactLoadBlocksLoadBlocks        = errors.New("load blocks")
+	ErrArtifactLoadImageStringsLoadStrings = errors.New("load strings")
+	ErrArtifactLoadNotesLoadNotes          = errors.New("load notes")
+	ErrArtifactLoadStringsLoadStrings      = errors.New("load strings")
+	ErrArtifactLoadSymbolsLoadSymbols      = errors.New("load symbols")
+	ErrArtifactSaveNoteSaveNote0x          = errors.New("save note 0x")
+	ErrBlockRunsPastItsInstructions        = errors.New("block runs past its instructions")
+	ErrBlocksDoNotCoverItsInstructions     = errors.New("blocks do not cover its instructions")
+	ErrCandidateHasAnUnfinishedJsonObject  = errors.New("candidate has an unfinished json object")
+	ErrCandidateHasNoJsonObject            = errs.Wrap(errs.ErrNotFound, "candidate has no json object")
+	ErrCloseProject                        = errors.New("close project")
+	ErrEmptyArtifactName                   = errs.Wrap(errs.ErrEmpty, "empty artifact name")
+	ErrEmptyFunctionName                   = errs.Wrap(errs.ErrEmpty, "empty function name")
+	ErrInsertFunctionStoreBlock            = errors.New("store block")
+	ErrInsertFunctionStoreString           = errors.New("store string")
+	ErrLoadFunctions                       = errors.New("load functions")
+	ErrLoadInstructions                    = errors.New("load instructions")
+	ErrLoadReferences                      = errors.New("load references")
+	ErrLoadSections                        = errors.New("load sections")
+	ErrNegativeArtifactSize                = errors.New("negative artifact size")
+	ErrOpenConnOpenProject                 = errors.New("open project")
+	ErrOpenOpenProject                     = errors.New("open project")
+	ErrOpenProjectEmptyPath                = errs.Wrap(errs.ErrEmpty, "open project: empty path")
+
+	ErrParseAddressAddress              = errors.New("address")
+	ErrParseCandidateCandidate          = errors.New("candidate")
+	ErrProjectAdoptPathStorePath        = errors.New("store path")
+	ErrProjectInsertArtifactStoreString = errors.New("store string")
+	ErrProjectInsertArtifactStoreSymbol = errors.New("store symbol")
+	ErrProjectLoadLoadProject           = errors.New("load project")
+	ErrRejectForeignDBOpenProject       = errors.New("open project")
+	ErrSaveFunction0x                   = errors.New("save function 0x")
+
+	ErrSetNoteNilArtifact = errors.New("set note: nil artifact")
+	ErrStoreArtifact      = errors.New("store artifact")
+	ErrStoreFunction      = errors.New("store function")
+	ErrStoreInstruction   = errors.New("store instruction")
+	ErrStoreReference     = errors.New("store reference")
+	ErrStoreSection       = errors.New("store section")
 )
 
 // ErrProject is a sqlite file that is not a decomp program database.
-var ErrProject = errors.New("not a decomp project")
+var ErrProject = errs.Wrap(errs.ErrInvalid, "not a decomp project")
 
 // Open opens a sqlite program database, creating it when the file is new.
 // The saved lift is loaded into this process. A later Add, rename, comment,
 // or accepted check is written back to the same file. Migrations come from
 // the embedded sqlc schema through [schema.DBArg].
 func Open(ctx context.Context, path string) (*Project, error) {
-	if ctx == nil {
-		return nil, errors.New("open project: nil context")
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if path == "" {
-		return nil, errors.New("open project: empty path")
+		return nil, ErrOpenProjectEmptyPath
 	}
 	absolute, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("open project: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenOpenProject, err)
 	}
 	var arg schema.DBArg
 	if err := arg.Parse(sqliteFileURL(absolute)); err != nil {
-		return nil, fmt.Errorf("open project: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenOpenProject, err)
 	}
 	return openConn(ctx, arg.Value(), absolute)
 }
 
 // OpenConn migrates and loads a program database on a parsed [db.Arg] connection.
 func OpenConn(ctx context.Context, conn *db.Conn[schema.Queries]) (*Project, error) {
-	if ctx == nil {
-		return nil, errors.New("open project: nil context")
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	if conn == nil || strings.TrimSpace(conn.URL()) == "" {
-		return nil, errors.New("open project: empty path")
+		return nil, ErrOpenProjectEmptyPath
 	}
 	absolute, err := filepath.Abs(sqlitePath(conn.URL()))
 	if err != nil {
-		return nil, fmt.Errorf("open project: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenConnOpenProject, err)
 	}
 	return openConn(ctx, conn, absolute)
 }
@@ -65,7 +102,7 @@ func openConn(ctx context.Context, conn *db.Conn[schema.Queries], absolute strin
 		return nil, err
 	}
 	if err := conn.Open(ctx, schema.FS, schema.New(conn.URL())); err != nil {
-		return nil, fmt.Errorf("open project: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenConnOpenProject, err)
 	}
 	project := &Project{conn: conn, path: absolute}
 	if err := project.load(ctx); err != nil {
@@ -83,7 +120,7 @@ func (project *Project) Close() error {
 	err := project.conn.Close()
 	project.conn = nil
 	if err != nil {
-		return fmt.Errorf("close project: %w", err)
+		return fmt.Errorf("%w: %w", ErrCloseProject, err)
 	}
 	return nil
 }
@@ -152,18 +189,18 @@ func sqliteFileURL(path string) string {
 func rejectForeignDB(ctx context.Context, path string) error {
 	database, err := sql.Open("sqlite", path)
 	if err != nil {
-		return fmt.Errorf("open project: %w", err)
+		return fmt.Errorf("%w: %w", ErrRejectForeignDBOpenProject, err)
 	}
 	defer database.Close()
 	var tables, artifact, migrated int
 	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'schema_migrations'`).Scan(&tables); err != nil {
-		return fmt.Errorf("open project: %w", err)
+		return fmt.Errorf("%w: %w", ErrRejectForeignDBOpenProject, err)
 	}
 	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'artifact'`).Scan(&artifact); err != nil {
-		return fmt.Errorf("open project: %w", err)
+		return fmt.Errorf("%w: %w", ErrRejectForeignDBOpenProject, err)
 	}
 	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'`).Scan(&migrated); err != nil {
-		return fmt.Errorf("open project: %w", err)
+		return fmt.Errorf("%w: %w", ErrRejectForeignDBOpenProject, err)
 	}
 	if tables > 0 && artifact == 0 && migrated == 0 {
 		return fmt.Errorf("%w: %s", ErrProject, path)
@@ -174,7 +211,7 @@ func rejectForeignDB(ctx context.Context, path string) error {
 func (project *Project) load(ctx context.Context) error {
 	rows, err := project.queries().ListArtifacts(ctx)
 	if err != nil {
-		return fmt.Errorf("load project: %w", err)
+		return fmt.Errorf("%w: %w", ErrProjectLoadLoadProject, err)
 	}
 	var artifacts []*Artifact
 	for _, row := range rows {
@@ -216,7 +253,7 @@ func (artifact *Artifact) load(ctx context.Context) error {
 func (artifact *Artifact) loadImageStrings(ctx context.Context) error {
 	rows, err := artifact.project.queries().ListImageStrings(ctx, artifact.name)
 	if err != nil {
-		return fmt.Errorf("load strings: %w", err)
+		return fmt.Errorf("%w: %w", ErrArtifactLoadImageStringsLoadStrings, err)
 	}
 	for _, row := range rows {
 		artifact.imageStrings = append(artifact.imageStrings, cstring{Address: uint64(row.Address), Text: row.Text})
@@ -227,7 +264,7 @@ func (artifact *Artifact) loadImageStrings(ctx context.Context) error {
 func (artifact *Artifact) loadNotes(ctx context.Context) error {
 	rows, err := artifact.project.queries().ListNotes(ctx, artifact.name)
 	if err != nil {
-		return fmt.Errorf("load notes: %w", err)
+		return fmt.Errorf("%w: %w", ErrArtifactLoadNotesLoadNotes, err)
 	}
 	if artifact.notes == nil {
 		artifact.notes = map[uint64]string{}
@@ -244,7 +281,7 @@ func (artifact *Artifact) loadNotes(ctx context.Context) error {
 func (artifact *Artifact) loadSections(ctx context.Context) error {
 	rows, err := artifact.project.queries().ListSections(ctx, artifact.name)
 	if err != nil {
-		return fmt.Errorf("load sections: %w", err)
+		return fmt.Errorf("%w: %w", ErrLoadSections, err)
 	}
 	for _, row := range rows {
 		artifact.sections = append(artifact.sections, disasm.Section{
@@ -262,7 +299,7 @@ func (artifact *Artifact) loadSections(ctx context.Context) error {
 func (artifact *Artifact) loadSymbols(ctx context.Context) error {
 	rows, err := artifact.project.queries().ListSymbols(ctx, artifact.name)
 	if err != nil {
-		return fmt.Errorf("load symbols: %w", err)
+		return fmt.Errorf("%w: %w", ErrArtifactLoadSymbolsLoadSymbols, err)
 	}
 	for _, row := range rows {
 		artifact.symbols[uint64(row.Address)] = row.Name
@@ -273,7 +310,7 @@ func (artifact *Artifact) loadSymbols(ctx context.Context) error {
 func (artifact *Artifact) loadFunctions(ctx context.Context) error {
 	rows, err := artifact.project.queries().ListFunctions(ctx, artifact.name)
 	if err != nil {
-		return fmt.Errorf("load functions: %w", err)
+		return fmt.Errorf("%w: %w", ErrLoadFunctions, err)
 	}
 	for _, row := range rows {
 		artifact.functions = append(artifact.functions, Function{
@@ -309,14 +346,14 @@ func (artifact *Artifact) loadFunctions(ctx context.Context) error {
 		for blockIndex := range owned {
 			count := owned[blockIndex].count
 			if cursor+count > len(function.Instructions) {
-				return fmt.Errorf("load function 0x%x: block runs past its instructions", function.Address)
+				return fmt.Errorf("load function 0x%x: %w", function.Address, ErrBlockRunsPastItsInstructions)
 			}
 			owned[blockIndex].block.Instructions = append([]disasm.Instruction(nil), function.Instructions[cursor:cursor+count]...)
 			cursor += count
 			function.Blocks = append(function.Blocks, owned[blockIndex].block)
 		}
 		if cursor != len(function.Instructions) {
-			return fmt.Errorf("load function 0x%x: blocks do not cover its instructions", function.Address)
+			return fmt.Errorf("load function 0x%x: %w", function.Address, ErrBlocksDoNotCoverItsInstructions)
 		}
 		function.References = references[function.Address]
 		function.Strings = texts[function.Address]
@@ -333,7 +370,7 @@ type storedBlock struct {
 func (artifact *Artifact) loadInstructions(ctx context.Context) (map[uint64][]disasm.Instruction, error) {
 	rows, err := artifact.project.queries().ListInstructions(ctx, artifact.name)
 	if err != nil {
-		return nil, fmt.Errorf("load instructions: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrLoadInstructions, err)
 	}
 	out := map[uint64][]disasm.Instruction{}
 	for _, row := range rows {
@@ -352,7 +389,7 @@ func (artifact *Artifact) loadInstructions(ctx context.Context) (map[uint64][]di
 func (artifact *Artifact) loadBlocks(ctx context.Context) (map[uint64][]storedBlock, error) {
 	rows, err := artifact.project.queries().ListBlocks(ctx, artifact.name)
 	if err != nil {
-		return nil, fmt.Errorf("load blocks: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrArtifactLoadBlocksLoadBlocks, err)
 	}
 	out := map[uint64][]storedBlock{}
 	for _, row := range rows {
@@ -372,7 +409,7 @@ func (artifact *Artifact) loadBlocks(ctx context.Context) (map[uint64][]storedBl
 func (artifact *Artifact) loadReferences(ctx context.Context) (map[uint64][]Reference, error) {
 	rows, err := artifact.project.queries().ListReferences(ctx, artifact.name)
 	if err != nil {
-		return nil, fmt.Errorf("load references: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrLoadReferences, err)
 	}
 	out := map[uint64][]Reference{}
 	for _, row := range rows {
@@ -388,7 +425,7 @@ func (artifact *Artifact) loadReferences(ctx context.Context) (map[uint64][]Refe
 func (artifact *Artifact) loadStrings(ctx context.Context) (map[uint64][]string, error) {
 	rows, err := artifact.project.queries().ListFunctionStrings(ctx, artifact.name)
 	if err != nil {
-		return nil, fmt.Errorf("load strings: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrArtifactLoadStringsLoadStrings, err)
 	}
 	out := map[uint64][]string{}
 	for _, row := range rows {
@@ -407,7 +444,7 @@ func (project *Project) insertArtifact(ctx context.Context, artifact *Artifact, 
 			Architecture: int64(artifact.architecture), Mode: int64(artifact.mode), Entry: int64(artifact.entry),
 			Image: image, Path: artifact.path, Digest: artifact.digest,
 		}); err != nil {
-			return fmt.Errorf("store artifact: %w", err)
+			return fmt.Errorf("%w: %w", ErrStoreArtifact, err)
 		}
 		for position, section := range artifact.sections {
 			executable, writable, readable := int64(0), int64(0), int64(0)
@@ -425,12 +462,12 @@ func (project *Project) insertArtifact(ctx context.Context, artifact *Artifact, 
 				Address: int64(section.Address), Size: int64(section.Size),
 				Executable: executable, Writable: writable, Readable: readable,
 			}); err != nil {
-				return fmt.Errorf("store section: %w", err)
+				return fmt.Errorf("%w: %w", ErrStoreSection, err)
 			}
 		}
 		for address, name := range artifact.symbols {
 			if err := q.InsertSymbol(ctx, schema.InsertSymbolParams{Artifact: artifact.name, Address: int64(address), Name: name}); err != nil {
-				return fmt.Errorf("store symbol: %w", err)
+				return fmt.Errorf("%w: %w", ErrProjectInsertArtifactStoreSymbol, err)
 			}
 		}
 		for _, function := range artifact.functions {
@@ -440,13 +477,13 @@ func (project *Project) insertArtifact(ctx context.Context, artifact *Artifact, 
 		}
 		for _, item := range artifact.imageStrings {
 			if err := q.InsertImageString(ctx, schema.InsertImageStringParams{Artifact: artifact.name, Address: int64(item.Address), Text: item.Text}); err != nil {
-				return fmt.Errorf("store string: %w", err)
+				return fmt.Errorf("%w: %w", ErrProjectInsertArtifactStoreString, err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("store artifact: %w", err)
+		return fmt.Errorf("%w: %w", ErrStoreArtifact, err)
 	}
 	return nil
 }
@@ -457,13 +494,13 @@ func insertFunction(ctx context.Context, q schema.Queries, artifact string, func
 		covered += len(block.Instructions)
 	}
 	if covered != len(function.Instructions) {
-		return fmt.Errorf("store function 0x%x: blocks do not cover its instructions", function.Address)
+		return fmt.Errorf("store function 0x%x: %w", function.Address, ErrBlocksDoNotCoverItsInstructions)
 	}
 	if err := q.InsertFunction(ctx, schema.InsertFunctionParams{
 		Artifact: artifact, Address: int64(function.Address), Name: function.Name,
 		Signature: function.Signature, Comment: function.Comment, Source: function.Source, Size: int64(function.Size),
 	}); err != nil {
-		return fmt.Errorf("store function: %w", err)
+		return fmt.Errorf("%w: %w", ErrStoreFunction, err)
 	}
 	for position, instruction := range function.Instructions {
 		raw := instruction.Bytes
@@ -475,7 +512,7 @@ func insertFunction(ctx context.Context, q schema.Queries, artifact string, func
 			Address: int64(instruction.Address), Size: int64(instruction.Size), Bytes: raw,
 			Mnemonic: instruction.Mnemonic, Operands: instruction.Operands, InstructionID: int64(instruction.ID),
 		}); err != nil {
-			return fmt.Errorf("store instruction: %w", err)
+			return fmt.Errorf("%w: %w", ErrStoreInstruction, err)
 		}
 	}
 	for position, block := range function.Blocks {
@@ -484,7 +521,7 @@ func insertFunction(ctx context.Context, q schema.Queries, artifact string, func
 			Address: int64(block.Address), Kind: block.Kind, Target: int64(block.Target), Fall: int64(block.Fall),
 			InstructionCount: int64(len(block.Instructions)),
 		}); err != nil {
-			return fmt.Errorf("store block: %w", err)
+			return fmt.Errorf("%w: %w", ErrInsertFunctionStoreBlock, err)
 		}
 	}
 	for position, reference := range function.References {
@@ -492,14 +529,14 @@ func insertFunction(ctx context.Context, q schema.Queries, artifact string, func
 			Artifact: artifact, FunctionAddress: int64(function.Address), Position: int64(position),
 			FromAddress: int64(reference.From), ToAddress: int64(reference.To), Kind: reference.Kind,
 		}); err != nil {
-			return fmt.Errorf("store reference: %w", err)
+			return fmt.Errorf("%w: %w", ErrStoreReference, err)
 		}
 	}
 	for position, text := range function.Strings {
 		if err := q.InsertFunctionString(ctx, schema.InsertFunctionStringParams{
 			Artifact: artifact, FunctionAddress: int64(function.Address), Position: int64(position), Text: text,
 		}); err != nil {
-			return fmt.Errorf("store string: %w", err)
+			return fmt.Errorf("%w: %w", ErrInsertFunctionStoreString, err)
 		}
 	}
 	return nil
@@ -509,9 +546,6 @@ func (artifact *Artifact) saveFunction(ctx context.Context, function *Function) 
 	if artifact == nil || artifact.project == nil || artifact.project.conn == nil {
 		return nil
 	}
-	if ctx == nil {
-		return errors.New("save function: nil context")
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -520,10 +554,10 @@ func (artifact *Artifact) saveFunction(ctx context.Context, function *Function) 
 		Artifact: artifact.name, Address: int64(function.Address),
 	})
 	if err != nil {
-		return fmt.Errorf("save function 0x%x: %w", function.Address, err)
+		return fmt.Errorf("%w%x: %w", ErrSaveFunction0x, function.Address, err)
 	}
 	if updated != 1 {
-		return fmt.Errorf("save function 0x%x: stored %d rows", function.Address, updated)
+		return fmt.Errorf("%w%x: stored %d rows", ErrSaveFunction0x, function.Address, updated)
 	}
 	return nil
 }
@@ -531,9 +565,6 @@ func (artifact *Artifact) saveFunction(ctx context.Context, function *Function) 
 func (artifact *Artifact) saveNote(ctx context.Context, address uint64, text string) error {
 	if artifact == nil || artifact.project == nil || artifact.project.conn == nil {
 		return nil
-	}
-	if ctx == nil {
-		return errors.New("save note: nil context")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -545,7 +576,7 @@ func (artifact *Artifact) saveNote(ctx context.Context, address uint64, text str
 		err = artifact.project.queries().UpsertNote(ctx, schema.UpsertNoteParams{Artifact: artifact.name, Address: int64(address), Text: text})
 	}
 	if err != nil {
-		return fmt.Errorf("save note 0x%x: %w", address, err)
+		return fmt.Errorf("%w%x: %w", ErrArtifactSaveNoteSaveNote0x, address, err)
 	}
 	return nil
 }
@@ -579,7 +610,7 @@ func (project *Project) adoptPath(ctx context.Context, artifact *Artifact, path 
 		return nil
 	}
 	if err := project.queries().UpdateArtifactPath(ctx, schema.UpdateArtifactPathParams{Path: path, Name: artifact.name}); err != nil {
-		return fmt.Errorf("store path: %w", err)
+		return fmt.Errorf("%w: %w", ErrProjectAdoptPathStorePath, err)
 	}
 	return nil
 }

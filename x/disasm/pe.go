@@ -3,9 +3,31 @@ package disasm
 import (
 	"debug/pe"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrDecodeHexEmptyHex             = errs.Wrap(errs.ErrEmpty, "empty hex")
+	ErrDecodeHexHex                  = errors.New("hex")
+	ErrELFFileArchitectureElfMachine = errors.New("elf machine")
+	ErrELFFileSectionsElfSection     = errors.New("elf section")
+	ErrELFFileTextSectionElfSection  = errors.New("elf section")
+
+	ErrMachOFileArchitectureMachoCpu = errors.New("macho cpu")
+	ErrMachoSection                  = errors.New("macho section")
+	ErrOddHexLength                  = errors.New("odd hex length")
+	ErrOpenMachOMacho                = errors.New("macho")
+	ErrOpenObjectElf                 = errors.New("elf")
+	ErrOpenPEPe                      = errors.New("pe")
+	ErrPEFileArchitecturePeMachine   = errors.New("pe machine")
+	ErrPEFileSectionsPeSection       = errors.New("pe section")
+	ErrPEFileTextSectionPeSection    = errors.New("pe section")
+	ErrParseModeUnknownMode          = errs.Wrap(errs.ErrUnknown, "unknown mode")
 )
 
 // PEFile wraps [pe.File].
@@ -16,7 +38,7 @@ var _ Object = (*PEFile)(nil)
 func openPE(reader io.ReaderAt) (*PEFile, error) {
 	file, err := pe.NewFile(reader)
 	if err != nil {
-		return nil, fmt.Errorf("pe: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenPEPe, err)
 	}
 	return &PEFile{File: file}, nil
 }
@@ -45,7 +67,7 @@ func (file *PEFile) Architecture() (Architecture, Mode, error) {
 	case pe.IMAGE_FILE_MACHINE_ARM64:
 		return ArchitectureAArch64, mode, nil
 	default:
-		return 0, 0, fmt.Errorf("pe machine %#x", file.File.Machine)
+		return 0, 0, fmt.Errorf("%w %#x", ErrPEFileArchitecturePeMachine, file.File.Machine)
 	}
 }
 
@@ -66,7 +88,7 @@ func (file *PEFile) TextSection(name string) (uint64, []byte, string, error) {
 	}
 	data, err := section.Data()
 	if err != nil {
-		return 0, nil, "", fmt.Errorf("pe section %s: %w", section.Name, err)
+		return 0, nil, "", fmt.Errorf("%w %s: %w", ErrPEFileTextSectionPeSection, section.Name, err)
 	}
 	return uint64(section.VirtualAddress), data, section.Name, nil
 }
@@ -101,7 +123,7 @@ func (file *PEFile) Sections() ([]Section, error) {
 		if section.Offset != 0 {
 			read, err := section.Data()
 			if err != nil {
-				return nil, fmt.Errorf("pe section %s: %w", section.Name, err)
+				return nil, fmt.Errorf("%w %s: %w", ErrPEFileSectionsPeSection, section.Name, err)
 			}
 			data = read
 		}

@@ -3,6 +3,8 @@ package sign
 import (
 	"errors"
 	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // These are the failures callers tell apart with errors.Is.
@@ -12,13 +14,10 @@ var (
 	ErrNotRSA = errors.New("publisher key must be RSA")
 
 	// ErrNoKey means a signature was requested without a private key.
-	ErrNoKey = errors.New("publisher key is required")
+	ErrNoKey = errs.Wrap(errs.ErrRequired, "publisher key is required")
 
 	// ErrPKCS12 means the PKCS#12 bytes could not be decoded.
 	ErrPKCS12 = errors.New("pkcs12")
-
-	// ErrNilContext means the caller did not pass a context.
-	ErrNilContext = errors.New("pe: nil context")
 
 	// ErrCertificate means the leaf is missing or was not issued for this key.
 	ErrCertificate = errors.New("certificate")

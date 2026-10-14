@@ -11,19 +11,26 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
 	_ "github.com/lewtec/lewkit/x/tool/github"
+)
+
+var (
+	ErrEncryptErrSops        = errors.New("sops")
+	ErrEncryptSops           = errors.New("sops")
+	ErrFileParse             = errors.New("")
+	ErrSopsCommandIsEmpty    = errs.Wrap(errs.ErrEmpty, "sops: command is empty")
+	ErrSopsEmptyDotenvKey    = errs.Wrap(errs.ErrEmpty, "sops: empty dotenv key")
+	ErrSopsInvalidDotenvLine = errs.Wrap(errs.ErrInvalid, "sops: invalid dotenv line")
 )
 
 // sopsRef is the lazy tool ref. The version lives in modot.lock.json.
 const sopsRef = "github:getsops/sops"
 
 // ErrNoConfig means no .sops.yaml was found above the output path.
-var ErrNoConfig = errors.New("sops config file not found")
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("sops: nil context")
+var ErrNoConfig = errs.Wrap(errs.ErrNotFound, "sops config file not found")
 
 // Encrypt encrypts plaintext for path with the sops lazy tool.
 // The version is the modot.lock.json pin above path, or latest when
@@ -31,9 +38,6 @@ var ErrNilContext = errors.New("sops: nil context")
 // is the one that sops reads from .sops.yaml. A missing config file
 // is ErrNoConfig.
 func Encrypt(ctx context.Context, path string, plaintext []byte) ([]byte, error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -44,7 +48,7 @@ func Encrypt(ctx context.Context, path string, plaintext []byte) ([]byte, error)
 	dir := commandDir(filepath.Dir(abs))
 	bin, err := ensureSops(ctx, filepath.Dir(abs))
 	if err != nil {
-		return nil, fmt.Errorf("sops: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrEncryptSops, err)
 	}
 	selected, err := driver.Get[execdriver.Driver](ctx)
 	if err != nil {
@@ -108,5 +112,5 @@ func encryptErr(stderr string, err error) error {
 	if strings.Contains(msg, "config file not found") || strings.Contains(msg, ".sops.yaml") {
 		return fmt.Errorf("%w: %s: %w", ErrNoConfig, msg, err)
 	}
-	return fmt.Errorf("sops: %s: %w", msg, err)
+	return fmt.Errorf("%w: %s: %w", ErrEncryptErrSops, msg, err)
 }

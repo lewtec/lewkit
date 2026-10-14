@@ -14,15 +14,16 @@ import (
 
 	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/disasm"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrNoCode is [Project.Add] on an image with no executable section.
-	ErrNoCode = errors.New("no executable section")
+	ErrNoCode = errs.Wrap(errs.ErrNotFound, "no executable section")
 	// ErrArtifact is [Project.Add] when that name is already open.
-	ErrArtifact = errors.New("artifact already open")
+	ErrArtifact = errs.Wrap(errs.ErrAlreadyExists, "artifact already open")
 	// ErrNotFound is a function address that is not a function start.
-	ErrNotFound = errors.New("function not found")
+	ErrNotFound = errs.Wrap(errs.ErrNotFound, "function not found")
 	// ErrUnmatched is [Artifact.Check] when the candidate does not copy the lift.
 	ErrUnmatched = errors.New("decompilation does not match")
 	// ErrNotStored is a name, note, or signature written on a project with no file.
@@ -116,7 +117,7 @@ func (project *Project) add(ctx context.Context, name, path string, reader io.Re
 		return nil, err
 	}
 	if name == "" {
-		return nil, errors.New("empty artifact name")
+		return nil, ErrEmptyArtifactName
 	}
 	for _, artifact := range project.artifacts {
 		if artifact.name == name {
@@ -149,7 +150,7 @@ func (project *Project) add(ctx context.Context, name, path string, reader io.Re
 
 func readImage(reader io.ReaderAt, size int64) ([]byte, error) {
 	if size < 0 {
-		return nil, errors.New("negative artifact size")
+		return nil, ErrNegativeArtifactSize
 	}
 	image := make([]byte, size)
 	if size == 0 {
@@ -342,7 +343,7 @@ func (artifact *Artifact) Function(address uint64) (Function, bool) {
 // An [Open] project writes the new name into the sqlite file.
 func (artifact *Artifact) SetName(ctx context.Context, address uint64, name string) error {
 	if name == "" {
-		return errors.New("empty function name")
+		return ErrEmptyFunctionName
 	}
 	function := artifact.byAddress[address]
 	if function == nil {
@@ -468,7 +469,7 @@ func (artifact *Artifact) Notes() []Note {
 // An [Open] project writes the clue into the sqlite file.
 func (artifact *Artifact) SetNote(ctx context.Context, address uint64, text string) error {
 	if artifact == nil {
-		return errors.New("set note: nil artifact")
+		return ErrSetNoteNilArtifact
 	}
 	if err := artifact.requireStored("note"); err != nil {
 		return err

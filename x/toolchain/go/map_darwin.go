@@ -3,13 +3,17 @@
 package gotool
 
 import (
-	"fmt"
 	"runtime"
 	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/lewtec/lewkit/x/errs"
 	"golang.org/x/sys/unix"
+)
+
+var (
+	ErrJitPthreadJitWriteProtectNpIsMissing = errs.Wrap(errs.ErrMissing, "jit: pthread_jit_write_protect_np is missing")
 )
 
 // darwinJIT is set by mapNear. MAP_JIT pages flip between writable and
@@ -80,7 +84,7 @@ func mapNear(n int, hint uintptr) ([]byte, error) {
 	if b, ok := try(0, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_PRIVATE|unix.MAP_ANON); ok {
 		return b, nil
 	}
-	return nil, fmt.Errorf("jit: executable mapping is unavailable")
+	return nil, ErrJitExecutableMappingIsUnavailable
 }
 
 func mmapAt(addr, size uintptr, prot, flags int) (uintptr, bool) {
@@ -142,7 +146,7 @@ func setJITWritable(writable bool) error {
 		return err
 	}
 	if write == nil {
-		return fmt.Errorf("jit: pthread_jit_write_protect_np is missing")
+		return ErrJitPthreadJitWriteProtectNpIsMissing
 	}
 	// 0 makes MAP_JIT pages writable on this thread. 1 makes them executable.
 	enabled := 1

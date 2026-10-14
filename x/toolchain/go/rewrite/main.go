@@ -17,6 +17,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/format"
 	"go/parser"
@@ -26,6 +27,19 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrCompileBaseExitWasNotPatched    = errors.New("compile base.Exit was not patched")
+	ErrCompileErrorexitWasNotPatched   = errors.New("compile ErrorExit was not patched")
+	ErrCompileHandlepanicWasNotPatched = errors.New("compile handlePanic was not patched")
+	ErrCopyPkg                         = errors.New("")
+	ErrLinkExitWasNotPatched           = errors.New("link Exit was not patched")
+	ErrPatchLibAnchors                 = errors.New("anchors")
+	ErrPatchLibEmptyAnchor             = errs.Wrap(errs.ErrEmpty, "empty anchor")
+	ErrPatchLibPatch                   = errors.New("patch")
 )
 
 const moduleRoot = "github.com/lewtec/lewkit/x/toolchain/go/src/"
@@ -80,16 +94,16 @@ func patchLib(dst string) error {
 		path := filepath.Join(dst, filepath.FromSlash(rel))
 		textb, err := os.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("patch %s: %w", rel, err)
+			return fmt.Errorf("%w %s: %w", ErrPatchLibPatch, rel, err)
 		}
 		text := string(textb)
 		for i, hunk := range files[rel] {
 			if hunk.Old == "" {
-				return fmt.Errorf("patch %s hunk %d: empty anchor", rel, i)
+				return fmt.Errorf("patch %s hunk %d: %w", rel, i, ErrPatchLibEmptyAnchor)
 			}
 			n := strings.Count(text, hunk.Old)
 			if n != 1 {
-				return fmt.Errorf("patch %s hunk %d: found %d anchors", rel, i, n)
+				return fmt.Errorf("patch %s hunk %d: found %d %w", rel, i, n, ErrPatchLibAnchors)
 			}
 			text = strings.Replace(text, hunk.Old, hunk.New, 1)
 		}
@@ -262,7 +276,7 @@ func copyPkg(src, dst string) error {
 		if strings.HasSuffix(name, ".go") {
 			body, err = rewriteGo(name, body)
 			if err != nil {
-				return fmt.Errorf("%s: %w", name, err)
+				return fmt.Errorf("%w%s: %w", ErrCopyPkg, name, err)
 			}
 		}
 		if err := os.WriteFile(filepath.Join(dst, name), body, 0o644); err != nil {
@@ -323,7 +337,7 @@ func patchAll(dst string) error {
 	newExit := "// ExitSignal is the status Exit would have passed to os.Exit.\n// The toolchain driver recovers it and keeps the process.\ntype ExitSignal int\n\nfunc Exit(code int) {\n\tfor i := len(atExitFuncs) - 1; i >= 0; i-- {\n\t\tf := atExitFuncs[i]\n\t\tatExitFuncs = atExitFuncs[:i]\n\t\tf()\n\t}\n\tpanic(ExitSignal(code))\n}"
 	next := strings.Replace(string(body), oldExit, newExit, 1)
 	if next == string(body) {
-		return fmt.Errorf("compile base.Exit was not patched")
+		return ErrCompileBaseExitWasNotPatched
 	}
 	next = strings.Replace(next, "import (\n\t\"os\"\n)\n\n", "", 1)
 	if err := os.WriteFile(base, []byte(next), 0o644); err != nil {
@@ -337,7 +351,7 @@ func patchAll(dst string) error {
 	}
 	next = strings.Replace(string(body), "\tos.Exit(2)\n", "\tExit(2)\n", 1)
 	if next == string(body) {
-		return fmt.Errorf("compile ErrorExit was not patched")
+		return ErrCompileErrorexitWasNotPatched
 	}
 	if err := os.WriteFile(printGo, []byte(next), 0o644); err != nil {
 		return err
@@ -352,7 +366,7 @@ func patchAll(dst string) error {
 	newPanic := "\t\tif err == \"-h\" {\n\t\t\tpanic(err)\n\t\t}\n\t\tif _, ok := err.(base.ExitSignal); ok {\n\t\t\tpanic(err)\n\t\t}\n"
 	next = strings.Replace(string(body), oldPanic, newPanic, 1)
 	if next == string(body) {
-		return fmt.Errorf("compile handlePanic was not patched")
+		return ErrCompileHandlepanicWasNotPatched
 	}
 	if err := os.WriteFile(mainGo, []byte(next), 0o644); err != nil {
 		return err
@@ -367,7 +381,7 @@ func patchAll(dst string) error {
 	newLink := "// ExitSignal is the status Exit would have passed to os.Exit.\n// The toolchain driver recovers it and keeps the process.\ntype ExitSignal int\n\nfunc Exit(code int) {\n\trunAtExitFuncs()\n\tpanic(ExitSignal(code))\n}"
 	next = strings.Replace(string(body), oldLink, newLink, 1)
 	if next == string(body) {
-		return fmt.Errorf("link Exit was not patched")
+		return ErrLinkExitWasNotPatched
 	}
 	return os.WriteFile(utilGo, []byte(next), 0o644)
 }

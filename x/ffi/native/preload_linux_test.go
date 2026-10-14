@@ -10,38 +10,33 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLibraryDepsSkipsLibc(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "libweb.so")
 	body := elf64WithNeeded("$ORIGIN", "libc.so.6", "ld-linux-x86-64.so.2", "libgstreamer-1.0.so.0")
-	if err := os.WriteFile(path, body, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "libc.so.6"), []byte("trap"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "ld-linux-x86-64.so.2"), []byte("trap"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, body, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "libc.so.6"), []byte("trap"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ld-linux-x86-64.so.2"), []byte("trap"), 0o644))
 	gst := filepath.Join(dir, "libgstreamer-1.0.so.0")
-	if err := os.WriteFile(gst, []byte("gst"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(gst, []byte("gst"), 0o644))
 	got := libraryDeps(path)
 	if len(got) != 1 || got[0] != gst {
-		t.Fatalf("deps %q", got)
+		require.FailNowf(t, "", "deps %q", got)
 	}
 	names := elfNeeded(path)
 	if len(names) != 3 || names[2] != "libgstreamer-1.0.so.0" {
-		t.Fatalf("needed %q", names)
+		require.FailNowf(t, "", "needed %q", names)
 	}
 }
 
 func TestOpenLoadsSiblingBeforeLibraryPath(t *testing.T) {
 	if _, err := exec.LookPath("gcc"); err != nil {
-		t.Skip(err)
+		test.Skip(t, err)
 	}
 	id := time.Now().UnixNano()
 	gstName := fmt.Sprintf("liblewkitgst%d.so", id)
@@ -50,21 +45,13 @@ func TestOpenLoadsSiblingBeforeLibraryPath(t *testing.T) {
 	root := t.TempDir()
 	oldDir := filepath.Join(root, "old")
 	prefix := filepath.Join(root, "prefix")
-	if err := os.MkdirAll(oldDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(prefix, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(oldDir, 0o755))
+	require.NoError(t, os.MkdirAll(prefix, 0o755))
 	src := filepath.Join(root, "src")
-	if err := os.MkdirAll(src, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.MkdirAll(src, 0o755))
 	write := func(name, body string) string {
 		path := filepath.Join(src, name)
-		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 		return path
 	}
 	oldC := write("old.c", "void old_only(void) {}\n")
@@ -81,11 +68,9 @@ func TestOpenLoadsSiblingBeforeLibraryPath(t *testing.T) {
 	runGCC(t, "-shared", "-fPIC", "-Wl,-soname,"+webName, "-o", web, webC, trans, "-Wl,--enable-new-dtags,-rpath,$ORIGIN")
 	t.Setenv("LD_LIBRARY_PATH", oldDir)
 	lib, err := Open(web, Global|Lazy)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if _, err := Symbol(lib, "web_init"); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 }
 
@@ -93,9 +78,7 @@ func runGCC(t *testing.T, args ...string) {
 	t.Helper()
 	cmd := exec.Command("gcc", args...)
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("gcc %v: %v\n%s", args, err, out)
-	}
+	require.NoErrorf(t, err, "gcc %v: %v\n%s", args, err, out)
 }
 
 // elf64WithNeeded builds an ELF64 with those DT_NEEDED sonames and an optional

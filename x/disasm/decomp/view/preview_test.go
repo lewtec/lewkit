@@ -347,7 +347,7 @@ func TestListenServesTheIndex(t *testing.T) {
 		}
 		if time.Now().After(deadline) {
 			cancel()
-			t.Fatal(err)
+			require.NoError(t, err)
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

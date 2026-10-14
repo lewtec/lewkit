@@ -13,14 +13,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
 var (
-	// ErrSyntax means the ninja file could not be parsed.
-	ErrSyntax = errors.New("syntax")
-	// ErrCycle means variables expand through themselves.
-	ErrCycle = errors.New("cycle")
+	ErrFileParseBuildNinja = errors.New("ninja")
+	ErrFileParseFileNinja  = errors.New("ninja")
+	ErrFileStepNinja       = errors.New("ninja")
 )
 
 type scope struct {
@@ -65,9 +65,6 @@ type File struct {
 // Load reads path. work is the directory commands run in; an empty work
 // uses the file's directory.
 func Load(ctx context.Context, path, work string) (*File, error) {
-	if ctx == nil {
-		return nil, errors.New("ninja: nil context")
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -100,11 +97,11 @@ func (f *File) Graph(targets []string) (workflow.Graph, error) {
 	byOutput := map[string]string{}
 	for _, edge := range f.edges {
 		if len(edge.outs) == 0 {
-			return workflow.Graph{}, fmt.Errorf("ninja: %s:%d: %w: build has no output", edge.file, edge.line, ErrSyntax)
+			return workflow.Graph{}, fmt.Errorf("ninja: %s:%d: %w: build has no output", edge.file, edge.line, errs.ErrSyntax)
 		}
 		for _, out := range edge.outs {
 			if prev, ok := byOutput[out]; ok {
-				return workflow.Graph{}, fmt.Errorf("ninja: %w: duplicate output %s of %s", ErrSyntax, out, prev)
+				return workflow.Graph{}, fmt.Errorf("ninja: %w: duplicate output %s of %s", errs.ErrSyntax, out, prev)
 			}
 			byOutput[out] = edge.outs[0]
 		}
@@ -167,7 +164,7 @@ func (f *File) step(edge *edge, byOutput map[string]string) (workflow.Step, erro
 	}
 	expanded, err := expand(command, resolve, false)
 	if err != nil {
-		return workflow.Step{}, fmt.Errorf("ninja: %s:%d: %w", edge.file, edge.line, err)
+		return workflow.Step{}, fmt.Errorf("%w: %s:%d: %w", ErrFileStepNinja, edge.file, edge.line, err)
 	}
 	descRaw := ""
 	if rule := f.rules[edge.rule]; rule != nil {

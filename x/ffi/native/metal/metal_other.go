@@ -2,17 +2,21 @@
 
 package metal
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 var (
 	// ErrClosed means Draw or Adopt ran after Close.
-	ErrClosed = errors.New("metal closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "metal closed")
 	// ErrLost means the view is gone.
 	ErrLost = errors.New("metal surface lost")
 	// ErrSize means the frame size or instance bytes are not usable.
 	ErrSize = errors.New("metal size")
 	// ErrUnavailable means Metal cannot be opened here.
-	ErrUnavailable = errors.New("metal unavailable")
+	ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "metal unavailable")
 )
 
 // Screen is the Metal drawable for one view. This build has no Metal.

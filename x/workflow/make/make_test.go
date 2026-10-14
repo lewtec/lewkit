@@ -2,12 +2,14 @@ package make
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -401,7 +403,7 @@ b: a
 	f, err := Load(t.Context(), filepath.Join(dir, "Makefile"), dir, nil, nil)
 	require.NoError(t, err)
 	_, err = f.Graph(t.Context(), []string{"a"})
-	require.ErrorIs(t, err, ErrCycle)
+	require.ErrorIs(t, err, errs.ErrCycle)
 }
 
 func commandText(t *testing.T, step workflow.Step) string {
@@ -515,11 +517,6 @@ func TestParseArgs(t *testing.T) {
 	assert.True(t, strings.Contains(strings.Join(assigns, " "), "CC"))
 }
 
-func TestLoadRejectsNilContext(t *testing.T) {
-	_, err := Load(nil, "Makefile", "", nil, nil)
-	require.Error(t, err)
-}
-
 func TestShellStopsWhenContextCancels(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "Makefile", "X := $(shell sleep 30)\nall:\n\techo $(X)\n")
@@ -535,6 +532,6 @@ func TestShellStopsWhenContextCancels(t *testing.T) {
 	case err := <-errCh:
 		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(3 * time.Second):
-		t.Fatal("$(shell) kept running after cancel")
+		require.FailNow(t, fmt.Sprint("$(shell) kept running after cancel"))
 	}
 }

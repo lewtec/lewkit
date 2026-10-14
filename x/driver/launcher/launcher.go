@@ -13,7 +13,11 @@ import (
 	"context"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
+
+// ErrChooseNoItems means Choose was given an empty list.
+var ErrChooseNoItems = errs.Wrap(errs.ErrEmpty, "choose: no items")
 
 // Item is one choice. Label is shown. An empty label shows Value.
 // Icon is a name or path some choosers can show.

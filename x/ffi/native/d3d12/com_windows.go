@@ -3,6 +3,7 @@
 package d3d12
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"syscall"
@@ -10,6 +11,11 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+)
+
+var (
+	ErrCompileHLSL = errors.New("")
+	ErrMakeRoot    = errors.New("")
 )
 
 // COM slots follow the Windows C++ vtable. Void methods are not HRESULTs.
@@ -578,7 +584,7 @@ func compileHLSL(source, entry, target string) ([]byte, error) {
 		if msg == "" {
 			return nil, err
 		}
-		return nil, fmt.Errorf("%w: %s", err, msg)
+		return nil, fmt.Errorf("%w%w: %s", ErrCompileHLSL, err, msg)
 	}
 	return blobCopy(code)
 }
@@ -633,7 +639,7 @@ func makeRoot(dev uintptr, params []rootParam, flags uint32) (uintptr, error) {
 		if msg == "" {
 			return 0, err
 		}
-		return 0, fmt.Errorf("%w: %s", err, msg)
+		return 0, fmt.Errorf("%w%w: %s", ErrMakeRoot, err, msg)
 	}
 	code, err := blobCopy(blob)
 	if err != nil {

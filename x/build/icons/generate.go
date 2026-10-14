@@ -13,14 +13,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/image/convert"
 )
 
 // Sentinel errors for icon generation.
 var (
 	ErrSVGNotRasterized    = errors.New("svg masters are not rasterized in-process yet; pass a PNG/JPEG, or convert first (tool catalog TBD)")
-	ErrAndroidIconsMissing = errors.New("android icons missing (run build icons)")
-	ErrMacOSIconMissing    = errors.New("macos icon.icns missing (run build icons)")
+	ErrAndroidIconsMissing = errs.Wrap(errs.ErrMissing, "android icons missing (run build icons)")
+	ErrMacOSIconMissing    = errs.Wrap(errs.ErrMissing, "macos icon.icns missing (run build icons)")
 )
 
 // Options drives Generate.
@@ -48,7 +49,7 @@ const DefaultOutputDir = "dist/icons"
 func defaultMaster() (image.Image, error) {
 	img, err := DecodeBytes(DefaultLockupPNG, "default/lockup.png")
 	if err != nil {
-		return nil, fmt.Errorf("default lockup: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDefaultLockup, err)
 	}
 	return convert.Resize(ExtractUpperMark(KnockoutBackground(img)), 1024), nil
 }

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/stretchr/testify/assert"
@@ -99,11 +101,10 @@ func TestRunCycleAndUnknown(t *testing.T) {
 		{Name: "a", Deps: []string{"b"}},
 		{Name: "b", Deps: []string{"a"}},
 	}}
-	require.ErrorIs(t, run(t.Context(), cycle, []string{"a"}), ErrCycle)
+	require.ErrorIs(t, run(t.Context(), cycle, []string{"a"}), errs.ErrCycle)
 	unknown := Graph{Dir: dir, Steps: []Step{{Name: "a", Deps: []string{"missing"}}}}
 	require.ErrorIs(t, run(t.Context(), unknown, []string{"a"}), ErrUnknownStep)
 	require.ErrorIs(t, run(t.Context(), Graph{}, nil), ErrNoTarget)
-	require.Error(t, run(nil, Graph{}, nil))
 }
 
 func TestRunAlias(t *testing.T) {
@@ -413,7 +414,7 @@ func TestOrchestratorDoesNotHoldCPU(t *testing.T) {
 	select {
 	case <-started:
 	case <-time.After(2 * time.Second):
-		t.Fatal("cpu child did not start")
+		require.FailNow(t, fmt.Sprint("cpu child did not start"))
 	}
 	require.NoError(t, fut.Wait(ctx))
 	require.NoError(t, sess.Wait())

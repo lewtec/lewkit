@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // Java reflection modifiers used to choose a callable member.
@@ -18,7 +20,7 @@ var (
 	errAmbiguous = errors.New("ambiguous method")
 
 	// ErrNoMethod means no public method accepts these arguments.
-	ErrNoMethod = errors.New("no method")
+	ErrNoMethod = errs.Wrap(errs.ErrNotFound, "no method")
 )
 
 type kind int

@@ -2,12 +2,16 @@ package gotool
 
 import (
 	"debug/elf"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -29,26 +33,20 @@ func TestVendoredExe(t *testing.T) {
 		cfg, _ := listRuntime(t, work)
 		archive := filepath.Join(work, "exe.a")
 		mode, shared := hostImage()
-		if err := Compile(t.Context(), "main", archive, cfg, "", "", shared, []string{src}); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, Compile(t.Context(), "main", archive, cfg, "", "", shared, []string{src}))
 		bin := hostBin(filepath.Join(work, "hello"))
-		if err := Link(t.Context(), bin, linkImport(t, work, "exe.a"), mode, archive); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, Link(t.Context(), bin, linkImport(t, work, "exe.a"), mode, archive))
 		out, err := exec.Command(bin).CombinedOutput()
-		if err != nil {
-			t.Fatalf("run: %v\n%s", err, out)
-		}
+		require.NoErrorf(t, err, "run: %v\n%s", err, out)
 		if string(out) != "toolchain-ok\n" {
-			t.Fatalf("output %q", out)
+			require.FailNowf(t, "", "output %q", out)
 		}
 	})
 }
 
 func TestVendoredPIE(t *testing.T) {
 	if runtime.GOOS != "linux" {
-		t.Skip("shared object is an ELF file")
+		test.Skip(t, "shared object is an ELF file")
 	}
 	reexec(t, "TestVendoredPIE", func(t *testing.T) {
 		work := workdir(t)
@@ -56,45 +54,37 @@ func TestVendoredPIE(t *testing.T) {
 		export := writeHello(t, work, true)
 		cfg, _ := listRuntime(t, work)
 		archive := filepath.Join(work, "pie.a")
-		if err := Compile(t.Context(), "main", archive, cfg, "", "", true, []string{hello, export}); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, Compile(t.Context(), "main", archive, cfg, "", "", true, []string{hello, export}))
 		bin := filepath.Join(work, "hello.pie")
-		if err := Link(t.Context(), bin, linkImport(t, work, "pie.a"), "pie", archive); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, Link(t.Context(), bin, linkImport(t, work, "pie.a"), "pie", archive))
 		out, err := exec.Command(bin).CombinedOutput()
-		if err != nil {
-			t.Fatalf("pie run: %v\n%s", err, out)
-		}
+		require.NoErrorf(t, err, "pie run: %v\n%s", err, out)
 		if string(out) != "toolchain-ok\n" {
-			t.Fatalf("pie output %q", out)
+			require.FailNowf(t, "", "pie output %q", out)
 		}
 		if !dynDefined(t, bin, "ToolchainPing") {
-			t.Fatal("ToolchainPing is not in .dynsym")
+			require.FailNow(t, fmt.Sprint("ToolchainPing is not in .dynsym"))
 		}
 		if !progType(t, bin, elf.PT_INTERP) {
-			t.Fatal("PIE has no PT_INTERP to clear")
+			require.FailNow(t, fmt.Sprint("PIE has no PT_INTERP to clear"))
 		}
 		if elf.DynFlag1(dynFlags1(t, bin))&elf.DF_1_PIE == 0 {
-			t.Fatal("PIE has no DF_1_PIE to clear")
+			require.FailNow(t, fmt.Sprint("PIE has no DF_1_PIE to clear"))
 		}
-		if err := MakeShared(bin); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, MakeShared(bin))
 		f := openELF(t, bin)
 		if f.Type != elf.ET_DYN {
-			t.Fatalf("type %s", f.Type)
+			require.FailNowf(t, "", "type %s", f.Type)
 		}
 		f.Close()
 		if progType(t, bin, elf.PT_INTERP) {
-			t.Fatal("PT_INTERP survived MakeShared")
+			require.FailNow(t, fmt.Sprint("PT_INTERP survived MakeShared"))
 		}
 		if elf.DynFlag1(dynFlags1(t, bin))&elf.DF_1_PIE != 0 {
-			t.Fatal("DF_1_PIE survived MakeShared")
+			require.FailNow(t, fmt.Sprint("DF_1_PIE survived MakeShared"))
 		}
 		if !dynDefined(t, bin, "ToolchainPing") {
-			t.Fatal("ToolchainPing dropped out of .dynsym")
+			require.FailNow(t, fmt.Sprint("ToolchainPing dropped out of .dynsym"))
 		}
 	})
 }
@@ -105,24 +95,18 @@ func TestVendoredCShared(t *testing.T) {
 		src := writeHello(t, work, false)
 		cfg, _ := listRuntime(t, work)
 		archive := filepath.Join(work, "exe.a")
-		if err := Compile(t.Context(), "main", archive, cfg, "", "", false, []string{src}); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, Compile(t.Context(), "main", archive, cfg, "", "", false, []string{src}))
 		cmd := exec.Command("go", "build", "-buildmode=c-shared", "-o", filepath.Join(work, "via-go.so"), ".")
 		cmd.Dir = work
 		out, err := cmd.CombinedOutput()
-		if err == nil {
-			t.Fatal("go build -buildmode=c-shared succeeded with cgo off")
-		}
+		require.Error(t, err, "go build -buildmode=c-shared succeeded with cgo off")
 		if !strings.Contains(string(out), "cgo") {
-			t.Fatalf("cmd/go rejection was %s", out)
+			require.FailNowf(t, "", "cmd/go rejection was %s", out)
 		}
 		err = Link(t.Context(), filepath.Join(work, "direct.so"), linkImport(t, work, "exe.a"), "c-shared", archive)
-		if err == nil {
-			t.Fatal("in-process c-shared link succeeded")
-		}
+		require.Error(t, err, "in-process c-shared link succeeded")
 		if !strings.Contains(err.Error(), "external linking required") {
-			t.Fatalf("linker rejection was %v", err)
+			require.FailNowf(t, "", "linker rejection was %v", err)
 		}
 	})
 }
@@ -172,9 +156,7 @@ func writeHello(t *testing.T, work string, export bool) string {
 	if !export {
 		path := filepath.Join(work, "hello.go")
 		body := "package main\n\nfunc main() { println(\"toolchain-ok\") }\n"
-		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 		return path
 	}
 	path := filepath.Join(work, "_cgo_export.go")
@@ -186,9 +168,7 @@ func writeHello(t *testing.T, work string, export bool) string {
 		"func ToolchainPing() byte { return 7 }",
 		"",
 	}, "\n")
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 	return path
 }
 
@@ -196,7 +176,7 @@ func workdir(t *testing.T) string {
 	t.Helper()
 	work := os.Getenv("TOOLCHAIN_WORK")
 	if work == "" {
-		t.Fatal("TOOLCHAIN_WORK is empty")
+		require.FailNow(t, fmt.Sprint("TOOLCHAIN_WORK is empty"))
 	}
 	return work
 }
@@ -211,42 +191,32 @@ func reexec(t *testing.T, name string, fn func(*testing.T)) {
 	cmd := exec.Command(os.Args[0], "-test.run=^"+name+"$", "-test.v")
 	cmd.Env = append(os.Environ(), "TOOLCHAIN_CHILD=1", "TOOLCHAIN_WORK="+work)
 	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("%v\n%s", err, out)
-	}
+	require.NoErrorf(t, err, "%v\n%s", err, out)
 	t.Log(string(out))
 }
 
 func listRuntime(t *testing.T, work string) (compileCfg, deps string) {
 	t.Helper()
 	compileCfg, deps, err := runtimeDeps(work)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return compileCfg, deps
 }
 
 func linkImport(t *testing.T, work, archiveName string) string {
 	t.Helper()
 	deps, err := os.ReadFile(filepath.Join(work, "deps"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	archive := filepath.Join(work, archiveName)
 	body := "# import config\npackagefile main=" + archive + "\n" + string(deps)
 	path := archive + ".linkimport"
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
 	return path
 }
 
 func openELF(t *testing.T, path string) *elf.File {
 	t.Helper()
 	f, err := elf.Open(path)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return f
 }
 
@@ -255,9 +225,7 @@ func dynDefined(t *testing.T, path, name string) bool {
 	f := openELF(t, path)
 	defer f.Close()
 	syms, err := f.DynamicSymbols()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for _, sym := range syms {
 		if sym.Name == name && elf.ST_BIND(sym.Info) == elf.STB_GLOBAL && sym.Section != elf.SHN_UNDEF {
 			return true
@@ -284,7 +252,7 @@ func dynFlags1(t *testing.T, path string) uint64 {
 	defer f.Close()
 	vals, err := f.DynValue(elf.DT_FLAGS_1)
 	if err != nil || len(vals) == 0 {
-		t.Fatalf("DT_FLAGS_1: %v", err)
+		require.FailNowf(t, "", "DT_FLAGS_1: %v", err)
 	}
 	return vals[0]
 }

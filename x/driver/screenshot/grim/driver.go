@@ -9,6 +9,11 @@ import (
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/screenshot"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrInvalidSlurpOutput = errs.Wrap(errs.ErrInvalid, "invalid slurp output")
 )
 
 type backend struct{}
@@ -30,7 +35,7 @@ func (backend) SelectArea(ctx context.Context) (*wm.Rect, error) {
 	})
 	rect, err := screenshot.ParseRectParts(parts)
 	if err != nil {
-		return nil, fmt.Errorf("invalid slurp output %q: %w", raw, err)
+		return nil, fmt.Errorf("%w %q: %w", ErrInvalidSlurpOutput, raw, err)
 	}
 	return rect, nil
 }

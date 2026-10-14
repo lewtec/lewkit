@@ -14,6 +14,6 @@ func AndroidABI(goarch string) (string, error) {
 	case "386":
 		return "x86", nil
 	default:
-		return "", fmt.Errorf("unsupported android GOARCH %q", goarch)
+		return "", fmt.Errorf("%w %q", ErrUnsupportedAndroidGoarch, goarch)
 	}
 }

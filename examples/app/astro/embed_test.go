@@ -8,13 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lucasew/orvalho/pkg/workers"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEmbeddedGuestServesHome(t *testing.T) {
 	if len(guestJS) < 10_000 {
-		t.Skip("embed/guest.js looks like a placeholder — run: mise run build")
+		test.Skip(t, "embed/guest.js looks like a placeholder — run: mise run build")
 	}
 	assets, err := fs.Sub(assetsRoot, "embed/assets")
 	require.NoError(t, err)

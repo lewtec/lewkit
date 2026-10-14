@@ -12,6 +12,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/sops"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/ui/tui"
@@ -114,7 +115,7 @@ func (c *keyCmd) interview(ctx context.Context, run interview) (string, string, 
 			return "", "", err
 		}
 		if len(answers) < len(questions) {
-			return "", "", tui.ErrCanceled
+			return "", "", errs.ErrCanceled
 		}
 	}
 	for i, ask := range asks {

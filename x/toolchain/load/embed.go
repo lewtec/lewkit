@@ -83,7 +83,7 @@ func resolveEmbed(pkgdir string, patterns []string) (*Embed, error) {
 						if name[0] == '.' || name[0] == '_' {
 							return nil
 						}
-						return fmt.Errorf("cannot embed file %s: invalid name %s", walkRel, name)
+						return fmt.Errorf("%w %s: invalid name %s", ErrCannotEmbedFile, walkRel, name)
 					}
 					if d.IsDir() {
 						if _, err := os.Stat(filepath.Join(walkPath, "go.mod")); err == nil && walkPath != file {

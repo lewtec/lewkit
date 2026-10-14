@@ -1,6 +1,7 @@
 package window
 
 import (
+	"fmt"
 	"math"
 	"testing"
 	"time"
@@ -83,7 +84,7 @@ func readEvent(t *testing.T, events <-chan Event) Event {
 	case ev := <-events:
 		return ev
 	case <-time.After(time.Second):
-		t.Fatal("missing event")
+		require.FailNow(t, fmt.Sprint("missing event"))
 		return nil
 	}
 }
@@ -98,7 +99,7 @@ func assertNoEvent(t *testing.T, events <-chan Event) {
 	t.Helper()
 	select {
 	case ev := <-events:
-		t.Fatalf("unexpected event %T", ev)
+		require.FailNowf(t, "", "unexpected event %T", ev)
 	default:
 	}
 }

@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestHostLibDirsReadsNixProfiles(t *testing.T) {
@@ -26,7 +28,7 @@ func TestHostLibDirsReadsNixProfiles(t *testing.T) {
 	}
 	for _, want := range want {
 		if !containsDir(dirs, want) {
-			t.Fatalf("missing %s in %q", want, dirs)
+			require.FailNowf(t, "", "missing %s in %q", want, dirs)
 		}
 	}
 }
@@ -47,29 +49,19 @@ func multiarchDir() string {
 func TestToolPathFindsExecutableOnPath(t *testing.T) {
 	dir := t.TempDir()
 	blocked := filepath.Join(dir, "blocked")
-	if err := os.Mkdir(blocked, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(blocked, "zenity"), []byte("nope"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filepath.Join(dir, "zenity"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Mkdir(blocked, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(blocked, "zenity"), []byte("nope"), 0o644))
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "zenity"), 0o755))
 	binDir := filepath.Join(dir, "bin")
-	if err := os.Mkdir(binDir, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.Mkdir(binDir, 0o755))
 	bin := filepath.Join(binDir, "zenity")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755))
 	t.Setenv("PATH", strings.Join([]string{blocked, dir, binDir, "."}, string(filepath.ListSeparator)))
 	if got := toolPath(t.Context(), "zenity"); got != bin {
-		t.Fatalf("toolPath = %q, want %q", got, bin)
+		require.FailNowf(t, "", "toolPath = %q, want %q", got, bin)
 	}
 	if got := toolPath(t.Context(), "gtk4-launch"); got != "" {
-		t.Fatalf("missing toolPath = %q", got)
+		require.FailNowf(t, "", "missing toolPath = %q", got)
 	}
 }
 
@@ -83,21 +75,12 @@ func TestHostLibDirsReadsPathSiblingLib(t *testing.T) {
 	dirs := hostLibDirs()
 	for _, want := range []string{"/tmp/mise-webkit/lib", "/tmp/conda-prefix/lib"} {
 		if !containsDir(dirs, want) {
-			t.Fatalf("missing %s in %q", want, dirs)
+			require.FailNowf(t, "", "missing %s in %q", want, dirs)
 		}
 	}
 	if containsDir(dirs, "relative/lib") {
-		t.Fatalf("relative PATH lib leaked into %q", dirs)
+		require.FailNowf(t, "", "relative PATH lib leaked into %q", dirs)
 	}
-}
-
-func TestPrepareNilContextPanics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("nil context returned")
-		}
-	}()
-	_ = Prepare(nil)
 }
 
 func containsDir(dirs []string, want string) bool {

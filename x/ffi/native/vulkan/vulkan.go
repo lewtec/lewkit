@@ -109,7 +109,7 @@ func openInstance(ctx context.Context) (*Device, error) {
 		ppEnabledExtensionNames: extPtrs,
 	}
 	if err := check(d.api.createInstance(&info, 0, &d.inst)); err != nil {
-		return nil, fmt.Errorf("create instance: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrCreateInstance, err)
 	}
 	if err := d.api.loadInstance(d.inst); err != nil {
 		d.api.destroyInstance(d.inst, 0)
@@ -121,7 +121,7 @@ func openInstance(ctx context.Context) (*Device, error) {
 func (d *Device) physicalDevices() ([]uintptr, error) {
 	var n uint32
 	if err := check(d.api.enumeratePhysical(d.inst, &n, nil)); err != nil {
-		return nil, fmt.Errorf("enumerate devices: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrEnumerateDevices, err)
 	}
 	if n == 0 {
 		slog.Debug("vulkan enumerate physical", "count", 0)
@@ -129,7 +129,7 @@ func (d *Device) physicalDevices() ([]uintptr, error) {
 	}
 	phys := make([]uintptr, n)
 	if err := check(d.api.enumeratePhysical(d.inst, &n, &phys[0])); err != nil {
-		return nil, fmt.Errorf("enumerate devices: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrEnumerateDevices, err)
 	}
 	slog.Debug("vulkan enumerate physical", "count", n)
 	return phys[:n], nil
@@ -384,14 +384,14 @@ func (d *Device) WaitIdle() error {
 func (d *Device) finishPresent() error {
 	if d.fence != 0 && d.api.waitForFences != nil {
 		if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
-			return fmt.Errorf("frame wait: %w", err)
+			return fmt.Errorf("%w: %w", ErrDeviceFinishPresentFrameWait, err)
 		}
 		if err := check(d.api.resetFences(d.dev, 1, &d.fence)); err != nil {
-			return fmt.Errorf("reset fence: %w", err)
+			return fmt.Errorf("%w: %w", ErrDeviceFinishPresentResetFence, err)
 		}
 	} else if d.api.queueWaitIdle != nil {
 		if err := check(d.api.queueWaitIdle(d.queue)); err != nil {
-			return fmt.Errorf("queue wait: %w", err)
+			return fmt.Errorf("%w: %w", ErrDeviceFinishPresentQueueWait, err)
 		}
 	}
 	d.pending = false
@@ -451,7 +451,7 @@ func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 	}
 	var buf uint64
 	if err := check(d.api.createBuffer(d.dev, &info, 0, &buf)); err != nil {
-		return nil, fmt.Errorf("create buffer: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrCreateBuffer, err)
 	}
 	var req memoryRequirements
 	d.api.getBufferReqs(d.dev, buf, &req)
@@ -475,19 +475,19 @@ func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 	var block uint64
 	if err := check(d.api.allocateMemory(d.dev, &alloc, 0, &block)); err != nil {
 		d.api.destroyBuffer(d.dev, buf, 0)
-		return nil, fmt.Errorf("allocate memory: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrAllocateMemory, err)
 	}
 	if err := check(d.api.bindBufferMemory(d.dev, buf, block, 0)); err != nil {
 		d.api.freeMemory(d.dev, block, 0)
 		d.api.destroyBuffer(d.dev, buf, 0)
-		return nil, fmt.Errorf("bind buffer: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDeviceAllocBindBuffer, err)
 	}
 	var ptr unsafe.Pointer
 	if mem == Host {
 		if err := check(d.api.mapMemory(d.dev, block, 0, req.size, 0, &ptr)); err != nil {
 			d.api.freeMemory(d.dev, block, 0)
 			d.api.destroyBuffer(d.dev, buf, 0)
-			return nil, fmt.Errorf("map memory: %w", err)
+			return nil, fmt.Errorf("%w: %w", ErrDeviceAllocMapMemory, err)
 		}
 	}
 	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}, nil
@@ -648,7 +648,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 	}
 	var module uint64
 	if err := check(d.api.createShaderModule(d.dev, &modInfo, 0, &module)); err != nil {
-		return nil, fmt.Errorf("shader module: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrShaderModule, err)
 	}
 	binds := make([]descriptorSetLayoutBinding, bindings)
 	for i := range binds {
@@ -667,7 +667,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 	var setLayout uint64
 	if err := check(d.api.createSetLayout(d.dev, &setInfo, 0, &setLayout)); err != nil {
 		d.api.destroyShaderModule(d.dev, module, 0)
-		return nil, fmt.Errorf("descriptor layout: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDescriptorLayout, err)
 	}
 	layoutInfo := pipelineLayoutCreateInfo{
 		sType:          structurePipelineLayoutCreateInfo,
@@ -687,7 +687,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 	if err := check(d.api.createPipelineLayout(d.dev, &layoutInfo, 0, &pipelineLayout)); err != nil {
 		d.api.destroySetLayout(d.dev, setLayout, 0)
 		d.api.destroyShaderModule(d.dev, module, 0)
-		return nil, fmt.Errorf("pipeline layout: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrPipelineLayout, err)
 	}
 	entry := cstr("main")
 	stage := pipelineShaderStageCreateInfo{
@@ -732,7 +732,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		d.api.destroyPipelineLayout(d.dev, pipelineLayout, 0)
 		d.api.destroySetLayout(d.dev, setLayout, 0)
 		d.api.destroyShaderModule(d.dev, module, 0)
-		return nil, fmt.Errorf("compute pipeline: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrComputePipeline, err)
 	}
 	slog.Debug("vulkan compile ok", "elapsed", time.Since(started), "bindings", bindings)
 	return &Shader{
@@ -793,7 +793,7 @@ func (d *Device) syncMapped(b *Buffer, op string, fn func(device uintptr, count 
 		size:   wholeSize,
 	}
 	if err := check(fn(d.dev, 1, &rng)); err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+		return fmt.Errorf("%w%s: %w", ErrDeviceSyncMapped, op, err)
 	}
 	return nil
 }

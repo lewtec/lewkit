@@ -2,6 +2,7 @@ package build
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,9 +13,22 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/sign"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
+)
+
+var (
+	ErrBuildNoTarget            = errs.Wrap(errs.ErrNotFound, "build: no target")
+	ErrHasNoAppPackage          = errs.Wrap(errs.ErrNotFound, "has no app package")
+	ErrHostWorkflowIcons        = errors.New("icons")
+	ErrIsNotADirectory          = errs.Wrap(errs.ErrInvalid, "is not a directory")
+	ErrJobArchiveTargetBuild    = errors.New("build")
+	ErrJobArchiveTargetSign     = errors.New("sign")
+	ErrJobArchiveTargetSign2    = errors.New("sign")
+	ErrUberAssembleIcons        = errors.New("icons")
+	ErrUnsupportedAndroidGoarch = errs.Wrap(errs.ErrUnsupported, "unsupported android GOARCH")
 )
 
 // Uber is every archive and host package this process can finish.
@@ -39,9 +53,6 @@ func HostTargets(ctx context.Context) ([]Target, error) {
 }
 
 func hostTargets(ctx context.Context, cgo bool) ([]Target, error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	var out []Target
 	for _, goarch := range []string{"amd64", "arm64"} {
 		out = append(out,
@@ -78,9 +89,6 @@ func darwinTools(ctx context.Context) bool {
 // Run writes every archive and host package under Out.
 // The steps share one workflow. Run waits on the future for that graph.
 func (u Uber) Run(ctx context.Context) ([]string, error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	apps, err := hostTargets(ctx, u.CGO)
 	if err != nil {
 		return nil, err
@@ -106,7 +114,7 @@ func (u Uber) Run(ctx context.Context) ([]string, error) {
 
 func (u Uber) assemble(archives, apps []Target) (workflow.Graph, []string, *string, error) {
 	if len(archives) == 0 && len(apps) == 0 {
-		return workflow.Graph{}, nil, nil, fmt.Errorf("build: no target")
+		return workflow.Graph{}, nil, nil, ErrBuildNoTarget
 	}
 	cfg, base, err := u.Spec.Load()
 	if err != nil {
@@ -128,7 +136,7 @@ func (u Uber) assemble(archives, apps []Target) (workflow.Graph, []string, *stri
 	}
 	info, err := os.Stat(out)
 	if err == nil && !info.IsDir() {
-		return workflow.Graph{}, nil, nil, fmt.Errorf("build: %s is not a directory", out)
+		return workflow.Graph{}, nil, nil, fmt.Errorf("build: %s %w", out, ErrIsNotADirectory)
 	}
 	if err := os.MkdirAll(out, 0o755); err != nil {
 		return workflow.Graph{}, nil, nil, err
@@ -180,7 +188,7 @@ func (u Uber) assemble(archives, apps []Target) (workflow.Graph, []string, *stri
 						SourcePath: source,
 					}); err != nil {
 						os.RemoveAll(dir)
-						return fmt.Errorf("icons: %w", err)
+						return fmt.Errorf("%w: %w", ErrUberAssembleIcons, err)
 					}
 					*iconDir = dir
 					return nil

@@ -6,14 +6,15 @@
 package dotfiles
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrNotFound is returned when no candidate directory exists.
-var ErrNotFound = errors.New("dotfiles root not found")
+var ErrNotFound = errs.Wrap(errs.ErrNotFound, "dotfiles root not found")
 
 // Candidates is the search order. The first existing directory wins.
 // A leading ~ expands with the home passed to [Root]. Other paths expand $VAR.

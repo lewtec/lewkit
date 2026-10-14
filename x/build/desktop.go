@@ -5,7 +5,6 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -20,9 +19,6 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
 )
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("build: nil context")
 
 // Target is one CGO-free desktop binary.
 type Target struct {
@@ -127,11 +123,8 @@ func (job Job) Paths() []string {
 // Each target is a workflow step named goos/goarch, so the steps run
 // together. Run waits on the future for those steps.
 func (job Job) Run(ctx context.Context) ([]string, error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	if len(job.Targets) == 0 {
-		return nil, fmt.Errorf("build: no target")
+		return nil, ErrBuildNoTarget
 	}
 	if err := os.MkdirAll(job.Out, 0o755); err != nil {
 		return nil, err
@@ -187,16 +180,16 @@ func (job Job) archiveTarget(ctx context.Context, project string, stamp version.
 		Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(job.AppID), "-o", binPath, "."},
 	}.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("build %s/%s: %w", target.GOOS, target.GOARCH, err)
+		return fmt.Errorf("%w %s/%s: %w", ErrJobArchiveTargetBuild, target.GOOS, target.GOARCH, err)
 	}
 	if job.Sign != nil && target.GOOS == "windows" {
 		if err := job.Sign.SignPEFile(ctx, binPath, project); err != nil {
-			return fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
+			return fmt.Errorf("%w %s/%s: %w", ErrJobArchiveTargetSign2, target.GOOS, target.GOARCH, err)
 		}
 	}
 	if job.Sign != nil && target.GOOS == "darwin" {
 		if err := sign.SignMachO(job.Sign, binPath, job.AppID); err != nil {
-			return fmt.Errorf("sign %s/%s: %w", target.GOOS, target.GOARCH, err)
+			return fmt.Errorf("%w %s/%s: %w", ErrJobArchiveTargetSign2, target.GOOS, target.GOARCH, err)
 		}
 	}
 	archive := filepath.Join(job.Out, ArchiveName(project, target))
@@ -212,7 +205,7 @@ func (job Job) archiveTarget(ctx context.Context, project string, stamp version.
 	}
 	sig, err := job.Sign.SignCMS(raw)
 	if err != nil {
-		return fmt.Errorf("sign %s: %w", archive, err)
+		return fmt.Errorf("%w %s: %w", ErrJobArchiveTargetSign, archive, err)
 	}
 	return os.WriteFile(archive+".cms", sig, 0o644)
 }

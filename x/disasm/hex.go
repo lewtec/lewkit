@@ -11,7 +11,7 @@ import (
 func DecodeHex(s string) ([]byte, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return nil, fmt.Errorf("empty hex")
+		return nil, ErrDecodeHexEmptyHex
 	}
 	var b strings.Builder
 	b.Grow(len(s))
@@ -31,14 +31,14 @@ func DecodeHex(s string) ([]byte, error) {
 	}
 	clean := b.String()
 	if clean == "" {
-		return nil, fmt.Errorf("empty hex")
+		return nil, ErrDecodeHexEmptyHex
 	}
 	if len(clean)%2 != 0 {
-		return nil, fmt.Errorf("odd hex length")
+		return nil, ErrOddHexLength
 	}
 	out, err := hex.DecodeString(clean)
 	if err != nil {
-		return nil, fmt.Errorf("hex: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodeHexHex, err)
 	}
 	return out, nil
 }

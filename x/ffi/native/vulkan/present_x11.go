@@ -3,10 +3,15 @@
 package vulkan
 
 import (
+	"errors"
 	"fmt"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+)
+
+var (
+	ErrXlibHostCreateXlibSurface = errors.New("xlib surface")
 )
 
 const extHostSurface = "VK_KHR_xlib_surface"
@@ -122,7 +127,7 @@ func (h *xlibHost) create(d *Device, w *wsi) (uint64, error) {
 	info := xlibSurfaceInfo{sType: 1000004000, dpy: h.dpy, window: h.win}
 	var surface uint64
 	if err := check(h.createXlib(d.inst, &info, 0, &surface)); err != nil {
-		return 0, fmt.Errorf("xlib surface: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrXlibHostCreateXlibSurface, err)
 	}
 	return surface, nil
 }

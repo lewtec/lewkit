@@ -2,20 +2,19 @@ package win
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildGUIExecutable(t *testing.T) {
 	mainDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
 	out := filepath.Join(t.TempDir(), "Demo.exe")
 	result, err := Build(t.Context(), BuildOptions{
 		Config: Config{
@@ -30,31 +29,25 @@ func TestBuildGUIExecutable(t *testing.T) {
 		OutExe:  out,
 		GOARCH:  "amd64",
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if result.ExePath != out {
-		t.Fatalf("exe %s", result.ExePath)
+		require.FailNowf(t, "", "exe %s", result.ExePath)
 	}
 	body, err := os.ReadFile(out)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	sub, err := peSubsystem(body)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if sub != 2 {
-		t.Fatalf("subsystem %d, want windows GUI", sub)
+		require.FailNowf(t, "", "subsystem %d, want windows GUI", sub)
 	}
 	if !bytesContains(body, "permonitorv2,system") {
-		t.Fatal("manifest missing permonitorv2")
+		require.FailNow(t, fmt.Sprint("manifest missing permonitorv2"))
 	}
 	if !bytesContains(body, "Demo") {
-		t.Fatal("version info missing product name")
+		require.FailNow(t, fmt.Sprint("version info missing product name"))
 	}
 	if !bytesContains(body, "IHDR") && !bytesContains(body, "PNG") {
-		t.Fatal("icon payload missing")
+		require.FailNow(t, fmt.Sprint("icon payload missing"))
 	}
 }
 

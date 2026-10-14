@@ -17,6 +17,11 @@ import (
 	"github.com/lewtec/lewkit/x/driver/httpclient"
 )
 
+var (
+	ErrDownloaderFetch  = errors.New("")
+	ErrHttpclientDriver = errors.New("httpclient driver")
+)
+
 type configureKey struct{}
 
 type factory struct{}
@@ -30,7 +35,7 @@ func (factory) CheckCompatibility(context.Context) error { return nil }
 func (factory) New(ctx context.Context) (fetchurl.Driver, error) {
 	httpDriver, err := driver.Get[httpclient.Driver](ctx)
 	if err != nil {
-		return nil, fmt.Errorf("httpclient driver: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrHttpclientDriver, err)
 	}
 	client := httpDriver.Client()
 	if client == nil {
@@ -75,7 +80,7 @@ func (downloader downloader) Fetch(ctx context.Context, options fetchurl.FetchOp
 	}
 	var status *sdk.HTTPStatusError
 	if errors.As(err, &status) {
-		return fmt.Errorf("%w: %w", &fetchurl.StatusError{
+		return fmt.Errorf("%w%w: %w", ErrDownloaderFetch, &fetchurl.StatusError{
 			Code:   status.StatusCode,
 			Status: strconv.Itoa(status.StatusCode),
 		}, err)

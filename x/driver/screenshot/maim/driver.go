@@ -9,6 +9,11 @@ import (
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/screenshot"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrInvalidSlopOutput = errs.Wrap(errs.ErrInvalid, "invalid slop output")
 )
 
 type backend struct{}
@@ -28,7 +33,7 @@ func (backend) SelectArea(ctx context.Context) (*wm.Rect, error) {
 	parts := strings.Fields(raw)
 	rect, err := screenshot.ParseRectParts(parts)
 	if err != nil {
-		return nil, fmt.Errorf("invalid slop output %q: %w", raw, err)
+		return nil, fmt.Errorf("%w %q: %w", ErrInvalidSlopOutput, raw, err)
 	}
 	return rect, nil
 }

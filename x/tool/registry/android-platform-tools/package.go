@@ -3,6 +3,7 @@ package pkg
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -13,6 +14,11 @@ import (
 
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
+)
+
+var (
+	ErrAndroidPlatformToolsIndex = errors.New("android platform-tools index")
+	ErrPlatformToolsArchiveUrl   = errors.New("platform-tools archive url")
 )
 
 // androidPlatformToolsIndexURL is the SDK repository that lists the current
@@ -213,7 +219,7 @@ type platformToolsChecksum struct {
 func platformToolsBuilds(body []byte, goos, goarch string) ([]platformToolsBuild, error) {
 	var doc platformToolsRepository
 	if err := xml.Unmarshal(body, &doc); err != nil {
-		return nil, fmt.Errorf("android platform-tools index: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrAndroidPlatformToolsIndex, err)
 	}
 	wantOS := platformToolsHostOS(goos)
 	chosen := map[string]platformToolsBuild{}
@@ -371,7 +377,7 @@ func platformToolsDownloadURL(raw string) (string, error) {
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil {
-		return "", fmt.Errorf("platform-tools archive url: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrPlatformToolsArchiveUrl, err)
 	}
 	if parsed.IsAbs() {
 		return parsed.String(), nil

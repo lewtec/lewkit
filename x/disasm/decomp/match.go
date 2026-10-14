@@ -110,7 +110,7 @@ func parseAddress(text string) (uint64, error) {
 	}
 	value, err := strconv.ParseUint(text, 0, 64)
 	if err != nil {
-		return 0, fmt.Errorf("address %q: %w", text, err)
+		return 0, fmt.Errorf("%w %q: %w", ErrParseAddressAddress, text, err)
 	}
 	return value, nil
 }
@@ -122,7 +122,7 @@ func parseCandidate(text string) (candidate, error) {
 	}
 	var parsed candidate
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return candidate{}, fmt.Errorf("candidate: %w", err)
+		return candidate{}, fmt.Errorf("%w: %w", ErrParseCandidateCandidate, err)
 	}
 	return parsed, nil
 }
@@ -130,7 +130,7 @@ func parseCandidate(text string) (candidate, error) {
 func extractObject(text string) (json.RawMessage, error) {
 	start := strings.IndexByte(text, '{')
 	if start < 0 {
-		return nil, fmt.Errorf("candidate has no json object")
+		return nil, ErrCandidateHasNoJsonObject
 	}
 	depth := 0
 	inString := false
@@ -162,7 +162,7 @@ func extractObject(text string) (json.RawMessage, error) {
 			}
 		}
 	}
-	return nil, fmt.Errorf("candidate has an unfinished json object")
+	return nil, ErrCandidateHasAnUnfinishedJsonObject
 }
 
 func differences(function Function, parsed candidate, artifact *Artifact) []string {

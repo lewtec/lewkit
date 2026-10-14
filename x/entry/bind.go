@@ -2,7 +2,12 @@ package entry
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrRunBoundEntryNoApp = errs.Wrap(errs.ErrNotFound, "entry: no app")
 )
 
 var bound func(ctx context.Context) error
@@ -14,13 +19,10 @@ func Bind(fn func(ctx context.Context) error) {
 }
 
 // RunBound runs the function registered with [Bind].
-// ctx is the process root. A nil context is an error.
+// ctx is the process root.
 func RunBound(ctx context.Context) error {
 	if bound == nil {
-		return fmt.Errorf("entry: no app")
-	}
-	if ctx == nil {
-		return ErrNilContext
+		return ErrRunBoundEntryNoApp
 	}
 	return bound(ctx)
 }

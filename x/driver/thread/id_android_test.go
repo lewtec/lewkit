@@ -2,14 +2,19 @@
 
 package thread
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestOSThreadStable(t *testing.T) {
 	id := OSThread()
 	if id == 0 {
-		t.Fatal("tid is 0")
+		require.FailNow(t, fmt.Sprint("tid is 0"))
 	}
 	if again := OSThread(); again != id {
-		t.Fatalf("tid %d then %d", id, again)
+		require.FailNowf(t, "", "tid %d then %d", id, again)
 	}
 }

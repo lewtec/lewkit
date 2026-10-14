@@ -16,13 +16,11 @@ func WithEnv(ctx context.Context, env []string) context.Context {
 
 // GetEnv reads key from ctx env when present, otherwise the process environment.
 func GetEnv(ctx context.Context, key string) string {
-	if ctx != nil {
-		if env, ok := ctx.Value(envKey{}).([]string); ok {
-			for _, e := range env {
-				k, v, found := strings.Cut(e, "=")
-				if found && k == key {
-					return v
-				}
+	if env, ok := ctx.Value(envKey{}).([]string); ok {
+		for _, e := range env {
+			k, v, found := strings.Cut(e, "=")
+			if found && k == key {
+				return v
 			}
 		}
 	}

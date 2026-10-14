@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"sync"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrExist means [RegisterHash] already stored different SPIR-V for that hash.
-var ErrExist = errors.New("shader already registered")
+var ErrExist = errs.Wrap(errs.ErrAlreadyExists, "shader already registered")
 
 type sumKey struct {
 	stage Stage

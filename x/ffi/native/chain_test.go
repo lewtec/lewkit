@@ -38,9 +38,7 @@ func unique(dirs []string) []string {
 
 func TestOpenChainTriesBareNameThenDirsAndRemembers(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "libgood.so"), []byte("x"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "libgood.so"), []byte("x"), 0o644))
 	t.Setenv("LEWKIT_LIB", dir)
 	var paths []string
 	swapLoader(t, func(path string, _ int) (uintptr, error) {

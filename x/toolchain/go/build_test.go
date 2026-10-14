@@ -1,33 +1,24 @@
 package gotool
 
 import (
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/workflow"
+	"github.com/lewtec/lewkit/x/errs"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBuildRejectsShape(t *testing.T) {
-	if !errors.Is(Build(nil, nil, nil), ErrNilContext) {
-		t.Fatal("nil context")
-	}
-	if !errors.Is(Build(t.Context(), nil, nil), ErrNoWork) {
-		t.Fatal("no work")
-	}
+	require.ErrorIs(t, Build(t.Context(), nil, nil), ErrNoWork)
 	empty := []Unit{{ImportPath: "a"}}
-	if !errors.Is(Build(t.Context(), empty, nil), ErrEmptyUnit) {
-		t.Fatal("empty unit")
-	}
+	require.ErrorIs(t, Build(t.Context(), empty, nil), ErrEmptyUnit)
 	dup := []Unit{
 		{ImportPath: "a", Files: []string{"a.go"}, Archive: "a.a", ImportCfg: "a.cfg"},
 		{ImportPath: "a", Files: []string{"a.go"}, Archive: "a.a", ImportCfg: "a.cfg"},
 	}
-	if !errors.Is(Build(t.Context(), dup, nil), ErrDuplicate) {
-		t.Fatal("duplicate")
-	}
+	require.ErrorIs(t, Build(t.Context(), dup, nil), ErrDuplicate)
 	missing := []Unit{{
 		ImportPath: "a",
 		Files:      []string{"a.go"},
@@ -35,53 +26,35 @@ func TestBuildRejectsShape(t *testing.T) {
 		ImportCfg:  "a.cfg",
 		Deps:       []string{"missing"},
 	}}
-	if !errors.Is(Build(t.Context(), missing, nil), ErrUnknownDep) {
-		t.Fatal("unknown dep")
-	}
+	require.ErrorIs(t, Build(t.Context(), missing, nil), ErrUnknownDep)
 	cycle := []Unit{
 		{ImportPath: "a", Files: []string{"a.go"}, Archive: "a.a", ImportCfg: "a.cfg", Deps: []string{"b"}},
 		{ImportPath: "b", Files: []string{"b.go"}, Archive: "b.a", ImportCfg: "b.cfg", Deps: []string{"a"}},
 	}
-	if !errors.Is(Build(t.Context(), cycle, nil), workflow.ErrCycle) {
-		t.Fatal("cycle")
-	}
-	if !errors.Is(Build(t.Context(), nil, &Image{}), ErrEmptyImage) {
-		t.Fatal("empty link")
-	}
+	require.ErrorIs(t, Build(t.Context(), cycle, nil), errs.ErrCycle)
+	require.ErrorIs(t, Build(t.Context(), nil, &Image{}), ErrEmptyImage)
 }
 
 func TestBuildDependentPackages(t *testing.T) {
 	work := t.TempDir()
 	cfg, _ := listRuntime(t, work)
 	runtimeCfg, err := os.ReadFile(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pkg := filepath.Join(work, "p.go")
-	if err := os.WriteFile(pkg, []byte("package p\n\nfunc Value() int { return 7 }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(pkg, []byte("package p\n\nfunc Value() int { return 7 }\n"), 0o644))
 	mainSrc := filepath.Join(work, "main.go")
 	body := "package main\n\nimport \"example.com/p\"\n\nfunc main() { println(p.Value()) }\n"
-	if err := os.WriteFile(mainSrc, []byte(body), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(mainSrc, []byte(body), 0o644))
 	pArchive := filepath.Join(work, "p.a")
 	mainArchive := filepath.Join(work, "main.a")
 	mainCfg := filepath.Join(work, "main.importcfg")
 	mainBody := string(runtimeCfg) + "packagefile example.com/p=" + pArchive + "\n"
-	if err := os.WriteFile(mainCfg, []byte(mainBody), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(mainCfg, []byte(mainBody), 0o644))
 	deps, err := os.ReadFile(filepath.Join(work, "deps"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	linkCfg := filepath.Join(work, "link.importcfg")
 	linkBody := "# import config\npackagefile main=" + mainArchive + "\npackagefile example.com/p=" + pArchive + "\n" + string(deps)
-	if err := os.WriteFile(linkCfg, []byte(linkBody), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(linkCfg, []byte(linkBody), 0o644))
 	mode, shared := hostImage()
 	bin := hostBin(filepath.Join(work, "hello"))
 	units := []Unit{
@@ -92,14 +65,10 @@ func TestBuildDependentPackages(t *testing.T) {
 		Out: bin, ImportCfg: linkCfg, Mode: mode, Archive: mainArchive, Dep: "main",
 		Ldflags: []string{"-s", "-w"},
 	}
-	if err := Build(t.Context(), units, image); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, Build(t.Context(), units, image))
 	out, err := exec.Command(bin).CombinedOutput()
-	if err != nil {
-		t.Fatalf("run: %v\n%s", err, out)
-	}
+	require.NoErrorf(t, err, "run: %v\n%s", err, out)
 	if string(out) != "7\n" {
-		t.Fatalf("output %q", out)
+		require.FailNowf(t, "", "output %q", out)
 	}
 }

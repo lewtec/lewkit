@@ -2,31 +2,32 @@
 
 package android
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
 
 func TestNotedVMSkipsLoad(t *testing.T) {
 	resetNote()
 	t.Cleanup(resetNote)
 	if NotedVM() {
-		t.Fatal("vm noted before JNI_OnLoad")
+		require.FailNow(t, fmt.Sprint("vm noted before JNI_OnLoad"))
 	}
 	NoteVM(1)
 	if !NotedVM() {
-		t.Fatal("vm not noted")
+		require.FailNow(t, fmt.Sprint("vm not noted"))
 	}
 	NoteLoader()
 	n, err := JavaVMs()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if n != 1 {
-		t.Fatalf("vms %d", n)
+		require.FailNowf(t, "", "vms %d", n)
 	}
 	on, err := OnLooper()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !on {
-		t.Fatal("loader thread is not the looper")
+		require.FailNow(t, fmt.Sprint("loader thread is not the looper"))
 	}
 }

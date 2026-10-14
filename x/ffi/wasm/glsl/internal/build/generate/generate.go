@@ -20,9 +20,17 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/workflow"
+)
+
+var (
+	ErrGlslangSourceDir      = errors.New("glslang: source dir")
+	ErrNoGlslangStaticLibsIn = errs.Wrap(errs.ErrNotFound, "no glslang static libs in")
+	ErrUvPythonEmptyPath     = errs.Wrap(errs.ErrEmpty, "uv python: empty path")
+	ErrWasmBoxToolsUvPython  = errors.New("uv python")
 )
 
 const glslangVersion = "15.1.0"
@@ -63,7 +71,7 @@ func (generateCmd) Run(ctx context.Context) error {
 func sourceDir() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		return "", errors.New("glslang: source dir")
+		return "", ErrGlslangSourceDir
 	}
 	// compile.c sits next to this command's parent directory.
 	return filepath.Dir(filepath.Dir(file)), nil
@@ -158,11 +166,11 @@ func (b *wasmBox) tools(ctx context.Context, st *taskgroup.Status) error {
 	}
 	py, err := commandOutput(ctx, "", "uv", "python", "find", "3.13")
 	if err != nil {
-		return fmt.Errorf("uv python: %w", err)
+		return fmt.Errorf("%w: %w", ErrWasmBoxToolsUvPython, err)
 	}
 	py = strings.TrimSpace(py)
 	if py == "" {
-		return errors.New("uv python: empty path")
+		return ErrUvPythonEmptyPath
 	}
 	path := filepath.Join(b.work, "bin") + string(os.PathListSeparator) + filepath.Dir(py) + string(os.PathListSeparator) + os.Getenv("PATH")
 	env := setEnv(os.Environ(), "PATH", path)
@@ -250,7 +258,7 @@ func (b *wasmBox) libs(ctx context.Context, st *taskgroup.Status) error {
 		}
 	}
 	if len(libs) == 0 {
-		return fmt.Errorf("no glslang static libs in %s", b.build)
+		return fmt.Errorf("%w %s", ErrNoGlslangStaticLibsIn, b.build)
 	}
 	b.staticLibs = libs
 	st.Update(fmt.Sprintf("%d libs", len(libs)))

@@ -9,22 +9,22 @@ package screenshot
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"image"
 	"strconv"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrSelectionToolNotFound means slurp or slop is not on PATH.
-	ErrSelectionToolNotFound = errors.New("selection tool not found")
+	ErrSelectionToolNotFound = errs.Wrap(errs.ErrNotFound, "selection tool not found")
 	// ErrEmptySelection means the selection tool returned no geometry.
-	ErrEmptySelection = errors.New("empty selection")
+	ErrEmptySelection = errs.Wrap(errs.ErrEmpty, "empty selection")
 	// ErrUnknownTargetType means the target is not all, output, window, or selection.
-	ErrUnknownTargetType = errors.New("unknown target type")
+	ErrUnknownTargetType = errs.Wrap(errs.ErrUnknown, "unknown target type")
 )
 
 // TargetType selects what Capture should frame.
@@ -50,13 +50,13 @@ type Driver interface {
 // ParseRectParts turns four decimal integer strings into a Rect.
 func ParseRectParts(parts []string) (*wm.Rect, error) {
 	if len(parts) != 4 {
-		return nil, fmt.Errorf("expected 4 geometry fields, got %d", len(parts))
+		return nil, fmt.Errorf("%w %d", ErrExpected4GeometryFieldsGot, len(parts))
 	}
 	vals := make([]int, 4)
 	for i, p := range parts {
 		n, err := strconv.Atoi(p)
 		if err != nil {
-			return nil, fmt.Errorf("parse geometry field %d %q: %w", i, p, err)
+			return nil, fmt.Errorf("%w %d %q: %w", ErrParseGeometryField, i, p, err)
 		}
 		vals[i] = n
 	}

@@ -17,11 +17,12 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/clientsize"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrClosed   = errors.New("window closed")
-	ErrSize     = errors.New("invalid size")
+	ErrClosed   = errs.Wrap(errs.ErrClosed, "window closed")
+	ErrSize     = errs.Wrap(errs.ErrInvalid, "invalid size")
 	ErrNotBound = errors.New("thread not bound")
 	ErrNotMain  = errors.New("not main thread")
 	ErrInit     = errors.New("window init")
@@ -116,10 +117,7 @@ func Open(ctx context.Context, cfg Config) (Window, error) {
 	})
 }
 
-// CloseWhenDone closes w when ctx is done. A nil context panics.
+// CloseWhenDone closes w when ctx is done.
 func CloseWhenDone(ctx context.Context, w Window) {
-	if ctx == nil {
-		panic("window: nil context")
-	}
 	context.AfterFunc(ctx, func() { _ = w.Close() })
 }

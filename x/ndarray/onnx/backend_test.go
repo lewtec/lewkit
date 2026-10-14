@@ -17,6 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/ndarray/onnx/internal/proto"
 	"github.com/lewtec/lewkit/x/path/pick"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 	goproto "google.golang.org/protobuf/proto"
 )
@@ -40,7 +41,7 @@ func TestNodeHarness(t *testing.T) {
 	require.NoError(t, err)
 	if len(official) == 0 {
 		t.Run("official", func(t *testing.T) {
-			t.Skip("onnx node tests not downloaded")
+			test.Skip(t, "onnx node tests not downloaded")
 		})
 	}
 	cases = append(cases, official...)

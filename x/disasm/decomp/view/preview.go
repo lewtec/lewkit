@@ -2,6 +2,7 @@ package view
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,7 +12,15 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/disasm/decomp"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/http/asset"
+)
+
+var (
+	ErrEmptyFunctionAddress = errs.Wrap(errs.ErrEmpty, "empty function address")
+	ErrFunctionAddress      = errors.New("function address")
+	ErrServePreview         = errors.New("preview")
+	ErrServeStopPreview     = errors.New("stop preview")
 )
 
 //go:generate go tool templ generate
@@ -435,11 +444,11 @@ func parseAddress(text string) (uint64, error) {
 	text = strings.TrimPrefix(text, "0x")
 	text = strings.TrimPrefix(text, "0X")
 	if text == "" {
-		return 0, fmt.Errorf("empty function address")
+		return 0, ErrEmptyFunctionAddress
 	}
 	address, err := strconv.ParseUint(text, 16, 64)
 	if err != nil {
-		return 0, fmt.Errorf("function address: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrFunctionAddress, err)
 	}
 	return address, nil
 }

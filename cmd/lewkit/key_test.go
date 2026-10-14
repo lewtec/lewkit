@@ -8,6 +8,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/sops"
 	"github.com/lewtec/lewkit/x/ui/tui"
 	"github.com/stretchr/testify/assert"
@@ -101,9 +102,9 @@ func TestKeyRejectsDirectory(t *testing.T) {
 func TestKeyInterviewCancelWritesNothing(t *testing.T) {
 	t.Setenv("LEWKIT_SIGN_P12", "")
 	err := cmd.ParseOK[cmd.App[root]](t, "release", "key").Args.release.key.generate(t.Context(), func(context.Context, []tui.Question, tui.Grow) ([]tui.Answer, error) {
-		return nil, tui.ErrCanceled
+		return nil, errs.ErrCanceled
 	})
-	require.ErrorIs(t, err, tui.ErrCanceled)
+	require.ErrorIs(t, err, errs.ErrCanceled)
 }
 
 func TestKeyMissingSopsConfig(t *testing.T) {

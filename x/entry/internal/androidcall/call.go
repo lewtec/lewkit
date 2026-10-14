@@ -5,7 +5,12 @@ package androidcall
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	ErrRunEntryNoApp = errs.Wrap(errs.ErrNotFound, "entry: no app")
 )
 
 var (
@@ -63,7 +68,7 @@ func Insets(left, top, right, bottom, width, height int) {
 // Run runs the registered app. No registration is "entry: no app".
 func Run(ctx context.Context) error {
 	if RunFunc == nil {
-		return fmt.Errorf("entry: no app")
+		return ErrRunEntryNoApp
 	}
 	return RunFunc(ctx)
 }

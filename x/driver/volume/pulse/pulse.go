@@ -2,11 +2,16 @@ package pulse
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+)
+
+var (
+	ErrBackendSetVolumeSetVolume = errors.New("set volume")
 )
 
 const sink = "@DEFAULT_SINK@"
@@ -16,7 +21,7 @@ type backend struct{}
 func (backend) SetVolume(ctx context.Context, level float64) error {
 	percent := fmt.Sprintf("%d%%", int(level*100))
 	if err := execdriver.RunProgram(ctx, "pactl", "set-sink-volume", sink, percent); err != nil {
-		return fmt.Errorf("set volume: %w", err)
+		return fmt.Errorf("%w: %w", ErrBackendSetVolumeSetVolume, err)
 	}
 	return nil
 }

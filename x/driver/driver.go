@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/singleton"
 )
 
@@ -29,18 +30,17 @@ var (
 	// ErrIncompatible means the implementation cannot run here.
 	ErrIncompatible = errors.New("component is incompatible")
 	// ErrNotInterface means Get or Register was used with a non-interface type.
-	ErrNotInterface = errors.New("driver is not an interface")
+	ErrNotInterface = errs.Wrap(errs.ErrInvalid, "driver is not an interface")
 	// ErrNotFound means no factory is registered for the interface.
-	ErrNotFound = errors.New("driver not found")
+	ErrNotFound = errs.Wrap(errs.ErrNotFound, "driver not found")
 	// ErrInvalidWeight means a configured weight is outside 0–100.
-	ErrInvalidWeight = errors.New("invalid driver weight")
+	ErrInvalidWeight = errs.Wrap(errs.ErrInvalid, "invalid driver weight")
 	// ErrMissingWeight means SetWeights omitted a registered factory.
-	ErrMissingWeight = errors.New("missing driver weight")
+	ErrMissingWeight = errs.Wrap(errs.ErrMissing, "missing driver weight")
 	// ErrUnavailable means every registered factory failed compatibility or New.
-	ErrUnavailable = errors.New("no available driver")
-	// ErrNilContext means the caller did not pass a context.
-	ErrNilContext = errors.New("driver: nil context")
-	errCorrupt    = errors.New("driver registry corrupt")
+	ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "no available driver")
+
+	errCorrupt = errors.New("driver registry corrupt")
 )
 
 // ForGOOS reports [ErrIncompatible] when this process is not goos.
@@ -376,11 +376,7 @@ func (s factorySet[T]) weightOf(factory DriverFactory[T]) int {
 
 // List returns every compatible driver for T, highest weight first, without
 // constructing them. Get opens the first Handle that New succeeds for.
-// A nil context is an error.
 func List[T any](ctx context.Context) ([]Handle[T], error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	set, err := snapshot[T]()
 	if err != nil {
 		return nil, err

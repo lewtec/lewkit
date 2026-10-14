@@ -8,6 +8,7 @@ import (
 	"testing/synctest"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -117,7 +118,7 @@ func TestOpenConcurrentFailureIsShared(t *testing.T) {
 
 func TestOpenPromotesFlags(t *testing.T) {
 	if Global|Lazy == Lazy {
-		t.Skip("platform load flags do not distinguish global from lazy")
+		test.Skip(t, "platform load flags do not distinguish global from lazy")
 	}
 	var got []int
 	swapLoader(t, func(_ string, flags int) (uintptr, error) {

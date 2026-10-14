@@ -6,6 +6,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/lewtec/lewkit/x/fs"
+)
+
+var (
+	ErrEmptyArchive = fs.ErrEmptyArchive
 )
 
 // ExtractFirst writes the first member of a zip into dir.
@@ -17,7 +23,7 @@ func ExtractFirst(archive, dir string) (string, error) {
 	}
 	defer zr.Close()
 	if len(zr.File) == 0 {
-		return "", fmt.Errorf("empty archive %s", archive)
+		return "", fmt.Errorf("%w %s", ErrEmptyArchive, archive)
 	}
 	entry := zr.File[0]
 	in, err := entry.Open()

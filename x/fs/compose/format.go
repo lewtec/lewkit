@@ -156,7 +156,7 @@ func encodeINI(data map[string]any) ([]byte, error) {
 			}
 			line, err := iniLine(sectionKey, section[sectionKey])
 			if err != nil {
-				return nil, fmt.Errorf("[%s]: %w", key, err)
+				return nil, fmt.Errorf("%w[%s]: %w", ErrEncodeINI, key, err)
 			}
 			if err := writeLine(line); err != nil {
 				return nil, err
@@ -169,7 +169,7 @@ func encodeINI(data map[string]any) ([]byte, error) {
 func iniLine(key string, value any) (string, error) {
 	text, err := formatScalar(value)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", key, err)
+		return "", fmt.Errorf("%w%s: %w", ErrIniLine, key, err)
 	}
 	return key + " = " + text, nil
 }
@@ -270,7 +270,7 @@ func (writer xmlWriter) node(name string, value any, indent int) error {
 	default:
 		text, err := formatScalar(value)
 		if err != nil {
-			return fmt.Errorf("%s: %w", name, err)
+			return fmt.Errorf("%w%s: %w", ErrXmlWriterNode, name, err)
 		}
 		if err := writer.indent(indent); err != nil {
 			return err
