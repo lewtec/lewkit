@@ -54,7 +54,7 @@ func IconRoot(baseDir, icon, iconRoot, workDir, folder string) (string, error) {
 	}
 	dir := filepath.Join(workDir, folder)
 	if _, err := icons.Generate(icons.Options{OutputDir: dir, Force: true, SourcePath: icons.MasterPath(baseDir, icon)}); err != nil {
-		return "", fmt.Errorf("icons: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrIcons, err)
 	}
 	return dir, nil
 }
