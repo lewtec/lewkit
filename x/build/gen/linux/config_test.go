@@ -3,6 +3,8 @@ package linux
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/lewtec/lewkit/x/build/gen/common"
 )
 
@@ -15,17 +17,13 @@ func TestHostConfigRoundTrip(t *testing.T) {
 		GoMain:      ".",
 		Icon:        "icon.png",
 	}
-	if configFromHost(cfg.hostConfig()) != cfg {
-		t.Fatalf("round trip = %#v", configFromHost(cfg.hostConfig()))
-	}
-	if cfg.hostConfig() != (common.HostConfig{
+	require.Equal(t, cfg, configFromHost(cfg.hostConfig()))
+	require.Equal(t, common.HostConfig{
 		PackageID:   cfg.PackageID,
 		AppName:     cfg.AppName,
 		VersionName: cfg.VersionName,
 		VersionCode: cfg.VersionCode,
 		GoMain:      cfg.GoMain,
 		Icon:        cfg.Icon,
-	}) {
-		t.Fatal("host fields differ")
-	}
+	}, cfg.hostConfig())
 }

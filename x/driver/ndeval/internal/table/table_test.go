@@ -31,7 +31,7 @@ func TestOpenKeepsTheFirstProgram(t *testing.T) {
 	require.True(t, fresh)
 
 	second, fresh, err := programs.Open(kernel, same, func() (*program, error) {
-		t.Fatal("create")
+		require.FailNow(t, "create")
 		return nil, nil
 	}, nil)
 	require.NoError(t, err)
