@@ -77,6 +77,63 @@ func useMemory() {
 	memoryOnce.Do(func() { Register("memory", memoryBackend{}) })
 }
 
+type diskImageCacheBackend struct{}
+
+func (diskImageCacheBackend) Name() string { return "disk image cache" }
+
+func (diskImageCacheBackend) Tool(string) (Tool, error) {
+	return diskImageCacheTool{}, nil
+}
+
+type diskImageCacheTool struct{}
+
+func (diskImageCacheTool) ListVersions(context.Context) ([]string, error) {
+	return []string{"0.19.2.1"}, nil
+}
+
+func (diskImageCacheTool) Install(_ context.Context, version, destination string) error {
+	if version != "0.19.2.1" {
+		return errUnexpectedVersion
+	}
+	executable := filepath.Join(destination, "Helium.app", "Contents", "MacOS", "Helium")
+	if err := os.MkdirAll(filepath.Dir(executable), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(executable, []byte("macho"), 0o755)
+}
+
+func (diskImageCacheTool) InstallChecks() []Check {
+	return []Check{Binary("helium")}
+}
+
+var diskImageCacheOnce sync.Once
+
+func useDiskImageCache() {
+	diskImageCacheOnce.Do(func() { Register("dmgcache", diskImageCacheBackend{}) })
+}
+
+func TestEnsureReinstallsCachedDiskImage(t *testing.T) {
+	useDiskImageCache()
+	root := t.TempDir()
+	versionDir := filepath.Join(root, "dmgcache-helium", "0.19.2.1")
+	require.NoError(t, os.MkdirAll(versionDir, 0o755))
+	body := make([]byte, 512)
+	copy(body, []byte("koly"))
+	cached := filepath.Join(versionDir, "helium")
+	require.NoError(t, os.WriteFile(cached, body, 0o755))
+
+	store, err := Open(root)
+	require.NoError(t, err)
+	got, err := store.Ensure(t.Context(), "dmgcache:helium@0.19.2.1", "helium")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(versionDir, "Helium.app", "Contents", "MacOS", "Helium"), got)
+	payload, err := os.ReadFile(got)
+	require.NoError(t, err)
+	require.Equal(t, "macho", string(payload))
+	_, err = os.Stat(cached)
+	require.Error(t, err)
+}
+
 func TestEnsureInstallsAndReuses(t *testing.T) {
 	useMemory()
 	store, err := Open(t.TempDir())

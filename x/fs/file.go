@@ -24,6 +24,8 @@ type File struct {
 	// more than once. A stream body is valid only until the
 	// listing moves on.
 	Reader io.Reader
+	// Link is the symlink target when Mode has [io/fs.ModeSymlink].
+	Link string
 }
 
 // Files is a container listing.

@@ -6,6 +6,7 @@ import (
 	"io"
 	iofs "io/fs"
 	"os"
+	"strings"
 
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/path/pick"
@@ -57,7 +58,11 @@ func Walk(ctx context.Context, fsys iofs.FS, pred pick.Predicate) Files {
 				if err != nil {
 					return err
 				}
-				if !yield(File{Name: p, Mode: info.Mode()}, nil) {
+				target, err := iofs.ReadLink(fsys, name)
+				if err != nil {
+					return err
+				}
+				if !yield(File{Name: p, Mode: info.Mode(), Link: target, Reader: strings.NewReader(target)}, nil) {
 					return errStop
 				}
 				return nil
@@ -147,7 +152,8 @@ func pruned(p path.Path, pred pick.Predicate) bool {
 // stream [File.Reader] stays valid. Directory members are created;
 // file parents are created as needed.
 //
-// An existing dest file is [iofs.ErrExist]. A symlink is [iofs.ErrInvalid].
+// An existing dest file is [iofs.ErrExist]. A symlink is created when
+// dest has Symlink. A dest without Symlink is [iofs.ErrInvalid].
 //
 // Files are created with mode 0o666 plus source execute bits.
 // Directories are created with mode 0o777.
@@ -170,7 +176,13 @@ func Copy(ctx context.Context, dest DestFS, files Files) error {
 			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
 		}
 		if f.Mode&iofs.ModeSymlink != 0 {
-			return &iofs.PathError{Op: "copy", Path: name, Err: iofs.ErrInvalid}
+			if err := w.parents(f.Name); err != nil {
+				return err
+			}
+			if err := w.symlink(name, f); err != nil {
+				return err
+			}
+			continue
 		}
 		if f.Mode.IsDir() {
 			if err := ctx.Err(); err != nil {
@@ -208,6 +220,32 @@ func (w destWriter) parents(p path.Path) error {
 		return nil
 	}
 	return w.dest.MkdirAll(parent, 0o777)
+}
+
+type symlinkFS interface {
+	Symlink(oldname, newname string) error
+}
+
+func (w destWriter) symlink(name string, f File) error {
+	if err := w.ctx.Err(); err != nil {
+		return context.Cause(w.ctx)
+	}
+	target := f.Link
+	if target == "" && f.Reader != nil {
+		body, err := io.ReadAll(ContextReader(w.ctx, f.Reader))
+		if err != nil {
+			return err
+		}
+		target = string(body)
+	}
+	if target == "" {
+		return &iofs.PathError{Op: "symlink", Path: name, Err: iofs.ErrInvalid}
+	}
+	linker, ok := w.dest.(symlinkFS)
+	if !ok {
+		return &iofs.PathError{Op: "symlink", Path: name, Err: iofs.ErrInvalid}
+	}
+	return linker.Symlink(target, name)
 }
 
 func (w destWriter) file(name string, perm iofs.FileMode, r io.Reader) error {

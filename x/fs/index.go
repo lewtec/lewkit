@@ -35,13 +35,16 @@ type Node[T any] struct {
 }
 
 // FS is an [Index] of [File]. [New] builds it from a listing.
-type FS = Index[File]
+type FS struct {
+	*Index[File]
+}
 
 var (
 	_ iofs.FS         = (*FS)(nil)
 	_ iofs.ReadDirFS  = (*FS)(nil)
 	_ iofs.ReadFileFS = (*FS)(nil)
 	_ iofs.StatFS     = (*FS)(nil)
+	_ iofs.ReadLinkFS = (*FS)(nil)
 )
 
 // NewIndex returns an empty index. info describes a node.
@@ -81,7 +84,7 @@ func New(ctx context.Context, files Files) (*FS, error) {
 			return nil, err
 		}
 	}
-	return idx, nil
+	return &FS{Index: idx}, nil
 }
 
 // Add inserts rel. One leading slash is trimmed.
@@ -260,6 +263,24 @@ func (idx *Index[T]) ReadFile(name string) ([]byte, error) {
 	}
 	defer f.Close()
 	return io.ReadAll(f)
+}
+
+// ReadLink implements [io/fs.ReadLinkFS].
+func (idx *FS) ReadLink(name string) (string, error) {
+	n, err := idx.Lookup(name)
+	if err != nil {
+		return "", err
+	}
+	payload := n.Payload()
+	if payload == nil || payload.Mode&iofs.ModeSymlink == 0 || payload.Link == "" {
+		return "", &iofs.PathError{Op: "readlink", Path: name, Err: iofs.ErrInvalid}
+	}
+	return payload.Link, nil
+}
+
+// Lstat implements [io/fs.ReadLinkFS]. Links are not followed.
+func (idx *FS) Lstat(name string) (iofs.FileInfo, error) {
+	return idx.Stat(name)
 }
 
 // Stat implements [io/fs.StatFS].
