@@ -21,7 +21,11 @@ var (
 	ErrClosed = errs.Wrap(errs.ErrClosed, "sound closed")
 )
 
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum sound.go
+
 // Sample is the encoding of one interleaved channel.
+//
+//lewkit:enum
 type Sample uint8
 
 const (

@@ -7,7 +7,11 @@ package coreaudio
 
 import "errors"
 
+//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum coreaudio.go
+
 // Sample selects signed 16-bit or float PCM.
+//
+//lewkit:enum
 type Sample uint8
 
 const (
