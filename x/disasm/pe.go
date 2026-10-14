@@ -7,15 +7,17 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrDecodeHexEmptyHex             = errors.New("empty hex")
+	ErrDecodeHexEmptyHex             = errs.Wrap(errs.ErrEmpty, "empty hex")
 	ErrDecodeHexHex                  = errors.New("hex")
 	ErrELFFileArchitectureElfMachine = errors.New("elf machine")
 	ErrELFFileSectionsElfSection     = errors.New("elf section")
 	ErrELFFileTextSectionElfSection  = errors.New("elf section")
-	ErrLookupNamedUnknown            = errors.New("unknown")
+
 	ErrMachOFileArchitectureMachoCpu = errors.New("macho cpu")
 	ErrMachoSection                  = errors.New("macho section")
 	ErrOddHexLength                  = errors.New("odd hex length")
@@ -25,7 +27,7 @@ var (
 	ErrPEFileArchitecturePeMachine   = errors.New("pe machine")
 	ErrPEFileSectionsPeSection       = errors.New("pe section")
 	ErrPEFileTextSectionPeSection    = errors.New("pe section")
-	ErrParseModeUnknownMode          = errors.New("unknown mode")
+	ErrParseModeUnknownMode          = errs.Wrap(errs.ErrUnknown, "unknown mode")
 )
 
 // PEFile wraps [pe.File].

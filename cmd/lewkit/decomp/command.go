@@ -14,6 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/db"
 	xdecomp "github.com/lewtec/lewkit/x/disasm/decomp"
 	"github.com/lewtec/lewkit/x/disasm/decomp/view"
+	"github.com/lewtec/lewkit/x/errs"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
@@ -24,8 +25,8 @@ var (
 	errFunctionName = errors.New("missing --name")
 	// errCandidate means check was started without the caller's JSON.
 	errCandidate                  = errors.New("missing candidate")
-	ErrDecompNoteCmdRunNoNoteAt0x = errors.New("no note at 0x")
-	ErrDecompSignatureMissingText = errors.New("decomp signature: missing --text")
+	ErrDecompNoteCmdRunNoNoteAt0x = errs.Wrap(errs.ErrNotFound, "no note at 0x")
+	ErrDecompSignatureMissingText = errs.Wrap(errs.ErrMissing, "decomp signature: missing --text")
 	ErrDecompViewCmdRunListen     = errors.New("listen")
 )
 

@@ -7,16 +7,16 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/build/icons"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrRunFromInternalIconsMissing = errors.New("run from internal/icons (missing")
+	ErrRunFromInternalIconsMissing = errs.Wrap(errs.ErrMissing, "run from internal/icons (missing")
 )
 
 func main() {

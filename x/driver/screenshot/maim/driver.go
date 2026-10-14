@@ -2,7 +2,6 @@ package maim
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"image"
 	"strings"
@@ -10,10 +9,11 @@ import (
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/screenshot"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrInvalidSlopOutput = errors.New("invalid slop output")
+	ErrInvalidSlopOutput = errs.Wrap(errs.ErrInvalid, "invalid slop output")
 )
 
 type backend struct{}

@@ -8,7 +8,6 @@ package entry
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -22,14 +21,12 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/messagebox/prelude"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/logging"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("entry: nil context")
 
 // guard turns a panic into an error while the process is an app.
 // A command still panics.
@@ -125,7 +122,7 @@ func Run(ctx context.Context, fn func(context.Context) error) error {
 		slog.SetDefault(slog.New(logging.NewHandler(w, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	}
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	return thread.Run(ctx, func(ctx context.Context) (err error) {
 		defer func() {

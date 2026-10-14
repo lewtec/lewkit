@@ -13,21 +13,22 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/sign"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
 var (
-	ErrBuildNoTarget            = errors.New("build: no target")
-	ErrHasNoAppPackage          = errors.New("has no app package")
+	ErrBuildNoTarget            = errs.Wrap(errs.ErrNotFound, "build: no target")
+	ErrHasNoAppPackage          = errs.Wrap(errs.ErrNotFound, "has no app package")
 	ErrHostWorkflowIcons        = errors.New("icons")
-	ErrIsNotADirectory          = errors.New("is not a directory")
+	ErrIsNotADirectory          = errs.Wrap(errs.ErrInvalid, "is not a directory")
 	ErrJobArchiveTargetBuild    = errors.New("build")
 	ErrJobArchiveTargetSign     = errors.New("sign")
 	ErrJobArchiveTargetSign2    = errors.New("sign")
 	ErrUberAssembleIcons        = errors.New("icons")
-	ErrUnsupportedAndroidGoarch = errors.New("unsupported android GOARCH")
+	ErrUnsupportedAndroidGoarch = errs.Wrap(errs.ErrUnsupported, "unsupported android GOARCH")
 )
 
 // Uber is every archive and host package this process can finish.
@@ -53,7 +54,7 @@ func HostTargets(ctx context.Context) ([]Target, error) {
 
 func hostTargets(ctx context.Context, cgo bool) ([]Target, error) {
 	if ctx == nil {
-		return nil, ErrNilContext
+		return nil, errs.ErrNilContext
 	}
 	var out []Target
 	for _, goarch := range []string{"amd64", "arm64"} {
@@ -92,7 +93,7 @@ func darwinTools(ctx context.Context) bool {
 // The steps share one workflow. Run waits on the future for that graph.
 func (u Uber) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
-		return nil, ErrNilContext
+		return nil, errs.ErrNilContext
 	}
 	apps, err := hostTargets(ctx, u.CGO)
 	if err != nil {

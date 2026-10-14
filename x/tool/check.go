@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 )
 
@@ -16,9 +17,9 @@ var (
 	// ErrCheckFailed is returned when one or more install checks do not pass.
 	ErrCheckFailed = errors.New("install check failed")
 	// ErrBinaryNotFound is returned when a named binary is missing from an install directory.
-	ErrBinaryNotFound = errors.New("binary not found")
+	ErrBinaryNotFound = errs.Wrap(errs.ErrNotFound, "binary not found")
 	// ErrEmptyRelativePath is returned when a check path is empty or ".".
-	ErrEmptyRelativePath = errors.New("empty relative path")
+	ErrEmptyRelativePath = errs.Wrap(errs.ErrEmpty, "empty relative path")
 	// ErrPathEscapes is returned when a check path resolves outside the install directory.
 	ErrPathEscapes = errors.New("path escapes install directory")
 )

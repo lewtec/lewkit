@@ -3,14 +3,14 @@
 package webkit
 
 import (
-	"errors"
 	"fmt"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 // ErrUnavailable means WebKit.framework could not be opened.
-var ErrUnavailable = errors.New("webkit unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "webkit unavailable")
 
 // Load opens Cocoa and WebKit. Later Objective-C calls use those frameworks.
 func Load() error {

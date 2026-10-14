@@ -13,15 +13,16 @@ import (
 	"errors"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrIPC means a compositor command failed or returned invalid JSON.
 	ErrIPC = errors.New("ipc communication failure")
 	// ErrNoFocusedOutput means no output is focused.
-	ErrNoFocusedOutput = errors.New("no focused output found")
+	ErrNoFocusedOutput = errs.Wrap(errs.ErrNotFound, "no focused output found")
 	// ErrNoFocusedWindow means no window is focused.
-	ErrNoFocusedWindow = errors.New("no focused window found")
+	ErrNoFocusedWindow = errs.Wrap(errs.ErrNotFound, "no focused window found")
 )
 
 // Rect is a geometry rectangle in pixels.

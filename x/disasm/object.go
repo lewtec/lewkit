@@ -3,16 +3,17 @@ package disasm
 import (
 	"debug/elf"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrUnknownFormat is [ReadText] on bytes that are not ELF, PE, or Mach-O.
-var ErrUnknownFormat = errors.New("unknown object format")
+var ErrUnknownFormat = errs.Wrap(errs.ErrUnknown, "unknown object format")
 
 // ErrNoText is [ReadText] when the named or default text section is missing.
-var ErrNoText = errors.New("no text section")
+var ErrNoText = errs.Wrap(errs.ErrNotFound, "no text section")
 
 // Object is an opened object file. [ELFFile], [PEFile], and [MachOFile] implement it.
 type Object interface {

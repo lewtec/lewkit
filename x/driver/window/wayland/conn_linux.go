@@ -10,14 +10,15 @@ import (
 	"io"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"golang.org/x/sys/unix"
 )
 
 var (
 	ErrOpenerOpenWayland                      = errors.New("wayland")
-	ErrWaylandCompositorShmOrXdgWmBaseMissing = errors.New("wayland: compositor, shm, or xdg_wm_base missing")
-	ErrWaylandDisplayClosed                   = errors.New("wayland: display closed")
-	ErrWaylandNoArgb8888ShmFormat             = errors.New("wayland: no argb8888 shm format")
+	ErrWaylandCompositorShmOrXdgWmBaseMissing = errs.Wrap(errs.ErrMissing, "wayland: compositor, shm, or xdg_wm_base missing")
+	ErrWaylandDisplayClosed                   = errs.Wrap(errs.ErrClosed, "wayland: display closed")
+	ErrWaylandNoArgb8888ShmFormat             = errs.Wrap(errs.ErrNotFound, "wayland: no argb8888 shm format")
 	ErrWaylandShortHeader                     = errors.New("wayland: short header")
 	ErrWaylandUnalignedMessage                = errors.New("wayland: unaligned message")
 	ErrWlwinReallocWaylandSize                = errors.New("wayland: size")

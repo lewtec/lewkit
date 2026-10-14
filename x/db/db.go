@@ -47,13 +47,14 @@ import (
 	"sync/atomic"
 
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	errNilNew             = errors.New("nil constructor")
 	errNotOpen            = errors.New("database not open")
-	ErrUnknownScheme      = errors.New("unknown database scheme")
-	ErrNoMigrations       = errors.New("no migrations for engine")
+	ErrUnknownScheme      = errs.Wrap(errs.ErrUnknown, "unknown database scheme")
+	ErrNoMigrations       = errs.Wrap(errs.ErrNotFound, "no migrations for engine")
 	ErrConnMigrateMigrate = errors.New("migrate")
 	ErrConnMigrateOpen    = errors.New("open")
 	ErrConnMigratePing    = errors.New("ping")

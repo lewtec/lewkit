@@ -3,6 +3,8 @@ package ninja
 import (
 	"fmt"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 func expand(s string, resolve func(string) (string, bool, bool), keepSpace bool) (string, error) {
@@ -17,7 +19,7 @@ func expandDepth(s string, resolve func(string) (string, bool, bool), stack map[
 			continue
 		}
 		if i+1 >= len(s) {
-			return "", fmt.Errorf("%w: trailing $", ErrSyntax)
+			return "", fmt.Errorf("%w: trailing $", errs.ErrSyntax)
 		}
 		i++
 		switch s[i] {
@@ -44,7 +46,7 @@ func expandDepth(s string, resolve func(string) (string, bool, bool), stack map[
 		case '{':
 			end := strings.IndexByte(s[i:], '}')
 			if end < 0 {
-				return "", fmt.Errorf("%w: unclosed ${", ErrSyntax)
+				return "", fmt.Errorf("%w: unclosed ${", errs.ErrSyntax)
 			}
 			name := s[i+1 : i+end]
 			i += end
@@ -59,7 +61,7 @@ func expandDepth(s string, resolve func(string) (string, bool, bool), stack map[
 				j++
 			}
 			if j == i {
-				return "", fmt.Errorf("%w: bad $", ErrSyntax)
+				return "", fmt.Errorf("%w: bad $", errs.ErrSyntax)
 			}
 			name := s[i:j]
 			i = j - 1
@@ -75,7 +77,7 @@ func expandDepth(s string, resolve func(string) (string, bool, bool), stack map[
 
 func expandName(name string, resolve func(string) (string, bool, bool), stack map[string]bool, keepSpace bool) (string, error) {
 	if stack[name] {
-		return "", fmt.Errorf("%w: %s", ErrCycle, name)
+		return "", fmt.Errorf("%w: %s", errs.ErrCycle, name)
 	}
 	val, literal, ok := resolve(name)
 	if !ok {

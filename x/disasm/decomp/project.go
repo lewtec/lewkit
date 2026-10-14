@@ -14,15 +14,16 @@ import (
 
 	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/disasm"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrNoCode is [Project.Add] on an image with no executable section.
-	ErrNoCode = errors.New("no executable section")
+	ErrNoCode = errs.Wrap(errs.ErrNotFound, "no executable section")
 	// ErrArtifact is [Project.Add] when that name is already open.
-	ErrArtifact = errors.New("artifact already open")
+	ErrArtifact = errs.Wrap(errs.ErrAlreadyExists, "artifact already open")
 	// ErrNotFound is a function address that is not a function start.
-	ErrNotFound = errors.New("function not found")
+	ErrNotFound = errs.Wrap(errs.ErrNotFound, "function not found")
 	// ErrUnmatched is [Artifact.Check] when the candidate does not copy the lift.
 	ErrUnmatched = errors.New("decompilation does not match")
 	// ErrNotStored is a name, note, or signature written on a project with no file.

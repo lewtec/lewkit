@@ -5,11 +5,12 @@ package androidcall
 
 import (
 	"context"
-	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrRunEntryNoApp = errors.New("entry: no app")
+	ErrRunEntryNoApp = errs.Wrap(errs.ErrNotFound, "entry: no app")
 )
 
 var (

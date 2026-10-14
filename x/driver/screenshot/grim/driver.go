@@ -2,7 +2,6 @@ package grim
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"image"
 	"strings"
@@ -10,10 +9,11 @@ import (
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/screenshot"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrInvalidSlurpOutput = errors.New("invalid slurp output")
+	ErrInvalidSlurpOutput = errs.Wrap(errs.ErrInvalid, "invalid slurp output")
 )
 
 type backend struct{}

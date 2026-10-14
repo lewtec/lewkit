@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -402,7 +403,7 @@ b: a
 	f, err := Load(t.Context(), filepath.Join(dir, "Makefile"), dir, nil, nil)
 	require.NoError(t, err)
 	_, err = f.Graph(t.Context(), []string{"a"})
-	require.ErrorIs(t, err, ErrCycle)
+	require.ErrorIs(t, err, errs.ErrCycle)
 }
 
 func commandText(t *testing.T, step workflow.Step) string {

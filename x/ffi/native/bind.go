@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
@@ -12,11 +14,11 @@ var (
 	ErrCheckBindNativeBind     = errors.New("native.Bind")
 	ErrFillBindCannotBeSet     = errors.New("cannot be set")
 	ErrFillBindNativeBind      = errors.New("native.Bind")
-	ErrIsNotAStruct            = errors.New("is not a struct")
-	ErrIsNotAnExportedFunction = errors.New("is not an exported function")
-	ErrMissingSymTag           = errors.New("missing sym tag")
-	ErrParseSymBadSymTag       = errors.New("bad sym tag")
-	ErrParseSymEmptySymTag     = errors.New("empty sym tag")
+	ErrIsNotAStruct            = errs.Wrap(errs.ErrInvalid, "is not a struct")
+	ErrIsNotAnExportedFunction = errs.Wrap(errs.ErrInvalid, "is not an exported function")
+	ErrMissingSymTag           = errs.Wrap(errs.ErrMissing, "missing sym tag")
+	ErrParseSymBadSymTag       = errs.Wrap(errs.ErrInvalid, "bad sym tag")
+	ErrParseSymEmptySymTag     = errs.Wrap(errs.ErrEmpty, "empty sym tag")
 )
 
 // Bind loads the first library in names and returns T filled from it.

@@ -12,13 +12,15 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/stretchr/testify/require"
 )
 
 // TestConventions rejects inline errors at return sites, testing assertions
-// outside testify, nil contexts, and context roots outside main, a godoc
-// example, and the Android host entry. The vendored compiler trees are not
-// this module's code.
+// outside testify, nil contexts, context roots outside main, a godoc
+// example, and the Android host entry, and sentinels that repeat a meta
+// condition without wrapping it. The vendored compiler trees are not this
+// module's code.
 func TestConventions(t *testing.T) {
 	root := moduleRoot(t)
 	index := newSigIndex(modulePath(root))
@@ -198,6 +200,39 @@ func Example() {
 	require.Empty(t, checkSource("p_test.go", []byte(example)))
 }
 
+func TestConventionMeta(t *testing.T) {
+	const src = `package p
+
+import "errors"
+
+var (
+	ErrFile = errors.New("file not found")
+	ErrNil  = errors.New("make: nil context")
+	ErrKnown = errors.New("known")
+)
+`
+	require.Equal(t, []string{
+		"p.go:6:2: wrap errs.ErrNotFound",
+		"p.go:7:2: use errs.ErrNilContext",
+	}, checkSource("p.go", []byte(src)))
+
+	const testSrc = `package p
+
+import "errors"
+
+var ErrFile = errors.New("file not found")
+`
+	require.Empty(t, checkSource("p_test.go", []byte(testSrc)))
+
+	const meta = `package errs
+
+import "errors"
+
+var ErrNotFound = errors.New("not found")
+`
+	require.Empty(t, checkSource("x/errs/errs.go", []byte(meta)))
+}
+
 func moduleRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
@@ -294,6 +329,7 @@ func (c *conventionChecker) Visit(node ast.Node) ast.Visitor {
 }
 
 func (c *conventionChecker) inspect(node ast.Node) {
+	c.noteSentinel(node)
 	call, ok := node.(*ast.CallExpr)
 	if !ok {
 		return
@@ -320,6 +356,73 @@ func (c *conventionChecker) inspect(node ast.Node) {
 			c.add(call, "fmt.Errorf at a return")
 		}
 	}
+}
+
+// noteSentinel flags a package-level sentinel whose text is a meta condition
+// but which does not wrap that parent. x/errs defines the parents.
+func (c *conventionChecker) noteSentinel(node ast.Node) {
+	spec, ok := node.(*ast.ValueSpec)
+	if !ok || c.testFile || inFunc(c.stack) {
+		return
+	}
+	for i, name := range spec.Names {
+		if name == nil || i >= len(spec.Values) {
+			continue
+		}
+		text, ok := sentinelText(spec.Values[i], c.errors, c.fmt)
+		if !ok {
+			continue
+		}
+		parent, collapse := errs.Classify(name.Name, text)
+		if parent == "" {
+			continue
+		}
+		if collapse && name.Name == parent && filepath.ToSlash(c.name) == "x/errs/errs.go" {
+			continue
+		}
+		if collapse {
+			c.add(name, "use errs."+parent)
+			continue
+		}
+		c.add(name, "wrap errs."+parent)
+	}
+}
+
+func sentinelText(expr ast.Expr, errorsName, fmtName string) (string, bool) {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return "", false
+	}
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || len(call.Args) == 0 {
+		return "", false
+	}
+	receiver, ok := selector.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+	switch {
+	case receiver.Name == errorsName && selector.Sel.Name == "New" && len(call.Args) == 1:
+		return stringLiteral(call.Args[0])
+	case receiver.Name == fmtName && selector.Sel.Name == "Errorf" && len(call.Args) == 1:
+		text, ok := stringLiteral(call.Args[0])
+		if !ok || strings.Contains(text, "%") {
+			return "", false
+		}
+		return text, true
+	default:
+		return "", false
+	}
+}
+
+func inFunc(stack []ast.Node) bool {
+	for _, node := range stack {
+		switch node.(type) {
+		case *ast.FuncDecl, *ast.FuncLit:
+			return true
+		}
+	}
+	return false
 }
 
 func (c *conventionChecker) noteAssertion(call *ast.CallExpr, selector *ast.SelectorExpr) {

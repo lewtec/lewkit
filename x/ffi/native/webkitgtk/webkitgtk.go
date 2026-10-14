@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -24,7 +25,7 @@ var (
 )
 
 // ErrUnavailable means a required shared library or symbol is missing.
-var ErrUnavailable = errors.New("webkitgtk unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "webkitgtk unavailable")
 
 // Symbols is the WebKitGTK 6 / GTK 4 entry points used to open a page
 // and pass script messages. Callers run these on one OS thread.

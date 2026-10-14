@@ -14,9 +14,8 @@ import (
 )
 
 var (
-	ErrGdiErr           = errors.New("")
-	ErrGdiErrStatus     = errors.New("status")
-	ErrWindowNilContext = errors.New("window: nil context")
+	ErrGdiErr       = errors.New("")
+	ErrGdiErrStatus = errors.New("status")
 )
 
 var (

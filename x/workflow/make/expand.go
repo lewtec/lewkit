@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/workflow"
 )
@@ -16,12 +17,12 @@ import (
 var (
 	ErrFileCallFuncMake                 = errors.New("make")
 	ErrFileRunRecipe                    = errors.New("")
-	ErrMakeEvalIsNotSupported           = errors.New("make: eval is not supported")
+	ErrMakeEvalIsNotSupported           = errs.Wrap(errs.ErrUnsupported, "make: eval is not supported")
 	ErrMakeIncludedMakefileWasNotRemade = errors.New("make: included makefile was not remade")
-	ErrMakeNilContext                   = errors.New("make: nil context")
-	ErrMakeUnterminatedVariableNear     = errors.New("make: unterminated variable near")
-	ErrMakeVariableRecursion            = errors.New("make: variable recursion")
-	ErrNoSuchFileOrDirectory            = errors.New("no such file or directory")
+
+	ErrMakeUnterminatedVariableNear = errors.New("make: unterminated variable near")
+	ErrMakeVariableRecursion        = errors.New("make: variable recursion")
+	ErrNoSuchFileOrDirectory        = errs.Wrap(errs.ErrNotFound, "no such file or directory")
 )
 
 const maxExpand = 64
@@ -615,7 +616,7 @@ func (f *File) withCall(name string, args []string, fn func() error) error {
 // GNU make. A cancelled context is returned so the load stops with it.
 func (f *File) shell(script string) (string, error) {
 	if f.ctx == nil {
-		return "", ErrMakeNilContext
+		return "", errs.ErrNilContext
 	}
 	if err := f.ctx.Err(); err != nil {
 		return "", err

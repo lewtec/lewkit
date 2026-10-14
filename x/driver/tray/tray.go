@@ -27,12 +27,13 @@ import (
 	"image"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 )
 
 var (
 	// ErrClosed means the tray has been closed.
-	ErrClosed = errors.New("tray closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "tray closed")
 	// ErrIcon means the icon bytes are not a PNG, JPEG, ICO, or ICNS this
 	// package can read.
 	ErrIcon = errors.New("tray icon")

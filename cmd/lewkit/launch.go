@@ -13,17 +13,19 @@ import (
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/fs/tar"
 	"github.com/lewtec/lewkit/x/fs/zip"
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/lewtec/lewkit/x/sops"
 )
 
 var (
 	ErrBuiltLinuxApp      = errors.New("built linux app")
 	ErrBuiltWindowsApp    = errors.New("built windows app")
-	ErrHasNoAppToLaunch   = errors.New("has no app to launch")
+	ErrHasNoAppToLaunch   = errs.Wrap(errs.ErrNotFound, "has no app to launch")
 	ErrNegativeOffset     = errors.New("negative offset")
-	ErrSopsCommandIsEmpty = errors.New("sops: command is empty")
+	ErrSopsCommandIsEmpty = sops.ErrSopsCommandIsEmpty
 )
 
 type builtProgram struct {

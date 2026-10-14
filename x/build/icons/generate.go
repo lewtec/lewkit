@@ -13,14 +13,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/image/convert"
 )
 
 // Sentinel errors for icon generation.
 var (
 	ErrSVGNotRasterized    = errors.New("svg masters are not rasterized in-process yet; pass a PNG/JPEG, or convert first (tool catalog TBD)")
-	ErrAndroidIconsMissing = errors.New("android icons missing (run build icons)")
-	ErrMacOSIconMissing    = errors.New("macos icon.icns missing (run build icons)")
+	ErrAndroidIconsMissing = errs.Wrap(errs.ErrMissing, "android icons missing (run build icons)")
+	ErrMacOSIconMissing    = errs.Wrap(errs.ErrMissing, "macos icon.icns missing (run build icons)")
 )
 
 // Options drives Generate.

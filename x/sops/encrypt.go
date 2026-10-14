@@ -11,6 +11,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/tool"
 	_ "github.com/lewtec/lewkit/x/tool/github"
@@ -20,19 +21,16 @@ var (
 	ErrEncryptErrSops        = errors.New("sops")
 	ErrEncryptSops           = errors.New("sops")
 	ErrFileParse             = errors.New("")
-	ErrSopsCommandIsEmpty    = errors.New("sops: command is empty")
-	ErrSopsEmptyDotenvKey    = errors.New("sops: empty dotenv key")
-	ErrSopsInvalidDotenvLine = errors.New("sops: invalid dotenv line")
+	ErrSopsCommandIsEmpty    = errs.Wrap(errs.ErrEmpty, "sops: command is empty")
+	ErrSopsEmptyDotenvKey    = errs.Wrap(errs.ErrEmpty, "sops: empty dotenv key")
+	ErrSopsInvalidDotenvLine = errs.Wrap(errs.ErrInvalid, "sops: invalid dotenv line")
 )
 
 // sopsRef is the lazy tool ref. The version lives in modot.lock.json.
 const sopsRef = "github:getsops/sops"
 
 // ErrNoConfig means no .sops.yaml was found above the output path.
-var ErrNoConfig = errors.New("sops config file not found")
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("sops: nil context")
+var ErrNoConfig = errs.Wrap(errs.ErrNotFound, "sops config file not found")
 
 // Encrypt encrypts plaintext for path with the sops lazy tool.
 // The version is the modot.lock.json pin above path, or latest when
@@ -41,7 +39,7 @@ var ErrNilContext = errors.New("sops: nil context")
 // is ErrNoConfig.
 func Encrypt(ctx context.Context, path string, plaintext []byte) ([]byte, error) {
 	if ctx == nil {
-		return nil, ErrNilContext
+		return nil, errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

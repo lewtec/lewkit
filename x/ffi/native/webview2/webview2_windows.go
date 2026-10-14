@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -21,7 +22,7 @@ var (
 )
 
 // ErrUnavailable means the installed Edge WebView2 runtime could not be opened.
-var ErrUnavailable = errors.New("webview2 unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "webview2 unavailable")
 
 const (
 	hkeyCurrentUser  = 0x80000001

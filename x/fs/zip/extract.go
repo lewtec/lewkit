@@ -2,15 +2,16 @@ package zip
 
 import (
 	stdzip "archive/zip"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/lewtec/lewkit/x/fs"
 )
 
 var (
-	ErrEmptyArchive = errors.New("empty archive")
+	ErrEmptyArchive = fs.ErrEmptyArchive
 )
 
 // ExtractFirst writes the first member of a zip into dir.

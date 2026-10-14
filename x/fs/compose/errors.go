@@ -3,11 +3,13 @@ package compose
 import (
 	"errors"
 	iofs "io/fs"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrType is an unknown type, or two types on one path.
-	ErrType = errors.New("bad file type")
+	ErrType = errs.Wrap(errs.ErrInvalid, "bad file type")
 	// ErrSlot is a slot whose kind is unknown, or the same key with a different body.
 	ErrSlot = errors.New("slot conflict")
 	// ErrArity is a text or ref file that does not have exactly one slot.
@@ -17,13 +19,13 @@ var (
 	// ErrMode is two explicit modes that differ.
 	ErrMode = errors.New("file mode conflict")
 	// ErrPath is a destination name that cannot be stored.
-	ErrPath = errors.New("invalid file path")
+	ErrPath = errs.Wrap(errs.ErrInvalid, "invalid file path")
 	// ErrRef is a ref slot that cannot be opened.
 	ErrRef = errors.New("ref slot")
 	// ErrMount is a CUE mount path that is not a dotted identifier chain.
-	ErrMount = errors.New("invalid cue mount path")
+	ErrMount = errs.Wrap(errs.ErrInvalid, "invalid cue mount path")
 	// ErrRegistered is [Register] of a name that already has a format.
-	ErrRegistered           = errors.New("format already registered")
+	ErrRegistered           = errs.Wrap(errs.ErrAlreadyExists, "format already registered")
 	ErrCompileMount         = errors.New("compile mount")
 	ErrConstrainUnifyMount  = errors.New("unify mount")
 	ErrEncodeINI            = errors.New("")

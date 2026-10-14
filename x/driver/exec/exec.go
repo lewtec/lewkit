@@ -23,17 +23,17 @@ import (
 	"sync/atomic"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrNotFound means the executable is not on PATH.
-	ErrNotFound = errors.New("executable not found")
+	ErrNotFound = errs.Wrap(errs.ErrNotFound, "executable not found")
 	// ErrNilCommand means Start was given no command.
 	ErrNilCommand = errors.New("nil command")
 	// ErrStdoutSet means Output was called with Stdout already set.
-	ErrStdoutSet = errors.New("stdout already set")
-	// ErrNilContext means the caller did not pass a context.
-	ErrNilContext   = errors.New("exec: nil context")
+	ErrStdoutSet = errs.Wrap(errs.ErrAlreadyExists, "stdout already set")
+
 	ErrOutputString = errors.New("")
 	ErrRunProgram   = errors.New("")
 )
@@ -73,7 +73,7 @@ type Driver interface {
 // The process is not started and streams are left unset.
 func Command(ctx context.Context, name string, args ...string) (*exec.Cmd, error) {
 	if ctx == nil {
-		return nil, ErrNilContext
+		return nil, errs.ErrNilContext
 	}
 	d, err := driver.Get[Driver](ctx)
 	if err != nil {
@@ -110,7 +110,7 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 		return ErrNilCommand
 	}
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -134,7 +134,7 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 // A nil context is an error.
 func Wait(ctx context.Context, cmd *exec.Cmd) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	err := cmd.Wait()
 	if ctxErr := ctx.Err(); ctxErr != nil {
@@ -157,7 +157,7 @@ func Output(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
 // RunProgram runs name with args. A failure names the program.
 func RunProgram(ctx context.Context, name string, args ...string) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	if err := Run(ctx, MustCommand(ctx, name, args...)); err != nil {
 		return fmt.Errorf("%w%s: %w", ErrRunProgram, name, err)
@@ -169,7 +169,7 @@ func RunProgram(ctx context.Context, name string, args ...string) error {
 // A failure names the program.
 func OutputString(ctx context.Context, name string, args ...string) (string, error) {
 	if ctx == nil {
-		return "", ErrNilContext
+		return "", errs.ErrNilContext
 	}
 	out, err := Output(ctx, MustCommand(ctx, name, args...))
 	if err != nil {
@@ -182,7 +182,7 @@ func OutputString(ctx context.Context, name string, args ...string) (string, err
 // A nil context is an error and does not fall through to LookPath.
 func Which(ctx context.Context, name string) (string, error) {
 	if ctx == nil {
-		return "", ErrNilContext
+		return "", errs.ErrNilContext
 	}
 	d, err := driver.Get[Driver](ctx)
 	if err != nil {

@@ -3,25 +3,27 @@ package vulkan
 import (
 	"errors"
 	"strconv"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrUnavailable means libvulkan did not load or a required command is missing.
-	ErrUnavailable = errors.New("vulkan unavailable")
+	ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "vulkan unavailable")
 	// ErrNoDevice means no compute-capable physical device was found.
-	ErrNoDevice = errors.New("no compute device")
+	ErrNoDevice = errs.Wrap(errs.ErrNotFound, "no compute device")
 	// ErrClosed means the device, buffer, or shader was already closed.
-	ErrClosed = errors.New("vulkan closed")
+	ErrClosed = errs.Wrap(errs.ErrClosed, "vulkan closed")
 	// ErrSize means a buffer or write length is invalid.
-	ErrSize = errors.New("invalid size")
+	ErrSize = errs.Wrap(errs.ErrInvalid, "invalid size")
 	// ErrShader means SPIR-V or binding count is invalid.
-	ErrShader = errors.New("invalid shader")
+	ErrShader = errs.Wrap(errs.ErrInvalid, "invalid shader")
 	// ErrBusy means a command buffer is recording or still on the queue.
 	ErrBusy = errors.New("command buffer busy")
 	// ErrPush means push-constant data does not match the shader.
-	ErrPush = errors.New("invalid push constants")
+	ErrPush = errs.Wrap(errs.ErrInvalid, "invalid push constants")
 	// ErrDeviceType means the device-type token is not a known String().
-	ErrDeviceType = errors.New("unknown device type")
+	ErrDeviceType = errs.Wrap(errs.ErrUnknown, "unknown device type")
 )
 
 // Result is a VkResult.

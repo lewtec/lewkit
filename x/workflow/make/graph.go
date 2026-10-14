@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/workflow"
 )
@@ -31,7 +32,7 @@ type builder struct {
 // default goal.
 func (f *File) Graph(ctx context.Context, targets []string) (workflow.Graph, error) {
 	if ctx == nil {
-		return workflow.Graph{}, ErrMakeNilContext
+		return workflow.Graph{}, errs.ErrNilContext
 	}
 	f.ctx = ctx
 	if len(targets) == 0 {
@@ -85,7 +86,7 @@ func (b *builder) need(target string) error {
 		return nil
 	}
 	if b.visiting[target] {
-		return fmt.Errorf("make: %w: %s", ErrCycle, target)
+		return fmt.Errorf("make: %w: %s", errs.ErrCycle, target)
 	}
 	b.visiting[target] = true
 	spec := b.f.ruleFor(target)

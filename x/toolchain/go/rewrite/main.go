@@ -27,6 +27,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
@@ -36,7 +38,7 @@ var (
 	ErrCopyPkg                         = errors.New("")
 	ErrLinkExitWasNotPatched           = errors.New("link Exit was not patched")
 	ErrPatchLibAnchors                 = errors.New("anchors")
-	ErrPatchLibEmptyAnchor             = errors.New("empty anchor")
+	ErrPatchLibEmptyAnchor             = errs.Wrap(errs.ErrEmpty, "empty anchor")
 	ErrPatchLibPatch                   = errors.New("patch")
 )
 

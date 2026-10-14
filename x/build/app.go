@@ -10,6 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/ios"
 	"github.com/lewtec/lewkit/x/build/gen/mac"
 	"github.com/lewtec/lewkit/x/build/icons"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
@@ -20,7 +21,7 @@ import (
 // returns, so the path exists when Build returns.
 func (host Host) Build(ctx context.Context, goos string) (string, error) {
 	if ctx == nil {
-		return "", ErrNilContext
+		return "", errs.ErrNilContext
 	}
 	var path string
 	graph, err := host.workflow(goos, func(built string) { path = built })

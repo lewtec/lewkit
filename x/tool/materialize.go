@@ -18,6 +18,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
+	"github.com/lewtec/lewkit/x/errs"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 	"github.com/lewtec/lewkit/x/fs/squashfs"
 	tarfs "github.com/lewtec/lewkit/x/fs/tar"
@@ -27,9 +28,9 @@ import (
 
 var (
 	// ErrEmptyDownloadURL is returned when a download URL is blank.
-	ErrEmptyDownloadURL = errors.New("download URL cannot be empty")
+	ErrEmptyDownloadURL = errs.Wrap(errs.ErrEmpty, "download URL cannot be empty")
 	// ErrNoDownloadURLs is returned when every candidate URL is blank.
-	ErrNoDownloadURLs = errors.New("no download URLs provided")
+	ErrNoDownloadURLs = errs.Wrap(errs.ErrNotFound, "no download URLs provided")
 )
 
 // DownloadOptions controls one file download.

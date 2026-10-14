@@ -3,20 +3,20 @@ package pkg
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
 )
 
 var (
-	ErrEmptyClaudeCodeVersionResponseFor = errors.New("empty claude-code version response for")
-	ErrNoSuitableArtifactFoundFor        = errors.New("no suitable artifact found for")
-	ErrNotFoundInClaudeCodeManifestFor   = errors.New("not found in claude-code manifest for")
+	ErrEmptyClaudeCodeVersionResponseFor = errs.Wrap(errs.ErrEmpty, "empty claude-code version response for")
+	ErrNoSuitableArtifactFoundFor        = install.ErrNoSuitableArtifactFoundFor
+	ErrNotFoundInClaudeCodeManifestFor   = errs.Wrap(errs.ErrNotFound, "not found in claude-code manifest for")
 )
 
 const claudeCodeReleasesBaseURL = "https://downloads.claude.ai/claude-code-releases"

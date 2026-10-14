@@ -14,6 +14,8 @@ import (
 	"math"
 	"slices"
 	"sync"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
@@ -21,24 +23,24 @@ var (
 	ErrBaseColorPato                  = errors.New("pato")
 	ErrIsNotFloatVec                  = errors.New("is not float vec")
 	ErrLoadGLBPato                    = errors.New("pato")
-	ErrLoadGLBPatoNotAGlb             = errors.New("pato: not a glb")
+	ErrLoadGLBPatoNotAGlb             = errs.Wrap(errs.ErrInvalid, "pato: not a glb")
 	ErrPatoAccessor                   = errors.New("pato: accessor")
-	ErrPatoBadChunk                   = errors.New("pato: bad chunk")
-	ErrPatoBadImage                   = errors.New("pato: bad image")
-	ErrPatoBadImageView               = errors.New("pato: bad image view")
-	ErrPatoBadTexture                 = errors.New("pato: bad texture")
-	ErrPatoEmptyGlb                   = errors.New("pato: empty glb")
-	ErrPatoImageOutOfRange            = errors.New("pato: image out of range")
+	ErrPatoBadChunk                   = errs.Wrap(errs.ErrInvalid, "pato: bad chunk")
+	ErrPatoBadImage                   = errs.Wrap(errs.ErrInvalid, "pato: bad image")
+	ErrPatoBadImageView               = errs.Wrap(errs.ErrInvalid, "pato: bad image view")
+	ErrPatoBadTexture                 = errs.Wrap(errs.ErrInvalid, "pato: bad texture")
+	ErrPatoEmptyGlb                   = errs.Wrap(errs.ErrEmpty, "pato: empty glb")
+	ErrPatoImageOutOfRange            = errs.Wrap(errs.ErrOutOfRange, "pato: image out of range")
 	ErrPatoIndexCount                 = errors.New("pato: index count")
-	ErrPatoIndexOutOfRange            = errors.New("pato: index out of range")
+	ErrPatoIndexOutOfRange            = errs.Wrap(errs.ErrOutOfRange, "pato: index out of range")
 	ErrPatoIndexType                  = errors.New("pato: index type")
 	ErrPatoIndicesAreNotScalar        = errors.New("pato: indices are not scalar")
 	ErrPatoIndicesShort               = errors.New("pato: indices short")
-	ErrPatoMeshHasNoTexturedTriangles = errors.New("pato: mesh has no textured triangles")
-	ErrPatoNoBaseColor                = errors.New("pato: no base color")
-	ErrPatoNoMaterial                 = errors.New("pato: no material")
-	ErrPatoPrimitiveHasNoPositions    = errors.New("pato: primitive has no positions")
-	ErrPatoPrimitiveHasNoUvs          = errors.New("pato: primitive has no uvs")
+	ErrPatoMeshHasNoTexturedTriangles = errs.Wrap(errs.ErrNotFound, "pato: mesh has no textured triangles")
+	ErrPatoNoBaseColor                = errs.Wrap(errs.ErrNotFound, "pato: no base color")
+	ErrPatoNoMaterial                 = errs.Wrap(errs.ErrNotFound, "pato: no material")
+	ErrPatoPrimitiveHasNoPositions    = errs.Wrap(errs.ErrNotFound, "pato: primitive has no positions")
+	ErrPatoPrimitiveHasNoUvs          = errs.Wrap(errs.ErrNotFound, "pato: primitive has no uvs")
 	ErrPatoShortGlb                   = errors.New("pato: short glb")
 )
 

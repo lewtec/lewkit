@@ -5,20 +5,21 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"golang.org/x/exp/constraints"
 )
 
 var (
-	ErrInvalidArgument = errors.New("invalid argument")
-	ErrUnknownFlag     = errors.New("unknown flag")
-	ErrMissingValue    = errors.New("missing value")
-	ErrInvalidSpec     = errors.New("invalid command spec")
-	ErrUnknownCommand  = errors.New("unknown command")
-	ErrMissingCommand  = errors.New("missing command")
+	ErrInvalidArgument = errs.Wrap(errs.ErrInvalid, "invalid argument")
+	ErrUnknownFlag     = errs.Wrap(errs.ErrUnknown, "unknown flag")
+	ErrMissingValue    = errs.Wrap(errs.ErrMissing, "missing value")
+	ErrInvalidSpec     = errs.Wrap(errs.ErrInvalid, "invalid command spec")
+	ErrUnknownCommand  = errs.Wrap(errs.ErrUnknown, "unknown command")
+	ErrMissingCommand  = errs.Wrap(errs.ErrMissing, "missing command")
 	// ErrUsage asks App.Run to print the selected command's usage and succeed.
 	// A command with no Run(ctx) error method yields ErrUsage.
 	ErrUsage     = errors.New("usage")
-	ErrNoValues  = errors.New("context has no values")
+	ErrNoValues  = errs.Wrap(errs.ErrNotFound, "context has no values")
 	ErrNotSet    = errors.New("context key not set")
 	ErrWrongType = errors.New("wrong type")
 )

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
@@ -66,7 +67,7 @@ func (f *File) update(ctx context.Context, target string, visiting, done map[str
 		return nil
 	}
 	if visiting[target] {
-		return fmt.Errorf("make: %w: %s", ErrCycle, target)
+		return fmt.Errorf("make: %w: %s", errs.ErrCycle, target)
 	}
 	if err := ctx.Err(); err != nil {
 		return err

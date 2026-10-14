@@ -9,11 +9,12 @@ import (
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
 var (
-	ErrChoiceOpenNoEvaluator = errors.New("no evaluator")
+	ErrChoiceOpenNoEvaluator = errs.Wrap(errs.ErrNotFound, "no evaluator")
 	ErrResolveEvaluator      = errors.New("evaluator")
 )
 

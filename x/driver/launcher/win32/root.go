@@ -4,14 +4,13 @@ package win32
 
 import (
 	"context"
-	"errors"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
 
 var (
-	ErrChooseNoItems = errors.New("choose: no items")
+	ErrChooseNoItems = launcher.ErrChooseNoItems
 )
 
 type base struct{}

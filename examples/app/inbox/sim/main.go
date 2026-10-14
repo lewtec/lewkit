@@ -11,7 +11,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -20,13 +19,14 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
 var (
-	ErrNoAvailableIphoneSimulator = errors.New("no available iPhone simulator")
-	ErrSimLewkitModuleNotFound    = errors.New("sim: lewkit module not found")
+	ErrNoAvailableIphoneSimulator = errs.Wrap(errs.ErrUnavailable, "no available iPhone simulator")
+	ErrSimLewkitModuleNotFound    = errs.Wrap(errs.ErrNotFound, "sim: lewkit module not found")
 )
 
 const (

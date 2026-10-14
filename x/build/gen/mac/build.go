@@ -16,6 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -24,19 +25,19 @@ var (
 	ErrBundleServer            = errors.New("bundle server")
 	ErrGoBuildDarwin           = errors.New("go build darwin")
 	ErrMacosAppIcon            = errors.New("macos app icon")
-	ErrMacosAppIconEmptyMaster = errors.New("macos app icon: empty master")
-	ErrWorkDirLeftAt           = errors.New("work dir left at")
-	ErrXcodegenGenerate        = errors.New("xcodegen generate")
+	ErrMacosAppIconEmptyMaster = errs.Wrap(errs.ErrEmpty, "macos app icon: empty master")
+	ErrWorkDirLeftAt           = common.ErrWorkDirLeftAt
+	ErrXcodegenGenerate        = common.ErrXcodegenGenerate
 )
 
 // Build / toolchain sentinels.
 var (
-	ErrOutAppRequired     = errors.New("out .app path is required (or use --go-only)")
-	ErrMacOSRequired      = errors.New("full .app requires macOS with Xcode; use --go-only")
-	ErrXcodebuildNotFound = errors.New("xcodebuild not found; install Xcode")
-	ErrXcodeGenNotFound   = errors.New("xcodegen not found; install xcodegen (mise/brew)")
-	ErrDebugAppMissing    = errors.New("xcodebuild succeeded but no Debug .app under DerivedData")
-	ErrUnsupportedGOARCH  = errors.New("unsupported host GOARCH for darwin")
+	ErrOutAppRequired     = common.ErrOutAppRequired
+	ErrMacOSRequired      = errs.Wrap(errs.ErrRequired, "full .app requires macOS with Xcode; use --go-only")
+	ErrXcodebuildNotFound = common.ErrXcodebuildNotFound
+	ErrXcodeGenNotFound   = common.ErrXcodeGenNotFound
+	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug .app under DerivedData")
+	ErrUnsupportedGOARCH  = errs.Wrap(errs.ErrUnsupported, "unsupported host GOARCH for darwin")
 )
 
 // BuildOptions drives a macos .app build from an eletrocromo app.

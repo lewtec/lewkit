@@ -12,11 +12,12 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/disasm/decomp"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/http/asset"
 )
 
 var (
-	ErrEmptyFunctionAddress = errors.New("empty function address")
+	ErrEmptyFunctionAddress = errs.Wrap(errs.ErrEmpty, "empty function address")
 	ErrFunctionAddress      = errors.New("function address")
 	ErrServePreview         = errors.New("preview")
 	ErrServeStopPreview     = errors.New("stop preview")

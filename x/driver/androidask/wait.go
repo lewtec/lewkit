@@ -1,12 +1,13 @@
 package androidask
 
 import (
-	"errors"
 	"sync"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrBusy means a dialog is already waiting.
-var ErrBusy = errors.New("dialog already open")
+var ErrBusy = errs.Wrap(errs.ErrAlreadyExists, "dialog already open")
 
 type box struct {
 	ch  chan string

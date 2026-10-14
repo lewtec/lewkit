@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/io/atomic"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/taskgroup"
@@ -19,13 +20,13 @@ import (
 
 var (
 	// ErrNoVersionsFound is returned when a backend lists no versions.
-	ErrNoVersionsFound = errors.New("no versions found")
+	ErrNoVersionsFound = errs.Wrap(errs.ErrNotFound, "no versions found")
 	// ErrToolDirectoryNotFound is returned when a version directory is missing.
-	ErrToolDirectoryNotFound = errors.New("tool directory not found")
+	ErrToolDirectoryNotFound = errs.Wrap(errs.ErrNotFound, "tool directory not found")
 	// ErrEmptyStore is returned when Open is given a blank root.
-	ErrEmptyStore                       = errors.New("tool store root is empty")
+	ErrEmptyStore                       = errs.Wrap(errs.ErrEmpty, "tool store root is empty")
 	ErrAllDownloadsFailed               = errors.New("all downloads failed")
-	ErrCommandIsEmpty                   = errors.New("command is empty")
+	ErrCommandIsEmpty                   = errs.Wrap(errs.ErrEmpty, "command is empty")
 	ErrInstallArtifactExtract           = errors.New("extract")
 	ErrInstallChecks                    = errors.New("install checks")
 	ErrInstallation                     = errors.New("installation")
@@ -41,10 +42,10 @@ var (
 	ErrStoreEnsureBinaryToolInstallSwap = errors.New("install swap")
 	ErrStoreEnsureBinaryToolInstallTool = errors.New("install tool")
 	ErrStoreEnsureCommandEnsureTool     = errors.New("ensure tool")
-	ErrStoreEnsureCommandNoToolSpecs    = errors.New("no tool specs")
+	ErrStoreEnsureCommandNoToolSpecs    = errs.Wrap(errs.ErrNotFound, "no tool specs")
 	ErrStoreEnsureInstallTool           = errors.New("install tool")
 	ErrStoreInstallInstallSwap          = errors.New("install swap")
-	ErrToolInstalledButBinaryNotFound   = errors.New("tool installed but binary not found")
+	ErrToolInstalledButBinaryNotFound   = errs.Wrap(errs.ErrNotFound, "tool installed but binary not found")
 )
 
 // Store maps specs onto version directories under directory.

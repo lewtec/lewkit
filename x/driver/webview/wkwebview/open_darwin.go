@@ -25,12 +25,13 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window/cocoa"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native/webkit"
 )
 
 var (
 	ErrWebviewProfileThisWebkitCannotPlaceStorageIn            = errors.New("webview profile: this WebKit cannot place storage in")
-	ErrWebviewProfileWebkitDataStoreConfigurationIsUnavailable = errors.New("webview profile: WebKit data store configuration is unavailable")
+	ErrWebviewProfileWebkitDataStoreConfigurationIsUnavailable = errs.Wrap(errs.ErrUnavailable, "webview profile: WebKit data store configuration is unavailable")
 	ErrWebviewProfileWebkitDidNotCreateADataStoreFor           = errors.New("webview profile: WebKit did not create a data store for")
 )
 

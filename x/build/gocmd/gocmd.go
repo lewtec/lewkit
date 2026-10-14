@@ -6,14 +6,11 @@ package gocmd
 
 import (
 	"context"
-	"errors"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("gocmd: nil context")
 
 // Command is one go invocation. Verb is build or run. Empty Verb is build.
 // The child process writes to the session line writer.
@@ -34,7 +31,7 @@ type Command struct {
 // compile and the link are CPU children of that task.
 func (c Command) Run(ctx context.Context) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	if c.active(ctx) == CompilerLewkit {
 		return c.runLewkit(ctx)
@@ -69,7 +66,7 @@ func (c Command) exec(ctx context.Context, verb string) error {
 // Stdout and stderr share that task's progress row.
 func Tool(ctx context.Context, name, dir string, env []string, args ...string) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	if taskgroup.FromContext(ctx) == nil {
 		return run(ctx, name, dir, env, args...)

@@ -2,11 +2,12 @@ package entry
 
 import (
 	"context"
-	"errors"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrRunBoundEntryNoApp = errors.New("entry: no app")
+	ErrRunBoundEntryNoApp = errs.Wrap(errs.ErrNotFound, "entry: no app")
 )
 
 var bound func(ctx context.Context) error
@@ -24,7 +25,7 @@ func RunBound(ctx context.Context) error {
 		return ErrRunBoundEntryNoApp
 	}
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	return bound(ctx)
 }

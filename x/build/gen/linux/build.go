@@ -14,20 +14,21 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 var (
 	ErrGoBuildLinux              = errors.New("go build linux")
-	ErrIcon256pxLinuxIconMissing = errors.New("icon: 256px linux icon missing")
+	ErrIcon256pxLinuxIconMissing = errs.Wrap(errs.ErrMissing, "icon: 256px linux icon missing")
 	ErrLinuxIconIcon             = errors.New("icon")
 )
 
 // Build / toolchain sentinels.
 var (
-	ErrOutAppRequired    = errors.New("out .AppImage path is required (or use --go-only)")
-	ErrUnsupportedGOARCH = errors.New("unsupported GOARCH for linux")
+	ErrOutAppRequired    = errs.Wrap(errs.ErrRequired, "out .AppImage path is required (or use --go-only)")
+	ErrUnsupportedGOARCH = errs.Wrap(errs.ErrUnsupported, "unsupported GOARCH for linux")
 )
 
 // BuildOptions drives a Linux desktop app build from an eletrocromo app.

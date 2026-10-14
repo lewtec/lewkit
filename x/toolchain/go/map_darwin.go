@@ -3,18 +3,17 @@
 package gotool
 
 import (
-	"errors"
 	"runtime"
 	"sync"
 	"unsafe"
 
 	"github.com/ebitengine/purego"
+	"github.com/lewtec/lewkit/x/errs"
 	"golang.org/x/sys/unix"
 )
 
 var (
-	ErrJitExecutableMappingIsUnavailable    = errors.New("jit: executable mapping is unavailable")
-	ErrJitPthreadJitWriteProtectNpIsMissing = errors.New("jit: pthread_jit_write_protect_np is missing")
+	ErrJitPthreadJitWriteProtectNpIsMissing = errs.Wrap(errs.ErrMissing, "jit: pthread_jit_write_protect_np is missing")
 )
 
 // darwinJIT is set by mapNear. MAP_JIT pages flip between writable and

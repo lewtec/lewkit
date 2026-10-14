@@ -32,11 +32,12 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrCanceled means the user dismissed the dialog.
-	ErrCanceled = errors.New("file dialog canceled")
+	ErrCanceled = errs.Wrap(errs.ErrCanceled, "file dialog canceled")
 	// ErrRequest means the request cannot be shown.
 	ErrRequest = errors.New("file dialog request")
 

@@ -17,13 +17,15 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
-	ErrUnknownDependency = errors.New("unknown dependency")
+	ErrUnknownDependency = errs.Wrap(errs.ErrUnknown, "unknown dependency")
 	ErrDependencyFailed  = errors.New("dependency failed")
 	ErrNilFn             = errors.New("fn is nil")
-	ErrCycle             = errors.New("dependency cycle")
+	ErrCycle             = errs.Wrap(errs.ErrCycle, "dependency cycle")
 )
 
 // PoolKind identifies which resource pool a task consumes a slot from.

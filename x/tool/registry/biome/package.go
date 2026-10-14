@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	stdpath "path"
 	"path/filepath"
@@ -17,7 +16,7 @@ import (
 )
 
 var (
-	ErrNoSuitableArtifactFoundFor = errors.New("no suitable artifact found for")
+	ErrNoSuitableArtifactFoundFor = install.ErrNoSuitableArtifactFoundFor
 )
 
 // biomeReleasePrefix is the changesets/monorepo tag prefix for the CLI package.

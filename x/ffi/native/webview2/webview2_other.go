@@ -3,12 +3,13 @@
 package webview2
 
 import (
-	"errors"
 	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrUnavailable means the Edge WebView2 runtime is not available.
-var ErrUnavailable = errors.New("webview2 unavailable")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "webview2 unavailable")
 
 // Available reports that WebView2 is a Windows library.
 func Available() error {

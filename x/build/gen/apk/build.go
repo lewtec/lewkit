@@ -15,31 +15,32 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 var (
 	ErrAndroidEntryDir               = errors.New("android entry dir")
-	ErrAndroidEntryDirIsEmpty        = errors.New("android entry dir is empty")
+	ErrAndroidEntryDirIsEmpty        = errs.Wrap(errs.ErrEmpty, "android entry dir is empty")
 	ErrAndroidToolexec               = errors.New("android toolexec")
 	ErrBuildABICgoEnabled            = errors.New("CGO_ENABLED")
-	ErrEmptyToolexecArg              = errors.New("empty toolexec arg")
+	ErrEmptyToolexecArg              = errs.Wrap(errs.ErrEmpty, "empty toolexec arg")
 	ErrGlobDebugApk                  = errors.New("glob debug apk")
 	ErrGradleAssembledebug           = errors.New("gradle assembleDebug")
 	ErrLoadConfig                    = errors.New("")
 	ErrNormalizeConfigPackageId      = errors.New("package id")
 	ErrToolexecArgContainsBothQuotes = errors.New("toolexec arg contains both quotes")
-	ErrToolexecIsEmpty               = errors.New("toolexec is empty")
+	ErrToolexecIsEmpty               = errs.Wrap(errs.ErrEmpty, "toolexec is empty")
 )
 
 // Sentinel errors for static build/setup failures (errors.Is / wrap with %w).
 var (
-	ErrOutAPKRequired     = errors.New("out apk path is required (or use --go-only)")
-	ErrUnsupportedABI     = errors.New("unsupported abi")
-	ErrDebugAPKMissing    = errors.New("gradle succeeded but no debug APK under app/build/outputs/apk/debug")
-	ErrSDKEnvNotDir       = errors.New("android SDK env path is not a directory")
-	ErrAndroidSDKNotFound = errors.New("android SDK not found: set ANDROID_HOME or install mise android-sdk@13.0")
-	ErrGradleNotFound     = errors.New("neither ./gradlew nor gradle on PATH; install Gradle 8.9+ or mise gradle@9.6.1")
+	ErrOutAPKRequired     = errs.Wrap(errs.ErrRequired, "out apk path is required (or use --go-only)")
+	ErrUnsupportedABI     = errs.Wrap(errs.ErrUnsupported, "unsupported abi")
+	ErrDebugAPKMissing    = errs.Wrap(errs.ErrMissing, "gradle succeeded but no debug APK under app/build/outputs/apk/debug")
+	ErrSDKEnvNotDir       = errs.Wrap(errs.ErrInvalid, "android SDK env path is not a directory")
+	ErrAndroidSDKNotFound = errs.Wrap(errs.ErrNotFound, "android SDK not found: set ANDROID_HOME or install mise android-sdk@13.0")
+	ErrGradleNotFound     = errs.Wrap(errs.ErrNotFound, "neither ./gradlew nor gradle on PATH; install Gradle 8.9+ or mise gradle@9.6.1")
 )
 
 func applyIconMipmaps(iconRoot, androidResDir string) error {

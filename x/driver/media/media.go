@@ -23,6 +23,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/dirs"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -31,7 +32,7 @@ var (
 )
 
 // ErrNoPlayer means no MPRIS player is on the session bus.
-var ErrNoPlayer = errors.New("no media player")
+var ErrNoPlayer = errs.Wrap(errs.ErrNotFound, "no media player")
 
 // PlaybackStatus is the MPRIS playback state.
 type PlaybackStatus string

@@ -3,7 +3,6 @@ package apk
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +13,7 @@ import (
 
 // Config / go_main validation sentinels.
 var (
-	ErrConfigPathEmpty = errors.New("config path is empty")
+	ErrConfigPathEmpty = common.ErrConfigPathEmpty
 	ErrGoMainNotDir    = common.ErrGoMainNotDir
 )
 

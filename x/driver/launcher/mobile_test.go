@@ -5,6 +5,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +35,7 @@ func TestPromptAnswer(t *testing.T) {
 		require.FailNowf(t, "", "prompt %q %v", got, err)
 	}
 	_, err = PromptAnswer(askwire.Format(askwire.StatusCanceled, ""))
-	require.ErrorIs(t, err, ErrCanceled)
+	require.ErrorIs(t, err, errs.ErrCanceled)
 }
 
 func TestChooseAnswer(t *testing.T) {

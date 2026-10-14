@@ -5,13 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrNil is [Register] with a nil codec.
 var ErrNil = errors.New("nil codec")
 
 // ErrExist is [Register] when the name is already in the registry.
-var ErrExist = errors.New("already registered")
+var ErrExist = errs.Wrap(errs.ErrAlreadyExists, "already registered")
 
 var std = New()
 

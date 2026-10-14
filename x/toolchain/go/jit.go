@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // RunSource compiles and runs a package main given as source.
@@ -15,7 +17,7 @@ import (
 // contains a .go file.
 func RunSource(ctx context.Context, src string) (string, error) {
 	if ctx == nil {
-		return "", ErrNilContext
+		return "", errs.ErrNilContext
 	}
 	dir, err := os.MkdirTemp("", "lewkit-jit-")
 	if err != nil {

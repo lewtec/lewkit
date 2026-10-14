@@ -3,15 +3,16 @@ package tar
 import (
 	"archive/tar"
 	"compress/gzip"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/lewtec/lewkit/x/fs"
 )
 
 var (
-	ErrEmptyArchive = errors.New("empty archive")
+	ErrEmptyArchive = fs.ErrEmptyArchive
 )
 
 // ExtractFirst writes the first member of a gzip tar into dir.

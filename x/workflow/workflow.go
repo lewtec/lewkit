@@ -18,23 +18,22 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 var (
 	// ErrNoTarget means Run was given no target and the graph has no default.
-	ErrNoTarget = errors.New("no target")
-	// ErrCycle means steps depend on themselves.
-	ErrCycle = errors.New("cycle")
+	ErrNoTarget = errs.Wrap(errs.ErrNotFound, "no target")
+
 	// ErrUnknownStep means a target or dependency names no step.
-	ErrUnknownStep = errors.New("unknown step")
+	ErrUnknownStep = errs.Wrap(errs.ErrUnknown, "unknown step")
 	// ErrDuplicate means two steps share a name.
-	ErrDuplicate                = errors.New("duplicate step")
-	ErrDownloadEmptyDestination = errors.New("download: empty destination")
+	ErrDuplicate                = errs.Wrap(errs.ErrDuplicate, "duplicate step")
+	ErrDownloadEmptyDestination = errs.Wrap(errs.ErrEmpty, "download: empty destination")
 	ErrRunStep                  = errors.New("")
-	ErrWorkflowEmptyStepName    = errors.New("workflow: empty step name")
-	ErrWorkflowNilContext       = errors.New("workflow: nil context")
+	ErrWorkflowEmptyStepName    = errs.Wrap(errs.ErrEmpty, "workflow: empty step name")
 )
 
 // Step is one node. Deps are step names. Inputs and Outputs are paths,
@@ -82,7 +81,7 @@ func (f Future) Wait(ctx context.Context) error {
 		return nil
 	}
 	if ctx == nil {
-		return ErrWorkflowNilContext
+		return errs.ErrNilContext
 	}
 	ctx = context.WithoutCancel(ctx)
 	var err error
@@ -101,7 +100,7 @@ func (f Future) Wait(ctx context.Context) error {
 // Run starts one and waits, and that wait error is Run's error.
 func Run(ctx context.Context, g Graph, targets []string) (Future, error) {
 	if ctx == nil {
-		return Future{}, ErrWorkflowNilContext
+		return Future{}, errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return Future{}, err
@@ -175,7 +174,7 @@ func (g Graph) closure(targets []string) ([]Step, map[string]Step, error) {
 		case 2:
 			return nil
 		case 1:
-			return fmt.Errorf("workflow: %w: %s", ErrCycle, canon)
+			return fmt.Errorf("workflow: %w: %s", errs.ErrCycle, canon)
 		}
 		step := byName[canon]
 		state[canon] = 1
@@ -200,7 +199,7 @@ func resolveAlias(name string, byName map[string]Step, alias map[string]string) 
 	seen := map[string]bool{}
 	for {
 		if seen[name] {
-			return "", fmt.Errorf("workflow: %w: %s", ErrCycle, name)
+			return "", fmt.Errorf("workflow: %w: %s", errs.ErrCycle, name)
 		}
 		seen[name] = true
 		if _, ok := byName[name]; ok {

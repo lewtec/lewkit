@@ -2,7 +2,6 @@ package win
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,14 +13,15 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
 // Build / toolchain sentinels.
 var (
-	ErrOutExeRequired    = errors.New("out .exe path is required (or use --go-only)")
-	ErrUnsupportedGOARCH = errors.New("unsupported GOARCH for windows")
+	ErrOutExeRequired    = errs.Wrap(errs.ErrRequired, "out .exe path is required (or use --go-only)")
+	ErrUnsupportedGOARCH = errs.Wrap(errs.ErrUnsupported, "unsupported GOARCH for windows")
 )
 
 // BuildOptions drives a windows GUI .exe build from an eletrocromo app.

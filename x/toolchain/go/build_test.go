@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/workflow"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +31,7 @@ func TestBuildRejectsShape(t *testing.T) {
 		{ImportPath: "a", Files: []string{"a.go"}, Archive: "a.a", ImportCfg: "a.cfg", Deps: []string{"b"}},
 		{ImportPath: "b", Files: []string{"b.go"}, Archive: "b.a", ImportCfg: "b.cfg", Deps: []string{"a"}},
 	}
-	require.ErrorIs(t, Build(t.Context(), cycle, nil), workflow.ErrCycle)
+	require.ErrorIs(t, Build(t.Context(), cycle, nil), errs.ErrCycle)
 	require.ErrorIs(t, Build(t.Context(), nil, &Image{}), ErrEmptyImage)
 }
 

@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
@@ -20,7 +21,7 @@ var (
 
 const bendOrigin = "https://bend-lang.com"
 
-var ErrInvalidBendVersion = errors.New("invalid bend version")
+var ErrInvalidBendVersion = errs.Wrap(errs.ErrInvalid, "invalid bend version")
 
 // bendTool installs Bend 2 from bend-lang.com tarballs. The official site
 // only ships curl|sh, which also phones home. bun is not copied into the

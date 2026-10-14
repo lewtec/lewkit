@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // spawn runs action in a new process. That process owns the compiler or
@@ -15,7 +17,7 @@ import (
 // run together.
 func spawn(ctx context.Context, action string, req childRequest) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	f, err := os.CreateTemp("", "lewkit-toolchain-*.json")
 	if err != nil {

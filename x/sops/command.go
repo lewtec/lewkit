@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // Command runs Args with Env merged onto the process environment.
@@ -20,7 +21,7 @@ type Command struct {
 // A non-zero child status is returned as the process exit error.
 func (c Command) Run(ctx context.Context) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	if len(c.Args) == 0 {
 		return ErrSopsCommandIsEmpty

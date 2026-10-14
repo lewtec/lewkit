@@ -28,6 +28,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/webview/prelude"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -35,9 +36,6 @@ import (
 var (
 	ErrLoopbackHostNeedsAWebHandler = errors.New("loopback host needs a web handler")
 )
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("app: nil context")
 
 // ReadyLinePrefix is printed once the loopback server is listening.
 // Packaged hosts parse the URL that follows it.
@@ -61,7 +59,7 @@ type App struct {
 // Loopback runs only when the caller opted in.
 func (a App) Run(ctx context.Context) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	id, _ := release.RequireStamp()
 	run := func(ctx context.Context) error {

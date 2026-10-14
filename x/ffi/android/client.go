@@ -2,17 +2,15 @@ package android
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"runtime"
 	"sync"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrUnavailable means this process cannot open /dev/binder.
-var ErrUnavailable = errors.New("binder is unavailable")
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("android: nil context")
+var ErrUnavailable = errs.Wrap(errs.ErrUnavailable, "binder is unavailable")
 
 // Client is the process-wide binder session.
 type Client struct {
@@ -43,7 +41,7 @@ var (
 // The first successful call opens it with ctx. A nil context is an error.
 func Open(ctx context.Context) (*Client, error) {
 	if ctx == nil {
-		return nil, ErrNilContext
+		return nil, errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -64,7 +62,7 @@ func Open(ctx context.Context) (*Client, error) {
 // ForAndroid opens the client on an Android process.
 func ForAndroid(ctx context.Context) (*Client, error) {
 	if ctx == nil {
-		return nil, ErrNilContext
+		return nil, errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

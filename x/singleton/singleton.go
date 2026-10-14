@@ -2,13 +2,11 @@ package singleton
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
-)
 
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("singleton: nil context")
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 type Singleton[T any] interface {
 	GetContext(ctx context.Context) (T, error)
@@ -22,7 +20,7 @@ func NewSingleton[T any](f func(context.Context) (T, error)) Singleton[T] {
 	return singleton[T](func(ctx context.Context) (T, error) {
 		if ctx == nil {
 			var z T
-			return z, ErrNilContext
+			return z, errs.ErrNilContext
 		}
 		if err := ctx.Err(); err != nil {
 			var z T

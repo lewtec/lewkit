@@ -11,6 +11,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/launcher"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	_ "github.com/lewtec/lewkit/x/driver/thread/prelude"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -130,7 +131,7 @@ func ask(prompt string) (string, error) {
 		alert.Send(selButton, native.NSString("Cancel"))
 		alert.Send(selLayout)
 		if _, ok := buttonIndex(modal(alert), 1); !ok {
-			return launcher.ErrCanceled
+			return errs.ErrCanceled
 		}
 		text = native.UTF8String(field.Send(selValue))
 		return nil

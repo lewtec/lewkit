@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"io/fs"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // Path is an immutable [io/fs] name. It does no I/O.
@@ -196,9 +198,9 @@ func relParts(s string) []string {
 
 var (
 	// ErrEmptyPath is an empty OS path passed to [Open].
-	ErrEmptyPath = errors.New("empty path")
+	ErrEmptyPath = errs.Wrap(errs.ErrEmpty, "empty path")
 	// ErrNotDir is [Open] on a path that exists and is not a directory.
-	ErrNotDir = errors.New("not a directory")
+	ErrNotDir = errs.Wrap(errs.ErrInvalid, "not a directory")
 	// ErrReadOnly is a write method on a filesystem that lacks that method.
 	ErrReadOnly = errors.New("read-only filesystem")
 	// ErrRel is [Path.Rel] when the names cannot be made relative.

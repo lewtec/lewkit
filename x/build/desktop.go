@@ -5,7 +5,6 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,13 +15,11 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/build/version"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
 )
-
-// ErrNilContext means the caller did not pass a context.
-var ErrNilContext = errors.New("build: nil context")
 
 // Target is one CGO-free desktop binary.
 type Target struct {
@@ -128,7 +125,7 @@ func (job Job) Paths() []string {
 // together. Run waits on the future for those steps.
 func (job Job) Run(ctx context.Context) ([]string, error) {
 	if ctx == nil {
-		return nil, ErrNilContext
+		return nil, errs.ErrNilContext
 	}
 	if len(job.Targets) == 0 {
 		return nil, ErrBuildNoTarget

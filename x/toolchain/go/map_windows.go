@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	ErrJitExecutableMappingIsUnavailable3 = errors.New("jit: executable mapping is unavailable")
-	ErrJitVirtualprotectFailed            = errors.New("jit: VirtualProtect failed")
+	ErrJitVirtualprotectFailed = errors.New("jit: VirtualProtect failed")
 )
 
 func prepareWrite([]byte) error { return nil }
@@ -73,7 +72,7 @@ func mapNear(n int, hint uintptr) ([]byte, error) {
 	if b, ok := try(0); ok {
 		return b, nil
 	}
-	return nil, ErrJitExecutableMappingIsUnavailable3
+	return nil, ErrJitExecutableMappingIsUnavailable
 }
 
 const (

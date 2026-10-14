@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/wasm"
 	embed "github.com/lewtec/lewkit/x/ffi/wasm/capstone/internal/wasm"
 	"github.com/lewtec/lewkit/x/singleton"
@@ -26,7 +27,7 @@ const (
 )
 
 var (
-	ErrClosed                        = errors.New("capstone closed")
+	ErrClosed                        = errs.Wrap(errs.ErrClosed, "capstone closed")
 	ErrOpen                          = errors.New("cs_open")
 	ErrOption                        = errors.New("cs_option")
 	ErrMalloc                        = errors.New("cs_malloc")

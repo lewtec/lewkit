@@ -14,6 +14,7 @@ import (
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/release"
 )
@@ -194,7 +195,7 @@ func systemScale() window.Scale {
 
 func (wdriver) Open(ctx context.Context, cfg window.Config) (window.Window, error) {
 	if ctx == nil {
-		return nil, ErrWindowNilContext
+		return nil, errs.ErrNilContext
 	}
 	w, h, err := cfg.Size()
 	if err != nil {

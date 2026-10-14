@@ -6,6 +6,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
@@ -13,7 +15,7 @@ var (
 	// than the link.
 	ErrTarget = fmt.Errorf("toolchain: mixed target")
 	// ErrEmptyTarget means the link has no GOOS, GOARCH, or mode.
-	ErrEmptyTarget = fmt.Errorf("toolchain: empty target")
+	ErrEmptyTarget = errs.Wrap(errs.ErrEmpty, "toolchain: empty target")
 	// ErrNoAsm means a unit lists assembly or system objects. cmd/asm is
 	// not vendored, so this toolchain does not produce that archive.
 	ErrNoAsm = fmt.Errorf("toolchain: assembly is not produced here")
@@ -140,7 +142,7 @@ func (t Target) match(o Object) error {
 // [ErrNoAsm]. The importcfg lists target.Runtime and then the units.
 func BuildObjects(ctx context.Context, units []Unit, target Target, out string) error {
 	if ctx == nil {
-		return ErrNilContext
+		return errs.ErrNilContext
 	}
 	objs := make([]Object, 0, len(units))
 	var root *Object

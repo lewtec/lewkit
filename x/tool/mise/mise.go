@@ -7,7 +7,6 @@ package mise
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
@@ -23,12 +23,12 @@ import (
 
 var (
 	// ErrEmptyMiseRef is returned when a mise ref is blank.
-	ErrEmptyMiseRef = errors.New("mise ref cannot be empty")
+	ErrEmptyMiseRef = errs.Wrap(errs.ErrEmpty, "mise ref cannot be empty")
 	// ErrMissingMiseSpec is returned when an install spec is blank.
-	ErrMissingMiseSpec = errors.New("missing mise artifact spec")
+	ErrMissingMiseSpec = errs.Wrap(errs.ErrMissing, "missing mise artifact spec")
 	// ErrMiseNotFound is returned when the mise binary is not on PATH.
-	ErrMiseNotFound                      = errors.New("mise binary not found on PATH")
-	ErrMiseLatestReturnedEmptyVersionFor = errors.New("mise latest returned empty version for")
+	ErrMiseNotFound                      = errs.Wrap(errs.ErrNotFound, "mise binary not found on PATH")
+	ErrMiseLatestReturnedEmptyVersionFor = errs.Wrap(errs.ErrEmpty, "mise latest returned empty version for")
 )
 
 // Backend is the mise backend.

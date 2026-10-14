@@ -20,6 +20,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/workflow"
@@ -27,8 +28,8 @@ import (
 
 var (
 	ErrGlslangSourceDir      = errors.New("glslang: source dir")
-	ErrNoGlslangStaticLibsIn = errors.New("no glslang static libs in")
-	ErrUvPythonEmptyPath     = errors.New("uv python: empty path")
+	ErrNoGlslangStaticLibsIn = errs.Wrap(errs.ErrNotFound, "no glslang static libs in")
+	ErrUvPythonEmptyPath     = errs.Wrap(errs.ErrEmpty, "uv python: empty path")
 	ErrWasmBoxToolsUvPython  = errors.New("uv python")
 )
 

@@ -4,17 +4,17 @@ package wim
 
 import (
 	"context"
-	"errors"
 	"io"
 	"io/fs"
 
 	winwim "github.com/Microsoft/go-winio/wim"
 
+	"github.com/lewtec/lewkit/x/errs"
 	lewfs "github.com/lewtec/lewkit/x/fs"
 )
 
 // ErrInvalidImage is [Open] with an image index that is not in the WIM.
-var ErrInvalidImage = errors.New("invalid image")
+var ErrInvalidImage = errs.Wrap(errs.ErrInvalid, "invalid image")
 
 // Info is one image in a WIM.
 type Info struct {

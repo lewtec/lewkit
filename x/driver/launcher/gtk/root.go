@@ -4,7 +4,6 @@ package gtk
 
 import (
 	"context"
-	"errors"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/gtkui"
@@ -15,7 +14,7 @@ import (
 )
 
 var (
-	ErrChooseNoItems = errors.New("choose: no items")
+	ErrChooseNoItems = launcher.ErrChooseNoItems
 )
 
 type base struct{}

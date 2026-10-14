@@ -17,6 +17,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/build/version"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/image/convert"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -25,19 +26,19 @@ var (
 	ErrApplyIOSIconsIosAppIcon = errors.New("ios app icon")
 	ErrBuildArchiveGoBuildIos  = errors.New("go build ios")
 	ErrCArchiveHeader          = errors.New("c-archive header")
-	ErrUnsupportedGoarch       = errors.New("unsupported GOARCH")
-	ErrWorkDirLeftAt           = errors.New("work dir left at")
-	ErrXcodegenGenerate        = errors.New("xcodegen generate")
+	ErrUnsupportedGoarch       = errs.Wrap(errs.ErrUnsupported, "unsupported GOARCH")
+	ErrWorkDirLeftAt           = common.ErrWorkDirLeftAt
+	ErrXcodegenGenerate        = common.ErrXcodegenGenerate
 )
 
 // Build / toolchain sentinels.
 var (
-	ErrOutAppRequired     = errors.New("out .app path is required (or use --go-only)")
-	ErrDarwinRequired     = errors.New("ios archive and .app require macOS with Xcode; use --go-only on a Mac")
-	ErrXcodebuildNotFound = errors.New("xcodebuild not found; install Xcode")
-	ErrXcodeGenNotFound   = errors.New("xcodegen not found; install xcodegen (mise/brew)")
-	ErrDebugAppMissing    = errors.New("xcodebuild succeeded but no Debug-iphonesimulator .app under DerivedData")
-	ErrUnknownSDK         = errors.New("sdk must be iphonesimulator or iphoneos")
+	ErrOutAppRequired     = common.ErrOutAppRequired
+	ErrDarwinRequired     = errs.Wrap(errs.ErrRequired, "ios archive and .app require macOS with Xcode; use --go-only on a Mac")
+	ErrXcodebuildNotFound = common.ErrXcodebuildNotFound
+	ErrXcodeGenNotFound   = common.ErrXcodeGenNotFound
+	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug-iphonesimulator .app under DerivedData")
+	ErrUnknownSDK         = errs.Wrap(errs.ErrUnknown, "sdk must be iphonesimulator or iphoneos")
 )
 
 // SDKSimulator / SDKDevice are xcrun SDK names.

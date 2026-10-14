@@ -9,22 +9,22 @@ package screenshot
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"image"
 	"strconv"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/wm"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
 	// ErrSelectionToolNotFound means slurp or slop is not on PATH.
-	ErrSelectionToolNotFound = errors.New("selection tool not found")
+	ErrSelectionToolNotFound = errs.Wrap(errs.ErrNotFound, "selection tool not found")
 	// ErrEmptySelection means the selection tool returned no geometry.
-	ErrEmptySelection = errors.New("empty selection")
+	ErrEmptySelection = errs.Wrap(errs.ErrEmpty, "empty selection")
 	// ErrUnknownTargetType means the target is not all, output, window, or selection.
-	ErrUnknownTargetType = errors.New("unknown target type")
+	ErrUnknownTargetType = errs.Wrap(errs.ErrUnknown, "unknown target type")
 )
 
 // TargetType selects what Capture should frame.

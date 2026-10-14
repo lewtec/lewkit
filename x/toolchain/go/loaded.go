@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/toolchain/load"
 )
 
@@ -33,7 +34,7 @@ type Loaded struct {
 // [load.ErrNoArchive]. The link waits for every package this call compiled.
 func BuildLoaded(ctx context.Context, m Loaded) (string, error) {
 	if ctx == nil {
-		return "", ErrNilContext
+		return "", errs.ErrNilContext
 	}
 	if m.Graph == nil {
 		return "", fmt.Errorf("%w: graph", ErrNoWork)

@@ -12,6 +12,7 @@ import (
 	"github.com/lewtec/lewkit/x/db"
 	"github.com/lewtec/lewkit/x/disasm"
 	"github.com/lewtec/lewkit/x/disasm/decomp/schema"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
@@ -24,10 +25,10 @@ var (
 	ErrBlockRunsPastItsInstructions        = errors.New("block runs past its instructions")
 	ErrBlocksDoNotCoverItsInstructions     = errors.New("blocks do not cover its instructions")
 	ErrCandidateHasAnUnfinishedJsonObject  = errors.New("candidate has an unfinished json object")
-	ErrCandidateHasNoJsonObject            = errors.New("candidate has no json object")
+	ErrCandidateHasNoJsonObject            = errs.Wrap(errs.ErrNotFound, "candidate has no json object")
 	ErrCloseProject                        = errors.New("close project")
-	ErrEmptyArtifactName                   = errors.New("empty artifact name")
-	ErrEmptyFunctionName                   = errors.New("empty function name")
+	ErrEmptyArtifactName                   = errs.Wrap(errs.ErrEmpty, "empty artifact name")
+	ErrEmptyFunctionName                   = errs.Wrap(errs.ErrEmpty, "empty function name")
 	ErrInsertFunctionStoreBlock            = errors.New("store block")
 	ErrInsertFunctionStoreString           = errors.New("store string")
 	ErrLoadFunctions                       = errors.New("load functions")
@@ -37,28 +38,27 @@ var (
 	ErrNegativeArtifactSize                = errors.New("negative artifact size")
 	ErrOpenConnOpenProject                 = errors.New("open project")
 	ErrOpenOpenProject                     = errors.New("open project")
-	ErrOpenProjectEmptyPath                = errors.New("open project: empty path")
-	ErrOpenProjectNilContext               = errors.New("open project: nil context")
-	ErrParseAddressAddress                 = errors.New("address")
-	ErrParseCandidateCandidate             = errors.New("candidate")
-	ErrProjectAdoptPathStorePath           = errors.New("store path")
-	ErrProjectInsertArtifactStoreString    = errors.New("store string")
-	ErrProjectInsertArtifactStoreSymbol    = errors.New("store symbol")
-	ErrProjectLoadLoadProject              = errors.New("load project")
-	ErrRejectForeignDBOpenProject          = errors.New("open project")
-	ErrSaveFunction0x                      = errors.New("save function 0x")
-	ErrSaveFunctionNilContext              = errors.New("save function: nil context")
-	ErrSaveNoteNilContext                  = errors.New("save note: nil context")
-	ErrSetNoteNilArtifact                  = errors.New("set note: nil artifact")
-	ErrStoreArtifact                       = errors.New("store artifact")
-	ErrStoreFunction                       = errors.New("store function")
-	ErrStoreInstruction                    = errors.New("store instruction")
-	ErrStoreReference                      = errors.New("store reference")
-	ErrStoreSection                        = errors.New("store section")
+	ErrOpenProjectEmptyPath                = errs.Wrap(errs.ErrEmpty, "open project: empty path")
+
+	ErrParseAddressAddress              = errors.New("address")
+	ErrParseCandidateCandidate          = errors.New("candidate")
+	ErrProjectAdoptPathStorePath        = errors.New("store path")
+	ErrProjectInsertArtifactStoreString = errors.New("store string")
+	ErrProjectInsertArtifactStoreSymbol = errors.New("store symbol")
+	ErrProjectLoadLoadProject           = errors.New("load project")
+	ErrRejectForeignDBOpenProject       = errors.New("open project")
+	ErrSaveFunction0x                   = errors.New("save function 0x")
+
+	ErrSetNoteNilArtifact = errors.New("set note: nil artifact")
+	ErrStoreArtifact      = errors.New("store artifact")
+	ErrStoreFunction      = errors.New("store function")
+	ErrStoreInstruction   = errors.New("store instruction")
+	ErrStoreReference     = errors.New("store reference")
+	ErrStoreSection       = errors.New("store section")
 )
 
 // ErrProject is a sqlite file that is not a decomp program database.
-var ErrProject = errors.New("not a decomp project")
+var ErrProject = errs.Wrap(errs.ErrInvalid, "not a decomp project")
 
 // Open opens a sqlite program database, creating it when the file is new.
 // The saved lift is loaded into this process. A later Add, rename, comment,
@@ -66,7 +66,7 @@ var ErrProject = errors.New("not a decomp project")
 // the embedded sqlc schema through [schema.DBArg].
 func Open(ctx context.Context, path string) (*Project, error) {
 	if ctx == nil {
-		return nil, ErrOpenProjectNilContext
+		return nil, errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func Open(ctx context.Context, path string) (*Project, error) {
 // OpenConn migrates and loads a program database on a parsed [db.Arg] connection.
 func OpenConn(ctx context.Context, conn *db.Conn[schema.Queries]) (*Project, error) {
 	if ctx == nil {
-		return nil, ErrOpenProjectNilContext
+		return nil, errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -553,7 +553,7 @@ func (artifact *Artifact) saveFunction(ctx context.Context, function *Function) 
 		return nil
 	}
 	if ctx == nil {
-		return ErrSaveFunctionNilContext
+		return errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -576,7 +576,7 @@ func (artifact *Artifact) saveNote(ctx context.Context, address uint64, text str
 		return nil
 	}
 	if ctx == nil {
-		return ErrSaveNoteNilContext
+		return errs.ErrNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return err

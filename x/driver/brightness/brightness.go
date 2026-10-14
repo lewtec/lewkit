@@ -10,15 +10,15 @@ package brightness
 
 import (
 	"context"
-	"errors"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 const step = 0.05
 
 // ErrDeviceNotFound means brightnessctl returned no device.
-var ErrDeviceNotFound = errors.New("brightness device not found")
+var ErrDeviceNotFound = errs.Wrap(errs.ErrNotFound, "brightness device not found")
 
 // Device is one backlight and its level from 0 to 1.
 type Device struct {

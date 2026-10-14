@@ -6,6 +6,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // appID is the reverse-domain identity of this binary.
@@ -17,7 +19,7 @@ var reverseDomainPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]
 
 var (
 	// ErrAppIDRequired means the stamp and LEWKIT_APP_ID are both empty.
-	ErrAppIDRequired = errors.New("app id is required (reverse-domain, e.g. br.tec.lew.myapp)")
+	ErrAppIDRequired = errs.Wrap(errs.ErrRequired, "app id is required (reverse-domain, e.g. br.tec.lew.myapp)")
 	// ErrAppIDTooLong means the id is longer than 200 bytes.
 	ErrAppIDTooLong = errors.New("app id too long")
 	// ErrAppIDPathChars means the id contains a path separator or "..".

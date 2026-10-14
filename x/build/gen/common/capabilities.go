@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
@@ -19,10 +21,10 @@ var (
 
 // Capability parse/validate sentinels.
 var (
-	ErrCapabilityUnknown = errors.New("unknown capability")
-	ErrCapabilityEmpty   = errors.New("capability is empty")
-	ErrSchemeInvalid     = errors.New("invalid url scheme")
-	ErrFileTypeInvalid   = errors.New("invalid file type")
+	ErrCapabilityUnknown = errs.Wrap(errs.ErrUnknown, "unknown capability")
+	ErrCapabilityEmpty   = errs.Wrap(errs.ErrEmpty, "capability is empty")
+	ErrSchemeInvalid     = errs.Wrap(errs.ErrInvalid, "invalid url scheme")
+	ErrFileTypeInvalid   = errs.Wrap(errs.ErrInvalid, "invalid file type")
 )
 
 var schemePat = regexp.MustCompile(`^[a-z][a-z0-9+\-.]*$`)

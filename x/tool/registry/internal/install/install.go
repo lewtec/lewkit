@@ -4,7 +4,6 @@ package install
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,15 +13,16 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/tool"
 )
 
 var (
 	// ErrNoVersions is returned when a catalog tool lists no versions.
-	ErrNoVersions = errors.New("no versions found")
+	ErrNoVersions = tool.ErrNoVersionsFound
 	// ErrNoPlatformArtifact is returned when the current OS and arch have no artifact.
-	ErrNoPlatformArtifact         = errors.New("no artifact for current platform")
-	ErrNoSuitableArtifactFoundFor = errors.New("no suitable artifact found for")
+	ErrNoPlatformArtifact         = errs.Wrap(errs.ErrNotFound, "no artifact for current platform")
+	ErrNoSuitableArtifactFoundFor = errs.Wrap(errs.ErrNotFound, "no suitable artifact found for")
 )
 
 // SortVersionsDesc returns versions ordered newest-first by semver so [0] is

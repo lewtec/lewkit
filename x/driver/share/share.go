@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 var (
@@ -22,7 +23,7 @@ var (
 )
 
 // ErrEmptyItem means Text, URL, and Paths are all empty.
-var ErrEmptyItem = errors.New("share item is empty")
+var ErrEmptyItem = errs.Wrap(errs.ErrEmpty, "share item is empty")
 
 // Item is one outbound share. At least one of Text, URL, or Paths must be set.
 type Item struct {

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
@@ -266,5 +267,5 @@ func stripComment(s string) string {
 }
 
 func syntax(path string, line int, msg string) error {
-	return fmt.Errorf("ninja: %s:%d: %w: %s", path, line, ErrSyntax, msg)
+	return fmt.Errorf("ninja: %s:%d: %w: %s", path, line, errs.ErrSyntax, msg)
 }

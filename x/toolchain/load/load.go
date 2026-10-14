@@ -23,30 +23,31 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"golang.org/x/mod/modfile"
 )
 
 var (
 	// ErrNoModule means no go.mod was found from the build directory.
-	ErrNoModule = errors.New("load: no go.mod")
+	ErrNoModule = errs.Wrap(errs.ErrNotFound, "load: no go.mod")
 	// ErrNoPackage means a directory has no buildable Go files.
-	ErrNoPackage = errors.New("load: no go files")
+	ErrNoPackage = errs.Wrap(errs.ErrNotFound, "load: no go files")
 	// ErrCgo means the package has no buildable files except cgo.
-	ErrCgo = errors.New("load: cgo is not available")
+	ErrCgo = errs.Wrap(errs.ErrUnavailable, "load: cgo is not available")
 	// ErrExternal means an import is outside this module's build list and the standard library.
 	ErrExternal = errors.New("load: import is outside this module")
 	// ErrMissing means a required module is not in GOMODCACHE.
-	ErrMissing = errors.New("load: module is not in the cache")
+	ErrMissing = errs.Wrap(errs.ErrMissing, "load: module is not in the cache")
 	// ErrEmbed means a //go:embed pattern did not resolve.
-	ErrEmbed = errors.New("load: bad embed")
+	ErrEmbed = errs.Wrap(errs.ErrInvalid, "load: bad embed")
 	// ErrMixed means .go files were combined with package paths.
 	ErrMixed = errors.New("load: cannot mix .go files with packages")
 	// ErrNoArchive means an archive is not in the pkgdir.
-	ErrNoArchive = errors.New("load: archive is missing")
+	ErrNoArchive = errs.Wrap(errs.ErrMissing, "load: archive is missing")
 	// ErrLdflags means -ldflags is quoted incorrectly.
-	ErrLdflags                  = errors.New("load: bad ldflags")
+	ErrLdflags                  = errs.Wrap(errs.ErrInvalid, "load: bad ldflags")
 	ErrCannotEmbedFile          = errors.New("cannot embed file")
-	ErrLoadBadImport            = errors.New("load: bad import")
+	ErrLoadBadImport            = errs.Wrap(errs.ErrInvalid, "load: bad import")
 	ErrLoaderLoadFilesIsPackage = errors.New("is package")
 )
 
