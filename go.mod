@@ -8,7 +8,7 @@ require (
 	filippo.io/age v1.3.1
 	github.com/AndroidGoLab/binder v0.0.9
 	github.com/KarpelesLab/authenticode v0.1.0
-	github.com/Microsoft/go-winio v0.6.2
+	github.com/Microsoft/go-winio v0.6.4
 	github.com/Xmister/udf v0.0.0-20210116171753-6c18325874a7
 	github.com/a-h/templ v0.3.1020
 	github.com/agusibrahim/apksig-go v1.1.0
@@ -57,8 +57,9 @@ require (
 	golang.org/x/crypto v0.57.0
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
 	golang.org/x/image v0.42.0
+	golang.org/x/mod v0.41.0
 	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/sys v0.49.0
 	golang.org/x/term v0.46.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.58.0
@@ -236,7 +237,7 @@ require (
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/scylladb/go-set v1.0.3-0.20200225121959-cc7b2070d91e // indirect
 	github.com/shogo82148/go-sfv v0.3.3 // indirect
-	github.com/sirupsen/logrus v1.9.4 // indirect
+	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
@@ -260,7 +261,6 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
