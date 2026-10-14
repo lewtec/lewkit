@@ -2,16 +2,24 @@ package tool
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	lewpath "github.com/lewtec/lewkit/x/path"
 )
 
 // FindBinary returns the first existing candidate for binaryName under baseDirectory.
-// Candidates are bin/ and the directory root, each with no extension and .exe, .cmd, .bat.
+// An app bundle is first: Name.app/Contents/MacOS/Name, one directory down as well,
+// with a case-insensitive match on the final component.
+// Then bin/ and the directory root, each with no extension and .exe, .cmd, .bat.
+// A disk image is skipped, so a copied .dmg is not executed.
 // A symlink counts even when its target sits outside baseDirectory.
 // The result is an OS path. An unreadable base directory returns an empty string.
 func FindBinary(baseDirectory, binaryName string) string {
+	if found := findAppBundleBinary(baseDirectory, binaryName); found != "" {
+		return found
+	}
 	root, err := lewpath.Open(baseDirectory)
 	if err != nil {
 		return ""
@@ -22,9 +30,95 @@ func FindBinary(baseDirectory, binaryName string) string {
 		if err != nil || info.IsDir() {
 			continue
 		}
-		return joinHost(root.Name(), candidate)
+		host := joinHost(root.Name(), candidate)
+		if isDiskImageFile(host) {
+			continue
+		}
+		return host
 	}
 	return ""
+}
+
+// findAppBundleBinary looks for binaryName inside a macOS app bundle.
+// The bundle may sit at the install root or one directory down (a disk-image volume wrapper).
+func findAppBundleBinary(baseDirectory, binaryName string) string {
+	if found := appBundleBinaryIn(baseDirectory, binaryName); found != "" {
+		return found
+	}
+	entries, err := os.ReadDir(baseDirectory)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() || isAppBundleName(entry.Name()) {
+			continue
+		}
+		if found := appBundleBinaryIn(filepath.Join(baseDirectory, entry.Name()), binaryName); found != "" {
+			return found
+		}
+	}
+	return ""
+}
+
+func appBundleBinaryIn(directory, binaryName string) string {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return ""
+	}
+	var fallback string
+	for _, entry := range entries {
+		if !entry.IsDir() || !isAppBundleName(entry.Name()) {
+			continue
+		}
+		host := bundleExecutable(filepath.Join(directory, entry.Name()), binaryName)
+		if host == "" {
+			continue
+		}
+		if strings.EqualFold(appBundleStem(entry.Name()), binaryName) {
+			return host
+		}
+		if fallback == "" {
+			fallback = host
+		}
+	}
+	return fallback
+}
+
+func bundleExecutable(appDirectory, binaryName string) string {
+	entries, err := os.ReadDir(filepath.Join(appDirectory, "Contents", "MacOS"))
+	if err != nil {
+		return ""
+	}
+	var fallback string
+	for _, entry := range entries {
+		if entry.IsDir() || !executableNameMatches(entry.Name(), binaryName) {
+			continue
+		}
+		host := filepath.Join(appDirectory, "Contents", "MacOS", entry.Name())
+		info, err := os.Lstat(host)
+		if err != nil || info.IsDir() || isDiskImageFile(host) {
+			continue
+		}
+		if entry.Name() == binaryName {
+			return host
+		}
+		if fallback == "" {
+			fallback = host
+		}
+	}
+	return fallback
+}
+
+func executableNameMatches(fileName, binaryName string) bool {
+	if strings.EqualFold(fileName, binaryName) {
+		return true
+	}
+	for _, extension := range []string{".exe", ".cmd", ".bat"} {
+		if strings.EqualFold(fileName, binaryName+extension) {
+			return true
+		}
+	}
+	return false
 }
 
 // BinaryCandidates lists the OS paths FindBinary checks, in order.

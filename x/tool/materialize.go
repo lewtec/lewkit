@@ -333,11 +333,16 @@ func splitHash(raw string) (algorithm, sum string) {
 
 // Extract unpacks a zip, squashfs, or tar archive into destination.
 // A single top directory is removed by [lewfs.StripTopDirectory], then [lewfs.Copy] writes that filesystem.
-// A file that is none of those archives is copied in as one binary.
+// A disk image is mounted and its app bundle is copied in.
+// A file that is none of those is copied in as one binary.
 func Extract(ctx context.Context, source, destination string) error {
 	if err := os.MkdirAll(destination, 0o755); err != nil {
 		return err
 	}
+	if isDiskImageFile(source) {
+		return extractDiskImage(ctx, source, destination)
+	}
+
 	dest, err := lewpath.Open(destination)
 	if err != nil {
 		return err

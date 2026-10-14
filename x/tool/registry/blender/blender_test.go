@@ -157,12 +157,11 @@ func TestBlenderUnsupportedPlatform(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoPlatformArtifact)
 }
 
-func TestBlenderDMGInstallsAsOneFile(t *testing.T) {
+func TestBlenderDMGIsNotCopiedAsTheBinary(t *testing.T) {
 	t.Parallel()
 
-	const payload = "not-an-archive-dmg"
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		_, _ = writer.Write([]byte(payload))
+		_, _ = writer.Write([]byte("not-an-archive-dmg"))
 	}))
 	t.Cleanup(server.Close)
 
@@ -174,20 +173,10 @@ func TestBlenderDMGInstallsAsOneFile(t *testing.T) {
 		Arch: "arm64",
 		URL:  server.URL + "/blender-5.2.2-macos-arm64.dmg",
 	}, dest)
-	require.NoError(t, err)
-
-	body, err := os.ReadFile(filepath.Join(dest, "blender-5.2.2-macos-arm64.dmg"))
-	require.NoError(t, err)
-	require.Equal(t, payload, string(body))
-	entries, err := os.ReadDir(dest)
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
+	require.ErrorIs(t, err, tool.ErrDiskImageMount)
 	require.Empty(t, tool.FindBinary(dest, "blender"))
-
-	extracted := t.TempDir()
-	require.NoError(t, tool.Extract(t.Context(), filepath.Join(dest, "blender-5.2.2-macos-arm64.dmg"), extracted))
-	_, err = os.Stat(filepath.Join(extracted, "Blender.app", "Contents", "MacOS", "Blender"))
-	require.Error(t, err)
+	_, statErr := os.Stat(filepath.Join(dest, "blender-5.2.2-macos-arm64.dmg"))
+	require.Error(t, statErr)
 }
 
 func TestBlenderSeriesNamesIgnoreNonReleases(t *testing.T) {

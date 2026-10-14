@@ -140,31 +140,15 @@ func (check binaryCheck) Check(ctx context.Context, destination string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	root, err := lewpath.Open(destination)
-	if err != nil {
+	if _, err := os.Stat(destination); err != nil {
 		return err
 	}
-	defer root.Close()
-	var found lewpath.Path
-	for _, candidate := range binaryCandidateNames(check.binaryName) {
-		info, err := candidate.Lstat(root)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return err
-		}
-		if info.IsDir() {
-			continue
-		}
-		found = candidate
-		break
-	}
-	if found.String() == "" {
+	// Same lookup as Ensure, including the app bundle and the disk-image skip.
+	// A copied .dmg fails this check so the store deletes it and installs again.
+	host := FindBinary(destination, check.binaryName)
+	if host == "" {
 		return fmt.Errorf("%w: %q in %s", ErrBinaryNotFound, check.binaryName, destination)
 	}
-	// Stat the host path so a symlink to a binary outside this tree still counts.
-	host := joinHost(destination, found)
 	info, err := os.Stat(host)
 	if err != nil {
 		return err

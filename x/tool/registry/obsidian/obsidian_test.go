@@ -188,12 +188,11 @@ func TestObsidianDecodeRelease(t *testing.T) {
 	require.ErrorIs(t, err, errs.ErrInvalid)
 }
 
-func TestObsidianDMGInstallsAsOneFile(t *testing.T) {
+func TestObsidianDMGIsNotCopiedAsTheBinary(t *testing.T) {
 	t.Parallel()
 
-	const payload = "not-an-archive-dmg"
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
-		_, _ = writer.Write([]byte(payload))
+		_, _ = writer.Write([]byte("not-an-archive-dmg"))
 	}))
 	t.Cleanup(server.Close)
 
@@ -205,20 +204,10 @@ func TestObsidianDMGInstallsAsOneFile(t *testing.T) {
 		Arch: "amd64",
 		URL:  server.URL + "/Obsidian-1.14.4.dmg",
 	}, dest)
-	require.NoError(t, err)
-
-	// The shared extractor copies a dmg as one file. NormalizeBinaryName
-	// strips the trailing version, and ".dmg" is part of that token, so
-	// Obsidian-1.14.4.dmg lands as Obsidian. It is not an app bundle.
-	body, err := os.ReadFile(filepath.Join(dest, "Obsidian"))
-	require.NoError(t, err)
-	require.Equal(t, payload, string(body))
-	entries, err := os.ReadDir(dest)
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
+	require.ErrorIs(t, err, tool.ErrDiskImageMount)
 	require.Empty(t, tool.FindBinary(dest, "obsidian"))
-	_, err = os.Stat(filepath.Join(dest, "Obsidian.app", "Contents", "MacOS", "Obsidian"))
-	require.Error(t, err)
+	_, statErr := os.Stat(filepath.Join(dest, "Obsidian"))
+	require.Error(t, statErr)
 }
 
 func releaseAssets() []obsidianAsset {
