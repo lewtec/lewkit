@@ -27,6 +27,7 @@ import (
 	"image"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 )
@@ -38,9 +39,9 @@ var (
 	// package can read.
 	ErrIcon = errors.New("tray icon")
 	// ErrNotBound means macOS Open ran before thread.Bind.
-	ErrNotBound = errors.New("thread not bound")
+	ErrNotBound = thread.ErrNotBound
 	// ErrNotMain means macOS setup did not run on the process main thread.
-	ErrNotMain = errors.New("not main thread")
+	ErrNotMain = thread.ErrNotMain
 )
 
 // Icon is the image shown in the status area.
