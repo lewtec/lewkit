@@ -9,7 +9,6 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/sops"
-	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/tool"
 
 	_ "github.com/lewtec/lewkit/x/tool/conda"
@@ -60,11 +59,7 @@ func (c *execCmd) Run(ctx context.Context) error {
 		}
 		return err
 	}
-	if taskgroup.FromContext(ctx) != nil {
-		entry.After(run)
-		return nil
-	}
-	return run(ctx)
+	return entry.RunAfterView(ctx, run)
 }
 
 func ensureTools(ctx context.Context, specs []string, command string) (string, error) {

@@ -57,14 +57,11 @@ func (decompSummaryCmd) Description() string {
 	return "summarize one native artifact"
 }
 
-func (command *decompSummaryCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
+func (command *decompSummaryCmd) Run(ctx context.Context) error {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		_, err := io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), artifact.Summary())
 		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), artifact.Summary())
-	return err
+	})
 }
 
 type decompFunctionsCmd struct {
@@ -75,19 +72,16 @@ func (decompFunctionsCmd) Description() string {
 	return "list recovered functions"
 }
 
-func (command *decompFunctionsCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
-		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	out := lewfs.ContextWriter(ctx, os.Stdout)
-	for _, function := range artifact.Functions() {
-		if _, err := fmt.Fprintf(out, "0x%x\t%s\t%d\n", function.Address, function.Name, function.Size); err != nil {
-			return err
+func (command *decompFunctionsCmd) Run(ctx context.Context) error {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		out := lewfs.ContextWriter(ctx, os.Stdout)
+		for _, function := range artifact.Functions() {
+			if _, err := fmt.Fprintf(out, "0x%x\t%s\t%d\n", function.Address, function.Name, function.Size); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 type decompListingCmd struct {
@@ -99,18 +93,15 @@ func (decompListingCmd) Description() string {
 	return "print blocks and instructions for one function"
 }
 
-func (command *decompListingCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
+func (command *decompListingCmd) Run(ctx context.Context) error {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		listing, err := artifact.Listing(commandAddress(command.at, artifact))
+		if err != nil {
+			return err
+		}
+		_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), listing)
 		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	listing, err := artifact.Listing(commandAddress(command.at, artifact))
-	if err != nil {
-		return err
-	}
-	_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), listing)
-	return err
+	})
 }
 
 type decompStreamCmd struct {
@@ -121,14 +112,11 @@ func (decompStreamCmd) Description() string {
 	return "print instructions and comments in address order"
 }
 
-func (command *decompStreamCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
+func (command *decompStreamCmd) Run(ctx context.Context) error {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		_, err := io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), artifact.Stream())
 		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	_, err = io.WriteString(lewfs.ContextWriter(ctx, os.Stdout), artifact.Stream())
-	return err
+	})
 }
 
 type decompXRefsCmd struct {
@@ -140,19 +128,16 @@ func (decompXRefsCmd) Description() string {
 	return "list references to one address"
 }
 
-func (command *decompXRefsCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
-		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	out := lewfs.ContextWriter(ctx, os.Stdout)
-	for _, reference := range artifact.XRefs(command.at.Value()) {
-		if _, err := fmt.Fprintf(out, "0x%x %s\n", reference.From, reference.Kind); err != nil {
-			return err
+func (command *decompXRefsCmd) Run(ctx context.Context) error {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		out := lewfs.ContextWriter(ctx, os.Stdout)
+		for _, reference := range artifact.XRefs(command.at.Value()) {
+			if _, err := fmt.Fprintf(out, "0x%x %s\n", reference.From, reference.Kind); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 type decompStringsCmd struct {
@@ -163,19 +148,16 @@ func (decompStringsCmd) Description() string {
 	return "list strings in the image"
 }
 
-func (command *decompStringsCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
-		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	out := lewfs.ContextWriter(ctx, os.Stdout)
-	for _, item := range artifact.Strings() {
-		if _, err := fmt.Fprintf(out, "0x%x %s\n", item.Address, item.Text); err != nil {
-			return err
+func (command *decompStringsCmd) Run(ctx context.Context) error {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		out := lewfs.ContextWriter(ctx, os.Stdout)
+		for _, item := range artifact.Strings() {
+			if _, err := fmt.Fprintf(out, "0x%x %s\n", item.Address, item.Text); err != nil {
+				return err
+			}
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
 type decompCheckCmd struct {
@@ -188,22 +170,19 @@ func (decompCheckCmd) Description() string {
 	return "compare a candidate with one function"
 }
 
-func (command *decompCheckCmd) Run(ctx context.Context) (err error) {
+func (command *decompCheckCmd) Run(ctx context.Context) error {
 	if !command.text.ArgSet() || command.text.Value() == "" {
 		return fmt.Errorf("decomp check: %w", errCandidate)
 	}
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
-		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	result, err := artifact.Check(ctx, commandAddress(command.at, artifact), command.text.Value())
-	if result.Matched || len(result.Residuals) > 0 {
-		if writeErr := writeMatch(ctx, result); writeErr != nil {
-			return writeErr
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		result, err := artifact.Check(ctx, commandAddress(command.at, artifact), command.text.Value())
+		if result.Matched || len(result.Residuals) > 0 {
+			if writeErr := writeMatch(ctx, result); writeErr != nil {
+				return writeErr
+			}
 		}
-	}
-	return err
+		return err
+	})
 }
 
 type decompNameCmd struct {
@@ -216,20 +195,17 @@ func (decompNameCmd) Description() string {
 	return "name one function"
 }
 
-func (command *decompNameCmd) Run(ctx context.Context) (err error) {
+func (command *decompNameCmd) Run(ctx context.Context) error {
 	if !command.rename.ArgSet() || command.rename.Value() == "" {
 		return fmt.Errorf("decomp name: %w", errFunctionName)
 	}
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		if err := artifact.SetName(ctx, command.at.Value(), command.rename.Value()); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", command.rename.Value())
 		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	if err := artifact.SetName(ctx, command.at.Value(), command.rename.Value()); err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", command.rename.Value())
-	return err
+	})
 }
 
 type decompNoteCmd struct {
@@ -242,36 +218,33 @@ func (decompNoteCmd) Description() string {
 	return "store what an address means"
 }
 
-func (command *decompNoteCmd) Run(ctx context.Context) (err error) {
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
-		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	if !command.at.ArgSet() && !command.text.ArgSet() {
-		out := lewfs.ContextWriter(ctx, os.Stdout)
-		for _, note := range artifact.Notes() {
-			if _, err := fmt.Fprintf(out, "0x%x %s\n", note.Address, note.Text); err != nil {
+func (command *decompNoteCmd) Run(ctx context.Context) error {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		if !command.at.ArgSet() && !command.text.ArgSet() {
+			out := lewfs.ContextWriter(ctx, os.Stdout)
+			for _, note := range artifact.Notes() {
+				if _, err := fmt.Fprintf(out, "0x%x %s\n", note.Address, note.Text); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+		address := command.at.Value()
+		if command.text.ArgSet() {
+			if err := artifact.SetNote(ctx, address, command.text.Value()); err != nil {
 				return err
 			}
 		}
-		return nil
-	}
-	address := command.at.Value()
-	if command.text.ArgSet() {
-		if err := artifact.SetNote(ctx, address, command.text.Value()); err != nil {
-			return err
+		text, ok := artifact.Note(address)
+		if !ok {
+			if command.text.ArgSet() {
+				return nil
+			}
+			return fmt.Errorf("%w%x", ErrDecompNoteCmdRunNoNoteAt0x, address)
 		}
-	}
-	text, ok := artifact.Note(address)
-	if !ok {
-		if command.text.ArgSet() {
-			return nil
-		}
-		return fmt.Errorf("%w%x", ErrDecompNoteCmdRunNoNoteAt0x, address)
-	}
-	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", text)
-	return err
+		_, err := fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", text)
+		return err
+	})
 }
 
 type decompSignatureCmd struct {
@@ -284,20 +257,17 @@ func (decompSignatureCmd) Description() string {
 	return "store a function signature"
 }
 
-func (command *decompSignatureCmd) Run(ctx context.Context) (err error) {
+func (command *decompSignatureCmd) Run(ctx context.Context) error {
 	if !command.text.ArgSet() {
 		return ErrDecompSignatureMissingText
 	}
-	project, artifact, err := openDecomp(ctx, command.path.Value())
-	if err != nil {
+	return useArtifact(ctx, command.path.Value(), func(artifact *xdecomp.Artifact) error {
+		if err := artifact.SetSignature(ctx, command.at.Value(), command.text.Value()); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", command.text.Value())
 		return err
-	}
-	defer func() { err = joinClose(err, project.Close()) }()
-	if err := artifact.SetSignature(ctx, command.at.Value(), command.text.Value()); err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", command.text.Value())
-	return err
+	})
 }
 
 type decompViewCmd struct {
@@ -328,6 +298,16 @@ func (command *decompViewCmd) Run(ctx context.Context) (err error) {
 		return err
 	}
 	return view.Serve(ctx, listener, view.Handler(project))
+}
+
+func useArtifact(ctx context.Context, path string, fn func(*xdecomp.Artifact) error) (err error) {
+	project, artifact, err := openDecomp(ctx, path)
+	if err != nil {
+		return err
+	}
+	defer func() { err = joinClose(err, project.Close()) }()
+	err = fn(artifact)
+	return err
 }
 
 func openDecomp(ctx context.Context, path string) (*xdecomp.Project, *xdecomp.Artifact, error) {

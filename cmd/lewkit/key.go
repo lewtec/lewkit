@@ -14,7 +14,6 @@ import (
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/sops"
-	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/ui/tui"
 )
 
@@ -40,11 +39,7 @@ func (keyCmd) Description() string {
 
 func (c *keyCmd) Run(ctx context.Context) error {
 	// The progress view stops after Run returns. Interview once the terminal is back.
-	if taskgroup.FromContext(ctx) != nil {
-		entry.After(c.write)
-		return nil
-	}
-	return c.write(ctx)
+	return entry.RunAfterView(ctx, c.write)
 }
 
 func (c *keyCmd) write(ctx context.Context) error {

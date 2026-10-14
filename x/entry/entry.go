@@ -106,6 +106,17 @@ func After(fn func(context.Context) error) {
 	after = fn
 }
 
+// RunAfterView runs fn now when ctx has no taskgroup session.
+// A session means the progress view still owns the terminal, so fn is
+// registered with After and this returns nil.
+func RunAfterView(ctx context.Context, fn func(context.Context) error) error {
+	if taskgroup.FromContext(ctx) != nil {
+		After(fn)
+		return nil
+	}
+	return fn(ctx)
+}
+
 // Run binds the UI thread, attaches one taskgroup session, and shows its progress.
 // A session already on ctx is kept.
 // After runs when fn and the session succeed, before this call returns.

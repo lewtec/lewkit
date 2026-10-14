@@ -17,6 +17,29 @@ var (
 	errChildFailed = errors.New("child failed")
 )
 
+func TestRunAfterViewRunsNow(t *testing.T) {
+	called := false
+	err := RunAfterView(t.Context(), func(context.Context) error {
+		called = true
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, called)
+}
+
+func TestRunAfterViewWaitsForTheView(t *testing.T) {
+	t.Cleanup(func() { After(nil) })
+	var ran bool
+	err := Run(t.Context(), func(ctx context.Context) error {
+		return RunAfterView(ctx, func(context.Context) error {
+			ran = true
+			return nil
+		})
+	})
+	require.NoError(t, err)
+	require.True(t, ran)
+}
+
 func TestAfterOutlivesSession(t *testing.T) {
 	t.Cleanup(func() { After(nil) })
 	var sessionCtx context.Context
