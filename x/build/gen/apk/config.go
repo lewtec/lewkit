@@ -74,7 +74,7 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 	}
 	var doc fileConfig
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return Config{}, "", fmt.Errorf("%s: %w", file, err)
+		return Config{}, "", fmt.Errorf("%w%s: %w", ErrLoadConfig, file, err)
 	}
 	cfg = Config{
 		PackageID:   doc.PackageID,
@@ -87,7 +87,7 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 	}
 	caps, err := common.ParseCapabilities(doc.Capabilities)
 	if err != nil {
-		return Config{}, "", fmt.Errorf("%s: %w", file, err)
+		return Config{}, "", fmt.Errorf("%w%s: %w", ErrLoadConfig, file, err)
 	}
 	cfg.Capabilities = caps
 	return cfg, baseDir, nil

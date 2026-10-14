@@ -33,7 +33,9 @@ var (
 	// ErrStdoutSet means Output was called with Stdout already set.
 	ErrStdoutSet = errors.New("stdout already set")
 	// ErrNilContext means the caller did not pass a context.
-	ErrNilContext = errors.New("exec: nil context")
+	ErrNilContext   = errors.New("exec: nil context")
+	ErrOutputString = errors.New("")
+	ErrRunProgram   = errors.New("")
 )
 
 // stderrHook, when set, supplies Stderr if it is still nil at start.
@@ -158,7 +160,7 @@ func RunProgram(ctx context.Context, name string, args ...string) error {
 		return ErrNilContext
 	}
 	if err := Run(ctx, MustCommand(ctx, name, args...)); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return fmt.Errorf("%w%s: %w", ErrRunProgram, name, err)
 	}
 	return nil
 }
@@ -171,7 +173,7 @@ func OutputString(ctx context.Context, name string, args ...string) (string, err
 	}
 	out, err := Output(ctx, MustCommand(ctx, name, args...))
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", name, err)
+		return "", fmt.Errorf("%w%s: %w", ErrOutputString, name, err)
 	}
 	return string(out), nil
 }

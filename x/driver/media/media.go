@@ -26,6 +26,10 @@ import (
 	"github.com/lewtec/lewkit/x/release"
 )
 
+var (
+	ErrGetArtCachePathGet = errors.New("GET")
+)
+
 // ErrNoPlayer means no MPRIS player is on the session bus.
 var ErrNoPlayer = errors.New("no media player")
 
@@ -127,7 +131,7 @@ func GetArtCachePath(ctx context.Context, url string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GET %s: %s", url, resp.Status)
+		return "", fmt.Errorf("%w %s: %s", ErrGetArtCachePathGet, url, resp.Status)
 	}
 	if err := writeAtomic(path, resp.Body); err != nil {
 		return "", err

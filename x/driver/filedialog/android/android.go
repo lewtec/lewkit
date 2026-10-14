@@ -13,6 +13,10 @@ import (
 	androidffi "github.com/lewtec/lewkit/x/ffi/native/android"
 )
 
+var (
+	ErrBackendChoose = errors.New("")
+)
+
 func init() { driver.Register[filedialog.Driver](factory{}) }
 
 type factory struct{}
@@ -89,7 +93,7 @@ func (backend) Choose(ctx context.Context, req filedialog.Request) (paths []stri
 		return resultOf(got.status, got.paths)
 	case <-ctx.Done():
 		if _, err = jni.CallStatic("lewkit.FileChooser", "cancel"); err != nil {
-			return nil, fmt.Errorf("%w: %w", ctx.Err(), err)
+			return nil, fmt.Errorf("%w%w: %w", ErrBackendChoose, ctx.Err(), err)
 		}
 		return nil, ctx.Err()
 	}

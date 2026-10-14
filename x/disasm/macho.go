@@ -14,7 +14,7 @@ var _ Object = (*MachOFile)(nil)
 func openMachO(reader io.ReaderAt) (*MachOFile, error) {
 	file, err := macho.NewFile(reader)
 	if err != nil {
-		return nil, fmt.Errorf("macho: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrOpenMachOMacho, err)
 	}
 	return &MachOFile{File: file}, nil
 }
@@ -40,7 +40,7 @@ func (file *MachOFile) Architecture() (Architecture, Mode, error) {
 	case macho.CpuPpc64:
 		return ArchitecturePowerPC, Mode64, nil
 	default:
-		return 0, 0, fmt.Errorf("macho cpu %s", file.File.Cpu)
+		return 0, 0, fmt.Errorf("%w %s", ErrMachOFileArchitectureMachoCpu, file.File.Cpu)
 	}
 }
 
@@ -55,7 +55,7 @@ func (file *MachOFile) TextSection(name string) (uint64, []byte, string, error) 
 	}
 	data, err := section.Data()
 	if err != nil {
-		return 0, nil, "", fmt.Errorf("macho section %s: %w", section.Name, err)
+		return 0, nil, "", fmt.Errorf("%w %s: %w", ErrMachoSection, section.Name, err)
 	}
 	return section.Addr, data, section.Name, nil
 }
@@ -99,7 +99,7 @@ func (file *MachOFile) Sections() ([]Section, error) {
 		if section.Offset != 0 {
 			read, err := section.Data()
 			if err != nil {
-				return nil, fmt.Errorf("macho section %s: %w", section.Name, err)
+				return nil, fmt.Errorf("%w %s: %w", ErrMachoSection, section.Name, err)
 			}
 			data = read
 		}

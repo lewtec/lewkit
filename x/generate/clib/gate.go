@@ -130,7 +130,7 @@ func requireImageExports(path, goos string, names []string) error {
 		}
 		have, err := peExports(buf)
 		if err != nil {
-			return fmt.Errorf("clib: %s: %w", path, err)
+			return fmt.Errorf("%w: %s: %w", ErrRequireImageExportsClib, path, err)
 		}
 		return missingExport(path, names, have)
 	case "darwin":
@@ -141,14 +141,14 @@ func requireImageExports(path, goos string, names []string) error {
 		for _, name := range names {
 			addr, ok := trieLookup(trie, name)
 			if !ok || addr == 0 {
-				return fmt.Errorf("clib: %s: export %s is not in the image", path, name)
+				return fmt.Errorf("clib: %s: export %s %w", path, name, ErrIsNotInTheImage)
 			}
 		}
 		return nil
 	default:
 		have, err := elfExports(path)
 		if err != nil {
-			return fmt.Errorf("clib: %s: %w", path, err)
+			return fmt.Errorf("%w: %s: %w", ErrRequireImageExportsClib, path, err)
 		}
 		return missingExport(path, names, have)
 	}
@@ -157,7 +157,7 @@ func requireImageExports(path, goos string, names []string) error {
 func missingExport(path string, names []string, have map[string]bool) error {
 	for _, name := range names {
 		if !have[name] {
-			return fmt.Errorf("clib: %s: export %s is not in the image", path, name)
+			return fmt.Errorf("clib: %s: export %s %w", path, name, ErrIsNotInTheImage)
 		}
 	}
 	return nil

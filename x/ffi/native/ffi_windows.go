@@ -3,8 +3,13 @@
 package native
 
 import (
+	"errors"
 	"fmt"
 	"syscall"
+)
+
+var (
+	ErrOpenPathLoad = errors.New("load")
 )
 
 const (
@@ -18,7 +23,7 @@ func openPath(path string, flags int) (uintptr, error) {
 	_ = flags
 	dll, err := syscall.LoadDLL(path)
 	if err != nil {
-		return 0, fmt.Errorf("load %s: %w", path, err)
+		return 0, fmt.Errorf("%w %s: %w", ErrOpenPathLoad, path, err)
 	}
 	return uintptr(dll.Handle), nil
 }

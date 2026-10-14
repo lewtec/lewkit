@@ -30,7 +30,11 @@ var (
 	// ErrUnknownStep means a target or dependency names no step.
 	ErrUnknownStep = errors.New("unknown step")
 	// ErrDuplicate means two steps share a name.
-	ErrDuplicate = errors.New("duplicate step")
+	ErrDuplicate                = errors.New("duplicate step")
+	ErrDownloadEmptyDestination = errors.New("download: empty destination")
+	ErrRunStep                  = errors.New("")
+	ErrWorkflowEmptyStepName    = errors.New("workflow: empty step name")
+	ErrWorkflowNilContext       = errors.New("workflow: nil context")
 )
 
 // Step is one node. Deps are step names. Inputs and Outputs are paths,
@@ -78,7 +82,7 @@ func (f Future) Wait(ctx context.Context) error {
 		return nil
 	}
 	if ctx == nil {
-		return errors.New("workflow: nil context")
+		return ErrWorkflowNilContext
 	}
 	ctx = context.WithoutCancel(ctx)
 	var err error
@@ -97,7 +101,7 @@ func (f Future) Wait(ctx context.Context) error {
 // Run starts one and waits, and that wait error is Run's error.
 func Run(ctx context.Context, g Graph, targets []string) (Future, error) {
 	if ctx == nil {
-		return Future{}, errors.New("workflow: nil context")
+		return Future{}, ErrWorkflowNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return Future{}, err
@@ -146,7 +150,7 @@ func (g Graph) closure(targets []string) ([]Step, map[string]Step, error) {
 	byName := make(map[string]Step, len(g.Steps))
 	for _, step := range g.Steps {
 		if step.Name == "" {
-			return nil, nil, errors.New("workflow: empty step name")
+			return nil, nil, ErrWorkflowEmptyStepName
 		}
 		if _, ok := byName[step.Name]; ok {
 			return nil, nil, fmt.Errorf("workflow: %w: %s", ErrDuplicate, step.Name)

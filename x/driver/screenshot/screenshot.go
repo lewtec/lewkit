@@ -50,13 +50,13 @@ type Driver interface {
 // ParseRectParts turns four decimal integer strings into a Rect.
 func ParseRectParts(parts []string) (*wm.Rect, error) {
 	if len(parts) != 4 {
-		return nil, fmt.Errorf("expected 4 geometry fields, got %d", len(parts))
+		return nil, fmt.Errorf("%w %d", ErrExpected4GeometryFieldsGot, len(parts))
 	}
 	vals := make([]int, 4)
 	for i, p := range parts {
 		n, err := strconv.Atoi(p)
 		if err != nil {
-			return nil, fmt.Errorf("parse geometry field %d %q: %w", i, p, err)
+			return nil, fmt.Errorf("%w %d %q: %w", ErrParseGeometryField, i, p, err)
 		}
 		vals[i] = n
 	}

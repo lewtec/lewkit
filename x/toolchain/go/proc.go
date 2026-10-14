@@ -48,7 +48,7 @@ func spawn(ctx context.Context, action string, req childRequest) error {
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s: %w\n%s", action, err, out)
+		return fmt.Errorf("%w%s: %w\n%s", ErrSpawn, action, err, out)
 	}
 	return nil
 }

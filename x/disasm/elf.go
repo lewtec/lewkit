@@ -49,7 +49,7 @@ func (file *ELFFile) Architecture() (Architecture, Mode, error) {
 	case elf.EM_BPF:
 		return ArchitectureBPF, ModeBPFExtended, nil
 	default:
-		return 0, 0, fmt.Errorf("elf machine %s", file.File.Machine)
+		return 0, 0, fmt.Errorf("%w %s", ErrELFFileArchitectureElfMachine, file.File.Machine)
 	}
 }
 
@@ -68,7 +68,7 @@ func (file *ELFFile) TextSection(name string) (uint64, []byte, string, error) {
 	}
 	data, err := section.Data()
 	if err != nil {
-		return 0, nil, "", fmt.Errorf("elf section %s: %w", section.Name, err)
+		return 0, nil, "", fmt.Errorf("%w %s: %w", ErrELFFileTextSectionElfSection, section.Name, err)
 	}
 	return section.Addr, data, section.Name, nil
 }
@@ -118,7 +118,7 @@ func (file *ELFFile) Sections() ([]Section, error) {
 		}
 		data, err := section.Data()
 		if err != nil {
-			return nil, fmt.Errorf("elf section %s: %w", section.Name, err)
+			return nil, fmt.Errorf("%w %s: %w", ErrELFFileSectionsElfSection, section.Name, err)
 		}
 		item.Bytes = data
 		if item.Size < uint64(len(data)) {

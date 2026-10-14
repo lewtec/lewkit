@@ -2,12 +2,17 @@ package vulkan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
 	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ndarray"
+)
+
+var (
+	ErrVulkanDevice = errors.New("vulkan device")
 )
 
 func init() {
@@ -68,7 +73,7 @@ func pickDevice(handles []driver.Handle[drvvulkan.Device], kind string) (driver.
 			return handle, nil
 		}
 	}
-	return driver.Handle[drvvulkan.Device]{}, fmt.Errorf("no %s vulkan device", kind)
+	return driver.Handle[drvvulkan.Device]{}, fmt.Errorf("no %s %w", kind, ErrVulkanDevice)
 }
 
 func deviceKind(id string) drvvulkan.DeviceType {

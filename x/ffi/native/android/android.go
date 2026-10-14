@@ -3,11 +3,16 @@
 package android
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"syscall"
 
 	"github.com/lewtec/lewkit/x/ffi/native"
+)
+
+var (
+	ErrJniGetcreatedjavavms = errors.New("JNI_GetCreatedJavaVMs")
 )
 
 var (
@@ -79,7 +84,7 @@ func JavaVMs() (int, error) {
 	var vm uintptr
 	var n int32
 	if rc := got.JNIGetCreatedJavaVMs(&vm, 1, &n); rc != 0 {
-		return 0, fmt.Errorf("JNI_GetCreatedJavaVMs: %d", rc)
+		return 0, fmt.Errorf("%w: %d", ErrJniGetcreatedjavavms, rc)
 	}
 	return int(n), nil
 }

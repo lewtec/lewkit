@@ -48,7 +48,7 @@ const DefaultOutputDir = "dist/icons"
 func defaultMaster() (image.Image, error) {
 	img, err := DecodeBytes(DefaultLockupPNG, "default/lockup.png")
 	if err != nil {
-		return nil, fmt.Errorf("default lockup: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDefaultLockup, err)
 	}
 	return convert.Resize(ExtractUpperMark(KnockoutBackground(img)), 1024), nil
 }

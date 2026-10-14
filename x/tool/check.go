@@ -65,7 +65,7 @@ func FileExists(relativePath string) Check {
 		relativePath: relativePath,
 		fn: func(_ context.Context, path string, info fs.FileInfo) error {
 			if info.IsDir() {
-				return fmt.Errorf("%s is a directory, want a file", path)
+				return fmt.Errorf("%s %w", path, ErrIsADirectoryWantAFile)
 			}
 			return nil
 		},
@@ -80,13 +80,13 @@ func Executable(relativePath string) Check {
 		relativePath: relativePath,
 		fn: func(_ context.Context, path string, info fs.FileInfo) error {
 			if info.IsDir() {
-				return fmt.Errorf("%s is a directory, want an executable file", path)
+				return fmt.Errorf("%s %w", path, ErrIsADirectoryWantAnExecutableFile)
 			}
 			if runtime.GOOS == "windows" {
 				return nil
 			}
 			if info.Mode()&0o111 == 0 {
-				return fmt.Errorf("%s is not executable", path)
+				return fmt.Errorf("%s %w", path, ErrIsNotExecutable)
 			}
 			return nil
 		},
@@ -169,10 +169,10 @@ func (check binaryCheck) Check(ctx context.Context, destination string) error {
 		return err
 	}
 	if info.IsDir() {
-		return fmt.Errorf("%s is a directory, want an executable file", host)
+		return fmt.Errorf("%s %w", host, ErrIsADirectoryWantAnExecutableFile)
 	}
 	if runtime.GOOS != "windows" && info.Mode()&0o111 == 0 {
-		return fmt.Errorf("%s is not executable", host)
+		return fmt.Errorf("%s %w", host, ErrIsNotExecutable)
 	}
 	return nil
 }

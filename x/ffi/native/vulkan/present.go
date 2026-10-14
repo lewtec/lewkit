@@ -11,6 +11,48 @@ import (
 	"github.com/lewtec/lewkit/x/release"
 )
 
+var (
+	ErrAcquireFence                   = errors.New("acquire fence")
+	ErrAcquireImage                   = errors.New("acquire: image")
+	ErrAllocateMemory                 = errors.New("allocate memory")
+	ErrBeginCommandBuffer             = errors.New("begin command buffer")
+	ErrCmdSubmitQueueSubmit           = errors.New("queue submit")
+	ErrCmdWaitFenceWait               = errors.New("fence wait")
+	ErrCmdWaitQueueWait               = errors.New("queue wait")
+	ErrCmdWaitResetFence              = errors.New("reset fence")
+	ErrComputePipeline                = errors.New("compute pipeline")
+	ErrCreateBuffer                   = errors.New("create buffer")
+	ErrCreateInstance                 = errors.New("create instance")
+	ErrDescriptorLayout               = errors.New("descriptor layout")
+	ErrDescriptorPool                 = errors.New("descriptor pool")
+	ErrDescriptorSet                  = errors.New("descriptor set")
+	ErrDeviceAllocBindBuffer          = errors.New("bind buffer")
+	ErrDeviceAllocMapMemory           = errors.New("map memory")
+	ErrDeviceFinishPresentFrameWait   = errors.New("frame wait")
+	ErrDeviceFinishPresentQueueWait   = errors.New("queue wait")
+	ErrDeviceFinishPresentResetFence  = errors.New("reset fence")
+	ErrDeviceSyncMapped               = errors.New("")
+	ErrEndCommandBuffer               = errors.New("end command buffer")
+	ErrEnumerateDevices               = errors.New("enumerate devices")
+	ErrPipelineLayout                 = errors.New("pipeline layout")
+	ErrPresentShader                  = errors.New("present shader")
+	ErrPresentSubmit                  = errors.New("present submit")
+	ErrQueuePresent                   = errors.New("queue present")
+	ErrResetCommandBuffer             = errors.New("reset command buffer")
+	ErrScreenAcquireAcquire           = errors.New("acquire")
+	ErrScreenEnsureSemsSemaphore      = errors.New("semaphore")
+	ErrScreenEnsureStoreBindImage     = errors.New("bind image")
+	ErrScreenEnsureStoreImageMemory   = errors.New("image memory")
+	ErrScreenMakeSwapchainSurfaceCaps = errors.New("surface caps")
+	ErrScreenMakeViewImageView        = errors.New("image view")
+	ErrScreenReclaimFrameWait         = errors.New("frame wait")
+	ErrScreenReclaimResetFence        = errors.New("reset fence")
+	ErrShaderModule                   = errors.New("shader module")
+	ErrStorageImage                   = errors.New("storage image")
+	ErrSurfaceFormats                 = errors.New("surface formats")
+	ErrSwapchainImages                = errors.New("swapchain images")
+)
+
 const (
 	extSurface       = "VK_KHR_surface"
 	extSwapchain     = "VK_KHR_swapchain"
@@ -551,7 +593,7 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 		ppEnabledExtensionNames: extPtrs,
 	}
 	if err := check(d.api.createInstance(&info, 0, &d.inst)); err != nil {
-		return nil, fmt.Errorf("create instance: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrCreateInstance, err)
 	}
 	if err := d.api.loadInstance(d.inst); err != nil {
 		d.api.destroyInstance(d.inst, 0)
@@ -693,7 +735,7 @@ func pickAlpha(supported uint32) uint32 {
 func (s *Screen) makeSwapchain() error {
 	var caps surfaceCaps
 	if err := check(s.wsi.surfaceCaps(s.d.phys, s.surface, &caps)); err != nil {
-		return fmt.Errorf("surface caps: %w", err)
+		return fmt.Errorf("%w: %w", ErrScreenMakeSwapchainSurfaceCaps, err)
 	}
 	format, swapRB, err := s.pickFormat()
 	if err != nil {
@@ -732,11 +774,11 @@ func (s *Screen) makeSwapchain() error {
 	}
 	var n uint32
 	if err := check(s.wsi.swapchainImages(s.d.dev, s.swap, &n, nil)); err != nil || n == 0 {
-		return fmt.Errorf("swapchain images: %w", err)
+		return fmt.Errorf("%w: %w", ErrSwapchainImages, err)
 	}
 	s.images = make([]uint64, n)
 	if err := check(s.wsi.swapchainImages(s.d.dev, s.swap, &n, &s.images[0])); err != nil {
-		return fmt.Errorf("swapchain images: %w", err)
+		return fmt.Errorf("%w: %w", ErrSwapchainImages, err)
 	}
 	s.images = s.images[:n]
 	s.views = make([]uint64, n)
@@ -744,7 +786,7 @@ func (s *Screen) makeSwapchain() error {
 	if s.acqFence == 0 {
 		fence := fenceCreateInfo{sType: structureFenceCreateInfo}
 		if err := check(s.d.api.createFence(s.d.dev, &fence, 0, &s.acqFence)); err != nil {
-			return fmt.Errorf("acquire fence: %w", err)
+			return fmt.Errorf("%w: %w", ErrAcquireFence, err)
 		}
 	}
 	return nil
@@ -860,11 +902,11 @@ func (s *Screen) dropSwap() {
 func (s *Screen) pickFormat() (int32, int32, error) {
 	var n uint32
 	if err := check(s.wsi.surfaceFormats(s.d.phys, s.surface, &n, nil)); err != nil || n == 0 {
-		return 0, 0, fmt.Errorf("surface formats: %w", err)
+		return 0, 0, fmt.Errorf("%w: %w", ErrSurfaceFormats, err)
 	}
 	formats := make([]surfaceFormat, n)
 	if err := check(s.wsi.surfaceFormats(s.d.phys, s.surface, &n, &formats[0])); err != nil {
-		return 0, 0, fmt.Errorf("surface formats: %w", err)
+		return 0, 0, fmt.Errorf("%w: %w", ErrSurfaceFormats, err)
 	}
 	for _, f := range formats[:n] {
 		if f.format == formatRGBA {
@@ -1102,7 +1144,7 @@ func (s *Screen) ensureStore() error {
 	}
 	var image uint64
 	if err := check(s.wsi.createImage(s.d.dev, &info, 0, &image)); err != nil {
-		return fmt.Errorf("storage image: %w", err)
+		return fmt.Errorf("%w: %w", ErrStorageImage, err)
 	}
 	var req memoryRequirements
 	s.wsi.imageReqs(s.d.dev, image, &req)
@@ -1115,12 +1157,12 @@ func (s *Screen) ensureStore() error {
 	var mem uint64
 	if err := check(s.d.api.allocateMemory(s.d.dev, &alloc, 0, &mem)); err != nil {
 		s.wsi.destroyImage(s.d.dev, image, 0)
-		return fmt.Errorf("image memory: %w", err)
+		return fmt.Errorf("%w: %w", ErrScreenEnsureStoreImageMemory, err)
 	}
 	if err := check(s.wsi.bindImage(s.d.dev, image, mem, 0)); err != nil {
 		s.d.api.freeMemory(s.d.dev, mem, 0)
 		s.wsi.destroyImage(s.d.dev, image, 0)
-		return fmt.Errorf("bind image: %w", err)
+		return fmt.Errorf("%w: %w", ErrScreenEnsureStoreBindImage, err)
 	}
 	view, err := s.makeView(image, formatRGBA)
 	if err != nil {
@@ -1143,7 +1185,7 @@ func (s *Screen) makeView(image uint64, format int32) (uint64, error) {
 	}
 	var view uint64
 	if err := check(s.wsi.createView(s.d.dev, &info, 0, &view)); err != nil {
-		return 0, fmt.Errorf("image view: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrScreenMakeViewImageView, err)
 	}
 	return view, nil
 }
@@ -1162,7 +1204,7 @@ func (s *Screen) ensurePipe(spirv []byte) error {
 	modInfo := shaderModuleCreateInfo{sType: structureShaderModuleCreateInfo, codeSize: uintptr(len(spirv)), pCode: &code[0]}
 	var module uint64
 	if err := check(s.d.api.createShaderModule(s.d.dev, &modInfo, 0, &module)); err != nil {
-		return fmt.Errorf("present shader: %w", err)
+		return fmt.Errorf("%w: %w", ErrPresentShader, err)
 	}
 	binds := [2]descriptorSetLayoutBinding{
 		{binding: 0, descriptorType: descriptorStorageBuffer, descriptorCount: 1, stageFlags: shaderStageCompute},
@@ -1258,10 +1300,10 @@ func (s *Screen) reclaim() error {
 	}
 	if d.fence != 0 && d.api.waitForFences != nil {
 		if err := check(d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))); err != nil {
-			return fmt.Errorf("frame wait: %w", err)
+			return fmt.Errorf("%w: %w", ErrScreenReclaimFrameWait, err)
 		}
 		if err := check(d.api.resetFences(d.dev, 1, &d.fence)); err != nil {
-			return fmt.Errorf("reset fence: %w", err)
+			return fmt.Errorf("%w: %w", ErrScreenReclaimResetFence, err)
 		}
 	}
 	d.pending = false
@@ -1289,13 +1331,13 @@ func (s *Screen) ensureSems() error {
 	info := semaphoreCreateInfo{sType: structureSemaphoreCreateInfo}
 	var acquired uint64
 	if err := check(s.d.api.createSemaphore(s.d.dev, &info, 0, &acquired)); err != nil {
-		return fmt.Errorf("semaphore: %w", err)
+		return fmt.Errorf("%w: %w", ErrScreenEnsureSemsSemaphore, err)
 	}
 	s.acquireSem = acquired
 	s.renderSem = make([]uint64, n)
 	for i := range s.renderSem {
 		if err := check(s.d.api.createSemaphore(s.d.dev, &info, 0, &s.renderSem[i])); err != nil {
-			return fmt.Errorf("semaphore: %w", err)
+			return fmt.Errorf("%w: %w", ErrScreenEnsureSemsSemaphore, err)
 		}
 	}
 	return nil
@@ -1325,10 +1367,10 @@ func (s *Screen) acquire(index *uint32) error {
 	}
 	r := s.wsi.acquire(s.d.dev, s.swap, ^uint64(0), s.acquireSem, 0, index)
 	if err := s.noteResult(r); err != nil {
-		return fmt.Errorf("acquire: %w", err)
+		return fmt.Errorf("%w: %w", ErrScreenAcquireAcquire, err)
 	}
 	if int(*index) >= len(s.renderSem) {
-		return fmt.Errorf("acquire: image %d", *index)
+		return fmt.Errorf("%w %d", ErrAcquireImage, *index)
 	}
 	return nil
 }
@@ -1448,7 +1490,7 @@ func (s *Screen) submitFrame(index uint32, waitStage uint32) error {
 		pSignalSemaphores:    uintptr(unsafe.Pointer(&signal)),
 	}
 	if err := check(d.api.queueSubmit(d.queue, 1, &submit, d.fence)); err != nil {
-		return fmt.Errorf("present submit: %w", err)
+		return fmt.Errorf("%w: %w", ErrPresentSubmit, err)
 	}
 	d.pending = true
 	return nil
@@ -1478,7 +1520,7 @@ func (s *Screen) present(index uint32) error {
 		info.pWait = uintptr(unsafe.Pointer(&sem))
 	}
 	if err := s.noteResult(s.wsi.queuePresent(s.d.queue, &info)); err != nil {
-		return fmt.Errorf("queue present: %w", err)
+		return fmt.Errorf("%w: %w", ErrQueuePresent, err)
 	}
 	return nil
 }

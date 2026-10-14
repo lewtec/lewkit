@@ -33,7 +33,7 @@ func runtimeDeps(dir string) (compileCfg, linkDeps string, err error) {
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return "", "", fmt.Errorf("go list runtime: %w\n%s", err, stderr.String())
+		return "", "", fmt.Errorf("%w: %w\n%s", ErrGoListRuntime, err, stderr.String())
 	}
 	var runtimeArchive string
 	var b strings.Builder
@@ -44,7 +44,7 @@ func runtimeDeps(dir string) (compileCfg, linkDeps string, err error) {
 		}
 		path, file, ok := strings.Cut(line, " ")
 		if !ok {
-			return "", "", fmt.Errorf("go list line %q", line)
+			return "", "", fmt.Errorf("%w %q", ErrRuntimeDepsGoListLine, line)
 		}
 		fmt.Fprintf(&b, "packagefile %s=%s\n", path, file)
 		if path == "runtime" {
@@ -52,7 +52,7 @@ func runtimeDeps(dir string) (compileCfg, linkDeps string, err error) {
 		}
 	}
 	if runtimeArchive == "" {
-		return "", "", fmt.Errorf("runtime has no export archive")
+		return "", "", ErrRuntimeHasNoExportArchive
 	}
 	if err = os.WriteFile(compileCfg, []byte("# import config\npackagefile runtime="+runtimeArchive+"\n"), 0o644); err != nil {
 		return "", "", err

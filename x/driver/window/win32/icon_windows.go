@@ -14,6 +14,12 @@ import (
 )
 
 var (
+	ErrGdiErr           = errors.New("")
+	ErrGdiErrStatus     = errors.New("status")
+	ErrWindowNilContext = errors.New("window: nil context")
+)
+
+var (
 	procCreateDIBSection   = native.ProcOf("gdi32.dll", "CreateDIBSection")
 	procCreateBitmap       = native.ProcOf("gdi32.dll", "CreateBitmap")
 	procCreateIconIndirect = native.ProcOf("user32.dll", "CreateIconIndirect")
@@ -124,7 +130,7 @@ func gdiErr(op string, extra uintptr, err error) error {
 		err = errGDI
 	}
 	if extra != 0 {
-		return fmt.Errorf("%s status %d: %w", op, extra, err)
+		return fmt.Errorf("%s %w %d: %w", op, ErrGdiErrStatus, extra, err)
 	}
-	return fmt.Errorf("%s: %w", op, err)
+	return fmt.Errorf("%w%s: %w", ErrGdiErr, op, err)
 }

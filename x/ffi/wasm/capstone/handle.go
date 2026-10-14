@@ -26,10 +26,23 @@ const (
 )
 
 var (
-	ErrClosed = errors.New("capstone closed")
-	ErrOpen   = errors.New("cs_open")
-	ErrOption = errors.New("cs_option")
-	ErrMalloc = errors.New("cs_malloc")
+	ErrClosed                        = errors.New("capstone closed")
+	ErrOpen                          = errors.New("cs_open")
+	ErrOption                        = errors.New("cs_option")
+	ErrMalloc                        = errors.New("cs_malloc")
+	ErrCsDisasmIter                  = errors.New("cs_disasm_iter")
+	ErrHandleReadInstructionMnemonic = errors.New("mnemonic")
+	ErrHandleReadInstructionOperands = errors.New("operands")
+	ErrHandleWalkWriteCode           = errors.New("write code")
+	ErrReadInstructionAddress        = errors.New("read instruction address")
+	ErrReadInstructionBytes          = errors.New("read instruction bytes")
+	ErrReadInstructionId             = errors.New("read instruction id")
+	ErrReadInstructionSize           = errors.New("read instruction size")
+	ErrReadMnemonic                  = errors.New("read mnemonic")
+	ErrReadOperands                  = errors.New("read operands")
+	ErrWriteAddress                  = errors.New("write address")
+	ErrWriteCodePointer              = errors.New("write code pointer")
+	ErrWriteCodeSize                 = errors.New("write code size")
 )
 
 // Instruction is one decoded instruction.
@@ -91,7 +104,7 @@ func Open(ctx context.Context, architecture, mode uint32) (*Handle, error) {
 	code, err := in.Call(ctx, "cs_open", uint64(architecture), uint64(mode), uint64(handlePointer))
 	if err != nil {
 		opened.dealloc(ctx, handlePointer)
-		return nil, closeInstance(ctx, in, fmt.Errorf("cs_open: %w", err))
+		return nil, closeInstance(ctx, in, fmt.Errorf("%w: %w", ErrOpen, err))
 	}
 	if code != 0 {
 		message := opened.strerror(ctx, uint32(code))
@@ -101,7 +114,7 @@ func Open(ctx context.Context, architecture, mode uint32) (*Handle, error) {
 	raw, err := in.Uint32LE(handlePointer)
 	opened.dealloc(ctx, handlePointer)
 	if err != nil {
-		return nil, closeInstance(ctx, in, fmt.Errorf("cs_open: %w", err))
+		return nil, closeInstance(ctx, in, fmt.Errorf("%w: %w", ErrOpen, err))
 	}
 	if raw == 0 {
 		return nil, closeInstance(ctx, in, fmt.Errorf("%w: empty handle", ErrOpen))
@@ -159,7 +172,7 @@ func (handle *Handle) Iter(ctx context.Context, code []byte, address uint64) ite
 func (handle *Handle) setOption(ctx context.Context, kind, value uint32) error {
 	code, err := handle.in.Call(ctx, "cs_option", uint64(handle.handle), uint64(kind), uint64(value))
 	if err != nil {
-		return fmt.Errorf("cs_option: %w", err)
+		return fmt.Errorf("%w: %w", ErrOption, err)
 	}
 	if code != 0 {
 		return fmt.Errorf("%w: %s", ErrOption, handle.strerror(ctx, uint32(code)))
@@ -170,7 +183,7 @@ func (handle *Handle) setOption(ctx context.Context, kind, value uint32) error {
 func (handle *Handle) walk(ctx context.Context, code []byte, address uint64, yield func(Instruction, error) bool) error {
 	instructionPointer, err := handle.in.Call(ctx, "cs_malloc", uint64(handle.handle))
 	if err != nil {
-		return fmt.Errorf("cs_malloc: %w", err)
+		return fmt.Errorf("%w: %w", ErrMalloc, err)
 	}
 	if instructionPointer == 0 {
 		return fmt.Errorf("%w: empty instruction", ErrMalloc)
@@ -194,17 +207,17 @@ func (handle *Handle) walk(ctx context.Context, code []byte, address uint64, yie
 		}
 		defer handle.dealloc(ctx, codePointer)
 		if err := handle.in.Write(codePointer, code); err != nil {
-			return fmt.Errorf("write code: %w", err)
+			return fmt.Errorf("%w: %w", ErrHandleWalkWriteCode, err)
 		}
 	}
 	if err := handle.writeUint32LE(codePointerPointer, codePointer); err != nil {
-		return fmt.Errorf("write code pointer: %w", err)
+		return fmt.Errorf("%w: %w", ErrWriteCodePointer, err)
 	}
 	if err := handle.writeUint32LE(sizePointer, uint32(len(code))); err != nil {
-		return fmt.Errorf("write code size: %w", err)
+		return fmt.Errorf("%w: %w", ErrWriteCodeSize, err)
 	}
 	if err := handle.writeUint64LE(addressPointer, address); err != nil {
-		return fmt.Errorf("write address: %w", err)
+		return fmt.Errorf("%w: %w", ErrWriteAddress, err)
 	}
 
 	for {
@@ -213,7 +226,7 @@ func (handle *Handle) walk(ctx context.Context, code []byte, address uint64, yie
 		}
 		ok, err := handle.in.Call(ctx, "cs_disasm_iter", uint64(handle.handle), uint64(codePointerPointer), uint64(sizePointer), uint64(addressPointer), instructionPointer)
 		if err != nil {
-			return fmt.Errorf("cs_disasm_iter: %w", err)
+			return fmt.Errorf("%w: %w", ErrCsDisasmIter, err)
 		}
 		if ok == 0 {
 			return nil
@@ -279,38 +292,38 @@ func (handle *Handle) strerror(ctx context.Context, code uint32) string {
 func (handle *Handle) readInstruction(ctx context.Context, instructionPointer uint32) (Instruction, error) {
 	id, err := handle.in.Uint32LE(instructionPointer + instructionOffsetID)
 	if err != nil {
-		return Instruction{}, fmt.Errorf("read instruction id: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrReadInstructionId, err)
 	}
 	address, err := handle.uint64LE(instructionPointer + instructionOffsetAddr)
 	if err != nil {
-		return Instruction{}, fmt.Errorf("read instruction address: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrReadInstructionAddress, err)
 	}
 	size, err := handle.uint16LE(instructionPointer + instructionOffsetSize)
 	if err != nil {
-		return Instruction{}, fmt.Errorf("read instruction size: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrReadInstructionSize, err)
 	}
 	raw, err := handle.in.Read(instructionPointer+instructionOffsetBytes, instructionMaxBytes)
 	if err != nil {
-		return Instruction{}, fmt.Errorf("read instruction bytes: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrReadInstructionBytes, err)
 	}
 	if int(size) > len(raw) {
 		size = uint16(len(raw))
 	}
 	mnemonicPointer, err := handle.in.Call(ctx, "cs_get_mnemonic", uint64(instructionPointer))
 	if err != nil {
-		return Instruction{}, fmt.Errorf("mnemonic: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrHandleReadInstructionMnemonic, err)
 	}
 	operandsPointer, err := handle.in.Call(ctx, "cs_get_op_str", uint64(instructionPointer))
 	if err != nil {
-		return Instruction{}, fmt.Errorf("operands: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrHandleReadInstructionOperands, err)
 	}
 	mnemonic, err := handle.in.CString(uint32(mnemonicPointer))
 	if err != nil {
-		return Instruction{}, fmt.Errorf("read mnemonic: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrReadMnemonic, err)
 	}
 	operands, err := handle.in.CString(uint32(operandsPointer))
 	if err != nil {
-		return Instruction{}, fmt.Errorf("read operands: %w", err)
+		return Instruction{}, fmt.Errorf("%w: %w", ErrReadOperands, err)
 	}
 	return Instruction{
 		ID:       id,

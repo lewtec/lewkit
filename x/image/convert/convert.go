@@ -21,6 +21,10 @@ import (
 	xdraw "golang.org/x/image/draw"
 )
 
+var (
+	ErrEncodeICOIco = errors.New("ico")
+)
+
 // ErrFormat means the bytes are not a PNG, JPEG, ICO, or ICNS this package can read.
 var ErrFormat = errors.New("image format")
 
@@ -161,7 +165,7 @@ func EncodeICO(src image.Image, sizes []int) ([]byte, error) {
 		}
 		pngBytes, err := EncodePNG(resize(square, size))
 		if err != nil {
-			return nil, fmt.Errorf("ico %d: %w", size, err)
+			return nil, fmt.Errorf("%w %d: %w", ErrEncodeICOIco, size, err)
 		}
 		entries = append(entries, entry{size: size, png: pngBytes})
 	}

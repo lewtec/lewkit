@@ -23,7 +23,22 @@ var (
 	// ErrMount is a CUE mount path that is not a dotted identifier chain.
 	ErrMount = errors.New("invalid cue mount path")
 	// ErrRegistered is [Register] of a name that already has a format.
-	ErrRegistered = errors.New("format already registered")
+	ErrRegistered           = errors.New("format already registered")
+	ErrCompileMount         = errors.New("compile mount")
+	ErrConstrainUnifyMount  = errors.New("unify mount")
+	ErrEncodeINI            = errors.New("")
+	ErrEncodeSlotsValues    = errors.New("values")
+	ErrFileCheckValues      = errors.New("values")
+	ErrIniLine              = errors.New("")
+	ErrMergeData            = errors.New("")
+	ErrParseFileType        = errors.New("type")
+	ErrParseFileValues      = errors.New("values")
+	ErrParseFileValues2     = errors.New("values")
+	ErrParseParse           = errors.New("parse")
+	ErrParseSlotSlotKindRef = errors.New("slot kind ref")
+	ErrSlotKindLink         = errors.New("slot kind link")
+	ErrSlotKindText         = errors.New("slot kind text")
+	ErrXmlWriterNode        = errors.New("")
 )
 
 var (

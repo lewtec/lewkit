@@ -31,7 +31,7 @@ func RunSource(ctx context.Context, src string) (string, error) {
 		return "", err
 	}
 	if len(stored) != 0 {
-		return "", fmt.Errorf("source was stored: %v", stored)
+		return "", fmt.Errorf("%w: %v", ErrSourceWasStored, stored)
 	}
 
 	srcFile, err := openMem("src")
@@ -72,7 +72,7 @@ func RunSource(ctx context.Context, src string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stdout
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%w\n%s", err, stdout.Bytes())
+		return "", fmt.Errorf("%w%w\n%s", ErrRunSource, err, stdout.Bytes())
 	}
 	return stdout.String(), nil
 }

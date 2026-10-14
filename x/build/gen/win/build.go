@@ -161,7 +161,7 @@ func buildGo(ctx context.Context, dest, goMainDir, goarch string, stamp version.
 		Args: []string{"-trimpath", "-ldflags", "-H windowsgui " + stamp.WithAppID(appID), "-o", dest, "."},
 	}.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("go build windows/%s: %w", goarch, err)
+		return fmt.Errorf("%w/%s: %w", ErrGoBuildWindows, goarch, err)
 	}
 	return nil
 }

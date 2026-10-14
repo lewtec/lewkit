@@ -3,6 +3,7 @@ package linux
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/png"
@@ -15,6 +16,11 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/camera"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+)
+
+var (
+	ErrDecodeCameraFrameFrom = errors.New("decode camera frame from")
+	ErrFfmpegCaptureFrom     = errors.New("ffmpeg capture from")
 )
 
 type backend struct{}
@@ -85,14 +91,14 @@ func (c cameraDevice) Capture(ctx context.Context) (image.Image, error) {
 	if err := execdriver.Run(ctx, cmd); err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg != "" {
-			return nil, fmt.Errorf("ffmpeg capture from %s failed: %w: %s", c.device, err, msg)
+			return nil, fmt.Errorf("%w %s failed: %w: %s", ErrFfmpegCaptureFrom, c.device, err, msg)
 		}
-		return nil, fmt.Errorf("ffmpeg capture from %s failed: %w", c.device, err)
+		return nil, fmt.Errorf("%w %s failed: %w", ErrFfmpegCaptureFrom, c.device, err)
 	}
 
 	img, _, err := image.Decode(bytes.NewReader(stdout.Bytes()))
 	if err != nil {
-		return nil, fmt.Errorf("decode camera frame from %s: %w", c.device, err)
+		return nil, fmt.Errorf("%w %s: %w", ErrDecodeCameraFrameFrom, c.device, err)
 	}
 	return img, nil
 }

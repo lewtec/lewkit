@@ -16,6 +16,11 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
+var (
+	ErrItemValidateSharePath   = errors.New("share path")
+	ErrSharePathMustBeAbsolute = errors.New("share path must be absolute")
+)
+
 // ErrEmptyItem means Text, URL, and Paths are all empty.
 var ErrEmptyItem = errors.New("share item is empty")
 
@@ -48,10 +53,10 @@ func (item Item) validate() error {
 	}
 	for _, p := range item.Paths {
 		if !filepath.IsAbs(p) {
-			return fmt.Errorf("share path must be absolute: %q", p)
+			return fmt.Errorf("%w: %q", ErrSharePathMustBeAbsolute, p)
 		}
 		if _, err := os.Stat(p); err != nil {
-			return fmt.Errorf("share path: %w", err)
+			return fmt.Errorf("%w: %w", ErrItemValidateSharePath, err)
 		}
 	}
 	return nil

@@ -3,7 +3,12 @@
 package vulkan
 
 import (
+	"errors"
 	"fmt"
+)
+
+var (
+	ErrAndroidSurface = errors.New("android surface")
 )
 
 const extHostSurface = "VK_KHR_android_surface"
@@ -41,7 +46,7 @@ func (h *androidHost) create(d *Device, w *wsi) (uint64, error) {
 	info := androidSurfaceInfo{sType: 1000008000, window: h.window}
 	var surface uint64
 	if err := check(h.createFn(d.inst, &info, 0, &surface)); err != nil {
-		return 0, fmt.Errorf("android surface: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrAndroidSurface, err)
 	}
 	return surface, nil
 }

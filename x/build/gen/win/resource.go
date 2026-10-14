@@ -10,21 +10,27 @@ import (
 	"github.com/tc-hib/winres/version"
 )
 
+var (
+	ErrGoBuildWindows    = errors.New("go build windows")
+	ErrStampExeIcon      = errors.New("icon")
+	ErrStampExeResources = errors.New("resources")
+)
+
 // stampExe writes the app icon, PerMonitorV2 manifest, and version info
 // into a windowsgui executable. The original file is replaced only after
 // the patch succeeds.
 func stampExe(path, icoPath string, cfg Config) error {
 	ico, err := os.ReadFile(icoPath)
 	if err != nil {
-		return fmt.Errorf("icon: %w", err)
+		return fmt.Errorf("%w: %w", ErrStampExeIcon, err)
 	}
 	icon, err := winres.LoadICO(bytes.NewReader(ico))
 	if err != nil {
-		return fmt.Errorf("icon: %w", err)
+		return fmt.Errorf("%w: %w", ErrStampExeIcon, err)
 	}
 	var rs winres.ResourceSet
 	if err := rs.SetIcon(winres.ID(1), icon); err != nil {
-		return fmt.Errorf("icon: %w", err)
+		return fmt.Errorf("%w: %w", ErrStampExeIcon, err)
 	}
 	rs.SetManifest(winres.AppManifest{
 		Description:         cfg.AppName,
@@ -57,7 +63,7 @@ func stampExe(path, icoPath string, cfg Config) error {
 	writeErr := rs.WriteToEXE(dst, src, winres.ForceCheckSum())
 	if err := errors.Join(writeErr, dst.Close(), src.Close()); err != nil {
 		os.Remove(tmp)
-		return fmt.Errorf("resources: %w", err)
+		return fmt.Errorf("%w: %w", ErrStampExeResources, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		os.Remove(tmp)

@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strings"
 
@@ -99,7 +98,7 @@ type Download struct {
 // Run writes the file. An empty destination is refused.
 func (d Download) Run(ctx context.Context, _ *taskgroup.Status) error {
 	if strings.TrimSpace(d.Dest) == "" {
-		return fmt.Errorf("download: empty destination")
+		return ErrDownloadEmptyDestination
 	}
 	return tool.DownloadFile(ctx, d.URL, Join(Dir(ctx), d.Dest), d.Options)
 }

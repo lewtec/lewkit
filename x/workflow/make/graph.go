@@ -2,7 +2,6 @@ package make
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,7 +31,7 @@ type builder struct {
 // default goal.
 func (f *File) Graph(ctx context.Context, targets []string) (workflow.Graph, error) {
 	if ctx == nil {
-		return workflow.Graph{}, errors.New("make: nil context")
+		return workflow.Graph{}, ErrMakeNilContext
 	}
 	f.ctx = ctx
 	if len(targets) == 0 {

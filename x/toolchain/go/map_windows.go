@@ -3,11 +3,16 @@
 package gotool
 
 import (
-	"fmt"
+	"errors"
 	"os"
 	"runtime"
 	"syscall"
 	"unsafe"
+)
+
+var (
+	ErrJitExecutableMappingIsUnavailable3 = errors.New("jit: executable mapping is unavailable")
+	ErrJitVirtualprotectFailed            = errors.New("jit: VirtualProtect failed")
 )
 
 func prepareWrite([]byte) error { return nil }
@@ -20,7 +25,7 @@ func protectRX(mem []byte) error {
 	var old uint32
 	r, _, _ := procVirtualProtect.Call(addr, uintptr(len(mem)), pageExecuteRead, uintptr(unsafe.Pointer(&old)))
 	if r == 0 {
-		return fmt.Errorf("jit: VirtualProtect failed")
+		return ErrJitVirtualprotectFailed
 	}
 	proc, _, _ := procGetCurrentProcess.Call()
 	procFlushInstructionCache.Call(proc, addr, uintptr(len(mem)))
@@ -68,7 +73,7 @@ func mapNear(n int, hint uintptr) ([]byte, error) {
 	if b, ok := try(0); ok {
 		return b, nil
 	}
-	return nil, fmt.Errorf("jit: executable mapping is unavailable")
+	return nil, ErrJitExecutableMappingIsUnavailable3
 }
 
 const (

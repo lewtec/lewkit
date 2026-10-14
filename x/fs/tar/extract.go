@@ -3,10 +3,15 @@ package tar
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+)
+
+var (
+	ErrEmptyArchive = errors.New("empty archive")
 )
 
 // ExtractFirst writes the first member of a gzip tar into dir.
@@ -25,7 +30,7 @@ func ExtractFirst(archive, dir string) (string, error) {
 	tr := tar.NewReader(gz)
 	header, err := tr.Next()
 	if err == io.EOF {
-		return "", fmt.Errorf("empty archive %s", archive)
+		return "", fmt.Errorf("%w %s", ErrEmptyArchive, archive)
 	}
 	if err != nil {
 		return "", err

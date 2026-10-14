@@ -3,6 +3,7 @@ package pkg
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,11 @@ import (
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/lewtec/lewkit/x/tool/github"
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
+)
+
+var (
+	ErrGithubApiRateLimitExceededForLlvmReleasesConsiderSettingGithubTokenOrGhAuthLogin = errors.New("github api rate limit exceeded for llvm releases (consider setting GITHUB_TOKEN or 'gh auth login')")
+	ErrGithubReleasesForLlvm                                                            = errors.New("github releases for llvm")
 )
 
 type llvmTool struct {
@@ -51,16 +57,16 @@ func (t *llvmTool) ListVersions(ctx context.Context) ([]string, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("github releases for llvm: %s (reading body: %v)", resp.Status, err)
+			return nil, fmt.Errorf("%w: %s (reading body: %v)", ErrGithubReleasesForLlvm, resp.Status, err)
 		}
 		msg := strings.TrimSpace(string(body))
 		if resp.StatusCode == http.StatusForbidden && strings.Contains(msg, "rate limit") {
-			return nil, fmt.Errorf("github api rate limit exceeded for llvm releases (consider setting GITHUB_TOKEN or 'gh auth login')")
+			return nil, ErrGithubApiRateLimitExceededForLlvmReleasesConsiderSettingGithubTokenOrGhAuthLogin
 		}
 		if msg != "" {
-			return nil, fmt.Errorf("github releases for llvm: %s: %s", resp.Status, msg)
+			return nil, fmt.Errorf("%w: %s: %s", ErrGithubReleasesForLlvm, resp.Status, msg)
 		}
-		return nil, fmt.Errorf("github releases for llvm: %s", resp.Status)
+		return nil, fmt.Errorf("%w: %s", ErrGithubReleasesForLlvm, resp.Status)
 	}
 
 	var rels []struct {

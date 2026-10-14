@@ -2,7 +2,6 @@ package sops
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 
@@ -24,7 +23,7 @@ func (c Command) Run(ctx context.Context) error {
 		return ErrNilContext
 	}
 	if len(c.Args) == 0 {
-		return fmt.Errorf("sops: command is empty")
+		return ErrSopsCommandIsEmpty
 	}
 	selected, err := driver.Get[execdriver.Driver](ctx)
 	if err != nil {

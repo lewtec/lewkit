@@ -71,13 +71,13 @@ func Run(ctx context.Context, cfg Config) error {
 			Target:  target,
 		})
 		if err != nil {
-			return fmt.Errorf("%s/%s: %w", target.GOOS, target.GOARCH, err)
+			return fmt.Errorf("%w%s/%s: %w", ErrRun, target.GOOS, target.GOARCH, err)
 		}
 		unit.BindName = cfg.Bind
 		unit.BindSoft = cfg.Soft
 		buf, err := Write(unit, pkg, cfg.Libs)
 		if err != nil {
-			return fmt.Errorf("%s/%s: %w", target.GOOS, target.GOARCH, err)
+			return fmt.Errorf("%w%s/%s: %w", ErrRun, target.GOOS, target.GOARCH, err)
 		}
 		items = append(items, rendered{target: target, src: buf})
 	}

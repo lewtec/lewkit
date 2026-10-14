@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+var (
+	ErrProfileServePprofListen = errors.New("pprof listen")
+	ErrProfileServePprofServe  = errors.New("pprof serve")
+)
+
 // Handler returns the /debug/pprof/ mux used when Profile is an address.
 func Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -25,7 +30,7 @@ func Handler() http.Handler {
 func (p *Profile) serve(ctx context.Context) error {
 	listener, err := net.Listen("tcp", p.address)
 	if err != nil {
-		return fmt.Errorf("pprof listen: %w", err)
+		return fmt.Errorf("%w: %w", ErrProfileServePprofListen, err)
 	}
 	slog.Debug("pprof listening", "addr", listener.Addr().String())
 	server := &http.Server{
@@ -52,15 +57,15 @@ func (p *Profile) serve(ctx context.Context) error {
 			shutdownErr = errors.Join(shutdownErr, server.Close())
 		}
 		if err := <-serveErr; err != nil {
-			return fmt.Errorf("pprof serve: %w", errors.Join(shutdownErr, err))
+			return fmt.Errorf("%w: %w", ErrProfileServePprofServe, errors.Join(shutdownErr, err))
 		}
 		if shutdownErr != nil {
-			return fmt.Errorf("pprof serve: %w", shutdownErr)
+			return fmt.Errorf("%w: %w", ErrProfileServePprofServe, shutdownErr)
 		}
 		return nil
 	case err := <-serveErr:
 		if err != nil {
-			return fmt.Errorf("pprof serve: %w", err)
+			return fmt.Errorf("%w: %w", ErrProfileServePprofServe, err)
 		}
 		return nil
 	}

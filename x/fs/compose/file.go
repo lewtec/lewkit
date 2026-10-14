@@ -136,7 +136,7 @@ func (file File) check() error {
 			return fmt.Errorf("%w: empty key", ErrSlot)
 		}
 		if err := slot.valid(); err != nil {
-			return fmt.Errorf("values.%s: %w", key, err)
+			return fmt.Errorf("%w.%s: %w", ErrFileCheckValues, key, err)
 		}
 	}
 	count := len(file.Values)

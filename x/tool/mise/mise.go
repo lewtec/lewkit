@@ -27,7 +27,8 @@ var (
 	// ErrMissingMiseSpec is returned when an install spec is blank.
 	ErrMissingMiseSpec = errors.New("missing mise artifact spec")
 	// ErrMiseNotFound is returned when the mise binary is not on PATH.
-	ErrMiseNotFound = errors.New("mise binary not found on PATH")
+	ErrMiseNotFound                      = errors.New("mise binary not found on PATH")
+	ErrMiseLatestReturnedEmptyVersionFor = errors.New("mise latest returned empty version for")
 )
 
 // Backend is the mise backend.
@@ -62,7 +63,7 @@ func (installed *MiseTool) ListVersions(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if version == "" {
-		return nil, fmt.Errorf("mise latest returned empty version for %q", installed.spec)
+		return nil, fmt.Errorf("%w %q", ErrMiseLatestReturnedEmptyVersionFor, installed.spec)
 	}
 	return []string{version}, nil
 }

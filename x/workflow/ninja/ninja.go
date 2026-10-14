@@ -20,7 +20,11 @@ var (
 	// ErrSyntax means the ninja file could not be parsed.
 	ErrSyntax = errors.New("syntax")
 	// ErrCycle means variables expand through themselves.
-	ErrCycle = errors.New("cycle")
+	ErrCycle               = errors.New("cycle")
+	ErrFileParseBuildNinja = errors.New("ninja")
+	ErrFileParseFileNinja  = errors.New("ninja")
+	ErrFileStepNinja       = errors.New("ninja")
+	ErrNinjaNilContext     = errors.New("ninja: nil context")
 )
 
 type scope struct {
@@ -66,7 +70,7 @@ type File struct {
 // uses the file's directory.
 func Load(ctx context.Context, path, work string) (*File, error) {
 	if ctx == nil {
-		return nil, errors.New("ninja: nil context")
+		return nil, ErrNinjaNilContext
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -167,7 +171,7 @@ func (f *File) step(edge *edge, byOutput map[string]string) (workflow.Step, erro
 	}
 	expanded, err := expand(command, resolve, false)
 	if err != nil {
-		return workflow.Step{}, fmt.Errorf("ninja: %s:%d: %w", edge.file, edge.line, err)
+		return workflow.Step{}, fmt.Errorf("%w: %s:%d: %w", ErrFileStepNinja, edge.file, edge.line, err)
 	}
 	descRaw := ""
 	if rule := f.rules[edge.rule]; rule != nil {

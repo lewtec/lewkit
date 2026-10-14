@@ -60,10 +60,10 @@ func BuildModule(ctx context.Context, m Module) error {
 		m.GOARCH = runtime.GOARCH
 	}
 	if m.GOARCH != "amd64" && m.GOARCH != "arm64" {
-		return fmt.Errorf("toolchain: compile supports GOARCH=amd64 or arm64, have %s", m.GOARCH)
+		return fmt.Errorf("%w %s", ErrToolchainCompileSupportsGoarchAmd64OrArm64Have, m.GOARCH)
 	}
 	if platform.MustLinkExternal(m.GOOS, m.GOARCH, false) {
-		return fmt.Errorf("toolchain: %s/%s requires external linking", m.GOOS, m.GOARCH)
+		return fmt.Errorf("toolchain: %s/%s %w", m.GOOS, m.GOARCH, ErrRequiresExternalLinking)
 	}
 	mode, shared := moduleMode(m)
 	if m.Out == "" {
@@ -104,7 +104,7 @@ func BuildModule(ctx context.Context, m Module) error {
 			if pkg.Asm {
 				archive, ok := std[pkg.ImportPath]
 				if !ok {
-					return fmt.Errorf("toolchain: main package has assembly")
+					return ErrToolchainMainPackageHasAssembly
 				}
 				archives["main"] = archive
 				continue
@@ -124,7 +124,7 @@ func BuildModule(ctx context.Context, m Module) error {
 		archives[id] = filepath.Join(work, "pkg", filepath.FromSlash(id)+".a")
 	}
 	if mains != 1 {
-		return fmt.Errorf("toolchain: %d main packages", mains)
+		return fmt.Errorf("toolchain: %d %w", mains, ErrMainPackages)
 	}
 	units := make([]Unit, 0, len(compiled))
 	for _, pkg := range g.Pkgs {
@@ -254,7 +254,7 @@ func moduleArchives(ctx context.Context, dir string, m Module, mode string) (map
 		if ee, ok := err.(*exec.ExitError); ok {
 			stderr = string(ee.Stderr)
 		}
-		return nil, fmt.Errorf("go list: %w\n%s", err, stderr)
+		return nil, fmt.Errorf("%w: %w\n%s", ErrModuleArchivesGoList, err, stderr)
 	}
 	archives := map[string]string{}
 	for _, line := range strings.Split(string(out), "\n") {
@@ -264,7 +264,7 @@ func moduleArchives(ctx context.Context, dir string, m Module, mode string) (map
 		}
 		imp, file, ok := strings.Cut(line, " ")
 		if !ok {
-			return nil, fmt.Errorf("go list line %q", line)
+			return nil, fmt.Errorf("%w %q", ErrModuleArchivesGoListLine, line)
 		}
 		archives[imp] = file
 	}

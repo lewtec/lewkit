@@ -29,35 +29,35 @@ func MakeShared(path string) error {
 		return err
 	}
 	if len(buf) < 52 || string(buf[:4]) != "\x7fELF" || buf[5] != 1 || buf[6] != 1 || (buf[4] != 1 && buf[4] != 2) {
-		return fmt.Errorf("clib: %s is not a little-endian ELF file", path)
+		return fmt.Errorf("clib: %s %w", path, ErrIsNotALittleEndianElfFile)
 	}
 	class64 := buf[4] == 2
 	var phoff uint64
 	var phentsize, phnum uint16
 	if class64 {
 		if len(buf) < 64 {
-			return fmt.Errorf("clib: %s is not an ELF64 file", path)
+			return fmt.Errorf("clib: %s %w", path, ErrIsNotAnElf64File)
 		}
 		phoff = binary.LittleEndian.Uint64(buf[32:])
 		phentsize = binary.LittleEndian.Uint16(buf[54:])
 		phnum = binary.LittleEndian.Uint16(buf[56:])
 		if phentsize < 56 {
-			return fmt.Errorf("clib: %s has a short program header", path)
+			return fmt.Errorf("clib: %s %w", path, ErrHasAShortProgramHeader)
 		}
 	} else {
 		phoff = uint64(binary.LittleEndian.Uint32(buf[28:]))
 		phentsize = binary.LittleEndian.Uint16(buf[42:])
 		phnum = binary.LittleEndian.Uint16(buf[44:])
 		if phentsize < 32 {
-			return fmt.Errorf("clib: %s has a short program header", path)
+			return fmt.Errorf("clib: %s %w", path, ErrHasAShortProgramHeader)
 		}
 	}
 	if phnum == 0 {
-		return fmt.Errorf("clib: %s has no program headers", path)
+		return fmt.Errorf("clib: %s %w", path, ErrHasNoProgramHeaders)
 	}
 	phend := phoff + uint64(phnum)*uint64(phentsize)
 	if phoff > uint64(len(buf)) || phend > uint64(len(buf)) {
-		return fmt.Errorf("clib: %s program headers are out of range", path)
+		return fmt.Errorf("clib: %s %w", path, ErrProgramHeadersAreOutOfRange)
 	}
 	var dynOff, dynSize uint64
 	var sawDyn bool
@@ -79,10 +79,10 @@ func MakeShared(path string) error {
 		}
 	}
 	if !sawDyn {
-		return fmt.Errorf("clib: %s has no dynamic segment", path)
+		return fmt.Errorf("clib: %s %w", path, ErrHasNoDynamicSegment)
 	}
 	if dynOff > uint64(len(buf)) || dynSize > uint64(len(buf))-dynOff {
-		return fmt.Errorf("clib: %s dynamic segment is out of range", path)
+		return fmt.Errorf("clib: %s %w", path, ErrDynamicSegmentIsOutOfRange)
 	}
 	step := uint64(8)
 	if class64 {

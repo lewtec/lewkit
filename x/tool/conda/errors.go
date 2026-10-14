@@ -20,5 +20,16 @@ var (
 	// ErrPathEscapes is returned when an archive member resolves outside the prefix.
 	ErrPathEscapes = errors.New("conda archive path escapes destination")
 	// ErrPrefixTooLong is returned when a binary prefix placeholder is shorter than the install prefix.
-	ErrPrefixTooLong = errors.New("install prefix is longer than the conda placeholder")
+	ErrPrefixTooLong             = errors.New("install prefix is longer than the conda placeholder")
+	ErrApplyPrefix               = errors.New("")
+	ErrCondaToolInstallExtract   = errors.New("extract")
+	ErrDecodePathsJson           = errors.New("decode paths.json")
+	ErrDecodeRepodata            = errors.New("decode repodata")
+	ErrDefaultDownloadDownload   = errors.New("download")
+	ErrDefaultFetchFetch         = errors.New("fetch")
+	ErrDefaultFetchRead          = errors.New("read")
+	ErrExtractCondaZipExtract    = errors.New("extract")
+	ErrExtractCondaZipRead       = errors.New("read")
+	ErrIndexRecordsFromAPIDecode = errors.New("decode")
+	ErrWrapMiss                  = errors.New("")
 )

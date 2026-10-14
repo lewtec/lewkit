@@ -23,7 +23,10 @@ var (
 	// errFunctionName means name was started without a function name.
 	errFunctionName = errors.New("missing --name")
 	// errCandidate means check was started without the caller's JSON.
-	errCandidate = errors.New("missing candidate")
+	errCandidate                  = errors.New("missing candidate")
+	ErrDecompNoteCmdRunNoNoteAt0x = errors.New("no note at 0x")
+	ErrDecompSignatureMissingText = errors.New("decomp signature: missing --text")
+	ErrDecompViewCmdRunListen     = errors.New("listen")
 )
 
 type Cmd struct {
@@ -264,7 +267,7 @@ func (command *decompNoteCmd) Run(ctx context.Context) (err error) {
 		if command.text.ArgSet() {
 			return nil
 		}
-		return fmt.Errorf("no note at 0x%x", address)
+		return fmt.Errorf("%w%x", ErrDecompNoteCmdRunNoNoteAt0x, address)
 	}
 	_, err = fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "%s\n", text)
 	return err
@@ -282,7 +285,7 @@ func (decompSignatureCmd) Description() string {
 
 func (command *decompSignatureCmd) Run(ctx context.Context) (err error) {
 	if !command.text.ArgSet() {
-		return fmt.Errorf("decomp signature: missing --text")
+		return ErrDecompSignatureMissingText
 	}
 	project, artifact, err := openDecomp(ctx, command.path.Value())
 	if err != nil {
@@ -317,7 +320,7 @@ func (command *decompViewCmd) Run(ctx context.Context) (err error) {
 
 	listener, err := net.Listen("tcp", command.listen.Value())
 	if err != nil {
-		return fmt.Errorf("listen: %w", err)
+		return fmt.Errorf("%w: %w", ErrDecompViewCmdRunListen, err)
 	}
 	if _, err := fmt.Fprintf(lewfs.ContextWriter(ctx, os.Stdout), "http://%s/\n", listener.Addr().String()); err != nil {
 		_ = listener.Close()

@@ -59,7 +59,7 @@ func OpenObject(reader io.ReaderAt, size int64) (Object, string, error) {
 	case string(magic[:]) == elf.ELFMAG:
 		file, err := elf.NewFile(reader)
 		if err != nil {
-			return nil, "", fmt.Errorf("elf: %w", err)
+			return nil, "", fmt.Errorf("%w: %w", ErrOpenObjectElf, err)
 		}
 		return &ELFFile{File: file}, "elf", nil
 	case magic[0] == 'M' && magic[1] == 'Z':

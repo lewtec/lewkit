@@ -71,7 +71,7 @@ func Run(ctx context.Context, cfg Config) error {
 		pkg = inferPackage(dir)
 	}
 	if !token.IsIdentifier(pkg) || token.IsKeyword(pkg) {
-		return fmt.Errorf("package name: %s", pkg)
+		return fmt.Errorf("%w: %s", ErrRunPackageName, pkg)
 	}
 	bind := cfg.Bind
 	if bind == "" {
@@ -101,7 +101,7 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 		funcs, defs, err := classify(unit.Funcs, t.mach)
 		if err != nil {
-			return fmt.Errorf("%s/%s: %w", t.goos, t.goarch, err)
+			return fmt.Errorf("%w%s/%s: %w", ErrRun, t.goos, t.goarch, err)
 		}
 		if len(funcs) == 0 {
 			return fmt.Errorf("%s/%s: %w", t.goos, t.goarch, ErrEmpty)
@@ -227,7 +227,7 @@ func packageClause(file string) (string, error) {
 		return "", err
 	}
 	if parsed.Name == nil {
-		return "", fmt.Errorf("package name")
+		return "", ErrPackageClausePackageName
 	}
 	return parsed.Name.Name, nil
 }

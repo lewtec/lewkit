@@ -5,7 +5,11 @@ package androidcall
 
 import (
 	"context"
-	"fmt"
+	"errors"
+)
+
+var (
+	ErrRunEntryNoApp = errors.New("entry: no app")
 )
 
 var (
@@ -63,7 +67,7 @@ func Insets(left, top, right, bottom, width, height int) {
 // Run runs the registered app. No registration is "entry: no app".
 func Run(ctx context.Context) error {
 	if RunFunc == nil {
-		return fmt.Errorf("entry: no app")
+		return ErrRunEntryNoApp
 	}
 	return RunFunc(ctx)
 }

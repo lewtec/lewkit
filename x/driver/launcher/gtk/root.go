@@ -4,7 +4,7 @@ package gtk
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/gtkui"
@@ -12,6 +12,10 @@ import (
 	gtklib "github.com/lewtec/lewkit/x/ffi/native/gtk"
 
 	_ "github.com/lewtec/lewkit/x/driver/thread/std"
+)
+
+var (
+	ErrChooseNoItems = errors.New("choose: no items")
 )
 
 type base struct{}
@@ -46,7 +50,7 @@ func (backend) Choose(ctx context.Context, opts launcher.ChooseOptions) (*launch
 		return nil, err
 	}
 	if len(opts.Items) == 0 {
-		return nil, fmt.Errorf("choose: no items")
+		return nil, ErrChooseNoItems
 	}
 	labels := make([]string, len(opts.Items))
 	for i, item := range opts.Items {

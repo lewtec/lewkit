@@ -21,7 +21,8 @@ var (
 	// ErrNoVersions is returned when a catalog tool lists no versions.
 	ErrNoVersions = errors.New("no versions found")
 	// ErrNoPlatformArtifact is returned when the current OS and arch have no artifact.
-	ErrNoPlatformArtifact = errors.New("no artifact for current platform")
+	ErrNoPlatformArtifact         = errors.New("no artifact for current platform")
+	ErrNoSuitableArtifactFoundFor = errors.New("no suitable artifact found for")
 )
 
 // SortVersionsDesc returns versions ordered newest-first by semver so [0] is
@@ -131,7 +132,7 @@ func InstallSelectedArtifact(
 	}
 	artifact := tool.SelectArtifact(arts, runtime.GOOS, runtime.GOARCH, binaryHint)
 	if artifact == nil {
-		return fmt.Errorf("no suitable artifact found for %s/%s for %s@%s", runtime.GOOS, runtime.GOARCH, toolRef, v)
+		return fmt.Errorf("%w %s/%s for %s@%s", ErrNoSuitableArtifactFoundFor, runtime.GOOS, runtime.GOARCH, toolRef, v)
 	}
 	return installArtifact(ctx, *artifact, destDir)
 }

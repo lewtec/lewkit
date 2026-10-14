@@ -2,6 +2,7 @@ package brightnessctl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,12 +11,17 @@ import (
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
+var (
+	ErrGetBrightnessStatus = errors.New("get brightness status")
+	ErrSetBrightness       = errors.New("set brightness")
+)
+
 type backend struct{}
 
 func (backend) Status(ctx context.Context) (*brightness.Device, error) {
 	out, err := execdriver.OutputString(ctx, "brightnessctl", "-m")
 	if err != nil {
-		return nil, fmt.Errorf("get brightness status: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrGetBrightnessStatus, err)
 	}
 	return parseStatus(out)
 }
@@ -23,7 +29,7 @@ func (backend) Status(ctx context.Context) (*brightness.Device, error) {
 func (backend) SetBrightness(ctx context.Context, level float64) error {
 	percent := fmt.Sprintf("%d%%", int(level*100))
 	if err := execdriver.RunProgram(ctx, "brightnessctl", "s", percent); err != nil {
-		return fmt.Errorf("set brightness: %w", err)
+		return fmt.Errorf("%w: %w", ErrSetBrightness, err)
 	}
 	return nil
 }

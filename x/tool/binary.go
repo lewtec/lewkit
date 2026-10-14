@@ -73,7 +73,7 @@ func EnsureBinary(destination, binaryName, label string, install func() error, f
 			return binaryPath, nil
 		}
 	}
-	return "", fmt.Errorf("binary %q not found in %s installation at %s", binaryName, label, destination)
+	return "", fmt.Errorf("binary %q not found in %s %w %s", binaryName, label, ErrInstallationAt, destination)
 }
 
 // EnsureBinaryNamed is EnsureBinary with an empty binaryName replaced by defaultName.

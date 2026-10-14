@@ -20,6 +20,15 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
+var (
+	ErrBundleServer            = errors.New("bundle server")
+	ErrGoBuildDarwin           = errors.New("go build darwin")
+	ErrMacosAppIcon            = errors.New("macos app icon")
+	ErrMacosAppIconEmptyMaster = errors.New("macos app icon: empty master")
+	ErrWorkDirLeftAt           = errors.New("work dir left at")
+	ErrXcodegenGenerate        = errors.New("xcodegen generate")
+)
+
 // Build / toolchain sentinels.
 var (
 	ErrOutAppRequired     = errors.New("out .app path is required (or use --go-only)")
@@ -194,7 +203,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 func installHelper(appPath, helperPath string) error {
 	dest := filepath.Join(appPath, "Contents", "MacOS", HelperName)
 	if err := common.CopyFile(helperPath, dest, 0o755); err != nil {
-		return fmt.Errorf("bundle server: %w", err)
+		return fmt.Errorf("%w: %w", ErrBundleServer, err)
 	}
 	return os.Chmod(dest, 0o755)
 }
@@ -207,7 +216,7 @@ func assembleMac(ctx context.Context, workDir, product, xArch string) (string, e
 		return "", fmt.Errorf("%w: %w", ErrXcodebuildNotFound, err)
 	}
 	if err := gocmd.Tool(ctx, "xcodegen", workDir, nil, "generate"); err != nil {
-		return "", fmt.Errorf("xcodegen generate: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrXcodegenGenerate, err)
 	}
 	derived := filepath.Join(workDir, "build", "DerivedData")
 	proj := filepath.Join(workDir, product+".xcodeproj")
@@ -228,7 +237,7 @@ func assembleMac(ctx context.Context, workDir, product, xArch string) (string, e
 		"ONLY_ACTIVE_ARCH=YES",
 		"build",
 	); err != nil {
-		return "", fmt.Errorf("xcodebuild: %w\n(work dir left at %s)", err, workDir)
+		return "", fmt.Errorf("xcodebuild: %w\n(%w %s)", err, ErrWorkDirLeftAt, workDir)
 	}
 	app := filepath.Join(derived, "Build", "Products", "Debug", product+".app")
 	if st, err := os.Stat(app); err != nil || !st.IsDir() {
@@ -275,7 +284,7 @@ func buildGoHelper(ctx context.Context, dest, goMainDir, goarch string, stamp ve
 		Args: []string{"-trimpath", "-ldflags", stamp.WithAppID(appID), "-o", dest, "."},
 	}.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("go build darwin/%s: %w", goarch, err)
+		return fmt.Errorf("%w/%s: %w", ErrGoBuildDarwin, goarch, err)
 	}
 	return os.Chmod(dest, 0o755)
 }
@@ -300,10 +309,10 @@ var macIconSlots = []struct {
 func applyMacIcons(iconRoot, assetsDir string) error {
 	img, err := icons.DecodeImage(filepath.Join(iconRoot, "source", "master.png"))
 	if err != nil {
-		return fmt.Errorf("macos app icon: %w", err)
+		return fmt.Errorf("%w: %w", ErrMacosAppIcon, err)
 	}
 	if img.Bounds().Dx() < 1 || img.Bounds().Dy() < 1 {
-		return errors.New("macos app icon: empty master")
+		return ErrMacosAppIconEmptyMaster
 	}
 	iconDir := filepath.Join(assetsDir, "AppIcon.appiconset")
 	if err := os.MkdirAll(iconDir, 0o755); err != nil {

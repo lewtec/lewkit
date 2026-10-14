@@ -1,11 +1,19 @@
 package host
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+)
+
+var (
+	ErrBackendResolveMkdir = errors.New("mkdir")
+	ErrPathsCacheDir       = errors.New("cache dir")
+	ErrPathsConfigDir      = errors.New("config dir")
+	ErrPathsDataDir        = errors.New("data dir")
 )
 
 const (
@@ -27,7 +35,7 @@ func paths(
 		return filepath.Join(base, appID), nil
 	})
 	if err != nil {
-		return layout{}, fmt.Errorf("data dir: %w", err)
+		return layout{}, fmt.Errorf("%w: %w", ErrPathsDataDir, err)
 	}
 	cache, err := pick(getenv(envCache), func() (string, error) {
 		base, err := cacheFn()
@@ -37,7 +45,7 @@ func paths(
 		return filepath.Join(base, appID), nil
 	})
 	if err != nil {
-		return layout{}, fmt.Errorf("cache dir: %w", err)
+		return layout{}, fmt.Errorf("%w: %w", ErrPathsCacheDir, err)
 	}
 	config, err := pick(getenv(envConfig), func() (string, error) {
 		base, err := configFn()
@@ -47,7 +55,7 @@ func paths(
 		return filepath.Join(base, appID), nil
 	})
 	if err != nil {
-		return layout{}, fmt.Errorf("config dir: %w", err)
+		return layout{}, fmt.Errorf("%w: %w", ErrPathsConfigDir, err)
 	}
 	return layout{
 		Data:   data,

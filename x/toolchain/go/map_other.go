@@ -2,14 +2,18 @@
 
 package gotool
 
-import "fmt"
+import "errors"
+
+var (
+	ErrJitExecutableMappingIsUnavailable2 = errors.New("jit: executable mapping is unavailable")
+)
 
 func prepareWrite([]byte) error { return nil }
 
 func protectRX([]byte) error {
-	return fmt.Errorf("jit: executable mapping is unavailable")
+	return ErrJitExecutableMappingIsUnavailable2
 }
 
 func mapNear(int, uintptr) ([]byte, error) {
-	return nil, fmt.Errorf("jit: executable mapping is unavailable")
+	return nil, ErrJitExecutableMappingIsUnavailable2
 }

@@ -2,10 +2,15 @@ package feh
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/driver/wallpaper"
+)
+
+var (
+	ErrBackendSetStaticFeh = errors.New("feh")
 )
 
 type backend struct{}
@@ -17,7 +22,7 @@ func (backend) SetStatic(ctx context.Context, path string) error {
 	}
 	cmd := execdriver.MustCommand(ctx, feh, "--bg-fill", path)
 	if err := execdriver.Run(ctx, cmd); err != nil {
-		return fmt.Errorf("feh: %w", err)
+		return fmt.Errorf("%w: %w", ErrBackendSetStaticFeh, err)
 	}
 	return nil
 }

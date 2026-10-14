@@ -49,16 +49,16 @@ func MakeDylib(path string, names []string) error {
 		return err
 	}
 	if len(buf) < 32 || binary.LittleEndian.Uint32(buf) != mhMagic64 {
-		return fmt.Errorf("clib: %s is not a 64-bit little-endian Mach-O file", path)
+		return fmt.Errorf("clib: %s %w", path, ErrIsNotA64BitLittleEndianMachOFile)
 	}
 	mf, err := macho.NewFile(bytes.NewReader(buf))
 	if err != nil {
-		return fmt.Errorf("clib: %s: %w", path, err)
+		return fmt.Errorf("%w: %s: %w", ErrMakeDylibClib, path, err)
 	}
 	defer mf.Close()
 	textAddr, linkOff, linkVM, linkFile, ok := machoSegs(mf)
 	if !ok {
-		return fmt.Errorf("clib: %s has no __TEXT or __LINKEDIT", path)
+		return fmt.Errorf("clib: %s %w", path, ErrHasNoTextOrLinkedit)
 	}
 	syms := map[string]uint64{}
 	if mf.Symtab != nil {
@@ -76,7 +76,7 @@ func MakeDylib(path string, names []string) error {
 			addr, found = syms[name]
 		}
 		if !found {
-			return fmt.Errorf("clib: %s: export %s is not in the symbol table", path, name)
+			return fmt.Errorf("clib: %s: export %s %w", path, name, ErrIsNotInTheSymbolTable)
 		}
 		exports = append(exports, exportSym{name: name, addr: addr})
 	}
@@ -91,7 +91,7 @@ func MakeDylib(path string, names []string) error {
 		}
 	}
 	if contentEnd < 32 {
-		return fmt.Errorf("clib: %s code signature overlaps the header", path)
+		return fmt.Errorf("clib: %s %w", path, ErrCodeSignatureOverlapsTheHeader)
 	}
 	body := append([]byte{}, buf[:contentEnd]...)
 	for len(body)%8 != 0 {
@@ -111,11 +111,11 @@ func MakeDylib(path string, names []string) error {
 	}
 	cmds, err := machoCommands(mf, id, trieOff, len(trie), codeSize, sigSize, linkFile, linkVM)
 	if err != nil {
-		return fmt.Errorf("clib: %s: %w", path, err)
+		return fmt.Errorf("%w: %s: %w", ErrMakeDylibClib, path, err)
 	}
 	limit := sectionLimit(mf)
 	if 32+len(cmds) > limit {
-		return fmt.Errorf("clib: %s has no room for dylib load commands", path)
+		return fmt.Errorf("clib: %s %w", path, ErrHasNoRoomForDylibLoadCommands)
 	}
 	binary.LittleEndian.PutUint32(body[12:], mhDylib)
 	binary.LittleEndian.PutUint32(body[16:], uint32(len(cmds)))
@@ -206,7 +206,7 @@ func machoCommands(f *macho.File, id string, trieOff, trieSize, codeSize, sigSiz
 	var sawInfo, sawSig bool
 	for _, raw := range loadRaws(f) {
 		if len(raw) < 8 {
-			return nil, fmt.Errorf("short load command")
+			return nil, ErrShortLoadCommand
 		}
 		cmd := binary.LittleEndian.Uint32(raw)
 		switch cmd {
@@ -214,14 +214,14 @@ func machoCommands(f *macho.File, id string, trieOff, trieSize, codeSize, sigSiz
 			continue
 		case lcDyldInfo, lcDyldInfoOnly:
 			if len(raw) < 48 {
-				return nil, fmt.Errorf("short dyld info command")
+				return nil, ErrShortDyldInfoCommand
 			}
 			binary.LittleEndian.PutUint32(raw[40:], uint32(trieOff))
 			binary.LittleEndian.PutUint32(raw[44:], uint32(trieSize))
 			sawInfo = true
 		case lcCodeSig:
 			if len(raw) < 16 {
-				return nil, fmt.Errorf("short code signature command")
+				return nil, ErrShortCodeSignatureCommand
 			}
 			binary.LittleEndian.PutUint32(raw[8:], uint32(codeSize))
 			binary.LittleEndian.PutUint32(raw[12:], uint32(sigSize))
@@ -235,7 +235,7 @@ func machoCommands(f *macho.File, id string, trieOff, trieSize, codeSize, sigSiz
 		cmds = append(cmds, raw)
 	}
 	if !sawInfo {
-		return nil, fmt.Errorf("no LC_DYLD_INFO command")
+		return nil, ErrNoLcDyldInfoCommand
 	}
 	idCmd := idDylib(id)
 	cmds = append([][]byte{idCmd}, cmds...)
@@ -508,7 +508,7 @@ func put8(b []byte, x byte) []byte {
 func machoExportTrie(path string) ([]byte, error) {
 	f, err := macho.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("clib: %s: %w", path, err)
+		return nil, fmt.Errorf("%w: %s: %w", ErrMachoExportTrieClib, path, err)
 	}
 	defer f.Close()
 	raw, err := os.ReadFile(path)
@@ -527,11 +527,11 @@ func machoExportTrie(path string) ([]byte, error) {
 		off := binary.LittleEndian.Uint32(cmdb[40:])
 		sz := binary.LittleEndian.Uint32(cmdb[44:])
 		if sz == 0 || uint64(off)+uint64(sz) > uint64(len(raw)) {
-			return nil, fmt.Errorf("clib: %s export trie is empty", path)
+			return nil, fmt.Errorf("clib: %s %w", path, ErrExportTrieIsEmpty)
 		}
 		return raw[off : off+sz], nil
 	}
-	return nil, fmt.Errorf("clib: %s has no export trie", path)
+	return nil, fmt.Errorf("clib: %s %w", path, ErrHasNoExportTrie)
 }
 
 func trieLookup(buf []byte, name string) (uint64, bool) {

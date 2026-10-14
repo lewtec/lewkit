@@ -4,9 +4,14 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+)
+
+var (
+	ErrRun = errors.New("")
 )
 
 func main() {
@@ -57,7 +62,7 @@ func run() error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("%s: %w", suite.name, err)
+			return fmt.Errorf("%w%s: %w", ErrRun, suite.name, err)
 		}
 	}
 	return nil

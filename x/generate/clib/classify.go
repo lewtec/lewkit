@@ -84,7 +84,7 @@ func classify(funcs []header.Func, m machine) ([]fn, []*sdef, error) {
 		}
 		item, err := c.classifyFunc(raw, m)
 		if err != nil {
-			return nil, nil, fmt.Errorf("%s: %w", raw.Name, err)
+			return nil, nil, fmt.Errorf("%w%s: %w", ErrClassify, raw.Name, err)
 		}
 		base := header.ExportName(raw.Name)
 		n := used[base]

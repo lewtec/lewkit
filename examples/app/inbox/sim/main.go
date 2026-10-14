@@ -24,6 +24,11 @@ import (
 	"github.com/lewtec/lewkit/x/workflow"
 )
 
+var (
+	ErrNoAvailableIphoneSimulator = errors.New("no available iPhone simulator")
+	ErrSimLewkitModuleNotFound    = errors.New("sim: lewkit module not found")
+)
+
 const (
 	bundle = "br.tec.lew.eletrocromo.inbox"
 	scheme = "eletrocromo-inbox"
@@ -214,7 +219,7 @@ func bootSimulator(ctx context.Context) error {
 	}
 	udid := iphoneUDID(list)
 	if udid == "" {
-		return errors.New("no available iPhone simulator")
+		return ErrNoAvailableIphoneSimulator
 	}
 	if err := commandRun(ctx, "", "xcrun", "simctl", "boot", udid); err != nil {
 		return err
@@ -298,7 +303,7 @@ func moduleRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", errors.New("sim: lewkit module not found")
+			return "", ErrSimLewkitModuleNotFound
 		}
 		dir = parent
 	}

@@ -32,6 +32,10 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
+var (
+	ErrLoopbackHostNeedsAWebHandler = errors.New("loopback host needs a web handler")
+)
+
 // ErrNilContext means the caller did not pass a context.
 var ErrNilContext = errors.New("app: nil context")
 
@@ -117,7 +121,7 @@ func loopbackWindow(win Window, guiNative bool) (Window, error) {
 	}
 	web, ok := win.(webWindow)
 	if !ok {
-		return nil, fmt.Errorf("loopback host needs a web handler")
+		return nil, ErrLoopbackHostNeedsAWebHandler
 	}
 	web.hosted = true
 	return web, nil

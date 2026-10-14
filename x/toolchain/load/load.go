@@ -44,7 +44,10 @@ var (
 	// ErrNoArchive means an archive is not in the pkgdir.
 	ErrNoArchive = errors.New("load: archive is missing")
 	// ErrLdflags means -ldflags is quoted incorrectly.
-	ErrLdflags = errors.New("load: bad ldflags")
+	ErrLdflags                  = errors.New("load: bad ldflags")
+	ErrCannotEmbedFile          = errors.New("cannot embed file")
+	ErrLoadBadImport            = errors.New("load: bad import")
+	ErrLoaderLoadFilesIsPackage = errors.New("is package")
 )
 
 // Embed is the compiler's -embedcfg document for one package.
@@ -396,7 +399,7 @@ func (l *loader) loadFiles(files []string) error {
 		if name == "" {
 			name = f.Name.Name
 		} else if f.Name.Name != name {
-			return fmt.Errorf("load: %s is package %s, want %s", file, f.Name.Name, name)
+			return fmt.Errorf("load: %s %w %s, want %s", file, ErrLoaderLoadFilesIsPackage, f.Name.Name, name)
 		}
 		for _, spec := range f.Imports {
 			path, err := strconvUnquote(spec.Path.Value)
@@ -651,11 +654,11 @@ func findModule(dir string) (string, *modfile.File, error) {
 
 func strconvUnquote(s string) (string, error) {
 	if len(s) < 2 {
-		return "", fmt.Errorf("load: bad import %q", s)
+		return "", fmt.Errorf("%w %q", ErrLoadBadImport, s)
 	}
 	quote := s[0]
 	if quote != s[len(s)-1] || (quote != '"' && quote != '`') {
-		return "", fmt.Errorf("load: bad import %q", s)
+		return "", fmt.Errorf("%w %q", ErrLoadBadImport, s)
 	}
 	inner := s[1 : len(s)-1]
 	if quote == '`' {
@@ -668,18 +671,18 @@ func strconvUnquote(s string) (string, error) {
 			continue
 		}
 		if i+1 >= len(inner) {
-			return "", fmt.Errorf("load: bad import %q", s)
+			return "", fmt.Errorf("%w %q", ErrLoadBadImport, s)
 		}
 		i++
 		switch inner[i] {
 		case '\\', '"':
 			b.WriteByte(inner[i])
 		default:
-			return "", fmt.Errorf("load: bad import %q", s)
+			return "", fmt.Errorf("%w %q", ErrLoadBadImport, s)
 		}
 	}
 	if strings.IndexFunc(b.String(), unicode.IsSpace) >= 0 {
-		return "", fmt.Errorf("load: bad import %q", s)
+		return "", fmt.Errorf("%w %q", ErrLoadBadImport, s)
 	}
 	return b.String(), nil
 }

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -9,6 +10,15 @@ import (
 	"unicode/utf8"
 
 	"github.com/lewtec/lewkit/x/cmd/internal/ndfa"
+)
+
+var (
+	ErrSpecApplyDefaultDefault = errors.New("default")
+	ErrSpecApplyEnvEnv         = errors.New("env")
+	ErrSpecApplyLiteral        = errors.New("")
+	ErrSpecConsumeFlagValue    = errors.New("")
+	ErrSpecSetValue            = errors.New("")
+	ErrSpecTakePos             = errors.New("")
 )
 
 type fieldKind int
@@ -540,7 +550,7 @@ func (s *spec) takePos(posi int, args []string, mode consumeMode) (int, error) {
 	fv := rvalue{s.root.FieldByIndex(f.index)}.settable()
 	n, err := consumeValue(fv, args, mode)
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", f.display(), err)
+		return 0, fmt.Errorf("%w%s: %w", ErrSpecTakePos, f.display(), err)
 	}
 	if n > 0 {
 		s.mark(fi)
@@ -729,7 +739,7 @@ func (s *spec) consumeFlagValue(fi int, tokens []string) (int, error) {
 		elem := reflect.New(fv.Type().Elem()).Elem()
 		n, err := consumeValue(elem, tokens, consumeMode{allPos: true})
 		if err != nil {
-			return 0, fmt.Errorf("%s: %w", f.display(), err)
+			return 0, fmt.Errorf("%w%s: %w", ErrSpecConsumeFlagValue, f.display(), err)
 		}
 		if n == 0 {
 			return 0, fmt.Errorf("%w: %s", ErrMissingValue, f.display())
@@ -740,7 +750,7 @@ func (s *spec) consumeFlagValue(fi int, tokens []string) (int, error) {
 	}
 	n, err := consumeValue(fv, tokens, consumeMode{allPos: true})
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", f.display(), err)
+		return 0, fmt.Errorf("%w%s: %w", ErrSpecConsumeFlagValue, f.display(), err)
 	}
 	if n > 0 {
 		s.mark(fi)
@@ -830,7 +840,7 @@ func (s *spec) applyEnv() error {
 				continue
 			}
 			if err := s.applyLiteral(f, val); err != nil {
-				return fmt.Errorf("env %s: %w", name, err)
+				return fmt.Errorf("%w %s: %w", ErrSpecApplyEnvEnv, name, err)
 			}
 			s.mark(i)
 			break
@@ -853,7 +863,7 @@ func (s *spec) applyDefaults() error {
 
 func (s *spec) applyDefault(f field) error {
 	if err := s.applyLiteral(f, f.def); err != nil {
-		return fmt.Errorf("default %w", err)
+		return fmt.Errorf("%w %w", ErrSpecApplyDefaultDefault, err)
 	}
 	return nil
 }
@@ -868,7 +878,7 @@ func (s *spec) applyLiteral(f field, val string) error {
 			return nil
 		}
 		if err := s.callCount(f, 1); err != nil {
-			return fmt.Errorf("%s: %w", f.display(), err)
+			return fmt.Errorf("%w%s: %w", ErrSpecApplyLiteral, f.display(), err)
 		}
 		return nil
 	}
@@ -911,7 +921,7 @@ func (s *spec) setValue(f field, val string) error {
 		err = v.parse(val)
 	}
 	if err != nil {
-		return fmt.Errorf("%s: %w", f.display(), err)
+		return fmt.Errorf("%w%s: %w", ErrSpecSetValue, f.display(), err)
 	}
 	return nil
 }

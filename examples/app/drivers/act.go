@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -45,6 +46,12 @@ import (
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/sound"
 	_ "github.com/lewtec/lewkit/x/sound/prelude"
+)
+
+var (
+	ErrFormFloat = errors.New("")
+	ErrFormInt   = errors.New("")
+	ErrRunExec   = errors.New("")
 )
 
 func runBrightness(ctx context.Context, _ *page, op string, r *http.Request) (string, error) {
@@ -361,7 +368,7 @@ func runExec(ctx context.Context, _ *page, op string, r *http.Request) (string, 
 		if text == "" {
 			return "", err
 		}
-		return "", fmt.Errorf("%s: %w", text, err)
+		return "", fmt.Errorf("%w%s: %w", ErrRunExec, text, err)
 	}
 	if text == "" {
 		return "exited", nil
@@ -694,7 +701,7 @@ func formFloat(r *http.Request, name string) (float64, error) {
 	}
 	value, err := strconv.ParseFloat(text, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", name, err)
+		return 0, fmt.Errorf("%w%s: %w", ErrFormFloat, name, err)
 	}
 	return value, nil
 }
@@ -706,7 +713,7 @@ func formInt(r *http.Request, name string, fallback int) (int, error) {
 	}
 	value, err := strconv.Atoi(text)
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", name, err)
+		return 0, fmt.Errorf("%w%s: %w", ErrFormInt, name, err)
 	}
 	return value, nil
 }

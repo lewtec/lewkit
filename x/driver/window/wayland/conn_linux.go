@@ -13,6 +13,16 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var (
+	ErrOpenerOpenWayland                      = errors.New("wayland")
+	ErrWaylandCompositorShmOrXdgWmBaseMissing = errors.New("wayland: compositor, shm, or xdg_wm_base missing")
+	ErrWaylandDisplayClosed                   = errors.New("wayland: display closed")
+	ErrWaylandNoArgb8888ShmFormat             = errors.New("wayland: no argb8888 shm format")
+	ErrWaylandShortHeader                     = errors.New("wayland: short header")
+	ErrWaylandUnalignedMessage                = errors.New("wayland: unaligned message")
+	ErrWlwinReallocWaylandSize                = errors.New("wayland: size")
+)
+
 type conn struct {
 	fd      int
 	writeMu sync.Mutex
@@ -114,7 +124,7 @@ func (c *conn) remove(id uint32) {
 
 func (c *conn) send(id uint32, opcode uint16, body []byte, fds ...int) error {
 	if len(body)%4 != 0 {
-		return errors.New("wayland: unaligned message")
+		return ErrWaylandUnalignedMessage
 	}
 	size := 8 + len(body)
 	msg := make([]byte, size)
@@ -192,7 +202,7 @@ func (c *conn) fatal() error {
 	if c.err != nil {
 		return c.err
 	}
-	return errors.New("wayland: display closed")
+	return ErrWaylandDisplayClosed
 }
 
 type stream struct {
@@ -209,7 +219,7 @@ func (s *stream) next() (uint32, uint16, []byte, error) {
 			hdr := binary.LittleEndian.Uint32(s.buf[4:8])
 			size := int(hdr >> 16)
 			if size < 8 {
-				return 0, 0, nil, errors.New("wayland: short header")
+				return 0, 0, nil, ErrWaylandShortHeader
 			}
 			if len(s.buf) >= size {
 				id := binary.LittleEndian.Uint32(s.buf[:4])

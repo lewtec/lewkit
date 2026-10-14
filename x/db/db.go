@@ -50,10 +50,17 @@ import (
 )
 
 var (
-	errNilNew        = errors.New("nil constructor")
-	errNotOpen       = errors.New("database not open")
-	ErrUnknownScheme = errors.New("unknown database scheme")
-	ErrNoMigrations  = errors.New("no migrations for engine")
+	errNilNew             = errors.New("nil constructor")
+	errNotOpen            = errors.New("database not open")
+	ErrUnknownScheme      = errors.New("unknown database scheme")
+	ErrNoMigrations       = errors.New("no migrations for engine")
+	ErrConnMigrateMigrate = errors.New("migrate")
+	ErrConnMigrateOpen    = errors.New("open")
+	ErrConnMigratePing    = errors.New("ping")
+	ErrConnTxBegin        = errors.New("begin")
+	ErrConnTxCommit       = errors.New("commit")
+	ErrUpInstance         = errors.New("instance")
+	ErrUpIofs             = errors.New("iofs")
 )
 
 // DBTX is sqlc's database/sql handle (*sql.DB and *sql.Tx).
@@ -165,10 +172,10 @@ func (c *Conn[Q]) Migrate(ctx context.Context, root fs.FS) error {
 	if c.conn == nil {
 		conn, err := sql.Open(eng.Driver, dsn)
 		if err != nil {
-			return fmt.Errorf("open %s: %w", eng.Driver, err)
+			return fmt.Errorf("%w %s: %w", ErrConnMigrateOpen, eng.Driver, err)
 		}
 		if err := conn.PingContext(ctx); err != nil {
-			return errors.Join(fmt.Errorf("ping %s: %w", eng.Driver, err), conn.Close())
+			return errors.Join(fmt.Errorf("%w %s: %w", ErrConnMigratePing, eng.Driver, err), conn.Close())
 		}
 		if memoryDSN(dsn) {
 			conn.SetMaxOpenConns(1)
@@ -179,7 +186,7 @@ func (c *Conn[Q]) Migrate(ctx context.Context, root fs.FS) error {
 		return nil
 	}
 	if err := eng.Up(ctx, c.conn, mig); err != nil {
-		return fmt.Errorf("migrate: %w", err)
+		return fmt.Errorf("%w: %w", ErrConnMigrateMigrate, err)
 	}
 	return nil
 }
@@ -203,13 +210,13 @@ func (c *Conn[Q]) Tx(ctx context.Context, fn func(Q) error) error {
 	}
 	tx, err := c.conn.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin: %w", err)
+		return fmt.Errorf("%w: %w", ErrConnTxBegin, err)
 	}
 	if err := fn(c.new(tx)); err != nil {
 		return errors.Join(err, tx.Rollback())
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit: %w", err)
+		return fmt.Errorf("%w: %w", ErrConnTxCommit, err)
 	}
 	return nil
 }

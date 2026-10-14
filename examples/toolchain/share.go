@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -11,6 +12,10 @@ import (
 	"github.com/dave/jennifer/jen"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/lewtec/lewkit/x/toolchain/purego"
+)
+
+var (
+	ErrShare = errors.New("")
 )
 
 // hostPingSrc renders the library. HostPing is the C symbol.
@@ -50,7 +55,7 @@ func share() (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%w\n%s", err, stderr.String())
+		return "", fmt.Errorf("%w%w\n%s", ErrShare, err, stderr.String())
 	}
 	return stdout.String(), nil
 }

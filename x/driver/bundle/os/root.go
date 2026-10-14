@@ -3,6 +3,7 @@ package host
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,10 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/bundle"
 	"github.com/lewtec/lewkit/x/driver/dirs"
+)
+
+var (
+	ErrMkdirProfile = errors.New("mkdir profile")
 )
 
 type factory struct{}
@@ -37,7 +42,7 @@ func (backend) Resolve(ctx context.Context, appID string) (bundle.Root, error) {
 		Profile: filepath.Join(tree.Data, "webview"),
 	}
 	if err := os.MkdirAll(root.Profile, 0o700); err != nil {
-		return bundle.Root{}, fmt.Errorf("mkdir profile: %w", err)
+		return bundle.Root{}, fmt.Errorf("%w: %w", ErrMkdirProfile, err)
 	}
 	return root, nil
 }

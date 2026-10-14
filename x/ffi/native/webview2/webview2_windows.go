@@ -13,6 +13,13 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
+var (
+	ErrCoinitializeex                              = errors.New("CoInitializeEx")
+	ErrCreatewebviewenvironmentwithoptionsinternal = errors.New("CreateWebViewEnvironmentWithOptionsInternal")
+	ErrRegistryType                                = errors.New("registry type")
+	ErrShcreatememstream                           = errors.New("SHCreateMemStream")
+)
+
 // ErrUnavailable means the installed Edge WebView2 runtime could not be opened.
 var ErrUnavailable = errors.New("webview2 unavailable")
 
@@ -74,7 +81,7 @@ func Available() error {
 func CoInitialize() error {
 	hr, _, _ := coInitializeEx.Call(0, 2)
 	if int32(hr) < 0 && uint32(hr) != 0x00000001 {
-		return fmt.Errorf("CoInitializeEx: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrCoinitializeex, uint32(hr))
 	}
 	return nil
 }
@@ -94,7 +101,7 @@ func MemoryStream(body []byte) (uintptr, error) {
 	}
 	stream, _, err := createMemoryStream.Call(data, uintptr(len(body)))
 	if stream == 0 {
-		return 0, fmt.Errorf("SHCreateMemStream: %v", err)
+		return 0, fmt.Errorf("%w: %v", ErrShcreatememstream, err)
 	}
 	return stream, nil
 }
@@ -110,7 +117,7 @@ func CreateEnvironment(userDataFolder *uint16, handler uintptr) error {
 	// CreateWebViewEnvironmentWithOptionsInternal(checkRunningInstance, installed, userData, options, handler).
 	hr, _, _ := createEnvironment.Call(1, 0, uintptr(unsafe.Pointer(userDataFolder)), 0, handler)
 	if int32(hr) < 0 {
-		return fmt.Errorf("CreateWebViewEnvironmentWithOptionsInternal: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrCreatewebviewenvironmentwithoptionsinternal, uint32(hr))
 	}
 	return nil
 }
@@ -174,7 +181,7 @@ func queryString(root uintptr, subkey, value string) (string, error) {
 		return expandString(text), nil
 	}
 	if kind != regSZ {
-		return "", fmt.Errorf("registry type %d", kind)
+		return "", fmt.Errorf("%w %d", ErrRegistryType, kind)
 	}
 	return text, nil
 }

@@ -7,11 +7,16 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/lewtec/lewkit/x/build/icons"
+)
+
+var (
+	ErrRunFromInternalIconsMissing = errors.New("run from internal/icons (missing")
 )
 
 func main() {
@@ -25,7 +30,7 @@ func run() error {
 	dir := "default"
 	path := filepath.Join(dir, "lockup.png")
 	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("run from internal/icons (missing %s): %w", path, err)
+		return fmt.Errorf("%w %s): %w", ErrRunFromInternalIconsMissing, path, err)
 	}
 
 	lockup, err := icons.DecodeImage(path)

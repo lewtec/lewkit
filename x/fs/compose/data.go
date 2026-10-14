@@ -127,7 +127,7 @@ func mergeData(left, right map[string]any) (map[string]any, error) {
 		}
 		merged, err := mergeValue(leftValue, rightValue)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", key, err)
+			return nil, fmt.Errorf("%w%s: %w", ErrMergeData, key, err)
 		}
 		out[key] = merged
 	}

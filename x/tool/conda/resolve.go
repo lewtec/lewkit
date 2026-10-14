@@ -230,7 +230,7 @@ func (state *resolveState) selectRecord(ctx context.Context, ch channel, name, v
 
 func wrapMiss(name, versionSpec, buildSpec string, err error, root bool) error {
 	if root {
-		return fmt.Errorf("%w: %s", err, name)
+		return fmt.Errorf("%w%w: %s", ErrWrapMiss, err, name)
 	}
 	return fmt.Errorf("%w: %s %s: %w", ErrUnsatisfied, name, strings.TrimSpace(versionSpec+" "+buildSpec), err)
 }

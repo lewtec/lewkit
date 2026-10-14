@@ -45,10 +45,10 @@ func BuildLoaded(ctx context.Context, m Loaded) (string, error) {
 		}
 	}
 	if mains > 1 {
-		return "", fmt.Errorf("release go: %d main packages", mains)
+		return "", fmt.Errorf("release go: %d %w", mains, ErrMainPackages)
 	}
 	if mains == 0 && m.RequireMain {
-		return "", fmt.Errorf("release go: -o needs a main package")
+		return "", ErrReleaseGoONeedsAMainPackage
 	}
 	// Assembly and system objects stay as archives in -pkgdir. cmd/asm is
 	// not part of this toolchain. Their pure-Go imports are still compiled.
@@ -56,7 +56,7 @@ func BuildLoaded(ctx context.Context, m Loaded) (string, error) {
 	archives := map[string]string{}
 	for _, pkg := range m.Graph.Pkgs {
 		if pkg.Name == "main" && pkg.Asm {
-			return "", fmt.Errorf("release go: main package has assembly")
+			return "", ErrReleaseGoMainPackageHasAssembly
 		}
 		if pkg.Asm {
 			if _, ok := m.Std[pkg.ImportPath]; !ok {

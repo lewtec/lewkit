@@ -100,6 +100,6 @@ func compileArch(goarch string) (func(*ssagen.ArchInfo), error) {
 	case "arm64":
 		return arm64.Init, nil
 	default:
-		return nil, fmt.Errorf("compile supports GOARCH=amd64 or arm64, have %s", goarch)
+		return nil, fmt.Errorf("%w %s", ErrCompileSupportsGoarchAmd64OrArm64Have, goarch)
 	}
 }

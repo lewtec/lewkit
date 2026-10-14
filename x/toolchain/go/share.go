@@ -29,17 +29,17 @@ func MakeShared(path string) error {
 		return err
 	}
 	if len(buf) < 64 || string(buf[:4]) != "\x7fELF" || buf[4] != 2 || buf[5] != 1 || buf[6] != 1 {
-		return fmt.Errorf("%s is not a little-endian ELF64 file", path)
+		return fmt.Errorf("%s %w", path, ErrIsNotALittleEndianElf64File)
 	}
 	phoff := binary.LittleEndian.Uint64(buf[32:])
 	phentsize := binary.LittleEndian.Uint16(buf[54:])
 	phnum := binary.LittleEndian.Uint16(buf[56:])
 	if phentsize < 56 || phnum == 0 {
-		return fmt.Errorf("%s has a bad program header table", path)
+		return fmt.Errorf("%s %w", path, ErrHasABadProgramHeaderTable)
 	}
 	phend := phoff + uint64(phnum)*uint64(phentsize)
 	if phoff > uint64(len(buf)) || phend > uint64(len(buf)) {
-		return fmt.Errorf("%s program headers are out of range", path)
+		return fmt.Errorf("%s %w", path, ErrProgramHeadersAreOutOfRange)
 	}
 	var dynOff, dynSize uint64
 	var sawDyn bool
@@ -56,10 +56,10 @@ func MakeShared(path string) error {
 		}
 	}
 	if !sawDyn {
-		return fmt.Errorf("%s has no dynamic segment", path)
+		return fmt.Errorf("%s %w", path, ErrHasNoDynamicSegment)
 	}
 	if dynOff > uint64(len(buf)) || dynSize > uint64(len(buf))-dynOff {
-		return fmt.Errorf("%s dynamic segment is out of range", path)
+		return fmt.Errorf("%s %w", path, ErrDynamicSegmentIsOutOfRange)
 	}
 	const step = 16
 	for off := dynOff; off+step <= dynOff+dynSize; off += step {

@@ -17,4 +17,5 @@ var (
 	errMethodMismatch  = errors.New("method mismatch")
 	errTypeMismatch    = errors.New("type mismatch")
 	errSQLC            = errors.New("sqlc generate")
+	ErrLoadGenerated   = errors.New("")
 )

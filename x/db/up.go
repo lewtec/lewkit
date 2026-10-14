@@ -20,11 +20,11 @@ func Up(ctx context.Context, conn *sql.DB, fsys fs.FS, name string, instance fun
 	}
 	src, err := iofs.New(fsys, ".")
 	if err != nil {
-		return fmt.Errorf("iofs: %w", err)
+		return fmt.Errorf("%w: %w", ErrUpIofs, err)
 	}
 	inst, err := instance(conn)
 	if err != nil {
-		return fmt.Errorf("instance: %w", err)
+		return fmt.Errorf("%w: %w", ErrUpInstance, err)
 	}
 	m, err := migrate.NewWithInstance("iofs", src, name, inst)
 	if err != nil {

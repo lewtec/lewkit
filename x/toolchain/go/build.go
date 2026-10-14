@@ -159,7 +159,7 @@ func Child() (bool, error) {
 	}
 	path := os.Getenv(requestEnv)
 	if path == "" {
-		return true, errors.New("toolchain: missing request")
+		return true, ErrToolchainMissingRequest
 	}
 	body, err := os.ReadFile(path)
 	if err != nil {
@@ -175,7 +175,7 @@ func Child() (bool, error) {
 	case "link":
 		return true, linkHere(req.Out, req.ImportCfg, req.Mode, req.Archive, req.Ldflags...)
 	default:
-		return true, fmt.Errorf("toolchain: unknown action %s", action)
+		return true, fmt.Errorf("%w %s", ErrToolchainUnknownAction, action)
 	}
 }
 

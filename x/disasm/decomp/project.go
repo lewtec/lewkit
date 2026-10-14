@@ -116,7 +116,7 @@ func (project *Project) add(ctx context.Context, name, path string, reader io.Re
 		return nil, err
 	}
 	if name == "" {
-		return nil, errors.New("empty artifact name")
+		return nil, ErrEmptyArtifactName
 	}
 	for _, artifact := range project.artifacts {
 		if artifact.name == name {
@@ -149,7 +149,7 @@ func (project *Project) add(ctx context.Context, name, path string, reader io.Re
 
 func readImage(reader io.ReaderAt, size int64) ([]byte, error) {
 	if size < 0 {
-		return nil, errors.New("negative artifact size")
+		return nil, ErrNegativeArtifactSize
 	}
 	image := make([]byte, size)
 	if size == 0 {
@@ -342,7 +342,7 @@ func (artifact *Artifact) Function(address uint64) (Function, bool) {
 // An [Open] project writes the new name into the sqlite file.
 func (artifact *Artifact) SetName(ctx context.Context, address uint64, name string) error {
 	if name == "" {
-		return errors.New("empty function name")
+		return ErrEmptyFunctionName
 	}
 	function := artifact.byAddress[address]
 	if function == nil {
@@ -468,7 +468,7 @@ func (artifact *Artifact) Notes() []Note {
 // An [Open] project writes the clue into the sqlite file.
 func (artifact *Artifact) SetNote(ctx context.Context, address uint64, text string) error {
 	if artifact == nil {
-		return errors.New("set note: nil artifact")
+		return ErrSetNoteNilArtifact
 	}
 	if err := artifact.requireStored("note"); err != nil {
 		return err

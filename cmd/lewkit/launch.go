@@ -18,6 +18,14 @@ import (
 	"github.com/lewtec/lewkit/x/release"
 )
 
+var (
+	ErrBuiltLinuxApp      = errors.New("built linux app")
+	ErrBuiltWindowsApp    = errors.New("built windows app")
+	ErrHasNoAppToLaunch   = errors.New("has no app to launch")
+	ErrNegativeOffset     = errors.New("negative offset")
+	ErrSopsCommandIsEmpty = errors.New("sops: command is empty")
+)
+
 type builtProgram struct {
 	goos, goarch, archive string
 	args                  []string
@@ -86,16 +94,16 @@ func launchApp(ctx context.Context, goos, path, id string) error {
 		return runTool(ctx, "xcrun", "simctl", "launch", "booted", id)
 	case "windows":
 		if runtime.GOOS != "windows" {
-			return fmt.Errorf("built windows app (%s); this machine is %s", path, runtime.GOOS)
+			return fmt.Errorf("%w (%s); this machine is %s", ErrBuiltWindowsApp, path, runtime.GOOS)
 		}
 		return runForeground(ctx, path)
 	case "linux":
 		if runtime.GOOS != "linux" {
-			return fmt.Errorf("built linux app (%s); this machine is %s", path, runtime.GOOS)
+			return fmt.Errorf("%w (%s); this machine is %s", ErrBuiltLinuxApp, path, runtime.GOOS)
 		}
 		return runForeground(ctx, path)
 	default:
-		return fmt.Errorf("%s has no app to launch", goos)
+		return fmt.Errorf("%s %w", goos, ErrHasNoAppToLaunch)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/draw"
@@ -13,6 +14,32 @@ import (
 	"math"
 	"slices"
 	"sync"
+)
+
+var (
+	ErrAppendPrimPatoUvCount          = errors.New("pato: uv count")
+	ErrBaseColorPato                  = errors.New("pato")
+	ErrIsNotFloatVec                  = errors.New("is not float vec")
+	ErrLoadGLBPato                    = errors.New("pato")
+	ErrLoadGLBPatoNotAGlb             = errors.New("pato: not a glb")
+	ErrPatoAccessor                   = errors.New("pato: accessor")
+	ErrPatoBadChunk                   = errors.New("pato: bad chunk")
+	ErrPatoBadImage                   = errors.New("pato: bad image")
+	ErrPatoBadImageView               = errors.New("pato: bad image view")
+	ErrPatoBadTexture                 = errors.New("pato: bad texture")
+	ErrPatoEmptyGlb                   = errors.New("pato: empty glb")
+	ErrPatoImageOutOfRange            = errors.New("pato: image out of range")
+	ErrPatoIndexCount                 = errors.New("pato: index count")
+	ErrPatoIndexOutOfRange            = errors.New("pato: index out of range")
+	ErrPatoIndexType                  = errors.New("pato: index type")
+	ErrPatoIndicesAreNotScalar        = errors.New("pato: indices are not scalar")
+	ErrPatoIndicesShort               = errors.New("pato: indices short")
+	ErrPatoMeshHasNoTexturedTriangles = errors.New("pato: mesh has no textured triangles")
+	ErrPatoNoBaseColor                = errors.New("pato: no base color")
+	ErrPatoNoMaterial                 = errors.New("pato: no material")
+	ErrPatoPrimitiveHasNoPositions    = errors.New("pato: primitive has no positions")
+	ErrPatoPrimitiveHasNoUvs          = errors.New("pato: primitive has no uvs")
+	ErrPatoShortGlb                   = errors.New("pato: short glb")
 )
 
 //go:embed embed/pato.glb
@@ -86,11 +113,11 @@ type gltfImage struct {
 
 func loadGLB(src []byte) (mesh, error) {
 	if len(src) < 20 {
-		return mesh{}, fmt.Errorf("pato: short glb")
+		return mesh{}, ErrPatoShortGlb
 	}
 	magic, _, length := u32(src[0:4]), u32(src[4:8]), u32(src[8:12])
 	if magic != 0x46546C67 || int(length) > len(src) {
-		return mesh{}, fmt.Errorf("pato: not a glb")
+		return mesh{}, ErrLoadGLBPatoNotAGlb
 	}
 	var doc gltfDoc
 	var bin []byte
@@ -100,21 +127,21 @@ func loadGLB(src []byte) (mesh, error) {
 		ctype := u32(src[off+4 : off+8])
 		off += 8
 		if clen < 0 || off+clen > len(src) {
-			return mesh{}, fmt.Errorf("pato: bad chunk")
+			return mesh{}, ErrPatoBadChunk
 		}
 		chunk := src[off : off+clen]
 		off += clen
 		switch ctype {
 		case 0x4E4F534A:
 			if err := json.Unmarshal(chunk, &doc); err != nil {
-				return mesh{}, fmt.Errorf("pato: %w", err)
+				return mesh{}, fmt.Errorf("%w: %w", ErrLoadGLBPato, err)
 			}
 		case 0x004E4942:
 			bin = chunk
 		}
 	}
 	if bin == nil || len(doc.Meshes) == 0 {
-		return mesh{}, fmt.Errorf("pato: empty glb")
+		return mesh{}, ErrPatoEmptyGlb
 	}
 	var out mesh
 	for _, m := range doc.Meshes {
@@ -125,7 +152,7 @@ func loadGLB(src []byte) (mesh, error) {
 		}
 	}
 	if len(out.i) == 0 || out.tex == nil {
-		return mesh{}, fmt.Errorf("pato: mesh has no textured triangles")
+		return mesh{}, ErrPatoMeshHasNoTexturedTriangles
 	}
 	compact(&out)
 	dropFins(&out)
@@ -242,11 +269,11 @@ func compact(m *mesh) {
 func appendPrim(out *mesh, doc gltfDoc, bin []byte, prim gltfPrim) error {
 	posAt, ok := prim.Attributes["POSITION"]
 	if !ok || prim.Indices == nil {
-		return fmt.Errorf("pato: primitive has no positions")
+		return ErrPatoPrimitiveHasNoPositions
 	}
 	uvAt, ok := prim.Attributes["TEXCOORD_0"]
 	if !ok {
-		return fmt.Errorf("pato: primitive has no uvs")
+		return ErrPatoPrimitiveHasNoUvs
 	}
 	pos, err := readVec(bin, doc, posAt, 3)
 	if err != nil {
@@ -257,14 +284,14 @@ func appendPrim(out *mesh, doc gltfDoc, bin []byte, prim gltfPrim) error {
 		return err
 	}
 	if len(uv) != len(pos) {
-		return fmt.Errorf("pato: uv count %d != positions %d", len(uv), len(pos))
+		return fmt.Errorf("%w %d != positions %d", ErrAppendPrimPatoUvCount, len(uv), len(pos))
 	}
 	idx, err := readIndex(bin, doc, *prim.Indices)
 	if err != nil {
 		return err
 	}
 	if len(idx)%3 != 0 {
-		return fmt.Errorf("pato: index count %d", len(idx))
+		return fmt.Errorf("%w %d", ErrPatoIndexCount, len(idx))
 	}
 	tex, err := baseColor(doc, bin, prim.Material)
 	if err != nil {
@@ -280,7 +307,7 @@ func appendPrim(out *mesh, doc gltfDoc, bin []byte, prim gltfPrim) error {
 	for i := 0; i < len(idx); i += 3 {
 		a, b, c := idx[i], idx[i+1], idx[i+2]
 		if a < 0 || b < 0 || c < 0 || a >= len(pos) || b >= len(pos) || c >= len(pos) {
-			return fmt.Errorf("pato: index out of range")
+			return ErrPatoIndexOutOfRange
 		}
 		// The capture includes the white slab the duck was standing on.
 		// Flippers are saturated, so a pale triangle under the body is the slab.
@@ -331,31 +358,31 @@ func stand(tex *image.RGBA, u, v float32) bool {
 
 func baseColor(doc gltfDoc, bin []byte, material *int) (*image.RGBA, error) {
 	if material == nil || *material < 0 || *material >= len(doc.Materials) {
-		return nil, fmt.Errorf("pato: no material")
+		return nil, ErrPatoNoMaterial
 	}
 	pbr := doc.Materials[*material].PBR
 	if pbr == nil || pbr.BaseColorTexture == nil {
-		return nil, fmt.Errorf("pato: no base color")
+		return nil, ErrPatoNoBaseColor
 	}
 	ti := pbr.BaseColorTexture.Index
 	if ti < 0 || ti >= len(doc.Textures) {
-		return nil, fmt.Errorf("pato: bad texture")
+		return nil, ErrPatoBadTexture
 	}
 	si := doc.Textures[ti].Source
 	if si < 0 || si >= len(doc.Images) {
-		return nil, fmt.Errorf("pato: bad image")
+		return nil, ErrPatoBadImage
 	}
 	view := doc.Images[si].BufferView
 	if view < 0 || view >= len(doc.BufferViews) {
-		return nil, fmt.Errorf("pato: bad image view")
+		return nil, ErrPatoBadImageView
 	}
 	bv := doc.BufferViews[view]
 	if bv.ByteOffset < 0 || bv.ByteLength < 1 || bv.ByteOffset+bv.ByteLength > len(bin) {
-		return nil, fmt.Errorf("pato: image out of range")
+		return nil, ErrPatoImageOutOfRange
 	}
 	src, _, err := image.Decode(bytes.NewReader(bin[bv.ByteOffset : bv.ByteOffset+bv.ByteLength]))
 	if err != nil {
-		return nil, fmt.Errorf("pato: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrBaseColorPato, err)
 	}
 	rgba := image.NewRGBA(image.Rect(0, 0, src.Bounds().Dx(), src.Bounds().Dy()))
 	draw.Draw(rgba, rgba.Bounds(), src, src.Bounds().Min, draw.Src)
@@ -368,7 +395,7 @@ func readVec(bin []byte, doc gltfDoc, accessor, n int) ([]vec3, error) {
 		return nil, err
 	}
 	if acc.ComponentType != 5126 || (n == 3 && acc.Type != "VEC3") || (n == 2 && acc.Type != "VEC2") {
-		return nil, fmt.Errorf("pato: accessor %d is not float vec", accessor)
+		return nil, fmt.Errorf("pato: accessor %d %w", accessor, ErrIsNotFloatVec)
 	}
 	if stride == 0 {
 		stride = n * 4
@@ -377,7 +404,7 @@ func readVec(bin []byte, doc gltfDoc, accessor, n int) ([]vec3, error) {
 	for i := range out {
 		at := i * stride
 		if at+n*4 > len(raw) {
-			return nil, fmt.Errorf("pato: accessor %d short", accessor)
+			return nil, fmt.Errorf("%w %d short", ErrPatoAccessor, accessor)
 		}
 		out[i].x = f32(raw[at : at+4])
 		out[i].y = f32(raw[at+4 : at+8])
@@ -394,7 +421,7 @@ func readIndex(bin []byte, doc gltfDoc, accessor int) ([]int, error) {
 		return nil, err
 	}
 	if acc.Type != "SCALAR" {
-		return nil, fmt.Errorf("pato: indices are not scalar")
+		return nil, ErrPatoIndicesAreNotScalar
 	}
 	width := 0
 	switch acc.ComponentType {
@@ -403,7 +430,7 @@ func readIndex(bin []byte, doc gltfDoc, accessor int) ([]int, error) {
 	case 5125:
 		width = 4
 	default:
-		return nil, fmt.Errorf("pato: index type %d", acc.ComponentType)
+		return nil, fmt.Errorf("%w %d", ErrPatoIndexType, acc.ComponentType)
 	}
 	if stride == 0 {
 		stride = width
@@ -412,7 +439,7 @@ func readIndex(bin []byte, doc gltfDoc, accessor int) ([]int, error) {
 	for i := range out {
 		at := i * stride
 		if at+width > len(raw) {
-			return nil, fmt.Errorf("pato: indices short")
+			return nil, ErrPatoIndicesShort
 		}
 		if width == 2 {
 			out[i] = int(binary.LittleEndian.Uint16(raw[at : at+2]))
@@ -425,16 +452,16 @@ func readIndex(bin []byte, doc gltfDoc, accessor int) ([]int, error) {
 
 func view(bin []byte, doc gltfDoc, accessor int) (gltfAccessor, int, []byte, error) {
 	if accessor < 0 || accessor >= len(doc.Accessors) {
-		return gltfAccessor{}, 0, nil, fmt.Errorf("pato: accessor %d", accessor)
+		return gltfAccessor{}, 0, nil, fmt.Errorf("%w %d", ErrPatoAccessor, accessor)
 	}
 	acc := doc.Accessors[accessor]
 	if acc.BufferView < 0 || acc.BufferView >= len(doc.BufferViews) || acc.Count < 1 {
-		return gltfAccessor{}, 0, nil, fmt.Errorf("pato: accessor %d view", accessor)
+		return gltfAccessor{}, 0, nil, fmt.Errorf("%w %d view", ErrPatoAccessor, accessor)
 	}
 	bv := doc.BufferViews[acc.BufferView]
 	start := bv.ByteOffset + acc.ByteOffset
 	if start < 0 || bv.ByteLength < 0 || bv.ByteOffset+bv.ByteLength > len(bin) || start > len(bin) {
-		return gltfAccessor{}, 0, nil, fmt.Errorf("pato: accessor %d range", accessor)
+		return gltfAccessor{}, 0, nil, fmt.Errorf("%w %d range", ErrPatoAccessor, accessor)
 	}
 	return acc, bv.ByteStride, bin[start:], nil
 }

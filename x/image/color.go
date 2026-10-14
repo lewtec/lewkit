@@ -1,9 +1,14 @@
 package image
 
 import (
+	"errors"
 	"fmt"
 	stdimage "image"
 	"strings"
+)
+
+var (
+	ErrParseRGBColor = errors.New("color")
 )
 
 // RGB is straight red, green, blue, and alpha, each 0..255. Paint uses this.
@@ -158,7 +163,7 @@ func ParseRGB(text string) (RGB, error) {
 	text = strings.TrimSpace(text)
 	text = strings.TrimPrefix(text, "#")
 	if !hex(text) {
-		return RGB{}, fmt.Errorf("color %q", text)
+		return RGB{}, fmt.Errorf("%w %q", ErrParseRGBColor, text)
 	}
 	var r, g, b, a uint8
 	a = 255
@@ -170,7 +175,7 @@ func ParseRGB(text string) (RGB, error) {
 	case 8:
 		r, g, b, a = byte2(text[0:2]), byte2(text[2:4]), byte2(text[4:6]), byte2(text[6:8])
 	default:
-		return RGB{}, fmt.Errorf("color %q", text)
+		return RGB{}, fmt.Errorf("%w %q", ErrParseRGBColor, text)
 	}
 	return RGB{Red: r, Green: g, Blue: b, Alpha: a}, nil
 }

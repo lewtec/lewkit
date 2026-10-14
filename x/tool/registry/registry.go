@@ -21,7 +21,8 @@ var (
 	// ErrEmptyToolName is returned when a curated name is blank.
 	ErrEmptyToolName = errors.New("curated tool name cannot be empty")
 	// ErrNoArtifactTool is returned when a curated tool's inner backend cannot list artifacts.
-	ErrNoArtifactTool = errors.New("inner tool does not implement ArtifactTool")
+	ErrNoArtifactTool                                                                                                   = errors.New("inner tool does not implement ArtifactTool")
+	ErrTheCatalogOnlyKnowsCuratedShortNamesBareNamesDefaultToTheCatalogUseExplicitMiseXxxOrGithubOwnerRepoForOtherTools = errors.New("the catalog only knows curated short names; bare names default to the catalog; use explicit 'mise:xxx' or 'github:owner/repo' for other tools")
 )
 
 var namedTools = map[string]func() (tool.Tool, error){}
@@ -162,7 +163,7 @@ func (catalog) Tool(ref string) (tool.Tool, error) {
 	}
 	construct, ok := namedTools[name]
 	if !ok {
-		return nil, fmt.Errorf("unknown named tool %q (the catalog only knows curated short names; bare names default to the catalog; use explicit 'mise:xxx' or 'github:owner/repo' for other tools)", name)
+		return nil, fmt.Errorf("unknown named tool %q (%w)", name, ErrTheCatalogOnlyKnowsCuratedShortNamesBareNamesDefaultToTheCatalogUseExplicitMiseXxxOrGithubOwnerRepoForOtherTools)
 	}
 	return construct()
 }

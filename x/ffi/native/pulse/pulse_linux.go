@@ -4,6 +4,7 @@ package pulse
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -15,6 +16,11 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/native"
 	audioperiod "github.com/lewtec/lewkit/x/ffi/native/internal/period"
 	"github.com/lewtec/lewkit/x/release"
+)
+
+var (
+	ErrLibpulseSimpleSo0    = errors.New("libpulse-simple.so.0")
+	ErrLoadPulseLibpulseSo0 = errors.New("libpulse.so.0")
 )
 
 const (
@@ -38,11 +44,11 @@ var (
 func loadPulse() (pulseLibs, error) {
 	simple, err := bindSimple()
 	if err != nil {
-		return pulseLibs{}, fmt.Errorf("libpulse-simple.so.0: %w", err)
+		return pulseLibs{}, fmt.Errorf("%w: %w", ErrLibpulseSimpleSo0, err)
 	}
 	pulse, err := bindPulse()
 	if err != nil {
-		return pulseLibs{}, fmt.Errorf("libpulse.so.0: %w", err)
+		return pulseLibs{}, fmt.Errorf("%w: %w", ErrLoadPulseLibpulseSo0, err)
 	}
 	return pulseLibs{simple: simple, pulse: pulse}, nil
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,7 +40,7 @@ func (c *execCmd) Run(ctx context.Context) error {
 	}
 	argv := cmd.Values(c.args)
 	if len(argv) == 0 {
-		return fmt.Errorf("sops: command is empty")
+		return ErrSopsCommandIsEmpty
 	}
 	command := argv[0]
 	specs := cmd.Values(c.tools)

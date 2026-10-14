@@ -2,16 +2,21 @@ package opener
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+)
+
+var (
+	ErrStart = errors.New("")
 )
 
 // Start runs name and does not wait for it to exit.
 func Start(ctx context.Context, name string, args ...string) error {
 	cmd := execdriver.MustCommand(ctx, name, args...)
 	if err := execdriver.Start(ctx, cmd); err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return fmt.Errorf("%w%s: %w", ErrStart, name, err)
 	}
 	return nil
 }

@@ -2,12 +2,18 @@ package dbus
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/godbus/dbus/v5"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/media"
+)
+
+var (
+	ErrMetadataUnexpectedType       = errors.New("metadata: unexpected type")
+	ErrPlaybackStatusUnexpectedType = errors.New("playback status: unexpected type")
 )
 
 const playerIface = "org.mpris.MediaPlayer2.Player"
@@ -120,7 +126,7 @@ func (b backend) GetMetadata(ctx context.Context) (*media.Metadata, error) {
 	}
 	status, ok := statusVar.Value().(string)
 	if !ok {
-		return nil, fmt.Errorf("playback status: unexpected type %T", statusVar.Value())
+		return nil, fmt.Errorf("%w %T", ErrPlaybackStatusUnexpectedType, statusVar.Value())
 	}
 	metadataVar, err := getProp(ctx, obj, playerIface, "Metadata")
 	if err != nil {
@@ -128,7 +134,7 @@ func (b backend) GetMetadata(ctx context.Context) (*media.Metadata, error) {
 	}
 	fields, ok := metadataVar.Value().(map[string]dbus.Variant)
 	if !ok {
-		return nil, fmt.Errorf("metadata: unexpected type %T", metadataVar.Value())
+		return nil, fmt.Errorf("%w %T", ErrMetadataUnexpectedType, metadataVar.Value())
 	}
 	res := metadataFrom(name, media.PlaybackStatus(status), fields)
 	posVar, err := getProp(ctx, obj, playerIface, "Position")

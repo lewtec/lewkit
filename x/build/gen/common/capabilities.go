@@ -10,6 +10,13 @@ import (
 	"strings"
 )
 
+var (
+	ErrApplyHostDefaultsPackageId = errors.New("package id")
+	ErrCapabilities               = errors.New("capabilities")
+	ErrResolveGoMainGoMain        = errors.New("go_main")
+	ErrWalkTemplateDest           = errors.New("")
+)
+
 // Capability parse/validate sentinels.
 var (
 	ErrCapabilityUnknown = errors.New("unknown capability")
@@ -67,7 +74,7 @@ func ParseCapabilities(raw json.RawMessage) (Capabilities, error) {
 	}
 	var probe map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &probe); err != nil {
-		return Capabilities{}, fmt.Errorf("capabilities: %w", err)
+		return Capabilities{}, fmt.Errorf("%w: %w", ErrCapabilities, err)
 	}
 	for k := range probe {
 		switch k {
@@ -78,7 +85,7 @@ func ParseCapabilities(raw json.RawMessage) (Capabilities, error) {
 	}
 	var c Capabilities
 	if err := json.Unmarshal(raw, &c); err != nil {
-		return Capabilities{}, fmt.Errorf("capabilities: %w", err)
+		return Capabilities{}, fmt.Errorf("%w: %w", ErrCapabilities, err)
 	}
 	if err := c.Validate(); err != nil {
 		return Capabilities{}, err

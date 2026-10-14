@@ -5,6 +5,7 @@ import (
 	"context"
 	"debug/gosym"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -15,6 +16,62 @@ import (
 
 	"github.com/lewtec/lewkit/x/toolchain/go/src/cmd/goobj"
 	"github.com/lewtec/lewkit/x/toolchain/go/src/cmd/objabi"
+)
+
+var (
+	ErrApplyAddrARM64Reloc                            = errors.New("reloc")
+	ErrCallDistanceDoesNotFit                         = errors.New("call distance does not fit")
+	ErrCompileSupportsGoarchAmd64OrArm64Have          = errors.New("compile supports GOARCH=amd64 or arm64, have")
+	ErrDoesNotCoverMorestack                          = errors.New("does not cover morestack")
+	ErrDynamicSegmentIsOutOfRange                     = errors.New("dynamic segment is out of range")
+	ErrGoListRuntime                                  = errors.New("go list runtime")
+	ErrHasABadProgramHeaderTable                      = errors.New("has a bad program header table")
+	ErrHasNoDynamicSegment                            = errors.New("has no dynamic segment")
+	ErrIsNotALittleEndianElf64File                    = errors.New("is not a little-endian ELF64 file")
+	ErrIsOutOfAdrpRange                               = errors.New("is out of adrp range")
+	ErrJitArchiveHasNoObject                          = errors.New("jit: archive has no object")
+	ErrJitBindTypeIsNotAFunction                      = errors.New("jit: bind type is not a function")
+	ErrJitExecutableHasNoPclntab                      = errors.New("jit: executable has no pclntab")
+	ErrJitExecutableHasNoRuntimeMorestackNoctxt       = errors.New("jit: executable has no runtime.morestack_noctxt")
+	ErrJitNilProgram                                  = errors.New("jit: nil program")
+	ErrJitNoFunction                                  = errors.New("jit: no function")
+	ErrJitObjectHeaderIsNotGo120ld                    = errors.New("jit: object header is not go120ld")
+	ErrJitPackageHasNoFunctions                       = errors.New("jit: package has no functions")
+	ErrJitRuntimeModuleHeaderIs                       = errors.New("jit: runtime module header is")
+	ErrJitRuntimeModuleListIsEmpty                    = errors.New("jit: runtime module list is empty")
+	ErrJitSourceWasStored                             = errors.New("jit: source was stored")
+	ErrLinkSupportsGoarchAmd64OrArm64Have             = errors.New("link supports GOARCH=amd64 or arm64, have")
+	ErrMainPackages                                   = errors.New("main packages")
+	ErrModuleArchivesGoList                           = errors.New("go list")
+	ErrModuleArchivesGoListLine                       = errors.New("go list line")
+	ErrNoTrampolineFor                                = errors.New("no trampoline for")
+	ErrPatchRelocsJit                                 = errors.New("jit")
+	ErrPatchRelocsJit2                                = errors.New("jit")
+	ErrPatchRelocsJit3                                = errors.New("jit")
+	ErrPatchRelocsReloc                               = errors.New("reloc")
+	ErrProgramHeadersAreOutOfRange                    = errors.New("program headers are out of range")
+	ErrReleaseGoMainPackageHasAssembly                = errors.New("release go: main package has assembly")
+	ErrReleaseGoONeedsAMainPackage                    = errors.New("release go: -o needs a main package")
+	ErrRelocOutsideSymbol                             = errors.New("reloc outside symbol")
+	ErrRelocToUnplaced                                = errors.New("reloc to unplaced")
+	ErrRequiresExternalLinking                        = errors.New("requires external linking")
+	ErrRunSource                                      = errors.New("")
+	ErrRuntimeDepsGoListLine                          = errors.New("go list line")
+	ErrRuntimeHasNoExportArchive                      = errors.New("runtime has no export archive")
+	ErrSourceWasStored                                = errors.New("source was stored")
+	ErrSpawn                                          = errors.New("")
+	ErrToolchainCompileSupportsGoarchAmd64OrArm64Have = errors.New("toolchain: compile supports GOARCH=amd64 or arm64, have")
+	ErrToolchainMainPackageHasAssembly                = errors.New("toolchain: main package has assembly")
+	ErrToolchainMissingRequest                        = errors.New("toolchain: missing request")
+	ErrToolchainUnknownAction                         = errors.New("toolchain: unknown action")
+	ErrTrampolineDistance                             = errors.New("trampoline distance")
+	ErrTrampolineOutsideMapping                       = errors.New("trampoline outside mapping")
+	ErrUnaligned16BitOffset                           = errors.New("unaligned 16-bit offset")
+	ErrUnaligned32BitOffset                           = errors.New("unaligned 32-bit offset")
+	ErrUnaligned64BitOffset                           = errors.New("unaligned 64-bit offset")
+	ErrUnknownSymbol                                  = errors.New("unknown symbol")
+	ErrWriteRelocDoesNotFit                           = errors.New("does not fit")
+	ErrWriteRelocRelocSize                            = errors.New("reloc size")
 )
 
 // CompileSource compiles a package main given as source.
@@ -42,7 +99,7 @@ func CompileSource(ctx context.Context, src string) (*Prog, error) {
 		return nil, err
 	}
 	if len(stored) != 0 {
-		return nil, fmt.Errorf("jit: source was stored: %v", stored)
+		return nil, fmt.Errorf("%w: %v", ErrJitSourceWasStored, stored)
 	}
 
 	srcFile, err := openMem("src")
@@ -83,7 +140,7 @@ type Prog struct {
 // name is the identifier, such as Value, or the symbol main.Value.
 func (p *Prog) Func(name string) (uintptr, error) {
 	if p == nil {
-		return 0, fmt.Errorf("jit: nil program")
+		return 0, ErrJitNilProgram
 	}
 	if pc, ok := p.fn[name]; ok {
 		return pc, nil
@@ -91,7 +148,7 @@ func (p *Prog) Func(name string) (uintptr, error) {
 	if pc, ok := p.fn["main."+name]; ok {
 		return pc, nil
 	}
-	return 0, fmt.Errorf("jit: no function %s", name)
+	return 0, fmt.Errorf("%w %s", ErrJitNoFunction, name)
 }
 
 // Bind returns the compiled function name as a Go function of type T.
@@ -99,7 +156,7 @@ func Bind[T any](p *Prog, name string) (T, error) {
 	var zero T
 	rt := reflect.TypeFor[T]()
 	if rt == nil || rt.Kind() != reflect.Func {
-		return zero, fmt.Errorf("jit: bind type is not a function")
+		return zero, ErrJitBindTypeIsNotAFunction
 	}
 	pc, err := p.Func(name)
 	if err != nil {
@@ -176,7 +233,7 @@ func loadProg(archive []byte) (*Prog, error) {
 		off += size
 	}
 	if off == 0 {
-		return nil, fmt.Errorf("jit: package has no functions")
+		return nil, ErrJitPackageHasNoFunctions
 	}
 	hint, err := hostTextHint()
 	if err != nil {
@@ -236,7 +293,7 @@ func loadProg(archive []byte) (*Prog, error) {
 		texts = append(texts, textFn{name: name, obj: obj, idx: i, addr: place[i].addr, size: place[i].size, sym: s})
 	}
 	if len(texts) == 0 {
-		return nil, fmt.Errorf("jit: package has no functions")
+		return nil, ErrJitPackageHasNoFunctions
 	}
 	if err := publishText(texts); err != nil {
 		return nil, err
@@ -268,11 +325,11 @@ func openObject(archive []byte) (*goobj.Reader, error) {
 		}
 		r := goobj.NewReaderFromBytes(archive[i:], false)
 		if r == nil {
-			return nil, fmt.Errorf("jit: object header is not go120ld")
+			return nil, ErrJitObjectHeaderIsNotGo120ld
 		}
 		return r, nil
 	}
-	return nil, fmt.Errorf("jit: archive has no object")
+	return nil, ErrJitArchiveHasNoObject
 }
 
 func definedCount(r *goobj.Reader) uint32 {
@@ -336,19 +393,19 @@ func patchRelocs(obj *goobj.Reader, place []placed, tr *trampoline) error {
 			}
 			target, err := relocTarget(obj, place, rel.Sym())
 			if err != nil {
-				return fmt.Errorf("jit: %s: %w", symName, err)
+				return fmt.Errorf("%w: %s: %w", ErrPatchRelocsJit3, symName, err)
 			}
 			target += rel.Add()
 			off := int(rel.Off())
 			switch typ {
 			case objabi.R_CALLARM64:
 				if err := applyCallARM64(place[i], off, target, tr); err != nil {
-					return fmt.Errorf("jit: %s: %s: %w", symName, typ, err)
+					return fmt.Errorf("%w: %s: %s: %w", ErrPatchRelocsJit2, symName, typ, err)
 				}
 				continue
 			case objabi.R_ADDRARM64, objabi.R_ARM64_PCREL_LDST8, objabi.R_ARM64_PCREL_LDST16, objabi.R_ARM64_PCREL_LDST32, objabi.R_ARM64_PCREL_LDST64:
 				if err := applyAddrARM64(place[i], off, typ, target); err != nil {
-					return fmt.Errorf("jit: %s: %s: %w", symName, typ, err)
+					return fmt.Errorf("%w: %s: %s: %w", ErrPatchRelocsJit2, symName, typ, err)
 				}
 				continue
 			}
@@ -361,21 +418,21 @@ func patchRelocs(obj *goobj.Reader, place []placed, tr *trampoline) error {
 				if typ == objabi.R_CALL && rel.Siz() == 4 && o != int64(int32(o)) {
 					dest, err := takeTramp(tr, target)
 					if err != nil {
-						return fmt.Errorf("jit: %s: %s: %w", symName, typ, err)
+						return fmt.Errorf("%w: %s: %s: %w", ErrPatchRelocsJit2, symName, typ, err)
 					}
 					o = int64(dest) - (int64(place[i].addr) + int64(off) + int64(rel.Siz()))
 				}
 			case objabi.R_CONST:
 				o = rel.Add()
 			default:
-				return fmt.Errorf("jit: %s: reloc %s", symName, typ)
+				return fmt.Errorf("jit: %s: %w %s", symName, ErrPatchRelocsReloc, typ)
 			}
 			if err := writeReloc(place[i], rel, o, typ); err != nil {
 				name := ""
 				if ref := rel.Sym(); !ref.IsZero() {
 					name = symbolLabel(obj, ref)
 				}
-				return fmt.Errorf("jit: %s: %s %s: %w", symName, typ, name, err)
+				return fmt.Errorf("%w: %s: %s %s: %w", ErrPatchRelocsJit, symName, typ, name, err)
 			}
 		}
 	}
@@ -392,7 +449,7 @@ type trampoline struct {
 func (t *trampoline) take() (uintptr, error) {
 	const n = 16
 	if t == nil || t.off+n > len(t.mem) {
-		return 0, fmt.Errorf("call distance does not fit")
+		return 0, ErrCallDistanceDoesNotFit
 	}
 	addr := t.base + uintptr(t.off)
 	t.off += n
@@ -413,7 +470,7 @@ func takeTramp(tr *trampoline, target int64) (uintptr, error) {
 func emitTrampoline(mem []byte, base, addr uintptr, target uint64) error {
 	off := int(addr - base)
 	if off < 0 || off+16 > len(mem) {
-		return fmt.Errorf("trampoline outside mapping")
+		return ErrTrampolineOutsideMapping
 	}
 	switch runtime.GOARCH {
 	case "amd64":
@@ -421,7 +478,7 @@ func emitTrampoline(mem []byte, base, addr uintptr, target uint64) error {
 	case "arm64":
 		emitARM64Trampoline(mem[off:], target)
 	default:
-		return fmt.Errorf("no trampoline for %s", runtime.GOARCH)
+		return fmt.Errorf("%w %s", ErrNoTrampolineFor, runtime.GOARCH)
 	}
 	return nil
 }
@@ -446,7 +503,7 @@ func emitARM64Trampoline(dst []byte, target uint64) {
 func applyCallARM64(p placed, off int, target int64, tr *trampoline) error {
 	dst := unsafe.Slice((*byte)(unsafe.Pointer(p.addr)), p.size)
 	if off < 0 || off+4 > len(dst) {
-		return fmt.Errorf("reloc outside symbol")
+		return ErrRelocOutsideSymbol
 	}
 	pc := int64(p.addr) + int64(off)
 	delta := target - pc
@@ -457,7 +514,7 @@ func applyCallARM64(p placed, off int, target int64, tr *trampoline) error {
 		}
 		delta = int64(dest) - pc
 		if delta >= 1<<27 || delta < -1<<27 {
-			return fmt.Errorf("trampoline distance %#x does not fit", delta)
+			return fmt.Errorf("%w %#x does not fit", ErrTrampolineDistance, delta)
 		}
 	}
 	word := binary.LittleEndian.Uint32(dst[off:])
@@ -470,12 +527,12 @@ func applyCallARM64(p placed, off int, target int64, tr *trampoline) error {
 func applyAddrARM64(p placed, off int, typ objabi.RelocType, target int64) error {
 	dst := unsafe.Slice((*byte)(unsafe.Pointer(p.addr)), p.size)
 	if off < 0 || off+8 > len(dst) {
-		return fmt.Errorf("reloc outside symbol")
+		return ErrRelocOutsideSymbol
 	}
 	pc := int64(p.addr) + int64(off)
 	delta := target - (pc &^ 0xfff)
 	if delta >= 1<<32 || delta < -1<<32 {
-		return fmt.Errorf("address %#x is out of adrp range", uint64(target))
+		return fmt.Errorf("address %#x %w", uint64(target), ErrIsOutOfAdrpRange)
 	}
 	o0 := binary.LittleEndian.Uint32(dst[off:])
 	o1 := binary.LittleEndian.Uint32(dst[off+4:])
@@ -486,21 +543,21 @@ func applyAddrARM64(p placed, off int, typ objabi.RelocType, target int64) error
 		o1 |= uint32(low) << 10
 	case objabi.R_ARM64_PCREL_LDST16:
 		if low&1 != 0 {
-			return fmt.Errorf("unaligned 16-bit offset %#x", low)
+			return fmt.Errorf("%w %#x", ErrUnaligned16BitOffset, low)
 		}
 		o1 |= uint32(low>>1) << 10
 	case objabi.R_ARM64_PCREL_LDST32:
 		if low&3 != 0 {
-			return fmt.Errorf("unaligned 32-bit offset %#x", low)
+			return fmt.Errorf("%w %#x", ErrUnaligned32BitOffset, low)
 		}
 		o1 |= uint32(low>>2) << 10
 	case objabi.R_ARM64_PCREL_LDST64:
 		if low&7 != 0 {
-			return fmt.Errorf("unaligned 64-bit offset %#x", low)
+			return fmt.Errorf("%w %#x", ErrUnaligned64BitOffset, low)
 		}
 		o1 |= uint32(low>>3) << 10
 	default:
-		return fmt.Errorf("reloc %s", typ)
+		return fmt.Errorf("%w %s", ErrApplyAddrARM64Reloc, typ)
 	}
 	binary.LittleEndian.PutUint32(dst[off:], o0)
 	binary.LittleEndian.PutUint32(dst[off+4:], o1)
@@ -513,7 +570,7 @@ func relocTarget(obj *goobj.Reader, place []placed, ref goobj.SymRef) (int64, er
 	}
 	if idx, ok := localIndex(obj, ref); ok {
 		if int(idx) >= len(place) || place[idx].size == 0 {
-			return 0, fmt.Errorf("reloc to unplaced %s", symbolLabel(obj, ref))
+			return 0, fmt.Errorf("%w %s", ErrRelocToUnplaced, symbolLabel(obj, ref))
 		}
 		return int64(place[idx].addr), nil
 	}
@@ -532,7 +589,7 @@ func relocTarget(obj *goobj.Reader, place []placed, ref goobj.SymRef) (int64, er
 		}
 		return int64(pc), nil
 	}
-	return 0, fmt.Errorf("unknown symbol %s", symbolLabel(obj, ref))
+	return 0, fmt.Errorf("%w %s", ErrUnknownSymbol, symbolLabel(obj, ref))
 }
 
 func localIndex(r *goobj.Reader, ref goobj.SymRef) (uint32, bool) {
@@ -584,29 +641,29 @@ func writeReloc(p placed, rel *goobj.Reloc, o int64, typ objabi.RelocType) error
 	off := int(rel.Off())
 	siz := int(rel.Siz())
 	if off < 0 || siz < 0 || off+siz > p.size {
-		return fmt.Errorf("reloc outside symbol")
+		return ErrRelocOutsideSymbol
 	}
 	dst := unsafe.Slice((*byte)(unsafe.Pointer(p.addr)), p.size)
 	switch siz {
 	case 1:
 		if o != int64(int8(o)) {
-			return fmt.Errorf("address %#x does not fit", o)
+			return fmt.Errorf("address %#x %w", o, ErrWriteRelocDoesNotFit)
 		}
 		dst[off] = byte(o)
 	case 2:
 		if !fits(o, 16, typ) {
-			return fmt.Errorf("address %#x does not fit", o)
+			return fmt.Errorf("address %#x %w", o, ErrWriteRelocDoesNotFit)
 		}
 		binary.LittleEndian.PutUint16(dst[off:], uint16(o))
 	case 4:
 		if !fits(o, 32, typ) {
-			return fmt.Errorf("address %#x does not fit", o)
+			return fmt.Errorf("address %#x %w", o, ErrWriteRelocDoesNotFit)
 		}
 		binary.LittleEndian.PutUint32(dst[off:], uint32(o))
 	case 8:
 		binary.LittleEndian.PutUint64(dst[off:], uint64(o))
 	default:
-		return fmt.Errorf("reloc size %d", siz)
+		return fmt.Errorf("%w %d", ErrWriteRelocRelocSize, siz)
 	}
 	return nil
 }
@@ -717,17 +774,17 @@ func publishText(fns []textFn) error {
 
 func hostModuleLayout() error {
 	if lastmoduledatap == nil || lastmoduledatap.pcHeader == nil {
-		return fmt.Errorf("jit: runtime module list is empty")
+		return ErrJitRuntimeModuleListIsEmpty
 	}
 	if lastmoduledatap.pcHeader.magic != 0xfffffff1 || lastmoduledatap.pcHeader.ptrSize != 8 {
-		return fmt.Errorf("jit: runtime module header is %x", lastmoduledatap.pcHeader.magic)
+		return fmt.Errorf("%w %x", ErrJitRuntimeModuleHeaderIs, lastmoduledatap.pcHeader.magic)
 	}
 	pc, err := hostFunc("runtime.morestack_noctxt", 0)
 	if err != nil {
 		return err
 	}
 	if pc < lastmoduledatap.minpc || pc >= lastmoduledatap.maxpc {
-		return fmt.Errorf("jit: runtime text %x-%x does not cover morestack %x", lastmoduledatap.minpc, lastmoduledatap.maxpc, pc)
+		return fmt.Errorf("jit: runtime text %x-%x %w %x", lastmoduledatap.minpc, lastmoduledatap.maxpc, ErrDoesNotCoverMorestack, pc)
 	}
 	return nil
 }
@@ -986,7 +1043,7 @@ func hostFunc(name string, abi int) (uintptr, error) {
 		pcs = hostSym.fn[name+".abi0"]
 	}
 	if len(pcs) == 0 {
-		return 0, fmt.Errorf("unknown symbol %s", name)
+		return 0, fmt.Errorf("%w %s", ErrUnknownSymbol, name)
 	}
 	return uintptr(int64(pcs[0]) + hostSym.bias), nil
 }
@@ -1010,7 +1067,7 @@ func readHostSyms() (hostSyms, error) {
 		return hostSyms{}, err
 	}
 	if len(tab.Funcs) == 0 {
-		return hostSyms{}, fmt.Errorf("jit: executable has no pclntab")
+		return hostSyms{}, ErrJitExecutableHasNoPclntab
 	}
 	out := hostSyms{fn: make(map[string][]uint64, len(tab.Funcs))}
 	for i := range tab.Funcs {
@@ -1018,18 +1075,18 @@ func readHostSyms() (hostSyms, error) {
 		out.fn[fn.Sym.Name] = append(out.fn[fn.Sym.Name], fn.Entry)
 	}
 	if len(out.fn["runtime.morestack_noctxt"]) == 0 && len(out.fn["runtime.morestack_noctxt.abi0"]) == 0 {
-		return hostSyms{}, fmt.Errorf("jit: executable has no runtime.morestack_noctxt")
+		return hostSyms{}, ErrJitExecutableHasNoRuntimeMorestackNoctxt
 	}
 	return out, nil
 }
 
 func modulePcln(md *moduleData) ([]byte, uintptr, error) {
 	if md == nil || md.pcHeader == nil || md.text == 0 || md.epclntab == 0 {
-		return nil, 0, fmt.Errorf("jit: executable has no pclntab")
+		return nil, 0, ErrJitExecutableHasNoPclntab
 	}
 	start := uintptr(unsafe.Pointer(md.pcHeader))
 	if md.epclntab <= start {
-		return nil, 0, fmt.Errorf("jit: executable has no pclntab")
+		return nil, 0, ErrJitExecutableHasNoPclntab
 	}
 	return unsafe.Slice((*byte)(unsafe.Pointer(start)), md.epclntab-start), md.text, nil
 }

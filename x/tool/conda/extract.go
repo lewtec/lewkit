@@ -90,7 +90,7 @@ func extractCondaZip(file *os.File, dest, prefix string) error {
 				defer decoded.Close()
 				return extractMembers(decoded, dest)
 			}); err != nil {
-				return fmt.Errorf("extract %s: %w", entry.Name, err)
+				return fmt.Errorf("%w %s: %w", ErrExtractCondaZipExtract, entry.Name, err)
 			}
 		case strings.HasPrefix(entry.Name, "info-") && strings.HasSuffix(entry.Name, ".tar.zst"):
 			if err := withZipEntry(entry, func(r io.Reader) error {
@@ -102,7 +102,7 @@ func extractCondaZip(file *os.File, dest, prefix string) error {
 				meta, err = readPrefixMeta(decoded)
 				return err
 			}); err != nil {
-				return fmt.Errorf("read %s: %w", entry.Name, err)
+				return fmt.Errorf("%w %s: %w", ErrExtractCondaZipRead, entry.Name, err)
 			}
 		}
 	}
@@ -252,7 +252,7 @@ func prefixFromPaths(payload []byte) ([]prefixFile, error) {
 		} `json:"paths"`
 	}
 	if err := json.Unmarshal(payload, &doc); err != nil {
-		return nil, fmt.Errorf("decode paths.json: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrDecodePathsJson, err)
 	}
 	out := make([]prefixFile, 0, len(doc.Paths))
 	for _, item := range doc.Paths {
@@ -319,7 +319,7 @@ func applyPrefix(dest, prefix string, files []prefixFile) error {
 		}
 		next, err := replacePlaceholder(data, file.Placeholder, prefix, file.Mode)
 		if err != nil {
-			return fmt.Errorf("%s: %w", rel, err)
+			return fmt.Errorf("%w%s: %w", ErrApplyPrefix, rel, err)
 		}
 		if bytes.Equal(data, next) {
 			continue

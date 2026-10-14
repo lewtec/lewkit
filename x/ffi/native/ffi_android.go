@@ -4,8 +4,15 @@ package native
 
 import (
 	"errors"
+	"fmt"
 	"runtime"
 	"unsafe"
+)
+
+var (
+	ErrOpenPathLoad                = errors.New("load")
+	ErrSymbol                      = errors.New("symbol")
+	ErrAndroidDynamicCallsAreArm64 = errors.New("android dynamic calls are arm64")
 )
 
 // dlopen comes from libdl.so. libc.so does not export it to the app, and
@@ -19,7 +26,7 @@ const (
 
 func openPath(path string, flags int) (uintptr, error) {
 	if !arm64Loader {
-		return 0, errors.New("load " + path + ": android dynamic calls are arm64")
+		return 0, fmt.Errorf("%w %s: %w", ErrOpenPathLoad, path, ErrAndroidDynamicCallsAreArm64)
 	}
 	if flags == 0 {
 		flags = Lazy
@@ -28,7 +35,7 @@ func openPath(path string, flags int) (uintptr, error) {
 	handle := libcDlopen(&buf[0], flags)
 	runtime.KeepAlive(buf)
 	if handle == 0 {
-		return 0, errors.New("load " + path + ": " + dlError())
+		return 0, fmt.Errorf("%w %s: %s", ErrOpenPathLoad, path, dlError())
 	}
 	return handle, nil
 }
@@ -36,13 +43,13 @@ func openPath(path string, flags int) (uintptr, error) {
 // Symbol looks up name in lib.
 func Symbol(lib uintptr, name string) (uintptr, error) {
 	if !arm64Loader {
-		return 0, errors.New("symbol " + name + ": android dynamic calls are arm64")
+		return 0, fmt.Errorf("%w %s: %w", ErrSymbol, name, ErrAndroidDynamicCallsAreArm64)
 	}
 	buf := append([]byte(name), 0)
 	addr := libcDlsym(lib, &buf[0])
 	runtime.KeepAlive(buf)
 	if addr == 0 {
-		return 0, errors.New("symbol " + name + ": " + dlError())
+		return 0, fmt.Errorf("%w %s: %s", ErrSymbol, name, dlError())
 	}
 	return addr, nil
 }

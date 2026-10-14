@@ -12,6 +12,11 @@ import (
 	"github.com/lewtec/lewkit/x/driver/battery"
 )
 
+var (
+	ErrParseCapacityCapacity = errors.New("capacity")
+	ErrReadInt               = errors.New("")
+)
+
 type backend struct{}
 
 func batteryDir() (string, error) {
@@ -86,7 +91,7 @@ func readCapacity(path string) (int, error) {
 func parseCapacity(text string) (int, error) {
 	n, err := strconv.Atoi(strings.TrimSpace(text))
 	if err != nil {
-		return 0, fmt.Errorf("capacity: %w", err)
+		return 0, fmt.Errorf("%w: %w", ErrParseCapacityCapacity, err)
 	}
 	if n < 0 {
 		return 0, battery.ErrUnknownLevel
@@ -116,7 +121,7 @@ func readInt(path string) (int64, error) {
 	}
 	n, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("%s: %w", filepath.Base(path), err)
+		return 0, fmt.Errorf("%w%s: %w", ErrReadInt, filepath.Base(path), err)
 	}
 	return n, nil
 }

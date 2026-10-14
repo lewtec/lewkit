@@ -18,6 +18,20 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
+var (
+	ErrAndroidEntryDir               = errors.New("android entry dir")
+	ErrAndroidEntryDirIsEmpty        = errors.New("android entry dir is empty")
+	ErrAndroidToolexec               = errors.New("android toolexec")
+	ErrBuildABICgoEnabled            = errors.New("CGO_ENABLED")
+	ErrEmptyToolexecArg              = errors.New("empty toolexec arg")
+	ErrGlobDebugApk                  = errors.New("glob debug apk")
+	ErrGradleAssembledebug           = errors.New("gradle assembleDebug")
+	ErrLoadConfig                    = errors.New("")
+	ErrNormalizeConfigPackageId      = errors.New("package id")
+	ErrToolexecArgContainsBothQuotes = errors.New("toolexec arg contains both quotes")
+	ErrToolexecIsEmpty               = errors.New("toolexec is empty")
+)
+
 // Sentinel errors for static build/setup failures (errors.Is / wrap with %w).
 var (
 	ErrOutAPKRequired     = errors.New("out apk path is required (or use --go-only)")
@@ -224,7 +238,7 @@ func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (
 	}).Run(ctx)
 	if err != nil {
 		os.RemoveAll(dir)
-		return "", "", fmt.Errorf("android toolexec: %w", err)
+		return "", "", fmt.Errorf("%w: %w", ErrAndroidToolexec, err)
 	}
 	joined, err := joinToolexec(dest, export)
 	if err != nil {
@@ -240,11 +254,11 @@ func entryExportFile(ctx context.Context) (string, error) {
 	cmd.Dir = lewkitDir()
 	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
-		return "", fmt.Errorf("android entry dir: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrAndroidEntryDir, err)
 	}
 	dir := strings.TrimSpace(string(out))
 	if dir == "" {
-		return "", errors.New("android entry dir is empty")
+		return "", ErrAndroidEntryDirIsEmpty
 	}
 	file := filepath.Join(dir, "_cgo_android_export.go")
 	if _, err := os.Stat(file); err != nil {
@@ -290,13 +304,13 @@ func joinToolexec(bin, export string) (string, error) {
 
 func quoteToolexec(s string) (string, error) {
 	if s == "" {
-		return "", errors.New("empty toolexec arg")
+		return "", ErrEmptyToolexecArg
 	}
 	if !strings.ContainsAny(s, " \t\n\r'\"") {
 		return s, nil
 	}
 	if strings.Contains(s, "'") && strings.Contains(s, `"`) {
-		return "", fmt.Errorf("toolexec arg contains both quotes: %s", s)
+		return "", fmt.Errorf("%w: %s", ErrToolexecArgContainsBothQuotes, s)
 	}
 	if strings.Contains(s, "'") {
 		return `"` + s + `"`, nil
@@ -325,7 +339,7 @@ func AssembleDebug(ctx context.Context, workDir string) (string, error) {
 	args := append(gradle[1:], "assembleDebug", "--stacktrace")
 	env := gradleEnv(os.Environ(), home, sdk)
 	if err := gocmd.Tool(ctx, gradle[0], workDir, env, args...); err != nil {
-		return "", fmt.Errorf("gradle assembleDebug: %w\n(work dir left at %s)", err, workDir)
+		return "", fmt.Errorf("%w: %w\n(work dir left at %s)", ErrGradleAssembledebug, err, workDir)
 	}
 
 	// Standard AGP debug output.
@@ -334,7 +348,7 @@ func AssembleDebug(ctx context.Context, workDir string) (string, error) {
 	}
 	matches, err := filepath.Glob(filepath.Join(workDir, "app", "build", "outputs", "apk", "debug", "*.apk"))
 	if err != nil {
-		return "", fmt.Errorf("glob debug apk: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrGlobDebugApk, err)
 	}
 	candidates = append(candidates, matches...)
 	for _, p := range candidates {

@@ -2,6 +2,7 @@ package ndeval
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -9,6 +10,11 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/ndarray"
+)
+
+var (
+	ErrChoiceOpenNoEvaluator = errors.New("no evaluator")
+	ErrResolveEvaluator      = errors.New("evaluator")
 )
 
 // Arg is a command flag whose text is an expression of evaluator references.
@@ -106,7 +112,7 @@ func resolve(ctx context.Context, expression string) (ndarray.Evaluator, string,
 		}
 		fails = append(fails, err.Error())
 	}
-	return nil, "", fmt.Errorf("evaluator %q: %s", expression, strings.Join(fails, "; "))
+	return nil, "", fmt.Errorf("%w %q: %s", ErrResolveEvaluator, expression, strings.Join(fails, "; "))
 }
 
 func (c choice) label() string {
@@ -194,5 +200,5 @@ func (c choice) open(ctx context.Context) (ndarray.Evaluator, error) {
 			return handle.Open(ctx)
 		}
 	}
-	return nil, fmt.Errorf("no evaluator %s", id)
+	return nil, fmt.Errorf("%w %s", ErrChoiceOpenNoEvaluator, id)
 }

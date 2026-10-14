@@ -66,7 +66,7 @@ func InstallArtifact(ctx context.Context, artifact Artifact, destination string,
 		return err
 	}
 	if err := Extract(ctx, downloadPath, destination); err != nil {
-		return fmt.Errorf("extract %s: %w", stdpath.Base(artifact.URL), err)
+		return fmt.Errorf("%w %s: %w", ErrInstallArtifactExtract, stdpath.Base(artifact.URL), err)
 	}
 	return NormalizeInstalledBinaries(destination)
 }
@@ -237,7 +237,7 @@ func DownloadFirst(ctx context.Context, urls []string, destination string, optio
 	if len(failures) == 0 {
 		return ErrNoDownloadURLs
 	}
-	return fmt.Errorf("all downloads failed: %s", strings.Join(failures, "; "))
+	return fmt.Errorf("%w: %s", ErrAllDownloadsFailed, strings.Join(failures, "; "))
 }
 
 func downloadDirect(ctx context.Context, url, destination string, options DownloadOptions) error {
@@ -398,7 +398,7 @@ func openHostFile(osPath string) (*hostFile, error) {
 	if !ok {
 		opened.Close()
 		parent.Close()
-		return nil, fmt.Errorf("open %s: not an os file", osPath)
+		return nil, fmt.Errorf("open %s: %w", osPath, ErrOpenHostFileNotAnOsFile)
 	}
 	return &hostFile{File: file, root: parent}, nil
 }

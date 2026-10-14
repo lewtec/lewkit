@@ -2,7 +2,11 @@ package entry
 
 import (
 	"context"
-	"fmt"
+	"errors"
+)
+
+var (
+	ErrRunBoundEntryNoApp = errors.New("entry: no app")
 )
 
 var bound func(ctx context.Context) error
@@ -17,7 +21,7 @@ func Bind(fn func(ctx context.Context) error) {
 // ctx is the process root. A nil context is an error.
 func RunBound(ctx context.Context) error {
 	if bound == nil {
-		return fmt.Errorf("entry: no app")
+		return ErrRunBoundEntryNoApp
 	}
 	if ctx == nil {
 		return ErrNilContext

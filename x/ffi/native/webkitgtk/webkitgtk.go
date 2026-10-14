@@ -17,6 +17,12 @@ import (
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
+var (
+	ErrInputStreamRead       = errors.New("")
+	ErrOpenWebKit            = errors.New("")
+	ErrSymbolsFinishEvaluate = errors.New("")
+)
+
 // ErrUnavailable means a required shared library or symbol is missing.
 var ErrUnavailable = errors.New("webkitgtk unavailable")
 
@@ -305,7 +311,7 @@ func openWebKit() (gtk3 bool, err error) {
 	}
 	err41 := probe("libwebkit2gtk-4.1.so.0")
 	if err41 != nil {
-		return false, fmt.Errorf("%v; %v", err6, err41)
+		return false, fmt.Errorf("%w%v; %v", ErrOpenWebKit, err6, err41)
 	}
 	if err = probe("libgtk-3.so.0"); err != nil {
 		return true, err
@@ -673,7 +679,7 @@ func (symbols *Symbols) FinishEvaluate(view, result uintptr) (string, error) {
 		if message == "" {
 			message = "javascript failed"
 		}
-		return "", fmt.Errorf("%s", message)
+		return "", fmt.Errorf("%w%s", ErrSymbolsFinishEvaluate, message)
 	}
 	if value == 0 {
 		return "", nil
@@ -771,7 +777,7 @@ func (stream *inputStream) Read(payload []byte) (int, error) {
 		if message == "" {
 			message = "read"
 		}
-		return 0, fmt.Errorf("%s", message)
+		return 0, fmt.Errorf("%w%s", ErrInputStreamRead, message)
 	}
 	if count <= 0 {
 		return 0, io.EOF

@@ -2,13 +2,17 @@ package generate
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/generate/clib"
+)
+
+var (
+	ErrClibTargetRequiresBuild = errors.New("clib: --target requires --build")
 )
 
 type clibCmd struct {
@@ -29,7 +33,7 @@ func (clibCmd) Description() string {
 
 func (c *clibCmd) Run(ctx context.Context) error {
 	if c.target.Value() != "" && c.build.Value() == "" {
-		return fmt.Errorf("clib: --target requires --build")
+		return ErrClibTargetRequiresBuild
 	}
 	cfg := clib.Config{
 		File:    c.file.Value(),

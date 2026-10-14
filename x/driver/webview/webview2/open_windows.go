@@ -32,6 +32,17 @@ import (
 	lewrelease "github.com/lewtec/lewkit/x/release"
 )
 
+var (
+	ErrAddWebmessagereceived         = errors.New("add_WebMessageReceived")
+	ErrAddWebresourcerequested       = errors.New("add_WebResourceRequested")
+	ErrAddwebresourcerequestedfilter = errors.New("AddWebResourceRequestedFilter")
+	ErrComStreamReadStreamRead       = errors.New("stream read")
+	ErrCreatecorewebview2controller  = errors.New("CreateCoreWebView2Controller")
+	ErrEdgeViewCreateNavigate        = errors.New("Navigate")
+	ErrGetCorewebview2               = errors.New("get_CoreWebView2")
+	ErrQueryinterface                = errors.New("QueryInterface")
+)
+
 const (
 	wmClose        = 0x0010
 	wmDestroy      = 0x0002
@@ -384,7 +395,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	view.hold(controllerHandler)
 	hr := call(view.environment, 3, hwnd, uintptr(unsafe.Pointer(controllerHandler)))
 	if hr < 0 {
-		return fmt.Errorf("CreateCoreWebView2Controller: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrCreatecorewebview2controller, uint32(hr))
 	}
 	controller, err := waitFor(ctx, controllerHandler.done, controllerHandler.failed, view.pumpStartup)
 	runtime.KeepAlive(controllerHandler)
@@ -395,7 +406,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	var web uintptr
 	hr = call(view.controller, 25, uintptr(unsafe.Pointer(&web)))
 	if hr < 0 || web == 0 {
-		return fmt.Errorf("get_CoreWebView2: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrGetCorewebview2, uint32(hr))
 	}
 	view.webView, err = query(web, webViewIID)
 	release(web)
@@ -410,13 +421,13 @@ func (view *edgeView) create(ctx context.Context) error {
 	var token int64
 	hr = call(view.webView, 34, uintptr(unsafe.Pointer(messageHandler)), uintptr(unsafe.Pointer(&token)))
 	if hr < 0 {
-		return fmt.Errorf("add_WebMessageReceived: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrAddWebmessagereceived, uint32(hr))
 	}
 	resourceHandler := newHandler(resourceHandlerIID, resourceInvokeCallback)
 	view.hold(resourceHandler)
 	hr = call(view.webView, 55, uintptr(unsafe.Pointer(resourceHandler)), uintptr(unsafe.Pointer(&token)))
 	if hr < 0 {
-		return fmt.Errorf("add_WebResourceRequested: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrAddWebresourcerequested, uint32(hr))
 	}
 	filter, err := syscall.UTF16PtrFromString("https://view*" + webview.HostSuffix() + "/*")
 	if err != nil {
@@ -424,7 +435,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	}
 	hr = call(view.webView, 57, uintptr(unsafe.Pointer(filter)), 0)
 	if hr < 0 {
-		return fmt.Errorf("AddWebResourceRequestedFilter: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrAddwebresourcerequestedfilter, uint32(hr))
 	}
 	if scheme, err := daynight.Current(ctx); err == nil {
 		view.useScheme(scheme)
@@ -439,7 +450,7 @@ func (view *edgeView) create(ctx context.Context) error {
 	}
 	hr = call(view.webView, 5, uintptr(unsafe.Pointer(targetUTF)))
 	if hr < 0 {
-		return fmt.Errorf("Navigate: %x", uint32(hr))
+		return fmt.Errorf("%w: %x", ErrEdgeViewCreateNavigate, uint32(hr))
 	}
 	if err := view.startupErr(); err != nil {
 		return err
@@ -968,7 +979,7 @@ func query(object uintptr, iid guid) (uintptr, error) {
 	var out uintptr
 	hr := call(object, 0, uintptr(unsafe.Pointer(&iid)), uintptr(unsafe.Pointer(&out)))
 	if hr < 0 || out == 0 {
-		return 0, fmt.Errorf("QueryInterface: %x", uint32(hr))
+		return 0, fmt.Errorf("%w: %x", ErrQueryinterface, uint32(hr))
 	}
 	return out, nil
 }
@@ -1052,7 +1063,7 @@ func (stream *comStream) Read(payload []byte) (int, error) {
 	var count uint32
 	hr := call(stream.stream, 3, uintptr(unsafe.Pointer(&payload[0])), uintptr(len(payload)), uintptr(unsafe.Pointer(&count)))
 	if hr < 0 {
-		return 0, fmt.Errorf("stream read: %x", uint32(hr))
+		return 0, fmt.Errorf("%w: %x", ErrComStreamReadStreamRead, uint32(hr))
 	}
 	if count == 0 {
 		return 0, io.EOF

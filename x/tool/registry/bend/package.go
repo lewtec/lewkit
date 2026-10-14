@@ -14,6 +14,10 @@ import (
 	"github.com/lewtec/lewkit/x/tool/registry/internal/install"
 )
 
+var (
+	ErrDecodeBendLatestJson = errors.New("decode bend latest.json")
+)
+
 const bendOrigin = "https://bend-lang.com"
 
 var ErrInvalidBendVersion = errors.New("invalid bend version")
@@ -120,7 +124,7 @@ func (t *bendTool) fetchLatest(ctx context.Context) (bendRelease, error) {
 	}
 	var rel bendRelease
 	if err := jsonv2.Unmarshal(body, &rel); err != nil {
-		return bendRelease{}, fmt.Errorf("decode bend latest.json: %w", err)
+		return bendRelease{}, fmt.Errorf("%w: %w", ErrDecodeBendLatestJson, err)
 	}
 	if !validBendVersion(rel.Ver) {
 		return bendRelease{}, fmt.Errorf("%w in latest.json: %q", ErrInvalidBendVersion, rel.Ver)

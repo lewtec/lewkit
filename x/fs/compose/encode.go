@@ -35,7 +35,7 @@ func encodeSlots(file File, base iofs.FS) ([]byte, error) {
 			}
 		}
 		if err := file.Values[key].writeTo(&buffer, base); err != nil {
-			return nil, fmt.Errorf("values.%s: %w", key, err)
+			return nil, fmt.Errorf("%w.%s: %w", ErrEncodeSlotsValues, key, err)
 		}
 	}
 	return buffer.Bytes(), nil
