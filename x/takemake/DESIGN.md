@@ -18,7 +18,7 @@ x/takemake/tar
 x/takemake/zip
 ```
 
-One session owns one directory. Leave the other directories alone. The scaffold compiles and returns `errs.ErrUnsupported` from `Take` and `Make`. Replace that body. Closed sets are `//lewkit:enum`, and the package `enum.go` holds only the package clause and `//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum`.
+One session owns one directory. Leave the other directories alone. The scaffold compiles and returns `errs.ErrScaffold` from `Take` and `Make`. Replace that body. Closed sets are `//lewkit:enum`, and the package `enum.go` holds only the package clause and `//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum`.
 
 ## API
 

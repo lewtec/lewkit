@@ -12,7 +12,7 @@ func TestScaffold(t *testing.T) {
 	t.Parallel()
 	db := New()
 	require.NotNil(t, db)
-	require.ErrorIs(t, db.Apply(sql.NewFile()), errs.ErrUnsupported)
+	require.ErrorIs(t, db.Apply(sql.NewFile()), errs.ErrScaffold)
 	_, err := db.Make()
-	require.ErrorIs(t, err, errs.ErrUnsupported)
+	require.ErrorIs(t, err, errs.ErrScaffold)
 }

@@ -4,5 +4,5 @@
 // store the child: syntax, package, message, and field. [Take] parses
 // proto text. [Make] prints it. The contract is in DESIGN.md beside the
 // parent directory. This scaffold returns
-// [github.com/lewtec/lewkit/x/errs.ErrUnsupported].
+// [github.com/lewtec/lewkit/x/errs.ErrScaffold].
 package proto

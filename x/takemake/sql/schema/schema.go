@@ -1,6 +1,9 @@
 package schema
 
-import "github.com/lewtec/lewkit/x/takemake/sql"
+import (
+	"github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/takemake/sql"
+)
 
 // Database is the catalog after migrations run.
 type Database struct{}
@@ -27,15 +30,15 @@ func New() *Database {
 // Apply folds file onto the catalog, in order.
 func (db *Database) Apply(file *sql.File) error {
 	if db == nil || file == nil {
-		return errScaffold
+		return errs.ErrScaffold
 	}
-	return errScaffold
+	return errs.ErrScaffold
 }
 
 // Make returns the CreateTable snapshot of the catalog.
 func (db *Database) Make() (*sql.File, error) {
 	if db == nil {
-		return nil, errScaffold
+		return nil, errs.ErrScaffold
 	}
-	return nil, errScaffold
+	return nil, errs.ErrScaffold
 }

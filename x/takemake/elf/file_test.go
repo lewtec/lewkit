@@ -14,6 +14,6 @@ func TestScaffold(t *testing.T) {
 	file := New()
 	require.NotNil(t, file)
 	_, err := Take(bytes.NewReader(nil))
-	require.ErrorIs(t, err, errs.ErrUnsupported)
-	require.ErrorIs(t, file.Make(io.Discard), errs.ErrUnsupported)
+	require.ErrorIs(t, err, errs.ErrScaffold)
+	require.ErrorIs(t, file.Make(io.Discard), errs.ErrScaffold)
 }

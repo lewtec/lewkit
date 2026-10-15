@@ -1,6 +1,10 @@
 package golang
 
-import "io"
+import (
+	"io"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 // File is one Go source file.
 type File struct {
@@ -16,15 +20,15 @@ func NewFile(name string) *File {
 // Take reads the artifact into a [File].
 func Take(r io.Reader) (*File, error) {
 	if r == nil {
-		return nil, errScaffold
+		return nil, errs.ErrScaffold
 	}
-	return nil, errScaffold
+	return nil, errs.ErrScaffold
 }
 
 // Make writes the file.
 func (f *File) Make(w io.Writer) error {
 	if f == nil || w == nil {
-		return errScaffold
+		return errs.ErrScaffold
 	}
-	return errScaffold
+	return errs.ErrScaffold
 }

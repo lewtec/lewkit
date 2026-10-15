@@ -6,5 +6,5 @@
 // prints it. The catalog after the log runs is x/takemake/sql/schema.
 // This package does not import that catalog. The contract is in
 // DESIGN.md beside the parent directory. This scaffold returns
-// [github.com/lewtec/lewkit/x/errs.ErrUnsupported].
+// [github.com/lewtec/lewkit/x/errs.ErrScaffold].
 package sql

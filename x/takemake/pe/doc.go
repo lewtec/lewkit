@@ -4,5 +4,5 @@
 // the child: machine, section, import, and export. [Take] reads a PE
 // into that file. [Make] writes it. The contract is in DESIGN.md beside
 // the parent directory. This scaffold returns
-// [github.com/lewtec/lewkit/x/errs.ErrUnsupported].
+// [github.com/lewtec/lewkit/x/errs.ErrScaffold].
 package pe
