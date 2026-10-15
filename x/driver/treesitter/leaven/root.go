@@ -30,18 +30,16 @@ func (engine) Names() []string { return grammar.List() }
 
 func (engine) Language(name string) (treesitter.Language, bool) {
 	raw, ok := grammar.Get(name)
-	if !ok || raw == nil {
-		return nil, false
-	}
-	return lang{name: name, raw: raw}, true
+	return treesitter.Lookup(raw, ok, func(raw grammar.Language) treesitter.Language {
+		return lang{name: name, raw: raw}
+	})
 }
 
 func (engine) ByExtension(filename string) (treesitter.Language, bool) {
 	raw, ok := grammar.GetByExtension(filename)
-	if !ok || raw == nil {
-		return nil, false
-	}
-	return lang{name: nameOf(raw), raw: raw}, true
+	return treesitter.Lookup(raw, ok, func(raw grammar.Language) treesitter.Language {
+		return lang{name: nameOf(raw), raw: raw}
+	})
 }
 
 func nameOf(raw grammar.Language) string {
@@ -62,16 +60,9 @@ func (l lang) Parse(source []byte) (tree *treesitter.Tree, err error) {
 			err = fmt.Errorf("%w: %s: lexer failed", treesitter.ErrParse, l.name)
 		}
 	}()
-	parser := grammar.NewParser()
-	defer parser.Delete()
-	if !parser.SetLanguage(l.raw) {
-		return nil, fmt.Errorf("%w: %s", treesitter.ErrParse, l.name)
-	}
-	parsed := parser.ParseBytes(source)
-	if parsed == nil {
-		return nil, fmt.Errorf("%w: %s", treesitter.ErrParse, l.name)
-	}
-	return treesitter.NewTree(treesitter.NewSyntax[grammar.Node](parsed, parsed.RootNode())), nil
+	return treesitter.Run(l.name, l.raw, source, grammar.NewParser, func(tree *grammar.Tree) treesitter.Node {
+		return treesitter.NewSyntax[grammar.Node](tree, tree.RootNode())
+	})
 }
 
 func init() { driver.Register[treesitter.Driver](factory{}) }
