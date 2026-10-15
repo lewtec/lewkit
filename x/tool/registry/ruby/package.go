@@ -53,10 +53,7 @@ func (t *rubyTool) Install(ctx context.Context, version string, destDir string) 
 }
 
 func (t *rubyTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
-
-	return pin
+	return tool.SemverPin()
 }
 
 func (t *rubyTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {

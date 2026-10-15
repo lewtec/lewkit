@@ -477,6 +477,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: Curated tools take `install.Host` and `install.UniqueVersions`. A pin that only says semver is `tool.SemverPin`. Pins that also name a datasource stay on the tool.
 - 2026-10-15: Directory listings from file infos go through `fs.NameSorted`. The index, UDF, and WIM keep that name order.
 - 2026-10-15: `objc_msgSend` is `native.MsgSend`. Metal and UIKit register through that address. A missing libobjc is still 0. Vulkan keeps `Global|Lazy`.
 - 2026-10-15: The gemini example imports `x/net/gemini`. The copy in `x/gemini` is gone. Status values stay the same codes.

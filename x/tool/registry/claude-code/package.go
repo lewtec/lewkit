@@ -96,10 +96,7 @@ func (t *claudeCodeTool) Install(ctx context.Context, version string, destDir st
 }
 
 func (t *claudeCodeTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
-
-	return pin
+	return tool.SemverPin()
 }
 
 func (t *claudeCodeTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {

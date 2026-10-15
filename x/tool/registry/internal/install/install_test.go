@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -50,6 +51,27 @@ func TestResolveToolVersion(t *testing.T) {
 		})
 		require.ErrorIs(t, err, ErrNoVersions)
 	})
+}
+
+func TestHost(t *testing.T) {
+	t.Parallel()
+	goos, goarch := Host("", "")
+	require.Equal(t, runtime.GOOS, goos)
+	require.Equal(t, runtime.GOARCH, goarch)
+	goos, goarch = Host("windows", "arm64")
+	require.Equal(t, "windows", goos)
+	require.Equal(t, "arm64", goarch)
+}
+
+func TestUniqueVersions(t *testing.T) {
+	t.Parallel()
+	_, err := UniqueVersions(nil)
+	require.ErrorIs(t, err, ErrNoVersions)
+	_, err = UniqueVersions([]string{"", ""})
+	require.ErrorIs(t, err, ErrNoVersions)
+	got, err := UniqueVersions([]string{"1.2.0", "", "1.2.0", "2.0.0"})
+	require.NoError(t, err)
+	require.Equal(t, []string{"2.0.0", "1.2.0"}, got)
 }
 
 func TestSortVersionsDesc(t *testing.T) {

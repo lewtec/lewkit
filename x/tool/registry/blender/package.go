@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
-	"runtime"
+
 	"strings"
 	"sync"
 
@@ -38,7 +38,7 @@ func newBlender() (tool.Tool, error) {
 }
 
 func (t *blenderTool) ListVersions(ctx context.Context) ([]string, error) {
-	goos, goarch := t.host()
+	goos, goarch := install.Host(t.goos, t.goarch)
 	if !blenderPlatformSupported(goos, goarch) {
 		return nil, fmt.Errorf("%w: %s/%s", ErrNoPlatformArtifact, goos, goarch)
 	}
@@ -54,13 +54,11 @@ func (t *blenderTool) Install(ctx context.Context, version, destDir string) erro
 }
 
 func (t *blenderTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
-	return pin
+	return tool.SemverPin()
 }
 
 func (t *blenderTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {
-	goos, goarch := t.host()
+	goos, goarch := install.Host(t.goos, t.goarch)
 	if !blenderPlatformSupported(goos, goarch) {
 		return nil, fmt.Errorf("%w: %s/%s", ErrNoPlatformArtifact, goos, goarch)
 	}
@@ -100,18 +98,6 @@ func (t *blenderTool) EnsureBinary(ctx context.Context, version, cmdName, destDi
 
 func (t *blenderTool) InstallChecks() []tool.Check {
 	return tool.Checks(tool.Binary("blender"))
-}
-
-func (t *blenderTool) host() (string, string) {
-	goos := t.goos
-	goarch := t.goarch
-	if goos == "" {
-		goos = runtime.GOOS
-	}
-	if goarch == "" {
-		goarch = runtime.GOARCH
-	}
-	return goos, goarch
 }
 
 func (t *blenderTool) releaseBase() string {
@@ -250,16 +236,11 @@ func blenderPlatformSupported(goos, goarch string) bool {
 }
 
 func blenderVersions(builds []blenderBuild) ([]string, error) {
-	seen := map[string]bool{}
-	versions := make([]string, 0, len(builds))
-	for _, build := range builds {
-		if build.Version == "" || seen[build.Version] {
-			continue
-		}
-		seen[build.Version] = true
-		versions = append(versions, build.Version)
+	versions := make([]string, len(builds))
+	for i, build := range builds {
+		versions[i] = build.Version
 	}
-	return install.SortVersionsDesc(versions)
+	return install.UniqueVersions(versions)
 }
 
 func blenderBuilds(seriesURL string, names []string, goos, goarch string) []blenderBuild {

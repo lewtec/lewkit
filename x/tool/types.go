@@ -74,3 +74,8 @@ type Pin struct {
 type Pinner interface {
 	Pin() Pin
 }
+
+// SemverPin is a pin that versions with semver and stores nothing else.
+func SemverPin() Pin {
+	return Pin{Versioning: "semver"}
+}

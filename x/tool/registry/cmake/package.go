@@ -72,11 +72,8 @@ func (t *cmakeTool) Install(ctx context.Context, version string, destDir string)
 }
 
 func (t *cmakeTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
 	// Official downloads via cmake.org; files-v1.json + SHA-256.txt sidecar.
-
-	return pin
+	return tool.SemverPin()
 }
 
 func (t *cmakeTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {

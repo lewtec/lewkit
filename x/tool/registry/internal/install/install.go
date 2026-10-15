@@ -25,6 +25,32 @@ var (
 	ErrNoSuitableArtifactFoundFor = errs.Wrap(errs.ErrNotFound, "no suitable artifact found for")
 )
 
+// Host returns goos and goarch, using the process pair when either value is empty.
+func Host(goos, goarch string) (string, string) {
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	if goarch == "" {
+		goarch = runtime.GOARCH
+	}
+	return goos, goarch
+}
+
+// UniqueVersions drops blanks and repeats, then orders the rest newest-first.
+// Empty input yields ErrNoVersions.
+func UniqueVersions(versions []string) ([]string, error) {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(versions))
+	for _, version := range versions {
+		if version == "" || seen[version] {
+			continue
+		}
+		seen[version] = true
+		out = append(out, version)
+	}
+	return SortVersionsDesc(out)
+}
+
 // SortVersionsDesc returns versions ordered newest-first by semver so [0] is
 // latest. Empty input yields ErrNoVersions.
 func SortVersionsDesc(versions []string) ([]string, error) {

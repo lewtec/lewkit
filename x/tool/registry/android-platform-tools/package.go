@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
-	"runtime"
+
 	"slices"
 	"strconv"
 	"strings"
@@ -39,20 +39,8 @@ func newAndroidPlatformTools() (tool.Tool, error) {
 	return &androidPlatformToolsTool{indexURL: androidPlatformToolsIndexURL}, nil
 }
 
-func (t *androidPlatformToolsTool) host() (string, string) {
-	goos := t.goos
-	goarch := t.goarch
-	if goos == "" {
-		goos = runtime.GOOS
-	}
-	if goarch == "" {
-		goarch = runtime.GOARCH
-	}
-	return goos, goarch
-}
-
 func (t *androidPlatformToolsTool) ListVersions(ctx context.Context) ([]string, error) {
-	goos, goarch := t.host()
+	goos, goarch := install.Host(t.goos, t.goarch)
 	builds, err := t.builds(ctx, goos, goarch)
 	if err != nil {
 		return nil, err
@@ -69,16 +57,13 @@ func (t *androidPlatformToolsTool) Install(ctx context.Context, version, destDir
 }
 
 func (t *androidPlatformToolsTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
 	// repository2-1.xml is not a Renovate datasource. The checksum travels
 	// with the archive entry and is checked at download time.
-
-	return pin
+	return tool.SemverPin()
 }
 
 func (t *androidPlatformToolsTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {
-	goos, goarch := t.host()
+	goos, goarch := install.Host(t.goos, t.goarch)
 	builds, err := t.builds(ctx, goos, goarch)
 	if err != nil {
 		return nil, err
@@ -148,16 +133,11 @@ func (t *androidPlatformToolsTool) builds(ctx context.Context, goos, goarch stri
 }
 
 func platformToolsVersions(builds []platformToolsBuild) ([]string, error) {
-	seen := map[string]bool{}
-	versions := make([]string, 0, len(builds))
-	for _, build := range builds {
-		if build.Version == "" || seen[build.Version] {
-			continue
-		}
-		seen[build.Version] = true
-		versions = append(versions, build.Version)
+	versions := make([]string, len(builds))
+	for i, build := range builds {
+		versions[i] = build.Version
 	}
-	return install.SortVersionsDesc(versions)
+	return install.UniqueVersions(versions)
 }
 
 type platformToolsBuild struct {
