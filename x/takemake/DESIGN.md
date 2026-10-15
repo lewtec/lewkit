@@ -26,6 +26,7 @@ x/takemake/wim
 x/takemake/onnx
 x/takemake/sarif
 x/takemake/dotenv
+x/takemake/llvm
 ```
 
 A session owns the directories in its node and leaves the others alone. The scaffold compiles and returns `errs.ErrScaffold` from `Take` and `Make`. Replace that body. Closed sets are `//lewkit:enum`, and the package `enum.go` holds only the package clause and `//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum`.
@@ -135,6 +136,17 @@ s.Func("main").Returns(glsl.Void()).Block(...)
 `sarif.File` is one SARIF 2.1.0 log: runs, results, rules, and fixes. `Take` parses the JSON. `Make` prints it. `x/text/report.WriteSARIF` prints findings today.
 
 `dotenv.File` is assignments in order. A comment and the original quoting stay on the assignment. `Take` parses the text. `Make` prints it. `x/sops.ParseEnv` drops comments, and `Env.Strings` is not that text.
+
+`llvm.File` holds the source filename, the data layout, the target triple, named types, globals, and functions. A type is void, an integer, half, float, double, an opaque or typed pointer, an array, a vector, a struct, a function type, or a named type. A global has a name, a linkage, a constant or an external, an initializer, and an alignment. A function has a name, a signature, and basic blocks. An instruction is alloca, load, store, getelementptr, an integer or float binary op, icmp, fcmp, a cast, phi, extractvalue, insertvalue, call, br, ret, or unreachable. `Take` parses LLVM IR assembly. `Make` prints it. Debug info, comdats, attribute groups, and bitcode stay out. A Go projection is not this file.
+
+```go
+m := llvm.New().Source("add.c").Layout("e-m:e-i64:64").Triple("x86_64-pc-linux-gnu")
+m.Global("g").SetDSOLocal().Type(llvm.IntType(32)).Init(llvm.Int(32, "42")).Align(4)
+fn := m.Func("add").Returns(llvm.IntType(32)).Param("a", llvm.IntType(32)).Param("b", llvm.IntType(32))
+b := fn.Block("entry")
+b.Bin("sum", llvm.OpAdd, llvm.IntType(32), llvm.Local("a"), llvm.Local("b")).NSW()
+b.Ret(llvm.IntType(32), llvm.Local("sum"))
+```
 
 ## Leave these where they are
 
