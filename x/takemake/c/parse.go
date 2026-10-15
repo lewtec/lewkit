@@ -201,7 +201,7 @@ func (p *parser) function(spec parsedSpec, typ *Type, name string) error {
 
 func (p *parser) objects(spec parsedSpec, typ *Type, name string) error {
 	for {
-		obj := &Object{Name: name, Type: typ, Storage: spec.storage}
+		obj := &Object{Name: name, Type: detachDecl(typ), Storage: spec.storage}
 		if p.punct("=") {
 			init, err := p.expr()
 			if err != nil {
@@ -491,6 +491,20 @@ func qualify(t *Type, isConst, isVolatile bool) *Type {
 
 func isAggregate(t *Type) bool {
 	return t != nil && (t.Kind == KindStruct || t.Kind == KindUnion || t.Kind == KindEnum)
+}
+
+// detachDecl gives a file-scope declarator its own type node. A comma
+// list is printed as separate declarations, and a later take builds a
+// fresh node for each one. The shared tag of a struct, union, or enum
+// stays one node so a pointer back to it still lines up.
+func detachDecl(t *Type) *Type {
+	if t == nil || (t.Use == "" && t.Of == nil && t.Tag != "" && isAggregate(t)) {
+		return t
+	}
+	n := *t
+	n.home = nil
+	n.laying = false
+	return &n
 }
 
 func (p *parser) aggregate(word string, typedef bool) (*Type, bool, error) {

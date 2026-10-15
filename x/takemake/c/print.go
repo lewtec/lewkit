@@ -154,6 +154,9 @@ func (p *printer) declarator(t *Type, name string) {
 
 func peel(t *Type, name string) (*Type, string) {
 	for t != nil {
+		if t.Use != "" {
+			return t, name
+		}
 		switch t.Kind {
 		case KindPointer:
 			star := "*"

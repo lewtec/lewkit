@@ -2,6 +2,7 @@ package c
 
 import (
 	"bytes"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -286,6 +287,155 @@ func TestParseRoundTrip(t *testing.T) {
 	require.Equal(t, "next", assign.Right.Text)
 }
 
+func TestNonTrivialRoundTrip(t *testing.T) {
+	t.Parallel()
+	src, err := os.ReadFile("testdata/buffer.c")
+	require.NoError(t, err)
+	first, printed := roundTrip(t, string(src))
+	require.NotContains(t, printed, "/*")
+	require.NotContains(t, printed, "//")
+	require.Contains(t, printed, "#define CAP 256")
+	require.Contains(t, printed, "#define ALIGN 8")
+	require.Contains(t, printed, "buf->data[buf->len]")
+	require.Contains(t, printed, "doc->version.major")
+
+	require.Equal(t, int64(256), constNamed(t, first, "CAP").Value)
+	require.Equal(t, int64(8), constNamed(t, first, "ALIGN").Value)
+	require.Equal(t, int64(0), constNamed(t, first, "EMPTY").Value)
+
+	forward := typeDeclTag(t, first, "Buf", false)
+	require.False(t, forward.Define)
+	buf := declNamed(t, first, "Buf")
+	require.True(t, buf.Define)
+	require.Equal(t, 32, buf.Type.Size)
+	require.Equal(t, 8, buf.Type.Align)
+	require.Equal(t, []int{0, 8, 16, 24}, offsets(buf.Type))
+	require.Equal(t, KindPointer, buf.Type.Fields[3].Type.Kind)
+	require.Equal(t, 8, buf.Type.Fields[3].Type.Size)
+	require.Equal(t, KindPointer, buf.Type.Fields[0].Type.Kind)
+	require.False(t, buf.Type.Fields[0].Type.Elem.Const)
+	require.Equal(t, "char", buf.Type.Fields[0].Type.Elem.Spell)
+
+	span := declNamed(t, first, "Span")
+	require.Equal(t, 16, span.Type.Size)
+	require.Equal(t, 8, span.Type.Align)
+	require.Equal(t, []int{0, 8}, offsets(span.Type))
+	require.True(t, span.Type.Fields[0].Type.Elem.Const)
+	require.Equal(t, "char", span.Type.Fields[0].Type.Elem.Spell)
+
+	doc := declNamed(t, first, "Doc")
+	require.Equal(t, 48, doc.Type.Size)
+	require.Equal(t, 8, doc.Type.Align)
+	require.Equal(t, []int{0, 16, 32}, offsets(doc.Type))
+	version := doc.Type.Fields[1].Type
+	require.Equal(t, KindStruct, version.Kind)
+	require.True(t, version.Inline)
+	require.Empty(t, version.Tag)
+	require.Equal(t, 16, version.Size)
+	require.Equal(t, []int{0, 8}, offsets(version))
+	pages := doc.Type.Fields[2].Type
+	require.Equal(t, KindArray, pages.Kind)
+	require.Equal(t, 2, pages.Len)
+	require.Equal(t, 16, pages.Size)
+	require.Equal(t, KindPointer, pages.Elem.Kind)
+
+	status := typeTagged(t, first, "Status")
+	require.Equal(t, 4, status.Size)
+	require.Equal(t, []int64{0, 1, 4}, enumValues(status))
+
+	writeFn := declNamed(t, first, "WriteFn")
+	require.Equal(t, KindPointer, writeFn.Type.Kind)
+	require.Equal(t, 8, writeFn.Type.Size)
+	require.Equal(t, KindFunction, writeFn.Type.Elem.Kind)
+	require.Equal(t, KindInteger, writeFn.Type.Elem.Elem.Kind)
+	require.Len(t, writeFn.Type.Elem.Params, 2)
+	require.Equal(t, "ctx", writeFn.Type.Elem.Params[0].Name)
+	require.Equal(t, "span", writeFn.Type.Elem.Params[1].Name)
+
+	require.Equal(t, int64('x'), objectNamed(t, first, "mark").Init.Int)
+	require.Equal(t, "hello\n", objectNamed(t, first, "greeting").Init.Text)
+	require.Equal(t, 1.25, objectNamed(t, first, "ratio").Init.Float)
+	require.Equal(t, int64(255), objectNamed(t, first, "mask").Init.Int)
+	require.Equal(t, ExprSizeof, objectNamed(t, first, "span_size").Init.Kind)
+	require.Equal(t, "Span", objectNamed(t, first, "span_size").Init.Type.Use)
+	require.Equal(t, 256, objectNamed(t, first, "scratch").Type.Len)
+	require.Equal(t, 256, objectNamed(t, first, "scratch").Type.Size)
+	require.Equal(t, 4, objectNamed(t, first, "pad").Type.Len)
+	table := objectNamed(t, first, "table")
+	require.Equal(t, 4, table.Type.Len)
+	require.Equal(t, 64, table.Type.Size)
+	require.Equal(t, "Span", table.Type.Elem.Use)
+	require.Equal(t, 16, table.Type.Elem.Size)
+	ticks := objectNamed(t, first, "ticks")
+	require.Equal(t, StorageExtern, ticks.Storage)
+	require.True(t, ticks.Type.Volatile)
+	require.Equal(t, int64(1), objectNamed(t, first, "room_a").Init.Int)
+	require.Equal(t, int64(2), objectNamed(t, first, "room_b").Init.Int)
+
+	logLine := funcNamed(t, first, "log_line")
+	require.True(t, logLine.Variadic)
+	require.Equal(t, StorageStatic, logLine.Storage)
+	require.Equal(t, ExprCast, logLine.Body.Stmts[0].Expr.Kind)
+	require.Equal(t, KindVoid, logLine.Body.Stmts[0].Expr.Type.Kind)
+
+	writeSpan := funcNamed(t, first, "write_span")
+	require.Equal(t, []StmtKind{
+		StmtDecl, StmtDecl, StmtDecl, StmtExpr, StmtIf, StmtExpr, StmtIf, StmtExpr, StmtWhile, StmtReturn,
+	}, stmtKinds(writeSpan.Body.Stmts))
+	loop := writeSpan.Body.Stmts[8]
+	require.Equal(t, ExprAssign, loop.Body.Stmts[0].Expr.Kind)
+	require.Equal(t, ExprIndex, loop.Body.Stmts[0].Expr.Left.Kind)
+	require.True(t, loop.Body.Stmts[0].Expr.Left.Left.Arrow)
+	require.Equal(t, StmtContinue, loop.Body.Stmts[3].Body.Stmts[0].Kind)
+
+	copyAll := funcNamed(t, first, "copy_all")
+	require.Equal(t, []StmtKind{
+		StmtDecl, StmtDecl, StmtExpr, StmtFor, StmtIf, StmtReturn,
+	}, stmtKinds(copyAll.Body.Stmts))
+	choice := copyAll.Body.Stmts[3].Body.Stmts[0]
+	require.Equal(t, StmtIf, choice.Kind)
+	require.Equal(t, StmtContinue, choice.Body.Stmts[0].Kind)
+	require.Equal(t, StmtIf, choice.Else.Kind)
+	require.Equal(t, StmtExpr, choice.Else.Else.Stmts[0].Kind)
+	require.Equal(t, StmtBreak, copyAll.Body.Stmts[3].Body.Stmts[1].Body.Stmts[0].Kind)
+	nested := copyAll.Body.Stmts[4].Body.Stmts[1]
+	require.Equal(t, StmtBlock, nested.Kind)
+	require.Equal(t, ExprAssign, nested.Stmts[0].Expr.Kind)
+	require.Equal(t, ExprSizeof, nested.Stmts[0].Expr.Right.Kind)
+	require.Equal(t, ExprField, nested.Stmts[0].Expr.Right.Left.Kind)
+	require.Equal(t, ExprAssign, nested.Stmts[1].Expr.Kind)
+	require.Equal(t, ExprCast, nested.Stmts[1].Expr.Right.Kind)
+
+	get := funcNamed(t, first, "buf_get")
+	require.Equal(t, KindPointer, get.Result.Kind)
+	require.True(t, get.Result.Elem.Const)
+	require.Equal(t, ExprUnary, get.Body.Stmts[1].Expr.Kind)
+	require.Equal(t, OpAddr, get.Body.Stmts[1].Expr.Op)
+	require.Equal(t, ExprIndex, get.Body.Stmts[1].Expr.Left.Kind)
+
+	docOK := funcNamed(t, first, "doc_ok")
+	require.True(t, docOK.Inline)
+	require.Equal(t, StorageStatic, docOK.Storage)
+	require.Equal(t, ExprBinary, docOK.Body.Stmts[1].Expr.Kind)
+	require.Equal(t, OpAnd, docOK.Body.Stmts[1].Expr.Op)
+	major := docOK.Body.Stmts[1].Expr.Left.Left
+	require.Equal(t, "major", major.Text)
+	require.True(t, major.Left.Arrow)
+	require.Equal(t, "version", major.Left.Text)
+
+	flag := funcNamed(t, first, "flag_on")
+	require.Equal(t, ExprBinary, flag.Body.Stmts[0].Expr.Kind)
+	require.Equal(t, OpOr, flag.Body.Stmts[0].Expr.Op)
+
+	var bodies int
+	for _, decl := range first.Decls {
+		if decl.Kind == DeclFunc && decl.Func != nil && decl.Func.Body != nil {
+			bodies++
+		}
+	}
+	require.Equal(t, 8, bodies)
+}
+
 func TestQualifiedDeclarators(t *testing.T) {
 	t.Parallel()
 	const src = "int *const *p;\n" +
@@ -366,6 +516,17 @@ func declNamed(t *testing.T, f *File, name string) *TypeDecl {
 		}
 	}
 	t.Fatalf("missing typedef %s\n%s", name, dump(f))
+	return nil
+}
+
+func typeDeclTag(t *testing.T, f *File, tag string, define bool) *TypeDecl {
+	t.Helper()
+	for _, d := range f.Decls {
+		if d.Kind == DeclType && d.Type != nil && d.Type.Name == "" && d.Type.Define == define && d.Type.Type != nil && d.Type.Type.Tag == tag {
+			return d.Type
+		}
+	}
+	t.Fatalf("missing %s define=%v\n%s", tag, define, dump(f))
 	return nil
 }
 
