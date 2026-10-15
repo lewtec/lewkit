@@ -1,6 +1,6 @@
 package lucide
 
-templ Icon(name string) {
+templ Icon(name Name) {
 	if body, ok := SVG(name); ok {
 		@templ.Raw(body)
 	}
