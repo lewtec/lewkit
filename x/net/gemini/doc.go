@@ -1,2 +1,2 @@
-// Package gemini parses text/gemini documents and speaks the Gemini protocol.
+// Package gemini parses text/gemini and speaks the Gemini protocol as a client and a server.
 package gemini

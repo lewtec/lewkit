@@ -28,6 +28,9 @@ var (
 	ErrBadHeader    = errs.Wrap(errs.ErrSyntax, "invalid gemini response header")
 	ErrTooManyHops  = errs.Wrap(errs.ErrOutOfRange, "too many gemini redirects")
 	ErrStatusFailed = errs.Wrap(errs.ErrUnavailable, "gemini status error")
+	ErrServe        = errs.Wrap(errs.ErrUnavailable, "gemini serve")
+	ErrNoHandler    = errs.Wrap(errs.ErrMissing, "gemini handler")
+	ErrNoListener   = errs.Wrap(errs.ErrMissing, "gemini listener")
 )
 
 // StatusCategory classifies a two-digit Gemini status code by its leading digit.
@@ -36,38 +39,18 @@ var (
 type StatusCategory int
 
 const (
-	StatusInput StatusCategory = iota + 1
-	StatusSuccess
-	StatusRedirect
-	StatusTempFailure
-	StatusPermFailure
-	StatusClientCert
+	StatusInput       StatusCategory = iota + 1 // input
+	StatusSuccess                               // success
+	StatusRedirect                              // redirect
+	StatusTempFailure                           // temporary
+	StatusPermFailure                           // permanent
+	StatusClientCert                            // certificate
 )
-
-// Category returns the [StatusCategory] for a two-digit Gemini status code.
-func Category(status int) StatusCategory {
-	switch status / 10 {
-	case 1:
-		return StatusInput
-	case 2:
-		return StatusSuccess
-	case 3:
-		return StatusRedirect
-	case 4:
-		return StatusTempFailure
-	case 5:
-		return StatusPermFailure
-	case 6:
-		return StatusClientCert
-	default:
-		return 0
-	}
-}
 
 // Response is a parsed Gemini protocol response.
 type Response struct {
 	URL    string
-	Status int
+	Status Code
 	Meta   string
 	Body   []byte
 }
@@ -239,8 +222,8 @@ func ReadResponse(r io.Reader) (Response, error) {
 		}
 		meta = strings.TrimSpace(headerLine[3:])
 	}
-	resp := Response{Status: code, Meta: meta}
-	if Category(code) == StatusSuccess {
+	resp := Response{Status: Code(code), Meta: meta}
+	if Category(Code(code)) == StatusSuccess {
 		body, err := io.ReadAll(io.LimitReader(br, maxBodySize))
 		if err != nil {
 			return Response{}, fmt.Errorf("%w: %w", ErrStatusFailed, err)

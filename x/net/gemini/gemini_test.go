@@ -58,7 +58,7 @@ func TestNormalizeAndResolveURL(t *testing.T) {
 func TestReadResponseAndRedirects(t *testing.T) {
 	resp, err := ReadResponse(strings.NewReader("20 text/gemini\r\n# Hello\nWorld\n"))
 	require.NoError(t, err)
-	assert.Equal(t, 20, resp.Status)
+	assert.Equal(t, CodeSuccess, resp.Status)
 	assert.Equal(t, StatusSuccess, Category(resp.Status))
 	assert.Equal(t, "text/gemini", resp.Meta)
 	assert.Equal(t, "# Hello\nWorld\n", string(resp.Body))
@@ -67,16 +67,16 @@ func TestReadResponseAndRedirects(t *testing.T) {
 		Hosts: map[string]Handler{
 			"local": func(_ context.Context, target *url.URL) (Response, error) {
 				if target.Path == "/old" {
-					return Response{Status: 31, Meta: "/new"}, nil
+					return Response{Status: CodeRedirectPermanent, Meta: "/new"}, nil
 				}
-				return Response{Status: 20, Meta: "text/gemini", Body: []byte("# Arrived\n")}, nil
+				return Response{Status: CodeSuccess, Meta: "text/gemini", Body: []byte("# Arrived\n")}, nil
 			},
 		},
 	}
 	got, err := client.Fetch(t.Context(), "gemini://local/old")
 	require.NoError(t, err)
 	assert.Equal(t, "gemini://local/new", got.URL)
-	assert.Equal(t, 20, got.Status)
+	assert.Equal(t, CodeSuccess, got.Status)
 	assert.Equal(t, "# Arrived\n", string(got.Body))
 }
 

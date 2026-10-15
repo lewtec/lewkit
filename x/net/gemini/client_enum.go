@@ -17,17 +17,17 @@ var (
 func (s StatusCategory) String() string {
 	switch s {
 	case StatusInput:
-		return "statusinput"
+		return "input"
 	case StatusSuccess:
-		return "statussuccess"
+		return "success"
 	case StatusRedirect:
-		return "statusredirect"
+		return "redirect"
 	case StatusTempFailure:
-		return "statustempfailure"
+		return "temporary"
 	case StatusPermFailure:
-		return "statuspermfailure"
+		return "permanent"
 	case StatusClientCert:
-		return "statusclientcert"
+		return "certificate"
 	default:
 		return ""
 	}
@@ -52,17 +52,17 @@ func (s StatusCategory) IsValid() bool {
 func ParseStatusCategory(text string) (StatusCategory, error) {
 	text = strings.TrimSpace(text)
 	switch text {
-	case "statusinput":
+	case "input":
 		return StatusInput, nil
-	case "statussuccess":
+	case "success":
 		return StatusSuccess, nil
-	case "statusredirect":
+	case "redirect":
 		return StatusRedirect, nil
-	case "statustempfailure":
+	case "temporary":
 		return StatusTempFailure, nil
-	case "statuspermfailure":
+	case "permanent":
 		return StatusPermFailure, nil
-	case "statusclientcert":
+	case "certificate":
 		return StatusClientCert, nil
 	default:
 		return 0, fmt.Errorf("%w: %q", ErrStatusCategory, text)
@@ -81,7 +81,7 @@ func (s *StatusCategory) Parse(text string) error {
 
 // ArgChoices lists the texts ParseStatusCategory accepts.
 func (StatusCategory) ArgChoices() []string {
-	return []string{"statusinput", "statussuccess", "statusredirect", "statustempfailure", "statuspermfailure", "statusclientcert"}
+	return []string{"input", "success", "redirect", "temporary", "permanent", "certificate"}
 }
 
 // MarshalText encodes the value as text.
