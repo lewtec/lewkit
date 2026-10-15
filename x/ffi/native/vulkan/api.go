@@ -634,15 +634,6 @@ func check(r int32) error {
 	return Result(r)
 }
 
-func hasExt(exts []string, name string) bool {
-	for _, e := range exts {
-		if e == name {
-			return true
-		}
-	}
-	return false
-}
-
 func cStrings(names []string) (**byte, []*byte) {
 	if len(names) == 0 {
 		return nil, nil

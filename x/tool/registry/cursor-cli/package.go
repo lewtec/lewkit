@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"runtime"
+
 	"strings"
 
 	lewpath "github.com/lewtec/lewkit/x/path"
@@ -34,7 +34,7 @@ func newCursorCLI() (tool.Tool, error) {
 }
 
 func (t *cursorCLITool) ListVersions(ctx context.Context) ([]string, error) {
-	goos, goarch := t.host()
+	goos, goarch := install.Host(t.goos, t.goarch)
 	if _, _, _, ok := cursorPlatform(goos, goarch); !ok {
 		return nil, fmt.Errorf("%w: %s/%s", ErrNoPlatformArtifact, goos, goarch)
 	}
@@ -55,7 +55,7 @@ func (t *cursorCLITool) Pin() tool.Pin {
 }
 
 func (t *cursorCLITool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {
-	goos, goarch := t.host()
+	goos, goarch := install.Host(t.goos, t.goarch)
 	osName, archName, archiveName, ok := cursorPlatform(goos, goarch)
 	if !ok {
 		return nil, fmt.Errorf("%w: %s/%s", ErrNoPlatformArtifact, goos, goarch)
@@ -139,18 +139,6 @@ func (t *cursorCLITool) Fix(ctx context.Context, destDir string) error {
 
 func (t *cursorCLITool) InstallChecks() []tool.Check {
 	return tool.Checks(tool.Binary("cursor-agent"), tool.Binary("agent"))
-}
-
-func (t *cursorCLITool) host() (string, string) {
-	goos := t.goos
-	goarch := t.goarch
-	if goos == "" {
-		goos = runtime.GOOS
-	}
-	if goarch == "" {
-		goarch = runtime.GOARCH
-	}
-	return goos, goarch
 }
 
 func (t *cursorCLITool) scriptURL() string {

@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/lewtec/lewkit/x/text"
 )
 
 // Version ordering follows conda.models.version.VersionOrder
@@ -128,7 +130,7 @@ func splitEpoch(version string) (atom, string, error) {
 	case 1:
 		return atom{kind: atomNumber, num: 0}, pieces[0], nil
 	case 2:
-		if pieces[0] == "" || strings.IndexFunc(pieces[0], unicode.IsDigit) != 0 || !allDigits(pieces[0]) {
+		if pieces[0] == "" || strings.IndexFunc(pieces[0], unicode.IsDigit) != 0 || !text.Digits(pieces[0]) {
 			return atom{}, "", fmt.Errorf("%w: epoch must be an integer", ErrInvalidVersion)
 		}
 		number := 0
@@ -139,18 +141,6 @@ func splitEpoch(version string) (atom, string, error) {
 	default:
 		return atom{}, "", fmt.Errorf("%w: duplicated epoch separator", ErrInvalidVersion)
 	}
-}
-
-func allDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 func splitLocal(version string) (string, []string, error) {
@@ -215,7 +205,7 @@ func parseAtom(piece string) atom {
 	case "dev":
 		return atom{kind: atomString, str: "DEV"}
 	}
-	if allDigits(piece) {
+	if text.Digits(piece) {
 		number := 0
 		for _, r := range piece {
 			number = number*10 + int(r-'0')

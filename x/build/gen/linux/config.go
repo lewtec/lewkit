@@ -27,11 +27,7 @@ func (c Config) hostConfig() common.HostConfig { return common.HostConfig(c) }
 func configFromHost(id common.HostConfig) Config { return Config(id) }
 
 func (c Config) withDefaults(ctx context.Context) (Config, error) {
-	id, err := common.ApplyHostDefaults(ctx, c.hostConfig())
-	if err != nil {
-		return Config{}, err
-	}
-	return configFromHost(id), nil
+	return common.WithDefaults(ctx, c, Config.hostConfig, configFromHost)
 }
 
 // ResolveGoMain returns an absolute directory containing the Go main package.

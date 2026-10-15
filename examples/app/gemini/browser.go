@@ -13,8 +13,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/gemini"
 	lewimage "github.com/lewtec/lewkit/x/image"
+	"github.com/lewtec/lewkit/x/net/gemini"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"golang.org/x/image/font"
 )
@@ -317,11 +317,11 @@ func (b *Browser) onFetched(msg fetchedMsg) (gui.Model, gui.Cmd) {
 		b.statusMsg = fmt.Sprintf("Status %d — Input requested", msg.resp.Status)
 		return b, gui.Tick()
 	case gemini.StatusSuccess:
-		b.applyDocument(msg.resp.URL, msg.resp.Status, msg.resp.Meta, string(msg.resp.Body), msg.direction)
+		b.applyDocument(msg.resp.URL, int(msg.resp.Status), msg.resp.Meta, string(msg.resp.Body), msg.direction)
 		return b, gui.Tick()
 	default:
 		body := fmt.Sprintf("# Gemini Status %d\n## %s\n\nThe capsule returned status %d (%s).\n\n=> gemini://home/ Return to Geminispace Observatory\n", msg.resp.Status, msg.resp.Meta, msg.resp.Status, cat.String())
-		b.applyDocument(msg.target, msg.resp.Status, msg.resp.Meta, body, msg.direction)
+		b.applyDocument(msg.target, int(msg.resp.Status), msg.resp.Meta, body, msg.direction)
 		return b, gui.Tick()
 	}
 }
@@ -788,7 +788,7 @@ func (b *Browser) progressBarView(pal browserPalette) gui.Node {
 	}
 	totalW := float32(max(b.size.X, 320))
 	barW := totalW * 0.28
-	x := (totalW + barW) * b.loadPhase - barW
+	x := (totalW+barW)*b.loadPhase - barW
 	accent := pal.accent
 	return &gui.Box{
 		Height: 3,
@@ -1003,9 +1003,9 @@ func (b *Browser) drawerView(pal browserPalette, progress float32) gui.Node {
 	}
 	panelFill := pal.surface
 	panel := &gui.Box{
-		Width:  drawerW,
-		Fill:   &panelFill,
-		Clip:   true,
+		Width: drawerW,
+		Fill:  &panelFill,
+		Clip:  true,
 		Child: &gui.ColumnView{
 			Gap:      6,
 			Padding:  gui.EdgeInsets{Left: 16, Top: 18, Right: 16, Bottom: 18},
@@ -1051,22 +1051,22 @@ func (b *Browser) promptModalView(pal browserPalette, progress float32) gui.Node
 		Children: []gui.FlexChild{
 			gui.Expanded(&gui.Box{}),
 			{Child: &gui.Box{
-				Key:     "prompt-cancel",
-				Width:   88,
-				Height:  34,
-				Radius:  8,
-				Fill:    &cancelFill,
-				Align:   gui.Alignment{X: 0.5, Y: 0.5},
-				Child:   &gui.Text{Value: "Cancel", Face: b.face(0.95), Ink: pal.text},
+				Key:    "prompt-cancel",
+				Width:  88,
+				Height: 34,
+				Radius: 8,
+				Fill:   &cancelFill,
+				Align:  gui.Alignment{X: 0.5, Y: 0.5},
+				Child:  &gui.Text{Value: "Cancel", Face: b.face(0.95), Ink: pal.text},
 			}},
 			{Child: &gui.Box{
-				Key:     "prompt-submit",
-				Width:   96,
-				Height:  34,
-				Radius:  8,
-				Fill:    &accentFill,
-				Align:   gui.Alignment{X: 0.5, Y: 0.5},
-				Child:   &gui.Text{Value: "Submit", Face: b.face(0.95), Ink: pal.bg},
+				Key:    "prompt-submit",
+				Width:  96,
+				Height: 34,
+				Radius: 8,
+				Fill:   &accentFill,
+				Align:  gui.Alignment{X: 0.5, Y: 0.5},
+				Child:  &gui.Text{Value: "Submit", Face: b.face(0.95), Ink: pal.bg},
 			}},
 		},
 	}

@@ -7,6 +7,8 @@ package pulse
 import (
 	"errors"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var (
@@ -35,8 +37,5 @@ type Sink struct {
 }
 
 func ptr(b []byte) uintptr {
-	if len(b) == 0 {
-		return 0
-	}
-	return uintptr(unsafe.Pointer(&b[0]))
+	return uintptr(unsafe.Pointer(native.Data(b)))
 }

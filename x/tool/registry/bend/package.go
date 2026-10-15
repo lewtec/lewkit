@@ -61,10 +61,7 @@ func (t *bendTool) Install(ctx context.Context, version string, destDir string) 
 }
 
 func (t *bendTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
-
-	return pin
+	return tool.SemverPin()
 }
 
 func (t *bendTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {

@@ -17,9 +17,11 @@
 package fs
 
 import (
+	"cmp"
 	"errors"
 	"io"
 	iofs "io/fs"
+	"slices"
 )
 
 // ErrNeedReadAt is [ReaderAt] on a reader that is not an [io.ReaderAt].
@@ -78,6 +80,27 @@ func DirEntries(ents []iofs.DirEntry, off *int, n int) ([]iofs.DirEntry, error) 
 	out := ents[*off:end]
 	*off = end
 	return out, nil
+}
+
+// Infos collects info from each item, in order.
+func Infos[T any](items []T, info func(T) iofs.FileInfo) []iofs.FileInfo {
+	out := make([]iofs.FileInfo, len(items))
+	for i, item := range items {
+		out[i] = info(item)
+	}
+	return out
+}
+
+// NameSorted lists infos as directory entries in name order.
+func NameSorted(infos []iofs.FileInfo) []iofs.DirEntry {
+	out := make([]iofs.DirEntry, 0, len(infos))
+	for _, info := range infos {
+		out = append(out, iofs.FileInfoToDirEntry(info))
+	}
+	slices.SortFunc(out, func(a, b iofs.DirEntry) int {
+		return cmp.Compare(a.Name(), b.Name())
+	})
+	return out
 }
 
 // Size returns the length of r.

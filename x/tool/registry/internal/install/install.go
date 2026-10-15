@@ -25,6 +25,57 @@ var (
 	ErrNoSuitableArtifactFoundFor = errs.Wrap(errs.ErrNotFound, "no suitable artifact found for")
 )
 
+// Host returns goos and goarch, using the process pair when either value is empty.
+func Host(goos, goarch string) (string, string) {
+	if goos == "" {
+		goos = runtime.GOOS
+	}
+	if goarch == "" {
+		goarch = runtime.GOARCH
+	}
+	return goos, goarch
+}
+
+// CollectVersions reads one version from each item, then applies UniqueVersions.
+func CollectVersions[T any](items []T, version func(T) string) ([]string, error) {
+	versions := make([]string, len(items))
+	for i, item := range items {
+		versions[i] = version(item)
+	}
+	return UniqueVersions(versions)
+}
+
+// KeepVersions keeps the first accepted form of each version.
+// normalize returns false to skip a tag. Order is the order of first acceptance.
+func KeepVersions(versions []string, normalize func(string) (string, bool)) []string {
+	out := make([]string, 0, len(versions))
+	seen := map[string]bool{}
+	for _, version := range versions {
+		normalized, ok := normalize(version)
+		if !ok || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		out = append(out, normalized)
+	}
+	return out
+}
+
+// UniqueVersions drops blanks and repeats, then orders the rest newest-first.
+// Empty input yields ErrNoVersions.
+func UniqueVersions(versions []string) ([]string, error) {
+	seen := map[string]bool{}
+	out := make([]string, 0, len(versions))
+	for _, version := range versions {
+		if version == "" || seen[version] {
+			continue
+		}
+		seen[version] = true
+		out = append(out, version)
+	}
+	return SortVersionsDesc(out)
+}
+
 // SortVersionsDesc returns versions ordered newest-first by semver so [0] is
 // latest. Empty input yields ErrNoVersions.
 func SortVersionsDesc(versions []string) ([]string, error) {

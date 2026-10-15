@@ -6,6 +6,7 @@ import (
 	iofs "io/fs"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/test"
 
@@ -104,6 +105,17 @@ func TestDirEntries(t *testing.T) {
 	assert.Equal(t, "b", got[0].Name())
 	assert.Equal(t, "c", got[1].Name())
 	assert.Equal(t, 3, off)
+}
+
+func TestNameSorted(t *testing.T) {
+	t.Parallel()
+	got := NameSorted([]iofs.FileInfo{
+		FileInfo("b", 1, 0o444, time.Time{}),
+		FileInfo("a", 2, 0o444, time.Time{}),
+	})
+	require.Len(t, got, 2)
+	assert.Equal(t, "a", got[0].Name())
+	assert.Equal(t, "b", got[1].Name())
 }
 
 func TestSize(t *testing.T) {

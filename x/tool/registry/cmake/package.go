@@ -45,26 +45,18 @@ func (t *cmakeTool) ListVersions(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(vers))
-	seen := map[string]bool{}
-	for _, v := range vers {
-		v = strings.TrimSpace(v)
-		v = strings.TrimPrefix(v, "v")
-		v = strings.TrimPrefix(v, "V")
-		if v == "" {
-			continue
-		}
-		// Skip prereleases (e.g. 4.4.0-rc2). Final releases have no "-".
-		if strings.Contains(v, "-") {
-			continue
-		}
-		if seen[v] {
-			continue
-		}
-		seen[v] = true
-		out = append(out, v)
+	return install.SortVersionsDesc(install.KeepVersions(vers, cmakeListedVersion))
+}
+
+func cmakeListedVersion(v string) (string, bool) {
+	v = strings.TrimSpace(v)
+	v = strings.TrimPrefix(v, "v")
+	v = strings.TrimPrefix(v, "V")
+	// Skip prereleases (e.g. 4.4.0-rc2). Final releases have no "-".
+	if v == "" || strings.Contains(v, "-") {
+		return "", false
 	}
-	return install.SortVersionsDesc(out)
+	return v, true
 }
 
 func (t *cmakeTool) Install(ctx context.Context, version string, destDir string) error {
@@ -72,11 +64,8 @@ func (t *cmakeTool) Install(ctx context.Context, version string, destDir string)
 }
 
 func (t *cmakeTool) Pin() tool.Pin {
-	var pin tool.Pin
-	pin.Versioning = "semver"
 	// Official downloads via cmake.org; files-v1.json + SHA-256.txt sidecar.
-
-	return pin
+	return tool.SemverPin()
 }
 
 func (t *cmakeTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {

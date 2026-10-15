@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/driver/ndeval/internal/run"
 	"github.com/lewtec/lewkit/x/driver/ndeval/internal/slots"
 	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
@@ -55,26 +56,10 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device drvvulkan.De
 }
 
 func (s *session) Eval(ctx context.Context, output []byte) error {
-	if s == nil || s.kernel == nil || s.device == nil {
-		return ndarray.ErrOp
+	if s == nil {
+		return run.Eval[*drvvulkan.Buffer](ctx, false, nil, false, nil, false, nil, output, nil)
 	}
-	if s.eval != nil {
-		s.eval.Lock()
-		defer s.eval.Unlock()
-	}
-	if s.shader == nil {
-		return ndarray.ErrOp
-	}
-	if err := slots.CheckOutput(s.kernel, output); err != nil {
-		return err
-	}
-	if s.kernel.Size() == 0 {
-		return nil
-	}
-	if err := s.dispatch(); err != nil {
-		return err
-	}
-	return s.buf.ReadHost(s.kernel, output)
+	return run.Eval(ctx, false, s.kernel, s.device != nil, s.eval, s.shader != nil, &s.buf, output, s.dispatch)
 }
 
 func (s *session) dispatch() error {
@@ -95,10 +80,7 @@ func (s *session) dispatch() error {
 }
 
 func (s *session) prepare() error {
-	if err := s.fit(); err != nil {
-		return err
-	}
-	return s.buf.Load(s.kernel)
+	return run.Prepare(s.fit, &s.buf, s.kernel)
 }
 
 func (s *session) record(cmd *drvvulkan.Cmd) error {
@@ -127,18 +109,5 @@ func (s *session) Close() error {
 	if s == nil {
 		return nil
 	}
-	if s.eval != nil {
-		s.eval.Lock()
-		defer s.eval.Unlock()
-	}
-	if s.forget != nil {
-		s.forget()
-		s.forget = nil
-	}
-	var err error
-	if s.shader != nil {
-		err = s.shader.Close()
-		s.shader = nil
-	}
-	return errors.Join(err, s.buf.Close())
+	return run.Release(s.eval, &s.forget, &s.shader, &s.buf)
 }

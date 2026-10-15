@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 	"unsafe"
 
@@ -95,7 +96,7 @@ func openInstance(ctx context.Context) (*Device, error) {
 	}
 	var instExt []string
 	var instFlags uint32
-	if hasExt(d.api.instanceExts(), extPortabilityEnum) {
+	if slices.Contains(d.api.instanceExts(), extPortabilityEnum) {
 		instExt = []string{extPortabilityEnum}
 		instFlags = instanceEnumeratePortability
 	}
@@ -234,7 +235,7 @@ func (d *Device) try(phys uintptr) bool {
 		pQueuePriorities: &prio,
 	}
 	devExt := append([]string{}, d.wantExt...)
-	if hasExt(d.api.deviceExts(phys), extPortabilitySubset) && !hasExt(devExt, extPortabilitySubset) {
+	if slices.Contains(d.api.deviceExts(phys), extPortabilitySubset) && !slices.Contains(devExt, extPortabilitySubset) {
 		devExt = append(devExt, extPortabilitySubset)
 	}
 	devExtPtrs, keepDevExt := cStrings(devExt)

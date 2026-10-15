@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
+	"github.com/lewtec/lewkit/x/compression"
 	"github.com/lewtec/lewkit/x/errs"
 )
 
@@ -37,7 +37,7 @@ func Register(d Decoder) error {
 	if d == nil {
 		return ErrNil
 	}
-	if hasDecoder(std.list, d.Name()) {
+	if compression.HasName(std.list, d.Name()) {
 		return fmt.Errorf("%s: %w", d.Name(), ErrExist)
 	}
 	std.list = append(std.list, d)
@@ -82,64 +82,7 @@ func NewRegistry(list ...Decoder) *Registry {
 
 // Detect returns a decoder for name or magic.
 func (r *Registry) Detect(name string, magic []byte) (Decoder, bool) {
-	if d, ok := r.byExtension(name); ok {
-		return d, true
-	}
-	return r.byMagic(magic)
-}
-
-func (r *Registry) byExtension(name string) (Decoder, bool) {
-	name = strings.ToLower(name)
-	var best Decoder
-	bestN := -1
-	for _, d := range r.list {
-		for _, ext := range d.Extensions() {
-			ext = strings.ToLower(ext)
-			if ext == "" {
-				continue
-			}
-			if !strings.HasPrefix(ext, ".") {
-				ext = "." + ext
-			}
-			if strings.HasSuffix(name, ext) && len(ext) > bestN {
-				best = d
-				bestN = len(ext)
-			}
-		}
-	}
-	if bestN < 0 {
-		return nil, false
-	}
-	return best, true
-}
-
-func (r *Registry) byMagic(p []byte) (Decoder, bool) {
-	var best Decoder
-	bestN := -1
-	for _, d := range r.list {
-		for _, mag := range d.Magic() {
-			if len(mag) == 0 || len(mag) <= bestN || len(p) < len(mag) {
-				continue
-			}
-			if bytes.HasPrefix(p, mag) {
-				best = d
-				bestN = len(mag)
-			}
-		}
-	}
-	if bestN < 0 {
-		return nil, false
-	}
-	return best, true
-}
-
-func hasDecoder(list []Decoder, name string) bool {
-	for _, d := range list {
-		if d.Name() == name {
-			return true
-		}
-	}
-	return false
+	return compression.Match(r.list, name, magic)
 }
 
 func sniff(r io.Reader) ([]byte, io.Reader, error) {

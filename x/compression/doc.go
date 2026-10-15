@@ -13,6 +13,9 @@
 // conflict. [MustRegister] panics on those errors (for init).
 //
 // [Detect] prefers a matching extension, then a magic prefix.
+// [Match], [LongestExtension], and [LongestMagic] are that lookup
+// for any value that publishes suffixes and magic. Sound decoders use them.
+// [HasName] reports a taken name.
 // Brotli (RFC 7932) has no official magic; match it by extension.
 // A codec may also be a [Decompressor] and/or a [Compressor].
 //

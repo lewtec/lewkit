@@ -40,13 +40,7 @@ func (t tirithTool) Install(ctx context.Context, version string, destDir string)
 }
 
 func (t tirithTool) Pin() tool.Pin {
-	var pin tool.Pin
-	if pinner, ok := t.inner.(tool.Pinner); ok {
-		pin = pinner.Pin()
-	}
-	pin.Versioning = "semver"
-
-	return pin
+	return tool.InheritSemver(t.inner)
 }
 
 func isTirithProgramVersion(version string) bool {

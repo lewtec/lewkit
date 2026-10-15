@@ -2,10 +2,10 @@ package d3d12
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 
+	"github.com/lewtec/lewkit/x/driver/ndeval/internal/run"
 	"github.com/lewtec/lewkit/x/driver/ndeval/internal/slots"
 	ffid3d12 "github.com/lewtec/lewkit/x/ffi/native/d3d12"
 	"github.com/lewtec/lewkit/x/ndarray"
@@ -48,48 +48,18 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device *ffid3d12.De
 }
 
 func (s *session) Eval(ctx context.Context, output []byte) error {
-	if err := ctx.Err(); err != nil {
-		return err
+	if s == nil {
+		return run.Eval[*ffid3d12.Buffer](ctx, true, nil, false, nil, false, nil, output, nil)
 	}
-	if s == nil || s.kernel == nil || s.device == nil {
-		return ndarray.ErrOp
-	}
-	if s.eval != nil {
-		s.eval.Lock()
-		defer s.eval.Unlock()
-	}
-	if s.pipe == nil {
-		return ndarray.ErrOp
-	}
-	if err := slots.CheckOutput(s.kernel, output); err != nil {
-		return err
-	}
-	if s.kernel.Size() == 0 {
-		return nil
-	}
-	if err := s.dispatch(); err != nil {
-		return err
-	}
-	return s.buf.ReadHost(s.kernel, output)
+	return run.Eval(ctx, true, s.kernel, s.device != nil, s.eval, s.pipe != nil, &s.buf, output, s.dispatch)
 }
 
 func (s *session) dispatch() error {
-	if err := s.prepare(); err != nil {
-		return err
-	}
-	push := s.buf.FillPush(s.kernel)
-	groups := int(s.kernel.Groups())
-	if groups < 1 {
-		return nil
-	}
-	return s.pipe.Dispatch(s.buf.Bound, push, groups)
+	return run.Groups(s.prepare, &s.buf, s.kernel, s.pipe.Dispatch)
 }
 
 func (s *session) prepare() error {
-	if err := s.fit(); err != nil {
-		return err
-	}
-	return s.buf.Load(s.kernel)
+	return run.Prepare(s.fit, &s.buf, s.kernel)
 }
 
 func (s *session) fit() error {
@@ -107,18 +77,5 @@ func (s *session) Close() error {
 	if s == nil {
 		return nil
 	}
-	if s.eval != nil {
-		s.eval.Lock()
-		defer s.eval.Unlock()
-	}
-	if s.forget != nil {
-		s.forget()
-		s.forget = nil
-	}
-	var err error
-	if s.pipe != nil {
-		err = s.pipe.Close()
-		s.pipe = nil
-	}
-	return errors.Join(err, s.buf.Close())
+	return run.Release(s.eval, &s.forget, &s.pipe, &s.buf)
 }

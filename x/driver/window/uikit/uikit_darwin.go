@@ -108,7 +108,7 @@ func (w *win) noteSafe() {
 
 func edgeInsetsOf(view objc.ID) uiEdgeInsets {
 	if insetsFn == nil {
-		native.Register(&insetsFn, msgSend())
+		native.Register(&insetsFn, native.MsgSend())
 	}
 	return insetsFn(view, selSafeAreaInsets)
 }
@@ -249,7 +249,7 @@ func screenScale(host objc.ID) float64 {
 		return 1
 	}
 	if scaleFn == nil {
-		native.Register(&scaleFn, msgSend())
+		native.Register(&scaleFn, native.MsgSend())
 	}
 	scale := scaleFn(screen, selScale)
 	if scale < 1 {
@@ -272,7 +272,7 @@ func framePeriod(host objc.ID) time.Duration {
 
 func responds(id objc.ID, sel objc.SEL) bool {
 	if respondsFn == nil {
-		native.Register(&respondsFn, msgSend())
+		native.Register(&respondsFn, native.MsgSend())
 	}
 	return respondsFn(id, selResponds, sel)
 }
@@ -285,7 +285,7 @@ func withPool(fn func()) {
 
 func boundsOf(view objc.ID) cgRect {
 	if boundsFn == nil {
-		native.Register(&boundsFn, msgSend())
+		native.Register(&boundsFn, native.MsgSend())
 	}
 	return boundsFn(view, selBounds)
 }
@@ -298,28 +298,11 @@ type cgRect struct {
 }
 
 var (
-	msgOnce    sync.Once
-	msgAddr    uintptr
 	boundsFn   func(objc.ID, objc.SEL) cgRect
 	scaleFn    func(objc.ID, objc.SEL) float64
 	insetsFn   func(objc.ID, objc.SEL) uiEdgeInsets
 	respondsFn func(objc.ID, objc.SEL, objc.SEL) bool
 )
-
-func msgSend() uintptr {
-	msgOnce.Do(func() {
-		lib, err := native.Open("/usr/lib/libobjc.A.dylib", native.Lazy)
-		if err != nil {
-			return
-		}
-		addr, err := native.Symbol(lib, "objc_msgSend")
-		if err != nil {
-			return
-		}
-		msgAddr = addr
-	})
-	return msgAddr
-}
 
 var (
 	selSharedApplication   = objc.RegisterName("sharedApplication")

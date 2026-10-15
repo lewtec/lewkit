@@ -4,6 +4,7 @@ import (
 	"context"
 	"image"
 	"image/draw"
+	"slices"
 	"sync"
 	"time"
 
@@ -172,7 +173,7 @@ func (b *Buffer) SetDead(zones []image.Rectangle) {
 		b.mu.Unlock()
 		return
 	}
-	same := rectsEqual(b.dead, next)
+	same := slices.Equal(b.dead, next)
 	b.dead = next
 	b.mu.Unlock()
 	if !same {
@@ -187,18 +188,6 @@ func cloneRects(zones []image.Rectangle) []image.Rectangle {
 	out := make([]image.Rectangle, len(zones))
 	copy(out, zones)
 	return out
-}
-
-func rectsEqual(a, b []image.Rectangle) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // Size is the back buffer size. Hosts that track a window size override this.

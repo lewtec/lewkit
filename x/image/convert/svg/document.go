@@ -34,10 +34,7 @@ func (d Document) ClearViewBox() Document {
 }
 
 func (d Document) Append(nodes ...Node) Document {
-	n := len(d.children)
-	out := make([]Node, n, n+len(nodes))
-	copy(out, d.children)
-	d.children = append(out, nodes...)
+	d.children = appendNodes(d.children, nodes)
 	return d
 }
 
@@ -139,11 +136,15 @@ type Group struct {
 func NewGroup() Group { return Group{} }
 
 func (g Group) Append(nodes ...Node) Group {
-	n := len(g.children)
-	out := make([]Node, n, n+len(nodes))
-	copy(out, g.children)
-	g.children = append(out, nodes...)
+	g.children = appendNodes(g.children, nodes)
 	return g
+}
+
+func appendNodes(children []Node, nodes []Node) []Node {
+	n := len(children)
+	out := make([]Node, n, n+len(nodes))
+	copy(out, children)
+	return append(out, nodes...)
 }
 
 func (g Group) Children() []Node {

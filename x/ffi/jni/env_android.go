@@ -98,10 +98,7 @@ func jf32(v float32) jvalue { return jvalue{bits: uint64(math.Float32bits(v))} }
 func jf64(v float64) jvalue { return jvalue{bits: math.Float64bits(v)} }
 
 func argv(vals []jvalue) uintptr {
-	if len(vals) == 0 {
-		return 0
-	}
-	return uintptr(unsafe.Pointer(&vals[0]))
+	return uintptr(unsafe.Pointer(native.Data(vals)))
 }
 
 func cstr(s string) []byte {
@@ -111,10 +108,7 @@ func cstr(s string) []byte {
 }
 
 func cptr(b []byte) uintptr {
-	if len(b) == 0 {
-		return 0
-	}
-	return uintptr(unsafe.Pointer(&b[0]))
+	return uintptr(unsafe.Pointer(native.Data(b)))
 }
 
 // openEnv separates the JNIEnv from its function table.
