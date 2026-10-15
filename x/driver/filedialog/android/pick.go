@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/androidask"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 )
 
@@ -28,45 +28,14 @@ type pick struct {
 	paths  string
 }
 
-type waiter struct {
-	ch  chan pick
-	gen uint64
-}
+var picks = androidask.NewPending[pick](errBusy)
 
-var (
-	waitMu  sync.Mutex
-	wait    *waiter
-	waitGen uint64
-)
+func beginPick() (<-chan pick, uint64, error) { return picks.Begin() }
 
-func beginPick() (<-chan pick, uint64, error) {
-	waitMu.Lock()
-	defer waitMu.Unlock()
-	if wait != nil {
-		return nil, 0, errBusy
-	}
-	waitGen++
-	ch := make(chan pick, 1)
-	wait = &waiter{ch: ch, gen: waitGen}
-	return ch, waitGen, nil
-}
-
-func endPick() {
-	waitMu.Lock()
-	wait = nil
-	waitMu.Unlock()
-}
+func endPick() { picks.End() }
 
 func deliverPick(gen uint64, status, paths string) {
-	waitMu.Lock()
-	defer waitMu.Unlock()
-	if wait == nil || wait.gen != gen {
-		return
-	}
-	select {
-	case wait.ch <- pick{status: status, paths: paths}:
-	default:
-	}
+	picks.Deliver(gen, pick{status: status, paths: paths})
 }
 
 func extensionList(filters []filedialog.Filter) string {
