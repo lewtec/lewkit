@@ -33,7 +33,7 @@ func New(dsn string) (*Reporter, error) {
 
 // Report captures err and waits for delivery.
 func (r *Reporter) Report(err error) error {
-	if err == nil {
+	if err == nil || errors.Is(err, report.ErrDontReport) {
 		return nil
 	}
 	r.hub.CaptureException(err)

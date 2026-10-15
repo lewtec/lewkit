@@ -16,9 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/report"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/disasm"
 	xdecomp "github.com/lewtec/lewkit/x/disasm/decomp"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
@@ -84,8 +86,10 @@ func TestDecompViewNeedsProject(t *testing.T) {
 	test.RestoreSlog(t)
 	view := cmd.ParseOK[cmd.App[Cmd]](t, "view")
 	err := view.Run(t.Context())
-	require.Error(t, err)
-	assert.ErrorIs(t, err, errProjectRequired)
+	require.EqualError(t, err, "decomp view: missing --project")
+	require.ErrorIs(t, err, errProjectRequired)
+	require.ErrorIs(t, err, errs.ErrMissing)
+	require.ErrorIs(t, err, report.ErrDontReport)
 }
 
 func TestDecompViewServesTheProject(t *testing.T) {

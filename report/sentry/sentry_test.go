@@ -2,12 +2,15 @@ package sentry
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"testing"
 	"time"
 
 	sdk "github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/require"
+
+	"github.com/lewtec/lewkit/report"
 )
 
 type captureTransport struct {
@@ -49,6 +52,17 @@ func TestReport(t *testing.T) {
 	require.NoError(t, r.Report(io.EOF))
 	require.Len(t, tr.events, 1)
 	require.Equal(t, io.EOF.Error(), exceptionValue(tr.events[0]))
+}
+
+func TestReportSkipsErrDontReport(t *testing.T) {
+	t.Parallel()
+	tr := &captureTransport{}
+	r := reporterWithTransport(t, tr)
+
+	err := fmt.Errorf("decomp view: %w", report.DoNotReport(io.EOF))
+	require.NoError(t, r.Report(err))
+	require.NoError(t, r.Report(report.ErrDontReport))
+	require.Empty(t, tr.events)
 }
 
 func exceptionValue(e *sdk.Event) string {

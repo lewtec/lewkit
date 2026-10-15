@@ -26,10 +26,23 @@ var (
 	ErrUnknown       = errors.New("unknown")
 )
 
-// Wrap returns an error whose text is text and that unwraps to parent.
-// errors.Is matches parent. text stays the specific sentence.
-func Wrap(parent error, text string) error {
-	return &wrapped{text: text, parent: parent}
+// Wrap returns an error whose text is text.
+// errors.Is matches parent and each extra error, the same as %w.
+// text stays the sentence. Parent text is not joined in.
+func Wrap(parent error, text string, extra ...error) error {
+	parents := make([]error, 0, 1+len(extra))
+	if parent != nil {
+		parents = append(parents, parent)
+	}
+	for _, err := range extra {
+		if err != nil {
+			parents = append(parents, err)
+		}
+	}
+	if len(parents) == 1 {
+		return &wrapped{text: text, parent: parents[0]}
+	}
+	return &wrappedMany{text: text, parents: parents}
 }
 
 type wrapped struct {
@@ -40,3 +53,13 @@ type wrapped struct {
 func (w *wrapped) Error() string { return w.text }
 
 func (w *wrapped) Unwrap() error { return w.parent }
+
+// wrappedMany is several parents with one sentence.
+type wrappedMany struct {
+	text    string
+	parents []error
+}
+
+func (w *wrappedMany) Error() string { return w.text }
+
+func (w *wrappedMany) Unwrap() []error { return w.parents }

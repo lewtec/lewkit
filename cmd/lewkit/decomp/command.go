@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/cmd/lewkit/internal/input"
+	"github.com/lewtec/lewkit/report"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/db"
 	xdecomp "github.com/lewtec/lewkit/x/disasm/decomp"
@@ -20,7 +21,8 @@ import (
 
 var (
 	// errProjectRequired means view was started without a sqlite program database.
-	errProjectRequired = errors.New("missing --project")
+	// Entry still logs it and exits 1. Reporters skip it.
+	errProjectRequired = errs.Wrap(errs.ErrMissing, "missing --project", report.ErrDontReport)
 	// errFunctionName means name was started without a function name.
 	errFunctionName = errors.New("missing --name")
 	// errCandidate means check was started without the caller's JSON.
