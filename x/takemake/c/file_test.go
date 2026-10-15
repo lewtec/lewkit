@@ -2,18 +2,716 @@ package c
 
 import (
 	"bytes"
-	"io"
+	"strconv"
+	"strings"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/errs"
 	"github.com/stretchr/testify/require"
 )
 
-func TestScaffold(t *testing.T) {
+func TestNilInputs(t *testing.T) {
+	t.Parallel()
+	_, err := Take(nil)
+	require.ErrorIs(t, err, errRead)
+	require.ErrorIs(t, (*File)(nil).Make(&bytes.Buffer{}), errFile)
+	require.ErrorIs(t, New().Make(nil), errWrite)
+}
+
+func TestComposeRoundTrip(t *testing.T) {
 	t.Parallel()
 	file := New()
-	require.NotNil(t, file)
-	_, err := Take(bytes.NewReader(nil))
-	require.ErrorIs(t, err, errs.ErrScaffold)
-	require.ErrorIs(t, file.Make(io.Discard), errs.ErrScaffold)
+	file.IncludeSystem("stdio.h")
+	file.IncludeQuoted("local.h")
+	file.Const("ANSWER", 42)
+	point := file.Struct("Point").
+		Field("tag", Char()).
+		Field("x", Int()).
+		Field("y", Long()).
+		Field("z", Double())
+	require.Equal(t, 0, point.Fields[0].Offset)
+	require.Equal(t, 4, point.Fields[1].Offset)
+	require.Equal(t, 8, point.Fields[2].Offset)
+	require.Equal(t, 16, point.Fields[3].Offset)
+	require.Equal(t, 24, point.Size)
+	require.Equal(t, 8, point.Align)
+	use := point.Alias("Point")
+	layout(use)
+	require.Equal(t, 24, use.Size)
+	require.Equal(t, 8, use.Align)
+
+	node := file.Struct("Node")
+	node.Field("next", Pointer(node)).Field("value", Int())
+	require.Equal(t, 0, node.Fields[0].Offset)
+	require.Equal(t, 8, node.Fields[1].Offset)
+	require.Equal(t, 8, node.Fields[0].Type.Size)
+	require.Equal(t, 16, node.Size)
+	require.Equal(t, 8, node.Align)
+	node.Alias("Node")
+
+	slot := file.Union("Slot").
+		Field("n", Int()).
+		Field("p", Pointer(Void())).
+		Field("d", Double())
+	require.Equal(t, 8, slot.Size)
+	require.Equal(t, 8, slot.Align)
+	require.Equal(t, 0, slot.Fields[0].Offset)
+	require.Equal(t, 0, slot.Fields[1].Offset)
+	require.Equal(t, 0, slot.Fields[2].Offset)
+	slot.Alias("Slot")
+
+	color := file.Enum("Color").
+		Enumerator("RED", 1).
+		Enumerator("GREEN", 2).
+		Enumerator("BLUE", 4)
+	require.Equal(t, 4, color.Size)
+	require.Equal(t, 4, color.Align)
+	color.Alias("Color")
+
+	wide := file.Enum("Wide").Enumerator("BIG", 1<<40)
+	require.Equal(t, 8, wide.Size)
+	require.Equal(t, 8, wide.Align)
+	wide.Alias("Wide")
+
+	file.Object("flag", Int().Constant()).WithInit(IntLit(1))
+	file.Object("origin", use)
+	file.Func("add").Returns(Int()).Param("a", Int()).Param("b", Int()).WithBody(
+		Return(Binary(OpAdd, Ident("a"), Ident("b"))),
+	)
+	file.Func("proto").Returns(Int()).Param("a", Int()).Param("b", Int())
+
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	first, printed := roundTrip(t, buf.String())
+	got := declNamed(t, first, "Point")
+	require.Equal(t, "Point", got.Name)
+	require.True(t, got.Define)
+	require.Equal(t, KindStruct, got.Type.Kind)
+	require.Equal(t, 24, got.Type.Size)
+	require.Equal(t, 8, got.Type.Align)
+	require.Equal(t, []int{0, 4, 8, 16}, offsets(got.Type))
+
+	nodeDecl := declNamed(t, first, "Node")
+	require.Equal(t, 16, nodeDecl.Type.Size)
+	require.Equal(t, 8, nodeDecl.Type.Align)
+	require.Equal(t, []int{0, 8}, offsets(nodeDecl.Type))
+	require.Equal(t, KindPointer, nodeDecl.Type.Fields[0].Type.Kind)
+	require.Equal(t, 8, nodeDecl.Type.Fields[0].Type.Size)
+
+	slotDecl := declNamed(t, first, "Slot")
+	require.Equal(t, KindUnion, slotDecl.Type.Kind)
+	require.Equal(t, 8, slotDecl.Type.Size)
+	require.Equal(t, []int{0, 0, 0}, offsets(slotDecl.Type))
+
+	colorDecl := declNamed(t, first, "Color")
+	require.Equal(t, KindEnum, colorDecl.Type.Kind)
+	require.Equal(t, 4, colorDecl.Type.Size)
+	require.Equal(t, []int64{1, 2, 4}, enumValues(colorDecl.Type))
+
+	wideDecl := declNamed(t, first, "Wide")
+	require.Equal(t, 8, wideDecl.Type.Size)
+
+	flag := objectNamed(t, first, "flag")
+	require.True(t, flag.Type.Const)
+	require.Equal(t, KindInteger, flag.Type.Kind)
+	require.Equal(t, 4, flag.Type.Size)
+	require.Equal(t, ExprInt, flag.Init.Kind)
+	require.Equal(t, int64(1), flag.Init.Int)
+
+	origin := objectNamed(t, first, "origin")
+	require.Equal(t, "Point", origin.Type.Use)
+	require.Equal(t, 24, origin.Type.Size)
+
+	add := funcNamed(t, first, "add")
+	require.NotNil(t, add.Body)
+	require.Equal(t, StmtBlock, add.Body.Kind)
+	require.Equal(t, StmtReturn, add.Body.Stmts[0].Kind)
+	require.Equal(t, ExprBinary, add.Body.Stmts[0].Expr.Kind)
+	require.Equal(t, OpAdd, add.Body.Stmts[0].Expr.Op)
+
+	proto := funcNamed(t, first, "proto")
+	require.Nil(t, proto.Body)
+	require.Contains(t, printed, "int proto(int a, int b);")
+}
+
+func TestParseRoundTrip(t *testing.T) {
+	t.Parallel()
+	const src = "#include <stdio.h>\n" +
+		"#include \"local.h\"\n" +
+		"#define SUM (1 << 2)\n" +
+		"#define EMPTY\n" +
+		"typedef struct Point {\n" +
+		"\tchar tag;\n" +
+		"\tint x;\n" +
+		"\tlong y;\n" +
+		"\tdouble z;\n" +
+		"} Point;\n" +
+		"struct Node {\n" +
+		"\tstruct Node *next;\n" +
+		"\tint value;\n" +
+		"};\n" +
+		"union Slot {\n" +
+		"\tint n;\n" +
+		"\tvoid *p;\n" +
+		"\tdouble d;\n" +
+		"};\n" +
+		"enum Color { RED, GREEN = 2, BLUE };\n" +
+		"typedef int Number;\n" +
+		"typedef int *Ptr;\n" +
+		"const int flag = 1;\n" +
+		"static Number count;\n" +
+		"extern double scale;\n" +
+		"int *cells[4];\n" +
+		"int (*row)[4];\n" +
+		"int tail[];\n" +
+		"_Bool on;\n" +
+		"int add(int a, int b);\n" +
+		"int *idp(int);\n" +
+		"int sum(int n) {\n" +
+		"\tint total = 0;\n" +
+		"\tif (n) {\n" +
+		"\t\treturn n;\n" +
+		"\t} else {\n" +
+		"\t\ttotal = 0;\n" +
+		"\t}\n" +
+		"\twhile (n) {\n" +
+		"\t\tn = count;\n" +
+		"\t}\n" +
+		"\tfor (total = 0; total < n; total = total + 1) {\n" +
+		"\t\tbreak;\n" +
+		"\t\tcontinue;\n" +
+		"\t}\n" +
+		"\tprintf(\"hi\");\n" +
+		"\treturn total;\n" +
+		"}\n" +
+		"struct Node *walk(struct Node *n) {\n" +
+		"\twhile (n) {\n" +
+		"\t\tn = n->next;\n" +
+		"\t}\n" +
+		"\treturn n;\n" +
+		"}\n"
+
+	first, printed := roundTrip(t, src)
+	require.Equal(t, "stdio.h", first.Decls[0].Include.Path)
+	require.True(t, first.Decls[0].Include.System)
+	require.Equal(t, "local.h", first.Decls[1].Include.Path)
+	require.False(t, first.Decls[1].Include.System)
+	require.Equal(t, int64(4), constNamed(t, first, "SUM").Value)
+	require.Equal(t, int64(0), constNamed(t, first, "EMPTY").Value)
+	require.Contains(t, printed, "#define SUM 4")
+
+	point := declNamed(t, first, "Point")
+	require.Equal(t, 24, point.Type.Size)
+	require.Equal(t, 8, point.Type.Align)
+	require.Equal(t, []int{0, 4, 8, 16}, offsets(point.Type))
+	require.Equal(t, []string{"char", "int", "long", "double"}, fieldSpells(point.Type))
+
+	node := typeTagged(t, first, "Node")
+	require.Equal(t, 16, node.Size)
+	require.Equal(t, 8, node.Align)
+	require.Equal(t, 0, node.Fields[0].Offset)
+	require.Equal(t, 8, node.Fields[1].Offset)
+	require.Equal(t, KindPointer, node.Fields[0].Type.Kind)
+	require.Equal(t, 8, node.Fields[0].Type.Size)
+
+	slot := typeTagged(t, first, "Slot")
+	require.Equal(t, KindUnion, slot.Kind)
+	require.Equal(t, 8, slot.Size)
+	require.Equal(t, 8, slot.Align)
+	require.Equal(t, []int{0, 0, 0}, offsets(slot))
+
+	color := typeTagged(t, first, "Color")
+	require.Equal(t, KindEnum, color.Kind)
+	require.Equal(t, 4, color.Size)
+	require.Equal(t, []int64{0, 2, 3}, enumValues(color))
+	require.Contains(t, printed, "GREEN = 2")
+
+	require.Equal(t, "bool", objectNamed(t, first, "on").Type.Spell)
+	require.Equal(t, 1, objectNamed(t, first, "on").Type.Size)
+
+	cells := objectNamed(t, first, "cells")
+	require.Equal(t, KindArray, cells.Type.Kind)
+	require.Equal(t, 4, cells.Type.Len)
+	require.Equal(t, 32, cells.Type.Size)
+	require.Equal(t, KindPointer, cells.Type.Elem.Kind)
+
+	row := objectNamed(t, first, "row")
+	require.Equal(t, KindPointer, row.Type.Kind)
+	require.Equal(t, 8, row.Type.Size)
+	require.Equal(t, KindArray, row.Type.Elem.Kind)
+	require.Equal(t, 4, row.Type.Elem.Len)
+	require.Equal(t, 16, row.Type.Elem.Size)
+
+	tail := objectNamed(t, first, "tail")
+	require.Equal(t, -1, tail.Type.Len)
+	require.Equal(t, 0, tail.Type.Size)
+
+	ptr := declNamed(t, first, "Ptr")
+	require.Equal(t, KindPointer, ptr.Type.Kind)
+	require.Equal(t, 8, ptr.Type.Size)
+
+	add := funcNamed(t, first, "add")
+	require.Nil(t, add.Body)
+	require.Contains(t, printed, "int add(int a, int b);")
+
+	idp := funcNamed(t, first, "idp")
+	require.Nil(t, idp.Body)
+	require.Equal(t, KindPointer, idp.Result.Kind)
+	require.Len(t, idp.Params, 1)
+	require.Empty(t, idp.Params[0].Name)
+	require.Equal(t, KindInteger, idp.Params[0].Type.Kind)
+
+	sum := funcNamed(t, first, "sum")
+	require.Equal(t, StmtBlock, sum.Body.Kind)
+	require.Equal(t, []StmtKind{
+		StmtDecl, StmtIf, StmtWhile, StmtFor, StmtExpr, StmtReturn,
+	}, stmtKinds(sum.Body.Stmts))
+	require.Equal(t, StmtReturn, sum.Body.Stmts[1].Body.Stmts[0].Kind)
+	require.Equal(t, StmtExpr, sum.Body.Stmts[1].Else.Stmts[0].Kind)
+	require.Equal(t, StmtExpr, sum.Body.Stmts[2].Body.Stmts[0].Kind)
+	require.Equal(t, StmtExpr, sum.Body.Stmts[3].Init.Kind)
+	require.Equal(t, ExprBinary, sum.Body.Stmts[3].Expr.Kind)
+	require.Equal(t, []StmtKind{StmtBreak, StmtContinue}, stmtKinds(sum.Body.Stmts[3].Body.Stmts))
+	require.Equal(t, ExprCall, sum.Body.Stmts[4].Expr.Kind)
+	require.Zero(t, sum.Storage)
+
+	count := objectNamed(t, first, "count")
+	require.Equal(t, StorageStatic, count.Storage)
+	require.Equal(t, "Number", count.Type.Use)
+	require.Equal(t, StorageExtern, objectNamed(t, first, "scale").Storage)
+
+	walk := funcNamed(t, first, "walk")
+	assign := walk.Body.Stmts[0].Body.Stmts[0].Expr
+	require.Equal(t, ExprAssign, assign.Kind)
+	require.True(t, assign.Right.Arrow)
+	require.Equal(t, "next", assign.Right.Text)
+}
+
+func TestQualifiedDeclarators(t *testing.T) {
+	t.Parallel()
+	const src = "int *const *p;\n" +
+		"typedef const struct T { int x; } Name;\n" +
+		"const struct T *q;\n" +
+		"int (*fp)(int);\n"
+	first, printed := roundTrip(t, src)
+	p := objectNamed(t, first, "p")
+	require.Equal(t, KindPointer, p.Type.Kind)
+	require.False(t, p.Type.Const)
+	require.True(t, p.Type.Elem.Const)
+	require.Equal(t, KindPointer, p.Type.Elem.Kind)
+	require.Contains(t, printed, "int *const *p;")
+
+	name := declNamed(t, first, "Name")
+	require.True(t, name.Define)
+	require.True(t, name.Type.Const)
+	require.Equal(t, KindStruct, name.Type.Of.Kind)
+	require.Equal(t, 4, name.Type.Size)
+	require.Equal(t, 0, name.Type.Of.Fields[0].Offset)
+	require.Contains(t, printed, "typedef const struct T {")
+
+	q := objectNamed(t, first, "q")
+	require.Equal(t, KindPointer, q.Type.Kind)
+	require.True(t, q.Type.Elem.Const)
+	require.Equal(t, "T", q.Type.Elem.Tag)
+
+	fp := objectNamed(t, first, "fp")
+	require.Equal(t, KindPointer, fp.Type.Kind)
+	require.Equal(t, KindFunction, fp.Type.Elem.Kind)
+	require.Equal(t, 8, fp.Type.Size)
+}
+
+func TestErrors(t *testing.T) {
+	t.Parallel()
+	_, err := Take(strings.NewReader("int ;\n"))
+	require.ErrorIs(t, err, errSyntax)
+
+	_, err = Take(strings.NewReader("#define ADD(a, b) ((a)+(b))\n"))
+	require.ErrorIs(t, err, errForm)
+
+	_, err = Take(strings.NewReader("#if 0\nint x;\n#endif\n"))
+	require.ErrorIs(t, err, errForm)
+
+	_, err = Take(strings.NewReader("struct S { int x : 1; };\n"))
+	require.ErrorIs(t, err, errForm)
+
+	_, err = Take(strings.NewReader("void f(void) { x += 1; }\n"))
+	require.ErrorIs(t, err, errForm)
+
+	_, err = Take(strings.NewReader("void f(void) { switch (x) { } }\n"))
+	require.ErrorIs(t, err, errForm)
+
+	_, err = Take(strings.NewReader("struct T { int x; };\nstruct T { int y; };\n"))
+	require.ErrorIs(t, err, errSyntax)
+}
+
+func roundTrip(t *testing.T, src string) (*File, string) {
+	t.Helper()
+	first, err := Take(strings.NewReader(src))
+	require.NoError(t, err)
+	var buf bytes.Buffer
+	require.NoError(t, first.Make(&buf))
+	second, err := Take(strings.NewReader(buf.String()))
+	require.NoError(t, err)
+	require.Equal(t, dump(first), dump(second), buf.String())
+	var again bytes.Buffer
+	require.NoError(t, second.Make(&again))
+	require.Equal(t, buf.String(), again.String())
+	return first, buf.String()
+}
+
+func declNamed(t *testing.T, f *File, name string) *TypeDecl {
+	t.Helper()
+	for _, d := range f.Decls {
+		if d.Kind == DeclType && d.Type != nil && d.Type.Name == name {
+			return d.Type
+		}
+	}
+	t.Fatalf("missing typedef %s\n%s", name, dump(f))
+	return nil
+}
+
+func typeTagged(t *testing.T, f *File, tag string) *Type {
+	t.Helper()
+	for _, d := range f.Decls {
+		if d.Kind == DeclType && d.Type != nil && d.Type.Type != nil && d.Type.Type.Tag == tag && d.Type.Define {
+			return d.Type.Type
+		}
+	}
+	t.Fatalf("missing tag %s\n%s", tag, dump(f))
+	return nil
+}
+
+func objectNamed(t *testing.T, f *File, name string) *Object {
+	t.Helper()
+	for _, d := range f.Decls {
+		if d.Kind == DeclObject && d.Object != nil && d.Object.Name == name {
+			return d.Object
+		}
+	}
+	t.Fatalf("missing object %s\n%s", name, dump(f))
+	return nil
+}
+
+func funcNamed(t *testing.T, f *File, name string) *Func {
+	t.Helper()
+	for _, d := range f.Decls {
+		if d.Kind == DeclFunc && d.Func != nil && d.Func.Name == name {
+			return d.Func
+		}
+	}
+	t.Fatalf("missing func %s\n%s", name, dump(f))
+	return nil
+}
+
+func constNamed(t *testing.T, f *File, name string) *Const {
+	t.Helper()
+	for _, d := range f.Decls {
+		if d.Kind == DeclConst && d.Const != nil && d.Const.Name == name {
+			return d.Const
+		}
+	}
+	t.Fatalf("missing const %s\n%s", name, dump(f))
+	return nil
+}
+
+func offsets(t *Type) []int {
+	out := make([]int, len(t.Fields))
+	for i, field := range t.Fields {
+		out[i] = field.Offset
+	}
+	return out
+}
+
+func enumValues(t *Type) []int64 {
+	out := make([]int64, len(t.Enums))
+	for i, item := range t.Enums {
+		out[i] = item.Value
+	}
+	return out
+}
+
+func fieldSpells(t *Type) []string {
+	out := make([]string, len(t.Fields))
+	for i, field := range t.Fields {
+		out[i] = field.Type.Spell
+	}
+	return out
+}
+
+func stmtKinds(list []*Stmt) []StmtKind {
+	out := make([]StmtKind, len(list))
+	for i, s := range list {
+		out[i] = s.Kind
+	}
+	return out
+}
+
+func dump(f *File) string {
+	var b strings.Builder
+	seen := map[*Type]int{}
+	next := 1
+	for _, d := range f.Decls {
+		if d == nil {
+			b.WriteString("nil\n")
+			continue
+		}
+		b.WriteString(d.Kind.String())
+		b.WriteByte(' ')
+		switch d.Kind {
+		case DeclInclude:
+			if d.Include != nil {
+				b.WriteString(d.Include.Path)
+				if d.Include.System {
+					b.WriteString(" system")
+				}
+			}
+		case DeclConst:
+			if d.Const != nil {
+				b.WriteString(d.Const.Name)
+				b.WriteByte('=')
+				b.WriteString(itoa(d.Const.Value))
+			}
+		case DeclType:
+			writeTypeDecl(&b, d.Type, seen, &next)
+		case DeclFunc:
+			writeFunc(&b, d.Func, seen, &next)
+		case DeclObject:
+			writeObject(&b, d.Object, seen, &next)
+		}
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+func writeTypeDecl(b *strings.Builder, d *TypeDecl, seen map[*Type]int, next *int) {
+	if d == nil {
+		return
+	}
+	b.WriteString(d.Name)
+	if d.Define {
+		b.WriteString(" define")
+	}
+	b.WriteByte(' ')
+	writeType(b, d.Type, seen, next)
+}
+
+func writeFunc(b *strings.Builder, fn *Func, seen map[*Type]int, next *int) {
+	if fn == nil {
+		return
+	}
+	b.WriteString(fn.Name)
+	b.WriteByte(' ')
+	b.WriteString(fn.Storage.String())
+	if fn.Inline {
+		b.WriteString(" inline")
+	}
+	if fn.Variadic {
+		b.WriteString(" variadic")
+	}
+	b.WriteString(" -> ")
+	writeType(b, fn.Result, seen, next)
+	b.WriteString(" (")
+	for i, param := range fn.Params {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		if param == nil {
+			continue
+		}
+		b.WriteString(param.Name)
+		b.WriteByte(':')
+		writeType(b, param.Type, seen, next)
+	}
+	b.WriteString(") ")
+	writeStmt(b, fn.Body, seen, next)
+}
+
+func writeObject(b *strings.Builder, obj *Object, seen map[*Type]int, next *int) {
+	if obj == nil {
+		return
+	}
+	b.WriteString(obj.Name)
+	b.WriteByte(' ')
+	b.WriteString(obj.Storage.String())
+	b.WriteByte(' ')
+	writeType(b, obj.Type, seen, next)
+	if obj.Init != nil {
+		b.WriteString(" = ")
+		writeExpr(b, obj.Init, seen, next)
+	}
+}
+
+func writeType(b *strings.Builder, t *Type, seen map[*Type]int, next *int) {
+	if t == nil {
+		b.WriteString("nil")
+		return
+	}
+	if id, ok := seen[t]; ok {
+		b.WriteByte('#')
+		b.WriteString(itoa(int64(id)))
+		return
+	}
+	id := *next
+	*next++
+	seen[t] = id
+	b.WriteByte('#')
+	b.WriteString(itoa(int64(id)))
+	b.WriteByte('{')
+	b.WriteString(t.Kind.String())
+	b.WriteString(" s=")
+	b.WriteString(itoa(int64(t.Size)))
+	b.WriteString(" a=")
+	b.WriteString(itoa(int64(t.Align)))
+	if t.Signed {
+		b.WriteString(" signed")
+	}
+	if t.Const {
+		b.WriteString(" const")
+	}
+	if t.Volatile {
+		b.WriteString(" volatile")
+	}
+	if t.Spell != "" {
+		b.WriteString(" spell=")
+		b.WriteString(t.Spell)
+	}
+	if t.Use != "" {
+		b.WriteString(" use=")
+		b.WriteString(t.Use)
+	}
+	if t.Tag != "" {
+		b.WriteString(" tag=")
+		b.WriteString(t.Tag)
+	}
+	if t.Kind == KindArray {
+		b.WriteString(" len=")
+		b.WriteString(itoa(int64(t.Len)))
+	}
+	if t.Variadic {
+		b.WriteString(" variadic")
+	}
+	if t.Of != nil {
+		b.WriteString(" of=")
+		writeType(b, t.Of, seen, next)
+	}
+	if t.Elem != nil {
+		b.WriteString(" elem=")
+		writeType(b, t.Elem, seen, next)
+	}
+	for _, field := range t.Fields {
+		b.WriteString(" field ")
+		if field == nil {
+			b.WriteString("nil")
+			continue
+		}
+		b.WriteString(field.Name)
+		b.WriteByte('@')
+		b.WriteString(itoa(int64(field.Offset)))
+		b.WriteByte(':')
+		writeType(b, field.Type, seen, next)
+	}
+	for _, item := range t.Enums {
+		b.WriteString(" enum ")
+		if item == nil {
+			b.WriteString("nil")
+			continue
+		}
+		b.WriteString(item.Name)
+		b.WriteByte('=')
+		b.WriteString(itoa(item.Value))
+	}
+	for _, param := range t.Params {
+		b.WriteString(" param ")
+		if param == nil {
+			b.WriteString("nil")
+			continue
+		}
+		b.WriteString(param.Name)
+		b.WriteByte(':')
+		writeType(b, param.Type, seen, next)
+	}
+	b.WriteByte('}')
+}
+
+func writeStmt(b *strings.Builder, s *Stmt, seen map[*Type]int, next *int) {
+	if s == nil {
+		b.WriteString("nil")
+		return
+	}
+	b.WriteString(s.Kind.String())
+	b.WriteByte('(')
+	if s.Expr != nil {
+		writeExpr(b, s.Expr, seen, next)
+	}
+	if s.Init != nil {
+		b.WriteString(" init=")
+		writeStmt(b, s.Init, seen, next)
+	}
+	if s.Post != nil {
+		b.WriteString(" post=")
+		writeExpr(b, s.Post, seen, next)
+	}
+	if s.Body != nil {
+		b.WriteString(" body=")
+		writeStmt(b, s.Body, seen, next)
+	}
+	if s.Else != nil {
+		b.WriteString(" else=")
+		writeStmt(b, s.Else, seen, next)
+	}
+	for _, child := range s.Stmts {
+		b.WriteByte(' ')
+		writeStmt(b, child, seen, next)
+	}
+	for _, obj := range s.Objects {
+		b.WriteString(" obj=")
+		writeObject(b, obj, seen, next)
+	}
+	b.WriteByte(')')
+}
+
+func writeExpr(b *strings.Builder, e *Expr, seen map[*Type]int, next *int) {
+	if e == nil {
+		b.WriteString("nil")
+		return
+	}
+	b.WriteString(e.Kind.String())
+	if e.Op != 0 {
+		b.WriteByte(':')
+		b.WriteString(e.Op.String())
+	}
+	if e.Text != "" {
+		b.WriteByte(' ')
+		b.WriteString(e.Text)
+	}
+	if e.Kind == ExprInt || e.Kind == ExprChar {
+		b.WriteByte(' ')
+		b.WriteString(itoa(e.Int))
+	}
+	if e.Kind == ExprFloat {
+		b.WriteByte(' ')
+		b.WriteString(strings.TrimRight(strings.TrimRight(formatFloat(e.Float), "0"), "."))
+	}
+	if e.Arrow {
+		b.WriteString(" arrow")
+	}
+	if e.Type != nil {
+		b.WriteString(" type=")
+		writeType(b, e.Type, seen, next)
+	}
+	if e.Left != nil {
+		b.WriteString(" left=")
+		writeExpr(b, e.Left, seen, next)
+	}
+	if e.Right != nil {
+		b.WriteString(" right=")
+		writeExpr(b, e.Right, seen, next)
+	}
+	for _, arg := range e.Args {
+		b.WriteString(" arg=")
+		writeExpr(b, arg, seen, next)
+	}
+}
+
+func itoa(v int64) string {
+	return strconv.FormatInt(v, 10)
 }
