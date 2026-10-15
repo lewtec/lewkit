@@ -37,6 +37,7 @@ Inherited C (cite the file):
 - `path:x/ndarray/image`: pack `(h,w,4)` into `image.RGBA`.
 - `path:x/image`: CPU blit and `Label`.
 - `path:x/image/convert`: pad and resize an image. PNG, JPEG, ICO, and ICNS are subpackages. SVG documents are `x/image/convert/svg`.
+- `path:x/net/gemini`: Gemini protocol client and text/gemini parser. `x/net` names protocol packages and has no Go API.
 - `path:examples`: triangle, perlin, fractal, and compute demos.
 - templ is the web toolkit. A tag for one registered asset lives in that asset package. Page templates live in `x/ui/web`.
 
@@ -271,6 +272,8 @@ Inherited C (cite the file):
 | `x/text/table` | `Format`, `Write`, `Column`, `Formatter`, `View`, `Make` | value | one writer for table, jsonl, and csv; `Make` builds a `View` once from a row type and a spec struct of `Field`s; a column spec picks order and replaces formats | unknown format is `ErrFormat`; a bad column is `ErrColumn` | import `x/cmd` |
 | `x/period` | `Range`, `Parse`, `ParseDate`, `Classify`, `Kind`, `BinKind`, `ChartBin`, `IterateBins`, `Shift`, `At`, `DisplayLabel` | inclusive Fava-style calendar filter | ranges, chart bins, and navbar shifts stay here; `Kind` zero is all time; an unknown `BinKind` prints as month | `ErrTimeRangeOrder`, `ErrEmptyInterval`, `ErrInvalidISOWeek`, `ErrInvalidMonth`, `ErrUnrecognizedFilter`, `ErrUnknownRelUnit`, `ErrShiftOpenEnded`, `ErrShiftEmpty`, `ErrDate`, `ErrKind`, `ErrBinKind` | import `x/driver` |
 | `x/http/cmdpalette` | `Palette`, `Item`, `Button`, `Modal`, `DaisyButton`, `DaisyModal`, `Assets`, `Script` | Cmd+K / Ctrl+K catalog | one script toggles `cmdpalette-active` and `menu-active`; plain `Modal` does not use daisyUI `menu` | a row without an href or a label is dropped | a second copy of the script |
+| `x/net` | no Go API | names protocol packages | MUST NOT grow a client in the parent | the directory has no Go package | import `x/net` |
+| `x/net/gemini` | `Client`, `Fetch`, `NormalizeURL`, `ResolveURL`, `ReadResponse`, `ParseGemtext`, `FormatGemtext`, `Document`, `Line`, `Kind`, `StatusCategory`, `Category` | a `gemini://` response and a text/gemini document | the protocol and the gemtext parser stay here; `Kind` and `StatusCategory` are generated enums | a nil context is `ErrNilContext`; a bad URL is `ErrInvalidURL`; a bad header is `ErrBadHeader`; more than five redirects is `ErrTooManyHops`; a dial or body failure is `ErrStatusFailed`; unknown enum text is `ErrKind` or `ErrStatusCategory` | import `x/driver`; import `x/ui` |
 | `examples` | programs, not a library | demo | demos MAY stay | program failure | import `examples` from a library package |
 
 ## Invariants
@@ -380,6 +383,7 @@ Inherited C (cite the file):
 | INV-101 | `x/ffi/clib` does not import `x/ffi/native`, `x/ffi/jni`, or `examples`. `x/generate/clib` does not import `x/ffi/clib` | those packages | that import |
 | INV-102 | `x/image/convert` does not import `png`, `jpeg`, `ico`, `icns`, `file`, or `svg`. `x/image/convert/svg` does not import `x/image/convert` or `x/image/convert/svg/render`. `x/image/convert/file` does not import `x/image/convert/svg`. `png` and `jpeg` do not import `ico`, `icns`, or `file` | those packages | that import |
 | INV-103 | `x/disasm/decomp/view` does not embed a second command-palette script. The jump dialog is `x/http/cmdpalette` | `x/disasm/decomp/view` | a copy of the palette script in this package |
+| INV-104 | `x/net` has no Go package. `x/net/gemini` does not import `x/driver` or `x/ui` | those paths | a client in `x/net`; that import |
 
 ## Errors
 
@@ -472,6 +476,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: The Gemini protocol client and text/gemini parser live in `x/net/gemini`. `x/net` names protocol packages and has no Go API. HTTP stays in `x/http`, `x/driver/httpclient`, and `x/driver/fetchurl`. Rejected: a top-level `x/gemini`; moving HTTP under `x/net`. No gopher, finger, spartan, or nex client is in the tree.
 - 2026-10-15: `x/image/convert` pads and resizes an image. PNG, JPEG, ICO, and ICNS encode and decode in their own packages. `x/image/convert/file` reads bytes whose header names one of those four. SVG bytes become an image in `x/image/convert/svg/render`. Rejected: format codecs in the geometry package.
 - 2026-10-15: Calendar filters live in `x/period`. An SVG document lives in `x/image/convert/svg` and its raster in `x/image/convert/svg/render`. The command palette lives in `x/http/cmdpalette`, and `lewkit decomp view` uses that dialog. Rejected: a top-level `x/svg`; a second palette script in `x/disasm/decomp/view`; a resvg fuzz target in the SVG package.
 - 2026-10-14: A CPU image window paints the recorded fills and glyph ink. The fused kernel stays when a GPU evaluator is open. Rejected: interpreting that kernel once per framebuffer pixel on the guest.
