@@ -476,6 +476,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: The gemini example imports `x/net/gemini`. The copy in `x/gemini` is gone. Status values stay the same codes.
 - 2026-10-15: A Gemini server takes its certificate the way `net/http` does. `Server.TLSConfig` holds it. `ListenAndServeTLS` and `ServeTLS` take `certFile` and `keyFile` when the config has none. Rejected: generating a certificate inside `Listen`.
 - 2026-10-15: Gemini `Fetch`, `ListenAndServeTLS`, `ServeTLS`, and `Serve` use the caller context. A nil context panics at `ctx.Err`. A cancelled context returns that error. Rejected: comparing `ctx` to nil and returning `ErrNilContext`.
 - 2026-10-15: `x/net/gemini` serves the protocol as well as fetching it. Status codes are the generated enum `Code`. Rejected: a second package for the server.

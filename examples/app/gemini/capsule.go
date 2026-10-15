@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/gemini"
+	"github.com/lewtec/lewkit/x/net/gemini"
 )
 
 const defaultHomeURL = "gemini://home/"
@@ -153,38 +153,38 @@ func serveBuiltinCapsule(_ context.Context, target *url.URL) (gemini.Response, e
 	switch path {
 	case "/":
 		return gemini.Response{
-			Status: 20,
+			Status: gemini.CodeSuccess,
 			Meta:   "text/gemini; charset=utf-8",
 			Body:   []byte(builtinPages[0].body),
 		}, nil
 	case "/spec":
 		return gemini.Response{
-			Status: 20,
+			Status: gemini.CodeSuccess,
 			Meta:   "text/gemini; charset=utf-8",
 			Body:   []byte(builtinPages[1].body),
 		}, nil
 	case "/animations":
 		return gemini.Response{
-			Status: 20,
+			Status: gemini.CodeSuccess,
 			Meta:   "text/gemini; charset=utf-8",
 			Body:   []byte(builtinPages[2].body),
 		}, nil
 	case "/poetry":
 		return gemini.Response{
-			Status: 20,
+			Status: gemini.CodeSuccess,
 			Meta:   "text/gemini; charset=utf-8",
 			Body:   []byte(builtinPages[3].body),
 		}, nil
 	case "/redirect":
 		return gemini.Response{
-			Status: 31,
+			Status: gemini.CodeRedirectPermanent,
 			Meta:   "gemini://home/animations",
 		}, nil
 	case "/search":
 		q := strings.TrimSpace(target.RawQuery)
 		if q == "" {
 			return gemini.Response{
-				Status: 10,
+				Status: gemini.CodeInput,
 				Meta:   "Enter a search keyword (e.g. spring, gemini, haiku, status):",
 			}, nil
 		}
@@ -193,13 +193,13 @@ func serveBuiltinCapsule(_ context.Context, target *url.URL) (gemini.Response, e
 			decoded = q
 		}
 		return gemini.Response{
-			Status: 20,
+			Status: gemini.CodeSuccess,
 			Meta:   "text/gemini; charset=utf-8",
 			Body:   []byte(renderSearchResults(decoded)),
 		}, nil
 	default:
 		return gemini.Response{
-			Status: 51,
+			Status: gemini.CodeNotFound,
 			Meta:   fmt.Sprintf("capsule page %q not found on gemini://home", target.Path),
 		}, nil
 	}
