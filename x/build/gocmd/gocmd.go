@@ -7,7 +7,6 @@ package gocmd
 import (
 	"context"
 
-	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
 
@@ -55,19 +54,19 @@ func (c Command) Run(ctx context.Context) error {
 }
 
 func (c Command) exec(ctx context.Context, verb string) error {
-	return run(ctx, "go", c.Dir, c.Env, append([]string{verb, "-v"}, c.Args...)...)
+	return taskgroup.RunCommand(ctx, "go", c.Dir, c.Env, append([]string{verb, "-v"}, c.Args...)...)
 }
 
 // Tool runs name as one IO task through the exec driver.
 // Stdout and stderr share that task's progress row.
 func Tool(ctx context.Context, name, dir string, env []string, args ...string) error {
 	if taskgroup.FromContext(ctx) == nil {
-		return run(ctx, name, dir, env, args...)
+		return taskgroup.RunCommand(ctx, name, dir, env, args...)
 	}
 	errCh := make(chan error, 1)
 	taskgroup.Go(ctx, name, taskgroup.IO, func(ctx context.Context, st *taskgroup.Status) error {
 		st.Update(name)
-		err := run(ctx, name, dir, env, args...)
+		err := taskgroup.RunCommand(ctx, name, dir, env, args...)
 		errCh <- err
 		return err
 	})
@@ -77,16 +76,4 @@ func Tool(ctx context.Context, name, dir string, env []string, args ...string) e
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-func run(ctx context.Context, name, dir string, env []string, args ...string) error {
-	cmd := execdriver.MustCommand(ctx, name, args...)
-	cmd.Dir = dir
-	if env != nil {
-		cmd.Env = env
-	}
-	out := taskgroup.LineWriterFrom(ctx)
-	cmd.Stdout = out
-	cmd.Stderr = out
-	return execdriver.Run(ctx, cmd)
 }

@@ -478,6 +478,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: A child process whose stdout and stderr share the session line writer is `taskgroup.RunCommand`. The host Go command and the glslang wasm build use it. A nil env still leaves the child environment alone.
 - 2026-10-15: The longest file suffix and the longest magic prefix are `compression.LongestExtension` and `compression.LongestMagic`. `compression.Match` tries the suffix first. Codec lookup and sound decoders both use that. A taken name is `compression.HasName`. The register errors stay "nil codec", "already registered", "nil decoder", and "decoder already registered".
 - 2026-10-15: ccgo, leaven, and wazero resolve a grammar through `treesitter.Lookup` and parse through `treesitter.Run`. Leaven still recovers a lexer panic. Each engine still names its own grammar.
 - 2026-10-15: An all-ASCII digit string is `text.Digits`. Conda epochs and download names use that. Empty is false.

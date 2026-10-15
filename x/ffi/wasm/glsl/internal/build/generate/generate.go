@@ -286,19 +286,7 @@ func (b *wasmBox) link(ctx context.Context, st *taskgroup.Status) error {
 
 func mise(ctx context.Context, env []string, dir string, args ...string) error {
 	cmdArgs := append([]string{"exec", "conda:emscripten@4.0.9", "conda:cmake@4.4.3", "conda:ninja@1.13.2", "--"}, args...)
-	return commandRun(ctx, env, dir, "mise", cmdArgs...)
-}
-
-func commandRun(ctx context.Context, env []string, dir, name string, args ...string) error {
-	cmd := execdriver.MustCommand(ctx, name, args...)
-	cmd.Dir = dir
-	if env != nil {
-		cmd.Env = env
-	}
-	out := taskgroup.LineWriterFrom(ctx)
-	cmd.Stdout = out
-	cmd.Stderr = out
-	return execdriver.Run(ctx, cmd)
+	return taskgroup.RunCommand(ctx, "mise", dir, env, cmdArgs...)
 }
 
 func commandOutput(ctx context.Context, dir, name string, args ...string) (string, error) {
