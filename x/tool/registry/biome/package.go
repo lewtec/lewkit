@@ -63,17 +63,12 @@ func (t *biomeTool) Install(ctx context.Context, version string, destDir string)
 }
 
 func (t *biomeTool) Pin() tool.Pin {
-	var pin tool.Pin
-	if pinner, ok := t.inner.(tool.Pinner); ok {
-		pin = pinner.Pin()
-	}
-	pin.Versioning = "semver"
+	pin := tool.InheritSemver(t.inner)
 	// Renovate sees the real GitHub tag; lock stores the semver we expose.
 	// extractVersionTemplate lets Renovate match @biomejs/biome@2.5.0 tags.
 	if pin.ExtractVersion == "" {
 		pin.ExtractVersion = `^@biomejs/biome@(?<version>\d+\.\d+\.\d+)$`
 	}
-
 	return pin
 }
 

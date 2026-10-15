@@ -79,3 +79,13 @@ type Pinner interface {
 func SemverPin() Pin {
 	return Pin{Versioning: "semver"}
 }
+
+// InheritSemver copies a pin from inner when inner is a Pinner, then sets Versioning to semver.
+func InheritSemver(inner any) Pin {
+	var pin Pin
+	if pinner, ok := inner.(Pinner); ok {
+		pin = pinner.Pin()
+	}
+	pin.Versioning = "semver"
+	return pin
+}

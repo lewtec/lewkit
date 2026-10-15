@@ -56,12 +56,7 @@ func (t *obsidianTool) Install(ctx context.Context, version, destDir string) err
 }
 
 func (t *obsidianTool) Pin() tool.Pin {
-	var pin tool.Pin
-	if pinner, ok := t.inner.(tool.Pinner); ok {
-		pin = pinner.Pin()
-	}
-	pin.Versioning = "semver"
-	return pin
+	return tool.InheritSemver(t.inner)
 }
 
 func (t *obsidianTool) ListArtifacts(ctx context.Context, version string) ([]tool.Artifact, error) {
