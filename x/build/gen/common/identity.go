@@ -22,6 +22,16 @@ type HostConfig struct {
 	Capabilities Capabilities `json:"capabilities,omitempty"`
 }
 
+// WithDefaults applies ApplyHostDefaults and converts the host record back.
+func WithDefaults[C any](ctx context.Context, cfg C, host func(C) HostConfig, from func(HostConfig) C) (C, error) {
+	id, err := ApplyHostDefaults(ctx, host(cfg))
+	if err != nil {
+		var zero C
+		return zero, err
+	}
+	return from(id), nil
+}
+
 // ApplyHostDefaults trims identity fields, fills empty app name / version / go_main,
 // and validates the package id and capabilities.
 // ctx is the caller's context. Git reads for a missing version stop when it ends.
