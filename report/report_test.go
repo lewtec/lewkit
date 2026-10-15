@@ -2,6 +2,7 @@ package report
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/errs"
@@ -26,6 +27,18 @@ func TestDoNotReportKeepsTheText(t *testing.T) {
 	require.EqualError(t, err, "missing --project")
 	require.ErrorIs(t, err, ErrDontReport)
 	require.ErrorIs(t, err, errs.ErrMissing)
+	require.NotContains(t, err.Error(), ErrDontReport.Error())
+
+	wrapped := fmt.Errorf("decomp view: %w", err)
+	require.EqualError(t, wrapped, "decomp view: missing --project")
+	require.ErrorIs(t, wrapped, ErrDontReport)
+	require.ErrorIs(t, wrapped, errs.ErrMissing)
+
+	cause := DoNotReport(fmt.Errorf("read: %w", errBoom))
+	require.EqualError(t, cause, "read: boom")
+	require.ErrorIs(t, cause, errBoom)
+	require.ErrorIs(t, cause, ErrDontReport)
+
 	require.NoError(t, DoNotReport(nil))
 	require.Equal(t, err, DoNotReport(err))
 }

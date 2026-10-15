@@ -17,20 +17,21 @@ func DoNotReport(err error) error {
 	if err == nil || errors.Is(err, ErrDontReport) {
 		return err
 	}
-	return dontReport{error: err}
+	return dontReport{err: err}
 }
 
-// dontReport unwraps to the original error and matches ErrDontReport.
+// dontReport keeps err's text. Unwrap lists err and ErrDontReport
+// so errors.Is matches both, without joining the two texts.
 type dontReport struct {
-	error
+	err error
 }
 
-func (dontReport) Is(target error) bool {
-	return target == ErrDontReport
+func (e dontReport) Error() string {
+	return e.err.Error()
 }
 
-func (e dontReport) Unwrap() error {
-	return e.error
+func (e dontReport) Unwrap() []error {
+	return []error{e.err, ErrDontReport}
 }
 
 var reporters []Reporter
