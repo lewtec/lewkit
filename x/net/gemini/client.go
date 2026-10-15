@@ -23,13 +23,14 @@ const (
 )
 
 var (
-	ErrInvalidURL   = errs.Wrap(errs.ErrInvalid, "invalid gemini url")
-	ErrBadHeader    = errs.Wrap(errs.ErrSyntax, "invalid gemini response header")
-	ErrTooManyHops  = errs.Wrap(errs.ErrOutOfRange, "too many gemini redirects")
-	ErrStatusFailed = errs.Wrap(errs.ErrUnavailable, "gemini status error")
-	ErrServe        = errs.Wrap(errs.ErrUnavailable, "gemini serve")
-	ErrNoHandler    = errs.Wrap(errs.ErrMissing, "gemini handler")
-	ErrNoListener   = errs.Wrap(errs.ErrMissing, "gemini listener")
+	ErrInvalidURL    = errs.Wrap(errs.ErrInvalid, "invalid gemini url")
+	ErrBadHeader     = errs.Wrap(errs.ErrSyntax, "invalid gemini response header")
+	ErrTooManyHops   = errs.Wrap(errs.ErrOutOfRange, "too many gemini redirects")
+	ErrStatusFailed  = errs.Wrap(errs.ErrUnavailable, "gemini status error")
+	ErrServe         = errs.Wrap(errs.ErrUnavailable, "gemini serve")
+	ErrNoHandler     = errs.Wrap(errs.ErrMissing, "gemini handler")
+	ErrNoListener    = errs.Wrap(errs.ErrMissing, "gemini listener")
+	ErrNoCertificate = errs.Wrap(errs.ErrMissing, "gemini certificate")
 )
 
 // StatusCategory classifies a two-digit Gemini status code by its leading digit.

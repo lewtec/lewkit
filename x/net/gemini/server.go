@@ -2,15 +2,9 @@ package gemini
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
 	"fmt"
 	"io"
-	"math/big"
 	"net"
 	"strings"
 	"time"
@@ -19,36 +13,66 @@ import (
 const maxRequestSize = 1024
 
 // Server answers one Gemini request per connection.
-// Handler runs for each request. A nil Handler is [ErrNoHandler].
+// Addr is the [Server.ListenAndServeTLS] address. Empty means ":1965".
+// TLSConfig supplies the certificate for [Server.ServeTLS] and [Server.ListenAndServeTLS].
+// Those methods load certFile and keyFile when the config has no certificate.
 type Server struct {
-	Handler Handler
+	Addr      string
+	Handler   Handler
+	TLSConfig *tls.Config
 }
 
-// Listen opens a TLS listener for Gemini.
-// An empty addr listens on 127.0.0.1:0. The certificate is ephemeral and self-signed.
-func Listen(ctx context.Context, addr string) (net.Listener, error) {
+// ListenAndServeTLS listens on addr and serves Gemini until ctx is canceled.
+// certFile and keyFile are passed the way [http.ListenAndServeTLS] passes them.
+func ListenAndServeTLS(ctx context.Context, addr, certFile, keyFile string, handler Handler) error {
+	return (&Server{Addr: addr, Handler: handler}).ListenAndServeTLS(ctx, certFile, keyFile)
+}
+
+// ListenAndServeTLS listens on [Server.Addr] and then calls [Server.ServeTLS].
+// An empty Addr uses ":1965".
+// certFile and keyFile are required when TLSConfig has no certificate,
+// matching [http.Server.ListenAndServeTLS].
+func (server *Server) ListenAndServeTLS(ctx context.Context, certFile, keyFile string) error {
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return err
 	}
-	addr = strings.TrimSpace(addr)
+	if server == nil || server.Handler == nil {
+		return ErrNoHandler
+	}
+	addr := strings.TrimSpace(server.Addr)
 	if addr == "" {
-		addr = "127.0.0.1:0"
+		addr = ":1965"
 	}
-	cert, err := selfSigned()
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrServe, err)
+		return fmt.Errorf("%w: %w", ErrServe, err)
 	}
-	ln, err := tls.Listen("tcp", addr, &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-	})
+	defer ln.Close()
+	return server.ServeTLS(ctx, ln, certFile, keyFile)
+}
+
+// ServeTLS accepts on ln, wraps each connection in TLS, and calls [Server.Serve].
+// certFile and keyFile are required when TLSConfig has no certificate,
+// matching [http.Server.ServeTLS].
+func (server *Server) ServeTLS(ctx context.Context, ln net.Listener, certFile, keyFile string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if server == nil || server.Handler == nil {
+		return ErrNoHandler
+	}
+	if ln == nil {
+		return ErrNoListener
+	}
+	config, err := server.tlsConfig(certFile, keyFile)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrServe, err)
+		return err
 	}
-	return ln, nil
+	return server.Serve(ctx, tls.NewListener(ln, config))
 }
 
 // Serve accepts from ln until ctx is canceled.
+// ln already speaks TLS, as with [http.Server.Serve].
 func (server *Server) Serve(ctx context.Context, ln net.Listener) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -78,6 +102,27 @@ func (server *Server) Serve(ctx context.Context, ln net.Listener) error {
 		}
 		go server.serve(ctx, conn)
 	}
+}
+
+// tlsConfig clones TLSConfig and installs certFile and keyFile when the
+// config has no certificate, or when a file path is set.
+func (server *Server) tlsConfig(certFile, keyFile string) (*tls.Config, error) {
+	config := &tls.Config{}
+	if server != nil && server.TLSConfig != nil {
+		config = server.TLSConfig.Clone()
+	}
+	hasCert := len(config.Certificates) > 0 || config.GetCertificate != nil || config.GetConfigForClient != nil
+	if !hasCert || certFile != "" || keyFile != "" {
+		cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrNoCertificate, err)
+		}
+		config.Certificates = []tls.Certificate{cert}
+	}
+	if config.MinVersion == 0 {
+		config.MinVersion = tls.VersionTLS12
+	}
+	return config, nil
 }
 
 func (server *Server) serve(ctx context.Context, conn net.Conn) {
@@ -154,31 +199,4 @@ func cleanMeta(meta string) string {
 		meta = meta[:1024]
 	}
 	return meta
-}
-
-func selfSigned() (tls.Certificate, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	now := time.Now()
-	template := &x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "localhost"},
-		NotBefore:    now.Add(-time.Hour),
-		NotAfter:     now.Add(24 * time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		DNSNames:     []string{"localhost"},
-		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
-	}
-	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	if err != nil {
-		return tls.Certificate{}, err
-	}
-	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, nil
 }

@@ -3,11 +3,22 @@ package gemini
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"io"
+	"math/big"
+	"net"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,33 +60,57 @@ func TestWriteAndReadResponse(t *testing.T) {
 }
 
 func TestListenAndServeGuards(t *testing.T) {
-	require.Panics(t, func() { _, _ = Listen(nil, "127.0.0.1:0") })
+	require.Panics(t, func() { _ = ListenAndServeTLS(nil, "127.0.0.1:0", "", "", serveCapsule) })
+	require.Panics(t, func() { _ = (&Server{}).ServeTLS(nil, nil, "", "") })
 	require.Panics(t, func() { _ = (&Server{}).Serve(nil, nil) })
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, err := Listen(ctx, "127.0.0.1:0")
+	err := (&Server{Handler: serveCapsule}).ListenAndServeTLS(ctx, "", "")
+	require.ErrorIs(t, err, context.Canceled)
+	err = (&Server{Handler: serveCapsule}).ServeTLS(ctx, nil, "", "")
 	require.ErrorIs(t, err, context.Canceled)
 	err = (&Server{}).Serve(ctx, nil)
 	require.ErrorIs(t, err, context.Canceled)
 
 	err = (&Server{}).Serve(t.Context(), nil)
 	require.ErrorIs(t, err, ErrNoHandler)
-
-	err = (&Server{Handler: func(context.Context, *url.URL) (Response, error) {
-		return Response{}, nil
-	}}).Serve(t.Context(), nil)
+	err = (&Server{Handler: serveCapsule}).Serve(t.Context(), nil)
 	require.ErrorIs(t, err, ErrNoListener)
+	err = (&Server{Handler: serveCapsule}).ServeTLS(t.Context(), nil, "", "")
+	require.ErrorIs(t, err, ErrNoListener)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	err = (&Server{Handler: serveCapsule}).ServeTLS(t.Context(), ln, "", "")
+	require.ErrorIs(t, err, ErrNoCertificate)
 }
 
 func TestClientFetchesServer(t *testing.T) {
-	ln, err := Listen(t.Context(), "127.0.0.1:0")
+	cert, err := selfSigned()
+	require.NoError(t, err)
+	t.Run("config", func(t *testing.T) {
+		fetchCapsule(t, &Server{
+			Handler:   serveCapsule,
+			TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+		}, "", "")
+	})
+	t.Run("files", func(t *testing.T) {
+		certFile, keyFile := writeKeyPair(t, cert)
+		fetchCapsule(t, &Server{Handler: serveCapsule}, certFile, keyFile)
+	})
+}
+
+func fetchCapsule(t *testing.T, server *Server, certFile, keyFile string) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	errc := make(chan error, 1)
 	go func() {
-		errc <- (&Server{Handler: serveCapsule}).Serve(ctx, ln)
+		errc <- server.ServeTLS(ctx, ln, certFile, keyFile)
 	}()
 
 	client := &Client{}
@@ -123,4 +158,45 @@ func serveCapsule(_ context.Context, target *url.URL) (Response, error) {
 	default:
 		return Response{Status: CodeNotFound, Meta: "not found"}, nil
 	}
+}
+
+func selfSigned() (tls.Certificate, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	now := time.Now()
+	template := &x509.Certificate{
+		SerialNumber: serial,
+		Subject:      pkix.Name{CommonName: "localhost"},
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames:     []string{"localhost"},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1"), net.ParseIP("::1")},
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}, nil
+}
+
+func writeKeyPair(t *testing.T, cert tls.Certificate) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	certFile := filepath.Join(dir, "cert.pem")
+	keyFile := filepath.Join(dir, "key.pem")
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Certificate[0]})
+	keyDER, err := x509.MarshalPKCS8PrivateKey(cert.PrivateKey)
+	require.NoError(t, err)
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER})
+	require.NoError(t, os.WriteFile(certFile, certPEM, 0o600))
+	require.NoError(t, os.WriteFile(keyFile, keyPEM, 0o600))
+	return certFile, keyFile
 }
