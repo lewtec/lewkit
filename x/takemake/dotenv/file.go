@@ -2,7 +2,6 @@ package dotenv
 
 import (
 	"io"
-	"strings"
 
 	"github.com/lewtec/lewkit/x/errs"
 )
@@ -122,12 +121,10 @@ func (f *File) Make(w io.Writer) error {
 	if w == nil {
 		return ErrNilWriter
 	}
-	var b strings.Builder
 	for _, assignment := range f.Assignments {
-		if err := writeAssignment(&b, assignment); err != nil {
+		if err := writeAssignment(w, assignment); err != nil {
 			return err
 		}
 	}
-	_, err := io.WriteString(w, b.String())
-	return err
+	return nil
 }

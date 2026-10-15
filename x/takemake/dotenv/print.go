@@ -2,10 +2,11 @@ package dotenv
 
 import (
 	"fmt"
+	"io"
 	"strings"
 )
 
-func writeAssignment(b *strings.Builder, assignment *Assignment) error {
+func writeAssignment(w io.Writer, assignment *Assignment) error {
 	if assignment == nil {
 		return ErrNilAssignment
 	}
@@ -13,8 +14,7 @@ func writeAssignment(b *strings.Builder, assignment *Assignment) error {
 		if assignment.Value != "" || assignment.Export || assignment.Quote != 0 {
 			return ErrKey
 		}
-		writeComment(b, assignment.Comment)
-		return nil
+		return writeComment(w, assignment.Comment)
 	}
 	if err := validateKey(assignment.Key); err != nil {
 		return err
@@ -22,28 +22,61 @@ func writeAssignment(b *strings.Builder, assignment *Assignment) error {
 	if err := representable(assignment); err != nil {
 		return err
 	}
-	writeComment(b, assignment.Comment)
-	if assignment.Export {
-		b.WriteString("export ")
+	if err := writeComment(w, assignment.Comment); err != nil {
+		return err
 	}
-	b.WriteString(assignment.Key)
-	b.WriteByte('=')
+	if assignment.Export {
+		if err := writeString(w, "export "); err != nil {
+			return err
+		}
+	}
+	if err := writeString(w, assignment.Key); err != nil {
+		return err
+	}
+	if err := writeByte(w, '='); err != nil {
+		return err
+	}
 	switch assignment.Quote {
 	case QuoteDouble:
-		b.WriteByte('"')
-		b.WriteString(encodeDouble(assignment.Value))
-		b.WriteByte('"')
+		if err := writeByte(w, '"'); err != nil {
+			return err
+		}
+		if err := writeDouble(w, assignment.Value); err != nil {
+			return err
+		}
+		if err := writeByte(w, '"'); err != nil {
+			return err
+		}
 	case QuoteSingle:
-		b.WriteByte('\'')
-		b.WriteString(assignment.Value)
-		b.WriteByte('\'')
+		if err := writeByte(w, '\''); err != nil {
+			return err
+		}
+		if err := writeString(w, assignment.Value); err != nil {
+			return err
+		}
+		if err := writeByte(w, '\''); err != nil {
+			return err
+		}
 	case QuoteBare:
-		b.WriteString(assignment.Value)
+		if err := writeString(w, assignment.Value); err != nil {
+			return err
+		}
 	default:
 		return ErrQuote
 	}
-	b.WriteByte('\n')
-	return nil
+	return writeByte(w, '\n')
+}
+
+func writeString(w io.Writer, text string) error {
+	_, err := io.WriteString(w, text)
+	return err
+}
+
+func writeByte(w io.Writer, c byte) error {
+	var buf [1]byte
+	buf[0] = c
+	_, err := w.Write(buf[:])
+	return err
 }
 
 func validateKey(key string) error {
@@ -93,38 +126,61 @@ func bareOK(value string) bool {
 	return true
 }
 
-func writeComment(b *strings.Builder, comment string) {
+func writeComment(w io.Writer, comment string) error {
 	if comment == "" {
-		return
+		return nil
 	}
 	for line := range strings.SplitSeq(comment, "\n") {
-		b.WriteByte('#')
-		if line != "" {
-			b.WriteByte(' ')
-			b.WriteString(line)
+		if err := writeByte(w, '#'); err != nil {
+			return err
 		}
-		b.WriteByte('\n')
+		if line != "" {
+			if err := writeByte(w, ' '); err != nil {
+				return err
+			}
+			if err := writeString(w, line); err != nil {
+				return err
+			}
+		}
+		if err := writeByte(w, '\n'); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func encodeDouble(value string) string {
-	var b strings.Builder
-	b.Grow(len(value))
+func writeDouble(w io.Writer, value string) error {
+	start := 0
 	for i := 0; i < len(value); i++ {
+		var esc string
 		switch value[i] {
 		case '\\':
-			b.WriteString(`\\`)
+			esc = `\\`
 		case '"':
-			b.WriteString(`\"`)
+			esc = `\"`
 		case '\n':
-			b.WriteString(`\n`)
+			esc = `\n`
 		case '\r':
-			b.WriteString(`\r`)
+			esc = `\r`
 		case '\t':
-			b.WriteString(`\t`)
+			esc = `\t`
 		default:
-			b.WriteByte(value[i])
+			continue
 		}
+		if err := writeRaw(w, value, start, i); err != nil {
+			return err
+		}
+		if err := writeString(w, esc); err != nil {
+			return err
+		}
+		start = i + 1
 	}
-	return b.String()
+	return writeRaw(w, value, start, len(value))
+}
+
+func writeRaw(w io.Writer, value string, start, end int) error {
+	if start >= end {
+		return nil
+	}
+	return writeString(w, value[start:end])
 }

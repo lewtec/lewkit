@@ -163,6 +163,14 @@ func TestReadError(t *testing.T) {
 	require.ErrorIs(t, err, errs.ErrUnavailable)
 }
 
+func TestMakeWritesThrough(t *testing.T) {
+	t.Parallel()
+	var got countWriter
+	require.NoError(t, New().Assign("KEY", "value").Make(&got))
+	require.Greater(t, got.writes, 1)
+	require.Equal(t, "KEY=value\n", got.String())
+}
+
 func TestEmpty(t *testing.T) {
 	t.Parallel()
 	file, printed := takeMake(t, "\n\n")
@@ -205,4 +213,19 @@ type failReader struct{}
 
 func (failReader) Read([]byte) (int, error) {
 	return 0, errs.ErrUnavailable
+}
+
+type countWriter struct {
+	bytes.Buffer
+	writes int
+}
+
+func (c *countWriter) Write(p []byte) (int, error) {
+	c.writes++
+	return c.Buffer.Write(p)
+}
+
+func (c *countWriter) WriteString(s string) (int, error) {
+	c.writes++
+	return c.Buffer.WriteString(s)
 }
