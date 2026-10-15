@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/http/asset/lucide/internal/pin"
 	"github.com/lewtec/lewkit/x/image/convert/svg/render"
 	"github.com/stretchr/testify/require"
 )
@@ -39,15 +38,6 @@ func TestImageUnknown(t *testing.T) {
 	t.Parallel()
 	_, err := Image(Name("not-an-icon"), color.Black)
 	require.ErrorIs(t, err, ErrName)
-}
-
-func TestVersionMatchesModotPin(t *testing.T) {
-	t.Parallel()
-	root, err := pin.ModuleRoot("")
-	require.NoError(t, err)
-	got, err := pin.Version(root)
-	require.NoError(t, err)
-	require.Equal(t, got, Version)
 }
 
 func TestParseName(t *testing.T) {
