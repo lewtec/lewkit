@@ -271,7 +271,7 @@ func parseCircle(dec *xml.Decoder, start xml.StartElement, grads map[string]Line
 			}
 		}
 	}
-	c, err := applyCirclePaint(c, pa, grads)
+	c, err := applyPaint(c, pa, grads)
 	if err != nil {
 		return Node{}, err
 	}
@@ -320,7 +320,7 @@ func parseEllipse(dec *xml.Decoder, start xml.StartElement, grads map[string]Lin
 			}
 		}
 	}
-	el, err := applyEllipsePaint(el, pa, grads)
+	el, err := applyPaint(el, pa, grads)
 	if err != nil {
 		return Node{}, err
 	}
@@ -392,7 +392,7 @@ func parseRect(dec *xml.Decoder, start xml.StartElement, grads map[string]Linear
 	case ry != nil:
 		r = r.WithRX(*ry).WithRY(*ry)
 	}
-	r, err := applyRectPaint(r, pa, grads)
+	r, err := applyPaint(r, pa, grads)
 	if err != nil {
 		return Node{}, err
 	}
@@ -433,7 +433,7 @@ func parsePolygon(dec *xml.Decoder, start xml.StartElement, grads map[string]Lin
 			return Node{}, err
 		}
 	}
-	p, err := applyPolygonPaint(p, pa, grads)
+	p, err := applyPaint(p, pa, grads)
 	if err != nil {
 		return Node{}, err
 	}
@@ -467,7 +467,7 @@ func parsePath(dec *xml.Decoder, start xml.StartElement, grads map[string]Linear
 			}
 		}
 	}
-	p, err := applyPathPaint(p, pa, grads)
+	p, err := applyPaint(p, pa, grads)
 	if err != nil {
 		return Node{}, err
 	}
@@ -960,184 +960,50 @@ func composeStroke(a paintAttrs) (on bool, s Stroke, err error) {
 	return
 }
 
-func applyCirclePaint(c Circle, a paintAttrs, grads map[string]LinearFill) (Circle, error) {
-	none, apply, col, rule, url, err := composeFill(a)
-	if err != nil {
-		return c, err
-	}
-	on, st, err := composeStroke(a)
-	if err != nil {
-		return c, err
-	}
-	if url != "" {
-		g, ok := grads[url]
-		if !ok {
-			return c, fmt.Errorf("parse: unknown fill url #%s", url)
-		}
-		c = c.WithLinearFill(g)
-		if a.fillOp != nil {
-			v, e := parseUnitInterval(*a.fillOp)
-			if e != nil {
-				return c, e
-			}
-			c = c.WithFillOpacity(v)
-		}
-	} else if none {
-		c = c.WithFillNone()
-	} else if apply {
-		c = c.WithFill(col)
-	}
-	if rule == FillEvenOdd {
-		c = c.WithFillRule(FillEvenOdd)
-	}
-	if on {
-		c = c.WithStroke(st)
-	}
-	return c, nil
+// painted is a shape whose fill and stroke return that same shape.
+type painted[T any] interface {
+	WithLinearFill(LinearFill) T
+	WithFillOpacity(float64) T
+	WithFillNone() T
+	WithFill(color.NRGBA) T
+	WithFillRule(FillRule) T
+	WithStroke(Stroke) T
 }
 
-func applyEllipsePaint(el Ellipse, a paintAttrs, grads map[string]LinearFill) (Ellipse, error) {
+func applyPaint[T painted[T]](shape T, a paintAttrs, grads map[string]LinearFill) (T, error) {
 	none, apply, col, rule, url, err := composeFill(a)
 	if err != nil {
-		return el, err
+		return shape, err
 	}
 	on, st, err := composeStroke(a)
 	if err != nil {
-		return el, err
+		return shape, err
 	}
 	if url != "" {
 		g, ok := grads[url]
 		if !ok {
-			return el, fmt.Errorf("parse: unknown fill url #%s", url)
+			return shape, fmt.Errorf("parse: unknown fill url #%s", url)
 		}
-		el = el.WithLinearFill(g)
+		shape = shape.WithLinearFill(g)
 		if a.fillOp != nil {
 			v, e := parseUnitInterval(*a.fillOp)
 			if e != nil {
-				return el, e
+				return shape, e
 			}
-			el = el.WithFillOpacity(v)
+			shape = shape.WithFillOpacity(v)
 		}
 	} else if none {
-		el = el.WithFillNone()
+		shape = shape.WithFillNone()
 	} else if apply {
-		el = el.WithFill(col)
+		shape = shape.WithFill(col)
 	}
 	if rule == FillEvenOdd {
-		el = el.WithFillRule(FillEvenOdd)
+		shape = shape.WithFillRule(FillEvenOdd)
 	}
 	if on {
-		el = el.WithStroke(st)
+		shape = shape.WithStroke(st)
 	}
-	return el, nil
-}
-
-func applyRectPaint(r Rect, a paintAttrs, grads map[string]LinearFill) (Rect, error) {
-	none, apply, col, rule, url, err := composeFill(a)
-	if err != nil {
-		return r, err
-	}
-	on, st, err := composeStroke(a)
-	if err != nil {
-		return r, err
-	}
-	if url != "" {
-		g, ok := grads[url]
-		if !ok {
-			return r, fmt.Errorf("parse: unknown fill url #%s", url)
-		}
-		r = r.WithLinearFill(g)
-		if a.fillOp != nil {
-			v, e := parseUnitInterval(*a.fillOp)
-			if e != nil {
-				return r, e
-			}
-			r = r.WithFillOpacity(v)
-		}
-	} else if none {
-		r = r.WithFillNone()
-	} else if apply {
-		r = r.WithFill(col)
-	}
-	if rule == FillEvenOdd {
-		r = r.WithFillRule(FillEvenOdd)
-	}
-	if on {
-		r = r.WithStroke(st)
-	}
-	return r, nil
-}
-
-func applyPolygonPaint(p Polygon, a paintAttrs, grads map[string]LinearFill) (Polygon, error) {
-	none, apply, col, rule, url, err := composeFill(a)
-	if err != nil {
-		return p, err
-	}
-	on, st, err := composeStroke(a)
-	if err != nil {
-		return p, err
-	}
-	if url != "" {
-		g, ok := grads[url]
-		if !ok {
-			return p, fmt.Errorf("parse: unknown fill url #%s", url)
-		}
-		p = p.WithLinearFill(g)
-		if a.fillOp != nil {
-			v, e := parseUnitInterval(*a.fillOp)
-			if e != nil {
-				return p, e
-			}
-			p = p.WithFillOpacity(v)
-		}
-	} else if none {
-		p = p.WithFillNone()
-	} else if apply {
-		p = p.WithFill(col)
-	}
-	if rule == FillEvenOdd {
-		p = p.WithFillRule(FillEvenOdd)
-	}
-	if on {
-		p = p.WithStroke(st)
-	}
-	return p, nil
-}
-
-func applyPathPaint(p Path, a paintAttrs, grads map[string]LinearFill) (Path, error) {
-	none, apply, col, rule, url, err := composeFill(a)
-	if err != nil {
-		return p, err
-	}
-	on, st, err := composeStroke(a)
-	if err != nil {
-		return p, err
-	}
-	if url != "" {
-		g, ok := grads[url]
-		if !ok {
-			return p, fmt.Errorf("parse: unknown fill url #%s", url)
-		}
-		p = p.WithLinearFill(g)
-		if a.fillOp != nil {
-			v, e := parseUnitInterval(*a.fillOp)
-			if e != nil {
-				return p, e
-			}
-			p = p.WithFillOpacity(v)
-		}
-	} else if none {
-		p = p.WithFillNone()
-	} else if apply {
-		p = p.WithFill(col)
-	}
-	if rule == FillEvenOdd {
-		p = p.WithFillRule(FillEvenOdd)
-	}
-	if on {
-		p = p.WithStroke(st)
-	}
-	return p, nil
+	return shape, nil
 }
 
 func elemName(n xml.Name) (string, error) {
