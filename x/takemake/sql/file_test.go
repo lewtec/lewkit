@@ -131,6 +131,46 @@ func TestCorpusRoundTrip(t *testing.T) {
 	require.Equal(t, TypeBigInt, pg.Statements[0].(*CreateTable).Columns[0].Type)
 }
 
+func TestRepoSQLRoundTrip(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join("..", "..", "..")
+	var files []string
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if entry.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(entry.Name(), ".sql") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, files)
+
+	var sawQuery bool
+	for _, path := range files {
+		if strings.HasSuffix(filepath.ToSlash(path), "x/disasm/decomp/schema/sqlite/query.sql") {
+			sawQuery = true
+		}
+	}
+	require.True(t, sawQuery)
+
+	for _, path := range files {
+		rel, err := filepath.Rel(root, path)
+		require.NoError(t, err)
+		t.Run(filepath.ToSlash(rel), func(t *testing.T) {
+			t.Parallel()
+			roundTrip(t, read(t, path))
+		})
+	}
+}
+
 func TestTakeErrors(t *testing.T) {
 	t.Parallel()
 	_, err := Take(nil)
