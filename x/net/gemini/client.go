@@ -23,7 +23,6 @@ const (
 )
 
 var (
-	ErrNilContext   = errs.ErrNilContext
 	ErrInvalidURL   = errs.Wrap(errs.ErrInvalid, "invalid gemini url")
 	ErrBadHeader    = errs.Wrap(errs.ErrSyntax, "invalid gemini response header")
 	ErrTooManyHops  = errs.Wrap(errs.ErrOutOfRange, "too many gemini redirects")
@@ -123,11 +122,11 @@ func ResolveURL(baseURL, ref string) (string, error) {
 
 // Fetch retrieves rawURL, following up to 5 redirects.
 func (client *Client) Fetch(ctx context.Context, rawURL string) (Response, error) {
-	if ctx == nil {
-		return Response{}, ErrNilContext
-	}
 	current := rawURL
 	for range maxRedirects {
+		if err := ctx.Err(); err != nil {
+			return Response{}, err
+		}
 		target, err := NormalizeURL(current)
 		if err != nil {
 			return Response{}, err

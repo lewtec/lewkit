@@ -80,7 +80,10 @@ func TestReadResponseAndRedirects(t *testing.T) {
 	assert.Equal(t, "# Arrived\n", string(got.Body))
 }
 
-func TestFetchNilContext(t *testing.T) {
-	_, err := (&Client{}).Fetch(nil, "gemini://example.org/")
-	require.ErrorIs(t, err, ErrNilContext)
+func TestFetchContext(t *testing.T) {
+	require.Panics(t, func() { _, _ = (&Client{}).Fetch(nil, "gemini://example.org/") })
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := (&Client{}).Fetch(ctx, "gemini://example.org/")
+	require.ErrorIs(t, err, context.Canceled)
 }

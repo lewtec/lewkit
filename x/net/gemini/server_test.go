@@ -49,11 +49,15 @@ func TestWriteAndReadResponse(t *testing.T) {
 }
 
 func TestListenAndServeGuards(t *testing.T) {
-	_, err := Listen(nil, "127.0.0.1:0")
-	require.ErrorIs(t, err, ErrNilContext)
+	require.Panics(t, func() { _, _ = Listen(nil, "127.0.0.1:0") })
+	require.Panics(t, func() { _ = (&Server{}).Serve(nil, nil) })
 
-	err = (&Server{}).Serve(nil, nil)
-	require.ErrorIs(t, err, ErrNilContext)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := Listen(ctx, "127.0.0.1:0")
+	require.ErrorIs(t, err, context.Canceled)
+	err = (&Server{}).Serve(ctx, nil)
+	require.ErrorIs(t, err, context.Canceled)
 
 	err = (&Server{}).Serve(t.Context(), nil)
 	require.ErrorIs(t, err, ErrNoHandler)

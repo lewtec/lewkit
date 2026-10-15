@@ -27,9 +27,6 @@ type Server struct {
 // Listen opens a TLS listener for Gemini.
 // An empty addr listens on 127.0.0.1:0. The certificate is ephemeral and self-signed.
 func Listen(ctx context.Context, addr string) (net.Listener, error) {
-	if ctx == nil {
-		return nil, ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -53,17 +50,14 @@ func Listen(ctx context.Context, addr string) (net.Listener, error) {
 
 // Serve accepts from ln until ctx is canceled.
 func (server *Server) Serve(ctx context.Context, ln net.Listener) error {
-	if ctx == nil {
-		return ErrNilContext
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	if server == nil || server.Handler == nil {
 		return ErrNoHandler
 	}
 	if ln == nil {
 		return ErrNoListener
-	}
-	if err := ctx.Err(); err != nil {
-		return err
 	}
 	done := make(chan struct{})
 	defer close(done)
