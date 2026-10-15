@@ -3,6 +3,7 @@
 // Decode reads PNG, JPEG, ICO, and ICNS. Pad centers onto a square. Resize
 // scales to a square. Square does both. EncodeICO and EncodeICNS write PNG
 // payloads. ARGB is straight-alpha big-endian bytes for a Status Notifier pixmap.
+// An SVG document lives in the svg subpackage. Decode does not read SVG.
 package convert
 
 import (

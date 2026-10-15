@@ -6,7 +6,7 @@ import (
 	"image/color"
 	"math"
 
-	"github.com/lewtec/lewkit/x/svg"
+	"github.com/lewtec/lewkit/x/image/convert/svg"
 )
 
 func Render(d svg.Document) (*image.NRGBA, error) {

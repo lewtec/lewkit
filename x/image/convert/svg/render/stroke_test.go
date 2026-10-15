@@ -3,7 +3,7 @@ package render
 import (
 	"testing"
 
-	"github.com/lewtec/lewkit/x/svg"
+	"github.com/lewtec/lewkit/x/image/convert/svg"
 )
 
 func TestStrokeRectRingDetectsBox(t *testing.T) {

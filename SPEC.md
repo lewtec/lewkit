@@ -36,7 +36,7 @@ Inherited C (cite the file):
 - `path:x/driver/window`: host window, `Fit`, `Present`, `Animate`.
 - `path:x/ndarray/image`: pack `(h,w,4)` into `image.RGBA`.
 - `path:x/image`: CPU blit and `Label`.
-- `path:x/image/convert`: PNG, JPEG, ICO, and ICNS icon bytes.
+- `path:x/image/convert`: PNG, JPEG, ICO, and ICNS icon bytes. SVG documents are `x/image/convert/svg`.
 - `path:examples`: triangle, perlin, fractal, and compute demos.
 - templ is the web toolkit. A tag for one registered asset lives in that asset package. Page templates live in `x/ui/web`.
 
@@ -197,7 +197,9 @@ Inherited C (cite the file):
 | `x/ndarray` | `Tensor`, ops, `Evaluator`, `Code` | engine | ISA stays here; `Code` is the schedule; a backend renders it; ndarray spells no shading language; a backend is an `Evaluator` driver | existing ndarray errors | import `x/ui/gui`; import `x/driver/vulkan`; import `x/driver/ndeval`; import `x/ffi/native/metal`; import `x/ffi/native/vulkan`; import `x/ffi/native/d3d12` |
 | `x/ndarray/image` | pack `(h,w,4)` into `image.RGBA` | value | packing stays here | existing pack errors | hold bubbletea types; hold templ; hold transformers |
 | `x/image` | CPU blit, `Label`, `RGB`, `BGR`, `CMYK`, `HSV` | value | blit stays here; each color space is its own struct and converts to `RGB` | existing blit errors | hold bubbletea types; hold templ; hold transformers |
-| `x/image/convert` | `Decode`, `Pad`, `Resize`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | icon bytes stay here | bad bytes are `ErrFormat` | import `x/driver` |
+| `x/image/convert` | `Decode`, `Pad`, `Resize`, `Square`, `EncodePNG`, `EncodeICO`, `EncodeICNS`, `ARGB` | value | PNG, JPEG, ICO, and ICNS bytes stay here | bad bytes are `ErrFormat` | import `x/driver`; import `x/image/convert/svg` |
+| `x/image/convert/svg` | `Document`, `Parse`, `Encode` | SVG document | shapes stay here | existing parse and encode errors; `ErrPolygonPoints` | import `x/image/convert`; import `x/image/convert/svg/render`; import `x/driver` |
+| `x/image/convert/svg/render` | `Render`, `Scratch` | raster of a `Document` | the pixmap stays here | existing render errors | import `x/image/convert`; import `x/driver` |
 | `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV` | PCM value | mixing, seek, and the decoder registry stay here | `ErrFormat`, `ErrFrame`, `ErrClosed`, `ErrSeek` | open a host device; import `x/driver`; import `x/sound/mp3`; import `x/sound/ogg` |
 | `x/sound/mp3` | MP3 `Decoder` | registered decoder | decode stays here | mp3 decode error | import `x/driver` |
 | `x/sound/ogg` | Ogg Vorbis `Decoder` | registered decoder | decode stays here | vorbis decode error | import `x/driver` |
@@ -263,8 +265,6 @@ Inherited C (cite the file):
 | `x/text/report` | `Finding`, `Format`, `Format.Render`, `WriteText`, `WriteTable`, `WriteRecords`, `WriteRustc`, `WriteSARIF` | diagnostic value | text, rustc, and SARIF stay here; the finding table is an `x/text/table` view | unknown format or level is the parse error; the zero `Format` is unset | import the root `report` package; import `x/ui`; import `x/driver` |
 | `x/text/table` | `Format`, `Write`, `Column`, `Formatter`, `View`, `Make` | value | one writer for table, jsonl, and csv; `Make` builds a `View` once from a row type and a spec struct of `Field`s; a column spec picks order and replaces formats | unknown format is `ErrFormat`; a bad column is `ErrColumn` | import `x/cmd` |
 | `x/period` | `Range`, `Parse`, `ParseDate`, `Classify`, `Kind`, `BinKind`, `ChartBin`, `IterateBins`, `Shift`, `At`, `DisplayLabel` | inclusive Fava-style calendar filter | ranges, chart bins, and navbar shifts stay here; `Kind` zero is all time; an unknown `BinKind` prints as month | `ErrTimeRangeOrder`, `ErrEmptyInterval`, `ErrInvalidISOWeek`, `ErrInvalidMonth`, `ErrUnrecognizedFilter`, `ErrUnknownRelUnit`, `ErrShiftOpenEnded`, `ErrShiftEmpty`, `ErrDate`, `ErrKind`, `ErrBinKind` | import `x/driver` |
-| `x/svg` | `Document`, `Parse`, `Encode` | SVG document | shapes stay here | existing parse and encode errors; `ErrPolygonPoints` | import `x/svg/render`; import `x/driver` |
-| `x/svg/render` | `Render`, `Scratch` | raster of a `Document` | the pixmap stays here | existing render errors | import `x/driver` |
 | `x/http/cmdpalette` | `Palette`, `Item`, `Button`, `Modal`, `DaisyButton`, `DaisyModal`, `Assets`, `Script` | Cmd+K / Ctrl+K catalog | one script toggles `cmdpalette-active` and `menu-active`; plain `Modal` does not use daisyUI `menu` | a row without an href or a label is dropped | a second copy of the script |
 | `examples` | programs, not a library | demo | demos MAY stay | program failure | import `examples` from a library package |
 
@@ -373,7 +373,7 @@ Inherited C (cite the file):
 | INV-99 | `Open` stores the program database in a sqlite file owned by `x/disasm/decomp`. The file is a `db.Arg` URL. sqlc migrations under `sqlite/migrations` create the tables. Opening that file again returns the saved lift, names, comments, signatures, address notes, matched source, path, digest, and image strings. `Remember` returns that artifact when the path and SHA-256 match and does not disassemble. Different bytes at that path are `ErrImage` and name both digests. `New` has no file. `SetName`, `SetNote`, `SetSignature`, and `SetSource` on a project with no file are `ErrNotStored` and leave the artifact unchanged | `x/disasm/decomp` | disassemble again when the stored image at that path matches; drop a saved name, signature, source, address note, or image string |
 | INV-100 | `lewkit decomp view` previews a project opened with `Open`. The page lives in `x/disasm/decomp/view`. Saving a name, a signature, a held source, or an address note writes the project. A call is a link to that function. An assembly address in the image links to that instruction, to the function that contains it, or to the address page for data. A displacement outside the image stays plain. The artifact table shows each function address and size. A note keyword belongs to the function that contains that address. A caller of that address does not receive the note. The page does not disassemble, match, call the model, or import `x/ffi/wasm` or `x/db` | `x/disasm/decomp/view`; `lewkit decomp view` | disassemble; `Artifact.Match`; that import; a separate preview program; attaching every note to every function; calling the model from the page |
 | INV-101 | `x/ffi/clib` does not import `x/ffi/native`, `x/ffi/jni`, or `examples`. `x/generate/clib` does not import `x/ffi/clib` | those packages | that import |
-| INV-102 | `x/svg` does not import `x/svg/render` | `x/svg` | that import |
+| INV-102 | `x/image/convert/svg` does not import `x/image/convert` or `x/image/convert/svg/render`. `x/image/convert` does not import `x/image/convert/svg` | those packages | that import |
 | INV-103 | `x/disasm/decomp/view` does not embed a second command-palette script. The jump dialog is `x/http/cmdpalette` | `x/disasm/decomp/view` | a copy of the palette script in this package |
 
 ## Errors
@@ -467,7 +467,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
-- 2026-10-15: Calendar filters live in `x/period`. An SVG document lives in `x/svg` and its raster in `x/svg/render`. The command palette lives in `x/http/cmdpalette`, and `lewkit decomp view` uses that dialog. Rejected: a second palette script in `x/disasm/decomp/view`; a resvg fuzz target in `x/svg`.
+- 2026-10-15: Calendar filters live in `x/period`. An SVG document lives in `x/image/convert/svg` and its raster in `x/image/convert/svg/render`. The command palette lives in `x/http/cmdpalette`, and `lewkit decomp view` uses that dialog. Rejected: a top-level `x/svg`; a second palette script in `x/disasm/decomp/view`; a resvg fuzz target in the SVG package.
 - 2026-10-14: A CPU image window paints the recorded fills and glyph ink. The fused kernel stays when a GPU evaluator is open. Rejected: interpreting that kernel once per framebuffer pixel on the guest.
 - 2026-10-14: The guest loads simpledrm, virtio-gpu, bochs, evdev, virtio-input, usbhid, hid-generic, xhci-pci, ehci-pci, and uhci-hcd. UTM's window is ramfb or virtio, and its keyboard is a USB HID device. `x/driver/window/kms` reads `/dev/input/event*` and posts Key and Pointer samples. It writes each frame through `/dev/fb0` so the DRM shadow is copied to that scanout. Rejected: PS/2 as the only keyboard; VGA as the only framebuffer; mmap as the only flush.
 - 2026-10-14: Dynamic guest libraries come from Alpine 3.24, the same release as `linux-virt`: `musl` `1.2.6-r2`, `gcompat` `1.1.0-r4`, `musl-obstack` `1.2.3-r2`, and `libucontext` `1.5.1-r0`. `gcompat` supplies the glibc sonames a cgo-free Go binary records. `libdl.so.2` is a copy of `libgcompat.so.0` because that package has no separate libdl. Rejected: copying host libraries; Debian bookworm `libc6`.

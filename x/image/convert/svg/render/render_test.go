@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lewtec/lewkit/x/svg"
+	"github.com/lewtec/lewkit/x/image/convert/svg"
 )
 
 func TestRenderEmptyIsZeros(t *testing.T) {

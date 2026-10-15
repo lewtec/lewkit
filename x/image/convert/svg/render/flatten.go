@@ -3,7 +3,7 @@ package render
 import (
 	"math"
 
-	"github.com/lewtec/lewkit/x/svg"
+	"github.com/lewtec/lewkit/x/image/convert/svg"
 )
 
 type pathSegKind uint8
