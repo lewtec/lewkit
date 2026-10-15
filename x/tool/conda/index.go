@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"sync"
 
@@ -240,7 +241,7 @@ type apiAttrs struct {
 func preferMainLabel(files []apiFile) []apiFile {
 	var main []apiFile
 	for _, file := range files {
-		if len(file.Labels) == 0 || containsLabel(file.Labels, "main") {
+		if len(file.Labels) == 0 || slices.Contains(file.Labels, "main") {
 			main = append(main, file)
 		}
 	}
@@ -248,15 +249,6 @@ func preferMainLabel(files []apiFile) []apiFile {
 		return files
 	}
 	return main
-}
-
-func containsLabel(labels []string, want string) bool {
-	for _, label := range labels {
-		if label == want {
-			return true
-		}
-	}
-	return false
 }
 
 func (file apiFile) toRecord(name string) (record, bool) {

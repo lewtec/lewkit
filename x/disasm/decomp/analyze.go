@@ -3,6 +3,7 @@ package decomp
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/lewtec/lewkit/x/disasm"
@@ -395,7 +396,7 @@ func buildFunction(start uint64, instructions []disasm.Instruction, sections []d
 				continue
 			}
 			text, ok := stringAt(strings, reference.To)
-			if ok && !containsString(function.Strings, text) {
+			if ok && !slices.Contains(function.Strings, text) {
 				function.Strings = append(function.Strings, text)
 			}
 		}
@@ -575,15 +576,6 @@ func stringAt(strings []cstring, address uint64) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func containsString(values []string, text string) bool {
-	for _, value := range values {
-		if value == text {
-			return true
-		}
-	}
-	return false
 }
 
 func printable(value byte) bool {

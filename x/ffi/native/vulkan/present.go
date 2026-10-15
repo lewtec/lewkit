@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"slices"
 	"sync"
 	"unsafe"
 
@@ -570,7 +571,7 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 		return nil, err
 	}
 	exts := append([]string{extSurface}, surfaceExtensions()...)
-	if hasExt(d.api.instanceExts(), extPortabilityEnum) {
+	if slices.Contains(d.api.instanceExts(), extPortabilityEnum) {
 		exts = append(exts, extPortabilityEnum)
 	}
 	appName := cstr(release.Name())
@@ -580,7 +581,7 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 		apiVersion:       apiVersion11,
 	}
 	var flags uint32
-	if hasExt(exts, extPortabilityEnum) {
+	if slices.Contains(exts, extPortabilityEnum) {
 		flags = instanceEnumeratePortability
 	}
 	extPtrs, keep := cStrings(exts)
