@@ -352,7 +352,7 @@ func tokenPattern(text string) bool {
 		return false
 	}
 	for _, r := range text[size:] {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '+' || r == '.' || r == '&' || r == '-' {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '+' || r == '.' || r == '&' || r == '-' || r == '/' {
 			continue
 		}
 		return false

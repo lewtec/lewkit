@@ -167,7 +167,7 @@ type Level string
 
 const (
 	LevelError Level = "error"
-	LevelWarning Level = "warning" // warn
+	LevelWarning Level = "warning" // warn, level/warn
 	LevelNote Level = "note"
 )
 
@@ -220,7 +220,7 @@ const (
 	require.True(t, level.stringKind)
 	require.Equal(t, "warning", level.empty)
 	require.Equal(t, "LevelWarning", level.members[1].name)
-	require.Equal(t, []string{"warn"}, level.members[1].aliases)
+	require.Equal(t, []string{"warn", "level/warn"}, level.members[1].aliases)
 
 	pool := parsed.enums[2]
 	require.True(t, pool.hasInvalid)
