@@ -36,6 +36,15 @@ func Host(goos, goarch string) (string, string) {
 	return goos, goarch
 }
 
+// CollectVersions reads one version from each item, then applies UniqueVersions.
+func CollectVersions[T any](items []T, version func(T) string) ([]string, error) {
+	versions := make([]string, len(items))
+	for i, item := range items {
+		versions[i] = version(item)
+	}
+	return UniqueVersions(versions)
+}
+
 // UniqueVersions drops blanks and repeats, then orders the rest newest-first.
 // Empty input yields ErrNoVersions.
 func UniqueVersions(versions []string) ([]string, error) {

@@ -236,11 +236,7 @@ func blenderPlatformSupported(goos, goarch string) bool {
 }
 
 func blenderVersions(builds []blenderBuild) ([]string, error) {
-	versions := make([]string, len(builds))
-	for i, build := range builds {
-		versions[i] = build.Version
-	}
-	return install.UniqueVersions(versions)
+	return install.CollectVersions(builds, func(build blenderBuild) string { return build.Version })
 }
 
 func blenderBuilds(seriesURL string, names []string, goos, goarch string) []blenderBuild {

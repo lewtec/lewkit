@@ -133,11 +133,7 @@ func (t *androidPlatformToolsTool) builds(ctx context.Context, goos, goarch stri
 }
 
 func platformToolsVersions(builds []platformToolsBuild) ([]string, error) {
-	versions := make([]string, len(builds))
-	for i, build := range builds {
-		versions[i] = build.Version
-	}
-	return install.UniqueVersions(versions)
+	return install.CollectVersions(builds, func(build platformToolsBuild) string { return build.Version })
 }
 
 type platformToolsBuild struct {
