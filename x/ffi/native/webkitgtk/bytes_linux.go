@@ -34,10 +34,3 @@ func pinBytes(body []byte) uintptr {
 	pinnedBlobs.Store(pointer, blob)
 	return pointer
 }
-
-func cStringPointer(text []byte) *byte {
-	if len(text) == 0 {
-		return nil
-	}
-	return &text[0]
-}

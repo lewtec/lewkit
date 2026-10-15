@@ -341,7 +341,7 @@ func (s *Symbols) Wake() { s.wake(0) }
 // as the last callback argument. handler is a purego callback.
 func (s *Symbols) Connect(obj uintptr, signal string, handler, data uintptr) {
 	name := native.CString(signal)
-	s.signal(obj, cStringPointer(name), handler, data, 0, 0)
+	s.signal(obj, native.Data(name), handler, data, 0, 0)
 	runtime.KeepAlive(name)
 }
 
@@ -359,7 +359,7 @@ func (s *Symbols) WindowNew() uintptr {
 // SetTitle sets the window title.
 func (symbols *Symbols) SetTitle(window uintptr, title string) {
 	titleBytes := native.CString(title)
-	symbols.setTitle(window, cStringPointer(titleBytes))
+	symbols.setTitle(window, native.Data(titleBytes))
 	runtime.KeepAlive(titleBytes)
 }
 
@@ -427,7 +427,7 @@ func (symbols *Symbols) SetPreferDark(dark bool) {
 	}
 	symbols.valueSetBool(uintptr(unsafe.Pointer(&value)), flag)
 	name := native.CString(preferDarkProperty(symbols.gtk3))
-	symbols.setProperty(settings, cStringPointer(name), uintptr(unsafe.Pointer(&value)))
+	symbols.setProperty(settings, native.Data(name), uintptr(unsafe.Pointer(&value)))
 	symbols.valueUnset(uintptr(unsafe.Pointer(&value)))
 	runtime.KeepAlive(name)
 	runtime.KeepAlive(&value)
@@ -511,15 +511,15 @@ func (symbols *Symbols) softwareWebView(webContext uintptr) uintptr {
 		settingsName := native.CString("settings")
 		webView = symbols.objectNewPair(
 			symbols.webViewType(),
-			cStringPointer(contextName), webContext,
-			cStringPointer(settingsName), settings,
+			native.Data(contextName), webContext,
+			native.Data(settingsName), settings,
 			0,
 		)
 		runtime.KeepAlive(contextName)
 		runtime.KeepAlive(settingsName)
 	} else {
 		settingsName := native.CString("settings")
-		webView = symbols.objectNew(symbols.webViewType(), cStringPointer(settingsName), settings, 0)
+		webView = symbols.objectNew(symbols.webViewType(), native.Data(settingsName), settings, 0)
 		runtime.KeepAlive(settingsName)
 	}
 	if symbols.unref != nil {
@@ -567,14 +567,14 @@ func (symbols *Symbols) dataManagerReady() bool {
 func (symbols *Symbols) webViewWithNetworkSession(dataDirectory, cacheDirectory string) (uintptr, error) {
 	dataBytes := native.CString(dataDirectory)
 	cacheBytes := native.CString(cacheDirectory)
-	session := symbols.networkSession(cStringPointer(dataBytes), cStringPointer(cacheBytes))
+	session := symbols.networkSession(native.Data(dataBytes), native.Data(cacheBytes))
 	runtime.KeepAlive(dataBytes)
 	runtime.KeepAlive(cacheBytes)
 	if session == 0 {
 		return 0, fmt.Errorf("%w: network session", ErrUnavailable)
 	}
 	property := native.CString("network-session")
-	webView := symbols.objectNew(symbols.webViewType(), cStringPointer(property), session, 0)
+	webView := symbols.objectNew(symbols.webViewType(), native.Data(property), session, 0)
 	runtime.KeepAlive(property)
 	if webView == 0 {
 		return 0, fmt.Errorf("%w: web view", ErrUnavailable)
@@ -588,8 +588,8 @@ func (symbols *Symbols) webViewWithDataManager(dataDirectory, cacheDirectory str
 	dataBytes := native.CString(dataDirectory)
 	cacheBytes := native.CString(cacheDirectory)
 	manager := symbols.dataManagerNew(
-		cStringPointer(dataName), cStringPointer(dataBytes),
-		cStringPointer(cacheName), cStringPointer(cacheBytes),
+		native.Data(dataName), native.Data(dataBytes),
+		native.Data(cacheName), native.Data(cacheBytes),
 		0,
 	)
 	runtime.KeepAlive(dataName)
@@ -620,9 +620,9 @@ func (symbols *Symbols) LoadHTML(view uintptr, html, base string) {
 	var basePointer *byte
 	if base != "" {
 		baseBytes = native.CString(base)
-		basePointer = cStringPointer(baseBytes)
+		basePointer = native.Data(baseBytes)
 	}
-	symbols.loadHTML(view, cStringPointer(htmlBytes), basePointer)
+	symbols.loadHTML(view, native.Data(htmlBytes), basePointer)
 	runtime.KeepAlive(htmlBytes)
 	runtime.KeepAlive(baseBytes)
 }
@@ -630,7 +630,7 @@ func (symbols *Symbols) LoadHTML(view uintptr, html, base string) {
 // LoadURI navigates to uri.
 func (symbols *Symbols) LoadURI(view uintptr, uri string) {
 	uriBytes := native.CString(uri)
-	symbols.loadURI(view, cStringPointer(uriBytes))
+	symbols.loadURI(view, native.Data(uriBytes))
 	runtime.KeepAlive(uriBytes)
 }
 
@@ -643,7 +643,7 @@ func (symbols *Symbols) Context(view uintptr) uintptr { return symbols.getContex
 // RegisterMessageHandler enables window.webkit.messageHandlers.<name>.
 func (symbols *Symbols) RegisterMessageHandler(manager uintptr, name string) bool {
 	nameBytes := native.CString(name)
-	ok := symbols.registerMessage(manager, cStringPointer(nameBytes), nil)
+	ok := symbols.registerMessage(manager, native.Data(nameBytes), nil)
 	runtime.KeepAlive(nameBytes)
 	return ok != 0
 }
@@ -651,7 +651,7 @@ func (symbols *Symbols) RegisterMessageHandler(manager uintptr, name string) boo
 // AddUserScript injects source at document start in the top frame.
 func (symbols *Symbols) AddUserScript(manager uintptr, source string) {
 	sourceBytes := native.CString(source)
-	script := symbols.newUserScript(uintptr(unsafe.Pointer(cStringPointer(sourceBytes))), 1, 0, 0, 0)
+	script := symbols.newUserScript(uintptr(unsafe.Pointer(native.Data(sourceBytes))), 1, 0, 0, 0)
 	runtime.KeepAlive(sourceBytes)
 	if script == 0 {
 		return
@@ -663,7 +663,7 @@ func (symbols *Symbols) AddUserScript(manager uintptr, source string) {
 // Evaluate runs script. The callback runs on this thread when it finishes.
 func (symbols *Symbols) Evaluate(view uintptr, script string, callback, data uintptr) {
 	scriptBytes := native.CString(script)
-	symbols.evaluateJavaScript(view, cStringPointer(scriptBytes), -1, 0, 0, 0, callback, data)
+	symbols.evaluateJavaScript(view, native.Data(scriptBytes), -1, 0, 0, 0, callback, data)
 	runtime.KeepAlive(scriptBytes)
 }
 
@@ -704,11 +704,11 @@ func (symbols *Symbols) FinishEvaluate(view, result uintptr) (string, error) {
 func (symbols *Symbols) RegisterScheme(webContext uintptr, scheme string, callback, data uintptr) {
 	schemeBytes := native.CString(scheme)
 	if manager := symbols.securityManager(webContext); manager != 0 {
-		symbols.registerSecure(manager, cStringPointer(schemeBytes))
-		symbols.registerCORS(manager, cStringPointer(schemeBytes))
-		symbols.registerLocal(manager, cStringPointer(schemeBytes))
+		symbols.registerSecure(manager, native.Data(schemeBytes))
+		symbols.registerCORS(manager, native.Data(schemeBytes))
+		symbols.registerLocal(manager, native.Data(schemeBytes))
 	}
-	symbols.registerScheme(webContext, cStringPointer(schemeBytes), callback, data, 0)
+	symbols.registerScheme(webContext, native.Data(schemeBytes), callback, data, 0)
 	runtime.KeepAlive(schemeBytes)
 }
 
@@ -817,11 +817,11 @@ func (symbols *Symbols) FinishResponse(request uintptr, status int, contentType 
 		return
 	}
 	reason := native.CString(httpReason(status))
-	symbols.responseStatus(response, uint32(status), cStringPointer(reason))
+	symbols.responseStatus(response, uint32(status), native.Data(reason))
 	runtime.KeepAlive(reason)
 	if contentType != "" && symbols.responseContentType != nil {
 		mime := native.CString(contentType)
-		symbols.responseContentType(response, cStringPointer(mime))
+		symbols.responseContentType(response, native.Data(mime))
 		runtime.KeepAlive(mime)
 	}
 	if symbols.headersNew != nil && symbols.headersAppend != nil && symbols.responseHeaders != nil && len(headers) > 0 {
@@ -829,7 +829,7 @@ func (symbols *Symbols) FinishResponse(request uintptr, status int, contentType 
 		for _, header := range headers {
 			name := native.CString(header.Name)
 			value := native.CString(header.Value)
-			symbols.headersAppend(soupHeaders, cStringPointer(name), cStringPointer(value))
+			symbols.headersAppend(soupHeaders, native.Data(name), native.Data(value))
 			runtime.KeepAlive(name)
 			runtime.KeepAlive(value)
 		}
@@ -885,14 +885,14 @@ func (symbols *Symbols) FinishRequest(request uintptr, body []byte, mime string)
 	}
 	stream := symbols.memoryStream(pointer, length, destroyPinnedBytes)
 	mimeBytes := native.CString(mime)
-	symbols.finishRequest(request, stream, length, cStringPointer(mimeBytes))
+	symbols.finishRequest(request, stream, length, native.Data(mimeBytes))
 	runtime.KeepAlive(mimeBytes)
 }
 
 // FinishNotFound completes a scheme request as not-found.
 func (symbols *Symbols) FinishNotFound(request uintptr) {
 	message := native.CString("not found")
-	gError := symbols.newError(symbols.ioErrorQuark(), 1, cStringPointer(message))
+	gError := symbols.newError(symbols.ioErrorQuark(), 1, native.Data(message))
 	runtime.KeepAlive(message)
 	if gError == 0 {
 		symbols.FinishRequest(request, nil, "text/plain")

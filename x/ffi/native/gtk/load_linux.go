@@ -298,15 +298,8 @@ func osThread() uint64 {
 
 func withCString(s string, fn func(*byte)) {
 	b := native.CString(s)
-	fn(cStringPointer(b))
+	fn(native.Data(b))
 	runtime.KeepAlive(b)
-}
-
-func cStringPointer(text []byte) *byte {
-	if len(text) == 0 {
-		return nil
-	}
-	return &text[0]
 }
 
 func connect(obj uintptr, signal string, handler uintptr) {
@@ -315,7 +308,7 @@ func connect(obj uintptr, signal string, handler uintptr) {
 		return
 	}
 	name := native.CString(signal)
-	bound.gobject.GSignalConnectData(obj, cStringPointer(name), handler, 0, 0, 0)
+	bound.gobject.GSignalConnectData(obj, native.Data(name), handler, 0, 0, 0)
 	runtime.KeepAlive(name)
 }
 

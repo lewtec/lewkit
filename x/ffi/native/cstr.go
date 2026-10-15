@@ -2,6 +2,14 @@ package native
 
 import "unsafe"
 
+// Data returns the first element of s, or nil when s is empty.
+func Data[T any](s []T) *T {
+	if len(s) == 0 {
+		return nil
+	}
+	return &s[0]
+}
+
 // CString returns s followed by a NUL byte.
 // The caller keeps the slice alive for the foreign call.
 func CString(s string) []byte {
