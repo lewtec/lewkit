@@ -4,6 +4,7 @@ import (
 	"github.com/lewtec/lewkit/x/generate/header"
 )
 
+//lewkit:enum
 type machine int
 
 const (
@@ -15,6 +16,7 @@ const (
 	machWin386
 )
 
+//lewkit:enum
 type locKind int
 
 const (

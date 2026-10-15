@@ -6,6 +6,20 @@ import (
 	"strings"
 )
 
+// LayoutID is the C data layout identifier.
+//
+//lewkit:enum
+type LayoutID string
+
+const (
+	LayoutIDSysV64      LayoutID = "sysv64"
+	LayoutIDWin64       LayoutID = "win64"
+	LayoutID386         LayoutID = "386"
+	LayoutIDARM         LayoutID = "arm"
+	LayoutIDDarwinARM64 LayoutID = "darwinarm64"
+	LayoutIDWin386      LayoutID = "win386"
+)
+
 // Target is the C data layout the generator matches.
 type Target struct {
 	ID         string

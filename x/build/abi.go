@@ -2,18 +2,55 @@ package build
 
 import "fmt"
 
+// ABI is an Android native library ABI.
+//
+//lewkit:enum
+type ABI string
+
+const (
+	ABIARM64V8A   ABI = "arm64-v8a"
+	ABIARMEABIV7A ABI = "armeabi-v7a"
+	ABIX86_64     ABI = "x86_64"
+	ABIX86        ABI = "x86"
+)
+
+// GOARCH returns the Go architecture for abi.
+func (abi ABI) GOARCH() GOARCH {
+	switch abi {
+	case ABIARM64V8A:
+		return GOARCHARM64
+	case ABIARMEABIV7A:
+		return GOARCHARM
+	case ABIX86_64:
+		return GOARCHAMD64
+	case ABIX86:
+		return GOARCH386
+	default:
+		return ""
+	}
+}
+
+// ABIFor returns the Android ABI for a Go architecture.
+func ABIFor(goarch GOARCH) (ABI, error) {
+	switch goarch {
+	case GOARCHARM64:
+		return ABIARM64V8A, nil
+	case GOARCHARM:
+		return ABIARMEABIV7A, nil
+	case GOARCHAMD64:
+		return ABIX86_64, nil
+	case GOARCH386:
+		return ABIX86, nil
+	default:
+		return "", fmt.Errorf("%w: %w %q", ErrABI, ErrUnsupportedAndroidGoarch, goarch)
+	}
+}
+
 // AndroidABI is the Android ABI for a Go GOARCH.
 func AndroidABI(goarch string) (string, error) {
-	switch goarch {
-	case "arm64":
-		return "arm64-v8a", nil
-	case "arm":
-		return "armeabi-v7a", nil
-	case "amd64":
-		return "x86_64", nil
-	case "386":
-		return "x86", nil
-	default:
-		return "", fmt.Errorf("%w %q", ErrUnsupportedAndroidGoarch, goarch)
+	abi, err := ABIFor(GOARCH(goarch))
+	if err != nil {
+		return "", err
 	}
+	return string(abi), nil
 }

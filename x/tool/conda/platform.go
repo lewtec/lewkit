@@ -5,6 +5,26 @@ import (
 	"runtime"
 )
 
+// Subdir is a conda channel platform directory.
+//
+//lewkit:enum
+type Subdir string
+
+const (
+	SubdirLinux64      Subdir = "linux-64"      // linux/amd64, linux_amd64
+	SubdirLinuxAArch64 Subdir = "linux-aarch64" // linux/arm64, linux_arm64
+	SubdirLinux32      Subdir = "linux-32"      // linux/386, linux_386
+	SubdirLinuxPPC64le Subdir = "linux-ppc64le" // linux/ppc64le, linux_ppc64le
+	SubdirLinuxS390x   Subdir = "linux-s390x"   // linux/s390x, linux_s390x
+	SubdirLinuxRiscv64 Subdir = "linux-riscv64" // linux/riscv64, linux_riscv64
+	SubdirOSX64        Subdir = "osx-64"        // darwin/amd64, darwin_amd64
+	SubdirOSXARM64     Subdir = "osx-arm64"     // darwin/arm64, darwin_arm64
+	SubdirWin64        Subdir = "win-64"        // windows/amd64, windows_amd64
+	SubdirWinARM64     Subdir = "win-arm64"     // windows/arm64, windows_arm64
+	SubdirWin32        Subdir = "win-32"        // windows/386, windows_386
+	SubdirNoarch       Subdir = "noarch"
+)
+
 const subdirNoarch = "noarch"
 
 func currentSubdir() (string, error) {
@@ -12,38 +32,9 @@ func currentSubdir() (string, error) {
 }
 
 func hostSubdir(goos, goarch string) (string, error) {
-	switch goos {
-	case "linux":
-		switch goarch {
-		case "amd64":
-			return "linux-64", nil
-		case "arm64":
-			return "linux-aarch64", nil
-		case "386":
-			return "linux-32", nil
-		case "ppc64le":
-			return "linux-ppc64le", nil
-		case "s390x":
-			return "linux-s390x", nil
-		case "riscv64":
-			return "linux-riscv64", nil
-		}
-	case "darwin":
-		switch goarch {
-		case "amd64":
-			return "osx-64", nil
-		case "arm64":
-			return "osx-arm64", nil
-		}
-	case "windows":
-		switch goarch {
-		case "amd64":
-			return "win-64", nil
-		case "arm64":
-			return "win-arm64", nil
-		case "386":
-			return "win-32", nil
-		}
+	sub, err := ParseSubdir(goos + "/" + goarch)
+	if err != nil || sub == SubdirNoarch {
+		return "", fmt.Errorf("%w: %s/%s", ErrNoBuild, goos, goarch)
 	}
-	return "", fmt.Errorf("%w: %s/%s", ErrNoBuild, goos, goarch)
+	return string(sub), nil
 }

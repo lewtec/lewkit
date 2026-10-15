@@ -1,6 +1,8 @@
 package header
 
 // kind is the C type's shape after typedefs are followed for layout.
+//
+//lewkit:enum
 type kind uint8
 
 const (

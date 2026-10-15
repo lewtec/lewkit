@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"errors"
 
 	"github.com/lewtec/lewkit/x/build/gen/uki"
 	"github.com/lewtec/lewkit/x/build/gen/unikernel"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
 )
@@ -22,7 +22,11 @@ type releaseCmd struct {
 
 func (releaseCmd) Description() string { return "key, build, run, or compile an app" }
 
-var errHostArgs = errors.New("program arguments are not passed to a host app")
+var (
+	errHostArgs      = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a host app")
+	errGuestArgs     = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a linux guest")
+	errUnikernelArgs = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a unikernel")
+)
 
 type runCmd struct {
 	buildFlags `flatten:""`
@@ -77,6 +81,8 @@ func (c *runCmd) program(ctx context.Context, paths []string) (func(context.Cont
 	if c.goOnly.Value() || len(paths) == 0 {
 		return nil, nil
 	}
+	goos := string(c.goos.Value())
+	goarch := string(c.goarch.Value())
 	if c.app.Value() {
 		if len(c.args) > 0 {
 			return nil, errHostArgs
@@ -85,30 +91,29 @@ func (c *runCmd) program(ctx context.Context, paths []string) (func(context.Cont
 		if err != nil {
 			return nil, err
 		}
-		return nil, launchApp(ctx, c.goos.Value(), paths[0], cfg.PackageID)
+		return nil, launchApp(ctx, goos, paths[0], cfg.PackageID)
 	}
-	if uki.Guest(c.goos.Value()) {
+	if uki.Guest(goos) {
 		if len(c.args) > 0 {
-			return nil, errors.New("program arguments are not passed to a linux guest")
+			return nil, errGuestArgs
 		}
 		dir := paths[0]
 		return func(ctx context.Context) error {
 			return uki.Run(ctx, dir)
 		}, nil
 	}
-	if unikernel.Firmware(c.goos.Value()) {
+	if unikernel.Firmware(goos) {
 		if len(c.args) > 0 {
-			return nil, errors.New("program arguments are not passed to a unikernel")
+			return nil, errUnikernelArgs
 		}
 		image := paths[0]
-		goos := c.goos.Value()
 		return func(ctx context.Context) error {
 			return unikernel.Run(ctx, goos, image)
 		}, nil
 	}
 	prog := builtProgram{
-		goos:    c.goos.Value(),
-		goarch:  c.goarch.Value(),
+		goos:    goos,
+		goarch:  goarch,
 		archive: paths[0],
 		args:    cmd.Values(c.args),
 	}

@@ -20,18 +20,30 @@ var (
 // ConfigFileName is the standard project config next to the Go app (or in a generated host).
 const ConfigFileName = "eletrocromo.json"
 
+// ABI is an Android native library ABI.
+//
+//lewkit:enum
+type ABI string
+
+const (
+	ABIARM64V8A   ABI = "arm64-v8a"   // arm64
+	ABIARMEABIV7A ABI = "armeabi-v7a" // arm
+	ABIX86_64     ABI = "x86_64"      // amd64
+	ABIX86        ABI = "x86"         // 386
+)
+
 // DefaultABIs for the packaged APK.
 //
 // With CGO_ENABLED=0 only android/arm64 links today (no NDK). Prefer arm64-v8a
 // for pure-Go apps; add other ABIs when you have an NDK toolchain and cgo.
-var DefaultABIs = []string{"arm64-v8a"}
+var DefaultABIs = []string{string(ABIARM64V8A)}
 
 // abiToGOARCH maps Android ABI → Go GOARCH (CGO_ENABLED=0 GOOS=android).
 var abiToGOARCH = map[string]string{
-	"arm64-v8a":   "arm64",
-	"armeabi-v7a": "arm",
-	"x86_64":      "amd64",
-	"x86":         "386",
+	string(ABIARM64V8A):   "arm64",
+	string(ABIARMEABIV7A): "arm",
+	string(ABIX86_64):     "amd64",
+	string(ABIX86):        "386",
 }
 
 // fileConfig is the on-disk JSON shape (schema_version included).

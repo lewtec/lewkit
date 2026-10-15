@@ -3,6 +3,8 @@ package header
 // Shape is the class of a C type. The values match the parser's kind
 // constants so a generator outside this package can switch on a type
 // without naming that unexported kind.
+//
+//lewkit:enum
 type Shape uint8
 
 const (
