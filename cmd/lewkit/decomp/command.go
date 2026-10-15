@@ -22,7 +22,7 @@ import (
 var (
 	// errProjectRequired means view was started without a sqlite program database.
 	// Entry still logs it and exits 1. Reporters skip it.
-	errProjectRequired = report.DoNotReport(errs.Wrap(errs.ErrMissing, "missing --project"))
+	errProjectRequired = errs.Wrap(errs.ErrMissing, "missing --project", report.ErrDontReport)
 	// errFunctionName means name was started without a function name.
 	errFunctionName = errors.New("missing --name")
 	// errCandidate means check was started without the caller's JSON.

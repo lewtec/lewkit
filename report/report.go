@@ -4,6 +4,8 @@ import (
 	"errors"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // ErrDontReport marks an error that reporters must not send.
@@ -11,27 +13,13 @@ import (
 var ErrDontReport = errors.New("do not report")
 
 // DoNotReport returns err with the same text.
-// errors.Is(DoNotReport(err), ErrDontReport) is true.
+// errors.Is(DoNotReport(err), ErrDontReport) is true, and so is the original chain.
 // A nil error stays nil. An error that already matches is returned as itself.
 func DoNotReport(err error) error {
 	if err == nil || errors.Is(err, ErrDontReport) {
 		return err
 	}
-	return dontReport{err: err}
-}
-
-// dontReport keeps err's text. Unwrap lists err and ErrDontReport
-// so errors.Is matches both, without joining the two texts.
-type dontReport struct {
-	err error
-}
-
-func (e dontReport) Error() string {
-	return e.err.Error()
-}
-
-func (e dontReport) Unwrap() []error {
-	return []error{e.err, ErrDontReport}
+	return errs.Wrap(err, err.Error(), ErrDontReport)
 }
 
 var reporters []Reporter

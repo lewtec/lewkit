@@ -1,10 +1,13 @@
 package errs
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
+
+var errRead = errors.New("read")
 
 func TestWrapKeepsTextAndParent(t *testing.T) {
 	err := Wrap(ErrNotFound, "conda package not found")
@@ -12,6 +15,21 @@ func TestWrapKeepsTextAndParent(t *testing.T) {
 	require.EqualError(t, err, "conda package not found")
 	require.NotErrorIs(t, err, ErrMissing)
 	require.NotErrorIs(t, err, ErrInvalid)
+	require.ErrorIs(t, errors.Unwrap(err), ErrNotFound)
+}
+
+func TestWrapMatchesEveryParentWithoutJoiningText(t *testing.T) {
+	err := Wrap(ErrNotFound, "conda package not found", ErrMissing)
+	require.EqualError(t, err, "conda package not found")
+	require.NotContains(t, err.Error(), ErrMissing.Error())
+	require.ErrorIs(t, err, ErrNotFound)
+	require.ErrorIs(t, err, ErrMissing)
+	require.NotErrorIs(t, err, ErrInvalid)
+
+	cause := Wrap(errRead, errRead.Error(), ErrUnavailable)
+	require.EqualError(t, cause, errRead.Error())
+	require.ErrorIs(t, cause, errRead)
+	require.ErrorIs(t, cause, ErrUnavailable)
 }
 
 func TestClassify(t *testing.T) {
