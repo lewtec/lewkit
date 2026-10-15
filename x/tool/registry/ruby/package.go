@@ -31,21 +31,18 @@ func (t *rubyTool) ListVersions(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return install.SortVersionsDesc(install.KeepVersions(vers, rubyListedVersion))
+}
 
-	out := []string{}
-	seen := map[string]bool{}
-	for _, v := range vers {
-		if !strings.HasPrefix(v, "ruby-") {
-			continue
-		}
-		ver := strings.TrimPrefix(v, "ruby-")
-		if ver == "" || strings.Contains(ver, "-") || seen[ver] {
-			continue
-		}
-		seen[ver] = true
-		out = append(out, ver)
+func rubyListedVersion(v string) (string, bool) {
+	if !strings.HasPrefix(v, "ruby-") {
+		return "", false
 	}
-	return install.SortVersionsDesc(out)
+	ver := strings.TrimPrefix(v, "ruby-")
+	if ver == "" || strings.Contains(ver, "-") {
+		return "", false
+	}
+	return ver, true
 }
 
 func (t *rubyTool) Install(ctx context.Context, version string, destDir string) error {

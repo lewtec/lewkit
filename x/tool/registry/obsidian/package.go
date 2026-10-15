@@ -48,17 +48,7 @@ func (t *obsidianTool) ListVersions(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(versions))
-	seen := map[string]bool{}
-	for _, version := range versions {
-		normalized, ok := obsidianVersion(version)
-		if !ok || seen[normalized] {
-			continue
-		}
-		seen[normalized] = true
-		out = append(out, normalized)
-	}
-	return install.SortVersionsDesc(out)
+	return install.SortVersionsDesc(install.KeepVersions(versions, obsidianVersion))
 }
 
 func (t *obsidianTool) Install(ctx context.Context, version, destDir string) error {

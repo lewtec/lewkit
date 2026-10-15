@@ -45,6 +45,22 @@ func CollectVersions[T any](items []T, version func(T) string) ([]string, error)
 	return UniqueVersions(versions)
 }
 
+// KeepVersions keeps the first accepted form of each version.
+// normalize returns false to skip a tag. Order is the order of first acceptance.
+func KeepVersions(versions []string, normalize func(string) (string, bool)) []string {
+	out := make([]string, 0, len(versions))
+	seen := map[string]bool{}
+	for _, version := range versions {
+		normalized, ok := normalize(version)
+		if !ok || seen[normalized] {
+			continue
+		}
+		seen[normalized] = true
+		out = append(out, normalized)
+	}
+	return out
+}
+
 // UniqueVersions drops blanks and repeats, then orders the rest newest-first.
 // Empty input yields ErrNoVersions.
 func UniqueVersions(versions []string) ([]string, error) {

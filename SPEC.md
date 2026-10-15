@@ -478,6 +478,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: A tag list that keeps the first accepted form is `install.KeepVersions`. Biome, Obsidian, CMake, and Ruby sort that list newest-first. Each tool still decides which tags count.
 - 2026-10-15: One in-flight Android callback is `androidask.Pending`. The ask dialog and the file dialog use it. Busy text stays "dialog already open" and "file dialog already open".
 - 2026-10-15: A child process whose stdout and stderr share the session line writer is `taskgroup.RunCommand`. The host Go command and the glslang wasm build use it. A nil env still leaves the child environment alone.
 - 2026-10-15: The longest file suffix and the longest magic prefix are `compression.LongestExtension` and `compression.LongestMagic`. `compression.Match` tries the suffix first. Codec lookup and sound decoders both use that. A taken name is `compression.HasName`. The register errors stay "nil codec", "already registered", "nil decoder", and "decoder already registered".

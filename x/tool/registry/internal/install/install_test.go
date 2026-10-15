@@ -74,6 +74,21 @@ func TestUniqueVersions(t *testing.T) {
 	require.Equal(t, []string{"2.0.0", "1.2.0"}, got)
 }
 
+func TestKeepVersions(t *testing.T) {
+	t.Parallel()
+	got := KeepVersions([]string{"v1.2.0", "nope", "v1.2.0", "V2.0.0-rc1", "v2.0.0"}, func(version string) (string, bool) {
+		if !strings.HasPrefix(version, "v") && !strings.HasPrefix(version, "V") {
+			return "", false
+		}
+		version = strings.TrimPrefix(strings.TrimPrefix(version, "v"), "V")
+		if version == "" || strings.Contains(version, "-") {
+			return "", false
+		}
+		return version, true
+	})
+	require.Equal(t, []string{"1.2.0", "2.0.0"}, got)
+}
+
 func TestSortVersionsDesc(t *testing.T) {
 	t.Parallel()
 
