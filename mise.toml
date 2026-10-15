@@ -1,5 +1,5 @@
 [tools]
-"github:lewtec/modot" = "0.20.1"
+"github:lewtec/modot" = "0.20.2"
 go = "1.27.0"
 goreleaser = "2.17.0"
 svu = "3.3.0"
