@@ -34,18 +34,7 @@ func (factory) New(context.Context) (audio_play.Driver, error) {
 type backend struct{}
 
 func (backend) Sinks(ctx context.Context) ([]audio_play.Sink, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	list, err := lib.Devices()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]audio_play.Sink, len(list))
-	for i, item := range list {
-		out[i] = audio_play.Sink{ID: item.ID, Name: item.Name}
-	}
-	return out, nil
+	return audio_play.MapSinks(ctx, lib.Devices, func(item lib.Device) string { return item.ID }, func(item lib.Device) string { return item.Name })
 }
 
 func (backend) Open(ctx context.Context, cfg audio_play.Config) (io.WriteCloser, error) {
