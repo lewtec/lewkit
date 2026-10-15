@@ -31,7 +31,6 @@ import (
 )
 
 var (
-	ErrArch = errors.New("uki: amd64 or arm64 only")
 	ErrQEMU = errors.New("uki: qemu not found")
 	ErrOVMF = errors.New("uki: OVMF_CODE or OVMF_VARS is unset")
 )

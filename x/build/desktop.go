@@ -26,13 +26,22 @@ type Target struct {
 	GOARCH string
 }
 
+// Platform resolves t into the uber Platform enum.
+func (t Target) Platform() (Platform, error) {
+	return PlatformFor(GOOS(t.GOOS), GOARCH(t.GOARCH))
+}
+
+// String formats t as goos/goarch.
+func (t Target) String() string {
+	return t.GOOS + "/" + t.GOARCH
+}
+
 // DesktopTargets is the release matrix: Linux, macOS, and Windows on amd64 and arm64.
 func DesktopTargets() []Target {
-	var out []Target
-	for _, goos := range []string{"linux", "darwin", "windows"} {
-		for _, goarch := range []string{"amd64", "arm64"} {
-			out = append(out, Target{GOOS: goos, GOARCH: goarch})
-		}
+	platforms := DesktopPlatforms()
+	out := make([]Target, 0, len(platforms))
+	for _, platform := range platforms {
+		out = append(out, platform.Target())
 	}
 	return out
 }
@@ -43,14 +52,14 @@ func DesktopTargets() []Target {
 // uploaded as release assets without renaming.
 func ArchiveName(project string, target Target) string {
 	ext := ".tar.gz"
-	switch target.GOOS {
-	case "windows":
+	switch GOOS(target.GOOS) {
+	case GOOSWindows:
 		ext = ".zip"
-	case "uefi", "linux_uki":
+	case GOOSUEFI, GOOSLinuxUKI:
 		ext = ".efi"
-	case "linux_iso":
+	case GOOSLinuxISO:
 		ext = ".iso"
-	case "mbr":
+	case GOOSMBR:
 		ext = ".img"
 	}
 	return project + "_" + target.GOOS + "_" + target.GOARCH + ext
@@ -62,13 +71,13 @@ func ArchiveName(project string, target Target) string {
 func AppFile(product, packageID, goos, goarch string) string {
 	stem := product
 	ext := ".app"
-	switch goos {
-	case "android":
+	switch GOOS(goos) {
+	case GOOSAndroid:
 		stem = androidLabel(packageID)
 		ext = ".apk"
-	case "windows":
+	case GOOSWindows:
 		ext = ".exe"
-	case "linux":
+	case GOOSLinux:
 		ext = ".AppImage"
 	}
 	return stem + "_" + goos + "_" + goarch + ext

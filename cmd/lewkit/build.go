@@ -17,9 +17,15 @@ import (
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/taskgroup/progress"
+)
+
+var (
+	errKernelGuest = errs.Wrap(errs.ErrInvalid, "--kernel is used with --goos linux_uki or --goos linux_iso")
+	errAppGuest    = errs.Wrap(errs.ErrInvalid, "--app packages a host; --goos linux_uki and --goos linux_iso are guests")
 )
 
 type buildFlags struct {
@@ -71,15 +77,15 @@ func runRelease(ctx context.Context, produce func(context.Context) ([]string, er
 
 func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 	ctx = gocmd.WithCompiler(ctx, c.compiler.Value())
-	goos := c.goos.Value()
-	goarch := c.goarch.Value()
+	goos := string(c.goos.Value())
+	goarch := string(c.goarch.Value())
 	target := build.Target{GOOS: goos, GOARCH: goarch}
 	if kernel := strings.TrimSpace(c.kernel.Value()); kernel != "" && !uki.Guest(goos) {
-		return nil, errors.New("--kernel is used with --goos linux_uki or --goos linux_iso")
+		return nil, errKernelGuest
 	}
 	if uki.Guest(goos) {
 		if c.app.Value() {
-			return nil, errors.New("--app packages a host; --goos linux_uki and --goos linux_iso are guests")
+			return nil, errAppGuest
 		}
 		return c.guest(ctx, target)
 	}
@@ -271,10 +277,10 @@ func sessionFrom(ctx context.Context) (*taskgroup.Session, context.Context) {
 	return taskgroup.New(ctx, taskgroup.DefaultLimits())
 }
 
-type goosArg struct{ cmd.StringArg }
+type goosArg struct{ cmd.EnumArg[build.GOOS] }
 
 func (goosArg) ArgDefault() string { return runtime.GOOS }
 
-type goarchArg struct{ cmd.StringArg }
+type goarchArg struct{ cmd.EnumArg[build.GOARCH] }
 
 func (goarchArg) ArgDefault() string { return runtime.GOARCH }

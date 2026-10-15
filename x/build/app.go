@@ -44,9 +44,7 @@ func (host Host) Workflow(goos string) (workflow.Graph, error) {
 }
 
 func (host Host) workflow(goos string, sink func(string)) (workflow.Graph, error) {
-	switch goos {
-	case "darwin", "android", "ios", "windows", "linux":
-	default:
+	if !GOOS(goos).HasAppPackage() {
 		return workflow.Graph{}, fmt.Errorf("%s %w", goos, ErrHasNoAppPackage)
 	}
 	cfg, base, err := host.Load()
@@ -166,12 +164,7 @@ func (host Host) workflow(goos string, sink func(string)) (workflow.Graph, error
 }
 
 func scaffolded(goos string) bool {
-	switch goos {
-	case "darwin", "android", "ios":
-		return true
-	default:
-		return false
-	}
+	return GOOS(goos).Scaffolded()
 }
 
 func (host Host) scaffold(ctx context.Context, goos, workDir string) error {
@@ -183,16 +176,16 @@ func (host Host) scaffold(ctx context.Context, goos, workDir string) error {
 	if err != nil {
 		return err
 	}
-	switch goos {
-	case "darwin":
+	switch GOOS(goos) {
+	case GOOSDarwin:
 		gen := macConfig(cfg)
 		gen.GoMain = goMain
 		return mac.Create(ctx, mac.Options{OutDir: workDir, Force: true, Config: gen})
-	case "ios":
+	case GOOSIOS:
 		gen := iosConfig(cfg)
 		gen.GoMain = goMain
 		return ios.Create(ctx, ios.Options{OutDir: workDir, Force: true, Config: gen})
-	case "android":
+	case GOOSAndroid:
 		cfg.GoMain = goMain
 		return apk.Create(ctx, apk.Options{OutDir: workDir, Force: true, Config: cfg})
 	default:
@@ -201,16 +194,16 @@ func (host Host) scaffold(ctx context.Context, goos, workDir string) error {
 }
 
 func (host Host) packageApp(ctx context.Context, goos string) (string, error) {
-	switch goos {
-	case "darwin":
+	switch GOOS(goos) {
+	case GOOSDarwin:
 		return host.Mac(ctx)
-	case "android":
+	case GOOSAndroid:
 		return host.Android(ctx)
-	case "ios":
+	case GOOSIOS:
 		return host.IOS(ctx)
-	case "windows":
+	case GOOSWindows:
 		return host.Windows(ctx)
-	case "linux":
+	case GOOSLinux:
 		return host.Linux(ctx)
 	default:
 		return "", fmt.Errorf("%s %w", goos, ErrHasNoAppPackage)

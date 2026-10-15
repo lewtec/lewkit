@@ -2,7 +2,6 @@ package gocmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,16 +12,10 @@ import (
 	"github.com/lewtec/lewkit/x/toolchain/load"
 )
 
-// ErrCompiler means the lewkit compiler cannot perform this go invocation.
-// cgo, a buildmode other than exe, a -toolexec whose basename does not
-// start with _cgo_ and end with _export.go, -overlay, and a GOARCH other
-// than amd64 or arm64 return this error. Release commands default to this compiler.
-// A Command with no compiler and a context with none still runs the host
-// go command.
-var ErrCompiler = errors.New("gocmd: lewkit compiler")
-
 // Compiler selects the go command or the embedded compiler.
 // The zero value runs the host go command.
+//
+//lewkit:enum
 type Compiler int
 
 const (
@@ -31,23 +24,6 @@ const (
 	// CompilerLewkit compiles a CGO-free amd64 or arm64 binary with the embedded compiler.
 	CompilerLewkit
 )
-
-// String is the CLI token.
-func (c Compiler) String() string {
-	switch c {
-	case CompilerHost:
-		return "host"
-	case CompilerLewkit:
-		return "lewkit"
-	default:
-		return ""
-	}
-}
-
-// Values lists compilers for cmd.EnumArg.
-func (Compiler) Values() []Compiler {
-	return []Compiler{CompilerHost, CompilerLewkit}
-}
 
 type compilerKey struct{}
 

@@ -9,7 +9,7 @@ var (
 	errInclude         = errors.New("include not found")
 	errLayout          = errors.New("layout")
 	errExpr            = errors.New("constant expression")
-	errABI             = errors.New("unknown abi")
+	errABI             = ErrLayoutID
 	errPackage         = errors.New("package name")
 	ErrParserFail      = errors.New("")
 	ErrParserParseFile = errors.New("")

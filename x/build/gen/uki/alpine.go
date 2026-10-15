@@ -15,14 +15,24 @@ const (
 	alpinePkg     = "linux-virt"
 )
 
+// Arch is an Alpine Linux apk architecture.
+//
+//lewkit:enum
+type Arch string
+
+const (
+	ArchX86_64  Arch = "x86_64"  // amd64
+	ArchAArch64 Arch = "aarch64" // arm64
+)
+
 // AlpineArch is the apk architecture for a Go GOARCH.
 // amd64 is x86_64. arm64 is aarch64.
 func AlpineArch(goarch string) (string, error) {
 	switch goarch {
 	case "amd64":
-		return "x86_64", nil
+		return string(ArchX86_64), nil
 	case "arm64":
-		return "aarch64", nil
+		return string(ArchAArch64), nil
 	default:
 		return "", fmt.Errorf("%w: %s", ErrArch, goarch)
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/lewtec/lewkit/x/generate/header"
 )
 
+//lewkit:enum
 type regKind int
 
 const (
@@ -14,6 +15,7 @@ const (
 	regXMM
 )
 
+//lewkit:enum
 type valKind int
 
 const (

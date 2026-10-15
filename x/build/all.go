@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/lewtec/lewkit/x/build/gen/apk"
 	"github.com/lewtec/lewkit/x/build/gen/common"
@@ -43,6 +42,11 @@ type Uber struct {
 	Sign *sign.Identity
 }
 
+// HostPlatforms is the host packages this process can finish without cgo.
+func HostPlatforms(ctx context.Context) ([]Platform, error) {
+	return hostPlatforms(ctx, false)
+}
+
 // HostTargets is the host packages this process can finish without cgo.
 // Linux and Windows are pure Go. macOS and iOS need xcodebuild and
 // xcodegen. Android needs an SDK that is already installed.
@@ -51,31 +55,43 @@ func HostTargets(ctx context.Context) ([]Target, error) {
 	return hostTargets(ctx, false)
 }
 
-func hostTargets(ctx context.Context, cgo bool) ([]Target, error) {
-	var out []Target
-	for _, goarch := range []string{"amd64", "arm64"} {
-		out = append(out,
-			Target{GOOS: "linux", GOARCH: goarch},
-			Target{GOOS: "windows", GOARCH: goarch},
-		)
+func hostPlatforms(ctx context.Context, cgo bool) ([]Platform, error) {
+	out := []Platform{
+		PlatformLinuxAMD64,
+		PlatformWindowsAMD64,
+		PlatformLinuxARM64,
+		PlatformWindowsARM64,
 	}
 	if darwinTools(ctx) {
-		for _, goarch := range []string{"amd64", "arm64"} {
-			out = append(out, Target{GOOS: "darwin", GOARCH: goarch})
-		}
-		out = append(out, Target{GOOS: "ios", GOARCH: "arm64"})
+		out = append(out,
+			PlatformDarwinAMD64,
+			PlatformDarwinARM64,
+			PlatformIOSARM64,
+		)
 	}
 	if apk.SDKInstalled(ctx) {
-		out = append(out, Target{GOOS: "android", GOARCH: "arm64"})
+		out = append(out, PlatformAndroidARM64)
 		if cgo {
-			out = append(out, Target{GOOS: "android", GOARCH: "amd64"})
+			out = append(out, PlatformAndroidAMD64)
 		}
 	}
 	return out, nil
 }
 
+func hostTargets(ctx context.Context, cgo bool) ([]Target, error) {
+	platforms, err := hostPlatforms(ctx, cgo)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Target, 0, len(platforms))
+	for _, platform := range platforms {
+		out = append(out, platform.Target())
+	}
+	return out, nil
+}
+
 func darwinTools(ctx context.Context) bool {
-	if runtime.GOOS != "darwin" {
+	if HostGOOS() != GOOSDarwin {
 		return false
 	}
 	return common.XcodeReady(ctx) == nil
