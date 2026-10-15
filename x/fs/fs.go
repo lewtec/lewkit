@@ -82,6 +82,15 @@ func DirEntries(ents []iofs.DirEntry, off *int, n int) ([]iofs.DirEntry, error) 
 	return out, nil
 }
 
+// Infos collects info from each item, in order.
+func Infos[T any](items []T, info func(T) iofs.FileInfo) []iofs.FileInfo {
+	out := make([]iofs.FileInfo, len(items))
+	for i, item := range items {
+		out[i] = info(item)
+	}
+	return out
+}
+
 // NameSorted lists infos as directory entries in name order.
 func NameSorted(infos []iofs.FileInfo) []iofs.DirEntry {
 	out := make([]iofs.DirEntry, 0, len(infos))

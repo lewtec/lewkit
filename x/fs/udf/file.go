@@ -41,11 +41,7 @@ func listEntries(n entry) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	infos := make([]fs.FileInfo, len(kids))
-	for i, k := range kids {
-		infos[i] = k.info()
-	}
-	return lewfs.NameSorted(infos), nil
+	return lewfs.NameSorted(lewfs.Infos(kids, func(k entry) fs.FileInfo { return k.info() })), nil
 }
 
 type file struct {
