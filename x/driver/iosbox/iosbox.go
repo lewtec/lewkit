@@ -24,8 +24,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver/askwire"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // Op is one host call.
 //
 //lewkit:enum

@@ -5,8 +5,6 @@ import (
 	"strings"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // Architecture is a Capstone architecture.
 //
 //lewkit:enum fold

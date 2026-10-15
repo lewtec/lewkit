@@ -4,8 +4,6 @@ package askwire
 
 import "strings"
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // Status is the first line of a dialog reply.
 //
 //lewkit:enum

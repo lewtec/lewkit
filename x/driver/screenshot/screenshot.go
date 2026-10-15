@@ -25,8 +25,6 @@ var (
 	ErrEmptySelection = errs.Wrap(errs.ErrEmpty, "empty selection")
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // TargetType selects what Capture should frame.
 //
 //lewkit:enum

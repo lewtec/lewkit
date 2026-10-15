@@ -20,8 +20,6 @@ func IsSPIRV(b []byte) bool {
 	return len(b) >= 4 && binary.LittleEndian.Uint32(b[:4]) == 0x07230203
 }
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // Stage is a shader stage the embedded compiler can emit.
 //
 //lewkit:enum

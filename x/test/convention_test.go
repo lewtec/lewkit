@@ -19,9 +19,10 @@ import (
 
 // TestConventions rejects inline errors at return sites, testing assertions
 // outside testify, nil contexts, comparisons of a context to nil, context
-// roots outside main, a godoc example, and the Android host entry, and
-// sentinels that repeat a meta condition without wrapping it. The vendored
-// compiler trees are not this module's code.
+// roots outside main, a godoc example, and the Android host entry,
+// sentinels that repeat a meta condition without wrapping it, and an enum
+// go:generate directive outside enum.go. The vendored compiler trees are
+// not this module's code.
 func TestConventions(t *testing.T) {
 	root := moduleRoot(t)
 	index := newSigIndex(modulePath(root))
@@ -167,6 +168,23 @@ const (
 )
 `
 	require.Empty(t, checkSource("p.go", []byte(open)))
+
+	directive := "package p\n\n" +
+		"//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum\n" +
+		"//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate header foo.h\n"
+	require.Equal(t, []string{
+		"format.go:3:1: enum go:generate belongs in enum.go",
+	}, checkSource("format.go", []byte(directive)))
+	require.Empty(t, checkSource("enum.go", []byte(directive)))
+	busy := "package p\n\n//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum\n\ntype Kind int\n"
+	require.Equal(t, []string{
+		"enum.go:5:1: enum.go holds only the package clause and the enum go:generate line",
+	}, checkSource("enum.go", []byte(busy)))
+
+	named := "package p\n\n//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum format.go\n"
+	require.Equal(t, []string{
+		"level.go:3:1: enum go:generate belongs in enum.go",
+	}, checkSource("level.go", []byte(named)))
 }
 
 func TestConventionSkips(t *testing.T) {
@@ -390,10 +408,54 @@ func inspectFile(file parsedFile, index *sigIndex) []string {
 	}
 	checker.readImports(file.file)
 	ast.Walk(checker, file.file)
+	checker.problems = append(checker.problems, enumGenerateDirective(file)...)
 	if !checker.testFile {
 		checker.problems = append(checker.problems, stringConstEnums(file)...)
 	}
 	return checker.problems
+}
+
+// enumGenerateDirective flags an enum go:generate line outside enum.go.
+// enum.go itself is the package clause and that line.
+func enumGenerateDirective(file parsedFile) []string {
+	var hits []*ast.Comment
+	for _, group := range file.file.Comments {
+		for _, comment := range group.List {
+			if enumGenerateLine(comment.Text) {
+				hits = append(hits, comment)
+			}
+		}
+	}
+	if len(hits) == 0 {
+		return nil
+	}
+	if filepath.Base(file.name) != "enum.go" {
+		problems := make([]string, 0, len(hits))
+		for _, comment := range hits {
+			pos := file.fset.Position(comment.Pos())
+			problems = append(problems, fmt.Sprintf("%s:%d:%d: enum go:generate belongs in enum.go", file.name, pos.Line, pos.Column))
+		}
+		return problems
+	}
+	if len(file.file.Decls) == 0 {
+		return nil
+	}
+	pos := file.fset.Position(file.file.Decls[0].Pos())
+	return []string{fmt.Sprintf("%s:%d:%d: enum.go holds only the package clause and the enum go:generate line", file.name, pos.Line, pos.Column)}
+}
+
+func enumGenerateLine(text string) bool {
+	text = strings.TrimSpace(strings.TrimPrefix(text, "//"))
+	if !strings.HasPrefix(text, "go:generate") {
+		return false
+	}
+	fields := strings.Fields(text)
+	for i := 0; i+1 < len(fields); i++ {
+		if fields[i] == "generate" && fields[i+1] == "enum" {
+			return true
+		}
+	}
+	return false
 }
 
 type conventionChecker struct {

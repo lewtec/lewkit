@@ -3,8 +3,6 @@ package table
 
 import "fmt"
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // Format selects how Write prints a sequence. The zero value is invalid.
 //
 //lewkit:enum

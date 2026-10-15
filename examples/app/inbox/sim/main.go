@@ -44,8 +44,6 @@ func main() {
 	entry.MainFrom(parent, app.Run)
 }
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // target is one simulator step.
 //
 //lewkit:enum

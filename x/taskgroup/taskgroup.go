@@ -11,8 +11,6 @@
 // Isolate is an error boundary with no list row.
 package taskgroup
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 import (
 	"context"
 	"errors"

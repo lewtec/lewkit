@@ -2,8 +2,6 @@ package vulkan
 
 import "strings"
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // DeviceType is VkPhysicalDeviceType. Values match the spec so a raw
 // properties.deviceType casts. String is the CLI / driver-id token.
 // A value outside the set is other.

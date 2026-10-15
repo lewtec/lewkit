@@ -5,8 +5,6 @@ import (
 	"io"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // Format is one diagnostic rendering. The zero value is unset.
 // It is a cmd.Enum, so cmd.EnumArg[Format] parses a flag when a caller opts in.
 //

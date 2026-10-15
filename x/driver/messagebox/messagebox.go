@@ -15,8 +15,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // Style is informational, warning, or critical.
 //
 //lewkit:enum fold

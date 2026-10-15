@@ -31,8 +31,13 @@
 // file, it writes one for every marked file in the package directory.
 // That directory is the working directory. go generate runs there and
 // sets GOFILE to the base name of the file that holds the directive.
-// A GOFILE that names a path selects that file's directory. One
-// directive covers the package:
+// A GOFILE that names a path selects that file's directory.
+//
+// The directive lives in enum.go. That file is the package clause and
+// the directive. It is not an input, so the generator does not write
+// enum_enum.go:
+//
+//	package sample
 //
 //	//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
 package enum
@@ -83,7 +88,7 @@ func runPackage(ctx context.Context) error {
 			return err
 		}
 		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_enum.go") {
+		if entry.IsDir() || !isEnumSource(name) {
 			continue
 		}
 		path := filepath.Join(dir, name)
@@ -155,8 +160,18 @@ func generateFile(path string, skipUnmarked bool) (bool, error) {
 	return true, nil
 }
 
+// isEnumSource reports whether name is a Go file the generator reads.
+// enum.go holds the go:generate line and is not an input, so the
+// output is never enum_enum.go.
+func isEnumSource(name string) bool {
+	return strings.HasSuffix(name, ".go") &&
+		!strings.HasSuffix(name, "_test.go") &&
+		!strings.HasSuffix(name, "_enum.go") &&
+		name != "enum.go"
+}
+
 func outputPath(path string) (string, error) {
-	if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, "_enum.go") {
+	if !isEnumSource(filepath.Base(path)) {
 		return "", fmt.Errorf("%w: %s", ErrEnum, path)
 	}
 	return strings.TrimSuffix(path, ".go") + "_enum.go", nil

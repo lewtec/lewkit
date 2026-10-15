@@ -77,6 +77,30 @@ func TestRunEmptyPackage(t *testing.T) {
 	require.ErrorIs(t, err, ErrNoEnum)
 }
 
+func TestRunSkipsDirectiveFile(t *testing.T) {
+	dir := t.TempDir()
+	writeMarked(t, filepath.Join(dir, "format.go"), "Format", "text")
+	enumPath := filepath.Join(dir, "enum.go")
+	directive := "package sample\n\n//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum\n"
+	require.NoError(t, os.WriteFile(enumPath, []byte(directive), 0o644))
+	t.Chdir(dir)
+	t.Setenv("GOFILE", "enum.go")
+	require.NoError(t, Run(t.Context(), nil))
+	require.FileExists(t, filepath.Join(dir, "format_enum.go"))
+	require.NoFileExists(t, filepath.Join(dir, "enum_enum.go"))
+}
+
+func TestRunRejectsEnumFile(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "enum.go")
+	src := "package sample\n\n//lewkit:enum\ntype Kind string\n\nconst (\n\tKindA Kind = \"a\"\n)\n"
+	require.NoError(t, os.WriteFile(path, []byte(src), 0o644))
+	err := Run(t.Context(), []string{path})
+	require.ErrorIs(t, err, ErrEnum)
+	require.NoFileExists(t, filepath.Join(dir, "enum_enum.go"))
+}
+
 func TestRunExplicitFileSkipsSiblings(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

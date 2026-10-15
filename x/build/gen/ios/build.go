@@ -38,8 +38,6 @@ var (
 	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug-iphonesimulator .app under DerivedData")
 )
 
-//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum
-
 // SDK is an xcrun SDK name. An empty text is the simulator.
 //
 //lewkit:enum empty=iphonesimulator
