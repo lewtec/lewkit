@@ -3,6 +3,7 @@ package ndarray
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 )
 
@@ -272,7 +273,7 @@ func (w *codeWriter) indexAt(tracker Tracker, coords []string) (off, valid strin
 	if len(tracker.views) == 0 {
 		return "0", "true"
 	}
-	if tracker.Contiguous() && tracker.Shape().Equal(w.outShape) && sameCoordVars(coords, w.coords) {
+	if tracker.Contiguous() && tracker.Shape().Equal(w.outShape) && slices.Equal(coords, w.coords) {
 		return "i", "true"
 	}
 	off, valid = w.view(tracker.views[len(tracker.views)-1], coords)
@@ -320,18 +321,6 @@ func (w *codeWriter) chainCoords(chain []stStep) ([]string, string, error) {
 		coords = w.unravel(s.origin, o)
 	}
 	return coords, valid, nil
-}
-
-func sameCoordVars(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func (w *codeWriter) view(v view, coords []string) (off, valid string) {
