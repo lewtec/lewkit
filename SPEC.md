@@ -286,6 +286,16 @@ Inherited C (cite the file):
 | `x/takemake/sql/schema` | `Database`, `New`, `Apply`, `Make`, `Table` | the catalog after `Apply` | `Apply` folds a `sql.File` in order; `Make` returns the `CreateTable` snapshot | the scaffold is `errs.ErrScaffold` | import a database driver |
 | `x/takemake/tar` | `File`, `New`, `Take`, `Make` | one tar archive | the entry list stays here | the scaffold is `errs.ErrScaffold` | replace `x/fs/tar` |
 | `x/takemake/zip` | `File`, `New`, `Take`, `Make` | one zip archive | the entry list stays here | the scaffold is `errs.ErrScaffold` | replace `x/fs/zip` |
+| `x/takemake/makefile` | `File`, `New`, `Take`, `Make` | one Makefile | the file stays here; `x/workflow/make` lowers it to `workflow.Graph` | the scaffold is `errs.ErrScaffold` | import `x/workflow` |
+| `x/takemake/ninja` | `File`, `New`, `Take`, `Make` | one ninja build file | the file stays here; `x/workflow/ninja` lowers edges to `workflow.Graph` | the scaffold is `errs.ErrScaffold` | import `x/workflow` |
+| `x/takemake/graphviz` | `File`, `New`, `Take`, `Make` | one Graphviz source file | the file stays here; `x/graph.Graph` is a projection | the scaffold is `errs.ErrScaffold` | import `x/graph` |
+| `x/takemake/iso` | `File`, `New`, `Take`, `Make` | one El Torito image | the ISO 9660 directory, boot catalog, and FAT16 boot image stay here | the scaffold is `errs.ErrScaffold` | store a UDF volume in this file; replace `x/fs/iso` |
+| `x/takemake/squashfs` | `File`, `New`, `Take`, `Make` | one SquashFS image | the entry list stays here | the scaffold is `errs.ErrScaffold` | replace `x/fs/squashfs` |
+| `x/takemake/udf` | `File`, `New`, `Take`, `Make` | one UDF volume | the entry list stays here | the scaffold is `errs.ErrScaffold` | treat this volume as `x/takemake/iso`; replace `x/fs/udf` |
+| `x/takemake/wim` | `File`, `New`, `Take`, `Make` | one WIM image | the entry list stays here | the scaffold is `errs.ErrScaffold` | replace `x/fs/wim` |
+| `x/takemake/onnx` | `File`, `New`, `Take`, `Make` | one ONNX graph | the graph stays here; `x/ndarray/onnx` evaluates it | the scaffold is `errs.ErrScaffold` | evaluate the graph in this package |
+| `x/takemake/sarif` | `File`, `New`, `Take`, `Make` | one SARIF 2.1.0 log | the log stays here; `x/text/report` keeps findings | the scaffold is `errs.ErrScaffold` | import `x/text/report` |
+| `x/takemake/dotenv` | `File`, `New`, `Take`, `Make` | one assignment list | comments and quoting stay on the assignment | the scaffold is `errs.ErrScaffold` | import `x/sops` |
 | `x/net` | no Go API | names protocol packages | MUST NOT grow a client in the parent | the directory has no Go package | import `x/net` |
 | `x/net/gemini` | `Client`, `Server`, `ListenAndServeTLS`, `ServeTLS`, `Serve`, `Fetch`, `NormalizeURL`, `ResolveURL`, `ReadResponse`, `WriteResponse`, `ParseGemtext`, `FormatGemtext`, `Document`, `Line`, `Kind`, `Code`, `StatusCategory`, `Category` | a `gemini://` response, a Gemini server, and a text/gemini document | the protocol and the gemtext parser stay here; the certificate is `Server.TLSConfig` or `certFile` and `keyFile`, as in `net/http`; `Kind`, `Code`, and `StatusCategory` are generated enums | a nil context panics; a bad URL is `ErrInvalidURL`; a bad header is `ErrBadHeader`; more than five redirects is `ErrTooManyHops`; a dial, body, or serve failure is `ErrStatusFailed` or `ErrServe`; a nil handler is `ErrNoHandler`; a nil listener is `ErrNoListener`; a missing certificate is `ErrNoCertificate`; unknown enum text is `ErrKind`, `ErrCode`, or `ErrStatusCategory` | import `x/driver`; import `x/ui` |
 | `examples` | programs, not a library | demo | demos MAY stay | program failure | import `examples` from a library package |
@@ -490,6 +500,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: The next take/make scaffolds are `makefile`, `ninja`, `graphviz`, `iso`, `squashfs`, `udf`, `wim`, `onnx`, `sarif`, and `dotenv`. UDF is its own volume. A `.iso` name often holds one, and `x/fs/iso` writes ISO 9660. Mermaid stays a printer on `x/graph`. Rejected: a package named `make` or `dot`; folding UDF into `iso`.
 - 2026-10-15: The C take/make model is `x/takemake/c`, one translation unit. A function keeps its body. A header is that file with no bodies. Size, alignment, and field offset stay on the type. `Make` prints C. A Go projection is separate. Rejected: a package named `header` that stores only declarations.
 - 2026-10-15: A pin copied from an inner tool, then marked semver, is `tool.InheritSemver`. Obsidian and Tirith return that. Biome still adds its extract expression when the inner pin has none. A pin that only says semver stays `tool.SemverPin`.
 - 2026-10-15: A tag list that keeps the first accepted form is `install.KeepVersions`. Biome, Obsidian, CMake, and Ruby sort that list newest-first. Each tool still decides which tags count.

@@ -16,6 +16,16 @@ x/takemake/sql
 x/takemake/sql/schema
 x/takemake/tar
 x/takemake/zip
+x/takemake/makefile
+x/takemake/ninja
+x/takemake/graphviz
+x/takemake/iso
+x/takemake/squashfs
+x/takemake/udf
+x/takemake/wim
+x/takemake/onnx
+x/takemake/sarif
+x/takemake/dotenv
 ```
 
 One session owns one directory. Leave the other directories alone. The scaffold compiles and returns `errs.ErrScaffold` from `Take` and `Make`. Replace that body. Closed sets are `//lewkit:enum`, and the package `enum.go` holds only the package clause and `//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum`.
@@ -102,8 +112,24 @@ s.Func("main").Returns(glsl.Void()).Block(...)
 
 `tar.File` and `zip.File` are ordered entries. An entry is a name, a mode, a modification time, and either bytes or a symlink target. `x/fs/tar` and `x/fs/zip` only open today.
 
+`makefile.File` holds variables, rules, and functions. A rule is targets, prerequisites, and a recipe. `Take` parses a Makefile. `Make` prints it. `x/workflow/make` lowers that file to `workflow.Graph`.
+
+`ninja.File` holds variables, rules, and build edges. An edge is outputs, a rule, inputs, and bindings. `Take` parses the file. `Make` prints it. `x/workflow/ninja` lowers edges to `workflow.Graph`.
+
+`graphviz.File` holds graphs, nodes, edges, and attributes. `Take` parses Graphviz source. `Make` prints it. `x/graph.Graph` is a projection. `Graph.DOT` prints a small digraph today.
+
+`iso.File` is one El Torito image: an ISO 9660 directory, the boot catalog, and a FAT16 boot image. An entry is a name, a mode, a time, and bytes. `x/fs/iso.Write` builds that image today.
+
+`squashfs.File`, `udf.File`, and `wim.File` are file trees. An entry is a name, a mode, a time, and bytes or a symlink target. `x/fs/squashfs`, `x/fs/udf`, and `x/fs/wim` only open today. UDF is its own volume. A file named `.iso` often holds one, and `x/fs/udf` reads that volume. `iso.File` does not.
+
+`onnx.File` holds inputs, outputs, initializers, and nodes. `Take` reads a ModelProto. `Make` writes it. `x/ndarray/onnx` evaluates the graph.
+
+`sarif.File` is one SARIF 2.1.0 log: runs, results, rules, and fixes. `Take` parses the JSON. `Make` prints it. `x/text/report.WriteSARIF` prints findings today.
+
+`dotenv.File` is assignments in order. A comment and the original quoting stay on the assignment. `Take` parses the text. `Make` prints it. `x/sops.ParseEnv` drops comments, and `Env.Strings` is not that text.
+
 ## Leave these where they are
 
 `x/disasm` keeps Capstone. After `Take`, it reads section bytes from `elf.File`, `pe.File`, or `macho.File`. `x/disasm/decomp` keeps the lift. `x/toolchain/go` keeps linking. `x/generate/clib` keeps `MakeShared`, `MakeDLL`, and the Mach-O dylib rewrite.
 
-SVG, gemtext, WAV, PNG, JPEG, ICO, ICNS, the compression codecs, and the AppImage trailer already round-trip. Squashfs, UDF, WIM, ONNX, DOT, Mermaid, SARIF, make, and ninja have one door and are not children yet.
+SVG, gemtext, WAV, PNG, JPEG, ICO, ICNS, the compression codecs, and the AppImage trailer already round-trip. Mermaid stays a printer on `x/graph`. The rustc diagnostic text stays a printer on `x/text/report`. JSON, TOML, YAML, INI, and XML stay encodings of one `compose.File`.
