@@ -63,7 +63,7 @@ require (
 	golang.org/x/term v0.46.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.58.0
-	software.sslmate.com/src/go-pkcs12 v0.7.3
+	software.sslmate.com/src/go-pkcs12 v0.7.4
 )
 
 require (
