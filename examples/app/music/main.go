@@ -11,6 +11,7 @@ import (
 	"github.com/lewtec/lewkit/x/app"
 	_ "github.com/lewtec/lewkit/x/driver/prelude"
 	"github.com/lewtec/lewkit/x/entry"
+	_ "github.com/lewtec/lewkit/x/sound/prelude"
 )
 
 func init() { entry.Bind(runApp) }

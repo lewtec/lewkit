@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"image"
+	"io"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -15,6 +17,10 @@ import (
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
+type chooseFunc func(context.Context, filedialog.Request) ([]string, error)
+
+type openFunc func(...string) (fs.FS, error)
+
 // openMusic builds the browser. The returned func closes the catalog.
 // dir is ingested on the first tick. An empty dir waits for a drop.
 func openMusic(ctx context.Context, dir string) (gui.Model, func() error, error) {
@@ -23,6 +29,7 @@ func openMusic(ctx context.Context, dir string) (gui.Model, func() error, error)
 		return nil, nil, err
 	}
 	play := newPlayer(nil)
+	play.openFile = lib.Open
 	go play.loop(ctx)
 	model := newMusic(ctx, lib, play)
 	model.dir = dir
@@ -49,27 +56,30 @@ type chosen struct {
 
 type musicModel struct {
 	gui.Dirty
-	ctx    context.Context
-	lib    *Library
-	player *player
-	size   image.Point
-	dir    string
-	query  string
-	search bool
-	screen musicScreen
-	album  string
-	albums []Album
-	tracks []Track
-	now    *Track
-	resume int64
-	scroll float32
-	cardX  float32
-	busy   bool
-	booted bool
-	note   string
-	mode   daynight.Mode
-	paint  musicPaint
-	covers map[string]image.Image
+	ctx      context.Context
+	lib      *Library
+	player   *player
+	chooseFn chooseFunc
+	openFn   openFunc
+	picking  bool
+	size     image.Point
+	dir      string
+	query    string
+	search   bool
+	screen   musicScreen
+	album    string
+	albums   []Album
+	tracks   []Track
+	now      *Track
+	resume   int64
+	scroll   float32
+	cardX    float32
+	busy     bool
+	booted   bool
+	note     string
+	mode     daynight.Mode
+	paint    musicPaint
+	covers   map[string]image.Image
 
 	head  *headerModel
 	shelf *albumModel
@@ -78,16 +88,21 @@ type musicModel struct {
 }
 
 func newMusic(ctx context.Context, lib *Library, play *player) *musicModel {
+	if play != nil && lib != nil {
+		play.openFile = lib.Open
+	}
 	model := &musicModel{
-		ctx:    ctx,
-		lib:    lib,
-		player: play,
-		size:   image.Pt(900, 700),
-		mode:   daynight.Dark,
-		head:   &headerModel{},
-		shelf:  &albumModel{},
-		list:   &trackModel{},
-		stage:  &nowModel{},
+		ctx:      ctx,
+		lib:      lib,
+		player:   play,
+		chooseFn: filedialog.Choose,
+		openFn:   filedialog.Open,
+		size:     image.Pt(900, 700),
+		mode:     daynight.Dark,
+		head:     &headerModel{},
+		shelf:    &albumModel{},
+		list:     &trackModel{},
+		stage:    &nowModel{},
 	}
 	model.prepare()
 	return model
@@ -157,6 +172,7 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		}
 		return m, nil
 	case chosen:
+		m.picking = false
 		if event.err != nil {
 			m.note = event.err.Error()
 			m.Dirty = gui.Touch(m.Dirty)
@@ -204,28 +220,24 @@ func guiSize(msg gui.Msg) (image.Point, bool) {
 	}
 }
 
+func (m *musicModel) hit(pos image.Point) (string, float32, float32) {
+	root := m.View()
+	if root == nil {
+		return "", 0, 0
+	}
+	size := gui.Size{Width: float32(m.size.X), Height: float32(m.size.Y)}
+	return gui.Hit(root, size, pos)
+}
+
 func (m *musicModel) ingest(paths []string) gui.Cmd {
 	m.busy = true
 	m.note = "reading library"
 	m.Dirty = gui.Touch(m.Dirty)
 	lib := m.lib
+	open := m.openFn
 	return func(ctx context.Context) gui.Msg {
-		var count int
-		var failed error
-		for _, path := range paths {
-			if path == "" {
-				continue
-			}
-			n, err := lib.Ingest(ctx, path)
-			count += n
-			if err != nil && n == 0 {
-				failed = err
-			}
-		}
-		if count > 0 {
-			failed = nil
-		}
-		return ingested{count: count, err: failed}
+		count, err := lib.IngestPaths(ctx, open, paths...)
+		return ingested{count: count, err: err}
 	}
 }
 
@@ -256,7 +268,7 @@ func (m *musicModel) aim(event window.Pointer) (gui.Model, gui.Cmd) {
 	if m == nil || event.Button != 1 || !event.Pressed {
 		return m, nil
 	}
-	key, along, _ := gui.Hit(m.View(), gui.Size{Width: float32(m.size.X), Height: float32(m.size.Y)}, event.Pos)
+	key, along, _ := m.hit(event.Pos)
 	if key != "search" {
 		m.Dirty, m.head.search = gui.See(m.Dirty, m.head.search, false)
 	}
@@ -315,7 +327,7 @@ func (m *musicModel) wheel(event window.Scroll) (gui.Model, gui.Cmd) {
 	if m == nil {
 		return m, nil
 	}
-	key, _, _ := gui.Hit(m.View(), gui.Size{Width: float32(m.size.X), Height: float32(m.size.Y)}, event.Pos)
+	key, _, _ := m.hit(event.Pos)
 	switch {
 	case strings.HasPrefix(key, "album"):
 		next := m.shelf.scroll + float32(event.Delta.Y+event.Delta.X)
@@ -393,8 +405,16 @@ func take[T gui.Model](model *T, msg gui.Msg) gui.Cmd {
 }
 
 func (m *musicModel) choose() gui.Cmd {
+	if m.picking {
+		return nil
+	}
+	m.picking = true
+	choose := m.chooseFn
+	if choose == nil {
+		choose = filedialog.Choose
+	}
 	return func(ctx context.Context) gui.Msg {
-		paths, err := filedialog.Choose(ctx, filedialog.Request{Title: "Music folder", Folder: true})
+		paths, err := choose(ctx, filedialog.Request{Title: "Music folder", Folder: true})
 		if errors.Is(err, filedialog.ErrCanceled) {
 			return chosen{}
 		}
@@ -453,7 +473,7 @@ func (m *musicModel) cover(path string) image.Image {
 	if img, ok := m.covers[path]; ok {
 		return img
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := m.readCoverBytes(path)
 	if err != nil {
 		m.covers[path] = nil
 		return nil
@@ -465,4 +485,16 @@ func (m *musicModel) cover(path string) image.Image {
 	}
 	m.covers[path] = img
 	return img
+}
+
+func (m *musicModel) readCoverBytes(path string) ([]byte, error) {
+	if m.lib != nil {
+		file, err := m.lib.Open(path)
+		if err != nil {
+			return nil, err
+		}
+		defer file.Close()
+		return io.ReadAll(file)
+	}
+	return os.ReadFile(path)
 }

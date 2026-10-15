@@ -4,7 +4,9 @@ import (
 	"encoding/binary"
 	"hash/fnv"
 	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -13,6 +15,13 @@ import (
 
 const maxTagBytes = 16 << 20
 
+var coverNames = []string{
+	"cover.png", "cover.jpg", "cover.jpeg",
+	"folder.png", "folder.jpg",
+	"front.jpg", "front.png",
+	"album.jpg", "albumart.jpg",
+}
+
 func (lib *Library) trackCover(dir, audioPath string) string {
 	if raw := readEmbeddedCover(audioPath); len(raw) > 0 {
 		if saved, err := lib.writeCover(audioPath, raw); err == nil {
@@ -20,6 +29,15 @@ func (lib *Library) trackCover(dir, audioPath string) string {
 		}
 	}
 	return folderCover(dir)
+}
+
+func (lib *Library) trackCoverFS(fsys fs.FS, prefix, dir, rel, storedPath string) string {
+	if raw := readEmbeddedCoverFS(fsys, rel); len(raw) > 0 {
+		if saved, err := lib.writeCover(storedPath, raw); err == nil {
+			return saved
+		}
+	}
+	return folderCoverFS(fsys, prefix, dir)
 }
 
 func (lib *Library) writeCover(audioPath string, raw []byte) (string, error) {
@@ -64,6 +82,31 @@ func folderCover(dir string) string {
 	if err != nil {
 		return ""
 	}
+	if actual := pickCoverEntry(entries); actual != "" {
+		return filepath.Join(dir, actual)
+	}
+	return ""
+}
+
+func folderCoverFS(fsys fs.FS, prefix, dir string) string {
+	if dir == "" {
+		dir = "."
+	}
+	entries, err := fs.ReadDir(fsys, dir)
+	if err != nil {
+		return ""
+	}
+	actual := pickCoverEntry(entries)
+	if actual == "" {
+		return ""
+	}
+	if dir == "." {
+		return prefix + "/" + actual
+	}
+	return prefix + "/" + path.Join(dir, actual)
+}
+
+func pickCoverEntry(entries []fs.DirEntry) string {
 	found := map[string]string{}
 	var images []string
 	for _, entry := range entries {
@@ -77,13 +120,13 @@ func folderCover(dir string) string {
 			images = append(images, name)
 		}
 	}
-	for _, name := range []string{"cover.png", "cover.jpg", "cover.jpeg", "folder.png", "folder.jpg", "front.jpg", "front.png", "album.jpg", "albumart.jpg"} {
+	for _, name := range coverNames {
 		if actual, ok := found[name]; ok {
-			return filepath.Join(dir, actual)
+			return actual
 		}
 	}
 	if len(images) == 1 {
-		return filepath.Join(dir, images[0])
+		return images[0]
 	}
 	return ""
 }
@@ -94,6 +137,19 @@ func readEmbeddedCover(path string) []byte {
 		return nil
 	}
 	defer file.Close()
+	return readEmbeddedCoverReader(file)
+}
+
+func readEmbeddedCoverFS(fsys fs.FS, rel string) []byte {
+	file, err := fsys.Open(rel)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	return readEmbeddedCoverReader(file)
+}
+
+func readEmbeddedCoverReader(file io.Reader) []byte {
 	head := make([]byte, 10)
 	if _, err := io.ReadFull(file, head); err != nil {
 		return nil
@@ -107,7 +163,7 @@ func readEmbeddedCover(path string) []byte {
 	return nil
 }
 
-func id3Picture(file *os.File, head []byte) []byte {
+func id3Picture(file io.Reader, head []byte) []byte {
 	version := head[3]
 	if version < 2 || version > 4 || head[5]&0xC0 != 0 {
 		return nil
@@ -192,7 +248,7 @@ func picImage(body []byte) []byte {
 	return rest
 }
 
-func flacPicture(file *os.File) []byte {
+func flacPicture(file io.Reader) []byte {
 	for {
 		var head [4]byte
 		if _, err := io.ReadFull(file, head[:]); err != nil {

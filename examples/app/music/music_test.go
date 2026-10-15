@@ -6,20 +6,23 @@ import (
 	"image"
 	"image/png"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	dsound "github.com/lewtec/lewkit/x/driver/audio_play"
 	"github.com/lewtec/lewkit/x/driver/audio_play/mem"
 	"github.com/lewtec/lewkit/x/driver/daynight"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/sound"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"strings"
 )
 
 func TestLibraryIngestAndQuery(t *testing.T) {
@@ -153,6 +156,85 @@ func TestChosenFolderIngests(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 1, got.count)
 	assert.NoError(t, got.err)
+}
+
+func TestOpenButtonChoosesAndPlaysContentFS(t *testing.T) {
+	var wavBuf bytes.Buffer
+	format := sound.Format{Rate: 8000, Channels: 1, Sample: sound.SampleS16LE}
+	require.NoError(t, sound.WriteWAV(&wavBuf, format, bytes.Repeat([]byte{0, 1}, 800)))
+
+	var pngBuf bytes.Buffer
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	img.Pix[0] = 255
+	img.Pix[3] = 255
+	require.NoError(t, png.Encode(&pngBuf, img))
+
+	contentTree := fstest.MapFS{
+		"Ada/Hits/song.wav":  &fstest.MapFile{Data: wavBuf.Bytes()},
+		"Ada/Hits/cover.png": &fstest.MapFile{Data: pngBuf.Bytes()},
+	}
+
+	lib, err := OpenLibrary(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, lib.Close()) })
+
+	var got *mem.Buffer
+	play := newPlayer(func(_ context.Context, cfg dsound.Config) (io.WriteCloser, error) {
+		buf, err := mem.Open(cfg)
+		got = buf
+		return buf, err
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	go play.loop(ctx)
+
+	model := newMusic(t.Context(), lib, play)
+	var asked filedialog.Request
+	model.chooseFn = func(_ context.Context, req filedialog.Request) ([]string, error) {
+		asked = req
+		return []string{"content://tree/music"}, nil
+	}
+	model.openFn = func(names ...string) (fs.FS, error) {
+		require.Equal(t, []string{"content://tree/music"}, names)
+		return contentTree, nil
+	}
+
+	size := gui.Size{Width: 900, Height: 700}
+	var openPos image.Point
+	for x := 600; x < 880; x += 8 {
+		key, _, _ := gui.Hit(model.View(), size, image.Pt(x, 36))
+		if key == "open" {
+			openPos = image.Pt(x, 36)
+			break
+		}
+	}
+	require.NotEqual(t, image.Point{}, openPos)
+
+	_, chooseCmd := model.Update(window.Pointer{Pos: openPos, Button: 1, Pressed: true})
+	require.NotNil(t, chooseCmd)
+	assert.Nil(t, model.choose(), "duplicate choose while picking is ignored")
+
+	chosenMsg := chooseCmd(t.Context())
+	assert.True(t, asked.Folder)
+	_, ingestCmd := model.Update(chosenMsg)
+	require.NotNil(t, ingestCmd)
+
+	ingestedMsg := ingestCmd(t.Context())
+	model.Update(ingestedMsg)
+
+	require.Len(t, model.albums, 1)
+	assert.Equal(t, "Hits", model.albums[0].Name)
+	assert.Equal(t, "Ada", model.albums[0].Artist)
+	require.NotNil(t, model.cover(model.albums[0].Cover))
+
+	require.Len(t, model.tracks, 1)
+	assert.Equal(t, "song", model.tracks[0].Title)
+	model.start(model.tracks[0])
+	require.Eventually(t, func() bool {
+		return play.Played() == 800 && !play.Playing()
+	}, time.Second, 5*time.Millisecond)
+	require.NotNil(t, got)
+	assert.Equal(t, 1600, len(got.PCM()))
 }
 
 func TestPlayerReportsFrames(t *testing.T) {
