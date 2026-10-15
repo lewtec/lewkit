@@ -124,11 +124,25 @@ func (d *device) Begin() (*Cmd, error) {
 }
 
 func (d *device) Close() error {
-	if d == nil || d.binding == nil {
+	if d == nil {
 		return nil
 	}
-	err := d.binding.Close()
-	d.binding = nil
+	return closeBinding(&d.binding)
+}
+
+func closeBinding[T interface {
+	comparable
+	Close() error
+}](binding *T) error {
+	if binding == nil {
+		return nil
+	}
+	var zero T
+	if *binding == zero {
+		return nil
+	}
+	err := (*binding).Close()
+	*binding = zero
 	return err
 }
 

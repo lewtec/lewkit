@@ -119,12 +119,10 @@ func (s *screen) OnInput(fn func(Input)) {
 }
 
 func (s *screen) Close() error {
-	if s == nil || s.binding == nil {
+	if s == nil {
 		return nil
 	}
-	err := s.binding.Close()
-	s.binding = nil
-	return err
+	return closeBinding(&s.binding)
 }
 
 // Same reports whether a and b wrap one libvulkan device.
