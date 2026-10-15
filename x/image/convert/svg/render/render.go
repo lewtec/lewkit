@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/color"
@@ -8,6 +9,15 @@ import (
 
 	"github.com/lewtec/lewkit/x/image/convert/svg"
 )
+
+// Decode parses SVG bytes and paints them.
+func Decode(raw []byte) (*image.NRGBA, error) {
+	doc, err := svg.Parse(bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	return Render(doc)
+}
 
 func Render(d svg.Document) (*image.NRGBA, error) {
 	img, err := Scratch(d)

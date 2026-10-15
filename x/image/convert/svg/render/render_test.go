@@ -3,11 +3,28 @@ package render
 import (
 	"image"
 	"image/color"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/lewtec/lewkit/x/image/convert/svg"
 )
+
+func TestDecodeEmptyFile(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile(filepath.Join("..", "testdata", "svg", "empty.svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	img, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if img.Bounds().Dx() != 256 || img.Bounds().Dy() != 256 {
+		t.Fatalf("bounds = %v", img.Bounds())
+	}
+}
 
 func TestRenderEmptyIsZeros(t *testing.T) {
 	t.Parallel()

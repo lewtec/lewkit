@@ -3,7 +3,7 @@ package icons
 import (
 	"image"
 
-	"github.com/lewtec/lewkit/x/image/convert"
+	"github.com/lewtec/lewkit/x/image/convert/icns"
 )
 
 // WriteICNS writes a modern ICNS (PNG payloads) to path.
@@ -11,11 +11,11 @@ func WriteICNS(path string, square image.Image, specs []struct {
 	Type string
 	Size int
 }) error {
-	icns := make([]convert.ICNSSpec, len(specs))
+	chunks := make([]icns.Spec, len(specs))
 	for i, spec := range specs {
-		icns[i] = convert.ICNSSpec{Type: spec.Type, Size: spec.Size}
+		chunks[i] = icns.Spec{Type: spec.Type, Size: spec.Size}
 	}
-	raw, err := convert.EncodeICNS(square, icns)
+	raw, err := icns.Encode(square, chunks)
 	if err != nil {
 		return err
 	}

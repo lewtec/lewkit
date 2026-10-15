@@ -15,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/tray"
 	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/image/convert"
+	"github.com/lewtec/lewkit/x/image/convert/png"
 )
 
 const (
@@ -279,7 +280,7 @@ func setButtonImage(button objc.ID, icon tray.Icon) error {
 	if err != nil {
 		return err
 	}
-	raw, err := convert.EncodePNG(img)
+	raw, err := png.Encode(img)
 	if err != nil {
 		return err
 	}
