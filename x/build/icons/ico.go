@@ -5,12 +5,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lewtec/lewkit/x/image/convert"
+	"github.com/lewtec/lewkit/x/image/convert/ico"
 )
 
 // WriteICO writes a multi-size ICO (PNG-compressed entries) to path.
 func WriteICO(path string, square image.Image, sizes []int) error {
-	raw, err := convert.EncodeICO(square, sizes)
+	raw, err := ico.Encode(square, sizes)
 	if err != nil {
 		return err
 	}

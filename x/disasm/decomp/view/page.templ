@@ -2,6 +2,7 @@ package view
 
 import "github.com/lewtec/lewkit/x/http/asset/daisyui"
 import "github.com/lewtec/lewkit/x/http/asset/tailwindcss"
+import "github.com/lewtec/lewkit/x/ui/web/cmdpalette"
 
 templ previewDocument(page previewPage) {
 	<!DOCTYPE html>
@@ -19,11 +20,7 @@ templ previewDocument(page previewPage) {
 					<a class="btn btn-ghost text-lg" href="/" title={ page.Project }>{ page.ProjectName }</a>
 				</div>
 				<div class="navbar-end">
-					<button type="button" id="cmdpalette-open" class="btn btn-sm" aria-haspopup="dialog" aria-controls="cmdpalette" title="Jump (Ctrl+K or ⌘K)">
-						<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
-						Jump
-						<kbd id="cmdpalette-hotkey" class="kbd kbd-xs">Ctrl+K</kbd>
-					</button>
+					@page.Palette.DaisyButton()
 				</div>
 			</div>
 			<main class="max-w-6xl mx-auto flex flex-col gap-4 p-4">
@@ -132,35 +129,8 @@ templ previewDocument(page previewPage) {
 				</form>
 			}
 			</main>
-			<dialog id="cmdpalette" class="modal" data-cmdpalette="" aria-label="Jump to">
-				<div class="modal-box max-w-lg p-0">
-					<div class="flex items-center gap-2 border-b border-base-300 px-3 py-2">
-						<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="opacity-40"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
-						<input id="cmdpalette-input" type="search" class="input input-ghost w-full" placeholder="Jump to…" autocomplete="off" spellcheck="false" aria-autocomplete="list" aria-controls="cmdpalette-list" aria-activedescendant=""/>
-						<kbd class="kbd kbd-xs">esc</kbd>
-					</div>
-					<ul id="cmdpalette-list" role="listbox" class="menu menu-sm max-h-80 w-full flex-nowrap overflow-y-auto">
-						for _, item := range page.Items {
-							<li role="option" data-cmd-item data-keywords={ item.Keywords } aria-selected="false">
-								<a href={ templ.URL(item.Href) } class="flex flex-col items-start" tabindex="-1">
-									if item.Group != "" {
-										<span class="text-xs uppercase tracking-wide opacity-60">{ item.Group }</span>
-									}
-									<span class="font-mono">{ item.Label }</span>
-								</a>
-							</li>
-						}
-					</ul>
-					<p id="cmdpalette-empty" class="hidden p-4 text-center text-sm opacity-60">No matches</p>
-					<div class="flex flex-wrap items-center gap-3 border-t border-base-300 px-3 py-2 text-xs opacity-60">
-						<span><kbd class="kbd kbd-xs">↑↓</kbd> move</span>
-						<span><kbd class="kbd kbd-xs">↵</kbd> open</span>
-						<span><kbd class="kbd kbd-xs">esc</kbd> close</span>
-					</div>
-				</div>
-				<form method="dialog" class="modal-backdrop"><button>close</button></form>
-			</dialog>
-			@palette()
+			@page.Palette.DaisyModal()
+			@cmdpalette.Script()
 		</body>
 	</html>
 }

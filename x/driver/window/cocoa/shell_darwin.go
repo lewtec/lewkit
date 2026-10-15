@@ -15,7 +15,7 @@ import (
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/ffi/native"
-	"github.com/lewtec/lewkit/x/image/convert"
+	"github.com/lewtec/lewkit/x/image/convert/png"
 )
 
 const (
@@ -89,13 +89,13 @@ func setAppIcon(app objc.ID, icon image.Image) {
 	if icon == nil {
 		return
 	}
-	png, err := convert.EncodePNG(icon)
-	if err != nil || len(png) == 0 {
+	raw, err := png.Encode(icon)
+	if err != nil || len(raw) == 0 {
 		return
 	}
 	data := objc.ID(objc.GetClass("NSData")).Send(
 		objc.RegisterName("dataWithBytes:length:"),
-		unsafe.Pointer(&png[0]), len(png),
+		unsafe.Pointer(&raw[0]), len(raw),
 	)
 	if data == 0 {
 		return

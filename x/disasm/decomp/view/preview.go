@@ -14,6 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/disasm/decomp"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/http/asset"
+	"github.com/lewtec/lewkit/x/ui/web/cmdpalette"
 )
 
 var (
@@ -73,7 +74,7 @@ type previewPage struct {
 	Callees         []previewRow
 	Notes           []previewNote
 	Rows            []previewRow
-	Items           []paletteItem
+	Palette         cmdpalette.Palette
 }
 
 type previewNote struct {
@@ -86,13 +87,6 @@ type previewRow struct {
 	Label  string
 	Href   string
 	Detail string
-}
-
-type paletteItem struct {
-	Group    string
-	Label    string
-	Href     string
-	Keywords string
 }
 
 func (view *preview) index(response http.ResponseWriter, request *http.Request) {
@@ -384,23 +378,23 @@ func (view *preview) basePage(heading string) previewPage {
 		Project:     path,
 		ProjectName: filepath.Base(path),
 		Heading:     heading,
-		Items:       view.paletteItems(),
+		Palette:     cmdpalette.New(view.paletteItems()).WithTitle("Jump").WithButtonClass("btn btn-sm"),
 	}
 }
 
-func (view *preview) paletteItems() []paletteItem {
-	items := []paletteItem{{
+func (view *preview) paletteItems() []cmdpalette.Item {
+	items := []cmdpalette.Item{{
 		Group:    "Project",
 		Label:    "Artifacts",
 		Href:     "/",
-		Keywords: paletteKeywords("Project", "Artifacts", view.project.Path()),
+		Keywords: cmdpalette.Keywords("Project", "Artifacts", view.project.Path()),
 	}}
 	for _, artifact := range view.project.Artifacts() {
-		items = append(items, paletteItem{
+		items = append(items, cmdpalette.Item{
 			Group:    "Artifact",
 			Label:    artifact.Slug() + " " + artifactLabel(artifact),
 			Href:     artifactPath(artifact.Slug()),
-			Keywords: paletteKeywords("Artifact", artifact.Slug(), artifact.Digest(), artifact.Name(), artifactLabel(artifact), artifact.Format()),
+			Keywords: cmdpalette.Keywords("Artifact", artifact.Slug(), artifact.Digest(), artifact.Name(), artifactLabel(artifact), artifact.Format()),
 		})
 		for _, function := range artifact.Functions() {
 			label := function.Name + " " + formatHex(function.Address)
@@ -411,11 +405,11 @@ func (view *preview) paletteItems() []paletteItem {
 				}
 				keywords = append(keywords, note.Text, formatHex(note.Address))
 			}
-			items = append(items, paletteItem{
+			items = append(items, cmdpalette.Item{
 				Group:    artifact.Slug(),
 				Label:    label,
 				Href:     functionPath(artifact.Slug(), function.Address),
-				Keywords: paletteKeywords(keywords...),
+				Keywords: cmdpalette.Keywords(keywords...),
 			})
 		}
 	}
@@ -486,23 +480,4 @@ func noteBelongs(function decomp.Function, address uint64) bool {
 		}
 	}
 	return false
-}
-
-func paletteKeywords(parts ...string) string {
-	var builder strings.Builder
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		if builder.Len() > 0 {
-			builder.WriteByte(' ')
-		}
-		builder.WriteString(strings.ToLower(part))
-	}
-	text := builder.String()
-	if strings.Contains(text, ":") {
-		text += " " + strings.ReplaceAll(text, ":", " ")
-	}
-	return text
 }

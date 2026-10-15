@@ -13,7 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/window"
-	"github.com/lewtec/lewkit/x/image/convert"
+	"github.com/lewtec/lewkit/x/image/convert/file"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
@@ -478,7 +478,7 @@ func (m *musicModel) cover(path string) image.Image {
 		m.covers[path] = nil
 		return nil
 	}
-	img, err := convert.Decode(raw)
+	img, err := file.Decode(raw)
 	if err != nil {
 		m.covers[path] = nil
 		return nil
