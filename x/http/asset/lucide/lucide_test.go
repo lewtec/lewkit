@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/http/asset/lucide/internal/pin"
+	"github.com/lewtec/lewkit/x/image/convert/svg/render"
 	"github.com/stretchr/testify/require"
 )
 
@@ -66,14 +67,23 @@ func TestImageNilColor(t *testing.T) {
 	require.True(t, ink(img))
 }
 
-func TestImageEveryIcon(t *testing.T) {
+// TestDecodeEveryIcon is the fixture for render.Decode.
+// Each icon is prepared first: the root stroke is copied onto the shapes,
+// and line and polyline become paths.
+func TestDecodeEveryIcon(t *testing.T) {
+	t.Parallel()
 	names := Name("").Values()
 	require.Equal(t, iconCount, len(iconBody))
 	require.Len(t, names, iconCount)
 	for _, name := range names {
 		t.Run(name.String(), func(t *testing.T) {
-			img, err := Image(name, color.Black)
+			body, ok := SVG(name)
+			require.True(t, ok)
+			painted, err := guiSVG(body, color.NRGBA{A: 255})
 			require.NoError(t, err)
+			img, err := render.Decode([]byte(painted))
+			require.NoError(t, err)
+			require.Equal(t, image.Rect(0, 0, 24, 24), img.Bounds())
 			require.Truef(t, ink(img), "%s painted nothing", name)
 		})
 	}
