@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/taskgroup"
+	"github.com/lewtec/lewkit/x/text"
 )
 
 // progressTransport promotes a request to an Internet task when the request
@@ -174,7 +175,7 @@ func taskName(request *http.Request) string {
 		if strings.Contains(base, ".") {
 			return base
 		}
-		if looksLikeUUID(base) || isAllDigits(base) {
+		if looksLikeUUID(base) || text.Digits(base) {
 			if host != "" {
 				return host
 			}
@@ -190,18 +191,6 @@ func taskName(request *http.Request) string {
 
 func looksLikeUUID(value string) bool {
 	return len(value) == 36 && strings.Count(value, "-") == 4
-}
-
-func isAllDigits(value string) bool {
-	if value == "" {
-		return false
-	}
-	for _, r := range value {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 // WithProgress wraps base so each request in a taskgroup session is an Internet task.
