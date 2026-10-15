@@ -79,7 +79,62 @@ func TestRoundTripONNX(t *testing.T) {
 	t.Parallel()
 	body, err := os.ReadFile(filepath.Join("..", "..", "ndarray", "onnx", "internal", "proto", "onnx.proto"))
 	require.NoError(t, err)
-	roundTrip(t, string(body))
+
+	got, err := Take(strings.NewReader(string(body)))
+	require.NoError(t, err)
+	require.Equal(t, "proto2", got.Syntax)
+	require.Equal(t, "onnx", got.Package)
+	require.Equal(t, Ident("LITE_RUNTIME"), optionByName(t, got.Options, "optimize_for").Value)
+	require.Equal(t, []string{"Version", "OperatorStatus"}, enumNames(got.Enums))
+	require.Equal(t, []string{
+		"AttributeProto",
+		"ValueInfoProto",
+		"NodeProto",
+		"IntIntListEntryProto",
+		"NodeDeviceConfigurationProto",
+		"ShardingSpecProto",
+		"ShardedDimProto",
+		"SimpleShardedDimProto",
+		"TrainingInfoProto",
+		"ModelProto",
+		"DeviceConfigurationProto",
+		"StringStringEntryProto",
+		"TensorAnnotation",
+		"GraphProto",
+		"TensorProto",
+		"SparseTensorProto",
+		"TensorShapeProto",
+		"TypeProto",
+		"OperatorSetIdProto",
+		"FunctionProto",
+	}, messageNames(got.Messages))
+
+	version := enumByName(t, got.Enums, "Version")
+	require.Equal(t, 1, enumValueByName(t, version, "IR_VERSION_2017_10_10").Number)
+
+	model := messageByName(t, got.Messages, "ModelProto")
+	ir := fieldByName(t, model.Fields, "ir_version")
+	require.Equal(t, 1, ir.Number)
+	require.Equal(t, TypeInt64, ir.Type)
+	require.Equal(t, LabelOptional, ir.Label)
+
+	graph := messageByName(t, got.Messages, "GraphProto")
+	require.Equal(t, []Reserve{
+		{Ranges: []Range{Exact(3), Exact(4), Span(6, 9)}},
+		{Names: []string{"ir_version", "producer_version", "producer_tag", "domain"}},
+	}, graph.Reserved)
+
+	shape := messageByName(t, got.Messages, "TensorShapeProto")
+	dimension := messageByName(t, shape.Messages, "Dimension")
+	require.Equal(t, "value", dimension.Oneofs[0].Name)
+	require.Equal(t, "dim_value", dimension.Oneofs[0].Fields[0].Name)
+	require.Equal(t, "dim_param", dimension.Oneofs[0].Fields[1].Name)
+
+	var buf bytes.Buffer
+	require.NoError(t, got.Make(&buf))
+	again, err := Take(&buf)
+	require.NoError(t, err)
+	require.Equal(t, got, again)
 }
 
 func TestTakeRejects(t *testing.T) {
@@ -162,6 +217,77 @@ func roundTrip(t *testing.T, text string) {
 	second, err := Take(&buf)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
+}
+
+func optionByName(t *testing.T, options []Option, name string) Option {
+	t.Helper()
+	for _, option := range options {
+		if option.Name == name {
+			return option
+		}
+	}
+	t.Fatalf("missing option %s", name)
+	return Option{}
+}
+
+func messageNames(messages []*Message) []string {
+	names := make([]string, len(messages))
+	for i, message := range messages {
+		names[i] = message.Name
+	}
+	return names
+}
+
+func enumNames(enums []*Enum) []string {
+	names := make([]string, len(enums))
+	for i, enum := range enums {
+		names[i] = enum.Name
+	}
+	return names
+}
+
+func messageByName(t *testing.T, messages []*Message, name string) *Message {
+	t.Helper()
+	for _, message := range messages {
+		if message.Name == name {
+			return message
+		}
+	}
+	t.Fatalf("missing message %s", name)
+	return nil
+}
+
+func enumByName(t *testing.T, enums []*Enum, name string) *Enum {
+	t.Helper()
+	for _, enum := range enums {
+		if enum.Name == name {
+			return enum
+		}
+	}
+	t.Fatalf("missing enum %s", name)
+	return nil
+}
+
+func enumValueByName(t *testing.T, enum *Enum, name string) *EnumValue {
+	t.Helper()
+	for _, value := range enum.Values {
+		if value.Name == name {
+			return value
+		}
+	}
+	t.Fatalf("missing enum value %s", name)
+	return nil
+}
+
+func fieldByName(t *testing.T, fields []*Field, name string) *Field {
+	t.Helper()
+	for _, field := range fields {
+		if field.Name == name {
+			return field
+		}
+	}
+	t.Fatalf("missing field %s", name)
+	return nil
 }
 
 func sampleFile() *File {
