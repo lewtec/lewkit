@@ -25,29 +25,20 @@ const (
 	JoinBevel
 )
 
-type optionalF64 struct {
-	v   float64
+type optional[T any] struct {
+	v   T
 	set bool
 }
 
-func (o optionalF64) or(def float64) float64 {
+func (o optional[T]) or(def T) T {
 	if !o.set {
 		return def
 	}
 	return o.v
 }
 
-type optionalU8 struct {
-	v   uint8
-	set bool
-}
-
-func (o optionalU8) or(def uint8) uint8 {
-	if !o.set {
-		return def
-	}
-	return o.v
-}
+type optionalF64 = optional[float64]
+type optionalU8 = optional[uint8]
 
 func clamp01(a float64) float64 {
 	if a < 0 {
