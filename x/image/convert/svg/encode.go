@@ -379,14 +379,14 @@ func checkDocSize(w, h float64) error {
 }
 
 func checkWholeCanvas(name string, v float64) error {
-	if !isFinite(v) || v <= 0 || v > MaxCanvas || v != math.Trunc(v) {
+	if !Finite(v) || v <= 0 || v > MaxCanvas || v != math.Trunc(v) {
 		return fmt.Errorf("document %s %v: must be a whole number in (0, %d]", name, v, MaxCanvas)
 	}
 	return nil
 }
 
 func checkNonNeg(name string, v float64) error {
-	if !isFinite(v) || v < 0 {
+	if !Finite(v) || v < 0 {
 		return fmt.Errorf("%s %v: must be finite and >= 0", name, v)
 	}
 	return nil
@@ -399,6 +399,7 @@ func checkChildCount(n int) error {
 	return nil
 }
 
-func isFinite(v float64) bool {
+// Finite reports whether v is neither NaN nor an infinity.
+func Finite(v float64) bool {
 	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }

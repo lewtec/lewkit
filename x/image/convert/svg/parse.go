@@ -767,7 +767,7 @@ func parseStopOffset(s string) (float64, error) {
 		s = strings.TrimSpace(s[:len(s)-1])
 	}
 	v, err := strconv.ParseFloat(s, 64)
-	if err != nil || !isFinite(v) {
+	if err != nil || !Finite(v) {
 		return 0, fmt.Errorf("parse: stop offset %q", s)
 	}
 	if pct {
@@ -878,7 +878,7 @@ func composeFill(a paintAttrs) (none, apply bool, col color.NRGBA, rule FillRule
 		apply = true
 	}
 	if apply {
-		col.A = mul8(colorA, attrA)
+		col.A = PremultiplyU8(colorA, attrA)
 	}
 	return
 }
@@ -909,7 +909,7 @@ func composeStroke(a paintAttrs) (on bool, s Stroke, err error) {
 		}
 		attrA = op8FromUnit(v)
 	}
-	s = NewStroke().WithColor(color.NRGBA{R: r, G: g, B: b, A: mul8(ca, attrA)})
+	s = NewStroke().WithColor(color.NRGBA{R: r, G: g, B: b, A: PremultiplyU8(ca, attrA)})
 	if a.strokeW != nil {
 		w, e := parseNonNegLength("stroke-width", *a.strokeW)
 		if e != nil {
@@ -950,7 +950,7 @@ func composeStroke(a paintAttrs) (on bool, s Stroke, err error) {
 			err = e
 			return
 		}
-		if !isFinite(m) || m < 0 {
+		if !Finite(m) || m < 0 {
 			err = fmt.Errorf("parse: stroke-miterlimit %v", m)
 			return
 		}
@@ -1067,7 +1067,8 @@ func parseColor(s string) (r, g, b, a uint8, none bool, err error) {
 	}
 }
 
-func mul8(c, a uint8) uint8 {
+// PremultiplyU8 is tiny-skia 0.12 premultiply_u8.
+func PremultiplyU8(c, a uint8) uint8 {
 	prod := uint32(c)*uint32(a) + 128
 	return uint8((prod + (prod >> 8)) >> 8)
 }
@@ -1086,7 +1087,7 @@ func parseLength(s string) (float64, error) {
 		}
 	}
 	v, err := strconv.ParseFloat(s, 64)
-	if err != nil || !isFinite(v) {
+	if err != nil || !Finite(v) {
 		return 0, fmt.Errorf("parse: number %q", s)
 	}
 	return v, nil

@@ -244,7 +244,7 @@ func oracleH(b *solidBlitter, x, y, width uint32) {
 
 func TestPremultiplyU8(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, uint8(255), premultiplyU8(255, 255))
-	require.Equal(t, uint8(0), premultiplyU8(255, 0))
+	require.Equal(t, uint8(255), svg.PremultiplyU8(255, 255))
+	require.Equal(t, uint8(0), svg.PremultiplyU8(255, 0))
 	require.Equal(t, uint8(0), demultiplyU8(0, 0))
 }

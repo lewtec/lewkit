@@ -1,11 +1,5 @@
 package render
 
-// tiny-skia 0.12 src/color.rs premultiply_u8 (PNG encode/decode, ColorU8).
-func premultiplyU8(c, a uint8) uint8 {
-	prod := uint32(c)*uint32(a) + 128
-	return uint8((prod + (prod >> 8)) >> 8)
-}
-
 // tiny-skia 0.12 src/pipeline/lowp.rs div255 — this is what the raster pipeline uses.
 // (v + 255) >> 8  ≈  v/256, not premultiply_u8's v/255.
 func div255(v uint32) uint8 {

@@ -49,14 +49,10 @@ func Scratch(d svg.Document) (*image.NRGBA, error) {
 }
 
 func checkCanvas(w, h float64) error {
-	if !finite(w) || !finite(h) || w <= 0 || h <= 0 || w > svg.MaxCanvas || h > svg.MaxCanvas || w != math.Trunc(w) || h != math.Trunc(h) {
+	if !svg.Finite(w) || !svg.Finite(h) || w <= 0 || h <= 0 || w > svg.MaxCanvas || h > svg.MaxCanvas || w != math.Trunc(w) || h != math.Trunc(h) {
 		return fmt.Errorf("render: canvas %v×%v", w, h)
 	}
 	return nil
-}
-
-func finite(v float64) bool {
-	return !math.IsNaN(v) && !math.IsInf(v, 0)
 }
 
 func paintNodes(pm *pixmap, nodes []svg.Node, sx, sy, tx, ty float32) error {
@@ -104,9 +100,9 @@ func paintPrimitive(pm *pixmap, n svg.Node, sx, sy, tx, ty float32) error {
 		if cov, hair := treatAsHairline(w, sx, sy); hair {
 			if cov != 1 {
 				a = uint8((int32(a) * int32(cov*256)) >> 8)
-				pr = premultiplyU8(col.R, a)
-				pg = premultiplyU8(col.G, a)
-				pb = premultiplyU8(col.B, a)
+				pr = svg.PremultiplyU8(col.R, a)
+				pg = svg.PremultiplyU8(col.G, a)
+				pb = svg.PremultiplyU8(col.B, a)
 			}
 			strokeHairline(pm, p, [4]uint8{pr, pg, pb, a})
 		} else if rp, ok := strokeRectRing(p, w); ok {

@@ -94,7 +94,7 @@ func TestParseRRGGBBAATimesOpacity(t *testing.T) {
 	assert.Equal(t, uint8(255), col.R)
 	assert.Equal(t, uint8(0), col.G)
 	assert.Equal(t, uint8(0), col.B)
-	want := mul8(0x80, op8FromUnit(0.5))
+	want := PremultiplyU8(0x80, op8FromUnit(0.5))
 	assert.Equal(t, want, op8FromUnit(c.FillOpacity()))
 }
 
