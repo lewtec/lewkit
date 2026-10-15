@@ -109,12 +109,5 @@ func (s *session) Close() error {
 	if s == nil {
 		return nil
 	}
-	return run.Close(s.eval, &s.forget, func() error {
-		if s.shader == nil {
-			return nil
-		}
-		err := s.shader.Close()
-		s.shader = nil
-		return err
-	}, &s.buf)
+	return run.Release(s.eval, &s.forget, &s.shader, &s.buf)
 }

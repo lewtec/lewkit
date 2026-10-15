@@ -79,6 +79,27 @@ func Groups[B slots.Buffer, N interface{ ~int | ~uint32 }](
 	return run(set.Bound, push, groups)
 }
 
+// Release closes one pipeline field and joins the buffer close.
+// resource is the address of the session pipeline, program, or shader.
+// The caller returns before this when the session is nil.
+func Release[B slots.Buffer, R interface {
+	comparable
+	Close() error
+}](eval *sync.Mutex, forget *func(), resource *R, set *slots.Set[B]) error {
+	return Close(eval, forget, func() error {
+		if resource == nil {
+			return nil
+		}
+		var zero R
+		if *resource == zero {
+			return nil
+		}
+		err := (*resource).Close()
+		*resource = zero
+		return err
+	}, set)
+}
+
 // Close runs forget once, closes the pipeline, and joins the buffer close.
 // The caller returns before this when the session is nil.
 func Close[B slots.Buffer](eval *sync.Mutex, forget *func(), closePipe func() error, set *slots.Set[B]) error {

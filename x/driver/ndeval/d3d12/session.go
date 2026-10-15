@@ -77,12 +77,5 @@ func (s *session) Close() error {
 	if s == nil {
 		return nil
 	}
-	return run.Close(s.eval, &s.forget, func() error {
-		if s.pipe == nil {
-			return nil
-		}
-		err := s.pipe.Close()
-		s.pipe = nil
-		return err
-	}, &s.buf)
+	return run.Release(s.eval, &s.forget, &s.pipe, &s.buf)
 }
