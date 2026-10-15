@@ -496,7 +496,7 @@ type cgRect struct {
 
 func compileLibrary(device objc.ID) (objc.ID, error) {
 	if newLib == nil {
-		native.Register(&newLib, msgSend())
+		native.Register(&newLib, native.MsgSend())
 	}
 	var err objc.ID
 	lib := newLib(device, selNewLibrary, nsstr(ShaderSource), 0, &err)
@@ -535,7 +535,7 @@ func (s *Screen) pipeline(vert, frag string, blend bool) (objc.ID, error) {
 		att.Send(selSetDstA, uintptr(blendOneMinus))
 	}
 	if newPipe == nil {
-		native.Register(&newPipe, msgSend())
+		native.Register(&newPipe, native.MsgSend())
 	}
 	var err objc.ID
 	pipe := newPipe(s.device, selNewPipe, desc, &err)
@@ -573,28 +573,28 @@ func nsstr(s string) objc.ID {
 
 func boundsOf(view objc.ID) cgRect {
 	if boundsFn == nil {
-		native.Register(&boundsFn, msgSend())
+		native.Register(&boundsFn, native.MsgSend())
 	}
 	return boundsFn(view, selBounds)
 }
 
 func setRect(id objc.ID, sel objc.SEL, rect cgRect) {
 	if sendRect == nil {
-		native.Register(&sendRect, msgSend())
+		native.Register(&sendRect, native.MsgSend())
 	}
 	sendRect(id, sel, rect)
 }
 
 func setSize(id objc.ID, sel objc.SEL, size cgSize) {
 	if sendSize == nil {
-		native.Register(&sendSize, msgSend())
+		native.Register(&sendSize, native.MsgSend())
 	}
 	sendSize(id, sel, size)
 }
 
 func setContentsScale(layer objc.ID, scale float64) {
 	if setScale == nil {
-		native.Register(&setScale, msgSend())
+		native.Register(&setScale, native.MsgSend())
 	}
 	setScale(layer, selSetContentsScale, scale)
 }
@@ -621,7 +621,7 @@ func hostScale(view objc.ID) float64 {
 
 func msgFloat(id objc.ID, sel objc.SEL) float64 {
 	if msgFloatFn == nil {
-		native.Register(&msgFloatFn, msgSend())
+		native.Register(&msgFloatFn, native.MsgSend())
 	}
 	if msgFloatFn == nil {
 		return 0
@@ -630,8 +630,6 @@ func msgFloat(id objc.ID, sel objc.SEL) float64 {
 }
 
 var (
-	msgOnce    sync.Once
-	msgAddr    uintptr
 	newLib     func(objc.ID, objc.SEL, objc.ID, objc.ID, *objc.ID) objc.ID
 	newPipe    func(objc.ID, objc.SEL, objc.ID, *objc.ID) objc.ID
 	boundsFn   func(objc.ID, objc.SEL) cgRect
@@ -640,21 +638,6 @@ var (
 	setScale   func(objc.ID, objc.SEL, float64)
 	msgFloatFn func(objc.ID, objc.SEL) float64
 )
-
-func msgSend() uintptr {
-	msgOnce.Do(func() {
-		lib, err := native.Open("/usr/lib/libobjc.A.dylib", native.Lazy)
-		if err != nil {
-			return
-		}
-		addr, err := native.Symbol(lib, "objc_msgSend")
-		if err != nil {
-			return
-		}
-		msgAddr = addr
-	})
-	return msgAddr
-}
 
 var (
 	selRetain             = objc.RegisterName("retain")

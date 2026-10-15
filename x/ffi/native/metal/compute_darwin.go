@@ -212,10 +212,10 @@ func (d *Device) Compile(source string, threads int) (*Pipeline, error) {
 
 func (d *Device) compile(source string, threads int) (*Pipeline, error) {
 	if newLib == nil {
-		native.Register(&newLib, msgSend())
+		native.Register(&newLib, native.MsgSend())
 	}
 	if newCompute == nil {
-		native.Register(&newCompute, msgSend())
+		native.Register(&newCompute, native.MsgSend())
 	}
 	if newLib == nil || newCompute == nil {
 		return nil, ErrUnavailable
@@ -272,7 +272,7 @@ func (p *Pipeline) Dispatch(buffers []*Buffer, push []byte, groups int) error {
 		}
 	}
 	if dispatchFn == nil {
-		native.Register(&dispatchFn, msgSend())
+		native.Register(&dispatchFn, native.MsgSend())
 	}
 	if dispatchFn == nil {
 		return ErrUnavailable
