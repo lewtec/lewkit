@@ -2,11 +2,13 @@ package golang
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"go/format"
 	"go/printer"
 	"go/token"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -20,10 +22,12 @@ type File struct {
 }
 
 // Import is one import. Name is the explicit local name, including
-// "." and "_". An empty Name uses the path's base name.
+// "." and "_". An empty Name uses the path's base name. Group counts
+// blank-line separated import groups from zero.
 type Import struct {
-	Name string
-	Path string
+	Name  string
+	Path  string
+	Group int
 }
 
 // NewFile returns an empty file for package name.
@@ -117,6 +121,7 @@ func (f *File) Make(w io.Writer) error {
 		return errNil
 	}
 	f.ensureImports()
+	f.Imports = normalizeImports(f.Imports)
 	node, err := (&builder{file: f}).build(f)
 	if err != nil {
 		return err
@@ -125,7 +130,7 @@ func (f *File) Make(w io.Writer) error {
 	if err := printer.Fprint(&buf, token.NewFileSet(), node); err != nil {
 		return fmt.Errorf("%w: %w", errPrint, err)
 	}
-	formatted, err := format.Source(buf.Bytes())
+	formatted, err := format.Source(groupImportLines(buf.Bytes(), f.Imports))
 	if err != nil {
 		return fmt.Errorf("%w: %w", errPrint, err)
 	}
@@ -133,6 +138,92 @@ func (f *File) Make(w io.Writer) error {
 		return fmt.Errorf("%w: %w", errPrint, err)
 	}
 	return nil
+}
+
+// normalizeImports sorts each blank-line group the way gofmt does
+// and drops a repeated path with the same local name.
+func normalizeImports(imports []*Import) []*Import {
+	if len(imports) == 0 {
+		return []*Import{}
+	}
+	slices.SortStableFunc(imports, func(a, b *Import) int {
+		if a == nil || b == nil {
+			return 0
+		}
+		if c := cmp.Compare(a.Group, b.Group); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(a.Path, b.Path); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
+	out := make([]*Import, 0, len(imports))
+	for _, im := range imports {
+		if im == nil {
+			continue
+		}
+		if n := len(out); n > 0 {
+			prev := out[n-1]
+			if prev.Group == im.Group && prev.Path == im.Path && prev.Name == im.Name {
+				continue
+			}
+		}
+		out = append(out, im)
+	}
+	return out
+}
+
+// groupImportLines inserts the blank line gofmt uses between import
+// groups. The printer has no positions, so it would otherwise sort the
+// whole block as one group.
+func groupImportLines(src []byte, imports []*Import) []byte {
+	if len(imports) < 2 {
+		return src
+	}
+	split := false
+	for _, im := range imports[1:] {
+		if im != nil && imports[0] != nil && im.Group != imports[0].Group {
+			split = true
+			break
+		}
+	}
+	if !split {
+		return src
+	}
+	text := string(src)
+	start := strings.Index(text, "import (")
+	if start < 0 {
+		return src
+	}
+	rest := text[start:]
+	endRel := strings.Index(rest, "\n)")
+	if endRel < 0 {
+		return src
+	}
+	lines := strings.Split(rest[:endRel], "\n")
+	specs := make([]string, 0, len(imports))
+	for _, line := range lines[1:] {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		specs = append(specs, line)
+	}
+	if len(specs) != len(imports) {
+		return src
+	}
+	var b strings.Builder
+	b.WriteString(lines[0])
+	group := imports[0].Group
+	for i, line := range specs {
+		if imports[i] != nil && imports[i].Group != group {
+			b.WriteByte('\n')
+			group = imports[i].Group
+		}
+		b.WriteByte('\n')
+		b.WriteString(line)
+	}
+	return []byte(text[:start] + b.String() + rest[endRel:])
 }
 
 func (f *File) ensureImports() {

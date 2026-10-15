@@ -9,19 +9,22 @@ import (
 )
 
 func take(src []byte) (*File, error) {
-	parsed, err := parser.ParseFile(token.NewFileSet(), "source.go", src, parser.SkipObjectResolution)
+	fset := token.NewFileSet()
+	parsed, err := parser.ParseFile(fset, "source.go", src, parser.SkipObjectResolution)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errParse, err)
 	}
-	return convertFile(parsed)
+	return convertFile(fset, parsed)
 }
 
-func convertFile(parsed *ast.File) (*File, error) {
+func convertFile(fset *token.FileSet, parsed *ast.File) (*File, error) {
 	if parsed.Name == nil {
 		return nil, fmt.Errorf("%w: package name", errSyntax)
 	}
 	file := NewFile(parsed.Name.Name)
 	sc := newScope(nil)
+	var prev ast.Node
+	groupN := 0
 	for _, decl := range parsed.Decls {
 		group, ok := decl.(*ast.GenDecl)
 		if !ok || group.Tok != token.IMPORT {
@@ -32,14 +35,20 @@ func convertFile(parsed *ast.File) (*File, error) {
 			if !ok {
 				return nil, fmt.Errorf("%w: import", errSyntax)
 			}
+			if prev != nil && fset.Position(im.Pos()).Line > fset.Position(prev.End()).Line+1 {
+				groupN++
+			}
 			converted, err := convertImport(im)
 			if err != nil {
 				return nil, err
 			}
+			converted.Group = groupN
 			file.Imports = append(file.Imports, converted)
 			sc.defineImport(converted.Local(), converted.Path)
+			prev = im
 		}
 	}
+	file.Imports = normalizeImports(file.Imports)
 	for _, decl := range parsed.Decls {
 		switch d := decl.(type) {
 		case *ast.GenDecl:
