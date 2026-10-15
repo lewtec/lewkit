@@ -19,3 +19,7 @@ jobs:
         run: mise run test:host
         env:
           CGO_ENABLED: "0"
+      - name: Tests
+        run: mise run test
+        env:
+          CGO_ENABLED: "0"
