@@ -1,11 +1,9 @@
 package fs
 
 import (
-	"cmp"
 	"context"
 	"io"
 	iofs "io/fs"
-	"slices"
 	"strings"
 	"time"
 )
@@ -293,14 +291,11 @@ func (idx *Index[T]) Stat(name string) (iofs.FileInfo, error) {
 }
 
 func (n *Node[T]) entries(info func(*Node[T]) iofs.FileInfo) []iofs.DirEntry {
-	out := make([]iofs.DirEntry, 0, len(n.kids))
+	infos := make([]iofs.FileInfo, 0, len(n.kids))
 	for _, k := range n.kids {
-		out = append(out, iofs.FileInfoToDirEntry(info(k)))
+		infos = append(infos, info(k))
 	}
-	slices.SortFunc(out, func(a, b iofs.DirEntry) int {
-		return cmp.Compare(a.Name(), b.Name())
-	})
-	return out
+	return NameSorted(infos)
 }
 
 func fileNodeInfo(n *Node[File]) iofs.FileInfo {

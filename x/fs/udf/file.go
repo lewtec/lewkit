@@ -1,10 +1,8 @@
 package udf
 
 import (
-	"cmp"
 	"io"
 	"io/fs"
-	"slices"
 	"time"
 
 	"github.com/Xmister/udf"
@@ -43,14 +41,11 @@ func listEntries(n entry) ([]fs.DirEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	out := make([]fs.DirEntry, 0, len(kids))
-	for _, k := range kids {
-		out = append(out, fs.FileInfoToDirEntry(k.info()))
+	infos := make([]fs.FileInfo, len(kids))
+	for i, k := range kids {
+		infos[i] = k.info()
 	}
-	slices.SortFunc(out, func(a, b fs.DirEntry) int {
-		return cmp.Compare(a.Name(), b.Name())
-	})
-	return out, nil
+	return lewfs.NameSorted(infos), nil
 }
 
 type file struct {
