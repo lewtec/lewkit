@@ -24,16 +24,10 @@ inputs: tailwindcss: {
 	from:    "github:tailwindlabs/tailwindcss"
 	version: "v4.3.3"
 }
+// .modot/config renders x/http/asset/lucide/version_gen.go from this version.
 inputs: lucide: {
 	from:    "github:lucide-icons/lucide"
 	version: "1.57.0"
-}
-
-// The lucide module renders x/http/asset/lucide/version_gen.go from this input.
-modules: lucide: {
-	input: "self"
-	path:  "modules/lucide"
-	config: version: inputs.lucide.version
 }
 inputs: golang: {
 	from:    "github:golang/go"
