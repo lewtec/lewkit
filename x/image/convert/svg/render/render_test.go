@@ -9,52 +9,42 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/image/convert/svg"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDecodeEmptyFile(t *testing.T) {
 	t.Parallel()
 	raw, err := os.ReadFile(filepath.Join("..", "testdata", "svg", "empty.svg"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	img, err := Decode(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if img.Bounds().Dx() != 256 || img.Bounds().Dy() != 256 {
-		t.Fatalf("bounds = %v", img.Bounds())
-	}
+	require.NoError(t, err)
+	require.Equal(t, 256, img.Bounds().Dx())
+	require.Equal(t, 256, img.Bounds().Dy())
 }
 
 func TestRenderEmptyIsZeros(t *testing.T) {
 	t.Parallel()
 	img, err := Render(svg.NewDocument(256, 256))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if img.Bounds() != img.Rect || img.Rect.Dx() != 256 || img.Rect.Dy() != 256 {
-		t.Fatalf("bounds = %v", img.Bounds())
-	}
-	for i, b := range img.Pix {
-		if b != 0 {
-			t.Fatalf("pix[%d]=%d; want 0", i, b)
-		}
+	require.NoError(t, err)
+	require.Equal(t, img.Rect, img.Bounds())
+	require.Equal(t, 256, img.Rect.Dx())
+	require.Equal(t, 256, img.Rect.Dy())
+	for _, b := range img.Pix {
+		require.Equal(t, byte(0), b)
 	}
 }
 
 func TestRenderViewBoxIdentity(t *testing.T) {
 	t.Parallel()
 	d := svg.NewDocument(256, 256).WithViewBox(0, 0, 256, 256)
-	if _, err := Render(d); err != nil {
-		t.Fatal(err)
-	}
+	_, err := Render(d)
+	require.NoError(t, err)
 }
 
 func TestRenderRejectsBadCanvas(t *testing.T) {
 	t.Parallel()
-	if _, err := Render(svg.NewDocument(256.5, 256)); err == nil {
-		t.Fatal("expected error")
-	}
+	_, err := Render(svg.NewDocument(256.5, 256))
+	require.Error(t, err)
 }
 
 func TestRenderLinearLerp(t *testing.T) {
@@ -67,21 +57,22 @@ func TestRenderLinearLerp(t *testing.T) {
 		svg.NewRect().WithWidth(64).WithHeight(16).WithLinearFill(g).Node(),
 	)
 	img, err := Render(d)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	left := img.NRGBAAt(0, 8)
-	if left.R < 240 || left.G != 0 || left.B != 0 || left.A != 255 {
-		t.Fatalf("left=%+v want red", left)
-	}
+	require.GreaterOrEqual(t, left.R, uint8(240))
+	require.Equal(t, uint8(0), left.G)
+	require.Equal(t, uint8(0), left.B)
+	require.Equal(t, uint8(255), left.A)
 	right := img.NRGBAAt(63, 8)
-	if right.R > 16 || right.G != 0 || right.B != 0 || right.A != 255 {
-		t.Fatalf("right=%+v want black", right)
-	}
+	require.LessOrEqual(t, right.R, uint8(16))
+	require.Equal(t, uint8(0), right.G)
+	require.Equal(t, uint8(0), right.B)
+	require.Equal(t, uint8(255), right.A)
 	mid := img.NRGBAAt(32, 8)
-	if mid.R < 100 || mid.R > 160 || mid.G != 0 || mid.B != 0 {
-		t.Fatalf("mid=%+v want ~#7F0000", mid)
-	}
+	require.GreaterOrEqual(t, mid.R, uint8(100))
+	require.LessOrEqual(t, mid.R, uint8(160))
+	require.Equal(t, uint8(0), mid.G)
+	require.Equal(t, uint8(0), mid.B)
 }
 
 func TestRenderFilledRectDoesNotPanic(t *testing.T) {
@@ -91,30 +82,22 @@ func TestRenderFilledRectDoesNotPanic(t *testing.T) {
 			WithFill(color.NRGBA{R: 255, A: 255}).Node(),
 	)
 	img, err := Render(d)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	// Interior sample; not an oracle. Just prove paint happened.
 	c := img.NRGBAAt(50, 50)
-	if c.R == 0 && c.A == 0 {
-		t.Fatalf("interior still empty: %+v", c)
-	}
+	require.False(t, c.R == 0 && c.A == 0)
 }
 
 func TestCircleEdgeCount(t *testing.T) {
 	p, ok := flattenEllipse(0, 0, 10, 10)
-	if !ok {
-		t.Fatal("flatten")
-	}
+	require.True(t, ok)
 	t.Logf("segs=%d bounds=(%v,%v)-(%v,%v)", len(p.segs), p.minX, p.minY, p.maxX, p.maxY)
 	e := buildLineEdges(p, supersampleShift)
 	t.Logf("edges=%d", len(e))
 	for i, ed := range e {
 		t.Logf("edge[%d] firstY=%d lastY=%d x=%d dx=%d wind=%d cub=%v", i, ed.firstY, ed.lastY, ed.x, ed.dx, ed.winding, ed.cub != nil)
 	}
-	if len(e) < 2 {
-		t.Fatalf("too few edges")
-	}
+	require.GreaterOrEqual(t, len(e), 2)
 }
 
 func TestAcquireDoesNotBlockWhenBusy(t *testing.T) {
@@ -132,7 +115,7 @@ func TestAcquireDoesNotBlockWhenBusy(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("pixmap or image acquire blocked with the cache full")
+		require.Fail(t, "pixmap or image acquire blocked with the cache full")
 	}
 	for _, p := range pix {
 		releasePixmap(p)
@@ -144,9 +127,7 @@ func TestAcquireDoesNotBlockWhenBusy(t *testing.T) {
 
 func TestFillPathSmallCircle(t *testing.T) {
 	p, ok := flattenEllipse(0, 0, 10, 10)
-	if !ok {
-		t.Fatal("flatten")
-	}
+	require.True(t, ok)
 	pm := newPixmap(256, 256)
 	defer releasePixmap(pm)
 	fillPath(pm, p, true, color.NRGBA{A: 255}, 255)
@@ -158,9 +139,7 @@ func TestFillPathSmallCircle(t *testing.T) {
 			nz++
 		}
 	}
-	if nz == 0 {
-		t.Fatal("fillPath painted nothing")
-	}
+	require.NotZero(t, nz)
 	t.Logf("nonzero=%d a(5,5)=%d", nz, img.NRGBAAt(5, 5).A)
 }
 
@@ -170,17 +149,9 @@ func TestNestedCircleFillsOrigin(t *testing.T) {
 		svg.NewGroup().Append(svg.NewCircle().WithR(10).Node()).Node(),
 	)
 	img, err := Render(d)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := img.NRGBAAt(5, 5)
-	if c.A == 0 {
-		t.Fatalf("expected fill at (5,5), got %+v", c)
-	}
-	c0 := img.NRGBAAt(0, 0)
-	if c0.A == 0 {
-		t.Fatalf("expected fill at (0,0), got %+v", c0)
-	}
+	require.NoError(t, err)
+	require.NotZero(t, img.NRGBAAt(5, 5).A)
+	require.NotZero(t, img.NRGBAAt(0, 0).A)
 }
 
 func TestAlphaRunsAddPastWidthDoesNotHang(t *testing.T) {
@@ -193,7 +164,7 @@ func TestAlphaRunsAddPastWidthDoesNotHang(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("alphaRuns.add hung on middleCount > width")
+		require.Fail(t, "alphaRuns.add hung on middleCount > width")
 	}
 }
 
@@ -203,9 +174,7 @@ func TestBlitHPastBBoxDoesNotHang(t *testing.T) {
 	defer releasePixmap(pm)
 	real := &solidBlitter{pm: pm, pr: 255, pa: 255}
 	sb := newSuperBlitter(20, 20, 40, 40, 64, 64, real)
-	if sb == nil {
-		t.Fatal("superBlitter")
-	}
+	require.NotNil(t, sb)
 	done := make(chan struct{})
 	go func() {
 		sb.blitH(0, uint32(20<<supersampleShift), 64<<supersampleShift)
@@ -215,7 +184,7 @@ func TestBlitHPastBBoxDoesNotHang(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("blitH hung on span wider than bbox")
+		require.Fail(t, "blitH hung on span wider than bbox")
 	}
 }
 
@@ -241,9 +210,7 @@ func TestBlitAntiHMatchesBlend(t *testing.T) {
 		bFast.blitAntiH(8, 1, alpha, runs)
 		bFast.blitH(0, 0, 100)
 		oracleH(bSlow, 0, 0, 100)
-		if string(slow.pix) != string(fast.pix) {
-			t.Fatalf("pa=%d blit diverged", pa)
-		}
+		require.Equal(t, string(slow.pix), string(fast.pix))
 		releasePixmap(slow)
 		releasePixmap(fast)
 	}
@@ -277,13 +244,7 @@ func oracleH(b *solidBlitter, x, y, width uint32) {
 
 func TestPremultiplyU8(t *testing.T) {
 	t.Parallel()
-	if premultiplyU8(255, 255) != 255 {
-		t.Fatal(premultiplyU8(255, 255))
-	}
-	if premultiplyU8(255, 0) != 0 {
-		t.Fatal(premultiplyU8(255, 0))
-	}
-	if demultiplyU8(0, 0) != 0 {
-		t.Fatal("demultiply 0/0")
-	}
+	require.Equal(t, uint8(255), premultiplyU8(255, 255))
+	require.Equal(t, uint8(0), premultiplyU8(255, 0))
+	require.Equal(t, uint8(0), demultiplyU8(0, 0))
 }

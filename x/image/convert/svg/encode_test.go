@@ -1,21 +1,21 @@
 package svg
 
 import (
-	"errors"
 	"image/color"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestEncodeGoldens(t *testing.T) {
 	t.Parallel()
 	poly, err := NewPolygon().WithPoints([][2]float64{{0, 0}, {10, 0}, {0, 10}})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	tests := []struct {
 		name string
 		doc  Document
@@ -88,13 +88,9 @@ func TestEncodeGoldens(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := EncodeToString(tt.doc)
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			want := readGolden(t, tt.name)
-			if got != want {
-				t.Errorf("Encode mismatch\n--- got ---\n%s--- want ---\n%s", got, want)
-			}
+			assert.Equal(t, want, got)
 		})
 	}
 }
@@ -104,21 +100,15 @@ func TestEncodeOmitsNegZero(t *testing.T) {
 	neg := math.Copysign(0, -1)
 	doc := NewDocument(256, 256).Append(NewCircle().WithCX(neg).WithCY(neg).WithR(1).Node())
 	got, err := EncodeToString(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if containsMinusZero(got) {
-		t.Errorf("encoded -0: %s", got)
-	}
+	require.NoError(t, err)
+	assert.False(t, containsMinusZero(got))
 }
 
 func TestEncodeOpacityRoundTrip(t *testing.T) {
 	t.Parallel()
 	for u := range 256 {
 		s := encodeOpacity(uint8(u))
-		if op8FromUnit(mustFloat(s)) != uint8(u) {
-			t.Fatalf("encodeOpacity(%d)=%q parses to %d", u, s, op8FromUnit(mustFloat(s)))
-		}
+		require.Equal(t, uint8(u), op8FromUnit(mustFloat(s)))
 	}
 }
 
@@ -139,15 +129,11 @@ func TestEncodeRejects(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := EncodeToString(tt.doc)
-			if err == nil {
-				t.Fatal("expected error")
-			}
+			require.Error(t, err)
 		})
 	}
 	_, err := EncodeToString(NewDocument(256, 256).Append(NewPolygon().Node()))
-	if !errors.Is(err, ErrPolygonPoints) {
-		t.Errorf("empty polygon: %v; want ErrPolygonPoints", err)
-	}
+	assert.ErrorIs(t, err, ErrPolygonPoints)
 }
 
 func TestEncodeStrokeBlackEmitted(t *testing.T) {
@@ -156,23 +142,15 @@ func TestEncodeStrokeBlackEmitted(t *testing.T) {
 		NewCircle().WithR(5).WithStroke(NewStroke()).Node(),
 	)
 	got, err := EncodeToString(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := `stroke="#000000"`; !strings.Contains(got, want) {
-		t.Errorf("missing %s in %s", want, got)
-	}
-	if strings.Contains(got, "stroke-width") {
-		t.Errorf("default stroke-width emitted: %s", got)
-	}
+	require.NoError(t, err)
+	assert.Contains(t, got, `stroke="#000000"`)
+	assert.NotContains(t, got, "stroke-width")
 }
 
 func readGolden(t *testing.T, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("testdata", "svg", name))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return string(b)
 }
 

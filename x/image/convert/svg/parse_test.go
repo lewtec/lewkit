@@ -1,20 +1,20 @@
 package svg
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseRoundTripGoldens(t *testing.T) {
 	t.Parallel()
 	dir := filepath.Join("testdata", "svg")
 	ents, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	for _, ent := range ents {
 		if !strings.HasSuffix(ent.Name(), ".svg") {
 			continue
@@ -22,20 +22,12 @@ func TestParseRoundTripGoldens(t *testing.T) {
 		t.Run(ent.Name(), func(t *testing.T) {
 			t.Parallel()
 			raw, err := os.ReadFile(filepath.Join(dir, ent.Name()))
-			if err != nil {
-				t.Fatal(err)
-			}
+			require.NoError(t, err)
 			doc, err := Parse(strings.NewReader(string(raw)))
-			if err != nil {
-				t.Fatalf("Parse: %v", err)
-			}
+			require.NoError(t, err)
 			got, err := EncodeToString(doc)
-			if err != nil {
-				t.Fatalf("Encode: %v", err)
-			}
-			if got != string(raw) {
-				t.Errorf("Encode(Parse(golden)) mismatch\n--- got ---\n%s--- want ---\n%s", got, raw)
-			}
+			require.NoError(t, err)
+			assert.Equal(t, string(raw), got)
 		})
 	}
 }
@@ -43,12 +35,9 @@ func TestParseRoundTripGoldens(t *testing.T) {
 func TestParseFile(t *testing.T) {
 	t.Parallel()
 	doc, err := ParseFile(filepath.Join("testdata", "svg", "empty.svg"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if doc.Width() != 256 || doc.Height() != 256 {
-		t.Errorf("size = %v×%v", doc.Width(), doc.Height())
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 256.0, doc.Width())
+	assert.Equal(t, 256.0, doc.Height())
 }
 
 func TestParseRXCopyWhenOmitted(t *testing.T) {
@@ -56,62 +45,40 @@ func TestParseRXCopyWhenOmitted(t *testing.T) {
 	doc, err := Parse(strings.NewReader(`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256">
   <rect width="10" height="10" rx="5"/>
 </svg>`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	n := doc.Children()
-	if len(n) != 1 {
-		t.Fatalf("children = %d", len(n))
-	}
+	require.Len(t, n, 1)
 	r, ok := n[0].Rect()
-	if !ok {
-		t.Fatal("not a rect")
-	}
-	if r.RX() != 5 || r.RY() != 5 {
-		t.Errorf("RX,RY = %v,%v; want 5,5", r.RX(), r.RY())
-	}
+	require.True(t, ok)
+	assert.Equal(t, 5.0, r.RX())
+	assert.Equal(t, 5.0, r.RY())
 }
 
 func TestParseRXBothPresentKeepsZeroRY(t *testing.T) {
 	t.Parallel()
 	doc, err := ParseFile(filepath.Join("testdata", "svg", "rx-only.svg"))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	r, ok := doc.Children()[0].Rect()
-	if !ok {
-		t.Fatal("not a rect")
-	}
-	if r.RX() != 5 || r.RY() != 0 {
-		t.Errorf("RX,RY = %v,%v; want 5,0", r.RX(), r.RY())
-	}
+	require.True(t, ok)
+	assert.Equal(t, 5.0, r.RX())
+	assert.Equal(t, 0.0, r.RY())
 }
 
 func TestParseNoXMLNS(t *testing.T) {
 	t.Parallel()
 	doc, err := Parse(strings.NewReader(`<svg width="256" height="256"/>`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	got, err := EncodeToString(doc)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := readGolden(t, "empty.svg")
-	if got != want {
-		t.Errorf("got %s want %s", got, want)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, readGolden(t, "empty.svg"), got)
 }
 
 func TestParsePxUnits(t *testing.T) {
 	t.Parallel()
 	doc, err := Parse(strings.NewReader(`<svg width="256px" height="256px"/>`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if doc.Width() != 256 || doc.Height() != 256 {
-		t.Errorf("size = %v×%v", doc.Width(), doc.Height())
-	}
+	require.NoError(t, err)
+	assert.Equal(t, 256.0, doc.Width())
+	assert.Equal(t, 256.0, doc.Height())
 }
 
 func TestParseRRGGBBAATimesOpacity(t *testing.T) {
@@ -119,22 +86,16 @@ func TestParseRRGGBBAATimesOpacity(t *testing.T) {
 	doc, err := Parse(strings.NewReader(
 		`<svg width="256" height="256"><circle r="1" fill="#FF000080" fill-opacity="0.5"/></svg>`,
 	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	c, ok := doc.Children()[0].Circle()
-	if !ok {
-		t.Fatal("not a circle")
-	}
+	require.True(t, ok)
 	col, present := c.Fill()
-	if !present || col.R != 255 || col.G != 0 || col.B != 0 {
-		t.Errorf("Fill() = %+v, %v", col, present)
-	}
+	assert.True(t, present)
+	assert.Equal(t, uint8(255), col.R)
+	assert.Equal(t, uint8(0), col.G)
+	assert.Equal(t, uint8(0), col.B)
 	want := mul8(0x80, op8FromUnit(0.5))
-	got := op8FromUnit(c.FillOpacity())
-	if got != want {
-		t.Errorf("fill opacity 8-bit = %d; want mul8(128, 128)=%d", got, want)
-	}
+	assert.Equal(t, want, op8FromUnit(c.FillOpacity()))
 }
 
 func TestParseRejects(t *testing.T) {
@@ -164,9 +125,7 @@ func TestParseRejects(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := Parse(strings.NewReader(tt.xml))
-			if err == nil {
-				t.Fatal("expected error")
-			}
+			require.Error(t, err)
 		})
 	}
 }
@@ -180,12 +139,8 @@ func TestParseCommentsAndSpace(t *testing.T) {
 		  <circle r="1"/>
 		</svg>
 	`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(doc.Children()) != 1 {
-		t.Fatalf("children = %d", len(doc.Children()))
-	}
+	require.NoError(t, err)
+	require.Len(t, doc.Children(), 1)
 }
 
 func TestParsePolygonPointsGrammar(t *testing.T) {
@@ -193,18 +148,10 @@ func TestParsePolygonPointsGrammar(t *testing.T) {
 	doc, err := Parse(strings.NewReader(
 		`<svg width="256" height="256"><polygon points="0,0, 10 0,0,10"/></svg>`,
 	))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	p, ok := doc.Children()[0].Polygon()
-	if !ok {
-		t.Fatal("not a polygon")
-	}
-	got := p.Points()
-	want := [][2]float64{{0, 0}, {10, 0}, {0, 10}}
-	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
-		t.Errorf("points = %v; want %v", got, want)
-	}
+	require.True(t, ok)
+	assert.Equal(t, [][2]float64{{0, 0}, {10, 0}, {0, 10}}, p.Points())
 }
 
 func TestParseOddPoints(t *testing.T) {
@@ -212,21 +159,15 @@ func TestParseOddPoints(t *testing.T) {
 	_, err := Parse(strings.NewReader(
 		`<svg width="256" height="256"><polygon points="0,0 1,0 2"/></svg>`,
 	))
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 }
 
 func TestParseEmptyPolygonRejectedOnEncode(t *testing.T) {
 	t.Parallel()
 	doc, err := Parse(strings.NewReader(`<svg width="256" height="256"><polygon/></svg>`))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	_, err = EncodeToString(doc)
-	if !errors.Is(err, ErrPolygonPoints) {
-		t.Errorf("Encode empty polygon: %v; want ErrPolygonPoints", err)
-	}
+	assert.ErrorIs(t, err, ErrPolygonPoints)
 }
 
 func tooManyPointsXML() string {

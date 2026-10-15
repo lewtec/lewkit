@@ -3,67 +3,50 @@ package svg
 import (
 	"image/color"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewZerosAreSVGDefaults(t *testing.T) {
 	t.Parallel()
 
 	c := NewCircle()
-	if c.CX() != 0 || c.CY() != 0 || c.R() != 0 {
-		t.Fatalf("circle geometry = (%v,%v,%v); want zeros", c.CX(), c.CY(), c.R())
-	}
+	require.Equal(t, 0.0, c.CX())
+	require.Equal(t, 0.0, c.CY())
+	require.Equal(t, 0.0, c.R())
 	col, ok := c.Fill()
-	if !ok {
-		t.Fatal("default fill is none; want black")
-	}
-	if col != (color.NRGBA{R: 0, G: 0, B: 0, A: 255}) {
-		t.Errorf("Fill() = %+v; want black A=255", col)
-	}
-	if c.FillOpacity() != 1 {
-		t.Errorf("FillOpacity() = %v; want 1", c.FillOpacity())
-	}
-	if c.FillRule() != FillNonZero {
-		t.Errorf("FillRule() = %v; want FillNonZero", c.FillRule())
-	}
-	if _, on := c.Stroke(); on {
-		t.Error("default stroke is on; want none")
-	}
+	require.True(t, ok)
+	assert.Equal(t, color.NRGBA{R: 0, G: 0, B: 0, A: 255}, col)
+	assert.Equal(t, 1.0, c.FillOpacity())
+	assert.Equal(t, FillNonZero, c.FillRule())
+	_, on := c.Stroke()
+	assert.False(t, on)
 
 	s := NewStroke()
-	if s.Color() != (color.NRGBA{A: 255}) {
-		t.Errorf("Stroke.Color() = %+v; want black A=255", s.Color())
-	}
-	if s.Opacity() != 1 {
-		t.Errorf("Stroke.Opacity() = %v; want 1", s.Opacity())
-	}
-	if s.Width() != 1 {
-		t.Errorf("Stroke.Width() = %v; want 1", s.Width())
-	}
-	if s.Cap() != CapButt {
-		t.Errorf("Cap() = %v; want CapButt", s.Cap())
-	}
-	if s.Join() != JoinMiter {
-		t.Errorf("Join() = %v; want JoinMiter", s.Join())
-	}
-	if s.MiterLimit() != 4 {
-		t.Errorf("MiterLimit() = %v; want 4", s.MiterLimit())
-	}
+	assert.Equal(t, color.NRGBA{A: 255}, s.Color())
+	assert.Equal(t, 1.0, s.Opacity())
+	assert.Equal(t, 1.0, s.Width())
+	assert.Equal(t, CapButt, s.Cap())
+	assert.Equal(t, JoinMiter, s.Join())
+	assert.Equal(t, 4.0, s.MiterLimit())
 
 	e := NewEllipse()
-	if e.CX() != 0 || e.CY() != 0 || e.RX() != 0 || e.RY() != 0 {
-		t.Fatalf("ellipse geometry not zero: %+v", e)
-	}
+	require.Equal(t, 0.0, e.CX())
+	require.Equal(t, 0.0, e.CY())
+	require.Equal(t, 0.0, e.RX())
+	require.Equal(t, 0.0, e.RY())
 	r := NewRect()
-	if r.X() != 0 || r.Y() != 0 || r.Width() != 0 || r.Height() != 0 || r.RX() != 0 || r.RY() != 0 {
-		t.Fatalf("rect geometry not zero: %+v", r)
-	}
+	require.Equal(t, 0.0, r.X())
+	require.Equal(t, 0.0, r.Y())
+	require.Equal(t, 0.0, r.Width())
+	require.Equal(t, 0.0, r.Height())
+	require.Equal(t, 0.0, r.RX())
+	require.Equal(t, 0.0, r.RY())
 	d := NewDocument(256, 128)
-	if d.Width() != 256 || d.Height() != 128 {
-		t.Errorf("NewDocument size = %v×%v", d.Width(), d.Height())
-	}
-	if d.ViewBox().Set() {
-		t.Error("default viewBox is set")
-	}
+	assert.Equal(t, 256.0, d.Width())
+	assert.Equal(t, 128.0, d.Height())
+	assert.False(t, d.ViewBox().Set())
 }
 
 func TestPublicConstructorsSetKind(t *testing.T) {
@@ -83,78 +66,49 @@ func TestPublicConstructorsSetKind(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if tt.got != tt.want {
-				t.Errorf("Kind() = %v; want %v", tt.got, tt.want)
-			}
-			if tt.got == KindInvalid {
-				t.Error("public constructor produced KindInvalid")
-			}
+			assert.Equal(t, tt.want, tt.got)
+			assert.NotEqual(t, KindInvalid, tt.got)
 		})
 	}
-	if (Node{}).Kind() != KindInvalid {
-		t.Errorf("zero Node Kind() = %v; want KindInvalid", (Node{}).Kind())
-	}
+	assert.Equal(t, KindInvalid, (Node{}).Kind())
 }
 
 func TestWithFillAndOpacity(t *testing.T) {
 	t.Parallel()
 	c := NewCircle().WithFill(color.NRGBA{R: 255, A: 128})
 	col, ok := c.Fill()
-	if !ok {
-		t.Fatal("fill missing after WithFill")
-	}
-	if col.R != 255 || col.A != 255 {
-		t.Errorf("Fill() = %+v; want R=255 A=255 (opacity not folded)", col)
-	}
-	if c.FillOpacity() != 128.0/255 {
-		t.Errorf("FillOpacity() = %v; want 128/255", c.FillOpacity())
-	}
+	require.True(t, ok)
+	assert.Equal(t, uint8(255), col.R)
+	assert.Equal(t, uint8(255), col.A)
+	assert.Equal(t, 128.0/255, c.FillOpacity())
 	c = c.WithFillOpacity(0.5)
 	wantOp := float64(op8FromUnit(0.5)) / 255
-	if c.FillOpacity() != wantOp {
-		t.Errorf("after WithFillOpacity(0.5) = %v; want %v", c.FillOpacity(), wantOp)
-	}
+	assert.Equal(t, wantOp, c.FillOpacity())
 	c = c.WithFillNone()
-	if _, ok := c.Fill(); ok {
-		t.Error("Fill() present after WithFillNone")
-	}
+	_, ok = c.Fill()
+	assert.False(t, ok)
 }
 
 func TestStrokeColorSetsOpacity(t *testing.T) {
 	t.Parallel()
 	s := NewStroke().WithColor(color.NRGBA{B: 255, A: 64})
-	if s.Color() != (color.NRGBA{B: 255, A: 255}) {
-		t.Errorf("Color() = %+v", s.Color())
-	}
-	if s.Opacity() != 64.0/255 {
-		t.Errorf("Opacity() = %v; want 64/255", s.Opacity())
-	}
+	assert.Equal(t, color.NRGBA{B: 255, A: 255}, s.Color())
+	assert.Equal(t, 64.0/255, s.Opacity())
 	s = s.WithOpacity(1)
-	if s.Opacity() != 1 {
-		t.Errorf("after WithOpacity(1) = %v", s.Opacity())
-	}
+	assert.Equal(t, 1.0, s.Opacity())
 	c := NewCircle().WithStroke(s)
 	got, on := c.Stroke()
-	if !on {
-		t.Fatal("stroke not on")
-	}
-	if got.Width() != 1 {
-		t.Errorf("Width() = %v; want 1", got.Width())
-	}
+	require.True(t, on)
+	assert.Equal(t, 1.0, got.Width())
 	c = c.WithoutStroke()
-	if _, on := c.Stroke(); on {
-		t.Error("stroke still on after WithoutStroke")
-	}
+	_, on = c.Stroke()
+	assert.False(t, on)
 }
 
 func TestFillOpacityClamp(t *testing.T) {
 	t.Parallel()
 	c := NewCircle().WithFillOpacity(-1)
-	if c.FillOpacity() != 0 {
-		t.Errorf("clamp low = %v; want 0", c.FillOpacity())
-	}
+	assert.Equal(t, 0.0, c.FillOpacity())
 	c = NewCircle().WithFillOpacity(2)
-	if c.FillOpacity() != 1 {
-		t.Errorf("clamp high = %v; want 1", c.FillOpacity())
-	}
+	assert.Equal(t, 1.0, c.FillOpacity())
 }

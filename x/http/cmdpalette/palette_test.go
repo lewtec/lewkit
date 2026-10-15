@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewNormalizesAndDropsBad(t *testing.T) {
@@ -12,22 +14,14 @@ func TestNewNormalizesAndDropsBad(t *testing.T) {
 		{Label: "skip"}, // no href
 		ItemOf("Q", "All", "/q", "list"),
 	})
-	if len(p.Items) != 2 {
-		t.Fatalf("items %d: %+v", len(p.Items), p.Items)
-	}
-	if p.Items[0].Keywords == "" {
-		t.Fatal("keywords filled")
-	}
-	if !strings.Contains(p.Items[1].Keywords, "list") {
-		t.Fatalf("keywords %q", p.Items[1].Keywords)
-	}
+	require.Len(t, p.Items, 2)
+	require.NotEmpty(t, p.Items[0].Keywords)
+	require.Contains(t, p.Items[1].Keywords, "list")
 }
 
 func TestKeywordsColon(t *testing.T) {
 	k := Keywords("account", "Assets:Cash")
-	if !strings.Contains(k, "cash") {
-		t.Fatalf("%q", k)
-	}
+	require.Contains(t, k, "cash")
 }
 
 func TestButtonAndModalRender(t *testing.T) {
@@ -36,19 +30,13 @@ func TestButtonAndModalRender(t *testing.T) {
 		WithTitle("Jump").
 		WithButtonClass("btn btn-xs")
 	var buf bytes.Buffer
-	if err := p.Button().Render(t.Context(), &buf); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Button().Render(t.Context(), &buf))
 	html := buf.String()
 	for _, want := range []string{`id="jump-open"`, `aria-controls="jump"`, "Jump", "btn btn-xs"} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("button missing %q in %s", want, html)
-		}
+		require.Contains(t, html, want)
 	}
 	buf.Reset()
-	if err := p.Modal().Render(t.Context(), &buf); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.Modal().Render(t.Context(), &buf))
 	html = buf.String()
 	for _, want := range []string{
 		`id="jump"`,
@@ -60,13 +48,9 @@ func TestButtonAndModalRender(t *testing.T) {
 		"Reports",
 		"cmdpalette-list", // single-column class, not daisy menu
 	} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("modal missing %q", want)
-		}
+		require.Contains(t, html, want)
 	}
-	if strings.Contains(html, `class="menu`) {
-		t.Fatal("must not use daisyUI menu")
-	}
+	require.NotContains(t, html, `class="menu`)
 }
 
 func TestDaisyModalUsesMenu(t *testing.T) {
@@ -74,19 +58,13 @@ func TestDaisyModalUsesMenu(t *testing.T) {
 		WithTitle("Jump").
 		WithButtonClass("btn btn-sm")
 	var buf bytes.Buffer
-	if err := p.DaisyButton().Render(t.Context(), &buf); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.DaisyButton().Render(t.Context(), &buf))
 	html := buf.String()
 	for _, want := range []string{`id="cmdpalette-open"`, `class="btn btn-sm"`, "Jump", "Ctrl+K"} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("button missing %q in %s", want, html)
-		}
+		require.Contains(t, html, want)
 	}
 	buf.Reset()
-	if err := p.DaisyModal().Render(t.Context(), &buf); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, p.DaisyModal().Render(t.Context(), &buf))
 	html = buf.String()
 	for _, want := range []string{
 		`data-cmdpalette`,
@@ -95,30 +73,19 @@ func TestDaisyModalUsesMenu(t *testing.T) {
 		`data-keywords=`,
 		`href="/artifact/branch"`,
 	} {
-		if !strings.Contains(html, want) {
-			t.Fatalf("modal missing %q in %s", want, html)
-		}
+		require.Contains(t, html, want)
 	}
 	keywords := strings.Index(html, "data-keywords=")
 	href := strings.Index(html, `href="`)
-	if keywords < 0 || href < keywords {
-		t.Fatalf("keywords must precede href: %s", html)
-	}
+	require.GreaterOrEqual(t, keywords, 0)
+	require.GreaterOrEqual(t, href, keywords)
 }
 
 func TestAssetsUnescaped(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Assets().Render(t.Context(), &buf); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, Assets().Render(t.Context(), &buf))
 	s := buf.String()
-	if !strings.Contains(s, "cmdpalette-dialog") {
-		t.Fatal("css missing")
-	}
-	if !strings.Contains(s, "__cmdpaletteBound") {
-		t.Fatal("js missing")
-	}
-	if strings.Contains(s, "cmdpalette-dialog&#") {
-		t.Fatal("css was html-escaped")
-	}
+	require.Contains(t, s, "cmdpalette-dialog")
+	require.Contains(t, s, "__cmdpaletteBound")
+	require.NotContains(t, s, "cmdpalette-dialog&#")
 }

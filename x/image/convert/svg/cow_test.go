@@ -1,8 +1,10 @@
 package svg
 
 import (
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAppendCopyOnWrite(t *testing.T) {
@@ -10,116 +12,77 @@ func TestAppendCopyOnWrite(t *testing.T) {
 	d := NewDocument(10, 10)
 	d2 := d.Append(NewCircle().Node())
 	d3 := d.Append(NewRect().Node())
-	if n := len(d.Children()); n != 0 {
-		t.Errorf("original Document has %d children; want 0", n)
+	assert.Empty(t, d.Children())
+	if assert.Len(t, d2.Children(), 1) {
+		assert.Equal(t, KindCircle, d2.Children()[0].Kind())
 	}
-	if n := len(d2.Children()); n != 1 || d2.Children()[0].Kind() != KindCircle {
-		t.Errorf("d2 children = %v", kinds(d2.Children()))
-	}
-	if n := len(d3.Children()); n != 1 || d3.Children()[0].Kind() != KindRect {
-		t.Errorf("d3 children = %v", kinds(d3.Children()))
+	if assert.Len(t, d3.Children(), 1) {
+		assert.Equal(t, KindRect, d3.Children()[0].Kind())
 	}
 
 	kids := d2.Children()
 	kids[0] = NewEllipse().Node()
-	if d2.Children()[0].Kind() != KindCircle {
-		t.Error("mutating Children() result changed the document")
-	}
+	assert.Equal(t, KindCircle, d2.Children()[0].Kind())
 
 	g := NewGroup()
 	g2 := g.Append(NewCircle().Node())
 	g3 := g.Append(NewRect().Node())
-	if len(g.Children()) != 0 {
-		t.Error("original Group grew")
-	}
-	if g2.Children()[0].Kind() != KindCircle || g3.Children()[0].Kind() != KindRect {
-		t.Error("group append aliased")
-	}
+	assert.Empty(t, g.Children())
+	assert.Equal(t, KindCircle, g2.Children()[0].Kind())
+	assert.Equal(t, KindRect, g3.Children()[0].Kind())
 	gk := g2.Children()
 	gk[0] = NewEllipse().Node()
-	if g2.Children()[0].Kind() != KindCircle {
-		t.Error("mutating Group.Children() result changed the group")
-	}
+	assert.Equal(t, KindCircle, g2.Children()[0].Kind())
 }
 
 func TestWithPointsCopies(t *testing.T) {
 	t.Parallel()
 	in := [][2]float64{{0, 0}, {10, 0}, {0, 10}}
 	p, err := NewPolygon().WithPoints(in)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	in[0] = [2]float64{99, 99}
 	got := p.Points()
-	if got[0] != ([2]float64{0, 0}) {
-		t.Errorf("mutating WithPoints input changed stored points: %v", got[0])
-	}
+	assert.Equal(t, [2]float64{0, 0}, got[0])
 	got[1] = [2]float64{7, 7}
 	again := p.Points()
-	if again[1] != ([2]float64{10, 0}) {
-		t.Errorf("mutating Points() result changed stored points: %v", again[1])
-	}
+	assert.Equal(t, [2]float64{10, 0}, again[1])
 }
 
 func TestWithPointsRejectsBadLength(t *testing.T) {
 	t.Parallel()
 	_, err := NewPolygon().WithPoints(nil)
-	if !errors.Is(err, ErrPolygonPoints) {
-		t.Errorf("nil: err = %v; want ErrPolygonPoints", err)
-	}
+	assert.ErrorIs(t, err, ErrPolygonPoints)
 	two := [][2]float64{{0, 0}, {1, 1}}
 	p, err := NewPolygon().WithPoints(two)
-	if !errors.Is(err, ErrPolygonPoints) {
-		t.Errorf("2 pts: err = %v", err)
-	}
-	if len(p.Points()) != 0 {
-		t.Error("invalid WithPoints stored points")
-	}
+	assert.ErrorIs(t, err, ErrPolygonPoints)
+	assert.Empty(t, p.Points())
 	big := make([][2]float64, 1025)
-	if _, err := NewPolygon().WithPoints(big); !errors.Is(err, ErrPolygonPoints) {
-		t.Errorf("1025 pts: err = %v", err)
-	}
+	_, err = NewPolygon().WithPoints(big)
+	assert.ErrorIs(t, err, ErrPolygonPoints)
 	ok := make([][2]float64, 1024)
-	if _, err := NewPolygon().WithPoints(ok); err != nil {
-		t.Errorf("1024 pts: %v", err)
-	}
+	_, err = NewPolygon().WithPoints(ok)
+	assert.NoError(t, err)
 }
 
 func TestPathCommandsCopy(t *testing.T) {
 	t.Parallel()
 	in := []PathCmd{{Kind: CmdMove, X: 0, Y: 0}, {Kind: CmdLine, X: 1, Y: 0}, {Kind: CmdClose}}
 	p, err := NewPath().WithCommands(in)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	in[0].X = 99
 	got := p.Commands()
-	if got[0].X != 0 {
-		t.Errorf("mutating WithCommands input changed stored cmds: %+v", got[0])
-	}
+	assert.Equal(t, 0.0, got[0].X)
 	got[1].X = 7
 	again := p.Commands()
-	if again[1].X != 1 {
-		t.Errorf("mutating Commands() result changed stored cmds: %+v", again[1])
-	}
+	assert.Equal(t, 1.0, again[1].X)
 }
 
 func TestRXIndependentOfRY(t *testing.T) {
 	t.Parallel()
 	r := NewRect().WithWidth(10).WithHeight(10).WithRX(5)
-	if r.RX() != 5 || r.RY() != 0 {
-		t.Errorf("RX,RY = %v,%v; want 5,0", r.RX(), r.RY())
-	}
+	assert.Equal(t, 5.0, r.RX())
+	assert.Equal(t, 0.0, r.RY())
 	rxSet, rySet := r.radiiSet()
-	if !rxSet || rySet {
-		t.Errorf("radiiSet = %v,%v; want true,false", rxSet, rySet)
-	}
-}
-
-func kinds(ns []Node) []Kind {
-	out := make([]Kind, len(ns))
-	for i, n := range ns {
-		out[i] = n.Kind()
-	}
-	return out
+	assert.True(t, rxSet)
+	assert.False(t, rySet)
 }

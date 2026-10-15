@@ -3,6 +3,9 @@ package period
 import (
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRangeEmpty(t *testing.T) {
@@ -19,9 +22,7 @@ func TestRangeEmpty(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.r.Empty(); got != tc.want {
-				t.Fatalf("Empty()=%v want %v", got, tc.want)
-			}
+			require.Equal(t, tc.want, tc.r.Empty())
 		})
 	}
 }
@@ -50,9 +51,7 @@ func TestRangeLabel(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.r.Label(); got != tc.want {
-				t.Fatalf("Label()=%q want %q", got, tc.want)
-			}
+			require.Equal(t, tc.want, tc.r.Label())
 		})
 	}
 }
@@ -69,9 +68,7 @@ func TestBinKindString(t *testing.T) {
 		{BinKind(99), "month"}, // unknown falls through to month
 	}
 	for _, tc := range cases {
-		if got := tc.k.String(); got != tc.want {
-			t.Errorf("%v.String()=%q want %q", tc.k, got, tc.want)
-		}
+		assert.Equal(t, tc.want, tc.k.String())
 	}
 }
 
@@ -94,9 +91,7 @@ func TestBinFromSpan(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := binFromSpan(tc.r); got != tc.want {
-				t.Fatalf("binFromSpan=%s want %s", got, tc.want)
-			}
+			require.Equal(t, tc.want, binFromSpan(tc.r))
 		})
 	}
 }
@@ -134,110 +129,76 @@ func TestChartBinEdges(t *testing.T) {
 			name = "empty"
 		}
 		t.Run(name, func(t *testing.T) {
-			got := ChartBin(tc.raw, tc.r)
-			if got != tc.want {
-				t.Fatalf("ChartBin(%q)=%s want %s", tc.raw, got, tc.want)
-			}
+			require.Equal(t, tc.want, ChartBin(tc.raw, tc.r))
 		})
 	}
 }
 
 func TestIterateBinsEdges(t *testing.T) {
 	t.Run("open ends nil", func(t *testing.T) {
-		if got := IterateBins(Range{Start: d("2024-01-01")}, BinMonth); got != nil {
-			t.Fatalf("open end: %v", got)
-		}
-		if got := IterateBins(Range{End: d("2024-01-01")}, BinDay); got != nil {
-			t.Fatalf("open start: %v", got)
-		}
-		if got := IterateBins(Range{}, BinYear); got != nil {
-			t.Fatalf("both open: %v", got)
-		}
+		require.Nil(t, IterateBins(Range{Start: d("2024-01-01")}, BinMonth))
+		require.Nil(t, IterateBins(Range{End: d("2024-01-01")}, BinDay))
+		require.Nil(t, IterateBins(Range{}, BinYear))
 	})
 
 	t.Run("start after end", func(t *testing.T) {
 		r := Range{Start: d("2024-03-01"), End: d("2024-01-01")}
-		if got := IterateBins(r, BinMonth); got != nil {
-			t.Fatalf("got %v", got)
-		}
+		require.Nil(t, IterateBins(r, BinMonth))
 	})
 
 	t.Run("day bins", func(t *testing.T) {
 		r := Range{Start: d("2024-07-15"), End: d("2024-07-17")}
 		bins := IterateBins(r, BinDay)
-		if len(bins) != 3 {
-			t.Fatalf("len=%d %+v", len(bins), bins)
-		}
-		if !bins[0].Start.Equal(d("2024-07-15")) || !bins[2].End.Equal(d("2024-07-17")) {
-			t.Fatalf("%+v", bins)
-		}
+		require.Len(t, bins, 3)
+		require.Equal(t, d("2024-07-15"), bins[0].Start)
+		require.Equal(t, d("2024-07-17"), bins[2].End)
 	})
 
 	t.Run("week bins clipped", func(t *testing.T) {
 		// Wed 2024-07-17 is ISO week containing Mon 2024-07-15
 		r := Range{Start: d("2024-07-17"), End: d("2024-07-25")}
 		bins := IterateBins(r, BinWeek)
-		if len(bins) != 2 {
-			t.Fatalf("len=%d %+v", len(bins), bins)
-		}
+		require.Len(t, bins, 2)
 		// first bin clipped to range start (not Monday)
-		if !bins[0].Start.Equal(d("2024-07-17")) {
-			t.Fatalf("first start=%v", bins[0].Start)
-		}
+		require.Equal(t, d("2024-07-17"), bins[0].Start)
 		// week of 2024-07-15 ends Sunday 2024-07-21
-		if !bins[0].End.Equal(d("2024-07-21")) {
-			t.Fatalf("first end=%v", bins[0].End)
-		}
+		require.Equal(t, d("2024-07-21"), bins[0].End)
 		// second week Mon 2024-07-22 … clipped to 2024-07-25
-		if !bins[1].Start.Equal(d("2024-07-22")) || !bins[1].End.Equal(d("2024-07-25")) {
-			t.Fatalf("second=%+v", bins[1])
-		}
+		require.Equal(t, d("2024-07-22"), bins[1].Start)
+		require.Equal(t, d("2024-07-25"), bins[1].End)
 	})
 
 	t.Run("month bins", func(t *testing.T) {
 		r := Range{Start: d("2024-01-15"), End: d("2024-03-10")}
 		bins := IterateBins(r, BinMonth)
-		if len(bins) != 3 {
-			t.Fatalf("len=%d", len(bins))
-		}
-		if !bins[0].Start.Equal(d("2024-01-15")) || !bins[0].End.Equal(d("2024-01-31")) {
-			t.Fatalf("jan=%+v", bins[0])
-		}
-		if !bins[1].Start.Equal(d("2024-02-01")) || !bins[1].End.Equal(d("2024-02-29")) {
-			t.Fatalf("feb leap=%+v", bins[1])
-		}
-		if !bins[2].End.Equal(d("2024-03-10")) {
-			t.Fatalf("mar=%+v", bins[2])
-		}
+		require.Len(t, bins, 3)
+		require.Equal(t, d("2024-01-15"), bins[0].Start)
+		require.Equal(t, d("2024-01-31"), bins[0].End)
+		// 2024-02-29 is the leap day
+		require.Equal(t, d("2024-02-01"), bins[1].Start)
+		require.Equal(t, d("2024-02-29"), bins[1].End)
+		require.Equal(t, d("2024-03-10"), bins[2].End)
 	})
 
 	t.Run("year bins", func(t *testing.T) {
 		r := Range{Start: d("2022-06-01"), End: d("2024-03-15")}
 		bins := IterateBins(r, BinYear)
-		if len(bins) != 3 {
-			t.Fatalf("len=%d %+v", len(bins), bins)
-		}
-		if !bins[0].Start.Equal(d("2022-06-01")) || !bins[0].End.Equal(d("2022-12-31")) {
-			t.Fatalf("2022=%+v", bins[0])
-		}
-		if !bins[1].Start.Equal(d("2023-01-01")) || !bins[1].End.Equal(d("2023-12-31")) {
-			t.Fatalf("2023=%+v", bins[1])
-		}
-		if !bins[2].Start.Equal(d("2024-01-01")) || !bins[2].End.Equal(d("2024-03-15")) {
-			t.Fatalf("2024=%+v", bins[2])
-		}
+		require.Len(t, bins, 3)
+		require.Equal(t, d("2022-06-01"), bins[0].Start)
+		require.Equal(t, d("2022-12-31"), bins[0].End)
+		require.Equal(t, d("2023-01-01"), bins[1].Start)
+		require.Equal(t, d("2023-12-31"), bins[1].End)
+		require.Equal(t, d("2024-01-01"), bins[2].Start)
+		require.Equal(t, d("2024-03-15"), bins[2].End)
 	})
 
 	t.Run("single day all kinds", func(t *testing.T) {
 		r := Range{Start: d("2024-07-15"), End: d("2024-07-15")}
 		for _, kind := range []BinKind{BinDay, BinWeek, BinMonth, BinYear} {
 			bins := IterateBins(r, kind)
-			if len(bins) != 1 {
-				t.Fatalf("%s: len=%d", kind, len(bins))
-			}
-			if !bins[0].Start.Equal(d("2024-07-15")) || !bins[0].End.Equal(d("2024-07-15")) {
-				t.Fatalf("%s: %+v", kind, bins[0])
-			}
+			require.Len(t, bins, 1)
+			require.Equal(t, d("2024-07-15"), bins[0].Start)
+			require.Equal(t, d("2024-07-15"), bins[0].End)
 		}
 	})
 }
@@ -245,40 +206,20 @@ func TestIterateBinsEdges(t *testing.T) {
 func TestStartOfBinNextBin(t *testing.T) {
 	// Sunday → Monday of same ISO week (2024-07-14 is Sunday → 2024-07-08)
 	sun := d("2024-07-14")
-	if got := startOfBin(sun, BinWeek); !got.Equal(d("2024-07-08")) {
-		t.Fatalf("week from Sunday: %v", got)
-	}
+	require.Equal(t, d("2024-07-08"), startOfBin(sun, BinWeek))
 	// Monday stays
 	mon := d("2024-07-15")
-	if got := startOfBin(mon, BinWeek); !got.Equal(mon) {
-		t.Fatalf("week from Monday: %v", got)
-	}
-	if got := startOfBin(d("2024-07-15"), BinDay); !got.Equal(d("2024-07-15")) {
-		t.Fatalf("day: %v", got)
-	}
-	if got := startOfBin(d("2024-07-15"), BinMonth); !got.Equal(d("2024-07-01")) {
-		t.Fatalf("month: %v", got)
-	}
-	if got := startOfBin(d("2024-07-15"), BinYear); !got.Equal(d("2024-01-01")) {
-		t.Fatalf("year: %v", got)
-	}
+	require.Equal(t, mon, startOfBin(mon, BinWeek))
+	require.Equal(t, d("2024-07-15"), startOfBin(d("2024-07-15"), BinDay))
+	require.Equal(t, d("2024-07-01"), startOfBin(d("2024-07-15"), BinMonth))
+	require.Equal(t, d("2024-01-01"), startOfBin(d("2024-07-15"), BinYear))
 
-	if got := nextBin(d("2024-07-15"), BinDay); !got.Equal(d("2024-07-16")) {
-		t.Fatalf("next day: %v", got)
-	}
-	if got := nextBin(d("2024-07-15"), BinWeek); !got.Equal(d("2024-07-22")) {
-		t.Fatalf("next week: %v", got)
-	}
-	if got := nextBin(d("2024-01-01"), BinMonth); !got.Equal(d("2024-02-01")) {
-		t.Fatalf("next month: %v", got)
-	}
+	require.Equal(t, d("2024-07-16"), nextBin(d("2024-07-15"), BinDay))
+	require.Equal(t, d("2024-07-22"), nextBin(d("2024-07-15"), BinWeek))
+	require.Equal(t, d("2024-02-01"), nextBin(d("2024-01-01"), BinMonth))
 	// Dec → Jan next year
-	if got := nextBin(d("2024-12-01"), BinMonth); !got.Equal(d("2025-01-01")) {
-		t.Fatalf("month year roll: %v", got)
-	}
-	if got := nextBin(d("2024-01-01"), BinYear); !got.Equal(d("2025-01-01")) {
-		t.Fatalf("next year: %v", got)
-	}
+	require.Equal(t, d("2025-01-01"), nextBin(d("2024-12-01"), BinMonth))
+	require.Equal(t, d("2025-01-01"), nextBin(d("2024-01-01"), BinYear))
 }
 
 func TestShiftEdgesAndInvalid(t *testing.T) {
@@ -316,30 +257,22 @@ func TestShiftEdgesAndInvalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := Shift(tc.filter, now, tc.delta)
 			if tc.err {
-				if err == nil {
-					t.Fatalf("expected error, got %q", got)
-				}
+				require.Error(t, err)
 				return
 			}
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got != tc.want {
-				t.Fatalf("got %q want %q", got, tc.want)
-			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
 		})
 	}
 
 	// invalid: cannot shift open-ended custom range (end-only is not expressible via Parse easily;
 	// use a custom that parses but has zero start — empty filter is not custom).
 	// Unrecognized filter becomes KindCustom and fails Parse.
-	if _, err := Shift("not-a-period", now, 1); err == nil {
-		t.Fatal("expected error for unrecognized filter")
-	}
+	_, err := Shift("not-a-period", now, 1)
+	require.Error(t, err)
 	// start-after-end range is invalid to parse
-	if _, err := Shift("2024-06 - 2024-01", now, 1); err == nil {
-		t.Fatal("expected error for inverted range")
-	}
+	_, err = Shift("2024-06 - 2024-01", now, 1)
+	require.Error(t, err)
 }
 
 func TestParseRelativeOffsets(t *testing.T) {
@@ -369,15 +302,10 @@ func TestParseRelativeOffsets(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.filter, func(t *testing.T) {
 			r, err := Parse(tc.filter, now)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !r.Start.Equal(d(tc.wantStart)) || !r.End.Equal(d(tc.wantEnd)) {
-				t.Fatalf("got %v…%v want %s…%s", r.Start, r.End, tc.wantStart, tc.wantEnd)
-			}
-			if r.Raw != tc.filter {
-				t.Fatalf("Raw=%q", r.Raw)
-			}
+			require.NoError(t, err)
+			require.Equal(t, d(tc.wantStart), r.Start)
+			require.Equal(t, d(tc.wantEnd), r.End)
+			require.Equal(t, tc.filter, r.Raw)
 		})
 	}
 }
@@ -386,20 +314,14 @@ func TestParseRelativeMonthYearRoll(t *testing.T) {
 	// January + month-1 → December previous year
 	now := d("2024-01-10")
 	r, err := Parse("month-1", now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !r.Start.Equal(d("2023-12-01")) || !r.End.Equal(d("2023-12-31")) {
-		t.Fatalf("month-1 from Jan: %v %v", r.Start, r.End)
-	}
+	require.NoError(t, err)
+	require.Equal(t, d("2023-12-01"), r.Start)
+	require.Equal(t, d("2023-12-31"), r.End)
 	// Q1 - 1 → Q4 previous year
 	r, err = Parse("quarter-1", now)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !r.Start.Equal(d("2023-10-01")) || !r.End.Equal(d("2023-12-31")) {
-		t.Fatalf("quarter-1 from Q1: %v %v", r.Start, r.End)
-	}
+	require.NoError(t, err)
+	require.Equal(t, d("2023-10-01"), r.Start)
+	require.Equal(t, d("2023-12-31"), r.End)
 }
 
 func TestDisplayLabelKindAt(t *testing.T) {
@@ -427,9 +349,7 @@ func TestDisplayLabelKindAt(t *testing.T) {
 			{"garbage", KindCustom},
 		}
 		for _, tc := range cases {
-			if got := Classify(tc.filter, now); got != tc.want {
-				t.Errorf("Classify(%q)=%v want %v", tc.filter, got, tc.want)
-			}
+			assert.Equal(t, tc.want, Classify(tc.filter, now))
 		}
 	})
 
@@ -448,9 +368,7 @@ func TestDisplayLabelKindAt(t *testing.T) {
 			{KindCustom, "2024-07"},
 		}
 		for _, tc := range cases {
-			if got := At(tc.kind, anchor); got != tc.want {
-				t.Errorf("At(%q)=%q want %q", tc.kind, got, tc.want)
-			}
+			assert.Equal(t, tc.want, At(tc.kind, anchor))
 		}
 	})
 
@@ -472,33 +390,21 @@ func TestDisplayLabelKindAt(t *testing.T) {
 			{"not-valid", "not-valid"}, // parse error → raw
 		}
 		for _, tc := range cases {
-			if got := DisplayLabel(tc.filter, now); got != tc.want {
-				t.Errorf("DisplayLabel(%q)=%q want %q", tc.filter, got, tc.want)
-			}
+			assert.Equal(t, tc.want, DisplayLabel(tc.filter, now))
 		}
 	})
 }
 
 func TestDateOnlyAndAnchor(t *testing.T) {
-	if !DateOnly(time.Time{}).IsZero() {
-		t.Fatal("zero stays zero")
-	}
+	require.True(t, DateOnly(time.Time{}).IsZero())
 	ts := time.Date(2024, 7, 15, 13, 45, 0, 0, time.FixedZone("X", -3*3600))
 	got := DateOnly(ts)
 	// Year/Month/Day taken from local wall of ts, then stored as UTC midnight
 	want := time.Date(2024, 7, 15, 0, 0, 0, 0, time.UTC)
-	if !got.Equal(want) {
-		t.Fatalf("DateOnly=%v want %v", got, want)
-	}
+	require.Equal(t, want, got)
 
 	now := d("2024-07-15")
-	if a := AnchorDate("", now); !a.Equal(now) {
-		t.Fatalf("empty anchor=%v", a)
-	}
-	if a := AnchorDate("2024-03", now); !a.Equal(d("2024-03-01")) {
-		t.Fatalf("month anchor=%v", a)
-	}
-	if a := AnchorDate("bad", now); !a.Equal(now) {
-		t.Fatalf("bad filter falls back to now: %v", a)
-	}
+	require.Equal(t, now, AnchorDate("", now))
+	require.Equal(t, d("2024-03-01"), AnchorDate("2024-03", now))
+	require.Equal(t, now, AnchorDate("bad", now))
 }
