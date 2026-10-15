@@ -5,8 +5,9 @@
 // first window. A missing web view is returned. Android keeps that window
 // when JNI_OnLoad noted a Java VM: a GUI model opens the surface and a web
 // handler is the web view. A process JNI_OnLoad did not enter publishes a
-// loopback URL. iOS keeps a GUI model on the UIKit surface. A web handler
-// on iOS still publishes a loopback URL when the host opted into loopback.
+// loopback URL. macOS and iOS keep a GUI model on the native surface. A web
+// handler there still publishes a loopback URL when the host opted into
+// loopback.
 package app
 
 import (
@@ -107,8 +108,9 @@ func (a App) open(ctx context.Context, id string) error {
 
 // loopbackWindow serves a web handler on a packaged host that opted into
 // loopback. guiNative leaves the window as it is. Android does that when
-// the process has a Java VM. iOS does it for a GUI model, which draws on
-// the UIKit surface. A web handler on iOS still publishes a loopback URL.
+// the process has a Java VM. macOS and iOS do it for a GUI model, which
+// draws on the native surface. A web handler there still publishes a
+// loopback URL.
 func loopbackWindow(win Window, guiNative bool) (Window, error) {
 	if guiNative {
 		return win, nil
@@ -123,8 +125,8 @@ func loopbackWindow(win Window, guiNative bool) (Window, error) {
 
 // nativeHost reports whether a packaged no-UI process should keep win.
 // Android keeps it when JNI_OnLoad noted a Java VM. Without that note, a
-// web handler publishes ELETROCROMO_READY. iOS keeps a GUI
-// model and loopbacks the web handler.
+// web handler publishes ELETROCROMO_READY. macOS and iOS keep a GUI
+// model and loopback the web handler.
 func nativeHost(win Window) bool {
 	return keepNative(runtime.GOOS, win, entry.AndroidHost())
 }
@@ -133,7 +135,7 @@ func keepNative(goos string, win Window, androidHost bool) bool {
 	switch goos {
 	case "android":
 		return androidHost
-	case "ios":
+	case "darwin", "ios":
 		_, ok := win.(guiWindow)
 		return ok
 	default:
@@ -162,6 +164,13 @@ func serveWeb(ctx context.Context, handler http.Handler) error {
 	announceReady(link)
 	<-ctx.Done()
 	return nil
+}
+
+func announceSurface() {
+	if !driver.AppMode() {
+		return
+	}
+	announceReady("")
 }
 
 func announceReady(link string) {

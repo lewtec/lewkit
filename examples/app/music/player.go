@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -14,6 +15,8 @@ import (
 
 type playOpener func(context.Context, dsound.Config) (io.WriteCloser, error)
 
+type fileOpener func(string) (fs.File, error)
+
 type playerCmd struct {
 	path  string
 	frame int64
@@ -22,6 +25,7 @@ type playerCmd struct {
 // player pulls a file in 20ms periods and records the frame it has written.
 type player struct {
 	open     playOpener
+	openFile fileOpener
 	commands chan playerCmd
 
 	played  atomic.Int64
@@ -37,7 +41,11 @@ func newPlayer(open playOpener) *player {
 	if open == nil {
 		open = dsound.Open
 	}
-	return &player{open: open, commands: make(chan playerCmd, 4)}
+	return &player{
+		open:     open,
+		openFile: func(name string) (fs.File, error) { return os.Open(name) },
+		commands: make(chan playerCmd, 4),
+	}
 }
 
 // Play starts path at frame. An empty path stops.
@@ -119,7 +127,7 @@ func (p *player) loop(ctx context.Context) {
 
 type playSession struct {
 	player *player
-	file   *os.File
+	file   fs.File
 	out    io.WriteCloser
 	pipe   *sound.Pipeline
 	buf    []byte
@@ -134,7 +142,11 @@ func (p *player) begin(ctx context.Context, cmd playerCmd) *playSession {
 		p.setStatus("", "")
 		return nil
 	}
-	file, err := os.Open(cmd.path)
+	openFile := p.openFile
+	if openFile == nil {
+		openFile = func(name string) (fs.File, error) { return os.Open(name) }
+	}
+	file, err := openFile(cmd.path)
 	if err != nil {
 		p.setStatus(cmd.path, err.Error())
 		return nil

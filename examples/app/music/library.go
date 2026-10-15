@@ -6,13 +6,18 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lewtec/lewkit/examples/app/music/musicdb"
 	"github.com/lewtec/lewkit/x/db"
+	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/sound"
+	_ "github.com/lewtec/lewkit/x/sound/prelude"
 )
 
 // Track is one ingested file.
@@ -38,6 +43,8 @@ type Album struct {
 type Library struct {
 	db     *db.Conn[musicdb.Queries]
 	covers string
+	mu     sync.Mutex
+	trees  []fs.FS
 }
 
 // OpenLibrary migrates an in-memory catalog and returns it.
@@ -67,11 +74,167 @@ func (lib *Library) Close() error {
 	return err
 }
 
+// Open opens a track or cover path stored in the catalog.
+func (lib *Library) Open(name string) (fs.File, error) {
+	if fsys, rel, ok := lib.resolveTree(name); ok {
+		return fsys.Open(rel)
+	}
+	return os.Open(name)
+}
+
+func (lib *Library) resolveTree(name string) (fs.FS, string, bool) {
+	if lib == nil || !strings.HasPrefix(name, "@tree:") {
+		return nil, "", false
+	}
+	rest := strings.TrimPrefix(name, "@tree:")
+	idText, rel, ok := strings.Cut(rest, "/")
+	if !ok || rel == "" {
+		return nil, "", false
+	}
+	index, err := strconv.Atoi(idText)
+	if err != nil || index < 0 {
+		return nil, "", false
+	}
+	lib.mu.Lock()
+	defer lib.mu.Unlock()
+	if index >= len(lib.trees) {
+		return nil, "", false
+	}
+	return lib.trees[index], rel, true
+}
+
+func (lib *Library) mountTree(fsys fs.FS) string {
+	lib.mu.Lock()
+	defer lib.mu.Unlock()
+	id := len(lib.trees)
+	lib.trees = append(lib.trees, fsys)
+	return fmt.Sprintf("@tree:%d", id)
+}
+
+// IngestPaths opens paths with [filedialog.Open] and ingests them.
+func (lib *Library) IngestPaths(ctx context.Context, open func(...string) (fs.FS, error), paths ...string) (int, error) {
+	if lib == nil || lib.db == nil {
+		return 0, errNotOpen
+	}
+	var clean []string
+	var content bool
+	for _, item := range paths {
+		if item == "" {
+			continue
+		}
+		clean = append(clean, item)
+		if strings.HasPrefix(item, "content:") {
+			content = true
+		}
+	}
+	if len(clean) == 0 {
+		return 0, nil
+	}
+	if open == nil {
+		open = filedialog.Open
+	}
+	if !content && openIsDefault(open) {
+		var count int
+		var failed error
+		for _, item := range clean {
+			n, err := lib.Ingest(ctx, item)
+			count += n
+			if err != nil && n == 0 {
+				failed = err
+			}
+		}
+		if count > 0 {
+			failed = nil
+		}
+		return count, failed
+	}
+	fsys, err := open(clean...)
+	if err != nil {
+		return 0, err
+	}
+	label := "Library"
+	if len(clean) == 1 && !content {
+		label = filepath.Base(clean[0])
+	}
+	return lib.IngestFS(ctx, fsys, label)
+}
+
+func openIsDefault(open func(...string) (fs.FS, error)) bool {
+	return fmt.Sprintf("%p", open) == fmt.Sprintf("%p", filedialog.Open)
+}
+
+// IngestFS walks fsys and adds audio files under it.
+func (lib *Library) IngestFS(ctx context.Context, fsys fs.FS, rootLabel string) (int, error) {
+	if lib == nil || lib.db == nil {
+		return 0, errNotOpen
+	}
+	if fsys == nil {
+		return 0, fs.ErrInvalid
+	}
+	if rootLabel == "" || rootLabel == "." || rootLabel == "/" {
+		rootLabel = "Library"
+	}
+	prefix := lib.mountTree(fsys)
+	var added int
+	var failed error
+	err := fs.WalkDir(fsys, ".", func(rel string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if rel != "." && strings.HasPrefix(entry.Name(), ".") {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if strings.HasPrefix(entry.Name(), ".") {
+			return nil
+		}
+		ok, addErr := lib.ingestFSFile(ctx, fsys, prefix, rootLabel, rel)
+		if addErr != nil {
+			failed = addErr
+			return nil
+		}
+		if ok {
+			added++
+		}
+		return nil
+	})
+	if err != nil {
+		return added, err
+	}
+	if added == 0 {
+		return 0, failed
+	}
+	return added, nil
+}
+
+func (lib *Library) ingestFSFile(ctx context.Context, fsys fs.FS, prefix, rootLabel, rel string) (bool, error) {
+	if !audioExt(rel) {
+		return false, nil
+	}
+	title, artist, album := trackFSMeta(rootLabel, rel)
+	duration, err := audioDurationFS(fsys, rel)
+	if err != nil {
+		return false, err
+	}
+	storedPath := prefix + "/" + rel
+	cover := lib.trackCoverFS(fsys, prefix, path.Dir(rel), rel, storedPath)
+	err = lib.db.Queries().UpsertTrack(ctx, musicdb.UpsertTrackParams{
+		Path: storedPath, Title: title, Artist: artist, Album: album, Cover: cover,
+		DurationMs: duration.Milliseconds(),
+	})
+	return err == nil, err
+}
+
 // Ingest walks root. A file adds itself. A folder adds audio under it.
 // One bad file is skipped. The count is files added or replaced.
 func (lib *Library) Ingest(ctx context.Context, root string) (int, error) {
 	if lib == nil || lib.db == nil {
 		return 0, errNotOpen
+	}
+	if strings.HasPrefix(root, "content:") {
+		return lib.IngestPaths(ctx, nil, root)
 	}
 	info, err := os.Stat(root)
 	if err != nil {
@@ -221,6 +384,25 @@ func trackMeta(root, path string) (title, artist, album string) {
 	return
 }
 
+func trackFSMeta(rootLabel, rel string) (title, artist, album string) {
+	ext := path.Ext(rel)
+	title = strings.TrimSuffix(path.Base(rel), ext)
+	dir := path.Dir(rel)
+	if dir == "." || dir == "" {
+		album = rootLabel
+		artist = "Unknown"
+		return
+	}
+	album = path.Base(dir)
+	parent := path.Dir(dir)
+	if parent == "." || parent == "" {
+		artist = "Unknown"
+		return
+	}
+	artist = path.Base(parent)
+	return
+}
+
 func samePath(a, b string) bool {
 	return filepath.Clean(a) == filepath.Clean(b)
 }
@@ -231,7 +413,20 @@ func audioDuration(path string) (time.Duration, error) {
 		return 0, err
 	}
 	defer file.Close()
-	pipe, err := sound.Decode(path, file)
+	return decodeDuration(path, file)
+}
+
+func audioDurationFS(fsys fs.FS, rel string) (time.Duration, error) {
+	file, err := fsys.Open(rel)
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	return decodeDuration(rel, file)
+}
+
+func decodeDuration(name string, file fs.File) (time.Duration, error) {
+	pipe, err := sound.Decode(name, file)
 	if err != nil {
 		return 0, err
 	}

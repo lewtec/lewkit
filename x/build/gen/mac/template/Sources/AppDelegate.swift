@@ -18,6 +18,7 @@ enum AppMain {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: MainWindow?
     private let server = ServerProcess()
+    private var hostingSurface = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let win = MainWindow()
@@ -32,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        !hostingSurface
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -44,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func startServer() {
+        hostingSurface = false
         window?.showSplash(status: "Starting server…", detail: nil, error: false)
         server.start(
             onStatus: { [weak self] message in
@@ -52,7 +54,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onReady: { [weak self] url in
                 self?.window?.load(url)
             },
+            onSurface: { [weak self] in
+                self?.hostingSurface = true
+                self?.window?.hide()
+            },
+            onExit: {
+                NSApp.terminate(nil)
+            },
             onFailed: { [weak self] message in
+                self?.hostingSurface = false
+                self?.window?.show()
                 self?.window?.showSplash(status: "Server failed", detail: message, error: true)
             }
         )

@@ -113,6 +113,9 @@ func startApp() error {
 			colorSpace = cg.CGColorSpaceCreateDeviceRGB()
 			app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
 			app.Send(objc.RegisterName("setActivationPolicy:"), nsApplicationActivateRegular)
+			if app.Send(objc.RegisterName("isRunning")) == 0 {
+				app.Send(objc.RegisterName("finishLaunching"))
+			}
 			thread.OnIdle(func() {
 				pump(app)
 				live.Range(func(k, _ any) bool {
@@ -254,8 +257,11 @@ func (w *win) create(title string, width, height int) error {
 		return err
 	}
 	acceptMouseMoved(wnd)
+	app := objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication"))
+	ensureMenu(app, title)
 	wnd.Send(selMakeKeyAndOrderFront, objc.ID(0))
-	objc.ID(objc.GetClass("NSApplication")).Send(objc.RegisterName("sharedApplication")).Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
+	wnd.Send(objc.RegisterName("orderFrontRegardless"))
+	app.Send(objc.RegisterName("activateIgnoringOtherApps:"), true)
 	w.noteSafe()
 	return nil
 }

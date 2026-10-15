@@ -21,12 +21,22 @@ func TestAnnounceReadyWritesFile(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:9/?token=abc\n", string(body))
 }
 
+func TestAnnounceSurfaceWritesEmptyReadyLineInAppMode(t *testing.T) {
+	path := t.TempDir() + "/ready.url"
+	t.Setenv("ELETROCROMO_READY_FILE", path)
+	t.Setenv("ELETROCROMO_NO_UI", "1")
+	announceSurface()
+	body, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Equal(t, "\n", string(body))
+}
+
 func TestLoopbackLinkUsesIPv4(t *testing.T) {
 	require.Equal(t, "http://127.0.0.1:9/?token=abc", loopbackLink("http://[::1]:9", "abc"))
 }
 
 func TestDesktopIsNotNativeHost(t *testing.T) {
-	if runtime.GOOS == "android" || runtime.GOOS == "ios" {
+	if runtime.GOOS == "android" || runtime.GOOS == "darwin" || runtime.GOOS == "ios" {
 		test.Skip(t)
 	}
 	require.False(t, nativeHost(GUI(nil)))
@@ -47,6 +57,11 @@ func TestAndroidWithoutHostPublishesLoopback(t *testing.T) {
 	hosted, ok := win.(webWindow)
 	require.True(t, ok)
 	require.True(t, hosted.hosted)
+}
+
+func TestDarwinKeepsGUIOnly(t *testing.T) {
+	require.True(t, keepNative("darwin", GUI(nil), false))
+	require.False(t, keepNative("darwin", Web(nil), true))
 }
 
 func TestIOSKeepsGUIOnly(t *testing.T) {
