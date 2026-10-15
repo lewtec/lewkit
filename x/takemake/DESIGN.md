@@ -28,7 +28,15 @@ x/takemake/sarif
 x/takemake/dotenv
 ```
 
-One session owns one directory. Leave the other directories alone. The scaffold compiles and returns `errs.ErrScaffold` from `Take` and `Make`. Replace that body. Closed sets are `//lewkit:enum`, and the package `enum.go` holds only the package clause and `//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum`.
+A session owns the directories in its node and leaves the others alone. The scaffold compiles and returns `errs.ErrScaffold` from `Take` and `Make`. Replace that body. Closed sets are `//lewkit:enum`, and the package `enum.go` holds only the package clause and `//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum`.
+
+## v1
+
+A session adds code only inside the directories it owns, including a nested package. It does not edit another takemake directory, the parent, or any package outside `x/takemake`. Importing a dependency that already exists is fine. A duplicated helper is fine. A shared package for that helper waits until the models exist.
+
+Tests live in the owned packages. `Take`, then `Make`, then `Take` again, and the two values match on the fields named below. The scaffold test is the floor. The round trip, and the fields that must survive it, need their own tests.
+
+Wiring `x/disasm`, `x/fs`, `x/workflow`, `x/generate`, `x/graph`, `x/ndarray`, `x/text/report`, and `x/sops` to these files is a later pass.
 
 ## API
 
@@ -130,6 +138,6 @@ s.Func("main").Returns(glsl.Void()).Block(...)
 
 ## Leave these where they are
 
-`x/disasm` keeps Capstone. After `Take`, it reads section bytes from `elf.File`, `pe.File`, or `macho.File`. `x/disasm/decomp` keeps the lift. `x/toolchain/go` keeps linking. `x/generate/clib` keeps `MakeShared`, `MakeDLL`, and the Mach-O dylib rewrite.
+`x/disasm` keeps Capstone. A later pass reads section bytes from `elf.File`, `pe.File`, or `macho.File`. `x/disasm/decomp` keeps the lift. `x/toolchain/go` keeps linking. `x/generate/clib` keeps `MakeShared`, `MakeDLL`, and the Mach-O dylib rewrite.
 
 SVG, gemtext, WAV, PNG, JPEG, ICO, ICNS, the compression codecs, and the AppImage trailer already round-trip. Mermaid stays a printer on `x/graph`. The rustc diagnostic text stays a printer on `x/text/report`. JSON, TOML, YAML, INI, and XML stay encodings of one `compose.File`.
