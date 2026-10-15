@@ -279,7 +279,7 @@ Inherited C (cite the file):
 | `x/takemake/pe` | `File`, `New`, `Take`, `Make` | one PE image | the file stays here; a method returns the receiver and stores the child | the scaffold is `errs.ErrScaffold` | import `x/disasm`; sign in this package |
 | `x/takemake/macho` | `File`, `New`, `Take`, `Make` | one Mach-O image | the file stays here; a method returns the receiver and stores the child | the scaffold is `errs.ErrScaffold` | import `x/disasm`; sign in this package |
 | `x/takemake/golang` | `File`, `NewFile`, `Take`, `Make` | one Go source file | the file stays here; a method returns the receiver and stores the child; callers compose this file | the scaffold is `errs.ErrScaffold` | a package named `go`; compose `jen.File` at this boundary |
-| `x/takemake/header` | `File`, `New`, `Take`, `Make` | one C header | the file stays here; size, alignment, and field offset live on the type; `Make` prints C | the scaffold is `errs.ErrScaffold` | print Go from `Make`; import `x/generate/header` |
+| `x/takemake/c` | `File`, `New`, `Take`, `Make` | one C translation unit | the file stays here; a function keeps its body; size, alignment, and field offset live on the type; `Make` prints C | the scaffold is `errs.ErrScaffold` | print Go from `Make`; drop a function body; import `x/generate/header` |
 | `x/takemake/proto` | `File`, `NewFile`, `Take`, `Make` | one proto file | the file stays here; `Make` prints `.proto` | the scaffold is `errs.ErrScaffold` | run `protoc` from `Make` |
 | `x/takemake/glsl` | `File`, `New`, `Take`, `Make` | one GLSL file | the file stays here; `Take` and `Make` are the shader text | the scaffold is `errs.ErrScaffold` | emit SPIR-V from `Make` |
 | `x/takemake/sql` | `File`, `NewFile`, `Take`, `Make` | one SQL statement log | the log stays here; `schema` is the catalog | the scaffold is `errs.ErrScaffold` | import `x/takemake/sql/schema` |
@@ -490,6 +490,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: The C take/make model is `x/takemake/c`, one translation unit. A function keeps its body. A header is that file with no bodies. Size, alignment, and field offset stay on the type. `Make` prints C. A Go projection is separate. Rejected: a package named `header` that stores only declarations.
 - 2026-10-15: A pin copied from an inner tool, then marked semver, is `tool.InheritSemver`. Obsidian and Tirith return that. Biome still adds its extract expression when the inner pin has none. A pin that only says semver stays `tool.SemverPin`.
 - 2026-10-15: A tag list that keeps the first accepted form is `install.KeepVersions`. Biome, Obsidian, CMake, and Ruby sort that list newest-first. Each tool still decides which tags count.
 - 2026-10-15: One in-flight Android callback is `androidask.Pending`. The ask dialog and the file dialog use it. Busy text stays "dialog already open" and "file dialog already open".

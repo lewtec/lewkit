@@ -9,7 +9,7 @@ x/takemake/elf
 x/takemake/pe
 x/takemake/macho
 x/takemake/golang
-x/takemake/header
+x/takemake/c
 x/takemake/proto
 x/takemake/glsl
 x/takemake/sql
@@ -88,7 +88,7 @@ f.Segment("__TEXT").Section("__text").Bytes(code).Symbol("_main")
 
 `golang.File` holds the package name, imports, and declarations (`Const`, `Var`, `Type`, `Func`). Expressions are identifiers, selectors, calls, literals, composites, and the unary and binary forms. Types are named types, pointers, slices, arrays, maps, structs, interfaces, and function types. The chain is `Func`, `Type`, `Var`, `Const`, `Id`, `Qual`, `Lit`, `Params`, `Block`, and `Call`.
 
-`header.File` holds includes and declarations (`Type`, `Const`, `Func`, `Object`). A type is void, bool, integer, float, pointer, array, function, struct, union, or enum. Size, alignment, and field offset live on the type. `Take` parses a header. `Make` prints a header. A projection to `golang.File` is separate, so the C file round-trips as C. The model today is `x/generate/header` `Unit`.
+`c.File` is one C translation unit: includes and declarations (`Type`, `Const`, `Func`, `Object`). A function keeps its body, so a `.c` file round-trips the statements and not only the signature. A header is that same file with no bodies. A type is void, bool, integer, float, pointer, array, function, struct, union, or enum. Size, alignment, and field offset live on the type. `Take` parses C. `Make` prints C. A projection to `golang.File` is separate. `x/generate/header` `Unit` is the declaration model this replaces for headers; it does not hold a body.
 
 `proto.File` holds syntax, package, imports, options, messages, enums, and services. A field is a name, a number, a type, and a label. `Make` prints `.proto`. The Go projection emits a `golang.File`. `x/generate/protobuf` runs `protoc` today.
 
