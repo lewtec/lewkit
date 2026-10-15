@@ -206,7 +206,8 @@ Inherited C (cite the file):
 | `x/image/convert/file` | `Decode`, `Open` | header picks PNG, JPEG, ICO, or ICNS | the sniff stays here | unknown bytes are `ErrFormat` | import `x/image/convert/svg`; import `x/driver` |
 | `x/image/convert/svg` | `Document`, `Parse`, `Encode` | SVG document | shapes stay here | existing parse and encode errors; `ErrPolygonPoints` | import `x/image/convert`; import `x/image/convert/svg/render`; import `x/driver` |
 | `x/image/convert/svg/render` | `Decode`, `Render`, `Scratch` | raster of SVG bytes or a `Document` | the pixmap stays here | existing render errors | import `x/image/convert`; import `x/driver` |
-| `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV` | PCM value | mixing, seek, and the decoder registry stay here | `ErrFormat`, `ErrFrame`, `ErrClosed`, `ErrSeek` | open a host device; import `x/driver`; import `x/sound/mp3`; import `x/sound/ogg` |
+| `x/compression` | `Codec`, `Register`, `Detect`, `Match`, `LongestExtension`, `LongestMagic`, `HasName`, `RoundTrip` | stream codec keyed by suffix or magic | lookup stays here; sound decoders use the same match | `ErrNil`, `ErrExist` | import `x/sound` |
+| `x/sound` | `Format`, `Mixer`, `Mix`, `Pipeline`, `Decode`, `Register`, `WriteWAV`, `ReadWAV` | PCM value | mixing, seek, and the decoder registry stay here; suffix and magic lookup is `compression.Match` | `ErrFormat`, `ErrFrame`, `ErrClosed`, `ErrSeek` | open a host device; import `x/driver`; import `x/sound/mp3`; import `x/sound/ogg` |
 | `x/sound/mp3` | MP3 `Decoder` | registered decoder | decode stays here | mp3 decode error | import `x/driver` |
 | `x/sound/ogg` | Ogg Vorbis `Decoder` | registered decoder | decode stays here | vorbis decode error | import `x/driver` |
 | `x/sound/prelude` | blank import of the decoders | registry side effect | imports stay here | duplicate `Register` panics | decode by itself |
@@ -477,6 +478,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-15: The longest file suffix and the longest magic prefix are `compression.LongestExtension` and `compression.LongestMagic`. `compression.Match` tries the suffix first. Codec lookup and sound decoders both use that. A taken name is `compression.HasName`. The register errors stay "nil codec", "already registered", "nil decoder", and "decoder already registered".
 - 2026-10-15: ccgo, leaven, and wazero resolve a grammar through `treesitter.Lookup` and parse through `treesitter.Run`. Leaven still recovers a lexer panic. Each engine still names its own grammar.
 - 2026-10-15: An all-ASCII digit string is `text.Digits`. Conda epochs and download names use that. Empty is false.
 - 2026-10-15: Linux, iOS, macOS, and Windows host identity goes through `common.WithDefaults`. The host record and the error stay the same.
