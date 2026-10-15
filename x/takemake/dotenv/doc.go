@@ -1,9 +1,10 @@
 // Package dotenv is one assignment list.
 //
-// [New] returns an empty [File]. Methods return the receiver and store
-// an assignment in order, including a comment and the original quoting.
-// [Take] parses the file. [Make] prints it. x/sops.ParseEnv reads a
-// secret file and drops comments. The contract is in DESIGN.md beside
-// the parent directory. This scaffold returns
-// [github.com/lewtec/lewkit/x/errs.ErrScaffold].
+// [New] returns an empty [File]. Methods return the file and store each
+// assignment in order. [File.Comment], [File.Bare], [File.Single],
+// [File.Double], and [File.Export] record the note, the quoting, and the
+// export prefix on the latest assignment. [Take] parses the text. [Make]
+// prints it. A comment and the quoting survive Take, Make, Take.
+// x/sops.ParseEnv drops comments. The contract is in DESIGN.md beside
+// the parent directory.
 package dotenv
