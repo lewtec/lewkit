@@ -13,6 +13,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/tool/registry/cmake"
 	_ "github.com/lewtec/lewkit/x/tool/registry/codex"
 	_ "github.com/lewtec/lewkit/x/tool/registry/contapila"
+	_ "github.com/lewtec/lewkit/x/tool/registry/cursor-cli"
 	_ "github.com/lewtec/lewkit/x/tool/registry/docker-compose"
 	_ "github.com/lewtec/lewkit/x/tool/registry/esbuild"
 	_ "github.com/lewtec/lewkit/x/tool/registry/fd"
