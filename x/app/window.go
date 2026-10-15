@@ -107,5 +107,6 @@ func (w guiWindow) open(ctx context.Context, title string, width, height int, _ 
 		return err
 	}
 	defer host.Close()
+	announceSurface()
 	return gui.Run(ctx, host, nil, w.model)
 }

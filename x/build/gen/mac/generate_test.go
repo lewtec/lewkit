@@ -90,6 +90,9 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(string(swift), "ELETROCROMO_ASK_DIR") || !strings.Contains(string(swift), "AskWatch.start") {
 		require.FailNow(t, fmt.Sprint("mac host does not watch the ask directory"))
 	}
+	if !strings.Contains(string(swift), "readSurfaceFile") || !strings.Contains(string(swift), "onSurface") {
+		require.FailNow(t, fmt.Sprint("mac host does not handle native GUI surface"))
+	}
 
 	ui, err := os.ReadFile(filepath.Join(out, "Sources/MainWindow.swift"))
 	require.NoError(t, err)

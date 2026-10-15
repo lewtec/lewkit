@@ -11,15 +11,19 @@ final class ServerProcess {
     func start(
         onStatus: @escaping (String) -> Void,
         onReady: @escaping (URL) -> Void,
+        onSurface: @escaping () -> Void = {},
+        onExit: @escaping () -> Void = {},
         onFailed: @escaping (String) -> Void
     ) {
         let status = { (msg: String) in DispatchQueue.main.async { onStatus(msg) } }
         let ready = { (url: URL) in DispatchQueue.main.async { onReady(url) } }
+        let surface = { DispatchQueue.main.async { onSurface() } }
+        let exited = { DispatchQueue.main.async { onExit() } }
         let failed = { (msg: String) in DispatchQueue.main.async { onFailed(msg) } }
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
-            self.run(status: status, ready: ready, failed: failed)
+            self.run(status: status, ready: ready, surface: surface, exited: exited, failed: failed)
         }
     }
 
@@ -35,6 +39,8 @@ final class ServerProcess {
     private func run(
         status: @escaping (String) -> Void,
         ready: @escaping (URL) -> Void,
+        surface: @escaping () -> Void,
+        exited: @escaping () -> Void,
         failed: @escaping (String) -> Void
     ) {
         guard let helper = Self.helperURL() else {
@@ -79,6 +85,7 @@ final class ServerProcess {
         }
 
         var stdoutURL: String?
+        var stdoutSurface = false
         let reader = DispatchQueue(label: "br.tec.lew.eletrocromo.stdout")
         reader.async {
             let handle = pipe.fileHandleForReading
@@ -88,7 +95,9 @@ final class ServerProcess {
                 guard let chunk = String(data: data, encoding: .utf8) else { continue }
                 for line in chunk.split(whereSeparator: \.isNewline) {
                     let text = String(line)
-                    if stdoutURL == nil, let parsed = Self.extractReadyURL(text) {
+                    if Self.isSurfaceLine(text) {
+                        stdoutSurface = true
+                    } else if stdoutURL == nil, let parsed = Self.extractReadyURL(text) {
                         stdoutURL = parsed
                     }
                 }
@@ -99,6 +108,18 @@ final class ServerProcess {
         while Date() < deadline {
             if FileManager.default.fileExists(atPath: askDir.appendingPathComponent("request.json").path) {
                 deadline = Date().addingTimeInterval(30)
+            }
+            if stdoutSurface || Self.readSurfaceFile(readyFile) {
+                surface()
+                proc.waitUntilExit()
+                if self.stillCurrent(proc) {
+                    if proc.terminationStatus == 0 {
+                        exited()
+                    } else {
+                        failed("server process exited (exit=\(proc.terminationStatus))")
+                    }
+                }
+                return
             }
             if let raw = stdoutURL ?? Self.readReadyFile(readyFile) {
                 if let url = Self.forceLoopback(raw) {
@@ -140,6 +161,18 @@ final class ServerProcess {
             }
         }
         return nil
+    }
+
+    static func isSurfaceLine(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed == readyPrefix.trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func readSurfaceFile(_ url: URL) -> Bool {
+        guard let text = try? String(contentsOf: url, encoding: .utf8), !text.isEmpty else {
+            return false
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static func extractReadyURL(_ line: String) -> String? {

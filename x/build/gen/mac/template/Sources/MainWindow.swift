@@ -151,6 +151,11 @@ final class MainWindow: NSObject, NSWindowDelegate, WKNavigationDelegate, WKUIDe
         window.makeKeyAndOrderFront(nil)
     }
 
+    func hide() {
+        spinner.stopAnimation(nil)
+        window.orderOut(nil)
+    }
+
     func showSplash(status: String, detail: String?, error: Bool) {
         splash.isHidden = false
         webView.isHidden = true
