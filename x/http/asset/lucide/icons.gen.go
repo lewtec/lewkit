@@ -1,4 +1,4 @@
-// Code generated from lucide 1.57.0 icons/*.svg. DO NOT EDIT.
+// Code generated from the lucide modot input icons/*.svg. DO NOT EDIT.
 
 package lucide
 

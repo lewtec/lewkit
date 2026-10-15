@@ -7,9 +7,6 @@ import (
 	"github.com/lewtec/lewkit/x/image/convert/svg/render"
 )
 
-// Version is the Lucide release these bodies were taken from.
-const Version = "1.57.0"
-
 // SVG returns the icon drawn with stroke currentColor.
 // The bool is false when name is not in this set.
 func SVG(name Name) (string, bool) {
