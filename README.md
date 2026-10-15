@@ -47,6 +47,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/fs/squashfs` | `Open`. A SquashFS image as `io/fs`. |
 | `x/fs/udf` | `Open`. A UDF volume as `io/fs`. |
 | `x/fs/wim` | `Open`. One WIM image as `io/fs`. |
+| `x/takemake` | No Go package. Children compose a file and round-trip it with `Take` and `Make`. The contract is [x/takemake/DESIGN.md](x/takemake/DESIGN.md). |
 | `x/compression` | `Codec`, `Detect`, `Register`, `ByExtension`, `ByMagic`, `New`. |
 | `x/compression/gzip` | gzip `Codec`. `brotli`, `lz4`, `zstd`, `xz`, and `bzip2` match this shape. |
 | `x/compression/prelude` | Blank-import. Registers gzip, brotli, lz4, zstd, xz, and bzip2. |
