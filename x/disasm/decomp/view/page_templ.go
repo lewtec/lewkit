@@ -10,7 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "github.com/lewtec/lewkit/x/http/asset/daisyui"
 import "github.com/lewtec/lewkit/x/http/asset/tailwindcss"
-import "github.com/lewtec/lewkit/x/http/cmdpalette"
+import "github.com/lewtec/lewkit/x/ui/web/cmdpalette"
 
 func previewDocument(page previewPage) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

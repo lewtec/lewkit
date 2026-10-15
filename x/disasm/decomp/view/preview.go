@@ -14,7 +14,7 @@ import (
 	"github.com/lewtec/lewkit/x/disasm/decomp"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/http/asset"
-	"github.com/lewtec/lewkit/x/http/cmdpalette"
+	"github.com/lewtec/lewkit/x/ui/web/cmdpalette"
 )
 
 var (
