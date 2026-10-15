@@ -10,6 +10,7 @@ type Cmd struct {
 	shader   *shaderCmd
 	header   *headerCmd
 	clib     *clibCmd
+	enum     *enumCmd
 }
 
 // Description is the command summary.

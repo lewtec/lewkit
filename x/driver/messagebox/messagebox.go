@@ -15,13 +15,18 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 )
 
+// Style is informational, warning, or critical.
+//
+//lewkit:enum fold
+type Style string
+
 const (
 	// StyleInformational is a plain message.
-	StyleInformational = "informational"
+	StyleInformational Style = "informational"
 	// StyleWarning is a warning.
-	StyleWarning = "warning"
+	StyleWarning Style = "warning" // warn
 	// StyleCritical is an error.
-	StyleCritical = "critical"
+	StyleCritical Style = "critical" // error
 )
 
 // Notice is one message. Style is informational, warning, or critical.
@@ -29,7 +34,7 @@ const (
 type Notice struct {
 	Title   string
 	Message string
-	Style   string
+	Style   Style
 }
 
 // Driver shows one message.
@@ -48,20 +53,18 @@ func ShowNotice(ctx context.Context, n Notice) error {
 	if strings.TrimSpace(n.Title) == "" {
 		n.Title = "Error"
 	}
-	n.Style = NormalizeStyle(n.Style)
+	n.Style = NormalizeStyle(string(n.Style))
 	return driver.With(ctx, func(d Driver) error {
 		return d.Show(ctx, n)
 	})
 }
 
 // NormalizeStyle returns informational, warning, or critical.
-func NormalizeStyle(style string) string {
-	switch strings.ToLower(strings.TrimSpace(style)) {
-	case StyleWarning, "warn":
-		return StyleWarning
-	case StyleCritical, "error":
-		return StyleCritical
-	default:
+// Unknown text, including an empty string, is informational.
+func NormalizeStyle(style string) Style {
+	parsed, err := ParseStyle(style)
+	if err != nil {
 		return StyleInformational
 	}
+	return parsed
 }

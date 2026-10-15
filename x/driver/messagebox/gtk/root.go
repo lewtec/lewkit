@@ -29,7 +29,7 @@ func (backend) Show(ctx context.Context, n messagebox.Notice) error {
 		return err
 	}
 	return gtkui.Run(ctx, func() error {
-		return gtklib.Show(ctx, n.Title, n.Message, n.Style)
+		return gtklib.Show(ctx, n.Title, n.Message, string(n.Style))
 	})
 }
 

@@ -24,7 +24,7 @@ func (factory) New(context.Context) (messagebox.Driver, error) { return backend{
 type backend struct{}
 
 func (backend) Show(ctx context.Context, n messagebox.Notice) error {
-	raw, err := hostask.CallStyled(ctx, hostask.KindAlert, n.Title, n.Message, n.Style)
+	raw, err := hostask.CallStyled(ctx, hostask.KindAlert, n.Title, n.Message, string(n.Style))
 	if err != nil {
 		return err
 	}

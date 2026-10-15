@@ -7,6 +7,9 @@ import (
 	hexscan "github.com/lewtec/lewkit/x/disasm/internal/hex"
 )
 
+// kind is how one instruction leaves the basic block.
+//
+//lewkit:enum
 type kind string
 
 const (

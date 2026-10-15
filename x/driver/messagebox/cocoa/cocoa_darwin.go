@@ -67,7 +67,7 @@ func show(n messagebox.Notice) error {
 	}
 	alert.Send(selMessage, native.NSString(n.Title))
 	alert.Send(selInfo, native.NSString(n.Message))
-	alert.Send(selStyle, alertStyle(n.Style))
+	alert.Send(selStyle, alertStyle(string(n.Style)))
 	alert.Send(selButton, native.NSString("OK"))
 	alert.Send(selRun)
 	return nil

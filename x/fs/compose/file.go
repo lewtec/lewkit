@@ -23,15 +23,20 @@ const (
 	TypeXML   Type = "xml"
 )
 
+// slotKind is one component of a file.
+//
+//lewkit:enum
+type slotKind string
+
 const (
-	slotText = "text"
-	slotRef  = "ref"
-	slotLink = "link"
+	slotText slotKind = "text"
+	slotRef  slotKind = "ref"
+	slotLink slotKind = "link"
 )
 
 // Slot is one component of a file. Build one with [Text], [Ref], or [Link].
 type Slot struct {
-	kind string
+	kind slotKind
 	body string
 }
 

@@ -25,15 +25,15 @@ func TestExcludedArch(t *testing.T) {
 func TestNormalizeSDK(t *testing.T) {
 	t.Parallel()
 	got, err := normalizeSDK("")
-	if err != nil || got != SDKSimulator {
+	if err != nil || got != string(SDKSimulator) {
 		require.FailNowf(t, "", "empty: got %q %v", got, err)
 	}
 	got, err = normalizeSDK("simulator")
-	if err != nil || got != SDKSimulator {
+	if err != nil || got != string(SDKSimulator) {
 		require.FailNowf(t, "", "simulator: got %q %v", got, err)
 	}
 	got, err = normalizeSDK("device")
-	if err != nil || got != SDKDevice {
+	if err != nil || got != string(SDKDevice) {
 		require.FailNowf(t, "", "device: got %q %v", got, err)
 	}
 	if _, err := normalizeSDK("watchos"); err == nil {

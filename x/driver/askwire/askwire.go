@@ -4,28 +4,33 @@ package askwire
 
 import "strings"
 
+// Status is the first line of a dialog reply.
+//
+//lewkit:enum
+type Status string
+
 const (
 	// StatusOK is a dismissed alert, a prompt, or a chosen row.
-	StatusOK = "ok"
+	StatusOK Status = "ok"
 	// StatusYes is a confirm accepted.
-	StatusYes = "yes"
+	StatusYes Status = "yes"
 	// StatusNo is a confirm declined.
-	StatusNo = "no"
+	StatusNo Status = "no"
 	// StatusCanceled is a dialog the user dismissed.
-	StatusCanceled = "canceled"
+	StatusCanceled Status = "canceled"
 	// StatusNoActivity means the host has no window to present on.
-	StatusNoActivity = "no activity"
+	StatusNoActivity Status = "no activity"
 	// StatusBusy means a dialog is already open.
-	StatusBusy = "busy"
+	StatusBusy Status = "busy"
 )
 
 // Format joins status and payload with one newline.
-func Format(status, payload string) string {
-	return status + "\n" + payload
+func Format(status Status, payload string) string {
+	return string(status) + "\n" + payload
 }
 
 // Split returns the status line and the payload after it.
-func Split(raw string) (status, payload string) {
-	status, payload, _ = strings.Cut(raw, "\n")
-	return status, payload
+func Split(raw string) (status Status, payload string) {
+	line, payload, _ := strings.Cut(raw, "\n")
+	return Status(line), payload
 }

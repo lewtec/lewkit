@@ -154,7 +154,7 @@ func runMessagebox(ctx context.Context, _ *page, op string, r *http.Request) (st
 	return okNote("shown", messagebox.ShowNotice(ctx, messagebox.Notice{
 		Title:   r.FormValue("title"),
 		Message: r.FormValue("message"),
-		Style:   r.FormValue("style"),
+		Style:   messagebox.Style(r.FormValue("style")),
 	}))
 }
 

@@ -22,6 +22,8 @@ var (
 )
 
 // Sample is the encoding of one interleaved channel.
+//
+//lewkit:enum
 type Sample uint8
 
 const (

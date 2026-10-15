@@ -36,7 +36,7 @@ func Hash(stage Stage, src []byte) [32]byte {
 // The same sum with the same SPIR-V is a no-op.
 // The registry keeps the spirv slice it is given.
 func RegisterHash(stage Stage, sum [32]byte, spirv []byte) error {
-	if !knownStage(stage) || !validSPIRV(spirv) {
+	if !stage.IsValid() || !validSPIRV(spirv) {
 		return ErrCompile
 	}
 	key := sumKey{stage: stage, sum: sum}
@@ -69,10 +69,6 @@ func Lookup(stage Stage, src []byte) ([]byte, bool) {
 		return nil, false
 	}
 	return append([]byte(nil), spv...), true
-}
-
-func knownStage(stage Stage) bool {
-	return stage == StageVertex || stage == StageFragment || stage == StageCompute
 }
 
 func validSPIRV(spirv []byte) bool {

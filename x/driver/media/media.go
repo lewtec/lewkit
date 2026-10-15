@@ -35,6 +35,8 @@ var (
 var ErrNoPlayer = errs.Wrap(errs.ErrNotFound, "no media player")
 
 // PlaybackStatus is the MPRIS playback state.
+//
+//lewkit:enum
 type PlaybackStatus string
 
 const (

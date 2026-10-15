@@ -21,6 +21,8 @@ func IsSPIRV(b []byte) bool {
 }
 
 // Stage is a shader stage the embedded compiler can emit.
+//
+//lewkit:enum
 type Stage int
 
 const (
@@ -46,7 +48,7 @@ func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 	if len(src) == 0 {
 		return nil, ErrEmpty
 	}
-	if !knownStage(stage) {
+	if !stage.IsValid() {
 		return nil, ErrCompile
 	}
 	if IsSPIRV(src) {
@@ -68,7 +70,7 @@ func CompileGlslang(ctx context.Context, stage Stage, src []byte) ([]byte, error
 	if len(src) == 0 {
 		return nil, ErrEmpty
 	}
-	if !knownStage(stage) {
+	if !stage.IsValid() {
 		return nil, ErrCompile
 	}
 	if IsSPIRV(src) {

@@ -30,6 +30,9 @@ var (
 
 // PoolKind identifies which resource pool a task consumes a slot from.
 // The zero value is Control, the default for orchestrators.
+// A value outside the set is unknown.
+//
+//lewkit:enum invalid=unknown
 type PoolKind int
 
 const (
@@ -38,21 +41,6 @@ const (
 	CPU                      // Leaf: computation / local exec
 	Internet                 // Leaf: network
 )
-
-func (p PoolKind) String() string {
-	switch p {
-	case Control:
-		return "control"
-	case IO:
-		return "io"
-	case CPU:
-		return "cpu"
-	case Internet:
-		return "internet"
-	default:
-		return "unknown"
-	}
-}
 
 // Limits holds the concurrency limits for each leaf pool.
 // A zero field in New means that pool uses DefaultLimits.
@@ -86,6 +74,9 @@ func (l Limits) norm() Limits {
 }
 
 // State is the lifecycle of a node.
+// A value outside the set is unknown.
+//
+//lewkit:enum invalid=unknown
 type State int
 
 const (
@@ -94,21 +85,6 @@ const (
 	Done
 	Failed
 )
-
-func (s State) String() string {
-	switch s {
-	case Pending:
-		return "pending"
-	case Running:
-		return "running"
-	case Done:
-		return "done"
-	case Failed:
-		return "failed"
-	default:
-		return "unknown"
-	}
-}
 
 // ID is a dense node key for one Session. Zero is not a task.
 type ID uint32

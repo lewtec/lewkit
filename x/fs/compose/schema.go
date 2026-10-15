@@ -162,7 +162,7 @@ func parseSlot(value cue.Value) (Slot, error) {
 		if err != nil {
 			return Slot{}, fmt.Errorf("%w: missing kind", ErrSlot)
 		}
-		switch kind {
+		switch slotKind(kind) {
 		case slotText:
 			text, err := value.LookupPath(cue.ParsePath("text")).String()
 			if err != nil {

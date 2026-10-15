@@ -3,13 +3,19 @@ package cmd
 import (
 	"fmt"
 	"strings"
-
-	"golang.org/x/exp/constraints"
 )
 
-// Enum is an iota-style closed set. String is the CLI token; Values lists members.
+// enumScalar is the underlying type of a closed set.
+type enumScalar interface {
+	~int | ~int8 | ~int16 | ~int32 | ~int64 |
+		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
+		~string
+}
+
+// Enum is a closed set of integers or strings.
+// String is the text token. Values lists the members.
 type Enum[T any] interface {
-	constraints.Integer
+	enumScalar
 	fmt.Stringer
 	Values() []T
 }

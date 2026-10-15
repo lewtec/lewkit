@@ -5,6 +5,9 @@ import (
 )
 
 // Vendor is a PCI / Khronos vendor ID. String is the CLI / driver-id token.
+// A value outside the set is unknown.
+//
+//lewkit:enum invalid=unknown
 type Vendor uint32
 
 const (
@@ -20,32 +23,6 @@ const (
 
 // Uint32 is the PCI / Khronos vendor ID.
 func (v Vendor) Uint32() uint32 { return uint32(v) }
-
-func (v Vendor) String() string {
-	switch v {
-	case VendorAMD:
-		return "amd"
-	case VendorNVIDIA:
-		return "nvidia"
-	case VendorIntel:
-		return "intel"
-	case VendorARM:
-		return "arm"
-	case VendorQualcomm:
-		return "qualcomm"
-	case VendorApple:
-		return "apple"
-	case VendorMesa:
-		return "mesa"
-	default:
-		return "unknown"
-	}
-}
-
-// Values lists Vendor members for [github.com/lewtec/lewkit/x/cmd.EnumArg].
-func (Vendor) Values() []Vendor {
-	return []Vendor{VendorUnknown, VendorAMD, VendorNVIDIA, VendorIntel, VendorARM, VendorQualcomm, VendorApple, VendorMesa}
-}
 
 // VendorFrom maps a PCI / Khronos vendor ID, falling back to the device name.
 func VendorFrom(vendorID uint32, name string) Vendor {

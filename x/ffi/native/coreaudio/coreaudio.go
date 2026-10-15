@@ -8,6 +8,8 @@ package coreaudio
 import "errors"
 
 // Sample selects signed 16-bit or float PCM.
+//
+//lewkit:enum
 type Sample uint8
 
 const (

@@ -23,22 +23,22 @@ var (
 	ErrSelectionToolNotFound = errs.Wrap(errs.ErrNotFound, "selection tool not found")
 	// ErrEmptySelection means the selection tool returned no geometry.
 	ErrEmptySelection = errs.Wrap(errs.ErrEmpty, "empty selection")
-	// ErrUnknownTargetType means the target is not all, output, window, or selection.
-	ErrUnknownTargetType = errs.Wrap(errs.ErrUnknown, "unknown target type")
 )
 
 // TargetType selects what Capture should frame.
+//
+//lewkit:enum
 type TargetType int
 
 const (
 	// TargetAll captures every output. The rectangle is nil.
-	TargetAll TargetType = iota
+	TargetAll TargetType = iota // all
 	// TargetOutput captures the focused output.
-	TargetOutput
+	TargetOutput // output
 	// TargetWindow captures the focused window.
-	TargetWindow
+	TargetWindow // window
 	// TargetSelection captures an interactive selection.
-	TargetSelection
+	TargetSelection // selection
 )
 
 // Driver captures pixels and reads a selection rectangle.
@@ -76,7 +76,7 @@ func ResolveRect(ctx context.Context, targetType TargetType) (*wm.Rect, error) {
 	case TargetSelection:
 		return SelectArea(ctx)
 	default:
-		return nil, fmt.Errorf("%w: %v", ErrUnknownTargetType, targetType)
+		return nil, fmt.Errorf("%w: %d", ErrTargetType, int(targetType))
 	}
 }
 

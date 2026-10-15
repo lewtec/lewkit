@@ -15,7 +15,7 @@ func TestRoundTrip(t *testing.T) {
 }
 
 func TestSplitMissingNewline(t *testing.T) {
-	status, payload := Split(StatusCanceled)
+	status, payload := Split(string(StatusCanceled))
 	if status != StatusCanceled || payload != "" {
 		require.FailNowf(t, "", "status %q payload %q", status, payload)
 	}

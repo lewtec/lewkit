@@ -32,6 +32,17 @@ func (color) Values() []color {
 	return []color{colorRed, colorGreen, colorBlue}
 }
 
+type ink string
+
+const (
+	inkRed   ink = "red"
+	inkGreen ink = "green"
+)
+
+func (i ink) String() string { return string(i) }
+
+func (ink) Values() []ink { return []ink{inkRed, inkGreen} }
+
 func TestEnumArg(t *testing.T) {
 	type args struct {
 		color EnumArg[color] `long:"color"`
@@ -61,6 +72,20 @@ func TestEnumArg(t *testing.T) {
 			assert.Equal(t, tc.want, got.color.Value())
 		})
 	}
+}
+
+func TestStringEnumArg(t *testing.T) {
+	type args struct {
+		ink EnumArg[ink] `long:"ink" help:"tint"`
+	}
+	got, err := Parse[args]("--ink", "green")
+	require.NoError(t, err)
+	assert.Equal(t, inkGreen, got.ink.Value())
+	_, err = Parse[args]("--ink", "purple")
+	assert.ErrorIs(t, err, ErrInvalidArgument)
+	text, err := Usage[args]("tool")
+	require.NoError(t, err)
+	assert.Contains(t, text, "choices: red, green")
 }
 
 func TestEnumDefault(t *testing.T) {
