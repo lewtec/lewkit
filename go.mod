@@ -49,7 +49,7 @@ require (
 	github.com/smallstep/pkcs7 v0.2.3
 	github.com/sqlc-dev/sqlc v1.31.1
 	github.com/stretchr/testify v1.12.1
-	github.com/tc-hib/winres v0.2.1
+	github.com/tc-hib/winres v0.3.1
 	github.com/tetratelabs/wazero v1.12.0
 	github.com/ulikunitz/xz v0.5.15
 	github.com/zalando/go-keyring v0.2.6
