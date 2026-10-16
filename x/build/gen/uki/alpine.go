@@ -84,7 +84,7 @@ func fetchKernel(ctx context.Context, goarch string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("uki: %s: %s", url, resp.Status)
+		return "", fmt.Errorf("%w: %s: %s", errUKI, url, resp.Status)
 	}
 	tmp := dst + ".partial"
 	f, err := os.Create(tmp)
@@ -103,7 +103,7 @@ func fetchKernel(ctx context.Context, goarch string) (string, error) {
 	}
 	if !reusable(tmp) {
 		os.Remove(tmp)
-		return "", fmt.Errorf("uki: %s: short download", url)
+		return "", fmt.Errorf("%w: %s: short download", errUKI, url)
 	}
 	if err := os.Rename(tmp, dst); err != nil {
 		return "", err

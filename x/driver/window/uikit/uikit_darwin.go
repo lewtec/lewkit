@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/entry"
@@ -21,7 +22,7 @@ import (
 const surfaceTag = 0x6C6577
 
 func open(ctx context.Context, cfg window.Config) (window.Window, error) {
-	if err := driver.ForGOOS("ios"); err != nil {
+	if err := driver.ForGOOS(build.GOOSIOS); err != nil {
 		return nil, err
 	}
 	if err := ctx.Err(); err != nil {

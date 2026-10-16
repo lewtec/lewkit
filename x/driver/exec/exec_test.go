@@ -129,7 +129,9 @@ func TestProductionSpawnsUseTheDriver(t *testing.T) {
 		filepath.Join("x", "driver", "exec", "exec.go"):               true,
 		filepath.Join("x", "driver", "exec", "native", "provider.go"): true,
 		// go -toolexec must run the compiler path it was given.
-		filepath.Join("x", "build", "androidtoolexec", "main.go"): true,
+		filepath.Join("x", "build", "androidtoolexec", "main.go"):          true,
+		filepath.Join("x", "build", "clibtoolexec", "main.go"):             true,
+		filepath.Join("x", "build", "internal", "toolexec", "toolexec.go"): true,
 		// The toolchain re-execs itself, runs a built image, and asks host
 		// go for standard-library archives. The share example re-execs so
 		// a Go shared object is not loaded into this process. The host

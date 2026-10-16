@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/test"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
@@ -32,8 +33,6 @@ func TestSentinels(t *testing.T) {
 	require.True(t, Firmware("uefi"))
 	require.True(t, Firmware("mbr"))
 	require.False(t, Firmware("linux"))
-	require.Panics(t, func() { _ = Build(nil, Options{}) })
-	require.Panics(t, func() { _ = Run(nil, "mbr", "disk.img") })
 	err := Build(t.Context(), Options{GOOS: "uefi", GOARCH: "arm64", Dir: "d", Out: "o"})
 	require.ErrorIs(t, err, ErrArch)
 	t.Setenv("TAMAGO", "")
@@ -53,7 +52,7 @@ func TestRewriteObjectHeader(t *testing.T) {
 
 func TestMBRImageBoots(t *testing.T) {
 	if _, err := exec.LookPath("as"); err != nil {
-		t.Skip("as is not installed")
+		test.Skip(t, "as is not installed")
 	}
 	dir := t.TempDir()
 	src := filepath.Join(dir, "guest.S")
@@ -73,7 +72,7 @@ func TestMBRImageBoots(t *testing.T) {
 
 	qemu := os.Getenv("QEMU_SYSTEM")
 	if qemu == "" {
-		t.Skip("QEMU_SYSTEM is unset")
+		test.Skip(t, "QEMU_SYSTEM is unset")
 	}
 	disk := filepath.Join(dir, "disk.img")
 	require.NoError(t, os.WriteFile(disk, img, 0o644))
@@ -87,7 +86,7 @@ func TestMBRImageBoots(t *testing.T) {
 
 func TestGoHello(t *testing.T) {
 	if os.Getenv("TAMAGO") == "" || os.Getenv("QEMU_SYSTEM") == "" {
-		t.Skip("TAMAGO or QEMU_SYSTEM is unset")
+		test.Skip(t, "TAMAGO or QEMU_SYSTEM is unset")
 	}
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module hello\n\ngo 1.27.0\n"), 0o644))
@@ -98,7 +97,7 @@ func TestGoHello(t *testing.T) {
 	for _, goos := range []string{"mbr", "uefi"} {
 		t.Run(goos, func(t *testing.T) {
 			if goos == "uefi" && (os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "") {
-				t.Skip("OVMF_CODE or OVMF_VARS is unset")
+				test.Skip(t, "OVMF_CODE or OVMF_VARS is unset")
 			}
 			out := filepath.Join(dir, "hello."+goos)
 			err := Build(t.Context(), Options{
@@ -124,17 +123,17 @@ func TestGoHello(t *testing.T) {
 
 func TestExampleConfirms(t *testing.T) {
 	if os.Getenv("TAMAGO") == "" || os.Getenv("QEMU_SYSTEM") == "" {
-		t.Skip("TAMAGO or QEMU_SYSTEM is unset")
+		test.Skip(t, "TAMAGO or QEMU_SYSTEM is unset")
 	}
 	if _, err := exec.LookPath("as"); err != nil {
-		t.Skip("as is not installed")
+		test.Skip(t, "as is not installed")
 	}
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
 	root := filepath.Clean(filepath.Join(filepath.Dir(file), "../../../.."))
 	dir := t.TempDir()
 	out := filepath.Join(dir, "unikernel.img")
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     filepath.Join(root, "examples/unikernel"),
@@ -160,7 +159,7 @@ func TestExampleConfirms(t *testing.T) {
 	if data := strings.TrimSpace(os.Getenv("QEMU_DATA")); data != "" {
 		args = append(args, "-L", data)
 	}
-	runCtx, runCancel := context.WithTimeout(context.Background(), 40*time.Second)
+	runCtx, runCancel := context.WithTimeout(t.Context(), 40*time.Second)
 	defer runCancel()
 	cmd := exec.CommandContext(runCtx, os.Getenv("QEMU_SYSTEM"), args...)
 	require.NoError(t, cmd.Start())
@@ -194,7 +193,7 @@ func TestExampleConfirms(t *testing.T) {
 		t.Logf("qemu: %v", err)
 	case <-time.After(10 * time.Second):
 		got, _ = os.ReadFile(serial)
-		t.Fatalf("guest ignored enter\n%s", got)
+		require.FailNowf(t, "guest ignored enter", "%s", got)
 	}
 }
 

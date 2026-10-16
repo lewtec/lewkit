@@ -6,7 +6,6 @@ package ios
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -30,11 +29,8 @@ func (factory) New(context.Context) (filedialog.Driver, error) { return backend{
 type backend struct{}
 
 func (backend) Choose(ctx context.Context, req filedialog.Request) ([]string, error) {
-	if err := ctx.Err(); err != nil {
+	if err := filedialog.Accept(ctx, req); err != nil {
 		return nil, err
-	}
-	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
 	raw, err := iosbox.Call(ctx, iosbox.Request{
 		Op:        iosbox.OpPick,

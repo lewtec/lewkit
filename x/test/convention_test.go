@@ -20,8 +20,9 @@ import (
 // TestConventions rejects inline errors at return sites, testing assertions
 // outside testify, nil contexts, comparisons of a context to nil, context
 // roots outside main, a godoc example, and the Android host entry,
-// sentinels that repeat a meta condition without wrapping it, and an enum
-// go:generate directive outside enum.go. The vendored compiler trees are
+// sentinels that repeat a meta condition without wrapping it, an enum
+// go:generate directive outside enum.go, and a raw OS name passed to
+// ForGOOS or IncompatibleOff. The vendored compiler trees are
 // not this module's code.
 func TestConventions(t *testing.T) {
 	root := moduleRoot(t)
@@ -185,6 +186,22 @@ const (
 	require.Equal(t, []string{
 		"level.go:3:1: enum go:generate belongs in enum.go",
 	}, checkSource("level.go", []byte(named)))
+
+	const hostNames = `package p
+
+func f() error {
+	return driver.ForGOOS("linux")
+}
+
+func TestOff(t *testing.T) {
+	test.IncompatibleOff(t, f, "ios")
+}
+`
+	require.Equal(t, []string{
+		"host.go:4:24: pass a GOOS enum, not a raw name",
+		"host.go:8:29: pass a GOOS enum, not a raw name",
+	}, checkSource("host.go", []byte(hostNames)))
+	require.Empty(t, checkSource("host.go", []byte("package p\n\nfunc f() error {\n\treturn driver.ForGOOS(build.GOOSLinux)\n}\n")))
 }
 
 func TestConventionSkips(t *testing.T) {
@@ -516,6 +533,7 @@ func (c *conventionChecker) inspect(node ast.Node) {
 	}
 	c.noteAssertion(call, selector)
 	c.noteContextRoot(call, selector)
+	c.noteHostEnum(call, selector)
 	if c.testFile || !inReturn(c.stack) {
 		return
 	}
@@ -621,6 +639,23 @@ func (c *conventionChecker) noteAssertion(call *ast.CallExpr, selector *ast.Sele
 			return
 		}
 		c.add(call, "testing assertion")
+	}
+}
+
+// noteHostEnum flags a raw OS name passed to ForGOOS or IncompatibleOff.
+// Those arguments are build.GOOS values.
+func (c *conventionChecker) noteHostEnum(call *ast.CallExpr, selector *ast.SelectorExpr) {
+	switch selector.Sel.Name {
+	case "ForGOOS", "IncompatibleOff":
+	default:
+		return
+	}
+	for _, arg := range call.Args {
+		lit, ok := arg.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			continue
+		}
+		c.add(lit, "pass a GOOS enum, not a raw name")
 	}
 }
 

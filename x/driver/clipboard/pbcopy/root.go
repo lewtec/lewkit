@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/clipboard"
 )
@@ -17,7 +18,7 @@ func (factory) Name() string { return "pbcopy" }
 func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.ForGOOS("darwin"); err != nil {
+	if err := driver.ForGOOS(build.GOOSDarwin); err != nil {
 		return err
 	}
 	return clipboard.RequireTool(ctx, "pbcopy")

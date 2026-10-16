@@ -1,12 +1,21 @@
 package svg
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"io"
 	"math"
 	"strconv"
 	"strings"
+)
+
+var (
+	errDocument = errors.New("document")
+	errEncode   = errors.New("encode")
+	// errKept adds no words. The other values are the sentence.
+	errKept            = errors.New("")
+	errTooManyChildren = errors.New("too many children")
 )
 
 const (
@@ -100,7 +109,7 @@ func (e *encoder) node(n Node, level int) error {
 	case KindPath:
 		return e.pathEl(n.path, level)
 	default:
-		return fmt.Errorf("encode: invalid node")
+		return fmt.Errorf("%w: invalid node", errEncode)
 	}
 }
 
@@ -380,21 +389,21 @@ func checkDocSize(w, h float64) error {
 
 func checkWholeCanvas(name string, v float64) error {
 	if !Finite(v) || v <= 0 || v > MaxCanvas || v != math.Trunc(v) {
-		return fmt.Errorf("document %s %v: must be a whole number in (0, %d]", name, v, MaxCanvas)
+		return fmt.Errorf("%w %s %v: must be a whole number in (0, %d]", errDocument, name, v, MaxCanvas)
 	}
 	return nil
 }
 
 func checkNonNeg(name string, v float64) error {
 	if !Finite(v) || v < 0 {
-		return fmt.Errorf("%s %v: must be finite and >= 0", name, v)
+		return fmt.Errorf("%w%s %v: must be finite and >= 0", errKept, name, v)
 	}
 	return nil
 }
 
 func checkChildCount(n int) error {
 	if n > maxChildren {
-		return fmt.Errorf("too many children: %d (max %d)", n, maxChildren)
+		return fmt.Errorf("%w: %d (max %d)", errTooManyChildren, n, maxChildren)
 	}
 	return nil
 }

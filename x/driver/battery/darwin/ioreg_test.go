@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver/battery"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
@@ -127,7 +128,7 @@ func TestParseIOReg(t *testing.T) {
 }
 
 func TestNotDarwin(t *testing.T) {
-	test.IncompatibleOff(t, factory{}.CheckCompatibility, "darwin")
+	test.IncompatibleOff(t, factory{}.CheckCompatibility, build.GOOSDarwin)
 }
 
 func batteryText(g gauge) string {

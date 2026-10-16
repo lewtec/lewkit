@@ -19,11 +19,9 @@ func concatTensors[T ndarray.Number](parts []*ndarray.Tensor[T], axis int) (*nda
 		parts[i] = q
 	}
 	rank := len(parts[0].Shape())
-	if axis < 0 {
-		axis += rank
-	}
-	if axis < 0 || axis >= rank {
-		return nil, ndarray.ErrShape
+	axis, err := axisIndex(axis, rank)
+	if err != nil {
+		return nil, err
 	}
 	outShape := parts[0].Shape().Clone()
 	for _, p := range parts[1:] {
@@ -65,21 +63,16 @@ func gatherTensors[T ndarray.Number](data *ndarray.Tensor[T], idxs []int64, axis
 		return nil, err
 	}
 	shape := data.Shape()
-	if axis < 0 {
-		axis += len(shape)
-	}
-	if axis < 0 || axis >= len(shape) {
-		return nil, ndarray.ErrShape
+	axis, err = axisIndex(axis, len(shape))
+	if err != nil {
+		return nil, err
 	}
 	dim := shape[axis]
 	parts := make([]*ndarray.Tensor[T], len(idxs))
 	for i, ix := range idxs {
-		a := int(ix)
-		if a < 0 {
-			a += dim
-		}
-		if a < 0 || a >= dim {
-			return nil, ndarray.ErrShape
+		a, err := axisIndex(int(ix), dim)
+		if err != nil {
+			return nil, err
 		}
 		parts[i], err = data.Shrink(nn.AxisShrink(shape, axis, a, a+1))
 		if err != nil {
@@ -95,11 +88,9 @@ func scanTensor[T ndarray.Number](x *ndarray.Tensor[T], axis int, reverse, exclu
 		return nil, err
 	}
 	shape := x.Shape()
-	if axis < 0 {
-		axis += len(shape)
-	}
-	if axis < 0 || axis >= len(shape) {
-		return nil, ndarray.ErrShape
+	axis, err = axisIndex(axis, len(shape))
+	if err != nil {
+		return nil, err
 	}
 	dim := shape[axis]
 	if dim == 0 {
@@ -184,12 +175,9 @@ func reduceTensors[T ndarray.Number](x *ndarray.Tensor[T], axes []int64, keepdim
 	}
 	seen := map[int]struct{}{}
 	for _, a := range axes {
-		axis := int(a)
-		if axis < 0 {
-			axis += len(shape)
-		}
-		if axis < 0 || axis >= len(shape) {
-			return nil, ndarray.ErrShape
+		axis, err := axisIndex(int(a), len(shape))
+		if err != nil {
+			return nil, err
 		}
 		if _, ok := seen[axis]; ok {
 			continue

@@ -41,12 +41,9 @@ func applyReduceOn[T ndarray.Number](x *ndarray.Tensor[T], node Node, integerSha
 		}
 	}
 	for _, a := range use {
-		axis := int(a)
-		if axis < 0 {
-			axis += len(shape)
-		}
-		if axis < 0 || axis >= len(shape) {
-			return nil, ndarray.ErrShape
+		axis, err := axisIndex(int(a), len(shape))
+		if err != nil {
+			return nil, err
 		}
 		if _, ok := seen[axis]; ok {
 			continue

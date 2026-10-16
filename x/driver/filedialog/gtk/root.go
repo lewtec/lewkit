@@ -4,6 +4,7 @@ package gtk
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/filedialog/portal"
@@ -22,7 +23,7 @@ func (factory) Weight() int {
 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.ForGOOS("linux"); err != nil {
+	if err := driver.ForGOOS(build.GOOSLinux); err != nil {
 		return err
 	}
 	return portal.Available(ctx, portal.GTK)

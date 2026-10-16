@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path"
 	"regexp"
@@ -18,6 +19,8 @@ const blenderReleaseBaseURL = "https://download.blender.org/release/"
 var (
 	hrefPattern          = regexp.MustCompile(`href="([^"]+)"`)
 	blenderSeriesPattern = regexp.MustCompile(`^Blender[0-9]+\.[0-9]+$`)
+	// errKept adds no words. The other values are the sentence.
+	errKept = errors.New("")
 )
 
 type blenderTool struct {
@@ -192,7 +195,7 @@ func (t *blenderTool) fetchSeries(ctx context.Context, seriesNames []string) (ma
 func (t *blenderTool) seriesFiles(ctx context.Context, series string) ([]string, error) {
 	body, err := t.fetch(ctx, t.seriesURL(series))
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", series, err)
+		return nil, fmt.Errorf("%w%s: %w", errKept, series, err)
 	}
 	return indexFileNames(body), nil
 }

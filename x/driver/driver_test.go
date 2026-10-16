@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"iter"
-	"runtime"
 	"sync"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/stretchr/testify/require"
 )
@@ -15,14 +15,14 @@ import (
 var errInitFailed = errors.New("init failed")
 
 func TestForGOOS(t *testing.T) {
-	require.NoError(t, driver.ForGOOS(runtime.GOOS))
-	other := "plan9"
-	if runtime.GOOS == other {
-		other = "windows"
+	require.NoError(t, driver.ForGOOS(build.HostGOOS()))
+	other := build.GOOSPlan9
+	if build.HostGOOS() == other {
+		other = build.GOOSWindows
 	}
 	err := driver.ForGOOS(other)
 	require.ErrorIs(t, err, driver.ErrIncompatible)
-	require.Contains(t, err.Error(), "not "+other)
+	require.Contains(t, err.Error(), "not "+other.String())
 }
 
 type picker interface {

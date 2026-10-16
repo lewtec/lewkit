@@ -47,8 +47,8 @@ func encodePathD(cmds []PathCmd) string {
 func parsePathD(s string) ([]PathCmd, error) {
 	t := pathTok{s: s}
 	var cmds []PathCmd
-	var cx, cy, mx, my, sx, sy float64
-	var have, prevC bool
+	var cx, cy, mx, my, sx, sy, qx, qy float64
+	var have, prevC, prevQ bool
 	cmd := byte(0)
 	for {
 		t.skip()
@@ -61,7 +61,7 @@ func parsePathD(s string) ([]PathCmd, error) {
 				cmd -= 'a' - 'A'
 			}
 		} else if cmd == 0 {
-			return nil, fmt.Errorf("parse: path d must start with a command")
+			return nil, fmt.Errorf("%w: path d must start with a command", errParse)
 		}
 		rel := t.last >= 'a' && t.last <= 'z'
 		switch cmd {
@@ -76,7 +76,7 @@ func parsePathD(s string) ([]PathCmd, error) {
 			}
 			cmds = append(cmds, PathCmd{Kind: CmdMove, X: x, Y: y})
 			cx, cy, mx, my = x, y, x, y
-			have, prevC = true, false
+			have, prevC, prevQ = true, false, false
 			// remaining pairs of M/m are L/l
 			if t.last >= 'a' {
 				cmd, t.last = 'L', 'l'
@@ -99,7 +99,7 @@ func parsePathD(s string) ([]PathCmd, error) {
 				cmds = append(cmds, PathCmd{Kind: CmdLine, X: x, Y: y})
 			}
 			cx, cy = x, y
-			have, prevC = true, false
+			have, prevC, prevQ = true, false, false
 		case 'H':
 			x, err := t.num()
 			if err != nil {
@@ -110,7 +110,7 @@ func parsePathD(s string) ([]PathCmd, error) {
 			}
 			cmds = append(cmds, PathCmd{Kind: CmdLine, X: x, Y: cy})
 			cx = x
-			have, prevC = true, false
+			have, prevC, prevQ = true, false, false
 		case 'V':
 			y, err := t.num()
 			if err != nil {
@@ -121,7 +121,7 @@ func parsePathD(s string) ([]PathCmd, error) {
 			}
 			cmds = append(cmds, PathCmd{Kind: CmdLine, X: cx, Y: y})
 			cy = y
-			have, prevC = true, false
+			have, prevC, prevQ = true, false, false
 		case 'C':
 			x1, y1, err := t.pair()
 			if err != nil {
@@ -145,7 +145,7 @@ func parsePathD(s string) ([]PathCmd, error) {
 			}
 			cmds = append(cmds, PathCmd{Kind: CmdCubic, X: x, Y: y, X1: x1, Y1: y1, X2: x2, Y2: y2})
 			cx, cy, sx, sy = x, y, x2, y2
-			have, prevC = true, true
+			have, prevC, prevQ = true, true, false
 		case 'S':
 			x2, y2, err := t.pair()
 			if err != nil {
@@ -168,18 +168,92 @@ func parsePathD(s string) ([]PathCmd, error) {
 			}
 			cmds = append(cmds, PathCmd{Kind: CmdCubic, X: x, Y: y, X1: x1, Y1: y1, X2: x2, Y2: y2})
 			cx, cy, sx, sy = x, y, x2, y2
-			have, prevC = true, true
+			have, prevC, prevQ = true, true, false
+		case 'Q':
+			x1, y1, err := t.pair()
+			if err != nil {
+				return nil, err
+			}
+			x, y, err := t.pair()
+			if err != nil {
+				return nil, err
+			}
+			if rel {
+				x1 += cx
+				y1 += cy
+				x += cx
+				y += cy
+			}
+			cmds, err = appendQuad(cmds, cx, cy, x1, y1, x, y)
+			if err != nil {
+				return nil, err
+			}
+			cx, cy, qx, qy = x, y, x1, y1
+			have, prevC, prevQ = true, false, true
+		case 'T':
+			x, y, err := t.pair()
+			if err != nil {
+				return nil, err
+			}
+			if rel {
+				x += cx
+				y += cy
+			}
+			x1, y1 := cx, cy
+			if prevQ {
+				x1 = 2*cx - qx
+				y1 = 2*cy - qy
+			}
+			cmds, err = appendQuad(cmds, cx, cy, x1, y1, x, y)
+			if err != nil {
+				return nil, err
+			}
+			cx, cy, qx, qy = x, y, x1, y1
+			have, prevC, prevQ = true, false, true
+		case 'A':
+			rx, err := t.num()
+			if err != nil {
+				return nil, err
+			}
+			ry, err := t.num()
+			if err != nil {
+				return nil, err
+			}
+			rot, err := t.num()
+			if err != nil {
+				return nil, err
+			}
+			large, err := t.flag()
+			if err != nil {
+				return nil, err
+			}
+			sweep, err := t.flag()
+			if err != nil {
+				return nil, err
+			}
+			x, y, err := t.pair()
+			if err != nil {
+				return nil, err
+			}
+			if rel {
+				x += cx
+				y += cy
+			}
+			cmds, err = appendArc(cmds, cx, cy, rx, ry, rot, large, sweep, x, y)
+			if err != nil {
+				return nil, err
+			}
+			cx, cy = x, y
+			have, prevC, prevQ = true, false, false
 		case 'Z':
 			cmds = append(cmds, PathCmd{Kind: CmdClose})
 			cx, cy = mx, my
-			prevC = false
-		case 'Q', 'T', 'A':
-			return nil, fmt.Errorf("parse: path command %c not supported", cmd)
+			prevC, prevQ = false, false
 		default:
-			return nil, fmt.Errorf("parse: path command %c not supported", cmd)
+			return nil, fmt.Errorf("%w: path command %c not supported", errParse, cmd)
 		}
 		if len(cmds) > maxPathCmds {
-			return nil, fmt.Errorf("path: more than %d commands", maxPathCmds)
+			return nil, fmt.Errorf("%w: more than %d commands", errPath, maxPathCmds)
 		}
 	}
 	return cmds, nil
@@ -231,7 +305,7 @@ func isPathCmd(c byte) bool {
 func (t *pathTok) num() (float64, error) {
 	t.skip()
 	if t.done() {
-		return 0, fmt.Errorf("parse: path number expected")
+		return 0, fmt.Errorf("%w: path number expected", errParse)
 	}
 	start := t.i
 	if t.s[t.i] == '+' || t.s[t.i] == '-' {
@@ -260,13 +334,28 @@ func (t *pathTok) num() (float64, error) {
 		break
 	}
 	if t.i == start || (t.i == start+1 && (t.s[start] == '+' || t.s[start] == '-')) {
-		return 0, fmt.Errorf("parse: path number expected")
+		return 0, fmt.Errorf("%w: path number expected", errParse)
 	}
 	v, err := strconv.ParseFloat(t.s[start:t.i], 64)
 	if err != nil {
-		return 0, fmt.Errorf("parse: path number: %w", err)
+		return 0, fmt.Errorf("%w: path number: %w", errParse, err)
 	}
 	return v, nil
+}
+
+func (t *pathTok) flag() (bool, error) {
+	t.skip()
+	if t.done() {
+		return false, fmt.Errorf("%w: path flag expected", errParse)
+	}
+	switch t.next() {
+	case '0':
+		return false, nil
+	case '1':
+		return true, nil
+	default:
+		return false, fmt.Errorf("%w: path flag expected", errParse)
+	}
 }
 
 func (t *pathTok) pair() (float64, float64, error) {

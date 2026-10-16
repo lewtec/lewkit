@@ -142,7 +142,7 @@ func (webKitDriver) Open(ctx context.Context, cfg webview.Config) (webview.View,
 	pumpOnce.Do(func() {
 		thread.OnIdle(pumpEvents)
 	})
-	context.AfterFunc(ctx, func() { _ = view.Close() })
+	webview.CloseWhenDone(ctx, view)
 	webview.Follow(ctx, func(scheme daynight.Mode) { view.useScheme(scheme, true) })
 	return view, nil
 }

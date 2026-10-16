@@ -105,6 +105,11 @@
       "packageName": "https://github.com/ninja-build/ninja",
       "currentValue": "v1.12.1",
       "currentDigest": "2daa09ba270b0a43e1929d29b073348aa985dfaa",
+      "ref": "github:lucide-icons/lucide",
+      "depName": "lucide-icons/lucide",
+      "packageName": "https://github.com/lucide-icons/lucide",
+      "currentValue": "1.57.0",
+      "currentDigest": "dab294f313897bacaa968b725b3259fa37c17bd1",
       "datasource": "git-refs"
     },
     {

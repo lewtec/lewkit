@@ -12,11 +12,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lewtec/lewkit/x/errs"
+
 	diskfs "github.com/diskfs/go-diskfs"
 	"github.com/diskfs/go-diskfs/backend"
 	"github.com/diskfs/go-diskfs/disk"
 	"github.com/diskfs/go-diskfs/filesystem"
 	"github.com/diskfs/go-diskfs/filesystem/iso9660"
+)
+
+var (
+	errEFIBootImage         = errors.New("iso: EFIBOOT.IMG is the boot image")
+	errEmptyFilesystem      = errs.Wrap(errs.ErrEmpty, "iso: empty filesystem")
+	errFilesystemNotISO9660 = errors.New("iso: filesystem is not iso9660")
+	errISO                  = errors.New("iso")
+	errImageShort           = errors.New("iso: image is short")
+	errNilFilesystem        = errors.New("iso: nil filesystem")
 )
 
 const bootImage = "EFIBOOT.IMG"
@@ -27,14 +38,14 @@ const bootImage = "EFIBOOT.IMG"
 // EFIBOOT.IMG is the boot image, not a member of the source tree.
 func Write(fsys iofs.FS) ([]byte, error) {
 	if fsys == nil {
-		return nil, errors.New("iso: nil filesystem")
+		return nil, errNilFilesystem
 	}
 	payload, count, err := inspect(fsys)
 	if err != nil {
 		return nil, err
 	}
 	if count == 0 {
-		return nil, errors.New("iso: empty filesystem")
+		return nil, errEmptyFilesystem
 	}
 	dir, err := os.MkdirTemp("", "lewkit-iso")
 	if err != nil {
@@ -53,7 +64,7 @@ func Write(fsys iofs.FS) ([]byte, error) {
 // name is an io/fs path. Lookup is case-insensitive.
 func ReadFile(image []byte, name string) ([]byte, error) {
 	if len(image) < 17*2048 {
-		return nil, errors.New("iso: image is short")
+		return nil, errImageShort
 	}
 	fsys, err := iso9660.Read(imageStorage(image), int64(len(image)), 0, 2048)
 	if err != nil {
@@ -65,7 +76,7 @@ func ReadFile(image []byte, name string) ([]byte, error) {
 			return body, nil
 		}
 	}
-	return nil, fmt.Errorf("iso: missing %s", name)
+	return nil, fmt.Errorf("%w: missing %s", errISO, name)
 }
 
 func inspect(fsys iofs.FS) (int64, int, error) {
@@ -80,16 +91,16 @@ func inspect(fsys iofs.FS) (int64, int, error) {
 		}
 		count++
 		if strings.EqualFold(path.Base(name), bootImage) {
-			return errors.New("iso: EFIBOOT.IMG is the boot image")
+			return errEFIBootImage
 		}
 		if entry.Type()&iofs.ModeSymlink != 0 {
-			return fmt.Errorf("iso: %s is a symlink", name)
+			return fmt.Errorf("%w: %s is a symlink", errISO, name)
 		}
 		if entry.IsDir() {
 			return nil
 		}
 		if !entry.Type().IsRegular() {
-			return fmt.Errorf("iso: %s is not a regular file", name)
+			return fmt.Errorf("%w: %s is not a regular file", errISO, name)
 		}
 		file, err := fsys.Open(name)
 		if err != nil {
@@ -163,7 +174,7 @@ func writeISO(dir string, fsys iofs.FS, fat []byte, payload int64) ([]byte, erro
 	}
 	iso, ok := created.(*iso9660.FileSystem)
 	if !ok {
-		return nil, errors.New("iso: filesystem is not iso9660")
+		return nil, errFilesystemNotISO9660
 	}
 	err = iso.Finalize(iso9660.FinalizeOptions{
 		RockRidge:        true,

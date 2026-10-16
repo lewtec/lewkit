@@ -29,6 +29,7 @@ package filedialog
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/driver"
@@ -109,6 +110,18 @@ func (r Request) TitleOrDefault() string {
 // Driver shows a file or folder dialog.
 type Driver interface {
 	Choose(ctx context.Context, req Request) ([]string, error)
+}
+
+// Accept reports a done context or an invalid request.
+// A failed [Request.Validate] is [ErrRequest].
+func Accept(ctx context.Context, req Request) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := req.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrRequest, err)
+	}
+	return nil
 }
 
 // Choose asks the active file dialog driver for paths.

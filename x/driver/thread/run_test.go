@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBoundDoesNotPanicWhenUnset(t *testing.T) {
+	require.NotPanics(t, func() { _ = thread.Bound() })
+}
+
 func TestRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)

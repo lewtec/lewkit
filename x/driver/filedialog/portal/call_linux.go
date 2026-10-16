@@ -63,11 +63,8 @@ func Available(ctx context.Context, service string) error {
 
 // Choose shows the dialog on service and returns filesystem paths.
 func Choose(ctx context.Context, service string, req filedialog.Request) ([]string, error) {
-	if err := ctx.Err(); err != nil {
+	if err := filedialog.Accept(ctx, req); err != nil {
 		return nil, err
-	}
-	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {

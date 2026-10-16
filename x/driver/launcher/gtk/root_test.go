@@ -3,6 +3,7 @@ package gtk
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/internal/gtkui"
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,7 @@ func TestNeedsDisplay(t *testing.T) {
 	t.Setenv("WAYLAND_DISPLAY", "")
 	err := gtkui.Require(t.Context())
 	require.ErrorIs(t, err, driver.ErrIncompatible)
-	if driver.ForGOOS("linux") == nil {
+	if driver.ForGOOS(build.GOOSLinux) == nil {
 		assert.Contains(t, err.Error(), "DISPLAY")
 	}
 }

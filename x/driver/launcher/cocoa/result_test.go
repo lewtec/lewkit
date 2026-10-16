@@ -3,6 +3,7 @@ package cocoa
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
@@ -21,5 +22,5 @@ func TestButtonIndex(t *testing.T) {
 }
 
 func TestNotDarwin(t *testing.T) {
-	test.IncompatibleOff(t, available, "darwin")
+	test.IncompatibleOff(t, available, build.GOOSDarwin)
 }

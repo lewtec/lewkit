@@ -23,6 +23,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/version"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/lewtec/lewkit/x/toolchain/load"
@@ -43,10 +44,16 @@ const (
 
 // Sentinels for a firmware build or run.
 var (
-	ErrArch   = errors.New("unikernel: amd64 only")
-	ErrTAMAGO = errors.New("unikernel: TAMAGO is unset")
-	ErrQEMU   = errors.New("unikernel: qemu-system-x86_64 not found")
-	ErrOVMF   = errors.New("unikernel: OVMF_CODE or OVMF_VARS is unset")
+	ErrArch              = errors.New("unikernel: amd64 only")
+	ErrTAMAGO            = errors.New("unikernel: TAMAGO is unset")
+	ErrQEMU              = errs.Wrap(errs.ErrNotFound, "unikernel: qemu-system-x86_64 not found")
+	ErrOVMF              = errors.New("unikernel: OVMF_CODE or OVMF_VARS is unset")
+	errDirAndOutRequired = errs.Wrap(errs.ErrRequired, "unikernel: dir and out are required")
+	// errKept adds no words. The other values are the sentence.
+	errKept                  = errors.New("")
+	errObjectNoHeader        = errs.Wrap(errs.ErrNotFound, "unikernel: object has no header")
+	errTruncatedObjectHeader = errors.New("unikernel: truncated object header")
+	errUnikernel             = errors.New("unikernel")
 )
 
 // Options is one firmware build.
@@ -72,13 +79,13 @@ func Build(ctx context.Context, opt Options) error {
 		return err
 	}
 	if !Firmware(opt.GOOS) {
-		return fmt.Errorf("unikernel: %s is not uefi or mbr", opt.GOOS)
+		return fmt.Errorf("%w: %s is not uefi or mbr", errUnikernel, opt.GOOS)
 	}
 	if opt.GOARCH != "amd64" {
 		return fmt.Errorf("%w: %s", ErrArch, opt.GOARCH)
 	}
 	if strings.TrimSpace(opt.Dir) == "" || strings.TrimSpace(opt.Out) == "" {
-		return errors.New("unikernel: dir and out are required")
+		return errDirAndOutRequired
 	}
 	tamagoBin := strings.TrimSpace(os.Getenv("TAMAGO"))
 	if tamagoBin == "" {
@@ -134,9 +141,9 @@ func boot(ctx context.Context, goos, image, serial string) error {
 		return err
 	}
 	if !Firmware(goos) {
-		return fmt.Errorf("unikernel: %s is not uefi or mbr", goos)
+		return fmt.Errorf("%w: %s is not uefi or mbr", errUnikernel, goos)
 	}
-	bin, err := qemuBin()
+	bin, err := qemuBin(ctx)
 	if err != nil {
 		return err
 	}
@@ -189,11 +196,11 @@ func boot(ctx context.Context, goos, image, serial string) error {
 	return err
 }
 
-func qemuBin() (string, error) {
+func qemuBin(ctx context.Context) (string, error) {
 	if p := strings.TrimSpace(os.Getenv("QEMU_SYSTEM")); p != "" {
 		return p, nil
 	}
-	p, err := exec.LookPath("qemu-system-x86_64")
+	p, err := execdriver.Which(ctx, "qemu-system-x86_64")
 	if err != nil {
 		return "", ErrQEMU
 	}
@@ -256,7 +263,7 @@ func listArchives(ctx context.Context, bin, dir, work string) (map[string]string
 	}
 	out, err := runTool(ctx, bin, dir, env, args...)
 	if err != nil {
-		return nil, fmt.Errorf("unikernel: go list: %w", err)
+		return nil, fmt.Errorf("%w: go list: %w", errUnikernel, err)
 	}
 	archives := map[string]string{}
 	for _, line := range strings.Split(out, "\n") {
@@ -266,7 +273,7 @@ func listArchives(ctx context.Context, bin, dir, work string) (map[string]string
 		}
 		imp, file, ok := strings.Cut(line, " ")
 		if !ok {
-			return nil, fmt.Errorf("unikernel: go list line %q", line)
+			return nil, fmt.Errorf("%w: go list line %q", errUnikernel, line)
 		}
 		archives[imp] = file
 	}
@@ -308,7 +315,7 @@ func moduleRoot(dir string) (string, error) {
 		}
 		parent := filepath.Dir(abs)
 		if parent == abs {
-			return "", fmt.Errorf("unikernel: no go.mod above %s", start)
+			return "", fmt.Errorf("%w: no go.mod above %s", errUnikernel, start)
 		}
 		abs = parent
 	}
@@ -350,7 +357,7 @@ func linkModule(ctx context.Context, opt Options, work string, std map[string]st
 		}
 	}
 	if mains != 1 {
-		return fmt.Errorf("unikernel: %d main packages", mains)
+		return fmt.Errorf("%w: %d main packages", errUnikernel, mains)
 	}
 	units := make([]gotool.Unit, 0, len(pkgs))
 	for _, b := range pkgs {
@@ -443,7 +450,7 @@ func objectVersion(data []byte) string {
 func rewriteObjectHeaders(data []byte, want string) ([]byte, error) {
 	const marker = "go object "
 	if !bytes.Contains(data, []byte(marker)) {
-		return nil, errors.New("unikernel: object has no header")
+		return nil, errObjectNoHeader
 	}
 	out := append([]byte(nil), data...)
 	for from := 0; ; {
@@ -454,21 +461,21 @@ func rewriteObjectHeaders(data []byte, want string) ([]byte, error) {
 		i := from + rel
 		lineEnd := bytes.IndexByte(out[i:], '\n')
 		if lineEnd < 0 {
-			return nil, errors.New("unikernel: truncated object header")
+			return nil, errTruncatedObjectHeader
 		}
 		line := out[i : i+lineEnd]
 		fields := bytes.Fields(line)
 		if len(fields) < 5 {
-			return nil, fmt.Errorf("unikernel: short object header %q", line)
+			return nil, fmt.Errorf("%w: short object header %q", errUnikernel, line)
 		}
 		got := string(fields[4])
 		prefix := fmt.Sprintf("go object %s %s ", fields[2], fields[3])
 		if !bytes.HasPrefix(line, []byte(prefix)) {
-			return nil, fmt.Errorf("unikernel: unexpected object header %q", line)
+			return nil, fmt.Errorf("%w: unexpected object header %q", errUnikernel, line)
 		}
 		if got != want {
 			if len(got) != len(want) {
-				return nil, fmt.Errorf("unikernel: object version %s and compiler %s differ in length", got, want)
+				return nil, fmt.Errorf("%w: object version %s and compiler %s differ in length", errUnikernel, got, want)
 			}
 			copy(out[i+len(prefix):], want)
 		}
@@ -488,7 +495,7 @@ func adoptArchives(work, want string, std map[string]string) error {
 		}
 		raw, err = rewriteObjectHeaders(raw, want)
 		if err != nil {
-			return fmt.Errorf("unikernel: %s: %w", path, err)
+			return fmt.Errorf("%w: %s: %w", errUnikernel, path, err)
 		}
 		dst := filepath.Join(dir, strings.ReplaceAll(path, "/", "_")+".a")
 		if err := os.WriteFile(dst, raw, 0o644); err != nil {
@@ -545,14 +552,14 @@ func runTool(ctx context.Context, bin, dir string, set map[string]string, args .
 			return "", err
 		}
 	}
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := execdriver.MustCommand(ctx, bin, args...)
 	cmd.Dir = dir
 	cmd.Env = mergeEnv(os.Environ(), set)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("%w\n%s%s", err, stderr.String(), stdout.String())
+	if err := execdriver.Run(ctx, cmd); err != nil {
+		return "", fmt.Errorf("%w%w\n%s%s", errKept, err, stderr.String(), stdout.String())
 	}
 	return stdout.String(), nil
 }

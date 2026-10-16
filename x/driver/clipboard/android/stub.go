@@ -4,7 +4,6 @@ package android
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/clipboard"
@@ -23,5 +22,5 @@ func (factory) CheckCompatibility(context.Context) error {
 }
 
 func (factory) New(context.Context) (clipboard.Driver, error) {
-	return nil, fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
+	return nil, driver.JavaVM()
 }

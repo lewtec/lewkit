@@ -32,6 +32,8 @@ var (
 	ErrShiftOpenEnded     = errs.Wrap(errs.ErrInvalid, "cannot shift open-ended range")
 	ErrShiftEmpty         = errs.Wrap(errs.ErrEmpty, "cannot shift empty period")
 	ErrDate               = errs.Wrap(errs.ErrSyntax, "invalid date")
+	ErrTimeRangeEnd       = errs.Wrap(errs.ErrSyntax, "time range end")
+	ErrTimeRangeStart     = errs.Wrap(errs.ErrSyntax, "time range start")
 )
 
 // Range is an inclusive calendar range. Zero Start/End means open on that side.
@@ -76,11 +78,11 @@ func Parse(s string, now time.Time) (Range, error) {
 		right = strings.TrimSpace(right)
 		a, err := parseOne(left, now)
 		if err != nil {
-			return Range{}, fmt.Errorf("time range start %q: %w", left, err)
+			return Range{}, fmt.Errorf("%w %q: %w", ErrTimeRangeStart, left, err)
 		}
 		b, err := parseOne(right, now)
 		if err != nil {
-			return Range{}, fmt.Errorf("time range end %q: %w", right, err)
+			return Range{}, fmt.Errorf("%w %q: %w", ErrTimeRangeEnd, right, err)
 		}
 		start, aEnd := a.bounds()
 		bStart, end := b.bounds()

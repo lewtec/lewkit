@@ -11,10 +11,18 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	errDebMemberOverflows = errors.New("uki: deb member overflows")
+	errDebNotArArchive    = errs.Wrap(errs.ErrInvalid, "uki: deb is not an ar archive")
+	errXZRequired         = errs.Wrap(errs.ErrRequired, "uki: xz is required to unpack the systemd stub")
 )
 
 // Debian systemd-boot-efi 257.13. The linux*.efi.stub is the UKI stub.
@@ -75,7 +83,7 @@ func fetchStub(ctx context.Context, goarch string) ([]byte, error) {
 		return nil, err
 	}
 	if got := sha256Hex(raw); got != want {
-		return nil, fmt.Errorf("uki: stub %s sha256 %s", goarch, got)
+		return nil, fmt.Errorf("%w: stub %s sha256 %s", errUKI, goarch, got)
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return nil, err
@@ -102,7 +110,7 @@ func httpGet(ctx context.Context, url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("uki: %s: %s", url, resp.Status)
+		return nil, fmt.Errorf("%w: %s: %s", errUKI, url, resp.Status)
 	}
 	return io.ReadAll(resp.Body)
 }
@@ -121,7 +129,7 @@ func debMember(ctx context.Context, deb []byte, name string) ([]byte, error) {
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("uki: deb has no %s", name)
+			return nil, fmt.Errorf("%w: deb has no %s", errUKI, name)
 		}
 		if err != nil {
 			return nil, err
@@ -135,7 +143,7 @@ func debMember(ctx context.Context, deb []byte, name string) ([]byte, error) {
 
 func arMember(deb []byte, name string) ([]byte, error) {
 	if !bytes.HasPrefix(deb, []byte("!<arch>\n")) {
-		return nil, errors.New("uki: deb is not an ar archive")
+		return nil, errDebNotArArchive
 	}
 	off := 8
 	for off+60 <= len(deb) {
@@ -143,12 +151,12 @@ func arMember(deb []byte, name string) ([]byte, error) {
 		member := strings.TrimRight(string(hdr[:16]), " /")
 		size, err := strconv.Atoi(strings.TrimSpace(string(hdr[48:58])))
 		if err != nil {
-			return nil, fmt.Errorf("uki: deb member size: %w", err)
+			return nil, fmt.Errorf("%w: deb member size: %w", errUKI, err)
 		}
 		start := off + 60
 		end := start + size
 		if end > len(deb) {
-			return nil, errors.New("uki: deb member overflows")
+			return nil, errDebMemberOverflows
 		}
 		if member == name {
 			return deb[start:end], nil
@@ -158,19 +166,19 @@ func arMember(deb []byte, name string) ([]byte, error) {
 			off++
 		}
 	}
-	return nil, fmt.Errorf("uki: deb has no %s", name)
+	return nil, fmt.Errorf("%w: deb has no %s", errUKI, name)
 }
 
 func unxz(ctx context.Context, data []byte) ([]byte, error) {
-	xz, err := exec.LookPath("xz")
+	xz, err := execdriver.Which(ctx, "xz")
 	if err != nil {
-		return nil, errors.New("uki: xz is required to unpack the systemd stub")
+		return nil, errXZRequired
 	}
-	cmd := exec.CommandContext(ctx, xz, "-dc")
+	cmd := execdriver.MustCommand(ctx, xz, "-dc")
 	cmd.Stdin = bytes.NewReader(data)
-	out, err := cmd.Output()
+	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
-		return nil, fmt.Errorf("uki: xz: %w", err)
+		return nil, fmt.Errorf("%w: xz: %w", errUKI, err)
 	}
 	return out, nil
 }

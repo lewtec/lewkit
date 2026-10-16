@@ -34,9 +34,14 @@ func strokeToPath(src path, st svg.Stroke) path {
 		out.lineTo(p[0], p[1])
 	}
 	if !closed {
-		// cap at end: connect to right reversed
+		if st.Cap() == svg.CapRound {
+			roundCap(&out, pts[len(pts)-1], pts[len(pts)-2], left[len(left)-1], right[len(right)-1])
+		}
 		for i := len(right) - 1; i >= 0; i-- {
 			out.lineTo(right[i][0], right[i][1])
+		}
+		if st.Cap() == svg.CapRound {
+			roundCap(&out, pts[0], pts[1], right[0], left[0])
 		}
 	} else {
 		out.close()
@@ -201,14 +206,35 @@ func offsetPoly(pts [][2]float32, half float32, closed bool, st svg.Stroke) (lef
 					right[len(right)-1][0] += offx
 					right[len(right)-1][1] += offy
 				}
-			case svg.CapRound:
-				// round cap is handled by connecting left/right with an arc at outline build
 			}
 		}
 		applyCap(true)
 		applyCap(false)
 	}
 	return left, right
+}
+
+// roundCap appends the semicircle that bulges past end, from from to to.
+// prev is the other end of the segment, so end-prev points outward.
+func roundCap(out *path, end, prev, from, to [2]float32) {
+	dx := end[0] - prev[0]
+	dy := end[1] - prev[1]
+	l := float32(math.Hypot(float64(dx), float64(dy)))
+	if l == 0 {
+		return
+	}
+	half := float32(math.Hypot(float64(from[0]-end[0]), float64(from[1]-end[1])))
+	if half == 0 {
+		return
+	}
+	ux, uy := dx/l, dy/l
+	mx, my := end[0]+ux*half, end[1]+uy*half
+	for _, p := range arcPoints(end[0], end[1], from[0], from[1], mx, my) {
+		out.lineTo(p[0], p[1])
+	}
+	for _, p := range arcPoints(end[0], end[1], mx, my, to[0], to[1]) {
+		out.lineTo(p[0], p[1])
+	}
 }
 
 func offsetIntersect(px, py, nx0, ny0, nx1, ny1 float32) (float32, float32, bool) {

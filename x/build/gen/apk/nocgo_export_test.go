@@ -27,6 +27,16 @@ func TestLewkitDirFindsModule(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestEntryExportFileUsesAndroidGOOS(t *testing.T) {
+	t.Setenv("GOOS", runtime.GOOS)
+	path, err := entryExportFile(t.Context())
+	require.NoError(t, err)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	require.False(t, info.IsDir())
+	require.Equal(t, "_cgo_android_export.go", filepath.Base(path))
+}
+
 func TestJoinToolexecQuotesSpaces(t *testing.T) {
 	got, err := joinToolexec("/tmp/android toolexec", "/tmp/x/_cgo_android_export.go")
 	require.NoError(t, err)

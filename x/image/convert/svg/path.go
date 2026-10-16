@@ -4,6 +4,12 @@ import (
 	"fmt"
 	"image/color"
 	"slices"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	errPath = errs.Wrap(errs.ErrOutOfRange, "path")
 )
 
 const maxPathCmds = 4096
@@ -37,7 +43,7 @@ func (p Path) Commands() []PathCmd {
 
 func (p Path) withCmd(c PathCmd) (Path, error) {
 	if len(p.cmds)+1 > maxPathCmds {
-		return p, fmt.Errorf("path: more than %d commands", maxPathCmds)
+		return p, fmt.Errorf("%w: more than %d commands", errPath, maxPathCmds)
 	}
 	p.cmds = append(slices.Clone(p.cmds), c)
 	return p, nil
@@ -65,7 +71,7 @@ func (p Path) Close() Path {
 
 func (p Path) WithCommands(cmds []PathCmd) (Path, error) {
 	if len(cmds) > maxPathCmds {
-		return p, fmt.Errorf("path: more than %d commands", maxPathCmds)
+		return p, fmt.Errorf("%w: more than %d commands", errPath, maxPathCmds)
 	}
 	p.cmds = slices.Clone(cmds)
 	return p, nil

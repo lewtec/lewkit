@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/battery"
 )
@@ -30,7 +31,7 @@ func (factory) CheckCompatibility(ctx context.Context) error {
 func (factory) New(context.Context) (battery.Driver, error) { return backend{}, nil }
 
 func requireDarwin() error {
-	if err := driver.ForGOOS("darwin"); err != nil {
+	if err := driver.ForGOOS(build.GOOSDarwin); err != nil {
 		return err
 	}
 	if _, err := os.Stat(ioregBin); err != nil {

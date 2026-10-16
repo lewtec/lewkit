@@ -4,6 +4,7 @@ package cocoa
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 )
@@ -15,7 +16,7 @@ func (factory) Name() string { return "NSOpenPanel" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	return driver.ForGOOS("darwin")
+	return driver.ForGOOS(build.GOOSDarwin)
 }
 
 func (factory) New(context.Context) (filedialog.Driver, error) {

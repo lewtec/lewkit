@@ -193,7 +193,7 @@ func (edgeDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, e
 			return nil, err
 		}
 	}
-	context.AfterFunc(ctx, func() { _ = view.Close() })
+	webview.CloseWhenDone(ctx, view)
 	webview.Follow(ctx, func(scheme daynight.Mode) {
 		post(func() { view.useScheme(scheme) })
 	})

@@ -11,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/notification"
 	"github.com/lewtec/lewkit/x/ffi/native"
@@ -66,7 +67,7 @@ type notifyClassEx struct {
 	iconSm     uintptr
 }
 
-func available(context.Context) error { return driver.ForGOOS("windows") }
+func available(context.Context) error { return driver.ForGOOS(build.GOOSWindows) }
 
 func (backend) Notify(ctx context.Context, n notification.Notification) error {
 	if err := ctx.Err(); err != nil {

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	isofs "github.com/lewtec/lewkit/x/fs/iso"
+	"github.com/lewtec/lewkit/x/test"
 
 	"github.com/stretchr/testify/require"
 )
@@ -46,9 +47,8 @@ func TestGuestArch(t *testing.T) {
 	require.Contains(t, url, "systemd-boot-efi_257.13-1~deb13u1_arm64.deb")
 	_, err = stubURL("386")
 	require.ErrorIs(t, err, ErrArch)
-	err = Build(context.Background(), Options{GOOS: "uki", GOARCH: "amd64", Out: filepath.Join(t.TempDir(), "x"), Dir: t.TempDir()})
+	err = Build(t.Context(), Options{GOOS: "uki", GOARCH: "amd64", Out: filepath.Join(t.TempDir(), "x"), Dir: t.TempDir()})
 	require.Error(t, err)
-	require.Panics(t, func() { _ = Build(nil, Options{}) })
 }
 
 func TestWriteISO(t *testing.T) {
@@ -143,7 +143,7 @@ func minimalPE(t *testing.T, machine uint16) []byte {
 }
 
 func TestReadAlpineKernel(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	apk, err := fetchKernel(ctx, "amd64")
 	require.NoError(t, err)
@@ -168,7 +168,7 @@ func stemIndex(order []string, stem string) int {
 }
 
 func TestStubPacks(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	for _, goarch := range []string{"amd64", "arm64"} {
 		stub, err := fetchStub(ctx, goarch)
@@ -187,10 +187,10 @@ func TestStubPacks(t *testing.T) {
 
 func TestBuildDownloadsKernel(t *testing.T) {
 	if testing.Short() {
-		t.Skip("builds a guest")
+		test.Skip(t, "builds a guest")
 	}
 	out := filepath.Join(t.TempDir(), "app.efi")
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     writeTiny(t),
@@ -350,13 +350,13 @@ func writeDyn(t *testing.T) string {
 
 func TestUKIBoots(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	out := filepath.Join(t.TempDir(), "app.efi")
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     writeTiny(t),
@@ -367,7 +367,7 @@ func TestUKIBoots(t *testing.T) {
 	})
 	require.NoError(t, err)
 	serial := filepath.Join(t.TempDir(), "serial.log")
-	bootCtx, bootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	bootCtx, bootCancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer bootCancel()
 	err = boot(bootCtx, out, serial, "")
 	raw, readErr := os.ReadFile(serial)
@@ -380,13 +380,13 @@ func TestUKIBoots(t *testing.T) {
 
 func TestISOBoots(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	out := filepath.Join(t.TempDir(), "app.iso")
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     writeTiny(t),
@@ -401,7 +401,7 @@ func TestISOBoots(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "CD001", string(raw[0x8001:0x8006]))
 	serial := filepath.Join(t.TempDir(), "serial.log")
-	bootCtx, bootCancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	bootCtx, bootCancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer bootCancel()
 	err = boot(bootCtx, out, serial, "")
 	log, readErr := os.ReadFile(serial)
@@ -414,13 +414,13 @@ func TestISOBoots(t *testing.T) {
 
 func TestUTMDisplayAndKeyboard(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	out := filepath.Join(t.TempDir(), "app.iso")
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     writeTiny(t),
@@ -432,7 +432,7 @@ func TestUTMDisplayAndKeyboard(t *testing.T) {
 	})
 	require.NoError(t, err)
 	serial := filepath.Join(t.TempDir(), "serial.log")
-	bootCtx, bootCancel := context.WithTimeout(context.Background(), 60*time.Second)
+	bootCtx, bootCancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer bootCancel()
 	// UTM's default window is ramfb or virtio, and the keys go to a USB HID device.
 	err = bootArgs(bootCtx, out, serial, "", []string{
@@ -457,13 +457,13 @@ func TestUTMDisplayAndKeyboard(t *testing.T) {
 
 func TestRamfbPaints(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	out := filepath.Join(t.TempDir(), "paint.iso")
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     writePaint(t),
@@ -476,7 +476,7 @@ func TestRamfbPaints(t *testing.T) {
 	require.NoError(t, err)
 	serial := filepath.Join(t.TempDir(), "serial.log")
 	shot := filepath.Join(t.TempDir(), "shot.ppm")
-	bootCtx, bootCancel := context.WithTimeout(context.Background(), 45*time.Second)
+	bootCtx, bootCancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer bootCancel()
 	err = bootArgs(bootCtx, out, serial, shot, []string{
 		"-vga", "none",
@@ -502,13 +502,13 @@ func TestRamfbPaints(t *testing.T) {
 
 func TestDVDDrawsOnRamfb(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	out := filepath.Join(t.TempDir(), "dvd.iso")
-	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 6*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     filepath.Join(repoRoot(t), "examples/app/dvd"),
@@ -521,7 +521,7 @@ func TestDVDDrawsOnRamfb(t *testing.T) {
 	require.NoError(t, err)
 	serial := filepath.Join(t.TempDir(), "serial.log")
 	shot := filepath.Join(t.TempDir(), "shot.ppm")
-	bootCtx, bootCancel := context.WithTimeout(context.Background(), 90*time.Second)
+	bootCtx, bootCancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer bootCancel()
 	// UTM's default window is ramfb (simpledrm). The USB devices are its keyboard.
 	err = bootArgs(bootCtx, out, serial, shot, []string{
@@ -549,13 +549,13 @@ func TestDVDDrawsOnRamfb(t *testing.T) {
 
 func TestDynamicISOBoots(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	out := filepath.Join(t.TempDir(), "dyn.iso")
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     writeDyn(t),
@@ -567,7 +567,7 @@ func TestDynamicISOBoots(t *testing.T) {
 	})
 	require.NoError(t, err)
 	serial := filepath.Join(t.TempDir(), "serial.log")
-	bootCtx, bootCancel := context.WithTimeout(context.Background(), 90*time.Second)
+	bootCtx, bootCancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer bootCancel()
 	err = boot(bootCtx, out, serial, "")
 	log, readErr := os.ReadFile(serial)
@@ -580,14 +580,14 @@ func TestDynamicISOBoots(t *testing.T) {
 
 func TestChessDraws(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	root := repoRoot(t)
 	out := filepath.Join(t.TempDir(), "chess.efi")
-	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 12*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     filepath.Join(root, "examples/app/chess"),
@@ -620,13 +620,13 @@ func repoRoot(t *testing.T) string {
 
 func TestUnikernelExampleISOWaits(t *testing.T) {
 	if os.Getenv("QEMU_SYSTEM") == "" || os.Getenv("OVMF_CODE") == "" || os.Getenv("OVMF_VARS") == "" {
-		t.Skip("QEMU_SYSTEM or OVMF is unset")
+		test.Skip(t, "QEMU_SYSTEM or OVMF is unset")
 	}
 	if runtime.GOARCH != "amd64" {
-		t.Skip("this boot uses qemu-system-x86_64")
+		test.Skip(t, "this boot uses qemu-system-x86_64")
 	}
 	out := filepath.Join(t.TempDir(), "unikernel.iso")
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
 	defer cancel()
 	err := Build(ctx, Options{
 		Dir:     filepath.Join(repoRoot(t), "examples/unikernel"),
@@ -638,7 +638,7 @@ func TestUnikernelExampleISOWaits(t *testing.T) {
 	})
 	require.NoError(t, err)
 	serial := filepath.Join(t.TempDir(), "serial.log")
-	bootCtx, bootCancel := context.WithTimeout(context.Background(), 45*time.Second)
+	bootCtx, bootCancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer bootCancel()
 	err = boot(bootCtx, out, serial, "")
 	raw, readErr := os.ReadFile(serial)

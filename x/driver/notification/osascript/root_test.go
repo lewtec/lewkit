@@ -3,6 +3,7 @@ package osascript
 import (
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver/notification"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
@@ -15,5 +16,5 @@ func TestScript(t *testing.T) {
 }
 
 func TestNotDarwin(t *testing.T) {
-	test.IncompatibleOff(t, factory{}.CheckCompatibility, "darwin")
+	test.IncompatibleOff(t, factory{}.CheckCompatibility, build.GOOSDarwin)
 }

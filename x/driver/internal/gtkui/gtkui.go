@@ -7,6 +7,7 @@ import (
 	"context"
 	"runtime"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/thread"
 	gtklib "github.com/lewtec/lewkit/x/ffi/native/gtk"
@@ -14,7 +15,7 @@ import (
 
 // Require reports whether this process can open a GTK 4 dialog.
 func Require(ctx context.Context) error {
-	if err := driver.ForGOOS("linux"); err != nil {
+	if err := driver.ForGOOS(build.GOOSLinux); err != nil {
 		return err
 	}
 	if err := driver.RequireDisplay(ctx); err != nil {

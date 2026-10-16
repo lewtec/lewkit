@@ -14,6 +14,7 @@
 // [Walk] turns an [io/fs.FS] into a listing. [Filter] applies a
 // [github.com/lewtec/lewkit/x/path/pick.Predicate].
 // [StripTopDirectory] returns an [io/fs.FS] with one leading directory removed.
+// [github.com/lewtec/lewkit/x/fs/ignore] decorates an [io/fs.FS] with gitignore rules.
 package fs
 
 import (

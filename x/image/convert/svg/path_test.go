@@ -50,15 +50,53 @@ func TestParseRelativeAndSmooth(t *testing.T) {
 	require.Equal(t, CmdClose, cmds[4].Kind)
 }
 
-func TestParseRejectsQuadraticAndArc(t *testing.T) {
+func TestParseQuadraticAndSmooth(t *testing.T) {
+	doc, err := Parse(strings.NewReader(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path d="M0 0 Q10 10 20 0 T40 0"/></svg>`,
+	))
+	require.NoError(t, err)
+	p, ok := doc.Children()[0].Path()
+	require.True(t, ok)
+	cmds := p.Commands()
+	require.Len(t, cmds, 3)
+	require.Equal(t, CmdCubic, cmds[1].Kind)
+	require.InDelta(t, 20.0/3.0, cmds[1].X1, 1e-9)
+	require.InDelta(t, 20.0/3.0, cmds[1].Y1, 1e-9)
+	require.InDelta(t, 40.0/3.0, cmds[1].X2, 1e-9)
+	require.InDelta(t, 20.0/3.0, cmds[1].Y2, 1e-9)
+	require.InDelta(t, 20.0, cmds[1].X, 1e-9)
+	require.InDelta(t, 0.0, cmds[1].Y, 1e-9)
+	require.Equal(t, CmdCubic, cmds[2].Kind)
+	require.InDelta(t, 40.0, cmds[2].X, 1e-9)
+	require.InDelta(t, 0.0, cmds[2].Y, 1e-9)
+	require.InDelta(t, 80.0/3.0, cmds[2].X1, 1e-9)
+	require.InDelta(t, -20.0/3.0, cmds[2].Y1, 1e-9)
+}
+
+func TestParseArcLowersToCubics(t *testing.T) {
 	for _, d := range []string{
-		`M0 0 Q10 10 20 0`,
-		`M0 0 C10 0 10 10 20 10 T40 10`,
 		`M0 0 A10 10 0 0 1 10 10`,
+		`M0 0 A10 10 0 0010 10`,
+		`M0 0 a10 10 0 0 1 10 10`,
 	} {
-		_, err := Parse(strings.NewReader(
+		doc, err := Parse(strings.NewReader(
 			`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path d="` + d + `"/></svg>`,
 		))
-		require.Error(t, err)
+		require.NoError(t, err)
+		p, ok := doc.Children()[0].Path()
+		require.True(t, ok)
+		cmds := p.Commands()
+		require.GreaterOrEqual(t, len(cmds), 2)
+		last := cmds[len(cmds)-1]
+		require.Equal(t, CmdCubic, last.Kind)
+		require.InDelta(t, 10.0, last.X, 1e-6)
+		require.InDelta(t, 10.0, last.Y, 1e-6)
 	}
+}
+
+func TestParseArcFlag(t *testing.T) {
+	_, err := Parse(strings.NewReader(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><path d="M0 0 A10 10 0 2 1 10 10"/></svg>`,
+	))
+	require.Error(t, err)
 }

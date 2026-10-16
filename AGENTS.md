@@ -4,8 +4,8 @@
 - Respect the context chain: a function that does I/O or starts work takes ctx first and passes it down. Only main, the Android host entry, and a godoc example create a root context. Tests use t.Context. Do not pass a nil context, and do not compare a context to nil
 - Sentinel errors live in a package-level var block. Do not create an error inline at a return; wrap a sentinel with %w
 - Reuse a meta sentinel from x/errs before adding a new one: not found, invalid, missing, unsupported, already exists, unavailable, closed, canceled, empty, nil context, syntax, cycle, duplicate, out of range, required, unknown. A specific sentinel is errs.Wrap of that parent, so errors.Is matches both. The same condition is one sentinel
-- Tests use testify require. Use assert only when the test should continue. Check sentinels with require.ErrorIs. Skip with test.Skip or test.Skipf
+- Tests use testify require and the helpers in x/test (Skip, Skipf, Need, CloseOnCleanup, Collect, IncompatibleOff). Use assert only when the test should continue. Check sentinels with require.ErrorIs. Do not copy those helpers
 - Look for an existing helper before writing new code
 - Explicit is better than implicit
 - Follow the patterns already in the repo: x/cmd, x/test, testify, x/db with sqlc and migrations
-- A closed set (modes, kinds, formats, states, driver names, OS or arch names) is a generated enum. Mark the type with //lewkit:enum. The package's enum.go holds only the package clause and //go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum. That line generates every marked type in the package. Do not add an untyped string const group for a closed set
+- A closed set (modes, kinds, formats, states, driver names, OS or arch names) is a generated enum. Mark the type with //lewkit:enum. The package's enum.go holds only the package clause and //go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum. That line generates every marked type in the package. Do not add an untyped string const group for a closed set. Pass the generated value, such as build.GOOS and build.GOARCH, to driver.ForGOOS and test.IncompatibleOff. Do not pass the raw name
