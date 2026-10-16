@@ -67,9 +67,11 @@ type Result struct {
 
 // Location is one physical location and an optional message.
 // URI is artifactLocation.uri.
+// Index is artifactLocation.index when the pointer is set, including zero.
 type Location struct {
 	URI       string
 	URIBaseID string
+	Index     *int
 	Region    Region
 	Message   Message
 }
@@ -93,9 +95,11 @@ type Fix struct {
 
 // Change is one artifact's replacements.
 // URI is artifactLocation.uri.
+// Index is artifactLocation.index when the pointer is set, including zero.
 type Change struct {
 	URI          string
 	URIBaseID    string
+	Index        *int
 	Replacements []*Replacement
 }
 
@@ -342,6 +346,15 @@ func (location *Location) SetURIBase(id string) *Location {
 	return location
 }
 
+// SetIndex sets artifactLocation.index, including zero.
+func (location *Location) SetIndex(index int) *Location {
+	if location == nil {
+		return nil
+	}
+	location.Index = &index
+	return location
+}
+
 // SetMessage sets the location message text.
 func (location *Location) SetMessage(text string) *Location {
 	if location == nil {
@@ -421,6 +434,15 @@ func (change *Change) SetURIBase(id string) *Change {
 		return nil
 	}
 	change.URIBaseID = id
+	return change
+}
+
+// SetIndex sets artifactLocation.index, including zero.
+func (change *Change) SetIndex(index int) *Change {
+	if change == nil {
+		return nil
+	}
+	change.Index = &index
 	return change
 }
 

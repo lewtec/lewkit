@@ -74,6 +74,7 @@ type physicalJSON struct {
 type artifactJSON struct {
 	URI       string `json:"uri,omitempty"`
 	URIBaseID string `json:"uriBaseId,omitempty"`
+	Index     *int   `json:"index,omitempty"`
 }
 
 type regionJSON struct {
@@ -273,6 +274,7 @@ func locationsFrom(raw []locationJSON) ([]*Location, error) {
 		locations = append(locations, &Location{
 			URI:       artifactURI(item.PhysicalLocation),
 			URIBaseID: artifactBase(item.PhysicalLocation),
+			Index:     artifactIndex(item.PhysicalLocation),
 			Region:    regionFrom(item.PhysicalLocation),
 			Message:   messageFrom(item.Message),
 		})
@@ -292,6 +294,13 @@ func artifactBase(raw *physicalJSON) string {
 		return ""
 	}
 	return raw.ArtifactLocation.URIBaseID
+}
+
+func artifactIndex(raw *physicalJSON) *int {
+	if raw == nil || raw.ArtifactLocation == nil {
+		return nil
+	}
+	return raw.ArtifactLocation.Index
 }
 
 func regionFrom(raw *physicalJSON) Region {
@@ -363,6 +372,7 @@ func changeFrom(raw changeJSON) (*Change, error) {
 	return &Change{
 		URI:          raw.ArtifactLocation.URI,
 		URIBaseID:    raw.ArtifactLocation.URIBaseID,
+		Index:        raw.ArtifactLocation.Index,
 		Replacements: replacements,
 	}, nil
 }
@@ -521,7 +531,7 @@ func locationsToJSON(locations []*Location) ([]locationJSON, error) {
 			return nil, fmt.Errorf("%w: location", ErrValue)
 		}
 		out = append(out, locationJSON{
-			PhysicalLocation: physicalPtr(location.URI, location.URIBaseID, location.Region),
+			PhysicalLocation: physicalPtr(location.URI, location.URIBaseID, location.Index, location.Region),
 			Message:          messagePtr(location.Message),
 		})
 	}
@@ -549,8 +559,8 @@ func regionPtr(region Region) *regionJSON {
 	return &out
 }
 
-func physicalPtr(uri, base string, region Region) *physicalJSON {
-	artifact := artifactPtr(uri, base)
+func physicalPtr(uri, base string, index *int, region Region) *physicalJSON {
+	artifact := artifactPtr(uri, base, index)
 	span := regionPtr(region)
 	if artifact == nil && span == nil {
 		return nil
@@ -558,11 +568,11 @@ func physicalPtr(uri, base string, region Region) *physicalJSON {
 	return &physicalJSON{ArtifactLocation: artifact, Region: span}
 }
 
-func artifactPtr(uri, base string) *artifactJSON {
-	if uri == "" && base == "" {
+func artifactPtr(uri, base string, index *int) *artifactJSON {
+	if uri == "" && base == "" && index == nil {
 		return nil
 	}
-	return &artifactJSON{URI: uri, URIBaseID: base}
+	return &artifactJSON{URI: uri, URIBaseID: base, Index: index}
 }
 
 func fixesToJSON(fixes []*Fix) ([]fixJSON, error) {
@@ -620,7 +630,7 @@ func changeToJSON(change *Change) (changeJSON, error) {
 		replacements = append(replacements, encoded)
 	}
 	return changeJSON{
-		ArtifactLocation: artifactJSON{URI: change.URI, URIBaseID: change.URIBaseID},
+		ArtifactLocation: artifactJSON{URI: change.URI, URIBaseID: change.URIBaseID, Index: change.Index},
 		Replacements:     replacements,
 	}, nil
 }

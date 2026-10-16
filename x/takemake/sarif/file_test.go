@@ -3,6 +3,7 @@ package sarif
 import (
 	"bytes"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -103,6 +104,86 @@ func TestRuleIndexZeroAndNegative(t *testing.T) {
 `)
 	require.Nil(t, absent.Runs[0].Results[0].RuleIndex)
 	require.NotContains(t, absentPrinted, "ruleIndex")
+}
+
+func TestArtifactIndexZero(t *testing.T) {
+	t.Parallel()
+	taken, printed := takeMake(t, `{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {"driver": {"name": "t"}},
+      "results": [
+        {
+          "message": {"text": "m"},
+          "locations": [
+            {"physicalLocation": {"artifactLocation": {"uri": "a.go", "index": 0}}}
+          ]
+        }
+      ]
+    }
+  ]
+}
+`)
+	index := taken.Runs[0].Results[0].Locations[0].Index
+	require.NotNil(t, index)
+	require.Equal(t, 0, *index)
+	require.Contains(t, printed, `"index": 0`)
+
+	fix, fixPrinted := takeMake(t, `{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {"driver": {"name": "t"}},
+      "results": [
+        {
+          "message": {"text": "m"},
+          "fixes": [
+            {
+              "artifactChanges": [
+                {
+                  "artifactLocation": {"uri": "a.go", "index": 0},
+                  "replacements": [{"deletedRegion": {"startLine": 1}, "insertedContent": {"text": "x"}}]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+`)
+	changeIndex := fix.Runs[0].Results[0].Fixes[0].Changes[0].Index
+	require.NotNil(t, changeIndex)
+	require.Equal(t, 0, *changeIndex)
+	require.Contains(t, fixPrinted, `"index": 0`)
+}
+
+func TestGolangciLintRoundTrip(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile("testdata/golangci.sarif")
+	require.NoError(t, err)
+	taken, err := Take(bytes.NewReader(raw))
+	require.NoError(t, err)
+	require.Equal(t, "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.6.json", taken.Schema)
+	require.Len(t, taken.Runs, 1)
+	run := taken.Runs[0]
+	require.Equal(t, "golangci-lint", run.Driver.Name)
+	require.Len(t, run.Results, 175)
+	first := run.Results[0]
+	require.Equal(t, "cyclop", first.RuleID)
+	require.Equal(t, LevelError, first.Level)
+	require.Equal(t, "cmd/modot/codebase/apply.go", first.Locations[0].URI)
+	require.NotNil(t, first.Locations[0].Index)
+	require.Equal(t, 0, *first.Locations[0].Index)
+	require.Equal(t, 37, first.Locations[0].Region.StartLine)
+
+	var buf bytes.Buffer
+	require.NoError(t, taken.Make(&buf))
+	again, err := Take(&buf)
+	require.NoError(t, err)
+	require.Equal(t, taken, again)
 }
 
 func TestDeletionOmitsInsert(t *testing.T) {
