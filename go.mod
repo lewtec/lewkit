@@ -24,7 +24,7 @@ require (
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/getsops/sops/v3 v3.10.2
 	github.com/git-pkgs/gitignore v1.2.0
-	github.com/godbus/dbus/v5 v5.2.2
+	github.com/godbus/dbus/v5 v5.2.4
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/google/uuid v1.6.0
 	github.com/hajimehoshi/go-mp3 v0.3.4
