@@ -5,12 +5,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
 
 func available(context.Context) error {
-	if err := driver.ForGOOS("darwin"); err != nil {
+	if err := driver.ForGOOS(build.GOOSDarwin); err != nil {
 		return err
 	}
 	if driver.AppMode() {

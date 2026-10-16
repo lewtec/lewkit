@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
 )
@@ -105,7 +106,7 @@ func Available() bool { return Dir() != "" }
 
 // Require reports ErrIncompatible when this process is not ios or no host directory is set.
 func Require() error {
-	if err := driver.ForGOOS("ios"); err != nil {
+	if err := driver.ForGOOS(build.GOOSIOS); err != nil {
 		return err
 	}
 	if !Available() {

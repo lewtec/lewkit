@@ -377,12 +377,9 @@ func applyMVN[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Node)
 	shape := x.Shape()
 	n := 1
 	for _, a := range axes {
-		axis := int(a)
-		if axis < 0 {
-			axis += len(shape)
-		}
-		if axis < 0 || axis >= len(shape) {
-			return nil, ndarray.ErrShape
+		axis, err := axisIndex(int(a), len(shape))
+		if err != nil {
+			return nil, err
 		}
 		n *= shape[axis]
 	}
@@ -424,12 +421,9 @@ func applyRMSNorm[T ndarray.Number](values map[string]*ndarray.Tensor[T], node N
 		return nil, err
 	}
 	shape := x.Shape()
-	axis := int(node.attributeInteger("axis", -1))
-	if axis < 0 {
-		axis += len(shape)
-	}
-	if axis < 0 || axis >= len(shape) {
-		return nil, ndarray.ErrShape
+	axis, err := axisIndex(int(node.attributeInteger("axis", -1)), len(shape))
+	if err != nil {
+		return nil, err
 	}
 	eps := node.attributeFloat("epsilon", 1e-5)
 	ms := x.Mul(x)

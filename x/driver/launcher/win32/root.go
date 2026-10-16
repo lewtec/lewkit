@@ -5,6 +5,7 @@ package win32
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 )
@@ -57,7 +58,7 @@ func (backend) Confirm(ctx context.Context, message string) (bool, error) {
 
 func init() {
 	launcher.RegisterAsk("launcher_win32", 60, "Win32 (Choose)", "Win32 (Prompt)", "Win32 (Confirm)", func(context.Context) error {
-		return driver.ForGOOS("windows")
+		return driver.ForGOOS(build.GOOSWindows)
 	}, func(context.Context) (backend, error) {
 		return backend{}, nil
 	})

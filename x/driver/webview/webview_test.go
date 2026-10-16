@@ -1,8 +1,10 @@
 package webview
 
 import (
+	"context"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -54,6 +56,33 @@ func TestReadPage(t *testing.T) {
 
 	_, _, err = ReadPage("", files, "/missing")
 	require.Error(t, err)
+}
+
+type closeView struct {
+	closed chan struct{}
+}
+
+func (closeView) Evaluate(context.Context, string) (string, error) { return "", nil }
+func (closeView) Messages() <-chan []byte                          { return nil }
+func (closeView) Done() <-chan struct{}                            { return nil }
+func (v closeView) Close() error {
+	close(v.closed)
+	return nil
+}
+
+func TestCloseWhenDone(t *testing.T) {
+	view := closeView{closed: make(chan struct{})}
+	ctx, cancel := context.WithCancel(t.Context())
+	CloseWhenDone(ctx, view)
+	cancel()
+	require.Eventually(t, func() bool {
+		select {
+		case <-view.closed:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 5*time.Millisecond)
 }
 
 func TestContentType(t *testing.T) {

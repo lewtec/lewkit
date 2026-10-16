@@ -5,16 +5,17 @@ package portal
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 )
 
 // Available reports that the portal file chooser is a Linux driver.
 func Available(context.Context, string) error {
-	return driver.ForGOOS("linux")
+	return driver.ForGOOS(build.GOOSLinux)
 }
 
 // Choose reports that the portal file chooser is a Linux driver.
 func Choose(context.Context, string, filedialog.Request) ([]string, error) {
-	return nil, driver.ForGOOS("linux")
+	return nil, driver.ForGOOS(build.GOOSLinux)
 }

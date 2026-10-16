@@ -156,12 +156,9 @@ func applyCenterCropPad[T ndarray.Number](values map[string]*ndarray.Tensor[T], 
 		shrink[i] = [2]int{0, dim}
 	}
 	for i, a := range axes {
-		axis := int(a)
-		if axis < 0 {
-			axis += len(shape)
-		}
-		if axis < 0 || axis >= len(shape) {
-			return nil, ndarray.ErrShape
+		axis, err := axisIndex(int(a), len(shape))
+		if err != nil {
+			return nil, err
 		}
 		want := int(target[i])
 		have := shape[axis]
@@ -334,12 +331,9 @@ func applySlice[T ndarray.Number](values map[string]*ndarray.Tensor[T], node Nod
 		ranges[i] = [2]int{0, dim}
 	}
 	for i, axis := range axes {
-		a := int(axis)
-		if a < 0 {
-			a += len(shape)
-		}
-		if a < 0 || a >= len(shape) {
-			return nil, ndarray.ErrShape
+		a, err := axisIndex(int(axis), len(shape))
+		if err != nil {
+			return nil, err
 		}
 		dim := shape[a]
 		start, end := int(starts[i]), int(ends[i])
@@ -477,12 +471,9 @@ func applySoftmax[T ndarray.Number](values map[string]*ndarray.Tensor[T], node N
 		return nil, err
 	}
 	shape := x.Shape()
-	axis := int(node.attributeInteger("axis", -1))
-	if axis < 0 {
-		axis += len(shape)
-	}
-	if axis < 0 || axis >= len(shape) {
-		return nil, ndarray.ErrShape
+	axis, err := axisIndex(int(node.attributeInteger("axis", -1)), len(shape))
+	if err != nil {
+		return nil, err
 	}
 	m, err := reduceAxis(x, axis, (*ndarray.Tensor[T]).Max)
 	if err != nil {

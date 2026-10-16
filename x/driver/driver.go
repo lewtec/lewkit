@@ -44,12 +44,13 @@ var (
 )
 
 // ForGOOS reports [ErrIncompatible] when this process is not goos.
-// The text is "not <goos>".
-func ForGOOS(goos string) error {
-	if runtime.GOOS == goos {
+// The text is "not <goos>". goos is a build.GOOS value.
+func ForGOOS[T ~string](goos T) error {
+	name := string(goos)
+	if runtime.GOOS == name {
 		return nil
 	}
-	return fmt.Errorf("%w: not %s", ErrIncompatible, goos)
+	return fmt.Errorf("%w: not %s", ErrIncompatible, name)
 }
 
 // DriverFactory is one source of drivers for capability T. Name may

@@ -11,10 +11,11 @@ import (
 
 // IncompatibleOff skips when runtime.GOOS is one of hosts.
 // Otherwise check must return [driver.ErrIncompatible].
-func IncompatibleOff(tb testing.TB, check func(context.Context) error, hosts ...string) {
+// hosts are build.GOOS values.
+func IncompatibleOff[T ~string](tb testing.TB, check func(context.Context) error, hosts ...T) {
 	tb.Helper()
 	for _, host := range hosts {
-		if runtime.GOOS == host {
+		if runtime.GOOS == string(host) {
 			Skip(tb)
 		}
 	}

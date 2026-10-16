@@ -61,11 +61,8 @@ var (
 )
 
 func (opener) Choose(ctx context.Context, req filedialog.Request) ([]string, error) {
-	if err := ctx.Err(); err != nil {
+	if err := filedialog.Accept(ctx, req); err != nil {
 		return nil, err
-	}
-	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
 	if !thread.Bound() {
 		return nil, errNotBound

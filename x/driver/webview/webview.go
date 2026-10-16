@@ -128,6 +128,11 @@ func ContentType(name string) string {
 	}
 }
 
+// CloseWhenDone closes view when ctx is done.
+func CloseWhenDone(ctx context.Context, view View) {
+	context.AfterFunc(ctx, func() { _ = view.Close() })
+}
+
 // View is one OS web view.
 //
 // Messages delivers JSON text from window.<ScriptName>.post / postMessage.

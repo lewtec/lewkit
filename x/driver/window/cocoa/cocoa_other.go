@@ -5,10 +5,11 @@ package cocoa
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
 )
 
 func (cdriver) Open(context.Context, window.Config) (window.Window, error) {
-	return nil, driver.ForGOOS("darwin")
+	return nil, driver.ForGOOS(build.GOOSDarwin)
 }

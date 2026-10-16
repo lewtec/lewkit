@@ -34,11 +34,8 @@ func (factory) New(context.Context) (filedialog.Driver, error) { return backend{
 type backend struct{}
 
 func (backend) Choose(ctx context.Context, req filedialog.Request) (paths []string, err error) {
-	if err := ctx.Err(); err != nil {
+	if err := filedialog.Accept(ctx, req); err != nil {
 		return nil, err
-	}
-	if err := req.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", filedialog.ErrRequest, err)
 	}
 	if on, err := androidffi.OnLooper(); err == nil && on {
 		return nil, fmt.Errorf("%w: %w", driver.ErrUnavailable, errMainLooper)

@@ -5,14 +5,15 @@ package cocoa
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 )
 
 func available(context.Context) error {
-	return driver.ForGOOS("darwin")
+	return driver.ForGOOS(build.GOOSDarwin)
 }
 
 func open(context.Context) (daynight.Driver, error) {
-	return nil, driver.ForGOOS("darwin")
+	return nil, driver.ForGOOS(build.GOOSDarwin)
 }

@@ -4,6 +4,7 @@ package win32
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 )
@@ -15,7 +16,7 @@ func (factory) Name() string { return "CommonItemDialog" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	return driver.ForGOOS("windows")
+	return driver.ForGOOS(build.GOOSWindows)
 }
 
 func (factory) New(context.Context) (filedialog.Driver, error) {
