@@ -1,14 +1,15 @@
 package clib
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 )
 
@@ -155,12 +156,15 @@ func readExports(dir string) ([]string, error) {
 }
 
 func runGo(ctx context.Context, dir string, env []string, args ...string) error {
-	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd := execdriver.MustCommand(ctx, "go", args...)
 	cmd.Dir = dir
 	cmd.Env = env
-	out, err := cmd.CombinedOutput()
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err := execdriver.Run(ctx, cmd)
 	if err != nil {
-		text := strings.TrimSpace(string(out))
+		text := strings.TrimSpace(out.String())
 		if text == "" {
 			return fmt.Errorf("%w %s: %w", ErrRunGoClibGo2, args[0], err)
 		}

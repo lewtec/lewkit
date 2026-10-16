@@ -21,7 +21,7 @@ func TestLinkFlags(t *testing.T) {
 	}
 	f, err := Overlay().Open("goos/goos.go")
 	if err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	f.Close()
 }

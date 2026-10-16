@@ -46,7 +46,16 @@ func current() Driver {
 func Bind(ctx context.Context) { open(ctx).Bind() }
 
 // Bound reports whether Bind has been called.
-func Bound() bool { return current().Bound() }
+// No open driver is unbound. It does not panic.
+func Bound() bool {
+	mu.Lock()
+	d := ui
+	mu.Unlock()
+	if d == nil {
+		return false
+	}
+	return d.Bound()
+}
 
 // On reports whether this goroutine is on the UI thread.
 func On() bool { return current().On() }

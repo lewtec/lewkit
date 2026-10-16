@@ -61,7 +61,7 @@ func parsePathD(s string) ([]PathCmd, error) {
 				cmd -= 'a' - 'A'
 			}
 		} else if cmd == 0 {
-			return nil, fmt.Errorf("parse: path d must start with a command")
+			return nil, fmt.Errorf("%w: path d must start with a command", errParse)
 		}
 		rel := t.last >= 'a' && t.last <= 'z'
 		switch cmd {
@@ -250,10 +250,10 @@ func parsePathD(s string) ([]PathCmd, error) {
 			cx, cy = mx, my
 			prevC, prevQ = false, false
 		default:
-			return nil, fmt.Errorf("parse: path command %c not supported", cmd)
+			return nil, fmt.Errorf("%w: path command %c not supported", errParse, cmd)
 		}
 		if len(cmds) > maxPathCmds {
-			return nil, fmt.Errorf("path: more than %d commands", maxPathCmds)
+			return nil, fmt.Errorf("%w: more than %d commands", errPath, maxPathCmds)
 		}
 	}
 	return cmds, nil
@@ -305,7 +305,7 @@ func isPathCmd(c byte) bool {
 func (t *pathTok) num() (float64, error) {
 	t.skip()
 	if t.done() {
-		return 0, fmt.Errorf("parse: path number expected")
+		return 0, fmt.Errorf("%w: path number expected", errParse)
 	}
 	start := t.i
 	if t.s[t.i] == '+' || t.s[t.i] == '-' {
@@ -334,11 +334,11 @@ func (t *pathTok) num() (float64, error) {
 		break
 	}
 	if t.i == start || (t.i == start+1 && (t.s[start] == '+' || t.s[start] == '-')) {
-		return 0, fmt.Errorf("parse: path number expected")
+		return 0, fmt.Errorf("%w: path number expected", errParse)
 	}
 	v, err := strconv.ParseFloat(t.s[start:t.i], 64)
 	if err != nil {
-		return 0, fmt.Errorf("parse: path number: %w", err)
+		return 0, fmt.Errorf("%w: path number: %w", errParse, err)
 	}
 	return v, nil
 }
@@ -346,7 +346,7 @@ func (t *pathTok) num() (float64, error) {
 func (t *pathTok) flag() (bool, error) {
 	t.skip()
 	if t.done() {
-		return false, fmt.Errorf("parse: path flag expected")
+		return false, fmt.Errorf("%w: path flag expected", errParse)
 	}
 	switch t.next() {
 	case '0':
@@ -354,7 +354,7 @@ func (t *pathTok) flag() (bool, error) {
 	case '1':
 		return true, nil
 	default:
-		return false, fmt.Errorf("parse: path flag expected")
+		return false, fmt.Errorf("%w: path flag expected", errParse)
 	}
 }
 

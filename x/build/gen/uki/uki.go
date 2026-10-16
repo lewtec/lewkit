@@ -18,7 +18,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -27,12 +26,21 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/release"
 )
 
 var (
-	ErrQEMU = errors.New("uki: qemu not found")
-	ErrOVMF = errors.New("uki: OVMF_CODE or OVMF_VARS is unset")
+	ErrQEMU            = errs.Wrap(errs.ErrNotFound, "uki: qemu not found")
+	ErrOVMF            = errors.New("uki: OVMF_CODE or OVMF_VARS is unset")
+	errApkNoKernel     = errs.Wrap(errs.ErrNotFound, "uki: apk has no vmlinuz-virt")
+	errApkNoModules    = errs.Wrap(errs.ErrNotFound, "uki: apk has no modules.dep")
+	errEmptyOutput     = errs.Wrap(errs.ErrEmpty, "uki: empty output")
+	errImageNotPEOrISO = errs.Wrap(errs.ErrInvalid, "uki: image is not a PE or an ISO")
+	// errKept adds no words. The other values are the sentence.
+	errKept = errors.New("")
+	errUKI  = errors.New("uki")
 )
 
 // guestCmdline is stored in the UKI. QEMU does not pass -append.
@@ -73,10 +81,10 @@ func Build(ctx context.Context, opt Options) error {
 	switch opt.GOOS {
 	case "", "linux_uki", "linux_iso":
 	default:
-		return fmt.Errorf("uki: goos %s", opt.GOOS)
+		return fmt.Errorf("%w: goos %s", errUKI, opt.GOOS)
 	}
 	if strings.TrimSpace(opt.Out) == "" {
-		return errors.New("uki: empty output")
+		return errEmptyOutput
 	}
 	// The pinned package is the kernel and the modules. A caller-supplied
 	// vmlinuz replaces only the image; the modules stay this package.
@@ -223,10 +231,10 @@ func readKernel(file string, modules bool) (kernelImage, error) {
 		}
 	}
 	if len(image.kernel) == 0 {
-		return kernelImage{}, errors.New("uki: apk has no vmlinuz-virt")
+		return kernelImage{}, errApkNoKernel
 	}
 	if dep == "" {
-		return kernelImage{}, errors.New("uki: apk has no modules.dep")
+		return kernelImage{}, errApkNoModules
 	}
 	order, err := moduleOrder(dep, builtin)
 	if err != nil {
@@ -237,7 +245,7 @@ func readKernel(file string, modules bool) (kernelImage, error) {
 	for _, name := range order {
 		raw, ok := staged[name]
 		if !ok {
-			return kernelImage{}, fmt.Errorf("uki: missing %s", name)
+			return kernelImage{}, fmt.Errorf("%w: missing %s", errUKI, name)
 		}
 		image.files[name] = raw
 	}
@@ -257,7 +265,7 @@ func compile(ctx context.Context, opt Options, appPath, initPath string) error {
 		Args: []string{"-trimpath", "-ldflags", stamp, "-o", appPath, "."},
 	}.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("uki: app: %w", err)
+		return fmt.Errorf("%w: app: %w", errUKI, err)
 	}
 	err = gocmd.Command{
 		Dir:  guestSource(),
@@ -265,7 +273,7 @@ func compile(ctx context.Context, opt Options, appPath, initPath string) error {
 		Args: []string{"-trimpath", "-o", initPath, "."},
 	}.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("uki: init: %w", err)
+		return fmt.Errorf("%w: init: %w", errUKI, err)
 	}
 	return nil
 }
@@ -325,7 +333,7 @@ func dynamicLibs(ctx context.Context, goarch, bin string) ([]cpioFile, error) {
 			return nil, err
 		}
 		if len(hits) == 0 {
-			return nil, fmt.Errorf("uki: library %s: not found", name)
+			return nil, fmt.Errorf("%w: library %s: not found", errUKI, name)
 		}
 		for _, hit := range hits {
 			if seenGuest[hit.guest] {
@@ -341,7 +349,7 @@ func dynamicLibs(ctx context.Context, goarch, bin string) ([]cpioFile, error) {
 		}
 	}
 	if len(files) < 2 {
-		return nil, fmt.Errorf("uki: no libraries for %s", interp)
+		return nil, fmt.Errorf("%w: no libraries for %s", errUKI, interp)
 	}
 	return files, nil
 }
@@ -452,7 +460,7 @@ func bootArgs(ctx context.Context, image, serial, shot string, extra []string) e
 	if err != nil {
 		return err
 	}
-	bin, err := qemuBin(goarch)
+	bin, err := qemuBin(ctx, goarch)
 	if err != nil {
 		return err
 	}
@@ -507,7 +515,7 @@ func bootArgs(ctx context.Context, image, serial, shot string, extra []string) e
 	} else {
 		args = append(args, "-serial", "file:"+serial)
 	}
-	cmd := exec.Command(bin, args...)
+	cmd := execdriver.MustCommand(ctx, bin, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -566,10 +574,10 @@ func bootArch(path string) (string, string, error) {
 	}
 	magic := make([]byte, 6)
 	if _, err := io.ReadFull(f, magic); err != nil {
-		return "", "", errors.New("uki: image is not a PE or an ISO")
+		return "", "", errImageNotPEOrISO
 	}
 	if string(magic[1:]) != "CD001" {
-		return "", "", errors.New("uki: image is not a PE or an ISO")
+		return "", "", errImageNotPEOrISO
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -703,7 +711,7 @@ func discardMonitor(conn net.Conn) {
 	}
 }
 
-func qemuBin(goarch string) (string, error) {
+func qemuBin(ctx context.Context, goarch string) (string, error) {
 	if goarch == "amd64" {
 		if p := strings.TrimSpace(os.Getenv("QEMU_SYSTEM")); p != "" {
 			return p, nil
@@ -713,7 +721,7 @@ func qemuBin(goarch string) (string, error) {
 	if goarch == "arm64" {
 		name = "qemu-system-aarch64"
 	}
-	p, err := exec.LookPath(name)
+	p, err := execdriver.Which(ctx, name)
 	if err != nil {
 		return "", ErrQEMU
 	}
@@ -740,7 +748,7 @@ func qemuExit(err error, serial string) error {
 	if len(tail) > 4000 {
 		tail = tail[len(tail)-4000:]
 	}
-	return fmt.Errorf("%w\n%s", err, tail)
+	return fmt.Errorf("%w%w\n%s", errKept, err, tail)
 }
 
 // frameDrawn reports whether a PPM screendump has a painted picture.

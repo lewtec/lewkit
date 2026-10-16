@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/errs"
@@ -40,11 +39,11 @@ func TestSymABIsAllowsAssemblyDecl(t *testing.T) {
 	work := t.TempDir()
 	src := filepath.Join(work, "p.go")
 	if err := os.WriteFile(src, []byte("package p\n\nfunc External()\n"), 0o644); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	cfg := filepath.Join(work, "p.cfg")
 	if err := os.WriteFile(cfg, []byte("# import config\n"), 0o644); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	archive := filepath.Join(work, "p.a")
 	unit := Unit{
@@ -54,16 +53,15 @@ func TestSymABIsAllowsAssemblyDecl(t *testing.T) {
 		Archive:    archive,
 	}
 	err := Build(t.Context(), []Unit{unit}, nil)
-	if err == nil || !strings.Contains(err.Error(), "missing function body") {
-		t.Fatalf("complete compile: %v", err)
-	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "missing function body")
 	sym := filepath.Join(work, "symabis")
 	if err := os.WriteFile(sym, []byte("def example.com/p.External ABI0\n"), 0o644); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 	unit.SymABIs = sym
 	if err := Build(t.Context(), []Unit{unit}, nil); err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 }
 

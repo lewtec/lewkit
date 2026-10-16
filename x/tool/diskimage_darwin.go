@@ -3,12 +3,19 @@
 package tool
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+)
+
+var (
+	errDitto = errors.New("ditto")
 )
 
 func mountDiskImage(ctx context.Context, source string) (string, func(), error) {
@@ -16,15 +23,14 @@ func mountDiskImage(ctx context.Context, source string) (string, func(), error) 
 	if err != nil {
 		return "", nil, err
 	}
-	command := exec.CommandContext(ctx, "hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-quiet", "-mountpoint", mountpoint, source)
-	output, err := command.CombinedOutput()
+	output, err := runCombined(ctx, "hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-quiet", "-mountpoint", mountpoint, source)
 	if err != nil {
-		_ = exec.Command("hdiutil", "detach", "-quiet", mountpoint).Run()
+		_, _ = runCombined(context.WithoutCancel(ctx), "hdiutil", "detach", "-quiet", mountpoint)
 		os.RemoveAll(mountpoint)
 		return "", nil, fmt.Errorf("%w: hdiutil attach: %w: %s", ErrDiskImageMount, err, commandOutput(output))
 	}
 	cleanup := func() {
-		_ = exec.Command("hdiutil", "detach", "-quiet", mountpoint).Run()
+		_, _ = runCombined(context.WithoutCancel(ctx), "hdiutil", "detach", "-quiet", mountpoint)
 		_ = os.RemoveAll(mountpoint)
 	}
 	return mountpoint, cleanup, nil
@@ -54,13 +60,21 @@ func copyVolume(ctx context.Context, source, destination string) error {
 			}
 			continue
 		}
-		command := exec.CommandContext(ctx, "ditto", from, to)
-		output, err := command.CombinedOutput()
+		output, err := runCombined(ctx, "ditto", from, to)
 		if err != nil {
-			return fmt.Errorf("ditto %s: %w: %s", entry.Name(), err, commandOutput(output))
+			return fmt.Errorf("%w %s: %w: %s", errDitto, entry.Name(), err, commandOutput(output))
 		}
 	}
 	return nil
+}
+
+func runCombined(ctx context.Context, name string, args ...string) ([]byte, error) {
+	cmd := execdriver.MustCommand(ctx, name, args...)
+	var output bytes.Buffer
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	err := execdriver.Run(ctx, cmd)
+	return output.Bytes(), err
 }
 
 func commandOutput(output []byte) string {

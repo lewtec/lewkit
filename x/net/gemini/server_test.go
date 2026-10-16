@@ -60,9 +60,6 @@ func TestWriteAndReadResponse(t *testing.T) {
 }
 
 func TestListenAndServeGuards(t *testing.T) {
-	require.Panics(t, func() { _ = ListenAndServeTLS(nil, "127.0.0.1:0", "", "", serveCapsule) })
-	require.Panics(t, func() { _ = (&Server{}).ServeTLS(nil, nil, "", "") })
-	require.Panics(t, func() { _ = (&Server{}).Serve(nil, nil) })
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

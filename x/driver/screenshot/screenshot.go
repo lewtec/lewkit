@@ -23,6 +23,8 @@ var (
 	ErrSelectionToolNotFound = errs.Wrap(errs.ErrNotFound, "selection tool not found")
 	// ErrEmptySelection means the selection tool returned no geometry.
 	ErrEmptySelection = errs.Wrap(errs.ErrEmpty, "empty selection")
+	// ErrUnknownTargetType is the name modot still aliases.
+	ErrUnknownTargetType = ErrTargetType
 )
 
 // TargetType selects what Capture should frame.

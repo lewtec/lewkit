@@ -1,13 +1,14 @@
 package unikernel
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -27,10 +28,10 @@ func mbrImage(ctx context.Context, elf []byte) ([]byte, error) {
 
 func packMBR(boot, elf []byte) ([]byte, error) {
 	if len(boot) < mbrBytes || binary.LittleEndian.Uint16(boot[510:512]) != 0xAA55 {
-		return nil, fmt.Errorf("unikernel: boot sector missing 0x55AA")
+		return nil, fmt.Errorf("%w: boot sector missing 0x55AA", errUnikernel)
 	}
 	if len(boot) > elfLBA*mbrBytes {
-		return nil, fmt.Errorf("unikernel: stage2 is %d bytes", len(boot))
+		return nil, fmt.Errorf("%w: stage2 is %d bytes", errUnikernel, len(boot))
 	}
 	img := make([]byte, elfLBA*mbrBytes+len(elf)+bouncePad)
 	copy(img, boot)
@@ -41,13 +42,13 @@ func packMBR(boot, elf []byte) ([]byte, error) {
 }
 
 func assembleBoot(ctx context.Context) ([]byte, error) {
-	as, err := exec.LookPath("as")
+	as, err := execdriver.Which(ctx, "as")
 	if err != nil {
-		return nil, fmt.Errorf("unikernel: as: %w", err)
+		return nil, fmt.Errorf("%w: as: %w", errUnikernel, err)
 	}
-	ld, err := exec.LookPath("ld")
+	ld, err := execdriver.Which(ctx, "ld")
 	if err != nil {
-		return nil, fmt.Errorf("unikernel: ld: %w", err)
+		return nil, fmt.Errorf("%w: ld: %w", errUnikernel, err)
 	}
 	dir, err := os.MkdirTemp("", release.Name()+"-mbr-")
 	if err != nil {
@@ -64,18 +65,18 @@ func assembleBoot(ctx context.Context) ([]byte, error) {
 		}
 	}
 	if err := run(ctx, dir, as, "--32", "-o", "boot.o", "boot.S"); err != nil {
-		return nil, fmt.Errorf("unikernel: as: %w", err)
+		return nil, fmt.Errorf("%w: as: %w", errUnikernel, err)
 	}
 	if err := run(ctx, dir, ld, "-m", "elf_i386", "-T", "link.ld", "-o", "boot.bin", "boot.o"); err != nil {
-		return nil, fmt.Errorf("unikernel: ld: %w", err)
+		return nil, fmt.Errorf("%w: ld: %w", errUnikernel, err)
 	}
 	return os.ReadFile(filepath.Join(dir, "boot.bin"))
 }
 
 func efiImage(ctx context.Context, elf []byte) ([]byte, error) {
-	objcopy, err := exec.LookPath("objcopy")
+	objcopy, err := execdriver.Which(ctx, "objcopy")
 	if err != nil {
-		return nil, fmt.Errorf("unikernel: objcopy: %w", err)
+		return nil, fmt.Errorf("%w: objcopy: %w", errUnikernel, err)
 	}
 	dir, err := os.MkdirTemp("", release.Name()+"-efi-")
 	if err != nil {
@@ -96,19 +97,19 @@ func efiImage(ctx context.Context, elf []byte) ([]byte, error) {
 		elfPath, efiPath,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("unikernel: objcopy: %w", err)
+		return nil, fmt.Errorf("%w: objcopy: %w", errUnikernel, err)
 	}
 	b, err := os.ReadFile(efiPath)
 	if err != nil {
 		return nil, err
 	}
 	if len(b) < 0x40 || binary.LittleEndian.Uint16(b[0:2]) != 0x5A4D {
-		return nil, fmt.Errorf("unikernel: objcopy did not write a PE image")
+		return nil, fmt.Errorf("%w: objcopy did not write a PE image", errUnikernel)
 	}
 	lfanew := binary.LittleEndian.Uint32(b[0x3c:])
 	chars := int(lfanew) + 4 + 18
 	if chars+2 > len(b) {
-		return nil, fmt.Errorf("unikernel: PE characteristics out of range")
+		return nil, fmt.Errorf("%w: PE characteristics out of range", errUnikernel)
 	}
 	// Executable, large-address aware. Some firmware rejects the objcopy default.
 	binary.LittleEndian.PutUint16(b[chars:], 0x0226)
@@ -116,11 +117,13 @@ func efiImage(ctx context.Context, elf []byte) ([]byte, error) {
 }
 
 func run(ctx context.Context, dir, name string, args ...string) error {
-	cmd := exec.CommandContext(ctx, name, args...)
+	cmd := execdriver.MustCommand(ctx, name, args...)
 	cmd.Dir = dir
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s: %w", out, err)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := execdriver.Run(ctx, cmd); err != nil {
+		return fmt.Errorf("%w%s: %w", errKept, out.Bytes(), err)
 	}
 	return nil
 }

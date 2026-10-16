@@ -46,7 +46,7 @@ func recvKey(t *testing.T, events <-chan window.Event) window.Key {
 		require.True(t, ok)
 		return key
 	case <-time.After(time.Second):
-		t.Fatal("no key")
+		require.FailNow(t, "no key")
 	}
 	return window.Key{}
 }
@@ -59,7 +59,7 @@ func recvPointer(t *testing.T, events <-chan window.Event) window.Pointer {
 		require.True(t, ok)
 		return ptr
 	case <-time.After(time.Second):
-		t.Fatal("no pointer")
+		require.FailNow(t, "no pointer")
 	}
 	return window.Pointer{}
 }
