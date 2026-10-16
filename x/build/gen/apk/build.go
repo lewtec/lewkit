@@ -232,7 +232,10 @@ func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (
 func entryExportFile(ctx context.Context) (string, error) {
 	cmd := execdriver.MustCommand(ctx, "go", "list", "-f", "{{.Dir}}", "github.com/lewtec/lewkit/x/entry/android")
 	// The app main may be another module. go list has to run in this one.
+	// Every file in the package is //go:build android, so the host GOOS
+	// reports that build constraints exclude them all.
 	cmd.Dir = lewkitDir()
+	cmd.Env = envReplace(os.Environ(), "GOOS", "android")
 	out, err := execdriver.Output(ctx, cmd)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrAndroidEntryDir, err)
@@ -246,6 +249,20 @@ func entryExportFile(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return file, nil
+}
+
+// envReplace returns env with key set to value.
+// os/exec keeps the first value when a key is repeated, so the old one is dropped.
+func envReplace(env []string, key, value string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env)+1)
+	for _, kv := range env {
+		if strings.HasPrefix(kv, prefix) {
+			continue
+		}
+		out = append(out, kv)
+	}
+	return append(out, prefix+value)
 }
 
 // lewkitDir is the directory of the module that contains this package.
