@@ -3,11 +3,13 @@ package apk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/report"
 	"github.com/lewtec/lewkit/x/build/gen/common"
 )
 
@@ -69,6 +71,9 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 	}
 	st, err := os.Stat(path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			err = report.DoNotReport(err)
+		}
 		return Config{}, "", err
 	}
 	var file string
@@ -81,6 +86,9 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 	}
 	raw, err := os.ReadFile(file)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			err = report.DoNotReport(err)
+		}
 		return Config{}, "", err
 	}
 	var doc fileConfig

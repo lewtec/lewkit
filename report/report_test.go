@@ -1,6 +1,7 @@
 package report
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -56,4 +57,16 @@ func TestReportSkipsErrDontReport(t *testing.T) {
 	Report(errBoom)
 	require.Equal(t, 1, capture.calls)
 	require.ErrorIs(t, capture.err, errBoom)
+}
+
+func TestReportSkipsContextCanceled(t *testing.T) {
+	previous := append([]Reporter(nil), reporters...)
+	t.Cleanup(func() { reporters = previous })
+	reporters = nil
+
+	capture := &captureReporter{}
+	RegisterReporter(capture)
+	Report(context.Canceled)
+	Report(fmt.Errorf("wait: %w", context.Canceled))
+	require.Zero(t, capture.calls)
 }

@@ -1,6 +1,7 @@
 package report
 
 import (
+	"context"
 	"errors"
 
 	"golang.org/x/sync/errgroup"
@@ -35,7 +36,11 @@ type Reporter interface {
 
 // Report reports an error to all reporters.
 // A nil error, and an error that matches ErrDontReport, are ignored.
+// Context cancel is an operator interrupt, so it takes that same path.
 func Report(err error) {
+	if errors.Is(err, context.Canceled) {
+		err = DoNotReport(err)
+	}
 	if err == nil || errors.Is(err, ErrDontReport) {
 		return
 	}
