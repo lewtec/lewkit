@@ -3,6 +3,7 @@ package webkitgtk
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
 )
@@ -14,7 +15,7 @@ func (factory) Name() string { return "WebKitGTK" }
 func (factory) Weight() int  { return 50 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.ForGOOS("linux"); err != nil {
+	if err := driver.ForGOOS(build.GOOSLinux); err != nil {
 		return err
 	}
 	if err := driver.RequireAnyEnv(ctx, "DISPLAY", "WAYLAND_DISPLAY"); err != nil {

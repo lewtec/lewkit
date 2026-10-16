@@ -3,6 +3,7 @@ package android
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/webview"
 )
@@ -16,7 +17,7 @@ func (factory) Name() string { return "Android WebView" }
 func (factory) Weight() int  { return 80 }
 
 func (factory) CheckCompatibility(context.Context) error {
-	if err := driver.ForGOOS("android"); err != nil {
+	if err := driver.ForGOOS(build.GOOSAndroid); err != nil {
 		return err
 	}
 	return driver.JavaVM()

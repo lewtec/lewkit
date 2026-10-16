@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver/askwire"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/iosbox"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestNotIOS(t *testing.T) {
-	test.IncompatibleOff(t, factory{}.CheckCompatibility, "ios")
+	test.IncompatibleOff(t, factory{}.CheckCompatibility, build.GOOSIOS)
 }
 
 func TestChoose(t *testing.T) {

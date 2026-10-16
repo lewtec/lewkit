@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/iosbox"
 	"github.com/lewtec/lewkit/x/test"
@@ -15,7 +16,7 @@ import (
 )
 
 func TestNotIOS(t *testing.T) {
-	test.IncompatibleOff(t, factory{}.CheckCompatibility, "ios")
+	test.IncompatibleOff(t, factory{}.CheckCompatibility, build.GOOSIOS)
 }
 
 func TestCurrentAndWatch(t *testing.T) {

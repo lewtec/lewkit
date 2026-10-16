@@ -4,6 +4,7 @@ package winstart
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/opener"
 )
@@ -15,7 +16,7 @@ func (factory) Name() string { return "start" }
 func (factory) Weight() int  { return 60 }
 
 func (factory) CheckCompatibility(ctx context.Context) error {
-	if err := driver.ForGOOS("windows"); err != nil {
+	if err := driver.ForGOOS(build.GOOSWindows); err != nil {
 		return err
 	}
 	return opener.RequireTool(ctx, "cmd")

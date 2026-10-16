@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver/battery"
 	"github.com/lewtec/lewkit/x/driver/iosbox"
 	"github.com/lewtec/lewkit/x/test"
@@ -12,7 +13,7 @@ import (
 )
 
 func TestNotIOS(t *testing.T) {
-	test.IncompatibleOff(t, factory{}.CheckCompatibility, "ios")
+	test.IncompatibleOff(t, factory{}.CheckCompatibility, build.GOOSIOS)
 }
 
 func TestReadsHostFile(t *testing.T) {
