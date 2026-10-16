@@ -161,8 +161,8 @@ func TestSyntax(t *testing.T) {
 	}
 }
 
-// Official examples are copied from
-// https://gitlab.com/graphviz/graphviz/-/tree/main/graphs (EPL-2.0).
+// Official examples are placed by modot from
+// github:ellson/MOTHBALLED-graphviz graphs/ (EPL-2.0).
 func TestOfficialRoundTrip(t *testing.T) {
 	t.Parallel()
 	entries, err := os.ReadDir("testdata")

@@ -28,6 +28,10 @@ inputs: golang: {
 	from:    "github:golang/go"
 	version: "go1.27.0"
 }
+inputs: graphviz: {
+	from:    "github:ellson/MOTHBALLED-graphviz"
+	version: "master"
+}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
@@ -118,6 +122,32 @@ file: codebase: {
 	"x/toolchain/go/_upstream/telemetry": {
 		type:   "place"
 		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
+	}
+	// Graphviz examples (EPL-2.0) from the mothballed GitHub tree.
+	"x/takemake/graphviz/testdata": {
+		type: "place"
+		source: {
+			abstract: "graphviz:graphs/directed/abstract.gv"
+			arrows:   "graphviz:graphs/directed/arrows.gv"
+			clust:    "graphviz:graphs/directed/clust.gv"
+			clust1:   "graphviz:graphs/directed/clust1.gv"
+			dfa:      "graphviz:graphs/directed/dfa.gv"
+			fsm:      "graphviz:graphs/directed/fsm.gv"
+			grammar:  "graphviz:graphs/directed/grammar.gv"
+			nan:      "graphviz:graphs/directed/NaN.gv"
+			records:  "graphviz:graphs/directed/records.gv"
+			structs:  "graphviz:graphs/directed/structs.gv"
+			switch:   "graphviz:graphs/directed/switch.gv"
+			table:    "graphviz:graphs/directed/table.gv"
+			unix:     "graphviz:graphs/directed/unix.gv"
+			world:    "graphviz:graphs/directed/world.gv"
+			er:       "graphviz:graphs/undirected/ER.gv"
+			petersen: "graphviz:graphs/undirected/Petersen.gv"
+		}
+		steps: "10_require": {
+			op: "require"
+			patterns: gv: "*.gv"
+		}
 	}
 }
 
