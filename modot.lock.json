@@ -24,6 +24,15 @@
       "datasource": "github-releases"
     },
     {
+      "kind": "source",
+      "ref": "github:ellson/MOTHBALLED-graphviz",
+      "depName": "ellson/MOTHBALLED-graphviz",
+      "packageName": "https://github.com/ellson/MOTHBALLED-graphviz",
+      "currentValue": "master",
+      "currentDigest": "ac239f71ea9f807590505e6862cebe50e992e271",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "github:getsops/sops",
       "depName": "getsops/sops",
