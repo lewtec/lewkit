@@ -7,14 +7,17 @@ import (
 )
 
 type parser struct {
-	lx  *lexer
-	cur token
-	nxt token
+	lx      *lexer
+	cur     token
+	nxt     token
+	far     token
+	lastEnd int
 }
 
 func parse(src string) (*File, error) {
 	p := &parser{lx: newLexer(src)}
 	p.nxt = p.lx.next()
+	p.far = p.lx.next()
 	p.bump()
 	file, err := p.parseFile()
 	if err != nil {
@@ -27,8 +30,12 @@ func parse(src string) (*File, error) {
 }
 
 func (p *parser) bump() {
+	if p.cur.end > p.lastEnd {
+		p.lastEnd = p.cur.end
+	}
 	p.cur = p.nxt
-	p.nxt = p.lx.next()
+	p.nxt = p.far
+	p.far = p.lx.next()
 }
 
 func (p *parser) syntax(what string) error {
@@ -154,15 +161,21 @@ func (p *parser) parseFile() (*File, error) {
 				return nil, err
 			}
 		case p.punct('!'):
-			if err := p.skipModuleMD(); err != nil {
+			if err := p.parseMetaDef(file); err != nil {
 				return nil, err
 			}
 		case p.ident("attributes"):
-			if err := p.skipAttrGroup(); err != nil {
+			if err := p.parseAttrGroup(file); err != nil {
 				return nil, err
 			}
 		case p.ident("module"):
-			return nil, p.unsupported("module asm")
+			if err := p.parseModuleAsm(file); err != nil {
+				return nil, err
+			}
+		case p.atComdat():
+			if err := p.parseComdat(file); err != nil {
+				return nil, err
+			}
 		default:
 			return nil, p.syntax("module")
 		}
@@ -211,57 +224,78 @@ func (p *parser) parseGlobal(file *File) error {
 		if p.cur.kind != tokIdent {
 			return p.syntax("global")
 		}
-		if p.cur.text == "global" || p.cur.text == "constant" {
-			g.IsConstant = p.cur.text == "constant"
-			p.bump()
-			break
-		}
-		if link, err := ParseLinkage(p.cur.text); err == nil {
-			if g.Linkage != "" {
-				return p.syntax("linkage")
-			}
-			g.Linkage = link
-			p.bump()
-			continue
-		}
 		switch p.cur.text {
-		case "dso_local":
-			g.DSOLocal = true
-			p.bump()
-		case "unnamed_addr":
-			g.Unnamed = UnnamedAddr
-			p.bump()
-		case "local_unnamed_addr":
-			g.Unnamed = UnnamedLocal
+		case "global", "constant", "alias", "ifunc":
+			g.IsConstant = p.cur.text == "constant"
+			g.Alias = p.cur.text == "alias"
+			g.IFunc = p.cur.text == "ifunc"
 			p.bump()
 		default:
-			return p.unsupported(p.cur.text)
+			if link, err := ParseLinkage(p.cur.text); err == nil {
+				if g.Linkage != "" {
+					return p.syntax("linkage")
+				}
+				g.Linkage = link
+				p.bump()
+				continue
+			}
+			switch p.cur.text {
+			case "dso_local":
+				g.DSOLocal = true
+				p.bump()
+				continue
+			case "unnamed_addr":
+				g.Unnamed = UnnamedAddr
+				p.bump()
+				continue
+			case "local_unnamed_addr":
+				g.Unnamed = UnnamedLocal
+				p.bump()
+				continue
+			}
+			word, err := p.takeWord()
+			if err != nil {
+				return err
+			}
+			g.Prefix = append(g.Prefix, word)
+			continue
+		}
+		break
+	}
+	if g.Alias || g.IFunc {
+		typ, err := p.parseType()
+		if err != nil {
+			return err
+		}
+		g.ValueType = typ
+		if err := p.expectPunct(','); err != nil {
+			return err
+		}
+		aliaseeType, err := p.parseType()
+		if err != nil {
+			return err
+		}
+		aliasee, err := p.parseTypedValue(aliaseeType)
+		if err != nil {
+			return err
+		}
+		g.Aliasee = &Operand{Type: aliaseeType, Value: aliasee}
+	} else {
+		typ, err := p.parseType()
+		if err != nil {
+			return err
+		}
+		g.ValueType = typ
+		if p.valueStart() {
+			init, err := p.parseTypedValue(typ)
+			if err != nil {
+				return err
+			}
+			g.Initializer = init
 		}
 	}
-	typ, err := p.parseType()
-	if err != nil {
+	if err := p.takeGlobalTrailer(g); err != nil {
 		return err
-	}
-	g.ValueType = typ
-	if p.valueStart() {
-		init, err := p.parseValue(typ)
-		if err != nil {
-			return err
-		}
-		g.Initializer = init
-	}
-	if p.acceptPunct(',') {
-		if err := p.expectIdent("align"); err != nil {
-			return p.unsupported("global trailer")
-		}
-		n, err := p.integer()
-		if err != nil {
-			return err
-		}
-		g.Alignment = int(n)
-		if p.punct(',') {
-			return p.unsupported("global trailer")
-		}
 	}
 	file.Globals = append(file.Globals, g)
 	return nil
@@ -271,7 +305,7 @@ func (p *parser) parseFunc(file *File) error {
 	defined := p.ident("define")
 	p.bump()
 	fn := &Func{Defined: defined}
-	for p.cur.kind == tokIdent && !p.typeStart() && p.cur.kind != tokLocal {
+	for p.cur.kind == tokIdent && !p.typeStart() {
 		if link, err := ParseLinkage(p.cur.text); err == nil {
 			if fn.Linkage != "" {
 				return p.syntax("linkage")
@@ -284,9 +318,37 @@ func (p *parser) parseFunc(file *File) error {
 		case "dso_local":
 			fn.DSOLocal = true
 			p.bump()
-		default:
-			return p.unsupported(p.cur.text)
+			continue
+		case "unnamed_addr":
+			fn.Unnamed = UnnamedAddr
+			p.bump()
+			continue
+		case "local_unnamed_addr":
+			fn.Unnamed = UnnamedLocal
+			p.bump()
+			continue
 		}
+		if isConv(p.cur.text) {
+			conv, err := p.takeConv()
+			if err != nil {
+				return err
+			}
+			fn.Conv = conv
+			continue
+		}
+		if isAttr(p.cur.text) {
+			attrs, err := p.takeAttrs()
+			if err != nil {
+				return err
+			}
+			fn.ResultAttrs = append(fn.ResultAttrs, attrs...)
+			continue
+		}
+		word, err := p.takeWord()
+		if err != nil {
+			return err
+		}
+		fn.Prefix = append(fn.Prefix, word)
 	}
 	ret, err := p.parseType()
 	if err != nil {
@@ -304,7 +366,7 @@ func (p *parser) parseFunc(file *File) error {
 	}
 	fn.Parameters = params
 	fn.Variadic = variadic
-	if err := p.skipFuncSuffix(fn); err != nil {
+	if err := p.parseFuncSuffix(fn); err != nil {
 		return err
 	}
 	if defined {
@@ -341,7 +403,8 @@ func (p *parser) parseParams() ([]*Param, bool, error) {
 		if err != nil {
 			return nil, false, err
 		}
-		if err := p.skipValAttrs(); err != nil {
+		attrs, err := p.takeAttrs()
+		if err != nil {
 			return nil, false, err
 		}
 		name := ""
@@ -349,7 +412,7 @@ func (p *parser) parseParams() ([]*Param, bool, error) {
 			name = p.cur.text
 			p.bump()
 		}
-		params = append(params, &Param{Name: name, Type: typ})
+		params = append(params, &Param{Name: name, Type: typ, Attrs: attrs})
 		if !p.acceptPunct(',') {
 			break
 		}
@@ -365,32 +428,6 @@ func (p *parser) parseParams() ([]*Param, bool, error) {
 	return params, variadic, nil
 }
 
-func (p *parser) skipFuncSuffix(fn *Func) error {
-	for !p.atTop() && !p.punct('{') {
-		switch {
-		case p.acceptIdent("unnamed_addr"):
-			fn.Unnamed = UnnamedAddr
-		case p.acceptIdent("local_unnamed_addr"):
-			fn.Unnamed = UnnamedLocal
-		case p.acceptPunct('#'):
-			if p.cur.kind != tokNumber {
-				return p.syntax("attribute group")
-			}
-			p.bump()
-		case p.cur.kind == tokIdent:
-			p.bump()
-			if p.punct('(') {
-				if err := p.skipDelim('(', ')'); err != nil {
-					return err
-				}
-			}
-		default:
-			return p.syntax("function suffix")
-		}
-	}
-	return nil
-}
-
 func (p *parser) parseBody(fn *Func) error {
 	for !p.punct('}') && p.cur.kind != tokEOF {
 		if p.atLabel() {
@@ -401,7 +438,7 @@ func (p *parser) parseBody(fn *Func) error {
 			continue
 		}
 		if len(fn.Blocks) == 0 {
-			return p.syntax("label")
+			fn.Blocks = append(fn.Blocks, &Block{})
 		}
 		in, err := p.parseInst()
 		if err != nil {
@@ -489,6 +526,70 @@ func (p *parser) parseInst() (*Inst, error) {
 		if err := p.skipTrailer(in, false); err != nil {
 			return nil, err
 		}
+	case "fneg":
+		if err := p.parseFNeg(in); err != nil {
+			return nil, err
+		}
+	case "freeze":
+		if err := p.parseFreeze(in); err != nil {
+			return nil, err
+		}
+	case "select":
+		if err := p.parseSelect(in); err != nil {
+			return nil, err
+		}
+	case "extractelement":
+		if err := p.parseExtractElt(in); err != nil {
+			return nil, err
+		}
+	case "insertelement":
+		if err := p.parseInsertElt(in); err != nil {
+			return nil, err
+		}
+	case "shufflevector":
+		if err := p.parseShuffle(in); err != nil {
+			return nil, err
+		}
+	case "atomicrmw":
+		if err := p.parseAtomicRMW(in); err != nil {
+			return nil, err
+		}
+	case "cmpxchg":
+		if err := p.parseCmpXchg(in); err != nil {
+			return nil, err
+		}
+	case "fence":
+		if err := p.parseFence(in); err != nil {
+			return nil, err
+		}
+	case "switch":
+		if err := p.parseSwitch(in); err != nil {
+			return nil, err
+		}
+	case "invoke":
+		if err := p.parseInvoke(in); err != nil {
+			return nil, err
+		}
+	case "callbr":
+		if err := p.parseCallBr(in); err != nil {
+			return nil, err
+		}
+	case "resume":
+		if err := p.parseResume(in); err != nil {
+			return nil, err
+		}
+	case "landingpad":
+		if err := p.parseLanding(in); err != nil {
+			return nil, err
+		}
+	case "indirectbr":
+		if err := p.parseIndirectBr(in); err != nil {
+			return nil, err
+		}
+	case "va_arg":
+		if err := p.parseVAArg(in); err != nil {
+			return nil, err
+		}
 	default:
 		if cast, err := ParseCast(op); err == nil {
 			if err := p.parseCast(in, cast); err != nil {
@@ -509,8 +610,8 @@ func (p *parser) parseInst() (*Inst, error) {
 
 func (p *parser) parseAlloca(in *Inst) error {
 	in.Kind = InstAlloca
-	if p.ident("atomic") {
-		return p.unsupported("atomic")
+	if p.acceptIdent("inalloca") {
+		in.Flags = append(in.Flags, "inalloca")
 	}
 	typ, err := p.parseType()
 	if err != nil {
@@ -523,10 +624,7 @@ func (p *parser) parseAlloca(in *Inst) error {
 		if err != nil {
 			return err
 		}
-		if err := p.skipValAttrs(); err != nil {
-			return err
-		}
-		count, err := p.parseValue(countType)
+		count, err := p.parseTypedValue(countType)
 		if err != nil {
 			return err
 		}
@@ -537,8 +635,8 @@ func (p *parser) parseAlloca(in *Inst) error {
 
 func (p *parser) parseLoad(in *Inst) error {
 	in.Kind = InstLoad
-	if p.ident("atomic") {
-		return p.unsupported("atomic")
+	if p.acceptIdent("atomic") {
+		in.Atomic = true
 	}
 	if p.acceptIdent("volatile") {
 		in.IsVolatile = true
@@ -556,21 +654,21 @@ func (p *parser) parseLoad(in *Inst) error {
 		return err
 	}
 	in.Pointer = pointer
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	value, err := p.parseValue(pointer)
+	value, err := p.parseTypedValue(pointer)
 	if err != nil {
 		return err
 	}
 	in.Left = value
+	if err := p.takeAtomicTail(in); err != nil {
+		return err
+	}
 	return p.skipTrailer(in, true)
 }
 
 func (p *parser) parseStore(in *Inst) error {
 	in.Kind = InstStore
-	if p.ident("atomic") {
-		return p.unsupported("atomic")
+	if p.acceptIdent("atomic") {
+		in.Atomic = true
 	}
 	if p.acceptIdent("volatile") {
 		in.IsVolatile = true
@@ -580,10 +678,7 @@ func (p *parser) parseStore(in *Inst) error {
 		return err
 	}
 	in.Type = typ
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	value, err := p.parseValue(typ)
+	value, err := p.parseTypedValue(typ)
 	if err != nil {
 		return err
 	}
@@ -596,22 +691,20 @@ func (p *parser) parseStore(in *Inst) error {
 		return err
 	}
 	in.Pointer = pointer
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	dest, err := p.parseValue(pointer)
+	dest, err := p.parseTypedValue(pointer)
 	if err != nil {
 		return err
 	}
 	in.Right = dest
+	if err := p.takeAtomicTail(in); err != nil {
+		return err
+	}
 	return p.skipTrailer(in, true)
 }
 
 func (p *parser) parseGEP(in *Inst) error {
 	in.Kind = InstGEP
-	if p.acceptIdent("inbounds") {
-		in.InBounds = true
-	}
+	p.takeGEPFlags(&in.Flags, &in.InBounds, &in.NoUnsignedWrap, &in.NoSignedWrap)
 	source, err := p.parseType()
 	if err != nil {
 		return err
@@ -625,10 +718,7 @@ func (p *parser) parseGEP(in *Inst) error {
 		return err
 	}
 	in.Pointer = pointer
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	base, err := p.parseValue(pointer)
+	base, err := p.parseTypedValue(pointer)
 	if err != nil {
 		return err
 	}
@@ -645,10 +735,7 @@ func (p *parser) parseGEP(in *Inst) error {
 		if err != nil {
 			return err
 		}
-		if err := p.skipValAttrs(); err != nil {
-			return err
-		}
-		idx, err := p.parseValue(idxType)
+		idx, err := p.parseTypedValue(idxType)
 		if err != nil {
 			return err
 		}
@@ -668,8 +755,13 @@ func (p *parser) parseBin(in *Inst, op Op) error {
 			in.NoUnsignedWrap = true
 		case "exact":
 			in.ExactDiv = true
+		case "disjoint":
+			in.Flags = append(in.Flags, "disjoint")
 		default:
-			return p.unsupported(p.cur.text)
+			if !isFastMath(p.cur.text) {
+				return p.unsupported(p.cur.text)
+			}
+			in.Flags = append(in.Flags, p.cur.text)
 		}
 		p.bump()
 	}
@@ -696,6 +788,13 @@ func (p *parser) parseBin(in *Inst, op Op) error {
 
 func (p *parser) parseICmp(in *Inst) error {
 	in.Kind = InstICmp
+	for p.cur.kind == tokIdent {
+		if _, err := ParseIPred(p.cur.text); err == nil {
+			break
+		}
+		in.Flags = append(in.Flags, p.cur.text)
+		p.bump()
+	}
 	if p.cur.kind != tokIdent {
 		return p.syntax("predicate")
 	}
@@ -710,9 +809,7 @@ func (p *parser) parseICmp(in *Inst) error {
 
 func (p *parser) parseFCmp(in *Inst) error {
 	in.Kind = InstFCmp
-	for p.cur.kind == tokIdent && !isFPred(p.cur.text) && !p.typeStart() {
-		return p.unsupported(p.cur.text)
-	}
+	in.Flags = p.takeFastMath()
 	if p.cur.kind != tokIdent {
 		return p.syntax("predicate")
 	}
@@ -755,15 +852,28 @@ func (p *parser) parseCmpValues(in *Inst) error {
 func (p *parser) parseCast(in *Inst, kind Cast) error {
 	in.Kind = InstCast
 	in.Cast = kind
+	for p.cur.kind == tokIdent && !p.typeStart() {
+		switch p.cur.text {
+		case "nuw":
+			in.NoUnsignedWrap = true
+		case "nsw":
+			in.NoSignedWrap = true
+		case "nneg":
+			in.Flags = append(in.Flags, "nneg")
+		default:
+			if !isFastMath(p.cur.text) {
+				return p.unsupported(p.cur.text)
+			}
+			in.Flags = append(in.Flags, p.cur.text)
+		}
+		p.bump()
+	}
 	from, err := p.parseType()
 	if err != nil {
 		return err
 	}
 	in.Type = from
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	value, err := p.parseValue(from)
+	value, err := p.parseTypedValue(from)
 	if err != nil {
 		return err
 	}
@@ -819,10 +929,7 @@ func (p *parser) parseExtract(in *Inst) error {
 		return err
 	}
 	in.Type = typ
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	value, err := p.parseValue(typ)
+	value, err := p.parseTypedValue(typ)
 	if err != nil {
 		return err
 	}
@@ -842,10 +949,7 @@ func (p *parser) parseInsert(in *Inst) error {
 		return err
 	}
 	in.Type = typ
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	agg, err := p.parseValue(typ)
+	agg, err := p.parseTypedValue(typ)
 	if err != nil {
 		return err
 	}
@@ -857,10 +961,7 @@ func (p *parser) parseInsert(in *Inst) error {
 	if err != nil {
 		return err
 	}
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	elem, err := p.parseValue(elemType)
+	elem, err := p.parseTypedValue(elemType)
 	if err != nil {
 		return err
 	}
@@ -875,10 +976,8 @@ func (p *parser) parseInsert(in *Inst) error {
 
 func (p *parser) parsePath() ([]int, error) {
 	var path []int
-	for p.acceptPunct(',') {
-		if p.punct('!') {
-			return nil, p.syntax("index")
-		}
+	for p.punct(',') && !(p.nxt.kind == tokPunct && p.nxt.text == "!") {
+		p.bump()
 		n, err := p.integer()
 		if err != nil {
 			return nil, err
@@ -893,9 +992,19 @@ func (p *parser) parsePath() ([]int, error) {
 
 func (p *parser) parseCall(in *Inst) error {
 	in.Kind = InstCall
-	if err := p.skipRetAttrs(); err != nil {
+	in.Flags = p.takeFastMath()
+	if p.cur.kind == tokIdent && isConv(p.cur.text) {
+		conv, err := p.takeConv()
+		if err != nil {
+			return err
+		}
+		in.Conv = conv
+	}
+	retAttrs, err := p.takeAttrs()
+	if err != nil {
 		return err
 	}
+	in.ResultAttrs = retAttrs
 	typ, err := p.parseType()
 	if err != nil {
 		return err
@@ -906,10 +1015,7 @@ func (p *parser) parseCall(in *Inst) error {
 	} else {
 		in.Type = typ
 	}
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	callee, err := p.parseValue(nil)
+	callee, err := p.parseTypedValue(nil)
 	if err != nil {
 		return err
 	}
@@ -923,10 +1029,7 @@ func (p *parser) parseCall(in *Inst) error {
 			if err != nil {
 				return err
 			}
-			if err := p.skipValAttrs(); err != nil {
-				return err
-			}
-			arg, err := p.parseValue(argType)
+			arg, err := p.parseTypedValue(argType)
 			if err != nil {
 				return err
 			}
@@ -938,6 +1041,9 @@ func (p *parser) parseCall(in *Inst) error {
 		if err := p.expectPunct(')'); err != nil {
 			return err
 		}
+	}
+	if err := p.takeCallSuffix(in); err != nil {
+		return err
 	}
 	return p.skipTrailer(in, false)
 }
@@ -955,10 +1061,7 @@ func (p *parser) parseBr(in *Inst) error {
 	if _, err := p.parseType(); err != nil {
 		return err
 	}
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	cond, err := p.parseValue(IntType(1))
+	cond, err := p.parseTypedValue(IntType(1))
 	if err != nil {
 		return err
 	}
@@ -999,10 +1102,7 @@ func (p *parser) parseRet(in *Inst) error {
 		return err
 	}
 	in.Type = typ
-	if err := p.skipValAttrs(); err != nil {
-		return err
-	}
-	value, err := p.parseValue(typ)
+	value, err := p.parseTypedValue(typ)
 	if err != nil {
 		return err
 	}
@@ -1021,9 +1121,11 @@ func (p *parser) skipTrailer(in *Inst, align bool) error {
 			continue
 		}
 		if p.punct('!') {
-			if err := p.skipMDAttach(); err != nil {
+			att, err := p.takeAttach()
+			if err != nil {
 				return err
 			}
+			in.Attach = append(in.Attach, att)
 			continue
 		}
 		return p.unsupported("instruction trailer")
@@ -1098,6 +1200,13 @@ func (p *parser) parsePrimary() (*Type, error) {
 				}
 				return PackedStruct(fields...), nil
 			}
+			scalable := false
+			if p.acceptIdent("vscale") {
+				scalable = true
+				if err := p.expectIdent("x"); err != nil {
+					return nil, err
+				}
+			}
 			n, err := p.integer()
 			if err != nil {
 				return nil, err
@@ -1112,7 +1221,9 @@ func (p *parser) parsePrimary() (*Type, error) {
 			if err := p.expectPunct('>'); err != nil {
 				return nil, err
 			}
-			return Vector(n, elem), nil
+			typ := Vector(n, elem)
+			typ.Scalable = scalable
+			return typ, nil
 		default:
 			return nil, p.syntax("type")
 		}
@@ -1142,8 +1253,18 @@ func (p *parser) parsePrimary() (*Type, error) {
 				typ.AddrSpace = space
 			}
 			return typ, nil
-		case "metadata", "bfloat", "x86_fp80", "fp128", "ppc_fp128", "x86_mmx", "x86_amx":
-			return nil, p.unsupported(text)
+		case "metadata":
+			p.bump()
+			return &Type{Kind: KindMeta}, nil
+		case "token":
+			p.bump()
+			return &Type{Kind: KindToken}, nil
+		case "label":
+			p.bump()
+			return &Type{Kind: KindLabel}, nil
+		case "bfloat", "x86_fp80", "fp128", "ppc_fp128", "x86_mmx", "x86_amx":
+			p.bump()
+			return &Type{Kind: KindPrim, Name: text}, nil
 		}
 		if bits, ok := intBits(text); ok {
 			p.bump()
@@ -1288,12 +1409,15 @@ func (p *parser) parseValue(ctx *Type) (*Value, error) {
 			p.bump()
 			return p.parseConstGEP()
 		default:
-			if p.nxt.kind == tokPunct && p.nxt.text == "(" {
-				return nil, p.unsupported(p.cur.text)
+			if p.constExprStart() {
+				return p.parseConstExpr()
 			}
 			return nil, p.syntax("value")
 		}
 	case tokPunct:
+		if p.cur.text == "!" {
+			return p.parseMetaValue()
+		}
 		switch p.cur.text {
 		case "{":
 			return p.parseAgg(ValStruct, '{', '}')
@@ -1322,9 +1446,7 @@ func (p *parser) parseValue(ctx *Type) (*Value, error) {
 
 func (p *parser) parseConstGEP() (*Value, error) {
 	value := &Value{Kind: ValGEP}
-	if p.acceptIdent("inbounds") {
-		value.InBounds = true
-	}
+	p.takeGEPFlags(&value.Flags, &value.InBounds, nil, nil)
 	if err := p.expectPunct('('); err != nil {
 		return nil, err
 	}
@@ -1341,10 +1463,7 @@ func (p *parser) parseConstGEP() (*Value, error) {
 		return nil, err
 	}
 	value.PointerType = pointer
-	if err := p.skipValAttrs(); err != nil {
-		return nil, err
-	}
-	base, err := p.parseValue(pointer)
+	base, err := p.parseTypedValue(pointer)
 	if err != nil {
 		return nil, err
 	}
@@ -1354,10 +1473,7 @@ func (p *parser) parseConstGEP() (*Value, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := p.skipValAttrs(); err != nil {
-			return nil, err
-		}
-		idx, err := p.parseValue(idxType)
+		idx, err := p.parseTypedValue(idxType)
 		if err != nil {
 			return nil, err
 		}
@@ -1380,10 +1496,7 @@ func (p *parser) parseAgg(kind ValueKind, open, close byte) (*Value, error) {
 			if err != nil {
 				return nil, err
 			}
-			if err := p.skipValAttrs(); err != nil {
-				return nil, err
-			}
-			value, err := p.parseValue(typ)
+			value, err := p.parseTypedValue(typ)
 			if err != nil {
 				return nil, err
 			}
@@ -1406,6 +1519,9 @@ func (p *parser) numberValue(text string, ctx *Type) (*Value, error) {
 		return FloatLit(ctx.Float, text), nil
 	}
 	if floatTok {
+		if ctx != nil && ctx.Kind == KindPrim {
+			return &Value{Kind: ValFloat, Text: text, Type: ctx}, nil
+		}
 		if ctx != nil && ctx.Kind != KindFloat {
 			return nil, p.syntax("integer")
 		}
@@ -1444,7 +1560,7 @@ func (p *parser) valueStart() bool {
 	case tokPunct:
 		return p.cur.text == "{" || p.cur.text == "[" || p.cur.text == "<"
 	case tokIdent:
-		if p.nxt.kind == tokPunct && p.nxt.text == "(" && !isAttr(p.cur.text) {
+		if p.constExprStart() {
 			return true
 		}
 		switch p.cur.text {
@@ -1463,7 +1579,7 @@ func (p *parser) typeStart() bool {
 		return p.cur.text == "[" || p.cur.text == "{" || p.cur.text == "<"
 	case tokIdent:
 		switch p.cur.text {
-		case "void", "half", "float", "double", "ptr", "metadata", "bfloat", "x86_fp80", "fp128", "ppc_fp128", "x86_mmx", "x86_amx":
+		case "void", "half", "float", "double", "ptr", "metadata", "token", "label", "bfloat", "x86_fp80", "fp128", "ppc_fp128", "x86_mmx", "x86_amx":
 			return true
 		}
 		_, ok := intBits(p.cur.text)
@@ -1473,40 +1589,6 @@ func (p *parser) typeStart() bool {
 	}
 }
 
-func (p *parser) skipValAttrs() error {
-	for p.cur.kind == tokIdent && isAttr(p.cur.text) {
-		name := p.cur.text
-		p.bump()
-		if p.punct('(') {
-			if err := p.skipDelim('(', ')'); err != nil {
-				return err
-			}
-			continue
-		}
-		if (name == "align" || name == "alignstack") && p.cur.kind == tokNumber {
-			p.bump()
-		}
-	}
-	return nil
-}
-
-func (p *parser) skipRetAttrs() error {
-	for p.cur.kind == tokIdent && isAttr(p.cur.text) && !p.typeStart() {
-		name := p.cur.text
-		p.bump()
-		if p.punct('(') {
-			if err := p.skipDelim('(', ')'); err != nil {
-				return err
-			}
-			continue
-		}
-		if (name == "align" || name == "alignstack") && p.cur.kind == tokNumber {
-			p.bump()
-		}
-	}
-	return nil
-}
-
 func isAttr(name string) bool {
 	switch name {
 	case "noundef", "nonnull", "noalias", "nocapture", "readonly", "readnone", "writeonly",
@@ -1514,76 +1596,11 @@ func isAttr(name string) bool {
 		"dereferenceable", "dereferenceable_or_null", "sret", "byval", "byref", "preallocated",
 		"inalloca", "elementtype", "immarg", "nofree", "nest", "swiftself", "swifterror",
 		"swiftasync", "captures", "writable", "dead_on_unwind", "dead_on_return", "range",
-		"allocalign", "allocptr", "allocsize":
+		"allocalign", "allocptr", "allocsize", "initializes":
 		return true
 	default:
 		return false
 	}
-}
-
-func (p *parser) skipModuleMD() error {
-	if err := p.expectPunct('!'); err != nil {
-		return err
-	}
-	if p.cur.kind != tokIdent && p.cur.kind != tokNumber {
-		return p.syntax("metadata")
-	}
-	p.bump()
-	if err := p.expectPunct('='); err != nil {
-		return err
-	}
-	return p.skipMDValue()
-}
-
-func (p *parser) skipMDAttach() error {
-	if err := p.expectPunct('!'); err != nil {
-		return err
-	}
-	if p.cur.kind != tokIdent && p.cur.kind != tokNumber {
-		return p.syntax("metadata")
-	}
-	p.bump()
-	return p.skipMDValue()
-}
-
-func (p *parser) skipMDValue() error {
-	p.acceptIdent("distinct")
-	if err := p.expectPunct('!'); err != nil {
-		return err
-	}
-	switch p.cur.kind {
-	case tokNumber:
-		p.bump()
-		return nil
-	case tokIdent:
-		p.bump()
-		if p.punct('(') {
-			return p.skipDelim('(', ')')
-		}
-		return nil
-	case tokPunct:
-		if p.cur.text == "{" {
-			return p.skipDelim('{', '}')
-		}
-	}
-	return p.syntax("metadata")
-}
-
-func (p *parser) skipAttrGroup() error {
-	if err := p.expectIdent("attributes"); err != nil {
-		return err
-	}
-	if err := p.expectPunct('#'); err != nil {
-		return err
-	}
-	if p.cur.kind != tokNumber {
-		return p.syntax("attribute group")
-	}
-	p.bump()
-	if err := p.expectPunct('='); err != nil {
-		return err
-	}
-	return p.skipDelim('{', '}')
 }
 
 func (p *parser) skipDelim(open, close byte) error {

@@ -36,6 +36,21 @@ func (f *File) validate() error {
 			return err
 		}
 	}
+	for _, comdat := range f.Comdats {
+		if comdat == nil || comdat.Name == "" || !comdat.Kind.IsValid() {
+			return ErrModule
+		}
+	}
+	for _, group := range f.AttrGroups {
+		if group == nil || group.ID == "" || group.Body == "" {
+			return ErrModule
+		}
+	}
+	for _, meta := range f.Metadata {
+		if meta == nil || meta.Name == "" || meta.RHS == "" {
+			return ErrModule
+		}
+	}
 	for _, g := range f.Globals {
 		if err := validGlobal(g); err != nil {
 			return err
@@ -61,6 +76,11 @@ func validGlobal(g *Global) error {
 	}
 	if err := validType(g.ValueType); err != nil {
 		return err
+	}
+	if g.Aliasee != nil {
+		if err := validOperand(*g.Aliasee); err != nil {
+			return err
+		}
 	}
 	if g.Initializer != nil {
 		return validValue(g.Initializer)
@@ -101,7 +121,7 @@ func validFunc(fn *Func) error {
 }
 
 func validBlock(block *Block) error {
-	if block == nil || block.Name == "" {
+	if block == nil {
 		return ErrModule
 	}
 	for _, in := range block.Instructions {
@@ -333,6 +353,10 @@ func validValue(v *Value) error {
 			return err
 		}
 		return validOperands(v.Indices)
+	case ValExpr, ValMeta:
+		if v.Body == "" {
+			return ErrModule
+		}
 	}
 	return nil
 }
@@ -377,7 +401,7 @@ func validType(t *Type) error {
 				return err
 			}
 		}
-	case KindNamed:
+	case KindNamed, KindPrim:
 		if t.Name == "" {
 			return ErrModule
 		}
@@ -419,12 +443,32 @@ func (f *File) write(s *sink) {
 		s.nl()
 		wrote = true
 	}
+	if len(f.Asms) > 0 {
+		if wrote {
+			s.nl()
+		}
+		for _, asm := range f.Asms {
+			s.raw("module asm ")
+			s.quoted(asm)
+			s.nl()
+		}
+		wrote = true
+	}
 	if len(f.Types) > 0 {
 		if wrote {
 			s.nl()
 		}
 		for _, def := range f.Types {
 			s.typeDef(def)
+		}
+		wrote = true
+	}
+	if len(f.Comdats) > 0 {
+		if wrote {
+			s.nl()
+		}
+		for _, comdat := range f.Comdats {
+			s.comdat(comdat)
 		}
 		wrote = true
 	}
@@ -444,6 +488,45 @@ func (f *File) write(s *sink) {
 		s.function(fn)
 		wrote = true
 	}
+	if len(f.AttrGroups) > 0 {
+		if wrote {
+			s.nl()
+		}
+		for _, group := range f.AttrGroups {
+			s.raw("attributes #")
+			s.raw(group.ID)
+			s.raw(" = ")
+			s.raw(group.Body)
+			s.nl()
+		}
+		wrote = true
+	}
+	if len(f.Metadata) > 0 {
+		if wrote {
+			s.nl()
+		}
+		for _, meta := range f.Metadata {
+			s.raw("!")
+			s.name(meta.Name)
+			s.raw(" = ")
+			s.raw(meta.RHS)
+			s.nl()
+		}
+	}
+}
+
+func (s *sink) comdat(comdat *Comdat) {
+	if bareName(comdat.Name) {
+		s.raw("$")
+		s.raw(comdat.Name)
+	} else {
+		s.raw(`$"`)
+		s.escape(comdat.Name)
+		s.raw(`"`)
+	}
+	s.raw(" = comdat ")
+	s.raw(string(comdat.Kind))
+	s.nl()
 }
 
 func (s *sink) typeDef(def *TypeDef) {
@@ -467,21 +550,35 @@ func (s *sink) global(g *Global) {
 	if g.DSOLocal {
 		s.raw(" dso_local")
 	}
+	s.attrs(g.Prefix)
 	if g.Unnamed != "" {
 		s.raw(" ")
 		s.raw(string(g.Unnamed))
 	}
-	if g.IsConstant {
+	switch {
+	case g.Alias:
+		s.raw(" alias ")
+	case g.IFunc:
+		s.raw(" ifunc ")
+	case g.IsConstant:
 		s.raw(" constant ")
-	} else {
+	default:
 		s.raw(" global ")
 	}
 	s.typ(g.ValueType)
-	if g.Initializer != nil {
-		s.raw(" ")
-		s.value(g.Initializer)
+	if g.Alias || g.IFunc {
+		s.raw(", ")
+		if g.Aliasee != nil {
+			s.operand(*g.Aliasee)
+		}
+	} else if g.Initializer != nil {
+		s.afterType(g.Initializer)
 	}
 	s.align(g.Alignment)
+	for _, piece := range g.Suffix {
+		s.raw(", ")
+		s.raw(piece)
+	}
 	s.nl()
 }
 
@@ -498,6 +595,12 @@ func (s *sink) function(fn *Func) {
 	if fn.DSOLocal {
 		s.raw(" dso_local")
 	}
+	s.attrs(fn.Prefix)
+	if fn.Conv != "" {
+		s.raw(" ")
+		s.raw(fn.Conv)
+	}
+	s.attrs(fn.ResultAttrs)
 	s.raw(" ")
 	s.typ(fn.Result)
 	s.raw(" ")
@@ -508,6 +611,7 @@ func (s *sink) function(fn *Func) {
 			s.raw(", ")
 		}
 		s.typ(param.Type)
+		s.attrs(param.Attrs)
 		if param.Name != "" {
 			s.raw(" ")
 			s.sigil('%', param.Name)
@@ -524,14 +628,23 @@ func (s *sink) function(fn *Func) {
 		s.raw(" ")
 		s.raw(string(fn.Unnamed))
 	}
+	s.attrs(fn.Suffix)
+	for _, att := range fn.Attach {
+		s.raw(" !")
+		s.name(att.Name)
+		s.raw(" ")
+		s.raw(att.Body)
+	}
 	if !fn.Defined {
 		s.nl()
 		return
 	}
 	s.raw(" {\n")
 	for _, block := range fn.Blocks {
-		s.name(block.Name)
-		s.raw(":\n")
+		if block.Name != "" {
+			s.name(block.Name)
+			s.raw(":\n")
+		}
 		for _, in := range block.Instructions {
 			s.raw("\t")
 			s.inst(in)
@@ -546,53 +659,55 @@ func (s *sink) inst(in *Inst) {
 	case InstAlloca:
 		s.assign(in.Name)
 		s.raw("alloca ")
+		s.lead(in.Flags)
 		s.typ(in.Type)
 		if in.Count != nil {
 			s.raw(", ")
 			s.operand(*in.Count)
 		}
-		s.align(in.Alignment)
+		s.finish(in, true)
 	case InstLoad:
 		s.assign(in.Name)
 		s.raw("load ")
+		if in.Atomic {
+			s.raw("atomic ")
+		}
 		if in.IsVolatile {
 			s.raw("volatile ")
 		}
 		s.typ(in.Type)
 		s.raw(", ")
 		s.typ(in.Pointer)
-		s.raw(" ")
-		s.value(in.Left)
-		s.align(in.Alignment)
+		s.afterType(in.Left)
+		s.atomicOrder(in)
+		s.finish(in, true)
 	case InstStore:
 		s.raw("store ")
+		if in.Atomic {
+			s.raw("atomic ")
+		}
 		if in.IsVolatile {
 			s.raw("volatile ")
 		}
 		s.typ(in.Type)
-		s.raw(" ")
-		s.value(in.Left)
+		s.afterType(in.Left)
 		s.raw(", ")
 		s.typ(in.Pointer)
-		s.raw(" ")
-		s.value(in.Right)
-		s.align(in.Alignment)
+		s.afterType(in.Right)
+		s.atomicOrder(in)
+		s.finish(in, true)
 	case InstGEP:
 		s.assign(in.Name)
-		s.raw("getelementptr ")
-		if in.InBounds {
-			s.raw("inbounds ")
-		}
+		s.gepHead(in.InBounds, in.NoUnsignedWrap, in.NoSignedWrap, in.Flags)
 		s.typ(in.Source)
 		s.raw(", ")
 		s.typ(in.Pointer)
-		s.raw(" ")
-		s.value(in.Left)
+		s.afterType(in.Left)
 		for _, index := range in.Indices {
 			s.raw(", ")
 			s.operand(index)
 		}
-		s.align(in.Alignment)
+		s.finish(in, true)
 	case InstBin:
 		s.assign(in.Name)
 		s.raw(string(in.Op))
@@ -606,33 +721,46 @@ func (s *sink) inst(in *Inst) {
 		if in.ExactDiv {
 			s.raw(" exact")
 		}
+		s.attrs(in.Flags)
 		s.raw(" ")
 		s.typ(in.Type)
 		s.raw(" ")
 		s.value(in.Left)
 		s.raw(", ")
 		s.value(in.Right)
+		s.finish(in, false)
 	case InstICmp:
 		s.assign(in.Name)
 		s.raw("icmp ")
+		s.lead(in.Flags)
 		s.raw(string(in.IntegerPred))
 		s.raw(" ")
 		s.typedValues(in)
+		s.finish(in, false)
 	case InstFCmp:
 		s.assign(in.Name)
 		s.raw("fcmp ")
+		s.lead(in.Flags)
 		s.raw(string(in.FloatPred))
 		s.raw(" ")
 		s.typedValues(in)
+		s.finish(in, false)
 	case InstCast:
 		s.assign(in.Name)
 		s.raw(string(in.Cast))
+		if in.NoUnsignedWrap {
+			s.raw(" nuw")
+		}
+		if in.NoSignedWrap {
+			s.raw(" nsw")
+		}
+		s.attrs(in.Flags)
 		s.raw(" ")
 		s.typ(in.Type)
-		s.raw(" ")
-		s.value(in.Left)
+		s.afterType(in.Left)
 		s.raw(" to ")
 		s.typ(in.Dest)
+		s.finish(in, false)
 	case InstPhi:
 		s.assign(in.Name)
 		s.raw("phi ")
@@ -647,68 +775,211 @@ func (s *sink) inst(in *Inst) {
 			s.sigil('%', edge.Block)
 			s.raw(" ]")
 		}
+		s.finish(in, false)
 	case InstExtract:
 		s.assign(in.Name)
 		s.raw("extractvalue ")
 		s.typ(in.Type)
-		s.raw(" ")
-		s.value(in.Left)
+		s.afterType(in.Left)
 		s.path(in.Path)
+		s.finish(in, false)
 	case InstInsert:
 		s.assign(in.Name)
 		s.raw("insertvalue ")
 		s.typ(in.Type)
-		s.raw(" ")
-		s.value(in.Left)
+		s.afterType(in.Left)
 		s.raw(", ")
 		s.operand(*in.Inserted)
 		s.path(in.Path)
-	case InstCall:
-		s.assign(in.Name)
-		if in.Tail != "" {
-			s.raw(string(in.Tail))
-			s.raw(" ")
-		}
-		s.raw("call ")
-		if in.Signature != nil {
-			s.typ(in.Signature)
-		} else {
-			s.typ(in.Type)
-		}
-		s.raw(" ")
-		s.value(in.Callee)
-		s.raw("(")
-		for i, arg := range in.Args {
-			if i > 0 {
-				s.raw(", ")
-			}
-			s.operand(arg)
-		}
-		s.raw(")")
+		s.finish(in, false)
+	case InstCall, InstInvoke, InstCallBr:
+		s.callLike(in)
+		s.finish(in, false)
 	case InstBr:
 		s.raw("br ")
 		if in.Condition == nil {
 			s.raw("label ")
 			s.sigil('%', in.Target)
-			return
+		} else {
+			s.raw("i1")
+			s.afterType(in.Condition)
+			s.raw(", label ")
+			s.sigil('%', in.TrueLabel)
+			s.raw(", label ")
+			s.sigil('%', in.FalseLabel)
 		}
-		s.raw("i1 ")
-		s.value(in.Condition)
-		s.raw(", label ")
-		s.sigil('%', in.TrueLabel)
-		s.raw(", label ")
-		s.sigil('%', in.FalseLabel)
+		s.finish(in, false)
 	case InstRet:
 		s.raw("ret ")
 		if in.Type != nil && in.Type.Kind == KindVoid {
 			s.raw("void")
-			return
+		} else {
+			s.typ(in.Type)
+			s.afterType(in.Left)
 		}
-		s.typ(in.Type)
-		s.raw(" ")
-		s.value(in.Left)
+		s.finish(in, false)
 	case InstUnreachable:
 		s.raw("unreachable")
+		s.finish(in, false)
+	case InstFNeg:
+		s.assign(in.Name)
+		s.raw("fneg ")
+		s.lead(in.Flags)
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.finish(in, false)
+	case InstFreeze:
+		s.assign(in.Name)
+		s.raw("freeze ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.finish(in, false)
+	case InstSelect:
+		s.assign(in.Name)
+		s.raw("select ")
+		s.lead(in.Flags)
+		s.typ(in.CondType)
+		s.afterType(in.Condition)
+		s.raw(", ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.raw(", ")
+		s.typ(in.Type)
+		s.afterType(in.Right)
+		s.finish(in, false)
+	case InstExtractElt:
+		s.assign(in.Name)
+		s.raw("extractelement ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.raw(", ")
+		s.operand(*in.Index)
+		s.finish(in, false)
+	case InstInsertElt:
+		s.assign(in.Name)
+		s.raw("insertelement ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.raw(", ")
+		s.operand(*in.Inserted)
+		s.raw(", ")
+		s.operand(*in.Index)
+		s.finish(in, false)
+	case InstShuffle:
+		s.assign(in.Name)
+		s.raw("shufflevector ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.raw(", ")
+		s.operand(*in.Other)
+		s.raw(", ")
+		s.operand(*in.Index)
+		s.finish(in, false)
+	case InstAtomicRMW:
+		s.assign(in.Name)
+		s.raw("atomicrmw ")
+		if in.IsVolatile {
+			s.raw("volatile ")
+		}
+		s.leadOne(in.SyncScope)
+		s.raw(in.AtomicOp)
+		s.raw(" ")
+		s.typ(in.Pointer)
+		s.afterType(in.Left)
+		s.raw(", ")
+		s.typ(in.Type)
+		s.afterType(in.Right)
+		s.raw(" ")
+		s.raw(in.Ordering)
+		s.finish(in, true)
+	case InstCmpXchg:
+		s.assign(in.Name)
+		s.raw("cmpxchg ")
+		if in.Weak {
+			s.raw("weak ")
+		}
+		if in.IsVolatile {
+			s.raw("volatile ")
+		}
+		s.leadOne(in.SyncScope)
+		s.typ(in.Pointer)
+		s.afterType(in.Left)
+		s.raw(", ")
+		s.typ(in.Type)
+		s.afterType(in.Right)
+		s.raw(", ")
+		s.operand(*in.Inserted)
+		s.raw(" ")
+		s.raw(in.Ordering)
+		s.raw(" ")
+		s.raw(in.FailureOrd)
+		s.finish(in, true)
+	case InstFence:
+		s.assign(in.Name)
+		s.raw("fence ")
+		s.leadOne(in.SyncScope)
+		s.raw(in.Ordering)
+		s.finish(in, false)
+	case InstSwitch:
+		s.assign(in.Name)
+		s.raw("switch ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.raw(", label ")
+		s.sigil('%', in.Target)
+		s.raw(" [")
+		for _, arm := range in.Arms {
+			s.raw(" ")
+			s.typ(arm.Type)
+			s.afterType(arm.Value)
+			s.raw(", label ")
+			s.sigil('%', arm.Label)
+		}
+		s.raw(" ]")
+		s.finish(in, false)
+	case InstResume:
+		s.assign(in.Name)
+		s.raw("resume ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.finish(in, false)
+	case InstLanding:
+		s.assign(in.Name)
+		s.raw("landingpad ")
+		s.typ(in.Type)
+		for _, clause := range in.Clauses {
+			s.raw(" ")
+			s.raw(clause.Kind)
+			if clause.Value != nil {
+				s.raw(" ")
+				s.typ(clause.Type)
+				s.afterType(clause.Value)
+			}
+		}
+		s.finish(in, false)
+	case InstIndirectBr:
+		s.assign(in.Name)
+		s.raw("indirectbr ")
+		s.typ(in.Type)
+		s.afterType(in.Left)
+		s.raw(", [")
+		for i, label := range in.Labels {
+			if i > 0 {
+				s.raw(",")
+			}
+			s.raw(" label ")
+			s.sigil('%', label)
+		}
+		s.raw(" ]")
+		s.finish(in, false)
+	case InstVAArg:
+		s.assign(in.Name)
+		s.raw("va_arg ")
+		s.typ(in.Pointer)
+		s.afterType(in.Left)
+		s.raw(", ")
+		s.typ(in.Dest)
+		s.finish(in, false)
 	}
 }
 
@@ -718,6 +989,141 @@ func (s *sink) assign(name string) {
 	}
 	s.sigil('%', name)
 	s.raw(" = ")
+}
+
+// attrs prints each clause with a leading space. A nil slice prints nothing.
+func (s *sink) attrs(words []string) {
+	for _, word := range words {
+		s.raw(" ")
+		s.raw(word)
+	}
+}
+
+// lead prints each clause followed by a space.
+func (s *sink) lead(words []string) {
+	for _, word := range words {
+		s.raw(word)
+		s.raw(" ")
+	}
+}
+
+func (s *sink) leadOne(word string) {
+	if word == "" {
+		return
+	}
+	s.raw(word)
+	s.raw(" ")
+}
+
+// afterType prints value attributes, then the value. The type is already written.
+func (s *sink) afterType(v *Value) {
+	if v != nil {
+		s.attrs(v.Attrs)
+	}
+	s.raw(" ")
+	s.value(v)
+}
+
+func (s *sink) atomicOrder(in *Inst) {
+	if !in.Atomic {
+		return
+	}
+	if in.SyncScope != "" {
+		s.raw(" ")
+		s.raw(in.SyncScope)
+	}
+	if in.Ordering != "" {
+		s.raw(" ")
+		s.raw(in.Ordering)
+	}
+}
+
+func (s *sink) attaches(list []Attach) {
+	for _, att := range list {
+		s.raw(", !")
+		s.name(att.Name)
+		s.raw(" ")
+		s.raw(att.Body)
+	}
+}
+
+func (s *sink) finish(in *Inst, align bool) {
+	if align {
+		s.align(in.Alignment)
+	}
+	s.attaches(in.Attach)
+}
+
+func (s *sink) gepHead(inbounds, nuw, nsw bool, flags []string) {
+	s.raw("getelementptr ")
+	if inbounds {
+		s.raw("inbounds ")
+	}
+	if nuw {
+		s.raw("nuw ")
+	}
+	if nsw {
+		s.raw("nsw ")
+	}
+	s.lead(flags)
+}
+
+func (s *sink) callLike(in *Inst) {
+	s.assign(in.Name)
+	if in.Tail != "" {
+		s.raw(string(in.Tail))
+		s.raw(" ")
+	}
+	switch in.Kind {
+	case InstInvoke:
+		s.raw("invoke ")
+	case InstCallBr:
+		s.raw("callbr ")
+	default:
+		s.raw("call ")
+	}
+	s.lead(in.Flags)
+	s.leadOne(in.Conv)
+	s.lead(in.ResultAttrs)
+	if in.Signature != nil {
+		s.typ(in.Signature)
+	} else {
+		s.typ(in.Type)
+	}
+	if in.Callee != nil {
+		s.attrs(in.Callee.Attrs)
+	}
+	s.raw(" ")
+	s.value(in.Callee)
+	s.raw("(")
+	for i, arg := range in.Args {
+		if i > 0 {
+			s.raw(", ")
+		}
+		s.operand(arg)
+	}
+	s.raw(")")
+	s.attrs(in.Groups)
+	s.attrs(in.Bundles)
+	switch in.Kind {
+	case InstInvoke:
+		s.raw(" to label ")
+		s.sigil('%', in.TrueLabel)
+		s.raw(" unwind label ")
+		s.sigil('%', in.FalseLabel)
+	case InstCallBr:
+		s.raw(" to label ")
+		s.sigil('%', in.TrueLabel)
+		s.raw(" [")
+		for i, label := range in.Labels {
+			if i > 0 {
+				s.raw(",")
+			}
+			s.raw(" label ")
+			s.sigil('%', label)
+		}
+		s.raw(" ]")
+	}
 }
 
 func (s *sink) typedValues(in *Inst) {
@@ -745,6 +1151,9 @@ func (s *sink) align(n int) {
 
 func (s *sink) operand(op Operand) {
 	s.typ(op.Type)
+	if op.Value != nil {
+		s.attrs(op.Value.Attrs)
+	}
 	s.raw(" ")
 	s.value(op.Value)
 }
@@ -786,21 +1195,19 @@ func (s *sink) value(v *Value) {
 	case ValVector:
 		s.aggregate("<", ">", v.Elems)
 	case ValGEP:
-		s.raw("getelementptr ")
-		if v.InBounds {
-			s.raw("inbounds ")
-		}
+		s.gepHead(v.InBounds, false, false, v.Flags)
 		s.raw("(")
 		s.typ(v.SourceType)
 		s.raw(", ")
 		s.typ(v.PointerType)
-		s.raw(" ")
-		s.value(v.Base)
+		s.afterType(v.Base)
 		for _, index := range v.Indices {
 			s.raw(", ")
 			s.operand(index)
 		}
 		s.raw(")")
+	case ValExpr, ValMeta:
+		s.raw(v.Body)
 	}
 }
 
@@ -852,6 +1259,9 @@ func (s *sink) typ(t *Type) {
 		s.raw("]")
 	case KindVector:
 		s.raw("<")
+		if t.Scalable {
+			s.raw("vscale x ")
+		}
 		s.raw(strconv.FormatInt(t.Len, 10))
 		s.raw(" x ")
 		s.typ(t.Elem)
@@ -882,6 +1292,14 @@ func (s *sink) typ(t *Type) {
 		s.raw(")")
 	case KindNamed:
 		s.sigil('%', t.Name)
+	case KindMeta:
+		s.raw("metadata")
+	case KindToken:
+		s.raw("token")
+	case KindLabel:
+		s.raw("label")
+	case KindPrim:
+		s.raw(t.Name)
 	}
 }
 

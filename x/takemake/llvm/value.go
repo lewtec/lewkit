@@ -35,6 +35,10 @@ type Value struct {
 	PointerType *Type
 	Base        *Value
 	Indices     []Operand
+	Attrs       []string
+	Flags       []string
+	Body        string
+	Dest        *Type
 }
 
 // Local is a %name reference.

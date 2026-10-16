@@ -15,6 +15,10 @@ const (
 	KindStruct Kind = "struct"
 	KindFunc   Kind = "func"
 	KindNamed  Kind = "named"
+	KindMeta   Kind = "metadata"
+	KindToken  Kind = "token"
+	KindLabel  Kind = "label"
+	KindPrim   Kind = "prim"
 )
 
 // Float is a floating type keyword.
@@ -133,18 +137,19 @@ const (
 type Cast string
 
 const (
-	CastTrunc    Cast = "trunc"
-	CastZExt     Cast = "zext"
-	CastSExt     Cast = "sext"
-	CastFPTrunc  Cast = "fptrunc"
-	CastFPExt    Cast = "fpext"
-	CastFPToUI   Cast = "fptoui"
-	CastFPToSI   Cast = "fptosi"
-	CastUIToFP   Cast = "uitofp"
-	CastSIToFP   Cast = "sitofp"
-	CastPtrToInt Cast = "ptrtoint"
-	CastIntToPtr Cast = "inttoptr"
-	CastBitCast  Cast = "bitcast"
+	CastTrunc     Cast = "trunc"
+	CastZExt      Cast = "zext"
+	CastSExt      Cast = "sext"
+	CastFPTrunc   Cast = "fptrunc"
+	CastFPExt     Cast = "fpext"
+	CastFPToUI    Cast = "fptoui"
+	CastFPToSI    Cast = "fptosi"
+	CastUIToFP    Cast = "uitofp"
+	CastSIToFP    Cast = "sitofp"
+	CastPtrToInt  Cast = "ptrtoint"
+	CastIntToPtr  Cast = "inttoptr"
+	CastBitCast   Cast = "bitcast"
+	CastAddrSpace Cast = "addrspacecast"
 )
 
 // Tail is a call marker. An empty value is an ordinary call.
@@ -179,6 +184,22 @@ const (
 	InstBr          InstKind = "br"
 	InstRet         InstKind = "ret"
 	InstUnreachable InstKind = "unreachable"
+	InstFNeg        InstKind = "fneg"
+	InstFreeze      InstKind = "freeze"
+	InstSelect      InstKind = "select"
+	InstExtractElt  InstKind = "extractelement"
+	InstInsertElt   InstKind = "insertelement"
+	InstShuffle     InstKind = "shufflevector"
+	InstAtomicRMW   InstKind = "atomicrmw"
+	InstCmpXchg     InstKind = "cmpxchg"
+	InstFence       InstKind = "fence"
+	InstSwitch      InstKind = "switch"
+	InstInvoke      InstKind = "invoke"
+	InstCallBr      InstKind = "callbr"
+	InstResume      InstKind = "resume"
+	InstLanding     InstKind = "landingpad"
+	InstIndirectBr  InstKind = "indirectbr"
+	InstVAArg       InstKind = "va_arg"
 )
 
 // ValueKind is the form of an operand.
@@ -203,4 +224,19 @@ const (
 	ValVector ValueKind = "vector"
 	ValString ValueKind = "cstring"
 	ValGEP    ValueKind = "getelementptr"
+	ValExpr   ValueKind = "expr"
+	ValMeta   ValueKind = "meta"
+)
+
+// ComdatKind is the selection kind of a comdat.
+//
+//lewkit:enum
+type ComdatKind string
+
+const (
+	ComdatAny     ComdatKind = "any"
+	ComdatExact   ComdatKind = "exactmatch"
+	ComdatLargest ComdatKind = "largest"
+	ComdatNoDup   ComdatKind = "nodeduplicate"
+	ComdatSame    ComdatKind = "samesize"
 )

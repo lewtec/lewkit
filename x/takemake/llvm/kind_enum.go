@@ -31,6 +31,8 @@ var (
 	ErrInstKind = errs.Wrap(errs.ErrUnknown, "unknown inst kind")
 	// ErrValueKind means the text is not a known value kind.
 	ErrValueKind = errs.Wrap(errs.ErrUnknown, "unknown value kind")
+	// ErrComdatKind means the text is not a known comdat kind.
+	ErrComdatKind = errs.Wrap(errs.ErrUnknown, "unknown comdat kind")
 )
 
 // String is the text of a Kind.
@@ -40,13 +42,13 @@ func (k Kind) String() string {
 
 // Values lists the Kind values.
 func (Kind) Values() []Kind {
-	return []Kind{KindVoid, KindInt, KindFloat, KindPtr, KindArray, KindVector, KindStruct, KindFunc, KindNamed}
+	return []Kind{KindVoid, KindInt, KindFloat, KindPtr, KindArray, KindVector, KindStruct, KindFunc, KindNamed, KindMeta, KindToken, KindLabel, KindPrim}
 }
 
 // IsValid reports whether the value is a Kind.
 func (k Kind) IsValid() bool {
 	switch k {
-	case KindVoid, KindInt, KindFloat, KindPtr, KindArray, KindVector, KindStruct, KindFunc, KindNamed:
+	case KindVoid, KindInt, KindFloat, KindPtr, KindArray, KindVector, KindStruct, KindFunc, KindNamed, KindMeta, KindToken, KindLabel, KindPrim:
 		return true
 	default:
 		return false
@@ -75,6 +77,14 @@ func ParseKind(text string) (Kind, error) {
 		return KindFunc, nil
 	case "named":
 		return KindNamed, nil
+	case "metadata":
+		return KindMeta, nil
+	case "token":
+		return KindToken, nil
+	case "label":
+		return KindLabel, nil
+	case "prim":
+		return KindPrim, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrKind, text)
 	}
@@ -92,7 +102,7 @@ func (k *Kind) Parse(text string) error {
 
 // ArgChoices lists the texts ParseKind accepts.
 func (Kind) ArgChoices() []string {
-	return []string{"void", "int", "float", "ptr", "array", "vector", "struct", "func", "named"}
+	return []string{"void", "int", "float", "ptr", "array", "vector", "struct", "func", "named", "metadata", "token", "label", "prim"}
 }
 
 // MarshalText encodes the value as text.
@@ -577,13 +587,13 @@ func (c Cast) String() string {
 
 // Values lists the Cast values.
 func (Cast) Values() []Cast {
-	return []Cast{CastTrunc, CastZExt, CastSExt, CastFPTrunc, CastFPExt, CastFPToUI, CastFPToSI, CastUIToFP, CastSIToFP, CastPtrToInt, CastIntToPtr, CastBitCast}
+	return []Cast{CastTrunc, CastZExt, CastSExt, CastFPTrunc, CastFPExt, CastFPToUI, CastFPToSI, CastUIToFP, CastSIToFP, CastPtrToInt, CastIntToPtr, CastBitCast, CastAddrSpace}
 }
 
 // IsValid reports whether the value is a Cast.
 func (c Cast) IsValid() bool {
 	switch c {
-	case CastTrunc, CastZExt, CastSExt, CastFPTrunc, CastFPExt, CastFPToUI, CastFPToSI, CastUIToFP, CastSIToFP, CastPtrToInt, CastIntToPtr, CastBitCast:
+	case CastTrunc, CastZExt, CastSExt, CastFPTrunc, CastFPExt, CastFPToUI, CastFPToSI, CastUIToFP, CastSIToFP, CastPtrToInt, CastIntToPtr, CastBitCast, CastAddrSpace:
 		return true
 	default:
 		return false
@@ -618,6 +628,8 @@ func ParseCast(text string) (Cast, error) {
 		return CastIntToPtr, nil
 	case "bitcast":
 		return CastBitCast, nil
+	case "addrspacecast":
+		return CastAddrSpace, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrCast, text)
 	}
@@ -635,7 +647,7 @@ func (c *Cast) Parse(text string) error {
 
 // ArgChoices lists the texts ParseCast accepts.
 func (Cast) ArgChoices() []string {
-	return []string{"trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "ptrtoint", "inttoptr", "bitcast"}
+	return []string{"trunc", "zext", "sext", "fptrunc", "fpext", "fptoui", "fptosi", "uitofp", "sitofp", "ptrtoint", "inttoptr", "bitcast", "addrspacecast"}
 }
 
 // MarshalText encodes the value as text.
@@ -721,13 +733,13 @@ func (i InstKind) String() string {
 
 // Values lists the InstKind values.
 func (InstKind) Values() []InstKind {
-	return []InstKind{InstAlloca, InstLoad, InstStore, InstGEP, InstBin, InstICmp, InstFCmp, InstCast, InstPhi, InstExtract, InstInsert, InstCall, InstBr, InstRet, InstUnreachable}
+	return []InstKind{InstAlloca, InstLoad, InstStore, InstGEP, InstBin, InstICmp, InstFCmp, InstCast, InstPhi, InstExtract, InstInsert, InstCall, InstBr, InstRet, InstUnreachable, InstFNeg, InstFreeze, InstSelect, InstExtractElt, InstInsertElt, InstShuffle, InstAtomicRMW, InstCmpXchg, InstFence, InstSwitch, InstInvoke, InstCallBr, InstResume, InstLanding, InstIndirectBr, InstVAArg}
 }
 
 // IsValid reports whether the value is a InstKind.
 func (i InstKind) IsValid() bool {
 	switch i {
-	case InstAlloca, InstLoad, InstStore, InstGEP, InstBin, InstICmp, InstFCmp, InstCast, InstPhi, InstExtract, InstInsert, InstCall, InstBr, InstRet, InstUnreachable:
+	case InstAlloca, InstLoad, InstStore, InstGEP, InstBin, InstICmp, InstFCmp, InstCast, InstPhi, InstExtract, InstInsert, InstCall, InstBr, InstRet, InstUnreachable, InstFNeg, InstFreeze, InstSelect, InstExtractElt, InstInsertElt, InstShuffle, InstAtomicRMW, InstCmpXchg, InstFence, InstSwitch, InstInvoke, InstCallBr, InstResume, InstLanding, InstIndirectBr, InstVAArg:
 		return true
 	default:
 		return false
@@ -768,6 +780,38 @@ func ParseInstKind(text string) (InstKind, error) {
 		return InstRet, nil
 	case "unreachable":
 		return InstUnreachable, nil
+	case "fneg":
+		return InstFNeg, nil
+	case "freeze":
+		return InstFreeze, nil
+	case "select":
+		return InstSelect, nil
+	case "extractelement":
+		return InstExtractElt, nil
+	case "insertelement":
+		return InstInsertElt, nil
+	case "shufflevector":
+		return InstShuffle, nil
+	case "atomicrmw":
+		return InstAtomicRMW, nil
+	case "cmpxchg":
+		return InstCmpXchg, nil
+	case "fence":
+		return InstFence, nil
+	case "switch":
+		return InstSwitch, nil
+	case "invoke":
+		return InstInvoke, nil
+	case "callbr":
+		return InstCallBr, nil
+	case "resume":
+		return InstResume, nil
+	case "landingpad":
+		return InstLanding, nil
+	case "indirectbr":
+		return InstIndirectBr, nil
+	case "va_arg":
+		return InstVAArg, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrInstKind, text)
 	}
@@ -785,7 +829,7 @@ func (i *InstKind) Parse(text string) error {
 
 // ArgChoices lists the texts ParseInstKind accepts.
 func (InstKind) ArgChoices() []string {
-	return []string{"alloca", "load", "store", "getelementptr", "bin", "icmp", "fcmp", "cast", "phi", "extractvalue", "insertvalue", "call", "br", "ret", "unreachable"}
+	return []string{"alloca", "load", "store", "getelementptr", "bin", "icmp", "fcmp", "cast", "phi", "extractvalue", "insertvalue", "call", "br", "ret", "unreachable", "fneg", "freeze", "select", "extractelement", "insertelement", "shufflevector", "atomicrmw", "cmpxchg", "fence", "switch", "invoke", "callbr", "resume", "landingpad", "indirectbr", "va_arg"}
 }
 
 // MarshalText encodes the value as text.
@@ -808,13 +852,13 @@ func (v ValueKind) String() string {
 
 // Values lists the ValueKind values.
 func (ValueKind) Values() []ValueKind {
-	return []ValueKind{ValLocal, ValGlobal, ValInt, ValFloat, ValNull, ValZero, ValUndef, ValPoison, ValTrue, ValFalse, ValArray, ValStruct, ValPacked, ValVector, ValString, ValGEP}
+	return []ValueKind{ValLocal, ValGlobal, ValInt, ValFloat, ValNull, ValZero, ValUndef, ValPoison, ValTrue, ValFalse, ValArray, ValStruct, ValPacked, ValVector, ValString, ValGEP, ValExpr, ValMeta}
 }
 
 // IsValid reports whether the value is a ValueKind.
 func (v ValueKind) IsValid() bool {
 	switch v {
-	case ValLocal, ValGlobal, ValInt, ValFloat, ValNull, ValZero, ValUndef, ValPoison, ValTrue, ValFalse, ValArray, ValStruct, ValPacked, ValVector, ValString, ValGEP:
+	case ValLocal, ValGlobal, ValInt, ValFloat, ValNull, ValZero, ValUndef, ValPoison, ValTrue, ValFalse, ValArray, ValStruct, ValPacked, ValVector, ValString, ValGEP, ValExpr, ValMeta:
 		return true
 	default:
 		return false
@@ -857,6 +901,10 @@ func ParseValueKind(text string) (ValueKind, error) {
 		return ValString, nil
 	case "getelementptr":
 		return ValGEP, nil
+	case "expr":
+		return ValExpr, nil
+	case "meta":
+		return ValMeta, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrValueKind, text)
 	}
@@ -874,7 +922,7 @@ func (v *ValueKind) Parse(text string) error {
 
 // ArgChoices lists the texts ParseValueKind accepts.
 func (ValueKind) ArgChoices() []string {
-	return []string{"local", "global", "int", "float", "null", "zeroinitializer", "undef", "poison", "true", "false", "array", "struct", "packed", "vector", "cstring", "getelementptr"}
+	return []string{"local", "global", "int", "float", "null", "zeroinitializer", "undef", "poison", "true", "false", "array", "struct", "packed", "vector", "cstring", "getelementptr", "expr", "meta"}
 }
 
 // MarshalText encodes the value as text.
@@ -888,4 +936,71 @@ func (v ValueKind) MarshalText() ([]byte, error) {
 // UnmarshalText sets the value from text.
 func (v *ValueKind) UnmarshalText(text []byte) error {
 	return v.Parse(string(text))
+}
+
+// String is the text of a ComdatKind.
+func (c ComdatKind) String() string {
+	return string(c)
+}
+
+// Values lists the ComdatKind values.
+func (ComdatKind) Values() []ComdatKind {
+	return []ComdatKind{ComdatAny, ComdatExact, ComdatLargest, ComdatNoDup, ComdatSame}
+}
+
+// IsValid reports whether the value is a ComdatKind.
+func (c ComdatKind) IsValid() bool {
+	switch c {
+	case ComdatAny, ComdatExact, ComdatLargest, ComdatNoDup, ComdatSame:
+		return true
+	default:
+		return false
+	}
+}
+
+// ParseComdatKind returns the ComdatKind named by text.
+func ParseComdatKind(text string) (ComdatKind, error) {
+	text = strings.TrimSpace(text)
+	switch text {
+	case "any":
+		return ComdatAny, nil
+	case "exactmatch":
+		return ComdatExact, nil
+	case "largest":
+		return ComdatLargest, nil
+	case "nodeduplicate":
+		return ComdatNoDup, nil
+	case "samesize":
+		return ComdatSame, nil
+	default:
+		return "", fmt.Errorf("%w: %q", ErrComdatKind, text)
+	}
+}
+
+// Parse sets the value from text.
+func (c *ComdatKind) Parse(text string) error {
+	parsed, err := ParseComdatKind(text)
+	if err != nil {
+		return err
+	}
+	*c = parsed
+	return nil
+}
+
+// ArgChoices lists the texts ParseComdatKind accepts.
+func (ComdatKind) ArgChoices() []string {
+	return []string{"any", "exactmatch", "largest", "nodeduplicate", "samesize"}
+}
+
+// MarshalText encodes the value as text.
+func (c ComdatKind) MarshalText() ([]byte, error) {
+	if !c.IsValid() {
+		return nil, fmt.Errorf("%w: %q", ErrComdatKind, c.String())
+	}
+	return []byte(c.String()), nil
+}
+
+// UnmarshalText sets the value from text.
+func (c *ComdatKind) UnmarshalText(text []byte) error {
+	return c.Parse(string(text))
 }

@@ -130,10 +130,10 @@ func TestHelloOpaque(t *testing.T) {
 	require.Equal(t, InstAlloca, first.Funcs[0].Blocks[0].Instructions[0].Kind)
 	require.Equal(t, KindPtr, first.Funcs[0].Blocks[0].Instructions[2].Signature.Fields[0].Kind)
 	require.Nil(t, first.Funcs[0].Blocks[0].Instructions[2].Signature.Fields[0].Elem)
-	require.NotContains(t, text, "noundef")
-	require.NotContains(t, text, "attributes")
-	require.NotContains(t, text, "!llvm")
-	require.Contains(t, text, "call i32 (ptr, ...) @printf(ptr @.str, ptr @.str.1)")
+	require.Contains(t, text, "noundef")
+	require.Contains(t, text, "attributes #0")
+	require.Contains(t, text, "!llvm.module.flags")
+	require.Contains(t, text, "call i32 (ptr, ...) @printf(ptr noundef @.str, ptr noundef @.str.1)")
 }
 
 func TestHelloTyped(t *testing.T) {
@@ -145,10 +145,82 @@ func TestHelloTyped(t *testing.T) {
 	require.NotNil(t, call.Args[0].Value)
 	require.Equal(t, ValGEP, call.Args[0].Value.Kind)
 	require.True(t, call.Args[0].Value.InBounds)
-	require.NotContains(t, text, "noundef")
+	require.Contains(t, text, "noundef")
+	require.Contains(t, text, "attributes #0")
 	require.Contains(t, text, "getelementptr inbounds ([11 x i8], [11 x i8]* @.str, i64 0, i64 0)")
 	require.Contains(t, text, "i8*")
 	require.NotContains(t, text, " ptr ")
+}
+
+func TestKitchenSink(t *testing.T) {
+	t.Parallel()
+	const src = `
+source_filename = "kitchen.ll"
+module asm "nop"
+
+%ST = type { i32, ptr }
+$foo = comdat any
+
+@g = dso_local global i32 1, align 4
+@a = alias i32, ptr @g
+@r = ifunc void (), ptr @g
+
+define fastcc noundef i32 @kitchen(ptr noundef %p, i32 %x) unnamed_addr #0 personality ptr @person comdat {
+	%slot = alloca i32, align 4
+	store atomic volatile i32 %x, ptr %p syncscope("singlethread") release, align 4
+	%y = load atomic i32, ptr %p acquire, align 4
+	%z = atomicrmw add ptr %p, i32 %y seq_cst, align 4
+	%cx = cmpxchg weak ptr %p, i32 %z, i32 0 acq_rel monotonic, align 4
+	fence syncscope("singlethread") seq_cst
+	%s = select i1 true, i32 0, i32 1
+	%n = fneg fast double 1.0
+	%fr = freeze i32 %x
+	%e = extractelement <2 x i64> <i64 1, i64 2>, i64 0
+	%ins = insertelement <2 x i64> undef, i64 3, i64 0
+	%sh = shufflevector <2 x i32> undef, <2 x i32> undef, <2 x i32> <i32 1, i32 0>
+	%tr = trunc nuw i32 %x to i1
+	%ac = addrspacecast ptr %p to ptr addrspace(1)
+	%gp = getelementptr inbounds nuw i8, ptr %p, i64 0
+	%bf = fadd bfloat 1.0, 2.0
+	%wide = fadd x86_fp80 0xK4000C000000000000000, 0xK4000C000000000000000
+	%sv = alloca <vscale x 4 x i32>, align 16
+	%va = va_arg ptr %p, i32
+	switch i32 %x, label %next [ i32 0, label %next i32 1, label %next ]
+next:
+	%iv = invoke fastcc noundef i32 @kitchen(ptr %p, i32 %x) to label %ok unwind label %bad
+ok:
+	indirectbr ptr %p, [ label %bad, label %ok ]
+bad:
+	%lp = landingpad { ptr, i32 } cleanup catch ptr null
+	resume { ptr, i32 } undef
+	%cb = callbr void @person() to label %ok [ label %bad ]
+	ret i32 %y
+}
+
+declare void @person()
+
+attributes #0 = { noinline nounwind "frame-pointer"="all" }
+!0 = !{i32 1, !"kitchen", i32 1}
+!llvm.module.flags = !{!0}
+`
+	file, text := roundTripSource(t, src)
+	require.Equal(t, "kitchen", file.Funcs[0].Name)
+	require.Equal(t, "fastcc", file.Funcs[0].Conv)
+	require.Contains(t, text, `module asm "nop"`)
+	require.Contains(t, text, "$foo = comdat any")
+	require.Contains(t, text, "@a = alias i32, ptr @g")
+	require.Contains(t, text, "@r = ifunc void (), ptr @g")
+	require.Contains(t, text, `syncscope("singlethread")`)
+	require.Contains(t, text, "cmpxchg weak ")
+	require.Contains(t, text, "vscale x 4 x i32")
+	require.Contains(t, text, "fadd bfloat 1.0, 2.0")
+	require.Contains(t, text, "addrspacecast ")
+	require.Contains(t, text, "invoke fastcc noundef i32 @kitchen")
+	require.Contains(t, text, "callbr void @person()")
+	require.Contains(t, text, "landingpad { ptr, i32 } cleanup catch ptr null")
+	require.Contains(t, text, "attributes #0")
+	require.Contains(t, text, `!llvm.module.flags = !{!0}`)
+	require.Empty(t, file.Funcs[0].Blocks[0].Name)
 }
 
 func TestCommentsAndRejects(t *testing.T) {
@@ -166,17 +238,11 @@ entry:
 	require.Equal(t, "c.c", file.SourceFilename)
 	require.Equal(t, InstRet, file.Funcs[0].Blocks[0].Instructions[0].Kind)
 
-	_, err := Take(strings.NewReader("define void @f() {\nentry:\n\tfreeze i32 0\n\tret void\n}\n"))
-	require.ErrorIs(t, err, ErrUnsupported)
-	require.ErrorIs(t, err, errs.ErrUnsupported)
+	roundTripSource(t, "define void @f() {\nentry:\n\tfreeze i32 0\n\tret void\n}\n")
+	roundTripSource(t, "module asm \"nop\"\n")
+	roundTripSource(t, "define void @f() {\nentry:\n\t%a = add fast i32 1, 2\n\tret void\n}\n")
 
-	_, err = Take(strings.NewReader("module asm \"nop\"\n"))
-	require.ErrorIs(t, err, ErrUnsupported)
-
-	_, err = Take(strings.NewReader("define void @f() {\nentry:\n\t%a = add fast i32 1, 2\n\tret void\n}\n"))
-	require.ErrorIs(t, err, ErrUnsupported)
-
-	_, err = Take(strings.NewReader("???\n"))
+	_, err := Take(strings.NewReader("???\n"))
 	require.ErrorIs(t, err, ErrSyntax)
 	require.ErrorIs(t, err, errs.ErrSyntax)
 }

@@ -15,6 +15,7 @@ type Type struct {
 	Ret       *Type
 	Variadic  bool
 	Name      string
+	Scalable  bool
 }
 
 // Void is the void type.

@@ -52,6 +52,11 @@ type Global struct {
 	ValueType   *Type
 	Initializer *Value
 	Alignment   int
+	Prefix      []string
+	Suffix      []string
+	Alias       bool
+	IFunc       bool
+	Aliasee     *Operand
 }
 
 // Link sets the linkage.
@@ -128,22 +133,29 @@ func (g *Global) Align(n int) *Global {
 }
 
 // Param is one function parameter. An empty name is unnamed.
+// Attrs are the source text of each parameter attribute.
 type Param struct {
-	Name string
-	Type *Type
+	Name  string
+	Type  *Type
+	Attrs []string
 }
 
 // Func is a declaration or a definition. Defined is false for a declaration.
 type Func struct {
-	Name       string
-	Linkage    Linkage
-	DSOLocal   bool
-	Unnamed    Unnamed
-	Result     *Type
-	Parameters []*Param
-	Variadic   bool
-	Defined    bool
-	Blocks     []*Block
+	Name        string
+	Linkage     Linkage
+	DSOLocal    bool
+	Unnamed     Unnamed
+	Result      *Type
+	Parameters  []*Param
+	Variadic    bool
+	Defined     bool
+	Blocks      []*Block
+	Prefix      []string
+	Conv        string
+	ResultAttrs []string
+	Suffix      []string
+	Attach      []Attach
 }
 
 // Link sets the linkage.
@@ -369,6 +381,62 @@ type Inst struct {
 	TrueLabel      string
 	FalseLabel     string
 	Target         string
+	Flags          []string
+	Conv           string
+	ResultAttrs    []string
+	Groups         []string
+	Bundles        []string
+	Attach         []Attach
+	Ordering       string
+	FailureOrd     string
+	AtomicOp       string
+	SyncScope      string
+	Weak           bool
+	Atomic         bool
+	CondType       *Type
+	Index          *Operand
+	Other          *Operand
+	Labels         []string
+	Clauses        []Clause
+	Arms           []Arm
+}
+
+// Attach is one metadata attachment. Body is the metadata value, including its bang.
+type Attach struct {
+	Name string
+	Body string
+}
+
+// Clause is one landingpad clause. Cleanup has an empty type.
+type Clause struct {
+	Kind  string
+	Type  *Type
+	Value *Value
+}
+
+// Arm is one switch case.
+type Arm struct {
+	Type  *Type
+	Value *Value
+	Label string
+}
+
+// Comdat is one comdat definition.
+type Comdat struct {
+	Name string
+	Kind ComdatKind
+}
+
+// AttrGroup is one attribute group. Body includes the braces.
+type AttrGroup struct {
+	ID   string
+	Body string
+}
+
+// MetaDef is one metadata definition. RHS is the text after '='.
+type MetaDef struct {
+	Name string
+	RHS  string
 }
 
 // NSW sets the no-signed-wrap flag.
@@ -456,9 +524,13 @@ type File struct {
 	SourceFilename string
 	DataLayout     string
 	TargetTriple   string
+	Asms           []string
 	Types          []*TypeDef
+	Comdats        []*Comdat
 	Globals        []*Global
 	Funcs          []*Func
+	AttrGroups     []*AttrGroup
+	Metadata       []*MetaDef
 }
 
 // New returns an empty module.

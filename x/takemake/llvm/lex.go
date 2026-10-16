@@ -20,10 +20,12 @@ const (
 )
 
 type token struct {
-	kind tokKind
-	text string
-	line int
-	col  int
+	kind  tokKind
+	text  string
+	line  int
+	col   int
+	start int
+	end   int
 }
 
 type lexer struct {
@@ -41,9 +43,19 @@ func newLexer(s string) *lexer {
 func (l *lexer) next() token {
 	l.skip()
 	if l.err != nil || l.i >= len(l.s) {
-		return token{kind: tokEOF, line: l.line, col: l.col}
+		return token{kind: tokEOF, line: l.line, col: l.col, start: l.i, end: l.i}
 	}
+	start := l.i
 	line, col := l.line, l.col
+	tok := l.scan(line, col)
+	tok.start = start
+	tok.end = l.i
+	tok.line = line
+	tok.col = col
+	return tok
+}
+
+func (l *lexer) scan(line, col int) token {
 	c := l.s[l.i]
 	switch c {
 	case '"':
@@ -125,12 +137,40 @@ func (l *lexer) lexNumber(line, col int) token {
 	if l.peek() == '0' && (l.peekN(1) == 'x' || l.peekN(1) == 'X') {
 		l.bump()
 		l.bump()
-		if !isHex(l.peek()) {
+		// K L M H R mark float, fp80, fp128, ppc_fp128, half, and bfloat.
+		switch l.peek() {
+		case 'K', 'L', 'M', 'H', 'R':
+			l.bump()
+		}
+		saw := false
+		for isHex(l.peek()) {
+			saw = true
+			l.bump()
+		}
+		if l.peek() == '.' && isHex(l.peekN(1)) {
+			l.bump()
+			for isHex(l.peek()) {
+				saw = true
+				l.bump()
+			}
+		}
+		if l.peek() == 'p' || l.peek() == 'P' {
+			l.bump()
+			if l.peek() == '+' || l.peek() == '-' {
+				l.bump()
+			}
+			if !isDigit(l.peek()) {
+				l.fail(line, col, "bad exponent")
+				return token{kind: tokEOF, line: line, col: col}
+			}
+			for isDigit(l.peek()) {
+				l.bump()
+			}
+			saw = true
+		}
+		if !saw {
 			l.fail(line, col, "bad hex")
 			return token{kind: tokEOF, line: line, col: col}
-		}
-		for isHex(l.peek()) {
-			l.bump()
 		}
 		return token{kind: tokNumber, text: l.s[start:l.i], line: line, col: col}
 	}
