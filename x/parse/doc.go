@@ -23,6 +23,12 @@
 // error-recovery node in this version: a fork that cannot move is dropped, and
 // the furthest such point is the error.
 //
+// A [Form] is a grammar expression. [Eq] binds a name. [Seq], [Alt], [Repeat],
+// and [Opt] combine expressions. [Compose] unions them: two equations with one
+// name become alternatives of that rule. [Build] places the expression into a
+// [Grammar]. The same form can be built into more than one grammar. [Left],
+// [Right], and [Prec] wrap an alternative.
+//
 // [FromTreeSitter] loads a tree-sitter grammar.json. token rules become
 // matchers, extras are skipped, and inline rules are substituted into their
 // parents. An external-scanner token is a terminal with no matcher. An

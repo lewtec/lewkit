@@ -54,7 +54,7 @@ type LexState struct {
 	Data any
 }
 
-// Grammar is the model a caller composes before Compile.
+// Grammar is the model Compile reads. [Build] places a [Form] into one.
 type Grammar struct {
 	name     string
 	syms     []symRec
