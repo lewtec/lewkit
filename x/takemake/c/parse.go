@@ -493,17 +493,56 @@ func isAggregate(t *Type) bool {
 	return t != nil && (t.Kind == KindStruct || t.Kind == KindUnion || t.Kind == KindEnum)
 }
 
-// detachDecl gives a file-scope declarator its own type node. A comma
-// list is printed as separate declarations, and a later take builds a
-// fresh node for each one. The shared tag of a struct, union, or enum
-// stays one node so a pointer back to it still lines up.
+// detachDecl gives a declarator its own type nodes. A comma list is
+// printed as separate declarations, and a later take builds a fresh
+// node for each one. The shared tag of a struct, union, or enum stays
+// one node so a pointer back to it still lines up. A typedef use keeps
+// Of on the typedef's type.
 func detachDecl(t *Type) *Type {
-	if t == nil || (t.Use == "" && t.Of == nil && t.Tag != "" && isAggregate(t)) {
+	return cloneType(t, map[*Type]*Type{})
+}
+
+func cloneType(t *Type, seen map[*Type]*Type) *Type {
+	if t == nil {
+		return nil
+	}
+	if n, ok := seen[t]; ok {
+		return n
+	}
+	if t.Use == "" && t.Of == nil && t.Tag != "" && isAggregate(t) {
 		return t
 	}
 	n := *t
 	n.home = nil
 	n.laying = false
+	seen[t] = &n
+	if t.Use != "" {
+		return &n
+	}
+	n.Elem = cloneType(t.Elem, seen)
+	n.Of = cloneType(t.Of, seen)
+	if len(t.Fields) > 0 {
+		n.Fields = make([]*Field, len(t.Fields))
+		for i, field := range t.Fields {
+			if field == nil {
+				continue
+			}
+			cp := *field
+			cp.Type = cloneType(field.Type, seen)
+			n.Fields[i] = &cp
+		}
+	}
+	if len(t.Params) > 0 {
+		n.Params = make([]*Param, len(t.Params))
+		for i, param := range t.Params {
+			if param == nil {
+				continue
+			}
+			cp := *param
+			cp.Type = cloneType(param.Type, seen)
+			n.Params[i] = &cp
+		}
+	}
 	return &n
 }
 
@@ -581,7 +620,7 @@ func (p *parser) fields(parent *Type) error {
 		}
 		if p.at(";") {
 			p.next()
-			parent.Fields = append(parent.Fields, &Field{Type: spec.typ})
+			parent.Fields = append(parent.Fields, &Field{Type: detachDecl(spec.typ)})
 			continue
 		}
 		for {
@@ -595,7 +634,7 @@ func (p *parser) fields(parent *Type) error {
 			if p.at(":") {
 				return p.unsupported("bit-field")
 			}
-			parent.Fields = append(parent.Fields, &Field{Name: name, Type: typ})
+			parent.Fields = append(parent.Fields, &Field{Name: name, Type: detachDecl(typ)})
 			if !p.punct(",") {
 				break
 			}
