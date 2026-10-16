@@ -203,6 +203,7 @@ func FuncLit(params, results []*Field, body ...Code) *Expr {
 		results = []*Field{}
 	}
 	return &Expr{Kind: ExprFunc, Fn: &Func{
+		TypeParams: []*Field{},
 		Parameters: params,
 		Returns:    results,
 		HasBody:    true,

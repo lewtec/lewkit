@@ -41,10 +41,12 @@ type ValueSpec struct {
 }
 
 // TypeSpec is one type spec inside a type declaration.
+// Params are the type parameters.
 type TypeSpec struct {
-	Name  string
-	Alias bool
-	Type  *Type
+	Name   string
+	Alias  bool
+	Params []*Field
+	Type   *Type
 }
 
 // Const is a const declaration. Specs preserves a parenthesized group.
@@ -71,6 +73,7 @@ type Func struct {
 	file       *File
 	Receiver   *Field
 	Name       string
+	TypeParams []*Field
 	Parameters []*Field
 	Returns    []*Field
 	HasBody    bool

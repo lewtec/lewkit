@@ -4,6 +4,7 @@ func (f *File) walkDecl(decl Decl) {
 	switch d := decl.(type) {
 	case *Func:
 		f.walkField(d.Receiver)
+		f.walkFields(d.TypeParams)
 		f.walkFields(d.Parameters)
 		f.walkFields(d.Returns)
 		f.walkStmts(d.Body)
@@ -13,6 +14,7 @@ func (f *File) walkDecl(decl Decl) {
 		f.walkSpecs(d.Specs)
 	case *TypeDecl:
 		for i := range d.Specs {
+			f.walkFields(d.Specs[i].Params)
 			f.walkType(d.Specs[i].Type)
 		}
 	}
@@ -97,6 +99,7 @@ func (f *File) walkExpr(expr *Expr) {
 	}
 	if expr.Fn != nil {
 		f.walkField(expr.Fn.Receiver)
+		f.walkFields(expr.Fn.TypeParams)
 		f.walkFields(expr.Fn.Parameters)
 		f.walkFields(expr.Fn.Returns)
 		f.walkStmts(expr.Fn.Body)
@@ -113,7 +116,13 @@ func (f *File) walkType(typ *Type) {
 	f.walkExpr(typ.X)
 	f.walkType(typ.Elem)
 	f.walkType(typ.Key)
+	f.walkType(typ.Left)
+	f.walkType(typ.Right)
 	f.walkExpr(typ.Len)
 	f.walkFields(typ.Fields)
 	f.walkFields(typ.Results)
+	f.walkFields(typ.Params)
+	for _, arg := range typ.Args {
+		f.walkType(arg)
+	}
 }

@@ -104,6 +104,13 @@ func (b *builder) typeDecl(decl *TypeDecl) (*ast.GenDecl, error) {
 			return nil, err
 		}
 		item := &ast.TypeSpec{Name: ast.NewIdent(spec.Name), Type: typ}
+		if len(spec.Params) > 0 {
+			params, err := b.fields(spec.Params)
+			if err != nil {
+				return nil, err
+			}
+			item.TypeParams = params
+		}
 		if spec.Alias {
 			item.Assign = 1
 		}
@@ -116,7 +123,7 @@ func (b *builder) funcDecl(fn *Func) (*ast.FuncDecl, error) {
 	if fn == nil || fn.Name == "" {
 		return nil, fmt.Errorf("%w: function name", errSyntax)
 	}
-	typ, err := b.funcType(fn.Parameters, fn.Returns)
+	typ, err := b.funcType(fn.TypeParams, fn.Parameters, fn.Returns)
 	if err != nil {
 		return nil, err
 	}
@@ -138,10 +145,17 @@ func (b *builder) funcDecl(fn *Func) (*ast.FuncDecl, error) {
 	return decl, nil
 }
 
-func (b *builder) funcType(params, results []*Field) (*ast.FuncType, error) {
+func (b *builder) funcType(typeParams, params, results []*Field) (*ast.FuncType, error) {
 	list, err := b.fields(params)
 	if err != nil {
 		return nil, err
+	}
+	var tparams *ast.FieldList
+	if len(typeParams) > 0 {
+		tparams, err = b.fields(typeParams)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var out *ast.FieldList
 	if len(results) > 0 {
@@ -150,7 +164,7 @@ func (b *builder) funcType(params, results []*Field) (*ast.FuncType, error) {
 			return nil, err
 		}
 	}
-	return &ast.FuncType{Params: list, Results: out}, nil
+	return &ast.FuncType{TypeParams: tparams, Params: list, Results: out}, nil
 }
 
 func (b *builder) fields(list []*Field) (*ast.FieldList, error) {
@@ -258,16 +272,70 @@ func (b *builder) typ(t *Type) (ast.Expr, error) {
 		}
 		return &ast.InterfaceType{Methods: fields}, nil
 	case TypeFunc:
-		return b.funcType(t.Fields, t.Results)
+		return b.funcType(t.Params, t.Fields, t.Results)
 	case TypeChan:
 		elem, err := b.typ(t.Elem)
 		if err != nil {
 			return nil, err
 		}
 		return &ast.ChanType{Dir: t.Dir.ast(), Value: elem}, nil
+	case TypeInst:
+		return b.typeInst(t)
+	case TypeBinary:
+		return b.typeBinary(t)
+	case TypeUnary:
+		return b.typeUnary(t)
 	default:
 		return nil, fmt.Errorf("%w: type kind", errSyntax)
 	}
+}
+
+func (b *builder) typeInst(t *Type) (ast.Expr, error) {
+	base, err := b.expr(t.X)
+	if err != nil {
+		return nil, err
+	}
+	args := make([]ast.Expr, 0, len(t.Args))
+	for _, arg := range t.Args {
+		node, err := b.typ(arg)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, node)
+	}
+	// A one-argument list reparses as an index expression.
+	if len(args) == 1 {
+		return &ast.IndexExpr{X: base, Index: args[0]}, nil
+	}
+	return &ast.IndexListExpr{X: base, Indices: args}, nil
+}
+
+func (b *builder) typeBinary(t *Type) (ast.Expr, error) {
+	op, err := t.Op.token()
+	if err != nil {
+		return nil, err
+	}
+	left, err := b.typ(t.Left)
+	if err != nil {
+		return nil, err
+	}
+	right, err := b.typ(t.Right)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.BinaryExpr{X: left, Op: op, Y: right}, nil
+}
+
+func (b *builder) typeUnary(t *Type) (ast.Expr, error) {
+	op, err := t.Op.token()
+	if err != nil {
+		return nil, err
+	}
+	elem, err := b.typ(t.Elem)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.UnaryExpr{Op: op, X: elem}, nil
 }
 
 func (b *builder) stmts(list []*Stmt) ([]ast.Stmt, error) {
@@ -373,9 +441,100 @@ func (b *builder) stmt(stmt *Stmt) (ast.Stmt, error) {
 			inner = node
 		}
 		return &ast.LabeledStmt{Label: ast.NewIdent(stmt.Label), Stmt: inner}, nil
+	case StmtSwitch:
+		return b.switchStmt(stmt)
+	case StmtTypeSwitch:
+		return b.typeSwitchStmt(stmt)
+	case StmtSelect:
+		return b.selectStmt(stmt)
+	case StmtCase:
+		return b.caseClause(stmt)
+	case StmtComm:
+		return b.commClause(stmt)
 	default:
 		return nil, fmt.Errorf("%w: statement kind", errSyntax)
 	}
+}
+
+func (b *builder) switchStmt(stmt *Stmt) (ast.Stmt, error) {
+	body, err := b.stmts(stmt.Body)
+	if err != nil {
+		return nil, err
+	}
+	out := &ast.SwitchStmt{Body: &ast.BlockStmt{List: body}}
+	if stmt.Init != nil {
+		out.Init, err = b.stmt(stmt.Init)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if stmt.Cond != nil {
+		out.Tag, err = b.expr(stmt.Cond)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (b *builder) typeSwitchStmt(stmt *Stmt) (ast.Stmt, error) {
+	if stmt.Stmt == nil {
+		return nil, fmt.Errorf("%w: type switch", errSyntax)
+	}
+	assign, err := b.stmt(stmt.Stmt)
+	if err != nil {
+		return nil, err
+	}
+	body, err := b.stmts(stmt.Body)
+	if err != nil {
+		return nil, err
+	}
+	out := &ast.TypeSwitchStmt{Assign: assign, Body: &ast.BlockStmt{List: body}}
+	if stmt.Init != nil {
+		out.Init, err = b.stmt(stmt.Init)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (b *builder) selectStmt(stmt *Stmt) (ast.Stmt, error) {
+	body, err := b.stmts(stmt.Body)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.SelectStmt{Body: &ast.BlockStmt{List: body}}, nil
+}
+
+func (b *builder) caseClause(stmt *Stmt) (ast.Stmt, error) {
+	body, err := b.stmts(stmt.Body)
+	if err != nil {
+		return nil, err
+	}
+	out := &ast.CaseClause{Body: body}
+	if stmt.Exprs != nil {
+		out.List, err = b.exprs(stmt.Exprs)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (b *builder) commClause(stmt *Stmt) (ast.Stmt, error) {
+	body, err := b.stmts(stmt.Body)
+	if err != nil {
+		return nil, err
+	}
+	out := &ast.CommClause{Body: body}
+	if stmt.Stmt != nil {
+		out.Comm, err = b.stmt(stmt.Stmt)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func (b *builder) assign(stmt *Stmt) (ast.Stmt, error) {
@@ -646,7 +805,7 @@ func (b *builder) expr(expr *Expr) (ast.Expr, error) {
 		if expr.Fn == nil {
 			return nil, fmt.Errorf("%w: function literal", errSyntax)
 		}
-		typ, err := b.funcType(expr.Fn.Parameters, expr.Fn.Returns)
+		typ, err := b.funcType(expr.Fn.TypeParams, expr.Fn.Parameters, expr.Fn.Returns)
 		if err != nil {
 			return nil, err
 		}

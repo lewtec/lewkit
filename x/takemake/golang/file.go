@@ -69,7 +69,7 @@ func (im *Import) Local() string {
 
 // Func appends a function and returns it.
 func (f *File) Func() *Func {
-	fn := &Func{file: f, Parameters: []*Field{}, Returns: []*Field{}}
+	fn := &Func{file: f, TypeParams: []*Field{}, Parameters: []*Field{}, Returns: []*Field{}}
 	if f != nil {
 		f.Decls = append(f.Decls, fn)
 	}

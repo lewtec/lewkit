@@ -250,6 +250,12 @@ func (t TypeKind) String() string {
 		return "typefunc"
 	case TypeChan:
 		return "typechan"
+	case TypeInst:
+		return "typeinst"
+	case TypeBinary:
+		return "typebinary"
+	case TypeUnary:
+		return "typeunary"
 	default:
 		return ""
 	}
@@ -257,13 +263,13 @@ func (t TypeKind) String() string {
 
 // Values lists the TypeKind values.
 func (TypeKind) Values() []TypeKind {
-	return []TypeKind{TypeNamed, TypePointer, TypeSlice, TypeArray, TypeMap, TypeStruct, TypeInterface, TypeFunc, TypeChan}
+	return []TypeKind{TypeNamed, TypePointer, TypeSlice, TypeArray, TypeMap, TypeStruct, TypeInterface, TypeFunc, TypeChan, TypeInst, TypeBinary, TypeUnary}
 }
 
 // IsValid reports whether the value is a TypeKind.
 func (t TypeKind) IsValid() bool {
 	switch t {
-	case TypeNamed, TypePointer, TypeSlice, TypeArray, TypeMap, TypeStruct, TypeInterface, TypeFunc, TypeChan:
+	case TypeNamed, TypePointer, TypeSlice, TypeArray, TypeMap, TypeStruct, TypeInterface, TypeFunc, TypeChan, TypeInst, TypeBinary, TypeUnary:
 		return true
 	default:
 		return false
@@ -292,6 +298,12 @@ func ParseTypeKind(text string) (TypeKind, error) {
 		return TypeFunc, nil
 	case "typechan":
 		return TypeChan, nil
+	case "typeinst":
+		return TypeInst, nil
+	case "typebinary":
+		return TypeBinary, nil
+	case "typeunary":
+		return TypeUnary, nil
 	default:
 		return 0, fmt.Errorf("%w: %q", ErrTypeKind, text)
 	}
@@ -309,7 +321,7 @@ func (t *TypeKind) Parse(text string) error {
 
 // ArgChoices lists the texts ParseTypeKind accepts.
 func (TypeKind) ArgChoices() []string {
-	return []string{"typenamed", "typepointer", "typeslice", "typearray", "typemap", "typestruct", "typeinterface", "typefunc", "typechan"}
+	return []string{"typenamed", "typepointer", "typeslice", "typearray", "typemap", "typestruct", "typeinterface", "typefunc", "typechan", "typeinst", "typebinary", "typeunary"}
 }
 
 // MarshalText encodes the value as text.
@@ -430,6 +442,16 @@ func (s StmtKind) String() string {
 		return "stmtsend"
 	case StmtLabel:
 		return "stmtlabel"
+	case StmtSwitch:
+		return "stmtswitch"
+	case StmtTypeSwitch:
+		return "stmttypeswitch"
+	case StmtSelect:
+		return "stmtselect"
+	case StmtCase:
+		return "stmtcase"
+	case StmtComm:
+		return "stmtcomm"
 	default:
 		return ""
 	}
@@ -437,13 +459,13 @@ func (s StmtKind) String() string {
 
 // Values lists the StmtKind values.
 func (StmtKind) Values() []StmtKind {
-	return []StmtKind{StmtExpr, StmtReturn, StmtAssign, StmtIf, StmtFor, StmtRange, StmtBlock, StmtDecl, StmtInc, StmtDec, StmtDefer, StmtGo, StmtBranch, StmtSend, StmtLabel}
+	return []StmtKind{StmtExpr, StmtReturn, StmtAssign, StmtIf, StmtFor, StmtRange, StmtBlock, StmtDecl, StmtInc, StmtDec, StmtDefer, StmtGo, StmtBranch, StmtSend, StmtLabel, StmtSwitch, StmtTypeSwitch, StmtSelect, StmtCase, StmtComm}
 }
 
 // IsValid reports whether the value is a StmtKind.
 func (s StmtKind) IsValid() bool {
 	switch s {
-	case StmtExpr, StmtReturn, StmtAssign, StmtIf, StmtFor, StmtRange, StmtBlock, StmtDecl, StmtInc, StmtDec, StmtDefer, StmtGo, StmtBranch, StmtSend, StmtLabel:
+	case StmtExpr, StmtReturn, StmtAssign, StmtIf, StmtFor, StmtRange, StmtBlock, StmtDecl, StmtInc, StmtDec, StmtDefer, StmtGo, StmtBranch, StmtSend, StmtLabel, StmtSwitch, StmtTypeSwitch, StmtSelect, StmtCase, StmtComm:
 		return true
 	default:
 		return false
@@ -484,6 +506,16 @@ func ParseStmtKind(text string) (StmtKind, error) {
 		return StmtSend, nil
 	case "stmtlabel":
 		return StmtLabel, nil
+	case "stmtswitch":
+		return StmtSwitch, nil
+	case "stmttypeswitch":
+		return StmtTypeSwitch, nil
+	case "stmtselect":
+		return StmtSelect, nil
+	case "stmtcase":
+		return StmtCase, nil
+	case "stmtcomm":
+		return StmtComm, nil
 	default:
 		return 0, fmt.Errorf("%w: %q", ErrStmtKind, text)
 	}
@@ -501,7 +533,7 @@ func (s *StmtKind) Parse(text string) error {
 
 // ArgChoices lists the texts ParseStmtKind accepts.
 func (StmtKind) ArgChoices() []string {
-	return []string{"stmtexpr", "stmtreturn", "stmtassign", "stmtif", "stmtfor", "stmtrange", "stmtblock", "stmtdecl", "stmtinc", "stmtdec", "stmtdefer", "stmtgo", "stmtbranch", "stmtsend", "stmtlabel"}
+	return []string{"stmtexpr", "stmtreturn", "stmtassign", "stmtif", "stmtfor", "stmtrange", "stmtblock", "stmtdecl", "stmtinc", "stmtdec", "stmtdefer", "stmtgo", "stmtbranch", "stmtsend", "stmtlabel", "stmtswitch", "stmttypeswitch", "stmtselect", "stmtcase", "stmtcomm"}
 }
 
 // MarshalText encodes the value as text.
@@ -638,6 +670,8 @@ func (o Op) String() string {
 		return "geq"
 	case OpNot:
 		return "not"
+	case OpTilde:
+		return "tilde"
 	default:
 		return ""
 	}
@@ -645,13 +679,13 @@ func (o Op) String() string {
 
 // Values lists the Op values.
 func (Op) Values() []Op {
-	return []Op{OpAdd, OpSub, OpMul, OpQuo, OpRem, OpAnd, OpOr, OpXor, OpShl, OpShr, OpAndNot, OpLand, OpLor, OpArrow, OpEql, OpNeq, OpLss, OpLeq, OpGtr, OpGeq, OpNot}
+	return []Op{OpAdd, OpSub, OpMul, OpQuo, OpRem, OpAnd, OpOr, OpXor, OpShl, OpShr, OpAndNot, OpLand, OpLor, OpArrow, OpEql, OpNeq, OpLss, OpLeq, OpGtr, OpGeq, OpNot, OpTilde}
 }
 
 // IsValid reports whether the value is a Op.
 func (o Op) IsValid() bool {
 	switch o {
-	case OpAdd, OpSub, OpMul, OpQuo, OpRem, OpAnd, OpOr, OpXor, OpShl, OpShr, OpAndNot, OpLand, OpLor, OpArrow, OpEql, OpNeq, OpLss, OpLeq, OpGtr, OpGeq, OpNot:
+	case OpAdd, OpSub, OpMul, OpQuo, OpRem, OpAnd, OpOr, OpXor, OpShl, OpShr, OpAndNot, OpLand, OpLor, OpArrow, OpEql, OpNeq, OpLss, OpLeq, OpGtr, OpGeq, OpNot, OpTilde:
 		return true
 	default:
 		return false
@@ -704,6 +738,8 @@ func ParseOp(text string) (Op, error) {
 		return OpGeq, nil
 	case "not":
 		return OpNot, nil
+	case "tilde":
+		return OpTilde, nil
 	default:
 		return 0, fmt.Errorf("%w: %q", ErrOp, text)
 	}
@@ -721,7 +757,7 @@ func (o *Op) Parse(text string) error {
 
 // ArgChoices lists the texts ParseOp accepts.
 func (Op) ArgChoices() []string {
-	return []string{"add", "sub", "mul", "quo", "rem", "and", "or", "xor", "shl", "shr", "andnot", "land", "lor", "arrow", "eql", "neq", "lss", "leq", "gtr", "geq", "not"}
+	return []string{"add", "sub", "mul", "quo", "rem", "and", "or", "xor", "shl", "shr", "andnot", "land", "lor", "arrow", "eql", "neq", "lss", "leq", "gtr", "geq", "not", "tilde"}
 }
 
 // MarshalText encodes the value as text.

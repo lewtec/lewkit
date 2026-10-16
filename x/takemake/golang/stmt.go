@@ -20,8 +20,13 @@ type Code interface {
 //	Defer   Expr
 //	Go      Expr
 //	Branch  Branch, Label
-//	Send    X, Y
-//	Label   Label, Stmt
+//	Send        X, Y
+//	Label       Label, Stmt
+//	Switch      Init, Cond, Body
+//	TypeSwitch  Init, Stmt, Body
+//	Select      Body
+//	Case        Exprs, Body. Nil Exprs is default.
+//	Comm        Stmt, Body. Nil Stmt is default.
 type Stmt struct {
 	Kind       StmtKind
 	Expr       *Expr

@@ -59,6 +59,9 @@ const (
 	TypeInterface
 	TypeFunc
 	TypeChan
+	TypeInst
+	TypeBinary
+	TypeUnary
 )
 
 // ChanDir is a channel direction. Both is a bidirectional channel.
@@ -93,6 +96,11 @@ const (
 	StmtBranch
 	StmtSend
 	StmtLabel
+	StmtSwitch
+	StmtTypeSwitch
+	StmtSelect
+	StmtCase
+	StmtComm
 )
 
 // Branch is a break, continue, goto, or fallthrough.
@@ -135,6 +143,7 @@ const (
 	OpGtr
 	OpGeq
 	OpNot
+	OpTilde
 )
 
 func opFrom(tok token.Token) (Op, error) {
@@ -181,6 +190,8 @@ func opFrom(tok token.Token) (Op, error) {
 		return OpGeq, nil
 	case token.NOT:
 		return OpNot, nil
+	case token.TILDE:
+		return OpTilde, nil
 	default:
 		return 0, fmt.Errorf("%w: operator %s", errSyntax, tok)
 	}
@@ -230,6 +241,8 @@ func (op Op) token() (token.Token, error) {
 		return token.GEQ, nil
 	case OpNot:
 		return token.NOT, nil
+	case OpTilde:
+		return token.TILDE, nil
 	default:
 		return 0, fmt.Errorf("%w: operator", errSyntax)
 	}

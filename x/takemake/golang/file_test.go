@@ -307,8 +307,108 @@ func TestNilAndErrors(t *testing.T) {
 	_, err = Take(strings.NewReader("package p\nfunc {\n"))
 	require.ErrorIs(t, err, errs.ErrSyntax)
 
-	_, err = Take(strings.NewReader("package p\nfunc f() {\n\tselect {}\n}\n"))
-	require.ErrorIs(t, err, errs.ErrUnsupported)
+	_, err = Take(strings.NewReader("package p\nfunc f() {\n\tgoto\n}\n"))
+	require.ErrorIs(t, err, errs.ErrSyntax)
+}
+
+func TestSyntaxRoundTrip(t *testing.T) {
+	t.Parallel()
+	const src = `package p
+
+import "fmt"
+
+func f(x any, ch chan int) {
+	switch x {
+	case 1:
+		fallthrough
+	case 2, 3:
+	default:
+	}
+	switch n := 0; n {
+	case 1:
+		_ = n
+	}
+	switch {
+	case true:
+		break
+	}
+	switch x.(type) {
+	case int, *string:
+		return
+	case []byte:
+	default:
+	}
+	switch fmt := x.(type) {
+	case fmt.Stringer:
+		_ = fmt
+	}
+	switch n := 0; x.(type) {
+	case int:
+		_ = n
+	}
+	select {
+	case v := <-ch:
+		_ = v
+	case ch <- 1:
+	default:
+	}
+	select {}
+}
+
+type List[T any] struct {
+	Next *List[T]
+}
+
+type Pair[A, B any] struct {
+	A A
+	B B
+}
+
+func Map[T any, U ~[]T](x U) T {
+	var zero T
+	return zero
+}
+
+func (box *Box[T]) Get() T {
+	return box.V
+}
+
+type Box[T any] struct{ V T }
+
+type Num interface {
+	~int | ~string
+	fmt.Stringer
+}
+
+type Either[T any] interface {
+	~int | ~[]T
+}
+
+func Use(x Pair[int, string], y List[int]) {
+	_ = x
+	_ = y
+	var ready chan Pair[int, string]
+	_ = ready
+}
+`
+	file := roundTrip(t, src)
+	fn := file.Decls[0].(*Func)
+	require.Equal(t, StmtSwitch, fn.Body[0].Kind)
+	require.Nil(t, fn.Body[0].Body[2].Exprs)
+	require.Equal(t, StmtTypeSwitch, fn.Body[3].Kind)
+	require.Equal(t, "fmt", fn.Body[4].Body[0].Exprs[0].Path)
+	require.Equal(t, StmtSelect, fn.Body[6].Kind)
+	require.Nil(t, fn.Body[6].Body[2].Stmt)
+	list := file.Decls[1].(*TypeDecl)
+	require.Equal(t, "T", list.Specs[0].Params[0].Names[0])
+	require.Equal(t, TypePointer, list.Specs[0].Type.Fields[0].Type.Kind)
+	require.Equal(t, TypeInst, list.Specs[0].Type.Fields[0].Type.Elem.Kind)
+	num := file.Decls[6].(*TypeDecl)
+	embedded := num.Specs[0].Type.Fields[0].Type
+	require.Equal(t, TypeBinary, embedded.Kind)
+	require.Equal(t, OpOr, embedded.Op)
+	require.Equal(t, TypeUnary, embedded.Left.Kind)
+	require.Equal(t, OpTilde, embedded.Left.Op)
 }
 
 func roundTrip(t *testing.T, src string) *File {

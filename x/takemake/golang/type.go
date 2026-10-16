@@ -10,8 +10,11 @@ package golang
 //	Map        Key, Elem
 //	Struct     Fields
 //	Interface  Fields
-//	Func       Fields, Results
+//	Func       Params, Fields, Results
 //	Chan       Elem, Dir
+//	Inst       X, Args. Listed is an index-list instantiation.
+//	Binary     Op, Left, Right
+//	Unary      Op, Elem
 type Type struct {
 	Kind     TypeKind
 	Name     string
@@ -19,10 +22,16 @@ type Type struct {
 	X        *Expr
 	Elem     *Type
 	Key      *Type
+	Left     *Type
+	Right    *Type
 	Len      *Expr
 	Ellipsis bool
+	Listed   bool
+	Op       Op
 	Fields   []*Field
 	Results  []*Field
+	Params   []*Field
+	Args     []*Type
 	Dir      ChanDir
 }
 
@@ -80,7 +89,7 @@ func FuncType(params, results []*Field) *Type {
 	if results == nil {
 		results = []*Field{}
 	}
-	return &Type{Kind: TypeFunc, Fields: params, Results: results}
+	return &Type{Kind: TypeFunc, Params: []*Field{}, Fields: params, Results: results}
 }
 
 // Chan returns a channel type.

@@ -156,6 +156,8 @@ func TestCorpus(t *testing.T) {
 	require.Empty(t, mismatches)
 	require.Empty(t, makeFailed)
 	require.Empty(t, other)
+	require.Zero(t, unsupported)
+	require.Zero(t, parseFailed)
 	require.Positive(t, ok)
 }
 

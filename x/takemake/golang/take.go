@@ -128,19 +128,29 @@ func convertGen(group *ast.GenDecl, sc *scope) (Decl, error) {
 			if !ok {
 				return nil, fmt.Errorf("%w: type spec", errSyntax)
 			}
-			if item.TypeParams != nil && len(item.TypeParams.List) > 0 {
-				return nil, fmt.Errorf("%w: type parameters", errSyntax)
+			specScope := sc.child()
+			if item.Name != nil {
+				specScope.defineValue(item.Name.Name)
 			}
-			typ, err := convertType(item.Type, sc)
+			params, err := convertTypeParams(item.TypeParams, specScope)
 			if err != nil {
 				return nil, err
 			}
+			typ, err := convertType(item.Type, specScope)
+			if err != nil {
+				return nil, err
+			}
+			name := ""
+			if item.Name != nil {
+				name = item.Name.Name
+			}
 			decl.Specs = append(decl.Specs, TypeSpec{
-				Name:  item.Name.Name,
-				Alias: item.Assign.IsValid(),
-				Type:  typ,
+				Name:   name,
+				Alias:  item.Assign.IsValid(),
+				Params: params,
+				Type:   typ,
 			})
-			sc.defineValue(item.Name.Name)
+			sc.defineValue(name)
 		}
 		return decl, nil
 	default:
@@ -177,11 +187,8 @@ func convertFunc(decl *ast.FuncDecl, sc *scope) (*Func, error) {
 	if decl.Name == nil || decl.Type == nil {
 		return nil, fmt.Errorf("%w: function", errSyntax)
 	}
-	if decl.Type.TypeParams != nil && len(decl.Type.TypeParams.List) > 0 {
-		return nil, fmt.Errorf("%w: type parameters", errSyntax)
-	}
 	fn := &Func{Name: decl.Name.Name}
-	body := sc.child()
+	sig := sc.child()
 	if decl.Recv != nil {
 		if len(decl.Recv.List) != 1 {
 			return nil, fmt.Errorf("%w: receiver", errSyntax)
@@ -191,21 +198,30 @@ func convertFunc(decl *ast.FuncDecl, sc *scope) (*Func, error) {
 			return nil, err
 		}
 		fn.Receiver = field
-		body.defineValues(field.Names)
+		sig.defineValues(receiverTypeParams(decl.Recv.List[0].Type))
 	}
-	params, err := convertFields(decl.Type.Params, sc)
+	typeParams, err := convertTypeParams(decl.Type.TypeParams, sig)
+	if err != nil {
+		return nil, err
+	}
+	fn.TypeParams = typeParams
+	params, err := convertFields(decl.Type.Params, sig)
 	if err != nil {
 		return nil, err
 	}
 	fn.Parameters = params
-	for _, field := range params {
-		body.defineValues(field.Names)
-	}
-	results, err := convertFields(decl.Type.Results, sc)
+	results, err := convertFields(decl.Type.Results, sig)
 	if err != nil {
 		return nil, err
 	}
 	fn.Returns = results
+	body := sig.child()
+	if fn.Receiver != nil {
+		body.defineValues(fn.Receiver.Names)
+	}
+	for _, field := range params {
+		body.defineValues(field.Names)
+	}
 	for _, field := range results {
 		body.defineValues(field.Names)
 	}
@@ -217,6 +233,52 @@ func convertFunc(decl *ast.FuncDecl, sc *scope) (*Func, error) {
 		}
 	}
 	return fn, nil
+}
+
+func convertTypeParams(list *ast.FieldList, sc *scope) ([]*Field, error) {
+	if list == nil {
+		return []*Field{}, nil
+	}
+	out := make([]*Field, 0, len(list.List))
+	for _, field := range list.List {
+		converted, err := convertField(field, sc)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, converted)
+		sc.defineValues(converted.Names)
+	}
+	return out, nil
+}
+
+func receiverTypeParams(expr ast.Expr) []string {
+	for expr != nil {
+		switch e := expr.(type) {
+		case *ast.ParenExpr:
+			expr = e.X
+		case *ast.StarExpr:
+			expr = e.X
+		case *ast.IndexExpr:
+			return identTypeArgs([]ast.Expr{e.Index})
+		case *ast.IndexListExpr:
+			return identTypeArgs(e.Indices)
+		default:
+			return nil
+		}
+	}
+	return nil
+}
+
+func identTypeArgs(list []ast.Expr) []string {
+	names := make([]string, 0, len(list))
+	for _, expr := range list {
+		id, ok := expr.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		names = append(names, id.Name)
+	}
+	return names
 }
 
 func convertFields(list *ast.FieldList, sc *scope) ([]*Field, error) {
@@ -316,24 +378,74 @@ func convertType(expr ast.Expr, sc *scope) (*Type, error) {
 		}
 		return &Type{Kind: TypeInterface, Fields: fields}, nil
 	case *ast.FuncType:
-		if e.TypeParams != nil && len(e.TypeParams.List) > 0 {
-			return nil, fmt.Errorf("%w: type parameters", errSyntax)
-		}
-		params, err := convertFields(e.Params, sc)
+		sig := sc.child()
+		typeParams, err := convertTypeParams(e.TypeParams, sig)
 		if err != nil {
 			return nil, err
 		}
-		results, err := convertFields(e.Results, sc)
+		params, err := convertFields(e.Params, sig)
 		if err != nil {
 			return nil, err
 		}
-		return &Type{Kind: TypeFunc, Fields: params, Results: results}, nil
+		results, err := convertFields(e.Results, sig)
+		if err != nil {
+			return nil, err
+		}
+		return &Type{Kind: TypeFunc, Params: typeParams, Fields: params, Results: results}, nil
 	case *ast.ChanType:
 		elem, err := convertType(e.Value, sc)
 		if err != nil {
 			return nil, err
 		}
 		return Chan(chanFrom(e.Dir), elem), nil
+	case *ast.IndexExpr:
+		base, err := convertExpr(e.X, sc)
+		if err != nil {
+			return nil, err
+		}
+		arg, err := convertType(e.Index, sc)
+		if err != nil {
+			return nil, err
+		}
+		return &Type{Kind: TypeInst, X: base, Args: []*Type{arg}}, nil
+	case *ast.IndexListExpr:
+		base, err := convertExpr(e.X, sc)
+		if err != nil {
+			return nil, err
+		}
+		args := make([]*Type, 0, len(e.Indices))
+		for _, index := range e.Indices {
+			arg, err := convertType(index, sc)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, arg)
+		}
+		return &Type{Kind: TypeInst, X: base, Args: args, Listed: true}, nil
+	case *ast.BinaryExpr:
+		op, err := opFrom(e.Op)
+		if err != nil {
+			return nil, err
+		}
+		left, err := convertType(e.X, sc)
+		if err != nil {
+			return nil, err
+		}
+		right, err := convertType(e.Y, sc)
+		if err != nil {
+			return nil, err
+		}
+		return &Type{Kind: TypeBinary, Op: op, Left: left, Right: right}, nil
+	case *ast.UnaryExpr:
+		op, err := opFrom(e.Op)
+		if err != nil {
+			return nil, err
+		}
+		elem, err := convertType(e.X, sc)
+		if err != nil {
+			return nil, err
+		}
+		return &Type{Kind: TypeUnary, Op: op, Elem: elem}, nil
 	default:
 		return nil, fmt.Errorf("%w: type %T", errSyntax, expr)
 	}
@@ -464,9 +576,125 @@ func convertStmt(stmt ast.Stmt, sc *scope) (*Stmt, error) {
 			return nil, err
 		}
 		return &Stmt{Kind: StmtLabel, Label: s.Label.Name, Stmt: inner}, nil
+	case *ast.SwitchStmt:
+		return convertSwitch(s, sc)
+	case *ast.TypeSwitchStmt:
+		return convertTypeSwitch(s, sc)
+	case *ast.SelectStmt:
+		return convertSelect(s, sc)
 	default:
 		return nil, fmt.Errorf("%w: statement %T", errSyntax, stmt)
 	}
+}
+
+func convertSwitch(stmt *ast.SwitchStmt, sc *scope) (*Stmt, error) {
+	block := sc.child()
+	out := &Stmt{Kind: StmtSwitch}
+	if stmt.Init != nil {
+		init, err := convertStmt(stmt.Init, block)
+		if err != nil {
+			return nil, err
+		}
+		out.Init = init
+	}
+	if stmt.Tag != nil {
+		tag, err := convertExpr(stmt.Tag, block)
+		if err != nil {
+			return nil, err
+		}
+		out.Cond = tag
+	}
+	body, err := convertClauses(stmt.Body, block, nil)
+	if err != nil {
+		return nil, err
+	}
+	out.Body = body
+	return out, nil
+}
+
+func convertTypeSwitch(stmt *ast.TypeSwitchStmt, sc *scope) (*Stmt, error) {
+	block := sc.child()
+	out := &Stmt{Kind: StmtTypeSwitch}
+	if stmt.Init != nil {
+		init, err := convertStmt(stmt.Init, block)
+		if err != nil {
+			return nil, err
+		}
+		out.Init = init
+	}
+	if stmt.Assign == nil {
+		return nil, fmt.Errorf("%w: type switch", errSyntax)
+	}
+	// The guard's short variable is in each case body. Case types stay
+	// on the switch scope so the name does not hide a package there.
+	guard := block.child()
+	assign, err := convertStmt(stmt.Assign, guard)
+	if err != nil {
+		return nil, err
+	}
+	out.Stmt = assign
+	body, err := convertClauses(stmt.Body, block, guard.valueNames())
+	if err != nil {
+		return nil, err
+	}
+	out.Body = body
+	return out, nil
+}
+
+func convertSelect(stmt *ast.SelectStmt, sc *scope) (*Stmt, error) {
+	body, err := convertClauses(stmt.Body, sc, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &Stmt{Kind: StmtSelect, Body: body}, nil
+}
+
+func convertClauses(body *ast.BlockStmt, sc *scope, caseVars []string) ([]*Stmt, error) {
+	if body == nil {
+		return []*Stmt{}, nil
+	}
+	out := make([]*Stmt, 0, len(body.List))
+	for _, stmt := range body.List {
+		switch clause := stmt.(type) {
+		case *ast.CaseClause:
+			item := &Stmt{Kind: StmtCase}
+			if clause.List != nil {
+				exprs, err := convertExprs(clause.List, sc)
+				if err != nil {
+					return nil, err
+				}
+				item.Exprs = exprs
+			}
+			bodyScope := sc.child()
+			bodyScope.defineValues(caseVars)
+			var err error
+			item.Body, err = convertStmtList(clause.Body, bodyScope)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, item)
+		case *ast.CommClause:
+			item := &Stmt{Kind: StmtComm}
+			caseScope := sc.child()
+			caseScope.defineValues(caseVars)
+			if clause.Comm != nil {
+				comm, err := convertStmt(clause.Comm, caseScope)
+				if err != nil {
+					return nil, err
+				}
+				item.Stmt = comm
+			}
+			var err error
+			item.Body, err = convertStmtList(clause.Body, caseScope)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, item)
+		default:
+			return nil, fmt.Errorf("%w: clause %T", errSyntax, stmt)
+		}
+	}
+	return out, nil
 }
 
 func convertAssign(stmt *ast.AssignStmt, sc *scope) (*Stmt, error) {
@@ -816,25 +1044,27 @@ func convertFuncLit(expr *ast.FuncLit, sc *scope) (*Expr, error) {
 	if expr.Type == nil {
 		return nil, fmt.Errorf("%w: function literal", errSyntax)
 	}
-	if expr.Type.TypeParams != nil && len(expr.Type.TypeParams.List) > 0 {
-		return nil, fmt.Errorf("%w: type parameters", errSyntax)
-	}
-	params, err := convertFields(expr.Type.Params, sc)
+	sig := sc.child()
+	typeParams, err := convertTypeParams(expr.Type.TypeParams, sig)
 	if err != nil {
 		return nil, err
 	}
-	results, err := convertFields(expr.Type.Results, sc)
+	params, err := convertFields(expr.Type.Params, sig)
 	if err != nil {
 		return nil, err
 	}
-	bodyScope := sc.child()
+	results, err := convertFields(expr.Type.Results, sig)
+	if err != nil {
+		return nil, err
+	}
+	bodyScope := sig.child()
 	for _, field := range params {
 		bodyScope.defineValues(field.Names)
 	}
 	for _, field := range results {
 		bodyScope.defineValues(field.Names)
 	}
-	fn := &Func{Parameters: params, Returns: results, HasBody: true}
+	fn := &Func{TypeParams: typeParams, Parameters: params, Returns: results, HasBody: true}
 	if expr.Body != nil {
 		fn.Body, err = convertStmtList(expr.Body.List, bodyScope)
 		if err != nil {
@@ -884,6 +1114,17 @@ func (s *scope) defineValues(names []string) {
 	for _, name := range names {
 		s.defineValue(name)
 	}
+}
+
+func (s *scope) valueNames() []string {
+	if s == nil || len(s.values) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(s.values))
+	for name := range s.values {
+		names = append(names, name)
+	}
+	return names
 }
 
 func (s *scope) lookupImport(name string) (string, bool) {
