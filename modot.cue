@@ -32,6 +32,7 @@ inputs: golang: {
 inputs: vulkan_samples: {
 	from:    "github:KhronosGroup/Vulkan-Samples"
 	version: "main"
+}
 inputs: lua: {
 	from:    "github:lua/lua"
 	version: "v5.4.7"
@@ -43,6 +44,7 @@ inputs: zlib: {
 inputs: ninja: {
 	from:    "github:ninja-build/ninja"
 	version: "v1.12.1"
+}
 inputs: graphviz: {
 	from:    "github:ellson/MOTHBALLED-graphviz"
 	version: "master"
@@ -231,6 +233,8 @@ file: codebase: {
 		steps: "10_require": {
 			op: "require"
 			patterns: ninja: "*.ninja"
+		}
+	}
 	// Graphviz examples (EPL-2.0) from the mothballed GitHub tree.
 	"x/takemake/graphviz/testdata": {
 		type: "place"
