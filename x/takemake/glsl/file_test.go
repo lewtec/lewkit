@@ -15,8 +15,8 @@ import (
 	glslang "github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 )
 
-// Khronos fixtures under testdata/khronos are Vulkan-Samples shaders:
-// https://github.com/KhronosGroup/Vulkan-Samples (Apache-2.0).
+// Khronos fixtures under testdata/khronos are placed by modot from
+// github:KhronosGroup/Vulkan-Samples (Apache-2.0).
 
 func TestAPIRoundTrip(t *testing.T) {
 	file := New(Fragment).SetVersion(450).SetProfile(Core)

@@ -18,6 +18,57 @@
     "x/ndarray/onnx/internal/proto/onnx.proto": {
       "source_info": "mount:x/ndarray/onnx/internal/proto/onnx.proto"
     },
+    "x/takemake/glsl/testdata/khronos/base.frag": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/base.frag"
+    },
+    "x/takemake/glsl/testdata/khronos/binary_demo.comp": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/binary_demo.comp"
+    },
+    "x/takemake/glsl/testdata/khronos/blur_down.comp": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/blur_down.comp"
+    },
+    "x/takemake/glsl/testdata/khronos/composition.frag": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/composition.frag"
+    },
+    "x/takemake/glsl/testdata/khronos/composition.vert": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/composition.vert"
+    },
+    "x/takemake/glsl/testdata/khronos/cube.frag": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/cube.frag"
+    },
+    "x/takemake/glsl/testdata/khronos/deferred_lighting.vert": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/deferred_lighting.vert"
+    },
+    "x/takemake/glsl/testdata/khronos/game_of_life_update.comp": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/game_of_life_update.comp"
+    },
+    "x/takemake/glsl/testdata/khronos/imgui.frag": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/imgui.frag"
+    },
+    "x/takemake/glsl/testdata/khronos/particle_calculate.comp": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/particle_calculate.comp"
+    },
+    "x/takemake/glsl/testdata/khronos/particle_integrate.comp": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/particle_integrate.comp"
+    },
+    "x/takemake/glsl/testdata/khronos/postprocessing.vert": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/postprocessing.vert"
+    },
+    "x/takemake/glsl/testdata/khronos/shadowmap.frag": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/shadowmap.frag"
+    },
+    "x/takemake/glsl/testdata/khronos/shadowmap.vert": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/shadowmap.vert"
+    },
+    "x/takemake/glsl/testdata/khronos/triangle.frag": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/triangle.frag"
+    },
+    "x/takemake/glsl/testdata/khronos/triangle.vert": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/triangle.vert"
+    },
+    "x/takemake/glsl/testdata/khronos/triangle_es.frag": {
+      "source_info": "mount:x/takemake/glsl/testdata/khronos/triangle_es.frag"
+    },
     "x/toolchain/go/_upstream/cmd/archive/archive.go": {
       "source_info": "mount:x/toolchain/go/_upstream/cmd/archive/archive.go"
     },
