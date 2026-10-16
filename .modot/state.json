@@ -32,6 +32,53 @@
     },
     "x/takemake/ninja/testdata/long-slow-build.ninja": {
       "source_info": "mount:x/takemake/ninja/testdata/long-slow-build.ninja"
+    "x/takemake/graphviz/testdata/ER.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/ER.gv"
+    },
+    "x/takemake/graphviz/testdata/NaN.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/NaN.gv"
+    },
+    "x/takemake/graphviz/testdata/Petersen.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/Petersen.gv"
+    },
+    "x/takemake/graphviz/testdata/abstract.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/abstract.gv"
+    },
+    "x/takemake/graphviz/testdata/arrows.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/arrows.gv"
+    },
+    "x/takemake/graphviz/testdata/clust.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/clust.gv"
+    },
+    "x/takemake/graphviz/testdata/clust1.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/clust1.gv"
+    },
+    "x/takemake/graphviz/testdata/dfa.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/dfa.gv"
+    },
+    "x/takemake/graphviz/testdata/fsm.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/fsm.gv"
+    },
+    "x/takemake/graphviz/testdata/grammar.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/grammar.gv"
+    },
+    "x/takemake/graphviz/testdata/records.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/records.gv"
+    },
+    "x/takemake/graphviz/testdata/structs.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/structs.gv"
+    },
+    "x/takemake/graphviz/testdata/switch.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/switch.gv"
+    },
+    "x/takemake/graphviz/testdata/table.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/table.gv"
+    },
+    "x/takemake/graphviz/testdata/unix.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/unix.gv"
+    },
+    "x/takemake/graphviz/testdata/world.gv": {
+      "source_info": "mount:x/takemake/graphviz/testdata/world.gv"
     },
     "x/toolchain/go/_upstream/cmd/archive/archive.go": {
       "source_info": "mount:x/toolchain/go/_upstream/cmd/archive/archive.go"

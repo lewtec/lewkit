@@ -26,6 +26,7 @@ x/takemake/wim
 x/takemake/onnx
 x/takemake/sarif
 x/takemake/dotenv
+x/takemake/llvm
 ```
 
 A session owns the directories in its node and leaves the others alone. The scaffold compiles and returns `errs.ErrScaffold` from `Take` and `Make`. Replace that body. Closed sets are `//lewkit:enum`, and the package `enum.go` holds only the package clause and `//go:generate go run github.com/lewtec/lewkit/cmd/lewkit generate enum`.
@@ -135,6 +136,17 @@ s.Func("main").Returns(glsl.Void()).Block(...)
 `sarif.File` is one SARIF 2.1.0 log: runs, results, rules, and fixes. `Take` parses the JSON. `Make` prints it. `x/text/report.WriteSARIF` prints findings today.
 
 `dotenv.File` is assignments in order. A comment and the original quoting stay on the assignment. `Take` parses the text. `Make` prints it. `x/sops.ParseEnv` drops comments, and `Env.Strings` is not that text.
+
+`llvm.File` holds the source filename, the data layout, the target triple, module-level asm, named types, comdats, globals, functions, attribute groups, and metadata. A type is void, an integer, half, float, double, bfloat, x86_fp80, fp128, ppc_fp128, x86_mmx, x86_amx, metadata, token, label, an opaque or typed pointer, an array, a vector (a scalable vector keeps `vscale`), a struct, a function type, or a named type. A global has a name, linkage, a constant, an alias, or an ifunc, an initializer, and an alignment. A function has a name, a calling convention, result and parameter attributes, a signature, and basic blocks. An instruction is alloca, load, store, getelementptr, an integer or float binary op, icmp, fcmp, a cast, phi, extractvalue, insertvalue, call, invoke, callbr, fneg, freeze, select, extractelement, insertelement, shufflevector, atomicrmw, cmpxchg, fence, switch, resume, landingpad, indirectbr, va_arg, br, ret, or unreachable. Attribute clauses, attribute-group bodies, and metadata nodes keep their source text. `Take` parses LLVM IR assembly. `Make` prints it. Opaque `ptr` and a typed pointer stay distinct. Bitcode stays out. A Go projection is not this file.
+
+```go
+m := llvm.New().Source("add.c").Layout("e-m:e-i64:64").Triple("x86_64-pc-linux-gnu")
+m.Global("g").SetDSOLocal().Type(llvm.IntType(32)).Init(llvm.Int(32, "42")).Align(4)
+fn := m.Func("add").Returns(llvm.IntType(32)).Param("a", llvm.IntType(32)).Param("b", llvm.IntType(32))
+b := fn.Block("entry")
+b.Bin("sum", llvm.OpAdd, llvm.IntType(32), llvm.Local("a"), llvm.Local("b")).NSW()
+b.Ret(llvm.IntType(32), llvm.Local("sum"))
+```
 
 ## Leave these where they are
 
