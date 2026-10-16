@@ -226,7 +226,7 @@ func optionByName(t *testing.T, options []Option, name string) Option {
 			return option
 		}
 	}
-	t.Fatalf("missing option %s", name)
+	require.FailNow(t, "missing option "+name)
 	return Option{}
 }
 
@@ -253,7 +253,7 @@ func messageByName(t *testing.T, messages []*Message, name string) *Message {
 			return message
 		}
 	}
-	t.Fatalf("missing message %s", name)
+	require.FailNow(t, "missing message "+name)
 	return nil
 }
 
@@ -264,7 +264,7 @@ func enumByName(t *testing.T, enums []*Enum, name string) *Enum {
 			return enum
 		}
 	}
-	t.Fatalf("missing enum %s", name)
+	require.FailNow(t, "missing enum "+name)
 	return nil
 }
 
@@ -275,7 +275,7 @@ func enumValueByName(t *testing.T, enum *Enum, name string) *EnumValue {
 			return value
 		}
 	}
-	t.Fatalf("missing enum value %s", name)
+	require.FailNow(t, "missing enum value "+name)
 	return nil
 }
 
@@ -286,7 +286,7 @@ func fieldByName(t *testing.T, fields []*Field, name string) *Field {
 			return field
 		}
 	}
-	t.Fatalf("missing field %s", name)
+	require.FailNow(t, "missing field "+name)
 	return nil
 }
 
