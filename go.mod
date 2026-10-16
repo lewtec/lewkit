@@ -23,7 +23,7 @@ require (
 	github.com/fetchurl/fetchurl v0.0.0-20260714002336-2d69880d6c8b
 	github.com/getsentry/sentry-go v0.49.0
 	github.com/getsops/sops/v3 v3.10.2
-	github.com/git-pkgs/gitignore v1.2.0
+	github.com/git-pkgs/gitignore v1.3.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/google/uuid v1.6.0
