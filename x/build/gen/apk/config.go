@@ -62,15 +62,6 @@ type fileConfig struct {
 	Capabilities  json.RawMessage `json:"capabilities,omitempty"`
 }
 
-// configPathErr keeps a missing path as a usage error.
-// The text stays the stat or open message. Reporters skip it.
-func configPathErr(err error) error {
-	if err != nil && errors.Is(err, os.ErrNotExist) {
-		return report.DoNotReport(err)
-	}
-	return err
-}
-
 // LoadConfig reads eletrocromo.json from path (file or directory containing it).
 // BaseDir is the directory used to resolve relative go_main.
 func LoadConfig(path string) (cfg Config, baseDir string, err error) {
@@ -80,7 +71,10 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 	}
 	st, err := os.Stat(path)
 	if err != nil {
-		return Config{}, "", configPathErr(err)
+		if errors.Is(err, os.ErrNotExist) {
+			err = report.DoNotReport(err)
+		}
+		return Config{}, "", err
 	}
 	var file string
 	if st.IsDir() {
@@ -92,7 +86,10 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 	}
 	raw, err := os.ReadFile(file)
 	if err != nil {
-		return Config{}, "", configPathErr(err)
+		if errors.Is(err, os.ErrNotExist) {
+			err = report.DoNotReport(err)
+		}
+		return Config{}, "", err
 	}
 	var doc fileConfig
 	if err := json.Unmarshal(raw, &doc); err != nil {
