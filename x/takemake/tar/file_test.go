@@ -259,6 +259,35 @@ func TestGNUTarHardLink(t *testing.T) {
 	require.ErrorIs(t, err, errs.ErrUnsupported)
 }
 
+func TestLiveGitArchive(t *testing.T) {
+	t.Parallel()
+	bin := test.Need(t, "git")
+	dir := gitTree(t, bin)
+	archive := filepath.Join(dir, "git.tar")
+	// tar.umask 0002 is git's default: directories and executables are 0775, files are 0664.
+	cmd := exec.Command(bin, "-c", "tar.umask=0002", "archive", "--format=tar", "-o", archive, "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(out))
+	raw, err := os.ReadFile(archive)
+	require.NoError(t, err)
+	file, err := Take(bytes.NewReader(raw))
+	require.NoError(t, err)
+	when := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	requireEntries(t, file, []*Entry{
+		{Name: "dir", Mode: fs.ModeDir | 0o775, Time: when},
+		{Name: "dir/empty", Mode: 0o664, Time: when},
+		{Name: "dir/nested", Mode: fs.ModeDir | 0o775, Time: when},
+		{Name: "dir/nested/run.sh", Mode: 0o775, Time: when, Data: []byte("#!/bin/sh\n")},
+		{Name: "dir/note.txt", Mode: 0o664, Time: when, Data: []byte("live")},
+		{Name: "link", Mode: fs.ModeSymlink | 0o777, Time: when, Target: "dir/note.txt"},
+		{Name: strings.Repeat("n", 120), Mode: 0o664, Time: when, Data: []byte("long")},
+		{Name: "世界.txt", Mode: 0o664, Time: when, Data: []byte("utf8")},
+	})
+	require.Equal(t, views(file), views(takeMade(t, file)))
+	requireTarLists(t, file)
+}
+
 func TestGNUTarDuplicateMembers(t *testing.T) {
 	t.Parallel()
 	bin := test.Need(t, "tar")
@@ -283,6 +312,39 @@ func TestGNUTarDuplicateMembers(t *testing.T) {
 	require.Equal(t, []byte("one"), file.Entries[0].Data)
 	require.Equal(t, []byte("two"), file.Entries[1].Data)
 	require.Equal(t, views(file), views(takeMade(t, file)))
+}
+
+func gitTree(t *testing.T, bin string) string {
+	t.Helper()
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command(bin, args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=takemake",
+			"GIT_AUTHOR_EMAIL=takemake@example.com",
+			"GIT_COMMITTER_NAME=takemake",
+			"GIT_COMMITTER_EMAIL=takemake@example.com",
+			"GIT_AUTHOR_DATE=2020-01-02T03:04:05Z",
+			"GIT_COMMITTER_DATE=2020-01-02T03:04:05Z",
+		)
+		out, err := cmd.CombinedOutput()
+		require.NoError(t, err, string(out))
+	}
+	run("init", "-q", "-b", "main")
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "dir", "nested"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "dir", "note.txt"), []byte("live"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "dir", "empty"), nil, 0o644))
+	script := filepath.Join(dir, "dir", "nested", "run.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\n"), 0o755))
+	require.NoError(t, os.Chmod(script, 0o755))
+	require.NoError(t, os.Symlink("dir/note.txt", filepath.Join(dir, "link")))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, strings.Repeat("n", 120)), []byte("long"), 0o644))
+	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "add", "-A")
+	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "tree")
+	return dir
 }
 
 func treeEntries(when time.Time, hello []byte) []*Entry {
