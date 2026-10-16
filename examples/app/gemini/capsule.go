@@ -38,6 +38,7 @@ A lightweight, privacy-first hypertext browser rendered on the GPU with x/ui/gui
 ### Live Geminispace (TLS Port 1965)
 => gemini://geminiprotocol.net/ Official Gemini Protocol Capsule
 => gemini://kennedy.gemi.dev/ Kennedy Search Engine
+=> gemini://lucasew.srht.site/ Gemini Browser by lucasew
 
 ### Why Gemini?
 * No tracking scripts, cookies, or layout bloat

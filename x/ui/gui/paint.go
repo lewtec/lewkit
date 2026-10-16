@@ -57,6 +57,8 @@ type Picture struct {
 	keys        []hitKey
 	fillCount   int
 	recordOnly  bool
+	// keysOnly records hit targets and skips glyph and pixel work.
+	keysOnly bool
 	// dead is the host navbar and notch rects for this frame, in window pixels.
 	dead []Rect
 	// scale is device pixels per logical pixel for authored layout lengths.
@@ -299,7 +301,10 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	if root == nil || size.Width < 1 || size.Height < 1 {
 		return nil, ndarray.ErrShape
 	}
-	defer func() { picture.holdList = false }()
+	defer func() {
+		picture.holdList = false
+		picture.keysOnly = false
+	}()
 	root = stageRoot(root)
 	constraints := Tight(size.Width, size.Height)
 	constraints.dead = picture.dead
@@ -322,6 +327,9 @@ func (picture *Picture) Render(root Node, size Size) (*ndarray.Tensor[uint8], er
 	}
 	picture.accumulator = picture.base
 	picture.adopt(lower(picture.paintMarks(root, size)))
+	if picture.keysOnly {
+		return nil, nil
+	}
 	mount := picture.mountable()
 	overlay := picture.overlaySig()
 	if mount && picture.mounted == picture.raster && picture.pixels != nil && overlay == picture.overlay {

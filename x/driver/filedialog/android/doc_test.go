@@ -41,6 +41,17 @@ func TestDocumentTree(t *testing.T) {
 	body, err := fs.ReadFile(fsys, "readme.txt")
 	require.NoError(t, err)
 	require.Equal(t, "hello", string(body))
+	opened, err := fsys.Open("readme.txt")
+	require.NoError(t, err)
+	defer opened.Close()
+	seeker, ok := opened.(io.Seeker)
+	require.True(t, ok)
+	at, err := seeker.Seek(1, io.SeekStart)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), at)
+	rest, err := io.ReadAll(opened)
+	require.NoError(t, err)
+	require.Equal(t, "ello", string(rest))
 	_, err = fsys.Open("..")
 	require.ErrorIs(t, err, fs.ErrInvalid)
 	n := docs.lists
@@ -266,4 +277,7 @@ type memFile struct{ r *strings.Reader }
 
 func (m memFile) Stat() (fs.FileInfo, error) { return nil, fs.ErrInvalid }
 func (m memFile) Read(p []byte) (int, error) { return m.r.Read(p) }
-func (m memFile) Close() error               { return nil }
+func (m memFile) Seek(offset int64, whence int) (int64, error) {
+	return m.r.Seek(offset, whence)
+}
+func (m memFile) Close() error { return nil }

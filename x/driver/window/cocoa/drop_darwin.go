@@ -51,6 +51,16 @@ func ensureDropClass() error {
 				{Cmd: objc.RegisterName("draggingUpdated:"), Fn: dropEntered},
 				{Cmd: objc.RegisterName("prepareForDragOperation:"), Fn: dropPrepare},
 				{Cmd: objc.RegisterName("performDragOperation:"), Fn: dropPerform},
+				{Cmd: objc.RegisterName("acceptsFirstMouse:"), Fn: contentAcceptsFirstMouse},
+				{Cmd: objc.RegisterName("mouseDown:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("mouseUp:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("rightMouseDown:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("rightMouseUp:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("otherMouseDown:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("otherMouseUp:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("mouseDragged:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("rightMouseDragged:"), Fn: contentMouse},
+				{Cmd: objc.RegisterName("otherMouseDragged:"), Fn: contentMouse},
 			},
 		)
 	})
@@ -86,6 +96,17 @@ func dropEntered(_ objc.ID, _ objc.SEL, sender objc.ID) int {
 }
 
 func dropPrepare(_ objc.ID, _ objc.SEL, _ objc.ID) bool { return true }
+
+// contentMouse replaces NSView's mouse tracking.
+// The inherited mouseDown: waits in NSEventTrackingRunLoopMode until the
+// button comes up. A Metal drawable is published from the display link,
+// and that link does not fire in that mode, so the frame after a click
+// never presents. The pump already recorded the event.
+func contentMouse(objc.ID, objc.SEL, objc.ID) {}
+
+// contentAcceptsFirstMouse makes the click that activates the window a
+// click in the view as well. The pump records it either way.
+func contentAcceptsFirstMouse(objc.ID, objc.SEL, objc.ID) bool { return true }
 
 func dropPerform(self objc.ID, _ objc.SEL, sender objc.ID) bool {
 	value, ok := dropViews.Load(uintptr(self))
