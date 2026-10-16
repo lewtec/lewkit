@@ -126,7 +126,7 @@ s.Func("main").Returns(glsl.Void()).Block(...)
 
 `graphviz.File` holds graphs, nodes, edges, and attributes. `Take` parses Graphviz source. `Make` prints it. `x/graph.Graph` is a projection. `Graph.DOT` prints a small digraph today.
 
-`iso.File` is one El Torito image: an ISO 9660 directory, the boot catalog, and a FAT16 boot image. An entry is a name, a mode, a time, and bytes. `x/fs/iso.Write` builds that image today.
+`iso.File` is an ISO 9660 directory. An entry is a name, a mode, a time, and bytes. A zero catalog is a data image. `Platform`, `Emulation`, or `Boot` opts into El Torito: the boot catalog and a FAT16 boot image. `x/fs/iso.Write` builds that bootable image today.
 
 `squashfs.File`, `udf.File`, and `wim.File` are file trees. An entry is a name, a mode, a time, and bytes or a symlink target. `x/fs/squashfs`, `x/fs/udf`, and `x/fs/wim` only open today. UDF is its own volume. A file named `.iso` often holds one, and `x/fs/udf` reads that volume. `iso.File` does not.
 
