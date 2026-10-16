@@ -49,6 +49,40 @@ inputs: graphviz: {
 	from:    "github:ellson/MOTHBALLED-graphviz"
 	version: "master"
 }
+// Tree-sitter grammars (MIT). grammar.json is the generated form
+// FromTreeSitter loads. json and python: master is ahead of the latest tag.
+inputs: treesitter_bash: {
+	from:    "github:tree-sitter/tree-sitter-bash"
+	version: "v0.25.1"
+}
+inputs: treesitter_c: {
+	from:    "github:tree-sitter/tree-sitter-c"
+	version: "v0.24.2"
+}
+inputs: treesitter_go: {
+	from:    "github:tree-sitter/tree-sitter-go"
+	version: "v0.25.0"
+}
+inputs: treesitter_java: {
+	from:    "github:tree-sitter/tree-sitter-java"
+	version: "v0.23.5"
+}
+inputs: treesitter_javascript: {
+	from:    "github:tree-sitter/tree-sitter-javascript"
+	version: "v0.25.0"
+}
+inputs: treesitter_json: {
+	from:    "github:tree-sitter/tree-sitter-json"
+	version: "master"
+}
+inputs: treesitter_python: {
+	from:    "github:tree-sitter/tree-sitter-python"
+	version: "master"
+}
+inputs: treesitter_rust: {
+	from:    "github:tree-sitter/tree-sitter-rust"
+	version: "v0.24.2"
+}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
@@ -260,6 +294,39 @@ file: codebase: {
 			op: "require"
 			patterns: gv: "*.gv"
 		}
+	}
+	// Tree-sitter grammar.json. A file source lands on the dest path.
+	"x/parse/testdata/treesitter/bash.json": {
+		type:   "place"
+		source: "treesitter_bash:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/c.json": {
+		type:   "place"
+		source: "treesitter_c:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/go.json": {
+		type:   "place"
+		source: "treesitter_go:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/java.json": {
+		type:   "place"
+		source: "treesitter_java:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/javascript.json": {
+		type:   "place"
+		source: "treesitter_javascript:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/json.json": {
+		type:   "place"
+		source: "treesitter_json:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/python.json": {
+		type:   "place"
+		source: "treesitter_python:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/rust.json": {
+		type:   "place"
+		source: "treesitter_rust:src/grammar.json"
 	}
 }
 

@@ -150,6 +150,78 @@
     },
     {
       "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-bash",
+      "depName": "tree-sitter/tree-sitter-bash",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-bash",
+      "currentValue": "v0.25.1",
+      "currentDigest": "a06c2e4415e9bc0346c6b86d401879ffb44058f7",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-c",
+      "depName": "tree-sitter/tree-sitter-c",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-c",
+      "currentValue": "v0.24.2",
+      "currentDigest": "b780e47fc780ddc8da13afa35a3f4ed5c157823d",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-go",
+      "depName": "tree-sitter/tree-sitter-go",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-go",
+      "currentValue": "v0.25.0",
+      "currentDigest": "1547678a9da59885853f5f5cc8a99cc203fa2e2c",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-java",
+      "depName": "tree-sitter/tree-sitter-java",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-java",
+      "currentValue": "v0.23.5",
+      "currentDigest": "94703d5a6bed02b98e438d7cad1136c01a60ba2c",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-javascript",
+      "depName": "tree-sitter/tree-sitter-javascript",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-javascript",
+      "currentValue": "v0.25.0",
+      "currentDigest": "44c892e0be055ac465d5eeddae6d3e194424e7de",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-json",
+      "depName": "tree-sitter/tree-sitter-json",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-json",
+      "currentValue": "master",
+      "currentDigest": "254c42a6476413b776221e03982ac8ae159eeb72",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-python",
+      "depName": "tree-sitter/tree-sitter-python",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-python",
+      "currentValue": "master",
+      "currentDigest": "26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-rust",
+      "depName": "tree-sitter/tree-sitter-rust",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-rust",
+      "currentValue": "v0.24.2",
+      "currentDigest": "77a3747266f4d621d0757825e6b11edcbf991ca5",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
       "ref": "github:wasilibs/go-capstone",
       "depName": "wasilibs/go-capstone",
       "packageName": "https://github.com/wasilibs/go-capstone",
