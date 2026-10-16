@@ -206,6 +206,24 @@ func (p Platform) String() string {
 	return string(p)
 }
 
+// GOOS returns the GOOS of a Platform.
+func (p Platform) GOOS() GOOS {
+	text, _, ok := strings.Cut(string(p), "/")
+	if !ok {
+		return ""
+	}
+	return GOOS(text)
+}
+
+// GOARCH returns the GOARCH of a Platform.
+func (p Platform) GOARCH() GOARCH {
+	_, text, ok := strings.Cut(string(p), "/")
+	if !ok {
+		return ""
+	}
+	return GOARCH(text)
+}
+
 // Values lists the Platform values.
 func (Platform) Values() []Platform {
 	return []Platform{PlatformAixPPC64, PlatformAndroid386, PlatformAndroidAMD64, PlatformAndroidARM, PlatformAndroidARM64, PlatformDarwinAMD64, PlatformDarwinARM64, PlatformDragonflyAMD64, PlatformFreebsd386, PlatformFreebsdAMD64, PlatformFreebsdARM, PlatformFreebsdARM64, PlatformFreebsdRiscv64, PlatformIllumosAMD64, PlatformIOSAMD64, PlatformIOSARM64, PlatformJSWasm, PlatformLinux386, PlatformLinuxAMD64, PlatformLinuxARM, PlatformLinuxARM64, PlatformLinuxLoong64, PlatformLinuxMips, PlatformLinuxMips64, PlatformLinuxMips64le, PlatformLinuxMipsle, PlatformLinuxPPC64, PlatformLinuxPPC64le, PlatformLinuxRiscv64, PlatformLinuxS390x, PlatformLinuxSparc64, PlatformLinuxISOAMD64, PlatformLinuxISOARM64, PlatformLinuxUKIAMD64, PlatformLinuxUKIARM64, PlatformMBRAMD64, PlatformNetbsd386, PlatformNetbsdAMD64, PlatformNetbsdARM, PlatformNetbsdARM64, PlatformOpenbsd386, PlatformOpenbsdAMD64, PlatformOpenbsdARM, PlatformOpenbsdARM64, PlatformOpenbsdPPC64, PlatformOpenbsdRiscv64, PlatformPlan9386, PlatformPlan9AMD64, PlatformPlan9ARM, PlatformSolarisAMD64, PlatformTamagoAMD64, PlatformTamagoARM, PlatformTamagoARM64, PlatformTamagoRiscv64, PlatformUEFIAMD64, PlatformWasip1Wasm, PlatformWindows386, PlatformWindowsAMD64, PlatformWindowsARM64}
@@ -227,47 +245,47 @@ func ParsePlatform(text string) (Platform, error) {
 	switch text {
 	case "aix/ppc64", "aix_ppc64":
 		return PlatformAixPPC64, nil
-	case "android/386", "android_386", "android/x86", "android_x86":
+	case "android/386", "android_386", "android/x86", "android_x86", "android/i386", "android_i386", "android/i686", "android_i686":
 		return PlatformAndroid386, nil
-	case "android/amd64", "android_amd64", "android/x86_64", "android_x86_64":
+	case "android/amd64", "android_amd64", "android/x86_64", "android_x86_64", "android/x64", "android_x64":
 		return PlatformAndroidAMD64, nil
-	case "android/arm", "android_arm", "android/armeabi-v7a", "android_armeabi-v7a":
+	case "android/arm", "android_arm", "android/armv7l", "android_armv7l", "android/armeabi-v7a", "android_armeabi-v7a":
 		return PlatformAndroidARM, nil
-	case "android/arm64", "android_arm64", "android/arm64-v8a", "android_arm64-v8a":
+	case "android/arm64", "android_arm64", "android/aarch64", "android_aarch64", "android/arm64-v8a", "android_arm64-v8a":
 		return PlatformAndroidARM64, nil
-	case "darwin/amd64", "darwin_amd64", "osx-64":
+	case "darwin/amd64", "darwin_amd64", "darwin/x86_64", "darwin_x86_64", "darwin/x64", "darwin_x64", "osx-64":
 		return PlatformDarwinAMD64, nil
-	case "darwin/arm64", "darwin_arm64", "osx-arm64":
+	case "darwin/arm64", "darwin_arm64", "darwin/aarch64", "darwin_aarch64", "darwin/arm64-v8a", "darwin_arm64-v8a", "osx-arm64":
 		return PlatformDarwinARM64, nil
-	case "dragonfly/amd64", "dragonfly_amd64":
+	case "dragonfly/amd64", "dragonfly_amd64", "dragonfly/x86_64", "dragonfly_x86_64", "dragonfly/x64", "dragonfly_x64":
 		return PlatformDragonflyAMD64, nil
-	case "freebsd/386", "freebsd_386":
+	case "freebsd/386", "freebsd_386", "freebsd/x86", "freebsd_x86", "freebsd/i386", "freebsd_i386", "freebsd/i686", "freebsd_i686":
 		return PlatformFreebsd386, nil
-	case "freebsd/amd64", "freebsd_amd64":
+	case "freebsd/amd64", "freebsd_amd64", "freebsd/x86_64", "freebsd_x86_64", "freebsd/x64", "freebsd_x64":
 		return PlatformFreebsdAMD64, nil
-	case "freebsd/arm", "freebsd_arm":
+	case "freebsd/arm", "freebsd_arm", "freebsd/armv7l", "freebsd_armv7l", "freebsd/armeabi-v7a", "freebsd_armeabi-v7a":
 		return PlatformFreebsdARM, nil
-	case "freebsd/arm64", "freebsd_arm64":
+	case "freebsd/arm64", "freebsd_arm64", "freebsd/aarch64", "freebsd_aarch64", "freebsd/arm64-v8a", "freebsd_arm64-v8a":
 		return PlatformFreebsdARM64, nil
 	case "freebsd/riscv64", "freebsd_riscv64":
 		return PlatformFreebsdRiscv64, nil
-	case "illumos/amd64", "illumos_amd64":
+	case "illumos/amd64", "illumos_amd64", "illumos/x86_64", "illumos_x86_64", "illumos/x64", "illumos_x64":
 		return PlatformIllumosAMD64, nil
-	case "ios/amd64", "ios_amd64":
+	case "ios/amd64", "ios_amd64", "ios/x86_64", "ios_x86_64", "ios/x64", "ios_x64":
 		return PlatformIOSAMD64, nil
-	case "ios/arm64", "ios_arm64":
+	case "ios/arm64", "ios_arm64", "ios/aarch64", "ios_aarch64", "ios/arm64-v8a", "ios_arm64-v8a":
 		return PlatformIOSARM64, nil
-	case "js/wasm", "js_wasm":
+	case "js/wasm", "js_wasm", "js/wasm32", "js_wasm32":
 		return PlatformJSWasm, nil
-	case "linux/386", "linux_386", "linux-32":
+	case "linux/386", "linux_386", "linux/x86", "linux_x86", "linux/i386", "linux_i386", "linux/i686", "linux_i686", "linux-32":
 		return PlatformLinux386, nil
-	case "linux/amd64", "linux_amd64", "linux-64":
+	case "linux/amd64", "linux_amd64", "linux/x86_64", "linux_x86_64", "linux/x64", "linux_x64", "linux-64":
 		return PlatformLinuxAMD64, nil
-	case "linux/arm", "linux_arm":
+	case "linux/arm", "linux_arm", "linux/armv7l", "linux_armv7l", "linux/armeabi-v7a", "linux_armeabi-v7a":
 		return PlatformLinuxARM, nil
-	case "linux/arm64", "linux_arm64", "linux-aarch64":
+	case "linux/arm64", "linux_arm64", "linux/aarch64", "linux_aarch64", "linux/arm64-v8a", "linux_arm64-v8a", "linux-aarch64":
 		return PlatformLinuxARM64, nil
-	case "linux/loong64", "linux_loong64":
+	case "linux/loong64", "linux_loong64", "linux/loongarch64", "linux_loongarch64":
 		return PlatformLinuxLoong64, nil
 	case "linux/mips", "linux_mips":
 		return PlatformLinuxMips, nil
@@ -287,61 +305,61 @@ func ParsePlatform(text string) (Platform, error) {
 		return PlatformLinuxS390x, nil
 	case "linux/sparc64", "linux_sparc64":
 		return PlatformLinuxSparc64, nil
-	case "linux_iso/amd64", "linux_iso_amd64":
+	case "linux_iso/amd64", "linux_iso_amd64", "linux_iso/x86_64", "linux_iso_x86_64", "linux_iso/x64", "linux_iso_x64":
 		return PlatformLinuxISOAMD64, nil
-	case "linux_iso/arm64", "linux_iso_arm64":
+	case "linux_iso/arm64", "linux_iso_arm64", "linux_iso/aarch64", "linux_iso_aarch64", "linux_iso/arm64-v8a", "linux_iso_arm64-v8a":
 		return PlatformLinuxISOARM64, nil
-	case "linux_uki/amd64", "linux_uki_amd64":
+	case "linux_uki/amd64", "linux_uki_amd64", "linux_uki/x86_64", "linux_uki_x86_64", "linux_uki/x64", "linux_uki_x64":
 		return PlatformLinuxUKIAMD64, nil
-	case "linux_uki/arm64", "linux_uki_arm64":
+	case "linux_uki/arm64", "linux_uki_arm64", "linux_uki/aarch64", "linux_uki_aarch64", "linux_uki/arm64-v8a", "linux_uki_arm64-v8a":
 		return PlatformLinuxUKIARM64, nil
-	case "mbr/amd64", "mbr_amd64":
+	case "mbr/amd64", "mbr_amd64", "mbr/x86_64", "mbr_x86_64", "mbr/x64", "mbr_x64":
 		return PlatformMBRAMD64, nil
-	case "netbsd/386", "netbsd_386":
+	case "netbsd/386", "netbsd_386", "netbsd/x86", "netbsd_x86", "netbsd/i386", "netbsd_i386", "netbsd/i686", "netbsd_i686":
 		return PlatformNetbsd386, nil
-	case "netbsd/amd64", "netbsd_amd64":
+	case "netbsd/amd64", "netbsd_amd64", "netbsd/x86_64", "netbsd_x86_64", "netbsd/x64", "netbsd_x64":
 		return PlatformNetbsdAMD64, nil
-	case "netbsd/arm", "netbsd_arm":
+	case "netbsd/arm", "netbsd_arm", "netbsd/armv7l", "netbsd_armv7l", "netbsd/armeabi-v7a", "netbsd_armeabi-v7a":
 		return PlatformNetbsdARM, nil
-	case "netbsd/arm64", "netbsd_arm64":
+	case "netbsd/arm64", "netbsd_arm64", "netbsd/aarch64", "netbsd_aarch64", "netbsd/arm64-v8a", "netbsd_arm64-v8a":
 		return PlatformNetbsdARM64, nil
-	case "openbsd/386", "openbsd_386":
+	case "openbsd/386", "openbsd_386", "openbsd/x86", "openbsd_x86", "openbsd/i386", "openbsd_i386", "openbsd/i686", "openbsd_i686":
 		return PlatformOpenbsd386, nil
-	case "openbsd/amd64", "openbsd_amd64":
+	case "openbsd/amd64", "openbsd_amd64", "openbsd/x86_64", "openbsd_x86_64", "openbsd/x64", "openbsd_x64":
 		return PlatformOpenbsdAMD64, nil
-	case "openbsd/arm", "openbsd_arm":
+	case "openbsd/arm", "openbsd_arm", "openbsd/armv7l", "openbsd_armv7l", "openbsd/armeabi-v7a", "openbsd_armeabi-v7a":
 		return PlatformOpenbsdARM, nil
-	case "openbsd/arm64", "openbsd_arm64":
+	case "openbsd/arm64", "openbsd_arm64", "openbsd/aarch64", "openbsd_aarch64", "openbsd/arm64-v8a", "openbsd_arm64-v8a":
 		return PlatformOpenbsdARM64, nil
 	case "openbsd/ppc64", "openbsd_ppc64":
 		return PlatformOpenbsdPPC64, nil
 	case "openbsd/riscv64", "openbsd_riscv64":
 		return PlatformOpenbsdRiscv64, nil
-	case "plan9/386", "plan9_386":
+	case "plan9/386", "plan9_386", "plan9/x86", "plan9_x86", "plan9/i386", "plan9_i386", "plan9/i686", "plan9_i686":
 		return PlatformPlan9386, nil
-	case "plan9/amd64", "plan9_amd64":
+	case "plan9/amd64", "plan9_amd64", "plan9/x86_64", "plan9_x86_64", "plan9/x64", "plan9_x64":
 		return PlatformPlan9AMD64, nil
-	case "plan9/arm", "plan9_arm":
+	case "plan9/arm", "plan9_arm", "plan9/armv7l", "plan9_armv7l", "plan9/armeabi-v7a", "plan9_armeabi-v7a":
 		return PlatformPlan9ARM, nil
-	case "solaris/amd64", "solaris_amd64":
+	case "solaris/amd64", "solaris_amd64", "solaris/x86_64", "solaris_x86_64", "solaris/x64", "solaris_x64":
 		return PlatformSolarisAMD64, nil
-	case "tamago/amd64", "tamago_amd64":
+	case "tamago/amd64", "tamago_amd64", "tamago/x86_64", "tamago_x86_64", "tamago/x64", "tamago_x64":
 		return PlatformTamagoAMD64, nil
-	case "tamago/arm", "tamago_arm":
+	case "tamago/arm", "tamago_arm", "tamago/armv7l", "tamago_armv7l", "tamago/armeabi-v7a", "tamago_armeabi-v7a":
 		return PlatformTamagoARM, nil
-	case "tamago/arm64", "tamago_arm64":
+	case "tamago/arm64", "tamago_arm64", "tamago/aarch64", "tamago_aarch64", "tamago/arm64-v8a", "tamago_arm64-v8a":
 		return PlatformTamagoARM64, nil
 	case "tamago/riscv64", "tamago_riscv64":
 		return PlatformTamagoRiscv64, nil
-	case "uefi/amd64", "uefi_amd64":
+	case "uefi/amd64", "uefi_amd64", "uefi/x86_64", "uefi_x86_64", "uefi/x64", "uefi_x64":
 		return PlatformUEFIAMD64, nil
-	case "wasip1/wasm", "wasip1_wasm":
+	case "wasip1/wasm", "wasip1_wasm", "wasip1/wasm32", "wasip1_wasm32":
 		return PlatformWasip1Wasm, nil
-	case "windows/386", "windows_386", "win-32":
+	case "windows/386", "windows_386", "windows/x86", "windows_x86", "windows/i386", "windows_i386", "windows/i686", "windows_i686", "win-32":
 		return PlatformWindows386, nil
-	case "windows/amd64", "windows_amd64", "win-64":
+	case "windows/amd64", "windows_amd64", "windows/x86_64", "windows_x86_64", "windows/x64", "windows_x64", "win-64":
 		return PlatformWindowsAMD64, nil
-	case "windows/arm64", "windows_arm64", "win-arm64":
+	case "windows/arm64", "windows_arm64", "windows/aarch64", "windows_aarch64", "windows/arm64-v8a", "windows_arm64-v8a", "win-arm64":
 		return PlatformWindowsARM64, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrPlatform, text)
@@ -360,7 +378,7 @@ func (p *Platform) Parse(text string) error {
 
 // ArgChoices lists the texts ParsePlatform accepts.
 func (Platform) ArgChoices() []string {
-	return []string{"aix/ppc64", "aix_ppc64", "android/386", "android_386", "android/x86", "android_x86", "android/amd64", "android_amd64", "android/x86_64", "android_x86_64", "android/arm", "android_arm", "android/armeabi-v7a", "android_armeabi-v7a", "android/arm64", "android_arm64", "android/arm64-v8a", "android_arm64-v8a", "darwin/amd64", "darwin_amd64", "osx-64", "darwin/arm64", "darwin_arm64", "osx-arm64", "dragonfly/amd64", "dragonfly_amd64", "freebsd/386", "freebsd_386", "freebsd/amd64", "freebsd_amd64", "freebsd/arm", "freebsd_arm", "freebsd/arm64", "freebsd_arm64", "freebsd/riscv64", "freebsd_riscv64", "illumos/amd64", "illumos_amd64", "ios/amd64", "ios_amd64", "ios/arm64", "ios_arm64", "js/wasm", "js_wasm", "linux/386", "linux_386", "linux-32", "linux/amd64", "linux_amd64", "linux-64", "linux/arm", "linux_arm", "linux/arm64", "linux_arm64", "linux-aarch64", "linux/loong64", "linux_loong64", "linux/mips", "linux_mips", "linux/mips64", "linux_mips64", "linux/mips64le", "linux_mips64le", "linux/mipsle", "linux_mipsle", "linux/ppc64", "linux_ppc64", "linux/ppc64le", "linux_ppc64le", "linux-ppc64le", "linux/riscv64", "linux_riscv64", "linux-riscv64", "linux/s390x", "linux_s390x", "linux-s390x", "linux/sparc64", "linux_sparc64", "linux_iso/amd64", "linux_iso_amd64", "linux_iso/arm64", "linux_iso_arm64", "linux_uki/amd64", "linux_uki_amd64", "linux_uki/arm64", "linux_uki_arm64", "mbr/amd64", "mbr_amd64", "netbsd/386", "netbsd_386", "netbsd/amd64", "netbsd_amd64", "netbsd/arm", "netbsd_arm", "netbsd/arm64", "netbsd_arm64", "openbsd/386", "openbsd_386", "openbsd/amd64", "openbsd_amd64", "openbsd/arm", "openbsd_arm", "openbsd/arm64", "openbsd_arm64", "openbsd/ppc64", "openbsd_ppc64", "openbsd/riscv64", "openbsd_riscv64", "plan9/386", "plan9_386", "plan9/amd64", "plan9_amd64", "plan9/arm", "plan9_arm", "solaris/amd64", "solaris_amd64", "tamago/amd64", "tamago_amd64", "tamago/arm", "tamago_arm", "tamago/arm64", "tamago_arm64", "tamago/riscv64", "tamago_riscv64", "uefi/amd64", "uefi_amd64", "wasip1/wasm", "wasip1_wasm", "windows/386", "windows_386", "win-32", "windows/amd64", "windows_amd64", "win-64", "windows/arm64", "windows_arm64", "win-arm64"}
+	return []string{"aix/ppc64", "aix_ppc64", "android/386", "android_386", "android/x86", "android_x86", "android/i386", "android_i386", "android/i686", "android_i686", "android/amd64", "android_amd64", "android/x86_64", "android_x86_64", "android/x64", "android_x64", "android/arm", "android_arm", "android/armv7l", "android_armv7l", "android/armeabi-v7a", "android_armeabi-v7a", "android/arm64", "android_arm64", "android/aarch64", "android_aarch64", "android/arm64-v8a", "android_arm64-v8a", "darwin/amd64", "darwin_amd64", "darwin/x86_64", "darwin_x86_64", "darwin/x64", "darwin_x64", "osx-64", "darwin/arm64", "darwin_arm64", "darwin/aarch64", "darwin_aarch64", "darwin/arm64-v8a", "darwin_arm64-v8a", "osx-arm64", "dragonfly/amd64", "dragonfly_amd64", "dragonfly/x86_64", "dragonfly_x86_64", "dragonfly/x64", "dragonfly_x64", "freebsd/386", "freebsd_386", "freebsd/x86", "freebsd_x86", "freebsd/i386", "freebsd_i386", "freebsd/i686", "freebsd_i686", "freebsd/amd64", "freebsd_amd64", "freebsd/x86_64", "freebsd_x86_64", "freebsd/x64", "freebsd_x64", "freebsd/arm", "freebsd_arm", "freebsd/armv7l", "freebsd_armv7l", "freebsd/armeabi-v7a", "freebsd_armeabi-v7a", "freebsd/arm64", "freebsd_arm64", "freebsd/aarch64", "freebsd_aarch64", "freebsd/arm64-v8a", "freebsd_arm64-v8a", "freebsd/riscv64", "freebsd_riscv64", "illumos/amd64", "illumos_amd64", "illumos/x86_64", "illumos_x86_64", "illumos/x64", "illumos_x64", "ios/amd64", "ios_amd64", "ios/x86_64", "ios_x86_64", "ios/x64", "ios_x64", "ios/arm64", "ios_arm64", "ios/aarch64", "ios_aarch64", "ios/arm64-v8a", "ios_arm64-v8a", "js/wasm", "js_wasm", "js/wasm32", "js_wasm32", "linux/386", "linux_386", "linux/x86", "linux_x86", "linux/i386", "linux_i386", "linux/i686", "linux_i686", "linux-32", "linux/amd64", "linux_amd64", "linux/x86_64", "linux_x86_64", "linux/x64", "linux_x64", "linux-64", "linux/arm", "linux_arm", "linux/armv7l", "linux_armv7l", "linux/armeabi-v7a", "linux_armeabi-v7a", "linux/arm64", "linux_arm64", "linux/aarch64", "linux_aarch64", "linux/arm64-v8a", "linux_arm64-v8a", "linux-aarch64", "linux/loong64", "linux_loong64", "linux/loongarch64", "linux_loongarch64", "linux/mips", "linux_mips", "linux/mips64", "linux_mips64", "linux/mips64le", "linux_mips64le", "linux/mipsle", "linux_mipsle", "linux/ppc64", "linux_ppc64", "linux/ppc64le", "linux_ppc64le", "linux-ppc64le", "linux/riscv64", "linux_riscv64", "linux-riscv64", "linux/s390x", "linux_s390x", "linux-s390x", "linux/sparc64", "linux_sparc64", "linux_iso/amd64", "linux_iso_amd64", "linux_iso/x86_64", "linux_iso_x86_64", "linux_iso/x64", "linux_iso_x64", "linux_iso/arm64", "linux_iso_arm64", "linux_iso/aarch64", "linux_iso_aarch64", "linux_iso/arm64-v8a", "linux_iso_arm64-v8a", "linux_uki/amd64", "linux_uki_amd64", "linux_uki/x86_64", "linux_uki_x86_64", "linux_uki/x64", "linux_uki_x64", "linux_uki/arm64", "linux_uki_arm64", "linux_uki/aarch64", "linux_uki_aarch64", "linux_uki/arm64-v8a", "linux_uki_arm64-v8a", "mbr/amd64", "mbr_amd64", "mbr/x86_64", "mbr_x86_64", "mbr/x64", "mbr_x64", "netbsd/386", "netbsd_386", "netbsd/x86", "netbsd_x86", "netbsd/i386", "netbsd_i386", "netbsd/i686", "netbsd_i686", "netbsd/amd64", "netbsd_amd64", "netbsd/x86_64", "netbsd_x86_64", "netbsd/x64", "netbsd_x64", "netbsd/arm", "netbsd_arm", "netbsd/armv7l", "netbsd_armv7l", "netbsd/armeabi-v7a", "netbsd_armeabi-v7a", "netbsd/arm64", "netbsd_arm64", "netbsd/aarch64", "netbsd_aarch64", "netbsd/arm64-v8a", "netbsd_arm64-v8a", "openbsd/386", "openbsd_386", "openbsd/x86", "openbsd_x86", "openbsd/i386", "openbsd_i386", "openbsd/i686", "openbsd_i686", "openbsd/amd64", "openbsd_amd64", "openbsd/x86_64", "openbsd_x86_64", "openbsd/x64", "openbsd_x64", "openbsd/arm", "openbsd_arm", "openbsd/armv7l", "openbsd_armv7l", "openbsd/armeabi-v7a", "openbsd_armeabi-v7a", "openbsd/arm64", "openbsd_arm64", "openbsd/aarch64", "openbsd_aarch64", "openbsd/arm64-v8a", "openbsd_arm64-v8a", "openbsd/ppc64", "openbsd_ppc64", "openbsd/riscv64", "openbsd_riscv64", "plan9/386", "plan9_386", "plan9/x86", "plan9_x86", "plan9/i386", "plan9_i386", "plan9/i686", "plan9_i686", "plan9/amd64", "plan9_amd64", "plan9/x86_64", "plan9_x86_64", "plan9/x64", "plan9_x64", "plan9/arm", "plan9_arm", "plan9/armv7l", "plan9_armv7l", "plan9/armeabi-v7a", "plan9_armeabi-v7a", "solaris/amd64", "solaris_amd64", "solaris/x86_64", "solaris_x86_64", "solaris/x64", "solaris_x64", "tamago/amd64", "tamago_amd64", "tamago/x86_64", "tamago_x86_64", "tamago/x64", "tamago_x64", "tamago/arm", "tamago_arm", "tamago/armv7l", "tamago_armv7l", "tamago/armeabi-v7a", "tamago_armeabi-v7a", "tamago/arm64", "tamago_arm64", "tamago/aarch64", "tamago_aarch64", "tamago/arm64-v8a", "tamago_arm64-v8a", "tamago/riscv64", "tamago_riscv64", "uefi/amd64", "uefi_amd64", "uefi/x86_64", "uefi_x86_64", "uefi/x64", "uefi_x64", "wasip1/wasm", "wasip1_wasm", "wasip1/wasm32", "wasip1_wasm32", "windows/386", "windows_386", "windows/x86", "windows_x86", "windows/i386", "windows_i386", "windows/i686", "windows_i686", "win-32", "windows/amd64", "windows_amd64", "windows/x86_64", "windows_x86_64", "windows/x64", "windows_x64", "win-64", "windows/arm64", "windows_arm64", "windows/aarch64", "windows_aarch64", "windows/arm64-v8a", "windows_arm64-v8a", "win-arm64"}
 }
 
 // MarshalText encodes the value as text.

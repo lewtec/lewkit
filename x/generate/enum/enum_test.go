@@ -479,3 +479,221 @@ func TestLevelArchPoolVendor(t *testing.T) {
 	}
 }
 `
+
+func TestComposeEnum(t *testing.T) {
+	t.Parallel()
+	src := `package sample
+
+//lewkit:enum
+type OS string
+
+const (
+	OSLinux OS = "linux" // gnu
+)
+
+//lewkit:enum
+type Arch string
+
+const (
+	ArchAMD64 Arch = "amd64" // x86_64, x64
+	ArchARM Arch = "arm"
+)
+
+//lewkit:enum compose=OS/Arch
+type Platform string
+
+const (
+	PlatformLinuxAMD64 = Platform(string(OSLinux) + "/" + string(ArchAMD64)) // linux_amd64, linux-64
+	PlatformLinuxARM = Platform((string(OSLinux) + "/" + string(ArchARM)))
+)
+`
+	parsed, err := parseSource("platform.go", []byte(src))
+	require.NoError(t, err)
+	require.Len(t, parsed.enums, 3)
+	platform := parsed.enums[2]
+	require.Equal(t, "OS", platform.composeLeft)
+	require.Equal(t, "Arch", platform.composeRight)
+	require.Equal(t, "linux/amd64", platform.members[0].token)
+	require.Equal(t, []string{
+		"linux_amd64",
+		"linux/x86_64",
+		"linux_x86_64",
+		"linux/x64",
+		"linux_x64",
+		"gnu/amd64",
+		"gnu_amd64",
+		"gnu/x86_64",
+		"gnu_x86_64",
+		"gnu/x64",
+		"gnu_x64",
+		"linux-64",
+	}, platform.members[0].aliases)
+	require.Equal(t, "linux/arm", platform.members[1].token)
+	require.Equal(t, []string{"linux_arm", "gnu/arm", "gnu_arm"}, platform.members[1].aliases)
+
+	buf, err := render(parsed)
+	require.NoError(t, err)
+	text := string(buf)
+	require.Contains(t, text, "func (p Platform) OS() OS")
+	require.Contains(t, text, "func (p Platform) Arch() Arch")
+	require.Contains(t, text, "text, _, ok := strings.Cut(string(p), \"/\")")
+	require.Contains(t, text, "_, text, ok := strings.Cut(string(p), \"/\")")
+	require.Contains(t, text, "return OS(text)")
+	require.Contains(t, text, "return Arch(text)")
+	require.Contains(t, text, `"linux/amd64", "linux_amd64", "linux/x86_64"`)
+}
+
+func TestComposeRejects(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"literal": `package sample
+
+//lewkit:enum
+type OS string
+
+const (
+	OSLinux OS = "linux"
+)
+
+//lewkit:enum
+type Arch string
+
+const (
+	ArchAMD64 Arch = "amd64"
+)
+
+//lewkit:enum compose=OS/Arch
+type Platform string
+
+const (
+	PlatformLinuxAMD64 Platform = "linux/amd64"
+)
+`,
+		"missing": `package sample
+
+//lewkit:enum
+type OS string
+
+const (
+	OSLinux OS = "linux"
+)
+
+//lewkit:enum compose=OS/Arch
+type Platform string
+
+const (
+	PlatformLinuxAMD64 Platform = string(OSLinux) + "/" + string(OSLinux)
+)
+`,
+		"integer": `package sample
+
+//lewkit:enum
+type OS string
+
+const (
+	OSLinux OS = "linux"
+)
+
+//lewkit:enum
+type Arch string
+
+const (
+	ArchAMD64 Arch = "amd64"
+)
+
+//lewkit:enum compose=OS/Arch
+type Platform int
+
+const (
+	PlatformA Platform = 1
+)
+`,
+		"separator": `package sample
+
+//lewkit:enum
+type OS string
+
+const (
+	OSLinux OS = "linux/gnu"
+)
+
+//lewkit:enum
+type Arch string
+
+const (
+	ArchAMD64 Arch = "amd64"
+)
+
+//lewkit:enum compose=OS/Arch
+type Platform string
+
+const (
+	PlatformLinuxAMD64 = Platform(string(OSLinux) + "/" + string(ArchAMD64))
+)
+`,
+		"bare": `package sample
+
+//lewkit:enum
+type OS string
+
+const (
+	OSLinux OS = "linux"
+)
+
+//lewkit:enum
+type Arch string
+
+const (
+	ArchAMD64 Arch = "amd64"
+)
+
+//lewkit:enum compose=OS/Arch
+type Platform string
+
+const (
+	PlatformLinuxAMD64 Platform = string(OSLinux) + "/" + string(ArchAMD64)
+)
+`,
+		"part": `package sample
+
+//lewkit:enum
+type OS string
+
+const (
+	OSLinux OS = "linux"
+)
+
+//lewkit:enum
+type Arch string
+
+const (
+	ArchAMD64 Arch = "amd64"
+)
+
+const Also = "amd64"
+
+//lewkit:enum compose=OS/Arch
+type Platform string
+
+const (
+	PlatformLinuxAMD64 = Platform(string(OSLinux) + "/" + string(Also))
+)
+`,
+		"option": `package sample
+
+//lewkit:enum compose=OS
+type Platform string
+
+const (
+	PlatformLinuxAMD64 Platform = "linux/amd64"
+)
+`,
+	}
+	for name, src := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, err := parseSource(name+".go", []byte(src))
+			require.ErrorIs(t, err, ErrEnum)
+		})
+	}
+}

@@ -99,9 +99,13 @@ func TestPlatformUberEnum(t *testing.T) {
 	aliases := map[string]Platform{
 		"linux/amd64":         PlatformLinuxAMD64,
 		"linux_amd64":         PlatformLinuxAMD64,
+		"linux/x86_64":        PlatformLinuxAMD64,
+		"linux_x64":           PlatformLinuxAMD64,
 		"linux-64":            PlatformLinuxAMD64,
 		"linux/arm64":         PlatformLinuxARM64,
+		"linux/aarch64":       PlatformLinuxARM64,
 		"linux-aarch64":       PlatformLinuxARM64,
+		"android/i686":        PlatformAndroid386,
 		"darwin/arm64":        PlatformDarwinARM64,
 		"osx-arm64":           PlatformDarwinARM64,
 		"windows/amd64":       PlatformWindowsAMD64,

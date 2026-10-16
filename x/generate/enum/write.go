@@ -68,6 +68,10 @@ func writeEnum(out *jen.File, spec enumSpec) {
 			}),
 		)
 	}
+	if spec.composeLeft != "" {
+		writeComposePart(out, spec, spec.composeLeft)
+		writeComposePart(out, spec, spec.composeRight)
+	}
 	out.Comment("Values lists the " + spec.name + " values.")
 	out.Func().Params(jen.Id(spec.name)).Id("Values").Params().Index().Id(spec.name).Block(
 		jen.Return(jen.Index().Id(spec.name).ValuesFunc(func(g *jen.Group) {
@@ -149,6 +153,25 @@ func writeEnum(out *jen.File, spec enumSpec) {
 	out.Func().Params(jen.Id(recv).Op("*").Id(spec.name)).Id("UnmarshalText").Params(jen.Id("text").Index().Byte()).Error().Block(
 		jen.Return(jen.Id(recv).Dot("Parse").Call(jen.String().Parens(jen.Id("text")))),
 	)
+}
+
+func writeComposePart(out *jen.File, spec enumSpec, part string) {
+	recv := recvName(spec.name)
+	out.Comment(part + " returns the " + part + " of a " + spec.name + ".")
+	leftName := "_"
+	rightName := "text"
+	if part == spec.composeLeft {
+		leftName = "text"
+		rightName = "_"
+	}
+	out.Func().Params(jen.Id(recv).Id(spec.name)).Id(part).Params().Id(part).BlockFunc(func(g *jen.Group) {
+		g.List(jen.Id(leftName), jen.Id(rightName), jen.Id("ok")).Op(":=").Qual("strings", "Cut").Call(
+			jen.String().Parens(jen.Id(recv)),
+			jen.Lit("/"),
+		)
+		g.If(jen.Op("!").Id("ok")).Block(jen.Return(jen.Lit("")))
+		g.Return(jen.Id(part).Parens(jen.Id("text")))
+	})
 }
 
 func memberNamed(spec enumSpec, tokenText string) string {
