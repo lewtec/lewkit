@@ -18,6 +18,21 @@
     "x/ndarray/onnx/internal/proto/onnx.proto": {
       "source_info": "mount:x/ndarray/onnx/internal/proto/onnx.proto"
     },
+    "x/takemake/makefile/testdata/Makefile.in": {
+      "source_info": "mount:x/takemake/makefile/testdata/Makefile.in"
+    },
+    "x/takemake/makefile/testdata/makefile": {
+      "source_info": "mount:x/takemake/makefile/testdata/makefile"
+    },
+    "x/takemake/ninja/testdata/build.ninja": {
+      "source_info": "mount:x/takemake/ninja/testdata/build.ninja"
+    },
+    "x/takemake/ninja/testdata/inherited-fds.ninja": {
+      "source_info": "mount:x/takemake/ninja/testdata/inherited-fds.ninja"
+    },
+    "x/takemake/ninja/testdata/long-slow-build.ninja": {
+      "source_info": "mount:x/takemake/ninja/testdata/long-slow-build.ninja"
+    },
     "x/toolchain/go/_upstream/cmd/archive/archive.go": {
       "source_info": "mount:x/toolchain/go/_upstream/cmd/archive/archive.go"
     },

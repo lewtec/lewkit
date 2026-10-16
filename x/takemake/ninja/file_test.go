@@ -211,79 +211,62 @@ func TestRejects(t *testing.T) {
 	require.Nil(t, (*File)(nil).Subninja(Text("a")))
 }
 
-func TestNinjaFixture(t *testing.T) {
+func TestUpstreamNinja(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(filepath.Join("testdata", "ninja-1.12.1.ninja"))
-	require.NoError(t, err)
-	first := roundTrip(t, string(raw))
+	slow := roundTripFile(t, "long-slow-build.ninja")
+	require.Equal(t, []Binding{
+		{Name: "command", Value: []Piece{Text("sleep 1")}},
+		{Name: "description", Value: []Piece{Text("SLEEP "), Ref("out")}},
+	}, ruleNamed(t, slow, "sleep").Bindings)
+	require.Equal(t, 31, countEdges(slow))
+	require.Equal(t, "phony", edgeNamed(t, slow, "all").Rule)
+	require.Len(t, edgeNamed(t, slow, "all").Inputs, 10)
 
-	var vars, rules, edges, defs int
-	for _, s := range first.Stmts {
-		switch n := s.(type) {
-		case *Variable:
-			vars++
-			switch n.Name {
-			case "configure_args":
-				require.Nil(t, n.Value)
-			case "cflags":
-				text := pieceText(n.Value)
-				require.NotContains(t, text, "\n")
-				require.Contains(t, text, "-Wall")
-				require.Contains(t, text, "-fno-rtti")
-			case "ldflags":
-				require.Equal(t, []Piece{Text("-L"), Ref("builddir")}, n.Value)
-			case "root":
-				require.Equal(t, []Piece{Text("/tmp/ninja-src")}, n.Value)
-			}
-		case *Rule:
-			rules++
-			if n.Name == "cxx" {
-				var cmd []Piece
-				for _, b := range n.Bindings {
-					if b.Name == "command" {
-						cmd = b.Value
-					}
-				}
-				require.Equal(t, []Piece{
-					Ref("cxx"), Text(" -MMD -MT "), Ref("out"), Text(" -MF "),
-					Ref("out"), Text(".d "), Ref("cflags"), Text(" -c "), Ref("in"),
-					Text(" -o "), Ref("out"),
-				}, cmd)
-			}
-			if n.Name == "configure" {
-				var cmd []Piece
-				var gen string
-				for _, b := range n.Bindings {
-					if b.Name == "command" {
-						cmd = b.Value
-					}
-					if b.Name == "generator" {
-						gen = pieceText(b.Value)
-					}
-				}
-				require.Equal(t, "1", gen)
-				require.Equal(t, []Piece{
-					Ref("configure_env"), Text("python3 "), Ref("root"),
-					Text("/configure.py "), Ref("configure_args"),
-				}, cmd)
-			}
-		case *Edge:
-			edges++
-			if len(n.Outputs) == 1 && len(n.Outputs[0]) == 1 && n.Outputs[0][0].Text == "ninja" {
-				require.Equal(t, "link", n.Rule)
-				require.Equal(t, [][]Piece{{Ref("builddir"), Text("/ninja.o")}}, n.Inputs)
-				require.Equal(t, [][]Piece{{Ref("builddir"), Text("/libninja.a")}}, n.ImplicitDeps)
-				require.Equal(t, []Binding{{Name: "libs", Value: []Piece{Text("-lninja")}}}, n.Bindings)
-			}
-		case *Default:
-			defs++
-			require.Equal(t, [][]Piece{{Text("ninja")}}, n.Targets)
+	fds := roundTripFile(t, "inherited-fds.ninja")
+	require.Equal(t, []Piece{Text("sleep 10000")}, bindingValue(t, ruleNamed(t, fds, "sleep"), "command"))
+	require.Equal(t, 6, countEdges(fds))
+	require.Equal(t, [][]Piece{
+		{Text("a")}, {Text("b")}, {Text("c")}, {Text("d")}, {Text("e")},
+	}, edgeNamed(t, fds, "all").Inputs)
+
+	afl := roundTripFile(t, "build.ninja")
+	require.Equal(t, []Piece{
+		Text("clang -MMD -MF "), Ref("out"), Text(".d -o "), Ref("out"), Text(" -c "), Ref("in"),
+	}, bindingValue(t, ruleNamed(t, afl, "b"), "command"))
+	require.Equal(t, []Piece{Text("building "), Ref("out")}, bindingValue(t, ruleNamed(t, afl, "b"), "description"))
+	require.Equal(t, "b", edgeNamed(t, afl, "a.o").Rule)
+	require.Equal(t, [][]Piece{{Text("a.c")}}, edgeNamed(t, afl, "a.o").Inputs)
+}
+
+func roundTripFile(t *testing.T, name string) *File {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("testdata", name))
+	require.NoError(t, err)
+	return roundTrip(t, string(raw))
+}
+
+func countEdges(f *File) int {
+	n := 0
+	for _, s := range f.Stmts {
+		if _, ok := s.(*Edge); ok {
+			n++
 		}
 	}
-	require.Equal(t, 9, vars)
-	require.Equal(t, 13, rules)
-	require.Equal(t, 56, edges)
-	require.Equal(t, 1, defs)
+	return n
+}
+
+func bindingValue(t *testing.T, r *Rule, name string) []Piece {
+	t.Helper()
+	if r == nil {
+		return nil
+	}
+	for _, b := range r.Bindings {
+		if b.Name == name {
+			return b.Value
+		}
+	}
+	require.Failf(t, "missing binding", "%s", name)
+	return nil
 }
 
 func roundTrip(t *testing.T, src string) *File {

@@ -170,20 +170,20 @@ func TestRejects(t *testing.T) {
 
 func TestLuaMakefile(t *testing.T) {
 	t.Parallel()
-	first := roundTripFile(t, "lua.mk")
+	first := roundTripFile(t, "makefile")
 	all := ruleNamed(t, first, "all")
 	require.Equal(t, []string{"touch all"}, all.Recipe)
 	require.Equal(t, []string{"$(ALL_T)"}, all.Prerequisites)
-	compareMakeEquals(t, "lua.mk", first)
+	compareMakeEquals(t, "makefile", first)
 }
 
 func TestZlibMakefile(t *testing.T) {
 	t.Parallel()
-	first := roundTripFile(t, "zlib.mk")
+	first := roundTripFile(t, "Makefile.in")
 	shell := varNamed(t, first, "SHELL")
 	require.Equal(t, "/bin/sh", shell.Value)
 	require.Equal(t, OpRecursive, shell.Op)
-	compareMakeEquals(t, "zlib.mk", first)
+	compareMakeEquals(t, "Makefile.in", first)
 }
 
 func roundTrip(t *testing.T, src string) *File {

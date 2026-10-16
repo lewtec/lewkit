@@ -28,6 +28,18 @@ inputs: golang: {
 	from:    "github:golang/go"
 	version: "go1.27.0"
 }
+inputs: lua: {
+	from:    "github:lua/lua"
+	version: "v5.4.7"
+}
+inputs: zlib: {
+	from:    "github:madler/zlib"
+	version: "v1.3.1"
+}
+inputs: ninja: {
+	from:    "github:ninja-build/ninja"
+	version: "v1.12.1"
+}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
@@ -118,6 +130,29 @@ file: codebase: {
 	"x/toolchain/go/_upstream/telemetry": {
 		type:   "place"
 		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
+	}
+	// Lua 5.4.7 makefile and zlib 1.3.1 Makefile.in.
+	// A file source with no steps lands on the dest path itself.
+	"x/takemake/makefile/testdata/makefile": {
+		type:   "place"
+		source: "lua:makefile"
+	}
+	"x/takemake/makefile/testdata/Makefile.in": {
+		type:   "place"
+		source: "zlib:Makefile.in"
+	}
+	// Ninja 1.12.1 build files that ship in the repository.
+	"x/takemake/ninja/testdata": {
+		type: "place"
+		source: {
+			slow: "ninja:misc/long-slow-build.ninja"
+			fds:  "ninja:misc/inherited-fds.ninja"
+			afl:  "ninja:misc/afl-fuzz/build.ninja"
+		}
+		steps: "10_require": {
+			op: "require"
+			patterns: ninja: "*.ninja"
+		}
 	}
 }
 
