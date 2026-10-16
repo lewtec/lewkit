@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"io/fs"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -46,6 +47,27 @@ func TestManyEntries(t *testing.T) {
 	first := takeMade(t, file)
 	require.Equal(t, "many", first.ImageName)
 	require.Equal(t, views(file), views(first))
+}
+
+// testdata/empty_dacl.wim is wimlib's tests/wims/empty_dacl.wim.
+// It is one uncompressed image with an empty DACL and a single file.
+func TestEmptyDACL(t *testing.T) {
+	t.Parallel()
+	raw, err := os.ReadFile("testdata/empty_dacl.wim")
+	require.NoError(t, err)
+	file, err := Take(bytes.NewReader(raw))
+	require.NoError(t, err)
+	require.Equal(t, "loop3p2", file.ImageName)
+	require.Len(t, file.Entries, 1)
+	got := file.Entries[0]
+	require.Equal(t, "file", got.Name)
+	require.Equal(t, fs.FileMode(0o644), got.Mode)
+	require.Equal(t, []byte("1\n"), got.Data)
+	require.True(t, time.Date(2013, 9, 16, 20, 50, 8, 460728100, time.UTC).Equal(got.Time))
+
+	again := takeMade(t, file)
+	require.Equal(t, file.ImageName, again.ImageName)
+	require.Equal(t, views(file), views(again))
 }
 
 func TestEmptyRoundTrip(t *testing.T) {

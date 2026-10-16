@@ -39,7 +39,13 @@ func take(raw []byte) (*File, error) {
 	if flags&^supportedHdr != 0 {
 		return nil, ErrFormat
 	}
-	if binary.LittleEndian.Uint32(raw[20:24]) != compressionSize {
+	// wimlib stores 0 when the image is uncompressed. Compressed images use 32 KiB.
+	chunk := binary.LittleEndian.Uint32(raw[20:24])
+	if flags&(1<<1) != 0 {
+		if chunk != compressionSize {
+			return nil, ErrFormat
+		}
+	} else if chunk != 0 && chunk != compressionSize {
 		return nil, ErrFormat
 	}
 	if binary.LittleEndian.Uint16(raw[42:44]) != 1 || binary.LittleEndian.Uint32(raw[44:48]) != 1 {
