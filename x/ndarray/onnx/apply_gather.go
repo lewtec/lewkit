@@ -380,13 +380,10 @@ func applyOneHot[T ndarray.Number](values map[string]*ndarray.Tensor[T], node No
 		return nil, err
 	}
 	inShape := indices.Shape()
-	axis := int(node.attributeInteger("axis", -1))
 	outRank := len(inShape) + 1
-	if axis < 0 {
-		axis += outRank
-	}
-	if axis < 0 || axis >= outRank {
-		return nil, ndarray.ErrShape
+	axis, err := axisIndex(int(node.attributeInteger("axis", -1)), outRank)
+	if err != nil {
+		return nil, err
 	}
 	outShape := make(ndarray.Shape, outRank)
 	copy(outShape[:axis], inShape[:axis])
@@ -444,12 +441,9 @@ func applyScatterElements[T ndarray.Number](values map[string]*ndarray.Tensor[T]
 		return nil, err
 	}
 	shape := data.Shape()
-	axis := int(node.attributeInteger("axis", 0))
-	if axis < 0 {
-		axis += len(shape)
-	}
-	if axis < 0 || axis >= len(shape) {
-		return nil, ndarray.ErrShape
+	axis, err := axisIndex(int(node.attributeInteger("axis", 0)), len(shape))
+	if err != nil {
+		return nil, err
 	}
 	dim := shape[axis]
 	neg := idx.CmpLt(ndarray.Const(T(0)))

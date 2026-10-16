@@ -93,7 +93,7 @@ func (gtkDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, er
 		if opened.err != nil {
 			return nil, opened.err
 		}
-		context.AfterFunc(ctx, func() { _ = opened.view.Close() })
+		webview.CloseWhenDone(ctx, opened.view)
 		webview.Follow(ctx, func(scheme daynight.Mode) {
 			state.do(func() { state.symbols.SetPreferDark(scheme == daynight.Dark) })
 		})

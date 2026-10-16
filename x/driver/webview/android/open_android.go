@@ -41,7 +41,7 @@ func (pageDriver) Open(ctx context.Context, cfg webview.Config) (webview.View, e
 		}
 		return nil, fmt.Errorf("%w: android page", driver.ErrUnavailable)
 	}
-	context.AfterFunc(ctx, func() { _ = view.Close() })
+	webview.CloseWhenDone(ctx, view)
 	webview.Follow(ctx, func(mode daynight.Mode) {
 		_, _ = jni.CallStatic("lewkit.Page", "preferDark", view.id, mode == daynight.Dark)
 	})

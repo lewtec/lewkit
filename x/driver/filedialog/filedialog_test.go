@@ -1,6 +1,7 @@
 package filedialog
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,4 +30,17 @@ func TestExtensions(t *testing.T) {
 func TestChooseRejectsRequest(t *testing.T) {
 	_, err := Choose(t.Context(), Request{Save: true, Folder: true})
 	require.ErrorIs(t, err, ErrRequest)
+}
+
+func TestAccept(t *testing.T) {
+	require.NoError(t, Accept(t.Context(), Request{}))
+	err := Accept(t.Context(), Request{Save: true, Folder: true})
+	require.ErrorIs(t, err, ErrRequest)
+	require.EqualError(t, err, "file dialog request: save a folder")
+
+	ctx := t.Context()
+	ctx, cancel := context.WithCancel(ctx)
+	cancel()
+	err = Accept(ctx, Request{})
+	require.ErrorIs(t, err, context.Canceled)
 }

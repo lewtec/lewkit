@@ -4,7 +4,6 @@ package androidask
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/lewtec/lewkit/x/driver"
 )
@@ -16,5 +15,5 @@ func Platform(context.Context) error {
 
 // Call reports that this process has no Java VM.
 func Call(context.Context, string, ...any) (string, error) {
-	return "", fmt.Errorf("%w: no Java VM", driver.ErrIncompatible)
+	return "", driver.JavaVM()
 }

@@ -295,11 +295,8 @@ func squeezeShape(in ndarray.Shape, axes []int64) (ndarray.Shape, error) {
 		}
 	} else {
 		for _, axis := range axes {
-			a := int(axis)
-			if a < 0 {
-				a += len(in)
-			}
-			if a < 0 || a >= len(in) || in[a] != 1 {
+			a, err := axisIndex(int(axis), len(in))
+			if err != nil || in[a] != 1 {
 				return nil, ndarray.ErrShape
 			}
 			drop[a] = struct{}{}
@@ -321,12 +318,9 @@ func unsqueezeShape(in ndarray.Shape, axes []int64) (ndarray.Shape, error) {
 	outRank := len(in) + len(axes)
 	insert := map[int]struct{}{}
 	for _, axis := range axes {
-		a := int(axis)
-		if a < 0 {
-			a += outRank
-		}
-		if a < 0 || a >= outRank {
-			return nil, ndarray.ErrShape
+		a, err := axisIndex(int(axis), outRank)
+		if err != nil {
+			return nil, err
 		}
 		if _, ok := insert[a]; ok {
 			return nil, ndarray.ErrShape

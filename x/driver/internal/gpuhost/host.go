@@ -26,7 +26,10 @@ func Metal() error {
 // Direct3D reports whether this process can open a Direct3D 12 device.
 // The host must be windows on amd64 or arm64.
 func Direct3D() error {
-	if runtime.GOOS != "windows" || (runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64") {
+	if err := driver.ForGOOS("windows"); err != nil {
+		return err
+	}
+	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
 		return fmt.Errorf("%w: not windows", driver.ErrIncompatible)
 	}
 	if err := ffid3d12.Available(); err != nil {
