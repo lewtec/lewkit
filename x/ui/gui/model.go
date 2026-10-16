@@ -10,7 +10,7 @@ import (
 
 // Msg is an incoming event. Host messages are [window.Resize],
 // [window.Expose], [window.Close], [window.Pointer], [window.Scroll],
-// [window.Key], [window.Drop], [window.Density], [window.FontScale], [TickMsg], and [ModeMsg].
+// [window.Key], [window.Drop], [window.Density], [window.FontScale], [TickMsg], [Cover], and [ModeMsg].
 type Msg any
 
 // Cmd produces a follow-up [Msg]. Nil means no command.
@@ -59,6 +59,7 @@ type Model interface {
 // messages [window] emits. Size is the window client size in device
 // pixels. Scale is device pixels per logical pixel. Font is the user's
 // text-size preference. Zero means one for either factor.
+// Dead is the client area a bar or notch covers. Nil means none.
 // Period is [window.Window.FramePeriod]. FPS is the smoothed
 // frames-per-second since the previous tick.
 type TickMsg struct {
@@ -66,8 +67,43 @@ type TickMsg struct {
 	Size    image.Point
 	Scale   float32
 	Font    float32
+	Dead    []image.Rectangle
 	FPS     float64
 	Period  time.Duration
+}
+
+// Cover is the client area a bar or notch covers, in device pixels.
+// Run delivers it when that set changes. Nil zones means none.
+type Cover struct {
+	Zones []image.Rectangle
+}
+
+// Metrics is the scale, text preference, and covered zones of the frame
+// on screen. Observe copies them from a tick, a density change, or [Cover].
+// Hit lays the view out again with those values.
+type Metrics struct {
+	Scale float32
+	Font  float32
+	Dead  []image.Rectangle
+}
+
+// Observe stores the frame metrics carried by msg.
+func (m *Metrics) Observe(msg Msg) {
+	if m == nil {
+		return
+	}
+	switch event := msg.(type) {
+	case TickMsg:
+		m.Scale = event.Scale
+		m.Font = event.Font
+		m.Dead = event.Dead
+	case Cover:
+		m.Dead = event.Zones
+	case window.Density:
+		m.Scale = float32(event.Scale.Factor())
+	case window.FontScale:
+		m.Font = float32(event.Scale.Factor())
+	}
 }
 
 func sizeOf(msg Msg) (image.Point, bool) {

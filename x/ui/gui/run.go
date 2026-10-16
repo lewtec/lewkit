@@ -466,6 +466,7 @@ func (runner *runner) decorate(msg Msg) Msg {
 	tick.Size = runner.host.Size()
 	tick.Scale = hostScale(runner.host)
 	tick.Font = hostFont(runner.host)
+	tick.Dead = deadOf(runner.host)
 	tick.FPS = runner.hertz
 	tick.Period = runner.host.FramePeriod()
 	return tick
@@ -479,7 +480,12 @@ func (runner *runner) handle(msg Msg) error {
 		return nil
 	}
 	switch msg.(type) {
-	case window.Expose, window.Density, window.FontScale:
+	case window.Expose:
+		if err := runner.deliver(Cover{Zones: deadOf(runner.host)}); err != nil {
+			return err
+		}
+		return runner.flush(true)
+	case window.Density, window.FontScale:
 		return runner.flush(true)
 	case window.Resize:
 		// The drain presents once after every resize already queued.
@@ -502,6 +508,13 @@ func (runner *runner) spawn(cmd Cmd) {
 		case <-runner.ctx.Done():
 		}
 	}()
+}
+
+func deadOf(host display) []image.Rectangle {
+	if host == nil {
+		return nil
+	}
+	return host.Dead()
 }
 
 func hostScale(host display) float32 {

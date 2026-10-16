@@ -3,6 +3,7 @@ package android
 import (
 	"cmp"
 	"errors"
+	"io"
 	"io/fs"
 	"slices"
 	"strings"
@@ -252,6 +253,17 @@ func (f *docFile) Read(p []byte) (int, error) {
 		return 0, &fs.PathError{Op: "read", Path: f.info.name, Err: fs.ErrInvalid}
 	}
 	return f.body.Read(p)
+}
+
+// Seek forwards to the document bytes. The content fd is seekable.
+// Hiding that made the MP3 decoder treat the file as a stream, and its
+// seek then divided by a frame size it only records for seekable sources.
+func (f *docFile) Seek(offset int64, whence int) (int64, error) {
+	seeker, ok := f.body.(io.Seeker)
+	if !ok {
+		return 0, errors.ErrUnsupported
+	}
+	return seeker.Seek(offset, whence)
 }
 
 func (f *docFile) Close() error {

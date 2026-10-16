@@ -31,9 +31,10 @@ func (decoder) Decode(r io.Reader) (*sound.Pipeline, error) {
 		return nil, err
 	}
 	format := sound.Format{Rate: decoded.SampleRate(), Channels: 2, Sample: sound.SampleS16LE}
-	frames := int64(-1)
+	// Length stays unknown unless the source seeks. go-mp3 then leaves its
+	// frame size at zero, and seeking that decoder divides by zero.
 	if n := decoded.Length(); n >= 0 {
-		frames = n / 4
+		return sound.FromSeeker(format, n/4, decoded)
 	}
-	return sound.FromSeeker(format, frames, decoded)
+	return sound.FromReader(format, decoded)
 }

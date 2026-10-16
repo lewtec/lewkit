@@ -4,6 +4,7 @@ import (
 	"image"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,4 +20,34 @@ func TestHitFindsTopKey(t *testing.T) {
 	key, _, _ = Hit(root, Size{40, 30}, image.Pt(30, 20))
 	assert.Equal(t, "outer", key)
 	require.NotEmpty(t, key)
+}
+
+func TestHitFollowsScaleAndInsets(t *testing.T) {
+	// The window root is stretched to the frame. The keyed child keeps its
+	// authored size, which density multiplies.
+	root := &Box{Child: &Box{Width: 20, Height: 10, Key: "box", Fill: &RGB{1, 1, 1, 255}}}
+	key, _, _ := HitScale(root, Size{80, 40}, 2, 1, nil, image.Pt(30, 15))
+	require.Equal(t, "box", key)
+	key, _, _ = Hit(root, Size{80, 40}, image.Pt(30, 15))
+	require.Empty(t, key)
+
+	dead := []image.Rectangle{image.Rect(0, 0, 80, 16)}
+	key, _, _ = HitScale(root, Size{80, 80}, 2, 1, dead, image.Pt(4, 20))
+	require.Equal(t, "box", key)
+	key, _, _ = HitScale(root, Size{80, 80}, 2, 1, dead, image.Pt(4, 4))
+	require.Empty(t, key)
+}
+
+func TestMetricsObserve(t *testing.T) {
+	var metrics Metrics
+	metrics.Observe(TickMsg{Scale: 2.5, Font: 1.2, Dead: []image.Rectangle{image.Rect(0, 0, 3, 4)}})
+	require.Equal(t, float32(2.5), metrics.Scale)
+	require.Equal(t, float32(1.2), metrics.Font)
+	require.Equal(t, image.Rect(0, 0, 3, 4), metrics.Dead[0])
+	metrics.Observe(Cover{})
+	require.Empty(t, metrics.Dead)
+	metrics.Observe(window.Density{Scale: 3})
+	require.Equal(t, float32(3), metrics.Scale)
+	metrics.Observe(window.FontScale{Scale: 1.5})
+	require.Equal(t, float32(1.5), metrics.Font)
 }

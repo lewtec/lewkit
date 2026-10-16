@@ -18,17 +18,28 @@ func (picture *Picture) noteKey(key string, bounds, clip Rect) {
 // Hit is the topmost keyed box under at, at scale one. The second and third
 // results are the point inside that box, 0 at the start and 1 at the end.
 func Hit(root Node, size Size, at image.Point) (string, float32, float32) {
-	return HitScale(root, size, 0, at)
+	return HitScale(root, size, 0, 0, nil, at)
 }
 
-// HitScale is [Hit] at a window scale. Zero means one.
-func HitScale(root Node, size Size, scale float32, at image.Point) (string, float32, float32) {
+// Hit is the topmost keyed box under at using the scale and insets last
+// seen by [Metrics.Observe]. Zero scale means one.
+func (m Metrics) Hit(root Node, size Size, at image.Point) (string, float32, float32) {
+	return HitScale(root, size, m.Scale, m.Font, m.Dead, at)
+}
+
+// HitScale is [Hit] at a window scale and text preference.
+// scale and font of zero mean one. dead is the covered zones, in device
+// pixels, the same set the paint uses.
+func HitScale(root Node, size Size, scale, font float32, dead []image.Rectangle, at image.Point) (string, float32, float32) {
 	picture, err := NewPicture()
 	if err != nil || root == nil {
 		return "", 0, 0
 	}
 	picture.recordOnly = true
+	picture.keysOnly = true
 	picture.SetScale(scale)
+	picture.SetFontScale(font)
+	picture.dead = zonesOf(dead)
 	if _, err := picture.Render(root, size); err != nil {
 		return "", 0, 0
 	}
