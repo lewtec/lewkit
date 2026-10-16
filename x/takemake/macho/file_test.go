@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/errs"
@@ -93,6 +94,19 @@ func TestRealMachO(t *testing.T) {
 			roundTripPath(t, buildGo(t, goBin, "darwin", arch))
 		})
 	}
+}
+
+func TestRunMath(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		test.Skipf(t, "running a Mach-O needs darwin, have %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		test.Skip(t, "go is not installed")
+	}
+	path := buildMathGo(t, goBin)
+	require.Equal(t, mathOutput, runBin(t, path))
+	require.Equal(t, mathOutput, runBin(t, rewriteBin(t, path)))
 }
 
 func TestRejects(t *testing.T) {
@@ -193,6 +207,55 @@ func findSection(t *testing.T, file *File, name string) *Section {
 	}
 	t.Fatalf("missing section %s", name)
 	return nil
+}
+
+const mathProgram = `package main
+
+import "fmt"
+
+func main() {
+	fmt.Printf("%d %d %d\n", 6*7, 100-58, 21+21)
+}
+`
+
+const mathOutput = "42 42 42\n"
+
+func buildMathGo(t *testing.T, goBin string) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example\n\ngo 1.27\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(mathProgram), 0o644))
+	out := filepath.Join(dir, "mathbin")
+	cmd := exec.Command(goBin, "build", "-o", out, ".")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GOOS="+runtime.GOOS,
+		"GOARCH="+runtime.GOARCH,
+		"CGO_ENABLED=0",
+		"GO111MODULE=on",
+		"GOPROXY=off",
+	)
+	log, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(log))
+	return out
+}
+
+func rewriteBin(t *testing.T, path string) string {
+	t.Helper()
+	file, err := Take(bytes.NewReader(mustRead(t, path)))
+	require.NoError(t, err)
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	out := filepath.Join(t.TempDir(), "rewritten")
+	require.NoError(t, os.WriteFile(out, buf.Bytes(), 0o755))
+	return out
+}
+
+func runBin(t *testing.T, path string) string {
+	t.Helper()
+	out, err := exec.Command(path).CombinedOutput()
+	require.NoError(t, err, string(out))
+	return string(out)
 }
 
 func mustRead(t *testing.T, path string) []byte {

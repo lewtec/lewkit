@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/errs"
@@ -63,6 +64,29 @@ func TestRealELF(t *testing.T) {
 			roundTripPath(t, path)
 		})
 	}
+}
+
+func TestRunMath(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		test.Skipf(t, "running an ELF needs linux, have %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		test.Skip(t, "go is not installed")
+	}
+	t.Run("go", func(t *testing.T) {
+		path := buildMathGo(t, goBin)
+		require.Equal(t, mathOutput, runBin(t, path))
+		require.Equal(t, mathOutput, runBin(t, rewriteBin(t, path)))
+	})
+	t.Run("c", func(t *testing.T) {
+		if _, err := exec.LookPath("gcc"); err != nil {
+			test.Skip(t, "gcc is not installed")
+		}
+		path := buildMathC(t)
+		require.Equal(t, mathOutput, runBin(t, path))
+		require.Equal(t, mathOutput, runBin(t, rewriteBin(t, path)))
+	})
 }
 
 func TestRealObject(t *testing.T) {
@@ -183,6 +207,74 @@ func indexOf(file *File, name string) int {
 		}
 	}
 	return -1
+}
+
+const mathProgram = `package main
+
+import "fmt"
+
+func main() {
+	fmt.Printf("%d %d %d\n", 6*7, 100-58, 21+21)
+}
+`
+
+const mathC = `#include <stdio.h>
+int main(void) {
+	printf("%d %d %d\n", 6 * 7, 100 - 58, 21 + 21);
+	return 0;
+}
+`
+
+const mathOutput = "42 42 42\n"
+
+func buildMathGo(t *testing.T, goBin string) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example\n\ngo 1.27\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(mathProgram), 0o644))
+	out := filepath.Join(dir, "mathbin")
+	cmd := exec.Command(goBin, "build", "-o", out, ".")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GOOS="+runtime.GOOS,
+		"GOARCH="+runtime.GOARCH,
+		"CGO_ENABLED=0",
+		"GO111MODULE=on",
+		"GOPROXY=off",
+	)
+	log, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(log))
+	return out
+}
+
+func buildMathC(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	src := filepath.Join(dir, "math.c")
+	out := filepath.Join(dir, "mathc")
+	require.NoError(t, os.WriteFile(src, []byte(mathC), 0o644))
+	cmd := exec.Command("gcc", "-o", out, src)
+	log, err := cmd.CombinedOutput()
+	require.NoError(t, err, string(log))
+	return out
+}
+
+func rewriteBin(t *testing.T, path string) string {
+	t.Helper()
+	file, err := Take(bytes.NewReader(mustRead(t, path)))
+	require.NoError(t, err)
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	out := filepath.Join(t.TempDir(), "rewritten")
+	require.NoError(t, os.WriteFile(out, buf.Bytes(), 0o755))
+	return out
+}
+
+func runBin(t *testing.T, path string) string {
+	t.Helper()
+	out, err := exec.Command(path).CombinedOutput()
+	require.NoError(t, err, string(out))
+	return string(out)
 }
 
 func mustRead(t *testing.T, path string) []byte {
