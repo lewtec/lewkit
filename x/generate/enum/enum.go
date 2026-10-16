@@ -24,17 +24,20 @@
 // outside the set; otherwise String returns an empty string.
 //
 //	//lewkit:enum compose=GOOS/GOARCH
-//	type Platform string
+//	type Platform struct {
+//		GOOS   GOOS
+//		GOARCH GOARCH
+//	}
 //
-//	const (
-//		PlatformLinuxAMD64 = Platform(string(GOOSLinux) + "/" + string(GOARCHAMD64)) // linux-64
+//	var (
+//		PlatformLinuxAMD64 = Platform{GOOSLinux, GOARCHAMD64} // linux-64
 //	)
 //
-// compose joins two string enums in the same file. The part constants
-// are declared first. Each member is Platform(string(left) + "/" + string(right)).
-// The text is the two tokens joined by "/". Parse also accepts every
-// name of each part joined by "/" or "_". The comment adds names that
-// join does not produce. The generated type has a method for each part.
+// compose pairs two string enums in the same file. The struct fields
+// are those types, in order. A struct is not a constant, so each member
+// is a var set to that pair. The text is the two tokens joined by "/".
+// Parse also accepts every name of each part joined by "/" or "_".
+// The comment adds any other name.
 //
 // The generated type is a [github.com/lewtec/lewkit/x/cmd.Enum] when it
 // is an integer, and a flag either way: Parse reads the text and

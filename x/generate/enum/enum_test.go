@@ -500,11 +500,14 @@ const (
 )
 
 //lewkit:enum compose=OS/Arch
-type Platform string
+type Platform struct {
+	OS   OS
+	Arch Arch
+}
 
-const (
-	PlatformLinuxAMD64 = Platform(string(OSLinux) + "/" + string(ArchAMD64)) // linux_amd64, linux-64
-	PlatformLinuxARM = Platform((string(OSLinux) + "/" + string(ArchARM)))
+var (
+	PlatformLinuxAMD64 = Platform{OSLinux, ArchAMD64} // linux_amd64, linux-64
+	PlatformLinuxARM = Platform{Arch: ArchARM, OS: OSLinux}
 )
 `
 	parsed, err := parseSource("platform.go", []byte(src))
@@ -534,19 +537,16 @@ const (
 	buf, err := render(parsed)
 	require.NoError(t, err)
 	text := string(buf)
-	require.Contains(t, text, "func (p Platform) OS() OS")
-	require.Contains(t, text, "func (p Platform) Arch() Arch")
-	require.Contains(t, text, "text, _, ok := strings.Cut(string(p), \"/\")")
-	require.Contains(t, text, "_, text, ok := strings.Cut(string(p), \"/\")")
-	require.Contains(t, text, "return OS(text)")
-	require.Contains(t, text, "return Arch(text)")
+	require.Contains(t, text, `return p.OS.String() + "/" + p.Arch.String()`)
+	require.Contains(t, text, "return Platform{}")
+	require.NotContains(t, text, "func (p Platform) OS() OS")
+	require.NotContains(t, text, "strings.Cut")
 	require.Contains(t, text, `"linux/amd64", "linux_amd64", "linux/x86_64"`)
 }
 
 func TestComposeRejects(t *testing.T) {
 	t.Parallel()
-	cases := map[string]string{
-		"literal": `package sample
+	parts := `package sample
 
 //lewkit:enum
 type OS string
@@ -562,7 +562,16 @@ const (
 	ArchAMD64 Arch = "amd64"
 )
 
-//lewkit:enum compose=OS/Arch
+`
+	pair := `//lewkit:enum compose=OS/Arch
+type Platform struct {
+	OS   OS
+	Arch Arch
+}
+
+`
+	cases := map[string]string{
+		"literal": parts + `//lewkit:enum compose=OS/Arch
 type Platform string
 
 const (
@@ -579,29 +588,16 @@ const (
 )
 
 //lewkit:enum compose=OS/Arch
-type Platform string
+type Platform struct {
+	OS   OS
+	Arch Arch
+}
 
-const (
-	PlatformLinuxAMD64 Platform = string(OSLinux) + "/" + string(OSLinux)
+var (
+	PlatformLinuxAMD64 = Platform{OSLinux, OSLinux}
 )
 `,
-		"integer": `package sample
-
-//lewkit:enum
-type OS string
-
-const (
-	OSLinux OS = "linux"
-)
-
-//lewkit:enum
-type Arch string
-
-const (
-	ArchAMD64 Arch = "amd64"
-)
-
-//lewkit:enum compose=OS/Arch
+		"integer": parts + `//lewkit:enum compose=OS/Arch
 type Platform int
 
 const (
@@ -624,69 +620,35 @@ const (
 	ArchAMD64 Arch = "amd64"
 )
 
-//lewkit:enum compose=OS/Arch
-type Platform string
-
-const (
-	PlatformLinuxAMD64 = Platform(string(OSLinux) + "/" + string(ArchAMD64))
+` + pair + `var (
+	PlatformLinuxAMD64 = Platform{OSLinux, ArchAMD64}
 )
 `,
-		"bare": `package sample
-
-//lewkit:enum
-type OS string
-
-const (
-	OSLinux OS = "linux"
-)
-
-//lewkit:enum
-type Arch string
-
-const (
-	ArchAMD64 Arch = "amd64"
-)
-
-//lewkit:enum compose=OS/Arch
-type Platform string
-
-const (
-	PlatformLinuxAMD64 Platform = string(OSLinux) + "/" + string(ArchAMD64)
+		"bare": parts + pair + `var (
+	PlatformLinuxAMD64 = Platform{OSLinux}
 )
 `,
-		"part": `package sample
-
-//lewkit:enum
-type OS string
-
-const (
-	OSLinux OS = "linux"
-)
-
-//lewkit:enum
-type Arch string
-
-const (
-	ArchAMD64 Arch = "amd64"
-)
-
+		"part": parts + `
 const Also = "amd64"
 
-//lewkit:enum compose=OS/Arch
-type Platform string
-
-const (
-	PlatformLinuxAMD64 = Platform(string(OSLinux) + "/" + string(Also))
+` + pair + `var (
+	PlatformLinuxAMD64 = Platform{OSLinux, Also}
 )
+`,
+		"const": parts + pair + `const (
+	PlatformLinuxAMD64 = Platform{OSLinux, ArchAMD64}
+)
+`,
+		"fields": parts + `//lewkit:enum compose=OS/Arch
+type Platform struct {
+	Left  OS
+	Right Arch
+}
 `,
 		"option": `package sample
 
 //lewkit:enum compose=OS
 type Platform string
-
-const (
-	PlatformLinuxAMD64 Platform = "linux/amd64"
-)
 `,
 	}
 	for name, src := range cases {

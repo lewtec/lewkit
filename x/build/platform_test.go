@@ -81,10 +81,10 @@ func TestGOARCHEnum(t *testing.T) {
 func TestPlatformUberEnum(t *testing.T) {
 	host := HostPlatform()
 	require.True(t, host.IsValid())
-	require.Equal(t, HostGOOS(), host.GOOS())
-	require.Equal(t, HostGOARCH(), host.GOARCH())
+	require.Equal(t, HostGOOS(), host.GOOS)
+	require.Equal(t, HostGOARCH(), host.GOARCH)
 
-	for _, p := range Platform("").Values() {
+	for _, p := range (Platform{}).Values() {
 		require.True(t, p.IsValid())
 		goos, goarch := p.Split()
 		require.True(t, goos.IsValid(), p.String())

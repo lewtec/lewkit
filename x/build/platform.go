@@ -104,73 +104,76 @@ func (arch GOARCH) AndroidABI() (ABI, error) {
 // Platform is one GOOS and one GOARCH.
 //
 //lewkit:enum compose=GOOS/GOARCH
-type Platform string
+type Platform struct {
+	GOOS   GOOS
+	GOARCH GOARCH
+}
 
-const (
-	PlatformAixPPC64       = Platform(string(GOOSAix) + "/" + string(GOARCHPPC64))
-	PlatformAndroid386     = Platform(string(GOOSAndroid) + "/" + string(GOARCH386))
-	PlatformAndroidAMD64   = Platform(string(GOOSAndroid) + "/" + string(GOARCHAMD64))
-	PlatformAndroidARM     = Platform(string(GOOSAndroid) + "/" + string(GOARCHARM))
-	PlatformAndroidARM64   = Platform(string(GOOSAndroid) + "/" + string(GOARCHARM64))
-	PlatformDarwinAMD64    = Platform(string(GOOSDarwin) + "/" + string(GOARCHAMD64)) // osx-64
-	PlatformDarwinARM64    = Platform(string(GOOSDarwin) + "/" + string(GOARCHARM64)) // osx-arm64
-	PlatformDragonflyAMD64 = Platform(string(GOOSDragonfly) + "/" + string(GOARCHAMD64))
-	PlatformFreebsd386     = Platform(string(GOOSFreebsd) + "/" + string(GOARCH386))
-	PlatformFreebsdAMD64   = Platform(string(GOOSFreebsd) + "/" + string(GOARCHAMD64))
-	PlatformFreebsdARM     = Platform(string(GOOSFreebsd) + "/" + string(GOARCHARM))
-	PlatformFreebsdARM64   = Platform(string(GOOSFreebsd) + "/" + string(GOARCHARM64))
-	PlatformFreebsdRiscv64 = Platform(string(GOOSFreebsd) + "/" + string(GOARCHRiscv64))
-	PlatformIllumosAMD64   = Platform(string(GOOSIllumos) + "/" + string(GOARCHAMD64))
-	PlatformIOSAMD64       = Platform(string(GOOSIOS) + "/" + string(GOARCHAMD64))
-	PlatformIOSARM64       = Platform(string(GOOSIOS) + "/" + string(GOARCHARM64))
-	PlatformJSWasm         = Platform(string(GOOSJS) + "/" + string(GOARCHWasm))
-	PlatformLinux386       = Platform(string(GOOSLinux) + "/" + string(GOARCH386))   // linux-32
-	PlatformLinuxAMD64     = Platform(string(GOOSLinux) + "/" + string(GOARCHAMD64)) // linux-64
-	PlatformLinuxARM       = Platform(string(GOOSLinux) + "/" + string(GOARCHARM))
-	PlatformLinuxARM64     = Platform(string(GOOSLinux) + "/" + string(GOARCHARM64)) // linux-aarch64
-	PlatformLinuxLoong64   = Platform(string(GOOSLinux) + "/" + string(GOARCHLoong64))
-	PlatformLinuxMips      = Platform(string(GOOSLinux) + "/" + string(GOARCHMips))
-	PlatformLinuxMips64    = Platform(string(GOOSLinux) + "/" + string(GOARCHMips64))
-	PlatformLinuxMips64le  = Platform(string(GOOSLinux) + "/" + string(GOARCHMips64le))
-	PlatformLinuxMipsle    = Platform(string(GOOSLinux) + "/" + string(GOARCHMipsle))
-	PlatformLinuxPPC64     = Platform(string(GOOSLinux) + "/" + string(GOARCHPPC64))
-	PlatformLinuxPPC64le   = Platform(string(GOOSLinux) + "/" + string(GOARCHPPC64le)) // linux-ppc64le
-	PlatformLinuxRiscv64   = Platform(string(GOOSLinux) + "/" + string(GOARCHRiscv64)) // linux-riscv64
-	PlatformLinuxS390x     = Platform(string(GOOSLinux) + "/" + string(GOARCHS390x))   // linux-s390x
-	PlatformLinuxSparc64   = Platform(string(GOOSLinux) + "/" + string(GOARCHSparc64))
-	PlatformLinuxISOAMD64  = Platform(string(GOOSLinuxISO) + "/" + string(GOARCHAMD64))
-	PlatformLinuxISOARM64  = Platform(string(GOOSLinuxISO) + "/" + string(GOARCHARM64))
-	PlatformLinuxUKIAMD64  = Platform(string(GOOSLinuxUKI) + "/" + string(GOARCHAMD64))
-	PlatformLinuxUKIARM64  = Platform(string(GOOSLinuxUKI) + "/" + string(GOARCHARM64))
-	PlatformMBRAMD64       = Platform(string(GOOSMBR) + "/" + string(GOARCHAMD64))
-	PlatformNetbsd386      = Platform(string(GOOSNetbsd) + "/" + string(GOARCH386))
-	PlatformNetbsdAMD64    = Platform(string(GOOSNetbsd) + "/" + string(GOARCHAMD64))
-	PlatformNetbsdARM      = Platform(string(GOOSNetbsd) + "/" + string(GOARCHARM))
-	PlatformNetbsdARM64    = Platform(string(GOOSNetbsd) + "/" + string(GOARCHARM64))
-	PlatformOpenbsd386     = Platform(string(GOOSOpenbsd) + "/" + string(GOARCH386))
-	PlatformOpenbsdAMD64   = Platform(string(GOOSOpenbsd) + "/" + string(GOARCHAMD64))
-	PlatformOpenbsdARM     = Platform(string(GOOSOpenbsd) + "/" + string(GOARCHARM))
-	PlatformOpenbsdARM64   = Platform(string(GOOSOpenbsd) + "/" + string(GOARCHARM64))
-	PlatformOpenbsdPPC64   = Platform(string(GOOSOpenbsd) + "/" + string(GOARCHPPC64))
-	PlatformOpenbsdRiscv64 = Platform(string(GOOSOpenbsd) + "/" + string(GOARCHRiscv64))
-	PlatformPlan9386       = Platform(string(GOOSPlan9) + "/" + string(GOARCH386))
-	PlatformPlan9AMD64     = Platform(string(GOOSPlan9) + "/" + string(GOARCHAMD64))
-	PlatformPlan9ARM       = Platform(string(GOOSPlan9) + "/" + string(GOARCHARM))
-	PlatformSolarisAMD64   = Platform(string(GOOSSolaris) + "/" + string(GOARCHAMD64))
-	PlatformTamagoAMD64    = Platform(string(GOOSTamago) + "/" + string(GOARCHAMD64))
-	PlatformTamagoARM      = Platform(string(GOOSTamago) + "/" + string(GOARCHARM))
-	PlatformTamagoARM64    = Platform(string(GOOSTamago) + "/" + string(GOARCHARM64))
-	PlatformTamagoRiscv64  = Platform(string(GOOSTamago) + "/" + string(GOARCHRiscv64))
-	PlatformUEFIAMD64      = Platform(string(GOOSUEFI) + "/" + string(GOARCHAMD64))
-	PlatformWasip1Wasm     = Platform(string(GOOSWasip1) + "/" + string(GOARCHWasm))
-	PlatformWindows386     = Platform(string(GOOSWindows) + "/" + string(GOARCH386))   // win-32
-	PlatformWindowsAMD64   = Platform(string(GOOSWindows) + "/" + string(GOARCHAMD64)) // win-64
-	PlatformWindowsARM64   = Platform(string(GOOSWindows) + "/" + string(GOARCHARM64)) // win-arm64
+var (
+	PlatformAixPPC64       = Platform{GOOSAix, GOARCHPPC64}
+	PlatformAndroid386     = Platform{GOOSAndroid, GOARCH386}
+	PlatformAndroidAMD64   = Platform{GOOSAndroid, GOARCHAMD64}
+	PlatformAndroidARM     = Platform{GOOSAndroid, GOARCHARM}
+	PlatformAndroidARM64   = Platform{GOOSAndroid, GOARCHARM64}
+	PlatformDarwinAMD64    = Platform{GOOSDarwin, GOARCHAMD64} // osx-64
+	PlatformDarwinARM64    = Platform{GOOSDarwin, GOARCHARM64} // osx-arm64
+	PlatformDragonflyAMD64 = Platform{GOOSDragonfly, GOARCHAMD64}
+	PlatformFreebsd386     = Platform{GOOSFreebsd, GOARCH386}
+	PlatformFreebsdAMD64   = Platform{GOOSFreebsd, GOARCHAMD64}
+	PlatformFreebsdARM     = Platform{GOOSFreebsd, GOARCHARM}
+	PlatformFreebsdARM64   = Platform{GOOSFreebsd, GOARCHARM64}
+	PlatformFreebsdRiscv64 = Platform{GOOSFreebsd, GOARCHRiscv64}
+	PlatformIllumosAMD64   = Platform{GOOSIllumos, GOARCHAMD64}
+	PlatformIOSAMD64       = Platform{GOOSIOS, GOARCHAMD64}
+	PlatformIOSARM64       = Platform{GOOSIOS, GOARCHARM64}
+	PlatformJSWasm         = Platform{GOOSJS, GOARCHWasm}
+	PlatformLinux386       = Platform{GOOSLinux, GOARCH386}   // linux-32
+	PlatformLinuxAMD64     = Platform{GOOSLinux, GOARCHAMD64} // linux-64
+	PlatformLinuxARM       = Platform{GOOSLinux, GOARCHARM}
+	PlatformLinuxARM64     = Platform{GOOSLinux, GOARCHARM64} // linux-aarch64
+	PlatformLinuxLoong64   = Platform{GOOSLinux, GOARCHLoong64}
+	PlatformLinuxMips      = Platform{GOOSLinux, GOARCHMips}
+	PlatformLinuxMips64    = Platform{GOOSLinux, GOARCHMips64}
+	PlatformLinuxMips64le  = Platform{GOOSLinux, GOARCHMips64le}
+	PlatformLinuxMipsle    = Platform{GOOSLinux, GOARCHMipsle}
+	PlatformLinuxPPC64     = Platform{GOOSLinux, GOARCHPPC64}
+	PlatformLinuxPPC64le   = Platform{GOOSLinux, GOARCHPPC64le} // linux-ppc64le
+	PlatformLinuxRiscv64   = Platform{GOOSLinux, GOARCHRiscv64} // linux-riscv64
+	PlatformLinuxS390x     = Platform{GOOSLinux, GOARCHS390x}   // linux-s390x
+	PlatformLinuxSparc64   = Platform{GOOSLinux, GOARCHSparc64}
+	PlatformLinuxISOAMD64  = Platform{GOOSLinuxISO, GOARCHAMD64}
+	PlatformLinuxISOARM64  = Platform{GOOSLinuxISO, GOARCHARM64}
+	PlatformLinuxUKIAMD64  = Platform{GOOSLinuxUKI, GOARCHAMD64}
+	PlatformLinuxUKIARM64  = Platform{GOOSLinuxUKI, GOARCHARM64}
+	PlatformMBRAMD64       = Platform{GOOSMBR, GOARCHAMD64}
+	PlatformNetbsd386      = Platform{GOOSNetbsd, GOARCH386}
+	PlatformNetbsdAMD64    = Platform{GOOSNetbsd, GOARCHAMD64}
+	PlatformNetbsdARM      = Platform{GOOSNetbsd, GOARCHARM}
+	PlatformNetbsdARM64    = Platform{GOOSNetbsd, GOARCHARM64}
+	PlatformOpenbsd386     = Platform{GOOSOpenbsd, GOARCH386}
+	PlatformOpenbsdAMD64   = Platform{GOOSOpenbsd, GOARCHAMD64}
+	PlatformOpenbsdARM     = Platform{GOOSOpenbsd, GOARCHARM}
+	PlatformOpenbsdARM64   = Platform{GOOSOpenbsd, GOARCHARM64}
+	PlatformOpenbsdPPC64   = Platform{GOOSOpenbsd, GOARCHPPC64}
+	PlatformOpenbsdRiscv64 = Platform{GOOSOpenbsd, GOARCHRiscv64}
+	PlatformPlan9386       = Platform{GOOSPlan9, GOARCH386}
+	PlatformPlan9AMD64     = Platform{GOOSPlan9, GOARCHAMD64}
+	PlatformPlan9ARM       = Platform{GOOSPlan9, GOARCHARM}
+	PlatformSolarisAMD64   = Platform{GOOSSolaris, GOARCHAMD64}
+	PlatformTamagoAMD64    = Platform{GOOSTamago, GOARCHAMD64}
+	PlatformTamagoARM      = Platform{GOOSTamago, GOARCHARM}
+	PlatformTamagoARM64    = Platform{GOOSTamago, GOARCHARM64}
+	PlatformTamagoRiscv64  = Platform{GOOSTamago, GOARCHRiscv64}
+	PlatformUEFIAMD64      = Platform{GOOSUEFI, GOARCHAMD64}
+	PlatformWasip1Wasm     = Platform{GOOSWasip1, GOARCHWasm}
+	PlatformWindows386     = Platform{GOOSWindows, GOARCH386}   // win-32
+	PlatformWindowsAMD64   = Platform{GOOSWindows, GOARCHAMD64} // win-64
+	PlatformWindowsARM64   = Platform{GOOSWindows, GOARCHARM64} // win-arm64
 )
 
 // HostPlatform returns the process Platform.
 func HostPlatform() Platform {
-	return Platform(runtime.GOOS + "/" + runtime.GOARCH)
+	return Platform{HostGOOS(), HostGOARCH()}
 }
 
 // PlatformFor resolves the Platform for goos and goarch.
@@ -180,20 +183,20 @@ func PlatformFor(goos GOOS, goarch GOARCH) (Platform, error) {
 
 // Split returns the GOOS and GOARCH components of p.
 func (p Platform) Split() (GOOS, GOARCH) {
-	return p.GOOS(), p.GOARCH()
+	return p.GOOS, p.GOARCH
 }
 
 // Target converts p to a Target.
 func (p Platform) Target() Target {
-	return Target{GOOS: p.GOOS().String(), GOARCH: p.GOARCH().String()}
+	return Target{GOOS: p.GOOS.String(), GOARCH: p.GOARCH.String()}
 }
 
 // AndroidABI returns the Android ABI for p.
 func (p Platform) AndroidABI() (ABI, error) {
-	if p.GOOS() != GOOSAndroid {
+	if p.GOOS != GOOSAndroid {
 		return "", fmt.Errorf("%w: %s", ErrABI, p)
 	}
-	return ABIFor(p.GOARCH())
+	return ABIFor(p.GOARCH)
 }
 
 // DesktopPlatforms is the release matrix: Linux, macOS, and Windows on amd64 and arm64.

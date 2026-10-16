@@ -57,10 +57,20 @@ func parseSource(path string, src []byte) (fileSpec, error) {
 	if err != nil {
 		return fileSpec{}, err
 	}
-	members, exprs, err := constMembers(file, marks)
+	members, err := constMembers(file, marks)
 	if err != nil {
 		return fileSpec{}, err
 	}
+	found := &pairFound{
+		marks:    marks,
+		members:  members,
+		exprs:    map[string]ast.Expr{},
+		declared: map[string]bool{},
+	}
+	if err := found.collect(file); err != nil {
+		return fileSpec{}, err
+	}
+	exprs := found.exprs
 	var enums []enumSpec
 	for _, name := range markOrder(file, marks) {
 		mark := marks[name]
@@ -115,14 +125,22 @@ func markedTypes(file *ast.File) (map[string]mark, error) {
 			if ts.Assign.IsValid() {
 				return nil, fmt.Errorf("%w: %s is an alias", ErrEnum, ts.Name.Name)
 			}
-			kind, ok := underlying(ts.Type)
-			if !ok {
-				return nil, fmt.Errorf("%w: %s is not an integer or string", ErrEnum, ts.Name.Name)
+			var stringKind bool
+			if dir.composeLeft != "" {
+				if err := pairType(ts.Name.Name, ts.Type, dir); err != nil {
+					return nil, err
+				}
+			} else {
+				kind, ok := underlying(ts.Type)
+				if !ok {
+					return nil, fmt.Errorf("%w: %s is not an integer or string", ErrEnum, ts.Name.Name)
+				}
+				stringKind = kind == "string"
 			}
 			if _, dup := out[ts.Name.Name]; dup {
 				return nil, fmt.Errorf("%w: %s declared twice", ErrEnum, ts.Name.Name)
 			}
-			out[ts.Name.Name] = mark{stringKind: kind == "string", directive: dir}
+			out[ts.Name.Name] = mark{stringKind: stringKind, directive: dir}
 		}
 	}
 	return out, nil
@@ -243,10 +261,9 @@ func underlying(expr ast.Expr) (string, bool) {
 	}
 }
 
-func constMembers(file *ast.File, marks map[string]mark) (map[string][]member, map[string]ast.Expr, error) {
+func constMembers(file *ast.File, marks map[string]mark) (map[string][]member, error) {
 	env := map[string]constant.Value{}
 	out := map[string][]member{}
-	exprs := map[string]ast.Expr{}
 	seenVal := map[string][]constant.Value{}
 	for _, decl := range file.Decls {
 		gen, ok := decl.(*ast.GenDecl)
@@ -276,48 +293,49 @@ func constMembers(file *ast.File, marks map[string]mark) (map[string][]member, m
 				prevType = typeName
 			}
 			if len(values) == 0 || len(values) != len(vs.Names) {
-				return nil, nil, fmt.Errorf("%w: const list", ErrEnum)
+				return nil, fmt.Errorf("%w: const list", ErrEnum)
 			}
 			iotaVal := constant.MakeInt64(int64(index))
 			for i, name := range vs.Names {
-				val, err := eval(values[i], iotaVal, env)
-				if err != nil {
-					return nil, nil, err
+				if mark, ok := marks[typeName]; ok && mark.directive.composeLeft != "" {
+					return nil, fmt.Errorf("%w: %s compose var", ErrEnum, name.Name)
 				}
-				if name.Name != "_" {
-					if _, exists := env[name.Name]; exists {
-						return nil, nil, fmt.Errorf("%w: %s declared twice", ErrEnum, name.Name)
-					}
-					env[name.Name] = val
-				}
-				itemType := typeName
-				if itemType == "" {
-					if converted, ok := convertedType(values[i]); ok {
-						if part, marked := marks[converted]; marked && part.directive.composeLeft != "" {
-							itemType = converted
+				if lit, ok := values[i].(*ast.CompositeLit); ok && lit.Type != nil {
+					if id, ok := lit.Type.(*ast.Ident); ok {
+						if mark, marked := marks[id.Name]; marked && mark.directive.composeLeft != "" {
+							return nil, fmt.Errorf("%w: %s compose var", ErrEnum, name.Name)
 						}
 					}
 				}
-				mark, wanted := marks[itemType]
+				val, err := eval(values[i], iotaVal, env)
+				if err != nil {
+					return nil, err
+				}
+				if name.Name != "_" {
+					if _, exists := env[name.Name]; exists {
+						return nil, fmt.Errorf("%w: %s declared twice", ErrEnum, name.Name)
+					}
+					env[name.Name] = val
+				}
+				mark, wanted := marks[typeName]
 				if !wanted || name.Name == "_" {
 					continue
 				}
-				for _, prev := range seenVal[itemType] {
+				for _, prev := range seenVal[typeName] {
 					if constant.Compare(prev, token.EQL, val) {
-						return nil, nil, fmt.Errorf("%w: %s repeats a value", ErrEnum, name.Name)
+						return nil, fmt.Errorf("%w: %s repeats a value", ErrEnum, name.Name)
 					}
 				}
-				seenVal[itemType] = append(seenVal[itemType], val)
-				item, err := memberOf(itemType, name.Name, val, mark, vs.Comment)
+				seenVal[typeName] = append(seenVal[typeName], val)
+				item, err := memberOf(typeName, name.Name, val, mark, vs.Comment)
 				if err != nil {
-					return nil, nil, err
+					return nil, err
 				}
-				exprs[name.Name] = values[i]
-				out[itemType] = append(out[itemType], item)
+				out[typeName] = append(out[typeName], item)
 			}
 		}
 	}
-	return out, exprs, nil
+	return out, nil
 }
 
 func memberOf(typeName, name string, val constant.Value, mark mark, comment *ast.CommentGroup) (member, error) {
@@ -432,9 +450,6 @@ func applyCompose(enums []enumSpec, exprs map[string]ast.Expr) error {
 		if spec.composeLeft == "" {
 			continue
 		}
-		if !spec.stringKind {
-			return fmt.Errorf("%w: %s compose requires a string", ErrEnum, spec.name)
-		}
 		if generatedMethod(spec.composeLeft) || generatedMethod(spec.composeRight) {
 			return fmt.Errorf("%w: %s compose method", ErrEnum, spec.name)
 		}
@@ -453,9 +468,9 @@ func applyCompose(enums []enumSpec, exprs map[string]ast.Expr) error {
 		rightByName := membersByName(right.members)
 		for j := range spec.members {
 			item := &spec.members[j]
-			leftName, rightName, ok := compositionParts(exprs[item.name], spec.name)
+			leftName, rightName, ok := compositionParts(exprs[item.name], spec.composeLeft, spec.composeRight)
 			if !ok {
-				return fmt.Errorf("%w: %s is not a %s/%s composition", ErrEnum, item.name, spec.composeLeft, spec.composeRight)
+				return fmt.Errorf("%w: %s is not a %s/%s pair", ErrEnum, item.name, spec.composeLeft, spec.composeRight)
 			}
 			leftMember, ok := leftByName[leftName]
 			if !ok {
@@ -468,11 +483,7 @@ func applyCompose(enums []enumSpec, exprs map[string]ast.Expr) error {
 			if err := separatorNames(item.name, leftMember, rightMember); err != nil {
 				return err
 			}
-			tokenText := leftMember.token + "/" + rightMember.token
-			if item.token != tokenText {
-				return fmt.Errorf("%w: %s text %s", ErrEnum, item.name, item.token)
-			}
-			item.token = tokenText
+			item.token = leftMember.token + "/" + rightMember.token
 			item.aliases = composeAliases(leftMember, rightMember, item.aliases)
 		}
 	}
@@ -530,71 +541,153 @@ func composeAliases(left, right member, extra []string) []string {
 	return out
 }
 
-func compositionParts(expr ast.Expr, typeName string) (string, string, bool) {
-	call, ok := expr.(*ast.CallExpr)
-	if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+func pairType(name string, expr ast.Expr, dir directive) error {
+	st, ok := expr.(*ast.StructType)
+	if !ok || st.Fields == nil || len(st.Fields.List) != 2 {
+		return fmt.Errorf("%w: %s compose pair", ErrEnum, name)
+	}
+	want := []string{dir.composeLeft, dir.composeRight}
+	for i, field := range st.Fields.List {
+		id, ok := field.Type.(*ast.Ident)
+		if !ok || field.Tag != nil || len(field.Names) != 1 || field.Names[0].Name != want[i] || id.Name != want[i] {
+			return fmt.Errorf("%w: %s compose pair", ErrEnum, name)
+		}
+	}
+	return nil
+}
+
+type pairFound struct {
+	marks    map[string]mark
+	members  map[string][]member
+	exprs    map[string]ast.Expr
+	declared map[string]bool
+}
+
+func (found *pairFound) collect(file *ast.File) error {
+	for _, items := range found.members {
+		for _, item := range items {
+			found.declared[item.name] = true
+		}
+	}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			if err := found.add(spec.(*ast.ValueSpec)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (found *pairFound) add(vs *ast.ValueSpec) error {
+	explicit := ""
+	if id, ok := vs.Type.(*ast.Ident); ok {
+		explicit = id.Name
+	}
+	if len(vs.Values) != len(vs.Names) {
+		if mark, ok := found.marks[explicit]; ok && mark.directive.composeLeft != "" {
+			return fmt.Errorf("%w: %s compose var", ErrEnum, explicit)
+		}
+		return nil
+	}
+	for i, name := range vs.Names {
+		if name.Name == "_" {
+			continue
+		}
+		lit, isLit := vs.Values[i].(*ast.CompositeLit)
+		itemType := explicit
+		litType := ""
+		if isLit {
+			if id, ok := lit.Type.(*ast.Ident); ok {
+				litType = id.Name
+			}
+		}
+		if itemType == "" {
+			itemType = litType
+		}
+		mark, wanted := found.marks[itemType]
+		if !wanted || mark.directive.composeLeft == "" {
+			continue
+		}
+		if !isLit || (lit.Type != nil && litType != itemType) {
+			return fmt.Errorf("%w: %s is not a %s/%s pair", ErrEnum, name.Name, mark.directive.composeLeft, mark.directive.composeRight)
+		}
+		if found.declared[name.Name] {
+			return fmt.Errorf("%w: %s declared twice", ErrEnum, name.Name)
+		}
+		found.declared[name.Name] = true
+		found.members[itemType] = append(found.members[itemType], member{
+			name:    name.Name,
+			aliases: aliasComment(vs.Comment),
+		})
+		found.exprs[name.Name] = lit
+	}
+	return nil
+}
+
+func compositionParts(expr ast.Expr, leftField, rightField string) (string, string, bool) {
+	lit, ok := expr.(*ast.CompositeLit)
+	if !ok || len(lit.Elts) != 2 {
 		return "", "", false
 	}
-	fun, ok := call.Fun.(*ast.Ident)
-	if !ok || fun.Name != typeName {
-		return "", "", false
+	if _, keyed := lit.Elts[0].(*ast.KeyValueExpr); keyed {
+		return keyedParts(lit.Elts, leftField, rightField)
 	}
-	parts := flattenAdd(call.Args[0])
-	if len(parts) != 3 {
-		return "", "", false
-	}
-	left, ok := stringConstIdent(parts[0])
+	left, ok := valueIdent(lit.Elts[0])
 	if !ok {
 		return "", "", false
 	}
-	lit, ok := parts[1].(*ast.BasicLit)
-	if !ok || lit.Kind != token.STRING || lit.Value != `"/"` {
-		return "", "", false
-	}
-	right, ok := stringConstIdent(parts[2])
+	right, ok := valueIdent(lit.Elts[1])
 	if !ok {
 		return "", "", false
 	}
 	return left, right, true
 }
 
-func flattenAdd(expr ast.Expr) []ast.Expr {
-	if paren, ok := expr.(*ast.ParenExpr); ok {
-		return flattenAdd(paren.X)
+func keyedParts(elts []ast.Expr, leftField, rightField string) (string, string, bool) {
+	found := map[string]string{}
+	for _, elt := range elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			return "", "", false
+		}
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok {
+			return "", "", false
+		}
+		value, ok := valueIdent(kv.Value)
+		if !ok {
+			return "", "", false
+		}
+		if _, dup := found[key.Name]; dup {
+			return "", "", false
+		}
+		found[key.Name] = value
 	}
-	bin, ok := expr.(*ast.BinaryExpr)
-	if !ok || bin.Op != token.ADD {
-		return []ast.Expr{expr}
+	left, ok := found[leftField]
+	if !ok {
+		return "", "", false
 	}
-	return append(flattenAdd(bin.X), flattenAdd(bin.Y)...)
+	right, ok := found[rightField]
+	if !ok || len(found) != 2 {
+		return "", "", false
+	}
+	return left, right, true
 }
 
-func stringConstIdent(expr ast.Expr) (string, bool) {
-	call, ok := expr.(*ast.CallExpr)
-	if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() {
-		return "", false
+func valueIdent(expr ast.Expr) (string, bool) {
+	if paren, ok := expr.(*ast.ParenExpr); ok {
+		return valueIdent(paren.X)
 	}
-	fun, ok := call.Fun.(*ast.Ident)
-	if !ok || fun.Name != "string" {
-		return "", false
-	}
-	id, ok := call.Args[0].(*ast.Ident)
-	if !ok {
+	id, ok := expr.(*ast.Ident)
+	if !ok || !plainIdent(id.Name) {
 		return "", false
 	}
 	return id.Name, true
-}
-
-func convertedType(expr ast.Expr) (string, bool) {
-	call, ok := expr.(*ast.CallExpr)
-	if !ok || len(call.Args) != 1 || call.Ellipsis.IsValid() {
-		return "", false
-	}
-	fun, ok := call.Fun.(*ast.Ident)
-	if !ok || !plainIdent(fun.Name) {
-		return "", false
-	}
-	return fun.Name, true
 }
 
 func plainIdent(name string) bool {
@@ -619,19 +712,6 @@ func eval(expr ast.Expr, iota constant.Value, env map[string]constant.Value) (co
 		val, ok := env[e.Name]
 		if !ok {
 			return nil, fmt.Errorf("%w: unknown const %s", ErrEnum, e.Name)
-		}
-		return val, nil
-	case *ast.CallExpr:
-		fun, ok := e.Fun.(*ast.Ident)
-		if !ok || len(e.Args) != 1 || e.Ellipsis.IsValid() || (fun.Name != "string" && !plainIdent(fun.Name)) {
-			return nil, fmt.Errorf("%w: expression", ErrEnum)
-		}
-		val, err := eval(e.Args[0], iota, env)
-		if err != nil {
-			return nil, err
-		}
-		if val.Kind() != constant.String {
-			return nil, fmt.Errorf("%w: expression", ErrEnum)
 		}
 		return val, nil
 	case *ast.BasicLit:

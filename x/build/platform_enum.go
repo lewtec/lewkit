@@ -203,25 +203,10 @@ func (g *GOARCH) UnmarshalText(text []byte) error {
 
 // String is the text of a Platform.
 func (p Platform) String() string {
-	return string(p)
-}
-
-// GOOS returns the GOOS of a Platform.
-func (p Platform) GOOS() GOOS {
-	text, _, ok := strings.Cut(string(p), "/")
-	if !ok {
+	if p.GOOS == "" || p.GOARCH == "" {
 		return ""
 	}
-	return GOOS(text)
-}
-
-// GOARCH returns the GOARCH of a Platform.
-func (p Platform) GOARCH() GOARCH {
-	_, text, ok := strings.Cut(string(p), "/")
-	if !ok {
-		return ""
-	}
-	return GOARCH(text)
+	return p.GOOS.String() + "/" + p.GOARCH.String()
 }
 
 // Values lists the Platform values.
@@ -362,7 +347,7 @@ func ParsePlatform(text string) (Platform, error) {
 	case "windows/arm64", "windows_arm64", "windows/aarch64", "windows_aarch64", "windows/arm64-v8a", "windows_arm64-v8a", "win-arm64":
 		return PlatformWindowsARM64, nil
 	default:
-		return "", fmt.Errorf("%w: %q", ErrPlatform, text)
+		return Platform{}, fmt.Errorf("%w: %q", ErrPlatform, text)
 	}
 }
 
