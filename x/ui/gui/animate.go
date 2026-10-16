@@ -473,4 +473,3 @@ func (view *ColumnView) Paint(origin Offset, clip Rect, picture *Picture) *ndarr
 	}
 	return acc
 }
-

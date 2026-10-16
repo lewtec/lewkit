@@ -114,4 +114,3 @@ func TestColumnViewScrollAndThumb(t *testing.T) {
 	require.Len(t, picture.fills, 7)
 	assert.Equal(t, float32(4-20), picture.fills[0].Y)
 }
-

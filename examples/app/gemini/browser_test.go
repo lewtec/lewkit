@@ -89,7 +89,7 @@ func TestBrowserStatus10SearchPromptAndDrawer(t *testing.T) {
 	assert.True(t, browser.drawerOpen)
 	assert.True(t, browser.drawerSlide.Animating())
 
-	_, _ = browser.Update( gui.ModeMsg{Mode: daynight.Light})
+	_, _ = browser.Update(gui.ModeMsg{Mode: daynight.Light})
 	assert.True(t, browser.themeMix.Animating())
 
 	_, _ = browser.Update(window.Scroll{Delta: image.Pt(0, -3)})
