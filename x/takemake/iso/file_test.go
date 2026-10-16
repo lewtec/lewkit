@@ -47,12 +47,52 @@ func TestRoundTrip(t *testing.T) {
 func TestEmptyRoundTrip(t *testing.T) {
 	t.Parallel()
 	file := New()
-	got := takeMade(t, file)
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	require.False(t, bytes.Contains(buf.Bytes(), []byte("EL TORITO SPECIFICATION")))
+	got, err := Take(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
 	require.Empty(t, got.Entries)
-	require.Equal(t, PlatformEFI, got.Catalog.Platform)
-	require.Equal(t, EmulationNone, got.Catalog.Emulation)
-	require.Equal(t, "EFIBOOT.IMG", got.Catalog.BootFile)
+	require.Equal(t, Catalog{}, got.Catalog)
 	require.Equal(t, "LEWKIT", got.Label)
+}
+
+func TestDataOnlyRoundTrip(t *testing.T) {
+	t.Parallel()
+	when := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
+	file := New().
+		Entry("EFIBOOT.IMG").Mode(0o644).Time(when).Bytes([]byte("payload")).
+		Entry("notes").Dir().Mode(0o755).Time(when)
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	require.False(t, bytes.Contains(buf.Bytes(), []byte("EL TORITO SPECIFICATION")))
+	got, err := Take(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+	require.Equal(t, Catalog{}, got.Catalog)
+	require.Equal(t, views(file), views(got))
+
+	second := takeMade(t, got)
+	require.Equal(t, Catalog{}, second.Catalog)
+	require.Equal(t, views(got), views(second))
+}
+
+func TestElToritoOptIn(t *testing.T) {
+	t.Parallel()
+	when := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
+	file := New().
+		Platform(PlatformBIOS).
+		Entry("readme.txt").Mode(0o644).Time(when).Bytes([]byte("hi"))
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	require.True(t, bytes.Contains(buf.Bytes(), []byte("EL TORITO SPECIFICATION")))
+	got, err := Take(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+	require.Equal(t, Catalog{
+		Platform:  PlatformBIOS,
+		Emulation: EmulationNone,
+		BootFile:  "EFIBOOT.IMG",
+	}, got.Catalog)
+	require.Equal(t, views(file), views(got))
 }
 
 func TestRejects(t *testing.T) {
@@ -68,6 +108,9 @@ func TestRejects(t *testing.T) {
 	require.ErrorIs(t, err, ErrName)
 
 	err = New().Entry("EFIBOOT.IMG").Bytes([]byte("nope")).Make(io.Discard)
+	require.NoError(t, err)
+
+	err = New().Boot("EFIBOOT.IMG").Entry("EFIBOOT.IMG").Bytes([]byte("nope")).Make(io.Discard)
 	require.ErrorIs(t, err, ErrName)
 
 	err = New().Entry("link").Mode(fs.ModeSymlink | 0o777).Make(io.Discard)

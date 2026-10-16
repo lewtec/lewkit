@@ -18,13 +18,13 @@ import (
 const sectorSize = 2048
 
 func take(raw []byte) (*File, error) {
-	if len(raw) < 18*sectorSize {
+	if len(raw) < 17*sectorSize {
 		return nil, ErrFormat
 	}
 	if string(raw[16*sectorSize+1:16*sectorSize+6]) != "CD001" {
 		return nil, ErrFormat
 	}
-	platform, emulation, bootLBA, err := bootCatalog(raw)
+	platform, emulation, bootLBA, bootable, err := bootCatalog(raw)
 	if err != nil {
 		return nil, err
 	}
@@ -56,12 +56,12 @@ func take(raw []byte) (*File, error) {
 	var boot []byte
 	entries := make([]*Entry, 0, len(found))
 	for _, item := range found {
-		if item.loc == bootLBA && !item.info.IsDir() {
+		if bootable && item.loc == bootLBA && !item.info.IsDir() {
 			bootName = item.name
 			boot = item.data
 			continue
 		}
-		if reservedName(item.name, "") {
+		if bootable && reservedName(item.name, "") {
 			continue
 		}
 		mode := item.info.Mode() & (fs.ModeDir | fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky)
@@ -78,23 +78,29 @@ func take(raw []byte) (*File, error) {
 		}
 		entries = append(entries, entry)
 	}
-	if bootName == "" {
-		return nil, ErrFormat
-	}
-	if err := fatMatches(boot, entries); err != nil {
-		return nil, err
+	if bootable {
+		if bootName == "" {
+			return nil, ErrFormat
+		}
+		if err := fatMatches(boot, entries); err != nil {
+			return nil, err
+		}
 	}
 	slices.SortFunc(entries, func(a, b *Entry) int {
 		return strings.Compare(a.Name, b.Name)
 	})
 	label := strings.TrimRight(fsys.Label(), " \x00")
-	return &File{
-		Label: label,
-		Catalog: Catalog{
+	var catalog Catalog
+	if bootable {
+		catalog = Catalog{
 			Platform:  platform,
 			Emulation: emulation,
 			BootFile:  path.Base(bootName),
-		},
+		}
+	}
+	return &File{
+		Label:   label,
+		Catalog: catalog,
 		Entries: entries,
 		cur:     -1,
 	}, nil
@@ -156,33 +162,36 @@ func readISOFile(fsys *iso9660.FileSystem, name string) ([]byte, error) {
 	return bytes.Clone(body), nil
 }
 
-func bootCatalog(raw []byte) (Platform, Emulation, uint32, error) {
+func bootCatalog(raw []byte) (Platform, Emulation, uint32, bool, error) {
+	if len(raw) < 18*sectorSize {
+		return 0, 0, 0, false, nil
+	}
 	record := raw[17*sectorSize : 18*sectorSize]
 	if !bytes.Contains(record[:64], []byte("EL TORITO SPECIFICATION")) {
-		return 0, 0, 0, ErrFormat
+		return 0, 0, 0, false, nil
 	}
 	catLBA := binary.LittleEndian.Uint32(record[71:])
 	off := int(catLBA) * sectorSize
 	if catLBA == 0 || off < 0 || off+64 > len(raw) {
-		return 0, 0, 0, ErrFormat
+		return 0, 0, 0, false, ErrFormat
 	}
 	cat := raw[off:]
 	if cat[0] != 0x01 || cat[30] != 0x55 || cat[31] != 0xAA || cat[32] != 0x88 {
-		return 0, 0, 0, ErrFormat
+		return 0, 0, 0, false, ErrFormat
 	}
 	platform, err := platformFrom(cat[1])
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, false, err
 	}
 	emulation, err := emulationFrom(cat[33])
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, false, err
 	}
 	bootLBA := binary.LittleEndian.Uint32(cat[40:])
 	if bootLBA == 0 {
-		return 0, 0, 0, ErrFormat
+		return 0, 0, 0, false, ErrFormat
 	}
-	return platform, emulation, bootLBA, nil
+	return platform, emulation, bootLBA, true, nil
 }
 
 func platformFrom(b byte) (Platform, error) {

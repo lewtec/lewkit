@@ -24,19 +24,20 @@ func makeImage(f *File) ([]byte, error) {
 	if len(label) > 32 {
 		return nil, ErrName
 	}
-	boot := f.Catalog.BootFile
-	if boot == "" {
-		boot = defaultBoot
-	}
-	if err := cleanBoot(boot); err != nil {
-		return nil, err
-	}
-	if !f.Catalog.Platform.IsValid() || !f.Catalog.Emulation.IsValid() {
-		return nil, ErrFormat
+	catalog, bootable := resolveCatalog(f.Catalog)
+	boot := ""
+	if bootable {
+		boot = catalog.BootFile
+		if err := cleanBoot(boot); err != nil {
+			return nil, err
+		}
+		if !catalog.Platform.IsValid() || !catalog.Emulation.IsValid() {
+			return nil, ErrFormat
+		}
 	}
 	seen := make(map[string]struct{}, len(f.Entries))
 	for _, entry := range f.Entries {
-		if entry == nil || reservedName(entry.Name, boot) {
+		if entry == nil || (bootable && reservedName(entry.Name, boot)) {
 			return nil, ErrName
 		}
 		if _, ok := seen[entry.Name]; ok {
@@ -61,18 +62,20 @@ func makeImage(f *File) ([]byte, error) {
 	if err := writeTree(tree, f.Entries); err != nil {
 		return nil, err
 	}
-	fat, err := writeFAT(dir, tree, payloadSize(f.Entries))
-	if err != nil {
-		return nil, err
+	if bootable {
+		fat, err := writeFAT(dir, tree, payloadSize(f.Entries))
+		if err != nil {
+			return nil, err
+		}
+		bootPath := filepath.Join(tree, filepath.FromSlash(boot))
+		if err := os.MkdirAll(filepath.Dir(bootPath), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(bootPath, fat, 0o644); err != nil {
+			return nil, err
+		}
 	}
-	bootPath := filepath.Join(tree, filepath.FromSlash(boot))
-	if err := os.MkdirAll(filepath.Dir(bootPath), 0o755); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(bootPath, fat, 0o644); err != nil {
-		return nil, err
-	}
-	return writeISO(dir, tree, label, boot, f.Catalog)
+	return writeISO(dir, tree, label, boot, catalog)
 }
 
 func cleanBoot(name string) error {
@@ -214,17 +217,20 @@ func writeISO(dir, tree, label, boot string, catalog Catalog) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = fsys.Finalize(iso9660.FinalizeOptions{
+	options := iso9660.FinalizeOptions{
 		RockRidge:        true,
 		VolumeIdentifier: label,
-		ElTorito: &iso9660.ElTorito{
+	}
+	if boot != "" {
+		options.ElTorito = &iso9660.ElTorito{
 			Entries: []*iso9660.ElToritoEntry{{
 				Platform:  diskPlatform(catalog.Platform),
 				Emulation: diskEmulation(catalog.Emulation),
 				BootFile:  boot,
 			}},
-		},
-	})
+		}
+	}
+	err = fsys.Finalize(options)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrFormat, err)
 	}

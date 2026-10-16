@@ -28,8 +28,9 @@ const (
 // ISO 9660 records whole seconds.
 var defaultTime = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 
-// Entry is one ISO 9660 directory record other than the boot image.
+// Entry is one ISO 9660 directory record.
 // A directory has [fs.ModeDir] set and no bytes.
+// The El Torito boot image is not an entry.
 type Entry struct {
 	Name string
 	Mode fs.FileMode
@@ -38,15 +39,17 @@ type Entry struct {
 }
 
 // Catalog is the El Torito boot catalog.
+// The zero value leaves El Torito off.
 type Catalog struct {
 	Platform  Platform
 	Emulation Emulation
 	BootFile  string
 }
 
-// File is one El Torito image.
-// Entries are the ISO 9660 directory. Catalog is the boot catalog.
-// Make writes those entries into the directory and into a FAT16 boot image.
+// File is an ISO 9660 image.
+// Entries are the directory. A zero Catalog is a data image.
+// Platform, Emulation, or Boot opts into El Torito. Make then writes
+// the boot catalog and a FAT16 boot image that holds the same entries.
 type File struct {
 	Label   string
 	Catalog Catalog
@@ -56,17 +59,12 @@ type File struct {
 	bad error
 }
 
-// New returns an empty El Torito image.
-// The catalog boots EFI with no emulation from EFIBOOT.IMG.
+// New returns an empty data image.
+// The volume label is LEWKIT. The catalog is unset.
 func New() *File {
 	return &File{
 		Label: defaultLabel,
-		Catalog: Catalog{
-			Platform:  PlatformEFI,
-			Emulation: EmulationNone,
-			BootFile:  defaultBoot,
-		},
-		cur: -1,
+		cur:   -1,
 	}
 }
 
@@ -80,6 +78,7 @@ func (f *File) Volume(name string) *File {
 }
 
 // Platform sets the boot catalog platform and returns the file.
+// A non-zero platform opts into El Torito.
 func (f *File) Platform(platform Platform) *File {
 	if f == nil {
 		return nil
@@ -89,6 +88,7 @@ func (f *File) Platform(platform Platform) *File {
 }
 
 // Emulation sets the boot catalog medium and returns the file.
+// A non-zero emulation opts into El Torito.
 func (f *File) Emulation(emulation Emulation) *File {
 	if f == nil {
 		return nil
@@ -98,6 +98,7 @@ func (f *File) Emulation(emulation Emulation) *File {
 }
 
 // Boot sets the boot-image name and returns the file.
+// A non-empty name opts into El Torito.
 func (f *File) Boot(name string) *File {
 	if f == nil {
 		return nil
@@ -204,7 +205,8 @@ func (f *File) Bytes(data []byte) *File {
 	return f
 }
 
-// Take reads an El Torito image into a [File].
+// Take reads an ISO 9660 image into a [File].
+// An El Torito boot record fills Catalog. A data image leaves it zero.
 func Take(r io.Reader) (*File, error) {
 	if r == nil {
 		return nil, ErrNilReader
@@ -216,7 +218,9 @@ func Take(r io.Reader) (*File, error) {
 	return take(raw)
 }
 
-// Make writes the El Torito image.
+// Make writes the image.
+// A zero catalog is a data image. Any catalog field opts into El Torito
+// and fills what was left unset: EFI, no emulation, EFIBOOT.IMG.
 func (f *File) Make(w io.Writer) error {
 	if f == nil {
 		return ErrNilFile
@@ -273,6 +277,25 @@ func cleanName(name string) (string, error) {
 func wall(t time.Time) time.Time {
 	t = t.UTC().Truncate(time.Second)
 	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.UTC)
+}
+
+// resolveCatalog reports whether catalog opts into El Torito.
+// A zero catalog is a data image. Any set field turns the boot catalog
+// on and fills the rest: EFI, no emulation, EFIBOOT.IMG.
+func resolveCatalog(c Catalog) (Catalog, bool) {
+	if c.Platform == 0 && c.Emulation == 0 && c.BootFile == "" {
+		return Catalog{}, false
+	}
+	if c.Platform == 0 {
+		c.Platform = PlatformEFI
+	}
+	if c.Emulation == 0 {
+		c.Emulation = EmulationNone
+	}
+	if c.BootFile == "" {
+		c.BootFile = defaultBoot
+	}
+	return c, true
 }
 
 func reservedName(name, boot string) bool {
