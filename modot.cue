@@ -32,6 +32,20 @@ inputs: golang: {
 inputs: vulkan_samples: {
 	from:    "github:KhronosGroup/Vulkan-Samples"
 	version: "main"
+inputs: lua: {
+	from:    "github:lua/lua"
+	version: "v5.4.7"
+}
+inputs: zlib: {
+	from:    "github:madler/zlib"
+	version: "v1.3.1"
+}
+inputs: ninja: {
+	from:    "github:ninja-build/ninja"
+	version: "v1.12.1"
+inputs: graphviz: {
+	from:    "github:ellson/MOTHBALLED-graphviz"
+	version: "master"
 }
 
 lazy_tools: protobuf: {
@@ -195,6 +209,53 @@ file: codebase: {
 	"x/toolchain/go/_upstream/telemetry": {
 		type:   "place"
 		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
+	}
+	// Lua 5.4.7 makefile and zlib 1.3.1 Makefile.in.
+	// A file source with no steps lands on the dest path itself.
+	"x/takemake/makefile/testdata/makefile": {
+		type:   "place"
+		source: "lua:makefile"
+	}
+	"x/takemake/makefile/testdata/Makefile.in": {
+		type:   "place"
+		source: "zlib:Makefile.in"
+	}
+	// Ninja 1.12.1 build files that ship in the repository.
+	"x/takemake/ninja/testdata": {
+		type: "place"
+		source: {
+			slow: "ninja:misc/long-slow-build.ninja"
+			fds:  "ninja:misc/inherited-fds.ninja"
+			afl:  "ninja:misc/afl-fuzz/build.ninja"
+		}
+		steps: "10_require": {
+			op: "require"
+			patterns: ninja: "*.ninja"
+	// Graphviz examples (EPL-2.0) from the mothballed GitHub tree.
+	"x/takemake/graphviz/testdata": {
+		type: "place"
+		source: {
+			abstract: "graphviz:graphs/directed/abstract.gv"
+			arrows:   "graphviz:graphs/directed/arrows.gv"
+			clust:    "graphviz:graphs/directed/clust.gv"
+			clust1:   "graphviz:graphs/directed/clust1.gv"
+			dfa:      "graphviz:graphs/directed/dfa.gv"
+			fsm:      "graphviz:graphs/directed/fsm.gv"
+			grammar:  "graphviz:graphs/directed/grammar.gv"
+			nan:      "graphviz:graphs/directed/NaN.gv"
+			records:  "graphviz:graphs/directed/records.gv"
+			structs:  "graphviz:graphs/directed/structs.gv"
+			switch:   "graphviz:graphs/directed/switch.gv"
+			table:    "graphviz:graphs/directed/table.gv"
+			unix:     "graphviz:graphs/directed/unix.gv"
+			world:    "graphviz:graphs/directed/world.gv"
+			er:       "graphviz:graphs/undirected/ER.gv"
+			petersen: "graphviz:graphs/undirected/Petersen.gv"
+		}
+		steps: "10_require": {
+			op: "require"
+			patterns: gv: "*.gv"
+		}
 	}
 }
 
