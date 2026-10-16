@@ -3,7 +3,6 @@ package llvm
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -15,47 +14,32 @@ func TestLeavenCorpus(t *testing.T) {
 	info, err := os.Stat(root)
 	require.NoError(t, err)
 	require.True(t, info.IsDir())
-	var fail []string
+	var paths []string
 	err = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".ll") {
 			return err
 		}
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		rel, _ := filepath.Rel(root, path)
-		first, err := Take(strings.NewReader(string(raw)))
-		if err != nil {
-			fail = append(fail, rel+": take: "+err.Error())
-			return nil
-		}
-		text := new(strings.Builder)
-		if err := first.Make(text); err != nil {
-			fail = append(fail, rel+": make: "+err.Error())
-			return nil
-		}
-		second, err := Take(strings.NewReader(text.String()))
-		if err != nil {
-			fail = append(fail, rel+": retake: "+err.Error())
-			return nil
-		}
-		again := new(strings.Builder)
-		if err := second.Make(again); err != nil {
-			fail = append(fail, rel+": make2: "+err.Error())
-			return nil
-		}
-		if text.String() != again.String() {
-			fail = append(fail, rel+": print drift")
-			return nil
-		}
-		if !reflect.DeepEqual(first, second) {
-			fail = append(fail, rel+": model drift")
-		}
+		paths = append(paths, path)
 		return nil
 	})
 	require.NoError(t, err)
-	if len(fail) > 0 {
-		t.Fatalf("%d failures\n%s", len(fail), strings.Join(fail, "\n"))
+	require.NotEmpty(t, paths)
+	for _, path := range paths {
+		rel, err := filepath.Rel(root, path)
+		require.NoError(t, err)
+		t.Run(rel, func(t *testing.T) {
+			raw, err := os.ReadFile(path)
+			require.NoError(t, err)
+			first, err := Take(strings.NewReader(string(raw)))
+			require.NoError(t, err)
+			var text strings.Builder
+			require.NoError(t, first.Make(&text))
+			second, err := Take(strings.NewReader(text.String()))
+			require.NoError(t, err)
+			var again strings.Builder
+			require.NoError(t, second.Make(&again))
+			require.Equal(t, text.String(), again.String())
+			require.Equal(t, first, second)
+		})
 	}
 }
