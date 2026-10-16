@@ -1,8 +1,15 @@
 // Package glsl is one GLSL shader.
 //
-// [New] returns an empty [File]. Methods return the receiver and store
-// the child: stage, version, uniform, and function. [Take] and [Make]
-// are the shader text. SPIR-V stays in x/ffi/wasm/glsl. The contract is
-// in DESIGN.md beside the parent directory. This scaffold returns
-// [github.com/lewtec/lewkit/x/errs.ErrScaffold].
+// [New] returns an empty [File] for that stage. Methods return the
+// receiver and store the child: version, uniform, input, output, and
+// function. SetVersion and SetInstance avoid clashing with the fields
+// of the same meaning. [Take] parses shader text. [Make] prints it.
+// [Take], then [Make], then [Take] produce the same file. SPIR-V stays
+// in x/ffi/wasm/glsl.
+//
+//	shader := glsl.New(glsl.Fragment).SetVersion(450)
+//	shader.Uniform("color", glsl.Vec4())
+//	shader.Func("main").Returns(glsl.Void()).Block()
+//
+// The contract is in DESIGN.md beside the parent directory.
 package glsl

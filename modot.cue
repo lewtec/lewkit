@@ -28,6 +28,10 @@ inputs: golang: {
 	from:    "github:golang/go"
 	version: "go1.27.0"
 }
+// Vulkan-Samples publishes no release tags. main is the pin Renovate tracks.
+inputs: vulkan_samples: {
+	from:    "github:KhronosGroup/Vulkan-Samples"
+	version: "main"
 inputs: lua: {
 	from:    "github:lua/lua"
 	version: "v5.4.7"
@@ -110,6 +114,78 @@ file: codebase: {
 				to:   "upstream.package.json"
 			}
 		}
+	}
+	// GLSL fixtures. A file source with no steps lands on the dest path, so
+	// the names x/takemake/glsl tests walk stay flat. shaders/triangle.frag
+	// is the ES sample. shaders/deferred/lighting.vert keeps its sample name.
+	// blur_down.comp still has #include, which Take rejects.
+	"x/takemake/glsl/testdata/khronos/base.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/dynamic_uniform_buffers/glsl/base.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/binary_demo.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/pipeline_binary/glsl/binary_demo.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/blur_down.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/async_compute/blur_down.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/composition.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hdr/glsl/composition.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/composition.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hdr/glsl/composition.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/cube.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/push_descriptors/glsl/cube.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/deferred_lighting.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/deferred/lighting.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/game_of_life_update.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/timeline_semaphore/glsl/game_of_life_update.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/imgui.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/imgui.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/particle_calculate.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/compute_nbody/glsl/particle_calculate.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/particle_integrate.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/compute_nbody/glsl/particle_integrate.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/postprocessing.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/postprocessing/postprocessing.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/shadowmap.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/shadows/shadowmap.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/shadowmap.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/shadows/shadowmap.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/triangle.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hello_triangle/glsl/triangle.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/triangle.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hello_triangle/glsl/triangle.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/triangle_es.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/triangle.frag"
 	}
 	// Pristine Go 1.27 compiler, linker, and the std internal packages they
 	// import. A directory named _upstream is invisible to the go tool.

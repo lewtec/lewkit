@@ -1,6 +1,15 @@
 {
   "dependencies": [
     {
+      "kind": "source",
+      "ref": "github:KhronosGroup/Vulkan-Samples",
+      "depName": "KhronosGroup/Vulkan-Samples",
+      "packageName": "https://github.com/KhronosGroup/Vulkan-Samples",
+      "currentValue": "main",
+      "currentDigest": "177edebf0cd7d4f669667e49f052cfb56b17e004",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "github:astral-sh/ruff",
       "depName": "astral-sh/ruff",
