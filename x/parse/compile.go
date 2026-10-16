@@ -19,13 +19,15 @@ type action struct {
 }
 
 type symInfo struct {
-	name     string
-	terminal bool
-	named    bool
-	hidden   bool
-	extra    bool
-	match    Match
-	lexPrec  int
+	name      string
+	terminal  bool
+	named     bool
+	hidden    bool
+	extra     bool
+	immediate bool
+	external  bool
+	match     Match
+	lexPrec   int
 }
 
 type prodInfo struct {
@@ -116,13 +118,15 @@ func (g *Grammar) Compile() (*Language, error) {
 	c.syms = make([]symInfo, len(g.syms)+1)
 	for i, s := range g.syms {
 		c.syms[i] = symInfo{
-			name:     s.name,
-			terminal: s.kind == kindTerm,
-			named:    s.named,
-			hidden:   s.hidden,
-			extra:    s.extra,
-			match:    s.match,
-			lexPrec:  s.lexPrec,
+			name:      s.name,
+			terminal:  s.kind == kindTerm,
+			named:     s.named,
+			hidden:    s.hidden,
+			extra:     s.extra,
+			immediate: s.immediate,
+			external:  s.external,
+			match:     s.match,
+			lexPrec:   s.lexPrec,
 		}
 	}
 	acceptID := SymbolID(len(g.syms))
@@ -194,7 +198,7 @@ func (g *Grammar) Compile() (*Language, error) {
 			if s.terminal && s.extra && s.match == nil && SymbolID(id) != SymEOF {
 				return nil, errs.Wrap(errs.ErrInvalid, "compile: skipped token "+s.name+" has no matcher")
 			}
-			if s.terminal && !s.extra && used[SymbolID(id)] && s.match == nil && SymbolID(id) != SymEOF {
+			if s.terminal && !s.extra && !s.external && used[SymbolID(id)] && s.match == nil && SymbolID(id) != SymEOF {
 				return nil, errs.Wrap(errs.ErrInvalid, "compile: token "+s.name+" has no matcher")
 			}
 		}

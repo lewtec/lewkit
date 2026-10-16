@@ -9,6 +9,7 @@ func (l *Language) lex(src []byte, at int, state uint32) (id SymbolID, start, en
 	if at > len(src) {
 		return 0, at, at, false
 	}
+	startAt := at
 	for {
 		if at >= len(src) {
 			return SymEOF, at, at, true
@@ -19,6 +20,11 @@ func (l *Language) lex(src []byte, at int, state uint32) (id SymbolID, start, en
 		for sid := SymbolID(2); int(sid) < len(l.syms); sid++ {
 			s := l.syms[sid]
 			if !s.terminal || s.extra || s.match == nil {
+				continue
+			}
+			// An immediate token matches only the bytes after the previous
+			// token. Trivia that was just skipped means it does not match.
+			if s.immediate && at != startAt {
 				continue
 			}
 			if _, has := l.act[cellKey(state, sid)]; !has {

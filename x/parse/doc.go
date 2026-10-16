@@ -22,4 +22,9 @@
 // Parse fails with an error that unwraps to [errs.ErrSyntax]. There is no
 // error-recovery node in this version: a fork that cannot move is dropped, and
 // the furthest such point is the error.
+//
+// [FromTreeSitter] loads a tree-sitter grammar.json. token rules become
+// matchers, extras are skipped, and inline rules are substituted into their
+// parents. An external-scanner token is a terminal with no matcher. An
+// immediate token matches only when no trivia was just skipped.
 package parse

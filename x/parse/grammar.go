@@ -74,14 +74,17 @@ const (
 )
 
 type symRec struct {
-	name    string
-	kind    kind
-	match   Match
-	cont    func(rune) bool
-	lexPrec int
-	named   bool
-	hidden  bool
-	extra   bool
+	name      string
+	kind      kind
+	match     Match
+	cont      func(rune) bool
+	lexPrec   int
+	named     bool
+	hidden    bool
+	extra     bool
+	immediate bool
+	// external is a tree-sitter scanner token. It has no matcher.
+	external bool
 }
 
 type prodRec struct {
