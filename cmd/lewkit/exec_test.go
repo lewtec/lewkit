@@ -8,13 +8,24 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/lewtec/lewkit/report"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/tool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestExecRequiresCommand(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "exec")
+	err := app.Args.exec.Run(t.Context())
+	require.EqualError(t, err, "sops: command is empty")
+	require.ErrorIs(t, err, ErrSopsCommandIsEmpty)
+	require.ErrorIs(t, err, errs.ErrEmpty)
+	require.ErrorIs(t, err, report.ErrDontReport)
+}
 
 func TestExecRegistersConda(t *testing.T) {
 	backend, err := tool.Get("conda")

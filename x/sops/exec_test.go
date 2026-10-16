@@ -8,7 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/lewtec/lewkit/report"
 	_ "github.com/lewtec/lewkit/x/driver/exec/native"
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 func TestEnvParseMerge(t *testing.T) {
@@ -54,7 +56,10 @@ func TestCommandExitStatus(t *testing.T) {
 
 func TestCommandEmpty(t *testing.T) {
 	err := (Command{}).Run(t.Context())
-	require.Error(t, err)
+	require.EqualError(t, err, "sops: command is empty")
+	require.ErrorIs(t, err, ErrSopsCommandIsEmpty)
+	require.ErrorIs(t, err, errs.ErrEmpty)
+	require.ErrorIs(t, err, report.ErrDontReport)
 }
 
 func TestLoadEnvDotenv(t *testing.T) {

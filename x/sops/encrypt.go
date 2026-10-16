@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/report"
 	"github.com/lewtec/lewkit/x/driver"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/errs"
@@ -17,10 +18,12 @@ import (
 )
 
 var (
-	ErrEncryptErrSops        = errors.New("sops")
-	ErrEncryptSops           = errors.New("sops")
-	ErrFileParse             = errors.New("")
-	ErrSopsCommandIsEmpty    = errs.Wrap(errs.ErrEmpty, "sops: command is empty")
+	ErrEncryptErrSops = errors.New("sops")
+	ErrEncryptSops    = errors.New("sops")
+	ErrFileParse      = errors.New("")
+	// ErrSopsCommandIsEmpty means exec or sops.Command was started with no argv.
+	// The process logs it and exits 1. Reporters skip it.
+	ErrSopsCommandIsEmpty    = errs.Wrap(errs.ErrEmpty, "sops: command is empty", report.ErrDontReport)
 	ErrSopsEmptyDotenvKey    = errs.Wrap(errs.ErrEmpty, "sops: empty dotenv key")
 	ErrSopsInvalidDotenvLine = errs.Wrap(errs.ErrInvalid, "sops: invalid dotenv line")
 )
