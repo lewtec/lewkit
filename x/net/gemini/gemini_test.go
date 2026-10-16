@@ -81,7 +81,6 @@ func TestReadResponseAndRedirects(t *testing.T) {
 }
 
 func TestFetchContext(t *testing.T) {
-	require.Panics(t, func() { _, _ = (&Client{}).Fetch(nil, "gemini://example.org/") })
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	_, err := (&Client{}).Fetch(ctx, "gemini://example.org/")

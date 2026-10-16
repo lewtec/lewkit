@@ -116,7 +116,7 @@ func readAlpinePkg(ctx context.Context, goarch, pkg, want string) ([]byte, error
 			return nil, err
 		}
 		if got := sha256Hex(raw); got != want {
-			return nil, fmt.Errorf("uki: %s %s sha256 %s", pkg, goarch, got)
+			return nil, fmt.Errorf("%w: %s %s sha256 %s", errUKI, pkg, goarch, got)
 		}
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return nil, err

@@ -1,13 +1,18 @@
 package uki
 
 import (
-	"errors"
 	"fmt"
 	"testing/fstest"
 
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/fs/compose"
 	isofs "github.com/lewtec/lewkit/x/fs/iso"
 	lewpath "github.com/lewtec/lewkit/x/path"
+)
+
+var (
+	errEmptyImage    = errs.Wrap(errs.ErrEmpty, "uki: empty image")
+	errNoEFIBootFile = errs.Wrap(errs.ErrNotFound, "uki: iso has no EFI boot file")
 )
 
 // writeISO packs the UKI as a UEFI El Torito CD.
@@ -15,7 +20,7 @@ import (
 // The writer copies that filesystem. It does not special-case the boot path.
 func writeISO(goarch string, uki []byte) ([]byte, error) {
 	if len(uki) == 0 {
-		return nil, errors.New("uki: empty image")
+		return nil, errEmptyImage
 	}
 	boot, err := efiBootName(goarch)
 	if err != nil {
@@ -60,5 +65,5 @@ func isoBootArch(image []byte) (string, error) {
 	if _, err := isofs.ReadFile(image, "EFI/BOOT/BOOTAA64.EFI"); err == nil {
 		return "arm64", nil
 	}
-	return "", errors.New("uki: iso has no EFI boot file")
+	return "", errNoEFIBootFile
 }

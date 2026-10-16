@@ -2,12 +2,17 @@ package render
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"math"
 
 	"github.com/lewtec/lewkit/x/image/convert/svg"
+)
+
+var (
+	errRender = errors.New("render")
 )
 
 // Decode parses SVG bytes and paints them.
@@ -38,7 +43,7 @@ func Scratch(d svg.Document) (*image.NRGBA, error) {
 	}
 	sx, sy, tx, ty, ok := viewBoxTransform(d)
 	if !ok {
-		return nil, fmt.Errorf("render: invalid viewBox")
+		return nil, fmt.Errorf("%w: invalid viewBox", errRender)
 	}
 	pm := newPixmap(int(w), int(h))
 	defer releasePixmap(pm)
@@ -50,7 +55,7 @@ func Scratch(d svg.Document) (*image.NRGBA, error) {
 
 func checkCanvas(w, h float64) error {
 	if !svg.Finite(w) || !svg.Finite(h) || w <= 0 || h <= 0 || w > svg.MaxCanvas || h > svg.MaxCanvas || w != math.Trunc(w) || h != math.Trunc(h) {
-		return fmt.Errorf("render: canvas %v×%v", w, h)
+		return fmt.Errorf("%w: canvas %v×%v", errRender, w, h)
 	}
 	return nil
 }
@@ -70,11 +75,11 @@ func paintNode(pm *pixmap, n svg.Node, sx, sy, tx, ty float32) error {
 		g, _ := n.Group()
 		return paintNodes(pm, g.Children(), sx, sy, tx, ty)
 	case svg.KindInvalid:
-		return fmt.Errorf("render: invalid node")
+		return fmt.Errorf("%w: invalid node", errRender)
 	case svg.KindRect, svg.KindCircle, svg.KindEllipse, svg.KindPolygon, svg.KindPath:
 		return paintPrimitive(pm, n, sx, sy, tx, ty)
 	default:
-		return fmt.Errorf("render: unknown node")
+		return fmt.Errorf("%w: unknown node", errRender)
 	}
 }
 

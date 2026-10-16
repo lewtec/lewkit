@@ -2,11 +2,16 @@ package lucide
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"image/color"
 	"strconv"
 	"strings"
 	"unicode"
+)
+
+var (
+	errLucide = errors.New("lucide")
 )
 
 // guiSVG copies the root stroke onto each shape and swaps currentColor for c.
@@ -19,21 +24,21 @@ func guiSVG(src string, c color.NRGBA) (string, error) {
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			return "", fmt.Errorf("lucide: svg: %w", err)
+			return "", fmt.Errorf("%w: svg: %w", errLucide, err)
 		}
 		start, ok := tok.(xml.StartElement)
 		if !ok {
 			continue
 		}
 		if start.Name.Local != "svg" {
-			return "", fmt.Errorf("lucide: root %s", start.Name.Local)
+			return "", fmt.Errorf("%w: root %s", errLucide, start.Name.Local)
 		}
 		root = start
 		found = true
 		break
 	}
 	if !found {
-		return "", fmt.Errorf("lucide: empty icon")
+		return "", fmt.Errorf("%w: empty icon", errLucide)
 	}
 	kids, err := readShapes(dec)
 	if err != nil {
@@ -43,7 +48,7 @@ func guiSVG(src string, c color.NRGBA) (string, error) {
 	height := attr(root.Attr, "height")
 	viewBox := attr(root.Attr, "viewBox")
 	if width == "" || height == "" || viewBox == "" {
-		return "", fmt.Errorf("lucide: icon missing width, height, or viewBox")
+		return "", fmt.Errorf("%w: icon missing width, height, or viewBox", errLucide)
 	}
 	inherited := map[string]string{
 		"fill":            attr(root.Attr, "fill"),
@@ -79,7 +84,7 @@ func readShapes(dec *xml.Decoder) ([]shape, error) {
 	for {
 		tok, err := dec.Token()
 		if err != nil {
-			return nil, fmt.Errorf("lucide: %w", err)
+			return nil, fmt.Errorf("%w: %w", errLucide, err)
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
@@ -89,12 +94,12 @@ func readShapes(dec *xml.Decoder) ([]shape, error) {
 			}
 		case xml.EndElement:
 			if t.Name.Local != "svg" {
-				return nil, fmt.Errorf("lucide: unexpected </%s>", t.Name.Local)
+				return nil, fmt.Errorf("%w: unexpected </%s>", errLucide, t.Name.Local)
 			}
 			return kids, nil
 		case xml.CharData:
 			if strings.TrimSpace(string(t)) != "" {
-				return nil, fmt.Errorf("lucide: unexpected text")
+				return nil, fmt.Errorf("%w: unexpected text", errLucide)
 			}
 		}
 	}
@@ -152,7 +157,7 @@ func writeShape(b *strings.Builder, kid shape, inherited map[string]string, c co
 		delete(geom, "points")
 	case "path", "circle", "ellipse", "rect", "polygon":
 	default:
-		return fmt.Errorf("lucide: unknown tag %s", kid.name)
+		return fmt.Errorf("%w: unknown tag %s", errLucide, kid.name)
 	}
 	recolor(paint, c)
 	b.WriteByte('<')
@@ -218,7 +223,7 @@ func pointsPath(points string) (string, error) {
 		return unicode.IsSpace(r) || r == ','
 	})
 	if len(fields) < 4 || len(fields)%2 != 0 {
-		return "", fmt.Errorf("lucide: points %q", points)
+		return "", fmt.Errorf("%w: points %q", errLucide, points)
 	}
 	var b strings.Builder
 	b.WriteString("M ")

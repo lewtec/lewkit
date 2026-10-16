@@ -11,6 +11,12 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	errParse = errs.Wrap(errs.ErrSyntax, "parse")
 )
 
 func ParseFile(path string) (Document, error) {
@@ -25,7 +31,7 @@ func ParseFile(path string) (Document, error) {
 func Parse(r io.Reader) (Document, error) {
 	raw, err := io.ReadAll(r)
 	if err != nil {
-		return Document{}, fmt.Errorf("parse: %w", err)
+		return Document{}, fmt.Errorf("%w: %w", errParse, err)
 	}
 	grads, err := collectGrads(bytes.NewReader(raw))
 	if err != nil {
@@ -39,10 +45,10 @@ func parseXML(r io.Reader, grads map[string]LinearFill) (Document, error) {
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
-			return Document{}, fmt.Errorf("parse: missing svg element")
+			return Document{}, fmt.Errorf("%w: missing svg element", errParse)
 		}
 		if err != nil {
-			return Document{}, fmt.Errorf("parse: %w", err)
+			return Document{}, fmt.Errorf("%w: %w", errParse, err)
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
@@ -51,7 +57,7 @@ func parseXML(r io.Reader, grads map[string]LinearFill) (Document, error) {
 				return Document{}, err
 			}
 			if name != "svg" {
-				return Document{}, fmt.Errorf("parse: root is %s, want svg", name)
+				return Document{}, fmt.Errorf("%w: root is %s, want svg", errParse, name)
 			}
 			doc, err := parseSVG(dec, t, grads)
 			if err != nil {
@@ -63,13 +69,13 @@ func parseXML(r io.Reader, grads map[string]LinearFill) (Document, error) {
 			return doc, nil
 		case xml.CharData:
 			if !isSpace(t) {
-				return Document{}, fmt.Errorf("parse: unexpected text before svg")
+				return Document{}, fmt.Errorf("%w: unexpected text before svg", errParse)
 			}
 		case xml.Comment, xml.ProcInst:
 		case xml.Directive:
-			return Document{}, fmt.Errorf("parse: unexpected directive")
+			return Document{}, fmt.Errorf("%w: unexpected directive", errParse)
 		default:
-			return Document{}, fmt.Errorf("parse: unexpected token %T", tok)
+			return Document{}, fmt.Errorf("%w: unexpected token %T", errParse, tok)
 		}
 	}
 }
@@ -81,16 +87,16 @@ func drain(dec *xml.Decoder) error {
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("parse: %w", err)
+			return fmt.Errorf("%w: %w", errParse, err)
 		}
 		switch t := tok.(type) {
 		case xml.CharData:
 			if !isSpace(t) {
-				return fmt.Errorf("parse: trailing text")
+				return fmt.Errorf("%w: trailing text", errParse)
 			}
 		case xml.Comment, xml.ProcInst:
 		default:
-			return fmt.Errorf("parse: trailing token after svg")
+			return fmt.Errorf("%w: trailing token after svg", errParse)
 		}
 	}
 }
@@ -106,7 +112,7 @@ func parseSVG(dec *xml.Decoder, start xml.StartElement, grads map[string]LinearF
 		switch key {
 		case "xmlns":
 			if a.Value != svgNS {
-				return Document{}, fmt.Errorf("parse: xmlns %q", a.Value)
+				return Document{}, fmt.Errorf("%w: xmlns %q", errParse, a.Value)
 			}
 		case "width":
 			v, err := parseDocLength(a.Value)
@@ -127,11 +133,11 @@ func parseSVG(dec *xml.Decoder, start xml.StartElement, grads map[string]LinearF
 			}
 			vb = &box
 		default:
-			return Document{}, fmt.Errorf("parse: unknown attribute %s on svg", key)
+			return Document{}, fmt.Errorf("%w: unknown attribute %s on svg", errParse, key)
 		}
 	}
 	if width == nil || height == nil {
-		return Document{}, fmt.Errorf("parse: svg requires width and height")
+		return Document{}, fmt.Errorf("%w: svg requires width and height", errParse)
 	}
 	if err := checkDocSize(*width, *height); err != nil {
 		return Document{}, err
@@ -152,10 +158,10 @@ func parseChildren(dec *xml.Decoder, parent string, grads map[string]LinearFill)
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
-			return nil, fmt.Errorf("parse: unclosed %s", parent)
+			return nil, fmt.Errorf("%w: unclosed %s", errParse, parent)
 		}
 		if err != nil {
-			return nil, fmt.Errorf("parse: %w", err)
+			return nil, fmt.Errorf("%w: %w", errParse, err)
 		}
 		switch t := tok.(type) {
 		case xml.EndElement:
@@ -164,7 +170,7 @@ func parseChildren(dec *xml.Decoder, parent string, grads map[string]LinearFill)
 				return nil, err
 			}
 			if name != parent {
-				return nil, fmt.Errorf("parse: unexpected </%s> in %s", name, parent)
+				return nil, fmt.Errorf("%w: unexpected </%s> in %s", errParse, name, parent)
 			}
 			if err := checkChildCount(len(kids)); err != nil {
 				return nil, err
@@ -191,11 +197,11 @@ func parseChildren(dec *xml.Decoder, parent string, grads map[string]LinearFill)
 			}
 		case xml.CharData:
 			if !isSpace(t) {
-				return nil, fmt.Errorf("parse: unexpected text in %s", parent)
+				return nil, fmt.Errorf("%w: unexpected text in %s", errParse, parent)
 			}
 		case xml.Comment, xml.ProcInst:
 		default:
-			return nil, fmt.Errorf("parse: unexpected token in %s", parent)
+			return nil, fmt.Errorf("%w: unexpected token in %s", errParse, parent)
 		}
 	}
 }
@@ -219,7 +225,7 @@ func parseChild(dec *xml.Decoder, start xml.StartElement, grads map[string]Linea
 	case "path":
 		return parsePath(dec, start, grads)
 	default:
-		return Node{}, fmt.Errorf("parse: unknown tag %s", name)
+		return Node{}, fmt.Errorf("%w: unknown tag %s", errParse, name)
 	}
 }
 
@@ -229,7 +235,7 @@ func parseGroup(dec *xml.Decoder, start xml.StartElement, grads map[string]Linea
 		if err != nil {
 			return Node{}, err
 		}
-		return Node{}, fmt.Errorf("parse: unknown attribute %s on g", key)
+		return Node{}, fmt.Errorf("%w: unknown attribute %s on g", errParse, key)
 	}
 	kids, err := parseChildren(dec, "g", grads)
 	if err != nil {
@@ -267,7 +273,7 @@ func parseCircle(dec *xml.Decoder, start xml.StartElement, grads map[string]Line
 			c = c.WithR(v)
 		default:
 			if !pa.set(key, a.Value) {
-				return Node{}, fmt.Errorf("parse: unknown attribute %s on circle", key)
+				return Node{}, fmt.Errorf("%w: unknown attribute %s on circle", errParse, key)
 			}
 		}
 	}
@@ -316,7 +322,7 @@ func parseEllipse(dec *xml.Decoder, start xml.StartElement, grads map[string]Lin
 			el = el.WithRY(v)
 		default:
 			if !pa.set(key, a.Value) {
-				return Node{}, fmt.Errorf("parse: unknown attribute %s on ellipse", key)
+				return Node{}, fmt.Errorf("%w: unknown attribute %s on ellipse", errParse, key)
 			}
 		}
 	}
@@ -380,7 +386,7 @@ func parseRect(dec *xml.Decoder, start xml.StartElement, grads map[string]Linear
 			ry = &v
 		default:
 			if !pa.set(key, a.Value) {
-				return Node{}, fmt.Errorf("parse: unknown attribute %s on rect", key)
+				return Node{}, fmt.Errorf("%w: unknown attribute %s on rect", errParse, key)
 			}
 		}
 	}
@@ -422,7 +428,7 @@ func parsePolygon(dec *xml.Decoder, start xml.StartElement, grads map[string]Lin
 			havePts = true
 		default:
 			if !pa.set(key, a.Value) {
-				return Node{}, fmt.Errorf("parse: unknown attribute %s on polygon", key)
+				return Node{}, fmt.Errorf("%w: unknown attribute %s on polygon", errParse, key)
 			}
 		}
 	}
@@ -463,7 +469,7 @@ func parsePath(dec *xml.Decoder, start xml.StartElement, grads map[string]Linear
 			}
 		default:
 			if !pa.set(key, a.Value) {
-				return Node{}, fmt.Errorf("parse: unknown attribute %s on path", key)
+				return Node{}, fmt.Errorf("%w: unknown attribute %s on path", errParse, key)
 			}
 		}
 	}
@@ -481,10 +487,10 @@ func skipEmpty(dec *xml.Decoder, tag string) error {
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
-			return fmt.Errorf("parse: unclosed %s", tag)
+			return fmt.Errorf("%w: unclosed %s", errParse, tag)
 		}
 		if err != nil {
-			return fmt.Errorf("parse: %w", err)
+			return fmt.Errorf("%w: %w", errParse, err)
 		}
 		switch t := tok.(type) {
 		case xml.EndElement:
@@ -493,12 +499,12 @@ func skipEmpty(dec *xml.Decoder, tag string) error {
 				return err
 			}
 			if name != tag {
-				return fmt.Errorf("parse: unexpected </%s> in %s", name, tag)
+				return fmt.Errorf("%w: unexpected </%s> in %s", errParse, name, tag)
 			}
 			return nil
 		case xml.CharData:
 			if !isSpace(t) {
-				return fmt.Errorf("parse: unexpected text in %s", tag)
+				return fmt.Errorf("%w: unexpected text in %s", errParse, tag)
 			}
 		case xml.Comment, xml.ProcInst:
 		case xml.StartElement:
@@ -506,9 +512,9 @@ func skipEmpty(dec *xml.Decoder, tag string) error {
 			if err != nil {
 				return err
 			}
-			return fmt.Errorf("parse: unexpected child %s in %s", name, tag)
+			return fmt.Errorf("%w: unexpected child %s in %s", errParse, name, tag)
 		default:
-			return fmt.Errorf("parse: unexpected token in %s", tag)
+			return fmt.Errorf("%w: unexpected token in %s", errParse, tag)
 		}
 	}
 }
@@ -522,7 +528,7 @@ func collectGrads(r io.Reader) (map[string]LinearFill, error) {
 			return grads, nil
 		}
 		if err != nil {
-			return nil, fmt.Errorf("parse: %w", err)
+			return nil, fmt.Errorf("%w: %w", errParse, err)
 		}
 		start, ok := tok.(xml.StartElement)
 		if !ok {
@@ -540,7 +546,7 @@ func collectGrads(r io.Reader) (map[string]LinearFill, error) {
 			return nil, err
 		}
 		if _, exists := grads[id]; exists {
-			return nil, fmt.Errorf("parse: duplicate gradient %s", id)
+			return nil, fmt.Errorf("%w: duplicate gradient %s", errParse, id)
 		}
 		grads[id] = g
 	}
@@ -552,15 +558,15 @@ func parseDefs(dec *xml.Decoder, start xml.StartElement) error {
 		if err != nil {
 			return err
 		}
-		return fmt.Errorf("parse: unknown attribute %s on defs", key)
+		return fmt.Errorf("%w: unknown attribute %s on defs", errParse, key)
 	}
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
-			return fmt.Errorf("parse: unclosed defs")
+			return fmt.Errorf("%w: unclosed defs", errParse)
 		}
 		if err != nil {
-			return fmt.Errorf("parse: %w", err)
+			return fmt.Errorf("%w: %w", errParse, err)
 		}
 		switch t := tok.(type) {
 		case xml.EndElement:
@@ -569,7 +575,7 @@ func parseDefs(dec *xml.Decoder, start xml.StartElement) error {
 				return err
 			}
 			if name != "defs" {
-				return fmt.Errorf("parse: unexpected </%s> in defs", name)
+				return fmt.Errorf("%w: unexpected </%s> in defs", errParse, name)
 			}
 			return nil
 		case xml.StartElement:
@@ -578,18 +584,18 @@ func parseDefs(dec *xml.Decoder, start xml.StartElement) error {
 				return err
 			}
 			if name != "linearGradient" {
-				return fmt.Errorf("parse: unknown tag %s", name)
+				return fmt.Errorf("%w: unknown tag %s", errParse, name)
 			}
 			if _, _, err := parseLinearGradient(dec, t); err != nil {
 				return err
 			}
 		case xml.CharData:
 			if !isSpace(t) {
-				return fmt.Errorf("parse: unexpected text in defs")
+				return fmt.Errorf("%w: unexpected text in defs", errParse)
 			}
 		case xml.Comment, xml.ProcInst:
 		default:
-			return fmt.Errorf("parse: unexpected token in defs")
+			return fmt.Errorf("%w: unexpected token in defs", errParse)
 		}
 	}
 }
@@ -614,7 +620,7 @@ func parseLinearGradient(dec *xml.Decoder, start xml.StartElement) (string, Line
 			id = a.Value
 		case "gradientUnits":
 			if a.Value != "userSpaceOnUse" {
-				return "", LinearFill{}, fmt.Errorf("parse: gradientUnits %q", a.Value)
+				return "", LinearFill{}, fmt.Errorf("%w: gradientUnits %q", errParse, a.Value)
 			}
 			haveUnits = true
 		case "x1":
@@ -638,22 +644,22 @@ func parseLinearGradient(dec *xml.Decoder, start xml.StartElement) (string, Line
 				return "", LinearFill{}, err
 			}
 		default:
-			return "", LinearFill{}, fmt.Errorf("parse: unknown attribute %s on linearGradient", key)
+			return "", LinearFill{}, fmt.Errorf("%w: unknown attribute %s on linearGradient", errParse, key)
 		}
 	}
 	if id == "" {
-		return "", LinearFill{}, fmt.Errorf("parse: linearGradient requires id")
+		return "", LinearFill{}, fmt.Errorf("%w: linearGradient requires id", errParse)
 	}
 	if !haveUnits {
-		return "", LinearFill{}, fmt.Errorf("parse: linearGradient requires gradientUnits=userSpaceOnUse")
+		return "", LinearFill{}, fmt.Errorf("%w: linearGradient requires gradientUnits=userSpaceOnUse", errParse)
 	}
 	for {
 		tok, err := dec.Token()
 		if err == io.EOF {
-			return "", LinearFill{}, fmt.Errorf("parse: unclosed linearGradient")
+			return "", LinearFill{}, fmt.Errorf("%w: unclosed linearGradient", errParse)
 		}
 		if err != nil {
-			return "", LinearFill{}, fmt.Errorf("parse: %w", err)
+			return "", LinearFill{}, fmt.Errorf("%w: %w", errParse, err)
 		}
 		switch t := tok.(type) {
 		case xml.EndElement:
@@ -662,10 +668,10 @@ func parseLinearGradient(dec *xml.Decoder, start xml.StartElement) (string, Line
 				return "", LinearFill{}, err
 			}
 			if name != "linearGradient" {
-				return "", LinearFill{}, fmt.Errorf("parse: unexpected </%s> in linearGradient", name)
+				return "", LinearFill{}, fmt.Errorf("%w: unexpected </%s> in linearGradient", errParse, name)
 			}
 			if nstop != 2 {
-				return "", LinearFill{}, fmt.Errorf("parse: linearGradient needs 2 stops, got %d", nstop)
+				return "", LinearFill{}, fmt.Errorf("%w: linearGradient needs 2 stops, got %d", errParse, nstop)
 			}
 			switch {
 			case o0 == 0 && o1 == 1:
@@ -673,7 +679,7 @@ func parseLinearGradient(dec *xml.Decoder, start xml.StartElement) (string, Line
 			case o0 == 1 && o1 == 0:
 				return id, NewLinearFill(x1, y1, x2, y2, s1, s0), nil
 			default:
-				return "", LinearFill{}, fmt.Errorf("parse: stop offsets must be 0 and 1")
+				return "", LinearFill{}, fmt.Errorf("%w: stop offsets must be 0 and 1", errParse)
 			}
 		case xml.StartElement:
 			name, err := elemName(t.Name)
@@ -681,7 +687,7 @@ func parseLinearGradient(dec *xml.Decoder, start xml.StartElement) (string, Line
 				return "", LinearFill{}, err
 			}
 			if name != "stop" {
-				return "", LinearFill{}, fmt.Errorf("parse: unknown tag %s", name)
+				return "", LinearFill{}, fmt.Errorf("%w: unknown tag %s", errParse, name)
 			}
 			off, col, err := parseStop(dec, t)
 			if err != nil {
@@ -693,16 +699,16 @@ func parseLinearGradient(dec *xml.Decoder, start xml.StartElement) (string, Line
 			case 1:
 				o1, s1 = off, col
 			default:
-				return "", LinearFill{}, fmt.Errorf("parse: linearGradient needs 2 stops, got %d", nstop+1)
+				return "", LinearFill{}, fmt.Errorf("%w: linearGradient needs 2 stops, got %d", errParse, nstop+1)
 			}
 			nstop++
 		case xml.CharData:
 			if !isSpace(t) {
-				return "", LinearFill{}, fmt.Errorf("parse: unexpected text in linearGradient")
+				return "", LinearFill{}, fmt.Errorf("%w: unexpected text in linearGradient", errParse)
 			}
 		case xml.Comment, xml.ProcInst:
 		default:
-			return "", LinearFill{}, fmt.Errorf("parse: unexpected token in linearGradient")
+			return "", LinearFill{}, fmt.Errorf("%w: unexpected token in linearGradient", errParse)
 		}
 	}
 }
@@ -731,7 +737,7 @@ func parseStop(dec *xml.Decoder, start xml.StartElement) (float64, color.NRGBA, 
 				return 0, color.NRGBA{}, err
 			}
 			if none {
-				return 0, color.NRGBA{}, fmt.Errorf("parse: stop-color none")
+				return 0, color.NRGBA{}, fmt.Errorf("%w: stop-color none", errParse)
 			}
 			col = color.NRGBA{R: r, G: g, B: b, A: ca}
 			haveC = true
@@ -741,17 +747,17 @@ func parseStop(dec *xml.Decoder, start xml.StartElement) (float64, color.NRGBA, 
 				return 0, color.NRGBA{}, err
 			}
 			if op8FromUnit(v) != 255 {
-				return 0, color.NRGBA{}, fmt.Errorf("parse: stop-opacity %q", a.Value)
+				return 0, color.NRGBA{}, fmt.Errorf("%w: stop-opacity %q", errParse, a.Value)
 			}
 		default:
-			return 0, color.NRGBA{}, fmt.Errorf("parse: unknown attribute %s on stop", key)
+			return 0, color.NRGBA{}, fmt.Errorf("%w: unknown attribute %s on stop", errParse, key)
 		}
 	}
 	if off == nil {
-		return 0, color.NRGBA{}, fmt.Errorf("parse: stop requires offset")
+		return 0, color.NRGBA{}, fmt.Errorf("%w: stop requires offset", errParse)
 	}
 	if !haveC {
-		return 0, color.NRGBA{}, fmt.Errorf("parse: stop requires stop-color")
+		return 0, color.NRGBA{}, fmt.Errorf("%w: stop requires stop-color", errParse)
 	}
 	col.A = 255
 	if err := skipEmpty(dec, "stop"); err != nil {
@@ -768,13 +774,13 @@ func parseStopOffset(s string) (float64, error) {
 	}
 	v, err := strconv.ParseFloat(s, 64)
 	if err != nil || !Finite(v) {
-		return 0, fmt.Errorf("parse: stop offset %q", s)
+		return 0, fmt.Errorf("%w: stop offset %q", errParse, s)
 	}
 	if pct {
 		v /= 100
 	}
 	if v < 0 || v > 1 {
-		return 0, fmt.Errorf("parse: stop offset %v", v)
+		return 0, fmt.Errorf("%w: stop offset %v", errParse, v)
 	}
 	return v, nil
 }
@@ -982,7 +988,7 @@ func applyPaint[T painted[T]](shape T, a paintAttrs, grads map[string]LinearFill
 	if url != "" {
 		g, ok := grads[url]
 		if !ok {
-			return shape, fmt.Errorf("parse: unknown fill url #%s", url)
+			return shape, fmt.Errorf("%w: unknown fill url #%s", errParse, url)
 		}
 		shape = shape.WithLinearFill(g)
 		if a.fillOp != nil {
@@ -1011,7 +1017,7 @@ func elemName(n xml.Name) (string, error) {
 	case "", svgNS:
 		return n.Local, nil
 	default:
-		return "", fmt.Errorf("parse: unknown tag {%s}%s", n.Space, n.Local)
+		return "", fmt.Errorf("%w: unknown tag {%s}%s", errParse, n.Space, n.Local)
 	}
 }
 
@@ -1020,7 +1026,7 @@ func attrName(n xml.Name) (string, error) {
 		if n.Local == "" {
 			return "xmlns", nil
 		}
-		return "", fmt.Errorf("parse: unknown attribute xmlns:%s", n.Local)
+		return "", fmt.Errorf("%w: unknown attribute xmlns:%s", errParse, n.Local)
 	}
 	if n.Local == "xmlns" && (n.Space == "" || n.Space == svgNS) {
 		return "xmlns", nil
@@ -1029,7 +1035,7 @@ func attrName(n xml.Name) (string, error) {
 	case "", svgNS:
 		return n.Local, nil
 	default:
-		return "", fmt.Errorf("parse: unknown attribute {%s}%s", n.Space, n.Local)
+		return "", fmt.Errorf("%w: unknown attribute {%s}%s", errParse, n.Space, n.Local)
 	}
 }
 
@@ -1039,7 +1045,7 @@ func parseColor(s string) (r, g, b, a uint8, none bool, err error) {
 		return 0, 0, 0, 255, true, nil
 	}
 	if !strings.HasPrefix(s, "#") {
-		return 0, 0, 0, 0, false, fmt.Errorf("parse: color %q", s)
+		return 0, 0, 0, 0, false, fmt.Errorf("%w: color %q", errParse, s)
 	}
 	h := s[1:]
 	switch len(h) {
@@ -1047,23 +1053,23 @@ func parseColor(s string) (r, g, b, a uint8, none bool, err error) {
 		exp := []byte{h[0], h[0], h[1], h[1], h[2], h[2]}
 		raw, e := hex.DecodeString(string(exp))
 		if e != nil {
-			return 0, 0, 0, 0, false, fmt.Errorf("parse: color %q", s)
+			return 0, 0, 0, 0, false, fmt.Errorf("%w: color %q", errParse, s)
 		}
 		return raw[0], raw[1], raw[2], 255, false, nil
 	case 6:
 		raw, e := hex.DecodeString(h)
 		if e != nil {
-			return 0, 0, 0, 0, false, fmt.Errorf("parse: color %q", s)
+			return 0, 0, 0, 0, false, fmt.Errorf("%w: color %q", errParse, s)
 		}
 		return raw[0], raw[1], raw[2], 255, false, nil
 	case 8:
 		raw, e := hex.DecodeString(h)
 		if e != nil {
-			return 0, 0, 0, 0, false, fmt.Errorf("parse: color %q", s)
+			return 0, 0, 0, 0, false, fmt.Errorf("%w: color %q", errParse, s)
 		}
 		return raw[0], raw[1], raw[2], raw[3], false, nil
 	default:
-		return 0, 0, 0, 0, false, fmt.Errorf("parse: color %q", s)
+		return 0, 0, 0, 0, false, fmt.Errorf("%w: color %q", errParse, s)
 	}
 }
 
@@ -1079,16 +1085,16 @@ func parseLength(s string) (float64, error) {
 		s = strings.TrimSpace(s[:len(s)-2])
 	}
 	if s == "" {
-		return 0, fmt.Errorf("parse: empty number")
+		return 0, fmt.Errorf("%w: empty number", errParse)
 	}
 	for _, r := range s {
 		if unicode.IsLetter(r) || r == '%' {
-			return 0, fmt.Errorf("parse: unsupported unit in %q", s)
+			return 0, fmt.Errorf("%w: unsupported unit in %q", errParse, s)
 		}
 	}
 	v, err := strconv.ParseFloat(s, 64)
 	if err != nil || !Finite(v) {
-		return 0, fmt.Errorf("parse: number %q", s)
+		return 0, fmt.Errorf("%w: number %q", errParse, s)
 	}
 	return v, nil
 }
@@ -1136,7 +1142,7 @@ func parseViewBox(s string) (ViewBox, error) {
 		return ViewBox{}, err
 	}
 	if len(nums) != 4 {
-		return ViewBox{}, fmt.Errorf("parse: viewBox wants 4 numbers, got %d", len(nums))
+		return ViewBox{}, fmt.Errorf("%w: viewBox wants 4 numbers, got %d", errParse, len(nums))
 	}
 	return ViewBox{minX: nums[0], minY: nums[1], w: nums[2], h: nums[3], ok: true}, nil
 }
@@ -1147,7 +1153,7 @@ func parsePoints(s string) ([][2]float64, error) {
 		return nil, err
 	}
 	if len(nums)%2 != 0 {
-		return nil, fmt.Errorf("parse: odd point list")
+		return nil, fmt.Errorf("%w: odd point list", errParse)
 	}
 	pts := make([][2]float64, 0, len(nums)/2)
 	for i := 0; i < len(nums); i += 2 {

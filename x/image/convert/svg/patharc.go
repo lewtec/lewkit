@@ -40,14 +40,14 @@ func appendArc(cmds []PathCmd, x0, y0, rx, ry, rot float64, large, sweep bool, x
 
 func appendLine(cmds []PathCmd, x, y float64) ([]PathCmd, error) {
 	if len(cmds)+1 > maxPathCmds {
-		return nil, fmt.Errorf("path: more than %d commands", maxPathCmds)
+		return nil, fmt.Errorf("%w: more than %d commands", errPath, maxPathCmds)
 	}
 	return append(cmds, PathCmd{Kind: CmdLine, X: x, Y: y}), nil
 }
 
 func appendCubic(cmds []PathCmd, x1, y1, x2, y2, x, y float64) ([]PathCmd, error) {
 	if len(cmds)+1 > maxPathCmds {
-		return nil, fmt.Errorf("path: more than %d commands", maxPathCmds)
+		return nil, fmt.Errorf("%w: more than %d commands", errPath, maxPathCmds)
 	}
 	return append(cmds, PathCmd{Kind: CmdCubic, X: x, Y: y, X1: x1, Y1: y1, X2: x2, Y2: y2}), nil
 }

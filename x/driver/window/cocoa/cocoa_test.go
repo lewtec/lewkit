@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNewNeedsBind(t *testing.T) {
+	_, err := factory{}.New(t.Context())
+	require.ErrorIs(t, err, window.ErrNotBound)
+}
+
 func TestOpenNeedsBind(t *testing.T) {
 	_, err := cdriver{}.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	if runtime.GOOS != "darwin" {

@@ -49,14 +49,14 @@ func kernel(t *testing.T) *ndarray.Kernel {
 }
 
 func TestEvalRejectsACancelledContextBeforeTheDevice(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	err := Eval[*mem](ctx, true, nil, false, nil, false, nil, nil, nil)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestEvalSkipsTheContextWhenTheBackendDoes(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	err := Eval[*mem](ctx, false, nil, false, nil, false, nil, nil, nil)
 	require.ErrorIs(t, err, ndarray.ErrOp)
@@ -68,7 +68,7 @@ func TestEvalRejectsAMissingDeviceBeforeTheLock(t *testing.T) {
 	mu.Lock()
 	done := make(chan error, 1)
 	go func() {
-		done <- Eval(context.Background(), true, k, false, &mu, true, &slots.Set[*mem]{}, make([]byte, k.OutputBytes()), func() error {
+		done <- Eval(t.Context(), true, k, false, &mu, true, &slots.Set[*mem]{}, make([]byte, k.OutputBytes()), func() error {
 			return errors.New("dispatched")
 		})
 	}()
@@ -76,7 +76,7 @@ func TestEvalRejectsAMissingDeviceBeforeTheLock(t *testing.T) {
 	case err := <-done:
 		require.ErrorIs(t, err, ndarray.ErrOp)
 	case <-time.After(time.Second):
-		t.Fatal("eval locked before the device check")
+		require.FailNow(t, "eval locked before the device check")
 	}
 	mu.Unlock()
 }
@@ -84,7 +84,7 @@ func TestEvalRejectsAMissingDeviceBeforeTheLock(t *testing.T) {
 func TestEvalRejectsAMissingPipelineUnderTheLock(t *testing.T) {
 	k := kernel(t)
 	var ran bool
-	err := Eval(context.Background(), true, k, true, &sync.Mutex{}, false, &slots.Set[*mem]{}, make([]byte, k.OutputBytes()), func() error {
+	err := Eval(t.Context(), true, k, true, &sync.Mutex{}, false, &slots.Set[*mem]{}, make([]byte, k.OutputBytes()), func() error {
 		ran = true
 		return nil
 	})
@@ -95,7 +95,7 @@ func TestEvalRejectsAMissingPipelineUnderTheLock(t *testing.T) {
 func TestEvalRejectsAShortOutput(t *testing.T) {
 	k := kernel(t)
 	var ran bool
-	err := Eval(context.Background(), true, k, true, nil, true, &slots.Set[*mem]{}, nil, func() error {
+	err := Eval(t.Context(), true, k, true, nil, true, &slots.Set[*mem]{}, nil, func() error {
 		ran = true
 		return nil
 	})
@@ -111,7 +111,7 @@ func TestEvalReadsTheHostResult(t *testing.T) {
 	}
 	set := &slots.Set[*mem]{Output: &mem{body: body}}
 	got := make([]byte, k.OutputBytes())
-	err := Eval(context.Background(), true, k, true, &sync.Mutex{}, true, set, got, func() error {
+	err := Eval(t.Context(), true, k, true, &sync.Mutex{}, true, set, got, func() error {
 		return nil
 	})
 	require.NoError(t, err)

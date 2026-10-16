@@ -4,6 +4,21 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
+
+var (
+	errEmptyKernelOrInitramfs      = errs.Wrap(errs.ErrEmpty, "uki: empty kernel or initramfs")
+	errSectionHeaderOverflows      = errors.New("uki: section header overflows the stub")
+	errSectionTableOverflows       = errors.New("uki: section table overflows")
+	errStubAlignmentZero           = errors.New("uki: stub alignment is zero")
+	errStubNoRawSections           = errs.Wrap(errs.ErrNotFound, "uki: stub has no raw sections")
+	errStubNoRoom                  = errs.Wrap(errs.ErrNotFound, "uki: stub has no room for UKI sections")
+	errStubNotPE                   = errs.Wrap(errs.ErrInvalid, "uki: stub is not a PE")
+	errStubNotPE32                 = errors.New("uki: stub is not PE32+")
+	errStubOptionalHeaderOverflows = errors.New("uki: stub optional header overflows")
+	errStubSectionTableOverflows   = errors.New("uki: stub section table overflows")
 )
 
 const (
@@ -22,7 +37,7 @@ type peBlob struct {
 // The stub serves .initrd through the Linux initrd protocol and starts .linux.
 func assembleUKI(stub, kernel, initrd, cmdline, uname, osrel []byte) ([]byte, error) {
 	if len(kernel) == 0 || len(initrd) == 0 {
-		return nil, errors.New("uki: empty kernel or initramfs")
+		return nil, errEmptyKernelOrInitramfs
 	}
 	return peAddSections(stub, []peBlob{
 		{name: ".osrel", data: osrel},
@@ -48,13 +63,13 @@ func peAddSections(stub []byte, blobs []peBlob) ([]byte, error) {
 	}
 	opt := peoff + 24
 	if binary.LittleEndian.Uint16(stub[opt:]) != pe32Plus {
-		return nil, errors.New("uki: stub is not PE32+")
+		return nil, errStubNotPE32
 	}
 	secAlign := binary.LittleEndian.Uint32(stub[opt+32:])
 	fileAlign := binary.LittleEndian.Uint32(stub[opt+36:])
 	sizeHeaders := binary.LittleEndian.Uint32(stub[opt+60:])
 	if secAlign == 0 || fileAlign == 0 {
-		return nil, errors.New("uki: stub alignment is zero")
+		return nil, errStubAlignmentZero
 	}
 	table := opt + int(optSize)
 	firstRaw, last, err := peBounds(stub, table, int(nsec))
@@ -67,7 +82,7 @@ func peAddSections(stub []byte, blobs []peBlob) ([]byte, error) {
 		limit = int(sizeHeaders)
 	}
 	if headerEnd+len(blobs)*peSectionLen > limit {
-		return nil, errors.New("uki: stub has no room for UKI sections")
+		return nil, errStubNoRoom
 	}
 	out := append([]byte{}, stub...)
 	// A certificate sits after the last section and is not a loaded image.
@@ -88,16 +103,16 @@ func peAddSections(stub []byte, blobs []peBlob) ([]byte, error) {
 	var initData uint32
 	for i, blob := range blobs {
 		if len(blob.name) == 0 || len(blob.name) > 8 {
-			return nil, fmt.Errorf("uki: section name %q", blob.name)
+			return nil, fmt.Errorf("%w: section name %q", errUKI, blob.name)
 		}
 		if len(blob.data) > int(^uint32(0)) {
-			return nil, fmt.Errorf("uki: section %s is too large", blob.name)
+			return nil, fmt.Errorf("%w: section %s is too large", errUKI, blob.name)
 		}
 		vsz := uint32(len(blob.data))
 		rsz := alignUp(vsz, fileAlign)
 		hdr := table + (int(nsec)+i)*peSectionLen
 		if hdr+peSectionLen > len(out) {
-			return nil, errors.New("uki: section header overflows the stub")
+			return nil, errSectionHeaderOverflows
 		}
 		for j := 0; j < peSectionLen; j++ {
 			out[hdr+j] = 0
@@ -112,7 +127,7 @@ func peAddSections(stub []byte, blobs []peBlob) ([]byte, error) {
 			out = append(out, make([]byte, int(raw)-len(out))...)
 		}
 		if int(raw) != len(out) {
-			return nil, fmt.Errorf("uki: section %s overlaps the stub", blob.name)
+			return nil, fmt.Errorf("%w: section %s overlaps the stub", errUKI, blob.name)
 		}
 		out = append(out, blob.data...)
 		if pad := int(rsz) - len(blob.data); pad > 0 {
@@ -135,23 +150,23 @@ type peLast struct {
 
 func peHeader(image []byte) (peoff int, optSize, nsec uint16, err error) {
 	if len(image) < 0x40 || image[0] != 'M' || image[1] != 'Z' {
-		return 0, 0, 0, errors.New("uki: stub is not a PE")
+		return 0, 0, 0, errStubNotPE
 	}
 	peoff = int(binary.LittleEndian.Uint32(image[0x3c:]))
 	if peoff < 0 || peoff+24 > len(image) || string(image[peoff:peoff+4]) != "PE\x00\x00" {
-		return 0, 0, 0, errors.New("uki: stub is not a PE")
+		return 0, 0, 0, errStubNotPE
 	}
 	nsec = binary.LittleEndian.Uint16(image[peoff+4+2:])
 	optSize = binary.LittleEndian.Uint16(image[peoff+4+16:])
 	if peoff+24+int(optSize) > len(image) {
-		return 0, 0, 0, errors.New("uki: stub optional header overflows")
+		return 0, 0, 0, errStubOptionalHeaderOverflows
 	}
 	return peoff, optSize, nsec, nil
 }
 
 func peBounds(image []byte, table, nsec int) (firstRaw uint32, last peLast, err error) {
 	if table+nsec*peSectionLen > len(image) {
-		return 0, peLast{}, errors.New("uki: stub section table overflows")
+		return 0, peLast{}, errStubSectionTableOverflows
 	}
 	for i := 0; i < nsec; i++ {
 		hdr := table + i*peSectionLen
@@ -167,7 +182,7 @@ func peBounds(image []byte, table, nsec int) (firstRaw uint32, last peLast, err 
 		}
 	}
 	if firstRaw == 0 {
-		return 0, peLast{}, errors.New("uki: stub has no raw sections")
+		return 0, peLast{}, errStubNoRawSections
 	}
 	return firstRaw, last, nil
 }
@@ -179,7 +194,7 @@ func peSection(image []byte, name string) ([]byte, error) {
 	}
 	table := peoff + 24 + int(optSize)
 	if table+int(nsec)*peSectionLen > len(image) {
-		return nil, errors.New("uki: section table overflows")
+		return nil, errSectionTableOverflows
 	}
 	var out []byte
 	found := false
@@ -192,13 +207,13 @@ func peSection(image []byte, name string) ([]byte, error) {
 		vsz := binary.LittleEndian.Uint32(image[hdr+8:])
 		raw := binary.LittleEndian.Uint32(image[hdr+20:])
 		if int(raw) > len(image) || int(raw)+int(vsz) > len(image) {
-			return nil, fmt.Errorf("uki: section %s overflows", name)
+			return nil, fmt.Errorf("%w: section %s overflows", errUKI, name)
 		}
 		out = append(out, image[raw:raw+vsz]...)
 		found = true
 	}
 	if !found {
-		return nil, fmt.Errorf("uki: section %s is missing", name)
+		return nil, fmt.Errorf("%w: section %s is missing", errUKI, name)
 	}
 	return out, nil
 }

@@ -4,9 +4,11 @@ package cocoa
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
+	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/driver/window"
 )
 
@@ -21,6 +23,9 @@ func (factory) CheckCompatibility(context.Context) error {
 }
 
 func (factory) New(context.Context) (window.Driver, error) {
+	if !thread.Bound() {
+		return nil, fmt.Errorf("%w", window.ErrNotBound)
+	}
 	return cdriver{}, nil
 }
 

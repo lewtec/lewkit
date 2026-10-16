@@ -4,6 +4,7 @@ package kms
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"os"
@@ -13,6 +14,11 @@ import (
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"golang.org/x/sys/unix"
+)
+
+var (
+	errKMS        = errors.New("kms")
+	errShortWrite = errors.New("short write")
 )
 
 const (
@@ -112,10 +118,10 @@ func mapFB(f *os.File) (screen, error) {
 	// guestDrew treats this line as proof the kms driver owns the page.
 	fmt.Fprintf(os.Stderr, "kms: %dx%d stride %d bpp %d\n", v.Xres, v.Yres, fix.LineLength, v.BitsPerPixel)
 	if v.Xres == 0 || v.Yres == 0 || fix.LineLength == 0 {
-		return screen{}, fmt.Errorf("kms: empty framebuffer")
+		return screen{}, fmt.Errorf("%w: empty framebuffer", errKMS)
 	}
 	if v.BitsPerPixel != 32 {
-		return screen{}, fmt.Errorf("kms: framebuffer is %d-bit", v.BitsPerPixel)
+		return screen{}, fmt.Errorf("%w: framebuffer is %d-bit", errKMS, v.BitsPerPixel)
 	}
 	size := int(fix.SmemLen)
 	need := int(fix.LineLength) * int(v.Yres)
@@ -157,7 +163,7 @@ func prepareVar(f *os.File) (fbVar, error) {
 		if orig.BitsPerPixel == 32 && orig.Xres >= 640 && orig.Yres >= 400 {
 			return orig, nil
 		}
-		return v, fmt.Errorf("kms: set mode: %w", err)
+		return v, fmt.Errorf("%w: set mode: %w", errKMS, err)
 	}
 	if err := ioctl(f.Fd(), fbiogetVscreeninfo, unsafe.Pointer(&v)); err != nil {
 		return v, err
@@ -223,7 +229,7 @@ func (w *fbWin) blit() error {
 	// mmap writes stay in the DRM shadow. write() is fb_write, which schedules
 	// the damage blit onto the scanout. A pan commits that plane.
 	if err := pwriteAll(int(w.f.Fd()), stage); err != nil {
-		return fmt.Errorf("kms: write fb: %w", err)
+		return fmt.Errorf("%w: write fb: %w", errKMS, err)
 	}
 	if w.mem != nil && len(w.mem) >= len(stage) {
 		copy(w.mem, stage)
@@ -248,7 +254,7 @@ func pwriteAll(fd int, p []byte) error {
 			return err
 		}
 		if n == 0 {
-			return fmt.Errorf("short write at %d", off)
+			return fmt.Errorf("%w at %d", errShortWrite, off)
 		}
 	}
 	return nil
