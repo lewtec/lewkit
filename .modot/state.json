@@ -3399,6 +3399,906 @@
     "x/toolchain/go/_upstream/compile/testdata/script/script_test_basics.txt": {
       "source_info": "mount:x/toolchain/go/_upstream/compile/testdata/script/script_test_basics.txt"
     },
+    "x/toolchain/go/_upstream/gomod/auth/auth.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/auth.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/auth_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/auth_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/gitauth.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/gitauth.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/gitauth_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/gitauth_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/httputils.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/httputils.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/netrc.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/netrc.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/netrc_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/netrc_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/userauth.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/userauth.go"
+    },
+    "x/toolchain/go/_upstream/gomod/auth/userauth_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/auth/userauth_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/base.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/base.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/env.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/env.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/error_notunix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/error_notunix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/error_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/error_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/flag.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/flag.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/goflags.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/goflags.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/limit.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/limit.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/path.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/path.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/signal.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/signal.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/signal_notunix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/signal_notunix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/signal_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/signal_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/base/tool.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/base/tool.go"
+    },
+    "x/toolchain/go/_upstream/gomod/bug/bug.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/bug/bug.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cache/cache.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cache/cache.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cache/cache_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cache/cache_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cache/default.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cache/default.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cache/hash.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cache/hash.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cache/hash_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cache/hash_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cache/prog.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cache/prog.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cacheprog/cacheprog.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cacheprog/cacheprog.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cfg/bench_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cfg/bench_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cfg/cfg.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cfg/cfg.go"
+    },
+    "x/toolchain/go/_upstream/gomod/clean/clean.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/clean/clean.go"
+    },
+    "x/toolchain/go/_upstream/gomod/cmdflag/flag.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/cmdflag/flag.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/dirs.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/dirs.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/doc.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/doc.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/doc_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/doc_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/mod.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/mod.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/pkg.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/pkg.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/pkgsite.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/pkgsite.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/pkgsite_bootstrap.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/pkgsite_bootstrap.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/signal_notunix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/signal_notunix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/signal_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/signal_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/merge/aa.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/merge/aa.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/merge/bb.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/merge/bb.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/nested/empty/empty.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/nested/empty/empty.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/nested/ignore.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/nested/ignore.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/nested/nested/real.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/nested/nested/real.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/pkg.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/pkg.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/pkg_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/pkg_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/doc/testdata/play_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/doc/testdata/play_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/envcmd/env.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/envcmd/env.go"
+    },
+    "x/toolchain/go/_upstream/gomod/envcmd/env_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/envcmd/env_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fips140/fips140.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fips140/fips140.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fips140/fips_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fips140/fips_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fips140/mkzip.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fips140/mkzip.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fmtcmd/fmt.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fmtcmd/fmt.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fsys/fsys.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fsys/fsys.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fsys/fsys_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fsys/fsys_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fsys/glob.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fsys/glob.go"
+    },
+    "x/toolchain/go/_upstream/gomod/fsys/walk.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/fsys/walk.go"
+    },
+    "x/toolchain/go/_upstream/gomod/generate/generate.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/generate/generate.go"
+    },
+    "x/toolchain/go/_upstream/gomod/generate/generate_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/generate/generate_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/gomod.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/gomod.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/gover.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/gover.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/gover_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/gover_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/local.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/local.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/mod.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/mod.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/mod_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/mod_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/toolchain.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/toolchain.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/toolchain_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/toolchain_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/gover/version.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/gover/version.go"
+    },
+    "x/toolchain/go/_upstream/gomod/help/help.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/help/help.go"
+    },
+    "x/toolchain/go/_upstream/gomod/help/helpdoc.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/help/helpdoc.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/build.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/build.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/read.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/read.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/read_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/read_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/scan.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/scan.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/scan_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/scan_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/tags.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/tags.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/.h.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/.h.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/a_android.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/a_android.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/b_android_arm64.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/b_android_arm64.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/c_linux.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/c_linux.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/d_linux_arm64.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/d_linux_arm64.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/e.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/e.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/f.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/f.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/g.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/g.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/tags.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/tags.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/android/want.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/android/want.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/.h.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/.h.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/a_illumos.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/a_illumos.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/b_illumos_amd64.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/b_illumos_amd64.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/c_solaris.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/c_solaris.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/d_solaris_amd64.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/d_solaris_amd64.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/e.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/e.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/f.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/f.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/g.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/g.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/tags.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/tags.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/illumos/want.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/illumos/want.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/star/tags.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/star/tags.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/star/want.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/star/want.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/star/x.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/star/x.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/star/x1.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/star/x1.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/star/x_darwin.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/star/x_darwin.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/star/x_windows.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/star/x_windows.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/test/child/child.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/test/child/child.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/test/tags.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/test/tags.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/test/test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/test/test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/test/test_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/test/test_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/imports/testdata/test/want.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/imports/testdata/test/want.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/list/context.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/list/context.go"
+    },
+    "x/toolchain/go/_upstream/gomod/list/list.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/list/list.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/flag.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/flag.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/flag_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/flag_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/godebug.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/godebug.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/path.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/path.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/pkg.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/pkg.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/pkg_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/pkg_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/printer.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/printer.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/search.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/search.go"
+    },
+    "x/toolchain/go/_upstream/gomod/load/test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/load/test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_fcntl.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_fcntl.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_other.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_other.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_windows.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/internal/filelock/filelock_windows.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/lockedfile.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/lockedfile.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/lockedfile_filelock.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/lockedfile_filelock.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/lockedfile_plan9.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/lockedfile_plan9.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/lockedfile_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/lockedfile_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/mutex.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/mutex.go"
+    },
+    "x/toolchain/go/_upstream/gomod/lockedfile/transform_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/lockedfile/transform_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mmap/mmap.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mmap/mmap.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mmap/mmap_other.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mmap/mmap_other.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mmap/mmap_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mmap/mmap_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mmap/mmap_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mmap/mmap_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mmap/mmap_windows.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mmap/mmap_windows.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mmap/testdata/small_file.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mmap/testdata/small_file.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/download.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/download.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/edit.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/edit.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/graph.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/graph.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/init.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/init.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/mod.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/mod.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/tidy.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/tidy.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/vendor.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/vendor.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/verify.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/verify.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modcmd/why.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modcmd/why.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/bootstrap.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/bootstrap.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/cache.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/cache.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/cache_readonly_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/cache_readonly_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/cache_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/cache_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/codehost/codehost.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/codehost/codehost.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/codehost/git.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/codehost/git.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/codehost/git_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/codehost/git_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/codehost/shell.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/codehost/shell.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/codehost/svn.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/codehost/svn.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/codehost/vcs.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/codehost/vcs.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/coderepo.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/coderepo.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/coderepo_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/coderepo_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/fetch.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/fetch.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/key.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/key.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/proxy.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/proxy.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/repo.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/repo.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/sumdb.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/sumdb.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/toolchain.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/toolchain.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/zip_sum_test/testdata/zip_sums.csv": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/zip_sum_test/testdata/zip_sums.csv"
+    },
+    "x/toolchain/go/_upstream/gomod/modfetch/zip_sum_test/zip_sum_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modfetch/zip_sum_test/zip_sum_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modget/get.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modget/get.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modget/query.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modget/query.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/build.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/build.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/build_read.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/build_read.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/index_format.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/index_format.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/index_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/index_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/read.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/read.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/scan.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/scan.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/syslist_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/syslist_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/a.syso": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/a.syso"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/b.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/b.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/bar.json": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/bar.json"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/baz.log": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/baz.log"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/c.c": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/testdata/ignore_non_source/c.c"
+    },
+    "x/toolchain/go/_upstream/gomod/modindex/write.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modindex/write.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modinfo/info.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modinfo/info.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/build.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/build.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/buildlist.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/buildlist.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/edit.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/edit.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/help.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/help.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/import.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/import.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/import_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/import_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/init.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/init.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/list.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/list.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/load.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/load.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/modfile.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/modfile.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/mvs.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/mvs.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/mvs_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/mvs_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/query.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/query.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/query_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/query_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/search.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/search.go"
+    },
+    "x/toolchain/go/_upstream/gomod/modload/vendor.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/modload/vendor.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mvs/errors.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mvs/errors.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mvs/graph.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mvs/graph.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mvs/mvs.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mvs/mvs.go"
+    },
+    "x/toolchain/go/_upstream/gomod/mvs/mvs_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/mvs/mvs_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/run/run.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/run/run.go"
+    },
+    "x/toolchain/go/_upstream/gomod/search/search.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/search/search.go"
+    },
+    "x/toolchain/go/_upstream/gomod/str/path.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/str/path.go"
+    },
+    "x/toolchain/go/_upstream/gomod/str/str.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/str/str.go"
+    },
+    "x/toolchain/go/_upstream/gomod/str/str_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/str/str_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/telemetrycmd/telemetry.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/telemetrycmd/telemetry.go"
+    },
+    "x/toolchain/go/_upstream/gomod/telemetrystats/telemetrystats.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/telemetrystats/telemetrystats.go"
+    },
+    "x/toolchain/go/_upstream/gomod/telemetrystats/telemetrystats_bootstrap.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/telemetrystats/telemetrystats_bootstrap.go"
+    },
+    "x/toolchain/go/_upstream/gomod/telemetrystats/version_other.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/telemetrystats/version_other.go"
+    },
+    "x/toolchain/go/_upstream/gomod/telemetrystats/version_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/telemetrystats/version_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/telemetrystats/version_windows.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/telemetrystats/version_windows.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/cover.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/cover.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/flagdefs.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/flagdefs.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/flagdefs_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/flagdefs_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/genflags.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/genflags.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/internal/genflags/testflag.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/internal/genflags/testflag.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/internal/genflags/vetflag.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/internal/genflags/vetflag.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/test/testflag.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/test/testflag.go"
+    },
+    "x/toolchain/go/_upstream/gomod/tool/signal.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/tool/signal.go"
+    },
+    "x/toolchain/go/_upstream/gomod/tool/signal_js.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/tool/signal_js.go"
+    },
+    "x/toolchain/go/_upstream/gomod/tool/signal_plan9.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/tool/signal_plan9.go"
+    },
+    "x/toolchain/go/_upstream/gomod/tool/tool.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/tool/tool.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/exec.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/exec.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/exec_stub.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/exec_stub.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/path_none.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/path_none.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/path_plan9.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/path_plan9.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/path_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/path_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/path_windows.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/path_windows.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/select.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/select.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/switch.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/switch.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/toolchain_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/toolchain_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/umask_none.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/umask_none.go"
+    },
+    "x/toolchain/go/_upstream/gomod/toolchain/umask_unix.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/toolchain/umask_unix.go"
+    },
+    "x/toolchain/go/_upstream/gomod/trace/trace.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/trace/trace.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcs/discovery.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcs/discovery.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcs/discovery_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcs/discovery_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcs/vcs.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcs/vcs.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcs/vcs_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcs/vcs_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/auth.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/auth.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/dir.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/dir.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/fossil.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/fossil.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/git.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/git.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/hg.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/hg.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/insecure.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/insecure.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/script.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/script.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/svn.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/svn.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/vcstest/vcstest.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/vcstest/vcstest.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/vcstest/vcstest_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/vcstest/vcstest_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/vcweb.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/vcweb.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vcweb/vcweb_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vcweb/vcweb_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/version/version.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/version/version.go"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/go_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/go_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/go_unix_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/go_unix_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/script_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/script_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/gotoolchain_net.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/gotoolchain_net.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/link_matching_actionid.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/link_matching_actionid.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/mod_insecure_issue63845.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/mod_insecure_issue63845.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/mod_proxy_https.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/mod_proxy_https.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/mod_sumdb_golang.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/mod_sumdb_golang.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/repro_build.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/repro_build.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/test_cache_inputs.txt": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/verylongtest/testdata/script/test_cache_inputs.txt"
+    },
+    "x/toolchain/go/_upstream/gomod/vet/vet.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vet/vet.go"
+    },
+    "x/toolchain/go/_upstream/gomod/vet/vetflag.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/vet/vetflag.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/api.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/api.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/bootstrap.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/bootstrap.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/file_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/file_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/http.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/http.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/http_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/http_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/intercept/intercept.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/intercept/intercept.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/url.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/url.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/url_other.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/url_other.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/url_other_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/url_other_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/url_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/url_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/url_windows.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/url_windows.go"
+    },
+    "x/toolchain/go/_upstream/gomod/web/url_windows_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/web/url_windows_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/action.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/action.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/build.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/build.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/build_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/build_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/buildid.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/buildid.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/cover.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/cover.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/exec.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/exec.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/exec_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/exec_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/gc.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/gc.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/gccgo.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/gccgo.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/init.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/init.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/security.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/security.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/security_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/security_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/shell.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/shell.go"
+    },
+    "x/toolchain/go/_upstream/gomod/work/shell_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/work/shell_test.go"
+    },
+    "x/toolchain/go/_upstream/gomod/workcmd/edit.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/workcmd/edit.go"
+    },
+    "x/toolchain/go/_upstream/gomod/workcmd/init.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/workcmd/init.go"
+    },
+    "x/toolchain/go/_upstream/gomod/workcmd/sync.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/workcmd/sync.go"
+    },
+    "x/toolchain/go/_upstream/gomod/workcmd/use.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/workcmd/use.go"
+    },
+    "x/toolchain/go/_upstream/gomod/workcmd/vendor.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/workcmd/vendor.go"
+    },
+    "x/toolchain/go/_upstream/gomod/workcmd/work.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/gomod/workcmd/work.go"
+    },
     "x/toolchain/go/_upstream/link/cgo_test.go": {
       "source_info": "mount:x/toolchain/go/_upstream/link/cgo_test.go"
     },

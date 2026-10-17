@@ -27,7 +27,7 @@ func (c *goBuildCmd) execute(ctx context.Context, run bool, args []string) error
 	if dir == "" {
 		dir = "."
 	}
-	g, err := load.Load(dir, cmd.Values(c.pkgs), load.SplitTags(c.tags.Value()))
+	g, err := load.Load(ctx, dir, cmd.Values(c.pkgs), load.SplitTags(c.tags.Value()))
 	if err != nil {
 		return err
 	}

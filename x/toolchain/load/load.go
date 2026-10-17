@@ -2,12 +2,9 @@
 //
 // It does not run the go command and it does not download modules.
 // Imports outside the main module resolve through the module graph into
-// GOMODCACHE, or into a replace directory. The graph is minimal version
-// selection. A module that declares go 1.17 or higher contributes its
-// own requirements, and the transitive requirements of older modules are
-// kept. The main module's replace and exclude directives apply. When a
-// go.work file applies, it supplies the workspace roots and its
-// replacements, and every workspace module's excludes apply.
+// GOMODCACHE, or into a replace directory. Version selection is the
+// vendored go command module loader: minimal version selection, pruning,
+// replace, exclude, and go.work.
 // Standard-library imports are names; the archives themselves come from
 // [Archives].
 // A package with a matching .s or .syso file has [Package.Asm] set and
@@ -16,6 +13,7 @@
 package load
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"go/build"
@@ -31,7 +29,6 @@ import (
 
 	"github.com/lewtec/lewkit/x/errs"
 	"golang.org/x/mod/modfile"
-	"golang.org/x/mod/module"
 )
 
 var (
@@ -98,12 +95,15 @@ type Graph struct {
 // An empty pattern list is the package in dir. A pattern ending in
 // "..." walks that tree. A list of .go files is one package.
 // Files are chosen for this process's GOOS and GOARCH.
-func Load(dir string, patterns, tags []string) (*Graph, error) {
-	return LoadTarget(dir, patterns, tags, runtime.GOOS, runtime.GOARCH)
+func Load(ctx context.Context, dir string, patterns, tags []string) (*Graph, error) {
+	return LoadTarget(ctx, dir, patterns, tags, runtime.GOOS, runtime.GOARCH)
 }
 
 // LoadTarget is [Load] for one GOOS and GOARCH. Empty values use this process.
-func LoadTarget(dir string, patterns, tags []string, goos, goarch string) (*Graph, error) {
+func LoadTarget(ctx context.Context, dir string, patterns, tags []string, goos, goarch string) (*Graph, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if goos == "" {
 		goos = runtime.GOOS
 	}
@@ -139,7 +139,7 @@ func LoadTarget(dir string, patterns, tags []string, goos, goarch string) (*Grap
 			ReleaseTags: build.Default.ReleaseTags,
 		},
 	}
-	if err := l.buildList(mf); err != nil {
+	if err := l.buildList(ctx); err != nil {
 		return nil, err
 	}
 	dirs, files, err := l.patterns(abs, patterns)
@@ -260,18 +260,13 @@ func isSpace(c byte) bool {
 }
 
 type loader struct {
-	modDir    string
-	module    string
-	cache     string
-	mods      []modSrc
-	repls     []modReplace
-	workRepls []modReplace
-	excluded  map[module.Version]struct{}
-	mains     map[string]bool
-	summaries map[module.Version]modSummary
-	seen      map[string]*Package
-	order     []string
-	bctx      build.Context
+	modDir string
+	module string
+	cache  string
+	mods   []modSrc
+	seen   map[string]*Package
+	order  []string
+	bctx   build.Context
 }
 
 func (l *loader) patterns(base string, patterns []string) (dirs, files []string, err error) {

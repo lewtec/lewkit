@@ -6,6 +6,8 @@
 // package still cannot import both. rewrite drops the internal element and
 // retargets the standard-library internal packages those trees import onto
 // the same tree. The child process calls gc.MainArgs and ld.Run.
+// The same pin places cmd/go/internal. rewrite exposes it under src/go so
+// the module loader can select versions without running the go command.
 //
 // Compile and Link are functions of one package or one image. Each call
 // starts a process that owns the compiler or linker tables and exits with

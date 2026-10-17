@@ -124,6 +124,11 @@ file: codebase: {
 		type:   "place"
 		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
 	}
+	// cmd/go's module loader. x/toolchain/load selects versions through it.
+	"x/toolchain/go/_upstream/gomod": {
+		type:   "place"
+		source: "golang:src/cmd/go/internal"
+	}
 }
 
 // The prelude formatter is `gofmt -w .`. That walks the Go pin, and the

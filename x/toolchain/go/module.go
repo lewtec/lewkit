@@ -81,7 +81,7 @@ func BuildModule(ctx context.Context, m Module) error {
 		}
 		trim = abs
 	}
-	g, err := load.LoadTarget(dir, m.Patterns, m.Tags, m.GOOS, m.GOARCH)
+	g, err := load.LoadTarget(ctx, dir, m.Patterns, m.Tags, m.GOOS, m.GOARCH)
 	if err != nil {
 		return err
 	}
