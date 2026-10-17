@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
-	_ "github.com/lewtec/lewkit/x/driver/window/mem"
+	"github.com/lewtec/lewkit/x/driver/window/mem"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -146,7 +146,9 @@ func TestDriveTicksWhileIdle(t *testing.T) {
 }
 
 func TestDriveKeepsTickingAfterEvent(t *testing.T) {
-	w, err := window.Open(t.Context(), window.Config{Width: 8, Height: 8})
+	// The memory window's clock is the Go ticker. A native driver can
+	// coalesce ticks, and this assertion counts them.
+	w, err := mem.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, w)
 	var ticks atomic.Int64
