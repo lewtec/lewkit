@@ -10,6 +10,7 @@ import (
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/sops"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/ui/tui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func TestKeyRunWritesWithoutPrompt(t *testing.T) {
 
 	info, err := os.Stat(out)
 	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+	assert.Equal(t, test.HostPerm(0o600), info.Mode().Perm())
 	id := openPublisherKey(t, out)
 	assert.Equal(t, "Acme", id.Certs[0].Subject.CommonName)
 }
