@@ -105,7 +105,7 @@ func (f *File) stale(target string, prereqs []string) bool {
 	if f.phonies[target] || !exists(f.dir, target) {
 		return true
 	}
-	info, err := os.Stat(workflow.Join(f.dir, target))
+	info, err := workflow.StatOutput(workflow.Join(f.dir, target))
 	if err != nil {
 		return true
 	}
