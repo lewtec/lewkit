@@ -118,6 +118,95 @@ func TestLoadCache(t *testing.T) {
 	require.ErrorIs(t, err, ErrMissing)
 }
 
+func TestLoadTransitiveModule(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GOMODCACHE", cache)
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(cache, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	// mid is the only direct requirement. It imports a package of leaf,
+	// and leaf's go.mod is the only place that requirement is written.
+	// leaf also requires a module that is not imported and not cached.
+	write("example.com/mid@v1.0.0/go.mod", "module example.com/mid\n\ngo 1.22.0\n\nrequire example.com/leaf v1.4.0\n")
+	write("example.com/mid@v1.0.0/mid.go", "package mid\n\nimport \"example.com/leaf/backend\"\n\nfunc V() int { return backend.N }\n")
+	write("example.com/leaf@v1.0.0/go.mod", "module example.com/leaf\n\ngo 1.20.0\n")
+	write("example.com/leaf@v1.0.0/backend/backend.go", "package backend\n\nconst N = 1\n")
+	write("example.com/leaf@v1.4.0/go.mod", "module example.com/leaf\n\ngo 1.21.0\n\nrequire example.com/unused v0.9.9\n")
+	write("example.com/leaf@v1.4.0/backend/backend.go", "package backend\n\nconst N = 4\n")
+
+	dir := t.TempDir()
+	writeMod := func(mod, src string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644))
+	}
+	writeMod(
+		"module example.com/app\n\ngo 1.27\n\nrequire example.com/mid v1.0.0\n",
+		"package main\n\nimport \"example.com/mid\"\n\nfunc main() { println(mid.V()) }\n",
+	)
+	g, err := Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/leaf/backend" || g.Pkgs[0].Lang != "go1.21" || !strings.Contains(g.Pkgs[0].Dir, "leaf@v1.4.0") {
+		require.FailNowf(t, "", "leaf %+v", g.Pkgs)
+	}
+
+	// leaf is listed first, so it is read at v1.0.0 before mid upgrades it.
+	// The compiled package has to be v1.4.0.
+	writeMod(
+		"module example.com/app\n\ngo 1.27\n\nrequire (\n\texample.com/leaf v1.0.0\n\texample.com/mid v1.0.0\n)\n",
+		"package main\n\nimport \"example.com/leaf/backend\"\n\nfunc main() { println(backend.N) }\n",
+	)
+	g, err = Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/leaf/backend" || g.Pkgs[0].Lang != "go1.21" || !strings.Contains(g.Pkgs[0].Dir, "leaf@v1.4.0") {
+		require.FailNowf(t, "", "upgraded %+v", g.Pkgs)
+	}
+
+	// A higher requirement that is not in the cache is missing.
+	// It does not fall back to the older cached version.
+	writeMod(
+		"module example.com/app\n\ngo 1.27\n\nrequire (\n\texample.com/mid v1.0.0\n\texample.com/leaf v1.9.0\n)\n",
+		"package main\n\nimport \"example.com/leaf/backend\"\n\nfunc main() { println(backend.N) }\n",
+	)
+	_, err = Load(dir, nil, nil)
+	require.ErrorIs(t, err, ErrMissing)
+
+	write("example.com/mid@v1.0.0/mid.go", "package mid\n\nimport \"example.com/gone\"\n\nfunc V() int { return 0 }\n")
+	write("example.com/mid@v1.0.0/go.mod", "module example.com/mid\n\ngo 1.22.0\n\nrequire example.com/gone v0.1.0\n")
+	writeMod(
+		"module example.com/app\n\ngo 1.27\n\nrequire example.com/mid v1.0.0\n",
+		"package main\n\nimport \"example.com/mid\"\n\nfunc main() { println(mid.V()) }\n",
+	)
+	_, err = Load(dir, nil, nil)
+	require.ErrorIs(t, err, ErrMissing)
+	require.NotErrorIs(t, err, ErrExternal)
+}
+
+func TestLoadReplaceTransitive(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GOMODCACHE", cache)
+	leaf := filepath.Join(cache, "example.com/leaf@v1.4.0")
+	require.NoError(t, os.MkdirAll(filepath.Join(leaf, "backend"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(leaf, "go.mod"), []byte("module example.com/leaf\n\ngo 1.21.0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(leaf, "backend/backend.go"), []byte("package backend\n\nconst N = 4\n"), 0o644))
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "local"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/app\n\ngo 1.27\n\nrequire example.com/mid v1.0.0\n\nreplace example.com/mid => ./local\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n\nimport \"example.com/mid\"\n\nfunc main() { println(mid.V()) }\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "local/go.mod"), []byte("module example.com/mid\n\ngo 1.22.0\n\nrequire example.com/leaf v1.4.0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "local/mid.go"), []byte("package mid\n\nimport \"example.com/leaf/backend\"\n\nfunc V() int { return backend.N }\n"), 0o644))
+
+	g, err := Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/leaf/backend" || !strings.Contains(g.Pkgs[0].Dir, "leaf@v1.4.0") {
+		require.FailNowf(t, "", "replace transitive %+v", g.Pkgs)
+	}
+}
+
 func TestLoadReplace(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) {

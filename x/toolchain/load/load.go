@@ -1,9 +1,12 @@
 // Package load reads a module and selects the Go files to compile.
 //
 // It does not run the go command and it does not download modules.
-// Imports outside the main module resolve through the go.mod build list
-// into GOMODCACHE, or into a replace directory. Standard-library imports
-// are names; the archives themselves come from [Archives].
+// Imports outside the main module resolve through the module graph into
+// GOMODCACHE, or into a replace directory. The graph is the main module's
+// requirements plus each selected module's own requirements. The highest
+// version of a module wins. Only the main module's replace directives
+// apply. Standard-library imports are names; the archives themselves
+// come from [Archives].
 // A package with a matching .s or .syso file has [Package.Asm] set and
 // lists those paths in [Package.AsmFiles]. Those objects are not produced
 // here.
@@ -255,6 +258,7 @@ type loader struct {
 	module string
 	cache  string
 	mods   []modSrc
+	repls  []modReplace
 	seen   map[string]*Package
 	order  []string
 	bctx   build.Context

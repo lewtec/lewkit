@@ -1,6 +1,7 @@
 package load
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,16 +9,20 @@ import (
 
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
+	"golang.org/x/mod/semver"
 )
 
 // modSrc is one module on the build list. path is the import prefix.
 // cachePath and version name the module in GOMODCACHE when dir is empty.
+// reqVer is the requirement version that selected the module, before a
+// main-module replace. The highest reqVer wins.
 type modSrc struct {
 	path      string
 	cachePath string
 	version   string
 	dir       string
 	lang      string
+	reqVer    string
 }
 
 func (l *loader) buildList(f *modfile.File) error {
@@ -49,21 +54,14 @@ func (l *loader) buildList(f *modfile.File) error {
 		}
 		repls = append(repls, rep)
 	}
-	seen := map[string]bool{l.module: true}
+	l.repls = repls
 	for _, req := range f.Require {
-		if req == nil || req.Mod.Path == "" || seen[req.Mod.Path] {
+		if req == nil {
 			continue
 		}
-		seen[req.Mod.Path] = true
-		cachePath, ver, dir := applyReplace(req.Mod.Path, req.Mod.Version, repls)
-		l.mods = append(l.mods, modSrc{
-			path:      req.Mod.Path,
-			cachePath: cachePath,
-			version:   ver,
-			dir:       dir,
-		})
+		l.addRequire(req.Mod.Path, req.Mod.Version)
 	}
-	return nil
+	return l.expandModules()
 }
 
 type modReplace struct {
@@ -93,6 +91,114 @@ func applyReplace(path, ver string, repls []modReplace) (cachePath, version, dir
 		return path, "", hit.local
 	}
 	return hit.newPath, hit.newVer, ""
+}
+
+// moduleRequire is one requirement read from a module's go.mod.
+type moduleRequire struct {
+	path    string
+	version string
+}
+
+// expandModules adds requirements from each selected module's go.mod.
+// A module that is not in the cache stays on the list; importing it
+// reports ErrMissing later. The main module is already expanded.
+func (l *loader) expandModules() error {
+	seen := map[string]string{}
+	for {
+		progress := false
+		for i := 0; i < len(l.mods); i++ {
+			if l.mods[i].path == l.module {
+				continue
+			}
+			path := l.mods[i].path
+			if seen[path] == moduleIdentity(&l.mods[i]) {
+				continue
+			}
+			reqs, err := l.moduleRequires(&l.mods[i])
+			if err != nil {
+				if errors.Is(err, ErrMissing) {
+					seen[path] = moduleIdentity(&l.mods[i])
+					continue
+				}
+				return err
+			}
+			id := moduleIdentity(&l.mods[i])
+			for _, req := range reqs {
+				if l.addRequire(req.path, req.version) {
+					progress = true
+				}
+			}
+			seen[path] = id
+		}
+		if !progress {
+			return nil
+		}
+	}
+}
+
+// addRequire records path at ver when ver is newer than the selected
+// requirement. The main module's replace directives decide the directory.
+// A false result means the build list already has this version or a newer one.
+func (l *loader) addRequire(path, ver string) bool {
+	if path == "" || path == l.module {
+		return false
+	}
+	for i := range l.mods {
+		if l.mods[i].path != path {
+			continue
+		}
+		if semver.Compare(ver, l.mods[i].reqVer) <= 0 {
+			return false
+		}
+		cachePath, lookupVer, dir := applyReplace(path, ver, l.repls)
+		l.mods[i].reqVer = ver
+		l.mods[i].cachePath = cachePath
+		l.mods[i].version = lookupVer
+		l.mods[i].dir = dir
+		l.mods[i].lang = ""
+		return true
+	}
+	cachePath, lookupVer, dir := applyReplace(path, ver, l.repls)
+	l.mods = append(l.mods, modSrc{
+		path:      path,
+		cachePath: cachePath,
+		version:   lookupVer,
+		dir:       dir,
+		reqVer:    ver,
+	})
+	return true
+}
+
+func (l *loader) moduleRequires(m *modSrc) ([]moduleRequire, error) {
+	root, err := l.modRoot(m)
+	if err != nil {
+		return nil, err
+	}
+	body, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	parsed, err := modfile.Parse("go.mod", body, nil)
+	if err != nil {
+		return nil, err
+	}
+	reqs := make([]moduleRequire, 0, len(parsed.Require))
+	for _, req := range parsed.Require {
+		if req == nil || req.Mod.Path == "" {
+			continue
+		}
+		reqs = append(reqs, moduleRequire{path: req.Mod.Path, version: req.Mod.Version})
+	}
+	return reqs, nil
+}
+
+// moduleIdentity names the selected requirement and where it was found.
+// A higher requirement changes it, so expandModules reads that module again.
+func moduleIdentity(m *modSrc) string {
+	return m.reqVer + "\x00" + m.version + "\x00" + m.cachePath + "\x00" + m.dir
 }
 
 func (l *loader) longest(path string) *modSrc {
