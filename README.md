@@ -217,6 +217,11 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | `lewkit generate shader DIR` | One `spirv_gen.go` per Go package under `DIR` that owns a `name.<stage>.glsl` file. The second-to-last extension is `vertex`, `fragment`, or `compute`. The file maps that shader hash to SPIR-V. |
 | `lewkit generate enum [FILE]` | String, Parse, and text marshaling for types marked `//lewkit:enum`. With no `FILE`, every marked file in the package directory. The directive lives in `enum.go`. |
 | `lewkit completion` | The bash `complete -C` line for this program. |
+| `lewkit term serve` | Serve one ubersession on a unix socket. `--socket` overrides the default path. |
+| `lewkit term attach` | Attach with a command palette. `--pane` follows that pane. Without it, the client follows the ubersession. |
+| `lewkit term rpc METHOD [JSON]` | Call one method and print the JSON result. |
+
+`lewkit term serve` stores pane records. `lewkit term attach` draws the panes it follows. ctrl+p opens and closes the command palette. Keys while the palette is closed go to the focused pane. A write carries the size of the client that typed it, and the pane reflows to that size. A client that is only watching does not resize the pane. `lewkit term rpc` uses the same socket. The methods are `session.get`, `pane.list`, `pane.get`, `pane.create`, `pane.write`, `pane.kill`, and `watch`.
 
 `lewkit disasm` flags are `--architecture` (default `x86`), `--mode` (default `64`), and `--syntax` (default `default`). Shared flags are `--address`, `--count`, and `--skip-data`. A `--count` of `0` prints every instruction. `lewkit disasm file` also takes `--section`.
 

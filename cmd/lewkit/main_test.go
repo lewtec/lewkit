@@ -23,6 +23,7 @@ func TestRootUsage(t *testing.T) {
 	assert.Contains(t, text, "doctor")
 	assert.Contains(t, text, "workflow")
 	assert.Contains(t, text, "completion")
+	assert.Contains(t, text, "term")
 	assert.Contains(t, text, "--sentry-dsn")
 	assert.Contains(t, text, "SENTRY_DSN")
 }
@@ -41,6 +42,11 @@ func TestReleaseRunKeepsModuleDir(t *testing.T) {
 	require.NotNil(t, app.Args.release.run)
 	assert.Equal(t, ".", app.Args.release.run.dir.Value())
 	assert.Empty(t, app.Args.release.run.args)
+}
+
+func TestTermServeParse(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "term", "serve", "--socket", "/tmp/term.sock")
+	require.NotNil(t, app.Args.term)
 }
 
 func TestRootSentryDSN(t *testing.T) {

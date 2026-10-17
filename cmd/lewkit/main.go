@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/cmd/lewkit/decomp"
 	"github.com/lewtec/lewkit/cmd/lewkit/generate"
+	"github.com/lewtec/lewkit/cmd/lewkit/term"
 	"github.com/lewtec/lewkit/report/sentry"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
@@ -44,6 +45,7 @@ type root struct {
 	doctor        *doctorCmd
 	workflow      *workflowCmd
 	completion    *completionCmd
+	term          *term.Cmd
 }
 
 func (r *root) Setup() error {
