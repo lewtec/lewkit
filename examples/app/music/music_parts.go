@@ -5,11 +5,11 @@ import (
 	"image"
 	"strconv"
 
-	"github.com/lewtec/lewkit/examples/app/internal/icon"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/http/asset/lucide"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ui/gui"
+	"github.com/lewtec/lewkit/x/ui/gui/icon"
 	"golang.org/x/image/font"
 )
 
