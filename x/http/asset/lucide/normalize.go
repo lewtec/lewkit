@@ -17,7 +17,7 @@ var (
 // guiSVG copies the root stroke onto each shape and swaps currentColor for c.
 // line and polyline become paths. The SVG parser does not inherit paint from
 // the root element, and it does not read those two tags.
-func guiSVG(src string, c color.NRGBA) (string, error) {
+func guiSVG(src string, c color.NRGBA, side int) (string, error) {
 	dec := xml.NewDecoder(strings.NewReader(src))
 	var root xml.StartElement
 	var found bool
@@ -49,6 +49,10 @@ func guiSVG(src string, c color.NRGBA) (string, error) {
 	viewBox := attr(root.Attr, "viewBox")
 	if width == "" || height == "" || viewBox == "" {
 		return "", fmt.Errorf("%w: icon missing width, height, or viewBox", errLucide)
+	}
+	if side >= 1 {
+		width = strconv.Itoa(side)
+		height = width
 	}
 	inherited := map[string]string{
 		"fill":            attr(root.Attr, "fill"),
