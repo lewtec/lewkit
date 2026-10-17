@@ -346,5 +346,33 @@
       "old": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"wasip1\", \"wasm\"}:",
       "new": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"tamago\", \"amd64\"}:    {},\n\t{\"wasip1\", \"wasm\"}:"
     }
+  ],
+  "std/godebug/godebug.go": [
+    {
+      "old": "import (\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/std/bisect\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/std/godebugs\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"unsafe\"\n\t_ \"unsafe\" // go:linkname\n)",
+      "new": "import (\n\t\"os\"\n\t\"sync\"\n\t\"sync/atomic\"\n\t\"unsafe\"\n\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/std/bisect\"\n\t\"github.com/lewtec/lewkit/x/toolchain/go/src/std/godebugs\"\n)"
+    },
+    {
+      "old": "// setUpdate is provided by package runtime.\n// It calls update(def, env), where def is the default GODEBUG setting\n// and env is the current value of the $GODEBUG environment variable.\n// After that first call, the runtime calls update(def, env)\n// again each time the environment variable changes\n// (due to use of os.Setenv, for example).\n//\n//go:linkname setUpdate\nfunc setUpdate(update func(string, string))\n\n// registerMetric is provided by package runtime.\n// It forwards registrations to runtime/metrics.\n//\n//go:linkname registerMetric\nfunc registerMetric(name string, read func() uint64)\n\n// setNewIncNonDefault is provided by package runtime.\n// The runtime can do\n//\n//\tinc := newNonDefaultInc(name)\n//\n// instead of\n//\n//\tinc := godebug.New(name).IncNonDefault\n//\n// since it cannot import godebug.\n//\n//go:linkname setNewIncNonDefault\nfunc setNewIncNonDefault(newIncNonDefault func(string) func())",
+      "new": "// setUpdate applies the current GODEBUG environment.\n// The standard library's copy is filled in by runtime via go:linkname.\n// This copy is not that package, so it reads the environment directly.\nfunc setUpdate(update func(string, string)) {\n\tif update != nil {\n\t\tupdate(\"\", os.Getenv(\"GODEBUG\"))\n\t}\n}\n\nfunc registerMetric(string, func() uint64) {}\n\nfunc setNewIncNonDefault(func(string) func()) {}"
+    }
+  ],
+  "go/base/base.go": [
+    {
+      "old": "func Exit() {\n\tfor _, f := range atExitFuncs {\n\t\tf()\n\t}\n\tos.Exit(exitStatus)\n}",
+      "new": "// ExitSignal is the status Exit would have passed to os.Exit.\n// The module loader recovers it and keeps the process.\ntype ExitSignal int\n\nfunc Exit() {\n\tfor _, f := range atExitFuncs {\n\t\tf()\n\t}\n\tpanic(ExitSignal(exitStatus))\n}"
+    }
+  ],
+  "go/modfetch/cache.go": [
+    {
+      "old": "// GoMod is like Lookup(ctx, path).GoMod(rev) but avoids the\n// repository path resolution in Lookup if the result is\n// already cached on local disk.\nfunc (f *Fetcher) GoMod(ctx context.Context, path, rev string) ([]byte, error) {\n\t// Convert commit hash to pseudo-version\n\t// to increase cache hit rate.\n\tif !gover.ModIsValid(path, rev) {",
+      "new": "// readExtractedGoMod reads go.mod from GOMODCACHE/path@version.\n// The loader stores modules there and does not fill cache/download.\nfunc readExtractedGoMod(path, rev string) ([]byte, error) {\n\tif cfg.GOMODCACHE == \"\" || !gover.ModIsValid(path, rev) {\n\t\treturn nil, errNotCached\n\t}\n\tenc, err := module.EscapePath(path)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tencVer, err := module.EscapeVersion(rev)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn os.ReadFile(filepath.Join(cfg.GOMODCACHE, enc+\"@\"+encVer, \"go.mod\"))\n}\n\n// GoMod is like Lookup(ctx, path).GoMod(rev) but avoids the\n// repository path resolution in Lookup if the result is\n// already cached on local disk.\nfunc (f *Fetcher) GoMod(ctx context.Context, path, rev string) ([]byte, error) {\n\tif data, readErr := readExtractedGoMod(path, rev); readErr == nil {\n\t\treturn data, nil\n\t} else if !errors.Is(readErr, errNotCached) {\n\t\treturn nil, readErr\n\t}\n\t// Convert commit hash to pseudo-version\n\t// to increase cache hit rate.\n\tif !gover.ModIsValid(path, rev) {"
+    }
+  ],
+  "go/modload/modfile.go": [
+    {
+      "old": "var rawGoModSummaryCache par.ErrCache[module.Version, *modFileSummary]",
+      "new": "// SelectGraph loads the module graph for the module rooted at modDir.\n// It reads go.mod files already on disk and does not write them.\nfunc SelectGraph(ctx context.Context, modDir string) (*Loader, *ModuleGraph, error) {\n\trawGoModSummaryCache = par.ErrCache[module.Version, *modFileSummary]{}\n\tld := NewLoader()\n\tif work := ld.FindGoWork(modDir); work != \"\" {\n\t\tld.workFilePath = work\n\t} else {\n\t\tld.modRoots = []string{modDir}\n\t}\n\tmg, err := LoadModGraph(ld, ctx, \"\")\n\treturn ld, mg, err\n}\n\nvar rawGoModSummaryCache par.ErrCache[module.Version, *modFileSummary]"
+    }
   ]
 }

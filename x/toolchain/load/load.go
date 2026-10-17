@@ -1,15 +1,19 @@
 // Package load reads a module and selects the Go files to compile.
 //
 // It does not run the go command and it does not download modules.
-// Imports outside the main module resolve through the go.mod build list
-// into GOMODCACHE, or into a replace directory. Standard-library imports
-// are names; the archives themselves come from [Archives].
+// Imports outside the main module resolve through the module graph into
+// GOMODCACHE, or into a replace directory. Version selection is the
+// vendored go command module loader: minimal version selection, pruning,
+// replace, exclude, and go.work.
+// Standard-library imports are names; the archives themselves come from
+// [Archives].
 // A package with a matching .s or .syso file has [Package.Asm] set and
 // lists those paths in [Package.AsmFiles]. Those objects are not produced
 // here.
 package load
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"go/build"
@@ -38,6 +42,8 @@ var (
 	ErrExternal = errors.New("load: import is outside this module")
 	// ErrMissing means a required module is not in GOMODCACHE.
 	ErrMissing = errs.Wrap(errs.ErrMissing, "load: module is not in the cache")
+	// ErrWorkspace means GOWORK or the go.work file cannot be used.
+	ErrWorkspace = errs.Wrap(errs.ErrInvalid, "load: bad workspace")
 	// ErrEmbed means a //go:embed pattern did not resolve.
 	ErrEmbed = errs.Wrap(errs.ErrInvalid, "load: bad embed")
 	// ErrMixed means .go files were combined with package paths.
@@ -89,12 +95,15 @@ type Graph struct {
 // An empty pattern list is the package in dir. A pattern ending in
 // "..." walks that tree. A list of .go files is one package.
 // Files are chosen for this process's GOOS and GOARCH.
-func Load(dir string, patterns, tags []string) (*Graph, error) {
-	return LoadTarget(dir, patterns, tags, runtime.GOOS, runtime.GOARCH)
+func Load(ctx context.Context, dir string, patterns, tags []string) (*Graph, error) {
+	return LoadTarget(ctx, dir, patterns, tags, runtime.GOOS, runtime.GOARCH)
 }
 
 // LoadTarget is [Load] for one GOOS and GOARCH. Empty values use this process.
-func LoadTarget(dir string, patterns, tags []string, goos, goarch string) (*Graph, error) {
+func LoadTarget(ctx context.Context, dir string, patterns, tags []string, goos, goarch string) (*Graph, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if goos == "" {
 		goos = runtime.GOOS
 	}
@@ -130,7 +139,7 @@ func LoadTarget(dir string, patterns, tags []string, goos, goarch string) (*Grap
 			ReleaseTags: build.Default.ReleaseTags,
 		},
 	}
-	if err := l.buildList(mf); err != nil {
+	if err := l.buildList(ctx); err != nil {
 		return nil, err
 	}
 	dirs, files, err := l.patterns(abs, patterns)

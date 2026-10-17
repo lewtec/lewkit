@@ -1,17 +1,27 @@
 package load
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
+	"github.com/lewtec/lewkit/x/errs"
+	gobase "github.com/lewtec/lewkit/x/toolchain/go/src/go/base"
+	modcfg "github.com/lewtec/lewkit/x/toolchain/go/src/go/cfg"
+	"github.com/lewtec/lewkit/x/toolchain/go/src/go/modload"
+	"github.com/lewtec/lewkit/x/toolchain/go/src/go/mvs"
 	"golang.org/x/mod/modfile"
 	"golang.org/x/mod/module"
 )
 
 // modSrc is one module on the build list. path is the import prefix.
 // cachePath and version name the module in GOMODCACHE when dir is empty.
+// dir is set for the main module, a workspace module, or a local replace.
 type modSrc struct {
 	path      string
 	cachePath string
@@ -20,79 +30,153 @@ type modSrc struct {
 	lang      string
 }
 
-func (l *loader) buildList(f *modfile.File) error {
-	lang := "go1.27"
-	if f.Go != nil && f.Go.Version != "" {
-		lang = langTag(f.Go.Version)
+// The vendored module loader keeps its configuration in package globals.
+var modloadMu sync.Mutex
+
+// buildList selects versions with the vendored go command module loader.
+func (l *loader) buildList(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	l.mods = []modSrc{{
-		path:      l.module,
-		cachePath: l.module,
-		dir:       l.modDir,
-		lang:      lang,
-	}}
-	repls := make([]modReplace, 0, len(f.Replace))
-	for _, r := range f.Replace {
-		if r == nil || r.Old.Path == "" {
-			continue
-		}
-		rep := modReplace{oldPath: r.Old.Path, oldVer: r.Old.Version}
-		if r.New.Version == "" {
-			local := r.New.Path
-			if !filepath.IsAbs(local) {
-				local = filepath.Join(l.modDir, local)
-			}
-			rep.local = filepath.Clean(local)
-		} else {
-			rep.newPath = r.New.Path
-			rep.newVer = r.New.Version
-		}
-		repls = append(repls, rep)
+	if err := rejectWorkspace(); err != nil {
+		return err
 	}
-	seen := map[string]bool{l.module: true}
-	for _, req := range f.Require {
-		if req == nil || req.Mod.Path == "" || seen[req.Mod.Path] {
-			continue
+	modloadMu.Lock()
+	defer modloadMu.Unlock()
+	return l.selectModules(ctx)
+}
+
+func (l *loader) selectModules(ctx context.Context) (err error) {
+	defer func() {
+		recovered := recover()
+		if recovered == nil {
+			return
 		}
-		seen[req.Mod.Path] = true
-		cachePath, ver, dir := applyReplace(req.Mod.Path, req.Mod.Version, repls)
-		l.mods = append(l.mods, modSrc{
-			path:      req.Mod.Path,
-			cachePath: cachePath,
-			version:   ver,
-			dir:       dir,
-		})
+		signal, ok := recovered.(gobase.ExitSignal)
+		if !ok {
+			panic(recovered)
+		}
+		err = fmt.Errorf("%w: module loader exited: %d", errs.ErrInvalid, int(signal))
+	}()
+	saved := saveModConfig()
+	defer saved.restore()
+	modcfg.CmdName = "mod graph"
+	modcfg.BuildMod = "mod"
+	modcfg.BuildModExplicit = false
+	modcfg.GOMODCACHE = l.cache
+	modcfg.GOPROXY = "off"
+	modcfg.GOSUMDB = "off"
+
+	moduleLoader, graph, err := modload.SelectGraph(ctx, l.modDir)
+	if err != nil {
+		return missingModule(err)
+	}
+	l.modsFromGraph(moduleLoader, graph)
+	return nil
+}
+
+type modConfig struct {
+	cmdName        string
+	buildMod       string
+	buildModSet    bool
+	modCache       string
+	proxy          string
+	sumDB          string
+	modulesEnabled bool
+}
+
+func saveModConfig() modConfig {
+	return modConfig{
+		cmdName:        modcfg.CmdName,
+		buildMod:       modcfg.BuildMod,
+		buildModSet:    modcfg.BuildModExplicit,
+		modCache:       modcfg.GOMODCACHE,
+		proxy:          modcfg.GOPROXY,
+		sumDB:          modcfg.GOSUMDB,
+		modulesEnabled: modcfg.ModulesEnabled,
+	}
+}
+
+func (c modConfig) restore() {
+	modcfg.CmdName = c.cmdName
+	modcfg.BuildMod = c.buildMod
+	modcfg.BuildModExplicit = c.buildModSet
+	modcfg.GOMODCACHE = c.modCache
+	modcfg.GOPROXY = c.proxy
+	modcfg.GOSUMDB = c.sumDB
+	modcfg.ModulesEnabled = c.modulesEnabled
+}
+
+// rejectWorkspace reports a GOWORK value the go command would reject.
+// FindGoWork exits the process for a relative path, so check it first.
+func rejectWorkspace() error {
+	gowork := os.Getenv("GOWORK")
+	switch gowork {
+	case "", "auto", "off":
+		return nil
+	}
+	if !filepath.IsAbs(gowork) {
+		return fmt.Errorf("%w: GOWORK is not an absolute path", ErrWorkspace)
+	}
+	info, err := os.Stat(gowork)
+	if err != nil || info.IsDir() {
+		return fmt.Errorf("%w: %s", ErrWorkspace, gowork)
 	}
 	return nil
 }
 
-type modReplace struct {
-	oldPath string
-	oldVer  string
-	newPath string
-	newVer  string
-	local   string
+func missingModule(err error) error {
+	if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	var list *mvs.BuildListError
+	if errors.As(err, &list) {
+		m := list.Module()
+		if m.Path != "" {
+			if m.Version == "" {
+				return fmt.Errorf("%w: %s", ErrMissing, m.Path)
+			}
+			return fmt.Errorf("%w: %s@%s", ErrMissing, m.Path, m.Version)
+		}
+	}
+	return fmt.Errorf("%w: %s", ErrMissing, err.Error())
 }
 
-func applyReplace(path, ver string, repls []modReplace) (cachePath, version, dir string) {
-	var hit *modReplace
-	for i := range repls {
-		r := &repls[i]
-		if r.oldPath != path {
+func (l *loader) modsFromGraph(moduleLoader *modload.Loader, graph *modload.ModuleGraph) {
+	l.mods = nil
+	for _, m := range graph.BuildList() {
+		if m.Path == "go" || m.Path == "toolchain" || m.Version == "none" {
 			continue
 		}
-		if r.oldVer != "" && r.oldVer != ver {
+		if m.Version == "" && moduleLoader.MainModules != nil && moduleLoader.MainModules.Contains(m.Path) {
+			l.mods = append(l.mods, modSrc{
+				path: m.Path,
+				dir:  moduleLoader.MainModules.ModRoot(m),
+			})
 			continue
 		}
-		hit = r
+		src := modSrc{path: m.Path, cachePath: m.Path, version: m.Version}
+		replacement := modload.Replacement(moduleLoader, m)
+		if replacement.Version != "" {
+			src.cachePath = replacement.Path
+			src.version = replacement.Version
+		} else if replacement.Path != "" {
+			src.dir = l.replacementDir(moduleLoader, replacement.Path)
+			src.version = ""
+		}
+		l.mods = append(l.mods, src)
 	}
-	if hit == nil {
-		return path, ver, ""
+}
+
+func (l *loader) replacementDir(moduleLoader *modload.Loader, path string) string {
+	if filepath.IsAbs(path) {
+		return filepath.Clean(path)
 	}
-	if hit.local != "" {
-		return path, "", hit.local
+	base := l.modDir
+	if work := modload.WorkFilePath(moduleLoader); work != "" {
+		base = filepath.Dir(work)
 	}
-	return hit.newPath, hit.newVer, ""
+	return filepath.Clean(filepath.Join(base, path))
 }
 
 func (l *loader) longest(path string) *modSrc {

@@ -322,7 +322,7 @@ func moduleRoot(dir string) (string, error) {
 }
 
 func linkModule(ctx context.Context, opt Options, work string, std map[string]string, elf string) error {
-	g, err := load.LoadTarget(opt.Dir, []string{"."}, nil, "tamago", "amd64")
+	g, err := load.LoadTarget(ctx, opt.Dir, []string{"."}, nil, "tamago", "amd64")
 	if err != nil {
 		return err
 	}
