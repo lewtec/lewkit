@@ -4,7 +4,9 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/lewtec/lewkit/examples/app/internal/icon"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/http/asset/lucide"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
@@ -44,8 +46,8 @@ func (model *spinModel) View() gui.Node {
 	raster := model.frameModel.View()
 	ink := gui.RGB{255, 255, 255, 255}
 	fill := gui.RGB{16, 16, 16, 210}
-	model.minus = spinButton("-", fill, ink)
-	model.plus = spinButton("+", fill, ink)
+	model.minus = spinButton(lucide.NameMinus, fill, ink)
+	model.plus = spinButton(lucide.NamePlus, fill, ink)
 	label := &gui.Box{
 		Width: 96, Height: 56, Radius: 12,
 		Fill: &fill, Align: gui.Alignment{0.5, 0.5},
@@ -72,10 +74,10 @@ func (model *spinModel) bump(delta float64) {
 	model.scale = math.Round((model.scale+delta)/triangleTurnStep) * triangleTurnStep
 }
 
-func spinButton(label string, fill, ink gui.RGB) *gui.Box {
+func spinButton(name lucide.Name, fill, ink gui.RGB) *gui.Box {
 	return &gui.Box{
 		Width: 56, Height: 56, Radius: 12,
 		Fill: &fill, Align: gui.Alignment{0.5, 0.5},
-		Child: &gui.Text{Value: label, Ink: ink},
+		Child: icon.Node(name, ink, 22),
 	}
 }

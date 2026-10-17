@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lewtec/lewkit/examples/app/internal/icon"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/http/asset/lucide"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/net/gemini"
 	"github.com/lewtec/lewkit/x/ui/gui"
@@ -682,10 +684,10 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 	canBack := b.histIndex > 0
 	canFwd := b.histIndex+1 < len(b.history)
 
-	backBtn := b.navButton("back", "<", canBack, pal)
-	fwdBtn := b.navButton("forward", ">", canFwd, pal)
-	homeBtn := b.navButton("home", "H", true, pal)
-	reloadBtn := b.navButton("reload", "R", true, pal)
+	backBtn := b.navButton("back", lucide.NameChevronLeft, canBack, pal)
+	fwdBtn := b.navButton("forward", lucide.NameChevronRight, canFwd, pal)
+	homeBtn := b.navButton("home", lucide.NameHouse, true, pal)
+	reloadBtn := b.navButton("reload", lucide.NameRotateCcw, true, pal)
 
 	glow := b.addrGlow.Value()
 	addrBorder := gui.LerpRGB(pal.border, pal.accent, glow)
@@ -718,10 +720,10 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 		},
 	}
 
-	starLabel := "+"
+	mark := lucide.NameBookmark
 	starFill := pal.card
 	if b.isBookmarked(b.current.url) {
-		starLabel = "*"
+		mark = lucide.NameBookmarkCheck
 		starFill = pal.accentDim
 	}
 	starBtn := &gui.Box{
@@ -731,15 +733,15 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 		Radius: 10,
 		Fill:   &starFill,
 		Align:  gui.Alignment{X: 0.5, Y: 0.5},
-		Child:  &gui.Text{Value: starLabel, Face: b.face(1.05), Ink: pal.accent},
+		Child:  icon.Node(mark, pal.accent, 18),
 	}
 
-	themeLabel := "D"
+	theme := lucide.NameMoon
 	if b.mode == daynight.Light {
-		themeLabel = "L"
+		theme = lucide.NameSun
 	}
-	themeBtn := b.navButton("theme", themeLabel, true, pal)
-	drawerBtn := b.navButton("drawer", "=", true, pal)
+	themeBtn := b.navButton("theme", theme, true, pal)
+	drawerBtn := b.navButton("drawer", lucide.NameMenu, true, pal)
 
 	row := &gui.Flex{
 		Axis:  gui.Horizontal,
@@ -764,7 +766,7 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 	}
 }
 
-func (b *Browser) navButton(key, label string, enabled bool, pal browserPalette) gui.Node {
+func (b *Browser) navButton(key string, name lucide.Name, enabled bool, pal browserPalette) gui.Node {
 	ink := pal.text
 	fill := pal.card
 	if !enabled {
@@ -778,7 +780,7 @@ func (b *Browser) navButton(key, label string, enabled bool, pal browserPalette)
 		Radius: 10,
 		Fill:   &fill,
 		Align:  gui.Alignment{X: 0.5, Y: 0.5},
-		Child:  &gui.Text{Value: label, Face: b.face(1.0), Ink: ink},
+		Child:  icon.Node(name, ink, 18),
 	}
 }
 
@@ -877,7 +879,11 @@ func (b *Browser) renderPage(page pageState, active bool, pal browserPalette) gu
 				Gap:   10,
 				Cross: gui.CrossStart,
 				Children: []gui.FlexChild{
-					{Child: &gui.Text{Value: "•", Face: b.face(1.0), Ink: pal.accent}},
+					{Child: &gui.Box{
+						Width: 16, Height: 18,
+						Align: gui.Alignment{X: 0.5, Y: 0.5},
+						Child: icon.Node(lucide.NameCircleSmall, pal.accent, 12),
+					}},
 					gui.Expanded(&gui.Text{Value: line.Text, Face: b.face(1.0), Ink: pal.text}),
 				},
 			}
@@ -952,7 +958,7 @@ func (b *Browser) linkCard(key, label, target string, pal browserPalette) gui.No
 				Radius: 6,
 				Fill:   &badgeFill,
 				Align:  gui.Alignment{X: 0.5, Y: 0.5},
-				Child:  &gui.Text{Value: "=>", Face: b.face(0.85), Ink: pal.accent},
+				Child:  icon.Node(lucide.NameArrowRight, pal.accent, 16),
 			}},
 			gui.Expanded(gui.WithGap(2, gui.WithCross(gui.CrossStart, gui.Column(
 				&gui.Text{Value: label, Face: b.face(1.02), Ink: pal.accent},

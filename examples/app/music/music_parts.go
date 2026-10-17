@@ -5,7 +5,9 @@ import (
 	"image"
 	"strconv"
 
+	"github.com/lewtec/lewkit/examples/app/internal/icon"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/http/asset/lucide"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"golang.org/x/image/font"
@@ -60,11 +62,15 @@ func (s musicStyle) stack(children ...gui.Node) *gui.Flex {
 	return gui.WithGap(s.px(8), gui.WithCross(gui.CrossStart, gui.Column(children...)))
 }
 
-func (s musicStyle) round(key, label string, size float32, fill, ink *gui.RGB) *gui.Box {
+func (s musicStyle) roundIcon(key string, name lucide.Name, size float32, fill, ink *gui.RGB) *gui.Box {
+	color := gui.RGB{}
+	if ink != nil {
+		color = *ink
+	}
 	return &gui.Box{
 		Key: key, Width: size, Height: size, Radius: size / 2, Fill: fill,
 		Align: gui.Alignment{X: 0.5, Y: 0.5},
-		Child: s.line(label, ink),
+		Child: icon.Node(name, color, size*0.5),
 	}
 }
 
@@ -118,7 +124,7 @@ func (h *headerModel) View() gui.Node {
 	}
 	lead := gui.Node(&gui.Box{Width: h.px(8)})
 	if h.showBack {
-		lead = h.round("back", "<", h.px(36), &h.paint.panel, &h.paint.text)
+		lead = h.roundIcon("back", lucide.NameChevronLeft, h.px(36), &h.paint.panel, &h.paint.text)
 	}
 	side := h.px(36)
 	open := &gui.Box{
@@ -129,7 +135,7 @@ func (h *headerModel) View() gui.Node {
 	search := &gui.Box{
 		Key: "search", Width: side, Height: side, Radius: side / 2, Fill: &h.paint.panel,
 		Align: gui.Alignment{X: 0.5, Y: 0.5},
-		Child: h.line("?", &h.paint.text),
+		Child: icon.Node(lucide.NameSearch, h.paint.text, side*0.5),
 	}
 	heading := gui.Node(&gui.Box{})
 	if h.title != "" {
@@ -313,13 +319,13 @@ func (n *nowModel) View() gui.Node {
 		&gui.Box{Width: content, Height: barH, Radius: barH / 2, Fill: &n.paint.bar},
 		&gui.Box{Width: max(frac*content, barH), Height: barH, Radius: barH / 2, Fill: &n.paint.text},
 	}}}
-	label := ">"
+	mark := lucide.NamePlay
 	if n.playing {
-		label = "||"
+		mark = lucide.NamePause
 	}
-	play := n.round("play", label, n.px(64), &n.paint.text, &n.paint.onPlay)
-	prev := n.round("prev", "|<", n.px(44), &n.paint.panel, &n.paint.text)
-	next := n.round("next", ">|", n.px(44), &n.paint.panel, &n.paint.text)
+	play := n.roundIcon("play", mark, n.px(64), &n.paint.text, &n.paint.onPlay)
+	prev := n.roundIcon("prev", lucide.NameSkipBack, n.px(44), &n.paint.panel, &n.paint.text)
+	next := n.roundIcon("next", lucide.NameSkipForward, n.px(44), &n.paint.panel, &n.paint.text)
 	gap := n.px(18)
 	left := clockDuration(framesToDuration(n.played, n.total, n.track))
 	right := "0:00"
