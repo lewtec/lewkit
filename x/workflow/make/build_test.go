@@ -65,7 +65,7 @@ func TestCondaCompiler(t *testing.T) {
 	require.NoError(t, os.MkdirAll(bin, 0o755))
 	log := filepath.Join(dir, "conda.log")
 	wrapper := filepath.Join(bin, "x86_64-conda-linux-gnu-gcc")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\nexec '" + filepath.ToSlash(gcc) + "' \"$@\"\n"
+	script := condaCompilerScript(log, gcc)
 	require.NoError(t, os.WriteFile(wrapper, []byte(script), 0o755))
 	t.Setenv("CONDA_PREFIX", conda)
 	t.Setenv("CC", wrapper)
@@ -82,6 +82,24 @@ func TestCondaCompiler(t *testing.T) {
 	again, err := os.ReadFile(log)
 	require.NoError(t, err)
 	assert.Equal(t, string(body), string(again))
+}
+
+// condaCompilerScript records the invocation, then runs the host compiler.
+// MinGW gcc -o hello writes hello.exe. Copying that file onto the
+// requested name keeps the make output fresh.
+func condaCompilerScript(log, gcc string) string {
+	return "#!/bin/sh\n" +
+		"printf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\n" +
+		"'" + filepath.ToSlash(gcc) + "' \"$@\"\n" +
+		"status=$?\n" +
+		"prev=\n" +
+		"for arg in \"$@\"; do\n" +
+		"  if [ \"$prev\" = -o ] && [ ! -e \"$arg\" ] && [ -e \"$arg.exe\" ]; then\n" +
+		"    cp \"$arg.exe\" \"$arg\"\n" +
+		"  fi\n" +
+		"  prev=$arg\n" +
+		"done\n" +
+		"exit \"$status\"\n"
 }
 
 func writeSources(t *testing.T, dir string) {

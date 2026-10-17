@@ -84,7 +84,10 @@ func resolveToken(ctx context.Context) string {
 }
 
 func tokenFromEnv(context.Context) (string, error) {
-	for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN"} {
+	// MISE_GITHUB_TOKEN is set by mise-action. Host CI does not export
+	// GITHUB_TOKEN into the test step, so the mise variable is the token
+	// that is actually present.
+	for _, key := range []string{"GH_TOKEN", "GITHUB_TOKEN", "MISE_GITHUB_TOKEN"} {
 		if token := cleanToken(os.Getenv(key)); token != "" {
 			return token, nil
 		}

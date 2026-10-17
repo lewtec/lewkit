@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"io"
+	goruntime "runtime"
 	"strings"
 
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
@@ -50,7 +51,7 @@ func (c Command) Run(ctx context.Context, _ *taskgroup.Status) error {
 	if strings.TrimSpace(c.Text) == "" {
 		return nil
 	}
-	cmd := execdriver.MustCommand(ctx, "sh", "-c", c.Text)
+	cmd := execdriver.MustCommand(ctx, "sh", "-c", shLine(c.Text))
 	dir := c.Dir
 	if dir == "" {
 		dir = Dir(ctx)
@@ -73,6 +74,15 @@ func (c Command) Run(ctx context.Context, _ *taskgroup.Status) error {
 
 // String is the shell line, used as the step title when Desc is empty.
 func (c Command) String() string { return c.Text }
+
+// shLine is the text passed to sh -c. Git bash treats \ as an escape,
+// so a Windows path in a recipe is rewritten with slashes.
+func shLine(text string) string {
+	if goruntime.GOOS != "windows" {
+		return text
+	}
+	return strings.ReplaceAll(text, `\`, "/")
+}
 
 // Func is an in-process task. The function has the same shape as the
 // callback passed to taskgroup.Go.

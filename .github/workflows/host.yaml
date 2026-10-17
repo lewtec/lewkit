@@ -19,7 +19,9 @@ jobs:
         run: mise run test:host
         env:
           CGO_ENABLED: "0"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Tests
         run: mise run test
         env:
           CGO_ENABLED: "0"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -111,9 +112,17 @@ func TestMissingWebViewDoesNotLoopback(t *testing.T) {
 		require.ErrorIs(t, err, driver.ErrUnavailable)
 	case <-time.After(2 * time.Second):
 		// A host with a webview blocks in the view. Cancel closes it.
-		// The missing-driver path is the branch above.
+		// Open can return nil once the view is up, or context.Canceled
+		// when the cancel lands inside Open. Either means it stopped.
 		cancel()
-		require.NoError(t, <-done)
+		select {
+		case err := <-done:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				require.NoError(t, err)
+			}
+		case <-time.After(2 * time.Second):
+			require.FailNow(t, "webview open did not return after cancel")
+		}
 	}
 }
 

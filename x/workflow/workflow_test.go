@@ -156,16 +156,25 @@ func TestJoinSlashName(t *testing.T) {
 	assert.Equal(t, filepath.Join("/tmp/work", "src", "a.c"), Join("/tmp/work", "src/a.c"))
 	assert.Equal(t, filepath.Join("/tmp/work", "a.c"), Join("/tmp/work", "src/../a.c"))
 	assert.Equal(t, filepath.Clean("/abs/a.c"), Join("/tmp/work", "/abs/a.c"))
-	assert.Equal(t, filepath.Clean("/tmp/work"), Join("/tmp/work", "."))
+	assert.Equal(t, "/tmp/work", Join("/tmp/work", "."))
 	assert.Equal(t, "", Join("/tmp/work", ""))
-	assert.Equal(t, filepath.Join("src", "a.c"), Join("", "src/a.c"))
+	assert.Equal(t, "src/a.c", Join("", "src/a.c"))
 	assert.Equal(t, filepath.Join("/tmp/work", "src"), outputParent("/tmp/work", "src/a.c"))
-	assert.Equal(t, filepath.Clean("/tmp/work"), outputParent("/tmp/work", "a.c"))
+	assert.Equal(t, "/tmp/work", outputParent("/tmp/work", "a.c"))
 	assert.Equal(t, filepath.Clean("/abs"), outputParent("/tmp/work", "/abs/a.c"))
 	if goruntime.GOOS == "windows" {
 		assert.Equal(t, `C:\mod\pkg\main.a`, Join(`D:\work`, `C:\mod\pkg\main.a`))
 		assert.Equal(t, `C:\mod\pkg`, outputParent(`D:\work`, `C:\mod\pkg\main.a`))
 	}
+}
+
+func TestShellLineKeepsBackslashOffWindows(t *testing.T) {
+	got := shLine(`C:\bin\gcc -o out`)
+	if goruntime.GOOS == "windows" {
+		assert.Equal(t, "C:/bin/gcc -o out", got)
+		return
+	}
+	assert.Equal(t, `C:\bin\gcc -o out`, got)
 }
 
 func TestMergeEnvReplaces(t *testing.T) {

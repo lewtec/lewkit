@@ -103,6 +103,19 @@ func isASCIILetter(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
+// fileURLDrive is the Windows path stored in a file URL.
+func fileURLDrive(u *url.URL) (string, bool) {
+	if drive, ok := windowsDrivePath(u.Host); ok {
+		return drive + u.Path, true
+	}
+	if len(u.Path) >= 4 && u.Path[0] == '/' {
+		if drive, ok := windowsDrivePath(u.Path[1:]); ok {
+			return drive, true
+		}
+	}
+	return "", false
+}
+
 func memoryDSN(dsn string) bool {
 	return dsn == ":memory:" || strings.Contains(dsn, "mode=memory") || strings.Contains(dsn, ":memory:")
 }
@@ -111,6 +124,11 @@ func sqliteDSN(u *url.URL, raw string) string {
 	if u.Scheme == "file" {
 		if u.Opaque != "" {
 			return u.Opaque + q(u)
+		}
+		// file://C:/db and file:///C:/db both name the drive path.
+		// The letter lands in Host or behind a leading slash.
+		if drive, ok := fileURLDrive(u); ok {
+			return drive + q(u)
 		}
 		if u.Path != "" {
 			return u.Path + q(u)

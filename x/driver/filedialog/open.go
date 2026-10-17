@@ -119,8 +119,8 @@ type localEntry struct {
 type dirFS struct{ path string }
 
 func (d dirFS) Open(name string) (fs.File, error) {
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	if err := openName(name); err != nil {
+		return nil, err
 	}
 	full := d.path
 	if name != "." {
@@ -146,9 +146,18 @@ type localFS struct {
 	entries []localEntry
 }
 
+// openName rejects a name fstest treats as invalid.
+// Go 1.27 fs.ValidPath allows a backslash, and Join would then open the real file.
+func openName(name string) error {
+	if !fs.ValidPath(name) || strings.Contains(name, `\`) {
+		return &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	}
+	return nil
+}
+
 func (f *localFS) Open(name string) (fs.File, error) {
-	if !fs.ValidPath(name) {
-		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	if err := openName(name); err != nil {
+		return nil, err
 	}
 	if name == "." {
 		ents := make([]fs.DirEntry, len(f.entries))

@@ -119,7 +119,7 @@ func TestCondaCompilerOnPath(t *testing.T) {
 	bin := filepath.Join(conda, "bin")
 	require.NoError(t, os.MkdirAll(bin, 0o755))
 	log := filepath.Join(dir, "conda.log")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\nexec '" + filepath.ToSlash(gcc) + "' \"$@\"\n"
+	script := condaCompilerScript(log, gcc)
 	require.NoError(t, os.WriteFile(filepath.Join(bin, "gcc"), []byte(script), 0o755))
 	t.Setenv("CONDA_PREFIX", conda)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -149,6 +149,24 @@ build util.o: cc util.c
 build hello: link main.o util.o
 default hello
 `
+
+// condaCompilerScript records the invocation, then runs the host compiler.
+// MinGW gcc -o hello writes hello.exe. Copying that file onto the
+// requested name keeps the ninja output fresh.
+func condaCompilerScript(log, gcc string) string {
+	return "#!/bin/sh\n" +
+		"printf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\n" +
+		"'" + filepath.ToSlash(gcc) + "' \"$@\"\n" +
+		"status=$?\n" +
+		"prev=\n" +
+		"for arg in \"$@\"; do\n" +
+		"  if [ \"$prev\" = -o ] && [ ! -e \"$arg\" ] && [ -e \"$arg.exe\" ]; then\n" +
+		"    cp \"$arg.exe\" \"$arg\"\n" +
+		"  fi\n" +
+		"  prev=$arg\n" +
+		"done\n" +
+		"exit \"$status\"\n"
+}
 
 func write(t *testing.T, dir, name, body string) {
 	t.Helper()
