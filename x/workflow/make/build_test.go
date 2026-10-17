@@ -65,7 +65,7 @@ func TestCondaCompiler(t *testing.T) {
 	require.NoError(t, os.MkdirAll(bin, 0o755))
 	log := filepath.Join(dir, "conda.log")
 	wrapper := filepath.Join(bin, "x86_64-conda-linux-gnu-gcc")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> \"" + log + "\"\nexec " + gcc + " \"$@\"\n"
+	script := "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\nexec '" + filepath.ToSlash(gcc) + "' \"$@\"\n"
 	require.NoError(t, os.WriteFile(wrapper, []byte(script), 0o755))
 	t.Setenv("CONDA_PREFIX", conda)
 	t.Setenv("CC", wrapper)

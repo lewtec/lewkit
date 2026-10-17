@@ -108,7 +108,7 @@ func TestWriteBendLauncher(t *testing.T) {
 	path := filepath.Join(dest, "bin", "bend")
 	info, err := os.Stat(path)
 	require.NoError(t, err)
-	require.NotZero(t, info.Mode()&0o111)
+	require.True(t, test.Executable(info.Mode()))
 	got, err := os.ReadFile(path)
 	require.NoError(t, err)
 	script := string(got)

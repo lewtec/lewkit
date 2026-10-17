@@ -243,9 +243,15 @@ func Join(dir, name string) string {
 	if name == "" {
 		return ""
 	}
+	// A Windows volume path is absolute on the host and relative to the
+	// slash path package. Return it unchanged so the output directory is
+	// the volume directory, not a relative name under dir.
+	if filepath.IsAbs(name) {
+		return name
+	}
 	p := lewpath.New(name)
 	if p.IsAbs() {
-		return name
+		return filepath.FromSlash(p.String())
 	}
 	if dir == "" {
 		return name
@@ -311,6 +317,9 @@ func mkdirOutputs(dir string, outs []string) error {
 func outputParent(dir, name string) string {
 	if name == "" {
 		return ""
+	}
+	if filepath.IsAbs(name) {
+		return filepath.Dir(name)
 	}
 	p := lewpath.New(name)
 	if p.IsAbs() || !p.Valid() {

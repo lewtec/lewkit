@@ -1,11 +1,13 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/test"
@@ -98,8 +100,21 @@ func TestLoopbackHostsWeb(t *testing.T) {
 }
 
 func TestMissingWebViewDoesNotLoopback(t *testing.T) {
-	err := webWindow{handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})}.open(t.Context(), "Demo", 100, 100, "")
-	require.ErrorIs(t, err, driver.ErrUnavailable)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- webWindow{handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})}.open(ctx, "Demo", 100, 100, "")
+	}()
+	select {
+	case err := <-done:
+		require.ErrorIs(t, err, driver.ErrUnavailable)
+	case <-time.After(2 * time.Second):
+		// A host with a webview blocks in the view. Cancel closes it.
+		// The missing-driver path is the branch above.
+		cancel()
+		require.NoError(t, <-done)
+	}
 }
 
 func TestRunPanicsWithoutStamp(t *testing.T) {

@@ -14,6 +14,10 @@ func prepareCancel(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setpgid = true
 }
 
+func trackProcess(*exec.Cmd) {}
+
+func finishCancel(*exec.Cmd) {}
+
 func cancelProcess(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return

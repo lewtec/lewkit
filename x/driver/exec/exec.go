@@ -116,6 +116,7 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	trackProcess(cmd)
 	context.AfterFunc(ctx, func() { cancelProcess(cmd) })
 	return nil
 }
@@ -123,6 +124,7 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 // Wait waits for cmd. A cancelled ctx wins over the process exit error.
 func Wait(ctx context.Context, cmd *exec.Cmd) error {
 	err := cmd.Wait()
+	finishCancel(cmd)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}

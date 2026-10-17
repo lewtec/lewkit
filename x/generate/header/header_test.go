@@ -541,12 +541,13 @@ func moduleRoot(t *testing.T) string {
 }
 
 func goEnv() []string {
+	root := filepath.Join(os.TempDir(), "lewkit-header")
 	env := os.Environ()
 	prefix := []string{
-		"HOME=/tmp/home",
-		"GOPATH=/tmp/gopath",
-		"GOMODCACHE=/tmp/gopath/pkg/mod",
-		"GOCACHE=/tmp/gocache",
+		"HOME=" + filepath.Join(root, "home"),
+		"GOPATH=" + filepath.Join(root, "gopath"),
+		"GOMODCACHE=" + filepath.Join(root, "gopath", "pkg", "mod"),
+		"GOCACHE=" + filepath.Join(root, "gocache"),
 		"GOPROXY=https://proxy.golang.org,direct",
 	}
 	return append(prefix, env...)

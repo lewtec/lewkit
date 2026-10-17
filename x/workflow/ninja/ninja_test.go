@@ -119,7 +119,7 @@ func TestCondaCompilerOnPath(t *testing.T) {
 	bin := filepath.Join(conda, "bin")
 	require.NoError(t, os.MkdirAll(bin, 0o755))
 	log := filepath.Join(dir, "conda.log")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> \"" + log + "\"\nexec " + gcc + " \"$@\"\n"
+	script := "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\nexec '" + filepath.ToSlash(gcc) + "' \"$@\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(bin, "gcc"), []byte(script), 0o755))
 	t.Setenv("CONDA_PREFIX", conda)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))

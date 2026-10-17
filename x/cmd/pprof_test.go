@@ -16,6 +16,7 @@ func TestPprofArgParse(t *testing.T) {
 	}{
 		{name: "empty", in: ""},
 		{name: "absolute dir", in: "/tmp/p", directory: "/tmp/p"},
+		{name: "windows dir", in: `C:\prof`, directory: `C:\prof`},
 		{name: "relative dir", in: "./out", directory: "./out"},
 		{name: "name", in: "profiles", directory: "profiles"},
 		{name: "all interfaces", in: ":6060", address: ":6060"},

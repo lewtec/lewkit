@@ -119,20 +119,27 @@ type localEntry struct {
 type dirFS struct{ path string }
 
 func (d dirFS) Open(name string) (fs.File, error) {
-	f, err := os.DirFS(d.path).Open(name)
+	if !fs.ValidPath(name) {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	}
+	full := d.path
+	if name != "." {
+		full = filepath.Join(d.path, filepath.FromSlash(name))
+	}
+	f, err := os.Open(full)
 	if err != nil {
 		return nil, err
 	}
-	file, ok := f.(*os.File)
-	if !ok {
-		return f, nil
-	}
-	st, err := file.Stat()
+	st, err := os.Lstat(full)
 	if err != nil {
-		file.Close()
+		f.Close()
 		return nil, err
 	}
-	return &localFile{name: path.Base(name), f: file, dir: st.IsDir()}, nil
+	base := name
+	if name != "." {
+		base = path.Base(name)
+	}
+	return &localFile{name: base, path: full, f: f, dir: st.IsDir()}, nil
 }
 
 type localFS struct {
@@ -170,7 +177,7 @@ func (f *localFS) Open(name string) (fs.File, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &localFile{name: ent.name, f: file, dir: ent.dir}, nil
+		return &localFile{name: ent.name, path: ent.path, f: file, dir: ent.dir}, nil
 	}
 	if !ent.dir {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
@@ -180,6 +187,7 @@ func (f *localFS) Open(name string) (fs.File, error) {
 
 type localFile struct {
 	name string
+	path string
 	f    *os.File
 	dir  bool
 	ents []fs.DirEntry
@@ -189,6 +197,15 @@ type localFile struct {
 func (f *localFile) Stat() (fs.FileInfo, error) {
 	if f.f == nil {
 		return rootInfo{name: f.name}, nil
+	}
+	// FindFirstFile and GetFileInformationByHandle disagree on a
+	// directory's ModTime. Lstat matches DirEntry.Info below.
+	if f.path != "" {
+		st, err := os.Lstat(f.path)
+		if err != nil {
+			return nil, err
+		}
+		return namedInfo{FileInfo: st, name: f.name}, nil
 	}
 	st, err := f.f.Stat()
 	if err != nil {
@@ -223,9 +240,27 @@ func (f *localFile) ReadDir(n int) ([]fs.DirEntry, error) {
 		slices.SortFunc(all, func(a, b fs.DirEntry) int {
 			return cmp.Compare(a.Name(), b.Name())
 		})
-		f.ents = all
+		wrapped := make([]fs.DirEntry, len(all))
+		for i, ent := range all {
+			wrapped[i] = pathEntry{DirEntry: ent, path: filepath.Join(f.path, ent.Name())}
+		}
+		f.ents = wrapped
 	}
 	return lewfs.DirEntries(f.ents, &f.off, n)
+}
+
+// pathEntry reports Info from Lstat so it matches localFile.Stat.
+type pathEntry struct {
+	fs.DirEntry
+	path string
+}
+
+func (e pathEntry) Info() (fs.FileInfo, error) {
+	st, err := os.Lstat(e.path)
+	if err != nil {
+		return nil, err
+	}
+	return namedInfo{FileInfo: st, name: e.Name()}, nil
 }
 
 type namedInfo struct {

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,7 +55,7 @@ func TestCopyFile_WritesMode(t *testing.T) {
 	}
 	info, err := os.Stat(dst)
 	require.NoError(t, err)
-	if info.Mode().Perm() != 0o755 {
+	if info.Mode().Perm() != test.HostPerm(0o755) {
 		require.FailNowf(t, "", "mode=%v", info.Mode().Perm())
 	}
 }

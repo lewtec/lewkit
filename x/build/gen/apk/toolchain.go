@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -203,8 +204,16 @@ func javaInstallRoot(bin string) string {
 	return filepath.Dir(filepath.Dir(resolved))
 }
 
+func javaBin(home string) string {
+	name := "java"
+	if runtime.GOOS == "windows" {
+		name = "java.exe"
+	}
+	return filepath.Join(home, "bin", name)
+}
+
 func jdkDirOK(ctx context.Context, home string) (bool, error) {
-	bin := filepath.Join(home, "bin", "java")
+	bin := javaBin(home)
 	if !isFile(bin) {
 		return false, fmt.Errorf("%w: %s", os.ErrNotExist, bin)
 	}
