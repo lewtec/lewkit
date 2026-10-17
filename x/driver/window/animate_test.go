@@ -138,7 +138,9 @@ func TestDriveTicksWhileIdle(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		require.FailNow(t, "timeout waiting for drive")
 	}
-	time.Sleep(45 * time.Millisecond)
+	// 10ms is finer than the Windows clock. The count still has to reach
+	// four, so the wait covers several coarse ticks.
+	time.Sleep(100 * time.Millisecond)
 	got := ticks.Load()
 	cancel()
 	require.NoError(t, <-done)
@@ -147,7 +149,8 @@ func TestDriveTicksWhileIdle(t *testing.T) {
 
 func TestDriveKeepsTickingAfterEvent(t *testing.T) {
 	// The memory window's clock is the Go ticker. A native driver can
-	// coalesce ticks, and this assertion counts them.
+	// coalesce ticks. The wait below covers a coarse host clock; the
+	// count is still three nil events after the pointer.
 	w, err := mem.Open(t.Context(), window.Config{Width: 8, Height: 8})
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, w)
@@ -176,7 +179,7 @@ func TestDriveKeepsTickingAfterEvent(t *testing.T) {
 	type emitter interface{ Emit(window.Event) }
 	w.(emitter).Emit(window.Pointer{Pos: image.Pt(1, 1)})
 	before := ticks.Load()
-	time.Sleep(45 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	got := ticks.Load()
 	cancel()
 	require.NoError(t, <-done)
