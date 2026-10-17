@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/lewtec/lewkit/x/toolchain/go/src/std/buildcfg"
 	"github.com/lewtec/lewkit/x/toolchain/load"
 )
 
@@ -128,6 +130,7 @@ func BuildLoaded(ctx context.Context, m Loaded) (string, error) {
 		if !filepath.IsAbs(out) {
 			out = filepath.Join(m.Graph.Dir, out)
 		}
+		out = windowsExe(buildcfg.GOOS, out)
 		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
 			return "", err
 		}
@@ -157,4 +160,14 @@ func BuildLoaded(ctx context.Context, m Loaded) (string, error) {
 		return "", err
 	}
 	return linked, nil
+}
+
+// windowsExe is the path CreateProcess will run. The go command adds .exe
+// on Windows before the link; a file named hello is not in PATHEXT, so
+// exec reports it missing even when the link wrote it.
+func windowsExe(goos, out string) string {
+	if goos != "windows" || strings.HasSuffix(strings.ToLower(out), ".exe") {
+		return out
+	}
+	return out + ".exe"
 }
