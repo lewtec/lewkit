@@ -2,11 +2,14 @@
 //
 // It does not run the go command and it does not download modules.
 // Imports outside the main module resolve through the module graph into
-// GOMODCACHE, or into a replace directory. The graph is the main module's
-// requirements plus each selected module's own requirements. The highest
-// version of a module wins. Only the main module's replace directives
-// apply. Standard-library imports are names; the archives themselves
-// come from [Archives].
+// GOMODCACHE, or into a replace directory. The graph is minimal version
+// selection. A module that declares go 1.17 or higher contributes its
+// own requirements, and the transitive requirements of older modules are
+// kept. The main module's replace and exclude directives apply. When a
+// go.work file applies, it supplies the workspace roots and its
+// replacements, and every workspace module's excludes apply.
+// Standard-library imports are names; the archives themselves come from
+// [Archives].
 // A package with a matching .s or .syso file has [Package.Asm] set and
 // lists those paths in [Package.AsmFiles]. Those objects are not produced
 // here.
@@ -28,6 +31,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/errs"
 	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
 
 var (
@@ -41,6 +45,8 @@ var (
 	ErrExternal = errors.New("load: import is outside this module")
 	// ErrMissing means a required module is not in GOMODCACHE.
 	ErrMissing = errs.Wrap(errs.ErrMissing, "load: module is not in the cache")
+	// ErrWorkspace means GOWORK or the go.work file cannot be used.
+	ErrWorkspace = errs.Wrap(errs.ErrInvalid, "load: bad workspace")
 	// ErrEmbed means a //go:embed pattern did not resolve.
 	ErrEmbed = errs.Wrap(errs.ErrInvalid, "load: bad embed")
 	// ErrMixed means .go files were combined with package paths.
@@ -254,14 +260,18 @@ func isSpace(c byte) bool {
 }
 
 type loader struct {
-	modDir string
-	module string
-	cache  string
-	mods   []modSrc
-	repls  []modReplace
-	seen   map[string]*Package
-	order  []string
-	bctx   build.Context
+	modDir    string
+	module    string
+	cache     string
+	mods      []modSrc
+	repls     []modReplace
+	workRepls []modReplace
+	excluded  map[module.Version]struct{}
+	mains     map[string]bool
+	summaries map[module.Version]modSummary
+	seen      map[string]*Package
+	order     []string
+	bctx      build.Context
 }
 
 func (l *loader) patterns(base string, patterns []string) (dirs, files []string, err error) {

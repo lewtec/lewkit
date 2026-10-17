@@ -207,6 +207,218 @@ func TestLoadReplaceTransitive(t *testing.T) {
 	}
 }
 
+func TestLoadPrunedGraph(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GOMODCACHE", cache)
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(cache, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	// Keeping the highest requirement anywhere in the closure would select
+	// hidden. A module at go 1.17 or higher does not contribute hidden,
+	// because hidden is only required by leaf.
+	write("example.com/mid@v1.0.0/go.mod", "module example.com/mid\n\ngo 1.21\n\nrequire example.com/leaf v1.0.0\n")
+	write("example.com/mid@v1.0.0/mid.go", "package mid\n")
+	write("example.com/leaf@v1.0.0/go.mod", "module example.com/leaf\n\ngo 1.21\n\nrequire example.com/hidden v1.2.0\n")
+	write("example.com/leaf@v1.0.0/leaf.go", "package leaf\n")
+	write("example.com/hidden@v1.2.0/go.mod", "module example.com/hidden\n\ngo 1.21\n")
+	write("example.com/hidden@v1.2.0/hidden.go", "package hidden\n\nconst N = 2\n")
+
+	dir := t.TempDir()
+	writeMod := func(mod string) {
+		t.Helper()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644))
+		src := "package main\n\nimport \"example.com/hidden\"\n\nfunc main() { println(hidden.N) }\n"
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644))
+	}
+	writeMod("module example.com/app\n\ngo 1.22\n\nrequire example.com/mid v1.0.0\n")
+	_, err := Load(dir, nil, nil)
+	require.ErrorIs(t, err, ErrExternal)
+
+	// go 1.17 is the first pruned release. A release candidate is older.
+	writeMod("module example.com/app\n\ngo 1.17\n\nrequire example.com/mid v1.0.0\n")
+	_, err = Load(dir, nil, nil)
+	require.ErrorIs(t, err, ErrExternal)
+	writeMod("module example.com/app\n\ngo 1.17rc1\n\nrequire example.com/mid v1.0.0\n")
+	g, err := Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || !strings.Contains(g.Pkgs[0].Dir, "hidden@v1.2.0") {
+		require.FailNowf(t, "", "release candidate %+v", g.Pkgs)
+	}
+
+	writeMod("module example.com/app\n\ngo 1.22\n\nrequire example.com/mid v1.0.0\n")
+	write("example.com/mid@v1.0.0/go.mod", "module example.com/mid\n\ngo 1.16\n\nrequire example.com/leaf v1.0.0\n")
+	g, err = Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/hidden" || !strings.Contains(g.Pkgs[0].Dir, "hidden@v1.2.0") {
+		require.FailNowf(t, "", "unpruned %+v", g.Pkgs)
+	}
+}
+
+func TestLoadExcludedVersion(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GOMODCACHE", cache)
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(cache, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	write("example.com/mid@v1.0.0/go.mod", "module example.com/mid\n\ngo 1.21\n\nrequire example.com/leaf v1.2.0\n")
+	write("example.com/mid@v1.0.0/mid.go", "package mid\n")
+	write("example.com/leaf@v1.0.0/go.mod", "module example.com/leaf\n\ngo 1.20\n")
+	write("example.com/leaf@v1.0.0/backend/backend.go", "package backend\n\nconst N = 1\n")
+	write("example.com/leaf@v1.2.0/go.mod", "module example.com/leaf\n\ngo 1.21\n")
+	write("example.com/leaf@v1.2.0/backend/backend.go", "package backend\n\nconst N = 2\n")
+
+	dir := t.TempDir()
+	mod := "module example.com/app\n\ngo 1.22\n\nrequire (\n\texample.com/leaf v1.0.0\n\texample.com/mid v1.0.0\n)\n\nexclude example.com/leaf v1.2.0\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644))
+	src := "package main\n\nimport \"example.com/leaf/backend\"\n\nfunc main() { println(backend.N) }\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644))
+	g, err := Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/leaf/backend" || !strings.Contains(g.Pkgs[0].Dir, "leaf@v1.0.0") {
+		require.FailNowf(t, "", "excluded %+v", g.Pkgs)
+	}
+}
+
+func TestLoadRetractedVersion(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GOMODCACHE", cache)
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(cache, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	write("example.com/mid@v1.0.0/go.mod", "module example.com/mid\n\ngo 1.21\n\nrequire example.com/leaf v1.2.0\n")
+	write("example.com/mid@v1.0.0/mid.go", "package mid\n")
+	write("example.com/leaf@v1.0.0/go.mod", "module example.com/leaf\n\ngo 1.20\n")
+	write("example.com/leaf@v1.0.0/backend/backend.go", "package backend\n\nconst N = 1\n")
+	write("example.com/leaf@v1.2.0/go.mod", "module example.com/leaf\n\ngo 1.21\n\nretract v1.2.0\n")
+	write("example.com/leaf@v1.2.0/backend/backend.go", "package backend\n\nconst N = 2\n")
+
+	dir := t.TempDir()
+	mod := "module example.com/app\n\ngo 1.22\n\nrequire (\n\texample.com/leaf v1.0.0\n\texample.com/mid v1.0.0\n)\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644))
+	src := "package main\n\nimport \"example.com/leaf/backend\"\n\nfunc main() { println(backend.N) }\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644))
+	g, err := Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/leaf/backend" || !strings.Contains(g.Pkgs[0].Dir, "leaf@v1.2.0") {
+		require.FailNowf(t, "", "retracted %+v", g.Pkgs)
+	}
+}
+
+func TestLoadReplaceSpecific(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	mod := "module example.com/app\n\ngo 1.22\n\nrequire example.com/leaf v1.2.0\n\nreplace example.com/leaf v1.2.0 => ./specific\nreplace example.com/leaf => ./wild\n"
+	write("go.mod", mod)
+	write("main.go", "package main\n\nimport \"example.com/leaf/backend\"\n\nfunc main() { println(backend.N) }\n")
+	write("specific/go.mod", "module example.com/leaf\n\ngo 1.20\n")
+	write("specific/backend/backend.go", "package backend\n\nconst N = 2\n")
+	write("wild/go.mod", "module example.com/leaf\n\ngo 1.20\n")
+	write("wild/backend/backend.go", "package backend\n\nconst N = 3\n")
+	g, err := Load(dir, nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || !strings.Contains(g.Pkgs[0].Dir, "specific") {
+		require.FailNowf(t, "", "specific replace %+v", g.Pkgs)
+	}
+}
+
+func TestLoadWorkspace(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GOMODCACHE", cache)
+	leaf := filepath.Join(cache, "example.com/leaf@v1.0.0")
+	require.NoError(t, os.MkdirAll(filepath.Join(leaf, "backend"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(leaf, "go.mod"), []byte("module example.com/leaf\n\ngo 1.20\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(leaf, "backend/backend.go"), []byte("package backend\n\nconst N = 1\n"), 0o644))
+	leafNew := filepath.Join(cache, "example.com/leaf@v1.4.0")
+	require.NoError(t, os.MkdirAll(filepath.Join(leafNew, "backend"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(leafNew, "go.mod"), []byte("module example.com/leaf\n\ngo 1.21\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(leafNew, "backend/backend.go"), []byte("package backend\n\nconst N = 4\n"), 0o644))
+
+	work := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(work, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	write("go.work", "go 1.22\n\nuse (\n\t./app\n\t./b\n)\n")
+	write("app/go.mod", "module example.com/app\n\ngo 1.22\n\nrequire example.com/leaf v1.0.0\n")
+	write("app/main.go", "package main\n\nimport \"example.com/leaf/backend\"\n\nfunc main() { println(backend.N) }\n")
+	write("b/go.mod", "module example.com/b\n\ngo 1.22\n\nrequire example.com/leaf v1.4.0\n")
+	write("b/b.go", "package b\n\nfunc V() int { return 1 }\n")
+
+	t.Setenv("GOWORK", "")
+	g, err := Load(filepath.Join(work, "app"), nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/leaf/backend" || !strings.Contains(g.Pkgs[0].Dir, "leaf@v1.4.0") {
+		require.FailNowf(t, "", "workspace %+v", g.Pkgs)
+	}
+
+	t.Setenv("GOWORK", "off")
+	g, err = Load(filepath.Join(work, "app"), nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || !strings.Contains(g.Pkgs[0].Dir, "leaf@v1.0.0") {
+		require.FailNowf(t, "", "workspace off %+v", g.Pkgs)
+	}
+
+	t.Setenv("GOWORK", "go.work")
+	_, err = Load(filepath.Join(work, "app"), nil, nil)
+	require.ErrorIs(t, err, ErrWorkspace)
+}
+
+func TestLoadWorkspaceUpgrade(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("GOMODCACHE", cache)
+	write := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(cache, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	write("example.com/mid@v1.0.0/go.mod", "module example.com/mid\n\ngo 1.16\n\nrequire example.com/leaf v1.0.0\n")
+	write("example.com/mid@v1.0.0/mid.go", "package mid\n")
+	write("example.com/mid@v1.5.0/go.mod", "module example.com/mid\n\ngo 1.21\n\nrequire example.com/leaf v1.2.0\n")
+	write("example.com/mid@v1.5.0/mid.go", "package mid\n")
+	write("example.com/leaf@v1.0.0/go.mod", "module example.com/leaf\n\ngo 1.16\n")
+	write("example.com/leaf@v1.0.0/leaf.go", "package leaf\n")
+	write("example.com/leaf@v1.2.0/go.mod", "module example.com/leaf\n\ngo 1.16\n\nrequire example.com/hidden v1.0.0\n")
+	write("example.com/leaf@v1.2.0/leaf.go", "package leaf\n")
+	write("example.com/hidden@v1.0.0/go.mod", "module example.com/hidden\n\ngo 1.18\n")
+	write("example.com/hidden@v1.0.0/hidden.go", "package hidden\n\nconst N = 1\n")
+
+	work := t.TempDir()
+	writeMod := func(name, body string) {
+		t.Helper()
+		path := filepath.Join(work, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	}
+	writeMod("go.work", "go 1.22\n\nuse (\n\t./app\n\t./b\n)\n")
+	writeMod("app/go.mod", "module example.com/app\n\ngo 1.16\n\nrequire example.com/mid v1.0.0\n")
+	writeMod("app/main.go", "package main\n\nimport \"example.com/hidden\"\n\nfunc main() { println(hidden.N) }\n")
+	writeMod("b/go.mod", "module example.com/b\n\ngo 1.21\n\nrequire example.com/mid v1.5.0\n")
+	writeMod("b/b.go", "package b\n")
+	t.Setenv("GOWORK", filepath.Join(work, "go.work"))
+	g, err := Load(filepath.Join(work, "app"), nil, nil)
+	require.NoError(t, err)
+	if len(g.Pkgs) < 1 || g.Pkgs[0].ImportPath != "example.com/hidden" || !strings.Contains(g.Pkgs[0].Dir, "hidden@v1.0.0") {
+		require.FailNowf(t, "", "workspace upgrade %+v", g.Pkgs)
+	}
+}
+
 func TestLoadReplace(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) {
