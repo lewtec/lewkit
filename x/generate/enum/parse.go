@@ -18,15 +18,13 @@ type fileSpec struct {
 }
 
 type enumSpec struct {
-	name         string
-	stringKind   bool
-	fold         bool
-	empty        string
-	invalid      string
-	hasInvalid   bool
-	composeLeft  string
-	composeRight string
-	members      []member
+	name       string
+	stringKind bool
+	fold       bool
+	empty      string
+	invalid    string
+	hasInvalid bool
+	members    []member
 }
 
 type member struct {
@@ -36,12 +34,10 @@ type member struct {
 }
 
 type directive struct {
-	fold         bool
-	empty        string
-	invalid      string
-	hasInvalid   bool
-	composeLeft  string
-	composeRight string
+	fold       bool
+	empty      string
+	invalid    string
+	hasInvalid bool
 }
 
 func parseSource(path string, src []byte) (fileSpec, error) {
@@ -61,16 +57,6 @@ func parseSource(path string, src []byte) (fileSpec, error) {
 	if err != nil {
 		return fileSpec{}, err
 	}
-	found := &pairFound{
-		marks:    marks,
-		members:  members,
-		exprs:    map[string]ast.Expr{},
-		declared: map[string]bool{},
-	}
-	if err := found.collect(file); err != nil {
-		return fileSpec{}, err
-	}
-	exprs := found.exprs
 	var enums []enumSpec
 	for _, name := range markOrder(file, marks) {
 		mark := marks[name]
@@ -78,25 +64,18 @@ func parseSource(path string, src []byte) (fileSpec, error) {
 		if len(got) == 0 {
 			return fileSpec{}, fmt.Errorf("%w: %s has no members", ErrEnum, name)
 		}
-		enums = append(enums, enumSpec{
-			name:         name,
-			stringKind:   mark.stringKind,
-			fold:         mark.directive.fold,
-			empty:        mark.directive.empty,
-			invalid:      mark.directive.invalid,
-			hasInvalid:   mark.directive.hasInvalid,
-			composeLeft:  mark.directive.composeLeft,
-			composeRight: mark.directive.composeRight,
-			members:      got,
-		})
-	}
-	if err := applyCompose(enums, exprs); err != nil {
-		return fileSpec{}, err
-	}
-	for i := range enums {
-		if err := checkMembers(enums[i].name, marks[enums[i].name], enums[i].members); err != nil {
+		if err := checkMembers(name, mark, got); err != nil {
 			return fileSpec{}, err
 		}
+		enums = append(enums, enumSpec{
+			name:       name,
+			stringKind: mark.stringKind,
+			fold:       mark.directive.fold,
+			empty:      mark.directive.empty,
+			invalid:    mark.directive.invalid,
+			hasInvalid: mark.directive.hasInvalid,
+			members:    got,
+		})
 	}
 	return fileSpec{pkg: file.Name.Name, build: leadingBuild(string(src)), enums: enums}, nil
 }
@@ -125,22 +104,14 @@ func markedTypes(file *ast.File) (map[string]mark, error) {
 			if ts.Assign.IsValid() {
 				return nil, fmt.Errorf("%w: %s is an alias", ErrEnum, ts.Name.Name)
 			}
-			var stringKind bool
-			if dir.composeLeft != "" {
-				if err := pairType(ts.Name.Name, ts.Type, dir); err != nil {
-					return nil, err
-				}
-			} else {
-				kind, ok := underlying(ts.Type)
-				if !ok {
-					return nil, fmt.Errorf("%w: %s is not an integer or string", ErrEnum, ts.Name.Name)
-				}
-				stringKind = kind == "string"
+			kind, ok := underlying(ts.Type)
+			if !ok {
+				return nil, fmt.Errorf("%w: %s is not an integer or string", ErrEnum, ts.Name.Name)
 			}
 			if _, dup := out[ts.Name.Name]; dup {
 				return nil, fmt.Errorf("%w: %s declared twice", ErrEnum, ts.Name.Name)
 			}
-			out[ts.Name.Name] = mark{stringKind: stringKind, directive: dir}
+			out[ts.Name.Name] = mark{stringKind: kind == "string", directive: dir}
 		}
 	}
 	return out, nil
@@ -231,14 +202,6 @@ func parseDirective(line string) (directive, error) {
 			if dir.invalid == "" {
 				return directive{}, fmt.Errorf("%w: invalid option", ErrEnum)
 			}
-		case strings.HasPrefix(field, "compose="):
-			raw := strings.TrimPrefix(field, "compose=")
-			left, right, ok := strings.Cut(raw, "/")
-			if !ok || !plainIdent(left) || !plainIdent(right) || left == right {
-				return directive{}, fmt.Errorf("%w: compose option", ErrEnum)
-			}
-			dir.composeLeft = left
-			dir.composeRight = right
 		default:
 			return directive{}, fmt.Errorf("%w: %s", ErrEnum, field)
 		}
@@ -297,16 +260,6 @@ func constMembers(file *ast.File, marks map[string]mark) (map[string][]member, e
 			}
 			iotaVal := constant.MakeInt64(int64(index))
 			for i, name := range vs.Names {
-				if mark, ok := marks[typeName]; ok && mark.directive.composeLeft != "" {
-					return nil, fmt.Errorf("%w: %s compose var", ErrEnum, name.Name)
-				}
-				if lit, ok := values[i].(*ast.CompositeLit); ok && lit.Type != nil {
-					if id, ok := lit.Type.(*ast.Ident); ok {
-						if mark, marked := marks[id.Name]; marked && mark.directive.composeLeft != "" {
-							return nil, fmt.Errorf("%w: %s compose var", ErrEnum, name.Name)
-						}
-					}
-				}
 				val, err := eval(values[i], iotaVal, env)
 				if err != nil {
 					return nil, err
@@ -438,269 +391,6 @@ func checkMembers(typeName string, mark mark, members []member) error {
 		return fmt.Errorf("%w: %s empty=%s", ErrEnum, typeName, mark.directive.empty)
 	}
 	return nil
-}
-
-func applyCompose(enums []enumSpec, exprs map[string]ast.Expr) error {
-	byName := make(map[string]enumSpec, len(enums))
-	for _, spec := range enums {
-		byName[spec.name] = spec
-	}
-	for i := range enums {
-		spec := &enums[i]
-		if spec.composeLeft == "" {
-			continue
-		}
-		if generatedMethod(spec.composeLeft) || generatedMethod(spec.composeRight) {
-			return fmt.Errorf("%w: %s compose method", ErrEnum, spec.name)
-		}
-		left, ok := byName[spec.composeLeft]
-		if !ok {
-			return fmt.Errorf("%w: %s compose %s", ErrEnum, spec.name, spec.composeLeft)
-		}
-		right, ok := byName[spec.composeRight]
-		if !ok {
-			return fmt.Errorf("%w: %s compose %s", ErrEnum, spec.name, spec.composeRight)
-		}
-		if !left.stringKind || !right.stringKind || left.composeLeft != "" || right.composeLeft != "" {
-			return fmt.Errorf("%w: %s compose part", ErrEnum, spec.name)
-		}
-		leftByName := membersByName(left.members)
-		rightByName := membersByName(right.members)
-		for j := range spec.members {
-			item := &spec.members[j]
-			leftName, rightName, ok := compositionParts(exprs[item.name], spec.composeLeft, spec.composeRight)
-			if !ok {
-				return fmt.Errorf("%w: %s is not a %s/%s pair", ErrEnum, item.name, spec.composeLeft, spec.composeRight)
-			}
-			leftMember, ok := leftByName[leftName]
-			if !ok {
-				return fmt.Errorf("%w: %s part %s", ErrEnum, item.name, leftName)
-			}
-			rightMember, ok := rightByName[rightName]
-			if !ok {
-				return fmt.Errorf("%w: %s part %s", ErrEnum, item.name, rightName)
-			}
-			if err := separatorNames(item.name, leftMember, rightMember); err != nil {
-				return err
-			}
-			item.token = leftMember.token + "/" + rightMember.token
-			item.aliases = composeAliases(leftMember, rightMember, item.aliases)
-		}
-	}
-	return nil
-}
-
-func membersByName(members []member) map[string]member {
-	out := make(map[string]member, len(members))
-	for _, item := range members {
-		out[item.name] = item
-	}
-	return out
-}
-
-func separatorNames(owner string, left, right member) error {
-	for _, name := range partNames(left) {
-		if strings.Contains(name, "/") {
-			return fmt.Errorf("%w: %s separator %q", ErrEnum, owner, name)
-		}
-	}
-	for _, name := range partNames(right) {
-		if strings.Contains(name, "/") {
-			return fmt.Errorf("%w: %s separator %q", ErrEnum, owner, name)
-		}
-	}
-	return nil
-}
-
-func partNames(item member) []string {
-	names := make([]string, 0, 1+len(item.aliases))
-	names = append(names, item.token)
-	names = append(names, item.aliases...)
-	return names
-}
-
-func composeAliases(left, right member, extra []string) []string {
-	seen := map[string]bool{left.token + "/" + right.token: true}
-	var out []string
-	add := func(text string) {
-		if text == "" || seen[text] {
-			return
-		}
-		seen[text] = true
-		out = append(out, text)
-	}
-	for _, leftName := range partNames(left) {
-		for _, rightName := range partNames(right) {
-			add(leftName + "/" + rightName)
-			add(leftName + "_" + rightName)
-		}
-	}
-	for _, text := range extra {
-		add(text)
-	}
-	return out
-}
-
-func pairType(name string, expr ast.Expr, dir directive) error {
-	st, ok := expr.(*ast.StructType)
-	if !ok || st.Fields == nil || len(st.Fields.List) != 2 {
-		return fmt.Errorf("%w: %s compose pair", ErrEnum, name)
-	}
-	want := []string{dir.composeLeft, dir.composeRight}
-	for i, field := range st.Fields.List {
-		id, ok := field.Type.(*ast.Ident)
-		if !ok || field.Tag != nil || len(field.Names) != 1 || field.Names[0].Name != want[i] || id.Name != want[i] {
-			return fmt.Errorf("%w: %s compose pair", ErrEnum, name)
-		}
-	}
-	return nil
-}
-
-type pairFound struct {
-	marks    map[string]mark
-	members  map[string][]member
-	exprs    map[string]ast.Expr
-	declared map[string]bool
-}
-
-func (found *pairFound) collect(file *ast.File) error {
-	for _, items := range found.members {
-		for _, item := range items {
-			found.declared[item.name] = true
-		}
-	}
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.VAR {
-			continue
-		}
-		for _, spec := range gen.Specs {
-			if err := found.add(spec.(*ast.ValueSpec)); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (found *pairFound) add(vs *ast.ValueSpec) error {
-	explicit := ""
-	if id, ok := vs.Type.(*ast.Ident); ok {
-		explicit = id.Name
-	}
-	if len(vs.Values) != len(vs.Names) {
-		if mark, ok := found.marks[explicit]; ok && mark.directive.composeLeft != "" {
-			return fmt.Errorf("%w: %s compose var", ErrEnum, explicit)
-		}
-		return nil
-	}
-	for i, name := range vs.Names {
-		if name.Name == "_" {
-			continue
-		}
-		lit, isLit := vs.Values[i].(*ast.CompositeLit)
-		itemType := explicit
-		litType := ""
-		if isLit {
-			if id, ok := lit.Type.(*ast.Ident); ok {
-				litType = id.Name
-			}
-		}
-		if itemType == "" {
-			itemType = litType
-		}
-		mark, wanted := found.marks[itemType]
-		if !wanted || mark.directive.composeLeft == "" {
-			continue
-		}
-		if !isLit || (lit.Type != nil && litType != itemType) {
-			return fmt.Errorf("%w: %s is not a %s/%s pair", ErrEnum, name.Name, mark.directive.composeLeft, mark.directive.composeRight)
-		}
-		if found.declared[name.Name] {
-			return fmt.Errorf("%w: %s declared twice", ErrEnum, name.Name)
-		}
-		found.declared[name.Name] = true
-		found.members[itemType] = append(found.members[itemType], member{
-			name:    name.Name,
-			aliases: aliasComment(vs.Comment),
-		})
-		found.exprs[name.Name] = lit
-	}
-	return nil
-}
-
-func compositionParts(expr ast.Expr, leftField, rightField string) (string, string, bool) {
-	lit, ok := expr.(*ast.CompositeLit)
-	if !ok || len(lit.Elts) != 2 {
-		return "", "", false
-	}
-	if _, keyed := lit.Elts[0].(*ast.KeyValueExpr); keyed {
-		return keyedParts(lit.Elts, leftField, rightField)
-	}
-	left, ok := valueIdent(lit.Elts[0])
-	if !ok {
-		return "", "", false
-	}
-	right, ok := valueIdent(lit.Elts[1])
-	if !ok {
-		return "", "", false
-	}
-	return left, right, true
-}
-
-func keyedParts(elts []ast.Expr, leftField, rightField string) (string, string, bool) {
-	found := map[string]string{}
-	for _, elt := range elts {
-		kv, ok := elt.(*ast.KeyValueExpr)
-		if !ok {
-			return "", "", false
-		}
-		key, ok := kv.Key.(*ast.Ident)
-		if !ok {
-			return "", "", false
-		}
-		value, ok := valueIdent(kv.Value)
-		if !ok {
-			return "", "", false
-		}
-		if _, dup := found[key.Name]; dup {
-			return "", "", false
-		}
-		found[key.Name] = value
-	}
-	left, ok := found[leftField]
-	if !ok {
-		return "", "", false
-	}
-	right, ok := found[rightField]
-	if !ok || len(found) != 2 {
-		return "", "", false
-	}
-	return left, right, true
-}
-
-func valueIdent(expr ast.Expr) (string, bool) {
-	if paren, ok := expr.(*ast.ParenExpr); ok {
-		return valueIdent(paren.X)
-	}
-	id, ok := expr.(*ast.Ident)
-	if !ok || !plainIdent(id.Name) {
-		return "", false
-	}
-	return id.Name, true
-}
-
-func plainIdent(name string) bool {
-	return token.IsIdentifier(name) && !token.IsKeyword(name)
-}
-
-func generatedMethod(name string) bool {
-	switch name {
-	case "String", "Values", "IsValid", "Parse", "ArgChoices", "MarshalText", "UnmarshalText":
-		return true
-	default:
-		return false
-	}
 }
 
 func eval(expr ast.Expr, iota constant.Value, env map[string]constant.Value) (constant.Value, error) {

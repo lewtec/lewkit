@@ -3,6 +3,9 @@ package build
 import (
 	"fmt"
 	"runtime"
+	"strings"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // GOOS is a Go or Lewkit target operating system.
@@ -101,9 +104,10 @@ func (arch GOARCH) AndroidABI() (ABI, error) {
 	return ABIFor(arch)
 }
 
+// ErrPlatform means the text is not a known platform.
+var ErrPlatform = errs.Wrap(errs.ErrUnknown, "unknown platform")
+
 // Platform is one GOOS and one GOARCH.
-//
-//lewkit:enum compose=GOOS/GOARCH
 type Platform struct {
 	GOOS   GOOS
 	GOARCH GOARCH
@@ -171,6 +175,86 @@ var (
 	PlatformWindowsARM64   = Platform{GOOSWindows, GOARCHARM64} // win-arm64
 )
 
+// String formats the two fields.
+func (p Platform) String() string {
+	return fmt.Sprintf("%s/%s", p.GOOS, p.GOARCH)
+}
+
+// Values lists the known platforms.
+func (Platform) Values() []Platform {
+	return []Platform{
+		PlatformAixPPC64,
+		PlatformAndroid386,
+		PlatformAndroidAMD64,
+		PlatformAndroidARM,
+		PlatformAndroidARM64,
+		PlatformDarwinAMD64,
+		PlatformDarwinARM64,
+		PlatformDragonflyAMD64,
+		PlatformFreebsd386,
+		PlatformFreebsdAMD64,
+		PlatformFreebsdARM,
+		PlatformFreebsdARM64,
+		PlatformFreebsdRiscv64,
+		PlatformIllumosAMD64,
+		PlatformIOSAMD64,
+		PlatformIOSARM64,
+		PlatformJSWasm,
+		PlatformLinux386,
+		PlatformLinuxAMD64,
+		PlatformLinuxARM,
+		PlatformLinuxARM64,
+		PlatformLinuxLoong64,
+		PlatformLinuxMips,
+		PlatformLinuxMips64,
+		PlatformLinuxMips64le,
+		PlatformLinuxMipsle,
+		PlatformLinuxPPC64,
+		PlatformLinuxPPC64le,
+		PlatformLinuxRiscv64,
+		PlatformLinuxS390x,
+		PlatformLinuxSparc64,
+		PlatformLinuxISOAMD64,
+		PlatformLinuxISOARM64,
+		PlatformLinuxUKIAMD64,
+		PlatformLinuxUKIARM64,
+		PlatformMBRAMD64,
+		PlatformNetbsd386,
+		PlatformNetbsdAMD64,
+		PlatformNetbsdARM,
+		PlatformNetbsdARM64,
+		PlatformOpenbsd386,
+		PlatformOpenbsdAMD64,
+		PlatformOpenbsdARM,
+		PlatformOpenbsdARM64,
+		PlatformOpenbsdPPC64,
+		PlatformOpenbsdRiscv64,
+		PlatformPlan9386,
+		PlatformPlan9AMD64,
+		PlatformPlan9ARM,
+		PlatformSolarisAMD64,
+		PlatformTamagoAMD64,
+		PlatformTamagoARM,
+		PlatformTamagoARM64,
+		PlatformTamagoRiscv64,
+		PlatformUEFIAMD64,
+		PlatformWasip1Wasm,
+		PlatformWindows386,
+		PlatformWindowsAMD64,
+		PlatformWindowsARM64,
+	}
+}
+
+// IsValid reports whether p is one of Values.
+func (p Platform) IsValid() bool {
+	for _, item := range p.Values() {
+		if p == item {
+			return true
+		}
+	}
+	return false
+}
+
 // HostPlatform returns the process Platform.
 func HostPlatform() Platform {
 	return Platform{HostGOOS(), HostGOARCH()}
@@ -178,7 +262,79 @@ func HostPlatform() Platform {
 
 // PlatformFor resolves the Platform for goos and goarch.
 func PlatformFor(goos GOOS, goarch GOARCH) (Platform, error) {
-	return ParsePlatform(string(goos) + "/" + string(goarch))
+	p := Platform{GOOS: goos, GOARCH: goarch}
+	if !p.IsValid() {
+		return Platform{}, fmt.Errorf("%w: %q", ErrPlatform, p)
+	}
+	return p, nil
+}
+
+// ParsePlatform reads a goos/goarch pair. A "_" between the parts is
+// also accepted. Names that are not that pair are the conda spellings.
+func ParsePlatform(text string) (Platform, error) {
+	text = strings.TrimSpace(text)
+	if p, ok := platformAlias(text); ok {
+		return p, nil
+	}
+	goosText, goarchText, ok := cutPlatform(text)
+	if !ok {
+		return Platform{}, fmt.Errorf("%w: %q", ErrPlatform, text)
+	}
+	goos, err := ParseGOOS(goosText)
+	if err != nil {
+		return Platform{}, fmt.Errorf("%w: %q", ErrPlatform, text)
+	}
+	goarch, err := ParseGOARCH(goarchText)
+	if err != nil {
+		return Platform{}, fmt.Errorf("%w: %q", ErrPlatform, text)
+	}
+	return PlatformFor(goos, goarch)
+}
+
+func platformAlias(text string) (Platform, bool) {
+	switch text {
+	case "osx-64":
+		return PlatformDarwinAMD64, true
+	case "osx-arm64":
+		return PlatformDarwinARM64, true
+	case "linux-32":
+		return PlatformLinux386, true
+	case "linux-64":
+		return PlatformLinuxAMD64, true
+	case "linux-aarch64":
+		return PlatformLinuxARM64, true
+	case "linux-ppc64le":
+		return PlatformLinuxPPC64le, true
+	case "linux-riscv64":
+		return PlatformLinuxRiscv64, true
+	case "linux-s390x":
+		return PlatformLinuxS390x, true
+	case "win-32":
+		return PlatformWindows386, true
+	case "win-64":
+		return PlatformWindowsAMD64, true
+	case "win-arm64":
+		return PlatformWindowsARM64, true
+	default:
+		return Platform{}, false
+	}
+}
+
+func cutPlatform(text string) (string, string, bool) {
+	if left, right, ok := strings.Cut(text, "/"); ok {
+		return left, right, left != "" && right != ""
+	}
+	var goos string
+	for _, os := range GOOS("").Values() {
+		name := os.String()
+		if strings.HasPrefix(text, name+"_") && len(name) > len(goos) {
+			goos = name
+		}
+	}
+	if goos == "" {
+		return "", "", false
+	}
+	return goos, text[len(goos)+1:], true
 }
 
 // Split returns the GOOS and GOARCH components of p.

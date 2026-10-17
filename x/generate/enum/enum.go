@@ -23,22 +23,6 @@
 // that member. invalid=<text> is what String returns for a value
 // outside the set; otherwise String returns an empty string.
 //
-//	//lewkit:enum compose=GOOS/GOARCH
-//	type Platform struct {
-//		GOOS   GOOS
-//		GOARCH GOARCH
-//	}
-//
-//	var (
-//		PlatformLinuxAMD64 = Platform{GOOSLinux, GOARCHAMD64} // linux-64
-//	)
-//
-// compose pairs two string enums in the same file. The struct fields
-// are those types, in order. A struct is not a constant, so each member
-// is a var set to that pair. The text is the two tokens joined by "/".
-// Parse also accepts every name of each part joined by "/" or "_".
-// The comment adds any other name.
-//
 // The generated type is a [github.com/lewtec/lewkit/x/cmd.Enum] when it
 // is an integer, and a flag either way: Parse reads the text and
 // ArgChoices lists the accepted texts for help.
