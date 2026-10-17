@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -62,6 +64,34 @@ func TestMustRunStderrReachesSession(t *testing.T) {
 	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo hello >&2")
 	require.NoError(t, execdriver.Run(ctx, cmd))
 	require.Equal(t, []string{"hello"}, lines)
+}
+
+func TestRunReturnsWhenChildHoldsStdout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
+	defer cancel()
+	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo done; sleep 30 & echo $!")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	started := time.Now()
+	err := execdriver.Run(ctx, cmd)
+	require.NoError(t, err)
+	require.Less(t, time.Since(started), 8*time.Second)
+	fields := strings.Fields(stdout.String())
+	require.NotEmpty(t, fields)
+	require.Equal(t, "done", fields[0])
+	if len(fields) > 1 {
+		t.Cleanup(func() {
+			stopOrphan(fields[len(fields)-1])
+		})
+	}
+}
+
+func stopOrphan(pid string) {
+	if runtime.GOOS == "windows" {
+		_ = exec.Command("taskkill", "/F", "/PID", pid).Run()
+		return
+	}
+	_ = exec.Command("kill", pid).Run()
 }
 
 func TestRunStopsWhenContextIsCancelled(t *testing.T) {

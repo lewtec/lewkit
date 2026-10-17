@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"sync/atomic"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/errs"
@@ -111,7 +112,12 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 	// A shell's children inherit the stdout and stderr pipes. Killing only
 	// the shell leaves those children holding the pipes, and Wait never
 	// returns. The command runs in its own group so cancel reaches them.
+	// WaitDelay bounds the copy after the process itself has exited, which
+	// is the case when a Gradle daemon keeps the pipe open (Go issue 23019).
 	prepareCancel(cmd)
+	if cmd.WaitDelay == 0 {
+		cmd.WaitDelay = time.Second
+	}
 	slog.DebugContext(ctx, "exec", "path", cmd.Path, "args", cmd.Args)
 	if err := cmd.Start(); err != nil {
 		return err
@@ -125,6 +131,11 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 func Wait(ctx context.Context, cmd *exec.Cmd) error {
 	err := cmd.Wait()
 	finishCancel(cmd)
+	// The process exited 0 and a child still held the pipe. The output
+	// already copied is the command's output.
+	if errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		err = nil
+	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}
