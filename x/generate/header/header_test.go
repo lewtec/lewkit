@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
@@ -204,6 +205,15 @@ typedef int apple_flag;
 	assert.True(t, has("linux", "amd64", "linux_flag"))
 	assert.True(t, has("darwin", "arm64", "apple_flag"))
 	assert.False(t, has("linux", "arm64", "apple_flag"))
+}
+
+func TestParseSurvivesCollection(t *testing.T) {
+	prev := debug.SetGCPercent(1)
+	t.Cleanup(func() { debug.SetGCPercent(prev) })
+	for range 20 {
+		_, err := Parse(t.Context(), filepath.Join("testdata", "sample.h"), Options{})
+		require.NoError(t, err)
+	}
 }
 
 func TestAllABIs(t *testing.T) {

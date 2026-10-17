@@ -8,6 +8,8 @@ package leaven
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
+	"sync"
 
 	"github.com/lewtec/leaven-tree-sitter/grammar"
 	"github.com/lewtec/lewkit/x/driver"
@@ -60,9 +62,39 @@ func (l lang) Parse(source []byte) (tree *treesitter.Tree, err error) {
 			err = fmt.Errorf("%w: %s: lexer failed", treesitter.ErrParse, l.name)
 		}
 	}()
+	// The leaven parser keeps the source pointer in a structure the garbage
+	// collector does not scan. A collection during the lex frees that
+	// allocation and the next byte read faults in ts_decode_utf8.
+	release := holdGC()
+	defer release()
 	return treesitter.Run(l.name, l.raw, source, grammar.NewParser, func(tree *grammar.Tree) treesitter.Node {
 		return treesitter.NewSyntax[grammar.Node](tree, tree.RootNode())
 	})
+}
+
+// gcHold counts overlapping parses so the collector stays off until the
+// last one returns. SetGCPercent is process-wide.
+var gcHold struct {
+	mu   sync.Mutex
+	n    int
+	prev int
+}
+
+func holdGC() func() {
+	gcHold.mu.Lock()
+	if gcHold.n == 0 {
+		gcHold.prev = debug.SetGCPercent(-1)
+	}
+	gcHold.n++
+	gcHold.mu.Unlock()
+	return func() {
+		gcHold.mu.Lock()
+		gcHold.n--
+		if gcHold.n == 0 {
+			debug.SetGCPercent(gcHold.prev)
+		}
+		gcHold.mu.Unlock()
+	}
 }
 
 func init() { driver.Register[treesitter.Driver](factory{}) }
