@@ -61,9 +61,10 @@ type BuildResult struct {
 	HelperPath string
 }
 
-// Build compiles the Go server and, unless GoOnly, builds the scaffold
-// with xcodegen and xcodebuild. The .app executable is that shell. The
-// Go server is Contents/MacOS/eletrocromo-server. The caller signs the Mach-Os.
+// Build compiles the Go program and, unless GoOnly, builds the scaffold
+// with xcodegen and xcodebuild. The .app executable replaces itself with
+// Contents/MacOS/eletrocromo-server. That program opens the windows.
+// The caller signs the Mach-Os.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	_, stderr := common.Writers(ctx, opts.Stdout, opts.Stderr)
 

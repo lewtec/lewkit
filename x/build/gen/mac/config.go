@@ -1,7 +1,7 @@
 // Package mac packages a macOS .app from the XcodeGen scaffold.
-// The launched executable is that Swift shell. It shows the window and
-// starts the Go server beside it. Create writes the scaffold. Build
-// compiles it with xcodebuild unless GoOnly is set.
+// The launched executable replaces itself with the Go program beside it.
+// That program opens app.GUI and app.Web. Create writes the scaffold.
+// Build compiles it with xcodebuild unless GoOnly is set.
 package mac
 
 import (
@@ -19,8 +19,9 @@ var (
 	ErrOutDirNotEmpty  = common.ErrOutDirNotEmpty
 )
 
-// HelperName is the Go server copied into Contents/MacOS.
-// The scaffold executable is ProductName. This process is not the Dock tile.
+// HelperName is the Go program copied into Contents/MacOS.
+// The scaffold executable replaces itself with this program.
+// app.GUI and app.Web in that process open the windows.
 const HelperName = "eletrocromo-server"
 
 // Config is the project identity written into the generated tree.

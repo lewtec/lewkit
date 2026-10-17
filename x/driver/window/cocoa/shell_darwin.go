@@ -49,8 +49,8 @@ func ShowShell(title string, icon image.Image) {
 }
 
 func adoptShell(title string, icon image.Image) bool {
-	// The packaged helper lives in Contents/MacOS and must not take a Dock tile.
-	// The parent .app icon comes from the asset catalog.
+	// A program inside the bundle keeps the asset-catalog icon.
+	// startApp sets the activation policy, so this process is the Dock tile.
 	exe, err := os.Executable()
 	if err == nil && strings.Contains(filepath.ToSlash(exe), ".app/Contents/MacOS/") {
 		return true
