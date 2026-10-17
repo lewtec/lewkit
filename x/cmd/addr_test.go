@@ -25,6 +25,7 @@ func TestAddrArg(t *testing.T) {
 		{name: "missing port", in: "localhost", err: ErrInvalidArgument},
 		{name: "empty", in: "", err: ErrInvalidArgument},
 		{name: "empty port", in: "localhost:", err: ErrInvalidArgument},
+		{name: "windows path", in: `C:\prof`, err: ErrInvalidArgument},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

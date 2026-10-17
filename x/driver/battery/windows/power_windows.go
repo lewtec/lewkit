@@ -3,7 +3,6 @@
 package windows
 
 import (
-	"fmt"
 	"unsafe"
 
 	"github.com/lewtec/lewkit/x/driver"

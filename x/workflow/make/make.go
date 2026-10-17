@@ -372,7 +372,7 @@ func exists(dir, path string) bool {
 	if path == "" {
 		return false
 	}
-	_, err := os.Stat(workflow.Join(dir, path))
+	_, err := workflow.StatOutput(workflow.Join(dir, path))
 	return err == nil
 }
 

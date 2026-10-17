@@ -39,7 +39,7 @@ func TestCommandAppliesEnv(t *testing.T) {
 	require.NoError(t, err)
 	err = (Command{
 		Env:  env,
-		Args: []string{"sh", "-c", `printf %s "$LEWKIT_EXEC_SENTINEL" > ` + out},
+		Args: []string{"sh", "-c", `printf %s "$LEWKIT_EXEC_SENTINEL" > '` + filepath.ToSlash(out) + `'`},
 	}).Run(t.Context())
 	require.NoError(t, err)
 	got, err := os.ReadFile(out)

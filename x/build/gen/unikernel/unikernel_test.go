@@ -54,6 +54,13 @@ func TestMBRImageBoots(t *testing.T) {
 	if _, err := exec.LookPath("as"); err != nil {
 		test.Skip(t, "as is not installed")
 	}
+	if _, err := exec.LookPath("ld"); err != nil {
+		test.Skip(t, "ld is not installed")
+	}
+	// Apple as and lld reject the GNU ELF emulation this image links with.
+	if err := exec.Command("ld", "-m", "elf_x86_64", "--version").Run(); err != nil {
+		test.Skip(t, "gnu ld")
+	}
 	dir := t.TempDir()
 	src := filepath.Join(dir, "guest.S")
 	require.NoError(t, os.WriteFile(src, []byte(guestSrc), 0o644))

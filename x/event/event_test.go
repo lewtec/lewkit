@@ -50,7 +50,13 @@ func TestCreateTimerDropsIfSlow(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	ch := CreateTimer(ctx, time.Millisecond)
-	time.Sleep(20 * time.Millisecond)
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		require.FailNow(t, "first tick")
+	}
+	// Several periods pass with nobody receiving. The channel holds one tick.
+	time.Sleep(100 * time.Millisecond)
 	got := 0
 	for {
 		select {

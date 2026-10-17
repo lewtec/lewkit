@@ -17,10 +17,16 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if os.Getenv("LEWKIT_CLICK_PROBE") != "1" {
-		os.Exit(m.Run())
+	if os.Getenv("LEWKIT_CLICK_PROBE") == "1" {
+		os.Exit(main())
 	}
-	os.Exit(probeContentClick())
+	os.Exit(m.Run())
+}
+
+func main() int {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return probeContentClick(ctx)
 }
 
 func TestContentViewStubsMouseTracking(t *testing.T) {
@@ -50,9 +56,7 @@ func TestContentViewStubsMouseTracking(t *testing.T) {
 // probeContentClick opens a window on the process main thread and sends a
 // left mouse down through AppKit. NSView's own mouseDown waits until mouse
 // up, so a return means the content view no longer tracks.
-func probeContentClick() int {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
+func probeContentClick(ctx context.Context) int {
 	err := thread.Run(ctx, func(ctx context.Context) error {
 		host, err := window.Open(ctx, window.Config{Title: "click", Width: 240, Height: 160})
 		if err != nil {
