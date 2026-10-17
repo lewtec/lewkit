@@ -1,6 +1,7 @@
 package icon
 
 import (
+	"image"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/http/asset/lucide"
@@ -8,21 +9,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNodePaintsAndReuses(t *testing.T) {
+func TestNodePaintsAtItsSizeAndReuses(t *testing.T) {
 	ink := gui.RGB{255, 0, 0, 255}
-	node := Node(lucide.NameSearch, ink, 18)
-	require.NotNil(t, node.Src)
-	require.Equal(t, float32(18), node.Width)
-	require.Equal(t, float32(18), node.Height)
-	again := Node(lucide.NameSearch, ink, 12)
-	require.Same(t, node.Src, again.Src)
+	node := laidOut(t, lucide.NameSearch, ink, 18)
+	require.Equal(t, image.Rect(0, 0, 18, 18), node.image.Src.Bounds())
+	require.Equal(t, float32(18), node.image.Width)
+	again := laidOut(t, lucide.NameSearch, ink, 18)
+	require.Same(t, node.image.Src, again.image.Src)
+	small := laidOut(t, lucide.NameSearch, ink, 12)
+	require.Equal(t, image.Rect(0, 0, 12, 12), small.image.Src.Bounds())
+	require.NotSame(t, node.image.Src, small.image.Src)
+}
+
+func TestIconPixelsFollowsDensity(t *testing.T) {
+	require.Equal(t, 18, iconPixels(18, 1))
+	require.Equal(t, 36, iconPixels(18, 2))
+	require.Equal(t, 1, iconPixels(0, 1))
 }
 
 func TestNodeUnknown(t *testing.T) {
-	node := Node(lucide.Name("nope"), gui.RGB{0, 0, 0, 255}, 18)
-	require.Nil(t, node.Src)
-	again := Node(lucide.Name("nope"), gui.RGB{0, 0, 0, 255}, 18)
-	require.Nil(t, again.Src)
+	node := laidOut(t, lucide.Name("nope"), gui.RGB{0, 0, 0, 255}, 18)
+	require.Nil(t, node.image.Src)
+	again := laidOut(t, lucide.Name("nope"), gui.RGB{0, 0, 0, 255}, 18)
+	require.Nil(t, again.image.Src)
 }
 
 func TestChromeIconsPaint(t *testing.T) {
@@ -48,7 +57,15 @@ func TestChromeIconsPaint(t *testing.T) {
 		lucide.NameCircleSmall,
 	}
 	for _, name := range names {
-		node := Node(name, ink, 18)
-		require.NotNilf(t, node.Src, "%s", name)
+		node := laidOut(t, name, ink, 18)
+		require.NotNilf(t, node.image.Src, "%s", name)
+		require.Equal(t, image.Rect(0, 0, 18, 18), node.image.Src.Bounds())
 	}
+}
+
+func laidOut(t *testing.T, name lucide.Name, ink gui.RGB, size float32) *glyph {
+	t.Helper()
+	node := Node(name, ink, size).(*glyph)
+	node.Layout(gui.Tight(400, 400))
+	return node
 }
