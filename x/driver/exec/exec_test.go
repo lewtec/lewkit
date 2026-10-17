@@ -116,13 +116,33 @@ func TestCancelAfterExitLeavesLaterProcess(t *testing.T) {
 		_ = execdriver.Wait(hold, live)
 	})
 
-	buf := make([]byte, 16)
-	n, err := r.Read(buf)
-	require.NoError(t, err)
-	require.Contains(t, string(buf[:n]), "started")
-	require.NoError(t, r.SetReadDeadline(time.Now().Add(200*time.Millisecond)))
-	_, err = r.Read(buf)
-	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+	started := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 16)
+		n, readErr := r.Read(buf)
+		if readErr != nil && n == 0 {
+			started <- ""
+			return
+		}
+		started <- string(buf[:n])
+	}()
+	select {
+	case got := <-started:
+		require.Contains(t, got, "started")
+	case <-time.After(2 * time.Second):
+		require.FailNow(t, "later process produced no output")
+	}
+	// A second read blocks while the process is alive. EOF means it exited.
+	closed := make(chan struct{})
+	go func() {
+		_, _ = r.Read(make([]byte, 16))
+		close(closed)
+	}()
+	select {
+	case <-closed:
+		require.FailNow(t, "later process closed stdout")
+	case <-time.After(200 * time.Millisecond):
+	}
 }
 
 func TestRunStopsWhenContextIsCancelled(t *testing.T) {
