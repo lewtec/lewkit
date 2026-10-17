@@ -94,6 +94,37 @@ func stopOrphan(pid string) {
 	_ = exec.Command("kill", pid).Run()
 }
 
+func TestCancelAfterExitLeavesLaterProcess(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	require.NoError(t, execdriver.Run(ctx, execdriver.MustCommand(ctx, "sh", "-c", "true")))
+	cancel()
+
+	hold, stop := context.WithCancel(t.Context())
+	defer stop()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = r.Close()
+		_ = w.Close()
+	})
+	live := execdriver.MustCommand(hold, "sh", "-c", "echo started; sleep 30")
+	live.Stdout = w
+	require.NoError(t, execdriver.Start(hold, live))
+	require.NoError(t, w.Close())
+	t.Cleanup(func() {
+		stop()
+		_ = execdriver.Wait(hold, live)
+	})
+
+	buf := make([]byte, 16)
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	require.Contains(t, string(buf[:n]), "started")
+	require.NoError(t, r.SetReadDeadline(time.Now().Add(200*time.Millisecond)))
+	_, err = r.Read(buf)
+	require.ErrorIs(t, err, os.ErrDeadlineExceeded)
+}
+
 func TestRunStopsWhenContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cmd := execdriver.MustCommand(ctx, "sh", "-c", "sleep 30")

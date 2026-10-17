@@ -11,9 +11,16 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// jobs holds a Job Object per started process so cancel kills the
+// tracked holds a Job Object per started command so cancel kills the
 // shell and the children that would otherwise keep its pipes open.
-var jobs sync.Map // pid → windows.Handle
+// The map key is the command. Wait releases the pid before finishCancel runs.
+var tracked sync.Map // *exec.Cmd → *processTrack
+
+type processTrack struct {
+	job     windows.Handle
+	pid     uint32
+	created windows.Filetime
+}
 
 func prepareCancel(cmd *exec.Cmd) {
 	if cmd.SysProcAttr == nil {
@@ -26,8 +33,22 @@ func trackProcess(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
+	rec := &processTrack{pid: uint32(cmd.Process.Pid)}
+	proc, err := windows.OpenProcess(
+		windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE,
+		false,
+		rec.pid,
+	)
+	if err != nil {
+		tracked.Store(cmd, rec)
+		return
+	}
+	defer windows.CloseHandle(proc)
+	var exitTime, kernel, user windows.Filetime
+	_ = windows.GetProcessTimes(proc, &rec.created, &exitTime, &kernel, &user)
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
+		tracked.Store(cmd, rec)
 		return
 	}
 	info := windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION{
@@ -43,47 +64,67 @@ func trackProcess(cmd *exec.Cmd) {
 	)
 	if err != nil {
 		_ = windows.CloseHandle(job)
-		return
-	}
-	proc, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(cmd.Process.Pid))
-	if err != nil {
-		_ = windows.CloseHandle(job)
+		tracked.Store(cmd, rec)
 		return
 	}
 	err = windows.AssignProcessToJobObject(job, proc)
-	_ = windows.CloseHandle(proc)
 	if err != nil {
 		_ = windows.CloseHandle(job)
+		tracked.Store(cmd, rec)
 		return
 	}
-	jobs.Store(cmd.Process.Pid, job)
+	rec.job = job
+	tracked.Store(cmd, rec)
 }
 
 func finishCancel(cmd *exec.Cmd) {
-	if cmd == nil || cmd.Process == nil {
+	if cmd == nil {
 		return
 	}
-	v, ok := jobs.LoadAndDelete(cmd.Process.Pid)
+	v, ok := tracked.LoadAndDelete(cmd)
 	if !ok {
 		return
 	}
-	_ = windows.CloseHandle(v.(windows.Handle))
+	rec := v.(*processTrack)
+	if rec.job != 0 {
+		_ = windows.CloseHandle(rec.job)
+	}
 }
 
 func cancelProcess(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	if v, ok := jobs.LoadAndDelete(cmd.Process.Pid); ok {
-		job := v.(windows.Handle)
-		_ = windows.TerminateJobObject(job, 1)
-		_ = windows.CloseHandle(job)
-		return
+	if v, ok := tracked.Load(cmd); ok {
+		rec := v.(*processTrack)
+		if rec.job != 0 {
+			_ = windows.TerminateJobObject(rec.job, 1)
+			return
+		}
+		// TerminateProcess reports exit status 1 and prints nothing. The
+		// creation time recorded at start keeps a recycled pid alive.
+		if sameProcess(rec.pid, rec.created) {
+			killTree(rec.pid)
+		}
 	}
-	// A process already inside the runner's job cannot join another one.
-	// Terminate the children first so a shell's sleep does not keep the pipes open.
-	killTree(uint32(cmd.Process.Pid))
+	// Kill uses the process handle from Start, which stays with this process.
 	_ = cmd.Process.Kill()
+}
+
+func sameProcess(pid uint32, created windows.Filetime) bool {
+	if created.LowDateTime == 0 && created.HighDateTime == 0 {
+		return false
+	}
+	proc, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return false
+	}
+	defer windows.CloseHandle(proc)
+	var got, exitTime, kernel, user windows.Filetime
+	if err := windows.GetProcessTimes(proc, &got, &exitTime, &kernel, &user); err != nil {
+		return false
+	}
+	return got.LowDateTime == created.LowDateTime && got.HighDateTime == created.HighDateTime
 }
 
 func killTree(pid uint32) {
