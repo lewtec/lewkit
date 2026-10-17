@@ -1,699 +1,444 @@
 package sql
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"unicode/utf8"
+
+	xparse "github.com/lewtec/lewkit/x/parse"
 )
+
+var (
+	langOnce sync.Once
+	lang     *xparse.Model[Term, Rule]
+	langErr  error
+)
+
+func language() (*xparse.Model[Term, Rule], error) {
+	langOnce.Do(func() {
+		lang, langErr = define()
+	})
+	return lang, langErr
+}
 
 func parse(text string) (*File, error) {
-	p := &parser{lex: lexer{src: text, line: 1}, file: NewFile()}
-	p.next()
-	p.applyDialect()
-	for {
-		if p.lex.err != nil {
-			return nil, p.lex.err
-		}
-		if p.tok.kind == tokEOF {
-			if !p.file.Dialect.IsValid() {
-				p.file.Dialect = SQLite
-			}
-			return p.file, nil
-		}
-		if p.eatOp(";") {
-			continue
-		}
-		comment := p.tok.comment
-		p.tok.comment = ""
-		stmt, err := p.statement()
-		if err != nil {
-			return nil, err
-		}
-		setComment(stmt, comment)
-		p.file.Statements = append(p.file.Statements, stmt)
-	}
-}
-
-func (p *parser) applyDialect() {
-	rest, dialect, ok := splitDialect(p.tok.comment)
-	if ok {
-		p.file.Dialect = dialect
-		p.tok.comment = rest
-		return
-	}
-	if !p.file.Dialect.IsValid() {
-		p.file.Dialect = SQLite
-	}
-}
-
-func splitDialect(comment string) (string, Dialect, bool) {
-	if comment == "" {
-		return "", 0, false
-	}
-	line, tail, _ := strings.Cut(comment, "\n")
-	key, val, found := strings.Cut(strings.TrimSpace(line), ":")
-	if !found || !strings.EqualFold(strings.TrimSpace(key), "dialect") {
-		return comment, 0, false
-	}
-	dialect, err := ParseDialect(strings.TrimSpace(val))
-	if err != nil {
-		return comment, 0, false
-	}
-	return strings.TrimSpace(tail), dialect, true
-}
-
-type parser struct {
-	lex  lexer
-	tok  token
-	file *File
-}
-
-func (p *parser) next() { p.tok = p.lex.next() }
-
-func (p *parser) fail(msg string) error {
-	if p.lex.err != nil {
-		return p.lex.err
-	}
-	return fmt.Errorf("%w: line %d: %s", ErrSyntax, p.tok.line, msg)
-}
-
-func (p *parser) keyword(word string) bool {
-	return p.tok.kind == tokIdent && !p.tok.quoted && strings.EqualFold(p.tok.text, word)
-}
-
-func (p *parser) eat(word string) bool {
-	if !p.keyword(word) {
-		return false
-	}
-	p.next()
-	return true
-}
-
-func (p *parser) eatOp(op string) bool {
-	if p.tok.kind != tokOp || p.tok.text != op {
-		return false
-	}
-	p.next()
-	return true
-}
-
-func (p *parser) want(word string) error {
-	if p.eat(word) {
-		return nil
-	}
-	return p.fail("expected " + word)
-}
-
-func (p *parser) wantOp(op string) error {
-	if p.eatOp(op) {
-		return nil
-	}
-	return p.fail("expected " + op)
-}
-
-func (p *parser) simpleName() (string, error) {
-	if p.tok.kind != tokIdent {
-		return "", p.fail("expected name")
-	}
-	name := p.tok.text
-	p.next()
-	return name, nil
-}
-
-func (p *parser) nameList() ([]string, error) {
-	name, err := p.simpleName()
+	notes := scanComments(text)
+	model, err := language()
 	if err != nil {
 		return nil, err
 	}
-	names := []string{name}
-	for p.eatOp(",") {
-		name, err = p.simpleName()
-		if err != nil {
-			return nil, err
-		}
-		names = append(names, name)
-	}
-	return names, nil
-}
-
-func (p *parser) parenNames() ([]string, error) {
-	if err := p.wantOp("("); err != nil {
-		return nil, err
-	}
-	names, err := p.nameList()
+	root, err := model.Parse([]byte(text))
 	if err != nil {
-		return nil, err
+		return nil, asSyntax(err)
 	}
-	if err := p.wantOp(")"); err != nil {
-		return nil, err
-	}
-	return names, nil
+	return lowerFile(text, root, notes)
 }
 
-func (p *parser) qualified() (string, error) {
-	name, err := p.simpleName()
-	if err != nil {
-		return "", err
-	}
-	for p.eatOp(".") {
-		rest, err := p.simpleName()
-		if err != nil {
-			return "", err
+func asSyntax(err error) error {
+	var pe *xparse.Error
+	if errors.As(err, &pe) {
+		line := pe.Line
+		if line < 1 {
+			line = 1
 		}
-		name += "." + rest
+		return fmt.Errorf("%w: line %d: %s", ErrSyntax, line, pe.Error())
 	}
-	return name, nil
+	return fmt.Errorf("%w: %s", ErrSyntax, err.Error())
 }
 
-func (p *parser) expr() (Expr, error) { return p.or() }
-
-func (p *parser) or() (Expr, error) {
-	left, err := p.and()
-	if err != nil {
-		return Expr{}, err
-	}
-	for p.eat("or") {
-		right, err := p.and()
-		if err != nil {
-			return Expr{}, err
-		}
-		left = binary("OR", left, right)
-	}
-	return left, nil
+func syntaxAt(src string, off int, msg string) error {
+	return fmt.Errorf("%w: line %d: %s", ErrSyntax, lineOf(src, off), msg)
 }
 
-func (p *parser) and() (Expr, error) {
-	left, err := p.not()
-	if err != nil {
-		return Expr{}, err
+func lineOf(src string, off int) int {
+	if off < 0 {
+		off = 0
 	}
-	for p.eat("and") {
-		right, err := p.not()
-		if err != nil {
-			return Expr{}, err
-		}
-		left = binary("AND", left, right)
+	if off > len(src) {
+		off = len(src)
 	}
-	return left, nil
+	return strings.Count(src[:off], "\n") + 1
 }
 
-func (p *parser) not() (Expr, error) {
-	if p.eat("not") {
-		expr, err := p.not()
-		if err != nil {
-			return Expr{}, err
-		}
-		return unary("NOT", expr), nil
-	}
-	return p.cmp()
+// commentMap records the comment text that the old lexer attached to the
+// token starting at each byte offset. first is that offset for the first
+// token, or len(src) when the file has none.
+type commentMap struct {
+	first int
+	saw   bool
+	by    map[int]string
 }
 
-func (p *parser) cmp() (Expr, error) {
-	left, err := p.sum()
-	if err != nil {
-		return Expr{}, err
-	}
+func scanComments(src string) commentMap {
+	out := commentMap{by: map[int]string{}}
+	var buf strings.Builder
+	i := 0
 	for {
-		op := ""
-		switch {
-		case p.eatOp("="):
-			op = "="
-		case p.eatOp("<>"):
-			op = "<>"
-		case p.eatOp("!="):
-			op = "!="
-		case p.eatOp("<="):
-			op = "<="
-		case p.eatOp(">="):
-			op = ">="
-		case p.eatOp("<"):
-			op = "<"
-		case p.eatOp(">"):
-			op = ">"
-		case p.eat("like"):
-			op = "LIKE"
-		case p.eat("is"):
-			not := p.eat("not")
-			if err := p.want("null"); err != nil {
-				return Expr{}, err
+		buf.Reset()
+		for i < len(src) {
+			switch src[i] {
+			case ' ', '\t', '\n', '\r':
+				i++
+				continue
 			}
-			name := "IS"
-			if not {
-				name = "IS NOT"
-			}
-			left = binary(name, left, Id("NULL"))
-			continue
-		default:
-			return left, nil
-		}
-		right, err := p.sum()
-		if err != nil {
-			return Expr{}, err
-		}
-		left = binary(op, left, right)
-	}
-}
-
-func (p *parser) sum() (Expr, error) {
-	left, err := p.product()
-	if err != nil {
-		return Expr{}, err
-	}
-	for {
-		op := ""
-		switch {
-		case p.eatOp("+"):
-			op = "+"
-		case p.eatOp("-"):
-			op = "-"
-		case p.eatOp("||"):
-			op = "||"
-		default:
-			return left, nil
-		}
-		right, err := p.product()
-		if err != nil {
-			return Expr{}, err
-		}
-		left = binary(op, left, right)
-	}
-}
-
-func (p *parser) product() (Expr, error) {
-	left, err := p.unary()
-	if err != nil {
-		return Expr{}, err
-	}
-	for {
-		op := ""
-		switch {
-		case p.eatOp("*"):
-			op = "*"
-		case p.eatOp("/"):
-			op = "/"
-		case p.eatOp("%"):
-			op = "%"
-		default:
-			return left, nil
-		}
-		right, err := p.unary()
-		if err != nil {
-			return Expr{}, err
-		}
-		left = binary(op, left, right)
-	}
-}
-
-func (p *parser) unary() (Expr, error) {
-	if p.eatOp("-") {
-		expr, err := p.unary()
-		if err != nil {
-			return Expr{}, err
-		}
-		return unary("-", expr), nil
-	}
-	if p.eatOp("+") {
-		expr, err := p.unary()
-		if err != nil {
-			return Expr{}, err
-		}
-		return unary("+", expr), nil
-	}
-	return p.primary()
-}
-
-func (p *parser) primary() (Expr, error) {
-	switch p.tok.kind {
-	case tokString:
-		expr := Lit(p.tok.text)
-		p.next()
-		return expr, nil
-	case tokNumber:
-		expr := Num(p.tok.text)
-		p.next()
-		return expr, nil
-	case tokPlaceholder:
-		expr := Expr{Kind: ExprKindPlaceholder, Text: p.tok.text}
-		p.next()
-		return expr, nil
-	case tokOp:
-		if p.eatOp("*") {
-			return Star(), nil
-		}
-		if p.eatOp("(") {
-			expr, err := p.expr()
-			if err != nil {
-				return Expr{}, err
-			}
-			if err := p.wantOp(")"); err != nil {
-				return Expr{}, err
-			}
-			return expr, nil
-		}
-		return Expr{}, p.fail("expected expression")
-	case tokIdent:
-		name, err := p.qualified()
-		if err != nil {
-			return Expr{}, err
-		}
-		if !p.eatOp("(") {
-			return Id(name), nil
-		}
-		var args []Expr
-		if !p.atOp(")") {
-			for {
-				arg, err := p.expr()
-				if err != nil {
-					return Expr{}, err
+			if hasPrefix(src, i, "--") {
+				i += 2
+				start := i
+				for i < len(src) && src[i] != '\n' && src[i] != '\r' {
+					i++
 				}
-				args = append(args, arg)
-				if !p.eatOp(",") {
+				addNote(&buf, src[start:i])
+				continue
+			}
+			if hasPrefix(src, i, "/*") {
+				end := blockEnd(src, i)
+				if end < 0 {
 					break
 				}
+				addNote(&buf, src[i+2:end])
+				i = end + 2
+				continue
 			}
+			break
 		}
-		if err := p.wantOp(")"); err != nil {
-			return Expr{}, err
+		if !out.saw {
+			out.first = i
+			out.saw = true
 		}
-		return Call(name, args...), nil
-	default:
-		return Expr{}, p.fail("expected expression")
+		if text := strings.TrimSpace(buf.String()); text != "" {
+			out.by[i] = text
+		}
+		if i >= len(src) {
+			break
+		}
+		n := skipLexeme(src, i)
+		if n <= 0 {
+			break
+		}
+		i += n
 	}
+	return out
 }
 
-func (p *parser) atOp(op string) bool {
-	return p.tok.kind == tokOp && p.tok.text == op
-}
-
-type tokenKind int
-
-const (
-	tokEOF tokenKind = iota
-	tokIdent
-	tokString
-	tokNumber
-	tokPlaceholder
-	tokOp
-)
-
-type token struct {
-	kind    tokenKind
-	text    string
-	quoted  bool
-	line    int
-	comment string
-}
-
-type lexer struct {
-	src     string
-	i       int
-	line    int
-	comment strings.Builder
-	err     error
-}
-
-func (l *lexer) next() token {
-	if l.err != nil {
-		return token{kind: tokEOF, line: l.line}
-	}
-	l.skip()
-	if l.err != nil {
-		return token{kind: tokEOF, line: l.line}
-	}
-	comment := strings.TrimSpace(l.comment.String())
-	l.comment.Reset()
-	if l.i >= len(l.src) {
-		return token{kind: tokEOF, line: l.line, comment: comment}
-	}
-	line := l.line
-	c := l.src[l.i]
-	switch c {
-	case '\'':
-		text, ok := l.string()
-		if !ok {
-			return l.broken(line, "unclosed string")
-		}
-		return token{kind: tokString, text: text, line: line, comment: comment}
-	case '"', '`', '[':
-		text, ok := l.quoted(c)
-		if !ok {
-			return l.broken(line, "unclosed identifier")
-		}
-		return token{kind: tokIdent, text: text, quoted: true, line: line, comment: comment}
-	case '?':
-		l.i++
-		return token{kind: tokPlaceholder, text: "?", line: line, comment: comment}
-	case '$':
-		if l.i+1 < len(l.src) && isDigit(l.src[l.i+1]) {
-			start := l.i
-			l.i++
-			for l.i < len(l.src) && isDigit(l.src[l.i]) {
-				l.i++
-			}
-			return token{kind: tokPlaceholder, text: l.src[start:l.i], line: line, comment: comment}
-		}
-		return l.broken(line, "expected placeholder")
-	default:
-		if isIdentStart(c) {
-			start := l.i
-			l.i++
-			for l.i < len(l.src) && isIdentCont(l.src[l.i]) {
-				l.i++
-			}
-			return token{kind: tokIdent, text: l.src[start:l.i], line: line, comment: comment}
-		}
-		if isDigit(c) {
-			return token{kind: tokNumber, text: l.number(), line: line, comment: comment}
-		}
-		op, ok := l.operator()
-		if !ok {
-			return l.broken(line, "unexpected character")
-		}
-		return token{kind: tokOp, text: op, line: line, comment: comment}
-	}
-}
-
-func (l *lexer) broken(line int, msg string) token {
-	if l.err == nil {
-		l.err = fmt.Errorf("%w: line %d: %s", ErrSyntax, line, msg)
-	}
-	return token{kind: tokEOF, line: line}
-}
-
-func (l *lexer) skip() {
-	for l.i < len(l.src) && l.err == nil {
-		c := l.src[l.i]
-		if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
-			l.bump()
-			continue
-		}
-		if c == '-' && l.i+1 < len(l.src) && l.src[l.i+1] == '-' {
-			l.lineComment()
-			continue
-		}
-		if c == '/' && l.i+1 < len(l.src) && l.src[l.i+1] == '*' {
-			l.blockComment()
-			continue
-		}
-		return
-	}
-}
-
-func (l *lexer) lineComment() {
-	l.i += 2
-	start := l.i
-	for l.i < len(l.src) && l.src[l.i] != '\n' && l.src[l.i] != '\r' {
-		l.i++
-	}
-	l.addComment(strings.TrimSpace(l.src[start:l.i]))
-}
-
-func (l *lexer) blockComment() {
-	l.i += 2
-	start := l.i
-	for l.i+1 < len(l.src) {
-		if l.src[l.i] == '*' && l.src[l.i+1] == '/' {
-			l.addComment(strings.TrimSpace(l.src[start:l.i]))
-			l.i += 2
-			return
-		}
-		if l.src[l.i] == '\n' {
-			l.line++
-		} else if l.src[l.i] == '\r' {
-			l.line++
-			if l.src[l.i+1] == '\n' {
-				l.i++
-			}
-		}
-		l.i++
-	}
-	l.broken(l.line, "unclosed comment")
-}
-
-func (l *lexer) addComment(text string) {
+func addNote(b *strings.Builder, text string) {
+	text = strings.TrimSpace(text)
 	if text == "" {
 		return
 	}
-	if l.comment.Len() > 0 {
-		l.comment.WriteByte('\n')
+	if b.Len() > 0 {
+		b.WriteByte('\n')
 	}
-	l.comment.WriteString(text)
+	b.WriteString(text)
 }
 
-func (l *lexer) bump() {
-	if l.i >= len(l.src) {
-		return
-	}
-	c := l.src[l.i]
-	l.i++
-	if c == '\n' {
-		l.line++
-		return
-	}
-	if c == '\r' {
-		l.line++
-		if l.i < len(l.src) && l.src[l.i] == '\n' {
-			l.i++
+func blockEnd(src string, at int) int {
+	for i := at + 2; i+1 < len(src); i++ {
+		if src[i] == '*' && src[i+1] == '/' {
+			return i
 		}
+	}
+	return -1
+}
+
+func skipLexeme(src string, at int) int {
+	buf := []byte(src)
+	if n := matchString(buf, at); n > 0 {
+		return n
+	}
+	if n := matchQuoted(buf, at); n > 0 {
+		return n
+	}
+	if n := matchPlaceholder(buf, at); n > 0 {
+		return n
+	}
+	if n := matchNumber(buf, at); n > 0 {
+		return n
+	}
+	if n := matchIdentBytes(buf, at); n > 0 {
+		return n
+	}
+	return matchOp(src, at)
+}
+
+func matchKeyword(text string) xparse.Match {
+	return func(src []byte, at int) int {
+		if at+len(text) > len(src) {
+			return 0
+		}
+		for i := 0; i < len(text); i++ {
+			if foldASCII(src[at+i]) != foldASCII(text[i]) {
+				return 0
+			}
+		}
+		end := at + len(text)
+		if end < len(src) {
+			r, _ := utf8.DecodeRune(src[end:])
+			if identifierContinue(r) {
+				return 0
+			}
+		}
+		return len(text)
 	}
 }
 
-func (l *lexer) string() (string, bool) {
-	l.i++
-	var b strings.Builder
-	for l.i < len(l.src) {
-		c := l.src[l.i]
-		if c == '\n' || c == '\r' {
-			l.bump()
-			b.WriteByte('\n')
-			continue
-		}
-		l.i++
-		if c != '\'' {
-			b.WriteByte(c)
-			continue
-		}
-		if l.i < len(l.src) && l.src[l.i] == '\'' {
-			b.WriteByte('\'')
-			l.i++
-			continue
-		}
-		return b.String(), true
+func foldASCII(c byte) byte {
+	if c >= 'a' && c <= 'z' {
+		return c - ('a' - 'A')
 	}
-	return "", false
+	return c
 }
 
-func (l *lexer) quoted(quote byte) (string, bool) {
-	l.i++
-	end := quote
-	if quote == '[' {
-		end = ']'
+func identifierStart(r rune) bool {
+	if r >= utf8.RuneSelf {
+		return true
 	}
-	var b strings.Builder
-	for l.i < len(l.src) {
-		c := l.src[l.i]
-		if c == '\n' || c == '\r' {
-			l.bump()
-			b.WriteByte('\n')
-			continue
+	return r == '_' || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')
+}
+
+func identifierContinue(r rune) bool {
+	return identifierStart(r) || (r >= '0' && r <= '9')
+}
+
+func matchIdentBytes(src []byte, at int) int {
+	if at >= len(src) {
+		return 0
+	}
+	r, n := utf8.DecodeRune(src[at:])
+	if r == utf8.RuneError && n == 1 || !identifierStart(r) {
+		return 0
+	}
+	i := at + n
+	for i < len(src) {
+		r, n = utf8.DecodeRune(src[i:])
+		if r == utf8.RuneError && n == 1 || !identifierContinue(r) {
+			break
 		}
-		if c == end {
-			if quote != '[' && l.i+1 < len(l.src) && l.src[l.i+1] == end {
-				b.WriteByte(end)
-				l.i += 2
+		i += n
+	}
+	return i - at
+}
+
+// matchAlias is a bare select alias. Clause words stay available as
+// clauses; the lexer would otherwise keep the lower symbol on a tie.
+func matchAlias(src []byte, at int) int {
+	n := matchIdentBytes(src, at)
+	if n == 0 {
+		return 0
+	}
+	switch strings.ToUpper(string(src[at : at+n])) {
+	case "FROM", "WHERE", "GROUP", "ORDER", "LIMIT", "HAVING", "UNION", "EXCEPT", "INTERSECT", "WINDOW":
+		return 0
+	default:
+		return n
+	}
+}
+
+func matchSpace(src []byte, at int) int {
+	i := at
+	for i < len(src) {
+		switch src[i] {
+		case ' ', '\t', '\n', '\r':
+			i++
+		default:
+			if i == at {
+				return 0
+			}
+			return i - at
+		}
+	}
+	if i == at {
+		return 0
+	}
+	return i - at
+}
+
+func matchLineComment(src []byte, at int) int {
+	if at+1 >= len(src) || src[at] != '-' || src[at+1] != '-' {
+		return 0
+	}
+	i := at + 2
+	for i < len(src) && src[i] != '\n' && src[i] != '\r' {
+		i++
+	}
+	return i - at
+}
+
+func matchBlockComment(src []byte, at int) int {
+	if at+1 >= len(src) || src[at] != '/' || src[at+1] != '*' {
+		return 0
+	}
+	end := blockEnd(string(src), at)
+	if end < 0 {
+		return 0
+	}
+	return end + 2 - at
+}
+
+func matchString(src []byte, at int) int {
+	if at >= len(src) || src[at] != '\'' {
+		return 0
+	}
+	i := at + 1
+	for i < len(src) {
+		if src[i] == '\'' {
+			if i+1 < len(src) && src[i+1] == '\'' {
+				i += 2
 				continue
 			}
-			l.i++
-			return b.String(), true
+			return i + 1 - at
 		}
-		b.WriteByte(c)
-		l.i++
+		i++
 	}
-	return "", false
+	return 0
 }
 
-func (l *lexer) number() string {
-	start := l.i
-	for l.i < len(l.src) && isDigit(l.src[l.i]) {
-		l.i++
+func matchQuoted(src []byte, at int) int {
+	if at >= len(src) {
+		return 0
 	}
-	if l.i+1 < len(l.src) && l.src[l.i] == '.' && isDigit(l.src[l.i+1]) {
-		l.i++
-		for l.i < len(l.src) && isDigit(l.src[l.i]) {
-			l.i++
+	quote := src[at]
+	end := quote
+	switch quote {
+	case '"', '`':
+	case '[':
+		end = ']'
+	default:
+		return 0
+	}
+	i := at + 1
+	for i < len(src) {
+		if src[i] == end {
+			if quote != '[' && i+1 < len(src) && src[i+1] == end {
+				i += 2
+				continue
+			}
+			return i + 1 - at
+		}
+		i++
+	}
+	return 0
+}
+
+func matchPlaceholder(src []byte, at int) int {
+	if at >= len(src) {
+		return 0
+	}
+	if src[at] == '?' {
+		return 1
+	}
+	if src[at] != '$' || at+1 >= len(src) || !isDigit(src[at+1]) {
+		return 0
+	}
+	i := at + 2
+	for i < len(src) && isDigit(src[i]) {
+		i++
+	}
+	return i - at
+}
+
+func matchNumber(src []byte, at int) int {
+	if at >= len(src) || !isDigit(src[at]) {
+		return 0
+	}
+	i := at + 1
+	for i < len(src) && isDigit(src[i]) {
+		i++
+	}
+	if i+1 < len(src) && src[i] == '.' && isDigit(src[i+1]) {
+		i++
+		for i < len(src) && isDigit(src[i]) {
+			i++
 		}
 	}
-	if l.i < len(l.src) && (l.src[l.i] == 'e' || l.src[l.i] == 'E') {
-		j := l.i + 1
-		if j < len(l.src) && (l.src[j] == '+' || l.src[j] == '-') {
+	if i < len(src) && (src[i] == 'e' || src[i] == 'E') {
+		j := i + 1
+		if j < len(src) && (src[j] == '+' || src[j] == '-') {
 			j++
 		}
-		if j < len(l.src) && isDigit(l.src[j]) {
-			l.i = j
-			for l.i < len(l.src) && isDigit(l.src[l.i]) {
-				l.i++
+		if j < len(src) && isDigit(src[j]) {
+			i = j + 1
+			for i < len(src) && isDigit(src[i]) {
+				i++
 			}
 		}
 	}
-	return l.src[start:l.i]
+	return i - at
 }
 
-func (l *lexer) operator() (string, bool) {
-	if l.i+1 < len(l.src) {
-		pair := l.src[l.i : l.i+2]
-		switch pair {
+func matchOp(src string, at int) int {
+	if at >= len(src) {
+		return 0
+	}
+	if at+1 < len(src) {
+		switch src[at : at+2] {
 		case "<>", "!=", "<=", ">=", "||":
-			l.i += 2
-			return pair, true
+			return 2
 		}
 	}
-	switch l.src[l.i] {
+	switch src[at] {
 	case '(', ')', ',', ';', '.', '*', '=', '<', '>', '+', '-', '/', '%':
-		op := l.src[l.i : l.i+1]
-		l.i++
-		return op, true
+		return 1
 	default:
-		return "", false
+		return 0
 	}
 }
 
 func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 
-func isIdentStart(c byte) bool {
-	return c == '_' || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c >= utf8.RuneSelf
+func hasPrefix(src string, at int, word string) bool {
+	if at < 0 || at+len(word) > len(src) {
+		return false
+	}
+	return src[at:at+len(word)] == word
 }
 
-func isIdentCont(c byte) bool {
-	return isIdentStart(c) || isDigit(c)
+func decodeString(tok string) (string, error) {
+	if len(tok) < 2 || tok[0] != '\'' || tok[len(tok)-1] != '\'' {
+		return "", ErrSyntax
+	}
+	return decodeBody(tok[1:len(tok)-1], '\''), nil
 }
 
-func (p *parser) sqlType() (Type, error) {
-	if p.tok.kind != tokIdent || p.tok.quoted {
-		return 0, p.fail("expected type")
+func decodeQuoted(tok string) (string, error) {
+	if len(tok) < 2 {
+		return "", ErrSyntax
 	}
-	word := p.tok.text
-	p.next()
-	if p.atOp("(") {
-		return 0, p.fail("type parameters are unsupported")
+	end := tok[0]
+	if tok[0] == '[' {
+		end = ']'
 	}
-	switch strings.ToUpper(word) {
-	case "INTEGER", "INT":
-		return TypeInteger, nil
-	case "TEXT":
-		return TypeText, nil
-	case "BLOB":
-		return TypeBlob, nil
-	case "REAL":
-		return TypeReal, nil
-	case "NUMERIC":
-		return TypeNumeric, nil
-	case "BIGINT":
-		return TypeBigInt, nil
-	case "BOOLEAN", "BOOL":
-		return TypeBoolean, nil
-	case "TIMESTAMP":
-		return TypeTimestamp, nil
-	default:
-		return 0, p.fail("unknown type " + word)
+	if tok[len(tok)-1] != end {
+		return "", ErrSyntax
 	}
+	body := tok[1 : len(tok)-1]
+	if tok[0] == '[' {
+		return decodeNewlines(body), nil
+	}
+	return decodeBody(body, end), nil
+}
+
+func decodeBody(body string, quote byte) string {
+	var b strings.Builder
+	for i := 0; i < len(body); i++ {
+		if body[i] == quote && i+1 < len(body) && body[i+1] == quote {
+			b.WriteByte(quote)
+			i++
+			continue
+		}
+		if body[i] == '\n' || body[i] == '\r' {
+			if body[i] == '\r' && i+1 < len(body) && body[i+1] == '\n' {
+				i++
+			}
+			b.WriteByte('\n')
+			continue
+		}
+		b.WriteByte(body[i])
+	}
+	return b.String()
+}
+
+func decodeNewlines(body string) string {
+	return decodeBody(body, 0)
 }

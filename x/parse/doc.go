@@ -27,7 +27,14 @@
 // and [Opt] combine expressions. [Compose] unions them: two equations with one
 // name become alternatives of that rule. [Build] places the expression into a
 // [Grammar]. The same form can be built into more than one grammar. [Left],
-// [Right], and [Prec] wrap an alternative.
+// [Right], and [Prec] wrap an alternative. [Lex] sets the lexical
+// precedence of a token.
+//
+// A [Syntax] carries a token enum and a rule enum and stores nothing. Its
+// methods return a [Piece]. [Syntax.Compile] places that piece and builds the
+// tables. [Model.Parse] returns a [Syn]. [Syn.Term] and [Syn.Rule] read the
+// enum value of a visible symbol. A hidden rule is neither. [Syntax.Lit] is
+// punctuation with no enum value.
 //
 // [FromTreeSitter] loads a tree-sitter grammar.json. token rules become
 // matchers, extras are skipped, and inline rules are substituted into their

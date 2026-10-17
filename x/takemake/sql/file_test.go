@@ -11,6 +11,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLowercaseKeywords(t *testing.T) {
+	t.Parallel()
+	file, err := Take(strings.NewReader("create table t (id integer primary key);\n"))
+	require.NoError(t, err)
+	require.Len(t, file.Statements, 1)
+	table := file.Statements[0].(*CreateTable)
+	require.Equal(t, "t", table.Name)
+	require.Equal(t, "id", table.Columns[0].Name)
+	require.Equal(t, TypeInteger, table.Columns[0].Type)
+	require.True(t, table.Columns[0].Primary)
+}
+
 func TestComposeRoundTrip(t *testing.T) {
 	t.Parallel()
 	up := NewFile()

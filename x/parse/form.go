@@ -21,6 +21,8 @@ type Form struct {
 	assoc   Assoc
 	dyn     int
 	hasDyn  bool
+	lex     int
+	hasLex  bool
 }
 
 type formKind uint8
@@ -125,6 +127,18 @@ func Prec(n int, f *Form) *Form {
 // Dynamic sets the runtime precedence added when a fork covers a span.
 func Dynamic(n int, f *Form) *Form {
 	return &Form{kind: formPrec, dyn: n, hasDyn: true, kids: []*Form{f}}
+}
+
+// Lex sets the lexical precedence of a token. A higher value wins when two
+// tokens match the same bytes. Keywords use 2. Identifiers use 0.
+func Lex(n int, f *Form) *Form {
+	if f == nil {
+		return nil
+	}
+	g := *f
+	g.lex = n
+	g.hasLex = true
+	return &g
 }
 
 // Eq binds a name to a body. The body is one alternative, or an [Alt].
@@ -377,6 +391,9 @@ func (p *placer) placeToken(f *Form) (*Symbol, error) {
 			}
 			rec.match = f.match
 		}
+		if f.hasLex {
+			rec.lexPrec = f.lex
+		}
 		p.seen[f] = s
 		return s, nil
 	case formWord:
@@ -386,10 +403,16 @@ func (p *placer) placeToken(f *Form) (*Symbol, error) {
 			return nil, errs.Wrap(errs.ErrInvalid, "build: token "+f.name+" has two matchers")
 		}
 		s.Word(f.start, f.cont)
+		if f.hasLex {
+			p.g.syms[s.id].lexPrec = f.lex
+		}
 		p.seen[f] = s
 		return s, nil
 	case formKey:
 		s := p.g.Keyword(f.text, p.g.Sym(f.word))
+		if f.hasLex {
+			p.g.syms[s.id].lexPrec = f.lex
+		}
 		p.seen[f] = s
 		return s, nil
 	default:

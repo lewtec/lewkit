@@ -1,700 +1,330 @@
 package graphviz
 
 import (
+	"errors"
 	"fmt"
+	"sync"
+
+	xparse "github.com/lewtec/lewkit/x/parse"
 )
+
+var (
+	langOnce sync.Once
+	lang     *xparse.Model[Term, Rule]
+	langErr  error
+)
+
+func language() (*xparse.Model[Term, Rule], error) {
+	langOnce.Do(func() {
+		lang, langErr = define()
+	})
+	return lang, langErr
+}
+
+func define() (*xparse.Model[Term, Rule], error) {
+	var syntax xparse.Syntax[Term, Rule]
+
+	// Key beats an equal-length identifier. The identifier continuation keeps a keyword
+	// from matching inside a longer word. Num never matches those bytes.
+	identifier := syntax.Word(TermIdentifier, identifierStart, identifierContinue)
+	number := syntax.Term(TermNumber, matchNumber)
+	stringToken := syntax.Term(TermString, matchString)
+	htmlLabel := syntax.Term(TermHTMLLabel, matchHTML)
+	strict := syntax.Key(TermStrict, TermIdentifier)
+	graph := syntax.Key(TermGraph, TermIdentifier)
+	digraph := syntax.Key(TermDigraph, TermIdentifier)
+	subgraph := syntax.Key(TermSubgraph, TermIdentifier)
+	node := syntax.Key(TermNode, TermIdentifier)
+	edge := syntax.Key(TermEdge, TermIdentifier)
+
+	leftBrace := syntax.Lit("{")
+	rightBrace := syntax.Lit("}")
+	leftBracket := syntax.Lit("[")
+	rightBracket := syntax.Lit("]")
+	semicolon := syntax.Lit(";")
+	comma := syntax.Lit(",")
+	equal := syntax.Lit("=")
+	colon := syntax.Lit(":")
+	plus := syntax.Lit("+")
+	edgeop := syntax.Alt(syntax.Lit("->"), syntax.Lit("--"))
+	// A separator may be absent or trailing. The comma and the following
+	// pair stay in one item so a trailing separator does not also parse
+	// as the start of another pair.
+	sep := syntax.Alt(comma, semicolon)
+
+	atom := syntax.Eq(RuleAtom, syntax.Alt(identifier, number, syntax.Ref(RuleStrings)))
+	strings := syntax.Eq(RuleStrings, syntax.Seq(
+		syntax.Alt(stringToken, htmlLabel),
+		syntax.Repeat(syntax.Seq(plus, syntax.Alt(stringToken, htmlLabel))),
+	))
+	pair := syntax.Eq(RulePair, syntax.Seq(syntax.Ref(RuleAtom), equal, syntax.Ref(RuleAtom)))
+	more := syntax.Eq(RuleMore, syntax.Alt(
+		syntax.Seq(sep, syntax.Ref(RulePair), syntax.Ref(RuleMore)),
+		syntax.Seq(syntax.Ref(RulePair), syntax.Ref(RuleMore)),
+		sep,
+		syntax.Seq(),
+	))
+	attributeList := syntax.Eq(RuleAttributeList, syntax.Seq(leftBracket, syntax.Ref(RuleMore), rightBracket))
+	port := syntax.Eq(RulePort, syntax.Seq(
+		colon,
+		syntax.Ref(RuleAtom),
+		syntax.Opt(syntax.Seq(colon, syntax.Ref(RuleAtom))),
+	))
+	nodeIdentifier := syntax.Eq(RuleNodeIdentifier, syntax.Seq(syntax.Ref(RuleAtom), syntax.Opt(syntax.Ref(RulePort))))
+	identifiers := syntax.Eq(RuleIdentifiers, syntax.Sep1(syntax.Ref(RuleNodeIdentifier), comma))
+	block := syntax.Eq(RuleBlock, syntax.Alt(
+		syntax.Seq(subgraph, syntax.Opt(syntax.Ref(RuleAtom)), leftBrace, syntax.Repeat(syntax.Ref(RuleStatement)), rightBrace),
+		syntax.Seq(leftBrace, syntax.Repeat(syntax.Ref(RuleStatement)), rightBrace),
+	))
+	end := syntax.Eq(RuleEnd, syntax.Alt(syntax.Ref(RuleIdentifiers), syntax.Ref(RuleBlock)))
+	edgeTail := syntax.Eq(RuleEdgeTail, syntax.Alt(
+		syntax.Seq(edgeop, syntax.Ref(RuleEnd), syntax.Ref(RuleEdgeTail)),
+		syntax.Repeat(syntax.Ref(RuleAttributeList)),
+	))
+	list := syntax.Eq(RuleList, syntax.Alt(
+		syntax.Seq(comma, syntax.Ref(RuleNodeIdentifier), syntax.Ref(RuleList)),
+		syntax.Seq(edgeop, syntax.Ref(RuleEnd), syntax.Ref(RuleEdgeTail)),
+		syntax.Repeat(syntax.Ref(RuleAttributeList)),
+	))
+	tail := syntax.Eq(RuleTail, syntax.Alt(
+		syntax.Seq(equal, syntax.Ref(RuleAtom)),
+		syntax.Seq(syntax.Opt(syntax.Ref(RulePort)), syntax.Ref(RuleList)),
+	))
+	lead := syntax.Eq(RuleLead, syntax.Seq(syntax.Ref(RuleAtom), syntax.Ref(RuleTail)))
+	statementTail := syntax.Eq(RuleStatementTail, syntax.Opt(syntax.Seq(edgeop, syntax.Ref(RuleEnd), syntax.Ref(RuleEdgeTail))))
+	subgraphStatement := syntax.Eq(RuleSubgraphStatement, syntax.Seq(syntax.Ref(RuleBlock), syntax.Ref(RuleStatementTail)))
+	attributeStatement := syntax.Eq(RuleAttributeStatement, syntax.Seq(
+		syntax.Alt(graph, node, edge),
+		syntax.Opt(syntax.Seq(syntax.Ref(RuleAtom), equal)),
+		syntax.Repeat1(syntax.Ref(RuleAttributeList)),
+	))
+	statement := syntax.Eq(RuleStatement, syntax.Seq(
+		syntax.Alt(syntax.Ref(RuleAttributeStatement), syntax.Ref(RuleLead), syntax.Ref(RuleSubgraphStatement)),
+		syntax.Opt(semicolon),
+	))
+	top := syntax.Eq(RuleTop, syntax.Seq(
+		syntax.Opt(strict),
+		syntax.Alt(graph, digraph),
+		syntax.Opt(syntax.Ref(RuleAtom)),
+		leftBrace,
+		syntax.Repeat(syntax.Ref(RuleStatement)),
+		rightBrace,
+	))
+	file := syntax.Eq(RuleFile, syntax.Repeat(syntax.Ref(RuleTop)))
+	return syntax.Compile("graphviz", syntax.Compose(
+		file, top, statement, attributeStatement, lead, tail, list, edgeTail, statementTail, subgraphStatement, block, end, identifiers, nodeIdentifier, port, attributeList, more, pair, atom, strings,
+		syntax.Skip(syntax.Term(TermSkip, matchTrivia)),
+		syntax.Start(RuleFile),
+	))
+}
 
 func parseSource(src []byte) (*File, error) {
-	p := &parser{}
-	p.lx.init(src)
-	p.next()
-	file := New()
-	for p.tok.kind != tokEOF {
-		g, err := p.graph()
-		if err != nil {
-			return nil, err
-		}
-		file.Graphs = append(file.Graphs, g)
+	src = stripBOM(src)
+	model, err := language()
+	if err != nil {
+		return nil, err
 	}
-	if p.err != nil {
-		return nil, p.err
+	root, err := model.Parse(src)
+	if err != nil {
+		return nil, syntaxParse(err)
 	}
-	return file, nil
+	return lowerFile(src, root)
 }
 
-type tokenKind uint8
-
-const (
-	tokEOF tokenKind = iota
-	tokIdent
-	tokString
-	tokKeyword
-	tokEdge
-	tokPunct
-)
-
-type token struct {
-	kind tokenKind
-	text string
-	html bool
-	line int
-}
-
-type lexer struct {
-	src  []byte
-	i    int
-	line int
-}
-
-func (l *lexer) init(src []byte) {
-	l.src = src
-	l.line = 1
+func stripBOM(src []byte) []byte {
 	if len(src) >= 3 && src[0] == 0xEF && src[1] == 0xBB && src[2] == 0xBF {
-		l.i = 3
+		return src[3:]
 	}
+	return src
 }
 
-func (l *lexer) next() (token, error) {
-	if err := l.skip(); err != nil {
-		return token{kind: tokEOF, line: l.line}, err
+func syntaxParse(err error) error {
+	var pe *xparse.Error
+	if errors.As(err, &pe) && pe.Line > 0 {
+		return fmt.Errorf("%w: line %d", ErrSyntax, pe.Line)
 	}
-	if l.i >= len(l.src) {
-		return token{kind: tokEOF, line: l.line}, nil
-	}
-	line := l.line
-	if l.has("--") || l.has("->") {
-		text := string(l.src[l.i : l.i+2])
-		l.i += 2
-		return token{kind: tokEdge, text: text, line: line}, nil
-	}
-	c := l.src[l.i]
-	switch c {
-	case '{', '}', '[', ']', ';', ',', '=', ':', '+':
-		l.i++
-		return token{kind: tokPunct, text: string(c), line: line}, nil
-	case '"':
-		return l.string(line)
-	case '<':
-		return l.html(line)
-	}
-	if isLetter(c) {
-		return l.name(line), nil
-	}
-	if c == '-' || c == '.' || isDigit(c) {
-		return l.number(line), nil
-	}
-	l.i++
-	return token{kind: tokPunct, text: string(c), line: line}, nil
+	return fmt.Errorf("%w", ErrSyntax)
 }
 
-func (l *lexer) has(s string) bool {
-	return l.i+len(s) <= len(l.src) && string(l.src[l.i:l.i+len(s)]) == s
-}
-
-func (l *lexer) skip() error {
-	for l.i < len(l.src) {
-		c := l.src[l.i]
-		switch c {
-		case ' ', '\t', '\r':
-			l.i++
-			continue
-		case '\n':
-			l.line++
-			l.i++
-			continue
-		case '#':
-			l.skipLine()
-			continue
-		case '/':
-			if l.i+1 < len(l.src) && l.src[l.i+1] == '/' {
-				l.i += 2
-				l.skipLine()
-				continue
-			}
-			if l.i+1 < len(l.src) && l.src[l.i+1] == '*' {
-				l.i += 2
-				if err := l.blockComment(); err != nil {
-					return err
-				}
-				continue
-			}
-		}
-		break
+func syntaxAt(src []byte, n xparse.Syn[Term, Rule]) error {
+	line := 1
+	if n.Valid() {
+		line = lineAt(src, n.Start())
 	}
-	return nil
+	return fmt.Errorf("%w: line %d", ErrSyntax, line)
 }
 
-func (l *lexer) skipLine() {
-	for l.i < len(l.src) && l.src[l.i] != '\n' {
-		l.i++
+func lineAt(src []byte, off int) int {
+	if off < 0 {
+		off = 0
 	}
-}
-
-func (l *lexer) blockComment() error {
-	for l.i < len(l.src) {
-		c := l.src[l.i]
-		l.i++
+	if off > len(src) {
+		off = len(src)
+	}
+	n := 1
+	for _, c := range src[:off] {
 		if c == '\n' {
-			l.line++
-			continue
-		}
-		if c == '*' && l.i < len(l.src) && l.src[l.i] == '/' {
-			l.i++
-			return nil
+			n++
 		}
 	}
-	return fmt.Errorf("%w: line %d: unclosed comment", ErrSyntax, l.line)
+	return n
 }
 
-func (l *lexer) string(line int) (token, error) {
-	l.i++ // opening quote
-	var b []byte
-	for l.i < len(l.src) {
-		c := l.src[l.i]
-		if c == '"' {
-			l.i++
-			return token{kind: tokString, text: string(b), line: line}, nil
-		}
-		if c == '\\' && l.i+1 < len(l.src) {
-			next := l.src[l.i+1]
-			switch next {
-			case '"':
-				b = append(b, '"')
-				l.i += 2
-				continue
-			case '\\':
-				b = append(b, '\\', '\\')
-				l.i += 2
-				continue
-			case '\n':
-				l.line++
-				l.i += 2
-				continue
-			}
-		}
-		if c == '\n' {
-			l.line++
-		}
-		b = append(b, c)
-		l.i++
-	}
-	return token{kind: tokEOF, line: line}, fmt.Errorf("%w: line %d: unclosed string", ErrSyntax, line)
+func identifierStart(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r == '_' || r >= 0x80
 }
 
-func (l *lexer) html(line int) (token, error) {
-	l.i++ // opening <
-	nest := 1
-	var b []byte
-	for l.i < len(l.src) {
-		c := l.src[l.i]
-		if c == '>' {
-			nest--
-			l.i++
-			if nest == 0 {
-				return token{kind: tokString, text: string(b), html: true, line: line}, nil
-			}
-			b = append(b, c)
-			continue
-		}
-		if c == '<' {
-			nest++
-		}
-		if c == '\n' {
-			l.line++
-		}
-		b = append(b, c)
-		l.i++
-	}
-	return token{kind: tokEOF, line: line}, fmt.Errorf("%w: line %d: unclosed HTML string", ErrSyntax, line)
-}
-
-func (l *lexer) name(line int) token {
-	start := l.i
-	for l.i < len(l.src) && (isLetter(l.src[l.i]) || isDigit(l.src[l.i])) {
-		l.i++
-	}
-	text := string(l.src[start:l.i])
-	if isKeyword(text) {
-		return token{kind: tokKeyword, text: text, line: line}
-	}
-	return token{kind: tokIdent, text: text, line: line}
-}
-
-func (l *lexer) number(line int) token {
-	start := l.i
-	rest := l.src[l.i:]
-	if len(rest) == 0 {
-		return token{kind: tokEOF, line: line}
-	}
-	if rest[0] == '-' {
-		if len(rest) > 1 && (isDigit(rest[1]) || (rest[1] == '.' && len(rest) > 2 && isDigit(rest[2]))) {
-			l.i++
-		} else {
-			l.i++
-			return token{kind: tokPunct, text: "-", line: line}
-		}
-	} else if rest[0] == '.' {
-		if len(rest) > 1 && isDigit(rest[1]) {
-			l.i++
-		} else {
-			l.i++
-			return token{kind: tokPunct, text: ".", line: line}
-		}
-	}
-	if l.i < len(l.src) && isDigit(l.src[l.i]) {
-		for l.i < len(l.src) && isDigit(l.src[l.i]) {
-			l.i++
-		}
-		if l.i < len(l.src) && l.src[l.i] == '.' {
-			l.i++
-			for l.i < len(l.src) && isDigit(l.src[l.i]) {
-				l.i++
-			}
-		}
-	} else if l.i < len(l.src) && l.src[l.i] == '.' {
-		l.i++
-		for l.i < len(l.src) && isDigit(l.src[l.i]) {
-			l.i++
-		}
-	}
-	if l.i == start {
-		c := l.src[l.i]
-		l.i++
-		return token{kind: tokPunct, text: string(c), line: line}
-	}
-	return token{kind: tokIdent, text: string(l.src[start:l.i]), line: line}
-}
-
-func isKeyword(s string) bool {
-	switch s {
-	case "node", "edge", "graph", "digraph", "strict", "subgraph":
-		return true
-	default:
-		return false
-	}
-}
-
-func isLetter(c byte) bool {
-	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_' || c >= 0x80
+func identifierContinue(r rune) bool {
+	return identifierStart(r) || (r >= '0' && r <= '9')
 }
 
 func isDigit(c byte) bool {
 	return c >= '0' && c <= '9'
 }
 
-type parser struct {
-	lx  lexer
-	tok token
-	err error
-}
-
-func (p *parser) next() {
-	if p.err != nil {
-		p.tok = token{kind: tokEOF, line: p.lx.line}
-		return
+func matchNumber(src []byte, at int) int {
+	if at >= len(src) {
+		return 0
 	}
-	tok, err := p.lx.next()
-	p.tok = tok
-	p.err = err
-}
-
-func (p *parser) syntax(msg string) error {
-	if p.err != nil {
-		return p.err
-	}
-	found := p.tok.text
-	if p.tok.kind == tokEOF {
-		found = "end of file"
-	}
-	return fmt.Errorf("%w: line %d: %s, found %q", ErrSyntax, p.tok.line, msg, found)
-}
-
-func (p *parser) expect(text string) error {
-	if p.err != nil {
-		return p.err
-	}
-	if p.tok.text != text {
-		return p.syntax("expected " + text)
-	}
-	p.next()
-	return p.err
-}
-
-func (p *parser) isAtom() bool {
-	return p.tok.kind == tokIdent || p.tok.kind == tokString
-}
-
-func (p *parser) graph() (*Graph, error) {
-	if p.err != nil {
-		return nil, p.err
-	}
-	g := &Graph{}
-	if p.tok.kind == tokKeyword && p.tok.text == "strict" {
-		g.Strict = true
-		p.next()
-	}
-	if p.err != nil {
-		return nil, p.err
-	}
-	if p.tok.kind != tokKeyword {
-		return nil, p.syntax("expected graph or digraph")
-	}
-	switch p.tok.text {
-	case "graph":
-	case "digraph":
-		g.Directed = true
+	i := at
+	switch src[i] {
+	case '-':
+		if !numAfterSign(src, i+1) {
+			return 0
+		}
+		i++
+	case '.':
+		if i+1 >= len(src) || !isDigit(src[i+1]) {
+			return 0
+		}
+		i++
 	default:
-		return nil, p.syntax("expected graph or digraph")
-	}
-	p.next()
-	if p.isAtom() {
-		name, err := p.atom()
-		if err != nil {
-			return nil, err
+		if !isDigit(src[i]) {
+			return 0
 		}
-		g.Name = name
 	}
-	if err := p.expect("{"); err != nil {
-		return nil, err
-	}
-	if err := p.stmtList(g, g.Directed); err != nil {
-		return nil, err
-	}
-	if err := p.expect("}"); err != nil {
-		return nil, err
-	}
-	return g, nil
-}
-
-func (p *parser) stmtList(g *Graph, directed bool) error {
-	for p.tok.text != "}" && p.tok.kind != tokEOF {
-		if err := p.stmt(g, directed); err != nil {
-			return err
+	if i < len(src) && isDigit(src[i]) {
+		for i < len(src) && isDigit(src[i]) {
+			i++
 		}
-		if p.tok.text == ";" {
-			p.next()
-			if p.err != nil {
-				return p.err
+		if i < len(src) && src[i] == '.' {
+			i++
+			for i < len(src) && isDigit(src[i]) {
+				i++
 			}
 		}
+		return i - at
 	}
-	if p.tok.kind == tokEOF {
-		return p.syntax("unclosed '{'")
+	if i < len(src) && src[i] == '.' {
+		i++
+		if i >= len(src) || !isDigit(src[i]) {
+			return 0
+		}
+		for i < len(src) && isDigit(src[i]) {
+			i++
+		}
+		return i - at
 	}
-	return nil
+	return 0
 }
 
-func (p *parser) stmt(g *Graph, directed bool) error {
-	if p.err != nil {
-		return p.err
+func numAfterSign(src []byte, i int) bool {
+	if i >= len(src) {
+		return false
 	}
-	if p.tok.kind == tokKeyword {
-		switch p.tok.text {
-		case "graph", "node", "edge":
-			return p.attrStmt(g)
-		case "subgraph":
-			sub, err := p.subgraph(directed)
-			if err != nil {
-				return err
+	if isDigit(src[i]) {
+		return true
+	}
+	return src[i] == '.' && i+1 < len(src) && isDigit(src[i+1])
+}
+
+func matchString(src []byte, at int) int {
+	if at >= len(src) || src[at] != '"' {
+		return 0
+	}
+	i := at + 1
+	for i < len(src) {
+		if src[i] == '"' {
+			return i + 1 - at
+		}
+		if src[i] == '\\' && i+1 < len(src) {
+			i += 2
+			continue
+		}
+		i++
+	}
+	return 0
+}
+
+func matchHTML(src []byte, at int) int {
+	if at >= len(src) || src[at] != '<' {
+		return 0
+	}
+	i := at + 1
+	nest := 1
+	for i < len(src) {
+		c := src[i]
+		i++
+		switch c {
+		case '>':
+			nest--
+			if nest == 0 {
+				return i - at
 			}
-			return p.finish(g, directed, &End{Sub: sub})
-		default:
-			return p.syntax("expected a statement")
+		case '<':
+			nest++
 		}
 	}
-	if p.tok.text == "{" {
-		sub, err := p.subgraph(directed)
-		if err != nil {
-			return err
-		}
-		return p.finish(g, directed, &End{Sub: sub})
-	}
-	if !p.isAtom() {
-		return p.syntax("expected a statement")
-	}
-	name, err := p.atom()
-	if err != nil {
-		return err
-	}
-	if p.tok.text == "=" {
-		p.next()
-		value, err := p.atom()
-		if err != nil {
-			return err
-		}
-		g.Stmts = append(g.Stmts, &Stmt{
-			Kind:   StmtAssign,
-			Assign: &Assign{Name: name, Value: value},
-		})
-		return nil
-	}
-	id, err := p.nodeID(name)
-	if err != nil {
-		return err
-	}
-	ids, err := p.nodeList(id)
-	if err != nil {
-		return err
-	}
-	return p.finish(g, directed, &End{IDs: ids})
+	return 0
 }
 
-func (p *parser) finish(g *Graph, directed bool, first *End) error {
-	ends := []*End{first}
-	edge := false
-	for p.tok.kind == tokEdge {
-		edge = true
-		if directed && p.tok.text != "->" {
-			return p.syntax("undirected edge in a digraph")
-		}
-		if !directed && p.tok.text != "--" {
-			return p.syntax("directed edge in a graph")
-		}
-		p.next()
-		end, err := p.simple(directed)
-		if err != nil {
-			return err
-		}
-		ends = append(ends, end)
+func matchTrivia(src []byte, at int) int {
+	if at >= len(src) {
+		return 0
 	}
-	attrs, err := p.attrLists(false)
-	if err != nil {
-		return err
-	}
-	if edge {
-		g.Stmts = append(g.Stmts, &Stmt{
-			Kind: StmtEdge,
-			Edge: &Edge{Ends: ends, Attrs: attrs},
-		})
-		return nil
-	}
-	if first.Sub != nil {
-		if len(attrs) > 0 {
-			return p.syntax("attributes on a subgraph")
-		}
-		g.Stmts = append(g.Stmts, &Stmt{Kind: StmtSubgraph, Subgraph: first.Sub})
-		return nil
-	}
-	g.Stmts = append(g.Stmts, &Stmt{
-		Kind: StmtNode,
-		Node: &Node{IDs: first.IDs, Attrs: attrs},
-	})
-	return nil
-}
-
-func (p *parser) simple(directed bool) (*End, error) {
-	if p.err != nil {
-		return nil, p.err
-	}
-	if p.tok.text == "{" || (p.tok.kind == tokKeyword && p.tok.text == "subgraph") {
-		sub, err := p.subgraph(directed)
-		if err != nil {
-			return nil, err
-		}
-		return &End{Sub: sub}, nil
-	}
-	if !p.isAtom() {
-		return nil, p.syntax("expected a node")
-	}
-	name, err := p.atom()
-	if err != nil {
-		return nil, err
-	}
-	id, err := p.nodeID(name)
-	if err != nil {
-		return nil, err
-	}
-	ids, err := p.nodeList(id)
-	if err != nil {
-		return nil, err
-	}
-	return &End{IDs: ids}, nil
-}
-
-func (p *parser) nodeList(first *NodeID) ([]*NodeID, error) {
-	ids := []*NodeID{first}
-	for p.tok.text == "," {
-		p.next()
-		if p.err != nil {
-			return nil, p.err
-		}
-		if !p.isAtom() {
-			return nil, p.syntax("expected a node")
-		}
-		name, err := p.atom()
-		if err != nil {
-			return nil, err
-		}
-		id, err := p.nodeID(name)
-		if err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, nil
-}
-
-func (p *parser) nodeID(name Atom) (*NodeID, error) {
-	id := &NodeID{Name: name}
-	if p.tok.text != ":" {
-		return id, p.err
-	}
-	p.next()
-	port, err := p.atom()
-	if err != nil {
-		return nil, err
-	}
-	id.HasPort = true
-	id.Port = port
-	if p.tok.text != ":" {
-		return id, p.err
-	}
-	p.next()
-	compass, err := p.atom()
-	if err != nil {
-		return nil, err
-	}
-	id.HasCompass = true
-	id.Compass = compass
-	return id, nil
-}
-
-func (p *parser) subgraph(directed bool) (*Graph, error) {
-	if p.err != nil {
-		return nil, p.err
-	}
-	g := &Graph{Sub: true}
-	if p.tok.kind == tokKeyword && p.tok.text == "subgraph" {
-		p.next()
-		if p.isAtom() {
-			name, err := p.atom()
-			if err != nil {
-				return nil, err
-			}
-			g.Name = name
-		}
-	} else if p.tok.text == "{" {
-		g.Bare = true
-	} else {
-		return nil, p.syntax("expected a subgraph")
-	}
-	if err := p.expect("{"); err != nil {
-		return nil, err
-	}
-	if err := p.stmtList(g, directed); err != nil {
-		return nil, err
-	}
-	if err := p.expect("}"); err != nil {
-		return nil, err
-	}
-	return g, nil
-}
-
-func (p *parser) attrStmt(g *Graph) error {
-	var kind AttrKind
-	switch p.tok.text {
-	case "graph":
-		kind = AttrGraph
-	case "node":
-		kind = AttrNode
-	case "edge":
-		kind = AttrEdge
-	default:
-		return p.syntax("expected an attribute statement")
-	}
-	p.next()
-	if p.isAtom() {
-		if _, err := p.atom(); err != nil {
-			return err
-		}
-		if err := p.expect("="); err != nil {
-			return err
-		}
-	}
-	attrs, err := p.attrLists(true)
-	if err != nil {
-		return err
-	}
-	g.Stmts = append(g.Stmts, &Stmt{
-		Kind: StmtAttr,
-		Attr: &AttrStmt{Kind: kind, Attrs: attrs},
-	})
-	return nil
-}
-
-func (p *parser) attrLists(required bool) ([]*Attr, error) {
-	if p.err != nil {
-		return nil, p.err
-	}
-	if p.tok.text != "[" {
-		if required {
-			return nil, p.syntax("expected '['")
-		}
-		return nil, nil
-	}
-	var attrs []*Attr
-	for p.tok.text == "[" {
-		p.next()
-		for p.tok.text != "]" && p.tok.kind != tokEOF {
-			if !p.isAtom() {
-				return nil, p.syntax("expected an attribute")
-			}
-			name, err := p.atom()
-			if err != nil {
-				return nil, err
-			}
-			if err := p.expect("="); err != nil {
-				return nil, err
-			}
-			value, err := p.atom()
-			if err != nil {
-				return nil, err
-			}
-			attrs = append(attrs, &Attr{Name: name, Value: value})
-			if p.tok.text == "," || p.tok.text == ";" {
-				p.next()
-				if p.err != nil {
-					return nil, p.err
-				}
+	switch src[at] {
+	case ' ', '\t', '\r', '\n':
+		i := at + 1
+		for i < len(src) {
+			switch src[i] {
+			case ' ', '\t', '\r', '\n':
+				i++
+			default:
+				return i - at
 			}
 		}
-		if err := p.expect("]"); err != nil {
-			return nil, err
+		return i - at
+	case '#':
+		return runLine(src, at)
+	case '/':
+		if at+1 < len(src) && src[at+1] == '/' {
+			return runLine(src, at)
+		}
+		if at+1 < len(src) && src[at+1] == '*' {
+			return runBlock(src, at)
 		}
 	}
-	return attrs, nil
+	return 0
 }
 
-func (p *parser) atom() (Atom, error) {
-	if p.err != nil {
-		return Atom{}, p.err
+func runLine(src []byte, at int) int {
+	i := at
+	for i < len(src) && src[i] != '\n' {
+		i++
 	}
-	if !p.isAtom() {
-		return Atom{}, p.syntax("expected an id")
+	if i == at {
+		return 0
 	}
-	atom := Atom{Text: p.tok.text, HTML: p.tok.html}
-	quoted := p.tok.kind == tokString
-	p.next()
-	if p.err != nil {
-		return Atom{}, p.err
-	}
-	if !quoted {
-		return atom, nil
-	}
-	for p.tok.text == "+" {
-		p.next()
-		if p.err != nil {
-			return Atom{}, p.err
+	return i - at
+}
+
+func runBlock(src []byte, at int) int {
+	i := at + 2
+	for i+1 < len(src) {
+		if src[i] == '*' && src[i+1] == '/' {
+			return i + 2 - at
 		}
-		if p.tok.kind != tokString {
-			return Atom{}, p.syntax("expected a quoted string")
-		}
-		atom.Text += p.tok.text
-		atom.HTML = false
-		p.next()
-		if p.err != nil {
-			return Atom{}, p.err
-		}
+		i++
 	}
-	return atom, nil
+	return 0
 }
