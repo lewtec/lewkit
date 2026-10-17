@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lewtec/lewkit/examples/app/internal/icon"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/launcher"
 	"github.com/lewtec/lewkit/x/driver/thread"
@@ -22,6 +21,7 @@ import (
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/net/gemini"
 	"github.com/lewtec/lewkit/x/ui/gui"
+	"github.com/lewtec/lewkit/x/ui/gui/icon"
 	"golang.org/x/image/font"
 )
 

@@ -1,4 +1,4 @@
-// Package icon paints one Lucide glyph for an example.
+// Package icon paints one Lucide glyph as a gui node.
 package icon
 
 import (

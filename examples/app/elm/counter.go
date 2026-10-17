@@ -4,11 +4,11 @@ import (
 	"image"
 	"strconv"
 
-	"github.com/lewtec/lewkit/examples/app/internal/icon"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
 	"github.com/lewtec/lewkit/x/http/asset/lucide"
 	"github.com/lewtec/lewkit/x/ui/gui"
+	"github.com/lewtec/lewkit/x/ui/gui/icon"
 )
 
 // Counter is the Elm example: one int, two buttons.
