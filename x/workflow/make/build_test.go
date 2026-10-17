@@ -85,9 +85,9 @@ func TestCondaCompiler(t *testing.T) {
 }
 
 // condaCompilerScript records the invocation, then runs the host compiler.
-// MinGW gcc -o hello writes hello.exe. Git bash reports hello as present
-// when only hello.exe exists, so the copy is not gated on that check.
-// The copy keeps the make output fresh for a stat that does not append .exe.
+// MinGW gcc -o hello writes hello.exe. Git bash cp refuses to copy that
+// onto hello because it treats the two names as one file. cmd.exe creates
+// the name the recipe asked for, which is what a later stat checks.
 func condaCompilerScript(log, gcc string) string {
 	return "#!/bin/sh\n" +
 		"printf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\n" +
@@ -96,7 +96,11 @@ func condaCompilerScript(log, gcc string) string {
 		"prev=\n" +
 		"for arg in \"$@\"; do\n" +
 		"  if [ \"$prev\" = -o ] && [ -e \"$arg.exe\" ]; then\n" +
-		"    cp -f \"$arg.exe\" \"$arg\"\n" +
+		"    if command -v cmd.exe >/dev/null 2>&1; then\n" +
+		"      MSYS_NO_PATHCONV=1 cmd.exe //c copy //y \"$arg.exe\" \"$arg\" >/dev/null\n" +
+		"    else\n" +
+		"      cp -f \"$arg.exe\" \"$arg\"\n" +
+		"    fi\n" +
 		"  fi\n" +
 		"  prev=$arg\n" +
 		"done\n" +
