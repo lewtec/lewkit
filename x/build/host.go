@@ -73,9 +73,10 @@ func (host Host) Android(ctx context.Context) (string, error) {
 	return result.APKPath, nil
 }
 
-// Mac builds a .app whose executable is the Swift scaffold, then ad-hoc
-// signs that bundle. The Go program is the server inside Contents/MacOS.
-// Host.Sign replaces the ad-hoc signature with the publisher key.
+// Mac builds a .app, then ad-hoc signs that bundle. The executable
+// replaces itself with the Go program inside Contents/MacOS. That program
+// opens app.GUI and app.Web. Host.Sign replaces the ad-hoc signature
+// with the publisher key.
 func (host Host) Mac(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {
