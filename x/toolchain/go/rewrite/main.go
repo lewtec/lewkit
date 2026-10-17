@@ -6,7 +6,9 @@
 // drops the internal element (compile/internal/gc becomes src/compile/gc) and
 // retargets std internal imports onto the placed copy under src/std. It also
 // turns the linker's and compiler's process exits into panics so one process
-// can compile and then link. modot replaces the placed trees on purpose.
+// can compile and then link. //go:cgo_ldflag is rejected outside the standard
+// library, so those lines are dropped. modot replaces the placed trees on
+// purpose.
 // patch.json then adds SetDiag, MainArgs, Run, and ParseFS onto that text,
 // after import paths have been rewritten, and does not contain those paths.
 //
@@ -148,7 +150,9 @@ const DefaultCGO_ENABLED = ""
 }
 
 // packages is the amd64 and arm64 import closure of gc.Main and ld.Main, minus public
-// standard library packages. Each pair is _upstream-relative then src-relative.
+// standard library packages. Files behind a GOOS build tag count: copyPkg keeps
+// them, and a consumer's go mod tidy reads their imports. Each pair is
+// _upstream-relative then src-relative.
 var packages = [][2]string{
 	{"compile/internal/abi", "compile/abi"},
 	{"compile/internal/abt", "compile/abt"},
@@ -241,6 +245,8 @@ var packages = [][2]string{
 	{"std/race", "std/race"},
 	{"std/runtime/gc", "std/runtime/gc"},
 	{"std/saferio", "std/saferio"},
+	{"std/strconv", "std/strconv"},
+	{"std/syscall/unix", "std/syscall/unix"},
 	{"std/types/errors", "std/types/errors"},
 	{"std/unsafeheader", "std/unsafeheader"},
 	{"std/xcoff", "std/xcoff"},
@@ -287,6 +293,7 @@ func copyPkg(src, dst string) error {
 }
 
 func rewriteGo(name string, src []byte) ([]byte, error) {
+	src = dropCgoLdflag(src)
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, name, src, parser.ParseComments)
 	if err != nil {
@@ -308,6 +315,24 @@ func rewriteGo(name string, src []byte) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// dropCgoLdflag removes //go:cgo_ldflag lines. The compiler accepts that
+// directive in the standard library and in cgo-generated files, and rejects
+// it in this module.
+func dropCgoLdflag(src []byte) []byte {
+	if !bytes.Contains(src, []byte("//go:cgo_ldflag")) {
+		return src
+	}
+	lines := bytes.Split(src, []byte("\n"))
+	kept := lines[:0]
+	for _, line := range lines {
+		if bytes.HasPrefix(bytes.TrimSpace(line), []byte("//go:cgo_ldflag")) {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return bytes.Join(kept, []byte("\n"))
 }
 
 func rewriteImport(path string) string {
