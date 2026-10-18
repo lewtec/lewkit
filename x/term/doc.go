@@ -15,8 +15,11 @@
 // client whose screen size differs reflows the grid and the process.
 //
 // [Listen] serves the database on a unix socket. Each message is one varint
-// size-delimited protobuf Envelope from package schema. [Dial] and
-// [Client.Call] are the RPC. [Run] is the attach view. It opens a command
-// palette. Bindings for individual actions are not assigned yet; ctrl+p
-// opens and closes the palette.
+// size-delimited protobuf Envelope from package schema. [Connect] dials that
+// socket and, when nothing is listening, starts the server the caller
+// supplies. The server process stays up while a pane exists and exits when
+// the last client disconnects and no panes remain. [Dial] and [Client.Call]
+// are the RPC. [Run] is the attach view. It opens a command palette.
+// Bindings for individual actions are not assigned yet; ctrl+p opens and
+// closes the palette.
 package term

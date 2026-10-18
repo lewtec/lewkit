@@ -22,6 +22,9 @@ type Session struct {
 	order      []string
 	listeners  map[int]*listener
 	nextListen int
+	clients    int
+	served     bool
+	idle       func()
 	closed     bool
 }
 
@@ -85,6 +88,35 @@ func (s *Session) Close() {
 	}
 	if cancel != nil {
 		cancel()
+	}
+}
+
+// stopWhenIdle asks Listen to return once a client has connected and then
+// every client is gone and no panes remain. Panes keep the process up after
+// detach, the same way a tmux server outlives its clients.
+func (s *Session) stopWhenIdle(stop func()) {
+	s.mu.Lock()
+	s.idle = stop
+	s.mu.Unlock()
+}
+
+func (s *Session) clientArrived() {
+	s.mu.Lock()
+	s.clients++
+	s.served = true
+	s.mu.Unlock()
+}
+
+func (s *Session) clientLeft() {
+	s.mu.Lock()
+	if s.clients > 0 {
+		s.clients--
+	}
+	stop := s.idle
+	idle := stop != nil && s.served && s.clients == 0 && len(s.panes) == 0
+	s.mu.Unlock()
+	if idle {
+		stop()
 	}
 }
 

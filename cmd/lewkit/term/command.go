@@ -30,7 +30,7 @@ type serveCmd struct {
 }
 
 func (serveCmd) Description() string {
-	return "serve the ubersession"
+	return "serve the ubersession in the foreground"
 }
 
 func (c *serveCmd) Run(ctx context.Context) error {
@@ -50,13 +50,19 @@ func (attachCmd) Description() string {
 	return "attach with the command palette"
 }
 
+// Run attaches to the ubersession. With no subcommand, `lewkit term` does this.
+// A missing server is started in the background.
+func (Cmd) Run(ctx context.Context) error {
+	return (&attachCmd{}).Run(ctx)
+}
+
 func (c *attachCmd) Run(ctx context.Context) error {
 	return entry.RunAfterView(ctx, func(ctx context.Context) error {
 		path, err := socketPath(c.socket)
 		if err != nil {
 			return err
 		}
-		client, err := mux.Dial(ctx, path)
+		client, err := connect(ctx, path)
 		if err != nil {
 			return err
 		}
@@ -88,7 +94,7 @@ func (c *rpcCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	client, err := mux.Dial(ctx, path)
+	client, err := connect(ctx, path)
 	if err != nil {
 		return err
 	}

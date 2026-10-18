@@ -56,6 +56,8 @@ type connState struct {
 
 func serveConn(ctx context.Context, session *Session, raw net.Conn) {
 	defer raw.Close()
+	session.clientArrived()
+	defer session.clientLeft()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	state := &connState{

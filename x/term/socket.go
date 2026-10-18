@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/lewtec/lewkit/x/release"
 )
@@ -26,6 +27,8 @@ func Socket() (string, error) {
 // Listen serves a new ubersession on the unix socket at path.
 // A socket that accepts a connection is left alone and Listen returns [ErrRunning].
 // A stale socket file is removed. Listen returns when ctx is cancelled.
+// It also returns after a client has connected and then the last client
+// disconnects while no panes remain.
 func Listen(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -48,17 +51,76 @@ func Listen(ctx context.Context, path string) error {
 	if err := os.Chmod(path, 0o600); err != nil {
 		return fmt.Errorf("%w: %w", ErrSocket, err)
 	}
+	ctx, stop := context.WithCancel(ctx)
+	defer stop()
 	session, err := Open(ctx)
 	if err != nil {
 		return err
 	}
 	defer session.Close()
+	session.stopWhenIdle(stop)
 	info, err := session.Info(ctx)
 	if err != nil {
 		return err
 	}
 	slog.Info("term listening", "socket", path, "session", info.ID)
 	return session.Serve(ctx, listener)
+}
+
+// Connect dials the ubersession at path.
+// When nothing is listening, it calls start and dials until the socket accepts.
+// start must return after the server process is spawned. It must not wait for
+// that process to exit. A running server does not call start.
+// ErrRunning from start is ignored when the socket accepts, so two clients
+// can race to spawn. The caller closes the returned client.
+func Connect(ctx context.Context, path string, start func(context.Context) error) (*Client, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if path == "" {
+		return nil, fmt.Errorf("%w: %s", ErrSocket, "empty socket path")
+	}
+	client, err := Dial(ctx, path)
+	if err == nil {
+		return client, nil
+	}
+	if !errors.Is(err, ErrSocket) {
+		return nil, err
+	}
+	if start == nil {
+		return nil, err
+	}
+	startErr := start(ctx)
+	client, err = Dial(ctx, path)
+	if err == nil {
+		return client, nil
+	}
+	if startErr != nil && !errors.Is(startErr, ErrRunning) {
+		return nil, startErr
+	}
+	return waitDial(ctx, path)
+}
+
+func waitDial(ctx context.Context, path string) (*Client, error) {
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	var last error
+	for {
+		client, err := Dial(ctx, path)
+		if err == nil {
+			return client, nil
+		}
+		last = err
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.C:
+			return nil, last
+		case <-ticker.C:
+		}
+	}
 }
 
 func reclaim(ctx context.Context, path string) error {

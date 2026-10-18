@@ -3,6 +3,7 @@ package term
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -115,14 +116,20 @@ func TestListenStaleSocket(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	errCh := make(chan error, 1)
 	go func() { errCh <- Listen(ctx, path) }()
+	var held *Client
 	require.Eventually(t, func() bool {
 		client, err := Dial(t.Context(), path)
 		if err != nil {
 			return false
 		}
-		_ = client.Close()
+		held = client
 		return true
 	}, 2*time.Second, 10*time.Millisecond)
+	t.Cleanup(func() {
+		if held != nil {
+			_ = held.Close()
+		}
+	})
 
 	info, err := os.Stat(path)
 	require.NoError(t, err)
@@ -133,6 +140,8 @@ func TestListenStaleSocket(t *testing.T) {
 
 	cancel()
 	require.NoError(t, <-errCh)
+	require.NoError(t, held.Close())
+	held = nil
 
 	ctx, cancel = context.WithCancel(t.Context())
 	go func() { errCh <- Listen(ctx, path) }()
@@ -146,6 +155,61 @@ func TestListenStaleSocket(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 	cancel()
 	require.NoError(t, <-errCh)
+}
+
+func TestConnectStartsThenReuses(t *testing.T) {
+	ctx := t.Context()
+	path := filepath.Join(t.TempDir(), "term.sock")
+	var starts int
+	client, err := Connect(ctx, path, func(ctx context.Context) error {
+		starts++
+		go func() { _ = Listen(ctx, path) }()
+		return nil
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+	assert.Equal(t, 1, starts)
+
+	other, err := Connect(ctx, path, func(context.Context) error {
+		starts++
+		return fmt.Errorf("%w: %s", ErrSocket, "started again")
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = other.Close() })
+	assert.Equal(t, 1, starts)
+}
+
+func TestConnectReportsStartError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "missing.sock")
+	_, err := Connect(t.Context(), path, func(context.Context) error {
+		return ErrPty
+	})
+	require.ErrorIs(t, err, ErrPty)
+}
+
+func TestListenExitsWhenIdle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "term.sock")
+	errCh := make(chan error, 1)
+	go func() { errCh <- Listen(t.Context(), path) }()
+	var client *Client
+	require.Eventually(t, func() bool {
+		dialed, err := Dial(t.Context(), path)
+		if err != nil {
+			return false
+		}
+		client = dialed
+		return true
+	}, 2*time.Second, 10*time.Millisecond)
+	require.NoError(t, client.Close())
+	require.Eventually(t, func() bool {
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+			return true
+		default:
+			return false
+		}
+	}, 2*time.Second, 10*time.Millisecond)
 }
 
 func serveRPC(t *testing.T, ctx context.Context) (string, *Session) {
