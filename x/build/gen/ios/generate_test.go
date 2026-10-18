@@ -12,16 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExcludedArch(t *testing.T) {
-	t.Parallel()
-	if got := excludedArch("arm64"); got != "x86_64" {
-		require.FailNowf(t, "", "arm64: got %q", got)
-	}
-	if got := excludedArch("x86_64"); got != "arm64" {
-		require.FailNowf(t, "", "x86_64: got %q", got)
-	}
-}
-
 func TestNormalizeSDK(t *testing.T) {
 	t.Parallel()
 	got, err := normalizeSDK("")

@@ -25,17 +25,12 @@ var (
 	ErrMacosAppIcon            = errors.New("macos app icon")
 	ErrMacosAppIconEmptyMaster = errs.Wrap(errs.ErrEmpty, "macos app icon: empty master")
 	ErrWorkDirLeftAt           = common.ErrWorkDirLeftAt
-	ErrXcodegenGenerate        = common.ErrXcodegenGenerate
 )
 
 // Build / toolchain sentinels.
 var (
-	ErrOutAppRequired     = common.ErrOutAppRequired
-	ErrMacOSRequired      = errs.Wrap(errs.ErrRequired, "full .app requires macOS with Xcode; use --go-only")
-	ErrXcodebuildNotFound = common.ErrXcodebuildNotFound
-	ErrXcodeGenNotFound   = common.ErrXcodeGenNotFound
-	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug .app under DerivedData")
-	ErrUnsupportedGOARCH  = errs.Wrap(errs.ErrUnsupported, "unsupported host GOARCH for darwin")
+	ErrOutAppRequired    = common.ErrOutAppRequired
+	ErrUnsupportedGOARCH = errs.Wrap(errs.ErrUnsupported, "unsupported host GOARCH for darwin")
 )
 
 // BuildOptions drives a macos .app build from an eletrocromo app.
@@ -61,10 +56,10 @@ type BuildResult struct {
 	HelperPath string
 }
 
-// Build compiles the Go program and, unless GoOnly, builds the scaffold
-// with xcodegen and xcodebuild. The .app executable replaces itself with
-// Contents/MacOS/eletrocromo-server. That program opens the windows.
-// The caller signs the Mach-Os.
+// Build compiles the Go program and packages a .app.
+// The bundle executable is that program at Contents/MacOS/<product> on
+// every host. Launch Services marks it foreground before main. The caller
+// signs the Mach-Os.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	_, stderr := common.Writers(ctx, opts.Stdout, opts.Stderr)
 
@@ -121,11 +116,6 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 
-	if !opts.GoOnly && runtime.GOOS != "darwin" {
-		buildErr = ErrMacOSRequired
-		return nil, buildErr
-	}
-
 	arch, err := hostDarwinArch()
 	if opts.GOARCH != "" {
 		arch, err = darwinArch(opts.GOARCH)
@@ -158,23 +148,8 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 
-	xArch, err := darwinXArch(arch)
-	if err != nil {
+	if err := assembleGoApp(cfg, filepath.Join(workDir, "Resources", "AppIcon.icns"), helperDest, outApp); err != nil {
 		buildErr = err
-		return nil, buildErr
-	}
-	slog.Info("macos xcode", "arch", xArch)
-	built, err := assembleMac(ctx, workDir, cfg.ProductName(), xArch)
-	if err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
-	if err := installHelper(built, helperDest); err != nil {
-		buildErr = err
-		return nil, buildErr
-	}
-	if err := common.ReplaceDir(built, outApp); err != nil {
-		buildErr = fmt.Errorf("copy app: %w", err)
 		return nil, buildErr
 	}
 	result.AppPath = outApp
@@ -182,58 +157,40 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	return result, nil
 }
 
-func installHelper(appPath, helperPath string) error {
-	dest := filepath.Join(appPath, "Contents", "MacOS", HelperName)
-	if err := common.CopyFile(helperPath, dest, 0o755); err != nil {
+// assembleGoApp writes a .app whose executable is the Go program.
+func assembleGoApp(cfg Config, icnsPath, exePath, outApp string) error {
+	product := cfg.ProductName()
+	stage, err := os.MkdirTemp("", "eletrocromo-macos-app-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(stage)
+	app := filepath.Join(stage, product+".app")
+	macosDir := filepath.Join(app, "Contents", "MacOS")
+	if err := os.MkdirAll(macosDir, 0o755); err != nil {
+		return err
+	}
+	if err := common.CopyFile(exePath, filepath.Join(macosDir, product), 0o755); err != nil {
 		return fmt.Errorf("%w: %w", ErrBundleServer, err)
 	}
-	return os.Chmod(dest, 0o755)
-}
-
-func assembleMac(ctx context.Context, workDir, product, xArch string) (string, error) {
-	if err := common.XcodeReady(ctx); err != nil {
-		return "", err
+	plist, err := infoPlist(cfg)
+	if err != nil {
+		return err
 	}
-	if err := gocmd.Tool(ctx, "xcodegen", workDir, nil, "generate"); err != nil {
-		return "", fmt.Errorf("%w: %w", ErrXcodegenGenerate, err)
+	if err := os.WriteFile(filepath.Join(app, "Contents", "Info.plist"), plist, 0o644); err != nil {
+		return err
 	}
-	derived := filepath.Join(workDir, "build", "DerivedData")
-	proj := filepath.Join(workDir, product+".xcodeproj")
-	if err := gocmd.Tool(ctx, "xcodebuild", workDir, nil,
-		"-project", proj,
-		"-scheme", product,
-		"-configuration", "Debug",
-		"-sdk", "macosx",
-		"-destination", "generic/platform=macOS",
-		"-derivedDataPath", derived,
-		"-skipPackagePluginValidation",
-		"CODE_SIGN_IDENTITY=-",
-		"CODE_SIGNING_REQUIRED=NO",
-		"CODE_SIGNING_ALLOWED=YES",
-		"AD_HOC_CODE_SIGNING_ALLOWED=YES",
-		"ENABLE_DEBUG_DYLIB=NO",
-		"ARCHS="+xArch,
-		"ONLY_ACTIVE_ARCH=YES",
-		"build",
-	); err != nil {
-		return "", fmt.Errorf("xcodebuild: %w\n(%w %s)", err, ErrWorkDirLeftAt, workDir)
+	if err := os.WriteFile(filepath.Join(app, "Contents", "PkgInfo"), []byte("APPL????"), 0o644); err != nil {
+		return err
 	}
-	app := filepath.Join(derived, "Build", "Products", "Debug", product+".app")
-	if st, err := os.Stat(app); err != nil || !st.IsDir() {
-		return "", fmt.Errorf("%w: %s", ErrDebugAppMissing, app)
+	res := filepath.Join(app, "Contents", "Resources")
+	if err := os.MkdirAll(res, 0o755); err != nil {
+		return err
 	}
-	return app, nil
-}
-
-func darwinXArch(goarch string) (string, error) {
-	switch goarch {
-	case "arm64":
-		return "arm64", nil
-	case "amd64":
-		return "x86_64", nil
-	default:
-		return "", fmt.Errorf("%w: %s", ErrUnsupportedGOARCH, goarch)
+	if err := common.CopyFile(icnsPath, filepath.Join(res, "AppIcon.icns"), 0o644); err != nil {
+		return err
 	}
+	return common.ReplaceDir(app, outApp)
 }
 
 func darwinArch(goarch string) (string, error) {

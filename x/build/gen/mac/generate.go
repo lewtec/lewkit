@@ -49,3 +49,22 @@ func Create(ctx context.Context, opts Options) error {
 	}
 	return common.MaterializeHost(templateFS, data, opts.OutDir, opts.Force, raw)
 }
+
+// infoPlist is the bundle Info.plist. cfg already has defaults applied.
+func infoPlist(cfg Config) ([]byte, error) {
+	data := templateData{
+		Config:             cfg,
+		Product:            cfg.ProductName(),
+		AppNameXML:         common.XMLEscape(cfg.AppName),
+		VersionXML:         common.XMLEscape(cfg.VersionName),
+		CodeString:         fmt.Sprintf("%d", cfg.VersionCode),
+		PlistURLTypes:      cfg.Capabilities.PlistURLTypes(cfg.PackageID),
+		PlistDocumentTypes: cfg.Capabilities.PlistDocumentTypes(),
+	}
+	raw, err := templateFS.ReadFile("template/Info.plist.tmpl")
+	if err != nil {
+		return nil, err
+	}
+	_, body, err := common.RenderFile("Info.plist.tmpl", raw, data)
+	return body, err
+}
