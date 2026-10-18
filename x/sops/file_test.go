@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"filippo.io/age"
+	"github.com/google/shlex"
 	"github.com/stretchr/testify/require"
 )
 
@@ -158,7 +159,7 @@ func TestAgeKeyCommand(t *testing.T) {
 	isolateAge(t)
 	path, err := filepath.Abs("testdata/age.txt")
 	require.NoError(t, err)
-	t.Setenv("SOPS_AGE_KEY_CMD", ageKeyCommand(path))
+	t.Setenv("SOPS_AGE_KEY_CMD", ageKeyCommand(t, path))
 	want, err := os.ReadFile("testdata/blob.plain")
 	require.NoError(t, err)
 	got, err := Open("testdata/blob.sops")
@@ -174,12 +175,36 @@ func useAgeKey(t *testing.T) {
 	t.Setenv("SOPS_AGE_KEY", string(key))
 }
 
-func ageKeyCommand(path string) string {
-	if runtime.GOOS == "windows" {
-		// shlex treats '\' as an escape, so the command uses slashes.
-		return `cmd.exe /c type "` + filepath.ToSlash(path) + `"`
+func ageKeyCommand(t *testing.T, path string) string {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		return "cat " + path
 	}
-	return "cat " + path
+	// sops splits the command with shlex, then exec.Command quotes for
+	// CommandLineToArgvW. cmd.exe does not parse that, so "type" never saw
+	// the key path and exited 0. A one-argument script types the file.
+	script := filepath.Join(t.TempDir(), "agekey.cmd")
+	require.NoError(t, os.WriteFile(script, []byte(ageKeyScript(path)), 0o644))
+	return windowsAgeKeyCommand(script)
+}
+
+func ageKeyScript(path string) string {
+	return "@echo off\r\ntype \"" + path + "\"\r\n"
+}
+
+// windowsAgeKeyCommand is "cmd.exe /c" plus one native script path.
+// Single quotes keep shlex from treating '\' as an escape.
+func windowsAgeKeyCommand(script string) string {
+	return "cmd.exe /c '" + script + "'"
+}
+
+func TestWindowsAgeKeyCommandSplits(t *testing.T) {
+	t.Parallel()
+	script := `C:\Users\runneradmin\AppData\Local\Temp\agekey.cmd`
+	args, err := shlex.Split(windowsAgeKeyCommand(script))
+	require.NoError(t, err)
+	require.Equal(t, []string{"cmd.exe", "/c", script}, args)
+	require.Contains(t, ageKeyScript(`D:\a\lewkit\lewkit\x\sops\testdata\age.txt`), "type \"D:\\a\\lewkit\\lewkit\\x\\sops\\testdata\\age.txt\"")
 }
 
 func isolateAge(t *testing.T) {

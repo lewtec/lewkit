@@ -37,6 +37,13 @@ func TestEntryExportFileUsesAndroidGOOS(t *testing.T) {
 	require.Equal(t, "_cgo_android_export.go", filepath.Base(path))
 }
 
+func TestRetryWindowsNocgo(t *testing.T) {
+	require.True(t, retryWindowsNocgo("windows", "arm64", false))
+	require.False(t, retryWindowsNocgo("linux", "arm64", false))
+	require.False(t, retryWindowsNocgo("windows", "arm64", true))
+	require.False(t, retryWindowsNocgo("windows", "amd64", false))
+}
+
 func TestJoinToolexecQuotesSpaces(t *testing.T) {
 	got, err := joinToolexec("/tmp/android toolexec", "/tmp/x/_cgo_android_export.go")
 	require.NoError(t, err)

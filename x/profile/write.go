@@ -20,20 +20,37 @@ func (p *Profile) write(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 	}
-	defer cpuFile.Close()
 	if err := pprof.StartCPUProfile(cpuFile); err != nil {
+		cpuFile.Close()
 		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
 	}
-	defer pprof.StopCPUProfile()
-
-	for _, prof := range pprof.Profiles() {
-		profileFile, err := os.Create(p.file(prof.Name()))
-		if err != nil {
-			return fmt.Errorf("%w: %w", ErrProfileWrite, err)
-		}
-		defer profileFile.Close()
-		defer prof.WriteTo(profileFile, 0)
-	}
 	<-ctx.Done()
+	// Stop before the other snapshots. Writing them while the profiler
+	// thread is still running can stall process exit on Windows.
+	pprof.StopCPUProfile()
+	if err := cpuFile.Close(); err != nil {
+		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
+	}
+	for _, prof := range pprof.Profiles() {
+		if err := writeProfile(p.file(prof.Name()), prof); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeProfile(path string, prof *pprof.Profile) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrProfileWrite, err)
+	}
+	writeErr := prof.WriteTo(file, 0)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return fmt.Errorf("%w: %s: %w", ErrProfileWrite, path, writeErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("%w: %s: %w", ErrProfileWrite, path, closeErr)
+	}
 	return nil
 }
