@@ -1,11 +1,8 @@
-//go:build !linux
+//go:build !linux && !darwin
 
 package term
 
-import (
-	"context"
-	"fmt"
-)
+import "context"
 
 func startProcess(context.Context, []string, string, int, int) (*process, error) {
 	return nil, ErrPty

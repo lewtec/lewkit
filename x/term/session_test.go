@@ -45,7 +45,7 @@ func TestSessionWritersAndWatch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, got.Rows, again.Rows)
 	assert.Equal(t, got.Cols, again.Cols)
-	assert.Equal(t, got.Revision, again.Revision)
+	assert.Equal(t, got.LastWriter, again.LastWriter)
 
 	err = session.Write(ctx, WriteRequest{ID: first.ID, Data: "z", Rows: 12, Cols: 0})
 	require.ErrorIs(t, err, ErrSize)
