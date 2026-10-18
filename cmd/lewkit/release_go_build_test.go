@@ -20,6 +20,15 @@ func TestMain(m *testing.M) {
 	gotool.TestExit(m)
 }
 
+// hostBin is the path this process can execute. The linker writes -o
+// unchanged, and Windows will not start a file with no PATHEXT suffix.
+func hostBin(path string) string {
+	if runtime.GOOS == "windows" {
+		return path + ".exe"
+	}
+	return path
+}
+
 func TestReleaseGoBuild(t *testing.T) {
 	setToolchainEnv(t)
 	dir := t.TempDir()
@@ -32,7 +41,7 @@ func TestReleaseGoBuild(t *testing.T) {
 	// installed runtime out of the build cache; the command does not run go.
 	pkgdir := filepath.Join(dir, "std")
 	fillRuntime(t, dir, pkgdir)
-	out := filepath.Join(dir, "hello")
+	out := hostBin(filepath.Join(dir, "hello"))
 	args := normalizeReleaseGoFlags([]string{
 		"release", "go", "build", ".",
 		"-o", out,
@@ -87,7 +96,7 @@ func TestReleaseGoLewkit(t *testing.T) {
 	}
 	pkgdir := filepath.Join(t.TempDir(), "pkg")
 	fillPrebuilt(t, modRoot, pkgdir)
-	out := filepath.Join(t.TempDir(), "lewkit")
+	out := hostBin(filepath.Join(t.TempDir(), "lewkit"))
 	args := normalizeReleaseGoFlags([]string{
 		"release", "go", "build", "./cmd/lewkit",
 		"-o", out,
@@ -99,7 +108,7 @@ func TestReleaseGoLewkit(t *testing.T) {
 	helloDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(helloDir, "go.mod"), []byte("module example.com/hello\n\ngo 1.27\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(helloDir, "hello.go"), []byte("package main\n\nfunc main() { println(\"from-lewkit\") }\n"), 0o644))
-	hello := filepath.Join(helloDir, "hello")
+	hello := hostBin(filepath.Join(helloDir, "hello"))
 	got, err := exec.Command(out, "--sentry-dsn=", "release", "go", "build", "-C", helloDir, "-o", hello, "-pkgdir", pkgdir, ".").CombinedOutput()
 	require.NoErrorf(t, err, "built lewkit release go: %v\n%s", err, got)
 	got, err = exec.Command(hello).CombinedOutput()
