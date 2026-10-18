@@ -4,16 +4,15 @@ package disasm
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrArchitecture means the text is not a known architecture.
-	ErrArchitecture = errs.Wrap(errs.ErrUnknown, "unknown architecture")
-	// ErrSyntax means the text is not a known syntax.
-	ErrSyntax = errs.Wrap(errs.ErrUnknown, "unknown syntax")
-)
+// ErrArchitecture means the text is not a known architecture.
+var ErrArchitecture = errs.Wrap(errs.ErrUnknown, "unknown architecture")
+
+// ErrSyntax means the text is not a known syntax.
+var ErrSyntax = errs.Wrap(errs.ErrUnknown, "unknown syntax")
 
 // String is the text of a Architecture.
 func (a Architecture) String() string {

@@ -4,14 +4,12 @@ package compose
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// errSlotKind means the text is not a known slot kind.
-	errSlotKind = errs.Wrap(errs.ErrUnknown, "unknown slot kind")
-)
+// errSlotKind means the text is not a known slot kind.
+var errSlotKind = errs.Wrap(errs.ErrUnknown, "unknown slot kind")
 
 // String is the text of a slotKind.
 func (s slotKind) String() string {

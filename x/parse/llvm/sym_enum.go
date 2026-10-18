@@ -4,16 +4,15 @@ package llvm
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrTerm means the text is not a known term.
-	ErrTerm = errs.Wrap(errs.ErrUnknown, "unknown term")
-	// ErrRule means the text is not a known rule.
-	ErrRule = errs.Wrap(errs.ErrUnknown, "unknown rule")
-)
+// ErrTerm means the text is not a known term.
+var ErrTerm = errs.Wrap(errs.ErrUnknown, "unknown term")
+
+// ErrRule means the text is not a known rule.
+var ErrRule = errs.Wrap(errs.ErrUnknown, "unknown rule")
 
 // String is the text of a Term.
 func (t Term) String() string {

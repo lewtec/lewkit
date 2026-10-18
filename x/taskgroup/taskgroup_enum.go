@@ -4,16 +4,15 @@ package taskgroup
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrPoolKind means the text is not a known pool kind.
-	ErrPoolKind = errs.Wrap(errs.ErrUnknown, "unknown pool kind")
-	// ErrState means the text is not a known state.
-	ErrState = errs.Wrap(errs.ErrUnknown, "unknown state")
-)
+// ErrPoolKind means the text is not a known pool kind.
+var ErrPoolKind = errs.Wrap(errs.ErrUnknown, "unknown pool kind")
+
+// ErrState means the text is not a known state.
+var ErrState = errs.Wrap(errs.ErrUnknown, "unknown state")
 
 // String is the text of a PoolKind.
 func (p PoolKind) String() string {

@@ -4,14 +4,12 @@ package dotenv
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrQuote means the text is not a known quote.
-	ErrQuote = errs.Wrap(errs.ErrUnknown, "unknown quote")
-)
+// ErrQuote means the text is not a known quote.
+var ErrQuote = errs.Wrap(errs.ErrUnknown, "unknown quote")
 
 // String is the text of a Quote.
 func (q Quote) String() string {

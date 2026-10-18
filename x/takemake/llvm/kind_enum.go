@@ -4,36 +4,45 @@ package llvm
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrKind means the text is not a known kind.
-	ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
-	// ErrFloat means the text is not a known float.
-	ErrFloat = errs.Wrap(errs.ErrUnknown, "unknown float")
-	// ErrLinkage means the text is not a known linkage.
-	ErrLinkage = errs.Wrap(errs.ErrUnknown, "unknown linkage")
-	// ErrUnnamed means the text is not a known unnamed.
-	ErrUnnamed = errs.Wrap(errs.ErrUnknown, "unknown unnamed")
-	// ErrOp means the text is not a known op.
-	ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
-	// ErrIPred means the text is not a known ipred.
-	ErrIPred = errs.Wrap(errs.ErrUnknown, "unknown ipred")
-	// ErrFPred means the text is not a known fpred.
-	ErrFPred = errs.Wrap(errs.ErrUnknown, "unknown fpred")
-	// ErrCast means the text is not a known cast.
-	ErrCast = errs.Wrap(errs.ErrUnknown, "unknown cast")
-	// ErrTail means the text is not a known tail.
-	ErrTail = errs.Wrap(errs.ErrUnknown, "unknown tail")
-	// ErrInstKind means the text is not a known inst kind.
-	ErrInstKind = errs.Wrap(errs.ErrUnknown, "unknown inst kind")
-	// ErrValueKind means the text is not a known value kind.
-	ErrValueKind = errs.Wrap(errs.ErrUnknown, "unknown value kind")
-	// ErrComdatKind means the text is not a known comdat kind.
-	ErrComdatKind = errs.Wrap(errs.ErrUnknown, "unknown comdat kind")
-)
+// ErrKind means the text is not a known kind.
+var ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
+
+// ErrFloat means the text is not a known float.
+var ErrFloat = errs.Wrap(errs.ErrUnknown, "unknown float")
+
+// ErrLinkage means the text is not a known linkage.
+var ErrLinkage = errs.Wrap(errs.ErrUnknown, "unknown linkage")
+
+// ErrUnnamed means the text is not a known unnamed.
+var ErrUnnamed = errs.Wrap(errs.ErrUnknown, "unknown unnamed")
+
+// ErrOp means the text is not a known op.
+var ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
+
+// ErrIPred means the text is not a known ipred.
+var ErrIPred = errs.Wrap(errs.ErrUnknown, "unknown ipred")
+
+// ErrFPred means the text is not a known fpred.
+var ErrFPred = errs.Wrap(errs.ErrUnknown, "unknown fpred")
+
+// ErrCast means the text is not a known cast.
+var ErrCast = errs.Wrap(errs.ErrUnknown, "unknown cast")
+
+// ErrTail means the text is not a known tail.
+var ErrTail = errs.Wrap(errs.ErrUnknown, "unknown tail")
+
+// ErrInstKind means the text is not a known inst kind.
+var ErrInstKind = errs.Wrap(errs.ErrUnknown, "unknown inst kind")
+
+// ErrValueKind means the text is not a known value kind.
+var ErrValueKind = errs.Wrap(errs.ErrUnknown, "unknown value kind")
+
+// ErrComdatKind means the text is not a known comdat kind.
+var ErrComdatKind = errs.Wrap(errs.ErrUnknown, "unknown comdat kind")
 
 // String is the text of a Kind.
 func (k Kind) String() string {

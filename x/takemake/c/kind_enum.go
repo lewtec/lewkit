@@ -4,24 +4,27 @@ package c
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrKind means the text is not a known kind.
-	ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
-	// ErrDeclKind means the text is not a known decl kind.
-	ErrDeclKind = errs.Wrap(errs.ErrUnknown, "unknown decl kind")
-	// ErrStorage means the text is not a known storage.
-	ErrStorage = errs.Wrap(errs.ErrUnknown, "unknown storage")
-	// ErrStmtKind means the text is not a known stmt kind.
-	ErrStmtKind = errs.Wrap(errs.ErrUnknown, "unknown stmt kind")
-	// ErrExprKind means the text is not a known expr kind.
-	ErrExprKind = errs.Wrap(errs.ErrUnknown, "unknown expr kind")
-	// ErrOp means the text is not a known op.
-	ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
-)
+// ErrKind means the text is not a known kind.
+var ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
+
+// ErrDeclKind means the text is not a known decl kind.
+var ErrDeclKind = errs.Wrap(errs.ErrUnknown, "unknown decl kind")
+
+// ErrStorage means the text is not a known storage.
+var ErrStorage = errs.Wrap(errs.ErrUnknown, "unknown storage")
+
+// ErrStmtKind means the text is not a known stmt kind.
+var ErrStmtKind = errs.Wrap(errs.ErrUnknown, "unknown stmt kind")
+
+// ErrExprKind means the text is not a known expr kind.
+var ErrExprKind = errs.Wrap(errs.ErrUnknown, "unknown expr kind")
+
+// ErrOp means the text is not a known op.
+var ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
 
 // String is the text of a Kind.
 func (k Kind) String() string {

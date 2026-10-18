@@ -4,14 +4,12 @@ package uki
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrArch means the text is not a known arch.
-	ErrArch = errs.Wrap(errs.ErrUnknown, "unknown arch")
-)
+// ErrArch means the text is not a known arch.
+var ErrArch = errs.Wrap(errs.ErrUnknown, "unknown arch")
 
 // String is the text of a Arch.
 func (a Arch) String() string {

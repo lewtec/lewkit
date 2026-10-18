@@ -4,16 +4,15 @@ package ninja
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrTerm means the text is not a known term.
-	ErrTerm = errs.Wrap(errs.ErrUnknown, "unknown term")
-	// ErrProduction means the text is not a known production.
-	ErrProduction = errs.Wrap(errs.ErrUnknown, "unknown production")
-)
+// ErrTerm means the text is not a known term.
+var ErrTerm = errs.Wrap(errs.ErrUnknown, "unknown term")
+
+// ErrProduction means the text is not a known production.
+var ErrProduction = errs.Wrap(errs.ErrUnknown, "unknown production")
 
 // String is the text of a Term.
 func (t Term) String() string {

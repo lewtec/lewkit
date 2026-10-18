@@ -4,16 +4,15 @@ package iso
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrPlatform means the text is not a known platform.
-	ErrPlatform = errs.Wrap(errs.ErrUnknown, "unknown platform")
-	// ErrEmulation means the text is not a known emulation.
-	ErrEmulation = errs.Wrap(errs.ErrUnknown, "unknown emulation")
-)
+// ErrPlatform means the text is not a known platform.
+var ErrPlatform = errs.Wrap(errs.ErrUnknown, "unknown platform")
+
+// ErrEmulation means the text is not a known emulation.
+var ErrEmulation = errs.Wrap(errs.ErrUnknown, "unknown emulation")
 
 // String is the text of a Platform.
 func (p Platform) String() string {

@@ -4,14 +4,12 @@ package askwire
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrStatus means the text is not a known status.
-	ErrStatus = errs.Wrap(errs.ErrUnknown, "unknown status")
-)
+// ErrStatus means the text is not a known status.
+var ErrStatus = errs.Wrap(errs.ErrUnknown, "unknown status")
 
 // String is the text of a Status.
 func (s Status) String() string {

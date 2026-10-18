@@ -4,16 +4,15 @@ package build
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrGOOS means the text is not a known goos.
-	ErrGOOS = errs.Wrap(errs.ErrUnknown, "unknown goos")
-	// ErrGOARCH means the text is not a known goarch.
-	ErrGOARCH = errs.Wrap(errs.ErrUnknown, "unknown goarch")
-)
+// ErrGOOS means the text is not a known goos.
+var ErrGOOS = errs.Wrap(errs.ErrUnknown, "unknown goos")
+
+// ErrGOARCH means the text is not a known goarch.
+var ErrGOARCH = errs.Wrap(errs.ErrUnknown, "unknown goarch")
 
 // String is the text of a GOOS.
 func (g GOOS) String() string {
