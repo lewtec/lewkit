@@ -19,6 +19,7 @@ func TestMain(m *testing.M) {
 func TestResolveTokenEnvOrder(t *testing.T) {
 	t.Setenv("GH_TOKEN", "from-gh-token")
 	t.Setenv("GITHUB_TOKEN", "from-github-token")
+	t.Setenv("MISE_GITHUB_TOKEN", "from-mise")
 	t.Setenv("GH_CONFIG_DIR", t.TempDir())
 
 	got := resolveToken(t.Context())
@@ -34,9 +35,17 @@ func TestResolveTokenSkipsStop(t *testing.T) {
 	require.Equal(t, "from-github-token", got)
 }
 
+func TestResolveTokenMiseToken(t *testing.T) {
+	clearTokenEnv(t)
+	t.Setenv("MISE_GITHUB_TOKEN", "from-mise")
+	t.Setenv("GH_CONFIG_DIR", t.TempDir())
+
+	got := resolveToken(t.Context())
+	require.Equal(t, "from-mise", got)
+}
+
 func TestResolveTokenHostsBeforeKeyring(t *testing.T) {
-	t.Setenv("GH_TOKEN", "")
-	t.Setenv("GITHUB_TOKEN", "")
+	clearTokenEnv(t)
 	dir := t.TempDir()
 	t.Setenv("GH_CONFIG_DIR", dir)
 	writeHosts(t, dir, `
@@ -60,8 +69,7 @@ github.com:
 }
 
 func TestResolveTokenUserTokenWhenHostTokenMissing(t *testing.T) {
-	t.Setenv("GH_TOKEN", "")
-	t.Setenv("GITHUB_TOKEN", "")
+	clearTokenEnv(t)
 	dir := t.TempDir()
 	t.Setenv("GH_CONFIG_DIR", dir)
 	writeHosts(t, dir, `
@@ -79,8 +87,7 @@ github.com:
 }
 
 func TestResolveTokenKeyringBeforeGH(t *testing.T) {
-	t.Setenv("GH_TOKEN", "")
-	t.Setenv("GITHUB_TOKEN", "")
+	clearTokenEnv(t)
 	t.Setenv("GH_CONFIG_DIR", t.TempDir())
 	var service, user string
 	keyringGet = func(gotService, gotUser string) (string, error) {
@@ -96,8 +103,7 @@ func TestResolveTokenKeyringBeforeGH(t *testing.T) {
 }
 
 func TestResolveTokenKeyringUsesActiveUser(t *testing.T) {
-	t.Setenv("GH_TOKEN", "")
-	t.Setenv("GITHUB_TOKEN", "")
+	clearTokenEnv(t)
 	dir := t.TempDir()
 	t.Setenv("GH_CONFIG_DIR", dir)
 	writeHosts(t, dir, `
@@ -123,8 +129,7 @@ github.com:
 }
 
 func TestResolveTokenContinuesAfterBadHosts(t *testing.T) {
-	t.Setenv("GH_TOKEN", "")
-	t.Setenv("GITHUB_TOKEN", "")
+	clearTokenEnv(t)
 	dir := t.TempDir()
 	t.Setenv("GH_CONFIG_DIR", dir)
 	writeHosts(t, dir, "github.com: [\n")
@@ -174,6 +179,13 @@ func TestLookupSkipsProbe(t *testing.T) {
 
 	require.Empty(t, Lookup(t.Context()))
 	require.Empty(t, Token(t.Context()))
+}
+
+func clearTokenEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("MISE_GITHUB_TOKEN", "")
 }
 
 func restoreKeyring() {

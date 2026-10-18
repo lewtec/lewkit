@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -62,6 +64,85 @@ func TestMustRunStderrReachesSession(t *testing.T) {
 	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo hello >&2")
 	require.NoError(t, execdriver.Run(ctx, cmd))
 	require.Equal(t, []string{"hello"}, lines)
+}
+
+func TestRunReturnsWhenChildHoldsStdout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 8*time.Second)
+	defer cancel()
+	cmd := execdriver.MustCommand(ctx, "sh", "-c", "echo done; sleep 30 & echo $!")
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	started := time.Now()
+	err := execdriver.Run(ctx, cmd)
+	require.NoError(t, err)
+	require.Less(t, time.Since(started), 8*time.Second)
+	fields := strings.Fields(stdout.String())
+	require.NotEmpty(t, fields)
+	require.Equal(t, "done", fields[0])
+	if len(fields) > 1 {
+		t.Cleanup(func() {
+			stopOrphan(fields[len(fields)-1])
+		})
+	}
+}
+
+func stopOrphan(pid string) {
+	if runtime.GOOS == "windows" {
+		_ = exec.Command("taskkill", "/F", "/PID", pid).Run()
+		return
+	}
+	_ = exec.Command("kill", pid).Run()
+}
+
+func TestCancelAfterExitLeavesLaterProcess(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	require.NoError(t, execdriver.Run(ctx, execdriver.MustCommand(ctx, "sh", "-c", "true")))
+	cancel()
+
+	hold, stop := context.WithCancel(t.Context())
+	defer stop()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = r.Close()
+		_ = w.Close()
+	})
+	live := execdriver.MustCommand(hold, "sh", "-c", "echo started; sleep 30")
+	live.Stdout = w
+	require.NoError(t, execdriver.Start(hold, live))
+	require.NoError(t, w.Close())
+	t.Cleanup(func() {
+		stop()
+		_ = execdriver.Wait(hold, live)
+	})
+
+	started := make(chan string, 1)
+	go func() {
+		buf := make([]byte, 16)
+		n, readErr := r.Read(buf)
+		if readErr != nil && n == 0 {
+			started <- ""
+			return
+		}
+		started <- string(buf[:n])
+	}()
+	select {
+	case got := <-started:
+		require.Contains(t, got, "started")
+	case <-time.After(2 * time.Second):
+		require.FailNow(t, "later process produced no output")
+	}
+	// A second read blocks while the process is alive. EOF means it exited.
+	closed := make(chan struct{})
+	go func() {
+		_, _ = r.Read(make([]byte, 16))
+		close(closed)
+	}()
+	select {
+	case <-closed:
+		require.FailNow(t, "later process closed stdout")
+	case <-time.After(200 * time.Millisecond):
+	}
 }
 
 func TestRunStopsWhenContextIsCancelled(t *testing.T) {

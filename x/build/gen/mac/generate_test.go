@@ -35,9 +35,7 @@ func TestCreate_WritesHost(t *testing.T) {
 		"project.yml",
 		"Info.plist",
 		"README.md",
-		"Sources/AppDelegate.swift",
-		"Sources/ServerProcess.swift",
-		"Sources/MainWindow.swift",
+		"Sources/AppMain.swift",
 		"Assets.xcassets/Contents.json",
 		"Assets.xcassets/AppIcon.appiconset/Contents.json",
 	}
@@ -82,28 +80,13 @@ func TestCreate_WritesHost(t *testing.T) {
 		require.FailNowf(t, "", "json: %s", jsonb)
 	}
 
-	swift, err := os.ReadFile(filepath.Join(out, "Sources/ServerProcess.swift"))
+	swift, err := os.ReadFile(filepath.Join(out, "Sources/AppMain.swift"))
 	require.NoError(t, err)
-	if !strings.Contains(string(swift), "ELETROCROMO_NO_UI") {
-		require.FailNowf(t, "", "helper env missing:\n%s", swift)
+	if !strings.Contains(string(swift), "eletrocromo-server") || !strings.Contains(string(swift), "execv") {
+		require.FailNowf(t, "", "launcher missing:\n%s", swift)
 	}
-	if !strings.Contains(string(swift), "ELETROCROMO_ASK_DIR") || !strings.Contains(string(swift), "AskWatch.start") {
-		require.FailNow(t, fmt.Sprint("mac host does not watch the ask directory"))
-	}
-	if !strings.Contains(string(swift), "readSurfaceFile") || !strings.Contains(string(swift), "onSurface") {
-		require.FailNow(t, fmt.Sprint("mac host does not handle native GUI surface"))
-	}
-
-	ui, err := os.ReadFile(filepath.Join(out, "Sources/MainWindow.swift"))
-	require.NoError(t, err)
-	if !strings.Contains(string(ui), "NSTitlebarAccessoryViewController") {
-		require.FailNowf(t, "", "titlebar reload missing:\n%s", ui)
-	}
-	if !strings.Contains(string(ui), "arrow.clockwise") {
-		require.FailNowf(t, "", "reload symbol missing:\n%s", ui)
-	}
-	if !strings.Contains(string(ui), "openExternal") {
-		require.FailNowf(t, "", "custom scheme open missing:\n%s", ui)
+	if strings.Contains(string(swift), "ELETROCROMO_NO_UI") || strings.Contains(string(swift), "WKWebView") {
+		require.FailNowf(t, "", "launcher still owns a window:\n%s", swift)
 	}
 }
 
@@ -130,9 +113,6 @@ func TestCreate_CapabilitiesPlist(t *testing.T) {
 	}
 	if !strings.Contains(ps, "CFBundleDocumentTypes") {
 		require.FailNowf(t, "", "docs:\n%s", ps)
-	}
-	if _, err := os.Stat(filepath.Join(out, "Sources/OpenDrop.swift")); err != nil {
-		require.NoError(t, err)
 	}
 }
 

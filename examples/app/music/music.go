@@ -9,15 +9,26 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
+	"github.com/lewtec/lewkit/x/driver/launcher"
+	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/image/convert/file"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
 type chooseFunc func(context.Context, filedialog.Request) ([]string, error)
+
+type promptFunc func(context.Context, string) (string, error)
+
+type searchAsked struct {
+	text string
+	err  error
+}
 
 type openFunc func(...string) (fs.FS, error)
 
@@ -56,10 +67,12 @@ type chosen struct {
 
 type musicModel struct {
 	gui.Dirty
+	gui.Metrics
 	ctx      context.Context
 	lib      *Library
 	player   *player
 	chooseFn chooseFunc
+	promptFn promptFunc
 	openFn   openFunc
 	picking  bool
 	size     image.Point
@@ -81,10 +94,12 @@ type musicModel struct {
 	paint    musicPaint
 	covers   map[string]image.Image
 
-	head  *headerModel
-	shelf *albumModel
-	list  *trackModel
-	stage *nowModel
+	head    *headerModel
+	shelf   *albumModel
+	drag    gui.Drag
+	dragKey string
+	list    *trackModel
+	stage   *nowModel
 }
 
 func newMusic(ctx context.Context, lib *Library, play *player) *musicModel {
@@ -114,6 +129,7 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	if m == nil {
 		return m, nil
 	}
+	m.Observe(msg)
 	defer m.prepare()
 	if size, ok := guiSize(msg); ok && size.X > 0 && size.Y > 0 {
 		m.Dirty, m.size = gui.See(m.Dirty, m.size, size)
@@ -154,6 +170,8 @@ func (m *musicModel) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		m.Dirty, m.query = gui.See(m.Dirty, m.query, event.text)
 		m.reload()
 		return m, nil
+	case searchAsked:
+		return m.onSearchAsked(event)
 	case pickedPlay:
 		m.toggle()
 		m.Dirty = gui.Touch(m.Dirty)
@@ -226,7 +244,7 @@ func (m *musicModel) hit(pos image.Point) (string, float32, float32) {
 		return "", 0, 0
 	}
 	size := gui.Size{Width: float32(m.size.X), Height: float32(m.size.Y)}
-	return gui.Hit(root, size, pos)
+	return m.Hit(root, size, pos)
 }
 
 func (m *musicModel) ingest(paths []string) gui.Cmd {
@@ -265,9 +283,31 @@ func (m *musicModel) reload() {
 }
 
 func (m *musicModel) aim(event window.Pointer) (gui.Model, gui.Cmd) {
-	if m == nil || event.Button != 1 || !event.Pressed {
+	if m == nil {
 		return m, nil
 	}
+	if event.Button == 1 && event.Pressed {
+		m.dragKey, _, _ = m.hit(event.Pos)
+	}
+	step, ok := m.drag.Step(event, gui.Slop(m.Scale))
+	if !ok {
+		return m, nil
+	}
+	if !step.Tap {
+		dx, dy := float32(step.Delta.X), float32(step.Delta.Y)
+		// The music tree is laid out in device pixels, so the finger
+		// distance is the scroll distance. A sideways drag on the album
+		// row moves that row. Anything else moves the track list.
+		if strings.HasPrefix(m.dragKey, "album") && abs32(dx) >= abs32(dy) {
+			m.nudgeShelf(dx)
+			return m, nil
+		}
+		m.nudgeList(dy)
+		return m, nil
+	}
+	event.Pos = step.At
+	event.Button = 1
+	event.Pressed = true
 	key, along, _ := m.hit(event.Pos)
 	if key != "search" {
 		m.Dirty, m.head.search = gui.See(m.Dirty, m.head.search, false)
@@ -276,8 +316,7 @@ func (m *musicModel) aim(event window.Pointer) (gui.Model, gui.Cmd) {
 	case key == "open":
 		return m, m.choose()
 	case key == "search":
-		m.Dirty, m.head.search = gui.See(m.Dirty, m.head.search, true)
-		return m, nil
+		return m, m.askSearch()
 	case key == "back":
 		m.Dirty, m.screen = gui.See(m.Dirty, m.screen, musicBrowse)
 		m.list.scroll = 0
@@ -330,24 +369,45 @@ func (m *musicModel) wheel(event window.Scroll) (gui.Model, gui.Cmd) {
 	key, _, _ := m.hit(event.Pos)
 	switch {
 	case strings.HasPrefix(key, "album"):
-		next := m.shelf.scroll + float32(event.Delta.Y+event.Delta.X)
-		if next < 0 {
-			next = 0
-		}
-		m.shelf.Dirty, m.shelf.scroll = gui.See(m.shelf.Dirty, m.shelf.scroll, next)
-		m.absorb(m.shelf)
+		m.nudgeShelf(float32(event.Delta.Y + event.Delta.X))
 	case strings.HasPrefix(key, "track"):
-		next := m.list.scroll + float32(event.Delta.Y)
-		if next < 0 {
-			next = 0
-		}
-		if limit := m.list.maxScroll(); next > limit {
-			next = limit
-		}
-		m.list.Dirty, m.list.scroll = gui.See(m.list.Dirty, m.list.scroll, next)
-		m.absorb(m.list)
+		m.nudgeList(float32(event.Delta.Y))
 	}
 	return m, nil
+}
+
+func (m *musicModel) nudgeShelf(delta float32) {
+	if m == nil || m.shelf == nil || delta == 0 {
+		return
+	}
+	next := m.shelf.scroll + delta
+	if next < 0 {
+		next = 0
+	}
+	m.shelf.Dirty, m.shelf.scroll = gui.See(m.shelf.Dirty, m.shelf.scroll, next)
+	m.absorb(m.shelf)
+}
+
+func (m *musicModel) nudgeList(delta float32) {
+	if m == nil || m.list == nil || delta == 0 {
+		return
+	}
+	next := m.list.scroll + delta
+	if next < 0 {
+		next = 0
+	}
+	if limit := m.list.maxScroll(); next > limit {
+		next = limit
+	}
+	m.list.Dirty, m.list.scroll = gui.See(m.list.Dirty, m.list.scroll, next)
+	m.absorb(m.list)
+}
+
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (m *musicModel) trackID(key string) (Track, bool) {
@@ -402,6 +462,54 @@ func take[T gui.Model](model *T, msg gui.Msg) gui.Cmd {
 	next, cmd := current.Update(msg)
 	*model = next.(T)
 	return cmd
+}
+
+func (m *musicModel) askSearch() gui.Cmd {
+	ask := m.promptFn
+	if ask == nil {
+		ask = launcher.Prompt
+	}
+	return func(ctx context.Context) gui.Msg {
+		text, err := ask(ctx, "Search")
+		waitUI(ctx)
+		return searchAsked{text: text, err: err}
+	}
+}
+
+// waitUI returns after the UI thread has finished the dialog click and the
+// window has settled. A frame during that resize faults the Android driver.
+// A process with no UI thread, including a unit test, returns immediately.
+func waitUI(ctx context.Context) {
+	bound, on := thread.State()
+	if !bound || on || ctx.Err() != nil {
+		return
+	}
+	thread.Do(func() {})
+	timer := time.NewTimer(400 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+}
+
+func (m *musicModel) onSearchAsked(event searchAsked) (gui.Model, gui.Cmd) {
+	if event.err != nil {
+		if errors.Is(event.err, errs.ErrCanceled) || errors.Is(event.err, context.Canceled) {
+			return m, nil
+		}
+		m.note = event.err.Error()
+		m.Dirty = gui.Touch(m.Dirty)
+		return m, nil
+	}
+	text := strings.TrimSpace(event.text)
+	if m.head != nil {
+		m.head.query = text
+		m.Dirty, m.head.search = gui.See(m.Dirty, m.head.search, false)
+	}
+	m.Dirty, m.query = gui.See(m.Dirty, m.query, text)
+	m.reload()
+	return m, nil
 }
 
 func (m *musicModel) choose() gui.Cmd {

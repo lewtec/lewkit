@@ -13,6 +13,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -57,17 +58,30 @@ func main() {
 			args = append(args, export)
 		}
 	}
+	os.Exit(runTool(args, os.Stderr))
+}
+
+// runTool runs the real compile or link. Combined output is copied to stderr.
+// Inheriting the go command's merged stdout and stderr handles has exited 1
+// on Windows with an empty buffer, so the child gets its own pipes.
+func runTool(args []string, stderr io.Writer) int {
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
-	if err := cmd.Run(); err != nil {
-		if ee, ok := err.(*exec.ExitError); ok {
-			os.Exit(ee.ExitCode())
-		}
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	out, err := cmd.CombinedOutput()
+	if len(out) > 0 {
+		stderr.Write(out)
 	}
+	if err == nil {
+		return 0
+	}
+	if ee, ok := err.(*exec.ExitError); ok {
+		if len(out) == 0 {
+			fmt.Fprintf(stderr, "androidtoolexec: %s: exit status %d\n", filepath.Base(args[0]), ee.ExitCode())
+		}
+		return ee.ExitCode()
+	}
+	fmt.Fprintln(stderr, err)
+	return 1
 }
 
 // peelExport splits a leading _cgo_android_export.go path from the tool args.

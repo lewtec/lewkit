@@ -81,10 +81,10 @@ func TestGOARCHEnum(t *testing.T) {
 func TestPlatformUberEnum(t *testing.T) {
 	host := HostPlatform()
 	require.True(t, host.IsValid())
-	require.Equal(t, HostGOOS(), host.GOOS())
-	require.Equal(t, HostGOARCH(), host.GOARCH())
+	require.Equal(t, HostGOOS(), host.GOOS)
+	require.Equal(t, HostGOARCH(), host.GOARCH)
 
-	for _, p := range Platform("").Values() {
+	for _, p := range (Platform{}).Values() {
 		require.True(t, p.IsValid())
 		goos, goarch := p.Split()
 		require.True(t, goos.IsValid(), p.String())
@@ -99,9 +99,13 @@ func TestPlatformUberEnum(t *testing.T) {
 	aliases := map[string]Platform{
 		"linux/amd64":         PlatformLinuxAMD64,
 		"linux_amd64":         PlatformLinuxAMD64,
+		"linux/x86_64":        PlatformLinuxAMD64,
+		"linux_x64":           PlatformLinuxAMD64,
 		"linux-64":            PlatformLinuxAMD64,
 		"linux/arm64":         PlatformLinuxARM64,
+		"linux/aarch64":       PlatformLinuxARM64,
 		"linux-aarch64":       PlatformLinuxARM64,
+		"android/i686":        PlatformAndroid386,
 		"darwin/arm64":        PlatformDarwinARM64,
 		"osx-arm64":           PlatformDarwinARM64,
 		"windows/amd64":       PlatformWindowsAMD64,
@@ -113,7 +117,15 @@ func TestPlatformUberEnum(t *testing.T) {
 		"android/x86_64":      PlatformAndroidAMD64,
 		"android/x86":         PlatformAndroid386,
 		"linux_iso/amd64":     PlatformLinuxISOAMD64,
+		"linux_iso_amd64":     PlatformLinuxISOAMD64,
 		"linux_uki/arm64":     PlatformLinuxUKIARM64,
+		"osx-64":              PlatformDarwinAMD64,
+		"linux-32":            PlatformLinux386,
+		"linux-ppc64le":       PlatformLinuxPPC64le,
+		"linux-riscv64":       PlatformLinuxRiscv64,
+		"linux-s390x":         PlatformLinuxS390x,
+		"win-32":              PlatformWindows386,
+		"win-arm64":           PlatformWindowsARM64,
 		"uefi/amd64":          PlatformUEFIAMD64,
 		"mbr/amd64":           PlatformMBRAMD64,
 	}

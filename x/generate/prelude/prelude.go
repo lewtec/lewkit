@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"os"
 	stdpath "path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -385,13 +386,15 @@ func findImportPath(ctx context.Context, start *path.Root) (string, error) {
 }
 
 func climbStart(start *path.Root) (path.Path, error) {
-	current := path.New(start.Name())
-	if current.String() != "." {
-		return current, nil
+	name := start.Name()
+	if name == "" || name == "." {
+		wd, err := os.Getwd()
+		if err != nil {
+			return path.Path{}, err
+		}
+		name = wd
 	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return path.Path{}, err
-	}
-	return path.New(wd), nil
+	// Path is slash-separated. A Windows volume path has no leading
+	// slash, so the climb uses the slash form of the OS path.
+	return path.New(filepath.ToSlash(name)), nil
 }

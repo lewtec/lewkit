@@ -352,7 +352,7 @@ func automatic(dir, target, stem string, prereqs []string) map[string]string {
 		auto["<"] = prereqs[0]
 	}
 	var newer []string
-	info, err := os.Stat(workflow.Join(dir, target))
+	info, err := workflow.StatOutput(workflow.Join(dir, target))
 	for _, pre := range prereqs {
 		preInfo, preErr := os.Stat(workflow.Join(dir, pre))
 		if preErr != nil || err != nil || preInfo.ModTime().After(info.ModTime()) {

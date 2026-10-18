@@ -20,7 +20,9 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/errs"
@@ -111,18 +113,67 @@ func Start(ctx context.Context, cmd *exec.Cmd) error {
 	// A shell's children inherit the stdout and stderr pipes. Killing only
 	// the shell leaves those children holding the pipes, and Wait never
 	// returns. The command runs in its own group so cancel reaches them.
+	// WaitDelay bounds the copy after the process itself has exited, which
+	// is the case when a Gradle daemon keeps the pipe open (Go issue 23019).
 	prepareCancel(cmd)
+	if cmd.WaitDelay == 0 {
+		cmd.WaitDelay = time.Second
+	}
 	slog.DebugContext(ctx, "exec", "path", cmd.Path, "args", cmd.Args)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	context.AfterFunc(ctx, func() { cancelProcess(cmd) })
+	trackProcess(cmd)
+	armCancel(ctx, cmd)
 	return nil
+}
+
+// cancelHook is one command's cancel registration.
+// done is set once Wait has reaped the process. The session cancels command
+// contexts when it finishes, and that pid can already belong to a compiler
+// started by a later build.
+type cancelHook struct {
+	stop func() bool
+	done atomic.Bool
+}
+
+var cancelHooks sync.Map // *exec.Cmd → *cancelHook
+
+func armCancel(ctx context.Context, cmd *exec.Cmd) {
+	hook := &cancelHook{}
+	cancelHooks.Store(cmd, hook)
+	hook.stop = context.AfterFunc(ctx, func() {
+		if hook.done.Load() {
+			return
+		}
+		cancelProcess(cmd)
+	})
+}
+
+func disarmCancel(cmd *exec.Cmd) {
+	v, ok := cancelHooks.LoadAndDelete(cmd)
+	if !ok {
+		return
+	}
+	hook := v.(*cancelHook)
+	hook.done.Store(true)
+	if hook.stop != nil {
+		hook.stop()
+	}
 }
 
 // Wait waits for cmd. A cancelled ctx wins over the process exit error.
 func Wait(ctx context.Context, cmd *exec.Cmd) error {
 	err := cmd.Wait()
+	// Drop the cancel hook before closing the job. The hook's pid is only
+	// safe to signal until Wait reaps it.
+	disarmCancel(cmd)
+	finishCancel(cmd)
+	// The process exited 0 and a child still held the pipe. The output
+	// already copied is the command's output.
+	if errors.Is(err, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		err = nil
+	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}

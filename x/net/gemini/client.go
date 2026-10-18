@@ -176,12 +176,14 @@ func dialGemini(ctx context.Context, target *url.URL, timeout time.Duration) (Re
 		port = DefaultPort
 	}
 	addr := net.JoinHostPort(host, port)
-	dialer := &net.Dialer{Timeout: timeout}
-	tlsConn, err := tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
-		ServerName:         host,
-		InsecureSkipVerify: true, // Gemini uses TOFU / self-signed certificates in the wild.
-		MinVersion:         tls.VersionTLS12,
-	})
+	tlsConn, err := (&tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: timeout},
+		Config: &tls.Config{
+			ServerName:         host,
+			InsecureSkipVerify: true, // Gemini uses TOFU / self-signed certificates in the wild.
+			MinVersion:         tls.VersionTLS12,
+		},
+	}).DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return Response{}, fmt.Errorf("%w: %w", ErrStatusFailed, err)
 	}

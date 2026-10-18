@@ -25,6 +25,8 @@ func TestAddrArg(t *testing.T) {
 		{name: "missing port", in: "localhost", err: ErrInvalidArgument},
 		{name: "empty", in: "", err: ErrInvalidArgument},
 		{name: "empty port", in: "localhost:", err: ErrInvalidArgument},
+		{name: "windows path", in: `C:\Users\runner\AppData\Local\Temp\pprof`, err: ErrInvalidArgument},
+		{name: "windows slash path", in: "C:/Users/runner/Temp/pprof", err: ErrInvalidArgument},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -37,6 +39,16 @@ func TestAddrArg(t *testing.T) {
 			assert.Equal(t, tc.want, got.addr.Value())
 		})
 	}
+}
+
+func TestPprofWindowsPathIsDirectory(t *testing.T) {
+	var arg PprofArg
+	require.NoError(t, arg.Parse(`C:\Users\runner\AppData\Local\Temp\pprof`))
+	assert.Equal(t, `C:\Users\runner\AppData\Local\Temp\pprof`, arg.Directory())
+	assert.Empty(t, arg.Address())
+	require.NoError(t, arg.Parse(`C:/Users/runner/Temp/pprof`))
+	assert.Equal(t, `C:/Users/runner/Temp/pprof`, arg.Directory())
+	assert.Empty(t, arg.Address())
 }
 
 func TestAddrDefault(t *testing.T) {

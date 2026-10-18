@@ -1,6 +1,7 @@
 package sound
 
 import (
+	"bytes"
 	"io"
 	"testing"
 	"time"
@@ -25,6 +26,19 @@ func TestPipelineSeek(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 	_, err = pipe.Seek(5, io.SeekStart)
 	require.ErrorIs(t, err, ErrSeek)
+}
+
+func TestFromReaderDoesNotSeek(t *testing.T) {
+	format := Format{Rate: 8000, Channels: 1, Sample: SampleS16LE}
+	pipe, err := FromReader(format, bytes.NewReader(pcm16(1, 2)))
+	require.NoError(t, err)
+	require.Equal(t, int64(-1), pipe.Frames())
+	require.Equal(t, time.Duration(0), pipe.Duration())
+	_, err = pipe.Seek(0, io.SeekStart)
+	require.ErrorIs(t, err, ErrSeek)
+	got, err := io.ReadAll(pipe)
+	require.NoError(t, err)
+	require.Equal(t, pcm16(1, 2), got)
 }
 
 func TestPipelineGainAndTake(t *testing.T) {

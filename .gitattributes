@@ -1,0 +1,3 @@
+* text=auto eol=lf
+# The upstream fixture is stored with CRLF. Marking it text rewrites the worktree on checkout.
+x/toolchain/go/_upstream/std/types/testdata/fixedbugs/issue39754.go -text

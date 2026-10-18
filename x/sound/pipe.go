@@ -45,6 +45,21 @@ func FromSeeker(format Format, frames int64, r io.ReadSeeker) (*Pipeline, error)
 	return &Pipeline{stage: stage}, nil
 }
 
+// FromReader reads interleaved PCM from r.
+// The length is unknown, and Seek returns [ErrSeek].
+// Use it when the decoder can read but cannot seek, which is how an
+// Android document looks until its file descriptor is forwarded.
+func FromReader(format Format, r io.Reader) (*Pipeline, error) {
+	frame, err := format.Frame()
+	if err != nil {
+		return nil, err
+	}
+	if r == nil {
+		return nil, ErrFormat
+	}
+	return &Pipeline{stage: &pcmRead{format: format, r: r, frame: frame}}, nil
+}
+
 // New returns a pipeline over pcm. The length must be a whole number of frames.
 func New(format Format, pcm []byte) (*Pipeline, error) {
 	frame, err := format.Frame()
@@ -230,6 +245,38 @@ func (s *pcmSeek) Seek(offset int64, whence int) (int64, error) {
 	s.at = next.at
 	return s.at, nil
 }
+
+type pcmRead struct {
+	format Format
+	r      io.Reader
+	frame  int
+	at     int64
+}
+
+func (s *pcmRead) Format() Format { return s.format }
+func (s *pcmRead) Frames() int64  { return -1 }
+
+func (s *pcmRead) Read(p []byte) (int, error) {
+	if len(p) < s.frame {
+		return 0, io.ErrShortBuffer
+	}
+	n := len(p) - len(p)%s.frame
+	got, err := io.ReadFull(s.r, p[:n])
+	frames := got / s.frame
+	s.at += int64(frames)
+	if frames == 0 {
+		if err == nil || err == io.EOF || err == io.ErrUnexpectedEOF {
+			return 0, io.EOF
+		}
+		return 0, err
+	}
+	if err == io.EOF || err == io.ErrUnexpectedEOF {
+		err = nil
+	}
+	return frames * s.frame, err
+}
+
+func (s *pcmRead) Seek(int64, int) (int64, error) { return 0, ErrSeek }
 
 type clip struct {
 	format Format

@@ -269,6 +269,7 @@ func apiErrorFromResponse(requestURL string, response *http.Response) error {
 
 func parseAssetName(name string) (osName, arch string, ok bool) {
 	name = strings.ToLower(name)
+	exeOnly := false
 	if tool.ContainsAnyOf(name, "android") {
 		osName = "android"
 	} else if tool.ContainsAnyOf(name, "linux", "ubuntu") {
@@ -277,6 +278,11 @@ func parseAssetName(name string) (osName, arch string, ok bool) {
 		osName = "darwin"
 	} else if tool.ContainsAnyOf(name, "windows") {
 		osName = "windows"
+	} else if strings.HasSuffix(name, ".exe") {
+		// getsops/sops names Windows binaries sops-<version>.exe and
+		// sops-<version>.<arch>.exe. The arch is in the name when present.
+		osName = "windows"
+		exeOnly = true
 	} else {
 		return "", "", false
 	}
@@ -288,6 +294,8 @@ func parseAssetName(name string) (osName, arch string, ok bool) {
 		arch = "386"
 	} else if tool.ContainsAnyOf(name, "riscv") {
 		arch = "riscv"
+	} else if exeOnly {
+		arch = "amd64"
 	} else {
 		return "", "", false
 	}

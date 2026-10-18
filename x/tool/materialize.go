@@ -428,7 +428,7 @@ func installBinary(ctx context.Context, source string, dest *lewpath.Root) error
 	if err != nil {
 		return err
 	}
-	name := lewpath.New(NormalizeBinaryName(stdpath.Base(source)))
+	name := lewpath.New(binaryFileName(source))
 	listing := func(yield func(lewfs.File, error) bool) {
 		yield(lewfs.File{
 			Name:   name,
@@ -476,8 +476,26 @@ var binaryNameSuffixes = []string{
 
 var binaryVersionPattern = regexp.MustCompile(`[-_](v?\d+\.[\d.]+\w*)$`)
 
+// binaryFileName is the file installed from a raw download.
+// The source is a host path. A slash-only base leaves a Windows path intact,
+// and os.Root then rejects that name as an escape from the install directory.
+func binaryFileName(source string) string {
+	name := filepath.Base(source)
+	if i := strings.LastIndex(name, `\`); i >= 0 {
+		name = name[i+1:]
+	}
+	return NormalizeBinaryName(name)
+}
+
 // NormalizeBinaryName strips one platform suffix and a trailing version token.
+// A trailing .exe is removed before those cuts and restored, so
+// sops-v3.10.2.amd64.exe installs as sops.exe.
 func NormalizeBinaryName(name string) string {
+	extension := ""
+	if strings.HasSuffix(strings.ToLower(name), ".exe") {
+		extension = name[len(name)-4:]
+		name = name[:len(name)-4]
+	}
 	result := name
 	for _, suffix := range binaryNameSuffixes {
 		if before, ok := strings.CutSuffix(result, suffix); ok {
@@ -485,7 +503,7 @@ func NormalizeBinaryName(name string) string {
 			break
 		}
 	}
-	return binaryVersionPattern.ReplaceAllString(result, "")
+	return binaryVersionPattern.ReplaceAllString(result, "") + extension
 }
 
 // NormalizeInstalledBinaries renames executables in destination and destination/bin

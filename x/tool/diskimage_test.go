@@ -28,7 +28,7 @@ func TestCopyDiskImageUnwrapsVolumeDirectory(t *testing.T) {
 	require.Equal(t, "macho", string(body))
 	target, err := os.Readlink(filepath.Join(destination, "Applications"))
 	require.NoError(t, err)
-	require.Equal(t, "/Applications", target)
+	require.Equal(t, filepath.Clean("/Applications"), filepath.Clean(target))
 	_, err = os.Stat(filepath.Join(destination, "Obsidian 1.14.4-universal"))
 	require.Error(t, err)
 }

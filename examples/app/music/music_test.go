@@ -19,6 +19,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/filedialog"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/sound"
 	"github.com/lewtec/lewkit/x/ui/gui"
 	"github.com/stretchr/testify/assert"
@@ -83,7 +84,8 @@ func TestMusicViewPaintsLibrary(t *testing.T) {
 		}
 	}
 	require.True(t, found)
-	next, cmd := model.Update(window.Pointer{Pos: hit, Button: 1, Pressed: true})
+	model.Update(window.Pointer{Pos: hit, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
+	next, cmd := model.Update(window.Pointer{Pos: hit, Button: 1})
 	require.NotNil(t, cmd)
 	painted := next.(*musicModel)
 	assert.Equal(t, musicNow, painted.screen)
@@ -210,7 +212,8 @@ func TestOpenButtonChoosesAndPlaysContentFS(t *testing.T) {
 	}
 	require.NotEqual(t, image.Point{}, openPos)
 
-	_, chooseCmd := model.Update(window.Pointer{Pos: openPos, Button: 1, Pressed: true})
+	model.Update(window.Pointer{Pos: openPos, Button: 1, Pressed: true, Buttons: window.ButtonLeft})
+	_, chooseCmd := model.Update(window.Pointer{Pos: openPos, Button: 1})
 	require.NotNil(t, chooseCmd)
 	assert.Nil(t, model.choose(), "duplicate choose while picking is ignored")
 
@@ -257,6 +260,29 @@ func TestPlayerReportsFrames(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, 1600, len(got.PCM()))
 	assert.Empty(t, play.Err())
+}
+
+func TestSearchUsesPrompt(t *testing.T) {
+	lib, err := OpenLibrary(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, lib.Close()) })
+	model := newMusic(t.Context(), lib, nil)
+	model.promptFn = func(_ context.Context, prompt string) (string, error) {
+		require.Equal(t, "Search", prompt)
+		return "ada", nil
+	}
+	cmd := model.askSearch()
+	require.NotNil(t, cmd)
+	_, _ = model.Update(cmd(t.Context()))
+	assert.Equal(t, "ada", model.query)
+	assert.Equal(t, "ada", model.head.query)
+
+	model.promptFn = func(context.Context, string) (string, error) {
+		return "", errs.ErrCanceled
+	}
+	cmd = model.askSearch()
+	_, _ = model.Update(cmd(t.Context()))
+	assert.Equal(t, "ada", model.query)
 }
 
 func writeTone(t *testing.T, path string) {

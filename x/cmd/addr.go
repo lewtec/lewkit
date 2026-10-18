@@ -10,6 +10,7 @@ import (
 var (
 	errEmptyAddress = errors.New("empty address")
 	errMissingPort  = errors.New("missing port")
+	errBadPort      = errors.New("invalid port")
 )
 
 // AddrArg is a host:port listen address. A bare port (as in $PORT) is :port.
@@ -27,8 +28,12 @@ func (a *AddrArg) Parse(arg string) error {
 			return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 		}
 		host, port = "", arg
-	} else if port == "" {
+	} else if _, perr := strconv.ParseUint(port, 10, 16); perr != nil {
+		// A Windows path contains a colon. Its tail is not a port.
 		return fmt.Errorf("%w: %w", ErrInvalidArgument, errMissingPort)
+	}
+	if _, err := strconv.ParseUint(port, 10, 16); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidArgument, errBadPort)
 	}
 	a.value = net.JoinHostPort(host, port)
 	return nil

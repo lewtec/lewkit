@@ -7,6 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWindowsExeSuffix(t *testing.T) {
+	require.Equal(t, `C:\a\hello.exe`, windowsExe("windows", `C:\a\hello`))
+	require.Equal(t, `C:\a\hello.exe`, windowsExe("windows", `C:\a\hello.exe`))
+	require.Equal(t, `C:\a\HELLO.EXE`, windowsExe("windows", `C:\a\HELLO.EXE`))
+	require.Equal(t, "/tmp/hello", windowsExe("linux", "/tmp/hello"))
+}
+
 func TestBuildLoadedRejectsTwoMains(t *testing.T) {
 	_, err := BuildLoaded(t.Context(), Loaded{
 		Graph: &load.Graph{Pkgs: []load.Package{{Name: "main"}, {Name: "main"}}},

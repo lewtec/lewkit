@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"math"
@@ -12,18 +13,35 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
+	"github.com/lewtec/lewkit/x/driver/launcher"
+	"github.com/lewtec/lewkit/x/driver/thread"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/http/asset/lucide"
 	lewimage "github.com/lewtec/lewkit/x/image"
 	"github.com/lewtec/lewkit/x/net/gemini"
 	"github.com/lewtec/lewkit/x/ui/gui"
+	"github.com/lewtec/lewkit/x/ui/gui/icon"
 	"golang.org/x/image/font"
 )
 
 type fetchedMsg struct {
+	id        int
 	target    string
 	direction int
 	resp      gemini.Response
 	err       error
+}
+
+type addressAsked struct {
+	text string
+	err  error
+}
+
+type queryAsked struct {
+	base string
+	text string
+	err  error
 }
 
 type pageState struct {
@@ -94,6 +112,7 @@ func paletteFor(t float32) browserPalette {
 // Browser is a Gemini protocol client and gemtext viewer built on [gui.Model].
 type Browser struct {
 	gui.Dirty
+	gui.Metrics
 	Client *gemini.Client
 
 	size       image.Point
@@ -128,9 +147,17 @@ type Browser struct {
 	addrGlow      gui.Tween
 	themeMix      gui.Tween
 	scrollSpring  gui.Spring
+	drag          gui.Drag
 
 	docColumn *gui.ColumnView
 	addrText  *gui.Text
+	// inbox carries fetch results. The command returns a tick immediately
+	// so the loading bar keeps moving while the request is in flight.
+	// fetchID drops a result from an older navigation.
+	inbox   chan fetchedMsg
+	fetchID int
+	// askFn reads one line. Nil uses the prompt driver.
+	askFn func(context.Context, string) (string, error)
 }
 
 // NewBrowser creates a Gemini browser model ready to run.
@@ -147,6 +174,7 @@ func NewBrowser(_ context.Context) (*Browser, error) {
 		drawerSlide:   gui.NewTween(0),
 		promptScale:   gui.NewTween(0),
 		addrGlow:      gui.NewTween(0),
+		inbox:         make(chan fetchedMsg, 4),
 		themeMix:      gui.NewTween(0),
 		scrollSpring:  gui.Spring{Stiffness: 280, Damping: 34},
 	}
@@ -159,6 +187,7 @@ func (b *Browser) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 	if b == nil {
 		return b, nil
 	}
+	b.Observe(msg)
 	if size, ok := browserSize(msg); ok && size.X > 0 && size.Y > 0 {
 		b.Dirty, b.size = gui.See(b.Dirty, b.size, size)
 	}
@@ -170,6 +199,10 @@ func (b *Browser) Update(msg gui.Msg) (gui.Model, gui.Cmd) {
 		return b, gui.Tick()
 	case fetchedMsg:
 		return b.onFetched(event)
+	case addressAsked:
+		return b.onAddressAsked(event)
+	case queryAsked:
+		return b.onQueryAsked(event)
 	case window.Pointer:
 		return b.onPointer(event)
 	case window.Scroll:
@@ -185,6 +218,9 @@ func (b *Browser) onTick(tick gui.TickMsg) (gui.Model, gui.Cmd) {
 		b.booted = true
 		b.Dirty = gui.Touch(b.Dirty)
 		return b, b.navigate(defaultHomeURL, 0, true)
+	}
+	if msg, ok := b.nextFetch(); ok {
+		return b.onFetched(msg)
 	}
 	dt := time.Duration(0)
 	if b.lastTick > 0 && tick.Elapsed > b.lastTick {
@@ -285,13 +321,40 @@ func (b *Browser) navigate(rawURL string, direction int, pushHistory bool) gui.C
 	if client == nil {
 		client = newDefaultClient()
 	}
+	b.fetchID++
+	id := b.fetchID
 	return func(ctx context.Context) gui.Msg {
-		resp, fetchErr := client.Fetch(ctx, resolved)
-		return fetchedMsg{
-			target:    resolved,
-			direction: direction,
-			resp:      resp,
-			err:       fetchErr,
+		go func() {
+			resp, fetchErr := client.Fetch(ctx, resolved)
+			msg := fetchedMsg{
+				id:        id,
+				target:    resolved,
+				direction: direction,
+				resp:      resp,
+				err:       fetchErr,
+			}
+			select {
+			case b.inbox <- msg:
+			case <-ctx.Done():
+			}
+		}()
+		return gui.TickMsg{}
+	}
+}
+
+func (b *Browser) nextFetch() (fetchedMsg, bool) {
+	if b == nil || b.inbox == nil {
+		return fetchedMsg{}, false
+	}
+	for {
+		select {
+		case msg := <-b.inbox:
+			if msg.id != b.fetchID {
+				continue
+			}
+			return msg, true
+		default:
+			return fetchedMsg{}, false
 		}
 	}
 }
@@ -306,16 +369,19 @@ func (b *Browser) onFetched(msg fetchedMsg) (gui.Model, gui.Cmd) {
 	cat := gemini.Category(msg.resp.Status)
 	switch cat {
 	case gemini.StatusInput:
-		b.promptOpen = true
-		b.promptURL = msg.resp.URL
-		if b.promptURL == "" {
-			b.promptURL = msg.target
+		target := msg.resp.URL
+		if target == "" {
+			target = msg.target
 		}
-		b.promptMeta = msg.resp.Meta
-		b.promptText = nil
-		b.promptScale.FromTo(0, 1, 240*time.Millisecond, gui.EaseOutBack)
+		prompt := msg.resp.Meta
+		if prompt == "" {
+			prompt = "Input"
+		}
+		b.promptURL = target
+		b.promptMeta = prompt
 		b.statusMsg = fmt.Sprintf("Status %d — Input requested", msg.resp.Status)
-		return b, gui.Tick()
+		b.Dirty = gui.Touch(b.Dirty)
+		return b, b.askQuery(target, prompt)
 	case gemini.StatusSuccess:
 		b.applyDocument(msg.resp.URL, int(msg.resp.Status), msg.resp.Meta, string(msg.resp.Body), msg.direction)
 		return b, gui.Tick()
@@ -365,15 +431,23 @@ func (b *Browser) applyDocument(targetURL string, status int, meta, rawBody stri
 }
 
 func (b *Browser) onPointer(event window.Pointer) (gui.Model, gui.Cmd) {
-	if event.Button != 1 || !event.Pressed {
+	step, ok := b.drag.Step(event, gui.Slop(b.Scale))
+	if !ok {
 		return b, nil
 	}
+	if !step.Tap {
+		// ColumnView multiplies the offset by density. The finger distance
+		// is already in device pixels, so divide before storing it.
+		b.scrollBy(gui.Logical(b.Scale, step.Delta.Y))
+		return b, gui.Tick()
+	}
+	event.Pos = step.At
 	root := b.View()
 	if root == nil {
 		return b, nil
 	}
 	size := gui.Size{Width: float32(b.size.X), Height: float32(b.size.Y)}
-	key, _, _ := gui.Hit(root, size, event.Pos)
+	key, _, _ := b.Hit(root, size, event.Pos)
 
 	if key != "address" && b.addrFocus {
 		b.addrFocus = false
@@ -411,16 +485,7 @@ func (b *Browser) onPointer(event window.Pointer) (gui.Model, gui.Cmd) {
 		b.toggleTheme()
 		return b, gui.Tick()
 	case key == "address":
-		b.addrFocus = true
-		b.caret = true
-		if b.addrText != nil {
-			b.cursor = b.addrText.IndexAt(event.Pos)
-		} else {
-			b.cursor = len(b.address)
-		}
-		b.addrGlow.To(1, 200*time.Millisecond, gui.EaseOutCubic)
-		b.Dirty = gui.Touch(b.Dirty)
-		return b, gui.Tick()
+		return b, b.askAddress()
 	case key == "prompt-cancel":
 		b.closePrompt()
 		return b, gui.Tick()
@@ -476,12 +541,7 @@ func (b *Browser) onKey(key window.Key) (gui.Model, gui.Cmd) {
 	}
 	switch {
 	case key.Rune == '/' || (key.Mod&window.ModCtrl != 0 && (key.Rune == 'l' || key.Rune == 'L')):
-		b.addrFocus = true
-		b.caret = true
-		b.cursor = len(b.address)
-		b.addrGlow.To(1, 200*time.Millisecond, gui.EaseOutCubic)
-		b.Dirty = gui.Touch(b.Dirty)
-		return b, gui.Tick()
+		return b, b.askAddress()
 	case key.Rune == 'b' || key.Rune == 'B':
 		b.setDrawer(!b.drawerOpen)
 		return b, gui.Tick()
@@ -577,6 +637,96 @@ func (b *Browser) submitPrompt() (gui.Model, gui.Cmd) {
 	query := strings.TrimSpace(string(b.promptText))
 	base := b.promptURL
 	b.closePrompt()
+	return b.goQuery(base, query)
+}
+
+func (b *Browser) askAddress() gui.Cmd {
+	return b.ask("Address", func(text string, err error) gui.Msg {
+		return addressAsked{text: text, err: err}
+	})
+}
+
+func (b *Browser) askQuery(base, prompt string) gui.Cmd {
+	return b.ask(prompt, func(text string, err error) gui.Msg {
+		return queryAsked{base: base, text: text, err: err}
+	})
+}
+
+func (b *Browser) ask(prompt string, wrap func(string, error) gui.Msg) gui.Cmd {
+	ask := b.askFn
+	if ask == nil {
+		ask = launcher.Prompt
+	}
+	return func(ctx context.Context) gui.Msg {
+		text, err := ask(ctx, prompt)
+		// The dialog dismisses on the UI thread after the reply is delivered.
+		// Drawing the next page during that resize faults the Android driver.
+		waitUI(ctx)
+		return wrap(text, err)
+	}
+}
+
+// waitUI returns after the UI thread has finished the dialog click and the
+// window has settled. A frame during that resize faults the Android driver.
+// A process with no UI thread, including a unit test, returns immediately.
+func waitUI(ctx context.Context) {
+	bound, on := thread.State()
+	if !bound || on || ctx.Err() != nil {
+		return
+	}
+	thread.Do(func() {})
+	timer := time.NewTimer(400 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+}
+
+// absoluteGemini makes a typed address a gemini URL.
+// gemini:// and about: stay as typed. A path that starts with / or . stays
+// relative to the current page. Anything else is a host, so lucasew.srht.site
+// opens gemini://lucasew.srht.site/ rather than a path on the current capsule.
+func absoluteGemini(text string) string {
+	text = strings.TrimSpace(text)
+	if text == "" || strings.Contains(text, "://") || strings.HasPrefix(text, "about:") {
+		return text
+	}
+	if strings.HasPrefix(text, "/") || strings.HasPrefix(text, ".") {
+		return text
+	}
+	return "gemini://" + text
+}
+
+func (b *Browser) onAddressAsked(event addressAsked) (gui.Model, gui.Cmd) {
+	if event.err != nil {
+		return b.noteAsk(event.err)
+	}
+	target := absoluteGemini(event.text)
+	if target == "" {
+		return b, nil
+	}
+	return b, b.navigate(target, 1, true)
+}
+
+func (b *Browser) onQueryAsked(event queryAsked) (gui.Model, gui.Cmd) {
+	if event.err != nil {
+		return b.noteAsk(event.err)
+	}
+	return b.goQuery(event.base, event.text)
+}
+
+func (b *Browser) noteAsk(err error) (gui.Model, gui.Cmd) {
+	if err == nil || errors.Is(err, errs.ErrCanceled) || errors.Is(err, context.Canceled) {
+		return b, nil
+	}
+	b.statusMsg = err.Error()
+	b.Dirty = gui.Touch(b.Dirty)
+	return b, gui.Tick()
+}
+
+func (b *Browser) goQuery(base, query string) (gui.Model, gui.Cmd) {
+	query = strings.TrimSpace(query)
 	if base == "" {
 		return b, nil
 	}
@@ -682,10 +832,10 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 	canBack := b.histIndex > 0
 	canFwd := b.histIndex+1 < len(b.history)
 
-	backBtn := b.navButton("back", "<", canBack, pal)
-	fwdBtn := b.navButton("forward", ">", canFwd, pal)
-	homeBtn := b.navButton("home", "H", true, pal)
-	reloadBtn := b.navButton("reload", "R", true, pal)
+	backBtn := b.navButton("back", lucide.NameChevronLeft, canBack, pal)
+	fwdBtn := b.navButton("forward", lucide.NameChevronRight, canFwd, pal)
+	homeBtn := b.navButton("home", lucide.NameHouse, true, pal)
+	reloadBtn := b.navButton("reload", lucide.NameRotateCcw, true, pal)
 
 	glow := b.addrGlow.Value()
 	addrBorder := gui.LerpRGB(pal.border, pal.accent, glow)
@@ -718,10 +868,10 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 		},
 	}
 
-	starLabel := "+"
+	mark := lucide.NameBookmark
 	starFill := pal.card
 	if b.isBookmarked(b.current.url) {
-		starLabel = "*"
+		mark = lucide.NameBookmarkCheck
 		starFill = pal.accentDim
 	}
 	starBtn := &gui.Box{
@@ -731,15 +881,15 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 		Radius: 10,
 		Fill:   &starFill,
 		Align:  gui.Alignment{X: 0.5, Y: 0.5},
-		Child:  &gui.Text{Value: starLabel, Face: b.face(1.05), Ink: pal.accent},
+		Child:  icon.Node(mark, pal.accent, 18),
 	}
 
-	themeLabel := "D"
+	theme := lucide.NameMoon
 	if b.mode == daynight.Light {
-		themeLabel = "L"
+		theme = lucide.NameSun
 	}
-	themeBtn := b.navButton("theme", themeLabel, true, pal)
-	drawerBtn := b.navButton("drawer", "=", true, pal)
+	themeBtn := b.navButton("theme", theme, true, pal)
+	drawerBtn := b.navButton("drawer", lucide.NameMenu, true, pal)
 
 	row := &gui.Flex{
 		Axis:  gui.Horizontal,
@@ -764,7 +914,7 @@ func (b *Browser) toolbarView(pal browserPalette) gui.Node {
 	}
 }
 
-func (b *Browser) navButton(key, label string, enabled bool, pal browserPalette) gui.Node {
+func (b *Browser) navButton(key string, name lucide.Name, enabled bool, pal browserPalette) gui.Node {
 	ink := pal.text
 	fill := pal.card
 	if !enabled {
@@ -778,7 +928,7 @@ func (b *Browser) navButton(key, label string, enabled bool, pal browserPalette)
 		Radius: 10,
 		Fill:   &fill,
 		Align:  gui.Alignment{X: 0.5, Y: 0.5},
-		Child:  &gui.Text{Value: label, Face: b.face(1.0), Ink: ink},
+		Child:  icon.Node(name, ink, 18),
 	}
 }
 
@@ -877,7 +1027,11 @@ func (b *Browser) renderPage(page pageState, active bool, pal browserPalette) gu
 				Gap:   10,
 				Cross: gui.CrossStart,
 				Children: []gui.FlexChild{
-					{Child: &gui.Text{Value: "•", Face: b.face(1.0), Ink: pal.accent}},
+					{Child: &gui.Box{
+						Width: 16, Height: 18,
+						Align: gui.Alignment{X: 0.5, Y: 0.5},
+						Child: icon.Node(lucide.NameCircleSmall, pal.accent, 12),
+					}},
 					gui.Expanded(&gui.Text{Value: line.Text, Face: b.face(1.0), Ink: pal.text}),
 				},
 			}
@@ -952,7 +1106,7 @@ func (b *Browser) linkCard(key, label, target string, pal browserPalette) gui.No
 				Radius: 6,
 				Fill:   &badgeFill,
 				Align:  gui.Alignment{X: 0.5, Y: 0.5},
-				Child:  &gui.Text{Value: "=>", Face: b.face(0.85), Ink: pal.accent},
+				Child:  icon.Node(lucide.NameArrowRight, pal.accent, 16),
 			}},
 			gui.Expanded(gui.WithGap(2, gui.WithCross(gui.CrossStart, gui.Column(
 				&gui.Text{Value: label, Face: b.face(1.02), Ink: pal.accent},

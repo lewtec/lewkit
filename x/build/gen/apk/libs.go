@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
@@ -186,8 +187,20 @@ func buildABI(ctx context.Context, goMainDir, abi, goarch, dest, ldflags, toolex
 	// The step is an orchestrator. gocmd reads the compiler on ctx.
 	// The host go command takes an IO task. The embedded compiler takes
 	// CPU children. A cgo-free arm64 build is in that compiler's scope.
-	if err := (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx); err != nil {
+	err := (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx)
+	if err != nil && retryWindowsNocgo(runtime.GOOS, goarch, cgoEnabled) {
+		// One Windows host run exited here with an empty toolexec status.
+		slog.Warn("android abi retry", "abi", abi, "err", err)
+		err = (gocmd.Command{Dir: goMainDir, Env: env, Args: args}).Run(ctx)
+	}
+	if err != nil {
 		return fmt.Errorf("go build %s (GOARCH=%s %w=%s): %w", abi, goarch, ErrBuildABICgoEnabled, cgoFlag, err)
 	}
 	return nil
+}
+
+// retryWindowsNocgo reports whether a failed cgo-free arm64 library build
+// should run once more. Other hosts and ABIs surface the first error.
+func retryWindowsNocgo(goos, goarch string, cgoEnabled bool) bool {
+	return goos == "windows" && goarch == "arm64" && !cgoEnabled
 }

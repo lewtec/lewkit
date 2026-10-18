@@ -4,7 +4,9 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.widget.EditText;
 
 import java.util.ArrayList;
@@ -65,11 +67,21 @@ public final class Ask {
             EditText input = new EditText(activity);
             input.setInputType(InputType.TYPE_CLASS_TEXT);
             input.setText(text == null ? "" : text);
+            // The click listener must not touch the field. Dismissing the
+            // dialog detaches it, and getText from that click faults.
+            final String[] entered = {text == null ? "" : text};
+            input.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+                @Override public void afterTextChanged(Editable s) {
+                    entered[0] = s == null ? "" : s.toString();
+                }
+            });
             String body = message == null ? "" : message;
             AlertDialog.Builder builder = new AlertDialog.Builder(activity)
                     .setTitle(shown(title, "Input"))
                     .setView(input)
-                    .setPositiveButton(android.R.string.ok, (d, w) -> deliver("ok\n" + input.getText()))
+                    .setPositiveButton(android.R.string.ok, (d, w) -> deliver("ok\n" + entered[0]))
                     .setNegativeButton(android.R.string.cancel, (d, w) -> deliver("canceled\n"))
                     .setOnCancelListener(d -> deliver("canceled\n"));
             if (!body.isEmpty()) {

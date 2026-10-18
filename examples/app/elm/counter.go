@@ -6,7 +6,9 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/window"
+	"github.com/lewtec/lewkit/x/http/asset/lucide"
 	"github.com/lewtec/lewkit/x/ui/gui"
+	"github.com/lewtec/lewkit/x/ui/gui/icon"
 )
 
 // Counter is the Elm example: one int, two buttons.
@@ -52,8 +54,8 @@ func (counter *Counter) View() gui.Node {
 		return nil
 	}
 	background, ink := gui.Palette(counter.mode)
-	counter.minus = counter.button("-", gui.RGB{180, 70, 80, 255}, ink)
-	counter.plus = counter.button("+", gui.RGB{70, 160, 100, 255}, ink)
+	counter.minus = counter.button(lucide.NameMinus, gui.RGB{180, 70, 80, 255}, ink)
+	counter.plus = counter.button(lucide.NamePlus, gui.RGB{70, 160, 100, 255}, ink)
 	// Root Box fills the window; Align centers the packed Row.
 	return &gui.Box{
 		Fill:  &background,
@@ -73,14 +75,14 @@ func (counter *Counter) View() gui.Node {
 	}
 }
 
-func (*Counter) button(label string, fill, ink gui.RGB) *gui.Box {
+func (*Counter) button(name lucide.Name, fill, ink gui.RGB) *gui.Box {
 	return &gui.Box{
 		Width:  56,
 		Height: 56,
 		Radius: 12,
 		Fill:   &fill,
 		Align:  gui.Alignment{0.5, 0.5},
-		Child:  &gui.Text{Value: label, Ink: ink},
+		Child:  icon.Node(name, ink, 22),
 	}
 }
 
