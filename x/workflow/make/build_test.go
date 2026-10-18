@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/test"
@@ -59,16 +61,23 @@ func TestCondaCompiler(t *testing.T) {
 	}
 	dir := t.TempDir()
 	writeSources(t, dir)
-	writeFile(t, dir, "Makefile", makeFile)
+	binary := "hello"
+	makefile := makeFile
+	if runtime.GOOS == "windows" {
+		binary = "hello.exe"
+		makefile = strings.ReplaceAll(makeFile, "hello", binary)
+	}
+	writeFile(t, dir, "Makefile", makefile)
 	conda := filepath.Join(dir, "conda")
 	bin := filepath.Join(conda, "bin")
 	require.NoError(t, os.MkdirAll(bin, 0o755))
 	log := filepath.Join(dir, "conda.log")
 	wrapper := filepath.Join(bin, "x86_64-conda-linux-gnu-gcc")
-	script := condaCompilerScript(log, gcc)
+	script := "#!/bin/sh\nprintf '%s\\n' \"$0 $*\" >> \"" + filepath.ToSlash(log) + "\"\nexec " + filepath.ToSlash(gcc) + " \"$@\"\n"
 	require.NoError(t, os.WriteFile(wrapper, []byte(script), 0o755))
 	t.Setenv("CONDA_PREFIX", conda)
-	t.Setenv("CC", wrapper)
+	// The recipe runs under sh, which treats '\' as an escape.
+	t.Setenv("CC", filepath.ToSlash(wrapper))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	require.NoError(t, buildMake(t, dir, nil))
 	body, err := os.ReadFile(log)
@@ -76,20 +85,12 @@ func TestCondaCompiler(t *testing.T) {
 	assert.Contains(t, string(body), "x86_64-conda-linux-gnu-gcc")
 	assert.Contains(t, string(body), "-c")
 	assert.Contains(t, string(body), "-o")
-	require.NoError(t, exec.Command(filepath.Join(dir, "hello")).Run())
+	require.NoError(t, exec.Command(filepath.Join(dir, binary)).Run())
 	// A second build is fresh: the conda compiler is not invoked again.
 	require.NoError(t, buildMake(t, dir, nil))
 	again, err := os.ReadFile(log)
 	require.NoError(t, err)
 	assert.Equal(t, string(body), string(again))
-}
-
-// condaCompilerScript records the invocation, then runs the host compiler.
-func condaCompilerScript(log, gcc string) string {
-	return "#!/bin/sh\n" +
-		"printf '%s\\n' \"$0 $*\" >> '" + filepath.ToSlash(log) + "'\n" +
-		"'" + filepath.ToSlash(gcc) + "' \"$@\"\n" +
-		"exit $?\n"
 }
 
 func writeSources(t *testing.T, dir string) {
