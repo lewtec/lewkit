@@ -86,7 +86,7 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, err
 	}
 
-	if _, err := normalizeSDK(opts.SDK); err != nil {
+	if _, err := iosSimulator(opts.SDK, "arm64"); err != nil {
 		return nil, err
 	}
 
@@ -140,6 +140,21 @@ func normalizeSDK(sdk string) (string, error) {
 	return string(parsed), nil
 }
 
+// iosSimulator reports the iOS Simulator platform.
+// An empty SDK keeps an arm64 device app and an amd64 simulator app.
+// iphonesimulator selects the simulator for every architecture, which is
+// how an Apple Silicon simulator runs an arm64 slice.
+func iosSimulator(sdk, goarch string) (bool, error) {
+	if strings.TrimSpace(sdk) == "" {
+		return goarch == "amd64", nil
+	}
+	parsed, err := normalizeSDK(sdk)
+	if err != nil {
+		return false, err
+	}
+	return parsed == string(SDKSimulator), nil
+}
+
 // SplashPointSize is the on-screen logo size (points) for the launch
 // storyboard and the in-app splash. Asset catalog 1x/2x/3x files match this
 // so UILaunchScreen does not treat a 1024px PNG as a 1024pt image.
@@ -191,11 +206,15 @@ func assembleGoIOS(ctx context.Context, opts BuildOptions, cfg Config, goMain, w
 		goarch = parsed
 	}
 	exe := filepath.Join(workDir, "bin", cfg.ProductName())
-	slog.Info("ios go", "arch", goarch)
+	simulator, err := iosSimulator(opts.SDK, goarch)
+	if err != nil {
+		return nil, err
+	}
+	slog.Info("ios go", "arch", goarch, "simulator", simulator)
 	if err := buildIOSExe(ctx, exe, goMain, goarch, stamp, cfg.PackageID); err != nil {
 		return nil, err
 	}
-	if err := stampPlatform(exe, goarch); err != nil {
+	if err := stampPlatform(exe, simulator); err != nil {
 		return nil, err
 	}
 	result := &BuildResult{WorkDir: workDir, ArchivePath: exe}
@@ -207,11 +226,11 @@ func assembleGoIOS(ctx context.Context, opts BuildOptions, cfg Config, goMain, w
 	if outApp == "" {
 		return nil, ErrOutAppRequired
 	}
-	outApp, err := filepath.Abs(outApp)
+	outApp, err = filepath.Abs(outApp)
 	if err != nil {
 		return nil, err
 	}
-	if err := writeIOSBundle(cfg, iconRoot, exe, outApp, goarch); err != nil {
+	if err := writeIOSBundle(cfg, iconRoot, exe, outApp, goarch, simulator); err != nil {
 		return nil, err
 	}
 	result.AppPath = outApp
@@ -241,7 +260,7 @@ func buildIOSExe(ctx context.Context, dest, goMainDir, goarch string, stamp vers
 	return os.Chmod(dest, 0o755)
 }
 
-func writeIOSBundle(cfg Config, iconRoot, exe, outApp, goarch string) error {
+func writeIOSBundle(cfg Config, iconRoot, exe, outApp, goarch string, simulator bool) error {
 	product := cfg.ProductName()
 	stage, err := os.MkdirTemp("", "eletrocromo-ios-app-")
 	if err != nil {
@@ -255,7 +274,7 @@ func writeIOSBundle(cfg Config, iconRoot, exe, outApp, goarch string) error {
 	if err := common.CopyFile(exe, filepath.Join(app, product), 0o755); err != nil {
 		return fmt.Errorf("%w: %w", ErrBundleExecutable, err)
 	}
-	if err := os.WriteFile(filepath.Join(app, "Info.plist"), []byte(iosPlist(cfg, goarch)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(app, "Info.plist"), []byte(iosPlist(cfg, goarch, simulator)), 0o644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(app, "PkgInfo"), []byte("APPL????"), 0o644); err != nil {
@@ -267,9 +286,9 @@ func writeIOSBundle(cfg Config, iconRoot, exe, outApp, goarch string) error {
 	return common.ReplaceDir(app, outApp)
 }
 
-func iosPlist(cfg Config, goarch string) string {
+func iosPlist(cfg Config, goarch string, simulator bool) string {
 	platform := "iPhoneOS"
-	if goarch == "amd64" {
+	if simulator {
 		platform = "iPhoneSimulator"
 	}
 	var b strings.Builder
@@ -300,7 +319,7 @@ func iosPlist(cfg Config, goarch string) string {
 	b.WriteString("\t<key>CFBundleIcons</key>\n\t<dict>\n\t\t<key>CFBundlePrimaryIcon</key>\n\t\t<dict>\n")
 	b.WriteString("\t\t\t<key>CFBundleIconFiles</key>\n\t\t\t<array>\n\t\t\t\t<string>Icon</string>\n\t\t\t</array>\n")
 	b.WriteString("\t\t</dict>\n\t</dict>\n")
-	if goarch == "arm64" {
+	if goarch == "arm64" && !simulator {
 		b.WriteString("\t<key>UIRequiredDeviceCapabilities</key>\n\t<array>\n\t\t<string>arm64</string>\n\t</array>\n")
 	}
 	b.WriteString(cfg.Capabilities.PlistURLTypes(cfg.PackageID))

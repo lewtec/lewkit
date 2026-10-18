@@ -159,7 +159,9 @@ func (host Host) Windows(ctx context.Context) (string, error) {
 }
 
 // IOS builds a .app around a cgo-free GOOS=ios program on every host.
-// Host.Sign signs the Mach-Os.
+// iphonesimulator stamps the simulator platform, including arm64.
+// A nil Host.Sign ad-hoc signs, the same as Mac. The simulator
+// refuses an unsigned device binary.
 func (host Host) IOS(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {
@@ -183,10 +185,8 @@ func (host Host) IOS(ctx context.Context) (string, error) {
 	if host.GoOnly {
 		return result.WorkDir, nil
 	}
-	if host.Sign != nil {
-		if err := sign.SignTree(host.Sign, result.AppPath, cfg.PackageID); err != nil {
-			return "", err
-		}
+	if err := sign.SignTree(host.Sign, result.AppPath, cfg.PackageID); err != nil {
+		return "", err
 	}
 	return result.AppPath, nil
 }

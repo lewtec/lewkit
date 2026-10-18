@@ -8,20 +8,22 @@ import (
 )
 
 const (
-	loadCmdSegment64    = 0x19
-	loadCmdBuildVersion = 0x32
-	platformIOS         = 2
-	platformIOSSim      = 7
-	macho64Header       = 32
-	buildVersionSize    = 24
-	segment64Size       = 72
-	section64Size       = 80
+	loadCmdSegment64     = 0x19
+	loadCmdCodeSignature = 0x1d
+	loadCmdBuildVersion  = 0x32
+	platformIOS          = 2
+	platformIOSSim       = 7
+	macho64Header        = 32
+	buildVersionSize     = 24
+	segment64Size        = 72
+	section64Size        = 80
 )
 
 // stampPlatform writes LC_BUILD_VERSION for the iOS device, or the
-// simulator when goarch is amd64. A cgo-free ios link does not emit one.
+// simulator when simulator is set. arm64 is the simulator slice on
+// Apple Silicon. A cgo-free ios link does not emit one.
 // An existing command is overwritten. The header pad must fit a new one.
-func stampPlatform(path, goarch string) error {
+func stampPlatform(path string, simulator bool) error {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
 	if err != nil {
 		return err
@@ -43,7 +45,7 @@ func stampPlatform(path, goarch string) error {
 	}
 
 	platform := uint32(platformIOS)
-	if goarch == "amd64" {
+	if simulator {
 		platform = platformIOSSim
 	}
 	// Go's darwin floor. The bundle's MinimumOSVersion matches.
@@ -70,7 +72,17 @@ func stampPlatform(path, goarch string) error {
 	binary.LittleEndian.PutUint32(cmd[8:], platform)
 	binary.LittleEndian.PutUint32(cmd[12:], version)
 	binary.LittleEndian.PutUint32(cmd[16:], version)
-	if _, err := f.WriteAt(cmd, int64(macho64Header)+int64(sizeofcmds)); err != nil {
+	// LC_CODE_SIGNATURE has to stay the last load command. Signing
+	// removes that command, and a platform command after it cannot be removed.
+	insertAt := len(cmds)
+	if at, found := findCommand(cmds, loadCmdCodeSignature); found {
+		insertAt = at
+	}
+	updated := make([]byte, 0, len(cmds)+len(cmd))
+	updated = append(updated, cmds[:insertAt]...)
+	updated = append(updated, cmd...)
+	updated = append(updated, cmds[insertAt:]...)
+	if _, err := f.WriteAt(updated, macho64Header); err != nil {
 		return err
 	}
 	binary.LittleEndian.PutUint32(hdr[16:20], ncmds+1)
@@ -82,6 +94,18 @@ func stampPlatform(path, goarch string) error {
 }
 
 func findBuildVersion(cmds []byte) (int, bool) {
+	at, ok := findCommand(cmds, loadCmdBuildVersion)
+	if !ok {
+		return 0, false
+	}
+	size := int(binary.LittleEndian.Uint32(cmds[at+4:]))
+	if size < buildVersionSize {
+		return 0, false
+	}
+	return at, true
+}
+
+func findCommand(cmds []byte, want uint32) (int, bool) {
 	off := 0
 	for off+8 <= len(cmds) {
 		cmd := binary.LittleEndian.Uint32(cmds[off:])
@@ -89,7 +113,7 @@ func findBuildVersion(cmds []byte) (int, bool) {
 		if size < 8 || off+size > len(cmds) {
 			return 0, false
 		}
-		if cmd == loadCmdBuildVersion && size >= buildVersionSize {
+		if cmd == want {
 			return off, true
 		}
 		off += size
