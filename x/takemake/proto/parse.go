@@ -1,42 +1,18 @@
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"strconv"
-	"unicode"
-	"unicode/utf8"
+	"strings"
+
+	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/proto"
 )
 
-const maxFieldNumber = 536870911
-
-type tokenKind int
-
-const (
-	tokenEOF tokenKind = iota
-	tokenIdent
-	tokenString
-	tokenInt
-	tokenFloat
-	tokenSymbol
-)
-
-type token struct {
-	kind   tokenKind
-	text   string
-	number int64
-	float  float64
-	line   int
-}
-
-type parser struct {
-	src  []byte
-	pos  int
-	line int
-	buf  []token
-	err  error
-}
+const maxFieldNumber int64 = 536870911
 
 // Take reads proto text into a [File].
 func Take(r io.Reader) (*File, error) {
@@ -50,1046 +26,804 @@ func Take(r io.Reader) (*File, error) {
 	if len(body) >= 3 && body[0] == 0xEF && body[1] == 0xBB && body[2] == 0xBF {
 		body = body[3:]
 	}
-	parsed := &parser{src: body, line: 1}
-	file := parsed.parseFile()
-	if parsed.err != nil {
-		return nil, parsed.err
+	model, err := syntax.Language()
+	if err != nil {
+		return nil, err
+	}
+	root, err := model.Parse(body)
+	if err != nil {
+		var pe *xparse.Error
+		if errors.As(err, &pe) {
+			return nil, syntaxError(pe.Line, "syntax")
+		}
+		return nil, syntaxError(1, "syntax")
+	}
+	return lower(string(body), root)
+}
+
+func lower(src string, root xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*File, error) {
+	if rule, ok := root.Rule(); !ok || rule != syntax.RuleFile {
+		return nil, syntaxAt(root, "syntax")
+	}
+	file := NewFile()
+	for i := 0; i < root.ChildCount(); i++ {
+		child := root.Child(i)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
+		}
+		switch rule {
+		case syntax.RuleSyntax:
+			if file.Syntax != "" {
+				return nil, syntaxAt(child, "syntax")
+			}
+			text, err := declStrings(src, child)
+			if err != nil {
+				return nil, err
+			}
+			file.Syntax = text
+		case syntax.RulePackage:
+			if file.Package != "" {
+				return nil, syntaxAt(child, "package")
+			}
+			file.Package = declName(child)
+		case syntax.RuleImport:
+			imported, err := lowerImport(src, child)
+			if err != nil {
+				return nil, err
+			}
+			file.Imports = append(file.Imports, imported)
+		case syntax.RuleOption:
+			option, err := lowerOption(src, child)
+			if err != nil {
+				return nil, err
+			}
+			file.Options = append(file.Options, option)
+		case syntax.RuleMessage:
+			message, err := lowerMessage(src, child)
+			if err != nil {
+				return nil, err
+			}
+			file.Messages = append(file.Messages, message)
+		case syntax.RuleEnum:
+			enum, err := lowerEnum(src, child)
+			if err != nil {
+				return nil, err
+			}
+			file.Enums = append(file.Enums, enum)
+		case syntax.RuleService:
+			service, err := lowerService(src, child)
+			if err != nil {
+				return nil, err
+			}
+			file.Services = append(file.Services, service)
+		}
 	}
 	return file, nil
 }
 
-func (parser *parser) parseFile() *File {
-	file := NewFile()
-	for parser.err == nil {
-		tok := parser.peek(0)
-		if tok.kind == tokenEOF {
-			break
+func lowerImport(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Import, error) {
+	imported := Import{}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok {
+			switch term {
+			case syntax.TermPublic:
+				imported.Kind = ImportPublic
+			case syntax.TermWeak:
+				imported.Kind = ImportWeak
+			}
+			continue
 		}
-		switch {
-		case parser.peekSymbol(";"):
-			parser.next()
-		case parser.peekIdent("syntax"):
-			parser.parseSyntax(file)
-		case parser.peekIdent("package"):
-			parser.parsePackage(file)
-		case parser.peekIdent("import"):
-			imported := parser.parseImport()
-			if parser.err == nil {
-				file.Imports = append(file.Imports, imported)
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleStrings {
+			text, err := lowerStrings(src, child)
+			if err != nil {
+				return Import{}, err
 			}
-		case parser.peekIdent("option"):
-			file.Options = append(file.Options, parser.parseOptionStatement())
-		case parser.peekIdent("message"):
-			message := parser.parseMessage()
-			if parser.err == nil {
-				file.Messages = append(file.Messages, message)
-			}
-		case parser.peekIdent("enum"):
-			enum := parser.parseEnum()
-			if parser.err == nil {
-				file.Enums = append(file.Enums, enum)
-			}
-		case parser.peekIdent("service"):
-			service := parser.parseService()
-			if parser.err == nil {
-				file.Services = append(file.Services, service)
-			}
-		case parser.peekIdent("extend"), parser.peekIdent("extensions"):
-			parser.badf(tok.line, "%s", tok.text)
-			parser.next()
-		default:
-			parser.badf(tok.line, "unexpected %q", tok.text)
-			parser.next()
+			imported.Path = text
 		}
 	}
-	if parser.err != nil {
-		return nil
-	}
-	return file
+	return imported, nil
 }
 
-func (parser *parser) parseSyntax(file *File) {
-	line := parser.peek(0).line
-	parser.next()
-	parser.expectSymbol("=")
-	text := parser.parseStringConcat()
-	parser.expectSymbol(";")
-	if parser.err != nil {
-		return
+func lowerOption(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Option, error) {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleAssign {
+			return lowerAssign(src, child)
+		}
 	}
-	if file.Syntax != "" {
-		parser.badf(line, "syntax")
-		return
-	}
-	file.Syntax = text
+	return Option{}, syntaxAt(node, "expected option")
 }
 
-func (parser *parser) parsePackage(file *File) {
-	line := parser.peek(0).line
-	parser.next()
-	name := parser.parseFullIdent()
-	parser.expectSymbol(";")
-	if parser.err != nil {
-		return
+func lowerMessage(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Message, error) {
+	message := &Message{Name: declName(node)}
+	if message.Name == "" {
+		return nil, syntaxAt(node, "expected identifier")
 	}
-	if file.Package != "" {
-		parser.badf(line, "package")
-		return
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok {
+			switch term {
+			case syntax.TermExtend, syntax.TermExtensions, syntax.TermGroup:
+				return nil, syntaxAt(child, child.Text())
+			}
+			continue
+		}
+		rule, ok := child.Rule()
+		if !ok {
+			continue
+		}
+		switch rule {
+		case syntax.RuleOption:
+			option, err := lowerOption(src, child)
+			if err != nil {
+				return nil, err
+			}
+			message.Options = append(message.Options, option)
+		case syntax.RuleReserved:
+			reserved, err := lowerReserved(src, child)
+			if err != nil {
+				return nil, err
+			}
+			message.Reserved = append(message.Reserved, reserved)
+		case syntax.RuleEnum:
+			enum, err := lowerEnum(src, child)
+			if err != nil {
+				return nil, err
+			}
+			message.Enums = append(message.Enums, enum)
+		case syntax.RuleMessage:
+			nested, err := lowerMessage(src, child)
+			if err != nil {
+				return nil, err
+			}
+			message.Messages = append(message.Messages, nested)
+		case syntax.RuleOneof:
+			oneof, err := lowerOneof(src, child)
+			if err != nil {
+				return nil, err
+			}
+			message.Oneofs = append(message.Oneofs, oneof)
+		case syntax.RuleField:
+			field, err := lowerField(src, child)
+			if err != nil {
+				return nil, err
+			}
+			message.Fields = append(message.Fields, field)
+		}
 	}
-	file.Package = name
+	return message, nil
 }
 
-func (parser *parser) parseImport() Import {
-	parser.next()
-	var kind ImportKind
-	if parser.peekIdent("public", "weak") {
-		text := parser.next().text
-		parsed, err := ParseImportKind(text)
-		if err != nil {
-			parser.badf(parser.line, "import %s", text)
-			return Import{}
-		}
-		kind = parsed
+func lowerOneof(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Oneof, error) {
+	oneof := &Oneof{Name: declName(node)}
+	if oneof.Name == "" {
+		return nil, syntaxAt(node, "expected identifier")
 	}
-	path := parser.parseStringConcat()
-	parser.expectSymbol(";")
-	return Import{Path: path, Kind: kind}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
+		}
+		switch rule {
+		case syntax.RuleOption:
+			option, err := lowerOption(src, child)
+			if err != nil {
+				return nil, err
+			}
+			oneof.Options = append(oneof.Options, option)
+		case syntax.RuleField:
+			field, err := lowerField(src, child)
+			if err != nil {
+				return nil, err
+			}
+			oneof.Fields = append(oneof.Fields, field)
+		}
+	}
+	return oneof, nil
 }
 
-func (parser *parser) parseMessage() *Message {
-	parser.next()
-	message := &Message{Name: parser.expectIdent()}
-	parser.expectSymbol("{")
-	for parser.err == nil {
-		tok := parser.peek(0)
-		if tok.kind == tokenEOF {
-			parser.badf(parser.line, "unterminated message")
-			return nil
+func lowerField(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Field, error) {
+	field := &Field{}
+	sawNumber := false
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok {
+			switch term {
+			case syntax.TermOptional:
+				field.Label = LabelOptional
+			case syntax.TermRequired:
+				field.Label = LabelRequired
+			case syntax.TermRepeated:
+				field.Label = LabelRepeated
+			case syntax.TermIdentifier:
+				field.Name = child.Text()
+			case syntax.TermInteger:
+				number, err := fieldNumber(src, child)
+				if err != nil {
+					return nil, err
+				}
+				field.Number = number
+				sawNumber = true
+			}
+			continue
 		}
-		switch {
-		case parser.peekSymbol("}"):
-			parser.next()
-			return message
-		case parser.peekSymbol(";"):
-			parser.next()
-		case parser.peekIdent("option") && !parser.followedByEquals(1):
-			message.Options = append(message.Options, parser.parseOptionStatement())
-		case parser.peekIdent("reserved") && !parser.followedByEquals(1):
-			message.Reserved = append(message.Reserved, parser.parseReserve())
-		case parser.peekIdent("enum"):
-			enum := parser.parseEnum()
-			if parser.err == nil {
-				message.Enums = append(message.Enums, enum)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
+		}
+		switch rule {
+		case syntax.RuleType:
+			valueType, err := lowerType(src, child)
+			if err != nil {
+				return nil, err
 			}
-		case parser.peekIdent("message"):
-			nested := parser.parseMessage()
-			if parser.err == nil {
-				message.Messages = append(message.Messages, nested)
+			if valueType.Name == "group" {
+				return nil, syntaxAt(child, "group")
 			}
-		case parser.peekIdent("oneof"):
-			oneof := parser.parseOneof()
-			if parser.err == nil {
-				message.Oneofs = append(message.Oneofs, oneof)
+			field.Type = valueType
+		case syntax.RuleBrackets:
+			options, err := lowerBrackets(src, child)
+			if err != nil {
+				return nil, err
 			}
-		case parser.peekIdent("extend"), parser.peekIdent("extensions"), parser.peekIdent("group"):
-			parser.badf(tok.line, "%s", tok.text)
-			parser.next()
-		default:
-			field := parser.parseField()
-			if parser.err == nil {
-				message.Fields = append(message.Fields, field)
-			}
+			field.Options = options
 		}
 	}
-	return nil
+	if field.Name == "" || !sawNumber {
+		return nil, syntaxAt(node, "expected field")
+	}
+	return field, nil
 }
 
-func (parser *parser) parseOneof() *Oneof {
-	parser.next()
-	oneof := &Oneof{Name: parser.expectIdent()}
-	parser.expectSymbol("{")
-	for parser.err == nil {
-		tok := parser.peek(0)
-		if tok.kind == tokenEOF {
-			parser.badf(parser.line, "unterminated oneof")
-			return nil
+func lowerEnum(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Enum, error) {
+	enum := &Enum{Name: declName(node)}
+	if enum.Name == "" {
+		return nil, syntaxAt(node, "expected identifier")
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
 		}
-		switch {
-		case parser.peekSymbol("}"):
-			parser.next()
-			return oneof
-		case parser.peekSymbol(";"):
-			parser.next()
-		case parser.peekIdent("option") && !parser.followedByEquals(1):
-			oneof.Options = append(oneof.Options, parser.parseOptionStatement())
-		default:
-			field := parser.parseField()
-			if parser.err == nil {
-				oneof.Fields = append(oneof.Fields, field)
+		switch rule {
+		case syntax.RuleEnumOption:
+			if !leadWord(child, "option") {
+				return nil, syntaxAt(child, "expected option")
 			}
+			option, err := lowerOption(src, child)
+			if err != nil {
+				return nil, err
+			}
+			enum.Options = append(enum.Options, option)
+		case syntax.RuleEnumReserved:
+			if !leadWord(child, "reserved") {
+				return nil, syntaxAt(child, "reserved")
+			}
+			reserved, err := lowerReserved(src, child)
+			if err != nil {
+				return nil, err
+			}
+			enum.Reserved = append(enum.Reserved, reserved)
+		case syntax.RuleEnumValue:
+			value, err := lowerEnumValue(src, child)
+			if err != nil {
+				return nil, err
+			}
+			enum.Values = append(enum.Values, value)
 		}
 	}
-	return nil
+	return enum, nil
 }
 
-func (parser *parser) parseField() *Field {
-	var label Label
-	if parser.peekIdent("optional", "required", "repeated") {
-		text := parser.next().text
-		parsed, err := ParseLabel(text)
-		if err != nil {
-			parser.badf(parser.line, "label %s", text)
-			return nil
+func lowerEnumValue(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*EnumValue, error) {
+	value := &EnumValue{}
+	sign := int64(1)
+	sawNumber := false
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok {
+			switch term {
+			case syntax.TermIdentifier:
+				value.Name = child.Text()
+			case syntax.TermInteger:
+				number, err := intToken(src, child)
+				if err != nil {
+					return nil, err
+				}
+				value.Number = int(sign * number)
+				sawNumber = true
+				if sign*number < math.MinInt32 || sign*number > math.MaxInt32 {
+					return nil, syntaxAt(child, "enum number")
+				}
+			}
+			continue
 		}
-		label = parsed
+		if child.Text() == "-" {
+			sign = -1
+			continue
+		}
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleBrackets {
+			options, err := lowerBrackets(src, child)
+			if err != nil {
+				return nil, err
+			}
+			value.Options = options
+		}
 	}
-	if parser.peekIdent("group") {
-		parser.badf(parser.peek(0).line, "group")
-		parser.next()
-		return nil
+	if value.Name == "" || !sawNumber {
+		return nil, syntaxAt(node, "expected enum value")
 	}
-	typ := parser.parseType()
-	name := parser.expectIdent()
-	parser.expectSymbol("=")
-	number := parser.parseFieldNumber()
-	options := parser.parseBrackets()
-	parser.expectSymbol(";")
-	if parser.err != nil {
-		return nil
-	}
-	return &Field{Name: name, Number: number, Type: typ, Label: label, Options: options}
+	return value, nil
 }
 
-func (parser *parser) parseEnum() *Enum {
-	parser.next()
-	enum := &Enum{Name: parser.expectIdent()}
-	parser.expectSymbol("{")
-	for parser.err == nil {
-		tok := parser.peek(0)
-		if tok.kind == tokenEOF {
-			parser.badf(parser.line, "unterminated enum")
-			return nil
+func lowerService(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Service, error) {
+	service := &Service{Name: declName(node)}
+	if service.Name == "" {
+		return nil, syntaxAt(node, "expected identifier")
+	}
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
 		}
-		switch {
-		case parser.peekSymbol("}"):
-			parser.next()
-			return enum
-		case parser.peekSymbol(";"):
-			parser.next()
-		case parser.peekIdent("option") && !parser.followedByEquals(1):
-			enum.Options = append(enum.Options, parser.parseOptionStatement())
-		case parser.peekIdent("reserved") && !parser.followedByEquals(1):
-			enum.Reserved = append(enum.Reserved, parser.parseReserve())
-		default:
-			value := parser.parseEnumValue()
-			if parser.err == nil {
-				enum.Values = append(enum.Values, value)
+		switch rule {
+		case syntax.RuleOption:
+			option, err := lowerOption(src, child)
+			if err != nil {
+				return nil, err
 			}
+			service.Options = append(service.Options, option)
+		case syntax.RuleRPC:
+			method, err := lowerRPC(src, child)
+			if err != nil {
+				return nil, err
+			}
+			service.Methods = append(service.Methods, method)
 		}
 	}
-	return nil
+	return service, nil
 }
 
-func (parser *parser) parseEnumValue() *EnumValue {
-	name := parser.expectIdent()
-	parser.expectSymbol("=")
-	number := parser.parseEnumNumber()
-	options := parser.parseBrackets()
-	parser.expectSymbol(";")
-	if parser.err != nil {
-		return nil
-	}
-	return &EnumValue{Name: name, Number: number, Options: options}
-}
-
-func (parser *parser) parseService() *Service {
-	parser.next()
-	service := &Service{Name: parser.expectIdent()}
-	parser.expectSymbol("{")
-	for parser.err == nil {
-		tok := parser.peek(0)
-		if tok.kind == tokenEOF {
-			parser.badf(parser.line, "unterminated service")
-			return nil
+func lowerRPC(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Method, error) {
+	method := &Method{}
+	var types []xparse.SyntaxNode[syntax.Term, syntax.Rule]
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier && method.Name == "" {
+			method.Name = child.Text()
+			continue
 		}
-		switch {
-		case parser.peekSymbol("}"):
-			parser.next()
-			return service
-		case parser.peekSymbol(";"):
-			parser.next()
-		case parser.peekIdent("option"):
-			service.Options = append(service.Options, parser.parseOptionStatement())
-		case parser.peekIdent("rpc"):
-			method := parser.parseMethod()
-			if parser.err == nil {
-				service.Methods = append(service.Methods, method)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
+		}
+		switch rule {
+		case syntax.RuleRPCType:
+			types = append(types, child)
+		case syntax.RuleOption:
+			option, err := lowerOption(src, child)
+			if err != nil {
+				return nil, err
 			}
-		default:
-			parser.badf(tok.line, "unexpected %q", tok.text)
-			parser.next()
+			method.Options = append(method.Options, option)
 		}
 	}
-	return nil
+	if method.Name == "" || len(types) != 2 {
+		return nil, syntaxAt(node, "expected rpc")
+	}
+	method.Input, method.ClientStream = lowerRPCType(types[0])
+	method.Output, method.ServerStream = lowerRPCType(types[1])
+	if method.Input == "" || method.Input == "." || method.Output == "" || method.Output == "." {
+		return nil, syntaxAt(node, "expected type")
+	}
+	return method, nil
 }
 
-func (parser *parser) parseMethod() *Method {
-	parser.next()
-	method := &Method{Name: parser.expectIdent()}
-	parser.expectSymbol("(")
-	method.Input, method.ClientStream = parser.parseRPCType()
-	parser.expectSymbol(")")
-	if !parser.takeIdent("returns") {
-		parser.badf(parser.peek(0).line, "expected \"returns\"")
-	}
-	parser.expectSymbol("(")
-	method.Output, method.ServerStream = parser.parseRPCType()
-	parser.expectSymbol(")")
-	if parser.peekSymbol("{") {
-		parser.next()
-		for parser.err == nil {
-			if parser.peekSymbol("}") {
-				parser.next()
-				break
-			}
-			if parser.peekSymbol(";") {
-				parser.next()
-				continue
-			}
-			if parser.peek(0).kind == tokenEOF {
-				parser.badf(parser.line, "unterminated rpc")
-				return nil
-			}
-			if !parser.peekIdent("option") {
-				parser.badf(parser.peek(0).line, "expected option")
-				parser.next()
-				return nil
-			}
-			method.Options = append(method.Options, parser.parseOptionStatement())
+func lowerRPCType(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (string, bool) {
+	streamed := false
+	name := ""
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok && term == syntax.TermStream {
+			streamed = true
+			continue
 		}
-	} else {
-		parser.expectSymbol(";")
-	}
-	if parser.err != nil {
-		return nil
-	}
-	return method
-}
-
-// parseRPCType reads an rpc argument. stream is the cardinality keyword,
-// matching protoc, so stream.Foo is a stream of .Foo.
-func (parser *parser) parseRPCType() (string, bool) {
-	streamed := parser.takeIdent("stream")
-	name := parser.parseTypeName()
-	if name == "" || name == "." {
-		parser.badf(parser.line, "expected type")
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleTypeName {
+			name = joinText(child)
+		}
 	}
 	return name, streamed
 }
 
-func (parser *parser) parseReserve() Reserve {
-	parser.next()
-	if parser.peek(0).kind == tokenString {
-		var names []string
-		for parser.err == nil {
-			names = append(names, parser.parseStringConcat())
-			if parser.peekSymbol(",") {
-				parser.next()
+func lowerReserved(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Reserve, error) {
+	var reserved Reserve
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
+		}
+		switch rule {
+		case syntax.RuleStrings:
+			text, err := lowerStrings(src, child)
+			if err != nil {
+				return Reserve{}, err
+			}
+			reserved.Names = append(reserved.Names, text)
+		case syntax.RuleRange:
+			span, err := lowerRange(src, child)
+			if err != nil {
+				return Reserve{}, err
+			}
+			reserved.Ranges = append(reserved.Ranges, span)
+		}
+	}
+	if len(reserved.Names) == 0 && len(reserved.Ranges) == 0 {
+		return Reserve{}, syntaxAt(node, "reserved")
+	}
+	return reserved, nil
+}
+
+func lowerRange(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Range, error) {
+	var numbers []int
+	toMax := false
+	line := node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		term, ok := child.Term()
+		if !ok {
+			continue
+		}
+		switch term {
+		case syntax.TermMax:
+			toMax = true
+		case syntax.TermInteger:
+			number, err := fieldNumber(src, child)
+			if err != nil {
+				return Range{}, err
+			}
+			if len(numbers) == 0 {
+				line = child
+			}
+			numbers = append(numbers, number)
+		}
+	}
+	if len(numbers) == 0 {
+		return Range{}, syntaxAt(node, "expected field number")
+	}
+	span := Range{Start: numbers[0], End: numbers[0]}
+	if toMax {
+		span.Max = true
+		span.End = 0
+		return span, nil
+	}
+	if len(numbers) > 1 {
+		span.End = numbers[1]
+		if span.End < span.Start {
+			return Range{}, syntaxAt(line, "reserved range")
+		}
+	}
+	return span, nil
+}
+
+func lowerBrackets(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Option, error) {
+	var options []Option
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if rule, ok := child.Rule(); !ok || rule != syntax.RuleAssign {
+			continue
+		}
+		option, err := lowerAssign(src, child)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, option)
+	}
+	return options, nil
+}
+
+func lowerAssign(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Option, error) {
+	option := Option{}
+	sawName := false
+	sawValue := false
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		rule, ok := child.Rule()
+		if !ok {
+			continue
+		}
+		switch rule {
+		case syntax.RuleOptionName:
+			option.Name = joinText(child)
+			sawName = option.Name != ""
+		case syntax.RuleConstant:
+			value, err := lowerConstant(src, child)
+			if err != nil {
+				return Option{}, err
+			}
+			option.Value = value
+			sawValue = true
+		}
+	}
+	if !sawName || !sawValue {
+		return Option{}, syntaxAt(node, "expected '='")
+	}
+	return option, nil
+}
+
+func lowerConstant(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Value, error) {
+	if node.ChildCount() == 0 {
+		return Value{}, syntaxAt(node, "expected constant")
+	}
+	switch node.Child(0).Text() {
+	case "{":
+		var entries []Option
+		for i := 0; i < node.ChildCount(); i++ {
+			child := node.Child(i)
+			if rule, ok := child.Rule(); !ok || rule != syntax.RuleAssign {
 				continue
 			}
-			break
-		}
-		parser.expectSymbol(";")
-		return Reserve{Names: names}
-	}
-	var ranges []Range
-	for parser.err == nil {
-		line := parser.peek(0).line
-		start := parser.parseFieldNumber()
-		rng := Range{Start: start, End: start}
-		if parser.takeIdent("to") {
-			if parser.takeIdent("max") {
-				rng.Max = true
-				rng.End = 0
-			} else {
-				rng.End = parser.parseFieldNumber()
-				if parser.err == nil && rng.End < rng.Start {
-					parser.badf(line, "reserved range")
-				}
+			entry, err := lowerAssign(src, child)
+			if err != nil {
+				return Value{}, err
 			}
+			entries = append(entries, entry)
 		}
-		ranges = append(ranges, rng)
-		if parser.peekSymbol(",") {
-			parser.next()
-			continue
+		return Aggregate(entries...), nil
+	case "[":
+		var items []Value
+		for i := 0; i < node.ChildCount(); i++ {
+			child := node.Child(i)
+			if rule, ok := child.Rule(); !ok || rule != syntax.RuleConstant {
+				continue
+			}
+			item, err := lowerConstant(src, child)
+			if err != nil {
+				return Value{}, err
+			}
+			items = append(items, item)
 		}
-		break
-	}
-	parser.expectSymbol(";")
-	return Reserve{Ranges: ranges}
-}
-
-func (parser *parser) parseOptionStatement() Option {
-	parser.next()
-	option := parser.parseNamedConstant()
-	parser.expectSymbol(";")
-	return option
-}
-
-func (parser *parser) parseNamedConstant() Option {
-	name := parser.parseOptionName()
-	if parser.peekSymbol("=") || parser.peekSymbol(":") {
-		parser.next()
-	} else {
-		parser.badf(parser.peek(0).line, "expected '='")
-	}
-	return Option{Name: name, Value: parser.parseConstant()}
-}
-
-func (parser *parser) parseOptionName() string {
-	if parser.peekSymbol("(") {
-		parser.next()
-		name := "(" + parser.parseFullIdent() + ")"
-		parser.expectSymbol(")")
-		for parser.peekSymbol(".") {
-			parser.next()
-			name += "." + parser.expectIdent()
-		}
-		return name
-	}
-	return parser.parseFullIdent()
-}
-
-func (parser *parser) parseBrackets() []Option {
-	if !parser.peekSymbol("[") {
-		return nil
-	}
-	parser.next()
-	var options []Option
-	for parser.err == nil {
-		if parser.peekSymbol("]") {
-			parser.next()
-			return options
-		}
-		if parser.peek(0).kind == tokenEOF {
-			parser.badf(parser.line, "unterminated '['")
-			return nil
-		}
-		options = append(options, parser.parseNamedConstant())
-		if parser.peekSymbol(",") {
-			parser.next()
-			continue
-		}
-		if parser.peekSymbol("]") {
-			parser.next()
-			return options
-		}
-		parser.badf(parser.peek(0).line, "expected ']'")
-		return nil
-	}
-	return nil
-}
-
-func (parser *parser) parseConstant() Value {
-	if parser.err != nil {
-		return Value{}
-	}
-	if parser.peekSymbol("{") {
-		return parser.parseAggregate()
-	}
-	if parser.peekSymbol("[") {
-		return parser.parseList()
+		return List(items...), nil
 	}
 	sign := 0
-	line := parser.peek(0).line
-	if parser.peekSymbol("-") {
-		sign = -1
-		parser.next()
-	} else if parser.peekSymbol("+") {
-		sign = 1
-		parser.next()
+	signNode := node
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		switch child.Text() {
+		case "-":
+			sign = -1
+			signNode = child
+		case "+":
+			sign = 1
+			signNode = child
+		}
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleScalar {
+			return lowerScalar(src, child, sign, signNode)
+		}
 	}
-	tok := parser.peek(0)
-	switch tok.kind {
-	case tokenString:
-		if sign != 0 {
-			parser.badf(line, "signed string")
-			return Value{}
-		}
-		return String(parser.parseStringConcat())
-	case tokenInt:
-		parser.next()
-		number := tok.number
-		if sign < 0 {
-			number = -number
-		}
-		return Int(number)
-	case tokenFloat:
-		parser.next()
-		number := tok.float
-		if sign < 0 {
-			number = -number
-		}
-		return Float(number)
-	case tokenIdent:
-		if sign != 0 && tok.text != "inf" {
-			parser.badf(line, "signed %s", tok.text)
-			return Value{}
-		}
-		name := parser.parseFullIdent()
-		switch name {
-		case "true", "false":
+	return Value{}, syntaxAt(node, "expected constant")
+}
+
+func lowerScalar(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule], sign int, signNode xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Value, error) {
+	if node.ChildCount() == 0 {
+		return Value{}, syntaxAt(node, "expected constant")
+	}
+	child := node.Child(0)
+	if rule, ok := child.Rule(); ok {
+		switch rule {
+		case syntax.RuleStrings:
 			if sign != 0 {
-				parser.badf(line, "signed %s", name)
-				return Value{}
+				return Value{}, syntaxAt(signNode, "signed string")
 			}
-			return Bool(name == "true")
-		case "inf":
-			if sign < 0 {
-				return Float(math.Inf(-1))
+			text, err := lowerStrings(src, child)
+			if err != nil {
+				return Value{}, err
 			}
-			return Float(math.Inf(1))
-		case "nan":
-			return Float(math.NaN())
-		default:
-			return Ident(name)
+			return String(text), nil
+		case syntax.RuleFullIdentifier:
+			return lowerIdent(src, child, sign, signNode)
 		}
+	}
+	term, ok := child.Term()
+	if !ok {
+		return Value{}, syntaxAt(node, "expected constant")
+	}
+	switch term {
+	case syntax.TermInteger:
+		number, err := intToken(src, child)
+		if err != nil {
+			return Value{}, err
+		}
+		if sign < 0 {
+			number = -number
+		}
+		return Int(number), nil
+	case syntax.TermFloat:
+		number, err := strconv.ParseFloat(child.Text(), 64)
+		if err != nil {
+			return Value{}, syntaxAt(child, "float")
+		}
+		if sign < 0 {
+			number = -number
+		}
+		return Float(number), nil
 	default:
-		parser.badf(tok.line, "expected constant")
-		parser.next()
-		return Value{}
+		return Value{}, syntaxAt(node, "expected constant")
 	}
 }
 
-func (parser *parser) parseAggregate() Value {
-	parser.next()
-	var entries []Option
-	for parser.err == nil {
-		if parser.peekSymbol("}") {
-			parser.next()
-			return Aggregate(entries...)
+func lowerIdent(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule], sign int, signNode xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Value, error) {
+	name := joinText(node)
+	first := name
+	if i := strings.IndexByte(name, '.'); i >= 0 {
+		first = name[:i]
+	}
+	if sign != 0 && first != "inf" {
+		return Value{}, syntaxAt(signNode, "signed "+first)
+	}
+	switch name {
+	case "true", "false":
+		if sign != 0 {
+			return Value{}, syntaxAt(signNode, "signed "+name)
 		}
-		if parser.peekSymbol(",") || parser.peekSymbol(";") {
-			parser.next()
+		return Bool(name == "true"), nil
+	case "inf":
+		if sign < 0 {
+			return Float(math.Inf(-1)), nil
+		}
+		return Float(math.Inf(1)), nil
+	case "nan":
+		return Float(math.NaN()), nil
+	default:
+		return Ident(name), nil
+	}
+}
+
+func lowerType(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Type, error) {
+	if rule, ok := node.Rule(); ok && rule == syntax.RuleTypeName {
+		name := joinText(node)
+		if name == "" || name == "." {
+			return Type{}, syntaxAt(node, "expected type")
+		}
+		return Named(name), nil
+	}
+	var nested []Type
+	head := ""
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier && head == "" {
+			head = child.Text()
+		}
+		rule, ok := child.Rule()
+		if !ok || (rule != syntax.RuleType && rule != syntax.RuleTypeName) {
 			continue
 		}
-		if parser.peek(0).kind == tokenEOF {
-			parser.badf(parser.line, "unterminated '{'")
-			return Value{}
+		valueType, err := lowerType(src, child)
+		if err != nil {
+			return Type{}, err
 		}
-		entries = append(entries, parser.parseNamedConstant())
+		nested = append(nested, valueType)
 	}
-	return Value{}
-}
-
-func (parser *parser) parseList() Value {
-	parser.next()
-	var items []Value
-	for parser.err == nil {
-		if parser.peekSymbol("]") {
-			parser.next()
-			return List(items...)
+	switch len(nested) {
+	case 1:
+		return nested[0], nil
+	case 2:
+		if head != "map" {
+			return Type{}, syntaxAt(node, "expected type")
 		}
-		if parser.peek(0).kind == tokenEOF {
-			parser.badf(parser.line, "unterminated '['")
-			return Value{}
+		return Map(nested[0], nested[1]), nil
+	default:
+		return Type{}, syntaxAt(node, "expected type")
+	}
+}
+
+func lowerStrings(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (string, error) {
+	var text string
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		term, ok := child.Term()
+		if !ok || term != syntax.TermString {
+			continue
 		}
-		items = append(items, parser.parseConstant())
-		if parser.peekSymbol(",") {
-			parser.next()
+		decoded, err := syntax.DecodeString(child.Text())
+		if err != nil {
+			return "", syntaxAt(child, "string")
 		}
+		text += decoded
 	}
-	return Value{}
+	if text == "" && !sawString(node) {
+		return "", syntaxAt(node, "expected string")
+	}
+	return text, nil
 }
 
-func (parser *parser) parseType() Type {
-	if parser.peekIdent("map") && parser.peek(1).kind == tokenSymbol && parser.peek(1).text == "<" {
-		parser.next()
-		parser.expectSymbol("<")
-		key := parser.parseType()
-		parser.expectSymbol(",")
-		elem := parser.parseType()
-		parser.expectSymbol(">")
-		return Map(key, elem)
-	}
-	return Named(parser.parseTypeName())
-}
-
-func (parser *parser) parseTypeName() string {
-	leadingDot := parser.peekSymbol(".")
-	if leadingDot {
-		parser.next()
-	}
-	name := parser.parseFullIdent()
-	if leadingDot {
-		return "." + name
-	}
-	return name
-}
-
-func (parser *parser) parseFullIdent() string {
-	name := parser.expectIdent()
-	for parser.peekSymbol(".") {
-		next := parser.peek(1)
-		if next.kind != tokenIdent {
-			break
-		}
-		parser.next()
-		name += "." + parser.expectIdent()
-	}
-	return name
-}
-
-func (parser *parser) parseStringConcat() string {
-	if parser.peek(0).kind != tokenString {
-		parser.badf(parser.peek(0).line, "expected string")
-		return ""
-	}
-	text := parser.next().text
-	for parser.peek(0).kind == tokenString {
-		text += parser.next().text
-	}
-	return text
-}
-
-func (parser *parser) parseFieldNumber() int {
-	tok := parser.next()
-	if tok.kind != tokenInt {
-		parser.badf(tok.line, "expected field number")
-		return 0
-	}
-	if tok.number < 1 || tok.number > maxFieldNumber {
-		parser.badf(tok.line, "field number %d", tok.number)
-		return 0
-	}
-	return int(tok.number)
-}
-
-func (parser *parser) parseEnumNumber() int {
-	sign := int64(1)
-	if parser.peekSymbol("-") {
-		sign = -1
-		parser.next()
-	} else if parser.peekSymbol("+") {
-		parser.next()
-	}
-	tok := parser.next()
-	if tok.kind != tokenInt {
-		parser.badf(tok.line, "expected integer")
-		return 0
-	}
-	number := sign * tok.number
-	if number < math.MinInt32 || number > math.MaxInt32 {
-		parser.badf(tok.line, "enum number")
-		return 0
-	}
-	return int(number)
-}
-
-func (parser *parser) followedByEquals(n int) bool {
-	tok := parser.peek(n)
-	return tok.kind == tokenSymbol && tok.text == "="
-}
-
-func (parser *parser) peekIdent(names ...string) bool {
-	tok := parser.peek(0)
-	if tok.kind != tokenIdent {
-		return false
-	}
-	if len(names) == 0 {
-		return true
-	}
-	for _, name := range names {
-		if tok.text == name {
+func sawString(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) bool {
+	for i := 0; i < node.ChildCount(); i++ {
+		if term, ok := node.Child(i).Term(); ok && term == syntax.TermString {
 			return true
 		}
 	}
 	return false
 }
 
-func (parser *parser) takeIdent(name string) bool {
-	if parser.peekIdent(name) {
-		parser.next()
-		return true
+func declStrings(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (string, error) {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleStrings {
+			return lowerStrings(src, child)
+		}
+	}
+	return "", syntaxAt(node, "expected string")
+}
+
+func leadWord(node xparse.SyntaxNode[syntax.Term, syntax.Rule], word string) bool {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier {
+			return child.Text() == word
+		}
 	}
 	return false
 }
 
-func (parser *parser) peekSymbol(symbol string) bool {
-	tok := parser.peek(0)
-	return tok.kind == tokenSymbol && tok.text == symbol
+func declName(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) string {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier {
+			return child.Text()
+		}
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleFullIdentifier {
+			return joinText(child)
+		}
+	}
+	return ""
 }
 
-func (parser *parser) expectIdent() string {
-	tok := parser.next()
-	if tok.kind != tokenIdent {
-		parser.badf(tok.line, "expected identifier")
+func fieldNumber(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (int, error) {
+	number, err := intToken(src, node)
+	if err != nil {
+		return 0, err
+	}
+	if number < 1 || number > maxFieldNumber {
+		return 0, syntaxAt(node, fmt.Sprintf("field number %d", number))
+	}
+	return int(number), nil
+}
+
+func intToken(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (int64, error) {
+	number, err := syntax.ParseIntToken(node.Text())
+	if err != nil {
+		return 0, syntaxAt(node, "integer")
+	}
+	return number, nil
+}
+
+func joinText(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) string {
+	if !node.Valid() {
 		return ""
 	}
-	return tok.text
-}
-
-func (parser *parser) expectSymbol(symbol string) {
-	tok := parser.next()
-	if tok.kind != tokenSymbol || tok.text != symbol {
-		parser.badf(tok.line, "expected %q", symbol)
+	if node.ChildCount() == 0 {
+		return node.Text()
 	}
-}
-
-func (parser *parser) peek(n int) token {
-	for len(parser.buf) <= n {
-		if parser.err != nil {
-			parser.buf = append(parser.buf, token{kind: tokenEOF, line: parser.line})
-			continue
-		}
-		parser.buf = append(parser.buf, parser.scan())
+	var b strings.Builder
+	for i := 0; i < node.ChildCount(); i++ {
+		b.WriteString(joinText(node.Child(i)))
 	}
-	return parser.buf[n]
+	return b.String()
 }
 
-func (parser *parser) next() token {
-	tok := parser.peek(0)
-	parser.buf = parser.buf[1:]
-	return tok
+func syntaxAt(node xparse.SyntaxNode[syntax.Term, syntax.Rule], msg string) error {
+	return syntaxError(node.Line(), msg)
 }
 
-func (parser *parser) badf(line int, format string, args ...any) {
-	if parser.err != nil {
-		return
-	}
+func syntaxError(line int, msg string) error {
 	if line <= 0 {
-		line = parser.line
+		line = 1
 	}
-	parser.err = fmt.Errorf("%w: line %d: %s", ErrSyntax, line, fmt.Sprintf(format, args...))
-}
-
-func (parser *parser) scan() token {
-	parser.skipSpace()
-	if parser.err != nil || parser.pos >= len(parser.src) {
-		return token{kind: tokenEOF, line: parser.line}
-	}
-	line := parser.line
-	char := parser.src[parser.pos]
-	switch {
-	case isIdentStart(char):
-		return parser.scanIdent(line)
-	case char == '"' || char == '\'':
-		return parser.scanString(line, char)
-	case char >= '0' && char <= '9':
-		return parser.scanNumber(line)
-	case char == '.':
-		if parser.pos+1 < len(parser.src) && isDigit(parser.src[parser.pos+1]) {
-			return parser.scanFloat(line, parser.pos)
-		}
-		parser.pos++
-		return token{kind: tokenSymbol, text: ".", line: line}
-	case stringsContainsSymbol(char):
-		parser.pos++
-		return token{kind: tokenSymbol, text: string(char), line: line}
-	default:
-		parser.badf(line, "unexpected %q", char)
-		parser.pos++
-		return token{kind: tokenEOF, line: line}
-	}
-}
-
-func stringsContainsSymbol(char byte) bool {
-	switch char {
-	case '=', '{', '}', '(', ')', '[', ']', '<', '>', ',', ';', ':', '+', '-':
-		return true
-	default:
-		return false
-	}
-}
-
-func (parser *parser) skipSpace() {
-	for parser.pos < len(parser.src) && parser.err == nil {
-		char := parser.src[parser.pos]
-		switch char {
-		case ' ', '\t', '\r', '\v', '\f':
-			parser.pos++
-		case '\n':
-			parser.pos++
-			parser.line++
-		case '/':
-			if parser.pos+1 >= len(parser.src) {
-				return
-			}
-			switch parser.src[parser.pos+1] {
-			case '/':
-				parser.pos += 2
-				for parser.pos < len(parser.src) && parser.src[parser.pos] != '\n' {
-					parser.pos++
-				}
-			case '*':
-				parser.skipBlock()
-			default:
-				return
-			}
-		default:
-			return
-		}
-	}
-}
-
-func (parser *parser) skipBlock() {
-	parser.pos += 2
-	for parser.pos+1 < len(parser.src) {
-		if parser.src[parser.pos] == '\n' {
-			parser.line++
-		}
-		if parser.src[parser.pos] == '*' && parser.src[parser.pos+1] == '/' {
-			parser.pos += 2
-			return
-		}
-		parser.pos++
-	}
-	parser.badf(parser.line, "unterminated comment")
-}
-
-func (parser *parser) scanIdent(line int) token {
-	start := parser.pos
-	parser.pos++
-	for parser.pos < len(parser.src) && isIdentCont(parser.src[parser.pos]) {
-		parser.pos++
-	}
-	return token{kind: tokenIdent, text: string(parser.src[start:parser.pos]), line: line}
-}
-
-func (parser *parser) scanString(line int, quote byte) token {
-	parser.pos++
-	var text []byte
-	for parser.pos < len(parser.src) {
-		char := parser.src[parser.pos]
-		if char == '\n' || char == '\r' {
-			parser.badf(line, "newline in string")
-			return token{kind: tokenEOF, line: line}
-		}
-		if char == quote {
-			parser.pos++
-			return token{kind: tokenString, text: string(text), line: line}
-		}
-		if char != '\\' {
-			text = append(text, char)
-			parser.pos++
-			continue
-		}
-		parser.pos++
-		if parser.pos >= len(parser.src) {
-			parser.badf(line, "escape")
-			return token{kind: tokenEOF, line: line}
-		}
-		escaped := parser.src[parser.pos]
-		parser.pos++
-		switch escaped {
-		case 'a':
-			text = append(text, '\a')
-		case 'b':
-			text = append(text, '\b')
-		case 'f':
-			text = append(text, '\f')
-		case 'n':
-			text = append(text, '\n')
-		case 'r':
-			text = append(text, '\r')
-		case 't':
-			text = append(text, '\t')
-		case 'v':
-			text = append(text, '\v')
-		case '\\', '\'', '"':
-			text = append(text, escaped)
-		case 'x', 'X':
-			value, ok := parser.readHex(line, 1, 2)
-			if !ok {
-				return token{kind: tokenEOF, line: line}
-			}
-			text = append(text, byte(value))
-		case 'u':
-			value, ok := parser.readHex(line, 4, 4)
-			if !ok {
-				return token{kind: tokenEOF, line: line}
-			}
-			text = appendRune(text, rune(value), line, parser)
-		case 'U':
-			value, ok := parser.readHex(line, 8, 8)
-			if !ok {
-				return token{kind: tokenEOF, line: line}
-			}
-			text = appendRune(text, rune(value), line, parser)
-		case '0', '1', '2', '3', '4', '5', '6', '7':
-			octal := int(escaped - '0')
-			digits := 1
-			for digits < 3 && parser.pos < len(parser.src) && parser.src[parser.pos] >= '0' && parser.src[parser.pos] <= '7' {
-				octal = octal*8 + int(parser.src[parser.pos]-'0')
-				parser.pos++
-				digits++
-			}
-			text = append(text, byte(octal))
-		default:
-			parser.badf(line, "escape")
-			return token{kind: tokenEOF, line: line}
-		}
-		if parser.err != nil {
-			return token{kind: tokenEOF, line: line}
-		}
-	}
-	parser.badf(line, "unterminated string")
-	return token{kind: tokenEOF, line: line}
-}
-
-func appendRune(text []byte, char rune, line int, parser *parser) []byte {
-	if char > unicode.MaxRune {
-		parser.badf(line, "rune")
-		return text
-	}
-	encoded := make([]byte, utf8.UTFMax)
-	size := utf8.EncodeRune(encoded, char)
-	return append(text, encoded[:size]...)
-}
-
-func (parser *parser) readHex(line, minDigits, maxDigits int) (int, bool) {
-	value := 0
-	digits := 0
-	for digits < maxDigits && parser.pos < len(parser.src) && isHex(parser.src[parser.pos]) {
-		value = value<<4 | hexValue(parser.src[parser.pos])
-		parser.pos++
-		digits++
-	}
-	if digits < minDigits {
-		parser.badf(line, "hex escape")
-		return 0, false
-	}
-	return value, true
-}
-
-func (parser *parser) scanNumber(line int) token {
-	start := parser.pos
-	if parser.src[parser.pos] == '0' && parser.pos+1 < len(parser.src) && (parser.src[parser.pos+1] == 'x' || parser.src[parser.pos+1] == 'X') {
-		parser.pos += 2
-		hexStart := parser.pos
-		for parser.pos < len(parser.src) && isHex(parser.src[parser.pos]) {
-			parser.pos++
-		}
-		if parser.pos == hexStart {
-			parser.badf(line, "hex digit")
-			return token{kind: tokenEOF, line: line}
-		}
-		number, err := strconv.ParseInt(string(parser.src[hexStart:parser.pos]), 16, 64)
-		if err != nil {
-			parser.badf(line, "integer")
-			return token{kind: tokenEOF, line: line}
-		}
-		return token{kind: tokenInt, text: string(parser.src[start:parser.pos]), number: number, line: line}
-	}
-	if parser.src[parser.pos] == '0' {
-		index := parser.pos + 1
-		octal := true
-		sawDigit := false
-		for index < len(parser.src) && isDigit(parser.src[index]) {
-			sawDigit = true
-			if parser.src[index] > '7' {
-				octal = false
-			}
-			index++
-		}
-		floatish := index < len(parser.src) && (parser.src[index] == '.' || parser.src[index] == 'e' || parser.src[index] == 'E')
-		if floatish {
-			return parser.scanFloat(line, start)
-		}
-		if sawDigit && !octal {
-			parser.badf(line, "octal digit")
-			parser.pos = index
-			return token{kind: tokenEOF, line: line}
-		}
-		parser.pos = index
-		number, err := strconv.ParseInt(string(parser.src[start:parser.pos]), 8, 64)
-		if err != nil {
-			parser.badf(line, "integer")
-			return token{kind: tokenEOF, line: line}
-		}
-		return token{kind: tokenInt, text: string(parser.src[start:parser.pos]), number: number, line: line}
-	}
-	for parser.pos < len(parser.src) && isDigit(parser.src[parser.pos]) {
-		parser.pos++
-	}
-	if parser.pos < len(parser.src) && (parser.src[parser.pos] == '.' || parser.src[parser.pos] == 'e' || parser.src[parser.pos] == 'E') {
-		return parser.scanFloat(line, start)
-	}
-	number, err := strconv.ParseInt(string(parser.src[start:parser.pos]), 10, 64)
-	if err != nil {
-		parser.badf(line, "integer")
-		return token{kind: tokenEOF, line: line}
-	}
-	return token{kind: tokenInt, text: string(parser.src[start:parser.pos]), number: number, line: line}
-}
-
-func (parser *parser) scanFloat(line, start int) token {
-	parser.pos = start
-	if parser.pos < len(parser.src) && parser.src[parser.pos] == '.' {
-		parser.pos++
-		if parser.pos >= len(parser.src) || !isDigit(parser.src[parser.pos]) {
-			parser.badf(line, "float")
-			return token{kind: tokenEOF, line: line}
-		}
-		for parser.pos < len(parser.src) && isDigit(parser.src[parser.pos]) {
-			parser.pos++
-		}
-	} else {
-		for parser.pos < len(parser.src) && isDigit(parser.src[parser.pos]) {
-			parser.pos++
-		}
-		if parser.pos < len(parser.src) && parser.src[parser.pos] == '.' {
-			parser.pos++
-			for parser.pos < len(parser.src) && isDigit(parser.src[parser.pos]) {
-				parser.pos++
-			}
-		}
-	}
-	if parser.pos < len(parser.src) && (parser.src[parser.pos] == 'e' || parser.src[parser.pos] == 'E') {
-		parser.pos++
-		if parser.pos < len(parser.src) && (parser.src[parser.pos] == '+' || parser.src[parser.pos] == '-') {
-			parser.pos++
-		}
-		if parser.pos >= len(parser.src) || !isDigit(parser.src[parser.pos]) {
-			parser.badf(line, "exponent")
-			return token{kind: tokenEOF, line: line}
-		}
-		for parser.pos < len(parser.src) && isDigit(parser.src[parser.pos]) {
-			parser.pos++
-		}
-	}
-	text := string(parser.src[start:parser.pos])
-	number, err := strconv.ParseFloat(text, 64)
-	if err != nil {
-		parser.badf(line, "float")
-		return token{kind: tokenEOF, line: line}
-	}
-	return token{kind: tokenFloat, text: text, float: number, line: line}
-}
-
-func isIdentStart(char byte) bool {
-	return char == '_' || (char >= 'A' && char <= 'Z') || (char >= 'a' && char <= 'z')
-}
-
-func isIdentCont(char byte) bool {
-	return isIdentStart(char) || isDigit(char)
-}
-
-func isDigit(char byte) bool {
-	return char >= '0' && char <= '9'
-}
-
-func isHex(char byte) bool {
-	return isDigit(char) || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F')
-}
-
-func hexValue(char byte) int {
-	switch {
-	case char >= '0' && char <= '9':
-		return int(char - '0')
-	case char >= 'a' && char <= 'f':
-		return int(char-'a') + 10
-	default:
-		return int(char-'A') + 10
-	}
+	return fmt.Errorf("%w: line %d: %s", ErrSyntax, line, msg)
 }

@@ -2,9 +2,9 @@ package glsl
 
 import (
 	"fmt"
-	"math"
-	"strconv"
 	"strings"
+
+	syntax "github.com/lewtec/lewkit/x/parse/glsl"
 )
 
 const (
@@ -37,7 +37,7 @@ func lex(src string) ([]token, error) {
 			continue
 		}
 		if src[i] == '.' && i+1 < len(src) && isDigit(src[i+1]) {
-			lit, next, err := scanFloat(src, i, line)
+			lit, next, err := scanNumber(src, i, line)
 			if err != nil {
 				return nil, err
 			}
@@ -91,166 +91,22 @@ func matchOp(src string) (string, int) {
 }
 
 func scanNumber(src string, i, line int) (Literal, int, error) {
-	if i+1 < len(src) && src[i] == '0' && (src[i+1] == 'x' || src[i+1] == 'X') {
-		return scanHex(src, i, line)
-	}
-	j := i
-	for j < len(src) && isDigit(src[j]) {
-		j++
-	}
-	if j < len(src) && (src[j] == '.' || src[j] == 'e' || src[j] == 'E') {
-		return scanFloat(src, i, line)
-	}
-	raw := src[i:j]
-	base := 10
-	if len(raw) > 1 && raw[0] == '0' && octalDigits(raw) {
-		base = 8
-	}
-	value, err := strconv.ParseUint(raw, base, 64)
+	num, end, err := syntax.ScanNumber(src, i, line)
 	if err != nil {
-		return Literal{}, i, fmt.Errorf("%w: line %d: %s", ErrSyntax, line, raw)
+		return Literal{}, i, err
 	}
-	kind := KindInt
-	if j < len(src) && (src[j] == 'u' || src[j] == 'U') {
-		kind = KindUint
-		j++
+	switch num.Kind {
+	case syntax.NumberInt:
+		return Literal{Kind: KindInt, Int: num.Int}, end, nil
+	case syntax.NumberUint:
+		return Literal{Kind: KindUint, Uint: num.Uint}, end, nil
+	case syntax.NumberFloat:
+		return Literal{Kind: KindFloat, Float: num.Float}, end, nil
+	case syntax.NumberDouble:
+		return Literal{Kind: KindDouble, Float: num.Float}, end, nil
+	default:
+		return Literal{}, i, fmt.Errorf("%w: line %d: number", ErrSyntax, line)
 	}
-	if kind == KindInt && value > math.MaxInt32 {
-		if value > math.MaxUint32 {
-			return Literal{}, i, fmt.Errorf("%w: line %d: %s", ErrSyntax, line, raw)
-		}
-		kind = KindUint
-	}
-	if kind == KindUint && value > math.MaxUint32 {
-		return Literal{}, i, fmt.Errorf("%w: line %d: %s", ErrSyntax, line, raw)
-	}
-	if kind == KindInt {
-		return Literal{Kind: KindInt, Int: int64(value)}, j, nil
-	}
-	return Literal{Kind: KindUint, Uint: value}, j, nil
-}
-
-func octalDigits(raw string) bool {
-	for _, r := range raw {
-		if r < '0' || r > '7' {
-			return false
-		}
-	}
-	return true
-}
-
-func scanHex(src string, i, line int) (Literal, int, error) {
-	j := i + 2
-	digits := 0
-	for j < len(src) && isHex(src[j]) {
-		j++
-		digits++
-	}
-	float := false
-	if j < len(src) && src[j] == '.' {
-		float = true
-		j++
-		for j < len(src) && isHex(src[j]) {
-			j++
-			digits++
-		}
-	}
-	if j < len(src) && (src[j] == 'p' || src[j] == 'P') {
-		float = true
-		j++
-		if j < len(src) && (src[j] == '+' || src[j] == '-') {
-			j++
-		}
-		if j >= len(src) || !isDigit(src[j]) {
-			return Literal{}, i, fmt.Errorf("%w: line %d: hex float", ErrSyntax, line)
-		}
-		for j < len(src) && isDigit(src[j]) {
-			j++
-		}
-	}
-	if digits == 0 {
-		return Literal{}, i, fmt.Errorf("%w: line %d: hex", ErrSyntax, line)
-	}
-	if float {
-		value, err := strconv.ParseFloat(src[i:j], 64)
-		if err != nil {
-			return Literal{}, i, fmt.Errorf("%w: line %d: hex float", ErrSyntax, line)
-		}
-		return floatSuffix(src, j, line, value)
-	}
-	value, err := strconv.ParseUint(src[i:j], 0, 64)
-	if err != nil {
-		return Literal{}, i, fmt.Errorf("%w: line %d: hex", ErrSyntax, line)
-	}
-	kind := KindInt
-	if j < len(src) && (src[j] == 'u' || src[j] == 'U') {
-		kind = KindUint
-		j++
-	}
-	if kind == KindInt && value > math.MaxInt32 {
-		if value > math.MaxUint32 {
-			return Literal{}, i, fmt.Errorf("%w: line %d: hex", ErrSyntax, line)
-		}
-		kind = KindUint
-	}
-	if kind == KindInt {
-		return Literal{Kind: KindInt, Int: int64(value)}, j, nil
-	}
-	return Literal{Kind: KindUint, Uint: value}, j, nil
-}
-
-func scanFloat(src string, i, line int) (Literal, int, error) {
-	j := i
-	if src[j] == '.' {
-		j++
-		if j >= len(src) || !isDigit(src[j]) {
-			return Literal{}, i, fmt.Errorf("%w: line %d: float", ErrSyntax, line)
-		}
-		for j < len(src) && isDigit(src[j]) {
-			j++
-		}
-	} else {
-		for j < len(src) && isDigit(src[j]) {
-			j++
-		}
-		if j < len(src) && src[j] == '.' {
-			j++
-			for j < len(src) && isDigit(src[j]) {
-				j++
-			}
-		}
-	}
-	if j < len(src) && (src[j] == 'e' || src[j] == 'E') {
-		j++
-		if j < len(src) && (src[j] == '+' || src[j] == '-') {
-			j++
-		}
-		if j >= len(src) || !isDigit(src[j]) {
-			return Literal{}, i, fmt.Errorf("%w: line %d: float", ErrSyntax, line)
-		}
-		for j < len(src) && isDigit(src[j]) {
-			j++
-		}
-	}
-	value, err := strconv.ParseFloat(src[i:j], 64)
-	if err != nil {
-		return Literal{}, i, fmt.Errorf("%w: line %d: float", ErrSyntax, line)
-	}
-	return floatSuffix(src, j, line, value)
-}
-
-func floatSuffix(src string, j, line int, value float64) (Literal, int, error) {
-	if j+1 < len(src) && (src[j] == 'l' || src[j] == 'L') && (src[j+1] == 'f' || src[j+1] == 'F') {
-		return Literal{Kind: KindDouble, Float: value}, j + 2, nil
-	}
-	if j < len(src) && (src[j] == 'f' || src[j] == 'F') {
-		return Literal{Kind: KindFloat, Float: value}, j + 1, nil
-	}
-	return Literal{Kind: KindFloat, Float: value}, j, nil
 }
 
 func isDigit(b byte) bool { return b >= '0' && b <= '9' }
-
-func isHex(b byte) bool {
-	return isDigit(b) || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
-}

@@ -494,7 +494,15 @@ func (p *printer) expr(e *Expr) {
 	case ExprUnary:
 		p.b.WriteByte('(')
 		p.b.WriteString(opSpell(e.Op))
-		p.expr(e.Left)
+		// A cast starts with '(', and a prefix operator does not take a cast.
+		// Parentheses keep -(T)x readable as -((T) x).
+		if e.Left != nil && e.Left.Kind == ExprCast {
+			p.b.WriteByte('(')
+			p.expr(e.Left)
+			p.b.WriteByte(')')
+		} else {
+			p.expr(e.Left)
+		}
 		p.b.WriteByte(')')
 	case ExprBinary:
 		p.b.WriteByte('(')

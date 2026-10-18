@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
-	"io"
 	"os"
 	stdpath "path"
 	"slices"
@@ -395,8 +394,4 @@ func climbStart(start *path.Root) (path.Path, error) {
 		return path.Path{}, err
 	}
 	return path.New(wd), nil
-}
-
-func write(w io.Writer, packageName string, imports []string) error {
-	return jenFile(packageName, imports).Render(w)
 }

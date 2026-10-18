@@ -63,11 +63,20 @@ func (b *builder) values(tok token.Token, specs []ValueSpec) (*ast.GenDecl, erro
 		return nil, fmt.Errorf("%w: empty declaration", errSyntax)
 	}
 	group := &ast.GenDecl{Tok: tok}
+	// A lone spec's comment belongs to the declaration. On the spec it
+	// prints after the keyword, which drops //go:embed.
+	if len(specs) == 1 {
+		group.Doc = commentGroup(specs[0].Doc)
+	}
 	for _, spec := range specs {
 		if len(spec.Names) == 0 {
 			return nil, fmt.Errorf("%w: declaration names", errSyntax)
 		}
-		value := &ast.ValueSpec{}
+		var doc *ast.CommentGroup
+		if len(specs) != 1 {
+			doc = commentGroup(spec.Doc)
+		}
+		value := &ast.ValueSpec{Doc: doc}
 		for _, name := range spec.Names {
 			value.Names = append(value.Names, ast.NewIdent(name))
 		}
@@ -127,7 +136,7 @@ func (b *builder) funcDecl(fn *Func) (*ast.FuncDecl, error) {
 	if err != nil {
 		return nil, err
 	}
-	decl := &ast.FuncDecl{Name: ast.NewIdent(fn.Name), Type: typ}
+	decl := &ast.FuncDecl{Doc: commentGroup(fn.Doc), Name: ast.NewIdent(fn.Name), Type: typ}
 	if fn.Receiver != nil {
 		recv, err := b.fields([]*Field{fn.Receiver})
 		if err != nil {
@@ -190,6 +199,28 @@ func (b *builder) fields(list []*Field) (*ast.FieldList, error) {
 		fl.List = append(fl.List, node)
 	}
 	return fl, nil
+}
+
+func commentGroup(text string) *ast.CommentGroup {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	var list []*ast.Comment
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "//") {
+			line = "// " + line
+		}
+		list = append(list, &ast.Comment{Text: line})
+	}
+	if len(list) == 0 {
+		return nil
+	}
+	return &ast.CommentGroup{List: list}
 }
 
 func tagLiteral(tag string) string {

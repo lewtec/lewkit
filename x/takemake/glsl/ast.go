@@ -290,11 +290,11 @@ func (file *File) Struct(name string) *Struct {
 }
 
 // Field stores a struct field and returns the struct.
-func (item *Struct) Field(name string, typ Type) *Struct {
+func (item *Struct) Field(name string, valueType Type) *Struct {
 	if item == nil {
 		return nil
 	}
-	item.Fields = append(item.Fields, &Decl{Type: typ, Name: name})
+	item.Fields = append(item.Fields, &Decl{Type: valueType, Name: name})
 	return item
 }
 
@@ -319,41 +319,41 @@ func (decl *Decl) layoutDim(name string, value int) *Decl {
 }
 
 // Uniform stores a uniform variable and returns it.
-func (file *File) Uniform(name string, typ Type) *Decl {
-	return file.decl(StorageUniform, name, typ)
+func (file *File) Uniform(name string, valueType Type) *Decl {
+	return file.decl(StorageUniform, name, valueType)
 }
 
 // In stores an input variable and returns it.
-func (file *File) In(name string, typ Type) *Decl {
-	return file.decl(StorageIn, name, typ)
+func (file *File) In(name string, valueType Type) *Decl {
+	return file.decl(StorageIn, name, valueType)
 }
 
 // Out stores an output variable and returns it.
-func (file *File) Out(name string, typ Type) *Decl {
-	return file.decl(StorageOut, name, typ)
+func (file *File) Out(name string, valueType Type) *Decl {
+	return file.decl(StorageOut, name, valueType)
 }
 
 // Buffer stores a buffer variable and returns it.
-func (file *File) Buffer(name string, typ Type) *Decl {
-	return file.decl(StorageBuffer, name, typ)
+func (file *File) Buffer(name string, valueType Type) *Decl {
+	return file.decl(StorageBuffer, name, valueType)
 }
 
 // Shared stores a shared variable and returns it.
-func (file *File) Shared(name string, typ Type) *Decl {
-	return file.decl(StorageShared, name, typ)
+func (file *File) Shared(name string, valueType Type) *Decl {
+	return file.decl(StorageShared, name, valueType)
 }
 
 // Const stores a const and returns it.
-func (file *File) Const(name string, typ Type, value Expr) *Decl {
-	decl := file.decl(StorageConst, name, typ)
+func (file *File) Const(name string, valueType Type, value Expr) *Decl {
+	decl := file.decl(StorageConst, name, valueType)
 	if decl != nil {
 		decl.Init = value
 	}
 	return decl
 }
 
-func (file *File) decl(storage Storage, name string, typ Type) *Decl {
-	decl := &Decl{Storage: storage, Type: typ, Name: name}
+func (file *File) decl(storage Storage, name string, valueType Type) *Decl {
+	decl := &Decl{Storage: storage, Type: valueType, Name: name}
 	if file != nil {
 		file.Globals = append(file.Globals, decl)
 	}
@@ -415,11 +415,11 @@ func (decl *Decl) memory(kind Memory) *Decl {
 }
 
 // Field stores a block field and returns the block.
-func (decl *Decl) Field(name string, typ Type) *Decl {
+func (decl *Decl) Field(name string, valueType Type) *Decl {
 	if decl == nil {
 		return nil
 	}
-	decl.Fields = append(decl.Fields, &Decl{Type: typ, Name: name})
+	decl.Fields = append(decl.Fields, &Decl{Type: valueType, Name: name})
 	return decl
 }
 
@@ -451,20 +451,20 @@ func (file *File) Func(name string) *Func {
 }
 
 // Returns sets the function result type.
-func (fn *Func) Returns(typ Type) *Func {
+func (fn *Func) Returns(valueType Type) *Func {
 	if fn == nil {
 		return nil
 	}
-	fn.Return = typ
+	fn.Return = valueType
 	return fn
 }
 
 // Param stores a parameter and returns the function.
-func (fn *Func) Param(name string, typ Type) *Func {
+func (fn *Func) Param(name string, valueType Type) *Func {
 	if fn == nil {
 		return nil
 	}
-	fn.Params = append(fn.Params, &Param{Type: typ, Name: name})
+	fn.Params = append(fn.Params, &Param{Type: valueType, Name: name})
 	return fn
 }
 
@@ -482,8 +482,8 @@ func (fn *Func) Block(stmts ...Stmt) *Func {
 }
 
 // Declare builds a local or field declaration.
-func Declare(name string, typ Type, value Expr) *Decl {
-	return &Decl{Type: typ, Name: name, Init: value}
+func Declare(name string, valueType Type, value Expr) *Decl {
+	return &Decl{Type: valueType, Name: name, Init: value}
 }
 
 // Exprs builds an expression statement.
@@ -611,15 +611,15 @@ func Sampler2D() Type { return namedType("sampler2D") }
 func Image2D() Type { return namedType("image2D") }
 
 // Array adds a sized dimension.
-func (typ Type) Array(size Expr) Type {
-	typ.Sizes = append(append([]Size{}, typ.Sizes...), Size{Expr: size})
-	return typ
+func (valueType Type) Array(size Expr) Type {
+	valueType.Sizes = append(append([]Size{}, valueType.Sizes...), Size{Expr: size})
+	return valueType
 }
 
 // Unsized adds a dimension with no length.
-func (typ Type) Unsized() Type {
-	typ.Sizes = append(append([]Size{}, typ.Sizes...), Size{})
-	return typ
+func (valueType Type) Unsized() Type {
+	valueType.Sizes = append(append([]Size{}, valueType.Sizes...), Size{})
+	return valueType
 }
 
 // Id builds a name expression.

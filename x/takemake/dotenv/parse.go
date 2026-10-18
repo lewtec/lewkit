@@ -4,36 +4,70 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/dotenv"
 )
 
 func parse(text string) (*File, error) {
 	text = strings.TrimPrefix(text, "\uFEFF")
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\r", "\n")
-	lines := strings.Split(text, "\n")
+	model, err := syntax.Language()
+	if err != nil {
+		return nil, err
+	}
+	root, err := model.Parse([]byte(text))
+	if err != nil {
+		var pe *xparse.Error
+		if errors.As(err, &pe) {
+			return nil, lineError(ErrLine, pe.Line)
+		}
+		return nil, lineError(ErrLine, 1)
+	}
+	built, err := buildFile(root)
+	if err != nil {
+		return nil, err
+	}
+	file, ok := built.(*File)
+	if !ok || file == nil {
+		return nil, lineError(ErrLine, 1)
+	}
+	return file, nil
+}
+
+func buildFile(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (any, error) {
 	file := New()
 	var pending []string
-	for n, line := range lines {
-		if n == len(lines)-1 && line == "" {
-			break
-		}
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		rule, ok := child.Rule()
+		if !ok {
 			continue
 		}
-		if strings.HasPrefix(trimmed, "#") {
-			pending = append(pending, commentBody(trimmed))
-			continue
+		switch rule {
+		case syntax.RuleBlank:
+		case syntax.RuleNote:
+			value, err := child.Apply()
+			if err != nil {
+				return nil, err
+			}
+			text, _ := value.(string)
+			pending = append(pending, text)
+		case syntax.RuleAssign:
+			assignment := &Assignment{Quote: syntax.QuoteBare}
+			if err := child.Fill(assignment); err != nil {
+				return nil, err
+			}
+			if assignment.Key == "" {
+				return nil, lineError(ErrKey, child.Line())
+			}
+			if len(pending) > 0 {
+				assignment.Comment = joinComment(strings.Join(pending, "\n"), assignment.Comment)
+				pending = nil
+			}
+			file.Assignments = append(file.Assignments, assignment)
 		}
-		assignment, err := parseAssignment(trimmed)
-		if err != nil {
-			return nil, lineError(err, n+1)
-		}
-		if len(pending) > 0 {
-			assignment.Comment = joinComment(strings.Join(pending, "\n"), assignment.Comment)
-			pending = nil
-		}
-		file.Assignments = append(file.Assignments, assignment)
 	}
 	if len(pending) == 0 {
 		return file, nil
@@ -55,157 +89,12 @@ func lineError(err error, line int) error {
 	return fmt.Errorf("%w: line %d", ErrLine, line)
 }
 
-func joinComment(lead, inline string) string {
+func joinComment(lead, inlineComment string) string {
 	if lead == "" {
-		return inline
+		return inlineComment
 	}
-	if inline == "" {
+	if inlineComment == "" {
 		return lead
 	}
-	return lead + "\n" + inline
-}
-
-func parseAssignment(line string) (*Assignment, error) {
-	assignment := &Assignment{Quote: QuoteBare}
-	if rest, ok := strings.CutPrefix(line, "export"); ok && rest != "" && (rest[0] == ' ' || rest[0] == '\t') {
-		assignment.Export = true
-		line = strings.TrimLeft(rest, " \t")
-	}
-	key, rest, ok := splitKey(line)
-	if !ok {
-		return nil, ErrLine
-	}
-	if key == "" {
-		return nil, ErrKey
-	}
-	rest = strings.TrimLeft(rest, " \t")
-	if !strings.HasPrefix(rest, "=") {
-		return nil, ErrLine
-	}
-	value, quote, comment, err := parseValue(rest[1:])
-	if err != nil {
-		return nil, err
-	}
-	assignment.Key = key
-	assignment.Value = value
-	assignment.Quote = quote
-	assignment.Comment = comment
-	return assignment, nil
-}
-
-func splitKey(s string) (key, rest string, ok bool) {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '=' || c == ' ' || c == '\t' {
-			return s[:i], s[i:], true
-		}
-		if !keyByte(c, i == 0) {
-			return "", "", false
-		}
-	}
-	return "", "", false
-}
-
-func keyByte(c byte, first bool) bool {
-	if c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c == '_' {
-		return true
-	}
-	return !first && c >= '0' && c <= '9'
-}
-
-func parseValue(rest string) (value string, quote Quote, comment string, err error) {
-	i := 0
-	for i < len(rest) && (rest[i] == ' ' || rest[i] == '\t') {
-		i++
-	}
-	if i == len(rest) {
-		return "", QuoteBare, "", nil
-	}
-	if rest[i] == '#' && i > 0 {
-		return "", QuoteBare, commentBody(rest[i:]), nil
-	}
-	switch rest[i] {
-	case '"':
-		value, rest, err = scanDouble(rest[i+1:])
-		if err != nil {
-			return "", 0, "", err
-		}
-		comment, err = trailingComment(rest)
-		return value, QuoteDouble, comment, err
-	case '\'':
-		value, rest, err = scanSingle(rest[i+1:])
-		if err != nil {
-			return "", 0, "", err
-		}
-		comment, err = trailingComment(rest)
-		return value, QuoteSingle, comment, err
-	default:
-		value, comment = scanBare(rest[i:])
-		return value, QuoteBare, comment, nil
-	}
-}
-
-func scanDouble(s string) (value, rest string, err error) {
-	var b strings.Builder
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '"' {
-			return b.String(), s[i+1:], nil
-		}
-		if c != '\\' {
-			b.WriteByte(c)
-			continue
-		}
-		if i+1 >= len(s) {
-			return "", "", ErrLine
-		}
-		i++
-		switch s[i] {
-		case 'n':
-			b.WriteByte('\n')
-		case 'r':
-			b.WriteByte('\r')
-		case 't':
-			b.WriteByte('\t')
-		default:
-			b.WriteByte(s[i])
-		}
-	}
-	return "", "", ErrLine
-}
-
-func scanSingle(s string) (value, rest string, err error) {
-	i := strings.IndexByte(s, '\'')
-	if i < 0 {
-		return "", "", ErrLine
-	}
-	return s[:i], s[i+1:], nil
-}
-
-func scanBare(s string) (value, comment string) {
-	for i := 0; i < len(s); i++ {
-		if s[i] == '#' && i > 0 && (s[i-1] == ' ' || s[i-1] == '\t') {
-			return strings.TrimRight(s[:i-1], " \t"), commentBody(s[i:])
-		}
-	}
-	return strings.TrimRight(s, " \t"), ""
-}
-
-func trailingComment(rest string) (string, error) {
-	i := 0
-	for i < len(rest) && (rest[i] == ' ' || rest[i] == '\t') {
-		i++
-	}
-	if i == len(rest) {
-		return "", nil
-	}
-	if rest[i] != '#' {
-		return "", ErrLine
-	}
-	return commentBody(rest[i:]), nil
-}
-
-func commentBody(s string) string {
-	s = strings.TrimPrefix(s, "#")
-	return strings.TrimPrefix(s, " ")
+	return lead + "\n" + inlineComment
 }

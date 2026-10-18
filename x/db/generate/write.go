@@ -1,14 +1,17 @@
 package generate
 
 import (
+	"bytes"
 	"path"
 	"path/filepath"
 
-	"github.com/dave/jennifer/jen"
 	xgenerate "github.com/lewtec/lewkit/x/generate"
+	"github.com/lewtec/lewkit/x/takemake/golang"
 )
 
 var generatedBy = xgenerate.Notice("db")
+
+const dbPath = "github.com/lewtec/lewkit/x/db"
 
 type out struct {
 	dir, pkg, imp string
@@ -25,22 +28,21 @@ func write(o out) error {
 }
 
 func writeFS(o out) error {
-	f := jen.NewFile(o.pkg)
-	f.HeaderComment(generatedBy)
+	file := golang.NewFile(o.pkg)
+	file.Header = "// " + generatedBy
 	var dirs []string
 	for _, e := range o.engines {
 		dirs = append(dirs, e.dir)
 	}
-	f.Comment(joinEmbed(dirs))
-	f.Var().Id("FS").Qual("embed", "FS")
-	return f.Save(filepath.Join(o.dir, "zz_fs.go"))
+	file.Var().Comment(joinEmbed(dirs)).Id("FS").Type(golang.QualType("embed", "FS"))
+	return save(file, filepath.Join(o.dir, "zz_fs.go"))
 }
 
 func writeQueries(o out) error {
-	f := jen.NewFile(o.pkg)
-	f.HeaderComment(generatedBy)
+	file := golang.NewFile(o.pkg)
+	file.Header = "// " + generatedBy
 	for _, e := range o.engines {
-		f.Anon(path.Join("github.com/lewtec/lewkit/x/db", e.dir))
+		file.Import(path.Join(dbPath, e.dir)).Alias("_")
 	}
 
 	need := map[string]bool{}
@@ -51,62 +53,80 @@ func writeQueries(o out) error {
 		if !need[st.name] {
 			continue
 		}
-		var fields []jen.Code
+		fields := make([]*golang.Field, 0, len(st.fields))
 		for _, fl := range st.fields {
-			fields = append(fields, jen.Id(fl.name).Add(jenType(fl.typ)))
+			fields = append(fields, golang.NewField(goType(fl.typ), fl.name))
 		}
-		f.Type().Id(st.name).Struct(fields...)
+		file.Type().Id(st.name).Struct(fields...)
 	}
 
-	var iface []jen.Code
+	methods := make([]*golang.Field, 0, len(o.methods))
 	for _, m := range o.methods {
-		iface = append(iface, jen.Id(m.name).Params(jenParams(m.params)...).Params(jenParams(m.results)...))
+		methods = append(methods, golang.NewField(golang.FuncType(paramFields(m.params), paramFields(m.results)), m.name))
 	}
-	f.Type().Id("Queries").Interface(iface...)
+	file.Type().Id("Queries").Interface(methods...)
 
 	for _, e := range o.engines {
-		writeWrap(f, o, e)
+		writeWrap(file, o, e)
 	}
 
-	f.Func().Id("New").Params(jen.Id("url").String()).Func().Params(jen.Qual("github.com/lewtec/lewkit/x/db", "DBTX")).Id("Queries").Block(
-		jen.Return(jen.Func().Params(jen.Id("tx").Qual("github.com/lewtec/lewkit/x/db", "DBTX")).Id("Queries").Block(
-			jen.Switch(jen.Qual("github.com/lewtec/lewkit/x/db", "Scheme").Call(jen.Id("url"))).Block(newCases(o.imp, o.engines)...),
+	file.Func().Id("New").Params(
+		golang.NewField(golang.Named("string"), "url"),
+	).Results(
+		golang.NewField(golang.FuncType(
+			[]*golang.Field{golang.NewField(golang.QualType(dbPath, "DBTX"), "tx")},
+			[]*golang.Field{golang.NewField(golang.Named("Queries"))},
+		)),
+	).Block(
+		golang.Return(golang.FuncLit(
+			[]*golang.Field{golang.NewField(golang.QualType(dbPath, "DBTX"), "tx")},
+			[]*golang.Field{golang.NewField(golang.Named("Queries"))},
+			golang.Switch(golang.Qual(dbPath, "Scheme").Call(golang.Id("url")), newCases(o.imp, o.engines)...),
 		)),
 	)
 
-	f.Type().Id("DBArg").Struct(
-		jen.Qual("github.com/lewtec/lewkit/x/db", "Arg").Types(jen.Id("Queries")),
+	file.Type().Id("DBArg").Struct(
+		golang.NewField(golang.QualType(dbPath, "Arg").Inst(golang.Named("Queries"))),
 	)
-	f.Func().Params(jen.Id("a").Op("*").Id("DBArg")).Id("Open").Params(
-		jen.Id("ctx").Qual("context", "Context"),
-	).Error().Block(
-		jen.Id("c").Op(":=").Id("a").Dot("Value").Call(),
-		jen.If(jen.Id("c").Op("==").Nil()).Block(
-			jen.Return(jen.Qual("fmt", "Errorf").Call(jen.Lit("database url not set"))),
+	file.Func().Recv("a", golang.Pointer(golang.Named("DBArg"))).Id("Open").Params(
+		golang.NewField(golang.QualType("context", "Context"), "ctx"),
+	).Results(
+		golang.NewField(golang.Named("error")),
+	).Block(
+		golang.Define([]*golang.Expr{golang.Id("c")}, golang.Id("a").Sel("Value").Call()),
+		golang.If(golang.Binary(golang.OpEql, golang.Id("c"), golang.Lit(nil)),
+			golang.Return(golang.Qual("fmt", "Errorf").Call(golang.Lit("database url not set"))),
 		),
-		jen.Return(jen.Id("a").Dot("Arg").Dot("Open").Call(
-			jen.Id("ctx"),
-			jen.Id("FS"),
-			jen.Id("New").Call(jen.Id("c").Dot("URL").Call()),
+		golang.Return(golang.Id("a").Sel("Arg").Sel("Open").Call(
+			golang.Id("ctx"),
+			golang.Id("FS"),
+			golang.Id("New").Call(golang.Id("c").Sel("URL").Call()),
 		)),
 	)
 
-	return f.Save(filepath.Join(o.dir, "zz_queries.go"))
+	return save(file, filepath.Join(o.dir, "zz_queries.go"))
 }
 
-func newCases(imp string, engines []engine) []jen.Code {
-	var cases []jen.Code
+func save(file *golang.File, path string) error {
+	var buf bytes.Buffer
+	if err := file.Make(&buf); err != nil {
+		return err
+	}
+	return xgenerate.WriteFile(path, buf.Bytes())
+}
+
+func newCases(imp string, engines []engine) []*golang.Stmt {
+	cases := make([]*golang.Stmt, 0, len(engines)+1)
 	for _, e := range engines {
 		wrap := wrapName(e.dir)
 		engImp := path.Join(imp, e.dir)
-		c := jen.Case(jen.Lit(e.dir)).Block(
-			jen.Return(jen.Id(wrap).Values(jen.Dict{
-				jen.Id("q"): jen.Qual(engImp, "New").Call(jen.Id("tx")),
-			})),
-		)
-		cases = append(cases, c)
+		cases = append(cases, golang.Case([]*golang.Expr{golang.Lit(e.dir)},
+			golang.Return(golang.Composite(golang.Named(wrap),
+				golang.KeyValue(golang.Id("q"), golang.Qual(engImp, "New").Call(golang.Id("tx"))),
+			)),
+		))
 	}
-	cases = append(cases, jen.Default().Block(jen.Return(jen.Nil())))
+	cases = append(cases, golang.Default(golang.Return(golang.Lit(nil))))
 	return cases
 }
 
@@ -114,36 +134,29 @@ func wrapName(dir string) string {
 	return dir + "Wrap"
 }
 
-func writeWrap(f *jen.File, o out, e engine) {
-	g := wrapGen{f: f, engImp: path.Join(o.imp, e.dir), wrap: wrapName(e.dir)}
-	g.f.Type().Id(g.wrap).Struct(jen.Id("q").Op("*").Qual(g.engImp, "Queries"))
+func writeWrap(file *golang.File, o out, e engine) {
+	engImp := path.Join(o.imp, e.dir)
+	wrap := wrapName(e.dir)
+	file.Type().Id(wrap).Struct(golang.NewField(golang.Pointer(golang.QualType(engImp, "Queries")), "q"))
 	for _, m := range o.methods {
-		g.method(m)
+		writeMethod(file, engImp, wrap, m)
 	}
 }
 
-type wrapGen struct {
-	f      *jen.File
-	engImp string
-	wrap   string
-}
-
-func (g wrapGen) method(m method) {
-	params := jenParams(m.params)
-	results := jenParams(m.results)
-	var args []jen.Code
+func writeMethod(file *golang.File, engImp, wrap string, m method) {
+	args := make([]*golang.Expr, 0, len(m.params))
 	for _, p := range m.params {
-		arg := jen.Id(p.name)
+		arg := golang.Id(p.name)
 		if p.typ.local() {
-			arg = jen.Qual(g.engImp, p.typ.baseName()).Call(jen.Id(p.name))
+			arg = golang.Qual(engImp, p.typ.baseName()).Call(golang.Id(p.name))
 		}
 		args = append(args, arg)
 	}
-	call := jen.Id("w").Dot("q").Dot(m.name).Call(args...)
-	g.f.Func().Params(jen.Id("w").Id(g.wrap)).Id(m.name).Params(params...).Params(results...).Block(wrapBody(m, call)...)
+	call := golang.Id("w").Sel("q").Sel(m.name).Call(args...)
+	file.Func().Recv("w", golang.Named(wrap)).Id(m.name).Params(paramFields(m.params)...).Results(paramFields(m.results)...).Block(wrapBody(m, call)...)
 }
 
-func wrapBody(m method, call jen.Code) []jen.Code {
+func wrapBody(m method, call *golang.Expr) []golang.Code {
 	var locals []field
 	for _, r := range m.results {
 		if r.typ.local() {
@@ -151,18 +164,18 @@ func wrapBody(m method, call jen.Code) []jen.Code {
 		}
 	}
 	if len(locals) == 0 {
-		return []jen.Code{jen.Return(call)}
+		return []golang.Code{golang.Return(call)}
 	}
-	var lhs []jen.Code
+	lhs := make([]*golang.Expr, 0, len(m.results))
 	for i, r := range m.results {
-		if r.name != "" {
-			lhs = append(lhs, jen.Id(r.name))
-			continue
+		name := r.name
+		if name == "" {
+			name = tmpName(i, r.typ)
 		}
-		lhs = append(lhs, jen.Id(tmpName(i, r.typ)))
+		lhs = append(lhs, golang.Id(name))
 	}
-	body := []jen.Code{jen.List(lhs...).Op(":=").Add(call)}
-	var rets []jen.Code
+	body := []golang.Code{golang.Define(lhs, call)}
+	rets := make([]*golang.Expr, 0, len(m.results))
 	for i, r := range m.results {
 		id := r.name
 		if id == "" {
@@ -171,21 +184,24 @@ func wrapBody(m method, call jen.Code) []jen.Code {
 		if r.typ.kind == "slice" && r.typ.local() {
 			item := r.typ.baseName()
 			body = append(body,
-				jen.Id("out").Op(":=").Make(jen.Index().Id(item), jen.Len(jen.Id(id))),
-				jen.For(jen.Id("i").Op(":=").Range().Id(id)).Block(
-					jen.Id("out").Index(jen.Id("i")).Op("=").Id(item).Call(jen.Id(id).Index(jen.Id("i"))),
-				),
+				golang.Define([]*golang.Expr{golang.Id("out")}, golang.Id("make").Call(
+					golang.Slice(golang.Named(item)).AsExpr(),
+					golang.Id("len").Call(golang.Id(id)),
+				)),
+				golang.Range(golang.Id(id),
+					golang.Assign(0, []*golang.Expr{golang.Id("out").Index(golang.Id("i"))}, golang.Named(item).AsExpr().Call(golang.Id(id).Index(golang.Id("i")))),
+				).WithKey(true, golang.Id("i"), nil),
 			)
-			rets = append(rets, jen.Id("out"))
+			rets = append(rets, golang.Id("out"))
 			continue
 		}
 		if r.typ.local() {
-			rets = append(rets, jen.Id(r.typ.baseName()).Call(jen.Id(id)))
+			rets = append(rets, golang.Named(r.typ.baseName()).AsExpr().Call(golang.Id(id)))
 			continue
 		}
-		rets = append(rets, jen.Id(id))
+		rets = append(rets, golang.Id(id))
 	}
-	body = append(body, jen.Return(rets...))
+	body = append(body, golang.Return(rets...))
 	return body
 }
 
@@ -199,34 +215,42 @@ func tmpName(i int, t typeExpr) string {
 	return "r"
 }
 
-func jenParams(fs []field) []jen.Code {
-	var out []jen.Code
+func paramFields(fs []field) []*golang.Field {
+	out := make([]*golang.Field, 0, len(fs))
 	for _, fl := range fs {
-		if fl.name == "" {
-			out = append(out, jenType(fl.typ))
-			continue
+		typ := fl.typ
+		variadic := typ.kind == "ellipsis"
+		if variadic && typ.elem != nil {
+			typ = *typ.elem
 		}
-		out = append(out, jen.Id(fl.name).Add(jenType(fl.typ)))
+		var field *golang.Field
+		if fl.name == "" {
+			field = golang.NewField(goType(typ))
+		} else {
+			field = golang.NewField(goType(typ), fl.name)
+		}
+		field.Variadic = variadic
+		out = append(out, field)
 	}
 	return out
 }
 
-func jenType(t typeExpr) *jen.Statement {
+func goType(t typeExpr) *golang.Type {
 	switch t.kind {
 	case "ident":
-		return jen.Id(t.name)
+		return golang.Named(t.name)
 	case "qual":
-		return jen.Qual(qualPath(t.pkg), t.name)
+		return golang.QualType(qualPath(t.pkg), t.name)
 	case "pointer":
-		return jen.Op("*").Add(jenType(*t.elem))
+		return golang.Pointer(goType(*t.elem))
 	case "slice":
-		return jen.Index().Add(jenType(*t.elem))
+		return golang.Slice(goType(*t.elem))
 	case "ellipsis":
-		return jen.Op("...").Add(jenType(*t.elem))
+		return goType(*t.elem)
 	case "any":
-		return jen.Any()
+		return golang.Named("any")
 	default:
-		return jen.Any()
+		return golang.Named("any")
 	}
 }
 

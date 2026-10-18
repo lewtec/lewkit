@@ -229,11 +229,11 @@ func (message *Message) Message(name string) *Message {
 }
 
 // Field stores a field and returns it.
-func (message *Message) Field(name string, number int, typ Type) *Field {
+func (message *Message) Field(name string, number int, valueType Type) *Field {
 	if message == nil {
 		return nil
 	}
-	field := newField(name, number, typ)
+	field := newField(name, number, valueType)
 	message.Fields = append(message.Fields, field)
 	return field
 }
@@ -253,8 +253,8 @@ func (message *Message) Oneof(name string) *Oneof {
 	return oneof
 }
 
-func newField(name string, number int, typ Type) *Field {
-	return &Field{Name: name, Number: number, Type: typ}
+func newField(name string, number int, valueType Type) *Field {
+	return &Field{Name: name, Number: number, Type: valueType}
 }
 
 // Optional sets the optional label.
@@ -303,11 +303,11 @@ func (oneof *Oneof) Option(name string, value Value) *Oneof {
 }
 
 // Field stores a field in the oneof and returns it.
-func (oneof *Oneof) Field(name string, number int, typ Type) *Field {
+func (oneof *Oneof) Field(name string, number int, valueType Type) *Field {
 	if oneof == nil {
 		return nil
 	}
-	field := newField(name, number, typ)
+	field := newField(name, number, valueType)
 	oneof.Fields = append(oneof.Fields, field)
 	return field
 }

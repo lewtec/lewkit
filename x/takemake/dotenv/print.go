@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	syntax "github.com/lewtec/lewkit/x/parse/dotenv"
 )
 
 func writeAssignment(w io.Writer, assignment *Assignment) error {
@@ -37,7 +39,7 @@ func writeAssignment(w io.Writer, assignment *Assignment) error {
 		return err
 	}
 	switch assignment.Quote {
-	case QuoteDouble:
+	case syntax.QuoteDouble:
 		if err := writeByte(w, '"'); err != nil {
 			return err
 		}
@@ -47,7 +49,7 @@ func writeAssignment(w io.Writer, assignment *Assignment) error {
 		if err := writeByte(w, '"'); err != nil {
 			return err
 		}
-	case QuoteSingle:
+	case syntax.QuoteSingle:
 		if err := writeByte(w, '\''); err != nil {
 			return err
 		}
@@ -57,12 +59,12 @@ func writeAssignment(w io.Writer, assignment *Assignment) error {
 		if err := writeByte(w, '\''); err != nil {
 			return err
 		}
-	case QuoteBare:
+	case syntax.QuoteBare:
 		if err := writeString(w, assignment.Value); err != nil {
 			return err
 		}
 	default:
-		return ErrQuote
+		return syntax.ErrQuote
 	}
 	return writeByte(w, '\n')
 }
@@ -84,7 +86,7 @@ func validateKey(key string) error {
 		return ErrKey
 	}
 	for i := 0; i < len(key); i++ {
-		if !keyByte(key[i], i == 0) {
+		if !syntax.KeyByte(key[i], i == 0) {
 			return fmt.Errorf("%w: %s", ErrLine, key)
 		}
 	}
@@ -93,20 +95,20 @@ func validateKey(key string) error {
 
 func representable(assignment *Assignment) error {
 	switch assignment.Quote {
-	case QuoteDouble:
+	case syntax.QuoteDouble:
 		return nil
-	case QuoteSingle:
+	case syntax.QuoteSingle:
 		if strings.Contains(assignment.Value, "'") || strings.ContainsAny(assignment.Value, "\n\r") {
 			return ErrEncode
 		}
 		return nil
-	case QuoteBare:
+	case syntax.QuoteBare:
 		if !bareOK(assignment.Value) {
 			return ErrEncode
 		}
 		return nil
 	default:
-		return ErrQuote
+		return syntax.ErrQuote
 	}
 }
 

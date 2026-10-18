@@ -3,6 +3,7 @@ package c
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -434,6 +435,40 @@ func TestNonTrivialRoundTrip(t *testing.T) {
 		}
 	}
 	require.Equal(t, 8, bodies)
+}
+
+func TestCsmithRoundTrip(t *testing.T) {
+	t.Parallel()
+	entries, err := os.ReadDir("testdata/csmith")
+	require.NoError(t, err)
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".c") {
+			continue
+		}
+		names = append(names, entry.Name())
+	}
+	require.NotEmpty(t, names)
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src, err := os.ReadFile(filepath.Join("testdata/csmith", name))
+			require.NoError(t, err)
+			first, printed := roundTrip(t, string(src))
+			require.NotContains(t, printed, "/*")
+			var aggregates int
+			for _, decl := range first.Decls {
+				if decl.Kind != DeclType || decl.Type == nil || decl.Type.Type == nil {
+					continue
+				}
+				switch decl.Type.Type.Kind {
+				case KindStruct, KindUnion:
+					aggregates++
+				}
+			}
+			require.Positive(t, aggregates, printed)
+		})
+	}
 }
 
 func TestStressRoundTrip(t *testing.T) {

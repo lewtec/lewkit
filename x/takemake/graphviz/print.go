@@ -235,6 +235,10 @@ func isEscape(s string) bool {
 	}
 }
 
+func isDigit(c byte) bool {
+	return c >= '0' && c <= '9'
+}
+
 func isIDByte(c byte) bool {
 	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || isDigit(c) || c == '_' || c >= 0x80
 }

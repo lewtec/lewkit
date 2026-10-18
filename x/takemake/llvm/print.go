@@ -535,7 +535,7 @@ func (s *sink) typeDef(def *TypeDef) {
 	if def.IsOpaque {
 		s.raw("opaque")
 	} else {
-		s.typ(def.Body)
+		s.valueType(def.Body)
 	}
 	s.nl()
 }
@@ -565,7 +565,7 @@ func (s *sink) global(g *Global) {
 	default:
 		s.raw(" global ")
 	}
-	s.typ(g.ValueType)
+	s.valueType(g.ValueType)
 	if g.Alias || g.IFunc {
 		s.raw(", ")
 		if g.Aliasee != nil {
@@ -602,7 +602,7 @@ func (s *sink) function(fn *Func) {
 	}
 	s.attrs(fn.ResultAttrs)
 	s.raw(" ")
-	s.typ(fn.Result)
+	s.valueType(fn.Result)
 	s.raw(" ")
 	s.sigil('@', fn.Name)
 	s.raw("(")
@@ -610,7 +610,7 @@ func (s *sink) function(fn *Func) {
 		if i > 0 {
 			s.raw(", ")
 		}
-		s.typ(param.Type)
+		s.valueType(param.Type)
 		s.attrs(param.Attrs)
 		if param.Name != "" {
 			s.raw(" ")
@@ -660,7 +660,7 @@ func (s *sink) inst(in *Inst) {
 		s.assign(in.Name)
 		s.raw("alloca ")
 		s.lead(in.Flags)
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		if in.Count != nil {
 			s.raw(", ")
 			s.operand(*in.Count)
@@ -675,9 +675,9 @@ func (s *sink) inst(in *Inst) {
 		if in.IsVolatile {
 			s.raw("volatile ")
 		}
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.raw(", ")
-		s.typ(in.Pointer)
+		s.valueType(in.Pointer)
 		s.afterType(in.Left)
 		s.atomicOrder(in)
 		s.finish(in, true)
@@ -689,19 +689,19 @@ func (s *sink) inst(in *Inst) {
 		if in.IsVolatile {
 			s.raw("volatile ")
 		}
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", ")
-		s.typ(in.Pointer)
+		s.valueType(in.Pointer)
 		s.afterType(in.Right)
 		s.atomicOrder(in)
 		s.finish(in, true)
 	case InstGEP:
 		s.assign(in.Name)
 		s.gepHead(in.InBounds, in.NoUnsignedWrap, in.NoSignedWrap, in.Flags)
-		s.typ(in.Source)
+		s.valueType(in.Source)
 		s.raw(", ")
-		s.typ(in.Pointer)
+		s.valueType(in.Pointer)
 		s.afterType(in.Left)
 		for _, index := range in.Indices {
 			s.raw(", ")
@@ -723,7 +723,7 @@ func (s *sink) inst(in *Inst) {
 		}
 		s.attrs(in.Flags)
 		s.raw(" ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.raw(" ")
 		s.value(in.Left)
 		s.raw(", ")
@@ -756,15 +756,15 @@ func (s *sink) inst(in *Inst) {
 		}
 		s.attrs(in.Flags)
 		s.raw(" ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(" to ")
-		s.typ(in.Dest)
+		s.valueType(in.Dest)
 		s.finish(in, false)
 	case InstPhi:
 		s.assign(in.Name)
 		s.raw("phi ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		for i, edge := range in.Incoming {
 			if i > 0 {
 				s.raw(",")
@@ -779,14 +779,14 @@ func (s *sink) inst(in *Inst) {
 	case InstExtract:
 		s.assign(in.Name)
 		s.raw("extractvalue ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.path(in.Path)
 		s.finish(in, false)
 	case InstInsert:
 		s.assign(in.Name)
 		s.raw("insertvalue ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", ")
 		s.operand(*in.Inserted)
@@ -814,7 +814,7 @@ func (s *sink) inst(in *Inst) {
 		if in.Type != nil && in.Type.Kind == KindVoid {
 			s.raw("void")
 		} else {
-			s.typ(in.Type)
+			s.valueType(in.Type)
 			s.afterType(in.Left)
 		}
 		s.finish(in, false)
@@ -825,32 +825,32 @@ func (s *sink) inst(in *Inst) {
 		s.assign(in.Name)
 		s.raw("fneg ")
 		s.lead(in.Flags)
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.finish(in, false)
 	case InstFreeze:
 		s.assign(in.Name)
 		s.raw("freeze ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.finish(in, false)
 	case InstSelect:
 		s.assign(in.Name)
 		s.raw("select ")
 		s.lead(in.Flags)
-		s.typ(in.CondType)
+		s.valueType(in.CondType)
 		s.afterType(in.Condition)
 		s.raw(", ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Right)
 		s.finish(in, false)
 	case InstExtractElt:
 		s.assign(in.Name)
 		s.raw("extractelement ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", ")
 		s.operand(*in.Index)
@@ -858,7 +858,7 @@ func (s *sink) inst(in *Inst) {
 	case InstInsertElt:
 		s.assign(in.Name)
 		s.raw("insertelement ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", ")
 		s.operand(*in.Inserted)
@@ -868,7 +868,7 @@ func (s *sink) inst(in *Inst) {
 	case InstShuffle:
 		s.assign(in.Name)
 		s.raw("shufflevector ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", ")
 		s.operand(*in.Other)
@@ -884,10 +884,10 @@ func (s *sink) inst(in *Inst) {
 		s.leadOne(in.SyncScope)
 		s.raw(in.AtomicOp)
 		s.raw(" ")
-		s.typ(in.Pointer)
+		s.valueType(in.Pointer)
 		s.afterType(in.Left)
 		s.raw(", ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Right)
 		s.raw(" ")
 		s.raw(in.Ordering)
@@ -902,10 +902,10 @@ func (s *sink) inst(in *Inst) {
 			s.raw("volatile ")
 		}
 		s.leadOne(in.SyncScope)
-		s.typ(in.Pointer)
+		s.valueType(in.Pointer)
 		s.afterType(in.Left)
 		s.raw(", ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Right)
 		s.raw(", ")
 		s.operand(*in.Inserted)
@@ -923,14 +923,14 @@ func (s *sink) inst(in *Inst) {
 	case InstSwitch:
 		s.assign(in.Name)
 		s.raw("switch ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", label ")
 		s.sigil('%', in.Target)
 		s.raw(" [")
 		for _, arm := range in.Arms {
 			s.raw(" ")
-			s.typ(arm.Type)
+			s.valueType(arm.Type)
 			s.afterType(arm.Value)
 			s.raw(", label ")
 			s.sigil('%', arm.Label)
@@ -940,19 +940,19 @@ func (s *sink) inst(in *Inst) {
 	case InstResume:
 		s.assign(in.Name)
 		s.raw("resume ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.finish(in, false)
 	case InstLanding:
 		s.assign(in.Name)
 		s.raw("landingpad ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		for _, clause := range in.Clauses {
 			s.raw(" ")
 			s.raw(clause.Kind)
 			if clause.Value != nil {
 				s.raw(" ")
-				s.typ(clause.Type)
+				s.valueType(clause.Type)
 				s.afterType(clause.Value)
 			}
 		}
@@ -960,7 +960,7 @@ func (s *sink) inst(in *Inst) {
 	case InstIndirectBr:
 		s.assign(in.Name)
 		s.raw("indirectbr ")
-		s.typ(in.Type)
+		s.valueType(in.Type)
 		s.afterType(in.Left)
 		s.raw(", [")
 		for i, label := range in.Labels {
@@ -975,10 +975,10 @@ func (s *sink) inst(in *Inst) {
 	case InstVAArg:
 		s.assign(in.Name)
 		s.raw("va_arg ")
-		s.typ(in.Pointer)
+		s.valueType(in.Pointer)
 		s.afterType(in.Left)
 		s.raw(", ")
-		s.typ(in.Dest)
+		s.valueType(in.Dest)
 		s.finish(in, false)
 	}
 }
@@ -1086,9 +1086,9 @@ func (s *sink) callLike(in *Inst) {
 	s.leadOne(in.Conv)
 	s.lead(in.ResultAttrs)
 	if in.Signature != nil {
-		s.typ(in.Signature)
+		s.valueType(in.Signature)
 	} else {
-		s.typ(in.Type)
+		s.valueType(in.Type)
 	}
 	if in.Callee != nil {
 		s.attrs(in.Callee.Attrs)
@@ -1127,7 +1127,7 @@ func (s *sink) callLike(in *Inst) {
 }
 
 func (s *sink) typedValues(in *Inst) {
-	s.typ(in.Type)
+	s.valueType(in.Type)
 	s.raw(" ")
 	s.value(in.Left)
 	s.raw(", ")
@@ -1150,7 +1150,7 @@ func (s *sink) align(n int) {
 }
 
 func (s *sink) operand(op Operand) {
-	s.typ(op.Type)
+	s.valueType(op.Type)
 	if op.Value != nil {
 		s.attrs(op.Value.Attrs)
 	}
@@ -1197,9 +1197,9 @@ func (s *sink) value(v *Value) {
 	case ValGEP:
 		s.gepHead(v.InBounds, false, false, v.Flags)
 		s.raw("(")
-		s.typ(v.SourceType)
+		s.valueType(v.SourceType)
 		s.raw(", ")
-		s.typ(v.PointerType)
+		s.valueType(v.PointerType)
 		s.afterType(v.Base)
 		for _, index := range v.Indices {
 			s.raw(", ")
@@ -1228,9 +1228,9 @@ func (s *sink) aggregate(open, close string, elems []Operand) {
 	s.raw(close)
 }
 
-// typ prints one type. An opaque pointer is `ptr`. A typed pointer keeps
+// valueType prints one type. An opaque pointer is `ptr`. A typed pointer keeps
 // the element and a trailing star, so the two forms stay distinct.
-func (s *sink) typ(t *Type) {
+func (s *sink) valueType(t *Type) {
 	if t == nil {
 		return
 	}
@@ -1248,14 +1248,14 @@ func (s *sink) typ(t *Type) {
 			s.addrSpace(t.AddrSpace)
 			return
 		}
-		s.typ(t.Elem)
+		s.valueType(t.Elem)
 		s.addrSpace(t.AddrSpace)
 		s.raw("*")
 	case KindArray:
 		s.raw("[")
 		s.raw(strconv.FormatInt(t.Len, 10))
 		s.raw(" x ")
-		s.typ(t.Elem)
+		s.valueType(t.Elem)
 		s.raw("]")
 	case KindVector:
 		s.raw("<")
@@ -1264,7 +1264,7 @@ func (s *sink) typ(t *Type) {
 		}
 		s.raw(strconv.FormatInt(t.Len, 10))
 		s.raw(" x ")
-		s.typ(t.Elem)
+		s.valueType(t.Elem)
 		s.raw(">")
 	case KindStruct:
 		if t.Packed {
@@ -1275,13 +1275,13 @@ func (s *sink) typ(t *Type) {
 		}
 		s.fields("{", "}", t.Fields)
 	case KindFunc:
-		s.typ(t.Ret)
+		s.valueType(t.Ret)
 		s.raw(" (")
 		for i, param := range t.Fields {
 			if i > 0 {
 				s.raw(", ")
 			}
-			s.typ(param)
+			s.valueType(param)
 		}
 		if t.Variadic {
 			if len(t.Fields) > 0 {
@@ -1312,7 +1312,7 @@ func (s *sink) fields(open, close string, fields []*Type) {
 		if i > 0 {
 			s.raw(", ")
 		}
-		s.typ(field)
+		s.valueType(field)
 	}
 	if len(fields) > 0 {
 		s.raw(" ")
