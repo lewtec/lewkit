@@ -1,11 +1,14 @@
 package term
 
 import (
+	"io"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-runewidth"
+	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -188,10 +191,16 @@ func TestDeskDrawerKeysStayOffThePane(t *testing.T) {
 	_, cmd := model.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
 	assert.Nil(t, cmd)
 	assert.Empty(t, api.writes)
+	assert.Equal(t, "a", model.find)
+	assert.True(t, model.drawer)
 
 	_, cmd = model.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
 	assert.Nil(t, cmd)
 	assert.Empty(t, api.writes)
+	assert.True(t, model.drawer)
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	assert.Empty(t, model.find)
 	assert.True(t, model.drawer)
 
 	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
@@ -210,6 +219,189 @@ func TestDeskDrawerKeysStayOffThePane(t *testing.T) {
 	_ = cmd()
 	require.Len(t, api.writes, 1)
 	assert.Equal(t, "a", api.writes[0].Data)
+}
+
+func TestDrawerSearchFindsPanesAndActions(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	model.palette = false
+	model.drawer = true
+	model.order = []string{"ed", "n"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.byID["n"] = Pane{PaneInfo: PaneInfo{ID: "n", Path: "notes", Title: "notes", Alive: true}}
+	model.focus = "ed"
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "find a pane or an action")
+	assert.Contains(t, plain, "+ directory")
+	assert.Contains(t, plain, "the drawer")
+	assert.NotContains(t, plain, "taskbar")
+
+	for _, r := range "notes" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "> notes")
+	assert.NotContains(t, plain, "+ directory")
+	assert.NotContains(t, plain, "work/editor")
+	assert.NotContains(t, plain, "New pane")
+
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "n", model.focus)
+	assert.Equal(t, "n", model.armed)
+	assert.Equal(t, "notes", model.find)
+
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.False(t, model.drawer)
+	assert.Equal(t, "n", model.focus)
+	assert.Equal(t, "notes", model.shown)
+	assert.Equal(t, []string{"n"}, model.follow)
+	assert.Empty(t, model.find)
+	assert.Empty(t, api.creates)
+
+	_, cmd = model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
+	runCmd(cmd)
+	assert.True(t, model.drawer)
+	assert.Empty(t, api.writes)
+
+	for _, r := range "uber" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "Attach ubersession")
+	assert.NotContains(t, plain, "New pane")
+	assert.NotContains(t, plain, "Follow pane")
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.True(t, model.followAll)
+	assert.False(t, model.drawer)
+	assert.Empty(t, api.creates)
+
+	model.drawer = true
+	model.palette = false
+	for _, r := range "editor" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	cmd = clickLine(t, model, "work/editor", "editor")
+	runCmd(cmd)
+	assert.False(t, model.drawer)
+	assert.Equal(t, "ed", model.focus)
+}
+
+func TestDrawerSearchOpensAPaneAndAFolder(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	model.palette = false
+	model.drawer = true
+	model.cwd = "/lewkit-room"
+
+	for _, r := range "new pane" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "New pane")
+	assert.NotContains(t, plain, "New command")
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	_ = cmd()
+	require.Len(t, api.creates, 1)
+	assert.Equal(t, 38, api.creates[0].Rows)
+	assert.Equal(t, 100, api.creates[0].Cols)
+	assert.Equal(t, "/lewkit-room", api.creates[0].Dir)
+	assert.False(t, model.drawer)
+
+	model.palette = false
+	model.drawer = true
+	for _, r := range "open folder" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "Open folder")
+	assert.NotContains(t, plain, "New pane")
+	assert.NotContains(t, plain, "Follow folder")
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.False(t, model.drawer)
+	assert.True(t, model.palette)
+	assert.Equal(t, StepLine, model.step)
+	assert.Equal(t, ActionFolder, model.action)
+}
+
+func TestModeSwitchDoesNotRunAnAction(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.order = []string{"ed"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.focus = "ed"
+	model.follow = []string{"ed"}
+
+	_, cmd := model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
+	runCmd(cmd)
+	assert.True(t, model.drawer)
+	assert.False(t, model.palette)
+	assert.Empty(t, api.writes)
+	assert.Empty(t, api.creates)
+
+	model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModSuper})
+	assert.False(t, model.drawer)
+	assert.Empty(t, api.writes)
+
+	model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModMeta})
+	assert.True(t, model.drawer)
+	assert.Empty(t, api.writes)
+
+	model.palette = true
+	model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
+	assert.False(t, model.palette)
+	assert.True(t, model.drawer)
+	assert.Empty(t, api.creates)
+}
+
+func TestTwoEntersStayOnThePaneYouArmed(t *testing.T) {
+	model := newModel(t.Context(), &fakeAPI{}, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.shown = "work"
+	model.order = []string{"ed", "docs"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.byID["docs"] = Pane{PaneInfo: PaneInfo{ID: "docs", Path: "work/docs", Title: "md", Alive: true}}
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "ed", model.armed)
+	assert.Equal(t, "ed", model.focus)
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "docs", model.armed)
+	assert.Equal(t, "docs", model.focus)
+
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.False(t, model.drawer)
+	assert.Equal(t, "docs", model.focus)
+	assert.Equal(t, "work", model.shown)
+}
+
+func TestPickPaintsWithLipgloss(t *testing.T) {
+	r := lipgloss.NewRenderer(io.Discard)
+	r.SetColorProfile(termenv.ANSI)
+	painted := stylePick.Renderer(r).Render(" lew ")
+	assert.NotEqual(t, " lew ", painted)
+	assert.Equal(t, " lew ", stripANSI(painted))
 }
 
 func TestDrawerShowsTheRoomAndMovesAPane(t *testing.T) {

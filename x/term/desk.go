@@ -27,6 +27,7 @@ const (
 	hitCarry
 	hitFolder
 	hitCarrySession
+	hitAction
 )
 
 type hit struct {
@@ -54,6 +55,8 @@ type drawerRow struct {
 	pane    string
 	text    string
 	folder  string
+	action  Action
+	act     bool
 }
 
 type hierRow struct {
@@ -148,7 +151,7 @@ func (m *Model) rail(width, y int, record bool) string {
 		m.hits = append(m.hits, hit{x: 0, y: y, w: railStartW, kind: hitStart})
 		m.hits = append(m.hits, hit{x: width - railFlipW, y: y, w: railFlipW, kind: hitToggle})
 	}
-	return rev(start, m.palette) + middle + rev(flip, m.drawer)
+	return paint(start, m.palette) + middle + paint(flip, m.drawer)
 }
 
 func (m *Model) railMiddle(width, y int, record bool) string {
@@ -156,7 +159,7 @@ func (m *Model) railMiddle(width, y int, record bool) string {
 		return ""
 	}
 	if m.errText != "" {
-		return fit(m.errText, width)
+		return styleErr.Render(fit(m.errText, width))
 	}
 	var ids []string
 	for _, id := range m.recent {
@@ -169,7 +172,7 @@ func (m *Model) railMiddle(width, y int, record bool) string {
 		if m.drawer {
 			whisper = "sessions live here"
 		}
-		return fit(whisper, width)
+		return styleMuted.Render(fit(whisper, width))
 	}
 	var b strings.Builder
 	used := 0
@@ -183,7 +186,7 @@ func (m *Model) railMiddle(width, y int, record bool) string {
 			text = fit(strings.TrimSpace(text), width)
 			w = runewidth.StringWidth(text)
 		}
-		b.WriteString(rev(text, id == m.focus))
+		b.WriteString(paint(text, id == m.focus))
 		if record {
 			m.hits = append(m.hits, hit{x: railStartW + used, y: y, w: w, kind: hitTab, id: id})
 		}
@@ -214,18 +217,24 @@ func (m *Model) drawerBody(width, rows int) []string {
 	if rows <= 0 {
 		return nil
 	}
-	lines := []string{fit("the drawer", width)}
+	lines := []string{styleTitle.Render(fit("the drawer", width))}
+	if len(lines) < rows {
+		lines = append(lines, m.searchLine(width))
+	}
 	if m.heldSession != "" && len(lines) < rows {
-		lines = append(lines, fit("carrying "+pathBase(m.heldSession), width))
+		lines = append(lines, styleMuted.Render(fit("carrying "+pathBase(m.heldSession), width)))
 	} else if m.held != "" && len(lines) < rows {
-		lines = append(lines, fit("carrying "+m.tabLabel(m.held), width))
+		lines = append(lines, styleMuted.Render(fit("carrying "+m.tabLabel(m.held), width)))
 	}
 	if m.place != "" && len(lines) < rows {
-		lines = append(lines, fit("pocket "+m.place, width))
+		lines = append(lines, styleMuted.Render(fit("pocket "+m.place, width)))
 	}
 	items := m.drawerRows()
-	if !m.hasSession() && len(lines) < rows {
-		lines = append(lines, fit("nothing in here yet. lew can start a pane.", width))
+	if !m.hasSession() && !m.finding() && len(lines) < rows {
+		lines = append(lines, styleMuted.Render(fit("nothing in here yet. lew can start a pane.", width)))
+	}
+	if m.finding() && len(items) == 0 && len(lines) < rows {
+		lines = append(lines, styleMuted.Render(fit("nothing matches", width)))
 	}
 	if len(items) == 0 {
 		m.drawerAt = 0
@@ -240,6 +249,18 @@ func (m *Model) drawerBody(width, rows int) []string {
 		}
 		y := len(lines)
 		var line string
+		if m.finding() {
+			line = fit(item.text, width)
+			switch {
+			case item.act:
+				m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitAction, index: i})
+			case item.pane != "":
+				m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitChild, id: item.pane})
+			}
+			line = dress(line, i == m.drawerAt, item.pane != "" && item.pane == m.armed)
+			lines = append(lines, line)
+			continue
+		}
 		switch {
 		case item.newDir:
 			text := "+ directory"
@@ -302,9 +323,7 @@ func (m *Model) drawerBody(width, rows int) []string {
 			line = fit(item.text, width)
 			m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitFolder, id: item.folder})
 		}
-		if i == m.drawerAt {
-			line = rev(line, true)
-		}
+		line = dress(line, i == m.drawerAt, item.pane != "" && item.pane == m.armed)
 		lines = append(lines, line)
 	}
 	for len(lines) < rows {
@@ -314,9 +333,93 @@ func (m *Model) drawerBody(width, rows int) []string {
 }
 
 func (m *Model) drawerRows() []drawerRow {
+	if m.finding() {
+		return m.searchRows()
+	}
 	rows := []drawerRow{{newDir: true, text: "+ directory"}}
 	m.writeLevel("", "", &rows)
 	return rows
+}
+
+func (m *Model) finding() bool {
+	return strings.TrimSpace(m.find) != ""
+}
+
+func (m *Model) searchLine(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	const lead = "> "
+	body := m.find
+	ghost := body == ""
+	if ghost {
+		body = "find a pane or an action"
+	}
+	plain := fit(lead+body, width)
+	head, tail := splitWidth(plain, runewidth.StringWidth(lead))
+	if width < runewidth.StringWidth(lead) {
+		return stylePrompt.Render(plain)
+	}
+	painted := stylePrompt.Render(head)
+	if ghost {
+		return painted + styleMuted.Render(tail)
+	}
+	return painted + styleInk.Render(tail)
+}
+
+func (m *Model) searchRows() []drawerRow {
+	query := strings.ToLower(strings.TrimSpace(m.find))
+	var rows []drawerRow
+	for _, id := range m.order {
+		pane, ok := m.byID[id]
+		if !ok {
+			continue
+		}
+		label := m.tabLabel(id)
+		hay := strings.ToLower(id + " " + pane.Title + " " + pane.Path + " " + label)
+		if !strings.Contains(hay, query) {
+			continue
+		}
+		text := pane.Path
+		if text == "" {
+			text = id
+		}
+		if pane.Title != "" && !strings.Contains(strings.ToLower(text), strings.ToLower(pane.Title)) {
+			text += "  " + pane.Title
+		}
+		rows = append(rows, drawerRow{pane: id, text: text, name: label})
+	}
+	for _, action := range ActionNew.Values() {
+		label, detail := actionText(action)
+		hay := strings.ToLower(label + " " + detail + " " + string(action))
+		if !strings.Contains(hay, query) {
+			continue
+		}
+		rows = append(rows, drawerRow{act: true, action: action, text: label + "  " + detail})
+	}
+	return rows
+}
+
+func splitWidth(text string, width int) (string, string) {
+	if width <= 0 {
+		return "", text
+	}
+	used := 0
+	for i, r := range text {
+		w := runewidth.RuneWidth(r)
+		if w < 0 {
+			w = 0
+		}
+		if used+w > width {
+			return text[:i], text[i:]
+		}
+		used += w
+		if used == width {
+			next := i + len(string(r))
+			return text[:next], text[next:]
+		}
+	}
+	return text, ""
 }
 
 func (m *Model) writeLevel(parent, indent string, rows *[]drawerRow) {
@@ -532,11 +635,49 @@ func (m *Model) drawerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		return m.activateDrawer()
 	case "esc":
+		if m.find != "" {
+			m.find = ""
+			m.armed = ""
+			m.drawerAt = 0
+			return m, nil
+		}
 		m.drawer = false
+		m.armed = ""
 		return m, nil
-	default:
+	case "backspace":
+		m.deleteFind()
 		return m, nil
 	}
+	mod := msg.Key().Mod
+	if msg.Text != "" && !mod.Contains(tea.ModCtrl) && !mod.Contains(tea.ModAlt) && !mod.Contains(tea.ModMeta) && !mod.Contains(tea.ModSuper) && !mod.Contains(tea.ModHyper) {
+		m.find += msg.Text
+		m.armed = ""
+		m.drawerAt = 0
+	}
+	return m, nil
+}
+
+func (m *Model) deleteFind() {
+	runes := []rune(m.find)
+	if len(runes) == 0 {
+		return
+	}
+	m.find = string(runes[:len(runes)-1])
+	m.armed = ""
+	m.drawerAt = 0
+}
+
+func (m *Model) setDrawer(open bool) tea.Cmd {
+	m.drawer = open
+	m.find = ""
+	m.armed = ""
+	m.naming = false
+	m.name = ""
+	if !open {
+		return nil
+	}
+	m.drawerAt = 0
+	return m.lookGit()
 }
 
 func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
@@ -545,6 +686,9 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	row := rows[m.drawerAt]
+	if row.act {
+		return m.runSearchAction(row.action)
+	}
 	if row.newDir {
 		if m.naming {
 			m.createDirectory(m.name)
@@ -572,9 +716,56 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 		}
 		return m, m.selectSession(row.key)
 	}
-	m.held = ""
-	m.heldSession = ""
-	return m, m.showPane(row.pane)
+	if row.pane != "" {
+		if m.held != "" || m.heldSession != "" {
+			m.held = ""
+			m.heldSession = ""
+			return m, m.showPane(row.pane)
+		}
+		return m.armPane(row.pane)
+	}
+	return m, nil
+}
+
+func (m *Model) armPane(id string) (tea.Model, tea.Cmd) {
+	if id == "" {
+		return m, nil
+	}
+	if m.armed == id {
+		m.armed = ""
+		return m, m.showPane(id)
+	}
+	m.armed = id
+	m.focus = id
+	m.touch(id)
+	m.drawer = true
+	m.errText = ""
+	return m, nil
+}
+
+func (m *Model) runSearchAction(action Action) (tea.Model, tea.Cmd) {
+	m.find = ""
+	m.armed = ""
+	m.drawerAt = 0
+	m.step = StepActions
+	m.query = ""
+	m.cursor = 0
+	if actionNeedsPrompt(action) {
+		m.drawer = false
+		m.palette = true
+	} else if action == ActionNew || action == ActionDetach || action == ActionUbersession {
+		m.drawer = false
+	}
+	return m.applyAction(action)
+}
+
+func actionNeedsPrompt(action Action) bool {
+	switch action {
+	case ActionCommand, ActionSend, ActionFolder, ActionMove, ActionEnter, ActionFollow, ActionAlso, ActionUnfollow, ActionFocus, ActionKill:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *Model) click(x, y int) (tea.Model, tea.Cmd) {
@@ -592,11 +783,7 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 		m.palette = !m.palette
 		return m, nil
 	case hitToggle:
-		m.drawer = !m.drawer
-		if m.drawer {
-			return m, m.lookGit()
-		}
-		return m, nil
+		return m, m.setDrawer(!m.drawer)
 	case hitTab:
 		return m, m.focusTab(item.id)
 	case hitSession:
@@ -612,6 +799,12 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 	case hitChoice:
 		m.cursor = item.index
 		return m.activate()
+	case hitAction:
+		rows := m.drawerRows()
+		if item.index < 0 || item.index >= len(rows) || !rows[item.index].act {
+			return m, nil
+		}
+		return m.runSearchAction(rows[item.index].action)
 	case hitChild:
 		m.held = ""
 		m.heldSession = ""
@@ -658,6 +851,8 @@ func (m *Model) focusTab(id string) tea.Cmd {
 	}
 	m.drawer = false
 	m.palette = false
+	m.find = ""
+	m.armed = ""
 	m.focus = id
 	m.touch(id)
 	m.errText = ""
@@ -721,6 +916,8 @@ func (m *Model) showPane(id string) tea.Cmd {
 	m.touch(id)
 	m.drawer = false
 	m.palette = false
+	m.find = ""
+	m.armed = ""
 	m.errText = ""
 	key := m.sessionKey(pane)
 	m.shown = key
@@ -1249,13 +1446,6 @@ func edgeMark(left, suffix string, width int) string {
 		return fit(left, width)
 	}
 	return fit(left, width-w) + suffix
-}
-
-func rev(text string, on bool) string {
-	if !on || text == "" {
-		return text
-	}
-	return "\x1b[7m" + text + "\x1b[0m"
 }
 
 func dropID(ids []string, id string) []string {
