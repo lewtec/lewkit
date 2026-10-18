@@ -36,7 +36,8 @@ type API interface {
 // The desk shows the focused pane. ctrl+k, and the same chord with super or
 // meta, opens the session view. It does not search from the pane. Typing in
 // that view filters sessions, panes, and actions. The second enter on a
-// session or a pane leaves the session view focused on that pane. One enter
+// session or a pane leaves the session view focused on that pane. Enter on
+// a folder opens that folder and does not move the armed pane. One enter
 // runs an action.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {

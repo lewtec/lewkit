@@ -691,22 +691,10 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if row.pocket || (row.pane == "" && row.folder != "" && !row.session) {
-		if m.heldSession != "" {
-			return m, m.nestSession(row.folder)
-		}
-		if m.held != "" {
-			return m, m.moveInto(row.folder)
-		}
 		m.openFolder(row.folder)
 		return m, nil
 	}
 	if row.session {
-		if m.heldSession != "" && row.key != m.heldSession && row.folder != "" {
-			return m, m.nestSession(row.folder)
-		}
-		if m.held != "" && row.folder != "" {
-			return m, m.moveInto(row.folder)
-		}
 		id := m.sessionFocus(row.key)
 		if id != "" && m.armed == id && m.shown == row.key {
 			return m, m.showPane(id)
@@ -1280,7 +1268,7 @@ func (m *Model) openFolder(path string) {
 	if path == "" {
 		return
 	}
-	m.place = path
+	m.armed = ""
 	m.drawer = true
 	if contains(m.made, path) {
 		m.shown = path

@@ -31,7 +31,9 @@
 // and the same chord with super or meta, opens the session view. It does
 // not search from the pane. Typing in that view filters sessions, panes,
 // and actions. The second enter on a session or a pane leaves the session
-// view focused on that pane. One enter runs an action.
+// view focused on that pane. Enter on a folder opens that folder and does
+// not move the armed pane. The arrow still carries a pane or a session.
+// One enter runs an action.
 // The drawer is drawn with lipgloss. Bindings for individual actions are
 // not assigned yet.
 package term

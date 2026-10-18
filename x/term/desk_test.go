@@ -402,6 +402,80 @@ func TestModeSwitchDoesNotRunAnAction(t *testing.T) {
 	assert.Empty(t, api.creates)
 }
 
+func TestEnterOnAPaneThenAFolderDoesNotNest(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.shown = "work"
+	model.made = []string{"pockets"}
+	model.order = []string{"ed", "main"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.byID["main"] = Pane{PaneInfo: PaneInfo{ID: "main", Path: "work/src/main", Title: "go", Alive: true}}
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "ed", model.armed)
+	assert.Empty(t, model.held)
+	assert.Empty(t, api.moves)
+	assert.Equal(t, "work/editor", model.byID["ed"].Path)
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Empty(t, model.held)
+	assert.Empty(t, model.place)
+	assert.Empty(t, api.moves)
+	assert.Equal(t, "work/editor", model.byID["ed"].Path)
+	assert.Equal(t, "work/src/main", model.byID["main"].Path)
+	plain, _ := renderPlain(model)
+	assert.NotContains(t, plain, "pocket work/src")
+	assert.Contains(t, plain, "├ editor")
+	assert.Contains(t, plain, "└ src")
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.Equal(t, "pockets", model.shown)
+	assert.Empty(t, api.moves)
+	assert.Equal(t, "work/editor", model.byID["ed"].Path)
+	plain, _ = renderPlain(model)
+	assert.NotContains(t, plain, "pockets/work/editor")
+	assert.Contains(t, plain, "· work")
+
+	model.shown = "work"
+	model.drawer = true
+	model.drawerAt = 2
+	model.armed = ""
+	model.focus = "ed"
+	model.held = "ed"
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.Empty(t, api.moves)
+	assert.Equal(t, "work/editor", model.byID["ed"].Path)
+	assert.Equal(t, "ed", model.held)
+
+	model.drawerAt = 4
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.Empty(t, api.moves)
+	assert.Equal(t, "work/editor", model.byID["ed"].Path)
+	assert.Equal(t, "ed", model.held)
+
+	cmd = clickLine(t, model, "└ src", "src")
+	applyCmd(model, cmd)
+	require.Equal(t, []movedMsg{{id: "ed", path: "work/src/editor"}}, api.moves)
+	assert.Equal(t, "work/src/editor", model.byID["ed"].Path)
+}
+
 func TestTwoEntersStayOnThePaneYouArmed(t *testing.T) {
 	model := newModel(t.Context(), &fakeAPI{}, "")
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
