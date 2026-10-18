@@ -215,6 +215,11 @@ func TestLiveGNUTar(t *testing.T) {
 	bin, gnu := gnuTar(t)
 	dir := t.TempDir()
 	when := time.Date(2020, 1, 2, 3, 4, 5, 123456789, time.UTC)
+	// Windows file times are 100ns ticks, so tar cannot store the last two digits.
+	stored := when
+	if runtime.GOOS == "windows" {
+		stored = when.Truncate(100 * time.Nanosecond)
+	}
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "dir"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "dir", "note.txt"), []byte("live"), 0o640))
 	require.NoError(t, os.Symlink("dir/note.txt", filepath.Join(dir, "link")))
@@ -241,10 +246,10 @@ func TestLiveGNUTar(t *testing.T) {
 	file, err := Take(bytes.NewReader(raw))
 	require.NoError(t, err)
 	requireEntries(t, file, []*Entry{
-		{Name: "dir", Mode: hostTarMode(fs.ModeDir | 0o750), Time: when},
-		{Name: "dir/note.txt", Mode: hostTarMode(0o640), Time: when, Data: []byte("live")},
-		{Name: "link", Mode: hostTarMode(linkInfo.Mode()), Time: when, Target: "dir/note.txt"},
-		{Name: "世界.txt", Mode: hostTarMode(0o644), Time: when, Data: []byte("utf8")},
+		{Name: "dir", Mode: hostTarMode(fs.ModeDir | 0o750), Time: stored},
+		{Name: "dir/note.txt", Mode: hostTarMode(0o640), Time: stored, Data: []byte("live")},
+		{Name: "link", Mode: hostTarMode(linkInfo.Mode()), Time: stored, Target: "dir/note.txt"},
+		{Name: "世界.txt", Mode: hostTarMode(0o644), Time: stored, Data: []byte("utf8")},
 	})
 	require.Equal(t, views(file), views(takeMade(t, file)))
 	requireTarLists(t, file)
