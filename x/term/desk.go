@@ -465,16 +465,14 @@ func (m *Model) writeLevel(parent, indent string, rows *[]drawerRow) {
 				text = indent + branch + node.name
 			}
 			*rows = append(*rows, drawerRow{pocket: true, key: node.path, folder: node.path, text: text})
-			if m.folderOpen(node.path) {
-				child := "  "
-				if parent != "" {
-					child = indent + "│ "
-					if last {
-						child = indent + "  "
-					}
+			child := "  "
+			if parent != "" {
+				child = indent + "│ "
+				if last {
+					child = indent + "  "
 				}
-				m.writeLevel(node.path, child, rows)
 			}
+			m.writeLevel(node.path, child, rows)
 			continue
 		}
 		group := node.group
@@ -493,7 +491,7 @@ func (m *Model) writeLevel(parent, indent string, rows *[]drawerRow) {
 			indent:  sessIndent,
 			folder:  folder,
 		})
-		if !group.dir || group.key != m.shown {
+		if !group.dir {
 			continue
 		}
 		pad := ""
@@ -1433,16 +1431,6 @@ func (m *Model) longestMadePrefix(path string) string {
 
 func (m *Model) madeParent(path string) string {
 	return m.longestMadePrefix(path)
-}
-
-func (m *Model) folderOpen(path string) bool {
-	if path == "" {
-		return false
-	}
-	if m.shown == path || strings.HasPrefix(m.shown, path+"/") {
-		return true
-	}
-	return m.place == path || strings.HasPrefix(m.place, path+"/")
 }
 
 func (m *Model) openFolder(path string) {

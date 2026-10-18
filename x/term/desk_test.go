@@ -51,7 +51,7 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.Contains(t, plain, "looking around")
 	assert.Contains(t, plain, "sessions live here")
 	assert.NotContains(t, plain, "standing in ")
-	assert.NotContains(t, plain, "├ editor")
+	assert.Contains(t, plain, "├ editor")
 
 	runCmd(clickLine(t, model, " · work", "work"))
 	assert.True(t, model.drawer)
@@ -207,6 +207,7 @@ func TestDeskDrawerKeysStayOffThePane(t *testing.T) {
 	assert.Empty(t, model.find)
 	assert.True(t, model.drawer)
 
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
@@ -616,7 +617,7 @@ func TestDrawerShowsTheRoomAndMovesAPane(t *testing.T) {
 	assert.Contains(t, plain, " · work  /lewkit-room  main · tidy")
 	assert.NotContains(t, plain, "standing in ")
 	assert.Contains(t, plain, "+ directory")
-	assert.NotContains(t, plain, "├ editor")
+	assert.Contains(t, plain, "├ editor")
 
 	runCmd(clickLine(t, model, "+ directory", "+ directory"))
 	assert.True(t, model.naming)
@@ -719,6 +720,39 @@ func TestDeskShowsTheFocusedPane(t *testing.T) {
 	require.Len(t, api.writes, 1)
 	assert.Equal(t, 100, api.writes[0].Cols)
 	assert.Equal(t, 38, api.writes[0].Rows)
+}
+
+func TestDrawerLeavesFoldersOpen(t *testing.T) {
+	model := newModel(t.Context(), &fakeAPI{}, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.made = []string{"archive", "archive/bin"}
+	model.order = []string{"ed", "page"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.byID["page"] = Pane{PaneInfo: PaneInfo{ID: "page", Path: "notes/page", Title: "md", Alive: true}}
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "└ editor")
+	assert.Contains(t, plain, "└ page")
+	assert.Contains(t, plain, "└ bin")
+	assert.Contains(t, plain, " · work")
+	assert.Contains(t, plain, " · notes")
+
+	model.shown = "work"
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, " * work")
+	assert.Contains(t, plain, "└ page")
+	assert.Contains(t, plain, "└ bin")
+
+	for _, r := range "page" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "notes/page")
+	assert.NotContains(t, plain, "└ editor")
+	assert.NotContains(t, plain, "└ bin")
+	assert.NotContains(t, plain, "+ directory")
 }
 
 func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {

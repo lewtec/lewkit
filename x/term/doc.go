@@ -30,7 +30,7 @@
 // desk shows the focused pane. Empty pockets stay on the client. ctrl+k,
 // and the same chord with super or meta, opens the session view. It does
 // not search from the pane. Typing in that view filters sessions, panes,
-// and actions. One enter runs an action. The drawer takes clicks and the
+// and actions. Folders stay open. One enter runs an action. The drawer takes clicks and the
 // wheel. The wheel moves through the drawer the way the arrow keys do. A
 // click or Enter selects a session, opens a folder, or arms a pane. The
 // second Enter on that pane or session opens it. Right arrow, or the arrow
