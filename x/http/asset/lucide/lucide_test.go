@@ -50,6 +50,20 @@ func TestParseName(t *testing.T) {
 	require.ErrorIs(t, err, ErrName)
 }
 
+func TestImageSizeScalesTheCanvas(t *testing.T) {
+	t.Parallel()
+	ink := color.NRGBA{A: 255}
+	small, err := Image(NameSearch, ink)
+	require.NoError(t, err)
+	big, err := ImageSize(NameSearch, ink, 48)
+	require.NoError(t, err)
+	require.Equal(t, image.Rect(0, 0, 48, 48), big.Bounds())
+	require.Greater(t, opaque(big), opaque(small))
+	grid, err := ImageSize(NameSearch, ink, 0)
+	require.NoError(t, err)
+	require.Equal(t, image.Rect(0, 0, 24, 24), grid.Bounds())
+}
+
 func TestImageNilColor(t *testing.T) {
 	t.Parallel()
 	img, err := Image(NameSearch, nil)
@@ -69,7 +83,7 @@ func TestDecodeEveryIcon(t *testing.T) {
 		t.Run(name.String(), func(t *testing.T) {
 			body, ok := SVG(name)
 			require.True(t, ok)
-			painted, err := guiSVG(body, color.NRGBA{A: 255})
+			painted, err := guiSVG(body, color.NRGBA{A: 255}, 0)
 			require.NoError(t, err)
 			img, err := render.Decode([]byte(painted))
 			require.NoError(t, err)
@@ -90,6 +104,20 @@ func redInk(img image.Image) bool {
 		}
 	}
 	return false
+}
+
+func opaque(img image.Image) int {
+	n := 0
+	b := img.Bounds()
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			_, _, _, a := img.At(x, y).RGBA()
+			if a > 0 {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 func ink(img image.Image) bool {
