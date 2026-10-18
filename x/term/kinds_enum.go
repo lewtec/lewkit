@@ -26,13 +26,13 @@ func (m Method) String() string {
 
 // Values lists the Method values.
 func (Method) Values() []Method {
-	return []Method{MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch, MethodTreeList, MethodPaneMove}
+	return []Method{MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch, MethodTreeList, MethodPaneMove, MethodPaneClose}
 }
 
 // IsValid reports whether the value is a Method.
 func (m Method) IsValid() bool {
 	switch m {
-	case MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch, MethodTreeList, MethodPaneMove:
+	case MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch, MethodTreeList, MethodPaneMove, MethodPaneClose:
 		return true
 	default:
 		return false
@@ -61,6 +61,8 @@ func ParseMethod(text string) (Method, error) {
 		return MethodTreeList, nil
 	case "pane.move":
 		return MethodPaneMove, nil
+	case "pane.close":
+		return MethodPaneClose, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrMethod, text)
 	}
@@ -78,7 +80,7 @@ func (m *Method) Parse(text string) error {
 
 // ArgChoices lists the texts ParseMethod accepts.
 func (Method) ArgChoices() []string {
-	return []string{"session.get", "pane.list", "pane.get", "pane.create", "pane.write", "pane.kill", "watch", "tree.list", "pane.move"}
+	return []string{"session.get", "pane.list", "pane.get", "pane.create", "pane.write", "pane.kill", "watch", "tree.list", "pane.move", "pane.close"}
 }
 
 // MarshalText encodes the value as text.

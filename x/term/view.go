@@ -22,14 +22,16 @@ type API interface {
 	Write(context.Context, WriteRequest) error
 	Kill(context.Context, string) error
 	Move(context.Context, string, string) error
+	Remove(context.Context, string) error
 	Watch(context.Context, WatchRequest) error
 	Next(context.Context) (Event, error)
 }
 
 // Run draws the attach view on standard input and output.
 // followPane empty follows the ubersession. Otherwise the view follows that
-// pane only. The palette is open at the start. ctrl+p opens and closes it.
-// Other actions are palette commands; they do not have key bindings yet.
+// pane only. The palette is open at the start. lew on the rail opens and
+// closes it, and so does ctrl+p. The rail keeps recent panes. drawer lists
+// sessions. Other actions are palette commands; they do not have key bindings yet.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -42,7 +44,7 @@ func Run(ctx context.Context, api API, followPane string) error {
 	return err
 }
 
-// Model is the command-palette attach view.
+// Model is the attach desk.
 type Model struct {
 	ctx      context.Context
 	api      API
@@ -59,12 +61,18 @@ type Model struct {
 	width  int
 	height int
 
-	palette bool
-	step    Step
-	action  Action
-	query   string
-	cursor  int
-	errText string
+	palette      bool
+	step         Step
+	action       Action
+	query        string
+	cursor       int
+	errText      string
+	drawer       bool
+	shown        string
+	recent       []string
+	hits         []hit
+	shownChoices []int
+	drawerAt     int
 }
 
 func newModel(ctx context.Context, api API, followPane string) *Model {
@@ -150,6 +158,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
+	case tea.MouseClickMsg:
+		if msg.Button != tea.MouseLeft {
+			return m, nil
+		}
+		return m.click(msg.X, msg.Y)
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case loadedMsg:
@@ -164,6 +177,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.follow = append(m.follow, msg.pane.ID)
 		}
 		m.focus = msg.pane.ID
+		m.touch(msg.pane.ID)
 		m.errText = ""
 		return m, m.rewatch()
 	case killedMsg:
@@ -192,10 +206,16 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.palette {
 			return m, tea.Quit
 		}
+		if m.drawer {
+			return m, nil
+		}
 		return m, m.writeFocused([]byte{0x03})
 	}
 	if m.palette {
 		return m.paletteKey(msg)
+	}
+	if m.drawer {
+		return m.drawerKey(msg)
 	}
 	return m, m.writeFocused(inputBytes(msg))
 }
@@ -296,6 +316,8 @@ func (m *Model) applyAction(action Action) (tea.Model, tea.Cmd) {
 	case ActionUbersession:
 		m.followAll = true
 		m.followPrefix = ""
+		m.follow = nil
+		m.shown = ""
 		m.errText = ""
 		return m, m.rewatch()
 	case ActionUp:
@@ -307,10 +329,12 @@ func (m *Model) applyAction(action Action) (tea.Model, tea.Cmd) {
 			m.followAll = true
 			m.followPrefix = ""
 			m.follow = nil
+			m.shown = ""
 		} else {
 			m.followAll = false
 			m.followPrefix = m.folder
 			m.follow = nil
+			m.shown = sessionKeyFromPath(m.folder)
 		}
 		m.errText = ""
 		return m, m.rewatch()
@@ -340,6 +364,7 @@ func (m *Model) applyPane(id string) (tea.Model, tea.Cmd) {
 		m.followPrefix = ""
 		m.follow = []string{id}
 		m.focus = id
+		m.touch(id)
 	case ActionAlso:
 		if m.followAll || m.followPrefix != "" {
 			m.follow = m.visible()
@@ -350,6 +375,7 @@ func (m *Model) applyPane(id string) (tea.Model, tea.Cmd) {
 			m.follow = append(m.follow, id)
 		}
 		m.focus = id
+		m.touch(id)
 	case ActionUnfollow:
 		if m.followAll || m.followPrefix != "" {
 			m.follow = m.visible()
@@ -362,6 +388,7 @@ func (m *Model) applyPane(id string) (tea.Model, tea.Cmd) {
 		}
 	case ActionFocus:
 		m.focus = id
+		m.touch(id)
 		m.step = StepActions
 		m.query = ""
 		return m, nil
@@ -530,6 +557,9 @@ func (m *Model) applyList(panes []PaneInfo) {
 	if m.focus == "" && len(order) > 0 {
 		m.focus = order[0]
 	}
+	if m.focus != "" {
+		m.touch(m.focus)
+	}
 }
 
 func (m *Model) applyEvent(ev Event) {
@@ -538,9 +568,13 @@ func (m *Model) applyEvent(ev Event) {
 		if ev.Session != nil {
 			m.order = append([]string(nil), ev.Session.Panes...)
 		}
-	case NoticePane, NoticePaneClosed:
+	case NoticePane:
 		if ev.Pane != nil {
 			m.store(*ev.Pane)
+		}
+	case NoticePaneClosed:
+		if ev.Pane != nil {
+			m.drop(ev.Pane.ID)
 		}
 	}
 }
@@ -561,6 +595,7 @@ func (m *Model) focusID() string {
 		return ""
 	}
 	m.focus = visible[0]
+	m.touch(m.focus)
 	return m.focus
 }
 
@@ -699,6 +734,8 @@ func (m *Model) View() tea.View {
 	content, x, y, show := m.render()
 	view := tea.NewView(content)
 	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
+	view.WindowTitle = "lewkit term"
 	if show {
 		view.Cursor = tea.NewCursor(x, y)
 	}
@@ -714,24 +751,27 @@ func (m *Model) render() (string, int, int, bool) {
 	if height < 1 {
 		height = 24
 	}
+	m.hits = nil
 	palette := m.paletteText()
 	body := height - len(palette)
 	if body < 0 {
 		body = 0
-		palette = palette[:min(len(palette), height)]
 	}
 	ids := m.visible()
 	lines := make([]string, 0, height)
 	cursorX, cursorY := 0, 0
 	show := false
-	if body == 0 || len(ids) == 0 {
-		if len(ids) == 0 && body > 0 {
-			lines = append(lines, fit("the desk is clear.  ctrl+p, then new pane", width))
+	switch {
+	case m.drawer && body > 0:
+		lines = append(lines, m.drawerBody(width, body)...)
+	case body == 0 || len(ids) == 0:
+		if !m.drawer && len(ids) == 0 && body > 0 {
+			lines = append(lines, fit("the desk is clear. lew starts a pane, the drawer keeps sessions.", width))
 			for len(lines) < body {
 				lines = append(lines, fit("", width))
 			}
 		}
-	} else {
+	default:
 		base := body / len(ids)
 		extra := body % len(ids)
 		y := 0
@@ -760,6 +800,10 @@ func (m *Model) render() (string, int, int, bool) {
 		}
 	}
 	paletteY := len(lines)
+	palette = m.chrome(paletteY, height, true)
+	if body == 0 && len(palette) > height {
+		palette = palette[:height]
+	}
 	lines = append(lines, palette...)
 	for len(lines) < height {
 		lines = append(lines, "")
@@ -780,65 +824,7 @@ func (m *Model) render() (string, int, int, bool) {
 }
 
 func (m *Model) paletteText() []string {
-	width := m.width
-	if width < 1 {
-		width = 80
-	}
-	if !m.palette {
-		hint := "ctrl+p palette  ·  " + m.folderLabel()
-		if m.errText != "" {
-			hint = m.errText
-		}
-		return []string{fit(hint, width)}
-	}
-	var lines []string
-	prompt := m.prompt()
-	lines = append(lines, fit(prompt, width))
-	if m.step != StepLine {
-		var rows []string
-		switch m.step {
-		case StepPanes:
-			for _, id := range m.filteredPanes() {
-				pane := m.byID[id]
-				label := id
-				if pane.Path != "" && pane.Path != id {
-					label = pane.Path
-				}
-				rows = append(rows, label+"  "+pane.Title)
-			}
-		case StepEntries:
-			for _, dir := range m.filteredDirs() {
-				rows = append(rows, dir+"/")
-			}
-		default:
-			for _, action := range m.actions() {
-				label, detail := actionText(action)
-				rows = append(rows, label+"  "+detail)
-			}
-		}
-		cursor := m.cursor
-		if len(rows) == 0 {
-			cursor = 0
-		} else if cursor >= len(rows) {
-			cursor = len(rows) - 1
-		} else if cursor < 0 {
-			cursor = 0
-		}
-		from, to := windowChoices(cursor, len(rows), 8)
-		for i := from; i < to; i++ {
-			mark := "  "
-			if i == cursor {
-				mark = "> "
-			}
-			lines = append(lines, fit(mark+rows[i], width))
-		}
-	}
-	hint := "in " + m.folderLabel() + "   ctrl+p closes  esc back  enter runs"
-	if m.errText != "" {
-		hint = m.errText
-	}
-	lines = append(lines, fit(hint, width))
-	return lines
+	return m.chrome(0, 0, false)
 }
 
 func windowChoices(cursor, n, limit int) (int, int) {

@@ -14,6 +14,7 @@ type fakeAPI struct {
 	creates []CreateRequest
 	writes  []WriteRequest
 	watches []WatchRequest
+	removes []string
 }
 
 func (f *fakeAPI) Session(context.Context) (SessionInfo, error) {
@@ -41,6 +42,11 @@ func (f *fakeAPI) Write(_ context.Context, req WriteRequest) error {
 func (f *fakeAPI) Kill(context.Context, string) error { return nil }
 
 func (f *fakeAPI) Move(context.Context, string, string) error { return nil }
+
+func (f *fakeAPI) Remove(_ context.Context, id string) error {
+	f.removes = append(f.removes, id)
+	return nil
+}
 
 func (f *fakeAPI) Watch(_ context.Context, req WatchRequest) error {
 	f.watches = append(f.watches, req)

@@ -20,7 +20,8 @@
 // socket and, when nothing is listening, starts the server the caller
 // supplies. The server process stays up while a pane exists and exits when
 // the last client disconnects and no panes remain. [Dial] and [Client.Call]
-// are the RPC. [Run] is the attach view. It opens a command palette.
-// Bindings for individual actions are not assigned yet; ctrl+p opens and
-// closes the palette.
+// are the RPC. [Run] is the attach desk. lew on the bottom rail opens the
+// command palette, and so does ctrl+p. That rail keeps the recent panes.
+// drawer lists sessions as a tree, and the x on a session removes those
+// records. Bindings for individual actions are not assigned yet.
 package term

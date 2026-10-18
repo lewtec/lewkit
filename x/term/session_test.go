@@ -190,3 +190,76 @@ func TestSessionTree(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	assert.NotContains(t, panes, other.ID)
 }
+
+func TestSessionRemoveDropsTheRecord(t *testing.T) {
+	if _, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0); err != nil {
+		test.Skipf(t, "pty: %v", err)
+	}
+	ctx := t.Context()
+	session, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+
+	editor, err := session.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 8, Cols: 8, Path: "work/editor"})
+	require.NoError(t, err)
+	notes, err := session.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 8, Cols: 8, Path: "notes"})
+	require.NoError(t, err)
+
+	stopped := make(chan struct{}, 1)
+	session.stopWhenIdle(func() {
+		select {
+		case stopped <- struct{}{}:
+		default:
+		}
+	})
+	session.clientArrived()
+	session.clientLeft()
+
+	closed := make(chan string, 4)
+	cancel, err := session.Watch([]string{notes.ID}, false, "", func(ev Event) {
+		if ev.Notice == NoticePaneClosed && ev.Pane != nil {
+			closed <- ev.Pane.ID
+		}
+	})
+	require.NoError(t, err)
+	t.Cleanup(cancel)
+
+	require.NoError(t, session.Remove(ctx, notes.ID))
+	_, err = session.Pane(ctx, notes.ID)
+	require.ErrorIs(t, err, ErrPane)
+	kept, err := session.Pane(ctx, editor.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "work/editor", kept.Path)
+
+	root, err := session.List(ctx, "")
+	require.NoError(t, err)
+	require.Len(t, root.Entries, 1)
+	assert.Equal(t, "work", root.Entries[0].Path)
+	assert.True(t, root.Entries[0].Dir)
+
+	require.Eventually(t, func() bool {
+		select {
+		case id := <-closed:
+			return id == notes.ID
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
+	select {
+	case <-stopped:
+		require.Fail(t, "ubersession stopped while a pane was still open")
+	default:
+	}
+
+	require.NoError(t, session.Remove(ctx, editor.ID))
+	_, err = session.Pane(ctx, editor.ID)
+	require.ErrorIs(t, err, ErrPane)
+	require.Eventually(t, func() bool {
+		select {
+		case <-stopped:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
+}

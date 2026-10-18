@@ -397,6 +397,51 @@ func (s *Session) Move(ctx context.Context, id, path string) error {
 	return nil
 }
 
+// Remove deletes the pane record and closes its process.
+// The grid goes with the record. Kill keeps the grid.
+func (s *Session) Remove(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if id == "" {
+		return ErrID
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrTermClosed
+	}
+	pane, ok := s.panes[id]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrPane, id)
+	}
+	proc := pane.proc
+	pane.proc = nil
+	delete(s.panes, id)
+	if pane.info.Path != "" {
+		delete(s.paths, pane.info.Path)
+	}
+	s.order = dropID(s.order, id)
+	pane.info.Alive = false
+	record := pane.record()
+	info := s.info()
+	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
+	fns = append(fns, s.matching(Event{Notice: NoticePaneClosed, Pane: &record})...)
+	fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
+	stop := s.idle
+	idle := stop != nil && s.served && s.clients == 0 && len(s.panes) == 0
+	s.mu.Unlock()
+	if proc != nil {
+		proc.Close()
+	}
+	deliver(fns)
+	if idle {
+		stop()
+	}
+	return nil
+}
+
 // Kill stops the pane process and keeps the grid.
 func (s *Session) Kill(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {

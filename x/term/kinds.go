@@ -15,6 +15,7 @@ const (
 	MethodWatch      Method = "watch"
 	MethodTreeList   Method = "tree.list"
 	MethodPaneMove   Method = "pane.move"
+	MethodPaneClose  Method = "pane.close"
 )
 
 // Notice is a server push. The string is the wire text.

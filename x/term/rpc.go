@@ -162,6 +162,14 @@ func (c *connState) dispatch(ctx context.Context, method Method, msg *schema.Env
 			return nil, err
 		}
 		return ackFrame(), nil
+	case MethodPaneClose:
+		if err := payloadMatches(msg, msg.GetPaneId() != nil); err != nil {
+			return nil, err
+		}
+		if err := c.session.Remove(ctx, msg.GetPaneId().GetId()); err != nil {
+			return nil, err
+		}
+		return ackFrame(), nil
 	case MethodWatch:
 		if err := payloadMatches(msg, msg.GetWatch() != nil); err != nil {
 			return nil, err
@@ -595,6 +603,12 @@ func (c *Client) Write(ctx context.Context, req WriteRequest) error {
 // Kill stops a pane process.
 func (c *Client) Kill(ctx context.Context, id string) error {
 	_, err := c.Call(ctx, MethodPaneKill, &schema.PaneId{Id: id})
+	return err
+}
+
+// Remove deletes a pane record.
+func (c *Client) Remove(ctx context.Context, id string) error {
+	_, err := c.Call(ctx, MethodPaneClose, &schema.PaneId{Id: id})
 	return err
 }
 
