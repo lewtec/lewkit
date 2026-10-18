@@ -29,7 +29,7 @@ func TestModuleImports(t *testing.T) {
 		}
 		name := entry.Name()
 		if entry.IsDir() {
-			if skipImportDir(name) {
+			if skipImportDir(name) || skippedPuregoPin(root, path) {
 				return filepath.SkipDir
 			}
 			return nil

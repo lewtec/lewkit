@@ -33,6 +33,11 @@ inputs: golang: {
 	from:    "github:golang/go"
 	version: "go1.27.0"
 }
+// v0.11.0 refuses CGO_ENABLED=0 on ios. The place below moves that file.
+inputs: purego: {
+	from:    "github:ebitengine/purego"
+	version: "v0.11.0"
+}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
@@ -123,6 +128,25 @@ file: codebase: {
 	"x/toolchain/go/_upstream/telemetry": {
 		type:   "place"
 		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
+	}
+	// iOS carries the darwin build tag, so fakecgo in this tree is the
+	// cgo-free path. is_ios.go would stop that build. A leading underscore
+	// is invisible to the go tool, and the next apply repeats the move.
+	// go.mod replaces github.com/ebitengine/purego with this tree.
+	"third_party/purego": {
+		type:   "place"
+		source: "purego:."
+		steps: {
+			"10_require": {
+				op: "require"
+				patterns: poison: "is_ios.go"
+			}
+			"20_hide": {
+				op:   "move"
+				from: "is_ios.go"
+				to:   "_cgo_ios/is_ios.go"
+			}
+		}
 	}
 }
 

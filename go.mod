@@ -282,7 +282,8 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-// iOS apps link cgo-free. Upstream purego v0.11.0 refuses that in is_ios.go.
+// iOS apps link cgo-free. modot places purego v0.11.0 here and moves
+// is_ios.go under _cgo_ios. The go tool ignores that directory.
 replace github.com/ebitengine/purego => ./third_party/purego
 
 tool (
