@@ -75,7 +75,17 @@ func makeImage(f *File) ([]byte, error) {
 			return nil, err
 		}
 	}
-	return writeISO(dir, tree, label, boot, catalog)
+	raw, err := writeISO(dir, tree, label, boot, catalog)
+	if err != nil {
+		return nil, err
+	}
+	// Windows stat cannot return the Unix mode os.Chmod was asked for.
+	if !hostKeepsUnixMode() {
+		if err := stampRockRidgeModes(raw, f.Entries); err != nil {
+			return nil, err
+		}
+	}
+	return raw, nil
 }
 
 func cleanBoot(name string) error {

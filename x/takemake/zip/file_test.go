@@ -241,7 +241,7 @@ func TestLiveInfoZip(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "dir", "note.txt"), []byte("live"), 0o640))
 	require.NoError(t, os.Symlink("dir/note.txt", filepath.Join(dir, "link")))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
-	stamp := "2020-01-02 03:04:06 UTC"
+	stamp := "2020-01-02T03:04:06Z"
 	for _, name := range []string{"dir", "dir/note.txt", "link", "世界.txt"} {
 		touch := exec.Command("touch", "-h", "-d", stamp, filepath.Join(dir, name))
 		out, err := touch.CombinedOutput()
@@ -297,6 +297,8 @@ func gitTree(t *testing.T, bin string) string {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, strings.Repeat("n", 120)), []byte("long"), 0o644))
 	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "add", "-A")
+	// core.filemode is false on Windows, so add records a regular file unless the index bit is set.
+	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "update-index", "--chmod=+x", "dir/nested/run.sh")
 	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "tree")
 	return dir
 }

@@ -284,9 +284,14 @@ func walk(stmts []Stmt, fn func(Stmt)) {
 
 func compareMakeEquals(t *testing.T, name string, f *File) {
 	t.Helper()
+	bin := gnuMake()
+	if bin == "" {
+		// BSD make prints a different database.
+		return
+	}
 	path, err := filepath.Abs(filepath.Join("testdata", name))
 	require.NoError(t, err)
-	cmd := exec.Command("make", "-p", "-f", path, "-q")
+	cmd := exec.Command(bin, "-p", "-f", path, "-q")
 	out, _ := cmd.Output()
 	got := makeEquals(string(out), path)
 	require.NotEmpty(t, got)
@@ -305,10 +310,28 @@ func compareMakeEquals(t *testing.T, name string, f *File) {
 	}
 }
 
+func gnuMake() string {
+	for _, name := range []string{"gmake", "make"} {
+		bin, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		out, err := exec.Command(bin, "--version").CombinedOutput()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(out), "GNU Make") {
+			return bin
+		}
+	}
+	return ""
+}
+
 func makeEquals(out, path string) map[string]string {
 	vals := map[string]string{}
 	from := ""
 	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimRight(line, "\r")
 		if strings.HasPrefix(line, "# makefile (from '") {
 			from = line
 			continue
