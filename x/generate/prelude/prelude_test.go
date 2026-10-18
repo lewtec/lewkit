@@ -11,6 +11,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWindowsWorkdirClimbsToModule(t *testing.T) {
+	wd := `D:\a\lewkit\lewkit\x\compression`
+	// An unsplit Windows path is one element, so the walk never sees go.mod.
+	assert.Equal(t, ".", path.New(wd).Parent().String())
+	// filepath.ToSlash rewrites separators only when they are not already slashes.
+	got := path.New(strings.ReplaceAll(wd, `\`, "/"))
+	assert.Equal(t, "D:/a/lewkit/lewkit/x", got.Parent().String())
+	assert.Equal(t, "D:/a/lewkit/lewkit", got.Parent().Parent().String())
+}
+
 func TestRunWritesFile(t *testing.T) {
 	dir := t.TempDir()
 	writeTree(t, dir, map[string]string{

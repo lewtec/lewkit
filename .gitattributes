@@ -1,1 +1,3 @@
 * text=auto eol=lf
+# The upstream type-checker fixture is CRLF on purpose.
+x/toolchain/go/_upstream/std/types/testdata/fixedbugs/issue39754.go text eol=crlf

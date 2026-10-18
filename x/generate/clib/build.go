@@ -101,7 +101,11 @@ func buildTool(ctx context.Context, dir string) (string, func(), error) {
 		return "", nil, err
 	}
 	cleanup := func() { os.RemoveAll(toolDir) }
-	tool := filepath.Join(toolDir, "clibtoolexec")
+	name := "clibtoolexec"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	tool := filepath.Join(toolDir, name)
 	if err := runGo(ctx, dir, hostEnv(), "build", "-buildvcs=false", "-o", tool, "github.com/lewtec/lewkit/x/build/clibtoolexec"); err != nil {
 		cleanup()
 		return "", nil, err
