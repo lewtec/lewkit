@@ -34,7 +34,7 @@ func asSyntax(err error) error {
 	return fmt.Errorf("%w: %s", ErrSyntax, err.Error())
 }
 
-func syntaxAt(node xparse.SyntaxNode[Term, Rule], msg string) error {
+func syntaxAt(node xparse.SyntaxNode[syntax.Term, syntax.Rule], msg string) error {
 	return fmt.Errorf("%w: line %d: %s", ErrSyntax, node.Line(), msg)
 }
 
@@ -59,7 +59,7 @@ func scanComments(src string) commentMap {
 				i++
 				continue
 			}
-			if hasPrefix(src, i, "--") {
+			if syntax.HasPrefix(src, i, "--") {
 				i += 2
 				start := i
 				for i < len(src) && src[i] != '\n' && src[i] != '\r' {
@@ -68,7 +68,7 @@ func scanComments(src string) commentMap {
 				addNote(&buf, src[start:i])
 				continue
 			}
-			if hasPrefix(src, i, "/*") {
+			if syntax.HasPrefix(src, i, "/*") {
 				end := blockEnd(src, i)
 				if end < 0 {
 					break
@@ -120,37 +120,23 @@ func blockEnd(src string, at int) int {
 
 func skipLexeme(src string, at int) int {
 	buf := []byte(src)
-	if n := matchString(buf, at); n > 0 {
+	if n := syntax.MatchString(buf, at); n > 0 {
 		return n
 	}
-	if n := matchQuoted(buf, at); n > 0 {
+	if n := syntax.MatchQuoted(buf, at); n > 0 {
 		return n
 	}
-	if n := matchPlaceholder(buf, at); n > 0 {
+	if n := syntax.MatchPlaceholder(buf, at); n > 0 {
 		return n
 	}
-	if n := matchNumber(buf, at); n > 0 {
+	if n := syntax.MatchNumber(buf, at); n > 0 {
 		return n
 	}
-	if n := matchIdentBytes(buf, at); n > 0 {
+	if n := syntax.MatchIdentBytes(buf, at); n > 0 {
 		return n
 	}
-	return matchOp(src, at)
+	return syntax.MatchOp(src, at)
 }
-
-func matchString(src []byte, at int) int { return syntax.MatchString(src, at) }
-
-func matchQuoted(src []byte, at int) int { return syntax.MatchQuoted(src, at) }
-
-func matchPlaceholder(src []byte, at int) int { return syntax.MatchPlaceholder(src, at) }
-
-func matchNumber(src []byte, at int) int { return syntax.MatchNumber(src, at) }
-
-func matchIdentBytes(src []byte, at int) int { return syntax.MatchIdentBytes(src, at) }
-
-func matchOp(src string, at int) int { return syntax.MatchOp(src, at) }
-
-func hasPrefix(src string, at int, word string) bool { return syntax.HasPrefix(src, at, word) }
 
 func decodeString(tok string) (string, error) {
 	if len(tok) < 2 || tok[0] != '\'' || tok[len(tok)-1] != '\'' {

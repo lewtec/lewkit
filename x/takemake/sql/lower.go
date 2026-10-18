@@ -4,9 +4,10 @@ import (
 	"strings"
 
 	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/sql"
 )
 
-func lowerFile(src string, root xparse.SyntaxNode[Term, Rule], notes commentMap) (*File, error) {
+func lowerFile(src string, root xparse.SyntaxNode[syntax.Term, syntax.Rule], notes commentMap) (*File, error) {
 	file := NewFile()
 	lead := notes.by[notes.first]
 	rest, dialect, ok := splitDialect(lead)
@@ -35,45 +36,45 @@ func lowerFile(src string, root xparse.SyntaxNode[Term, Rule], notes commentMap)
 	return file, nil
 }
 
-func statementNode(n xparse.SyntaxNode[Term, Rule]) xparse.SyntaxNode[Term, Rule] {
+func statementNode(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) xparse.SyntaxNode[syntax.Term, syntax.Rule] {
 	rule, ok := n.Rule()
-	if !ok || rule != RuleStatement {
-		return xparse.SyntaxNode[Term, Rule]{}
+	if !ok || rule != syntax.RuleStatement {
+		return xparse.SyntaxNode[syntax.Term, syntax.Rule]{}
 	}
 	if n.ChildCount() != 1 {
-		return xparse.SyntaxNode[Term, Rule]{}
+		return xparse.SyntaxNode[syntax.Term, syntax.Rule]{}
 	}
 	return n.Child(0)
 }
 
-func lowerStmt(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (Statement, error) {
+func lowerStmt(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Statement, error) {
 	rule, ok := n.Rule()
 	if !ok {
 		return nil, syntaxAt(n, "expected statement")
 	}
 	switch rule {
-	case RuleCreateTable:
+	case syntax.RuleCreateTable:
 		return lowerCreateTable(src, file, n)
-	case RuleCreateIndex:
+	case syntax.RuleCreateIndex:
 		return lowerCreateIndex(src, file, n)
-	case RuleAlter:
+	case syntax.RuleAlter:
 		return lowerAlter(src, file, n)
-	case RuleDrop:
+	case syntax.RuleDrop:
 		return lowerDrop(src, file, n)
-	case RuleSelect:
+	case syntax.RuleSelect:
 		return lowerSelect(src, file, n)
-	case RuleInsert:
+	case syntax.RuleInsert:
 		return lowerInsert(src, file, n)
-	case RuleUpdate:
+	case syntax.RuleUpdate:
 		return lowerUpdate(src, file, n)
-	case RuleDelete:
+	case syntax.RuleDelete:
 		return lowerDelete(src, file, n)
 	default:
 		return nil, syntaxAt(n, "expected statement")
 	}
 }
 
-func lowerCreateTable(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*CreateTable, error) {
+func lowerCreateTable(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*CreateTable, error) {
 	stmt := &CreateTable{file: file}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
@@ -82,15 +83,15 @@ func lowerCreateTable(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (
 			continue
 		}
 		switch rule {
-		case RuleIfNotExists:
+		case syntax.RuleIfNotExists:
 			stmt.UnlessExists = true
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Name = name
-		case RuleTableItem:
+		case syntax.RuleTableItem:
 			if err := lowerTableItem(src, stmt, child); err != nil {
 				return nil, err
 			}
@@ -102,7 +103,7 @@ func lowerCreateTable(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (
 	return stmt, nil
 }
 
-func lowerTableItem(src string, stmt *CreateTable, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerTableItem(src string, stmt *CreateTable, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	if n.ChildCount() != 1 {
 		return syntaxAt(n, "expected column")
 	}
@@ -112,7 +113,7 @@ func lowerTableItem(src string, stmt *CreateTable, n xparse.SyntaxNode[Term, Rul
 		return syntaxAt(n, "expected column")
 	}
 	switch rule {
-	case RuleColumn:
+	case syntax.RuleColumn:
 		col, err := lowerColumn(src, child)
 		if err != nil {
 			return err
@@ -120,14 +121,14 @@ func lowerTableItem(src string, stmt *CreateTable, n xparse.SyntaxNode[Term, Rul
 		col.create = stmt
 		stmt.Columns = append(stmt.Columns, col)
 		return nil
-	case RuleTableConstraint:
+	case syntax.RuleTableConstraint:
 		return lowerTableConstraint(src, stmt, child)
 	default:
 		return syntaxAt(n, "expected column")
 	}
 }
 
-func lowerColumn(src string, n xparse.SyntaxNode[Term, Rule]) (*Column, error) {
+func lowerColumn(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Column, error) {
 	col := &Column{}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
@@ -136,19 +137,19 @@ func lowerColumn(src string, n xparse.SyntaxNode[Term, Rule]) (*Column, error) {
 			continue
 		}
 		switch rule {
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
 			}
 			col.Name = name
-		case RuleTypeName:
+		case syntax.RuleTypeName:
 			valueType, err := lowerType(src, child)
 			if err != nil {
 				return nil, err
 			}
 			col.Type = valueType
-		case RuleColumnConstraint:
+		case syntax.RuleColumnConstraint:
 			if err := lowerColConstraint(src, col, child); err != nil {
 				return nil, err
 			}
@@ -160,8 +161,8 @@ func lowerColumn(src string, n xparse.SyntaxNode[Term, Rule]) (*Column, error) {
 	return col, nil
 }
 
-func lowerColConstraint(src string, col *Column, n xparse.SyntaxNode[Term, Rule]) error {
-	if onNode := childRule(n, RuleOnAction); onNode.Valid() {
+func lowerColConstraint(src string, col *Column, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
+	if onNode := childRule(n, syntax.RuleOnAction); onNode.Valid() {
 		return applyOnAction(src, onNode, func(action Action, which string) {
 			if which == "update" {
 				col.UpdateAction = action
@@ -171,29 +172,29 @@ func lowerColConstraint(src string, col *Column, n xparse.SyntaxNode[Term, Rule]
 		})
 	}
 	switch {
-	case hasTerm(n, TermPrimary):
+	case hasTerm(n, syntax.TermPrimary):
 		col.Primary = true
-		if hasTerm(n, TermAutoincrement) {
+		if hasTerm(n, syntax.TermAutoincrement) {
 			col.Auto = true
 		}
-	case hasTerm(n, TermNot):
+	case hasTerm(n, syntax.TermNot):
 		col.Required = true
-	case hasTerm(n, TermUnique):
+	case hasTerm(n, syntax.TermUnique):
 		col.IsUnique = true
-	case hasTerm(n, TermAutoincrement):
+	case hasTerm(n, syntax.TermAutoincrement):
 		col.Auto = true
-	case hasTerm(n, TermDefault):
-		expr, err := lowerExpr(src, childRule(n, RuleUnary))
+	case hasTerm(n, syntax.TermDefault):
+		expr, err := lowerExpr(src, childRule(n, syntax.RuleUnary))
 		if err != nil {
 			return err
 		}
 		col.DefaultExpr = &expr
-	case hasTerm(n, TermReferences):
-		name, err := lowerName(src, childRule(n, RuleName))
+	case hasTerm(n, syntax.TermReferences):
+		name, err := lowerName(src, childRule(n, syntax.RuleName))
 		if err != nil {
 			return err
 		}
-		cols, err := lowerParenNames(src, childRule(n, RuleParenthesizedNames))
+		cols, err := lowerParenNames(src, childRule(n, syntax.RuleParenthesizedNames))
 		if err != nil {
 			return err
 		}
@@ -203,7 +204,7 @@ func lowerColConstraint(src string, col *Column, n xparse.SyntaxNode[Term, Rule]
 	return nil
 }
 
-func lowerTableConstraint(src string, stmt *CreateTable, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerTableConstraint(src string, stmt *CreateTable, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
 		rule, ok := child.Rule()
@@ -211,27 +212,27 @@ func lowerTableConstraint(src string, stmt *CreateTable, n xparse.SyntaxNode[Ter
 			continue
 		}
 		switch rule {
-		case RuleTableKey:
-			cols, err := lowerParenNames(src, childRule(child, RuleParenthesizedNames))
+		case syntax.RuleTableKey:
+			cols, err := lowerParenNames(src, childRule(child, syntax.RuleParenthesizedNames))
 			if err != nil {
 				return err
 			}
 			stmt.Key = cols
-		case RuleTableUnique:
-			cols, err := lowerParenNames(src, childRule(child, RuleParenthesizedNames))
+		case syntax.RuleTableUnique:
+			cols, err := lowerParenNames(src, childRule(child, syntax.RuleParenthesizedNames))
 			if err != nil {
 				return err
 			}
 			stmt.Uniques = append(stmt.Uniques, cols)
-		case RuleTableForeign:
+		case syntax.RuleTableForeign:
 			fk, err := lowerForeign(src, child)
 			if err != nil {
 				return err
 			}
 			fk.create = stmt
 			stmt.Foreign = append(stmt.Foreign, fk)
-		case RuleTableCheck:
-			expr, err := lowerExpr(src, childRule(child, RuleExpression))
+		case syntax.RuleTableCheck:
+			expr, err := lowerExpr(src, childRule(child, syntax.RuleExpression))
 			if err != nil {
 				return err
 			}
@@ -241,9 +242,9 @@ func lowerTableConstraint(src string, stmt *CreateTable, n xparse.SyntaxNode[Ter
 	return nil
 }
 
-func lowerForeign(src string, n xparse.SyntaxNode[Term, Rule]) (*ForeignKey, error) {
+func lowerForeign(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*ForeignKey, error) {
 	fk := &ForeignKey{}
-	var parens []xparse.SyntaxNode[Term, Rule]
+	var parens []xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
 		rule, ok := child.Rule()
@@ -251,15 +252,15 @@ func lowerForeign(src string, n xparse.SyntaxNode[Term, Rule]) (*ForeignKey, err
 			continue
 		}
 		switch rule {
-		case RuleParenthesizedNames:
+		case syntax.RuleParenthesizedNames:
 			parens = append(parens, child)
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
 			}
 			fk.RefTable = name
-		case RuleOnAction:
+		case syntax.RuleOnAction:
 			if err := applyOnAction(src, child, func(action Action, which string) {
 				if which == "update" {
 					fk.UpdateAction = action
@@ -286,16 +287,16 @@ func lowerForeign(src string, n xparse.SyntaxNode[Term, Rule]) (*ForeignKey, err
 	return fk, nil
 }
 
-func lowerCreateIndex(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*CreateIndex, error) {
+func lowerCreateIndex(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*CreateIndex, error) {
 	stmt := &CreateIndex{file: file}
 	sawOn := false
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
-		if termIs(child, TermUnique) {
+		if termIs(child, syntax.TermUnique) {
 			stmt.IsUnique = true
 			continue
 		}
-		if termIs(child, TermOn) {
+		if termIs(child, syntax.TermOn) {
 			sawOn = true
 			continue
 		}
@@ -304,9 +305,9 @@ func lowerCreateIndex(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (
 			continue
 		}
 		switch rule {
-		case RuleIfNotExists:
+		case syntax.RuleIfNotExists:
 			stmt.UnlessExists = true
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
@@ -316,14 +317,14 @@ func lowerCreateIndex(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (
 				continue
 			}
 			stmt.Table = name
-		case RuleParenthesizedNames:
+		case syntax.RuleParenthesizedNames:
 			cols, err := lowerParenNames(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Columns = cols
-		case RuleWhere:
-			expr, err := lowerExpr(src, childRule(child, RuleExpression))
+		case syntax.RuleWhere:
+			expr, err := lowerExpr(src, childRule(child, syntax.RuleExpression))
 			if err != nil {
 				return nil, err
 			}
@@ -336,7 +337,7 @@ func lowerCreateIndex(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (
 	return stmt, nil
 }
 
-func lowerAlter(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*AlterTable, error) {
+func lowerAlter(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*AlterTable, error) {
 	stmt := &AlterTable{file: file}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
@@ -345,13 +346,13 @@ func lowerAlter(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Alter
 			continue
 		}
 		switch rule {
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Name = name
-		case RuleAlterAction:
+		case syntax.RuleAlterAction:
 			if err := lowerAlterAction(src, stmt, child); err != nil {
 				return nil, err
 			}
@@ -363,7 +364,7 @@ func lowerAlter(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Alter
 	return stmt, nil
 }
 
-func lowerAlterAction(src string, stmt *AlterTable, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerAlterAction(src string, stmt *AlterTable, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	if n.ChildCount() != 1 {
 		return syntaxAt(n, "expected alter action")
 	}
@@ -373,16 +374,16 @@ func lowerAlterAction(src string, stmt *AlterTable, n xparse.SyntaxNode[Term, Ru
 		return syntaxAt(n, "expected alter action")
 	}
 	switch rule {
-	case RuleAlterRename:
+	case syntax.RuleAlterRename:
 		stmt.Op = AlterKindRename
-		name, err := lowerName(src, childRule(child, RuleName))
+		name, err := lowerName(src, childRule(child, syntax.RuleName))
 		if err != nil {
 			return err
 		}
 		stmt.NewName = name
-	case RuleAlterRenameColumn:
+	case syntax.RuleAlterRenameColumn:
 		stmt.Op = AlterKindRenameColumn
-		names := childRules(child, RuleName)
+		names := childRules(child, syntax.RuleName)
 		if len(names) != 2 {
 			return syntaxAt(child, "expected name")
 		}
@@ -395,28 +396,28 @@ func lowerAlterAction(src string, stmt *AlterTable, n xparse.SyntaxNode[Term, Ru
 		if err != nil {
 			return err
 		}
-	case RuleAlterAdd:
+	case syntax.RuleAlterAdd:
 		stmt.Op = AlterKindAdd
-		col, err := lowerColumn(src, childRule(child, RuleColumn))
+		col, err := lowerColumn(src, childRule(child, syntax.RuleColumn))
 		if err != nil {
 			return err
 		}
 		col.alter = stmt
 		stmt.Add = col
-	case RuleAlterDrop:
+	case syntax.RuleAlterDrop:
 		stmt.Op = AlterKindDrop
-		name, err := lowerName(src, childRule(child, RuleName))
+		name, err := lowerName(src, childRule(child, syntax.RuleName))
 		if err != nil {
 			return err
 		}
 		stmt.ColumnName = name
-	case RuleAlterType:
+	case syntax.RuleAlterType:
 		stmt.Op = AlterKindType
-		name, err := lowerName(src, childRule(child, RuleName))
+		name, err := lowerName(src, childRule(child, syntax.RuleName))
 		if err != nil {
 			return err
 		}
-		valueType, err := lowerType(src, childRule(child, RuleTypeName))
+		valueType, err := lowerType(src, childRule(child, syntax.RuleTypeName))
 		if err != nil {
 			return err
 		}
@@ -428,11 +429,11 @@ func lowerAlterAction(src string, stmt *AlterTable, n xparse.SyntaxNode[Term, Ru
 	return nil
 }
 
-func lowerDrop(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*DropTable, error) {
+func lowerDrop(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*DropTable, error) {
 	stmt := &DropTable{file: file}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
-		if termIs(child, TermCascade) {
+		if termIs(child, syntax.TermCascade) {
 			stmt.Cascading = true
 			continue
 		}
@@ -441,9 +442,9 @@ func lowerDrop(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*DropTa
 			continue
 		}
 		switch rule {
-		case RuleIfExists:
+		case syntax.RuleIfExists:
 			stmt.MissingOK = true
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
@@ -457,11 +458,11 @@ func lowerDrop(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*DropTa
 	return stmt, nil
 }
 
-func lowerSelect(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Select, error) {
+func lowerSelect(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Select, error) {
 	stmt := &Select{file: file}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
-		if termIs(child, TermDistinct) {
+		if termIs(child, syntax.TermDistinct) {
 			stmt.IsDistinct = true
 			continue
 		}
@@ -470,35 +471,35 @@ func lowerSelect(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Sele
 			continue
 		}
 		switch rule {
-		case RuleSelectItem:
+		case syntax.RuleSelectItem:
 			item, err := lowerSelectItem(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Items = append(stmt.Items, item)
-		case RuleFrom:
+		case syntax.RuleFrom:
 			names, err := lowerNameList(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Sources = append(stmt.Sources, names...)
-		case RuleWhere:
-			expr, err := lowerExpr(src, childRule(child, RuleExpression))
+		case syntax.RuleWhere:
+			expr, err := lowerExpr(src, childRule(child, syntax.RuleExpression))
 			if err != nil {
 				return nil, err
 			}
 			stmt.Predicate = &expr
-		case RuleGroup:
+		case syntax.RuleGroup:
 			exprs, err := lowerExprList(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Groups = append(stmt.Groups, exprs...)
-		case RuleOrder:
+		case syntax.RuleOrder:
 			for j := 0; j < child.ChildCount(); j++ {
 				itemNode := child.Child(j)
 				got, ok := itemNode.Rule()
-				if !ok || got != RuleOrderItem {
+				if !ok || got != syntax.RuleOrderItem {
 					continue
 				}
 				item, err := lowerOrderItem(src, itemNode)
@@ -507,8 +508,8 @@ func lowerSelect(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Sele
 				}
 				stmt.Ordering = append(stmt.Ordering, item)
 			}
-		case RuleLimit:
-			expr, err := lowerExpr(src, childRule(child, RuleExpression))
+		case syntax.RuleLimit:
+			expr, err := lowerExpr(src, childRule(child, syntax.RuleExpression))
 			if err != nil {
 				return nil, err
 			}
@@ -521,14 +522,14 @@ func lowerSelect(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Sele
 	return stmt, nil
 }
 
-func lowerSelectItem(src string, n xparse.SyntaxNode[Term, Rule]) (SelectItem, error) {
+func lowerSelectItem(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (SelectItem, error) {
 	item := SelectItem{}
-	expr, err := lowerExpr(src, childRule(n, RuleExpression))
+	expr, err := lowerExpr(src, childRule(n, syntax.RuleExpression))
 	if err != nil {
 		return SelectItem{}, err
 	}
 	item.Expr = expr
-	if nameNode := childRule(n, RuleName); nameNode.Valid() {
+	if nameNode := childRule(n, syntax.RuleName); nameNode.Valid() {
 		alias, err := lowerName(src, nameNode)
 		if err != nil {
 			return SelectItem{}, err
@@ -538,22 +539,22 @@ func lowerSelectItem(src string, n xparse.SyntaxNode[Term, Rule]) (SelectItem, e
 	}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
-		if term, ok := child.Term(); ok && term == TermAlias {
+		if term, ok := child.Term(); ok && term == syntax.TermAlias {
 			item.Alias = child.Text()
 		}
 	}
 	return item, nil
 }
 
-func lowerOrderItem(src string, n xparse.SyntaxNode[Term, Rule]) (OrderBy, error) {
-	expr, err := lowerExpr(src, childRule(n, RuleExpression))
+func lowerOrderItem(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (OrderBy, error) {
+	expr, err := lowerExpr(src, childRule(n, syntax.RuleExpression))
 	if err != nil {
 		return OrderBy{}, err
 	}
-	return OrderBy{Expr: expr, Desc: hasTerm(n, TermDesc)}, nil
+	return OrderBy{Expr: expr, Desc: hasTerm(n, syntax.TermDesc)}, nil
 }
 
-func lowerInsert(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Insert, error) {
+func lowerInsert(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Insert, error) {
 	stmt := &Insert{file: file}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
@@ -562,25 +563,25 @@ func lowerInsert(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Inse
 			continue
 		}
 		switch rule {
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Table = name
-		case RuleParenthesizedNames:
+		case syntax.RuleParenthesizedNames:
 			cols, err := lowerParenNames(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Targets = cols
-		case RuleRow:
+		case syntax.RuleRow:
 			row, err := lowerExprList(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Rows = append(stmt.Rows, row)
-		case RuleConflict:
+		case syntax.RuleConflict:
 			if err := lowerConflict(src, stmt, child); err != nil {
 				return nil, err
 			}
@@ -592,16 +593,16 @@ func lowerInsert(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Inse
 	return stmt, nil
 }
 
-func lowerConflict(src string, stmt *Insert, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerConflict(src string, stmt *Insert, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	stmt.Conflict = true
-	if paren := childRule(n, RuleParenthesizedNames); paren.Valid() {
+	if paren := childRule(n, syntax.RuleParenthesizedNames); paren.Valid() {
 		cols, err := lowerParenNames(src, paren)
 		if err != nil {
 			return err
 		}
 		stmt.ConflictColumns = cols
 	}
-	if hasTerm(n, TermNothing) {
+	if hasTerm(n, syntax.TermNothing) {
 		stmt.Nothing = true
 		return nil
 	}
@@ -613,7 +614,7 @@ func lowerConflict(src string, stmt *Insert, n xparse.SyntaxNode[Term, Rule]) er
 	return nil
 }
 
-func lowerUpdate(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Update, error) {
+func lowerUpdate(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Update, error) {
 	stmt := &Update{file: file}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
@@ -622,14 +623,14 @@ func lowerUpdate(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Upda
 			continue
 		}
 		switch rule {
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Table = name
-		case RuleWhere:
-			expr, err := lowerExpr(src, childRule(child, RuleExpression))
+		case syntax.RuleWhere:
+			expr, err := lowerExpr(src, childRule(child, syntax.RuleExpression))
 			if err != nil {
 				return nil, err
 			}
@@ -647,7 +648,7 @@ func lowerUpdate(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Upda
 	return stmt, nil
 }
 
-func lowerDelete(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Delete, error) {
+func lowerDelete(src string, file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Delete, error) {
 	stmt := &Delete{file: file}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
@@ -656,14 +657,14 @@ func lowerDelete(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Dele
 			continue
 		}
 		switch rule {
-		case RuleName:
+		case syntax.RuleName:
 			name, err := lowerName(src, child)
 			if err != nil {
 				return nil, err
 			}
 			stmt.Table = name
-		case RuleWhere:
-			expr, err := lowerExpr(src, childRule(child, RuleExpression))
+		case syntax.RuleWhere:
+			expr, err := lowerExpr(src, childRule(child, syntax.RuleExpression))
 			if err != nil {
 				return nil, err
 			}
@@ -676,16 +677,16 @@ func lowerDelete(src string, file *File, n xparse.SyntaxNode[Term, Rule]) (*Dele
 	return stmt, nil
 }
 
-func lowerAssigns(src string, n xparse.SyntaxNode[Term, Rule]) ([]Assignment, error) {
+func lowerAssigns(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Assignment, error) {
 	var sets []Assignment
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
 		rule, ok := child.Rule()
-		if !ok || rule != RuleAssign {
+		if !ok || rule != syntax.RuleAssign {
 			continue
 		}
-		names := childRules(child, RuleName)
-		exprs := childRules(child, RuleExpression)
+		names := childRules(child, syntax.RuleName)
+		exprs := childRules(child, syntax.RuleExpression)
 		if len(names) != 1 || len(exprs) != 1 {
 			return nil, syntaxAt(child, "expected assignment")
 		}
@@ -702,7 +703,7 @@ func lowerAssigns(src string, n xparse.SyntaxNode[Term, Rule]) ([]Assignment, er
 	return sets, nil
 }
 
-func lowerExprList(src string, n xparse.SyntaxNode[Term, Rule]) ([]Expr, error) {
+func lowerExprList(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Expr, error) {
 	var out []Expr
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
@@ -711,7 +712,7 @@ func lowerExprList(src string, n xparse.SyntaxNode[Term, Rule]) ([]Expr, error) 
 			continue
 		}
 		switch rule {
-		case RuleExpression:
+		case syntax.RuleExpression:
 			expr, err := lowerExpr(src, child)
 			if err != nil {
 				return nil, err
@@ -722,9 +723,9 @@ func lowerExprList(src string, n xparse.SyntaxNode[Term, Rule]) ([]Expr, error) 
 	return out, nil
 }
 
-func lowerExpr(src string, n xparse.SyntaxNode[Term, Rule]) (Expr, error) {
+func lowerExpr(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
 	if !n.Valid() {
-		return Expr{}, syntaxAt(xparse.SyntaxNode[Term, Rule]{}, "expected expression")
+		return Expr{}, syntaxAt(xparse.SyntaxNode[syntax.Term, syntax.Rule]{}, "expected expression")
 	}
 	if term, ok := n.Term(); ok {
 		return lowerExprTerm(src, n, term)
@@ -740,15 +741,15 @@ func lowerExpr(src string, n xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 		return Expr{}, syntaxAt(n, "expected expression")
 	}
 	switch rule {
-	case RuleCall:
+	case syntax.RuleCall:
 		return lowerCall(src, n)
-	case RuleQualifiedName:
+	case syntax.RuleQualifiedName:
 		name, err := lowerQual(src, n)
 		if err != nil {
 			return Expr{}, err
 		}
 		return Id(name), nil
-	case RuleName:
+	case syntax.RuleName:
 		name, err := lowerName(src, n)
 		if err != nil {
 			return Expr{}, err
@@ -773,7 +774,7 @@ func lowerExpr(src string, n xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 		if err != nil {
 			return Expr{}, err
 		}
-		if termIs(n.Child(1), TermIs) {
+		if termIs(n.Child(1), syntax.TermIs) {
 			return binary("IS", left, Id("NULL")), nil
 		}
 		right, err := lowerExpr(src, n.Child(2))
@@ -792,35 +793,35 @@ func lowerExpr(src string, n xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 	}
 }
 
-func lowerExprTerm(src string, n xparse.SyntaxNode[Term, Rule], term Term) (Expr, error) {
+func lowerExprTerm(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule], term syntax.Term) (Expr, error) {
 	switch term {
-	case TermString:
+	case syntax.TermString:
 		text, err := decodeString(n.Text())
 		if err != nil {
 			return Expr{}, syntaxAt(n, "unclosed string")
 		}
 		return Lit(text), nil
-	case TermNumber:
+	case syntax.TermNumber:
 		return Num(n.Text()), nil
-	case TermPlaceholder:
+	case syntax.TermPlaceholder:
 		return Expr{Kind: ExprKindPlaceholder, Text: n.Text()}, nil
-	case TermIdentifier, TermAlias:
+	case syntax.TermIdentifier, syntax.TermAlias:
 		return Id(n.Text()), nil
-	case TermQuoted:
+	case syntax.TermQuoted:
 		text, err := decodeQuoted(n.Text())
 		if err != nil {
 			return Expr{}, syntaxAt(n, "unclosed identifier")
 		}
 		return Id(text), nil
-	case TermNull:
+	case syntax.TermNull:
 		return Id("NULL"), nil
 	default:
 		return Expr{}, syntaxAt(n, "expected expression")
 	}
 }
 
-func lowerCall(src string, n xparse.SyntaxNode[Term, Rule]) (Expr, error) {
-	name, err := lowerQual(src, childRule(n, RuleQualifiedName))
+func lowerCall(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
+	name, err := lowerQual(src, childRule(n, syntax.RuleQualifiedName))
 	if err != nil {
 		return Expr{}, err
 	}
@@ -831,7 +832,7 @@ func lowerCall(src string, n xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 	return Call(name, args...), nil
 }
 
-func lowerQual(src string, n xparse.SyntaxNode[Term, Rule]) (string, error) {
+func lowerQual(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (string, error) {
 	names, err := lowerNameList(src, n)
 	if err != nil {
 		return "", err
@@ -842,9 +843,9 @@ func lowerQual(src string, n xparse.SyntaxNode[Term, Rule]) (string, error) {
 	return strings.Join(names, "."), nil
 }
 
-func lowerNameList(src string, n xparse.SyntaxNode[Term, Rule]) ([]string, error) {
+func lowerNameList(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]string, error) {
 	var names []string
-	for _, child := range childRules(n, RuleName) {
+	for _, child := range childRules(n, syntax.RuleName) {
 		name, err := lowerName(src, child)
 		if err != nil {
 			return nil, err
@@ -854,7 +855,7 @@ func lowerNameList(src string, n xparse.SyntaxNode[Term, Rule]) ([]string, error
 	return names, nil
 }
 
-func lowerParenNames(src string, n xparse.SyntaxNode[Term, Rule]) ([]string, error) {
+func lowerParenNames(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]string, error) {
 	names, err := lowerNameList(src, n)
 	if err != nil {
 		return nil, err
@@ -865,9 +866,9 @@ func lowerParenNames(src string, n xparse.SyntaxNode[Term, Rule]) ([]string, err
 	return names, nil
 }
 
-func lowerName(src string, n xparse.SyntaxNode[Term, Rule]) (string, error) {
+func lowerName(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (string, error) {
 	if !n.Valid() {
-		return "", syntaxAt(xparse.SyntaxNode[Term, Rule]{}, "expected name")
+		return "", syntaxAt(xparse.SyntaxNode[syntax.Term, syntax.Rule]{}, "expected name")
 	}
 	if n.ChildCount() == 0 {
 		if term, ok := n.Term(); ok {
@@ -884,7 +885,7 @@ func lowerName(src string, n xparse.SyntaxNode[Term, Rule]) (string, error) {
 	return lowerName(src, n.Child(0))
 }
 
-func lowerType(src string, n xparse.SyntaxNode[Term, Rule]) (Type, error) {
+func lowerType(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Type, error) {
 	word := ""
 	if n.ChildCount() == 1 {
 		word = n.Child(0).Text()
@@ -916,12 +917,12 @@ func lowerType(src string, n xparse.SyntaxNode[Term, Rule]) (Type, error) {
 	}
 }
 
-func applyOnAction(src string, n xparse.SyntaxNode[Term, Rule], set func(Action, string)) error {
+func applyOnAction(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule], set func(Action, string)) error {
 	which := "delete"
-	if hasTerm(n, TermUpdate) {
+	if hasTerm(n, syntax.TermUpdate) {
 		which = "update"
 	}
-	action, err := lowerAction(src, childRule(n, RuleAction))
+	action, err := lowerAction(src, childRule(n, syntax.RuleAction))
 	if err != nil {
 		return err
 	}
@@ -929,40 +930,40 @@ func applyOnAction(src string, n xparse.SyntaxNode[Term, Rule], set func(Action,
 	return nil
 }
 
-func lowerAction(src string, n xparse.SyntaxNode[Term, Rule]) (Action, error) {
+func lowerAction(src string, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Action, error) {
 	switch {
-	case hasTerm(n, TermCascade):
+	case hasTerm(n, syntax.TermCascade):
 		return Cascade, nil
-	case hasTerm(n, TermRestrict):
+	case hasTerm(n, syntax.TermRestrict):
 		return Restrict, nil
-	case hasTerm(n, TermNull):
+	case hasTerm(n, syntax.TermNull):
 		return SetNull, nil
-	case hasTerm(n, TermDefault):
+	case hasTerm(n, syntax.TermDefault):
 		return SetDefault, nil
-	case hasTerm(n, TermAction):
+	case hasTerm(n, syntax.TermAction):
 		return NoAction, nil
 	default:
 		return 0, syntaxAt(n, "expected referential action")
 	}
 }
 
-func opName(n xparse.SyntaxNode[Term, Rule]) string {
+func opName(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) string {
 	if term, ok := n.Term(); ok {
 		return term.String()
 	}
 	return n.Text()
 }
 
-func childRule(n xparse.SyntaxNode[Term, Rule], want Rule) xparse.SyntaxNode[Term, Rule] {
+func childRule(n xparse.SyntaxNode[syntax.Term, syntax.Rule], want syntax.Rule) xparse.SyntaxNode[syntax.Term, syntax.Rule] {
 	rules := childRules(n, want)
 	if len(rules) == 0 {
-		return xparse.SyntaxNode[Term, Rule]{}
+		return xparse.SyntaxNode[syntax.Term, syntax.Rule]{}
 	}
 	return rules[0]
 }
 
-func childRules(n xparse.SyntaxNode[Term, Rule], want Rule) []xparse.SyntaxNode[Term, Rule] {
-	var out []xparse.SyntaxNode[Term, Rule]
+func childRules(n xparse.SyntaxNode[syntax.Term, syntax.Rule], want syntax.Rule) []xparse.SyntaxNode[syntax.Term, syntax.Rule] {
+	var out []xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
 		got, ok := child.Rule()
@@ -973,7 +974,7 @@ func childRules(n xparse.SyntaxNode[Term, Rule], want Rule) []xparse.SyntaxNode[
 	return out
 }
 
-func hasTerm(n xparse.SyntaxNode[Term, Rule], want Term) bool {
+func hasTerm(n xparse.SyntaxNode[syntax.Term, syntax.Rule], want syntax.Term) bool {
 	for i := 0; i < n.ChildCount(); i++ {
 		if termIs(n.Child(i), want) {
 			return true
@@ -982,12 +983,12 @@ func hasTerm(n xparse.SyntaxNode[Term, Rule], want Term) bool {
 	return false
 }
 
-func termIs(n xparse.SyntaxNode[Term, Rule], want Term) bool {
+func termIs(n xparse.SyntaxNode[syntax.Term, syntax.Rule], want syntax.Term) bool {
 	got, ok := n.Term()
 	return ok && got == want
 }
 
-func litIs(n xparse.SyntaxNode[Term, Rule], text string) bool {
+func litIs(n xparse.SyntaxNode[syntax.Term, syntax.Rule], text string) bool {
 	return n.Valid() && n.Name() == text
 }
 

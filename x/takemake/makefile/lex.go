@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/makefile"
 )
 
 const (
@@ -15,32 +16,32 @@ const (
 // makeModes is the scanner memory. A tab is a recipe when a rule is open or
 // a condition frame is open, and define nesting counts. A target-specific
 // assignment is TermAssign, so it does not arm recipes.
-var makeModes = xparse.Modes[Term]{
-	{On: TermIf, Enter: modeCondition, Depth: true},
-	{On: TermIf, Leave: modeRecipe},
-	{On: TermElse, Leave: modeRecipe},
-	{On: TermEndif, Leave: modeCondition, Depth: true},
-	{On: TermEndif, Leave: modeRecipe},
-	{On: TermRule, Enter: modeRecipe},
-	{On: TermDefine, Enter: modeDefine, Depth: true},
-	{On: TermDefine, Leave: modeRecipe},
-	{On: TermEndef, Leave: modeDefine, Depth: true},
-	{On: TermEndef, Leave: modeRecipe},
-	{On: TermAssign, Leave: modeRecipe},
-	{On: TermUndefine, Leave: modeRecipe},
-	{On: TermInclude, Leave: modeRecipe},
-	{On: TermVPath, Leave: modeRecipe},
-	{On: TermExport, Leave: modeRecipe},
-	{On: TermUnknown, Leave: modeRecipe},
-	{In: modeRecipe, Not: modeDefine, When: xparse.Byte('\t'), Emit: TermRecipe, Span: recipeSpan},
-	{In: modeCondition, Not: modeDefine, When: xparse.Byte('\t'), Emit: TermRecipe, Span: recipeSpan},
+var makeModes = xparse.Modes[syntax.Term]{
+	{On: syntax.TermIf, Enter: modeCondition, Depth: true},
+	{On: syntax.TermIf, Leave: modeRecipe},
+	{On: syntax.TermElse, Leave: modeRecipe},
+	{On: syntax.TermEndif, Leave: modeCondition, Depth: true},
+	{On: syntax.TermEndif, Leave: modeRecipe},
+	{On: syntax.TermRule, Enter: modeRecipe},
+	{On: syntax.TermDefine, Enter: modeDefine, Depth: true},
+	{On: syntax.TermDefine, Leave: modeRecipe},
+	{On: syntax.TermEndef, Leave: modeDefine, Depth: true},
+	{On: syntax.TermEndef, Leave: modeRecipe},
+	{On: syntax.TermAssign, Leave: modeRecipe},
+	{On: syntax.TermUndefine, Leave: modeRecipe},
+	{On: syntax.TermInclude, Leave: modeRecipe},
+	{On: syntax.TermVPath, Leave: modeRecipe},
+	{On: syntax.TermExport, Leave: modeRecipe},
+	{On: syntax.TermUnknown, Leave: modeRecipe},
+	{In: modeRecipe, Not: modeDefine, When: xparse.Byte('\t'), Emit: syntax.TermRecipe, Span: recipeSpan},
+	{In: modeCondition, Not: modeDefine, When: xparse.Byte('\t'), Emit: syntax.TermRecipe, Span: recipeSpan},
 }
 
 func scan(src []byte, at int, valid func(xparse.SymbolID) bool, st *xparse.LexState) (xparse.SymbolID, int, int, bool) {
 	return xparse.Drive(makeModes, readStatement)(src, at, valid, st)
 }
 
-func readStatement(src []byte, at int, st *xparse.LexState) (Term, int, int, bool) {
+func readStatement(src []byte, at int, st *xparse.LexState) (syntax.Term, int, int, bool) {
 	if at >= len(src) {
 		return "", at, at, true
 	}
@@ -80,13 +81,13 @@ func recipeSpan(src []byte, at int, st *xparse.LexState) (int, bool) {
 	return j, true
 }
 
-func readBody(src []byte, at int, st *xparse.LexState, mem *xparse.ModeMemory[Term]) (Term, int, int, bool) {
+func readBody(src []byte, at int, st *xparse.LexState, mem *xparse.ModeMemory[syntax.Term]) (syntax.Term, int, int, bool) {
 	end, next, ok := readLogical(src, at)
 	if !ok || next <= at {
 		st.At = at
 		return "", at, at, false
 	}
-	kind := TermBody
+	kind := syntax.TermBody
 	if end == at {
 		st.At = next
 		return kind, at, next, true
@@ -101,7 +102,7 @@ func readBody(src []byte, at int, st *xparse.LexState, mem *xparse.ModeMemory[Te
 		case "endef":
 			extra := trimSpace(removeComments(rest)) != ""
 			if mem.Depth(modeDefine) == 1 {
-				kind = TermEndef
+				kind = syntax.TermEndef
 				break
 			}
 			if extra {
@@ -209,30 +210,30 @@ func classOf(line string) lineKind {
 	return kindUnknown
 }
 
-func termOf(k lineKind) Term {
+func termOf(k lineKind) syntax.Term {
 	switch k {
 	case kindAssign:
-		return TermAssign
+		return syntax.TermAssign
 	case kindDefine:
-		return TermDefine
+		return syntax.TermDefine
 	case kindUndefine:
-		return TermUndefine
+		return syntax.TermUndefine
 	case kindIf:
-		return TermIf
+		return syntax.TermIf
 	case kindElse:
-		return TermElse
+		return syntax.TermElse
 	case kindEndif:
-		return TermEndif
+		return syntax.TermEndif
 	case kindInclude:
-		return TermInclude
+		return syntax.TermInclude
 	case kindVPath:
-		return TermVPath
+		return syntax.TermVPath
 	case kindExport:
-		return TermExport
+		return syntax.TermExport
 	case kindRule:
-		return TermRule
+		return syntax.TermRule
 	default:
-		return TermUnknown
+		return syntax.TermUnknown
 	}
 }
 

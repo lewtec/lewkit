@@ -36,7 +36,7 @@ func parse(text string) (*File, error) {
 	return file, nil
 }
 
-func buildFile(node xparse.SyntaxNode[Term, Rule]) (any, error) {
+func buildFile(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (any, error) {
 	file := New()
 	var pending []string
 	for i := 0; i < node.ChildCount(); i++ {
@@ -46,16 +46,16 @@ func buildFile(node xparse.SyntaxNode[Term, Rule]) (any, error) {
 			continue
 		}
 		switch rule {
-		case RuleBlank:
-		case RuleNote:
+		case syntax.RuleBlank:
+		case syntax.RuleNote:
 			value, err := child.Apply()
 			if err != nil {
 				return nil, err
 			}
 			text, _ := value.(string)
 			pending = append(pending, text)
-		case RuleAssign:
-			assignment := &Assignment{Quote: QuoteBare}
+		case syntax.RuleAssign:
+			assignment := &Assignment{Quote: syntax.QuoteBare}
 			if err := child.Fill(assignment); err != nil {
 				return nil, err
 			}

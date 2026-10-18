@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/llvm"
 )
 
 func bad(what string) error {
@@ -17,20 +18,20 @@ func unsup(what string) error {
 }
 
 type reader struct {
-	n xparse.SyntaxNode[Term, Rule]
+	n xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	i int
 }
 
 func (r *reader) ok() bool { return r.n.Valid() && r.i < r.n.ChildCount() }
 
-func (r *reader) peek() xparse.SyntaxNode[Term, Rule] {
+func (r *reader) peek() xparse.SyntaxNode[syntax.Term, syntax.Rule] {
 	if !r.ok() {
-		return xparse.SyntaxNode[Term, Rule]{}
+		return xparse.SyntaxNode[syntax.Term, syntax.Rule]{}
 	}
 	return r.n.Child(r.i)
 }
 
-func (r *reader) pop() xparse.SyntaxNode[Term, Rule] {
+func (r *reader) pop() xparse.SyntaxNode[syntax.Term, syntax.Rule] {
 	ch := r.peek()
 	if r.ok() {
 		r.i++
@@ -48,10 +49,10 @@ func (r *reader) eat(name string) bool {
 	return true
 }
 
-func (r *reader) rule() (Rule, bool) { return r.peek().Rule() }
+func (r *reader) rule() (syntax.Rule, bool) { return r.peek().Rule() }
 
-func lower(root xparse.SyntaxNode[Term, Rule]) (*File, error) {
-	if rule, ok := root.Rule(); !ok || rule != RuleFile {
+func lower(root xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*File, error) {
+	if rule, ok := root.Rule(); !ok || rule != syntax.RuleFile {
 		return nil, bad("module")
 	}
 	file := New()
@@ -63,27 +64,27 @@ func lower(root xparse.SyntaxNode[Term, Rule]) (*File, error) {
 		}
 		var err error
 		switch rule {
-		case RuleSource:
+		case syntax.RuleSource:
 			file.SourceFilename, err = decoded(ch, 2)
-		case RuleLayout:
+		case syntax.RuleLayout:
 			err = lowerLayout(file, ch)
-		case RuleModuleAssembly:
+		case syntax.RuleModuleAssembly:
 			var text string
 			text, err = decoded(ch, 2)
 			if err == nil {
 				file.Asms = append(file.Asms, text)
 			}
-		case RuleTypedef:
+		case syntax.RuleTypedef:
 			err = lowerTypeDef(file, ch)
-		case RuleGlobalVariable:
+		case syntax.RuleGlobalVariable:
 			err = lowerGlobal(file, ch)
-		case RuleFunction:
+		case syntax.RuleFunction:
 			err = lowerFunc(file, ch)
-		case RuleTopMetadata:
+		case syntax.RuleTopMetadata:
 			err = lowerMeta(file, ch)
-		case RuleAttributeGroup:
+		case syntax.RuleAttributeGroup:
 			err = lowerAttr(file, ch)
-		case RuleComdatDefinition:
+		case syntax.RuleComdatDefinition:
 			err = lowerComdat(file, ch)
 		default:
 			err = bad("module")
@@ -95,7 +96,7 @@ func lower(root xparse.SyntaxNode[Term, Rule]) (*File, error) {
 	return file, nil
 }
 
-func decoded(n xparse.SyntaxNode[Term, Rule], index int) (string, error) {
+func decoded(n xparse.SyntaxNode[syntax.Term, syntax.Rule], index int) (string, error) {
 	if index >= n.ChildCount() {
 		return "", bad("string")
 	}
@@ -106,7 +107,7 @@ func decoded(n xparse.SyntaxNode[Term, Rule], index int) (string, error) {
 	return text, nil
 }
 
-func lowerLayout(file *File, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerLayout(file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	if n.ChildCount() < 4 {
 		return bad("target")
 	}
@@ -125,7 +126,7 @@ func lowerLayout(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func lowerTypeDef(file *File, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerTypeDef(file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
 	name, err := sigilName(r.pop().Text())
 	if err != nil {
@@ -151,7 +152,7 @@ func lowerTypeDef(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func lowerComdat(file *File, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerComdat(file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
 	name, err := comdatName(r.pop().Text())
 	if err != nil {
@@ -169,7 +170,7 @@ func lowerComdat(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func lowerAttr(file *File, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerAttr(file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
 	if !r.eat("attributes") || !r.eat("#") {
 		return bad("attribute group")
@@ -179,16 +180,16 @@ func lowerAttr(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 		return bad("attribute group")
 	}
 	body := r.pop()
-	if body.Name() != TermBraced.String() {
+	if body.Name() != syntax.TermBraced.String() {
 		return bad("attribute group")
 	}
 	file.AttrGroups = append(file.AttrGroups, &AttrGroup{ID: id, Body: body.Text()})
 	return nil
 }
 
-func lowerMeta(file *File, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerMeta(file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
-	if !r.eat(TermMetadataExclamation.String()) {
+	if !r.eat(syntax.TermMetadataExclamation.String()) {
 		return bad("metadata")
 	}
 	name := r.pop().Text()
@@ -196,14 +197,14 @@ func lowerMeta(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 		return bad("metadata")
 	}
 	md := r.pop()
-	if rule, ok := md.Rule(); !ok || rule != RuleMetadataNode {
+	if rule, ok := md.Rule(); !ok || rule != syntax.RuleMetadataNode {
 		return bad("metadata")
 	}
 	file.Metadata = append(file.Metadata, &MetaDef{Name: name, RHS: md.Text()})
 	return nil
 }
 
-func lowerGlobal(file *File, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerGlobal(file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
 	name, err := sigilName(r.pop().Text())
 	if err != nil {
@@ -239,7 +240,7 @@ func lowerGlobal(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 			return err
 		}
 		g.Aliasee = &op
-	} else if rule, ok := r.rule(); ok && rule == RuleTypedValue {
+	} else if rule, ok := r.rule(); ok && rule == syntax.RuleTypedValue {
 		init, err := lowerTypedValue(r.pop(), valueType)
 		if err != nil {
 			return err
@@ -259,7 +260,7 @@ func takeGlobalPrefix(g *Global, r *reader) (string, error) {
 		case "global", "constant", "alias", "ifunc":
 			return r.pop().Name(), nil
 		}
-		if rule, ok := r.rule(); ok && rule == RuleWord {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleWord {
 			g.Prefix = append(g.Prefix, r.pop().Text())
 			continue
 		}
@@ -295,7 +296,7 @@ func takeGlobalTrailer(g *Global, r *reader) error {
 			return bad("global")
 		}
 		switch rule {
-		case RulePiece:
+		case syntax.RulePiece:
 			piece := r.pop()
 			if n, ok, err := alignOnly(piece); ok || err != nil {
 				if err != nil {
@@ -305,7 +306,7 @@ func takeGlobalTrailer(g *Global, r *reader) error {
 				continue
 			}
 			g.Suffix = append(g.Suffix, piece.Text())
-		case RuleAttach:
+		case syntax.RuleAttach:
 			g.Suffix = append(g.Suffix, r.pop().Text())
 		default:
 			return bad("global")
@@ -317,8 +318,8 @@ func takeGlobalTrailer(g *Global, r *reader) error {
 	return nil
 }
 
-func alignOnly(n xparse.SyntaxNode[Term, Rule]) (int, bool, error) {
-	if n.ChildCount() != 2 || n.Child(0).Name() != "align" || n.Child(1).Name() != TermNumber.String() {
+func alignOnly(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (int, bool, error) {
+	if n.ChildCount() != 2 || n.Child(0).Name() != "align" || n.Child(1).Name() != syntax.TermNumber.String() {
 		return 0, false, nil
 	}
 	v, err := integer(n.Child(1).Text())
@@ -328,14 +329,14 @@ func alignOnly(n xparse.SyntaxNode[Term, Rule]) (int, bool, error) {
 	return int(v), true, nil
 }
 
-func lowerFunc(file *File, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerFunc(file *File, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
 	fn := &Func{Defined: r.eat("define")}
 	if !fn.Defined && !r.eat("declare") {
 		return bad("function")
 	}
 	header := r.pop()
-	if rule, ok := header.Rule(); !ok || rule != RuleHeader {
+	if rule, ok := header.Rule(); !ok || rule != syntax.RuleHeader {
 		return bad("function")
 	}
 	if err := lowerHeader(fn, header); err != nil {
@@ -343,7 +344,7 @@ func lowerFunc(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 	}
 	if fn.Defined {
 		body := r.pop()
-		if rule, ok := body.Rule(); !ok || rule != RuleBody {
+		if rule, ok := body.Rule(); !ok || rule != syntax.RuleBody {
 			return bad("function")
 		}
 		if err := lowerBody(fn, body); err != nil {
@@ -357,11 +358,11 @@ func lowerFunc(file *File, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func lowerHeader(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerHeader(fn *Func, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
 	for {
 		ch := r.peek()
-		if rule, ok := ch.Rule(); ok && rule == RuleType {
+		if rule, ok := ch.Rule(); ok && rule == syntax.RuleType {
 			break
 		}
 		if !r.ok() {
@@ -369,11 +370,11 @@ func lowerHeader(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
 		}
 		if rule, ok := ch.Rule(); ok {
 			switch rule {
-			case RuleWord:
+			case syntax.RuleWord:
 				if resultAttr(ch) {
 					for {
 						next, ok := r.rule()
-						if !ok || next != RuleWord {
+						if !ok || next != syntax.RuleWord {
 							break
 						}
 						fn.ResultAttrs = append(fn.ResultAttrs, r.pop().Text())
@@ -381,7 +382,7 @@ func lowerHeader(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
 					continue
 				}
 				fn.Prefix = append(fn.Prefix, r.pop().Text())
-			case RuleCallingConventionNumber:
+			case syntax.RuleCallingConventionNumber:
 				fn.Conv = r.pop().Text()
 			default:
 				return bad("function")
@@ -419,7 +420,7 @@ func lowerHeader(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
 		return err
 	}
 	fn.Result = valueType
-	if r.name() != TermGlobalReference.String() {
+	if r.name() != syntax.TermGlobalReference.String() {
 		return bad("function name")
 	}
 	fn.Name, err = sigilName(r.pop().Text())
@@ -447,13 +448,13 @@ func lowerHeader(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
 			return bad("function suffix")
 		}
 		switch rule {
-		case RuleAttach:
+		case syntax.RuleAttach:
 			att, err := lowerAttach(ch)
 			if err != nil {
 				return err
 			}
 			fn.Attach = append(fn.Attach, att)
-		case RulePiece:
+		case syntax.RulePiece:
 			fn.Suffix = append(fn.Suffix, ch.Text())
 		default:
 			return bad("function suffix")
@@ -462,7 +463,7 @@ func lowerHeader(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func resultAttr(n xparse.SyntaxNode[Term, Rule]) bool {
+func resultAttr(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) bool {
 	if n.ChildCount() == 0 {
 		return false
 	}
@@ -477,7 +478,7 @@ func resultAttr(n xparse.SyntaxNode[Term, Rule]) bool {
 	return false
 }
 
-func lowerParams(n xparse.SyntaxNode[Term, Rule]) ([]*Param, bool, error) {
+func lowerParams(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]*Param, bool, error) {
 	r := &reader{n: n}
 	if !r.eat("(") {
 		return nil, false, bad("parameter")
@@ -486,11 +487,11 @@ func lowerParams(n xparse.SyntaxNode[Term, Rule]) ([]*Param, bool, error) {
 	variadic := false
 	if !r.eat(")") {
 		for {
-			if r.eat(TermEllipsis.String()) {
+			if r.eat(syntax.TermEllipsis.String()) {
 				variadic = true
 				break
 			}
-			if rule, ok := r.rule(); !ok || rule != RuleParameter {
+			if rule, ok := r.rule(); !ok || rule != syntax.RuleParameter {
 				return nil, false, bad("parameter")
 			}
 			param, err := lowerParam(r.pop())
@@ -509,7 +510,7 @@ func lowerParams(n xparse.SyntaxNode[Term, Rule]) ([]*Param, bool, error) {
 	return params, variadic, nil
 }
 
-func lowerParam(n xparse.SyntaxNode[Term, Rule]) (*Param, error) {
+func lowerParam(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Param, error) {
 	r := &reader{n: n}
 	valueType, err := lowerTypeNode(r.pop())
 	if err != nil {
@@ -518,12 +519,12 @@ func lowerParam(n xparse.SyntaxNode[Term, Rule]) (*Param, error) {
 	param := &Param{Type: valueType}
 	for {
 		rule, ok := r.rule()
-		if !ok || rule != RuleWord {
+		if !ok || rule != syntax.RuleWord {
 			break
 		}
 		param.Attrs = append(param.Attrs, r.pop().Text())
 	}
-	if r.name() == TermLocalReference.String() {
+	if r.name() == syntax.TermLocalReference.String() {
 		param.Name, err = sigilName(r.pop().Text())
 		if err != nil {
 			return nil, err
@@ -535,19 +536,19 @@ func lowerParam(n xparse.SyntaxNode[Term, Rule]) (*Param, error) {
 	return param, nil
 }
 
-func lowerBody(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerBody(fn *Func, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	var block *Block
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
 		switch ch.Name() {
 		case "{", "}":
 			continue
-		case TermLabelName.String():
+		case syntax.TermLabelName.String():
 			block = &Block{Name: ch.Text()}
 			fn.Blocks = append(fn.Blocks, block)
 			continue
 		}
-		if rule, ok := ch.Rule(); !ok || rule != RuleInstruction {
+		if rule, ok := ch.Rule(); !ok || rule != syntax.RuleInstruction {
 			return bad("instruction")
 		}
 		if block == nil {
@@ -563,10 +564,10 @@ func lowerBody(fn *Func, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func lowerInst(n xparse.SyntaxNode[Term, Rule]) (*Inst, error) {
+func lowerInst(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Inst, error) {
 	in := &Inst{}
 	r := &reader{n: n}
-	if r.name() == TermLocalDefinition.String() {
+	if r.name() == syntax.TermLocalDefinition.String() {
 		var err error
 		in.Name, err = sigilName(r.pop().Text())
 		if err != nil {
@@ -686,7 +687,7 @@ func finish(in *Inst, r *reader, align bool) (*Inst, error) {
 			in.Alignment = int(n)
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleAttach {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleAttach {
 			att, err := lowerAttach(r.pop())
 			if err != nil {
 				return nil, err
@@ -721,7 +722,7 @@ func lowerAlloca(in *Inst, r *reader) (*Inst, error) {
 			in.Alignment = int(n)
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleAttach {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleAttach {
 			att, err := lowerAttach(r.pop())
 			if err != nil {
 				return nil, err
@@ -729,7 +730,7 @@ func lowerAlloca(in *Inst, r *reader) (*Inst, error) {
 			in.Attach = append(in.Attach, att)
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleOperand {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleOperand {
 			if in.Count != nil {
 				return nil, bad("alloca")
 			}
@@ -807,7 +808,7 @@ func lowerStore(in *Inst, r *reader) (*Inst, error) {
 
 func takeAtomic(in *Inst, r *reader) error {
 	var scope, ord string
-	if rule, ok := r.rule(); ok && rule == RuleSync {
+	if rule, ok := r.rule(); ok && rule == syntax.RuleSync {
 		scope = r.pop().Text()
 	}
 	if isOrdering(r.name()) {
@@ -862,7 +863,7 @@ func lowerGEPInst(in *Inst, r *reader) (*Inst, error) {
 			in.Alignment = int(n)
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleAttach {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleAttach {
 			att, err := lowerAttach(r.pop())
 			if err != nil {
 				return nil, err
@@ -870,7 +871,7 @@ func lowerGEPInst(in *Inst, r *reader) (*Inst, error) {
 			in.Attach = append(in.Attach, att)
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleOperand {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleOperand {
 			idx, err := lowerOperand(r.pop())
 			if err != nil {
 				return nil, err
@@ -940,7 +941,7 @@ values:
 
 func lowerICmp(in *Inst, r *reader) (*Inst, error) {
 	in.Kind = InstICmp
-	for r.name() == TermIdentifier.String() {
+	for r.name() == syntax.TermIdentifier.String() {
 		in.Flags = append(in.Flags, r.pop().Text())
 	}
 	pred, err := ParseIPred(r.pop().Text())
@@ -1058,7 +1059,7 @@ func lowerPhi(in *Inst, r *reader) (*Inst, error) {
 			in.Incoming = append(in.Incoming, arm)
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleAttach {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleAttach {
 			att, err := lowerAttach(r.pop())
 			if err != nil {
 				return nil, err
@@ -1082,7 +1083,7 @@ func readPhi(r *reader, valueType *Type) (Incoming, error) {
 	if err != nil {
 		return Incoming{}, err
 	}
-	if !r.eat(",") || r.name() != TermLocalReference.String() {
+	if !r.eat(",") || r.name() != syntax.TermLocalReference.String() {
 		return Incoming{}, bad("phi")
 	}
 	block, err := sigilName(r.pop().Text())
@@ -1144,7 +1145,7 @@ func lowerInsert(in *Inst, r *reader) (*Inst, error) {
 func readPath(in *Inst, r *reader) ([]int, error) {
 	var path []int
 	for r.eat(",") {
-		if r.name() == TermNumber.String() {
+		if r.name() == syntax.TermNumber.String() {
 			n, err := integer(r.pop().Text())
 			if err != nil {
 				return nil, err
@@ -1152,7 +1153,7 @@ func readPath(in *Inst, r *reader) ([]int, error) {
 			path = append(path, int(n))
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleAttach {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleAttach {
 			att, err := lowerAttach(r.pop())
 			if err != nil {
 				return nil, err
@@ -1185,14 +1186,14 @@ func lowerBr(in *Inst, r *reader) (*Inst, error) {
 				return nil, bad("br")
 			}
 			r.pop()
-			if r.name() != TermLocalReference.String() {
+			if r.name() != syntax.TermLocalReference.String() {
 				return nil, bad("label")
 			}
 			in.TrueLabel, err = sigilName(r.pop().Text())
 			if err != nil {
 				return nil, err
 			}
-			if !r.eat(",") || !r.eat("label") || r.name() != TermLocalReference.String() {
+			if !r.eat(",") || !r.eat("label") || r.name() != syntax.TermLocalReference.String() {
 				return nil, bad("label")
 			}
 			in.FalseLabel, err = sigilName(r.pop().Text())
@@ -1202,7 +1203,7 @@ func lowerBr(in *Inst, r *reader) (*Inst, error) {
 			branched = true
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleAttach {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleAttach {
 			att, err := lowerAttach(r.pop())
 			if err != nil {
 				return nil, err
@@ -1233,7 +1234,7 @@ func lowerRet(in *Inst, r *reader) (*Inst, error) {
 		return nil, err
 	}
 	in.Type = valueType
-	if rule, ok := r.rule(); ok && rule == RuleTypedValue {
+	if rule, ok := r.rule(); ok && rule == syntax.RuleTypedValue {
 		if valueType.Kind == KindVoid {
 			return nil, bad("ret")
 		}
@@ -1387,7 +1388,7 @@ func lowerAtomicRMW(in *Inst, r *reader) (*Inst, error) {
 	if r.eat("volatile") {
 		in.IsVolatile = true
 	}
-	if rule, ok := r.rule(); ok && rule == RuleSync {
+	if rule, ok := r.rule(); ok && rule == syntax.RuleSync {
 		in.SyncScope = r.pop().Text()
 	}
 	if !isAtomicOp(r.name()) {
@@ -1426,7 +1427,7 @@ func lowerCmpXchg(in *Inst, r *reader) (*Inst, error) {
 		r.pop()
 		in.IsVolatile = true
 	}
-	if rule, ok := r.rule(); ok && rule == RuleSync {
+	if rule, ok := r.rule(); ok && rule == syntax.RuleSync {
 		in.SyncScope = r.pop().Text()
 	}
 	ptr, err := lowerOperand(r.pop())
@@ -1465,7 +1466,7 @@ func lowerCmpXchg(in *Inst, r *reader) (*Inst, error) {
 
 func lowerFence(in *Inst, r *reader) (*Inst, error) {
 	in.Kind = InstFence
-	if rule, ok := r.rule(); ok && rule == RuleSync {
+	if rule, ok := r.rule(); ok && rule == syntax.RuleSync {
 		in.SyncScope = r.pop().Text()
 	}
 	if !isOrdering(r.name()) {
@@ -1483,7 +1484,7 @@ func lowerSwitch(in *Inst, r *reader) (*Inst, error) {
 	}
 	in.Type = val.Type
 	in.Left = val.Value
-	if !r.eat(",") || !r.eat("label") || r.name() != TermLocalReference.String() {
+	if !r.eat(",") || !r.eat("label") || r.name() != syntax.TermLocalReference.String() {
 		return nil, bad("switch")
 	}
 	in.Target, err = sigilName(r.pop().Text())
@@ -1498,7 +1499,7 @@ func lowerSwitch(in *Inst, r *reader) (*Inst, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !r.eat(",") || !r.eat("label") || r.name() != TermLocalReference.String() {
+		if !r.eat(",") || !r.eat("label") || r.name() != syntax.TermLocalReference.String() {
 			return nil, bad("switch")
 		}
 		label, err := sigilName(r.pop().Text())
@@ -1562,7 +1563,7 @@ func lowerIndirect(in *Inst, r *reader) (*Inst, error) {
 	}
 	for r.name() == "label" {
 		r.pop()
-		if r.name() != TermLocalReference.String() {
+		if r.name() != syntax.TermLocalReference.String() {
 			return nil, bad("label")
 		}
 		label, err := sigilName(r.pop().Text())
@@ -1599,25 +1600,25 @@ func lowerVAArg(in *Inst, r *reader) (*Inst, error) {
 }
 
 func fillCall(in *Inst, r *reader) error {
-	if rule, ok := r.rule(); !ok || rule != RuleCallBody {
+	if rule, ok := r.rule(); !ok || rule != syntax.RuleCallBody {
 		return bad("call")
 	}
 	return lowerCallBody(in, r.pop())
 }
 
-func lowerCallBody(in *Inst, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerCallBody(in *Inst, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	r := &reader{n: n}
 	for isFastMath(r.name()) {
 		in.Flags = append(in.Flags, r.pop().Text())
 	}
-	if rule, ok := r.rule(); ok && rule == RuleCallingConventionNumber {
+	if rule, ok := r.rule(); ok && rule == syntax.RuleCallingConventionNumber {
 		in.Conv = r.pop().Text()
 	} else if isConv(r.name()) {
 		in.Conv = r.pop().Text()
 	}
 	for {
 		rule, ok := r.rule()
-		if !ok || rule != RuleWord {
+		if !ok || rule != syntax.RuleWord {
 			break
 		}
 		in.ResultAttrs = append(in.ResultAttrs, r.pop().Text())
@@ -1660,7 +1661,7 @@ func lowerCallBody(in *Inst, n xparse.SyntaxNode[Term, Rule]) error {
 		case "#":
 			r.pop()
 			in.Groups = append(in.Groups, "#"+r.pop().Text())
-		case TermIdentifier.String(), TermAttributeGroupReference.String():
+		case syntax.TermIdentifier.String(), syntax.TermAttributeGroupReference.String():
 			in.Groups = append(in.Groups, r.pop().Text())
 		default:
 			return bad("call")
@@ -1670,7 +1671,7 @@ func lowerCallBody(in *Inst, n xparse.SyntaxNode[Term, Rule]) error {
 }
 
 func readInvoke(in *Inst, r *reader) error {
-	if !r.eat("to") || !r.eat("label") || r.name() != TermLocalReference.String() {
+	if !r.eat("to") || !r.eat("label") || r.name() != syntax.TermLocalReference.String() {
 		return bad("invoke")
 	}
 	var err error
@@ -1678,7 +1679,7 @@ func readInvoke(in *Inst, r *reader) error {
 	if err != nil {
 		return err
 	}
-	if !r.eat("unwind") || !r.eat("label") || r.name() != TermLocalReference.String() {
+	if !r.eat("unwind") || !r.eat("label") || r.name() != syntax.TermLocalReference.String() {
 		return bad("invoke")
 	}
 	in.FalseLabel, err = sigilName(r.pop().Text())
@@ -1686,7 +1687,7 @@ func readInvoke(in *Inst, r *reader) error {
 }
 
 func readCallBr(in *Inst, r *reader) error {
-	if !r.eat("to") || !r.eat("label") || r.name() != TermLocalReference.String() {
+	if !r.eat("to") || !r.eat("label") || r.name() != syntax.TermLocalReference.String() {
 		return bad("callbr")
 	}
 	var err error
@@ -1699,7 +1700,7 @@ func readCallBr(in *Inst, r *reader) error {
 	}
 	for r.name() == "label" {
 		r.pop()
-		if r.name() != TermLocalReference.String() {
+		if r.name() != syntax.TermLocalReference.String() {
 			return bad("label")
 		}
 		label, err := sigilName(r.pop().Text())
@@ -1715,16 +1716,16 @@ func readCallBr(in *Inst, r *reader) error {
 	return nil
 }
 
-func lowerAttach(n xparse.SyntaxNode[Term, Rule]) (Attach, error) {
+func lowerAttach(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Attach, error) {
 	if n.ChildCount() < 3 {
 		return Attach{}, bad("metadata")
 	}
 	return Attach{Name: n.Child(1).Text(), Body: n.Child(2).Text()}, nil
 }
 
-func lowerTypeNode(n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
+func lowerTypeNode(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Type, error) {
 	rule, ok := n.Rule()
-	if !ok || (rule != RuleType && rule != RuleTypeWithoutStruct) {
+	if !ok || (rule != syntax.RuleType && rule != syntax.RuleTypeWithoutStruct) {
 		return nil, bad("type")
 	}
 	r := &reader{n: n}
@@ -1738,7 +1739,7 @@ func lowerTypeNode(n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
 			r.pop()
 			continue
 		}
-		if rule, ok := r.rule(); ok && rule == RuleStar {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleStar {
 			valueType, err = wrapStar(valueType, r.pop())
 			if err != nil {
 				return nil, err
@@ -1747,7 +1748,7 @@ func lowerTypeNode(n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
 		}
 		break
 	}
-	if rule, ok := r.rule(); ok && rule == RuleFunctionTail {
+	if rule, ok := r.rule(); ok && rule == syntax.RuleFunctionTail {
 		valueType, err = applyFunction(valueType, r.pop())
 		if err != nil {
 			return nil, err
@@ -1764,7 +1765,7 @@ func lowerCore(r *reader) (*Type, error) {
 	case "ptr":
 		r.pop()
 		valueType := Ptr()
-		if rule, ok := r.rule(); ok && rule == RuleAddressSpace {
+		if rule, ok := r.rule(); ok && rule == syntax.RuleAddressSpace {
 			space, err := addrOf(r.pop())
 			if err != nil {
 				return nil, err
@@ -1772,13 +1773,13 @@ func lowerCore(r *reader) (*Type, error) {
 			valueType.AddrSpace = space
 		}
 		return valueType, nil
-	case TermIntegerType.String():
+	case syntax.TermIntegerType.String():
 		bits, ok := intBits(r.pop().Text())
 		if !ok {
 			return nil, bad("type")
 		}
 		return IntType(bits), nil
-	case TermLocalReference.String():
+	case syntax.TermLocalReference.String():
 		name, err := sigilName(r.pop().Text())
 		if err != nil {
 			return nil, err
@@ -1844,7 +1845,7 @@ func lowerCore(r *reader) (*Type, error) {
 				return nil, bad("type")
 			}
 			return PackedStruct(fields...), nil
-		case TermIdentifier.String():
+		case syntax.TermIdentifier.String():
 			if r.pop().Text() != "vscale" || r.pop().Text() != "x" {
 				return nil, bad("type")
 			}
@@ -1865,7 +1866,7 @@ func lowerCore(r *reader) (*Type, error) {
 			valueType := Vector(n, elem)
 			valueType.Scalable = true
 			return valueType, nil
-		case TermNumber.String():
+		case syntax.TermNumber.String():
 			n, err := integer(r.pop().Text())
 			if err != nil {
 				return nil, err
@@ -1910,7 +1911,7 @@ func readTypes(r *reader, close string) ([]*Type, error) {
 	return fields, nil
 }
 
-func wrapStar(elem *Type, n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
+func wrapStar(elem *Type, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Type, error) {
 	space := 0
 	if n.ChildCount() >= 2 {
 		var err error
@@ -1922,7 +1923,7 @@ func wrapStar(elem *Type, n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
 	return &Type{Kind: KindPtr, Elem: elem, AddrSpace: space}, nil
 }
 
-func addrOf(n xparse.SyntaxNode[Term, Rule]) (int, error) {
+func addrOf(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (int, error) {
 	r := &reader{n: n}
 	if !r.eat("addrspace") || !r.eat("(") {
 		return 0, bad("addrspace")
@@ -1937,7 +1938,7 @@ func addrOf(n xparse.SyntaxNode[Term, Rule]) (int, error) {
 	return int(v), nil
 }
 
-func applyFunction(ret *Type, n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
+func applyFunction(ret *Type, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Type, error) {
 	r := &reader{n: n}
 	if !r.eat("(") {
 		return nil, bad("type")
@@ -1946,7 +1947,7 @@ func applyFunction(ret *Type, n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
 	variadic := false
 	if !r.eat(")") {
 		for {
-			if r.eat(TermEllipsis.String()) {
+			if r.eat(syntax.TermEllipsis.String()) {
 				variadic = true
 				break
 			}
@@ -1966,7 +1967,7 @@ func applyFunction(ret *Type, n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
 	valueType := &Type{Kind: KindFunc, Ret: ret, Fields: params, Variadic: variadic}
 	for {
 		rule, ok := r.rule()
-		if !ok || rule != RuleStar {
+		if !ok || rule != syntax.RuleStar {
 			break
 		}
 		var err error
@@ -1981,9 +1982,9 @@ func applyFunction(ret *Type, n xparse.SyntaxNode[Term, Rule]) (*Type, error) {
 	return valueType, nil
 }
 
-func lowerOperand(n xparse.SyntaxNode[Term, Rule]) (Operand, error) {
+func lowerOperand(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Operand, error) {
 	rule, ok := n.Rule()
-	if !ok || (rule != RuleOperand && rule != RuleOperandWithoutStruct) {
+	if !ok || (rule != syntax.RuleOperand && rule != syntax.RuleOperandWithoutStruct) {
 		return Operand{}, bad("value")
 	}
 	if n.ChildCount() < 2 {
@@ -2000,15 +2001,15 @@ func lowerOperand(n xparse.SyntaxNode[Term, Rule]) (Operand, error) {
 	return Operand{Type: valueType, Value: val}, nil
 }
 
-func lowerTypedValue(n xparse.SyntaxNode[Term, Rule], ctx *Type) (*Value, error) {
-	if rule, ok := n.Rule(); !ok || rule != RuleTypedValue {
+func lowerTypedValue(n xparse.SyntaxNode[syntax.Term, syntax.Rule], ctx *Type) (*Value, error) {
+	if rule, ok := n.Rule(); !ok || rule != syntax.RuleTypedValue {
 		return nil, bad("value")
 	}
 	var attrs []string
-	var val xparse.SyntaxNode[Term, Rule]
+	var val xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
-		if rule, ok := ch.Rule(); ok && rule == RuleWord {
+		if rule, ok := ch.Rule(); ok && rule == syntax.RuleWord {
 			attrs = append(attrs, ch.Text())
 			continue
 		}
@@ -2024,41 +2025,41 @@ func lowerTypedValue(n xparse.SyntaxNode[Term, Rule], ctx *Type) (*Value, error)
 	return out, nil
 }
 
-func lowerValue(n xparse.SyntaxNode[Term, Rule], ctx *Type) (*Value, error) {
-	if rule, ok := n.Rule(); !ok || rule != RuleValue || n.ChildCount() != 1 {
+func lowerValue(n xparse.SyntaxNode[syntax.Term, syntax.Rule], ctx *Type) (*Value, error) {
+	if rule, ok := n.Rule(); !ok || rule != syntax.RuleValue || n.ChildCount() != 1 {
 		return nil, bad("value")
 	}
 	ch := n.Child(0)
 	if rule, ok := ch.Rule(); ok {
 		switch rule {
-		case RuleGetElementPointer:
+		case syntax.RuleGetElementPointer:
 			return lowerConstantGetElementPointer(ch)
-		case RuleConstantExpression:
+		case syntax.RuleConstantExpression:
 			return &Value{Kind: ValExpr, Body: ch.Text()}, nil
-		case RuleAggregate:
+		case syntax.RuleAggregate:
 			return lowerAggregate(ch)
-		case RuleMetadataNode:
+		case syntax.RuleMetadataNode:
 			return &Value{Kind: ValMeta, Body: ch.Text()}, nil
 		default:
 			return nil, bad("value")
 		}
 	}
 	switch ch.Name() {
-	case TermLocalReference.String():
+	case syntax.TermLocalReference.String():
 		name, err := sigilName(ch.Text())
 		if err != nil {
 			return nil, err
 		}
 		return Local(name), nil
-	case TermGlobalReference.String():
+	case syntax.TermGlobalReference.String():
 		name, err := sigilName(ch.Text())
 		if err != nil {
 			return nil, err
 		}
 		return GlobalRef(name), nil
-	case TermNumber.String():
+	case syntax.TermNumber.String():
 		return numberValue(ch.Text(), ctx)
-	case TermCString.String():
+	case syntax.TermCString.String():
 		text, err := decodeCString(ch.Text())
 		if err != nil {
 			return nil, err
@@ -2081,7 +2082,7 @@ func lowerValue(n xparse.SyntaxNode[Term, Rule], ctx *Type) (*Value, error) {
 	}
 }
 
-func lowerConstantGetElementPointer(n xparse.SyntaxNode[Term, Rule]) (*Value, error) {
+func lowerConstantGetElementPointer(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Value, error) {
 	v := &Value{Kind: ValGEP}
 	r := &reader{n: n}
 	if !r.eat("getelementptr") {
@@ -2129,7 +2130,7 @@ body:
 	return v, nil
 }
 
-func lowerAggregate(n xparse.SyntaxNode[Term, Rule]) (*Value, error) {
+func lowerAggregate(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Value, error) {
 	switch n.Child(0).Name() {
 	case "{":
 		elems, err := aggregateElements(n)
@@ -2161,7 +2162,7 @@ func lowerAggregate(n xparse.SyntaxNode[Term, Rule]) (*Value, error) {
 	}
 }
 
-func aggregateElements(n xparse.SyntaxNode[Term, Rule]) ([]Operand, error) {
+func aggregateElements(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Operand, error) {
 	var elems []Operand
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
@@ -2169,7 +2170,7 @@ func aggregateElements(n xparse.SyntaxNode[Term, Rule]) ([]Operand, error) {
 		if !ok {
 			continue
 		}
-		if rule != RuleOperand && rule != RuleOperandWithoutStruct {
+		if rule != syntax.RuleOperand && rule != syntax.RuleOperandWithoutStruct {
 			continue
 		}
 		op, err := lowerOperand(ch)

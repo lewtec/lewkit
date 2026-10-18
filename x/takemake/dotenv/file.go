@@ -23,7 +23,7 @@ var (
 type Assignment struct {
 	Key     string
 	Value   string
-	Quote   Quote
+	Quote   syntax.Quote
 	Comment string
 	Export  bool
 }
@@ -46,7 +46,7 @@ func (f *File) Assign(key, value string) *File {
 	f.Assignments = append(f.Assignments, &Assignment{
 		Key:   key,
 		Value: value,
-		Quote: QuoteBare,
+		Quote: syntax.QuoteBare,
 	})
 	return f
 }
@@ -67,17 +67,17 @@ func (f *File) Comment(text string) *File {
 
 // Bare writes the latest value without quotes.
 func (f *File) Bare() *File {
-	return f.setQuote(QuoteBare)
+	return f.setQuote(syntax.QuoteBare)
 }
 
 // Single writes the latest value in single quotes.
 func (f *File) Single() *File {
-	return f.setQuote(QuoteSingle)
+	return f.setQuote(syntax.QuoteSingle)
 }
 
 // Double writes the latest value in double quotes.
 func (f *File) Double() *File {
-	return f.setQuote(QuoteDouble)
+	return f.setQuote(syntax.QuoteDouble)
 }
 
 // Export marks the latest assignment as an export.
@@ -88,7 +88,7 @@ func (f *File) Export() *File {
 	return f
 }
 
-func (f *File) setQuote(quote Quote) *File {
+func (f *File) setQuote(quote syntax.Quote) *File {
 	if last := f.last(); last != nil {
 		last.Quote = quote
 	}

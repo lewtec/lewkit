@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/errs"
+	syntax "github.com/lewtec/lewkit/x/parse/dotenv"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,22 +35,22 @@ func TestRoundTrip(t *testing.T) {
 
 	first, printed := takeMake(t, src)
 	require.Equal(t, []view{
-		{"HOST", "localhost", "database", QuoteDouble, true},
-		{"PORT", "5432", "primary", QuoteBare, false},
-		{"PASSWORD", "hunter2", "", QuoteSingle, false},
-		{"LIT", `a\nb`, "", QuoteSingle, false},
-		{"MSG", "a\nb", "", QuoteDouble, false},
-		{"SAY", `say "hi"`, "", QuoteDouble, false},
-		{"TOKEN", "raw#hash", "", QuoteBare, false},
-		{"RAW", `a\nb`, "", QuoteBare, false},
-		{"EMPTY", "", "", QuoteBare, false},
-		{"BLANK", "", "", QuoteDouble, false},
-		{"Q", "", "", QuoteSingle, false},
-		{"SP", " a ", "", QuoteDouble, false},
-		{"COLOR", "#fff", "", QuoteBare, false},
-		{"GAP", "", "note", QuoteBare, false},
-		{"DUP", "1", "", QuoteBare, false},
-		{"DUP", "2", "trailer", QuoteBare, false},
+		{"HOST", "localhost", "database", syntax.QuoteDouble, true},
+		{"PORT", "5432", "primary", syntax.QuoteBare, false},
+		{"PASSWORD", "hunter2", "", syntax.QuoteSingle, false},
+		{"LIT", `a\nb`, "", syntax.QuoteSingle, false},
+		{"MSG", "a\nb", "", syntax.QuoteDouble, false},
+		{"SAY", `say "hi"`, "", syntax.QuoteDouble, false},
+		{"TOKEN", "raw#hash", "", syntax.QuoteBare, false},
+		{"RAW", `a\nb`, "", syntax.QuoteBare, false},
+		{"EMPTY", "", "", syntax.QuoteBare, false},
+		{"BLANK", "", "", syntax.QuoteDouble, false},
+		{"Q", "", "", syntax.QuoteSingle, false},
+		{"SP", " a ", "", syntax.QuoteDouble, false},
+		{"COLOR", "#fff", "", syntax.QuoteBare, false},
+		{"GAP", "", "note", syntax.QuoteBare, false},
+		{"DUP", "1", "", syntax.QuoteBare, false},
+		{"DUP", "2", "trailer", syntax.QuoteBare, false},
 	}, views(first))
 
 	second, printedAgain := takeMake(t, printed)
@@ -61,7 +62,7 @@ func TestCommentStaysOnAssignment(t *testing.T) {
 	t.Parallel()
 	first, _ := takeMake(t, "# above\nKEY=1 # inline\n")
 	require.Equal(t, []view{
-		{"KEY", "1", "above\ninline", QuoteBare, false},
+		{"KEY", "1", "above\ninline", syntax.QuoteBare, false},
 	}, views(first))
 }
 
@@ -101,7 +102,7 @@ func TestAssignStoresTheChild(t *testing.T) {
 	require.Equal(t, "A", got.Key)
 	require.Equal(t, "1", got.Value)
 	require.Equal(t, "note", got.Comment)
-	require.Equal(t, QuoteSingle, got.Quote)
+	require.Equal(t, syntax.QuoteSingle, got.Quote)
 }
 
 func TestRejectsLine(t *testing.T) {
@@ -143,7 +144,7 @@ func TestMakeRejectsQuote(t *testing.T) {
 	require.ErrorIs(t, bare.Make(io.Discard), errs.ErrInvalid)
 	unset := New().Assign("A", "1")
 	unset.Assignments[0].Quote = 0
-	require.ErrorIs(t, unset.Make(io.Discard), ErrQuote)
+	require.ErrorIs(t, unset.Make(io.Discard), syntax.ErrQuote)
 	require.ErrorIs(t, unset.Make(io.Discard), errs.ErrUnknown)
 }
 
@@ -182,7 +183,7 @@ type view struct {
 	key     string
 	value   string
 	comment string
-	quote   Quote
+	quote   syntax.Quote
 	export  bool
 }
 

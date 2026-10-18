@@ -4,14 +4,15 @@ import (
 	"fmt"
 
 	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/graphviz"
 )
 
-func lowerFile(src []byte, root xparse.SyntaxNode[Term, Rule]) (*File, error) {
+func lowerFile(src []byte, root xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*File, error) {
 	file := New()
 	for i := 0; i < root.ChildCount(); i++ {
 		ch := root.Child(i)
 		rule, ok := ch.Rule()
-		if !ok || rule != RuleTop {
+		if !ok || rule != syntax.RuleTop {
 			continue
 		}
 		g, err := lowerTop(src, ch)
@@ -23,7 +24,7 @@ func lowerFile(src []byte, root xparse.SyntaxNode[Term, Rule]) (*File, error) {
 	return file, nil
 }
 
-func lowerTop(src []byte, n xparse.SyntaxNode[Term, Rule]) (*Graph, error) {
+func lowerTop(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Graph, error) {
 	g := &Graph{}
 	directed := false
 	saw := false
@@ -31,11 +32,11 @@ func lowerTop(src []byte, n xparse.SyntaxNode[Term, Rule]) (*Graph, error) {
 		ch := n.Child(i)
 		if term, ok := ch.Term(); ok {
 			switch term {
-			case TermStrict:
+			case syntax.TermStrict:
 				g.Strict = true
-			case TermGraph:
+			case syntax.TermGraph:
 				saw = true
-			case TermDigraph:
+			case syntax.TermDigraph:
 				saw = true
 				directed = true
 				g.Directed = true
@@ -47,13 +48,13 @@ func lowerTop(src []byte, n xparse.SyntaxNode[Term, Rule]) (*Graph, error) {
 			continue
 		}
 		switch rule {
-		case RuleAtom:
+		case syntax.RuleAtom:
 			atom, err := lowerAtom(src, ch)
 			if err != nil {
 				return nil, err
 			}
 			g.Name = atom
-		case RuleStatement:
+		case syntax.RuleStatement:
 			if err := lowerStmt(g, src, ch, directed); err != nil {
 				return nil, err
 			}
@@ -65,7 +66,7 @@ func lowerTop(src []byte, n xparse.SyntaxNode[Term, Rule]) (*Graph, error) {
 	return g, nil
 }
 
-func lowerStmt(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) error {
+func lowerStmt(g *Graph, src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule], directed bool) error {
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
 		rule, ok := ch.Rule()
@@ -73,18 +74,18 @@ func lowerStmt(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule], directed b
 			continue
 		}
 		switch rule {
-		case RuleAttributeStatement:
+		case syntax.RuleAttributeStatement:
 			return lowerAttr(g, src, ch)
-		case RuleLead:
+		case syntax.RuleLead:
 			return lowerLead(g, src, ch, directed)
-		case RuleSubgraphStatement:
+		case syntax.RuleSubgraphStatement:
 			return lowerSub(g, src, ch, directed)
 		}
 	}
 	return syntaxAt(n)
 }
 
-func lowerAttr(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule]) error {
+func lowerAttr(g *Graph, src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	var kind AttrKind
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
@@ -93,11 +94,11 @@ func lowerAttr(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule]) error {
 			continue
 		}
 		switch term {
-		case TermGraph:
+		case syntax.TermGraph:
 			kind = AttrGraph
-		case TermNode:
+		case syntax.TermNode:
 			kind = AttrNode
-		case TermEdge:
+		case syntax.TermEdge:
 			kind = AttrEdge
 		}
 	}
@@ -115,9 +116,9 @@ func lowerAttr(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func lowerLead(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) error {
-	atomN := findRule(n, RuleAtom)
-	tailN := findRule(n, RuleTail)
+func lowerLead(g *Graph, src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule], directed bool) error {
+	atomN := findRule(n, syntax.RuleAtom)
+	tailN := findRule(n, syntax.RuleTail)
 	if !atomN.Valid() || !tailN.Valid() {
 		return syntaxAt(n)
 	}
@@ -137,12 +138,12 @@ func lowerLead(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule], directed b
 		return nil
 	}
 	id := &NodeID{Name: name}
-	if portN := findRule(tailN, RulePort); portN.Valid() {
+	if portN := findRule(tailN, syntax.RulePort); portN.Valid() {
 		if err := fillPort(src, id, portN); err != nil {
 			return err
 		}
 	}
-	listN := findRule(tailN, RuleList)
+	listN := findRule(tailN, syntax.RuleList)
 	ids := []*NodeID{id}
 	var ends []*End
 	saw := false
@@ -171,9 +172,9 @@ func lowerLead(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule], directed b
 	return nil
 }
 
-func lowerSub(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) error {
-	blockN := findRule(n, RuleBlock)
-	tailN := findRule(n, RuleStatementTail)
+func lowerSub(g *Graph, src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule], directed bool) error {
+	blockN := findRule(n, syntax.RuleBlock)
+	tailN := findRule(n, syntax.RuleStatementTail)
 	if !blockN.Valid() {
 		return syntaxAt(n)
 	}
@@ -203,11 +204,11 @@ func lowerSub(g *Graph, src []byte, n xparse.SyntaxNode[Term, Rule], directed bo
 	return nil
 }
 
-func lowerBlock(src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) (*Graph, error) {
+func lowerBlock(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule], directed bool) (*Graph, error) {
 	g := &Graph{Sub: true, Bare: true}
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
-		if term, ok := ch.Term(); ok && term == TermSubgraph {
+		if term, ok := ch.Term(); ok && term == syntax.TermSubgraph {
 			g.Bare = false
 			continue
 		}
@@ -216,13 +217,13 @@ func lowerBlock(src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) (*Gr
 			continue
 		}
 		switch rule {
-		case RuleAtom:
+		case syntax.RuleAtom:
 			atom, err := lowerAtom(src, ch)
 			if err != nil {
 				return nil, err
 			}
 			g.Name = atom
-		case RuleStatement:
+		case syntax.RuleStatement:
 			if err := lowerStmt(g, src, ch, directed); err != nil {
 				return nil, err
 			}
@@ -231,13 +232,13 @@ func lowerBlock(src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) (*Gr
 	return g, nil
 }
 
-func walkList(src []byte, n xparse.SyntaxNode[Term, Rule], ids *[]*NodeID, ends *[]*End, saw *bool, directed bool) error {
+func walkList(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule], ids *[]*NodeID, ends *[]*End, saw *bool, directed bool) error {
 	if !n.Valid() || n.ChildCount() == 0 {
 		return nil
 	}
 	if isLit(n.Child(0), ",") {
-		idN := findRule(n, RuleNodeIdentifier)
-		rest := findRule(n, RuleList)
+		idN := findRule(n, syntax.RuleNodeIdentifier)
+		rest := findRule(n, syntax.RuleList)
 		if !idN.Valid() {
 			return syntaxAt(n)
 		}
@@ -255,14 +256,14 @@ func walkList(src []byte, n xparse.SyntaxNode[Term, Rule], ids *[]*NodeID, ends 
 	return nil
 }
 
-func walkEdge(src []byte, n xparse.SyntaxNode[Term, Rule], ends *[]*End, directed bool) error {
+func walkEdge(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule], ends *[]*End, directed bool) error {
 	if !n.Valid() || n.ChildCount() == 0 || !isEdgeOp(n.Child(0)) {
 		return nil
 	}
 	if err := checkOp(src, n.Child(0), directed); err != nil {
 		return err
 	}
-	endN := findRule(n, RuleEnd)
+	endN := findRule(n, syntax.RuleEnd)
 	if !endN.Valid() {
 		return syntaxAt(n)
 	}
@@ -271,18 +272,18 @@ func walkEdge(src []byte, n xparse.SyntaxNode[Term, Rule], ends *[]*End, directe
 		return err
 	}
 	*ends = append(*ends, end)
-	return walkEdge(src, findRule(n, RuleEdgeTail), ends, directed)
+	return walkEdge(src, findRule(n, syntax.RuleEdgeTail), ends, directed)
 }
 
-func lowerEnd(src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) (*End, error) {
-	if idsN := findRule(n, RuleIdentifiers); idsN.Valid() {
+func lowerEnd(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule], directed bool) (*End, error) {
+	if idsN := findRule(n, syntax.RuleIdentifiers); idsN.Valid() {
 		ids, err := lowerIDs(src, idsN)
 		if err != nil {
 			return nil, err
 		}
 		return &End{IDs: ids}, nil
 	}
-	if blockN := findRule(n, RuleBlock); blockN.Valid() {
+	if blockN := findRule(n, syntax.RuleBlock); blockN.Valid() {
 		sub, err := lowerBlock(src, blockN, directed)
 		if err != nil {
 			return nil, err
@@ -292,12 +293,12 @@ func lowerEnd(src []byte, n xparse.SyntaxNode[Term, Rule], directed bool) (*End,
 	return nil, syntaxAt(n)
 }
 
-func lowerIDs(src []byte, n xparse.SyntaxNode[Term, Rule]) ([]*NodeID, error) {
+func lowerIDs(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]*NodeID, error) {
 	var ids []*NodeID
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
 		rule, ok := ch.Rule()
-		if !ok || rule != RuleNodeIdentifier {
+		if !ok || rule != syntax.RuleNodeIdentifier {
 			continue
 		}
 		id, err := lowerNodeID(src, ch)
@@ -312,8 +313,8 @@ func lowerIDs(src []byte, n xparse.SyntaxNode[Term, Rule]) ([]*NodeID, error) {
 	return ids, nil
 }
 
-func lowerNodeID(src []byte, n xparse.SyntaxNode[Term, Rule]) (*NodeID, error) {
-	atomN := findRule(n, RuleAtom)
+func lowerNodeID(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*NodeID, error) {
+	atomN := findRule(n, syntax.RuleAtom)
 	if !atomN.Valid() {
 		return nil, syntaxAt(n)
 	}
@@ -322,7 +323,7 @@ func lowerNodeID(src []byte, n xparse.SyntaxNode[Term, Rule]) (*NodeID, error) {
 		return nil, err
 	}
 	id := &NodeID{Name: name}
-	if portN := findRule(n, RulePort); portN.Valid() {
+	if portN := findRule(n, syntax.RulePort); portN.Valid() {
 		if err := fillPort(src, id, portN); err != nil {
 			return nil, err
 		}
@@ -330,12 +331,12 @@ func lowerNodeID(src []byte, n xparse.SyntaxNode[Term, Rule]) (*NodeID, error) {
 	return id, nil
 }
 
-func fillPort(src []byte, id *NodeID, n xparse.SyntaxNode[Term, Rule]) error {
+func fillPort(src []byte, id *NodeID, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	var atoms []Atom
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
 		rule, ok := ch.Rule()
-		if !ok || rule != RuleAtom {
+		if !ok || rule != syntax.RuleAtom {
 			continue
 		}
 		atom, err := lowerAtom(src, ch)
@@ -356,8 +357,8 @@ func fillPort(src []byte, id *NodeID, n xparse.SyntaxNode[Term, Rule]) error {
 	return nil
 }
 
-func lowerAtom(src []byte, n xparse.SyntaxNode[Term, Rule]) (Atom, error) {
-	if strs := findRule(n, RuleStrings); strs.Valid() {
+func lowerAtom(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Atom, error) {
+	if strs := findRule(n, syntax.RuleStrings); strs.Valid() {
 		return lowerStrs(src, strs)
 	}
 	for i := 0; i < n.ChildCount(); i++ {
@@ -366,21 +367,21 @@ func lowerAtom(src []byte, n xparse.SyntaxNode[Term, Rule]) (Atom, error) {
 		if !ok {
 			continue
 		}
-		if term == TermIdentifier || term == TermNumber {
+		if term == syntax.TermIdentifier || term == syntax.TermNumber {
 			return Atom{Text: ch.Text()}, nil
 		}
 	}
 	return Atom{}, syntaxAt(n)
 }
 
-func firstAtom(src []byte, n xparse.SyntaxNode[Term, Rule]) (Atom, error) {
-	if atomN := findRule(n, RuleAtom); atomN.Valid() {
+func firstAtom(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Atom, error) {
+	if atomN := findRule(n, syntax.RuleAtom); atomN.Valid() {
 		return lowerAtom(src, atomN)
 	}
 	return Atom{}, syntaxAt(n)
 }
 
-func lowerStrs(src []byte, n xparse.SyntaxNode[Term, Rule]) (Atom, error) {
+func lowerStrs(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Atom, error) {
 	var parts []Atom
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
@@ -389,13 +390,13 @@ func lowerStrs(src []byte, n xparse.SyntaxNode[Term, Rule]) (Atom, error) {
 			continue
 		}
 		switch term {
-		case TermString:
+		case syntax.TermString:
 			text, err := decodeStr(ch.Text())
 			if err != nil {
 				return Atom{}, syntaxAt(ch)
 			}
 			parts = append(parts, Atom{Text: text})
-		case TermHTMLLabel:
+		case syntax.TermHTMLLabel:
 			text, ok := decodeHTML(ch.Text())
 			if !ok {
 				return Atom{}, syntaxAt(ch)
@@ -451,23 +452,23 @@ func decodeHTML(raw string) (string, bool) {
 	return raw[1 : len(raw)-1], true
 }
 
-func pairsIn(src []byte, n xparse.SyntaxNode[Term, Rule]) ([]*Attr, error) {
+func pairsIn(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]*Attr, error) {
 	if !n.Valid() {
 		return nil, nil
 	}
 	var out []*Attr
-	var walk func(xparse.SyntaxNode[Term, Rule]) error
-	walk = func(n xparse.SyntaxNode[Term, Rule]) error {
+	var walk func(xparse.SyntaxNode[syntax.Term, syntax.Rule]) error
+	walk = func(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 		if rule, ok := n.Rule(); ok {
 			switch rule {
-			case RulePair:
+			case syntax.RulePair:
 				attr, err := lowerPair(src, n)
 				if err != nil {
 					return err
 				}
 				out = append(out, attr)
 				return nil
-			case RuleBlock, RuleEnd, RuleNodeIdentifier, RuleAtom, RulePort:
+			case syntax.RuleBlock, syntax.RuleEnd, syntax.RuleNodeIdentifier, syntax.RuleAtom, syntax.RulePort:
 				return nil
 			}
 		}
@@ -487,12 +488,12 @@ func pairsIn(src []byte, n xparse.SyntaxNode[Term, Rule]) ([]*Attr, error) {
 	return out, nil
 }
 
-func lowerPair(src []byte, n xparse.SyntaxNode[Term, Rule]) (*Attr, error) {
+func lowerPair(src []byte, n xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Attr, error) {
 	var atoms []Atom
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
 		rule, ok := ch.Rule()
-		if !ok || rule != RuleAtom {
+		if !ok || rule != syntax.RuleAtom {
 			continue
 		}
 		atom, err := lowerAtom(src, ch)
@@ -507,7 +508,7 @@ func lowerPair(src []byte, n xparse.SyntaxNode[Term, Rule]) (*Attr, error) {
 	return &Attr{Name: atoms[0], Value: atoms[1]}, nil
 }
 
-func isAssign(n xparse.SyntaxNode[Term, Rule]) bool {
+func isAssign(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) bool {
 	for i := 0; i < n.ChildCount(); i++ {
 		if isLit(n.Child(i), "=") {
 			return true
@@ -516,17 +517,17 @@ func isAssign(n xparse.SyntaxNode[Term, Rule]) bool {
 	return false
 }
 
-func findRule(n xparse.SyntaxNode[Term, Rule], want Rule) xparse.SyntaxNode[Term, Rule] {
+func findRule(n xparse.SyntaxNode[syntax.Term, syntax.Rule], want syntax.Rule) xparse.SyntaxNode[syntax.Term, syntax.Rule] {
 	for i := 0; i < n.ChildCount(); i++ {
 		ch := n.Child(i)
 		if rule, ok := ch.Rule(); ok && rule == want {
 			return ch
 		}
 	}
-	return xparse.SyntaxNode[Term, Rule]{}
+	return xparse.SyntaxNode[syntax.Term, syntax.Rule]{}
 }
 
-func isLit(n xparse.SyntaxNode[Term, Rule], text string) bool {
+func isLit(n xparse.SyntaxNode[syntax.Term, syntax.Rule], text string) bool {
 	if !n.Valid() {
 		return false
 	}
@@ -539,11 +540,11 @@ func isLit(n xparse.SyntaxNode[Term, Rule], text string) bool {
 	return n.Text() == text
 }
 
-func isEdgeOp(n xparse.SyntaxNode[Term, Rule]) bool {
+func isEdgeOp(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) bool {
 	return isLit(n, "->") || isLit(n, "--")
 }
 
-func checkOp(src []byte, op xparse.SyntaxNode[Term, Rule], directed bool) error {
+func checkOp(src []byte, op xparse.SyntaxNode[syntax.Term, syntax.Rule], directed bool) error {
 	text := op.Text()
 	if directed && text != "->" {
 		return fmt.Errorf("%w: line %d: undirected edge in a digraph", ErrSyntax, op.Line())

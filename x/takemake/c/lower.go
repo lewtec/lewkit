@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/c"
 )
 
-type syntaxNode = xparse.SyntaxNode[Term, Rule]
+type syntaxNode = xparse.SyntaxNode[syntax.Term, syntax.Rule]
 
 type parsedSpec struct {
 	valueType *Type
@@ -54,7 +55,7 @@ func (b *builder) form(n syntaxNode, msg string) error {
 func (b *builder) external(n syntaxNode) error {
 	if tm, ok := n.Term(); ok {
 		switch tm {
-		case TermInclude:
+		case syntax.TermInclude:
 			path, system, ok := headerPath(n.Text())
 			if !ok {
 				return b.syntax(n, "include")
@@ -64,7 +65,7 @@ func (b *builder) external(n syntaxNode) error {
 				Include: &Include{Path: path, System: system},
 			})
 			return nil
-		case TermInvalid:
+		case syntax.TermInvalid:
 			return b.form(n, "directive")
 		}
 	}
@@ -73,9 +74,9 @@ func (b *builder) external(n syntaxNode) error {
 		return b.syntax(n, "declaration")
 	}
 	switch rule {
-	case RuleDefine:
+	case syntax.RuleDefine:
 		return b.define(n)
-	case RuleDeclaration:
+	case syntax.RuleDeclaration:
 		return b.decl(n)
 	default:
 		return b.syntax(n, "declaration")
@@ -113,10 +114,10 @@ func (b *builder) define(n syntaxNode) error {
 	var ex syntaxNode
 	has := false
 	for _, c := range kids(n) {
-		if tm, ok := c.Term(); ok && tm == TermIdentifier {
+		if tm, ok := c.Term(); ok && tm == syntax.TermIdentifier {
 			name = c.Text()
 		}
-		if r, ok := c.Rule(); ok && r == RuleExpression {
+		if r, ok := c.Rule(); ok && r == syntax.RuleExpression {
 			ex = c
 			has = true
 		}
@@ -145,7 +146,7 @@ func (b *builder) define(n syntaxNode) error {
 }
 
 func (b *builder) decl(n syntaxNode) error {
-	specN, ok := ruleChild(n, RuleSpecifiers)
+	specN, ok := ruleChild(n, syntax.RuleSpecifiers)
 	if !ok {
 		return b.syntax(n, "declaration")
 	}
@@ -159,11 +160,11 @@ func (b *builder) decl(n syntaxNode) error {
 	if spec.body && !spec.typedef && spec.raw != nil && spec.raw.home == nil && spec.raw.Tag != "" {
 		b.defineTag(spec.raw)
 	}
-	if blk, ok := ruleChild(n, RuleBlock); ok {
+	if blk, ok := ruleChild(n, syntax.RuleBlock); ok {
 		if spec.typedef {
 			return b.syntax(n, "typedef")
 		}
-		dN, ok := ruleChild(n, RuleDeclarator)
+		dN, ok := ruleChild(n, syntax.RuleDeclarator)
 		if !ok {
 			return b.syntax(n, "declaration")
 		}
@@ -186,7 +187,7 @@ func (b *builder) decl(n syntaxNode) error {
 	}
 	var inits []syntaxNode
 	for _, c := range kids(n) {
-		if r, ok := c.Rule(); ok && r == RuleInitializer {
+		if r, ok := c.Rule(); ok && r == syntax.RuleInitializer {
 			inits = append(inits, c)
 		}
 	}
@@ -257,7 +258,7 @@ func (b *builder) decl(n syntaxNode) error {
 }
 
 func (b *builder) oneInit(n syntaxNode, base *Type) (*Type, string, *Expr, error) {
-	d, ok := ruleChild(n, RuleDeclarator)
+	d, ok := ruleChild(n, syntax.RuleDeclarator)
 	if !ok {
 		return nil, "", nil, b.syntax(n, "declarator")
 	}
@@ -265,7 +266,7 @@ func (b *builder) oneInit(n syntaxNode, base *Type) (*Type, string, *Expr, error
 	if err != nil {
 		return nil, "", nil, err
 	}
-	ex, ok := ruleChild(n, RuleExpression)
+	ex, ok := ruleChild(n, syntax.RuleExpression)
 	if !ok {
 		return valueType, name, nil, nil
 	}
@@ -290,7 +291,7 @@ func (b *builder) specs(n syntaxNode) (parsedSpec, error) {
 		saw                                                    bool
 	)
 	for _, c := range kids(n) {
-		if r, ok := c.Rule(); ok && r == RuleAggregate {
+		if r, ok := c.Rule(); ok && r == syntax.RuleAggregate {
 			if saw || aggr != nil || named != nil {
 				return parsedSpec{}, b.syntax(c, aggrWord(c))
 			}
@@ -308,60 +309,60 @@ func (b *builder) specs(n syntaxNode) (parsedSpec, error) {
 			continue
 		}
 		switch tm {
-		case TermConst:
+		case syntax.TermConst:
 			isConst = true
-		case TermVolatile:
+		case syntax.TermVolatile:
 			isVolatile = true
-		case TermStatic:
+		case syntax.TermStatic:
 			if storage != 0 || typedef {
 				return parsedSpec{}, b.syntax(c, "storage class")
 			}
 			storage = StorageStatic
-		case TermExtern:
+		case syntax.TermExtern:
 			if storage != 0 || typedef {
 				return parsedSpec{}, b.syntax(c, "storage class")
 			}
 			storage = StorageExtern
-		case TermTypedef:
+		case syntax.TermTypedef:
 			if storage != 0 || typedef {
 				return parsedSpec{}, b.syntax(c, "storage class")
 			}
 			typedef = true
-		case TermInline:
+		case syntax.TermInline:
 			inline = true
-		case TermVoid:
+		case syntax.TermVoid:
 			sawVoid = true
 			saw = true
-		case TermBool, TermAlternateBool:
+		case syntax.TermBool, syntax.TermAlternateBool:
 			sawBool = true
 			saw = true
-		case TermChar:
+		case syntax.TermChar:
 			sawChar = true
 			saw = true
-		case TermShort:
+		case syntax.TermShort:
 			shorts++
 			saw = true
-		case TermInt:
+		case syntax.TermInt:
 			sawInt = true
 			saw = true
-		case TermLong:
+		case syntax.TermLong:
 			longs++
 			saw = true
-		case TermFloat:
+		case syntax.TermFloat:
 			sawFloat = true
 			saw = true
-		case TermDouble:
+		case syntax.TermDouble:
 			sawDouble = true
 			saw = true
-		case TermSigned:
+		case syntax.TermSigned:
 			sawSigned = true
 			saw = true
-		case TermUnsigned:
+		case syntax.TermUnsigned:
 			sawUnsigned = true
 			saw = true
-		case TermRestrict, TermAuto, TermRegister, TermNoreturn, TermThreadLocal, TermAlignas, TermAtomic, TermGeneric:
+		case syntax.TermRestrict, syntax.TermAuto, syntax.TermRegister, syntax.TermNoreturn, syntax.TermThreadLocal, syntax.TermAlignas, syntax.TermAtomic, syntax.TermGeneric:
 			return parsedSpec{}, b.form(c, tm.String())
-		case TermTypeName:
+		case syntax.TermTypeName:
 			if saw || aggr != nil || named != nil {
 				return parsedSpec{}, b.syntax(c, "type")
 			}
@@ -462,9 +463,9 @@ func (b *builder) aggregate(n syntaxNode, typedef bool) (*Type, bool, error) {
 	for _, c := range kids(n) {
 		if r, ok := c.Rule(); ok {
 			switch r {
-			case RuleField:
+			case syntax.RuleField:
 				fields = append(fields, c)
-			case RuleEnumeratorList:
+			case syntax.RuleEnumeratorList:
 				enums = c
 				hasEnums = true
 			}
@@ -475,15 +476,15 @@ func (b *builder) aggregate(n syntaxNode, typedef bool) (*Type, bool, error) {
 			continue
 		}
 		switch tm {
-		case TermStruct:
+		case syntax.TermStruct:
 			kind, word = KindStruct, "struct"
-		case TermUnion:
+		case syntax.TermUnion:
 			kind, word = KindUnion, "union"
-		case TermEnum:
+		case syntax.TermEnum:
 			kind, word = KindEnum, "enum"
-		case TermIdentifier:
+		case syntax.TermIdentifier:
 			tag = c.Text()
-		case TermLeftBrace:
+		case syntax.TermLeftBrace:
 			body = true
 		}
 	}
@@ -529,7 +530,7 @@ func aggrWord(n syntaxNode) string {
 			continue
 		}
 		switch tm {
-		case TermStruct, TermUnion, TermEnum:
+		case syntax.TermStruct, syntax.TermUnion, syntax.TermEnum:
 			return tm.String()
 		}
 	}
@@ -574,11 +575,11 @@ func (b *builder) fields(parent *Type, nodes []syntaxNode) error {
 
 func (b *builder) field(parent *Type, n syntaxNode) error {
 	for _, c := range kids(n) {
-		if tm, ok := c.Term(); ok && tm == TermColon {
+		if tm, ok := c.Term(); ok && tm == syntax.TermColon {
 			return b.form(c, "bit-field")
 		}
 	}
-	specN, ok := ruleChild(n, RuleSpecifiers)
+	specN, ok := ruleChild(n, syntax.RuleSpecifiers)
 	if !ok {
 		return b.syntax(n, "field")
 	}
@@ -588,7 +589,7 @@ func (b *builder) field(parent *Type, n syntaxNode) error {
 	}
 	var decls []syntaxNode
 	for _, c := range kids(n) {
-		if r, ok := c.Rule(); ok && r == RuleDeclarator {
+		if r, ok := c.Rule(); ok && r == syntax.RuleDeclarator {
 			decls = append(decls, c)
 		}
 	}
@@ -625,10 +626,10 @@ func (b *builder) enumerator(n syntaxNode, next int64) (string, int64, error) {
 	var ex syntaxNode
 	has := false
 	for _, c := range kids(n) {
-		if tm, ok := c.Term(); ok && tm == TermIdentifier {
+		if tm, ok := c.Term(); ok && tm == syntax.TermIdentifier {
 			name = c.Text()
 		}
-		if r, ok := c.Rule(); ok && r == RuleExpression {
+		if r, ok := c.Rule(); ok && r == syntax.RuleExpression {
 			ex = c
 			has = true
 		}
@@ -659,16 +660,16 @@ func enumItems(n syntaxNode) []syntaxNode {
 		if !ok {
 			return
 		}
-		if r == RuleEnumerator {
+		if r == syntax.RuleEnumerator {
 			out = append(out, n)
 			return
 		}
-		if r != RuleEnumeratorList {
+		if r != syntax.RuleEnumeratorList {
 			return
 		}
 		for i := 0; i < n.ChildCount(); i++ {
 			c := n.Child(i)
-			if cr, ok := c.Rule(); ok && (cr == RuleEnumeratorList || cr == RuleEnumerator) {
+			if cr, ok := c.Rule(); ok && (cr == syntax.RuleEnumeratorList || cr == syntax.RuleEnumerator) {
 				walk(c)
 			}
 		}
@@ -708,14 +709,14 @@ func (b *builder) declarator(node syntaxNode, base *Type) (*Type, string, error)
 
 func (b *builder) readDeclarator(node syntaxNode) (*declaratorTree, error) {
 	tree := &declaratorTree{}
-	if pointer, ok := ruleChild(node, RulePointer); ok {
+	if pointer, ok := ruleChild(node, syntax.RulePointer); ok {
 		qualifiers, err := b.readPointers(pointer)
 		if err != nil {
 			return nil, err
 		}
 		tree.pointers = qualifiers
 	}
-	direct, ok := ruleChild(node, RuleDirectDeclarator)
+	direct, ok := ruleChild(node, syntax.RuleDirectDeclarator)
 	if !ok {
 		return tree, nil
 	}
@@ -738,20 +739,20 @@ func (b *builder) readPointers(node syntaxNode) ([]pointerQualifier, error) {
 		for _, child := range kids(current) {
 			if term, ok := child.Term(); ok {
 				switch term {
-				case TermConst:
+				case syntax.TermConst:
 					qualifier.constant = true
-				case TermVolatile:
+				case syntax.TermVolatile:
 					qualifier.volatile = true
-				case TermRestrict:
+				case syntax.TermRestrict:
 					qualifier.restrict = true
 					qualifier.at = child
-				case TermStar:
+				case syntax.TermStar:
 					if !qualifier.at.Valid() {
 						qualifier.at = child
 					}
 				}
 			}
-			if rule, ok := child.Rule(); ok && rule == RulePointer {
+			if rule, ok := child.Rule(); ok && rule == syntax.RulePointer {
 				next = child
 			}
 		}
@@ -771,13 +772,13 @@ func (b *builder) readDirect(node syntaxNode) (string, *declaratorTree, []suffix
 	for _, child := range kids(node) {
 		if rule, ok := child.Rule(); ok {
 			switch rule {
-			case RuleDeclarator:
+			case syntax.RuleDeclarator:
 				nested, err := b.readDeclarator(child)
 				if err != nil {
 					return "", nil, nil, err
 				}
 				inner = nested
-			case RuleSuffix:
+			case syntax.RuleSuffix:
 				one, err := b.readSuffix(child)
 				if err != nil {
 					return "", nil, nil, err
@@ -786,7 +787,7 @@ func (b *builder) readDirect(node syntaxNode) (string, *declaratorTree, []suffix
 			}
 			continue
 		}
-		if term, ok := child.Term(); ok && term == TermIdentifier {
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier {
 			name = child.Text()
 		}
 	}
@@ -796,20 +797,20 @@ func (b *builder) readDirect(node syntaxNode) (string, *declaratorTree, []suffix
 func (b *builder) readSuffix(node syntaxNode) (suffix, error) {
 	bracket := false
 	for _, child := range kids(node) {
-		if term, ok := child.Term(); ok && term == TermLeftBracket {
+		if term, ok := child.Term(); ok && term == syntax.TermLeftBracket {
 			bracket = true
 		}
 	}
 	if bracket {
 		one := suffix{array: true, flexible: true}
-		if expression, ok := ruleChild(node, RuleExpression); ok {
+		if expression, ok := ruleChild(node, syntax.RuleExpression); ok {
 			one.flexible = false
 			one.expression = expression
 		}
 		return one, nil
 	}
 	one := suffix{function: true}
-	if parameters, ok := ruleChild(node, RuleParameters); ok {
+	if parameters, ok := ruleChild(node, syntax.RuleParameters); ok {
 		list, variadic, err := b.parameters(parameters)
 		if err != nil {
 			return suffix{}, err
@@ -868,15 +869,15 @@ func (b *builder) applySuffix(one suffix, valueType *Type) (*Type, error) {
 
 func (b *builder) parameters(n syntaxNode) ([]*Param, bool, error) {
 	if n.ChildCount() == 1 {
-		if tm, ok := n.Child(0).Term(); ok && tm == TermEllipsis {
+		if tm, ok := n.Child(0).Term(); ok && tm == syntax.TermEllipsis {
 			return nil, true, nil
 		}
 	}
-	pnode, ok := ruleChild(n, RuleParameter)
+	pnode, ok := ruleChild(n, syntax.RuleParameter)
 	if !ok {
 		return nil, false, b.syntax(n, "parameter")
 	}
-	tail, _ := ruleChild(n, RuleParameterTail)
+	tail, _ := ruleChild(n, syntax.RuleParameterTail)
 	var out []*Param
 	variadic := false
 	for {
@@ -888,17 +889,17 @@ func (b *builder) parameters(n syntaxNode) ([]*Param, bool, error) {
 		if !tail.Valid() || tail.ChildCount() == 0 {
 			break
 		}
-		next, ok := ruleChild(tail, RuleParameter)
+		next, ok := ruleChild(tail, syntax.RuleParameter)
 		if !ok {
 			for _, c := range kids(tail) {
-				if tm, ok := c.Term(); ok && tm == TermEllipsis {
+				if tm, ok := c.Term(); ok && tm == syntax.TermEllipsis {
 					variadic = true
 				}
 			}
 			break
 		}
 		pnode = next
-		tail, _ = ruleChild(tail, RuleParameterTail)
+		tail, _ = ruleChild(tail, syntax.RuleParameterTail)
 	}
 	if !variadic && len(out) == 1 && out[0] != nil && out[0].Name == "" && out[0].Type != nil && out[0].Type.Kind == KindVoid {
 		return nil, false, nil
@@ -907,7 +908,7 @@ func (b *builder) parameters(n syntaxNode) ([]*Param, bool, error) {
 }
 
 func (b *builder) param(n syntaxNode) (*Param, error) {
-	specN, ok := ruleChild(n, RuleSpecifiers)
+	specN, ok := ruleChild(n, syntax.RuleSpecifiers)
 	if !ok {
 		return nil, b.syntax(n, "parameter")
 	}
@@ -917,7 +918,7 @@ func (b *builder) param(n syntaxNode) (*Param, error) {
 	}
 	valueType := spec.valueType
 	name := ""
-	if d, ok := ruleChild(n, RuleDeclarator); ok {
+	if d, ok := ruleChild(n, syntax.RuleDeclarator); ok {
 		valueType, name, err = b.declarator(d, spec.valueType)
 		if err != nil {
 			return nil, err
@@ -927,7 +928,7 @@ func (b *builder) param(n syntaxNode) (*Param, error) {
 }
 
 func (b *builder) typeName(n syntaxNode, what string) (*Type, error) {
-	specN, ok := ruleChild(n, RuleSpecifiers)
+	specN, ok := ruleChild(n, syntax.RuleSpecifiers)
 	if !ok {
 		return nil, b.syntax(n, what)
 	}
@@ -936,7 +937,7 @@ func (b *builder) typeName(n syntaxNode, what string) (*Type, error) {
 		return nil, err
 	}
 	valueType := spec.valueType
-	if d, ok := ruleChild(n, RuleDeclarator); ok {
+	if d, ok := ruleChild(n, syntax.RuleDeclarator); ok {
 		var name string
 		valueType, name, err = b.declarator(d, spec.valueType)
 		if err != nil {
@@ -955,7 +956,7 @@ func (b *builder) typeName(n syntaxNode, what string) (*Type, error) {
 func (b *builder) block(n syntaxNode) (*Stmt, error) {
 	var list []*Stmt
 	for _, c := range kids(n) {
-		if r, ok := c.Rule(); ok && r == RuleStatement {
+		if r, ok := c.Rule(); ok && r == syntax.RuleStatement {
 			s, err := b.stmt(c)
 			if err != nil {
 				return nil, err
@@ -969,25 +970,25 @@ func (b *builder) block(n syntaxNode) (*Stmt, error) {
 func (b *builder) stmt(n syntaxNode) (*Stmt, error) {
 	if r, ok := n.Rule(); ok {
 		switch r {
-		case RuleBlock:
+		case syntax.RuleBlock:
 			return b.block(n)
-		case RuleLocal:
+		case syntax.RuleLocal:
 			return b.local(n)
-		case RuleStatement:
+		case syntax.RuleStatement:
 		default:
 			return nil, b.syntax(n, "statement")
 		}
 	}
-	var keyword Term
+	var keyword syntax.Term
 	hasKeyword := false
 	var exprs []syntaxNode
 	var stmts []syntaxNode
 	for _, c := range kids(n) {
 		if r, ok := c.Rule(); ok {
 			switch r {
-			case RuleExpression:
+			case syntax.RuleExpression:
 				exprs = append(exprs, c)
-			case RuleStatement, RuleBlock, RuleLocal:
+			case syntax.RuleStatement, syntax.RuleBlock, syntax.RuleLocal:
 				stmts = append(stmts, c)
 			}
 			continue
@@ -997,7 +998,7 @@ func (b *builder) stmt(n syntaxNode) (*Stmt, error) {
 			continue
 		}
 		switch tm {
-		case TermIf, TermWhile, TermFor, TermReturn, TermBreak, TermContinue, TermSwitch, TermDo, TermGoto:
+		case syntax.TermIf, syntax.TermWhile, syntax.TermFor, syntax.TermReturn, syntax.TermBreak, syntax.TermContinue, syntax.TermSwitch, syntax.TermDo, syntax.TermGoto:
 			if !hasKeyword {
 				keyword = tm
 				hasKeyword = true
@@ -1005,17 +1006,17 @@ func (b *builder) stmt(n syntaxNode) (*Stmt, error) {
 		}
 	}
 	switch keyword {
-	case TermSwitch:
+	case syntax.TermSwitch:
 		return nil, b.form(n, "switch")
-	case TermDo:
+	case syntax.TermDo:
 		return nil, b.form(n, "do")
-	case TermGoto:
+	case syntax.TermGoto:
 		return nil, b.form(n, "goto")
-	case TermBreak:
+	case syntax.TermBreak:
 		return Break(), nil
-	case TermContinue:
+	case syntax.TermContinue:
 		return Continue(), nil
-	case TermReturn:
+	case syntax.TermReturn:
 		var e *Expr
 		if len(exprs) > 0 {
 			var err error
@@ -1025,7 +1026,7 @@ func (b *builder) stmt(n syntaxNode) (*Stmt, error) {
 			}
 		}
 		return Return(e), nil
-	case TermIf:
+	case syntax.TermIf:
 		if len(exprs) < 1 || len(stmts) < 1 {
 			return nil, b.syntax(n, "if")
 		}
@@ -1046,7 +1047,7 @@ func (b *builder) stmt(n syntaxNode) (*Stmt, error) {
 			s.Else = alt
 		}
 		return s, nil
-	case TermWhile:
+	case syntax.TermWhile:
 		if len(exprs) < 1 || len(stmts) < 1 {
 			return nil, b.syntax(n, "while")
 		}
@@ -1059,7 +1060,7 @@ func (b *builder) stmt(n syntaxNode) (*Stmt, error) {
 			return nil, err
 		}
 		return While(cond, body), nil
-	case TermFor:
+	case syntax.TermFor:
 		return b.forStmt(n)
 	}
 	if len(stmts) == 1 && len(exprs) == 0 {
@@ -1083,13 +1084,13 @@ func (b *builder) forStmt(n syntaxNode) (*Stmt, error) {
 	for _, c := range kids(n) {
 		if r, ok := c.Rule(); ok {
 			switch r {
-			case RuleForInitializer:
+			case syntax.RuleForInitializer:
 				s, err := b.forInit(c)
 				if err != nil {
 					return nil, err
 				}
 				init = s
-			case RuleExpression:
+			case syntax.RuleExpression:
 				e, err := b.expr(c)
 				if err != nil {
 					return nil, err
@@ -1099,7 +1100,7 @@ func (b *builder) forStmt(n syntaxNode) (*Stmt, error) {
 				} else {
 					post = e
 				}
-			case RuleStatement:
+			case syntax.RuleStatement:
 				s, err := b.stmt(c)
 				if err != nil {
 					return nil, err
@@ -1108,7 +1109,7 @@ func (b *builder) forStmt(n syntaxNode) (*Stmt, error) {
 			}
 			continue
 		}
-		if tm, ok := c.Term(); ok && tm == TermSemicolon {
+		if tm, ok := c.Term(); ok && tm == syntax.TermSemicolon {
 			seenSemi = true
 		}
 	}
@@ -1117,7 +1118,7 @@ func (b *builder) forStmt(n syntaxNode) (*Stmt, error) {
 
 func (b *builder) forInit(n syntaxNode) (*Stmt, error) {
 	if n.ChildCount() == 1 {
-		if tm, ok := n.Child(0).Term(); ok && tm == TermSemicolon {
+		if tm, ok := n.Child(0).Term(); ok && tm == syntax.TermSemicolon {
 			return nil, nil
 		}
 	}
@@ -1127,9 +1128,9 @@ func (b *builder) forInit(n syntaxNode) (*Stmt, error) {
 			continue
 		}
 		switch r {
-		case RuleLocal:
+		case syntax.RuleLocal:
 			return b.local(c)
-		case RuleExpression:
+		case syntax.RuleExpression:
 			e, err := b.expr(c)
 			if err != nil {
 				return nil, err
@@ -1141,7 +1142,7 @@ func (b *builder) forInit(n syntaxNode) (*Stmt, error) {
 }
 
 func (b *builder) local(n syntaxNode) (*Stmt, error) {
-	specN, ok := ruleChild(n, RuleSpecifiers)
+	specN, ok := ruleChild(n, syntax.RuleSpecifiers)
 	if !ok {
 		return nil, b.syntax(n, "declaration")
 	}
@@ -1154,7 +1155,7 @@ func (b *builder) local(n syntaxNode) (*Stmt, error) {
 	}
 	var objs []*Object
 	for _, c := range kids(n) {
-		if r, ok := c.Rule(); ok && r == RuleInitializer {
+		if r, ok := c.Rule(); ok && r == syntax.RuleInitializer {
 			valueType, name, init, err := b.oneInit(c, spec.valueType)
 			if err != nil {
 				return nil, err
@@ -1171,17 +1172,17 @@ func (b *builder) expr(n syntaxNode) (*Expr, error) {
 		return nil, b.syntax(n, "expression")
 	}
 	switch r {
-	case RuleExpression:
+	case syntax.RuleExpression:
 		return b.exprExpr(n)
-	case RuleUnary:
+	case syntax.RuleUnary:
 		return b.unary(n)
-	case RulePrefix:
+	case syntax.RulePrefix:
 		return b.pre(n)
-	case RulePostfix:
+	case syntax.RulePostfix:
 		return b.postfix(n)
-	case RulePrimary:
+	case syntax.RulePrimary:
 		return b.primary(n)
-	case RuleText:
+	case syntax.RuleText:
 		s, err := b.rawText(n)
 		if err != nil {
 			return nil, err
@@ -1193,7 +1194,7 @@ func (b *builder) expr(n syntaxNode) (*Expr, error) {
 }
 
 func (b *builder) exprExpr(n syntaxNode) (*Expr, error) {
-	var op Term
+	var op syntax.Term
 	hasOp := false
 	var subs []syntaxNode
 	for _, c := range kids(n) {
@@ -1205,7 +1206,7 @@ func (b *builder) exprExpr(n syntaxNode) (*Expr, error) {
 		if !ok {
 			continue
 		}
-		if tm == TermEqual || compoundOp(tm) {
+		if tm == syntax.TermEqual || compoundOp(tm) {
 			op = tm
 			hasOp = true
 			continue
@@ -1224,7 +1225,7 @@ func (b *builder) exprExpr(n syntaxNode) (*Expr, error) {
 		if err != nil {
 			return nil, err
 		}
-		if op == TermEqual {
+		if op == syntax.TermEqual {
 			return Assign(left, right), nil
 		}
 		if compoundOp(op) {
@@ -1251,7 +1252,7 @@ func (b *builder) unary(n syntaxNode) (*Expr, error) {
 		if !ok {
 			continue
 		}
-		if r == RuleTypeName {
+		if r == syntax.RuleTypeName {
 			valueType = c
 			hasTyp = true
 			continue
@@ -1276,7 +1277,7 @@ func (b *builder) unary(n syntaxNode) (*Expr, error) {
 }
 
 func (b *builder) pre(n syntaxNode) (*Expr, error) {
-	var op Term
+	var op syntax.Term
 	hasOp := false
 	var sub syntaxNode
 	hasSub := false
@@ -1284,7 +1285,7 @@ func (b *builder) pre(n syntaxNode) (*Expr, error) {
 	hasTyp := false
 	for _, c := range kids(n) {
 		if r, ok := c.Rule(); ok {
-			if r == RuleTypeName {
+			if r == syntax.RuleTypeName {
 				valueType = c
 				hasTyp = true
 				continue
@@ -1298,27 +1299,27 @@ func (b *builder) pre(n syntaxNode) (*Expr, error) {
 			continue
 		}
 		switch tm {
-		case TermLeftParenthesis, TermRightParenthesis:
+		case syntax.TermLeftParenthesis, syntax.TermRightParenthesis:
 		default:
 			op = tm
 			hasOp = true
 		}
 	}
-	if hasOp && op == TermSizeof && hasTyp {
+	if hasOp && op == syntax.TermSizeof && hasTyp {
 		t, err := b.typeName(valueType, "sizeof")
 		if err != nil {
 			return nil, err
 		}
 		return SizeofType(t), nil
 	}
-	if hasOp && op == TermSizeof && hasSub {
+	if hasOp && op == syntax.TermSizeof && hasSub {
 		x, err := b.expr(sub)
 		if err != nil {
 			return nil, err
 		}
 		return SizeofExpr(x), nil
 	}
-	if hasOp && (op == TermIncrement || op == TermDecrement) {
+	if hasOp && (op == syntax.TermIncrement || op == syntax.TermDecrement) {
 		return nil, b.form(n, op.String())
 	}
 	if hasOp && hasSub {
@@ -1353,13 +1354,13 @@ func (b *builder) postfix(n syntaxNode) (*Expr, error) {
 	for _, c := range kids(n) {
 		if r, ok := c.Rule(); ok {
 			switch r {
-			case RulePostfix, RulePrimary:
+			case syntax.RulePostfix, syntax.RulePrimary:
 				if !base.Valid() {
 					base = c
 				}
-			case RuleExpression:
+			case syntax.RuleExpression:
 				idx = c
-			case RuleArguments:
+			case syntax.RuleArguments:
 				argsN = c
 				hasArgs = true
 			}
@@ -1370,19 +1371,19 @@ func (b *builder) postfix(n syntaxNode) (*Expr, error) {
 			continue
 		}
 		switch tm {
-		case TermLeftBracket:
+		case syntax.TermLeftBracket:
 			brack = true
-		case TermLeftParenthesis:
+		case syntax.TermLeftParenthesis:
 			call = true
-		case TermDot:
+		case syntax.TermDot:
 			dot = true
-		case TermArrow:
+		case syntax.TermArrow:
 			arrow = true
-		case TermIdentifier:
+		case syntax.TermIdentifier:
 			field = c.Text()
-		case TermIncrement:
+		case syntax.TermIncrement:
 			inc = true
-		case TermDecrement:
+		case syntax.TermDecrement:
 			dec = true
 		}
 	}
@@ -1427,7 +1428,7 @@ func (b *builder) postfix(n syntaxNode) (*Expr, error) {
 func (b *builder) args(n syntaxNode) ([]*Expr, error) {
 	var out []*Expr
 	for _, c := range kids(n) {
-		if r, ok := c.Rule(); ok && r == RuleExpression {
+		if r, ok := c.Rule(); ok && r == syntax.RuleExpression {
 			e, err := b.expr(c)
 			if err != nil {
 				return nil, err
@@ -1442,13 +1443,13 @@ func (b *builder) primary(n syntaxNode) (*Expr, error) {
 	for _, c := range kids(n) {
 		if r, ok := c.Rule(); ok {
 			switch r {
-			case RuleText:
+			case syntax.RuleText:
 				s, err := b.rawText(c)
 				if err != nil {
 					return nil, err
 				}
 				return StringLit(s), nil
-			case RuleExpression:
+			case syntax.RuleExpression:
 				return b.expr(c)
 			}
 			continue
@@ -1458,11 +1459,11 @@ func (b *builder) primary(n syntaxNode) (*Expr, error) {
 			continue
 		}
 		switch tm {
-		case TermIdentifier:
+		case syntax.TermIdentifier:
 			return Ident(c.Text()), nil
-		case TermNumber:
+		case syntax.TermNumber:
 			return numberExpr(c.Text()), nil
-		case TermCharacterLiteral:
+		case syntax.TermCharacterLiteral:
 			v, err := charValue(c.Text())
 			if err != nil {
 				return nil, b.syntax(c, "char")
@@ -1477,7 +1478,7 @@ func (b *builder) rawText(n syntaxNode) (string, error) {
 	var bld strings.Builder
 	var walk func(syntaxNode) error
 	walk = func(n syntaxNode) error {
-		if r, ok := n.Rule(); ok && r == RuleText {
+		if r, ok := n.Rule(); ok && r == syntax.RuleText {
 			for _, c := range kids(n) {
 				if err := walk(c); err != nil {
 					return err
@@ -1485,7 +1486,7 @@ func (b *builder) rawText(n syntaxNode) (string, error) {
 			}
 			return nil
 		}
-		if tm, ok := n.Term(); ok && tm == TermString {
+		if tm, ok := n.Term(); ok && tm == syntax.TermString {
 			s, err := stringValue(n.Text())
 			if err != nil {
 				return b.syntax(n, "string")
@@ -1509,7 +1510,7 @@ func kids(n syntaxNode) []syntaxNode {
 	return out
 }
 
-func ruleChild(n syntaxNode, want Rule) (syntaxNode, bool) {
+func ruleChild(n syntaxNode, want syntax.Rule) (syntaxNode, bool) {
 	for i := 0; i < n.ChildCount(); i++ {
 		c := n.Child(i)
 		if r, ok := c.Rule(); ok && r == want {
@@ -1519,71 +1520,71 @@ func ruleChild(n syntaxNode, want Rule) (syntaxNode, bool) {
 	return syntaxNode{}, false
 }
 
-func prefixOp(t Term) (Op, bool) {
+func prefixOp(t syntax.Term) (Op, bool) {
 	switch t {
-	case TermBitwiseAnd:
+	case syntax.TermBitwiseAnd:
 		return OpAddr, true
-	case TermStar:
+	case syntax.TermStar:
 		return OpDeref, true
-	case TermLogicalNot:
+	case syntax.TermLogicalNot:
 		return OpNot, true
-	case TermBitwiseNot:
+	case syntax.TermBitwiseNot:
 		return OpBitNot, true
-	case TermMinus:
+	case syntax.TermMinus:
 		return OpNeg, true
-	case TermPlus:
+	case syntax.TermPlus:
 		return OpPos, true
 	default:
 		return 0, false
 	}
 }
 
-func binaryOp(t Term) (Op, bool) {
+func binaryOp(t syntax.Term) (Op, bool) {
 	switch t {
-	case TermLogicalOr:
+	case syntax.TermLogicalOr:
 		return OpOr, true
-	case TermLogicalAnd:
+	case syntax.TermLogicalAnd:
 		return OpAnd, true
-	case TermBitwiseOr:
+	case syntax.TermBitwiseOr:
 		return OpBitOr, true
-	case TermBitwiseXor:
+	case syntax.TermBitwiseXor:
 		return OpBitXor, true
-	case TermBitwiseAnd:
+	case syntax.TermBitwiseAnd:
 		return OpBitAnd, true
-	case TermEqualEqual:
+	case syntax.TermEqualEqual:
 		return OpEq, true
-	case TermNotEqual:
+	case syntax.TermNotEqual:
 		return OpNe, true
-	case TermLess:
+	case syntax.TermLess:
 		return OpLt, true
-	case TermGreater:
+	case syntax.TermGreater:
 		return OpGt, true
-	case TermLessEqual:
+	case syntax.TermLessEqual:
 		return OpLe, true
-	case TermGreaterEqual:
+	case syntax.TermGreaterEqual:
 		return OpGe, true
-	case TermShiftLeft:
+	case syntax.TermShiftLeft:
 		return OpShl, true
-	case TermShiftRight:
+	case syntax.TermShiftRight:
 		return OpShr, true
-	case TermPlus:
+	case syntax.TermPlus:
 		return OpAdd, true
-	case TermMinus:
+	case syntax.TermMinus:
 		return OpSub, true
-	case TermStar:
+	case syntax.TermStar:
 		return OpMul, true
-	case TermSlash:
+	case syntax.TermSlash:
 		return OpDiv, true
-	case TermPercent:
+	case syntax.TermPercent:
 		return OpMod, true
 	default:
 		return 0, false
 	}
 }
 
-func compoundOp(t Term) bool {
+func compoundOp(t syntax.Term) bool {
 	switch t {
-	case TermAddEqual, TermSubtractEqual, TermMultiplyEqual, TermDivideEqual, TermModuloEqual, TermAndEqual, TermOrEqual, TermXorEqual, TermShiftLeftEqual, TermShiftRightEqual:
+	case syntax.TermAddEqual, syntax.TermSubtractEqual, syntax.TermMultiplyEqual, syntax.TermDivideEqual, syntax.TermModuloEqual, syntax.TermAndEqual, syntax.TermOrEqual, syntax.TermXorEqual, syntax.TermShiftLeftEqual, syntax.TermShiftRightEqual:
 		return true
 	default:
 		return false

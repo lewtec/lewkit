@@ -12,11 +12,11 @@ import (
 
 var (
 	langOnce sync.Once
-	lang     *xparse.Model[Term, Production]
+	lang     *xparse.Model[syntax.Term, syntax.Production]
 	langErr  error
 )
 
-func language() (*xparse.Model[Term, Production], error) {
+func language() (*xparse.Model[syntax.Term, syntax.Production], error) {
 	langOnce.Do(func() {
 		prepared, err := syntax.Declare()
 		if err != nil {
@@ -58,10 +58,10 @@ func parseErr(text string, err error) error {
 	}
 	if pe.Offset >= len(text) {
 		for _, want := range pe.Want {
-			if want == TermEndif.String() {
+			if want == syntax.TermEndif.String() {
 				return syn(pe.Line, "missing endif")
 			}
-			if want == TermEndef.String() {
+			if want == syntax.TermEndef.String() {
 				return syn(pe.Line, "missing endef")
 			}
 		}
@@ -97,7 +97,7 @@ func parseErr(text string, err error) error {
 	return syn(pe.Line, "syntax")
 }
 
-func lower(text string, root xparse.SyntaxNode[Term, Production]) (*File, error) {
+func lower(text string, root xparse.SyntaxNode[syntax.Term, syntax.Production]) (*File, error) {
 	file := New()
 	if err := appendStmts(text, root, file); err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func lower(text string, root xparse.SyntaxNode[Term, Production]) (*File, error)
 	return file, nil
 }
 
-func appendStmts(text string, parent xparse.SyntaxNode[Term, Production], dst adder) error {
+func appendStmts(text string, parent xparse.SyntaxNode[syntax.Term, syntax.Production], dst adder) error {
 	for i := 0; i < parent.ChildCount(); i++ {
 		if err := appendStmt(text, parent.Child(i), dst); err != nil {
 			return err
@@ -114,8 +114,8 @@ func appendStmts(text string, parent xparse.SyntaxNode[Term, Production], dst ad
 	return nil
 }
 
-func appendStmt(text string, node xparse.SyntaxNode[Term, Production], dst adder) error {
-	if rule, ok := node.Rule(); ok && rule == ProductionStatement {
+func appendStmt(text string, node xparse.SyntaxNode[syntax.Term, syntax.Production], dst adder) error {
+	if rule, ok := node.Rule(); ok && rule == syntax.ProductionStatement {
 		if node.ChildCount() != 1 {
 			return syn(node.Line(), "syntax")
 		}
@@ -123,14 +123,14 @@ func appendStmt(text string, node xparse.SyntaxNode[Term, Production], dst adder
 	}
 	if rule, ok := node.Rule(); ok {
 		switch rule {
-		case ProductionCondition:
+		case syntax.ProductionCondition:
 			condition, err := lowerCond(text, node)
 			if err != nil {
 				return err
 			}
 			dst.add(condition)
 			return nil
-		case ProductionDefine:
+		case syntax.ProductionDefine:
 			fn, err := lowerDefine(text, node)
 			if err != nil {
 				return err
@@ -149,44 +149,44 @@ func appendStmt(text string, node xparse.SyntaxNode[Term, Production], dst adder
 	line := cookedLine(raw)
 	n := node.Line()
 	switch term {
-	case TermRecipe:
+	case syntax.TermRecipe:
 		attachRecipe(dst, recipeText(raw))
 		return nil
-	case TermAssign:
+	case syntax.TermAssign:
 		statement, err := lowerAssign(line, n)
 		if err != nil {
 			return err
 		}
 		dst.add(statement)
 		return nil
-	case TermRule:
+	case syntax.TermRule:
 		statement, err := lowerRule(line, n)
 		if err != nil {
 			return err
 		}
 		dst.add(statement)
 		return nil
-	case TermInclude:
+	case syntax.TermInclude:
 		statement, err := lowerInclude(line, n)
 		if err != nil {
 			return err
 		}
 		dst.add(statement)
 		return nil
-	case TermVPath:
+	case syntax.TermVPath:
 		dst.add(lowerVPath(line))
 		return nil
-	case TermExport:
+	case syntax.TermExport:
 		dst.add(lowerExport(line))
 		return nil
-	case TermUndefine:
+	case syntax.TermUndefine:
 		statement, err := lowerUndefine(line, n)
 		if err != nil {
 			return err
 		}
 		dst.add(statement)
 		return nil
-	case TermUnknown:
+	case syntax.TermUnknown:
 		return syn(n, "unknown statement %s", short(line))
 	default:
 		return syn(n, "syntax")
@@ -310,13 +310,13 @@ func lowerUndefine(line string, n int) (Stmt, error) {
 	return &Undefine{Names: names}, nil
 }
 
-func lowerCond(text string, node xparse.SyntaxNode[Term, Production]) (*Conditional, error) {
+func lowerCond(text string, node xparse.SyntaxNode[syntax.Term, syntax.Production]) (*Conditional, error) {
 	condition := &Conditional{}
 	var cur *Branch
 	elseSeen := false
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && rule == ProductionElse {
+		if rule, ok := child.Rule(); ok && rule == syntax.ProductionElse {
 			if elseSeen {
 				return nil, syn(elseLine(text, child), "only one else per conditional")
 			}
@@ -336,7 +336,7 @@ func lowerCond(text string, node xparse.SyntaxNode[Term, Production]) (*Conditio
 		}
 		if term, ok := child.Term(); ok {
 			switch term {
-			case TermIf:
+			case syntax.TermIf:
 				br, err := lowerIf(text, child)
 				if err != nil {
 					return nil, err
@@ -344,7 +344,7 @@ func lowerCond(text string, node xparse.SyntaxNode[Term, Production]) (*Conditio
 				condition.Branches = append(condition.Branches, br)
 				cur = br
 				continue
-			case TermEndif:
+			case syntax.TermEndif:
 				if err := checkEndif(text, child); err != nil {
 					return nil, err
 				}
@@ -364,10 +364,10 @@ func lowerCond(text string, node xparse.SyntaxNode[Term, Production]) (*Conditio
 	return condition, nil
 }
 
-func appendElse(text string, node xparse.SyntaxNode[Term, Production], br *Branch) error {
+func appendElse(text string, node xparse.SyntaxNode[syntax.Term, syntax.Production], br *Branch) error {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if term, ok := child.Term(); ok && term == TermElse {
+		if term, ok := child.Term(); ok && term == syntax.TermElse {
 			continue
 		}
 		if err := appendStmt(text, child, br); err != nil {
@@ -377,13 +377,13 @@ func appendElse(text string, node xparse.SyntaxNode[Term, Production], br *Branc
 	return nil
 }
 
-func lowerIf(text string, tok xparse.SyntaxNode[Term, Production]) (*Branch, error) {
+func lowerIf(text string, tok xparse.SyntaxNode[syntax.Term, syntax.Production]) (*Branch, error) {
 	line := cookedLine(tok.Text())
 	word, rest := cutWord(line)
 	return testBranch(word, rest, tok.Line())
 }
 
-func lowerElse(text string, node xparse.SyntaxNode[Term, Production]) (*Branch, bool, error) {
+func lowerElse(text string, node xparse.SyntaxNode[syntax.Term, syntax.Production]) (*Branch, bool, error) {
 	tok := elseTok(node)
 	line := cookedLine(tok.Text())
 	n := tok.Line()
@@ -402,21 +402,21 @@ func lowerElse(text string, node xparse.SyntaxNode[Term, Production]) (*Branch, 
 	}
 }
 
-func elseTok(node xparse.SyntaxNode[Term, Production]) xparse.SyntaxNode[Term, Production] {
+func elseTok(node xparse.SyntaxNode[syntax.Term, syntax.Production]) xparse.SyntaxNode[syntax.Term, syntax.Production] {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if term, ok := child.Term(); ok && term == TermElse {
+		if term, ok := child.Term(); ok && term == syntax.TermElse {
 			return child
 		}
 	}
 	return node
 }
 
-func elseLine(text string, node xparse.SyntaxNode[Term, Production]) int {
+func elseLine(text string, node xparse.SyntaxNode[syntax.Term, syntax.Production]) int {
 	return elseTok(node).Line()
 }
 
-func checkEndif(text string, tok xparse.SyntaxNode[Term, Production]) error {
+func checkEndif(text string, tok xparse.SyntaxNode[syntax.Term, syntax.Production]) error {
 	_, rest := cutWord(cookedLine(tok.Text()))
 	if trimSpace(rest) != "" {
 		return syn(tok.Line(), "extraneous text after endif")
@@ -424,10 +424,10 @@ func checkEndif(text string, tok xparse.SyntaxNode[Term, Production]) error {
 	return nil
 }
 
-func lowerDefine(text string, node xparse.SyntaxNode[Term, Production]) (Stmt, error) {
+func lowerDefine(text string, node xparse.SyntaxNode[syntax.Term, syntax.Production]) (Stmt, error) {
 	var (
-		header xparse.SyntaxNode[Term, Production]
-		endef  xparse.SyntaxNode[Term, Production]
+		header xparse.SyntaxNode[syntax.Term, syntax.Production]
+		endef  xparse.SyntaxNode[syntax.Term, syntax.Production]
 		body   []string
 	)
 	for i := 0; i < node.ChildCount(); i++ {
@@ -437,11 +437,11 @@ func lowerDefine(text string, node xparse.SyntaxNode[Term, Production]) (Stmt, e
 			return nil, syn(child.Line(), "syntax")
 		}
 		switch term {
-		case TermDefine:
+		case syntax.TermDefine:
 			header = child
-		case TermBody:
+		case syntax.TermBody:
 			body = append(body, bodyLine(child.Text()))
-		case TermEndef:
+		case syntax.TermEndef:
 			endef = child
 		default:
 			return nil, syn(child.Line(), "syntax")
@@ -485,7 +485,7 @@ func defineHeader(line string, n int) (*Function, error) {
 	return fn, nil
 }
 
-func checkEndef(text string, tok xparse.SyntaxNode[Term, Production]) error {
+func checkEndef(text string, tok xparse.SyntaxNode[syntax.Term, syntax.Production]) error {
 	line := collapse(tok.Text())
 	n := tok.Line()
 	if strings.HasPrefix(line, "\t") {

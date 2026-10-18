@@ -36,6 +36,6 @@ func syntaxParse(err error) error {
 	return fmt.Errorf("%w", ErrSyntax)
 }
 
-func syntaxAt(n xparse.SyntaxNode[Term, Rule]) error {
+func syntaxAt(n xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	return fmt.Errorf("%w: line %d", ErrSyntax, n.Line())
 }

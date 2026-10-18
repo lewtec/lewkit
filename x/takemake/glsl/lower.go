@@ -24,7 +24,7 @@ func parseSource(src string) (*File, error) {
 	return lowerFile(src, root)
 }
 
-func lowerFile(src string, root xparse.SyntaxNode[Term, Rule]) (*File, error) {
+func lowerFile(src string, root xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*File, error) {
 	file := New(0)
 	for i := 0; i < root.ChildCount(); i++ {
 		child := root.Child(i)
@@ -33,44 +33,44 @@ func lowerFile(src string, root xparse.SyntaxNode[Term, Rule]) (*File, error) {
 			continue
 		}
 		switch rule {
-		case RulePrecisionStatement:
+		case syntax.RulePrecisionStatement:
 			item, err := lowerPrecision(src, child)
 			if err != nil {
 				return nil, err
 			}
 			file.Precisions = append(file.Precisions, item)
-		case RuleStructDeclaration:
+		case syntax.RuleStructDeclaration:
 			item, decls, err := lowerStruct(src, child)
 			if err != nil {
 				return nil, err
 			}
 			file.Structs = append(file.Structs, item)
 			file.Globals = append(file.Globals, decls...)
-		case RuleInterface:
+		case syntax.RuleInterface:
 			decl, err := lowerIface(src, child)
 			if err != nil {
 				return nil, err
 			}
 			file.Globals = append(file.Globals, decl)
-		case RuleFunc:
+		case syntax.RuleFunc:
 			fn, err := lowerFunc(src, child)
 			if err != nil {
 				return nil, err
 			}
 			file.Functions = append(file.Functions, fn)
-		case RuleDeclaration:
+		case syntax.RuleDeclaration:
 			decls, err := lowerDecl(src, child)
 			if err != nil {
 				return nil, err
 			}
 			file.Globals = append(file.Globals, decls...)
-		case RuleNamed:
+		case syntax.RuleNamed:
 			decl, err := lowerNamed(src, child)
 			if err != nil {
 				return nil, err
 			}
 			file.Globals = append(file.Globals, decl)
-		case RuleBare:
+		case syntax.RuleBare:
 			decl, err := lowerBare(src, child)
 			if err != nil {
 				return nil, err
@@ -83,12 +83,12 @@ func lowerFile(src string, root xparse.SyntaxNode[Term, Rule]) (*File, error) {
 	return file, nil
 }
 
-func lowerPrecision(src string, node xparse.SyntaxNode[Term, Rule]) (Precision, error) {
+func lowerPrecision(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Precision, error) {
 	var item Precision
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		rule, ok := child.Rule()
-		if ok && rule == RuleRank {
+		if ok && rule == syntax.RuleRank {
 			rank, err := ParseRank(textOf(child))
 			if err != nil {
 				return Precision{}, syntaxf(child, "precision %s", textOf(child))
@@ -96,7 +96,7 @@ func lowerPrecision(src string, node xparse.SyntaxNode[Term, Rule]) (Precision, 
 			item.Rank = rank
 			continue
 		}
-		if term, ok := child.Term(); ok && term == TermIdentifier {
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier {
 			item.Type = child.Text()
 		}
 	}
@@ -106,7 +106,7 @@ func lowerPrecision(src string, node xparse.SyntaxNode[Term, Rule]) (Precision, 
 	return item, nil
 }
 
-func lowerStruct(src string, node xparse.SyntaxNode[Term, Rule]) (*Struct, []*Decl, error) {
+func lowerStruct(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Struct, []*Decl, error) {
 	item := &Struct{Name: identText(node)}
 	if item.Name == "" {
 		return nil, nil, syntaxf(node, "struct")
@@ -119,13 +119,13 @@ func lowerStruct(src string, node xparse.SyntaxNode[Term, Rule]) (*Struct, []*De
 			continue
 		}
 		switch rule {
-		case RuleDeclaration:
+		case syntax.RuleDeclaration:
 			fields, err := lowerDecl(src, child)
 			if err != nil {
 				return nil, nil, err
 			}
 			item.Fields = append(item.Fields, fields...)
-		case RuleTail:
+		case syntax.RuleTail:
 			decls, err := lowerTail(src, child, item.Name)
 			if err != nil {
 				return nil, nil, err
@@ -136,17 +136,17 @@ func lowerStruct(src string, node xparse.SyntaxNode[Term, Rule]) (*Struct, []*De
 	return item, extra, nil
 }
 
-func lowerTail(src string, node xparse.SyntaxNode[Term, Rule], typeName string) ([]*Decl, error) {
+func lowerTail(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule], typeName string) ([]*Decl, error) {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && rule == RuleDeclarators {
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleDeclarators {
 			return lowerDeclarators(src, child, qualifierState{}, Type{Name: typeName})
 		}
 	}
 	return nil, nil
 }
 
-func lowerIface(src string, node xparse.SyntaxNode[Term, Rule]) (*Decl, error) {
+func lowerIface(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Decl, error) {
 	qualifier, err := lowerQualifiers(src, node)
 	if err != nil {
 		return nil, err
@@ -163,13 +163,13 @@ func lowerIface(src string, node xparse.SyntaxNode[Term, Rule]) (*Decl, error) {
 			continue
 		}
 		switch rule {
-		case RuleDeclaration:
+		case syntax.RuleDeclaration:
 			fields, err := lowerDecl(src, child)
 			if err != nil {
 				return nil, err
 			}
 			decl.Fields = append(decl.Fields, fields...)
-		case RuleInstance:
+		case syntax.RuleInstance:
 			decl.Instance = identText(child)
 			sizes, err := sizesOf(src, child)
 			if err != nil {
@@ -181,7 +181,7 @@ func lowerIface(src string, node xparse.SyntaxNode[Term, Rule]) (*Decl, error) {
 	return decl, nil
 }
 
-func lowerFunc(src string, node xparse.SyntaxNode[Term, Rule]) (*Func, error) {
+func lowerFunc(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Func, error) {
 	qualifier, err := lowerQualifiers(src, node)
 	if err != nil {
 		return nil, err
@@ -193,7 +193,7 @@ func lowerFunc(src string, node xparse.SyntaxNode[Term, Rule]) (*Func, error) {
 	var names int
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if term, ok := child.Term(); ok && term == TermIdentifier {
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier {
 			if names == 0 {
 				fn.Return.Name = child.Text()
 			} else if names == 1 {
@@ -207,19 +207,19 @@ func lowerFunc(src string, node xparse.SyntaxNode[Term, Rule]) (*Func, error) {
 			continue
 		}
 		switch rule {
-		case RuleParameterList:
+		case syntax.RuleParameterList:
 			params, err := lowerParams(src, child)
 			if err != nil {
 				return nil, err
 			}
 			fn.Params = params
-		case RuleBracket:
+		case syntax.RuleBracket:
 			size, err := lowerBracket(src, child)
 			if err != nil {
 				return nil, err
 			}
 			fn.Return.Sizes = append(fn.Return.Sizes, size)
-		case RuleBody:
+		case syntax.RuleBody:
 			body, err := lowerBlockStmts(src, child)
 			if err != nil {
 				return nil, err
@@ -236,11 +236,11 @@ func lowerFunc(src string, node xparse.SyntaxNode[Term, Rule]) (*Func, error) {
 	return fn, nil
 }
 
-func lowerParams(src string, node xparse.SyntaxNode[Term, Rule]) ([]*Param, error) {
+func lowerParams(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]*Param, error) {
 	var params []*Param
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); !ok || rule != RuleParameter {
+		if rule, ok := child.Rule(); !ok || rule != syntax.RuleParameter {
 			continue
 		}
 		param, err := lowerParam(src, child)
@@ -260,23 +260,23 @@ func bareVoid(param *Param) bool {
 		param.Name == "" && param.Type.Name == "void" && len(param.Type.Sizes) == 0
 }
 
-func lowerParam(src string, node xparse.SyntaxNode[Term, Rule]) (*Param, error) {
+func lowerParam(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Param, error) {
 	param := &Param{}
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		rule, ok := child.Rule()
 		if !ok {
-			if term, ok := child.Term(); ok && term == TermIdentifier {
+			if term, ok := child.Term(); ok && term == syntax.TermIdentifier {
 				param.Type.Name = child.Text()
 			}
 			continue
 		}
 		switch rule {
-		case RuleParameterQualifier:
+		case syntax.RuleParameterQualifier:
 			if err := applyParameterQualifier(src, param, child); err != nil {
 				return nil, err
 			}
-		case RuleParameterName:
+		case syntax.RuleParameterName:
 			name, sizes, err := lowerParameterName(src, child)
 			if err != nil {
 				return nil, err
@@ -291,24 +291,24 @@ func lowerParam(src string, node xparse.SyntaxNode[Term, Rule]) (*Param, error) 
 	return param, nil
 }
 
-func applyParameterQualifier(src string, param *Param, node xparse.SyntaxNode[Term, Rule]) error {
+func applyParameterQualifier(src string, param *Param, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	term, text := keyword(node)
 	switch term {
-	case TermConst:
+	case syntax.TermConst:
 		param.Const = true
-	case TermIn, TermOut, TermInOut:
+	case syntax.TermIn, syntax.TermOut, syntax.TermInOut:
 		storage, err := ParseStorage(text)
 		if err != nil {
 			return syntaxf(node, "parameter %s", text)
 		}
 		param.Storage = storage
-	case TermLowp, TermMediump, TermHighp:
+	case syntax.TermLowp, syntax.TermMediump, syntax.TermHighp:
 		rank, err := ParseRank(text)
 		if err != nil {
 			return syntaxf(node, "parameter %s", text)
 		}
 		param.Rank = rank
-	case TermCoherent, TermVolatile, TermRestrict, TermReadonly, TermWriteonly:
+	case syntax.TermCoherent, syntax.TermVolatile, syntax.TermRestrict, syntax.TermReadonly, syntax.TermWriteonly:
 		mem, err := ParseMemory(text)
 		if err != nil {
 			return syntaxf(node, "parameter %s", text)
@@ -320,7 +320,7 @@ func applyParameterQualifier(src string, param *Param, node xparse.SyntaxNode[Te
 	return nil
 }
 
-func lowerParameterName(src string, node xparse.SyntaxNode[Term, Rule]) (string, []Size, error) {
+func lowerParameterName(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (string, []Size, error) {
 	name := identText(node)
 	sizes, err := sizesOf(src, node)
 	if err != nil {
@@ -329,7 +329,7 @@ func lowerParameterName(src string, node xparse.SyntaxNode[Term, Rule]) (string,
 	return name, sizes, nil
 }
 
-func lowerNamed(src string, node xparse.SyntaxNode[Term, Rule]) (*Decl, error) {
+func lowerNamed(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Decl, error) {
 	qualifier, err := lowerQualifiers(src, node)
 	if err != nil {
 		return nil, err
@@ -342,7 +342,7 @@ func lowerNamed(src string, node xparse.SyntaxNode[Term, Rule]) (*Decl, error) {
 	return decl, nil
 }
 
-func lowerBare(src string, node xparse.SyntaxNode[Term, Rule]) (*Decl, error) {
+func lowerBare(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Decl, error) {
 	qualifier, err := lowerQualifiers(src, node)
 	if err != nil {
 		return nil, err
@@ -350,7 +350,7 @@ func lowerBare(src string, node xparse.SyntaxNode[Term, Rule]) (*Decl, error) {
 	return qualifier.decl(), nil
 }
 
-func lowerDecl(src string, node xparse.SyntaxNode[Term, Rule]) ([]*Decl, error) {
+func lowerDecl(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]*Decl, error) {
 	qualifier, err := lowerQualifiers(src, node)
 	if err != nil {
 		return nil, err
@@ -361,18 +361,18 @@ func lowerDecl(src string, node xparse.SyntaxNode[Term, Rule]) ([]*Decl, error) 
 	}
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && rule == RuleDeclarators {
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleDeclarators {
 			return lowerDeclarators(src, child, qualifier, Type{Name: typeName})
 		}
 	}
 	return nil, syntaxf(node, "declaration")
 }
 
-func lowerDeclarators(src string, node xparse.SyntaxNode[Term, Rule], qualifier qualifierState, valueType Type) ([]*Decl, error) {
+func lowerDeclarators(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule], qualifier qualifierState, valueType Type) ([]*Decl, error) {
 	var decls []*Decl
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); !ok || rule != RuleDeclarator {
+		if rule, ok := child.Rule(); !ok || rule != syntax.RuleDeclarator {
 			continue
 		}
 		decl, err := lowerDeclarator(src, child, qualifier, valueType)
@@ -387,7 +387,7 @@ func lowerDeclarators(src string, node xparse.SyntaxNode[Term, Rule], qualifier 
 	return decls, nil
 }
 
-func lowerDeclarator(src string, node xparse.SyntaxNode[Term, Rule], qualifier qualifierState, valueType Type) (*Decl, error) {
+func lowerDeclarator(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule], qualifier qualifierState, valueType Type) (*Decl, error) {
 	decl := qualifier.decl()
 	decl.Name = identText(node)
 	if decl.Name == "" {
@@ -400,7 +400,7 @@ func lowerDeclarator(src string, node xparse.SyntaxNode[Term, Rule], qualifier q
 	decl.Type = withSizes(valueType, sizes)
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && rule == RuleInitializer {
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleInitializer {
 			expr, err := lowerInit(src, child)
 			if err != nil {
 				return nil, err
@@ -411,7 +411,7 @@ func lowerDeclarator(src string, node xparse.SyntaxNode[Term, Rule], qualifier q
 	return decl, nil
 }
 
-func lowerInit(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
+func lowerInit(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		rule, ok := child.Rule()
@@ -419,20 +419,20 @@ func lowerInit(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 			continue
 		}
 		switch rule {
-		case RuleAssign, RuleExpression:
+		case syntax.RuleAssign, syntax.RuleExpression:
 			return lowerExpr(src, child)
-		case RuleList:
+		case syntax.RuleList:
 			return lowerList(src, child)
 		}
 	}
 	return nil, syntaxf(node, "initializer")
 }
 
-func lowerQualifiers(src string, node xparse.SyntaxNode[Term, Rule]) (qualifierState, error) {
+func lowerQualifiers(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (qualifierState, error) {
 	var qualifier qualifierState
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); !ok || rule != RuleQualifier {
+		if rule, ok := child.Rule(); !ok || rule != syntax.RuleQualifier {
 			continue
 		}
 		if err := applyQual(src, &qualifier, child); err != nil {
@@ -442,10 +442,10 @@ func lowerQualifiers(src string, node xparse.SyntaxNode[Term, Rule]) (qualifierS
 	return qualifier, nil
 }
 
-func applyQual(src string, qualifier *qualifierState, node xparse.SyntaxNode[Term, Rule]) error {
+func applyQual(src string, qualifier *qualifierState, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) error {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && rule == RuleLayoutQualifier {
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleLayoutQualifier {
 			items, err := lowerLayouts(src, child)
 			if err != nil {
 				return err
@@ -455,35 +455,35 @@ func applyQual(src string, qualifier *qualifierState, node xparse.SyntaxNode[Ter
 		}
 		term, text := keyword(child)
 		switch term {
-		case TermInvariant:
+		case syntax.TermInvariant:
 			qualifier.invariant = true
-		case TermPrecise:
+		case syntax.TermPrecise:
 			qualifier.precise = true
-		case TermSmooth, TermFlat, TermNoPerspective:
+		case syntax.TermSmooth, syntax.TermFlat, syntax.TermNoPerspective:
 			interp, err := ParseInterp(text)
 			if err != nil || (qualifier.interp != 0 && qualifier.interp != interp) {
 				return syntaxf(child, "interpolation %s", text)
 			}
 			qualifier.interp = interp
-		case TermCentroid, TermSample, TermPatch:
+		case syntax.TermCentroid, syntax.TermSample, syntax.TermPatch:
 			aux, err := ParseAux(text)
 			if err != nil || (qualifier.aux != 0 && qualifier.aux != aux) {
 				return syntaxf(child, "auxiliary %s", text)
 			}
 			qualifier.aux = aux
-		case TermCoherent, TermVolatile, TermRestrict, TermReadonly, TermWriteonly:
+		case syntax.TermCoherent, syntax.TermVolatile, syntax.TermRestrict, syntax.TermReadonly, syntax.TermWriteonly:
 			mem, err := ParseMemory(text)
 			if err != nil {
 				return syntaxf(child, "memory %s", text)
 			}
 			qualifier.memory = addMemory(qualifier.memory, mem)
-		case TermLowp, TermMediump, TermHighp:
+		case syntax.TermLowp, syntax.TermMediump, syntax.TermHighp:
 			rank, err := ParseRank(text)
 			if err != nil || (qualifier.rank != 0 && qualifier.rank != rank) {
 				return syntaxf(child, "precision %s", text)
 			}
 			qualifier.rank = rank
-		case TermConst, TermIn, TermOut, TermInOut, TermUniform, TermBuffer, TermShared:
+		case syntax.TermConst, syntax.TermIn, syntax.TermOut, syntax.TermInOut, syntax.TermUniform, syntax.TermBuffer, syntax.TermShared:
 			storage, err := ParseStorage(text)
 			if err != nil || (qualifier.storage != 0 && qualifier.storage != storage) {
 				return syntaxf(child, "storage %s", text)
@@ -498,22 +498,22 @@ func applyQual(src string, qualifier *qualifierState, node xparse.SyntaxNode[Ter
 	return nil
 }
 
-func lowerLayouts(src string, node xparse.SyntaxNode[Term, Rule]) ([]Layout, error) {
+func lowerLayouts(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Layout, error) {
 	var items []Layout
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); !ok || rule != RuleLayoutItems {
+		if rule, ok := child.Rule(); !ok || rule != syntax.RuleLayoutItems {
 			continue
 		}
 		var current *Layout
 		for j := 0; j < child.ChildCount(); j++ {
 			part := child.Child(j)
-			if term, ok := part.Term(); ok && term == TermIdentifier {
+			if term, ok := part.Term(); ok && term == syntax.TermIdentifier {
 				items = append(items, Layout{Name: part.Text()})
 				current = &items[len(items)-1]
 				continue
 			}
-			if rule, ok := part.Rule(); ok && (rule == RuleAssign || rule == RuleExpression) {
+			if rule, ok := part.Rule(); ok && (rule == syntax.RuleAssign || rule == syntax.RuleExpression) {
 				if current == nil {
 					return nil, syntaxf(part, "layout")
 				}
@@ -557,40 +557,40 @@ func (qualifier qualifierState) decl() *Decl {
 	return decl
 }
 
-func lowerStmt(src string, node xparse.SyntaxNode[Term, Rule]) (Stmt, error) {
-	node = unwrap(node, RuleStatement, RuleSwitchItem)
+func lowerStmt(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Stmt, error) {
+	node = unwrap(node, syntax.RuleStatement, syntax.RuleSwitchItem)
 	rule, ok := node.Rule()
 	if !ok {
 		return nil, syntaxf(node, "statement")
 	}
 	switch rule {
-	case RuleEmpty:
+	case syntax.RuleEmpty:
 		return &Empty{}, nil
-	case RuleBlock:
+	case syntax.RuleBlock:
 		body, err := lowerBlockStmts(src, node)
 		if err != nil {
 			return nil, err
 		}
 		return &Block{Body: body}, nil
-	case RuleIfStatement:
+	case syntax.RuleIfStatement:
 		return lowerIf(src, node)
-	case RuleForStatement:
+	case syntax.RuleForStatement:
 		return lowerFor(src, node)
-	case RuleWhileStatement:
+	case syntax.RuleWhileStatement:
 		return lowerWhile(src, node)
-	case RuleDoStatement:
+	case syntax.RuleDoStatement:
 		return lowerDo(src, node)
-	case RuleSwitchStatement:
+	case syntax.RuleSwitchStatement:
 		return lowerSwitch(src, node)
-	case RuleReturnStatement:
+	case syntax.RuleReturnStatement:
 		return lowerReturn(src, node)
-	case RuleBreakStatement:
+	case syntax.RuleBreakStatement:
 		return &Break{}, nil
-	case RuleContinueStatement:
+	case syntax.RuleContinueStatement:
 		return &Continue{}, nil
-	case RuleDiscardStatement:
+	case syntax.RuleDiscardStatement:
 		return &Discard{}, nil
-	case RuleDeclaration:
+	case syntax.RuleDeclaration:
 		decls, err := lowerDecl(src, node)
 		if err != nil {
 			return nil, err
@@ -603,7 +603,7 @@ func lowerStmt(src string, node xparse.SyntaxNode[Term, Rule]) (Stmt, error) {
 			body[i] = decl
 		}
 		return &Block{Body: body}, nil
-	case RuleExpressionStatement:
+	case syntax.RuleExpressionStatement:
 		expr, err := firstExpr(src, node)
 		if err != nil {
 			return nil, err
@@ -614,11 +614,11 @@ func lowerStmt(src string, node xparse.SyntaxNode[Term, Rule]) (Stmt, error) {
 	}
 }
 
-func lowerBlockStmts(src string, node xparse.SyntaxNode[Term, Rule]) ([]Stmt, error) {
+func lowerBlockStmts(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Stmt, error) {
 	var body []Stmt
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); !ok || rule != RuleStatement {
+		if rule, ok := child.Rule(); !ok || rule != syntax.RuleStatement {
 			continue
 		}
 		stmt, err := lowerStmt(src, child)
@@ -635,9 +635,9 @@ func lowerBlockStmts(src string, node xparse.SyntaxNode[Term, Rule]) ([]Stmt, er
 	return body, nil
 }
 
-func lowerControlled(src string, node xparse.SyntaxNode[Term, Rule]) ([]Stmt, error) {
-	node = unwrap(node, RuleStatement)
-	if rule, ok := node.Rule(); ok && rule == RuleBlock {
+func lowerControlled(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Stmt, error) {
+	node = unwrap(node, syntax.RuleStatement)
+	if rule, ok := node.Rule(); ok && rule == syntax.RuleBlock {
 		return lowerBlockStmts(src, node)
 	}
 	stmt, err := lowerStmt(src, node)
@@ -650,16 +650,16 @@ func lowerControlled(src string, node xparse.SyntaxNode[Term, Rule]) ([]Stmt, er
 	return []Stmt{stmt}, nil
 }
 
-func lowerIf(src string, node xparse.SyntaxNode[Term, Rule]) (*If, error) {
+func lowerIf(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*If, error) {
 	item := &If{}
-	var stmts []xparse.SyntaxNode[Term, Rule]
+	var stmts []xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		rule, ok := child.Rule()
 		if !ok {
 			continue
 		}
-		if rule == RuleExpression && item.Cond == nil {
+		if rule == syntax.RuleExpression && item.Cond == nil {
 			expr, err := lowerExpr(src, child)
 			if err != nil {
 				return nil, err
@@ -667,7 +667,7 @@ func lowerIf(src string, node xparse.SyntaxNode[Term, Rule]) (*If, error) {
 			item.Cond = expr
 			continue
 		}
-		if rule == RuleStatement {
+		if rule == syntax.RuleStatement {
 			stmts = append(stmts, child)
 		}
 	}
@@ -689,7 +689,7 @@ func lowerIf(src string, node xparse.SyntaxNode[Term, Rule]) (*If, error) {
 	return item, nil
 }
 
-func lowerFor(src string, node xparse.SyntaxNode[Term, Rule]) (*For, error) {
+func lowerFor(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*For, error) {
 	inner, bodyNode, err := parenInner(node)
 	if err != nil {
 		return nil, syntaxf(node, "for")
@@ -702,14 +702,14 @@ func lowerFor(src string, node xparse.SyntaxNode[Term, Rule]) (*For, error) {
 	switch {
 	case isText(rest[0], ";"):
 		rest = rest[1:]
-	case isRule(rest[0], RuleDeclaration):
+	case isRule(rest[0], syntax.RuleDeclaration):
 		init, err := lowerStmt(src, rest[0])
 		if err != nil {
 			return nil, err
 		}
 		item.Init = init
 		rest = rest[1:]
-	case isRule(rest[0], RuleExpression):
+	case isRule(rest[0], syntax.RuleExpression):
 		expr, err := lowerExpr(src, rest[0])
 		if err != nil {
 			return nil, err
@@ -736,8 +736,8 @@ func lowerFor(src string, node xparse.SyntaxNode[Term, Rule]) (*For, error) {
 	return item, nil
 }
 
-func splitForRest(src string, nodes []xparse.SyntaxNode[Term, Rule]) (Expr, Expr, error) {
-	var left, right []xparse.SyntaxNode[Term, Rule]
+func splitForRest(src string, nodes []xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, Expr, error) {
+	var left, right []xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	seen := false
 	for _, node := range nodes {
 		if !seen && isText(node, ";") {
@@ -752,7 +752,7 @@ func splitForRest(src string, nodes []xparse.SyntaxNode[Term, Rule]) (Expr, Expr
 	}
 	if !seen {
 		if len(nodes) == 0 {
-			return nil, nil, syntaxf(xparse.SyntaxNode[Term, Rule]{}, "for")
+			return nil, nil, syntaxf(xparse.SyntaxNode[syntax.Term, syntax.Rule]{}, "for")
 		}
 		return nil, nil, syntaxf(nodes[0], "for")
 	}
@@ -767,7 +767,7 @@ func splitForRest(src string, nodes []xparse.SyntaxNode[Term, Rule]) (Expr, Expr
 	return cond, post, nil
 }
 
-func optionalExpr(src string, nodes []xparse.SyntaxNode[Term, Rule]) (Expr, error) {
+func optionalExpr(src string, nodes []xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
 	if len(nodes) == 0 {
 		return nil, nil
 	}
@@ -777,7 +777,7 @@ func optionalExpr(src string, nodes []xparse.SyntaxNode[Term, Rule]) (Expr, erro
 	return lowerExpr(src, nodes[0])
 }
 
-func lowerWhile(src string, node xparse.SyntaxNode[Term, Rule]) (*While, error) {
+func lowerWhile(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*While, error) {
 	expr, err := firstExpr(src, node)
 	if err != nil {
 		return nil, err
@@ -793,20 +793,20 @@ func lowerWhile(src string, node xparse.SyntaxNode[Term, Rule]) (*While, error) 
 	return &While{Cond: expr, Body: body}, nil
 }
 
-func lowerDo(src string, node xparse.SyntaxNode[Term, Rule]) (*Do, error) {
-	bodyNode := xparse.SyntaxNode[Term, Rule]{}
-	var exprNode xparse.SyntaxNode[Term, Rule]
+func lowerDo(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Do, error) {
+	bodyNode := xparse.SyntaxNode[syntax.Term, syntax.Rule]{}
+	var exprNode xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		rule, ok := child.Rule()
 		if !ok {
 			continue
 		}
-		if rule == RuleStatement && !bodyNode.Valid() {
+		if rule == syntax.RuleStatement && !bodyNode.Valid() {
 			bodyNode = child
 			continue
 		}
-		if (rule == RuleExpression || rule == RuleAssign) && !exprNode.Valid() {
+		if (rule == syntax.RuleExpression || rule == syntax.RuleAssign) && !exprNode.Valid() {
 			exprNode = child
 		}
 	}
@@ -824,7 +824,7 @@ func lowerDo(src string, node xparse.SyntaxNode[Term, Rule]) (*Do, error) {
 	return &Do{Body: body, Cond: expr}, nil
 }
 
-func lowerSwitch(src string, node xparse.SyntaxNode[Term, Rule]) (*Switch, error) {
+func lowerSwitch(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Switch, error) {
 	expr, err := firstExpr(src, node)
 	if err != nil {
 		return nil, err
@@ -832,23 +832,23 @@ func lowerSwitch(src string, node xparse.SyntaxNode[Term, Rule]) (*Switch, error
 	item := &Switch{Expr: expr}
 	var current *Case
 	for i := 0; i < node.ChildCount(); i++ {
-		child := unwrap(node.Child(i), RuleSwitchItem)
+		child := unwrap(node.Child(i), syntax.RuleSwitchItem)
 		rule, ok := child.Rule()
 		if !ok {
 			continue
 		}
 		switch rule {
-		case RuleCaseLabel:
+		case syntax.RuleCaseLabel:
 			label, err := firstExpr(src, child)
 			if err != nil {
 				return nil, err
 			}
 			current = &Case{Expr: label}
 			item.Cases = append(item.Cases, current)
-		case RuleDefaultLabel:
+		case syntax.RuleDefaultLabel:
 			current = &Case{Default: true}
 			item.Cases = append(item.Cases, current)
-		case RuleStatement:
+		case syntax.RuleStatement:
 			if current == nil {
 				return nil, syntaxf(child, "case")
 			}
@@ -862,10 +862,10 @@ func lowerSwitch(src string, node xparse.SyntaxNode[Term, Rule]) (*Switch, error
 	return item, nil
 }
 
-func lowerReturn(src string, node xparse.SyntaxNode[Term, Rule]) (*Return, error) {
+func lowerReturn(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*Return, error) {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && (rule == RuleExpression || rule == RuleAssign) {
+		if rule, ok := child.Rule(); ok && (rule == syntax.RuleExpression || rule == syntax.RuleAssign) {
 			expr, err := lowerExpr(src, child)
 			if err != nil {
 				return nil, err
@@ -876,9 +876,9 @@ func lowerReturn(src string, node xparse.SyntaxNode[Term, Rule]) (*Return, error
 	return &Return{}, nil
 }
 
-func lowerExpr(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
+func lowerExpr(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
 	if !node.Valid() {
-		return nil, syntaxf(xparse.SyntaxNode[Term, Rule]{}, "expression")
+		return nil, syntaxf(xparse.SyntaxNode[syntax.Term, syntax.Rule]{}, "expression")
 	}
 	if _, ok := node.Rule(); !ok {
 		return lowerAtom(src, node)
@@ -959,7 +959,7 @@ func lowerExpr(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 	return nil, syntaxf(node, "expression")
 }
 
-func lowerBinary(src string, left, op, right xparse.SyntaxNode[Term, Rule]) (Expr, error) {
+func lowerBinary(src string, left, op, right xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
 	lhs, err := lowerExpr(src, left)
 	if err != nil {
 		return nil, err
@@ -971,12 +971,12 @@ func lowerBinary(src string, left, op, right xparse.SyntaxNode[Term, Rule]) (Exp
 	return &Binary{Op: op.Text(), Left: lhs, Right: rhs}, nil
 }
 
-func lowerArgs(src string, node xparse.SyntaxNode[Term, Rule]) ([]Expr, error) {
+func lowerArgs(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Expr, error) {
 	var args []Expr
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		rule, ok := child.Rule()
-		if !ok || (rule != RuleAssign && rule != RuleExpression) {
+		if !ok || (rule != syntax.RuleAssign && rule != syntax.RuleExpression) {
 			continue
 		}
 		expr, err := lowerExpr(src, child)
@@ -988,11 +988,11 @@ func lowerArgs(src string, node xparse.SyntaxNode[Term, Rule]) ([]Expr, error) {
 	return args, nil
 }
 
-func lowerList(src string, node xparse.SyntaxNode[Term, Rule]) (*List, error) {
+func lowerList(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (*List, error) {
 	var elems []Expr
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && rule == RuleElements {
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleElements {
 			if err := collectElems(src, child, &elems); err != nil {
 				return nil, err
 			}
@@ -1001,7 +1001,7 @@ func lowerList(src string, node xparse.SyntaxNode[Term, Rule]) (*List, error) {
 	return &List{Exprs: elems}, nil
 }
 
-func collectElems(src string, node xparse.SyntaxNode[Term, Rule], out *[]Expr) error {
+func collectElems(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule], out *[]Expr) error {
 	if node.ChildCount() == 1 {
 		return appendElem(src, node.Child(0), out)
 	}
@@ -1012,11 +1012,11 @@ func collectElems(src string, node xparse.SyntaxNode[Term, Rule], out *[]Expr) e
 			continue
 		}
 		switch rule {
-		case RuleElements:
+		case syntax.RuleElements:
 			if err := collectElems(src, child, out); err != nil {
 				return err
 			}
-		case RuleElement, RuleAssign, RuleExpression, RuleList:
+		case syntax.RuleElement, syntax.RuleAssign, syntax.RuleExpression, syntax.RuleList:
 			if err := appendElem(src, child, out); err != nil {
 				return err
 			}
@@ -1025,8 +1025,8 @@ func collectElems(src string, node xparse.SyntaxNode[Term, Rule], out *[]Expr) e
 	return nil
 }
 
-func appendElem(src string, node xparse.SyntaxNode[Term, Rule], out *[]Expr) error {
-	node = unwrap(node, RuleElement)
+func appendElem(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule], out *[]Expr) error {
+	node = unwrap(node, syntax.RuleElement)
 	rule, ok := node.Rule()
 	if !ok {
 		return syntaxf(node, "initializer")
@@ -1034,7 +1034,7 @@ func appendElem(src string, node xparse.SyntaxNode[Term, Rule], out *[]Expr) err
 	var expr Expr
 	var err error
 	switch rule {
-	case RuleList:
+	case syntax.RuleList:
 		expr, err = lowerList(src, node)
 	default:
 		expr, err = lowerExpr(src, node)
@@ -1046,13 +1046,13 @@ func appendElem(src string, node xparse.SyntaxNode[Term, Rule], out *[]Expr) err
 	return nil
 }
 
-func lowerAtom(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
+func lowerAtom(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
 	term, ok := node.Term()
 	if !ok {
 		return nil, syntaxf(node, "expression")
 	}
 	switch term {
-	case TermIdentifier:
+	case syntax.TermIdentifier:
 		switch node.Text() {
 		case "true":
 			return &Literal{Kind: KindBool, Bool: true}, nil
@@ -1061,7 +1061,7 @@ func lowerAtom(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 		default:
 			return &Ident{Name: node.Text()}, nil
 		}
-	case TermNumber:
+	case syntax.TermNumber:
 		lit, end, err := scanNumber(node.Text(), 0, node.Line())
 		if err != nil {
 			return nil, err
@@ -1075,30 +1075,30 @@ func lowerAtom(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
 	}
 }
 
-func firstExpr(src string, node xparse.SyntaxNode[Term, Rule]) (Expr, error) {
+func firstExpr(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Expr, error) {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && (rule == RuleExpression || rule == RuleAssign) {
+		if rule, ok := child.Rule(); ok && (rule == syntax.RuleExpression || rule == syntax.RuleAssign) {
 			return lowerExpr(src, child)
 		}
 	}
 	return nil, syntaxf(node, "expression")
 }
 
-func lastStmt(node xparse.SyntaxNode[Term, Rule]) xparse.SyntaxNode[Term, Rule] {
-	var stmt xparse.SyntaxNode[Term, Rule]
+func lastStmt(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) xparse.SyntaxNode[syntax.Term, syntax.Rule] {
+	var stmt xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && rule == RuleStatement {
+		if rule, ok := child.Rule(); ok && rule == syntax.RuleStatement {
 			stmt = child
 		}
 	}
 	return stmt
 }
 
-func parenInner(node xparse.SyntaxNode[Term, Rule]) ([]xparse.SyntaxNode[Term, Rule], xparse.SyntaxNode[Term, Rule], error) {
-	var inner []xparse.SyntaxNode[Term, Rule]
-	var stmt xparse.SyntaxNode[Term, Rule]
+func parenInner(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]xparse.SyntaxNode[syntax.Term, syntax.Rule], xparse.SyntaxNode[syntax.Term, syntax.Rule], error) {
+	var inner []xparse.SyntaxNode[syntax.Term, syntax.Rule]
+	var stmt xparse.SyntaxNode[syntax.Term, syntax.Rule]
 	saw := false
 	done := false
 	for i := 0; i < node.ChildCount(); i++ {
@@ -1120,16 +1120,16 @@ func parenInner(node xparse.SyntaxNode[Term, Rule]) ([]xparse.SyntaxNode[Term, R
 		inner = append(inner, child)
 	}
 	if !saw || !done || !stmt.Valid() {
-		return nil, xparse.SyntaxNode[Term, Rule]{}, fmt.Errorf("%w: for", ErrSyntax)
+		return nil, xparse.SyntaxNode[syntax.Term, syntax.Rule]{}, fmt.Errorf("%w: for", ErrSyntax)
 	}
 	return inner, stmt, nil
 }
 
-func sizesOf(src string, node xparse.SyntaxNode[Term, Rule]) ([]Size, error) {
+func sizesOf(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) ([]Size, error) {
 	var sizes []Size
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); !ok || rule != RuleBracket {
+		if rule, ok := child.Rule(); !ok || rule != syntax.RuleBracket {
 			continue
 		}
 		size, err := lowerBracket(src, child)
@@ -1141,10 +1141,10 @@ func sizesOf(src string, node xparse.SyntaxNode[Term, Rule]) ([]Size, error) {
 	return sizes, nil
 }
 
-func lowerBracket(src string, node xparse.SyntaxNode[Term, Rule]) (Size, error) {
+func lowerBracket(src string, node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (Size, error) {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if rule, ok := child.Rule(); ok && (rule == RuleAssign || rule == RuleExpression) {
+		if rule, ok := child.Rule(); ok && (rule == syntax.RuleAssign || rule == syntax.RuleExpression) {
 			expr, err := lowerExpr(src, child)
 			if err != nil {
 				return Size{}, err
@@ -1170,17 +1170,17 @@ func withSizes(valueType Type, extra []Size) Type {
 	return valueType
 }
 
-func identText(node xparse.SyntaxNode[Term, Rule]) string {
+func identText(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) string {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
-		if term, ok := child.Term(); ok && term == TermIdentifier {
+		if term, ok := child.Term(); ok && term == syntax.TermIdentifier {
 			return child.Text()
 		}
 	}
 	return ""
 }
 
-func textOf(node xparse.SyntaxNode[Term, Rule]) string {
+func textOf(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) string {
 	for i := 0; i < node.ChildCount(); i++ {
 		child := node.Child(i)
 		if _, ok := child.Term(); ok {
@@ -1190,8 +1190,8 @@ func textOf(node xparse.SyntaxNode[Term, Rule]) string {
 	return ""
 }
 
-func keyword(node xparse.SyntaxNode[Term, Rule]) (Term, string) {
-	node = unwrap(node, RuleQualifier, RuleParameterQualifier, RuleRank)
+func keyword(node xparse.SyntaxNode[syntax.Term, syntax.Rule]) (syntax.Term, string) {
+	node = unwrap(node, syntax.RuleQualifier, syntax.RuleParameterQualifier, syntax.RuleRank)
 	term, ok := node.Term()
 	if !ok {
 		return "", ""
@@ -1199,7 +1199,7 @@ func keyword(node xparse.SyntaxNode[Term, Rule]) (Term, string) {
 	return term, node.Text()
 }
 
-func unwrap(node xparse.SyntaxNode[Term, Rule], rules ...Rule) xparse.SyntaxNode[Term, Rule] {
+func unwrap(node xparse.SyntaxNode[syntax.Term, syntax.Rule], rules ...syntax.Rule) xparse.SyntaxNode[syntax.Term, syntax.Rule] {
 	for node.Valid() && node.ChildCount() == 1 {
 		rule, ok := node.Rule()
 		if !ok || !ruleOne(rule, rules) {
@@ -1210,7 +1210,7 @@ func unwrap(node xparse.SyntaxNode[Term, Rule], rules ...Rule) xparse.SyntaxNode
 	return node
 }
 
-func ruleOne(rule Rule, rules []Rule) bool {
+func ruleOne(rule syntax.Rule, rules []syntax.Rule) bool {
 	for _, item := range rules {
 		if rule == item {
 			return true
@@ -1219,15 +1219,15 @@ func ruleOne(rule Rule, rules []Rule) bool {
 	return false
 }
 
-func isRule(node xparse.SyntaxNode[Term, Rule], rule Rule) bool {
+func isRule(node xparse.SyntaxNode[syntax.Term, syntax.Rule], rule syntax.Rule) bool {
 	got, ok := node.Rule()
 	return ok && got == rule
 }
 
-func isText(node xparse.SyntaxNode[Term, Rule], text string) bool {
+func isText(node xparse.SyntaxNode[syntax.Term, syntax.Rule], text string) bool {
 	return node.Valid() && node.Text() == text
 }
 
-func syntaxf(node xparse.SyntaxNode[Term, Rule], format string, args ...any) error {
+func syntaxf(node xparse.SyntaxNode[syntax.Term, syntax.Rule], format string, args ...any) error {
 	return fmt.Errorf("%w: line %d: %s", ErrSyntax, node.Line(), fmt.Sprintf(format, args...))
 }

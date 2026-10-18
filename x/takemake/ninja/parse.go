@@ -32,9 +32,9 @@ func parseErr(s string, err error) error {
 	return fmt.Errorf("%w: line %d: syntax", errSyntax, pe.Line)
 }
 
-func lower(src string, root xparse.SyntaxNode[Term, Production]) (*File, error) {
+func lower(src string, root xparse.SyntaxNode[syntax.Term, syntax.Production]) (*File, error) {
 	rule, ok := root.Rule()
-	if !ok || rule != ProductionFile {
+	if !ok || rule != syntax.ProductionFile {
 		return nil, fmt.Errorf("%w: line 1: syntax", errSyntax)
 	}
 	file := New()
@@ -42,7 +42,7 @@ func lower(src string, root xparse.SyntaxNode[Term, Production]) (*File, error) 
 		child := root.Child(i)
 		term, isTerm := child.Term()
 		if isTerm {
-			if term == TermNewline {
+			if term == syntax.TermNewline {
 				continue
 			}
 			return nil, badNode(src, child)
@@ -56,47 +56,47 @@ func lower(src string, root xparse.SyntaxNode[Term, Production]) (*File, error) 
 	return file, nil
 }
 
-func lowerStmt(src string, n xparse.SyntaxNode[Term, Production]) (Stmt, error) {
+func lowerStmt(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) (Stmt, error) {
 	rule, ok := n.Rule()
 	if !ok {
 		return nil, badNode(src, n)
 	}
 	switch rule {
-	case ProductionVariable:
+	case syntax.ProductionVariable:
 		name, value, err := lowerBind(src, n)
 		if err != nil {
 			return nil, err
 		}
 		return &Variable{Name: name, Value: value}, nil
-	case ProductionRule:
+	case syntax.ProductionRule:
 		r := &Rule{}
 		if err := lowerNamed(src, n, &r.Name, &r.Bindings); err != nil {
 			return nil, err
 		}
 		return r, nil
-	case ProductionPool:
+	case syntax.ProductionPool:
 		p := &Pool{}
 		if err := lowerNamed(src, n, &p.Name, &p.Bindings); err != nil {
 			return nil, err
 		}
 		return p, nil
-	case ProductionEdge:
+	case syntax.ProductionEdge:
 		return lowerEdge(src, n)
-	case ProductionDefault:
+	case syntax.ProductionDefault:
 		return lowerDefault(src, n)
-	case ProductionInclude:
+	case syntax.ProductionInclude:
 		return lowerInclude(src, n, false)
-	case ProductionSubninja:
+	case syntax.ProductionSubninja:
 		return lowerInclude(src, n, true)
 	default:
 		return nil, badNode(src, n)
 	}
 }
 
-func lowerNamed(src string, n xparse.SyntaxNode[Term, Production], name *string, binds *[]Binding) error {
+func lowerNamed(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production], name *string, binds *[]Binding) error {
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
-		if rule, ok := child.Rule(); ok && rule == ProductionBinding {
+		if rule, ok := child.Rule(); ok && rule == syntax.ProductionBinding {
 			b, err := lowerBinding(src, child)
 			if err != nil {
 				return err
@@ -108,7 +108,7 @@ func lowerNamed(src string, n xparse.SyntaxNode[Term, Production], name *string,
 		if !ok {
 			return badNode(src, child)
 		}
-		if term == TermIdentifier && *name == "" {
+		if term == syntax.TermIdentifier && *name == "" {
 			*name = child.Text()
 		}
 	}
@@ -118,25 +118,25 @@ func lowerNamed(src string, n xparse.SyntaxNode[Term, Production], name *string,
 	return nil
 }
 
-func lowerEdge(src string, n xparse.SyntaxNode[Term, Production]) (*Edge, error) {
+func lowerEdge(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) (*Edge, error) {
 	e := &Edge{}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
 		if rule, ok := child.Rule(); ok {
 			switch rule {
-			case ProductionOutputs:
+			case syntax.ProductionOutputs:
 				outs, impl, err := splitOuts(src, child)
 				if err != nil {
 					return nil, err
 				}
 				e.Outputs, e.ImplicitOutputs = outs, impl
-			case ProductionInputs:
+			case syntax.ProductionInputs:
 				ins, impl, order, valid, err := splitIns(src, child)
 				if err != nil {
 					return nil, err
 				}
 				e.Inputs, e.ImplicitDeps, e.OrderOnlyDeps, e.Validations = ins, impl, order, valid
-			case ProductionBinding:
+			case syntax.ProductionBinding:
 				b, err := lowerBinding(src, child)
 				if err != nil {
 					return nil, err
@@ -151,7 +151,7 @@ func lowerEdge(src string, n xparse.SyntaxNode[Term, Production]) (*Edge, error)
 		if !ok {
 			return nil, badNode(src, child)
 		}
-		if term == TermIdentifier {
+		if term == syntax.TermIdentifier {
 			e.Rule = child.Text()
 		}
 	}
@@ -161,12 +161,12 @@ func lowerEdge(src string, n xparse.SyntaxNode[Term, Production]) (*Edge, error)
 	return e, nil
 }
 
-func lowerDefault(src string, n xparse.SyntaxNode[Term, Production]) (*Default, error) {
+func lowerDefault(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) (*Default, error) {
 	d := &Default{}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
 		term, ok := child.Term()
-		if !ok || term != TermPath {
+		if !ok || term != syntax.TermPath {
 			continue
 		}
 		ps, err := piecesAt(src, child, true)
@@ -181,12 +181,12 @@ func lowerDefault(src string, n xparse.SyntaxNode[Term, Production]) (*Default, 
 	return d, nil
 }
 
-func lowerInclude(src string, n xparse.SyntaxNode[Term, Production], subninja bool) (*Include, error) {
+func lowerInclude(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production], subninja bool) (*Include, error) {
 	include := &Include{Subninja: subninja}
 	for i := 0; i < n.ChildCount(); i++ {
 		child := n.Child(i)
 		term, ok := child.Term()
-		if !ok || term != TermPath {
+		if !ok || term != syntax.TermPath {
 			continue
 		}
 		ps, err := piecesAt(src, child, true)
@@ -201,7 +201,7 @@ func lowerInclude(src string, n xparse.SyntaxNode[Term, Production], subninja bo
 	return include, nil
 }
 
-func lowerBinding(src string, n xparse.SyntaxNode[Term, Production]) (Binding, error) {
+func lowerBinding(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) (Binding, error) {
 	name, value, err := lowerBind(src, n)
 	if err != nil {
 		return Binding{}, err
@@ -209,7 +209,7 @@ func lowerBinding(src string, n xparse.SyntaxNode[Term, Production]) (Binding, e
 	return Binding{Name: name, Value: value}, nil
 }
 
-func lowerBind(src string, n xparse.SyntaxNode[Term, Production]) (string, []Piece, error) {
+func lowerBind(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) (string, []Piece, error) {
 	var name string
 	var value []Piece
 	for i := 0; i < n.ChildCount(); i++ {
@@ -219,11 +219,11 @@ func lowerBind(src string, n xparse.SyntaxNode[Term, Production]) (string, []Pie
 			return "", nil, badNode(src, child)
 		}
 		switch term {
-		case TermIdentifier:
+		case syntax.TermIdentifier:
 			if name == "" {
 				name = child.Text()
 			}
-		case TermValue:
+		case syntax.TermValue:
 			ps, err := piecesAt(src, child, false)
 			if err != nil {
 				return "", nil, err
@@ -237,7 +237,7 @@ func lowerBind(src string, n xparse.SyntaxNode[Term, Production]) (string, []Pie
 	return name, value, nil
 }
 
-func splitOuts(src string, n xparse.SyntaxNode[Term, Production]) ([][]Piece, [][]Piece, error) {
+func splitOuts(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) ([][]Piece, [][]Piece, error) {
 	var explicit, implicit [][]Piece
 	cur := &explicit
 	saw := false
@@ -248,13 +248,13 @@ func splitOuts(src string, n xparse.SyntaxNode[Term, Production]) ([][]Piece, []
 			return nil, nil, badNode(src, child)
 		}
 		switch term {
-		case TermPath:
+		case syntax.TermPath:
 			ps, err := piecesAt(src, child, true)
 			if err != nil {
 				return nil, nil, err
 			}
 			*cur = append(*cur, ps)
-		case TermPipe:
+		case syntax.TermPipe:
 			cur = &implicit
 			saw = true
 		default:
@@ -267,7 +267,7 @@ func splitOuts(src string, n xparse.SyntaxNode[Term, Production]) ([][]Piece, []
 	return explicit, implicit, nil
 }
 
-func splitIns(src string, n xparse.SyntaxNode[Term, Production]) ([][]Piece, [][]Piece, [][]Piece, [][]Piece, error) {
+func splitIns(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) ([][]Piece, [][]Piece, [][]Piece, [][]Piece, error) {
 	var buckets [4][][]Piece
 	bucket := 0
 	for i := 0; i < n.ChildCount(); i++ {
@@ -277,17 +277,17 @@ func splitIns(src string, n xparse.SyntaxNode[Term, Production]) ([][]Piece, [][
 			return nil, nil, nil, nil, badNode(src, child)
 		}
 		switch term {
-		case TermPath:
+		case syntax.TermPath:
 			ps, err := piecesAt(src, child, true)
 			if err != nil {
 				return nil, nil, nil, nil, err
 			}
 			buckets[bucket] = append(buckets[bucket], ps)
-		case TermPipe:
+		case syntax.TermPipe:
 			bucket = 1
-		case TermDoublePipe:
+		case syntax.TermDoublePipe:
 			bucket = 2
-		case TermPipeAtSign:
+		case syntax.TermPipeAtSign:
 			bucket = 3
 		default:
 			return nil, nil, nil, nil, badNode(src, child)
@@ -296,7 +296,7 @@ func splitIns(src string, n xparse.SyntaxNode[Term, Production]) ([][]Piece, [][
 	return buckets[0], buckets[1], buckets[2], buckets[3], nil
 }
 
-func piecesAt(src string, n xparse.SyntaxNode[Term, Production], path bool) ([]Piece, error) {
+func piecesAt(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production], path bool) ([]Piece, error) {
 	text, err := syntax.Eval(n.Text(), path)
 	if err == nil {
 		ps := make([]Piece, len(text))
@@ -314,6 +314,6 @@ func piecesAt(src string, n xparse.SyntaxNode[Term, Production], path bool) ([]P
 	return nil, fmt.Errorf("%w: line %d: %s", errSyntax, n.Line(), msg)
 }
 
-func badNode(src string, n xparse.SyntaxNode[Term, Production]) error {
+func badNode(src string, n xparse.SyntaxNode[syntax.Term, syntax.Production]) error {
 	return fmt.Errorf("%w: line %d: syntax", errSyntax, n.Line())
 }
