@@ -1,6 +1,7 @@
 package term
 
 import (
+	"fmt"
 	"io"
 	"strings"
 	"testing"
@@ -45,22 +46,33 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.False(t, model.palette)
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, "the drawer")
+	assert.Contains(t, plain, "* /")
 	assert.Contains(t, plain, " · work  "+roomLabel(model.cwd))
 	assert.Contains(t, plain, "looking around")
 	assert.Contains(t, plain, "sessions live here")
 	assert.NotContains(t, plain, "standing in ")
 	assert.NotContains(t, plain, "├ editor")
 
+	cmd = clickLine(t, model, " · work", "work")
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Empty(t, model.shown)
+	assert.Equal(t, "work", model.heldSession)
 	runCmd(clickLine(t, model, " · work", "work"))
 	assert.True(t, model.drawer)
 	assert.Equal(t, "work", model.shown)
 	assert.Equal(t, "work", model.followPrefix)
 	assert.False(t, model.followAll)
+	assert.Empty(t, model.heldSession)
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, "├ editor")
 	assert.Contains(t, plain, "└ docs")
 
-	runCmd(clickLine(t, model, "editor", "editor"))
+	cmd = clickLine(t, model, "├ editor", "editor")
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "ed", model.held)
+	runCmd(clickLine(t, model, "├ editor", "editor"))
 	assert.False(t, model.drawer)
 	assert.Equal(t, "ed", model.focus)
 	assert.Equal(t, "work", model.followPrefix)
@@ -320,6 +332,10 @@ func TestDrawerSearchFindsPanesAndActions(t *testing.T) {
 	for _, r := range "editor" {
 		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
 	}
+	cmd = clickLine(t, model, "work/editor", "editor")
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "ed", model.held)
 	cmd = clickLine(t, model, "work/editor", "editor")
 	runCmd(cmd)
 	assert.False(t, model.drawer)
@@ -736,6 +752,266 @@ func renderPlain(m *Model) (string, []string) {
 	content, _, _, _ := m.render()
 	plain := stripANSI(content)
 	return plain, strings.Split(plain, "\n")
+}
+
+func TestDrawerWheelScrollsLikeTheKeys(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.cwd = "/room"
+	for i := range 30 {
+		id := fmt.Sprintf("s%02d", i)
+		model.order = append(model.order, id)
+		model.byID[id] = Pane{PaneInfo: PaneInfo{ID: id, Path: id, Title: id, Alive: true, Dir: "/room"}}
+	}
+	model.gitBy = map[string]string{"/room": "main · tidy"}
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	assert.Equal(t, 1, model.drawerAt)
+	model.drawerAt = 0
+	_, cmd := model.Update(tea.MouseWheelMsg{X: 1, Y: 1, Button: tea.MouseWheelDown})
+	assert.Nil(t, cmd)
+	assert.Equal(t, 1, model.drawerAt)
+	assert.Empty(t, api.writes)
+
+	for range 40 {
+		_, cmd = model.Update(tea.MouseWheelMsg{X: 1, Y: 1, Button: tea.MouseWheelDown})
+		assert.Nil(t, cmd)
+	}
+	assert.Equal(t, 30, model.drawerAt)
+	plain, _ := renderPlain(model)
+	assert.NotContains(t, plain, " · s00")
+	assert.Contains(t, plain, " · s29")
+	assert.True(t, rootShown(plain))
+	assert.Empty(t, api.writes)
+
+	for range 40 {
+		_, cmd = model.Update(tea.MouseWheelMsg{X: 1, Y: 1, Button: tea.MouseWheelUp})
+		assert.Nil(t, cmd)
+	}
+	assert.Equal(t, 0, model.drawerAt)
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, " · s00")
+	assert.True(t, rootShown(plain))
+
+	at := model.drawerAt
+	_, cmd = model.Update(tea.MouseWheelMsg{X: 1, Y: 1, Button: tea.MouseWheelLeft})
+	assert.Nil(t, cmd)
+	assert.Equal(t, at, model.drawerAt)
+
+	model.drawer = false
+	model.palette = true
+	model.drawerAt = 4
+	_, cmd = model.Update(tea.MouseWheelMsg{X: 1, Y: 1, Button: tea.MouseWheelDown})
+	assert.Nil(t, cmd)
+	assert.Equal(t, 4, model.drawerAt)
+	assert.Empty(t, api.writes)
+}
+
+func TestDrawerDoubleClickSelectsASession(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.order = []string{"ed", "n"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.byID["n"] = Pane{PaneInfo: PaneInfo{ID: "n", Path: "notes", Title: "notes", Alive: true}}
+
+	cmd := clickLine(t, model, " · work", "work")
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Empty(t, model.shown)
+	assert.Equal(t, "work", model.heldSession)
+	assert.Empty(t, api.watches)
+
+	runCmd(clickLine(t, model, " · work", "work"))
+	assert.True(t, model.drawer)
+	assert.Equal(t, "work", model.shown)
+	assert.Equal(t, "work", model.followPrefix)
+	assert.False(t, model.followAll)
+	assert.Empty(t, model.heldSession)
+	assert.Empty(t, api.writes)
+
+	cmd = clickLine(t, model, "* work", "work")
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "work", model.shown)
+	assert.Equal(t, "work", model.heldSession)
+}
+
+func TestDrawerClickNestsAPaneThenAFolder(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.shown = "work"
+	model.made = []string{"pockets"}
+	model.order = []string{"ed", "main"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true, Dir: "/lewkit-room"}}
+	model.byID["main"] = Pane{PaneInfo: PaneInfo{ID: "main", Path: "work/src/main", Title: "go", Alive: true, Dir: "/lewkit-room"}}
+
+	cmd := clickLine(t, model, "├ editor", "editor")
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "ed", model.held)
+	assert.Empty(t, api.moves)
+	assert.Equal(t, "work/editor", model.byID["ed"].Path)
+
+	cmd = clickLine(t, model, " · pockets", "pockets")
+	applyCmd(model, cmd)
+	require.Equal(t, []movedMsg{{id: "ed", path: "pockets/editor"}}, api.moves)
+	assert.Equal(t, "pockets/editor", model.byID["ed"].Path)
+	assert.Equal(t, "/lewkit-room", model.byID["ed"].Dir)
+	assert.Equal(t, "pockets", model.place)
+	assert.True(t, model.drawer)
+	assert.Empty(t, model.held)
+}
+
+func TestDrawerClickNestsAFolderAndUnnestsAtRoot(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.made = []string{"archive", "pockets"}
+	model.order = []string{"note"}
+	model.byID["note"] = Pane{PaneInfo: PaneInfo{ID: "note", Path: "pockets/note", Title: "n", Alive: true, Dir: "/lewkit-room"}}
+
+	cmd := clickLine(t, model, " · pockets", "pockets")
+	assert.Nil(t, cmd)
+	assert.Equal(t, "pockets", model.heldFolder)
+	assert.Empty(t, api.moves)
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "carrying pockets")
+
+	cmd = clickLine(t, model, " · archive", "archive")
+	applyCmd(model, cmd)
+	assert.Equal(t, []string{"archive", "archive/pockets"}, model.made)
+	assert.Equal(t, "archive/pockets/note", model.byID["note"].Path)
+	assert.Equal(t, "/lewkit-room", model.byID["note"].Dir)
+	assert.Equal(t, "archive", model.place)
+	assert.Empty(t, model.heldFolder)
+
+	cmd = clickLine(t, model, " · archive", "archive")
+	assert.Nil(t, cmd)
+	assert.Equal(t, "archive", model.heldFolder)
+	cmd = clickLine(t, model, "└ pockets", "pockets")
+	assert.Nil(t, cmd)
+	assert.Equal(t, ErrPath.Error(), model.errText)
+	assert.Equal(t, "archive", model.heldFolder)
+	assert.Equal(t, "archive/pockets/note", model.byID["note"].Path)
+
+	cmd = clickRoot(t, model)
+	assert.Nil(t, cmd)
+	assert.Empty(t, model.heldFolder)
+	assert.Equal(t, "archive/pockets/note", model.byID["note"].Path)
+
+	cmd = clickLine(t, model, "└ pockets", "pockets")
+	assert.Nil(t, cmd)
+	assert.Equal(t, "archive/pockets", model.heldFolder)
+	cmd = clickRoot(t, model)
+	applyCmd(model, cmd)
+	assert.Equal(t, []string{"archive", "pockets"}, model.made)
+	assert.Equal(t, "pockets/note", model.byID["note"].Path)
+	assert.Equal(t, "/lewkit-room", model.byID["note"].Dir)
+	assert.Empty(t, model.place)
+	assert.Empty(t, model.heldFolder)
+	assert.True(t, model.drawer)
+
+	before := len(api.moves)
+	cmd = clickLine(t, model, " · pockets", "pockets")
+	assert.Nil(t, cmd)
+	cmd = clickLine(t, model, " · pockets", "pockets")
+	assert.Nil(t, cmd)
+	assert.Equal(t, "pockets", model.shown)
+	assert.Empty(t, model.heldFolder)
+	assert.Len(t, api.moves, before)
+}
+
+func TestDrawerRootUnnestsASession(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.shown = "pockets"
+	model.made = []string{"pockets"}
+	model.order = []string{"ed", "docs"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "pockets/work/editor", Title: "hx", Alive: true, Dir: "/lewkit-room"}}
+	model.byID["docs"] = Pane{PaneInfo: PaneInfo{ID: "docs", Path: "pockets/work/docs", Title: "md", Alive: true, Dir: "/lewkit-room"}}
+
+	cmd := clickLine(t, model, " · work", "work")
+	assert.Nil(t, cmd)
+	assert.Equal(t, "pockets/work", model.heldSession)
+	assert.True(t, model.drawer)
+	assert.Empty(t, api.moves)
+
+	cmd = clickRoot(t, model)
+	applyCmd(model, cmd)
+	require.Equal(t, []movedMsg{
+		{id: "ed", path: "work/editor"},
+		{id: "docs", path: "work/docs"},
+	}, api.moves)
+	assert.Equal(t, "work/editor", model.byID["ed"].Path)
+	assert.Equal(t, "work/docs", model.byID["docs"].Path)
+	assert.Equal(t, "/lewkit-room", model.byID["ed"].Dir)
+	assert.Equal(t, "work", model.shown)
+	assert.Empty(t, model.place)
+	assert.Empty(t, model.heldSession)
+	assert.True(t, model.drawer)
+	assert.Empty(t, api.writes)
+}
+
+func TestDrawerRootShowsEveryPane(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.shown = "work"
+	model.followAll = false
+	model.followPrefix = "work"
+	model.order = []string{"ed"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+
+	runCmd(clickRoot(t, model))
+	assert.Empty(t, model.shown)
+	assert.True(t, model.followAll)
+	assert.Empty(t, model.followPrefix)
+	assert.True(t, model.drawer)
+	assert.Empty(t, api.writes)
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "* /")
+}
+
+func rootShown(plain string) bool {
+	for _, line := range strings.Split(plain, "\n") {
+		trim := strings.TrimSpace(line)
+		if trim == "/" || trim == "* /" {
+			return true
+		}
+	}
+	return false
+}
+
+func clickRoot(t *testing.T, m *Model) tea.Cmd {
+	t.Helper()
+	_, lines := renderPlain(m)
+	for y, text := range lines {
+		trim := strings.TrimSpace(text)
+		if trim != "/" && trim != "* /" {
+			continue
+		}
+		at := strings.Index(text, "/")
+		_, cmd := m.Update(tea.MouseClickMsg{X: colAt(text, at), Y: y, Button: tea.MouseLeft})
+		return cmd
+	}
+	require.Fail(t, "missing root")
+	return nil
 }
 
 func clickRail(t *testing.T, m *Model, word string) tea.Cmd {

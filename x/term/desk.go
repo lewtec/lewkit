@@ -2,6 +2,7 @@ package term
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/mattn/go-runewidth"
@@ -28,7 +29,10 @@ const (
 	hitFolder
 	hitCarrySession
 	hitAction
+	hitRoot
 )
+
+const drawerClick = 400 * time.Millisecond
 
 type hit struct {
 	x, y, w int
@@ -222,13 +226,25 @@ func (m *Model) drawerBody(width, rows int) []string {
 		title += "  " + q
 	}
 	lines := []string{styleTitle.Render(fit(title, width))}
-	if m.heldSession != "" && len(lines) < rows {
+	switch {
+	case m.heldSession != "" && len(lines) < rows:
 		lines = append(lines, styleMuted.Render(fit("carrying "+pathBase(m.heldSession), width)))
-	} else if m.held != "" && len(lines) < rows {
+	case m.heldFolder != "" && len(lines) < rows:
+		lines = append(lines, styleMuted.Render(fit("carrying "+pathBase(m.heldFolder), width)))
+	case m.held != "" && len(lines) < rows:
 		lines = append(lines, styleMuted.Render(fit("carrying "+m.tabLabel(m.held), width)))
 	}
 	if m.place != "" && len(lines) < rows {
 		lines = append(lines, styleMuted.Render(fit("pocket "+m.place, width)))
+	}
+	if len(lines) < rows {
+		label := " /"
+		if m.shown == "" {
+			label = "* /"
+		}
+		y := len(lines)
+		m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitRoot})
+		lines = append(lines, dress(fit(label, width), m.shown == "", false))
 	}
 	items := m.drawerRows()
 	if !m.hasSession() && !m.finding() && len(lines) < rows {
@@ -239,15 +255,36 @@ func (m *Model) drawerBody(width, rows int) []string {
 	}
 	if len(items) == 0 {
 		m.drawerAt = 0
+		m.drawerFrom = 0
 	} else if m.drawerAt >= len(items) {
 		m.drawerAt = len(items) - 1
 	} else if m.drawerAt < 0 {
 		m.drawerAt = 0
 	}
-	for i, item := range items {
+	room := rows - len(lines)
+	if room < 1 || len(items) == 0 {
+		for len(lines) < rows {
+			lines = append(lines, fit("", width))
+		}
+		return lines
+	}
+	if m.drawerFrom < 0 || m.drawerAt < m.drawerFrom {
+		m.drawerFrom = m.drawerAt
+	}
+	if m.drawerAt >= m.drawerFrom+room {
+		m.drawerFrom = m.drawerAt - room + 1
+	}
+	if maxFrom := len(items) - room; m.drawerFrom > maxFrom {
+		m.drawerFrom = maxFrom
+	}
+	if m.drawerFrom < 0 {
+		m.drawerFrom = 0
+	}
+	for i := m.drawerFrom; i < len(items); i++ {
 		if len(lines) >= rows {
 			break
 		}
+		item := items[i]
 		y := len(lines)
 		var line string
 		if m.finding() && !item.session && !item.pocket {
@@ -607,22 +644,10 @@ func (m *Model) drawerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	switch msg.Keystroke() {
 	case "up":
-		if m.drawerAt > 0 {
-			m.drawerAt--
-		}
-		m.armed = ""
+		m.moveDrawer(-1)
 		return m, nil
 	case "down":
-		n := len(m.drawerRows())
-		if n == 0 {
-			m.drawerAt = 0
-			m.armed = ""
-			return m, nil
-		}
-		if m.drawerAt < n-1 {
-			m.drawerAt++
-		}
-		m.armed = ""
+		m.moveDrawer(1)
 		return m, nil
 	case "enter":
 		return m.activateDrawer()
@@ -670,7 +695,36 @@ func (m *Model) setDrawer(open bool) tea.Cmd {
 	}
 	m.palette = false
 	m.drawerAt = 0
+	m.drawerFrom = 0
+	m.clickKey = ""
 	return m.lookGit()
+}
+
+func (m *Model) moveDrawer(delta int) {
+	n := len(m.drawerRows())
+	if n == 0 {
+		m.drawerAt = 0
+		m.armed = ""
+		return
+	}
+	m.drawerAt += delta
+	if m.drawerAt < 0 {
+		m.drawerAt = 0
+	}
+	if m.drawerAt > n-1 {
+		m.drawerAt = n - 1
+	}
+	m.armed = ""
+}
+
+func (m *Model) scrollDrawer(button tea.MouseButton) (tea.Model, tea.Cmd) {
+	switch button {
+	case tea.MouseWheelUp:
+		m.moveDrawer(-1)
+	case tea.MouseWheelDown:
+		m.moveDrawer(1)
+	}
+	return m, nil
 }
 
 func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
@@ -704,8 +758,7 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 	}
 	if row.pane != "" {
 		if m.held != "" || m.heldSession != "" {
-			m.held = ""
-			m.heldSession = ""
+			m.clearHold()
 			return m, m.showPane(row.pane)
 		}
 		return m.armPane(row.pane)
@@ -776,13 +829,18 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 	case hitTab:
 		return m, m.focusTab(item.id)
 	case hitSession:
-		if m.heldSession != "" && item.id != m.heldSession && m.sessionDir(item.id) {
-			return m, m.nestSession(item.id)
+		if m.repeatClick("session:" + item.id) {
+			m.clearHold()
+			return m, m.selectSession(item.id)
 		}
-		if m.held != "" && m.sessionDir(item.id) {
-			return m, m.moveInto(item.id)
+		if m.sessionDir(item.id) && (m.held != "" || m.heldSession != "") {
+			if cmd, dropped := m.dropOn(item.id); dropped {
+				return m, cmd
+			}
 		}
-		return m, m.selectSession(item.id)
+		m.noteClick("session:" + item.id)
+		m.pickSession(item.id)
+		return m, nil
 	case hitClose:
 		return m, m.closeSession(item.id)
 	case hitChoice:
@@ -795,9 +853,13 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 		}
 		return m.runSearchAction(rows[item.index].action)
 	case hitChild:
-		m.held = ""
-		m.heldSession = ""
-		return m, m.showPane(item.id)
+		if m.repeatClick("pane:" + item.id) {
+			m.clearHold()
+			return m, m.showPane(item.id)
+		}
+		m.noteClick("pane:" + item.id)
+		m.pickPane(item.id)
+		return m, nil
 	case hitNewDir:
 		m.startNaming()
 		return m, nil
@@ -808,6 +870,7 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 		}
 		m.held = item.id
 		m.heldSession = ""
+		m.heldFolder = ""
 		m.drawer = true
 		return m, nil
 	case hitCarrySession:
@@ -817,20 +880,110 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 		}
 		m.heldSession = item.id
 		m.held = ""
+		m.heldFolder = ""
 		m.drawer = true
 		return m, nil
 	case hitFolder:
-		if m.heldSession != "" {
-			return m, m.nestSession(item.id)
+		if m.repeatClick("folder:" + item.id) {
+			m.clearHold()
+			m.openFolder(item.id)
+			return m, nil
 		}
-		if m.held != "" {
-			return m, m.moveInto(item.id)
+		if cmd, dropped := m.dropOn(item.id); dropped {
+			return m, cmd
 		}
-		m.openFolder(item.id)
+		m.noteClick("folder:" + item.id)
+		m.pickFolder(item.id)
 		return m, nil
+	case hitRoot:
+		m.clickKey = ""
+		if cmd, dropped := m.dropOn(""); dropped {
+			return m, cmd
+		}
+		return m, m.showRoot()
 	default:
 		return m, nil
 	}
+}
+
+func (m *Model) repeatClick(key string) bool {
+	if key != "" && key == m.clickKey && time.Since(m.clickStamp) < drawerClick {
+		m.clickKey = ""
+		return true
+	}
+	return false
+}
+
+func (m *Model) noteClick(key string) {
+	m.clickKey = key
+	m.clickStamp = time.Now()
+}
+
+func (m *Model) clearHold() {
+	m.held = ""
+	m.heldSession = ""
+	m.heldFolder = ""
+}
+
+func (m *Model) pickSession(key string) {
+	m.heldSession = key
+	m.held = ""
+	m.heldFolder = ""
+	m.drawer = true
+	m.errText = ""
+}
+
+func (m *Model) pickFolder(path string) {
+	m.heldFolder = path
+	m.held = ""
+	m.heldSession = ""
+	m.drawer = true
+	m.errText = ""
+}
+
+func (m *Model) pickPane(id string) {
+	m.held = id
+	m.heldSession = ""
+	m.heldFolder = ""
+	m.focus = id
+	m.touch(id)
+	m.drawer = true
+	m.errText = ""
+}
+
+func (m *Model) dropOn(folder string) (tea.Cmd, bool) {
+	switch {
+	case m.held != "":
+		return m.moveInto(folder), true
+	case m.heldSession != "":
+		if folder == m.heldSession {
+			return nil, false
+		}
+		if folder != "" && strings.HasPrefix(folder, m.heldSession+"/") {
+			m.errText = ErrPath.Error()
+			return nil, true
+		}
+		return m.nestSession(folder), true
+	case m.heldFolder != "":
+		if folder == m.heldFolder {
+			return nil, false
+		}
+		return m.nestFolder(folder), true
+	default:
+		return nil, false
+	}
+}
+
+func (m *Model) showRoot() tea.Cmd {
+	m.shown = ""
+	m.followAll = true
+	m.followPrefix = ""
+	m.follow = nil
+	m.drawer = true
+	m.palette = false
+	m.armed = ""
+	m.errText = ""
+	return m.rewatch()
 }
 
 func (m *Model) focusTab(id string) tea.Cmd {
@@ -930,6 +1083,9 @@ func (m *Model) closeSession(key string) tea.Cmd {
 	}
 	if m.heldSession == key || strings.HasPrefix(m.heldSession, key+"/") {
 		m.heldSession = ""
+	}
+	if m.heldFolder == key || strings.HasPrefix(m.heldFolder, key+"/") {
+		m.heldFolder = ""
 	}
 	if len(ids) == 0 {
 		if m.shown == key || strings.HasPrefix(m.shown, key+"/") {
@@ -1121,8 +1277,7 @@ func (m *Model) createDirectory(name string) {
 
 func (m *Model) moveInto(folder string) tea.Cmd {
 	id := m.held
-	if id == "" || folder == "" {
-		m.held = ""
+	if id == "" {
 		return nil
 	}
 	pane, ok := m.byID[id]
@@ -1131,16 +1286,19 @@ func (m *Model) moveInto(folder string) tea.Cmd {
 		return nil
 	}
 	base := pathBase(panePath(pane))
-	next := folder + "/" + base
+	next := base
+	if folder != "" {
+		next = folder + "/" + base
+	}
 	if panePath(pane) == next {
-		m.held = ""
+		m.clearHold()
 		return nil
 	}
 	if m.keyTaken(next, id, false) {
 		m.errText = ErrPath.Error()
 		return nil
 	}
-	m.held = ""
+	m.clearHold()
 	if key, _, _ := m.sessionOf(next); key != "" {
 		m.shown = key
 	}
@@ -1321,11 +1479,10 @@ func (m *Model) panesUnder(key string) []string {
 
 func (m *Model) nestSession(folder string) tea.Cmd {
 	key := m.heldSession
-	if key == "" || folder == "" {
-		m.heldSession = ""
+	if key == "" {
 		return nil
 	}
-	if folder == key || strings.HasPrefix(folder, key+"/") {
+	if folder != "" && (folder == key || strings.HasPrefix(folder, key+"/")) {
 		m.errText = ErrPath.Error()
 		return nil
 	}
@@ -1334,9 +1491,16 @@ func (m *Model) nestSession(folder string) tea.Cmd {
 		m.heldSession = ""
 		return nil
 	}
-	newKey := folder + "/" + group.name
+	newKey := group.name
+	if folder != "" {
+		newKey = folder + "/" + group.name
+	}
 	if newKey == key {
 		m.heldSession = ""
+		return nil
+	}
+	if m.pathBusy(newKey, key) {
+		m.errText = ErrPath.Error()
 		return nil
 	}
 	type plan struct {
@@ -1368,9 +1532,10 @@ func (m *Model) nestSession(folder string) tea.Cmd {
 			shown = nextKey
 		}
 	}
-	m.heldSession = ""
+	m.clearHold()
 	m.place = folder
 	m.shown = shown
+	m.folder = rebasePath(m.folder, key, newKey)
 	m.drawer = true
 	m.palette = false
 	m.errText = ""
@@ -1383,6 +1548,114 @@ func (m *Model) nestSession(folder string) tea.Cmd {
 	}
 	cmds = append(cmds, m.rewatch())
 	return tea.Batch(cmds...)
+}
+
+func (m *Model) nestFolder(dest string) tea.Cmd {
+	src := m.heldFolder
+	if src == "" {
+		return nil
+	}
+	base := pathBase(src)
+	next := base
+	if dest != "" {
+		next = dest + "/" + base
+	}
+	if next == src {
+		m.heldFolder = ""
+		return nil
+	}
+	if dest != "" && (dest == src || strings.HasPrefix(dest, src+"/")) {
+		m.errText = ErrPath.Error()
+		return nil
+	}
+	if m.pathBusy(next, src) {
+		m.errText = ErrPath.Error()
+		return nil
+	}
+	type plan struct {
+		id   string
+		next string
+	}
+	var plans []plan
+	for _, id := range m.order {
+		pane, ok := m.byID[id]
+		if !ok {
+			continue
+		}
+		old := panePath(pane)
+		moved := rebasePath(old, src, next)
+		if moved == old {
+			continue
+		}
+		if m.pathBusy(moved, src) {
+			m.errText = ErrPath.Error()
+			return nil
+		}
+		plans = append(plans, plan{id: id, next: moved})
+	}
+	for i, path := range m.made {
+		m.made[i] = rebasePath(path, src, next)
+	}
+	m.shown = rebasePath(m.shown, src, next)
+	m.folder = rebasePath(m.folder, src, next)
+	m.followPrefix = rebasePath(m.followPrefix, src, next)
+	m.clearHold()
+	m.place = dest
+	m.drawer = true
+	m.palette = false
+	m.errText = ""
+	cmds := make([]tea.Cmd, 0, len(plans)+1)
+	for _, item := range plans {
+		cmds = append(cmds, m.move(item.id, item.next))
+	}
+	cmds = append(cmds, m.rewatch())
+	return tea.Batch(cmds...)
+}
+
+// pathBusy reports a key outside src that already owns path.
+// A folder that is only a parent of path is free.
+func (m *Model) pathBusy(path, src string) bool {
+	if path == "" {
+		return false
+	}
+	under := func(have string) bool {
+		return src != "" && (have == src || strings.HasPrefix(have, src+"/"))
+	}
+	for _, id := range m.order {
+		pane, ok := m.byID[id]
+		if !ok {
+			continue
+		}
+		have := panePath(pane)
+		if under(have) {
+			continue
+		}
+		if have == path || strings.HasPrefix(path, have+"/") || strings.HasPrefix(have, path+"/") {
+			return true
+		}
+	}
+	for _, made := range m.made {
+		if under(made) {
+			continue
+		}
+		if made == path || strings.HasPrefix(made, path+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func rebasePath(path, src, next string) string {
+	if src == "" || path == "" {
+		return path
+	}
+	if path == src {
+		return next
+	}
+	if strings.HasPrefix(path, src+"/") {
+		return next + strings.TrimPrefix(path, src)
+	}
+	return path
 }
 
 func sessionKeyFromPath(path string) string {

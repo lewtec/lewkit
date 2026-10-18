@@ -33,11 +33,16 @@
 // and actions. The second enter on a session or a pane leaves the session
 // view focused on that pane. Enter on a folder opens that folder and does
 // not move the armed pane. The arrow still carries a pane or a session.
-// One enter runs an action. A focused pane takes mouse, scroll, paste,
-// and the other keys. The rail still takes a click that lands on it.
-// Mouse bytes are written when the process asked for them. The wheel
-// moves an alternate screen when it did not. A kitty image is drawn into
-// the grid.
+// One enter runs an action. The drawer takes clicks and the wheel. The
+// wheel moves through the drawer the way the arrow keys do. A click picks
+// up a pane, a session, or a folder. A second click on a session selects
+// it, and a second click on a pane enters it. A click on a pane and then a
+// folder nests the pane. A click on a folder and then another folder nests
+// the first under the second. / is the root, and a click there unnests.
+// A focused pane takes mouse, scroll, paste, and the other keys. The rail
+// still takes a click that lands on it. Mouse bytes are written when the
+// process asked for them. The wheel moves an alternate screen when it did
+// not. A kitty image is drawn into the grid.
 // The drawer is drawn with lipgloss. Bindings for individual actions are
 // not assigned yet.
 package term

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/mattn/go-runewidth"
@@ -38,10 +39,16 @@ type API interface {
 // that view filters sessions, panes, and actions. The second enter on a
 // session or a pane leaves the session view focused on that pane. Enter on
 // a folder opens that folder and does not move the armed pane. One enter
-// runs an action. A focused pane takes mouse, scroll, paste, and the other
-// keys. The rail still takes a click that lands on it. Mouse bytes are
-// written when the process asked for them. The wheel moves an alternate
-// screen when it did not. A kitty image is drawn into the grid.
+// runs an action. The drawer takes clicks and the wheel. The wheel moves
+// through the drawer the way the arrow keys do. A click picks up a pane, a
+// session, or a folder. A second click on a session selects it, and a second
+// click on a pane enters it. A click on a pane and then a folder nests the
+// pane. A click on a folder and then another folder nests the first under
+// the second. / is the root, and a click there unnests. A focused pane takes
+// mouse, scroll, paste, and the other keys. The rail still takes a click
+// that lands on it. Mouse bytes are written when the process asked for them.
+// The wheel moves an alternate screen when it did not. A kitty image is
+// drawn into the grid.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -92,6 +99,10 @@ type Model struct {
 	place       string
 	held        string
 	heldSession string
+	heldFolder  string
+	drawerFrom  int
+	clickKey    string
+	clickStamp  time.Time
 	naming      bool
 	name        string
 }
@@ -589,7 +600,16 @@ func (m *Model) write(id, data string, rows, cols int) tea.Cmd {
 }
 
 func (m *Model) onMouse(ms tea.Mouse, kind int) (tea.Model, tea.Cmd) {
-	if m.drawer || m.palette {
+	if m.drawer {
+		if kind == mouseWheel {
+			return m.scrollDrawer(ms.Button)
+		}
+		if kind == mousePress && ms.Button == tea.MouseLeft {
+			return m.click(ms.X, ms.Y)
+		}
+		return m, nil
+	}
+	if m.palette {
 		if kind == mousePress && ms.Button == tea.MouseLeft {
 			return m.click(ms.X, ms.Y)
 		}
