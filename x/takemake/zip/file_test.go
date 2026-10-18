@@ -240,6 +240,8 @@ func TestLiveInfoZip(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "dir"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "dir", "note.txt"), []byte("live"), 0o640))
 	require.NoError(t, os.Symlink("dir/note.txt", filepath.Join(dir, "link")))
+	linkInfo, err := os.Lstat(filepath.Join(dir, "link"))
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
 	stamp := "2020-01-02T03:04:06Z"
 	for _, name := range []string{"dir", "dir/note.txt", "link", "世界.txt"} {
@@ -261,7 +263,7 @@ func TestLiveInfoZip(t *testing.T) {
 	requireEntries(t, file, []*Entry{
 		{Name: "dir", Mode: fs.ModeDir | 0o750, Time: when},
 		{Name: "dir/note.txt", Mode: 0o640, Time: when, Data: []byte("live")},
-		{Name: "link", Mode: fs.ModeSymlink | 0o777, Time: when, Target: "dir/note.txt"},
+		{Name: "link", Mode: linkInfo.Mode(), Time: when, Target: "dir/note.txt"},
 		{Name: "世界.txt", Mode: 0o644, Time: when, Data: []byte("utf8")},
 	})
 	require.Equal(t, views(file), views(takeMade(t, file)))

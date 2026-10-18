@@ -292,9 +292,9 @@ func compareMakeEquals(t *testing.T, name string, f *File) {
 	path, err := filepath.Abs(filepath.Join("testdata", name))
 	require.NoError(t, err)
 	cmd := exec.Command(bin, "-p", "-f", path, "-q")
-	out, _ := cmd.Output()
+	out, runErr := cmd.CombinedOutput()
 	got := makeEquals(string(out), path)
-	require.NotEmpty(t, got)
+	require.NotEmptyf(t, got, "%s: %v\n%s", bin, runErr, string(out))
 	want := map[string]string{}
 	for _, stmt := range f.Stmts {
 		v, ok := stmt.(*Variable)
@@ -327,16 +327,26 @@ func gnuMake() string {
 	return ""
 }
 
+func TestMakeEqualsReadsGNUDatabaseHeaders(t *testing.T) {
+	t.Parallel()
+	path := "/work/Makefile"
+	single := "# makefile (from '" + path + "', line 1)\nCC = gcc\n"
+	// GNU make 3.81 opens the path with a backtick.
+	backtick := "# makefile (from `" + path + "', line 1)\nCC = gcc\n"
+	require.Equal(t, map[string]string{"CC": "gcc"}, makeEquals(single, path))
+	require.Equal(t, map[string]string{"CC": "gcc"}, makeEquals(backtick, path))
+}
+
 func makeEquals(out, path string) map[string]string {
 	vals := map[string]string{}
 	from := ""
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimRight(line, "\r")
-		if strings.HasPrefix(line, "# makefile (from '") {
-			from = line
+		if name, ok := databaseMakefile(line); ok {
+			from = name
 			continue
 		}
-		if !strings.Contains(from, "'"+path+"'") {
+		if from != path {
 			continue
 		}
 		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "\t") || line == "" {
@@ -357,6 +367,25 @@ func makeEquals(out, path string) map[string]string {
 		vals[name] = rest
 	}
 	return vals
+}
+
+// databaseMakefile returns the path from a GNU make database header.
+// Make 4 uses single quotes. Make 3.81 uses a backtick and a closing quote.
+func databaseMakefile(line string) (string, bool) {
+	const prefix = "# makefile (from "
+	if !strings.HasPrefix(line, prefix) {
+		return "", false
+	}
+	rest := line[len(prefix):]
+	if len(rest) < 2 || (rest[0] != '\'' && rest[0] != '`') {
+		return "", false
+	}
+	rest = rest[1:]
+	end := strings.IndexByte(rest, '\'')
+	if end <= 0 {
+		return "", false
+	}
+	return rest[:end], true
 }
 
 type errReader struct{}
