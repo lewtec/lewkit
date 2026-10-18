@@ -95,7 +95,11 @@ func listPackage(ctx context.Context, dir string) (string, string, error) {
 // The build tag keeps the main out of the language package.
 func compileTable(ctx context.Context, dir, importPath string) ([]byte, error) {
 	path := filepath.Join(dir, emitFile)
-	if err := os.WriteFile(path, []byte(emitSource(importPath)), 0o644); err != nil {
+	source, err := emitSource(importPath)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(path, source, 0o644); err != nil {
 		return nil, err
 	}
 	defer os.Remove(path)
@@ -112,29 +116,39 @@ func compileTable(ctx context.Context, dir, importPath string) ([]byte, error) {
 	return stdout, nil
 }
 
-func emitSource(importPath string) string {
-	return fmt.Sprintf(`//go:build ignore
-
-package main
-
-import (
-	"os"
-
-	grammar %q
-)
-
-func main() {
-	table, err := grammar.ParseTable()
-	if err != nil {
-		os.Stderr.WriteString(err.Error() + "\n")
-		os.Exit(1)
+func emitSource(importPath string) ([]byte, error) {
+	file := golang.NewFile("main")
+	file.Header = "//go:build ignore"
+	file.Import("os")
+	grammar := file.Import(importPath).Alias("grammar")
+	grammar.Group = 1
+	file.Func().Id("main").Block(
+		golang.Define(
+			[]*golang.Expr{golang.Id("table"), golang.Id("err")},
+			golang.Qual(importPath, "ParseTable").Call(),
+		),
+		exitOnError(),
+		exitOnError().WithInit(golang.Define(
+			[]*golang.Expr{golang.Id("_"), golang.Id("err")},
+			golang.Qual("os", "Stdout").Sel("Write").Call(golang.Id("table")),
+		)),
+	)
+	var buf bytes.Buffer
+	if err := file.Make(&buf); err != nil {
+		return nil, err
 	}
-	if _, err := os.Stdout.Write(table); err != nil {
-		os.Stderr.WriteString(err.Error() + "\n")
-		os.Exit(1)
-	}
+	return buf.Bytes(), nil
 }
-`, importPath)
+
+// exitOnError writes err to stderr and stops the process.
+func exitOnError() *golang.Stmt {
+	return golang.If(
+		golang.Binary(golang.OpNeq, golang.Id("err"), golang.Lit(nil)),
+		golang.Qual("os", "Stderr").Sel("WriteString").Call(
+			golang.Binary(golang.OpAdd, golang.Id("err").Sel("Error").Call(), golang.Lit("\n")),
+		),
+		golang.Qual("os", "Exit").Call(golang.Lit(1)),
+	)
 }
 
 func runGo(ctx context.Context, dir string, args ...string) ([]byte, []byte, error) {
