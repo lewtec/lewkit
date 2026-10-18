@@ -209,7 +209,7 @@ func TestLiveGitArchive(t *testing.T) {
 	bin := test.Need(t, "git")
 	dir := gitTree(t, bin)
 	archive := filepath.Join(dir, "git.zip")
-	cmd := exec.Command(bin, "archive", "--format=zip", "-o", archive, "HEAD")
+	cmd := exec.Command(bin, "-c", "core.autocrlf=false", "archive", "--format=zip", "-o", archive, "HEAD")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
@@ -275,7 +275,7 @@ func gitTree(t *testing.T, bin string) string {
 	dir := t.TempDir()
 	run := func(args ...string) {
 		t.Helper()
-		cmd := exec.Command(bin, args...)
+		cmd := exec.Command(bin, append([]string{"-c", "core.autocrlf=false"}, args...)...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=takemake",

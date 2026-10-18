@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -240,10 +241,10 @@ func TestLiveGNUTar(t *testing.T) {
 	file, err := Take(bytes.NewReader(raw))
 	require.NoError(t, err)
 	requireEntries(t, file, []*Entry{
-		{Name: "dir", Mode: fs.ModeDir | 0o750, Time: when},
-		{Name: "dir/note.txt", Mode: 0o640, Time: when, Data: []byte("live")},
-		{Name: "link", Mode: linkInfo.Mode(), Time: when, Target: "dir/note.txt"},
-		{Name: "世界.txt", Mode: 0o644, Time: when, Data: []byte("utf8")},
+		{Name: "dir", Mode: hostTarMode(fs.ModeDir | 0o750), Time: when},
+		{Name: "dir/note.txt", Mode: hostTarMode(0o640), Time: when, Data: []byte("live")},
+		{Name: "link", Mode: hostTarMode(linkInfo.Mode()), Time: when, Target: "dir/note.txt"},
+		{Name: "世界.txt", Mode: hostTarMode(0o644), Time: when, Data: []byte("utf8")},
 	})
 	require.Equal(t, views(file), views(takeMade(t, file)))
 	requireTarLists(t, file)
@@ -275,7 +276,7 @@ func TestLiveGitArchive(t *testing.T) {
 	dir := gitTree(t, bin)
 	archive := filepath.Join(dir, "git.tar")
 	// tar.umask 0002 is git's default: directories and executables are 0775, files are 0664.
-	cmd := exec.Command(bin, "-c", "tar.umask=0002", "archive", "--format=tar", "-o", archive, "HEAD")
+	cmd := exec.Command(bin, "-c", "core.autocrlf=false", "-c", "tar.umask=0002", "archive", "--format=tar", "-o", archive, "HEAD")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
@@ -341,13 +342,30 @@ func tarIsGNU(bin string) bool {
 	return strings.Contains(string(out), "GNU tar")
 }
 
+// hostTarMode is the mode GNU tar records for a filesystem object.
+// Windows keeps the file type and substitutes a default permission.
+func hostTarMode(mode fs.FileMode) fs.FileMode {
+	if runtime.GOOS != "windows" {
+		return mode
+	}
+	perm := fs.FileMode(0o644)
+	switch {
+	case mode&fs.ModeSymlink != 0:
+		perm = 0o777
+	case mode&fs.ModeDir != 0:
+		perm = 0o755
+	}
+	return mode&^fs.ModePerm | perm
+}
+
 // gnuTarArgs keeps a drive-letter path from being read as a remote archive.
 func gnuTarArgs(gnu bool, args ...string) []string {
 	if !gnu {
 		return args
 	}
-	out := make([]string, 0, len(args)+1)
-	out = append(out, "--force-local")
+	out := make([]string, 0, len(args)+2)
+	// literal keeps UTF-8 names intact. Windows otherwise prints C octal escapes.
+	out = append(out, "--force-local", "--quoting-style=literal")
 	for _, arg := range args {
 		out = append(out, filepath.ToSlash(arg))
 	}
@@ -359,7 +377,7 @@ func gitTree(t *testing.T, bin string) string {
 	dir := t.TempDir()
 	run := func(args ...string) {
 		t.Helper()
-		cmd := exec.Command(bin, args...)
+		cmd := exec.Command(bin, append([]string{"-c", "core.autocrlf=false"}, args...)...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=takemake",
@@ -418,6 +436,7 @@ func requireTarLists(t *testing.T, file *File) {
 	require.NoError(t, err, string(out))
 	var listed []string
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimRight(line, "\r")
 		line = strings.TrimSuffix(line, "/")
 		if line == "" {
 			continue

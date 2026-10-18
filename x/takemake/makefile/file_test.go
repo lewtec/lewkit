@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -305,6 +306,10 @@ func compareMakeEquals(t *testing.T, name string, f *File) {
 	}
 	for name, value := range want {
 		have, ok := got[name]
+		// Windows GNU make drops SHELL=/bin/sh from the file's database.
+		if !ok && name == "SHELL" && runtime.GOOS == "windows" {
+			continue
+		}
 		require.Truef(t, ok, "make -p missing %s", name)
 		require.Equalf(t, have, value, "variable %s", name)
 	}
