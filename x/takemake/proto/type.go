@@ -38,9 +38,9 @@ func Map(key, elem Type) Type {
 }
 
 // String is the type as it is printed in a proto file.
-func (typ Type) String() string {
-	if typ.Key != "" || typ.Elem != "" {
-		return "map<" + typ.Key + ", " + typ.Elem + ">"
+func (valueType Type) String() string {
+	if valueType.Key != "" || valueType.Elem != "" {
+		return "map<" + valueType.Key + ", " + valueType.Elem + ">"
 	}
-	return typ.Name
+	return valueType.Name
 }

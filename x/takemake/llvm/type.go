@@ -34,11 +34,11 @@ func Ptr() *Type { return &Type{Kind: KindPtr} }
 func Pointer(elem *Type) *Type { return &Type{Kind: KindPtr, Elem: elem} }
 
 // Space sets the address space and returns the type.
-func (t *Type) Space(space int) *Type {
-	if t != nil {
-		t.AddrSpace = space
+func (valueType *Type) Space(space int) *Type {
+	if valueType != nil {
+		valueType.AddrSpace = space
 	}
-	return t
+	return valueType
 }
 
 // Array is [n x elem].
@@ -67,11 +67,11 @@ func FuncType(ret *Type, params ...*Type) *Type {
 }
 
 // VarArg marks a function type as variadic.
-func (t *Type) VarArg() *Type {
-	if t != nil {
-		t.Variadic = true
+func (valueType *Type) VarArg() *Type {
+	if valueType != nil {
+		valueType.Variadic = true
 	}
-	return t
+	return valueType
 }
 
 // Named is a reference to a named type, without the % sigil.

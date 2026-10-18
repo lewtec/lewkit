@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	syntax "github.com/lewtec/lewkit/x/parse/ninja"
 )
 
 func writeFile(w io.Writer, f *File) error {
@@ -35,7 +37,7 @@ func writeFile(w io.Writer, f *File) error {
 }
 
 func writeVariable(w io.Writer, v *Variable) error {
-	if v == nil || !isIdent(v.Name) || isKeyword(v.Name) {
+	if v == nil || !syntax.Ident(v.Name) || syntax.Keyword(v.Name) {
 		return fmt.Errorf("%w: bad variable", errFile)
 	}
 	var b strings.Builder
@@ -48,7 +50,7 @@ func writeVariable(w io.Writer, v *Variable) error {
 }
 
 func writeRule(w io.Writer, r *Rule) error {
-	if r == nil || !isIdent(r.Name) {
+	if r == nil || !syntax.Ident(r.Name) {
 		return fmt.Errorf("%w: bad rule", errFile)
 	}
 	if err := writeRaw(w, "rule "+r.Name); err != nil {
@@ -58,7 +60,7 @@ func writeRule(w io.Writer, r *Rule) error {
 }
 
 func writePool(w io.Writer, p *Pool) error {
-	if p == nil || !isIdent(p.Name) {
+	if p == nil || !syntax.Ident(p.Name) {
 		return fmt.Errorf("%w: bad pool", errFile)
 	}
 	if err := writeRaw(w, "pool "+p.Name); err != nil {
@@ -68,7 +70,7 @@ func writePool(w io.Writer, p *Pool) error {
 }
 
 func writeEdge(w io.Writer, e *Edge) error {
-	if e == nil || !isIdent(e.Rule) {
+	if e == nil || !syntax.Ident(e.Rule) {
 		return fmt.Errorf("%w: bad build", errFile)
 	}
 	if len(e.Outputs) == 0 && len(e.ImplicitOutputs) == 0 {
@@ -151,7 +153,7 @@ func writeInclude(w io.Writer, inc *Include) error {
 
 func writeBindings(w io.Writer, bs []Binding) error {
 	for _, b := range bs {
-		if !isIdent(b.Name) {
+		if !syntax.Ident(b.Name) {
 			return fmt.Errorf("%w: bad binding", errFile)
 		}
 		var buf strings.Builder
@@ -184,13 +186,13 @@ func writePaths(b *strings.Builder, paths [][]Piece) error {
 }
 
 func braceVar(name string, rest []Piece) bool {
-	if !isSimple(name) {
+	if !syntax.Simple(name) {
 		return true
 	}
 	if len(rest) == 0 || rest[0].Text == "" {
 		return false
 	}
-	return isSimpleChar(rest[0].Text[0])
+	return syntax.SimpleChar(rest[0].Text[0])
 }
 
 func writePieces(b *strings.Builder, ps []Piece, path bool) error {
@@ -199,7 +201,7 @@ func writePieces(b *strings.Builder, ps []Piece, path bool) error {
 			return fmt.Errorf("%w: bad piece", errFile)
 		}
 		if p.Var != "" {
-			if !isIdent(p.Var) {
+			if !syntax.Ident(p.Var) {
 				return fmt.Errorf("%w: bad variable", errFile)
 			}
 			// $name glues to a following letter, so ${name} is required

@@ -235,50 +235,50 @@ func (f *File) aggregate(kind Kind, tag string) *Type {
 }
 
 // Typedef stores a typedef and returns a type that prints as name.
-func (f *File) Typedef(name string, typ *Type) *Type {
-	if typ != nil && typ.home != nil && typ.home.Name == "" && typ.Defined {
-		return typ.Alias(name)
+func (f *File) Typedef(name string, valueType *Type) *Type {
+	if valueType != nil && valueType.home != nil && valueType.home.Name == "" && valueType.Defined {
+		return valueType.Alias(name)
 	}
-	decl := &TypeDecl{Name: name, Type: typ}
+	decl := &TypeDecl{Name: name, Type: valueType}
 	if f != nil {
 		f.Decls = append(f.Decls, &Decl{Kind: DeclType, Type: decl})
 	}
-	return useType(name, typ)
+	return useType(name, valueType)
 }
 
 // Alias names this struct, union, or enum as a typedef and returns the use.
-func (t *Type) Alias(name string) *Type {
-	if t != nil && t.home != nil {
-		t.home.Name = name
+func (valueType *Type) Alias(name string) *Type {
+	if valueType != nil && valueType.home != nil {
+		valueType.home.Name = name
 	}
-	return useType(name, t)
+	return useType(name, valueType)
 }
 
 // Field stores a member and returns the aggregate.
-func (t *Type) Field(name string, typ *Type) *Type {
-	if t == nil {
+func (valueType *Type) Field(name string, fieldType *Type) *Type {
+	if valueType == nil {
 		return nil
 	}
-	t.Fields = append(t.Fields, &Field{Name: name, Type: typ})
-	t.Defined = true
-	layout(t)
-	return t
+	valueType.Fields = append(valueType.Fields, &Field{Name: name, Type: fieldType})
+	valueType.Defined = true
+	layout(valueType)
+	return valueType
 }
 
 // Enumerator stores an enumerator and returns the enum.
-func (t *Type) Enumerator(name string, value int64) *Type {
-	if t == nil {
+func (valueType *Type) Enumerator(name string, value int64) *Type {
+	if valueType == nil {
 		return nil
 	}
-	t.Enums = append(t.Enums, &Enumerator{Name: name, Value: value})
-	t.Defined = true
-	layout(t)
-	return t
+	valueType.Enums = append(valueType.Enums, &Enumerator{Name: name, Value: value})
+	valueType.Defined = true
+	layout(valueType)
+	return valueType
 }
 
 // Object stores a variable and returns it.
-func (f *File) Object(name string, typ *Type) *Object {
-	obj := &Object{Name: name, Type: typ}
+func (f *File) Object(name string, valueType *Type) *Object {
+	obj := &Object{Name: name, Type: valueType}
 	if f != nil {
 		f.Decls = append(f.Decls, &Decl{Kind: DeclObject, Object: obj})
 	}
@@ -322,20 +322,20 @@ func (f *File) Func(name string) *Func {
 }
 
 // Returns stores the result type and returns the function.
-func (fn *Func) Returns(t *Type) *Func {
+func (fn *Func) Returns(valueType *Type) *Func {
 	if fn == nil {
 		return nil
 	}
-	fn.Result = t
+	fn.Result = valueType
 	return fn
 }
 
 // Param stores a parameter and returns the function.
-func (fn *Func) Param(name string, t *Type) *Func {
+func (fn *Func) Param(name string, valueType *Type) *Func {
 	if fn == nil {
 		return nil
 	}
-	fn.Params = append(fn.Params, &Param{Name: name, Type: t})
+	fn.Params = append(fn.Params, &Param{Name: name, Type: valueType})
 	return fn
 }
 
@@ -376,31 +376,31 @@ func (fn *Func) WithBody(stmts ...*Stmt) *Func {
 }
 
 // Constant returns a const-qualified type. The receiver stays unqualified.
-func (t *Type) Constant() *Type {
-	if t == nil {
+func (valueType *Type) Constant() *Type {
+	if valueType == nil {
 		return nil
 	}
-	if t.Const {
-		return t
+	if valueType.Const {
+		return valueType
 	}
-	n := *t
-	n.Const = true
-	n.Of = t
-	n.Fields = nil
-	n.Enums = nil
-	n.Defined = false
-	n.Inline = false
-	n.home = nil
-	n.laying = false
-	layout(&n)
-	return &n
+	qualified := *valueType
+	qualified.Const = true
+	qualified.Of = valueType
+	qualified.Fields = nil
+	qualified.Enums = nil
+	qualified.Defined = false
+	qualified.Inline = false
+	qualified.home = nil
+	qualified.laying = false
+	layout(&qualified)
+	return &qualified
 }
 
 func useType(name string, of *Type) *Type {
 	if of == nil {
 		return &Type{Use: name}
 	}
-	t := &Type{
+	valueType := &Type{
 		Kind:   of.Kind,
 		Signed: of.Signed,
 		Spell:  of.Spell,
@@ -408,8 +408,8 @@ func useType(name string, of *Type) *Type {
 		Tag:    of.Tag,
 		Of:     of,
 	}
-	layout(t)
-	return t
+	layout(valueType)
+	return valueType
 }
 
 // Void returns void.
@@ -494,8 +494,8 @@ func FuncType(result *Type, params ...*Param) *Type {
 }
 
 // ParamOf returns a parameter.
-func ParamOf(name string, typ *Type) *Param {
-	return &Param{Name: name, Type: typ}
+func ParamOf(name string, valueType *Type) *Param {
+	return &Param{Name: name, Type: valueType}
 }
 
 // Ident returns an identifier.
@@ -559,13 +559,13 @@ func Index(recv, idx *Expr) *Expr {
 }
 
 // Cast returns a cast.
-func Cast(typ *Type, x *Expr) *Expr {
-	return &Expr{Kind: ExprCast, Type: typ, Left: x}
+func Cast(valueType *Type, x *Expr) *Expr {
+	return &Expr{Kind: ExprCast, Type: valueType, Left: x}
 }
 
 // SizeofType returns sizeof(type).
-func SizeofType(typ *Type) *Expr {
-	return &Expr{Kind: ExprSizeof, Type: typ}
+func SizeofType(valueType *Type) *Expr {
+	return &Expr{Kind: ExprSizeof, Type: valueType}
 }
 
 // SizeofExpr returns sizeof expr.
@@ -619,8 +619,8 @@ func ExprStmt(e *Expr) *Stmt {
 }
 
 // Declare returns a local declaration.
-func Declare(name string, typ *Type) *Stmt {
-	return &Stmt{Kind: StmtDecl, Objects: []*Object{{Name: name, Type: typ}}}
+func Declare(name string, valueType *Type) *Stmt {
+	return &Stmt{Kind: StmtDecl, Objects: []*Object{{Name: name, Type: valueType}}}
 }
 
 // WithInit stores an initializer on the first object and returns the statement.

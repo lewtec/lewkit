@@ -21,6 +21,30 @@
     "x/ndarray/onnx/internal/proto/onnx.proto": {
       "source_info": "mount:x/ndarray/onnx/internal/proto/onnx.proto"
     },
+    "x/parse/testdata/treesitter/bash.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/bash.json"
+    },
+    "x/parse/testdata/treesitter/c.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/c.json"
+    },
+    "x/parse/testdata/treesitter/go.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/go.json"
+    },
+    "x/parse/testdata/treesitter/java.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/java.json"
+    },
+    "x/parse/testdata/treesitter/javascript.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/javascript.json"
+    },
+    "x/parse/testdata/treesitter/json.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/json.json"
+    },
+    "x/parse/testdata/treesitter/python.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/python.json"
+    },
+    "x/parse/testdata/treesitter/rust.json": {
+      "source_info": "mount:x/parse/testdata/treesitter/rust.json"
+    },
     "x/takemake/glsl/testdata/khronos/base.frag": {
       "source_info": "mount:x/takemake/glsl/testdata/khronos/base.frag"
     },
@@ -71,20 +95,7 @@
     },
     "x/takemake/glsl/testdata/khronos/triangle_es.frag": {
       "source_info": "mount:x/takemake/glsl/testdata/khronos/triangle_es.frag"
-    "x/takemake/makefile/testdata/Makefile.in": {
-      "source_info": "mount:x/takemake/makefile/testdata/Makefile.in"
     },
-    "x/takemake/makefile/testdata/makefile": {
-      "source_info": "mount:x/takemake/makefile/testdata/makefile"
-    },
-    "x/takemake/ninja/testdata/build.ninja": {
-      "source_info": "mount:x/takemake/ninja/testdata/build.ninja"
-    },
-    "x/takemake/ninja/testdata/inherited-fds.ninja": {
-      "source_info": "mount:x/takemake/ninja/testdata/inherited-fds.ninja"
-    },
-    "x/takemake/ninja/testdata/long-slow-build.ninja": {
-      "source_info": "mount:x/takemake/ninja/testdata/long-slow-build.ninja"
     "x/takemake/graphviz/testdata/ER.gv": {
       "source_info": "mount:x/takemake/graphviz/testdata/ER.gv"
     },
@@ -132,6 +143,21 @@
     },
     "x/takemake/graphviz/testdata/world.gv": {
       "source_info": "mount:x/takemake/graphviz/testdata/world.gv"
+    },
+    "x/takemake/makefile/testdata/Makefile.in": {
+      "source_info": "mount:x/takemake/makefile/testdata/Makefile.in"
+    },
+    "x/takemake/makefile/testdata/makefile": {
+      "source_info": "mount:x/takemake/makefile/testdata/makefile"
+    },
+    "x/takemake/ninja/testdata/build.ninja": {
+      "source_info": "mount:x/takemake/ninja/testdata/build.ninja"
+    },
+    "x/takemake/ninja/testdata/inherited-fds.ninja": {
+      "source_info": "mount:x/takemake/ninja/testdata/inherited-fds.ninja"
+    },
+    "x/takemake/ninja/testdata/long-slow-build.ninja": {
+      "source_info": "mount:x/takemake/ninja/testdata/long-slow-build.ninja"
     },
     "x/toolchain/go/_upstream/cmd/archive/archive.go": {
       "source_info": "mount:x/toolchain/go/_upstream/cmd/archive/archive.go"

@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/lewtec/lewkit/x/errs"
+	syntax "github.com/lewtec/lewkit/x/parse/dotenv"
 )
 
 var (
@@ -11,7 +12,7 @@ var (
 	ErrNilWriter     = errs.Wrap(errs.ErrInvalid, "dotenv: nil writer")
 	ErrNilFile       = errs.Wrap(errs.ErrInvalid, "dotenv: nil file")
 	ErrNilAssignment = errs.Wrap(errs.ErrInvalid, "dotenv: nil assignment")
-	ErrLine          = errs.Wrap(errs.ErrSyntax, "dotenv: invalid line")
+	ErrLine          = syntax.ErrLine
 	ErrKey           = errs.Wrap(errs.ErrEmpty, "dotenv: empty key")
 	ErrEncode        = errs.Wrap(errs.ErrInvalid, "dotenv: quote cannot represent the value")
 )

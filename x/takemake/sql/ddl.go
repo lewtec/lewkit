@@ -43,8 +43,8 @@ func (t *CreateTable) IfNotExists() *CreateTable {
 }
 
 // Column appends a column.
-func (t *CreateTable) Column(name string, typ Type) *Column {
-	col := &Column{Name: name, Type: typ, create: t}
+func (t *CreateTable) Column(name string, valueType Type) *Column {
+	col := &Column{Name: name, Type: valueType, create: t}
 	if t != nil {
 		t.Columns = append(t.Columns, col)
 	}
@@ -121,17 +121,17 @@ type Column struct {
 }
 
 // Column starts the next column on the same table or alter.
-func (c *Column) Column(name string, typ Type) *Column {
+func (c *Column) Column(name string, valueType Type) *Column {
 	if c == nil {
-		return &Column{Name: name, Type: typ}
+		return &Column{Name: name, Type: valueType}
 	}
 	if c.create != nil {
-		return c.create.Column(name, typ)
+		return c.create.Column(name, valueType)
 	}
 	if c.alter != nil && c.alter.file != nil {
-		return c.alter.file.AlterTable(c.alter.Name).AddColumn(name, typ)
+		return c.alter.file.AlterTable(c.alter.Name).AddColumn(name, valueType)
 	}
-	return &Column{Name: name, Type: typ}
+	return &Column{Name: name, Type: valueType}
 }
 
 // PrimaryKey marks this column as the primary key when columns is empty.
@@ -256,11 +256,11 @@ func (fk *ForeignKey) OnUpdate(action Action) *ForeignKey {
 }
 
 // Column continues the CREATE TABLE with another column.
-func (fk *ForeignKey) Column(name string, typ Type) *Column {
+func (fk *ForeignKey) Column(name string, valueType Type) *Column {
 	if fk == nil || fk.create == nil {
-		return &Column{Name: name, Type: typ}
+		return &Column{Name: name, Type: valueType}
 	}
-	return fk.create.Column(name, typ)
+	return fk.create.Column(name, valueType)
 }
 
 // AlterTable is one ALTER TABLE statement.
@@ -307,14 +307,14 @@ func (a *AlterTable) next() *AlterTable {
 }
 
 // AddColumn adds a column.
-func (a *AlterTable) AddColumn(name string, typ Type) *Column {
+func (a *AlterTable) AddColumn(name string, valueType Type) *Column {
 	if a == nil {
-		return &Column{Name: name, Type: typ}
+		return &Column{Name: name, Type: valueType}
 	}
 	if a.Op != 0 {
-		return a.next().AddColumn(name, typ)
+		return a.next().AddColumn(name, valueType)
 	}
-	col := &Column{Name: name, Type: typ, alter: a}
+	col := &Column{Name: name, Type: valueType, alter: a}
 	a.Op = AlterKindAdd
 	a.Add = col
 	return col
@@ -334,16 +334,16 @@ func (a *AlterTable) DropColumn(name string) *AlterTable {
 }
 
 // Type retypes a column.
-func (a *AlterTable) Type(column string, typ Type) *AlterTable {
+func (a *AlterTable) Type(column string, valueType Type) *AlterTable {
 	if a == nil {
 		return nil
 	}
 	if a.Op != 0 {
-		return a.next().Type(column, typ)
+		return a.next().Type(column, valueType)
 	}
 	a.Op = AlterKindType
 	a.ColumnName = column
-	a.To = typ
+	a.To = valueType
 	return a
 }
 

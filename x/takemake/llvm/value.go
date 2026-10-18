@@ -7,8 +7,8 @@ type Operand struct {
 }
 
 // Typed pairs a type with a value.
-func Typed(typ *Type, value *Value) Operand {
-	return Operand{Type: typ, Value: value}
+func Typed(valueType *Type, value *Value) Operand {
+	return Operand{Type: valueType, Value: value}
 }
 
 // Incoming is one phi predecessor.
@@ -64,16 +64,16 @@ func True() *Value { return &Value{Kind: ValTrue} }
 func False() *Value { return &Value{Kind: ValFalse} }
 
 // Null is a typed null.
-func Null(typ *Type) *Value { return &Value{Kind: ValNull, Type: typ} }
+func Null(valueType *Type) *Value { return &Value{Kind: ValNull, Type: valueType} }
 
 // Zero is a typed zeroinitializer.
-func Zero(typ *Type) *Value { return &Value{Kind: ValZero, Type: typ} }
+func Zero(valueType *Type) *Value { return &Value{Kind: ValZero, Type: valueType} }
 
 // Undef is a typed undef.
-func Undef(typ *Type) *Value { return &Value{Kind: ValUndef, Type: typ} }
+func Undef(valueType *Type) *Value { return &Value{Kind: ValUndef, Type: valueType} }
 
 // Poison is a typed poison.
-func Poison(typ *Type) *Value { return &Value{Kind: ValPoison, Type: typ} }
+func Poison(valueType *Type) *Value { return &Value{Kind: ValPoison, Type: valueType} }
 
 // CString is a c"..." constant. text is the decoded bytes.
 func CString(text string) *Value { return &Value{Kind: ValString, Text: text} }

@@ -1,122 +1,501 @@
 package makefile
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"sync"
+
+	xparse "github.com/lewtec/lewkit/x/parse"
+	syntax "github.com/lewtec/lewkit/x/parse/makefile"
 )
+
+var (
+	langOnce sync.Once
+	lang     *xparse.Model[Term, Production]
+	langErr  error
+)
+
+func language() (*xparse.Model[Term, Production], error) {
+	langOnce.Do(func() {
+		prepared, err := syntax.Declare()
+		if err != nil {
+			langErr = err
+			return
+		}
+		if err := prepared.Scanner(scan); err != nil {
+			langErr = err
+			return
+		}
+		lang, langErr = prepared.Load(syntax.Table())
+	})
+	return lang, langErr
+}
 
 type adder interface {
 	add(Stmt)
 	last() Stmt
-	top() bool
-}
-
-type frame struct {
-	prev     adder
-	cond     *Conditional
-	elseSeen bool
-}
-
-type parser struct {
-	lines []string
-	i     int
-	cur   adder
-	stack []frame
 }
 
 func parse(text string) (*File, error) {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\r", "\n")
-	f := New()
-	p := &parser{lines: strings.Split(text, "\n"), cur: f}
-	if err := p.parse(); err != nil {
+	model, err := language()
+	if err != nil {
 		return nil, err
 	}
-	return f, nil
+	root, err := model.Parse([]byte(text))
+	if err != nil {
+		return nil, parseErr(text, err)
+	}
+	return lower(text, root)
 }
 
-func (p *parser) parse() error {
-	for p.i < len(p.lines) {
-		if strings.HasPrefix(p.lines[p.i], "\t") && p.tabIsRecipe() {
-			text := p.lines[p.i][1:]
-			p.i++
-			p.attachRecipe(text)
-			continue
+func parseErr(text string, err error) error {
+	var pe *xparse.Error
+	if !errors.As(err, &pe) {
+		return syn(1, "syntax")
+	}
+	if pe.Offset >= len(text) {
+		for _, want := range pe.Want {
+			if want == TermEndif.String() {
+				return syn(pe.Line, "missing endif")
+			}
+			if want == TermEndef.String() {
+				return syn(pe.Line, "missing endef")
+			}
 		}
-		n := p.i + 1
-		raw, err := p.readLogical()
-		if err != nil {
-			return err
-		}
-		line := trimLeft(removeComments(collapse(raw)))
-		if err := p.statement(line, n); err != nil {
-			return err
+		return syn(pe.Line, "syntax")
+	}
+	at := pe.Offset
+	if at < 0 {
+		at = 0
+	}
+	src := []byte(text)
+	end, _, ok := readLogical(src, at)
+	if !ok {
+		return syn(pe.Line, "unterminated continuation")
+	}
+	raw := string(src[at:end])
+	collapsed := collapse(raw)
+	if !strings.HasPrefix(collapsed, "\t") {
+		word, rest := cutWord(trimLeft(collapsed))
+		if word == "endef" && trimSpace(removeComments(rest)) != "" {
+			return syn(pe.Line, "extraneous text after endef")
 		}
 	}
-	if len(p.stack) > 0 {
-		return syn(len(p.lines), "missing endif")
+	switch classOf(cookedLine(raw)) {
+	case kindElse:
+		return syn(pe.Line, "extraneous else")
+	case kindEndif:
+		_, rest := cutWord(cookedLine(raw))
+		if trimSpace(rest) != "" {
+			return syn(pe.Line, "extraneous text after endif")
+		}
+		return syn(pe.Line, "extraneous endif")
+	}
+	return syn(pe.Line, "syntax")
+}
+
+func lower(text string, root xparse.SyntaxNode[Term, Production]) (*File, error) {
+	file := New()
+	if err := appendStmts(text, root, file); err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+func appendStmts(text string, parent xparse.SyntaxNode[Term, Production], dst adder) error {
+	for i := 0; i < parent.ChildCount(); i++ {
+		if err := appendStmt(text, parent.Child(i), dst); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (p *parser) tabIsRecipe() bool {
-	if r, ok := p.cur.last().(*Rule); ok && len(r.Targets) > 0 {
-		return true
+func appendStmt(text string, node xparse.SyntaxNode[Term, Production], dst adder) error {
+	if rule, ok := node.Rule(); ok && rule == ProductionStatement {
+		if node.ChildCount() != 1 {
+			return syn(node.Line(), "syntax")
+		}
+		node = node.Child(0)
 	}
-	return !p.cur.top()
+	if rule, ok := node.Rule(); ok {
+		switch rule {
+		case ProductionCondition:
+			condition, err := lowerCond(text, node)
+			if err != nil {
+				return err
+			}
+			dst.add(condition)
+			return nil
+		case ProductionDefine:
+			fn, err := lowerDefine(text, node)
+			if err != nil {
+				return err
+			}
+			dst.add(fn)
+			return nil
+		default:
+			return syn(node.Line(), "syntax")
+		}
+	}
+	term, ok := node.Term()
+	if !ok {
+		return syn(node.Line(), "syntax")
+	}
+	raw := node.Text()
+	line := cookedLine(raw)
+	n := node.Line()
+	switch term {
+	case TermRecipe:
+		attachRecipe(dst, recipeText(raw))
+		return nil
+	case TermAssign:
+		statement, err := lowerAssign(line, n)
+		if err != nil {
+			return err
+		}
+		dst.add(statement)
+		return nil
+	case TermRule:
+		statement, err := lowerRule(line, n)
+		if err != nil {
+			return err
+		}
+		dst.add(statement)
+		return nil
+	case TermInclude:
+		statement, err := lowerInclude(line, n)
+		if err != nil {
+			return err
+		}
+		dst.add(statement)
+		return nil
+	case TermVPath:
+		dst.add(lowerVPath(line))
+		return nil
+	case TermExport:
+		dst.add(lowerExport(line))
+		return nil
+	case TermUndefine:
+		statement, err := lowerUndefine(line, n)
+		if err != nil {
+			return err
+		}
+		dst.add(statement)
+		return nil
+	case TermUnknown:
+		return syn(n, "unknown statement %s", short(line))
+	default:
+		return syn(n, "syntax")
+	}
 }
 
-func (p *parser) attachRecipe(text string) {
-	if r, ok := p.cur.last().(*Rule); ok {
-		r.Recipe = append(r.Recipe, text)
+func attachRecipe(dst adder, text string) {
+	if rule, ok := dst.last().(*Rule); ok {
+		rule.Recipe = append(rule.Recipe, text)
 		return
 	}
-	p.cur.add(&Rule{Recipe: []string{text}})
+	dst.add(&Rule{Recipe: []string{text}})
 }
 
-func (p *parser) readLogical() (string, error) {
-	var b strings.Builder
-	for {
-		if p.i >= len(p.lines) {
-			return "", syn(p.i, "unterminated continuation")
+func lowerAssign(line string, n int) (Stmt, error) {
+	if a, ok := assignmentKind(line); ok && a.kind == assignVar {
+		if a.def.name == "" {
+			return nil, syn(n, "empty variable name")
 		}
-		line := p.lines[p.i]
-		p.i++
-		b.WriteString(line)
-		if trailingBackslashes(line)%2 == 0 {
-			return b.String(), nil
-		}
-		if p.i >= len(p.lines) {
-			return "", syn(p.i, "unterminated continuation")
-		}
-		b.WriteByte('\n')
+		return &Variable{
+			Name:     a.def.name,
+			Op:       a.def.op,
+			Value:    a.def.value,
+			Override: a.override,
+			Export:   a.export,
+			Private:  a.private,
+		}, nil
 	}
+	return lowerRule(line, n)
 }
 
-func (p *parser) statement(line string, n int) error {
-	if line == "" {
-		return nil
+func lowerRule(line string, n int) (Stmt, error) {
+	sep, ok := findRuleSep(line)
+	if !ok {
+		return nil, syn(n, "unknown statement %s", short(line))
 	}
-	if a, ok := assignmentKind(line); ok {
-		return p.assign(a, n)
+	targets := words(line[:sep.start])
+	right := line[sep.end:]
+	if !sep.double && !sep.group {
+		if a, ok := assignmentKind(trimLeft(right)); ok && a.kind == assignVar {
+			if len(targets) == 0 {
+				return nil, syn(n, "empty target")
+			}
+			if a.def.name == "" {
+				return nil, syn(n, "empty variable name")
+			}
+			return &Variable{
+				Name:     a.def.name,
+				Op:       a.def.op,
+				Value:    a.def.value,
+				Targets:  targets,
+				Override: a.override,
+				Export:   a.export,
+				Private:  a.private,
+			}, nil
+		}
 	}
+	if len(targets) == 0 {
+		return nil, syn(n, "missing separator")
+	}
+	rule := &Rule{Targets: targets, DoubleColon: sep.double, Grouped: sep.group}
+	if pattern, after, ok := splitStatic(right); ok {
+		rule.Pattern = trimSpace(pattern)
+		right = after
+	}
+	if head, recipe, ok := splitSemi(right); ok {
+		right = head
+		rule.Recipe = []string{recipe}
+	}
+	if head, order, ok := splitBar(right); ok {
+		rule.Prerequisites = words(head)
+		rule.OrderOnly = words(order)
+	} else {
+		rule.Prerequisites = words(right)
+	}
+	return rule, nil
+}
+
+func lowerInclude(line string, n int) (Stmt, error) {
 	word, rest := cutWord(line)
+	paths := words(rest)
+	if len(paths) == 0 {
+		return nil, syn(n, "empty include")
+	}
+	return &Include{Paths: paths, Optional: word != "include"}, nil
+}
+
+func lowerVPath(line string) *VPath {
+	_, rest := cutWord(line)
+	rest = trimLeft(rest)
+	if rest == "" {
+		return &VPath{ClearAll: true}
+	}
+	pattern, dirs := cutWord(rest)
+	return &VPath{Pattern: pattern, Dirs: trimSpace(dirs)}
+}
+
+func lowerExport(line string) *Export {
+	word, rest := cutWord(line)
+	names := words(rest)
+	ex := &Export{Drop: word == "unexport"}
+	if len(names) == 0 {
+		ex.All = true
+	} else {
+		ex.Names = names
+	}
+	return ex
+}
+
+func lowerUndefine(line string, n int) (Stmt, error) {
+	rest := ""
+	if a, ok := assignmentKind(line); ok && a.kind == assignUndefine {
+		rest = a.rest
+	} else {
+		_, rest = cutWord(line)
+	}
+	names := words(rest)
+	if len(names) == 0 {
+		return nil, syn(n, "empty variable name")
+	}
+	return &Undefine{Names: names}, nil
+}
+
+func lowerCond(text string, node xparse.SyntaxNode[Term, Production]) (*Conditional, error) {
+	condition := &Conditional{}
+	var cur *Branch
+	elseSeen := false
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if rule, ok := child.Rule(); ok && rule == ProductionElse {
+			if elseSeen {
+				return nil, syn(elseLine(text, child), "only one else per conditional")
+			}
+			br, plain, err := lowerElse(text, child)
+			if err != nil {
+				return nil, err
+			}
+			if plain {
+				elseSeen = true
+			}
+			condition.Branches = append(condition.Branches, br)
+			cur = br
+			if err := appendElse(text, child, br); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if term, ok := child.Term(); ok {
+			switch term {
+			case TermIf:
+				br, err := lowerIf(text, child)
+				if err != nil {
+					return nil, err
+				}
+				condition.Branches = append(condition.Branches, br)
+				cur = br
+				continue
+			case TermEndif:
+				if err := checkEndif(text, child); err != nil {
+					return nil, err
+				}
+				continue
+			}
+		}
+		if cur == nil {
+			return nil, syn(child.Line(), "syntax")
+		}
+		if err := appendStmt(text, child, cur); err != nil {
+			return nil, err
+		}
+	}
+	if len(condition.Branches) == 0 {
+		return nil, syn(node.Line(), "invalid conditional")
+	}
+	return condition, nil
+}
+
+func appendElse(text string, node xparse.SyntaxNode[Term, Production], br *Branch) error {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok && term == TermElse {
+			continue
+		}
+		if err := appendStmt(text, child, br); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func lowerIf(text string, tok xparse.SyntaxNode[Term, Production]) (*Branch, error) {
+	line := cookedLine(tok.Text())
+	word, rest := cutWord(line)
+	return testBranch(word, rest, tok.Line())
+}
+
+func lowerElse(text string, node xparse.SyntaxNode[Term, Production]) (*Branch, bool, error) {
+	tok := elseTok(node)
+	line := cookedLine(tok.Text())
+	n := tok.Line()
+	_, rest := cutWord(line)
+	rest = trimLeft(rest)
+	if rest == "" {
+		return &Branch{}, true, nil
+	}
+	word, erest := cutWord(rest)
 	switch word {
-	case "ifeq", "ifneq", "ifdef", "ifndef", "else", "endif":
-		return p.conditional(word, rest, n)
-	case "include", "-include", "sinclude":
-		return p.include(word, rest, n)
-	case "vpath":
-		return p.vpath(rest, n)
-	case "export", "unexport":
-		return p.export(word == "unexport", rest)
-	case "undefine":
-		return p.undefine(rest, n)
+	case "ifeq", "ifneq", "ifdef", "ifndef":
+		br, err := testBranch(word, erest, n)
+		return br, false, err
+	default:
+		return nil, false, syn(n, "extraneous text after else")
 	}
-	if _, ok := findRuleSep(line); ok {
-		return p.rule(line, n)
+}
+
+func elseTok(node xparse.SyntaxNode[Term, Production]) xparse.SyntaxNode[Term, Production] {
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		if term, ok := child.Term(); ok && term == TermElse {
+			return child
+		}
 	}
-	return syn(n, "unknown statement %s", short(line))
+	return node
+}
+
+func elseLine(text string, node xparse.SyntaxNode[Term, Production]) int {
+	return elseTok(node).Line()
+}
+
+func checkEndif(text string, tok xparse.SyntaxNode[Term, Production]) error {
+	_, rest := cutWord(cookedLine(tok.Text()))
+	if trimSpace(rest) != "" {
+		return syn(tok.Line(), "extraneous text after endif")
+	}
+	return nil
+}
+
+func lowerDefine(text string, node xparse.SyntaxNode[Term, Production]) (Stmt, error) {
+	var (
+		header xparse.SyntaxNode[Term, Production]
+		endef  xparse.SyntaxNode[Term, Production]
+		body   []string
+	)
+	for i := 0; i < node.ChildCount(); i++ {
+		child := node.Child(i)
+		term, ok := child.Term()
+		if !ok {
+			return nil, syn(child.Line(), "syntax")
+		}
+		switch term {
+		case TermDefine:
+			header = child
+		case TermBody:
+			body = append(body, bodyLine(child.Text()))
+		case TermEndef:
+			endef = child
+		default:
+			return nil, syn(child.Line(), "syntax")
+		}
+	}
+	if !header.Valid() {
+		return nil, syn(node.Line(), "missing endef")
+	}
+	fn, err := defineHeader(cookedLine(header.Text()), header.Line())
+	if err != nil {
+		return nil, err
+	}
+	if !endef.Valid() {
+		return nil, syn(header.Line(), "missing endef")
+	}
+	if err := checkEndef(text, endef); err != nil {
+		return nil, err
+	}
+	fn.Body = strings.Join(body, "\n")
+	return fn, nil
+}
+
+func defineHeader(line string, n int) (*Function, error) {
+	a, ok := assignmentKind(line)
+	if !ok || a.kind != assignDefine {
+		return nil, syn(n, "syntax")
+	}
+	fn := &Function{Override: a.override, Export: a.export, Private: a.private}
+	if def, ok := parseVariableDefinition(a.rest); ok {
+		if trimSpace(def.value) != "" {
+			return nil, syn(n, "extraneous text after define")
+		}
+		fn.Name = def.name
+		fn.Op = def.op
+	} else {
+		fn.Name = trimSpace(a.rest)
+	}
+	if fn.Name == "" {
+		return nil, syn(n, "empty variable name")
+	}
+	return fn, nil
+}
+
+func checkEndef(text string, tok xparse.SyntaxNode[Term, Production]) error {
+	line := collapse(tok.Text())
+	n := tok.Line()
+	if strings.HasPrefix(line, "\t") {
+		return syn(n, "extraneous text after endef")
+	}
+	_, rest := cutWord(trimLeft(line))
+	if trimSpace(removeComments(rest)) != "" {
+		return syn(n, "extraneous text after endef")
+	}
+	return nil
 }
 
 type assignKind int
@@ -168,147 +547,6 @@ func assignmentKind(line string) (assignment, bool) {
 		if p == "" {
 			return assignment{}, false
 		}
-	}
-}
-
-func (p *parser) assign(a assignment, n int) error {
-	switch a.kind {
-	case assignDefine:
-		return p.define(a, n)
-	case assignUndefine:
-		return p.undefine(a.rest, n)
-	default:
-		if a.def.name == "" {
-			return syn(n, "empty variable name")
-		}
-		p.cur.add(&Variable{
-			Name:     a.def.name,
-			Op:       a.def.op,
-			Value:    a.def.value,
-			Override: a.override,
-			Export:   a.export,
-			Private:  a.private,
-		})
-		return nil
-	}
-}
-
-func (p *parser) define(a assignment, n int) error {
-	fn := &Function{Override: a.override, Export: a.export, Private: a.private}
-	if def, ok := parseVariableDefinition(a.rest); ok {
-		if trimSpace(def.value) != "" {
-			return syn(n, "extraneous text after define")
-		}
-		fn.Name = def.name
-		fn.Op = def.op
-	} else {
-		fn.Name = trimSpace(a.rest)
-	}
-	if fn.Name == "" {
-		return syn(n, "empty variable name")
-	}
-	body, err := p.readBody(n)
-	if err != nil {
-		return err
-	}
-	fn.Body = body
-	p.cur.add(fn)
-	return nil
-}
-
-func (p *parser) readBody(n int) (string, error) {
-	var lines []string
-	depth := 1
-	for {
-		if p.i >= len(p.lines) {
-			return "", syn(n, "missing endef")
-		}
-		lineNo := p.i + 1
-		raw, err := p.readLogical()
-		if err != nil {
-			return "", err
-		}
-		line := collapse(raw)
-		if !strings.HasPrefix(line, "\t") {
-			word, rest := cutWord(trimLeft(line))
-			switch word {
-			case "define":
-				depth++
-			case "endef":
-				if trimSpace(removeComments(rest)) != "" {
-					return "", syn(lineNo, "extraneous text after endef")
-				}
-				depth--
-				if depth == 0 {
-					return strings.Join(lines, "\n"), nil
-				}
-			}
-		}
-		lines = append(lines, line)
-	}
-}
-
-func (p *parser) undefine(rest string, n int) error {
-	names := words(rest)
-	if len(names) == 0 {
-		return syn(n, "empty variable name")
-	}
-	p.cur.add(&Undefine{Names: names})
-	return nil
-}
-
-func (p *parser) conditional(word, rest string, n int) error {
-	switch word {
-	case "endif":
-		if trimSpace(rest) != "" {
-			return syn(n, "extraneous text after endif")
-		}
-		if len(p.stack) == 0 {
-			return syn(n, "extraneous endif")
-		}
-		fr := p.stack[len(p.stack)-1]
-		p.stack = p.stack[:len(p.stack)-1]
-		p.cur = fr.prev
-		return nil
-	case "else":
-		if len(p.stack) == 0 {
-			return syn(n, "extraneous else")
-		}
-		fr := &p.stack[len(p.stack)-1]
-		if fr.elseSeen {
-			return syn(n, "only one else per conditional")
-		}
-		rest = trimLeft(rest)
-		if rest == "" {
-			fr.elseSeen = true
-			br := &Branch{}
-			fr.cond.Branches = append(fr.cond.Branches, br)
-			p.cur = br
-			return nil
-		}
-		ew, erest := cutWord(rest)
-		switch ew {
-		case "ifeq", "ifneq", "ifdef", "ifndef":
-			br, err := testBranch(ew, erest, n)
-			if err != nil {
-				return err
-			}
-			fr.cond.Branches = append(fr.cond.Branches, br)
-			p.cur = br
-			return nil
-		default:
-			return syn(n, "extraneous text after else")
-		}
-	default:
-		br, err := testBranch(word, rest, n)
-		if err != nil {
-			return err
-		}
-		cond := &Conditional{Branches: []*Branch{br}}
-		p.cur.add(cond)
-		p.stack = append(p.stack, frame{prev: p.cur, cond: cond})
-		p.cur = br
-		return nil
 	}
 }
 
@@ -415,87 +653,6 @@ func parseQuotedArgs(rest string) (string, string, error) {
 		return "", "", errSyntax
 	}
 	return left, right, nil
-}
-
-func (p *parser) include(word, rest string, n int) error {
-	paths := words(rest)
-	if len(paths) == 0 {
-		return syn(n, "empty include")
-	}
-	p.cur.add(&Include{Paths: paths, Optional: word != "include"})
-	return nil
-}
-
-func (p *parser) vpath(rest string, _ int) error {
-	rest = trimLeft(rest)
-	if rest == "" {
-		p.cur.add(&VPath{ClearAll: true})
-		return nil
-	}
-	pattern, dirs := cutWord(rest)
-	p.cur.add(&VPath{Pattern: pattern, Dirs: trimSpace(dirs)})
-	return nil
-}
-
-func (p *parser) export(drop bool, rest string) error {
-	names := words(rest)
-	ex := &Export{Drop: drop}
-	if len(names) == 0 {
-		ex.All = true
-	} else {
-		ex.Names = names
-	}
-	p.cur.add(ex)
-	return nil
-}
-
-func (p *parser) rule(line string, n int) error {
-	sep, ok := findRuleSep(line)
-	if !ok {
-		return syn(n, "unknown statement %s", short(line))
-	}
-	targets := words(line[:sep.start])
-	right := line[sep.end:]
-	if !sep.double && !sep.group {
-		if a, ok := assignmentKind(trimLeft(right)); ok && a.kind == assignVar {
-			if len(targets) == 0 {
-				return syn(n, "empty target")
-			}
-			if a.def.name == "" {
-				return syn(n, "empty variable name")
-			}
-			p.cur.add(&Variable{
-				Name:     a.def.name,
-				Op:       a.def.op,
-				Value:    a.def.value,
-				Targets:  targets,
-				Override: a.override,
-				Export:   a.export,
-				Private:  a.private,
-			})
-			return nil
-		}
-	}
-	if len(targets) == 0 {
-		return syn(n, "missing separator")
-	}
-	rule := &Rule{Targets: targets, DoubleColon: sep.double, Grouped: sep.group}
-	if pattern, after, ok := splitStatic(right); ok {
-		rule.Pattern = trimSpace(pattern)
-		right = after
-	}
-	if head, recipe, ok := splitSemi(right); ok {
-		right = head
-		rule.Recipe = []string{recipe}
-	}
-	if head, order, ok := splitBar(right); ok {
-		rule.Prerequisites = words(head)
-		rule.OrderOnly = words(order)
-	} else {
-		rule.Prerequisites = words(right)
-	}
-	p.cur.add(rule)
-	return nil
 }
 
 func syn(n int, format string, args ...any) error {

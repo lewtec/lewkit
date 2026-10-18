@@ -109,9 +109,9 @@ func (g *Global) Constant() *Global {
 }
 
 // Type sets the global's type.
-func (g *Global) Type(typ *Type) *Global {
+func (g *Global) Type(valueType *Type) *Global {
 	if g != nil {
-		g.ValueType = typ
+		g.ValueType = valueType
 	}
 	return g
 }
@@ -189,19 +189,19 @@ func (fn *Func) UnnamedAddr() *Func {
 }
 
 // Returns sets the result type.
-func (fn *Func) Returns(typ *Type) *Func {
+func (fn *Func) Returns(valueType *Type) *Func {
 	if fn != nil {
-		fn.Result = typ
+		fn.Result = valueType
 	}
 	return fn
 }
 
 // Param appends a parameter. An empty name is unnamed.
-func (fn *Func) Param(name string, typ *Type) *Func {
+func (fn *Func) Param(name string, valueType *Type) *Func {
 	if fn == nil {
 		return nil
 	}
-	fn.Parameters = append(fn.Parameters, &Param{Name: name, Type: typ})
+	fn.Parameters = append(fn.Parameters, &Param{Name: name, Type: valueType})
 	return fn
 }
 
@@ -236,19 +236,19 @@ func (b *Block) append(in *Inst) *Inst {
 	return in
 }
 
-// Alloca appends an alloca of typ.
-func (b *Block) Alloca(name string, typ *Type) *Inst {
-	return b.append(&Inst{Kind: InstAlloca, Name: name, Type: typ})
+// Alloca appends an alloca of valueType.
+func (b *Block) Alloca(name string, valueType *Type) *Inst {
+	return b.append(&Inst{Kind: InstAlloca, Name: name, Type: valueType})
 }
 
 // Load appends a load of the pointer.
-func (b *Block) Load(name string, typ, pointer *Type, value *Value) *Inst {
-	return b.append(&Inst{Kind: InstLoad, Name: name, Type: typ, Pointer: pointer, Left: value})
+func (b *Block) Load(name string, valueType, pointer *Type, value *Value) *Inst {
+	return b.append(&Inst{Kind: InstLoad, Name: name, Type: valueType, Pointer: pointer, Left: value})
 }
 
 // Store appends a store.
-func (b *Block) Store(typ *Type, value *Value, pointer *Type, dest *Value) *Inst {
-	return b.append(&Inst{Kind: InstStore, Type: typ, Left: value, Pointer: pointer, Right: dest})
+func (b *Block) Store(valueType *Type, value *Value, pointer *Type, dest *Value) *Inst {
+	return b.append(&Inst{Kind: InstStore, Type: valueType, Left: value, Pointer: pointer, Right: dest})
 }
 
 // GEP appends a getelementptr. The result type is an opaque pointer in the text.
@@ -264,33 +264,33 @@ func (b *Block) GEP(name string, source, pointer *Type, base *Value, index ...Op
 }
 
 // Bin appends a binary instruction.
-func (b *Block) Bin(name string, op Op, typ *Type, left, right *Value) *Inst {
-	return b.append(&Inst{Kind: InstBin, Name: name, Op: op, Type: typ, Left: left, Right: right})
+func (b *Block) Bin(name string, op Op, valueType *Type, left, right *Value) *Inst {
+	return b.append(&Inst{Kind: InstBin, Name: name, Op: op, Type: valueType, Left: left, Right: right})
 }
 
 // ICmp appends an integer comparison.
-func (b *Block) ICmp(name string, pred IPred, typ *Type, left, right *Value) *Inst {
-	return b.append(&Inst{Kind: InstICmp, Name: name, IntegerPred: pred, Type: typ, Left: left, Right: right})
+func (b *Block) ICmp(name string, pred IPred, valueType *Type, left, right *Value) *Inst {
+	return b.append(&Inst{Kind: InstICmp, Name: name, IntegerPred: pred, Type: valueType, Left: left, Right: right})
 }
 
 // FCmp appends a floating comparison.
-func (b *Block) FCmp(name string, pred FPred, typ *Type, left, right *Value) *Inst {
-	return b.append(&Inst{Kind: InstFCmp, Name: name, FloatPred: pred, Type: typ, Left: left, Right: right})
+func (b *Block) FCmp(name string, pred FPred, valueType *Type, left, right *Value) *Inst {
+	return b.append(&Inst{Kind: InstFCmp, Name: name, FloatPred: pred, Type: valueType, Left: left, Right: right})
 }
 
-// Cast appends a conversion from typ to dest.
-func (b *Block) Cast(name string, kind Cast, typ *Type, value *Value, dest *Type) *Inst {
-	return b.append(&Inst{Kind: InstCast, Name: name, Cast: kind, Type: typ, Left: value, Dest: dest})
+// Cast appends a conversion from valueType to dest.
+func (b *Block) Cast(name string, kind Cast, valueType *Type, value *Value, dest *Type) *Inst {
+	return b.append(&Inst{Kind: InstCast, Name: name, Cast: kind, Type: valueType, Left: value, Dest: dest})
 }
 
 // Phi appends a phi of the incoming edges.
-func (b *Block) Phi(name string, typ *Type, incoming ...Incoming) *Inst {
-	return b.append(&Inst{Kind: InstPhi, Name: name, Type: typ, Incoming: incoming})
+func (b *Block) Phi(name string, valueType *Type, incoming ...Incoming) *Inst {
+	return b.append(&Inst{Kind: InstPhi, Name: name, Type: valueType, Incoming: incoming})
 }
 
 // Extract appends extractvalue. path is the sequence of literal indices.
-func (b *Block) Extract(name string, typ *Type, value *Value, path ...int) *Inst {
-	return b.append(&Inst{Kind: InstExtract, Name: name, Type: typ, Left: value, Path: path})
+func (b *Block) Extract(name string, valueType *Type, value *Value, path ...int) *Inst {
+	return b.append(&Inst{Kind: InstExtract, Name: name, Type: valueType, Left: value, Path: path})
 }
 
 // Insert appends insertvalue.
@@ -334,8 +334,8 @@ func (b *Block) CondBr(cond *Value, ifTrue, ifFalse string) *Inst {
 }
 
 // Ret appends a return of value.
-func (b *Block) Ret(typ *Type, value *Value) *Inst {
-	return b.append(&Inst{Kind: InstRet, Type: typ, Left: value})
+func (b *Block) Ret(valueType *Type, value *Value) *Inst {
+	return b.append(&Inst{Kind: InstRet, Type: valueType, Left: value})
 }
 
 // RetVoid appends `ret void`.

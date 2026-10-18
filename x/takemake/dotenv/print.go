@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	syntax "github.com/lewtec/lewkit/x/parse/dotenv"
 )
 
 func writeAssignment(w io.Writer, assignment *Assignment) error {
@@ -84,7 +86,7 @@ func validateKey(key string) error {
 		return ErrKey
 	}
 	for i := 0; i < len(key); i++ {
-		if !keyByte(key[i], i == 0) {
+		if !syntax.KeyByte(key[i], i == 0) {
 			return fmt.Errorf("%w: %s", ErrLine, key)
 		}
 	}
