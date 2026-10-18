@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/lewtec/lewkit/x/test"
@@ -114,7 +116,14 @@ func TestCondaCompilerOnPath(t *testing.T) {
 	}
 	dir := t.TempDir()
 	writeSources(t, dir)
-	write(t, dir, "build.ninja", linuxNinja)
+	binary := "hello"
+	ninja := linuxNinja
+	if runtime.GOOS == "windows" {
+		// The host gcc writes hello.exe when -o names hello.
+		binary = "hello.exe"
+		ninja = strings.ReplaceAll(linuxNinja, "hello", binary)
+	}
+	write(t, dir, "build.ninja", ninja)
 	conda := filepath.Join(dir, "conda")
 	bin := filepath.Join(conda, "bin")
 	require.NoError(t, os.MkdirAll(bin, 0o755))
@@ -128,7 +137,7 @@ func TestCondaCompilerOnPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "gcc")
 	assert.Contains(t, string(body), "-c")
-	require.NoError(t, exec.Command(filepath.Join(dir, "hello")).Run())
+	require.NoError(t, exec.Command(filepath.Join(dir, binary)).Run())
 	require.NoError(t, build(t, dir, nil))
 	again, err := os.ReadFile(log)
 	require.NoError(t, err)

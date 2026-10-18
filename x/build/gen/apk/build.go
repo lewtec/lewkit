@@ -341,7 +341,8 @@ func AssembleDebug(ctx context.Context, workDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	args := append(gradle[1:], "assembleDebug", "--stacktrace")
+	// --no-daemon: on Windows the daemon keeps the stdout pipe, so the client never looks finished.
+	args := append(gradle[1:], "assembleDebug", "--stacktrace", "--no-daemon")
 	env := gradleEnv(os.Environ(), home, sdk)
 	if err := gocmd.Tool(ctx, gradle[0], workDir, env, args...); err != nil {
 		return "", fmt.Errorf("%w: %w\n(work dir left at %s)", ErrGradleAssembledebug, err, workDir)

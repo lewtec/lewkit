@@ -138,9 +138,8 @@ func TestDriveTicksWhileIdle(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		require.FailNow(t, "timeout waiting for drive")
 	}
-	// 10ms is finer than the Windows clock. The count still has to reach
-	// four, so the wait covers several coarse ticks.
-	time.Sleep(100 * time.Millisecond)
+	// 45ms can be three ticks when the host clock is about 15ms.
+	time.Sleep(150 * time.Millisecond)
 	got := ticks.Load()
 	cancel()
 	require.NoError(t, <-done)

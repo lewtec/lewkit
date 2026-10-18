@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"filippo.io/age"
@@ -62,9 +63,12 @@ func TestAgeKeyFile(t *testing.T) {
 	path := filepath.Join(dir, "sops", "age", "keys.txt")
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, append([]byte("# fixture\n"), key...), 0o600))
-	t.Setenv("XDG_CONFIG_HOME", dir)
-	// Windows sops reads %AppData%\sops\age\keys.txt.
-	t.Setenv("AppData", dir)
+	// sops reads AppData on Windows and XDG_CONFIG_HOME elsewhere.
+	if runtime.GOOS == "windows" {
+		t.Setenv("AppData", dir)
+	} else {
+		t.Setenv("XDG_CONFIG_HOME", dir)
+	}
 
 	want, err := os.ReadFile("testdata/secrets.plain")
 	require.NoError(t, err)
@@ -154,8 +158,7 @@ func TestAgeKeyCommand(t *testing.T) {
 	isolateAge(t)
 	path, err := filepath.Abs("testdata/age.txt")
 	require.NoError(t, err)
-	// shlex treats \ as an escape, so the command uses slash separators.
-	t.Setenv("SOPS_AGE_KEY_CMD", "cat "+filepath.ToSlash(path))
+	t.Setenv("SOPS_AGE_KEY_CMD", ageKeyCommand(path))
 	want, err := os.ReadFile("testdata/blob.plain")
 	require.NoError(t, err)
 	got, err := Open("testdata/blob.sops")
@@ -171,13 +174,23 @@ func useAgeKey(t *testing.T) {
 	t.Setenv("SOPS_AGE_KEY", string(key))
 }
 
+func ageKeyCommand(path string) string {
+	if runtime.GOOS == "windows" {
+		// shlex treats '\' as an escape, so the command uses slashes.
+		return `cmd.exe /c type "` + filepath.ToSlash(path) + `"`
+	}
+	return "cat " + path
+}
+
 func isolateAge(t *testing.T) {
 	t.Helper()
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("AppData", t.TempDir())
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", home)
+		t.Setenv("AppData", t.TempDir())
+	}
 	for _, key := range []string{
 		"SOPS_AGE_KEY",
 		"SOPS_AGE_KEY_FILE",
