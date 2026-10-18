@@ -17,6 +17,7 @@ const (
 	loadCmdLoadUpwardDylib = 0x80000023
 	loadCmdSegment64       = 0x19
 	loadCmdCodeSignature   = 0x1d
+	loadCmdMain            = 0x80000028
 	loadCmdBuildVersion    = 0x32
 	platformIOS            = 2
 	platformIOSSim         = 7

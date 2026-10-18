@@ -356,5 +356,11 @@
       "old": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"wasip1\", \"wasm\"}:",
       "new": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"tamago\", \"amd64\"}:    {},\n\t{\"wasip1\", \"wasm\"}:"
     }
+  ],
+  "link/ld/lib.go": [
+    {
+      "old": "\t\tcase BuildModeExe, BuildModePIE:\n\t\t\t*flagEntrySymbol = fmt.Sprintf(\"_rt0_%s_%s\", buildcfg.GOARCH, buildcfg.GOOS)\n",
+      "new": "\t\tcase BuildModeExe, BuildModePIE:\n\t\t\t*flagEntrySymbol = fmt.Sprintf(\"_rt0_%s_%s\", buildcfg.GOARCH, buildcfg.GOOS)\n\t\t\t// _rt0_*_ios is UNDEF. Upstream refuses an internal ios link.\n\t\t\t// The ios runtime still contains the darwin entry, and LC_MAIN\n\t\t\t// passes argc and argv in registers the same way.\n\t\t\tif buildcfg.GOOS == \"ios\" {\n\t\t\t\t*flagEntrySymbol = fmt.Sprintf(\"_rt0_%s_darwin\", buildcfg.GOARCH)\n\t\t\t}\n"
+    }
   ]
 }

@@ -88,6 +88,32 @@ func requireIOSFrameworks(t *testing.T, exe string) {
 	for _, name := range names {
 		require.NotContains(t, name, "/Versions/A/")
 	}
+	// _rt0_arm64_ios is the instruction word 0. dyld executes that entry.
+	require.NotEqual(t, uint32(0), machoEntryInsn(t, exe))
+}
+
+func machoEntryInsn(t *testing.T, path string) uint32 {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Greater(t, len(raw), macho64Header)
+	ncmds := binary.LittleEndian.Uint32(raw[16:20])
+	off := macho64Header
+	for range ncmds {
+		require.Less(t, off+8, len(raw))
+		cmd := binary.LittleEndian.Uint32(raw[off:])
+		size := int(binary.LittleEndian.Uint32(raw[off+4:]))
+		require.GreaterOrEqual(t, size, 8)
+		require.LessOrEqual(t, off+size, len(raw))
+		if cmd == loadCmdMain && off+16 <= len(raw) {
+			entry := binary.LittleEndian.Uint64(raw[off+8:])
+			require.LessOrEqual(t, entry+4, uint64(len(raw)))
+			return binary.LittleEndian.Uint32(raw[entry:])
+		}
+		off += size
+	}
+	require.FailNow(t, "missing LC_MAIN")
+	return 0
 }
 
 func machoBuildPlatform(t *testing.T, path string) uint32 {
