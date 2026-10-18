@@ -38,7 +38,10 @@ type API interface {
 // that view filters sessions, panes, and actions. The second enter on a
 // session or a pane leaves the session view focused on that pane. Enter on
 // a folder opens that folder and does not move the armed pane. One enter
-// runs an action.
+// runs an action. A focused pane takes mouse, scroll, paste, and the other
+// keys. The rail still takes a click that lands on it. Mouse bytes are
+// written when the process asked for them. The wheel moves an alternate
+// screen when it did not. A kitty image is drawn into the grid.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -184,10 +187,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 	case tea.MouseClickMsg:
-		if msg.Button != tea.MouseLeft {
+		return m.onMouse(tea.Mouse(msg), mousePress)
+	case tea.MouseReleaseMsg:
+		return m.onMouse(tea.Mouse(msg), mouseRelease)
+	case tea.MouseWheelMsg:
+		return m.onMouse(tea.Mouse(msg), mouseWheel)
+	case tea.MouseMotionMsg:
+		return m.onMouse(tea.Mouse(msg), mouseMotion)
+	case tea.PasteMsg:
+		if m.drawer || m.palette {
 			return m, nil
 		}
-		return m.click(msg.X, msg.Y)
+		return m, m.writeFocused(pasteBytes(msg.Content, m.focusedInput()))
+	case tea.FocusMsg:
+		if m.drawer || m.palette {
+			return m, nil
+		}
+		return m, m.writeFocused(focusBytes(true, m.focusedInput()))
+	case tea.BlurMsg:
+		if m.drawer || m.palette {
+			return m, nil
+		}
+		return m, m.writeFocused(focusBytes(false, m.focusedInput()))
 	case tea.KeyPressMsg:
 		return m.key(msg)
 	case loadedMsg:
@@ -567,6 +588,71 @@ func (m *Model) write(id, data string, rows, cols int) tea.Cmd {
 	}
 }
 
+func (m *Model) onMouse(ms tea.Mouse, kind int) (tea.Model, tea.Cmd) {
+	if m.drawer || m.palette {
+		if kind == mousePress && ms.Button == tea.MouseLeft {
+			return m.click(ms.X, ms.Y)
+		}
+		return m, nil
+	}
+	if kind == mousePress && ms.Button == tea.MouseLeft && m.hitAt(ms.X, ms.Y) {
+		return m.click(ms.X, ms.Y)
+	}
+	col, row, ok := m.gridPoint(ms.X, ms.Y, kind)
+	if !ok {
+		return m, nil
+	}
+	return m, m.writeFocused(encodeMouse(ms, kind, col, row, m.focusedInput()))
+}
+
+func (m *Model) hitAt(x, y int) bool {
+	for _, item := range m.hits {
+		if y == item.y && x >= item.x && x < item.x+item.w {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) gridPoint(x, y, kind int) (col, row int, ok bool) {
+	rows, cols := m.focusSize()
+	if rows < 1 {
+		rows = 1
+	}
+	if cols < 1 {
+		cols = 1
+	}
+	inside := x >= 0 && x < cols && y >= 1 && y <= rows
+	if kind == mouseWheel && y == 0 && x >= 0 && x < cols {
+		inside = true
+		y = 1
+	}
+	if (kind == mousePress || kind == mouseWheel) && !inside {
+		return 0, 0, false
+	}
+	if x < 0 {
+		x = 0
+	}
+	if x >= cols {
+		x = cols - 1
+	}
+	if y < 1 {
+		y = 1
+	}
+	if y > rows {
+		y = rows
+	}
+	return x + 1, y, true
+}
+
+func (m *Model) focusedInput() uint32 {
+	id := shownFocus(m.visible(), m.focus)
+	if id == "" {
+		return 0
+	}
+	return m.byID[id].Input
+}
+
 func (m *Model) writeFocused(data []byte) tea.Cmd {
 	if len(data) == 0 {
 		return nil
@@ -784,6 +870,10 @@ func (m *Model) View() tea.View {
 	view := tea.NewView(content)
 	view.AltScreen = true
 	view.MouseMode = tea.MouseModeCellMotion
+	view.ReportFocus = true
+	if !m.drawer && !m.palette && m.focusedInput()&InputAnyMotion != 0 {
+		view.MouseMode = tea.MouseModeAllMotion
+	}
 	view.WindowTitle = "lewkit term"
 	if show {
 		view.Cursor = tea.NewCursor(x, y)
@@ -1071,38 +1161,6 @@ func actionText(action Action) (string, string) {
 	default:
 		return string(action), ""
 	}
-}
-
-func inputBytes(msg tea.KeyPressMsg) []byte {
-	switch msg.Keystroke() {
-	case "enter":
-		return []byte{'\r'}
-	case "backspace":
-		return []byte{0x7f}
-	case "tab":
-		return []byte{'\t'}
-	case "up":
-		return []byte("\x1b[A")
-	case "down":
-		return []byte("\x1b[B")
-	case "right":
-		return []byte("\x1b[C")
-	case "left":
-		return []byte("\x1b[D")
-	case "home":
-		return []byte("\x1b[H")
-	case "end":
-		return []byte("\x1b[F")
-	case "delete":
-		return []byte("\x1b[3~")
-	}
-	if msg.Text != "" && msg.Key().Mod == 0 {
-		return []byte(msg.Text)
-	}
-	if msg.Key().Mod == tea.ModCtrl && msg.Code >= 'a' && msg.Code <= 'z' {
-		return []byte{byte(msg.Code - 'a' + 1)}
-	}
-	return nil
 }
 
 func shownFocus(ids []string, focus string) string {

@@ -89,6 +89,11 @@ type Grid struct {
 	hold  bool
 	holdR int
 	holdC int
+
+	modes   uint32
+	apc     []byte
+	apcDrop bool
+	pics    pictures
 }
 
 const (
@@ -97,6 +102,10 @@ const (
 	stateCSI
 	stateOSC
 	stateOSCEsc
+	stateAPC
+	stateAPCEsc
+	stateDCS
+	stateDCSEsc
 )
 
 // NewGrid returns a blank screen. rows and cols below 1 become 1.
@@ -147,6 +156,16 @@ func (g *Grid) Snapshot() (rows, cols, cursorRow, cursorCol int, cells []Cell) {
 		}
 	}
 	return rows, cols, cursorRow, cursorCol, cells
+}
+
+// Input is the private-mode bits the process has turned on, plus the
+// alternate screen when that screen is showing.
+func (g *Grid) Input() uint32 {
+	bits := g.modes
+	if g.alt {
+		bits |= InputAlt
+	}
+	return bits
 }
 
 // Text is the visible screen, one line per row, with trailing blanks removed.
@@ -398,6 +417,21 @@ func (g *Grid) byte(b byte) {
 		}
 	case stateOSCEsc:
 		g.state = stateText
+	case stateAPC:
+		g.apcByte(b)
+	case stateAPCEsc:
+		g.apcEsc(b)
+	case stateDCS:
+		if b == 0x1b {
+			g.state = stateDCSEsc
+		}
+	case stateDCSEsc:
+		if b == '\\' {
+			g.state = stateText
+			return
+		}
+		g.state = stateEsc
+		g.esc(b)
 	}
 }
 
@@ -518,6 +552,12 @@ func (g *Grid) esc(b byte) {
 		g.priv = false
 	case ']':
 		g.state = stateOSC
+	case '_':
+		g.state = stateAPC
+		g.apc = g.apc[:0]
+		g.apcDrop = false
+	case 'P':
+		g.state = stateDCS
 	case '7':
 		g.holdCursor()
 		g.state = stateText
@@ -655,8 +695,30 @@ func (g *Grid) dispatchPrivate(b byte) {
 		switch arg[0] {
 		case 47, 1047, 1049:
 			g.setAlt(on)
+		case 1000:
+			g.setMode(InputMouse, on)
+		case 1002:
+			g.setMode(InputMotion, on)
+		case 1003:
+			g.setMode(InputAnyMotion, on)
+		case 1004:
+			g.setMode(InputFocus, on)
+		case 1006:
+			g.setMode(InputSGR, on)
+		case 1007:
+			g.setMode(InputAltScroll, on)
+		case 2004:
+			g.setMode(InputPaste, on)
 		}
 	}
+}
+
+func (g *Grid) setMode(bit uint32, on bool) {
+	if on {
+		g.modes |= bit
+		return
+	}
+	g.modes &^= bit
 }
 
 func (g *Grid) moveR(d int) {
@@ -694,6 +756,7 @@ func (g *Grid) eraseDisplay(mode int) {
 		g.clearTo(g.cursorR, g.cursorC)
 	default:
 		g.screen = g.styledLines(g.rows)
+		g.pics.placements = nil
 	}
 }
 
@@ -889,6 +952,10 @@ func (g *Grid) reset() {
 	g.savedScreen = nil
 	g.savedScroll = nil
 	g.hold = false
+	g.modes = 0
+	g.apc = g.apc[:0]
+	g.apcDrop = false
+	g.pics = pictures{}
 	g.resetPen()
 	g.screen = blankLines(g.rows, g.cols)
 	g.scroll = nil

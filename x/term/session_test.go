@@ -263,3 +263,27 @@ func TestSessionRemoveDropsTheRecord(t *testing.T) {
 		}
 	}, time.Second, 10*time.Millisecond)
 }
+
+func TestSessionPublishesInputModes(t *testing.T) {
+	if _, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0); err != nil {
+		test.Skipf(t, "pty: %v", err)
+	}
+	ctx := t.Context()
+	session, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+
+	pane, err := session.Create(ctx, CreateRequest{
+		Command: []string{"/bin/sh", "-c", "printf '\\033[?1000;1002;1006h'"},
+		Rows:    4,
+		Cols:    20,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		got, err := session.Pane(ctx, pane.ID)
+		if err != nil {
+			return false
+		}
+		return got.Input&InputMouse != 0 && got.Input&InputMotion != 0 && got.Input&InputSGR != 0
+	}, 2*time.Second, 20*time.Millisecond)
+}

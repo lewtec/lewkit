@@ -33,7 +33,11 @@
 // and actions. The second enter on a session or a pane leaves the session
 // view focused on that pane. Enter on a folder opens that folder and does
 // not move the armed pane. The arrow still carries a pane or a session.
-// One enter runs an action.
+// One enter runs an action. A focused pane takes mouse, scroll, paste,
+// and the other keys. The rail still takes a click that lands on it.
+// Mouse bytes are written when the process asked for them. The wheel
+// moves an alternate screen when it did not. A kitty image is drawn into
+// the grid.
 // The drawer is drawn with lipgloss. Bindings for individual actions are
 // not assigned yet.
 package term

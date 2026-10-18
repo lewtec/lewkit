@@ -102,6 +102,7 @@ func TestSchemaRoundTrip(t *testing.T) {
 			LastWriter: "c", CursorCol: 1,
 		},
 		Cells: []Cell{{Rune: "a", FG: 2, Bold: true}, {Wide: true}},
+		Input: InputMouse | InputSGR | InputAlt,
 	}
 	assert.Equal(t, pane, paneFromSchema(paneToSchema(pane)))
 	req := WriteRequest{ID: "p", Data: "\x03", Client: "c"}

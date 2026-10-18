@@ -185,6 +185,7 @@ func paneToSchema(pane Pane) *schema.Pane {
 		CursorCol:  info.GetCursorCol(),
 		Cells:      cellsToSchema(pane.Cells),
 		Path:       info.GetPath(),
+		Input:      pane.Input,
 	}
 }
 
@@ -209,6 +210,7 @@ func paneFromSchema(pane *schema.Pane) Pane {
 			Path:       pane.GetPath(),
 		}),
 		Cells: cellsFromSchema(pane.GetCells()),
+		Input: pane.GetInput(),
 	}
 }
 

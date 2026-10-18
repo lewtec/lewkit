@@ -654,7 +654,7 @@ func (p *live) record() Pane {
 	info.Cols = cols
 	info.CursorRow = cursorRow
 	info.CursorCol = cursorCol
-	return Pane{PaneInfo: info, Cells: cells}
+	return Pane{PaneInfo: info, Cells: cells, Input: p.grid.Input()}
 }
 
 func syncCursor(info *PaneInfo, grid *Grid) {

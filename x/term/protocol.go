@@ -18,6 +18,20 @@ const ColorIndex = 1
 // A zero channel is black, so the mode is what distinguishes it from unset.
 const ColorRGB = 2
 
+// Input bits are the private modes a pane's process turned on.
+// The client uses them to encode mouse, focus, and paste for that pane.
+// Zero means the process did not ask, and a click is not written as mouse bytes.
+const (
+	InputMouse     uint32 = 1 << iota // DEC 1000
+	InputMotion                       // DEC 1002, motion while a button is held
+	InputAnyMotion                    // DEC 1003
+	InputSGR                          // DEC 1006
+	InputFocus                        // DEC 1004
+	InputPaste                        // DEC 2004
+	InputAltScroll                    // DEC 1007, wheel sends cursor keys
+	InputAlt                          // alternate screen
+)
+
 // Entry is one key in the session tree.
 // Dir is a folder. Otherwise Pane names the file. Path is the full key.
 type Entry struct {
@@ -84,9 +98,11 @@ type Cell struct {
 // Pane is one pane record, including the visible grid in row-major order.
 // Cells has Rows times Cols entries. Scrollback stays on the server so a
 // later write can reflow it; a client draws Cells.
+// Input is the private-mode bits from the process. See [InputMouse].
 type Pane struct {
 	PaneInfo
 	Cells []Cell
+	Input uint32
 }
 
 // Line returns one visible row with trailing blanks removed.

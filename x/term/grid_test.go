@@ -1,6 +1,11 @@
 package term
 
 import (
+	"bytes"
+	"encoding/base64"
+	"image"
+	"image/color"
+	"image/png"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -65,6 +70,22 @@ func TestGridUnknownPrivateModeIsIgnored(t *testing.T) {
 	assert.Equal(t, "hi", grid.Text())
 }
 
+func TestGridRecordsMouseModes(t *testing.T) {
+	grid := NewGrid(2, 8)
+	grid.Feed([]byte("\x1b[?1000;1002;1003;1006;1004;2004;1007h"))
+	want := InputMouse | InputMotion | InputAnyMotion | InputSGR | InputFocus | InputPaste | InputAltScroll
+	assert.Equal(t, want, grid.Input())
+	grid.Feed([]byte("\x1b[?1049h"))
+	assert.Equal(t, want|InputAlt, grid.Input())
+	grid.Feed([]byte("\x1b[?1000;1006l"))
+	assert.Zero(t, grid.Input()&(InputMouse|InputSGR))
+	assert.NotZero(t, grid.Input()&InputFocus)
+	grid.Feed([]byte("\x1b[?9999hhi"))
+	assert.Equal(t, "hi", grid.Text())
+	grid.Feed([]byte("\x1bc"))
+	assert.Zero(t, grid.Input())
+}
+
 func TestGridTruecolorDoesNotStickRed(t *testing.T) {
 	grid := NewGrid(2, 8)
 	grid.Feed([]byte("\x1b[48;2;197;52;41mY"))
@@ -112,4 +133,34 @@ func TestGridReverseAndScrollRegion(t *testing.T) {
 
 	grid.Feed([]byte("\x1b[0m\x1b[1;2r\x1b[2;1Hb\nb"))
 	assert.Equal(t, "b\nb", grid.Text())
+}
+
+func TestGridDrawsAKittyImage(t *testing.T) {
+	img := image.NewNRGBA(image.Rect(0, 0, 8, 16))
+	for y := range 8 {
+		for x := range 8 {
+			img.SetNRGBA(x, y, color.NRGBA{R: 200, A: 255})
+			img.SetNRGBA(x, y+8, color.NRGBA{B: 180, A: 255})
+		}
+	}
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+	payload := base64.StdEncoding.EncodeToString(buf.Bytes())
+	grid := NewGrid(3, 6)
+	grid.Feed([]byte("\x1b_Ga=T,f=100,c=1,r=1;" + payload + "\x1b\\"))
+	_, _, _, _, cells := grid.Snapshot()
+	require.NotEmpty(t, cells)
+	assert.Equal(t, "▀", cells[0].Rune)
+	assert.Equal(t, ColorRGB, cells[0].FGMode)
+	assert.Equal(t, ColorRGB, cells[0].BGMode)
+	assert.Equal(t, uint32(200<<16), cells[0].FGRGB)
+	assert.Equal(t, uint32(180), cells[0].BGRGB)
+
+	grid.Feed([]byte("\x1b[1;2HZ"))
+	_, _, _, _, cells = grid.Snapshot()
+	assert.Equal(t, "▀", cells[0].Rune)
+	assert.Equal(t, "Z", cells[1].Rune)
+
+	grid.Feed([]byte("\x1b_Gnot an image\x1b\\Q"))
+	assert.Contains(t, grid.Text(), "Q")
 }

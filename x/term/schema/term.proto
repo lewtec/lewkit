@@ -106,6 +106,12 @@ message Pane {
   int32 cursor_col = 12;
   repeated Cell cells = 13;
   string path = 14;
+  // input is the private modes the process turned on, as bits.
+  // 1 mouse (1000), 2 motion while a button is held (1002), 4 any motion (1003),
+  // 8 SGR mouse (1006), 16 focus (1004), 32 bracketed paste (2004),
+  // 64 wheel sends arrows (1007), 128 alternate screen.
+  // A client encodes mouse and paste from these bits. Zero writes no mouse bytes.
+  uint32 input = 15;
 }
 
 // PaneList is the pane headers in creation order.

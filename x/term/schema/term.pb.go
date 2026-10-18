@@ -718,21 +718,27 @@ func (x *Cell) GetReverse() bool {
 // Pane is one pane record, including the visible grid in row-major order.
 // cells has rows times cols entries. Scrollback stays on the server.
 type Pane struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	Command       []string               `protobuf:"bytes,3,rep,name=command,proto3" json:"command,omitempty"`
-	Dir           string                 `protobuf:"bytes,4,opt,name=dir,proto3" json:"dir,omitempty"`
-	Alive         bool                   `protobuf:"varint,5,opt,name=alive,proto3" json:"alive,omitempty"`
-	Exit          int32                  `protobuf:"varint,6,opt,name=exit,proto3" json:"exit,omitempty"`
-	Rows          int32                  `protobuf:"varint,7,opt,name=rows,proto3" json:"rows,omitempty"`
-	Cols          int32                  `protobuf:"varint,8,opt,name=cols,proto3" json:"cols,omitempty"`
-	Revision      uint64                 `protobuf:"varint,9,opt,name=revision,proto3" json:"revision,omitempty"`
-	LastWriter    string                 `protobuf:"bytes,10,opt,name=last_writer,json=lastWriter,proto3" json:"last_writer,omitempty"`
-	CursorRow     int32                  `protobuf:"varint,11,opt,name=cursor_row,json=cursorRow,proto3" json:"cursor_row,omitempty"`
-	CursorCol     int32                  `protobuf:"varint,12,opt,name=cursor_col,json=cursorCol,proto3" json:"cursor_col,omitempty"`
-	Cells         []*Cell                `protobuf:"bytes,13,rep,name=cells,proto3" json:"cells,omitempty"`
-	Path          string                 `protobuf:"bytes,14,opt,name=path,proto3" json:"path,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title      string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Command    []string               `protobuf:"bytes,3,rep,name=command,proto3" json:"command,omitempty"`
+	Dir        string                 `protobuf:"bytes,4,opt,name=dir,proto3" json:"dir,omitempty"`
+	Alive      bool                   `protobuf:"varint,5,opt,name=alive,proto3" json:"alive,omitempty"`
+	Exit       int32                  `protobuf:"varint,6,opt,name=exit,proto3" json:"exit,omitempty"`
+	Rows       int32                  `protobuf:"varint,7,opt,name=rows,proto3" json:"rows,omitempty"`
+	Cols       int32                  `protobuf:"varint,8,opt,name=cols,proto3" json:"cols,omitempty"`
+	Revision   uint64                 `protobuf:"varint,9,opt,name=revision,proto3" json:"revision,omitempty"`
+	LastWriter string                 `protobuf:"bytes,10,opt,name=last_writer,json=lastWriter,proto3" json:"last_writer,omitempty"`
+	CursorRow  int32                  `protobuf:"varint,11,opt,name=cursor_row,json=cursorRow,proto3" json:"cursor_row,omitempty"`
+	CursorCol  int32                  `protobuf:"varint,12,opt,name=cursor_col,json=cursorCol,proto3" json:"cursor_col,omitempty"`
+	Cells      []*Cell                `protobuf:"bytes,13,rep,name=cells,proto3" json:"cells,omitempty"`
+	Path       string                 `protobuf:"bytes,14,opt,name=path,proto3" json:"path,omitempty"`
+	// input is the private modes the process turned on, as bits.
+	// 1 mouse (1000), 2 motion while a button is held (1002), 4 any motion (1003),
+	// 8 SGR mouse (1006), 16 focus (1004), 32 bracketed paste (2004),
+	// 64 wheel sends arrows (1007), 128 alternate screen.
+	// A client encodes mouse and paste from these bits. Zero writes no mouse bytes.
+	Input         uint32 `protobuf:"varint,15,opt,name=input,proto3" json:"input,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -863,6 +869,13 @@ func (x *Pane) GetPath() string {
 		return x.Path
 	}
 	return ""
+}
+
+func (x *Pane) GetInput() uint32 {
+	if x != nil {
+		return x.Input
+	}
+	return 0
 }
 
 // PaneList is the pane headers in creation order.
@@ -1515,7 +1528,7 @@ const file_term_proto_rawDesc = "" +
 	"\x06fg_rgb\x18\n" +
 	" \x01(\rR\x05fgRgb\x12\x15\n" +
 	"\x06bg_rgb\x18\v \x01(\rR\x05bgRgb\x12\x18\n" +
-	"\areverse\x18\f \x01(\bR\areverse\"\xe2\x02\n" +
+	"\areverse\x18\f \x01(\bR\areverse\"\xf8\x02\n" +
 	"\x04Pane\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -1534,7 +1547,8 @@ const file_term_proto_rawDesc = "" +
 	"\n" +
 	"cursor_col\x18\f \x01(\x05R\tcursorCol\x12'\n" +
 	"\x05cells\x18\r \x03(\v2\x11.lewkit.term.CellR\x05cells\x12\x12\n" +
-	"\x04path\x18\x0e \x01(\tR\x04path\"7\n" +
+	"\x04path\x18\x0e \x01(\tR\x04path\x12\x14\n" +
+	"\x05input\x18\x0f \x01(\rR\x05input\"7\n" +
 	"\bPaneList\x12+\n" +
 	"\x05panes\x18\x01 \x03(\v2\x15.lewkit.term.PaneInfoR\x05panes\"\x18\n" +
 	"\x06PaneId\x12\x0e\n" +
