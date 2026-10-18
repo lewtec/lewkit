@@ -101,6 +101,12 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(s, "CODE_SIGNING_ALLOWED: YES") {
 		require.FailNowf(t, "", "ad-hoc signing required for app groups:\n%s", s)
 	}
+	if !strings.Contains(s, "CODE_SIGN_STYLE: Manual") {
+		require.FailNowf(t, "", "manual signing:\n%s", s)
+	}
+	if strings.Contains(s, "DEVELOPMENT_TEAM") {
+		require.FailNowf(t, "", "empty development team enables automatic signing:\n%s", s)
+	}
 	if !strings.Contains(s, "-framework Metal") || !strings.Contains(s, "-framework QuartzCore") {
 		require.FailNowf(t, "", "metal frameworks missing:\n%s", s)
 	}

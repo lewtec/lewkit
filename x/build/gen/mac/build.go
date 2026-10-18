@@ -32,6 +32,7 @@ var (
 var (
 	ErrOutAppRequired     = common.ErrOutAppRequired
 	ErrMacOSRequired      = errs.Wrap(errs.ErrRequired, "full .app requires macOS with Xcode; use --go-only")
+	ErrXcodebuild         = common.ErrXcodebuild
 	ErrXcodebuildNotFound = common.ErrXcodebuildNotFound
 	ErrXcodeGenNotFound   = common.ErrXcodeGenNotFound
 	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug .app under DerivedData")
@@ -199,7 +200,22 @@ func assembleMac(ctx context.Context, workDir, product, xArch string) (string, e
 	}
 	derived := filepath.Join(workDir, "build", "DerivedData")
 	proj := filepath.Join(workDir, product+".xcodeproj")
-	if err := gocmd.Tool(ctx, "xcodebuild", workDir, nil,
+	if err := common.RunXcodebuild(ctx, workDir, macXcodeArgs(proj, product, xArch, derived)...); err != nil {
+		return "", fmt.Errorf("%w\n(%w %s)", err, ErrWorkDirLeftAt, workDir)
+	}
+	app := filepath.Join(derived, "Build", "Products", "Debug", product+".app")
+	if st, err := os.Stat(app); err != nil || !st.IsDir() {
+		return "", fmt.Errorf("%w: %s", ErrDebugAppMissing, app)
+	}
+	return app, nil
+}
+
+// macXcodeArgs builds one architecture of a generic macOS destination.
+// That destination has no active architecture, so ONLY_ACTIVE_ARCH would
+// discard ARCHS. Signing is manual ad-hoc: an empty development team makes
+// automatic signing fail with exit 65. The caller signs the Mach-Os.
+func macXcodeArgs(proj, product, xArch, derived string) []string {
+	return []string{
 		"-project", proj,
 		"-scheme", product,
 		"-configuration", "Debug",
@@ -207,22 +223,16 @@ func assembleMac(ctx context.Context, workDir, product, xArch string) (string, e
 		"-destination", "generic/platform=macOS",
 		"-derivedDataPath", derived,
 		"-skipPackagePluginValidation",
+		"CODE_SIGN_STYLE=Manual",
 		"CODE_SIGN_IDENTITY=-",
 		"CODE_SIGNING_REQUIRED=NO",
 		"CODE_SIGNING_ALLOWED=YES",
 		"AD_HOC_CODE_SIGNING_ALLOWED=YES",
 		"ENABLE_DEBUG_DYLIB=NO",
-		"ARCHS="+xArch,
-		"ONLY_ACTIVE_ARCH=YES",
+		"ARCHS=" + xArch,
+		"ONLY_ACTIVE_ARCH=NO",
 		"build",
-	); err != nil {
-		return "", fmt.Errorf("xcodebuild: %w\n(%w %s)", err, ErrWorkDirLeftAt, workDir)
 	}
-	app := filepath.Join(derived, "Build", "Products", "Debug", product+".app")
-	if st, err := os.Stat(app); err != nil || !st.IsDir() {
-		return "", fmt.Errorf("%w: %s", ErrDebugAppMissing, app)
-	}
-	return app, nil
 }
 
 func darwinXArch(goarch string) (string, error) {

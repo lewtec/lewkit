@@ -54,6 +54,12 @@ func TestCreate_WritesHost(t *testing.T) {
 	if !strings.Contains(s, "ENABLE_APP_SANDBOX: NO") {
 		require.FailNowf(t, "", "sandbox not off:\n%s", s)
 	}
+	if !strings.Contains(s, "CODE_SIGN_STYLE: Manual") {
+		require.FailNowf(t, "", "manual signing:\n%s", s)
+	}
+	if strings.Contains(s, "DEVELOPMENT_TEAM") {
+		require.FailNowf(t, "", "empty development team enables automatic signing:\n%s", s)
+	}
 	if !strings.Contains(s, "ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon") {
 		require.FailNowf(t, "", "app icon name missing:\n%s", s)
 	}

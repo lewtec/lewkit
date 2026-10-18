@@ -33,6 +33,7 @@ var (
 var (
 	ErrOutAppRequired     = common.ErrOutAppRequired
 	ErrDarwinRequired     = errs.Wrap(errs.ErrRequired, "ios archive and .app require macOS with Xcode; use --go-only on a Mac")
+	ErrXcodebuild         = common.ErrXcodebuild
 	ErrXcodebuildNotFound = common.ErrXcodebuildNotFound
 	ErrXcodeGenNotFound   = common.ErrXcodeGenNotFound
 	ErrDebugAppMissing    = errs.Wrap(errs.ErrMissing, "xcodebuild succeeded but no Debug-iphonesimulator .app under DerivedData")
@@ -321,25 +322,8 @@ func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string) (st
 	dest, destName := xcodeDestination(sdk)
 	derived := filepath.Join(workDir, "build", "DerivedData")
 	proj := filepath.Join(workDir, product+".xcodeproj")
-	if err := gocmd.Tool(ctx, "xcodebuild", workDir, nil,
-		"-project", proj,
-		"-scheme", product,
-		"-configuration", "Debug",
-		"-sdk", sdk,
-		"-destination", dest,
-		"-derivedDataPath", derived,
-		"-skipPackagePluginValidation",
-		"CODE_SIGN_IDENTITY=-",
-		"CODE_SIGNING_REQUIRED=NO",
-		"CODE_SIGNING_ALLOWED=YES",
-		"AD_HOC_CODE_SIGNING_ALLOWED=YES",
-		"ENABLE_DEBUG_DYLIB=NO",
-		"ARCHS="+xArch,
-		"ONLY_ACTIVE_ARCH=YES",
-		"EXCLUDED_ARCHS="+excludedArch(xArch),
-		"build",
-	); err != nil {
-		return "", fmt.Errorf("xcodebuild: %w\n(%w %s)", err, ErrWorkDirLeftAt, workDir)
+	if err := common.RunXcodebuild(ctx, workDir, iosXcodeArgs(proj, product, sdk, dest, xArch, derived)...); err != nil {
+		return "", fmt.Errorf("%w\n(%w %s)", err, ErrWorkDirLeftAt, workDir)
 	}
 
 	app := filepath.Join(derived, "Build", "Products", destName, product+".app")
@@ -347,6 +331,32 @@ func assembleDebug(ctx context.Context, workDir, product, sdk, xArch string) (st
 		return "", fmt.Errorf("%w: %s", ErrDebugAppMissing, app)
 	}
 	return app, nil
+}
+
+// iosXcodeArgs builds one architecture of a generic iOS destination.
+// That destination has no active architecture, so ONLY_ACTIVE_ARCH would
+// discard ARCHS. Signing is manual ad-hoc so an empty development team
+// does not make automatic signing fail with exit 65.
+func iosXcodeArgs(proj, product, sdk, destination, xArch, derived string) []string {
+	return []string{
+		"-project", proj,
+		"-scheme", product,
+		"-configuration", "Debug",
+		"-sdk", sdk,
+		"-destination", destination,
+		"-derivedDataPath", derived,
+		"-skipPackagePluginValidation",
+		"CODE_SIGN_STYLE=Manual",
+		"CODE_SIGN_IDENTITY=-",
+		"CODE_SIGNING_REQUIRED=NO",
+		"CODE_SIGNING_ALLOWED=YES",
+		"AD_HOC_CODE_SIGNING_ALLOWED=YES",
+		"ENABLE_DEBUG_DYLIB=NO",
+		"ARCHS=" + xArch,
+		"ONLY_ACTIVE_ARCH=NO",
+		"EXCLUDED_ARCHS=" + excludedArch(xArch),
+		"build",
+	}
 }
 
 func iosArch(goarch string) (string, string, error) {

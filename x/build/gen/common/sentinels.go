@@ -16,6 +16,7 @@ var (
 	ErrOutDirNotEmpty     = errs.Wrap(errs.ErrAlreadyExists, "out dir is not empty (use --force)")
 	ErrWorkDirLeftAt      = errors.New("work dir left at")
 	ErrXcodegenGenerate   = errors.New("xcodegen generate")
+	ErrXcodebuild         = errors.New("xcodebuild")
 	ErrOutAppRequired     = errs.Wrap(errs.ErrRequired, "out .app path is required (or use --go-only)")
 	ErrXcodebuildNotFound = errs.Wrap(errs.ErrNotFound, "xcodebuild not found; install Xcode")
 	ErrXcodeGenNotFound   = errs.Wrap(errs.ErrNotFound, "xcodegen not found; install xcodegen (mise/brew)")

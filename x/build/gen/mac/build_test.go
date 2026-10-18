@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	_ "github.com/lewtec/lewkit/x/driver/exec/native"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +34,58 @@ func TestInstallHelper(t *testing.T) {
 	if st.Mode().Perm()&0o111 == 0 {
 		require.FailNowf(t, "", "server mode %v", st.Mode())
 	}
+}
+
+func TestMacXcodeArgs(t *testing.T) {
+	arm, err := darwinXArch("arm64")
+	require.NoError(t, err)
+	got := macXcodeArgs("Demo.xcodeproj", "Demo", arm, "Derived")
+	require.Equal(t, []string{
+		"-project", "Demo.xcodeproj",
+		"-scheme", "Demo",
+		"-configuration", "Debug",
+		"-sdk", "macosx",
+		"-destination", "generic/platform=macOS",
+		"-derivedDataPath", "Derived",
+		"-skipPackagePluginValidation",
+		"CODE_SIGN_STYLE=Manual",
+		"CODE_SIGN_IDENTITY=-",
+		"CODE_SIGNING_REQUIRED=NO",
+		"CODE_SIGNING_ALLOWED=YES",
+		"AD_HOC_CODE_SIGNING_ALLOWED=YES",
+		"ENABLE_DEBUG_DYLIB=NO",
+		"ARCHS=arm64",
+		"ONLY_ACTIVE_ARCH=NO",
+		"build",
+	}, got)
+
+	intel, err := darwinXArch("amd64")
+	require.NoError(t, err)
+	intelArgs := macXcodeArgs("Demo.xcodeproj", "Demo", intel, "Derived")
+	require.Contains(t, intelArgs, "ARCHS=x86_64")
+	require.NotContains(t, intelArgs, "ONLY_ACTIVE_ARCH=YES")
+	require.NotContains(t, intelArgs, "DEVELOPMENT_TEAM=")
+}
+
+func TestAssembleMacReportsXcodebuildDiagnostic(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		test.Skip(t, "fake xcodebuild is a shell script")
+	}
+	bin := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "xcodegen"), []byte("#!/bin/sh\nexit 0\n"), 0o755))
+	script := "#!/bin/sh\nprintf '%s\\n' 'note: compiling'\nprintf '%s\\n' 'error: Signing for Demo requires a development team.'\nexit 65\n"
+	require.NoError(t, os.WriteFile(filepath.Join(bin, "xcodebuild"), []byte(script), 0o755))
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	work := t.TempDir()
+
+	test.Stderr(t, func() {
+		_, err := assembleMac(t.Context(), work, "Demo", "arm64")
+		require.ErrorIs(t, err, ErrXcodebuild)
+		require.ErrorIs(t, err, ErrWorkDirLeftAt)
+		require.Contains(t, err.Error(), "error: Signing for Demo requires a development team.")
+		require.Contains(t, err.Error(), work)
+		require.NotContains(t, err.Error(), "note: compiling")
+	})
 }
 
 func TestBuildFullAppNeedsMacOS(t *testing.T) {
