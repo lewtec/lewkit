@@ -217,10 +217,11 @@ func (m *Model) drawerBody(width, rows int) []string {
 	if rows <= 0 {
 		return nil
 	}
-	lines := []string{styleTitle.Render(fit("the drawer", width))}
-	if len(lines) < rows {
-		lines = append(lines, m.searchLine(width))
+	title := "the drawer"
+	if q := strings.TrimSpace(m.find); q != "" {
+		title += "  " + q
 	}
+	lines := []string{styleTitle.Render(fit(title, width))}
 	if m.heldSession != "" && len(lines) < rows {
 		lines = append(lines, styleMuted.Render(fit("carrying "+pathBase(m.heldSession), width)))
 	} else if m.held != "" && len(lines) < rows {
@@ -249,7 +250,7 @@ func (m *Model) drawerBody(width, rows int) []string {
 		}
 		y := len(lines)
 		var line string
-		if m.finding() {
+		if m.finding() && !item.session && !item.pocket {
 			line = fit(item.text, width)
 			switch {
 			case item.act:
@@ -345,31 +346,30 @@ func (m *Model) finding() bool {
 	return strings.TrimSpace(m.find) != ""
 }
 
-func (m *Model) searchLine(width int) string {
-	if width <= 0 {
-		return ""
-	}
-	const lead = "> "
-	body := m.find
-	ghost := body == ""
-	if ghost {
-		body = "find a pane or an action"
-	}
-	plain := fit(lead+body, width)
-	head, tail := splitWidth(plain, runewidth.StringWidth(lead))
-	if width < runewidth.StringWidth(lead) {
-		return stylePrompt.Render(plain)
-	}
-	painted := stylePrompt.Render(head)
-	if ghost {
-		return painted + styleMuted.Render(tail)
-	}
-	return painted + styleInk.Render(tail)
-}
-
 func (m *Model) searchRows() []drawerRow {
 	query := strings.ToLower(strings.TrimSpace(m.find))
 	var rows []drawerRow
+	for _, group := range m.sessionGroups() {
+		if !m.sessionMatches(group, query) {
+			continue
+		}
+		folder := ""
+		if group.dir {
+			folder = group.key
+		}
+		rows = append(rows, drawerRow{
+			session: true,
+			key:     group.key,
+			name:    group.name,
+			folder:  folder,
+		})
+	}
+	for _, path := range m.made {
+		if !strings.Contains(strings.ToLower(path), query) {
+			continue
+		}
+		rows = append(rows, drawerRow{pocket: true, key: path, folder: path, text: " · " + pathBase(path)})
+	}
 	for _, id := range m.order {
 		pane, ok := m.byID[id]
 		if !ok {
@@ -400,26 +400,15 @@ func (m *Model) searchRows() []drawerRow {
 	return rows
 }
 
-func splitWidth(text string, width int) (string, string) {
-	if width <= 0 {
-		return "", text
-	}
-	used := 0
-	for i, r := range text {
-		w := runewidth.RuneWidth(r)
-		if w < 0 {
-			w = 0
-		}
-		if used+w > width {
-			return text[:i], text[i:]
-		}
-		used += w
-		if used == width {
-			next := i + len(string(r))
-			return text[:next], text[next:]
+func (m *Model) sessionMatches(group sessionGroup, query string) bool {
+	hay := strings.ToLower(group.name + " " + group.key)
+	if dir := m.sessionRoom(group.key); dir != "" {
+		hay += " " + strings.ToLower(roomLabel(dir))
+		if git := m.gitStatus(dir); git != "" {
+			hay += " " + strings.ToLower(git)
 		}
 	}
-	return text, ""
+	return strings.Contains(hay, query)
 }
 
 func (m *Model) writeLevel(parent, indent string, rows *[]drawerRow) {
@@ -714,6 +703,8 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 		if m.held != "" && row.folder != "" {
 			return m, m.moveInto(row.folder)
 		}
+		m.find = ""
+		m.armed = ""
 		return m, m.selectSession(row.key)
 	}
 	if row.pane != "" {

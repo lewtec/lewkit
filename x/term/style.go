@@ -12,9 +12,6 @@ var (
 	styleTitle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("13"))
-	stylePrompt = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("14"))
 	styleMuted = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8"))
 	styleInk = lipgloss.NewStyle().

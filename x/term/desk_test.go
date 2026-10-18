@@ -233,33 +233,59 @@ func TestDrawerSearchFindsPanesAndActions(t *testing.T) {
 	model.focus = "ed"
 
 	plain, _ := renderPlain(model)
-	assert.Contains(t, plain, "find a pane or an action")
+	assert.NotContains(t, plain, "find a pane")
 	assert.Contains(t, plain, "+ directory")
 	assert.Contains(t, plain, "the drawer")
 	assert.NotContains(t, plain, "taskbar")
 
-	for _, r := range "notes" {
+	model.drawer = false
+	term, _ := renderPlain(model)
+	assert.NotContains(t, term, "the drawer")
+	assert.NotContains(t, term, "find a pane")
+	model.drawer = true
+
+	dir := "/lewkit-room"
+	model.cwd = "/client"
+	model.gitBy = map[string]string{dir: "main · tidy"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true, Dir: dir}}
+	model.byID["n"] = Pane{PaneInfo: PaneInfo{ID: "n", Path: "notes", Title: "notes", Alive: true, Dir: "/notes-room"}}
+
+	for _, r := range "lewkit-room" {
 		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
 	}
 	plain, _ = renderPlain(model)
-	assert.Contains(t, plain, "> notes")
+	assert.Contains(t, plain, " · work")
+	assert.Contains(t, plain, "lewkit-room")
+	assert.NotContains(t, plain, " · notes")
 	assert.NotContains(t, plain, "+ directory")
-	assert.NotContains(t, plain, "work/editor")
 	assert.NotContains(t, plain, "New pane")
 
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "work", model.shown)
+	assert.Empty(t, model.find)
+
+	for _, r := range "hx" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "work/editor")
+	assert.NotContains(t, plain, " · work")
+	assert.NotContains(t, plain, " · notes")
+
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Nil(t, cmd)
 	assert.True(t, model.drawer)
-	assert.Equal(t, "n", model.focus)
-	assert.Equal(t, "n", model.armed)
-	assert.Equal(t, "notes", model.find)
+	assert.Equal(t, "ed", model.focus)
+	assert.Equal(t, "ed", model.armed)
+	assert.Equal(t, "hx", model.find)
 
 	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	runCmd(cmd)
 	assert.False(t, model.drawer)
-	assert.Equal(t, "n", model.focus)
-	assert.Equal(t, "notes", model.shown)
-	assert.Equal(t, []string{"n"}, model.follow)
+	assert.Equal(t, "ed", model.focus)
+	assert.Equal(t, "work", model.shown)
 	assert.Empty(t, model.find)
 	assert.Empty(t, api.creates)
 
@@ -350,13 +376,17 @@ func TestModeSwitchDoesNotRunAnAction(t *testing.T) {
 	assert.Empty(t, api.creates)
 
 	model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModSuper})
-	assert.False(t, model.drawer)
+	assert.True(t, model.drawer)
 	assert.Empty(t, api.writes)
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	assert.False(t, model.drawer)
 
 	model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModMeta})
 	assert.True(t, model.drawer)
 	assert.Empty(t, api.writes)
 
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	model.palette = true
 	model.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
 	assert.False(t, model.palette)

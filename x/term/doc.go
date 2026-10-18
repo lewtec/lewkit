@@ -27,9 +27,10 @@
 // status. + directory makes a pocket on this client. The arrow on a session
 // nests that session into a folder, and pane.move renames the keys. The
 // desk shows the focused pane. Empty pockets stay on the client. ctrl+k,
-// and the same chord with super or meta, only switches between the drawer
-// and the pane. Typing in the drawer searches panes and actions. The first
-// enter on a pane arms it, and the second enter on that pane leaves the
-// drawer focused on it. One enter runs an action. The drawer is drawn with
-// lipgloss. Bindings for individual actions are not assigned yet.
+// and the same chord with super or meta, opens the session view. It does
+// not search from the pane. Typing in that view filters sessions, panes,
+// and actions. The first enter on a pane arms it, and the second enter on
+// that pane leaves the session view focused on it. One enter runs an action.
+// The drawer is drawn with lipgloss. Bindings for individual actions are
+// not assigned yet.
 package term

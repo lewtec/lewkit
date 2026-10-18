@@ -34,10 +34,10 @@ type API interface {
 // sessions. Each session row names that session's directory and git status.
 // + directory makes a pocket on this client, and the arrow on a session
 // nests that session into a folder. The desk shows the focused pane.
-// ctrl+k, and the same chord with super or meta, only switches between the
-// drawer and the pane. Typing in the drawer searches panes and actions.
-// The first enter on a pane arms it. The second enter on that pane leaves
-// the drawer focused on it. One enter runs an action.
+// ctrl+k, and the same chord with super or meta, opens the session view.
+// It does not search from the pane. Typing in that view filters sessions,
+// panes, and actions. The first enter on a pane arms it. The second enter
+// on that pane leaves the session view focused on it. One enter runs an action.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -238,7 +238,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.Keystroke() {
 	case "ctrl+k", "super+k", "meta+k":
-		return m.switchMode()
+		return m.openSession()
 	case "ctrl+p":
 		m.palette = !m.palette
 		return m, nil
@@ -260,14 +260,14 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, m.writeFocused(inputBytes(msg))
 }
 
-// switchMode moves between the drawer and the pane. It does not run an action.
-// An open palette is the mode in the way, so the chord only closes that.
-func (m *Model) switchMode() (tea.Model, tea.Cmd) {
-	if m.palette {
-		m.palette = false
+// openSession shows the session view. The chord does not search from the pane,
+// and it does not leave that view.
+func (m *Model) openSession() (tea.Model, tea.Cmd) {
+	m.palette = false
+	if m.drawer {
 		return m, nil
 	}
-	return m, m.setDrawer(!m.drawer)
+	return m, m.setDrawer(true)
 }
 
 func (m *Model) paletteKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -842,14 +842,6 @@ func (m *Model) render() (string, int, int, bool) {
 	}
 	if len(lines) > height {
 		lines = lines[:height]
-	}
-	if m.drawer && !m.naming && body > 1 {
-		show = true
-		cursorX = runewidth.StringWidth("> ") + runewidth.StringWidth(m.find)
-		if cursorX >= width {
-			cursorX = width - 1
-		}
-		cursorY = 1
 	}
 	if m.palette {
 		show = true
