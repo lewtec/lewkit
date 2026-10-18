@@ -32,6 +32,12 @@ func Payload(env *schema.Envelope) proto.Message {
 		return env.GetWrite()
 	case env.GetWatch() != nil:
 		return env.GetWatch()
+	case env.GetTree() != nil:
+		return env.GetTree()
+	case env.GetTreeRequest() != nil:
+		return env.GetTreeRequest()
+	case env.GetMove() != nil:
+		return env.GetMove()
 	default:
 		return nil
 	}
@@ -60,6 +66,12 @@ func setPayload(msg *schema.Envelope, params proto.Message) error {
 		msg.Payload = &schema.Envelope_Write{Write: p}
 	case *schema.WatchRequest:
 		msg.Payload = &schema.Envelope_Watch{Watch: p}
+	case *schema.Tree:
+		msg.Payload = &schema.Envelope_Tree{Tree: p}
+	case *schema.TreeRequest:
+		msg.Payload = &schema.Envelope_TreeRequest{TreeRequest: p}
+	case *schema.MoveRequest:
+		msg.Payload = &schema.Envelope_Move{Move: p}
 	default:
 		return fmt.Errorf("%w: %T", ErrProtocol, params)
 	}
@@ -74,14 +86,47 @@ func payloadMatches(msg *schema.Envelope, match bool) error {
 }
 
 func sessionToSchema(info SessionInfo) *schema.SessionInfo {
-	return &schema.SessionInfo{Id: info.ID, Panes: copyStrings(info.Panes)}
+	return &schema.SessionInfo{
+		Id:      info.ID,
+		Panes:   copyStrings(info.Panes),
+		Entries: entriesToSchema(info.Entries),
+	}
 }
 
 func sessionFromSchema(info *schema.SessionInfo) SessionInfo {
 	if info == nil {
 		return SessionInfo{}
 	}
-	return SessionInfo{ID: info.GetId(), Panes: copyStrings(info.GetPanes())}
+	return SessionInfo{
+		ID:      info.GetId(),
+		Panes:   copyStrings(info.GetPanes()),
+		Entries: entriesFromSchema(info.GetEntries()),
+	}
+}
+
+func entriesToSchema(entries []Entry) []*schema.Entry {
+	if entries == nil {
+		return nil
+	}
+	out := make([]*schema.Entry, len(entries))
+	for i, entry := range entries {
+		out[i] = &schema.Entry{Name: entry.Name, Path: entry.Path, Dir: entry.Dir, Pane: entry.Pane}
+	}
+	return out
+}
+
+func entriesFromSchema(entries []*schema.Entry) []Entry {
+	if entries == nil {
+		return nil
+	}
+	out := make([]Entry, len(entries))
+	for i, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		out[i] = Entry{Name: entry.GetName(), Path: entry.GetPath(), Dir: entry.GetDir(), Pane: entry.GetPane()}
+	}
+	return out
 }
 
 func paneInfoToSchema(info PaneInfo) *schema.PaneInfo {
@@ -98,6 +143,7 @@ func paneInfoToSchema(info PaneInfo) *schema.PaneInfo {
 		LastWriter: info.LastWriter,
 		CursorRow:  int32(info.CursorRow),
 		CursorCol:  int32(info.CursorCol),
+		Path:       info.Path,
 	}
 }
 
@@ -118,6 +164,7 @@ func paneInfoFromSchema(info *schema.PaneInfo) PaneInfo {
 		LastWriter: info.GetLastWriter(),
 		CursorRow:  int(info.GetCursorRow()),
 		CursorCol:  int(info.GetCursorCol()),
+		Path:       info.GetPath(),
 	}
 }
 
@@ -137,6 +184,7 @@ func paneToSchema(pane Pane) *schema.Pane {
 		CursorRow:  info.GetCursorRow(),
 		CursorCol:  info.GetCursorCol(),
 		Cells:      cellsToSchema(pane.Cells),
+		Path:       info.GetPath(),
 	}
 }
 
@@ -158,6 +206,7 @@ func paneFromSchema(pane *schema.Pane) Pane {
 			LastWriter: pane.GetLastWriter(),
 			CursorRow:  pane.GetCursorRow(),
 			CursorCol:  pane.GetCursorCol(),
+			Path:       pane.GetPath(),
 		}),
 		Cells: cellsFromSchema(pane.GetCells()),
 	}
@@ -190,11 +239,18 @@ func cellsToSchema(cells []Cell) []*schema.Cell {
 	out := make([]*schema.Cell, len(cells))
 	for i, cell := range cells {
 		out[i] = &schema.Cell{
-			Rune: cell.Rune,
-			Fg:   int32(cell.FG),
-			Bg:   int32(cell.BG),
-			Bold: cell.Bold,
-			Wide: cell.Wide,
+			Rune:    cell.Rune,
+			Fg:      int32(cell.FG),
+			Bg:      int32(cell.BG),
+			Bold:    cell.Bold,
+			Wide:    cell.Wide,
+			FgMode:  uint32(cell.FGMode),
+			BgMode:  uint32(cell.BGMode),
+			FgIndex: uint32(cell.FGIndex),
+			BgIndex: uint32(cell.BGIndex),
+			FgRgb:   cell.FGRGB,
+			BgRgb:   cell.BGRGB,
+			Reverse: cell.Reverse,
 		}
 	}
 	return out
@@ -210,11 +266,18 @@ func cellsFromSchema(cells []*schema.Cell) []Cell {
 			continue
 		}
 		out[i] = Cell{
-			Rune: cell.GetRune(),
-			FG:   int(cell.GetFg()),
-			BG:   int(cell.GetBg()),
-			Bold: cell.GetBold(),
-			Wide: cell.GetWide(),
+			Rune:    cell.GetRune(),
+			FG:      int(cell.GetFg()),
+			BG:      int(cell.GetBg()),
+			Bold:    cell.GetBold(),
+			Wide:    cell.GetWide(),
+			FGMode:  int(cell.GetFgMode()),
+			BGMode:  int(cell.GetBgMode()),
+			FGIndex: int(cell.GetFgIndex()),
+			BGIndex: int(cell.GetBgIndex()),
+			FGRGB:   cell.GetFgRgb(),
+			BGRGB:   cell.GetBgRgb(),
+			Reverse: cell.GetReverse(),
 		}
 	}
 	return out
@@ -228,6 +291,7 @@ func createToSchema(req CreateRequest) *schema.CreateRequest {
 		Cols:    int32(req.Cols),
 		Title:   req.Title,
 		Client:  req.Client,
+		Path:    req.Path,
 	}
 }
 
@@ -242,6 +306,7 @@ func createFromSchema(req *schema.CreateRequest) CreateRequest {
 		Cols:    int(req.GetCols()),
 		Title:   req.GetTitle(),
 		Client:  req.GetClient(),
+		Path:    req.GetPath(),
 	}
 }
 
@@ -269,14 +334,25 @@ func writeFromSchema(req *schema.WriteRequest) WriteRequest {
 }
 
 func watchToSchema(req WatchRequest) *schema.WatchRequest {
-	return &schema.WatchRequest{All: req.All, Panes: copyStrings(req.Panes)}
+	return &schema.WatchRequest{All: req.All, Panes: copyStrings(req.Panes), Prefix: req.Prefix}
 }
 
 func watchFromSchema(req *schema.WatchRequest) WatchRequest {
 	if req == nil {
 		return WatchRequest{}
 	}
-	return WatchRequest{All: req.GetAll(), Panes: copyStrings(req.GetPanes())}
+	return WatchRequest{All: req.GetAll(), Panes: copyStrings(req.GetPanes()), Prefix: req.GetPrefix()}
+}
+
+func treeToSchema(tree Tree) *schema.Tree {
+	return &schema.Tree{Path: tree.Path, Entries: entriesToSchema(tree.Entries)}
+}
+
+func treeFromSchema(tree *schema.Tree) Tree {
+	if tree == nil {
+		return Tree{}
+	}
+	return Tree{Path: tree.GetPath(), Entries: entriesFromSchema(tree.GetEntries())}
 }
 
 func copyStrings(in []string) []string {

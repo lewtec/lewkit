@@ -13,11 +13,14 @@ const (
 	MethodPaneWrite  Method = "pane.write"
 	MethodPaneKill   Method = "pane.kill"
 	MethodWatch      Method = "watch"
+	MethodTreeList   Method = "tree.list"
+	MethodPaneMove   Method = "pane.move"
 )
 
 // Notice is a server push. The string is the wire text.
 // A pane notice is that pane's record. A session notice is the ubersession
 // membership. Clients that follow one pane do not receive session notices.
+// A client watching a folder does.
 //
 //lewkit:enum
 type Notice string
@@ -34,16 +37,21 @@ const (
 type Action string
 
 const (
-	ActionNew         Action = "new"
-	ActionCommand     Action = "command"
-	ActionUbersession Action = "ubersession"
-	ActionFollow      Action = "follow"
-	ActionAlso        Action = "also"
-	ActionUnfollow    Action = "unfollow"
-	ActionFocus       Action = "focus"
-	ActionSend        Action = "send"
-	ActionKill        Action = "kill"
-	ActionDetach      Action = "detach"
+	ActionNew          Action = "new"
+	ActionCommand      Action = "command"
+	ActionUbersession  Action = "ubersession"
+	ActionFollow       Action = "follow"
+	ActionAlso         Action = "also"
+	ActionUnfollow     Action = "unfollow"
+	ActionFocus        Action = "focus"
+	ActionSend         Action = "send"
+	ActionKill         Action = "kill"
+	ActionDetach       Action = "detach"
+	ActionFolder       Action = "folder"
+	ActionUp           Action = "up"
+	ActionEnter        Action = "enter"
+	ActionMove         Action = "move"
+	ActionFollowFolder Action = "follow.folder"
 )
 
 // Step is where the command palette is asking for input.
@@ -55,4 +63,5 @@ const (
 	StepActions Step = "actions"
 	StepPanes   Step = "panes"
 	StepLine    Step = "line"
+	StepEntries Step = "entries"
 )

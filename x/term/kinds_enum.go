@@ -26,13 +26,13 @@ func (m Method) String() string {
 
 // Values lists the Method values.
 func (Method) Values() []Method {
-	return []Method{MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch}
+	return []Method{MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch, MethodTreeList, MethodPaneMove}
 }
 
 // IsValid reports whether the value is a Method.
 func (m Method) IsValid() bool {
 	switch m {
-	case MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch:
+	case MethodSessionGet, MethodPaneList, MethodPaneGet, MethodPaneCreate, MethodPaneWrite, MethodPaneKill, MethodWatch, MethodTreeList, MethodPaneMove:
 		return true
 	default:
 		return false
@@ -57,6 +57,10 @@ func ParseMethod(text string) (Method, error) {
 		return MethodPaneKill, nil
 	case "watch":
 		return MethodWatch, nil
+	case "tree.list":
+		return MethodTreeList, nil
+	case "pane.move":
+		return MethodPaneMove, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrMethod, text)
 	}
@@ -74,7 +78,7 @@ func (m *Method) Parse(text string) error {
 
 // ArgChoices lists the texts ParseMethod accepts.
 func (Method) ArgChoices() []string {
-	return []string{"session.get", "pane.list", "pane.get", "pane.create", "pane.write", "pane.kill", "watch"}
+	return []string{"session.get", "pane.list", "pane.get", "pane.create", "pane.write", "pane.kill", "watch", "tree.list", "pane.move"}
 }
 
 // MarshalText encodes the value as text.
@@ -160,13 +164,13 @@ func (a Action) String() string {
 
 // Values lists the Action values.
 func (Action) Values() []Action {
-	return []Action{ActionNew, ActionCommand, ActionUbersession, ActionFollow, ActionAlso, ActionUnfollow, ActionFocus, ActionSend, ActionKill, ActionDetach}
+	return []Action{ActionNew, ActionCommand, ActionUbersession, ActionFollow, ActionAlso, ActionUnfollow, ActionFocus, ActionSend, ActionKill, ActionDetach, ActionFolder, ActionUp, ActionEnter, ActionMove, ActionFollowFolder}
 }
 
 // IsValid reports whether the value is a Action.
 func (a Action) IsValid() bool {
 	switch a {
-	case ActionNew, ActionCommand, ActionUbersession, ActionFollow, ActionAlso, ActionUnfollow, ActionFocus, ActionSend, ActionKill, ActionDetach:
+	case ActionNew, ActionCommand, ActionUbersession, ActionFollow, ActionAlso, ActionUnfollow, ActionFocus, ActionSend, ActionKill, ActionDetach, ActionFolder, ActionUp, ActionEnter, ActionMove, ActionFollowFolder:
 		return true
 	default:
 		return false
@@ -197,6 +201,16 @@ func ParseAction(text string) (Action, error) {
 		return ActionKill, nil
 	case "detach":
 		return ActionDetach, nil
+	case "folder":
+		return ActionFolder, nil
+	case "up":
+		return ActionUp, nil
+	case "enter":
+		return ActionEnter, nil
+	case "move":
+		return ActionMove, nil
+	case "follow.folder":
+		return ActionFollowFolder, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrAction, text)
 	}
@@ -214,7 +228,7 @@ func (a *Action) Parse(text string) error {
 
 // ArgChoices lists the texts ParseAction accepts.
 func (Action) ArgChoices() []string {
-	return []string{"new", "command", "ubersession", "follow", "also", "unfollow", "focus", "send", "kill", "detach"}
+	return []string{"new", "command", "ubersession", "follow", "also", "unfollow", "focus", "send", "kill", "detach", "folder", "up", "enter", "move", "follow.folder"}
 }
 
 // MarshalText encodes the value as text.
@@ -237,13 +251,13 @@ func (s Step) String() string {
 
 // Values lists the Step values.
 func (Step) Values() []Step {
-	return []Step{StepActions, StepPanes, StepLine}
+	return []Step{StepActions, StepPanes, StepLine, StepEntries}
 }
 
 // IsValid reports whether the value is a Step.
 func (s Step) IsValid() bool {
 	switch s {
-	case StepActions, StepPanes, StepLine:
+	case StepActions, StepPanes, StepLine, StepEntries:
 		return true
 	default:
 		return false
@@ -260,6 +274,8 @@ func ParseStep(text string) (Step, error) {
 		return StepPanes, nil
 	case "line":
 		return StepLine, nil
+	case "entries":
+		return StepEntries, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrStep, text)
 	}
@@ -277,7 +293,7 @@ func (s *Step) Parse(text string) error {
 
 // ArgChoices lists the texts ParseStep accepts.
 func (Step) ArgChoices() []string {
-	return []string{"actions", "panes", "line"}
+	return []string{"actions", "panes", "line", "entries"}
 }
 
 // MarshalText encodes the value as text.

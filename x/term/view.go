@@ -21,6 +21,7 @@ type API interface {
 	Create(context.Context, CreateRequest) (Pane, error)
 	Write(context.Context, WriteRequest) error
 	Kill(context.Context, string) error
+	Move(context.Context, string, string) error
 	Watch(context.Context, WatchRequest) error
 	Next(context.Context) (Event, error)
 }
@@ -47,11 +48,13 @@ type Model struct {
 	api      API
 	clientID string
 
-	followAll bool
-	follow    []string
-	focus     string
-	order     []string
-	byID      map[string]Pane
+	followAll    bool
+	followPrefix string
+	follow       []string
+	folder       string
+	focus        string
+	order        []string
+	byID         map[string]Pane
 
 	width  int
 	height int
@@ -134,6 +137,9 @@ func (m *Model) watchReq() WatchRequest {
 	if m.followAll {
 		return WatchRequest{All: true}
 	}
+	if m.followPrefix != "" && len(m.follow) == 0 {
+		return WatchRequest{Prefix: m.followPrefix}
+	}
 	return WatchRequest{Panes: append([]string(nil), m.follow...)}
 }
 
@@ -154,7 +160,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.listen()
 	case spawnedMsg:
 		m.store(msg.pane)
-		if !m.followAll && !contains(m.follow, msg.pane.ID) {
+		if m.followPrefix == "" && !m.followAll && !contains(m.follow, msg.pane.ID) {
 			m.follow = append(m.follow, msg.pane.ID)
 		}
 		m.focus = msg.pane.ID
@@ -255,6 +261,14 @@ func (m *Model) activate() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.applyPane(ids[m.cursor])
+	case StepEntries:
+		dirs := m.filteredDirs()
+		m.clamp(len(dirs))
+		if len(dirs) == 0 {
+			m.errText = ErrPath.Error()
+			return m, nil
+		}
+		return m.applyDir(dirs[m.cursor])
 	default:
 		actions := m.actions()
 		m.clamp(len(actions))
@@ -269,7 +283,11 @@ func (m *Model) applyAction(action Action) (tea.Model, tea.Cmd) {
 	switch action {
 	case ActionNew:
 		return m, m.spawn(nil)
-	case ActionCommand, ActionSend:
+	case ActionCommand, ActionSend, ActionFolder, ActionMove:
+		if action == ActionMove && m.focusID() == "" {
+			m.errText = ErrPane.Error()
+			return m, nil
+		}
 		m.action = action
 		m.step = StepLine
 		m.query = ""
@@ -277,8 +295,31 @@ func (m *Model) applyAction(action Action) (tea.Model, tea.Cmd) {
 		return m, nil
 	case ActionUbersession:
 		m.followAll = true
+		m.followPrefix = ""
 		m.errText = ""
 		return m, m.rewatch()
+	case ActionUp:
+		m.folder = pathParent(m.folder)
+		m.errText = ""
+		return m, nil
+	case ActionFollowFolder:
+		if m.folder == "" {
+			m.followAll = true
+			m.followPrefix = ""
+			m.follow = nil
+		} else {
+			m.followAll = false
+			m.followPrefix = m.folder
+			m.follow = nil
+		}
+		m.errText = ""
+		return m, m.rewatch()
+	case ActionEnter:
+		m.action = action
+		m.step = StepEntries
+		m.query = ""
+		m.cursor = 0
+		return m, nil
 	case ActionDetach:
 		return m, tea.Quit
 	case ActionFollow, ActionAlso, ActionUnfollow, ActionFocus, ActionKill:
@@ -296,21 +337,24 @@ func (m *Model) applyPane(id string) (tea.Model, tea.Cmd) {
 	switch m.action {
 	case ActionFollow:
 		m.followAll = false
+		m.followPrefix = ""
 		m.follow = []string{id}
 		m.focus = id
 	case ActionAlso:
-		if m.followAll {
-			m.follow = append([]string(nil), m.order...)
+		if m.followAll || m.followPrefix != "" {
+			m.follow = m.visible()
 			m.followAll = false
+			m.followPrefix = ""
 		}
 		if !contains(m.follow, id) {
 			m.follow = append(m.follow, id)
 		}
 		m.focus = id
 	case ActionUnfollow:
-		if m.followAll {
-			m.follow = append([]string(nil), m.order...)
+		if m.followAll || m.followPrefix != "" {
+			m.follow = m.visible()
 			m.followAll = false
+			m.followPrefix = ""
 		}
 		m.follow = removeID(m.follow, id)
 		if m.focus == id {
@@ -348,6 +392,31 @@ func (m *Model) applyLine() (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.spawn(fields)
+	case ActionFolder:
+		folder, err := resolvePath(m.folder, text)
+		if err != nil {
+			m.errText = err.Error()
+			return m, nil
+		}
+		m.folder = folder
+		m.errText = ""
+		return m, nil
+	case ActionMove:
+		id := m.focusID()
+		if id == "" {
+			m.errText = ErrPane.Error()
+			return m, nil
+		}
+		path, err := resolvePath(m.folder, text)
+		if err != nil {
+			m.errText = err.Error()
+			return m, nil
+		}
+		if path == "" {
+			m.errText = ErrPath.Error()
+			return m, nil
+		}
+		return m, m.move(id, path)
 	case ActionSend:
 		id := m.focusID()
 		if id == "" {
@@ -381,9 +450,24 @@ func (m *Model) rewatch() tea.Cmd {
 	}
 }
 
+func (m *Model) applyDir(name string) (tea.Model, tea.Cmd) {
+	if m.folder == "" {
+		m.folder = name
+	} else {
+		m.folder = m.folder + "/" + name
+	}
+	m.step = StepActions
+	m.query = ""
+	m.errText = ""
+	return m, nil
+}
+
 func (m *Model) spawn(command []string) tea.Cmd {
 	rows, cols := m.spawnSize()
 	req := CreateRequest{Command: command, Rows: rows, Cols: cols, Client: m.clientID}
+	if m.folder != "" {
+		req.Path = m.folder + "/"
+	}
 	return func() tea.Msg {
 		pane, err := m.api.Create(m.ctx, req)
 		if err != nil {
@@ -414,6 +498,15 @@ func (m *Model) writeFocused(data []byte) tea.Cmd {
 	}
 	rows, cols := m.focusSize()
 	return m.write(id, string(data), rows, cols)
+}
+
+func (m *Model) move(id, path string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.api.Move(m.ctx, id, path); err != nil {
+			return errMsg{err}
+		}
+		return wroteMsg{}
+	}
 }
 
 func (m *Model) kill(id string) tea.Cmd {
@@ -475,6 +568,20 @@ func (m *Model) visible() []string {
 	if m.followAll {
 		return append([]string(nil), m.order...)
 	}
+	if m.followPrefix != "" && len(m.follow) == 0 {
+		var out []string
+		for _, id := range m.order {
+			pane := m.byID[id]
+			path := pane.Path
+			if path == "" {
+				path = id
+			}
+			if pathUnder(path, m.followPrefix) {
+				out = append(out, id)
+			}
+		}
+		return out
+	}
 	var out []string
 	for _, id := range m.follow {
 		if _, ok := m.byID[id]; ok {
@@ -502,9 +609,26 @@ func (m *Model) filteredPanes() []string {
 	var out []string
 	for _, id := range m.order {
 		pane := m.byID[id]
-		hay := strings.ToLower(id + " " + pane.Title)
+		hay := strings.ToLower(id + " " + pane.Title + " " + pane.Path)
 		if query == "" || strings.Contains(hay, query) {
 			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func (m *Model) filteredDirs() []string {
+	query := strings.ToLower(strings.TrimSpace(m.query))
+	dirs := childDirs(m.order, func(id string) string {
+		return m.byID[id].Path
+	}, m.folder)
+	if query == "" {
+		return dirs
+	}
+	var out []string
+	for _, dir := range dirs {
+		if strings.Contains(strings.ToLower(dir), query) {
+			out = append(out, dir)
 		}
 	}
 	return out
@@ -514,6 +638,8 @@ func (m *Model) choiceCount() int {
 	switch m.step {
 	case StepPanes:
 		return len(m.filteredPanes())
+	case StepEntries:
+		return len(m.filteredDirs())
 	case StepLine:
 		return 0
 	default:
@@ -600,7 +726,7 @@ func (m *Model) render() (string, int, int, bool) {
 	show := false
 	if body == 0 || len(ids) == 0 {
 		if len(ids) == 0 && body > 0 {
-			lines = append(lines, fit("no panes  ctrl+p  New pane", width))
+			lines = append(lines, fit("the desk is clear.  ctrl+p, then new pane", width))
 			for len(lines) < body {
 				lines = append(lines, fit("", width))
 			}
@@ -643,7 +769,8 @@ func (m *Model) render() (string, int, int, bool) {
 	}
 	if m.palette {
 		show = true
-		cursorX = min(2+runewidth.StringWidth(m.query), width-1)
+		prefix := strings.TrimSuffix(m.prompt(), m.query)
+		cursorX = min(runewidth.StringWidth(prefix)+runewidth.StringWidth(m.query), width-1)
 		cursorY = paletteY
 		if cursorY >= height {
 			cursorY = height - 1
@@ -658,33 +785,32 @@ func (m *Model) paletteText() []string {
 		width = 80
 	}
 	if !m.palette {
-		hint := "ctrl+p palette"
+		hint := "ctrl+p palette  ·  " + m.folderLabel()
 		if m.errText != "" {
 			hint = m.errText
 		}
 		return []string{fit(hint, width)}
 	}
 	var lines []string
-	prompt := "> " + m.query
-	switch m.step {
-	case StepLine:
-		if m.action == ActionCommand {
-			prompt = "command> " + m.query
-		} else {
-			prompt = "send> " + m.query
-		}
-	case StepPanes:
-		prompt = "pane> " + m.query
-	}
+	prompt := m.prompt()
 	lines = append(lines, fit(prompt, width))
 	if m.step != StepLine {
 		var rows []string
-		if m.step == StepPanes {
+		switch m.step {
+		case StepPanes:
 			for _, id := range m.filteredPanes() {
 				pane := m.byID[id]
-				rows = append(rows, id+"  "+pane.Title)
+				label := id
+				if pane.Path != "" && pane.Path != id {
+					label = pane.Path
+				}
+				rows = append(rows, label+"  "+pane.Title)
 			}
-		} else {
+		case StepEntries:
+			for _, dir := range m.filteredDirs() {
+				rows = append(rows, dir+"/")
+			}
+		default:
 			for _, action := range m.actions() {
 				label, detail := actionText(action)
 				rows = append(rows, label+"  "+detail)
@@ -707,7 +833,7 @@ func (m *Model) paletteText() []string {
 			lines = append(lines, fit(mark+rows[i], width))
 		}
 	}
-	hint := "ctrl+p closes  esc back  enter runs"
+	hint := "in " + m.folderLabel() + "   ctrl+p closes  esc back  enter runs"
 	if m.errText != "" {
 		hint = m.errText
 	}
@@ -734,8 +860,34 @@ func windowChoices(cursor, n, limit int) (int, int) {
 	return from, to
 }
 
+func (m *Model) prompt() string {
+	switch {
+	case m.step == StepLine && m.action == ActionCommand:
+		return "command> " + m.query
+	case m.step == StepLine && m.action == ActionSend:
+		return "send> " + m.query
+	case m.step == StepLine && m.action == ActionFolder:
+		return "folder> " + m.query
+	case m.step == StepLine && m.action == ActionMove:
+		return "path> " + m.query
+	case m.step == StepPanes:
+		return "pane> " + m.query
+	case m.step == StepEntries:
+		return "folder> " + m.query
+	default:
+		return "> " + m.query
+	}
+}
+
+func (m *Model) folderLabel() string {
+	if m.folder == "" {
+		return "/"
+	}
+	return "/" + m.folder
+}
+
 func titleLine(pane Pane, width int, focused bool) string {
-	mark := " "
+	mark := "·"
 	if focused {
 		mark = "*"
 	}
@@ -743,7 +895,11 @@ func titleLine(pane Pane, width int, focused bool) string {
 	if !pane.Alive {
 		state = fmt.Sprintf("exit %d", pane.Exit)
 	}
-	text := fmt.Sprintf("%s %s %s %dx%d %s", mark, pane.ID, pane.Title, pane.Cols, pane.Rows, state)
+	label := pane.ID
+	if pane.Path != "" && pane.Path != pane.ID {
+		label = pane.Path
+	}
+	text := fmt.Sprintf("%s %s %s %dx%d %s", mark, label, pane.Title, pane.Cols, pane.Rows, state)
 	return "\x1b[7m" + fit(text, width) + "\x1b[0m"
 }
 
@@ -783,27 +939,57 @@ func paintRow(pane Pane, row, width int) string {
 }
 
 func sgrOpen(cell Cell) string {
-	if cell.FG == 0 && cell.BG == 0 && !cell.Bold {
-		return ""
-	}
 	var parts []string
 	if cell.Bold {
 		parts = append(parts, "1")
 	}
-	if cell.FG >= 1 && cell.FG <= 8 {
-		parts = append(parts, fmt.Sprintf("%d", 29+cell.FG))
-	} else if cell.FG >= 9 && cell.FG <= 16 {
-		parts = append(parts, fmt.Sprintf("%d", 81+cell.FG))
+	if cell.Reverse {
+		parts = append(parts, "7")
 	}
-	if cell.BG >= 1 && cell.BG <= 8 {
-		parts = append(parts, fmt.Sprintf("%d", 39+cell.BG))
-	} else if cell.BG >= 9 && cell.BG <= 16 {
-		parts = append(parts, fmt.Sprintf("%d", 91+cell.BG))
-	}
+	parts = append(parts, colorCodes(true, cell.FGMode, cell.FG, cell.FGIndex, cell.FGRGB)...)
+	parts = append(parts, colorCodes(false, cell.BGMode, cell.BG, cell.BGIndex, cell.BGRGB)...)
 	if len(parts) == 0 {
 		return ""
 	}
 	return "\x1b[" + strings.Join(parts, ";") + "m"
+}
+
+func colorCodes(fg bool, mode, palette, index int, rgb uint32) []string {
+	which := "38"
+	if !fg {
+		which = "48"
+	}
+	switch mode {
+	case ColorRGB:
+		return []string{
+			which, "2",
+			fmt.Sprintf("%d", (rgb>>16)&0xff),
+			fmt.Sprintf("%d", (rgb>>8)&0xff),
+			fmt.Sprintf("%d", rgb&0xff),
+		}
+	case ColorIndex:
+		return []string{which, "5", fmt.Sprintf("%d", index)}
+	default:
+		return paletteCodes(fg, palette)
+	}
+}
+
+func paletteCodes(fg bool, palette int) []string {
+	if palette >= 1 && palette <= 8 {
+		base := 29
+		if !fg {
+			base = 39
+		}
+		return []string{fmt.Sprintf("%d", base+palette)}
+	}
+	if palette >= 9 && palette <= 16 {
+		base := 81
+		if !fg {
+			base = 91
+		}
+		return []string{fmt.Sprintf("%d", base+palette)}
+	}
+	return nil
 }
 
 func fit(text string, width int) string {
@@ -851,6 +1037,16 @@ func actionText(action Action) (string, string) {
 		return "Kill pane", "stop the pane process"
 	case ActionDetach:
 		return "Detach", "close this client"
+	case ActionFolder:
+		return "Open folder", "put new panes in this folder"
+	case ActionUp:
+		return "Folder up", "leave this folder"
+	case ActionEnter:
+		return "Enter folder", "step into a folder that holds panes"
+	case ActionMove:
+		return "Move pane", "give the focused pane a new key"
+	case ActionFollowFolder:
+		return "Follow folder", "watch the panes in this folder"
 	default:
 		return string(action), ""
 	}

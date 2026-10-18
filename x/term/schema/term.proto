@@ -23,14 +23,29 @@ message Envelope {
     CreateRequest create = 16;
     WriteRequest write = 17;
     WatchRequest watch = 18;
+    Tree tree = 19;
+    TreeRequest tree_request = 20;
+    MoveRequest move = 21;
   }
+}
+
+// Entry is one key in the session tree.
+// A directory is a folder. A file is one pane. name is the last segment.
+// path is the full slash-separated key, with no leading slash.
+message Entry {
+  string name = 1;
+  string path = 2;
+  bool dir = 3;
+  string pane = 4;
 }
 
 // SessionInfo is the ubersession membership.
 // panes is creation order. It is not a layout.
+// entries is the key tree. Folders exist because a pane's path names them.
 message SessionInfo {
   string id = 1;
   repeated string panes = 2;
+  repeated Entry entries = 3;
 }
 
 // PaneInfo is a pane record without the grid.
@@ -48,18 +63,30 @@ message PaneInfo {
   string last_writer = 10;
   int32 cursor_row = 11;
   int32 cursor_col = 12;
+  // path is the pane's key. Empty is the same as id, at the root.
+  string path = 13;
 }
 
 // Cell is one column of the visible grid.
 // rune is empty for a blank column. wide marks the second column of a
-// double-width rune. fg and bg are palette indexes. 0 is the default color.
-// 1 through 8 are the normal ANSI colors and 9 through 16 are the bright ones.
+// double-width rune. fg and bg are palette indexes when the matching mode
+// is 0. 0 is the default color. 1 through 8 are the normal ANSI colors and
+// 9 through 16 are the bright ones.
+// mode 1 is a 256-color index. mode 2 is truecolor in rgb as 0xRRGGBB.
+// Channel 0 is black, so mode is how a client tells black from unset.
 message Cell {
   string rune = 1;
   int32 fg = 2;
   int32 bg = 3;
   bool bold = 4;
   bool wide = 5;
+  uint32 fg_mode = 6;
+  uint32 bg_mode = 7;
+  uint32 fg_index = 8;
+  uint32 bg_index = 9;
+  uint32 fg_rgb = 10;
+  uint32 bg_rgb = 11;
+  bool reverse = 12;
 }
 
 // Pane is one pane record, including the visible grid in row-major order.
@@ -78,6 +105,7 @@ message Pane {
   int32 cursor_row = 11;
   int32 cursor_col = 12;
   repeated Cell cells = 13;
+  string path = 14;
 }
 
 // PaneList is the pane headers in creation order.
@@ -101,6 +129,10 @@ message CreateRequest {
   int32 cols = 4;
   string title = 5;
   string client = 6;
+  // path is the new pane's key. Empty stores the file at its id.
+  // A trailing slash stores it inside that folder, named by the new id.
+  // The key is not a host filesystem path.
+  string path = 7;
 }
 
 // WriteRequest sends terminal input to a pane.
@@ -119,9 +151,29 @@ message WriteRequest {
 // WatchRequest replaces the panes this connection wants pushed.
 // all watches the ubersession. Otherwise panes is the exact set, which may
 // be empty. An empty set does not watch every pane.
+// prefix watches every pane whose key is that folder or a file inside it.
+// A folder watch also receives session records. An exact pane set does not.
 message WatchRequest {
   bool all = 1;
   repeated string panes = 2;
+  string prefix = 3;
+}
+
+// TreeRequest lists one folder. An empty path is the root.
+message TreeRequest {
+  string path = 1;
+}
+
+// Tree is the direct children of one folder.
+message Tree {
+  string path = 1;
+  repeated Entry entries = 2;
+}
+
+// MoveRequest gives a pane a new key.
+message MoveRequest {
+  string id = 1;
+  string path = 2;
 }
 
 // Ack is a successful call that returns no record.

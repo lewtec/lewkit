@@ -9,15 +9,27 @@ import (
 const scrollLimit = 2000
 
 type glyph struct {
-	r    rune
-	fg   int
-	bg   int
-	bold bool
-	wide bool
+	r       rune
+	fg      int
+	bg      int
+	fgMode  int
+	bgMode  int
+	fgIndex int
+	bgIndex int
+	fgRGB   uint32
+	bgRGB   uint32
+	bold    bool
+	wide    bool
+	reverse bool
 }
 
 func (g glyph) cell() Cell {
-	cell := Cell{FG: g.fg, BG: g.bg, Bold: g.bold, Wide: g.wide}
+	cell := Cell{
+		FG: g.fg, BG: g.bg, Bold: g.bold, Wide: g.wide, Reverse: g.reverse,
+		FGMode: g.fgMode, BGMode: g.bgMode,
+		FGIndex: g.fgIndex, BGIndex: g.bgIndex,
+		FGRGB: g.fgRGB, BGRGB: g.bgRGB,
+	}
 	if g.r != 0 {
 		cell.Rune = string(g.r)
 	}
@@ -42,16 +54,41 @@ type Grid struct {
 	cursorC     int
 	wrapPending bool
 
-	fg   int
-	bg   int
-	bold bool
+	fg      int
+	bg      int
+	fgMode  int
+	bgMode  int
+	fgIndex int
+	bgIndex int
+	fgRGB   uint32
+	bgRGB   uint32
+	bold    bool
+	reverse bool
 
-	state  int
-	params []int
-	param  int
-	saw    bool
-	priv   bool
-	utf    []byte
+	state     int
+	args      [][]int
+	cur       []int
+	num       int
+	saw       bool
+	emptySlot bool
+	priv      bool
+	utf       []byte
+
+	scrollTop int
+	scrollBot int
+
+	alt         bool
+	savedScreen []line
+	savedScroll []line
+	savedR      int
+	savedC      int
+	savedWrap   bool
+	savedRows   int
+	savedCols   int
+
+	hold  bool
+	holdR int
+	holdC int
 }
 
 const (
@@ -70,7 +107,7 @@ func NewGrid(rows, cols int) *Grid {
 	if cols < 1 {
 		cols = 1
 	}
-	g := &Grid{rows: rows, cols: cols}
+	g := &Grid{rows: rows, cols: cols, scrollBot: rows - 1}
 	g.screen = blankLines(rows, cols)
 	return g
 }
@@ -193,6 +230,7 @@ func (g *Grid) Reflow(rows, cols int) {
 		g.cursorC = cols
 	}
 	g.wrapPending = false
+	g.resetRegion()
 }
 
 func (g *Grid) logical() (lines [][]glyph, lineIndex, slot int) {
@@ -327,7 +365,7 @@ func trimPad(cells []glyph) []glyph {
 			end--
 			continue
 		}
-		if last.r != 0 || last.fg != 0 || last.bg != 0 || last.bold {
+		if !padGlyph(last) {
 			break
 		}
 		end--
@@ -437,7 +475,7 @@ func (g *Grid) put(r rune) {
 		g.softWrap()
 	}
 	row := &g.screen[g.cursorR]
-	row.cells[g.cursorC] = glyph{r: r, fg: g.fg, bg: g.bg, bold: g.bold}
+	row.cells[g.cursorC] = g.penGlyph(r)
 	if w == 2 {
 		row.cells[g.cursorC+1] = glyph{wide: true}
 	}
@@ -455,25 +493,37 @@ func (g *Grid) softWrap() {
 }
 
 func (g *Grid) down() {
-	if g.cursorR+1 < g.rows {
-		g.cursorR++
+	if g.scrollBot < g.scrollTop || g.scrollBot >= g.rows {
+		g.resetRegion()
+	}
+	if g.cursorR == g.scrollBot && g.cursorR >= g.scrollTop {
+		full := g.scrollTop == 0 && g.scrollBot == g.rows-1 && !g.alt
+		g.scrollUp(1, full)
 		return
 	}
-	g.scroll = trimScroll(append(g.scroll, g.screen[0]))
-	copy(g.screen, g.screen[1:])
-	g.screen[g.rows-1] = blankLine(g.cols)
+	if g.cursorR+1 < g.rows {
+		g.cursorR++
+	}
 }
 
 func (g *Grid) esc(b byte) {
 	switch b {
 	case '[':
 		g.state = stateCSI
-		g.params = g.params[:0]
-		g.param = 0
+		g.args = g.args[:0]
+		g.cur = g.cur[:0]
+		g.num = 0
 		g.saw = false
+		g.emptySlot = false
 		g.priv = false
 	case ']':
 		g.state = stateOSC
+	case '7':
+		g.holdCursor()
+		g.state = stateText
+	case '8':
+		g.restoreCursor()
+		g.state = stateText
 	case 'c':
 		g.reset()
 		g.state = stateText
@@ -485,40 +535,69 @@ func (g *Grid) esc(b byte) {
 func (g *Grid) csi(b byte) {
 	switch {
 	case b >= '0' && b <= '9':
-		g.param = g.param*10 + int(b-'0')
+		g.num = g.num*10 + int(b-'0')
 		g.saw = true
+	case b == ':':
+		g.pushColon()
 	case b == ';':
-		g.pushParam()
+		g.finishParam()
+		g.emptySlot = true
 	case b == '?':
 		g.priv = true
 	case b >= 0x20 && b <= 0x2f:
 		// intermediate byte
 	default:
-		g.pushParam()
+		g.finishCSI()
 		g.dispatch(b)
 		g.state = stateText
 	}
 }
 
-func (g *Grid) pushParam() {
-	if !g.saw {
-		g.params = append(g.params, 0)
-	} else {
-		g.params = append(g.params, g.param)
+func (g *Grid) pushColon() {
+	val := 0
+	if g.saw {
+		val = g.num
 	}
-	g.param = 0
+	g.cur = append(g.cur, val)
+	g.num = 0
 	g.saw = false
+	g.emptySlot = false
+}
+
+func (g *Grid) finishParam() {
+	if g.saw || len(g.cur) > 0 {
+		val := 0
+		if g.saw {
+			val = g.num
+		}
+		g.cur = append(g.cur, val)
+		g.args = append(g.args, g.cur)
+		g.cur = nil
+	} else if g.emptySlot {
+		g.args = append(g.args, []int{0})
+	}
+	g.num = 0
+	g.saw = false
+	g.emptySlot = false
+}
+
+func (g *Grid) finishCSI() {
+	g.finishParam()
+	if len(g.args) == 0 {
+		g.args = [][]int{{0}}
+	}
 }
 
 func (g *Grid) arg(i, fallback int) int {
-	if i >= len(g.params) || g.params[i] == 0 {
+	if i >= len(g.args) || len(g.args[i]) == 0 || g.args[i][0] == 0 {
 		return fallback
 	}
-	return g.params[i]
+	return g.args[i][0]
 }
 
 func (g *Grid) dispatch(b byte) {
 	if g.priv {
+		g.dispatchPrivate(b)
 		return
 	}
 	switch b {
@@ -545,8 +624,38 @@ func (g *Grid) dispatch(b byte) {
 		g.eraseDisplay(g.arg(0, 0))
 	case 'K':
 		g.eraseLine(g.arg(0, 0))
+	case 'L':
+		g.insertLines(g.arg(0, 1))
+	case 'M':
+		g.deleteLines(g.arg(0, 1))
+	case 'S':
+		g.scrollUp(g.arg(0, 1), false)
+	case 'T':
+		g.scrollDown(g.arg(0, 1))
+	case 'r':
+		g.setRegion(g.arg(0, 1), g.arg(1, g.rows))
+	case 's':
+		g.holdCursor()
+	case 'u':
+		g.restoreCursor()
 	case 'm':
 		g.sgr()
+	}
+}
+
+func (g *Grid) dispatchPrivate(b byte) {
+	if b != 'h' && b != 'l' {
+		return
+	}
+	on := b == 'h'
+	for _, arg := range g.args {
+		if len(arg) == 0 {
+			continue
+		}
+		switch arg[0] {
+		case 47, 1047, 1049:
+			g.setAlt(on)
+		}
 	}
 }
 
@@ -584,20 +693,20 @@ func (g *Grid) eraseDisplay(mode int) {
 	case 1:
 		g.clearTo(g.cursorR, g.cursorC)
 	default:
-		g.screen = blankLines(g.rows, g.cols)
+		g.screen = g.styledLines(g.rows)
 	}
 }
 
 func (g *Grid) clearFrom(row, col int) {
 	g.clearSpan(row, col, g.cols)
 	for r := row + 1; r < g.rows; r++ {
-		g.screen[r] = blankLine(g.cols)
+		g.screen[r] = g.styledLine()
 	}
 }
 
 func (g *Grid) clearTo(row, col int) {
 	for r := range row {
-		g.screen[r] = blankLine(g.cols)
+		g.screen[r] = g.styledLine()
 	}
 	g.clearSpan(row, 0, col+1)
 }
@@ -609,7 +718,7 @@ func (g *Grid) eraseLine(mode int) {
 	case 1:
 		g.clearSpan(g.cursorR, 0, g.cursorC+1)
 	default:
-		g.screen[g.cursorR] = blankLine(g.cols)
+		g.screen[g.cursorR] = g.styledLine()
 	}
 }
 
@@ -623,47 +732,169 @@ func (g *Grid) clearSpan(row, from, to int) {
 	if to > g.cols {
 		to = g.cols
 	}
+	erased := g.erased()
 	for col := from; col < to; col++ {
-		g.screen[row].cells[col] = glyph{}
+		g.screen[row].cells[col] = erased
 	}
 	g.screen[row].wrapped = false
 }
 
 func (g *Grid) sgr() {
-	if len(g.params) == 0 {
-		g.fg, g.bg, g.bold = 0, 0, false
+	if len(g.args) == 0 {
+		g.resetPen()
 		return
 	}
-	for _, p := range g.params {
+	for i := 0; i < len(g.args); i++ {
+		subs := g.args[i]
+		if len(subs) == 0 {
+			g.resetPen()
+			continue
+		}
+		p := subs[0]
 		switch {
 		case p == 0:
-			g.fg, g.bg, g.bold = 0, 0, false
+			g.resetPen()
 		case p == 1:
 			g.bold = true
+		case p == 7:
+			g.reverse = true
 		case p == 22:
 			g.bold = false
+		case p == 27:
+			g.reverse = false
 		case p >= 30 && p <= 37:
-			g.fg = p - 30 + 1
+			g.setPalette(true, p-30+1)
 		case p == 39:
-			g.fg = 0
+			g.setPalette(true, 0)
 		case p >= 40 && p <= 47:
-			g.bg = p - 40 + 1
+			g.setPalette(false, p-40+1)
 		case p == 49:
-			g.bg = 0
+			g.setPalette(false, 0)
 		case p >= 90 && p <= 97:
-			g.fg = p - 90 + 9
+			g.setPalette(true, p-90+9)
 		case p >= 100 && p <= 107:
-			g.bg = p - 100 + 9
+			g.setPalette(false, p-100+9)
+		case p == 38 || p == 48:
+			fg := p == 38
+			if len(subs) > 1 {
+				g.applyColor(fg, subs[1:])
+				continue
+			}
+			i += g.applyColorArgs(fg, i)
 		}
 	}
 }
 
+func (g *Grid) applyColor(fg bool, subs []int) {
+	if len(subs) == 0 {
+		return
+	}
+	switch subs[0] {
+	case 5:
+		if len(subs) >= 2 {
+			g.setIndex(fg, subs[1])
+		}
+	case 2:
+		switch {
+		case len(subs) >= 5:
+			g.setRGB(fg, subs[2], subs[3], subs[4])
+		case len(subs) >= 4:
+			g.setRGB(fg, subs[1], subs[2], subs[3])
+		}
+	}
+}
+
+func (g *Grid) applyColorArgs(fg bool, i int) int {
+	if i+1 >= len(g.args) || len(g.args[i+1]) == 0 {
+		return 0
+	}
+	switch g.args[i+1][0] {
+	case 5:
+		if i+2 >= len(g.args) || len(g.args[i+2]) == 0 {
+			return 1
+		}
+		g.setIndex(fg, g.args[i+2][0])
+		return 2
+	case 2:
+		if i+4 >= len(g.args) {
+			return 1
+		}
+		g.setRGB(fg, g.args[i+2][0], g.args[i+3][0], g.args[i+4][0])
+		return 4
+	default:
+		return 0
+	}
+}
+
+func (g *Grid) resetPen() {
+	g.fg, g.bg = 0, 0
+	g.fgMode, g.bgMode = ColorPalette, ColorPalette
+	g.fgIndex, g.bgIndex = 0, 0
+	g.fgRGB, g.bgRGB = 0, 0
+	g.bold = false
+	g.reverse = false
+}
+
+func (g *Grid) setPalette(fg bool, n int) {
+	if fg {
+		g.fg = n
+		g.fgMode = ColorPalette
+		g.fgIndex = 0
+		g.fgRGB = 0
+		return
+	}
+	g.bg = n
+	g.bgMode = ColorPalette
+	g.bgIndex = 0
+	g.bgRGB = 0
+}
+
+func (g *Grid) setIndex(fg bool, n int) {
+	if n < 0 {
+		n = 0
+	}
+	if n > 255 {
+		n = 255
+	}
+	if fg {
+		g.fg = 0
+		g.fgMode = ColorIndex
+		g.fgIndex = n
+		g.fgRGB = 0
+		return
+	}
+	g.bg = 0
+	g.bgMode = ColorIndex
+	g.bgIndex = n
+	g.bgRGB = 0
+}
+
+func (g *Grid) setRGB(fg bool, r, gr, b int) {
+	packed := uint32(clampByte(r))<<16 | uint32(clampByte(gr))<<8 | uint32(clampByte(b))
+	if fg {
+		g.fg = 0
+		g.fgMode = ColorRGB
+		g.fgIndex = 0
+		g.fgRGB = packed
+		return
+	}
+	g.bg = 0
+	g.bgMode = ColorRGB
+	g.bgIndex = 0
+	g.bgRGB = packed
+}
+
 func (g *Grid) reset() {
+	g.alt = false
+	g.savedScreen = nil
+	g.savedScroll = nil
+	g.hold = false
+	g.resetPen()
 	g.screen = blankLines(g.rows, g.cols)
 	g.scroll = nil
 	g.cursorR, g.cursorC = 0, 0
 	g.wrapPending = false
-	g.fg, g.bg, g.bold = 0, 0, false
+	g.resetRegion()
 	g.utf = g.utf[:0]
 }
 
@@ -681,4 +912,223 @@ func blankLine(cols int) line {
 
 func blankGlyphs(cols int) []glyph {
 	return make([]glyph, cols)
+}
+
+func padGlyph(gl glyph) bool {
+	return gl.r == 0 && !gl.wide && gl.fg == 0 && gl.bg == 0 && !gl.bold && !gl.reverse &&
+		gl.fgMode == ColorPalette && gl.bgMode == ColorPalette
+}
+
+func clampByte(n int) int {
+	if n < 0 {
+		return 0
+	}
+	if n > 255 {
+		return 255
+	}
+	return n
+}
+
+func (g *Grid) penGlyph(r rune) glyph {
+	return glyph{
+		r: r, fg: g.fg, bg: g.bg, bold: g.bold, reverse: g.reverse,
+		fgMode: g.fgMode, bgMode: g.bgMode,
+		fgIndex: g.fgIndex, bgIndex: g.bgIndex,
+		fgRGB: g.fgRGB, bgRGB: g.bgRGB,
+	}
+}
+
+func (g *Grid) erased() glyph {
+	return glyph{
+		bg: g.bg, bgMode: g.bgMode, bgIndex: g.bgIndex, bgRGB: g.bgRGB,
+	}
+}
+
+func (g *Grid) styledLine() line {
+	cells := blankGlyphs(g.cols)
+	erased := g.erased()
+	if !padGlyph(erased) {
+		for i := range cells {
+			cells[i] = erased
+		}
+	}
+	return line{cells: cells}
+}
+
+func (g *Grid) styledLines(rows int) []line {
+	out := make([]line, rows)
+	for i := range out {
+		out[i] = g.styledLine()
+	}
+	return out
+}
+
+func (g *Grid) resetRegion() {
+	g.scrollTop = 0
+	if g.rows > 0 {
+		g.scrollBot = g.rows - 1
+		return
+	}
+	g.scrollBot = 0
+}
+
+func (g *Grid) setRegion(top, bot int) {
+	if top < 1 {
+		top = 1
+	}
+	if bot > g.rows {
+		bot = g.rows
+	}
+	if top >= bot {
+		return
+	}
+	g.scrollTop = top - 1
+	g.scrollBot = bot - 1
+	g.cursorR = 0
+	g.cursorC = 0
+	g.wrapPending = false
+}
+
+func (g *Grid) scrollUp(n int, keep bool) {
+	if n < 1 || g.scrollBot < g.scrollTop || g.scrollBot >= len(g.screen) {
+		return
+	}
+	height := g.scrollBot - g.scrollTop + 1
+	if n > height {
+		n = height
+	}
+	top := g.scrollTop
+	bot := g.scrollBot
+	if keep {
+		for i := range n {
+			g.scroll = trimScroll(append(g.scroll, g.screen[top+i]))
+		}
+	}
+	copy(g.screen[top:], g.screen[top+n:bot+1])
+	for row := bot - n + 1; row <= bot; row++ {
+		g.screen[row] = g.styledLine()
+	}
+}
+
+func (g *Grid) scrollDown(n int) {
+	if n < 1 || g.scrollBot < g.scrollTop || g.scrollBot >= len(g.screen) {
+		return
+	}
+	height := g.scrollBot - g.scrollTop + 1
+	if n > height {
+		n = height
+	}
+	top := g.scrollTop
+	bot := g.scrollBot
+	for row := bot; row >= top+n; row-- {
+		g.screen[row] = g.screen[row-n]
+	}
+	for row := top; row < top+n; row++ {
+		g.screen[row] = g.styledLine()
+	}
+}
+
+func (g *Grid) inRegion() bool {
+	return g.cursorR >= g.scrollTop && g.cursorR <= g.scrollBot
+}
+
+func (g *Grid) insertLines(n int) {
+	if n < 1 || !g.inRegion() || g.scrollBot >= len(g.screen) {
+		return
+	}
+	room := g.scrollBot - g.cursorR + 1
+	if n > room {
+		n = room
+	}
+	for row := g.scrollBot; row >= g.cursorR+n; row-- {
+		g.screen[row] = g.screen[row-n]
+	}
+	for row := g.cursorR; row < g.cursorR+n; row++ {
+		g.screen[row] = g.styledLine()
+	}
+}
+
+func (g *Grid) deleteLines(n int) {
+	if n < 1 || !g.inRegion() || g.scrollBot >= len(g.screen) {
+		return
+	}
+	room := g.scrollBot - g.cursorR + 1
+	if n > room {
+		n = room
+	}
+	copy(g.screen[g.cursorR:], g.screen[g.cursorR+n:g.scrollBot+1])
+	for row := g.scrollBot - n + 1; row <= g.scrollBot; row++ {
+		g.screen[row] = g.styledLine()
+	}
+}
+
+func (g *Grid) holdCursor() {
+	g.hold = true
+	g.holdR = g.cursorR
+	g.holdC = g.cursorC
+}
+
+func (g *Grid) restoreCursor() {
+	if !g.hold {
+		return
+	}
+	g.cursorR = g.holdR
+	g.cursorC = g.holdC
+	g.wrapPending = false
+	g.clampCursor()
+}
+
+func (g *Grid) setAlt(on bool) {
+	if on == g.alt {
+		return
+	}
+	if on {
+		g.savedScreen = cloneLines(g.screen)
+		g.savedScroll = cloneLines(g.scroll)
+		g.savedR, g.savedC = g.cursorR, g.cursorC
+		g.savedWrap = g.wrapPending
+		g.savedRows, g.savedCols = g.rows, g.cols
+		g.screen = g.styledLines(g.rows)
+		g.scroll = nil
+		g.cursorR, g.cursorC = 0, 0
+		g.wrapPending = false
+		g.alt = true
+		g.resetRegion()
+		return
+	}
+	mainScreen := g.savedScreen
+	mainScroll := g.savedScroll
+	mainR, mainC := g.savedR, g.savedC
+	mainWrap := g.savedWrap
+	mainRows, mainCols := g.savedRows, g.savedCols
+	g.savedScreen = nil
+	g.savedScroll = nil
+	g.alt = false
+	curRows, curCols := g.rows, g.cols
+	if mainScreen == nil {
+		g.screen = g.styledLines(curRows)
+		g.scroll = nil
+		g.cursorR, g.cursorC = 0, 0
+		g.wrapPending = false
+		g.resetRegion()
+		return
+	}
+	g.screen = mainScreen
+	g.scroll = mainScroll
+	g.cursorR, g.cursorC = mainR, mainC
+	g.wrapPending = mainWrap
+	g.rows, g.cols = mainRows, mainCols
+	if mainRows != curRows || mainCols != curCols {
+		g.Reflow(curRows, curCols)
+		return
+	}
+	g.resetRegion()
+}
+
+func cloneLines(rows []line) []line {
+	out := make([]line, len(rows))
+	for i, row := range rows {
+		out[i] = line{cells: append([]glyph(nil), row.cells...), wrapped: row.wrapped}
+	}
+	return out
 }

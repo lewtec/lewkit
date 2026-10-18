@@ -6,11 +6,41 @@ import "strings"
 // A different client can ignore fields it does not understand.
 const ProtocolVersion = 1
 
+// ColorPalette means FG or BG is an ANSI palette index.
+// Zero is the default color. 1 through 8 are normal and 9 through 16 are bright.
+const ColorPalette = 0
+
+// ColorIndex means FGIndex or BGIndex is a 256-color index.
+// Index 0 is black, so the mode is what distinguishes it from the default.
+const ColorIndex = 1
+
+// ColorRGB means FGRGB or BGRGB is packed 0xRRGGBB.
+// A zero channel is black, so the mode is what distinguishes it from unset.
+const ColorRGB = 2
+
+// Entry is one key in the session tree.
+// Dir is a folder. Otherwise Pane names the file. Path is the full key.
+type Entry struct {
+	Name string
+	Path string
+	Dir  bool
+	Pane string
+}
+
+// Tree is the direct children of one folder.
+// Path empty is the root. The server does not store which client is standing there.
+type Tree struct {
+	Path    string
+	Entries []Entry
+}
+
 // SessionInfo is the ubersession membership.
 // Panes is creation order. It is not a layout.
+// Entries is the key tree. A folder exists because some pane's path names it.
 type SessionInfo struct {
-	ID    string
-	Panes []string
+	ID      string
+	Panes   []string
+	Entries []Entry
 }
 
 // PaneInfo is the pane record without the grid.
@@ -28,18 +58,27 @@ type PaneInfo struct {
 	LastWriter string
 	CursorRow  int
 	CursorCol  int
+	Path       string
 }
 
 // Cell is one column of the pane grid.
 // Rune is empty for a blank column. Wide marks the second column of a
-// double-width rune. FG and BG are palette indexes; 0 is the default color.
-// 1 through 8 are the normal ANSI colors and 9 through 16 are the bright ones.
+// double-width rune. FG and BG are palette indexes when FGMode and BGMode
+// are ColorPalette. FGIndex and BGIndex are used for ColorIndex.
+// FGRGB and BGRGB are used for ColorRGB.
 type Cell struct {
-	Rune string
-	FG   int
-	BG   int
-	Bold bool
-	Wide bool
+	Rune    string
+	FG      int
+	BG      int
+	Bold    bool
+	Wide    bool
+	FGMode  int
+	BGMode  int
+	FGIndex int
+	BGIndex int
+	FGRGB   uint32
+	BGRGB   uint32
+	Reverse bool
 }
 
 // Pane is one pane record, including the visible grid in row-major order.
@@ -84,6 +123,8 @@ func cellsText(cells []Cell) string {
 // An empty Command uses the SHELL environment variable, or /bin/sh.
 // Rows and Cols are the initial grid. They are not a write, so LastWriter
 // stays empty until a client sends input.
+// Path is the pane's key. Empty stores the file at its id.
+// A trailing slash stores it inside that folder, named by the new id.
 type CreateRequest struct {
 	Command []string
 	Dir     string
@@ -91,6 +132,7 @@ type CreateRequest struct {
 	Cols    int
 	Title   string
 	Client  string
+	Path    string
 }
 
 // WriteRequest sends terminal input to a pane.
@@ -107,9 +149,12 @@ type WriteRequest struct {
 
 // WatchRequest replaces the panes this connection wants pushed.
 // All watches the ubersession. Otherwise Panes is the exact set, which may be empty.
+// Prefix watches every pane whose key is that folder or a file inside it.
+// A folder watch also receives session records. An exact pane set does not.
 type WatchRequest struct {
-	All   bool
-	Panes []string
+	All    bool
+	Panes  []string
+	Prefix string
 }
 
 // Event is one pushed record.
@@ -161,6 +206,8 @@ func (f *Failure) Unwrap() error {
 		return ErrTermClosed
 	case ErrMethod.Error():
 		return ErrMethod
+	case ErrPath.Error():
+		return ErrPath
 	default:
 		return nil
 	}

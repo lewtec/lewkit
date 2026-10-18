@@ -40,6 +40,8 @@ func (f *fakeAPI) Write(_ context.Context, req WriteRequest) error {
 
 func (f *fakeAPI) Kill(context.Context, string) error { return nil }
 
+func (f *fakeAPI) Move(context.Context, string, string) error { return nil }
+
 func (f *fakeAPI) Watch(_ context.Context, req WatchRequest) error {
 	f.watches = append(f.watches, req)
 	return nil
@@ -121,6 +123,30 @@ func TestPaletteFollowAndUbersession(t *testing.T) {
 	_ = cmd()
 	assert.True(t, model.followAll)
 	assert.True(t, api.watches[len(api.watches)-1].All)
+}
+
+func TestPaletteFolderSetsCreatePath(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	for _, r := range "open folder" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	actions := model.actions()
+	require.Len(t, actions, 1)
+	assert.Equal(t, ActionFolder, actions[0])
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	for _, r := range "work" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Equal(t, "work", model.folder)
+
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	_ = cmd()
+	require.Len(t, api.creates, 1)
+	assert.Equal(t, "work/", api.creates[0].Path)
 }
 
 func TestPaletteCtrlC(t *testing.T) {

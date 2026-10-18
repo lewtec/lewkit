@@ -170,6 +170,23 @@ func (c *connState) dispatch(ctx context.Context, method Method, msg *schema.Env
 			return nil, err
 		}
 		return ackFrame(), nil
+	case MethodTreeList:
+		if err := payloadMatches(msg, msg.GetTreeRequest() != nil); err != nil {
+			return nil, err
+		}
+		tree, err := c.session.List(ctx, msg.GetTreeRequest().GetPath())
+		if err != nil {
+			return nil, err
+		}
+		return &schema.Envelope{Payload: &schema.Envelope_Tree{Tree: treeToSchema(tree)}}, nil
+	case MethodPaneMove:
+		if err := payloadMatches(msg, msg.GetMove() != nil); err != nil {
+			return nil, err
+		}
+		if err := c.session.Move(ctx, msg.GetMove().GetId(), msg.GetMove().GetPath()); err != nil {
+			return nil, err
+		}
+		return ackFrame(), nil
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrMethod, method)
 	}
@@ -189,7 +206,7 @@ func errorFrame(id uint32, err error) *schema.Envelope {
 }
 
 func (c *connState) rewatch(req WatchRequest) error {
-	cancel, err := c.session.Watch(req.Panes, req.All, c.enqueue)
+	cancel, err := c.session.Watch(req.Panes, req.All, req.Prefix, c.enqueue)
 	if err != nil {
 		return err
 	}
@@ -302,6 +319,8 @@ func failureCode(err error) string {
 		return ErrTermClosed.Error()
 	case errors.Is(err, ErrMethod):
 		return ErrMethod.Error()
+	case errors.Is(err, ErrPath):
+		return ErrPath.Error()
 	case errors.Is(err, errs.ErrNotFound):
 		return errs.ErrNotFound.Error()
 	case errors.Is(err, errs.ErrClosed):
@@ -582,6 +601,25 @@ func (c *Client) Kill(ctx context.Context, id string) error {
 // Watch replaces the panes whose records this client wants pushed.
 func (c *Client) Watch(ctx context.Context, req WatchRequest) error {
 	_, err := c.Call(ctx, MethodWatch, watchToSchema(req))
+	return err
+}
+
+// List reads one folder of the key tree.
+func (c *Client) List(ctx context.Context, path string) (Tree, error) {
+	resp, err := c.Call(ctx, MethodTreeList, &schema.TreeRequest{Path: path})
+	if err != nil {
+		return Tree{}, err
+	}
+	tree := resp.GetTree()
+	if tree == nil {
+		return Tree{}, fmt.Errorf("%w: %s", ErrProtocol, "tree")
+	}
+	return treeFromSchema(tree), nil
+}
+
+// Move gives a pane a new key.
+func (c *Client) Move(ctx context.Context, id, path string) error {
+	_, err := c.Call(ctx, MethodPaneMove, &schema.MoveRequest{Id: id, Path: path})
 	return err
 }
 

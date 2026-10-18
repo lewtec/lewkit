@@ -19,6 +19,7 @@ type Session struct {
 	mu         sync.Mutex
 	id         string
 	panes      map[string]*live
+	paths      map[string]string
 	order      []string
 	listeners  map[int]*listener
 	nextListen int
@@ -35,9 +36,10 @@ type live struct {
 }
 
 type listener struct {
-	all   bool
-	panes map[string]bool
-	fn    func(Event)
+	all    bool
+	prefix string
+	panes  map[string]bool
+	fn     func(Event)
 }
 
 // Open starts an empty ubersession.
@@ -56,6 +58,7 @@ func Open(ctx context.Context) (*Session, error) {
 		cancel:    cancel,
 		id:        id,
 		panes:     map[string]*live{},
+		paths:     map[string]string{},
 		listeners: map[int]*listener{},
 	}
 	go func() {
@@ -135,7 +138,11 @@ func (s *Session) Info(ctx context.Context) (SessionInfo, error) {
 
 func (s *Session) info() SessionInfo {
 	panes := append([]string(nil), s.order...)
-	return SessionInfo{ID: s.id, Panes: panes}
+	return SessionInfo{ID: s.id, Panes: panes, Entries: s.entries()}
+}
+
+func (s *Session) entries() []Entry {
+	return catalog(s.order, s.panes)
 }
 
 // Panes returns every pane header in creation order.
@@ -203,6 +210,15 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 		s.mu.Unlock()
 		return Pane{}, err
 	}
+	path, err := assignPath(req.Path, id)
+	if err != nil {
+		s.mu.Unlock()
+		return Pane{}, err
+	}
+	if pathTaken(s.paths, path) {
+		s.mu.Unlock()
+		return Pane{}, fmt.Errorf("%w: %s", ErrPath, path)
+	}
 	procCtx := s.ctx
 	s.mu.Unlock()
 
@@ -225,6 +241,7 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 			Rows:     rows,
 			Cols:     cols,
 			Revision: 1,
+			Path:     path,
 		},
 		grid: NewGrid(rows, cols),
 		proc: proc,
@@ -235,7 +252,13 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 		proc.Close()
 		return Pane{}, ErrTermClosed
 	}
+	if pathTaken(s.paths, path) {
+		s.mu.Unlock()
+		proc.Close()
+		return Pane{}, fmt.Errorf("%w: %s", ErrPath, path)
+	}
 	s.panes[id] = pane
+	s.paths[path] = id
 	s.order = append(s.order, id)
 	record := pane.record()
 	info := s.info()
@@ -301,6 +324,79 @@ func (s *Session) Write(ctx context.Context, req WriteRequest) error {
 	return proc.Write([]byte(req.Data))
 }
 
+// List returns the files and folders directly inside path.
+// An empty path is the root. A path that names a file is ErrPath.
+// A folder with no panes is an empty list. The server does not store empty folders.
+func (s *Session) List(ctx context.Context, folder string) (Tree, error) {
+	if err := ctx.Err(); err != nil {
+		return Tree{}, err
+	}
+	cleaned, err := cleanPath(folder)
+	if err != nil {
+		return Tree{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return Tree{}, ErrTermClosed
+	}
+	if cleaned != "" {
+		if _, file := s.paths[cleaned]; file {
+			return Tree{}, fmt.Errorf("%w: %s", ErrPath, cleaned)
+		}
+	}
+	return Tree{Path: cleaned, Entries: directChildren(s.entries(), cleaned)}, nil
+}
+
+// Move gives a pane a new key.
+// The key must not collide with a file or with a folder that already holds panes.
+func (s *Session) Move(ctx context.Context, id, path string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if id == "" {
+		return ErrID
+	}
+	cleaned, err := cleanPath(path)
+	if err != nil {
+		return err
+	}
+	if cleaned == "" {
+		return fmt.Errorf("%w: %s", ErrPath, path)
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrTermClosed
+	}
+	pane, ok := s.panes[id]
+	if !ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrPane, id)
+	}
+	old := pane.info.Path
+	if old == cleaned {
+		s.mu.Unlock()
+		return nil
+	}
+	delete(s.paths, old)
+	if pathTaken(s.paths, cleaned) {
+		s.paths[old] = id
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrPath, cleaned)
+	}
+	pane.info.Path = cleaned
+	pane.info.Revision++
+	s.paths[cleaned] = id
+	record := pane.record()
+	info := s.info()
+	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
+	fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
+	s.mu.Unlock()
+	deliver(fns)
+	return nil
+}
+
 // Kill stops the pane process and keeps the grid.
 func (s *Session) Kill(ctx context.Context, id string) error {
 	if err := ctx.Err(); err != nil {
@@ -329,11 +425,18 @@ func (s *Session) Kill(ctx context.Context, id string) error {
 }
 
 // Watch registers fn for matching pushes.
-// An empty panes list with all watches the ubersession. The cancel function
-// removes the registration. fn runs without the session lock.
-func (s *Session) Watch(panes []string, all bool, fn func(Event)) (func(), error) {
+// An empty panes list with all watches the ubersession. prefix watches a folder.
+// The cancel function removes the registration. fn runs without the session lock.
+func (s *Session) Watch(panes []string, all bool, prefix string, fn func(Event)) (func(), error) {
 	if fn == nil {
 		return nil, ErrProtocol
+	}
+	if prefix != "" {
+		cleaned, err := cleanPath(prefix)
+		if err != nil {
+			return nil, err
+		}
+		prefix = cleaned
 	}
 	s.mu.Lock()
 	if s.closed {
@@ -342,7 +445,7 @@ func (s *Session) Watch(panes []string, all bool, fn func(Event)) (func(), error
 	}
 	s.nextListen++
 	id := s.nextListen
-	ln := &listener{all: all, panes: map[string]bool{}, fn: fn}
+	ln := &listener{all: all, prefix: prefix, panes: map[string]bool{}, fn: fn}
 	if !all {
 		for _, pane := range panes {
 			if pane != "" {
@@ -365,22 +468,23 @@ func (s *Session) Watch(panes []string, all bool, fn func(Event)) (func(), error
 
 func (s *Session) initial(ln *listener) []Event {
 	var out []Event
-	if ln.all {
+	if ln.all || ln.prefix != "" {
 		info := s.info()
 		out = append(out, Event{Notice: NoticeSession, Session: &info})
+	}
+	if ln.all {
 		for _, id := range s.order {
 			record := s.panes[id].record()
 			out = append(out, Event{Notice: NoticePane, Pane: &record})
 		}
 		return out
 	}
-	for id := range ln.panes {
-		pane, ok := s.panes[id]
-		if !ok {
-			continue
+	for _, id := range s.order {
+		pane := s.panes[id]
+		if ln.panes[id] || (ln.prefix != "" && pathUnder(pane.info.Path, ln.prefix)) {
+			record := pane.record()
+			out = append(out, Event{Notice: NoticePane, Pane: &record})
 		}
-		record := pane.record()
-		out = append(out, Event{Notice: NoticePane, Pane: &record})
 	}
 	return out
 }
@@ -450,6 +554,7 @@ func (s *Session) matching(ev Event) []func() {
 		if ev.Session != nil {
 			info := *ev.Session
 			info.Panes = append([]string(nil), ev.Session.Panes...)
+			info.Entries = append([]Entry(nil), ev.Session.Entries...)
 			copied.Session = &info
 		}
 		event := copied
@@ -461,12 +566,18 @@ func (s *Session) matching(ev Event) []func() {
 func (ln *listener) match(ev Event) bool {
 	switch ev.Notice {
 	case NoticeSession:
-		return ln.all
+		return ln.all || ln.prefix != ""
 	case NoticePane, NoticePaneClosed:
 		if ln.all {
 			return true
 		}
-		return ev.Pane != nil && ln.panes[ev.Pane.ID]
+		if ev.Pane == nil {
+			return false
+		}
+		if ln.panes[ev.Pane.ID] {
+			return true
+		}
+		return ln.prefix != "" && pathUnder(ev.Pane.Path, ln.prefix)
 	default:
 		return false
 	}

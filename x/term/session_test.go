@@ -73,7 +73,7 @@ func TestSessionWritersAndWatch(t *testing.T) {
 	assert.Equal(t, 40, untouched.Cols)
 
 	filtered := make(chan Event, 8)
-	cancel, err := session.Watch([]string{first.ID}, false, func(ev Event) {
+	cancel, err := session.Watch([]string{first.ID}, false, "", func(ev Event) {
 		filtered <- ev
 	})
 	require.NoError(t, err)
@@ -114,4 +114,79 @@ watched:
 		pane, err := session.Pane(ctx, first.ID)
 		return err == nil && !pane.Alive
 	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestSessionTree(t *testing.T) {
+	if _, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0); err != nil {
+		test.Skipf(t, "pty: %v", err)
+	}
+	ctx := t.Context()
+	session, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+
+	editor, err := session.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 8, Cols: 8, Path: "work/"})
+	require.NoError(t, err)
+	assert.Equal(t, "work/"+editor.ID, editor.Path)
+
+	notes, err := session.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 8, Cols: 8, Path: "notes"})
+	require.NoError(t, err)
+	assert.Equal(t, "notes", notes.Path)
+
+	root, err := session.List(ctx, "")
+	require.NoError(t, err)
+	require.Len(t, root.Entries, 2)
+	assert.Equal(t, "notes", root.Entries[0].Path)
+	assert.Equal(t, notes.ID, root.Entries[0].Pane)
+	assert.True(t, root.Entries[1].Dir)
+	assert.Equal(t, "work", root.Entries[1].Path)
+
+	inside, err := session.List(ctx, "work")
+	require.NoError(t, err)
+	require.Len(t, inside.Entries, 1)
+	assert.Equal(t, editor.ID, inside.Entries[0].Pane)
+
+	_, err = session.List(ctx, "notes")
+	require.ErrorIs(t, err, ErrPath)
+	_, err = session.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 4, Cols: 4, Path: "work"})
+	require.ErrorIs(t, err, ErrPath)
+
+	require.NoError(t, session.Move(ctx, editor.ID, "work/editor"))
+	moved, err := session.Pane(ctx, editor.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "work/editor", moved.Path)
+
+	seen := make(chan Event, 8)
+	cancel, err := session.Watch(nil, false, "work", func(ev Event) {
+		seen <- ev
+	})
+	require.NoError(t, err)
+	t.Cleanup(cancel)
+	require.Eventually(t, func() bool {
+		select {
+		case ev := <-seen:
+			return ev.Notice == NoticeSession
+		default:
+			return false
+		}
+	}, time.Second, 10*time.Millisecond)
+
+	other, err := session.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 4, Cols: 4, Path: "elsewhere"})
+	require.NoError(t, err)
+	child, err := session.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 4, Cols: 4, Path: "work/child"})
+	require.NoError(t, err)
+
+	var panes []string
+	require.Eventually(t, func() bool {
+		select {
+		case ev := <-seen:
+			if ev.Notice == NoticePane && ev.Pane != nil {
+				panes = append(panes, ev.Pane.ID)
+			}
+			return contains(panes, child.ID)
+		default:
+			return contains(panes, child.ID)
+		}
+	}, time.Second, 10*time.Millisecond)
+	assert.NotContains(t, panes, other.ID)
 }

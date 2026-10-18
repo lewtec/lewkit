@@ -59,8 +59,57 @@ func TestGridSGRColor(t *testing.T) {
 	assert.Equal(t, 2, cells[0].FG)
 }
 
-func TestGridPrivateModeIsIgnored(t *testing.T) {
+func TestGridUnknownPrivateModeIsIgnored(t *testing.T) {
 	grid := NewGrid(2, 8)
-	grid.Feed([]byte("\x1b[?1049hhi"))
+	grid.Feed([]byte("\x1b[?9999hhi"))
 	assert.Equal(t, "hi", grid.Text())
+}
+
+func TestGridTruecolorDoesNotStickRed(t *testing.T) {
+	grid := NewGrid(2, 8)
+	grid.Feed([]byte("\x1b[48;2;197;52;41mY"))
+	_, _, _, _, cells := grid.Snapshot()
+	require.NotEmpty(t, cells)
+	assert.Equal(t, "Y", cells[0].Rune)
+	assert.Equal(t, ColorRGB, cells[0].BGMode)
+	assert.Equal(t, uint32(197<<16|52<<8|41), cells[0].BGRGB)
+	assert.Equal(t, 0, cells[0].BG)
+
+	grid.Feed([]byte("\x1b[0;48:2::1:2:3mX"))
+	_, _, _, _, cells = grid.Snapshot()
+	assert.Equal(t, "X", cells[1].Rune)
+	assert.Equal(t, ColorRGB, cells[1].BGMode)
+	assert.Equal(t, uint32(1<<16|2<<8|3), cells[1].BGRGB)
+	assert.Equal(t, 0, cells[1].BG)
+	assert.Equal(t, 0, cells[1].FG)
+}
+
+func TestGridIndexedColor(t *testing.T) {
+	grid := NewGrid(1, 4)
+	grid.Feed([]byte("\x1b[38:5:196mZ"))
+	_, _, _, _, cells := grid.Snapshot()
+	require.NotEmpty(t, cells)
+	assert.Equal(t, ColorIndex, cells[0].FGMode)
+	assert.Equal(t, 196, cells[0].FGIndex)
+	assert.Equal(t, 0, cells[0].FG)
+}
+
+func TestGridAltScreenRestores(t *testing.T) {
+	grid := NewGrid(2, 8)
+	grid.Feed([]byte("ab\x1b[?1049h"))
+	assert.Equal(t, "", grid.Text())
+	grid.Feed([]byte("cd"))
+	assert.Equal(t, "cd", grid.Text())
+	grid.Feed([]byte("\x1b[?1049l"))
+	assert.Equal(t, "ab", grid.Text())
+}
+
+func TestGridReverseAndScrollRegion(t *testing.T) {
+	grid := NewGrid(4, 4)
+	grid.Feed([]byte("\x1b[7mA"))
+	_, _, _, _, cells := grid.Snapshot()
+	assert.True(t, cells[0].Reverse)
+
+	grid.Feed([]byte("\x1b[0m\x1b[1;2r\x1b[2;1Hb\nb"))
+	assert.Equal(t, "b\nb", grid.Text())
 }

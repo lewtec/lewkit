@@ -23,4 +23,7 @@ var (
 	ErrPty = errs.Wrap(errs.ErrUnsupported, "pty is unsupported")
 	// ErrTermClosed means the session or the pane is closed.
 	ErrTermClosed = errs.Wrap(errs.ErrClosed, "term closed")
+	// ErrPath means a pane key is empty, walks out of the tree, or collides
+	// with a folder or another file.
+	ErrPath = errs.Wrap(errs.ErrInvalid, "invalid pane path")
 )
