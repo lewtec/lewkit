@@ -30,15 +30,13 @@
 // desk shows the focused pane. Empty pockets stay on the client. ctrl+k,
 // and the same chord with super or meta, opens the session view. It does
 // not search from the pane. Typing in that view filters sessions, panes,
-// and actions. The second enter on a session or a pane leaves the session
-// view focused on that pane. Enter on a folder opens that folder and does
-// not move the armed pane. The arrow still carries a pane or a session.
-// One enter runs an action. The drawer takes clicks and the wheel. The
-// wheel moves through the drawer the way the arrow keys do. A click picks
-// up a pane, a session, or a folder. A second click on a session selects
-// it, and a second click on a pane enters it. A click on a pane and then a
-// folder nests the pane. A click on a folder and then another folder nests
-// the first under the second. / is the root, and a click there unnests.
+// and actions. One enter runs an action. The drawer takes clicks and the
+// wheel. The wheel moves through the drawer the way the arrow keys do. A
+// click or Enter selects a session, opens a folder, or arms a pane. The
+// second Enter on that pane or session opens it. Right arrow, or the arrow
+// on the row, picks up a pane, a session, or a folder. Enter or a click on
+// a folder nests what is carried. / is the root. Up lands on it, and Enter
+// or a click there unnests. Enter without a carry only selects or opens.
 // A focused pane takes mouse, scroll, paste, and the other keys. The rail
 // still takes a click that lands on it. Mouse bytes are written when the
 // process asked for them. The wheel moves an alternate screen when it did

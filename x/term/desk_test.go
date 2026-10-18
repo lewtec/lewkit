@@ -53,25 +53,18 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.NotContains(t, plain, "standing in ")
 	assert.NotContains(t, plain, "├ editor")
 
-	cmd = clickLine(t, model, " · work", "work")
-	assert.Nil(t, cmd)
-	assert.True(t, model.drawer)
-	assert.Empty(t, model.shown)
-	assert.Equal(t, "work", model.heldSession)
 	runCmd(clickLine(t, model, " · work", "work"))
 	assert.True(t, model.drawer)
 	assert.Equal(t, "work", model.shown)
 	assert.Equal(t, "work", model.followPrefix)
 	assert.False(t, model.followAll)
 	assert.Empty(t, model.heldSession)
+	assert.Empty(t, model.held)
+	assert.Equal(t, "ed", model.armed)
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, "├ editor")
 	assert.Contains(t, plain, "└ docs")
 
-	cmd = clickLine(t, model, "├ editor", "editor")
-	assert.Nil(t, cmd)
-	assert.True(t, model.drawer)
-	assert.Equal(t, "ed", model.held)
 	runCmd(clickLine(t, model, "├ editor", "editor"))
 	assert.False(t, model.drawer)
 	assert.Equal(t, "ed", model.focus)
@@ -335,7 +328,8 @@ func TestDrawerSearchFindsPanesAndActions(t *testing.T) {
 	cmd = clickLine(t, model, "work/editor", "editor")
 	assert.Nil(t, cmd)
 	assert.True(t, model.drawer)
-	assert.Equal(t, "ed", model.held)
+	assert.Equal(t, "ed", model.armed)
+	assert.Empty(t, model.held)
 	cmd = clickLine(t, model, "work/editor", "editor")
 	runCmd(cmd)
 	assert.False(t, model.drawer)
@@ -469,27 +463,32 @@ func TestEnterOnAPaneThenAFolderDoesNotNest(t *testing.T) {
 
 	model.shown = "work"
 	model.drawer = true
-	model.drawerAt = 2
 	model.armed = ""
+	model.held = ""
 	model.focus = "ed"
-	model.held = "ed"
+	model.drawerAt = 3
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	assert.Equal(t, "ed", model.held)
+	assert.Empty(t, api.moves)
+
+	model.drawerAt = 2
 	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	runCmd(cmd)
+	applyCmd(model, cmd)
 	assert.Empty(t, api.moves)
 	assert.Equal(t, "work/editor", model.byID["ed"].Path)
-	assert.Equal(t, "ed", model.held)
+	assert.Empty(t, model.held)
+	assert.Empty(t, model.byID["ed"].Dir)
 
+	model.drawerAt = 3
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	assert.Equal(t, "ed", model.held)
 	model.drawerAt = 4
 	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	runCmd(cmd)
-	assert.Empty(t, api.moves)
-	assert.Equal(t, "work/editor", model.byID["ed"].Path)
-	assert.Equal(t, "ed", model.held)
-
-	cmd = clickLine(t, model, "└ src", "src")
 	applyCmd(model, cmd)
 	require.Equal(t, []movedMsg{{id: "ed", path: "work/src/editor"}}, api.moves)
 	assert.Equal(t, "work/src/editor", model.byID["ed"].Path)
+	assert.Empty(t, model.byID["ed"].Dir)
+	assert.Empty(t, model.held)
 }
 
 func TestTwoEntersStayOnThePaneYouArmed(t *testing.T) {
@@ -791,7 +790,7 @@ func TestDrawerWheelScrollsLikeTheKeys(t *testing.T) {
 		_, cmd = model.Update(tea.MouseWheelMsg{X: 1, Y: 1, Button: tea.MouseWheelUp})
 		assert.Nil(t, cmd)
 	}
-	assert.Equal(t, 0, model.drawerAt)
+	assert.Equal(t, -1, model.drawerAt)
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, " · s00")
 	assert.True(t, rootShown(plain))
@@ -810,7 +809,7 @@ func TestDrawerWheelScrollsLikeTheKeys(t *testing.T) {
 	assert.Empty(t, api.writes)
 }
 
-func TestDrawerDoubleClickSelectsASession(t *testing.T) {
+func TestDrawerClickSelectsASession(t *testing.T) {
 	api := &fakeAPI{}
 	model := newModel(t.Context(), api, "")
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
@@ -820,26 +819,21 @@ func TestDrawerDoubleClickSelectsASession(t *testing.T) {
 	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
 	model.byID["n"] = Pane{PaneInfo: PaneInfo{ID: "n", Path: "notes", Title: "notes", Alive: true}}
 
-	cmd := clickLine(t, model, " · work", "work")
-	assert.Nil(t, cmd)
-	assert.True(t, model.drawer)
-	assert.Empty(t, model.shown)
-	assert.Equal(t, "work", model.heldSession)
-	assert.Empty(t, api.watches)
-
 	runCmd(clickLine(t, model, " · work", "work"))
 	assert.True(t, model.drawer)
 	assert.Equal(t, "work", model.shown)
 	assert.Equal(t, "work", model.followPrefix)
 	assert.False(t, model.followAll)
 	assert.Empty(t, model.heldSession)
+	assert.Equal(t, "ed", model.armed)
 	assert.Empty(t, api.writes)
 
-	cmd = clickLine(t, model, "* work", "work")
-	assert.Nil(t, cmd)
-	assert.True(t, model.drawer)
+	runCmd(clickLine(t, model, "* work", "work"))
+	assert.False(t, model.drawer)
+	assert.Equal(t, "ed", model.focus)
 	assert.Equal(t, "work", model.shown)
-	assert.Equal(t, "work", model.heldSession)
+	assert.Empty(t, model.heldSession)
+	assert.Empty(t, api.writes)
 }
 
 func TestDrawerClickNestsAPaneThenAFolder(t *testing.T) {
@@ -854,14 +848,14 @@ func TestDrawerClickNestsAPaneThenAFolder(t *testing.T) {
 	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true, Dir: "/lewkit-room"}}
 	model.byID["main"] = Pane{PaneInfo: PaneInfo{ID: "main", Path: "work/src/main", Title: "go", Alive: true, Dir: "/lewkit-room"}}
 
-	cmd := clickLine(t, model, "├ editor", "editor")
-	assert.Nil(t, cmd)
+	model.drawerAt = 3
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.True(t, model.drawer)
 	assert.Equal(t, "ed", model.held)
 	assert.Empty(t, api.moves)
 	assert.Equal(t, "work/editor", model.byID["ed"].Path)
 
-	cmd = clickLine(t, model, " · pockets", "pockets")
+	cmd := clickLine(t, model, " · pockets", "pockets")
 	applyCmd(model, cmd)
 	require.Equal(t, []movedMsg{{id: "ed", path: "pockets/editor"}}, api.moves)
 	assert.Equal(t, "pockets/editor", model.byID["ed"].Path)
@@ -881,14 +875,15 @@ func TestDrawerClickNestsAFolderAndUnnestsAtRoot(t *testing.T) {
 	model.order = []string{"note"}
 	model.byID["note"] = Pane{PaneInfo: PaneInfo{ID: "note", Path: "pockets/note", Title: "n", Alive: true, Dir: "/lewkit-room"}}
 
-	cmd := clickLine(t, model, " · pockets", "pockets")
-	assert.Nil(t, cmd)
+	model.drawerAt = 2
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, "pockets", model.heldFolder)
 	assert.Empty(t, api.moves)
 	plain, _ := renderPlain(model)
 	assert.Contains(t, plain, "carrying pockets")
 
-	cmd = clickLine(t, model, " · archive", "archive")
+	model.drawerAt = 1
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	applyCmd(model, cmd)
 	assert.Equal(t, []string{"archive", "archive/pockets"}, model.made)
 	assert.Equal(t, "archive/pockets/note", model.byID["note"].Path)
@@ -896,24 +891,29 @@ func TestDrawerClickNestsAFolderAndUnnestsAtRoot(t *testing.T) {
 	assert.Equal(t, "archive", model.place)
 	assert.Empty(t, model.heldFolder)
 
-	cmd = clickLine(t, model, " · archive", "archive")
-	assert.Nil(t, cmd)
+	model.drawerAt = 1
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, "archive", model.heldFolder)
-	cmd = clickLine(t, model, "└ pockets", "pockets")
+	model.drawerAt = 2
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Nil(t, cmd)
 	assert.Equal(t, ErrPath.Error(), model.errText)
 	assert.Equal(t, "archive", model.heldFolder)
 	assert.Equal(t, "archive/pockets/note", model.byID["note"].Path)
 
-	cmd = clickRoot(t, model)
-	assert.Nil(t, cmd)
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
 	assert.Empty(t, model.heldFolder)
+	assert.True(t, model.drawer)
 	assert.Equal(t, "archive/pockets/note", model.byID["note"].Path)
 
-	cmd = clickLine(t, model, "└ pockets", "pockets")
-	assert.Nil(t, cmd)
+	model.drawerAt = 2
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, "archive/pockets", model.heldFolder)
-	cmd = clickRoot(t, model)
+	model.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	assert.Equal(t, -1, model.drawerAt)
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	applyCmd(model, cmd)
 	assert.Equal(t, []string{"archive", "pockets"}, model.made)
 	assert.Equal(t, "pockets/note", model.byID["note"].Path)
@@ -923,13 +923,29 @@ func TestDrawerClickNestsAFolderAndUnnestsAtRoot(t *testing.T) {
 	assert.True(t, model.drawer)
 
 	before := len(api.moves)
-	cmd = clickLine(t, model, " · pockets", "pockets")
+	model.drawerAt = 2
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	assert.Equal(t, "pockets", model.heldFolder)
+	cmd = clickRoot(t, model)
 	assert.Nil(t, cmd)
-	cmd = clickLine(t, model, " · pockets", "pockets")
+	assert.Empty(t, model.heldFolder)
+	assert.Equal(t, "pockets/note", model.byID["note"].Path)
+	assert.Len(t, api.moves, before)
+
+	model.drawerAt = 2
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	assert.Nil(t, cmd)
 	assert.Equal(t, "pockets", model.shown)
 	assert.Empty(t, model.heldFolder)
 	assert.Len(t, api.moves, before)
+
+	model.find = "arc"
+	model.heldFolder = "archive"
+	model.drawer = true
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	assert.Empty(t, model.heldFolder)
+	assert.Equal(t, "arc", model.find)
+	assert.True(t, model.drawer)
 }
 
 func TestDrawerRootUnnestsASession(t *testing.T) {
@@ -944,13 +960,14 @@ func TestDrawerRootUnnestsASession(t *testing.T) {
 	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "pockets/work/editor", Title: "hx", Alive: true, Dir: "/lewkit-room"}}
 	model.byID["docs"] = Pane{PaneInfo: PaneInfo{ID: "docs", Path: "pockets/work/docs", Title: "md", Alive: true, Dir: "/lewkit-room"}}
 
-	cmd := clickLine(t, model, " · work", "work")
-	assert.Nil(t, cmd)
+	model.drawerAt = 2
+	model.Update(tea.KeyPressMsg{Code: tea.KeyRight})
 	assert.Equal(t, "pockets/work", model.heldSession)
 	assert.True(t, model.drawer)
 	assert.Empty(t, api.moves)
 
-	cmd = clickRoot(t, model)
+	model.drawerAt = -1
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	applyCmd(model, cmd)
 	require.Equal(t, []movedMsg{
 		{id: "ed", path: "work/editor"},

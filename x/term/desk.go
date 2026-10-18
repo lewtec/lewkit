@@ -2,7 +2,6 @@ package term
 
 import (
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/mattn/go-runewidth"
@@ -31,8 +30,6 @@ const (
 	hitAction
 	hitRoot
 )
-
-const drawerClick = 400 * time.Millisecond
 
 type hit struct {
 	x, y, w int
@@ -244,7 +241,7 @@ func (m *Model) drawerBody(width, rows int) []string {
 		}
 		y := len(lines)
 		m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitRoot})
-		lines = append(lines, dress(fit(label, width), m.shown == "", false))
+		lines = append(lines, dress(fit(label, width), m.drawerAt < 0 || m.shown == "", false))
 	}
 	items := m.drawerRows()
 	if !m.hasSession() && !m.finding() && len(lines) < rows {
@@ -254,12 +251,10 @@ func (m *Model) drawerBody(width, rows int) []string {
 		lines = append(lines, styleMuted.Render(fit("nothing matches", width)))
 	}
 	if len(items) == 0 {
-		m.drawerAt = 0
+		m.drawerAt = -1
 		m.drawerFrom = 0
 	} else if m.drawerAt >= len(items) {
 		m.drawerAt = len(items) - 1
-	} else if m.drawerAt < 0 {
-		m.drawerAt = 0
 	}
 	room := rows - len(lines)
 	if room < 1 || len(items) == 0 {
@@ -268,7 +263,9 @@ func (m *Model) drawerBody(width, rows int) []string {
 		}
 		return lines
 	}
-	if m.drawerFrom < 0 || m.drawerAt < m.drawerFrom {
+	if m.drawerAt < 0 {
+		m.drawerFrom = 0
+	} else if m.drawerFrom < 0 || m.drawerAt < m.drawerFrom {
 		m.drawerFrom = m.drawerAt
 	}
 	if m.drawerAt >= m.drawerFrom+room {
@@ -649,9 +646,16 @@ func (m *Model) drawerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "down":
 		m.moveDrawer(1)
 		return m, nil
+	case "right":
+		m.grabHighlight()
+		return m, nil
 	case "enter":
 		return m.activateDrawer()
 	case "esc":
+		if m.carrying() {
+			m.clearHold()
+			return m, nil
+		}
 		if m.find != "" {
 			m.find = ""
 			m.armed = ""
@@ -696,20 +700,19 @@ func (m *Model) setDrawer(open bool) tea.Cmd {
 	m.palette = false
 	m.drawerAt = 0
 	m.drawerFrom = 0
-	m.clickKey = ""
 	return m.lookGit()
 }
 
 func (m *Model) moveDrawer(delta int) {
 	n := len(m.drawerRows())
 	if n == 0 {
-		m.drawerAt = 0
+		m.drawerAt = -1
 		m.armed = ""
 		return
 	}
 	m.drawerAt += delta
-	if m.drawerAt < 0 {
-		m.drawerAt = 0
+	if m.drawerAt < -1 {
+		m.drawerAt = -1
 	}
 	if m.drawerAt > n-1 {
 		m.drawerAt = n - 1
@@ -728,8 +731,11 @@ func (m *Model) scrollDrawer(button tea.MouseButton) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
+	if m.drawerAt < 0 {
+		return m, m.activateRoot()
+	}
 	rows := m.drawerRows()
-	if m.drawerAt < 0 || m.drawerAt >= len(rows) {
+	if m.drawerAt >= len(rows) {
 		return m, nil
 	}
 	row := rows[m.drawerAt]
@@ -745,25 +751,45 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if row.pocket || (row.pane == "" && row.folder != "" && !row.session) {
+		if cmd, dropped := m.dropOn(row.folder); dropped {
+			return m, cmd
+		}
 		m.openFolder(row.folder)
 		return m, nil
 	}
 	if row.session {
-		id := m.sessionFocus(row.key)
-		if id != "" && m.armed == id && m.shown == row.key {
-			return m, m.showPane(id)
-		}
-		m.armed = id
-		return m, m.selectSession(row.key)
+		return m, m.activateSession(row.key)
 	}
 	if row.pane != "" {
-		if m.held != "" || m.heldSession != "" {
+		if m.carrying() {
 			m.clearHold()
 			return m, m.showPane(row.pane)
 		}
 		return m.armPane(row.pane)
 	}
 	return m, nil
+}
+
+func (m *Model) activateRoot() tea.Cmd {
+	if cmd, dropped := m.dropOn(""); dropped {
+		return cmd
+	}
+	return m.showRoot()
+}
+
+func (m *Model) activateSession(key string) tea.Cmd {
+	if m.sessionDir(key) && (m.held != "" || m.heldSession != "") {
+		if cmd, dropped := m.dropOn(key); dropped {
+			return cmd
+		}
+	}
+	id := m.sessionFocus(key)
+	if id != "" && m.armed == id && m.shown == key {
+		m.clearHold()
+		return m.showPane(id)
+	}
+	m.armed = id
+	return m.selectSession(key)
 }
 
 func (m *Model) armPane(id string) (tea.Model, tea.Cmd) {
@@ -829,18 +855,7 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 	case hitTab:
 		return m, m.focusTab(item.id)
 	case hitSession:
-		if m.repeatClick("session:" + item.id) {
-			m.clearHold()
-			return m, m.selectSession(item.id)
-		}
-		if m.sessionDir(item.id) && (m.held != "" || m.heldSession != "") {
-			if cmd, dropped := m.dropOn(item.id); dropped {
-				return m, cmd
-			}
-		}
-		m.noteClick("session:" + item.id)
-		m.pickSession(item.id)
-		return m, nil
+		return m, m.activateSession(item.id)
 	case hitClose:
 		return m, m.closeSession(item.id)
 	case hitChoice:
@@ -853,70 +868,78 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 		}
 		return m.runSearchAction(rows[item.index].action)
 	case hitChild:
-		if m.repeatClick("pane:" + item.id) {
+		if m.carrying() {
 			m.clearHold()
 			return m, m.showPane(item.id)
 		}
-		m.noteClick("pane:" + item.id)
-		m.pickPane(item.id)
-		return m, nil
+		return m.armPane(item.id)
 	case hitNewDir:
 		m.startNaming()
 		return m, nil
 	case hitCarry:
-		if m.held == item.id {
-			m.held = ""
-			return m, nil
-		}
-		m.held = item.id
-		m.heldSession = ""
-		m.heldFolder = ""
-		m.drawer = true
+		m.grabPane(item.id)
 		return m, nil
 	case hitCarrySession:
-		if m.heldSession == item.id {
-			m.heldSession = ""
-			return m, nil
-		}
-		m.heldSession = item.id
-		m.held = ""
-		m.heldFolder = ""
-		m.drawer = true
+		m.grabSession(item.id)
 		return m, nil
 	case hitFolder:
-		if m.repeatClick("folder:" + item.id) {
-			m.clearHold()
-			m.openFolder(item.id)
-			return m, nil
-		}
 		if cmd, dropped := m.dropOn(item.id); dropped {
 			return m, cmd
 		}
-		m.noteClick("folder:" + item.id)
-		m.pickFolder(item.id)
+		m.openFolder(item.id)
 		return m, nil
 	case hitRoot:
-		m.clickKey = ""
-		if cmd, dropped := m.dropOn(""); dropped {
-			return m, cmd
-		}
-		return m, m.showRoot()
+		return m, m.activateRoot()
 	default:
 		return m, nil
 	}
 }
 
-func (m *Model) repeatClick(key string) bool {
-	if key != "" && key == m.clickKey && time.Since(m.clickStamp) < drawerClick {
-		m.clickKey = ""
-		return true
-	}
-	return false
+func (m *Model) carrying() bool {
+	return m.held != "" || m.heldSession != "" || m.heldFolder != ""
 }
 
-func (m *Model) noteClick(key string) {
-	m.clickKey = key
-	m.clickStamp = time.Now()
+func (m *Model) grabHighlight() {
+	if m.drawerAt < 0 {
+		return
+	}
+	rows := m.drawerRows()
+	if m.drawerAt >= len(rows) {
+		return
+	}
+	row := rows[m.drawerAt]
+	switch {
+	case row.pane != "":
+		m.grabPane(row.pane)
+	case row.session:
+		m.grabSession(row.key)
+	case row.folder != "":
+		m.grabFolder(row.folder)
+	}
+}
+
+func (m *Model) grabPane(id string) {
+	if m.held == id {
+		m.held = ""
+		return
+	}
+	m.pickPane(id)
+}
+
+func (m *Model) grabSession(key string) {
+	if m.heldSession == key {
+		m.heldSession = ""
+		return
+	}
+	m.pickSession(key)
+}
+
+func (m *Model) grabFolder(path string) {
+	if m.heldFolder == path {
+		m.heldFolder = ""
+		return
+	}
+	m.pickFolder(path)
 }
 
 func (m *Model) clearHold() {
