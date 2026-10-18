@@ -45,6 +45,7 @@ func TestBuildAssemblesGoApp(t *testing.T) {
 	_, err = os.Stat(filepath.Join(out, "Icon@3x.png"))
 	require.NoError(t, err)
 	require.Contains(t, string(plist), "<key>UIRequiredDeviceCapabilities</key>")
+	requireIOSFrameworks(t, exe)
 }
 
 func TestBuildAssemblesSimulator(t *testing.T) {
@@ -73,8 +74,20 @@ func TestBuildAssemblesSimulator(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(plist), "<string>iPhoneSimulator</string>")
 	require.NotContains(t, string(plist), "UIRequiredDeviceCapabilities")
+	requireIOSFrameworks(t, exe)
 	require.NoError(t, sign.SignTree(nil, out, "br.tec.lew.demo"))
 	require.Equal(t, uint32(platformIOSSim), machoBuildPlatform(t, exe))
+	requireIOSFrameworks(t, exe)
+}
+
+func requireIOSFrameworks(t *testing.T, exe string) {
+	t.Helper()
+	names := machoDylibNames(t, exe)
+	require.Contains(t, names, "/usr/lib/libSystem.B.dylib")
+	require.Contains(t, names, "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+	for _, name := range names {
+		require.NotContains(t, name, "/Versions/A/")
+	}
 }
 
 func machoBuildPlatform(t *testing.T, path string) uint32 {

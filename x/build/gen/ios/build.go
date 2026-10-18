@@ -30,6 +30,7 @@ var (
 var (
 	ErrOutAppRequired = common.ErrOutAppRequired
 	ErrIOSPlatform    = errs.Wrap(errs.ErrInvalid, "ios executable platform")
+	ErrIOSFramework   = errs.Wrap(errs.ErrInvalid, "ios framework load path")
 )
 
 // SDK is an xcrun SDK name. An empty text is the simulator.
@@ -212,6 +213,10 @@ func assembleGoIOS(ctx context.Context, opts BuildOptions, cfg Config, goMain, w
 	}
 	slog.Info("ios go", "arch", goarch, "simulator", simulator)
 	if err := buildIOSExe(ctx, exe, goMain, goarch, stamp, cfg.PackageID); err != nil {
+		return nil, err
+	}
+	// Go records macOS framework install names. dyld on iOS rejects them.
+	if err := rewriteIOSFrameworks(exe); err != nil {
 		return nil, err
 	}
 	if err := stampPlatform(exe, simulator); err != nil {
