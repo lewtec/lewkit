@@ -30,7 +30,7 @@ func TestInstallHelper(t *testing.T) {
 	}
 	st, err := os.Stat(filepath.Join(macOS, HelperName))
 	require.NoError(t, err)
-	if st.Mode().Perm()&0o111 == 0 {
+	if !test.Executable(st.Mode()) {
 		require.FailNowf(t, "", "server mode %v", st.Mode())
 	}
 }

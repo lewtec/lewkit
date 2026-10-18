@@ -60,7 +60,7 @@ func (l lang) Parse(source []byte) (tree *treesitter.Tree, err error) {
 			err = fmt.Errorf("%w: %s: lexer failed", treesitter.ErrParse, l.name)
 		}
 	}()
-	return treesitter.Run(l.name, l.raw, source, grammar.NewParser, func(tree *grammar.Tree) treesitter.Node {
+	return treesitter.Run(l.name, l.raw, source, newPinnedParser, func(tree *grammar.Tree) treesitter.Node {
 		return treesitter.NewSyntax[grammar.Node](tree, tree.RootNode())
 	})
 }

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/driver/window"
-	_ "github.com/lewtec/lewkit/x/driver/window/mem"
+	"github.com/lewtec/lewkit/x/driver/window/mem"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/lewtec/lewkit/x/ui/gui"
@@ -28,9 +28,8 @@ func TestColorWalksTheHue(t *testing.T) {
 }
 
 func TestFillCoversTheShownBox(t *testing.T) {
-	t.Setenv("LEWKIT_ENABLE_MEMORY_DRIVER", "1")
 	const width, height, bar = 120, 160, 24
-	host, err := window.Open(t.Context(), window.Config{Width: width, Height: height, Period: time.Hour})
+	host, err := mem.Open(t.Context(), window.Config{Width: width, Height: height, Period: time.Hour})
 	require.NoError(t, err)
 	test.CloseOnCleanup(t, host)
 	setter, ok := host.(interface{ SetDead([]image.Rectangle) })

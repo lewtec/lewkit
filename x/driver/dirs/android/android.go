@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
+	"path"
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/dirs"
@@ -52,12 +52,12 @@ func (backend) Resolve(ctx context.Context, appID string) (dirs.Dirs, error) {
 }
 
 func pathsFromDataDir(dataDir string) dirs.Dirs {
-	data := filepath.Join(dataDir, "files")
-	cache := filepath.Join(dataDir, "cache")
+	data := path.Join(dataDir, "files")
+	cache := path.Join(dataDir, "cache")
 	return dirs.Dirs{
 		Data:   data,
 		Cache:  cache,
-		Config: filepath.Join(data, "config"),
-		Inbox:  filepath.Join(cache, "inbox"),
+		Config: path.Join(data, "config"),
+		Inbox:  path.Join(cache, "inbox"),
 	}
 }

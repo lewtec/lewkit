@@ -27,7 +27,8 @@ func (a *AddrArg) Parse(arg string) error {
 			return fmt.Errorf("%w: %w", ErrInvalidArgument, err)
 		}
 		host, port = "", arg
-	} else if port == "" {
+	} else if _, perr := strconv.ParseUint(port, 10, 16); perr != nil {
+		// A Windows path contains a colon. Its tail is not a port.
 		return fmt.Errorf("%w: %w", ErrInvalidArgument, errMissingPort)
 	}
 	a.value = net.JoinHostPort(host, port)

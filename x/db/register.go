@@ -62,9 +62,21 @@ func splitURL(raw string) (scheme, dsn string) {
 	if raw == ":memory:" || strings.HasPrefix(raw, "file::memory:") {
 		return "sqlite", raw
 	}
-	u, err := url.Parse(raw)
+	if drive, ok := windowsDrivePath(raw); ok {
+		return "sqlite", drive
+	}
+	parsed := raw
+	u, err := url.Parse(parsed)
+	if err != nil && strings.Contains(parsed, `\`) {
+		// sqlite://C:\db\app is not a URL until the separators are slashes.
+		parsed = strings.ReplaceAll(parsed, `\`, `/`)
+		if drive, ok := windowsDrivePath(parsed); ok {
+			return "sqlite", drive
+		}
+		u, err = url.Parse(parsed)
+	}
 	if err != nil || u.Scheme == "" {
-		return "sqlite", raw
+		return "sqlite", parsed
 	}
 	scheme = strings.ToLower(u.Scheme)
 	switch scheme {
@@ -77,6 +89,33 @@ func splitURL(raw string) (scheme, dsn string) {
 	}
 }
 
+// windowsDrivePath reports a drive path such as C:\db\app.decomp.
+// url.Parse treats the drive letter as a scheme. SQLite opens the
+// slash form of that path.
+func windowsDrivePath(raw string) (string, bool) {
+	if len(raw) < 2 || raw[1] != ':' || !isASCIILetter(raw[0]) {
+		return "", false
+	}
+	return strings.ReplaceAll(raw, `\`, `/`), true
+}
+
+func isASCIILetter(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
+// fileURLDrive is the Windows path stored in a file URL.
+func fileURLDrive(u *url.URL) (string, bool) {
+	if drive, ok := windowsDrivePath(u.Host); ok {
+		return drive + u.Path, true
+	}
+	if len(u.Path) >= 4 && u.Path[0] == '/' {
+		if drive, ok := windowsDrivePath(u.Path[1:]); ok {
+			return drive, true
+		}
+	}
+	return "", false
+}
+
 func memoryDSN(dsn string) bool {
 	return dsn == ":memory:" || strings.Contains(dsn, "mode=memory") || strings.Contains(dsn, ":memory:")
 }
@@ -85,6 +124,11 @@ func sqliteDSN(u *url.URL, raw string) string {
 	if u.Scheme == "file" {
 		if u.Opaque != "" {
 			return u.Opaque + q(u)
+		}
+		// file://C:/db and file:///C:/db both name the drive path.
+		// The letter lands in Host or behind a leading slash.
+		if drive, ok := fileURLDrive(u); ok {
+			return drive + q(u)
 		}
 		if u.Path != "" {
 			return u.Path + q(u)

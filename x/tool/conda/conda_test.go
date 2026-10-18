@@ -13,6 +13,7 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/lewtec/lewkit/x/driver/fetchurl"
+	"github.com/lewtec/lewkit/x/test"
 	lewtool "github.com/lewtec/lewkit/x/tool"
 	"github.com/stretchr/testify/require"
 )
@@ -164,7 +165,7 @@ func TestListVersionsAndInstall(t *testing.T) {
 	require.Equal(t, "lib", string(libBody))
 	info, err := os.Stat(filepath.Join(dest, "bin", "hello"))
 	require.NoError(t, err)
-	require.NotZero(t, info.Mode()&0o111)
+	require.True(t, test.Executable(info.Mode()))
 }
 
 func TestRepodataFallback(t *testing.T) {
@@ -448,9 +449,12 @@ func TestArchivePathEscape(t *testing.T) {
 
 func TestInstallPrefixStripsStagingUUID(t *testing.T) {
 	t.Parallel()
-	got := installPrefix("/tmp/tools/conda-ripgrep/15.2.0.018f6d3e-7c31-7a1b-8d4e-9c0b1a2d3e4f")
-	require.Equal(t, "/tmp/tools/conda-ripgrep/15.2.0", got)
-	require.Equal(t, "/tmp/tools/conda-ripgrep/15.2.0", installPrefix("/tmp/tools/conda-ripgrep/15.2.0"))
+	base := filepath.Join(t.TempDir(), "conda-ripgrep", "15.2.0")
+	abs, err := filepath.Abs(base)
+	require.NoError(t, err)
+	got := installPrefix(abs + ".018f6d3e-7c31-7a1b-8d4e-9c0b1a2d3e4f")
+	require.Equal(t, abs, got)
+	require.Equal(t, abs, installPrefix(abs))
 }
 
 type archiveFile struct {

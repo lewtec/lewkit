@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/release"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,7 +39,7 @@ func TestBuildAppImage(t *testing.T) {
 	if info.IsDir() {
 		require.FailNow(t, fmt.Sprint("app image is a directory"))
 	}
-	if info.Mode()&0o111 == 0 {
+	if !test.Executable(info.Mode()) {
 		require.FailNow(t, fmt.Sprint("app image is not executable"))
 	}
 	raw, err := os.ReadFile(out)

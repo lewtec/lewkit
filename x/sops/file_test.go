@@ -63,6 +63,8 @@ func TestAgeKeyFile(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	require.NoError(t, os.WriteFile(path, append([]byte("# fixture\n"), key...), 0o600))
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	// Windows sops reads %AppData%\sops\age\keys.txt.
+	t.Setenv("AppData", dir)
 
 	want, err := os.ReadFile("testdata/secrets.plain")
 	require.NoError(t, err)
@@ -152,7 +154,8 @@ func TestAgeKeyCommand(t *testing.T) {
 	isolateAge(t)
 	path, err := filepath.Abs("testdata/age.txt")
 	require.NoError(t, err)
-	t.Setenv("SOPS_AGE_KEY_CMD", "cat "+path)
+	// shlex treats \ as an escape, so the command uses slash separators.
+	t.Setenv("SOPS_AGE_KEY_CMD", "cat "+filepath.ToSlash(path))
 	want, err := os.ReadFile("testdata/blob.plain")
 	require.NoError(t, err)
 	got, err := Open("testdata/blob.sops")
@@ -170,8 +173,11 @@ func useAgeKey(t *testing.T) {
 
 func isolateAge(t *testing.T) {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("AppData", t.TempDir())
 	for _, key := range []string{
 		"SOPS_AGE_KEY",
 		"SOPS_AGE_KEY_FILE",

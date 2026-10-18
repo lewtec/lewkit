@@ -1,3 +1,5 @@
+//go:build linux
+
 // Guest init for a uki image. It mounts proc and sys, loads the modules
 // listed in load.order, then replaces itself with /app.
 package main

@@ -47,6 +47,9 @@ func Encrypt(ctx context.Context, path string, plaintext []byte) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
+	if _, err := findSopsConfig(filepath.Dir(abs)); err != nil {
+		return nil, err
+	}
 	dir := commandDir(filepath.Dir(abs))
 	bin, err := ensureSops(ctx, filepath.Dir(abs))
 	if err != nil {
@@ -86,6 +89,27 @@ func ensureSops(ctx context.Context, directory string) (string, error) {
 
 func sopsSpec(directory string) (string, error) {
 	return tool.LockSpec(directory, sopsRef)
+}
+
+// findSopsConfig walks parents for .sops.yaml. sops itself does this
+// after the binary is installed; a missing file is ErrNoConfig before
+// any download.
+func findSopsConfig(dir string) (string, error) {
+	for {
+		candidate := filepath.Join(dir, ".sops.yaml")
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", ErrNoConfig
+		}
+		dir = parent
+	}
 }
 
 func commandDir(dir string) string {

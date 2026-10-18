@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	goruntime "runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -70,7 +72,7 @@ func stale(dir string, step Step, rt *runtime) bool {
 	}
 	var oldest time.Time
 	for i, out := range step.Outputs {
-		info, err := os.Stat(Join(dir, out))
+		info, err := StatOutput(Join(dir, out))
 		if err != nil {
 			return true
 		}
@@ -85,4 +87,18 @@ func stale(dir string, step Step, rt *runtime) bool {
 		}
 	}
 	return false
+}
+
+// StatOutput stats the file a recipe wrote for path.
+// MinGW gcc -o hello writes hello.exe. That sibling is the output.
+func StatOutput(path string) (os.FileInfo, error) {
+	info, err := os.Stat(path)
+	if err == nil || goruntime.GOOS != "windows" || strings.HasSuffix(strings.ToLower(path), ".exe") {
+		return info, err
+	}
+	exe, exeErr := os.Stat(path + ".exe")
+	if exeErr != nil {
+		return info, err
+	}
+	return exe, nil
 }

@@ -277,6 +277,9 @@ func parseAssetName(name string) (osName, arch string, ok bool) {
 		osName = "darwin"
 	} else if tool.ContainsAnyOf(name, "windows") {
 		osName = "windows"
+	} else if strings.HasSuffix(name, ".exe") {
+		// getsops/sops publishes one Windows binary as sops-<version>.exe.
+		return "windows", "amd64", true
 	} else {
 		return "", "", false
 	}
