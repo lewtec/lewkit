@@ -756,7 +756,7 @@ func declNamed(t *testing.T, f *File, name string) *TypeDecl {
 			return d.Type
 		}
 	}
-	t.Fatalf("missing typedef %s\n%s", name, dump(f))
+	require.Failf(t, "missing typedef", "%s\n%s", name, dump(f))
 	return nil
 }
 
@@ -767,7 +767,7 @@ func typeDeclTag(t *testing.T, f *File, tag string, define bool) *TypeDecl {
 			return d.Type
 		}
 	}
-	t.Fatalf("missing %s define=%v\n%s", tag, define, dump(f))
+	require.Failf(t, "missing type", "%s define=%v\n%s", tag, define, dump(f))
 	return nil
 }
 
@@ -778,7 +778,7 @@ func typeTagged(t *testing.T, f *File, tag string) *Type {
 			return d.Type.Type
 		}
 	}
-	t.Fatalf("missing tag %s\n%s", tag, dump(f))
+	require.Failf(t, "missing tag", "%s\n%s", tag, dump(f))
 	return nil
 }
 
@@ -789,7 +789,7 @@ func objectNamed(t *testing.T, f *File, name string) *Object {
 			return d.Object
 		}
 	}
-	t.Fatalf("missing object %s\n%s", name, dump(f))
+	require.Failf(t, "missing object", "%s\n%s", name, dump(f))
 	return nil
 }
 
@@ -800,7 +800,7 @@ func funcNamed(t *testing.T, f *File, name string) *Func {
 			return d.Func
 		}
 	}
-	t.Fatalf("missing func %s\n%s", name, dump(f))
+	require.Failf(t, "missing func", "%s\n%s", name, dump(f))
 	return nil
 }
 
@@ -811,7 +811,7 @@ func constNamed(t *testing.T, f *File, name string) *Const {
 			return d.Const
 		}
 	}
-	t.Fatalf("missing const %s\n%s", name, dump(f))
+	require.Failf(t, "missing const", "%s\n%s", name, dump(f))
 	return nil
 }
 

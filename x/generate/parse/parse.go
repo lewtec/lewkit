@@ -14,10 +14,10 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/generate"
 	"github.com/lewtec/lewkit/x/takemake/golang"
 )
@@ -152,12 +152,12 @@ func exitOnError() *golang.Stmt {
 }
 
 func runGo(ctx context.Context, dir string, args ...string) ([]byte, []byte, error) {
-	cmd := exec.CommandContext(ctx, "go", args...)
+	cmd := execdriver.MustCommand(ctx, "go", args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err := execdriver.Run(ctx, cmd)
 	return stdout.Bytes(), stderr.Bytes(), err
 }
 

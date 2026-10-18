@@ -205,7 +205,7 @@ func findSection(t *testing.T, file *File, name string) *Section {
 			}
 		}
 	}
-	t.Fatalf("missing section %s", name)
+	require.Failf(t, "missing section", "%s", name)
 	return nil
 }
 
