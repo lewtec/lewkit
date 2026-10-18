@@ -20,13 +20,11 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	view := model.View()
 	assert.Equal(t, tea.MouseModeCellMotion, view.MouseMode)
 	assert.Equal(t, "lewkit term", view.WindowTitle)
-	assert.True(t, model.palette)
-
-	clickRail(t, model, "lew")
 	assert.False(t, model.palette)
 	plain, _ := renderPlain(model)
 	assert.Contains(t, plain, "the desk is clear")
 	assert.Contains(t, plain, "quiet, for now")
+	assert.NotContains(t, plain, "New pane")
 	assert.NotContains(t, plain, "taskbar")
 
 	clickRail(t, model, "lew")
@@ -37,6 +35,7 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.True(t, model.palette)
 
 	clickRail(t, model, "lew")
+	assert.False(t, model.palette)
 	model.order = []string{"ed", "docs", "n"}
 	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true, Rows: 10, Cols: 40}}
 	model.byID["docs"] = Pane{PaneInfo: PaneInfo{ID: "docs", Path: "work/docs", Title: "md", Alive: true, Rows: 10, Cols: 40}}
@@ -264,8 +263,17 @@ func TestDrawerSearchFindsPanesAndActions(t *testing.T) {
 	runCmd(cmd)
 	assert.True(t, model.drawer)
 	assert.Equal(t, "work", model.shown)
+	assert.Equal(t, "ed", model.armed)
+	assert.Equal(t, "lewkit-room", model.find)
+
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.False(t, model.drawer)
+	assert.Equal(t, "ed", model.focus)
 	assert.Empty(t, model.find)
 
+	model.drawer = true
+	model.armed = ""
 	for _, r := range "hx" {
 		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
 	}
@@ -424,6 +432,73 @@ func TestTwoEntersStayOnThePaneYouArmed(t *testing.T) {
 	assert.False(t, model.drawer)
 	assert.Equal(t, "docs", model.focus)
 	assert.Equal(t, "work", model.shown)
+}
+
+func TestDoubleEnterSelectsThePaneInTheList(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	assert.False(t, model.palette)
+	model.drawer = true
+	model.palette = true
+	model.order = []string{"ed", "docs", "n"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.byID["docs"] = Pane{PaneInfo: PaneInfo{ID: "docs", Path: "work/docs", Title: "md", Alive: true}}
+	model.byID["n"] = Pane{PaneInfo: PaneInfo{ID: "n", Path: "notes", Title: "notes", Alive: true}}
+
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "work", model.shown)
+	assert.Equal(t, "ed", model.armed)
+	assert.Empty(t, api.creates)
+
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.False(t, model.drawer)
+	assert.Equal(t, "ed", model.focus)
+	assert.Equal(t, "work", model.shown)
+	assert.Empty(t, api.creates)
+
+	model.drawer = true
+	model.palette = true
+	model.shown = "work"
+	model.armed = ""
+	model.drawerAt = 0
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "ed", model.armed)
+
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.False(t, model.drawer)
+	assert.Equal(t, "ed", model.focus)
+	assert.Empty(t, api.creates)
+
+	model.drawer = true
+	model.palette = true
+	model.shown = ""
+	model.armed = ""
+	model.drawerAt = 0
+	model.focus = ""
+	model.order = []string{"n"}
+	model.byID = map[string]Pane{
+		"n": {PaneInfo: PaneInfo{ID: "n", Path: "notes", Title: "notes", Alive: true}},
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.True(t, model.drawer)
+	assert.Equal(t, "n", model.armed)
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	runCmd(cmd)
+	assert.False(t, model.drawer)
+	assert.Equal(t, "n", model.focus)
+	assert.Empty(t, api.creates)
 }
 
 func TestPickPaintsWithLipgloss(t *testing.T) {

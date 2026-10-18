@@ -21,7 +21,8 @@
 // supplies. The server process stays up while a pane exists and exits when
 // the last client disconnects and no panes remain. [Dial] and [Client.Call]
 // are the RPC. [Run] is the attach desk. lew on the bottom rail opens the
-// command palette, and so does ctrl+p. That rail keeps the recent panes.
+// command palette, and so does ctrl+p. The palette stays closed until one
+// of those asks for it. That rail keeps the recent panes.
 // drawer lists sessions as a tree, and the x on a session removes those
 // records. Each session row names that session's directory and its git
 // status. + directory makes a pocket on this client. The arrow on a session
@@ -29,8 +30,8 @@
 // desk shows the focused pane. Empty pockets stay on the client. ctrl+k,
 // and the same chord with super or meta, opens the session view. It does
 // not search from the pane. Typing in that view filters sessions, panes,
-// and actions. The first enter on a pane arms it, and the second enter on
-// that pane leaves the session view focused on it. One enter runs an action.
+// and actions. The second enter on a session or a pane leaves the session
+// view focused on that pane. One enter runs an action.
 // The drawer is drawn with lipgloss. Bindings for individual actions are
 // not assigned yet.
 package term

@@ -29,15 +29,15 @@ type API interface {
 
 // Run draws the attach view on standard input and output.
 // followPane empty follows the ubersession. Otherwise the view follows that
-// pane only. The palette is open at the start. lew on the rail opens and
-// closes it, and so does ctrl+p. The rail keeps recent panes. drawer lists
-// sessions. Each session row names that session's directory and git status.
-// + directory makes a pocket on this client, and the arrow on a session
-// nests that session into a folder. The desk shows the focused pane.
-// ctrl+k, and the same chord with super or meta, opens the session view.
-// It does not search from the pane. Typing in that view filters sessions,
-// panes, and actions. The first enter on a pane arms it. The second enter
-// on that pane leaves the session view focused on it. One enter runs an action.
+// pane only. The command palette stays closed until lew or ctrl+p opens it.
+// The rail keeps recent panes. drawer lists sessions. Each session row names
+// that session's directory and git status. + directory makes a pocket on
+// this client, and the arrow on a session nests that session into a folder.
+// The desk shows the focused pane. ctrl+k, and the same chord with super or
+// meta, opens the session view. It does not search from the pane. Typing in
+// that view filters sessions, panes, and actions. The second enter on a
+// session or a pane leaves the session view focused on that pane. One enter
+// runs an action.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -102,7 +102,6 @@ func newModel(ctx context.Context, api API, followPane string) *Model {
 		api:       api,
 		clientID:  id,
 		followAll: followPane == "",
-		palette:   true,
 		step:      StepActions,
 		byID:      map[string]Pane{},
 	}
@@ -241,6 +240,9 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.openSession()
 	case "ctrl+p":
 		m.palette = !m.palette
+		if m.palette {
+			m.drawer = false
+		}
 		return m, nil
 	case "ctrl+c":
 		if m.palette {
@@ -251,11 +253,11 @@ func (m *Model) key(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, m.writeFocused([]byte{0x03})
 	}
-	if m.palette {
-		return m.paletteKey(msg)
-	}
 	if m.drawer {
 		return m.drawerKey(msg)
+	}
+	if m.palette {
+		return m.paletteKey(msg)
 	}
 	return m, m.writeFocused(inputBytes(msg))
 }

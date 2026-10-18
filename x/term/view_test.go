@@ -70,6 +70,7 @@ func TestPaletteNewUsesTileSize(t *testing.T) {
 	assert.Equal(t, WatchRequest{All: true}, model.watchReq())
 
 	model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	model.palette = true
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	require.NotNil(t, cmd)
 	_ = cmd()
@@ -108,6 +109,7 @@ func TestPaletteFollowAndUbersession(t *testing.T) {
 	model := newModel(t.Context(), api, "pane-1")
 	assert.Equal(t, WatchRequest{Panes: []string{"pane-1"}}, model.watchReq())
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = true
 	model.order = []string{"pane-1", "pane-2"}
 	model.byID["pane-1"] = Pane{PaneInfo: api.panes[0]}
 	model.byID["pane-2"] = Pane{PaneInfo: api.panes[1]}
@@ -143,6 +145,7 @@ func TestPaletteFolderSetsCreatePath(t *testing.T) {
 	api := &fakeAPI{}
 	model := newModel(t.Context(), api, "")
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = true
 	for _, r := range "open folder" {
 		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
 	}

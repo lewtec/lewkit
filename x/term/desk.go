@@ -610,16 +610,19 @@ func (m *Model) drawerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if m.drawerAt > 0 {
 			m.drawerAt--
 		}
+		m.armed = ""
 		return m, nil
 	case "down":
 		n := len(m.drawerRows())
 		if n == 0 {
 			m.drawerAt = 0
+			m.armed = ""
 			return m, nil
 		}
 		if m.drawerAt < n-1 {
 			m.drawerAt++
 		}
+		m.armed = ""
 		return m, nil
 	case "enter":
 		return m.activateDrawer()
@@ -665,6 +668,7 @@ func (m *Model) setDrawer(open bool) tea.Cmd {
 	if !open {
 		return nil
 	}
+	m.palette = false
 	m.drawerAt = 0
 	return m.lookGit()
 }
@@ -703,8 +707,11 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 		if m.held != "" && row.folder != "" {
 			return m, m.moveInto(row.folder)
 		}
-		m.find = ""
-		m.armed = ""
+		id := m.sessionFocus(row.key)
+		if id != "" && m.armed == id && m.shown == row.key {
+			return m, m.showPane(id)
+		}
+		m.armed = id
 		return m, m.selectSession(row.key)
 	}
 	if row.pane != "" {
@@ -772,6 +779,9 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 	switch item.kind {
 	case hitStart:
 		m.palette = !m.palette
+		if m.palette {
+			m.drawer = false
+		}
 		return m, nil
 	case hitToggle:
 		return m, m.setDrawer(!m.drawer)
@@ -981,6 +991,17 @@ func (m *Model) group(key string) (sessionGroup, bool) {
 func (m *Model) sessionDir(key string) bool {
 	group, ok := m.group(key)
 	return ok && group.dir
+}
+
+func (m *Model) sessionFocus(key string) string {
+	panes := m.sessionPanes(key)
+	if len(panes) == 0 {
+		return ""
+	}
+	if contains(panes, m.focus) {
+		return m.focus
+	}
+	return panes[0]
 }
 
 func (m *Model) sessionPanes(key string) []string {
