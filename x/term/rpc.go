@@ -3,7 +3,6 @@ package term
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,7 +10,16 @@ import (
 	"sync"
 
 	"github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/term/schema"
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/proto"
 )
+
+// maxFrame is the largest size-delimited envelope accepted on the socket.
+// A full viewport of cells can exceed the protodelim default of 4 MiB.
+const maxFrame = 32 << 20
+
+var frameReader = protodelim.UnmarshalOptions{MaxSize: maxFrame}
 
 // Serve accepts RPC connections until ctx is cancelled.
 func (s *Session) Serve(ctx context.Context, listener net.Listener) error {
@@ -34,43 +42,9 @@ func (s *Session) Serve(ctx context.Context, listener net.Listener) error {
 	}
 }
 
-type wireIn struct {
-	V       int             `json:"v"`
-	ID      int             `json:"id"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params"`
-	Result  json.RawMessage `json:"result"`
-	Error   *Failure        `json:"error"`
-	Notice  string          `json:"notice"`
-	Pane    *Pane           `json:"pane"`
-	Session *SessionInfo    `json:"session"`
-}
-
-type wirePush struct {
-	V       int          `json:"v"`
-	Notice  Notice       `json:"notice"`
-	Pane    *Pane        `json:"pane,omitempty"`
-	Session *SessionInfo `json:"session,omitempty"`
-}
-
-type wireResponse struct {
-	V      int      `json:"v"`
-	ID     int      `json:"id"`
-	Result any      `json:"result,omitempty"`
-	Error  *Failure `json:"error,omitempty"`
-}
-
-type wireRequest struct {
-	V      int    `json:"v"`
-	ID     int    `json:"id"`
-	Method Method `json:"method"`
-	Params any    `json:"params,omitempty"`
-}
-
 type connState struct {
 	session *Session
 	conn    net.Conn
-	enc     *json.Encoder
 	bw      *bufio.Writer
 	wmu     sync.Mutex
 
@@ -90,7 +64,6 @@ func serveConn(ctx context.Context, session *Session, raw net.Conn) {
 		bw:      bufio.NewWriter(raw),
 		wake:    make(chan struct{}, 1),
 	}
-	state.enc = json.NewEncoder(state.bw)
 	go state.writeLoop(ctx)
 	defer func() {
 		state.mu.Lock()
@@ -100,118 +73,116 @@ func serveConn(ctx context.Context, session *Session, raw net.Conn) {
 			cancelWatch()
 		}
 	}()
-	dec := json.NewDecoder(bufio.NewReader(raw))
+	reader := bufio.NewReader(raw)
 	for {
 		if err := ctx.Err(); err != nil {
 			return
 		}
-		var msg wireIn
-		if err := dec.Decode(&msg); err != nil {
+		msg, err := readFrame(reader)
+		if err != nil {
 			return
 		}
 		state.reply(ctx, msg)
 	}
 }
 
-func (c *connState) reply(ctx context.Context, msg wireIn) {
-	if msg.V != ProtocolVersion {
-		_ = c.send(wireResponse{V: ProtocolVersion, ID: msg.ID, Error: failure(ErrVersion)})
+func (c *connState) reply(ctx context.Context, msg *schema.Envelope) {
+	if msg.GetVersion() != ProtocolVersion {
+		_ = c.send(errorFrame(msg.GetId(), ErrVersion))
 		return
 	}
-	method, err := ParseMethod(msg.Method)
+	method, err := ParseMethod(msg.GetMethod())
 	if err != nil {
-		_ = c.send(wireResponse{V: ProtocolVersion, ID: msg.ID, Error: failure(err)})
+		_ = c.send(errorFrame(msg.GetId(), err))
 		return
 	}
-	result, err := c.dispatch(ctx, method, msg.Params)
+	payload, err := c.dispatch(ctx, method, msg)
 	if err != nil {
-		_ = c.send(wireResponse{V: ProtocolVersion, ID: msg.ID, Error: failure(err)})
+		_ = c.send(errorFrame(msg.GetId(), err))
 		return
 	}
-	_ = c.send(wireResponse{V: ProtocolVersion, ID: msg.ID, Result: result})
+	payload.Version = ProtocolVersion
+	payload.Id = msg.GetId()
+	_ = c.send(payload)
 }
 
-func (c *connState) dispatch(ctx context.Context, method Method, params json.RawMessage) (any, error) {
+func (c *connState) dispatch(ctx context.Context, method Method, msg *schema.Envelope) (*schema.Envelope, error) {
 	switch method {
 	case MethodSessionGet:
+		if err := payloadMatches(msg, msg.GetPayload() == nil); err != nil {
+			return nil, err
+		}
 		info, err := c.session.Info(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return struct {
-			Session SessionInfo `json:"session"`
-		}{Session: info}, nil
+		return &schema.Envelope{Payload: &schema.Envelope_Session{Session: sessionToSchema(info)}}, nil
 	case MethodPaneList:
+		if err := payloadMatches(msg, msg.GetPayload() == nil); err != nil {
+			return nil, err
+		}
 		panes, err := c.session.Panes(ctx)
 		if err != nil {
 			return nil, err
 		}
-		return struct {
-			Panes []PaneInfo `json:"panes"`
-		}{Panes: panes}, nil
+		return &schema.Envelope{Payload: &schema.Envelope_PaneList{PaneList: paneListToSchema(panes)}}, nil
 	case MethodPaneGet:
-		var req struct {
-			ID string `json:"id"`
-		}
-		if err := decodeParams(params, &req); err != nil {
+		if err := payloadMatches(msg, msg.GetPaneId() != nil); err != nil {
 			return nil, err
 		}
-		pane, err := c.session.Pane(ctx, req.ID)
+		pane, err := c.session.Pane(ctx, msg.GetPaneId().GetId())
 		if err != nil {
 			return nil, err
 		}
-		return struct {
-			Pane Pane `json:"pane"`
-		}{Pane: pane}, nil
+		return &schema.Envelope{Payload: &schema.Envelope_Pane{Pane: paneToSchema(pane)}}, nil
 	case MethodPaneCreate:
-		var req CreateRequest
-		if err := decodeParams(params, &req); err != nil {
+		if err := payloadMatches(msg, msg.GetCreate() != nil); err != nil {
 			return nil, err
 		}
-		pane, err := c.session.Create(ctx, req)
+		pane, err := c.session.Create(ctx, createFromSchema(msg.GetCreate()))
 		if err != nil {
 			return nil, err
 		}
-		return struct {
-			Pane Pane `json:"pane"`
-		}{Pane: pane}, nil
+		return &schema.Envelope{Payload: &schema.Envelope_Pane{Pane: paneToSchema(pane)}}, nil
 	case MethodPaneWrite:
-		var req WriteRequest
-		if err := decodeParams(params, &req); err != nil {
+		if err := payloadMatches(msg, msg.GetWrite() != nil); err != nil {
 			return nil, err
 		}
-		if err := c.session.Write(ctx, req); err != nil {
+		if err := c.session.Write(ctx, writeFromSchema(msg.GetWrite())); err != nil {
 			return nil, err
 		}
-		return struct {
-			OK bool `json:"ok"`
-		}{OK: true}, nil
+		return ackFrame(), nil
 	case MethodPaneKill:
-		var req struct {
-			ID string `json:"id"`
-		}
-		if err := decodeParams(params, &req); err != nil {
+		if err := payloadMatches(msg, msg.GetPaneId() != nil); err != nil {
 			return nil, err
 		}
-		if err := c.session.Kill(ctx, req.ID); err != nil {
+		if err := c.session.Kill(ctx, msg.GetPaneId().GetId()); err != nil {
 			return nil, err
 		}
-		return struct {
-			OK bool `json:"ok"`
-		}{OK: true}, nil
+		return ackFrame(), nil
 	case MethodWatch:
-		var req WatchRequest
-		if err := decodeParams(params, &req); err != nil {
+		if err := payloadMatches(msg, msg.GetWatch() != nil); err != nil {
 			return nil, err
 		}
-		if err := c.rewatch(req); err != nil {
+		if err := c.rewatch(watchFromSchema(msg.GetWatch())); err != nil {
 			return nil, err
 		}
-		return struct {
-			OK bool `json:"ok"`
-		}{OK: true}, nil
+		return ackFrame(), nil
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrMethod, method)
+	}
+}
+
+func ackFrame() *schema.Envelope {
+	return &schema.Envelope{Payload: &schema.Envelope_Ack{Ack: &schema.Ack{Ok: true}}}
+}
+
+func errorFrame(id uint32, err error) *schema.Envelope {
+	f := failure(err)
+	return &schema.Envelope{
+		Version: ProtocolVersion,
+		Id:      id,
+		Payload: &schema.Envelope_Error{Error: &schema.Failure{Code: f.Code, Text: f.Text}},
 	}
 }
 
@@ -261,28 +232,41 @@ func (c *connState) flush() {
 			return
 		}
 		for _, ev := range queue {
-			_ = c.send(wirePush{V: ProtocolVersion, Notice: ev.Notice, Pane: ev.Pane, Session: ev.Session})
+			_ = c.send(pushFrame(ev))
 		}
 	}
 }
 
-func (c *connState) send(v any) error {
-	c.wmu.Lock()
-	defer c.wmu.Unlock()
-	if err := c.enc.Encode(v); err != nil {
-		return err
+func pushFrame(ev Event) *schema.Envelope {
+	msg := &schema.Envelope{Version: ProtocolVersion, Notice: string(ev.Notice)}
+	if ev.Pane != nil {
+		msg.Payload = &schema.Envelope_Pane{Pane: paneToSchema(*ev.Pane)}
 	}
-	return c.bw.Flush()
+	if ev.Session != nil {
+		msg.Payload = &schema.Envelope_Session{Session: sessionToSchema(*ev.Session)}
+	}
+	return msg
 }
 
-func decodeParams(raw json.RawMessage, dest any) error {
-	if len(raw) == 0 || string(raw) == "null" {
-		return nil
+func (c *connState) send(msg *schema.Envelope) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	return writeFrame(c.bw, msg)
+}
+
+func writeFrame(w *bufio.Writer, msg *schema.Envelope) error {
+	if _, err := protodelim.MarshalTo(w, msg); err != nil {
+		return err
 	}
-	if err := json.Unmarshal(raw, dest); err != nil {
-		return fmt.Errorf("%w: %w", ErrProtocol, err)
+	return w.Flush()
+}
+
+func readFrame(r *bufio.Reader) (*schema.Envelope, error) {
+	msg := &schema.Envelope{}
+	if err := frameReader.UnmarshalFrom(r, msg); err != nil {
+		return nil, err
 	}
-	return nil
+	return msg, nil
 }
 
 func failure(err error) *Failure {
@@ -354,13 +338,12 @@ func sameNotice(a, b Event) bool {
 // Client calls a term server.
 type Client struct {
 	conn net.Conn
-	enc  *json.Encoder
 	bw   *bufio.Writer
 	wmu  sync.Mutex
 
 	mu    sync.Mutex
-	next  int
-	wait  map[int]chan wireIn
+	next  uint32
+	wait  map[uint32]chan *schema.Envelope
 	queue []Event
 	wake  chan struct{}
 	err   error
@@ -382,10 +365,9 @@ func Dial(ctx context.Context, path string) (*Client, error) {
 	client := &Client{
 		conn: conn,
 		bw:   bufio.NewWriter(conn),
-		wait: map[int]chan wireIn{},
+		wait: map[uint32]chan *schema.Envelope{},
 		wake: make(chan struct{}, 1),
 	}
-	client.enc = json.NewEncoder(client.bw)
 	go client.read(conn)
 	return client, nil
 }
@@ -399,53 +381,60 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// Call sends one method and stores the JSON result in dest when dest is non-nil.
-func (c *Client) Call(ctx context.Context, method Method, params any, dest any) error {
+// Call sends one method and returns the response envelope.
+// params is the request message, or nil when the method has no body.
+// A failure payload is returned as an error.
+func (c *Client) Call(ctx context.Context, method Method, params proto.Message) (*schema.Envelope, error) {
 	if err := ctx.Err(); err != nil {
-		return err
+		return nil, err
 	}
 	if !method.IsValid() {
-		return fmt.Errorf("%w: %s", ErrMethod, method)
+		return nil, fmt.Errorf("%w: %s", ErrMethod, method)
 	}
 	c.mu.Lock()
 	c.next++
+	if c.next == 0 {
+		c.next = 1
+	}
 	id := c.next
-	ch := make(chan wireIn, 1)
+	ch := make(chan *schema.Envelope, 1)
 	c.wait[id] = ch
 	c.mu.Unlock()
-	if err := c.send(wireRequest{V: ProtocolVersion, ID: id, Method: method, Params: params}); err != nil {
-		c.mu.Lock()
-		delete(c.wait, id)
-		c.mu.Unlock()
-		return err
+	msg := &schema.Envelope{Version: ProtocolVersion, Id: id, Method: string(method)}
+	if err := setPayload(msg, params); err != nil {
+		c.forget(id)
+		return nil, err
+	}
+	if err := c.send(msg); err != nil {
+		c.forget(id)
+		return nil, err
 	}
 	select {
 	case <-ctx.Done():
-		c.mu.Lock()
-		delete(c.wait, id)
-		c.mu.Unlock()
-		return ctx.Err()
-	case msg, ok := <-ch:
+		c.forget(id)
+		return nil, ctx.Err()
+	case resp, ok := <-ch:
 		if !ok {
-			return ErrTermClosed
+			return nil, ErrTermClosed
 		}
-		if msg.Error != nil {
-			return msg.Error
+		if fail := resp.GetError(); fail != nil {
+			return nil, failureFromSchema(fail)
 		}
-		if dest != nil && len(msg.Result) > 0 {
-			if err := json.Unmarshal(msg.Result, dest); err != nil {
-				return fmt.Errorf("%w: %w", ErrProtocol, err)
-			}
-		}
-		return nil
+		return resp, nil
 	}
 }
 
+func (c *Client) forget(id uint32) {
+	c.mu.Lock()
+	delete(c.wait, id)
+	c.mu.Unlock()
+}
+
 func (c *Client) read(conn net.Conn) {
-	dec := json.NewDecoder(bufio.NewReader(conn))
+	reader := bufio.NewReader(conn)
 	for {
-		var msg wireIn
-		if err := dec.Decode(&msg); err != nil {
+		msg, err := readFrame(reader)
+		if err != nil {
 			if errors.Is(err, io.EOF) {
 				c.fail(ErrTermClosed)
 				return
@@ -453,20 +442,29 @@ func (c *Client) read(conn net.Conn) {
 			c.fail(fmt.Errorf("%w: %w", ErrProtocol, err))
 			return
 		}
-		if msg.Notice != "" {
-			notice, err := ParseNotice(msg.Notice)
+		if msg.GetNotice() != "" {
+			notice, err := ParseNotice(msg.GetNotice())
 			if err != nil {
 				continue
 			}
-			c.enqueue(Event{Notice: notice, Pane: msg.Pane, Session: msg.Session})
+			ev := Event{Notice: notice}
+			if pane := msg.GetPane(); pane != nil {
+				record := paneFromSchema(pane)
+				ev.Pane = &record
+			}
+			if info := msg.GetSession(); info != nil {
+				record := sessionFromSchema(info)
+				ev.Session = &record
+			}
+			c.enqueue(ev)
 			continue
 		}
-		if msg.ID == 0 {
+		if msg.GetId() == 0 {
 			continue
 		}
 		c.mu.Lock()
-		ch := c.wait[msg.ID]
-		delete(c.wait, msg.ID)
+		ch := c.wait[msg.GetId()]
+		delete(c.wait, msg.GetId())
 		c.mu.Unlock()
 		if ch != nil {
 			ch <- msg
@@ -495,7 +493,7 @@ func (c *Client) fail(err error) {
 	}
 	c.err = err
 	wait := c.wait
-	c.wait = map[int]chan wireIn{}
+	c.wait = map[uint32]chan *schema.Envelope{}
 	c.mu.Unlock()
 	for _, ch := range wait {
 		close(ch)
@@ -506,13 +504,10 @@ func (c *Client) fail(err error) {
 	}
 }
 
-func (c *Client) send(v any) error {
+func (c *Client) send(msg *schema.Envelope) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	if err := c.enc.Encode(v); err != nil {
-		return fmt.Errorf("%w: %w", ErrSocket, err)
-	}
-	if err := c.bw.Flush(); err != nil {
+	if err := writeFrame(c.bw, msg); err != nil {
 		return fmt.Errorf("%w: %w", ErrSocket, err)
 	}
 	return nil
@@ -520,70 +515,72 @@ func (c *Client) send(v any) error {
 
 // Session reads the ubersession membership.
 func (c *Client) Session(ctx context.Context) (SessionInfo, error) {
-	var result struct {
-		Session SessionInfo `json:"session"`
-	}
-	if err := c.Call(ctx, MethodSessionGet, struct{}{}, &result); err != nil {
+	resp, err := c.Call(ctx, MethodSessionGet, nil)
+	if err != nil {
 		return SessionInfo{}, err
 	}
-	return result.Session, nil
+	info := resp.GetSession()
+	if info == nil {
+		return SessionInfo{}, fmt.Errorf("%w: %s", ErrProtocol, "session")
+	}
+	return sessionFromSchema(info), nil
 }
 
 // Panes reads every pane header.
 func (c *Client) Panes(ctx context.Context) ([]PaneInfo, error) {
-	var result struct {
-		Panes []PaneInfo `json:"panes"`
-	}
-	if err := c.Call(ctx, MethodPaneList, struct{}{}, &result); err != nil {
+	resp, err := c.Call(ctx, MethodPaneList, nil)
+	if err != nil {
 		return nil, err
 	}
-	return result.Panes, nil
+	list := resp.GetPaneList()
+	if list == nil {
+		return nil, fmt.Errorf("%w: %s", ErrProtocol, "panes")
+	}
+	return paneListFromSchema(list), nil
 }
 
 // Pane reads one pane, including its grid.
 func (c *Client) Pane(ctx context.Context, id string) (Pane, error) {
-	var result struct {
-		Pane Pane `json:"pane"`
-	}
-	if err := c.Call(ctx, MethodPaneGet, map[string]string{"id": id}, &result); err != nil {
+	resp, err := c.Call(ctx, MethodPaneGet, &schema.PaneId{Id: id})
+	if err != nil {
 		return Pane{}, err
 	}
-	return result.Pane, nil
+	pane := resp.GetPane()
+	if pane == nil {
+		return Pane{}, fmt.Errorf("%w: %s", ErrProtocol, "pane")
+	}
+	return paneFromSchema(pane), nil
 }
 
 // Create starts a pane.
 func (c *Client) Create(ctx context.Context, req CreateRequest) (Pane, error) {
-	var result struct {
-		Pane Pane `json:"pane"`
-	}
-	if err := c.Call(ctx, MethodPaneCreate, req, &result); err != nil {
+	resp, err := c.Call(ctx, MethodPaneCreate, createToSchema(req))
+	if err != nil {
 		return Pane{}, err
 	}
-	return result.Pane, nil
+	pane := resp.GetPane()
+	if pane == nil {
+		return Pane{}, fmt.Errorf("%w: %s", ErrProtocol, "pane")
+	}
+	return paneFromSchema(pane), nil
 }
 
 // Write sends input. A positive size reflows when it differs from the pane.
 func (c *Client) Write(ctx context.Context, req WriteRequest) error {
-	var result struct {
-		OK bool `json:"ok"`
-	}
-	return c.Call(ctx, MethodPaneWrite, req, &result)
+	_, err := c.Call(ctx, MethodPaneWrite, writeToSchema(req))
+	return err
 }
 
 // Kill stops a pane process.
 func (c *Client) Kill(ctx context.Context, id string) error {
-	var result struct {
-		OK bool `json:"ok"`
-	}
-	return c.Call(ctx, MethodPaneKill, map[string]string{"id": id}, &result)
+	_, err := c.Call(ctx, MethodPaneKill, &schema.PaneId{Id: id})
+	return err
 }
 
 // Watch replaces the panes whose records this client wants pushed.
 func (c *Client) Watch(ctx context.Context, req WatchRequest) error {
-	var result struct {
-		OK bool `json:"ok"`
-	}
-	return c.Call(ctx, MethodWatch, req, &result)
+	_, err := c.Call(ctx, MethodWatch, watchToSchema(req))
+	return err
 }
 
 // Next returns the next pushed record.

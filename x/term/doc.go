@@ -14,7 +14,9 @@
 // A client that only reads does not resize the pane. The next write from a
 // client whose screen size differs reflows the grid and the process.
 //
-// [Listen] serves the database on a unix socket. [Dial] and [Client.Call] are
-// the RPC. [Run] is the attach view. It opens a command palette. Bindings for
-// individual actions are not assigned yet; ctrl+p opens and closes the palette.
+// [Listen] serves the database on a unix socket. Each message is one varint
+// size-delimited protobuf Envelope from package schema. [Dial] and
+// [Client.Call] are the RPC. [Run] is the attach view. It opens a command
+// palette. Bindings for individual actions are not assigned yet; ctrl+p
+// opens and closes the palette.
 package term

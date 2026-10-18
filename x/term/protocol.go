@@ -9,25 +9,25 @@ const ProtocolVersion = 1
 // SessionInfo is the ubersession membership.
 // Panes is creation order. It is not a layout.
 type SessionInfo struct {
-	ID    string   `json:"id"`
-	Panes []string `json:"panes"`
+	ID    string
+	Panes []string
 }
 
 // PaneInfo is the pane record without the grid.
 // Exit is meaningful when Alive is false. A signalled process may exit -1.
 type PaneInfo struct {
-	ID         string   `json:"id"`
-	Title      string   `json:"title"`
-	Command    []string `json:"command"`
-	Dir        string   `json:"dir,omitempty"`
-	Alive      bool     `json:"alive"`
-	Exit       int      `json:"exit"`
-	Rows       int      `json:"rows"`
-	Cols       int      `json:"cols"`
-	Revision   uint64   `json:"revision"`
-	LastWriter string   `json:"last_writer,omitempty"`
-	CursorRow  int      `json:"cursor_row"`
-	CursorCol  int      `json:"cursor_col"`
+	ID         string
+	Title      string
+	Command    []string
+	Dir        string
+	Alive      bool
+	Exit       int
+	Rows       int
+	Cols       int
+	Revision   uint64
+	LastWriter string
+	CursorRow  int
+	CursorCol  int
 }
 
 // Cell is one column of the pane grid.
@@ -35,11 +35,11 @@ type PaneInfo struct {
 // double-width rune. FG and BG are palette indexes; 0 is the default color.
 // 1 through 8 are the normal ANSI colors and 9 through 16 are the bright ones.
 type Cell struct {
-	Rune string `json:"r,omitempty"`
-	FG   int    `json:"fg,omitempty"`
-	BG   int    `json:"bg,omitempty"`
-	Bold bool   `json:"bold,omitempty"`
-	Wide bool   `json:"wide,omitempty"`
+	Rune string
+	FG   int
+	BG   int
+	Bold bool
+	Wide bool
 }
 
 // Pane is one pane record, including the visible grid in row-major order.
@@ -47,7 +47,7 @@ type Cell struct {
 // later write can reflow it; a client draws Cells.
 type Pane struct {
 	PaneInfo
-	Cells []Cell `json:"cells"`
+	Cells []Cell
 }
 
 // Line returns one visible row with trailing blanks removed.
@@ -85,12 +85,12 @@ func cellsText(cells []Cell) string {
 // Rows and Cols are the initial grid. They are not a write, so LastWriter
 // stays empty until a client sends input.
 type CreateRequest struct {
-	Command []string `json:"command,omitempty"`
-	Dir     string   `json:"dir,omitempty"`
-	Rows    int      `json:"rows,omitempty"`
-	Cols    int      `json:"cols,omitempty"`
-	Title   string   `json:"title,omitempty"`
-	Client  string   `json:"client,omitempty"`
+	Command []string
+	Dir     string
+	Rows    int
+	Cols    int
+	Title   string
+	Client  string
 }
 
 // WriteRequest sends terminal input to a pane.
@@ -98,18 +98,18 @@ type CreateRequest struct {
 // Both zero keeps the current size. One of them set without the other is an error.
 // A positive size that differs from the pane reflows the grid before the bytes are written.
 type WriteRequest struct {
-	ID     string `json:"id"`
-	Data   string `json:"data,omitempty"`
-	Rows   int    `json:"rows,omitempty"`
-	Cols   int    `json:"cols,omitempty"`
-	Client string `json:"client,omitempty"`
+	ID     string
+	Data   string
+	Rows   int
+	Cols   int
+	Client string
 }
 
 // WatchRequest replaces the panes this connection wants pushed.
 // All watches the ubersession. Otherwise Panes is the exact set, which may be empty.
 type WatchRequest struct {
-	All   bool     `json:"all"`
-	Panes []string `json:"panes,omitempty"`
+	All   bool
+	Panes []string
 }
 
 // Event is one pushed record.
@@ -121,8 +121,8 @@ type Event struct {
 
 // Failure is the error object on an RPC response.
 type Failure struct {
-	Code string `json:"code"`
-	Text string `json:"text"`
+	Code string
+	Text string
 }
 
 // Error is the server sentence.

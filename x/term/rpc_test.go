@@ -1,8 +1,8 @@
 package term
 
 import (
+	"bufio"
 	"context"
-	"encoding/json"
 	"net"
 	"os"
 	"path/filepath"
@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/term/schema"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,26 +27,25 @@ func TestRPCVersionMethodAndWatch(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
-	err = client.Call(ctx, Method("nope"), nil, nil)
+	_, err = client.Call(ctx, Method("nope"), nil)
 	require.ErrorIs(t, err, ErrMethod)
 
 	raw := dialRaw(t, path)
-	require.NoError(t, json.NewEncoder(raw).Encode(map[string]any{
-		"v": 2, "id": 1, "method": "session.get",
-	}))
-	var bad wireIn
-	require.NoError(t, json.NewDecoder(raw).Decode(&bad))
-	require.NotNil(t, bad.Error)
-	require.ErrorIs(t, bad.Error, ErrVersion)
+	putFrame(t, raw, &schema.Envelope{Version: 2, Id: 1, Method: string(MethodSessionGet)})
+	bad := takeFrame(t, raw)
+	require.ErrorIs(t, failureFromSchema(bad.GetError()), ErrVersion)
 
 	unknown := dialRaw(t, path)
-	require.NoError(t, json.NewEncoder(unknown).Encode(map[string]any{
-		"v": ProtocolVersion, "id": 2, "method": "nope",
-	}))
-	var missing wireIn
-	require.NoError(t, json.NewDecoder(unknown).Decode(&missing))
-	require.NotNil(t, missing.Error)
-	require.ErrorIs(t, missing.Error, ErrMethod)
+	putFrame(t, unknown, &schema.Envelope{Version: ProtocolVersion, Id: 2, Method: "nope"})
+	missing := takeFrame(t, unknown)
+	require.ErrorIs(t, failureFromSchema(missing.GetError()), ErrMethod)
+
+	info, err := client.Session(ctx)
+	require.NoError(t, err)
+	assert.NotEmpty(t, info.ID)
+	listed, err := client.Panes(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
 
 	first, err := client.Create(ctx, CreateRequest{Command: []string{"/bin/cat"}, Rows: 24, Cols: 80})
 	require.NoError(t, err)
@@ -91,6 +91,23 @@ func TestRPCVersionMethodAndWatch(t *testing.T) {
 		text := pane.Line(0) + pane.Line(1)
 		return strings.Contains(text, "hi")
 	}, 2*time.Second, 20*time.Millisecond)
+}
+
+func TestSchemaRoundTrip(t *testing.T) {
+	pane := Pane{
+		PaneInfo: PaneInfo{
+			ID: "p", Title: "t", Command: []string{"/bin/cat"},
+			Alive: false, Exit: -1, Rows: 1, Cols: 2, Revision: 3,
+			LastWriter: "c", CursorCol: 1,
+		},
+		Cells: []Cell{{Rune: "a", FG: 2, Bold: true}, {Wide: true}},
+	}
+	assert.Equal(t, pane, paneFromSchema(paneToSchema(pane)))
+	req := WriteRequest{ID: "p", Data: "\x03", Client: "c"}
+	assert.Equal(t, req, writeFromSchema(writeToSchema(req)))
+	watch := WatchRequest{Panes: []string{"p"}}
+	assert.Equal(t, watch, watchFromSchema(watchToSchema(watch)))
+	assert.Equal(t, WatchRequest{All: true}, watchFromSchema(watchToSchema(WatchRequest{All: true})))
 }
 
 func TestListenStaleSocket(t *testing.T) {
@@ -142,6 +159,18 @@ func serveRPC(t *testing.T, ctx context.Context) (string, *Session) {
 	go func() { _ = session.Serve(ctx, listener) }()
 	t.Cleanup(func() { _ = listener.Close() })
 	return path, session
+}
+
+func putFrame(t *testing.T, conn net.Conn, msg *schema.Envelope) {
+	t.Helper()
+	require.NoError(t, writeFrame(bufio.NewWriter(conn), msg))
+}
+
+func takeFrame(t *testing.T, conn net.Conn) *schema.Envelope {
+	t.Helper()
+	msg, err := readFrame(bufio.NewReader(conn))
+	require.NoError(t, err)
+	return msg
 }
 
 func dialRaw(t *testing.T, path string) net.Conn {

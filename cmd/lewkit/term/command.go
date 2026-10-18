@@ -3,12 +3,14 @@ package term
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
 	mux "github.com/lewtec/lewkit/x/term"
+	"github.com/lewtec/lewkit/x/term/schema"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // Cmd is lewkit term.
@@ -66,7 +68,7 @@ func (c *attachCmd) Run(ctx context.Context) error {
 type rpcCmd struct {
 	socket cmd.StringArg  `long:"socket" default:"" help:"unix socket path"`
 	method cmd.StringArg  `help:"method, such as pane.list"`
-	params *cmd.StringArg `help:"JSON params object"`
+	params *cmd.StringArg `help:"protojson object for the method"`
 }
 
 func (rpcCmd) Description() string {
@@ -78,12 +80,9 @@ func (c *rpcCmd) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var params any
-	if c.params != nil && c.params.Value() != "" {
-		if !json.Valid([]byte(c.params.Value())) {
-			return fmt.Errorf("%w: %s", mux.ErrProtocol, "params")
-		}
-		params = json.RawMessage(c.params.Value())
+	params, err := rpcParams(method, c.params)
+	if err != nil {
+		return err
 	}
 	path, err := socketPath(c.socket)
 	if err != nil {
@@ -94,15 +93,62 @@ func (c *rpcCmd) Run(ctx context.Context) error {
 		return err
 	}
 	defer client.Close()
-	var result json.RawMessage
-	if err := client.Call(ctx, method, params, &result); err != nil {
+	resp, err := client.Call(ctx, method, params)
+	if err != nil {
 		return err
 	}
-	if len(result) == 0 {
-		result = json.RawMessage("{}")
+	text, err := payloadJSON(resp)
+	if err != nil {
+		return err
 	}
-	_, err = fmt.Printf("%s\n", result)
+	_, err = fmt.Printf("%s\n", text)
 	return err
+}
+
+func rpcParams(method mux.Method, arg *cmd.StringArg) (proto.Message, error) {
+	text := ""
+	if arg != nil {
+		text = arg.Value()
+	}
+	msg := requestMessage(method)
+	if text == "" {
+		return msg, nil
+	}
+	if msg == nil {
+		return nil, fmt.Errorf("%w: %s", mux.ErrProtocol, "params")
+	}
+	err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(text), msg)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", mux.ErrProtocol, err)
+	}
+	return msg, nil
+}
+
+func requestMessage(method mux.Method) proto.Message {
+	switch method {
+	case mux.MethodPaneGet, mux.MethodPaneKill:
+		return &schema.PaneId{}
+	case mux.MethodPaneCreate:
+		return &schema.CreateRequest{}
+	case mux.MethodPaneWrite:
+		return &schema.WriteRequest{}
+	case mux.MethodWatch:
+		return &schema.WatchRequest{}
+	default:
+		return nil
+	}
+}
+
+func payloadJSON(resp *schema.Envelope) (string, error) {
+	payload := mux.Payload(resp)
+	if payload == nil {
+		return "{}", nil
+	}
+	body, err := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", mux.ErrProtocol, err)
+	}
+	return string(body), nil
 }
 
 func socketPath(arg cmd.StringArg) (string, error) {

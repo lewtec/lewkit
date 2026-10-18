@@ -9,7 +9,7 @@ var (
 	ErrID = errs.Wrap(errs.ErrInvalid, "invalid pane id")
 	// ErrVersion means the message is not protocol version 1.
 	ErrVersion = errs.Wrap(errs.ErrInvalid, "unsupported term protocol")
-	// ErrProtocol means a message was not the JSON the server stores.
+	// ErrProtocol means a message was not a size-delimited record from the schema.
 	ErrProtocol = errs.Wrap(errs.ErrSyntax, "term protocol syntax")
 	// ErrSocket means the unix socket could not be opened or reached.
 	ErrSocket = errs.Wrap(errs.ErrUnavailable, "term socket unavailable")
