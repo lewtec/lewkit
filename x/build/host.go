@@ -73,10 +73,9 @@ func (host Host) Android(ctx context.Context) (string, error) {
 	return result.APKPath, nil
 }
 
-// Mac builds a .app, then ad-hoc signs that bundle. The executable
-// replaces itself with the Go program inside Contents/MacOS. That program
-// opens app.GUI and app.Web. Host.Sign replaces the ad-hoc signature
-// with the publisher key.
+// Mac builds a .app, then ad-hoc signs that bundle. The Go program is
+// the bundle executable on every host and opens app.GUI and app.Web.
+// Host.Sign replaces the ad-hoc signature with the publisher key.
 func (host Host) Mac(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {
@@ -159,7 +158,8 @@ func (host Host) Windows(ctx context.Context) (string, error) {
 	return result.ExePath, nil
 }
 
-// IOS builds a simulator or device .app from an eletrocromo.json config.
+// IOS builds a .app around a cgo-free GOOS=ios program on every host.
+// Host.Sign signs the Mach-Os.
 func (host Host) IOS(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load()
 	if err != nil {

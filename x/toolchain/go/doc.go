@@ -31,6 +31,8 @@
 // BuildModule compiles one module directory and links its main package.
 // The child process receives that GOOS and GOARCH. GOARCH other than amd64
 // or arm64 is an error. A target that must link externally is an error.
+// iOS links internally. Host go still refuses ios/arm64 without cgo, so the
+// iOS standard-library list does not load package main.
 // Android and any other default-PIE target links as an internal PIE, and
 // Module.Library forces that PIE, including on Linux. The compiler passes
 // -shared for that PIE except on Windows. go list -export receives

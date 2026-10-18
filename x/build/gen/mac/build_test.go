@@ -3,44 +3,17 @@ package mac
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
-	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
-func TestInstallHelper(t *testing.T) {
-	app := filepath.Join(t.TempDir(), "Counter.app")
-	macOS := filepath.Join(app, "Contents", "MacOS")
-	require.NoError(t, os.MkdirAll(macOS, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(macOS, "Counter"), []byte("swift-shell"), 0o755))
-	helper := filepath.Join(t.TempDir(), HelperName)
-	require.NoError(t, os.WriteFile(helper, []byte("go-server"), 0o644))
-	require.NoError(t, installHelper(app, helper))
-	body, err := os.ReadFile(filepath.Join(macOS, HelperName))
-	require.NoError(t, err)
-	if string(body) != "go-server" {
-		require.FailNowf(t, "", "server %q", body)
-	}
-	shell, err := os.ReadFile(filepath.Join(macOS, "Counter"))
-	require.NoError(t, err)
-	if string(shell) != "swift-shell" {
-		require.FailNowf(t, "", "shell %q", shell)
-	}
-	st, err := os.Stat(filepath.Join(macOS, HelperName))
-	require.NoError(t, err)
-	if !test.Executable(st.Mode()) {
-		require.FailNowf(t, "", "server mode %v", st.Mode())
-	}
-}
-
-func TestBuildFullAppNeedsMacOS(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		test.Skip(t, "full build uses xcodebuild")
-	}
+func TestBuildAssemblesGoApp(t *testing.T) {
 	mainDir := t.TempDir()
-	_, err := Build(t.Context(), BuildOptions{
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	out := filepath.Join(t.TempDir(), "Demo.app")
+	result, err := Build(t.Context(), BuildOptions{
 		Config: Config{
 			PackageID:   "br.tec.lew.demo",
 			AppName:     "Demo",
@@ -50,7 +23,22 @@ func TestBuildFullAppNeedsMacOS(t *testing.T) {
 		},
 		BaseDir: mainDir,
 		WorkDir: t.TempDir(),
-		OutApp:  filepath.Join(t.TempDir(), "Demo.app"),
+		OutApp:  out,
+		GOARCH:  "arm64",
 	})
-	require.ErrorIs(t, err, ErrMacOSRequired)
+	require.NoError(t, err)
+	require.Equal(t, out, result.AppPath)
+	exe, err := os.ReadFile(filepath.Join(out, "Contents", "MacOS", "Demo"))
+	require.NoError(t, err)
+	require.Equal(t, []byte{0xcf, 0xfa, 0xed, 0xfe}, exe[:4])
+	_, err = os.Stat(filepath.Join(out, "Contents", "MacOS", HelperName))
+	require.Error(t, err)
+	plist, err := os.ReadFile(filepath.Join(out, "Contents", "Info.plist"))
+	require.NoError(t, err)
+	require.Contains(t, string(plist), "<key>CFBundleExecutable</key>\n\t<string>Demo</string>")
+	_, err = os.Stat(filepath.Join(out, "Contents", "Resources", "AppIcon.icns"))
+	require.NoError(t, err)
+	pkg, err := os.ReadFile(filepath.Join(out, "Contents", "PkgInfo"))
+	require.NoError(t, err)
+	require.Equal(t, "APPL????", string(pkg))
 }
