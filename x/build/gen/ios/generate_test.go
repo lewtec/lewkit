@@ -12,6 +12,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIOSSimulator(t *testing.T) {
+	t.Parallel()
+	device, err := iosSimulator("", "arm64")
+	require.NoError(t, err)
+	require.False(t, device)
+	sim, err := iosSimulator("", "amd64")
+	require.NoError(t, err)
+	require.True(t, sim)
+	sim, err = iosSimulator("iphonesimulator", "arm64")
+	require.NoError(t, err)
+	require.True(t, sim)
+	device, err = iosSimulator("iphoneos", "arm64")
+	require.NoError(t, err)
+	require.False(t, device)
+	_, err = iosSimulator("watchos", "arm64")
+	require.Error(t, err)
+}
+
 func TestNormalizeSDK(t *testing.T) {
 	t.Parallel()
 	got, err := normalizeSDK("")
