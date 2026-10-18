@@ -23,5 +23,9 @@
 // are the RPC. [Run] is the attach desk. lew on the bottom rail opens the
 // command palette, and so does ctrl+p. That rail keeps the recent panes.
 // drawer lists sessions as a tree, and the x on a session removes those
-// records. Bindings for individual actions are not assigned yet.
+// records. It also names the directory the focused pane is standing in and
+// that directory's git status. + directory makes a pocket on this client.
+// The arrow on a pane carries it into a directory, and pane.move renames
+// the key. Empty pockets stay on the client. Bindings for individual
+// actions are not assigned yet.
 package term

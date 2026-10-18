@@ -31,7 +31,10 @@ type API interface {
 // followPane empty follows the ubersession. Otherwise the view follows that
 // pane only. The palette is open at the start. lew on the rail opens and
 // closes it, and so does ctrl+p. The rail keeps recent panes. drawer lists
-// sessions. Other actions are palette commands; they do not have key bindings yet.
+// sessions, the directory you are standing in, and that directory's git
+// status. + directory makes a pocket on this client, and the arrow moves a
+// pane into one. Other actions are palette commands; they do not have key
+// bindings yet.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -73,6 +76,14 @@ type Model struct {
 	hits         []hit
 	shownChoices []int
 	drawerAt     int
+
+	cwd     string
+	gitLine string
+	made    []string
+	place   string
+	held    string
+	naming  bool
+	name    string
 }
 
 func newModel(ctx context.Context, api API, followPane string) *Model {
@@ -88,6 +99,9 @@ func newModel(ctx context.Context, api API, followPane string) *Model {
 		palette:   true,
 		step:      StepActions,
 		byID:      map[string]Pane{},
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		model.cwd = cwd
 	}
 	if followPane != "" {
 		model.follow = []string{followPane}
@@ -108,6 +122,11 @@ type spawnedMsg struct{ pane Pane }
 type wroteMsg struct{}
 
 type killedMsg struct{ id string }
+
+type movedMsg struct {
+	id   string
+	path string
+}
 
 // Init loads the ubersession and waits for pushes.
 func (m *Model) Init() tea.Cmd {
@@ -185,6 +204,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case wroteMsg:
 		m.errText = ""
+		return m, nil
+	case movedMsg:
+		if pane, ok := m.byID[msg.id]; ok {
+			pane.Path = msg.path
+			m.byID[msg.id] = pane
+		}
+		m.errText = ""
+		return m, nil
+	case gitMsg:
+		if msg.dir == m.room() {
+			m.gitLine = msg.line
+		}
 		return m, nil
 	case errMsg:
 		if msg.err == nil || errors.Is(msg.err, context.Canceled) {
@@ -491,7 +522,7 @@ func (m *Model) applyDir(name string) (tea.Model, tea.Cmd) {
 
 func (m *Model) spawn(command []string) tea.Cmd {
 	rows, cols := m.spawnSize()
-	req := CreateRequest{Command: command, Rows: rows, Cols: cols, Client: m.clientID}
+	req := CreateRequest{Command: command, Rows: rows, Cols: cols, Client: m.clientID, Dir: m.room()}
 	if m.folder != "" {
 		req.Path = m.folder + "/"
 	}
@@ -532,7 +563,7 @@ func (m *Model) move(id, path string) tea.Cmd {
 		if err := m.api.Move(m.ctx, id, path); err != nil {
 			return errMsg{err}
 		}
-		return wroteMsg{}
+		return movedMsg{id: id, path: path}
 	}
 }
 

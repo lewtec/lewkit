@@ -2,6 +2,7 @@ package term
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -15,6 +16,7 @@ type fakeAPI struct {
 	writes  []WriteRequest
 	watches []WatchRequest
 	removes []string
+	moves   []movedMsg
 }
 
 func (f *fakeAPI) Session(context.Context) (SessionInfo, error) {
@@ -41,7 +43,10 @@ func (f *fakeAPI) Write(_ context.Context, req WriteRequest) error {
 
 func (f *fakeAPI) Kill(context.Context, string) error { return nil }
 
-func (f *fakeAPI) Move(context.Context, string, string) error { return nil }
+func (f *fakeAPI) Move(_ context.Context, id, path string) error {
+	f.moves = append(f.moves, movedMsg{id: id, path: path})
+	return nil
+}
 
 func (f *fakeAPI) Remove(_ context.Context, id string) error {
 	f.removes = append(f.removes, id)
@@ -71,6 +76,9 @@ func TestPaletteNewUsesTileSize(t *testing.T) {
 	require.Len(t, api.creates, 1)
 	assert.Equal(t, 100, api.creates[0].Cols)
 	assert.Equal(t, 29, api.creates[0].Rows)
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	assert.Equal(t, wd, api.creates[0].Dir)
 }
 
 func TestClosedPaletteWriteUsesTileSize(t *testing.T) {

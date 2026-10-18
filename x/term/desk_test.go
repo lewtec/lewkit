@@ -43,10 +43,12 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.False(t, model.palette)
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, "the drawer")
+	assert.Contains(t, plain, "standing in ")
+	assert.Contains(t, plain, "looking around")
 	assert.Contains(t, plain, "sessions live here")
 	assert.NotContains(t, plain, "├ editor")
 
-	runCmd(clickLine(t, model, "work", "work"))
+	runCmd(clickLine(t, model, " · work", "work"))
 	assert.True(t, model.drawer)
 	assert.Equal(t, "work", model.shown)
 	assert.Equal(t, "work", model.followPrefix)
@@ -79,8 +81,11 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.True(t, model.followAll)
 	assert.Empty(t, model.shown)
 	plain, _ = renderPlain(model)
-	assert.NotContains(t, plain, "work")
+	assert.NotContains(t, plain, " · work")
+	assert.NotContains(t, plain, " * work")
+	assert.NotContains(t, plain, "├ editor")
 	assert.Contains(t, plain, "nothing in here yet")
+	assert.Contains(t, plain, "standing in ")
 }
 
 func TestDeskTabsAndPaletteChoices(t *testing.T) {
@@ -189,6 +194,7 @@ func TestDeskDrawerKeysStayOffThePane(t *testing.T) {
 	assert.True(t, model.drawer)
 
 	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	runCmd(cmd)
 	assert.Equal(t, "notes", model.shown)
@@ -203,6 +209,114 @@ func TestDeskDrawerKeysStayOffThePane(t *testing.T) {
 	_ = cmd()
 	require.Len(t, api.writes, 1)
 	assert.Equal(t, "a", api.writes[0].Data)
+}
+
+func TestDrawerShowsTheRoomAndMovesAPane(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.cwd = t.TempDir()
+	model.gitLine = "main · 1 changed"
+	model.order = []string{"ed"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	model.focus = "ed"
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "standing in "+roomLabel(model.cwd))
+	assert.Contains(t, plain, "main · 1 changed")
+	assert.Contains(t, plain, "+ directory")
+	assert.NotContains(t, plain, "├ editor")
+
+	runCmd(clickLine(t, model, "+ directory", "+ directory"))
+	assert.True(t, model.naming)
+	assert.True(t, model.drawer)
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	assert.False(t, model.naming)
+	assert.True(t, model.drawer)
+	assert.Empty(t, api.writes)
+
+	runCmd(clickLine(t, model, "+ directory", "+ directory"))
+	_, cmd := model.Update(tea.KeyPressMsg{Text: "p", Code: 'p'})
+	assert.Nil(t, cmd)
+	assert.Empty(t, api.writes)
+	_, cmd = model.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	assert.Nil(t, cmd)
+	assert.Equal(t, "p", model.name)
+	assert.True(t, model.naming)
+	assert.True(t, model.drawer)
+	for _, r := range "ockets" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Nil(t, cmd)
+	assert.Equal(t, []string{"pockets"}, model.made)
+	assert.Equal(t, "pockets", model.place)
+	assert.Equal(t, "pockets", model.shown)
+	assert.Empty(t, api.moves)
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "pocket pockets")
+	assert.Contains(t, plain, " * pockets")
+
+	runCmd(clickLine(t, model, "+ directory", "+"))
+	for _, r := range "inner" {
+		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	assert.Equal(t, []string{"pockets", "pockets/inner"}, model.made)
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "└ inner")
+
+	runCmd(clickLine(t, model, " · work", "work"))
+	assert.Equal(t, "work", model.shown)
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "└ editor")
+
+	cmd = clickCarry(t, model, "editor")
+	assert.Nil(t, cmd)
+	assert.Equal(t, "ed", model.held)
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "carrying editor")
+
+	cmd = clickLine(t, model, " · pockets", "pockets")
+	applyCmd(model, cmd)
+	require.Equal(t, []movedMsg{{id: "ed", path: "pockets/editor"}}, api.moves)
+	assert.Equal(t, "pockets/editor", model.byID["ed"].Path)
+	assert.Empty(t, model.byID["ed"].Dir)
+	assert.Equal(t, "pockets", model.shown)
+	assert.Equal(t, "main · 1 changed", model.gitLine)
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "├ editor")
+	assert.Contains(t, plain, "└ inner")
+	assert.NotContains(t, plain, " · work")
+	assert.NotContains(t, plain, "work/editor")
+}
+
+func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {
+	model := newModel(t.Context(), &fakeAPI{}, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.made = []string{"spare", "spare/bin"}
+	model.shown = "spare"
+	model.place = "spare/bin"
+	model.followAll = false
+	model.followPrefix = "spare"
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, " * spare")
+	assert.Contains(t, plain, "└ bin")
+
+	cmd := clickClose(t, model, "spare")
+	assert.Nil(t, cmd)
+	assert.Empty(t, model.made)
+	assert.Empty(t, model.place)
+	assert.Empty(t, model.shown)
+	assert.True(t, model.followAll)
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "nothing in here yet")
+	assert.NotContains(t, plain, "spare")
 }
 
 func renderPlain(m *Model) (string, []string) {
@@ -237,6 +351,40 @@ func clickLine(t *testing.T, m *Model, row, word string) tea.Cmd {
 	}
 	require.Fail(t, "missing click target", "no %q on a line containing %q", word, row)
 	return nil
+}
+
+func clickCarry(t *testing.T, m *Model, name string) tea.Cmd {
+	t.Helper()
+	_, lines := renderPlain(m)
+	for y, text := range lines {
+		if !strings.Contains(text, name) || !strings.HasSuffix(strings.TrimRight(text, " "), "→") {
+			continue
+		}
+		at := strings.LastIndex(text, "→")
+		_, cmd := m.Update(tea.MouseClickMsg{X: colAt(text, at), Y: y, Button: tea.MouseLeft})
+		return cmd
+	}
+	require.Fail(t, "missing carry mark", name)
+	return nil
+}
+
+func applyCmd(m *Model, cmd tea.Cmd) {
+	if cmd == nil {
+		return
+	}
+	msg := cmd()
+	if msg == nil {
+		return
+	}
+	batch, ok := msg.(tea.BatchMsg)
+	if ok {
+		for _, inner := range batch {
+			applyCmd(m, inner)
+		}
+		return
+	}
+	_, next := m.Update(msg)
+	applyCmd(m, next)
 }
 
 func clickClose(t *testing.T, m *Model, key string) tea.Cmd {

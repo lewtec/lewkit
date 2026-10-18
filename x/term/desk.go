@@ -23,6 +23,9 @@ const (
 	hitClose
 	hitChoice
 	hitChild
+	hitNewDir
+	hitCarry
+	hitFolder
 )
 
 type hit struct {
@@ -40,14 +43,17 @@ type sessionGroup struct {
 
 type drawerRow struct {
 	session bool
+	newDir  bool
 	key     string
 	pane    string
 	text    string
+	folder  string
 }
 
 type hierRow struct {
-	text string
-	pane string
+	text   string
+	pane   string
+	folder string
 }
 
 type tnode struct {
@@ -203,12 +209,28 @@ func (m *Model) drawerBody(width, rows int) []string {
 		return nil
 	}
 	lines := []string{fit("the drawer", width)}
+	if len(lines) < rows {
+		lines = append(lines, fit("standing in "+roomLabel(m.room()), width))
+	}
+	if len(lines) < rows {
+		git := m.gitLine
+		if git == "" {
+			git = "looking around"
+		}
+		lines = append(lines, fit(git, width))
+	}
+	if m.held != "" && len(lines) < rows {
+		lines = append(lines, fit("carrying "+m.tabLabel(m.held), width))
+	}
+	if m.place != "" && len(lines) < rows {
+		lines = append(lines, fit("pocket "+m.place, width))
+	}
 	items := m.drawerRows()
+	if !m.hasSession() && len(lines) < rows {
+		lines = append(lines, fit("nothing in here yet. lew can start a pane.", width))
+	}
 	if len(items) == 0 {
 		m.drawerAt = 0
-		if len(lines) < rows {
-			lines = append(lines, fit("nothing in here yet. lew can start a pane.", width))
-		}
 	} else if m.drawerAt >= len(items) {
 		m.drawerAt = len(items) - 1
 	} else if m.drawerAt < 0 {
@@ -220,7 +242,15 @@ func (m *Model) drawerBody(width, rows int) []string {
 		}
 		y := len(lines)
 		var line string
-		if item.session {
+		switch {
+		case item.newDir:
+			text := "+ directory"
+			if m.naming {
+				text = "directory> " + m.name
+			}
+			line = fit(text, width)
+			m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitNewDir})
+		case item.session:
 			mark := " · "
 			if item.key == m.shown {
 				mark = " * "
@@ -230,9 +260,22 @@ func (m *Model) drawerBody(width, rows int) []string {
 				m.hits = append(m.hits, hit{x: 0, y: y, w: width - 3, kind: hitSession, id: item.key})
 				m.hits = append(m.hits, hit{x: width - 3, y: y, w: 3, kind: hitClose, id: item.key})
 			}
-		} else {
+		case item.pane != "":
+			line = edgeMark(item.text, " →", width)
+			markW := runewidth.StringWidth(" →")
+			if markW < width {
+				hitW := markW
+				if width-markW > 0 {
+					hitW++
+				}
+				m.hits = append(m.hits, hit{x: width - hitW, y: y, w: hitW, kind: hitCarry, id: item.pane})
+				m.hits = append(m.hits, hit{x: 0, y: y, w: width - hitW, kind: hitChild, id: item.pane})
+			} else {
+				m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitChild, id: item.pane})
+			}
+		default:
 			line = fit(item.text, width)
-			m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitChild, id: item.pane})
+			m.hits = append(m.hits, hit{x: 0, y: y, w: width, kind: hitFolder, id: item.folder})
 		}
 		if i == m.drawerAt {
 			line = rev(line, true)
@@ -246,14 +289,23 @@ func (m *Model) drawerBody(width, rows int) []string {
 }
 
 func (m *Model) drawerRows() []drawerRow {
-	var rows []drawerRow
+	rows := []drawerRow{{newDir: true, text: "+ directory"}}
 	for _, group := range m.sessionGroups() {
-		rows = append(rows, drawerRow{session: true, key: group.key})
+		folder := ""
+		if group.dir {
+			folder = group.key
+		}
+		rows = append(rows, drawerRow{session: true, key: group.key, folder: folder})
 		if group.key != m.shown || !group.dir {
 			continue
 		}
 		for _, row := range m.hierarchy(group.key) {
-			rows = append(rows, drawerRow{key: group.key, pane: row.pane, text: row.text})
+			rows = append(rows, drawerRow{
+				key:    group.key,
+				pane:   row.pane,
+				text:   row.text,
+				folder: row.folder,
+			})
 		}
 	}
 	return rows
@@ -280,6 +332,16 @@ func (m *Model) sessionGroups() []sessionGroup {
 			groups[at].dir = true
 		}
 	}
+	for _, path := range m.made {
+		key := sessionKeyFromPath(path)
+		at, seen := index[key]
+		if !seen {
+			index[key] = len(groups)
+			groups = append(groups, sessionGroup{key: key, dir: true})
+			continue
+		}
+		groups[at].dir = true
+	}
 	return groups
 }
 
@@ -304,8 +366,18 @@ func (m *Model) hierarchy(prefix string) []hierRow {
 			}
 		}
 	}
+	for _, path := range m.made {
+		if prefix == "" || !strings.HasPrefix(path, prefix+"/") {
+			continue
+		}
+		rest := strings.TrimPrefix(path, prefix+"/")
+		node := root
+		for _, part := range strings.Split(rest, "/") {
+			node = node.child(part)
+		}
+	}
 	var rows []hierRow
-	root.walk("", &rows)
+	root.walk("", prefix, &rows)
 	return rows
 }
 
@@ -320,7 +392,7 @@ func (n *tnode) child(name string) *tnode {
 	return kid
 }
 
-func (n *tnode) walk(prefix string, rows *[]hierRow) {
+func (n *tnode) walk(prefix, path string, rows *[]hierRow) {
 	for i, kid := range n.kids {
 		last := i == len(n.kids)-1
 		branch := "├ "
@@ -329,12 +401,19 @@ func (n *tnode) walk(prefix string, rows *[]hierRow) {
 			branch = "└ "
 			next = prefix + "  "
 		}
-		*rows = append(*rows, hierRow{text: prefix + branch + kid.name, pane: kid.pane})
-		kid.walk(next, rows)
+		full := kid.name
+		if path != "" {
+			full = path + "/" + kid.name
+		}
+		*rows = append(*rows, hierRow{text: prefix + branch + kid.name, pane: kid.pane, folder: full})
+		kid.walk(next, full, rows)
 	}
 }
 
 func (m *Model) drawerKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if m.naming {
+		return m.nameDirectory(msg)
+	}
 	switch msg.Keystroke() {
 	case "up":
 		if m.drawerAt > 0 {
@@ -367,9 +446,29 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	row := rows[m.drawerAt]
+	if row.newDir {
+		if m.naming {
+			m.createDirectory(m.name)
+			return m, nil
+		}
+		m.startNaming()
+		return m, nil
+	}
+	if row.pane == "" && row.folder != "" && m.held != "" {
+		return m, m.moveInto(row.folder)
+	}
+	if row.pane == "" && row.folder != "" && !row.session {
+		m.place = row.folder
+		m.shown = sessionKeyFromPath(row.folder)
+		return m, nil
+	}
 	if row.session {
+		if m.held != "" && row.folder != "" {
+			return m, m.moveInto(row.folder)
+		}
 		return m, m.selectSession(row.key)
 	}
+	m.held = ""
 	return m, m.showPane(row.pane)
 }
 
@@ -389,10 +488,16 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 		return m, nil
 	case hitToggle:
 		m.drawer = !m.drawer
+		if m.drawer {
+			return m, m.lookGit()
+		}
 		return m, nil
 	case hitTab:
 		return m, m.focusTab(item.id)
 	case hitSession:
+		if m.held != "" && m.sessionDir(item.id) {
+			return m, m.moveInto(item.id)
+		}
 		return m, m.selectSession(item.id)
 	case hitClose:
 		return m, m.closeSession(item.id)
@@ -400,7 +505,29 @@ func (m *Model) useHit(item hit) (tea.Model, tea.Cmd) {
 		m.cursor = item.index
 		return m.activate()
 	case hitChild:
+		m.held = ""
 		return m, m.showPane(item.id)
+	case hitNewDir:
+		m.startNaming()
+		return m, nil
+	case hitCarry:
+		if m.held == item.id {
+			m.held = ""
+			return m, nil
+		}
+		m.held = item.id
+		m.drawer = true
+		return m, nil
+	case hitFolder:
+		if m.held != "" {
+			return m, m.moveInto(item.id)
+		}
+		m.place = item.id
+		if item.id != "" {
+			m.shown = sessionKeyFromPath(item.id)
+		}
+		m.drawer = true
+		return m, nil
 	default:
 		return m, nil
 	}
@@ -452,7 +579,7 @@ func (m *Model) selectSession(key string) tea.Cmd {
 		if contains(group.panes, m.focus) {
 			m.touch(m.focus)
 		}
-		return m.rewatch()
+		return tea.Batch(m.rewatch(), m.lookGit())
 	}
 	m.followAll = false
 	m.followPrefix = ""
@@ -461,7 +588,7 @@ func (m *Model) selectSession(key string) tea.Cmd {
 		m.focus = group.panes[0]
 		m.touch(m.focus)
 	}
-	return m.rewatch()
+	return tea.Batch(m.rewatch(), m.lookGit())
 }
 
 func (m *Model) showPane(id string) tea.Cmd {
@@ -493,7 +620,17 @@ func (m *Model) showPane(id string) tea.Cmd {
 
 func (m *Model) closeSession(key string) tea.Cmd {
 	ids := append([]string(nil), m.sessionPanes(key)...)
+	m.made = withoutPrefix(m.made, key)
+	if m.place == key || strings.HasPrefix(m.place, key+"/") {
+		m.place = ""
+	}
 	if len(ids) == 0 {
+		if m.shown == key {
+			m.shown = ""
+			m.followAll = true
+			m.followPrefix = ""
+			m.follow = nil
+		}
 		return nil
 	}
 	for _, id := range ids {
@@ -568,6 +705,168 @@ func (m *Model) drop(id string) {
 	if m.focus == id {
 		m.focus = ""
 	}
+	if m.held == id {
+		m.held = ""
+	}
+}
+
+func (m *Model) room() string {
+	if pane, ok := m.byID[m.focus]; ok && pane.Dir != "" {
+		return pane.Dir
+	}
+	return m.cwd
+}
+
+func (m *Model) lookGit() tea.Cmd {
+	dir := m.room()
+	return func() tea.Msg {
+		return gitMsg{dir: dir, line: readGit(m.ctx, dir)}
+	}
+}
+
+func (m *Model) hasSession() bool {
+	return len(m.sessionGroups()) > 0
+}
+
+func (m *Model) startNaming() {
+	m.naming = true
+	m.name = ""
+	m.errText = ""
+	m.drawer = true
+}
+
+func (m *Model) nameDirectory(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.Keystroke() {
+	case "enter":
+		m.createDirectory(m.name)
+		return m, nil
+	case "esc":
+		m.naming = false
+		m.name = ""
+		return m, nil
+	case "backspace":
+		runes := []rune(m.name)
+		if len(runes) == 0 {
+			m.naming = false
+			return m, nil
+		}
+		m.name = string(runes[:len(runes)-1])
+		return m, nil
+	}
+	if msg.Text != "" && !msg.Key().Mod.Contains(tea.ModCtrl) && !msg.Key().Mod.Contains(tea.ModAlt) {
+		m.name += msg.Text
+	}
+	return m, nil
+}
+
+func (m *Model) createDirectory(name string) {
+	parent := m.place
+	if parent == "" && m.shown != "" && m.sessionDir(m.shown) {
+		parent = m.shown
+	}
+	path, err := resolvePath(parent, name)
+	if err != nil || path == "" {
+		m.errText = ErrPath.Error()
+		m.naming = false
+		m.name = ""
+		return
+	}
+	if m.keyTaken(path, "", true) {
+		m.errText = ErrPath.Error()
+		m.naming = false
+		m.name = ""
+		return
+	}
+	if !contains(m.made, path) {
+		m.made = append(m.made, path)
+	}
+	m.shown = sessionKeyFromPath(path)
+	m.place = path
+	m.naming = false
+	m.name = ""
+	m.errText = ""
+	m.drawer = true
+}
+
+func (m *Model) moveInto(folder string) tea.Cmd {
+	id := m.held
+	if id == "" || folder == "" {
+		m.held = ""
+		return nil
+	}
+	pane, ok := m.byID[id]
+	if !ok {
+		m.held = ""
+		return nil
+	}
+	base := pathBase(panePath(pane))
+	next := folder + "/" + base
+	if panePath(pane) == next {
+		m.held = ""
+		return nil
+	}
+	if m.keyTaken(next, id, false) {
+		m.errText = ErrPath.Error()
+		return nil
+	}
+	m.held = ""
+	m.shown = sessionKeyFromPath(folder)
+	m.place = folder
+	m.drawer = true
+	m.palette = false
+	m.errText = ""
+	return m.move(id, next)
+}
+
+// keyTaken reports a path the tree cannot accept.
+// folder is an empty directory. A pane may move inside one. A file may not
+// occupy the same key as a directory, and a directory may not sit inside a file.
+func (m *Model) keyTaken(path, except string, folder bool) bool {
+	if path == "" {
+		return false
+	}
+	for _, id := range m.order {
+		if id == except {
+			continue
+		}
+		pane, ok := m.byID[id]
+		if !ok {
+			continue
+		}
+		have := panePath(pane)
+		if have == path || strings.HasPrefix(path, have+"/") {
+			return true
+		}
+		if !folder && strings.HasPrefix(have, path+"/") {
+			return true
+		}
+	}
+	for _, made := range m.made {
+		if made == path {
+			if !folder {
+				return true
+			}
+			continue
+		}
+		if strings.HasPrefix(path, made+"/") {
+			continue
+		}
+		if !folder && strings.HasPrefix(made, path+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func withoutPrefix(paths []string, key string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if path == key || strings.HasPrefix(path, key+"/") {
+			continue
+		}
+		out = append(out, path)
+	}
+	return out
 }
 
 func panePath(pane Pane) string {
@@ -589,10 +888,18 @@ func sessionKeyFromPath(path string) string {
 }
 
 func edgeLine(left string, width int) string {
-	if width < 3 {
+	return edgeMark(left, " x", width)
+}
+
+func edgeMark(left, suffix string, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	w := runewidth.StringWidth(suffix)
+	if w < 1 || width < w {
 		return fit(left, width)
 	}
-	return fit(left, width-2) + " x"
+	return fit(left, width-w) + suffix
 }
 
 func rev(text string, on bool) string {
