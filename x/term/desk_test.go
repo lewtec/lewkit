@@ -43,9 +43,10 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.False(t, model.palette)
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, "the drawer")
-	assert.Contains(t, plain, "standing in ")
+	assert.Contains(t, plain, " · work  "+roomLabel(model.cwd))
 	assert.Contains(t, plain, "looking around")
 	assert.Contains(t, plain, "sessions live here")
+	assert.NotContains(t, plain, "standing in ")
 	assert.NotContains(t, plain, "├ editor")
 
 	runCmd(clickLine(t, model, " · work", "work"))
@@ -85,7 +86,7 @@ func TestDeskClicksThroughTheRoom(t *testing.T) {
 	assert.NotContains(t, plain, " * work")
 	assert.NotContains(t, plain, "├ editor")
 	assert.Contains(t, plain, "nothing in here yet")
-	assert.Contains(t, plain, "standing in ")
+	assert.NotContains(t, plain, "standing in ")
 }
 
 func TestDeskTabsAndPaletteChoices(t *testing.T) {
@@ -217,15 +218,17 @@ func TestDrawerShowsTheRoomAndMovesAPane(t *testing.T) {
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model.palette = false
 	model.drawer = true
-	model.cwd = t.TempDir()
-	model.gitLine = "main · 1 changed"
-	model.order = []string{"ed"}
-	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true}}
+	dir := "/lewkit-room"
+	model.cwd = dir
+	model.gitBy = map[string]string{dir: "main · tidy"}
+	model.order = []string{"ed", "docs"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true, Dir: dir}}
+	model.byID["docs"] = Pane{PaneInfo: PaneInfo{ID: "docs", Path: "work/docs", Title: "md", Alive: true, Dir: dir}}
 	model.focus = "ed"
 
 	plain, _ := renderPlain(model)
-	assert.Contains(t, plain, "standing in "+roomLabel(model.cwd))
-	assert.Contains(t, plain, "main · 1 changed")
+	assert.Contains(t, plain, " · work  /lewkit-room  main · tidy")
+	assert.NotContains(t, plain, "standing in ")
 	assert.Contains(t, plain, "+ directory")
 	assert.NotContains(t, plain, "├ editor")
 
@@ -268,29 +271,68 @@ func TestDrawerShowsTheRoomAndMovesAPane(t *testing.T) {
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, "└ inner")
 
-	runCmd(clickLine(t, model, " · work", "work"))
-	assert.Equal(t, "work", model.shown)
-	plain, _ = renderPlain(model)
-	assert.Contains(t, plain, "└ editor")
-
-	cmd = clickCarry(t, model, "editor")
+	cmd = clickSessionCarry(t, model, " · work")
 	assert.Nil(t, cmd)
-	assert.Equal(t, "ed", model.held)
+	assert.Equal(t, "work", model.heldSession)
 	plain, _ = renderPlain(model)
-	assert.Contains(t, plain, "carrying editor")
+	assert.Contains(t, plain, "carrying work")
 
 	cmd = clickLine(t, model, " · pockets", "pockets")
 	applyCmd(model, cmd)
-	require.Equal(t, []movedMsg{{id: "ed", path: "pockets/editor"}}, api.moves)
-	assert.Equal(t, "pockets/editor", model.byID["ed"].Path)
-	assert.Empty(t, model.byID["ed"].Dir)
-	assert.Equal(t, "pockets", model.shown)
-	assert.Equal(t, "main · 1 changed", model.gitLine)
+	require.Equal(t, []movedMsg{
+		{id: "ed", path: "pockets/work/editor"},
+		{id: "docs", path: "pockets/work/docs"},
+	}, api.moves)
+	assert.Equal(t, "pockets/work/editor", model.byID["ed"].Path)
+	assert.Equal(t, "pockets/work/docs", model.byID["docs"].Path)
+	assert.Equal(t, dir, model.byID["ed"].Dir)
+	assert.Equal(t, "pockets/work", model.shown)
 	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "work  /lewkit-room  main · tidy")
 	assert.Contains(t, plain, "├ editor")
-	assert.Contains(t, plain, "└ inner")
-	assert.NotContains(t, plain, " · work")
+	assert.Contains(t, plain, "└ docs")
+	assert.Contains(t, plain, "├ inner")
 	assert.NotContains(t, plain, "work/editor")
+}
+
+func TestSessionRowKeepsTheGitStatus(t *testing.T) {
+	model := newModel(t.Context(), &fakeAPI{}, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	dir := "/tmp/" + strings.Repeat("directory", 12)
+	model.gitBy = map[string]string{dir: "main · tidy"}
+	model.order = []string{"ed"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{ID: "ed", Path: "work/editor", Title: "hx", Alive: true, Dir: dir}}
+	model.focus = "ed"
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, " · work")
+	assert.Contains(t, plain, "main · tidy")
+	assert.Contains(t, plain, "→ x")
+}
+
+func TestDeskShowsTheFocusedPane(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
+	model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	model.palette = false
+	model.followAll = true
+	model.order = []string{"a", "b"}
+	model.byID["a"] = Pane{PaneInfo: PaneInfo{ID: "a", Path: "alpha", Title: "alpha", Alive: true, Rows: 10, Cols: 20}}
+	model.byID["b"] = Pane{PaneInfo: PaneInfo{ID: "b", Path: "beta", Title: "beta", Alive: true, Rows: 10, Cols: 20}}
+	model.focus = "a"
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "alpha")
+	assert.NotContains(t, plain, "beta")
+
+	_, cmd := model.Update(tea.KeyPressMsg{Text: "a", Code: 'a'})
+	require.NotNil(t, cmd)
+	_ = cmd()
+	require.Len(t, api.writes, 1)
+	assert.Equal(t, 100, api.writes[0].Cols)
+	assert.Equal(t, 38, api.writes[0].Rows)
 }
 
 func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {
@@ -350,6 +392,24 @@ func clickLine(t *testing.T, m *Model, row, word string) tea.Cmd {
 		return cmd
 	}
 	require.Fail(t, "missing click target", "no %q on a line containing %q", word, row)
+	return nil
+}
+
+func clickSessionCarry(t *testing.T, m *Model, row string) tea.Cmd {
+	t.Helper()
+	_, lines := renderPlain(m)
+	for y, text := range lines {
+		if !strings.Contains(text, row) || !strings.HasSuffix(strings.TrimRight(text, " "), "x") {
+			continue
+		}
+		at := strings.LastIndex(text, "→")
+		if at < 0 {
+			continue
+		}
+		_, cmd := m.Update(tea.MouseClickMsg{X: colAt(text, at), Y: y, Button: tea.MouseLeft})
+		return cmd
+	}
+	require.Fail(t, "missing session carry mark", row)
 	return nil
 }
 

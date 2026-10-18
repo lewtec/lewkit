@@ -31,10 +31,10 @@ type API interface {
 // followPane empty follows the ubersession. Otherwise the view follows that
 // pane only. The palette is open at the start. lew on the rail opens and
 // closes it, and so does ctrl+p. The rail keeps recent panes. drawer lists
-// sessions, the directory you are standing in, and that directory's git
-// status. + directory makes a pocket on this client, and the arrow moves a
-// pane into one. Other actions are palette commands; they do not have key
-// bindings yet.
+// sessions. Each session row names that session's directory and git status.
+// + directory makes a pocket on this client, and the arrow on a session
+// nests that session into a folder. The desk shows the focused pane.
+// Other actions are palette commands; they do not have key bindings yet.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -77,13 +77,14 @@ type Model struct {
 	shownChoices []int
 	drawerAt     int
 
-	cwd     string
-	gitLine string
-	made    []string
-	place   string
-	held    string
-	naming  bool
-	name    string
+	cwd         string
+	gitBy       map[string]string
+	made        []string
+	place       string
+	held        string
+	heldSession string
+	naming      bool
+	name        string
 }
 
 func newModel(ctx context.Context, api API, followPane string) *Model {
@@ -213,9 +214,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.errText = ""
 		return m, nil
 	case gitMsg:
-		if msg.dir == m.room() {
-			m.gitLine = msg.line
+		if m.gitBy == nil {
+			m.gitBy = map[string]string{}
 		}
+		m.gitBy[msg.dir] = msg.line
 		return m, nil
 	case errMsg:
 		if msg.err == nil || errors.Is(msg.err, context.Canceled) {
@@ -727,15 +729,11 @@ func (m *Model) clamp(n int) {
 }
 
 func (m *Model) focusSize() (int, int) {
-	return m.tileBody(len(m.visible()))
+	return m.tileBody(1)
 }
 
 func (m *Model) spawnSize() (int, int) {
-	n := len(m.visible()) + 1
-	if m.followAll {
-		n = len(m.order) + 1
-	}
-	return m.tileBody(n)
+	return m.tileBody(1)
 }
 
 func (m *Model) tileBody(n int) (int, int) {
@@ -803,31 +801,17 @@ func (m *Model) render() (string, int, int, bool) {
 			}
 		}
 	default:
-		base := body / len(ids)
-		extra := body % len(ids)
-		y := 0
-		focus := shownFocus(ids, m.focus)
-		for i, id := range ids {
-			tileH := base
-			if i < extra {
-				tileH++
-			}
-			if tileH < 1 {
-				continue
-			}
-			pane := m.byID[id]
-			focused := id == focus
-			lines = append(lines, titleLine(pane, width, focused))
-			gridH := tileH - 1
-			for row := range gridH {
-				lines = append(lines, paintRow(pane, row, width))
-			}
-			if focused && !m.palette && gridH > 0 {
-				show = true
-				cursorX = min(pane.CursorCol, width-1)
-				cursorY = y + 1 + min(pane.CursorRow, gridH-1)
-			}
-			y += tileH
+		id := shownFocus(ids, m.focus)
+		pane := m.byID[id]
+		lines = append(lines, titleLine(pane, width, true))
+		gridH := body - 1
+		for row := range gridH {
+			lines = append(lines, paintRow(pane, row, width))
+		}
+		if !m.palette && gridH > 0 {
+			show = true
+			cursorX = min(pane.CursorCol, width-1)
+			cursorY = 1 + min(pane.CursorRow, gridH-1)
 		}
 	}
 	paletteY := len(lines)
@@ -1043,7 +1027,7 @@ func actionText(action Action) (string, string) {
 	case ActionFollow:
 		return "Follow pane", "show only that pane"
 	case ActionAlso:
-		return "Also follow", "add a pane beside the ones shown"
+		return "Also follow", "watch that pane too"
 	case ActionUnfollow:
 		return "Unfollow pane", "stop showing a pane"
 	case ActionFocus:
