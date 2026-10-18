@@ -1,17 +1,19 @@
 package prelude
 
 import (
-	"github.com/dave/jennifer/jen"
+	"io"
+
 	"github.com/lewtec/lewkit/x/generate"
+	"github.com/lewtec/lewkit/x/takemake/golang"
 )
 
 var generatedBy = generate.Notice("prelude")
 
-func jenFile(packageName string, imports []string) *jen.File {
-	file := jen.NewFile(packageName)
-	file.HeaderComment(generatedBy)
-	for _, imp := range imports {
-		file.Anon(imp)
+func write(w io.Writer, packageName string, imports []string) error {
+	file := golang.NewFile(packageName)
+	file.Header = "// " + generatedBy
+	for _, path := range imports {
+		file.Import(path).Alias("_")
 	}
-	return file
+	return file.Make(w)
 }

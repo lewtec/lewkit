@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/generate"
+	"github.com/lewtec/lewkit/x/takemake/golang"
 )
 
 const (
@@ -44,13 +45,22 @@ func Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return generate.WriteFile(filepath.Join(dir, tableFile), format(name, name+"Table", table))
+	body, err := format(name, name+"Table", table)
+	if err != nil {
+		return err
+	}
+	return generate.WriteFile(filepath.Join(dir, tableFile), body)
 }
 
-func format(pkg, name string, table []byte) []byte {
+func format(pkg, name string, table []byte) ([]byte, error) {
+	file := golang.NewFile(pkg)
+	file.Header = "// " + generate.Notice("parse")
+	file.Var().Id(name).Values(golang.Slice(golang.Named("byte")).AsExpr().Call(golang.Lit(string(table))))
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "// %s\n\npackage %s\n\nvar %s = []byte(%q)\n", generate.Notice("parse"), pkg, name, table)
-	return buf.Bytes()
+	if err := file.Make(&buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 // packageDir is the working directory. A GOFILE that includes a

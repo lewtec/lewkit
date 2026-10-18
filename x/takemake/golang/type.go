@@ -100,6 +100,14 @@ func Chan(dir ChanDir, elem *Type) *Type {
 	return &Type{Kind: TypeChan, Dir: dir, Elem: elem}
 }
 
+// Inst returns t instantiated with args. One argument prints as t[arg].
+func (t *Type) Inst(args ...*Type) *Type {
+	if args == nil {
+		args = []*Type{}
+	}
+	return &Type{Kind: TypeInst, X: t.AsExpr(), Args: args}
+}
+
 // AsExpr returns the type where an expression needs a type node,
 // such as a conversion.
 func (t *Type) AsExpr() *Expr {

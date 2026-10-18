@@ -15,8 +15,11 @@ import (
 )
 
 // File is one Go source file: a package name, imports, and declarations.
+// Header is comment text written above the package clause. A build
+// constraint belongs on the first line.
 type File struct {
 	Name    string
+	Header  string
 	Imports []*Import
 	Decls   []Decl
 }
@@ -130,7 +133,11 @@ func (f *File) Make(w io.Writer) error {
 	if err := printer.Fprint(&buf, token.NewFileSet(), node); err != nil {
 		return fmt.Errorf("%w: %w", errPrint, err)
 	}
-	formatted, err := format.Source(groupImportLines(buf.Bytes(), f.Imports))
+	src := groupImportLines(buf.Bytes(), f.Imports)
+	if header := strings.TrimSpace(f.Header); header != "" {
+		src = append([]byte(header+"\n\n"), src...)
+	}
+	formatted, err := format.Source(src)
 	if err != nil {
 		return fmt.Errorf("%w: %w", errPrint, err)
 	}

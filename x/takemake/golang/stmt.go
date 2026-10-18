@@ -68,6 +68,33 @@ func statements(lines []Code) []*Stmt {
 	return out
 }
 
+// Switch returns a switch statement. A nil condition has no tag.
+// cases are case or default clauses.
+func Switch(cond *Expr, cases ...*Stmt) *Stmt {
+	if cases == nil {
+		cases = []*Stmt{}
+	}
+	return &Stmt{Kind: StmtSwitch, Cond: cond, Body: cases}
+}
+
+// Case returns a switch case. exprs are the case labels.
+func Case(exprs []*Expr, body ...Code) *Stmt {
+	if exprs == nil {
+		exprs = []*Expr{}
+	}
+	return &Stmt{Kind: StmtCase, Exprs: exprs, Body: statements(body)}
+}
+
+// Default returns a default clause.
+func Default(body ...Code) *Stmt {
+	return &Stmt{Kind: StmtCase, Body: statements(body)}
+}
+
+// Declare returns a declaration statement.
+func Declare(decl Decl) *Stmt {
+	return &Stmt{Kind: StmtDecl, Decl: decl}
+}
+
 // Return returns a return statement.
 func Return(vals ...*Expr) *Stmt {
 	if vals == nil {

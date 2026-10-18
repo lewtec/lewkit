@@ -1,267 +1,274 @@
 package clib
 
 import (
+	"bytes"
 	"fmt"
-	"go/format"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/takemake/golang"
 )
 
 // callSymbol is x/ffi/clib.call in the assembler's package spelling.
 const callSymbol = "github\u00b7com\u2215lewtec\u2215lewkit\u2215x\u2215ffi\u2215clib\u00b7call"
 
+const clibPath = "github.com/lewtec/lewkit/x/ffi/clib"
+
 func emitGo(constraint, pkg, bind string, skipped []string, funcs []fn, defs []*sdef) ([]byte, error) {
-	needMath := false
-	needUnsafe := len(defs) > 0
-	needStructs := len(defs) > 0
-	for _, fn := range funcs {
-		if usesMath(fn.ret) {
-			needMath = true
-		}
-		if usesUnsafe(fn.ret, true) || fn.ret.kind == vkStruct {
-			needUnsafe = true
-		}
-		for _, p := range fn.params {
-			if usesMath(p.val) || p.at.kind == locArmF32 || p.at.kind == locArmF64 {
-				needMath = true
-			}
-			if usesUnsafe(p.val, false) || p.val.kind == vkStruct {
-				needUnsafe = true
-			}
-		}
-	}
-	var b strings.Builder
-	b.WriteString("//go:build " + constraint + "\n\n")
-	b.WriteString("// " + generatedBy + "\n\n")
-	b.WriteString("package " + pkg + "\n\n")
-	b.WriteString("import (\n")
-	if needMath {
-		b.WriteString("\t\"math\"\n")
-	}
-	if needStructs {
-		b.WriteString("\t\"structs\"\n")
-	}
-	if needUnsafe {
-		b.WriteString("\t\"unsafe\"\n")
-	}
-	if needMath || needUnsafe || needStructs {
-		b.WriteString("\n")
-	}
-	b.WriteString("\t\"github.com/lewtec/lewkit/x/ffi/clib\"\n")
-	b.WriteString(")\n\n")
+	file := golang.NewFile(pkg)
+	header := "//go:build " + constraint + "\n\n// " + generatedBy
 	if len(skipped) > 0 {
-		b.WriteString("// Skipped variadic: ")
-		b.WriteString(strings.Join(skipped, ", "))
-		b.WriteString("\n\n")
+		header += "\n// Skipped variadic: " + strings.Join(skipped, ", ")
 	}
+	file.Header = header
 	for _, d := range defs {
-		b.WriteString(emitStruct(d))
+		emitStruct(file, d)
 	}
-	b.WriteString("// ")
-	b.WriteString(bind)
-	b.WriteString(" is the library. Assign the fields from init.\n")
-	b.WriteString("// The handlers read them when a C caller enters.\n")
-	b.WriteString("// Do not call the library from init.\n")
-	b.WriteString("var ")
-	b.WriteString(bind)
-	b.WriteString(" struct {\n")
+	fields := make([]*golang.Field, 0, len(funcs))
 	for _, fn := range funcs {
-		b.WriteString("\t")
-		b.WriteString(fn.goName)
-		b.WriteString(" func(")
-		for i, p := range fn.params {
-			if i > 0 {
-				b.WriteString(", ")
-			}
-			b.WriteString(p.name)
-			b.WriteString(" ")
-			b.WriteString(p.val.goType)
-		}
-		b.WriteString(")")
-		if fn.ret.goType != "" {
-			b.WriteString(" ")
-			b.WriteString(fn.ret.goType)
-		}
-		b.WriteString("\n")
+		fields = append(fields, golang.NewField(funcTypeOf(fn), fn.goName))
 	}
-	b.WriteString("}\n\n")
-	b.WriteString("func init() {\n")
+	file.Var().Comment(bind + " is the library. Assign the fields from init.\nThe handlers read them when a C caller enters.\nDo not call the library from init.").Id(bind).Type(golang.Struct(fields...))
+	lines := make([]golang.Code, 0, len(funcs))
 	for _, fn := range funcs {
-		fmt.Fprintf(&b, "\tclib.Handle(%d, %s)\n", fn.id, fn.call)
+		lines = append(lines, golang.Qual(clibPath, "Handle").Call(golang.Lit(fn.id), golang.Id(fn.call)))
 	}
-	b.WriteString("}\n\n")
+	file.Func().Id("init").Block(lines...)
 	for _, fn := range funcs {
-		b.WriteString(emitHandler(bind, fn))
-		b.WriteString("\n")
+		emitHandler(file, bind, fn)
 	}
-	return format.Source([]byte(b.String()))
+	var buf bytes.Buffer
+	if err := file.Make(&buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
-func emitHandler(bind string, fn fn) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "func %s(args *[8]uint64, xmm *[8]uint64) (uint64, uint64, uint32) {\n", fn.call)
-	b.WriteString("\tif args == nil || xmm == nil || ")
-	b.WriteString(bind)
-	b.WriteString(".")
-	b.WriteString(fn.goName)
-	b.WriteString(" == nil {\n\t\treturn 0, 0, 0\n\t}\n\t")
-	args := make([]string, len(fn.params))
+func emitHandler(file *golang.File, bind string, fn fn) {
+	word := golang.Pointer(golang.Array(golang.Lit(8), golang.Named("uint64")))
+	body := []golang.Code{
+		golang.If(golang.Binary(golang.OpLor,
+			golang.Binary(golang.OpLor,
+				golang.Binary(golang.OpEql, golang.Id("args"), golang.Lit(nil)),
+				golang.Binary(golang.OpEql, golang.Id("xmm"), golang.Lit(nil)),
+			),
+			golang.Binary(golang.OpEql, golang.Id(bind).Sel(fn.goName), golang.Lit(nil)),
+		), golang.Return(golang.Lit(0), golang.Lit(0), golang.Lit(0))),
+	}
+	args := make([]*golang.Expr, len(fn.params))
 	for i, p := range fn.params {
 		if p.val.kind == vkStruct {
-			fmt.Fprintf(&b, "var a%d %s\n", i, p.val.goType)
+			name := fmt.Sprintf("a%d", i)
+			body = append(body, localVar(name, typeOf(p.val.goType)))
 			for w, at := range p.ats {
-				word := fmt.Sprintf("args[%d]", at.a)
+				slot := golang.Id("args").Index(golang.Lit(at.a))
 				if at.kind == locXMM {
-					word = fmt.Sprintf("xmm[%d]", at.a)
+					slot = golang.Id("xmm").Index(golang.Lit(at.a))
 				}
-				fmt.Fprintf(&b, "\tclib.Store(unsafe.Pointer(&a%d), int(unsafe.Sizeof(a%d)), %d, %s)\n", i, i, w*8, word)
+				body = append(body, golang.Qual(clibPath, "Store").Call(
+					golang.Qual("unsafe", "Pointer").Call(golang.Unary(golang.OpAnd, golang.Id(name))),
+					conv("int", golang.Qual("unsafe", "Sizeof").Call(golang.Id(name))),
+					golang.Lit(w*8),
+					slot,
+				))
 			}
-			args[i] = fmt.Sprintf("a%d", i)
+			args[i] = golang.Id(name)
 			continue
 		}
 		args[i] = argExpr(p)
 	}
-	call := bind + "." + fn.goName + "(" + strings.Join(args, ", ") + ")"
+	call := golang.Id(bind).Sel(fn.goName).Call(args...)
 	switch fn.ret.kind {
 	case vkStruct:
-		b.WriteString("v := ")
-		b.WriteString(call)
-		b.WriteString("\n\treturn clib.Load(unsafe.Pointer(&v), int(unsafe.Sizeof(v)), 0), clib.Load(unsafe.Pointer(&v), int(unsafe.Sizeof(v)), 8), 0\n")
+		body = append(body,
+			golang.Define([]*golang.Expr{golang.Id("v")}, call),
+			golang.Return(
+				loadWord(0),
+				loadWord(8),
+				golang.Lit(0),
+			),
+		)
 	case vkVoid:
-		b.WriteString(call)
-		b.WriteString("\n\treturn 0, 0, 0\n")
+		body = append(body, call, golang.Return(golang.Lit(0), golang.Lit(0), golang.Lit(0)))
 	case vkBool:
-		b.WriteString("if ")
-		b.WriteString(call)
-		b.WriteString(" {\n\t\treturn 1, 0, 0\n\t}\n\treturn 0, 0, 0\n")
+		body = append(body,
+			golang.If(call, golang.Return(golang.Lit(1), golang.Lit(0), golang.Lit(0))),
+			golang.Return(golang.Lit(0), golang.Lit(0), golang.Lit(0)),
+		)
 	case vkF32:
-		b.WriteString("v := ")
-		b.WriteString(call)
-		b.WriteString("\n\treturn 0, uint64(math.Float32bits(v)), clib.KindF32\n")
+		body = append(body,
+			golang.Define([]*golang.Expr{golang.Id("v")}, call),
+			golang.Return(golang.Lit(0), conv("uint64", golang.Qual("math", "Float32bits").Call(golang.Id("v"))), golang.Qual(clibPath, "KindF32")),
+		)
 	case vkF64:
-		b.WriteString("v := ")
-		b.WriteString(call)
-		b.WriteString("\n\treturn 0, math.Float64bits(v), clib.KindF64\n")
+		body = append(body,
+			golang.Define([]*golang.Expr{golang.Id("v")}, call),
+			golang.Return(golang.Lit(0), golang.Qual("math", "Float64bits").Call(golang.Id("v")), golang.Qual(clibPath, "KindF64")),
+		)
 	default:
-		b.WriteString("v := ")
-		b.WriteString(call)
-		b.WriteString("\n\treturn ")
-		b.WriteString(retExpr(fn.ret))
-		b.WriteString(", 0, 0\n")
+		body = append(body,
+			golang.Define([]*golang.Expr{golang.Id("v")}, call),
+			golang.Return(retExpr(fn.ret), golang.Lit(0), golang.Lit(0)),
+		)
 	}
-	b.WriteString("}\n")
-	return b.String()
+	file.Func().Id(fn.call).Params(
+		golang.NewField(word, "args"),
+		golang.NewField(word, "xmm"),
+	).Results(
+		golang.NewField(golang.Named("uint64")),
+		golang.NewField(golang.Named("uint64")),
+		golang.NewField(golang.Named("uint32")),
+	).Block(body...)
 }
 
-func emitStruct(d *sdef) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "type %s struct {\n\t_ structs.HostLayout\n", d.name)
+func loadWord(off int) *golang.Expr {
+	return golang.Qual(clibPath, "Load").Call(
+		golang.Qual("unsafe", "Pointer").Call(golang.Unary(golang.OpAnd, golang.Id("v"))),
+		conv("int", golang.Qual("unsafe", "Sizeof").Call(golang.Id("v"))),
+		golang.Lit(off),
+	)
+}
+
+func emitStruct(file *golang.File, d *sdef) {
+	fields := []*golang.Field{golang.NewField(golang.QualType("structs", "HostLayout"), "_")}
 	off := 0
 	for _, f := range d.fields {
 		if f.offset > off {
-			fmt.Fprintf(&b, "\t_ [%d]byte\n", f.offset-off)
+			fields = append(fields, golang.NewField(golang.Array(golang.Lit(f.offset-off), golang.Named("byte")), "_"))
 			off = f.offset
 		}
-		fmt.Fprintf(&b, "\t%s %s\n", f.name, f.goType)
+		fields = append(fields, golang.NewField(typeOf(f.goType), f.name))
 		off += f.size
 	}
 	if d.size > off {
-		fmt.Fprintf(&b, "\t_ [%d]byte\n", d.size-off)
+		fields = append(fields, golang.NewField(golang.Array(golang.Lit(d.size-off), golang.Named("byte")), "_"))
 	}
-	b.WriteString("}\n\n")
-	return b.String()
+	file.Type().Id(d.name).Struct(fields...)
 }
 
-func retExpr(v val) string {
+func funcTypeOf(fn fn) *golang.Type {
+	params := make([]*golang.Field, 0, len(fn.params))
+	for _, p := range fn.params {
+		params = append(params, golang.NewField(typeOf(p.val.goType), p.name))
+	}
+	var results []*golang.Field
+	if fn.ret.goType != "" {
+		results = []*golang.Field{golang.NewField(typeOf(fn.ret.goType))}
+	}
+	return golang.FuncType(params, results)
+}
+
+func retExpr(v val) *golang.Expr {
 	switch v.kind {
 	case vkPtr:
-		return "uint64(uintptr(unsafe.Pointer(v)))"
+		return conv("uint64", conv("uintptr", golang.Qual("unsafe", "Pointer").Call(golang.Id("v"))))
 	case vkSInt:
-		return "uint64(int64(v))"
+		return conv("uint64", conv("int64", golang.Id("v")))
 	default:
-		return "uint64(v)"
+		return conv("uint64", golang.Id("v"))
 	}
 }
 
-func argExpr(p param) string {
+func argExpr(p param) *golang.Expr {
 	v := p.val
 	switch p.at.kind {
 	case locStack:
 		return stackExpr(v, p.at.a)
 	case locArmF32:
-		if p.at.s%2 == 0 {
-			return fmt.Sprintf("math.Float32frombits(uint32(xmm[%d]))", p.at.a)
+		bits := golang.Id("xmm").Index(golang.Lit(p.at.a))
+		if p.at.s%2 != 0 {
+			bits = golang.Binary(golang.OpShr, bits, golang.Lit(32))
 		}
-		return fmt.Sprintf("math.Float32frombits(uint32(xmm[%d]>>32))", p.at.a)
+		return golang.Qual("math", "Float32frombits").Call(conv("uint32", bits))
 	case locArmF64:
-		return fmt.Sprintf("math.Float64frombits(xmm[%d])", p.at.a)
+		return golang.Qual("math", "Float64frombits").Call(golang.Id("xmm").Index(golang.Lit(p.at.a)))
 	case locXMM:
 		if v.kind == vkF32 {
-			return fmt.Sprintf("math.Float32frombits(uint32(xmm[%d]))", p.at.a)
+			return golang.Qual("math", "Float32frombits").Call(conv("uint32", golang.Id("xmm").Index(golang.Lit(p.at.a))))
 		}
-		return fmt.Sprintf("math.Float64frombits(xmm[%d])", p.at.a)
+		return golang.Qual("math", "Float64frombits").Call(golang.Id("xmm").Index(golang.Lit(p.at.a)))
 	default:
 		return gprExpr(v, p.at)
 	}
 }
 
-func gprExpr(v val, at loc) string {
+func gprExpr(v val, at loc) *golang.Expr {
+	slot := golang.Id("args").Index(golang.Lit(at.a))
 	switch v.kind {
 	case vkBool:
-		return fmt.Sprintf("args[%d] != 0", at.a)
+		return golang.Binary(golang.OpNeq, slot, golang.Lit(0))
 	case vkPtr:
+		ptr := golang.Qual(clibPath, "Ptr").Call(conv("uintptr", slot))
 		if v.goType == "unsafe.Pointer" {
-			return fmt.Sprintf("clib.Ptr(uintptr(args[%d]))", at.a)
+			return ptr
 		}
-		return fmt.Sprintf("(%s)(clib.Ptr(uintptr(args[%d])))", v.goType, at.a)
+		return conv(v.goType, ptr)
 	case vkSInt, vkUInt:
 		if at.b >= 0 {
-			pair := fmt.Sprintf("uint64(uint32(args[%d]))|uint64(uint32(args[%d]))<<32", at.a, at.b)
+			pair := golang.Binary(golang.OpOr,
+				conv("uint64", conv("uint32", golang.Id("args").Index(golang.Lit(at.a)))),
+				golang.Binary(golang.OpShl,
+					conv("uint64", conv("uint32", golang.Id("args").Index(golang.Lit(at.b)))),
+					golang.Lit(32),
+				),
+			)
 			if v.kind == vkSInt {
-				return "int64(" + pair + ")"
+				return conv("int64", pair)
 			}
 			return pair
 		}
-		return fmt.Sprintf("%s(args[%d])", v.goType, at.a)
+		return conv(v.goType, slot)
 	default:
-		return fmt.Sprintf("%s(args[%d])", v.goType, at.a)
+		return conv(v.goType, slot)
 	}
 }
 
-func stackExpr(v val, off int) string {
+func stackExpr(v val, off int) *golang.Expr {
 	switch v.kind {
 	case vkBool:
-		return fmt.Sprintf("clib.U32(args, %d) != 0", off)
+		return golang.Binary(golang.OpNeq, golang.Qual(clibPath, "U32").Call(golang.Id("args"), golang.Lit(off)), golang.Lit(0))
 	case vkF32:
-		return fmt.Sprintf("math.Float32frombits(clib.U32(args, %d))", off)
+		return golang.Qual("math", "Float32frombits").Call(golang.Qual(clibPath, "U32").Call(golang.Id("args"), golang.Lit(off)))
 	case vkF64:
-		return fmt.Sprintf("math.Float64frombits(clib.U64(args, %d))", off)
+		return golang.Qual("math", "Float64frombits").Call(golang.Qual(clibPath, "U64").Call(golang.Id("args"), golang.Lit(off)))
 	case vkPtr:
+		ptr := golang.Qual(clibPath, "Ptr").Call(conv("uintptr", golang.Qual(clibPath, "U32").Call(golang.Id("args"), golang.Lit(off))))
 		if v.goType == "unsafe.Pointer" {
-			return fmt.Sprintf("clib.Ptr(uintptr(clib.U32(args, %d)))", off)
+			return ptr
 		}
-		return fmt.Sprintf("(%s)(clib.Ptr(uintptr(clib.U32(args, %d))))", v.goType, off)
+		return conv(v.goType, ptr)
 	case vkSInt, vkUInt:
 		if v.size > 4 {
+			got := golang.Qual(clibPath, "U64").Call(golang.Id("args"), golang.Lit(off))
 			if v.kind == vkSInt {
-				return fmt.Sprintf("int64(clib.U64(args, %d))", off)
+				return conv("int64", got)
 			}
-			return fmt.Sprintf("clib.U64(args, %d)", off)
+			return got
 		}
-		return fmt.Sprintf("%s(clib.U32(args, %d))", v.goType, off)
+		return conv(v.goType, golang.Qual(clibPath, "U32").Call(golang.Id("args"), golang.Lit(off)))
 	default:
-		return fmt.Sprintf("%s(clib.U32(args, %d))", v.goType, off)
+		return conv(v.goType, golang.Qual(clibPath, "U32").Call(golang.Id("args"), golang.Lit(off)))
 	}
 }
 
-func usesMath(v val) bool {
-	return v.kind == vkF32 || v.kind == vkF64
+func conv(spell string, x *golang.Expr) *golang.Expr {
+	return typeOf(spell).AsExpr().Call(x)
 }
 
-func usesUnsafe(v val, result bool) bool {
-	if result && v.kind == vkPtr {
-		return true
+func typeOf(spell string) *golang.Type {
+	if strings.HasPrefix(spell, "*") {
+		return golang.Pointer(typeOf(spell[1:]))
 	}
-	return strings.Contains(v.goType, "unsafe.")
+	pkg, name, ok := strings.Cut(spell, ".")
+	if ok {
+		return golang.QualType(pkg, name)
+	}
+	return golang.Named(spell)
+}
+
+func localVar(name string, typ *golang.Type) *golang.Stmt {
+	group := &golang.Var{}
+	group.Id(name).Type(typ)
+	return golang.Declare(group)
 }
 
 func emitAsm(t target, funcs []fn) []byte {

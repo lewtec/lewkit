@@ -34,10 +34,12 @@ func (field *Field) WithTag(tag string) *Field {
 
 // ValueSpec is one const or var spec inside a declaration group.
 // Values is nil when a later const in an iota group omits its expression.
+// Doc is the comment above the spec, without the leading slashes.
 type ValueSpec struct {
 	Names  []string
 	Type   *Type
 	Values []*Expr
+	Doc    string
 }
 
 // TypeSpec is one type spec inside a type declaration.
@@ -78,6 +80,7 @@ type Func struct {
 	Returns    []*Field
 	HasBody    bool
 	Body       []*Stmt
+	Doc        string
 }
 
 func (*Const) decl()    {}
@@ -135,6 +138,14 @@ func (fn *Func) Results(results ...*Field) *Func {
 	return fn
 }
 
+// Comment sets the comment above the function.
+func (fn *Func) Comment(text string) *Func {
+	if fn != nil {
+		fn.Doc = text
+	}
+	return fn
+}
+
 // Block sets the function body. An expression becomes an expression
 // statement.
 func (fn *Func) Block(lines ...Code) *Func {
@@ -166,6 +177,14 @@ func (c *Const) Type(typ *Type) *Const {
 	if c != nil {
 		setSpecType(&c.Specs, typ)
 		c.note()
+	}
+	return c
+}
+
+// Comment sets the comment above the current const spec.
+func (c *Const) Comment(text string) *Const {
+	if c != nil {
+		setSpecDoc(&c.Specs, text)
 	}
 	return c
 }
@@ -202,6 +221,14 @@ func (v *Var) Type(typ *Type) *Var {
 	return v
 }
 
+// Comment sets the comment above the current var spec.
+func (v *Var) Comment(text string) *Var {
+	if v != nil {
+		setSpecDoc(&v.Specs, text)
+	}
+	return v
+}
+
 // Values sets the expressions of the current var spec.
 func (v *Var) Values(exprs ...*Expr) *Var {
 	if v != nil {
@@ -234,6 +261,13 @@ func setSpecType(specs *[]ValueSpec, typ *Type) {
 		*specs = append(*specs, ValueSpec{})
 	}
 	(*specs)[len(*specs)-1].Type = typ
+}
+
+func setSpecDoc(specs *[]ValueSpec, text string) {
+	if len(*specs) == 0 {
+		*specs = append(*specs, ValueSpec{})
+	}
+	(*specs)[len(*specs)-1].Doc = text
 }
 
 func setSpecValues(specs *[]ValueSpec, exprs []*Expr) {
