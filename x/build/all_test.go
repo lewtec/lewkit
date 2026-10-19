@@ -3,11 +3,15 @@ package build
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
+	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	gotool.TestExit(m)
+}
 
 func TestHostTargetsSkipUnavailableHosts(t *testing.T) {
 	targets, err := HostTargets(t.Context())
@@ -16,12 +20,9 @@ func TestHostTargetsSkipUnavailableHosts(t *testing.T) {
 	require.Contains(t, targets, Target{GOOS: "linux", GOARCH: "arm64"})
 	require.Contains(t, targets, Target{GOOS: "windows", GOARCH: "amd64"})
 	require.Contains(t, targets, Target{GOOS: "windows", GOARCH: "arm64"})
-	if runtime.GOOS != "darwin" {
-		for _, target := range targets {
-			require.NotEqual(t, "darwin", target.GOOS)
-			require.NotEqual(t, "ios", target.GOOS)
-		}
-	}
+	require.Contains(t, targets, Target{GOOS: "darwin", GOARCH: "amd64"})
+	require.Contains(t, targets, Target{GOOS: "darwin", GOARCH: "arm64"})
+	require.Contains(t, targets, Target{GOOS: "ios", GOARCH: "arm64"})
 	for _, target := range targets {
 		if target.GOOS == "android" {
 			require.Equal(t, "arm64", target.GOARCH)

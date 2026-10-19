@@ -34,6 +34,15 @@
     },
     {
       "kind": "source",
+      "ref": "github:ebitengine/purego",
+      "depName": "ebitengine/purego",
+      "packageName": "https://github.com/ebitengine/purego",
+      "currentValue": "v0.11.0",
+      "currentDigest": "11ec78d6522b27168df09608e75387eca29ce788",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
       "ref": "github:ellson/MOTHBALLED-graphviz",
       "depName": "ellson/MOTHBALLED-graphviz",
       "packageName": "https://github.com/ellson/MOTHBALLED-graphviz",

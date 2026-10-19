@@ -5,10 +5,12 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"slices"
 	"time"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -33,6 +35,11 @@ type Device struct {
 	recorded     Cmd
 	wantExt      []string
 	familyPinned bool
+	// children are buffers and shaders dropped before the device.
+	children native.Children
+	// life is the cleanup handle. It does not point back at this device.
+	life    *vkLife
+	cleanup runtime.Cleanup
 }
 
 // Info is a compute-capable physical device. Index is 0-based among
@@ -101,7 +108,6 @@ func openInstance(ctx context.Context) (*Device, error) {
 		instFlags = instanceEnumeratePortability
 	}
 	extPtrs, keepExt := cStrings(instExt)
-	_ = keepExt
 	info := instanceCreateInfo{
 		sType:                   structureInstanceCreateInfo,
 		flags:                   instFlags,
@@ -109,13 +115,18 @@ func openInstance(ctx context.Context) (*Device, error) {
 		enabledExtensionCount:   uint32(len(instExt)),
 		ppEnabledExtensionNames: extPtrs,
 	}
-	if err := check(d.api.createInstance(&info, 0, &d.inst)); err != nil {
+	err = check(d.api.createInstance(&info, 0, &d.inst))
+	runtime.KeepAlive(keepExt)
+	runtime.KeepAlive(appName)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrCreateInstance, err)
 	}
 	if err := d.api.loadInstance(d.inst); err != nil {
 		d.api.destroyInstance(d.inst, 0)
 		return nil, err
 	}
+	d.life = &vkLife{refs: 1, api: d.api, inst: d.inst}
+	d.cleanup = native.Arm(d, (*vkLife).releaseOwner, d.life)
 	return d, nil
 }
 
@@ -239,7 +250,6 @@ func (d *Device) try(phys uintptr) bool {
 		devExt = append(devExt, extPortabilitySubset)
 	}
 	devExtPtrs, keepDevExt := cStrings(devExt)
-	_ = keepDevExt
 	dinfo := deviceCreateInfo{
 		sType:                   structureDeviceCreateInfo,
 		queueCreateInfoCount:    1,
@@ -248,7 +258,9 @@ func (d *Device) try(phys uintptr) bool {
 		ppEnabledExtensionNames: devExtPtrs,
 	}
 	var dev uintptr
-	if check(d.api.createDevice(phys, &dinfo, 0, &dev)) != nil {
+	created := d.api.createDevice(phys, &dinfo, 0, &dev)
+	runtime.KeepAlive(keepDevExt)
+	if check(created) != nil {
 		return false
 	}
 	if err := d.api.loadDevice(dev); err != nil {
@@ -297,7 +309,22 @@ func (d *Device) try(phys uintptr) bool {
 	d.name = properties.name
 	d.vendor = VendorFrom(properties.vendorID, properties.name)
 	d.deviceType = deviceTypeFrom(properties.deviceType, properties.name)
+	d.syncLife()
 	return true
+}
+
+// syncLife copies the native ids into the cleanup handle.
+func (d *Device) syncLife() {
+	if d == nil || d.life == nil {
+		return
+	}
+	d.life.mu.Lock()
+	d.life.api = d.api
+	d.life.inst = d.inst
+	d.life.dev = d.dev
+	d.life.fence = d.fence
+	d.life.pool = d.commandPool
+	d.life.mu.Unlock()
 }
 
 // Name is the physical device name.
@@ -324,32 +351,47 @@ func (d *Device) Type() DeviceType {
 	return d.deviceType
 }
 
-// Close destroys the device and instance.
+// Close destroys outstanding buffers and shaders, then the device and instance.
 func (d *Device) Close() error {
 	if d == nil || d.closed {
 		return nil
 	}
+	if d.dev != 0 && d.pending && d.fence != 0 && d.api.waitForFences != nil {
+		_ = d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))
+		d.pending = false
+	}
+	native.Disarm(d, d.cleanup)
+	// A device built without life still destroys through d.api. closed has to
+	// stay false until those children run, or Drop skips the Vulkan calls.
+	if d.life != nil {
+		d.closed = true
+	}
+	d.children.Drop()
+	if d.life != nil {
+		d.syncLife()
+		d.life.releaseOwner()
+	} else {
+		if d.dev != 0 {
+			if d.fence != 0 && d.api.destroyFence != nil {
+				d.api.destroyFence(d.dev, d.fence, 0)
+			}
+			if d.commandPool != 0 && d.api.destroyCommandPool != nil {
+				d.api.destroyCommandPool(d.dev, d.commandPool, 0)
+			}
+			if d.api.destroyDevice != nil {
+				d.api.destroyDevice(d.dev, 0)
+			}
+		}
+		if d.inst != 0 && d.api.destroyInstance != nil {
+			d.api.destroyInstance(d.inst, 0)
+		}
+	}
 	d.closed = true
-	if d.dev != 0 {
-		if d.pending && d.fence != 0 && d.api.waitForFences != nil {
-			_ = d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))
-			d.pending = false
-		}
-		if d.fence != 0 {
-			d.api.destroyFence(d.dev, d.fence, 0)
-			d.fence = 0
-		}
-		if d.commandPool != 0 {
-			d.api.destroyCommandPool(d.dev, d.commandPool, 0)
-			d.commandPool = 0
-		}
-		d.api.destroyDevice(d.dev, 0)
-		d.dev = 0
-	}
-	if d.inst != 0 {
-		d.api.destroyInstance(d.inst, 0)
-		d.inst = 0
-	}
+	d.dev = 0
+	d.inst = 0
+	d.fence = 0
+	d.commandPool = 0
+	runtime.KeepAlive(d)
 	return nil
 }
 
@@ -430,6 +472,8 @@ type Buffer struct {
 	kind     Memory
 	ptr      unsafe.Pointer
 	coherent bool
+	node     *vkBuf
+	cleanup  runtime.Cleanup
 }
 
 // Buffer allocates a host-visible storage buffer of size bytes.
@@ -491,7 +535,14 @@ func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 			return nil, fmt.Errorf("%w: %w", ErrDeviceAllocMapMemory, err)
 		}
 	}
-	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}, nil
+	out := &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}
+	if d.life != nil {
+		out.node = &vkBuf{life: d.life, buf: buf, mem: block, ptr: ptr}
+		d.life.hold()
+		out.cleanup = native.Arm(out, (*vkBuf).release, out.node)
+	}
+	d.children.Add(out)
+	return out, nil
 }
 
 // Len is the requested size in bytes.
@@ -565,7 +616,8 @@ func (b *Buffer) Read(p []byte) error {
 	return nil
 }
 
-// Close unmaps and frees the buffer.
+// Close unmaps and frees the buffer. Device.Close does this for a buffer
+// that is still open, before vkDestroyDevice.
 func (b *Buffer) Close() error {
 	if b == nil || b.buf == 0 {
 		return nil
@@ -576,17 +628,41 @@ func (b *Buffer) Close() error {
 			return err
 		}
 	}
+	b.Drop()
+	return nil
+}
+
+func (b *Buffer) Drop() {
+	if b == nil {
+		return
+	}
+	native.Disarm(b, b.cleanup)
+	if b.d != nil {
+		b.d.children.Forget(b)
+	}
+	if b.node != nil {
+		b.buf, b.mem, b.ptr = 0, 0, nil
+		b.node.release()
+		return
+	}
+	if b.buf == 0 {
+		return
+	}
+	d := b.d
 	buf, mem, ptr := b.buf, b.mem, b.ptr
 	b.buf, b.mem, b.ptr = 0, 0, nil
 	if d == nil || d.closed || d.dev == 0 {
-		return nil
+		return
 	}
-	if ptr != nil {
+	if ptr != nil && d.api.unmapMemory != nil {
 		d.api.unmapMemory(d.dev, mem)
 	}
-	d.api.destroyBuffer(d.dev, buf, 0)
-	d.api.freeMemory(d.dev, mem, 0)
-	return nil
+	if d.api.destroyBuffer != nil {
+		d.api.destroyBuffer(d.dev, buf, 0)
+	}
+	if d.api.freeMemory != nil {
+		d.api.freeMemory(d.dev, mem, 0)
+	}
 }
 
 // Shader is a compute pipeline. bindings is the storage-buffer count at set 0.
@@ -604,6 +680,8 @@ type Shader struct {
 	boundLengths   []uint64
 	bindings       int
 	pushBytes      int
+	node           *vkPipe
+	cleanup        runtime.Cleanup
 }
 
 // ShaderConfig is SPIR-V plus optional push constants and spec constants.
@@ -736,7 +814,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		return nil, fmt.Errorf("%w: %w", ErrComputePipeline, err)
 	}
 	slog.Debug("vulkan compile ok", "elapsed", time.Since(started), "bindings", bindings)
-	return &Shader{
+	out := &Shader{
 		d:              d,
 		module:         module,
 		setLayout:      setLayout,
@@ -744,10 +822,24 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		pipeline:       pipeline,
 		bindings:       bindings,
 		pushBytes:      cfg.PushBytes,
-	}, nil
+	}
+	if d.life != nil {
+		out.node = &vkPipe{
+			life:           d.life,
+			module:         module,
+			setLayout:      setLayout,
+			pipelineLayout: pipelineLayout,
+			pipeline:       pipeline,
+		}
+		d.life.hold()
+		out.cleanup = native.Arm(out, (*vkPipe).release, out.node)
+	}
+	d.children.Add(out)
+	return out, nil
 }
 
-// Close destroys the pipeline.
+// Close destroys the pipeline. Device.Close does this for a shader that is
+// still open, before vkDestroyDevice.
 func (s *Shader) Close() error {
 	if s == nil || s.pipeline == 0 {
 		return nil
@@ -758,22 +850,53 @@ func (s *Shader) Close() error {
 			return err
 		}
 	}
+	s.Drop()
+	return nil
+}
+
+func (s *Shader) Drop() {
+	if s == nil {
+		return
+	}
+	native.Disarm(s, s.cleanup)
+	if s.d != nil {
+		s.d.children.Forget(s)
+	}
+	if s.node != nil {
+		s.node.setPool(s.descriptorPool)
+		s.pipeline, s.pipelineLayout, s.setLayout, s.module = 0, 0, 0, 0
+		s.descriptorPool, s.descriptorSet = 0, 0
+		s.boundBuffers, s.boundLengths = nil, nil
+		s.node.release()
+		return
+	}
+	if s.pipeline == 0 {
+		return
+	}
+	d := s.d
 	pipeline, layout, set, mod := s.pipeline, s.pipelineLayout, s.setLayout, s.module
 	pool := s.descriptorPool
 	s.pipeline, s.pipelineLayout, s.setLayout, s.module = 0, 0, 0, 0
 	s.descriptorPool, s.descriptorSet = 0, 0
 	s.boundBuffers, s.boundLengths = nil, nil
 	if d == nil || d.closed || d.dev == 0 {
-		return nil
+		return
 	}
-	if pool != 0 {
+	if pool != 0 && d.api.destroyDescriptorPool != nil {
 		d.api.destroyDescriptorPool(d.dev, pool, 0)
 	}
-	d.api.destroyPipeline(d.dev, pipeline, 0)
-	d.api.destroyPipelineLayout(d.dev, layout, 0)
-	d.api.destroySetLayout(d.dev, set, 0)
-	d.api.destroyShaderModule(d.dev, mod, 0)
-	return nil
+	if d.api.destroyPipeline != nil {
+		d.api.destroyPipeline(d.dev, pipeline, 0)
+	}
+	if d.api.destroyPipelineLayout != nil {
+		d.api.destroyPipelineLayout(d.dev, layout, 0)
+	}
+	if d.api.destroySetLayout != nil {
+		d.api.destroySetLayout(d.dev, set, 0)
+	}
+	if d.api.destroyShaderModule != nil {
+		d.api.destroyShaderModule(d.dev, mod, 0)
+	}
 }
 
 func (d *Device) flush(b *Buffer) error {

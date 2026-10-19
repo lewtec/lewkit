@@ -31,6 +31,19 @@ func TestDeliverPointerReachesTheHandler(t *testing.T) {
 	}
 }
 
+func TestDeliverKeyReachesTheHandler(t *testing.T) {
+	var gotR rune
+	var gotCode uint32
+	var gotDown bool
+	HandleKey(func(r rune, code uint32, pressed bool) {
+		gotR, gotCode, gotDown = r, code, pressed
+	})
+	DeliverKey('a', 0, true)
+	require.Equal(t, 'a', gotR)
+	require.Equal(t, uint32(0), gotCode)
+	require.True(t, gotDown)
+}
+
 func TestDeliverInsetsReplaysTheLatest(t *testing.T) {
 	DeliverInsets(1, 2, 3, 4, 50, 80)
 	var got [6]int

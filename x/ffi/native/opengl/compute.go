@@ -7,8 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var (
@@ -17,19 +20,23 @@ var (
 
 // Device runs one compute kernel. It does not attach a surface.
 type Device struct {
-	mu     sync.Mutex
-	run    *runner
-	gl     *glAPI
-	name   string
-	limit  [3]uint32
-	closed bool
+	mu       sync.Mutex
+	run      *runner
+	gl       *glAPI
+	name     string
+	limit    [3]uint32
+	closed   bool
+	children native.Children
+	gate     *glGate
+	cleanup  runtime.Cleanup
 }
 
 // Buffer is one shader-storage block.
 type Buffer struct {
-	dev *Device
-	id  uint32
-	n   int
+	dev  *Device
+	id   uint32
+	n    int
+	name *glName
 }
 
 // Program is one compiled compute kernel.
@@ -38,6 +45,7 @@ type Program struct {
 	id        uint32
 	n, d0, d1 int32
 	d2, d3    int32
+	name      *glName
 }
 
 func openCompute(ctx glContext) (*Device, error) {
@@ -45,13 +53,15 @@ func openCompute(ctx glContext) (*Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Device{run: run}
+	d := &Device{run: run, gate: &glGate{run: run}}
+	d.cleanup = native.Arm(d, (*glGate).shutdown, d.gate)
 	if err := run.Do(func() error {
 		api, err := loadAPI(ctx)
 		if err != nil {
 			return err
 		}
 		d.gl = api
+		d.gate.gl = api
 		d.name = api.renderer
 		d.limit = api.workGroupLimit()
 		if !api.compute {
@@ -108,7 +118,10 @@ func (d *Device) Buffer(n int) (*Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &buf, nil
+	out := &buf
+	out.name = d.trackGL(glNameBuffer, out.id)
+	d.children.Add(out)
+	return out, nil
 }
 
 // Len is the allocated size.
@@ -186,15 +199,43 @@ func (b *Buffer) Close() error {
 	}
 	b.dev.mu.Lock()
 	defer b.dev.mu.Unlock()
-	if b.dev.closed || b.dev.run == nil || b.id == 0 {
+	if b.id == 0 {
 		return nil
+	}
+	if b.dev.closed || b.dev.run == nil {
+		b.dev.children.Forget(b)
+		b.id = 0
+		return nil
+	}
+	return b.dev.run.Do(func() error {
+		b.Drop()
+		return nil
+	})
+}
+
+// Drop deletes the buffer name. The caller is on the context thread.
+func (b *Buffer) Drop() {
+	if b == nil {
+		return
+	}
+	if b.dev != nil {
+		b.dev.children.Forget(b)
+	}
+	if b.name != nil {
+		if b.name.gate != nil {
+			b.name.gate.kids.Forget(b.name)
+		}
+		b.id = 0
+		b.name.Drop()
+		return
+	}
+	if b.id == 0 || b.dev == nil || b.dev.gl == nil || b.dev.gl.deleteBuffers == nil {
+		b.id = 0
+		return
 	}
 	id := b.id
 	b.id = 0
-	return b.dev.run.Do(func() error {
-		b.dev.gl.deleteBuffers(1, &id)
-		return nil
-	})
+	b.dev.gl.deleteBuffers(1, &id)
 }
 
 // Compile builds one compute shader.
@@ -245,7 +286,10 @@ func (d *Device) Compile(src string) (*Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &prog, nil
+	out := &prog
+	out.name = d.trackGL(glNameProgram, out.id)
+	d.children.Add(out)
+	return out, nil
 }
 
 // Run dispatches groups of the kernel over buffers. push is n, d0, d1, d2, d3
@@ -339,25 +383,53 @@ func pushWords(push []byte) [5]uint32 {
 	return out
 }
 
-// Close releases the device.
+// Close deletes the program.
 func (p *Program) Close() error {
 	if p == nil || p.dev == nil || p.id == 0 {
 		return nil
 	}
 	p.dev.mu.Lock()
 	defer p.dev.mu.Unlock()
-	if p.dev.closed || p.dev.run == nil || p.id == 0 {
+	if p.id == 0 {
 		return nil
 	}
-	id := p.id
-	p.id = 0
+	if p.dev.closed || p.dev.run == nil {
+		p.dev.children.Forget(p)
+		p.id = 0
+		return nil
+	}
 	return p.dev.run.Do(func() error {
-		p.dev.gl.deleteProgram(id)
+		p.Drop()
 		return nil
 	})
 }
 
-// Close releases the context.
+// Drop deletes the program name. The caller is on the context thread.
+func (p *Program) Drop() {
+	if p == nil {
+		return
+	}
+	if p.dev != nil {
+		p.dev.children.Forget(p)
+	}
+	if p.name != nil {
+		if p.name.gate != nil {
+			p.name.gate.kids.Forget(p.name)
+		}
+		p.id = 0
+		p.name.Drop()
+		return
+	}
+	if p.id == 0 || p.dev == nil || p.dev.gl == nil || p.dev.gl.deleteProgram == nil {
+		p.id = 0
+		return
+	}
+	id := p.id
+	p.id = 0
+	p.dev.gl.deleteProgram(id)
+}
+
+// Close deletes outstanding buffers and programs, then the context.
 func (d *Device) Close() error {
 	if d == nil {
 		return nil
@@ -368,9 +440,19 @@ func (d *Device) Close() error {
 		return nil
 	}
 	d.closed = true
+	native.Disarm(d, d.cleanup)
 	if d.run != nil {
-		d.run.Stop()
-		d.run = nil
+		_ = d.run.Do(func() error {
+			d.children.Drop()
+			return nil
+		})
 	}
+	if d.gate != nil {
+		d.gate.shutdown()
+	} else if d.run != nil {
+		d.run.Stop()
+	}
+	d.run = nil
+	runtime.KeepAlive(d)
 	return nil
 }

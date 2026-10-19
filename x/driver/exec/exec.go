@@ -7,6 +7,7 @@
 // RunProgram and OutputString take a program name and args.
 // taskgroup registers that hook with the line writer.
 // Stdout stays unset so Output can capture it.
+// Cwd reads the working directory of a live pid and does not start a process.
 // Import prelude or native so the host driver is registered.
 // Termux stays in modot.
 package exec

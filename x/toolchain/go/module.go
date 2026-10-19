@@ -28,6 +28,10 @@ import (
 // PIE. Library forces that PIE for a shared library, including Linux.
 // The compiler uses -shared for that PIE except on Windows. go list
 // receives -buildmode=pie for the same link, so the archives match.
+// iOS is one of those PIE targets and links internally. Host go still
+// refuses to load an ios/arm64 main package without cgo, and it refuses
+// a PIE ios main package, so the iOS list is the standard library and any
+// assembly package, not package main.
 // A main package that contains assembly uses the go list archive when
 // that list recorded one. The link still runs when every package came
 // from that list.
@@ -85,7 +89,7 @@ func BuildModule(ctx context.Context, m Module) error {
 	if err != nil {
 		return err
 	}
-	std, err := moduleArchives(ctx, dir, m, mode)
+	std, err := moduleArchives(ctx, dir, m, mode, g)
 	if err != nil {
 		return err
 	}
@@ -223,13 +227,20 @@ func moduleMode(m Module) (mode string, shared bool) {
 	return mode, shared
 }
 
-func moduleArchives(ctx context.Context, dir string, m Module, mode string) (map[string]string, error) {
+func moduleArchives(ctx context.Context, dir string, m Module, mode string, g *load.Graph) (map[string]string, error) {
 	if m.Pkgdir != "" {
 		return load.Archives(m.Pkgdir)
 	}
 	patterns := m.Patterns
 	if len(patterns) == 0 {
 		patterns = []string{"."}
+	}
+	if m.GOOS == "ios" {
+		listed, err := iosListPatterns(g)
+		if err != nil {
+			return nil, err
+		}
+		patterns = listed
 	}
 	args := []string{
 		"list", "-buildvcs=false", "-deps", "-export",
@@ -272,6 +283,43 @@ func moduleArchives(ctx context.Context, dir string, m Module, mode string) (map
 		return nil, fmt.Errorf("%w: runtime", load.ErrNoArchive)
 	}
 	return archives, nil
+}
+
+// iosListPatterns is the go list pattern set for an iOS link.
+// Host go rejects package main on ios/arm64, and it rejects a PIE main
+// package on ios. The archives still come from that go command: runtime,
+// every standard-library import, and any package that contains assembly.
+func iosListPatterns(g *load.Graph) ([]string, error) {
+	inGraph := make(map[string]bool, len(g.Pkgs))
+	for _, pkg := range g.Pkgs {
+		inGraph[pkg.ImportPath] = true
+	}
+	seen := map[string]bool{}
+	var patterns []string
+	add := func(path string) {
+		if path == "" || path == "C" || path == "unsafe" || seen[path] {
+			return
+		}
+		seen[path] = true
+		patterns = append(patterns, path)
+	}
+	add("runtime")
+	for _, pkg := range g.Pkgs {
+		if pkg.Name == "main" && pkg.Asm {
+			return nil, ErrToolchainMainPackageHasAssembly
+		}
+		if pkg.Asm {
+			add(pkg.ImportPath)
+		}
+		for _, imp := range pkg.Imports {
+			if inGraph[imp] {
+				continue
+			}
+			add(imp)
+		}
+	}
+	sort.Strings(patterns)
+	return patterns, nil
 }
 
 func overlayEnv(env []string, kv ...string) []string {

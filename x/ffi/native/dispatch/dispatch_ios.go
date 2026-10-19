@@ -2,56 +2,72 @@
 
 package dispatch
 
-/*
-#include <dispatch/dispatch.h>
-#include <pthread.h>
+import (
+	"sync"
+	"unsafe"
 
-extern void lewkitDispatchMain(void);
+	"github.com/ebitengine/purego"
+)
 
-static void lewkit_dispatch_thunk(void *ctx) {
-	(void)ctx;
-	lewkitDispatchMain();
+// OnMain runs fn on the UIKit main thread.
+// A call that is already there runs fn directly.
+// libdispatch is loaded with purego so this package stays cgo-free.
+
+var (
+	loadOnce sync.Once
+	loadErr  error
+
+	pthreadMainNP func() int
+	dispatchSyncF func(queue uintptr, ctx unsafe.Pointer, work uintptr)
+	// dispatch_get_main_queue is an inline function. This is the queue object.
+	mainQueue uintptr
+)
+
+func loadMain() {
+	loadOnce.Do(func() {
+		handle, err := purego.Dlopen("/usr/lib/libSystem.B.dylib", purego.RTLD_LAZY|purego.RTLD_GLOBAL)
+		if err != nil {
+			loadErr = err
+			return
+		}
+		purego.RegisterLibFunc(&pthreadMainNP, handle, "pthread_main_np")
+		purego.RegisterLibFunc(&dispatchSyncF, handle, "dispatch_sync_f")
+		mainQueue, err = purego.Dlsym(handle, "_dispatch_main_q")
+		if err != nil {
+			loadErr = err
+		}
+	})
 }
 
-static void lewkitRunOnMain(void) {
-	if (pthread_main_np() != 0) {
-		lewkitDispatchMain();
-		return;
-	}
-	dispatch_sync_f(dispatch_get_main_queue(), 0, lewkit_dispatch_thunk);
-}
-*/
-import "C"
-import "sync"
-
-// A purego callback on the UIKit main thread is not a cgo entry.
-// openSurface lays the view out before it returns, and that calls back
-// into Go. The nested call has to be a cgo export on the same stack.
 var (
 	callMu sync.Mutex
 	callFn func()
 )
 
-//export lewkitDispatchMain
-func lewkitDispatchMain() {
+func lewkitDispatchMain(unsafe.Pointer) {
 	if callFn != nil {
 		callFn()
 	}
 }
 
-// OnMain runs fn on the UIKit main thread.
-// A call that is already there runs fn directly.
+var mainCallback = purego.NewCallback(lewkitDispatchMain)
+
 func OnMain(fn func()) {
 	if fn == nil {
 		return
 	}
-	if C.pthread_main_np() != 0 {
+	loadMain()
+	if loadErr != nil || pthreadMainNP == nil || mainQueue == 0 {
+		fn()
+		return
+	}
+	if pthreadMainNP() != 0 {
 		fn()
 		return
 	}
 	callMu.Lock()
 	defer callMu.Unlock()
 	callFn = fn
-	C.lewkitRunOnMain()
+	dispatchSyncF(mainQueue, nil, mainCallback)
 	callFn = nil
 }

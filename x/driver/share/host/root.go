@@ -1,5 +1,6 @@
 // Package host appends share.Out to the bundle share drop.
 // The packaged native host tails that file and opens the system share sheet.
+// When this process presents UIKit, Out opens the share sheet directly.
 // The factory is compatible only in the android and ios files.
 package host
 
@@ -12,6 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/bundle"
 	_ "github.com/lewtec/lewkit/x/driver/bundle/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/dirs/prelude"
+	"github.com/lewtec/lewkit/x/driver/internal/uikitapp"
 	"github.com/lewtec/lewkit/x/driver/share"
 )
 
@@ -26,6 +28,9 @@ func (factory) New(context.Context) (share.Driver, error) { return backend{}, ni
 type backend struct{}
 
 func (backend) Out(ctx context.Context, item share.Item) error {
+	if uikitapp.OwnsUI() {
+		return uikitapp.Share(ctx, item.Title, item.Text, item.URL, item.Paths)
+	}
 	root, err := bundle.Resolve(ctx)
 	if err != nil {
 		return err

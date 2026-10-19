@@ -12,14 +12,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExcludedArch(t *testing.T) {
+func TestIOSSimulator(t *testing.T) {
 	t.Parallel()
-	if got := excludedArch("arm64"); got != "x86_64" {
-		require.FailNowf(t, "", "arm64: got %q", got)
-	}
-	if got := excludedArch("x86_64"); got != "arm64" {
-		require.FailNowf(t, "", "x86_64: got %q", got)
-	}
+	device, err := iosSimulator("", "arm64")
+	require.NoError(t, err)
+	require.False(t, device)
+	sim, err := iosSimulator("", "amd64")
+	require.NoError(t, err)
+	require.True(t, sim)
+	sim, err = iosSimulator("iphonesimulator", "arm64")
+	require.NoError(t, err)
+	require.True(t, sim)
+	device, err = iosSimulator("iphoneos", "arm64")
+	require.NoError(t, err)
+	require.False(t, device)
+	_, err = iosSimulator("watchos", "arm64")
+	require.Error(t, err)
 }
 
 func TestNormalizeSDK(t *testing.T) {

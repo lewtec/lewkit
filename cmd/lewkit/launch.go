@@ -93,7 +93,7 @@ func launchApp(ctx context.Context, goos, path, id string) error {
 		if err := runTool(ctx, "xcrun", "simctl", "install", "booted", path); err != nil {
 			return err
 		}
-		return runTool(ctx, "xcrun", "simctl", "launch", "booted", id)
+		return runTool(ctx, "xcrun", "simctl", "launch", "--console", "booted", id)
 	case "windows":
 		if runtime.GOOS != "windows" {
 			return fmt.Errorf("%w (%s); this machine is %s", ErrBuiltWindowsApp, path, runtime.GOOS)

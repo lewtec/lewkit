@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
+	"github.com/lewtec/lewkit/x/build/gen/ios"
 	"github.com/lewtec/lewkit/x/build/gen/uki"
 	"github.com/lewtec/lewkit/x/build/gen/unikernel"
 	"github.com/lewtec/lewkit/x/cmd"
@@ -23,9 +25,10 @@ type releaseCmd struct {
 func (releaseCmd) Description() string { return "key, build, run, or compile an app" }
 
 var (
-	errHostArgs      = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a host app")
-	errGuestArgs     = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a linux guest")
-	errUnikernelArgs = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a unikernel")
+	errHostArgs             = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a host app")
+	errIOSRunNeedsSimulator = errs.Wrap(errs.ErrInvalid, "release run installs on the booted iOS simulator")
+	errGuestArgs            = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a linux guest")
+	errUnikernelArgs        = errs.Wrap(errs.ErrInvalid, "program arguments are not passed to a unikernel")
 )
 
 type runCmd struct {
@@ -68,11 +71,37 @@ func (c *runCmd) Run(ctx context.Context) error {
 }
 
 func (c *runCmd) stage(ctx context.Context) (func(context.Context) error, error) {
+	if err := c.prepareIOSRun(); err != nil {
+		return nil, err
+	}
 	paths, err := c.produce(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return c.program(ctx, paths)
+}
+
+// prepareIOSRun selects the simulator slice that simctl can launch.
+// An omitted --sdk is already iphonesimulator. --sdk iphoneos cannot launch.
+func (c *runCmd) prepareIOSRun() error {
+	if !c.app.Value() || c.goos.Value() != build.GOOSIOS {
+		return nil
+	}
+	if c.sdk.ArgSet() {
+		parsed, err := ios.ParseSDK(c.sdk.Value())
+		if err != nil {
+			return err
+		}
+		if parsed == ios.SDKDevice {
+			return errIOSRunNeedsSimulator
+		}
+		return nil
+	}
+	if err := c.sdk.Parse(string(ios.SDKSimulator)); err != nil {
+		return err
+	}
+	c.sdk.MarkSet()
+	return nil
 }
 
 // program starts a host app in this task.

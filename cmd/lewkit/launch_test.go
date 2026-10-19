@@ -11,10 +11,43 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReleaseBuildOmitsSDKAsSimulator(t *testing.T) {
+	app, err := cmd.Parse[cmd.App[root]]("release", "build")
+	require.NoError(t, err)
+	require.Equal(t, "iphonesimulator", app.Args.release.build.sdk.Value())
+	require.False(t, app.Args.release.build.sdk.ArgSet())
+
+	all, err := cmd.Parse[cmd.App[root]]("release", "build-all")
+	require.NoError(t, err)
+	require.Equal(t, "iphonesimulator", all.Args.release.buildAll.sdk.Value())
+	require.False(t, all.Args.release.buildAll.sdk.ArgSet())
+}
+
+func TestReleaseRunSelectsSimulator(t *testing.T) {
+	var run runCmd
+	require.NoError(t, run.goos.Parse("ios"))
+	require.NoError(t, run.app.Count(1))
+	require.NoError(t, run.prepareIOSRun())
+	require.Equal(t, "iphonesimulator", run.sdk.Value())
+
+	run.sdk = cmd.StringArg{}
+	require.NoError(t, run.sdk.Parse("iphoneos"))
+	run.sdk.MarkSet()
+	err := run.prepareIOSRun()
+	require.ErrorIs(t, err, errIOSRunNeedsSimulator)
+
+	var desktop runCmd
+	require.NoError(t, desktop.goos.Parse("darwin"))
+	require.NoError(t, desktop.app.Count(1))
+	require.NoError(t, desktop.prepareIOSRun())
+	require.Empty(t, desktop.sdk.Value())
+}
 
 func TestForegroundCommandUsesProcessStreams(t *testing.T) {
 	cmd := foregroundCommand(t.Context(), "true")

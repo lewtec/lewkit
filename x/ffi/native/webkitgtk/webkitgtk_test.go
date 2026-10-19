@@ -4,6 +4,7 @@ package webkitgtk
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -220,4 +221,155 @@ func TestWebsiteDataManagerFailureReleasesTheManager(t *testing.T) {
 	require.ErrorIs(t, err, ErrUnavailable)
 	require.ErrorContains(t, err, "website data manager")
 	require.Equal(t, []uintptr{11}, unrefs)
+}
+
+func pinnedLive() int {
+	n := 0
+	pinnedBlobs.Range(func(any, any) bool {
+		n++
+		return true
+	})
+	return n
+}
+
+func TestFinishRequestKeepsThePinUntilDestroy(t *testing.T) {
+	body := []byte("hello")
+	var data uintptr
+	var unrefs []uintptr
+	symbols := &Symbols{
+		memoryStream: func(pointer uintptr, length int64, destroy uintptr) uintptr {
+			data = pointer
+			require.NotEqual(t, uintptr(unsafe.Pointer(&body[0])), pointer)
+			require.Equal(t, int64(len(body)), length)
+			require.Equal(t, destroyPinnedBytes, destroy)
+			require.Equal(t, body, unsafe.Slice((*byte)(unsafe.Pointer(pointer)), len(body)))
+			return 42
+		},
+		finishRequest: func(request, stream uintptr, length int64, mime *byte) {
+			require.Equal(t, uintptr(1), request)
+			require.Equal(t, uintptr(42), stream)
+			require.Equal(t, int64(len(body)), length)
+			require.Equal(t, "text/plain", native.GoString(uintptr(unsafe.Pointer(mime))))
+		},
+		unref: func(obj uintptr) { unrefs = append(unrefs, obj) },
+	}
+	symbols.FinishRequest(1, body, "text/plain")
+	require.Equal(t, []uintptr{42}, unrefs)
+	require.Equal(t, 1, pinnedLive())
+	dropPinned(data)
+	require.Zero(t, pinnedLive())
+	dropPinned(data)
+	require.Zero(t, pinnedLive())
+}
+
+func TestFinishRequestDropsThePinWhenTheStreamIsMissing(t *testing.T) {
+	symbols := &Symbols{
+		memoryStream: func(uintptr, int64, uintptr) uintptr { return 0 },
+		finishRequest: func(request, stream uintptr, length int64, mime *byte) {
+			require.Equal(t, uintptr(0), stream)
+			require.Equal(t, int64(4), length)
+		},
+		unref: func(uintptr) { require.FailNow(t, "unref of a missing stream") },
+	}
+	symbols.FinishRequest(1, []byte("body"), "text/plain")
+	require.Zero(t, pinnedLive())
+}
+
+func TestFinishResponseReleasesTheStreamAndResponse(t *testing.T) {
+	var unrefs []uintptr
+	symbols := &Symbols{
+		unixInputStream: func(fd, closeFD int32) uintptr {
+			require.Equal(t, int32(1), closeFD)
+			return 10
+		},
+		responseNew: func(stream uintptr, length int64) uintptr {
+			require.Equal(t, uintptr(10), stream)
+			require.Equal(t, int64(-1), length)
+			return 20
+		},
+		responseStatus:      func(uintptr, uint32, *byte) {},
+		responseContentType: func(uintptr, *byte) {},
+		headersNew: func(kind int32) uintptr {
+			require.Equal(t, int32(1), kind)
+			return 30
+		},
+		headersAppend: func(uintptr, *byte, *byte) {},
+		responseHeaders: func(response, headers uintptr) {
+			require.Equal(t, uintptr(20), response)
+			require.Equal(t, uintptr(30), headers)
+		},
+		finishWithResponse: func(request, response uintptr) {
+			require.Equal(t, uintptr(7), request)
+			require.Equal(t, uintptr(20), response)
+		},
+		unref: func(obj uintptr) { unrefs = append(unrefs, obj) },
+	}
+	symbols.FinishResponse(7, 201, "text/plain", []Header{{Name: "X-A", Value: "b"}}, strings.NewReader("hi"))
+	require.Equal(t, []uintptr{20, 10}, unrefs)
+}
+
+func TestFinishResponseDropsTheStreamWhenResponseNewFails(t *testing.T) {
+	var unrefs []uintptr
+	symbols := &Symbols{
+		unixInputStream: func(int32, int32) uintptr { return 10 },
+		responseNew:     func(uintptr, int64) uintptr { return 0 },
+		responseStatus:  func(uintptr, uint32, *byte) {},
+		finishWithResponse: func(uintptr, uintptr) {
+			require.FailNow(t, "finish with a missing response")
+		},
+		memoryStream: func(data uintptr, length int64, destroy uintptr) uintptr {
+			require.Zero(t, data)
+			require.Zero(t, length)
+			require.Zero(t, destroy)
+			return 50
+		},
+		finishRequest: func(request, stream uintptr, length int64, mime *byte) {
+			require.Equal(t, uintptr(7), request)
+			require.Equal(t, uintptr(50), stream)
+			require.Zero(t, length)
+			require.Equal(t, "text/plain", native.GoString(uintptr(unsafe.Pointer(mime))))
+		},
+		unref: func(obj uintptr) { unrefs = append(unrefs, obj) },
+	}
+	symbols.FinishResponse(7, 200, "text/plain", nil, strings.NewReader("x"))
+	require.Equal(t, []uintptr{10, 50}, unrefs)
+	require.Zero(t, pinnedLive())
+}
+
+func TestFinishNotFoundFreesTheError(t *testing.T) {
+	var freed []uintptr
+	symbols := &Symbols{
+		newError: func(domain uint32, code int32, message *byte) uintptr {
+			require.Equal(t, uint32(4), domain)
+			require.Equal(t, int32(1), code)
+			require.Equal(t, "not found", native.GoString(uintptr(unsafe.Pointer(message))))
+			return 9
+		},
+		ioErrorQuark: func() uint32 { return 4 },
+		finishRequestError: func(request, gError uintptr) {
+			require.Equal(t, uintptr(3), request)
+			require.Equal(t, uintptr(9), gError)
+		},
+		freeError: func(gError uintptr) { freed = append(freed, gError) },
+	}
+	symbols.FinishNotFound(3)
+	require.Equal(t, []uintptr{9}, freed)
+}
+
+func TestInputStreamReadPinsTheBuffer(t *testing.T) {
+	symbols := &Symbols{
+		streamRead: func(stream, buffer uintptr, count, cancellable, errorOut uintptr) int64 {
+			require.Equal(t, uintptr(1), stream)
+			require.Equal(t, uintptr(2), count)
+			*(*byte)(unsafe.Pointer(buffer)) = 'Z'
+			*(*uintptr)(unsafe.Pointer(errorOut)) = 0
+			return 1
+		},
+	}
+	reader := &inputStream{symbols: symbols, stream: 1}
+	buf := []byte{'a', 'b'}
+	n, err := reader.Read(buf)
+	require.NoError(t, err)
+	require.Equal(t, 1, n)
+	require.Equal(t, []byte{'Z', 'b'}, buf)
 }

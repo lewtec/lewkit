@@ -1,11 +1,6 @@
-// Package ios generates an ephemeral iOS host and packages
-// a GOOS=ios c-archive into a Debug .app.
-// A GUI model draws on a UIView. A web handler stays in the WKWebView.
-//
-// iOS cannot exec a helper binary. The Go app is linked in-process
-// (EletrocromoStart). A web handler writes ELETROCROMO_READY_FILE.
-// A GUI model calls openSurface and does not write that file.
-// The importable eletrocromo library stays free of Xcode.
+// Package ios generates an iOS .app.
+// The Go program is the bundle executable on every host.
+// Create writes the scaffold. Build does not compile that scaffold.
 package ios
 
 import (

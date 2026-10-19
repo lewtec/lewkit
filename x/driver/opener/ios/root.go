@@ -1,4 +1,5 @@
-// Package ios opens a URL or file through the packaged iOS host.
+// Package ios opens a URL or file.
+// The app process uses UIApplication. A host directory still exchanges request.json.
 package ios
 
 import (
