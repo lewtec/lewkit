@@ -13,6 +13,7 @@ import (
 
 	"github.com/ebitengine/purego"
 	"github.com/ebitengine/purego/objc"
+	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
@@ -116,14 +117,14 @@ func loadUIKit() error {
 	}
 	name := objc.ID(objc.GetClass("NSString")).Send(objc.RegisterName("alloc")).Send(objc.RegisterName("initWithUTF8String:"), "LewkitAppDelegate")
 	if name == 0 || class == 0 {
-		return fmt.Errorf("ios application delegate")
+		return fmt.Errorf("%w: ios application delegate", driver.ErrUnavailable)
 	}
 	delegate = uintptr(name)
 	callout := purego.NewCallback(uiKitObserver)
 	observer = makeObs(0, beforeWaiting, 1, 0, callout, nil)
 	loop := mainLoop()
 	if observer == 0 || loop == 0 || commonMode == 0 {
-		return fmt.Errorf("ios run loop")
+		return fmt.Errorf("%w: ios run loop", driver.ErrUnavailable)
 	}
 	addObs(loop, observer, commonMode)
 	return nil
@@ -132,7 +133,7 @@ func loadUIKit() error {
 func bind(lib uintptr, name string, fn any) error {
 	sym, err := native.Symbol(lib, name)
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return fmt.Errorf("%w: %s: %w", driver.ErrUnavailable, name, err)
 	}
 	native.Register(fn, sym)
 	return nil
