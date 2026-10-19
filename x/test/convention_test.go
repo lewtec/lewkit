@@ -19,7 +19,8 @@ import (
 
 // TestConventions rejects inline errors at return sites, testing assertions
 // outside testify, nil contexts, comparisons of a context to nil, context
-// roots outside main, a godoc example, and the Android host entry,
+// roots outside main, a godoc example, the Cocoa click probe, and the
+// Android host entry,
 // sentinels that repeat a meta condition without wrapping it, an enum
 // go:generate directive outside enum.go, and a raw OS name passed to
 // ForGOOS or IncompatibleOff. The vendored compiler trees and the
@@ -284,6 +285,19 @@ func Example() {
 }
 `
 	require.Empty(t, checkSource("p_test.go", []byte(example)))
+
+	const probe = `package cocoa
+
+import "context"
+
+func probeContentClick() {
+	context.Background()
+}
+`
+	require.Empty(t, checkSource("x/driver/window/cocoa/mouse_darwin_test.go", []byte(probe)))
+	require.Equal(t, []string{
+		"p_test.go:6:2: context root",
+	}, checkSource("p_test.go", []byte(probe)))
 }
 
 func TestConventionNilGuard(t *testing.T) {
@@ -723,6 +737,8 @@ func allowedContextRoot(decl *ast.FuncDecl, filename string) bool {
 	case strings.HasPrefix(name, "Example") && strings.HasSuffix(file, "_test.go"):
 		return true
 	case name == "runHost" && strings.HasSuffix(file, "x/entry/android/host.go"):
+		return true
+	case name == "probeContentClick" && strings.HasSuffix(file, "x/driver/window/cocoa/mouse_darwin_test.go"):
 		return true
 	default:
 		return false

@@ -243,10 +243,12 @@ func TestRunTicksWhileIdle(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return host.Front().RGBAAt(0, 0) == color.RGBA{255, 0, 0, 255}
 	}, time.Second, 5*time.Millisecond)
-	time.Sleep(50 * time.Millisecond)
+	// A 16ms period waits two ticks on a 15ms host clock, so 50ms can be
+	// one frame after the first paint.
+	time.Sleep(150 * time.Millisecond)
 	cancel()
 	require.NoError(t, <-done)
-	require.GreaterOrEqual(t, len(log.samples()), 3)
+	require.GreaterOrEqual(t, len(log.samples()), 3, "idle ticks")
 }
 
 func TestRunPointerDoesNotZeroFPS(t *testing.T) {

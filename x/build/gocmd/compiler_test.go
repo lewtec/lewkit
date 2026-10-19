@@ -102,6 +102,9 @@ func TestLewkitCompilerBuild(t *testing.T) {
 		}
 	})
 	t.Run("android-arm64", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			test.Skip(t, "toolexec wrapper is a shell script")
+		}
 		out := filepath.Join(dir, "libhello.so")
 		tool := writeToolexec(t, dir)
 		export := filepath.Join(dir, "_cgo_android_export.go")
