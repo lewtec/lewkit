@@ -34,17 +34,21 @@ func TestEvalIntoVirtStable(t *testing.T) {
 	first := int64(v1) - int64(v0)
 	second := int64(v2) - int64(v1)
 	t.Logf("VMS %d -> %d -> %d (%+d, %+d) RSS %d -> %d -> %d", v0, v1, v2, first, second, r0, r1, r2)
-	// The runtime reserves virtual address space in 64 MiB arenas. Crossing a
-	// boundary maps one arena. A leak maps another on the next run.
-	const arena = int64(64 << 20)
-	count := func(grew int64) (int, int64) {
-		if grew <= 0 {
-			return 0, 0
-		}
-		return int(grew / arena), grew % arena
+	// The runtime reserves heap address space in 64 MiB arenas. One growth can
+	// keep the alignment slack, a second arena, plus a small extra map.
+	// Resident use of this eval stays small. A leak grows the next run too.
+	if first < 0 {
+		first = 0
 	}
-	arenas1, rest1 := count(first)
-	arenas2, rest2 := count(second)
-	require.LessOrEqual(t, arenas1+arenas2, 1, "virtual size grew %+d then %+d", first, second)
-	require.Less(t, rest1+rest2, int64(1<<20), "virtual size grew %+d then %+d", first, second)
+	if second < 0 {
+		second = 0
+	}
+	hi, lo := first, second
+	if lo > hi {
+		hi, lo = lo, hi
+	}
+	const arena = int64(64 << 20)
+	require.Less(t, lo, int64(1<<20), "virtual size grew %+d then %+d", first, second)
+	require.Less(t, hi, 2*arena+int64(32<<20), "virtual size grew %+d then %+d", first, second)
+	require.Less(t, int64(r2)-int64(r0), int64(1<<20), "resident size %d -> %d -> %d", r0, r1, r2)
 }

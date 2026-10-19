@@ -112,6 +112,12 @@ func TestOlderProjectKeepsNamesAndNotes(t *testing.T) {
 	assert.Equal(t, "entry", text)
 }
 
+func TestSQLitePathKeepsWindowsDrive(t *testing.T) {
+	assert.Equal(t, "C:/db/app.decomp", sqlitePath("file://C:/db/app.decomp"))
+	assert.Equal(t, "C:/db/app.decomp", sqlitePath("file:///C:/db/app.decomp"))
+	assert.Equal(t, "/tmp/db", sqlitePath("file:///tmp/db"))
+}
+
 func TestOpenRejectsEmptyPath(t *testing.T) {
 	_, err := Open(t.Context(), "")
 	require.Error(t, err)

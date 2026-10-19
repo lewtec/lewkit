@@ -3,11 +3,10 @@ package header
 import (
 	"bytes"
 	"fmt"
-	"strconv"
 	"strings"
 
-	"github.com/dave/jennifer/jen"
 	"github.com/lewtec/lewkit/x/generate"
+	"github.com/lewtec/lewkit/x/takemake/golang"
 )
 
 var generatedBy = generate.Notice("header")
@@ -33,11 +32,11 @@ func Write(unit *Unit, pkg string, libs []string) ([]byte, error) {
 	if w.ptr < 1 {
 		w.ptr = 8
 	}
-	file := jen.NewFile(pkg)
-	file.HeaderComment(w.banner())
+	file := golang.NewFile(pkg)
+	file.Header = w.banner()
 	w.emit(file)
 	var buf bytes.Buffer
-	if err := file.Render(&buf); err != nil {
+	if err := file.Make(&buf); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -68,31 +67,31 @@ func (w *writer) banner() string {
 	return b.String()
 }
 
-func (w *writer) emit(f *jen.File) {
+func (w *writer) emit(file *golang.File) {
 	for _, t := range w.unit.Types {
 		if t.Kind == kindEnum {
-			w.emitEnum(f, t)
+			w.emitEnum(file, t)
 		}
 	}
 	for _, c := range w.unit.Consts {
-		f.Const().Id(c.Go).Op("=").Add(litInt(c.Value))
+		file.Const().Id(c.Go).Values(golang.Lit(c.Value))
 	}
 	for _, t := range w.unit.Types {
 		switch t.Kind {
 		case kindStruct, kindUnion:
-			w.emitAggregate(f, t)
+			w.emitAggregate(file, t)
 		case kindAlias:
-			f.Type().Id(t.Go).Op("=").Add(w.goType(t.Elem))
+			file.Type().Id(t.Go).Alias(w.goType(t.Elem))
 		}
 	}
 	if len(w.unit.Funcs) > 0 {
-		w.emitSymbols(f)
+		w.emitSymbols(file)
 	}
 	if len(w.libs) > 0 && len(w.unit.Funcs) > 0 {
-		w.emitOpen(f)
+		w.emitOpen(file)
 	}
 	for i := range w.unit.Objects {
-		w.emitObject(f, &w.unit.Objects[i])
+		w.emitObject(file, &w.unit.Objects[i])
 	}
 	for _, t := range w.unit.Types {
 		if t.Kind != kindStruct && t.Kind != kindUnion {
@@ -102,96 +101,95 @@ func (w *writer) emit(f *jen.File) {
 			continue
 		}
 		w.raw = true
-		w.emitMethods(f, t)
+		w.emitMethods(file, t)
 	}
 	if w.raw {
-		f.Func().Id("copyAt").Params(jen.Id("dst").Index().Byte(), jen.Id("src").Index().Byte()).Block(
-			jen.Id("copy").Call(jen.Id("dst"), jen.Id("src")),
+		file.Func().Id("copyAt").Params(
+			golang.NewField(golang.Slice(golang.Named("byte")), "dst"),
+			golang.NewField(golang.Slice(golang.Named("byte")), "src"),
+		).Block(
+			golang.Id("copy").Call(golang.Id("dst"), golang.Id("src")),
 		)
 	}
 }
 
-func (w *writer) emitEnum(f *jen.File, t *Type) {
-	f.Type().Id(t.Go).Add(intCode(t.Size))
+func (w *writer) emitEnum(file *golang.File, t *Type) {
+	file.Type().Id(t.Go).Of(intCode(t.Size))
 	for _, e := range t.Enums {
-		f.Const().Id(e.Go).Id(t.Go).Op("=").Add(litInt(e.Value))
+		file.Const().Id(e.Go).Type(golang.Named(t.Go)).Values(golang.Lit(e.Value))
 	}
 }
 
-func litInt(v int64) jen.Code {
-	return jen.Op(strconv.FormatInt(v, 10))
-}
-
-func intCode(size int) *jen.Statement {
+func intCode(size int) *golang.Type {
 	switch size {
 	case 1:
-		return jen.Int8()
+		return golang.Named("int8")
 	case 2:
-		return jen.Int16()
+		return golang.Named("int16")
 	case 8:
-		return jen.Int64()
+		return golang.Named("int64")
 	default:
-		return jen.Int32()
+		return golang.Named("int32")
 	}
 }
 
-func (w *writer) emitAggregate(f *jen.File, t *Type) {
+func (w *writer) emitAggregate(file *golang.File, t *Type) {
 	if t.Incomplete {
-		f.Type().Id(t.Go).Struct()
+		file.Type().Id(t.Go).Struct()
 		return
 	}
-	var fields []jen.Code
+	var fields []*golang.Field
 	if t.natural(w.ptr) {
 		fields = w.naturalFields(t)
 	} else {
 		fields = rawFields(t, w.ptr)
 	}
-	f.Type().Id(t.Go).Struct(fields...)
+	file.Type().Id(t.Go).Struct(fields...)
 }
 
-func (w *writer) naturalFields(t *Type) []jen.Code {
-	fields := []jen.Code{jen.Id("_").Qual("structs", "HostLayout")}
+func (w *writer) naturalFields(t *Type) []*golang.Field {
+	fields := []*golang.Field{golang.NewField(golang.QualType("structs", "HostLayout"), "_")}
 	off := 0
 	for _, f := range t.Fields {
 		if f == nil || f.Go == "" {
 			continue
 		}
 		if f.Offset > off {
-			fields = append(fields, jen.Id("_").Index(jen.Lit(f.Offset-off)).Byte())
+			fields = append(fields, golang.NewField(golang.Array(golang.Lit(f.Offset-off), golang.Named("byte")), "_"))
 			off = f.Offset
 		}
-		fields = append(fields, jen.Id(f.Go).Add(w.goType(f.Type)))
+		fields = append(fields, golang.NewField(w.goType(f.Type), f.Go))
 		off += f.CSize
 	}
 	if t.Size > off {
-		fields = append(fields, jen.Id("_").Index(jen.Lit(t.Size-off)).Byte())
+		fields = append(fields, golang.NewField(golang.Array(golang.Lit(t.Size-off), golang.Named("byte")), "_"))
 	}
 	return fields
 }
 
-func rawFields(t *Type, ptr int) []jen.Code {
-	fields := []jen.Code{jen.Id("_").Qual("structs", "HostLayout")}
+func rawFields(t *Type, ptr int) []*golang.Field {
+	fields := []*golang.Field{golang.NewField(golang.QualType("structs", "HostLayout"), "_")}
 	if t.Size <= 0 {
 		return fields
 	}
 	word, n := anchorWord(anchorAlign(t, ptr), t.Size)
-	fields = append(fields, jen.Id("_").Add(word))
+	fields = append(fields, golang.NewField(word, "_"))
 	if tail := t.Size - n; tail > 0 {
-		fields = append(fields, jen.Id("_").Index(jen.Lit(tail)).Byte())
+		fields = append(fields, golang.NewField(golang.Array(golang.Lit(tail), golang.Named("byte")), "_"))
 	}
 	return fields
 }
 
-func anchorWord(align, size int) (jen.Code, int) {
+func anchorWord(align, size int) (*golang.Type, int) {
 	switch {
 	case align >= 8 && size >= 8:
-		return jen.Uint64(), 8
+		return golang.Named("uint64"), 8
 	case align >= 4 && size >= 4:
-		return jen.Uint32(), 4
+		return golang.Named("uint32"), 4
 	case align >= 2 && size >= 2:
-		return jen.Uint16(), 2
+		return golang.Named("uint16"), 2
 	default:
-		return jen.Uint8(), 1
+		return golang.Named("uint8"), 1
 	}
 }
 
@@ -288,134 +286,144 @@ func (t *Type) natural(ptr int) bool {
 	}
 }
 
-func (w *writer) goType(t *Type) *jen.Statement {
+func (w *writer) goType(t *Type) *golang.Type {
 	if t == nil {
-		return jen.Byte()
+		return golang.Named("byte")
 	}
 	switch t.Kind {
 	case kindAlias, kindStruct, kindUnion, kindEnum:
 		if t.Go != "" {
-			return jen.Id(t.Go)
+			return golang.Named(t.Go)
 		}
 		if t.Kind == kindAlias {
 			return w.goType(t.Elem)
 		}
-		return jen.Byte()
+		return golang.Named("byte")
 	case kindBool:
-		return jen.Bool()
+		return golang.Named("bool")
 	case kindSInt:
 		if t.Spell == "intptr_t" || t.Spell == "uintptr_t" {
-			return jen.Uintptr()
+			return golang.Named("uintptr")
 		}
 		return intCode(t.Size)
 	case kindUInt:
 		if t.Spell == "uintptr_t" || t.Spell == "intptr_t" {
-			return jen.Uintptr()
+			return golang.Named("uintptr")
 		}
 		switch t.Size {
 		case 1:
-			return jen.Byte()
+			return golang.Named("byte")
 		case 2:
-			return jen.Uint16()
+			return golang.Named("uint16")
 		case 4:
-			return jen.Uint32()
+			return golang.Named("uint32")
 		case 8:
-			return jen.Uint64()
+			return golang.Named("uint64")
 		default:
-			return jen.Uint32()
+			return golang.Named("uint32")
 		}
 	case kindFloat:
 		switch t.Size {
 		case 4:
-			return jen.Float32()
+			return golang.Named("float32")
 		case 8:
-			return jen.Float64()
+			return golang.Named("float64")
 		case 12:
-			return jen.Index(jen.Lit(3)).Uint32()
+			return golang.Array(golang.Lit(3), golang.Named("uint32"))
 		default:
-			return jen.Index(jen.Lit(2)).Uint64()
+			return golang.Array(golang.Lit(2), golang.Named("uint64"))
 		}
 	case kindPtr:
 		if t.Elem == nil || t.Elem.Kind == kindVoid {
-			return jen.Qual("unsafe", "Pointer")
+			return golang.QualType("unsafe", "Pointer")
 		}
 		if t.Elem.Kind == kindFunc {
-			return jen.Uintptr()
+			return golang.Named("uintptr")
 		}
-		return jen.Op("*").Add(w.goType(t.Elem))
+		return golang.Pointer(w.goType(t.Elem))
 	case kindArray:
 		n := t.Len
 		if n < 0 {
 			n = 0
 		}
-		return jen.Index(jen.Lit(n)).Add(w.goType(t.Elem))
+		return golang.Array(golang.Lit(n), w.goType(t.Elem))
 	case kindFunc:
-		return jen.Uintptr()
+		return golang.Named("uintptr")
 	default:
-		return jen.Byte()
+		return golang.Named("byte")
 	}
 }
 
-func (w *writer) funcType(fn *Func) *jen.Statement {
-	params := make([]jen.Code, 0, len(fn.Params))
+func (w *writer) funcType(fn *Func) *golang.Type {
+	params := make([]*golang.Field, 0, len(fn.Params))
 	for _, param := range fn.Params {
 		if param.Name == "" {
-			params = append(params, w.goType(param.Type))
+			params = append(params, golang.NewField(w.goType(param.Type)))
 			continue
 		}
-		params = append(params, jen.Id(param.Name).Add(w.goType(param.Type)))
+		params = append(params, golang.NewField(w.goType(param.Type), param.Name))
 	}
-	sig := jen.Func().Params(params...)
+	var results []*golang.Field
 	if fn.Ret != nil && fn.Ret.Kind != kindVoid {
-		sig = sig.Add(w.goType(fn.Ret))
+		results = []*golang.Field{golang.NewField(w.goType(fn.Ret))}
 	}
-	return sig
+	return golang.FuncType(params, results)
 }
 
-func (w *writer) emitSymbols(f *jen.File) {
+func (w *writer) emitSymbols(file *golang.File) {
 	name := w.unit.BindName
-	f.Type().Id(name).StructFunc(func(g *jen.Group) {
-		for i := range w.unit.Funcs {
-			fn := &w.unit.Funcs[i]
-			tag := fn.Name
-			if w.unit.BindSoft {
-				tag += ",soft"
-			}
-			g.Id(fn.Go).Add(w.funcType(fn)).Tag(map[string]string{"sym": tag})
+	fields := make([]*golang.Field, 0, len(w.unit.Funcs))
+	for i := range w.unit.Funcs {
+		fn := &w.unit.Funcs[i]
+		tag := fn.Name
+		if w.unit.BindSoft {
+			tag += ",soft"
 		}
-	})
+		fields = append(fields, golang.NewField(w.funcType(fn), fn.Go).WithTag(`sym:"`+tag+`"`))
+	}
+	file.Type().Id(name).Struct(fields...)
 }
 
-func (w *writer) emitOpen(f *jen.File) {
-	args := []jen.Code{jen.Qual(nativePath, "Now").Op("|").Qual(nativePath, "Global")}
+func (w *writer) emitOpen(file *golang.File) {
+	args := []*golang.Expr{
+		golang.Binary(golang.OpOr, golang.Qual(nativePath, "Now"), golang.Qual(nativePath, "Global")),
+	}
 	for _, lib := range w.libs {
-		args = append(args, jen.Lit(lib))
+		args = append(args, golang.Lit(lib))
 	}
 	name := w.unit.BindName
-	f.Func().Id("Open").Params().Params(jen.Id(name), jen.Error()).Block(
-		jen.Return(jen.Qual(nativePath, "Bind").Types(jen.Id(name)).Call(args...)),
+	file.Func().Id("Open").Results(
+		golang.NewField(golang.Named(name)),
+		golang.NewField(golang.Named("error")),
+	).Block(
+		golang.Return(golang.QualType(nativePath, "Bind").Inst(golang.Named(name)).AsExpr().Call(args...)),
 	)
 }
 
-func (w *writer) emitObject(f *jen.File, obj *Object) {
-	ret := jen.Op("*").Add(w.goType(obj.Type))
-	f.Func().Id(obj.Go).Params(jen.Id("lib").Uintptr()).Params(ret, jen.Error()).Block(
-		jen.List(jen.Id("addr"), jen.Err()).Op(":=").Qual(nativePath, "Symbol").Call(jen.Id("lib"), jen.Lit(obj.Name)),
-		jen.If(jen.Err().Op("!=").Nil()).Block(jen.Return(jen.Nil(), jen.Err())),
-		jen.Return(jen.Parens(ret).Call(jen.Qual("unsafe", "Pointer").Call(jen.Id("addr"))), jen.Nil()),
+func (w *writer) emitObject(file *golang.File, obj *Object) {
+	ret := golang.Pointer(w.goType(obj.Type))
+	file.Func().Id(obj.Go).Params(
+		golang.NewField(golang.Named("uintptr"), "lib"),
+	).Results(
+		golang.NewField(ret),
+		golang.NewField(golang.Named("error")),
+	).Block(
+		golang.Define([]*golang.Expr{golang.Id("addr"), golang.Id("err")}, golang.Qual(nativePath, "Symbol").Call(golang.Id("lib"), golang.Lit(obj.Name))),
+		golang.If(golang.Binary(golang.OpNeq, golang.Id("err"), golang.Lit(nil)), golang.Return(golang.Lit(nil), golang.Id("err"))),
+		golang.Return(ret.AsExpr().Call(golang.Qual("unsafe", "Pointer").Call(golang.Id("addr"))), golang.Lit(nil)),
 	)
 }
 
-func (w *writer) emitMethods(f *jen.File, t *Type) {
+func (w *writer) emitMethods(file *golang.File, t *Type) {
 	for _, field := range t.Fields {
 		if field == nil || field.Go == "" {
 			continue
 		}
 		if field.IsBit {
-			w.emitBitMethod(f, t, field)
+			w.emitBitMethod(file, t, field)
 			continue
 		}
-		w.emitCopyMethod(f, t, field)
+		w.emitCopyMethod(file, t, field)
 	}
 }
 
@@ -443,14 +451,28 @@ func loadLen(t *Type, f *Field) int {
 	return n
 }
 
-func (w *writer) sliceSrc(sizeExpr jen.Code) *jen.Statement {
-	return jen.Id("src").Op(":=").Qual("unsafe", "Slice").Call(
-		jen.Parens(jen.Op("*").Byte()).Call(jen.Qual("unsafe", "Pointer").Call(jen.Id("v"))),
-		sizeExpr,
+func (w *writer) sliceSrc(size *golang.Expr) *golang.Stmt {
+	return golang.Define([]*golang.Expr{golang.Id("src")}, unsafeSlice(golang.Id("v"), size))
+}
+
+func sizeofStarV() *golang.Expr {
+	return golang.Named("int").AsExpr().Call(golang.Qual("unsafe", "Sizeof").Call(golang.Unary(golang.OpMul, golang.Id("v"))))
+}
+
+func unsafeSlice(ptr, n *golang.Expr) *golang.Expr {
+	return golang.Qual("unsafe", "Slice").Call(
+		golang.Pointer(golang.Named("byte")).AsExpr().Call(golang.Qual("unsafe", "Pointer").Call(ptr)),
+		n,
 	)
 }
 
-func (w *writer) emitBitMethod(f *jen.File, t *Type, field *Field) {
+func declareVar(name string, typ *golang.Type) *golang.Stmt {
+	group := &golang.Var{}
+	group.Id(name).Type(typ)
+	return golang.Declare(group)
+}
+
+func (w *writer) emitBitMethod(file *golang.File, t *Type, field *Field) {
 	n := loadLen(t, field)
 	off := field.Container
 	width := field.BitWidth
@@ -459,71 +481,79 @@ func (w *writer) emitBitMethod(f *jen.File, t *Type, field *Field) {
 	}
 	signed := field.Type != nil && field.Type.Kind == kindSInt
 	mask := bitMask(width)
-	f.Func().Params(jen.Id("v").Op("*").Id(t.Go)).Id(field.Go).Params().Add(w.bitGo(field)).BlockFunc(func(g *jen.Group) {
-		g.Var().Id("out").Uint64()
-		g.Id("dst").Op(":=").Qual("unsafe", "Slice").Call(
-			jen.Parens(jen.Op("*").Byte()).Call(jen.Qual("unsafe", "Pointer").Call(jen.Op("&").Id("out"))),
-			jen.Lit(n),
-		)
-		g.Add(w.sliceSrc(jen.Id("int").Call(jen.Qual("unsafe", "Sizeof").Call(jen.Op("*").Id("v")))))
-		g.Id("copyAt").Call(jen.Id("dst"), jen.Id("src").Index(jen.Lit(off), jen.Lit(off+n)))
-		if field.BitOff > 0 {
-			g.Id("out").Op(">>=").Lit(field.BitOff)
-		}
-		if width > 0 && width < 64 {
-			g.Id("out").Op("&=").Lit(mask)
-		}
-		g.Return(w.bitReturn(field, signed, width))
-	})
-	f.Func().Params(jen.Id("v").Op("*").Id(t.Go)).Id("Set" + field.Go).Params(jen.Id("x").Add(w.bitGo(field))).BlockFunc(func(g *jen.Group) {
-		g.Var().Id("out").Uint64()
-		g.Id("dst").Op(":=").Qual("unsafe", "Slice").Call(
-			jen.Parens(jen.Op("*").Byte()).Call(jen.Qual("unsafe", "Pointer").Call(jen.Op("&").Id("out"))),
-			jen.Lit(n),
-		)
-		g.Add(w.sliceSrc(jen.Id("int").Call(jen.Qual("unsafe", "Sizeof").Call(jen.Op("*").Id("v")))))
-		g.Id("copyAt").Call(jen.Id("dst"), jen.Id("src").Index(jen.Lit(off), jen.Lit(off+n)))
-		shift := field.BitOff
-		cleared := jen.Id("out").Op("&^=").Lit(mask)
-		stored := jen.Parens(jen.Uint64().Call(jen.Id("x")).Op("&").Lit(mask))
-		if shift > 0 {
-			cleared = jen.Id("out").Op("&^=").Parens(jen.Lit(mask).Op("<<").Lit(shift))
-			stored = jen.Parens(stored).Op("<<").Lit(shift)
-		}
-		if width >= 64 {
-			cleared = jen.Id("out").Op("=").Lit(0)
-			stored = jen.Uint64().Call(jen.Id("x"))
-		}
-		g.Add(cleared)
-		g.Id("out").Op("|=").Add(stored)
-		g.Var().Id("buf").Index(jen.Lit(8)).Byte()
-		g.Id("copyAt").Call(
-			jen.Id("buf").Index(jen.Empty(), jen.Lit(n)),
-			jen.Qual("unsafe", "Slice").Call(
-				jen.Parens(jen.Op("*").Byte()).Call(jen.Qual("unsafe", "Pointer").Call(jen.Op("&").Id("out"))),
-				jen.Lit(n),
-			),
-		)
-		g.Id("copyAt").Call(jen.Id("src").Index(jen.Lit(off), jen.Lit(off+n)), jen.Id("buf").Index(jen.Empty(), jen.Lit(n)))
-	})
+	recv := golang.Pointer(golang.Named(t.Go))
+	body := w.bitLoad(n, off)
+	if field.BitOff > 0 {
+		body = append(body, golang.Assign(golang.OpShr, []*golang.Expr{golang.Id("out")}, golang.Lit(field.BitOff)))
+	}
+	if width > 0 && width < 64 {
+		body = append(body, golang.Assign(golang.OpAnd, []*golang.Expr{golang.Id("out")}, golang.Lit(mask)))
+	}
+	body = append(body, golang.Return(w.bitReturn(field, signed, width)))
+	file.Func().Recv("v", recv).Id(field.Go).Results(golang.NewField(w.bitGo(field))).Block(body...)
+
+	set := w.bitLoad(n, off)
+	cleared, stored := bitStore(field, width, mask)
+	set = append(set,
+		cleared,
+		golang.Assign(golang.OpOr, []*golang.Expr{golang.Id("out")}, stored),
+		declareVar("buf", golang.Array(golang.Lit(8), golang.Named("byte"))),
+		golang.Id("copyAt").Call(
+			golang.Id("buf").Slice(nil, golang.Lit(n), nil),
+			unsafeSlice(golang.Unary(golang.OpAnd, golang.Id("out")), golang.Lit(n)),
+		),
+		golang.Id("copyAt").Call(
+			golang.Id("src").Slice(golang.Lit(off), golang.Lit(off+n), nil),
+			golang.Id("buf").Slice(nil, golang.Lit(n), nil),
+		),
+	)
+	file.Func().Recv("v", recv).Id("Set" + field.Go).Params(
+		golang.NewField(w.bitGo(field), "x"),
+	).Block(set...)
 }
 
-func (w *writer) bitGo(field *Field) *jen.Statement {
+func (w *writer) bitLoad(n, off int) []golang.Code {
+	return []golang.Code{
+		declareVar("out", golang.Named("uint64")),
+		golang.Define([]*golang.Expr{golang.Id("dst")}, unsafeSlice(golang.Unary(golang.OpAnd, golang.Id("out")), golang.Lit(n))),
+		w.sliceSrc(sizeofStarV()),
+		golang.Id("copyAt").Call(golang.Id("dst"), golang.Id("src").Slice(golang.Lit(off), golang.Lit(off+n), nil)),
+	}
+}
+
+func bitStore(field *Field, width int, mask uint64) (*golang.Stmt, *golang.Expr) {
+	if width >= 64 {
+		return golang.Assign(0, []*golang.Expr{golang.Id("out")}, golang.Lit(0)),
+			golang.Named("uint64").AsExpr().Call(golang.Id("x"))
+	}
+	stored := golang.Paren(golang.Binary(golang.OpAnd, golang.Named("uint64").AsExpr().Call(golang.Id("x")), golang.Lit(mask)))
+	shift := field.BitOff
+	if shift > 0 {
+		stored = golang.Binary(golang.OpShl, golang.Paren(stored), golang.Lit(shift))
+		return golang.Assign(golang.OpAndNot, []*golang.Expr{golang.Id("out")}, golang.Paren(golang.Binary(golang.OpShl, golang.Lit(mask), golang.Lit(shift)))), stored
+	}
+	return golang.Assign(golang.OpAndNot, []*golang.Expr{golang.Id("out")}, golang.Lit(mask)), stored
+}
+
+func (w *writer) bitGo(field *Field) *golang.Type {
 	if field.Type == nil {
-		return jen.Uint32()
+		return golang.Named("uint32")
 	}
 	if field.Type.Kind == kindSInt || field.Type.Kind == kindUInt || field.Type.Kind == kindBool {
 		return w.goType(field.Type)
 	}
-	return jen.Uint32()
+	return golang.Named("uint32")
 }
 
-func (w *writer) bitReturn(field *Field, signed bool, width int) jen.Code {
+func (w *writer) bitReturn(field *Field, signed bool, width int) *golang.Expr {
 	if !signed || width <= 0 || width >= 64 {
-		return w.bitGo(field).Call(jen.Id("out"))
+		return w.bitGo(field).AsExpr().Call(golang.Id("out"))
 	}
 	shift := 64 - width
-	return w.bitGo(field).Call(jen.Int64().Call(jen.Id("out").Op("<<").Lit(shift)).Op(">>").Lit(shift))
+	return w.bitGo(field).AsExpr().Call(golang.Binary(golang.OpShr,
+		golang.Named("int64").AsExpr().Call(golang.Binary(golang.OpShl, golang.Id("out"), golang.Lit(shift))),
+		golang.Lit(shift),
+	))
 }
 
 func bitMask(width int) uint64 {
@@ -536,7 +566,7 @@ func bitMask(width int) uint64 {
 	return (uint64(1) << uint(width)) - 1
 }
 
-func (w *writer) emitCopyMethod(f *jen.File, t *Type, field *Field) {
+func (w *writer) emitCopyMethod(file *golang.File, t *Type, field *Field) {
 	off := field.Offset
 	n := field.CSize
 	if off+n > t.Size {
@@ -545,24 +575,22 @@ func (w *writer) emitCopyMethod(f *jen.File, t *Type, field *Field) {
 	if n < 0 {
 		n = 0
 	}
-	f.Func().Params(jen.Id("v").Op("*").Id(t.Go)).Id(field.Go).Params().Add(w.goType(field.Type)).Block(
-		jen.Var().Id("out").Add(w.goType(field.Type)),
-		jen.Id("dst").Op(":=").Qual("unsafe", "Slice").Call(
-			jen.Parens(jen.Op("*").Byte()).Call(jen.Qual("unsafe", "Pointer").Call(jen.Op("&").Id("out"))),
-			jen.Lit(n),
-		),
-		w.sliceSrc(jen.Id("int").Call(jen.Qual("unsafe", "Sizeof").Call(jen.Op("*").Id("v")))),
-		jen.Id("copyAt").Call(jen.Id("dst"), jen.Id("src").Index(jen.Lit(off), jen.Lit(off+n))),
-		jen.Return(jen.Id("out")),
+	typ := w.goType(field.Type)
+	recv := golang.Pointer(golang.Named(t.Go))
+	file.Func().Recv("v", recv).Id(field.Go).Results(golang.NewField(typ)).Block(
+		declareVar("out", typ),
+		golang.Define([]*golang.Expr{golang.Id("dst")}, unsafeSlice(golang.Unary(golang.OpAnd, golang.Id("out")), golang.Lit(n))),
+		w.sliceSrc(sizeofStarV()),
+		golang.Id("copyAt").Call(golang.Id("dst"), golang.Id("src").Slice(golang.Lit(off), golang.Lit(off+n), nil)),
+		golang.Return(golang.Id("out")),
 	)
-	f.Func().Params(jen.Id("v").Op("*").Id(t.Go)).Id("Set"+field.Go).Params(jen.Id("x").Add(w.goType(field.Type))).Block(
-		w.sliceSrc(jen.Id("int").Call(jen.Qual("unsafe", "Sizeof").Call(jen.Op("*").Id("v")))),
-		jen.Id("copyAt").Call(
-			jen.Id("src").Index(jen.Lit(off), jen.Lit(off+n)),
-			jen.Qual("unsafe", "Slice").Call(
-				jen.Parens(jen.Op("*").Byte()).Call(jen.Qual("unsafe", "Pointer").Call(jen.Op("&").Id("x"))),
-				jen.Lit(n),
-			),
+	file.Func().Recv("v", recv).Id("Set"+field.Go).Params(
+		golang.NewField(typ, "x"),
+	).Block(
+		w.sliceSrc(sizeofStarV()),
+		golang.Id("copyAt").Call(
+			golang.Id("src").Slice(golang.Lit(off), golang.Lit(off+n), nil),
+			unsafeSlice(golang.Unary(golang.OpAnd, golang.Id("x")), golang.Lit(n)),
 		),
 	)
 }

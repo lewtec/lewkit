@@ -160,6 +160,9 @@ func sqlitePath(raw string) string {
 	}
 	switch parsed.Scheme {
 	case "file":
+		if drive, ok := fileURLPath(parsed); ok {
+			return drive
+		}
 		if parsed.Path != "" {
 			return parsed.Path
 		}
@@ -175,6 +178,22 @@ func sqlitePath(raw string) string {
 		}
 	}
 	return raw
+}
+
+// fileURLPath is the Windows path inside a file URL.
+// file://C:/db and file:///C:/db both name C:/db.
+func fileURLPath(u *url.URL) (string, bool) {
+	if len(u.Host) >= 2 && u.Host[1] == ':' && isASCIILetter(u.Host[0]) {
+		return u.Host + u.Path, true
+	}
+	if len(u.Path) >= 4 && u.Path[0] == '/' && u.Path[2] == ':' && isASCIILetter(u.Path[1]) {
+		return u.Path[1:], true
+	}
+	return "", false
+}
+
+func isASCIILetter(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
 func sqliteFileURL(path string) string {

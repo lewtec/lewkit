@@ -210,7 +210,7 @@ func nocgoAndroidToolexec(ctx context.Context, abis []string, cgoEnabled bool) (
 	if err != nil {
 		return "", "", err
 	}
-	dest := filepath.Join(dir, "androidtoolexec")
+	dest := filepath.Join(dir, hostExe("androidtoolexec"))
 	// The caller is an orchestrator. This host binary is in the embedded
 	// compiler's scope: no cgo, no -buildmode, and no -toolexec.
 	err = (gocmd.Command{
@@ -267,6 +267,13 @@ func envReplace(env []string, key, value string) []string {
 
 // lewkitDir is the directory of the module that contains this package.
 // An empty result leaves go in the process working directory.
+func hostExe(name string) string {
+	if runtime.GOOS == "windows" {
+		return name + ".exe"
+	}
+	return name
+}
+
 func lewkitDir() string {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok || !filepath.IsAbs(file) {
@@ -334,7 +341,8 @@ func AssembleDebug(ctx context.Context, workDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	args := append(gradle[1:], "assembleDebug", "--stacktrace")
+	// --no-daemon: on Windows the daemon keeps the stdout pipe, so the client never looks finished.
+	args := append(gradle[1:], "assembleDebug", "--stacktrace", "--no-daemon")
 	env := gradleEnv(os.Environ(), home, sdk)
 	if err := gocmd.Tool(ctx, gradle[0], workDir, env, args...); err != nil {
 		return "", fmt.Errorf("%w: %w\n(work dir left at %s)", ErrGradleAssembledebug, err, workDir)

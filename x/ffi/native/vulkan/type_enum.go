@@ -4,14 +4,12 @@ package vulkan
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrDeviceType means the text is not a known device type.
-	ErrDeviceType = errs.Wrap(errs.ErrUnknown, "unknown device type")
-)
+// ErrDeviceType means the text is not a known device type.
+var ErrDeviceType = errs.Wrap(errs.ErrUnknown, "unknown device type")
 
 // String is the text of a DeviceType.
 func (d DeviceType) String() string {

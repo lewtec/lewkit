@@ -59,10 +59,17 @@ func TestLewkitCompilerBuild(t *testing.T) {
 			Args:     []string{"-trimpath", "-ldflags", "-s -w", "-o", out, "."},
 		}.Run(t.Context())
 		require.NoError(t, err)
-		got, err := exec.Command(out).CombinedOutput()
-		require.NoErrorf(t, err, "%v\n%s", err, got)
-		if string(got) != "from-lewkit\n" {
-			require.FailNowf(t, "", "output %q", got)
+		if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
+			got, err := exec.Command(out).CombinedOutput()
+			require.NoErrorf(t, err, "%v\n%s", err, got)
+			if string(got) != "from-lewkit\n" {
+				require.FailNowf(t, "", "output %q", got)
+			}
+			return
+		}
+		typ, machine := elfHeader(t, out)
+		if typ != 2 || machine != 62 {
+			require.FailNowf(t, "", "ELF type %d machine %d", typ, machine)
 		}
 	})
 	t.Run("windows", func(t *testing.T) {
@@ -95,10 +102,11 @@ func TestLewkitCompilerBuild(t *testing.T) {
 		}
 	})
 	t.Run("android-arm64", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			test.Skip(t, "toolexec wrapper is a shell script")
+		}
 		out := filepath.Join(dir, "libhello.so")
-		tool := filepath.Join(dir, "toolexec")
-		script := "#!/bin/sh\nif [ \"$(basename \"$1\")\" = \"_cgo_android_export.go\" ]; then\n\tshift\nfi\nexec \"$@\"\n"
-		require.NoError(t, os.WriteFile(tool, []byte(script), 0o755))
+		tool := writeToolexec(t, dir)
 		export := filepath.Join(dir, "_cgo_android_export.go")
 		require.NoError(t, os.WriteFile(export, []byte("package unused\n"), 0o644))
 		err := Command{
@@ -194,10 +202,17 @@ func TestLewkitCompilerProgressTree(t *testing.T) {
 	if !sawControl || !sawCPU || !sawLink {
 		require.FailNowf(t, "", "progress tree control=%v cpu=%v link=%v", sawControl, sawCPU, sawLink)
 	}
-	got, err := exec.Command(out).CombinedOutput()
-	require.NoErrorf(t, err, "%v\n%s", err, got)
-	if string(got) != "7\n" {
-		require.FailNowf(t, "", "output %q", got)
+	if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
+		got, err := exec.Command(out).CombinedOutput()
+		require.NoErrorf(t, err, "%v\n%s", err, got)
+		if string(got) != "7\n" {
+			require.FailNowf(t, "", "output %q", got)
+		}
+		return
+	}
+	typ, machine := elfHeader(t, out)
+	if typ != 2 || machine != 62 {
+		require.FailNowf(t, "", "ELF type %d machine %d", typ, machine)
 	}
 }
 
@@ -224,6 +239,27 @@ func TestCgoExportArg(t *testing.T) {
 		Args:     []string{"-toolexec", "wrap " + missing, "-o", "out", "."},
 	}.Run(t.Context())
 	require.ErrorIs(t, err, ErrCompiler)
+}
+
+func writeToolexec(t *testing.T, dir string) string {
+	t.Helper()
+	tool := filepath.Join(dir, "toolexec")
+	if runtime.GOOS == "windows" {
+		tool += ".exe"
+		wrap := filepath.Join(dir, "wrap")
+		require.NoError(t, os.MkdirAll(wrap, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(wrap, "go.mod"), []byte("module wrap\n\ngo 1.27.0\n"), 0o644))
+		body := "package main\n\nimport (\n\t\"os\"\n\t\"os/exec\"\n\t\"path/filepath\"\n)\n\nfunc main() {\n\targs := os.Args[1:]\n\tif len(args) > 0 && filepath.Base(args[0]) == \"_cgo_android_export.go\" {\n\t\targs = args[1:]\n\t}\n\tif len(args) == 0 {\n\t\tos.Exit(2)\n\t}\n\tcmd := exec.Command(args[0], args[1:]...)\n\tcmd.Stdout = os.Stdout\n\tcmd.Stderr = os.Stderr\n\tif err := cmd.Run(); err != nil {\n\t\tos.Exit(1)\n\t}\n}\n"
+		require.NoError(t, os.WriteFile(filepath.Join(wrap, "main.go"), []byte(body), 0o644))
+		cmd := exec.Command("go", "build", "-o", tool, ".")
+		cmd.Dir = wrap
+		out, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "%s", out)
+		return tool
+	}
+	script := "#!/bin/sh\nif [ \"$(basename \"$1\")\" = \"_cgo_android_export.go\" ]; then\n\tshift\nfi\nexec \"$@\"\n"
+	require.NoError(t, os.WriteFile(tool, []byte(script), 0o755))
+	return tool
 }
 
 func elfHeader(t *testing.T, path string) (typ, machine uint16) {

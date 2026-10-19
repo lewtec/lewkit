@@ -4,14 +4,12 @@ package screenshot
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrTargetType means the text is not a known target type.
-	ErrTargetType = errs.Wrap(errs.ErrUnknown, "unknown target type")
-)
+// ErrTargetType means the text is not a known target type.
+var ErrTargetType = errs.Wrap(errs.ErrUnknown, "unknown target type")
 
 // String is the text of a TargetType.
 func (t TargetType) String() string {

@@ -4,14 +4,12 @@ package glsl
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrStage means the text is not a known stage.
-	ErrStage = errs.Wrap(errs.ErrUnknown, "unknown stage")
-)
+// ErrStage means the text is not a known stage.
+var ErrStage = errs.Wrap(errs.ErrUnknown, "unknown stage")
 
 // String is the text of a Stage.
 func (s Stage) String() string {

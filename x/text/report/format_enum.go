@@ -4,14 +4,12 @@ package report
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrFormat means the text is not a known format.
-	ErrFormat = errs.Wrap(errs.ErrUnknown, "unknown format")
-)
+// ErrFormat means the text is not a known format.
+var ErrFormat = errs.Wrap(errs.ErrUnknown, "unknown format")
 
 // String is the text of a Format.
 func (f Format) String() string {

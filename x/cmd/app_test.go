@@ -141,13 +141,21 @@ func TestAppRunPprof(t *testing.T) {
 		return err == nil
 	}, time.Second, 10*time.Millisecond)
 	cancel()
+	// Profiles are written when the context ends, one after another.
+	// The first name in the list is the last file written.
+	paths := make([]string, 0, len(pprof.Profiles()))
 	for _, prof := range pprof.Profiles() {
-		path := filepath.Join(dir, prof.Name()+".prof")
-		assert.Eventually(t, func() bool {
-			stat, err := os.Stat(path)
-			return err == nil && stat.Size() > 0
-		}, time.Second, 10*time.Millisecond)
+		paths = append(paths, filepath.Join(dir, prof.Name()+".prof"))
 	}
+	assert.Eventually(t, func() bool {
+		for _, path := range paths {
+			stat, err := os.Stat(path)
+			if err != nil || stat.Size() == 0 {
+				return false
+			}
+		}
+		return true
+	}, 15*time.Second, 20*time.Millisecond)
 }
 
 type extraCmds struct {

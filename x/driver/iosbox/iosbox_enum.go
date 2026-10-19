@@ -4,14 +4,12 @@ package iosbox
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrOp means the text is not a known op.
-	ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
-)
+// ErrOp means the text is not a known op.
+var ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
 
 // String is the text of a Op.
 func (o Op) String() string {

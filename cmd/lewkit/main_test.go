@@ -109,6 +109,16 @@ func TestGenerateEnumUsage(t *testing.T) {
 	assert.Contains(t, got, "every marked file")
 }
 
+func TestGenerateParseUsage(t *testing.T) {
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
+	require.NoError(t, err)
+	assert.Contains(t, text, "parse")
+	assert.Contains(t, text, "LR(1) table")
+	cmd.ParseOK[cmd.App[root]](t, "generate", "parse")
+	err = cmd.ParseErr[cmd.App[root]](t, "generate", "parse", ".")
+	assert.ErrorIs(t, err, cmd.ErrInvalidArgument)
+}
+
 func TestGenerateHeaderUsage(t *testing.T) {
 	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
 	require.NoError(t, err)
@@ -139,6 +149,7 @@ func TestGenerateHelp(t *testing.T) {
 	assert.Contains(t, got, "header")
 	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "enum")
+	assert.Contains(t, got, "parse")
 	assert.Contains(t, got, "shared Queries")
 	assert.Contains(t, got, "--sentry-dsn")
 }
@@ -157,5 +168,6 @@ func TestGenerateErrUsage(t *testing.T) {
 	assert.Contains(t, got, "header")
 	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "enum")
+	assert.Contains(t, got, "parse")
 	assert.Contains(t, got, "--sentry-dsn")
 }

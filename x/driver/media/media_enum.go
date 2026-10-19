@@ -4,14 +4,12 @@ package media
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrPlaybackStatus means the text is not a known playback status.
-	ErrPlaybackStatus = errs.Wrap(errs.ErrUnknown, "unknown playback status")
-)
+// ErrPlaybackStatus means the text is not a known playback status.
+var ErrPlaybackStatus = errs.Wrap(errs.ErrUnknown, "unknown playback status")
 
 // String is the text of a PlaybackStatus.
 func (p PlaybackStatus) String() string {

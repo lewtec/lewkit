@@ -4,14 +4,12 @@ package header
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrLayoutID means the text is not a known layout id.
-	ErrLayoutID = errs.Wrap(errs.ErrUnknown, "unknown layout id")
-)
+// ErrLayoutID means the text is not a known layout id.
+var ErrLayoutID = errs.Wrap(errs.ErrUnknown, "unknown layout id")
 
 // String is the text of a LayoutID.
 func (l LayoutID) String() string {

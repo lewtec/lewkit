@@ -23,6 +23,12 @@ func (factory) New(context.Context) (window.Driver, error) {
 
 type opener struct{}
 
+// Open opens a memory window. Pixel tests call it so a native driver
+// on this host does not win the weight contest.
+func Open(ctx context.Context, cfg window.Config) (window.Window, error) {
+	return opener{}.Open(ctx, cfg)
+}
+
 func (opener) Open(_ context.Context, cfg window.Config) (window.Window, error) {
 	w, h, err := cfg.Size()
 	if err != nil {

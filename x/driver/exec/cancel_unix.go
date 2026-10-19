@@ -14,10 +14,16 @@ func prepareCancel(cmd *exec.Cmd) {
 	cmd.SysProcAttr.Setpgid = true
 }
 
+func trackProcess(*exec.Cmd) {}
+
+func finishCancel(*exec.Cmd) {}
+
 func cancelProcess(cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
+	// Kill the process group while it is still the group we started.
+	// After Wait, disarmCancel skips this so a reused pid is not signalled.
 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil {
 		_ = cmd.Process.Kill()
 	}

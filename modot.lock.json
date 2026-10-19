@@ -1,6 +1,15 @@
 {
   "dependencies": [
     {
+      "kind": "source",
+      "ref": "github:KhronosGroup/Vulkan-Samples",
+      "depName": "KhronosGroup/Vulkan-Samples",
+      "packageName": "https://github.com/KhronosGroup/Vulkan-Samples",
+      "currentValue": "main",
+      "currentDigest": "177edebf0cd7d4f669667e49f052cfb56b17e004",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "github:astral-sh/ruff",
       "depName": "astral-sh/ruff",
@@ -22,6 +31,15 @@
       "depName": "cli/cli",
       "currentValue": "v2.101.0",
       "datasource": "github-releases"
+    },
+    {
+      "kind": "source",
+      "ref": "github:ellson/MOTHBALLED-graphviz",
+      "depName": "ellson/MOTHBALLED-graphviz",
+      "packageName": "https://github.com/ellson/MOTHBALLED-graphviz",
+      "currentValue": "master",
+      "currentDigest": "ac239f71ea9f807590505e6862cebe50e992e271",
+      "datasource": "git-refs"
     },
     {
       "kind": "tool",
@@ -56,6 +74,15 @@
       "datasource": "git-refs"
     },
     {
+      "kind": "source",
+      "ref": "github:lua/lua",
+      "depName": "lua/lua",
+      "packageName": "https://github.com/lua/lua",
+      "currentValue": "v5.4.7",
+      "currentDigest": "1ab3208a1fceb12fca8f24ba57d6e13c5bff15e3",
+      "datasource": "git-refs"
+    },
+    {
       "kind": "tool",
       "ref": "github:lucasew/ci-status",
       "depName": "lucasew/ci-status",
@@ -67,8 +94,26 @@
       "ref": "github:lucide-icons/lucide",
       "depName": "lucide-icons/lucide",
       "packageName": "https://github.com/lucide-icons/lucide",
-      "currentValue": "1.58.0",
-      "currentDigest": "7b0196e249ca09ca27c584c497aca9a8cab8a7f5",
+      "currentValue": "1.59.0",
+      "currentDigest": "1ef60af944de207e0d5176905a0759ba12e6ee8d",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:madler/zlib",
+      "depName": "madler/zlib",
+      "packageName": "https://github.com/madler/zlib",
+      "currentValue": "v1.3.1",
+      "currentDigest": "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:ninja-build/ninja",
+      "depName": "ninja-build/ninja",
+      "packageName": "https://github.com/ninja-build/ninja",
+      "currentValue": "v1.12.1",
+      "currentDigest": "2daa09ba270b0a43e1929d29b073348aa985dfaa",
       "datasource": "git-refs"
     },
     {
@@ -110,6 +155,78 @@
       "packageName": "https://github.com/tailwindlabs/tailwindcss",
       "currentValue": "v4.3.3",
       "currentDigest": "c2b24dd15fed1c59dd521bd86082f520c9f5ad0d",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-bash",
+      "depName": "tree-sitter/tree-sitter-bash",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-bash",
+      "currentValue": "v0.25.1",
+      "currentDigest": "a06c2e4415e9bc0346c6b86d401879ffb44058f7",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-c",
+      "depName": "tree-sitter/tree-sitter-c",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-c",
+      "currentValue": "v0.24.2",
+      "currentDigest": "b780e47fc780ddc8da13afa35a3f4ed5c157823d",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-go",
+      "depName": "tree-sitter/tree-sitter-go",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-go",
+      "currentValue": "v0.25.0",
+      "currentDigest": "1547678a9da59885853f5f5cc8a99cc203fa2e2c",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-java",
+      "depName": "tree-sitter/tree-sitter-java",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-java",
+      "currentValue": "v0.23.5",
+      "currentDigest": "94703d5a6bed02b98e438d7cad1136c01a60ba2c",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-javascript",
+      "depName": "tree-sitter/tree-sitter-javascript",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-javascript",
+      "currentValue": "v0.25.0",
+      "currentDigest": "44c892e0be055ac465d5eeddae6d3e194424e7de",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-json",
+      "depName": "tree-sitter/tree-sitter-json",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-json",
+      "currentValue": "master",
+      "currentDigest": "254c42a6476413b776221e03982ac8ae159eeb72",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-python",
+      "depName": "tree-sitter/tree-sitter-python",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-python",
+      "currentValue": "master",
+      "currentDigest": "26855eabccb19c6abf499fbc5b8dc7cc9ab8bc64",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
+      "ref": "github:tree-sitter/tree-sitter-rust",
+      "depName": "tree-sitter/tree-sitter-rust",
+      "packageName": "https://github.com/tree-sitter/tree-sitter-rust",
+      "currentValue": "v0.24.2",
+      "currentDigest": "77a3747266f4d621d0757825e6b11edcbf991ca5",
       "datasource": "git-refs"
     },
     {

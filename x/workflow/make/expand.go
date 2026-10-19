@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -614,11 +615,19 @@ func (f *File) withCall(name string, args []string, fn func() error) error {
 
 // shell runs script. A non-zero exit still returns the output, matching
 // GNU make. A cancelled context is returned so the load stops with it.
+// makeShell is the text passed to sh -c. Git bash treats \ as an escape.
+func makeShell(script string) string {
+	if runtime.GOOS != "windows" {
+		return script
+	}
+	return strings.ReplaceAll(script, `\`, "/")
+}
+
 func (f *File) shell(script string) (string, error) {
 	if err := f.ctx.Err(); err != nil {
 		return "", err
 	}
-	cmd := execdriver.MustCommand(f.ctx, "sh", "-c", script)
+	cmd := execdriver.MustCommand(f.ctx, "sh", "-c", makeShell(script))
 	cmd.Dir = f.dir
 	out, _ := execdriver.Output(f.ctx, cmd)
 	if err := f.ctx.Err(); err != nil {

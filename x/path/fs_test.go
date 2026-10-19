@@ -200,7 +200,7 @@ func TestRootIO(t *testing.T) {
 	require.NoError(t, New("b.txt").Chmod(root, 0o600))
 	st, err := New("b.txt").Stat(root)
 	require.NoError(t, err)
-	assert.Equal(t, fs.FileMode(0o600), st.Mode().Perm())
+	assert.Equal(t, test.HostPerm(0o600), st.Mode().Perm())
 
 	nested, err := New("sub").OpenRoot(root)
 	require.NoError(t, err)

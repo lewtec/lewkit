@@ -4,14 +4,12 @@ package gemini
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrCode means the text is not a known code.
-	ErrCode = errs.Wrap(errs.ErrUnknown, "unknown code")
-)
+// ErrCode means the text is not a known code.
+var ErrCode = errs.Wrap(errs.ErrUnknown, "unknown code")
 
 // String is the text of a Code.
 func (c Code) String() string {

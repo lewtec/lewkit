@@ -18,6 +18,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNormalizeBinaryName(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "sops.exe", NormalizeBinaryName("sops-v3.10.2.amd64.exe"))
+	require.Equal(t, "sops.exe", NormalizeBinaryName("sops-v3.10.2.windows.amd64.exe"))
+	require.Equal(t, "sops", NormalizeBinaryName("sops-v3.10.2.linux.amd64"))
+	require.Equal(t, "sops", NormalizeBinaryName("sops-v3.10.2.darwin.arm64"))
+	require.Equal(t, "gradle", NormalizeBinaryName("gradle-9.6.1"))
+	require.Equal(t, "tool.exe", NormalizeBinaryName("tool.exe"))
+	require.Equal(t, "sops.exe", binaryFileName(`C:\Users\runner\AppData\Local\lewkit\tools\sops-v3.10.2.amd64.exe`))
+	require.Equal(t, "sops", binaryFileName("/tmp/sops-v3.10.2.linux.amd64"))
+}
+
+func TestExtractRawBinaryDropsPlatformSuffix(t *testing.T) {
+	dir := t.TempDir()
+	source := filepath.Join(dir, "sops-v3.10.2.amd64.exe")
+	require.NoError(t, os.WriteFile(source, []byte("sops-bytes"), 0o755))
+	destination := filepath.Join(dir, "out")
+	require.NoError(t, Extract(t.Context(), source, destination))
+	body, err := os.ReadFile(filepath.Join(destination, "sops.exe"))
+	require.NoError(t, err)
+	require.Equal(t, "sops-bytes", string(body))
+	_, err = os.Stat(filepath.Join(destination, "sops-v3.10.2.amd64.exe"))
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func TestFormatHash(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, "sha256:abc", FormatHash("sha256", "abc"))

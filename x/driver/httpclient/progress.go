@@ -6,7 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"path/filepath"
+	"path"
 	"strings"
 	"sync"
 
@@ -163,15 +163,15 @@ func taskName(request *http.Request) string {
 	if request == nil || request.URL == nil {
 		return "http"
 	}
-	path := request.URL.Path
+	urlPath := request.URL.Path
 	host := request.URL.Host
-	if strings.Contains(host, "github") && strings.Contains(path, "/releases/assets/") {
+	if strings.Contains(host, "github") && strings.Contains(urlPath, "/releases/assets/") {
 		return "github release"
 	}
 	if strings.Contains(host, "githubusercontent.com") {
 		return "github"
 	}
-	if base := filepath.Base(path); base != "" && base != "." && base != "/" {
+	if base := path.Base(urlPath); base != "" && base != "." && base != "/" {
 		if strings.Contains(base, ".") {
 			return base
 		}

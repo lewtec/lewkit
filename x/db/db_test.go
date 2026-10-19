@@ -45,6 +45,8 @@ func TestScheme(t *testing.T) {
 	assert.Equal(t, "sqlite", db.Scheme("sqlite:///tmp/x.db"))
 	assert.Equal(t, "sqlite", db.Scheme("sqlite3:///tmp/x.db"))
 	assert.Equal(t, "sqlite", db.Scheme("file:foo.db"))
+	assert.Equal(t, "sqlite", db.Scheme(`C:\db\app.decomp`))
+	assert.Equal(t, "sqlite", db.Scheme("C:/db/app.decomp"))
 	assert.Equal(t, "postgres", db.Scheme("postgres://localhost/app"))
 	assert.Equal(t, "postgres", db.Scheme("postgresql://localhost/app"))
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +63,7 @@ func TestWalkTemplate_RendersAndCopies(t *testing.T) {
 	}
 	info, err := os.Stat(filepath.Join(out, "scripts/run.sh"))
 	require.NoError(t, err)
-	if info.Mode()&0o111 == 0 {
+	if !test.Executable(info.Mode()) {
 		require.FailNowf(t, "", "run.sh not executable: %v", info.Mode())
 	}
 }

@@ -38,17 +38,35 @@ func TestCounterViewRecordsMarksInPaintOrder(t *testing.T) {
 		kinds = append(kinds, mark.Kind)
 	}
 	assert.Equal(t, []gui.MarkKind{
-		gui.MarkFill, gui.MarkFill, gui.MarkText,
+		gui.MarkFill, gui.MarkFill, gui.MarkImage,
 		gui.MarkText,
-		gui.MarkFill, gui.MarkText,
+		gui.MarkFill, gui.MarkImage,
 	}, kinds)
 
 	marks := picture.Marks()
-	assert.Equal(t, "-", marks[2].Text)
 	assert.Equal(t, "0", marks[3].Text)
-	assert.Equal(t, "+", marks[5].Text)
 	_, ink := gui.Palette(counter.mode)
-	assert.Equal(t, ink, marks[2].Color)
+	assert.True(t, paintedInk(marks[2].Src, ink))
+	assert.True(t, paintedInk(marks[5].Src, ink))
+}
+
+func paintedInk(src image.Image, ink gui.RGB) bool {
+	if src == nil {
+		return false
+	}
+	bounds := src.Bounds()
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			red, green, blue, alpha := src.At(x, y).RGBA()
+			if alpha < 0xc000 {
+				continue
+			}
+			if uint8(red>>8) == ink.Red && uint8(green>>8) == ink.Green && uint8(blue>>8) == ink.Blue {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestCounterButtons(t *testing.T) {

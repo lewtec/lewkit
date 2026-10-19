@@ -4,14 +4,12 @@ package ios
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrSDK means the text is not a known sdk.
-	ErrSDK = errs.Wrap(errs.ErrUnknown, "unknown sdk")
-)
+// ErrSDK means the text is not a known sdk.
+var ErrSDK = errs.Wrap(errs.ErrUnknown, "unknown sdk")
 
 // String is the text of a SDK.
 func (s SDK) String() string {

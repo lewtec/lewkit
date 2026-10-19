@@ -4,14 +4,12 @@ package report
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrLevel means the text is not a known level.
-	ErrLevel = errs.Wrap(errs.ErrUnknown, "unknown level")
-)
+// ErrLevel means the text is not a known level.
+var ErrLevel = errs.Wrap(errs.ErrUnknown, "unknown level")
 
 // String is the text of a Level.
 func (l Level) String() string {

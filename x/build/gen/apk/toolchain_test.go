@@ -117,7 +117,8 @@ func TestGradleEnvOverridesInheritedJDK(t *testing.T) {
 	env := gradleEnv([]string{"JAVA_HOME=/bad/17.0.2", "PATH=/usr/bin"}, "/jdk/temurin", "/sdk")
 	require.Equal(t, "/jdk/temurin", lastEnv(env, "JAVA_HOME"))
 	require.Equal(t, "/sdk", lastEnv(env, "ANDROID_HOME"))
-	require.True(t, strings.HasPrefix(lastEnv(env, "PATH"), "/jdk/temurin/bin"+string(os.PathListSeparator)))
+	prefix := filepath.Join("/jdk/temurin", "bin") + string(os.PathListSeparator)
+	require.True(t, strings.HasPrefix(lastEnv(env, "PATH"), prefix))
 }
 
 func TestNDKNewerMajor(t *testing.T) {

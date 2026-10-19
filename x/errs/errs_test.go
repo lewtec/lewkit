@@ -9,6 +9,11 @@ import (
 
 var errRead = errors.New("read")
 
+func TestErrScaffoldIsUnsupported(t *testing.T) {
+	require.ErrorIs(t, ErrScaffold, ErrUnsupported)
+	require.EqualError(t, ErrScaffold, "scaffold")
+}
+
 func TestWrapKeepsTextAndParent(t *testing.T) {
 	err := Wrap(ErrNotFound, "conda package not found")
 	require.ErrorIs(t, err, ErrNotFound)
