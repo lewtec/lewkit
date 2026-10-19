@@ -44,6 +44,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/core v0.0.0-20260927184652-669b18df5afb
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json v0.0.0-20260927184652-669b18df5afb
+	github.com/muesli/termenv v0.16.0
 	github.com/opencontainers/selinux v1.13.1
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
@@ -201,7 +202,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/landlock-lsm/go-landlock v0.0.0-20250303204525-1544bccde3a3 // indirect
 	github.com/lewtec/leaven v0.0.0-20260814142252-666e23083398 // indirect
-	github.com/lewtec/modot v0.0.0-20261019201735-b39654713a3b // indirect
+	github.com/lewtec/modot v0.0.0-20261019203012-c03156d5a790 // indirect
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
@@ -212,7 +213,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mmcloughlin/md4 v0.1.2 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/natefinch/atomic v1.0.1 // indirect
 	github.com/ncruces/go-sqlite3 v0.32.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
