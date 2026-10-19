@@ -9,6 +9,7 @@ var (
 	pointerFn     atomic.Value
 	resizeFn      atomic.Value
 	surfaceLostFn atomic.Value
+	keyFn         atomic.Value
 )
 
 type insetSample struct {
@@ -29,6 +30,23 @@ func HandlePointer(fn func(x, y, action int)) {
 		return
 	}
 	pointerFn.Store(fn)
+}
+
+// HandleKey receives one hardware key. code is the platform key code.
+// pressed is false on release.
+func HandleKey(fn func(r rune, code uint32, pressed bool)) {
+	if fn == nil {
+		return
+	}
+	keyFn.Store(fn)
+}
+
+// DeliverKey runs the handler registered with [HandleKey].
+func DeliverKey(r rune, code uint32, pressed bool) {
+	fn, _ := keyFn.Load().(func(rune, uint32, bool))
+	if fn != nil {
+		fn(r, code, pressed)
+	}
 }
 
 // DeliverPointer runs the handler registered with [HandlePointer].
