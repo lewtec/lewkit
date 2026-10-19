@@ -1,5 +1,5 @@
-// Package ios reads light or dark from the packaged iOS host.
-// The host writes daynight.txt and updates it when the appearance changes.
+// Package ios reads light or dark from the interface style.
+// A host directory still reads daynight.txt.
 // LEWKIT_DAYNIGHT still wins: that driver has the higher weight.
 package ios
 
