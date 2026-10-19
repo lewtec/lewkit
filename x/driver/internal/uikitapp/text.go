@@ -15,6 +15,20 @@ const (
 	kindChoose  = 4
 )
 
+// UIAlertControllerStyle. A text field is legal only on an alert.
+const (
+	styleActionSheet = 0
+	styleAlert       = 1
+)
+
+// askStyle matches the Swift host: choose is an action sheet, and a prompt is an alert.
+func askStyle(kind int) uintptr {
+	if kind == kindChoose {
+		return styleActionSheet
+	}
+	return styleAlert
+}
+
 func askTitle(kind int, title string) string {
 	if strings.TrimSpace(title) != "" {
 		return title

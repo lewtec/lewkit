@@ -14,6 +14,13 @@ func TestAskTitle(t *testing.T) {
 	require.Equal(t, "Error", askTitle(kindAlert, ""))
 }
 
+func TestAskStyle(t *testing.T) {
+	require.Equal(t, uintptr(styleAlert), askStyle(kindAlert))
+	require.Equal(t, uintptr(styleAlert), askStyle(kindConfirm))
+	require.Equal(t, uintptr(styleAlert), askStyle(kindPrompt))
+	require.Equal(t, uintptr(styleActionSheet), askStyle(kindChoose))
+}
+
 func TestAskLines(t *testing.T) {
 	require.Equal(t, []string{"one", "two"}, askLines("one\n\ntwo"))
 }

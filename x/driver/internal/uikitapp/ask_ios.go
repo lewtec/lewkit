@@ -44,11 +44,7 @@ func showAsk(kind int, title, body string, finish func(string)) {
 		if kind != kindPrompt && kind != kindChoose {
 			message = ns(body)
 		}
-		style := uintptr(0)
-		if kind == kindChoose {
-			style = 1
-		}
-		alert := cls("UIAlertController").Send(selAlert, ns(askTitle(kind, title)), message, style)
+		alert := cls("UIAlertController").Send(selAlert, ns(askTitle(kind, title)), message, askStyle(kind))
 		if alert == 0 {
 			finish(failText("alert"))
 			return
