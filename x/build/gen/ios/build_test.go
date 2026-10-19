@@ -2,6 +2,8 @@ package ios
 
 import (
 	"encoding/binary"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +15,42 @@ import (
 
 func TestMain(m *testing.M) {
 	gotool.TestExit(m)
+}
+
+func TestIOSLaunchScreenNamesSplash(t *testing.T) {
+	plist := iosPlist(Config{
+		PackageID:   "br.tec.lew.demo",
+		AppName:     "Demo",
+		VersionName: "1.2.3",
+		VersionCode: 1,
+	}, "arm64", true)
+	require.Contains(t, plist, "<key>UILaunchScreen</key>")
+	require.Contains(t, plist, "<key>UIImageName</key>\n\t\t<string>SplashLogo</string>")
+	require.Contains(t, plist, "<key>UIImageRespectsSafeAreaInsets</key>\n\t\t<true/>")
+}
+
+func TestWriteBundleIconsWritesSplash(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "source"), 0o755))
+	mark := image.NewNRGBA(image.Rect(0, 0, 8, 8))
+	file, err := os.Create(filepath.Join(root, "source", "master.png"))
+	require.NoError(t, err)
+	require.NoError(t, png.Encode(file, mark))
+	require.NoError(t, file.Close())
+	app := t.TempDir()
+	require.NoError(t, writeBundleIcons(root, app))
+	for _, name := range []string{"Icon@2x.png", "Icon@3x.png", "SplashLogo.png", "SplashLogo@2x.png", "SplashLogo@3x.png"} {
+		info, err := os.Stat(filepath.Join(app, name))
+		require.NoError(t, err)
+		require.Greater(t, info.Size(), int64(0))
+	}
+	logo, err := os.Open(filepath.Join(app, "SplashLogo.png"))
+	require.NoError(t, err)
+	defer logo.Close()
+	cfg, err := png.DecodeConfig(logo)
+	require.NoError(t, err)
+	require.Equal(t, SplashPointSize, cfg.Width)
+	require.Equal(t, SplashPointSize, cfg.Height)
 }
 
 func TestBuildAssemblesGoApp(t *testing.T) {

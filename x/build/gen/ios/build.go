@@ -315,7 +315,10 @@ func iosPlist(cfg Config, goarch string, simulator bool) string {
 	b.WriteString(platform)
 	b.WriteString("</string>\n\t</array>\n")
 	b.WriteString("\t<key>UIDeviceFamily</key>\n\t<array>\n\t\t<integer>1</integer>\n\t\t<integer>2</integer>\n\t</array>\n")
-	b.WriteString("\t<key>UILaunchScreen</key>\n\t<dict/>\n")
+	b.WriteString("\t<key>UILaunchScreen</key>\n\t<dict>\n")
+	b.WriteString("\t\t<key>UIImageName</key>\n\t\t<string>SplashLogo</string>\n")
+	b.WriteString("\t\t<key>UIImageRespectsSafeAreaInsets</key>\n\t\t<true/>\n")
+	b.WriteString("\t</dict>\n")
 	b.WriteString("\t<key>UISupportedInterfaceOrientations</key>\n\t<array>\n")
 	b.WriteString("\t\t<string>UIInterfaceOrientationPortrait</string>\n")
 	b.WriteString("\t\t<string>UIInterfaceOrientationLandscapeLeft</string>\n")
@@ -354,6 +357,9 @@ func writeBundleIcons(iconRoot, appDir string) error {
 	}{
 		{"Icon@2x.png", 120},
 		{"Icon@3x.png", 180},
+		{"SplashLogo.png", SplashPointSize},
+		{"SplashLogo@2x.png", SplashPointSize * 2},
+		{"SplashLogo@3x.png", SplashPointSize * 3},
 	} {
 		if err := icons.WritePNG(filepath.Join(appDir, slot.name), convert.Resize(square, slot.px)); err != nil {
 			return err
