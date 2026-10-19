@@ -136,8 +136,17 @@ func pathTaken(paths map[string]string, path string) bool {
 	return false
 }
 
-func catalog(order []string, panes map[string]*live) []Entry {
+func catalog(order []string, panes map[string]*live, stored []string) []Entry {
 	dirs := map[string]struct{}{}
+	for _, dir := range stored {
+		if dir == "" {
+			continue
+		}
+		dirs[dir] = struct{}{}
+		for parent := pathParent(dir); parent != ""; parent = pathParent(parent) {
+			dirs[parent] = struct{}{}
+		}
+	}
 	files := make([]Entry, 0, len(order))
 	for _, id := range order {
 		pane := panes[id]

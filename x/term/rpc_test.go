@@ -94,6 +94,32 @@ func TestRPCVersionMethodAndWatch(t *testing.T) {
 	}, 2*time.Second, 20*time.Millisecond)
 }
 
+func TestRPCDirectoriesAndLevel(t *testing.T) {
+	ctx := t.Context()
+	path, _ := serveRPC(t, ctx)
+	client, err := Dial(ctx, path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	info, err := client.Session(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(ProtocolLevel), info.Level)
+	assert.Empty(t, info.Dirs)
+
+	require.NoError(t, client.CreateDir(ctx, "pockets"))
+	require.NoError(t, client.CreateDir(ctx, "archive"))
+	require.NoError(t, client.MoveDir(ctx, "pockets", "archive/pockets"))
+	info, err = client.Session(ctx)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"archive", "archive/pockets"}, info.Dirs)
+
+	require.NoError(t, client.RemoveDir(ctx, "archive/pockets"))
+	info, err = client.Session(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"archive"}, info.Dirs)
+	assert.Equal(t, uint32(ProtocolLevel), info.Level)
+}
+
 func TestSchemaRoundTrip(t *testing.T) {
 	pane := Pane{
 		PaneInfo: PaneInfo{

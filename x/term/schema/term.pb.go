@@ -23,8 +23,11 @@ const (
 
 // Envelope is one record on the term socket.
 // The socket writes each Envelope with a varint length prefix.
-// version is 1. A request sets id and method. A response uses that same id.
+// version is the frame version. It stays 1 while a frame still parses.
+// A request sets id and method. A response uses that same id.
 // A push sets notice and leaves id at 0.
+// The protocol level travels on SessionInfo. A different level is a warning,
+// not a broken frame.
 type Envelope struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Version uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
@@ -372,12 +375,17 @@ func (x *Entry) GetPane() string {
 
 // SessionInfo is the ubersession membership.
 // panes is creation order. It is not a layout.
-// entries is the key tree. Folders exist because a pane's path names them.
+// entries is the key tree. A folder is a stored directory or a pane prefix.
+// level is the protocol level this server speaks. 0 is a server from before
+// levels, which spoke level 1. Level 2 stores directories.
+// dirs are the directories the server keeps, including empty ones.
 type SessionInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Panes         []string               `protobuf:"bytes,2,rep,name=panes,proto3" json:"panes,omitempty"`
 	Entries       []*Entry               `protobuf:"bytes,3,rep,name=entries,proto3" json:"entries,omitempty"`
+	Level         uint32                 `protobuf:"varint,4,opt,name=level,proto3" json:"level,omitempty"`
+	Dirs          []string               `protobuf:"bytes,5,rep,name=dirs,proto3" json:"dirs,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -429,6 +437,20 @@ func (x *SessionInfo) GetPanes() []string {
 func (x *SessionInfo) GetEntries() []*Entry {
 	if x != nil {
 		return x.Entries
+	}
+	return nil
+}
+
+func (x *SessionInfo) GetLevel() uint32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *SessionInfo) GetDirs() []string {
+	if x != nil {
+		return x.Dirs
 	}
 	return nil
 }
@@ -1213,10 +1235,13 @@ func (x *WatchRequest) GetPrefix() string {
 	return ""
 }
 
-// TreeRequest lists one folder. An empty path is the root.
+// TreeRequest names one folder.
+// tree.list reads path. An empty path is the root.
+// dir.create and dir.remove use path. dir.move reads path and dest.
 type TreeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Dest          string                 `protobuf:"bytes,2,opt,name=dest,proto3" json:"dest,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1254,6 +1279,13 @@ func (*TreeRequest) Descriptor() ([]byte, []int) {
 func (x *TreeRequest) GetPath() string {
 	if x != nil {
 		return x.Path
+	}
+	return ""
+}
+
+func (x *TreeRequest) GetDest() string {
+	if x != nil {
+		return x.Dest
 	}
 	return ""
 }
@@ -1492,11 +1524,13 @@ const file_term_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x10\n" +
 	"\x03dir\x18\x03 \x01(\bR\x03dir\x12\x12\n" +
-	"\x04pane\x18\x04 \x01(\tR\x04pane\"a\n" +
+	"\x04pane\x18\x04 \x01(\tR\x04pane\"\x8b\x01\n" +
 	"\vSessionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05panes\x18\x02 \x03(\tR\x05panes\x12,\n" +
-	"\aentries\x18\x03 \x03(\v2\x12.lewkit.term.EntryR\aentries\"\xbd\x02\n" +
+	"\aentries\x18\x03 \x03(\v2\x12.lewkit.term.EntryR\aentries\x12\x14\n" +
+	"\x05level\x18\x04 \x01(\rR\x05level\x12\x12\n" +
+	"\x04dirs\x18\x05 \x03(\tR\x04dirs\"\xbd\x02\n" +
 	"\bPaneInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -1570,9 +1604,10 @@ const file_term_proto_rawDesc = "" +
 	"\fWatchRequest\x12\x10\n" +
 	"\x03all\x18\x01 \x01(\bR\x03all\x12\x14\n" +
 	"\x05panes\x18\x02 \x03(\tR\x05panes\x12\x16\n" +
-	"\x06prefix\x18\x03 \x01(\tR\x06prefix\"!\n" +
+	"\x06prefix\x18\x03 \x01(\tR\x06prefix\"5\n" +
 	"\vTreeRequest\x12\x12\n" +
-	"\x04path\x18\x01 \x01(\tR\x04path\"H\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
+	"\x04dest\x18\x02 \x01(\tR\x04dest\"H\n" +
 	"\x04Tree\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12,\n" +
 	"\aentries\x18\x02 \x03(\v2\x12.lewkit.term.EntryR\aentries\"1\n" +

@@ -11,12 +11,15 @@ import (
 )
 
 type fakeAPI struct {
-	panes   []PaneInfo
-	creates []CreateRequest
-	writes  []WriteRequest
-	watches []WatchRequest
-	removes []string
-	moves   []movedMsg
+	panes      []PaneInfo
+	creates    []CreateRequest
+	writes     []WriteRequest
+	watches    []WatchRequest
+	removes    []string
+	moves      []movedMsg
+	dirCreates []string
+	dirRemoves []string
+	dirMoves   [][2]string
 }
 
 func (f *fakeAPI) Session(context.Context) (SessionInfo, error) {
@@ -45,6 +48,21 @@ func (f *fakeAPI) Kill(context.Context, string) error { return nil }
 
 func (f *fakeAPI) Move(_ context.Context, id, path string) error {
 	f.moves = append(f.moves, movedMsg{id: id, path: path})
+	return nil
+}
+
+func (f *fakeAPI) CreateDir(_ context.Context, path string) error {
+	f.dirCreates = append(f.dirCreates, path)
+	return nil
+}
+
+func (f *fakeAPI) RemoveDir(_ context.Context, path string) error {
+	f.dirRemoves = append(f.dirRemoves, path)
+	return nil
+}
+
+func (f *fakeAPI) MoveDir(_ context.Context, path, dest string) error {
+	f.dirMoves = append(f.dirMoves, [2]string{path, dest})
 	return nil
 }
 

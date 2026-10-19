@@ -16,6 +16,9 @@ const (
 	MethodTreeList   Method = "tree.list"
 	MethodPaneMove   Method = "pane.move"
 	MethodPaneClose  Method = "pane.close"
+	MethodDirCreate  Method = "dir.create"
+	MethodDirRemove  Method = "dir.remove"
+	MethodDirMove    Method = "dir.move"
 )
 
 // Notice is a server push. The string is the wire text.

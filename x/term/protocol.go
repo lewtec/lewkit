@@ -2,9 +2,16 @@ package term
 
 import "strings"
 
-// ProtocolVersion is the only version this server speaks.
-// A different client can ignore fields it does not understand.
+// ProtocolVersion is the frame version on Envelope.
+// A frame with a different version is rejected. Fields a peer does not
+// know stay readable, so this number stays put when the level changes.
 const ProtocolVersion = 1
+
+// ProtocolLevel is the behavior this process speaks.
+// SessionInfo.level carries it. Level 1 had no stored directories.
+// Level 2 keeps directories on the server. A different level still
+// attaches, and the desk warns.
+const ProtocolLevel = 2
 
 // ColorPalette means FG or BG is an ANSI palette index.
 // Zero is the default color. 1 through 8 are normal and 9 through 16 are bright.
@@ -50,11 +57,15 @@ type Tree struct {
 
 // SessionInfo is the ubersession membership.
 // Panes is creation order. It is not a layout.
-// Entries is the key tree. A folder exists because some pane's path names it.
+// Entries is the key tree. A folder is a stored directory or a pane prefix.
+// Level is the protocol level the server speaks. Zero means level 1.
+// Dirs are directories the server keeps, including empty ones.
 type SessionInfo struct {
 	ID      string
 	Panes   []string
 	Entries []Entry
+	Level   uint32
+	Dirs    []string
 }
 
 // PaneInfo is the pane record without the grid.

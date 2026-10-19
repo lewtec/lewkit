@@ -45,7 +45,7 @@ func TestCatalogFolders(t *testing.T) {
 		"b": {info: PaneInfo{ID: "b", Path: "work/docs"}},
 		"c": {info: PaneInfo{ID: "c", Path: "scratch"}},
 	}
-	entries := catalog([]string{"a", "b", "c"}, panes)
+	entries := catalog([]string{"a", "b", "c"}, panes, nil)
 	var dirs []string
 	var files []string
 	for _, entry := range entries {
@@ -57,6 +57,15 @@ func TestCatalogFolders(t *testing.T) {
 	}
 	assert.Equal(t, []string{"work"}, dirs)
 	assert.Equal(t, []string{"scratch", "work/docs", "work/editor"}, files)
+
+	stored := catalog([]string{"a", "b", "c"}, panes, []string{"pockets"})
+	dirs = nil
+	for _, entry := range stored {
+		if entry.Dir {
+			dirs = append(dirs, entry.Path)
+		}
+	}
+	assert.Equal(t, []string{"pockets", "work"}, dirs)
 
 	children := directChildren(entries, "work")
 	require.Len(t, children, 2)

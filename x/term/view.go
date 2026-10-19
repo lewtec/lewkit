@@ -22,6 +22,9 @@ type API interface {
 	Write(context.Context, WriteRequest) error
 	Kill(context.Context, string) error
 	Move(context.Context, string, string) error
+	CreateDir(context.Context, string) error
+	RemoveDir(context.Context, string) error
+	MoveDir(context.Context, string, string) error
 	Remove(context.Context, string) error
 	Watch(context.Context, WatchRequest) error
 	Next(context.Context) (Event, error)
@@ -31,8 +34,9 @@ type API interface {
 // followPane empty follows the ubersession. Otherwise the view follows that
 // pane only. The command palette stays closed until lew or ctrl+p opens it.
 // The rail keeps recent panes. drawer lists sessions. Each session row names
-// that session's directory and git status. + directory makes a pocket on
-// this client, and the arrow on a session nests that session into a folder.
+// that session's directory and git status. + directory stores a folder on
+// the server, including an empty one. The arrow on a session nests that
+// session into a folder.
 // The desk shows the focused pane. ctrl+k, and the same chord with super or
 // meta, opens the session view. It does not search from the pane. Typing in
 // that view filters sessions, panes, and actions. Folders stay open. One
@@ -47,7 +51,8 @@ type API interface {
 // mouse, scroll, paste, and the other keys. The rail still takes a click
 // that lands on it. Mouse bytes are written when the process asked for them.
 // The wheel moves an alternate screen when it did not. A kitty image is
-// drawn into the grid.
+// drawn into the grid. A different protocol level warns on the rail and in
+// the drawer, and the attach stays up.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -83,6 +88,7 @@ type Model struct {
 	query        string
 	cursor       int
 	errText      string
+	levelText    string
 	drawer       bool
 	shown        string
 	recent       []string
@@ -221,6 +227,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.key(msg)
 	case loadedMsg:
 		m.applyList(msg.panes)
+		m.noteDirs(msg.info)
 		return m, nil
 	case Event:
 		m.applyEvent(msg)
@@ -692,6 +699,33 @@ func (m *Model) move(id, path string) tea.Cmd {
 	}
 }
 
+func (m *Model) createDir(path string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.api.CreateDir(m.ctx, path); err != nil {
+			return errMsg{err}
+		}
+		return wroteMsg{}
+	}
+}
+
+func (m *Model) removeDir(path string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.api.RemoveDir(m.ctx, path); err != nil {
+			return errMsg{err}
+		}
+		return wroteMsg{}
+	}
+}
+
+func (m *Model) moveDir(path, dest string) tea.Cmd {
+	return func() tea.Msg {
+		if err := m.api.MoveDir(m.ctx, path, dest); err != nil {
+			return errMsg{err}
+		}
+		return wroteMsg{}
+	}
+}
+
 func (m *Model) kill(id string) tea.Cmd {
 	return func() tea.Msg {
 		if err := m.api.Kill(m.ctx, id); err != nil {
@@ -718,11 +752,44 @@ func (m *Model) applyList(panes []PaneInfo) {
 	}
 }
 
+func spokenLevel(level uint32) uint32 {
+	if level == 0 {
+		return 1
+	}
+	return level
+}
+
+func levelWarning(server uint32) string {
+	spoken := spokenLevel(server)
+	if spoken == ProtocolLevel {
+		return ""
+	}
+	text := fmt.Sprintf("server protocol %d, client protocol %d", spoken, ProtocolLevel)
+	if spoken < ProtocolLevel {
+		text += ". restart the server"
+	}
+	return text
+}
+
+func (m *Model) noteDirs(info SessionInfo) {
+	m.levelText = levelWarning(info.Level)
+	if info.Level == ProtocolLevel {
+		m.made = append([]string(nil), info.Dirs...)
+	}
+}
+
+func (m *Model) applySession(info SessionInfo) {
+	if info.Panes != nil {
+		m.order = append([]string(nil), info.Panes...)
+	}
+	m.noteDirs(info)
+}
+
 func (m *Model) applyEvent(ev Event) {
 	switch ev.Notice {
 	case NoticeSession:
 		if ev.Session != nil {
-			m.order = append([]string(nil), ev.Session.Panes...)
+			m.applySession(*ev.Session)
 		}
 	case NoticePane:
 		if ev.Pane != nil {

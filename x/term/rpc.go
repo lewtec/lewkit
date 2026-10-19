@@ -195,6 +195,31 @@ func (c *connState) dispatch(ctx context.Context, method Method, msg *schema.Env
 			return nil, err
 		}
 		return ackFrame(), nil
+	case MethodDirCreate:
+		if err := payloadMatches(msg, msg.GetTreeRequest() != nil); err != nil {
+			return nil, err
+		}
+		if err := c.session.CreateDir(ctx, msg.GetTreeRequest().GetPath()); err != nil {
+			return nil, err
+		}
+		return ackFrame(), nil
+	case MethodDirRemove:
+		if err := payloadMatches(msg, msg.GetTreeRequest() != nil); err != nil {
+			return nil, err
+		}
+		if err := c.session.RemoveDir(ctx, msg.GetTreeRequest().GetPath()); err != nil {
+			return nil, err
+		}
+		return ackFrame(), nil
+	case MethodDirMove:
+		if err := payloadMatches(msg, msg.GetTreeRequest() != nil); err != nil {
+			return nil, err
+		}
+		req := msg.GetTreeRequest()
+		if err := c.session.MoveDir(ctx, req.GetPath(), req.GetDest()); err != nil {
+			return nil, err
+		}
+		return ackFrame(), nil
 	default:
 		return nil, fmt.Errorf("%w: %s", ErrMethod, method)
 	}
@@ -634,6 +659,24 @@ func (c *Client) List(ctx context.Context, path string) (Tree, error) {
 // Move gives a pane a new key.
 func (c *Client) Move(ctx context.Context, id, path string) error {
 	_, err := c.Call(ctx, MethodPaneMove, &schema.MoveRequest{Id: id, Path: path})
+	return err
+}
+
+// CreateDir stores a directory on the server, including when it is empty.
+func (c *Client) CreateDir(ctx context.Context, path string) error {
+	_, err := c.Call(ctx, MethodDirCreate, &schema.TreeRequest{Path: path})
+	return err
+}
+
+// RemoveDir deletes a stored directory and the directories under it.
+func (c *Client) RemoveDir(ctx context.Context, path string) error {
+	_, err := c.Call(ctx, MethodDirRemove, &schema.TreeRequest{Path: path})
+	return err
+}
+
+// MoveDir renames a stored directory. Pane keys stay put.
+func (c *Client) MoveDir(ctx context.Context, path, dest string) error {
+	_, err := c.Call(ctx, MethodDirMove, &schema.TreeRequest{Path: path, Dest: dest})
 	return err
 }
 

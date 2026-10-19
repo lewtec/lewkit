@@ -2,10 +2,13 @@
 //
 // The server is a database of one ubersession. Each pane is a record: the
 // process, the grid, the size of the last client that wrote to it, and a
-// slash-separated key. Folders are the prefixes of those keys. A pane is a
-// file in that tree. The server does not draw, and it does not store which
-// client is showing which pane or standing in which folder. A client that
-// reads those records differently does not restart the server.
+// slash-separated key. A folder is a directory the server stores, or the
+// prefix of a pane key. A pane is a file in that tree. The server does not
+// draw, and it does not store which client is showing which pane or
+// standing in which folder. A client that reads those records differently
+// does not restart the server. SessionInfo.level is the protocol level.
+// A frame with the wrong version is rejected. A different level still
+// attaches, and the desk warns.
 //
 // A client follows the panes it cares about. Following the ubersession means
 // that client watches every pane. Another client can follow one pane, or a
@@ -25,10 +28,13 @@
 // of those asks for it. That rail keeps the recent panes.
 // drawer lists sessions as a tree, and the x on a session removes those
 // records. Each session row names that session's directory and its git
-// status. + directory makes a pocket on this client. The arrow on a session
-// nests that session into a folder, and pane.move renames the keys. The
-// desk shows the focused pane. Empty pockets stay on the client. ctrl+k,
-// and the same chord with super or meta, opens the session view. It does
+// status. + directory stores a folder on the server, including an empty
+// one. The arrow on a session nests that session into a folder, and
+// pane.move renames the keys. dir.move renames a stored directory. The
+// desk shows the focused pane. Empty folders stay until they are removed.
+// The client's cwd is not stored, and a pane key does not create a host
+// directory. ctrl+k, and the same chord with super or meta, opens the
+// session view. It does
 // not search from the pane. Typing in that view filters sessions, panes,
 // and actions. Folders stay open. One enter runs an action. The drawer takes clicks and the
 // wheel. The wheel moves through the drawer the way the arrow keys do. A

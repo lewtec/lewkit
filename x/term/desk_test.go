@@ -640,7 +640,9 @@ func TestDrawerShowsTheRoomAndMovesAPane(t *testing.T) {
 		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
 	}
 	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	assert.Nil(t, cmd)
+	require.NotNil(t, cmd)
+	assert.IsType(t, wroteMsg{}, cmd())
+	assert.Equal(t, []string{"pockets"}, api.dirCreates)
 	assert.Equal(t, []string{"pockets"}, model.made)
 	assert.Equal(t, "pockets", model.place)
 	assert.Equal(t, "pockets", model.shown)
@@ -653,7 +655,10 @@ func TestDrawerShowsTheRoomAndMovesAPane(t *testing.T) {
 	for _, r := range "inner" {
 		model.Update(tea.KeyPressMsg{Text: string(r), Code: r})
 	}
-	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.NotNil(t, cmd)
+	assert.IsType(t, wroteMsg{}, cmd())
+	assert.Equal(t, []string{"pockets", "pockets/inner"}, api.dirCreates)
 	assert.Equal(t, []string{"pockets", "pockets/inner"}, model.made)
 	plain, _ = renderPlain(model)
 	assert.Contains(t, plain, "└ inner")
@@ -755,8 +760,38 @@ func TestDrawerLeavesFoldersOpen(t *testing.T) {
 	assert.NotContains(t, plain, "+ directory")
 }
 
-func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {
+func TestServerLevelWarns(t *testing.T) {
 	model := newModel(t.Context(), &fakeAPI{}, "")
+	model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	model.made = []string{"local"}
+
+	model.Update(loadedMsg{info: SessionInfo{Level: 0}})
+	assert.Equal(t, []string{"local"}, model.made)
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "server protocol 1, client protocol 2")
+	assert.Contains(t, plain, "restart the server")
+
+	model.drawer = true
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "server protocol 1, client protocol 2")
+
+	model.Update(loadedMsg{info: SessionInfo{Level: 3}})
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "server protocol 3, client protocol 2")
+	assert.NotContains(t, plain, "restart the server")
+	assert.Equal(t, []string{"local"}, model.made)
+
+	model.Update(loadedMsg{info: SessionInfo{Level: ProtocolLevel, Dirs: []string{"pockets"}}})
+	assert.Empty(t, model.levelText)
+	assert.Equal(t, []string{"pockets"}, model.made)
+	plain, _ = renderPlain(model)
+	assert.NotContains(t, plain, "server protocol")
+	assert.Contains(t, plain, "pockets")
+}
+
+func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {
+	api := &fakeAPI{}
+	model := newModel(t.Context(), api, "")
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	model.palette = false
 	model.drawer = true
@@ -771,7 +806,9 @@ func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {
 	assert.Contains(t, plain, "└ bin")
 
 	cmd := clickClose(t, model, "spare")
-	assert.Nil(t, cmd)
+	require.NotNil(t, cmd)
+	assert.IsType(t, wroteMsg{}, cmd())
+	assert.Equal(t, []string{"spare"}, api.dirRemoves)
 	assert.Empty(t, model.made)
 	assert.Empty(t, model.place)
 	assert.Empty(t, model.shown)
@@ -920,6 +957,7 @@ func TestDrawerClickNestsAFolderAndUnnestsAtRoot(t *testing.T) {
 	_, cmd := model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	applyCmd(model, cmd)
 	assert.Equal(t, []string{"archive", "archive/pockets"}, model.made)
+	assert.Equal(t, [][2]string{{"pockets", "archive/pockets"}}, api.dirMoves)
 	assert.Equal(t, "archive/pockets/note", model.byID["note"].Path)
 	assert.Equal(t, "/lewkit-room", model.byID["note"].Dir)
 	assert.Equal(t, "archive", model.place)
@@ -950,6 +988,7 @@ func TestDrawerClickNestsAFolderAndUnnestsAtRoot(t *testing.T) {
 	_, cmd = model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	applyCmd(model, cmd)
 	assert.Equal(t, []string{"archive", "pockets"}, model.made)
+	assert.Equal(t, [][2]string{{"pockets", "archive/pockets"}, {"archive/pockets", "pockets"}}, api.dirMoves)
 	assert.Equal(t, "pockets/note", model.byID["note"].Path)
 	assert.Equal(t, "/lewkit-room", model.byID["note"].Dir)
 	assert.Empty(t, model.place)

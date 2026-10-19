@@ -189,6 +189,62 @@ func TestSessionTree(t *testing.T) {
 		}
 	}, time.Second, 10*time.Millisecond)
 	assert.NotContains(t, panes, other.ID)
+
+	info, err := session.Info(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(ProtocolLevel), info.Level)
+	assert.NotContains(t, info.Dirs, "work")
+	require.NoError(t, session.CreateDir(ctx, "work/extra"))
+	info, err = session.Info(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, info.Dirs, "work/extra")
+	assert.NotContains(t, info.Dirs, "work")
+	err = session.CreateDir(ctx, "notes")
+	require.ErrorIs(t, err, ErrPath)
+}
+
+func TestSessionStoresAnEmptyDirectory(t *testing.T) {
+	ctx := t.Context()
+	session, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+
+	require.NoError(t, session.CreateDir(ctx, "pockets"))
+	info, err := session.Info(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint32(ProtocolLevel), info.Level)
+	assert.Equal(t, []string{"pockets"}, info.Dirs)
+
+	root, err := session.List(ctx, "")
+	require.NoError(t, err)
+	require.Len(t, root.Entries, 1)
+	assert.True(t, root.Entries[0].Dir)
+	assert.Equal(t, "pockets", root.Entries[0].Path)
+
+	require.NoError(t, session.CreateDir(ctx, "pockets"))
+	info, err = session.Info(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"pockets"}, info.Dirs)
+
+	require.NoError(t, session.CreateDir(ctx, "pockets/bin"))
+	require.NoError(t, session.CreateDir(ctx, "archive"))
+	require.NoError(t, session.MoveDir(ctx, "pockets", "archive/pockets"))
+	info, err = session.Info(ctx)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"archive", "archive/pockets", "archive/pockets/bin"}, info.Dirs)
+
+	require.ErrorIs(t, session.MoveDir(ctx, "archive/pockets", "archive/pockets/bin/nope"), ErrPath)
+	require.ErrorIs(t, session.RemoveDir(ctx, "missing"), ErrPath)
+
+	require.NoError(t, session.RemoveDir(ctx, "archive/pockets"))
+	info, err = session.Info(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"archive"}, info.Dirs)
+
+	root, err = session.List(ctx, "")
+	require.NoError(t, err)
+	require.Len(t, root.Entries, 1)
+	assert.Equal(t, "archive", root.Entries[0].Path)
 }
 
 func TestSessionRemoveDropsTheRecord(t *testing.T) {

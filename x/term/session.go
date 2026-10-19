@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 )
 
@@ -20,6 +22,7 @@ type Session struct {
 	id         string
 	panes      map[string]*live
 	paths      map[string]string
+	dirs       map[string]struct{}
 	order      []string
 	listeners  map[int]*listener
 	nextListen int
@@ -59,6 +62,7 @@ func Open(ctx context.Context) (*Session, error) {
 		id:        id,
 		panes:     map[string]*live{},
 		paths:     map[string]string{},
+		dirs:      map[string]struct{}{},
 		listeners: map[int]*listener{},
 	}
 	go func() {
@@ -138,11 +142,54 @@ func (s *Session) Info(ctx context.Context) (SessionInfo, error) {
 
 func (s *Session) info() SessionInfo {
 	panes := append([]string(nil), s.order...)
-	return SessionInfo{ID: s.id, Panes: panes, Entries: s.entries()}
+	return SessionInfo{ID: s.id, Panes: panes, Entries: s.entries(), Level: ProtocolLevel, Dirs: s.dirList()}
 }
 
 func (s *Session) entries() []Entry {
-	return catalog(s.order, s.panes)
+	return catalog(s.order, s.panes, s.dirList())
+}
+
+func (s *Session) dirList() []string {
+	out := make([]string, 0, len(s.dirs))
+	for dir := range s.dirs {
+		out = append(out, dir)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// remember stores path and each parent as a directory.
+// A parent that is only a pane-key prefix stays derived. Creating a folder
+// inside a session does not turn that session name into a stored directory.
+func (s *Session) remember(path string) {
+	for p := path; p != ""; p = pathParent(p) {
+		if p != path && s.coversPane(p) {
+			if _, ok := s.dirs[p]; !ok {
+				continue
+			}
+		}
+		s.dirs[p] = struct{}{}
+	}
+}
+
+func (s *Session) coversPane(path string) bool {
+	prefix := path + "/"
+	for existing := range s.paths {
+		if existing == path || strings.HasPrefix(existing, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// occupied reports a key a new file cannot take.
+// A stored directory blocks a file at that same key. A file inside a directory is free.
+func (s *Session) occupied(path string) bool {
+	if pathTaken(s.paths, path) {
+		return true
+	}
+	_, ok := s.dirs[path]
+	return ok
 }
 
 // Panes returns every pane header in creation order.
@@ -215,7 +262,7 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 		s.mu.Unlock()
 		return Pane{}, err
 	}
-	if pathTaken(s.paths, path) {
+	if s.occupied(path) {
 		s.mu.Unlock()
 		return Pane{}, fmt.Errorf("%w: %s", ErrPath, path)
 	}
@@ -252,7 +299,7 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 		proc.Close()
 		return Pane{}, ErrTermClosed
 	}
-	if pathTaken(s.paths, path) {
+	if s.occupied(path) {
 		s.mu.Unlock()
 		proc.Close()
 		return Pane{}, fmt.Errorf("%w: %s", ErrPath, path)
@@ -326,7 +373,9 @@ func (s *Session) Write(ctx context.Context, req WriteRequest) error {
 
 // List returns the files and folders directly inside path.
 // An empty path is the root. A path that names a file is ErrPath.
-// A folder with no panes is an empty list. The server does not store empty folders.
+// A stored directory is listed even when it holds nothing.
+// List returns the direct children of one folder.
+// A stored directory is listed even when it holds nothing.
 func (s *Session) List(ctx context.Context, folder string) (Tree, error) {
 	if err := ctx.Err(); err != nil {
 		return Tree{}, err
@@ -380,7 +429,7 @@ func (s *Session) Move(ctx context.Context, id, path string) error {
 		return nil
 	}
 	delete(s.paths, old)
-	if pathTaken(s.paths, cleaned) {
+	if s.occupied(cleaned) {
 		s.paths[old] = id
 		s.mu.Unlock()
 		return fmt.Errorf("%w: %s", ErrPath, cleaned)
@@ -392,6 +441,156 @@ func (s *Session) Move(ctx context.Context, id, path string) error {
 	info := s.info()
 	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
 	fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
+	s.mu.Unlock()
+	deliver(fns)
+	return nil
+}
+
+// CreateDir stores a directory, including each parent that is not only a pane prefix.
+// An empty directory stays until RemoveDir. A file at the same key is ErrPath.
+func (s *Session) CreateDir(ctx context.Context, path string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	cleaned, err := cleanPath(path)
+	if err != nil {
+		return err
+	}
+	if cleaned == "" {
+		return fmt.Errorf("%w: %s", ErrPath, path)
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrTermClosed
+	}
+	for existing := range s.paths {
+		if existing == cleaned || strings.HasPrefix(cleaned, existing+"/") {
+			s.mu.Unlock()
+			return fmt.Errorf("%w: %s", ErrPath, cleaned)
+		}
+	}
+	before := len(s.dirs)
+	s.remember(cleaned)
+	if len(s.dirs) == before {
+		s.mu.Unlock()
+		return nil
+	}
+	info := s.info()
+	fns := s.matching(Event{Notice: NoticeSession, Session: &info})
+	s.mu.Unlock()
+	deliver(fns)
+	return nil
+}
+
+// RemoveDir deletes a stored directory and every directory under it.
+// Panes that still use the prefix stay. Their path keeps that prefix visible.
+func (s *Session) RemoveDir(ctx context.Context, path string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	cleaned, err := cleanPath(path)
+	if err != nil {
+		return err
+	}
+	if cleaned == "" {
+		return fmt.Errorf("%w: %s", ErrPath, path)
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrTermClosed
+	}
+	found := false
+	for dir := range s.dirs {
+		if dir == cleaned || strings.HasPrefix(dir, cleaned+"/") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrPath, cleaned)
+	}
+	for dir := range s.dirs {
+		if dir == cleaned || strings.HasPrefix(dir, cleaned+"/") {
+			delete(s.dirs, dir)
+		}
+	}
+	info := s.info()
+	fns := s.matching(Event{Notice: NoticeSession, Session: &info})
+	s.mu.Unlock()
+	deliver(fns)
+	return nil
+}
+
+// MoveDir renames a stored directory and the directories under it.
+// Pane keys stay put. The caller renames those with Move.
+// A source that is only a pane prefix is ErrPath. A child directory of that
+// prefix still moves when one is stored.
+func (s *Session) MoveDir(ctx context.Context, from, to string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	src, err := cleanPath(from)
+	if err != nil {
+		return err
+	}
+	dest, err := cleanPath(to)
+	if err != nil {
+		return err
+	}
+	if src == "" || dest == "" {
+		return fmt.Errorf("%w: %s", ErrPath, from)
+	}
+	if src == dest {
+		return nil
+	}
+	if strings.HasPrefix(dest, src+"/") {
+		return fmt.Errorf("%w: %s", ErrPath, dest)
+	}
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return ErrTermClosed
+	}
+	found := false
+	for dir := range s.dirs {
+		if dir == src || strings.HasPrefix(dir, src+"/") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrPath, src)
+	}
+	if _, ok := s.dirs[dest]; ok {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrPath, dest)
+	}
+	for existing := range s.paths {
+		if existing == dest || strings.HasPrefix(dest, existing+"/") {
+			s.mu.Unlock()
+			return fmt.Errorf("%w: %s", ErrPath, dest)
+		}
+		if strings.HasPrefix(existing, dest+"/") && existing != src && !strings.HasPrefix(existing, src+"/") {
+			s.mu.Unlock()
+			return fmt.Errorf("%w: %s", ErrPath, dest)
+		}
+	}
+	next := map[string]struct{}{}
+	for dir := range s.dirs {
+		moved := rebasePath(dir, src, dest)
+		if _, ok := next[moved]; ok {
+			s.mu.Unlock()
+			return fmt.Errorf("%w: %s", ErrPath, dest)
+		}
+		next[moved] = struct{}{}
+	}
+	s.dirs = next
+	info := s.info()
+	fns := s.matching(Event{Notice: NoticeSession, Session: &info})
 	s.mu.Unlock()
 	deliver(fns)
 	return nil
@@ -600,6 +799,7 @@ func (s *Session) matching(ev Event) []func() {
 			info := *ev.Session
 			info.Panes = append([]string(nil), ev.Session.Panes...)
 			info.Entries = append([]Entry(nil), ev.Session.Entries...)
+			info.Dirs = append([]string(nil), ev.Session.Dirs...)
 			copied.Session = &info
 		}
 		event := copied

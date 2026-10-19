@@ -162,6 +162,9 @@ func (m *Model) railMiddle(width, y int, record bool) string {
 	if m.errText != "" {
 		return styleErr.Render(fit(m.errText, width))
 	}
+	if m.levelText != "" {
+		return styleErr.Render(fit(m.levelText, width))
+	}
 	var ids []string
 	for _, id := range m.recent {
 		if _, ok := m.byID[id]; ok {
@@ -223,6 +226,9 @@ func (m *Model) drawerBody(width, rows int) []string {
 		title += "  " + q
 	}
 	lines := []string{styleTitle.Render(fit(title, width))}
+	if m.levelText != "" && len(lines) < rows {
+		lines = append(lines, styleErr.Render(fit(m.levelText, width)))
+	}
 	switch {
 	case m.heldSession != "" && len(lines) < rows:
 		lines = append(lines, styleMuted.Render(fit("carrying "+pathBase(m.heldSession), width)))
@@ -742,8 +748,7 @@ func (m *Model) activateDrawer() (tea.Model, tea.Cmd) {
 	}
 	if row.newDir {
 		if m.naming {
-			m.createDirectory(m.name)
-			return m, nil
+			return m, m.createDirectory(m.name)
 		}
 		m.startNaming()
 		return m, nil
@@ -1098,6 +1103,7 @@ func (m *Model) showPane(id string) tea.Cmd {
 
 func (m *Model) closeSession(key string) tea.Cmd {
 	ids := m.panesUnder(key)
+	stored := m.hasDir(key)
 	m.made = withoutPrefix(m.made, key)
 	if m.place == key || strings.HasPrefix(m.place, key+"/") {
 		m.place = ""
@@ -1115,14 +1121,20 @@ func (m *Model) closeSession(key string) tea.Cmd {
 			m.followPrefix = ""
 			m.follow = nil
 		}
+		if stored {
+			return m.removeDir(key)
+		}
 		return nil
 	}
 	for _, id := range ids {
 		m.drop(id)
 	}
-	cmds := make([]tea.Cmd, 0, len(ids)+1)
+	cmds := make([]tea.Cmd, 0, len(ids)+2)
 	for _, id := range ids {
 		cmds = append(cmds, m.closePane(id))
+	}
+	if stored {
+		cmds = append(cmds, m.removeDir(key))
 	}
 	if m.shown == key || strings.HasPrefix(m.shown, key+"/") {
 		m.shown = ""
@@ -1246,8 +1258,7 @@ func (m *Model) startNaming() {
 func (m *Model) nameDirectory(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.Keystroke() {
 	case "enter":
-		m.createDirectory(m.name)
-		return m, nil
+		return m, m.createDirectory(m.name)
 	case "esc":
 		m.naming = false
 		m.name = ""
@@ -1267,7 +1278,7 @@ func (m *Model) nameDirectory(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) createDirectory(name string) {
+func (m *Model) createDirectory(name string) tea.Cmd {
 	parent := m.place
 	if parent == "" && m.shown != "" && m.sessionDir(m.shown) {
 		parent = m.shown
@@ -1277,13 +1288,13 @@ func (m *Model) createDirectory(name string) {
 		m.errText = ErrPath.Error()
 		m.naming = false
 		m.name = ""
-		return
+		return nil
 	}
 	if m.keyTaken(path, "", true) {
 		m.errText = ErrPath.Error()
 		m.naming = false
 		m.name = ""
-		return
+		return nil
 	}
 	if !contains(m.made, path) {
 		m.made = append(m.made, path)
@@ -1294,6 +1305,7 @@ func (m *Model) createDirectory(name string) {
 	m.name = ""
 	m.errText = ""
 	m.drawer = true
+	return m.createDir(path)
 }
 
 func (m *Model) moveInto(folder string) tea.Cmd {
@@ -1514,6 +1526,7 @@ func (m *Model) nestSession(folder string) tea.Cmd {
 		m.errText = ErrPath.Error()
 		return nil
 	}
+	moveStored := m.hasDir(key)
 	type plan struct {
 		id   string
 		next string
@@ -1553,9 +1566,12 @@ func (m *Model) nestSession(folder string) tea.Cmd {
 	m.followAll = false
 	m.followPrefix = shown
 	m.follow = nil
-	cmds := make([]tea.Cmd, 0, len(plans)+1)
+	cmds := make([]tea.Cmd, 0, len(plans)+2)
 	for _, item := range plans {
 		cmds = append(cmds, m.move(item.id, item.next))
+	}
+	if moveStored {
+		cmds = append(cmds, m.moveDir(key, newKey))
 	}
 	cmds = append(cmds, m.rewatch())
 	return tea.Batch(cmds...)
@@ -1583,6 +1599,7 @@ func (m *Model) nestFolder(dest string) tea.Cmd {
 		m.errText = ErrPath.Error()
 		return nil
 	}
+	moveStored := m.hasDir(src)
 	type plan struct {
 		id   string
 		next string
@@ -1615,12 +1632,24 @@ func (m *Model) nestFolder(dest string) tea.Cmd {
 	m.drawer = true
 	m.palette = false
 	m.errText = ""
-	cmds := make([]tea.Cmd, 0, len(plans)+1)
+	cmds := make([]tea.Cmd, 0, len(plans)+2)
 	for _, item := range plans {
 		cmds = append(cmds, m.move(item.id, item.next))
 	}
+	if moveStored {
+		cmds = append(cmds, m.moveDir(src, next))
+	}
 	cmds = append(cmds, m.rewatch())
 	return tea.Batch(cmds...)
+}
+
+func (m *Model) hasDir(path string) bool {
+	for _, made := range m.made {
+		if made == path || strings.HasPrefix(made, path+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // pathBusy reports a key outside src that already owns path.

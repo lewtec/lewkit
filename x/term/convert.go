@@ -90,6 +90,8 @@ func sessionToSchema(info SessionInfo) *schema.SessionInfo {
 		Id:      info.ID,
 		Panes:   copyStrings(info.Panes),
 		Entries: entriesToSchema(info.Entries),
+		Level:   info.Level,
+		Dirs:    copyStrings(info.Dirs),
 	}
 }
 
@@ -101,6 +103,8 @@ func sessionFromSchema(info *schema.SessionInfo) SessionInfo {
 		ID:      info.GetId(),
 		Panes:   copyStrings(info.GetPanes()),
 		Entries: entriesFromSchema(info.GetEntries()),
+		Level:   info.GetLevel(),
+		Dirs:    copyStrings(info.GetDirs()),
 	}
 }
 
