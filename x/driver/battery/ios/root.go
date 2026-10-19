@@ -1,5 +1,5 @@
-// Package ios reads battery status from the packaged iOS host.
-// The host writes battery.json. Level is 0..100. A negative level is unknown.
+// Package ios reads battery status from UIDevice.
+// A host directory still reads battery.json. Level is 0..100. A negative level is unknown.
 package ios
 
 import (

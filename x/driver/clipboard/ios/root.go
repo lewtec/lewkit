@@ -1,4 +1,5 @@
-// Package ios writes the iOS pasteboard through the packaged host.
+// Package ios writes the iOS pasteboard.
+// The app process uses UIPasteboard. A host directory still exchanges request.json.
 package ios
 
 import (

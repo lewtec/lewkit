@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 
 	"github.com/ebitengine/purego/objc"
 	"github.com/lewtec/lewkit/x/driver"
@@ -31,6 +32,9 @@ var (
 )
 
 func available(context.Context) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
+	}
 	if driver.AppMode() {
 		return fmt.Errorf("%w: app mode", driver.ErrIncompatible)
 	}
