@@ -4,14 +4,12 @@ package lucide
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrName means the text is not a known name.
-	ErrName = errs.Wrap(errs.ErrUnknown, "unknown name")
-)
+// ErrName means the text is not a known name.
+var ErrName = errs.Wrap(errs.ErrUnknown, "unknown name")
 
 // String is the text of a Name.
 func (n Name) String() string {

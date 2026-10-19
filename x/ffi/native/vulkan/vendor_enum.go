@@ -4,14 +4,12 @@ package vulkan
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrVendor means the text is not a known vendor.
-	ErrVendor = errs.Wrap(errs.ErrUnknown, "unknown vendor")
-)
+// ErrVendor means the text is not a known vendor.
+var ErrVendor = errs.Wrap(errs.ErrUnknown, "unknown vendor")
 
 // String is the text of a Vendor.
 func (v Vendor) String() string {

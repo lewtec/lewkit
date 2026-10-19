@@ -4,14 +4,12 @@ package gemini
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrStatusCategory means the text is not a known status category.
-	ErrStatusCategory = errs.Wrap(errs.ErrUnknown, "unknown status category")
-)
+// ErrStatusCategory means the text is not a known status category.
+var ErrStatusCategory = errs.Wrap(errs.ErrUnknown, "unknown status category")
 
 // String is the text of a StatusCategory.
 func (s StatusCategory) String() string {

@@ -4,14 +4,12 @@ package apk
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrABI means the text is not a known abi.
-	ErrABI = errs.Wrap(errs.ErrUnknown, "unknown abi")
-)
+// ErrABI means the text is not a known abi.
+var ErrABI = errs.Wrap(errs.ErrUnknown, "unknown abi")
 
 // String is the text of a ABI.
 func (a ABI) String() string {

@@ -4,14 +4,12 @@ package messagebox
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrStyle means the text is not a known style.
-	ErrStyle = errs.Wrap(errs.ErrUnknown, "unknown style")
-)
+// ErrStyle means the text is not a known style.
+var ErrStyle = errs.Wrap(errs.ErrUnknown, "unknown style")
 
 // String is the text of a Style.
 func (s Style) String() string {

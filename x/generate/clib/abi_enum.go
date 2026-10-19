@@ -4,16 +4,15 @@ package clib
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// errMachine means the text is not a known machine.
-	errMachine = errs.Wrap(errs.ErrUnknown, "unknown machine")
-	// errLocKind means the text is not a known loc kind.
-	errLocKind = errs.Wrap(errs.ErrUnknown, "unknown loc kind")
-)
+// errMachine means the text is not a known machine.
+var errMachine = errs.Wrap(errs.ErrUnknown, "unknown machine")
+
+// errLocKind means the text is not a known loc kind.
+var errLocKind = errs.Wrap(errs.ErrUnknown, "unknown loc kind")
 
 // String is the text of a machine.
 func (m machine) String() string {

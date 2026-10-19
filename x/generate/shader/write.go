@@ -12,9 +12,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/dave/jennifer/jen"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/generate"
+	"github.com/lewtec/lewkit/x/takemake/golang"
 )
 
 var (
@@ -24,8 +24,6 @@ var (
 var generatedBy = generate.Notice("shader")
 
 const glslPath = "github.com/lewtec/lewkit/x/ffi/wasm/glsl"
-
-const hexWidth = 12
 
 func writePackage(ctx context.Context, dir string, files []shaderFile) error {
 	pkg, err := goPackage(dir)
@@ -61,60 +59,41 @@ func writePackage(ctx context.Context, dir string, files []shaderFile) error {
 			spirv: spirv,
 		})
 	}
-	f := jen.NewFile(pkg)
-	f.HeaderComment(generatedBy)
-	f.ImportName(glslPath, "glsl")
-	f.Func().Id("init").Params().BlockFunc(func(g *jen.Group) {
-		for _, file := range out {
-			g.Comment(file.rel)
-			g.Qual(glslPath, "MustRegisterHash").Call(
+	f := golang.NewFile(pkg)
+	f.Header = "// " + generatedBy
+	for _, file := range out {
+		f.Func().Comment(file.rel).Id("init").Block(
+			golang.Qual(glslPath, "MustRegisterHash").Call(
 				stageCode(file.stage),
-				jen.Index(jen.Lit(32)).Byte().Add(hexValues(file.hash[:])),
-				jen.Index().Byte().Add(hexValues(file.spirv)),
-			)
-		}
-	})
+				hexComposite(golang.Array(golang.Lit(32), golang.Named("byte")), file.hash[:]),
+				hexComposite(golang.Slice(golang.Named("byte")), file.spirv),
+			),
+		)
+	}
 	var body bytes.Buffer
-	if err := f.Render(&body); err != nil {
+	if err := f.Make(&body); err != nil {
 		return fmt.Errorf("%w%s: %w", ErrWritePackage, generatedName, err)
 	}
 	return generate.WriteFile(filepath.Join(dir, generatedName), body.Bytes())
 }
 
-func stageCode(stage glsl.Stage) jen.Code {
+func stageCode(stage glsl.Stage) *golang.Expr {
 	switch stage {
 	case glsl.StageVertex:
-		return jen.Qual(glslPath, "StageVertex")
+		return golang.Qual(glslPath, "StageVertex")
 	case glsl.StageFragment:
-		return jen.Qual(glslPath, "StageFragment")
+		return golang.Qual(glslPath, "StageFragment")
 	default:
-		return jen.Qual(glslPath, "StageCompute")
+		return golang.Qual(glslPath, "StageCompute")
 	}
 }
 
-func hexValues(raw []byte) jen.Code {
-	return jen.CustomFunc(jen.Options{
-		Open:      "{",
-		Close:     "}",
-		Separator: ",",
-		Multi:     true,
-	}, func(g *jen.Group) {
-		for start := 0; start < len(raw); start += hexWidth {
-			end := start + hexWidth
-			if end > len(raw) {
-				end = len(raw)
-			}
-			g.Add(hexLine(raw[start:end]))
-		}
-	})
-}
-
-func hexLine(raw []byte) jen.Code {
-	parts := make([]jen.Code, len(raw))
+func hexComposite(typ *golang.Type, raw []byte) *golang.Expr {
+	elts := make([]*golang.Element, len(raw))
 	for i, b := range raw {
-		parts[i] = jen.Op(fmt.Sprintf("0x%02x", b))
+		elts[i] = golang.Elem(&golang.Expr{Kind: golang.ExprLit, Lit: golang.LitInt, Text: fmt.Sprintf("0x%02x", b)})
 	}
-	return jen.List(parts...)
+	return golang.Composite(typ, elts...)
 }
 
 func stageToken(stage glsl.Stage) string {
