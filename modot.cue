@@ -6,87 +6,67 @@ inputs: capstone_wasm: {
 }
 inputs: onnx: {
 	from:    "github:onnx/onnx"
-	version: "v1.22.0"
 }
 inputs: htmx: {
 	from:    "github:bigskysoftware/htmx"
-	version: "v4.0.0"
 }
 inputs: jquery: {
 	from:    "github:jquery/jquery"
-	version: "4.0.0"
 }
 inputs: sakuracss: {
 	from:    "github:oxalorg/sakura"
-	version: "1.5.1"
 }
 inputs: tailwindcss: {
 	from:    "github:tailwindlabs/tailwindcss"
-	version: "v4.3.3"
 }
 // .modot/config renders x/http/asset/lucide/version_gen.go from this version.
 inputs: lucide: {
 	from:    "github:lucide-icons/lucide"
-	version: "1.57.0"
 }
 inputs: golang: {
 	from:    "github:golang/go"
-	version: "go1.27.0"
 }
 // Vulkan-Samples publishes no release tags. main is the pin Renovate tracks.
 inputs: vulkan_samples: {
 	from:    "github:KhronosGroup/Vulkan-Samples"
-	version: "main"
 }
 inputs: lua: {
 	from:    "github:lua/lua"
-	version: "v5.4.7"
 }
 inputs: zlib: {
 	from:    "github:madler/zlib"
-	version: "v1.3.1"
 }
 inputs: ninja: {
 	from:    "github:ninja-build/ninja"
-	version: "v1.12.1"
 }
 inputs: graphviz: {
 	from:    "github:ellson/MOTHBALLED-graphviz"
-	version: "master"
 }
 // Tree-sitter grammars (MIT). grammar.json is the generated form
 // FromTreeSitter loads. json and python: master is ahead of the latest tag.
 inputs: treesitter_bash: {
 	from:    "github:tree-sitter/tree-sitter-bash"
-	version: "v0.25.1"
 }
 inputs: treesitter_c: {
 	from:    "github:tree-sitter/tree-sitter-c"
-	version: "v0.24.2"
 }
 inputs: treesitter_go: {
 	from:    "github:tree-sitter/tree-sitter-go"
-	version: "v0.25.0"
 }
 inputs: treesitter_java: {
 	from:    "github:tree-sitter/tree-sitter-java"
-	version: "v0.23.5"
 }
 inputs: treesitter_javascript: {
 	from:    "github:tree-sitter/tree-sitter-javascript"
-	version: "v0.25.0"
 }
 inputs: treesitter_json: {
 	from:    "github:tree-sitter/tree-sitter-json"
-	version: "master"
 }
 inputs: treesitter_python: {
 	from:    "github:tree-sitter/tree-sitter-python"
-	version: "master"
 }
 inputs: treesitter_rust: {
 	from:    "github:tree-sitter/tree-sitter-rust"
-	version: "v0.24.2"
 }
 
 lazy_tools: protobuf: {
