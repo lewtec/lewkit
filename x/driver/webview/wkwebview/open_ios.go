@@ -57,18 +57,58 @@ var (
 
 func uiApplication() objc.ID {
 	uiOnce.Do(func() {
-		class := objc.GetClass("UIApplication")
-		if class == 0 {
+		uiApp = currentUIApplication()
+		if uiApp != 0 {
 			return
 		}
-		shared := objc.ID(class).Send(selShared)
-		if shared != 0 {
-			uiApp = shared
-			return
-		}
-		uiApp = objc.ID(class).Send(selAlloc).Send(selInit)
+		// -[UIApplication init] raises when a singleton already exists.
+		// UIApplicationMain's path publishes that singleton instead.
+		instantiateUIApplication()
+		uiApp = currentUIApplication()
 	})
 	return uiApp
+}
+
+func currentUIApplication() objc.ID {
+	class := objc.GetClass("UIApplication")
+	if class == 0 {
+		return 0
+	}
+	if shared := objc.ID(class).Send(selShared); shared != 0 {
+		return shared
+	}
+	return publishedUIApp()
+}
+
+func instantiateUIApplication() {
+	handle, err := native.Open("/System/Library/Frameworks/UIKit.framework/UIKit", native.Global|native.Lazy)
+	if err != nil {
+		return
+	}
+	if sym, symErr := native.Symbol(handle, "UIApplicationInitialize"); symErr == nil && sym != 0 {
+		var fn func()
+		native.Register(&fn, sym)
+		fn()
+	}
+	sym, err := native.Symbol(handle, "UIApplicationInstantiateSingleton")
+	if err != nil || sym == 0 {
+		return
+	}
+	var fn func(objc.Class)
+	native.Register(&fn, sym)
+	fn(objc.GetClass("UIApplication"))
+}
+
+func publishedUIApp() objc.ID {
+	handle, err := native.Open("/System/Library/Frameworks/UIKit.framework/UIKit", native.Global|native.Lazy)
+	if err != nil {
+		return 0
+	}
+	sym, err := native.Symbol(handle, "UIApp")
+	if err != nil || sym == 0 {
+		return 0
+	}
+	return *(*objc.ID)(unsafe.Pointer(sym))
 }
 
 func (view *webKitView) createIOS(ctx context.Context, cfg webview.Config) error {

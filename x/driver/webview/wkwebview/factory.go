@@ -19,6 +19,10 @@ func (factory) CheckCompatibility(context.Context) error {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "ios" {
 		return driver.ForGOOS(build.GOOSDarwin)
 	}
+	// Opening UIKit here runs on the caller. The UI thread loads it.
+	if runtime.GOOS == "ios" {
+		return nil
+	}
 	return frameworks()
 }
 
