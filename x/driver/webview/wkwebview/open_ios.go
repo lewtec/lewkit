@@ -5,6 +5,7 @@ package wkwebview
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"sync"
@@ -30,11 +31,7 @@ var (
 	uiOnce sync.Once
 	uiApp  objc.ID
 
-	runOnce     sync.Once
-	runErr      error
-	runInMode   func(mode uintptr, seconds float64, after byte) int32
-	runLoopMode uintptr
-	boundsMsg   func(objc.ID, objc.SEL) nsRect
+	boundsMsg func(objc.ID, objc.SEL) nsRect
 
 	selInitFrame      = objc.RegisterName("initWithFrame:")
 	selSetRoot        = objc.RegisterName("setRootViewController:")
@@ -51,6 +48,11 @@ var (
 	selBounds         = objc.RegisterName("bounds")
 	selPoolNew        = objc.RegisterName("new")
 	selPoolDrain      = objc.RegisterName("drain")
+	selCurrentRunLoop = objc.RegisterName("currentRunLoop")
+	selRunUntil       = objc.RegisterName("runMode:beforeDate:")
+	selFlush          = objc.RegisterName("flush")
+
+	displayOnce sync.Once
 )
 
 func uiApplication() objc.ID {
@@ -170,6 +172,7 @@ func (view *webKitView) createIOS(ctx context.Context, cfg webview.Config) error
 		view.useScheme(scheme, false)
 	}
 	window.Send(selMakeVisible)
+	slog.Info("ios window")
 	origin := fmt.Sprintf("%s://%s%d/", schemeName, viewHostPrefix, view.identifier)
 	base := objc.ID(objc.GetClass("NSURL")).Send(selURLWithString, nsString(origin))
 	if strings.TrimSpace(cfg.HTML) != "" {
@@ -213,34 +216,26 @@ func pumpIOS() {
 	if !thread.On() {
 		return
 	}
-	runOnce.Do(loadRunLoop)
-	if runErr != nil || runInMode == nil || runLoopMode == 0 {
-		return
-	}
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selPoolNew)
 	defer pool.Send(selPoolDrain)
-	// One pass, then this thread runs thread.Do. Same shape as nextEvent(distantPast).
-	runInMode(runLoopMode, 0, 1)
+	loop := objc.ID(objc.GetClass("NSRunLoop")).Send(selCurrentRunLoop)
+	if loop != 0 {
+		// distantPast returns as soon as the queue is empty, then thread.Do runs.
+		// The mode name is kCFRunLoopDefaultMode, the same string AppKit polls with.
+		when := objc.ID(objc.GetClass("NSDate")).Send(selDistantPast)
+		loop.Send(selRunUntil, nsString("kCFRunLoopDefaultMode"), when)
+	}
+	// A zero wait skips the before-waiting observers, so the white window never commits.
+	flushDisplay()
 }
 
-func loadRunLoop() {
-	handle, err := native.Open("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation", native.Global|native.Lazy)
-	if err != nil {
-		runErr = err
-		return
+func flushDisplay() {
+	displayOnce.Do(func() {
+		_, _ = native.Open("/System/Library/Frameworks/QuartzCore.framework/QuartzCore", native.Global|native.Lazy)
+	})
+	if class := objc.GetClass("CATransaction"); class != 0 {
+		objc.ID(class).Send(selFlush)
 	}
-	sym, err := native.Symbol(handle, "CFRunLoopRunInMode")
-	if err != nil {
-		runErr = err
-		return
-	}
-	native.Register(&runInMode, sym)
-	mode, err := native.Symbol(handle, "kCFRunLoopDefaultMode")
-	if err != nil {
-		runErr = err
-		return
-	}
-	runLoopMode = *(*uintptr)(unsafe.Pointer(mode))
 }
 
 func (view *webKitView) useSchemeIOS(scheme daynight.Mode, flip bool) {
