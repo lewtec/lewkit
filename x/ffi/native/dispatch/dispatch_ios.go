@@ -17,9 +17,8 @@ var (
 	loadOnce sync.Once
 	loadErr  error
 
-	pthreadMainNP  func() int
-	dispatchSyncF  func(queue uintptr, ctx unsafe.Pointer, work uintptr)
-	dispatchAsyncF func(queue uintptr, ctx unsafe.Pointer, work uintptr)
+	pthreadMainNP func() int
+	dispatchSyncF func(queue uintptr, ctx unsafe.Pointer, work uintptr)
 	// dispatch_get_main_queue is an inline function. This is the queue object.
 	mainQueue uintptr
 )
@@ -33,7 +32,6 @@ func loadMain() {
 		}
 		purego.RegisterLibFunc(&pthreadMainNP, handle, "pthread_main_np")
 		purego.RegisterLibFunc(&dispatchSyncF, handle, "dispatch_sync_f")
-		purego.RegisterLibFunc(&dispatchAsyncF, handle, "dispatch_async_f")
 		mainQueue, err = purego.Dlsym(handle, "_dispatch_main_q")
 		if err != nil {
 			loadErr = err
@@ -72,45 +70,4 @@ func OnMain(fn func()) {
 	callFn = fn
 	dispatchSyncF(mainQueue, nil, mainCallback)
 	callFn = nil
-}
-
-var (
-	postMu     sync.Mutex
-	postFns    []func()
-	postQueued bool
-)
-
-func postedMain(unsafe.Pointer) {
-	postMu.Lock()
-	fns := postFns
-	postFns = nil
-	postQueued = false
-	postMu.Unlock()
-	for _, fn := range fns {
-		fn()
-	}
-}
-
-var postCallback = purego.NewCallback(postedMain)
-
-// PostMain queues fn on the main queue.
-// It stays queued when the caller is already on that thread, so a run loop
-// can run fn while CFRunLoopRun is still on the stack.
-func PostMain(fn func()) {
-	if fn == nil {
-		return
-	}
-	loadMain()
-	if loadErr != nil || dispatchAsyncF == nil || mainQueue == 0 {
-		fn()
-		return
-	}
-	postMu.Lock()
-	postFns = append(postFns, fn)
-	queue := !postQueued
-	postQueued = true
-	postMu.Unlock()
-	if queue {
-		dispatchAsyncF(mainQueue, nil, postCallback)
-	}
 }

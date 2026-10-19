@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 	"unsafe"
 
 	"github.com/ebitengine/purego/objc"
@@ -25,20 +24,17 @@ const (
 	// UIUserInterfaceStyleLight and UIUserInterfaceStyleDark.
 	styleLight = 1
 	styleDark  = 2
-	// CFRunLoopStop ends the slice so serveJobs can observe cancel.
-	runSlice = 10 * time.Millisecond
 )
 
 var (
 	uiOnce sync.Once
 	uiApp  objc.ID
 
-	runOnce   sync.Once
-	runErr    error
-	loopRun   func()
-	loopStop  func(uintptr)
-	loopGet   func() uintptr
-	boundsMsg func(objc.ID, objc.SEL) nsRect
+	runOnce     sync.Once
+	runErr      error
+	runInMode   func(mode uintptr, seconds float64, after byte) int32
+	runLoopMode uintptr
+	boundsMsg   func(objc.ID, objc.SEL) nsRect
 
 	selInitFrame      = objc.RegisterName("initWithFrame:")
 	selSetRoot        = objc.RegisterName("setRootViewController:")
@@ -218,21 +214,13 @@ func pumpIOS() {
 		return
 	}
 	runOnce.Do(loadRunLoop)
-	if runErr != nil || loopRun == nil || loopStop == nil || loopGet == nil {
+	if runErr != nil || runInMode == nil || runLoopMode == 0 {
 		return
 	}
-	loop := loopGet()
-	if loop == 0 {
-		return
-	}
-	// CFRunLoopRunInMode took this slice's seconds in a float register.
-	// A bad timeout sits in mach_msg, the scheme task never finishes, and
-	// FrontBoard kills the process with 0x8BADF00D.
-	timer := time.AfterFunc(runSlice, func() { loopStop(loop) })
-	defer timer.Stop()
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selPoolNew)
 	defer pool.Send(selPoolDrain)
-	loopRun()
+	// One pass, then this thread runs thread.Do. Same shape as nextEvent(distantPast).
+	runInMode(runLoopMode, 0, 1)
 }
 
 func loadRunLoop() {
@@ -241,24 +229,18 @@ func loadRunLoop() {
 		runErr = err
 		return
 	}
-	sym, err := native.Symbol(handle, "CFRunLoopRun")
+	sym, err := native.Symbol(handle, "CFRunLoopRunInMode")
 	if err != nil {
 		runErr = err
 		return
 	}
-	native.Register(&loopRun, sym)
-	sym, err = native.Symbol(handle, "CFRunLoopStop")
+	native.Register(&runInMode, sym)
+	mode, err := native.Symbol(handle, "kCFRunLoopDefaultMode")
 	if err != nil {
 		runErr = err
 		return
 	}
-	native.Register(&loopStop, sym)
-	sym, err = native.Symbol(handle, "CFRunLoopGetCurrent")
-	if err != nil {
-		runErr = err
-		return
-	}
-	native.Register(&loopGet, sym)
+	runLoopMode = *(*uintptr)(unsafe.Pointer(mode))
 }
 
 func (view *webKitView) useSchemeIOS(scheme daynight.Mode, flip bool) {
