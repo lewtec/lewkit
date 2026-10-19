@@ -35,13 +35,16 @@ type Device struct {
 	wantExt      []string
 	familyPinned bool
 	// objects are buffers and shaders that must be destroyed before the device.
-	objects []deviceObject
+	// The key is the Go object address.
+	objects map[uintptr]object
 }
 
-// deviceObject is a child of a logical device. destroy frees the native
-// handles while the device is still open, and a second call does nothing.
-type deviceObject interface {
+// object is a child of a logical device. destroy frees the native handles
+// while the device is still open, and a second call does nothing. addr is
+// the map key and stays valid after the native handles are zeroed.
+type object interface {
 	destroy()
+	addr() uintptr
 }
 
 // Info is a compute-capable physical device. Index is 0-based among
@@ -369,18 +372,25 @@ func (d *Device) Close() error {
 	return nil
 }
 
-func (d *Device) track(obj deviceObject) {
+func (d *Device) track(obj object) {
 	if d == nil || obj == nil {
 		return
 	}
-	d.objects = append(d.objects, obj)
-}
-
-func (d *Device) untrack(obj deviceObject) {
-	if d == nil {
+	key := obj.addr()
+	if key == 0 {
 		return
 	}
-	d.objects = slices.DeleteFunc(d.objects, func(got deviceObject) bool { return got == obj })
+	if d.objects == nil {
+		d.objects = make(map[uintptr]object)
+	}
+	d.objects[key] = obj
+}
+
+func (d *Device) untrack(obj object) {
+	if d == nil || obj == nil {
+		return
+	}
+	delete(d.objects, obj.addr())
 }
 
 func (d *Device) live() error {
@@ -616,6 +626,10 @@ func (b *Buffer) Close() error {
 	return nil
 }
 
+func (b *Buffer) addr() uintptr {
+	return uintptr(unsafe.Pointer(b))
+}
+
 func (b *Buffer) destroy() {
 	if b == nil || b.buf == 0 {
 		return
@@ -810,6 +824,10 @@ func (s *Shader) Close() error {
 	}
 	s.destroy()
 	return nil
+}
+
+func (s *Shader) addr() uintptr {
+	return uintptr(unsafe.Pointer(s))
 }
 
 func (s *Shader) destroy() {

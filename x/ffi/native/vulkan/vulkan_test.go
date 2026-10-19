@@ -2,6 +2,7 @@ package vulkan
 
 import (
 	"encoding/binary"
+	"slices"
 	"strings"
 	"testing"
 	"unsafe"
@@ -272,14 +273,24 @@ func TestDeviceCloseDestroysChildrenFirst(t *testing.T) {
 	d.track(buf)
 	d.track(shader)
 	require.NoError(t, d.Close())
-	require.Equal(t, []string{
-		"unmap", "buffer", "memory",
-		"pipeline", "pipeline-layout", "set-layout", "module",
-		"device", "instance",
-	}, order)
+	require.True(t, contig(order, []string{"unmap", "buffer", "memory"}))
+	require.True(t, contig(order, []string{"pipeline", "pipeline-layout", "set-layout", "module"}))
+	deviceAt := slices.Index(order, "device")
+	require.Greater(t, deviceAt, slices.Index(order, "memory"))
+	require.Greater(t, deviceAt, slices.Index(order, "module"))
+	require.Equal(t, []string{"device", "instance"}, order[deviceAt:])
 	require.NoError(t, buf.Close())
 	require.NoError(t, shader.Close())
 	require.Len(t, order, 9)
+}
+
+func contig(order, want []string) bool {
+	for i := 0; i+len(want) <= len(order); i++ {
+		if slices.Equal(order[i:i+len(want)], want) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestBufferCloseBeforeDeviceDoesNotFreeTwice(t *testing.T) {
