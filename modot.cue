@@ -33,6 +33,61 @@ inputs: golang: {
 	from:    "github:golang/go"
 	version: "go1.27.0"
 }
+// Vulkan-Samples publishes no release tags. main is the pin Renovate tracks.
+inputs: vulkan_samples: {
+	from:    "github:KhronosGroup/Vulkan-Samples"
+	version: "main"
+}
+inputs: lua: {
+	from:    "github:lua/lua"
+	version: "v5.4.7"
+}
+inputs: zlib: {
+	from:    "github:madler/zlib"
+	version: "v1.3.1"
+}
+inputs: ninja: {
+	from:    "github:ninja-build/ninja"
+	version: "v1.12.1"
+}
+inputs: graphviz: {
+	from:    "github:ellson/MOTHBALLED-graphviz"
+	version: "master"
+}
+// Tree-sitter grammars (MIT). grammar.json is the generated form
+// FromTreeSitter loads. json and python: master is ahead of the latest tag.
+inputs: treesitter_bash: {
+	from:    "github:tree-sitter/tree-sitter-bash"
+	version: "v0.25.1"
+}
+inputs: treesitter_c: {
+	from:    "github:tree-sitter/tree-sitter-c"
+	version: "v0.24.2"
+}
+inputs: treesitter_go: {
+	from:    "github:tree-sitter/tree-sitter-go"
+	version: "v0.25.0"
+}
+inputs: treesitter_java: {
+	from:    "github:tree-sitter/tree-sitter-java"
+	version: "v0.23.5"
+}
+inputs: treesitter_javascript: {
+	from:    "github:tree-sitter/tree-sitter-javascript"
+	version: "v0.25.0"
+}
+inputs: treesitter_json: {
+	from:    "github:tree-sitter/tree-sitter-json"
+	version: "master"
+}
+inputs: treesitter_python: {
+	from:    "github:tree-sitter/tree-sitter-python"
+	version: "master"
+}
+inputs: treesitter_rust: {
+	from:    "github:tree-sitter/tree-sitter-rust"
+	version: "v0.24.2"
+}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
@@ -101,6 +156,78 @@ file: codebase: {
 			}
 		}
 	}
+	// GLSL fixtures. A file source with no steps lands on the dest path, so
+	// the names x/takemake/glsl tests walk stay flat. shaders/triangle.frag
+	// is the ES sample. shaders/deferred/lighting.vert keeps its sample name.
+	// blur_down.comp still has #include, which Take rejects.
+	"x/takemake/glsl/testdata/khronos/base.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/dynamic_uniform_buffers/glsl/base.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/binary_demo.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/pipeline_binary/glsl/binary_demo.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/blur_down.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/async_compute/blur_down.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/composition.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hdr/glsl/composition.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/composition.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hdr/glsl/composition.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/cube.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/push_descriptors/glsl/cube.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/deferred_lighting.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/deferred/lighting.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/game_of_life_update.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/timeline_semaphore/glsl/game_of_life_update.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/imgui.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/imgui.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/particle_calculate.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/compute_nbody/glsl/particle_calculate.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/particle_integrate.comp": {
+		type:   "place"
+		source: "vulkan_samples:shaders/compute_nbody/glsl/particle_integrate.comp"
+	}
+	"x/takemake/glsl/testdata/khronos/postprocessing.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/postprocessing/postprocessing.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/shadowmap.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/shadows/shadowmap.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/shadowmap.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/shadows/shadowmap.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/triangle.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hello_triangle/glsl/triangle.frag"
+	}
+	"x/takemake/glsl/testdata/khronos/triangle.vert": {
+		type:   "place"
+		source: "vulkan_samples:shaders/hello_triangle/glsl/triangle.vert"
+	}
+	"x/takemake/glsl/testdata/khronos/triangle_es.frag": {
+		type:   "place"
+		source: "vulkan_samples:shaders/triangle.frag"
+	}
 	// Pristine Go 1.27 compiler, linker, and the std internal packages they
 	// import. A directory named _upstream is invisible to the go tool.
 	// x/toolchain/go/rewrite turns this pin into packages the module can import.
@@ -123,6 +250,88 @@ file: codebase: {
 	"x/toolchain/go/_upstream/telemetry": {
 		type:   "place"
 		source: "golang:src/cmd/vendor/golang.org/x/telemetry"
+	}
+	// Lua 5.4.7 makefile and zlib 1.3.1 Makefile.in.
+	// A file source with no steps lands on the dest path itself.
+	"x/takemake/makefile/testdata/makefile": {
+		type:   "place"
+		source: "lua:makefile"
+	}
+	"x/takemake/makefile/testdata/Makefile.in": {
+		type:   "place"
+		source: "zlib:Makefile.in"
+	}
+	// Ninja 1.12.1 build files that ship in the repository.
+	"x/takemake/ninja/testdata": {
+		type: "place"
+		source: {
+			slow: "ninja:misc/long-slow-build.ninja"
+			fds:  "ninja:misc/inherited-fds.ninja"
+			afl:  "ninja:misc/afl-fuzz/build.ninja"
+		}
+		steps: "10_require": {
+			op: "require"
+			patterns: ninja: "*.ninja"
+		}
+	}
+	// Graphviz examples (EPL-2.0) from the mothballed GitHub tree.
+	"x/takemake/graphviz/testdata": {
+		type: "place"
+		source: {
+			abstract: "graphviz:graphs/directed/abstract.gv"
+			arrows:   "graphviz:graphs/directed/arrows.gv"
+			clust:    "graphviz:graphs/directed/clust.gv"
+			clust1:   "graphviz:graphs/directed/clust1.gv"
+			dfa:      "graphviz:graphs/directed/dfa.gv"
+			fsm:      "graphviz:graphs/directed/fsm.gv"
+			grammar:  "graphviz:graphs/directed/grammar.gv"
+			nan:      "graphviz:graphs/directed/NaN.gv"
+			records:  "graphviz:graphs/directed/records.gv"
+			structs:  "graphviz:graphs/directed/structs.gv"
+			switch:   "graphviz:graphs/directed/switch.gv"
+			table:    "graphviz:graphs/directed/table.gv"
+			unix:     "graphviz:graphs/directed/unix.gv"
+			world:    "graphviz:graphs/directed/world.gv"
+			er:       "graphviz:graphs/undirected/ER.gv"
+			petersen: "graphviz:graphs/undirected/Petersen.gv"
+		}
+		steps: "10_require": {
+			op: "require"
+			patterns: gv: "*.gv"
+		}
+	}
+	// Tree-sitter grammar.json. A file source lands on the dest path.
+	"x/parse/testdata/treesitter/bash.json": {
+		type:   "place"
+		source: "treesitter_bash:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/c.json": {
+		type:   "place"
+		source: "treesitter_c:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/go.json": {
+		type:   "place"
+		source: "treesitter_go:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/java.json": {
+		type:   "place"
+		source: "treesitter_java:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/javascript.json": {
+		type:   "place"
+		source: "treesitter_javascript:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/json.json": {
+		type:   "place"
+		source: "treesitter_json:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/python.json": {
+		type:   "place"
+		source: "treesitter_python:src/grammar.json"
+	}
+	"x/parse/testdata/treesitter/rust.json": {
+		type:   "place"
+		source: "treesitter_rust:src/grammar.json"
 	}
 }
 

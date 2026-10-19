@@ -4,16 +4,15 @@ package clib
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// errRegKind means the text is not a known reg kind.
-	errRegKind = errs.Wrap(errs.ErrUnknown, "unknown reg kind")
-	// errValKind means the text is not a known val kind.
-	errValKind = errs.Wrap(errs.ErrUnknown, "unknown val kind")
-)
+// errRegKind means the text is not a known reg kind.
+var errRegKind = errs.Wrap(errs.ErrUnknown, "unknown reg kind")
+
+// errValKind means the text is not a known val kind.
+var errValKind = errs.Wrap(errs.ErrUnknown, "unknown val kind")
 
 // String is the text of a regKind.
 func (r regKind) String() string {

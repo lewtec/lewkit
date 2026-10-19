@@ -4,14 +4,12 @@ package sound
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrSample means the text is not a known sample.
-	ErrSample = errs.Wrap(errs.ErrUnknown, "unknown sample")
-)
+// ErrSample means the text is not a known sample.
+var ErrSample = errs.Wrap(errs.ErrUnknown, "unknown sample")
 
 // String is the text of a Sample.
 func (s Sample) String() string {

@@ -24,6 +24,8 @@ var (
 	ErrOutOfRange    = errors.New("out of range")
 	ErrRequired      = errors.New("required")
 	ErrUnknown       = errors.New("unknown")
+	// ErrScaffold is a take or make whose model is not written yet.
+	ErrScaffold = Wrap(ErrUnsupported, "scaffold")
 )
 
 // Wrap returns an error whose text is text.

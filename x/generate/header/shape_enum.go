@@ -4,14 +4,12 @@ package header
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrShape means the text is not a known shape.
-	ErrShape = errs.Wrap(errs.ErrUnknown, "unknown shape")
-)
+// ErrShape means the text is not a known shape.
+var ErrShape = errs.Wrap(errs.ErrUnknown, "unknown shape")
 
 // String is the text of a Shape.
 func (s Shape) String() string {

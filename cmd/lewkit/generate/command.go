@@ -11,6 +11,7 @@ type Cmd struct {
 	header   *headerCmd
 	clib     *clibCmd
 	enum     *enumCmd
+	parse    *parseCmd
 }
 
 // Description is the command summary.

@@ -4,14 +4,12 @@ package period
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrBinKind means the text is not a known bin kind.
-	ErrBinKind = errs.Wrap(errs.ErrUnknown, "unknown bin kind")
-)
+// ErrBinKind means the text is not a known bin kind.
+var ErrBinKind = errs.Wrap(errs.ErrUnknown, "unknown bin kind")
 
 // String is the text of a BinKind.
 func (b BinKind) String() string {

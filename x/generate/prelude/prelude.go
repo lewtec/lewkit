@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
-	"io"
 	"os"
 	stdpath "path"
 	"path/filepath"
@@ -398,8 +397,4 @@ func climbStart(start *path.Root) (path.Path, error) {
 	// Path is slash-separated. A Windows volume path has no leading
 	// slash, so the climb uses the slash form of the OS path.
 	return path.New(filepath.ToSlash(name)), nil
-}
-
-func write(w io.Writer, packageName string, imports []string) error {
-	return jenFile(packageName, imports).Render(w)
 }
