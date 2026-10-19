@@ -378,7 +378,8 @@ func (x *Entry) GetPane() string {
 // entries is the key tree. A folder is a stored directory or a pane prefix.
 // level is the protocol level this server speaks. 0 is a server from before
 // levels, which spoke level 1. Level 2 stores directories. Level 3 reports
-// each pane's working directory and keeps session facts.
+// each pane's working directory and keeps session facts. Level 4 reads that
+// directory from the process on a timer, including when it prints nothing.
 // dirs are the directories the server keeps, including empty ones.
 // facts are key/value records a pane stored for its session.
 type SessionInfo struct {

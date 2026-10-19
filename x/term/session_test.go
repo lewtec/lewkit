@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -348,6 +349,53 @@ func TestSessionFactsFollowThePane(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/after", made.Cwd)
 	assert.Equal(t, spawn, made.Dir)
+}
+
+func TestCwdFollowsAQuietProcess(t *testing.T) {
+	if _, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0); err != nil {
+		test.Skipf(t, "pty: %v", err)
+	}
+	ctx := t.Context()
+	session, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+	start := t.TempDir()
+	next := t.TempDir()
+	want, err := filepath.EvalSymlinks(next)
+	require.NoError(t, err)
+	_, err = session.Create(ctx, CreateRequest{
+		Command: []string{"/bin/sh", "-c", "cd " + shellQuote(next) + "; exec /bin/sleep 30"},
+		Dir:     start,
+		Rows:    8,
+		Cols:    40,
+		Path:    "work/quiet",
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		info, err := session.Info(ctx)
+		if err != nil {
+			return false
+		}
+		for _, fact := range info.Facts {
+			if fact.Path != "work" || fact.Key != "cwd" {
+				continue
+			}
+			got, err := filepath.EvalSymlinks(fact.Value)
+			return err == nil && got == want
+		}
+		return false
+	}, 3*time.Second, 20*time.Millisecond)
+	panes, err := session.Panes(ctx)
+	require.NoError(t, err)
+	require.NotEmpty(t, panes)
+	assert.Equal(t, start, panes[0].Dir)
+	got, err := filepath.EvalSymlinks(panes[0].Cwd)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func shellQuote(path string) string {
+	return "'" + strings.ReplaceAll(path, "'", `'\''`) + "'"
 }
 
 func TestShellCwdFollowsTheProcess(t *testing.T) {

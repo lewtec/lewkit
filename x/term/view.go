@@ -52,8 +52,9 @@ type API interface {
 // that lands on it. Mouse bytes are written when the process asked for them.
 // The wheel moves an alternate screen when it did not. A kitty image is
 // drawn into the grid. A different protocol level warns on the rail and in
-// the drawer, and the attach stays up. Level 3 follows the working
-// directory the process reports and shows the session facts task,
+// the drawer, and the attach stays up. Level 4 reads the working
+// directory from the process on a timer, including when it prints
+// nothing, and shows the session facts task,
 // progress, and state. A program in the pane sets those with
 // ESC ] 777 ; set ; KEY ; VALUE BEL (the bytes are 777;set;KEY;VALUE,
 // with no spaces) and drops one with 777;del;KEY. 777;cwd;PATH, OSC 7,

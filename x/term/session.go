@@ -454,6 +454,7 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 	fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
 	s.mu.Unlock()
 	go s.readLoop(id, proc)
+	go s.watchCwd(id)
 	deliver(fns)
 	return record, nil
 }
@@ -901,19 +902,24 @@ func (s *Session) feed(id string, chunk []byte) {
 	if s.observeCwd(pane) {
 		changed = true
 	}
-	pane.info.Revision++
-	syncCursor(&pane.info, pane.grid)
-	record := pane.record()
-	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
-	if changed {
-		info := s.info()
-		fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
-	}
+	fns := s.publishLocked(pane, changed)
 	s.mu.Unlock()
 	if changed {
 		s.saveState()
 	}
 	deliver(fns)
+}
+
+func (s *Session) publishLocked(pane *live, sessionToo bool) []func() {
+	pane.info.Revision++
+	syncCursor(&pane.info, pane.grid)
+	record := pane.record()
+	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
+	if sessionToo {
+		info := s.info()
+		fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
+	}
+	return fns
 }
 
 func (s *Session) exited(id string, code int) {

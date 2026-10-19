@@ -9,11 +9,13 @@
 // does not restart the server. SessionInfo.level is the protocol level.
 // A frame with the wrong version is rejected. A different level still
 // attaches, and the desk warns. Level 2 stores directories. Level 3
-// follows each pane's working directory and keeps facts that pane stores
-// for its session.
+// keeps the facts a pane stores for its session. Level 4 reads each
+// pane's working directory from the process on a timer.
 //
-// On Linux the directory is read from /proc when the process writes. A
-// program can also report it, and can store or drop a fact, with OSC.
+// The directory is read from the process about five times a second, on
+// Linux from /proc and on Darwin from the process table. The shell does
+// not have to print it. A program can also report it, and can store or
+// drop a fact, with OSC.
 // OSC 7 is file://host/path or an absolute path. OSC 1337 carries
 // CurrentDir=. The lewkit sequences are ESC ] 777 ; cwd ; PATH,
 // ESC ] 777 ; set ; KEY ; VALUE, and ESC ] 777 ; del ; KEY, ended by

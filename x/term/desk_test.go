@@ -770,18 +770,18 @@ func TestServerLevelWarns(t *testing.T) {
 	assert.Equal(t, []string{"local"}, model.made)
 	assert.Equal(t, "stay", model.facts["local"]["task"])
 	plain, _ := renderPlain(model)
-	assert.Contains(t, plain, "server protocol 1, client protocol 3")
+	assert.Contains(t, plain, fmt.Sprintf("server protocol 1, client protocol %d", ProtocolLevel))
 	assert.Contains(t, plain, "restart the server")
 
 	model.drawer = true
 	plain, _ = renderPlain(model)
-	assert.Contains(t, plain, "server protocol 1, client protocol 3")
+	assert.Contains(t, plain, fmt.Sprintf("server protocol 1, client protocol %d", ProtocolLevel))
 
 	model.Update(loadedMsg{info: SessionInfo{Level: 2, Dirs: []string{"kept"}}})
 	assert.Equal(t, []string{"kept"}, model.made)
 	assert.Equal(t, "stay", model.facts["local"]["task"])
 	plain, _ = renderPlain(model)
-	assert.Contains(t, plain, "server protocol 2, client protocol 3")
+	assert.Contains(t, plain, fmt.Sprintf("server protocol 2, client protocol %d", ProtocolLevel))
 	assert.Contains(t, plain, "restart the server")
 
 	model.Update(loadedMsg{info: SessionInfo{

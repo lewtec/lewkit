@@ -9,10 +9,12 @@ const ProtocolVersion = 1
 
 // ProtocolLevel is the behavior this process speaks.
 // SessionInfo.level carries it. Level 1 had no stored directories.
-// Level 2 keeps directories on the server. Level 3 follows each pane's
-// working directory and keeps the facts a pane stores for its session.
+// Level 2 keeps directories on the server. Level 3 reports a working
+// directory when the process writes, and keeps session facts.
+// Level 4 reads that directory from the process on a timer, on Linux
+// and Darwin, including when the process prints nothing.
 // A different level still attaches, and the desk warns.
-const ProtocolLevel = 3
+const ProtocolLevel = 4
 
 // ColorPalette means FG or BG is an ANSI palette index.
 // Zero is the default color. 1 through 8 are normal and 9 through 16 are bright.
