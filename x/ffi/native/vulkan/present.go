@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"runtime"
 	"slices"
 	"sync"
 	"unsafe"
@@ -585,7 +586,6 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 		flags = instanceEnumeratePortability
 	}
 	extPtrs, keep := cStrings(exts)
-	_ = keep
 	info := instanceCreateInfo{
 		sType:                   structureInstanceCreateInfo,
 		flags:                   flags,
@@ -593,7 +593,10 @@ func openPresentInstance(ctx context.Context) (*Device, error) {
 		enabledExtensionCount:   uint32(len(exts)),
 		ppEnabledExtensionNames: extPtrs,
 	}
-	if err := check(d.api.createInstance(&info, 0, &d.inst)); err != nil {
+	err = check(d.api.createInstance(&info, 0, &d.inst))
+	runtime.KeepAlive(keep)
+	runtime.KeepAlive(appName)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrCreateInstance, err)
 	}
 	if err := d.api.loadInstance(d.inst); err != nil {

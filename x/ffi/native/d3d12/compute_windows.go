@@ -236,7 +236,6 @@ func (b *Buffer) copyOut(p []byte) error {
 	src := unsafe.Slice((*byte)(unsafe.Pointer(ptr)), len(p))
 	copy(p, src)
 	empty := cpuRange{}
-	pin = pins{}
 	pin.keep(&empty)
 	syscallV(b.read, slotResUnmap, 0, uintptr(unsafe.Pointer(&empty)))
 	pin.done()
