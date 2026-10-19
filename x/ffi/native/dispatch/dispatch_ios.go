@@ -17,10 +17,11 @@ var (
 	loadOnce sync.Once
 	loadErr  error
 
-	pthreadMainNP        func() int
-	dispatchSyncF        func(queue uintptr, ctx unsafe.Pointer, work uintptr)
-	dispatchAsyncF       func(queue uintptr, ctx unsafe.Pointer, work uintptr)
-	dispatchGetMainQueue func() uintptr
+	pthreadMainNP  func() int
+	dispatchSyncF  func(queue uintptr, ctx unsafe.Pointer, work uintptr)
+	dispatchAsyncF func(queue uintptr, ctx unsafe.Pointer, work uintptr)
+	// dispatch_get_main_queue is an inline function. This is the queue object.
+	mainQueue uintptr
 )
 
 func loadMain() {
@@ -33,7 +34,10 @@ func loadMain() {
 		purego.RegisterLibFunc(&pthreadMainNP, handle, "pthread_main_np")
 		purego.RegisterLibFunc(&dispatchSyncF, handle, "dispatch_sync_f")
 		purego.RegisterLibFunc(&dispatchAsyncF, handle, "dispatch_async_f")
-		purego.RegisterLibFunc(&dispatchGetMainQueue, handle, "dispatch_get_main_queue")
+		mainQueue, err = purego.Dlsym(handle, "_dispatch_main_q")
+		if err != nil {
+			loadErr = err
+		}
 	})
 }
 
@@ -55,7 +59,7 @@ func OnMain(fn func()) {
 		return
 	}
 	loadMain()
-	if loadErr != nil || pthreadMainNP == nil {
+	if loadErr != nil || pthreadMainNP == nil || mainQueue == 0 {
 		fn()
 		return
 	}
@@ -66,7 +70,7 @@ func OnMain(fn func()) {
 	callMu.Lock()
 	defer callMu.Unlock()
 	callFn = fn
-	dispatchSyncF(dispatchGetMainQueue(), nil, mainCallback)
+	dispatchSyncF(mainQueue, nil, mainCallback)
 	callFn = nil
 }
 
@@ -97,7 +101,7 @@ func PostMain(fn func()) {
 		return
 	}
 	loadMain()
-	if loadErr != nil || dispatchAsyncF == nil || dispatchGetMainQueue == nil {
+	if loadErr != nil || dispatchAsyncF == nil || mainQueue == 0 {
 		fn()
 		return
 	}
@@ -107,6 +111,6 @@ func PostMain(fn func()) {
 	postQueued = true
 	postMu.Unlock()
 	if queue {
-		dispatchAsyncF(dispatchGetMainQueue(), nil, postCallback)
+		dispatchAsyncF(mainQueue, nil, postCallback)
 	}
 }
