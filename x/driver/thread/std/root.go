@@ -49,6 +49,10 @@ func (t *backend) Loop(ctx context.Context) {
 	t.bound.Store(true)
 	t.running.Store(true)
 	defer t.running.Store(false)
+	if runtime.GOOS == "ios" {
+		t.loopIOS(ctx)
+		return
+	}
 	t.serveJobs(ctx)
 }
 
@@ -125,6 +129,7 @@ func (t *backend) doBlocking(fn func()) {
 		fn()
 		close(done)
 	}
+	wakeLoop()
 	<-done
 }
 
@@ -134,6 +139,7 @@ func (t *backend) goAsync(fn func()) {
 		return
 	}
 	t.jobs <- fn
+	wakeLoop()
 }
 
 func (t *backend) enqueue(fn func()) {
@@ -143,7 +149,11 @@ func (t *backend) enqueue(fn func()) {
 	}
 	select {
 	case t.jobs <- fn:
+		wakeLoop()
 	default:
-		go func() { t.jobs <- fn }()
+		go func() {
+			t.jobs <- fn
+			wakeLoop()
+		}()
 	}
 }

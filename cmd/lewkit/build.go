@@ -33,7 +33,7 @@ type buildFlags struct {
 	out       cmd.StringArg               `long:"out" help:"output path or directory" default:"dist"`
 	file      cmd.StringArg               `long:"archive" help:"archive file name" default:""`
 	work      cmd.StringArg               `long:"workdir" help:"generated host directory" default:""`
-	sdk       cmd.StringArg               `long:"sdk" help:"iphonesimulator or iphoneos" default:"iphonesimulator"`
+	sdk       cmd.StringArg               `long:"sdk" help:"iphonesimulator or iphoneos. Omitted means the simulator." default:"iphonesimulator"`
 	goOnly    cmd.Flag                    `long:"go-only" help:"stop after the Go binary"`
 	app       cmd.Flag                    `long:"app" help:"package a host app instead of a binary archive"`
 	kernel    cmd.StringArg               `long:"kernel" help:"vmlinuz for --goos linux_uki or linux_iso; empty downloads Alpine linux-virt for GOARCH" default:""`

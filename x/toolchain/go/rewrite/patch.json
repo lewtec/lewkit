@@ -337,6 +337,16 @@
       "new": "func (r *reader) method(isLazy bool) (int, *types2.Func) {\n\tr.Sync(pkgbits.SyncMethod)\n\tidx := -1\n\tif r.Version().Has(pkgbits.PreserveMethodOrder) {\n\t\tidx = r.Len()\n\t}\n\tpos := r.pos()\n\tpkg, name := r.selector()\n\n\trtparams := r.typeParamNames(isLazy, false)\n\tsig := r.signature(r.param(), rtparams, nil)\n\n\t_ = r.pos() // TODO(mdempsky): Remove; this is a hacker for linker.go.\n\treturn idx, types2.NewFunc(pos, pkg, name, sig)\n}\n"
     }
   ],
+  "std/platform/supported.go": [
+    {
+      "old": "\tcase \"android\":\n\t\tif goarch != \"arm64\" {\n\t\t\treturn true\n\t\t}\n\tcase \"ios\":\n\t\tif goarch == \"arm64\" {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n",
+      "new": "\tcase \"android\":\n\t\tif goarch != \"arm64\" {\n\t\t\treturn true\n\t\t}\n\t}\n\t// ios is internal. Host cmd/go still rejects ios/arm64 without cgo.\n\treturn false\n"
+    },
+    {
+      "old": "\tcase \"android/arm64\",\n\t\t\"darwin/amd64\", \"darwin/arm64\",\n\t\t\"linux/amd64\", \"linux/arm64\", \"linux/loong64\", \"linux/ppc64\", \"linux/ppc64le\", \"linux/s390x\",",
+      "new": "\tcase \"android/arm64\",\n\t\t\"darwin/amd64\", \"darwin/arm64\",\n\t\t\"ios/amd64\", \"ios/arm64\",\n\t\t\"linux/amd64\", \"linux/arm64\", \"linux/loong64\", \"linux/ppc64\", \"linux/ppc64le\", \"linux/s390x\","
+    }
+  ],
   "std/platform/zosarch.go": [
     {
       "old": "\t{\"solaris\", \"amd64\"},\n\t{\"wasip1\", \"wasm\"},",
@@ -345,6 +355,12 @@
     {
       "old": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"wasip1\", \"wasm\"}:",
       "new": "\t{\"solaris\", \"amd64\"}:   {CgoSupported: true},\n\t{\"tamago\", \"amd64\"}:    {},\n\t{\"wasip1\", \"wasm\"}:"
+    }
+  ],
+  "link/ld/lib.go": [
+    {
+      "old": "\t\tcase BuildModeExe, BuildModePIE:\n\t\t\t*flagEntrySymbol = fmt.Sprintf(\"_rt0_%s_%s\", buildcfg.GOARCH, buildcfg.GOOS)\n",
+      "new": "\t\tcase BuildModeExe, BuildModePIE:\n\t\t\t*flagEntrySymbol = fmt.Sprintf(\"_rt0_%s_%s\", buildcfg.GOARCH, buildcfg.GOOS)\n\t\t\t// _rt0_*_ios is UNDEF. Upstream refuses an internal ios link.\n\t\t\t// The ios runtime still contains the darwin entry, and LC_MAIN\n\t\t\t// passes argc and argv in registers the same way.\n\t\t\tif buildcfg.GOOS == \"ios\" {\n\t\t\t\t*flagEntrySymbol = fmt.Sprintf(\"_rt0_%s_darwin\", buildcfg.GOARCH)\n\t\t\t}\n"
     }
   ]
 }

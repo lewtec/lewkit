@@ -1,5 +1,524 @@
 {
   "files": {
+    "third_party/purego/.github/ISSUE_TEMPLATE/00-bug.yml": {
+      "source_info": "mount:third_party/purego/.github/ISSUE_TEMPLATE/00-bug.yml"
+    },
+    "third_party/purego/.github/ISSUE_TEMPLATE/01-feature.yml": {
+      "source_info": "mount:third_party/purego/.github/ISSUE_TEMPLATE/01-feature.yml"
+    },
+    "third_party/purego/.github/ISSUE_TEMPLATE/config.yml": {
+      "source_info": "mount:third_party/purego/.github/ISSUE_TEMPLATE/config.yml"
+    },
+    "third_party/purego/.github/PULL_REQUEST_TEMPLATE.md": {
+      "source_info": "mount:third_party/purego/.github/PULL_REQUEST_TEMPLATE.md"
+    },
+    "third_party/purego/.github/scripts/bsd_tests.sh": {
+      "source_info": "mount:third_party/purego/.github/scripts/bsd_tests.sh"
+    },
+    "third_party/purego/.github/workflows/test.yml": {
+      "source_info": "mount:third_party/purego/.github/workflows/test.yml"
+    },
+    "third_party/purego/.gitignore": {
+      "source_info": "mount:third_party/purego/.gitignore"
+    },
+    "third_party/purego/LICENSE": {
+      "source_info": "mount:third_party/purego/LICENSE"
+    },
+    "third_party/purego/README.md": {
+      "source_info": "mount:third_party/purego/README.md"
+    },
+    "third_party/purego/_cgo_ios/is_ios.go": {
+      "source_info": "mount:third_party/purego/_cgo_ios/is_ios.go"
+    },
+    "third_party/purego/abi_amd64.h": {
+      "source_info": "mount:third_party/purego/abi_amd64.h"
+    },
+    "third_party/purego/abi_arm64.h": {
+      "source_info": "mount:third_party/purego/abi_arm64.h"
+    },
+    "third_party/purego/abi_loong64.h": {
+      "source_info": "mount:third_party/purego/abi_loong64.h"
+    },
+    "third_party/purego/callback_test.go": {
+      "source_info": "mount:third_party/purego/callback_test.go"
+    },
+    "third_party/purego/cdecl.go": {
+      "source_info": "mount:third_party/purego/cdecl.go"
+    },
+    "third_party/purego/cgo.go": {
+      "source_info": "mount:third_party/purego/cgo.go"
+    },
+    "third_party/purego/cstrings/nsstrings_darwin.go": {
+      "source_info": "mount:third_party/purego/cstrings/nsstrings_darwin.go"
+    },
+    "third_party/purego/cstrings/nsstrings_darwin_test.go": {
+      "source_info": "mount:third_party/purego/cstrings/nsstrings_darwin_test.go"
+    },
+    "third_party/purego/dlerror.go": {
+      "source_info": "mount:third_party/purego/dlerror.go"
+    },
+    "third_party/purego/dlfcn.go": {
+      "source_info": "mount:third_party/purego/dlfcn.go"
+    },
+    "third_party/purego/dlfcn_android.go": {
+      "source_info": "mount:third_party/purego/dlfcn_android.go"
+    },
+    "third_party/purego/dlfcn_darwin.go": {
+      "source_info": "mount:third_party/purego/dlfcn_darwin.go"
+    },
+    "third_party/purego/dlfcn_freebsd.go": {
+      "source_info": "mount:third_party/purego/dlfcn_freebsd.go"
+    },
+    "third_party/purego/dlfcn_linux.go": {
+      "source_info": "mount:third_party/purego/dlfcn_linux.go"
+    },
+    "third_party/purego/dlfcn_netbsd.go": {
+      "source_info": "mount:third_party/purego/dlfcn_netbsd.go"
+    },
+    "third_party/purego/dlfcn_nocgo_freebsd.go": {
+      "source_info": "mount:third_party/purego/dlfcn_nocgo_freebsd.go"
+    },
+    "third_party/purego/dlfcn_nocgo_linux.go": {
+      "source_info": "mount:third_party/purego/dlfcn_nocgo_linux.go"
+    },
+    "third_party/purego/dlfcn_nocgo_netbsd.go": {
+      "source_info": "mount:third_party/purego/dlfcn_nocgo_netbsd.go"
+    },
+    "third_party/purego/dlfcn_playground.go": {
+      "source_info": "mount:third_party/purego/dlfcn_playground.go"
+    },
+    "third_party/purego/dlfcn_stubs.s": {
+      "source_info": "mount:third_party/purego/dlfcn_stubs.s"
+    },
+    "third_party/purego/dlfcn_test.go": {
+      "source_info": "mount:third_party/purego/dlfcn_test.go"
+    },
+    "third_party/purego/examples/libc/main.go": {
+      "source_info": "mount:third_party/purego/examples/libc/main.go"
+    },
+    "third_party/purego/examples/libc/main_unix.go": {
+      "source_info": "mount:third_party/purego/examples/libc/main_unix.go"
+    },
+    "third_party/purego/examples/libc/main_windows.go": {
+      "source_info": "mount:third_party/purego/examples/libc/main_windows.go"
+    },
+    "third_party/purego/examples/objc/main_darwin.go": {
+      "source_info": "mount:third_party/purego/examples/objc/main_darwin.go"
+    },
+    "third_party/purego/examples/protocol-dumper/main_darwin.go": {
+      "source_info": "mount:third_party/purego/examples/protocol-dumper/main_darwin.go"
+    },
+    "third_party/purego/examples/window/main_darwin.go": {
+      "source_info": "mount:third_party/purego/examples/window/main_darwin.go"
+    },
+    "third_party/purego/examples/window/main_windows.go": {
+      "source_info": "mount:third_party/purego/examples/window/main_windows.go"
+    },
+    "third_party/purego/export_test.go": {
+      "source_info": "mount:third_party/purego/export_test.go"
+    },
+    "third_party/purego/func.go": {
+      "source_info": "mount:third_party/purego/func.go"
+    },
+    "third_party/purego/func_test.go": {
+      "source_info": "mount:third_party/purego/func_test.go"
+    },
+    "third_party/purego/gen.go": {
+      "source_info": "mount:third_party/purego/gen.go"
+    },
+    "third_party/purego/go.mod": {
+      "source_info": "mount:third_party/purego/go.mod"
+    },
+    "third_party/purego/go.sum": {
+      "source_info": "mount:third_party/purego/go.sum"
+    },
+    "third_party/purego/go_runtime.go": {
+      "source_info": "mount:third_party/purego/go_runtime.go"
+    },
+    "third_party/purego/internal/buildtest/main.go": {
+      "source_info": "mount:third_party/purego/internal/buildtest/main.go"
+    },
+    "third_party/purego/internal/cgo/dlfcn_cgo_unix.go": {
+      "source_info": "mount:third_party/purego/internal/cgo/dlfcn_cgo_unix.go"
+    },
+    "third_party/purego/internal/cgo/empty.go": {
+      "source_info": "mount:third_party/purego/internal/cgo/empty.go"
+    },
+    "third_party/purego/internal/cgo/syscall_cgo_unix.go": {
+      "source_info": "mount:third_party/purego/internal/cgo/syscall_cgo_unix.go"
+    },
+    "third_party/purego/internal/fakecgo/abi_amd64.h": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/abi_amd64.h"
+    },
+    "third_party/purego/internal/fakecgo/abi_arm64.h": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/abi_arm64.h"
+    },
+    "third_party/purego/internal/fakecgo/abi_loong64.h": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/abi_loong64.h"
+    },
+    "third_party/purego/internal/fakecgo/abi_ppc64x.h": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/abi_ppc64x.h"
+    },
+    "third_party/purego/internal/fakecgo/abi_riscv64.h": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/abi_riscv64.h"
+    },
+    "third_party/purego/internal/fakecgo/asm_386.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_386.s"
+    },
+    "third_party/purego/internal/fakecgo/asm_amd64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_amd64.s"
+    },
+    "third_party/purego/internal/fakecgo/asm_arm.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_arm.s"
+    },
+    "third_party/purego/internal/fakecgo/asm_arm64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_arm64.s"
+    },
+    "third_party/purego/internal/fakecgo/asm_loong64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_loong64.s"
+    },
+    "third_party/purego/internal/fakecgo/asm_ppc64le.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_ppc64le.s"
+    },
+    "third_party/purego/internal/fakecgo/asm_riscv64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_riscv64.s"
+    },
+    "third_party/purego/internal/fakecgo/asm_s390x.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/asm_s390x.s"
+    },
+    "third_party/purego/internal/fakecgo/callbacks.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/callbacks.go"
+    },
+    "third_party/purego/internal/fakecgo/doc.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/doc.go"
+    },
+    "third_party/purego/internal/fakecgo/fakecgo.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/fakecgo.go"
+    },
+    "third_party/purego/internal/fakecgo/freebsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/freebsd.go"
+    },
+    "third_party/purego/internal/fakecgo/gen.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/gen.go"
+    },
+    "third_party/purego/internal/fakecgo/go_darwin.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/go_darwin.go"
+    },
+    "third_party/purego/internal/fakecgo/go_freebsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/go_freebsd.go"
+    },
+    "third_party/purego/internal/fakecgo/go_libinit.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/go_libinit.go"
+    },
+    "third_party/purego/internal/fakecgo/go_linux.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/go_linux.go"
+    },
+    "third_party/purego/internal/fakecgo/go_netbsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/go_netbsd.go"
+    },
+    "third_party/purego/internal/fakecgo/go_setenv.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/go_setenv.go"
+    },
+    "third_party/purego/internal/fakecgo/go_util.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/go_util.go"
+    },
+    "third_party/purego/internal/fakecgo/iscgo.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/iscgo.go"
+    },
+    "third_party/purego/internal/fakecgo/libcgo.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/libcgo.go"
+    },
+    "third_party/purego/internal/fakecgo/libcgo_darwin.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/libcgo_darwin.go"
+    },
+    "third_party/purego/internal/fakecgo/libcgo_freebsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/libcgo_freebsd.go"
+    },
+    "third_party/purego/internal/fakecgo/libcgo_linux.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/libcgo_linux.go"
+    },
+    "third_party/purego/internal/fakecgo/libcgo_netbsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/libcgo_netbsd.go"
+    },
+    "third_party/purego/internal/fakecgo/linux.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/linux.go"
+    },
+    "third_party/purego/internal/fakecgo/netbsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/netbsd.go"
+    },
+    "third_party/purego/internal/fakecgo/setenv.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/setenv.go"
+    },
+    "third_party/purego/internal/fakecgo/threadentry_amd64.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/threadentry_amd64.go"
+    },
+    "third_party/purego/internal/fakecgo/threadentry_noasm.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/threadentry_noasm.go"
+    },
+    "third_party/purego/internal/fakecgo/threadentry_test.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/threadentry_test.go"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_386.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_386.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_amd64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_amd64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_arm.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_arm.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_arm64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_arm64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_386.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_386.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_amd64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_amd64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_arm.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_arm.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_arm64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_arm64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_loong64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_loong64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_ppc64le.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_ppc64le.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_riscv64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_riscv64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_linux_s390x.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_linux_s390x.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_loong64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_loong64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_ppc64le.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_ppc64le.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_riscv64.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_riscv64.s"
+    },
+    "third_party/purego/internal/fakecgo/trampolines_s390x.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/trampolines_s390x.s"
+    },
+    "third_party/purego/internal/fakecgo/zsymbols.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/zsymbols.go"
+    },
+    "third_party/purego/internal/fakecgo/zsymbols_darwin.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/zsymbols_darwin.go"
+    },
+    "third_party/purego/internal/fakecgo/zsymbols_freebsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/zsymbols_freebsd.go"
+    },
+    "third_party/purego/internal/fakecgo/zsymbols_linux.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/zsymbols_linux.go"
+    },
+    "third_party/purego/internal/fakecgo/zsymbols_netbsd.go": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/zsymbols_netbsd.go"
+    },
+    "third_party/purego/internal/fakecgo/ztrampolines_darwin.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/ztrampolines_darwin.s"
+    },
+    "third_party/purego/internal/fakecgo/ztrampolines_freebsd.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/ztrampolines_freebsd.s"
+    },
+    "third_party/purego/internal/fakecgo/ztrampolines_linux.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/ztrampolines_linux.s"
+    },
+    "third_party/purego/internal/fakecgo/ztrampolines_netbsd.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/ztrampolines_netbsd.s"
+    },
+    "third_party/purego/internal/fakecgo/ztrampolines_stubs.s": {
+      "source_info": "mount:third_party/purego/internal/fakecgo/ztrampolines_stubs.s"
+    },
+    "third_party/purego/internal/load/load_unix.go": {
+      "source_info": "mount:third_party/purego/internal/load/load_unix.go"
+    },
+    "third_party/purego/internal/load/load_windows.go": {
+      "source_info": "mount:third_party/purego/internal/load/load_windows.go"
+    },
+    "third_party/purego/internal/strings/strings.go": {
+      "source_info": "mount:third_party/purego/internal/strings/strings.go"
+    },
+    "third_party/purego/nocgo.go": {
+      "source_info": "mount:third_party/purego/nocgo.go"
+    },
+    "third_party/purego/objc/encoding_darwin_test.go": {
+      "source_info": "mount:third_party/purego/objc/encoding_darwin_test.go"
+    },
+    "third_party/purego/objc/objc_block_darwin.go": {
+      "source_info": "mount:third_party/purego/objc/objc_block_darwin.go"
+    },
+    "third_party/purego/objc/objc_block_darwin_test.go": {
+      "source_info": "mount:third_party/purego/objc/objc_block_darwin_test.go"
+    },
+    "third_party/purego/objc/objc_runtime_darwin.go": {
+      "source_info": "mount:third_party/purego/objc/objc_runtime_darwin.go"
+    },
+    "third_party/purego/objc/objc_runtime_darwin_test.go": {
+      "source_info": "mount:third_party/purego/objc/objc_runtime_darwin_test.go"
+    },
+    "third_party/purego/struct_amd64.go": {
+      "source_info": "mount:third_party/purego/struct_amd64.go"
+    },
+    "third_party/purego/struct_arm.go": {
+      "source_info": "mount:third_party/purego/struct_arm.go"
+    },
+    "third_party/purego/struct_arm64.go": {
+      "source_info": "mount:third_party/purego/struct_arm64.go"
+    },
+    "third_party/purego/struct_loong64.go": {
+      "source_info": "mount:third_party/purego/struct_loong64.go"
+    },
+    "third_party/purego/struct_other.go": {
+      "source_info": "mount:third_party/purego/struct_other.go"
+    },
+    "third_party/purego/struct_ppc64le.go": {
+      "source_info": "mount:third_party/purego/struct_ppc64le.go"
+    },
+    "third_party/purego/struct_riscv64.go": {
+      "source_info": "mount:third_party/purego/struct_riscv64.go"
+    },
+    "third_party/purego/struct_s390x.go": {
+      "source_info": "mount:third_party/purego/struct_s390x.go"
+    },
+    "third_party/purego/struct_test.go": {
+      "source_info": "mount:third_party/purego/struct_test.go"
+    },
+    "third_party/purego/sys_386.s": {
+      "source_info": "mount:third_party/purego/sys_386.s"
+    },
+    "third_party/purego/sys_amd64.s": {
+      "source_info": "mount:third_party/purego/sys_amd64.s"
+    },
+    "third_party/purego/sys_arm.s": {
+      "source_info": "mount:third_party/purego/sys_arm.s"
+    },
+    "third_party/purego/sys_arm64.s": {
+      "source_info": "mount:third_party/purego/sys_arm64.s"
+    },
+    "third_party/purego/sys_loong64.s": {
+      "source_info": "mount:third_party/purego/sys_loong64.s"
+    },
+    "third_party/purego/sys_ppc64le.s": {
+      "source_info": "mount:third_party/purego/sys_ppc64le.s"
+    },
+    "third_party/purego/sys_riscv64.s": {
+      "source_info": "mount:third_party/purego/sys_riscv64.s"
+    },
+    "third_party/purego/sys_s390x.s": {
+      "source_info": "mount:third_party/purego/sys_s390x.s"
+    },
+    "third_party/purego/sys_unix_386.s": {
+      "source_info": "mount:third_party/purego/sys_unix_386.s"
+    },
+    "third_party/purego/sys_unix_arm.s": {
+      "source_info": "mount:third_party/purego/sys_unix_arm.s"
+    },
+    "third_party/purego/sys_unix_arm64.s": {
+      "source_info": "mount:third_party/purego/sys_unix_arm64.s"
+    },
+    "third_party/purego/sys_unix_loong64.s": {
+      "source_info": "mount:third_party/purego/sys_unix_loong64.s"
+    },
+    "third_party/purego/sys_unix_ppc64le.s": {
+      "source_info": "mount:third_party/purego/sys_unix_ppc64le.s"
+    },
+    "third_party/purego/sys_unix_riscv64.s": {
+      "source_info": "mount:third_party/purego/sys_unix_riscv64.s"
+    },
+    "third_party/purego/sys_unix_s390x.s": {
+      "source_info": "mount:third_party/purego/sys_unix_s390x.s"
+    },
+    "third_party/purego/syscall.go": {
+      "source_info": "mount:third_party/purego/syscall.go"
+    },
+    "third_party/purego/syscall_32bit.go": {
+      "source_info": "mount:third_party/purego/syscall_32bit.go"
+    },
+    "third_party/purego/syscall_bench_test.go": {
+      "source_info": "mount:third_party/purego/syscall_bench_test.go"
+    },
+    "third_party/purego/syscall_cgo_linux.go": {
+      "source_info": "mount:third_party/purego/syscall_cgo_linux.go"
+    },
+    "third_party/purego/syscall_linux_test.go": {
+      "source_info": "mount:third_party/purego/syscall_linux_test.go"
+    },
+    "third_party/purego/syscall_notstackargs.go": {
+      "source_info": "mount:third_party/purego/syscall_notstackargs.go"
+    },
+    "third_party/purego/syscall_ppc64le.go": {
+      "source_info": "mount:third_party/purego/syscall_ppc64le.go"
+    },
+    "third_party/purego/syscall_stackargs_ppc64le.go": {
+      "source_info": "mount:third_party/purego/syscall_stackargs_ppc64le.go"
+    },
+    "third_party/purego/syscall_stackargs_s390x.go": {
+      "source_info": "mount:third_party/purego/syscall_stackargs_s390x.go"
+    },
+    "third_party/purego/syscall_test.go": {
+      "source_info": "mount:third_party/purego/syscall_test.go"
+    },
+    "third_party/purego/syscall_unix.go": {
+      "source_info": "mount:third_party/purego/syscall_unix.go"
+    },
+    "third_party/purego/syscall_windows.go": {
+      "source_info": "mount:third_party/purego/syscall_windows.go"
+    },
+    "third_party/purego/testdata/abitest/abi_test.c": {
+      "source_info": "mount:third_party/purego/testdata/abitest/abi_test.c"
+    },
+    "third_party/purego/testdata/benchmarktest/benchmark.c": {
+      "source_info": "mount:third_party/purego/testdata/benchmarktest/benchmark.c"
+    },
+    "third_party/purego/testdata/libcbtest/callback_packing_test.c": {
+      "source_info": "mount:third_party/purego/testdata/libcbtest/callback_packing_test.c"
+    },
+    "third_party/purego/testdata/libcbtest/callback_test.c": {
+      "source_info": "mount:third_party/purego/testdata/libcbtest/callback_test.c"
+    },
+    "third_party/purego/testdata/libdlnested/nested_test.cpp": {
+      "source_info": "mount:third_party/purego/testdata/libdlnested/nested_test.cpp"
+    },
+    "third_party/purego/testdata/structtest/struct_test.c": {
+      "source_info": "mount:third_party/purego/testdata/structtest/struct_test.c"
+    },
+    "third_party/purego/testdata/structtest/structreturn_test.c": {
+      "source_info": "mount:third_party/purego/testdata/structtest/structreturn_test.c"
+    },
+    "third_party/purego/wincallback.go": {
+      "source_info": "mount:third_party/purego/wincallback.go"
+    },
+    "third_party/purego/zcallback_386.s": {
+      "source_info": "mount:third_party/purego/zcallback_386.s"
+    },
+    "third_party/purego/zcallback_amd64.s": {
+      "source_info": "mount:third_party/purego/zcallback_amd64.s"
+    },
+    "third_party/purego/zcallback_arm.s": {
+      "source_info": "mount:third_party/purego/zcallback_arm.s"
+    },
+    "third_party/purego/zcallback_arm64.s": {
+      "source_info": "mount:third_party/purego/zcallback_arm64.s"
+    },
+    "third_party/purego/zcallback_loong64.s": {
+      "source_info": "mount:third_party/purego/zcallback_loong64.s"
+    },
+    "third_party/purego/zcallback_ppc64le.s": {
+      "source_info": "mount:third_party/purego/zcallback_ppc64le.s"
+    },
+    "third_party/purego/zcallback_riscv64.s": {
+      "source_info": "mount:third_party/purego/zcallback_riscv64.s"
+    },
+    "third_party/purego/zcallback_s390x.s": {
+      "source_info": "mount:third_party/purego/zcallback_s390x.s"
+    },
     "x/ffi/wasm/capstone/internal/wasm/libcapstone.wasm": {
       "source_info": "mount:x/ffi/wasm/capstone/internal/wasm/libcapstone.wasm"
     },

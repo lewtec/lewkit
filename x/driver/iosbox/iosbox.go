@@ -1,15 +1,17 @@
-// Package iosbox asks the packaged iOS host to perform one system call.
+// Package iosbox performs one iOS system call.
 //
-// The host watches ELETROCROMO_IOS_DIR, or <cache>/ios when GOOS is ios.
+// The app process presents UIKit. A Swift host still watches
+// ELETROCROMO_IOS_DIR, or <cache>/ios, when ELETROCROMO_NO_UI is set:
 // Go writes request.json and waits for reply.txt. The reply is an askwire
-// message. battery.json and daynight.txt are files the host refreshes.
-// They are not requests. WithDir selects a directory for one context.
+// message. battery.json and daynight.txt are files that host refreshes.
+// WithDir selects a directory for one context.
 //
-// Ops are clipboard, notify, open, and pick. The host presents the UI.
+// Ops are clipboard, notify, open, and pick.
 package iosbox
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +25,7 @@ import (
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
+	"github.com/lewtec/lewkit/x/driver/internal/uikitapp"
 )
 
 // Op is one host call.
@@ -104,15 +107,15 @@ func dirFrom(ctx context.Context) string {
 // Available reports whether a host directory is set.
 func Available() bool { return Dir() != "" }
 
-// Require reports ErrIncompatible when this process is not ios or no host directory is set.
+// Require reports ErrIncompatible unless this process is the iOS app or a host directory is set.
 func Require() error {
 	if err := driver.ForGOOS(build.GOOSIOS); err != nil {
 		return err
 	}
-	if !Available() {
-		return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
+	if uikitapp.OwnsUI() || Available() {
+		return nil
 	}
-	return nil
+	return fmt.Errorf("%w: no ios host", driver.ErrIncompatible)
 }
 
 var fileMu sync.Mutex
@@ -121,6 +124,9 @@ var fileMu sync.Mutex
 func Call(ctx context.Context, req Request) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
+	}
+	if uikitapp.OwnsUI() && dirFrom(ctx) == "" {
+		return callLive(ctx, req)
 	}
 	dir := dirFrom(ctx)
 	if dir == "" {
@@ -171,6 +177,39 @@ func Call(ctx context.Context, req Request) (string, error) {
 	}
 }
 
+func callLive(ctx context.Context, req Request) (string, error) {
+	switch req.Op {
+	case OpClipboard:
+		if req.PNG != "" {
+			raw, err := base64.StdEncoding.DecodeString(req.PNG)
+			if err != nil {
+				return "", fmt.Errorf("%w: bad image", driver.ErrUnavailable)
+			}
+			return uikitapp.PasteImage(ctx, raw)
+		}
+		text := ""
+		if req.Text != nil {
+			text = *req.Text
+		}
+		return uikitapp.PasteText(ctx, text)
+	case OpNotify:
+		return uikitapp.Notify(ctx, req.Title, req.Message, req.Urgency, req.ID)
+	case OpOpen:
+		return uikitapp.Open(ctx, req.Target)
+	case OpPick:
+		return uikitapp.Pick(ctx, uikitapp.PickRequest{
+			Save:      req.Save,
+			Folder:    req.Folder,
+			Multiple:  req.Multiple,
+			Name:      req.Name,
+			Directory: req.Directory,
+			Exts:      req.Exts,
+		})
+	default:
+		return "", fmt.Errorf("%w: bad request", driver.ErrUnavailable)
+	}
+}
+
 // Result splits a host reply.
 // OK and canceled are not errors. Any other status is unavailable.
 func Result(raw string) (status askwire.Status, payload string, err error) {
@@ -191,8 +230,21 @@ func Result(raw string) (status askwire.Status, payload string, err error) {
 	}
 }
 
-// ReadBattery reads the host battery file.
+// ReadBattery reads UIDevice, or the host battery file when a directory is set.
 func ReadBattery(ctx context.Context) (Battery, error) {
+	if err := ctx.Err(); err != nil {
+		return Battery{}, err
+	}
+	if dirFrom(ctx) == "" {
+		if !uikitapp.OwnsUI() {
+			return Battery{}, fmt.Errorf("%w: no ios host", driver.ErrUnavailable)
+		}
+		status, level, err := uikitapp.Battery(ctx)
+		if err != nil {
+			return Battery{}, err
+		}
+		return Battery{Status: status, Level: level}, nil
+	}
 	raw, err := readNamed(ctx, "battery.json")
 	if err != nil {
 		return Battery{}, err
@@ -204,8 +256,17 @@ func ReadBattery(ctx context.Context) (Battery, error) {
 	return got, nil
 }
 
-// ReadMode reads "light" or "dark" from the host appearance file.
+// ReadMode reads the interface style, or the host appearance file when a directory is set.
 func ReadMode(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if dirFrom(ctx) == "" {
+		if !uikitapp.OwnsUI() {
+			return "", fmt.Errorf("%w: no ios host", driver.ErrUnavailable)
+		}
+		return uikitapp.Appearance(ctx)
+	}
 	raw, err := readNamed(ctx, "daynight.txt")
 	if err != nil {
 		return "", err

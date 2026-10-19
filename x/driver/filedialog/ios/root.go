@@ -1,4 +1,5 @@
-// Package ios shows the iOS document picker through the packaged host.
+// Package ios shows the iOS document picker.
+// The app process presents UIDocumentPickerViewController. A host directory still exchanges request.json.
 // Choose copies a selection into the cache inbox and returns that path.
 // Save returns a new file in the inbox after the export sheet.
 package ios

@@ -5,6 +5,7 @@ package cocoa
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/ebitengine/purego/objc"
@@ -34,6 +35,9 @@ var (
 )
 
 func available(context.Context) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("%w: not darwin", driver.ErrIncompatible)
+	}
 	if err := frameworks(); err != nil {
 		return driver.WrapIncompatible(err)
 	}

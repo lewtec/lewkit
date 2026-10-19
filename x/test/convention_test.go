@@ -23,8 +23,8 @@ import (
 // Android host entry,
 // sentinels that repeat a meta condition without wrapping it, an enum
 // go:generate directive outside enum.go, and a raw OS name passed to
-// ForGOOS or IncompatibleOff. The vendored compiler trees are
-// not this module's code.
+// ForGOOS or IncompatibleOff. The vendored compiler trees and the
+// purego pin are not this module's code.
 func TestConventions(t *testing.T) {
 	root := moduleRoot(t)
 	index := newSigIndex(modulePath(root))
@@ -36,12 +36,12 @@ func TestConventions(t *testing.T) {
 		}
 		name := entry.Name()
 		if entry.IsDir() {
-			if skipConventionDir(name) || skippedCompilerTree(root, path) {
+			if skipConventionDir(name) || skippedCompilerTree(root, path) || skippedPuregoPin(root, path) {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !strings.HasSuffix(name, ".go") || skippedCompilerTree(root, path) {
+		if !strings.HasSuffix(name, ".go") || skippedCompilerTree(root, path) || skippedPuregoPin(root, path) {
 			return nil
 		}
 		src, err := os.ReadFile(path)
@@ -403,6 +403,17 @@ func skippedCompilerTree(root, path string) bool {
 	rel = filepath.ToSlash(rel)
 	return rel == "x/toolchain/go/_upstream" || strings.HasPrefix(rel, "x/toolchain/go/_upstream/") ||
 		rel == "x/toolchain/go/src" || strings.HasPrefix(rel, "x/toolchain/go/src/")
+}
+
+// skippedPuregoPin is the modot place of github.com/ebitengine/purego.
+// Upstream style is not this module's conventions.
+func skippedPuregoPin(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	return rel == "third_party/purego" || strings.HasPrefix(rel, "third_party/purego/")
 }
 
 func checkSource(name string, src []byte) []string {

@@ -14,6 +14,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/driver"
 	"github.com/lewtec/lewkit/x/driver/askwire"
+	"github.com/lewtec/lewkit/x/driver/internal/uikitapp"
 	"github.com/lewtec/lewkit/x/test"
 )
 
@@ -81,7 +82,7 @@ func TestStateFiles(t *testing.T) {
 }
 
 func TestRequire(t *testing.T) {
-	if runtime.GOOS == "ios" && Dir() != "" {
+	if runtime.GOOS == "ios" && (uikitapp.OwnsUI() || Dir() != "") {
 		require.NoError(t, Require())
 		return
 	}
@@ -89,7 +90,7 @@ func TestRequire(t *testing.T) {
 }
 
 func TestNoHost(t *testing.T) {
-	if Dir() != "" {
+	if runtime.GOOS == "ios" || Dir() != "" {
 		test.Skip(t)
 	}
 	_, err := Call(t.Context(), Request{Op: OpNotify})

@@ -1,4 +1,5 @@
-// Package ios posts a local notification through the packaged iOS host.
+// Package ios posts a local notification.
+// The app process uses UserNotifications. A host directory still exchanges request.json.
 package ios
 
 import (

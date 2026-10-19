@@ -419,6 +419,12 @@ func libinit(ctxt *Link) {
 			*flagEntrySymbol = fmt.Sprintf("_rt0_%s_%s_lib", buildcfg.GOARCH, buildcfg.GOOS)
 		case BuildModeExe, BuildModePIE:
 			*flagEntrySymbol = fmt.Sprintf("_rt0_%s_%s", buildcfg.GOARCH, buildcfg.GOOS)
+			// _rt0_*_ios is UNDEF. Upstream refuses an internal ios link.
+			// The ios runtime still contains the darwin entry, and LC_MAIN
+			// passes argc and argv in registers the same way.
+			if buildcfg.GOOS == "ios" {
+				*flagEntrySymbol = fmt.Sprintf("_rt0_%s_darwin", buildcfg.GOARCH)
+			}
 		case BuildModeShared, BuildModePlugin:
 			// No *flagEntrySymbol for -buildmode=shared and plugin
 		default:

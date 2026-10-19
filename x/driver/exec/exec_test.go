@@ -266,7 +266,7 @@ func TestProductionSpawnsUseTheDriver(t *testing.T) {
 				return err
 			}
 			// Rewritten compiler and linker. The pin's own spawns are not this module's.
-			if rel == vendored {
+			if rel == vendored || rel == filepath.Join("third_party", "purego") {
 				return filepath.SkipDir
 			}
 			return nil

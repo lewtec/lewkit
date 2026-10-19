@@ -1,3 +1,4 @@
 /dist
 /x/ndarray/onnx/testdata/node/**
 !/x/ndarray/onnx/testdata/node/.gitkeep
+/third_party/purego/.modot-source-meta.json
