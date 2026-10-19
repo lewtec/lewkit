@@ -20,6 +20,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCwdReadsThisProcess(t *testing.T) {
+	got, ok := execdriver.Cwd(0)
+	require.False(t, ok)
+	require.Empty(t, got)
+	got, ok = execdriver.Cwd(-1)
+	require.False(t, ok)
+	require.Empty(t, got)
+
+	switch runtime.GOOS {
+	case "linux", "darwin":
+		wd, err := os.Getwd()
+		require.NoError(t, err)
+		got, ok = execdriver.Cwd(os.Getpid())
+		require.True(t, ok)
+		wd, err = filepath.EvalSymlinks(wd)
+		require.NoError(t, err)
+		got, err = filepath.EvalSymlinks(got)
+		require.NoError(t, err)
+		require.Equal(t, wd, got)
+	default:
+		got, ok = execdriver.Cwd(os.Getpid())
+		require.False(t, ok)
+		require.Empty(t, got)
+	}
+}
+
 func TestRequireEnvBinary(t *testing.T) {
 	ctx := driver.WithEnv(t.Context(), []string{"LEWKIT_TEST_BIN="})
 	err := execdriver.RequireEnvBinary(ctx, "LEWKIT_TEST_BIN", "sh")
