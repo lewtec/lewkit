@@ -125,7 +125,6 @@ func (t *backend) doBlocking(fn func()) {
 		fn()
 		close(done)
 	}
-	t.wake()
 	<-done
 }
 
@@ -135,7 +134,6 @@ func (t *backend) goAsync(fn func()) {
 		return
 	}
 	t.jobs <- fn
-	t.wake()
 }
 
 func (t *backend) enqueue(fn func()) {
@@ -145,11 +143,7 @@ func (t *backend) enqueue(fn func()) {
 	}
 	select {
 	case t.jobs <- fn:
-		t.wake()
 	default:
-		go func() {
-			t.jobs <- fn
-			t.wake()
-		}()
+		go func() { t.jobs <- fn }()
 	}
 }
