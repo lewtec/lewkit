@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"slices"
 	"time"
 	"unsafe"
@@ -33,6 +34,14 @@ type Device struct {
 	recorded     Cmd
 	wantExt      []string
 	familyPinned bool
+	// objects are buffers and shaders that must be destroyed before the device.
+	objects []deviceObject
+}
+
+// deviceObject is a child of a logical device. destroy frees the native
+// handles while the device is still open, and a second call does nothing.
+type deviceObject interface {
+	destroy()
 }
 
 // Info is a compute-capable physical device. Index is 0-based among
@@ -101,7 +110,6 @@ func openInstance(ctx context.Context) (*Device, error) {
 		instFlags = instanceEnumeratePortability
 	}
 	extPtrs, keepExt := cStrings(instExt)
-	_ = keepExt
 	info := instanceCreateInfo{
 		sType:                   structureInstanceCreateInfo,
 		flags:                   instFlags,
@@ -109,7 +117,10 @@ func openInstance(ctx context.Context) (*Device, error) {
 		enabledExtensionCount:   uint32(len(instExt)),
 		ppEnabledExtensionNames: extPtrs,
 	}
-	if err := check(d.api.createInstance(&info, 0, &d.inst)); err != nil {
+	err = check(d.api.createInstance(&info, 0, &d.inst))
+	runtime.KeepAlive(keepExt)
+	runtime.KeepAlive(appName)
+	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrCreateInstance, err)
 	}
 	if err := d.api.loadInstance(d.inst); err != nil {
@@ -239,7 +250,6 @@ func (d *Device) try(phys uintptr) bool {
 		devExt = append(devExt, extPortabilitySubset)
 	}
 	devExtPtrs, keepDevExt := cStrings(devExt)
-	_ = keepDevExt
 	dinfo := deviceCreateInfo{
 		sType:                   structureDeviceCreateInfo,
 		queueCreateInfoCount:    1,
@@ -248,7 +258,9 @@ func (d *Device) try(phys uintptr) bool {
 		ppEnabledExtensionNames: devExtPtrs,
 	}
 	var dev uintptr
-	if check(d.api.createDevice(phys, &dinfo, 0, &dev)) != nil {
+	created := d.api.createDevice(phys, &dinfo, 0, &dev)
+	runtime.KeepAlive(keepDevExt)
+	if check(created) != nil {
 		return false
 	}
 	if err := d.api.loadDevice(dev); err != nil {
@@ -324,17 +336,20 @@ func (d *Device) Type() DeviceType {
 	return d.deviceType
 }
 
-// Close destroys the device and instance.
+// Close destroys outstanding buffers and shaders, then the device and instance.
 func (d *Device) Close() error {
 	if d == nil || d.closed {
 		return nil
 	}
-	d.closed = true
+	if d.dev != 0 && d.pending && d.fence != 0 && d.api.waitForFences != nil {
+		_ = d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))
+		d.pending = false
+	}
+	for _, obj := range d.objects {
+		obj.destroy()
+	}
+	d.objects = nil
 	if d.dev != 0 {
-		if d.pending && d.fence != 0 && d.api.waitForFences != nil {
-			_ = d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))
-			d.pending = false
-		}
 		if d.fence != 0 {
 			d.api.destroyFence(d.dev, d.fence, 0)
 			d.fence = 0
@@ -346,11 +361,26 @@ func (d *Device) Close() error {
 		d.api.destroyDevice(d.dev, 0)
 		d.dev = 0
 	}
+	d.closed = true
 	if d.inst != 0 {
 		d.api.destroyInstance(d.inst, 0)
 		d.inst = 0
 	}
 	return nil
+}
+
+func (d *Device) track(obj deviceObject) {
+	if d == nil || obj == nil {
+		return
+	}
+	d.objects = append(d.objects, obj)
+}
+
+func (d *Device) untrack(obj deviceObject) {
+	if d == nil {
+		return
+	}
+	d.objects = slices.DeleteFunc(d.objects, func(got deviceObject) bool { return got == obj })
 }
 
 func (d *Device) live() error {
@@ -491,7 +521,9 @@ func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 			return nil, fmt.Errorf("%w: %w", ErrDeviceAllocMapMemory, err)
 		}
 	}
-	return &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}, nil
+	out := &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}
+	d.track(out)
+	return out, nil
 }
 
 // Len is the requested size in bytes.
@@ -565,7 +597,8 @@ func (b *Buffer) Read(p []byte) error {
 	return nil
 }
 
-// Close unmaps and frees the buffer.
+// Close unmaps and frees the buffer. Device.Close does this for a buffer
+// that is still open, before vkDestroyDevice.
 func (b *Buffer) Close() error {
 	if b == nil || b.buf == 0 {
 		return nil
@@ -576,17 +609,28 @@ func (b *Buffer) Close() error {
 			return err
 		}
 	}
+	if d != nil {
+		d.untrack(b)
+	}
+	b.destroy()
+	return nil
+}
+
+func (b *Buffer) destroy() {
+	if b == nil || b.buf == 0 {
+		return
+	}
+	d := b.d
 	buf, mem, ptr := b.buf, b.mem, b.ptr
 	b.buf, b.mem, b.ptr = 0, 0, nil
 	if d == nil || d.closed || d.dev == 0 {
-		return nil
+		return
 	}
 	if ptr != nil {
 		d.api.unmapMemory(d.dev, mem)
 	}
 	d.api.destroyBuffer(d.dev, buf, 0)
 	d.api.freeMemory(d.dev, mem, 0)
-	return nil
 }
 
 // Shader is a compute pipeline. bindings is the storage-buffer count at set 0.
@@ -736,7 +780,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		return nil, fmt.Errorf("%w: %w", ErrComputePipeline, err)
 	}
 	slog.Debug("vulkan compile ok", "elapsed", time.Since(started), "bindings", bindings)
-	return &Shader{
+	out := &Shader{
 		d:              d,
 		module:         module,
 		setLayout:      setLayout,
@@ -744,10 +788,13 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		pipeline:       pipeline,
 		bindings:       bindings,
 		pushBytes:      cfg.PushBytes,
-	}, nil
+	}
+	d.track(out)
+	return out, nil
 }
 
-// Close destroys the pipeline.
+// Close destroys the pipeline. Device.Close does this for a shader that is
+// still open, before vkDestroyDevice.
 func (s *Shader) Close() error {
 	if s == nil || s.pipeline == 0 {
 		return nil
@@ -758,13 +805,25 @@ func (s *Shader) Close() error {
 			return err
 		}
 	}
+	if d != nil {
+		d.untrack(s)
+	}
+	s.destroy()
+	return nil
+}
+
+func (s *Shader) destroy() {
+	if s == nil || s.pipeline == 0 {
+		return
+	}
+	d := s.d
 	pipeline, layout, set, mod := s.pipeline, s.pipelineLayout, s.setLayout, s.module
 	pool := s.descriptorPool
 	s.pipeline, s.pipelineLayout, s.setLayout, s.module = 0, 0, 0, 0
 	s.descriptorPool, s.descriptorSet = 0, 0
 	s.boundBuffers, s.boundLengths = nil, nil
 	if d == nil || d.closed || d.dev == 0 {
-		return nil
+		return
 	}
 	if pool != 0 {
 		d.api.destroyDescriptorPool(d.dev, pool, 0)
@@ -773,7 +832,6 @@ func (s *Shader) Close() error {
 	d.api.destroyPipelineLayout(d.dev, layout, 0)
 	d.api.destroySetLayout(d.dev, set, 0)
 	d.api.destroyShaderModule(d.dev, mod, 0)
-	return nil
 }
 
 func (d *Device) flush(b *Buffer) error {

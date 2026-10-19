@@ -770,11 +770,17 @@ func (stream *inputStream) Read(payload []byte) (int, error) {
 	if len(payload) == 0 {
 		return 0, nil
 	}
-	var slot uintptr
-	count := stream.symbols.streamRead(stream.stream, uintptr(unsafe.Pointer(&payload[0])), uintptr(len(payload)), 0, uintptr(unsafe.Pointer(&slot)))
-	if slot != 0 {
-		message := native.GoString(errorMessage(slot))
-		stream.symbols.freeError(slot)
+	// The read writes through both addresses. They are uintptr arguments, so
+	// the collector does not treat them as pointers for the call.
+	slot := new(uintptr)
+	var pin runtime.Pinner
+	pin.Pin(&payload[0])
+	pin.Pin(slot)
+	defer pin.Unpin()
+	count := stream.symbols.streamRead(stream.stream, uintptr(unsafe.Pointer(&payload[0])), uintptr(len(payload)), 0, uintptr(unsafe.Pointer(slot)))
+	if *slot != 0 {
+		message := native.GoString(errorMessage(*slot))
+		stream.symbols.freeError(*slot)
 		if message == "" {
 			message = "read"
 		}
@@ -802,17 +808,21 @@ type Header struct {
 
 // FinishResponse completes a scheme request with an HTTP status and headers.
 // body is read as WebKit pulls bytes. FinishResponse closes body.
+// The stream and the response are the caller's references. WebKit refs both.
+// Soup message headers are transfer-full and are not unref'd here.
 func (symbols *Symbols) FinishResponse(request uintptr, status int, contentType string, headers []Header, body io.Reader) {
 	if body == nil {
 		body = http.NoBody
 	}
 	stream, length := symbols.inputStream(body)
 	if symbols.responseNew == nil || symbols.finishWithResponse == nil || symbols.responseStatus == nil || stream == 0 {
+		symbols.unrefObject(stream)
 		symbols.FinishRequest(request, nil, contentType)
 		return
 	}
 	response := symbols.responseNew(stream, length)
 	if response == 0 {
+		symbols.unrefObject(stream)
 		symbols.FinishRequest(request, nil, contentType)
 		return
 	}
@@ -833,9 +843,12 @@ func (symbols *Symbols) FinishResponse(request uintptr, status int, contentType 
 			runtime.KeepAlive(name)
 			runtime.KeepAlive(value)
 		}
+		// set_http_headers takes the headers. Do not unref soupHeaders.
 		symbols.responseHeaders(response, soupHeaders)
 	}
 	symbols.finishWithResponse(request, response)
+	symbols.unrefObject(response)
+	symbols.unrefObject(stream)
 }
 
 func (symbols *Symbols) inputStream(body io.Reader) (uintptr, int64) {
@@ -876,29 +889,63 @@ func httpReason(status int) string {
 	return text
 }
 
-// FinishRequest completes a scheme request with body. WebKit takes stream.
+// FinishRequest completes a scheme request with body.
+// The memory stream borrows the pinned copy and refs it. This unrefs the
+// caller's stream. The pin drops when GDestroyNotify runs, or immediately
+// when the stream is not created.
 func (symbols *Symbols) FinishRequest(request uintptr, body []byte, mime string) {
-	var pointer uintptr
+	blob := pinBytes(body)
+	var data, destroy uintptr
 	length := int64(len(body))
-	if length > 0 {
-		pointer = pinBytes(body)
+	if blob != nil {
+		data = blob.pointer()
+		destroy = destroyPinnedBytes
 	}
-	stream := symbols.memoryStream(pointer, length, destroyPinnedBytes)
+	if symbols.memoryStream == nil {
+		blob.Drop()
+		return
+	}
+	stream := symbols.memoryStream(data, length, destroy)
+	if stream == 0 {
+		blob.Drop()
+	} else {
+		defer symbols.unrefObject(stream)
+	}
 	mimeBytes := native.CString(mime)
-	symbols.finishRequest(request, stream, length, native.Data(mimeBytes))
+	if symbols.finishRequest != nil {
+		symbols.finishRequest(request, stream, length, native.Data(mimeBytes))
+	}
 	runtime.KeepAlive(mimeBytes)
 }
 
 // FinishNotFound completes a scheme request as not-found.
+// webkit_uri_scheme_request_finish_error reads the GError and does not free it.
 func (symbols *Symbols) FinishNotFound(request uintptr) {
 	message := native.CString("not found")
+	if symbols.newError == nil || symbols.ioErrorQuark == nil {
+		runtime.KeepAlive(message)
+		symbols.FinishRequest(request, nil, "text/plain")
+		return
+	}
 	gError := symbols.newError(symbols.ioErrorQuark(), 1, native.Data(message))
 	runtime.KeepAlive(message)
 	if gError == 0 {
 		symbols.FinishRequest(request, nil, "text/plain")
 		return
 	}
-	symbols.finishRequestError(request, gError)
+	if symbols.finishRequestError != nil {
+		symbols.finishRequestError(request, gError)
+	}
+	if symbols.freeError != nil {
+		symbols.freeError(gError)
+	}
+}
+
+func (symbols *Symbols) unrefObject(obj uintptr) {
+	if symbols == nil || obj == 0 || symbols.unref == nil {
+		return
+	}
+	symbols.unref(obj)
 }
 
 func errorMessage(gError uintptr) uintptr {
