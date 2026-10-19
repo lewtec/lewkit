@@ -72,11 +72,6 @@ inputs: treesitter_python: {
 inputs: treesitter_rust: {
 	from:    "github:tree-sitter/tree-sitter-rust"
 }
-// v0.11.0 refuses CGO_ENABLED=0 on ios. The place below moves that file.
-inputs: purego: {
-	from:    "github:ebitengine/purego"
-	version: "v0.11.0"
-}
 
 lazy_tools: protobuf: {
 	ref:  "github:protocolbuffers/protobuf"
