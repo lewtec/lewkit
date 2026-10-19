@@ -44,6 +44,8 @@ func startProcess(ctx context.Context, argv []string, dir string, rows, cols int
 	cmd.Stdin = slave
 	cmd.Stdout = slave
 	cmd.Stderr = slave
+	// The child has to be the session leader so the slave is its controlling
+	// terminal. exec.Start also sets Setpgid, and setpgid rejects a session leader.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true, Setctty: true, Ctty: 0}
 	cmd.WaitDelay = 2 * time.Second
 	stop := context.AfterFunc(ctx, func() {

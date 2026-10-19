@@ -18,6 +18,8 @@ func connect(ctx context.Context, path string) (*mux.Client, error) {
 
 // spawnServe re-execs this binary as `term serve` in its own session.
 // The child outlives this process. A later attach dials the same socket.
+// exec.Start is not used. It kills the command when ctx ends, and it sets
+// Setpgid, which rejects a session leader.
 func spawnServe(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
 		return err

@@ -2,11 +2,11 @@ package term
 
 import (
 	"context"
-	"io"
 	"os"
+	"strconv"
 	"strings"
 
-	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/git"
 )
 
 type gitMsg struct {
@@ -24,14 +24,11 @@ func readGit(ctx context.Context, dir string) string {
 	if err := ctx.Err(); err != nil {
 		return "no history here"
 	}
-	cmd := execdriver.MustCommand(ctx, "git", "-C", dir, "status", "--porcelain", "-b")
-	cmd.Dir = dir
-	cmd.Stderr = io.Discard
-	out, err := execdriver.Output(ctx, cmd)
+	out, err := (&git.Git{}).Output(ctx, dir, "status", "--porcelain", "-b")
 	if err != nil {
 		return "no history here"
 	}
-	return gitSummary(string(out))
+	return gitSummary(out)
 }
 
 // gitSummary reads the porcelain -b text.
@@ -68,21 +65,7 @@ func gitSummary(status string) string {
 	if changed == 1 {
 		return branch + " · 1 changed"
 	}
-	return branch + " · " + itoa(changed) + " changed"
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var digits [20]byte
-	i := len(digits)
-	for n > 0 {
-		i--
-		digits[i] = byte('0' + n%10)
-		n /= 10
-	}
-	return string(digits[i:])
+	return branch + " · " + strconv.Itoa(changed) + " changed"
 }
 
 func roomLabel(dir string) string {
