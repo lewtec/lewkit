@@ -10,7 +10,7 @@ import (
 
 func TestCheckCompatibility(t *testing.T) {
 	err := factory{}.CheckCompatibility(t.Context())
-	if runtime.GOOS != "darwin" {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "ios" {
 		require.ErrorIs(t, err, driver.ErrIncompatible)
 	}
 }

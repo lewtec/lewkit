@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -171,6 +172,10 @@ func registerHandlerClass() error {
 }
 
 func pumpEvents() {
+	if runtime.GOOS == "ios" {
+		pumpIOS()
+		return
+	}
 	if !thread.On() {
 		return
 	}
@@ -203,6 +208,9 @@ type webKitView struct {
 }
 
 func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
+	if runtime.GOOS == "ios" {
+		return view.createIOS(ctx, cfg)
+	}
 	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(objc.RegisterName("new"))
 	defer pool.Send(objc.RegisterName("drain"))
 	width, height, err := cfg.Size()
@@ -279,6 +287,10 @@ func (view *webKitView) create(ctx context.Context, cfg webview.Config) error {
 // the other appearance first so WebKit delivers effectiveAppearanceDidChange
 // on a page that is already showing, instead of waiting for the next load.
 func (view *webKitView) useScheme(scheme daynight.Mode, flip bool) {
+	if runtime.GOOS == "ios" {
+		view.useSchemeIOS(scheme, flip)
+		return
+	}
 	thread.Do(func() {
 		if view == nil || view.window == 0 {
 			return
@@ -313,6 +325,9 @@ func (view *webKitView) Messages() <-chan []byte { return view.messages }
 func (view *webKitView) Done() <-chan struct{}   { return view.done }
 
 func (view *webKitView) Close() error {
+	if runtime.GOOS == "ios" {
+		return view.closeIOS()
+	}
 	thread.Do(func() {
 		if view.window != 0 {
 			view.window.Send(selClose)
