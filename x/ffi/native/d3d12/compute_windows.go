@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"strings"
 	"sync"
 	"unsafe"
@@ -18,8 +19,93 @@ import (
 type Device struct {
 	mu       sync.Mutex
 	eng      *engine
+	slot     *onceEngine
 	closed   bool
 	children native.Children
+	cleanup  runtime.Cleanup
+}
+
+// onceEngine releases the COM device once. It does not point at *Device.
+type onceEngine struct {
+	mu  sync.Mutex
+	eng *engine
+}
+
+func (o *onceEngine) wait() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	eng := o.eng
+	o.mu.Unlock()
+	if eng != nil {
+		_ = eng.wait()
+	}
+}
+
+func (o *onceEngine) release() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	eng := o.eng
+	o.eng = nil
+	o.mu.Unlock()
+	if eng == nil {
+		return
+	}
+	_ = eng.wait()
+	eng.release()
+}
+
+// d3dBuf is one buffer's COM pointers. It does not point at *Buffer.
+type d3dBuf struct {
+	mu            sync.Mutex
+	done          bool
+	up, def, read uintptr
+}
+
+func (b *d3dBuf) release() {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	if b.done {
+		b.mu.Unlock()
+		return
+	}
+	b.done = true
+	up, def, read := b.up, b.def, b.read
+	b.mu.Unlock()
+	if up != 0 {
+		syscallV(up, slotResUnmap, 0, 0)
+	}
+	release(up)
+	release(def)
+	release(read)
+}
+
+// d3dPipe is one pipeline's COM pointers. It does not point at *Pipeline.
+type d3dPipe struct {
+	mu        sync.Mutex
+	done      bool
+	pso, root uintptr
+}
+
+func (p *d3dPipe) release() {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	if p.done {
+		p.mu.Unlock()
+		return
+	}
+	p.done = true
+	pso, root := p.pso, p.root
+	p.mu.Unlock()
+	release(pso)
+	release(root)
 }
 
 // Pipeline is one compiled compute kernel.
@@ -30,22 +116,26 @@ type Pipeline struct {
 	srvs    int
 	threads int
 	closed  bool
+	node    *d3dPipe
+	cleanup runtime.Cleanup
 }
 
 // Buffer is a storage buffer. Store writes the upload heap. Dispatch copies
 // it onto the default heap before the kernel reads it.
 type Buffer struct {
-	dev    *Device
-	size   int
-	gpu    int
-	def    uintptr
-	up     uintptr
-	read   uintptr
-	upPtr  uintptr
-	addr   uintptr
-	state  uint32
-	dirty  bool
-	closed bool
+	dev     *Device
+	size    int
+	gpu     int
+	def     uintptr
+	up      uintptr
+	read    uintptr
+	upPtr   uintptr
+	addr    uintptr
+	state   uint32
+	dirty   bool
+	closed  bool
+	node    *d3dBuf
+	cleanup runtime.Cleanup
 }
 
 // OpenDevice opens the default adapter for compute.
@@ -55,7 +145,9 @@ func OpenDevice() (*Device, error) {
 		return nil, err
 	}
 	slog.Debug("d3d12 device", "adapter", eng.name, "level", eng.level)
-	return &Device{eng: eng}, nil
+	d := &Device{eng: eng, slot: &onceEngine{eng: eng}}
+	d.cleanup = native.Arm(d, (*onceEngine).release, d.slot)
+	return d, nil
 }
 
 // Name is the adapter description.
@@ -77,14 +169,20 @@ func (d *Device) Close() error {
 		return nil
 	}
 	d.closed = true
-	if d.eng != nil {
+	native.Disarm(d, d.cleanup)
+	if d.slot != nil {
+		d.slot.wait()
+	} else if d.eng != nil {
 		_ = d.eng.wait()
 	}
 	d.children.Drop()
-	if d.eng != nil {
+	if d.slot != nil {
+		d.slot.release()
+	} else if d.eng != nil {
 		d.eng.release()
-		d.eng = nil
 	}
+	d.eng = nil
+	runtime.KeepAlive(d)
 	return nil
 }
 
@@ -147,8 +245,10 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 		upPtr: ptr,
 		addr:  syscallV(def, slotResVA),
 		state: stateCopyDst,
+		node:  &d3dBuf{up: up, def: def, read: back},
 	}
 	d.children.Add(out)
+	out.cleanup = native.Arm(out, (*d3dBuf).release, out.node)
 	return out, nil
 }
 
@@ -268,6 +368,7 @@ func (b *Buffer) Drop() {
 	if b == nil {
 		return
 	}
+	native.Disarm(b, b.cleanup)
 	if b.dev != nil {
 		b.dev.children.Forget(b)
 	}
@@ -275,6 +376,11 @@ func (b *Buffer) Drop() {
 		return
 	}
 	b.closed = true
+	if b.node != nil {
+		b.up, b.def, b.read, b.upPtr = 0, 0, 0, 0
+		b.node.release()
+		return
+	}
 	if b.up != 0 {
 		syscallV(b.up, slotResUnmap, 0, 0)
 	}
@@ -312,8 +418,9 @@ func (d *Device) Compile(source string, threads int) (*Pipeline, error) {
 		return nil, err
 	}
 	slog.Debug("d3d12 compile", "threads", threads, "srvs", srvs, "bytes", len(source))
-	out := &Pipeline{dev: d, pso: pso, root: root, srvs: srvs, threads: threads}
+	out := &Pipeline{dev: d, pso: pso, root: root, srvs: srvs, threads: threads, node: &d3dPipe{pso: pso, root: root}}
 	d.children.Add(out)
+	out.cleanup = native.Arm(out, (*d3dPipe).release, out.node)
 	return out, nil
 }
 
@@ -436,6 +543,7 @@ func (p *Pipeline) Drop() {
 	if p == nil {
 		return
 	}
+	native.Disarm(p, p.cleanup)
 	if p.dev != nil {
 		p.dev.children.Forget(p)
 	}
@@ -443,6 +551,11 @@ func (p *Pipeline) Drop() {
 		return
 	}
 	p.closed = true
+	if p.node != nil {
+		p.pso, p.root = 0, 0
+		p.node.release()
+		return
+	}
 	release(p.pso)
 	release(p.root)
 	p.pso, p.root = 0, 0

@@ -124,9 +124,31 @@ func OpenLanguage(name string) (Language, error) {
 
 // Parser is one native parser. Close is optional.
 type Parser struct {
+	h       *tsParser
+	cleanup runtime.Cleanup
+}
+
+// tsParser is the native parser passed to a cleanup.
+// It does not point at *Parser.
+type tsParser struct {
 	mu   sync.Mutex
 	p    uintptr
 	libs runtimeLibs
+}
+
+func (h *tsParser) release() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	p := h.p
+	libs := h.libs
+	h.p = 0
+	h.mu.Unlock()
+	if p == 0 {
+		return
+	}
+	libs.ts.TsParserDelete(p)
 }
 
 // NewParser returns a parser loaded from the same call that opened the runtime.
@@ -139,37 +161,47 @@ func NewParser() (*Parser, error) {
 	if p == 0 {
 		return nil, errUnavailable
 	}
-	out := &Parser{p: p, libs: libs}
-	runtime.SetFinalizer(out, func(p *Parser) { p.Close() })
+	h := &tsParser{p: p, libs: libs}
+	out := &Parser{h: h}
+	out.cleanup = native.Arm(out, (*tsParser).release, h)
 	return out, nil
 }
 
 // SetLanguage selects lang.
 func (p *Parser) SetLanguage(lang Language) bool {
-	if p == nil || p.p == 0 || lang == 0 {
+	if p == nil || p.h == nil || lang == 0 {
 		return false
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.libs.ts.TsParserSetLanguage(p.p, uintptr(lang))
+	h := p.h
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.p == 0 {
+		return false
+	}
+	return h.libs.ts.TsParserSetLanguage(h.p, uintptr(lang))
 }
 
 // Parse parses source. The returned tree keeps the native allocation alive.
 func (p *Parser) Parse(source []byte) (*Tree, error) {
-	if p == nil || p.p == 0 {
+	if p == nil || p.h == nil {
 		return nil, errUnavailable
 	}
 	buf := make([]byte, len(source)+1)
 	copy(buf, source)
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	raw := p.libs.ts.TsParserParseString(p.p, 0, &buf[0], uint32(len(source)))
+	h := p.h
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.p == 0 {
+		return nil, errUnavailable
+	}
+	raw := h.libs.ts.TsParserParseString(h.p, 0, &buf[0], uint32(len(source)))
 	runtime.KeepAlive(buf)
 	if raw == 0 {
 		return nil, errUnavailable
 	}
-	tree := &Tree{raw: raw, libs: p.libs}
-	runtime.SetFinalizer(tree, func(t *Tree) { t.Close() })
+	th := &tsTree{raw: raw, libs: h.libs}
+	tree := &Tree{h: th}
+	tree.cleanup = native.Arm(tree, (*tsTree).release, th)
 	return tree, nil
 }
 
@@ -178,29 +210,56 @@ func (p *Parser) Close() {
 	if p == nil {
 		return
 	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.p == 0 {
-		return
+	native.Disarm(p, p.cleanup)
+	if p.h != nil {
+		p.h.release()
 	}
-	p.libs.ts.TsParserDelete(p.p)
-	p.p = 0
-	runtime.SetFinalizer(p, nil)
+	runtime.KeepAlive(p)
 }
 
 // Tree is a native syntax tree.
 type Tree struct {
+	h       *tsTree
+	cleanup runtime.Cleanup
+}
+
+// tsTree is the native tree passed to a cleanup.
+// It does not point at *Tree.
+type tsTree struct {
 	mu   sync.Mutex
 	raw  uintptr
 	libs runtimeLibs
 }
 
+func (h *tsTree) release() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	raw := h.raw
+	libs := h.libs
+	h.raw = 0
+	h.mu.Unlock()
+	if raw == 0 {
+		return
+	}
+	libs.ts.TsTreeDelete(raw)
+}
+
 // Root returns the root node. The node keeps t reachable.
 func (t *Tree) Root() Node {
-	if t == nil || t.raw == 0 {
+	if t == nil || t.h == nil {
 		return Node{}
 	}
-	return Node{raw: t.libs.ts.TsTreeRootNode(t.raw), tree: t, libs: t.libs}
+	h := t.h
+	h.mu.Lock()
+	raw := h.raw
+	libs := h.libs
+	h.mu.Unlock()
+	if raw == 0 {
+		return Node{}
+	}
+	return Node{raw: libs.ts.TsTreeRootNode(raw), tree: t, libs: libs}
 }
 
 // Close frees the tree.
@@ -208,14 +267,11 @@ func (t *Tree) Close() {
 	if t == nil {
 		return
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.raw == 0 {
-		return
+	native.Disarm(t, t.cleanup)
+	if t.h != nil {
+		t.h.release()
 	}
-	t.libs.ts.TsTreeDelete(t.raw)
-	t.raw = 0
-	runtime.SetFinalizer(t, nil)
+	runtime.KeepAlive(t)
 }
 
 // Node is one syntax node. tree keeps the native tree alive.

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 	"unsafe"
 
@@ -26,13 +27,16 @@ type Device struct {
 	limit    [3]uint32
 	closed   bool
 	children native.Children
+	gate     *glGate
+	cleanup  runtime.Cleanup
 }
 
 // Buffer is one shader-storage block.
 type Buffer struct {
-	dev *Device
-	id  uint32
-	n   int
+	dev  *Device
+	id   uint32
+	n    int
+	name *glName
 }
 
 // Program is one compiled compute kernel.
@@ -41,6 +45,7 @@ type Program struct {
 	id        uint32
 	n, d0, d1 int32
 	d2, d3    int32
+	name      *glName
 }
 
 func openCompute(ctx glContext) (*Device, error) {
@@ -48,13 +53,15 @@ func openCompute(ctx glContext) (*Device, error) {
 	if err != nil {
 		return nil, err
 	}
-	d := &Device{run: run}
+	d := &Device{run: run, gate: &glGate{run: run}}
+	d.cleanup = native.Arm(d, (*glGate).shutdown, d.gate)
 	if err := run.Do(func() error {
 		api, err := loadAPI(ctx)
 		if err != nil {
 			return err
 		}
 		d.gl = api
+		d.gate.gl = api
 		d.name = api.renderer
 		d.limit = api.workGroupLimit()
 		if !api.compute {
@@ -112,6 +119,7 @@ func (d *Device) Buffer(n int) (*Buffer, error) {
 		return nil, err
 	}
 	out := &buf
+	out.name = d.trackGL(glNameBuffer, out.id)
 	d.children.Add(out)
 	return out, nil
 }
@@ -213,6 +221,14 @@ func (b *Buffer) Drop() {
 	if b.dev != nil {
 		b.dev.children.Forget(b)
 	}
+	if b.name != nil {
+		if b.name.gate != nil {
+			b.name.gate.kids.Forget(b.name)
+		}
+		b.id = 0
+		b.name.Drop()
+		return
+	}
 	if b.id == 0 || b.dev == nil || b.dev.gl == nil || b.dev.gl.deleteBuffers == nil {
 		b.id = 0
 		return
@@ -271,6 +287,7 @@ func (d *Device) Compile(src string) (*Program, error) {
 		return nil, err
 	}
 	out := &prog
+	out.name = d.trackGL(glNameProgram, out.id)
 	d.children.Add(out)
 	return out, nil
 }
@@ -395,6 +412,14 @@ func (p *Program) Drop() {
 	if p.dev != nil {
 		p.dev.children.Forget(p)
 	}
+	if p.name != nil {
+		if p.name.gate != nil {
+			p.name.gate.kids.Forget(p.name)
+		}
+		p.id = 0
+		p.name.Drop()
+		return
+	}
 	if p.id == 0 || p.dev == nil || p.dev.gl == nil || p.dev.gl.deleteProgram == nil {
 		p.id = 0
 		return
@@ -415,13 +440,19 @@ func (d *Device) Close() error {
 		return nil
 	}
 	d.closed = true
+	native.Disarm(d, d.cleanup)
 	if d.run != nil {
 		_ = d.run.Do(func() error {
 			d.children.Drop()
 			return nil
 		})
-		d.run.Stop()
-		d.run = nil
 	}
+	if d.gate != nil {
+		d.gate.shutdown()
+	} else if d.run != nil {
+		d.run.Stop()
+	}
+	d.run = nil
+	runtime.KeepAlive(d)
 	return nil
 }

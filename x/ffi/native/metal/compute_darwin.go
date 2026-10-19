@@ -4,6 +4,7 @@ package metal
 
 import (
 	"fmt"
+	"runtime"
 	"sync"
 	"unsafe"
 
@@ -29,6 +30,38 @@ type Device struct {
 	name     string
 	closed   bool
 	children native.Children
+	own      *mtlHandle
+	cleanup  runtime.Cleanup
+}
+
+// mtlHandle is the set of Objective-C ids passed to a cleanup.
+// It does not point at the Go owner. Release is once.
+type mtlHandle struct {
+	mu   sync.Mutex
+	done bool
+	ids  []objc.ID
+}
+
+func (h *mtlHandle) release() {
+	if h == nil {
+		return
+	}
+	h.mu.Lock()
+	if h.done {
+		h.mu.Unlock()
+		return
+	}
+	h.done = true
+	ids := h.ids
+	h.ids = nil
+	h.mu.Unlock()
+	withPool(func() {
+		for _, id := range ids {
+			if id != 0 {
+				id.Send(selRelease)
+			}
+		}
+	})
 }
 
 // Pipeline is one compute kernel compiled from Metal shading language.
@@ -38,13 +71,17 @@ type Pipeline struct {
 	fn      objc.ID
 	pipe    objc.ID
 	threads int
+	own     *mtlHandle
+	cleanup runtime.Cleanup
 }
 
 // Buffer is a shared storage buffer. contents is readable after Dispatch waits.
 type Buffer struct {
-	d    *Device
-	id   objc.ID
-	size int
+	d       *Device
+	id      objc.ID
+	size    int
+	own     *mtlHandle
+	cleanup runtime.Cleanup
 }
 
 type mtlSize struct {
@@ -75,6 +112,8 @@ func OpenDevice() (*Device, error) {
 		_ = d.Close()
 		return nil, openErr
 	}
+	d.own = &mtlHandle{ids: []objc.ID{d.queue, d.id}}
+	d.cleanup = native.Arm(d, (*mtlHandle).release, d.own)
 	return d, nil
 }
 
@@ -97,17 +136,23 @@ func (d *Device) Close() error {
 		return nil
 	}
 	d.closed = true
+	native.Disarm(d, d.cleanup)
 	d.children.Drop()
-	withPool(func() {
-		if d.queue != 0 {
-			d.queue.Send(selRelease)
-		}
-		if d.id != 0 {
-			d.id.Send(selRelease)
-		}
-	})
+	if d.own != nil {
+		d.own.release()
+	} else {
+		withPool(func() {
+			if d.queue != 0 {
+				d.queue.Send(selRelease)
+			}
+			if d.id != 0 {
+				d.id.Send(selRelease)
+			}
+		})
+	}
 	d.queue = 0
 	d.id = 0
+	runtime.KeepAlive(d)
 	return nil
 }
 
@@ -128,8 +173,9 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 	if buf == 0 {
 		return nil, ErrUnavailable
 	}
-	out := &Buffer{d: d, id: buf, size: size}
+	out := &Buffer{d: d, id: buf, size: size, own: &mtlHandle{ids: []objc.ID{buf}}}
 	d.children.Add(out)
+	out.cleanup = native.Arm(out, (*mtlHandle).release, out.own)
 	return out, nil
 }
 
@@ -192,7 +238,13 @@ func (b *Buffer) Drop() {
 	if b == nil || b.d == nil {
 		return
 	}
+	native.Disarm(b, b.cleanup)
 	b.d.children.Forget(b)
+	if b.own != nil {
+		b.id = 0
+		b.own.release()
+		return
+	}
 	if b.id == 0 {
 		return
 	}
@@ -223,7 +275,9 @@ func (d *Device) Compile(source string, threads int) (*Pipeline, error) {
 	if err != nil {
 		return nil, err
 	}
+	pipe.own = &mtlHandle{ids: []objc.ID{pipe.pipe, pipe.fn, pipe.lib}}
 	d.children.Add(pipe)
+	pipe.cleanup = native.Arm(pipe, (*mtlHandle).release, pipe.own)
 	return pipe, nil
 }
 
@@ -346,7 +400,13 @@ func (p *Pipeline) Drop() {
 	if p == nil || p.d == nil {
 		return
 	}
+	native.Disarm(p, p.cleanup)
 	p.d.children.Forget(p)
+	if p.own != nil {
+		p.pipe, p.fn, p.lib = 0, 0, 0
+		p.own.release()
+		return
+	}
 	if p.pipe == 0 && p.fn == 0 && p.lib == 0 {
 		return
 	}
