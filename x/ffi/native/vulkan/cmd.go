@@ -177,6 +177,7 @@ func (s *Shader) ensureDescriptors() error {
 		return fmt.Errorf("%w: %w", ErrDescriptorSet, err)
 	}
 	s.descriptorPool, s.descriptorSet = pool, set
+	s.node.setPool(pool)
 	return nil
 }
 

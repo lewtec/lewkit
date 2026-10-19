@@ -538,7 +538,6 @@ func adapterName(factory uintptr) string {
 	}
 	defer release(adapter)
 	var desc adapterDesc
-	p = pins{}
 	p.keep(&desc)
 	err = callHR(adapter, slotAdapterDesc, uintptr(unsafe.Pointer(&desc)))
 	p.done()

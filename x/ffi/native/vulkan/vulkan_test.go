@@ -2,8 +2,10 @@ package vulkan
 
 import (
 	"encoding/binary"
+	"slices"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
@@ -229,4 +231,80 @@ func TestCloseIdempotent(t *testing.T) {
 	require.NoError(t, d.Close())
 	_, err = d.Buffer(16)
 	require.ErrorIs(t, err, ErrClosed)
+}
+
+func TestDeviceCloseDestroysChildrenFirst(t *testing.T) {
+	var order []string
+	d := &Device{dev: 1, inst: 2}
+	d.api.unmapMemory = func(device uintptr, memory uint64) {
+		require.Equal(t, uintptr(1), device)
+		require.Equal(t, uint64(5), memory)
+		order = append(order, "unmap")
+	}
+	d.api.destroyBuffer = func(device uintptr, buffer uint64, alloc uintptr) {
+		require.Equal(t, uint64(4), buffer)
+		order = append(order, "buffer")
+	}
+	d.api.freeMemory = func(device uintptr, memory uint64, alloc uintptr) {
+		order = append(order, "memory")
+	}
+	d.api.destroyPipeline = func(device uintptr, pipe uint64, alloc uintptr) {
+		order = append(order, "pipeline")
+	}
+	d.api.destroyPipelineLayout = func(device uintptr, layout uint64, alloc uintptr) {
+		order = append(order, "pipeline-layout")
+	}
+	d.api.destroySetLayout = func(device uintptr, layout uint64, alloc uintptr) {
+		order = append(order, "set-layout")
+	}
+	d.api.destroyShaderModule = func(device uintptr, module uint64, alloc uintptr) {
+		order = append(order, "module")
+	}
+	d.api.destroyDevice = func(device uintptr, alloc uintptr) {
+		require.Equal(t, uintptr(1), device)
+		order = append(order, "device")
+	}
+	d.api.destroyInstance = func(instance uintptr, alloc uintptr) {
+		require.Equal(t, uintptr(2), instance)
+		order = append(order, "instance")
+	}
+	buf := &Buffer{d: d, buf: 4, mem: 5, ptr: unsafe.Pointer(&order), size: 8}
+	shader := &Shader{d: d, module: 1, setLayout: 2, pipelineLayout: 3, pipeline: 6}
+	d.children.Add(buf)
+	d.children.Add(shader)
+	require.NoError(t, d.Close())
+	require.True(t, contig(order, []string{"unmap", "buffer", "memory"}))
+	require.True(t, contig(order, []string{"pipeline", "pipeline-layout", "set-layout", "module"}))
+	deviceAt := slices.Index(order, "device")
+	require.Greater(t, deviceAt, slices.Index(order, "memory"))
+	require.Greater(t, deviceAt, slices.Index(order, "module"))
+	require.Equal(t, []string{"device", "instance"}, order[deviceAt:])
+	require.NoError(t, buf.Close())
+	require.NoError(t, shader.Close())
+	require.Len(t, order, 9)
+}
+
+func contig(order, want []string) bool {
+	for i := 0; i+len(want) <= len(order); i++ {
+		if slices.Equal(order[i:i+len(want)], want) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestBufferCloseBeforeDeviceDoesNotFreeTwice(t *testing.T) {
+	var buffers int
+	d := &Device{dev: 1, inst: 2}
+	d.api.unmapMemory = func(uintptr, uint64) {}
+	d.api.destroyBuffer = func(uintptr, uint64, uintptr) { buffers++ }
+	d.api.freeMemory = func(uintptr, uint64, uintptr) {}
+	d.api.destroyDevice = func(uintptr, uintptr) {}
+	d.api.destroyInstance = func(uintptr, uintptr) {}
+	buf := &Buffer{d: d, buf: 4, mem: 5, ptr: unsafe.Pointer(&buffers), size: 4}
+	d.children.Add(buf)
+	require.NoError(t, buf.Close())
+	require.Equal(t, 1, buffers)
+	require.NoError(t, d.Close())
+	require.Equal(t, 1, buffers)
 }
