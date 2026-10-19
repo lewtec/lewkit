@@ -46,14 +46,25 @@ message Entry {
 // panes is creation order. It is not a layout.
 // entries is the key tree. A folder is a stored directory or a pane prefix.
 // level is the protocol level this server speaks. 0 is a server from before
-// levels, which spoke level 1. Level 2 stores directories.
+// levels, which spoke level 1. Level 2 stores directories. Level 3 reports
+// each pane's working directory and keeps session facts.
 // dirs are the directories the server keeps, including empty ones.
+// facts are key/value records a pane stored for its session.
 message SessionInfo {
   string id = 1;
   repeated string panes = 2;
   repeated Entry entries = 3;
   uint32 level = 4;
   repeated string dirs = 5;
+  repeated Fact facts = 6;
+}
+
+// Fact is one session value. path is the session key. key and value are
+// the record an application wrote from a pane.
+message Fact {
+  string path = 1;
+  string key = 2;
+  string value = 3;
 }
 
 // PaneInfo is a pane record without the grid.
@@ -73,6 +84,9 @@ message PaneInfo {
   int32 cursor_col = 12;
   // path is the pane's key. Empty is the same as id, at the root.
   string path = 13;
+  // cwd is the directory the process last reported. Empty means dir, the
+  // directory it was started in.
+  string cwd = 14;
 }
 
 // Cell is one column of the visible grid.
@@ -120,6 +134,8 @@ message Pane {
   // 64 wheel sends arrows (1007), 128 alternate screen.
   // A client encodes mouse and paste from these bits. Zero writes no mouse bytes.
   uint32 input = 15;
+  // cwd is the directory the process last reported. Empty means dir.
+  string cwd = 16;
 }
 
 // PaneList is the pane headers in creation order.

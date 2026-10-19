@@ -23,6 +23,8 @@ type Session struct {
 	panes      map[string]*live
 	paths      map[string]string
 	dirs       map[string]struct{}
+	facts      map[string]map[string]string
+	statePath  string
 	order      []string
 	listeners  map[int]*listener
 	nextListen int
@@ -63,6 +65,7 @@ func Open(ctx context.Context) (*Session, error) {
 		panes:     map[string]*live{},
 		paths:     map[string]string{},
 		dirs:      map[string]struct{}{},
+		facts:     map[string]map[string]string{},
 		listeners: map[int]*listener{},
 	}
 	go func() {
@@ -142,7 +145,7 @@ func (s *Session) Info(ctx context.Context) (SessionInfo, error) {
 
 func (s *Session) info() SessionInfo {
 	panes := append([]string(nil), s.order...)
-	return SessionInfo{ID: s.id, Panes: panes, Entries: s.entries(), Level: ProtocolLevel, Dirs: s.dirList()}
+	return SessionInfo{ID: s.id, Panes: panes, Entries: s.entries(), Level: ProtocolLevel, Dirs: s.dirList(), Facts: s.factList()}
 }
 
 func (s *Session) entries() []Entry {
@@ -180,6 +183,141 @@ func (s *Session) coversPane(path string) bool {
 		}
 	}
 	return false
+}
+
+// sessionKey is the drawer session for a pane path.
+// It is the first segment after the longest stored directory, matching the client.
+func (s *Session) sessionKey(path string) string {
+	if path == "" {
+		return ""
+	}
+	parent := ""
+	for dir := range s.dirs {
+		if dir != "" && dir != path && strings.HasPrefix(path, dir+"/") && len(dir) > len(parent) {
+			parent = dir
+		}
+	}
+	rest := path
+	if parent != "" {
+		rest = strings.TrimPrefix(path, parent+"/")
+	}
+	name := sessionKeyFromPath(rest)
+	if name == "" {
+		return parent
+	}
+	if parent == "" {
+		return name
+	}
+	return parent + "/" + name
+}
+
+func (s *Session) savedCwd(path string) string {
+	bag := s.facts[s.sessionKey(path)]
+	if bag == nil {
+		return ""
+	}
+	return bag["cwd"]
+}
+
+func (s *Session) setFact(path, key, value string) bool {
+	if path == "" || !validFactKey(key) {
+		return false
+	}
+	value = trimFact(value)
+	if s.facts == nil {
+		s.facts = map[string]map[string]string{}
+	}
+	bag := s.facts[path]
+	if bag == nil {
+		if len(s.facts) >= 256 {
+			return false
+		}
+		bag = map[string]string{}
+		s.facts[path] = bag
+	}
+	if _, ok := bag[key]; !ok && len(bag) >= factBagMax {
+		return false
+	}
+	if bag[key] == value {
+		return false
+	}
+	bag[key] = value
+	return true
+}
+
+func (s *Session) delFact(path, key string) bool {
+	bag := s.facts[path]
+	if bag == nil {
+		return false
+	}
+	if _, ok := bag[key]; !ok {
+		return false
+	}
+	delete(bag, key)
+	if len(bag) == 0 {
+		delete(s.facts, path)
+	}
+	return true
+}
+
+func (s *Session) factList() []Fact {
+	out := make([]Fact, 0)
+	for path, bag := range s.facts {
+		for key, value := range bag {
+			out = append(out, Fact{Path: path, Key: key, Value: value})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Path == out[j].Path {
+			return out[i].Key < out[j].Key
+		}
+		return out[i].Path < out[j].Path
+	})
+	return out
+}
+
+func (s *Session) applyReports(pane *live, reports []report) bool {
+	changed := false
+	key := s.sessionKey(pane.info.Path)
+	for _, rep := range reports {
+		switch {
+		case rep.cwd != "":
+			if pane.info.Cwd != rep.cwd {
+				pane.info.Cwd = rep.cwd
+				changed = true
+			}
+			if s.setFact(key, "cwd", rep.cwd) {
+				changed = true
+			}
+		case rep.del:
+			if s.delFact(key, rep.key) {
+				changed = true
+			}
+		case rep.set:
+			if rep.key == "cwd" && rep.val != "" && pane.info.Cwd != rep.val {
+				pane.info.Cwd = rep.val
+				changed = true
+			}
+			if s.setFact(key, rep.key, rep.val) {
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func (s *Session) observeCwd(pane *live) bool {
+	pid := 0
+	if pane.proc != nil {
+		pid = pane.proc.pid()
+	}
+	reported, ok := processCwd(pid)
+	if !ok || reported == "" || reported == pane.info.Cwd {
+		return false
+	}
+	pane.info.Cwd = reported
+	s.setFact(s.sessionKey(pane.info.Path), "cwd", reported)
+	return true
 }
 
 // occupied reports a key a new file cannot take.
@@ -307,6 +445,9 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 	s.panes[id] = pane
 	s.paths[path] = id
 	s.order = append(s.order, id)
+	if cwd := s.savedCwd(path); cwd != "" {
+		pane.info.Cwd = cwd
+	}
 	record := pane.record()
 	info := s.info()
 	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
@@ -756,11 +897,22 @@ func (s *Session) feed(id string, chunk []byte) {
 		return
 	}
 	pane.grid.Feed(chunk)
+	changed := s.applyReports(pane, pane.grid.takeReports())
+	if s.observeCwd(pane) {
+		changed = true
+	}
 	pane.info.Revision++
 	syncCursor(&pane.info, pane.grid)
 	record := pane.record()
 	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
+	if changed {
+		info := s.info()
+		fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
+	}
 	s.mu.Unlock()
+	if changed {
+		s.saveState()
+	}
 	deliver(fns)
 }
 
@@ -800,6 +952,7 @@ func (s *Session) matching(ev Event) []func() {
 			info.Panes = append([]string(nil), ev.Session.Panes...)
 			info.Entries = append([]Entry(nil), ev.Session.Entries...)
 			info.Dirs = append([]string(nil), ev.Session.Dirs...)
+			info.Facts = append([]Fact(nil), ev.Session.Facts...)
 			copied.Session = &info
 		}
 		event := copied

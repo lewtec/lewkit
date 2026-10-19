@@ -58,6 +58,7 @@ func Listen(ctx context.Context, path string) error {
 		return err
 	}
 	defer session.Close()
+	session.useState(filepath.Join(filepath.Dir(path), "term.state.json"))
 	session.stopWhenIdle(stop)
 	info, err := session.Info(ctx)
 	if err != nil {

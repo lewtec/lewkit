@@ -229,6 +229,9 @@ func (m *Model) drawerBody(width, rows int) []string {
 	if m.levelText != "" && len(lines) < rows {
 		lines = append(lines, styleErr.Render(fit(m.levelText, width)))
 	}
+	if text := m.factLine(); text != "" && len(lines) < rows {
+		lines = append(lines, styleMuted.Render(fit(text, width)))
+	}
 	switch {
 	case m.heldSession != "" && len(lines) < rows:
 		lines = append(lines, styleMuted.Render(fit("carrying "+pathBase(m.heldSession), width)))
@@ -1218,10 +1221,34 @@ func (m *Model) drop(id string) {
 }
 
 func (m *Model) room() string {
-	if pane, ok := m.byID[m.focus]; ok && pane.Dir != "" {
-		return pane.Dir
+	if pane, ok := m.byID[m.focus]; ok {
+		if room := paneRoom(pane); room != "" {
+			return room
+		}
 	}
 	return m.cwd
+}
+
+func (m *Model) factLine() string {
+	key := m.shown
+	if key == "" {
+		if pane, ok := m.byID[m.focus]; ok {
+			key, _, _ = m.sessionOf(panePath(pane))
+		}
+	}
+	bag := m.facts[key]
+	if len(bag) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, name := range []string{"task", "progress", "state"} {
+		value := strings.TrimSpace(bag[name])
+		if value == "" {
+			continue
+		}
+		parts = append(parts, name+" "+trimWidth(value, 40))
+	}
+	return strings.Join(parts, "  ")
 }
 
 func (m *Model) lookGit() tea.Cmd {
@@ -1466,13 +1493,17 @@ func (m *Model) sessionRoom(key string) string {
 		return ""
 	}
 	if contains(group.panes, m.focus) {
-		if pane, ok := m.byID[m.focus]; ok && pane.Dir != "" {
-			return pane.Dir
+		if pane, ok := m.byID[m.focus]; ok {
+			if room := paneRoom(pane); room != "" {
+				return room
+			}
 		}
 	}
 	for _, id := range group.panes {
-		if pane, ok := m.byID[id]; ok && pane.Dir != "" {
-			return pane.Dir
+		if pane, ok := m.byID[id]; ok {
+			if room := paneRoom(pane); room != "" {
+				return room
+			}
 		}
 	}
 	return m.cwd

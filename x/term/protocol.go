@@ -9,9 +9,10 @@ const ProtocolVersion = 1
 
 // ProtocolLevel is the behavior this process speaks.
 // SessionInfo.level carries it. Level 1 had no stored directories.
-// Level 2 keeps directories on the server. A different level still
-// attaches, and the desk warns.
-const ProtocolLevel = 2
+// Level 2 keeps directories on the server. Level 3 follows each pane's
+// working directory and keeps the facts a pane stores for its session.
+// A different level still attaches, and the desk warns.
+const ProtocolLevel = 3
 
 // ColorPalette means FG or BG is an ANSI palette index.
 // Zero is the default color. 1 through 8 are normal and 9 through 16 are bright.
@@ -60,12 +61,22 @@ type Tree struct {
 // Entries is the key tree. A folder is a stored directory or a pane prefix.
 // Level is the protocol level the server speaks. Zero means level 1.
 // Dirs are directories the server keeps, including empty ones.
+// Facts are values a pane stored for a session. Path is that session key.
 type SessionInfo struct {
 	ID      string
 	Panes   []string
 	Entries []Entry
 	Level   uint32
 	Dirs    []string
+	Facts   []Fact
+}
+
+// Fact is one value stored for a session.
+// Path is the session key. Key and Value are what the pane wrote.
+type Fact struct {
+	Path  string
+	Key   string
+	Value string
 }
 
 // PaneInfo is the pane record without the grid.
@@ -84,6 +95,7 @@ type PaneInfo struct {
 	CursorRow  int
 	CursorCol  int
 	Path       string
+	Cwd        string
 }
 
 // Cell is one column of the pane grid.

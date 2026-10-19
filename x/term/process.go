@@ -35,6 +35,13 @@ func (p *process) Read(b []byte) (int, error) {
 	return p.master.Read(b)
 }
 
+func (p *process) pid() int {
+	if p == nil || p.cmd == nil || p.cmd.Process == nil {
+		return 0
+	}
+	return p.cmd.Process.Pid
+}
+
 func (p *process) finish() int {
 	if p == nil || p.cmd == nil {
 		return 1

@@ -94,6 +94,9 @@ type Grid struct {
 	apc     []byte
 	apcDrop bool
 	pics    pictures
+
+	oscBuf  []byte
+	reports []report
 }
 
 const (
@@ -409,13 +412,24 @@ func (g *Grid) byte(b byte) {
 		g.csi(b)
 	case stateOSC:
 		if b == 0x07 {
+			g.finishOSC()
 			g.state = stateText
 			return
 		}
 		if b == 0x1b {
 			g.state = stateOSCEsc
+			return
+		}
+		if len(g.oscBuf) < oscLimit {
+			g.oscBuf = append(g.oscBuf, b)
 		}
 	case stateOSCEsc:
+		if b == '\\' {
+			g.finishOSC()
+			g.state = stateText
+			return
+		}
+		g.oscBuf = g.oscBuf[:0]
 		g.state = stateText
 	case stateAPC:
 		g.apcByte(b)
@@ -551,6 +565,7 @@ func (g *Grid) esc(b byte) {
 		g.emptySlot = false
 		g.priv = false
 	case ']':
+		g.oscBuf = g.oscBuf[:0]
 		g.state = stateOSC
 	case '_':
 		g.state = stateAPC
@@ -947,6 +962,19 @@ func (g *Grid) setRGB(fg bool, r, gr, b int) {
 	g.bgRGB = packed
 }
 
+func (g *Grid) finishOSC() {
+	if rep, ok := parseOSC(string(g.oscBuf)); ok {
+		g.reports = append(g.reports, rep)
+	}
+	g.oscBuf = g.oscBuf[:0]
+}
+
+func (g *Grid) takeReports() []report {
+	out := g.reports
+	g.reports = nil
+	return out
+}
+
 func (g *Grid) reset() {
 	g.alt = false
 	g.savedScreen = nil
@@ -956,6 +984,8 @@ func (g *Grid) reset() {
 	g.apc = g.apc[:0]
 	g.apcDrop = false
 	g.pics = pictures{}
+	g.oscBuf = g.oscBuf[:0]
+	g.reports = nil
 	g.resetPen()
 	g.screen = blankLines(g.rows, g.cols)
 	g.scroll = nil

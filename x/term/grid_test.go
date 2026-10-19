@@ -164,3 +164,30 @@ func TestGridDrawsAKittyImage(t *testing.T) {
 	grid.Feed([]byte("\x1b_Gnot an image\x1b\\Q"))
 	assert.Contains(t, grid.Text(), "Q")
 }
+
+func TestGridOSCReportsDirectoryAndFacts(t *testing.T) {
+	grid := NewGrid(4, 40)
+	grid.Feed([]byte("hi\x1b]0;title\x07yo\x1b]7;file://host/tmp/room\x1b\\!\x1b]777;set;task;parse;more\x07\x1b]777;del;task\x1b\\"))
+	assert.Equal(t, "hiyo!", grid.Text())
+	reps := grid.takeReports()
+	require.Len(t, reps, 3)
+	assert.Equal(t, "/tmp/room", reps[0].cwd)
+	assert.True(t, reps[1].set)
+	assert.Equal(t, "task", reps[1].key)
+	assert.Equal(t, "parse;more", reps[1].val)
+	assert.True(t, reps[2].del)
+	assert.Equal(t, "task", reps[2].key)
+	assert.Empty(t, grid.takeReports())
+
+	grid.Feed([]byte("\x1b]7;/var/plain\x07\x1b]1337;CurrentDir=/var/room\x07\x1b]777;cwd;/var/via\x07\x1b]777;set;bad key;nope\x07Z"))
+	assert.Equal(t, "hiyo!Z", grid.Text())
+	reps = grid.takeReports()
+	require.Len(t, reps, 3)
+	assert.Equal(t, "/var/plain", reps[0].cwd)
+	assert.Equal(t, "/var/room", reps[1].cwd)
+	assert.Equal(t, "/var/via", reps[2].cwd)
+
+	grid.Feed([]byte("\x1bc"))
+	assert.Empty(t, grid.takeReports())
+	assert.Empty(t, grid.Text())
+}

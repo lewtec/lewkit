@@ -8,7 +8,20 @@
 // standing in which folder. A client that reads those records differently
 // does not restart the server. SessionInfo.level is the protocol level.
 // A frame with the wrong version is rejected. A different level still
-// attaches, and the desk warns.
+// attaches, and the desk warns. Level 2 stores directories. Level 3
+// follows each pane's working directory and keeps facts that pane stores
+// for its session.
+//
+// On Linux the directory is read from /proc when the process writes. A
+// program can also report it, and can store or drop a fact, with OSC.
+// OSC 7 is file://host/path or an absolute path. OSC 1337 carries
+// CurrentDir=. The lewkit sequences are ESC ] 777 ; cwd ; PATH,
+// ESC ] 777 ; set ; KEY ; VALUE, and ESC ] 777 ; del ; KEY, ended by
+// BEL or ST (ESC \). The bytes have no spaces. The drawer shows task,
+// progress, and state. Facts, including the last directory, are saved
+// in term.state.json beside the socket and loaded when a new server
+// starts. The pane processes are not brought back. The client's cwd is
+// not stored, and a pane key does not create a host directory.
 //
 // A client follows the panes it cares about. Following the ubersession means
 // that client watches every pane. Another client can follow one pane, or a

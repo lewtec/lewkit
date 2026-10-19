@@ -92,6 +92,7 @@ func sessionToSchema(info SessionInfo) *schema.SessionInfo {
 		Entries: entriesToSchema(info.Entries),
 		Level:   info.Level,
 		Dirs:    copyStrings(info.Dirs),
+		Facts:   factsToSchema(info.Facts),
 	}
 }
 
@@ -105,7 +106,33 @@ func sessionFromSchema(info *schema.SessionInfo) SessionInfo {
 		Entries: entriesFromSchema(info.GetEntries()),
 		Level:   info.GetLevel(),
 		Dirs:    copyStrings(info.GetDirs()),
+		Facts:   factsFromSchema(info.GetFacts()),
 	}
+}
+
+func factsToSchema(facts []Fact) []*schema.Fact {
+	if len(facts) == 0 {
+		return nil
+	}
+	out := make([]*schema.Fact, len(facts))
+	for i, fact := range facts {
+		out[i] = &schema.Fact{Path: fact.Path, Key: fact.Key, Value: fact.Value}
+	}
+	return out
+}
+
+func factsFromSchema(facts []*schema.Fact) []Fact {
+	if len(facts) == 0 {
+		return nil
+	}
+	out := make([]Fact, 0, len(facts))
+	for _, fact := range facts {
+		if fact == nil {
+			continue
+		}
+		out = append(out, Fact{Path: fact.GetPath(), Key: fact.GetKey(), Value: fact.GetValue()})
+	}
+	return out
 }
 
 func entriesToSchema(entries []Entry) []*schema.Entry {
@@ -148,6 +175,7 @@ func paneInfoToSchema(info PaneInfo) *schema.PaneInfo {
 		CursorRow:  int32(info.CursorRow),
 		CursorCol:  int32(info.CursorCol),
 		Path:       info.Path,
+		Cwd:        info.Cwd,
 	}
 }
 
@@ -169,6 +197,7 @@ func paneInfoFromSchema(info *schema.PaneInfo) PaneInfo {
 		CursorRow:  int(info.GetCursorRow()),
 		CursorCol:  int(info.GetCursorCol()),
 		Path:       info.GetPath(),
+		Cwd:        info.GetCwd(),
 	}
 }
 
@@ -190,6 +219,7 @@ func paneToSchema(pane Pane) *schema.Pane {
 		Cells:      cellsToSchema(pane.Cells),
 		Path:       info.GetPath(),
 		Input:      pane.Input,
+		Cwd:        info.GetCwd(),
 	}
 }
 
@@ -212,6 +242,7 @@ func paneFromSchema(pane *schema.Pane) Pane {
 			CursorRow:  pane.GetCursorRow(),
 			CursorCol:  pane.GetCursorCol(),
 			Path:       pane.GetPath(),
+			Cwd:        pane.GetCwd(),
 		}),
 		Cells: cellsFromSchema(pane.GetCells()),
 		Input: pane.GetInput(),

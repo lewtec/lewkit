@@ -1,7 +1,10 @@
 package term
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -245,6 +248,163 @@ func TestSessionStoresAnEmptyDirectory(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, root.Entries, 1)
 	assert.Equal(t, "archive", root.Entries[0].Path)
+}
+
+func TestSessionFactsFollowThePane(t *testing.T) {
+	ctx := t.Context()
+	dir := t.TempDir()
+	statePath := filepath.Join(dir, "term.state.json")
+	session, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+	session.useState(statePath)
+
+	session.mu.Lock()
+	session.panes["ed"] = &live{
+		info: PaneInfo{ID: "ed", Path: "work/editor", Dir: "/old", Alive: true, Exit: -1, Rows: 2, Cols: 40},
+		grid: NewGrid(2, 40),
+	}
+	session.paths["work/editor"] = "ed"
+	session.order = []string{"ed"}
+	session.mu.Unlock()
+
+	session.feed("ed", []byte("hello\x1b]7;file://host/new\x1b\\\x1b]777;set;task;parser\x07\x1b]777;set;progress;halfway\x07\x1b]777;set;state;idle\x07"))
+	pane, err := session.Pane(ctx, "ed")
+	require.NoError(t, err)
+	assert.Equal(t, "hello", pane.Line(0))
+	assert.Equal(t, "/new", pane.Cwd)
+	assert.Equal(t, "/old", pane.Dir)
+	info, err := session.Info(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "task", Value: "parser"})
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "progress", Value: "halfway"})
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "cwd", Value: "/new"})
+
+	session.feed("ed", []byte("\x1b]777;cwd;/after\x07\x1b]777;del;progress\x07"))
+	pane, err = session.Pane(ctx, "ed")
+	require.NoError(t, err)
+	assert.Equal(t, "/after", pane.Cwd)
+	info, err = session.Info(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "cwd", Value: "/after"})
+	assert.NotContains(t, info.Facts, Fact{Path: "work", Key: "progress", Value: "halfway"})
+
+	blob, err := os.ReadFile(statePath)
+	require.NoError(t, err)
+	var saved termState
+	require.NoError(t, json.Unmarshal(blob, &saved))
+	assert.Equal(t, "parser", saved.Facts["work"]["task"])
+	assert.Equal(t, "/after", saved.Facts["work"]["cwd"])
+	assert.Empty(t, saved.Facts["work"]["progress"])
+
+	require.NoError(t, session.CreateDir(ctx, "pockets"))
+	session.mu.Lock()
+	session.panes["page"] = &live{
+		info: PaneInfo{ID: "page", Path: "pockets/work/editor", Dir: "/old", Alive: true, Exit: -1, Rows: 2, Cols: 20},
+		grid: NewGrid(2, 20),
+	}
+	session.paths["pockets/work/editor"] = "page"
+	session.order = append(session.order, "page")
+	session.mu.Unlock()
+	session.feed("page", []byte("\x1b]777;set;task;nested\x07"))
+	info, err = session.Info(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, info.Facts, Fact{Path: "pockets/work", Key: "task", Value: "nested"})
+
+	require.NoError(t, session.Remove(ctx, "ed"))
+	info, err = session.Info(ctx)
+	require.NoError(t, err)
+	assert.NotContains(t, info.Panes, "ed")
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "task", Value: "parser"})
+
+	again, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(again.Close)
+	again.useState(statePath)
+	info, err = again.Info(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "task", Value: "parser"})
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "cwd", Value: "/after"})
+	assert.Contains(t, info.Facts, Fact{Path: "pockets/work", Key: "task", Value: "nested"})
+
+	bad := filepath.Join(t.TempDir(), "term.state.json")
+	require.NoError(t, os.WriteFile(bad, []byte("nope"), 0o600))
+	again.useState(bad)
+	info, err = again.Info(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "task", Value: "parser"})
+
+	if _, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0); err != nil {
+		return
+	}
+	spawn := t.TempDir()
+	made, err := session.Create(ctx, CreateRequest{
+		Command: []string{"/bin/cat"},
+		Dir:     spawn,
+		Rows:    4,
+		Cols:    20,
+		Path:    "work/next",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "/after", made.Cwd)
+	assert.Equal(t, spawn, made.Dir)
+}
+
+func TestShellCwdFollowsTheProcess(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		test.Skipf(t, "proc cwd: %s", runtime.GOOS)
+	}
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	got, ok := processCwd(os.Getpid())
+	require.True(t, ok)
+	wd, err = filepath.EvalSymlinks(wd)
+	require.NoError(t, err)
+	got, err = filepath.EvalSymlinks(got)
+	require.NoError(t, err)
+	assert.Equal(t, wd, got)
+
+	if _, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0); err != nil {
+		test.Skipf(t, "pty: %v", err)
+	}
+	ctx := t.Context()
+	session, err := Open(ctx)
+	require.NoError(t, err)
+	t.Cleanup(session.Close)
+	start := t.TempDir()
+	next := t.TempDir()
+	pane, err := session.Create(ctx, CreateRequest{
+		Command: []string{"/bin/sh"},
+		Dir:     start,
+		Rows:    12,
+		Cols:    80,
+		Path:    "work/shell",
+	})
+	require.NoError(t, err)
+	wantStart, err := filepath.EvalSymlinks(start)
+	require.NoError(t, err)
+	wantNext, err := filepath.EvalSymlinks(next)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		got, err := session.Pane(ctx, pane.ID)
+		if err != nil || got.Cwd == "" {
+			return false
+		}
+		reported, err := filepath.EvalSymlinks(got.Cwd)
+		return err == nil && reported == wantStart && got.Dir == start
+	}, 3*time.Second, 20*time.Millisecond)
+	require.NoError(t, session.Write(ctx, WriteRequest{ID: pane.ID, Data: "cd " + next + "\n"}))
+	require.Eventually(t, func() bool {
+		got, err := session.Pane(ctx, pane.ID)
+		if err != nil || got.Cwd == "" {
+			return false
+		}
+		reported, err := filepath.EvalSymlinks(got.Cwd)
+		return err == nil && reported == wantNext && got.Dir == start
+	}, 3*time.Second, 20*time.Millisecond)
+	info, err := session.Info(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, info.Facts, Fact{Path: "work", Key: "cwd", Value: wantNext})
 }
 
 func TestSessionRemoveDropsTheRecord(t *testing.T) {

@@ -764,29 +764,83 @@ func TestServerLevelWarns(t *testing.T) {
 	model := newModel(t.Context(), &fakeAPI{}, "")
 	model.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	model.made = []string{"local"}
+	model.facts = map[string]map[string]string{"local": {"task": "stay"}}
 
 	model.Update(loadedMsg{info: SessionInfo{Level: 0}})
 	assert.Equal(t, []string{"local"}, model.made)
+	assert.Equal(t, "stay", model.facts["local"]["task"])
 	plain, _ := renderPlain(model)
-	assert.Contains(t, plain, "server protocol 1, client protocol 2")
+	assert.Contains(t, plain, "server protocol 1, client protocol 3")
 	assert.Contains(t, plain, "restart the server")
 
 	model.drawer = true
 	plain, _ = renderPlain(model)
-	assert.Contains(t, plain, "server protocol 1, client protocol 2")
+	assert.Contains(t, plain, "server protocol 1, client protocol 3")
 
-	model.Update(loadedMsg{info: SessionInfo{Level: 3}})
+	model.Update(loadedMsg{info: SessionInfo{Level: 2, Dirs: []string{"kept"}}})
+	assert.Equal(t, []string{"kept"}, model.made)
+	assert.Equal(t, "stay", model.facts["local"]["task"])
 	plain, _ = renderPlain(model)
-	assert.Contains(t, plain, "server protocol 3, client protocol 2")
-	assert.NotContains(t, plain, "restart the server")
-	assert.Equal(t, []string{"local"}, model.made)
+	assert.Contains(t, plain, "server protocol 2, client protocol 3")
+	assert.Contains(t, plain, "restart the server")
 
-	model.Update(loadedMsg{info: SessionInfo{Level: ProtocolLevel, Dirs: []string{"pockets"}}})
+	model.Update(loadedMsg{info: SessionInfo{
+		Level: ProtocolLevel,
+		Dirs:  []string{"pockets"},
+		Facts: []Fact{{Path: "pockets", Key: "task", Value: "parser"}},
+	}})
 	assert.Empty(t, model.levelText)
 	assert.Equal(t, []string{"pockets"}, model.made)
+	assert.Equal(t, "parser", model.facts["pockets"]["task"])
 	plain, _ = renderPlain(model)
 	assert.NotContains(t, plain, "server protocol")
 	assert.Contains(t, plain, "pockets")
+
+	model.Update(loadedMsg{info: SessionInfo{Level: ProtocolLevel + 1, Dirs: []string{"pockets"}}})
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, fmt.Sprintf("server protocol %d, client protocol %d", ProtocolLevel+1, ProtocolLevel))
+	assert.NotContains(t, plain, "restart the server")
+	assert.Equal(t, []string{"pockets"}, model.made)
+}
+
+func TestDrawerUsesReportedCwdAndFacts(t *testing.T) {
+	model := newModel(t.Context(), &fakeAPI{}, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.shown = "work"
+	model.focus = "ed"
+	model.order = []string{"ed"}
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{
+		ID: "ed", Path: "work/editor", Title: "hx", Alive: true,
+		Dir: "/old", Cwd: "/new",
+	}}
+	long := strings.Repeat("x", 50)
+	model.facts = map[string]map[string]string{"work": {
+		"task":     "parser",
+		"progress": "halfway",
+		"state":    long,
+		"cwd":      "/new",
+	}}
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "/new")
+	assert.NotContains(t, plain, "/old")
+	assert.Contains(t, plain, "task parser")
+	assert.Contains(t, plain, "progress halfway")
+	assert.Contains(t, plain, "state "+strings.Repeat("x", 40))
+	assert.NotContains(t, plain, strings.Repeat("x", 41))
+	assert.NotContains(t, plain, "cwd /new")
+
+	changed := model.applyEvent(Event{Notice: NoticePane, Pane: &Pane{PaneInfo: PaneInfo{
+		ID: "ed", Path: "work/editor", Dir: "/old", Cwd: "/newer",
+	}}})
+	assert.True(t, changed)
+	assert.Equal(t, "/newer", paneRoom(model.byID["ed"]))
+	changed = model.applyEvent(Event{Notice: NoticePane, Pane: &Pane{PaneInfo: PaneInfo{
+		ID: "ed", Path: "work/editor", Dir: "/old", Cwd: "/newer",
+	}}})
+	assert.False(t, changed)
 }
 
 func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {

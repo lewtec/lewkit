@@ -52,7 +52,14 @@ type API interface {
 // that lands on it. Mouse bytes are written when the process asked for them.
 // The wheel moves an alternate screen when it did not. A kitty image is
 // drawn into the grid. A different protocol level warns on the rail and in
-// the drawer, and the attach stays up.
+// the drawer, and the attach stays up. Level 3 follows the working
+// directory the process reports and shows the session facts task,
+// progress, and state. A program in the pane sets those with
+// ESC ] 777 ; set ; KEY ; VALUE BEL (the bytes are 777;set;KEY;VALUE,
+// with no spaces) and drops one with 777;del;KEY. 777;cwd;PATH, OSC 7,
+// and OSC 1337 CurrentDir report the directory. BEL or ST ends the
+// sequence. Those facts reload from term.state.json beside the socket.
+// The pane processes are not restored.
 func Run(ctx context.Context, api API, followPane string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -101,6 +108,7 @@ type Model struct {
 	cwd         string
 	gitBy       map[string]string
 	made        []string
+	facts       map[string]map[string]string
 	place       string
 	held        string
 	heldSession string
@@ -230,7 +238,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.noteDirs(msg.info)
 		return m, nil
 	case Event:
-		m.applyEvent(msg)
+		if m.applyEvent(msg) && m.drawer {
+			return m, tea.Batch(m.listen(), m.lookGit())
+		}
 		return m, m.listen()
 	case spawnedMsg:
 		m.store(msg.pane)
@@ -773,9 +783,28 @@ func levelWarning(server uint32) string {
 
 func (m *Model) noteDirs(info SessionInfo) {
 	m.levelText = levelWarning(info.Level)
-	if info.Level == ProtocolLevel {
+	if info.Level >= 2 {
 		m.made = append([]string(nil), info.Dirs...)
 	}
+	if info.Level >= 3 {
+		m.facts = factMap(info.Facts)
+	}
+}
+
+func factMap(facts []Fact) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	for _, fact := range facts {
+		if fact.Path == "" || fact.Key == "" {
+			continue
+		}
+		bag := out[fact.Path]
+		if bag == nil {
+			bag = map[string]string{}
+			out[fact.Path] = bag
+		}
+		bag[fact.Key] = fact.Value
+	}
+	return out
 }
 
 func (m *Model) applySession(info SessionInfo) {
@@ -785,28 +814,39 @@ func (m *Model) applySession(info SessionInfo) {
 	m.noteDirs(info)
 }
 
-func (m *Model) applyEvent(ev Event) {
+func (m *Model) applyEvent(ev Event) bool {
+	refresh := false
 	switch ev.Notice {
 	case NoticeSession:
 		if ev.Session != nil {
 			m.applySession(*ev.Session)
 		}
 	case NoticePane:
-		if ev.Pane != nil {
-			m.store(*ev.Pane)
+		if ev.Pane != nil && m.store(*ev.Pane) {
+			refresh = true
 		}
 	case NoticePaneClosed:
 		if ev.Pane != nil {
 			m.drop(ev.Pane.ID)
 		}
 	}
+	return refresh
 }
 
-func (m *Model) store(pane Pane) {
+func (m *Model) store(pane Pane) bool {
+	old := paneRoom(m.byID[pane.ID])
 	m.byID[pane.ID] = pane
 	if !contains(m.order, pane.ID) {
 		m.order = append(m.order, pane.ID)
 	}
+	return paneRoom(pane) != old
+}
+
+func paneRoom(pane Pane) string {
+	if pane.Cwd != "" {
+		return pane.Cwd
+	}
+	return pane.Dir
 }
 
 func (m *Model) focusID() string {

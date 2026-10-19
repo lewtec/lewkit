@@ -377,8 +377,10 @@ func (x *Entry) GetPane() string {
 // panes is creation order. It is not a layout.
 // entries is the key tree. A folder is a stored directory or a pane prefix.
 // level is the protocol level this server speaks. 0 is a server from before
-// levels, which spoke level 1. Level 2 stores directories.
+// levels, which spoke level 1. Level 2 stores directories. Level 3 reports
+// each pane's working directory and keeps session facts.
 // dirs are the directories the server keeps, including empty ones.
+// facts are key/value records a pane stored for its session.
 type SessionInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -386,6 +388,7 @@ type SessionInfo struct {
 	Entries       []*Entry               `protobuf:"bytes,3,rep,name=entries,proto3" json:"entries,omitempty"`
 	Level         uint32                 `protobuf:"varint,4,opt,name=level,proto3" json:"level,omitempty"`
 	Dirs          []string               `protobuf:"bytes,5,rep,name=dirs,proto3" json:"dirs,omitempty"`
+	Facts         []*Fact                `protobuf:"bytes,6,rep,name=facts,proto3" json:"facts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -455,6 +458,75 @@ func (x *SessionInfo) GetDirs() []string {
 	return nil
 }
 
+func (x *SessionInfo) GetFacts() []*Fact {
+	if x != nil {
+		return x.Facts
+	}
+	return nil
+}
+
+// Fact is one session value. path is the session key. key and value are
+// the record an application wrote from a pane.
+type Fact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	Key           string                 `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
+	Value         string                 `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Fact) Reset() {
+	*x = Fact{}
+	mi := &file_term_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Fact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Fact) ProtoMessage() {}
+
+func (x *Fact) ProtoReflect() protoreflect.Message {
+	mi := &file_term_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Fact.ProtoReflect.Descriptor instead.
+func (*Fact) Descriptor() ([]byte, []int) {
+	return file_term_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Fact) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *Fact) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *Fact) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
 // PaneInfo is a pane record without the grid.
 // exit is meaningful when alive is false. A signalled process may exit -1.
 type PaneInfo struct {
@@ -472,14 +544,17 @@ type PaneInfo struct {
 	CursorRow  int32                  `protobuf:"varint,11,opt,name=cursor_row,json=cursorRow,proto3" json:"cursor_row,omitempty"`
 	CursorCol  int32                  `protobuf:"varint,12,opt,name=cursor_col,json=cursorCol,proto3" json:"cursor_col,omitempty"`
 	// path is the pane's key. Empty is the same as id, at the root.
-	Path          string `protobuf:"bytes,13,opt,name=path,proto3" json:"path,omitempty"`
+	Path string `protobuf:"bytes,13,opt,name=path,proto3" json:"path,omitempty"`
+	// cwd is the directory the process last reported. Empty means dir, the
+	// directory it was started in.
+	Cwd           string `protobuf:"bytes,14,opt,name=cwd,proto3" json:"cwd,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *PaneInfo) Reset() {
 	*x = PaneInfo{}
-	mi := &file_term_proto_msgTypes[3]
+	mi := &file_term_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -491,7 +566,7 @@ func (x *PaneInfo) String() string {
 func (*PaneInfo) ProtoMessage() {}
 
 func (x *PaneInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[3]
+	mi := &file_term_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -504,7 +579,7 @@ func (x *PaneInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaneInfo.ProtoReflect.Descriptor instead.
 func (*PaneInfo) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{3}
+	return file_term_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PaneInfo) GetId() string {
@@ -598,6 +673,13 @@ func (x *PaneInfo) GetPath() string {
 	return ""
 }
 
+func (x *PaneInfo) GetCwd() string {
+	if x != nil {
+		return x.Cwd
+	}
+	return ""
+}
+
 // Cell is one column of the visible grid.
 // rune is empty for a blank column. wide marks the second column of a
 // double-width rune. fg and bg are palette indexes when the matching mode
@@ -625,7 +707,7 @@ type Cell struct {
 
 func (x *Cell) Reset() {
 	*x = Cell{}
-	mi := &file_term_proto_msgTypes[4]
+	mi := &file_term_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -637,7 +719,7 @@ func (x *Cell) String() string {
 func (*Cell) ProtoMessage() {}
 
 func (x *Cell) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[4]
+	mi := &file_term_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -650,7 +732,7 @@ func (x *Cell) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cell.ProtoReflect.Descriptor instead.
 func (*Cell) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{4}
+	return file_term_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Cell) GetRune() string {
@@ -760,14 +842,16 @@ type Pane struct {
 	// 8 SGR mouse (1006), 16 focus (1004), 32 bracketed paste (2004),
 	// 64 wheel sends arrows (1007), 128 alternate screen.
 	// A client encodes mouse and paste from these bits. Zero writes no mouse bytes.
-	Input         uint32 `protobuf:"varint,15,opt,name=input,proto3" json:"input,omitempty"`
+	Input uint32 `protobuf:"varint,15,opt,name=input,proto3" json:"input,omitempty"`
+	// cwd is the directory the process last reported. Empty means dir.
+	Cwd           string `protobuf:"bytes,16,opt,name=cwd,proto3" json:"cwd,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Pane) Reset() {
 	*x = Pane{}
-	mi := &file_term_proto_msgTypes[5]
+	mi := &file_term_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -779,7 +863,7 @@ func (x *Pane) String() string {
 func (*Pane) ProtoMessage() {}
 
 func (x *Pane) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[5]
+	mi := &file_term_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -792,7 +876,7 @@ func (x *Pane) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pane.ProtoReflect.Descriptor instead.
 func (*Pane) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{5}
+	return file_term_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Pane) GetId() string {
@@ -900,6 +984,13 @@ func (x *Pane) GetInput() uint32 {
 	return 0
 }
 
+func (x *Pane) GetCwd() string {
+	if x != nil {
+		return x.Cwd
+	}
+	return ""
+}
+
 // PaneList is the pane headers in creation order.
 type PaneList struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -910,7 +1001,7 @@ type PaneList struct {
 
 func (x *PaneList) Reset() {
 	*x = PaneList{}
-	mi := &file_term_proto_msgTypes[6]
+	mi := &file_term_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -922,7 +1013,7 @@ func (x *PaneList) String() string {
 func (*PaneList) ProtoMessage() {}
 
 func (x *PaneList) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[6]
+	mi := &file_term_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -935,7 +1026,7 @@ func (x *PaneList) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaneList.ProtoReflect.Descriptor instead.
 func (*PaneList) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{6}
+	return file_term_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PaneList) GetPanes() []*PaneInfo {
@@ -955,7 +1046,7 @@ type PaneId struct {
 
 func (x *PaneId) Reset() {
 	*x = PaneId{}
-	mi := &file_term_proto_msgTypes[7]
+	mi := &file_term_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -967,7 +1058,7 @@ func (x *PaneId) String() string {
 func (*PaneId) ProtoMessage() {}
 
 func (x *PaneId) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[7]
+	mi := &file_term_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -980,7 +1071,7 @@ func (x *PaneId) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaneId.ProtoReflect.Descriptor instead.
 func (*PaneId) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{7}
+	return file_term_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PaneId) GetId() string {
@@ -1012,7 +1103,7 @@ type CreateRequest struct {
 
 func (x *CreateRequest) Reset() {
 	*x = CreateRequest{}
-	mi := &file_term_proto_msgTypes[8]
+	mi := &file_term_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1024,7 +1115,7 @@ func (x *CreateRequest) String() string {
 func (*CreateRequest) ProtoMessage() {}
 
 func (x *CreateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[8]
+	mi := &file_term_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1037,7 +1128,7 @@ func (x *CreateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRequest.ProtoReflect.Descriptor instead.
 func (*CreateRequest) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{8}
+	return file_term_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CreateRequest) GetCommand() []string {
@@ -1107,7 +1198,7 @@ type WriteRequest struct {
 
 func (x *WriteRequest) Reset() {
 	*x = WriteRequest{}
-	mi := &file_term_proto_msgTypes[9]
+	mi := &file_term_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1119,7 +1210,7 @@ func (x *WriteRequest) String() string {
 func (*WriteRequest) ProtoMessage() {}
 
 func (x *WriteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[9]
+	mi := &file_term_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1132,7 +1223,7 @@ func (x *WriteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteRequest.ProtoReflect.Descriptor instead.
 func (*WriteRequest) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{9}
+	return file_term_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WriteRequest) GetId() string {
@@ -1186,7 +1277,7 @@ type WatchRequest struct {
 
 func (x *WatchRequest) Reset() {
 	*x = WatchRequest{}
-	mi := &file_term_proto_msgTypes[10]
+	mi := &file_term_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1198,7 +1289,7 @@ func (x *WatchRequest) String() string {
 func (*WatchRequest) ProtoMessage() {}
 
 func (x *WatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[10]
+	mi := &file_term_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1211,7 +1302,7 @@ func (x *WatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WatchRequest.ProtoReflect.Descriptor instead.
 func (*WatchRequest) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{10}
+	return file_term_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *WatchRequest) GetAll() bool {
@@ -1248,7 +1339,7 @@ type TreeRequest struct {
 
 func (x *TreeRequest) Reset() {
 	*x = TreeRequest{}
-	mi := &file_term_proto_msgTypes[11]
+	mi := &file_term_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1260,7 +1351,7 @@ func (x *TreeRequest) String() string {
 func (*TreeRequest) ProtoMessage() {}
 
 func (x *TreeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[11]
+	mi := &file_term_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1273,7 +1364,7 @@ func (x *TreeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TreeRequest.ProtoReflect.Descriptor instead.
 func (*TreeRequest) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{11}
+	return file_term_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TreeRequest) GetPath() string {
@@ -1301,7 +1392,7 @@ type Tree struct {
 
 func (x *Tree) Reset() {
 	*x = Tree{}
-	mi := &file_term_proto_msgTypes[12]
+	mi := &file_term_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1313,7 +1404,7 @@ func (x *Tree) String() string {
 func (*Tree) ProtoMessage() {}
 
 func (x *Tree) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[12]
+	mi := &file_term_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1326,7 +1417,7 @@ func (x *Tree) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tree.ProtoReflect.Descriptor instead.
 func (*Tree) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{12}
+	return file_term_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Tree) GetPath() string {
@@ -1354,7 +1445,7 @@ type MoveRequest struct {
 
 func (x *MoveRequest) Reset() {
 	*x = MoveRequest{}
-	mi := &file_term_proto_msgTypes[13]
+	mi := &file_term_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1366,7 +1457,7 @@ func (x *MoveRequest) String() string {
 func (*MoveRequest) ProtoMessage() {}
 
 func (x *MoveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[13]
+	mi := &file_term_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1379,7 +1470,7 @@ func (x *MoveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveRequest.ProtoReflect.Descriptor instead.
 func (*MoveRequest) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{13}
+	return file_term_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *MoveRequest) GetId() string {
@@ -1406,7 +1497,7 @@ type Ack struct {
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_term_proto_msgTypes[14]
+	mi := &file_term_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1418,7 +1509,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[14]
+	mi := &file_term_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1431,7 +1522,7 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{14}
+	return file_term_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Ack) GetOk() bool {
@@ -1453,7 +1544,7 @@ type Failure struct {
 
 func (x *Failure) Reset() {
 	*x = Failure{}
-	mi := &file_term_proto_msgTypes[15]
+	mi := &file_term_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1465,7 +1556,7 @@ func (x *Failure) String() string {
 func (*Failure) ProtoMessage() {}
 
 func (x *Failure) ProtoReflect() protoreflect.Message {
-	mi := &file_term_proto_msgTypes[15]
+	mi := &file_term_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1478,7 +1569,7 @@ func (x *Failure) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Failure.ProtoReflect.Descriptor instead.
 func (*Failure) Descriptor() ([]byte, []int) {
-	return file_term_proto_rawDescGZIP(), []int{15}
+	return file_term_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Failure) GetCode() string {
@@ -1524,13 +1615,18 @@ const file_term_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x10\n" +
 	"\x03dir\x18\x03 \x01(\bR\x03dir\x12\x12\n" +
-	"\x04pane\x18\x04 \x01(\tR\x04pane\"\x8b\x01\n" +
+	"\x04pane\x18\x04 \x01(\tR\x04pane\"\xb4\x01\n" +
 	"\vSessionInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05panes\x18\x02 \x03(\tR\x05panes\x12,\n" +
 	"\aentries\x18\x03 \x03(\v2\x12.lewkit.term.EntryR\aentries\x12\x14\n" +
 	"\x05level\x18\x04 \x01(\rR\x05level\x12\x12\n" +
-	"\x04dirs\x18\x05 \x03(\tR\x04dirs\"\xbd\x02\n" +
+	"\x04dirs\x18\x05 \x03(\tR\x04dirs\x12'\n" +
+	"\x05facts\x18\x06 \x03(\v2\x11.lewkit.term.FactR\x05facts\"B\n" +
+	"\x04Fact\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12\x10\n" +
+	"\x03key\x18\x02 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x03 \x01(\tR\x05value\"\xcf\x02\n" +
 	"\bPaneInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -1548,7 +1644,8 @@ const file_term_proto_rawDesc = "" +
 	"cursor_row\x18\v \x01(\x05R\tcursorRow\x12\x1d\n" +
 	"\n" +
 	"cursor_col\x18\f \x01(\x05R\tcursorCol\x12\x12\n" +
-	"\x04path\x18\r \x01(\tR\x04path\"\x92\x02\n" +
+	"\x04path\x18\r \x01(\tR\x04path\x12\x10\n" +
+	"\x03cwd\x18\x0e \x01(\tR\x03cwd\"\x92\x02\n" +
 	"\x04Cell\x12\x12\n" +
 	"\x04rune\x18\x01 \x01(\tR\x04rune\x12\x0e\n" +
 	"\x02fg\x18\x02 \x01(\x05R\x02fg\x12\x0e\n" +
@@ -1562,7 +1659,7 @@ const file_term_proto_rawDesc = "" +
 	"\x06fg_rgb\x18\n" +
 	" \x01(\rR\x05fgRgb\x12\x15\n" +
 	"\x06bg_rgb\x18\v \x01(\rR\x05bgRgb\x12\x18\n" +
-	"\areverse\x18\f \x01(\bR\areverse\"\xf8\x02\n" +
+	"\areverse\x18\f \x01(\bR\areverse\"\x8a\x03\n" +
 	"\x04Pane\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12\x18\n" +
@@ -1582,7 +1679,8 @@ const file_term_proto_rawDesc = "" +
 	"cursor_col\x18\f \x01(\x05R\tcursorCol\x12'\n" +
 	"\x05cells\x18\r \x03(\v2\x11.lewkit.term.CellR\x05cells\x12\x12\n" +
 	"\x04path\x18\x0e \x01(\tR\x04path\x12\x14\n" +
-	"\x05input\x18\x0f \x01(\rR\x05input\"7\n" +
+	"\x05input\x18\x0f \x01(\rR\x05input\x12\x10\n" +
+	"\x03cwd\x18\x10 \x01(\tR\x03cwd\"7\n" +
 	"\bPaneList\x12+\n" +
 	"\x05panes\x18\x01 \x03(\v2\x15.lewkit.term.PaneInfoR\x05panes\"\x18\n" +
 	"\x06PaneId\x12\x0e\n" +
@@ -1632,47 +1730,49 @@ func file_term_proto_rawDescGZIP() []byte {
 	return file_term_proto_rawDescData
 }
 
-var file_term_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_term_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_term_proto_goTypes = []any{
 	(*Envelope)(nil),      // 0: lewkit.term.Envelope
 	(*Entry)(nil),         // 1: lewkit.term.Entry
 	(*SessionInfo)(nil),   // 2: lewkit.term.SessionInfo
-	(*PaneInfo)(nil),      // 3: lewkit.term.PaneInfo
-	(*Cell)(nil),          // 4: lewkit.term.Cell
-	(*Pane)(nil),          // 5: lewkit.term.Pane
-	(*PaneList)(nil),      // 6: lewkit.term.PaneList
-	(*PaneId)(nil),        // 7: lewkit.term.PaneId
-	(*CreateRequest)(nil), // 8: lewkit.term.CreateRequest
-	(*WriteRequest)(nil),  // 9: lewkit.term.WriteRequest
-	(*WatchRequest)(nil),  // 10: lewkit.term.WatchRequest
-	(*TreeRequest)(nil),   // 11: lewkit.term.TreeRequest
-	(*Tree)(nil),          // 12: lewkit.term.Tree
-	(*MoveRequest)(nil),   // 13: lewkit.term.MoveRequest
-	(*Ack)(nil),           // 14: lewkit.term.Ack
-	(*Failure)(nil),       // 15: lewkit.term.Failure
+	(*Fact)(nil),          // 3: lewkit.term.Fact
+	(*PaneInfo)(nil),      // 4: lewkit.term.PaneInfo
+	(*Cell)(nil),          // 5: lewkit.term.Cell
+	(*Pane)(nil),          // 6: lewkit.term.Pane
+	(*PaneList)(nil),      // 7: lewkit.term.PaneList
+	(*PaneId)(nil),        // 8: lewkit.term.PaneId
+	(*CreateRequest)(nil), // 9: lewkit.term.CreateRequest
+	(*WriteRequest)(nil),  // 10: lewkit.term.WriteRequest
+	(*WatchRequest)(nil),  // 11: lewkit.term.WatchRequest
+	(*TreeRequest)(nil),   // 12: lewkit.term.TreeRequest
+	(*Tree)(nil),          // 13: lewkit.term.Tree
+	(*MoveRequest)(nil),   // 14: lewkit.term.MoveRequest
+	(*Ack)(nil),           // 15: lewkit.term.Ack
+	(*Failure)(nil),       // 16: lewkit.term.Failure
 }
 var file_term_proto_depIdxs = []int32{
 	2,  // 0: lewkit.term.Envelope.session:type_name -> lewkit.term.SessionInfo
-	6,  // 1: lewkit.term.Envelope.pane_list:type_name -> lewkit.term.PaneList
-	5,  // 2: lewkit.term.Envelope.pane:type_name -> lewkit.term.Pane
-	14, // 3: lewkit.term.Envelope.ack:type_name -> lewkit.term.Ack
-	15, // 4: lewkit.term.Envelope.error:type_name -> lewkit.term.Failure
-	7,  // 5: lewkit.term.Envelope.pane_id:type_name -> lewkit.term.PaneId
-	8,  // 6: lewkit.term.Envelope.create:type_name -> lewkit.term.CreateRequest
-	9,  // 7: lewkit.term.Envelope.write:type_name -> lewkit.term.WriteRequest
-	10, // 8: lewkit.term.Envelope.watch:type_name -> lewkit.term.WatchRequest
-	12, // 9: lewkit.term.Envelope.tree:type_name -> lewkit.term.Tree
-	11, // 10: lewkit.term.Envelope.tree_request:type_name -> lewkit.term.TreeRequest
-	13, // 11: lewkit.term.Envelope.move:type_name -> lewkit.term.MoveRequest
+	7,  // 1: lewkit.term.Envelope.pane_list:type_name -> lewkit.term.PaneList
+	6,  // 2: lewkit.term.Envelope.pane:type_name -> lewkit.term.Pane
+	15, // 3: lewkit.term.Envelope.ack:type_name -> lewkit.term.Ack
+	16, // 4: lewkit.term.Envelope.error:type_name -> lewkit.term.Failure
+	8,  // 5: lewkit.term.Envelope.pane_id:type_name -> lewkit.term.PaneId
+	9,  // 6: lewkit.term.Envelope.create:type_name -> lewkit.term.CreateRequest
+	10, // 7: lewkit.term.Envelope.write:type_name -> lewkit.term.WriteRequest
+	11, // 8: lewkit.term.Envelope.watch:type_name -> lewkit.term.WatchRequest
+	13, // 9: lewkit.term.Envelope.tree:type_name -> lewkit.term.Tree
+	12, // 10: lewkit.term.Envelope.tree_request:type_name -> lewkit.term.TreeRequest
+	14, // 11: lewkit.term.Envelope.move:type_name -> lewkit.term.MoveRequest
 	1,  // 12: lewkit.term.SessionInfo.entries:type_name -> lewkit.term.Entry
-	4,  // 13: lewkit.term.Pane.cells:type_name -> lewkit.term.Cell
-	3,  // 14: lewkit.term.PaneList.panes:type_name -> lewkit.term.PaneInfo
-	1,  // 15: lewkit.term.Tree.entries:type_name -> lewkit.term.Entry
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	3,  // 13: lewkit.term.SessionInfo.facts:type_name -> lewkit.term.Fact
+	5,  // 14: lewkit.term.Pane.cells:type_name -> lewkit.term.Cell
+	4,  // 15: lewkit.term.PaneList.panes:type_name -> lewkit.term.PaneInfo
+	1,  // 16: lewkit.term.Tree.entries:type_name -> lewkit.term.Entry
+	17, // [17:17] is the sub-list for method output_type
+	17, // [17:17] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_term_proto_init() }
@@ -1700,7 +1800,7 @@ func file_term_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_term_proto_rawDesc), len(file_term_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
