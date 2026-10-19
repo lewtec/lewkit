@@ -8,12 +8,23 @@
 // parser forks a graph-structured stack (the fork shares its tail). Declared
 // precedence and associativity drop the losing action while the tables are built.
 //
-// Nodes are records in one array. Children of a node are a contiguous range of
-// indexes. Token text is a slice of the source the caller passed in; the tree
-// does not copy it and does not allocate a string per node. A hidden rule
-// (a name that starts with '_' or '$', including the names [Grammar.Repeat] and
-// [Grammar.Opt] create) is flattened into its parent, which is the same idea as
-// an inlined tree-sitter rule.
+// Nodes are records in one array owned by the tree. A [Node] is a handle:
+// the tree and an index. Copying a handle does not copy the record. Children
+// of a node are a contiguous range of indexes. The returned tree contains
+// the nodes reachable from the root. Forks that lost, and hidden rules that
+// were flattened, stay in the parse scratch and are not part of that value.
+//
+// Token text borrows the source the caller passed in. [Node.Bytes] is that
+// slice. [Node.Text] is a copy, so a caller can keep the string after the
+// source is reused. The tree does not allocate a string per node. A hidden
+// rule (a name that starts with '_' or '$', including the names
+// [Grammar.Repeat] and [Grammar.Opt] create) is flattened into its parent,
+// which is the same idea as an inlined tree-sitter rule. A reduction keeps
+// one best path per stack ancestor and shares that ancestor's tail. It does
+// not build a tree for each combination of those ancestors. Passing the
+// ancestor bound, or holding more heads than fit at one input position, is
+// a syntax error. When that head limit is already reached, heads that have
+// not consumed as much input are abandoned so the furthest position can finish.
 //
 // A language whose tokens depend on earlier tokens, such as Go's inserted
 // semicolon, sets [Grammar.Scanner]. That scanner reads the file once.

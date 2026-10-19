@@ -12,14 +12,19 @@ const (
 	// after another head has already accepted the file.
 	maxStall = 8192
 	// maxPaths bounds distinct stack ancestors while reducing one production.
-	// Combinations of those ancestors are not materialized.
+	// Combinations of those ancestors are not materialized. Passing the
+	// bound fails the parse.
 	maxPaths = 8192
 )
+
+// pathLimit is maxPaths. Tests lower it to prove the bound is an error.
+var pathLimit = maxPaths
 
 const (
 	redOK = iota
 	redStall
 	redSyntax
+	redBound
 )
 
 type link struct {
@@ -124,12 +129,10 @@ func (l *Language) Parse(src []byte) (*Tree, error) {
 		if ambig != nil {
 			return nil, p.withWant(ambig, p.errState)
 		}
-		p.heads = merged
-		if len(p.heads) > maxHeads {
-			// merge keeps the furthest heads and errors when the frontier
-			// itself does not fit.
-			return nil, p.withWant(p.errAt(p.heads[0].pos, nil), p.errState)
+		if p.bound {
+			return nil, p.boundError()
 		}
+		p.heads = merged
 	}
 	var won *head
 	for i := range p.heads {
@@ -148,29 +151,25 @@ func (l *Language) Parse(src []byte) (*Tree, error) {
 		}
 		return nil, p.withWant(best, bestState)
 	}
-	return &Tree{
-		lang:  l,
-		Src:   src,
-		nodes: p.nodes,
-		kids:  p.kids,
-		lines: p.lines,
-		root:  won.node,
-	}, nil
+	return concreteTree(l, src, p.nodes, p.kids, p.lines, won.node), nil
 }
 
 type pr struct {
-	lang     *Language
-	src      []byte
-	toks     []tok
-	tokMode  bool
-	nodes    []node
-	kids     []uint32
-	links    []link
-	extras   []extra
-	heads    []head
-	lines    []int
-	wantBuf  []string
-	errState uint32
+	lang      *Language
+	src       []byte
+	toks      []tok
+	tokMode   bool
+	nodes     []node
+	kids      []uint32
+	links     []link
+	extras    []extra
+	heads     []head
+	lines     []int
+	wantBuf   []string
+	errState  uint32
+	bound     bool
+	boundPos  int
+	boundHead head
 }
 
 func (l *Language) prelex(src []byte) ([]tok, error) {
@@ -233,6 +232,10 @@ func (p *pr) act(h head) ([]head, *Error) {
 			if kind == redStall {
 				continue
 			}
+			if kind == redBound {
+				p.noteBound(h)
+				return nil, nil
+			}
 			if kind == redSyntax {
 				return out, p.errAt(h.pos, &h)
 			}
@@ -279,26 +282,46 @@ func (p *pr) ensure(h *head) bool {
 	return true
 }
 
-// prevSymbol is the previous terminal on this stack. A token whose text is
-// only spaces or tabs is skipped, so After still sees the token before them.
+// prevSymbol is the previous terminal on the best path of this stack.
+// A token whose text is only spaces or tabs is skipped, so After still
+// sees the token before them. An abandoned predecessor does not win the
+// lookup: the lexer follows the same node the accept path would keep.
 func (p *pr) prevSymbol(link int32) SymbolID {
 	for link >= 0 {
-		nodeID := p.links[link].node
+		nodeID := p.bestNode(link)
 		if nodeID == 0 {
 			return 0
 		}
 		kind := p.nodes[nodeID].kind
+		next := p.predParent(link, nodeID)
 		if int(kind) >= len(p.lang.syms) || !p.lang.syms[kind].terminal {
-			link = p.links[link].parent
+			link = next
 			continue
 		}
 		n := p.nodes[nodeID]
 		if !onlySpace(p.src, n.start, n.end) {
 			return kind
 		}
-		link = p.links[link].parent
+		link = next
 	}
 	return 0
+}
+
+// predParent is the stack link under the predecessor that holds node.
+func (p *pr) predParent(lk int32, node uint32) int32 {
+	if lk < 0 {
+		return -1
+	}
+	L := p.links[lk]
+	if L.node == node {
+		return L.parent
+	}
+	for m := L.more; m >= 0; m = p.extras[m].more {
+		if p.extras[m].node == node {
+			return p.extras[m].parent
+		}
+	}
+	return L.parent
 }
 
 func onlySpace(src []byte, start, end uint32) bool {
@@ -358,37 +381,44 @@ func (p *pr) doReduce(h head, prod uint32) ([]head, int) {
 	}
 	h.eps = 0
 	// One predecessor along the whole right-hand side is the common case.
+	// The slice lives only until the node is committed.
 	if raw, anc, dyn, ok := p.onePath(h.link, n, int32(info.dyn)); ok {
 		return p.finishReduce(h, info, prod, anc, raw, dyn)
 	}
-	// Several predecessors: keep the highest dynamic precedence for each
-	// ancestor. Building a node per full path copies the shared span once
-	// for every combination.
-	cur := []reducePath{{link: h.link, dyn: int32(info.dyn)}}
+	// Several predecessors: one best path per ancestor. Each step points
+	// at the step it extends, so a shared tail is not copied. The node
+	// list is written once, when that path commits a record.
+	steps := make([]pathStep, 0, n)
+	cur := []pathCursor{{step: -1, link: h.link, dyn: int32(info.dyn)}}
 	for range n {
-		next := make([]reducePath, 0, len(cur))
+		next := make([]pathCursor, 0, len(cur))
 		best := make(map[int32]int, len(cur))
+		overflow := false
 		for _, part := range cur {
 			p.eachPred(part.link, func(parent int32, node uint32, d int32) {
-				if parent < 0 {
+				if overflow || parent < 0 {
 					return
 				}
 				dyn := part.dyn + d
-				nodes := make([]uint32, len(part.nodes)+1)
-				copy(nodes, part.nodes)
-				nodes[len(part.nodes)] = node
 				if i, ok := best[parent]; ok {
-					if dyn > next[i].dyn {
-						next[i] = reducePath{link: parent, dyn: dyn, nodes: nodes}
+					if dyn <= next[i].dyn {
+						return
 					}
+					steps = append(steps, pathStep{tail: part.step, node: node})
+					next[i] = pathCursor{step: int32(len(steps) - 1), link: parent, dyn: dyn}
 					return
 				}
-				if len(next) >= maxPaths {
+				if len(next) >= pathLimit {
+					overflow = true
 					return
 				}
+				steps = append(steps, pathStep{tail: part.step, node: node})
 				best[parent] = len(next)
-				next = append(next, reducePath{link: parent, dyn: dyn, nodes: nodes})
+				next = append(next, pathCursor{step: int32(len(steps) - 1), link: parent, dyn: dyn})
 			})
+			if overflow {
+				return nil, redBound
+			}
 		}
 		if len(next) == 0 {
 			return nil, redSyntax
@@ -397,12 +427,10 @@ func (p *pr) doReduce(h head, prod uint32) ([]head, int) {
 	}
 	var out []head
 	saw := false
-	for i := range cur {
-		path := &cur[i]
-		for a, b := 0, len(path.nodes)-1; a < b; a, b = a+1, b-1 {
-			path.nodes[a], path.nodes[b] = path.nodes[b], path.nodes[a]
-		}
-		got, kind := p.finishReduce(h, info, prod, path.link, path.nodes, path.dyn)
+	raw := make([]uint32, n)
+	for _, part := range cur {
+		flattenPath(steps, part.step, raw)
+		got, kind := p.finishReduce(h, info, prod, part.link, raw, part.dyn)
 		if kind != redOK {
 			continue
 		}
@@ -415,15 +443,35 @@ func (p *pr) doReduce(h head, prod uint32) ([]head, int) {
 	return out, redOK
 }
 
-// onePath pops n stack links when each has a single predecessor.
-func (p *pr) onePath(lk int32, n int, dyn int32) ([]uint32, int32, int32, bool) {
-	var buf [8]uint32
-	var raw []uint32
-	if n <= len(buf) {
-		raw = buf[:n]
-	} else {
-		raw = make([]uint32, n)
+// pathStep is one popped edge. tail is the previous edge, or -1.
+// The step list is scratch for one reduction. A kept path points at its
+// tail; a path that loses is not appended.
+type pathStep struct {
+	tail int32
+	node uint32
+}
+
+// pathCursor is the best path found for one ancestor so far.
+type pathCursor struct {
+	step int32
+	link int32
+	dyn  int32
+}
+
+// flattenPath writes the path leftmost child first. The cursor sits on the
+// last pop, which is the left edge, and each tail is the edge to its right.
+func flattenPath(steps []pathStep, step int32, raw []uint32) {
+	for i := range raw {
+		s := steps[step]
+		raw[i] = s.node
+		step = s.tail
 	}
+}
+
+// onePath pops n stack links when each has a single predecessor.
+// The returned slice is owned by the caller for this reduction.
+func (p *pr) onePath(lk int32, n int, dyn int32) ([]uint32, int32, int32, bool) {
+	raw := make([]uint32, n)
 	for i := n - 1; i >= 0; i-- {
 		if lk < 0 || p.links[lk].more >= 0 {
 			return nil, 0, 0, false
@@ -436,12 +484,6 @@ func (p *pr) onePath(lk int32, n int, dyn int32) ([]uint32, int32, int32, bool) 
 		return nil, 0, 0, false
 	}
 	return raw, lk, dyn, true
-}
-
-type reducePath struct {
-	link  int32
-	dyn   int32
-	nodes []uint32
 }
 
 func (p *pr) finishReduce(h head, info prodInfo, prod uint32, ancestor int32, raw []uint32, dyn int32) ([]head, int) {
@@ -609,6 +651,22 @@ func (p *pr) add(n node) uint32 {
 	return id
 }
 
+func (p *pr) noteBound(h head) {
+	if p.bound {
+		return
+	}
+	p.bound = true
+	p.boundPos = h.pos
+	p.boundHead = h
+}
+
+func (p *pr) boundError() *Error {
+	e := p.errAt(p.boundPos, &p.boundHead)
+	e.Detail = "too many stacks"
+	e.Want = nil
+	return e
+}
+
 func (p *pr) merge(heads []head) ([]head, *Error) {
 	// One head per state and input position. Other stacks that reached
 	// that state stay as predecessors, so a later reduce can follow each
@@ -647,6 +705,10 @@ func (p *pr) merge(heads []head) ([]head, *Error) {
 	if len(out) <= maxHeads {
 		return out, nil
 	}
+	// The head limit is a search bound. Heads at the furthest position
+	// are the ones that can still accept. A frontier wider than the limit
+	// is an error: the parse does not guess among them. Heads behind that
+	// position are abandoned. They are not a second tree.
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].pos != out[j].pos {
 			return out[i].pos > out[j].pos
@@ -667,9 +729,12 @@ func (p *pr) merge(heads []head) ([]head, *Error) {
 		n++
 	}
 	if n > maxHeads {
-		return nil, p.errAt(best, &out[0])
+		e := p.errAt(best, &out[0])
+		e.Detail = "too many stacks"
+		e.Want = nil
+		return nil, e
 	}
-	return out[:maxHeads], nil
+	return out[:n], nil
 }
 
 func (p *pr) better(a, b head) bool {

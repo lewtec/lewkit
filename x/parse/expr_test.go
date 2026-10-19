@@ -151,6 +151,108 @@ func TestDynamicFork(t *testing.T) {
 	require.Equal(t, "(s (b x))", tree.SExpr())
 }
 
+func TestAbandonedForkIsNotInTheTree(t *testing.T) {
+	g := New("amb")
+	x := g.Literal("x")
+	g.Rule("a").Seq(x).Dynamic(1)
+	g.Rule("b").Seq(x).Dynamic(2)
+	s := g.Rule("s")
+	s.Seq(g.Sym("a"))
+	s.Seq(g.Sym("b"))
+	g.Start("s")
+	lang, err := g.Compile()
+	require.NoError(t, err)
+	tree, err := lang.Parse([]byte("x"))
+	require.NoError(t, err)
+	require.Equal(t, countReachable(tree), len(tree.nodes)-1)
+	require.NotContains(t, namesFrom(tree, tree.root), "a")
+}
+
+func TestBytesBorrowsSource(t *testing.T) {
+	lang := exprLang(t)
+	src := []byte("1+2*3")
+	tree, err := lang.Parse(src)
+	require.NoError(t, err)
+	leaf := tree.Root().Child(0).Child(0)
+	require.Equal(t, "num", leaf.Name())
+	got := leaf.Bytes()
+	require.Equal(t, []byte("1"), got)
+	require.Equal(t, "1", leaf.Text())
+	start := leaf.Start()
+	require.Same(t, &src[start], &got[0])
+	require.Same(t, &tree.Src[start], &got[0])
+}
+
+func TestPathBoundIsSyntax(t *testing.T) {
+	g := New("expr")
+	num := g.Token("num").Match(digits)
+	plus := g.Literal("+")
+	e := g.Rule("expr")
+	e.Seq(g.Sym("expr"), plus, g.Sym("expr"))
+	e.Seq(num)
+	g.Start("expr")
+	lang, err := g.Compile()
+	require.NoError(t, err)
+	require.Greater(t, lang.Forks(), 0)
+
+	tree, err := lang.Parse([]byte("1+2+3"))
+	require.NoError(t, err)
+	var nums []string
+	for _, leaf := range tree.Leaves() {
+		if leaf.Name == "num" {
+			nums = append(nums, leaf.Text)
+		}
+	}
+	require.Equal(t, []string{"1", "2", "3"}, nums)
+
+	old := pathLimit
+	pathLimit = 1
+	t.Cleanup(func() { pathLimit = old })
+	_, err = lang.Parse([]byte("1+2+3"))
+	require.ErrorIs(t, err, errs.ErrSyntax)
+	require.ErrorContains(t, err, "too many stacks")
+}
+
+func countReachable(tree *Tree) int {
+	if tree == nil || tree.root == 0 {
+		return 0
+	}
+	seen := make([]bool, len(tree.nodes))
+	var n int
+	var walk func(uint32)
+	walk = func(id uint32) {
+		if id == 0 || int(id) >= len(tree.nodes) || seen[id] {
+			return
+		}
+		seen[id] = true
+		n++
+		nd := tree.nodes[id]
+		for i := uint32(0); i < nd.nchild; i++ {
+			at := nd.child + i
+			if int(at) < len(tree.kids) {
+				walk(tree.kids[at])
+			}
+		}
+	}
+	walk(tree.root)
+	return n
+}
+
+func namesFrom(tree *Tree, id uint32) []string {
+	if tree == nil || id == 0 || int(id) >= len(tree.nodes) {
+		return nil
+	}
+	nd := tree.nodes[id]
+	out := []string{tree.lang.syms[nd.kind].name}
+	for i := uint32(0); i < nd.nchild; i++ {
+		at := nd.child + i
+		if int(at) < len(tree.kids) {
+			out = append(out, namesFrom(tree, tree.kids[at])...)
+		}
+	}
+	return out
+}
+
 func TestKeywordVersusWord(t *testing.T) {
 	g := New("kw")
 	ident := g.Token("ident").Word(unicode.IsLetter, unicode.IsLetter)
