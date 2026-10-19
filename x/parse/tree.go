@@ -23,8 +23,10 @@ type node struct {
 	prod   uint16
 }
 
-// Tree is one concrete syntax tree. Nodes live in one array. Token text is
-// a slice of Src; the tree does not copy it.
+// Tree is one concrete syntax tree. Nodes live in one array the tree owns.
+// Src is the caller's buffer: the tree borrows it and does not copy it.
+// Mutating Src changes every [Node.Bytes] view. A [Node] stays valid while
+// the tree value is reachable.
 type Tree struct {
 	lang  *Language
 	Src   []byte
@@ -41,7 +43,10 @@ type Leaf struct {
 	Start, End int
 }
 
-// Node is a handle into a tree.
+// Node is a handle into a tree: the tree that owns the record, and the
+// record's index. The index is not a pointer, so growing the parse scratch
+// cannot dangle it. Handles the caller sees already point into the concrete
+// tree, which does not grow.
 type Node struct {
 	tree *Tree
 	id   uint32
@@ -94,7 +99,17 @@ func (n Node) End() int {
 	return int(n.tree.nodes[n.id].end)
 }
 
-// Text is the source slice. A zero-width semicolon is the inserted "\n".
+// Bytes is the source this node covers. It aliases [Tree.Src]. An inserted
+// semicolon covers no bytes; [Node.Text] reports that token as "\n".
+func (n Node) Bytes() []byte {
+	if !n.Valid() {
+		return nil
+	}
+	return n.tree.bytes(n.tree.nodes[n.id])
+}
+
+// Text is a copy of the source this node covers. A zero-width semicolon is
+// the inserted "\n". The copy outlives the tree.
 func (n Node) Text() string {
 	if !n.Valid() {
 		return ""
@@ -194,14 +209,80 @@ func (t *Tree) Leaves() []Leaf {
 	return out
 }
 
+func (t *Tree) bytes(n node) []byte {
+	if t == nil || int(n.end) > len(t.Src) || int(n.start) > int(n.end) {
+		return nil
+	}
+	return t.Src[n.start:n.end]
+}
+
 func (t *Tree) lit(n node) string {
 	if t.lang.syms[n.kind].name == ";" && n.start == n.end {
 		return "\n"
 	}
-	if int(n.end) > len(t.Src) || int(n.start) > int(n.end) {
+	b := t.bytes(n)
+	if b == nil {
 		return ""
 	}
-	return string(t.Src[n.start:n.end])
+	return string(b)
+}
+
+// concreteTree copies the nodes reachable from root. The parse scratch,
+// including abandoned forks, is not retained.
+func concreteTree(lang *Language, src []byte, nodes []node, kids []uint32, lines []int, root uint32) *Tree {
+	out := &Tree{
+		lang:  lang,
+		Src:   src,
+		nodes: []node{{}},
+		lines: lines,
+	}
+	if root == 0 || int(root) >= len(nodes) {
+		return out
+	}
+	seen := make([]uint32, len(nodes))
+	order := make([]uint32, 0, 16)
+	var walk func(uint32)
+	walk = func(id uint32) {
+		if id == 0 || int(id) >= len(nodes) || seen[id] != 0 {
+			return
+		}
+		seen[id] = 1
+		n := nodes[id]
+		for i := uint32(0); i < n.nchild; i++ {
+			at := n.child + i
+			if int(at) >= len(kids) {
+				continue
+			}
+			walk(kids[at])
+		}
+		order = append(order, id)
+	}
+	walk(root)
+	fresh := make([]node, len(order)+1)
+	var freshKids []uint32
+	for i, id := range order {
+		seen[id] = uint32(i + 1)
+	}
+	for i, id := range order {
+		n := nodes[id]
+		if n.nchild > 0 {
+			base := uint32(len(freshKids))
+			for k := uint32(0); k < n.nchild; k++ {
+				at := n.child + k
+				child := uint32(0)
+				if int(at) < len(kids) {
+					child = seen[kids[at]]
+				}
+				freshKids = append(freshKids, child)
+			}
+			n.child = base
+		}
+		fresh[i+1] = n
+	}
+	out.nodes = fresh
+	out.kids = freshKids
+	out.root = seen[root]
+	return out
 }
 
 func (t *Tree) shown(n node) string {
