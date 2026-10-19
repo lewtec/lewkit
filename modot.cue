@@ -37,6 +37,7 @@ inputs: golang: {
 inputs: purego: {
 	from:    "github:ebitengine/purego"
 	version: "v0.11.0"
+}
 // Vulkan-Samples publishes no release tags. main is the pin Renovate tracks.
 inputs: vulkan_samples: {
 	from:    "github:KhronosGroup/Vulkan-Samples"
