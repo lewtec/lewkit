@@ -10,7 +10,10 @@
 // A frame with the wrong version is rejected. A different level still
 // attaches, and the desk warns. Level 2 stores directories. Level 3
 // keeps the facts a pane stores for its session. Level 4 reads each
-// pane's working directory from the process on a timer.
+// pane's working directory from the process on a timer. Level 5 stores
+// those facts on the pane id, so a move keeps them. A missing key
+// inherits from the nearest ancestor directory. Directory facts move
+// with the directory.
 //
 // The directory is read from the process about five times a second, on
 // Linux from /proc and on Darwin from the process table. The shell does
@@ -20,7 +23,10 @@
 // CurrentDir=. The lewkit sequences are ESC ] 777 ; cwd ; PATH,
 // ESC ] 777 ; set ; KEY ; VALUE, and ESC ] 777 ; del ; KEY, ended by
 // BEL or ST (ESC \). The bytes have no spaces. The drawer shows task,
-// progress, and state. Facts, including the last directory, are saved
+// progress, and state. A value the pane writes is stored on that pane's
+// id. A missing key is read from the nearest ancestor directory.
+// Directory facts move and drop with the directory. Facts, including
+// the last directory, are saved
 // in term.state.json beside the socket and loaded when a new server
 // starts. The pane processes are not brought back. The client's cwd is
 // not stored, and a pane key does not create a host directory.

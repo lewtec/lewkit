@@ -13,8 +13,11 @@ const ProtocolVersion = 1
 // directory when the process writes, and keeps session facts.
 // Level 4 reads that directory from the process on a timer, on Linux
 // and Darwin, including when the process prints nothing.
+// Level 5 keys a pane's facts by that pane's id, so a move keeps them.
+// A missing key inherits from the nearest ancestor directory.
+// Directory facts move with the directory.
 // A different level still attaches, and the desk warns.
-const ProtocolLevel = 4
+const ProtocolLevel = 5
 
 // ColorPalette means FG or BG is an ANSI palette index.
 // Zero is the default color. 1 through 8 are normal and 9 through 16 are bright.
@@ -63,7 +66,8 @@ type Tree struct {
 // Entries is the key tree. A folder is a stored directory or a pane prefix.
 // Level is the protocol level the server speaks. Zero means level 1.
 // Dirs are directories the server keeps, including empty ones.
-// Facts are values a pane stored for a session. Path is that session key.
+// Facts are values stored on a pane id or a directory path.
+// A pane's own value wins. A missing key inherits from the nearest ancestor directory.
 type SessionInfo struct {
 	ID      string
 	Panes   []string
@@ -73,8 +77,9 @@ type SessionInfo struct {
 	Facts   []Fact
 }
 
-// Fact is one value stored for a session.
-// Path is the session key. Key and Value are what the pane wrote.
+// Fact is one value in the pane and directory taxonomy.
+// Path is a pane id or a directory path. Key and Value are what was stored.
+// A pane reads its own bag first. A missing key inherits from the nearest ancestor directory.
 type Fact struct {
 	Path  string
 	Key   string

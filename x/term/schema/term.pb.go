@@ -380,8 +380,11 @@ func (x *Entry) GetPane() string {
 // levels, which spoke level 1. Level 2 stores directories. Level 3 reports
 // each pane's working directory and keeps session facts. Level 4 reads that
 // directory from the process on a timer, including when it prints nothing.
+// Level 5 keys pane facts by pane id so a move keeps them. A missing key
+// inherits from the nearest ancestor directory. Directory facts move with
+// the directory.
 // dirs are the directories the server keeps, including empty ones.
-// facts are key/value records a pane stored for its session.
+// facts are key/value records. path is a pane id or a directory path.
 type SessionInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -466,8 +469,10 @@ func (x *SessionInfo) GetFacts() []*Fact {
 	return nil
 }
 
-// Fact is one session value. path is the session key. key and value are
-// the record an application wrote from a pane.
+// Fact is one value in the pane and directory taxonomy.
+// path is a pane id or a directory path. A pane's own value wins.
+// A missing key inherits from the nearest ancestor directory.
+// key and value are the record an application wrote from a pane.
 type Fact struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`

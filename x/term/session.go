@@ -211,14 +211,58 @@ func (s *Session) sessionKey(path string) string {
 	return parent + "/" + name
 }
 
+// savedCwd is a cwd fact on path or a parent directory.
+// Another pane's cwd does not apply.
 func (s *Session) savedCwd(path string) string {
-	bag := s.facts[s.sessionKey(path)]
+	return inheritedValue(s.facts, s.isPaneID, path, "cwd")
+}
+
+// factAt resolves one key for a pane.
+// A non-blank value stored on the pane id wins. Otherwise the nearest
+// ancestor path that stores that key wins. A blank value is skipped, so
+// deleting the local key is what makes the parent show again.
+// A path that is a pane id is not an ancestor. One pane does not inherit
+// another pane's values.
+func (s *Session) factAt(id, path, key string) string {
+	if id != "" {
+		if value := strings.TrimSpace(bagValue(s.facts, id, key)); value != "" {
+			return value
+		}
+	}
+	return inheritedValue(s.facts, s.isPaneID, path, key)
+}
+
+func (s *Session) isPaneID(key string) bool {
+	_, ok := s.panes[key]
+	return ok
+}
+
+func bagValue(facts map[string]map[string]string, node, key string) string {
+	if node == "" || facts == nil {
+		return ""
+	}
+	bag := facts[node]
 	if bag == nil {
 		return ""
 	}
-	return bag["cwd"]
+	return bag[key]
 }
 
+// inheritedValue walks path and each parent.
+// skip drops a node that is a pane id, so that pane's bag is not read as a directory.
+func inheritedValue(facts map[string]map[string]string, skip func(string) bool, path, key string) string {
+	for at := path; at != ""; at = pathParent(at) {
+		if skip != nil && skip(at) {
+			continue
+		}
+		if value := strings.TrimSpace(bagValue(facts, at, key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+// setFact stores one value on a pane id or a directory path.
 func (s *Session) setFact(path, key, value string) bool {
 	if path == "" || !validFactKey(key) {
 		return false
@@ -260,6 +304,61 @@ func (s *Session) delFact(path, key string) bool {
 	return true
 }
 
+// rebaseDirFacts renames fact keys that sit on src or under it.
+// A pane id stays put, including when that id is the same text as the directory.
+func (s *Session) rebaseDirFacts(src, dest string) bool {
+	type pair struct{ from, to string }
+	var moves []pair
+	for key := range s.facts {
+		if s.isPaneID(key) {
+			continue
+		}
+		if key != src && !strings.HasPrefix(key, src+"/") {
+			continue
+		}
+		next := rebasePath(key, src, dest)
+		if next == key || s.isPaneID(next) {
+			continue
+		}
+		moves = append(moves, pair{key, next})
+	}
+	if len(moves) == 0 {
+		return false
+	}
+	for _, mv := range moves {
+		bag := s.facts[mv.from]
+		delete(s.facts, mv.from)
+		have := s.facts[mv.to]
+		if have == nil {
+			s.facts[mv.to] = bag
+			continue
+		}
+		for k, v := range bag {
+			if _, ok := have[k]; ok {
+				continue
+			}
+			have[k] = v
+		}
+	}
+	return true
+}
+
+// dropDirFacts removes fact keys that sit on src or under it.
+// A pane id is left alone.
+func (s *Session) dropDirFacts(src string) bool {
+	changed := false
+	for key := range s.facts {
+		if s.isPaneID(key) {
+			continue
+		}
+		if key == src || strings.HasPrefix(key, src+"/") {
+			delete(s.facts, key)
+			changed = true
+		}
+	}
+	return changed
+}
+
 func (s *Session) factList() []Fact {
 	out := make([]Fact, 0)
 	for path, bag := range s.facts {
@@ -278,7 +377,7 @@ func (s *Session) factList() []Fact {
 
 func (s *Session) applyReports(pane *live, reports []report) bool {
 	changed := false
-	key := s.sessionKey(pane.info.Path)
+	key := pane.info.ID
 	for _, rep := range reports {
 		switch {
 		case rep.cwd != "":
@@ -316,7 +415,7 @@ func (s *Session) observeCwd(pane *live) bool {
 		return false
 	}
 	pane.info.Cwd = reported
-	s.setFact(s.sessionKey(pane.info.Path), "cwd", reported)
+	s.setFact(pane.info.ID, "cwd", reported)
 	return true
 }
 
@@ -659,9 +758,13 @@ func (s *Session) RemoveDir(ctx context.Context, path string) error {
 			delete(s.dirs, dir)
 		}
 	}
+	dropped := s.dropDirFacts(cleaned)
 	info := s.info()
 	fns := s.matching(Event{Notice: NoticeSession, Session: &info})
 	s.mu.Unlock()
+	if dropped {
+		s.saveState()
+	}
 	deliver(fns)
 	return nil
 }
@@ -731,9 +834,13 @@ func (s *Session) MoveDir(ctx context.Context, from, to string) error {
 		next[moved] = struct{}{}
 	}
 	s.dirs = next
+	moved := s.rebaseDirFacts(src, dest)
 	info := s.info()
 	fns := s.matching(Event{Notice: NoticeSession, Session: &info})
 	s.mu.Unlock()
+	if moved {
+		s.saveState()
+	}
 	deliver(fns)
 	return nil
 }

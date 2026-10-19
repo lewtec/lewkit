@@ -843,6 +843,52 @@ func TestDrawerUsesReportedCwdAndFacts(t *testing.T) {
 	assert.False(t, changed)
 }
 
+func TestFactsFollowThePaneID(t *testing.T) {
+	model := newModel(t.Context(), &fakeAPI{}, "")
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	model.palette = false
+	model.drawer = true
+	model.focus = "ed"
+	model.order = []string{"ed", "other"}
+	model.made = []string{"pockets"}
+	model.shown = "pockets/work"
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{
+		ID: "ed", Path: "pockets/work/editor", Title: "hx", Alive: true,
+		Dir: "/old", Cwd: "/new",
+	}}
+	model.byID["other"] = Pane{PaneInfo: PaneInfo{
+		ID: "other", Path: "pockets/work/other", Title: "vi", Alive: true,
+	}}
+	model.facts = map[string]map[string]string{
+		"ed":      {"task": "local"},
+		"other":   {"task": "sibling"},
+		"pockets": {"state": "shared", "progress": "parent"},
+	}
+
+	plain, _ := renderPlain(model)
+	assert.Contains(t, plain, "task local")
+	assert.Contains(t, plain, "state shared")
+	assert.Contains(t, plain, "progress parent")
+	assert.NotContains(t, plain, "task sibling")
+
+	model.focus = "other"
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "task sibling")
+	assert.Contains(t, plain, "state shared")
+	assert.NotContains(t, plain, "task local")
+
+	model.focus = "ed"
+	model.byID["ed"] = Pane{PaneInfo: PaneInfo{
+		ID: "ed", Path: "archive/editor", Title: "hx", Alive: true,
+		Dir: "/old", Cwd: "/new",
+	}}
+	model.shown = "archive"
+	plain, _ = renderPlain(model)
+	assert.Contains(t, plain, "task local")
+	assert.NotContains(t, plain, "state shared")
+	assert.NotContains(t, plain, "progress parent")
+}
+
 func TestDrawerForgetsAnEmptyDirectory(t *testing.T) {
 	api := &fakeAPI{}
 	model := newModel(t.Context(), api, "")

@@ -1230,25 +1230,61 @@ func (m *Model) room() string {
 }
 
 func (m *Model) factLine() string {
-	key := m.shown
-	if key == "" {
-		if pane, ok := m.byID[m.focus]; ok {
-			key, _, _ = m.sessionOf(panePath(pane))
-		}
-	}
-	bag := m.facts[key]
-	if len(bag) == 0 {
-		return ""
-	}
+	id, path := m.factSubject()
 	var parts []string
 	for _, name := range []string{"task", "progress", "state"} {
-		value := strings.TrimSpace(bag[name])
+		value := m.resolvedFact(id, path, name)
 		if value == "" {
 			continue
 		}
 		parts = append(parts, name+" "+trimWidth(value, 40))
 	}
 	return strings.Join(parts, "  ")
+}
+
+// factSubject is the pane whose facts the drawer is showing, and the path
+// those facts inherit along. A shown session uses the focused pane in that
+// session, or the first pane when focus is elsewhere. A shown directory
+// with no pane inherits as a directory. An empty shown uses the focused pane.
+func (m *Model) factSubject() (string, string) {
+	if m.shown != "" {
+		for _, group := range m.sessionGroups() {
+			if group.key != m.shown {
+				continue
+			}
+			id := ""
+			for _, paneID := range group.panes {
+				if paneID == m.focus {
+					id = paneID
+					break
+				}
+			}
+			if id == "" && len(group.panes) > 0 {
+				id = group.panes[0]
+			}
+			if pane, ok := m.byID[id]; ok {
+				return pane.ID, panePath(pane)
+			}
+			return "", m.shown
+		}
+		return "", m.shown
+	}
+	if pane, ok := m.byID[m.focus]; ok {
+		return pane.ID, panePath(pane)
+	}
+	return "", ""
+}
+
+func (m *Model) resolvedFact(id, path, key string) string {
+	if id != "" {
+		if value := strings.TrimSpace(bagValue(m.facts, id, key)); value != "" {
+			return value
+		}
+	}
+	return inheritedValue(m.facts, func(at string) bool {
+		_, ok := m.byID[at]
+		return ok
+	}, path, key)
 }
 
 func (m *Model) lookGit() tea.Cmd {

@@ -54,8 +54,9 @@ type API interface {
 // drawn into the grid. A different protocol level warns on the rail and in
 // the drawer, and the attach stays up. Level 4 reads the working
 // directory from the process on a timer, including when it prints
-// nothing, and shows the session facts task,
-// progress, and state. A program in the pane sets those with
+// nothing. Level 5 stores a pane's facts on that pane's id, so a move
+// keeps them, and a missing key inherits from the nearest ancestor
+// directory. The drawer shows task, progress, and state. A program in the pane sets those with
 // ESC ] 777 ; set ; KEY ; VALUE BEL (the bytes are 777;set;KEY;VALUE,
 // with no spaces) and drops one with 777;del;KEY. 777;cwd;PATH, OSC 7,
 // and OSC 1337 CurrentDir report the directory. BEL or ST ends the
