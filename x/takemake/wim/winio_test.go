@@ -82,6 +82,6 @@ func linkTarget(t *testing.T, file *File, name string) string {
 			return entry.Target
 		}
 	}
-	t.Fatalf("missing %s", name)
+	require.Failf(t, "missing entry", "%s", name)
 	return ""
 }

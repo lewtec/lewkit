@@ -4,18 +4,18 @@ package sarif
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrLevel means the text is not a known level.
-	ErrLevel = errs.Wrap(errs.ErrUnknown, "unknown level")
-	// ErrKind means the text is not a known kind.
-	ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
-	// ErrColumnKind means the text is not a known column kind.
-	ErrColumnKind = errs.Wrap(errs.ErrUnknown, "unknown column kind")
-)
+// ErrLevel means the text is not a known level.
+var ErrLevel = errs.Wrap(errs.ErrUnknown, "unknown level")
+
+// ErrKind means the text is not a known kind.
+var ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
+
+// ErrColumnKind means the text is not a known column kind.
+var ErrColumnKind = errs.Wrap(errs.ErrUnknown, "unknown column kind")
 
 // String is the text of a Level.
 func (l Level) String() string {

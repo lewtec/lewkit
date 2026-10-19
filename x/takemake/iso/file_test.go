@@ -121,6 +121,41 @@ func TestRejects(t *testing.T) {
 	require.ErrorIs(t, err, errs.ErrSyntax)
 }
 
+func TestStampRockRidgeModes(t *testing.T) {
+	t.Parallel()
+	when := time.Date(2024, 3, 15, 12, 30, 45, 0, time.UTC)
+	file := New().
+		Entry("EFI/BOOT").Dir().Mode(0o700).Time(when).
+		Entry("EFI/BOOT/BOOTX64.EFI").Mode(0o755).Time(when).Bytes([]byte("MZ")).
+		Entry("readme.txt").Mode(0o640).Time(when).Bytes([]byte("hi")).
+		Entry("notes").Dir().Mode(0o755).Time(when)
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	raw := append([]byte(nil), buf.Bytes()...)
+	wrong := make([]*Entry, len(file.Entries))
+	for i, entry := range file.Entries {
+		copied := *entry
+		if entry.Mode&fs.ModeDir != 0 {
+			copied.Mode = fs.ModeDir | 0o777
+		} else {
+			copied.Mode = 0o666
+		}
+		wrong[i] = &copied
+	}
+	require.NoError(t, stampRockRidgeModes(raw, wrong))
+	got, err := Take(bytes.NewReader(raw))
+	require.NoError(t, err)
+	require.Equal(t, viewsOf(wrong), views(got))
+	require.NoError(t, stampRockRidgeModes(raw, file.Entries))
+	got, err = Take(bytes.NewReader(raw))
+	require.NoError(t, err)
+	require.Equal(t, views(file), views(got))
+}
+
+func viewsOf(entries []*Entry) []view {
+	return views(&File{Entries: entries})
+}
+
 func TestEntryStoresTheChild(t *testing.T) {
 	t.Parallel()
 	when := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)

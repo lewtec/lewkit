@@ -4,14 +4,12 @@ package decomp
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// errKind means the text is not a known kind.
-	errKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
-)
+// errKind means the text is not a known kind.
+var errKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
 
 // String is the text of a kind.
 func (k kind) String() string {

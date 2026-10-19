@@ -4,14 +4,12 @@ package gocmd
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrCompiler means the text is not a known compiler.
-	ErrCompiler = errs.Wrap(errs.ErrUnknown, "unknown compiler")
-)
+// ErrCompiler means the text is not a known compiler.
+var ErrCompiler = errs.Wrap(errs.ErrUnknown, "unknown compiler")
 
 // String is the text of a Compiler.
 func (c Compiler) String() string {

@@ -55,10 +55,11 @@ func TestWithProgressRegistersInternetTask(t *testing.T) {
 	require.NoError(t, err)
 	response, err := client.Do(request)
 	require.NoError(t, err)
+	// Latest names a live task. Closing the body lets the task finish and drop the name.
+	require.NotZero(t, session.Latest("bundle.tar.gz"))
 	_, err = io.Copy(io.Discard, response.Body)
 	require.NoError(t, err)
 	require.NoError(t, response.Body.Close())
-	require.NotZero(t, session.Latest("bundle.tar.gz"))
 	require.NoError(t, session.Wait())
 }
 

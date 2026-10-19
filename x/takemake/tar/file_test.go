@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -211,21 +212,33 @@ func TestGoSparse(t *testing.T) {
 
 func TestLiveGNUTar(t *testing.T) {
 	t.Parallel()
-	bin := test.Need(t, "tar")
+	bin, gnu := gnuTar(t)
 	dir := t.TempDir()
 	when := time.Date(2020, 1, 2, 3, 4, 5, 123456789, time.UTC)
+	// Windows file times are 100ns ticks, so tar cannot store the last two digits.
+	stored := when
+	if runtime.GOOS == "windows" {
+		stored = when.Truncate(100 * time.Nanosecond)
+	}
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "dir"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "dir", "note.txt"), []byte("live"), 0o640))
 	require.NoError(t, os.Symlink("dir/note.txt", filepath.Join(dir, "link")))
+	linkInfo, err := os.Lstat(filepath.Join(dir, "link"))
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
-	stamp := when.Format("2006-01-02 15:04:05.000000000") + " UTC"
+	stamp := when.Format("2006-01-02T15:04:05.000000000Z")
 	for _, name := range []string{"dir", "dir/note.txt", "link", "世界.txt"} {
 		touch := exec.Command("touch", "-h", "-d", stamp, filepath.Join(dir, name))
 		out, err := touch.CombinedOutput()
 		require.NoError(t, err, string(out))
 	}
 	archive := filepath.Join(dir, "live.tar")
-	cmd := exec.Command(bin, "--format=pax", "--sort=name", "-C", dir, "-cf", archive, "dir", "link", "世界.txt")
+	args := []string{"--format=pax"}
+	if gnu {
+		args = append(args, "--sort=name")
+	}
+	args = append(args, "-C", dir, "-cf", archive, "dir", "link", "世界.txt")
+	cmd := exec.Command(bin, gnuTarArgs(gnu, args...)...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	raw, err := os.ReadFile(archive)
@@ -233,10 +246,10 @@ func TestLiveGNUTar(t *testing.T) {
 	file, err := Take(bytes.NewReader(raw))
 	require.NoError(t, err)
 	requireEntries(t, file, []*Entry{
-		{Name: "dir", Mode: fs.ModeDir | 0o750, Time: when},
-		{Name: "dir/note.txt", Mode: 0o640, Time: when, Data: []byte("live")},
-		{Name: "link", Mode: fs.ModeSymlink | 0o777, Time: when, Target: "dir/note.txt"},
-		{Name: "世界.txt", Mode: 0o644, Time: when, Data: []byte("utf8")},
+		{Name: "dir", Mode: hostTarMode(fs.ModeDir | 0o750), Time: stored},
+		{Name: "dir/note.txt", Mode: hostTarMode(0o640), Time: stored, Data: []byte("live")},
+		{Name: "link", Mode: hostTarMode(linkInfo.Mode()), Time: stored, Target: "dir/note.txt"},
+		{Name: "世界.txt", Mode: hostTarMode(0o644), Time: stored, Data: []byte("utf8")},
 	})
 	require.Equal(t, views(file), views(takeMade(t, file)))
 	requireTarLists(t, file)
@@ -244,12 +257,15 @@ func TestLiveGNUTar(t *testing.T) {
 
 func TestGNUTarHardLink(t *testing.T) {
 	t.Parallel()
-	bin := test.Need(t, "tar")
+	bin, gnu := gnuTar(t)
+	if !gnu {
+		test.Skip(t, "needs GNU tar")
+	}
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "a"), []byte("x"), 0o644))
 	require.NoError(t, os.Link(filepath.Join(dir, "a"), filepath.Join(dir, "b")))
 	archive := filepath.Join(dir, "hard.tar")
-	cmd := exec.Command(bin, "--format=gnu", "-C", dir, "-cf", archive, "a", "b")
+	cmd := exec.Command(bin, gnuTarArgs(gnu, "--format=gnu", "-C", dir, "-cf", archive, "a", "b")...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	raw, err := os.ReadFile(archive)
@@ -265,7 +281,7 @@ func TestLiveGitArchive(t *testing.T) {
 	dir := gitTree(t, bin)
 	archive := filepath.Join(dir, "git.tar")
 	// tar.umask 0002 is git's default: directories and executables are 0775, files are 0664.
-	cmd := exec.Command(bin, "-c", "tar.umask=0002", "archive", "--format=tar", "-o", archive, "HEAD")
+	cmd := exec.Command(bin, "-c", "core.autocrlf=false", "-c", "tar.umask=0002", "archive", "--format=tar", "-o", archive, "HEAD")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
@@ -290,16 +306,19 @@ func TestLiveGitArchive(t *testing.T) {
 
 func TestGNUTarDuplicateMembers(t *testing.T) {
 	t.Parallel()
-	bin := test.Need(t, "tar")
+	bin, gnu := gnuTar(t)
+	if !gnu {
+		test.Skip(t, "needs GNU tar")
+	}
 	dir := t.TempDir()
 	name := filepath.Join(dir, "same.txt")
 	require.NoError(t, os.WriteFile(name, []byte("one"), 0o644))
 	archive := filepath.Join(dir, "dup.tar")
-	cmd := exec.Command(bin, "--format=gnu", "-C", dir, "-cf", archive, "same.txt")
+	cmd := exec.Command(bin, gnuTarArgs(gnu, "--format=gnu", "-C", dir, "-cf", archive, "same.txt")...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	require.NoError(t, os.WriteFile(name, []byte("two"), 0o644))
-	cmd = exec.Command(bin, "--format=gnu", "-C", dir, "-rf", archive, "same.txt")
+	cmd = exec.Command(bin, gnuTarArgs(gnu, "--format=gnu", "-C", dir, "-rf", archive, "same.txt")...)
 	out, err = cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
 	raw, err := os.ReadFile(archive)
@@ -314,12 +333,56 @@ func TestGNUTarDuplicateMembers(t *testing.T) {
 	require.Equal(t, views(file), views(takeMade(t, file)))
 }
 
+func gnuTar(t *testing.T) (string, bool) {
+	t.Helper()
+	bin := test.Need(t, "tar")
+	return bin, tarIsGNU(bin)
+}
+
+func tarIsGNU(bin string) bool {
+	out, err := exec.Command(bin, "--version").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(out), "GNU tar")
+}
+
+// hostTarMode is the mode GNU tar records for a filesystem object.
+// Windows keeps the file type and substitutes a default permission.
+func hostTarMode(mode fs.FileMode) fs.FileMode {
+	if runtime.GOOS != "windows" {
+		return mode
+	}
+	perm := fs.FileMode(0o644)
+	switch {
+	case mode&fs.ModeSymlink != 0:
+		perm = 0o777
+	case mode&fs.ModeDir != 0:
+		perm = 0o755
+	}
+	return mode&^fs.ModePerm | perm
+}
+
+// gnuTarArgs keeps a drive-letter path from being read as a remote archive.
+func gnuTarArgs(gnu bool, args ...string) []string {
+	if !gnu {
+		return args
+	}
+	out := make([]string, 0, len(args)+2)
+	// literal keeps UTF-8 names intact. Windows otherwise prints C octal escapes.
+	out = append(out, "--force-local", "--quoting-style=literal")
+	for _, arg := range args {
+		out = append(out, filepath.ToSlash(arg))
+	}
+	return out
+}
+
 func gitTree(t *testing.T, bin string) string {
 	t.Helper()
 	dir := t.TempDir()
 	run := func(args ...string) {
 		t.Helper()
-		cmd := exec.Command(bin, args...)
+		cmd := exec.Command(bin, append([]string{"-c", "core.autocrlf=false"}, args...)...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=takemake",
@@ -343,6 +406,8 @@ func gitTree(t *testing.T, bin string) string {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, strings.Repeat("n", 120)), []byte("long"), 0o644))
 	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "add", "-A")
+	// core.filemode is false on Windows, so add records a regular file unless the index bit is set.
+	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "update-index", "--chmod=+x", "dir/nested/run.sh")
 	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "tree")
 	return dir
 }
@@ -371,10 +436,12 @@ func requireTarLists(t *testing.T, file *File) {
 	dir := t.TempDir()
 	archive := filepath.Join(dir, "out.tar")
 	require.NoError(t, os.WriteFile(archive, buf.Bytes(), 0o644))
-	out, err := exec.Command(bin, "-tf", archive).CombinedOutput()
+	gnu := tarIsGNU(bin)
+	out, err := exec.Command(bin, gnuTarArgs(gnu, "-tf", archive)...).CombinedOutput()
 	require.NoError(t, err, string(out))
 	var listed []string
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		line = strings.TrimRight(line, "\r")
 		line = strings.TrimSuffix(line, "/")
 		if line == "" {
 			continue
@@ -386,14 +453,14 @@ func requireTarLists(t *testing.T, file *File) {
 		if entry.Mode&fs.ModeDir != 0 || entry.Mode&fs.ModeSymlink != 0 {
 			continue
 		}
-		body, err := exec.Command(bin, "-xOf", archive, entry.Name).CombinedOutput()
+		body, err := exec.Command(bin, gnuTarArgs(gnu, "-xOf", archive, entry.Name)...).CombinedOutput()
 		require.NoError(t, err, string(body))
 		if len(body) == 0 {
 			body = nil
 		}
 		require.Equal(t, entry.Data, body)
 	}
-	verbose, err := exec.Command(bin, "-tvf", archive).CombinedOutput()
+	verbose, err := exec.Command(bin, gnuTarArgs(gnu, "-tvf", archive)...).CombinedOutput()
 	require.NoError(t, err, string(verbose))
 	text := string(verbose)
 	for _, entry := range file.Entries {

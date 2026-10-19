@@ -4,20 +4,21 @@ package onnx
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrDataType means the text is not a known data type.
-	ErrDataType = errs.Wrap(errs.ErrUnknown, "unknown data type")
-	// ErrAttributeType means the text is not a known attribute type.
-	ErrAttributeType = errs.Wrap(errs.ErrUnknown, "unknown attribute type")
-	// ErrDataLocation means the text is not a known data location.
-	ErrDataLocation = errs.Wrap(errs.ErrUnknown, "unknown data location")
-	// ErrTypeKind means the text is not a known type kind.
-	ErrTypeKind = errs.Wrap(errs.ErrUnknown, "unknown type kind")
-)
+// ErrDataType means the text is not a known data type.
+var ErrDataType = errs.Wrap(errs.ErrUnknown, "unknown data type")
+
+// ErrAttributeType means the text is not a known attribute type.
+var ErrAttributeType = errs.Wrap(errs.ErrUnknown, "unknown attribute type")
+
+// ErrDataLocation means the text is not a known data location.
+var ErrDataLocation = errs.Wrap(errs.ErrUnknown, "unknown data location")
+
+// ErrTypeKind means the text is not a known type kind.
+var ErrTypeKind = errs.Wrap(errs.ErrUnknown, "unknown type kind")
 
 // String is the text of a DataType.
 func (d DataType) String() string {

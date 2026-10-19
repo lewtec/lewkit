@@ -209,7 +209,7 @@ func TestLiveGitArchive(t *testing.T) {
 	bin := test.Need(t, "git")
 	dir := gitTree(t, bin)
 	archive := filepath.Join(dir, "git.zip")
-	cmd := exec.Command(bin, "archive", "--format=zip", "-o", archive, "HEAD")
+	cmd := exec.Command(bin, "-c", "core.autocrlf=false", "archive", "--format=zip", "-o", archive, "HEAD")
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
@@ -240,8 +240,10 @@ func TestLiveInfoZip(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "dir"), 0o750))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "dir", "note.txt"), []byte("live"), 0o640))
 	require.NoError(t, os.Symlink("dir/note.txt", filepath.Join(dir, "link")))
+	linkInfo, err := os.Lstat(filepath.Join(dir, "link"))
+	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
-	stamp := "2020-01-02 03:04:06 UTC"
+	stamp := "2020-01-02T03:04:06Z"
 	for _, name := range []string{"dir", "dir/note.txt", "link", "世界.txt"} {
 		touch := exec.Command("touch", "-h", "-d", stamp, filepath.Join(dir, name))
 		out, err := touch.CombinedOutput()
@@ -261,7 +263,7 @@ func TestLiveInfoZip(t *testing.T) {
 	requireEntries(t, file, []*Entry{
 		{Name: "dir", Mode: fs.ModeDir | 0o750, Time: when},
 		{Name: "dir/note.txt", Mode: 0o640, Time: when, Data: []byte("live")},
-		{Name: "link", Mode: fs.ModeSymlink | 0o777, Time: when, Target: "dir/note.txt"},
+		{Name: "link", Mode: linkInfo.Mode(), Time: when, Target: "dir/note.txt"},
 		{Name: "世界.txt", Mode: 0o644, Time: when, Data: []byte("utf8")},
 	})
 	require.Equal(t, views(file), views(takeMade(t, file)))
@@ -273,7 +275,7 @@ func gitTree(t *testing.T, bin string) string {
 	dir := t.TempDir()
 	run := func(args ...string) {
 		t.Helper()
-		cmd := exec.Command(bin, args...)
+		cmd := exec.Command(bin, append([]string{"-c", "core.autocrlf=false"}, args...)...)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=takemake",
@@ -297,6 +299,8 @@ func gitTree(t *testing.T, bin string) string {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "世界.txt"), []byte("utf8"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, strings.Repeat("n", 120)), []byte("long"), 0o644))
 	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "add", "-A")
+	// core.filemode is false on Windows, so add records a regular file unless the index bit is set.
+	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "update-index", "--chmod=+x", "dir/nested/run.sh")
 	run("-c", "user.name=takemake", "-c", "user.email=takemake@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "tree")
 	return dir
 }

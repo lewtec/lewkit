@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -284,12 +285,17 @@ func walk(stmts []Stmt, fn func(Stmt)) {
 
 func compareMakeEquals(t *testing.T, name string, f *File) {
 	t.Helper()
+	bin := gnuMake()
+	if bin == "" {
+		// BSD make prints a different database.
+		return
+	}
 	path, err := filepath.Abs(filepath.Join("testdata", name))
 	require.NoError(t, err)
-	cmd := exec.Command("make", "-p", "-f", path, "-q")
-	out, _ := cmd.Output()
+	cmd := exec.Command(bin, "-p", "-f", path, "-q")
+	out, runErr := cmd.CombinedOutput()
 	got := makeEquals(string(out), path)
-	require.NotEmpty(t, got)
+	require.NotEmptyf(t, got, "%s: %v\n%s", bin, runErr, string(out))
 	want := map[string]string{}
 	for _, stmt := range f.Stmts {
 		v, ok := stmt.(*Variable)
@@ -300,20 +306,52 @@ func compareMakeEquals(t *testing.T, name string, f *File) {
 	}
 	for name, value := range want {
 		have, ok := got[name]
+		// Windows GNU make drops SHELL=/bin/sh from the file's database.
+		if !ok && name == "SHELL" && runtime.GOOS == "windows" {
+			continue
+		}
 		require.Truef(t, ok, "make -p missing %s", name)
 		require.Equalf(t, have, value, "variable %s", name)
 	}
+}
+
+func gnuMake() string {
+	for _, name := range []string{"gmake", "make"} {
+		bin, err := exec.LookPath(name)
+		if err != nil {
+			continue
+		}
+		out, err := exec.Command(bin, "--version").CombinedOutput()
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(out), "GNU Make") {
+			return bin
+		}
+	}
+	return ""
+}
+
+func TestMakeEqualsReadsGNUDatabaseHeaders(t *testing.T) {
+	t.Parallel()
+	path := "/work/Makefile"
+	single := "# makefile (from '" + path + "', line 1)\nCC = gcc\n"
+	// GNU make 3.81 opens the path with a backtick.
+	backtick := "# makefile (from `" + path + "', line 1)\nCC = gcc\n"
+	require.Equal(t, map[string]string{"CC": "gcc"}, makeEquals(single, path))
+	require.Equal(t, map[string]string{"CC": "gcc"}, makeEquals(backtick, path))
 }
 
 func makeEquals(out, path string) map[string]string {
 	vals := map[string]string{}
 	from := ""
 	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "# makefile (from '") {
-			from = line
+		line = strings.TrimRight(line, "\r")
+		if name, ok := databaseMakefile(line); ok {
+			from = name
 			continue
 		}
-		if !strings.Contains(from, "'"+path+"'") {
+		if from != path {
 			continue
 		}
 		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "\t") || line == "" {
@@ -334,6 +372,25 @@ func makeEquals(out, path string) map[string]string {
 		vals[name] = rest
 	}
 	return vals
+}
+
+// databaseMakefile returns the path from a GNU make database header.
+// Make 4 uses single quotes. Make 3.81 uses a backtick and a closing quote.
+func databaseMakefile(line string) (string, bool) {
+	const prefix = "# makefile (from "
+	if !strings.HasPrefix(line, prefix) {
+		return "", false
+	}
+	rest := line[len(prefix):]
+	if len(rest) < 2 || (rest[0] != '\'' && rest[0] != '`') {
+		return "", false
+	}
+	rest = rest[1:]
+	end := strings.IndexByte(rest, '\'')
+	if end <= 0 {
+		return "", false
+	}
+	return rest[:end], true
 }
 
 type errReader struct{}

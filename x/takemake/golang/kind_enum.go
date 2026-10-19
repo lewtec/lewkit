@@ -4,26 +4,30 @@ package golang
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrExprKind means the text is not a known expr kind.
-	ErrExprKind = errs.Wrap(errs.ErrUnknown, "unknown expr kind")
-	// ErrLitKind means the text is not a known lit kind.
-	ErrLitKind = errs.Wrap(errs.ErrUnknown, "unknown lit kind")
-	// ErrTypeKind means the text is not a known type kind.
-	ErrTypeKind = errs.Wrap(errs.ErrUnknown, "unknown type kind")
-	// ErrChanDir means the text is not a known chan dir.
-	ErrChanDir = errs.Wrap(errs.ErrUnknown, "unknown chan dir")
-	// ErrStmtKind means the text is not a known stmt kind.
-	ErrStmtKind = errs.Wrap(errs.ErrUnknown, "unknown stmt kind")
-	// ErrBranch means the text is not a known branch.
-	ErrBranch = errs.Wrap(errs.ErrUnknown, "unknown branch")
-	// ErrOp means the text is not a known op.
-	ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
-)
+// ErrExprKind means the text is not a known expr kind.
+var ErrExprKind = errs.Wrap(errs.ErrUnknown, "unknown expr kind")
+
+// ErrLitKind means the text is not a known lit kind.
+var ErrLitKind = errs.Wrap(errs.ErrUnknown, "unknown lit kind")
+
+// ErrTypeKind means the text is not a known type kind.
+var ErrTypeKind = errs.Wrap(errs.ErrUnknown, "unknown type kind")
+
+// ErrChanDir means the text is not a known chan dir.
+var ErrChanDir = errs.Wrap(errs.ErrUnknown, "unknown chan dir")
+
+// ErrStmtKind means the text is not a known stmt kind.
+var ErrStmtKind = errs.Wrap(errs.ErrUnknown, "unknown stmt kind")
+
+// ErrBranch means the text is not a known branch.
+var ErrBranch = errs.Wrap(errs.ErrUnknown, "unknown branch")
+
+// ErrOp means the text is not a known op.
+var ErrOp = errs.Wrap(errs.ErrUnknown, "unknown op")
 
 // String is the text of a ExprKind.
 func (e ExprKind) String() string {

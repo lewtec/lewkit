@@ -283,7 +283,7 @@ func readFAT(fat *fat16.FileSystem, name string) ([]byte, error) {
 	n, err := opened.Read(buf)
 	if int64(n) != info.Size() {
 		if err == nil {
-			return nil, fmt.Errorf("short fat read")
+			return nil, fmt.Errorf("%w: short fat read", ErrFormat)
 		}
 		return nil, err
 	}

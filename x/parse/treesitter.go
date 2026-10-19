@@ -186,7 +186,7 @@ func decodeTreeSitter(data []byte) (*tsFile, error) {
 		if json.Unmarshal(raw.Word, &word) != nil {
 			var sym tsNode
 			if err := json.Unmarshal(raw.Word, &sym); err != nil {
-				return nil, fmt.Errorf("word: %w", err)
+				return nil, errs.Wrap(errs.ErrInvalid, "word: "+err.Error(), err)
 			}
 			word = sym.Name
 		}
@@ -210,7 +210,7 @@ func decodeRules(raw json.RawMessage) ([]tsRule, error) {
 		return nil, err
 	}
 	if d, ok := tok.(json.Delim); !ok || d != '{' {
-		return nil, fmt.Errorf("rules is not an object")
+		return nil, errs.Wrap(errs.ErrInvalid, "rules is not an object")
 	}
 	var rules []tsRule
 	for dec.More() {
@@ -220,11 +220,11 @@ func decodeRules(raw json.RawMessage) ([]tsRule, error) {
 		}
 		name, ok := tok.(string)
 		if !ok {
-			return nil, fmt.Errorf("rule name is not a string")
+			return nil, errs.Wrap(errs.ErrInvalid, "rule name is not a string")
 		}
 		var node tsNode
 		if err := dec.Decode(&node); err != nil {
-			return nil, fmt.Errorf("rule %s: %w", name, err)
+			return nil, errs.Wrap(errs.ErrInvalid, fmt.Sprintf("rule %s: %s", name, err), err)
 		}
 		rules = append(rules, tsRule{name: name, node: &node})
 	}
@@ -260,7 +260,7 @@ func (b *tsBld) defineToken(name string, node *tsNode) error {
 	body, imm, lexPrec, hasLex := unwrapToken(node)
 	re, err := b.reOf(body)
 	if err != nil {
-		return fmt.Errorf("token %s: %w", name, err)
+		return errs.Wrap(errs.ErrInvalid, fmt.Sprintf("token %s: %s", name, err), err)
 	}
 	s := b.g.Token(name)
 	s.Match(re.matchLen)
@@ -279,7 +279,7 @@ func (b *tsBld) defineSyntax(name string, node *tsNode) error {
 	}
 	alts, err := b.alts(node)
 	if err != nil {
-		return fmt.Errorf("%s: %w", name, err)
+		return errs.Wrap(errs.ErrInvalid, name+": "+err.Error(), err)
 	}
 	if len(alts) == 0 {
 		rule.Seq()
@@ -550,7 +550,7 @@ func (b *tsBld) patternToken(name string, n *tsNode) (*Symbol, error) {
 	pat, _ := n.strVal()
 	re, err := compilePattern(pat)
 	if err != nil {
-		return nil, fmt.Errorf("pattern %q: %w", pat, err)
+		return nil, errs.Wrap(errs.ErrSyntax, fmt.Sprintf("pattern %q: %s", pat, err), err)
 	}
 	if name == "" {
 		name = fmt.Sprintf("$pat#%d", len(b.g.syms))
@@ -694,19 +694,19 @@ func (b *tsBld) reOf(n *tsNode) (*rex, error) {
 	case "SYMBOL":
 		other, ok := b.rules[n.Name]
 		if !ok {
-			return nil, fmt.Errorf("unknown symbol %s", n.Name)
+			return nil, errs.Wrap(errs.ErrUnknown, "unknown symbol "+n.Name)
 		}
 		if b.visiting == nil {
 			b.visiting = map[string]bool{}
 		}
 		if b.visiting[n.Name] {
-			return nil, fmt.Errorf("cycle through %s", n.Name)
+			return nil, errs.Wrap(errs.ErrCycle, "cycle through "+n.Name)
 		}
 		b.visiting[n.Name] = true
 		defer delete(b.visiting, n.Name)
 		return b.reOf(other)
 	default:
-		return nil, fmt.Errorf("cannot lex %s", n.Type)
+		return nil, errs.Wrap(errs.ErrUnsupported, "cannot lex "+n.Type)
 	}
 }
 

@@ -145,7 +145,7 @@ func TestRealMNIST(t *testing.T) {
 			require.Equal(t, denseCount(tensor.Dims), len(tensor.Int64Data))
 			ints++
 		default:
-			t.Fatalf("initializer %s element %s", tensor.Name, tensor.Element)
+			require.Failf(t, "initializer element", "%s %s", tensor.Name, tensor.Element)
 		}
 	}
 	require.Positive(t, floats)
@@ -223,7 +223,7 @@ func attrInts(t *testing.T, node *Node, name string) []int64 {
 			return attr.Ints
 		}
 	}
-	t.Fatalf("missing attribute %s", name)
+	require.Failf(t, "missing attribute", "%s", name)
 	return nil
 }
 
@@ -234,7 +234,7 @@ func loadedInts(t *testing.T, node ndonnx.Node, name string) []int64 {
 			return attr.Integers
 		}
 	}
-	t.Fatalf("missing attribute %s", name)
+	require.Failf(t, "missing attribute", "%s", name)
 	return nil
 }
 

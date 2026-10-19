@@ -4,14 +4,12 @@ package conda
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrSubdir means the text is not a known subdir.
-	ErrSubdir = errs.Wrap(errs.ErrUnknown, "unknown subdir")
-)
+// ErrSubdir means the text is not a known subdir.
+var ErrSubdir = errs.Wrap(errs.ErrUnknown, "unknown subdir")
 
 // String is the text of a Subdir.
 func (s Subdir) String() string {

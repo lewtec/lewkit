@@ -4,14 +4,12 @@ package main
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// errTarget means the text is not a known target.
-	errTarget = errs.Wrap(errs.ErrUnknown, "unknown target")
-)
+// errTarget means the text is not a known target.
+var errTarget = errs.Wrap(errs.ErrUnknown, "unknown target")
 
 // String is the text of a target.
 func (t target) String() string {

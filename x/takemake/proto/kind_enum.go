@@ -4,18 +4,18 @@ package proto
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrLabel means the text is not a known label.
-	ErrLabel = errs.Wrap(errs.ErrUnknown, "unknown label")
-	// ErrImportKind means the text is not a known import kind.
-	ErrImportKind = errs.Wrap(errs.ErrUnknown, "unknown import kind")
-	// ErrKind means the text is not a known kind.
-	ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
-)
+// ErrLabel means the text is not a known label.
+var ErrLabel = errs.Wrap(errs.ErrUnknown, "unknown label")
+
+// ErrImportKind means the text is not a known import kind.
+var ErrImportKind = errs.Wrap(errs.ErrUnknown, "unknown import kind")
+
+// ErrKind means the text is not a known kind.
+var ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
 
 // String is the text of a Label.
 func (l Label) String() string {

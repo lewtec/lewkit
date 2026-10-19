@@ -4,24 +4,27 @@ package sql
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrDialect means the text is not a known dialect.
-	ErrDialect = errs.Wrap(errs.ErrUnknown, "unknown dialect")
-	// ErrAction means the text is not a known action.
-	ErrAction = errs.Wrap(errs.ErrUnknown, "unknown action")
-	// ErrType means the text is not a known type.
-	ErrType = errs.Wrap(errs.ErrUnknown, "unknown type")
-	// ErrKind means the text is not a known kind.
-	ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
-	// ErrExprKind means the text is not a known expr kind.
-	ErrExprKind = errs.Wrap(errs.ErrUnknown, "unknown expr kind")
-	// ErrAlterKind means the text is not a known alter kind.
-	ErrAlterKind = errs.Wrap(errs.ErrUnknown, "unknown alter kind")
-)
+// ErrDialect means the text is not a known dialect.
+var ErrDialect = errs.Wrap(errs.ErrUnknown, "unknown dialect")
+
+// ErrAction means the text is not a known action.
+var ErrAction = errs.Wrap(errs.ErrUnknown, "unknown action")
+
+// ErrType means the text is not a known type.
+var ErrType = errs.Wrap(errs.ErrUnknown, "unknown type")
+
+// ErrKind means the text is not a known kind.
+var ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
+
+// ErrExprKind means the text is not a known expr kind.
+var ErrExprKind = errs.Wrap(errs.ErrUnknown, "unknown expr kind")
+
+// ErrAlterKind means the text is not a known alter kind.
+var ErrAlterKind = errs.Wrap(errs.ErrUnknown, "unknown alter kind")
 
 // String is the text of a Dialect.
 func (d Dialect) String() string {

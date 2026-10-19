@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/lewtec/lewkit/x/errs"
 )
 
 // rex is a token pattern from a tree-sitter grammar. Alternation is
@@ -234,6 +236,10 @@ type reParser struct {
 	i int
 }
 
+func patternSyntax(format string, args ...any) error {
+	return errs.Wrap(errs.ErrSyntax, fmt.Sprintf(format, args...))
+}
+
 func compilePattern(pat string) (*rex, error) {
 	p := &reParser{s: pat}
 	re, err := p.alt()
@@ -241,7 +247,7 @@ func compilePattern(pat string) (*rex, error) {
 		return nil, err
 	}
 	if p.i != len(p.s) {
-		return nil, fmt.Errorf("pattern %q stopped at %q", pat, p.s[p.i:])
+		return nil, patternSyntax("pattern %q stopped at %q", pat, p.s[p.i:])
 	}
 	return re, nil
 }
@@ -281,7 +287,7 @@ func (p *reParser) seq() (*rex, error) {
 
 func (p *reParser) atom() (*rex, error) {
 	if p.i >= len(p.s) {
-		return nil, fmt.Errorf("pattern ended early")
+		return nil, patternSyntax("pattern ended early")
 	}
 	var x *rex
 	var err error
@@ -290,7 +296,7 @@ func (p *reParser) atom() (*rex, error) {
 		p.i++
 		if p.i+1 < len(p.s) && p.s[p.i] == '?' {
 			if p.s[p.i+1] != ':' {
-				return nil, fmt.Errorf("unsupported group %q", p.s[p.i:])
+				return nil, patternSyntax("unsupported group %q", p.s[p.i:])
 			}
 			p.i += 2
 		}
@@ -299,7 +305,7 @@ func (p *reParser) atom() (*rex, error) {
 			return nil, err
 		}
 		if p.i >= len(p.s) || p.s[p.i] != ')' {
-			return nil, fmt.Errorf("unclosed group")
+			return nil, patternSyntax("unclosed group")
 		}
 		p.i++
 	case '[':
@@ -324,7 +330,7 @@ func (p *reParser) atom() (*rex, error) {
 		x = &rex{op: opEnd}
 	default:
 		if p.s[p.i] == '*' || p.s[p.i] == '+' || p.s[p.i] == '?' || p.s[p.i] == '{' {
-			return nil, fmt.Errorf("quantifier without an atom at %q", p.s[p.i:])
+			return nil, patternSyntax("quantifier without an atom at %q", p.s[p.i:])
 		}
 		x = reLit(p.s[p.i : p.i+1])
 		p.i++
@@ -366,13 +372,13 @@ func (p *reParser) braces() (int, int, error) {
 	p.i++ // skip {
 	n, ok := p.num()
 	if !ok {
-		return 0, 0, fmt.Errorf("bad brace quantifier")
+		return 0, 0, patternSyntax("bad brace quantifier")
 	}
 	if p.i < len(p.s) && p.s[p.i] == '}' {
 		return n, n, nil
 	}
 	if p.i >= len(p.s) || p.s[p.i] != ',' {
-		return 0, 0, fmt.Errorf("bad brace quantifier")
+		return 0, 0, patternSyntax("bad brace quantifier")
 	}
 	p.i++
 	if p.i < len(p.s) && p.s[p.i] == '}' {
@@ -380,7 +386,7 @@ func (p *reParser) braces() (int, int, error) {
 	}
 	m, ok := p.num()
 	if !ok || p.i >= len(p.s) || p.s[p.i] != '}' {
-		return 0, 0, fmt.Errorf("bad brace quantifier")
+		return 0, 0, patternSyntax("bad brace quantifier")
 	}
 	return n, m, nil
 }
@@ -407,7 +413,7 @@ func (p *reParser) class() (*rex, error) {
 	first := true
 	for {
 		if p.i >= len(p.s) {
-			return nil, fmt.Errorf("unclosed class")
+			return nil, patternSyntax("unclosed class")
 		}
 		if p.s[p.i] == ']' && !first {
 			p.i++
@@ -433,10 +439,10 @@ func (p *reParser) class() (*rex, error) {
 				return nil, err
 			}
 			if p2 != nil {
-				return nil, fmt.Errorf("property in a class range")
+				return nil, patternSyntax("property in a class range")
 			}
 			if hi < lo {
-				return nil, fmt.Errorf("backwards class range")
+				return nil, patternSyntax("backwards class range")
 			}
 			c.spans = append(c.spans, [2]rune{lo, hi})
 			continue
@@ -448,7 +454,7 @@ func (p *reParser) class() (*rex, error) {
 
 func (p *reParser) classAtom() (rune, func(rune) bool, bool, error) {
 	if p.i >= len(p.s) {
-		return 0, nil, false, fmt.Errorf("class ended early")
+		return 0, nil, false, patternSyntax("class ended early")
 	}
 	if p.s[p.i] != '\\' {
 		r, n := utf8.DecodeRuneInString(p.s[p.i:])
@@ -472,16 +478,16 @@ func (p *reParser) classAtom() (rune, func(rune) bool, bool, error) {
 		r, _ := utf8.DecodeRuneInString(x.lit)
 		return r, nil, false, nil
 	}
-	return 0, nil, false, fmt.Errorf("escape cannot sit in a class")
+	return 0, nil, false, patternSyntax("escape cannot sit in a class")
 }
 
 func (p *reParser) escape(inClass bool) (*rex, error) {
 	if p.i >= len(p.s) || p.s[p.i] != '\\' {
-		return nil, fmt.Errorf("expected escape")
+		return nil, patternSyntax("expected escape")
 	}
 	p.i++
 	if p.i >= len(p.s) {
-		return nil, fmt.Errorf("trailing backslash")
+		return nil, patternSyntax("trailing backslash")
 	}
 	c := p.s[p.i]
 	p.i++
@@ -512,7 +518,7 @@ func (p *reParser) escape(inClass bool) (*rex, error) {
 		return classFn(isWord, true), nil
 	case 'p', 'P':
 		if p.i >= len(p.s) || p.s[p.i] != '{' {
-			return nil, fmt.Errorf("property escape wants a name")
+			return nil, patternSyntax("property escape wants a name")
 		}
 		p.i++
 		start := p.i
@@ -520,13 +526,13 @@ func (p *reParser) escape(inClass bool) (*rex, error) {
 			p.i++
 		}
 		if p.i >= len(p.s) {
-			return nil, fmt.Errorf("unclosed property")
+			return nil, patternSyntax("unclosed property")
 		}
 		name := p.s[start:p.i]
 		p.i++
 		fn := unicodeProp(name)
 		if fn == nil {
-			return nil, fmt.Errorf("unknown property %s", name)
+			return nil, patternSyntax("unknown property %s", name)
 		}
 		if c == 'P' {
 			return classFn(fn, true), nil
@@ -546,7 +552,7 @@ func (p *reParser) escape(inClass bool) (*rex, error) {
 				p.i++
 			}
 			if p.i >= len(p.s) {
-				return nil, fmt.Errorf("unclosed hex rune")
+				return nil, patternSyntax("unclosed hex rune")
 			}
 			h := p.s[start:p.i]
 			p.i++
@@ -565,7 +571,7 @@ func (p *reParser) escape(inClass bool) (*rex, error) {
 		if inClass {
 			return reLit("\b"), nil
 		}
-		return nil, fmt.Errorf("word boundary is not a token pattern")
+		return nil, patternSyntax("word boundary is not a token pattern")
 	default:
 		return reLit(string(c)), nil
 	}
@@ -573,7 +579,7 @@ func (p *reParser) escape(inClass bool) (*rex, error) {
 
 func (p *reParser) hex(n int) (rune, error) {
 	if p.i+n > len(p.s) {
-		return 0, fmt.Errorf("short hex escape")
+		return 0, patternSyntax("short hex escape")
 	}
 	r, err := parseHexRune(p.s[p.i : p.i+n])
 	p.i += n
@@ -583,7 +589,7 @@ func (p *reParser) hex(n int) (rune, error) {
 func parseHexRune(h string) (rune, error) {
 	var v rune
 	if h == "" {
-		return 0, fmt.Errorf("empty hex escape")
+		return 0, patternSyntax("empty hex escape")
 	}
 	for _, c := range h {
 		v <<= 4
@@ -595,7 +601,7 @@ func parseHexRune(h string) (rune, error) {
 		case c >= 'A' && c <= 'F':
 			v += c - 'A' + 10
 		default:
-			return 0, fmt.Errorf("bad hex escape %q", h)
+			return 0, patternSyntax("bad hex escape %q", h)
 		}
 	}
 	return v, nil

@@ -136,7 +136,7 @@ func scanGo(t *testing.T, src []byte) []scanned {
 	fset := token.NewFileSet()
 	file := fset.AddFile("", fset.Base(), len(src))
 	s.Init(file, src, func(token.Position, string) {
-		t.Fatal("scan error")
+		require.FailNow(t, "scan error")
 	}, 0)
 	var out []scanned
 	for {

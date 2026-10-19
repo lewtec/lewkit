@@ -4,16 +4,15 @@ package graphviz
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrStmtKind means the text is not a known stmt kind.
-	ErrStmtKind = errs.Wrap(errs.ErrUnknown, "unknown stmt kind")
-	// ErrAttrKind means the text is not a known attr kind.
-	ErrAttrKind = errs.Wrap(errs.ErrUnknown, "unknown attr kind")
-)
+// ErrStmtKind means the text is not a known stmt kind.
+var ErrStmtKind = errs.Wrap(errs.ErrUnknown, "unknown stmt kind")
+
+// ErrAttrKind means the text is not a known attr kind.
+var ErrAttrKind = errs.Wrap(errs.ErrUnknown, "unknown attr kind")
 
 // String is the text of a StmtKind.
 func (s StmtKind) String() string {

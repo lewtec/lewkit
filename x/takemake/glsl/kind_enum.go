@@ -4,30 +4,36 @@ package glsl
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrStage means the text is not a known stage.
-	ErrStage = errs.Wrap(errs.ErrUnknown, "unknown stage")
-	// ErrProfile means the text is not a known profile.
-	ErrProfile = errs.Wrap(errs.ErrUnknown, "unknown profile")
-	// ErrStorage means the text is not a known storage.
-	ErrStorage = errs.Wrap(errs.ErrUnknown, "unknown storage")
-	// ErrKind means the text is not a known kind.
-	ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
-	// ErrRank means the text is not a known rank.
-	ErrRank = errs.Wrap(errs.ErrUnknown, "unknown rank")
-	// ErrInterp means the text is not a known interp.
-	ErrInterp = errs.Wrap(errs.ErrUnknown, "unknown interp")
-	// ErrAux means the text is not a known aux.
-	ErrAux = errs.Wrap(errs.ErrUnknown, "unknown aux")
-	// ErrMemory means the text is not a known memory.
-	ErrMemory = errs.Wrap(errs.ErrUnknown, "unknown memory")
-	// ErrBehavior means the text is not a known behavior.
-	ErrBehavior = errs.Wrap(errs.ErrUnknown, "unknown behavior")
-)
+// ErrStage means the text is not a known stage.
+var ErrStage = errs.Wrap(errs.ErrUnknown, "unknown stage")
+
+// ErrProfile means the text is not a known profile.
+var ErrProfile = errs.Wrap(errs.ErrUnknown, "unknown profile")
+
+// ErrStorage means the text is not a known storage.
+var ErrStorage = errs.Wrap(errs.ErrUnknown, "unknown storage")
+
+// ErrKind means the text is not a known kind.
+var ErrKind = errs.Wrap(errs.ErrUnknown, "unknown kind")
+
+// ErrRank means the text is not a known rank.
+var ErrRank = errs.Wrap(errs.ErrUnknown, "unknown rank")
+
+// ErrInterp means the text is not a known interp.
+var ErrInterp = errs.Wrap(errs.ErrUnknown, "unknown interp")
+
+// ErrAux means the text is not a known aux.
+var ErrAux = errs.Wrap(errs.ErrUnknown, "unknown aux")
+
+// ErrMemory means the text is not a known memory.
+var ErrMemory = errs.Wrap(errs.ErrUnknown, "unknown memory")
+
+// ErrBehavior means the text is not a known behavior.
+var ErrBehavior = errs.Wrap(errs.ErrUnknown, "unknown behavior")
 
 // String is the text of a Stage.
 func (s Stage) String() string {
