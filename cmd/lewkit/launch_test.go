@@ -17,6 +17,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestReleaseBuildOmitsSDKAsSimulator(t *testing.T) {
+	app, err := cmd.Parse[cmd.App[root]]("release", "build")
+	require.NoError(t, err)
+	require.Equal(t, "iphonesimulator", app.Args.release.build.sdk.Value())
+	require.False(t, app.Args.release.build.sdk.ArgSet())
+
+	all, err := cmd.Parse[cmd.App[root]]("release", "build-all")
+	require.NoError(t, err)
+	require.Equal(t, "iphonesimulator", all.Args.release.buildAll.sdk.Value())
+	require.False(t, all.Args.release.buildAll.sdk.ArgSet())
+}
+
 func TestReleaseRunSelectsSimulator(t *testing.T) {
 	var run runCmd
 	require.NoError(t, run.goos.Parse("ios"))

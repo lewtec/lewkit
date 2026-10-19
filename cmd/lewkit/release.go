@@ -82,7 +82,7 @@ func (c *runCmd) stage(ctx context.Context) (func(context.Context) error, error)
 }
 
 // prepareIOSRun selects the simulator slice that simctl can launch.
-// An omitted --sdk becomes iphonesimulator. --sdk iphoneos stays a device build.
+// An omitted --sdk is already iphonesimulator. --sdk iphoneos cannot launch.
 func (c *runCmd) prepareIOSRun() error {
 	if !c.app.Value() || c.goos.Value() != build.GOOSIOS {
 		return nil
