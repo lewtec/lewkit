@@ -39,6 +39,10 @@
       "packageName": "https://github.com/ebitengine/purego",
       "currentValue": "v0.11.0",
       "currentDigest": "11ec78d6522b27168df09608e75387eca29ce788",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
       "ref": "github:ellson/MOTHBALLED-graphviz",
       "depName": "ellson/MOTHBALLED-graphviz",
       "packageName": "https://github.com/ellson/MOTHBALLED-graphviz",
@@ -99,8 +103,8 @@
       "ref": "github:lucide-icons/lucide",
       "depName": "lucide-icons/lucide",
       "packageName": "https://github.com/lucide-icons/lucide",
-      "currentValue": "1.59.0",
-      "currentDigest": "1ef60af944de207e0d5176905a0759ba12e6ee8d",
+      "currentValue": "1.57.0",
+      "currentDigest": "dab294f313897bacaa968b725b3259fa37c17bd1",
       "datasource": "git-refs"
     },
     {
