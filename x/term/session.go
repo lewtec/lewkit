@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
 // Session is the ubersession database.
@@ -410,7 +412,7 @@ func (s *Session) observeCwd(pane *live) bool {
 	if pane.proc != nil {
 		pid = pane.proc.pid()
 	}
-	reported, ok := processCwd(pid)
+	reported, ok := execdriver.Cwd(pid)
 	if !ok || reported == "" || reported == pane.info.Cwd {
 		return false
 	}

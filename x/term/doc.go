@@ -15,9 +15,9 @@
 // inherits from the nearest ancestor directory. Directory facts move
 // with the directory.
 //
-// The directory is read from the process about five times a second, on
-// Linux from /proc and on Darwin from the process table. The shell does
-// not have to print it. A program can also report it, and can store or
+// The directory is read from the process about five times a second
+// through x/driver/exec.Cwd. Linux reads /proc and Darwin reads the
+// process table. The shell does not have to print it. A program can also report it, and can store or
 // drop a fact, with OSC.
 // OSC 7 is file://host/path or an absolute path. OSC 1337 carries
 // CurrentDir=. The lewkit sequences are ESC ] 777 ; cwd ; PATH,

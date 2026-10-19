@@ -1,6 +1,6 @@
 //go:build darwin
 
-package term
+package exec
 
 import (
 	"sync"
@@ -23,10 +23,7 @@ var (
 	procInfo func(pid int32, flavor int32, arg uint64, buffer unsafe.Pointer, bufsize int32) int32
 )
 
-func processCwd(pid int) (string, bool) {
-	if pid <= 0 {
-		return "", false
-	}
+func cwdOf(pid int) (string, bool) {
 	call := loadProcInfo()
 	if call == nil {
 		return "", false

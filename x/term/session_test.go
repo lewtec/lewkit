@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -418,7 +419,7 @@ func TestShellCwdFollowsTheProcess(t *testing.T) {
 	}
 	wd, err := os.Getwd()
 	require.NoError(t, err)
-	got, ok := processCwd(os.Getpid())
+	got, ok := execdriver.Cwd(os.Getpid())
 	require.True(t, ok)
 	wd, err = filepath.EvalSymlinks(wd)
 	require.NoError(t, err)

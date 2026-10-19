@@ -1,16 +1,13 @@
 //go:build linux
 
-package term
+package exec
 
 import (
 	"os"
 	"strconv"
 )
 
-func processCwd(pid int) (string, bool) {
-	if pid <= 0 {
-		return "", false
-	}
+func cwdOf(pid int) (string, bool) {
 	target, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd")
 	if err != nil || target == "" {
 		return "", false
