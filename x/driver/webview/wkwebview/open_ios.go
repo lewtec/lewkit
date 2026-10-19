@@ -33,26 +33,27 @@ var (
 
 	boundsMsg func(objc.ID, objc.SEL) nsRect
 
-	selInitFrame      = objc.RegisterName("initWithFrame:")
-	selSetRoot        = objc.RegisterName("setRootViewController:")
-	selControllerView = objc.RegisterName("view")
-	selSetBackground  = objc.RegisterName("setBackgroundColor:")
-	selWhiteColor     = objc.RegisterName("whiteColor")
-	selSetAutoresize  = objc.RegisterName("setAutoresizingMask:")
-	selAddSubview     = objc.RegisterName("addSubview:")
-	selMakeVisible    = objc.RegisterName("makeKeyAndVisible")
-	selOverrideStyle  = objc.RegisterName("setOverrideUserInterfaceStyle:")
-	selRemoveSubview  = objc.RegisterName("removeFromSuperview")
-	selSetHidden      = objc.RegisterName("setHidden:")
-	selMainScreen     = objc.RegisterName("mainScreen")
-	selBounds         = objc.RegisterName("bounds")
-	selPoolNew        = objc.RegisterName("new")
-	selPoolDrain      = objc.RegisterName("drain")
-	selCurrentRunLoop = objc.RegisterName("currentRunLoop")
-	selRunUntil       = objc.RegisterName("runMode:beforeDate:")
-	selFlush          = objc.RegisterName("flush")
-
-	displayOnce sync.Once
+	selInitFrame       = objc.RegisterName("initWithFrame:")
+	selSetRoot         = objc.RegisterName("setRootViewController:")
+	selControllerView  = objc.RegisterName("view")
+	selSetBackground   = objc.RegisterName("setBackgroundColor:")
+	selWhiteColor      = objc.RegisterName("whiteColor")
+	selSetAutoresize   = objc.RegisterName("setAutoresizingMask:")
+	selAddSubview      = objc.RegisterName("addSubview:")
+	selMakeVisible     = objc.RegisterName("makeKeyAndVisible")
+	selOverrideStyle   = objc.RegisterName("setOverrideUserInterfaceStyle:")
+	selRemoveSubview   = objc.RegisterName("removeFromSuperview")
+	selSetHidden       = objc.RegisterName("setHidden:")
+	selMainScreen      = objc.RegisterName("mainScreen")
+	selBounds          = objc.RegisterName("bounds")
+	selPoolNew         = objc.RegisterName("new")
+	selPoolDrain       = objc.RegisterName("drain")
+	selInitScene       = objc.RegisterName("initWithWindowScene:")
+	selConnectedScenes = objc.RegisterName("connectedScenes")
+	selAllObjects      = objc.RegisterName("allObjects")
+	selCount           = objc.RegisterName("count")
+	selObjectAtIndex   = objc.RegisterName("objectAtIndex:")
+	selIsKind          = objc.RegisterName("isKindOfClass:")
 )
 
 func uiApplication() objc.ID {
@@ -118,7 +119,8 @@ func (view *webKitView) createIOS(ctx context.Context, cfg webview.Config) error
 	if err != nil {
 		return err
 	}
-	if uiApplication() == 0 {
+	app := uiApplication()
+	if app == 0 {
 		return fmt.Errorf("%w: UIApplication", driver.ErrUnavailable)
 	}
 	bounds := mainScreenBounds()
@@ -126,7 +128,13 @@ func (view *webKitView) createIOS(ctx context.Context, cfg webview.Config) error
 		bounds.Size.Width = float64(width)
 		bounds.Size.Height = float64(height)
 	}
-	window := objc.ID(objc.GetClass("UIWindow")).Send(selAlloc).Send(selInitFrame, bounds)
+	window := objc.ID(0)
+	if scene := appWindowScene(app); scene != 0 {
+		window = objc.ID(objc.GetClass("UIWindow")).Send(selAlloc).Send(selInitScene, scene)
+	}
+	if window == 0 {
+		window = objc.ID(objc.GetClass("UIWindow")).Send(selAlloc).Send(selInitFrame, bounds)
+	}
 	if window == 0 {
 		return fmt.Errorf("%w: window", driver.ErrUnavailable)
 	}
@@ -213,29 +221,32 @@ func objectBounds(object objc.ID) nsRect {
 }
 
 func pumpIOS() {
-	if !thread.On() {
-		return
-	}
-	pool := objc.ID(objc.GetClass("NSAutoreleasePool")).Send(selPoolNew)
-	defer pool.Send(selPoolDrain)
-	loop := objc.ID(objc.GetClass("NSRunLoop")).Send(selCurrentRunLoop)
-	if loop != 0 {
-		// distantPast returns as soon as the queue is empty, then thread.Do runs.
-		// The mode name is kCFRunLoopDefaultMode, the same string AppKit polls with.
-		when := objc.ID(objc.GetClass("NSDate")).Send(selDistantPast)
-		loop.Send(selRunUntil, nsString("kCFRunLoopDefaultMode"), when)
-	}
-	// A zero wait skips the before-waiting observers, so the white window never commits.
-	flushDisplay()
+	// UIApplicationMain is the run loop. A nested poll never retires the launch screen.
 }
 
-func flushDisplay() {
-	displayOnce.Do(func() {
-		_, _ = native.Open("/System/Library/Frameworks/QuartzCore.framework/QuartzCore", native.Global|native.Lazy)
-	})
-	if class := objc.GetClass("CATransaction"); class != 0 {
-		objc.ID(class).Send(selFlush)
+func appWindowScene(app objc.ID) objc.ID {
+	if app == 0 {
+		return 0
 	}
+	items := app.Send(selConnectedScenes).Send(selAllObjects)
+	if items == 0 {
+		return 0
+	}
+	kind := objc.ID(objc.GetClass("UIWindowScene"))
+	if kind == 0 {
+		return 0
+	}
+	n := int(items.Send(selCount))
+	if n > 8 {
+		n = 8
+	}
+	for i := 0; i < n; i++ {
+		scene := items.Send(selObjectAtIndex, uintptr(i))
+		if scene != 0 && scene.Send(selIsKind, kind) != 0 {
+			return scene
+		}
+	}
+	return 0
 }
 
 func (view *webKitView) useSchemeIOS(scheme daynight.Mode, flip bool) {
