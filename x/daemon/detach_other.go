@@ -1,6 +1,6 @@
 //go:build !unix && !windows
 
-package term
+package daemon
 
 import "os/exec"
 

@@ -80,6 +80,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/dotfiles` | `Root`. First existing directory among the Codespaces share, `~/.dotfiles`, and `/etc/.dotfiles`. |
 | `x/git` | `Git`, `Info`, `Worktree`, `Resolve`. Checkouts, branches, and linked worktrees. |
 | `x/singleton` | `NewSingleton`, `Get`, `MustGet`. |
+| `x/daemon` | `Spawn`, `Self`. A process that outlives the caller. `Self` re-execs this binary in its own session, with standard streams on the null device. The call returns after the process starts. |
 | `x/profile` | `Directory`, `Address`, `Handler`. pprof to a directory or HTTP. |
 | `x/http/middleware` | `SPA`. Serves an `fs.FS` with the goftpd SPA rules. A miss goes to the next handler. |
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
