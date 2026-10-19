@@ -53,6 +53,9 @@ func open(ctx context.Context, cfg window.Config) (window.Window, error) {
 		w.view = 0
 		w.mu.Unlock()
 	})
+	entry.HandleKey(func(r rune, code uint32, pressed bool) {
+		w.Emit(window.Key{Rune: r, Code: code, Pressed: pressed})
+	})
 	var view uintptr
 	var pw, ph int
 	var period time.Duration
@@ -160,6 +163,12 @@ func attach() (uintptr, int, int, time.Duration, float64, error) {
 		app := objc.ID(objc.GetClass("UIApplication")).Send(selSharedApplication)
 		host := keyWindow(app)
 		if host == 0 {
+			host, err = openHost(app)
+			if err != nil {
+				return
+			}
+		}
+		if host == 0 {
 			err = fmt.Errorf("%w: no window", window.ErrInit)
 			return
 		}
@@ -230,14 +239,24 @@ func cover(host objc.ID) (objc.ID, error) {
 	if parent == 0 {
 		return 0, fmt.Errorf("%w: no root view", window.ErrInit)
 	}
-	view := objc.ID(objc.GetClass("UIView")).Send(selAlloc).Send(selInitWithFrame, boundsOf(parent))
+	class := surfaceClass()
+	if class == 0 {
+		return 0, fmt.Errorf("%w: UIView", window.ErrInit)
+	}
+	view := objc.ID(class).Send(selAlloc).Send(selInitWithFrame, boundsOf(parent))
 	if view == 0 {
 		return 0, fmt.Errorf("%w: UIView", window.ErrInit)
 	}
 	view.Send(selSetTag, uintptr(surfaceTag))
 	view.Send(selSetAutoresizing, uintptr(18))
+	if color := objc.ID(objc.GetClass("UIColor")).Send(selBlackColor); color != 0 {
+		view.Send(selSetBackground, color)
+	}
+	view.Send(selSetMultiple, true)
 	parent.Send(selAddSubview, view)
 	parent.Send(selBringSubviewToFront, view)
+	view.Send(selBecomeFirst)
+	view.Send(selRelease)
 	return view, nil
 }
 
@@ -334,4 +353,9 @@ var (
 	selSafeAreaInsets      = objc.RegisterName("safeAreaInsets")
 	selNew                 = objc.RegisterName("new")
 	selDrain               = objc.RegisterName("drain")
+	selRelease             = objc.RegisterName("release")
+	selSetBackground       = objc.RegisterName("setBackgroundColor:")
+	selBlackColor          = objc.RegisterName("blackColor")
+	selSetMultiple         = objc.RegisterName("setMultipleTouchEnabled:")
+	selBecomeFirst         = objc.RegisterName("becomeFirstResponder")
 )
