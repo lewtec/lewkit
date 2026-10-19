@@ -53,8 +53,8 @@ type API interface {
 // The wheel moves an alternate screen when it did not. A kitty image is
 // drawn into the grid. A different protocol level warns on the rail and in
 // the drawer, and the attach stays up. Level 4 reads the working
-// directory from the process on a timer, including when it prints
-// nothing. Level 5 stores a pane's facts on that pane's id, so a move
+// directory from the process after its output stays quiet. The next
+// read waits for more output. Level 5 stores a pane's facts on that pane's id, so a move
 // keeps them, and a missing key inherits from the nearest ancestor
 // directory. The drawer shows task, progress, and state. A program in the pane sets those with
 // ESC ] 777 ; set ; KEY ; VALUE BEL (the bytes are 777;set;KEY;VALUE,

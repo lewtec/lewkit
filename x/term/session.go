@@ -37,9 +37,12 @@ type Session struct {
 }
 
 type live struct {
-	info PaneInfo
-	grid *Grid
-	proc *process
+	info      PaneInfo
+	grid      *Grid
+	proc      *process
+	output    chan struct{}
+	outClosed bool
+	sawOutput bool
 }
 
 type listener struct {
@@ -88,6 +91,7 @@ func (s *Session) Close() {
 	procs := make([]*process, 0, len(s.panes))
 	for _, pane := range s.panes {
 		pane.info.Alive = false
+		s.stopOutput(pane)
 		if pane.proc != nil {
 			procs = append(procs, pane.proc)
 			pane.proc = nil
@@ -529,8 +533,9 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 			Revision: 1,
 			Path:     path,
 		},
-		grid: NewGrid(rows, cols),
-		proc: proc,
+		grid:   NewGrid(rows, cols),
+		proc:   proc,
+		output: make(chan struct{}, 1),
 	}
 	s.mu.Lock()
 	if s.closed {
@@ -555,7 +560,7 @@ func (s *Session) Create(ctx context.Context, req CreateRequest) (Pane, error) {
 	fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
 	s.mu.Unlock()
 	go s.readLoop(id, proc)
-	go s.watchCwd(id)
+	go s.watchCwd(id, pane.output)
 	deliver(fns)
 	return record, nil
 }
@@ -868,6 +873,7 @@ func (s *Session) Remove(ctx context.Context, id string) error {
 	}
 	proc := pane.proc
 	pane.proc = nil
+	s.stopOutput(pane)
 	delete(s.panes, id)
 	if pane.info.Path != "" {
 		delete(s.paths, pane.info.Path)
@@ -1008,8 +1014,8 @@ func (s *Session) feed(id string, chunk []byte) {
 	}
 	pane.grid.Feed(chunk)
 	changed := s.applyReports(pane, pane.grid.takeReports())
-	if s.observeCwd(pane) {
-		changed = true
+	if pane.proc != nil {
+		noteOutput(pane)
 	}
 	fns := s.publishLocked(pane, changed)
 	s.mu.Unlock()
@@ -1038,16 +1044,21 @@ func (s *Session) exited(id string, code int) {
 		s.mu.Unlock()
 		return
 	}
+	changed := pane.sawOutput && s.observeCwd(pane)
 	pane.info.Alive = false
 	pane.info.Exit = code
 	pane.info.Revision++
 	pane.proc = nil
+	s.stopOutput(pane)
 	record := pane.record()
 	info := s.info()
 	fns := s.matching(Event{Notice: NoticePane, Pane: &record})
 	fns = append(fns, s.matching(Event{Notice: NoticePaneClosed, Pane: &record})...)
 	fns = append(fns, s.matching(Event{Notice: NoticeSession, Session: &info})...)
 	s.mu.Unlock()
+	if changed {
+		s.saveState()
+	}
 	deliver(fns)
 }
 

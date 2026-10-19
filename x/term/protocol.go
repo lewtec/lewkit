@@ -11,8 +11,8 @@ const ProtocolVersion = 1
 // SessionInfo.level carries it. Level 1 had no stored directories.
 // Level 2 keeps directories on the server. Level 3 reports a working
 // directory when the process writes, and keeps session facts.
-// Level 4 reads that directory from the process on a timer, on Linux
-// and Darwin, including when the process prints nothing.
+// Level 4 reads that directory from the process after the pane's output
+// stays quiet, on Linux and Darwin. The next read waits for more output.
 // Level 5 keys a pane's facts by that pane's id, so a move keeps them.
 // A missing key inherits from the nearest ancestor directory.
 // Directory facts move with the directory.

@@ -379,7 +379,8 @@ func (x *Entry) GetPane() string {
 // level is the protocol level this server speaks. 0 is a server from before
 // levels, which spoke level 1. Level 2 stores directories. Level 3 reports
 // each pane's working directory and keeps session facts. Level 4 reads that
-// directory from the process on a timer, including when it prints nothing.
+// directory from the process after its output stays quiet. The next read
+// waits for more output.
 // Level 5 keys pane facts by pane id so a move keeps them. A missing key
 // inherits from the nearest ancestor directory. Directory facts move with
 // the directory.

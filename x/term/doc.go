@@ -10,14 +10,16 @@
 // A frame with the wrong version is rejected. A different level still
 // attaches, and the desk warns. Level 2 stores directories. Level 3
 // keeps the facts a pane stores for its session. Level 4 reads each
-// pane's working directory from the process on a timer. Level 5 stores
+// pane's working directory from the process after its output stays quiet.
+// Level 5 stores
 // those facts on the pane id, so a move keeps them. A missing key
 // inherits from the nearest ancestor directory. Directory facts move
 // with the directory.
 //
-// The directory is read from the process about five times a second
-// through x/driver/exec.Cwd. Linux reads /proc and Darwin reads the
-// process table. The shell does not have to print it. A program can also report it, and can store or
+// The directory is read through x/driver/exec.Cwd after the pane's
+// output stays quiet. Linux reads /proc and Darwin reads the process
+// table. The next read waits for more output. The shell does not have
+// to print the path. A program can also report it, and can store or
 // drop a fact, with OSC.
 // OSC 7 is file://host/path or an absolute path. OSC 1337 carries
 // CurrentDir=. The lewkit sequences are ESC ] 777 ; cwd ; PATH,
