@@ -119,11 +119,13 @@ func (webKitDriver) Open(ctx context.Context, cfg webview.Config) (webview.View,
 	if !thread.Bound() {
 		return nil, fmt.Errorf("%w: call thread.Bind from main, then thread.Loop", driver.ErrUnavailable)
 	}
-	if err := frameworks(); err != nil {
-		return nil, err
-	}
-	if err := registerHandlerClass(); err != nil {
-		return nil, err
+	if runtime.GOOS != "ios" {
+		if err := frameworks(); err != nil {
+			return nil, err
+		}
+		if err := registerHandlerClass(); err != nil {
+			return nil, err
+		}
 	}
 	view := &webKitView{
 		identifier: uintptr(nextIdentifier.Add(1)),
@@ -135,6 +137,16 @@ func (webKitDriver) Open(ctx context.Context, cfg webview.Config) (webview.View,
 	}
 	var openErr error
 	thread.Do(func() {
+		if runtime.GOOS == "ios" {
+			if err := frameworks(); err != nil {
+				openErr = err
+				return
+			}
+			if err := registerHandlerClass(); err != nil {
+				openErr = err
+				return
+			}
+		}
 		openErr = view.create(ctx, cfg)
 	})
 	if openErr != nil {
