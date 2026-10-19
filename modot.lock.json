@@ -67,8 +67,8 @@
       "ref": "github:lucide-icons/lucide",
       "depName": "lucide-icons/lucide",
       "packageName": "https://github.com/lucide-icons/lucide",
-      "currentValue": "1.57.0",
-      "currentDigest": "dab294f313897bacaa968b725b3259fa37c17bd1",
+      "currentValue": "1.59.0",
+      "currentDigest": "1ef60af944de207e0d5176905a0759ba12e6ee8d",
       "datasource": "git-refs"
     },
     {
