@@ -23,11 +23,12 @@ const (
 // Device is the system Metal device used for compute.
 // Close releases this queue. The process-wide device stays for Screen.
 type Device struct {
-	mu     sync.Mutex
-	id     objc.ID
-	queue  objc.ID
-	name   string
-	closed bool
+	mu       sync.Mutex
+	id       objc.ID
+	queue    objc.ID
+	name     string
+	closed   bool
+	children native.Children
 }
 
 // Pipeline is one compute kernel compiled from Metal shading language.
@@ -96,6 +97,7 @@ func (d *Device) Close() error {
 		return nil
 	}
 	d.closed = true
+	d.children.Drop()
 	withPool(func() {
 		if d.queue != 0 {
 			d.queue.Send(selRelease)
@@ -126,7 +128,9 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 	if buf == 0 {
 		return nil, ErrUnavailable
 	}
-	return &Buffer{d: d, id: buf, size: size}, nil
+	out := &Buffer{d: d, id: buf, size: size}
+	d.children.Add(out)
+	return out, nil
 }
 
 // Len is the requested size in bytes.
@@ -179,13 +183,22 @@ func (b *Buffer) Close() error {
 	}
 	b.d.mu.Lock()
 	defer b.d.mu.Unlock()
+	b.Drop()
+	return nil
+}
+
+// Drop releases the buffer. The device lock is already held.
+func (b *Buffer) Drop() {
+	if b == nil || b.d == nil {
+		return
+	}
+	b.d.children.Forget(b)
 	if b.id == 0 {
-		return nil
+		return
 	}
 	id := b.id
 	b.id = 0
 	id.Send(selRelease)
-	return nil
 }
 
 // Compile builds a compute pipeline. threads is the threadgroup width.
@@ -207,7 +220,11 @@ func (d *Device) Compile(source string, threads int) (*Pipeline, error) {
 	withPool(func() {
 		pipe, err = d.compile(source, threads)
 	})
-	return pipe, err
+	if err != nil {
+		return nil, err
+	}
+	d.children.Add(pipe)
+	return pipe, nil
 }
 
 func (d *Device) compile(source string, threads int) (*Pipeline, error) {
@@ -320,6 +337,19 @@ func (p *Pipeline) Close() error {
 	}
 	p.d.mu.Lock()
 	defer p.d.mu.Unlock()
+	p.Drop()
+	return nil
+}
+
+// Drop releases the pipeline, function, and library. The device lock is already held.
+func (p *Pipeline) Drop() {
+	if p == nil || p.d == nil {
+		return
+	}
+	p.d.children.Forget(p)
+	if p.pipe == 0 && p.fn == 0 && p.lib == 0 {
+		return
+	}
 	withPool(func() {
 		for _, id := range []objc.ID{p.pipe, p.fn, p.lib} {
 			if id != 0 {
@@ -328,7 +358,6 @@ func (p *Pipeline) Close() error {
 		}
 	})
 	p.pipe, p.fn, p.lib = 0, 0, 0
-	return nil
 }
 
 var (

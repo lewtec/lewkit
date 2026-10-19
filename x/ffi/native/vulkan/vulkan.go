@@ -10,6 +10,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/lewtec/lewkit/x/ffi/native"
 	"github.com/lewtec/lewkit/x/release"
 )
 
@@ -34,17 +35,8 @@ type Device struct {
 	recorded     Cmd
 	wantExt      []string
 	familyPinned bool
-	// objects are buffers and shaders that must be destroyed before the device.
-	// The key is the Go object address.
-	objects map[uintptr]object
-}
-
-// object is a child of a logical device. destroy frees the native handles
-// while the device is still open, and a second call does nothing. addr is
-// the map key and stays valid after the native handles are zeroed.
-type object interface {
-	destroy()
-	addr() uintptr
+	// children are buffers and shaders dropped before the device.
+	children native.Children
 }
 
 // Info is a compute-capable physical device. Index is 0-based among
@@ -348,10 +340,7 @@ func (d *Device) Close() error {
 		_ = d.api.waitForFences(d.dev, 1, &d.fence, 1, ^uint64(0))
 		d.pending = false
 	}
-	for _, obj := range d.objects {
-		obj.destroy()
-	}
-	d.objects = nil
+	d.children.Drop()
 	if d.dev != 0 {
 		if d.fence != 0 {
 			d.api.destroyFence(d.dev, d.fence, 0)
@@ -370,27 +359,6 @@ func (d *Device) Close() error {
 		d.inst = 0
 	}
 	return nil
-}
-
-func (d *Device) track(obj object) {
-	if d == nil || obj == nil {
-		return
-	}
-	key := obj.addr()
-	if key == 0 {
-		return
-	}
-	if d.objects == nil {
-		d.objects = make(map[uintptr]object)
-	}
-	d.objects[key] = obj
-}
-
-func (d *Device) untrack(obj object) {
-	if d == nil || obj == nil {
-		return
-	}
-	delete(d.objects, obj.addr())
 }
 
 func (d *Device) live() error {
@@ -532,7 +500,7 @@ func (d *Device) Alloc(size int, mem Memory) (*Buffer, error) {
 		}
 	}
 	out := &Buffer{d: d, buf: buf, mem: block, size: size, kind: mem, ptr: ptr, coherent: mem == Host}
-	d.track(out)
+	d.children.Add(out)
 	return out, nil
 }
 
@@ -619,19 +587,18 @@ func (b *Buffer) Close() error {
 			return err
 		}
 	}
-	if d != nil {
-		d.untrack(b)
-	}
-	b.destroy()
+	b.Drop()
 	return nil
 }
 
-func (b *Buffer) addr() uintptr {
-	return uintptr(unsafe.Pointer(b))
-}
-
-func (b *Buffer) destroy() {
-	if b == nil || b.buf == 0 {
+func (b *Buffer) Drop() {
+	if b == nil {
+		return
+	}
+	if b.d != nil {
+		b.d.children.Forget(b)
+	}
+	if b.buf == 0 {
 		return
 	}
 	d := b.d
@@ -803,7 +770,7 @@ func (d *Device) Compile(ctx context.Context, cfg ShaderConfig) (*Shader, error)
 		bindings:       bindings,
 		pushBytes:      cfg.PushBytes,
 	}
-	d.track(out)
+	d.children.Add(out)
 	return out, nil
 }
 
@@ -819,19 +786,18 @@ func (s *Shader) Close() error {
 			return err
 		}
 	}
-	if d != nil {
-		d.untrack(s)
-	}
-	s.destroy()
+	s.Drop()
 	return nil
 }
 
-func (s *Shader) addr() uintptr {
-	return uintptr(unsafe.Pointer(s))
-}
-
-func (s *Shader) destroy() {
-	if s == nil || s.pipeline == 0 {
+func (s *Shader) Drop() {
+	if s == nil {
+		return
+	}
+	if s.d != nil {
+		s.d.children.Forget(s)
+	}
+	if s.pipeline == 0 {
 		return
 	}
 	d := s.d

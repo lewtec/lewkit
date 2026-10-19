@@ -9,14 +9,17 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 // Device runs compute kernels. It does not attach a window and it does not
 // share a screen's queue.
 type Device struct {
-	mu     sync.Mutex
-	eng    *engine
-	closed bool
+	mu       sync.Mutex
+	eng      *engine
+	closed   bool
+	children native.Children
 }
 
 // Pipeline is one compiled compute kernel.
@@ -63,7 +66,7 @@ func (d *Device) Name() string {
 	return d.eng.name
 }
 
-// Close releases the device. Buffers still release their own resources.
+// Close waits for the queue, releases outstanding buffers and pipelines, then the device.
 func (d *Device) Close() error {
 	if d == nil {
 		return nil
@@ -76,6 +79,9 @@ func (d *Device) Close() error {
 	d.closed = true
 	if d.eng != nil {
 		_ = d.eng.wait()
+	}
+	d.children.Drop()
+	if d.eng != nil {
 		d.eng.release()
 		d.eng = nil
 	}
@@ -131,7 +137,7 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 		release(def)
 		return nil, err
 	}
-	return &Buffer{
+	out := &Buffer{
 		dev:   d,
 		size:  size,
 		gpu:   n,
@@ -141,7 +147,9 @@ func (d *Device) Buffer(size int) (*Buffer, error) {
 		upPtr: ptr,
 		addr:  syscallV(def, slotResVA),
 		state: stateCopyDst,
-	}, nil
+	}
+	d.children.Add(out)
+	return out, nil
 }
 
 // Len is the size requested at Buffer, in bytes.
@@ -247,13 +255,24 @@ func (b *Buffer) Close() error {
 	if b == nil {
 		return nil
 	}
-	dev := b.dev
-	if dev != nil {
-		dev.mu.Lock()
-		defer dev.mu.Unlock()
+	if b.dev != nil {
+		b.dev.mu.Lock()
+		defer b.dev.mu.Unlock()
+	}
+	b.Drop()
+	return nil
+}
+
+// Drop releases the buffer. The device lock is already held when the device is set.
+func (b *Buffer) Drop() {
+	if b == nil {
+		return
+	}
+	if b.dev != nil {
+		b.dev.children.Forget(b)
 	}
 	if b.closed {
-		return nil
+		return
 	}
 	b.closed = true
 	if b.up != 0 {
@@ -263,7 +282,6 @@ func (b *Buffer) Close() error {
 	release(b.def)
 	release(b.read)
 	b.up, b.def, b.read, b.upPtr = 0, 0, 0, 0
-	return nil
 }
 
 // Compile builds a cs_5_0 pipeline. source is HLSL with one u0 and contiguous t registers.
@@ -294,7 +312,9 @@ func (d *Device) Compile(source string, threads int) (*Pipeline, error) {
 		return nil, err
 	}
 	slog.Debug("d3d12 compile", "threads", threads, "srvs", srvs, "bytes", len(source))
-	return &Pipeline{dev: d, pso: pso, root: root, srvs: srvs, threads: threads}, nil
+	out := &Pipeline{dev: d, pso: pso, root: root, srvs: srvs, threads: threads}
+	d.children.Add(out)
+	return out, nil
 }
 
 func shaderBindings(source string, threads int) (int, error) {
@@ -402,17 +422,28 @@ func (p *Pipeline) Close() error {
 	if p == nil {
 		return nil
 	}
-	dev := p.dev
-	if dev != nil {
-		dev.mu.Lock()
-		defer dev.mu.Unlock()
+	if p.dev != nil {
+		p.dev.mu.Lock()
+		defer p.dev.mu.Unlock()
+	}
+	p.Drop()
+	return nil
+}
+
+// Drop releases the pipeline state and its root signature.
+// The device lock is already held when the device is set.
+func (p *Pipeline) Drop() {
+	if p == nil {
+		return
+	}
+	if p.dev != nil {
+		p.dev.children.Forget(p)
 	}
 	if p.closed {
-		return nil
+		return
 	}
 	p.closed = true
 	release(p.pso)
 	release(p.root)
 	p.pso, p.root = 0, 0
-	return nil
 }

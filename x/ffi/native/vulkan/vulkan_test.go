@@ -270,8 +270,8 @@ func TestDeviceCloseDestroysChildrenFirst(t *testing.T) {
 	}
 	buf := &Buffer{d: d, buf: 4, mem: 5, ptr: unsafe.Pointer(&order), size: 8}
 	shader := &Shader{d: d, module: 1, setLayout: 2, pipelineLayout: 3, pipeline: 6}
-	d.track(buf)
-	d.track(shader)
+	d.children.Add(buf)
+	d.children.Add(shader)
 	require.NoError(t, d.Close())
 	require.True(t, contig(order, []string{"unmap", "buffer", "memory"}))
 	require.True(t, contig(order, []string{"pipeline", "pipeline-layout", "set-layout", "module"}))
@@ -302,7 +302,7 @@ func TestBufferCloseBeforeDeviceDoesNotFreeTwice(t *testing.T) {
 	d.api.destroyDevice = func(uintptr, uintptr) {}
 	d.api.destroyInstance = func(uintptr, uintptr) {}
 	buf := &Buffer{d: d, buf: 4, mem: 5, ptr: unsafe.Pointer(&buffers), size: 4}
-	d.track(buf)
+	d.children.Add(buf)
 	require.NoError(t, buf.Close())
 	require.Equal(t, 1, buffers)
 	require.NoError(t, d.Close())

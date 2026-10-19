@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"sync"
 	"unsafe"
+
+	"github.com/lewtec/lewkit/x/ffi/native"
 )
 
 var (
@@ -17,12 +19,13 @@ var (
 
 // Device runs one compute kernel. It does not attach a surface.
 type Device struct {
-	mu     sync.Mutex
-	run    *runner
-	gl     *glAPI
-	name   string
-	limit  [3]uint32
-	closed bool
+	mu       sync.Mutex
+	run      *runner
+	gl       *glAPI
+	name     string
+	limit    [3]uint32
+	closed   bool
+	children native.Children
 }
 
 // Buffer is one shader-storage block.
@@ -108,7 +111,9 @@ func (d *Device) Buffer(n int) (*Buffer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &buf, nil
+	out := &buf
+	d.children.Add(out)
+	return out, nil
 }
 
 // Len is the allocated size.
@@ -186,15 +191,35 @@ func (b *Buffer) Close() error {
 	}
 	b.dev.mu.Lock()
 	defer b.dev.mu.Unlock()
-	if b.dev.closed || b.dev.run == nil || b.id == 0 {
+	if b.id == 0 {
 		return nil
+	}
+	if b.dev.closed || b.dev.run == nil {
+		b.dev.children.Forget(b)
+		b.id = 0
+		return nil
+	}
+	return b.dev.run.Do(func() error {
+		b.Drop()
+		return nil
+	})
+}
+
+// Drop deletes the buffer name. The caller is on the context thread.
+func (b *Buffer) Drop() {
+	if b == nil {
+		return
+	}
+	if b.dev != nil {
+		b.dev.children.Forget(b)
+	}
+	if b.id == 0 || b.dev == nil || b.dev.gl == nil || b.dev.gl.deleteBuffers == nil {
+		b.id = 0
+		return
 	}
 	id := b.id
 	b.id = 0
-	return b.dev.run.Do(func() error {
-		b.dev.gl.deleteBuffers(1, &id)
-		return nil
-	})
+	b.dev.gl.deleteBuffers(1, &id)
 }
 
 // Compile builds one compute shader.
@@ -245,7 +270,9 @@ func (d *Device) Compile(src string) (*Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &prog, nil
+	out := &prog
+	d.children.Add(out)
+	return out, nil
 }
 
 // Run dispatches groups of the kernel over buffers. push is n, d0, d1, d2, d3
@@ -339,25 +366,45 @@ func pushWords(push []byte) [5]uint32 {
 	return out
 }
 
-// Close releases the device.
+// Close deletes the program.
 func (p *Program) Close() error {
 	if p == nil || p.dev == nil || p.id == 0 {
 		return nil
 	}
 	p.dev.mu.Lock()
 	defer p.dev.mu.Unlock()
-	if p.dev.closed || p.dev.run == nil || p.id == 0 {
+	if p.id == 0 {
 		return nil
 	}
-	id := p.id
-	p.id = 0
+	if p.dev.closed || p.dev.run == nil {
+		p.dev.children.Forget(p)
+		p.id = 0
+		return nil
+	}
 	return p.dev.run.Do(func() error {
-		p.dev.gl.deleteProgram(id)
+		p.Drop()
 		return nil
 	})
 }
 
-// Close releases the context.
+// Drop deletes the program name. The caller is on the context thread.
+func (p *Program) Drop() {
+	if p == nil {
+		return
+	}
+	if p.dev != nil {
+		p.dev.children.Forget(p)
+	}
+	if p.id == 0 || p.dev == nil || p.dev.gl == nil || p.dev.gl.deleteProgram == nil {
+		p.id = 0
+		return
+	}
+	id := p.id
+	p.id = 0
+	p.dev.gl.deleteProgram(id)
+}
+
+// Close deletes outstanding buffers and programs, then the context.
 func (d *Device) Close() error {
 	if d == nil {
 		return nil
@@ -369,6 +416,10 @@ func (d *Device) Close() error {
 	}
 	d.closed = true
 	if d.run != nil {
+		_ = d.run.Do(func() error {
+			d.children.Drop()
+			return nil
+		})
 		d.run.Stop()
 		d.run = nil
 	}
