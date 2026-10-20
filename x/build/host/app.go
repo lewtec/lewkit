@@ -1,10 +1,11 @@
-package build
+package host
 
 import (
 	"context"
 	"fmt"
 	"os"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gen/apk"
 	"github.com/lewtec/lewkit/x/build/gen/common"
 	"github.com/lewtec/lewkit/x/build/gen/ios"
@@ -44,7 +45,7 @@ func (host Host) Workflow(goos string) (workflow.Graph, error) {
 }
 
 func (host Host) workflow(goos string, sink func(string)) (workflow.Graph, error) {
-	if !GOOS(goos).HasAppPackage() {
+	if !build.GOOS(goos).HasAppPackage() {
 		return workflow.Graph{}, fmt.Errorf("%s %w", goos, ErrHasNoAppPackage)
 	}
 	cfg, base, err := host.Load()
@@ -164,7 +165,7 @@ func (host Host) workflow(goos string, sink func(string)) (workflow.Graph, error
 }
 
 func scaffolded(goos string) bool {
-	return GOOS(goos).Scaffolded()
+	return build.GOOS(goos).Scaffolded()
 }
 
 func (host Host) scaffold(ctx context.Context, goos, workDir string) error {
@@ -176,16 +177,16 @@ func (host Host) scaffold(ctx context.Context, goos, workDir string) error {
 	if err != nil {
 		return err
 	}
-	switch GOOS(goos) {
-	case GOOSDarwin:
+	switch build.GOOS(goos) {
+	case build.GOOSDarwin:
 		gen := macConfig(cfg)
 		gen.GoMain = goMain
 		return mac.Create(ctx, mac.Options{OutDir: workDir, Force: true, Config: gen})
-	case GOOSIOS:
+	case build.GOOSIOS:
 		gen := iosConfig(cfg)
 		gen.GoMain = goMain
 		return ios.Create(ctx, ios.Options{OutDir: workDir, Force: true, Config: gen})
-	case GOOSAndroid:
+	case build.GOOSAndroid:
 		cfg.GoMain = goMain
 		return apk.Create(ctx, apk.Options{OutDir: workDir, Force: true, Config: cfg})
 	default:
@@ -194,16 +195,16 @@ func (host Host) scaffold(ctx context.Context, goos, workDir string) error {
 }
 
 func (host Host) packageApp(ctx context.Context, goos string) (string, error) {
-	switch GOOS(goos) {
-	case GOOSDarwin:
+	switch build.GOOS(goos) {
+	case build.GOOSDarwin:
 		return host.Mac(ctx)
-	case GOOSAndroid:
+	case build.GOOSAndroid:
 		return host.Android(ctx)
-	case GOOSIOS:
+	case build.GOOSIOS:
 		return host.IOS(ctx)
-	case GOOSWindows:
+	case build.GOOSWindows:
 		return host.Windows(ctx)
-	case GOOSLinux:
+	case build.GOOSLinux:
 		return host.Linux(ctx)
 	default:
 		return "", fmt.Errorf("%s %w", goos, ErrHasNoAppPackage)

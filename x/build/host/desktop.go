@@ -1,4 +1,4 @@
-package build
+package host
 
 import (
 	"archive/tar"
@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/build/version"
@@ -19,80 +20,6 @@ import (
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/workflow"
 )
-
-// Target is one CGO-free desktop binary.
-type Target struct {
-	GOOS   string
-	GOARCH string
-}
-
-// Platform resolves t into the uber Platform enum.
-func (t Target) Platform() (Platform, error) {
-	return PlatformFor(GOOS(t.GOOS), GOARCH(t.GOARCH))
-}
-
-// String formats t as goos/goarch.
-func (t Target) String() string {
-	return t.GOOS + "/" + t.GOARCH
-}
-
-// DesktopTargets is the release matrix: Linux, macOS, and Windows on amd64 and arm64.
-func DesktopTargets() []Target {
-	platforms := DesktopPlatforms()
-	out := make([]Target, 0, len(platforms))
-	for _, platform := range platforms {
-		out = append(out, platform.Target())
-	}
-	return out
-}
-
-// ArchiveName is project_goos_goarch.tar.gz, or .zip when GOOS is windows.
-// uefi and linux_uki are .efi. linux_iso is .iso. mbr is .img.
-// GOOS and GOARCH are the go env values, so a dist directory can be
-// uploaded as release assets without renaming.
-func ArchiveName(project string, target Target) string {
-	ext := ".tar.gz"
-	switch GOOS(target.GOOS) {
-	case GOOSWindows:
-		ext = ".zip"
-	case GOOSUEFI, GOOSLinuxUKI:
-		ext = ".efi"
-	case GOOSLinuxISO:
-		ext = ".iso"
-	case GOOSMBR:
-		ext = ".img"
-	}
-	return project + "_" + target.GOOS + "_" + target.GOARCH + ext
-}
-
-// AppFile is one host artifact: stem_goos_goarch plus the host suffix.
-// Windows is .exe, Android is .apk, Linux is .AppImage, and every other host is .app.
-// Android's stem is the last package-id label. Every other host uses product.
-func AppFile(product, packageID, goos, goarch string) string {
-	stem := product
-	ext := ".app"
-	switch GOOS(goos) {
-	case GOOSAndroid:
-		stem = androidLabel(packageID)
-		ext = ".apk"
-	case GOOSWindows:
-		ext = ".exe"
-	case GOOSLinux:
-		ext = ".AppImage"
-	}
-	return stem + "_" + goos + "_" + goarch + ext
-}
-
-func androidLabel(packageID string) string {
-	label := packageID
-	if i := strings.LastIndex(label, "."); i >= 0 {
-		label = label[i+1:]
-	}
-	if label == "" {
-		return "app"
-	}
-	return label
-}
 
 // Job is one or more CGO-free archives.
 // AppID is stamped into x/release.appID. Version is stamped into x/release.version.
@@ -102,7 +29,7 @@ type Job struct {
 	Name    string
 	AppID   string
 	Version string
-	Targets []Target
+	Targets []build.Target
 	// Sign, when set, Authenticode-signs a Windows exe, Mach-O-signs a
 	// Darwin binary, and writes a detached CMS signature beside every archive.
 	Sign *sign.Identity
@@ -110,7 +37,7 @@ type Job struct {
 
 // Desktop cross-compiles one archive for every release target.
 func Desktop(ctx context.Context, job Job) ([]string, error) {
-	job.Targets = DesktopTargets()
+	job.Targets = build.DesktopTargets()
 	return job.Run(ctx)
 }
 
@@ -127,7 +54,7 @@ func (job Job) Paths() []string {
 	project := job.project()
 	out := make([]string, 0, len(job.Targets)*2)
 	for _, target := range job.Targets {
-		archive := filepath.Join(job.Out, ArchiveName(project, target))
+		archive := filepath.Join(job.Out, build.ArchiveName(project, target))
 		out = append(out, archive)
 		if job.Sign != nil {
 			out = append(out, archive+".cms")
@@ -179,7 +106,7 @@ func (job Job) graph() workflow.Graph {
 	return workflow.Graph{Dir: job.Out, Steps: steps, Defaults: defaults}
 }
 
-func (job Job) archiveTarget(ctx context.Context, project string, stamp version.Info, target Target) error {
+func (job Job) archiveTarget(ctx context.Context, project string, stamp version.Info, target build.Target) error {
 	binary := project
 	if target.GOOS == "windows" {
 		binary += ".exe"
@@ -209,7 +136,7 @@ func (job Job) archiveTarget(ctx context.Context, project string, stamp version.
 			return fmt.Errorf("%w %s/%s: %w", ErrJobArchiveTargetSign2, target.GOOS, target.GOARCH, err)
 		}
 	}
-	archive := filepath.Join(job.Out, ArchiveName(project, target))
+	archive := filepath.Join(job.Out, build.ArchiveName(project, target))
 	if err := writeArchive(archive, binPath, binary); err != nil {
 		return err
 	}

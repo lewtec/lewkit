@@ -1,4 +1,4 @@
-package glsl
+package reactor
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/ffi/wasm"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	embed "github.com/lewtec/lewkit/x/ffi/wasm/glsl/internal/wasm"
 	"github.com/lewtec/lewkit/x/singleton"
 )
@@ -19,14 +20,7 @@ func load(ctx context.Context) (*wasm.Compiled, error) {
 	return compiled.GetContext(ctx)
 }
 
-func compileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return compileSPIRV(ctx, stage, src)
-}
-
-func compileSPIRV(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
+func compileSPIRV(ctx context.Context, stage glsl.Stage, src []byte) ([]byte, error) {
 	started := time.Now()
 	mod, err := load(ctx)
 	loaded := time.Since(started)
@@ -44,20 +38,20 @@ func compileSPIRV(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 	compileStarted := time.Now()
 	srcPtr, err := in.Alloc(ctx, uint32(len(src)+1))
 	if err != nil {
-		return nil, fmt.Errorf("%w: malloc src", ErrCompile)
+		return nil, fmt.Errorf("%w: malloc src", glsl.ErrCompile)
 	}
 	defer in.Free(ctx, srcPtr)
 	if err := in.Write(srcPtr, append(append([]byte(nil), src...), 0)); err != nil {
-		return nil, fmt.Errorf("%w: write src", ErrCompile)
+		return nil, fmt.Errorf("%w: write src", glsl.ErrCompile)
 	}
 	outPtr, err := in.Alloc(ctx, 4)
 	if err != nil {
-		return nil, fmt.Errorf("%w: malloc out", ErrCompile)
+		return nil, fmt.Errorf("%w: malloc out", glsl.ErrCompile)
 	}
 	defer in.Free(ctx, outPtr)
 	lenPtr, err := in.Alloc(ctx, 4)
 	if err != nil {
-		return nil, fmt.Errorf("%w: malloc len", ErrCompile)
+		return nil, fmt.Errorf("%w: malloc len", glsl.ErrCompile)
 	}
 	defer in.Free(ctx, lenPtr)
 	code, err := in.Call(ctx, "compile_stage", uint64(stage), uint64(srcPtr), uint64(len(src)), uint64(outPtr), uint64(lenPtr))
@@ -74,7 +68,7 @@ func compileSPIRV(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 	}
 	slog.Info("glslang", args...)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCompile, err)
+		return nil, fmt.Errorf("%w: %v", glsl.ErrCompile, err)
 	}
 	if code != 0 {
 		msg := "compile failed"
@@ -83,19 +77,19 @@ func compileSPIRV(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 				msg = s
 			}
 		}
-		return nil, fmt.Errorf("%w: %s", ErrCompile, msg)
+		return nil, fmt.Errorf("%w: %s", glsl.ErrCompile, msg)
 	}
 	spvPtr, err := in.Uint32LE(outPtr)
 	if err != nil || spvPtr == 0 {
-		return nil, fmt.Errorf("%w: empty output", ErrCompile)
+		return nil, fmt.Errorf("%w: empty output", glsl.ErrCompile)
 	}
 	n, err := in.Uint32LE(lenPtr)
 	if err != nil || n < 20 || n%4 != 0 {
-		return nil, fmt.Errorf("%w: bad length", ErrCompile)
+		return nil, fmt.Errorf("%w: bad length", glsl.ErrCompile)
 	}
 	raw, err := in.Read(spvPtr, n)
 	if err != nil {
-		return nil, fmt.Errorf("%w: read spirv", ErrCompile)
+		return nil, fmt.Errorf("%w: read spirv", glsl.ErrCompile)
 	}
 	out := append([]byte(nil), raw...)
 	in.Free(ctx, spvPtr)

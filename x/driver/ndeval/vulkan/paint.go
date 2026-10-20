@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
-	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -50,7 +49,7 @@ func (g *gpuEvaluator) presentCode(ctx context.Context) ([]byte, error) {
 	if done {
 		return code, err
 	}
-	code, err = glsl.Load(ctx, []byte(presentGLSL))
+	code, err = compileCompute(ctx, []byte(presentGLSL))
 	g.table.With(func() {
 		if !g.presentDone {
 			g.present, g.presentErr, g.presentDone = code, err, true

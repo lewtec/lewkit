@@ -1,4 +1,4 @@
-package build
+package host
 
 import (
 	"os"
@@ -48,7 +48,7 @@ func moduleRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "../.."))
+	root := filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
 	_, err := os.Stat(filepath.Join(root, "go.mod"))
 	require.NoError(t, err)
 	return root

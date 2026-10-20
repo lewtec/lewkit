@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/lewtec/lewkit/x/build"
+	"github.com/lewtec/lewkit/x/build/host"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/sops"
 )
@@ -20,8 +20,8 @@ type appConfig struct {
 	p12     sops.File     `long:"p12" env:"LEWKIT_SIGN_P12" help:"passwordless PKCS#12 publisher key. A SOPS age file is decrypted." default:""`
 }
 
-func (c appConfig) spec() build.Spec {
-	return build.Spec{
+func (c appConfig) spec() host.Spec {
+	return host.Spec{
 		Dir:     c.dir.Value(),
 		Config:  c.config.Value(),
 		ID:      c.id.Value(),

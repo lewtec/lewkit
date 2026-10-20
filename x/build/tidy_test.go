@@ -13,9 +13,8 @@ import (
 )
 
 // TestConsumerToolchainTidy imports the copied linker from a module outside
-// this one. x/build reaches that linker through x/toolchain/go, and go mod
-// tidy reads outbuf_bsd.go on every host. The freebsd and netbsd lists must
-// resolve std/syscall/unix inside this module.
+// this one. go mod tidy reads outbuf_bsd.go on every host. The freebsd and
+// netbsd lists must resolve std/syscall/unix inside this module.
 func TestConsumerToolchainTidy(t *testing.T) {
 	goBin := test.Need(t, "go")
 	root := findModuleRoot(t)
