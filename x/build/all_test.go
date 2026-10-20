@@ -23,6 +23,7 @@ func TestHostTargetsSkipUnavailableHosts(t *testing.T) {
 	require.Contains(t, targets, Target{GOOS: "darwin", GOARCH: "amd64"})
 	require.Contains(t, targets, Target{GOOS: "darwin", GOARCH: "arm64"})
 	require.Contains(t, targets, Target{GOOS: "ios", GOARCH: "arm64"})
+	require.Contains(t, targets, Target{GOOS: "android", GOARCH: "arm64"})
 	for _, target := range targets {
 		if target.GOOS == "android" {
 			require.Equal(t, "arm64", target.GOARCH)
@@ -83,6 +84,7 @@ func TestUberRejectsFileOut(t *testing.T) {
 }
 
 func TestUberWritesDist(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
 	mainDir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
@@ -105,4 +107,7 @@ func TestUberWritesDist(t *testing.T) {
 	zipRaw, err := os.ReadFile(filepath.Join(out, "demo_windows_amd64.zip"))
 	require.NoError(t, err)
 	require.Equal(t, "PK", string(zipRaw[:2]))
+	apkRaw, err := os.ReadFile(filepath.Join(out, "demo_android_arm64.apk"))
+	require.NoError(t, err)
+	require.Equal(t, "PK", string(apkRaw[:2]))
 }

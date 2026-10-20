@@ -55,6 +55,15 @@ func TestCMSRoundTrip(t *testing.T) {
 	require.ErrorIs(t, VerifyCMS([]byte("other"), sig), ErrCMS)
 }
 
+func TestDebugIdentityReusesCache(t *testing.T) {
+	t.Setenv("XDG_CACHE_HOME", t.TempDir())
+	first, err := DebugIdentity(t.Context())
+	require.NoError(t, err)
+	second, err := DebugIdentity(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, first.Certs[0].Raw, second.Certs[0].Raw)
+}
+
 func TestAPKRoundTrip(t *testing.T) {
 	id, err := Generate("Publisher")
 	require.NoError(t, err)

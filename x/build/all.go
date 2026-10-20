@@ -31,8 +31,8 @@ var (
 
 // Uber is every archive and host package this process can finish.
 // Archives are the desktop matrix. Host packages are Linux, Windows,
-// macOS, and iOS. An Android APK is included when an SDK is already
-// installed. Out is the directory that receives them.
+// macOS, iOS, and the cgo-free Android APK. Out is the directory that
+// receives them.
 type Uber struct {
 	Spec
 	Out  string
@@ -48,10 +48,10 @@ func HostPlatforms(ctx context.Context) ([]Platform, error) {
 }
 
 // HostTargets is the host packages this process can finish without cgo.
-// Linux, Windows, macOS, and iOS are pure Go. The Apple bundles are
-// assembled around those binaries on every host. Android needs an SDK
-// that is already installed. The cgo-free Android package is arm64.
-// android/amd64 needs the NDK.
+// Linux, Windows, macOS, iOS, and Android arm64 are pure Go. The bundles
+// are assembled on every host. The cgo-free Android package is arm64.
+// A cgo Android package needs the NDK, which ships with an SDK that is
+// already installed.
 func HostTargets(ctx context.Context) ([]Target, error) {
 	return hostTargets(ctx, false)
 }
@@ -66,11 +66,10 @@ func hostPlatforms(ctx context.Context, cgo bool) ([]Platform, error) {
 		PlatformDarwinARM64,
 		PlatformIOSARM64,
 	}
-	if apk.SDKInstalled(ctx) {
+	if !cgo {
 		out = append(out, PlatformAndroidARM64)
-		if cgo {
-			out = append(out, PlatformAndroidAMD64)
-		}
+	} else if apk.SDKInstalled(ctx) {
+		out = append(out, PlatformAndroidARM64, PlatformAndroidAMD64)
 	}
 	return out, nil
 }

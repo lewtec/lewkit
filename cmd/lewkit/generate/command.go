@@ -4,14 +4,15 @@ package generate
 
 // Cmd is lewkit generate.
 type Cmd struct {
-	db       *dbCmd
-	prelude  *preludeCmd
-	protobuf *protobufCmd
-	shader   *shaderCmd
-	header   *headerCmd
-	clib     *clibCmd
-	enum     *enumCmd
-	parse    *parseCmd
+	db         *dbCmd
+	prelude    *preludeCmd
+	protobuf   *protobufCmd
+	shader     *shaderCmd
+	header     *headerCmd
+	clib       *clibCmd
+	enum       *enumCmd
+	parse      *parseCmd
+	androiddex *androiddexCmd
 }
 
 // Description is the command summary.

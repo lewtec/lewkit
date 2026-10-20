@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -39,9 +40,7 @@ func TestRoomLabelUsesHome(t *testing.T) {
 }
 
 func TestReadGitUsesTheDirectory(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git is not installed")
-	}
+	test.Need(t, "git")
 	dir := t.TempDir()
 	assert.Equal(t, "no history here", readGit(t.Context(), dir))
 	assert.Equal(t, "no history here", readGit(t.Context(), ""))

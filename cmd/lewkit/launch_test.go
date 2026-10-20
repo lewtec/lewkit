@@ -76,6 +76,26 @@ func TestRunForegroundLeavesCancelToChild(t *testing.T) {
 	require.NoError(t, runForeground(ctx, "sleep", "0.2"))
 }
 
+func TestAndroidComponent(t *testing.T) {
+	require.Equal(t, "br.tec.lew.drivers/lewkit.MainActivity", androidComponent("br.tec.lew.drivers"))
+}
+
+func TestAdbBinUsesPath(t *testing.T) {
+	dir := t.TempDir()
+	name := "adb"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	bin := filepath.Join(dir, name)
+	require.NoError(t, os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755))
+	t.Setenv("PATH", dir)
+	t.Setenv("ANDROID_HOME", filepath.Join(t.TempDir(), "sdk"))
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	got, err := adbBin(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, bin, got)
+}
+
 func TestLaunchWindowsAppNeedsWindows(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		test.Skip(t, "this machine can start the exe")

@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 
-	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/errs"
@@ -82,11 +80,14 @@ func extractOne(archive, dir string) (string, error) {
 func launchApp(ctx context.Context, goos, path, id string) error {
 	switch goos {
 	case "android":
-		adb := adbBin(ctx)
+		adb, err := adbBin(ctx)
+		if err != nil {
+			return err
+		}
 		if err := runTool(ctx, adb, "install", "-r", path); err != nil {
 			return err
 		}
-		return runTool(ctx, adb, "shell", "am", "start", "-n", id+"/.MainActivity")
+		return runTool(ctx, adb, "shell", "am", "start", "-n", androidComponent(id))
 	case "darwin":
 		return runTool(ctx, "open", path)
 	case "ios":
@@ -109,19 +110,16 @@ func launchApp(ctx context.Context, goos, path, id string) error {
 	}
 }
 
-func adbBin(ctx context.Context) string {
-	home, err := build.AndroidSDK(ctx)
-	if err != nil {
-		home = os.Getenv("ANDROID_HOME")
-	}
-	if home == "" {
-		return "adb"
-	}
-	bin := filepath.Join(home, "platform-tools", "adb")
-	if _, err := os.Stat(bin); err != nil {
-		return "adb"
-	}
-	return bin
+// androidComponent is the activity `am start` launches.
+// The packed host dex is package lewkit. A leading dot names
+// {id}.MainActivity, which is not in that dex.
+func androidComponent(id string) string {
+	return id + "/lewkit.MainActivity"
+}
+
+// adbBin is the adb on PATH. The Android SDK is not consulted.
+func adbBin(ctx context.Context) (string, error) {
+	return execdriver.Find(ctx, "adb")
 }
 
 func runTool(ctx context.Context, name string, args ...string) error {

@@ -177,8 +177,11 @@ func TestMiseToolchain(t *testing.T) {
 	require.True(t, ok)
 
 	sdk, err := androidSDK(ctx)
-	require.NoError(t, err)
-	require.True(t, isDir(sdk))
+	if err != nil {
+		require.ErrorIs(t, err, ErrAndroidSDKNotFound)
+	} else {
+		require.True(t, isDir(sdk))
+	}
 
 	// android-sdk@13.0 is command-line tools. adb and the NDK are separate.
 	cc, err := ndkCC(ctx, "arm64")

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/stretchr/testify/require"
 )
 
 type cleanupOwner struct {
@@ -38,7 +40,7 @@ func TestArmRunsWhenUnreachable(t *testing.T) {
 		default:
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("cleanup did not run")
+			require.FailNow(t, "cleanup did not run")
 		}
 		runtime.Gosched()
 	}
@@ -56,7 +58,7 @@ func TestDisarmStopsCleanup(t *testing.T) {
 	runtime.GC()
 	select {
 	case <-ch:
-		t.Fatal("cleanup ran after Disarm")
+		require.FailNow(t, "cleanup ran after Disarm")
 	default:
 	}
 }
