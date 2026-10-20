@@ -2,6 +2,8 @@ package lewkit;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.os.Bundle;
+import android.view.Window;
 
 /**
  * HostActivity is a window the process tracks.
@@ -9,6 +11,15 @@ import android.content.Intent;
  * The picker result goes back through FileChooser, which Go already calls.
  */
 public class HostActivity extends Activity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        // The packed manifest theme is not applied (the activity record
+        // stays theme 0), so the default theme draws a title bar. No title
+        // wins over that action bar when the decor is created.
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
+        super.onCreate(savedInstanceState);
+    }
+
     @Override
     protected void onResume() {
         super.onResume();

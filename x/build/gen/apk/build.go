@@ -82,7 +82,8 @@ type BuildResult struct {
 }
 
 // Build scaffolds the Android host, cross-compiles the Go app into jniLibs,
-// and (unless GoOnly) runs Gradle assembleDebug and copies the APK to OutAPK.
+// and (unless GoOnly) writes an APK around those libraries.
+// The APK is assembled in this process. Gradle and the Android SDK are not used.
 func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 	stdout, stderr := common.Writers(ctx, opts.Stdout, opts.Stderr)
 
@@ -169,14 +170,9 @@ func Build(ctx context.Context, opts BuildOptions) (*BuildResult, error) {
 		return nil, buildErr
 	}
 
-	slog.Info("android gradle")
-	apk, err := AssembleDebug(ctx, workDir)
-	if err != nil {
+	slog.Info("android apk")
+	if err := assembleGoAPK(genCfg, workDir, outAPK); err != nil {
 		buildErr = err
-		return nil, buildErr
-	}
-	if err := common.CopyFile(apk, outAPK, 0o644); err != nil {
-		buildErr = fmt.Errorf("copy apk: %w", err)
 		return nil, buildErr
 	}
 	result.APKPath = outAPK

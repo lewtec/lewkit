@@ -150,6 +150,7 @@ func TestGenerateHelp(t *testing.T) {
 	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "enum")
 	assert.Contains(t, got, "parse")
+	assert.Contains(t, got, "androiddex")
 	assert.Contains(t, got, "shared Queries")
 	assert.Contains(t, got, "--sentry-dsn")
 }
@@ -169,5 +170,17 @@ func TestGenerateErrUsage(t *testing.T) {
 	assert.Contains(t, got, "clib")
 	assert.Contains(t, got, "enum")
 	assert.Contains(t, got, "parse")
+	assert.Contains(t, got, "androiddex")
 	assert.Contains(t, got, "--sentry-dsn")
+}
+
+func TestGenerateAndroidDexUsage(t *testing.T) {
+	text, err := cmd.Usage[generate.Cmd](release.Name() + " generate")
+	require.NoError(t, err)
+	assert.Contains(t, text, "androiddex")
+	assert.Contains(t, text, "classes.dex")
+	assert.Contains(t, text, "working directory")
+	cmd.ParseOK[cmd.App[root]](t, "generate", "androiddex")
+	err = cmd.ParseErr[cmd.App[root]](t, "generate", "androiddex", ".")
+	assert.ErrorIs(t, err, cmd.ErrInvalidArgument)
 }

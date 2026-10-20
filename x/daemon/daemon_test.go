@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/lewtec/lewkit/x/daemon"
-	"github.com/lewtec/lewkit/x/errs"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,9 +77,6 @@ func TestSelfReturnsBeforeTheChildExits(t *testing.T) {
 }
 
 func TestSpawnRejectsABadStart(t *testing.T) {
-	require.ErrorIs(t, daemon.Spawn(nil, "true"), errs.ErrNilContext)
-	require.ErrorIs(t, daemon.Self(nil), errs.ErrNilContext)
-
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.ErrorIs(t, daemon.Spawn(ctx, "true"), context.Canceled)

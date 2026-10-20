@@ -24,9 +24,6 @@ var ErrSpawn = errs.Wrap(errs.ErrUnavailable, "spawn daemon")
 // Spawn starts name with args in its own session.
 // The caller does not wait for the process to exit.
 func Spawn(ctx context.Context, name string, args ...string) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -52,9 +49,6 @@ func Spawn(ctx context.Context, name string, args ...string) error {
 
 // Self re-execs this binary with args.
 func Self(ctx context.Context, args ...string) error {
-	if ctx == nil {
-		return errs.ErrNilContext
-	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}

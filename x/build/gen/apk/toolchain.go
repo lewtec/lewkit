@@ -34,11 +34,13 @@ var (
 	jdkVersionR  = regexp.MustCompile(`version "(\d+)(?:\.(\d+))?(?:\.(\d+))?`)
 )
 
-// AndroidSDK returns the Android SDK root for Gradle and adb.
+// AndroidSDK returns an Android SDK root that is already on the machine.
 // ANDROID_HOME and ANDROID_SDK_ROOT win when they name a directory.
-// Otherwise mise android-sdk@13.0, then the usual Android Studio paths.
+// Otherwise an installed mise android-sdk@13.0, then the usual Android Studio paths.
 // android-sdk@13.0 is command-line tools. A sibling install that has
-// platforms, such as android-sdk@19.0, is used for the APK.
+// platforms, such as android-sdk@19.0, is preferred.
+// A missing SDK is ErrAndroidSDKNotFound. This does not install one.
+// The cgo NDK lookup calls this. release run finds adb on PATH.
 func AndroidSDK(ctx context.Context) (string, error) {
 	return androidSDK(ctx)
 }
@@ -68,16 +70,7 @@ func androidSDK(ctx context.Context) (string, error) {
 	if dir, ok := sdkFromHome(); ok {
 		return dir, nil
 	}
-	root, err := miseInstallWhere(ctx, miseSDKSpec)
-	if err != nil || !isDir(root) {
-		if err == nil {
-			err = fmt.Errorf("%w: %s", errMiseEmpty, miseSDKSpec)
-		}
-		return "", fmt.Errorf("%w: %w", ErrAndroidSDKNotFound, err)
-	}
-	root = sdkForAPK(root)
-	slog.Info("android sdk", "dir", root)
-	return root, nil
+	return "", ErrAndroidSDKNotFound
 }
 
 // sdkForAPK prefers a sibling that contains platforms, then resolves symlinks.
