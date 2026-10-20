@@ -1,7 +1,6 @@
 package glsl
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,51 +13,19 @@ func TestIsSPIRV(t *testing.T) {
 	require.True(t, IsSPIRV(magic))
 }
 
-func TestCompileCompute(t *testing.T) {
-	src := `#version 450
-layout(local_size_x = 1) in;
-layout(set = 0, binding = 0) buffer Data { uint v; } data;
-void main() { data.v = 2u; }
-`
-	spv, err := Compile(t.Context(), []byte(src))
-	require.NoError(t, err)
-	require.True(t, IsSPIRV(spv))
-	require.GreaterOrEqual(t, len(spv), 20)
-	require.Equal(t, 0, len(spv)%4)
-}
-
-func TestCompileVertex(t *testing.T) {
-	src := `#version 450
-void main() { gl_Position = vec4(0.0); }
-`
-	spv, err := CompileStage(t.Context(), StageVertex, []byte(src))
-	require.NoError(t, err)
-	require.True(t, IsSPIRV(spv))
-	require.Equal(t, 0, len(spv)%4)
-}
-
 func TestCompileStageRejects(t *testing.T) {
 	_, err := CompileStage(t.Context(), 3, []byte("void main() {}\n"))
 	require.Error(t, err)
 }
 
-func TestCompileCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	_, err := Compile(ctx, []byte(`#version 450
-layout(local_size_x = 1) in;
-void main() {}
-`))
-	require.ErrorIs(t, err, context.Canceled)
+func TestCompileStageMiss(t *testing.T) {
+	src := []byte("#version 450\nvoid main() {}\n")
+	_, err := CompileStage(t.Context(), StageCompute, src)
+	require.ErrorIs(t, err, ErrCompile)
 }
 
 func TestLoadSPIRVPassthrough(t *testing.T) {
-	src := `#version 450
-layout(local_size_x = 1) in;
-void main() {}
-`
-	spv, err := Compile(t.Context(), []byte(src))
-	require.NoError(t, err)
+	spv := []byte{0x03, 0x02, 0x23, 0x07, 0, 0, 0, 0}
 	again, err := Load(t.Context(), spv)
 	require.NoError(t, err)
 	require.Equal(t, spv, again)

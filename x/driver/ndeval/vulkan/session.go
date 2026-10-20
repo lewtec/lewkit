@@ -9,7 +9,6 @@ import (
 	"github.com/lewtec/lewkit/x/driver/ndeval/internal/run"
 	"github.com/lewtec/lewkit/x/driver/ndeval/internal/slots"
 	drvvulkan "github.com/lewtec/lewkit/x/driver/vulkan"
-	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
 	"github.com/lewtec/lewkit/x/ndarray"
 )
 
@@ -31,7 +30,7 @@ func newSession(ctx context.Context, kernel *ndarray.Kernel, device drvvulkan.De
 	if err != nil {
 		return nil, err
 	}
-	spirv, err := glsl.Load(ctx, []byte(src))
+	spirv, err := compileCompute(ctx, []byte(src))
 	if err != nil {
 		return nil, err
 	}

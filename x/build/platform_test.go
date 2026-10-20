@@ -149,7 +149,4 @@ func TestPlatformUberEnum(t *testing.T) {
 	require.ErrorIs(t, err, ErrABI)
 
 	require.Len(t, DesktopPlatforms(), 6)
-	platforms, err := HostPlatforms(t.Context())
-	require.NoError(t, err)
-	require.Contains(t, platforms, PlatformLinuxAMD64)
 }

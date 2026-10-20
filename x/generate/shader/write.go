@@ -13,6 +13,7 @@ import (
 	"unicode"
 
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl/reactor"
 	"github.com/lewtec/lewkit/x/generate"
 	"github.com/lewtec/lewkit/x/takemake/golang"
 )
@@ -48,7 +49,7 @@ func writePackage(ctx context.Context, dir string, files []shaderFile) error {
 		if err != nil {
 			return err
 		}
-		spirv, err := glsl.CompileGlslang(ctx, file.stage, src)
+		spirv, err := reactor.CompileGlslang(ctx, file.stage, src)
 		if err != nil {
 			return fmt.Errorf("%w%s: %w", ErrWritePackage, file.rel, err)
 		}
