@@ -1,10 +1,11 @@
-package build
+package host
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
@@ -16,14 +17,14 @@ func TestMain(m *testing.M) {
 func TestHostTargetsSkipUnavailableHosts(t *testing.T) {
 	targets, err := HostTargets(t.Context())
 	require.NoError(t, err)
-	require.Contains(t, targets, Target{GOOS: "linux", GOARCH: "amd64"})
-	require.Contains(t, targets, Target{GOOS: "linux", GOARCH: "arm64"})
-	require.Contains(t, targets, Target{GOOS: "windows", GOARCH: "amd64"})
-	require.Contains(t, targets, Target{GOOS: "windows", GOARCH: "arm64"})
-	require.Contains(t, targets, Target{GOOS: "darwin", GOARCH: "amd64"})
-	require.Contains(t, targets, Target{GOOS: "darwin", GOARCH: "arm64"})
-	require.Contains(t, targets, Target{GOOS: "ios", GOARCH: "arm64"})
-	require.Contains(t, targets, Target{GOOS: "android", GOARCH: "arm64"})
+	require.Contains(t, targets, build.Target{GOOS: "linux", GOARCH: "amd64"})
+	require.Contains(t, targets, build.Target{GOOS: "linux", GOARCH: "arm64"})
+	require.Contains(t, targets, build.Target{GOOS: "windows", GOARCH: "amd64"})
+	require.Contains(t, targets, build.Target{GOOS: "windows", GOARCH: "arm64"})
+	require.Contains(t, targets, build.Target{GOOS: "darwin", GOARCH: "amd64"})
+	require.Contains(t, targets, build.Target{GOOS: "darwin", GOARCH: "arm64"})
+	require.Contains(t, targets, build.Target{GOOS: "ios", GOARCH: "arm64"})
+	require.Contains(t, targets, build.Target{GOOS: "android", GOARCH: "arm64"})
 	for _, target := range targets {
 		if target.GOOS == "android" {
 			require.Equal(t, "arm64", target.GOARCH)
@@ -39,13 +40,13 @@ func TestUberGraphSharesIcons(t *testing.T) {
 		Out:  out,
 		Name: "demo",
 	}
-	apps := []Target{
+	apps := []build.Target{
 		{GOOS: "linux", GOARCH: "amd64"},
 		{GOOS: "windows", GOARCH: "arm64"},
 		{GOOS: "darwin", GOARCH: "arm64"},
 		{GOOS: "android", GOARCH: "arm64"},
 	}
-	graph, paths, _, err := u.assemble(DesktopTargets(), apps)
+	graph, paths, _, err := u.assemble(build.DesktopTargets(), apps)
 	require.NoError(t, err)
 	steps := map[string][]string{}
 	for _, step := range graph.Steps {
@@ -79,7 +80,7 @@ func TestUberRejectsFileOut(t *testing.T) {
 	file := filepath.Join(dir, "dist")
 	require.NoError(t, os.WriteFile(file, []byte("x"), 0o644))
 	u := Uber{Spec: Spec{Dir: dir, ID: "br.tec.lew.demo", Name: "Demo"}, Out: file}
-	_, _, _, err := u.assemble(DesktopTargets(), nil)
+	_, _, _, err := u.assemble(build.DesktopTargets(), nil)
 	require.Error(t, err)
 }
 

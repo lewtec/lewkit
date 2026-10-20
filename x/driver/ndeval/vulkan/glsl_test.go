@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl/reactor"
 	"github.com/lewtec/lewkit/x/ndarray"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,7 @@ func TestGLSLAddCompiles(t *testing.T) {
 	require.Equal(t, 1, strings.Count(src, "void main()"))
 	require.Equal(t, 1, strings.Count(src, "gl_GlobalInvocationID"))
 	require.Contains(t, src, "local_size_x = 128")
-	spirv, err := glsl.Load(t.Context(), []byte(src))
+	spirv, err := reactor.Compile(t.Context(), []byte(src))
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(spirv))
 }
@@ -36,7 +37,7 @@ func TestGLSLLiterals(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, src, "uintBitsToFloat(")
 	require.NotContains(t, src, "Inf")
-	spirv, err := glsl.Load(t.Context(), []byte(src))
+	spirv, err := reactor.Compile(t.Context(), []byte(src))
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(spirv))
 
@@ -48,7 +49,7 @@ func TestGLSLLiterals(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, src, "0x80000000u")
 	require.Contains(t, src, "buffer Out { int o[]; }")
-	spirv, err = glsl.Load(t.Context(), []byte(src))
+	spirv, err = reactor.Compile(t.Context(), []byte(src))
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(spirv))
 }
@@ -62,7 +63,7 @@ func TestGLSLGuardsCompile(t *testing.T) {
 	require.NoError(t, err)
 	src, err := glslSource(k)
 	require.NoError(t, err)
-	spirv, err := glsl.Load(t.Context(), []byte(src))
+	spirv, err := reactor.Compile(t.Context(), []byte(src))
 	require.NoError(t, err)
 	require.True(t, glsl.IsSPIRV(spirv))
 }

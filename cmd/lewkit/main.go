@@ -13,6 +13,7 @@ import (
 	"github.com/lewtec/lewkit/x/entry"
 	"github.com/lewtec/lewkit/x/taskgroup"
 
+	_ "github.com/lewtec/lewkit/x/build/gocmd/lewkit"
 	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
 	_ "github.com/lewtec/lewkit/x/tool/conda"
 )

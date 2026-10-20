@@ -13,6 +13,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/errs"
 	glslang "github.com/lewtec/lewkit/x/ffi/wasm/glsl"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl/reactor"
 )
 
 // Khronos fixtures under testdata/khronos are placed by modot from
@@ -259,7 +260,7 @@ func compileShader(t *testing.T, name, src string, fallback Stage) {
 
 func compileOne(t *testing.T, name string, stage Stage, src string) {
 	t.Helper()
-	spv, err := glslang.CompileStage(t.Context(), ffiStage(stage), []byte(src))
+	spv, err := reactor.CompileStage(t.Context(), ffiStage(stage), []byte(src))
 	require.NoError(t, err, name)
 	require.True(t, glslang.IsSPIRV(spv), name)
 }

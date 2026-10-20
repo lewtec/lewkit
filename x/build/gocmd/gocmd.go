@@ -1,11 +1,12 @@
 // Package gocmd runs go build or go run.
 // Compiler host runs the go command. Compiler lewkit builds a CGO-free
-// amd64 or arm64 binary with the embedded toolchain. Release commands
-// pass that choice through the context. Their default is lewkit.
+// amd64 or arm64 binary when x/build/gocmd/lewkit is linked. Release
+// commands pass that choice through the context. Their default is lewkit.
 package gocmd
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/lewtec/lewkit/x/taskgroup"
 )
@@ -29,7 +30,10 @@ type Command struct {
 // compile and the link are CPU children of that task.
 func (c Command) Run(ctx context.Context) error {
 	if c.active(ctx) == CompilerLewkit {
-		return c.runLewkit(ctx)
+		if runLewkit == nil {
+			return fmt.Errorf("%w: embedded compiler is not linked", ErrCompiler)
+		}
+		return runLewkit(ctx, c)
 	}
 	verb := c.Verb
 	if verb == "" {

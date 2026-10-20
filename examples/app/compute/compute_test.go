@@ -7,6 +7,7 @@ import (
 
 	"github.com/lewtec/lewkit/x/ffi/native/vulkan"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl/reactor"
 	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +40,7 @@ layout(push_constant) uniform P { uint v; } p;
 layout(set = 0, binding = 0) buffer Data { uint o; } data;
 void main() { data.o = p.v; }
 `)
-	spirv, err := glsl.Load(t.Context(), src)
+	spirv, err := reactor.Compile(t.Context(), src)
 	require.NoError(t, err)
 	device, err := vulkan.Open(t.Context())
 	if err != nil {
@@ -73,7 +74,7 @@ layout(local_size_x = 1) in;
 layout(set = 0, binding = 0) buffer Data { uint v; } data;
 void main() { data.v = 2u; }
 `)
-	spirv, err := glsl.Load(t.Context(), src)
+	spirv, err := reactor.Compile(t.Context(), src)
 	require.NoError(t, err)
 	device, err := vulkan.Open(t.Context())
 	if err != nil {

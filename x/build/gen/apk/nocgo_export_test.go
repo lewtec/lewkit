@@ -11,6 +11,8 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/build/version"
+
+	_ "github.com/lewtec/lewkit/x/build/gocmd/lewkit"
 	"github.com/lewtec/lewkit/x/test"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"

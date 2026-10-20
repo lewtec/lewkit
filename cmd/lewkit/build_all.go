@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 
-	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gocmd"
+	"github.com/lewtec/lewkit/x/build/host"
 )
 
 type buildAllCmd struct {
@@ -25,7 +25,7 @@ func (c *buildAllCmd) produce(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return build.Uber{
+	return host.Uber{
 		Spec: c.spec(),
 		Out:  c.out.Value(),
 		Name: c.file.Value(),
