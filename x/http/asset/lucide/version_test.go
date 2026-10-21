@@ -6,12 +6,17 @@ import (
 	"path/filepath"
 	"testing"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
 )
 
 func TestVersionMatchesModotPin(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, Version, lockLucideVersion(t, moduleRoot(t)))
+	root := moduleRoot(t)
+	cueVersion := cueLucideVersion(t, root)
+	require.Equal(t, cueVersion, Version)
+	require.Equal(t, cueVersion, lockLucideVersion(t, root))
 }
 
 func moduleRoot(t *testing.T) string {
@@ -27,6 +32,18 @@ func moduleRoot(t *testing.T) string {
 		require.NotEqual(t, parent, dir)
 		dir = parent
 	}
+}
+
+func cueLucideVersion(t *testing.T, root string) string {
+	t.Helper()
+	text, err := os.ReadFile(filepath.Join(root, "modot.cue"))
+	require.NoError(t, err)
+	value := cuecontext.New().CompileBytes(text, cue.Filename("modot.cue"))
+	require.NoError(t, value.Err())
+	version, err := value.LookupPath(cue.ParsePath("inputs.lucide.version")).String()
+	require.NoError(t, err)
+	require.NotEmpty(t, version)
+	return version
 }
 
 func lockLucideVersion(t *testing.T, root string) string {
