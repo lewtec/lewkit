@@ -435,6 +435,8 @@ github.com/lewtec/modot v0.0.0-20261020161205-5cb361113ead h1:wxMPD2JbMFvAkr24Ov
 github.com/lewtec/modot v0.0.0-20261020161205-5cb361113ead/go.mod h1:A7kCEjkvrYR40m4gc9P4g3ffFnqD4T8Yf+jcrTBihX0=
 github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06 h1:qYGqfJ5fiQeRfSxsvcOwVbADQsZy8raGYr6l1EpaaOc=
 github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927175003-766673523e06/go.mod h1:xwgf7PJSOWRAqcuffR314NyyEYgsyeTP/Y1FxvykQBk=
+github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927191430-7863ea35cdcc h1:ZyGPp/rck+oxa/mHX6H7U7e5oxbxU/p8uAlTGg6vaXI=
+github.com/lewtec/wazero-tree-sitter/grammar v0.0.0-20260927191430-7863ea35cdcc/go.mod h1:xwgf7PJSOWRAqcuffR314NyyEYgsyeTP/Y1FxvykQBk=
 github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260927175003-766673523e06 h1:7hqe8Tgq7t8kQJqVcOFMqGrGZ3zVwFGSqVK+2oGBDWQ=
 github.com/lewtec/wazero-tree-sitter/grammar/json v0.0.0-20260927175003-766673523e06/go.mod h1:LoyeWnHFUPEWxe4FNaWnKEafcYtUnyrcOVsxbuGGtl0=
 github.com/lib/pq v1.12.3 h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ=
