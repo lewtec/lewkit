@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/lewtec/lewkit/x/ffmpeg/avutil"
 )
@@ -348,14 +349,14 @@ func tlFreqToBark(freq float64) float64 {
 	return 13.0*math.Atan(.76*freq) + 3.5*math.Atan(freq*freq/(7.5*7.5))
 }
 
-var tlHann [tlBLKSIZE]float64
-
-func init() {
+var tlHann = sync.OnceValue(func() *[tlBLKSIZE]float64 {
+	var w [tlBLKSIZE]float64
 	sqrt8over3 := math.Pow(8.0/3.0, 0.5)
 	for i := 0; i < tlBLKSIZE; i++ {
-		tlHann[i] = sqrt8over3 * 0.5 * (1 - math.Cos(2.0*tlPI*float64(i)/float64(tlBLKSIZE))) / float64(tlBLKSIZE)
+		w[i] = sqrt8over3 * 0.5 * (1 - math.Cos(2.0*tlPI*float64(i)/float64(tlBLKSIZE))) / float64(tlBLKSIZE)
 	}
-}
+	return &w
+})
 
 func (e *tlEncoder) frameBytes() int {
 	average := (1152.0 / (float64(e.rate) / 1000.0)) * (float64(e.bitrate) / 8.0)
@@ -902,7 +903,7 @@ func (e *tlEncoder) psycho3() {
 func tlPsychoFFT(sample *[tlBLKSIZE]float64, energy *[tlBLKSIZE]float64) {
 	var x [tlBLKSIZE]float64
 	for i := 0; i < tlBLKSIZE; i++ {
-		x[i] = sample[i] * tlHann[i]
+		x[i] = sample[i] * tlHann()[i]
 	}
 	tlFHT(&x)
 	energy[0] = x[0] * x[0]

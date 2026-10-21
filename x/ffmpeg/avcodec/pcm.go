@@ -139,7 +139,3 @@ func (c *pcmCodec) encodeS24(frame *avutil.Frame) ([]*avutil.Packet, error) {
 		TimeBase: frame.TimeBase, Key: true,
 	}}, nil
 }
-
-func init() {
-	_ = binary.LittleEndian
-}

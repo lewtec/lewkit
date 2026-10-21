@@ -15,18 +15,18 @@ import (
 const gradientSize = 6 * 256
 
 type testSource struct {
-	w, h      int
-	tb        avutil.Rational
-	sar       avutil.Rational
-	duration  int64
-	decimals  int
-	pts       int64
-	nb        int
-	format    avutil.PixelFormat
-	color     [4]byte
-	cached    *avutil.Frame
-	flags     swscale.Flags
-	kind      string
+	w, h     int
+	tb       avutil.Rational
+	sar      avutil.Rational
+	duration int64
+	decimals int
+	pts      int64
+	nb       int
+	format   avutil.PixelFormat
+	color    [4]byte
+	cached   *avutil.Frame
+	flags    swscale.Flags
+	kind     string
 }
 
 func (s *testSource) Next() (*avutil.Frame, error) {
@@ -382,15 +382,7 @@ const (
 	sineShift     = 3
 )
 
-var (
-	sineOnce  sync.Once
-	sineTable []int16
-)
-
-func sineSamples() []int16 {
-	sineOnce.Do(func() { sineTable = makeSineTable() })
-	return sineTable
-}
+var sineSamples = sync.OnceValue(makeSineTable)
 
 func makeSineTable() []int16 {
 	halfPi := 1 << (sineLogPeriod - 2)

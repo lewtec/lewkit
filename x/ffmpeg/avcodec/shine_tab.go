@@ -1,6 +1,9 @@
 package avcodec
 
-import "math"
+import (
+	"math"
+	"sync"
+)
 
 type shineHuffTab struct {
 	xlen    uint32
@@ -1148,10 +1151,10 @@ var shineHuff = [34]shineHuffTab{
 	{1, 16, 0, 0, []uint16{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}, []uint8{4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4}},
 }
 
-var shineSteptab = func() [128]float64 {
+var shineSteptab = sync.OnceValue(func() *[128]float64 {
 	var tab [128]float64
 	for i, bits := range shineSteptabBits {
 		tab[i] = math.Float64frombits(bits)
 	}
-	return tab
-}()
+	return &tab
+})

@@ -614,7 +614,7 @@ func (e *shineEnc) quantize(ix []int, stepsize int) int {
 		if ln < 10000 {
 			q = shineInt2idx[ln]
 		} else {
-			scale := shineSteptab[stepsize+127]
+			scale := shineSteptab()[stepsize+127]
 			dbl := float64(e.xrabs[i]) * scale * 4.656612875e-10
 			q = int(math.Sqrt(math.Sqrt(dbl) * dbl))
 		}
