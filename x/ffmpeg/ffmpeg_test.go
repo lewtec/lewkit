@@ -501,6 +501,50 @@ func TestH264RoundTrip(t *testing.T) {
 	require.Len(t, got, 16*16+8*8+8*8)
 }
 
+func TestSpeexCLIMatchesFFmpeg(t *testing.T) {
+	const samplesN = 160 * 2
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	wantPath := filepath.Join(dir, "want.wav")
+	gotPath := filepath.Join(dir, "got.wav")
+	args := []string{"-f", "s16le", "-ar", "8000", "-ac", "1", "-i", path, "-c:a", "libspeex", "-f", "wav"}
+	_ = systemFF(t, append(args, wantPath)...)
+	code, _, stderr := runFF(t, append(append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0", "-y"}, args...), gotPath)...)
+	require.Equal(t, 0, code, stderr)
+	want, err := os.ReadFile(wantPath)
+	require.NoError(t, err)
+	got, err := os.ReadFile(gotPath)
+	require.NoError(t, err)
+	require.Equal(t, speexFileData(t, want), speexFileData(t, got))
+	decodedWant := systemFF(t, "-i", wantPath, "-f", "s16le", "-")
+	decodedGot := systemFF(t, "-i", gotPath, "-f", "s16le", "-")
+	require.Equal(t, decodedWant, decodedGot)
+}
+
+func speexFileData(t *testing.T, b []byte) []byte {
+	t.Helper()
+	require.GreaterOrEqual(t, len(b), 12)
+	i := 12
+	for i+8 <= len(b) {
+		id := string(b[i : i+4])
+		sz := int(binary.LittleEndian.Uint32(b[i+4:]))
+		i += 8
+		if id == "data" {
+			require.LessOrEqual(t, i+sz, len(b))
+			return b[i : i+sz]
+		}
+		i += sz
+		if sz%2 == 1 {
+			i++
+		}
+	}
+	t.Fatal("wav data missing")
+	return nil
+}
+
 func TestMapAudio(t *testing.T) {
 	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
 		"-f", "lavfi", "-i", "testsrc=size=16x16:rate=25:duration=0.04",

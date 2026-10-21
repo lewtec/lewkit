@@ -40,4 +40,5 @@ const (
 	IDADPCMSWF              // adpcm_swf
 	IDLIBTWOLAME            // libtwolame
 	IDADPCMIMAWS            // adpcm_ima_ws
+	IDLIBSPEEX              // libspeex
 )
