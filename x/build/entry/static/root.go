@@ -1,35 +1,43 @@
-package entry
+// Package staticsite is the static: entry provider.
+// Importing it registers the provider. x/build/entry/prelude imports it.
+package staticsite
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/build/entry"
 	"github.com/lewtec/lewkit/x/build/gen/common"
 )
 
-// staticProvider serves a zip or a directory from a generated main.
-type staticProvider struct {
-	*materializer
+// Provider serves a zip or a directory from a generated main.
+type Provider struct {
+	*entry.Materializer
 }
 
-func (staticProvider) Name() string { return "static" }
+func init() {
+	entry.Register(&Provider{Materializer: &entry.Materializer{}})
+}
 
-func (p *staticProvider) Main(ctx context.Context, request Request) (string, error) {
+func (Provider) Name() string { return "static" }
+
+func (p *Provider) Main(ctx context.Context, request entry.Request) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", context.Cause(ctx)
 	}
-	ref, err := p.resolve(request.Ref, request.Base)
+	ref, err := p.Resolve(request.Ref, request.Base)
 	if err != nil {
 		return "", err
 	}
 	info, err := os.Stat(ref)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("%w: %s", ErrStaticMissing, ref)
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("%w: %s", entry.ErrStaticMissing, ref)
 		}
 		return "", err
 	}
@@ -37,13 +45,13 @@ func (p *staticProvider) Main(ctx context.Context, request Request) (string, err
 	if err != nil {
 		return "", err
 	}
-	key := cacheKey(p.Name(), ref, request.Title, print)
-	return p.open(ctx, key, func(dir string) error {
+	key := entry.CacheKey(p.Name(), ref, request.Title, print)
+	return p.Open(ctx, key, func(dir string) error {
 		return p.write(ctx, ref, info, dir, request.Title)
 	})
 }
 
-func (p *staticProvider) write(ctx context.Context, ref string, info os.FileInfo, dir, title string) error {
+func (p *Provider) write(ctx context.Context, ref string, info os.FileInfo, dir, title string) error {
 	if err := ctx.Err(); err != nil {
 		return context.Cause(ctx)
 	}
@@ -59,7 +67,7 @@ func (p *staticProvider) write(ctx context.Context, ref string, info os.FileInfo
 	return os.WriteFile(filepath.Join(dir, "main.go"), []byte(p.zipSource(title)), 0o644)
 }
 
-func (p *staticProvider) fingerprint(ctx context.Context, ref string, info os.FileInfo) (string, error) {
+func (p *Provider) fingerprint(ctx context.Context, ref string, info os.FileInfo) (string, error) {
 	if !info.IsDir() {
 		return fmt.Sprintf("%d %d", info.Size(), info.ModTime().UnixNano()), nil
 	}
@@ -91,8 +99,8 @@ func (p *staticProvider) fingerprint(ctx context.Context, ref string, info os.Fi
 	return buf.String(), nil
 }
 
-func (staticProvider) zipSource(title string) string {
-	title = displayTitle(title)
+func (Provider) zipSource(title string) string {
+	title = entry.DisplayTitle(title)
 	return fmt.Sprintf(`package main
 
 import (
@@ -122,8 +130,8 @@ func run(ctx context.Context) error {
 `, title)
 }
 
-func (staticProvider) dirSource(title string) string {
-	title = displayTitle(title)
+func (Provider) dirSource(title string) string {
+	title = entry.DisplayTitle(title)
 	return fmt.Sprintf(`package main
 
 import (

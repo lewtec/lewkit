@@ -522,6 +522,7 @@ Residual risk: a later component catalog MUST add its own security row if it gro
 
 ## Decision history
 
+- 2026-10-21: Each entry provider is a package with `root.go`. `init` calls `entry.Register`. `lewkit generate prelude` writes `x/build/entry/prelude`, and that file blank-imports `go`, `astro`, and `static`. A caller that resolves an entry imports that prelude. Rejected: registering the three providers from `x/build/entry` itself.
 - 2026-10-21: `--entry` on `release build` and `release run` sets the entry for that invocation. It wins over the file and over `--main`.
 - 2026-10-21: Example `eletrocromo.json` files set `entry`. A Go program in that directory is `go:.`. `examples/app/astro` is `astro:.`. `examples/app/site` is `static:site`. `examples/app/zip` is `static:site.zip`. Those files do not set `go_main` or `version_name`.
 - 2026-10-21: `entry` in `eletrocromo.json` is `go:<dir>`, `astro:<dir>`, or `static:<zip-or-dir>`. `go_main` is `go:<path>`. An omitted entry is `go:.`. The version name is `git describe` of the config directory. The store integer is `git rev-list --count HEAD`, and the first commit is 1. `version_name` and `version_code` in the file are ignored. `--version` and `--main` still overlay that one run. Rejected: packing a semver describe into the integer; an Astro provider for tracer; a window size on this change.

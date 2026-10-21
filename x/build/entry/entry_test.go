@@ -1,4 +1,4 @@
-package entry
+package entry_test
 
 import (
 	"archive/zip"
@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/lewtec/lewkit/x/build/entry"
+	_ "github.com/lewtec/lewkit/x/build/entry/prelude"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
 	"github.com/lewtec/lewkit/x/errs"
@@ -14,34 +16,34 @@ import (
 )
 
 func TestParseEntry(t *testing.T) {
-	got, err := ParseEntry("", "")
+	got, err := entry.ParseEntry("", "")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Name: "go", Ref: "."}, got)
+	require.Equal(t, entry.Entry{Name: "go", Ref: "."}, got)
 
-	got, err = ParseEntry("", "./cmd/app")
+	got, err = entry.ParseEntry("", "./cmd/app")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Name: "go", Ref: "./cmd/app"}, got)
+	require.Equal(t, entry.Entry{Name: "go", Ref: "./cmd/app"}, got)
 
-	got, err = ParseEntry("go:./cmd/main", "ignored")
+	got, err = entry.ParseEntry("go:./cmd/main", "ignored")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Name: "go", Ref: "./cmd/main"}, got)
+	require.Equal(t, entry.Entry{Name: "go", Ref: "./cmd/main"}, got)
 
-	got, err = ParseEntry("astro:.", "")
+	got, err = entry.ParseEntry("astro:.", "")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Name: "astro", Ref: "."}, got)
+	require.Equal(t, entry.Entry{Name: "astro", Ref: "."}, got)
 
-	got, err = ParseEntry("static:site.zip", "")
+	got, err = entry.ParseEntry("static:site.zip", "")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Name: "static", Ref: "site.zip"}, got)
+	require.Equal(t, entry.Entry{Name: "static", Ref: "site.zip"}, got)
 
-	_, err = ParseEntry("nope", "")
-	require.ErrorIs(t, err, ErrEntrySyntax)
+	_, err = entry.ParseEntry("nope", "")
+	require.ErrorIs(t, err, entry.ErrEntrySyntax)
 
-	_, err = ParseEntry("static:", "")
-	require.ErrorIs(t, err, ErrEntrySyntax)
+	_, err = entry.ParseEntry("static:", "")
+	require.ErrorIs(t, err, entry.ErrEntrySyntax)
 
-	_, err = ParseEntry("nope:x", "")
-	require.ErrorIs(t, err, ErrEntryProvider)
+	_, err = entry.ParseEntry("nope:x", "")
+	require.ErrorIs(t, err, entry.ErrEntryProvider)
 	require.ErrorIs(t, err, errs.ErrUnknown)
 }
 
@@ -50,10 +52,10 @@ func TestMaterializeStatic(t *testing.T) {
 	zipPath := filepath.Join(dir, "site.zip")
 	require.NoError(t, os.WriteFile(zipPath, zipWithIndex(t), 0o644))
 
-	first, err := Main(t.Context(), "static:site.zip", "", dir, "Milhao")
+	first, err := entry.Main(t.Context(), "static:site.zip", "", dir, "Milhao")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(first) })
-	second, err := Main(t.Context(), "static:site.zip", "", dir, "Milhao")
+	second, err := entry.Main(t.Context(), "static:site.zip", "", dir, "Milhao")
 	require.NoError(t, err)
 	require.Equal(t, first, second)
 
@@ -67,7 +69,7 @@ func TestMaterializeStatic(t *testing.T) {
 	web := filepath.Join(dir, "web")
 	require.NoError(t, os.Mkdir(web, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(web, "index.html"), []byte("hi"), 0o644))
-	dirMain, err := Main(t.Context(), "static:web", "ignored", dir, "")
+	dirMain, err := entry.Main(t.Context(), "static:web", "ignored", dir, "")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(dirMain) })
 	body, err = os.ReadFile(filepath.Join(dirMain, "main.go"))
@@ -82,7 +84,7 @@ func TestMaterializeStatic(t *testing.T) {
 func TestStaticModuleBuilds(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "site.zip"), zipWithIndex(t), 0o644))
-	main, err := Main(t.Context(), "static:site.zip", "", dir, "Site")
+	main, err := entry.Main(t.Context(), "static:site.zip", "", dir, "Site")
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(main) })
 
@@ -98,42 +100,11 @@ func TestStaticModuleBuilds(t *testing.T) {
 
 func TestMainReportsMissingSites(t *testing.T) {
 	dir := t.TempDir()
-	_, err := Main(t.Context(), "static:missing.zip", "", dir, "app")
-	require.ErrorIs(t, err, ErrStaticMissing)
+	_, err := entry.Main(t.Context(), "static:missing.zip", "", dir, "app")
+	require.ErrorIs(t, err, entry.ErrStaticMissing)
 
-	_, err = Main(t.Context(), "astro:.", "", dir, "app")
-	require.ErrorIs(t, err, ErrAstroConfig)
-}
-
-func TestAssembleAstro(t *testing.T) {
-	t.Run("server", func(t *testing.T) {
-		project := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(project, "dist", "server"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(project, "dist", "server", "entry.mjs"), []byte("export default {}\n"), 0o644))
-		require.NoError(t, os.MkdirAll(filepath.Join(project, "dist", "client"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(project, "dist", "client", "app.js"), []byte("x"), 0o644))
-		worker := filepath.Join(t.TempDir(), "worker")
-		require.NoError(t, astroProjects.assemble(project, worker))
-		_, err := os.Stat(filepath.Join(worker, "entry.mjs"))
-		require.NoError(t, err)
-		body, err := os.ReadFile(filepath.Join(worker, "assets", "app.js"))
-		require.NoError(t, err)
-		require.Equal(t, "x", string(body))
-	})
-
-	t.Run("legacy", func(t *testing.T) {
-		project := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(project, "dist", "_worker.js"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(project, "dist", "_worker.js", "index.js"), []byte("export default {}\n"), 0o644))
-		require.NoError(t, os.WriteFile(filepath.Join(project, "dist", "app.css"), []byte("body{}\n"), 0o644))
-		worker := filepath.Join(t.TempDir(), "worker")
-		require.NoError(t, astroProjects.assemble(project, worker))
-		_, err := os.Stat(filepath.Join(worker, "entry.mjs"))
-		require.NoError(t, err)
-		body, err := os.ReadFile(filepath.Join(worker, "assets", "app.css"))
-		require.NoError(t, err)
-		require.Equal(t, "body{}\n", string(body))
-	})
+	_, err = entry.Main(t.Context(), "astro:.", "", dir, "app")
+	require.ErrorIs(t, err, entry.ErrAstroConfig)
 }
 
 func zipWithIndex(t *testing.T) []byte {

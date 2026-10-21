@@ -1,55 +1,63 @@
-package entry
+// Package astro is the astro: entry provider.
+// Importing it registers the provider. x/build/entry/prelude imports it.
+package astro
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/build/entry"
 	"github.com/lewtec/lewkit/x/build/gen/common"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	"github.com/lewtec/lewkit/x/nodescript"
 	"github.com/lucasew/orvalho/pkg/workers/bundle"
 )
 
-// astroProvider builds an Astro project and serves the bundled worker.
-type astroProvider struct {
-	*materializer
+// Provider builds an Astro project and serves the bundled worker.
+type Provider struct {
+	*entry.Materializer
 }
 
-func (astroProvider) Name() string { return "astro" }
+func init() {
+	entry.Register(&Provider{Materializer: &entry.Materializer{}})
+}
 
-func (p *astroProvider) Main(ctx context.Context, request Request) (string, error) {
+func (Provider) Name() string { return "astro" }
+
+func (p *Provider) Main(ctx context.Context, request entry.Request) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", context.Cause(ctx)
 	}
-	project, err := p.resolve(request.Ref, request.Base)
+	project, err := p.Resolve(request.Ref, request.Base)
 	if err != nil {
 		return "", err
 	}
 	info, err := os.Stat(project)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("%w: %s", ErrAstroConfig, project)
+		if errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("%w: %s", entry.ErrAstroConfig, project)
 		}
 		return "", err
 	}
 	if !info.IsDir() {
-		return "", fmt.Errorf("%w: %s", ErrAstroConfig, project)
+		return "", fmt.Errorf("%w: %s", entry.ErrAstroConfig, project)
 	}
 	print, err := p.fingerprint(project, info)
 	if err != nil {
 		return "", err
 	}
-	key := cacheKey(p.Name(), project, request.Title, print)
-	return p.open(ctx, key, func(dir string) error {
+	key := entry.CacheKey(p.Name(), project, request.Title, print)
+	return p.Open(ctx, key, func(dir string) error {
 		return p.write(ctx, project, dir, request.Title)
 	})
 }
 
-func (p *astroProvider) write(ctx context.Context, project, dir, title string) error {
+func (p *Provider) write(ctx context.Context, project, dir, title string) error {
 	if err := ctx.Err(); err != nil {
 		return context.Cause(ctx)
 	}
@@ -77,7 +85,7 @@ func (p *astroProvider) write(ctx context.Context, project, dir, title string) e
 		Esbuild:    esbuild,
 	})
 	if err != nil {
-		return fmt.Errorf("%w: %w", ErrAstroBuild, err)
+		return fmt.Errorf("%w: %w", entry.ErrAstroBuild, err)
 	}
 	embedDir := filepath.Join(dir, "embed")
 	if err := os.MkdirAll(filepath.Join(embedDir, "assets"), 0o755); err != nil {
@@ -92,23 +100,23 @@ func (p *astroProvider) write(ctx context.Context, project, dir, title string) e
 	return os.WriteFile(filepath.Join(dir, "main.go"), []byte(p.source(title)), 0o644)
 }
 
-func (p *astroProvider) requireConfig(project string) error {
+func (p *Provider) requireConfig(project string) error {
 	for _, name := range []string{"astro.config.mjs", "astro.config.ts", "astro.config.js"} {
 		if fileExists(filepath.Join(project, name)) {
 			return nil
 		}
 	}
-	return fmt.Errorf("%w: %s", ErrAstroConfig, project)
+	return fmt.Errorf("%w: %s", entry.ErrAstroConfig, project)
 }
 
-func (p *astroProvider) build(ctx context.Context, project string) error {
+func (p *Provider) build(ctx context.Context, project string) error {
 	if err := nodescript.Run(ctx, project, "build"); err != nil {
-		return fmt.Errorf("%w: %w", ErrAstroBuild, err)
+		return fmt.Errorf("%w: %w", entry.ErrAstroBuild, err)
 	}
 	return nil
 }
 
-func (p *astroProvider) assemble(project, worker string) error {
+func (p *Provider) assemble(project, worker string) error {
 	if err := os.MkdirAll(filepath.Join(worker, "assets"), 0o755); err != nil {
 		return err
 	}
@@ -133,7 +141,7 @@ func (p *astroProvider) assemble(project, worker string) error {
 			return err
 		}
 	default:
-		return fmt.Errorf("%w: %s", ErrAstroDist, filepath.Join(project, "dist"))
+		return fmt.Errorf("%w: %s", entry.ErrAstroDist, filepath.Join(project, "dist"))
 	}
 	entryFile := filepath.Join(worker, "entry.mjs")
 	indexFile := filepath.Join(worker, "index.js")
@@ -143,12 +151,12 @@ func (p *astroProvider) assemble(project, worker string) error {
 		}
 	}
 	if !fileExists(entryFile) {
-		return fmt.Errorf("%w: %s", ErrAstroDist, entryFile)
+		return fmt.Errorf("%w: %s", entry.ErrAstroDist, entryFile)
 	}
 	return nil
 }
 
-func (p *astroProvider) copyLegacy(dist, assets string) error {
+func (p *Provider) copyLegacy(dist, assets string) error {
 	entries, err := os.ReadDir(dist)
 	if err != nil {
 		return err
@@ -173,7 +181,7 @@ func (p *astroProvider) copyLegacy(dist, assets string) error {
 	return nil
 }
 
-func (p *astroProvider) copyAssets(worker, embedDir string) error {
+func (p *Provider) copyAssets(worker, embedDir string) error {
 	src := filepath.Join(worker, "assets")
 	dst := filepath.Join(embedDir, "assets")
 	if dirExists(src) {
@@ -191,7 +199,7 @@ func (p *astroProvider) copyAssets(worker, embedDir string) error {
 	return nil
 }
 
-func (p *astroProvider) findEsbuild(ctx context.Context, project string) (string, error) {
+func (p *Provider) findEsbuild(ctx context.Context, project string) (string, error) {
 	candidates := []string{
 		filepath.Join(project, "node_modules", ".bin", "esbuild"),
 		filepath.Join(project, "node_modules", "esbuild", "bin", "esbuild"),
@@ -206,12 +214,12 @@ func (p *astroProvider) findEsbuild(ctx context.Context, project string) (string
 	}
 	path, err := execdriver.Which(ctx, "esbuild")
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrEsbuild, err)
+		return "", fmt.Errorf("%w: %w", entry.ErrEsbuild, err)
 	}
 	return path, nil
 }
 
-func (p *astroProvider) orvalhoEsbuild(project string) string {
+func (p *Provider) orvalhoEsbuild(project string) string {
 	root := filepath.Join(project, "node_modules", ".orvalho")
 	entries, err := os.ReadDir(root)
 	if err != nil {
@@ -237,7 +245,7 @@ func (p *astroProvider) orvalhoEsbuild(project string) string {
 	return ""
 }
 
-func (p *astroProvider) fingerprint(dir string, info os.FileInfo) (string, error) {
+func (p *Provider) fingerprint(dir string, info os.FileInfo) (string, error) {
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "dir %d\n", info.ModTime().UnixNano())
 	names := []string{
@@ -253,7 +261,7 @@ func (p *astroProvider) fingerprint(dir string, info os.FileInfo) (string, error
 	for _, name := range names {
 		fileInfo, err := os.Stat(filepath.Join(dir, name))
 		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, os.ErrNotExist) {
 				continue
 			}
 			return "", err
@@ -263,8 +271,8 @@ func (p *astroProvider) fingerprint(dir string, info os.FileInfo) (string, error
 	return buf.String(), nil
 }
 
-func (astroProvider) source(title string) string {
-	title = displayTitle(title)
+func (Provider) source(title string) string {
+	title = entry.DisplayTitle(title)
 	return fmt.Sprintf(`package main
 
 import (

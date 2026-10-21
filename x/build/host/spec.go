@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/lewtec/lewkit/x/build/entry"
+	_ "github.com/lewtec/lewkit/x/build/entry/prelude"
 	"github.com/lewtec/lewkit/x/build/gen/apk"
 	"github.com/lewtec/lewkit/x/build/version"
 )

@@ -53,20 +53,12 @@ type Entry struct {
 	Ref  string
 }
 
-var (
-	providers     = map[string]Provider{}
-	checkout      materializer
-	staticSites   = &staticProvider{materializer: &checkout}
-	astroProjects = &astroProvider{materializer: &checkout}
-)
+var providers = map[string]Provider{}
 
-func init() {
-	register(goProvider{})
-	register(staticSites)
-	register(astroProjects)
-}
-
-func register(provider Provider) {
+// Register installs a provider under its Name.
+// A second registration of that name panics.
+// Providers register from init. Import x/build/entry/prelude to load them.
+func Register(provider Provider) {
 	name := provider.Name()
 	if _, exists := providers[name]; exists {
 		panic("entry provider " + name + " already registered")
@@ -139,7 +131,9 @@ func parseSpec(entry, goMain string) (tool.Spec, error) {
 	return spec, nil
 }
 
-func displayTitle(title string) string {
+// DisplayTitle is the window title written into a generated main.
+// An empty title is "app".
+func DisplayTitle(title string) string {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		return "app"
@@ -147,20 +141,22 @@ func displayTitle(title string) string {
 	return title
 }
 
-func cacheKey(name, ref, title, fingerprint string) string {
-	return name + "\x00" + ref + "\x00" + displayTitle(title) + "\x00" + fingerprint
+// CacheKey identifies one generated main.
+func CacheKey(name, ref, title, fingerprint string) string {
+	return name + "\x00" + ref + "\x00" + DisplayTitle(title) + "\x00" + fingerprint
 }
 
-// materializer remembers a generated main and finds the lewkit checkout
+// Materializer remembers a generated main and finds the lewkit checkout
 // that main is compiled from.
-type materializer struct {
+type Materializer struct {
 	cache    sync.Map
 	rootOnce sync.Once
 	rootDir  string
 	rootErr  error
 }
 
-func (m *materializer) open(ctx context.Context, key string, write func(dir string) error) (string, error) {
+// Open returns the directory for key, writing it once.
+func (m *Materializer) Open(ctx context.Context, key string, write func(dir string) error) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", context.Cause(ctx)
 	}
@@ -186,7 +182,8 @@ func (m *materializer) open(ctx context.Context, key string, write func(dir stri
 	return dir, nil
 }
 
-func (m *materializer) resolve(ref, base string) (string, error) {
+// Resolve joins ref to base when ref is relative, then returns the absolute path.
+func (m *Materializer) Resolve(ref, base string) (string, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return "", fmt.Errorf("%w", ErrEntrySyntax)
@@ -197,7 +194,7 @@ func (m *materializer) resolve(ref, base string) (string, error) {
 	return filepath.Abs(ref)
 }
 
-func (m *materializer) lewkitRoot() (string, error) {
+func (m *Materializer) lewkitRoot() (string, error) {
 	m.rootOnce.Do(func() {
 		m.rootDir, m.rootErr = findLewkitRoot()
 	})
