@@ -501,6 +501,28 @@ func TestH264RoundTrip(t *testing.T) {
 	require.Len(t, got, 16*16+8*8+8*8)
 }
 
+func TestIMAALPCLIMatchesFFmpeg(t *testing.T) {
+	const samplesN = 2048 + 101
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=22050:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	for _, ext := range []string{".pcm", ".tun"} {
+		wantPath := filepath.Join(dir, "want"+ext)
+		gotPath := filepath.Join(dir, "got"+ext)
+		args := []string{"-f", "s16le", "-ar", "22050", "-ac", "1", "-i", path, "-c:a", "adpcm_ima_alp", "-f", "alp"}
+		_ = systemFF(t, append(args, wantPath)...)
+		code, _, stderr := runFF(t, append(append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0", "-y"}, args...), gotPath)...)
+		require.Equal(t, 0, code, stderr)
+		want, err := os.ReadFile(wantPath)
+		require.NoError(t, err)
+		got, err := os.ReadFile(gotPath)
+		require.NoError(t, err)
+		require.Equal(t, want, got, ext)
+	}
+}
+
 func TestIMASSICLIMatchesFFmpeg(t *testing.T) {
 	const samplesN = 2048 + 100
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=1", "-f", "s16le", "-")

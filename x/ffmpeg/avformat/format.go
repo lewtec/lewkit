@@ -93,6 +93,7 @@ func Formats() []Info {
 		{Name: "aiff", Long: "Audio IFF", Demux: true, Mux: true},
 		{Name: "wsaud", Long: "Westwood Studios audio", Demux: false, Mux: true},
 		{Name: "kvag", Long: "Simon & Schuster Interactive VAG", Demux: false, Mux: true},
+		{Name: "alp", Long: "LEGO Racers ALP", Demux: false, Mux: true},
 	}
 }
 
@@ -135,6 +136,8 @@ func Guess(path string) string {
 		return "wsaud"
 	case ".vag":
 		return "kvag"
+	case ".tun":
+		return "alp"
 	case ".pcm":
 		return "s16le"
 	default:
@@ -214,12 +217,12 @@ func Create(ctx context.Context, url, format string, opt Options) (Muxer, error)
 		return &hashMux{name: format, w: w, opt: opt}, nil
 	case "image2", "image2pipe":
 		return &imageMux{ctx: ctx, url: url, format: format, opt: opt}, nil
-	case "rawvideo", "h264", "hevc", "gsm", "g722", "g726", "g726le", "mp2", "mp3", "aiff", "wsaud", "kvag", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
+	case "rawvideo", "h264", "hevc", "gsm", "g722", "g726", "g726le", "mp2", "mp3", "aiff", "wsaud", "kvag", "alp", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
 		w, err := openWrite(ctx, url, opt)
 		if err != nil {
 			return nil, err
 		}
-		return &bufMux{name: format, w: w, opt: opt}, nil
+		return &bufMux{name: format, w: w, opt: opt, url: url}, nil
 	default:
 		return nil, fmt.Errorf("%w: muxer %s", avutil.ErrUnsupported, format)
 	}

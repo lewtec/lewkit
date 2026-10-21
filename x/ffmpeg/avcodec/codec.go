@@ -86,6 +86,7 @@ func Codecs() []Codec {
 		{IDADPCMIMAWS, "adpcm_ima_ws", "ADPCM IMA Westwood", avutil.MediaAudio, false, true, false, true, false},
 		{IDLIBSPEEX, "libspeex", "Speex", avutil.MediaAudio, false, true, false, true, false},
 		{IDADPCMIMASSI, "adpcm_ima_ssi", "ADPCM IMA Simon & Schuster Interactive", avutil.MediaAudio, false, true, false, true, false},
+		{IDADPCMIMAALP, "adpcm_ima_alp", "ADPCM IMA High Voltage Software ALP", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
@@ -202,6 +203,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return newSpeex(par)
 	case IDADPCMIMASSI:
 		return newIMASSI(par), nil
+	case IDADPCMIMAALP:
+		return newIMAALP(par), nil
 	case IDG726:
 		return newG726(par), nil
 	case IDG726LE:
@@ -236,6 +239,7 @@ func (twolameCodec) Close() error { return nil }
 func (wsCodec) Close() error      { return nil }
 func (spxCodec) Close() error     { return nil }
 func (ssiCodec) Close() error     { return nil }
+func (alpCodec) Close() error     { return nil }
 func (g726Codec) Close() error    { return nil }
 func (swfCodec) Close() error     { return nil }
 func (h264Codec) Close() error    { return nil }

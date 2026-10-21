@@ -12,6 +12,7 @@ type bufMux struct {
 	name    string
 	w       io.WriteCloser
 	opt     Options
+	url     string
 	streams []Stream
 	pkts    []*avutil.Packet
 }
@@ -51,6 +52,8 @@ func (m *bufMux) Close() error {
 		body, err = writeAUD(m.streams, m.pkts)
 	case "kvag":
 		body, err = writeKVAG(m.streams, m.pkts)
+	case "alp":
+		body, err = writeALP(m.url, m.streams, m.pkts)
 	case "avi":
 		body, err = writeAVI(m.streams, m.pkts)
 	case "mp4", "mov":

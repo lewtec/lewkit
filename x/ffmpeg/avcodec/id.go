@@ -42,4 +42,5 @@ const (
 	IDADPCMIMAWS            // adpcm_ima_ws
 	IDLIBSPEEX              // libspeex
 	IDADPCMIMASSI           // adpcm_ima_ssi
+	IDADPCMIMAALP           // adpcm_ima_alp
 )
