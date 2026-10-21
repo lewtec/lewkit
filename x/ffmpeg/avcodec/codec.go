@@ -70,11 +70,20 @@ func Codecs() []Codec {
 		{IDFLAC, "flac", "FLAC", avutil.MediaAudio, true, true, false, false, true},
 		{IDMP3, "mp3", "MP3", avutil.MediaAudio, true, false, false, true, false},
 		{IDVorbis, "vorbis", "Vorbis", avutil.MediaAudio, true, false, false, true, false},
+		{IDGSM, "gsm", "GSM 06.10", avutil.MediaAudio, true, false, false, true, false},
+		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 	}
 }
 
 // FindByName resolves a codec name such as pcm_s16le or png.
+// libx264 and libgsm are the in-tree stand-ins for those external encoders.
 func FindByName(name string) (Codec, bool) {
+	switch name {
+	case "libx264", "libx264rgb":
+		name = "h264"
+	case "libgsm":
+		name = "gsm"
+	}
 	if id, err := ParseID(name); err == nil && id != IDNone {
 		for _, item := range Codecs() {
 			if item.ID == id {
@@ -107,6 +116,10 @@ func OpenDecoder(par Parameters) (Decoder, error) {
 		return &mp3Codec{}, nil
 	case IDVorbis:
 		return &vorbisCodec{}, nil
+	case IDGSM:
+		return newGSMCodec(par), nil
+	case IDH264:
+		return newH264(par), nil
 	default:
 		return nil, fmt.Errorf("%w: decoder %s", avutil.ErrUnsupported, par.ID)
 	}
@@ -125,20 +138,22 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return &imageCodec{par: par}, nil
 	case IDFLAC:
 		return &flacCodec{par: par}, nil
+	case IDH264:
+		return newH264(par), nil
 	default:
 		return nil, fmt.Errorf("%w: encoder %s", avutil.ErrUnsupported, par.ID)
 	}
 }
 
-func (pcmCodec) Close() error   { return nil }
-func (xlawCodec) Close() error  { return nil }
-func (rawCodec) Close() error   { return nil }
-func (imageCodec) Close() error { return nil }
-func (flacCodec) Close() error  { return nil }
-func (mp3Codec) Close() error   { return nil }
-func (vorbisCodec) Close() error {
-	return nil
-}
+func (pcmCodec) Close() error    { return nil }
+func (xlawCodec) Close() error   { return nil }
+func (rawCodec) Close() error    { return nil }
+func (imageCodec) Close() error  { return nil }
+func (flacCodec) Close() error   { return nil }
+func (mp3Codec) Close() error    { return nil }
+func (vorbisCodec) Close() error { return nil }
+func (gsmCodec) Close() error    { return nil }
+func (h264Codec) Close() error   { return nil }
 
 func (pcmCodec) Flush() ([]*avutil.Packet, error)   { return nil, nil }
 func (xlawCodec) Flush() ([]*avutil.Packet, error)  { return nil, nil }

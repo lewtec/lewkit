@@ -52,7 +52,7 @@ func (m *bufMux) Close() error {
 	case "flac":
 		body = writeBlob(m.pkts)
 	default:
-		if _, _, ok := pcmCodec(m.name); ok || m.name == "rawvideo" {
+		if _, _, ok := pcmCodec(m.name); ok || m.name == "rawvideo" || m.name == "h264" {
 			body = writeBlob(m.pkts)
 		} else {
 			err = fmt.Errorf("%w: muxer %s", avutil.ErrUnsupported, m.name)

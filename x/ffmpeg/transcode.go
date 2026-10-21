@@ -597,6 +597,8 @@ func chooseCodec(opt fileOpt, format, url string, media avutil.MediaType, index 
 			return avformat.ImageCodec(url), nil
 		case "avi", "mp4", "mov":
 			return avcodec.IDMJPEG, nil
+		case "h264":
+			return avcodec.IDH264, nil
 		default:
 			return avcodec.IDRawVideo, nil
 		}
@@ -736,6 +738,9 @@ func encodeFrames(id avcodec.ID, frames []*avutil.Frame, opt fileOpt) (avcodec.P
 	if par.Type == avutil.MediaVideo {
 		if opt.pixSet && id == avcodec.IDRawVideo {
 			par.Format = opt.pix
+		}
+		if id == avcodec.IDH264 {
+			par.Format = avutil.PixYUV420P
 		}
 		if opt.width > 0 {
 			par.Width, par.Height = opt.width, opt.height

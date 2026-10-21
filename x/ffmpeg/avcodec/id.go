@@ -24,4 +24,6 @@ const (
 	IDFLAC               // flac
 	IDMP3                // mp3
 	IDVorbis             // vorbis
+	IDGSM                // gsm
+	IDH264               // h264
 )
