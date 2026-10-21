@@ -117,6 +117,11 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 		bits = 4
 		block = 1024
 		fmtExtra = []byte{2, 0, 0xf9, 0x07} // 2041 samples per block
+	case avcodec.IDADPCMMS:
+		tag = 0x02
+		bits = 4
+		block = 1024
+		fmtExtra = msWAVExtra()
 	default:
 		return nil, fmt.Errorf("%w: wav %s", avutil.ErrUnsupported, par.ID)
 	}
@@ -133,6 +138,8 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 		byteRate = rate * 65 / 320
 	case avcodec.IDADPCMIMAWAV:
 		byteRate = rate * 1024 / 2041
+	case avcodec.IDADPCMMS:
+		byteRate = rate * 1024 / 2036
 	}
 	fmtSize := 16 + len(fmtExtra)
 	hdr := make([]byte, 28+fmtSize)
@@ -152,4 +159,15 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 	copy(hdr[dataAt:], "data")
 	binary.LittleEndian.PutUint32(hdr[dataAt+4:], uint32(len(pcm)))
 	return append(hdr, pcm...), nil
+}
+
+// msWAVExtra is the WAVEFORMATEX tail for Microsoft ADPCM: cbSize 32,
+// 2036 samples per block, and the seven coefficient pairs ffmpeg writes.
+func msWAVExtra() []byte {
+	coeffs := []int16{256, 0, 512, -256, 0, 0, 192, 64, 240, 0, 460, -208, 392, -232}
+	extra := []byte{32, 0, 0xf4, 0x07, 7, 0}
+	for _, c := range coeffs {
+		extra = append(extra, byte(c), byte(uint16(c)>>8))
+	}
+	return extra
 }

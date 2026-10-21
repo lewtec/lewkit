@@ -30,4 +30,5 @@ const (
 	IDMP2                   // mp2fixed
 	IDGSMMS                 // gsm_ms
 	IDADPCMIMAWAV           // adpcm_ima_wav
+	IDADPCMMS               // adpcm_ms
 )
