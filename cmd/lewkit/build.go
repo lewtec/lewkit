@@ -15,6 +15,7 @@ import (
 	"github.com/lewtec/lewkit/x/build/gen/uki"
 	"github.com/lewtec/lewkit/x/build/gen/unikernel"
 	"github.com/lewtec/lewkit/x/build/gocmd"
+	"github.com/lewtec/lewkit/x/build/host"
 	"github.com/lewtec/lewkit/x/build/sign"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/errs"
@@ -110,7 +111,7 @@ func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 	}
-	host := build.Host{
+	host := host.Host{
 		Spec:   c.spec(),
 		Out:    out,
 		Work:   work,
@@ -137,7 +138,7 @@ func (c *buildFlags) identity() (*sign.Identity, error) {
 
 // artifactPath turns a directory such as dist into one host file whose
 // name contains GOOS and GOARCH. A path that already names a file is kept.
-func artifactPath(goos, goarch, out string, spec build.Spec) (string, error) {
+func artifactPath(goos, goarch, out string, spec host.Spec) (string, error) {
 	out = strings.TrimSpace(out)
 	if out == "" {
 		out = "dist"
@@ -256,7 +257,7 @@ func (c *buildFlags) archive(ctx context.Context, target build.Target, identity 
 	if name == "" {
 		name = cfg.AppName
 	}
-	return build.Job{
+	return host.Job{
 		Dir:     cfg.GoMain,
 		Out:     c.out.Value(),
 		Name:    name,

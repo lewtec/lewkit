@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 
 	"github.com/lewtec/lewkit/x/errs"
 )
@@ -42,8 +43,8 @@ func Compile(ctx context.Context, src []byte) ([]byte, error) {
 }
 
 // CompileStage turns Vulkan GLSL for stage into SPIR-V.
-// A registered hash returns that SPIR-V and does not start the embedded glslang.
-// A missing hash compiles with that reactor.
+// A registered hash returns that SPIR-V.
+// A missing hash is ErrCompile. x/ffi/wasm/glsl/reactor compiles with glslang.
 func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
 	if len(src) == 0 {
 		return nil, ErrEmpty
@@ -60,29 +61,7 @@ func CompileStage(ctx context.Context, stage Stage, src []byte) ([]byte, error) 
 	if spv, ok := Lookup(stage, src); ok {
 		return spv, nil
 	}
-	return compileStage(ctx, stage, src)
-}
-
-// CompileGlslang compiles src with the embedded glslang reactor.
-// It does not read the registry. Codegen uses it so the committed
-// SPIR-V comes from the same reactor a miss uses at runtime.
-func CompileGlslang(ctx context.Context, stage Stage, src []byte) ([]byte, error) {
-	if len(src) == 0 {
-		return nil, ErrEmpty
-	}
-	if !stage.IsValid() {
-		return nil, ErrCompile
-	}
-	if IsSPIRV(src) {
-		if len(src)%4 != 0 {
-			return nil, ErrCompile
-		}
-		return append([]byte(nil), src...), nil
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return compileSPIRV(ctx, stage, src)
+	return nil, fmt.Errorf("%w: no registered shader", ErrCompile)
 }
 
 // Load returns SPIR-V. SPIR-V is copied; GLSL is compiled.

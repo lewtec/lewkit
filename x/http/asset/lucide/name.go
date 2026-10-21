@@ -1,3 +1,5 @@
+// Code generated from the lucide modot input icons/*.svg. DO NOT EDIT.
+
 package lucide
 
 // Name is one icon in this set. The text is the Lucide file name.
@@ -326,6 +328,7 @@ const (
 	NameCat                                 Name = "cat"
 	NameCctv                                Name = "cctv"
 	NameCctvOff                             Name = "cctv-off"
+	NameCertificate                         Name = "certificate"
 	NameChartArea                           Name = "chart-area"
 	NameChartBar                            Name = "chart-bar"
 	NameChartBarBig                         Name = "chart-bar-big"
@@ -614,6 +617,8 @@ const (
 	NameEgg                                 Name = "egg"
 	NameEggFried                            Name = "egg-fried"
 	NameEggOff                              Name = "egg-off"
+	NameEighthNote                          Name = "eighth-note"
+	NameEighthNotes                         Name = "eighth-notes"
 	NameEject                               Name = "eject"
 	NameEllipse                             Name = "ellipse"
 	NameEllipsis                            Name = "ellipsis"
@@ -833,6 +838,7 @@ const (
 	NameGroup                               Name = "group"
 	NameGuitar                              Name = "guitar"
 	NameGuitarElectric                      Name = "guitar-electric"
+	NameHalfNote                            Name = "half-note"
 	NameHam                                 Name = "ham"
 	NameHamburger                           Name = "hamburger"
 	NameHammer                              Name = "hammer"
@@ -1164,10 +1170,6 @@ const (
 	NameMoveUpLeft                          Name = "move-up-left"
 	NameMoveUpRight                         Name = "move-up-right"
 	NameMoveVertical                        Name = "move-vertical"
-	NameMusic                               Name = "music"
-	NameMusic2                              Name = "music-2"
-	NameMusic3                              Name = "music-3"
-	NameMusic4                              Name = "music-4"
 	NameNavigation                          Name = "navigation"
 	NameNavigation2                         Name = "navigation-2"
 	NameNavigation2Off                      Name = "navigation-2-off"
@@ -1492,6 +1494,7 @@ const (
 	NameSignpost                            Name = "signpost"
 	NameSignpostBig                         Name = "signpost-big"
 	NameSiren                               Name = "siren"
+	NameSixteenthNotes                      Name = "sixteenth-notes"
 	NameSkipBack                            Name = "skip-back"
 	NameSkipForward                         Name = "skip-forward"
 	NameSkull                               Name = "skull"

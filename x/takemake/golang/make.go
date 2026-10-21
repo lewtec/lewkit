@@ -10,7 +10,15 @@ import (
 
 type builder struct {
 	file *File
+	fset *token.FileSet
+	src  *token.File
+	off  int
 }
+
+// makeFileSize is the position space for composite literals that do
+// not fit on one line. Each element occupies its own source line so
+// the printer can break and align them.
+const makeFileSize = 64 << 20
 
 func (b *builder) build(f *File) (*ast.File, error) {
 	if f.Name == "" {
@@ -104,6 +112,11 @@ func (b *builder) typeDecl(decl *TypeDecl) (*ast.GenDecl, error) {
 		return nil, fmt.Errorf("%w: type declaration", errSyntax)
 	}
 	group := &ast.GenDecl{Tok: token.TYPE}
+	// A lone spec's comment belongs to the declaration. On the spec it
+	// prints after the keyword.
+	if len(decl.Specs) == 1 {
+		group.Doc = commentGroup(decl.Specs[0].Doc)
+	}
 	for _, spec := range decl.Specs {
 		if spec.Name == "" || spec.Type == nil {
 			return nil, fmt.Errorf("%w: type spec", errSyntax)
@@ -112,7 +125,11 @@ func (b *builder) typeDecl(decl *TypeDecl) (*ast.GenDecl, error) {
 		if err != nil {
 			return nil, err
 		}
-		item := &ast.TypeSpec{Name: ast.NewIdent(spec.Name), Type: typ}
+		var doc *ast.CommentGroup
+		if len(decl.Specs) != 1 {
+			doc = commentGroup(spec.Doc)
+		}
+		item := &ast.TypeSpec{Doc: doc, Name: ast.NewIdent(spec.Name), Type: typ}
 		if len(spec.Params) > 0 {
 			params, err := b.fields(spec.Params)
 			if err != nil {
@@ -751,7 +768,11 @@ func (b *builder) expr(expr *Expr) (ast.Expr, error) {
 			}
 			elts = append(elts, &ast.KeyValueExpr{Key: key, Value: value})
 		}
-		return &ast.CompositeLit{Type: typ, Elts: elts}, nil
+		lit := &ast.CompositeLit{Type: typ, Elts: elts}
+		if wideComposite(elts) {
+			b.placeComposite(lit)
+		}
+		return lit, nil
 	case ExprUnary:
 		op, err := expr.Op.token()
 		if err != nil {
@@ -890,4 +911,81 @@ func (b *builder) call(expr *Expr) (*ast.CallExpr, error) {
 		return nil, fmt.Errorf("%w: call", errSyntax)
 	}
 	return call, nil
+}
+
+// wideComposite reports whether an element value is too long for one
+// shared line. A long string in a map is one entry per line. A list
+// of names stays on the line the printer already chose.
+func wideComposite(elts []ast.Expr) bool {
+	for _, elt := range elts {
+		pair, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+		if nodeWidth(pair.Value) > 80 {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeWidth(n ast.Node) int {
+	switch n := n.(type) {
+	case *ast.KeyValueExpr:
+		return nodeWidth(n.Key) + 2 + nodeWidth(n.Value)
+	case *ast.Ident:
+		return len(n.Name)
+	case *ast.BasicLit:
+		return len(n.Value)
+	default:
+		return 40
+	}
+}
+
+// placeComposite gives each element its own source line. The printer
+// breaks and aligns a composite only when the braces and elements sit
+// on different lines.
+func (b *builder) placeComposite(lit *ast.CompositeLit) {
+	lit.Lbrace = b.newline(1)
+	for _, elt := range lit.Elts {
+		pair, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			setNodePos(elt, b.newline(nodeWidth(elt)+1))
+			continue
+		}
+		keyW := nodeWidth(pair.Key)
+		width := keyW + 2 + nodeWidth(pair.Value) + 1
+		start := b.newline(width)
+		setNodePos(pair.Key, start)
+		setNodePos(pair.Value, start+token.Pos(keyW+2))
+	}
+	lit.Rbrace = b.newline(1)
+}
+
+func (b *builder) newline(width int) token.Pos {
+	if width < 1 {
+		width = 1
+	}
+	if b.src == nil {
+		b.fset = token.NewFileSet()
+		b.src = b.fset.AddFile("", -1, makeFileSize)
+	}
+	if b.off+width >= makeFileSize {
+		return token.NoPos
+	}
+	if b.off > 0 {
+		b.src.AddLine(b.off)
+	}
+	pos := b.src.Pos(b.off)
+	b.off += width
+	return pos
+}
+
+func setNodePos(n ast.Node, pos token.Pos) {
+	switch n := n.(type) {
+	case *ast.Ident:
+		n.NamePos = pos
+	case *ast.BasicLit:
+		n.ValuePos = pos
+	}
 }

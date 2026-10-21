@@ -1,8 +1,9 @@
-package build
+package host
 
 import (
 	"context"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gen/apk"
 	"github.com/lewtec/lewkit/x/build/gen/ios"
 	"github.com/lewtec/lewkit/x/build/gen/linux"
@@ -46,7 +47,7 @@ func (host Host) Android(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	abi, err := AndroidABI(host.GOARCH)
+	abi, err := build.AndroidABI(host.GOARCH)
 	if err != nil {
 		return "", err
 	}

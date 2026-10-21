@@ -1,4 +1,4 @@
-package build
+package host
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gen/apk"
 	"github.com/lewtec/lewkit/x/build/gen/common"
 	"github.com/lewtec/lewkit/x/build/icons"
@@ -18,15 +19,14 @@ import (
 )
 
 var (
-	ErrBuildNoTarget            = errs.Wrap(errs.ErrNotFound, "build: no target")
-	ErrHasNoAppPackage          = errs.Wrap(errs.ErrNotFound, "has no app package")
-	ErrHostWorkflowIcons        = errors.New("icons")
-	ErrIsNotADirectory          = errs.Wrap(errs.ErrInvalid, "is not a directory")
-	ErrJobArchiveTargetBuild    = errors.New("build")
-	ErrJobArchiveTargetSign     = errors.New("sign")
-	ErrJobArchiveTargetSign2    = errors.New("sign")
-	ErrUberAssembleIcons        = errors.New("icons")
-	ErrUnsupportedAndroidGoarch = errs.Wrap(errs.ErrUnsupported, "unsupported android GOARCH")
+	ErrBuildNoTarget         = errs.Wrap(errs.ErrNotFound, "build: no target")
+	ErrHasNoAppPackage       = errs.Wrap(errs.ErrNotFound, "has no app package")
+	ErrHostWorkflowIcons     = errors.New("icons")
+	ErrIsNotADirectory       = errs.Wrap(errs.ErrInvalid, "is not a directory")
+	ErrJobArchiveTargetBuild = errors.New("build")
+	ErrJobArchiveTargetSign  = errors.New("sign")
+	ErrJobArchiveTargetSign2 = errors.New("sign")
+	ErrUberAssembleIcons     = errors.New("icons")
 )
 
 // Uber is every archive and host package this process can finish.
@@ -43,7 +43,7 @@ type Uber struct {
 }
 
 // HostPlatforms is the host packages this process can finish without cgo.
-func HostPlatforms(ctx context.Context) ([]Platform, error) {
+func HostPlatforms(ctx context.Context) ([]build.Platform, error) {
 	return hostPlatforms(ctx, false)
 }
 
@@ -52,34 +52,34 @@ func HostPlatforms(ctx context.Context) ([]Platform, error) {
 // are assembled on every host. The cgo-free Android package is arm64.
 // A cgo Android package needs the NDK, which ships with an SDK that is
 // already installed.
-func HostTargets(ctx context.Context) ([]Target, error) {
+func HostTargets(ctx context.Context) ([]build.Target, error) {
 	return hostTargets(ctx, false)
 }
 
-func hostPlatforms(ctx context.Context, cgo bool) ([]Platform, error) {
-	out := []Platform{
-		PlatformLinuxAMD64,
-		PlatformWindowsAMD64,
-		PlatformLinuxARM64,
-		PlatformWindowsARM64,
-		PlatformDarwinAMD64,
-		PlatformDarwinARM64,
-		PlatformIOSARM64,
+func hostPlatforms(ctx context.Context, cgo bool) ([]build.Platform, error) {
+	out := []build.Platform{
+		build.PlatformLinuxAMD64,
+		build.PlatformWindowsAMD64,
+		build.PlatformLinuxARM64,
+		build.PlatformWindowsARM64,
+		build.PlatformDarwinAMD64,
+		build.PlatformDarwinARM64,
+		build.PlatformIOSARM64,
 	}
 	if !cgo {
-		out = append(out, PlatformAndroidARM64)
+		out = append(out, build.PlatformAndroidARM64)
 	} else if apk.SDKInstalled(ctx) {
-		out = append(out, PlatformAndroidARM64, PlatformAndroidAMD64)
+		out = append(out, build.PlatformAndroidARM64, build.PlatformAndroidAMD64)
 	}
 	return out, nil
 }
 
-func hostTargets(ctx context.Context, cgo bool) ([]Target, error) {
+func hostTargets(ctx context.Context, cgo bool) ([]build.Target, error) {
 	platforms, err := hostPlatforms(ctx, cgo)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Target, 0, len(platforms))
+	out := make([]build.Target, 0, len(platforms))
 	for _, platform := range platforms {
 		out = append(out, platform.Target())
 	}
@@ -93,7 +93,7 @@ func (u Uber) Run(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	graph, paths, iconDir, err := u.assemble(DesktopTargets(), apps)
+	graph, paths, iconDir, err := u.assemble(build.DesktopTargets(), apps)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (u Uber) Run(ctx context.Context) ([]string, error) {
 	return paths, nil
 }
 
-func (u Uber) assemble(archives, apps []Target) (workflow.Graph, []string, *string, error) {
+func (u Uber) assemble(archives, apps []build.Target) (workflow.Graph, []string, *string, error) {
 	if len(archives) == 0 && len(apps) == 0 {
 		return workflow.Graph{}, nil, nil, ErrBuildNoTarget
 	}
@@ -205,7 +205,7 @@ func (u Uber) assemble(archives, apps []Target) (workflow.Graph, []string, *stri
 	}
 	for _, target := range apps {
 		goos, goarch := target.GOOS, target.GOARCH
-		dest := filepath.Join(out, AppFile(product, cfg.PackageID, goos, goarch))
+		dest := filepath.Join(out, build.AppFile(product, cfg.PackageID, goos, goarch))
 		paths = append(paths, dest)
 		h := host
 		h.Out = dest

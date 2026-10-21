@@ -10,6 +10,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestTypeComment(t *testing.T) {
+	t.Parallel()
+	file := NewFile("lucide")
+	file.Type().Id("Name").Of(Named("string")).Comment("Name is one icon.\n//\n//lewkit:enum")
+	var buf bytes.Buffer
+	require.NoError(t, file.Make(&buf))
+	text := buf.String()
+	require.Contains(t, text, "// Name is one icon.\n//\n//lewkit:enum\ntype Name string")
+}
+
 func TestChain(t *testing.T) {
 	t.Parallel()
 	file := NewFile("main")

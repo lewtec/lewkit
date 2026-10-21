@@ -1,4 +1,4 @@
-package gocmd
+package gocmd_test
 
 import (
 	"context"
@@ -10,10 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lewtec/lewkit/x/build/gocmd"
 	"github.com/lewtec/lewkit/x/taskgroup"
 	"github.com/lewtec/lewkit/x/test"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
+
+	_ "github.com/lewtec/lewkit/x/build/gocmd/lewkit"
 )
 
 func TestMain(m *testing.M) {
@@ -22,22 +25,22 @@ func TestMain(m *testing.M) {
 
 func TestLewkitCompilerRejects(t *testing.T) {
 	dir := t.TempDir()
-	base := Command{Dir: dir, Compiler: CompilerLewkit, Args: []string{"-o", "out", "."}}
+	base := gocmd.Command{Dir: dir, Compiler: gocmd.CompilerLewkit, Args: []string{"-o", "out", "."}}
 	cases := []struct {
 		name string
-		cmd  Command
+		cmd  gocmd.Command
 	}{
 		{name: "cgo", cmd: withEnv(base, "CGO_ENABLED=1")},
 		{name: "386", cmd: withEnv(base, "GOARCH=386")},
-		{name: "c-shared", cmd: Command{Dir: dir, Compiler: CompilerLewkit, Args: []string{"-buildmode=c-shared", "-o", "out", "."}}},
-		{name: "toolexec", cmd: Command{Dir: dir, Compiler: CompilerLewkit, Args: []string{"-toolexec", "wrap", "-o", "out", "."}}},
-		{name: "overlay", cmd: Command{Dir: dir, Compiler: CompilerLewkit, Args: []string{"-overlay", "o.json", "-o", "out", "."}}},
-		{name: "run", cmd: Command{Verb: "run", Dir: dir, Compiler: CompilerLewkit, Args: []string{"."}}},
+		{name: "c-shared", cmd: gocmd.Command{Dir: dir, Compiler: gocmd.CompilerLewkit, Args: []string{"-buildmode=c-shared", "-o", "out", "."}}},
+		{name: "toolexec", cmd: gocmd.Command{Dir: dir, Compiler: gocmd.CompilerLewkit, Args: []string{"-toolexec", "wrap", "-o", "out", "."}}},
+		{name: "overlay", cmd: gocmd.Command{Dir: dir, Compiler: gocmd.CompilerLewkit, Args: []string{"-overlay", "o.json", "-o", "out", "."}}},
+		{name: "run", cmd: gocmd.Command{Verb: "run", Dir: dir, Compiler: gocmd.CompilerLewkit, Args: []string{"."}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := tc.cmd.Run(t.Context())
-			require.ErrorIs(t, err, ErrCompiler)
+			require.ErrorIs(t, err, gocmd.ErrCompiler)
 		})
 	}
 }
@@ -52,9 +55,9 @@ func TestLewkitCompilerBuild(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "main.go"), []byte(src), 0o644))
 	t.Run("linux", func(t *testing.T) {
 		out := filepath.Join(dir, "hello")
-		err := Command{
+		err := gocmd.Command{
 			Dir:      dir,
-			Compiler: CompilerLewkit,
+			Compiler: gocmd.CompilerLewkit,
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64"),
 			Args:     []string{"-trimpath", "-ldflags", "-s -w", "-o", out, "."},
 		}.Run(t.Context())
@@ -74,9 +77,9 @@ func TestLewkitCompilerBuild(t *testing.T) {
 	})
 	t.Run("windows", func(t *testing.T) {
 		out := filepath.Join(dir, "hello.exe")
-		err := Command{
+		err := gocmd.Command{
 			Dir:      dir,
-			Compiler: CompilerLewkit,
+			Compiler: gocmd.CompilerLewkit,
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=windows", "GOARCH=amd64"),
 			Args:     []string{"-trimpath", "-ldflags", "-H windowsgui -s -w", "-o", out, "."},
 		}.Run(t.Context())
@@ -89,9 +92,9 @@ func TestLewkitCompilerBuild(t *testing.T) {
 	})
 	t.Run("linux-arm64", func(t *testing.T) {
 		out := filepath.Join(dir, "hello-arm64")
-		err := Command{
+		err := gocmd.Command{
 			Dir:      dir,
-			Compiler: CompilerLewkit,
+			Compiler: gocmd.CompilerLewkit,
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=arm64"),
 			Args:     []string{"-trimpath", "-o", out, "."},
 		}.Run(t.Context())
@@ -109,9 +112,9 @@ func TestLewkitCompilerBuild(t *testing.T) {
 		tool := writeToolexec(t, dir)
 		export := filepath.Join(dir, "_cgo_android_export.go")
 		require.NoError(t, os.WriteFile(export, []byte("package unused\n"), 0o644))
-		err := Command{
+		err := gocmd.Command{
 			Dir:      dir,
-			Compiler: CompilerLewkit,
+			Compiler: gocmd.CompilerLewkit,
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=android", "GOARCH=arm64"),
 			Args: []string{
 				"-trimpath",
@@ -182,9 +185,9 @@ func TestLewkitCompilerProgressTree(t *testing.T) {
 	}()
 	var runErr error
 	taskgroup.Go(ctx, "release", taskgroup.Control, func(ctx context.Context, _ *taskgroup.Status) error {
-		runErr = Command{
+		runErr = gocmd.Command{
 			Dir:      dir,
-			Compiler: CompilerLewkit,
+			Compiler: gocmd.CompilerLewkit,
 			Env:      append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64"),
 			Args:     []string{"-trimpath", "-o", out, "."},
 		}.Run(ctx)
@@ -216,29 +219,15 @@ func TestLewkitCompilerProgressTree(t *testing.T) {
 	}
 }
 
-func TestCgoExportArg(t *testing.T) {
-	got, ok := cgoExportArg("'/tmp/wrap' '/tmp/_cgo_android_export.go'")
-	if !ok || got != "/tmp/_cgo_android_export.go" {
-		require.FailNowf(t, "", "%q %v", got, ok)
-	}
-	got, ok = cgoExportArg("'/tmp/wrap' '/tmp/_cgo_clib_export.go'")
-	if !ok || got != "/tmp/_cgo_clib_export.go" {
-		require.FailNowf(t, "", "clib %q %v", got, ok)
-	}
-	if _, ok := cgoExportArg("'/tmp/wrap' '/tmp/_cgo_other.go'"); ok {
-		require.FailNow(t, fmt.Sprint("accepted _cgo_other.go"))
-	}
-	if _, ok := cgoExportArg("wrap"); ok {
-		require.FailNow(t, fmt.Sprint("accepted wrap"))
-	}
+func TestCgoExportArgMissingFile(t *testing.T) {
 	dir := t.TempDir()
 	missing := filepath.Join(dir, "_cgo_android_export.go")
-	err := Command{
+	err := gocmd.Command{
 		Dir:      dir,
-		Compiler: CompilerLewkit,
+		Compiler: gocmd.CompilerLewkit,
 		Args:     []string{"-toolexec", "wrap " + missing, "-o", "out", "."},
 	}.Run(t.Context())
-	require.ErrorIs(t, err, ErrCompiler)
+	require.ErrorIs(t, err, gocmd.ErrCompiler)
 }
 
 func writeToolexec(t *testing.T, dir string) string {
@@ -273,11 +262,11 @@ func elfHeader(t *testing.T, path string) (typ, machine uint16) {
 }
 
 func TestLewkitCompilerFromContext(t *testing.T) {
-	err := Command{Args: []string{"-buildmode=c-archive", "-o", "x", "."}}.Run(WithCompiler(t.Context(), CompilerLewkit))
-	require.ErrorIs(t, err, ErrCompiler)
+	err := gocmd.Command{Args: []string{"-buildmode=c-archive", "-o", "x", "."}}.Run(gocmd.WithCompiler(t.Context(), gocmd.CompilerLewkit))
+	require.ErrorIs(t, err, gocmd.ErrCompiler)
 }
 
-func withEnv(c Command, extra string) Command {
+func withEnv(c gocmd.Command, extra string) gocmd.Command {
 	c.Env = append(os.Environ(), extra)
 	return c
 }

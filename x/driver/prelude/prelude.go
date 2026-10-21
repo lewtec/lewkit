@@ -14,6 +14,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/fetchurl/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/filedialog/prelude"
+	_ "github.com/lewtec/lewkit/x/driver/glslc/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/httpclient/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/launcher/prelude"
 	_ "github.com/lewtec/lewkit/x/driver/media/prelude"

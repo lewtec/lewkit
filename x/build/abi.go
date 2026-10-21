@@ -1,6 +1,10 @@
 package build
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/lewtec/lewkit/x/errs"
+)
 
 // ABI is an Android native library ABI.
 //
@@ -29,6 +33,9 @@ func (abi ABI) GOARCH() GOARCH {
 		return ""
 	}
 }
+
+// ErrUnsupportedAndroidGoarch means GOARCH has no Android ABI.
+var ErrUnsupportedAndroidGoarch = errs.Wrap(errs.ErrUnsupported, "unsupported android GOARCH")
 
 // ABIFor returns the Android ABI for a Go architecture.
 func ABIFor(goarch GOARCH) (ABI, error) {
