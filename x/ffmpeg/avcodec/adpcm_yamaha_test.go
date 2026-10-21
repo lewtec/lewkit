@@ -43,3 +43,8 @@ func TestYamahaEncodeMatchesFFmpeg(t *testing.T) {
 		t.Fatalf("yamaha mismatch\n got %x\nwant %x", got, want)
 	}
 }
+
+func TestYamahaDecodeMatchesFFmpeg(t *testing.T) {
+	data, _, want := ffmpegWAVADPCM(t, "adpcm_yamaha")
+	requirePCM(t, YamahaDecode(data), want)
+}

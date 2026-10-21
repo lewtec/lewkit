@@ -46,3 +46,12 @@ func TestMSADPCMEncodeMatchesFFmpeg(t *testing.T) {
 		t.Fatalf("ms adpcm mismatch\n got %x\nwant %x", got, want)
 	}
 }
+
+func TestMSADPCMDecodeMatchesFFmpeg(t *testing.T) {
+	data, align, want := ffmpegWAVADPCM(t, "adpcm_ms")
+	got, err := MSADPCMDecode(data, align)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirePCM(t, got, want)
+}

@@ -90,7 +90,7 @@ func Formats() []Info {
 		{Name: "g726", Long: "raw G.726", Demux: true, Mux: true},
 		{Name: "g726le", Long: "raw little-endian G.726", Demux: true, Mux: true},
 		{Name: "mp2", Long: "MPEG audio layer 2", Demux: false, Mux: true},
-		{Name: "aiff", Long: "Audio IFF", Demux: false, Mux: true},
+		{Name: "aiff", Long: "Audio IFF", Demux: true, Mux: true},
 	}
 }
 
@@ -168,7 +168,7 @@ func OpenInput(ctx context.Context, url, format string, opt Options) (Demuxer, e
 		return openLavfi(ctx, url, opt)
 	case "image2":
 		return openImage2(ctx, url, opt)
-	case "wav", "flac", "mp3", "ogg", "avi", "mp4", "mov", "image2pipe", "rawvideo", "h264", "hevc", "gsm", "g722", "g726", "g726le", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw":
+	case "wav", "flac", "mp3", "ogg", "avi", "mp4", "mov", "image2pipe", "rawvideo", "h264", "hevc", "gsm", "g722", "g726", "g726le", "aiff", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw":
 		rc, err := openRead(ctx, url, opt)
 		if err != nil {
 			return nil, err
@@ -287,6 +287,8 @@ func openBytes(format string, data []byte, opt Options) (Demuxer, error) {
 		return openG726(data)
 	case "g726le":
 		return openG726LE(data)
+	case "aiff":
+		return openAIFF(data)
 	default:
 		return openRawAudio(format, data, opt)
 	}

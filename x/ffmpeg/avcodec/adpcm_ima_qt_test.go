@@ -50,6 +50,35 @@ func TestIMAQTEncodeMatchesFFmpeg(t *testing.T) {
 	}
 }
 
+func TestIMAQTDecodeMatchesFFmpeg(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "a.aiff")
+	cmd := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=0.05",
+		"-c:a", "adpcm_ima_qt", out,
+	)
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Fatal(err, string(b))
+	}
+	raw, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := IMAQTDecode(aiffSound(t, raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+		"-i", out, "-f", "s16le", "-",
+	).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	requirePCM(t, got, want)
+}
+
 func aiffSound(t *testing.T, b []byte) []byte {
 	t.Helper()
 	i := bytes.Index(b, []byte("SSND"))

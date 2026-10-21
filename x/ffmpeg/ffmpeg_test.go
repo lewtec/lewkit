@@ -336,6 +336,30 @@ func TestMSADPCMCLIMatchesFFmpeg(t *testing.T) {
 	require.Equal(t, wavData(t, want), wavData(t, []byte(stdout)))
 }
 
+func TestADPCMDecodeCLIMatchesFFmpeg(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"wav", []string{"-c:a", "adpcm_ima_wav", filepath.Join(dir, "ima.wav")}},
+		{"ms", []string{"-c:a", "adpcm_ms", filepath.Join(dir, "ms.wav")}},
+		{"yamaha", []string{"-c:a", "adpcm_yamaha", filepath.Join(dir, "ya.wav")}},
+		{"qt", []string{"-c:a", "adpcm_ima_qt", filepath.Join(dir, "qt.aiff")}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_ = systemFF(t, append([]string{"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=0.1"}, tc.args...)...)
+			path := tc.args[len(tc.args)-1]
+			want := systemFF(t, "-i", path, "-f", "s16le", "-")
+			code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+				"-i", path, "-f", "s16le", "-")
+			require.Equal(t, 0, code, stderr)
+			require.Equal(t, want, []byte(stdout))
+		})
+	}
+}
+
 func TestIMAWAVCLIMatchesFFmpeg(t *testing.T) {
 	const frame = (1024-4)*2 + 1
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")

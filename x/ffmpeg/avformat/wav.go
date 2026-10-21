@@ -13,7 +13,7 @@ func openWAV(b []byte) (Demuxer, error) {
 		return nil, fmt.Errorf("%w: wav", avutil.ErrInvalidData)
 	}
 	var tag uint16
-	var channels, rate, bits int
+	var channels, rate, bits, block int
 	var data []byte
 	for i := 12; i+8 <= len(b); {
 		id := string(b[i : i+4])
@@ -31,6 +31,7 @@ func openWAV(b []byte) (Demuxer, error) {
 			tag = binary.LittleEndian.Uint16(chunk[0:2])
 			channels = int(binary.LittleEndian.Uint16(chunk[2:4]))
 			rate = int(binary.LittleEndian.Uint32(chunk[4:8]))
+			block = int(binary.LittleEndian.Uint16(chunk[12:14]))
 			bits = int(binary.LittleEndian.Uint16(chunk[14:16]))
 		case "data":
 			data = append([]byte(nil), chunk...)
@@ -40,11 +41,56 @@ func openWAV(b []byte) (Demuxer, error) {
 			i++
 		}
 	}
+	switch tag {
+	case 0x11:
+		return openBlockAudio(avcodec.IDADPCMIMAWAV, data, rate, channels, block)
+	case 0x02:
+		return openBlockAudio(avcodec.IDADPCMMS, data, rate, channels, block)
+	case 0x20:
+		return openBlockAudio(avcodec.IDADPCMYAMAHA, data, rate, channels, block)
+	}
 	format, id := wavCodec(tag, bits)
 	if id == 0 {
 		return nil, fmt.Errorf("%w: wav format %d", avutil.ErrUnsupported, tag)
 	}
 	return openRawAudio(format, data, Options{SampleRate: rate, Layout: layoutOr(avutil.ChannelLayout{}, channels)})
+}
+
+// openBlockAudio splits a WAV data chunk on block align. Yamaha carries
+// predictor state across those packets; IMA and MS store it in each header.
+func openBlockAudio(id avcodec.ID, data []byte, rate, channels, block int) (Demuxer, error) {
+	if rate <= 0 {
+		rate = 44100
+	}
+	if channels <= 0 {
+		channels = 1
+	}
+	if block <= 0 {
+		return nil, fmt.Errorf("%w: wav block", avutil.ErrInvalidData)
+	}
+	tb := avutil.Q(1, int32(rate))
+	var pkts []*avutil.Packet
+	for off := 0; off < len(data); {
+		n := block
+		if off+n > len(data) {
+			n = len(data) - off
+		}
+		pkts = append(pkts, &avutil.Packet{
+			Data: append([]byte(nil), data[off:off+n]...),
+			PTS:  int64(off), DTS: int64(off), TimeBase: tb, Key: true,
+		})
+		off += n
+	}
+	if len(pkts) == 0 {
+		pkts = []*avutil.Packet{{TimeBase: tb, Key: true}}
+	}
+	return &memDemux{streams: []Stream{{
+		Par: avcodec.Parameters{
+			Type: avutil.MediaAudio, ID: id, SampleFormat: avutil.SampleS16,
+			SampleRate: rate, Layout: layoutOr(avutil.ChannelLayout{}, channels), TimeBase: tb,
+		},
+		TimeBase: tb,
+	}}, pkts: pkts}, nil
 }
 
 func wavCodec(tag uint16, bits int) (string, avcodec.ID) {

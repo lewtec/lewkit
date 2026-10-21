@@ -13,13 +13,24 @@ var msAdapt = [16]int{
 	768, 614, 512, 409, 307, 230, 230, 230,
 }
 
-// msCodec encodes mono MS ADPCM at ffmpeg's default 1024-byte block.
+// msCoeff1 and msCoeff2 are ffmpeg's MS ADPCM coefficients, already divided by 4.
+var msCoeff1 = [7]int{64, 128, 0, 48, 60, 115, 98}
+var msCoeff2 = [7]int{0, -64, 0, 16, 0, -52, -58}
+
+// msCodec encodes and decodes mono MS ADPCM at ffmpeg's default 1024-byte block.
 type msCodec struct {
 	pcm    []int16
 	idelta int
+	rate   int
 }
 
-func newMSADPCM(Parameters) *msCodec { return &msCodec{idelta: 16} }
+func newMSADPCM(par Parameters) *msCodec {
+	rate := par.SampleRate
+	if rate <= 0 {
+		rate = 44100
+	}
+	return &msCodec{idelta: 16, rate: rate}
+}
 
 func (c *msCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 	if frame == nil || frame.NbSamples == 0 {
@@ -101,6 +112,87 @@ func msBlock(pcm []int16, blockSize, idelta int) ([]byte, int, error) {
 		out[i] = hi<<4 | lo
 	}
 	return out, idelta, nil
+}
+
+func (c *msCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
+	if pkt == nil || len(pkt.Data) == 0 {
+		return nil, nil
+	}
+	samples, err := MSADPCMDecode(pkt.Data, len(pkt.Data))
+	if err != nil || len(samples) == 0 {
+		return nil, err
+	}
+	frame, err := pcmS16Mono(samples, c.rate, pkt.PTS)
+	if err != nil || frame == nil {
+		return nil, err
+	}
+	return []*avutil.Frame{frame}, nil
+}
+
+// MSADPCMDecode expands mono Microsoft ADPCM blocks. blockSize is the WAV
+// block align. The predictor byte selects the coefficient pair.
+func MSADPCMDecode(data []byte, blockSize int) ([]int16, error) {
+	if blockSize < 7 {
+		return nil, fmt.Errorf("%w: ms adpcm block", avutil.ErrInvalidData)
+	}
+	var out []int16
+	for len(data) > 0 {
+		n := blockSize
+		if n > len(data) {
+			n = len(data)
+		}
+		samples, err := msWAVBlock(data[:n])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, samples...)
+		data = data[n:]
+	}
+	return out, nil
+}
+
+func msWAVBlock(block []byte) ([]int16, error) {
+	if len(block) < 7 {
+		return nil, fmt.Errorf("%w: ms adpcm block", avutil.ErrInvalidData)
+	}
+	which := int(block[0])
+	if which > 6 {
+		return nil, fmt.Errorf("%w: ms adpcm predictor %d", avutil.ErrInvalidData, which)
+	}
+	coeff1 := msCoeff1[which]
+	coeff2 := msCoeff2[which]
+	idelta := int(int16(binary.LittleEndian.Uint16(block[1:])))
+	sample1 := int(int16(binary.LittleEndian.Uint16(block[3:])))
+	sample2 := int(int16(binary.LittleEndian.Uint16(block[5:])))
+	out := make([]int16, 2+(len(block)-7)*2)
+	out[0] = int16(sample2)
+	out[1] = int16(sample1)
+	o := 2
+	for _, b := range block[7:] {
+		out[o] = msExpand(&sample1, &sample2, &idelta, coeff1, coeff2, int(b)>>4)
+		out[o+1] = msExpand(&sample1, &sample2, &idelta, coeff1, coeff2, int(b)&0x0F)
+		o += 2
+	}
+	return out, nil
+}
+
+func msExpand(sample1, sample2, idelta *int, coeff1, coeff2, nibble int) int16 {
+	predictor := ((*sample1)*coeff1 + (*sample2)*coeff2) / 64
+	delta := nibble
+	if nibble&0x08 != 0 {
+		delta = nibble - 0x10
+	}
+	predictor += delta * (*idelta)
+	*sample2 = *sample1
+	*sample1 = clipInt16(predictor)
+	*idelta = (msAdapt[nibble] * (*idelta)) >> 8
+	if *idelta < 16 {
+		*idelta = 16
+	}
+	if *idelta > 2147483647/768 {
+		*idelta = 2147483647 / 768
+	}
+	return int16(*sample1)
 }
 
 func msCompress(sample1, sample2, idelta int, sample int16) (byte, int, int, int) {

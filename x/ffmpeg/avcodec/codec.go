@@ -73,10 +73,10 @@ func Codecs() []Codec {
 		{IDGSM, "gsm", "GSM 06.10", avutil.MediaAudio, true, true, false, true, false},
 		{IDGSMMS, "gsm_ms", "GSM 06.10 Microsoft", avutil.MediaAudio, false, true, false, true, false},
 		{IDMP2, "mp2fixed", "MP2 fixed-point", avutil.MediaAudio, false, true, false, true, false},
-		{IDADPCMIMAWAV, "adpcm_ima_wav", "ADPCM IMA WAV", avutil.MediaAudio, false, true, false, true, false},
-		{IDADPCMMS, "adpcm_ms", "ADPCM Microsoft", avutil.MediaAudio, false, true, false, true, false},
-		{IDADPCMYAMAHA, "adpcm_yamaha", "ADPCM Yamaha", avutil.MediaAudio, false, true, false, true, false},
-		{IDADPCMIMAQT, "adpcm_ima_qt", "ADPCM IMA QuickTime", avutil.MediaAudio, false, true, false, true, false},
+		{IDADPCMIMAWAV, "adpcm_ima_wav", "ADPCM IMA WAV", avutil.MediaAudio, true, true, false, true, false},
+		{IDADPCMMS, "adpcm_ms", "ADPCM Microsoft", avutil.MediaAudio, true, true, false, true, false},
+		{IDADPCMYAMAHA, "adpcm_yamaha", "ADPCM Yamaha", avutil.MediaAudio, true, true, false, true, false},
+		{IDADPCMIMAQT, "adpcm_ima_qt", "ADPCM IMA QuickTime", avutil.MediaAudio, true, true, false, true, false},
 		{IDG722, "g722", "G.722 ADPCM", avutil.MediaAudio, true, true, false, true, false},
 		{IDLIBSHINE, "libshine", "shine MP3", avutil.MediaAudio, false, true, false, true, false},
 		{IDG726, "g726", "G.726 ADPCM", avutil.MediaAudio, true, true, false, true, false},
@@ -140,6 +140,14 @@ func OpenDecoder(par Parameters) (Decoder, error) {
 		return newG726(par), nil
 	case IDG726LE:
 		return newG726LE(par), nil
+	case IDADPCMIMAWAV:
+		return newIMAWAV(par), nil
+	case IDADPCMMS:
+		return newMSADPCM(par), nil
+	case IDADPCMYAMAHA:
+		return newYamaha(par), nil
+	case IDADPCMIMAQT:
+		return newIMAQT(par), nil
 	case IDH264:
 		return newH264(par), nil
 	case IDHEVC:

@@ -30,13 +30,20 @@ var imaDiff = [16]int8{
 	-1, -3, -5, -7, -9, -11, -13, -15,
 }
 
-// imaCodec encodes mono IMA WAV ADPCM at ffmpeg's default 1024-byte block.
+// imaCodec encodes and decodes mono IMA WAV ADPCM at ffmpeg's default 1024-byte block.
 type imaCodec struct {
 	pcm  []int16
 	step int
+	rate int
 }
 
-func newIMAWAV(Parameters) *imaCodec { return &imaCodec{} }
+func newIMAWAV(par Parameters) *imaCodec {
+	rate := par.SampleRate
+	if rate <= 0 {
+		rate = 44100
+	}
+	return &imaCodec{rate: rate}
+}
 
 func (c *imaCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 	if frame == nil || frame.NbSamples == 0 {
@@ -116,6 +123,115 @@ func imaBlock(pcm []int16, blockSize, step int) ([]byte, int, error) {
 		}
 	}
 	return out, step, nil
+}
+
+func (c *imaCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
+	if pkt == nil || len(pkt.Data) == 0 {
+		return nil, nil
+	}
+	samples, err := IMAWAVDecode(pkt.Data, len(pkt.Data))
+	if err != nil || len(samples) == 0 {
+		return nil, err
+	}
+	frame, err := pcmS16Mono(samples, c.rate, pkt.PTS)
+	if err != nil || frame == nil {
+		return nil, err
+	}
+	return []*avutil.Frame{frame}, nil
+}
+
+// IMAWAVDecode expands mono 4-bit IMA WAV blocks. blockSize is the WAV
+// block align. Each block starts with a little-endian predictor and step.
+func IMAWAVDecode(data []byte, blockSize int) ([]int16, error) {
+	if blockSize < 4 {
+		return nil, fmt.Errorf("%w: ima wav block", avutil.ErrInvalidData)
+	}
+	var out []int16
+	for len(data) > 0 {
+		n := blockSize
+		if n > len(data) {
+			n = len(data)
+		}
+		samples, err := imaWAVBlock(data[:n])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, samples...)
+		data = data[n:]
+	}
+	return out, nil
+}
+
+func imaWAVBlock(block []byte) ([]int16, error) {
+	if len(block) < 4 {
+		return nil, fmt.Errorf("%w: ima wav block", avutil.ErrInvalidData)
+	}
+	pred := int(int16(binary.LittleEndian.Uint16(block)))
+	step := int(int16(binary.LittleEndian.Uint16(block[2:])))
+	if step < 0 || step > 88 {
+		return nil, fmt.Errorf("%w: ima wav step %d", avutil.ErrInvalidData, step)
+	}
+	groups := (len(block) - 4) / 4
+	out := make([]int16, 1+groups*8)
+	out[0] = int16(pred)
+	o := 1
+	for src := 4; src < 4+groups*4; src++ {
+		v := int(block[src])
+		out[o] = imaExpand(&pred, &step, v&0x0F)
+		out[o+1] = imaExpand(&pred, &step, v>>4)
+		o += 2
+	}
+	return out, nil
+}
+
+func imaExpand(pred, step *int, nibble int) int16 {
+	st := int(imaStep[*step])
+	idx := *step + int(imaIndex[nibble])
+	if idx < 0 {
+		idx = 0
+	} else if idx > 88 {
+		idx = 88
+	}
+	diff := ((2*(nibble&7) + 1) * st) >> 3
+	p := *pred
+	if nibble&8 != 0 {
+		p -= diff
+	} else {
+		p += diff
+	}
+	*pred = clipInt16(p)
+	*step = idx
+	return int16(*pred)
+}
+
+func clipInt16(v int) int {
+	if v > 32767 {
+		return 32767
+	}
+	if v < -32768 {
+		return -32768
+	}
+	return v
+}
+
+func pcmS16Mono(samples []int16, rate int, pts int64) (*avutil.Frame, error) {
+	if len(samples) == 0 {
+		return nil, nil
+	}
+	if rate <= 0 {
+		rate = 44100
+	}
+	out, err := avutil.NewAudio(avutil.SampleS16, rate, avutil.Mono(), len(samples))
+	if err != nil {
+		return nil, err
+	}
+	for i, s := range samples {
+		binary.LittleEndian.PutUint16(out.Data[0][i*2:], uint16(s))
+	}
+	out.PTS = pts
+	out.Duration = int64(len(samples))
+	out.TimeBase = avutil.Q(1, int32(rate))
+	return out, nil
 }
 
 func imaCompress(prev, step *int, sample int16) byte {

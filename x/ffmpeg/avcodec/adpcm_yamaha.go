@@ -13,14 +13,22 @@ var yamahaScale = [16]int{
 	230, 230, 230, 230, 307, 409, 512, 614,
 }
 
-// yamahaCodec encodes mono Yamaha ADPCM at ffmpeg's default 1024-byte block.
+// yamahaCodec encodes and decodes mono Yamaha ADPCM.
+// Predictor and step carry across packets. There is no block header.
 type yamahaCodec struct {
 	pcm  []int16
 	pred int
 	step int
+	rate int
 }
 
-func newYamaha(Parameters) *yamahaCodec { return &yamahaCodec{} }
+func newYamaha(par Parameters) *yamahaCodec {
+	rate := par.SampleRate
+	if rate <= 0 {
+		rate = 44100
+	}
+	return &yamahaCodec{rate: rate}
+}
 
 func (c *yamahaCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 	if frame == nil || frame.NbSamples == 0 {
@@ -64,6 +72,48 @@ func (c *yamahaCodec) emitYamaha(pad bool) ([]*avutil.Packet, error) {
 		c.pcm = nil
 	}
 	return pkts, nil
+}
+
+func (c *yamahaCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
+	if pkt == nil || len(pkt.Data) == 0 {
+		return nil, nil
+	}
+	samples := yamahaExpandBytes(pkt.Data, &c.pred, &c.step)
+	frame, err := pcmS16Mono(samples, c.rate, pkt.PTS)
+	if err != nil || frame == nil {
+		return nil, err
+	}
+	return []*avutil.Frame{frame}, nil
+}
+
+// YamahaDecode expands a mono Yamaha ADPCM stream from a reset predictor.
+func YamahaDecode(data []byte) []int16 {
+	pred, step := 0, 0
+	return yamahaExpandBytes(data, &pred, &step)
+}
+
+func yamahaExpandBytes(data []byte, pred, step *int) []int16 {
+	out := make([]int16, len(data)*2)
+	for i, b := range data {
+		out[i*2] = yamahaExpand(pred, step, int(b)&0x0F)
+		out[i*2+1] = yamahaExpand(pred, step, int(b)>>4)
+	}
+	return out
+}
+
+func yamahaExpand(pred, step *int, nibble int) int16 {
+	if *step == 0 {
+		*pred = 0
+		*step = 127
+	}
+	*pred = clipInt16(*pred + (*step*int(imaDiff[nibble]))/8)
+	*step = (*step * yamahaScale[nibble]) >> 8
+	if *step < 127 {
+		*step = 127
+	} else if *step > 24576 {
+		*step = 24576
+	}
+	return int16(*pred)
 }
 
 // YamahaEncode packs mono PCM into one Yamaha ADPCM block.
