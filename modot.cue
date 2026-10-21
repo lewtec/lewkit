@@ -40,7 +40,8 @@ inputs: lua: {
 inputs: zlib: {
 	from:    "github:madler/zlib"
 }
-// FFmpeg 9.0.2 is the transcription source. n9.0.2 is the latest 9.x tag.
+// FFmpeg 9.0.2 is the transcription pin. The lock records n9.0.2.
+// The Go tree does not place this source.
 inputs: ffmpeg: {
 	from:    "github:FFmpeg/FFmpeg"
 	version: "n9.0.2"
@@ -340,45 +341,6 @@ file: codebase: {
 	"x/parse/testdata/treesitter/rust.json": {
 		type:   "place"
 		source: "treesitter_rust:src/grammar.json"
-	}
-	// FFmpeg n9.0.2 is the transcription source. Fate refs and the external
-	// sample corpus stay out: the refs need media this tree does not ship,
-	// and the Go tests build their own PCM.
-	for dir in [
-		"compat",
-		"doc",
-		"ffbuild",
-		"fftools",
-		"libavcodec",
-		"libavdevice",
-		"libavfilter",
-		"libavformat",
-		"libavutil",
-		"libswresample",
-		"libswscale",
-		"tools",
-	] {
-		"third_party/ffmpeg/\(dir)": {
-			type:   "place"
-			source: "ffmpeg:\(dir)"
-		}
-	}
-	for name in [
-		"COPYING.GPLv2",
-		"COPYING.GPLv3",
-		"COPYING.LGPLv2.1",
-		"COPYING.LGPLv3",
-		"CREDITS",
-		"Changelog",
-		"LICENSE.md",
-		"Makefile",
-		"RELEASE",
-		"configure",
-	] {
-		"third_party/ffmpeg/\(name)": {
-			type:   "place"
-			source: "ffmpeg:\(name)"
-		}
 	}
 }
 

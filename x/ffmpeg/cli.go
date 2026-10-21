@@ -16,7 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/ffmpeg/swscale"
 )
 
-// Version is the FFmpeg release vendored at third_party/ffmpeg.
+// Version is the FFmpeg release pinned in modot.lock.json.
 const Version = "n9.0.2-lewkit"
 
 // Run runs the ffmpeg command against the supplied streams.
