@@ -24,6 +24,7 @@ func TestRootUsage(t *testing.T) {
 	assert.Contains(t, text, "workflow")
 	assert.Contains(t, text, "completion")
 	assert.Contains(t, text, "term")
+	assert.Contains(t, text, "ffmpeg")
 	assert.Contains(t, text, "--sentry-dsn")
 	assert.Contains(t, text, "SENTRY_DSN")
 }

@@ -1,0 +1,131 @@
+package avformat
+
+import (
+	"encoding/binary"
+	"fmt"
+
+	"github.com/lewtec/lewkit/x/ffmpeg/avcodec"
+	"github.com/lewtec/lewkit/x/ffmpeg/avutil"
+)
+
+func openWAV(b []byte) (Demuxer, error) {
+	if len(b) < 12 || string(b[0:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
+		return nil, fmt.Errorf("%w: wav", avutil.ErrInvalidData)
+	}
+	var tag uint16
+	var channels, rate, bits int
+	var data []byte
+	for i := 12; i+8 <= len(b); {
+		id := string(b[i : i+4])
+		sz := int(binary.LittleEndian.Uint32(b[i+4 : i+8]))
+		i += 8
+		if sz < 0 || i+sz > len(b) {
+			return nil, fmt.Errorf("%w: wav chunk", avutil.ErrInvalidData)
+		}
+		chunk := b[i : i+sz]
+		switch id {
+		case "fmt ":
+			if len(chunk) < 16 {
+				return nil, fmt.Errorf("%w: wav fmt", avutil.ErrInvalidData)
+			}
+			tag = binary.LittleEndian.Uint16(chunk[0:2])
+			channels = int(binary.LittleEndian.Uint16(chunk[2:4]))
+			rate = int(binary.LittleEndian.Uint32(chunk[4:8]))
+			bits = int(binary.LittleEndian.Uint16(chunk[14:16]))
+		case "data":
+			data = append([]byte(nil), chunk...)
+		}
+		i += sz
+		if sz%2 == 1 {
+			i++
+		}
+	}
+	format, id := wavCodec(tag, bits)
+	if id == 0 {
+		return nil, fmt.Errorf("%w: wav format %d", avutil.ErrUnsupported, tag)
+	}
+	return openRawAudio(format, data, Options{SampleRate: rate, Layout: layoutOr(avutil.ChannelLayout{}, channels)})
+}
+
+func wavCodec(tag uint16, bits int) (string, avcodec.ID) {
+	switch tag {
+	case 1:
+		switch bits {
+		case 8:
+			return "u8", avcodec.IDPCMU8
+		case 16:
+			return "s16le", avcodec.IDPCMS16LE
+		case 24:
+			return "s24le", avcodec.IDPCMS24LE
+		case 32:
+			return "s32le", avcodec.IDPCMS32LE
+		}
+	case 3:
+		if bits == 32 {
+			return "f32le", avcodec.IDPCMF32LE
+		}
+	case 6:
+		return "alaw", avcodec.IDPCMALAW
+	case 7:
+		return "mulaw", avcodec.IDPCMMULAW
+	}
+	return "", 0
+}
+
+func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
+	if len(streams) == 0 {
+		return nil, fmt.Errorf("%w: wav stream", avutil.ErrInvalidData)
+	}
+	par := streams[0].Par
+	var pcm []byte
+	for _, pkt := range pkts {
+		if pkt.Stream != 0 && len(streams) > 1 {
+			continue
+		}
+		pcm = append(pcm, pkt.Data...)
+	}
+	tag := uint16(1)
+	bits := 16
+	channels := par.Layout.Channels()
+	if channels <= 0 {
+		channels = 1
+	}
+	switch par.ID {
+	case avcodec.IDPCMU8:
+		bits = 8
+	case avcodec.IDPCMS16LE:
+		bits = 16
+	case avcodec.IDPCMS24LE:
+		bits = 24
+	case avcodec.IDPCMS32LE:
+		bits = 32
+	case avcodec.IDPCMF32LE:
+		tag, bits = 3, 32
+	case avcodec.IDPCMALAW:
+		tag, bits = 6, 8
+	case avcodec.IDPCMMULAW:
+		tag, bits = 7, 8
+	default:
+		return nil, fmt.Errorf("%w: wav %s", avutil.ErrUnsupported, par.ID)
+	}
+	rate := par.SampleRate
+	if rate <= 0 {
+		rate = 44100
+	}
+	block := channels * bits / 8
+	hdr := make([]byte, 44)
+	copy(hdr[0:], "RIFF")
+	binary.LittleEndian.PutUint32(hdr[4:], uint32(36+len(pcm)))
+	copy(hdr[8:], "WAVE")
+	copy(hdr[12:], "fmt ")
+	binary.LittleEndian.PutUint32(hdr[16:], 16)
+	binary.LittleEndian.PutUint16(hdr[20:], tag)
+	binary.LittleEndian.PutUint16(hdr[22:], uint16(channels))
+	binary.LittleEndian.PutUint32(hdr[24:], uint32(rate))
+	binary.LittleEndian.PutUint32(hdr[28:], uint32(rate*block))
+	binary.LittleEndian.PutUint16(hdr[32:], uint16(block))
+	binary.LittleEndian.PutUint16(hdr[34:], uint16(bits))
+	copy(hdr[36:], "data")
+	binary.LittleEndian.PutUint32(hdr[40:], uint32(len(pcm)))
+	return append(hdr, pcm...), nil
+}

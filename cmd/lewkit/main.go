@@ -11,6 +11,7 @@ import (
 	"github.com/lewtec/lewkit/report/sentry"
 	"github.com/lewtec/lewkit/x/cmd"
 	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lewtec/lewkit/x/ffmpeg"
 	"github.com/lewtec/lewkit/x/taskgroup"
 
 	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
@@ -24,6 +25,9 @@ func main() {
 			os.Exit(1)
 		}
 		return
+	}
+	if args := cmd.Args(); len(args) > 0 && args[0] == "ffmpeg" {
+		os.Exit(ffmpeg.Execute(args[1:]))
 	}
 	app, err := cmd.Parse[cmd.App[root]](normalizeReleaseGoFlags(cmd.Args())...)
 	if err != nil {
@@ -46,6 +50,7 @@ type root struct {
 	workflow      *workflowCmd
 	completion    *completionCmd
 	term          *term.Cmd
+	ffmpeg        *ffmpegCmd
 }
 
 func (r *root) Setup() error {

@@ -1,0 +1,146 @@
+package avcodec
+
+import (
+	"fmt"
+	"io"
+
+	"github.com/lewtec/lewkit/x/ffmpeg/avutil"
+)
+
+// Parameters describe one elementary stream.
+type Parameters struct {
+	Type         avutil.MediaType
+	ID           ID
+	Width        int
+	Height       int
+	Format       avutil.PixelFormat
+	SampleFormat avutil.SampleFormat
+	SampleRate   int
+	Layout       avutil.ChannelLayout
+	BitRate      int
+	QScale       int
+	Extra        []byte
+	TimeBase     avutil.Rational
+	SAR          avutil.Rational
+}
+
+// Codec is one implemented encoder or decoder.
+type Codec struct {
+	ID       ID
+	Name     string
+	Long     string
+	Type     avutil.MediaType
+	Decode   bool
+	Encode   bool
+	Intra    bool
+	Lossy    bool
+	Lossless bool
+}
+
+// Decoder turns packets into frames.
+type Decoder interface {
+	Decode(pkt *avutil.Packet) ([]*avutil.Frame, error)
+	io.Closer
+}
+
+// Encoder turns frames into packets.
+type Encoder interface {
+	Encode(frame *avutil.Frame) ([]*avutil.Packet, error)
+	Flush() ([]*avutil.Packet, error)
+	io.Closer
+}
+
+// Codecs lists what this build can run. The order is the -codecs order.
+func Codecs() []Codec {
+	return []Codec{
+		{IDRawVideo, "rawvideo", "raw video", avutil.MediaVideo, true, true, true, false, true},
+		{IDPNG, "png", "PNG image", avutil.MediaVideo, true, true, true, false, true},
+		{IDMJPEG, "mjpeg", "Motion JPEG", avutil.MediaVideo, true, true, true, true, false},
+		{IDGIF, "gif", "GIF image", avutil.MediaVideo, true, true, true, true, false},
+		{IDBMP, "bmp", "BMP image", avutil.MediaVideo, true, true, true, false, true},
+		{IDPPM, "ppm", "PPM image", avutil.MediaVideo, true, true, true, false, true},
+		{IDPCMU8, "pcm_u8", "PCM unsigned 8-bit", avutil.MediaAudio, true, true, true, false, true},
+		{IDPCMS16LE, "pcm_s16le", "PCM signed 16-bit little-endian", avutil.MediaAudio, true, true, true, false, true},
+		{IDPCMS16BE, "pcm_s16be", "PCM signed 16-bit big-endian", avutil.MediaAudio, true, true, true, false, true},
+		{IDPCMS24LE, "pcm_s24le", "PCM signed 24-bit little-endian", avutil.MediaAudio, true, true, true, false, true},
+		{IDPCMS32LE, "pcm_s32le", "PCM signed 32-bit little-endian", avutil.MediaAudio, true, true, true, false, true},
+		{IDPCMF32LE, "pcm_f32le", "PCM 32-bit float little-endian", avutil.MediaAudio, true, true, true, false, true},
+		{IDPCMALAW, "pcm_alaw", "PCM A-law", avutil.MediaAudio, true, true, true, true, false},
+		{IDPCMMULAW, "pcm_mulaw", "PCM mu-law", avutil.MediaAudio, true, true, true, true, false},
+		{IDFLAC, "flac", "FLAC", avutil.MediaAudio, true, true, false, false, true},
+		{IDMP3, "mp3", "MP3", avutil.MediaAudio, true, false, false, true, false},
+		{IDVorbis, "vorbis", "Vorbis", avutil.MediaAudio, true, false, false, true, false},
+	}
+}
+
+// FindByName resolves a codec name such as pcm_s16le or png.
+func FindByName(name string) (Codec, bool) {
+	if id, err := ParseID(name); err == nil && id != IDNone {
+		for _, item := range Codecs() {
+			if item.ID == id {
+				return item, true
+			}
+		}
+	}
+	for _, item := range Codecs() {
+		if item.Name == name {
+			return item, true
+		}
+	}
+	return Codec{}, false
+}
+
+// OpenDecoder opens an implemented decoder.
+func OpenDecoder(par Parameters) (Decoder, error) {
+	switch par.ID {
+	case IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE:
+		return &pcmCodec{par: par}, nil
+	case IDPCMALAW, IDPCMMULAW:
+		return &xlawCodec{par: par}, nil
+	case IDRawVideo:
+		return &rawCodec{par: par}, nil
+	case IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM:
+		return &imageCodec{par: par, decode: true}, nil
+	case IDFLAC:
+		return &flacCodec{par: par}, nil
+	case IDMP3:
+		return &mp3Codec{}, nil
+	case IDVorbis:
+		return &vorbisCodec{}, nil
+	default:
+		return nil, fmt.Errorf("%w: decoder %s", avutil.ErrUnsupported, par.ID)
+	}
+}
+
+// OpenEncoder opens an implemented encoder.
+func OpenEncoder(par Parameters) (Encoder, error) {
+	switch par.ID {
+	case IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE:
+		return &pcmCodec{par: par}, nil
+	case IDPCMALAW, IDPCMMULAW:
+		return &xlawCodec{par: par}, nil
+	case IDRawVideo:
+		return &rawCodec{par: par}, nil
+	case IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM:
+		return &imageCodec{par: par}, nil
+	case IDFLAC:
+		return &flacCodec{par: par}, nil
+	default:
+		return nil, fmt.Errorf("%w: encoder %s", avutil.ErrUnsupported, par.ID)
+	}
+}
+
+func (pcmCodec) Close() error   { return nil }
+func (xlawCodec) Close() error  { return nil }
+func (rawCodec) Close() error   { return nil }
+func (imageCodec) Close() error { return nil }
+func (flacCodec) Close() error  { return nil }
+func (mp3Codec) Close() error   { return nil }
+func (vorbisCodec) Close() error {
+	return nil
+}
+
+func (pcmCodec) Flush() ([]*avutil.Packet, error)   { return nil, nil }
+func (xlawCodec) Flush() ([]*avutil.Packet, error)  { return nil, nil }
+func (rawCodec) Flush() ([]*avutil.Packet, error)   { return nil, nil }
+func (imageCodec) Flush() ([]*avutil.Packet, error) { return nil, nil }
