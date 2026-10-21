@@ -16,6 +16,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/camera"
 	"github.com/lewtec/lewkit/x/driver/daynight"
 	"github.com/lewtec/lewkit/x/driver/dirs"
+	"github.com/lewtec/lewkit/x/driver/glslc"
 	"github.com/lewtec/lewkit/x/driver/httpclient"
 	"github.com/lewtec/lewkit/x/driver/media"
 	"github.com/lewtec/lewkit/x/driver/messagebox"
@@ -80,6 +81,7 @@ var driverSpecs = map[string]spec{
 	"exec":               {load: loadExec, run: runExec},
 	"fetchurl":           {load: loadFetch, run: runFetch},
 	"filedialog":         {load: loadFile, run: runFile},
+	"glslc.Compiler":     {load: loadGlslc},
 	"httpclient":         {load: loadHTTP, run: runHTTP},
 	"launcher":           {load: loadLauncher, run: runLauncher},
 	"launcher.Chooser":   {load: loadChooser, run: runChooser},
@@ -642,6 +644,10 @@ func loadThread(ctx context.Context, _ *page) (panel, error) {
 		{Label: "UI thread bound", Value: yesNo(ui.Bound())},
 		{Label: "Request on UI thread", Value: yesNo(ui.On())},
 	}, acts: acts}, nil
+}
+
+func loadGlslc(ctx context.Context, _ *page) (panel, error) {
+	return handleRows(driver.List[glslc.Compiler](ctx))
 }
 
 func loadPresent(ctx context.Context, _ *page) (panel, error) {

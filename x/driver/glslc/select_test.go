@@ -8,6 +8,7 @@ import (
 	"github.com/lewtec/lewkit/x/driver/glslc"
 	_ "github.com/lewtec/lewkit/x/driver/glslc/prelude"
 	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +28,7 @@ func TestNativePrecedes(t *testing.T) {
 
 func TestLewkitCompiles(t *testing.T) {
 	if execdriver.IsBinaryAvailable(t.Context(), "glslc") {
-		t.Skip("native glslc is on PATH")
+		test.Skip(t, "native glslc is on PATH")
 	}
 	compiler, err := driver.Get[glslc.Compiler](t.Context())
 	require.NoError(t, err)
