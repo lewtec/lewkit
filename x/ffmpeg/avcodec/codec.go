@@ -75,6 +75,7 @@ func Codecs() []Codec {
 		{IDMP2, "mp2fixed", "MP2 fixed-point", avutil.MediaAudio, false, true, false, true, false},
 		{IDADPCMIMAWAV, "adpcm_ima_wav", "ADPCM IMA WAV", avutil.MediaAudio, false, true, false, true, false},
 		{IDADPCMMS, "adpcm_ms", "ADPCM Microsoft", avutil.MediaAudio, false, true, false, true, false},
+		{IDADPCMYAMAHA, "adpcm_yamaha", "ADPCM Yamaha", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
@@ -159,6 +160,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return newIMAWAV(par), nil
 	case IDADPCMMS:
 		return newMSADPCM(par), nil
+	case IDADPCMYAMAHA:
+		return newYamaha(par), nil
 	case IDH264:
 		return newH264(par), nil
 	case IDHEVC:
@@ -179,6 +182,7 @@ func (gsmCodec) Close() error    { return nil }
 func (mp2Codec) Close() error    { return nil }
 func (imaCodec) Close() error    { return nil }
 func (msCodec) Close() error     { return nil }
+func (yamahaCodec) Close() error { return nil }
 func (h264Codec) Close() error   { return nil }
 func (hevcCodec) Close() error   { return nil }
 

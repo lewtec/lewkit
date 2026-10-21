@@ -122,6 +122,11 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 		bits = 4
 		block = 1024
 		fmtExtra = msWAVExtra()
+	case avcodec.IDADPCMYAMAHA:
+		tag = 0x20
+		bits = 4
+		block = 1024
+		fmtExtra = []byte{0, 0}
 	default:
 		return nil, fmt.Errorf("%w: wav %s", avutil.ErrUnsupported, par.ID)
 	}
@@ -140,6 +145,8 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 		byteRate = rate * 1024 / 2041
 	case avcodec.IDADPCMMS:
 		byteRate = rate * 1024 / 2036
+	case avcodec.IDADPCMYAMAHA:
+		byteRate = rate / 2
 	}
 	fmtSize := 16 + len(fmtExtra)
 	hdr := make([]byte, 28+fmtSize)

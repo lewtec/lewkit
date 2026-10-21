@@ -31,4 +31,5 @@ const (
 	IDGSMMS                 // gsm_ms
 	IDADPCMIMAWAV           // adpcm_ima_wav
 	IDADPCMMS               // adpcm_ms
+	IDADPCMYAMAHA           // adpcm_yamaha
 )
