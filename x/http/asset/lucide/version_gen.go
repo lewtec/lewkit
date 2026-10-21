@@ -2,6 +2,6 @@
 
 package lucide
 
-// Version is the Lucide release these bodies were taken from.
-// The tag is the currentValue of github:lucide-icons/lucide in modot.lock.json.
-const Version = "1.57.0"
+// Version is the Lucide tag in modot.lock.json.
+// The input leaves version empty. The lock currentValue decides the tag.
+const Version = "1.59.0"
