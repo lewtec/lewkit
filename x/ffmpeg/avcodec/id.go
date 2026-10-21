@@ -41,4 +41,5 @@ const (
 	IDLIBTWOLAME            // libtwolame
 	IDADPCMIMAWS            // adpcm_ima_ws
 	IDLIBSPEEX              // libspeex
+	IDADPCMIMASSI           // adpcm_ima_ssi
 )

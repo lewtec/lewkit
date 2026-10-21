@@ -49,6 +49,8 @@ func (m *bufMux) Close() error {
 		body, err = writeAIFF(m.streams, m.pkts)
 	case "wsaud":
 		body, err = writeAUD(m.streams, m.pkts)
+	case "kvag":
+		body, err = writeKVAG(m.streams, m.pkts)
 	case "avi":
 		body, err = writeAVI(m.streams, m.pkts)
 	case "mp4", "mov":
