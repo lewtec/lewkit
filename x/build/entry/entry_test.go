@@ -136,27 +136,6 @@ func TestAssembleAstro(t *testing.T) {
 	})
 }
 
-func TestAstroLock(t *testing.T) {
-	dir := t.TempDir()
-	name, args, ok := astroProjects.lock(dir)
-	require.False(t, ok)
-	require.Empty(t, name)
-	require.Nil(t, args)
-
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "bun.lock"), []byte("{}\n"), 0o644))
-	name, args, ok = astroProjects.lock(dir)
-	require.True(t, ok)
-	require.Equal(t, "bun", name)
-	require.Equal(t, []string{"run", "build"}, args)
-
-	yarn := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(yarn, "yarn.lock"), []byte("# yarn\n"), 0o644))
-	name, args, ok = astroProjects.lock(yarn)
-	require.True(t, ok)
-	require.Equal(t, "yarn", name)
-	require.Equal(t, []string{"build"}, args)
-}
-
 func zipWithIndex(t *testing.T) []byte {
 	t.Helper()
 	var buf bytes.Buffer

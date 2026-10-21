@@ -1,7 +1,6 @@
 package entry
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -11,10 +10,9 @@ import (
 
 	"github.com/lewtec/lewkit/x/build/gen/common"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
+	"github.com/lewtec/lewkit/x/nodescript"
 	"github.com/lucasew/orvalho/pkg/workers/bundle"
 )
-
-const maxBuildLog = 4096
 
 // astroProvider builds an Astro project and serves the bundled worker.
 type astroProvider struct {
@@ -104,59 +102,10 @@ func (p *astroProvider) requireConfig(project string) error {
 }
 
 func (p *astroProvider) build(ctx context.Context, project string) error {
-	name, args, err := p.command(ctx, project)
-	if err != nil {
-		return err
-	}
-	cmd := execdriver.MustCommand(ctx, name, args...)
-	cmd.Dir = project
-	var log bytes.Buffer
-	cmd.Stdout = &log
-	cmd.Stderr = &log
-	if err := execdriver.Run(ctx, cmd); err != nil {
-		return buildFailed(log.Bytes(), err)
-	}
-	return nil
-}
-
-func buildFailed(log []byte, err error) error {
-	text := strings.TrimSpace(string(log))
-	if len(text) > maxBuildLog {
-		text = text[len(text)-maxBuildLog:]
-	}
-	if text == "" {
+	if err := nodescript.Run(ctx, project, "build"); err != nil {
 		return fmt.Errorf("%w: %w", ErrAstroBuild, err)
 	}
-	return fmt.Errorf("%w: %s: %w", ErrAstroBuild, text, err)
-}
-
-func (p *astroProvider) command(ctx context.Context, dir string) (string, []string, error) {
-	if name, args, ok := p.lock(dir); ok {
-		return name, args, nil
-	}
-	if _, err := execdriver.Which(ctx, "bun"); err == nil {
-		return "bun", []string{"run", "build"}, nil
-	}
-	if _, err := execdriver.Which(ctx, "npm"); err != nil {
-		return "", nil, fmt.Errorf("%w: %w", ErrAstroBuild, err)
-	}
-	return "npm", []string{"run", "build"}, nil
-}
-
-func (p *astroProvider) lock(dir string) (string, []string, bool) {
-	if fileExists(filepath.Join(dir, "bun.lock")) || fileExists(filepath.Join(dir, "bun.lockb")) {
-		return "bun", []string{"run", "build"}, true
-	}
-	if fileExists(filepath.Join(dir, "pnpm-lock.yaml")) {
-		return "pnpm", []string{"run", "build"}, true
-	}
-	if fileExists(filepath.Join(dir, "yarn.lock")) {
-		return "yarn", []string{"build"}, true
-	}
-	if fileExists(filepath.Join(dir, "package-lock.json")) {
-		return "npm", []string{"run", "build"}, true
-	}
-	return "", nil, false
+	return nil
 }
 
 func (p *astroProvider) assemble(project, worker string) error {
@@ -299,7 +248,6 @@ func (p *astroProvider) fingerprint(dir string, info os.FileInfo) (string, error
 		"bun.lock",
 		"bun.lockb",
 		"pnpm-lock.yaml",
-		"yarn.lock",
 		"package-lock.json",
 	}
 	for _, name := range names {

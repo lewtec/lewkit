@@ -2,27 +2,11 @@
 
 This directory is an Astro site. `entry` is `astro:.`.
 
-`lewkit release run` builds the site, bundles the worker, and opens the window. The page requests one fact from catfact.ninja on each visit. The build does not install packages.
-
-## Install
-
-Run this command in this directory:
-
-```bash
-mise run install
-```
-
-`bun install` reads `bun.lock`.
+`lewkit release run` installs the packages, builds the site, bundles the worker, and opens the window. `bun.lock` selects bun. The release installs bun when that program is missing. The page requests one fact from catfact.ninja on each visit.
 
 ## Run
 
-Run this command in this directory:
-
-```bash
-mise run run
-```
-
-From the repository root, `bun` must be on `PATH`:
+From the repository root:
 
 ```bash
 go run ./cmd/lewkit release run --config ./examples/app/astro/eletrocromo.json

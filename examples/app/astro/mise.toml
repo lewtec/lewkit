@@ -1,6 +1,6 @@
 # Astro site. entry is astro:.
-# The release build runs `bun run build`. Install the packages first.
-# From the repository root, with bun on PATH:
+# The release installs packages and runs `bun run build`.
+# From the repository root:
 #   go run ./cmd/lewkit release run --config ./examples/app/astro/eletrocromo.json
 
 [env]
@@ -14,5 +14,5 @@ description = "Install the bun packages in bun.lock"
 run = "bun install"
 
 [tasks.run]
-description = "Open the window. Install the packages before the first run."
+description = "Open the window."
 run = "go -C ../../.. run ./cmd/lewkit release run --config ./examples/app/astro/eletrocromo.json"
