@@ -54,6 +54,8 @@ func (m *bufMux) Close() error {
 		body, err = writeKVAG(m.streams, m.pkts)
 	case "alp":
 		body, err = writeALP(m.url, m.streams, m.pkts)
+	case "apm":
+		body, err = writeAPM(m.streams, m.pkts)
 	case "avi":
 		body, err = writeAVI(m.streams, m.pkts)
 	case "mp4", "mov":
