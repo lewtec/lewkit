@@ -3,21 +3,22 @@ package avcodec
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
 )
 
 func TestSpeexNBMatchesFFmpeg(t *testing.T) {
-	pcmRaw, err := exec.Command(
-		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+	ff := test.Need(t, "ffmpeg")
+	pcmRaw, err := exec.Command(ff, "-hide_banner", "-nostdin", "-loglevel", "error",
 		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=1",
 		"-f", "s16le", "-",
 	).Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(pcmRaw) < 640 {
-		t.Fatalf("pcm length %d", len(pcmRaw))
+		require.FailNow(t, fmt.Sprintf("pcm length %d", len(pcmRaw)))
 	}
 	pcmRaw = pcmRaw[:640]
 	pcm := make([]int16, 320)
@@ -26,23 +27,18 @@ func TestSpeexNBMatchesFFmpeg(t *testing.T) {
 	}
 
 	got, err := SpeexEncodeNB(pcm)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	cmd := exec.Command(
-		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+	cmd := exec.Command(ff, "-hide_banner", "-nostdin", "-loglevel", "error",
 		"-f", "s16le", "-ar", "8000", "-ac", "1", "-i", "pipe:0",
 		"-c:a", "libspeex", "-f", "wav", "-",
 	)
 	cmd.Stdin = bytes.NewReader(pcmRaw)
 	wav, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := speexWAVData(wav)
 	if want == nil {
-		t.Fatalf("wav data chunk missing, len %d", len(wav))
+		require.FailNow(t, fmt.Sprintf("wav data chunk missing, len %d", len(wav)))
 	}
 	if !bytes.Equal(got, want) {
 		n := len(got)
@@ -53,7 +49,7 @@ func TestSpeexNBMatchesFFmpeg(t *testing.T) {
 		for off < n && got[off] == want[off] {
 			off++
 		}
-		t.Fatalf("speex bytes mismatch got %d want %d first differ %d\n got %x\nwant %x", len(got), len(want), off, got, want)
+		require.FailNow(t, fmt.Sprintf("speex bytes mismatch got %d want %d first differ %d\n got %x\nwant %x", len(got), len(want), off, got, want))
 	}
 }
 

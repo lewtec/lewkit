@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 	"math"
 	"os"
 	"os/exec"
@@ -19,6 +21,7 @@ import (
 // Ogg pages and the muxer vendor string are ignored; audio packet payloads are
 // compared bit-exactly.
 func TestVorbisEncodeMatchesFFmpeg(t *testing.T) {
+	ff := test.Need(t, "ffmpeg")
 	const (
 		rate    = 44100
 		samples = 4410
@@ -28,11 +31,9 @@ func TestVorbisEncodeMatchesFFmpeg(t *testing.T) {
 		pcm[i] = int16(math.Round(math.Sin(2*math.Pi*440*float64(i)/float64(rate)) * 16000))
 	}
 	got, err := VorbisEncodeMono(pcm, rate)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(got) == 0 {
-		t.Fatal("empty vorbis packets")
+		require.Fail(t, "empty vorbis packets")
 	}
 
 	raw := make([]byte, samples*4)
@@ -41,37 +42,27 @@ func TestVorbisEncodeMatchesFFmpeg(t *testing.T) {
 		binary.LittleEndian.PutUint16(raw[i*4+2:], uint16(s))
 	}
 	in, err := os.CreateTemp("", "vorbis-*.pcm")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	defer os.Remove(in.Name())
-	if _, err := in.Write(raw); err != nil {
-		t.Fatal(err)
-	}
+	_, err = in.Write(raw)
+	require.NoError(t, err)
 	in.Close()
 	out, err := os.CreateTemp("", "vorbis-*.ogg")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	out.Close()
 	defer os.Remove(out.Name())
 
-	cmd := exec.Command(
-		"ffmpeg", "-y", "-hide_banner", "-nostdin", "-loglevel", "error",
+	cmd := exec.Command(ff, "-y", "-hide_banner", "-nostdin", "-loglevel", "error",
 		"-f", "s16le", "-ar", "44100", "-ac", "2", "-i", in.Name(),
 		"-strict", "experimental", "-c:a", "vorbis", "-f", "ogg", out.Name(),
 	)
 	if msg, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("ffmpeg: %v %s", err, msg)
+		require.FailNow(t, fmt.Sprintf("ffmpeg: %v %s", err, msg))
 	}
 	ogg, err := os.ReadFile(out.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	pkts, err := oggPackets(ogg)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	var want []byte
 	for _, p := range pkts {
 		if isVorbisHeader(p) {
@@ -91,7 +82,7 @@ func TestVorbisEncodeMatchesFFmpeg(t *testing.T) {
 				break
 			}
 		}
-		t.Fatalf("vorbis bytes mismatch got %d want %d first diff %d", len(got), len(want), off)
+		require.FailNow(t, fmt.Sprintf("vorbis bytes mismatch got %d want %d first diff %d", len(got), len(want), off))
 	}
 }
 

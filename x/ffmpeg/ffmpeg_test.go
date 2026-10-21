@@ -471,7 +471,7 @@ func wavData(t *testing.T, b []byte) []byte {
 		}
 		off += n
 	}
-	t.Fatal("wav data missing")
+	require.Fail(t, "wav data missing")
 	return nil
 }
 
@@ -687,7 +687,7 @@ func speexFileData(t *testing.T, b []byte) []byte {
 			i++
 		}
 	}
-	t.Fatal("wav data missing")
+	require.Fail(t, "wav data missing")
 	return nil
 }
 

@@ -3,21 +3,22 @@ package avcodec
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
 )
 
 func TestGSMEncodeSineMatchesFFmpeg(t *testing.T) {
-	pcm, err := exec.Command(
-		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+	ff := test.Need(t, "ffmpeg")
+	pcm, err := exec.Command(ff, "-hide_banner", "-nostdin", "-loglevel", "error",
 		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=0.04",
 		"-f", "s16le", "-",
 	).Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(pcm) != 640 {
-		t.Fatalf("pcm length %d", len(pcm))
+		require.FailNow(t, fmt.Sprintf("pcm length %d", len(pcm)))
 	}
 	samples := make([]int16, 320)
 	for i := range samples {
@@ -28,32 +29,25 @@ func TestGSMEncodeSineMatchesFFmpeg(t *testing.T) {
 	var got []byte
 	for f := 0; f < 2; f++ {
 		frame, err := g.encodeFrame(samples[f*160 : (f+1)*160])
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		got = append(got, frame[:]...)
 	}
 
-	want, err := exec.Command(
-		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+	want, err := exec.Command(ff, "-hide_banner", "-nostdin", "-loglevel", "error",
 		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=0.04",
 		"-c:a", "libgsm", "-f", "gsm", "-",
 	).Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if !bytes.Equal(got, want) {
-		t.Fatalf("gsm bytes mismatch\n got %x\nwant %x", got, want)
+		require.FailNow(t, fmt.Sprintf("gsm bytes mismatch\n got %x\nwant %x", got, want))
 	}
 
 	dec := newGSMCodec(Parameters{})
 	for f := 0; f < 2; f++ {
 		out, err := dec.decodeFrame(got[f*33 : (f+1)*33])
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		if len(out) != 160 {
-			t.Fatalf("decoded samples %d", len(out))
+			require.FailNow(t, fmt.Sprintf("decoded samples %d", len(out)))
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/ffmpeg/avutil"
+	"github.com/lewtec/lewkit/x/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,7 +72,7 @@ int main(int argc, char **argv) {
 	cmd := exec.Command("gcc", "-O2", "-o", bin, cfile, "/usr/lib/x86_64-linux-gnu/libsnappy.so.1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Skipf("libsnappy headers: %s", out)
+		test.Skipf(t, "libsnappy headers: %s", out)
 	}
 	plain := bytes.Repeat([]byte("lewkit-snappy-block:"), 80)
 	plain = append(plain, []byte{0, 0, 1, 0xff, 0x7f}...)

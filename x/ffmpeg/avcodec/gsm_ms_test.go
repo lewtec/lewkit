@@ -3,21 +3,22 @@ package avcodec
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
+	"github.com/lewtec/lewkit/x/test"
+	"github.com/stretchr/testify/require"
 	"os/exec"
 	"testing"
 )
 
 func TestGSMMSEncodeMatchesFFmpeg(t *testing.T) {
-	pcm, err := exec.Command(
-		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+	ff := test.Need(t, "ffmpeg")
+	pcm, err := exec.Command(ff, "-hide_banner", "-nostdin", "-loglevel", "error",
 		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=0.08",
 		"-f", "s16le", "-",
 	).Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	if len(pcm) != 1280 {
-		t.Fatalf("pcm length %d", len(pcm))
+		require.FailNow(t, fmt.Sprintf("pcm length %d", len(pcm)))
 	}
 	samples := make([]int16, 640)
 	for i := range samples {
@@ -27,32 +28,27 @@ func TestGSMMSEncodeMatchesFFmpeg(t *testing.T) {
 	var got []byte
 	for f := 0; f < 2; f++ {
 		frame, err := g.encodeMS(samples[f*320 : (f+1)*320])
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 		got = append(got, frame[:]...)
 	}
 
-	cmd := exec.Command(
-		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+	cmd := exec.Command(ff, "-hide_banner", "-nostdin", "-loglevel", "error",
 		"-f", "s16le", "-ar", "8000", "-ac", "1", "-i", "pipe:0",
 		"-c:a", "libgsm_ms", "-f", "wav", "-",
 	)
 	cmd.Stdin = bytes.NewReader(pcm)
 	wav, err := cmd.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	want := wavChunk(t, wav, "data")
 	if !bytes.Equal(got, want) {
-		t.Fatalf("gsm_ms bytes mismatch\n got %x\nwant %x", got, want)
+		require.FailNow(t, fmt.Sprintf("gsm_ms bytes mismatch\n got %x\nwant %x", got, want))
 	}
 }
 
 func wavChunk(t *testing.T, b []byte, id string) []byte {
 	t.Helper()
 	if len(b) < 12 || string(b[:4]) != "RIFF" {
-		t.Fatalf("wav header %q", b[:min(12, len(b))])
+		require.FailNow(t, fmt.Sprintf("wav header %q", b[:min(12, len(b))]))
 	}
 	off := 12
 	for off+8 <= len(b) {
@@ -63,7 +59,7 @@ func wavChunk(t *testing.T, b []byte, id string) []byte {
 			n = len(b) - off
 		}
 		if off+n > len(b) {
-			t.Fatalf("wav chunk %s overruns", name)
+			require.FailNow(t, fmt.Sprintf("wav chunk %s overruns", name))
 		}
 		if name == id {
 			return b[off : off+n]
@@ -73,6 +69,6 @@ func wavChunk(t *testing.T, b []byte, id string) []byte {
 			off++
 		}
 	}
-	t.Fatalf("wav chunk %s missing", id)
+	require.FailNow(t, fmt.Sprintf("wav chunk %s missing", id))
 	return nil
 }
