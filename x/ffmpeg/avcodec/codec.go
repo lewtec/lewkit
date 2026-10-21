@@ -82,6 +82,7 @@ func Codecs() []Codec {
 		{IDG726, "g726", "G.726 ADPCM", avutil.MediaAudio, true, true, false, true, false},
 		{IDG726LE, "g726le", "G.726 ADPCM little-endian", avutil.MediaAudio, true, true, false, true, false},
 		{IDADPCMSWF, "adpcm_swf", "ADPCM Shockwave Flash", avutil.MediaAudio, false, true, false, true, false},
+		{IDLIBTWOLAME, "libtwolame", "TwoLAME MP2", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
@@ -188,6 +189,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return newG722Codec(par), nil
 	case IDLIBSHINE:
 		return newShineCodec(par)
+	case IDLIBTWOLAME:
+		return newTwolame(par)
 	case IDG726:
 		return newG726(par), nil
 	case IDG726LE:
@@ -203,25 +206,26 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 	}
 }
 
-func (pcmCodec) Close() error    { return nil }
-func (xlawCodec) Close() error   { return nil }
-func (rawCodec) Close() error    { return nil }
-func (imageCodec) Close() error  { return nil }
-func (flacCodec) Close() error   { return nil }
-func (mp3Codec) Close() error    { return nil }
-func (vorbisCodec) Close() error { return nil }
-func (gsmCodec) Close() error    { return nil }
-func (mp2Codec) Close() error    { return nil }
-func (imaCodec) Close() error    { return nil }
-func (msCodec) Close() error     { return nil }
-func (yamahaCodec) Close() error { return nil }
-func (qtCodec) Close() error     { return nil }
-func (g722Codec) Close() error   { return nil }
-func (shineCodec) Close() error  { return nil }
-func (g726Codec) Close() error   { return nil }
-func (swfCodec) Close() error    { return nil }
-func (h264Codec) Close() error   { return nil }
-func (hevcCodec) Close() error   { return nil }
+func (pcmCodec) Close() error     { return nil }
+func (xlawCodec) Close() error    { return nil }
+func (rawCodec) Close() error     { return nil }
+func (imageCodec) Close() error   { return nil }
+func (flacCodec) Close() error    { return nil }
+func (mp3Codec) Close() error     { return nil }
+func (vorbisCodec) Close() error  { return nil }
+func (gsmCodec) Close() error     { return nil }
+func (mp2Codec) Close() error     { return nil }
+func (imaCodec) Close() error     { return nil }
+func (msCodec) Close() error      { return nil }
+func (yamahaCodec) Close() error  { return nil }
+func (qtCodec) Close() error      { return nil }
+func (g722Codec) Close() error    { return nil }
+func (shineCodec) Close() error   { return nil }
+func (twolameCodec) Close() error { return nil }
+func (g726Codec) Close() error    { return nil }
+func (swfCodec) Close() error     { return nil }
+func (h264Codec) Close() error    { return nil }
+func (hevcCodec) Close() error    { return nil }
 
 func (pcmCodec) Flush() ([]*avutil.Packet, error)   { return nil, nil }
 func (xlawCodec) Flush() ([]*avutil.Packet, error)  { return nil, nil }

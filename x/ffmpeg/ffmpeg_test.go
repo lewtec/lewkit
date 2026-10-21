@@ -261,6 +261,19 @@ func TestG726CLIMatchesFFmpeg(t *testing.T) {
 	require.Equal(t, decoded, []byte(stdout))
 }
 
+func TestTwolameCLIMatchesFFmpeg(t *testing.T) {
+	const frame = 1152 * 4
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:frame*2]
+	path := filepath.Join(t.TempDir(), "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	args := []string{"-f", "s16le", "-ar", "44100", "-ac", "1", "-i", path, "-c:a", "libtwolame", "-b:a", "192k", "-f", "mp2", "-"}
+	want := systemFF(t, args...)
+	code, stdout, stderr := runFF(t, append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0"}, args...)...)
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+}
+
 func TestShineCLIMatchesFFmpeg(t *testing.T) {
 	const frame = 1152 * 4
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")

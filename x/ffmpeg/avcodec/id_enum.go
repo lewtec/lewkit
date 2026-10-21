@@ -78,6 +78,8 @@ func (i ID) String() string {
 		return "g726le"
 	case IDADPCMSWF:
 		return "adpcm_swf"
+	case IDLIBTWOLAME:
+		return "libtwolame"
 	default:
 		return ""
 	}
@@ -85,13 +87,13 @@ func (i ID) String() string {
 
 // Values lists the ID values.
 func (ID) Values() []ID {
-	return []ID{IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726, IDG726LE, IDADPCMSWF}
+	return []ID{IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726, IDG726LE, IDADPCMSWF, IDLIBTWOLAME}
 }
 
 // IsValid reports whether the value is a ID.
 func (i ID) IsValid() bool {
 	switch i {
-	case IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726, IDG726LE, IDADPCMSWF:
+	case IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726, IDG726LE, IDADPCMSWF, IDLIBTWOLAME:
 		return true
 	default:
 		return false
@@ -167,6 +169,8 @@ func ParseID(text string) (ID, error) {
 		return IDG726LE, nil
 	case "adpcm_swf":
 		return IDADPCMSWF, nil
+	case "libtwolame":
+		return IDLIBTWOLAME, nil
 	default:
 		return 0, fmt.Errorf("%w: %q", ErrID, text)
 	}
@@ -184,7 +188,7 @@ func (i *ID) Parse(text string) error {
 
 // ArgChoices lists the texts ParseID accepts.
 func (ID) ArgChoices() []string {
-	return []string{"none", "pcm_u8", "pcm_s16le", "pcm_s16be", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_alaw", "pcm_mulaw", "rawvideo", "png", "mjpeg", "gif", "bmp", "ppm", "flac", "mp3", "vorbis", "gsm", "h264", "hevc", "mp2fixed", "gsm_ms", "adpcm_ima_wav", "adpcm_ms", "adpcm_yamaha", "adpcm_ima_qt", "g722", "libshine", "g726", "g726le", "adpcm_swf"}
+	return []string{"none", "pcm_u8", "pcm_s16le", "pcm_s16be", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_alaw", "pcm_mulaw", "rawvideo", "png", "mjpeg", "gif", "bmp", "ppm", "flac", "mp3", "vorbis", "gsm", "h264", "hevc", "mp2fixed", "gsm_ms", "adpcm_ima_wav", "adpcm_ms", "adpcm_yamaha", "adpcm_ima_qt", "g722", "libshine", "g726", "g726le", "adpcm_swf", "libtwolame"}
 }
 
 // MarshalText encodes the value as text.
