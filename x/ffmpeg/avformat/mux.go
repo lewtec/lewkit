@@ -45,6 +45,8 @@ func (m *bufMux) Close() error {
 	switch m.name {
 	case "wav":
 		body, err = writeWAV(m.streams, m.pkts)
+	case "aiff":
+		body, err = writeAIFF(m.streams, m.pkts)
 	case "avi":
 		body, err = writeAVI(m.streams, m.pkts)
 	case "mp4", "mov":

@@ -87,6 +87,7 @@ func Formats() []Info {
 		{Name: "hevc", Long: "raw HEVC annex B", Demux: true, Mux: true},
 		{Name: "gsm", Long: "raw GSM 06.10", Demux: true, Mux: true},
 		{Name: "mp2", Long: "MPEG audio layer 2", Demux: false, Mux: true},
+		{Name: "aiff", Long: "Audio IFF", Demux: false, Mux: true},
 	}
 }
 
@@ -117,6 +118,8 @@ func Guess(path string) string {
 		return "gsm"
 	case ".mp2":
 		return "mp2"
+	case ".aiff", ".aif":
+		return "aiff"
 	case ".pcm":
 		return "s16le"
 	default:
@@ -196,7 +199,7 @@ func Create(ctx context.Context, url, format string, opt Options) (Muxer, error)
 		return &hashMux{name: format, w: w, opt: opt}, nil
 	case "image2", "image2pipe":
 		return &imageMux{ctx: ctx, url: url, format: format, opt: opt}, nil
-	case "rawvideo", "h264", "hevc", "gsm", "mp2", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
+	case "rawvideo", "h264", "hevc", "gsm", "mp2", "aiff", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
 		w, err := openWrite(ctx, url, opt)
 		if err != nil {
 			return nil, err

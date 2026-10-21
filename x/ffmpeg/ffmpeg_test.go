@@ -212,6 +212,26 @@ func TestAVIAndMOV(t *testing.T) {
 	require.Len(t, got, 16*16*3*2)
 }
 
+func TestIMAQTCLIMatchesFFmpeg(t *testing.T) {
+	const frame = 64 * 3
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:frame*2]
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	wantPath := filepath.Join(dir, "want.aiff")
+	gotPath := filepath.Join(dir, "got.aiff")
+	args := []string{"-f", "s16le", "-ar", "44100", "-ac", "1", "-i", path, "-c:a", "adpcm_ima_qt", "-f", "aiff"}
+	_ = systemFF(t, append(args, wantPath)...)
+	code, _, stderr := runFF(t, append(append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0", "-y"}, args...), gotPath)...)
+	require.Equal(t, 0, code, stderr)
+	want, err := os.ReadFile(wantPath)
+	require.NoError(t, err)
+	got, err := os.ReadFile(gotPath)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+}
+
 func TestYamahaCLIMatchesFFmpeg(t *testing.T) {
 	const frame = 1024 * 2
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")

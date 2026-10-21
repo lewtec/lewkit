@@ -32,4 +32,5 @@ const (
 	IDADPCMIMAWAV           // adpcm_ima_wav
 	IDADPCMMS               // adpcm_ms
 	IDADPCMYAMAHA           // adpcm_yamaha
+	IDADPCMIMAQT            // adpcm_ima_qt
 )
