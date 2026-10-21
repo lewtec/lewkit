@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	_ "github.com/lewtec/lewkit/x/build/gocmd/lewkit"
 	"github.com/lewtec/lewkit/x/build/sign"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"

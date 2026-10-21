@@ -19,7 +19,7 @@ inputs: sakuracss: {
 inputs: tailwindcss: {
 	from:    "github:tailwindlabs/tailwindcss"
 }
-// .modot/config renders x/http/asset/lucide/version_gen.go from this version.
+// version stays empty. Modot follows the tag in modot.lock.json.
 inputs: lucide: {
 	from:    "github:lucide-icons/lucide"
 }

@@ -3,6 +3,7 @@ package term
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -76,11 +77,13 @@ func roomLabel(dir string) string {
 	if err != nil || home == "" {
 		return dir
 	}
-	if dir == home {
+	home = filepath.Clean(home)
+	cleaned := filepath.Clean(dir)
+	if cleaned == home {
 		return "~"
 	}
-	if strings.HasPrefix(dir, home+"/") {
-		return "~" + strings.TrimPrefix(dir, home)
+	if strings.HasPrefix(cleaned, home+string(filepath.Separator)) {
+		return "~" + filepath.ToSlash(strings.TrimPrefix(cleaned, home))
 	}
 	return dir
 }

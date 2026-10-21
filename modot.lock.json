@@ -278,6 +278,13 @@
     },
     {
       "kind": "tool",
+      "ref": "registry:patlint",
+      "depName": "lewtec/patlint",
+      "currentValue": "0.0.1",
+      "datasource": "github-releases"
+    },
+    {
+      "kind": "tool",
       "ref": "registry:resvg",
       "depName": "linebender/resvg",
       "currentValue": "0.48.1",
