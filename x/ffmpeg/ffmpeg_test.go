@@ -517,6 +517,24 @@ func TestH264RoundTrip(t *testing.T) {
 	require.Len(t, got, 16*16+8*8+8*8)
 }
 
+func TestIMAALPDecodeCLIMatchesFFmpeg(t *testing.T) {
+	const samplesN = 2048 + 101
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=22050:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	raw := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(raw, pcm, 0o644))
+	for _, ext := range []string{".pcm", ".tun"} {
+		alp := filepath.Join(dir, "a"+ext)
+		_ = systemFF(t, "-f", "s16le", "-ar", "22050", "-ac", "1", "-i", raw, "-c:a", "adpcm_ima_alp", "-f", "alp", alp)
+		want := systemFF(t, "-f", "alp", "-i", alp, "-f", "s16le", "-")
+		code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+			"-f", "alp", "-i", alp, "-f", "s16le", "-")
+		require.Equal(t, 0, code, stderr)
+		require.Equal(t, want, []byte(stdout), ext)
+	}
+}
+
 func TestIMAALPCLIMatchesFFmpeg(t *testing.T) {
 	const samplesN = 2048 + 101
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=22050:duration=1", "-f", "s16le", "-")

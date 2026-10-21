@@ -13,9 +13,16 @@ type alpCodec struct {
 	pcm  []int16
 	prev int
 	step int
+	rate int
 }
 
-func newIMAALP(Parameters) *alpCodec { return &alpCodec{} }
+func newIMAALP(par Parameters) *alpCodec {
+	rate := par.SampleRate
+	if rate <= 0 {
+		rate = 22050
+	}
+	return &alpCodec{rate: rate}
+}
 
 func (c *alpCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 	if frame == nil || frame.NbSamples == 0 {
@@ -34,6 +41,18 @@ func (c *alpCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 }
 
 func (c *alpCodec) Flush() ([]*avutil.Packet, error) { return c.emitALP(true) }
+
+func (c *alpCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
+	if pkt == nil || len(pkt.Data) == 0 {
+		return nil, nil
+	}
+	samples := alpExpand(pkt.Data, &c.prev, &c.step)
+	frame, err := pcmS16Mono(samples, c.rate, pkt.PTS)
+	if err != nil || frame == nil {
+		return nil, err
+	}
+	return []*avutil.Frame{frame}, nil
+}
 
 func (c *alpCodec) emitALP(flush bool) ([]*avutil.Packet, error) {
 	const frame = 2048
@@ -71,6 +90,42 @@ func IMAALPEncode(pcm []int16) []byte {
 		pcm = pcm[n:]
 	}
 	return out
+}
+
+// IMAALPDecode expands mono IMA ALP ADPCM. Nibbles are high then low.
+// The step term is (nibble&7)*step>>2. State starts at zero.
+func IMAALPDecode(data []byte) []int16 {
+	prev, step := 0, 0
+	return alpExpand(data, &prev, &step)
+}
+
+func alpExpand(data []byte, prev, step *int) []int16 {
+	out := make([]int16, len(data)*2)
+	for i, b := range data {
+		out[i*2] = alpExpandNibble(prev, step, int(b)>>4)
+		out[i*2+1] = alpExpandNibble(prev, step, int(b)&0x0F)
+	}
+	return out
+}
+
+func alpExpandNibble(pred, step *int, nibble int) int16 {
+	st := int(imaStep[*step])
+	idx := *step + int(imaIndex[nibble])
+	if idx < 0 {
+		idx = 0
+	} else if idx > 88 {
+		idx = 88
+	}
+	diff := ((nibble & 7) * st) >> 2
+	p := *pred
+	if nibble&8 != 0 {
+		p -= diff
+	} else {
+		p += diff
+	}
+	*pred = clipInt16(p)
+	*step = idx
+	return int16(*pred)
 }
 
 func alpPacket(pcm []int16, prev, step int) ([]byte, int, int) {

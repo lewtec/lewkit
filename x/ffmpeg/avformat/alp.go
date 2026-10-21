@@ -10,6 +10,46 @@ import (
 	"github.com/lewtec/lewkit/x/ffmpeg/avutil"
 )
 
+func openALP(b []byte) (Demuxer, error) {
+	if len(b) < 16 || string(b[:4]) != "ALP " {
+		return nil, fmt.Errorf("%w: alp", avutil.ErrInvalidData)
+	}
+	hsz := int(binary.LittleEndian.Uint32(b[4:8]))
+	if hsz != 8 && hsz != 12 {
+		return nil, fmt.Errorf("%w: alp header", avutil.ErrInvalidData)
+	}
+	if string(b[8:14]) != "ADPCM\x00" {
+		return nil, fmt.Errorf("%w: alp tag", avutil.ErrInvalidData)
+	}
+	if b[15] != 1 {
+		return nil, fmt.Errorf("%w: alp channels", avutil.ErrInvalidData)
+	}
+	hdr := 8 + hsz
+	if len(b) < hdr {
+		return nil, fmt.Errorf("%w: alp header", avutil.ErrInvalidData)
+	}
+	rate := 22050
+	if hsz == 12 {
+		rate = int(binary.LittleEndian.Uint32(b[16:20]))
+	}
+	if rate <= 0 || rate > 44100 {
+		return nil, fmt.Errorf("%w: alp rate %d", avutil.ErrInvalidData, rate)
+	}
+	data := b[hdr:]
+	tb := avutil.Q(1, int32(rate))
+	pkts := []*avutil.Packet{{
+		Data: append([]byte(nil), data...), Duration: int64(len(data) * 2),
+		TimeBase: tb, Key: true,
+	}}
+	return &memDemux{streams: []Stream{{
+		Par: avcodec.Parameters{
+			Type: avutil.MediaAudio, ID: avcodec.IDADPCMIMAALP, SampleFormat: avutil.SampleS16,
+			SampleRate: rate, Layout: avutil.Mono(), TimeBase: tb,
+		},
+		TimeBase: tb,
+	}}, pkts: pkts}, nil
+}
+
 // writeALP builds a LEGO Racers ALP file. A .pcm path stores the sample
 // rate (header size 12). Any other path is a .tun file at 22050 Hz.
 func writeALP(url string, streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
