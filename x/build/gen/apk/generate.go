@@ -36,10 +36,12 @@ type Config struct {
 	PackageID string `json:"package_id"`
 	// AppName is the launcher label.
 	AppName string `json:"app_name"`
-	// VersionName is Android versionName. Empty → derived (git describe / -X / devel).
+	// VersionName is Android versionName. Empty → git describe / -X / devel.
 	VersionName string `json:"version_name"`
-	// VersionCode is Android versionCode. Empty/0 → semver map or git rev-list count.
+	// VersionCode is the store integer. 0 is the git commit count, at least 1.
 	VersionCode int `json:"version_code"`
+	// Entry is provider:ref. go_main is the go: form when entry is empty.
+	Entry string `json:"entry,omitempty"`
 	// GoMain is a path (often relative to the config file or generated host)
 	// to the Go main package directory.
 	GoMain string `json:"go_main"`
@@ -127,14 +129,18 @@ func normalizeConfig(ctx context.Context, cfg Config) (Config, error) {
 		parts := strings.Split(cfg.PackageID, ".")
 		cfg.AppName = parts[len(parts)-1]
 	}
-	// Version defaults: prefer goreleaser-style / VCS identity over a fake 0.1.0.
+	// Version defaults: git describe for the name, commit count for the integer.
 	if cfg.VersionName == "" || cfg.VersionCode <= 0 {
-		info := version.Resolve(ctx)
+		dir := strings.TrimSpace(cfg.GoMain)
+		if dir == "" {
+			dir = "."
+		}
+		info := version.ResolveDir(ctx, dir)
 		if cfg.VersionName == "" {
 			cfg.VersionName = info.AndroidName()
 		}
 		if cfg.VersionCode <= 0 {
-			cfg.VersionCode = version.AndroidCodeFrom(info.Version, 0)
+			cfg.VersionCode = version.AndroidCodeFrom("", version.GitCommitCount(ctx, dir))
 		}
 	}
 	if strings.TrimSpace(cfg.GoMain) == "" {

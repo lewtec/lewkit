@@ -241,7 +241,7 @@ An artifact's preview path is `Artifact.Slug`, the first 16 hex characters of th
 
 ### Examples
 
-App demos live under `examples/app`. Each directory there is one program. `eletrocromo.json` sits next to the Go main. Run a program from the repository root:
+App demos live under `examples/app`. Each directory there is one program. `eletrocromo.json` sits next to that program. `entry` is `go:./cmd/main`, `astro:.`, or `static:site.zip`. `go_main` is `go:<path>`. The version name is `git describe`. The integer is the commit count, and the first commit is 1. Run a program from the repository root:
 
 ```bash
 go run ./cmd/lewkit release run --config ./examples/app/basic/eletrocromo.json

@@ -12,7 +12,6 @@ package version
 import (
 	"context"
 	"os"
-	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
@@ -85,6 +84,15 @@ func Resolve(ctx context.Context) Info {
 func ResolveDir(ctx context.Context, dir string) Info {
 	info := stampedFromLdflags()
 	fillFromBuildInfo(&info)
+	fillFromGit(ctx, &info, dir)
+	return info
+}
+
+// ResolveTree is the git identity of dir.
+// The running binary's module version is not used.
+// A directory without git stays 0.0.0-devel from AndroidName.
+func ResolveTree(ctx context.Context, dir string) Info {
+	info := Info{Version: "devel"}
 	fillFromGit(ctx, &info, dir)
 	return info
 }
@@ -183,46 +191,16 @@ func (i Info) AndroidName() string {
 	return v
 }
 
-// semverCore matches major.minor.patch at the start of a version string.
-var semverCore = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
-
-// AndroidCode is versionCode for Play (positive int, monotonic preference).
-//
-// Priority:
-//  1. semver major/minor/patch → MMmmpp (major*1_000_000 + minor*1_000 + patch)
-//  2. git rev-list --count HEAD when dir was used via WithGitCount
-//  3. 1
-//
-// Call AndroidCodeFrom with optional commitCount from git when available.
+// AndroidCode is the store integer for this snapshot when no commit count
+// was supplied. It is 1. GitCommitCount is the count to pass to AndroidCodeFrom.
 func (i Info) AndroidCode() int {
 	return AndroidCodeFrom(i.Version, 0)
 }
 
-// AndroidCodeFrom maps version (+ optional git commit count) to versionCode.
+// AndroidCodeFrom returns gitCommitCount when it is positive, and 1 otherwise.
+// version is not read. The store integer is the commit count.
 func AndroidCodeFrom(version string, gitCommitCount int) int {
-	if m := semverCore.FindStringSubmatch(strings.TrimSpace(version)); len(m) == 4 {
-		// Regex already matched digits; Atoi cannot fail for these groups.
-		maj, errMaj := strconv.Atoi(m[1])
-		min, errMin := strconv.Atoi(m[2])
-		pat, errPat := strconv.Atoi(m[3])
-		if errMaj != nil || errMin != nil || errPat != nil {
-			return 1
-		}
-		// Cap components so we stay in a reasonable int range.
-		if maj > 2099 {
-			maj = 2099
-		}
-		if min > 999 {
-			min = 999
-		}
-		if pat > 999 {
-			pat = 999
-		}
-		code := maj*1_000_000 + min*1_000 + pat
-		if code > 0 {
-			return code
-		}
-	}
+	_ = version
 	if gitCommitCount > 0 {
 		return gitCommitCount
 	}

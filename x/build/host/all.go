@@ -93,7 +93,7 @@ func (u Uber) Run(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	graph, paths, iconDir, err := u.assemble(build.DesktopTargets(), apps)
+	graph, paths, iconDir, err := u.assemble(ctx, build.DesktopTargets(), apps)
 	if err != nil {
 		return nil, err
 	}
@@ -112,11 +112,11 @@ func (u Uber) Run(ctx context.Context) ([]string, error) {
 	return paths, nil
 }
 
-func (u Uber) assemble(archives, apps []build.Target) (workflow.Graph, []string, *string, error) {
+func (u Uber) assemble(ctx context.Context, archives, apps []build.Target) (workflow.Graph, []string, *string, error) {
 	if len(archives) == 0 && len(apps) == 0 {
 		return workflow.Graph{}, nil, nil, ErrBuildNoTarget
 	}
-	cfg, base, err := u.Spec.Load()
+	cfg, base, err := u.Spec.Load(ctx)
 	if err != nil {
 		return workflow.Graph{}, nil, nil, err
 	}

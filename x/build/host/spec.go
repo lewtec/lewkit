@@ -1,11 +1,14 @@
 package host
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/lewtec/lewkit/x/build/entry"
 	"github.com/lewtec/lewkit/x/build/gen/apk"
+	"github.com/lewtec/lewkit/x/build/version"
 )
 
 // Spec is the shared app config. Flags overlay eletrocromo.json. Empty flags
@@ -21,7 +24,13 @@ type Spec struct {
 
 // Load reads the JSON file when it exists and merges these fields on top.
 // Dir is the module directory used when the file is omitted.
-func (s Spec) Load() (apk.Config, string, error) {
+// ctx ends the git reads and an astro or static materialize.
+// A non-empty GoMain is the --main flag: it selects go:<flag> for this load.
+// The version name and the store integer come from git in the config directory.
+func (s Spec) Load(ctx context.Context) (apk.Config, string, error) {
+	if err := ctx.Err(); err != nil {
+		return apk.Config{}, "", context.Cause(ctx)
+	}
 	dir := strings.TrimSpace(s.Dir)
 	if dir == "" {
 		dir = "."
@@ -50,13 +59,30 @@ func (s Spec) Load() (apk.Config, string, error) {
 		VersionName: s.Version,
 		GoMain:      s.GoMain,
 	})
-	if strings.TrimSpace(cfg.GoMain) == "" {
+	if strings.TrimSpace(s.GoMain) != "" {
+		cfg.Entry = ""
+		cfg.GoMain = s.GoMain
+	}
+	if strings.TrimSpace(cfg.Entry) == "" && strings.TrimSpace(cfg.GoMain) == "" {
 		cfg.GoMain = dir
 	}
-	main, err := apk.ResolveGoMain(cfg.GoMain, base)
+	fillVersion(ctx, &cfg, base)
+	main, err := entry.Main(ctx, cfg.Entry, cfg.GoMain, base, cfg.AppName)
 	if err != nil {
 		return apk.Config{}, "", err
 	}
 	cfg.GoMain = main
 	return cfg, base, nil
+}
+
+func fillVersion(ctx context.Context, cfg *apk.Config, base string) {
+	if strings.TrimSpace(cfg.VersionName) == "" {
+		cfg.VersionName = version.ResolveTree(ctx, base).AndroidName()
+	}
+	if cfg.VersionCode <= 0 {
+		cfg.VersionCode = version.GitCommitCount(ctx, base)
+		if cfg.VersionCode < 1 {
+			cfg.VersionCode = 1
+		}
+	}
 }

@@ -46,12 +46,16 @@ func ApplyHostDefaults(ctx context.Context, cfg HostConfig) (HostConfig, error) 
 		cfg.AppName = parts[len(parts)-1]
 	}
 	if cfg.VersionName == "" || cfg.VersionCode <= 0 {
-		info := version.Resolve(ctx)
+		dir := strings.TrimSpace(cfg.GoMain)
+		if dir == "" {
+			dir = "."
+		}
+		info := version.ResolveDir(ctx, dir)
 		if cfg.VersionName == "" {
 			cfg.VersionName = info.AndroidName()
 		}
 		if cfg.VersionCode <= 0 {
-			cfg.VersionCode = version.AndroidCodeFrom(info.Version, 0)
+			cfg.VersionCode = version.AndroidCodeFrom("", version.GitCommitCount(ctx, dir))
 		}
 	}
 	if strings.TrimSpace(cfg.GoMain) == "" {
