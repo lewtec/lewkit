@@ -4,20 +4,21 @@ package term
 
 import (
 	"fmt"
-	errs "github.com/lewtec/lewkit/x/errs"
+	"github.com/lewtec/lewkit/x/errs"
 	"strings"
 )
 
-var (
-	// ErrMethod means the text is not a known method.
-	ErrMethod = errs.Wrap(errs.ErrUnknown, "unknown method")
-	// ErrNotice means the text is not a known notice.
-	ErrNotice = errs.Wrap(errs.ErrUnknown, "unknown notice")
-	// ErrAction means the text is not a known action.
-	ErrAction = errs.Wrap(errs.ErrUnknown, "unknown action")
-	// ErrStep means the text is not a known step.
-	ErrStep = errs.Wrap(errs.ErrUnknown, "unknown step")
-)
+// ErrMethod means the text is not a known method.
+var ErrMethod = errs.Wrap(errs.ErrUnknown, "unknown method")
+
+// ErrNotice means the text is not a known notice.
+var ErrNotice = errs.Wrap(errs.ErrUnknown, "unknown notice")
+
+// ErrAction means the text is not a known action.
+var ErrAction = errs.Wrap(errs.ErrUnknown, "unknown action")
+
+// ErrStep means the text is not a known step.
+var ErrStep = errs.Wrap(errs.ErrUnknown, "unknown step")
 
 // String is the text of a Method.
 func (m Method) String() string {
