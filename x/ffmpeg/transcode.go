@@ -632,6 +632,8 @@ func chooseCodec(opt fileOpt, format, url string, media avutil.MediaType, index 
 			return avcodec.IDGSM, nil
 		case "g722":
 			return avcodec.IDG722, nil
+		case "g726":
+			return avcodec.IDG726, nil
 		case "mp2":
 			return avcodec.IDMP2, nil
 		case "flac":
@@ -879,7 +881,7 @@ func sampleFor(id avcodec.ID, fallback avutil.SampleFormat, opt fileOpt) avutil.
 	switch id {
 	case avcodec.IDPCMU8:
 		return avutil.SampleU8
-	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC, avcodec.IDGSM, avcodec.IDGSMMS, avcodec.IDMP2, avcodec.IDADPCMIMAWAV, avcodec.IDADPCMMS, avcodec.IDADPCMYAMAHA, avcodec.IDADPCMIMAQT, avcodec.IDG722, avcodec.IDLIBSHINE:
+	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC, avcodec.IDGSM, avcodec.IDGSMMS, avcodec.IDMP2, avcodec.IDADPCMIMAWAV, avcodec.IDADPCMMS, avcodec.IDADPCMYAMAHA, avcodec.IDADPCMIMAQT, avcodec.IDG722, avcodec.IDLIBSHINE, avcodec.IDG726:
 		return avutil.SampleS16
 	case avcodec.IDPCMS24LE, avcodec.IDPCMS32LE:
 		return avutil.SampleS32

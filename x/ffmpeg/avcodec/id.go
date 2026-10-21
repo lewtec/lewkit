@@ -35,4 +35,5 @@ const (
 	IDADPCMIMAQT            // adpcm_ima_qt
 	IDG722                  // g722
 	IDLIBSHINE              // libshine
+	IDG726                  // g726
 )

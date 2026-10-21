@@ -50,6 +50,24 @@ func openG722(data []byte) (Demuxer, error) {
 	}, nil
 }
 
+func openG726(data []byte) (Demuxer, error) {
+	tb := avutil.Q(1, 8000)
+	return &memDemux{
+		streams: []Stream{{
+			Par: avcodec.Parameters{
+				Type: avutil.MediaAudio, ID: avcodec.IDG726,
+				SampleFormat: avutil.SampleS16, SampleRate: 8000,
+				Layout: avutil.Mono(), TimeBase: tb,
+			},
+			TimeBase: tb,
+		}},
+		pkts: []*avutil.Packet{{
+			Data: append([]byte(nil), data...), TimeBase: tb, Key: true,
+			Duration: int64(len(data) * 2),
+		}},
+	}, nil
+}
+
 func openH264(data []byte) (Demuxer, error) {
 	parts := splitAccessUnits(data)
 	if len(parts) == 0 {

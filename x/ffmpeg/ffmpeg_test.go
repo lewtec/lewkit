@@ -212,6 +212,24 @@ func TestAVIAndMOV(t *testing.T) {
 	require.Len(t, got, 16*16*3*2)
 }
 
+func TestG726CLIMatchesFFmpeg(t *testing.T) {
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=0.04", "-f", "s16le", "-")
+	path := filepath.Join(t.TempDir(), "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	args := []string{"-f", "s16le", "-ar", "8000", "-ac", "1", "-i", path, "-c:a", "g726", "-f", "g726", "-"}
+	want := systemFF(t, args...)
+	code, stdout, stderr := runFF(t, append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0"}, args...)...)
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+	gpath := filepath.Join(t.TempDir(), "a.g726")
+	require.NoError(t, os.WriteFile(gpath, want, 0o644))
+	decoded := systemFF(t, "-f", "g726", "-i", gpath, "-f", "s16le", "-")
+	code, stdout, stderr = runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "g726", "-i", gpath, "-f", "s16le", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, decoded, []byte(stdout))
+}
+
 func TestShineCLIMatchesFFmpeg(t *testing.T) {
 	const frame = 1152 * 4
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")
