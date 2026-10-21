@@ -84,7 +84,8 @@ func Formats() []Info {
 		{Name: "md5", Long: "MD5 testing", Demux: false, Mux: true},
 		{Name: "framemd5", Long: "frame MD5 testing", Demux: false, Mux: true},
 		{Name: "h264", Long: "raw H.264 annex B", Demux: true, Mux: true},
-		{Name: "gsm", Long: "raw GSM 06.10", Demux: true, Mux: false},
+		{Name: "hevc", Long: "raw HEVC annex B", Demux: true, Mux: true},
+		{Name: "gsm", Long: "raw GSM 06.10", Demux: true, Mux: true},
 	}
 }
 
@@ -109,6 +110,8 @@ func Guess(path string) string {
 		return "rawvideo"
 	case ".h264", ".264":
 		return "h264"
+	case ".hevc", ".h265", ".265":
+		return "hevc"
 	case ".gsm":
 		return "gsm"
 	case ".pcm":
@@ -150,7 +153,7 @@ func OpenInput(ctx context.Context, url, format string, opt Options) (Demuxer, e
 		return openLavfi(ctx, url, opt)
 	case "image2":
 		return openImage2(ctx, url, opt)
-	case "wav", "flac", "mp3", "ogg", "avi", "mp4", "mov", "image2pipe", "rawvideo", "h264", "gsm", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw":
+	case "wav", "flac", "mp3", "ogg", "avi", "mp4", "mov", "image2pipe", "rawvideo", "h264", "hevc", "gsm", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw":
 		rc, err := openRead(ctx, url, opt)
 		if err != nil {
 			return nil, err
@@ -190,7 +193,7 @@ func Create(ctx context.Context, url, format string, opt Options) (Muxer, error)
 		return &hashMux{name: format, w: w, opt: opt}, nil
 	case "image2", "image2pipe":
 		return &imageMux{ctx: ctx, url: url, format: format, opt: opt}, nil
-	case "rawvideo", "h264", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
+	case "rawvideo", "h264", "hevc", "gsm", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
 		w, err := openWrite(ctx, url, opt)
 		if err != nil {
 			return nil, err
@@ -259,6 +262,8 @@ func openBytes(format string, data []byte, opt Options) (Demuxer, error) {
 		return openRawVideo(data, opt)
 	case "h264":
 		return openH264(data)
+	case "hevc":
+		return openHEVC(data)
 	case "gsm":
 		return openGSM(data)
 	default:

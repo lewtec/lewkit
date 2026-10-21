@@ -599,12 +599,16 @@ func chooseCodec(opt fileOpt, format, url string, media avutil.MediaType, index 
 			return avcodec.IDMJPEG, nil
 		case "h264":
 			return avcodec.IDH264, nil
+		case "hevc":
+			return avcodec.IDHEVC, nil
 		default:
 			return avcodec.IDRawVideo, nil
 		}
 	}
 	if media == avutil.MediaAudio {
 		switch format {
+		case "gsm":
+			return avcodec.IDGSM, nil
 		case "flac":
 			return avcodec.IDFLAC, nil
 		case "u8":
@@ -739,7 +743,7 @@ func encodeFrames(id avcodec.ID, frames []*avutil.Frame, opt fileOpt) (avcodec.P
 		if opt.pixSet && id == avcodec.IDRawVideo {
 			par.Format = opt.pix
 		}
-		if id == avcodec.IDH264 {
+		if id == avcodec.IDH264 || id == avcodec.IDHEVC {
 			par.Format = avutil.PixYUV420P
 		}
 		if opt.width > 0 {
@@ -750,6 +754,11 @@ func encodeFrames(id avcodec.ID, frames []*avutil.Frame, opt fileOpt) (avcodec.P
 		par.SampleFormat = sampleFor(id, par.SampleFormat, opt)
 		if opt.ar > 0 {
 			par.SampleRate = opt.ar
+		}
+		if id == avcodec.IDGSM {
+			par.SampleFormat = avutil.SampleS16
+			par.SampleRate = 8000
+			par.Layout = avutil.Mono()
 		}
 		if opt.layoutSet {
 			par.Layout = opt.layout
@@ -794,10 +803,17 @@ func encodeFrames(id avcodec.ID, frames []*avutil.Frame, opt fileOpt) (avcodec.P
 		par.SAR = frames[0].SAR
 	}
 	if par.Type == avutil.MediaAudio && len(frames) > 0 {
-		par.SampleRate = frames[len(frames)-1].SampleRate
-		par.SampleFormat = frames[len(frames)-1].SampleFmt
-		par.Layout = frames[len(frames)-1].Layout
-		par.TimeBase = frames[0].TimeBase
+		if id == avcodec.IDGSM {
+			par.SampleRate = 8000
+			par.SampleFormat = avutil.SampleS16
+			par.Layout = avutil.Mono()
+			par.TimeBase = avutil.Q(1, 8000)
+		} else {
+			par.SampleRate = frames[len(frames)-1].SampleRate
+			par.SampleFormat = frames[len(frames)-1].SampleFmt
+			par.Layout = frames[len(frames)-1].Layout
+			par.TimeBase = frames[0].TimeBase
+		}
 	}
 	return par, packets, nil
 }
@@ -825,7 +841,7 @@ func sampleFor(id avcodec.ID, fallback avutil.SampleFormat, opt fileOpt) avutil.
 	switch id {
 	case avcodec.IDPCMU8:
 		return avutil.SampleU8
-	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC:
+	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC, avcodec.IDGSM:
 		return avutil.SampleS16
 	case avcodec.IDPCMS24LE, avcodec.IDPCMS32LE:
 		return avutil.SampleS32

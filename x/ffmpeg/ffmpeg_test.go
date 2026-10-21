@@ -211,6 +211,15 @@ func TestAVIAndMOV(t *testing.T) {
 	require.Len(t, got, 16*16*3*2)
 }
 
+func TestGSMEncodeMatchesFFmpeg(t *testing.T) {
+	spec := "sine=frequency=440:sample_rate=8000:duration=0.04"
+	want := systemFF(t, "-f", "lavfi", "-i", spec, "-c:a", "libgsm", "-f", "gsm", "-")
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "lavfi", "-i", spec, "-c:a", "libgsm", "-f", "gsm", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+}
+
 func TestGSMMatchesFFmpeg(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "a.gsm")
@@ -220,6 +229,17 @@ func TestGSMMatchesFFmpeg(t *testing.T) {
 	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-f", "gsm", "-i", path, "-f", "s16le", "-")
 	require.Equal(t, 0, code, stderr)
 	require.Equal(t, want, []byte(stdout))
+}
+
+func TestHEVCRoundTrip(t *testing.T) {
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "lavfi", "-i", "color=c=red:s=16x16:r=25:d=0.04", "-frames:v", "1",
+		"-c:v", "libx265", "-f", "hevc", "-")
+	require.Equal(t, 0, code, stderr)
+	path := filepath.Join(t.TempDir(), "a.hevc")
+	require.NoError(t, os.WriteFile(path, []byte(stdout), 0o644))
+	got := systemFF(t, "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "yuv420p", "-")
+	require.Len(t, got, 16*16+8*8+8*8)
 }
 
 func TestH264RoundTrip(t *testing.T) {

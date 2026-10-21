@@ -7,21 +7,25 @@ import (
 	"github.com/lewtec/lewkit/x/ffmpeg/avutil"
 )
 
-// gsmCodec decodes GSM 06.10 (libgsm) frames. The fixed-point steps follow
-// the FFmpeg 5.1.9 decoder, which matches libgsm on the 13 kbit/s bitstream.
+// gsmCodec is GSM 06.10 (libgsm) at 13 kbit/s. Decode follows the FFmpeg 5.1.9
+// decoder. Encode follows libgsm with FAST and WAV49 off.
 type gsmCodec struct {
-	par    Parameters
-	ref    [280]int16
-	v      [9]int32
-	lar    [2][8]int32
-	larIdx int
-	msr    int32
-	buf    []byte
-	pcm    []int16
+	par     Parameters
+	ref     [280]int16
+	v       [9]int32
+	lar     [2][8]int32
+	larIdx  int
+	msr     int32
+	buf     []byte
+	pcm     []int16
+	enc     gsmEnc
+	encBase int64
+	encOff  int64
+	encHave bool
 }
 
 func newGSMCodec(par Parameters) *gsmCodec {
-	return &gsmCodec{par: par}
+	return &gsmCodec{par: par, enc: gsmEnc{nrp: 40}}
 }
 
 func (g *gsmCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
@@ -54,11 +58,57 @@ func (g *gsmCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
 	return []*avutil.Frame{out}, nil
 }
 
-func (g *gsmCodec) Encode(*avutil.Frame) ([]*avutil.Packet, error) {
-	return nil, fmt.Errorf("%w: gsm encoder", avutil.ErrUnsupported)
+func (g *gsmCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
+	if frame == nil || frame.NbSamples == 0 {
+		return nil, nil
+	}
+	if frame.SampleFmt != avutil.SampleS16 {
+		return nil, fmt.Errorf("%w: gsm %s", avutil.ErrInvalidData, frame.SampleFmt)
+	}
+	if ch := frame.Layout.Channels(); ch > 1 {
+		return nil, fmt.Errorf("%w: gsm channels", avutil.ErrRange)
+	}
+	if len(frame.Data) == 0 || len(frame.Data[0]) < frame.NbSamples*2 {
+		return nil, fmt.Errorf("%w: gsm samples", avutil.ErrInvalidData)
+	}
+	if !g.encHave {
+		g.encBase = frame.PTS
+		g.encHave = true
+	}
+	for i := 0; i < frame.NbSamples; i++ {
+		g.pcm = append(g.pcm, int16(binary.LittleEndian.Uint16(frame.Data[0][i*2:])))
+	}
+	return g.emitGSM()
 }
 
-func (g *gsmCodec) Flush() ([]*avutil.Packet, error) { return nil, nil }
+func (g *gsmCodec) Flush() ([]*avutil.Packet, error) {
+	if len(g.pcm) == 0 {
+		return nil, nil
+	}
+	for len(g.pcm) < 160 {
+		g.pcm = append(g.pcm, 0)
+	}
+	return g.emitGSM()
+}
+
+func (g *gsmCodec) emitGSM() ([]*avutil.Packet, error) {
+	var pkts []*avutil.Packet
+	for len(g.pcm) >= 160 {
+		raw, err := g.encodeFrame(g.pcm[:160])
+		if err != nil {
+			return nil, err
+		}
+		g.pcm = append([]int16(nil), g.pcm[160:]...)
+		pts := g.encBase + g.encOff
+		g.encOff += 160
+		pkts = append(pkts, &avutil.Packet{
+			Data: append([]byte(nil), raw[:]...),
+			PTS:  pts, DTS: pts, Duration: 160,
+			TimeBase: avutil.Q(1, 8000),
+		})
+	}
+	return pkts, nil
+}
 
 func (g *gsmCodec) decodeFrame(frame []byte) ([]int16, error) {
 	if len(frame) < 33 {

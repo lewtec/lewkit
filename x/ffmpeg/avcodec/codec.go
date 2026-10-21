@@ -70,17 +70,20 @@ func Codecs() []Codec {
 		{IDFLAC, "flac", "FLAC", avutil.MediaAudio, true, true, false, false, true},
 		{IDMP3, "mp3", "MP3", avutil.MediaAudio, true, false, false, true, false},
 		{IDVorbis, "vorbis", "Vorbis", avutil.MediaAudio, true, false, false, true, false},
-		{IDGSM, "gsm", "GSM 06.10", avutil.MediaAudio, true, false, false, true, false},
+		{IDGSM, "gsm", "GSM 06.10", avutil.MediaAudio, true, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
+		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
 }
 
 // FindByName resolves a codec name such as pcm_s16le or png.
-// libx264 and libgsm are the in-tree stand-ins for those external encoders.
+// libx264, libx265, and libgsm are the in-tree stand-ins for those external encoders.
 func FindByName(name string) (Codec, bool) {
 	switch name {
 	case "libx264", "libx264rgb":
 		name = "h264"
+	case "libx265":
+		name = "hevc"
 	case "libgsm":
 		name = "gsm"
 	}
@@ -120,6 +123,8 @@ func OpenDecoder(par Parameters) (Decoder, error) {
 		return newGSMCodec(par), nil
 	case IDH264:
 		return newH264(par), nil
+	case IDHEVC:
+		return newHEVC(par), nil
 	default:
 		return nil, fmt.Errorf("%w: decoder %s", avutil.ErrUnsupported, par.ID)
 	}
@@ -138,8 +143,12 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return &imageCodec{par: par}, nil
 	case IDFLAC:
 		return &flacCodec{par: par}, nil
+	case IDGSM:
+		return newGSMCodec(par), nil
 	case IDH264:
 		return newH264(par), nil
+	case IDHEVC:
+		return newHEVC(par), nil
 	default:
 		return nil, fmt.Errorf("%w: encoder %s", avutil.ErrUnsupported, par.ID)
 	}
@@ -154,6 +163,7 @@ func (mp3Codec) Close() error    { return nil }
 func (vorbisCodec) Close() error { return nil }
 func (gsmCodec) Close() error    { return nil }
 func (h264Codec) Close() error   { return nil }
+func (hevcCodec) Close() error   { return nil }
 
 func (pcmCodec) Flush() ([]*avutil.Packet, error)   { return nil, nil }
 func (xlawCodec) Flush() ([]*avutil.Packet, error)  { return nil, nil }

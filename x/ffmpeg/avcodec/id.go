@@ -26,4 +26,5 @@ const (
 	IDVorbis             // vorbis
 	IDGSM                // gsm
 	IDH264               // h264
+	IDHEVC               // hevc
 )
