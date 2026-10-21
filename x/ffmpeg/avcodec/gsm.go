@@ -22,10 +22,17 @@ type gsmCodec struct {
 	encBase int64
 	encOff  int64
 	encHave bool
+	ms      bool
 }
 
 func newGSMCodec(par Parameters) *gsmCodec {
 	return &gsmCodec{par: par, enc: gsmEnc{nrp: 40}}
+}
+
+func newGSMMS(par Parameters) *gsmCodec {
+	c := newGSMCodec(par)
+	c.ms = true
+	return c
 }
 
 func (g *gsmCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
@@ -85,13 +92,20 @@ func (g *gsmCodec) Flush() ([]*avutil.Packet, error) {
 	if len(g.pcm) == 0 {
 		return nil, nil
 	}
-	for len(g.pcm) < 160 {
+	need := 160
+	if g.ms {
+		need = 320
+	}
+	for len(g.pcm) < need {
 		g.pcm = append(g.pcm, 0)
 	}
 	return g.emitGSM()
 }
 
 func (g *gsmCodec) emitGSM() ([]*avutil.Packet, error) {
+	if g.ms {
+		return g.emitGSMMS()
+	}
 	var pkts []*avutil.Packet
 	for len(g.pcm) >= 160 {
 		raw, err := g.encodeFrame(g.pcm[:160])
@@ -104,6 +118,25 @@ func (g *gsmCodec) emitGSM() ([]*avutil.Packet, error) {
 		pkts = append(pkts, &avutil.Packet{
 			Data: append([]byte(nil), raw[:]...),
 			PTS:  pts, DTS: pts, Duration: 160,
+			TimeBase: avutil.Q(1, 8000),
+		})
+	}
+	return pkts, nil
+}
+
+func (g *gsmCodec) emitGSMMS() ([]*avutil.Packet, error) {
+	var pkts []*avutil.Packet
+	for len(g.pcm) >= 320 {
+		raw, err := g.encodeMS(g.pcm[:320])
+		if err != nil {
+			return nil, err
+		}
+		g.pcm = append([]int16(nil), g.pcm[320:]...)
+		pts := g.encBase + g.encOff
+		g.encOff += 320
+		pkts = append(pkts, &avutil.Packet{
+			Data: append([]byte(nil), raw[:]...),
+			PTS:  pts, DTS: pts, Duration: 320,
 			TimeBase: avutil.Q(1, 8000),
 		})
 	}

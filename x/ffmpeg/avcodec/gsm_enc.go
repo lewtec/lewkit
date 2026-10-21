@@ -20,32 +20,42 @@ type gsmEnc struct {
 	e     [50]int16
 }
 
+type gsmCodes struct {
+	larc              [8]int16
+	nc, bc, mc, xmaxc [4]int16
+	xmc               [52]int16
+}
+
 func (g *gsmCodec) encodeFrame(samples []int16) ([33]byte, error) {
-	var out [33]byte
+	c, err := g.gsmAnalyze(samples)
+	if err != nil {
+		return [33]byte{}, err
+	}
+	return gsmEncPack(c.larc, c.nc, c.bc, c.mc, c.xmaxc, c.xmc), nil
+}
+
+func (g *gsmCodec) gsmAnalyze(samples []int16) (gsmCodes, error) {
+	var c gsmCodes
 	if len(samples) != 160 {
-		return out, fmt.Errorf("%w: gsm frame", avutil.ErrInvalidData)
+		return c, fmt.Errorf("%w: gsm frame", avutil.ErrInvalidData)
 	}
 	e := &g.enc
 	var so [160]int16
 	gsmEncPreprocess(e, samples, so[:])
-	var larc [8]int16
-	gsmEncLPC(so[:], larc[:])
-	gsmEncShortTerm(e, larc[:], so[:])
-
-	var nc, bc, mc, xmaxc [4]int16
-	var xmc [52]int16
+	gsmEncLPC(so[:], c.larc[:])
+	gsmEncShortTerm(e, c.larc[:], so[:])
 	base := 120
 	for k := 0; k < 4; k++ {
 		var dpp [40]int16
-		gsmEncLTP(so[k*40:k*40+40], e.dp0[:], base, e.e[5:45], dpp[:], &nc[k], &bc[k])
-		gsmEncRPE(e.e[:], &xmaxc[k], &mc[k], xmc[k*13:k*13+13])
+		gsmEncLTP(so[k*40:k*40+40], e.dp0[:], base, e.e[5:45], dpp[:], &c.nc[k], &c.bc[k])
+		gsmEncRPE(e.e[:], &c.xmaxc[k], &c.mc[k], c.xmc[k*13:k*13+13])
 		for i := 0; i < 40; i++ {
 			e.dp0[base+i] = gsmEncAdd(e.e[5+i], dpp[i])
 		}
 		base += 40
 	}
 	copy(e.dp0[:120], e.dp0[160:280])
-	return gsmEncPack(larc, nc, bc, mc, xmaxc, xmc), nil
+	return c, nil
 }
 
 func gsmEncAdd(a, b int16) int16 { return int16(clip16(int32(a) + int32(b))) }

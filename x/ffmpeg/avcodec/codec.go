@@ -71,13 +71,15 @@ func Codecs() []Codec {
 		{IDMP3, "mp3", "MP3", avutil.MediaAudio, true, false, false, true, false},
 		{IDVorbis, "vorbis", "Vorbis", avutil.MediaAudio, true, false, false, true, false},
 		{IDGSM, "gsm", "GSM 06.10", avutil.MediaAudio, true, true, false, true, false},
+		{IDGSMMS, "gsm_ms", "GSM 06.10 Microsoft", avutil.MediaAudio, false, true, false, true, false},
+		{IDMP2, "mp2fixed", "MP2 fixed-point", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
 }
 
 // FindByName resolves a codec name such as pcm_s16le or png.
-// libx264, libx265, and libgsm are the in-tree stand-ins for those external encoders.
+// libx264, libx265, libgsm, and libgsm_ms are the in-tree stand-ins for those external encoders.
 func FindByName(name string) (Codec, bool) {
 	switch name {
 	case "libx264", "libx264rgb":
@@ -86,6 +88,8 @@ func FindByName(name string) (Codec, bool) {
 		name = "hevc"
 	case "libgsm":
 		name = "gsm"
+	case "libgsm_ms":
+		name = "gsm_ms"
 	}
 	if id, err := ParseID(name); err == nil && id != IDNone {
 		for _, item := range Codecs() {
@@ -145,6 +149,10 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return &flacCodec{par: par}, nil
 	case IDGSM:
 		return newGSMCodec(par), nil
+	case IDGSMMS:
+		return newGSMMS(par), nil
+	case IDMP2:
+		return newMP2(par), nil
 	case IDH264:
 		return newH264(par), nil
 	case IDHEVC:
@@ -162,6 +170,7 @@ func (flacCodec) Close() error   { return nil }
 func (mp3Codec) Close() error    { return nil }
 func (vorbisCodec) Close() error { return nil }
 func (gsmCodec) Close() error    { return nil }
+func (mp2Codec) Close() error    { return nil }
 func (h264Codec) Close() error   { return nil }
 func (hevcCodec) Close() error   { return nil }
 

@@ -90,6 +90,8 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 	if channels <= 0 {
 		channels = 1
 	}
+	block := 0
+	fmtExtra := []byte(nil)
 	switch par.ID {
 	case avcodec.IDPCMU8:
 		bits = 8
@@ -105,6 +107,11 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 		tag, bits = 6, 8
 	case avcodec.IDPCMMULAW:
 		tag, bits = 7, 8
+	case avcodec.IDGSMMS:
+		tag = 0x31
+		bits = 0
+		block = 65
+		fmtExtra = []byte{2, 0, 0x40, 0x01}
 	default:
 		return nil, fmt.Errorf("%w: wav %s", avutil.ErrUnsupported, par.ID)
 	}
@@ -112,20 +119,29 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 	if rate <= 0 {
 		rate = 44100
 	}
-	block := channels * bits / 8
-	hdr := make([]byte, 44)
+	if block == 0 {
+		block = channels * bits / 8
+	}
+	byteRate := rate * block
+	if par.ID == avcodec.IDGSMMS {
+		byteRate = rate * 65 / 320
+	}
+	fmtSize := 16 + len(fmtExtra)
+	hdr := make([]byte, 28+fmtSize)
 	copy(hdr[0:], "RIFF")
-	binary.LittleEndian.PutUint32(hdr[4:], uint32(36+len(pcm)))
+	binary.LittleEndian.PutUint32(hdr[4:], uint32(20+fmtSize+len(pcm)))
 	copy(hdr[8:], "WAVE")
 	copy(hdr[12:], "fmt ")
-	binary.LittleEndian.PutUint32(hdr[16:], 16)
+	binary.LittleEndian.PutUint32(hdr[16:], uint32(fmtSize))
 	binary.LittleEndian.PutUint16(hdr[20:], tag)
 	binary.LittleEndian.PutUint16(hdr[22:], uint16(channels))
 	binary.LittleEndian.PutUint32(hdr[24:], uint32(rate))
-	binary.LittleEndian.PutUint32(hdr[28:], uint32(rate*block))
+	binary.LittleEndian.PutUint32(hdr[28:], uint32(byteRate))
 	binary.LittleEndian.PutUint16(hdr[32:], uint16(block))
 	binary.LittleEndian.PutUint16(hdr[34:], uint16(bits))
-	copy(hdr[36:], "data")
-	binary.LittleEndian.PutUint32(hdr[40:], uint32(len(pcm)))
+	copy(hdr[36:], fmtExtra)
+	dataAt := 20 + fmtSize
+	copy(hdr[dataAt:], "data")
+	binary.LittleEndian.PutUint32(hdr[dataAt+4:], uint32(len(pcm)))
 	return append(hdr, pcm...), nil
 }

@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"bytes"
+	"encoding/binary"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -209,6 +210,43 @@ func TestAVIAndMOV(t *testing.T) {
 	require.Equal(t, 0, code, stderr)
 	got = systemFF(t, "-i", mov, "-frames:v", "2", "-f", "rawvideo", "-pix_fmt", "rgb24", "-")
 	require.Len(t, got, 16*16*3*2)
+}
+
+func TestMP2FixedCLIMatchesFFmpeg(t *testing.T) {
+	spec := "sine=frequency=440:sample_rate=44100:duration=0.05"
+	want := systemFF(t, "-f", "lavfi", "-i", spec, "-c:a", "mp2fixed", "-f", "mp2", "-")
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "lavfi", "-i", spec, "-c:a", "mp2fixed", "-f", "mp2", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+}
+
+func TestGSMMSEncodeMatchesFFmpeg(t *testing.T) {
+	spec := "sine=frequency=440:sample_rate=8000:duration=0.08"
+	wantWav := systemFF(t, "-f", "lavfi", "-i", spec, "-c:a", "libgsm_ms", "-f", "wav", "-")
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "lavfi", "-i", spec, "-c:a", "libgsm_ms", "-f", "wav", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, wavData(t, wantWav), wavData(t, []byte(stdout)))
+}
+
+func wavData(t *testing.T, b []byte) []byte {
+	t.Helper()
+	off := 12
+	for off+8 <= len(b) {
+		name := string(b[off : off+4])
+		n := int(binary.LittleEndian.Uint32(b[off+4:]))
+		off += 8
+		if n == int(^uint32(0)) {
+			n = len(b) - off
+		}
+		if name == "data" {
+			return b[off : off+n]
+		}
+		off += n
+	}
+	t.Fatal("wav data missing")
+	return nil
 }
 
 func TestGSMEncodeMatchesFFmpeg(t *testing.T) {

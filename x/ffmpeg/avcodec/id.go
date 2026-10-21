@@ -27,4 +27,6 @@ const (
 	IDGSM                // gsm
 	IDH264               // h264
 	IDHEVC               // hevc
+	IDMP2                // mp2fixed
+	IDGSMMS              // gsm_ms
 )
