@@ -81,6 +81,28 @@ func TestSpecMainFlagBeatsEntry(t *testing.T) {
 	require.Equal(t, main, cfg.GoMain)
 }
 
+func TestSpecEntryFlagBeatsFileAndMain(t *testing.T) {
+	dir := t.TempDir()
+	other := filepath.Join(dir, "other")
+	missing := filepath.Join(dir, "missing")
+	require.NoError(t, os.Mkdir(other, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "eletrocromo.json"), []byte(`{
+		"package_id": "br.tec.lew.file",
+		"app_name": "File",
+		"entry": "static:missing.zip",
+		"go_main": "."
+	}`), 0o644))
+
+	cfg, _, err := Spec{
+		Dir:    dir,
+		Config: filepath.Join(dir, "eletrocromo.json"),
+		Entry:  "go:other",
+		GoMain: missing,
+	}.Load(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, other, cfg.GoMain)
+}
+
 func TestSpecEntryBeatsGoMain(t *testing.T) {
 	dir := t.TempDir()
 	other := filepath.Join(dir, "other")

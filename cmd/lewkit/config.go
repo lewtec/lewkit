@@ -16,6 +16,7 @@ type appConfig struct {
 	name    cmd.StringArg `long:"name" help:"app name" default:""`
 	version cmd.StringArg `long:"version" help:"version name" default:""`
 	config  cmd.StringArg `long:"config" help:"eletrocromo.json file or directory" default:"./eletrocromo.json"`
+	entry   cmd.StringArg `long:"entry" help:"go:<dir>, astro:<dir>, or static:<zip-or-dir>" default:""`
 	main    cmd.StringArg `long:"main" help:"main package directory" default:""`
 	p12     sops.File     `long:"p12" env:"LEWKIT_SIGN_P12" help:"passwordless PKCS#12 publisher key. A SOPS age file is decrypted." default:""`
 }
@@ -27,6 +28,7 @@ func (c appConfig) spec() host.Spec {
 		ID:      c.id.Value(),
 		Name:    c.name.Value(),
 		Version: c.version.Value(),
+		Entry:   c.entry.Value(),
 		GoMain:  c.main.Value(),
 	}
 }

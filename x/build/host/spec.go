@@ -19,13 +19,15 @@ type Spec struct {
 	ID      string
 	Name    string
 	Version string
+	Entry   string
 	GoMain  string
 }
 
 // Load reads the JSON file when it exists and merges these fields on top.
 // Dir is the module directory used when the file is omitted.
 // ctx ends the git reads and an astro or static materialize.
-// A non-empty GoMain is the --main flag: it selects go:<flag> for this load.
+// A non-empty Entry is the --entry flag. It wins over the file and over --main.
+// A non-empty GoMain is the --main flag when Entry is empty: it selects go:<flag>.
 // The version name and the store integer come from git in the config directory.
 func (s Spec) Load(ctx context.Context) (apk.Config, string, error) {
 	if err := ctx.Err(); err != nil {
@@ -57,9 +59,13 @@ func (s Spec) Load(ctx context.Context) (apk.Config, string, error) {
 		PackageID:   s.ID,
 		AppName:     s.Name,
 		VersionName: s.Version,
+		Entry:       s.Entry,
 		GoMain:      s.GoMain,
 	})
-	if strings.TrimSpace(s.GoMain) != "" {
+	if strings.TrimSpace(s.Entry) != "" {
+		cfg.Entry = strings.TrimSpace(s.Entry)
+		cfg.GoMain = ""
+	} else if strings.TrimSpace(s.GoMain) != "" {
 		cfg.Entry = ""
 		cfg.GoMain = s.GoMain
 	}

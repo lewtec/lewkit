@@ -37,6 +37,15 @@ func TestReleaseRunArgs(t *testing.T) {
 	assert.Equal(t, []string{"smoke"}, cmd.Values(app.Args.release.run.args))
 }
 
+func TestReleaseRunEntryFlag(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--entry", "static:site.zip", "--config", "examples/app/zip/eletrocromo.json")
+	require.NotNil(t, app.Args.release.run)
+	assert.Equal(t, "static:site.zip", app.Args.release.run.entry.Value())
+	build := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--entry", "astro:.")
+	require.NotNil(t, build.Args.release.build)
+	assert.Equal(t, "astro:.", build.Args.release.build.entry.Value())
+}
+
 func TestReleaseRunKeepsModuleDir(t *testing.T) {
 	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--config", "examples/app/basic/eletrocromo.json")
 	require.NotNil(t, app.Args.release.run)
