@@ -16,23 +16,23 @@ import (
 func TestParseEntry(t *testing.T) {
 	got, err := ParseEntry("", "")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Provider: ProviderGo, Ref: "."}, got)
+	require.Equal(t, Entry{Name: "go", Ref: "."}, got)
 
 	got, err = ParseEntry("", "./cmd/app")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Provider: ProviderGo, Ref: "./cmd/app"}, got)
+	require.Equal(t, Entry{Name: "go", Ref: "./cmd/app"}, got)
 
 	got, err = ParseEntry("go:./cmd/main", "ignored")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Provider: ProviderGo, Ref: "./cmd/main"}, got)
+	require.Equal(t, Entry{Name: "go", Ref: "./cmd/main"}, got)
 
 	got, err = ParseEntry("astro:.", "")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Provider: ProviderAstro, Ref: "."}, got)
+	require.Equal(t, Entry{Name: "astro", Ref: "."}, got)
 
 	got, err = ParseEntry("static:site.zip", "")
 	require.NoError(t, err)
-	require.Equal(t, Entry{Provider: ProviderStatic, Ref: "site.zip"}, got)
+	require.Equal(t, Entry{Name: "static", Ref: "site.zip"}, got)
 
 	_, err = ParseEntry("nope", "")
 	require.ErrorIs(t, err, ErrEntrySyntax)
@@ -113,7 +113,7 @@ func TestAssembleAstro(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(project, "dist", "client"), 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(project, "dist", "client", "app.js"), []byte("x"), 0o644))
 		worker := filepath.Join(t.TempDir(), "worker")
-		require.NoError(t, assembleAstro(project, worker))
+		require.NoError(t, astroProjects.assemble(project, worker))
 		_, err := os.Stat(filepath.Join(worker, "entry.mjs"))
 		require.NoError(t, err)
 		body, err := os.ReadFile(filepath.Join(worker, "assets", "app.js"))
@@ -127,7 +127,7 @@ func TestAssembleAstro(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(project, "dist", "_worker.js", "index.js"), []byte("export default {}\n"), 0o644))
 		require.NoError(t, os.WriteFile(filepath.Join(project, "dist", "app.css"), []byte("body{}\n"), 0o644))
 		worker := filepath.Join(t.TempDir(), "worker")
-		require.NoError(t, assembleAstro(project, worker))
+		require.NoError(t, astroProjects.assemble(project, worker))
 		_, err := os.Stat(filepath.Join(worker, "entry.mjs"))
 		require.NoError(t, err)
 		body, err := os.ReadFile(filepath.Join(worker, "assets", "app.css"))
@@ -138,20 +138,20 @@ func TestAssembleAstro(t *testing.T) {
 
 func TestAstroLock(t *testing.T) {
 	dir := t.TempDir()
-	name, args, ok := astroLock(dir)
+	name, args, ok := astroProjects.lock(dir)
 	require.False(t, ok)
 	require.Empty(t, name)
 	require.Nil(t, args)
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "bun.lock"), []byte("{}\n"), 0o644))
-	name, args, ok = astroLock(dir)
+	name, args, ok = astroProjects.lock(dir)
 	require.True(t, ok)
 	require.Equal(t, "bun", name)
 	require.Equal(t, []string{"run", "build"}, args)
 
 	yarn := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(yarn, "yarn.lock"), []byte("# yarn\n"), 0o644))
-	name, args, ok = astroLock(yarn)
+	name, args, ok = astroProjects.lock(yarn)
 	require.True(t, ok)
 	require.Equal(t, "yarn", name)
 	require.Equal(t, []string{"build"}, args)

@@ -16,14 +16,49 @@ import (
 
 const maxBuildLog = 4096
 
-func writeAstro(ctx context.Context, project, dir, title string) error {
+// astroProvider builds an Astro project and serves the bundled worker.
+type astroProvider struct {
+	*materializer
+}
+
+func (astroProvider) Name() string { return "astro" }
+
+func (p *astroProvider) Main(ctx context.Context, request Request) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", context.Cause(ctx)
+	}
+	project, err := p.resolve(request.Ref, request.Base)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(project)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("%w: %s", ErrAstroConfig, project)
+		}
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("%w: %s", ErrAstroConfig, project)
+	}
+	print, err := p.fingerprint(project, info)
+	if err != nil {
+		return "", err
+	}
+	key := cacheKey(p.Name(), project, request.Title, print)
+	return p.open(ctx, key, func(dir string) error {
+		return p.write(ctx, project, dir, request.Title)
+	})
+}
+
+func (p *astroProvider) write(ctx context.Context, project, dir, title string) error {
 	if err := ctx.Err(); err != nil {
 		return context.Cause(ctx)
 	}
-	if err := requireAstroConfig(project); err != nil {
+	if err := p.requireConfig(project); err != nil {
 		return err
 	}
-	if err := runAstroBuild(ctx, project); err != nil {
+	if err := p.build(ctx, project); err != nil {
 		return err
 	}
 	worker, err := os.MkdirTemp("", "lewkit-astro-")
@@ -31,10 +66,10 @@ func writeAstro(ctx context.Context, project, dir, title string) error {
 		return err
 	}
 	defer os.RemoveAll(worker)
-	if err := assembleAstro(project, worker); err != nil {
+	if err := p.assemble(project, worker); err != nil {
 		return err
 	}
-	esbuild, err := findEsbuild(ctx, project)
+	esbuild, err := p.findEsbuild(ctx, project)
 	if err != nil {
 		return err
 	}
@@ -53,13 +88,13 @@ func writeAstro(ctx context.Context, project, dir, title string) error {
 	if err := os.WriteFile(filepath.Join(embedDir, "guest.js"), []byte(script), 0o644); err != nil {
 		return err
 	}
-	if err := copyAstroAssets(worker, embedDir); err != nil {
+	if err := p.copyAssets(worker, embedDir); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "main.go"), []byte(astroMain(title)), 0o644)
+	return os.WriteFile(filepath.Join(dir, "main.go"), []byte(p.source(title)), 0o644)
 }
 
-func requireAstroConfig(project string) error {
+func (p *astroProvider) requireConfig(project string) error {
 	for _, name := range []string{"astro.config.mjs", "astro.config.ts", "astro.config.js"} {
 		if fileExists(filepath.Join(project, name)) {
 			return nil
@@ -68,8 +103,8 @@ func requireAstroConfig(project string) error {
 	return fmt.Errorf("%w: %s", ErrAstroConfig, project)
 }
 
-func runAstroBuild(ctx context.Context, project string) error {
-	name, args, err := astroCommand(ctx, project)
+func (p *astroProvider) build(ctx context.Context, project string) error {
+	name, args, err := p.command(ctx, project)
 	if err != nil {
 		return err
 	}
@@ -95,8 +130,8 @@ func buildFailed(log []byte, err error) error {
 	return fmt.Errorf("%w: %s: %w", ErrAstroBuild, text, err)
 }
 
-func astroCommand(ctx context.Context, dir string) (string, []string, error) {
-	if name, args, ok := astroLock(dir); ok {
+func (p *astroProvider) command(ctx context.Context, dir string) (string, []string, error) {
+	if name, args, ok := p.lock(dir); ok {
 		return name, args, nil
 	}
 	if _, err := execdriver.Which(ctx, "bun"); err == nil {
@@ -108,7 +143,7 @@ func astroCommand(ctx context.Context, dir string) (string, []string, error) {
 	return "npm", []string{"run", "build"}, nil
 }
 
-func astroLock(dir string) (string, []string, bool) {
+func (p *astroProvider) lock(dir string) (string, []string, bool) {
 	if fileExists(filepath.Join(dir, "bun.lock")) || fileExists(filepath.Join(dir, "bun.lockb")) {
 		return "bun", []string{"run", "build"}, true
 	}
@@ -124,7 +159,7 @@ func astroLock(dir string) (string, []string, bool) {
 	return "", nil, false
 }
 
-func assembleAstro(project, worker string) error {
+func (p *astroProvider) assemble(project, worker string) error {
 	if err := os.MkdirAll(filepath.Join(worker, "assets"), 0o755); err != nil {
 		return err
 	}
@@ -145,7 +180,7 @@ func assembleAstro(project, worker string) error {
 		if err := common.CopyDir(legacy, worker); err != nil {
 			return err
 		}
-		if err := copyLegacyAssets(filepath.Join(project, "dist"), filepath.Join(worker, "assets")); err != nil {
+		if err := p.copyLegacy(filepath.Join(project, "dist"), filepath.Join(worker, "assets")); err != nil {
 			return err
 		}
 	default:
@@ -164,19 +199,19 @@ func assembleAstro(project, worker string) error {
 	return nil
 }
 
-func copyLegacyAssets(dist, assets string) error {
+func (p *astroProvider) copyLegacy(dist, assets string) error {
 	entries, err := os.ReadDir(dist)
 	if err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		switch entry.Name() {
+	for _, item := range entries {
+		switch item.Name() {
 		case "_worker.js", "_routes.json", "wrangler.json", "wrangler.toml":
 			continue
 		}
-		src := filepath.Join(dist, entry.Name())
-		dst := filepath.Join(assets, entry.Name())
-		if entry.IsDir() {
+		src := filepath.Join(dist, item.Name())
+		dst := filepath.Join(assets, item.Name())
+		if item.IsDir() {
 			if err := common.CopyDir(src, dst); err != nil {
 				return err
 			}
@@ -189,7 +224,7 @@ func copyLegacyAssets(dist, assets string) error {
 	return nil
 }
 
-func copyAstroAssets(worker, embedDir string) error {
+func (p *astroProvider) copyAssets(worker, embedDir string) error {
 	src := filepath.Join(worker, "assets")
 	dst := filepath.Join(embedDir, "assets")
 	if dirExists(src) {
@@ -207,12 +242,12 @@ func copyAstroAssets(worker, embedDir string) error {
 	return nil
 }
 
-func findEsbuild(ctx context.Context, project string) (string, error) {
+func (p *astroProvider) findEsbuild(ctx context.Context, project string) (string, error) {
 	candidates := []string{
 		filepath.Join(project, "node_modules", ".bin", "esbuild"),
 		filepath.Join(project, "node_modules", "esbuild", "bin", "esbuild"),
 	}
-	if path := orvalhoEsbuild(project); path != "" {
+	if path := p.orvalhoEsbuild(project); path != "" {
 		candidates = append(candidates, path)
 	}
 	for _, candidate := range candidates {
@@ -227,16 +262,16 @@ func findEsbuild(ctx context.Context, project string) (string, error) {
 	return path, nil
 }
 
-func orvalhoEsbuild(project string) string {
+func (p *astroProvider) orvalhoEsbuild(project string) string {
 	root := filepath.Join(project, "node_modules", ".orvalho")
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return ""
 	}
 	names := make([]string, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() && strings.HasPrefix(entry.Name(), "esbuild@") {
-			names = append(names, entry.Name())
+	for _, item := range entries {
+		if item.IsDir() && strings.HasPrefix(item.Name(), "esbuild@") {
+			names = append(names, item.Name())
 		}
 	}
 	sort.Strings(names)
@@ -253,7 +288,7 @@ func orvalhoEsbuild(project string) string {
 	return ""
 }
 
-func astroFingerprint(dir string, info os.FileInfo) (string, error) {
+func (p *astroProvider) fingerprint(dir string, info os.FileInfo) (string, error) {
 	var buf strings.Builder
 	fmt.Fprintf(&buf, "dir %d\n", info.ModTime().UnixNano())
 	names := []string{
@@ -278,6 +313,69 @@ func astroFingerprint(dir string, info os.FileInfo) (string, error) {
 		fmt.Fprintf(&buf, "%s %d %d\n", name, fileInfo.Size(), fileInfo.ModTime().UnixNano())
 	}
 	return buf.String(), nil
+}
+
+func (astroProvider) source(title string) string {
+	title = displayTitle(title)
+	return fmt.Sprintf(`package main
+
+import (
+	"context"
+	"embed"
+	"io/fs"
+	"log/slog"
+	"net/http"
+
+	"github.com/lewtec/lewkit/x/app"
+	"github.com/lewtec/lewkit/x/entry"
+	"github.com/lucasew/orvalho/pkg/workers"
+)
+
+//go:embed embed/guest.js
+var guestJS string
+
+//go:embed all:embed/assets
+var assetsRoot embed.FS
+
+func init() { entry.Bind(run) }
+
+func main() { entry.Main(context.Background(), run) }
+
+func run(ctx context.Context) error {
+	assets, err := fs.Sub(assetsRoot, "embed/assets")
+	if err != nil {
+		return err
+	}
+	iso := workers.New(guestJS, workers.Options{
+		Env: map[string]string{"SITE": %q},
+		Bindings: map[string]workers.Binding{
+			"ASSETS": workers.NewAssetBinding(assets, "."),
+		},
+		Fetch: workers.HTTPFetch(workers.EgressList{"*"}, nil, 0),
+	})
+	handler := workers.Handler(iso)
+	return app.App{
+		Title: %q,
+		Handler: app.Web(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+			recorder := &statusRecorder{ResponseWriter: response, code: http.StatusOK}
+			handler.ServeHTTP(recorder, request)
+			if recorder.code >= 500 {
+				slog.Error("astro", "method", request.Method, "uri", request.URL.RequestURI(), "status", recorder.code)
+			}
+		})),
+	}.Run(ctx)
+}
+
+type statusRecorder struct {
+	http.ResponseWriter
+	code int
+}
+
+func (recorder *statusRecorder) WriteHeader(code int) {
+	recorder.code = code
+	recorder.ResponseWriter.WriteHeader(code)
+}
+`, title, title)
 }
 
 func fileExists(path string) bool {
