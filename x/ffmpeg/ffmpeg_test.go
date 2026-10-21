@@ -691,6 +691,32 @@ func speexFileData(t *testing.T, b []byte) []byte {
 	return nil
 }
 
+func TestCodec2CLIMatchesFFmpeg(t *testing.T) {
+	const samplesN = 320*2 + 10
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	for _, format := range []string{"codec2raw", "codec2"} {
+		ext := "raw"
+		if format == "codec2" {
+			ext = "c2"
+		}
+		wantPath := filepath.Join(dir, "want."+ext)
+		gotPath := filepath.Join(dir, "got."+ext)
+		args := []string{"-f", "s16le", "-ar", "8000", "-ac", "1", "-i", path, "-c:a", "codec2", "-f", format}
+		_ = systemFF(t, append(args, wantPath)...)
+		code, _, stderr := runFF(t, append(append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0", "-y"}, args...), gotPath)...)
+		require.Equal(t, 0, code, stderr)
+		want, err := os.ReadFile(wantPath)
+		require.NoError(t, err)
+		got, err := os.ReadFile(gotPath)
+		require.NoError(t, err)
+		require.Equal(t, want, got, format)
+	}
+}
+
 func TestMapAudio(t *testing.T) {
 	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
 		"-f", "lavfi", "-i", "testsrc=size=16x16:rate=25:duration=0.04",

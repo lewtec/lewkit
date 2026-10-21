@@ -45,4 +45,5 @@ const (
 	IDADPCMIMAALP           // adpcm_ima_alp
 	IDADPCMIMAAPM           // adpcm_ima_apm
 	IDADPCMARGO             // adpcm_argo
+	IDCODEC2                // codec2
 )

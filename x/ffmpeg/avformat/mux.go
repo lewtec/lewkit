@@ -58,6 +58,8 @@ func (m *bufMux) Close() error {
 		body, err = writeAPM(m.streams, m.pkts)
 	case "argo_asf":
 		body, err = writeArgoASF(m.url, m.streams, m.pkts)
+	case "codec2":
+		body, err = writeCodec2(m.streams, m.pkts)
 	case "avi":
 		body, err = writeAVI(m.streams, m.pkts)
 	case "mp4", "mov":
@@ -65,7 +67,7 @@ func (m *bufMux) Close() error {
 	case "flac":
 		body = writeBlob(m.pkts)
 	default:
-		if _, _, ok := pcmCodec(m.name); ok || m.name == "rawvideo" || m.name == "h264" || m.name == "hevc" || m.name == "gsm" || m.name == "g722" || m.name == "g726" || m.name == "g726le" || m.name == "mp2" || m.name == "mp3" {
+		if _, _, ok := pcmCodec(m.name); ok || m.name == "rawvideo" || m.name == "h264" || m.name == "hevc" || m.name == "gsm" || m.name == "g722" || m.name == "g726" || m.name == "g726le" || m.name == "mp2" || m.name == "mp3" || m.name == "codec2raw" {
 			body = writeBlob(m.pkts)
 		} else {
 			err = fmt.Errorf("%w: muxer %s", avutil.ErrUnsupported, m.name)
