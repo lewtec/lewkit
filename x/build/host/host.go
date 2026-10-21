@@ -43,7 +43,7 @@ type Host struct {
 // GoOnly stops after the Android Go library, before the APK is packed.
 // Packing does not use the Android SDK. A nil Sign uses the debug identity.
 func (host Host) Android(ctx context.Context) (string, error) {
-	cfg, base, err := host.Load()
+	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -87,7 +87,7 @@ func (host Host) Android(ctx context.Context) (string, error) {
 // the bundle executable on every host and opens app.GUI and app.Web.
 // Host.Sign replaces the ad-hoc signature with the publisher key.
 func (host Host) Mac(ctx context.Context) (string, error) {
-	cfg, base, err := host.Load()
+	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -117,7 +117,7 @@ func (host Host) Mac(ctx context.Context) (string, error) {
 // Linux builds one AppImage file. The file is the executable.
 // Its trailer holds the app id, icon.png, and a desktop entry.
 func (host Host) Linux(ctx context.Context) (string, error) {
-	cfg, base, err := host.Load()
+	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -140,7 +140,7 @@ func (host Host) Linux(ctx context.Context) (string, error) {
 // Windows builds a GUI .exe. The binary is windowsgui, with the app icon,
 // a PerMonitorV2 manifest, and version info.
 func (host Host) Windows(ctx context.Context) (string, error) {
-	cfg, base, err := host.Load()
+	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -173,7 +173,7 @@ func (host Host) Windows(ctx context.Context) (string, error) {
 // A nil Host.Sign ad-hoc signs, the same as Mac. The simulator
 // refuses an unsigned device binary.
 func (host Host) IOS(ctx context.Context) (string, error) {
-	cfg, base, err := host.Load()
+	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return "", err
 	}

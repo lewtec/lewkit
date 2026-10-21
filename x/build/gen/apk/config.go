@@ -55,6 +55,7 @@ type fileConfig struct {
 	AppName       string          `json:"app_name"`
 	VersionName   string          `json:"version_name"`
 	VersionCode   int             `json:"version_code"`
+	Entry         string          `json:"entry,omitempty"`
 	GoMain        string          `json:"go_main"`
 	Icon          string          `json:"icon,omitempty"`
 	Generator     string          `json:"generator,omitempty"`
@@ -95,14 +96,14 @@ func LoadConfig(path string) (cfg Config, baseDir string, err error) {
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return Config{}, "", fmt.Errorf("%w%s: %w", ErrLoadConfig, file, err)
 	}
+	// The release stamp is git, so the file's version fields stay out of Config.
 	cfg = Config{
-		PackageID:   doc.PackageID,
-		AppName:     doc.AppName,
-		VersionName: doc.VersionName,
-		VersionCode: doc.VersionCode,
-		GoMain:      doc.GoMain,
-		Icon:        doc.Icon,
-		ABIs:        doc.ABIs,
+		PackageID: doc.PackageID,
+		AppName:   doc.AppName,
+		Entry:     doc.Entry,
+		GoMain:    doc.GoMain,
+		Icon:      doc.Icon,
+		ABIs:      doc.ABIs,
 	}
 	caps, err := common.ParseCapabilities(doc.Capabilities)
 	if err != nil {
@@ -126,6 +127,9 @@ func Merge(base, overlay Config) Config {
 	}
 	if overlay.VersionCode > 0 {
 		out.VersionCode = overlay.VersionCode
+	}
+	if strings.TrimSpace(overlay.Entry) != "" {
+		out.Entry = overlay.Entry
 	}
 	if strings.TrimSpace(overlay.GoMain) != "" {
 		out.GoMain = overlay.GoMain

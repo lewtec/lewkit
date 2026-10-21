@@ -29,6 +29,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/tool/registry/obsidian"
 	_ "github.com/lewtec/lewkit/x/tool/registry/opencode"
 	_ "github.com/lewtec/lewkit/x/tool/registry/patlint"
+	_ "github.com/lewtec/lewkit/x/tool/registry/pnpm"
 	_ "github.com/lewtec/lewkit/x/tool/registry/protobuf"
 	_ "github.com/lewtec/lewkit/x/tool/registry/rclone"
 	_ "github.com/lewtec/lewkit/x/tool/registry/resvg"

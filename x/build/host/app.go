@@ -21,7 +21,7 @@ import (
 // returns, so the path exists when Build returns.
 func (host Host) Build(ctx context.Context, goos string) (string, error) {
 	var path string
-	graph, err := host.workflow(goos, func(built string) { path = built })
+	graph, err := host.workflow(ctx, goos, func(built string) { path = built })
 	if err != nil {
 		return "", err
 	}
@@ -40,15 +40,15 @@ func (host Host) Build(ctx context.Context, goos string) (string, error) {
 // Android, macOS, or iOS host tree. The goos/goarch step compiles,
 // packages, and signs. A set IconRoot skips the icons step.
 // Build waits on the future Run returns for this graph.
-func (host Host) Workflow(goos string) (workflow.Graph, error) {
-	return host.workflow(goos, nil)
+func (host Host) Workflow(ctx context.Context, goos string) (workflow.Graph, error) {
+	return host.workflow(ctx, goos, nil)
 }
 
-func (host Host) workflow(goos string, sink func(string)) (workflow.Graph, error) {
+func (host Host) workflow(ctx context.Context, goos string, sink func(string)) (workflow.Graph, error) {
 	if !build.GOOS(goos).HasAppPackage() {
 		return workflow.Graph{}, fmt.Errorf("%s %w", goos, ErrHasNoAppPackage)
 	}
-	cfg, base, err := host.Load()
+	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return workflow.Graph{}, err
 	}
@@ -169,7 +169,7 @@ func scaffolded(goos string) bool {
 }
 
 func (host Host) scaffold(ctx context.Context, goos, workDir string) error {
-	cfg, base, err := host.Load()
+	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return err
 	}

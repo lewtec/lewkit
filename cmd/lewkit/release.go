@@ -116,7 +116,7 @@ func (c *runCmd) program(ctx context.Context, paths []string) (func(context.Cont
 		if len(c.args) > 0 {
 			return nil, errHostArgs
 		}
-		cfg, _, err := c.spec().Load()
+		cfg, _, err := c.spec().Load(ctx)
 		if err != nil {
 			return nil, err
 		}

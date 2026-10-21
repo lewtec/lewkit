@@ -17,26 +17,26 @@ func TestWorkflowSteps(t *testing.T) {
 		GOARCH: "arm64",
 		Out:    filepath.Join(dir, "Demo_darwin_arm64.app"),
 	}
-	graph, err := host.Workflow("darwin")
+	graph, err := host.Workflow(t.Context(), "darwin")
 	require.NoError(t, err)
 	require.Equal(t, []string{"darwin/arm64"}, graph.Defaults)
 	require.Equal(t, []string{"icons", "scaffold", "darwin/arm64"}, stepNames(graph))
 	require.Equal(t, []string{"icons"}, graph.Steps[1].Deps)
 	require.Equal(t, []string{"scaffold"}, graph.Steps[2].Deps)
 
-	graph, err = host.Workflow("linux")
+	graph, err = host.Workflow(t.Context(), "linux")
 	require.NoError(t, err)
 	require.Equal(t, []string{"linux/arm64"}, graph.Defaults)
 	require.Equal(t, []string{"icons", "linux/arm64"}, stepNames(graph))
 	require.Equal(t, []string{"icons"}, graph.Steps[1].Deps)
 
 	host.IconRoot = filepath.Join(dir, "icons")
-	graph, err = host.Workflow("ios")
+	graph, err = host.Workflow(t.Context(), "ios")
 	require.NoError(t, err)
 	require.Equal(t, []string{"scaffold", "ios/arm64"}, stepNames(graph))
 	require.Equal(t, []string{"scaffold"}, graph.Steps[1].Deps)
 
-	_, err = host.Workflow("plan9")
+	_, err = host.Workflow(t.Context(), "plan9")
 	require.EqualError(t, err, "plan9 has no app package")
 }
 
@@ -51,7 +51,7 @@ func TestWorkflowScaffoldsMacHost(t *testing.T) {
 		GOARCH: "arm64",
 		Out:    filepath.Join(t.TempDir(), "Drivers_darwin_arm64.app"),
 	}
-	graph, err := host.Workflow("darwin")
+	graph, err := host.Workflow(t.Context(), "darwin")
 	require.NoError(t, err)
 	_, err = workflow.Run(t.Context(), graph, []string{"scaffold"})
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestWorkflowPackagesWindowsExe(t *testing.T) {
 		Out:    out,
 		GOARCH: "amd64",
 	}
-	graph, err := host.Workflow("windows")
+	graph, err := host.Workflow(t.Context(), "windows")
 	require.NoError(t, err)
 	_, err = workflow.Run(t.Context(), graph, nil)
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestWorkflowPackagesLinuxAppImage(t *testing.T) {
 		Out:    out,
 		GOARCH: "amd64",
 	}
-	graph, err := host.Workflow("linux")
+	graph, err := host.Workflow(t.Context(), "linux")
 	require.NoError(t, err)
 	_, err = workflow.Run(t.Context(), graph, nil)
 	require.NoError(t, err)

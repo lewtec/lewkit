@@ -241,7 +241,7 @@ An artifact's preview path is `Artifact.Slug`, the first 16 hex characters of th
 
 ### Examples
 
-App demos live under `examples/app`. Each directory there is one program. `eletrocromo.json` sits next to the Go main. Run a program from the repository root:
+App demos live under `examples/app`. Each directory there is one program. `eletrocromo.json` sits next to that program. `entry` is `go:./cmd/main`, `astro:.`, or `static:site.zip`. `--entry` sets that value for one `release build` or `release run`. `go_main` is `go:<path>`. `--main` selects `go:<path>` when `--entry` is empty. The version name is `git describe`. The integer is the commit count, and the first commit is 1. Run a program from the repository root:
 
 ```bash
 go run ./cmd/lewkit release run --config ./examples/app/basic/eletrocromo.json
@@ -257,7 +257,9 @@ The progress view tracks the build. The program starts after that view and write
 | `examples/app/counter` | Server-rendered increment form. |
 | `examples/app/ticker` | Adds one every second. The page reads that count. |
 | `examples/app/inbox` | URL and file opens. Notes go under the app dirs. |
-| `examples/app/astro` | Astro page in a web window. Build the embed first. See `examples/app/astro/README.md`. |
+| `examples/app/astro` | Astro page. `entry` is `astro:.`. The release installs packages and builds the site. See `examples/app/astro/README.md`. |
+| `examples/app/site` | Static directory. `entry` is `static:site`. |
+| `examples/app/zip` | Static zip. `entry` is `static:site.zip`. The zip's only top folder is the site root. |
 | `examples/app/host` | Host drivers, brightness, and the clipboard. |
 | `examples/app/drivers` | Driver panels. Opens the triangle window. |
 | `examples/app/tasks` | Progress bars, logs, pools, and dependencies. |

@@ -47,7 +47,7 @@ func TestUberGraphSharesIcons(t *testing.T) {
 		{GOOS: "darwin", GOARCH: "arm64"},
 		{GOOS: "android", GOARCH: "arm64"},
 	}
-	graph, paths, _, err := u.assemble(build.DesktopTargets(), apps)
+	graph, paths, _, err := u.assemble(t.Context(), build.DesktopTargets(), apps)
 	require.NoError(t, err)
 	steps := map[string][]string{}
 	for _, step := range graph.Steps {
@@ -81,7 +81,7 @@ func TestUberRejectsFileOut(t *testing.T) {
 	file := filepath.Join(dir, "dist")
 	require.NoError(t, os.WriteFile(file, []byte("x"), 0o644))
 	u := Uber{Spec: Spec{Dir: dir, ID: "br.tec.lew.demo", Name: "Demo"}, Out: file}
-	_, _, _, err := u.assemble(build.DesktopTargets(), nil)
+	_, _, _, err := u.assemble(t.Context(), build.DesktopTargets(), nil)
 	require.Error(t, err)
 }
 

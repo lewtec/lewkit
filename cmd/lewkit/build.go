@@ -100,7 +100,7 @@ func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 	if !c.app.Value() {
 		return c.archive(ctx, target, identity)
 	}
-	out, err := artifactPath(goos, goarch, c.out.Value(), c.spec())
+	out, err := artifactPath(ctx, goos, goarch, c.out.Value(), c.spec())
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (c *buildFlags) identity() (*sign.Identity, error) {
 
 // artifactPath turns a directory such as dist into one host file whose
 // name contains GOOS and GOARCH. A path that already names a file is kept.
-func artifactPath(goos, goarch, out string, spec host.Spec) (string, error) {
+func artifactPath(ctx context.Context, goos, goarch, out string, spec host.Spec) (string, error) {
 	out = strings.TrimSpace(out)
 	if out == "" {
 		out = "dist"
@@ -151,7 +151,7 @@ func artifactPath(goos, goarch, out string, spec host.Spec) (string, error) {
 	if !asDir {
 		return out, nil
 	}
-	cfg, _, err := spec.Load()
+	cfg, _, err := spec.Load(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -159,7 +159,7 @@ func artifactPath(goos, goarch, out string, spec host.Spec) (string, error) {
 }
 
 func (c *buildFlags) firmware(ctx context.Context, target build.Target) ([]string, error) {
-	cfg, _, err := c.spec().Load()
+	cfg, _, err := c.spec().Load(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (c *buildFlags) firmware(ctx context.Context, target build.Target) ([]strin
 }
 
 func (c *buildFlags) guest(ctx context.Context, target build.Target) ([]string, error) {
-	cfg, _, err := c.spec().Load()
+	cfg, _, err := c.spec().Load(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (c *buildFlags) guest(ctx context.Context, target build.Target) ([]string, 
 }
 
 func (c *buildFlags) archive(ctx context.Context, target build.Target, identity *sign.Identity) ([]string, error) {
-	cfg, _, err := c.spec().Load()
+	cfg, _, err := c.spec().Load(ctx)
 	if err != nil {
 		return nil, err
 	}

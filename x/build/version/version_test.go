@@ -27,16 +27,15 @@ func TestAndroidName(t *testing.T) {
 	}
 }
 
-func TestAndroidCodeFrom_Semver(t *testing.T) {
-	if c := AndroidCodeFrom("v1.2.3", 0); c != 1_002_003 {
+func TestAndroidCodeFrom_CommitCount(t *testing.T) {
+	if c := AndroidCodeFrom("v1.2.3", 0); c != 1 {
 		require.FailNowf(t, "", "got %d", c)
 	}
-	if c := AndroidCodeFrom("0.1.0", 99); c != 1000 {
-		// 0*1e6 + 1*1e3 + 0 = 1000
+	if c := AndroidCodeFrom("0.1.0", 99); c != 99 {
 		require.FailNowf(t, "", "got %d", c)
 	}
 	if c := AndroidCodeFrom("devel", 42); c != 42 {
-		require.FailNowf(t, "", "git count fallback: %d", c)
+		require.FailNowf(t, "", "git count: %d", c)
 	}
 	if c := AndroidCodeFrom("abcdef", 0); c != 1 {
 		require.FailNowf(t, "", "default: %d", c)

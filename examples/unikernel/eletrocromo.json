@@ -2,6 +2,5 @@
   "schema_version": 1,
   "package_id": "br.tec.lew.eletrocromo.unikernel",
   "app_name": "Unikernel",
-  "version_name": "0.1.0",
-  "go_main": "."
+  "entry": "go:."
 }
