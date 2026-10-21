@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/lewtec/lewkit/x/errs"
 	"github.com/lewtec/lewkit/x/ffmpeg"
@@ -17,8 +18,8 @@ func (ffmpegCmd) Description() string {
 	return "read, filter, and write media with the ffmpeg CLI"
 }
 
-func (*ffmpegCmd) Run(context.Context) error {
-	code := ffmpeg.Execute(nil)
+func (*ffmpegCmd) Run(ctx context.Context) error {
+	code := ffmpeg.Run(ctx, nil, os.Stdin, os.Stdout, os.Stderr)
 	if code != 0 {
 		return fmt.Errorf("%w: exit %d", errFFmpeg, code)
 	}

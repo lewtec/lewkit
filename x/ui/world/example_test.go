@@ -3,8 +3,12 @@ package world_test
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"testing"
 
 	"github.com/lewtec/lewkit/x/ui/world"
+	"github.com/stretchr/testify/require"
 )
 
 // Person and Name are the two columns from the Bevy quick start.
@@ -36,15 +40,21 @@ func greetPeople(_ context.Context, w *world.World) {
 	})
 }
 
-// Example is that quick start: a startup system spawns the people, then
-// a chain renames Elaina and greets the column.
-func Example() {
+// TestQuickStart is the Bevy quick start: a startup system spawns the people,
+// then a chain renames Elaina and greets the column.
+func TestQuickStart(t *testing.T) {
+	read, write, err := os.Pipe()
+	require.NoError(t, err)
+	stdout := os.Stdout
+	os.Stdout = write
+	t.Cleanup(func() { os.Stdout = stdout })
+
 	sim := world.New()
 	sim.System(world.Startup, addPeople)
 	sim.Chain(world.Update, updatePeople, greetPeople)
-	sim.Frame(context.Background())
-	// Output:
-	// hello Elaina Hume
-	// hello Renzo Hume
-	// hello Zayna Nieves
+	sim.Frame(t.Context())
+	require.NoError(t, write.Close())
+	out, err := io.ReadAll(read)
+	require.NoError(t, err)
+	require.Equal(t, "hello Elaina Hume\nhello Renzo Hume\nhello Zayna Nieves\n", string(out))
 }

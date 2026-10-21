@@ -27,7 +27,7 @@ func main() {
 		return
 	}
 	if args := cmd.Args(); len(args) > 0 && args[0] == "ffmpeg" {
-		os.Exit(ffmpeg.Execute(args[1:]))
+		os.Exit(ffmpeg.Run(context.Background(), args[1:], os.Stdin, os.Stdout, os.Stderr))
 	}
 	app, err := cmd.Parse[cmd.App[root]](normalizeReleaseGoFlags(cmd.Args())...)
 	if err != nil {

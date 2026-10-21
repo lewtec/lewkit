@@ -18,12 +18,11 @@ import (
 )
 
 // TestConventions rejects inline errors at return sites, testing assertions
-// outside testify, nil contexts, comparisons of a context to nil, context
-// roots outside main, a godoc example, the Cocoa click probe, and the
-// Android host entry,
-// sentinels that repeat a meta condition without wrapping it, an enum
-// go:generate directive outside enum.go, and a raw OS name passed to
-// ForGOOS or IncompatibleOff. The vendored compiler trees and the
+// outside testify, nil contexts, comparisons of a context to nil, and a
+// context.Background or context.TODO call outside a function named main.
+// It also rejects sentinels that repeat a meta condition without wrapping
+// it, an enum go:generate directive outside enum.go, and a raw OS name
+// passed to ForGOOS or IncompatibleOff. The vendored compiler trees and the
 // purego pin are not this module's code.
 func TestConventions(t *testing.T) {
 	root := moduleRoot(t)
@@ -284,7 +283,9 @@ func Example() {
 	context.Background()
 }
 `
-	require.Empty(t, checkSource("p_test.go", []byte(example)))
+	require.Equal(t, []string{
+		"p_test.go:6:2: context root",
+	}, checkSource("p_test.go", []byte(example)))
 
 	const probe = `package cocoa
 
@@ -294,10 +295,54 @@ func probeContentClick() {
 	context.Background()
 }
 `
-	require.Empty(t, checkSource("x/driver/window/cocoa/mouse_darwin_test.go", []byte(probe)))
+	require.Equal(t, []string{
+		"x/driver/window/cocoa/mouse_darwin_test.go:6:2: context root",
+	}, checkSource("x/driver/window/cocoa/mouse_darwin_test.go", []byte(probe)))
 	require.Equal(t, []string{
 		"p_test.go:6:2: context root",
 	}, checkSource("p_test.go", []byte(probe)))
+
+	const method = `package p
+
+import "context"
+
+func (axis int) main() {
+	context.Background()
+}
+`
+	require.Equal(t, []string{
+		"p.go:6:2: context root",
+	}, checkSource("p.go", []byte(method)))
+
+	const pkg = `package p
+
+import "context"
+
+var root = context.Background()
+
+func init() {
+	context.TODO()
+}
+`
+	require.Equal(t, []string{
+		"p.go:5:12: context root",
+		"p.go:8:2: context root",
+	}, checkSource("p.go", []byte(pkg)))
+
+	const entry = `package p
+
+import "context"
+
+func main(path string) {
+	context.Background()
+}
+
+func main() int {
+	context.Background()
+	return 0
+}
+`
+	require.Empty(t, checkSource("p.go", []byte(entry)))
 }
 
 func TestConventionNilGuard(t *testing.T) {
@@ -719,30 +764,15 @@ func (c *conventionChecker) noteContextRoot(call *ast.CallExpr, selector *ast.Se
 	if selector.Sel.Name != "Background" && selector.Sel.Name != "TODO" {
 		return
 	}
-	if allowedContextRoot(enclosingFuncDecl(c.stack), c.name) {
+	if allowedContextRoot(enclosingFuncDecl(c.stack)) {
 		return
 	}
 	c.add(call, "context root")
 }
 
-func allowedContextRoot(decl *ast.FuncDecl, filename string) bool {
-	if decl == nil || decl.Name == nil {
-		return false
-	}
-	name := decl.Name.Name
-	file := filepath.ToSlash(filename)
-	switch {
-	case name == "main":
-		return true
-	case strings.HasPrefix(name, "Example") && strings.HasSuffix(file, "_test.go"):
-		return true
-	case name == "runHost" && strings.HasSuffix(file, "x/entry/android/host.go"):
-		return true
-	case name == "probeContentClick" && strings.HasSuffix(file, "x/driver/window/cocoa/mouse_darwin_test.go"):
-		return true
-	default:
-		return false
-	}
+// allowedContextRoot is a function named main. A method is not that function.
+func allowedContextRoot(decl *ast.FuncDecl) bool {
+	return decl != nil && decl.Recv == nil && decl.Name != nil && decl.Name.Name == "main"
 }
 
 func (c *conventionChecker) noteNilGuard(bin *ast.BinaryExpr) {

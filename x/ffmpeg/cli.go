@@ -19,12 +19,6 @@ import (
 // Version is the FFmpeg release this transcription follows.
 const Version = "n5.1.9-lewkit"
 
-// Execute runs the ffmpeg command with the process standard streams.
-// The return value is the process exit code.
-func Execute(args []string) int {
-	return Run(context.Background(), args, os.Stdin, os.Stdout, os.Stderr)
-}
-
 // Run runs the ffmpeg command against the supplied streams.
 // A nil context is a caller bug.
 func Run(ctx context.Context, args []string, in io.Reader, out, errw io.Writer) int {
