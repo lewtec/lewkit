@@ -261,6 +261,22 @@ func TestG726CLIMatchesFFmpeg(t *testing.T) {
 	require.Equal(t, decoded, []byte(stdout))
 }
 
+func TestSWFDecodeCLIMatchesFFmpeg(t *testing.T) {
+	const samplesN = 4096 * 2
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	raw := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(raw, pcm, 0o644))
+	wav := filepath.Join(dir, "a.wav")
+	_ = systemFF(t, "-f", "s16le", "-ar", "44100", "-ac", "1", "-i", raw, "-c:a", "adpcm_swf", wav)
+	want := systemFF(t, "-i", wav, "-f", "s16le", "-")
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-i", wav, "-f", "s16le", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+}
+
 func TestIMAWSCLIMatchesFFmpeg(t *testing.T) {
 	const samplesN = 2048 + 100
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")

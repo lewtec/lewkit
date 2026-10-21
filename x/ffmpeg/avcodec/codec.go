@@ -81,7 +81,7 @@ func Codecs() []Codec {
 		{IDLIBSHINE, "libshine", "shine MP3", avutil.MediaAudio, false, true, false, true, false},
 		{IDG726, "g726", "G.726 ADPCM", avutil.MediaAudio, true, true, false, true, false},
 		{IDG726LE, "g726le", "G.726 ADPCM little-endian", avutil.MediaAudio, true, true, false, true, false},
-		{IDADPCMSWF, "adpcm_swf", "ADPCM Shockwave Flash", avutil.MediaAudio, false, true, false, true, false},
+		{IDADPCMSWF, "adpcm_swf", "ADPCM Shockwave Flash", avutil.MediaAudio, true, true, false, true, false},
 		{IDLIBTWOLAME, "libtwolame", "TwoLAME MP2", avutil.MediaAudio, false, true, false, true, false},
 		{IDADPCMIMAWS, "adpcm_ima_ws", "ADPCM IMA Westwood", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
@@ -150,6 +150,8 @@ func OpenDecoder(par Parameters) (Decoder, error) {
 		return newYamaha(par), nil
 	case IDADPCMIMAQT:
 		return newIMAQT(par), nil
+	case IDADPCMSWF:
+		return newSWF(par)
 	case IDH264:
 		return newH264(par), nil
 	case IDHEVC:

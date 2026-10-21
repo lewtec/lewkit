@@ -48,6 +48,8 @@ func openWAV(b []byte) (Demuxer, error) {
 		return openBlockAudio(avcodec.IDADPCMMS, data, rate, channels, block)
 	case 0x20:
 		return openBlockAudio(avcodec.IDADPCMYAMAHA, data, rate, channels, block)
+	case 0x5346:
+		return openBlockAudio(avcodec.IDADPCMSWF, data, rate, channels, block)
 	}
 	format, id := wavCodec(tag, bits)
 	if id == 0 {
