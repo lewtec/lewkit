@@ -1,15 +1,12 @@
 package progress
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"strconv"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/lewtec/lewkit/x/taskgroup"
-	"github.com/mattn/go-runewidth"
 )
 
 const (
@@ -57,28 +54,6 @@ func (m *model) sync(nodes []taskgroup.Node) {
 
 func (m model) shouldQuit() bool {
 	return m.done && len(m.nodes) == 0 && len(m.live) == 0
-}
-
-func (m model) View() (view tea.View) {
-	view.KeyboardEnhancements = tea.KeyboardEnhancements{}
-	view.AltScreen = false
-	view.MouseMode = tea.MouseModeNone
-	if len(m.nodes) == 0 && len(m.live) == 0 {
-		view.SetContent("")
-		return
-	}
-	width := m.width
-	if width <= 0 {
-		width = defaultTermWidth
-	}
-	var buf bytes.Buffer
-	for _, row := range m.live {
-		buf.WriteString(padCells(row, width))
-		buf.WriteByte('\n')
-	}
-	writeRows(&buf, m.nodes, width)
-	view.SetContent(buf.String())
-	return
 }
 
 func layout(nodes []taskgroup.Node) []treeRow {
@@ -250,18 +225,4 @@ func padCells(s string, width int) string {
 		return s
 	}
 	return s + strings.Repeat(" ", pad)
-}
-
-func cellWidth(s string) int {
-	return runewidth.StringWidth(s)
-}
-
-func clipCells(s string, max int) string {
-	if max <= 0 {
-		return ""
-	}
-	if cellWidth(s) <= max {
-		return s
-	}
-	return runewidth.Truncate(s, max, "")
 }

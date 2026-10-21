@@ -2,36 +2,13 @@ package app
 
 import (
 	"context"
-	"image"
 	"net/http"
-	"sync"
 
-	"github.com/lewtec/lewkit/x/build/icons"
 	"github.com/lewtec/lewkit/x/driver/webview"
 	"github.com/lewtec/lewkit/x/driver/window"
 	_ "github.com/lewtec/lewkit/x/driver/window/prelude"
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
-
-var (
-	markOnce sync.Once
-	markImg  image.Image
-)
-
-func shellMark() image.Image {
-	markOnce.Do(func() {
-		if img := window.BundleIcon(); img != nil {
-			markImg = img
-			return
-		}
-		img, err := icons.DefaultMark()
-		if err != nil {
-			return
-		}
-		markImg = img
-	})
-	return markImg
-}
 
 // Window is one surface the app opens. [Web] is a web view. [GUI] is a
 // host surface driven by a [gui.Model].

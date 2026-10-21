@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !windows && !android
 
 // Package ccgo registers the ccgo tree-sitter engine.
 //
