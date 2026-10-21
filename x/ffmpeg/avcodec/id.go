@@ -34,4 +34,5 @@ const (
 	IDADPCMYAMAHA           // adpcm_yamaha
 	IDADPCMIMAQT            // adpcm_ima_qt
 	IDG722                  // g722
+	IDLIBSHINE              // libshine
 )

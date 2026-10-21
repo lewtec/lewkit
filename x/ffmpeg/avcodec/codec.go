@@ -78,6 +78,7 @@ func Codecs() []Codec {
 		{IDADPCMYAMAHA, "adpcm_yamaha", "ADPCM Yamaha", avutil.MediaAudio, false, true, false, true, false},
 		{IDADPCMIMAQT, "adpcm_ima_qt", "ADPCM IMA QuickTime", avutil.MediaAudio, false, true, false, true, false},
 		{IDG722, "g722", "G.722 ADPCM", avutil.MediaAudio, true, true, false, true, false},
+		{IDLIBSHINE, "libshine", "shine MP3", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
@@ -170,6 +171,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return newIMAQT(par), nil
 	case IDG722:
 		return newG722Codec(par), nil
+	case IDLIBSHINE:
+		return newShineCodec(par)
 	case IDH264:
 		return newH264(par), nil
 	case IDHEVC:
@@ -193,6 +196,7 @@ func (msCodec) Close() error     { return nil }
 func (yamahaCodec) Close() error { return nil }
 func (qtCodec) Close() error     { return nil }
 func (g722Codec) Close() error   { return nil }
+func (shineCodec) Close() error  { return nil }
 func (h264Codec) Close() error   { return nil }
 func (hevcCodec) Close() error   { return nil }
 

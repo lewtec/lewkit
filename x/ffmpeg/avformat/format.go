@@ -61,7 +61,7 @@ func Formats() []Info {
 	return []Info{
 		{Name: "wav", Long: "WAV / WAVE", Demux: true, Mux: true},
 		{Name: "flac", Long: "raw FLAC", Demux: true, Mux: true},
-		{Name: "mp3", Long: "MP3", Demux: true, Mux: false},
+		{Name: "mp3", Long: "MP3", Demux: true, Mux: true},
 		{Name: "ogg", Long: "Ogg Vorbis", Demux: true, Mux: false},
 		{Name: "image2", Long: "image2 sequence", Demux: true, Mux: true},
 		{Name: "image2pipe", Long: "piped image2 sequence", Demux: true, Mux: true},
@@ -202,7 +202,7 @@ func Create(ctx context.Context, url, format string, opt Options) (Muxer, error)
 		return &hashMux{name: format, w: w, opt: opt}, nil
 	case "image2", "image2pipe":
 		return &imageMux{ctx: ctx, url: url, format: format, opt: opt}, nil
-	case "rawvideo", "h264", "hevc", "gsm", "g722", "mp2", "aiff", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
+	case "rawvideo", "h264", "hevc", "gsm", "g722", "mp2", "mp3", "aiff", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
 		w, err := openWrite(ctx, url, opt)
 		if err != nil {
 			return nil, err
