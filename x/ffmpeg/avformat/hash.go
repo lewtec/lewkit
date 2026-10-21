@@ -35,7 +35,7 @@ func (m *hashMux) WriteHeader() error {
 		return nil
 	}
 	if !m.opt.Bitexact {
-		if _, err := fmt.Fprintf(m.w, "#software: n5.1.9-lewkit\n"); err != nil {
+		if _, err := fmt.Fprintf(m.w, "#software: n9.0.2-lewkit\n"); err != nil {
 			return err
 		}
 	}

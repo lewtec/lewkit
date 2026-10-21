@@ -16,8 +16,8 @@ import (
 	"github.com/lewtec/lewkit/x/ffmpeg/swscale"
 )
 
-// Version is the FFmpeg release this transcription follows.
-const Version = "n5.1.9-lewkit"
+// Version is the FFmpeg release vendored at third_party/ffmpeg.
+const Version = "n9.0.2-lewkit"
 
 // Run runs the ffmpeg command against the supplied streams.
 // A nil context is a caller bug.
@@ -526,7 +526,7 @@ const usageText = "Hyper fast Audio and Video encoder\nusage: ffmpeg [options] [
 func helpText(topic string) string {
 	var b strings.Builder
 	b.WriteString(usageText)
-	b.WriteString("\nThis build transcribes the FFmpeg 5.1.9 libraries that lewkit ships.\n")
+	b.WriteString("\nThis build transcribes the FFmpeg 9.0.2 libraries that lewkit ships.\n")
 	b.WriteString("Enabled codecs, filters, and formats are listed by -codecs, -filters, and -formats.\n")
 	if topic != "" && topic != "basic" {
 		fmt.Fprintf(&b, "\nNo extra help topic %q is compiled into this build.\n", topic)
@@ -625,7 +625,7 @@ func configuration() string {
 
 func infoText(j *job) string {
 	if j.license {
-		return "lewkit ffmpeg is GPL. The transcribed FFmpeg 5.1.9 algorithms are covered by that license.\nSee LICENSE.md.\n"
+		return "lewkit ffmpeg is GPL. The transcribed FFmpeg algorithms are covered by that license.\nSee LICENSE.md.\n"
 	}
 	if j.buildconf {
 		return configuration() + "\n"
