@@ -69,7 +69,7 @@ func Codecs() []Codec {
 		{IDPCMMULAW, "pcm_mulaw", "PCM mu-law", avutil.MediaAudio, true, true, true, true, false},
 		{IDFLAC, "flac", "FLAC", avutil.MediaAudio, true, true, false, false, true},
 		{IDMP3, "mp3", "MP3", avutil.MediaAudio, true, false, false, true, false},
-		{IDVorbis, "vorbis", "Vorbis", avutil.MediaAudio, true, false, false, true, false},
+		{IDVorbis, "vorbis", "Vorbis", avutil.MediaAudio, true, true, false, true, false},
 		{IDGSM, "gsm", "GSM 06.10", avutil.MediaAudio, true, true, false, true, false},
 		{IDGSMMS, "gsm_ms", "GSM 06.10 Microsoft", avutil.MediaAudio, false, true, false, true, false},
 		{IDMP2, "mp2fixed", "MP2 fixed-point", avutil.MediaAudio, false, true, false, true, false},
@@ -192,6 +192,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return &imageCodec{par: par}, nil
 	case IDFLAC:
 		return &flacCodec{par: par}, nil
+	case IDVorbis:
+		return newVorbisEnc(par)
 	case IDGSM:
 		return newGSMCodec(par), nil
 	case IDGSMMS:
@@ -248,6 +250,7 @@ func (imageCodec) Close() error   { return nil }
 func (flacCodec) Close() error    { return nil }
 func (mp3Codec) Close() error     { return nil }
 func (vorbisCodec) Close() error  { return nil }
+func (vorbisEnc) Close() error    { return nil }
 func (gsmCodec) Close() error     { return nil }
 func (mp2Codec) Close() error     { return nil }
 func (imaCodec) Close() error     { return nil }

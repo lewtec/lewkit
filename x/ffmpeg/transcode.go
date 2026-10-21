@@ -895,7 +895,7 @@ func sampleFor(id avcodec.ID, fallback avutil.SampleFormat, opt fileOpt) avutil.
 	switch id {
 	case avcodec.IDPCMU8:
 		return avutil.SampleU8
-	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC, avcodec.IDGSM, avcodec.IDGSMMS, avcodec.IDMP2, avcodec.IDADPCMIMAWAV, avcodec.IDADPCMMS, avcodec.IDADPCMYAMAHA, avcodec.IDADPCMIMAQT, avcodec.IDG722, avcodec.IDLIBSHINE, avcodec.IDG726, avcodec.IDG726LE, avcodec.IDADPCMSWF, avcodec.IDLIBTWOLAME, avcodec.IDADPCMIMAWS, avcodec.IDLIBSPEEX, avcodec.IDADPCMIMASSI, avcodec.IDADPCMIMAALP, avcodec.IDADPCMIMAAPM, avcodec.IDADPCMARGO, avcodec.IDCODEC2:
+	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC, avcodec.IDVorbis, avcodec.IDGSM, avcodec.IDGSMMS, avcodec.IDMP2, avcodec.IDADPCMIMAWAV, avcodec.IDADPCMMS, avcodec.IDADPCMYAMAHA, avcodec.IDADPCMIMAQT, avcodec.IDG722, avcodec.IDLIBSHINE, avcodec.IDG726, avcodec.IDG726LE, avcodec.IDADPCMSWF, avcodec.IDLIBTWOLAME, avcodec.IDADPCMIMAWS, avcodec.IDLIBSPEEX, avcodec.IDADPCMIMASSI, avcodec.IDADPCMIMAALP, avcodec.IDADPCMIMAAPM, avcodec.IDADPCMARGO, avcodec.IDCODEC2:
 		return avutil.SampleS16
 	case avcodec.IDPCMS24LE, avcodec.IDPCMS32LE:
 		return avutil.SampleS32
