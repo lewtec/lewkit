@@ -56,6 +56,8 @@ func (m *bufMux) Close() error {
 		body, err = writeALP(m.url, m.streams, m.pkts)
 	case "apm":
 		body, err = writeAPM(m.streams, m.pkts)
+	case "argo_asf":
+		body, err = writeArgoASF(m.url, m.streams, m.pkts)
 	case "avi":
 		body, err = writeAVI(m.streams, m.pkts)
 	case "mp4", "mov":

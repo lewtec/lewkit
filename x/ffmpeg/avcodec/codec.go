@@ -88,6 +88,7 @@ func Codecs() []Codec {
 		{IDADPCMIMASSI, "adpcm_ima_ssi", "ADPCM IMA Simon & Schuster Interactive", avutil.MediaAudio, true, true, false, true, false},
 		{IDADPCMIMAALP, "adpcm_ima_alp", "ADPCM IMA High Voltage Software ALP", avutil.MediaAudio, true, true, false, true, false},
 		{IDADPCMIMAAPM, "adpcm_ima_apm", "ADPCM IMA Ubisoft APM", avutil.MediaAudio, true, true, false, true, false},
+		{IDADPCMARGO, "adpcm_argo", "ADPCM Argonaut Games", avutil.MediaAudio, true, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
@@ -162,6 +163,8 @@ func OpenDecoder(par Parameters) (Decoder, error) {
 		return newIMAALP(par), nil
 	case IDADPCMIMAAPM:
 		return newIMAAPM(par), nil
+	case IDADPCMARGO:
+		return newARGO(par), nil
 	case IDADPCMSWF:
 		return newSWF(par)
 	case IDH264:
@@ -216,6 +219,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return newIMAALP(par), nil
 	case IDADPCMIMAAPM:
 		return newIMAAPM(par), nil
+	case IDADPCMARGO:
+		return newARGO(par), nil
 	case IDG726:
 		return newG726(par), nil
 	case IDG726LE:
@@ -252,6 +257,7 @@ func (spxCodec) Close() error     { return nil }
 func (ssiCodec) Close() error     { return nil }
 func (alpCodec) Close() error     { return nil }
 func (apmCodec) Close() error     { return nil }
+func (argoCodec) Close() error    { return nil }
 func (g726Codec) Close() error    { return nil }
 func (swfCodec) Close() error     { return nil }
 func (h264Codec) Close() error    { return nil }

@@ -44,4 +44,5 @@ const (
 	IDADPCMIMASSI           // adpcm_ima_ssi
 	IDADPCMIMAALP           // adpcm_ima_alp
 	IDADPCMIMAAPM           // adpcm_ima_apm
+	IDADPCMARGO             // adpcm_argo
 )

@@ -517,6 +517,35 @@ func TestH264RoundTrip(t *testing.T) {
 	require.Len(t, got, 16*16+8*8+8*8)
 }
 
+func TestARGOCLIMatchesFFmpeg(t *testing.T) {
+	const samplesN = 32*2 + 10
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=22050:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	wantDir := filepath.Join(dir, "want")
+	gotDir := filepath.Join(dir, "got")
+	require.NoError(t, os.Mkdir(wantDir, 0o755))
+	require.NoError(t, os.Mkdir(gotDir, 0o755))
+	wantPath := filepath.Join(wantDir, "a.asf")
+	gotPath := filepath.Join(gotDir, "a.asf")
+	args := []string{"-f", "s16le", "-ar", "22050", "-ac", "1", "-i", path, "-c:a", "adpcm_argo", "-f", "argo_asf"}
+	_ = systemFF(t, append(args, wantPath)...)
+	code, _, stderr := runFF(t, append(append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0", "-y"}, args...), gotPath)...)
+	require.Equal(t, 0, code, stderr)
+	want, err := os.ReadFile(wantPath)
+	require.NoError(t, err)
+	got, err := os.ReadFile(gotPath)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	decoded := systemFF(t, "-f", "argo_asf", "-i", wantPath, "-f", "s16le", "-")
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "argo_asf", "-i", gotPath, "-f", "s16le", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, decoded, []byte(stdout))
+}
+
 func TestIMAAPMCLIMatchesFFmpeg(t *testing.T) {
 	const samplesN = 2048 + 101
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=22050:duration=1", "-f", "s16le", "-")
