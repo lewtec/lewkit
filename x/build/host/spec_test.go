@@ -1,6 +1,10 @@
 package host
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -9,6 +13,7 @@ import (
 	"github.com/lewtec/lewkit/report"
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 	_ "github.com/lewtec/lewkit/x/driver/exec/prelude"
+	"github.com/lewtec/lewkit/x/http/site"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,6 +95,92 @@ func TestSpecEntryBeatsGoMain(t *testing.T) {
 	cfg, _, err := Spec{Dir: dir, Config: filepath.Join(dir, "eletrocromo.json")}.Load(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, other, cfg.GoMain)
+}
+
+func TestStaticExamplesLoad(t *testing.T) {
+	root := moduleRoot(t)
+
+	t.Run("site", func(t *testing.T) {
+		dir := filepath.Join(root, "examples", "app", "site")
+		cfg, base, err := Spec{Config: dir}.Load(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, dir, base)
+		require.Equal(t, "br.tec.lew.eletrocromo.site", cfg.PackageID)
+		require.Equal(t, "Site", cfg.AppName)
+		t.Cleanup(func() { os.RemoveAll(cfg.GoMain) })
+		body, err := os.ReadFile(filepath.Join(cfg.GoMain, "main.go"))
+		require.NoError(t, err)
+		require.Contains(t, string(body), "site.Dir")
+		require.Contains(t, string(body), `"Site"`)
+		page, err := os.ReadFile(filepath.Join(cfg.GoMain, "site", "about.html"))
+		require.NoError(t, err)
+		require.Contains(t, string(page), "<h1>about</h1>")
+	})
+
+	t.Run("zip", func(t *testing.T) {
+		dir := filepath.Join(root, "examples", "app", "zip")
+		cfg, base, err := Spec{Config: dir}.Load(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, dir, base)
+		require.Equal(t, "br.tec.lew.eletrocromo.zip", cfg.PackageID)
+		t.Cleanup(func() { os.RemoveAll(cfg.GoMain) })
+		body, err := os.ReadFile(filepath.Join(cfg.GoMain, "main.go"))
+		require.NoError(t, err)
+		require.Contains(t, string(body), "site.Zip")
+		_, err = os.Stat(filepath.Join(cfg.GoMain, "site.zip"))
+		require.NoError(t, err)
+
+		raw, err := os.ReadFile(filepath.Join(dir, "site.zip"))
+		require.NoError(t, err)
+		handler, err := site.Zip(t.Context(), bytes.NewReader(raw))
+		require.NoError(t, err)
+		home := httptest.NewRequest(http.MethodGet, "/", nil)
+		homeResponse := httptest.NewRecorder()
+		handler.ServeHTTP(homeResponse, home)
+		require.Equal(t, http.StatusOK, homeResponse.Code)
+		require.Contains(t, homeResponse.Body.String(), "<h1>zip</h1>")
+		note := httptest.NewRequest(http.MethodGet, "/note.txt", nil)
+		note.Header.Set("Range", "bytes=0-4")
+		noteResponse := httptest.NewRecorder()
+		handler.ServeHTTP(noteResponse, note)
+		require.Equal(t, http.StatusPartialContent, noteResponse.Code)
+		require.Equal(t, "range", noteResponse.Body.String())
+	})
+}
+
+func TestExampleConfigsSetEntry(t *testing.T) {
+	root := moduleRoot(t)
+	var count int
+	err := filepath.WalkDir(filepath.Join(root, "examples"), func(path string, item os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if item.IsDir() {
+			switch item.Name() {
+			case "node_modules", "dist", ".git":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if item.Name() != "eletrocromo.json" {
+			return nil
+		}
+		raw, err := os.ReadFile(path)
+		require.NoError(t, err)
+		var doc struct {
+			Entry       string `json:"entry"`
+			GoMain      string `json:"go_main"`
+			VersionName string `json:"version_name"`
+		}
+		require.NoError(t, json.Unmarshal(raw, &doc))
+		require.NotEmpty(t, doc.Entry, path)
+		require.Empty(t, doc.GoMain, path)
+		require.Empty(t, doc.VersionName, path)
+		count++
+		return nil
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, count, 30)
 }
 
 func TestMissingConfigIsNotReported(t *testing.T) {

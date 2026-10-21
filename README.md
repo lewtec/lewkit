@@ -257,7 +257,9 @@ The progress view tracks the build. The program starts after that view and write
 | `examples/app/counter` | Server-rendered increment form. |
 | `examples/app/ticker` | Adds one every second. The page reads that count. |
 | `examples/app/inbox` | URL and file opens. Notes go under the app dirs. |
-| `examples/app/astro` | Astro page in a web window. Build the embed first. See `examples/app/astro/README.md`. |
+| `examples/app/astro` | Astro page. `entry` is `astro:.`. Install the bun packages first. See `examples/app/astro/README.md`. |
+| `examples/app/site` | Static directory. `entry` is `static:site`. |
+| `examples/app/zip` | Static zip. `entry` is `static:site.zip`. The zip's only top folder is the site root. |
 | `examples/app/host` | Host drivers, brightness, and the clipboard. |
 | `examples/app/drivers` | Driver panels. Opens the triangle window. |
 | `examples/app/tasks` | Progress bars, logs, pools, and dependencies. |
