@@ -73,6 +73,7 @@ func Codecs() []Codec {
 		{IDGSM, "gsm", "GSM 06.10", avutil.MediaAudio, true, true, false, true, false},
 		{IDGSMMS, "gsm_ms", "GSM 06.10 Microsoft", avutil.MediaAudio, false, true, false, true, false},
 		{IDMP2, "mp2fixed", "MP2 fixed-point", avutil.MediaAudio, false, true, false, true, false},
+		{IDADPCMIMAWAV, "adpcm_ima_wav", "ADPCM IMA WAV", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
@@ -153,6 +154,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return newGSMMS(par), nil
 	case IDMP2:
 		return newMP2(par), nil
+	case IDADPCMIMAWAV:
+		return newIMAWAV(par), nil
 	case IDH264:
 		return newH264(par), nil
 	case IDHEVC:
@@ -171,6 +174,7 @@ func (mp3Codec) Close() error    { return nil }
 func (vorbisCodec) Close() error { return nil }
 func (gsmCodec) Close() error    { return nil }
 func (mp2Codec) Close() error    { return nil }
+func (imaCodec) Close() error    { return nil }
 func (h264Codec) Close() error   { return nil }
 func (hevcCodec) Close() error   { return nil }
 
