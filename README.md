@@ -85,7 +85,7 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/http/middleware` | `SPA`. Serves an `fs.FS` with the goftpd SPA rules. A miss goes to the next handler. |
 | `x/http/asset` | `Mount`, `Register`. Serves registered files under `/__lewkit__/`. |
 | `x/http/asset/htmx` | Blank-import. Registers htmx and renders `Load`. `jquery`, `tailwindcss`, and `sakuracss` match this shape. |
-| `x/http/asset/lucide` | Lucide. `Version` is written by `modot codebase apply` from the input `github:lucide-icons/lucide`. `Name` is one icon. `Icon` inlines its SVG. `Image` paints it through `x/image/convert/svg/render`. |
+| `x/http/asset/lucide` | Lucide. `Version` is the `currentValue` of `github:lucide-icons/lucide` in `modot.lock.json`. Codegen reads that tag and the lock `currentDigest`, and writes `Version`, `Name`, and the SVG bodies from that commit's `icons/*.svg`. The input leaves `version` empty, so modot follows it. `Name` is one icon. `Icon` inlines its SVG. `Image` paints it through `x/image/convert/svg/render`. |
 | `x/http/asset/prelude` | Blank-import. Registers htmx, tailwindcss, daisyui, jquery, sakuracss, lewtec_logo, and hastad_nha. |
 | `x/release` | `Version`, `AppID`, `ValidateAppID`, `Name`, `PrintVersion`, `Platform`. `lewkit --version` prints `Version`. The reverse-domain id is the `-X` stamp `x/release.appID`, or `LEWKIT_APP_ID` when the stamp is empty. The short name is the `-X` stamp `x/release.name`, or `LEWKIT_NAME`, or the built-in default. |
 | `x/driver/bundle` | `Resolve`, `SharePath`. Data, cache, config, and the web profile for `AppID`. |

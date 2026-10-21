@@ -125,12 +125,17 @@ func (f *File) Make(w io.Writer) error {
 	}
 	f.ensureImports()
 	f.Imports = normalizeImports(f.Imports)
-	node, err := (&builder{file: f}).build(f)
+	b := &builder{file: f}
+	node, err := b.build(f)
 	if err != nil {
 		return err
 	}
+	fset := b.fset
+	if fset == nil {
+		fset = token.NewFileSet()
+	}
 	var buf bytes.Buffer
-	if err := printer.Fprint(&buf, token.NewFileSet(), node); err != nil {
+	if err := printer.Fprint(&buf, fset, node); err != nil {
 		return fmt.Errorf("%w: %w", errPrint, err)
 	}
 	src := groupImportLines(buf.Bytes(), f.Imports)

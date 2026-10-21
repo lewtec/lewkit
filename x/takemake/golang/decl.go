@@ -44,11 +44,13 @@ type ValueSpec struct {
 
 // TypeSpec is one type spec inside a type declaration.
 // Params are the type parameters.
+// Doc is the comment above the spec, without the leading slashes.
 type TypeSpec struct {
 	Name   string
 	Alias  bool
 	Params []*Field
 	Type   *Type
+	Doc    string
 }
 
 // Const is a const declaration. Specs preserves a parenthesized group.
@@ -278,6 +280,18 @@ func setSpecValues(specs *[]ValueSpec, exprs []*Expr) {
 		exprs = []*Expr{}
 	}
 	(*specs)[len(*specs)-1].Values = exprs
+}
+
+// Comment sets the comment above the current type spec.
+func (d *TypeDecl) Comment(text string) *TypeDecl {
+	if d == nil {
+		return nil
+	}
+	if len(d.Specs) == 0 {
+		d.Specs = append(d.Specs, TypeSpec{})
+	}
+	d.Specs[len(d.Specs)-1].Doc = text
+	return d
 }
 
 // Id starts a type spec with that name.

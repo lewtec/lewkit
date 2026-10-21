@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/lewtec/lewkit/x/build"
+	_ "github.com/lewtec/lewkit/x/build/gocmd/lewkit"
 	gotool "github.com/lewtec/lewkit/x/toolchain/go"
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +101,13 @@ func TestUberWritesDist(t *testing.T) {
 	for _, path := range paths {
 		info, err := os.Stat(path)
 		require.NoError(t, err)
-		require.Greater(t, info.Size(), int64(0))
+		if info.IsDir() {
+			entries, err := os.ReadDir(path)
+			require.NoError(t, err)
+			require.NotEmpty(t, entries, path)
+			continue
+		}
+		require.Greater(t, info.Size(), int64(0), path)
 	}
 	raw, err := os.ReadFile(filepath.Join(out, "Demo_linux_amd64.AppImage"))
 	require.NoError(t, err)
