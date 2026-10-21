@@ -40,6 +40,12 @@ inputs: lua: {
 inputs: zlib: {
 	from:    "github:madler/zlib"
 }
+// FFmpeg 9.0.2 is the transcription pin. The lock records n9.0.2.
+// The Go tree does not place this source.
+inputs: ffmpeg: {
+	from:    "github:FFmpeg/FFmpeg"
+	version: "n9.0.2"
+}
 inputs: ninja: {
 	from:    "github:ninja-build/ninja"
 }

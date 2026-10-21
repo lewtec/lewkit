@@ -2,6 +2,15 @@
   "dependencies": [
     {
       "kind": "source",
+      "ref": "github:FFmpeg/FFmpeg",
+      "depName": "FFmpeg/FFmpeg",
+      "packageName": "https://github.com/FFmpeg/FFmpeg",
+      "currentValue": "n9.0.2",
+      "currentDigest": "946fcce07b6dcd0331c8cc609192aeff5e1924f8",
+      "datasource": "git-refs"
+    },
+    {
+      "kind": "source",
       "ref": "github:KhronosGroup/Vulkan-Samples",
       "depName": "KhronosGroup/Vulkan-Samples",
       "packageName": "https://github.com/KhronosGroup/Vulkan-Samples",

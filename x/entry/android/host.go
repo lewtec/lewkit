@@ -107,7 +107,7 @@ func hookCall(env, namePtr, argsPtr uintptr) (ret uintptr) {
 	defer releaseHookArgs(args)
 	switch name {
 	case "start":
-		runHost(hookString(args, 0))
+		main(hookString(args, 0))
 	case "window":
 		return hookWindow(env, args)
 	case "pointer":
@@ -203,11 +203,12 @@ func releaseHookArgs(args []any) {
 	}
 }
 
-// runHost is Hook.call("start") after the JNIEnv is bound.
-// The library skips main, so the app registered with entry.Bind runs here.
+// main is Hook.call("start") after the JNIEnv is bound.
+// The library does not enter the Go runtime main, so this function is the
+// process entry and the only place this package creates a context root.
 // ELETROCROMO_NO_UI asks for a loopback URL. This process has a Java VM,
 // so the window stays the activity page.
-func runHost(path string) {
+func main(path string) {
 	_ = os.Setenv("ELETROCROMO_NO_UI", "1")
 	_ = os.Setenv("ELETROCROMO_READY_FILE", path)
 	root := context.Background()

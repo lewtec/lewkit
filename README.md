@@ -92,6 +92,13 @@ Prefix every path with `github.com/lewtec/lewkit/`.
 | `x/build` | `GOOS`, `GOARCH`, `Platform`, `Target`, `AppFile`, `ArchiveName`. `Job` and `Host` live in `x/build/host`. `lewkit release build` writes one binary archive for this process's GOOS and GOARCH. `--goos` and `--goarch` override that. The archive name is `name_goos_goarch.tar.gz`, or `.zip` on Windows. `--app` writes the host instead: a macOS `.app`, a Windows GUI `.exe`, a Linux `.AppImage`, an Android APK, or an iOS `.app`. That file is `stem_goos_goarch` plus the host suffix, so `dist` can be uploaded as release assets. The build is a workflow: an icons step, a scaffold step for the Android, macOS, and iOS hosts, then one `goos/goarch` step. The macOS `.app` executable is the Go program, which opens `app.GUI` and `app.Web`. A binary archive is one step per target. `lewkit release build-all` writes every desktop archive and every host package this machine can finish into that directory, as one workflow. Linux, Windows, macOS, and iOS hosts are included. The Apple bundle executable is that Go program on every host. An Android APK is assembled on every machine. A cgo Android package still needs an NDK that is already installed. `release run` finds `adb` on `PATH`. `lewkit release run` takes the same flags as `lewkit release build`, builds that artifact, and runs it. Arguments after `--` go to that program. `--go lewkit` is the default. The lewkit command links `x/build/gocmd/lewkit`, which compiles that CGO-free amd64 or arm64 binary with the embedded toolchain. Android arm64 links as an internal PIE, and a `-toolexec` that names `_cgo_android_export.go` is forwarded to `go list -export`. `--go host` runs the host `go` command. |
 | `x/app` | `Web`, `GUI`, `Open`, `Run`. An app is the windows of one process. Each window is a web handler or a GUI model, and it may open another. `Run` returns when the last window closes. `LEWKIT_NO_UI` or `ELETROCROMO_NO_UI` serves the first web handler on a loopback port. |
 | `x/test` | Helpers for process globals, closers, iterators, and readers. |
+| `x/ffmpeg` | `Run`. `lewkit ffmpeg` speaks the ffmpeg CLI. The source pin is FFmpeg 9.0.2. |
+| `x/ffmpeg/avutil` | Rational, frames, packets, pixel and sample formats, and the FFmpeg parsers. |
+| `x/ffmpeg/swscale` | Picture scale and color conversion, including the unscaled yuv2rgb tables. |
+| `x/ffmpeg/swresample` | PCM conversion. The amd64 kernel matches the scalar s16/f32 path. |
+| `x/ffmpeg/avcodec` | Raw video, PNG, MJPEG, GIF, BMP, PPM, PCM, G.711, FLAC, and decode-only MP3 and Vorbis. |
+| `x/ffmpeg/avfilter` | testsrc, sine, color, scale, crop, pad, flips, negate, volume, and the audio format filters. |
+| `x/ffmpeg/avformat` | WAV, FLAC, images, raw video, PCM, AVI, MP4, MOV, lavfi, and the framecrc family. |
 | `x/auth` | `HashPassword`, `HashPasswordCost`, `CheckHashedPassword`. Bcrypt. |
 | `x/generate` | Helpers shared by the generator packages. |
 | `x/generate/prelude` | Writes one blank-import prelude per Go package that contains a descendant `root.go`. A directory with no Go file is skipped. |
@@ -199,6 +206,7 @@ Global flags are `-h`, `-v`, `--version`, `--pprof`, and `--sentry-dsn`. `SENTRY
 | Command | Result |
 | --- | --- |
 | `lewkit doctor` | Each driver interface and the implementation `Get` selected. |
+| `lewkit ffmpeg [ffmpeg args...]` | The ffmpeg command line: read, filter, and write media. Arguments are ffmpeg's. `-h`, `-version`, `-codecs`, `-filters`, and `-formats` describe this build. |
 | `lewkit disasm hex HEX` | Instructions for a hex byte string. |
 | `lewkit disasm raw PATH` | Instructions for a raw byte file. `PATH` `-` reads stdin. |
 | `lewkit disasm file PATH` | One text section from an ELF, PE, or Mach-O file. |
