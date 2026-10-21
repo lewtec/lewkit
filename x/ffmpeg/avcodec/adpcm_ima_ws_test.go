@@ -50,6 +50,57 @@ func TestIMAWSEncodeMatchesFFmpeg(t *testing.T) {
 	}
 }
 
+func TestIMAWSDecodeMatchesFFmpeg(t *testing.T) {
+	const samplesN = 2048 + 100
+	pcm, err := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1",
+		"-f", "s16le", "-",
+	).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	rawIn := filepath.Join(dir, "a.s16")
+	if err := os.WriteFile(rawIn, pcm, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "a.aud")
+	cmd := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
+		"-f", "s16le", "-ar", "44100", "-ac", "1", "-i", rawIn,
+		"-c:a", "adpcm_ima_ws", "-f", "wsaud", out,
+	)
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Fatal(err, string(b))
+	}
+	aud, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := IMAWSDecode(audPayload(t, aud))
+	wantRaw, err := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+		"-i", out, "-f", "s16le", "-",
+	).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make([]int16, len(wantRaw)/2)
+	for i := range want {
+		want[i] = int16(binary.LittleEndian.Uint16(wantRaw[i*2:]))
+	}
+	if len(got) != len(want) {
+		t.Fatalf("ima ws decode len %d want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ima ws decode at %d got %d want %d", i, got[i], want[i])
+		}
+	}
+}
+
 func audPayload(t *testing.T, b []byte) []byte {
 	t.Helper()
 	if len(b) < 12 {

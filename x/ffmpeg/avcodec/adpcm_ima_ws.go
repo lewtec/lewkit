@@ -13,9 +13,16 @@ type wsCodec struct {
 	pcm  []int16
 	prev int
 	step int
+	rate int
 }
 
-func newIMAWS(Parameters) *wsCodec { return &wsCodec{} }
+func newIMAWS(par Parameters) *wsCodec {
+	rate := par.SampleRate
+	if rate <= 0 {
+		rate = 44100
+	}
+	return &wsCodec{rate: rate}
+}
 
 func (c *wsCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 	if frame == nil || frame.NbSamples == 0 {
@@ -34,6 +41,18 @@ func (c *wsCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 }
 
 func (c *wsCodec) Flush() ([]*avutil.Packet, error) { return c.emitWS(true) }
+
+func (c *wsCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
+	if pkt == nil || len(pkt.Data) == 0 {
+		return nil, nil
+	}
+	samples := imawsExpand(pkt.Data, &c.prev, &c.step)
+	frame, err := pcmS16Mono(samples, c.rate, pkt.PTS)
+	if err != nil || frame == nil {
+		return nil, err
+	}
+	return []*avutil.Frame{frame}, nil
+}
 
 func (c *wsCodec) emitWS(flush bool) ([]*avutil.Packet, error) {
 	const frame = 2048
@@ -71,6 +90,22 @@ func IMAWSEncode(pcm []int16) []byte {
 		prev, step = p, s
 		out = append(out, raw...)
 		pcm = pcm[n:]
+	}
+	return out
+}
+
+// IMAWSDecode expands mono IMA Westwood ADPCM. Nibbles are low then high.
+// Predictor and step start at zero and carry across the whole buffer.
+func IMAWSDecode(data []byte) []int16 {
+	prev, step := 0, 0
+	return imawsExpand(data, &prev, &step)
+}
+
+func imawsExpand(data []byte, prev, step *int) []int16 {
+	out := make([]int16, len(data)*2)
+	for i, b := range data {
+		out[i*2] = imaExpand(prev, step, int(b)&0x0F)
+		out[i*2+1] = imaExpand(prev, step, int(b)>>4)
 	}
 	return out
 }
