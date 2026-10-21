@@ -212,6 +212,19 @@ func TestAVIAndMOV(t *testing.T) {
 	require.Len(t, got, 16*16*3*2)
 }
 
+func TestSWFCLIMatchesFFmpeg(t *testing.T) {
+	const frame = 4096
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:frame*2]
+	path := filepath.Join(t.TempDir(), "a.s16")
+	require.NoError(t, os.WriteFile(path, pcm, 0o644))
+	args := []string{"-f", "s16le", "-ar", "44100", "-ac", "1", "-i", path, "-c:a", "adpcm_swf", "-f", "wav", "-"}
+	want := systemFF(t, args...)
+	code, stdout, stderr := runFF(t, append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0"}, args...)...)
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, wavData(t, want), wavData(t, []byte(stdout)))
+}
+
 func TestG726LECLIMatchesFFmpeg(t *testing.T) {
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=0.04", "-f", "s16le", "-")
 	path := filepath.Join(t.TempDir(), "a.s16")

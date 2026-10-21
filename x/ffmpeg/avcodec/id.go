@@ -37,4 +37,5 @@ const (
 	IDLIBSHINE              // libshine
 	IDG726                  // g726
 	IDG726LE                // g726le
+	IDADPCMSWF              // adpcm_swf
 )

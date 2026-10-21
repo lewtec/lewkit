@@ -81,6 +81,7 @@ func Codecs() []Codec {
 		{IDLIBSHINE, "libshine", "shine MP3", avutil.MediaAudio, false, true, false, true, false},
 		{IDG726, "g726", "G.726 ADPCM", avutil.MediaAudio, true, true, false, true, false},
 		{IDG726LE, "g726le", "G.726 ADPCM little-endian", avutil.MediaAudio, true, true, false, true, false},
+		{IDADPCMSWF, "adpcm_swf", "ADPCM Shockwave Flash", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
 	}
@@ -183,6 +184,8 @@ func OpenEncoder(par Parameters) (Encoder, error) {
 		return newG726(par), nil
 	case IDG726LE:
 		return newG726LE(par), nil
+	case IDADPCMSWF:
+		return newSWF(par)
 	case IDH264:
 		return newH264(par), nil
 	case IDHEVC:
@@ -208,6 +211,7 @@ func (qtCodec) Close() error     { return nil }
 func (g722Codec) Close() error   { return nil }
 func (shineCodec) Close() error  { return nil }
 func (g726Codec) Close() error   { return nil }
+func (swfCodec) Close() error    { return nil }
 func (h264Codec) Close() error   { return nil }
 func (hevcCodec) Close() error   { return nil }
 

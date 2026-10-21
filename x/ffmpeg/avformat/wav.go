@@ -127,6 +127,11 @@ func writeWAV(streams []Stream, pkts []*avutil.Packet) ([]byte, error) {
 		bits = 4
 		block = 1024
 		fmtExtra = []byte{0, 0}
+	case avcodec.IDADPCMSWF:
+		tag = 0x5346
+		bits = 4
+		block = 2051
+		fmtExtra = []byte{0, 0}
 	default:
 		return nil, fmt.Errorf("%w: wav %s", avutil.ErrUnsupported, par.ID)
 	}
