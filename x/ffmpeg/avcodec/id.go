@@ -39,4 +39,5 @@ const (
 	IDG726LE                // g726le
 	IDADPCMSWF              // adpcm_swf
 	IDLIBTWOLAME            // libtwolame
+	IDADPCMIMAWS            // adpcm_ima_ws
 )
