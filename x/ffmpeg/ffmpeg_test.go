@@ -539,6 +539,22 @@ func TestIMAALPCLIMatchesFFmpeg(t *testing.T) {
 	}
 }
 
+func TestIMASSIDecodeCLIMatchesFFmpeg(t *testing.T) {
+	const samplesN = 2048 + 100
+	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=1", "-f", "s16le", "-")
+	pcm = pcm[:samplesN*2]
+	dir := t.TempDir()
+	raw := filepath.Join(dir, "a.s16")
+	require.NoError(t, os.WriteFile(raw, pcm, 0o644))
+	vag := filepath.Join(dir, "a.vag")
+	_ = systemFF(t, "-f", "s16le", "-ar", "8000", "-ac", "1", "-i", raw, "-c:a", "adpcm_ima_ssi", "-f", "kvag", vag)
+	want := systemFF(t, "-i", vag, "-f", "s16le", "-")
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-i", vag, "-f", "s16le", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+}
+
 func TestIMASSICLIMatchesFFmpeg(t *testing.T) {
 	const samplesN = 2048 + 100
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=1", "-f", "s16le", "-")

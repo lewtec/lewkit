@@ -85,7 +85,7 @@ func Codecs() []Codec {
 		{IDLIBTWOLAME, "libtwolame", "TwoLAME MP2", avutil.MediaAudio, false, true, false, true, false},
 		{IDADPCMIMAWS, "adpcm_ima_ws", "ADPCM IMA Westwood", avutil.MediaAudio, true, true, false, true, false},
 		{IDLIBSPEEX, "libspeex", "Speex", avutil.MediaAudio, false, true, false, true, false},
-		{IDADPCMIMASSI, "adpcm_ima_ssi", "ADPCM IMA Simon & Schuster Interactive", avutil.MediaAudio, false, true, false, true, false},
+		{IDADPCMIMASSI, "adpcm_ima_ssi", "ADPCM IMA Simon & Schuster Interactive", avutil.MediaAudio, true, true, false, true, false},
 		{IDADPCMIMAALP, "adpcm_ima_alp", "ADPCM IMA High Voltage Software ALP", avutil.MediaAudio, false, true, false, true, false},
 		{IDH264, "h264", "H.264 constrained baseline", avutil.MediaVideo, true, true, true, false, true},
 		{IDHEVC, "hevc", "HEVC main PCM", avutil.MediaVideo, true, true, true, false, true},
@@ -155,6 +155,8 @@ func OpenDecoder(par Parameters) (Decoder, error) {
 		return newIMAQT(par), nil
 	case IDADPCMIMAWS:
 		return newIMAWS(par), nil
+	case IDADPCMIMASSI:
+		return newIMASSI(par), nil
 	case IDADPCMSWF:
 		return newSWF(par)
 	case IDH264:

@@ -15,9 +15,16 @@ type ssiCodec struct {
 	pcm  []int16
 	prev int
 	step int
+	rate int
 }
 
-func newIMASSI(Parameters) *ssiCodec { return &ssiCodec{} }
+func newIMASSI(par Parameters) *ssiCodec {
+	rate := par.SampleRate
+	if rate <= 0 {
+		rate = 44100
+	}
+	return &ssiCodec{rate: rate}
+}
 
 func (c *ssiCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 	if frame == nil || frame.NbSamples == 0 {
@@ -36,6 +43,18 @@ func (c *ssiCodec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 }
 
 func (c *ssiCodec) Flush() ([]*avutil.Packet, error) { return c.emitSSI(true) }
+
+func (c *ssiCodec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
+	if pkt == nil || len(pkt.Data) == 0 {
+		return nil, nil
+	}
+	samples := ssiExpand(pkt.Data, &c.prev, &c.step)
+	frame, err := pcmS16Mono(samples, c.rate, pkt.PTS)
+	if err != nil || frame == nil {
+		return nil, err
+	}
+	return []*avutil.Frame{frame}, nil
+}
 
 func (c *ssiCodec) emitSSI(flush bool) ([]*avutil.Packet, error) {
 	const frame = 2048
@@ -72,6 +91,22 @@ func IMASSIEncode(pcm []int16) []byte {
 		prev, step = p, s
 		out = append(out, raw...)
 		pcm = pcm[n:]
+	}
+	return out
+}
+
+// IMASSIDecode expands mono IMA SSI ADPCM. Nibbles are high then low
+// and use the QuickTime IMA expander. State starts at zero.
+func IMASSIDecode(data []byte) []int16 {
+	prev, step := 0, 0
+	return ssiExpand(data, &prev, &step)
+}
+
+func ssiExpand(data []byte, prev, step *int) []int16 {
+	out := make([]int16, len(data)*2)
+	for i, b := range data {
+		out[i*2] = imaQTExpand(prev, step, int(b)>>4)
+		out[i*2+1] = imaQTExpand(prev, step, int(b)&0x0F)
 	}
 	return out
 }
