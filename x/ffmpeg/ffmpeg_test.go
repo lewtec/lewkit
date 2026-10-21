@@ -165,6 +165,23 @@ func TestNegateVFlipCropMatchFFmpeg(t *testing.T) {
 	}
 }
 
+func TestTransposePadVolumeMatchFFmpeg(t *testing.T) {
+	video := []string{"transpose=1", "pad=40:36:4:2:black"}
+	for _, vf := range video {
+		args := []string{"-f", "lavfi", "-i", "testsrc=size=32x24:rate=25:duration=0.04", "-frames:v", "1", "-vf", vf, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"}
+		want := systemFF(t, args...)
+		code, stdout, stderr := runFF(t, append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0"}, args...)...)
+		require.Equal(t, 0, code, vf+" "+stderr)
+		require.Equal(t, want, []byte(stdout), vf)
+	}
+	spec := "sine=frequency=440:sample_rate=8000:duration=0.05"
+	args := []string{"-f", "lavfi", "-i", spec, "-af", "volume=0.5", "-f", "s16le", "-"}
+	want := systemFF(t, args...)
+	code, stdout, stderr := runFF(t, append([]string{"-hide_banner", "-loglevel", "error", "-cpuflags", "0"}, args...)...)
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+}
+
 func TestCopyFrameCRC(t *testing.T) {
 	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0", "-f", "lavfi", "-i", "testsrc=size=16x16:rate=25:duration=0.04", "-frames:v", "1", "-c", "copy", "-f", "framecrc", "-")
 	require.Equal(t, 0, code, stderr)
