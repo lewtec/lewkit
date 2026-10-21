@@ -33,4 +33,5 @@ const (
 	IDADPCMMS               // adpcm_ms
 	IDADPCMYAMAHA           // adpcm_yamaha
 	IDADPCMIMAQT            // adpcm_ima_qt
+	IDG722                  // g722
 )

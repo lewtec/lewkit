@@ -609,6 +609,8 @@ func chooseCodec(opt fileOpt, format, url string, media avutil.MediaType, index 
 		switch format {
 		case "gsm":
 			return avcodec.IDGSM, nil
+		case "g722":
+			return avcodec.IDG722, nil
 		case "mp2":
 			return avcodec.IDMP2, nil
 		case "flac":
@@ -762,6 +764,11 @@ func encodeFrames(id avcodec.ID, frames []*avutil.Frame, opt fileOpt) (avcodec.P
 			par.SampleRate = 8000
 			par.Layout = avutil.Mono()
 		}
+		if id == avcodec.IDG722 {
+			par.SampleFormat = avutil.SampleS16
+			par.SampleRate = 16000
+			par.Layout = avutil.Mono()
+		}
 		if opt.layoutSet {
 			par.Layout = opt.layout
 		}
@@ -810,6 +817,11 @@ func encodeFrames(id avcodec.ID, frames []*avutil.Frame, opt fileOpt) (avcodec.P
 			par.SampleFormat = avutil.SampleS16
 			par.Layout = avutil.Mono()
 			par.TimeBase = avutil.Q(1, 8000)
+		} else if id == avcodec.IDG722 {
+			par.SampleRate = 16000
+			par.SampleFormat = avutil.SampleS16
+			par.Layout = avutil.Mono()
+			par.TimeBase = avutil.Q(1, 16000)
 		} else {
 			par.SampleRate = frames[len(frames)-1].SampleRate
 			par.SampleFormat = frames[len(frames)-1].SampleFmt
@@ -843,7 +855,7 @@ func sampleFor(id avcodec.ID, fallback avutil.SampleFormat, opt fileOpt) avutil.
 	switch id {
 	case avcodec.IDPCMU8:
 		return avutil.SampleU8
-	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC, avcodec.IDGSM, avcodec.IDGSMMS, avcodec.IDMP2, avcodec.IDADPCMIMAWAV, avcodec.IDADPCMMS, avcodec.IDADPCMYAMAHA, avcodec.IDADPCMIMAQT:
+	case avcodec.IDPCMS16LE, avcodec.IDPCMS16BE, avcodec.IDPCMALAW, avcodec.IDPCMMULAW, avcodec.IDFLAC, avcodec.IDGSM, avcodec.IDGSMMS, avcodec.IDMP2, avcodec.IDADPCMIMAWAV, avcodec.IDADPCMMS, avcodec.IDADPCMYAMAHA, avcodec.IDADPCMIMAQT, avcodec.IDG722:
 		return avutil.SampleS16
 	case avcodec.IDPCMS24LE, avcodec.IDPCMS32LE:
 		return avutil.SampleS32

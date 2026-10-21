@@ -212,6 +212,22 @@ func TestAVIAndMOV(t *testing.T) {
 	require.Len(t, got, 16*16*3*2)
 }
 
+func TestG722CLIMatchesFFmpeg(t *testing.T) {
+	spec := "sine=frequency=440:sample_rate=16000:duration=0.04"
+	want := systemFF(t, "-f", "lavfi", "-i", spec, "-c:a", "g722", "-f", "g722", "-")
+	code, stdout, stderr := runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "lavfi", "-i", spec, "-c:a", "g722", "-f", "g722", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, want, []byte(stdout))
+	path := filepath.Join(t.TempDir(), "a.g722")
+	require.NoError(t, os.WriteFile(path, want, 0o644))
+	decoded := systemFF(t, "-f", "g722", "-i", path, "-f", "s16le", "-")
+	code, stdout, stderr = runFF(t, "-hide_banner", "-loglevel", "error", "-cpuflags", "0",
+		"-f", "g722", "-i", path, "-f", "s16le", "-")
+	require.Equal(t, 0, code, stderr)
+	require.Equal(t, decoded, []byte(stdout))
+}
+
 func TestIMAQTCLIMatchesFFmpeg(t *testing.T) {
 	const frame = 64 * 3
 	pcm := systemFF(t, "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=1", "-f", "s16le", "-")

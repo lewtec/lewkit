@@ -86,6 +86,7 @@ func Formats() []Info {
 		{Name: "h264", Long: "raw H.264 annex B", Demux: true, Mux: true},
 		{Name: "hevc", Long: "raw HEVC annex B", Demux: true, Mux: true},
 		{Name: "gsm", Long: "raw GSM 06.10", Demux: true, Mux: true},
+		{Name: "g722", Long: "raw G.722", Demux: true, Mux: true},
 		{Name: "mp2", Long: "MPEG audio layer 2", Demux: false, Mux: true},
 		{Name: "aiff", Long: "Audio IFF", Demux: false, Mux: true},
 	}
@@ -116,6 +117,8 @@ func Guess(path string) string {
 		return "hevc"
 	case ".gsm":
 		return "gsm"
+	case ".g722":
+		return "g722"
 	case ".mp2":
 		return "mp2"
 	case ".aiff", ".aif":
@@ -159,7 +162,7 @@ func OpenInput(ctx context.Context, url, format string, opt Options) (Demuxer, e
 		return openLavfi(ctx, url, opt)
 	case "image2":
 		return openImage2(ctx, url, opt)
-	case "wav", "flac", "mp3", "ogg", "avi", "mp4", "mov", "image2pipe", "rawvideo", "h264", "hevc", "gsm", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw":
+	case "wav", "flac", "mp3", "ogg", "avi", "mp4", "mov", "image2pipe", "rawvideo", "h264", "hevc", "gsm", "g722", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw":
 		rc, err := openRead(ctx, url, opt)
 		if err != nil {
 			return nil, err
@@ -199,7 +202,7 @@ func Create(ctx context.Context, url, format string, opt Options) (Muxer, error)
 		return &hashMux{name: format, w: w, opt: opt}, nil
 	case "image2", "image2pipe":
 		return &imageMux{ctx: ctx, url: url, format: format, opt: opt}, nil
-	case "rawvideo", "h264", "hevc", "gsm", "mp2", "aiff", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
+	case "rawvideo", "h264", "hevc", "gsm", "g722", "mp2", "aiff", "u8", "s16le", "s16be", "s24le", "s32le", "f32le", "alaw", "mulaw", "flac", "wav", "avi", "mp4", "mov":
 		w, err := openWrite(ctx, url, opt)
 		if err != nil {
 			return nil, err
@@ -272,6 +275,8 @@ func openBytes(format string, data []byte, opt Options) (Demuxer, error) {
 		return openHEVC(data)
 	case "gsm":
 		return openGSM(data)
+	case "g722":
+		return openG722(data)
 	default:
 		return openRawAudio(format, data, opt)
 	}
