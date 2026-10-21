@@ -7,6 +7,60 @@ import (
 	"testing"
 )
 
+func TestG726LEMatchesFFmpeg(t *testing.T) {
+	pcm, err := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=8000:duration=0.04",
+		"-f", "s16le", "-",
+	).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	samples := make([]int16, len(pcm)/2)
+	for i := range samples {
+		samples[i] = int16(binary.LittleEndian.Uint16(pcm[i*2:]))
+	}
+	got, err := G726LEEncode(samples, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+		"-f", "s16le", "-ar", "8000", "-ac", "1", "-i", "pipe:0",
+		"-c:a", "g726le", "-f", "g726le", "-",
+	)
+	enc.Stdin = bytes.NewReader(pcm)
+	want, err := enc.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("g726le bytes mismatch\n got %x\nwant %x", got, want)
+	}
+	dec := exec.Command(
+		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+		"-f", "g726le", "-i", "pipe:0", "-f", "s16le", "-",
+	)
+	dec.Stdin = bytes.NewReader(want)
+	raw, err := dec.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := G726LEDecode(got, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != len(decoded)*2 {
+		t.Fatalf("decoded samples %d ffmpeg %d", len(decoded), len(raw)/2)
+	}
+	for i, sample := range decoded {
+		wantSample := int16(binary.LittleEndian.Uint16(raw[i*2:]))
+		if sample != wantSample {
+			t.Fatalf("sample %d got %d want %d", i, sample, wantSample)
+		}
+	}
+}
+
 func TestG726MatchesFFmpeg(t *testing.T) {
 	pcm, err := exec.Command(
 		"ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",

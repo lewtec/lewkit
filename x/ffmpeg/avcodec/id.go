@@ -36,4 +36,5 @@ const (
 	IDG722                  // g722
 	IDLIBSHINE              // libshine
 	IDG726                  // g726
+	IDG726LE                // g726le
 )

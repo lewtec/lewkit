@@ -68,6 +68,16 @@ func openG726(data []byte) (Demuxer, error) {
 	}, nil
 }
 
+func openG726LE(data []byte) (Demuxer, error) {
+	d, err := openG726(data)
+	if err != nil {
+		return nil, err
+	}
+	mem := d.(*memDemux)
+	mem.streams[0].Par.ID = avcodec.IDG726LE
+	return mem, nil
+}
+
 func openH264(data []byte) (Demuxer, error) {
 	parts := splitAccessUnits(data)
 	if len(parts) == 0 {

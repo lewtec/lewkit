@@ -74,6 +74,8 @@ func (i ID) String() string {
 		return "libshine"
 	case IDG726:
 		return "g726"
+	case IDG726LE:
+		return "g726le"
 	default:
 		return ""
 	}
@@ -81,13 +83,13 @@ func (i ID) String() string {
 
 // Values lists the ID values.
 func (ID) Values() []ID {
-	return []ID{IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726}
+	return []ID{IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726, IDG726LE}
 }
 
 // IsValid reports whether the value is a ID.
 func (i ID) IsValid() bool {
 	switch i {
-	case IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726:
+	case IDNone, IDPCMU8, IDPCMS16LE, IDPCMS16BE, IDPCMS24LE, IDPCMS32LE, IDPCMF32LE, IDPCMALAW, IDPCMMULAW, IDRawVideo, IDPNG, IDMJPEG, IDGIF, IDBMP, IDPPM, IDFLAC, IDMP3, IDVorbis, IDGSM, IDH264, IDHEVC, IDMP2, IDGSMMS, IDADPCMIMAWAV, IDADPCMMS, IDADPCMYAMAHA, IDADPCMIMAQT, IDG722, IDLIBSHINE, IDG726, IDG726LE:
 		return true
 	default:
 		return false
@@ -159,6 +161,8 @@ func ParseID(text string) (ID, error) {
 		return IDLIBSHINE, nil
 	case "g726":
 		return IDG726, nil
+	case "g726le":
+		return IDG726LE, nil
 	default:
 		return 0, fmt.Errorf("%w: %q", ErrID, text)
 	}
@@ -176,7 +180,7 @@ func (i *ID) Parse(text string) error {
 
 // ArgChoices lists the texts ParseID accepts.
 func (ID) ArgChoices() []string {
-	return []string{"none", "pcm_u8", "pcm_s16le", "pcm_s16be", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_alaw", "pcm_mulaw", "rawvideo", "png", "mjpeg", "gif", "bmp", "ppm", "flac", "mp3", "vorbis", "gsm", "h264", "hevc", "mp2fixed", "gsm_ms", "adpcm_ima_wav", "adpcm_ms", "adpcm_yamaha", "adpcm_ima_qt", "g722", "libshine", "g726"}
+	return []string{"none", "pcm_u8", "pcm_s16le", "pcm_s16be", "pcm_s24le", "pcm_s32le", "pcm_f32le", "pcm_alaw", "pcm_mulaw", "rawvideo", "png", "mjpeg", "gif", "bmp", "ppm", "flac", "mp3", "vorbis", "gsm", "h264", "hevc", "mp2fixed", "gsm_ms", "adpcm_ima_wav", "adpcm_ms", "adpcm_yamaha", "adpcm_ima_qt", "g722", "libshine", "g726", "g726le"}
 }
 
 // MarshalText encodes the value as text.

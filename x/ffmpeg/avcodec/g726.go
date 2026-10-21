@@ -13,6 +13,7 @@ type g726Codec struct {
 	pcm  []int16
 	code int
 	rate int
+	le   bool
 }
 
 func newG726(par Parameters) *g726Codec {
@@ -21,6 +22,12 @@ func newG726(par Parameters) *g726Codec {
 		rate = 8000
 	}
 	return &g726Codec{code: g726Code(rate, par.BitRate), rate: rate}
+}
+
+func newG726LE(par Parameters) *g726Codec {
+	c := newG726(par)
+	c.le = true
+	return c
 }
 
 func (c *g726Codec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
@@ -41,7 +48,13 @@ func (c *g726Codec) Encode(frame *avutil.Frame) ([]*avutil.Packet, error) {
 
 func (c *g726Codec) Flush() ([]*avutil.Packet, error) {
 	n := len(c.pcm)
-	raw, err := G726Encode(c.pcm, c.code)
+	var raw []byte
+	var err error
+	if c.le {
+		raw, err = G726LEEncode(c.pcm, c.code)
+	} else {
+		raw, err = G726Encode(c.pcm, c.code)
+	}
 	c.pcm = nil
 	if err != nil || len(raw) == 0 {
 		return nil, err
@@ -53,7 +66,13 @@ func (c *g726Codec) Decode(pkt *avutil.Packet) ([]*avutil.Frame, error) {
 	if pkt == nil || len(pkt.Data) == 0 {
 		return nil, nil
 	}
-	samples, err := G726Decode(pkt.Data, c.code)
+	var samples []int16
+	var err error
+	if c.le {
+		samples, err = G726LEDecode(pkt.Data, c.code)
+	} else {
+		samples, err = G726Decode(pkt.Data, c.code)
+	}
 	if err != nil || len(samples) == 0 {
 		return nil, err
 	}
@@ -354,6 +373,91 @@ func absInt(v int) int {
 		return -v
 	}
 	return v
+}
+
+type g726LE struct {
+	b   []byte
+	acc uint32
+	n   int
+}
+
+func (w *g726LE) u(v uint32, n int) {
+	for k := 0; k < n; k++ {
+		w.acc |= ((v >> k) & 1) << w.n
+		w.n++
+		if w.n == 8 {
+			w.b = append(w.b, byte(w.acc))
+			w.acc = 0
+			w.n = 0
+		}
+	}
+}
+
+func (w *g726LE) bytes() []byte {
+	if w.n > 0 {
+		w.b = append(w.b, byte(w.acc))
+		w.acc = 0
+		w.n = 0
+	}
+	return w.b
+}
+
+type g726LER struct {
+	b []byte
+	i int
+}
+
+func (r *g726LER) u(n int) (uint32, error) {
+	if n < 0 || r.i+n > len(r.b)*8 {
+		return 0, fmt.Errorf("%w: g726le bits", avutil.ErrInvalidData)
+	}
+	var v uint32
+	for k := 0; k < n; k++ {
+		bit := (r.b[r.i/8] >> (r.i % 8)) & 1
+		v |= uint32(bit) << k
+		r.i++
+	}
+	return v, nil
+}
+
+// G726LEEncode packs mono s16 with little-endian G.726 codes.
+func G726LEEncode(pcm []int16, code int) ([]byte, error) {
+	if code == 0 {
+		code = 4
+	}
+	if code < 2 || code > 5 {
+		return nil, fmt.Errorf("%w: g726le code %d", avutil.ErrInvalidData, code)
+	}
+	var s g726State
+	s.reset(code)
+	var w g726LE
+	for _, sample := range pcm {
+		w.u(uint32(s.encodeSample(sample)), code)
+	}
+	return w.bytes(), nil
+}
+
+// G726LEDecode expands a little-endian G.726 bitstream.
+func G726LEDecode(data []byte, code int) ([]int16, error) {
+	if code == 0 {
+		code = 4
+	}
+	if code < 2 || code > 5 {
+		return nil, fmt.Errorf("%w: g726le code %d", avutil.ErrInvalidData, code)
+	}
+	var s g726State
+	s.reset(code)
+	r := g726LER{b: data}
+	n := len(data) * 8 / code
+	out := make([]int16, n)
+	for i := 0; i < n; i++ {
+		v, err := r.u(code)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = s.decode(int(v))
+	}
+	return out, nil
 }
 
 // G726Encode packs mono s16 into a G.726 bitstream.
