@@ -4,7 +4,8 @@
 // cmd/compile/internal and cmd/link/internal have different parents, so one
 // package cannot import both. The placed trees keep those paths. This program
 // drops the internal element (compile/internal/gc becomes src/compile/gc) and
-// retargets std internal imports onto the placed copy under src/std. It also
+// retargets std internal imports onto the placed copy under src/std. cmd/asm
+// lands under src/asm the same way. It also
 // turns the linker's and compiler's process exits into panics so one process
 // can compile and then link. //go:cgo_ldflag is rejected outside the standard
 // library, so those lines are dropped. modot replaces the placed trees on
@@ -70,6 +71,85 @@ func main() {
 	if err := writeGenerated(dst); err != nil {
 		fatal(err)
 	}
+	if err := patchAsmFlags(dst); err != nil {
+		fatal(err)
+	}
+}
+
+// patchAsmFlags keeps the assembler flags off flag.CommandLine.
+// The driver writes the pointers. The lewkit process and the test binary
+// keep their own flag set.
+func patchAsmFlags(dst string) error {
+	path := filepath.Join(dst, "asm", "flags", "flags.go")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	old := `var (
+	Debug      = flag.Bool("debug", false, "dump instructions as they are parsed")
+	OutputFile = flag.String("o", "", "output file; default foo.o for /a/b/c/foo.s as first argument")
+	TrimPath   = flag.String("trimpath", "", "remove prefix from recorded source file paths")
+	Shared     = flag.Bool("shared", false, "generate code that can be linked into a shared library")
+	Dynlink    = flag.Bool("dynlink", false, "support references to Go symbols defined in other shared libraries")
+	Linkshared = flag.Bool("linkshared", false, "generate code that will be linked against Go shared libraries")
+	AllErrors  = flag.Bool("e", false, "no limit on number of errors reported")
+	SymABIs    = flag.Bool("gensymabis", false, "write symbol ABI information to output file, don't assemble")
+	Importpath = flag.String("p", obj.UnlinkablePkg, "set expected package import to path")
+	Spectre    = flag.String("spectre", "", "enable spectre mitigations in ` + "`list`" + ` (all, ret)")
+	Std        = flag.Bool("std", false, "building standard library")
+)`
+	newVars := `var (
+	Debug      *bool
+	OutputFile *string
+	TrimPath   *string
+	Shared     *bool
+	Dynlink    *bool
+	Linkshared *bool
+	AllErrors  *bool
+	SymABIs    *bool
+	Importpath *string
+	Spectre    *string
+	Std        *bool
+)`
+	next := strings.Replace(string(body), old, newVars, 1)
+	if next == string(body) {
+		return errors.New("asm flags var block was not patched")
+	}
+	oldInit := `func init() {
+	flag.Var(&D, "D", "predefined symbol with optional simple value -D=identifier=value; can be set multiple times")
+	flag.Var(&I, "I", "include directory; can be set multiple times")
+	flag.BoolVar(&DebugV, "v", false, "print debug output")
+	flag.Var(objabi.NewDebugFlag(&DebugFlags, nil), "d", "enable debugging settings; try -d help")
+	objabi.AddVersionFlag() // -V
+	objabi.Flagcount("S", "print assembly and machine code", &PrintOut)
+
+	DebugFlags.CompressInstructions = 1
+}`
+	newInit := `func init() {
+	fs := flag.NewFlagSet("asm", flag.ContinueOnError)
+	Debug = fs.Bool("debug", false, "dump instructions as they are parsed")
+	OutputFile = fs.String("o", "", "output file; default foo.o for /a/b/c/foo.s as first argument")
+	TrimPath = fs.String("trimpath", "", "remove prefix from recorded source file paths")
+	Shared = fs.Bool("shared", false, "generate code that can be linked into a shared library")
+	Dynlink = fs.Bool("dynlink", false, "support references to Go symbols defined in other shared libraries")
+	Linkshared = fs.Bool("linkshared", false, "generate code that will be linked against Go shared libraries")
+	AllErrors = fs.Bool("e", false, "no limit on number of errors reported")
+	SymABIs = fs.Bool("gensymabis", false, "write symbol ABI information to output file, don't assemble")
+	Importpath = fs.String("p", obj.UnlinkablePkg, "set expected package import to path")
+	Spectre = fs.String("spectre", "", "enable spectre mitigations in ` + "`list`" + ` (all, ret)")
+	Std = fs.Bool("std", false, "building standard library")
+	fs.Var(&D, "D", "predefined symbol with optional simple value -D=identifier=value; can be set multiple times")
+	fs.Var(&I, "I", "include directory; can be set multiple times")
+	fs.BoolVar(&DebugV, "v", false, "print debug output")
+	fs.Var(objabi.NewDebugFlag(&DebugFlags, nil), "d", "enable debugging settings; try -d help")
+	objabi.FlagcountFS(fs, "S", "print assembly and machine code", &PrintOut)
+	DebugFlags.CompressInstructions = 1
+}`
+	patched := strings.Replace(next, oldInit, newInit, 1)
+	if patched == next {
+		return errors.New("asm flags init was not patched")
+	}
+	return os.WriteFile(path, []byte(patched), 0o644)
 }
 
 // patchLib applies the library-entry edits in patch.json. Each old string is
@@ -154,6 +234,10 @@ const DefaultCGO_ENABLED = ""
 // them, and a consumer's go mod tidy reads their imports. Each pair is
 // _upstream-relative then src-relative.
 var packages = [][2]string{
+	{"asm/internal/arch", "asm/arch"},
+	{"asm/internal/asm", "asm/asm"},
+	{"asm/internal/flags", "asm/flags"},
+	{"asm/internal/lex", "asm/lex"},
 	{"compile/internal/abi", "compile/abi"},
 	{"compile/internal/abt", "compile/abt"},
 	{"compile/internal/amd64", "compile/amd64"},
@@ -341,6 +425,8 @@ func rewriteImport(path string) string {
 		return moduleRoot + "compile/" + strings.TrimPrefix(path, "cmd/compile/internal/")
 	case strings.HasPrefix(path, "cmd/link/internal/"):
 		return moduleRoot + "link/" + strings.TrimPrefix(path, "cmd/link/internal/")
+	case strings.HasPrefix(path, "cmd/asm/internal/"):
+		return moduleRoot + "asm/" + strings.TrimPrefix(path, "cmd/asm/internal/")
 	case strings.HasPrefix(path, "cmd/internal/"):
 		return moduleRoot + "cmd/" + strings.TrimPrefix(path, "cmd/internal/")
 	case strings.HasPrefix(path, "golang.org/x/telemetry/"):

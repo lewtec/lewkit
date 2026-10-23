@@ -375,6 +375,27 @@ func TestFutureWaitsAfterSchedule(t *testing.T) {
 	require.NoError(t, sess.Wait())
 }
 
+func TestFutureWaitPrefersTaskErrorOverCancel(t *testing.T) {
+	boom := errors.New("compile failed")
+	started := make(chan struct{})
+	g := Graph{Defaults: []string{"slow", "bad"}, Steps: []Step{
+		{Name: "slow", Orchestrator: true, Tasks: []Task{Func(func(ctx context.Context, _ *taskgroup.Status) error {
+			close(started)
+			<-ctx.Done()
+			return ctx.Err()
+		})}},
+		{Name: "bad", Orchestrator: true, Tasks: []Task{Func(func(context.Context, *taskgroup.Status) error {
+			<-started
+			return boom
+		})}},
+	}}
+	sess, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	fut, err := Run(ctx, g, nil)
+	require.NoError(t, err)
+	require.ErrorIs(t, fut.Wait(ctx), boom)
+	require.ErrorIs(t, sess.Wait(), boom)
+}
+
 func TestFutureFromControlTask(t *testing.T) {
 	var ran atomic.Bool
 	g := Graph{Defaults: []string{"next"}, Steps: []Step{

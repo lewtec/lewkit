@@ -1,58 +1,55 @@
 package gotool
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
+
+	"github.com/lewtec/lewkit/x/toolchain/load"
 )
 
-// runtimeDeps locates the installed runtime archives. The compiler does
-// not build the standard library. compileCfg is the importcfg for package
-// main. linkDeps is the packagefile lines for the link.
-func runtimeDeps(dir string) (compileCfg, linkDeps string, err error) {
+// runtimeDeps builds the runtime archive closure with the embedded compiler.
+// compileCfg is the importcfg for package main. linkDeps is the packagefile
+// lines for the link. The build mode is the platform default. A shared
+// library on Linux still receives the non-PIE runtime archives that go list
+// produced for a default executable.
+func runtimeDeps(ctx context.Context, dir string) (compileCfg, linkDeps string, err error) {
+	if ctx.Err() != nil {
+		return "", "", context.Cause(ctx)
+	}
 	if err = os.MkdirAll(dir, 0o755); err != nil {
 		return "", "", err
-	}
-	if _, err = os.Stat(filepath.Join(dir, "go.mod")); err != nil {
-		err = os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/tool\n\ngo 1.27\n"), 0o644)
-		if err != nil {
-			return "", "", err
-		}
 	}
 	depsPath := filepath.Join(dir, "deps")
 	compileCfg = filepath.Join(dir, "importcfg")
 	if body, readErr := os.ReadFile(depsPath); readErr == nil {
 		return compileCfg, string(body), nil
 	}
-	cmd := exec.Command("go", "list", "-deps", "-export", "-f", "{{if .Export}}{{.ImportPath}} {{.Export}}{{end}}", "runtime")
-	cmd.Dir = dir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	out, err := cmd.Output()
+	work, err := os.MkdirTemp("", "lewkit-stdlib-")
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w\n%s", ErrGoListRuntime, err, stderr.String())
+		return "", "", err
 	}
-	var runtimeArchive string
-	var b strings.Builder
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		path, file, ok := strings.Cut(line, " ")
-		if !ok {
-			return "", "", fmt.Errorf("%w %q", ErrRuntimeDepsGoListLine, line)
-		}
-		fmt.Fprintf(&b, "packagefile %s=%s\n", path, file)
-		if path == "runtime" {
-			runtimeArchive = file
-		}
+	defer os.RemoveAll(work)
+	m := Module{GOOS: hostGOOS(), GOARCH: hostGOARCH()}
+	archives, err := carriedArchives(ctx, work, "", m, &load.Graph{})
+	if err != nil {
+		return "", "", err
 	}
+	runtimeArchive := archives["runtime"]
 	if runtimeArchive == "" {
 		return "", "", ErrRuntimeHasNoExportArchive
+	}
+	keys := make([]string, 0, len(archives))
+	for path := range archives {
+		keys = append(keys, path)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, path := range keys {
+		fmt.Fprintf(&b, "packagefile %s=%s\n", path, archives[path])
 	}
 	if err = os.WriteFile(compileCfg, []byte("# import config\npackagefile runtime="+runtimeArchive+"\n"), 0o644); err != nil {
 		return "", "", err

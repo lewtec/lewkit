@@ -9,6 +9,7 @@ package progress
 
 import (
 	"context"
+	"errors"
 	"os"
 	"strings"
 	"sync"
@@ -71,6 +72,8 @@ type runKey struct{}
 // from Session.List while that happens. tea.NewProgram runs at most once,
 // on the first scheduled task or LineWriter. A nested Run uses the
 // session already on ctx and does not start a second view.
+// A cancel returned by work yields to the session error when that error
+// is not itself a cancel. A bare cancel stays a cancel.
 func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) error {
 	if ctx.Value(runKey{}) != nil {
 		return work(ctx)
@@ -81,12 +84,25 @@ func Run(s *taskgroup.Session, ctx context.Context, work func(context.Context) e
 	ctx = context.WithValue(ctx, runKey{}, true)
 	if !Interactive() {
 		err := work(ctx)
-		if werr := s.Wait(); err == nil {
-			err = werr
-		}
-		return err
+		return runResult(err, s.Wait())
 	}
 	return runTea(s, ctx, work)
+}
+
+// runResult keeps a task failure that canceled work.
+// work's own error stays when the session is quiet, or when both failed
+// for a reason other than that cancel.
+func runResult(workErr, waitErr error) error {
+	if workErr == nil {
+		return waitErr
+	}
+	if waitErr == nil {
+		return workErr
+	}
+	if errors.Is(workErr, context.Canceled) && !errors.Is(waitErr, context.Canceled) {
+		return waitErr
+	}
+	return workErr
 }
 
 func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context) error) (err error) {
@@ -100,9 +116,7 @@ func runTea(s *taskgroup.Session, ctx context.Context, work func(context.Context
 	}()
 
 	err = work(ctx)
-	if werr := s.Wait(); err == nil {
-		err = werr
-	}
+	err = runResult(err, s.Wait())
 	return err
 }
 

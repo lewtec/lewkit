@@ -74,8 +74,10 @@ type Future struct {
 }
 
 // Wait blocks until every scheduled step has finished and returns the
-// first step error. A future with no steps returns nil. A cancelled
-// ctx does not cut the wait short; the step context stops the step.
+// first step error. A later error replaces an earlier cancel, so a
+// package that failed stays visible when a sibling only saw that cancel.
+// A future with no steps returns nil. A cancelled ctx does not cut the
+// wait short; the step context stops the step.
 func (f Future) Wait(ctx context.Context) error {
 	if len(f.ids) == 0 {
 		return nil
@@ -84,7 +86,10 @@ func (f Future) Wait(ctx context.Context) error {
 	var err error
 	for _, id := range f.ids {
 		werr := f.session.WaitTask(ctx, id)
-		if werr != nil && err == nil {
+		if werr == nil {
+			continue
+		}
+		if err == nil || (errors.Is(err, context.Canceled) && !errors.Is(werr, context.Canceled)) {
 			err = werr
 		}
 	}
@@ -96,8 +101,8 @@ func (f Future) Wait(ctx context.Context) error {
 // waited on; Wait on the future waits for the steps. Without a session,
 // Run starts one and waits, and that wait error is Run's error.
 func Run(ctx context.Context, g Graph, targets []string) (Future, error) {
-	if err := ctx.Err(); err != nil {
-		return Future{}, err
+	if ctx.Err() != nil {
+		return Future{}, context.Cause(ctx)
 	}
 	order, byName, err := g.closure(targets)
 	if err != nil {

@@ -197,7 +197,7 @@ func reexec(t *testing.T, name string, fn func(*testing.T)) {
 
 func listRuntime(t *testing.T, work string) (compileCfg, deps string) {
 	t.Helper()
-	compileCfg, deps, err := runtimeDeps(work)
+	compileCfg, deps, err := runtimeDeps(t.Context(), work)
 	require.NoError(t, err)
 	return compileCfg, deps
 }

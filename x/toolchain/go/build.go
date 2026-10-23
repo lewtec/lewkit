@@ -45,9 +45,21 @@ type Unit struct {
 	Lang       string
 	Archive    string
 	Shared     bool
-	// Asm is the package's .s and .syso files. The assembler is not
-	// vendored, so [Plan] rejects a unit that sets this.
+	// Asm is the package's .s and .syso files. [Plan] rejects a unit
+	// that sets this. [BuildModule] assembles [Unit.SFiles] instead.
 	Asm []string
+	// SFiles and SysoFiles are assembled into Archive.
+	SFiles    []string
+	SysoFiles []string
+	// Std sets the compiler and assembler -std flag.
+	Std bool
+	// NoComplete omits -complete. Assembly and a few standard packages
+	// supply bodies from outside the Go files.
+	NoComplete bool
+	// Include is the assembler's pkg/include directory.
+	Include string
+	// Reuse means Archive is already built. The step does not compile.
+	Reuse bool
 	// GOOS and GOARCH are the target of the archive in [Unit.Object].
 	// Empty values inherit the [Target] passed to [BuildObjects].
 	// A set value is the child process target. buildcfg reads it at start.
@@ -135,8 +147,8 @@ func Plan(units []Unit, image *Image) (workflow.Graph, error) {
 // reports that package on the taskgroup status. A session already on ctx,
 // including the progress view entry.Run starts, shows those rows.
 func Build(ctx context.Context, units []Unit, image *Image) error {
-	if err := ctx.Err(); err != nil {
-		return err
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
 	}
 	g, err := Plan(units, image)
 	if err != nil {
@@ -192,7 +204,9 @@ func Child() (bool, error) {
 	}
 	switch action {
 	case "compile":
-		return true, compileHere(req.ImportPath, req.Out, req.ImportCfg, req.EmbedCfg, req.Lang, req.Shared, req.Trimpath, req.SymABIs, req.Files)
+		return true, compileHere(req.ImportPath, req.Out, req.ImportCfg, req.EmbedCfg, req.Lang, req.Shared, req.Std, req.NoComplete, req.Trimpath, req.SymABIs, req.Asmhdr, req.Files)
+	case "asm":
+		return true, asmHere(req)
 	case "link":
 		return true, linkHere(req.Out, req.ImportCfg, req.Mode, req.Archive, req.Ldflags...)
 	default:
@@ -201,13 +215,18 @@ func Child() (bool, error) {
 }
 
 func unitStep(u Unit, byPath map[string]Unit) workflow.Step {
-	inputs := append([]string{}, u.Files...)
-	inputs = append(inputs, u.ImportCfg)
-	if u.EmbedCfg != "" {
-		inputs = append(inputs, u.EmbedCfg)
-	}
-	for _, dep := range u.Deps {
-		inputs = append(inputs, byPath[dep].Archive)
+	var inputs []string
+	if !u.Reuse {
+		inputs = append(inputs, u.Files...)
+		inputs = append(inputs, u.SFiles...)
+		inputs = append(inputs, u.SysoFiles...)
+		inputs = append(inputs, u.ImportCfg)
+		if u.EmbedCfg != "" {
+			inputs = append(inputs, u.EmbedCfg)
+		}
+		for _, dep := range u.Deps {
+			inputs = append(inputs, byPath[dep].Archive)
+		}
 	}
 	unit := u
 	return workflow.Step{
@@ -233,32 +252,54 @@ func imageStep(image Image, deps []string) workflow.Step {
 
 func compileTask(u Unit) workflow.Task {
 	return workflow.Func(func(ctx context.Context, st *taskgroup.Status) error {
-		if err := ctx.Err(); err != nil {
-			return err
+		if ctx.Err() != nil {
+			return context.Cause(ctx)
 		}
 		done := st.Unit()
 		defer done()
 		st.Update(u.ImportPath)
-		return spawn(ctx, "compile", childRequest{
+		if u.Reuse {
+			return nil
+		}
+		if len(u.SFiles) > 0 || len(u.SysoFiles) > 0 {
+			return buildAssembled(ctx, u)
+		}
+		part := partPath(u.Archive)
+		err := spawn(ctx, "compile", childRequest{
 			ImportPath: u.ImportPath,
-			Out:        u.Archive,
+			Out:        part,
 			ImportCfg:  u.ImportCfg,
 			EmbedCfg:   u.EmbedCfg,
 			Lang:       u.Lang,
 			Shared:     u.Shared,
+			Std:        u.Std,
+			NoComplete: u.NoComplete,
 			Files:      u.Files,
 			GOOS:       u.GOOS,
 			GOARCH:     u.GOARCH,
 			Trimpath:   u.Trimpath,
 			SymABIs:    u.SymABIs,
 		})
+		if err != nil {
+			os.Remove(part)
+			return err
+		}
+		if err := os.Rename(part, u.Archive); err != nil {
+			os.Remove(part)
+			return err
+		}
+		return nil
 	})
+}
+
+func partPath(archive string) string {
+	return fmt.Sprintf("%s.%d.part", archive, os.Getpid())
 }
 
 func linkTask(image Image) workflow.Task {
 	return workflow.Func(func(ctx context.Context, st *taskgroup.Status) error {
-		if err := ctx.Err(); err != nil {
-			return err
+		if ctx.Err() != nil {
+			return context.Cause(ctx)
 		}
 		done := st.Unit()
 		defer done()
@@ -291,4 +332,9 @@ type childRequest struct {
 	GOARCH     string   `json:"goarch,omitempty"`
 	Trimpath   string   `json:"trimpath,omitempty"`
 	SymABIs    string   `json:"symabis,omitempty"`
+	Std        bool     `json:"std,omitempty"`
+	NoComplete bool     `json:"noComplete,omitempty"`
+	Asmhdr     string   `json:"asmhdr,omitempty"`
+	GenSymABIs bool     `json:"gensymabis,omitempty"`
+	Includes   []string `json:"includes,omitempty"`
 }

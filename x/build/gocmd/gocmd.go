@@ -53,7 +53,7 @@ func (c Command) Run(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		return ctx.Err()
+		return context.Cause(ctx)
 	}
 }
 
@@ -78,6 +78,6 @@ func Tool(ctx context.Context, name, dir string, env []string, args ...string) e
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		return ctx.Err()
+		return context.Cause(ctx)
 	}
 }

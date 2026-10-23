@@ -20,7 +20,7 @@ func SharedLibrary(ctx context.Context, out, src string) error {
 	if err := os.WriteFile(file, []byte(src), 0o644); err != nil {
 		return err
 	}
-	compileCfg, linkDeps, err := runtimeDeps(dir)
+	compileCfg, linkDeps, err := runtimeDeps(ctx, dir)
 	if err != nil {
 		return err
 	}

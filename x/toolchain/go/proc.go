@@ -3,6 +3,7 @@ package gotool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -45,6 +46,11 @@ func spawn(ctx context.Context, action string, req childRequest) error {
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			if cause := context.Cause(ctx); cause != nil && !errors.Is(cause, context.Canceled) {
+				err = cause
+			}
+		}
 		return fmt.Errorf("%w%s: %w\n%s", ErrSpawn, action, err, out)
 	}
 	return nil
