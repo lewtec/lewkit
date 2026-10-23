@@ -66,7 +66,7 @@ func Run(ctx context.Context, c gocmd.Command) error {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		return ctx.Err()
+		return context.Cause(ctx)
 	}
 }
 
