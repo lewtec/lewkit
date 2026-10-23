@@ -19,7 +19,7 @@ func RunSource(ctx context.Context, src string) (string, error) {
 		return "", err
 	}
 	defer os.RemoveAll(dir)
-	compileCfg, linkDeps, err := runtimeDeps(dir)
+	compileCfg, linkDeps, err := runtimeDeps(ctx, dir)
 	if err != nil {
 		return "", err
 	}

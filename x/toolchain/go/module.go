@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -19,22 +18,18 @@ import (
 // GOOS and GOARCH empty mean this process. GOARCH other than amd64 or arm64
 // is an error. Patterns empty means the package in Dir. Tags are build tags.
 // Ldflags are linker arguments. Pkgdir, when set, supplies the standard
-// library and any package with assembly. An empty Pkgdir asks the host
-// go command for those archives with go list -export. Toolexec, when set,
-// is that list's -toolexec value. The basename must start with _cgo_ and
-// end with _export.go, so an assembly package can see that file.
+// library and any package with assembly. An empty Pkgdir compiles those
+// with this compiler and caches the archives by GOOS, GOARCH, and build
+// mode. Toolexec, when set, appends a file whose base name starts with
+// _cgo_ and ends with _export.go when that file's directory is the
+// package being compiled.
 // Out is the executable. Trimpath strips Dir from recorded source paths.
 // Android, and any other target whose default buildmode is PIE, links as
 // PIE. Library forces that PIE for a shared library, including Linux.
-// The compiler uses -shared for that PIE except on Windows. go list
-// receives -buildmode=pie for the same link, so the archives match.
-// iOS is one of those PIE targets and links internally. Host go still
-// refuses to load an ios/arm64 main package without cgo, and it refuses
-// a PIE ios main package, so the iOS list is the standard library and any
-// assembly package, not package main.
-// A main package that contains assembly uses the go list archive when
-// that list recorded one. The link still runs when every package came
-// from that list.
+// The compiler uses -shared for that PIE except on Windows.
+// iOS is one of those PIE targets and links internally. A main package
+// that contains assembly is assembled here when Pkgdir is empty, and it
+// uses the Pkgdir archive when that directory recorded one.
 type Module struct {
 	Dir      string
 	Out      string
@@ -54,8 +49,8 @@ type Module struct {
 // link are CPU tasks under the current task. The caller must be Control
 // so that wait does not hold a CPU slot.
 func BuildModule(ctx context.Context, m Module) error {
-	if err := ctx.Err(); err != nil {
-		return err
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
 	}
 	if m.GOOS == "" {
 		m.GOOS = runtime.GOOS
@@ -89,15 +84,15 @@ func BuildModule(ctx context.Context, m Module) error {
 	if err != nil {
 		return err
 	}
-	std, err := moduleArchives(ctx, dir, m, mode, g)
-	if err != nil {
-		return err
-	}
 	work, err := os.MkdirTemp("", "lewkit-module-")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(work)
+	std, err := carriedArchives(ctx, work, trim, m, g)
+	if err != nil {
+		return err
+	}
 
 	var mains int
 	compiled := map[string]struct{}{}
@@ -105,20 +100,19 @@ func BuildModule(ctx context.Context, m Module) error {
 	for _, pkg := range g.Pkgs {
 		if pkg.Name == "main" {
 			mains++
-			if pkg.Asm {
-				archive, ok := std[pkg.ImportPath]
-				if !ok {
-					return ErrToolchainMainPackageHasAssembly
-				}
-				archives["main"] = archive
-				continue
-			}
 		}
-		if pkg.Asm {
-			if _, ok := std[pkg.ImportPath]; !ok {
-				return fmt.Errorf("%w: %s", load.ErrNoArchive, pkg.ImportPath)
+		if archive, ok := std[pkg.ImportPath]; ok && (pkg.Asm || m.Pkgdir == "") {
+			if pkg.Name == "main" {
+				archives["main"] = archive
+				delete(std, pkg.ImportPath)
 			}
 			continue
+		}
+		if pkg.Asm {
+			if pkg.Name == "main" {
+				return ErrToolchainMainPackageHasAssembly
+			}
+			return fmt.Errorf("%w: %s", load.ErrNoArchive, pkg.ImportPath)
 		}
 		id := pkg.ImportPath
 		if pkg.Name == "main" {
@@ -132,13 +126,19 @@ func BuildModule(ctx context.Context, m Module) error {
 	}
 	units := make([]Unit, 0, len(compiled))
 	for _, pkg := range g.Pkgs {
-		if pkg.Asm {
+		if _, ok := compiled[pkg.ImportPath]; !ok {
 			continue
 		}
 		id := pkg.ImportPath
 		if pkg.Name == "main" {
 			id = "main"
 		}
+		files := append([]string(nil), pkg.Files...)
+		extra, err := cgoExportFiles(m.Toolexec, pkg.Dir)
+		if err != nil {
+			return err
+		}
+		files = append(files, extra...)
 		cfg := map[string]string{"runtime": std["runtime"]}
 		for _, imp := range pkg.Imports {
 			if imp == "unsafe" {
@@ -170,7 +170,7 @@ func BuildModule(ctx context.Context, m Module) error {
 		}
 		units = append(units, Unit{
 			ImportPath: id,
-			Files:      pkg.Files,
+			Files:      files,
 			Deps:       deps,
 			ImportCfg:  cfgPath,
 			EmbedCfg:   embedPath,
@@ -227,133 +227,26 @@ func moduleMode(m Module) (mode string, shared bool) {
 	return mode, shared
 }
 
-func moduleArchives(ctx context.Context, dir string, m Module, mode string, g *load.Graph) (map[string]string, error) {
-	if m.Pkgdir != "" {
-		return load.Archives(m.Pkgdir)
-	}
-	patterns := m.Patterns
-	if len(patterns) == 0 {
-		patterns = []string{"."}
-	}
-	if m.GOOS == "ios" {
-		listed, err := iosListPatterns(g)
-		if err != nil {
-			return nil, err
-		}
-		patterns = listed
-	}
-	args := []string{
-		"list", "-buildvcs=false", "-deps", "-export",
-		"-f", "{{if and .Export (or .Standard (or .SFiles .SysoFiles))}}{{.ImportPath}} {{.Export}}{{end}}",
-	}
-	if mode == "pie" {
-		args = append(args, "-buildmode=pie")
-	}
-	if len(m.Tags) > 0 {
-		args = append(args, "-tags", strings.Join(m.Tags, ","))
-	}
-	if m.Toolexec != "" {
-		args = append(args, "-toolexec", m.Toolexec)
-	}
-	args = append(args, patterns...)
-	cmd := exec.CommandContext(ctx, "go", args...)
-	cmd.Dir = dir
-	cmd.Env = overlayEnv(os.Environ(), "GOOS", m.GOOS, "GOARCH", m.GOARCH, "CGO_ENABLED", "0")
-	out, err := cmd.Output()
-	if err != nil {
-		stderr := ""
-		if ee, ok := err.(*exec.ExitError); ok {
-			stderr = string(ee.Stderr)
-		}
-		return nil, fmt.Errorf("%w: %w\n%s", ErrModuleArchivesGoList, err, stderr)
-	}
-	archives := map[string]string{}
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		imp, file, ok := strings.Cut(line, " ")
-		if !ok {
-			return nil, fmt.Errorf("%w %q", ErrModuleArchivesGoListLine, line)
-		}
-		archives[imp] = file
-	}
-	if _, ok := archives["runtime"]; !ok {
-		return nil, fmt.Errorf("%w: runtime", load.ErrNoArchive)
-	}
-	return archives, nil
-}
-
-// iosListPatterns is the go list pattern set for an iOS link.
-// Host go rejects package main on ios/arm64, and it rejects a PIE main
-// package on ios. The archives still come from that go command: runtime,
-// every standard-library import, and any package that contains assembly.
-func iosListPatterns(g *load.Graph) ([]string, error) {
-	inGraph := make(map[string]bool, len(g.Pkgs))
-	for _, pkg := range g.Pkgs {
-		inGraph[pkg.ImportPath] = true
-	}
-	seen := map[string]bool{}
-	var patterns []string
-	add := func(path string) {
-		if path == "" || path == "C" || path == "unsafe" || seen[path] {
-			return
-		}
-		seen[path] = true
-		patterns = append(patterns, path)
-	}
-	add("runtime")
-	for _, pkg := range g.Pkgs {
-		if pkg.Name == "main" && pkg.Asm {
-			return nil, ErrToolchainMainPackageHasAssembly
-		}
-		if pkg.Asm {
-			add(pkg.ImportPath)
-		}
-		for _, imp := range pkg.Imports {
-			if inGraph[imp] {
-				continue
-			}
-			add(imp)
-		}
-	}
-	sort.Strings(patterns)
-	return patterns, nil
-}
-
-func overlayEnv(env []string, kv ...string) []string {
-	drop := map[string]bool{}
-	for i := 0; i < len(kv); i += 2 {
-		drop[kv[i]] = true
-	}
-	out := dropKeys(env, drop)
-	for i := 0; i < len(kv); i += 2 {
-		out = append(out, kv[i]+"="+kv[i+1])
-	}
-	return out
-}
-
-func dropKeys(env []string, drop map[string]bool) []string {
-	out := make([]string, 0, len(env))
-	for _, e := range env {
-		k, _, _ := strings.Cut(e, "=")
-		if drop[k] {
-			continue
-		}
-		out = append(out, e)
-	}
-	return out
-}
-
 func writeModuleCfg(path string, files map[string]string) error {
+	return writeImportCfg(path, files, nil)
+}
+
+func writeImportCfg(path string, files, aliases map[string]string) error {
 	keys := make([]string, 0, len(files))
 	for k := range files {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+	raws := make([]string, 0, len(aliases))
+	for raw := range aliases {
+		raws = append(raws, raw)
+	}
+	sort.Strings(raws)
 	var b strings.Builder
 	b.WriteString("# import config\n")
+	for _, raw := range raws {
+		fmt.Fprintf(&b, "importmap %s=%s\n", raw, aliases[raw])
+	}
 	for _, k := range keys {
 		fmt.Fprintf(&b, "packagefile %s=%s\n", k, files[k])
 	}

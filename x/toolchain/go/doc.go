@@ -21,28 +21,28 @@
 // parallelism. lewkit release go loads the module in the parent and calls
 // Build. Flags may follow the package arguments. -ldflags are Image.Ldflags.
 // -pkgdir supplies the standard library and any package that contains
-// assembly; cmd/asm is not vendored. //go:embed configuration is -embedcfg.
+// assembly. An empty -pkgdir compiles those from the go1.27.0 sources in
+// goroot.zip and caches the archives. //go:embed configuration is -embedcfg.
 // An Object is one package archive. A Target is the GOOS, GOARCH, link
 // mode, runtime archives, and extra linker flags for one image. Linux,
 // a shared object, and tamago are targets. ImportCfg rejects an object
-// whose GOOS or GOARCH differs. A unit that lists .s or .syso files is
-// ErrNoAsm, because cmd/asm is not vendored. BuildObjects compiles the
-// units and links the one named main.
+// whose GOOS or GOARCH differs. A unit that lists .s or .syso files on
+// Unit.Asm is ErrNoAsm. Plan does not assemble that field. BuildModule
+// assembles SFiles and SysoFiles. BuildObjects compiles the units and
+// links the one named main.
 // BuildModule compiles one module directory and links its main package.
 // The child process receives that GOOS and GOARCH. GOARCH other than amd64
 // or arm64 is an error. A target that must link externally is an error.
-// iOS links internally. Host go still refuses ios/arm64 without cgo, so the
-// iOS standard-library list does not load package main. The link entry is
-// the darwin rt0. The ios rt0 is an undefined instruction.
-// Android and any other default-PIE target links as an internal PIE, and
-// Module.Library forces that PIE, including on Linux. The compiler passes
-// -shared for that PIE except on Windows. go list -export receives
-// -buildmode=pie for the same link. Standard-library and assembly archives
-// come from that list, or from Pkgdir when that is set. A main package
-// that contains assembly uses the list archive when the list recorded one.
-// Toolexec is that list's -toolexec when the basename starts with _cgo_
-// and ends with _export.go. lewkit release build, run, and build-all
-// use this compiler unless --go host selects the go command.
+// iOS links internally. The link entry is the darwin rt0. The ios rt0 is
+// an undefined instruction. Android and any other default-PIE target links
+// as an internal PIE, and Module.Library forces that PIE, including on
+// Linux. The compiler passes -shared for that PIE except on Windows.
+// Standard-library and assembly archives come from that compile, or from
+// Pkgdir when that is set. A main package that contains assembly is
+// assembled here when Pkgdir is empty. Toolexec appends a file whose base
+// name starts with _cgo_ and ends with _export.go when that file sits in
+// the package directory. lewkit release build, run, and build-all use this
+// compiler unless --go host selects the go command.
 // Compile and Link still take the files and the importcfg the caller prepared.
 // SharedLibrary compiles one main package from source into a shared object.
 // RunSource compiles and runs a main package from source. Linux holds

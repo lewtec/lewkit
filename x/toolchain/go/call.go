@@ -21,11 +21,11 @@ import (
 
 var (
 	ErrApplyAddrARM64Reloc                            = errors.New("reloc")
+	ErrAsm                                            = errors.New("asm")
 	ErrCallDistanceDoesNotFit                         = errors.New("call distance does not fit")
 	ErrCompileSupportsGoarchAmd64OrArm64Have          = errors.New("compile supports GOARCH=amd64 or arm64, have")
 	ErrDoesNotCoverMorestack                          = errors.New("does not cover morestack")
 	ErrDynamicSegmentIsOutOfRange                     = errs.Wrap(errs.ErrOutOfRange, "dynamic segment is out of range")
-	ErrGoListRuntime                                  = errors.New("go list runtime")
 	ErrHasABadProgramHeaderTable                      = errs.Wrap(errs.ErrInvalid, "has a bad program header table")
 	ErrHasNoDynamicSegment                            = errs.Wrap(errs.ErrNotFound, "has no dynamic segment")
 	ErrIsNotALittleEndianElf64File                    = errs.Wrap(errs.ErrInvalid, "is not a little-endian ELF64 file")
@@ -43,8 +43,6 @@ var (
 	ErrJitSourceWasStored                             = errors.New("jit: source was stored")
 	ErrLinkSupportsGoarchAmd64OrArm64Have             = errors.New("link supports GOARCH=amd64 or arm64, have")
 	ErrMainPackages                                   = errors.New("main packages")
-	ErrModuleArchivesGoList                           = errors.New("go list")
-	ErrModuleArchivesGoListLine                       = errors.New("go list line")
 	ErrNoTrampolineFor                                = errs.Wrap(errs.ErrNotFound, "no trampoline for")
 	ErrPatchRelocsJit                                 = errors.New("jit")
 	ErrPatchRelocsJit2                                = errors.New("jit")
@@ -57,14 +55,15 @@ var (
 	ErrRelocToUnplaced                                = errors.New("reloc to unplaced")
 	ErrRequiresExternalLinking                        = errors.New("requires external linking")
 	ErrRunSource                                      = errors.New("")
-	ErrRuntimeDepsGoListLine                          = errors.New("go list line")
 	ErrRuntimeHasNoExportArchive                      = errs.Wrap(errs.ErrNotFound, "runtime has no export archive")
+	ErrStdlib                                         = errs.Wrap(errs.ErrNotFound, "stdlib")
 	ErrSourceWasStored                                = errors.New("source was stored")
 	ErrSpawn                                          = errors.New("")
 	ErrToolchainCompileSupportsGoarchAmd64OrArm64Have = errors.New("toolchain: compile supports GOARCH=amd64 or arm64, have")
 	ErrToolchainMainPackageHasAssembly                = errors.New("toolchain: main package has assembly")
 	ErrToolchainMissingRequest                        = errs.Wrap(errs.ErrMissing, "toolchain: missing request")
 	ErrToolchainUnknownAction                         = errs.Wrap(errs.ErrUnknown, "toolchain: unknown action")
+	ErrToolexec                                       = errs.Wrap(errs.ErrInvalid, "toolexec")
 	ErrTrampolineDistance                             = errors.New("trampoline distance")
 	ErrTrampolineOutsideMapping                       = errors.New("trampoline outside mapping")
 	ErrUnaligned16BitOffset                           = errors.New("unaligned 16-bit offset")
@@ -88,7 +87,7 @@ func CompileSource(ctx context.Context, src string) (*Prog, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(dir)
-	cfg, _, err := runtimeDeps(dir)
+	cfg, _, err := runtimeDeps(ctx, dir)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +176,7 @@ func compileOnce(pkgpath, out, importcfg, embedcfg, lang string, shared bool, fi
 			err = fmt.Errorf("jit: compile: %v", rec)
 		}
 	}()
-	return compileHere(pkgpath, out, importcfg, embedcfg, lang, shared, "", "", files)
+	return compileHere(pkgpath, out, importcfg, embedcfg, lang, shared, false, false, "", "", "", files)
 }
 
 func storedGo(dir string) ([]string, error) {
