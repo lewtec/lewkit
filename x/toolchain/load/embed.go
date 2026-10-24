@@ -12,6 +12,11 @@ import (
 	"golang.org/x/mod/module"
 )
 
+// ResolveEmbed matches //go:embed patterns the way the go command does.
+func ResolveEmbed(pkgdir string, patterns []string) (*Embed, error) {
+	return resolveEmbed(pkgdir, patterns)
+}
+
 // resolveEmbed matches //go:embed patterns the way the go command does.
 // all: includes names that start with "." or "_". Symlinks are rejected.
 func resolveEmbed(pkgdir string, patterns []string) (*Embed, error) {

@@ -2,6 +2,8 @@ package progress
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -256,4 +258,46 @@ func TestRunNonInteractiveWaits(t *testing.T) {
 		return nil
 	}))
 	assert.True(t, ran.Load())
+}
+
+func TestRunPrefersTaskErrorOverCancel(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	t.Setenv("LEWKIT_FORCE_TUI", "")
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	boom := errors.New("compile failed")
+	err := Run(s, ctx, func(ctx context.Context) error {
+		taskgroup.Go(ctx, "compile", taskgroup.CPU, func(context.Context, *taskgroup.Status) error {
+			return boom
+		})
+		<-ctx.Done()
+		return fmt.Errorf("build darwin/arm64: %w", ctx.Err())
+	})
+	require.ErrorIs(t, err, boom)
+}
+
+func TestRunKeepsWorkError(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	t.Setenv("LEWKIT_FORCE_TUI", "")
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	boom := errors.New("boom")
+	err := Run(s, ctx, func(ctx context.Context) error {
+		taskgroup.Go(ctx, "t", taskgroup.CPU, func(context.Context, *taskgroup.Status) error {
+			return errors.New("task")
+		})
+		return boom
+	})
+	require.ErrorIs(t, err, boom)
+}
+
+func TestRunKeepsBareCancel(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	t.Setenv("LEWKIT_FORCE_TUI", "")
+	s, ctx := taskgroup.New(t.Context(), taskgroup.DefaultLimits())
+	err := Run(s, ctx, func(ctx context.Context) error {
+		s.Cancel(context.Canceled)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	require.EqualError(t, err, context.Canceled.Error())
 }

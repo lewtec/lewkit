@@ -241,10 +241,16 @@ An artifact's preview path is `Artifact.Slug`, the first 16 hex characters of th
 
 ### Examples
 
-App demos live under `examples/app`. Each directory there is one program. `eletrocromo.json` sits next to that program. `entry` is `go:./cmd/main`, `astro:.`, or `static:site.zip`. `--entry` sets that value for one `release build` or `release run`. `go_main` is `go:<path>`. `--main` selects `go:<path>` when `--entry` is empty. The version name is `git describe`. The integer is the commit count, and the first commit is 1. Run a program from the repository root:
+App demos live under `examples/app`. Each directory there is one program. `eletrocromo.json` sits next to that program. `entry` is `go:./cmd/main`, `astro:.`, or `static:site.zip`. `--entry` sets that value for one `release build` or `release run`. `go_main` is `go:<path>`. `--main` selects `go:<path>` when `--entry` is empty. `--id`, `--name`, `--version`, `--entry`, `--main`, and `--icon` each replace that field for one run. An omitted or blank flag keeps the file value. With no `--config`, lewkit reads `./eletrocromo.json`. With `--dir`, it reads `<dir>/eletrocromo.json`. If that file is missing and a field flag is set, the flags define the app. A missing `--config` path is an error, and the error includes the path. A relative `static:` or `astro:` path on `--entry` uses the working directory when the path exists there. When that path is absent, it uses the config directory if the path exists there. `go:` and an entry in the file stay relative to the config directory. An empty app name uses the asset file name. With no asset name, it uses the last package id label. The version name is `git describe`. The integer is the commit count, and the first commit is 1. Run a program from the repository root:
 
 ```bash
 go run ./cmd/lewkit release run --config ./examples/app/basic/eletrocromo.json
+```
+
+A static zip can be the whole app. Put the zip in `games` and run:
+
+```bash
+go run ./cmd/lewkit release run --dir games --entry static:city-racing.zip --id teste.cityracing --name "City Racing"
 ```
 
 A plain `go run` of an example has no release stamp and panics.

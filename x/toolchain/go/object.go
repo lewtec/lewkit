@@ -16,8 +16,8 @@ var (
 	ErrTarget = fmt.Errorf("toolchain: mixed target")
 	// ErrEmptyTarget means the link has no GOOS, GOARCH, or mode.
 	ErrEmptyTarget = errs.Wrap(errs.ErrEmpty, "toolchain: empty target")
-	// ErrNoAsm means a unit lists assembly or system objects. cmd/asm is
-	// not vendored, so this toolchain does not produce that archive.
+	// ErrNoAsm means a unit lists assembly on Unit.Asm. Plan does not
+	// assemble that field. BuildModule assembles Unit.SFiles.
 	ErrNoAsm = fmt.Errorf("toolchain: assembly is not produced here")
 )
 

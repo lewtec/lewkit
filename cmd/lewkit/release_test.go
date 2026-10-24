@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -55,8 +57,76 @@ func TestProgramHostRejectsArgs(t *testing.T) {
 func TestConfigDefaultsToEletrocromoJSON(t *testing.T) {
 	run := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--app")
 	assert.Equal(t, "./eletrocromo.json", run.Args.release.run.config.Value())
+	assert.Equal(t, "./eletrocromo.json", run.Args.release.run.spec().Config)
 	build := cmd.ParseOK[cmd.App[root]](t, "release", "build")
 	assert.Equal(t, "./eletrocromo.json", build.Args.release.build.config.Value())
+	assert.Equal(t, "./eletrocromo.json", build.Args.release.build.spec().Config)
+}
+
+func TestDirFlagRequiresConfigInThatDirectory(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "build", "--dir", "games")
+	assert.True(t, app.Args.release.build.dir.ArgSet())
+	assert.Equal(t, filepath.Join("games", "eletrocromo.json"), app.Args.release.build.spec().Config)
+}
+
+func TestOverlayFlagsOmitMissingDefaultConfig(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--entry", "static:city-racing.zip", "--id", "teste.cityracing")
+	spec := app.Args.release.run.spec()
+	assert.Empty(t, spec.Config)
+	assert.Equal(t, "teste.cityracing", spec.ID)
+	assert.Equal(t, "static:city-racing.zip", spec.Entry)
+
+	explicit := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--config", "gone.json", "--entry", "static:city-racing.zip", "--id", "teste.cityracing")
+	assert.Equal(t, "gone.json", explicit.Args.release.run.spec().Config)
+}
+
+func TestBlankFlagDoesNotCountAsOverlay(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--id", "   ", "--name", " ")
+	assert.Equal(t, "./eletrocromo.json", app.Args.release.run.spec().Config)
+}
+
+func TestDirAndEntryOverlayTheFile(t *testing.T) {
+	dir := t.TempDir()
+	writeStoredZip(t, filepath.Join(dir, "city-racing.zip"), "<h1>city</h1>")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "eletrocromo.json"), []byte(`{
+		"package_id": "br.tec.lew.file",
+		"app_name": "City Racing",
+		"entry": "go:."
+	}`), 0o644))
+	t.Chdir(t.TempDir())
+
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--dir", dir, "--entry", "static:city-racing.zip", "--id", "teste.cityracing")
+	spec := app.Args.release.run.spec()
+	require.Empty(t, spec.Config)
+	require.Equal(t, dir, spec.Dir)
+	cfg, base, err := spec.Load(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(cfg.GoMain) })
+	require.Equal(t, dir, base)
+	require.Equal(t, "teste.cityracing", cfg.PackageID)
+	require.Equal(t, "City Racing", cfg.AppName)
+	copied, err := os.ReadFile(filepath.Join(cfg.GoMain, "site.zip"))
+	require.NoError(t, err)
+	require.Contains(t, string(copied), "<h1>city</h1>")
+}
+
+func TestReleaseRunFlagsWithoutConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	writeStoredZip(t, filepath.Join(dir, "city-racing.zip"), "<h1>city</h1>")
+	t.Chdir(dir)
+
+	app := cmd.ParseOK[cmd.App[root]](t, "release", "run", "--entry", "static:city-racing.zip", "--id", "teste.cityracing", "--name", "City Racing")
+	cfg, _, err := app.Args.release.run.spec().Load(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(cfg.GoMain) })
+	require.Equal(t, "teste.cityracing", cfg.PackageID)
+	require.Equal(t, "City Racing", cfg.AppName)
+	body, err := os.ReadFile(filepath.Join(cfg.GoMain, "main.go"))
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"City Racing"`)
+	copied, err := os.ReadFile(filepath.Join(cfg.GoMain, "site.zip"))
+	require.NoError(t, err)
+	require.Contains(t, string(copied), "<h1>city</h1>")
 }
 
 func TestP12FlagReadsSecretFile(t *testing.T) {
@@ -108,6 +178,19 @@ func TestProgramStartsAfterProgress(t *testing.T) {
 		entry.After(fn)
 		return nil
 	}))
+}
+
+func writeStoredZip(t *testing.T, path, body string) {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := zip.NewWriter(&buf)
+	header := &zip.FileHeader{Name: "index.html", Method: zip.Store}
+	file, err := writer.CreateHeader(header)
+	require.NoError(t, err)
+	_, err = file.Write([]byte(body))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	require.NoError(t, os.WriteFile(path, buf.Bytes(), 0o644))
 }
 
 func TestRunNestedReturnsBuildError(t *testing.T) {
