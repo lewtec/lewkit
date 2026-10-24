@@ -111,7 +111,7 @@ func TestLewkitCompilerBuild(t *testing.T) {
 		out := filepath.Join(dir, "libhello.so")
 		tool := writeToolexec(t, dir)
 		export := filepath.Join(dir, "_cgo_android_export.go")
-		require.NoError(t, os.WriteFile(export, []byte("package unused\n"), 0o644))
+		require.NoError(t, os.WriteFile(export, []byte("package main\n"), 0o644))
 		err := gocmd.Command{
 			Dir:      dir,
 			Compiler: gocmd.CompilerLewkit,

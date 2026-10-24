@@ -96,6 +96,7 @@ func TestVendoredCShared(t *testing.T) {
 		cfg, _ := listRuntime(t, work)
 		archive := filepath.Join(work, "exe.a")
 		require.NoError(t, Compile(t.Context(), "main", archive, cfg, "", "", false, []string{src}))
+		require.NoError(t, os.WriteFile(filepath.Join(work, "go.mod"), []byte("module example.com/tool\n\ngo 1.27\n"), 0o644))
 		cmd := exec.Command("go", "build", "-buildmode=c-shared", "-o", filepath.Join(work, "via-go.so"), ".")
 		cmd.Dir = work
 		out, err := cmd.CombinedOutput()

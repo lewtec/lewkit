@@ -35,6 +35,8 @@ import (
 )
 
 var (
+	ErrAsmFlagsInitWasNotPatched       = errors.New("asm flags init was not patched")
+	ErrAsmFlagsVarBlockWasNotPatched   = errors.New("asm flags var block was not patched")
 	ErrCompileBaseExitWasNotPatched    = errors.New("compile base.Exit was not patched")
 	ErrCompileErrorexitWasNotPatched   = errors.New("compile ErrorExit was not patched")
 	ErrCompileHandlepanicWasNotPatched = errors.New("compile handlePanic was not patched")
@@ -113,7 +115,7 @@ func patchAsmFlags(dst string) error {
 )`
 	next := strings.Replace(string(body), old, newVars, 1)
 	if next == string(body) {
-		return errors.New("asm flags var block was not patched")
+		return ErrAsmFlagsVarBlockWasNotPatched
 	}
 	oldInit := `func init() {
 	flag.Var(&D, "D", "predefined symbol with optional simple value -D=identifier=value; can be set multiple times")
@@ -147,7 +149,7 @@ func patchAsmFlags(dst string) error {
 }`
 	patched := strings.Replace(next, oldInit, newInit, 1)
 	if patched == next {
-		return errors.New("asm flags init was not patched")
+		return ErrAsmFlagsInitWasNotPatched
 	}
 	return os.WriteFile(path, []byte(patched), 0o644)
 }
