@@ -41,8 +41,10 @@
 // Pkgdir when that is set. A main package that contains assembly is
 // assembled here when Pkgdir is empty. Toolexec appends a file whose base
 // name starts with _cgo_ and ends with _export.go when that file sits in
-// the package directory. lewkit release build, run, and build-all use this
-// compiler unless --go host selects the go command.
+// the package directory. The path named by -toolexec may be another
+// checkout. The copy in the package directory is compiled. lewkit release
+// build, run, and build-all use this compiler unless --go host selects
+// the go command.
 // Compile and Link still take the files and the importcfg the caller prepared.
 // SharedLibrary compiles one main package from source into a shared object.
 // RunSource compiles and runs a main package from source. Linux holds
