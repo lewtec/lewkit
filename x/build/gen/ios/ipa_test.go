@@ -14,7 +14,7 @@ import (
 func TestPackWritesPayload(t *testing.T) {
 	app := filepath.Join(t.TempDir(), "Demo.app")
 	require.NoError(t, os.MkdirAll(app, 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(app, "Demo"), []byte("macho"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(app, "Demo"), []byte("macho"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(app, "Info.plist"), []byte("<plist/>"), 0o644))
 	ipa := filepath.Join(t.TempDir(), "nested", "Demo_ios_arm64.ipa")
 	require.NoError(t, Pack(t.Context(), app, ipa))
@@ -31,7 +31,8 @@ func TestPackWritesPayload(t *testing.T) {
 	require.Contains(t, modes, "Payload/")
 	require.Contains(t, modes, "Payload/Demo.app/")
 	require.Contains(t, modes, "Payload/Demo.app/Info.plist")
-	require.NotZero(t, modes["Payload/Demo.app/Demo"]&0o111)
+	require.Equal(t, os.FileMode(0o755), modes["Payload/Demo.app/Demo"].Perm())
+	require.Zero(t, modes["Payload/Demo.app/Info.plist"]&0o111)
 	member, err := reader.Open("Payload/Demo.app/Demo")
 	require.NoError(t, err)
 	defer member.Close()

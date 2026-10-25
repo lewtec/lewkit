@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/lewtec/lewkit/x/errs"
 	lewpath "github.com/lewtec/lewkit/x/path"
@@ -94,7 +95,7 @@ func writeIPA(ctx context.Context, zw *zip.Writer, appDir string) error {
 		}
 		header.Name = name
 		header.Method = zip.Deflate
-		header.SetMode(info.Mode())
+		header.SetMode(zipFileMode(info.Mode(), rel, bundle))
 		writer, err := zw.CreateHeader(header)
 		if err != nil {
 			return err
@@ -107,6 +108,15 @@ func writeIPA(ctx context.Context, zw *zip.Writer, appDir string) error {
 		_, err = io.Copy(writer, file)
 		return err
 	})
+}
+
+// zipFileMode keeps a mode the host already stored.
+// Windows does not record a Unix exec bit, so the bundle executable is 0755 in the IPA.
+func zipFileMode(mode os.FileMode, rel, bundle string) os.FileMode {
+	if mode.Perm()&0o111 == 0 && rel == strings.TrimSuffix(bundle, ".app") {
+		return 0o755
+	}
+	return mode
 }
 
 func writeZipDir(zw *zip.Writer, name string) error {
