@@ -37,8 +37,8 @@
       "ref": "github:ebitengine/purego",
       "depName": "ebitengine/purego",
       "packageName": "https://github.com/ebitengine/purego",
-      "currentValue": "v0.11.0",
-      "currentDigest": "11ec78d6522b27168df09608e75387eca29ce788",
+      "currentValue": "v0.11.2",
+      "currentDigest": "0fd9f62f2e6b53025cd8bb5c29d98350de5c6e77",
       "datasource": "git-refs"
     },
     {
