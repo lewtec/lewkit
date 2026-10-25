@@ -49,6 +49,7 @@ func ArchiveName(project string, target Target) string {
 
 // AppFile is one host artifact: stem_goos_goarch plus the host suffix.
 // Windows is .exe, Android is .apk, Linux is .AppImage, and every other host is .app.
+// iOS here is the simulator .app. A device build uses IOSFile.
 // Android's stem is the last package-id label. Every other host uses product.
 func AppFile(product, packageID, goos, goarch string) string {
 	stem := product
@@ -63,6 +64,17 @@ func AppFile(product, packageID, goos, goarch string) string {
 		ext = ".AppImage"
 	}
 	return stem + "_" + goos + "_" + goarch + ext
+}
+
+// IOSFile is the iOS host artifact.
+// A simulator build is product_ios_goarch.app.
+// A device build is product_ios_goarch.ipa.
+func IOSFile(product, goarch string, device bool) string {
+	ext := ".app"
+	if device {
+		ext = ".ipa"
+	}
+	return product + "_ios_" + goarch + ext
 }
 
 func androidLabel(packageID string) string {

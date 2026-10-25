@@ -20,6 +20,8 @@ func TestAppFile(t *testing.T) {
 	require.Equal(t, "Demo_windows_amd64.exe", AppFile("Demo", "br.tec.lew.demo", "windows", "amd64"))
 	require.Equal(t, "Demo_darwin_arm64.app", AppFile("Demo", "br.tec.lew.demo", "darwin", "arm64"))
 	require.Equal(t, "Demo_ios_arm64.app", AppFile("Demo", "br.tec.lew.demo", "ios", "arm64"))
+	require.Equal(t, "Demo_ios_arm64.app", IOSFile("Demo", "arm64", false))
+	require.Equal(t, "Demo_ios_arm64.ipa", IOSFile("Demo", "arm64", true))
 	require.Equal(t, "Drivers_linux_amd64.AppImage", AppFile("Drivers", "br.tec.lew.drivers", "linux", "amd64"))
 	require.Equal(t, "contapila_android_arm64.apk", AppFile("Ignored", "br.tec.lew.contapila", "android", "arm64"))
 	require.Equal(t, "app_android_amd64.apk", AppFile("Demo", "", "android", "amd64"))

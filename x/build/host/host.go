@@ -2,6 +2,9 @@ package host
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/lewtec/lewkit/x/build"
 	"github.com/lewtec/lewkit/x/build/gen/apk"
@@ -169,20 +172,31 @@ func (host Host) Windows(ctx context.Context) (string, error) {
 }
 
 // IOS builds a .app around a cgo-free GOOS=ios program on every host.
-// iphonesimulator stamps the simulator platform, including arm64.
-// A nil Host.Sign ad-hoc signs, the same as Mac. The simulator
-// refuses an unsigned device binary.
+// An Out path that ends in .ipa signs that bundle, then writes
+// Payload/<product>.app into the archive. iphonesimulator stamps the
+// simulator platform, including arm64. A nil Host.Sign ad-hoc signs,
+// the same as Mac. The simulator refuses an unsigned device binary.
 func (host Host) IOS(ctx context.Context) (string, error) {
 	cfg, base, err := host.Load(ctx)
 	if err != nil {
 		return "", err
+	}
+	outApp := host.Out
+	var scratch string
+	if strings.HasSuffix(host.Out, ".ipa") && !host.GoOnly {
+		scratch, err = os.MkdirTemp("", "lewkit-ipa-")
+		if err != nil {
+			return "", err
+		}
+		defer os.RemoveAll(scratch)
+		outApp = filepath.Join(scratch, iosConfig(cfg).ProductName()+".app")
 	}
 	result, err := ios.Build(ctx, ios.BuildOptions{
 		Config:       iosConfig(cfg),
 		BaseDir:      base,
 		WorkDir:      host.Work,
 		KeepWorkDir:  host.Work != "",
-		OutApp:       host.Out,
+		OutApp:       outApp,
 		GoOnly:       host.GoOnly,
 		SDK:          host.SDK,
 		GOARCH:       host.GOARCH,
@@ -198,7 +212,35 @@ func (host Host) IOS(ctx context.Context) (string, error) {
 	if err := sign.SignTree(host.Sign, result.AppPath, cfg.PackageID); err != nil {
 		return "", err
 	}
-	return result.AppPath, nil
+	if scratch == "" {
+		return result.AppPath, nil
+	}
+	if err := ios.Pack(ctx, result.AppPath, host.Out); err != nil {
+		return "", err
+	}
+	return host.Out, nil
+}
+
+// ArtifactName is the file inside a dist directory for one host package.
+// iOS is product_ios_goarch.app. iphoneos is product_ios_goarch.ipa.
+// An empty SDK is the simulator name.
+func ArtifactName(product, packageID, goos, goarch, sdk string) (string, error) {
+	if build.GOOS(goos) != build.GOOSIOS {
+		return build.AppFile(product, packageID, goos, goarch), nil
+	}
+	device, err := iosDevice(sdk)
+	if err != nil {
+		return "", err
+	}
+	return build.IOSFile(product, goarch, device), nil
+}
+
+func iosDevice(sdk string) (bool, error) {
+	parsed, err := ios.ParseSDK(sdk)
+	if err != nil {
+		return false, err
+	}
+	return parsed == ios.SDKDevice, nil
 }
 
 func macConfig(cfg apk.Config) mac.Config {

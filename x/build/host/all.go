@@ -205,7 +205,11 @@ func (u Uber) assemble(ctx context.Context, archives, apps []build.Target) (work
 	}
 	for _, target := range apps {
 		goos, goarch := target.GOOS, target.GOARCH
-		dest := filepath.Join(out, build.AppFile(product, cfg.PackageID, goos, goarch))
+		name, err := ArtifactName(product, cfg.PackageID, goos, goarch, u.SDK)
+		if err != nil {
+			return workflow.Graph{}, nil, nil, err
+		}
+		dest := filepath.Join(out, name)
 		paths = append(paths, dest)
 		h := host
 		h.Out = dest
