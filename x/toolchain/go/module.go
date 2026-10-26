@@ -21,8 +21,9 @@ import (
 // library and any package with assembly. An empty Pkgdir compiles those
 // with this compiler and caches the archives by GOOS, GOARCH, and build
 // mode. Toolexec, when set, appends a file whose base name starts with
-// _cgo_ and ends with _export.go when that file's directory is the
-// package being compiled.
+// _cgo_ and ends with _export.go when that file sits in the package
+// directory. The -toolexec path may be another checkout. The copy next
+// to the package is compiled.
 // Out is the executable. Trimpath strips Dir from recorded source paths.
 // Android, and any other target whose default buildmode is PIE, links as
 // PIE. Library forces that PIE for a shared library, including Linux.

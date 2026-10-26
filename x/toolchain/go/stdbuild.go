@@ -561,6 +561,13 @@ func uniq(values []string) []string {
 	return out
 }
 
+// cgoExportFiles lists the _cgo_*_export.go files this compile must see.
+// cmd/go skips a name that starts with _. -toolexec names the file the
+// host wrapper would append. That path is the lewkit checkout building
+// the app. The package being compiled may be another copy, such as the
+// module cache. The file next to that package matches its assembly.
+// A package without that name is left alone, so the checkout file is
+// not compiled into main.
 func cgoExportFiles(toolexec, pkgDir string) ([]string, error) {
 	if toolexec == "" {
 		return nil, nil
@@ -570,13 +577,35 @@ func cgoExportFiles(toolexec, pkgDir string) ([]string, error) {
 		return nil, err
 	}
 	var out []string
+	seen := map[string]struct{}{}
 	for _, word := range words {
 		base := filepath.Base(word)
-		if strings.HasPrefix(base, "_cgo_") && strings.HasSuffix(base, "_export.go") && filepath.Dir(word) == pkgDir {
-			out = append(out, word)
+		if !cgoExportName(base) {
+			continue
 		}
+		path := word
+		if filepath.Clean(filepath.Dir(word)) != filepath.Clean(pkgDir) {
+			if pkgDir == "" {
+				continue
+			}
+			local := filepath.Join(pkgDir, base)
+			info, err := os.Stat(local)
+			if err != nil || info.IsDir() {
+				continue
+			}
+			path = local
+		}
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+		out = append(out, path)
 	}
 	return out, nil
+}
+
+func cgoExportName(base string) bool {
+	return strings.HasPrefix(base, "_cgo_") && strings.HasSuffix(base, "_export.go")
 }
 
 func splitToolexec(s string) ([]string, error) {
