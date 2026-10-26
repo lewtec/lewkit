@@ -1,9 +1,11 @@
 package ios
 
 import (
+	"archive/zip"
 	"encoding/binary"
 	"image"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -85,6 +87,18 @@ func TestBuildAssemblesGoApp(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(plist), "<key>UIRequiredDeviceCapabilities</key>")
 	requireIOSFrameworks(t, exe)
+	ipa := filepath.Join(t.TempDir(), "Demo.ipa")
+	require.NoError(t, Pack(t.Context(), out, ipa))
+	reader, err := zip.OpenReader(ipa)
+	require.NoError(t, err)
+	defer reader.Close()
+	member, err := reader.Open("Payload/Demo.app/Demo")
+	require.NoError(t, err)
+	defer member.Close()
+	magic := make([]byte, 4)
+	_, err = io.ReadFull(member, magic)
+	require.NoError(t, err)
+	require.Equal(t, []byte{0xCF, 0xFA, 0xED, 0xFE}, magic)
 }
 
 func TestBuildAssemblesSimulator(t *testing.T) {

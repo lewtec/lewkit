@@ -1,4 +1,4 @@
-// Package ios generates an iOS .app.
+// Package ios generates an iOS .app and packs that bundle into an IPA.
 // The Go program is the bundle executable on every host.
 // Create writes the scaffold. Build does not compile that scaffold.
 package ios

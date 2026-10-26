@@ -34,7 +34,7 @@ type buildFlags struct {
 	out       cmd.StringArg               `long:"out" help:"output path or directory" default:"dist"`
 	file      cmd.StringArg               `long:"archive" help:"archive file name" default:""`
 	work      cmd.StringArg               `long:"workdir" help:"generated host directory" default:""`
-	sdk       cmd.StringArg               `long:"sdk" help:"iphonesimulator or iphoneos. Omitted means the simulator." default:"iphonesimulator"`
+	sdk       cmd.StringArg               `long:"sdk" help:"iphonesimulator writes a .app. iphoneos writes an .ipa. Omitted means the simulator." default:"iphonesimulator"`
 	goOnly    cmd.Flag                    `long:"go-only" help:"stop after the Go binary"`
 	app       cmd.Flag                    `long:"app" help:"package a host app instead of a binary archive"`
 	kernel    cmd.StringArg               `long:"kernel" help:"vmlinuz for --goos linux_uki or linux_iso; empty downloads Alpine linux-virt for GOARCH" default:""`
@@ -100,7 +100,7 @@ func (c *buildFlags) produce(ctx context.Context) ([]string, error) {
 	if !c.app.Value() {
 		return c.archive(ctx, target, identity)
 	}
-	out, err := artifactPath(ctx, goos, goarch, c.out.Value(), c.spec())
+	out, err := c.artifactPath(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -138,8 +138,8 @@ func (c *buildFlags) identity() (*sign.Identity, error) {
 
 // artifactPath turns a directory such as dist into one host file whose
 // name contains GOOS and GOARCH. A path that already names a file is kept.
-func artifactPath(ctx context.Context, goos, goarch, out string, spec host.Spec) (string, error) {
-	out = strings.TrimSpace(out)
+func (c *buildFlags) artifactPath(ctx context.Context) (string, error) {
+	out := strings.TrimSpace(c.out.Value())
 	if out == "" {
 		out = "dist"
 	}
@@ -151,11 +151,21 @@ func artifactPath(ctx context.Context, goos, goarch, out string, spec host.Spec)
 	if !asDir {
 		return out, nil
 	}
-	cfg, _, err := spec.Load(ctx)
+	cfg, _, err := c.spec().Load(ctx)
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(out, build.AppFile(common.ProductName(cfg.PackageID, cfg.AppName), cfg.PackageID, goos, goarch)), nil
+	name, err := host.ArtifactName(
+		common.ProductName(cfg.PackageID, cfg.AppName),
+		cfg.PackageID,
+		string(c.goos.Value()),
+		string(c.goarch.Value()),
+		c.sdk.Value(),
+	)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(out, name), nil
 }
 
 func (c *buildFlags) firmware(ctx context.Context, target build.Target) ([]string, error) {

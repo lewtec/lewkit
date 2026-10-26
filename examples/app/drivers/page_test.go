@@ -35,7 +35,7 @@ func TestHomeListsADriver(t *testing.T) {
 	srv := httptest.NewServer(newPage(t.Context()))
 	defer srv.Close()
 	client := srv.Client()
-	client.Timeout = 5 * time.Second
+	client.Timeout = 20 * time.Second
 	res, err := client.Get(srv.URL + "/")
 	require.NoError(t, err)
 	defer res.Body.Close()

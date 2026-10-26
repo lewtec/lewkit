@@ -1,6 +1,8 @@
 package host
 
 import (
+	"archive/zip"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -74,6 +76,47 @@ func TestUberGraphSharesIcons(t *testing.T) {
 	require.Contains(t, paths, filepath.Join(out, "Demo_linux_amd64.AppImage"))
 	require.Contains(t, paths, filepath.Join(out, "Demo_windows_arm64.exe"))
 	require.Contains(t, paths, filepath.Join(out, "demo_android_arm64.apk"))
+}
+
+func TestUberIOSNames(t *testing.T) {
+	dir := t.TempDir()
+	out := t.TempDir()
+	apps := []build.Target{{GOOS: "ios", GOARCH: "arm64"}}
+	simulator := Uber{Spec: Spec{Dir: dir, ID: "br.tec.lew.demo", Name: "Demo"}, Out: out, SDK: "iphonesimulator"}
+	_, paths, _, err := simulator.assemble(t.Context(), nil, apps)
+	require.NoError(t, err)
+	require.Contains(t, paths, filepath.Join(out, "Demo_ios_arm64.app"))
+	device := Uber{Spec: Spec{Dir: dir, ID: "br.tec.lew.demo", Name: "Demo"}, Out: out, SDK: "iphoneos"}
+	_, paths, _, err = device.assemble(t.Context(), nil, apps)
+	require.NoError(t, err)
+	require.Contains(t, paths, filepath.Join(out, "Demo_ios_arm64.ipa"))
+}
+
+func TestIOSDeviceWritesIPA(t *testing.T) {
+	mainDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "go.mod"), []byte("module example.com/demo\n\ngo 1.27.0\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(mainDir, "main.go"), []byte("package main\n\nfunc main() {}\n"), 0o644))
+	out := filepath.Join(t.TempDir(), "Demo_ios_arm64.ipa")
+	got, err := Host{
+		Spec:   Spec{Dir: mainDir, ID: "br.tec.lew.demo", Name: "Demo", Version: "1.2.3"},
+		Out:    out,
+		GOARCH: "arm64",
+		SDK:    "iphoneos",
+	}.IOS(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, out, got)
+	reader, err := zip.OpenReader(out)
+	require.NoError(t, err)
+	defer reader.Close()
+	member, err := reader.Open("Payload/Demo.app/Info.plist")
+	require.NoError(t, err)
+	defer member.Close()
+	plist, err := io.ReadAll(member)
+	require.NoError(t, err)
+	require.Contains(t, string(plist), "<string>iPhoneOS</string>")
+	exe, err := reader.Open("Payload/Demo.app/Demo")
+	require.NoError(t, err)
+	require.NoError(t, exe.Close())
 }
 
 func TestUberRejectsFileOut(t *testing.T) {
