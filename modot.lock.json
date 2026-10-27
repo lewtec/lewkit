@@ -13,7 +13,7 @@
       "kind": "tool",
       "ref": "github:astral-sh/ruff",
       "depName": "astral-sh/ruff",
-      "currentValue": "0.16.7",
+      "currentValue": "0.17.3",
       "datasource": "github-releases"
     },
     {
