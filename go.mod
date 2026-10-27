@@ -13,7 +13,7 @@ require (
 	github.com/a-h/templ v0.3.1020
 	github.com/agusibrahim/apksig-go v1.1.0
 	github.com/anchore/quill v0.7.1
-	github.com/andybalholm/brotli v1.2.4
+	github.com/andybalholm/brotli v1.2.7
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/term v0.2.2
