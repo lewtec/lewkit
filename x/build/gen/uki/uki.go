@@ -36,6 +36,7 @@ var (
 	ErrOVMF            = errors.New("uki: OVMF_CODE or OVMF_VARS is unset")
 	errApkNoKernel     = errs.Wrap(errs.ErrNotFound, "uki: apk has no vmlinuz-virt")
 	errApkNoModules    = errs.Wrap(errs.ErrNotFound, "uki: apk has no modules.dep")
+	errAlpinePackage   = errs.Wrap(errs.ErrNotFound, "uki: alpine package")
 	errEmptyOutput     = errs.Wrap(errs.ErrEmpty, "uki: empty output")
 	errImageNotPEOrISO = errs.Wrap(errs.ErrInvalid, "uki: image is not a PE or an ISO")
 	// errKept adds no words. The other values are the sentence.
@@ -54,8 +55,8 @@ func Guest(goos string) bool {
 }
 
 // Options is one guest image.
-// Kernel is a ready-made vmlinuz. Empty uses the pinned Alpine linux-virt
-// package for GOARCH. That package supplies the modules either way.
+// Kernel is a ready-made vmlinuz. Empty downloads the linux-virt package
+// Alpine currently publishes for GOARCH. That package supplies the modules either way.
 // GOOS linux_iso writes a CD. Empty and linux_uki write the PE.
 type Options struct {
 	Dir     string
@@ -86,7 +87,7 @@ func Build(ctx context.Context, opt Options) error {
 	if strings.TrimSpace(opt.Out) == "" {
 		return errEmptyOutput
 	}
-	// The pinned package is the kernel and the modules. A caller-supplied
+	// The published package is the kernel and the modules. A caller-supplied
 	// vmlinuz replaces only the image; the modules stay this package.
 	apk, err := fetchKernel(ctx, opt.GOARCH)
 	if err != nil {
@@ -285,7 +286,7 @@ func guestSource() string {
 
 // dynamicLibs copies the loader and shared libraries a dynamic app needs.
 // Names come from PT_INTERP and DT_NEEDED, and the files come from the
-// Alpine 3.24 rootfs packages pinned next to the kernel. purego's fakecgo
+// Alpine 3.24 rootfs packages published with the kernel. purego's fakecgo
 // records libc even when cgo is off. A static binary returns nothing.
 func dynamicLibs(ctx context.Context, goarch, bin string) ([]cpioFile, error) {
 	if err := ctx.Err(); err != nil {
