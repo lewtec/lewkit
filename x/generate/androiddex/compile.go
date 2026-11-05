@@ -21,7 +21,11 @@ import (
 	execdriver "github.com/lewtec/lewkit/x/driver/exec"
 )
 
-// miseJavaSpec matches the apk toolchain pin. Run does not install it.
+// miseJavaSpec is the javac that produces classes.dex.
+// build-tools 34 d8 (R8 8.2.2) crashes on class files from javac 21 and
+// newer: a null type descriptor, then String.length(). OpenJDK 17.0.2
+// throws in CgroupV2Subsystem, so the pin stays 17.0.14.
+// Run does not install it. mise codegen does.
 const miseJavaSpec = "java@temurin-17.0.14+7"
 
 const (
@@ -203,25 +207,45 @@ func runTool(ctx context.Context, kind error, cmd *exec.Cmd) error {
 }
 
 func javaTools(ctx context.Context) (string, string, error) {
-	if home := strings.TrimSpace(os.Getenv("JAVA_HOME")); home != "" {
+	pinned := ""
+	if home, err := miseWhere(ctx, miseJavaSpec); err == nil {
+		pinned = home
+	}
+	// JAVA_HOME_17_X64 is the GitHub-hosted runner's JDK 17. The default
+	// JAVA_HOME on ubuntu-26.04 is JDK 25, which d8 cannot read.
+	homes := dexJDKHomes(pinned, os.Getenv("JAVA_HOME_17_X64"), os.Getenv("JAVA_HOME"))
+	for _, home := range homes {
 		if javacPath, javaPath, ok := jdkBins(ctx, home); ok {
+			slog.InfoContext(ctx, "android dex jdk", "home", home)
 			return javacPath, javaPath, nil
 		}
 	}
 	if bin, err := execdriver.Which(ctx, "javac"); err == nil {
 		if javacPath, javaPath, ok := jdkBins(ctx, installRoot(bin)); ok {
+			slog.InfoContext(ctx, "android dex jdk", "home", installRoot(bin))
 			return javacPath, javaPath, nil
 		}
 	}
-	home, err := miseWhere(ctx, miseJavaSpec)
-	if err != nil {
-		return "", "", fmt.Errorf("%w: javac: %w", ErrTool, err)
+	return "", "", fmt.Errorf("%w: javac: %s", ErrTool, miseJavaSpec)
+}
+
+// dexJDKHomes is the javac search order. The pinned JDK wins so a machine
+// whose JAVA_HOME is 21 or 25 does not feed those class files to d8.
+func dexJDKHomes(pinned, runner, ambient string) []string {
+	var homes []string
+	seen := map[string]struct{}{}
+	for _, home := range []string{pinned, runner, ambient} {
+		home = strings.TrimSpace(home)
+		if home == "" {
+			continue
+		}
+		if _, ok := seen[home]; ok {
+			continue
+		}
+		seen[home] = struct{}{}
+		homes = append(homes, home)
 	}
-	javacPath, javaPath, ok := jdkBins(ctx, home)
-	if !ok {
-		return "", "", fmt.Errorf("%w: %s", ErrTool, home)
-	}
-	return javacPath, javaPath, nil
+	return homes
 }
 
 func jdkBins(ctx context.Context, home string) (string, string, bool) {
@@ -249,14 +273,15 @@ func commandText(ctx context.Context, name string, args ...string) (string, erro
 	return buf.String(), nil
 }
 
-// jdkVersionOK reports JDK 17 or newer, other than OpenJDK 17.0.2.
-// That build throws in CgroupV2Subsystem.
+// jdkVersionOK reports JDK 17, other than OpenJDK 17.0.2.
+// That build throws in CgroupV2Subsystem. JDK 21 and newer are rejected
+// because build-tools 34 d8 crashes on their class files.
 func jdkVersionOK(text string) bool {
 	major, minor, patch, ok := jdkVersion(text)
-	if !ok || major < 17 {
+	if !ok || major != 17 {
 		return false
 	}
-	return !(major == 17 && minor == 0 && patch == 2)
+	return !(minor == 0 && patch == 2)
 }
 
 func jdkVersion(text string) (int, int, int, bool) {
