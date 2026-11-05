@@ -1,6 +1,7 @@
 package androiddex
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"io/fs"
@@ -133,9 +134,19 @@ func TestJDKVersion(t *testing.T) {
 	t.Parallel()
 	require.False(t, jdkVersionOK(`openjdk version "17.0.2" 2022-01-18`))
 	require.True(t, jdkVersionOK(`openjdk version "17.0.14" 2025-01-21`))
+	require.True(t, jdkVersionOK(`openjdk version "17.0.21" 2026-04-21`))
 	require.False(t, jdkVersionOK(`openjdk version "11.0.2"`))
-	require.True(t, jdkVersionOK(`openjdk version "21.0.2"`))
+	require.False(t, jdkVersionOK(`openjdk version "21.0.2"`))
+	require.False(t, jdkVersionOK(`openjdk version "25" 2025-09-16`))
 	require.False(t, jdkVersionOK("no version"))
+}
+
+func TestDexJDKHomes(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, []string{"/pin", "/java17", "/ambient"}, dexJDKHomes("/pin", "/java17", "/ambient"))
+	require.Equal(t, []string{"/pin"}, dexJDKHomes(" /pin ", "", "  "))
+	require.Equal(t, []string{"/pin"}, dexJDKHomes("/pin", "/pin", "/pin"))
+	require.Empty(t, dexJDKHomes("", " ", ""))
 }
 
 func TestVersionNewer(t *testing.T) {
@@ -159,8 +170,9 @@ func TestRebuild(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, checkDex(raw))
 	require.Contains(t, string(raw), "requestWindowFeature")
-	_, err = os.Stat(filepath.Join(repoAPKDir(t), dexName))
+	committed, err := os.ReadFile(filepath.Join(src, dexName))
 	require.NoError(t, err)
+	require.True(t, bytes.Equal(raw, committed), "classes.dex bytes differ: got %d, committed %d", len(raw), len(committed))
 }
 
 func repoAPKDir(t *testing.T) string {
