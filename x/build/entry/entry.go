@@ -196,12 +196,12 @@ func (m *Materializer) Resolve(ref, base string) (string, error) {
 
 func (m *Materializer) lewkitRoot() (string, error) {
 	m.rootOnce.Do(func() {
-		m.rootDir, m.rootErr = findLewkitRoot()
+		m.rootDir, m.rootErr = GetLewkitRoot()
 	})
 	return m.rootDir, m.rootErr
 }
 
-func findLewkitRoot() (string, error) {
+var GetLewkitRoot = sync.OnceFunc(func() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		return "", ErrLewkitSource
@@ -210,9 +210,6 @@ func findLewkitRoot() (string, error) {
 	for {
 		body, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 		if err == nil && moduleLewkit(body) {
-			if _, statErr := os.Stat(filepath.Join(dir, ".git")); statErr != nil {
-				return "", fmt.Errorf("%w: %s", ErrLewkitSource, dir)
-			}
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -221,7 +218,8 @@ func findLewkitRoot() (string, error) {
 		}
 		dir = parent
 	}
-}
+})
+
 
 func moduleLewkit(body []byte) bool {
 	for _, line := range bytes.Split(body, []byte("\n")) {

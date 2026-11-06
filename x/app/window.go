@@ -13,25 +13,16 @@ import (
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
-var (
-	markOnce sync.Once
-	markImg  image.Image
-)
-
-func shellMark() image.Image {
-	markOnce.Do(func() {
-		if img := window.BundleIcon(); img != nil {
-			markImg = img
-			return
-		}
-		img, err := icons.DefaultMark()
-		if err != nil {
-			return
-		}
-		markImg = img
-	})
-	return markImg
-}
+var GetShellMark = sync.OnceFunc(func() (image.Image, error) {
+	if img := window.BundleIcon(); img != nil {
+		return img, nil
+	}
+	img, err := icons.DefaultMark()
+	if err != nil {
+		return nil, err
+	}
+	return img, nil	
+})
 
 // Window is one surface the app opens. [Web] is a web view. [GUI] is a
 // host surface driven by a [gui.Model].
@@ -77,11 +68,15 @@ func (w webWindow) open(ctx context.Context, title string, width, height int, pr
 	if w.hosted {
 		return serveWeb(ctx, w.handler)
 	}
+	mark, err := GetShellMark()
+	if err != nil {
+		return err
+	}
 	view, err := webview.Open(ctx, webview.Config{
 		Title:   title,
 		Width:   width,
 		Height:  height,
-		Icon:    shellMark(),
+		Icon:    mark,
 		Profile: profile,
 		Handler: w.handler,
 	})
@@ -102,7 +97,11 @@ type guiWindow struct{ model gui.Model }
 func (guiWindow) httpHandler() http.Handler { return nil }
 
 func (w guiWindow) open(ctx context.Context, title string, width, height int, _ string) error {
-	host, err := window.Open(ctx, window.Config{Title: title, Width: width, Height: height, Icon: shellMark()})
+	mark, err := GetShellMark()
+	if err != nil {
+		return err
+	}
+	host, err := window.Open(ctx, window.Config{Title: title, Width: width, Height: height, Icon: mark})
 	if err != nil {
 		return err
 	}
