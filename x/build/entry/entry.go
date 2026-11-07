@@ -149,10 +149,7 @@ func CacheKey(name, ref, title, fingerprint string) string {
 // Materializer remembers a generated main and finds the lewkit checkout
 // that main is compiled from.
 type Materializer struct {
-	cache    sync.Map
-	rootOnce sync.Once
-	rootDir  string
-	rootErr  error
+	cache sync.Map
 }
 
 // Open returns the directory for key, writing it once.
@@ -163,7 +160,7 @@ func (m *Materializer) Open(ctx context.Context, key string, write func(dir stri
 	if got, ok := m.cache.Load(key); ok {
 		return got.(string), nil
 	}
-	root, err := m.lewkitRoot()
+	root, err := GetLewkitRoot()
 	if err != nil {
 		return "", err
 	}
@@ -194,14 +191,10 @@ func (m *Materializer) Resolve(ref, base string) (string, error) {
 	return filepath.Abs(ref)
 }
 
-func (m *Materializer) lewkitRoot() (string, error) {
-	m.rootOnce.Do(func() {
-		m.rootDir, m.rootErr = GetLewkitRoot()
-	})
-	return m.rootDir, m.rootErr
-}
-
-var GetLewkitRoot = sync.OnceFunc(func() (string, error) {
+// GetLewkitRoot returns the lewkit checkout that holds this package. It fails
+// when the module cache is the only match, because a build writes into the
+// checkout.
+var GetLewkitRoot = sync.OnceValues(func() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		return "", ErrLewkitSource
@@ -210,6 +203,9 @@ var GetLewkitRoot = sync.OnceFunc(func() (string, error) {
 	for {
 		body, err := os.ReadFile(filepath.Join(dir, "go.mod"))
 		if err == nil && moduleLewkit(body) {
+			if _, statErr := os.Stat(filepath.Join(dir, ".git")); statErr != nil {
+				return "", fmt.Errorf("%w: %s", ErrLewkitSource, dir)
+			}
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
@@ -219,7 +215,6 @@ var GetLewkitRoot = sync.OnceFunc(func() (string, error) {
 		dir = parent
 	}
 })
-
 
 func moduleLewkit(body []byte) bool {
 	for _, line := range bytes.Split(body, []byte("\n")) {

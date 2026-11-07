@@ -13,15 +13,13 @@ import (
 	"github.com/lewtec/lewkit/x/ui/gui"
 )
 
-var GetShellMark = sync.OnceFunc(func() (image.Image, error) {
+// GetShellMark returns the window mark once: the bundle icon when the host
+// provides one, and the default icon otherwise.
+var GetShellMark = sync.OnceValues(func() (image.Image, error) {
 	if img := window.BundleIcon(); img != nil {
 		return img, nil
 	}
-	img, err := icons.DefaultMark()
-	if err != nil {
-		return nil, err
-	}
-	return img, nil	
+	return icons.DefaultMark()
 })
 
 // Window is one surface the app opens. [Web] is a web view. [GUI] is a
