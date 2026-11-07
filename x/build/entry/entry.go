@@ -217,7 +217,7 @@ var GetLewkitRoot = sync.OnceValues(func() (string, error) {
 })
 
 func moduleLewkit(body []byte) bool {
-	for _, line := range bytes.Split(body, []byte("\n")) {
+	for line := range bytes.SplitSeq(body, []byte("\n")) {
 		if bytes.Equal(bytes.TrimSpace(line), []byte("module github.com/lewtec/lewkit")) {
 			return true
 		}
