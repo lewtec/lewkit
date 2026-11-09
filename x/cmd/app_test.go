@@ -444,3 +444,13 @@ func TestDashRunsCommand(t *testing.T) {
 	assert.Contains(t, got, "--")
 	assert.NotContains(t, got, "sep")
 }
+
+func TestDashPassthroughBareDash(t *testing.T) {
+	test.RestoreSlog(t)
+	// After the separator, a literal "--" must reach the command args
+	// (mise x -- cmd, docker run -- ..., etc.).
+	app := ParseOK[App[dashRoot]](t, "exec", "--", "mise", "x", "--", "bash", "-c", "true")
+	require.NoError(t, app.Run(t.Context()))
+	require.NotNil(t, app.Args.exec)
+	assert.Equal(t, []string{"mise", "x", "--", "bash", "-c", "true"}, app.Args.exec.got)
+}
