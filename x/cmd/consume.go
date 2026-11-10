@@ -125,8 +125,10 @@ func canStart(t reflect.Type, args []string, mode consumeMode) bool {
 	if len(args) == 0 {
 		return false
 	}
+	// After end-of-options / Dash, a bare "--" is a literal positional
+	// value (e.g. `mise x -- cmd` forwarded through `open lazy ... --`).
 	if args[0] == "--" {
-		return false
+		return mode.allPos
 	}
 	if !mode.allPos && isOption(args[0]) {
 		return false
