@@ -62,8 +62,8 @@
       "ref": "github:golang/go",
       "depName": "golang/go",
       "packageName": "https://github.com/golang/go",
-      "currentValue": "go1.27.0",
-      "currentDigest": "8af21751f066eced273ca3ce49506b366847c623",
+      "currentValue": "go1.27.4",
+      "currentDigest": "7b2881024c95a11ddb86663a616340aa3a88b67f",
       "datasource": "git-refs"
     },
     {

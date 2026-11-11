@@ -3312,6 +3312,9 @@
     "x/toolchain/go/_upstream/compile/internal/test/issue71943_test.go": {
       "source_info": "mount:x/toolchain/go/_upstream/compile/internal/test/issue71943_test.go"
     },
+    "x/toolchain/go/_upstream/compile/internal/test/issue_81478_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/compile/internal/test/issue_81478_test.go"
+    },
     "x/toolchain/go/_upstream/compile/internal/test/lang_test.go": {
       "source_info": "mount:x/toolchain/go/_upstream/compile/internal/test/lang_test.go"
     },
@@ -3791,6 +3794,9 @@
     },
     "x/toolchain/go/_upstream/compile/internal/types2/map.go": {
       "source_info": "mount:x/toolchain/go/_upstream/compile/internal/types2/map.go"
+    },
+    "x/toolchain/go/_upstream/compile/internal/types2/methodorder_test.go": {
+      "source_info": "mount:x/toolchain/go/_upstream/compile/internal/types2/methodorder_test.go"
     },
     "x/toolchain/go/_upstream/compile/internal/types2/mono.go": {
       "source_info": "mount:x/toolchain/go/_upstream/compile/internal/types2/mono.go"

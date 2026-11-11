@@ -500,7 +500,7 @@ func stdCacheDir(goos, goarch, kind string, tags []string) (string, error) {
 		fmt.Fprintf(sum, "tag=%s\n", tag)
 	}
 	digest := hex.EncodeToString(sum.Sum(nil))[:16]
-	return filepath.Join(base, "lewkit", "std", "go1.27.0-"+gorootHash(), goos+"_"+goarch+"_"+kind+"_"+digest), nil
+	return filepath.Join(base, "lewkit", "std", "go1.27.4-"+gorootHash(), goos+"_"+goarch+"_"+kind+"_"+digest), nil
 }
 
 func archiveReady(path string) bool {

@@ -62,7 +62,7 @@ func setToolchainEnv(t *testing.T) {
 	t.Helper()
 	goBin, err := exec.LookPath("go")
 	if err != nil {
-		goBin = "/home/grokbox/.local/share/mise/installs/go/1.27.0/bin/go"
+		goBin = "/home/grokbox/.local/share/mise/installs/go/1.27.4/bin/go"
 	}
 	t.Setenv("PATH", filepath.Dir(goBin)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	for _, pair := range [][2]string{

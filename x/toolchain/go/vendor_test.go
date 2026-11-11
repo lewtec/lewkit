@@ -129,7 +129,7 @@ func hostBin(path string) string {
 func ensureToolchainEnv() {
 	goBin, err := exec.LookPath("go")
 	if err != nil {
-		goBin = "/home/grokbox/.local/share/mise/installs/go/1.27.0/bin/go"
+		goBin = "/home/grokbox/.local/share/mise/installs/go/1.27.4/bin/go"
 	}
 	path := os.Getenv("PATH")
 	dir := filepath.Dir(goBin)

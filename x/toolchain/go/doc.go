@@ -1,7 +1,7 @@
 // Package gotool drives Go's compiler and linker as a library.
 //
 // The source is vendored with modot (file place of github:golang/go at
-// go1.27.0) into _upstream. That pin keeps upstream import paths, and
+// go1.27.4) into _upstream. That pin keeps upstream import paths, and
 // cmd/compile/internal and cmd/link/internal have different parents, so one
 // package still cannot import both. rewrite drops the internal element and
 // retargets the standard-library internal packages those trees import onto
@@ -21,7 +21,7 @@
 // parallelism. lewkit release go loads the module in the parent and calls
 // Build. Flags may follow the package arguments. -ldflags are Image.Ldflags.
 // -pkgdir supplies the standard library and any package that contains
-// assembly. An empty -pkgdir compiles those from the go1.27.0 sources in
+// assembly. An empty -pkgdir compiles those from the go1.27.4 sources in
 // goroot.zip and caches the archives. //go:embed configuration is -embedcfg.
 // An Object is one package archive. A Target is the GOOS, GOARCH, link
 // mode, runtime archives, and extra linker flags for one image. Linux,
