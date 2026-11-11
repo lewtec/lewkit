@@ -39,7 +39,7 @@ const (
 	// modulePath is the GOOSPKG module. The overlay sources live in goos/.
 	modulePath = "github.com/lewtec/lewkit/x/unikernel"
 	// compilerVersion is the object header version x/toolchain/go writes.
-	compilerVersion = "go1.27.0"
+	compilerVersion = "go1.27.4"
 )
 
 // Sentinels for a firmware build or run.

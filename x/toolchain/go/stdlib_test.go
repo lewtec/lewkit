@@ -38,7 +38,7 @@ func TestAsmObjectHeader(t *testing.T) {
 	require.NoError(t, err)
 	line, _, _ := strings.Cut(string(obj), "\n")
 	require.Contains(t, line, "go object")
-	require.Contains(t, line, "go1.27.0")
+	require.Contains(t, line, "go1.27.4")
 }
 
 func TestBuildModuleWithoutHostGo(t *testing.T) {

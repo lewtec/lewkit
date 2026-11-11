@@ -42,10 +42,10 @@ func TestSentinels(t *testing.T) {
 
 func TestRewriteObjectHeader(t *testing.T) {
 	raw := []byte("!<arch>\ngo object tamago amd64 go1.27.2 GOAMD64=v1 X:a\n$$\n")
-	out, err := rewriteObjectHeaders(raw, "go1.27.0")
+	out, err := rewriteObjectHeaders(raw, "go1.27.4")
 	require.NoError(t, err)
-	require.Equal(t, "go1.27.0", objectVersion(out))
-	require.Contains(t, string(out), "go object tamago amd64 go1.27.0 ")
+	require.Equal(t, "go1.27.4", objectVersion(out))
+	require.Contains(t, string(out), "go object tamago amd64 go1.27.4 ")
 	_, err = rewriteObjectHeaders(raw, "go1.27.10")
 	require.Error(t, err)
 }

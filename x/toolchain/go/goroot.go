@@ -15,7 +15,7 @@ import (
 	"sync"
 )
 
-// goroot.zip is the go1.27.0 standard library and pkg/include taken from
+// goroot.zip is the go1.27.4 standard library and pkg/include taken from
 // that release's binary GOROOT, including src/vendor. The git pin omits
 // files that dist generates, including runtime's z*.go and
 // internal/buildcfg/zbootstrap.go.
@@ -53,7 +53,7 @@ func extractGoroot() (string, error) {
 		return "", err
 	}
 	parent := filepath.Join(base, "lewkit", "goroot")
-	dir := filepath.Join(parent, "go1.27.0-"+gorootHash())
+	dir := filepath.Join(parent, "go1.27.4-"+gorootHash())
 	marker := filepath.Join(dir, ".complete")
 	if _, err := os.Stat(marker); err == nil {
 		return dir, nil
