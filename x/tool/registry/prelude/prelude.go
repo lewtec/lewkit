@@ -24,6 +24,7 @@ import (
 	_ "github.com/lewtec/lewkit/x/tool/registry/grok-build"
 	_ "github.com/lewtec/lewkit/x/tool/registry/helium-browser"
 	_ "github.com/lewtec/lewkit/x/tool/registry/llvm"
+	_ "github.com/lewtec/lewkit/x/tool/registry/microsandbox"
 	_ "github.com/lewtec/lewkit/x/tool/registry/mise"
 	_ "github.com/lewtec/lewkit/x/tool/registry/nodejs"
 	_ "github.com/lewtec/lewkit/x/tool/registry/obsidian"
