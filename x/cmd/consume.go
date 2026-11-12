@@ -126,7 +126,9 @@ func canStart(t reflect.Type, args []string, mode consumeMode) bool {
 		return false
 	}
 	if args[0] == "--" {
-		return false
+		// After the separator every token is positional, so a later "--"
+		// belongs to the command being run.
+		return mode.allPos
 	}
 	if !mode.allPos && isOption(args[0]) {
 		return false

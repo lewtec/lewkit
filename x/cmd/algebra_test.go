@@ -119,6 +119,7 @@ func TestDashSplitsSeqs(t *testing.T) {
 		{name: "empty first", args: []string{"--", "."}, packs: []string{}, paths: []string{"."}},
 		{name: "empty second", args: []string{"a", "--"}, packs: []string{"a"}, paths: []string{}},
 		{name: "dash looking after", args: []string{"pack", "--", "-still", "pos"}, packs: []string{"pack"}, paths: []string{"-still", "pos"}},
+		{name: "nested dash after", args: []string{"pack", "--", "cmd", "--", "-flag"}, packs: []string{"pack"}, paths: []string{"cmd", "--", "-flag"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -53,6 +53,12 @@ func TestExecDashKeepsHelpArgument(t *testing.T) {
 	assert.Equal(t, []string{"go", "--help"}, cmd.Values(app.Args.exec.args))
 }
 
+func TestExecDashKeepsNestedDash(t *testing.T) {
+	app := cmd.ParseOK[cmd.App[root]](t, "exec", "-t", "microsandbox", "--", "msb", "run", "alpine", "--", "sh", "-c", "true")
+	assert.Equal(t, []string{"microsandbox"}, cmd.Values(app.Args.exec.tools))
+	assert.Equal(t, []string{"msb", "run", "alpine", "--", "sh", "-c", "true"}, cmd.Values(app.Args.exec.args))
+}
+
 func TestExecStartsCommandAfterProgress(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		test.Skip(t, "shell script")
