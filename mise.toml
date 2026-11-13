@@ -1,7 +1,7 @@
 [tools]
 "github:lewtec/modot" = "0.20.3"
 go = "1.27.4"
-goreleaser = "2.17.0"
+goreleaser = "2.20.1"
 svu = "3.3.0"
 
 [tasks.install]
