@@ -47,7 +47,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/opencontainers/selinux v1.13.1
 	github.com/pelletier/go-toml/v2 v2.3.1
-	github.com/pierrec/lz4/v4 v4.1.26
+	github.com/pierrec/lz4/v4 v4.1.33
 	github.com/shirou/gopsutil/v4 v4.26.8
 	github.com/smallstep/pkcs7 v0.2.3
 	github.com/sqlc-dev/sqlc v1.31.1
