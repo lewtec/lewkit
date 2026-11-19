@@ -45,7 +45,7 @@ require (
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/core v0.0.0-20260927184652-669b18df5afb
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json v0.0.0-20260927184652-669b18df5afb
 	github.com/muesli/termenv v0.16.0
-	github.com/opencontainers/selinux v1.13.1
+	github.com/opencontainers/selinux v1.15.1
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/pierrec/lz4/v4 v4.1.26
 	github.com/shirou/gopsutil/v4 v4.26.8
