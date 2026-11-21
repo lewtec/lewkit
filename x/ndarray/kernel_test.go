@@ -1,0 +1,314 @@
+package ndarray
+
+import (
+	"math"
+	"strings"
+	"testing"
+
+	"github.com/lewtec/lewkit/x/ffi/wasm/glsl"
+	"github.com/stretchr/testify/require"
+)
+
+func mustTracker(t *testing.T, shape Shape) Tracker {
+	t.Helper()
+	tracker, err := Of(shape)
+	require.NoError(t, err)
+	return tracker
+}
+
+func mustEval[T Number](t *testing.T, x *Tensor[T]) []T {
+	t.Helper()
+	dst := make([]T, x.Size())
+	require.NoError(t, x.Eval(t.Context(), CPU, dst))
+	return dst
+}
+
+func TestCompileOneMain(t *testing.T) {
+	a, err := New([]float32{1, 2, 3, 4, 5, 6}, Shape{2, 3})
+	require.NoError(t, err)
+	b, err := New([]float32{1, 1, 1, 1, 1, 1}, Shape{2, 3})
+	require.NoError(t, err)
+	k, err := compile(a.Add(b).Mul(Const(float32(2))).Max(Const(float32(0))).node)
+	require.NoError(t, err)
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(src, "void main()"))
+	require.Equal(t, 1, strings.Count(src, "gl_GlobalInvocationID"))
+	require.Equal(t, Shape{2, 3}, k.Shape())
+	require.Equal(t, 3, k.Bindings())
+}
+
+func TestCPUEvalAlone(t *testing.T) {
+	a, err := New([]float32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	out := a.Add(Const(float32(4)))
+	dst := make([]float32, 3)
+	require.NoError(t, out.Eval(t.Context(), CPU, dst))
+	require.Equal(t, []float32{5, 6, 7}, dst)
+}
+
+func TestCastU8(t *testing.T) {
+	a, err := New([]float32{-1, 0, 10.4, 255, 300}, Shape{5})
+	require.NoError(t, err)
+	require.Equal(t, []uint8{0, 0, 10, 255, 255}, mustEval(t, a.Cast[uint8]()))
+}
+
+func TestEvalShrinkSplat(t *testing.T) {
+	buf, err := New([]float32{10, 20, 30}, Shape{3})
+	require.NoError(t, err)
+	cell, err := buf.Shrink([][2]int{{1, 2}})
+	require.NoError(t, err)
+	splat, err := cell.Splat()
+	require.NoError(t, err)
+	require.Nil(t, splat.Shape())
+	ones, err := Ones[float32](Shape{2, 2})
+	require.NoError(t, err)
+	require.Equal(t, []float32{20, 20, 20, 20}, mustEval(t, ones.Mul(splat)))
+	buf.Buffer()[1] = 7
+	require.Equal(t, []float32{7, 7, 7, 7}, mustEval(t, ones.Mul(splat)))
+}
+
+func TestEvalAdd(t *testing.T) {
+	a, err := New([]float32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	b, err := New([]float32{4, 5, 6}, Shape{3})
+	require.NoError(t, err)
+	require.Equal(t, []float32{5, 7, 9}, mustEval(t, a.Add(b)))
+}
+
+func TestEvalPermuteAdd(t *testing.T) {
+	a, err := New([]float32{1, 2, 3, 4, 5, 6}, Shape{3, 2})
+	require.NoError(t, err)
+	raw, err := New([]float32{10, 20, 30, 40, 50, 60}, Shape{2, 3})
+	require.NoError(t, err)
+	b, err := raw.Permute(1, 0)
+	require.NoError(t, err)
+	require.Equal(t, []float32{11, 42, 23, 54, 35, 66}, mustEval(t, a.Add(b)))
+}
+
+func TestEvalShrinkPrefix(t *testing.T) {
+	a, err := New([]float32{1, 2, 3, 4, 5, 6}, Shape{3, 2})
+	require.NoError(t, err)
+	b, err := a.Shrink([][2]int{{0, 2}, {0, 2}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{1, 2, 3, 4}, mustEval(t, b))
+}
+
+func TestEvalShrinkOfAdd(t *testing.T) {
+	a, err := New([]float32{1, 2, 3, 4}, Shape{4})
+	require.NoError(t, err)
+	got, err := a.Add(Const(float32(1))).Shrink([][2]int{{1, 3}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{3, 4}, mustEval(t, got))
+}
+
+func TestEvalShrinkOfExp2(t *testing.T) {
+	x, err := New([]float32{0, 1, 2, 3}, Shape{2, 2})
+	require.NoError(t, err)
+	e := x.Exp2()
+	row, err := e.Shrink([][2]int{{0, 1}, {0, 2}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{1, 2}, mustEval(t, row))
+}
+
+func TestEvalExpandOfMax(t *testing.T) {
+	x, err := New([]float32{1, 3, 2, 0, 4, 1}, Shape{2, 3})
+	require.NoError(t, err)
+	c0, err := x.Shrink([][2]int{{0, 2}, {0, 1}})
+	require.NoError(t, err)
+	c1, err := x.Shrink([][2]int{{0, 2}, {1, 2}})
+	require.NoError(t, err)
+	c2, err := x.Shrink([][2]int{{0, 2}, {2, 3}})
+	require.NoError(t, err)
+	m := c0.Max(c1).Max(c2)
+	got, err := m.Expand(Shape{2, 3})
+	require.NoError(t, err)
+	require.Equal(t, []float32{3, 3, 3, 4, 4, 4}, mustEval(t, got))
+}
+
+func TestEvalMaxOfTwoShrinks(t *testing.T) {
+	a, err := New([]float32{1, 6, 3, 4}, Shape{2, 2})
+	require.NoError(t, err)
+	s := a.Add(Const(float32(0)))
+	left, err := s.Shrink([][2]int{{0, 2}, {0, 1}})
+	require.NoError(t, err)
+	right, err := s.Shrink([][2]int{{0, 2}, {1, 2}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{6, 4}, mustEval(t, left.Max(right)))
+}
+
+func TestEvalShrinkAxisOfMul(t *testing.T) {
+	a, err := New([]float32{1, 2, 3, 4, 5, 6}, Shape{2, 3})
+	require.NoError(t, err)
+	b := a.Mul(Const(float32(2)))
+	row0, err := b.Shrink([][2]int{{0, 1}, {0, 3}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{2, 4, 6}, mustEval(t, row0))
+	row1, err := b.Shrink([][2]int{{1, 2}, {0, 3}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{8, 10, 12}, mustEval(t, row1))
+}
+
+func TestEvalPadOfAdd(t *testing.T) {
+	a, err := New([]float32{4, 5}, Shape{2})
+	require.NoError(t, err)
+	got, err := a.Add(Const(float32(1))).Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{0, 5, 6, 0}, mustEval(t, got))
+}
+
+func TestEvalPadOfOnes(t *testing.T) {
+	ones, err := Ones[float32](Shape{2})
+	require.NoError(t, err)
+	got, err := ones.Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{0, 1, 1, 0}, mustEval(t, got))
+}
+
+func TestCompileConstFold(t *testing.T) {
+	ones, err := Ones[float32](Shape{2})
+	require.NoError(t, err)
+	k, err := compile(ones.Mul(Const(float32(2)).Add(Const(float32(3)))).node)
+	require.NoError(t, err)
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	require.Contains(t, src, "5.0")
+	require.NotContains(t, src, "2.0+3.0")
+	require.Equal(t, []float32{5, 5}, mustEval(t, ones.Mul(Const(float32(2)).Add(Const(float32(3))))))
+}
+
+func TestCompileCSE(t *testing.T) {
+	a, err := New([]float32{1, 2}, Shape{2})
+	require.NoError(t, err)
+	sum := a.Add(Const(float32(1)))
+	k, err := compile(sum.Max(sum).node)
+	require.NoError(t, err)
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	require.Equal(t, 1, strings.Count(src, "+"))
+	require.Equal(t, []float32{2, 3}, mustEval(t, sum.Max(sum)))
+}
+
+func TestEvalPad(t *testing.T) {
+	a, err := New([]float32{4, 5}, Shape{2})
+	require.NoError(t, err)
+	padded, err := a.Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{1, 5, 6, 1}, mustEval(t, padded.Add(Const(float32(1)))))
+}
+
+func TestEvalRelu(t *testing.T) {
+	a, err := New([]float32{-2, 0, 3, -0.5}, Shape{4})
+	require.NoError(t, err)
+	require.Equal(t, []float32{0, 0, 3, 0}, mustEval(t, a.Max(Const(float32(0)))))
+}
+
+func TestEvalWhere(t *testing.T) {
+	a, err := New([]float32{-1, 2, -3}, Shape{3})
+	require.NoError(t, err)
+	got := mustEval(t, a.CmpLt(Const(float32(0))).Where(Const(float32(0)), a))
+	require.Equal(t, []float32{0, 2, 0}, got)
+}
+
+func TestCompileShapeMismatch(t *testing.T) {
+	a, err := New([]float32{1, 2}, Shape{2})
+	require.NoError(t, err)
+	b, err := New([]float32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	require.ErrorIs(t, a.Add(b).Eval(t.Context(), CPU, nil), ErrShape)
+}
+
+func TestCompileGLSL(t *testing.T) {
+	a, err := New([]float32{1, 2, 3, 4}, Shape{2, 2})
+	require.NoError(t, err)
+	b, err := New([]float32{1, 1, 1, 1}, Shape{2, 2})
+	require.NoError(t, err)
+	k, err := compile(a.Add(b).Mul(Const(float32(0.5))).node)
+	require.NoError(t, err)
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	spirv, err := glsl.Load(t.Context(), []byte(src))
+	require.NoError(t, err)
+	require.True(t, glsl.IsSPIRV(spirv))
+}
+
+func TestRealSize(t *testing.T) {
+	require.Equal(t, 6, mustTracker(t, Shape{2, 3}).RealSize())
+	require.Equal(t, 1, mustTracker(t, Shape{}).RealSize())
+	ex, err := mustTracker(t, Shape{1, 3}).Expand(Shape{4, 3})
+	require.NoError(t, err)
+	require.Equal(t, 3, ex.RealSize())
+	p, err := mustTracker(t, Shape{2}).Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, 2, p.RealSize())
+}
+
+func TestPadOfAddKeepsMask(t *testing.T) {
+	x, err := New([]int32{1, 2, 3}, Shape{3})
+	require.NoError(t, err)
+	y, err := x.Add(Const(int32(1))).Add(Const(int32(0))).Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, []int32{0, 2, 3, 4, 0}, mustEval(t, y))
+}
+
+func TestCoordPadAdd(t *testing.T) {
+	y, err := Coord(0, Shape{3}).Pad([][2]int{{1, 1}})
+	require.NoError(t, err)
+	require.Equal(t, []int32{1, 1, 2, 3, 1}, mustEval(t, y.Add(Const(int32(1)))))
+}
+
+func TestSplatUnderPad(t *testing.T) {
+	buf, err := New([]float32{7}, Shape{1})
+	require.NoError(t, err)
+	splat, err := buf.Splat()
+	require.NoError(t, err)
+	ones, err := Ones[float32](Shape{2})
+	require.NoError(t, err)
+	y, err := ones.Mul(splat).Pad([][2]int{{1, 0}})
+	require.NoError(t, err)
+	require.Equal(t, []float32{0, 7, 7}, mustEval(t, y))
+}
+
+func TestFloatAddZeroClearsSign(t *testing.T) {
+	negZero := math.Float32frombits(0x80000000)
+	x, err := New([]float32{negZero}, Shape{1})
+	require.NoError(t, err)
+	got := mustEval(t, x.Add(Const(float32(0))))
+	require.Equal(t, uint32(0), math.Float32bits(got[0]))
+}
+
+func TestGLSLLiteralsAndRank(t *testing.T) {
+	low, err := Full(float32(math.Inf(-1)), Shape{1})
+	require.NoError(t, err)
+	k, err := compile(low.node)
+	require.NoError(t, err)
+	src, err := k.GLSL()
+	require.NoError(t, err)
+	require.Contains(t, src, "uintBitsToFloat(")
+	require.NotContains(t, src, "Inf")
+	require.Contains(t, src, "local_size_x = 128")
+	spirv, err := glsl.Load(t.Context(), []byte(src))
+	require.NoError(t, err)
+	require.True(t, glsl.IsSPIRV(spirv))
+	minInt, err := Full(int32(math.MinInt32), Shape{1})
+	require.NoError(t, err)
+	k, err = compile(minInt.node)
+	require.NoError(t, err)
+	src, err = k.GLSL()
+	require.NoError(t, err)
+	require.Contains(t, src, "0x80000000u")
+	require.Contains(t, src, "buffer Out { int o[]; }")
+	wide, err := Ones[float32](Shape{1, 1, 1, 1, 1})
+	require.NoError(t, err)
+	k, err = compile(wide.node)
+	require.NoError(t, err)
+	_, err = k.GLSL()
+	require.ErrorIs(t, err, ErrShape)
+}
+
+func TestResizePastLeafIsZero(t *testing.T) {
+	x, err := New([]float32{1, 2, 3, 4}, Shape{4})
+	require.NoError(t, err)
+	require.NoError(t, x.Resize(Shape{8}))
+	require.Equal(t, []float32{1, 2, 3, 4, 0, 0, 0, 0}, mustEval(t, x))
+}
