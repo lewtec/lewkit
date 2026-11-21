@@ -1,0 +1,1 @@
+- All writes to this repo must be done as lewtec style PRs using the lewgh trick (lewbot)
