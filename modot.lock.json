@@ -162,8 +162,8 @@
       "ref": "github:tailwindlabs/tailwindcss",
       "depName": "tailwindlabs/tailwindcss",
       "packageName": "https://github.com/tailwindlabs/tailwindcss",
-      "currentValue": "v4.3.3",
-      "currentDigest": "c2b24dd15fed1c59dd521bd86082f520c9f5ad0d",
+      "currentValue": "v4.3.5",
+      "currentDigest": "9b2c925c19aae46ff4f9cf54a2fa6d2dbac7fa19",
       "datasource": "git-refs"
     },
     {
