@@ -78,8 +78,8 @@
       "ref": "github:jquery/jquery",
       "depName": "jquery/jquery",
       "packageName": "https://github.com/jquery/jquery",
-      "currentValue": "4.0.0",
-      "currentDigest": "4f2fae08f23b54ce09322e62e73cce6161b8d3cb",
+      "currentValue": "4.1.0",
+      "currentDigest": "d81ebb2fb820cd15a3c195af5e0ca658eb1cee7c",
       "datasource": "git-refs"
     },
     {
