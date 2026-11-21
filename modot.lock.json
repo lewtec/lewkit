@@ -21,8 +21,8 @@
       "ref": "github:bigskysoftware/htmx",
       "depName": "bigskysoftware/htmx",
       "packageName": "https://github.com/bigskysoftware/htmx",
-      "currentValue": "v4.0.0",
-      "currentDigest": "4195bc0dc26b612ea5bea46f5914c6386eadeba3",
+      "currentValue": "v4.0.2",
+      "currentDigest": "b3ad39a947fe6ee48dd5e9958959e24964dac430",
       "datasource": "git-refs"
     },
     {
