@@ -486,6 +486,9 @@
     "third_party/purego/testdata/libdlnested/nested_test.cpp": {
       "source_info": "mount:third_party/purego/testdata/libdlnested/nested_test.cpp"
     },
+    "third_party/purego/testdata/liberrnotest/errno_test.c": {
+      "source_info": "mount:third_party/purego/testdata/liberrnotest/errno_test.c"
+    },
     "third_party/purego/testdata/structtest/struct_test.c": {
       "source_info": "mount:third_party/purego/testdata/structtest/struct_test.c"
     },
