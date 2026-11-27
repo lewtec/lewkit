@@ -43,7 +43,7 @@ require (
 	github.com/lucasew/orvalho v0.0.0-20260720233020-b4936fd61914
 	github.com/mattn/go-runewidth v0.0.30
 	github.com/modernc-tree-sitter/ccgo-tree-sitter/core v0.0.0-20260927184652-669b18df5afb
-	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json v0.0.0-20260927184652-669b18df5afb
+	github.com/modernc-tree-sitter/ccgo-tree-sitter/grammar/json v0.0.0-20261126183807-4095315d51bc
 	github.com/muesli/termenv v0.16.0
 	github.com/opencontainers/selinux v1.13.1
 	github.com/pelletier/go-toml/v2 v2.3.1
