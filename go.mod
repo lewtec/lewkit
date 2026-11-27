@@ -31,7 +31,7 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/jezek/xgb v1.3.1
-	github.com/jfreymuth/oggvorbis v1.0.5
+	github.com/jfreymuth/oggvorbis v1.0.6
 	github.com/klauspost/compress v1.20.4
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/lewtec/leaven-tree-sitter/grammar v0.0.0-20260927175155-6b7c6c643bc9
