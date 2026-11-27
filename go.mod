@@ -3,7 +3,7 @@ module github.com/lewtec/lewkit
 go 1.27.0
 
 require (
-	charm.land/bubbletea/v2 v2.0.7
+	charm.land/bubbletea/v2 v2.2.0
 	cuelang.org/go v0.17.1
 	filippo.io/age v1.3.2
 	github.com/AndroidGoLab/binder v0.0.9
@@ -125,8 +125,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260525132238-948f4557a654 // indirect
-	github.com/charmbracelet/x/ansi v0.11.7 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4 // indirect
+	github.com/charmbracelet/x/ansi v0.12.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.14 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
@@ -145,8 +145,6 @@ require (
 	github.com/danieljoos/wincred v1.2.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/djherbis/times v1.6.0 // indirect
-	github.com/dlclark/regexp2/v2 v2.2.1 // indirect
-	github.com/dop251/goja v0.0.0-20260701091749-b07b74453ea9 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elliotwutingfeng/asciiset v0.0.0-20260129054604-cfde2086bc57 // indirect
 	github.com/emicklei/proto v1.14.3 // indirect
@@ -169,13 +167,11 @@ require (
 	github.com/go-ng/xsort v0.0.0-20220617174223-1d146907bccc // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-restruct/restruct v1.2.0-alpha // indirect
-	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/gokrazy/rsync v0.3.3 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/google/cel-go v0.28.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/pprof v0.0.0-20260802141513-ef3492d7dac3 // indirect
 	github.com/google/renameio/v2 v2.0.2 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.17 // indirect
@@ -204,7 +200,7 @@ require (
 	github.com/lewtec/leaven v0.0.0-20260814142252-666e23083398 // indirect
 	github.com/lewtec/modot v0.0.0-20261020161205-5cb361113ead // indirect
 	github.com/lib/pq v1.12.3 // indirect
-	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
@@ -249,7 +245,7 @@ require (
 	github.com/urfave/cli v1.22.16 // indirect
 	github.com/wasilibs/go-pgquery v0.0.0-20250409022910-10ac41983c07 // indirect
 	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
-	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	github.com/xo/terminfo v1.0.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.44.0 // indirect
